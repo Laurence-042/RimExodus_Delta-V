@@ -1,4 +1,3 @@
-using System;
 using Verse;
 
 namespace DeltaV
@@ -16,9 +15,6 @@ namespace DeltaV
 
         /// <summary>该飞船的口袋地图。Scribe_References 在 cross-ref 阶段解析，Map 实现 ILoadReferenceable。</summary>
         public Map map;
-
-        /// <summary>诊断用：外壳重放首次出图的埋点只输出一次（Rendering 模块）。</summary>
-        [NonSerialized] public bool shellDrawLogged;
 
         public ShipState()
         {

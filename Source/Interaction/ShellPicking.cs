@@ -44,10 +44,6 @@ namespace DeltaV
                 }
                 if (ship.map.terrainGrid.TerrainAt(cell) != DeltaVDefOf.DeltaV_Void)
                 {
-                    if (Prefs.DevMode)
-                    {
-                        Log.Message($"[DeltaV:Click] hit ship #{ship.shipId} at map cell {cell} (universe=({universePoint.x:F1},{universePoint.y:F1}))");
-                    }
                     return ship;
                 }
             }

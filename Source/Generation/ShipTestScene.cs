@@ -45,7 +45,6 @@ namespace DeltaV
                 return;
             }
             universe.hostMap = hostMap;
-            DeltaVLog.Message(DeltaVLogModule.Generation, $"host map created: tile={hostMap.Tile}, size={HostMapSize}");
 
             Map playerMap = GenerateShipPocketMap(new IntVec3(MapSize, 1, MapSize), hostMap);
             if (playerMap == null) return;
@@ -62,8 +61,6 @@ namespace DeltaV
             universe.ResetShips(new List<ShipState> { playerShip, enemyShip }, playerShip.shipId);
             universe.SetFocused(playerShip);
             CameraJumper.TryJump(playerMap.Center, playerMap, CameraJumper.MovementMode.Cut);
-
-            Log.Message(universe.BuildPoseDump("two-ship test scene created"));
         }
 
         /// <summary>
@@ -126,7 +123,6 @@ namespace DeltaV
             parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
             Map map = MapGenerator.GenerateMap(size, parent, DeltaVDefOf.DeltaV_ShipPocket, null, null, isPocketMap: true);
             Find.World.pocketMaps.Add(parent);
-            DeltaVLog.Message(DeltaVLogModule.Generation, $"ship pocket map created: tile={shipTile}, size={size.x}");
             return map;
         }
 

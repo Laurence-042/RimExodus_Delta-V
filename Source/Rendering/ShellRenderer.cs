@@ -122,7 +122,6 @@ namespace DeltaV
             // 视野剔除：承载图视野矩形逆变换回飞船局部取包围盒（保守，只多画不漏画）。
             CellRect shipLocalView = TransformRectInverse(matrix, Find.CameraDriver.CurrentViewRect).ExpandedBy(Section.Size);
 
-            int drawn = 0;
             var sections = (Section[,])SectionsField.GetValue(map.mapDrawer);
             for (int i = 0; i < sections.GetLength(0); i++)
             {
@@ -161,21 +160,7 @@ namespace DeltaV
                     {
                         SectionLayer layer = layers[k];
                         System.Type layerType = layer.GetType();
-                        if (layerType == typeof(SectionLayer_Terrain))
-                        {
-                            if (DeltaVMod.Settings != null && !DeltaVMod.Settings.shellDrawTerrain)
-                            {
-                                continue;
-                            }
-                        }
-                        else if (layerType == typeof(SectionLayer_ThingsGeneral))
-                        {
-                            if (DeltaVMod.Settings != null && !DeltaVMod.Settings.shellDrawThings)
-                            {
-                                continue;
-                            }
-                        }
-                        else
+                        if (layerType != typeof(SectionLayer_Terrain) && layerType != typeof(SectionLayer_ThingsGeneral))
                         {
                             continue;
                         }
@@ -202,17 +187,9 @@ namespace DeltaV
                             {
                                 Graphics.DrawMesh(subMesh.mesh, matrix, subMesh.material, subMesh.renderLayer);
                             }
-                            drawn++;
                         }
                     }
                 }
-            }
-            if (!ship.shellDrawLogged && drawn > 0)
-            {
-                ship.shellDrawLogged = true;
-                DeltaVLog.Message(DeltaVLogModule.Rendering,
-                    $"shell replay first draw: ship #{ship.shipId}, {drawn} submeshes, " +
-                    $"pos=map({drawPos.x:F1},{drawPos.z:F1}) rot={rotation.eulerAngles.y:F1}deg");
             }
         }
 

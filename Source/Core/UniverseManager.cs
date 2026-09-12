@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -13,7 +12,6 @@ namespace DeltaV
     /// 无需 XML。ships 列表是权威宇宙状态；外壳代理只是缓存。
     ///
     /// 职责边界：
-    /// - 轨道测试动画在 GameComponentTick 推进（驾驶系统的占位，阶段2 替换为真实物理）；
     /// - 非聚焦船代理绘制在 GameComponentUpdate 分发（WorldComponent_GravshipController 同款节奏）；
     /// - SetFocused 只切换参考系（CurrentMap），绝不修改任何 pose 数值（不变量 #5）。
     /// </summary>
@@ -29,16 +27,6 @@ namespace DeltaV
         /// 以 HostFrame 显示全部飞船代理。
         /// </summary>
         public Map hostMap;
-
-        // ---- 测试工具开关（dev 专用，不存档）----
-        public bool orbitTestEnabled;
-        public bool debugHudEnabled;
-
-        private float orbitPhase;
-
-        private const float OrbitRadius = 55f;
-        private const float OrbitAngularSpeed = 0.008f;   // rad/tick，一整圈约 13 秒
-        private const float SelfSpinSpeed = 0.01f;        // rad/tick
 
         public ShipState Focused => ships.FirstOrDefault(s => s.shipId == focusedShipId);
 
@@ -112,29 +100,6 @@ namespace DeltaV
             {
                 focusedShipId = ships[0].shipId;
             }
-            if (ships.Count > 0)
-            {
-                Log.Message(BuildPoseDump("poses after load"));
-            }
-        }
-
-        public override void GameComponentTick()
-        {
-            if (!orbitTestEnabled)
-            {
-                return;
-            }
-            ShipState focused = Focused;
-            ShipState enemy = ships.FirstOrDefault(s => s != focused && s.map != null);
-            if (focused == null || enemy == null)
-            {
-                return;
-            }
-            // 轨道测试：敌舰绕聚焦船做匀速圆周 + 自转。
-            // 位置每 tick 从玩家绝对位置重新推导（而不是累加位移），避免浮点漂移积累。
-            orbitPhase += OrbitAngularSpeed;
-            enemy.pose.position = focused.pose.position + new Vector2(Mathf.Cos(orbitPhase), Mathf.Sin(orbitPhase)) * OrbitRadius;
-            enemy.pose.angle = SpaceTransform.WrapAngle(enemy.pose.angle + SelfSpinSpeed);
         }
 
         public override void GameComponentUpdate()
@@ -145,7 +110,6 @@ namespace DeltaV
             if (onMap != null && onMap.shipId != focusedShipId)
             {
                 focusedShipId = onMap.shipId;
-                DeltaVLog.Message(DeltaVLogModule.Core, $"focused ship synced to #{onMap.shipId} ({onMap.label}) via map switch");
             }
             ShellRenderer.DrawNonFocusedShips(this);
         }
@@ -153,10 +117,6 @@ namespace DeltaV
         public override void GameComponentOnGUI()
         {
             HandleShellClick();
-            if (debugHudEnabled)
-            {
-                DrawDebugHud();
-            }
         }
 
         // ---- 外壳点选（选择层；瞄准兼容契约见 ShellPicking 类注释）----
@@ -187,29 +147,16 @@ namespace DeltaV
                 bool overWindow = Find.WindowStack.GetWindowAt(UI.GUIToScreenPoint(ev.mousePosition)) != null;
                 if (targeting || designator || overWindow)
                 {
-                    if (Prefs.DevMode)
-                    {
-                        Log.Message($"[DeltaV:Click] down ignored: targeting={targeting} designator={designator} overWindow={overWindow}");
-                    }
                     return;
                 }
                 IntVec3 mouseCell = UI.MouseMapPosition().ToIntVec3();
                 bool selectableHere = mouseCell.InBounds(current) && mouseCell.GetThingList(current).Any(ThingSelectionUtility.SelectableByMapClick);
                 if (selectableHere)
                 {
-                    if (Prefs.DevMode)
-                    {
-                        Log.Message("[DeltaV:Click] down ignored: vanilla-selectable thing under mouse");
-                    }
                     return;
                 }
                 pendingClickShip = ShellPicking.ShipAtFramePoint(this, current, UI.MouseMapPosition());
                 pendingClickScreen = ev.mousePosition;
-                if (Prefs.DevMode)
-                {
-                    string pending = pendingClickShip != null ? ("#" + pendingClickShip.shipId) : "none";
-                    Log.Message($"[DeltaV:Click] down at map({UI.MouseMapPosition().x:F0},{UI.MouseMapPosition().z:F0}) -> pending ship={pending}");
-                }
             }
             else if (ev.type == EventType.MouseDrag)
             {
@@ -221,10 +168,6 @@ namespace DeltaV
                 pendingClickShip = null;
                 bool noDrag = (ev.mousePosition - pendingClickScreen).sqrMagnitude < 100f;
                 ShipState recheck = ShellPicking.ShipAtFramePoint(this, current, UI.MouseMapPosition());
-                if (Prefs.DevMode)
-                {
-                    Log.Message($"[DeltaV:Click] up: noDrag={noDrag} pending=#{target.shipId} rehit={(recheck != null ? "#" + recheck.shipId : "none")}");
-                }
                 if (noDrag && recheck == target)
                 {
                     // 相机跳到点击位置对应的船内格（clamp 进地图），落点即所见。
@@ -240,7 +183,6 @@ namespace DeltaV
                     SetFocused(target);
                     CameraJumper.TryJump(new IntVec3(x, 0, z), target.map, CameraJumper.MovementMode.Cut);
                     Find.CameraDriver.SetRootSize(zoom);
-                    DeltaVLog.Message(DeltaVLogModule.Core, $"focus by shell click: ship #{target.shipId} ({target.label}), camera at map({x},{z}) zoom={zoom:F0}");
                 }
             }
         }
@@ -267,56 +209,7 @@ namespace DeltaV
             ShellRenderer.ClearRuntimeCaches();
             ships = newShips;
             focusedShipId = focusId;
-            orbitPhase = 0f;
             hostFrame = null;
-        }
-
-        public string BuildPoseDump(string title)
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine($"[DeltaV] {title} — focused id = {focusedShipId}");
-            if (hostMap != null)
-            {
-                sb.AppendLine($"  host: tile={hostMap.Tile} maps={Find.Maps.Count}");
-            }
-            foreach (ShipState ship in ships)
-            {
-                sb.AppendLine(
-                    $"  #{ship.shipId} {ship.label}: pos=({ship.pose.position.x:F3}, {ship.pose.position.y:F3}) " +
-                    $"angle={Mathf.Rad2Deg * SpaceTransform.WrapAngle(ship.pose.angle):F3}deg " +
-                    $"vel=({ship.pose.velocity.x:F3}, {ship.pose.velocity.y:F3}) angVel={ship.pose.angularVelocity:F3}");
-            }
-            ShipState focused = Focused;
-            if (focused != null)
-            {
-                foreach (ShipState ship in ships)
-                {
-                    if (ship == focused)
-                    {
-                        continue;
-                    }
-                    Vector2 rel = SpaceTransform.UniverseToFocused(focused, ship.pose.position);
-                    float relAngle = SpaceTransform.UniverseAngleToFocused(focused, ship.pose.angle);
-                    sb.AppendLine(
-                        $"  rel(#{ship.shipId} in focused frame): pos=({rel.x:F3}, {rel.y:F3}) angle={Mathf.Rad2Deg * relAngle:F3}deg");
-                }
-            }
-            return sb.ToString().TrimEnd();
-        }
-
-        private void DrawDebugHud()
-        {
-            ShipState focused = Focused;
-            if (focused == null || Find.CurrentMap == null || Find.CurrentMap != focused.map)
-            {
-                return;
-            }
-            Text.Font = GameFont.Tiny;
-            string text = BuildPoseDump("universe state");
-            float height = Text.CalcHeight(text, 430f) + 14f;
-            var rect = new Rect(10f, 200f, 450f, height);
-            Widgets.DrawWindowBackground(rect);
-            GUI.Label(rect.ContractedBy(7f), text);
         }
     }
 }
