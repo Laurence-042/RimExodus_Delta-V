@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>RimExodus: Delta-V (Dev)</name>
+  <packageId>RimExodus.DeltaV</packageId>
+  <author>Laurence-042</author>
+  <description>阶段1 开发原型：双飞船参考系模型验证。每艘飞船是一张独立的口袋地图，飞船姿态保存在地图外的统一宇宙坐标系中；当前聚焦地图保持原版朝向，非聚焦飞船以可平移、可任意角旋转的外壳代理显示。
+
+目前仅包含开发者模式调试入口（Dev mode → Debug actions → Delta-V），无正式玩法。
+
+Phase 1 prototype: two pocket-map ships, universe-space poses outside any map, identity-transform focused map, and translating / freely rotating shell proxies for non-focused ships. Dev-mode debug actions only; no gameplay yet.</description>
+  <modVersion>0.1.0</modVersion>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+</ModMetaData>

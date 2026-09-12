@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+	<!--
+		宿主/显示地图生成器：宇宙空间的锚点与画布（story「理想结果-宿主/显示地图」）。
+		与飞船口袋图的关键区别：宿主图挂在星球外层空间（轨道层）的真实 PlanetTile 上，
+		走原版普通地图管线（非 pocket）：
+
+		- MapParent.Tile 有效 → renderWorld=true 合法：聚焦宿主图时"地图背后渲染星球"
+		  正常工作（WorldCameraDriver 读 tile 求星球中心不再越界），也提升兼容性
+		  （storyteller / 财富 / 任务逻辑都以真实 tile 为锚）；
+		- genSteps 复用原版 Space genstep（全图铺 Space 地形，Odyssey 轨道图同款），
+		  不带 ScenParts / FogSpace；
+		- 尺寸是显示/性能参数（story：800×800 属阶段2 性能测试议题），不是宇宙坐标协议。
+	-->
+	<MapGeneratorDef>
+		<defName>DeltaV_SpaceHost</defName>
+		<label>Delta-V space host canvas</label>
+		<ignoreAreaRevealedLetter>true</ignoreAreaRevealedLetter>
+		<disableCallAid>true</disableCallAid>
+		<renderWorld>true</renderWorld>
+		<disableMapClippers>true</disableMapClippers>
+		<defaultUnderGridTerrain>Space</defaultUnderGridTerrain>
+		<genSteps>
+			<li>Space</li>
+		</genSteps>
+	</MapGeneratorDef>
+
+</Defs>

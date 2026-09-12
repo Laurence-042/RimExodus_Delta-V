@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+	<!--
+		Delta-V 飞船内部口袋地图生成器。
+		字段参考原版 SpacePocket（references/RimWorldData/Odyssey/Defs/MapGeneration/SpaceMapGenerator.xml），
+		genSteps 只保留自己的铺 Void 步骤：
+
+		- 不带 ScenParts / FogSpace：无散落物件、全图直接可见，便于原型验证；
+		- renderWorld=true：开启"地图背后渲染星球"。星球背景渲染链为
+		  WorldSkyboxCamera（清色缓冲+深空底色）→ WorldCamera（星球）→ 地图相机（不清色），
+		  透明 void 透出的就是这两层——renderWorld=false 时世界相机关闭、无人清色缓冲，
+		  void 区会残留上一帧（2026-09-12 实测花屏根因）。飞船图生成时持有宿主图附近的
+		  真实轨道层空 tile（见 DeltaV_ShipMapParent def），WorldCameraPosition 与
+		  轨道层视差参数全部走原版正路，无 tile（-1）时才会越界红字；
+		- disableMapClippers：地图边缘不生成裁切平面，外壳代理绘制到地图矩形之外时不会被 z-erase；
+		- destroyOnParentMapAbandoned=false：各飞船地图相互独立，宿主/sourceMap 被移除时不级联销毁；
+		- canLaunchGravship=false：阶段1 不接入逆重飞船起降 UI；
+		- temperature=21：船体内部常温（测试殖民者不冻死），biome Orbit 与原版太空口袋图一致。
+	-->
+	<MapGeneratorDef>
+		<defName>DeltaV_ShipPocket</defName>
+		<label>Delta-V ship interior</label>
+		<ignoreAreaRevealedLetter>true</ignoreAreaRevealedLetter>
+		<disableCallAid>true</disableCallAid>
+		<renderWorld>true</renderWorld>
+		<disableMapClippers>true</disableMapClippers>
+		<genSteps>
+			<li>DeltaV_ShipFill</li>
+		</genSteps>
+		<pocketMapProperties>
+			<biome>Orbit</biome>
+			<temperature>21</temperature>
+			<canLaunchGravship>false</canLaunchGravship>
+			<destroyOnParentMapAbandoned>false</destroyOnParentMapAbandoned>
+			<canBeCleaned>false</canBeCleaned>
+		</pocketMapProperties>
+	</MapGeneratorDef>
+
+	<GenStepDef>
+		<defName>DeltaV_ShipFill</defName>
+		<order>100</order>
+		<genStep Class="DeltaV.GenStep_DeltaVShipFill" />
+	</GenStepDef>
+
+</Defs>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+	<!--
+		飞船地图中船体可活动区域之外的"虚空"地形（AGENTS §7 Void 纪律）。
+		保证项照抄 RimExodus_Void 的实战结论（references/RimExodus/1.6/Defs/TerrainDefs/VoidTerrain.xml）：
+
+		- passability=Impassable：PathGrid 返回 10000，寻路/Region/跳跃目标全部拒绝。
+		- 不设 forcePassableByFlyingPawns：飞行 PathGrid 同样拒绝。
+		- fertility=0：WildPlantSpawner 不生植物。
+		- 空 affordances：需要地形承载面的建筑无法放置。
+		- changeable=false + layerable=false：玩家无法铺地板覆盖。
+		- holdSnowOrSand=false：不积雪沙。
+		- filthAcceptanceMask=None：不生污物。
+		- avoidWander=true：wander AI 不选此格。
+		- dontRender=true：主地形层不绘制。
+
+		texturePath 必须有值：TerrainDef.texturePath 无默认值，第三方读地形贴图的 mod
+		（如 Dubs Mint Minimap）会 NRE。dontRender=true 下游戏内渲染不消费此贴图，
+		仅作取色用（近黑 = void 语义）。我们随包发布 1.6/Textures/Void.png。
+	-->
+	<TerrainDef>
+		<defName>DeltaV_Void</defName>
+		<label>void</label>
+		<description>Delta-V ship map void. Impassable, transparent, non-buildable.</description>
+		<dontRender>true</dontRender>
+		<texturePath>Void</texturePath>
+		<fertility>0</fertility>
+		<passability>Impassable</passability>
+		<pathCost>300</pathCost>
+		<holdSnowOrSand>false</holdSnowOrSand>
+		<changeable>false</changeable>
+		<layerable>false</layerable>
+		<avoidWander>true</avoidWander>
+		<affordances>
+		</affordances>
+		<filthAcceptanceMask>
+			<li>None</li>
+		</filthAcceptanceMask>
+	</TerrainDef>
+
+</Defs>

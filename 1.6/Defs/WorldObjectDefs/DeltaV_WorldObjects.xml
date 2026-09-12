@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+	<!--
+		宿主地图的 WorldObject：普通 MapParent（非 PocketMapParent），由
+		GetOrGenerateMapUtility.GetOrGenerateMap 在轨道层 tile 上创建并挂载地图。
+		飞船口袋图的 PocketMapParent.sourceMap 指向宿主图（原版"口袋图需要宿主"的
+		引擎语义：storyteller 事件点数、财富统计、任务寻路都从口袋图重定向到 sourceMap）。
+	-->
+	<WorldObjectDef>
+		<defName>DeltaV_SpaceHostParent</defName>
+		<label>Delta-V space anchor</label>
+		<worldObjectClass>RimWorld.Planet.MapParent</worldObjectClass>
+		<mapGenerator>DeltaV_SpaceHost</mapGenerator>
+		<texture>World/WorldObjects/RoutePlannerWaypoint</texture>
+	</WorldObjectDef>
+
+	<!--
+		飞船口袋图的宿主（对应原版 PocketMap def 的最小三字段形状）。
+		保留独立 def 便于按 def 识别 Delta-V 飞船图；worldObjectClass 用原版 PocketMapParent。
+		生成时（ShipTestScene.GenerateShipPocketMap）直接给 parent.Tile 设置宿主图附近的
+		真实轨道层空 tile——MapInfo.Tile 由 parent 派生，Map.Tile 因此有效，
+		renderWorld=true 的星球背景（WorldCameraPosition / 轨道层视差参数）全部走原版正路，
+		无需任何 override。tile 不得与其他地图/世界对象重复（Game.FindMap 按 map.Tile 匹配）。
+	-->
+	<WorldObjectDef>
+		<defName>DeltaV_ShipMapParent</defName>
+		<label>pocket ship map</label> <!-- hidden -->
+		<worldObjectClass>RimWorld.Planet.PocketMapParent</worldObjectClass>
+	</WorldObjectDef>
+
+</Defs>
