@@ -86,6 +86,7 @@ namespace DeltaV
             // 派生地形网格只用于代理 UV，绝不存档；读档后从 SectionLayer 重建。
             ShellRenderer.ClearRuntimeCaches();
             ShipPhysics.ClearCache();
+            ThrusterEffects.ClearRuntimeCaches();
             hostFrame = null;
             PilotController.SuppressVanillaKeys = false;
             if (hostMap != null && !Find.Maps.Contains(hostMap))
@@ -121,6 +122,7 @@ namespace DeltaV
             PilotController.UpdateFrameState(this);
             DebugActions_DeltaV.UpdateFrameMeter();
             ShellRenderer.DrawNonFocusedShips(this);
+            ThrusterEffects.Draw(this);
         }
 
         /// <summary>
@@ -293,6 +295,7 @@ namespace DeltaV
         {
             ShellRenderer.ClearRuntimeCaches();
             ShipPhysics.ClearCache();
+            ThrusterEffects.ClearRuntimeCaches();
             PilotController.Exit(this);
             ships = newShips;
             focusedShipId = focusId;

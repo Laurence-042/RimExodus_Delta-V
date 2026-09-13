@@ -55,11 +55,17 @@ namespace DeltaV
 
         public sealed class Thruster
         {
+            /// <summary>对应的 Map 内推进器；只供运行时表现层读取，不持久化。</summary>
+            public Thing thing;
+
             /// <summary>作用点（ship local，原点 = 地图几何中心）：占用矩形中心。</summary>
             public Vector2 localPos;
 
             /// <summary>ship local 单位推力方向。</summary>
             public Vector2 dir;
+
+            /// <summary>本 tick 分配到的油门 [0,1]；运行时派生状态，不参与物理积分或存档。</summary>
+            public float throttle;
         }
 
         public sealed class MassReport
@@ -117,7 +123,12 @@ namespace DeltaV
                 massPoints.Add((r, m));
                 if (thing.def == DeltaVDefOf.LargeThruster)
                 {
-                    report.thrusters.Add(new Thruster { localPos = r, dir = ThrustDir(thing.Rotation) });
+                    report.thrusters.Add(new Thruster
+                    {
+                        thing = thing,
+                        localPos = r,
+                        dir = ThrustDir(thing.Rotation)
+                    });
                 }
             }
 
@@ -210,8 +221,10 @@ namespace DeltaV
                 }
                 if (throttle <= 0f)
                 {
+                    thruster.throttle = 0f;
                     continue;
                 }
+                thruster.throttle = throttle;
                 Vector2 f = thruster.dir * (ThrusterThrust * throttle);
                 force += f;
                 torque += Cross(thruster.localPos - report.comLocal, f);
