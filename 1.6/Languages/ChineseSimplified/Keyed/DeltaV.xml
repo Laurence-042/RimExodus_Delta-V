@@ -26,4 +26,29 @@
   <DeltaV_SettingsLogInput>日志：驾驶输入与飞行辅助</DeltaV_SettingsLogInput>
   <DeltaV_SettingsLogPhysics>日志：物理积分</DeltaV_SettingsLogPhysics>
   <DeltaV_SettingsLogHarmony>日志：按键抑制决策</DeltaV_SettingsLogHarmony>
+  <DeltaV_SettingsLogLifecycle>日志：POI 生命周期迁移</DeltaV_SettingsLogLifecycle>
+  <DeltaV_SettingsUniverseZoomMax>宇宙视野缩放上限（60-5000）</DeltaV_SettingsUniverseZoomMax>
+  <DeltaV_SettingsOriginShiftThreshold>坐标原点平移阈值（格）</DeltaV_SettingsOriginShiftThreshold>
+  <DeltaV_SettingsPoiActiveRadius>POI 活跃距离（格）</DeltaV_SettingsPoiActiveRadius>
+  <DeltaV_SettingsPoiDeleteRadius>POI 删除距离（格）</DeltaV_SettingsPoiDeleteRadius>
+  <DeltaV_DockButton>进入固定轨道</DeltaV_DockButton>
+  <DeltaV_LaunchButton>返回飞行</DeltaV_LaunchButton>
+  <DeltaV_DockSuccess>{0} 已在宿主图进入固定轨道。</DeltaV_DockSuccess>
+  <DeltaV_DockFailHostMap>没有可用的宿主图。</DeltaV_DockFailHostMap>
+  <DeltaV_DockFailOutOfRange>飞船的宇宙位置不在宿主图范围内，请先飞到锚点附近。</DeltaV_DockFailOutOfRange>
+  <DeltaV_DockFailBlocked>宿主图上的降落区域被占用，请换一处或先清空。</DeltaV_DockFailBlocked>
+  <DeltaV_DockFailNoEngine>船上没有逆重引擎。固定轨道需要一台逆重引擎作为船体结构锚点。</DeltaV_DockFailNoEngine>
+  <DeltaV_DockFailBusy>另一项逆重飞船降落或航行操作正在进行。</DeltaV_DockFailBusy>
+  <DeltaV_LaunchSuccess>{0} 已返回飞行。</DeltaV_LaunchSuccess>
+  <DeltaV_ConsoleGizmoPilot>驾驶此船</DeltaV_ConsoleGizmoPilot>
+  <DeltaV_ConsoleGizmoLaunch>返回飞行</DeltaV_ConsoleGizmoLaunch>
+  <DeltaV_ConsoleGizmoMakePrimary>设为主驾驶台</DeltaV_ConsoleGizmoMakePrimary>
+  <DeltaV_ConsoleGizmoPrimaryTip>返回飞行时，飞船朝向跟随主驾驶台的朝向。</DeltaV_ConsoleGizmoPrimaryTip>
+  <DeltaV_ConsolePrimarySet>主驾驶台已设置：{0}</DeltaV_ConsolePrimarySet>
+  <DeltaV_ConsolePrimary>这是主驾驶台。</DeltaV_ConsolePrimary>
+  <DeltaV_PoiCreated>POI 已创建：{0}，距离 {1} 格。</DeltaV_PoiCreated>
+  <DeltaV_PoiActivated>POI {0}：已生成地图（活跃）。</DeltaV_PoiActivated>
+  <DeltaV_PoiDormant>POI {0}：已休眠（保留地图，冻结 tick）。</DeltaV_PoiDormant>
+  <DeltaV_PoiPacked>POI {0}：已删除地图（快照保存）。</DeltaV_PoiPacked>
+  <DeltaV_PoiRestored>POI {0}：已从快照恢复地图。</DeltaV_PoiRestored>
 </LanguageData>

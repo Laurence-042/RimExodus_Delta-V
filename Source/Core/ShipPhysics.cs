@@ -89,7 +89,7 @@ namespace DeltaV
             public readonly List<Thruster> thrusters = new List<Thruster>();
         }
 
-        /// <summary>指令各分量 ∈ [-1, 1]；正方向 = 船艏 +X / 左舷 +Z / 逆时针（与 SpaceTransform 角度约定一致）。</summary>
+        /// <summary>指令各分量 ∈ [-1, 1]；平移分量已经由主驾驶台系换算到 Map 局部 x/z。</summary>
         public struct Command
         {
             public float fx;
@@ -328,17 +328,24 @@ namespace DeltaV
             bool assistX, bool assistZ, bool assistW)
         {
             SpacePose pose = ship.pose;
-            Vector2 accel = force / report.mass;
+            // 分配器与推进器几何都在稳定 Map 局部系；只有积分入 universe 速度时旋转一次。
+            Vector2 accel = SpaceTransform.Rotate(force, pose.angle) / report.mass;
             float alpha = torque / report.inertia;
 
             Vector2 velocity = pose.velocity + accel * dt;
-            if (assistX && pose.velocity.x != 0f && velocity.x * pose.velocity.x < 0f)
+            // 辅助轴与 W/S、A/D 一样定义在主驾驶台参考系，不能按 universe x/z 直接截断。
+            float pilotAngle = pose.angle + ShipOrientation.LocalForwardAngle(ship);
+            Vector2 previousPilotVelocity = SpaceTransform.RotateInverse(pose.velocity, pilotAngle);
+            Vector2 pilotVelocity = SpaceTransform.RotateInverse(velocity, pilotAngle);
+            if (assistX && previousPilotVelocity.x != 0f
+                && pilotVelocity.x * previousPilotVelocity.x < 0f)
             {
-                velocity.x = 0f;
+                pilotVelocity.x = 0f;
             }
-            if (assistZ && pose.velocity.y != 0f && velocity.y * pose.velocity.y < 0f)
+            if (assistZ && previousPilotVelocity.y != 0f
+                && pilotVelocity.y * previousPilotVelocity.y < 0f)
             {
-                velocity.y = 0f;
+                pilotVelocity.y = 0f;
             }
             float angularVelocity = pose.angularVelocity + alpha * dt;
             if (assistW && pose.angularVelocity != 0f && angularVelocity * pose.angularVelocity < 0f)
@@ -347,18 +354,19 @@ namespace DeltaV
             }
 
             // 残差直接衰减：微小剩余漂移不依赖推进器几何，按固定减速度收尾到零。
-            if (assistX && Mathf.Abs(velocity.x) < ResidualSpeed)
+            if (assistX && Mathf.Abs(pilotVelocity.x) < ResidualSpeed)
             {
-                velocity.x = Mathf.MoveTowards(velocity.x, 0f, ResidualDecel * dt);
+                pilotVelocity.x = Mathf.MoveTowards(pilotVelocity.x, 0f, ResidualDecel * dt);
             }
-            if (assistZ && Mathf.Abs(velocity.y) < ResidualSpeed)
+            if (assistZ && Mathf.Abs(pilotVelocity.y) < ResidualSpeed)
             {
-                velocity.y = Mathf.MoveTowards(velocity.y, 0f, ResidualDecel * dt);
+                pilotVelocity.y = Mathf.MoveTowards(pilotVelocity.y, 0f, ResidualDecel * dt);
             }
             if (assistW && Mathf.Abs(angularVelocity) < ResidualOmega)
             {
                 angularVelocity = Mathf.MoveTowards(angularVelocity, 0f, ResidualAlphaDecel * dt);
             }
+            velocity = SpaceTransform.Rotate(pilotVelocity, pilotAngle);
 
             // 质心宇宙位置 = position + Rotate(comLocal, angle)；先按旧角度还原，平移后按新角度写回。
             Vector2 comUniverse = pose.position + SpaceTransform.Rotate(report.comLocal, pose.angle);

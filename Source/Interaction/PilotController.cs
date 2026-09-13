@@ -37,16 +37,19 @@ namespace DeltaV
         /// <summary>当前驾驶键（含 A/B 槽）的实际绑定；进入驾驶时重建。</summary>
         public static HashSet<KeyCode> ActivePilotKeys = new HashSet<KeyCode>();
 
+        /// <summary>驾驶 HUD 的运行时滚动位置；不属于游戏状态，不存档。</summary>
+        private static Vector2 hudScrollPosition = Vector2.zero;
+
         // ---- 状态 ----
 
         public static bool IsActive(UniverseManager universe)
         {
-            return universe.pilotShipId != -1 && universe.ships.Any(s => s.shipId == universe.pilotShipId && s.map != null);
+            return universe.pilotShipId != -1 && universe.ShipById(universe.pilotShipId)?.map != null;
         }
 
         public static ShipState PilotedShip(UniverseManager universe)
         {
-            return universe.ships.FirstOrDefault(s => s.shipId == universe.pilotShipId);
+            return universe.ShipById(universe.pilotShipId);
         }
 
         public static void Toggle(UniverseManager universe)
@@ -57,15 +60,22 @@ namespace DeltaV
                 Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            if (universe.pilotShipId == focused.shipId)
+            if (focused.docked)
+            {
+                // 停靠中的船没有可驾驶的船体（真实建筑在宿主图）；起飞入口见 DockController。
+                Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            if (universe.pilotShipId == focused.objectId)
             {
                 Exit(universe, "DeltaV_PilotOff".Translate(focused.label));
             }
             else
             {
-                universe.pilotShipId = focused.shipId;
+                universe.pilotShipId = focused.objectId;
+                hudScrollPosition = Vector2.zero;
                 RebuildPilotKeySet();
-                Log.Message($"[DeltaV] Pilot mode engaged: {focused.label} (#{focused.shipId}). Pilot keys: [{string.Join(", ", ActivePilotKeys)}].");
+                Log.Message($"[DeltaV] Pilot mode engaged: {focused.label} (#{focused.objectId}). Pilot keys: [{string.Join(", ", ActivePilotKeys)}].");
                 DeltaVLog.Message(DeltaVLogModule.Core, $"engage details: speed={focused.pose.velocity} m/s, heading={SpaceTransform.WrapAngle(focused.pose.angle) * Mathf.Rad2Deg:F0} deg, omega={focused.pose.angularVelocity * Mathf.Rad2Deg:F1} deg/s");
                 Messages.Message("DeltaV_PilotOn".Translate(focused.label), MessageTypeDefOf.PositiveEvent, false);
             }
@@ -80,6 +90,7 @@ namespace DeltaV
             ShipState ship = PilotedShip(universe);
             Log.Message($"[DeltaV] Pilot mode disengaged (was #{universe.pilotShipId} '{ship?.label ?? "?"}'; suppressed reads: {Patch_KeyBindingSuppression.SuppressedReads}).");
             universe.pilotShipId = -1;
+            hudScrollPosition = Vector2.zero;
             SuppressVanillaKeys = false;
             if (message != null)
             {
@@ -226,7 +237,7 @@ namespace DeltaV
 
         public struct PilotInput
         {
-            public float fx; // W = +1（船艏 +X）/ S = −1
+            public float fx; // W = +1（主驾驶台正面）/ S = −1
             public float fz; // A = +1（左舷 +Z）/ D = −1
             public float torque; // Q = +1（逆时针）/ E = −1
         }
@@ -278,8 +289,10 @@ namespace DeltaV
         {
             var result = new PilotCommand();
             PilotInput input = SampleInput();
-            result.command.fx = input.fx;
-            result.command.fz = input.fz;
+            // W/S 与 A/D 定义在主驾驶台参考系；推进器分配器使用 Map 局部系。
+            // 主台不是 East 时在这里集中旋转一次，避免把“船艏恒为 +X”的假设扩散到物理层。
+            float consoleAngle = ShipOrientation.LocalForwardAngle(ship);
+            Vector2 pilotTranslation = new Vector2(input.fx, input.fz);
             result.command.torque = input.torque;
             if (DeltaVLog.Enabled(DeltaVLogModule.Input) && HasInputChanged(input))
             {
@@ -290,18 +303,22 @@ namespace DeltaV
             bool brakeHeld = DeltaVDefOf.DeltaV_AssistBrake != null && DeltaVDefOf.DeltaV_AssistBrake.IsDown;
             if (!DeltaVMod.Settings.flightAssist && !brakeHeld)
             {
+                Vector2 mapTranslation = SpaceTransform.Rotate(pilotTranslation, consoleAngle);
+                result.command.fx = mapTranslation.x;
+                result.command.fz = mapTranslation.y;
                 return result;
             }
             // 辅助在船体参考系里抵消速度（推进器固连船体）；与玩家指令共轴时不参与。
             // 任意高于 AssistEpsilon 的漂移都置 assist* 标志（残差交给 ShipPhysics.Integrate
             // 直接衰减到零）；推进器反推指令只在漂移超过 MinAssistSpeed 时下发。
-            Vector2 bodyVelocity = SpaceTransform.RotateInverse(ship.pose.velocity, ship.pose.angle);
+            Vector2 mapVelocity = SpaceTransform.RotateInverse(ship.pose.velocity, ship.pose.angle);
+            Vector2 bodyVelocity = SpaceTransform.RotateInverse(mapVelocity, consoleAngle);
             if (input.fx == 0f && Mathf.Abs(bodyVelocity.x) > AssistEpsilon)
             {
                 result.assistX = true;
                 if (Mathf.Abs(bodyVelocity.x) > MinAssistSpeed)
                 {
-                    result.command.fx = -Mathf.Sign(bodyVelocity.x);
+                    pilotTranslation.x = -Mathf.Sign(bodyVelocity.x);
                 }
             }
             if (input.fz == 0f && Mathf.Abs(bodyVelocity.y) > AssistEpsilon)
@@ -309,7 +326,7 @@ namespace DeltaV
                 result.assistZ = true;
                 if (Mathf.Abs(bodyVelocity.y) > MinAssistSpeed)
                 {
-                    result.command.fz = -Mathf.Sign(bodyVelocity.y);
+                    pilotTranslation.y = -Mathf.Sign(bodyVelocity.y);
                 }
             }
             if (input.torque == 0f && Mathf.Abs(ship.pose.angularVelocity) > AssistOmegaEpsilon)
@@ -320,6 +337,9 @@ namespace DeltaV
                     result.command.torque = -Mathf.Sign(ship.pose.angularVelocity);
                 }
             }
+            Vector2 assistedMapTranslation = SpaceTransform.Rotate(pilotTranslation, consoleAngle);
+            result.command.fx = assistedMapTranslation.x;
+            result.command.fz = assistedMapTranslation.y;
             if (DeltaVLog.Enabled(DeltaVLogModule.Input) && HasAssistChanged(result))
             {
                 DeltaVLog.Message(DeltaVLogModule.Input,
@@ -367,7 +387,12 @@ namespace DeltaV
             {
                 return;
             }
-            bool active = universe.pilotShipId == piloted.shipId;
+            // 停靠中的船（聚焦其空口袋图）没有驾驶入口；出口在实际停靠图按钮/驾驶台 gizmo。
+            if (piloted.docked)
+            {
+                return;
+            }
+            bool active = universe.pilotShipId == piloted.objectId;
             float y = UI.screenHeight * 0.42f;
             if (!active)
             {
@@ -383,35 +408,54 @@ namespace DeltaV
             var rect = new Rect(8f, y, 240f, 150f);
             Widgets.DrawMenuSection(rect);
             var inner = rect.ContractedBy(8f);
-            Text.Font = GameFont.Small;
-            GUI.BeginGroup(inner);
-            var line = new Rect(0f, 0f, inner.width, 24f);
-            Widgets.Label(line, "DeltaV_PilotHudTitle".Translate(piloted.label));
-            line.y += 24f;
-            Text.Font = GameFont.Tiny;
-            Widgets.Label(line, "DeltaV_HudSpeed".Translate(piloted.pose.velocity.magnitude.ToString("F1")));
-            line.y += 20f;
-            Widgets.Label(line, "DeltaV_HudHeading".Translate(
-                (SpaceTransform.WrapAngle(piloted.pose.angle) * Mathf.Rad2Deg).ToString("F0")));
-            line.y += 20f;
-            Widgets.Label(line, "DeltaV_HudTurnRate".Translate(
-                (piloted.pose.angularVelocity * Mathf.Rad2Deg).ToString("F1")));
-            line.y += 20f;
-            Widgets.Label(line, "DeltaV_HudMass".Translate(report == null ? "?" : ((int)report.mass).ToString()));
-            line.y += 20f;
+
+            string title = "DeltaV_PilotHudTitle".Translate(piloted.label);
+            string speed = "DeltaV_HudSpeed".Translate(piloted.pose.velocity.magnitude.ToString("F1"));
+            string heading = "DeltaV_HudHeading".Translate(
+                (ShipOrientation.HeadingAngle(piloted) * Mathf.Rad2Deg).ToString("F0"));
+            string turnRate = "DeltaV_HudTurnRate".Translate(
+                (piloted.pose.angularVelocity * Mathf.Rad2Deg).ToString("F1"));
+            string mass = "DeltaV_HudMass".Translate(report == null ? "?" : ((int)report.mass).ToString());
             bool brakeHeld = DeltaVDefOf.DeltaV_AssistBrake != null && DeltaVDefOf.DeltaV_AssistBrake.IsDown;
-            Widgets.Label(line, "DeltaV_HudAssist".Translate(
+            string assist = "DeltaV_HudAssist".Translate(
                 brakeHeld
                     ? "DeltaV_Braking".Translate()
                     : (DeltaVMod.Settings.flightAssist
                         ? "DeltaV_On".Translate()
-                        : "DeltaV_Off".Translate())));
-            line.y += 24f;
-            if (Widgets.ButtonText(line, "DeltaV_PilotButtonExit".Translate()))
+                        : "DeltaV_Off".Translate()));
+
+            // 为滚动条预留 16px，并按翻译后的真实文本高度计算内容；长船名和语言换行
+            // 不再把底部状态/退出按钮裁掉。
+            float contentWidth = inner.width - 16f;
+            Text.Font = GameFont.Small;
+            float titleHeight = Mathf.Max(24f, Text.CalcHeight(title, contentWidth));
+            Text.Font = GameFont.Tiny;
+            string[] statusLines = { speed, heading, turnRate, mass, assist };
+            float contentHeight = titleHeight;
+            foreach (string statusLine in statusLines)
+            {
+                contentHeight += Mathf.Max(20f, Text.CalcHeight(statusLine, contentWidth));
+            }
+            contentHeight += 30f;
+
+            var viewRect = new Rect(0f, 0f, contentWidth, contentHeight);
+            Widgets.BeginScrollView(inner, ref hudScrollPosition, viewRect);
+            float lineY = 0f;
+            Text.Font = GameFont.Small;
+            Widgets.Label(new Rect(0f, lineY, contentWidth, titleHeight), title);
+            lineY += titleHeight;
+            Text.Font = GameFont.Tiny;
+            foreach (string statusLine in statusLines)
+            {
+                float lineHeight = Mathf.Max(20f, Text.CalcHeight(statusLine, contentWidth));
+                Widgets.Label(new Rect(0f, lineY, contentWidth, lineHeight), statusLine);
+                lineY += lineHeight;
+            }
+            if (Widgets.ButtonText(new Rect(0f, lineY + 3f, contentWidth, 27f), "DeltaV_PilotButtonExit".Translate()))
             {
                 Exit(universe, "DeltaV_PilotOff".Translate(piloted.label));
             }
-            GUI.EndGroup();
+            Widgets.EndScrollView();
         }
     }
 }

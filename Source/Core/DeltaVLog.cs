@@ -20,7 +20,8 @@ namespace DeltaV
         Core,
         Input,
         Physics,
-        Harmony
+        Harmony,
+        Lifecycle
     }
 
     /// <summary>
@@ -42,6 +43,7 @@ namespace DeltaV
                 case DeltaVLogModule.Input: return s.logInput;
                 case DeltaVLogModule.Physics: return s.logPhysics;
                 case DeltaVLogModule.Harmony: return s.logHarmony;
+                case DeltaVLogModule.Lifecycle: return s.logLifecycle;
                 default: return false;
             }
         }

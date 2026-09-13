@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Defs>
+  <!--
+    外壳 Thing 白名单。墙与门由代码自动包含；其他建筑只有出现在这里才会显示。
+    可选 alternateGraphic 完整沿用 GraphicData 语法；zIndex 单位为一个 AltInc。
+
+    示例：
+    <alternateGraphic>
+      <graphicClass>Graphic_Multi</graphicClass>
+      <texPath>MyMod/Things/MyAlternateShellSprite</texPath>
+      <drawSize>(2.2, 2.2)</drawSize>
+    </alternateGraphic>
+  -->
+  <DeltaV.ShellRenderRuleDef>
+    <defName>DeltaV_Shell_LargeThruster</defName>
+    <thingDef>LargeThruster</thingDef>
+    <zIndex>1</zIndex>
+  </DeltaV.ShellRenderRuleDef>
+</Defs>

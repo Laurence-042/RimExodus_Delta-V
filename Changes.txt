@@ -1,0 +1,11 @@
+# RimExodus: Delta-V changes
+
+## Unreleased
+
+- Added stage 3 space POI lifecycle, dynamic universe anchoring, extended zoom, and background reference-frame rotation.
+- Extended the vanilla Odyssey pilot console with Delta-V piloting and primary-console controls.
+- Added fixed-orbit docking through the vanilla Gravship landing selector and placement pipeline, with a fixed-zoom pose-transition landing animation.
+- Rebuilt the test ship from the reference save's map 2 layout, preserving multi-cell building anchors.
+- Replaced full map-layer shell replay with a whitelist for gravship substructure, walls, doors, and explicitly configured shell Things.
+- Added configurable alternate shell graphics and z-index, and restored correct 1/16 terrain texture sampling.
+- Made the piloting HUD scrollable and reduced diagnostic log spam.

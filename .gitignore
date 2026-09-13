@@ -11,3 +11,6 @@ references/
 *.user
 .idea/
 .zcode/
+
+# 本地测试存档（布局提取脚本可入库，原始存档不可入库）
+doc/tmp/*.rws

@@ -22,7 +22,27 @@ namespace DeltaV
         private static ShipState OtherShip()
         {
             UniverseManager um = Um();
-            return um.ships.FirstOrDefault(s => s != um.Focused && s.map != null);
+            return um.Ships.FirstOrDefault(s => s != um.Focused && s.map != null);
+        }
+
+        private static ShipState PlayerShip()
+        {
+            return Um().PrimaryShip;
+        }
+
+        private static PoiState FirstPoi()
+        {
+            return Um().objects.OfType<PoiState>().FirstOrDefault();
+        }
+
+        private static int NextObjectId(UniverseManager um)
+        {
+            int max = 0;
+            foreach (SpaceObject obj in um.objects)
+            {
+                max = Mathf.Max(max, obj.objectId);
+            }
+            return max + 1;
         }
 
         [DebugAction("Delta-V", "Create two-ship test scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
@@ -148,6 +168,90 @@ namespace DeltaV
             Widgets.Label(new Rect(UI.screenWidth - 310f, UI.screenHeight - 80f, 300f, 20f),
                 $"DeltaV key suppression: {(PilotController.SuppressVanillaKeys ? "ACTIVE" : "off")} (suppressed reads: {Patch_KeyBindingSuppression.SuppressedReads})");
             GUI.color = Color.white;
+        }
+
+        // ---- POI 生命周期验证工具（阶段3；全部经 SpaceLifecycle 单一入口）----
+
+        [DebugAction("Delta-V", "POI: create derelict 400 cells east", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void CreatePoi400East()
+        {
+            UniverseManager um = Um();
+            ShipState player = PlayerShip();
+            if (player == null)
+            {
+                Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            var poi = new PoiState(NextObjectId(um), "Derelict wreck",
+                player.pose.position + new Vector2(400f, 0f), Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
+            um.objects.Add(poi);
+            Messages.Message("DeltaV_PoiCreated".Translate(poi.label, "400"), MessageTypeDefOf.PositiveEvent, false);
+        }
+
+        [DebugAction("Delta-V", "POI: create derelict 1500 cells north (delete range)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void CreatePoi1500North()
+        {
+            UniverseManager um = Um();
+            ShipState player = PlayerShip();
+            if (player == null)
+            {
+                Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            var poi = new PoiState(NextObjectId(um), "Distant wreck",
+                player.pose.position + new Vector2(0f, 1500f), Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
+            um.objects.Add(poi);
+            Messages.Message("DeltaV_PoiCreated".Translate(poi.label, "1500"), MessageTypeDefOf.PositiveEvent, false);
+        }
+
+        [DebugAction("Delta-V", "POI: force activate nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void PoiForceActivate()
+        {
+            PoiState poi = FirstPoi();
+            if (poi != null) SpaceLifecycle.ForceActivate(Um(), poi);
+        }
+
+        [DebugAction("Delta-V", "POI: force dormant nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void PoiForceDormant()
+        {
+            PoiState poi = FirstPoi();
+            if (poi != null) SpaceLifecycle.ForceDormant(poi);
+        }
+
+        [DebugAction("Delta-V", "POI: force pack (delete) nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void PoiForcePack()
+        {
+            PoiState poi = FirstPoi();
+            if (poi != null) SpaceLifecycle.ForcePack(poi);
+        }
+
+        [DebugAction("Delta-V", "Player ship: teleport +1500 east (cross lifecycle ranges)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void PlayerTeleportEast1500()
+        {
+            ShipState player = PlayerShip();
+            if (player != null)
+            {
+                player.pose.position += new Vector2(1500f, 0f);
+            }
+        }
+
+        [DebugAction("Delta-V", "Dump universe state", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void DumpUniverseState()
+        {
+            UniverseManager um = Um();
+            var sb = new StringBuilder("[DeltaV:Diag] Universe state");
+            sb.AppendLine($"\n- host map: {(um.hostMap == null ? "none" : $"{um.hostMap.Size.x}x{um.hostMap.Size.z} @ tile {um.hostMap.Tile}")}");
+            sb.AppendLine($"- primary ship: #{um.primaryShipId}; pilot: #{um.pilotShipId}; focused: #{um.focusedShipId}");
+            sb.AppendLine($"- anchor displacement: ({um.anchorDisplacement.x:F0}, {um.anchorDisplacement.y:F0})");
+            foreach (SpaceObject obj in um.objects)
+            {
+                string lifecycle = obj is PoiState poi
+                    ? (poi.map == null ? "packed" + (poi.snapshot != null ? " (snapshot)" : " (fresh)") : SpaceLifecycle.IsDormant(poi.map) ? "dormant" : "active")
+                    : ((ShipState)obj).docked ? "docked" : "flying";
+                sb.AppendLine($"\n- #{obj.objectId} {obj.label} [{obj.GetType().Name}] {lifecycle}" +
+                    $" pos=({obj.pose.position.x:F0},{obj.pose.position.y:F0}) angle={SpaceTransform.WrapAngle(obj.pose.angle) * Mathf.Rad2Deg:F0}° map={(obj.map == null ? "none" : "loaded")}");
+            }
+            Log.Message(sb.ToString());
         }
 
         [DebugAction("Delta-V", "Switch focus to the other ship", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]

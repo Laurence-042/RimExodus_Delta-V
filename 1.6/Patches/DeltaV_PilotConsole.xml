@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+
+	<!--
+		直接扩展 Odyssey 原版 PilotConsole，而不复制 ThingDef。这样驾驶台仍被
+		Gravship.AddThing/DetermineLaunchDirection、GravshipComponents 与其他 Mod 按
+		ThingDefOf.PilotConsole 正常识别；Delta-V Comp 在非 Delta-V 地图上无行为。
+	-->
+	<Operation Class="PatchOperationAdd">
+		<xpath>/Defs/ThingDef[defName="PilotConsole"]/comps</xpath>
+		<value>
+			<li Class="DeltaV.CompProperties_DeltaVPilotConsole" />
+		</value>
+	</Operation>
+
+</Patch>

@@ -7,14 +7,16 @@ namespace DeltaV
 {
     /// <summary>
     /// 在已生成的飞船地图上铺设测试船体：逆重基架（Substructure）甲板、外墙、门、内部隔墙、
-    /// 全向推进器组。甲板必须用逆重基架：grav 语义里"只有基架上的东西才能被引擎力场抬起"，
+    /// 全向推进器组。玩家船布局复刻自 doc/tmp/新移民114.rws 的 map2：40×24 的“日”字船体
+    /// 与其中设备的 Thing.Position 锚点。甲板必须用逆重基架：grav 语义里
+    /// "只有基架上的东西才能被引擎力场抬起"，
     /// 后续质量近似（story：用基架数量近似质量）与结构判定都以它为准。
     ///
     /// 阶段2：推进器 = LargeThruster（Odyssey 逆重飞船大型推进器，2×2 方形脚印不随旋转变化，
     /// rotatable、terrainAffordanceNeeded=Substructure，正好装在基架甲板上）；
     /// 推力方向约定见 ShipPhysics.ThrustDir（推力沿 Rot4 朝向，与 def 的 exhaust 喷口偏移一致）。
-    /// 布局对称于船体中心：纯线性指令不产生净力矩、转向力偶不产生净力。
-    /// 非对称扩建后 ShipPhysics 的联合分配器会按真实几何差动油门，尽量抵消平移诱导力矩。
+    /// ShipPhysics 始终按实际占用矩形中心计算作用点；map2 的非对称布局与后续玩家扩建
+    /// 都由联合分配器按真实几何差动油门，尽量抵消平移诱导力矩。
     /// 阶段1 简化沿用：不盖屋顶、不供电（Orbit biome + MapGeneratorDef 恒温 21°C）。
     /// </summary>
     public static class ShipStructureStamp
@@ -22,21 +24,10 @@ namespace DeltaV
         public static void StampPlayerShip(Map map)
         {
             CellRect hull = CenteredRect(map, 40, 24);
-            StampHull(map, hull, doorsOnEast: 2, interiorWall: true, colonists: 2);
-            // 玩家船 40×24：推进器 2×2，z 带 3-4 / 9-10 / 13-14 / 19-20 互不重叠；
-            // x 1-2（艉）/7-8/31-32/37-38（艏），对称于船体中心。
-            SpawnThruster(map, hull, 1, 3, Rot4.East);            // 前进 ×2（艉、朝东）
-            SpawnThruster(map, hull, 1, 19, Rot4.East);
-            SpawnThruster(map, hull, 37, 3, Rot4.West);           // 减速 ×2（艏、朝西）
-            SpawnThruster(map, hull, 37, 19, Rot4.West);
-            SpawnThruster(map, hull, 7, 1, Rot4.North);           // 左平移 ×2（南缘、朝北）
-            SpawnThruster(map, hull, 31, 1, Rot4.North);
-            SpawnThruster(map, hull, 7, 21, Rot4.South);          // 右平移 ×2（北缘、朝南）
-            SpawnThruster(map, hull, 31, 21, Rot4.South);
-            SpawnThruster(map, hull, 1, 9, Rot4.South);           // 逆时针力偶（艉朝南 + 艏朝北）
-            SpawnThruster(map, hull, 37, 9, Rot4.North);
-            SpawnThruster(map, hull, 1, 13, Rot4.North);          // 顺时针力偶（艉朝北 + 艏朝南）
-            SpawnThruster(map, hull, 37, 13, Rot4.South);
+            StampHull(map, hull, doorsOnEast: 2, interiorWall: true, colonists: 0);
+            StampPlayerEquipment(map, hull);
+            // 殖民者最后落位：设备已占的格被 Standable 过滤，也不会被后续 Vanish 波及。
+            SpawnColonists(map, hull, 2);
         }
 
         public static void StampEnemyShip(Map map)
@@ -44,14 +35,14 @@ namespace DeltaV
             CellRect hull = CenteredRect(map, 24, 14);
             StampHull(map, hull, doorsOnEast: 1, interiorWall: false, colonists: 0);
             // 敌舰 24×14：单台线性推进器 + 双向力偶，对称于船体中心；z 带 1-2 / 3-4 / 6-7 / 9-10 / 11-12 互不重叠。
-            SpawnThruster(map, hull, 1, 6, Rot4.East);            // 前进（艉、朝东）
-            SpawnThruster(map, hull, 21, 6, Rot4.West);           // 减速（艏、朝西）
+            SpawnThruster(map, hull, 1, 7, Rot4.East);            // 前进（艉、朝东）
+            SpawnThruster(map, hull, 22, 6, Rot4.West);           // 减速（艏、朝西）
             SpawnThruster(map, hull, 11, 1, Rot4.North);          // 左平移（南缘、朝北）
-            SpawnThruster(map, hull, 11, 11, Rot4.South);         // 右平移（北缘、朝南）
-            SpawnThruster(map, hull, 1, 9, Rot4.South);           // 逆时针力偶
+            SpawnThruster(map, hull, 12, 12, Rot4.South);         // 右平移（北缘、朝南）
+            SpawnThruster(map, hull, 2, 10, Rot4.South);          // 逆时针力偶
             SpawnThruster(map, hull, 21, 9, Rot4.North);
             SpawnThruster(map, hull, 1, 3, Rot4.North);           // 顺时针力偶
-            SpawnThruster(map, hull, 21, 3, Rot4.South);
+            SpawnThruster(map, hull, 22, 4, Rot4.South);
         }
 
         private static CellRect CenteredRect(Map map, int width, int height)
@@ -100,10 +91,40 @@ namespace DeltaV
             }
         }
 
-        /// <summary>按朝向生成推进器（LargeThruster 2×2 方形脚印；origin 为脚印最小角）。</summary>
-        private static void SpawnThruster(Map map, CellRect hull, int dx, int dz, Rot4 rotation)
+        /// <summary>
+        /// 复刻存档 map2 的设备布局。偏移量全部是 Thing.Position 锚点相对于 hull.minX/minZ
+        /// 的偏移，不是贴图中心，也不是 OccupiedRect 的最小角。尤其 2×2 建筑的锚点会随
+        /// Rot4 改变占地偏置；3×3 GravEngine 的存档锚点则是 (17,12)。
+        /// </summary>
+        private static void StampPlayerEquipment(Map map, CellRect hull)
         {
-            GenSpawn.Spawn(DeltaVDefOf.LargeThruster, new IntVec3(hull.minX + dx, 0, hull.minZ + dz), map, rotation,
+            SpawnAnchored(map, ThingDefOf.GravFieldExtender, hull, 1, 3, Rot4.North);
+            SpawnAnchored(map, ThingDefOf.GravFieldExtender, hull, 1, 20, Rot4.North);
+            SpawnAnchored(map, ThingDefOf.GravFieldExtender, hull, 33, 3, Rot4.North);
+            SpawnAnchored(map, ThingDefOf.GravFieldExtender, hull, 33, 21, Rot4.North);
+
+            // 直接使用存档中的原版 PilotConsole；XML patch 为它追加 Delta-V gizmo，
+            // 同时保留原版 Gravship 对 ThingDefOf.PilotConsole 的身份识别。
+            SpawnAnchored(map, ThingDefOf.PilotConsole, hull, 14, 12, Rot4.East);
+            SpawnAnchored(map, ThingDefOf.GravEngine, hull, 17, 12, Rot4.North);
+
+            SpawnThruster(map, hull, 0, 23, Rot4.East);
+            SpawnThruster(map, hull, 3, 23, Rot4.South);
+            SpawnThruster(map, hull, 0, 1, Rot4.East);
+            SpawnThruster(map, hull, 2, 0, Rot4.North);
+            SpawnThruster(map, hull, 39, 13, Rot4.West);
+            SpawnThruster(map, hull, 39, 8, Rot4.West);
+        }
+
+        /// <summary>按 Thing.Position 锚点生成 2×2 LargeThruster。</summary>
+        private static void SpawnThruster(Map map, CellRect hull, int anchorDx, int anchorDz, Rot4 rotation)
+        {
+            SpawnAnchored(map, DeltaVDefOf.LargeThruster, hull, anchorDx, anchorDz, rotation);
+        }
+
+        private static void SpawnAnchored(Map map, ThingDef def, CellRect hull, int anchorDx, int anchorDz, Rot4 rotation)
+        {
+            GenSpawn.Spawn(def, new IntVec3(hull.minX + anchorDx, 0, hull.minZ + anchorDz), map, rotation,
                 WipeMode.Vanish);
         }
 
@@ -140,6 +161,23 @@ namespace DeltaV
                 candidates.Remove(cell);
                 Pawn pawn = PawnGenerator.GeneratePawn(new PawnGenerationRequest(PawnKindDefOf.Colonist, Faction.OfPlayer));
                 GenSpawn.Spawn(pawn, cell, map, WipeMode.Vanish);
+                // Orbit 环境的 EVA 常备：真空服 + 头盔（Odyssey Apparel_Vacsuit*）。
+                Wear(pawn, "Apparel_Vacsuit");
+                Wear(pawn, "Apparel_VacsuitHelmet");
+            }
+        }
+
+        private static void Wear(Pawn pawn, string defName)
+        {
+            ThingDef def = ThingDef.Named(defName);
+            if (def == null)
+            {
+                return;
+            }
+            var apparel = (Apparel)ThingMaker.MakeThing(def);
+            if (ApparelUtility.HasPartsToWear(pawn, def))
+            {
+                pawn.apparel.Wear(apparel);
             }
         }
     }

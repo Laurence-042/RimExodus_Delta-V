@@ -28,14 +28,24 @@ namespace DeltaV
         {
             var universe = Current.Game.GetComponent<UniverseManager>();
 
-            foreach (ShipState ship in universe.ships.ToList())
+            // 幂等：销毁旧场景的全部对象图与宿主图（含 Packed POI 的轻量状态一并清除）。
+            foreach (SpaceObject obj in universe.objects.ToList())
             {
-                if (ship.map != null)
+                if (obj.map != null)
                 {
-                    PocketMapUtility.DestroyPocketMap(ship.map);
+                    PocketMapUtility.DestroyPocketMap(obj.map);
                 }
             }
-            universe.ships.Clear();
+            universe.objects.Clear();
+            // 孤儿口袋图清理：旧版本存档迁移等情况会留下 sourceMap=宿主图、但已无宇宙状态
+            // 引用的口袋图（Map.ChildPocketMaps 遍历 pocketMaps 按 sourceMap 匹配）。
+            if (universe.hostMap != null)
+            {
+                foreach (Map orphan in universe.hostMap.ChildPocketMaps.ToList())
+                {
+                    PocketMapUtility.DestroyPocketMap(orphan);
+                }
+            }
             DestroyHostMap(universe);
 
             Map hostMap = CreateHostMap();
@@ -54,11 +64,14 @@ namespace DeltaV
             if (enemyMap == null) return;
             ShipStructureStamp.StampEnemyShip(enemyMap);
 
-            var playerShip = new ShipState(1, "Player ship", playerMap, new SpacePose(Vector2.zero, 0f));
+            var playerShip = new ShipState(1, "Player ship", playerMap, new SpacePose(Vector2.zero, 0f), isPlayerShip: true);
             var enemyShip = new ShipState(2, "Enemy ship", enemyMap,
                 new SpacePose(EnemyInitialOffset, EnemyInitialAngleDeg * Mathf.Deg2Rad));
 
-            universe.ResetShips(new List<ShipState> { playerShip, enemyShip }, playerShip.shipId);
+            universe.ResetObjects(new List<SpaceObject> { playerShip, enemyShip }, playerShip.objectId);
+            CompDeltaVPilotConsole.EnsurePrimaryConsole(playerShip);
+            universe.primaryShipId = playerShip.objectId; // 动态锚跟随玩家船（阶段3）
+            universe.anchorDisplacement = Vector2.zero;
             universe.SetFocused(playerShip);
             CameraJumper.TryJump(playerMap.Center, playerMap, CameraJumper.MovementMode.Cut);
         }
@@ -87,8 +100,12 @@ namespace DeltaV
                 return null;
             }
             int hostSize = Mathf.Clamp(DeltaVMod.Settings?.hostMapSize ?? HostMapSize, 100, 1000);
-            return GetOrGenerateMapUtility.GetOrGenerateMap(
+            Map map = GetOrGenerateMapUtility.GetOrGenerateMap(
                 tile, new IntVec3(hostSize, 1, hostSize), DeltaVDefOf.DeltaV_SpaceHostParent);
+            // 原版 Gravship 选点要求船体至少与一格非 Space 地形连接。宿主图中心这一格是
+            // 固定轨道锚，不另造选点/合法性逻辑；其余格仍由原版判断能否铺 Substructure。
+            map.terrainGrid.SetTerrain(map.Center, DeltaVDefOf.Substructure);
+            return map;
         }
 
         private static void DestroyHostMap(UniverseManager universe)

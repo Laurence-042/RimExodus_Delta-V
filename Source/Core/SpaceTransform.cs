@@ -17,7 +17,7 @@ namespace DeltaV
     ///   它与 Unity 的对应关系：Quaternion.Euler(0, −θ·Rad2Deg, 0)。
     ///   ShellRenderer 的显示矩阵必须通过本类的 FocusedMeshRotation 取得，保证与 2D 公式一致。
     ///
-    /// 本类保持无状态：所有方法显式传入 ShipState / Map，不读取全局当前聚焦状态。
+    /// 本类保持无状态：所有方法显式传入 SpaceObject / Map，不读取全局当前聚焦状态。
     /// </summary>
     public static class SpaceTransform
     {
@@ -65,14 +65,14 @@ namespace DeltaV
 
         // ---------- Ship local ⇄ universe ----------
 
-        public static Vector2 ShipLocalToUniverse(ShipState ship, Vector2 shipPoint)
+        public static Vector2 ShipLocalToUniverse(SpaceObject obj, Vector2 shipPoint)
         {
-            return ship.pose.position + Rotate(shipPoint, ship.pose.angle);
+            return obj.pose.position + Rotate(shipPoint, obj.pose.angle);
         }
 
-        public static Vector2 UniverseToShipLocal(ShipState ship, Vector2 universePoint)
+        public static Vector2 UniverseToShipLocal(SpaceObject obj, Vector2 universePoint)
         {
-            return RotateInverse(universePoint - ship.pose.position, ship.pose.angle);
+            return RotateInverse(universePoint - obj.pose.position, obj.pose.angle);
         }
 
         /// <summary>
@@ -82,25 +82,25 @@ namespace DeltaV
         /// 中心系输出当地图坐标用）。消费方要落格子/落相机一律用本方法，
         /// 直接拿 UniverseToShipLocal 输出当地图坐标 = 反模式。
         /// </summary>
-        public static Vector2 UniverseToMapPoint(ShipState ship, Vector2 universePoint)
+        public static Vector2 UniverseToMapPoint(SpaceObject obj, Vector2 universePoint)
         {
-            return ShipLocalToMap(ship.map, UniverseToShipLocal(ship, universePoint));
+            return ShipLocalToMap(obj.map, UniverseToShipLocal(obj, universePoint));
         }
 
         // ---------- Universe ⇄ focused 参考系 ----------
         // DisplayTransform = inverse(FocusedObject.SpacePose)（AGENTS §6）。
 
-        public static Vector2 UniverseToFocused(ShipState focused, Vector2 universePoint)
+        public static Vector2 UniverseToFocused(SpaceObject focused, Vector2 universePoint)
         {
             return RotateInverse(universePoint - focused.pose.position, focused.pose.angle);
         }
 
-        public static Vector2 FocusedToUniverse(ShipState focused, Vector2 focusedPoint)
+        public static Vector2 FocusedToUniverse(SpaceObject focused, Vector2 focusedPoint)
         {
             return focused.pose.position + Rotate(focusedPoint, focused.pose.angle);
         }
 
-        public static float UniverseAngleToFocused(ShipState focused, float universeAngle)
+        public static float UniverseAngleToFocused(SpaceObject focused, float universeAngle)
         {
             return WrapAngle(universeAngle - focused.pose.angle);
         }
@@ -112,7 +112,7 @@ namespace DeltaV
         /// 传入该船的宇宙角度，得到聚焦参考系下的网格旋转四元数。
         /// 必须与 2D 公式成对使用，禁止在渲染代码里另行手写 Euler。
         /// </summary>
-        public static Quaternion FocusedMeshRotation(ShipState focused, float universeAngle)
+        public static Quaternion FocusedMeshRotation(SpaceObject focused, float universeAngle)
         {
             return Quaternion.Euler(0f, -UniverseAngleToFocused(focused, universeAngle) * Mathf.Rad2Deg, 0f);
         }
@@ -123,7 +123,7 @@ namespace DeltaV
         /// focused 帧坐标以聚焦对象中心为原点，而地图渲染中该中心位于地图几何中心，
         /// 所以必须再加上 ShipLocalOrigin——漏加会让所有代理整体偏移半张地图。
         /// </summary>
-        public static Vector3 FocusedDrawPosition(ShipState focused, Map focusedMap, Vector2 universePoint, float altitude)
+        public static Vector3 FocusedDrawPosition(SpaceObject focused, Map focusedMap, Vector2 universePoint, float altitude)
         {
             Vector2 rel = UniverseToFocused(focused, universePoint);
             Vector2 mapPoint = ShipLocalToMap(focusedMap, rel);
