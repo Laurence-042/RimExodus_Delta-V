@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LanguageData>
+  <DeltaV_ThrustForward.label>前进推进</DeltaV_ThrustForward.label>
+  <DeltaV_ThrustBackward.label>后退推进</DeltaV_ThrustBackward.label>
+  <DeltaV_StrafeLeft.label>向左平移</DeltaV_StrafeLeft.label>
+  <DeltaV_StrafeRight.label>向右平移</DeltaV_StrafeRight.label>
+  <DeltaV_RotateLeft.label>逆时针旋转</DeltaV_RotateLeft.label>
+  <DeltaV_RotateRight.label>顺时针旋转</DeltaV_RotateRight.label>
+  <DeltaV_TogglePilotMode.label>切换驾驶模式</DeltaV_TogglePilotMode.label>
+  <DeltaV_AssistBrake.label>辅助刹停（按住）</DeltaV_AssistBrake.label>
+</LanguageData>

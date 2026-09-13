@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!-- 阶段2 驾驶按键（doc/阶段2-基础驾驶.md）。
+     默认键位与原版有意重叠（WASD=相机平移、QE=设计器旋转）：
+     重叠在驾驶模式下由 Harmony Prefix 按实际绑定键动态抑制（Source/Harmony/Patch_KeyBindingSuppression.cs），
+     因此本分类不设 checkForConflicts，避免原版改键界面自动抹除绑定。 -->
+
+<Defs>
+
+  <KeyBindingCategoryDef>
+    <defName>DeltaV</defName>
+    <label>Delta-V piloting</label>
+    <description>Controls for piloting ships in Delta-V space.</description>
+    <isGameUniversal>true</isGameUniversal>
+    <selfConflicting>false</selfConflicting>
+  </KeyBindingCategoryDef>
+
+  <KeyBindingDef>
+    <defName>DeltaV_ThrustForward</defName>
+    <label>thrust forward</label>
+    <category>DeltaV</category>
+    <defaultKeyCodeA>W</defaultKeyCodeA>
+  </KeyBindingDef>
+
+  <KeyBindingDef>
+    <defName>DeltaV_ThrustBackward</defName>
+    <label>thrust backward</label>
+    <category>DeltaV</category>
+    <defaultKeyCodeA>S</defaultKeyCodeA>
+  </KeyBindingDef>
+
+  <KeyBindingDef>
+    <defName>DeltaV_StrafeLeft</defName>
+    <label>strafe left</label>
+    <category>DeltaV</category>
+    <defaultKeyCodeA>A</defaultKeyCodeA>
+  </KeyBindingDef>
+
+  <KeyBindingDef>
+    <defName>DeltaV_StrafeRight</defName>
+    <label>strafe right</label>
+    <category>DeltaV</category>
+    <defaultKeyCodeA>D</defaultKeyCodeA>
+  </KeyBindingDef>
+
+  <KeyBindingDef>
+    <defName>DeltaV_RotateLeft</defName>
+    <label>rotate counter-clockwise</label>
+    <category>DeltaV</category>
+    <defaultKeyCodeA>Q</defaultKeyCodeA>
+  </KeyBindingDef>
+
+  <KeyBindingDef>
+    <defName>DeltaV_RotateRight</defName>
+    <label>rotate clockwise</label>
+    <category>DeltaV</category>
+    <defaultKeyCodeA>E</defaultKeyCodeA>
+  </KeyBindingDef>
+
+  <!-- 所有字母默认键均被原版占用，切换键选原版未绑定的 Keypad0；另有屏幕按钮与 dev action 入口。 -->
+  <KeyBindingDef>
+    <defName>DeltaV_TogglePilotMode</defName>
+    <label>toggle pilot mode</label>
+    <category>DeltaV</category>
+    <defaultKeyCodeA>Keypad0</defaultKeyCodeA>
+  </KeyBindingDef>
+
+  <!-- 按住临时启用飞行辅助刹停（辅助关闭时也可用）；与原版 Ctrl 用途在驾驶中被抑制。 -->
+  <KeyBindingDef>
+    <defName>DeltaV_AssistBrake</defName>
+    <label>assist brake (hold)</label>
+    <category>DeltaV</category>
+    <defaultKeyCodeA>LeftControl</defaultKeyCodeA>
+    <defaultKeyCodeB>RightControl</defaultKeyCodeB>
+  </KeyBindingDef>
+
+</Defs>

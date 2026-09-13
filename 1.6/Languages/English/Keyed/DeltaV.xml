@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LanguageData>
+  <DeltaV_PilotNeedShipFocus>Focus a ship map first.</DeltaV_PilotNeedShipFocus>
+  <DeltaV_PilotOn>Pilot mode engaged: {0}</DeltaV_PilotOn>
+  <DeltaV_PilotOff>Pilot mode disengaged: {0}</DeltaV_PilotOff>
+  <DeltaV_PilotExitAuto>Pilot mode ended (focus left {0}).</DeltaV_PilotExitAuto>
+  <DeltaV_PilotButtonEnter>Pilot this ship</DeltaV_PilotButtonEnter>
+  <DeltaV_PilotButtonExit>Stop piloting</DeltaV_PilotButtonExit>
+  <DeltaV_PilotHudTitle>Piloting: {0}</DeltaV_PilotHudTitle>
+  <DeltaV_HudSpeed>Speed: {0} c/s</DeltaV_HudSpeed>
+  <DeltaV_HudHeading>Heading: {0}°</DeltaV_HudHeading>
+  <DeltaV_HudTurnRate>Turn rate: {0}°/s</DeltaV_HudTurnRate>
+  <DeltaV_HudMass>Mass: {0}</DeltaV_HudMass>
+  <DeltaV_HudAssist>Flight assist: {0}</DeltaV_HudAssist>
+  <DeltaV_On>on</DeltaV_On>
+  <DeltaV_Off>off</DeltaV_Off>
+  <DeltaV_Braking>braking</DeltaV_Braking>
+  <DeltaV_SettingsFlightAssist>Flight assist</DeltaV_SettingsFlightAssist>
+  <DeltaV_SettingsFlightAssistTip>While piloting, axes without player input are counter-thrusted using the ship's real thruster power (no artificial damping).</DeltaV_SettingsFlightAssistTip>
+  <DeltaV_SettingsHostMapSize>Host map size (100-1000)</DeltaV_SettingsHostMapSize>
+  <DeltaV_SettingsHostMapSizeNote>Display/performance parameter for the space host map. Applied the next time the test scene is created; does not affect universe coordinates.</DeltaV_SettingsHostMapSizeNote>
+  <DeltaV_SettingsLogSection>Diagnostic logs</DeltaV_SettingsLogSection>
+  <DeltaV_SettingsLogNote>Module-gated verbose logs ([DeltaV:Module] prefix). Warnings/errors and key state transitions (pilot enter/exit, suppression activation, patch init) are always logged regardless.</DeltaV_SettingsLogNote>
+  <DeltaV_SettingsLogCore>Log: core &amp; piloting state</DeltaV_SettingsLogCore>
+  <DeltaV_SettingsLogInput>Log: pilot input &amp; flight assist</DeltaV_SettingsLogInput>
+  <DeltaV_SettingsLogPhysics>Log: physics integration</DeltaV_SettingsLogPhysics>
+  <DeltaV_SettingsLogHarmony>Log: key suppression decisions</DeltaV_SettingsLogHarmony>
+</LanguageData>

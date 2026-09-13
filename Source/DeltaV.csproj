@@ -9,7 +9,7 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <ImplicitUsings>disable</ImplicitUsings>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <!-- 阶段1 无 Harmony 补丁；需要时在此加 Lib.Harmony.Ref，并在 About.xml 声明 brrainz.harmony 依赖 -->
+    <!-- 阶段2 起引入 Harmony（驾驶模式按键抑制）；About.xml 已声明 brrainz.harmony 依赖，运行时用游戏自带 0Harmony。 -->
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.4633" />
+    <PackageReference Include="Lib.Harmony.Ref" Version="2.3.3" />
   </ItemGroup>
 
 </Project>

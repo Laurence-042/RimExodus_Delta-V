@@ -24,6 +24,27 @@ namespace DeltaV
         // "只有基架上的东西才能被逆重引擎抬起"——未来质量/结构判定都以它为准。
         public static TerrainDef Substructure;
 
-        public static ThingDef Ship_Engine;
+        // 逆重飞船大型推进器（Odyssey，2×2 方形脚印、rotatable、需 Substructure）。
+        // 注意：Ship_Engine 是星际飞船（结局飞船）引擎，与逆重飞船无关，勿混用。
+        public static ThingDef LargeThruster;
+
+        // 阶段2 驾驶按键（1.6/Defs/Misc/DeltaV_KeyBindings.xml；可在原版改键界面修改）
+        public static Verse.KeyBindingCategoryDef DeltaV;
+
+        public static Verse.KeyBindingDef DeltaV_ThrustForward;
+
+        public static Verse.KeyBindingDef DeltaV_ThrustBackward;
+
+        public static Verse.KeyBindingDef DeltaV_StrafeLeft;
+
+        public static Verse.KeyBindingDef DeltaV_StrafeRight;
+
+        public static Verse.KeyBindingDef DeltaV_RotateLeft;
+
+        public static Verse.KeyBindingDef DeltaV_RotateRight;
+
+        public static Verse.KeyBindingDef DeltaV_TogglePilotMode;
+
+        public static Verse.KeyBindingDef DeltaV_AssistBrake;
     }
 }

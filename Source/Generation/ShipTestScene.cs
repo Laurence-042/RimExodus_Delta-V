@@ -46,11 +46,11 @@ namespace DeltaV
             }
             universe.hostMap = hostMap;
 
-            Map playerMap = GenerateShipPocketMap(new IntVec3(MapSize, 1, MapSize), hostMap);
+            Map playerMap = GenerateShipPocketMap(new IntVec3(MapSize, 1, MapSize), hostMap, Vector2.zero);
             if (playerMap == null) return;
             ShipStructureStamp.StampPlayerShip(playerMap);
 
-            Map enemyMap = GenerateShipPocketMap(new IntVec3(MapSize, 1, MapSize), hostMap);
+            Map enemyMap = GenerateShipPocketMap(new IntVec3(MapSize, 1, MapSize), hostMap, EnemyInitialOffset);
             if (enemyMap == null) return;
             ShipStructureStamp.StampEnemyShip(enemyMap);
 
@@ -64,9 +64,11 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 宿主图：星球外层空间（轨道层）真实 PlanetTile 上的普通地图。
+        /// 宿主图：星球外层空间（轨道层）真实 PlanetTile 上的普通地图，也是 Universe Layer
+        /// 的记账锚点（宇宙原点 = 宿主图中心，UniverseLayerMapping）。
         /// 真实 tile 让 MapParent.Tile 有效（renderWorld 星球背景合法）、
         /// storyteller/财富/任务逻辑有原生锚点（story：口袋地图需要宿主）。
+        /// 尺寸来自 Mod 设置（显示/性能参数，不是宇宙坐标协议）。
         /// </summary>
         private static Map CreateHostMap()
         {
@@ -84,8 +86,9 @@ namespace DeltaV
                 Log.Error("[DeltaV] Failed to find a free tile on the orbit layer.");
                 return null;
             }
+            int hostSize = Mathf.Clamp(DeltaVMod.Settings?.hostMapSize ?? HostMapSize, 100, 1000);
             return GetOrGenerateMapUtility.GetOrGenerateMap(
-                tile, new IntVec3(HostMapSize, 1, HostMapSize), DeltaVDefOf.DeltaV_SpaceHostParent);
+                tile, new IntVec3(hostSize, 1, hostSize), DeltaVDefOf.DeltaV_SpaceHostParent);
         }
 
         private static void DestroyHostMap(UniverseManager universe)
@@ -105,16 +108,20 @@ namespace DeltaV
         /// <summary>
         /// PocketMapUtility.GeneratePocketMap 的本地复制，两点区别：
         /// 1. WorldObject 用 DeltaV_ShipMapParent def（便于按 def 识别 Delta-V 飞船图）；
-        /// 2. parent.Tile 设为宿主图附近的真实轨道层空 tile——MapInfo.Tile 由 parent 派生，
-        ///    Map.Tile 因此有效，renderWorld=true 的星球背景与轨道层视差参数全部走原版正路，
-        ///    无需任何 override。tile 不得与其他地图/世界对象重复（Game.FindMap 按 map.Tile 匹配）。
+        /// 2. parent.Tile = 该船 universe 位置在轨道层上的投影（UniverseLayerMapping.ProjectToTile，
+        ///    从宿主 tile 出发贪心走向），投影被占用时取附近最近空闲 tile——
+        ///    MapInfo.Tile 由 parent.Tile 派生（无缓存），Map.Tile 因此有效，renderWorld=true 的
+        ///    星球背景与轨道层视差参数全部走原版正路。tile 不得与其他地图/世界对象重复
+        ///    （Game.FindMap 按 map.Tile 匹配）。
         /// </summary>
-        private static Map GenerateShipPocketMap(IntVec3 size, Map sourceMap)
+        private static Map GenerateShipPocketMap(IntVec3 size, Map sourceMap, Vector2 universePos)
         {
-            PlanetTile shipTile = FindFreeOrbitTileNear(sourceMap.Tile);
+            PlanetLayer layer = sourceMap.Tile.Layer;
+            PlanetTile projected = UniverseLayerMapping.ProjectToTile(layer, sourceMap.Tile, universePos, sourceMap.Tile);
+            PlanetTile shipTile = UniverseLayerMapping.FindFreeTileNear(layer, projected);
             if (!shipTile.Valid)
             {
-                Log.Error("[DeltaV] No free orbit tile near the host map; aborting scene.");
+                Log.Error("[DeltaV] No free orbit tile near the projected position; aborting scene.");
                 return null;
             }
             var parent = (PocketMapParent)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
@@ -124,33 +131,6 @@ namespace DeltaV
             Map map = MapGenerator.GenerateMap(size, parent, DeltaVDefOf.DeltaV_ShipPocket, null, null, isPocketMap: true);
             Find.World.pocketMaps.Add(parent);
             return map;
-        }
-
-        /// <summary>
-        /// 找离锚点最近的空闲轨道层 tile（跳过已有世界对象或已有地图的 tile）。
-        /// 飞船锚在宿主附近 → 各船透出的星球背景与宿主图几乎一致。
-        /// </summary>
-        private static PlanetTile FindFreeOrbitTileNear(PlanetTile anchor)
-        {
-            PlanetLayer layer = anchor.Layer;
-            Vector3 anchorCenter = layer.GetTileCenter(anchor);
-            PlanetTile best = PlanetTile.Invalid;
-            float bestDist = float.MaxValue;
-            for (int i = 0; i < layer.TilesCount; i++)
-            {
-                PlanetTile candidate = new PlanetTile(i, layer);
-                if (Find.WorldObjects.AnyWorldObjectAt(candidate) || Current.Game.FindMap(candidate) != null)
-                {
-                    continue;
-                }
-                float dist = (anchorCenter - layer.GetTileCenter(candidate)).sqrMagnitude;
-                if (dist < bestDist)
-                {
-                    bestDist = dist;
-                    best = candidate;
-                }
-            }
-            return best;
         }
     }
 }

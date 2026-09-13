@@ -1,4 +1,6 @@
 using System.Linq;
+using System.Text;
+using HarmonyLib;
 using LudeonTK;
 using RimWorld;
 using UnityEngine;
@@ -27,6 +29,125 @@ namespace DeltaV
         private static void CreateTwoShipTestScene()
         {
             LongEventHandler.QueueLongEvent(ShipTestScene.Create, "GeneratingMap", false, null);
+        }
+
+        [DebugAction("Delta-V", "Toggle pilot mode", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void TogglePilotMode()
+        {
+            PilotController.Toggle(Um());
+        }
+
+        /// <summary>
+        /// 按键抑制链路逐层体检（启动时另有一条补丁挂载常开日志）：
+        /// ① 补丁是否真的挂在三个 getter 上（owner=RimExodus.DeltaV）；
+        /// ② 抑制开关/命中计数；③ 驾驶状态与当前地图；④ 驾驶键集合与本 mod 按键实际绑定；
+        /// ⑤ 原版冲突绑定的重叠判定样例。断在哪一层一目了然。
+        /// </summary>
+        [DebugAction("Delta-V", "Diagnose key suppression", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void DiagnoseKeySuppression()
+        {
+            var sb = new StringBuilder("[DeltaV:Diag] Key suppression diagnostics");
+            // ① 补丁挂载
+            string[] getters = { "IsDown", "JustPressed", "KeyDownEvent" };
+            foreach (string name in getters)
+            {
+                var method = AccessTools.PropertyGetter(typeof(KeyBindingDef), name);
+                var info = method == null ? null : Harmony.GetPatchInfo(method);
+                string owners = info == null || info.Owners.Count == 0
+                    ? "NOT PATCHED"
+                    : string.Join(",", info.Owners);
+                sb.AppendLine($"\n- patch KeyBindingDef.get_{name}: {(owners == "RimExodus.DeltaV" ? "OK (owner=RimExodus.DeltaV)" : owners)}");
+            }
+            // ② 抑制状态
+            sb.AppendLine($"- SuppressVanillaKeys flag: {PilotController.SuppressVanillaKeys}; suppressed reads so far: {Patch_KeyBindingSuppression.SuppressedReads}");
+            // ③ 驾驶状态
+            UniverseManager um = Um();
+            ShipState piloted = PilotController.PilotedShip(um);
+            sb.AppendLine($"- pilotShipId: {um.pilotShipId} ({piloted?.label ?? "none"}), piloted map alive: {piloted?.map != null}, CurrentMap == piloted map: {piloted?.map != null && Find.CurrentMap == piloted.map}");
+            // ④ 键集合 + 本 mod 绑定
+            sb.AppendLine($"- ActivePilotKeys: [{(PilotController.ActivePilotKeys.Count == 0 ? "EMPTY" : string.Join(", ", PilotController.ActivePilotKeys))}]");
+            foreach (string defName in new[] { "DeltaV_ThrustForward", "DeltaV_ThrustBackward", "DeltaV_StrafeLeft", "DeltaV_StrafeRight", "DeltaV_RotateLeft", "DeltaV_RotateRight", "DeltaV_TogglePilotMode" })
+            {
+                KeyBindingDef def = KeyBindingDef.Named(defName);
+                string bound = def == null
+                    ? "DEF MISSING (XML not loaded?)"
+                    : (KeyPrefs.KeyPrefsData.keyPrefs.TryGetValue(def, out KeyBindingData d)
+                        ? $"{d.keyBindingA}/{d.keyBindingB} (keyPrefs entry OK)"
+                        : $"no keyPrefs entry, defaults {def.defaultKeyCodeA}/{def.defaultKeyCodeB}");
+                sb.AppendLine($"- def {defName}: {bound}");
+            }
+            // ⑤ 原版冲突样例
+            foreach (string defName in new[] { "MapDolly_Up", "MapDolly_Down", "MapDolly_Left", "MapDolly_Right", "Designator_RotateLeft", "Designator_RotateRight" })
+            {
+                KeyBindingDef def = KeyBindingDef.Named(defName);
+                if (def == null)
+                {
+                    sb.AppendLine($"- vanilla {defName}: def missing");
+                    continue;
+                }
+                KeyPrefs.KeyPrefsData.keyPrefs.TryGetValue(def, out KeyBindingData d);
+                sb.AppendLine($"- vanilla {defName}: {d.keyBindingA}/{d.keyBindingB} -> overlap={PilotController.OverlapsActiveKeys(def)}");
+            }
+            Log.Message(sb.ToString());
+            Messages.Message("Key suppression diagnostics written to the log (dev console / Ctrl+F12).", MessageTypeDefOf.NeutralEvent, false);
+        }
+
+        [DebugAction("Delta-V", "Zero focused ship velocity", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void ZeroFocusedShipVelocity()
+        {
+            ShipState ship = Um().ShipOnMap(Find.CurrentMap);
+            if (ship == null)
+            {
+                return;
+            }
+            ship.pose.velocity = Vector2.zero;
+            ship.pose.angularVelocity = 0f;
+        }
+
+        // ---- 宿主图尺寸：设置 + 立即重建场景（800×800 性能测试工具链）----
+
+        [DebugAction("Delta-V", "Host map size 150 + recreate scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void HostSize150() { SetHostMapSizeAndRecreate(150); }
+
+        [DebugAction("Delta-V", "Host map size 300 + recreate scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void HostSize300() { SetHostMapSizeAndRecreate(300); }
+
+        [DebugAction("Delta-V", "Host map size 500 + recreate scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void HostSize500() { SetHostMapSizeAndRecreate(500); }
+
+        [DebugAction("Delta-V", "Host map size 800 + recreate scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void HostSize800() { SetHostMapSizeAndRecreate(800); }
+
+        private static void SetHostMapSizeAndRecreate(int size)
+        {
+            DeltaVMod.Settings.hostMapSize = size;
+            DeltaVMod.Settings.Write();
+            Messages.Message($"Host map size set to {size}; recreating two-ship test scene.", MessageTypeDefOf.NeutralEvent, false);
+            LongEventHandler.QueueLongEvent(ShipTestScene.Create, "GeneratingMap", false, null);
+        }
+
+        // ---- 帧时间读数（性能测试用，Prefs.DevMode 门控常驻；UniverseManager Update/OnGUI 调用）----
+
+        private static float avgFrameMs = 16.7f;
+
+        public static void UpdateFrameMeter()
+        {
+            avgFrameMs = Mathf.Lerp(avgFrameMs, Time.unscaledDeltaTime * 1000f, 0.05f);
+        }
+
+        public static void DrawFrameMeter()
+        {
+            if (!Prefs.DevMode || Current.ProgramState != ProgramState.Playing)
+            {
+                return;
+            }
+            Text.Font = GameFont.Tiny;
+            GUI.color = new Color(1f, 1f, 0.4f, 0.9f);
+            Widgets.Label(new Rect(UI.screenWidth - 310f, UI.screenHeight - 100f, 300f, 20f),
+                $"DeltaV frame: {avgFrameMs:F1} ms ({1000f / Mathf.Max(avgFrameMs, 0.01f):F0} fps)");
+            Widgets.Label(new Rect(UI.screenWidth - 310f, UI.screenHeight - 80f, 300f, 20f),
+                $"DeltaV key suppression: {(PilotController.SuppressVanillaKeys ? "ACTIVE" : "off")} (suppressed reads: {Patch_KeyBindingSuppression.SuppressedReads})");
+            GUI.color = Color.white;
         }
 
         [DebugAction("Delta-V", "Switch focus to the other ship", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]

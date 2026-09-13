@@ -21,6 +21,9 @@ namespace DeltaV
 
         public int focusedShipId = -1;
 
+        /// <summary>驾驶中的船（阶段2）；-1 = 未驾驶。持久化，读档后驾驶状态恢复。</summary>
+        public int pilotShipId = -1;
+
         /// <summary>
         /// 宿主/显示地图：轨道层真实 tile 上的普通地图，是飞船口袋图的 sourceMap 锚点
         /// （原版 storyteller/财富/任务逻辑从口袋图重定向到 sourceMap）。聚焦宿主图时
@@ -74,6 +77,7 @@ namespace DeltaV
         {
             Scribe_Collections.Look(ref ships, "ships", LookMode.Deep);
             Scribe_Values.Look(ref focusedShipId, "focusedShipId", -1);
+            Scribe_Values.Look(ref pilotShipId, "pilotShipId", -1);
             Scribe_References.Look(ref hostMap, "hostMap");
         }
 
@@ -81,7 +85,9 @@ namespace DeltaV
         {
             // 派生地形网格只用于代理 UV，绝不存档；读档后从 SectionLayer 重建。
             ShellRenderer.ClearRuntimeCaches();
+            ShipPhysics.ClearCache();
             hostFrame = null;
+            PilotController.SuppressVanillaKeys = false;
             if (hostMap != null && !Find.Maps.Contains(hostMap))
             {
                 Log.Warning("[DeltaV] Host map missing after load; cleared reference.");
@@ -111,11 +117,90 @@ namespace DeltaV
             {
                 focusedShipId = onMap.shipId;
             }
+            // 驾驶状态维护（自动退出 + Harmony 按键抑制开关）。
+            PilotController.UpdateFrameState(this);
+            DebugActions_DeltaV.UpdateFrameMeter();
             ShellRenderer.DrawNonFocusedShips(this);
+        }
+
+        /// <summary>
+        /// 阶段2 物理积分（TickManager 每 tick 调用，暂停时冻结——正确的模拟语义）。
+        /// 驾驶船按输入+辅助出力积分；其余船只在有速度/角速度时漂移积分。
+        /// 只写 SpacePose（Map 外的宇宙状态），绝不触碰任何 Map 内 Thing（不变量 #6）。
+        /// </summary>
+        public override void GameComponentTick()
+        {
+            const float dt = 1f / 60f;
+            ShipState piloted = PilotController.PilotedShip(this);
+            bool piloting = piloted?.map != null && Find.CurrentMap == piloted.map;
+            for (int i = 0; i < ships.Count; i++)
+            {
+                ShipState ship = ships[i];
+                if (ship?.map == null)
+                {
+                    continue;
+                }
+                bool isPiloted = piloting && ship == piloted;
+                bool drifting = ship.pose.velocity.sqrMagnitude > 1e-10f
+                    || Mathf.Abs(ship.pose.angularVelocity) > 1e-10f;
+                if (!isPiloted && !drifting)
+                {
+                    continue;
+                }
+                ShipPhysics.MassReport report = ShipPhysics.GetReport(ship);
+                if (report == null)
+                {
+                    continue;
+                }
+                Vector2 force = Vector2.zero;
+                float torque = 0f;
+                bool assistX = false;
+                bool assistZ = false;
+                bool assistW = false;
+                if (isPiloted)
+                {
+                    PilotController.PilotCommand command = PilotController.ComposeCommand(ship);
+                    ShipPhysics.Allocate(report, command.command, out force, out torque);
+                    assistX = command.assistX;
+                    assistZ = command.assistZ;
+                    assistW = command.assistW;
+                    LogEngineFiringTransition(ship, report, force, torque);
+                }
+                ShipPhysics.Integrate(ship, report, force, torque, dt, assistX, assistZ, assistW);
+            }
+            // Universe Layer：飞船移动后惰性重锚背景 tile（universe → tile 单向）。
+            if (Find.TickManager.TicksGame % 60 == 0)
+            {
+                UniverseLayerMapping.ReanchorShips(this);
+            }
+        }
+
+        // 物理埋点（触发式）：只记录引擎点火/停火的转换沿，杜绝持续出力期间的每 tick 输出。
+        private readonly Dictionary<int, bool> enginesFiringByShip = new Dictionary<int, bool>();
+
+        private void LogEngineFiringTransition(ShipState ship, ShipPhysics.MassReport report, Vector2 force, float torque)
+        {
+            bool firing = force.sqrMagnitude > 1e-6f || Mathf.Abs(torque) > 1e-6f;
+            bool was = enginesFiringByShip.TryGetValue(ship.shipId, out bool previous) && previous;
+            if (firing == was)
+            {
+                return;
+            }
+            enginesFiringByShip[ship.shipId] = firing;
+            DeltaVLog.Message(DeltaVLogModule.Physics, firing
+                ? $"{ship.label}: thrusters firing | F=({force.x:F0},{force.y:F0}) tau={torque:F0} | mass={report.mass:F0} I={report.inertia:F0} thrusters={report.thrusters.Count}"
+                : $"{ship.label}: engines stopped | v=({ship.pose.velocity.x:F2},{ship.pose.velocity.y:F2}) omega={ship.pose.angularVelocity:F3}");
         }
 
         public override void GameComponentOnGUI()
         {
+            // 驾驶模式切换键（本 mod 分类的绑定不受抑制影响，驾驶中仍可退出）。
+            if (DeltaVDefOf.DeltaV_TogglePilotMode != null && DeltaVDefOf.DeltaV_TogglePilotMode.KeyDownEvent)
+            {
+                PilotController.Toggle(this);
+            }
+            PilotController.DrawHud(this);
+            DebugActions_DeltaV.DrawFrameMeter();
             HandleShellClick();
         }
 
@@ -207,6 +292,8 @@ namespace DeltaV
         public void ResetShips(List<ShipState> newShips, int focusId)
         {
             ShellRenderer.ClearRuntimeCaches();
+            ShipPhysics.ClearCache();
+            PilotController.Exit(this);
             ships = newShips;
             focusedShipId = focusId;
             hostFrame = null;

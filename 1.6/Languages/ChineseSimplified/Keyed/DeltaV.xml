@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LanguageData>
+  <DeltaV_PilotNeedShipFocus>请先聚焦到一艘飞船的地图。</DeltaV_PilotNeedShipFocus>
+  <DeltaV_PilotOn>驾驶模式开启：{0}</DeltaV_PilotOn>
+  <DeltaV_PilotOff>驾驶模式关闭：{0}</DeltaV_PilotOff>
+  <DeltaV_PilotExitAuto>驾驶模式结束（焦点已离开 {0}）。</DeltaV_PilotExitAuto>
+  <DeltaV_PilotButtonEnter>驾驶此船</DeltaV_PilotButtonEnter>
+  <DeltaV_PilotButtonExit>停止驾驶</DeltaV_PilotButtonExit>
+  <DeltaV_PilotHudTitle>正在驾驶：{0}</DeltaV_PilotHudTitle>
+  <DeltaV_HudSpeed>速度：{0} 格/秒</DeltaV_HudSpeed>
+  <DeltaV_HudHeading>航向：{0}°</DeltaV_HudHeading>
+  <DeltaV_HudTurnRate>转速：{0}°/秒</DeltaV_HudTurnRate>
+  <DeltaV_HudMass>质量：{0}</DeltaV_HudMass>
+  <DeltaV_HudAssist>飞行辅助：{0}</DeltaV_HudAssist>
+  <DeltaV_On>开</DeltaV_On>
+  <DeltaV_Off>关</DeltaV_Off>
+  <DeltaV_Braking>刹停中</DeltaV_Braking>
+  <DeltaV_SettingsFlightAssist>飞行辅助</DeltaV_SettingsFlightAssist>
+  <DeltaV_SettingsFlightAssistTip>驾驶时，无输入的轴按飞船推进器真实出力反向减速，不使用人为衰减。</DeltaV_SettingsFlightAssistTip>
+  <DeltaV_SettingsHostMapSize>宿主图尺寸（100-1000）</DeltaV_SettingsHostMapSize>
+  <DeltaV_SettingsHostMapSizeNote>太空宿主图的显示/性能参数，下次创建测试场景时生效，不影响宇宙坐标。</DeltaV_SettingsHostMapSizeNote>
+  <DeltaV_SettingsLogSection>诊断日志</DeltaV_SettingsLogSection>
+  <DeltaV_SettingsLogNote>分模块详细日志（[DeltaV:模块] 前缀）。警告/错误与关键状态迁移（驾驶进出、抑制激活、补丁初始化）不受开关控制，始终输出。</DeltaV_SettingsLogNote>
+  <DeltaV_SettingsLogCore>日志：核心与驾驶状态</DeltaV_SettingsLogCore>
+  <DeltaV_SettingsLogInput>日志：驾驶输入与飞行辅助</DeltaV_SettingsLogInput>
+  <DeltaV_SettingsLogPhysics>日志：物理积分</DeltaV_SettingsLogPhysics>
+  <DeltaV_SettingsLogHarmony>日志：按键抑制决策</DeltaV_SettingsLogHarmony>
+</LanguageData>
