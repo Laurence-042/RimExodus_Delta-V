@@ -65,9 +65,11 @@ namespace DeltaV
 
             float throttle = Mathf.Clamp01(thruster.throttle);
             float fullSize = thing.def.size.x * props.flameSize;
+            float visualThrottle = Mathf.Sqrt(throttle);
+            float flameSize = fullSize * Mathf.Lerp(0.08f, 1f, visualThrottle);
             Vector3 offset = thing.Rotation.AsQuat * props.flameOffsetsPerDirection[thing.Rotation.AsInt];
             Vector3 position = GenThing.TrueCenter(thing.Position, thing.Rotation, thing.def.size, 0f)
-                - thing.Rotation.AsIntVec3.ToVector3() * (thing.def.size.z * 0.5f + fullSize * 0.5f)
+                - thing.Rotation.AsIntVec3.ToVector3() * (thing.def.size.z * 0.5f + flameSize * 0.5f)
                 + offset;
             position = position.SetToAltitude(AltitudeLayer.Skyfaller).WithYOffset(0.07317074f);
 
@@ -77,17 +79,17 @@ namespace DeltaV
             };
             Material material = MaterialPool.MatFrom(request);
             float flicker = Mathf.Lerp(0.75f, 1f, Mathf.PerlinNoise(thing.thingIDNumber, Time.time * 10f));
-            Color color = Color.white * Mathf.Lerp(0.55f, 1f, throttle) * flicker;
-            color.a = Mathf.Lerp(0.35f, 1f, throttle);
+            Color color = Color.white * Mathf.Lerp(0.2f, 1f, visualThrottle) * flicker;
+            color.a = Mathf.Lerp(0.12f, 1f, visualThrottle);
 
             FlameBlock.Clear();
-            FlameBlock.SetColor(ShaderPropertyColor2, color);
             for (int i = 0; i < props.flameShaderParameters.Count; i++)
             {
                 props.flameShaderParameters[i].Apply(FlameBlock);
             }
-            GenDraw.DrawQuad(material, position, thing.Rotation.AsQuat,
-                fullSize * Mathf.Lerp(0.45f, 1f, throttle), FlameBlock);
+            // Def 参数先应用，油门颜色后写入，避免未来 Def 增加 _Color2 时覆盖动态出力。
+            FlameBlock.SetColor(ShaderPropertyColor2, color);
+            GenDraw.DrawQuad(material, position, thing.Rotation.AsQuat, flameSize, FlameBlock);
         }
 
         private static void EmitExhaust(ShipPhysics.Thruster thruster, Map map)
@@ -104,8 +106,10 @@ namespace DeltaV
                 return;
             }
 
+            float throttle = Mathf.Clamp01(thruster.throttle);
+            float visualThrottle = Mathf.Sqrt(throttle);
             float queued = ExhaustEmissionRemainder.TryGetValue(thing, out float remainder) ? remainder : 0f;
-            queued += Time.deltaTime * settings.emissionsPerSecond * Mathf.Clamp01(thruster.throttle);
+            queued += Time.deltaTime * settings.emissionsPerSecond * throttle;
             int count = Mathf.FloorToInt(queued);
             ExhaustEmissionRemainder[thing] = queued - count;
             if (count <= 0)
@@ -114,9 +118,10 @@ namespace DeltaV
             }
 
             float fullSize = thing.def.size.x * props.flameSize;
+            float flameSize = fullSize * Mathf.Lerp(0.08f, 1f, visualThrottle);
             Vector3 flameOffset = thing.Rotation.AsQuat * props.flameOffsetsPerDirection[thing.Rotation.AsInt];
             Vector3 position = GenThing.TrueCenter(thing.Position, thing.Rotation, thing.def.size, 0f)
-                - thing.Rotation.AsIntVec3.ToVector3() * (thing.def.size.z * 0.5f + fullSize * 0.5f)
+                - thing.Rotation.AsIntVec3.ToVector3() * (thing.def.size.z * 0.5f + flameSize * 0.5f)
                 + flameOffset;
             Quaternion rotation = thing.Rotation.AsQuat;
             for (int i = 0; i < count; i++)
@@ -131,9 +136,10 @@ namespace DeltaV
                     def = settings.ExhaustFleckDef,
                     spawnPosition = position + rotation * settings.spawnOffset
                         + radial * settings.spawnRadiusRange.RandomInRange,
-                    scale = settings.scaleRange.RandomInRange * Mathf.Lerp(0.65f, 1f, thruster.throttle),
+                    scale = settings.scaleRange.RandomInRange * Mathf.Lerp(0.35f, 1f, visualThrottle),
                     velocity = rotation * Quaternion.Euler(0f, settings.velocityRotationRange.RandomInRange, 0f)
-                        * (settings.velocity * settings.velocityMultiplierRange.RandomInRange),
+                        * (settings.velocity * settings.velocityMultiplierRange.RandomInRange
+                            * Mathf.Lerp(0.35f, 1f, visualThrottle)),
                     rotationRate = settings.rotationOverTimeRange.RandomInRange,
                     ageTicksOverride = -1
                 });

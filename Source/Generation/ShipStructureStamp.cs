@@ -13,8 +13,8 @@ namespace DeltaV
     /// 阶段2：推进器 = LargeThruster（Odyssey 逆重飞船大型推进器，2×2 方形脚印不随旋转变化，
     /// rotatable、terrainAffordanceNeeded=Substructure，正好装在基架甲板上）；
     /// 推力方向约定见 ShipPhysics.ThrustDir（推力沿 Rot4 朝向，与 def 的 exhaust 喷口偏移一致）。
-    /// 布局对称于船体中心：纯线性指令不产生净力矩、转向力偶不产生净力——
-    /// 非对称扩建后 ShipPhysics 会如实保留推力诱导力矩（质心物理）。
+    /// 布局对称于船体中心：纯线性指令不产生净力矩、转向力偶不产生净力。
+    /// 非对称扩建后 ShipPhysics 的联合分配器会按真实几何差动油门，尽量抵消平移诱导力矩。
     /// 阶段1 简化沿用：不盖屋顶、不供电（Orbit biome + MapGeneratorDef 恒温 21°C）。
     /// </summary>
     public static class ShipStructureStamp

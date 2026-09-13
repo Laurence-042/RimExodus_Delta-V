@@ -12,8 +12,8 @@ namespace DeltaV
     /// - 质量 = Substructure 甲板格数 × MassPerDeckCell + 建筑（有 Mass stat 用 stat 值，否则 MassPerBuilding）；
     /// - 质心 / 转动惯量按点质量对质心求和；
     /// - 推进器 = LargeThruster（Odyssey 逆重推进器）：占用矩形中心为作用点，Rot4 朝向为推力方向；
-    /// - 分配器是启发式油门（对称铺设下纯指令无副作用），但合力/合力矩一律按真实
-    ///   推进器位置与朝向求和——推力不过质心自然产生力矩，满足"考虑质心与推进器位置"；
+    /// - 分配器把每台推进器对 Fx/Fz/力矩的贡献放入同一个盒约束最小二乘问题；
+    ///   纯平移优先保持零净力矩，必要时会差动同向推进器或调用正交方向的力偶；
     /// - 飞行辅助（含按住刹车键临时启用）在 PilotController 合成反向指令，走同一分配器；
     ///   最后的微小残差由 Residual* 常量直接衰减到零（用户决策 2026-09-13：不要求推进器
     ///   布局能完美消除微小漂移——刻意偏离纯牛顿的收尾便利）。
@@ -38,6 +38,19 @@ namespace DeltaV
 
         /// <summary>质量模型重扫间隔（tick）。建造期间允许最多 2s 的质量/推进器过期。</summary>
         public const int RescanIntervalTicks = 120;
+
+        // ---- 联合推进器分配 ----
+
+        /// <summary>坐标下降轮数。阶段2 船通常只有 8–12 台推进器，该值足以收敛且不产生每 tick GC。</summary>
+        private const int AllocationSweeps = 96;
+
+        /// <summary>很小的油门正则项，在多解时偏向更小的总出力。</summary>
+        private const float AllocationRegularization = 0.0001f;
+
+        private const float CommandedTranslationWeight = 1f;
+        private const float UncommandedTranslationWeight = 4f;
+        private const float CommandedTorqueWeight = 4f;
+        private const float UncommandedTorqueWeight = 8f;
 
         // ---- 残差衰减（飞行辅助收尾；见类注释的用户决策）----
 
@@ -191,44 +204,117 @@ namespace DeltaV
         // ---- 推进器分配与积分 ----
 
         /// <summary>
-        /// 启发式油门：线性指令点燃朝向同向的推进器；未被线性使用的推进器若全力力矩
-        /// 与转向指令同号则参与转向。返回值是按真实位置/朝向求出的合力与合力矩，
-        /// 非对称铺设的副作用（推力诱导力矩、转向诱导漂移）会如实保留。
+        /// 联合油门分配：求 0&lt;=u_i&lt;=1，使归一化后的 [Fx,Fz,torque] 尽量贴近指令。
+        /// 未输入的平移轴和力矩有更高的零值保持权重：因此 AD 推力不过质心时，
+        /// 求解器可以差动侧推器，或使用 WS 方向的相反推进器组成力偶抵消力矩。
+        /// 若当前布局无法同时满足目标，则优先降低姿态/串轴误差，不伪造物理出力。
         /// </summary>
         public static void Allocate(MassReport report, Command command, out Vector2 force, out float torque)
         {
             force = Vector2.zero;
             torque = 0f;
+            if (report == null || report.thrusters.Count == 0)
+            {
+                return;
+            }
+
+            float positiveX = 0f;
+            float negativeX = 0f;
+            float positiveZ = 0f;
+            float negativeZ = 0f;
+            float positiveTorque = 0f;
+            float negativeTorque = 0f;
             for (int i = 0; i < report.thrusters.Count; i++)
             {
                 Thruster thruster = report.thrusters[i];
-                float throttle = 0f;
-                if (command.fx != 0f && thruster.dir.x * command.fx > 0f)
+                Vector2 fullForce = thruster.dir * ThrusterThrust;
+                float fullTorque = Cross(thruster.localPos - report.comLocal, fullForce);
+                positiveX += Mathf.Max(fullForce.x, 0f);
+                negativeX += Mathf.Max(-fullForce.x, 0f);
+                positiveZ += Mathf.Max(fullForce.y, 0f);
+                negativeZ += Mathf.Max(-fullForce.y, 0f);
+                positiveTorque += Mathf.Max(fullTorque, 0f);
+                negativeTorque += Mathf.Max(-fullTorque, 0f);
+                thruster.throttle = 0f;
+            }
+
+            float scaleX = DirectionalScale(command.fx, positiveX, negativeX);
+            float scaleZ = DirectionalScale(command.fz, positiveZ, negativeZ);
+            float scaleTorque = DirectionalScale(command.torque, positiveTorque, negativeTorque);
+            float weightX = Mathf.Abs(command.fx) > 1e-6f
+                ? CommandedTranslationWeight : UncommandedTranslationWeight;
+            float weightZ = Mathf.Abs(command.fz) > 1e-6f
+                ? CommandedTranslationWeight : UncommandedTranslationWeight;
+            float weightTorque = Mathf.Abs(command.torque) > 1e-6f
+                ? CommandedTorqueWeight : UncommandedTorqueWeight;
+
+            // residual = A*u-b；u 从零开始，坐标下降直接在 Thruster.throttle 上迭代，无临时数组。
+            float residualX = -Mathf.Clamp(command.fx, -1f, 1f);
+            float residualZ = -Mathf.Clamp(command.fz, -1f, 1f);
+            float residualTorque = -Mathf.Clamp(command.torque, -1f, 1f);
+            for (int sweep = 0; sweep < AllocationSweeps; sweep++)
+            {
+                float maxDelta = 0f;
+                bool reverse = (sweep & 1) != 0;
+                for (int step = 0; step < report.thrusters.Count; step++)
                 {
-                    throttle = Mathf.Max(throttle, Mathf.Abs(command.fx));
-                }
-                if (command.fz != 0f && thruster.dir.y * command.fz > 0f)
-                {
-                    throttle = Mathf.Max(throttle, Mathf.Abs(command.fz));
-                }
-                if (throttle <= 0f && command.torque != 0f)
-                {
-                    Vector2 lever = thruster.localPos - report.comLocal;
-                    if (Cross(lever, thruster.dir) * command.torque > 0f)
+                    int index = reverse ? report.thrusters.Count - 1 - step : step;
+                    Thruster thruster = report.thrusters[index];
+                    Vector2 fullForce = thruster.dir * ThrusterThrust;
+                    float axisX = fullForce.x / scaleX;
+                    float axisZ = fullForce.y / scaleZ;
+                    float axisTorque = Cross(thruster.localPos - report.comLocal, fullForce) / scaleTorque;
+                    float denominator = weightX * axisX * axisX
+                        + weightZ * axisZ * axisZ
+                        + weightTorque * axisTorque * axisTorque
+                        + AllocationRegularization;
+                    if (denominator <= 1e-12f)
                     {
-                        throttle = Mathf.Abs(command.torque);
+                        continue;
                     }
+                    float gradient = weightX * axisX * residualX
+                        + weightZ * axisZ * residualZ
+                        + weightTorque * axisTorque * residualTorque
+                        + AllocationRegularization * thruster.throttle;
+                    float next = Mathf.Clamp01(thruster.throttle - gradient / denominator);
+                    float delta = next - thruster.throttle;
+                    if (Mathf.Abs(delta) <= 1e-7f)
+                    {
+                        continue;
+                    }
+                    thruster.throttle = next;
+                    residualX += axisX * delta;
+                    residualZ += axisZ * delta;
+                    residualTorque += axisTorque * delta;
+                    maxDelta = Mathf.Max(maxDelta, Mathf.Abs(delta));
                 }
-                if (throttle <= 0f)
+                if (maxDelta < 0.0001f)
+                {
+                    break;
+                }
+            }
+
+            // 权威物理结果始终由真实几何重算，不使用归一化求解残差反推。
+            for (int i = 0; i < report.thrusters.Count; i++)
+            {
+                Thruster thruster = report.thrusters[i];
+                if (thruster.throttle < 0.0001f)
                 {
                     thruster.throttle = 0f;
                     continue;
                 }
-                thruster.throttle = throttle;
-                Vector2 f = thruster.dir * (ThrusterThrust * throttle);
-                force += f;
-                torque += Cross(thruster.localPos - report.comLocal, f);
+                Vector2 appliedForce = thruster.dir * (ThrusterThrust * thruster.throttle);
+                force += appliedForce;
+                torque += Cross(thruster.localPos - report.comLocal, appliedForce);
             }
+        }
+
+        private static float DirectionalScale(float command, float positiveAuthority, float negativeAuthority)
+        {
+            float scale = command > 1e-6f
+                ? positiveAuthority
+                : (command < -1e-6f ? negativeAuthority : Mathf.Max(positiveAuthority, negativeAuthority));
+            return Mathf.Max(scale, 1f);
         }
 
         /// <summary>
