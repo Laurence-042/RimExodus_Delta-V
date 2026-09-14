@@ -45,6 +45,7 @@
 - **没有锚、没有 floating origin**：sphere↔tile 是纯函数（`TileFromDirection` 线性扫描取最大点积，仅降落时调用；`TileCenterDirection` 反向），任何状态都不需要对齐基准。长途航行沿球面推进，绕星球一周回到原点，坐标无漂移也无界问题。
 - **全部 Delta-V 口袋图（船/POI）无 tile**：`Tile` 恒 `PlanetTile.Invalid`，只存在于 `Find.World.pocketMaps`（绝不进 `Find.WorldObjects`——无 tile WorldObject 的 SpawnSetup 会在 FastTileFinder 越界崩溃）。`sourceMap` 统一指向专用宿主口袋图。聚焦口袋图时 `Map.Tile.Layer` 回落地表层，但 `BackgroundWorldCamera*` 视差参数地表/轨道层共用 `PlanetLayerDef` 类默认值（两层 XML 均未覆盖），无视觉差异。
 - **旧档迁移**：平面存档以旧 `hostMap` tile 为切平面原点把绝对偏移换算成球面方向（角度/速度基约定不变直接沿用）；旧档口袋图残留的真实 tile 用反射直写私有字段清空（走 `WorldObject.Tile` setter 置 Invalid 有 Surface 层 FastTileFinder 越界风险）。
+- **无 tile 口袋图的原版兼容补丁**（Patch_DateNotifier.cs）：飞船口袋图上有逆重引擎，`Map.IsPlayerHome` 经 `GravshipUtility.PlayerHasGravEngine` 判为 true，会被当作玩家主基地图参与日历循环——原版 `DateNotifier.FindPlayerHomeWithMinTimezone` / `AnyPlayerHomeAvgTempIsLowInWinter` 对 `map.Tile` 无 Valid 守卫（`LongLatOf(-1)` 每日历 tick 红字，2026-09-14 实测），两个助手跳过无 tile 图；`IncidentWorker.CanFireNow` 的 biome 过滤同样无守卫（`Find.WorldGrid[-1]` 硬崩），无 tile 目标对带 biome 过滤的事件判为不可触发。太空船无经纬度/季节语义，跳过即正确语义；有真实 tile 的玩家地图行为不变。
 - **背景位置注入点 = `MapParent.WorldCameraPosition`**（船图：该图宇宙对象的球面点；降落图：停靠在本图的船的球面点——两图切换聚焦背景无跳变）；**背景角度注入点 = `WorldCameraDriver.ApplyMapPositionToGameObject` Postfix**（对象图随聚焦姿态；真实空间图随停靠主船姿态）。后者只给父级 WorldCamera 补局部 roll（子级 WorldSkyboxCamera 自动继承），因此星球与星空相对聚焦船反向旋转，而 Map Camera/Thing/鼠标/寻路仍为 identity。
 - **缩放放宽**：聚焦 Delta-V 图（对象图/真实空间图）时幂等设置 `CameraDriver.config.sizeRange.max = universeZoomMax`（默认 400），离开恢复记录的原值。相机高度公式与 farClip(65.5) 按同一 max 归一化，正交投影下放宽安全，无需 patch。
 
