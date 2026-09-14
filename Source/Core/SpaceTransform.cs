@@ -9,15 +9,16 @@ namespace DeltaV
     ///
     /// 坐标链（story.md「预期技术路线-坐标转换」）：
     ///   Map local (cell / Thing) → ship local (连续，原点 = 地图几何中心)
-    ///   → universe (绝对) → focused 参考系 (相对) → 显示。
+    ///   → universe (球面方向，OrbitSphere) → focused 参考系 (相对) → 显示。
     ///
-    /// 角度约定（阶段1，写入 doc/阶段1-双船原型.md，改动必须同步文档）：
-    ///   2D 旋转公式 u.x = p.x·cosθ − p.z·sinθ，u.z = p.x·sinθ + p.z·cosθ
-    ///   （把 (x,z) 当作平面直角坐标逆时针为正）。
-    ///   它与 Unity 的对应关系：Quaternion.Euler(0, −θ·Rad2Deg, 0)。
-    ///   ShellRenderer 的显示矩阵必须通过本类的 FocusedMeshRotation 取得，保证与 2D 公式一致。
+    /// universe 位置的 API 形态是 Vector3 单位方向（球面绝对坐标）：
+    /// - "偏移"一律以切空间格数（x = 东、y = 北）表达，球面移动/投影全部委托 OrbitSphere；
+    /// - 角度约定沿用阶段1（写入 doc/阶段1-双船原型.md，改动必须同步文档）：
+    ///   2D 旋转公式 u.x = p.x·cosθ − p.z·sinθ，u.z = p.x·sinθ + p.z·cosθ；
+    ///   与 Unity 的对应关系 Quaternion.Euler(0, −θ·Rad2Deg, 0)。
+    ///   ShellRenderer 的显示矩阵必须通过本类的 FocusedMeshRotation 取得，保证一致。
     ///
-    /// 本类保持无状态：所有方法显式传入 SpaceObject / Map，不读取全局当前聚焦状态。
+    /// 本类保持无状态：所有方法显式传入 SpaceObject / Map / 方向，不读取全局当前聚焦状态。
     /// </summary>
     public static class SpaceTransform
     {
@@ -77,14 +78,19 @@ namespace DeltaV
 
         // ---------- Ship local ⇄ universe ----------
 
-        public static Vector2 ShipLocalToUniverse(SpaceObject obj, Vector2 shipPoint)
+        public static Vector3 ShipLocalToUniverse(SpaceObject obj, Vector2 shipPoint)
         {
-            return obj.pose.position + Rotate(shipPoint, obj.pose.angle);
+            return ShipLocalToUniverse(obj.pose, shipPoint);
         }
 
-        public static Vector2 UniverseToShipLocal(SpaceObject obj, Vector2 universePoint)
+        public static Vector3 ShipLocalToUniverse(SpacePose pose, Vector2 shipPoint)
         {
-            return RotateInverse(universePoint - obj.pose.position, obj.pose.angle);
+            return OrbitSphere.Move(pose.position, Rotate(shipPoint, pose.angle));
+        }
+
+        public static Vector2 UniverseToShipLocal(SpaceObject obj, Vector3 universeDir)
+        {
+            return RotateInverse(OrbitSphere.Offset(obj.pose.position, universeDir), obj.pose.angle);
         }
 
         /// <summary>
@@ -94,22 +100,31 @@ namespace DeltaV
         /// 中心系输出当地图坐标用）。消费方要落格子/落相机一律用本方法，
         /// 直接拿 UniverseToShipLocal 输出当地图坐标 = 反模式。
         /// </summary>
-        public static Vector2 UniverseToMapPoint(SpaceObject obj, Vector2 universePoint)
+        public static Vector2 UniverseToMapPoint(SpaceObject obj, Vector3 universeDir)
         {
-            return ShipLocalToMap(obj.map, UniverseToShipLocal(obj, universePoint));
+            return ShipLocalToMap(obj.map, UniverseToShipLocal(obj, universeDir));
+        }
+
+        /// <summary>
+        /// universe → 停靠船在停靠图上的地图坐标。停靠船的布局已按 Rot4 物理摆正，
+        /// 停靠图 tile 帧角度恒为 0，因此映射是"以 dockedOrigin 为原点的纯平移"。
+        /// </summary>
+        public static Vector2 UniverseToDockedMapPoint(ShipState ship, Vector3 universeDir)
+        {
+            return DockController.DockedOriginMapPoint(ship) + OrbitSphere.Offset(ship.pose.position, universeDir);
         }
 
         // ---------- Universe ⇄ focused 参考系 ----------
         // DisplayTransform = inverse(FocusedObject.SpacePose)（AGENTS §6）。
 
-        public static Vector2 UniverseToFocused(SpaceObject focused, Vector2 universePoint)
+        public static Vector2 UniverseToFocused(SpaceObject focused, Vector3 universeDir)
         {
-            return RotateInverse(universePoint - focused.pose.position, focused.pose.angle);
+            return RotateInverse(OrbitSphere.Offset(focused.pose.position, universeDir), focused.pose.angle);
         }
 
-        public static Vector2 FocusedToUniverse(SpaceObject focused, Vector2 focusedPoint)
+        public static Vector3 FocusedToUniverse(SpaceObject focused, Vector2 focusedPoint)
         {
-            return focused.pose.position + Rotate(focusedPoint, focused.pose.angle);
+            return OrbitSphere.Move(focused.pose.position, Rotate(focusedPoint, focused.pose.angle));
         }
 
         public static float UniverseAngleToFocused(SpaceObject focused, float universeAngle)
@@ -130,14 +145,14 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 代理显示位置：universe 坐标 → 聚焦参考系 → 地图世界绘制坐标（y 为海拔）。
-        /// focusedMap 是承载本次绘制的地图（聚焦船地图，或宿主图）；
+        /// 代理显示位置：universe 方向 → 聚焦参考系 → 地图世界绘制坐标（y 为海拔）。
+        /// focusedMap 是承载本次绘制的地图（聚焦对象地图，或承载帧的真实空间图）；
         /// focused 帧坐标以聚焦对象中心为原点，而地图渲染中该中心位于地图几何中心，
         /// 所以必须再加上 ShipLocalOrigin——漏加会让所有代理整体偏移半张地图。
         /// </summary>
-        public static Vector3 FocusedDrawPosition(SpaceObject focused, Map focusedMap, Vector2 universePoint, float altitude)
+        public static Vector3 FocusedDrawPosition(SpaceObject focused, Map focusedMap, Vector3 universeDir, float altitude)
         {
-            Vector2 rel = UniverseToFocused(focused, universePoint);
+            Vector2 rel = UniverseToFocused(focused, universeDir);
             Vector2 mapPoint = ShipLocalToMap(focusedMap, rel);
             return new Vector3(mapPoint.x, altitude, mapPoint.y);
         }

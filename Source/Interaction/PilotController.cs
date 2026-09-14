@@ -62,7 +62,7 @@ namespace DeltaV
             }
             if (focused.docked)
             {
-                // 停靠中的船没有可驾驶的船体（真实建筑在宿主图）；起飞入口见 DockController。
+                // 停靠中的船没有可驾驶的船体（真实建筑在降落图）；起飞入口见 DockController。
                 Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
@@ -72,13 +72,19 @@ namespace DeltaV
             }
             else
             {
-                universe.pilotShipId = focused.objectId;
-                hudScrollPosition = Vector2.zero;
-                RebuildPilotKeySet();
-                Log.Message($"[DeltaV] Pilot mode engaged: {focused.label} (#{focused.objectId}). Pilot keys: [{string.Join(", ", ActivePilotKeys)}].");
-                DeltaVLog.Message(DeltaVLogModule.Core, $"engage details: speed={focused.pose.velocity} m/s, heading={SpaceTransform.WrapAngle(focused.pose.angle) * Mathf.Rad2Deg:F0} deg, omega={focused.pose.angularVelocity * Mathf.Rad2Deg:F1} deg/s");
-                Messages.Message("DeltaV_PilotOn".Translate(focused.label), MessageTypeDefOf.PositiveEvent, false);
+                Enter(universe, focused);
             }
+        }
+
+        public static void Enter(UniverseManager universe, ShipState ship)
+        {
+            if (universe == null || ship?.map == null || ship.docked || ship.docking) return;
+            universe.pilotShipId = ship.objectId;
+            hudScrollPosition = Vector2.zero;
+            RebuildPilotKeySet();
+            Log.Message($"[DeltaV] Pilot mode engaged: {ship.label} (#{ship.objectId}). Pilot keys: [{string.Join(", ", ActivePilotKeys)}].");
+            DeltaVLog.Message(DeltaVLogModule.Core, $"engage details: speed={ship.pose.velocity} m/s, heading={SpaceTransform.WrapAngle(ship.pose.angle) * Mathf.Rad2Deg:F0} deg, omega={ship.pose.angularVelocity * Mathf.Rad2Deg:F1} deg/s");
+            Messages.Message("DeltaV_PilotOn".Translate(ship.label), MessageTypeDefOf.PositiveEvent, false);
         }
 
         public static void Exit(UniverseManager universe, string message = null)
@@ -382,39 +388,29 @@ namespace DeltaV
 
         public static void DrawHud(UniverseManager universe)
         {
-            ShipState piloted = PilotedShip(universe);
-            if (piloted?.map == null || Find.CurrentMap != piloted.map)
+            // 移动模式的口袋图一图一船，因此 HUD 可以无歧义地直接操作当前船；
+            // 驾驶只是移动模式中是否把输入交给该船，不是另一种地图生命周期。
+            ShipState mobileShip = universe?.ShipOnMap(Find.CurrentMap);
+            if (mobileShip?.map == null || mobileShip.docked || mobileShip.docking)
             {
                 return;
             }
-            // 停靠中的船没有飞行口袋图与驾驶入口；出口在实际停靠图按钮/驾驶台 gizmo。
-            if (piloted.docked)
-            {
-                return;
-            }
-            bool active = universe.pilotShipId == piloted.objectId;
+            bool active = universe.pilotShipId == mobileShip.objectId;
             float y = UI.screenHeight * 0.42f;
-            if (!active)
-            {
-                Rect enterRect = new Rect(8f, y, 170f, 30f);
-                if (Widgets.ButtonText(enterRect, "DeltaV_PilotButtonEnter".Translate()))
-                {
-                    Toggle(universe);
-                }
-                return;
-            }
 
-            ShipPhysics.MassReport report = ShipPhysics.GetReport(piloted);
-            var rect = new Rect(8f, y, 240f, 150f);
+            ShipPhysics.MassReport report = ShipPhysics.GetReport(mobileShip);
+            var rect = new Rect(8f, y, 240f, 190f);
             Widgets.DrawMenuSection(rect);
             var inner = rect.ContractedBy(8f);
 
-            string title = "DeltaV_PilotHudTitle".Translate(piloted.label);
-            string speed = "DeltaV_HudSpeed".Translate(piloted.pose.velocity.magnitude.ToString("F1"));
+            string title = "DeltaV_MobileHudTitle".Translate(mobileShip.label);
+            string control = "DeltaV_HudControl".Translate(
+                active ? "DeltaV_ControlPiloting".Translate() : "DeltaV_ControlInactive".Translate());
+            string speed = "DeltaV_HudSpeed".Translate(mobileShip.pose.velocity.magnitude.ToString("F1"));
             string heading = "DeltaV_HudHeading".Translate(
-                (ShipOrientation.HeadingAngle(piloted) * Mathf.Rad2Deg).ToString("F0"));
+                (ShipOrientation.HeadingAngle(mobileShip) * Mathf.Rad2Deg).ToString("F0"));
             string turnRate = "DeltaV_HudTurnRate".Translate(
-                (piloted.pose.angularVelocity * Mathf.Rad2Deg).ToString("F1"));
+                (mobileShip.pose.angularVelocity * Mathf.Rad2Deg).ToString("F1"));
             string mass = "DeltaV_HudMass".Translate(report == null ? "?" : ((int)report.mass).ToString());
             bool brakeHeld = DeltaVDefOf.DeltaV_AssistBrake != null && DeltaVDefOf.DeltaV_AssistBrake.IsDown;
             string assist = "DeltaV_HudAssist".Translate(
@@ -430,13 +426,13 @@ namespace DeltaV
             Text.Font = GameFont.Small;
             float titleHeight = Mathf.Max(24f, Text.CalcHeight(title, contentWidth));
             Text.Font = GameFont.Tiny;
-            string[] statusLines = { speed, heading, turnRate, mass, assist };
+            string[] statusLines = { control, speed, heading, turnRate, mass, assist };
             float contentHeight = titleHeight;
             foreach (string statusLine in statusLines)
             {
                 contentHeight += Mathf.Max(20f, Text.CalcHeight(statusLine, contentWidth));
             }
-            contentHeight += 30f;
+            contentHeight += 60f;
 
             var viewRect = new Rect(0f, 0f, contentWidth, contentHeight);
             Widgets.BeginScrollView(inner, ref hudScrollPosition, viewRect);
@@ -451,11 +447,19 @@ namespace DeltaV
                 Widgets.Label(new Rect(0f, lineY, contentWidth, lineHeight), statusLine);
                 lineY += lineHeight;
             }
-            if (Widgets.ButtonText(new Rect(0f, lineY + 3f, contentWidth, 27f), "DeltaV_PilotButtonExit".Translate()))
+            string pilotButton = active
+                ? "DeltaV_PilotButtonExit".Translate()
+                : "DeltaV_PilotButtonEnter".Translate();
+            if (Widgets.ButtonText(new Rect(0f, lineY + 3f, contentWidth, 27f), pilotButton))
             {
-                Exit(universe, "DeltaV_PilotOff".Translate(piloted.label));
+                Toggle(universe);
+            }
+            if (Widgets.ButtonText(new Rect(0f, lineY + 33f, contentWidth, 27f), "DeltaV_FixedButtonEnter".Translate()))
+            {
+                DockController.TryDock(universe, mobileShip);
             }
             Widgets.EndScrollView();
+            Text.Font = GameFont.Small;
         }
     }
 }

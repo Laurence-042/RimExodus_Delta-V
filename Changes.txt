@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Replaced the planar universe frame and dynamic-anchor bookkeeping with absolute spherical coordinates on the orbit layer; removed floating-origin shifts and tile re-anchoring entirely.
+- Replaced the player-flow host map with a dedicated tile-less universe host pocket map: all Delta-V pocket maps (ships and POIs) no longer occupy orbit tiles, are hidden from the world view, and the host never ticks or takes focus.
+- Decoupled takeoff and landing from the host: landing targets the real orbit map at the ship's sphere position (reused when one exists, generated otherwise), and any real orbit map—including vanilla gravship maps created on POI tiles—can now bootstrap directly into mobile mode.
+- Old saves migrate automatically: planar positions convert to sphere directions and stale pocket-map tiles are cleared on load.
 - Added stage 3 space POI lifecycle, dynamic universe anchoring, extended zoom, and background reference-frame rotation.
 - Extended the vanilla Odyssey pilot console with Delta-V piloting and primary-console controls.
 - Added fixed-orbit docking through the vanilla Gravship landing selector and placement pipeline, with a fixed-zoom pose-transition landing animation.
@@ -12,3 +16,7 @@
 - Fixed fixed-orbit docking so the host map remains the sole landing canvas, the selected landing point updates the ship's universe position, and docked ships remain visible from other space maps.
 - Destroyed obsolete pocket maps after landing and now rebuild them from the ship's current footprint on launch, including ships expanded or reduced while docked.
 - Fixed the generated test ship's player ownership and grav-field extender links, preserved pilot-console ownership while docked, and hid the empty host-map group from the Colonist Bar while the ship is flying.
+- Added explicit fixed/mobile/piloting transitions: orbit gravships remain fixed until their own console is selected, mobile-map HUDs always show ship state and mode controls, and ground mobile-mode gizmos are disabled with a gravity-restriction tooltip.
+- Added Launch into empty space as a dependency so vanilla gravships can target empty orbit tiles.
+- Made fixed-orbit alignment duration depend on translation distance, angular difference, and the ship's available linear/angular acceleration.
+- Routed fixed-to-mobile conversion through vanilla Gravship InitiateTakeoff and its cleanup lifecycle, preventing stale PowerNet connectors when the captured ship is placed into its pocket map.

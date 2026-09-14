@@ -33,18 +33,13 @@ namespace DeltaV
             if (current == null || !WorldRendererUtility.DrawingMap) return;
             EnsureRules();
 
-            SpaceObject frame = universe.SpaceObjectOnMap(current);
+            SpaceObject frame = universe.FrameOf(current);
             if (frame != null)
             {
                 foreach (SpaceObject obj in universe.objects)
                 {
                     if (obj != frame) DrawObjectShell(obj, frame, current);
                 }
-            }
-            else if (universe.hostMap == current)
-            {
-                ShipState hostFrame = universe.HostFrame;
-                foreach (SpaceObject obj in universe.objects) DrawObjectShell(obj, hostFrame, current);
             }
         }
 

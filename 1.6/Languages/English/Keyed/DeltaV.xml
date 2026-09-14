@@ -7,7 +7,12 @@
   <DeltaV_PilotExitAuto>Pilot mode ended (focus left {0}).</DeltaV_PilotExitAuto>
   <DeltaV_PilotButtonEnter>Pilot this ship</DeltaV_PilotButtonEnter>
   <DeltaV_PilotButtonExit>Stop piloting</DeltaV_PilotButtonExit>
-  <DeltaV_PilotHudTitle>Piloting: {0}</DeltaV_PilotHudTitle>
+  <DeltaV_MobileButtonEnter>Enter mobile mode</DeltaV_MobileButtonEnter>
+  <DeltaV_PilotGravityRestricted>In gravity, a grav engine and thrusters can only make short, targeted ballistic hops. Free non-targeted flight is available only in zero gravity.</DeltaV_PilotGravityRestricted>
+    <DeltaV_MobileHudTitle>Mobile mode: {0}</DeltaV_MobileHudTitle>
+  <DeltaV_HudControl>Controls: {0}</DeltaV_HudControl>
+  <DeltaV_ControlPiloting>piloting</DeltaV_ControlPiloting>
+  <DeltaV_ControlInactive>inactive</DeltaV_ControlInactive>
   <DeltaV_HudSpeed>Speed: {0} c/s</DeltaV_HudSpeed>
   <DeltaV_HudHeading>Heading: {0}°</DeltaV_HudHeading>
   <DeltaV_HudTurnRate>Turn rate: {0}°/s</DeltaV_HudTurnRate>
@@ -18,8 +23,8 @@
   <DeltaV_Braking>braking</DeltaV_Braking>
   <DeltaV_SettingsFlightAssist>Flight assist</DeltaV_SettingsFlightAssist>
   <DeltaV_SettingsFlightAssistTip>While piloting, axes without player input are counter-thrusted using the ship's real thruster power (no artificial damping).</DeltaV_SettingsFlightAssistTip>
-  <DeltaV_SettingsHostMapSize>Host map size (100-1000)</DeltaV_SettingsHostMapSize>
-  <DeltaV_SettingsHostMapSizeNote>Display/performance parameter for the space host map. Applied the next time the test scene is created; does not affect universe coordinates.</DeltaV_SettingsHostMapSizeNote>
+  <DeltaV_SettingsLandingMapSize>Landing map size (100-1000)</DeltaV_SettingsLandingMapSize>
+  <DeltaV_SettingsLandingMapSizeNote>Display/performance parameter used when a new landing map is generated at the ship's current position; does not affect universe coordinates.</DeltaV_SettingsLandingMapSizeNote>
   <DeltaV_SettingsLogSection>Diagnostic logs</DeltaV_SettingsLogSection>
   <DeltaV_SettingsLogNote>Module-gated verbose logs ([DeltaV:Module] prefix). Warnings/errors and key state transitions (pilot enter/exit, suppression activation, patch init) are always logged regardless.</DeltaV_SettingsLogNote>
   <DeltaV_SettingsLogCore>Log: core &amp; piloting state</DeltaV_SettingsLogCore>
@@ -28,22 +33,20 @@
   <DeltaV_SettingsLogHarmony>Log: key suppression decisions</DeltaV_SettingsLogHarmony>
   <DeltaV_SettingsLogLifecycle>Log: POI lifecycle transitions</DeltaV_SettingsLogLifecycle>
   <DeltaV_SettingsUniverseZoomMax>Universe view zoom max (60-5000)</DeltaV_SettingsUniverseZoomMax>
-  <DeltaV_SettingsOriginShiftThreshold>Origin shift threshold (cells)</DeltaV_SettingsOriginShiftThreshold>
   <DeltaV_SettingsPoiActiveRadius>POI active radius (cells)</DeltaV_SettingsPoiActiveRadius>
   <DeltaV_SettingsPoiDeleteRadius>POI delete radius (cells)</DeltaV_SettingsPoiDeleteRadius>
-  <DeltaV_DockButton>Enter fixed orbit</DeltaV_DockButton>
-  <DeltaV_LaunchButton>Return to flight</DeltaV_LaunchButton>
-  <DeltaV_DockSuccess>{0} secured in fixed orbit on the space anchor map.</DeltaV_DockSuccess>
-  <DeltaV_DockFailHostMap>No space host map available.</DeltaV_DockFailHostMap>
-  <DeltaV_DockFailOutOfRange>Ship's universe position is not within the host map area. Fly closer to the anchor first.</DeltaV_DockFailOutOfRange>
-  <DeltaV_DockFailBlocked>Landing area on the host map is blocked. Pick another spot or clear it first.</DeltaV_DockFailBlocked>
-  <DeltaV_DockFailNoEngine>No grav engine found on the ship. Fixed orbit requires a grav engine as the ship's structural anchor.</DeltaV_DockFailNoEngine>
+  <DeltaV_FixedButtonEnter>Enter fixed mode</DeltaV_FixedButtonEnter>
+  <DeltaV_DockSuccess>{0} secured in fixed mode on the space anchor map.</DeltaV_DockSuccess>
+  <DeltaV_DockFailHostMap>No landing map could be resolved for the current position.</DeltaV_DockFailHostMap>
+  <DeltaV_DockFailOutOfRange>Ship's universe position cannot be projected to an orbit tile. Fly closer to the planet first.</DeltaV_DockFailOutOfRange>
+  <DeltaV_DockFailBlocked>Landing area on the target map is blocked. Pick another spot or clear it first.</DeltaV_DockFailBlocked>
+  <DeltaV_DockFailNoEngine>No grav engine found on the ship. Fixed mode requires a grav engine as the ship's structural anchor.</DeltaV_DockFailNoEngine>
   <DeltaV_DockFailBusy>Another gravship landing or flight operation is already in progress.</DeltaV_DockFailBusy>
-  <DeltaV_LaunchSuccess>{0} has returned to flight.</DeltaV_LaunchSuccess>
+  <DeltaV_MobileSuccess>{0} has entered mobile mode.</DeltaV_MobileSuccess>
   <DeltaV_ConsoleGizmoPilot>Pilot this ship</DeltaV_ConsoleGizmoPilot>
-  <DeltaV_ConsoleGizmoLaunch>Return to flight</DeltaV_ConsoleGizmoLaunch>
+  <DeltaV_ConsoleGizmoLaunch>Enter mobile mode</DeltaV_ConsoleGizmoLaunch>
   <DeltaV_ConsoleGizmoMakePrimary>Set as primary console</DeltaV_ConsoleGizmoMakePrimary>
-  <DeltaV_ConsoleGizmoPrimaryTip>The ship's heading when returning to flight follows the primary console's facing.</DeltaV_ConsoleGizmoPrimaryTip>
+  <DeltaV_ConsoleGizmoPrimaryTip>The ship's heading when entering mobile mode follows the primary console's facing.</DeltaV_ConsoleGizmoPrimaryTip>
   <DeltaV_ConsolePrimarySet>Primary console set: {0}</DeltaV_ConsolePrimarySet>
   <DeltaV_ConsolePrimary>This is the primary pilot console.</DeltaV_ConsolePrimary>
   <DeltaV_PoiCreated>POI created: {0} at {1} cells.</DeltaV_PoiCreated>

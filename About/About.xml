@@ -3,9 +3,9 @@
   <name>RimExodus: Delta-V (Dev)</name>
   <packageId>RimExodus.DeltaV</packageId>
   <author>Laurence-042</author>
-  <description>阶段3 开发原型：POI 生命周期 + 动态锚 + 驾驶台 + 固定轨道。每艘飞船是一张独立的口袋地图，飞船姿态保存在地图外的统一宇宙坐标系中；当前聚焦地图保持原版朝向，非聚焦飞船以可平移、可任意角旋转的外壳代理显示。阶段2 加入连续驾驶（W/S 推进、A/D 平移、Q/E 转向，可在原版改键界面修改）、按质心与推进器位置的刚体物理、飞行辅助与 Universe Layer 星球 tile 映射。阶段3 加入太空 POI 三段生命周期（活跃/休眠/删除）、动态宇宙锚与连续星球背景、放宽缩放的宇宙视野、驾驶台与固定轨道/建造模式（逆重搬运落宿主图）。
+  <description>阶段3 开发原型：POI 生命周期 + 动态锚 + 驾驶台 + 固定/移动/驾驶模式。每艘移动飞船是一张独立的口袋地图，飞船姿态保存在地图外的统一宇宙坐标系中；当前聚焦地图保持原版朝向，非聚焦飞船以可平移、可任意角旋转的外壳代理显示。阶段2 加入连续驾驶（W/S 推进、A/D 平移、Q/E 转向，可在原版改键界面修改）、按质心与推进器位置的刚体物理、飞行辅助与 Universe Layer 星球 tile 映射。阶段3 加入太空 POI 三段生命周期（活跃/休眠/删除）、动态宇宙锚与连续星球背景、放宽缩放的宇宙视野、驾驶台与固定/移动转换（逆重搬运落宿主图或进入独占口袋图）。
 
-目前正式玩法仍以开发者模式调试入口为主（Dev mode → Debug actions → Delta-V）。
+正式流程可由原版逆重飞船飞往空白 Orbit tile，再从驾驶台进入 Delta-V 移动模式；开发者模式入口仍用于双船、POI 与生命周期专项测试（Dev mode → Debug actions → Delta-V）。
 
 Phase 3 prototype: POI lifecycle, dynamic anchor, pilot console, fixed orbit. Each ship is an independent pocket map; poses live in a continuous universe frame outside any map, the focused map keeps vanilla orientation, and non-focused ships show as translatable / freely rotating shell proxies. Phase 3 adds a three-stage space POI map lifecycle (active / dormant / packed with snapshot), a dynamic universe anchor with continuous planet background, universe-view zoom-out, pilot consoles, and the fixed-orbit building mode (whole-ship gravship transfer onto the host map).</description>
   <modVersion>0.1.0</modVersion>
@@ -19,5 +19,13 @@ Phase 3 prototype: POI lifecycle, dynamic anchor, pilot console, fixed orbit. Ea
       <downloadUrl>https://github.com/pardeike/HarmonyRimWorld</downloadUrl>
       <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
     </li>
+    <li>
+      <packageId>Exploriters.siiftun1857.LaunchIntoEmptySpace</packageId>
+      <displayName>Launch into empty space</displayName>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/3532333408</steamWorkshopUrl>
+    </li>
   </modDependencies>
+  <loadAfter>
+    <li>Exploriters.siiftun1857.LaunchIntoEmptySpace</li>
+  </loadAfter>
 </ModMetaData>

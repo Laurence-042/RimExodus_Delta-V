@@ -1,22 +1,27 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using HarmonyLib;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
 namespace DeltaV
 {
     /// <summary>
-    /// 统一宇宙状态管理器（阶段1）。GameComponent 由 Game.FillComponents 反射自动注册，
+    /// 统一宇宙状态管理器。GameComponent 由 Game.FillComponents 反射自动注册，
     /// 无需 XML。objects 列表（飞船 + POI）是权威宇宙状态；外壳代理只是缓存。
     ///
     /// 职责边界：
     /// - 非聚焦对象代理绘制在 GameComponentUpdate 分发（WorldComponent_GravshipController 同款节奏）；
     /// - SetFocused 只切换参考系（CurrentMap），绝不修改任何 pose 数值（不变量 #5）；
     /// - POI 地图生命周期统一委托 SpaceLifecycle（单一管理入口，AGENTS §11）；
-    /// - 动态锚（阶段3）：宿主图位置记账随玩家主船平移（anchorDisplacement），
-    ///   宿主图 tile/Map 永不移动。
+    /// - 宿主：所有 Delta-V 口袋图（飞船/POI）共用的 sourceMap 锚——一张专用的
+    ///   无 tile 口袋图（UniverseHostParent_DeltaV，仅存在于 Find.World.pocketMaps），
+    ///   永不聚焦、永不出现在世界视图、tick 常冻结。它不是宇宙坐标锚（坐标已是
+    ///   球面绝对坐标），只承载原版 storyteller/财富/移除级联从口袋图重定向到
+    ///   sourceMap 的引擎契约。
     /// </summary>
     public class UniverseManager : GameComponent
     {
@@ -29,31 +34,22 @@ namespace DeltaV
         public int pilotShipId = -1;
 
         /// <summary>
-        /// 宿主/显示地图：轨道层真实 tile 上的普通地图，是口袋图的 sourceMap 锚点
-        /// （原版 storyteller/财富/任务逻辑从口袋图重定向到 sourceMap）。聚焦宿主图时
-        /// 以 HostFrame 显示全部宇宙对象代理。
-        /// </summary>
-        public Map hostMap;
-
-        /// <summary>
-        /// 玩家主船（阶段3）：动态锚的跟随对象——背景相机、HostFrame 总览投影、
-        /// floating origin 平移都以它为参考。宿主图 tile 与 Map 永不移动。
+        /// 玩家主船：背景相机跟随对象、POI 生命周期距离参考。失效时回退第一艘活着的船。
         /// </summary>
         public int primaryShipId = -1;
 
         /// <summary>
-        /// 动态锚记账（阶段3，存档事实）：宇宙坐标系随主船整体平移的累计量。
-        /// 绝对偏移 = pose.position + anchorDisplacement；平移时刻绝对值不变，
-        /// 背景球面视角因此连续（见 UniverseLayerMapping.AbsoluteSpherePoint）。
+        /// 专用宿主口袋图（运行时引用，不序列化——按 def 在 pocketMaps 中重扫即可恢复，
+        /// 空图无事实价值可随时重建，AGENTS §15）。经 GetOrCreateHostMap 惰性获取。
         /// </summary>
-        public Vector2 anchorDisplacement = Vector2.zero;
+        [NonSerialized] private Map universeHostMap;
 
         /// <summary>全部飞船（objects 的 ShipState 视图；每次调用有少量分配，勿在热循环内反复取）。</summary>
         public IEnumerable<ShipState> Ships => objects.OfType<ShipState>();
 
         public ShipState Focused => ShipById(focusedShipId);
 
-        /// <summary>主船（锚跟随对象）；失效时回退第一艘活着的船，保持锚与显示有参考。</summary>
+        /// <summary>主船（背景相机跟随对象）；失效时回退第一艘活着的船，保持显示有参考。</summary>
         public ShipState PrimaryShip =>
             (objects.FirstOrDefault(o => o is ShipState s && s.objectId == primaryShipId
                 && (s.map != null || s.dockedMap != null)) as ShipState)
@@ -62,6 +58,17 @@ namespace DeltaV
         public ShipState ShipById(int id)
         {
             return objects.FirstOrDefault(o => o.objectId == id) as ShipState;
+        }
+
+        /// <summary>为运行时接入的新飞船/POI 分配稳定且不重复的对象 ID。</summary>
+        public int NextObjectId()
+        {
+            int max = 0;
+            foreach (SpaceObject obj in objects)
+            {
+                max = Mathf.Max(max, obj.objectId);
+            }
+            return max + 1;
         }
 
         /// <summary>当前地图对应的宇宙对象（船或 POI；无则 null）。显示参考系以此为准。</summary>
@@ -76,7 +83,10 @@ namespace DeltaV
             return SpaceObjectOnMap(map) as ShipState;
         }
 
-        /// <summary>承载指定地图的显示参考系：任一对象图为其自身，宿主图为 HostFrame，其余 null。</summary>
+        /// <summary>
+        /// 承载指定地图的显示参考系：对象图（口袋图）为其自身，真实轨道空间图
+        /// （bootstrap 源图、降落图）为该图 tile 的切空间帧，其余 null。
+        /// </summary>
         public SpaceObject FrameOf(Map map)
         {
             SpaceObject frame = SpaceObjectOnMap(map);
@@ -84,41 +94,82 @@ namespace DeltaV
             {
                 return frame;
             }
-            return hostMap == map ? HostFrame : null;
+            return MapFrame(map);
         }
 
-        [NonSerialized] private ShipState hostFrame;
+        [NonSerialized] private ShipState mapFrame;
 
         /// <summary>
-        /// 宿主图显示帧：纯显示层合成参考系（锚 = 主船宇宙位置、0 角，投影到宿主图中心），
-        /// 只用于聚焦宿主图时投影宇宙对象代理，不是宇宙状态（不变量 #9/#5）。
-        /// 阶段3 起锚随主船每帧平移；背景相机的旋转另由聚焦姿态驱动，不动宿主图地块。
+        /// 真实轨道空间图的显示帧（tile 中心切空间，角度恒 0）：纯显示层合成参考系，
+        /// 只用于把宇宙对象代理/落点投影到该图的地图坐标系，不是宇宙状态（不变量 #9/#5）。
         /// </summary>
-        public ShipState HostFrame
+        public SpaceObject MapFrame(Map map)
         {
-            get
+            if (map == null || !map.Tile.Valid || !map.Tile.LayerDef.isSpace)
             {
-                if (hostFrame == null)
-                {
-                    hostFrame = new ShipState(0, "host frame (display-only)", hostMap, new SpacePose(Vector2.zero, 0f));
-                }
-                hostFrame.map = hostMap;
-                ShipState primary = PrimaryShip;
-                if (primary != null)
-                {
-                    hostFrame.pose.position = primary.docked && primary.dockedMap == hostMap
-                        ? primary.pose.position + SpaceTransform.ShipLocalOrigin(hostMap)
-                            - DockController.DockedOriginMapPoint(primary)
-                        : primary.pose.position;
-                    hostFrame.pose.angle = 0f;
-                }
-                return hostFrame;
+                return null;
             }
+            if (mapFrame == null)
+            {
+                mapFrame = new ShipState(0, "map frame (display-only)", map, new SpacePose(Vector3.right, 0f));
+            }
+            mapFrame.map = map;
+            mapFrame.pose.position = OrbitSphere.TileCenterDirection(map.Tile);
+            return mapFrame;
         }
+
+        /// <summary>frame 是否为合成地图帧（SpaceObjectOnMap 之外的显示帧）。</summary>
+        public bool IsSyntheticFrame(SpaceObject frame)
+        {
+            return ReferenceEquals(frame, mapFrame);
+        }
+
+        // ---- 专用宿主 ----
+
+        /// <summary>
+        /// 专用宿主口袋图：所有 Delta-V 口袋图 sourceMap 的统一锚。Tile 恒 Invalid、
+        /// 只进 Find.World.pocketMaps（绝不进 Find.WorldObjects）、永不被聚焦。
+        /// 复用 DeltaV_ShipPocket 生成器（太空 biome、空 Void 图）。
+        /// </summary>
+        public Map GetOrCreateHostMap()
+        {
+            if (universeHostMap != null && universeHostMap.Parent is UniverseHostParent_DeltaV
+                && Find.Maps.Contains(universeHostMap))
+            {
+                return universeHostMap;
+            }
+            foreach (PocketMapParent parent in Find.World.pocketMaps)
+            {
+                if (parent is UniverseHostParent_DeltaV && parent.HasMap)
+                {
+                    universeHostMap = parent.Map;
+                    return universeHostMap;
+                }
+            }
+            var host = (UniverseHostParent_DeltaV)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_UniverseHostParent);
+            host.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
+            Map map = MapGenerator.GenerateMap(new IntVec3(HostMapEdge, 1, HostMapEdge), host,
+                DeltaVDefOf.DeltaV_ShipPocket, null, null, isPocketMap: true);
+            Find.World.pocketMaps.Add(host);
+            universeHostMap = map;
+            DeltaVLog.Message(DeltaVLogModule.Core, "universe host pocket map created (tile-less, sourceMap anchor only)");
+            return map;
+        }
+
+        /// <summary>宿主口袋图边长：只是 sourceMap 契约的载体，越小越好。</summary>
+        public const int HostMapEdge = 50;
+
+        /// <summary>当前宿主口袋图（可能尚未创建）。</summary>
+        public Map UniverseHostMap => universeHostMap;
 
         public UniverseManager(Game game)
         {
         }
+
+        // ---- 旧平面存档迁移（仅加载期）----
+
+        [NonSerialized] private Map legacyHostMap;
+        [NonSerialized] private Vector2 legacyAnchorDisplacement;
 
         public override void ExposeData()
         {
@@ -134,8 +185,13 @@ namespace DeltaV
             Scribe_Values.Look(ref focusedShipId, "focusedShipId", -1);
             Scribe_Values.Look(ref pilotShipId, "pilotShipId", -1);
             Scribe_Values.Look(ref primaryShipId, "primaryShipId", -1);
-            Scribe_Values.Look(ref anchorDisplacement, "anchorDisplacement", Vector2.zero);
-            Scribe_References.Look(ref hostMap, "hostMap");
+            if (Scribe.mode == LoadSaveMode.LoadingVars)
+            {
+                // 平面坐标旧档的锚记账（新档不再保存）：hostMap tile 为切平面原点，
+                // 绝对偏移 = pose.position + anchorDisplacement。LoadedGame 换算后丢弃。
+                Scribe_References.Look(ref legacyHostMap, "hostMap");
+                Scribe_Values.Look(ref legacyAnchorDisplacement, "anchorDisplacement", Vector2.zero);
+            }
         }
 
         public override void LoadedGame()
@@ -145,14 +201,13 @@ namespace DeltaV
             ShipPhysics.ClearCache();
             ThrusterEffects.ClearRuntimeCaches();
             SpaceLifecycle.Reset();
-            hostFrame = null;
+            OrbitSphere.ClearCache();
+            DeltaVLandingAnimator.ResetTiming();
+            mapFrame = null;
             PilotController.SuppressVanillaKeys = false;
             DockController.RestorePendingAfterLoad(this);
-            if (hostMap != null && !Find.Maps.Contains(hostMap))
-            {
-                Log.Warning("[DeltaV] Host map missing after load; cleared reference.");
-                hostMap = null;
-            }
+            MigratePlanarSaves();
+            ClearStalePocketMapTiles();
             // 地图被外部移除等异常情况下的收尾：清掉悬空引用，聚焦无效时退回第一艘活着的船。
             foreach (SpaceObject obj in objects.ToList())
             {
@@ -180,6 +235,106 @@ namespace DeltaV
             HostColonistBarVisibility.NotifyDockingStateChanged();
         }
 
+        /// <summary>
+        /// 平面坐标旧档 → 球面：以旧 hostMap tile 为切平面原点，把每个对象的
+        /// 绝对平面偏移（pose.position + anchorDisplacement）换算成球面方向。
+        /// 角度/速度基约定不变（旧平面 x/y 就是东/北），直接沿用。
+        /// </summary>
+        private void MigratePlanarSaves()
+        {
+            bool anyLegacy = objects.Any(o => o.pose.legacyPlanar)
+                || objects.OfType<ShipState>().Any(s => s.preDockPose.legacyPlanar);
+            if (!anyLegacy)
+            {
+                return;
+            }
+            PlanetTile anchorTile = legacyHostMap != null && legacyHostMap.Tile.Valid
+                ? legacyHostMap.Tile
+                : PlanetTile.Invalid;
+            if (!anchorTile.Valid)
+            {
+                // 锚图丢失的兜底：任一停靠图的 tile，否则轨道层首个 tile（偏移语义尽力保留）。
+                anchorTile = objects.OfType<ShipState>()
+                    .Where(s => s.dockedMap != null && s.dockedMap.Tile.Valid)
+                    .Select(s => s.dockedMap.Tile).DefaultIfEmpty(PlanetTile.Invalid).First();
+                if (!anchorTile.Valid && OrbitSphere.Valid)
+                {
+                    anchorTile = new PlanetTile(0, OrbitSphere.Layer);
+                }
+                if (anchorTile.Valid)
+                {
+                    Log.Warning("[DeltaV] Planar save lost its host map; migrating positions from a fallback tile anchor.");
+                }
+            }
+            if (!anchorTile.Valid)
+            {
+                Log.Error("[DeltaV] Cannot migrate planar save positions: no orbit layer tile available.");
+                return;
+            }
+            int migrated = 0;
+            foreach (SpaceObject obj in objects)
+            {
+                if (obj.pose.legacyPlanar)
+                {
+                    obj.pose.position = PlanarToDirection(anchorTile, obj.pose.legacyPosition + legacyAnchorDisplacement);
+                    obj.pose.legacyPlanar = false;
+                    migrated++;
+                }
+                if (obj is ShipState ship && ship.preDockPose.legacyPlanar)
+                {
+                    ship.preDockPose.position = PlanarToDirection(anchorTile,
+                        ship.preDockPose.legacyPosition + legacyAnchorDisplacement);
+                    ship.preDockPose.legacyPlanar = false;
+                }
+            }
+            legacyHostMap = null;
+            legacyAnchorDisplacement = Vector2.zero;
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"migrated {migrated} planar poses to sphere coordinates (anchor tile {anchorTile})");
+        }
+
+        /// <summary>旧平面偏移 → 球面方向：tile 中心 + 切平面外推后归一（旧 centerTangent 语义）。</summary>
+        private static Vector3 PlanarToDirection(PlanetTile anchorTile, Vector2 absoluteOffset)
+        {
+            PlanetLayer layer = anchorTile.Layer;
+            Vector3 center = layer.GetTileCenter(anchorTile);
+            Vector3 up = center.normalized;
+            Vector3 north = Vector3.up - up * Vector3.Dot(Vector3.up, up);
+            if (north.sqrMagnitude < 1e-6f)
+            {
+                north = Vector3.forward;
+            }
+            north.Normalize();
+            Vector3 east = Vector3.Cross(up, north);
+            Vector3 tangent = east * absoluteOffset.x + north * absoluteOffset.y;
+            return (center + tangent * (layer.AverageTileSize / OrbitSphere.CellsPerTile)).normalized;
+        }
+
+        /// <summary>
+        /// 旧档口袋图残留的真实 tile 清理：去 tile 化后 Delta-V 口袋图不再持有 tile，
+        /// 残留会让 Game.FindMap(PlanetTile) 误中口袋图（降落 GetOrGenerateMap 语义被破坏）。
+        /// 必须反射直写私有字段——WorldObject.Tile setter 对新 tile 无 Valid 守卫，
+        /// 走 setter 置 Invalid 有 Surface 层 FastTileFinder 越界风险。
+        /// </summary>
+        private static void ClearStalePocketMapTiles()
+        {
+            var tileField = AccessTools.Field(typeof(WorldObject), "tile");
+            if (tileField == null)
+            {
+                Log.ErrorOnce("[DeltaV] WorldObject.tile field not found; stale pocket map tiles not cleared.", 0x44564343);
+                return;
+            }
+            foreach (PocketMapParent parent in Find.World.pocketMaps)
+            {
+                if (parent is ShipPocketParent_DeltaV && parent.Tile.Valid)
+                {
+                    tileField.SetValue(parent, PlanetTile.Invalid);
+                    DeltaVLog.Message(DeltaVLogModule.Core,
+                        $"{parent.Label}: stale orbit tile cleared from legacy pocket map");
+                }
+            }
+        }
+
         public override void GameComponentUpdate()
         {
             // 玩家可能经殖民者栏/地图按钮等原版途径切图：focusedShipId 跟随当前船图，
@@ -189,7 +344,11 @@ namespace DeltaV
             {
                 focusedShipId = onMap.objectId;
             }
-            UpdateAnchor();
+            ShipState primary = PrimaryShip;
+            if (primary != null && primaryShipId != primary.objectId)
+            {
+                primaryShipId = primary.objectId;
+            }
             UpdateUniverseZoom();
             // 驾驶状态维护（自动退出 + Harmony 按键抑制开关）。
             PilotController.UpdateFrameState(this);
@@ -198,45 +357,7 @@ namespace DeltaV
             ThrusterEffects.Draw(this);
         }
 
-        /// <summary>
-        /// 动态锚维护（阶段3）：主船离原点超过阈值时做 floating origin 平移——全体 pose
-        /// 一次性平移 −主船位置，anchorDisplacement 累计。所有对象的相对位置不变，
-        /// 绝对偏移（pose + displacement）不变，因此外壳投影与背景球面视角都无跳变。
-        /// HostFrame 的锚点随后同步为主船位置（宿主图总览中心 = 主船附近宇宙区域）。
-        /// </summary>
-        private void UpdateAnchor()
-        {
-            ShipState primary = PrimaryShip;
-            if (primary == null)
-            {
-                return;
-            }
-            if (primaryShipId != primary.objectId)
-            {
-                primaryShipId = primary.objectId;
-            }
-            float threshold = Mathf.Max(1f, DeltaVMod.Settings.originShiftThreshold);
-            if (primary.pose.position.sqrMagnitude > threshold * threshold)
-            {
-                Vector2 delta = primary.pose.position;
-                foreach (SpaceObject obj in objects)
-                {
-                    obj.pose.position -= delta;
-                    if (obj is ShipState ship)
-                    {
-                        // 停靠前姿态与 pose 同坐标系，必须一起平移，否则起飞时恢复到旧原点。
-                        ship.preDockPose.position -= delta;
-                    }
-                }
-                anchorDisplacement += delta;
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"floating origin shifted by -({delta.x:F0}, {delta.y:F0}); cumulative anchor displacement = ({anchorDisplacement.x:F0}, {anchorDisplacement.y:F0})");
-            }
-            // HostFrame 属性同时处理飞行中心锚与停靠真实原点锚。
-            if (hostFrame != null) _ = HostFrame;
-        }
-
-        // 相机缩放放宽（宇宙视野）：进入 Delta-V 参考系（对象图/宿主图）时记录原 max 并放宽，
+        // 相机缩放放宽（宇宙视野）：进入 Delta-V 参考系（对象图/真实空间图）时记录原 max 并放宽，
         // 离开时恢复。每帧幂等——config 对象可能被原版在切图等时机替换。
         private static float savedVanillaZoomMax = float.NaN;
 
@@ -314,11 +435,9 @@ namespace DeltaV
                 }
                 ShipPhysics.Integrate(ship, report, force, torque, dt, assistX, assistZ, assistW);
             }
-            // Universe Layer：飞船移动后惰性重锚背景 tile（universe → tile 单向）；
             // POI 地图生命周期三段扫描（单一入口 SpaceLifecycle）。
             if (Find.TickManager.TicksGame % 60 == 0)
             {
-                UniverseLayerMapping.ReanchorShips(this);
                 SpaceLifecycle.Tick(this);
             }
         }
@@ -353,7 +472,6 @@ namespace DeltaV
                 PilotController.Toggle(this);
             }
             PilotController.DrawHud(this);
-            DockController.DrawHud(this);
             DebugActions_DeltaV.DrawFrameMeter();
             HandleShellClick();
         }
@@ -412,15 +530,14 @@ namespace DeltaV
                     // 相机跳到点击位置对应的对象内格（clamp 进地图），落点即所见。
                     SpaceObject frame = FrameOf(current);
                     Vector2 frameLocal = SpaceTransform.MapToShipLocal(current, new Vector2(UI.MouseMapPosition().x, UI.MouseMapPosition().z));
-                    Vector2 universePoint = SpaceTransform.FocusedToUniverse(frame, frameLocal);
+                    Vector3 universeDir = SpaceTransform.FocusedToUniverse(frame, frameLocal);
                     ShipState dockedTarget = target as ShipState;
                     Map targetMap = dockedTarget != null && dockedTarget.docked
                         ? dockedTarget.dockedMap
                         : target.map;
                     Vector2 mapPoint = dockedTarget != null && dockedTarget.docked
-                        ? DockController.DockedOriginMapPoint(dockedTarget)
-                            + universePoint - dockedTarget.pose.position
-                        : SpaceTransform.UniverseToMapPoint(target, universePoint);
+                        ? SpaceTransform.UniverseToDockedMapPoint(dockedTarget, universeDir)
+                        : SpaceTransform.UniverseToMapPoint(target, universeDir);
                     int x = Mathf.Clamp(Mathf.FloorToInt(mapPoint.x), 2, targetMap.Size.x - 3);
                     int z = Mathf.Clamp(Mathf.FloorToInt(mapPoint.y), 2, targetMap.Size.z - 3);
                     // 缩放同步（RimExodus SeamlessCameraFocus 同款结论）：CurrentMap setter 的
@@ -466,7 +583,7 @@ namespace DeltaV
             PilotController.Exit(this);
             objects = newObjects;
             focusedShipId = focusId;
-            hostFrame = null;
+            mapFrame = null;
         }
     }
 }

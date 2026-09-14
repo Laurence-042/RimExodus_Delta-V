@@ -9,8 +9,8 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 宿主图在飞行阶段只是显示/生命周期锚，不应作为一个空 Map 分组占据 Colonist Bar。
-    /// 停靠船落到宿主图后恢复原版分组，以便正常选择和操作真实船员。
+    /// 专用宿主口袋图只是 sourceMap 锚点画布（无 pawn），不应作为空 Map 分组占据
+    /// Colonist Bar；防御性过滤。降落/停靠图有真实船员，走原版分组。
     /// </summary>
     public static class HostColonistBarVisibility
     {
@@ -21,9 +21,7 @@ namespace DeltaV
 
         internal static bool ShouldHide(Map map)
         {
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            return map != null && universe?.hostMap == map
-                && !universe.Ships.Any(ship => ship.docked && ship.dockedMap == map);
+            return SpaceLifecycle.IsUniverseHost(map);
         }
     }
 

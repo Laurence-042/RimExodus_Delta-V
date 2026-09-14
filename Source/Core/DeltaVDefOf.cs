@@ -19,6 +19,9 @@ namespace DeltaV
 
         public static WorldObjectDef DeltaV_ShipMapParent;
 
+        // 专用宿主口袋图：所有 Delta-V 口袋图 sourceMap 的统一锚（无 tile，仅 pocketMaps）。
+        public static WorldObjectDef DeltaV_UniverseHostParent;
+
         // 原版 defs（defName 一致）
         // 逆重基架（gravship substructure）：飞船甲板。isFoundation=true，
         // "只有基架上的东西才能被逆重引擎抬起"——未来质量/结构判定都以它为准。

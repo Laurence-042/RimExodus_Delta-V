@@ -2,12 +2,10 @@
 <Defs>
 
 	<!--
-		宿主地图的 WorldObject：普通 MapParent（非 PocketMapParent），由
-		GetOrGenerateMapUtility.GetOrGenerateMap 在轨道层 tile 上创建并挂载地图。
-		飞船口袋图的 PocketMapParent.sourceMap 指向宿主图（原版"口袋图需要宿主"的
-		引擎语义：storyteller 事件点数、财富统计、任务寻路都从口袋图重定向到 sourceMap）。
-		阶段3 起改用 SpaceHostParent_DeltaV 子类：覆写 WorldCameraPosition，
-		星球背景视角取主船连续 universe 位置（动态锚），与飞船图背景同源同步。
+		降落图的 WorldObject：普通 MapParent（非 PocketMapParent），由
+		GetOrGenerateMapUtility.GetOrGenerateMap 在轨道层真实 tile 上创建并挂载地图
+		（有图复用、没图生成——原版 gravship 降落语义）。有船停靠在本图时
+		WorldCameraPosition 取该船的连续球面方向，与聚焦飞船图背景同源同步。
 	-->
 	<WorldObjectDef>
 		<defName>DeltaV_SpaceHostParent</defName>
@@ -18,18 +16,28 @@
 	</WorldObjectDef>
 
 	<!--
-		飞船/POI 口袋图的宿主（对应原版 PocketMap def 的最小三字段形状）。
-		保留独立 def 便于按 def 识别 Delta-V 口袋图。生成时直接给 parent.Tile 设置
-		宿主图附近的真实轨道层空 tile——MapInfo.Tile 由 parent 派生，Map.Tile 因此有效，
-		renderWorld=true 的星球背景走原版正路。
-		阶段3 起改用 ShipPocketParent_DeltaV 子类：覆写 WorldCameraPosition，
-		星球背景视角按该图宇宙对象的连续 universe 位置换算（不再随 60 tick 离散
-		tile 重锚跳变）。tile 不得与其他地图/世界对象重复（Game.FindMap 按 map.Tile 匹配）。
+		飞船/POI 口袋图的 WorldObject。口袋图不占任何轨道 tile（Tile 恒 Invalid），
+		只存在于 Find.World.pocketMaps，sourceMap 统一指向 DeltaV_UniverseHostParent。
+		WorldCameraPosition 覆写为该图宇宙对象的连续球面方向；
+		聚焦口袋图的星球背景走 MapParent.WorldCameraPosition 覆写与
+		PlanetLayerDef 默认背景参数（地表/轨道层未覆盖，共用类默认值，无视觉差异）。
 	-->
 	<WorldObjectDef>
 		<defName>DeltaV_ShipMapParent</defName>
 		<label>pocket ship map</label> <!-- hidden -->
 		<worldObjectClass>DeltaV.ShipPocketParent_DeltaV</worldObjectClass>
+	</WorldObjectDef>
+
+	<!--
+		专用宿主口袋图：所有 Delta-V 口袋图 PocketMapParent.sourceMap 的统一锚
+		（原版"口袋图需要宿主"的引擎语义：storyteller 事件点数、财富统计、任务寻路
+		都从口袋图重定向到 sourceMap）。无 tile、永不聚焦、永不出现在世界视图、
+		tick 常冻结；复用 DeltaV_ShipPocket 生成器（太空 biome、空 Void 图）。
+	-->
+	<WorldObjectDef>
+		<defName>DeltaV_UniverseHostParent</defName>
+		<label>Delta-V universe host</label> <!-- hidden -->
+		<worldObjectClass>DeltaV.UniverseHostParent_DeltaV</worldObjectClass>
 	</WorldObjectDef>
 
 </Defs>

@@ -10,12 +10,12 @@ namespace DeltaV
     /// Delta-V 驾驶台（阶段3）：正式进入/退出驾驶的入口 + 主驾驶台规则。
     ///
     /// 主驾驶台规则（story.md「固定轨道/建造模式」）：第一台自动成为主驾驶台，
-    /// 第二台不会取代主台，除非玩家显式用 gizmo 设置；返回飞行时飞船朝向跟随
+    /// 第二台不会取代主台，除非玩家显式用 gizmo 设置；进入移动模式时飞船朝向跟随
     /// 主驾驶台的朝向（DockController 消费）。主台被拆除时转交给船上最老的一台。
     ///
     /// 本 Comp 由 XML patch 追加到原版 PilotConsole，与原版 CompPilotConsole 共存：原版
-    /// Gravship 继续按 ThingDefOf.PilotConsole 识别设施与发射方向，本 Comp 只在 Delta-V
-    /// 飞船上追加自己的 gizmo；Toggle 快捷键保留（无驾驶台的船仍可用，dev 便利）。
+    /// Gravship 继续按 ThingDefOf.PilotConsole 识别设施与发射方向。本 Comp 在共享地图上
+    /// 以被选中的驾驶台确定具体 Gravship；进入独占口袋图后再提供驾驶切换等 Delta-V gizmo。
     /// </summary>
     public class CompProperties_DeltaVPilotConsole : CompProperties
     {
@@ -129,14 +129,27 @@ namespace DeltaV
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
             ShipState ship = Ship;
+            UniverseManager universe = Universe;
             if (ship == null)
             {
+                // 所有玩家原版驾驶台都提供移动模式入口：地面图灰化并解释重力限制；
+                // 未登记的 Orbit Gravship 则由 MobileShipBootstrap 接入 Universe。
+                if (parent.Spawned && parent.Faction == Faction.OfPlayer)
+                {
+                    Command_Action action = NewAction("DeltaV_MobileButtonEnter".Translate(), TexCommand.Draft,
+                        () => MobileShipBootstrap.TryEnter(universe, parent as Building));
+                    if (!MobileShipBootstrap.IsZeroGravity(parent.Map))
+                    {
+                        action.Disable("DeltaV_PilotGravityRestricted".Translate());
+                    }
+                    yield return action;
+                }
                 yield break;
             }
-            UniverseManager universe = Universe;
             if (ship.docked)
             {
-                yield return NewAction("DeltaV_LaunchButton".Translate(), TexCommand.Draft,
+                // 固定图可能同时有多艘逆重飞船，必须由玩家点中这艘船的驾驶台来选择目标。
+                yield return NewAction("DeltaV_MobileButtonEnter".Translate(), TexCommand.Draft,
                     () => DockController.TryLaunch(universe, ship));
             }
             else

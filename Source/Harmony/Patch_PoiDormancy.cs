@@ -6,17 +6,19 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// POI 图软休眠的运行时拦截（阶段3；RimExodus Patches_Dormancy 同款模式）。
+    /// 地图软冻结的运行时拦截（阶段3；RimExodus Patches_Dormancy 同款模式）。
     ///
-    /// - Map.MapPreTick / MapPostTick / MapUpdate：休眠 POI 图早退（原版
+    /// 冻结集合 = 休眠 POI 图 + 专用宿主口袋图（SpaceLifecycle.IsFrozen）：
+    /// - Map.MapPreTick / MapPostTick / MapUpdate：冻结图早退（原版
     ///   TickManager/Game.UpdatePlay 直接遍历 Find.Maps 调用，无其他拦截点）。
     ///   跳过即停全部组件模拟/更新；外壳代理渲染（ShellRenderer）是自驱动重放，
     ///   不依赖目标图的 MapUpdate，休眠图照常作为代理显示。
     /// - Game.CurrentMap setter：进入休眠 POI 图 = 玩家的显式唤醒意图，先唤醒再切图
-    ///   （单点覆盖全部进入路径：殖民者栏分组框、地图按钮、CameraJumper、外壳点击）。
-    /// - Storyteller.AllIncidentTargets：剔除休眠 POI 图，防事件打到冻结图上。
+    ///   （单点覆盖全部进入路径：殖民者栏分组框、地图按钮、CameraJumper、外壳点击）；
+    ///   宿主口袋图则直接拒绝切入（它是纯 sourceMap 锚点画布，不可游玩）。
+    /// - Storyteller.AllIncidentTargets：剔除全部冻结图，防事件打到冻结图/空宿主上。
     ///
-    /// 判定集合只含 Delta-V 自己的 POI 图（SpaceLifecycle 维护），与 RimExodus 的
+    /// 判定集合只含 Delta-V 自己的地图（SpaceLifecycle 维护），与 RimExodus 的
     /// 地表休眠体系集合不相交、互不干扰（AGENTS §16/§3）。
     /// </summary>
     public static class Patch_PoiDormancy
@@ -26,7 +28,7 @@ namespace DeltaV
         {
             private static bool Prefix(Map __instance)
             {
-                return !SpaceLifecycle.IsDormant(__instance);
+                return !SpaceLifecycle.IsFrozen(__instance);
             }
         }
 
@@ -35,7 +37,7 @@ namespace DeltaV
         {
             private static bool Prefix(Map __instance)
             {
-                return !SpaceLifecycle.IsDormant(__instance);
+                return !SpaceLifecycle.IsFrozen(__instance);
             }
         }
 
@@ -44,16 +46,24 @@ namespace DeltaV
         {
             private static bool Prefix(Map __instance)
             {
-                return !SpaceLifecycle.IsDormant(__instance);
+                return !SpaceLifecycle.IsFrozen(__instance);
             }
         }
 
         [HarmonyPatch(typeof(Game), nameof(Game.CurrentMap), MethodType.Setter)]
         private static class Patch_Game_CurrentMap_Setter
         {
-            private static void Prefix(Map value)
+            private static void Prefix(ref Map value)
             {
-                if (value != null && SpaceLifecycle.IsDormant(value))
+                if (value == null) return;
+                if (SpaceLifecycle.IsUniverseHost(value))
+                {
+                    // 宿主口袋图不可聚焦：把切换重定向回当前图（幂等 no-op）。
+                    Log.Warning("[DeltaV] Blocked an attempt to focus the universe host pocket map.");
+                    value = Find.CurrentMap;
+                    return;
+                }
+                if (SpaceLifecycle.IsDormant(value))
                 {
                     // 同步唤醒（轻量，无生成），玩家切进去的图不能是冻结的。
                     SpaceLifecycle.Wake(value, "entering map (CurrentMap switch)");
@@ -67,7 +77,7 @@ namespace DeltaV
             private static void Postfix(List<IIncidentTarget> __result)
             {
                 // 返回的是原版静态缓存列表，调用方即用即弃，原地 RemoveAll 安全（RimExodus 同款结论）。
-                __result.RemoveAll(t => t is Map m && SpaceLifecycle.IsDormant(m));
+                __result.RemoveAll(t => t is Map m && SpaceLifecycle.IsFrozen(m));
             }
         }
     }

@@ -5,6 +5,16 @@ using Verse;
 
 namespace DeltaV
 {
+    [HarmonyPatch(typeof(GravshipRenderer), nameof(GravshipRenderer.BeginCutscene))]
+    public static class Patch_GravshipRenderer_BeginCutscene
+    {
+        public static void Postfix(GravshipRenderer __instance)
+        {
+            DockController.SuppressMobileLaunchAnimation();
+            if (DeltaVLandingAnimator.Active) DeltaVLandingAnimator.BeginDynamicTiming(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(GravshipRenderer), nameof(GravshipRenderer.UpdateLanding))]
     public static class Patch_GravshipRenderer_UpdateLanding
     {
@@ -19,7 +29,7 @@ namespace DeltaV
     {
         public static bool Prefix(PanCompletionCallback onComplete)
         {
-            if (!DeltaVLandingAnimator.Active) return true;
+            if (!DeltaVLandingAnimator.Active && !DockController.MobileLaunchPending) return true;
             onComplete?.Invoke();
             return false;
         }
@@ -45,6 +55,22 @@ namespace DeltaV
         public static void Postfix()
         {
             DockController.NotifyVanillaLandingEnded();
+            DeltaVLandingAnimator.ResetTiming();
+        }
+    }
+
+    [HarmonyPatch(typeof(WorldComponent_GravshipController), nameof(WorldComponent_GravshipController.WorldComponentUpdate))]
+    public static class Patch_GravshipController_WorldComponentUpdate_DeltaVTiming
+    {
+        public static void Prefix(WorldComponent_GravshipController __instance)
+        {
+            DockController.BeforeGravshipControllerUpdate(__instance);
+            DeltaVLandingAnimator.BeforeControllerUpdate(__instance);
+        }
+
+        public static void Postfix()
+        {
+            DeltaVLandingAnimator.AfterControllerUpdate();
         }
     }
 }

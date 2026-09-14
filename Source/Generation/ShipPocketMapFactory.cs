@@ -6,27 +6,21 @@ namespace DeltaV
 {
     /// <summary>
     /// 飞船口袋图的唯一生成入口。口袋图只是飞行态的局部坐标容器；每次从固定轨道
-    /// 返回飞行时按当前 Gravship 的实际旋转后边界重建，不继承旧图尺寸或空网格。
+    /// 进入移动模式时按当前 Gravship 的实际旋转后边界重建，不继承旧图尺寸或空网格。
+    ///
+    /// 口袋图不占任何轨道 tile（Tile 恒 Invalid，只进 Find.World.pocketMaps）；
+    /// sourceMap 统一取 UniverseManager.GetOrCreateHostMap() 的专用宿主口袋图。
+    /// 宇宙位置由调用方随后写进 ShipState.pose（球面绝对坐标），与图的生成解耦。
     /// </summary>
     public static class ShipPocketMapFactory
     {
         private const int StructureMargin = 15;
         private const int MinimumDimension = 80;
 
-        public static Map Generate(IntVec3 size, Map sourceMap, Vector2 universePos)
+        public static Map Generate(IntVec3 size, UniverseManager universe)
         {
-            if (sourceMap == null || !sourceMap.Tile.Valid) return null;
-            PlanetLayer layer = sourceMap.Tile.Layer;
-            PlanetTile projected = UniverseLayerMapping.ProjectToTile(layer, sourceMap.Tile, universePos, sourceMap.Tile);
-            PlanetTile shipTile = UniverseLayerMapping.FindFreeTileNear(layer, projected);
-            if (!shipTile.Valid)
-            {
-                Log.Error("[DeltaV] No free orbit tile near the projected ship position; pocket map generation aborted.");
-                return null;
-            }
             var parent = (PocketMapParent)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
-            parent.Tile = shipTile;
-            parent.sourceMap = sourceMap;
+            parent.sourceMap = universe.GetOrCreateHostMap();
             parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
             Map map = MapGenerator.GenerateMap(size, parent, DeltaVDefOf.DeltaV_ShipPocket,
                 null, null, isPocketMap: true);
@@ -34,12 +28,12 @@ namespace DeltaV
             return map;
         }
 
-        public static bool TryGenerateForGravship(Gravship gravship, Map sourceMap,
-            Vector2 universePos, out Map map, out IntVec3 root)
+        public static bool TryGenerateForGravship(Gravship gravship, UniverseManager universe,
+            out Map map, out IntVec3 root)
         {
             map = null;
             root = IntVec3.Invalid;
-            if (gravship == null || sourceMap == null) return false;
+            if (gravship == null || universe == null) return false;
 
             bool any = false;
             int minX = int.MaxValue;
@@ -67,7 +61,7 @@ namespace DeltaV
             int padX = (mapWidth - width) / 2;
             int padZ = (mapHeight - height) / 2;
             root = new IntVec3(padX - minX, 0, padZ - minZ);
-            map = Generate(new IntVec3(mapWidth, 1, mapHeight), sourceMap, universePos);
+            map = Generate(new IntVec3(mapWidth, 1, mapHeight), universe);
             return map != null;
         }
 

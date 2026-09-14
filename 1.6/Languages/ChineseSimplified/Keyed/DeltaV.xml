@@ -7,7 +7,12 @@
   <DeltaV_PilotExitAuto>驾驶模式结束（焦点已离开 {0}）。</DeltaV_PilotExitAuto>
   <DeltaV_PilotButtonEnter>驾驶此船</DeltaV_PilotButtonEnter>
   <DeltaV_PilotButtonExit>停止驾驶</DeltaV_PilotButtonExit>
-  <DeltaV_PilotHudTitle>正在驾驶：{0}</DeltaV_PilotHudTitle>
+  <DeltaV_MobileButtonEnter>进入移动模式</DeltaV_MobileButtonEnter>
+  <DeltaV_PilotGravityRestricted>重力环境下只能使用逆重引擎结合推进器进行近抛物线定点移动；只有在无重力环境下才能进入非定点移动模式。</DeltaV_PilotGravityRestricted>
+    <DeltaV_MobileHudTitle>移动模式：{0}</DeltaV_MobileHudTitle>
+  <DeltaV_HudControl>控制状态：{0}</DeltaV_HudControl>
+  <DeltaV_ControlPiloting>正在驾驶</DeltaV_ControlPiloting>
+  <DeltaV_ControlInactive>未驾驶</DeltaV_ControlInactive>
   <DeltaV_HudSpeed>速度：{0} 格/秒</DeltaV_HudSpeed>
   <DeltaV_HudHeading>航向：{0}°</DeltaV_HudHeading>
   <DeltaV_HudTurnRate>转速：{0}°/秒</DeltaV_HudTurnRate>
@@ -18,8 +23,8 @@
   <DeltaV_Braking>刹停中</DeltaV_Braking>
   <DeltaV_SettingsFlightAssist>飞行辅助</DeltaV_SettingsFlightAssist>
   <DeltaV_SettingsFlightAssistTip>驾驶时，无输入的轴按飞船推进器真实出力反向减速，不使用人为衰减。</DeltaV_SettingsFlightAssistTip>
-  <DeltaV_SettingsHostMapSize>宿主图尺寸（100-1000）</DeltaV_SettingsHostMapSize>
-  <DeltaV_SettingsHostMapSizeNote>太空宿主图的显示/性能参数，下次创建测试场景时生效，不影响宇宙坐标。</DeltaV_SettingsHostMapSizeNote>
+  <DeltaV_SettingsLandingMapSize>降落图尺寸（100-1000）</DeltaV_SettingsLandingMapSize>
+  <DeltaV_SettingsLandingMapSizeNote>降落图的显示/性能参数，仅在飞船当前位置需要新生成轨道图时使用，不影响宇宙坐标。</DeltaV_SettingsLandingMapSizeNote>
   <DeltaV_SettingsLogSection>诊断日志</DeltaV_SettingsLogSection>
   <DeltaV_SettingsLogNote>分模块详细日志（[DeltaV:模块] 前缀）。警告/错误与关键状态迁移（驾驶进出、抑制激活、补丁初始化）不受开关控制，始终输出。</DeltaV_SettingsLogNote>
   <DeltaV_SettingsLogCore>日志：核心与驾驶状态</DeltaV_SettingsLogCore>
@@ -28,22 +33,20 @@
   <DeltaV_SettingsLogHarmony>日志：按键抑制决策</DeltaV_SettingsLogHarmony>
   <DeltaV_SettingsLogLifecycle>日志：POI 生命周期迁移</DeltaV_SettingsLogLifecycle>
   <DeltaV_SettingsUniverseZoomMax>宇宙视野缩放上限（60-5000）</DeltaV_SettingsUniverseZoomMax>
-  <DeltaV_SettingsOriginShiftThreshold>坐标原点平移阈值（格）</DeltaV_SettingsOriginShiftThreshold>
   <DeltaV_SettingsPoiActiveRadius>POI 活跃距离（格）</DeltaV_SettingsPoiActiveRadius>
   <DeltaV_SettingsPoiDeleteRadius>POI 删除距离（格）</DeltaV_SettingsPoiDeleteRadius>
-  <DeltaV_DockButton>进入固定轨道</DeltaV_DockButton>
-  <DeltaV_LaunchButton>返回飞行</DeltaV_LaunchButton>
-  <DeltaV_DockSuccess>{0} 已在宿主图进入固定轨道。</DeltaV_DockSuccess>
-  <DeltaV_DockFailHostMap>没有可用的宿主图。</DeltaV_DockFailHostMap>
-  <DeltaV_DockFailOutOfRange>飞船的宇宙位置不在宿主图范围内，请先飞到锚点附近。</DeltaV_DockFailOutOfRange>
-  <DeltaV_DockFailBlocked>宿主图上的降落区域被占用，请换一处或先清空。</DeltaV_DockFailBlocked>
-  <DeltaV_DockFailNoEngine>船上没有逆重引擎。固定轨道需要一台逆重引擎作为船体结构锚点。</DeltaV_DockFailNoEngine>
+  <DeltaV_FixedButtonEnter>进入固定模式</DeltaV_FixedButtonEnter>
+  <DeltaV_DockSuccess>{0} 已在宿主图进入固定模式。</DeltaV_DockSuccess>
+  <DeltaV_DockFailHostMap>无法解析当前位置的降落图。</DeltaV_DockFailHostMap>
+  <DeltaV_DockFailOutOfRange>飞船的宇宙位置无法投影到轨道 tile，请先回到星球附近。</DeltaV_DockFailOutOfRange>
+  <DeltaV_DockFailBlocked>目标图上的降落区域被占用，请换一处或先清空。</DeltaV_DockFailBlocked>
+  <DeltaV_DockFailNoEngine>船上没有逆重引擎。固定模式需要一台逆重引擎作为船体结构锚点。</DeltaV_DockFailNoEngine>
   <DeltaV_DockFailBusy>另一项逆重飞船降落或航行操作正在进行。</DeltaV_DockFailBusy>
-  <DeltaV_LaunchSuccess>{0} 已返回飞行。</DeltaV_LaunchSuccess>
+  <DeltaV_MobileSuccess>{0} 已进入移动模式。</DeltaV_MobileSuccess>
   <DeltaV_ConsoleGizmoPilot>驾驶此船</DeltaV_ConsoleGizmoPilot>
-  <DeltaV_ConsoleGizmoLaunch>返回飞行</DeltaV_ConsoleGizmoLaunch>
+  <DeltaV_ConsoleGizmoLaunch>进入移动模式</DeltaV_ConsoleGizmoLaunch>
   <DeltaV_ConsoleGizmoMakePrimary>设为主驾驶台</DeltaV_ConsoleGizmoMakePrimary>
-  <DeltaV_ConsoleGizmoPrimaryTip>返回飞行时，飞船朝向跟随主驾驶台的朝向。</DeltaV_ConsoleGizmoPrimaryTip>
+  <DeltaV_ConsoleGizmoPrimaryTip>进入移动模式时，飞船朝向跟随主驾驶台的朝向。</DeltaV_ConsoleGizmoPrimaryTip>
   <DeltaV_ConsolePrimarySet>主驾驶台已设置：{0}</DeltaV_ConsolePrimarySet>
   <DeltaV_ConsolePrimary>这是主驾驶台。</DeltaV_ConsolePrimary>
   <DeltaV_PoiCreated>POI 已创建：{0}，距离 {1} 格。</DeltaV_PoiCreated>

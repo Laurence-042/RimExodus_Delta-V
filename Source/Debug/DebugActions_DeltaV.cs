@@ -35,16 +35,6 @@ namespace DeltaV
             return Um().objects.OfType<PoiState>().FirstOrDefault();
         }
 
-        private static int NextObjectId(UniverseManager um)
-        {
-            int max = 0;
-            foreach (SpaceObject obj in um.objects)
-            {
-                max = Mathf.Max(max, obj.objectId);
-            }
-            return max + 1;
-        }
-
         [DebugAction("Delta-V", "Create two-ship test scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void CreateTwoShipTestScene()
         {
@@ -124,26 +114,25 @@ namespace DeltaV
             ship.pose.angularVelocity = 0f;
         }
 
-        // ---- 宿主图尺寸：设置 + 立即重建场景（800×800 性能测试工具链）----
+        // ---- 降落图尺寸：设置项（下一次降落生成新图时生效）----
 
-        [DebugAction("Delta-V", "Host map size 150 + recreate scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void HostSize150() { SetHostMapSizeAndRecreate(150); }
+        [DebugAction("Delta-V", "Landing map size 150", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void LandingSize150() { SetLandingMapSize(150); }
 
-        [DebugAction("Delta-V", "Host map size 300 + recreate scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void HostSize300() { SetHostMapSizeAndRecreate(300); }
+        [DebugAction("Delta-V", "Landing map size 300", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void LandingSize300() { SetLandingMapSize(300); }
 
-        [DebugAction("Delta-V", "Host map size 500 + recreate scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void HostSize500() { SetHostMapSizeAndRecreate(500); }
+        [DebugAction("Delta-V", "Landing map size 500", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void LandingSize500() { SetLandingMapSize(500); }
 
-        [DebugAction("Delta-V", "Host map size 800 + recreate scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void HostSize800() { SetHostMapSizeAndRecreate(800); }
+        [DebugAction("Delta-V", "Landing map size 800", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void LandingSize800() { SetLandingMapSize(800); }
 
-        private static void SetHostMapSizeAndRecreate(int size)
+        private static void SetLandingMapSize(int size)
         {
-            DeltaVMod.Settings.hostMapSize = size;
+            DeltaVMod.Settings.landingMapSize = size;
             DeltaVMod.Settings.Write();
-            Messages.Message($"Host map size set to {size}; recreating two-ship test scene.", MessageTypeDefOf.NeutralEvent, false);
-            LongEventHandler.QueueLongEvent(ShipTestScene.Create, "GeneratingMap", false, null);
+            Messages.Message($"Landing map size set to {size}; applies to newly generated landing maps.", MessageTypeDefOf.NeutralEvent, false);
         }
 
         // ---- 帧时间读数（性能测试用，Prefs.DevMode 门控常驻；UniverseManager Update/OnGUI 调用）----
@@ -182,8 +171,9 @@ namespace DeltaV
                 Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            var poi = new PoiState(NextObjectId(um), "Derelict wreck",
-                player.pose.position + new Vector2(400f, 0f), Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
+            var poi = new PoiState(um.NextObjectId(), "Derelict wreck",
+                OrbitSphere.Move(player.pose.position, new Vector2(400f, 0f)),
+                Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
             um.objects.Add(poi);
             Messages.Message("DeltaV_PoiCreated".Translate(poi.label, "400"), MessageTypeDefOf.PositiveEvent, false);
         }
@@ -198,8 +188,9 @@ namespace DeltaV
                 Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            var poi = new PoiState(NextObjectId(um), "Distant wreck",
-                player.pose.position + new Vector2(0f, 1500f), Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
+            var poi = new PoiState(um.NextObjectId(), "Distant wreck",
+                OrbitSphere.Move(player.pose.position, new Vector2(0f, 1500f)),
+                Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
             um.objects.Add(poi);
             Messages.Message("DeltaV_PoiCreated".Translate(poi.label, "1500"), MessageTypeDefOf.PositiveEvent, false);
         }
@@ -231,7 +222,7 @@ namespace DeltaV
             ShipState player = PlayerShip();
             if (player != null)
             {
-                player.pose.position += new Vector2(1500f, 0f);
+                player.pose.position = OrbitSphere.Move(player.pose.position, new Vector2(1500f, 0f));
             }
         }
 
@@ -240,16 +231,19 @@ namespace DeltaV
         {
             UniverseManager um = Um();
             var sb = new StringBuilder("[DeltaV:Diag] Universe state");
-            sb.AppendLine($"\n- host map: {(um.hostMap == null ? "none" : $"{um.hostMap.Size.x}x{um.hostMap.Size.z} @ tile {um.hostMap.Tile}")}");
+            sb.AppendLine($"\n- universe host pocket map: {(um.UniverseHostMap == null ? "not created" : "alive")}");
+            sb.AppendLine($"- orbit layer: {(OrbitSphere.Layer == null ? "none" : $"tiles={OrbitSphere.Layer.TilesCount} radius={OrbitSphere.Radius:F1}")}");
             sb.AppendLine($"- primary ship: #{um.primaryShipId}; pilot: #{um.pilotShipId}; focused: #{um.focusedShipId}");
-            sb.AppendLine($"- anchor displacement: ({um.anchorDisplacement.x:F0}, {um.anchorDisplacement.y:F0})");
             foreach (SpaceObject obj in um.objects)
             {
                 string lifecycle = obj is PoiState poi
                     ? (poi.map == null ? "packed" + (poi.snapshot != null ? " (snapshot)" : " (fresh)") : SpaceLifecycle.IsDormant(poi.map) ? "dormant" : "active")
                     : ((ShipState)obj).docked ? "docked" : "flying";
+                float lat = Mathf.Asin(Mathf.Clamp(obj.pose.position.y, -1f, 1f)) * Mathf.Rad2Deg;
+                float lon = Mathf.Atan2(obj.pose.position.z, obj.pose.position.x) * Mathf.Rad2Deg;
                 sb.AppendLine($"\n- #{obj.objectId} {obj.label} [{obj.GetType().Name}] {lifecycle}" +
-                    $" pos=({obj.pose.position.x:F0},{obj.pose.position.y:F0}) angle={SpaceTransform.WrapAngle(obj.pose.angle) * Mathf.Rad2Deg:F0}° map={(obj.map == null ? "none" : "loaded")}");
+                    $" dir=({obj.pose.position.x:F3},{obj.pose.position.y:F3},{obj.pose.position.z:F3}) lat/lon=({lat:F1}°,{lon:F1}°)" +
+                    $" angle={SpaceTransform.WrapAngle(obj.pose.angle) * Mathf.Rad2Deg:F0}° map={(obj.map == null ? "none" : "loaded")}");
             }
             Log.Message(sb.ToString());
         }
@@ -276,22 +270,6 @@ namespace DeltaV
                 int z = Mathf.Clamp(Mathf.RoundToInt(pos.z), 2, other.map.Size.z - 3);
                 CameraJumper.TryJump(new IntVec3(x, 0, z), other.map, CameraJumper.MovementMode.Cut);
             }
-            Find.CameraDriver.SetRootSize(zoom);
-        }
-
-        [DebugAction("Delta-V", "Focus space host map (all ships as proxies)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void FocusSpaceHostMap()
-        {
-            UniverseManager um = Um();
-            if (um.hostMap == null)
-            {
-                Messages.Message("No space host map. Create the test scene first.", MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            float zoom = Find.CameraDriver.RootSize;
-            Current.Game.CurrentMap = um.hostMap;
-            Find.World.renderer.wantedMode = RimWorld.Planet.WorldRenderMode.None;
-            CameraJumper.TryJump(um.hostMap.Center, um.hostMap, CameraJumper.MovementMode.Cut);
             Find.CameraDriver.SetRootSize(zoom);
         }
 
@@ -339,7 +317,7 @@ namespace DeltaV
             }
         }
 
-        /// <summary>沿敌舰自身参考系平移（前向 + 左向），写入绝对宇宙坐标。</summary>
+        /// <summary>沿敌舰自身参考系平移（前向 + 左向），沿球面写入绝对方向。</summary>
         private static void MoveEnemy(float forward, float left)
         {
             ShipState ship = OtherShip();
@@ -350,7 +328,7 @@ namespace DeltaV
             float angle = ship.pose.angle;
             Vector2 fwd = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
             Vector2 leftDir = new Vector2(-Mathf.Sin(angle), Mathf.Cos(angle));
-            ship.pose.position += fwd * forward + leftDir * left;
+            ship.pose.position = OrbitSphere.Move(ship.pose.position, fwd * forward + leftDir * left);
         }
     }
 }

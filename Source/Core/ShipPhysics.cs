@@ -19,9 +19,9 @@ namespace DeltaV
     ///   布局能完美消除微小漂移——刻意偏离纯牛顿的收尾便利）。
     ///
     /// 积分以质心为动力学中心（半隐式欧拉，dt = 1/60 每 tick）；
-    /// SpacePose.position 的锚仍是地图几何中心（阶段1 约定），按不变量
-    /// "position + Rotate(comLocal, angle) = 质心宇宙位置" 每步派生——
-    /// SpaceTransform 与存档语义完全不变，无迁移。
+    /// SpacePose.position 是球面方向（锚 = 地图几何中心对应的球面点），按不变量
+    /// "Move(position, Rotate(comLocal, angle)) = 质心球面方向" 每步派生——
+    /// 与旧平面版公式形态一致，只是加法换成球面移动。
     ///
     /// 质量报告是可重建缓存：按 tick 间隔重扫，读档/场景重置时清空（不变量 #13）。
     /// </summary>
@@ -322,18 +322,21 @@ namespace DeltaV
         /// ① "反推不越过零"（推进器反推的过冲保护）；
         /// ② 残差直接衰减——低于 ResidualSpeed/ResidualOmega 的剩余漂移按固定减速度
         ///    MoveTowards 到零（用户决策：不要求推进器布局完美消除微小漂移）。
-        /// 位置经质心不变量派生，见类注释。
+        /// 速度/力都在船位置处的切空间基下表达；位置沿球面推进（OrbitSphere.Move），
+        /// 质心不变量换成球面三步走：锚→质心（旧角）→平移→回锚（新角），
+        /// 切空间速度随后平行输运到新锚点的基。
         /// </summary>
         public static void Integrate(ShipState ship, MassReport report, Vector2 force, float torque, float dt,
             bool assistX, bool assistZ, bool assistW)
         {
             SpacePose pose = ship.pose;
-            // 分配器与推进器几何都在稳定 Map 局部系；只有积分入 universe 速度时旋转一次。
+            Vector3 oldDir = pose.position;
+            // 分配器与推进器几何都在稳定 Map 局部系；只有积分入切空间速度时旋转一次。
             Vector2 accel = SpaceTransform.Rotate(force, pose.angle) / report.mass;
             float alpha = torque / report.inertia;
 
             Vector2 velocity = pose.velocity + accel * dt;
-            // 辅助轴与 W/S、A/D 一样定义在主驾驶台参考系，不能按 universe x/z 直接截断。
+            // 辅助轴与 W/S、A/D 一样定义在主驾驶台参考系，不能按切空间 x/y 直接截断。
             float pilotAngle = pose.angle + ShipOrientation.LocalForwardAngle(ship);
             Vector2 previousPilotVelocity = SpaceTransform.RotateInverse(pose.velocity, pilotAngle);
             Vector2 pilotVelocity = SpaceTransform.RotateInverse(velocity, pilotAngle);
@@ -368,12 +371,19 @@ namespace DeltaV
             }
             velocity = SpaceTransform.Rotate(pilotVelocity, pilotAngle);
 
-            // 质心宇宙位置 = position + Rotate(comLocal, angle)；先按旧角度还原，平移后按新角度写回。
-            Vector2 comUniverse = pose.position + SpaceTransform.Rotate(report.comLocal, pose.angle);
-            comUniverse += velocity * dt;
+            // 质心球面方向 = Move(锚, Rotate(comLocal, 旧角))；平移后按新角移回锚，
+            // 与旧平面版 "position + Rotate(comLocal, angle)" 的不变量一一对应。
+            Vector3 comDir = OrbitSphere.Move(oldDir, SpaceTransform.Rotate(report.comLocal, pose.angle));
+            Vector3 comMoved = OrbitSphere.Move(comDir, velocity * dt);
             pose.angle = SpaceTransform.WrapAngle(pose.angle + angularVelocity * dt);
-            pose.position = comUniverse - SpaceTransform.Rotate(report.comLocal, pose.angle);
-            pose.velocity = velocity;
+            pose.position = OrbitSphere.Move(comMoved, -SpaceTransform.Rotate(report.comLocal, pose.angle));
+
+            // 平行输运：把切空间速度从旧锚点的基重表达到新锚点的基（每步 O(基旋转)，
+            // 保证"恒东向速度"沿纬线、恒北向速度沿经线等行星固连语义成立）。
+            OrbitSphere.Basis(oldDir, out Vector3 east, out Vector3 north);
+            Vector3 velocityWorld = east * velocity.x + north * velocity.y;
+            OrbitSphere.Basis(pose.position, out east, out north);
+            pose.velocity = new Vector2(Vector3.Dot(velocityWorld, east), Vector3.Dot(velocityWorld, north));
             pose.angularVelocity = angularVelocity;
             ship.pose = pose;
         }

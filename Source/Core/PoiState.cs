@@ -26,7 +26,7 @@ namespace DeltaV
         {
         }
 
-        public PoiState(int poiId, string label, Vector2 position, float angle, int seed)
+        public PoiState(int poiId, string label, Vector3 position, float angle, int seed)
             : base(poiId, label, null, new SpacePose(position, angle))
         {
             this.seed = seed;

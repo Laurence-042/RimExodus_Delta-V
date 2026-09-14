@@ -37,6 +37,21 @@ namespace DeltaV
             return map != null && DormantMaps.Contains(map);
         }
 
+        /// <summary>
+        /// 全部应冻结 tick 的地图：休眠 POI 图 + 专用宿主口袋图。
+        /// 宿主是空画布锚点，永不参与模拟；它也不在 DormantMaps 里，
+        /// 因此 Wake（切图唤醒）永远不适用于宿主。
+        /// </summary>
+        public static bool IsFrozen(Map map)
+        {
+            return IsDormant(map) || IsUniverseHost(map);
+        }
+
+        public static bool IsUniverseHost(Map map)
+        {
+            return map?.Parent is UniverseHostParent_DeltaV;
+        }
+
         /// <summary>唤醒一张休眠 POI 图（Game.CurrentMap setter 的同步唤醒入口）。</summary>
         public static void Wake(Map map, string reason)
         {
@@ -88,7 +103,7 @@ namespace DeltaV
             }
         }
 
-        /// <summary>玩家阵营船到 POI 的最小 universe 距离；无玩家船返回正无穷（不做迁移）。</summary>
+        /// <summary>玩家阵营船到 POI 的最小球面弧距（格）；无玩家船返回正无穷（不做迁移）。</summary>
         public static float MinPlayerDistance(UniverseManager universe, PoiState poi)
         {
             float best = float.PositiveInfinity;
@@ -96,7 +111,7 @@ namespace DeltaV
             {
                 if (obj is ShipState ship && ship.isPlayerShip)
                 {
-                    best = Mathf.Min(best, Vector2.Distance(ship.pose.position, poi.pose.position));
+                    best = Mathf.Min(best, OrbitSphere.ArcCells(ship.pose.position, poi.pose.position));
                 }
             }
             return best;
@@ -165,23 +180,9 @@ namespace DeltaV
         /// <summary>生成（或从快照恢复）POI 口袋图并挂到 poi.map。LongEventHandler 内执行。</summary>
         private static void GeneratePoiMap(UniverseManager universe, PoiState poi)
         {
-            Map hostMap = universe.hostMap;
-            if (hostMap == null || !hostMap.Tile.Valid)
-            {
-                Log.Error($"[DeltaV] Cannot generate POI '{poi.label}': no valid space host map.");
-                return;
-            }
-            PlanetLayer layer = hostMap.Tile.Layer;
-            PlanetTile projected = UniverseLayerMapping.ProjectToTile(layer, hostMap.Tile, poi.pose.position, hostMap.Tile);
-            PlanetTile tile = UniverseLayerMapping.FindFreeTileNear(layer, projected);
-            if (!tile.Valid)
-            {
-                Log.Error($"[DeltaV] No free orbit tile for POI '{poi.label}'; skipping generation.");
-                return;
-            }
+            // POI 口袋图不占轨道 tile；sourceMap 统一指向专用宿主口袋图。
             var parent = (ShipPocketParent_DeltaV)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
-            parent.Tile = tile;
-            parent.sourceMap = hostMap;
+            parent.sourceMap = universe.GetOrCreateHostMap();
             parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
             Map map = MapGenerator.GenerateMap(new IntVec3(PoiMapSize, 1, PoiMapSize), parent,
                 DeltaVDefOf.DeltaV_ShipPocket, null, null, isPocketMap: true);

@@ -115,19 +115,21 @@ SpacePose
 4. 当前聚焦参考系中的显示坐标；
 5. 屏幕坐标。
 
-统一转换链：
+统一转换链（universe 坐标 = 轨道层球面上的单位方向向量，球面绝对坐标）：
 
 ```text
 Map local / Thing local
         ↓
 Ship local continuous coordinate
-        ↓ Ship SpacePose
-Universe coordinate
+        ↓ Ship SpacePose（球面方向 + 该处切空间基）
+Universe sphere direction
         ↓ inverse(FocusedObject.SpacePose)
 Focused-frame coordinate
         ↓
 Render / screen coordinate
 ```
+
+球面几何（切空间基、球面移动、弧距、sphere↔tile 纯函数）唯一入口是 `Source/Core/OrbitSphere.cs`。不存在任何持久化的坐标对齐锚：sphere↔tile 互推是纯函数，旧实现的 hostMap 锚 / floating origin / anchorDisplacement / 重锚机制已删除，不得回退。
 
 应建立集中坐标 API，例如：
 
@@ -148,7 +150,8 @@ FocusedToUniverse
 - Projectile、碰撞、外壳渲染和跳帮位置换算必须复用同一坐标定义。
 - Renderer 输出只是表现结果，绝不能反过来成为宇宙状态的数据源。
 - 宇宙绝对坐标不因切换当前聚焦地图而改变。
-- 尽量使用浮点/双精度连续坐标保存宇宙状态，不把宇宙位置提前量化为 `IntVec3`。
+- 尽量使用浮点连续坐标保存宇宙状态，不把宇宙位置提前量化为 `IntVec3`。
+- 位置存球面单位方向向量（Vector3）；角度/速度是"该处切空间基"下的 2D 量（x=东、y=北），与旧平面系约定连续。
 
 ## 6. 聚焦地图与参考系
 
@@ -309,22 +312,16 @@ SpacePose.angle
 
 先解决外壳代理能够满足的需求。
 
-## 10. 宿主 / 显示地图
+## 10. 专用宿主口袋图与降落图
 
-如果使用一张大型 Map 承载太空背景和表现层，它只是：
+没有"宿主/显示大地图"。原版口袋图的 sourceMap 引擎契约（storyteller/财富/移除级联从口袋图重定向）由一张**专用无 tile 宿主口袋图**统一承担（`UniverseHostParent_DeltaV`）：
 
-> viewport / render canvas
+- `Tile` 恒 `PlanetTile.Invalid`，只存在于 `Find.World.pocketMaps`，绝不进 `Find.WorldObjects`（否则 SpawnSetup 的 FastTileFinder 越界崩溃）；
+- 永不被聚焦（`Game.CurrentMap` setter 拒绝切入）、永不出现在世界视图、tick 常冻结、殖民者栏无分组；
+- 内容是空 Void 图（无事实价值，可随时重建，不序列化引用——按 def 重扫恢复）；
+- 所有 Delta-V 口袋图（飞船/POI）的 `sourceMap` 统一指向它，且口袋图一律不占轨道 tile。
 
-而不是宇宙真实空间。
-
-因此：
-
-- `800×800` 等尺寸属于显示和性能参数，不属于宇宙坐标协议；
-- 修改宿主 Map 尺寸不得改变飞船绝对坐标；
-- 飞船可以逻辑上位于宿主 Map 表示范围之外；
-- 玩家参考系移动时可以不断重新投影对象，而不是要求对象永久占据宿主 Map 某格。
-
-宿主 Map 是否最终保留、缩小或被其他表现机制替代，不能影响 Universe Layer。
+**降落图**：飞船停靠的目标 = 当前球面位置对应轨道 tile 上的真实普通图（`GetOrGenerateMap`：有图复用、没图生成），与宿主完全解耦；起飞来源 = `ship.dockedMap`，任意真实轨道图（含原版发射到任意 POI tile 生成的图）都能 bootstrap 进入移动模式。轨道 tile 从此只属于真实降落图。
 
 ## 11. 太空对象与 POI 生命周期
 
@@ -596,7 +593,7 @@ Harmony 规则：
 4. **非聚焦飞船默认显示外壳代理，而不是完整旋转内部 Map。**
 5. **切换聚焦只是参考系变化，不修改任何对象的绝对宇宙状态。**
 6. **禁止通过批量修改 Thing.Position / Rot4 实现飞船转向。**
-7. **宿主/显示 Map 只是 viewport，不是宇宙边界。**
+7. **专用宿主口袋图只是口袋图 sourceMap 锚点，不是显示画布、不是宇宙边界、不可聚焦；降落目标与起飞来源都与宿主无关。**
 8. **所有跨层坐标转换必须收口到统一 Transform API。**
 9. **SpaceProjectile 在 Universe Layer 中拥有独立权威状态，显示层不能反向驱动物理。**
 10. **命中流程始终是 Universe → target ship local → target Map。**
@@ -604,3 +601,4 @@ Harmony 规则：
 12. **RimExodus 的地表邻接语义不得泄漏到 Delta-V 的连续宇宙模型。**
 13. **可重建缓存不是存档事实，也不能成为游戏逻辑权威状态。**
 14. **未经用户实测和明确要求，不提交代码。**
+15. **universe 坐标是球面绝对坐标（OrbitSphere 唯一入口）；不得重新引入任何坐标对齐锚、floating origin 或把口袋图挂到真实 tile 上。**

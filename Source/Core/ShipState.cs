@@ -15,7 +15,7 @@ namespace DeltaV
 
         /// <summary>
         /// 主驾驶台（story 规则：第一台自动成为主，仅显式 gizmo 可换主；
-        /// 返回飞行时的飞船朝向跟随它的朝向）。Scribe_References，可失效。
+        /// 进入移动模式时的飞船朝向跟随它的朝向）。Scribe_References，可失效。
         /// </summary>
         public Building primaryConsole;
 
@@ -27,7 +27,7 @@ namespace DeltaV
         /// <summary>原版降落选点已经开始、但动画尚未确认完成；此时船体在 Gravship 单例中。</summary>
         public bool docking;
 
-        /// <summary>固定轨道中的实际承载图（当前架构恒为宿主图）。</summary>
+        /// <summary>固定轨道中的实际承载图（船降落时球面位置对应的真实轨道 tile 图）。</summary>
         public Map dockedMap;
 
         /// <summary>本次原版降落选中的整船 Rot4；无驾驶台回航时用于恢复局部布局。</summary>

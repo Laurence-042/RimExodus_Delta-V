@@ -27,7 +27,7 @@ namespace DeltaV
                 return null;
             }
             Vector2 frameLocal = SpaceTransform.MapToShipLocal(frameMap, new Vector2(frameMapPoint.x, frameMapPoint.z));
-            Vector2 universePoint = SpaceTransform.FocusedToUniverse(frame, frameLocal);
+            Vector3 universeDir = SpaceTransform.FocusedToUniverse(frame, frameLocal);
             foreach (SpaceObject obj in universe.objects)
             {
                 if (obj == frame)
@@ -45,8 +45,8 @@ namespace DeltaV
                 // UniverseToMapPoint：universe → 地图坐标（含中心偏移）——
                 // 直接拿 UniverseToShipLocal 的中心系输出当地图坐标是已记录三次的反模式。
                 Vector2 mapPoint = docked
-                    ? DockController.DockedOriginMapPoint(ship) + universePoint - ship.pose.position
-                    : SpaceTransform.UniverseToMapPoint(obj, universePoint);
+                    ? SpaceTransform.UniverseToDockedMapPoint(ship, universeDir)
+                    : SpaceTransform.UniverseToMapPoint(obj, universeDir);
                 var cell = new IntVec3(Mathf.FloorToInt(mapPoint.x), 0, Mathf.FloorToInt(mapPoint.y));
                 if (!cell.InBounds(objectMap))
                 {
