@@ -7,6 +7,7 @@
 - Decoupled takeoff and landing from the host: landing targets the real orbit map at the ship's sphere position (reused when one exists, generated otherwise), and any real orbit map—including vanilla gravship maps created on POI tiles—can now bootstrap directly into mobile mode.
 - Old saves migrate automatically: planar positions convert to sphere directions and stale pocket-map tiles are cleared on load.
 - Empty landing maps are now removed: after a ship departs, a space map left with no pawns, buildings, items, or docked ships is deleted outright (also swept on load) instead of lingering as empty orbit maps.
+- Fixed per-tick season/ritual errors in mobile mode: tile-less ship pocket maps no longer count as the player home map (matching vanilla gravship transit); the real landing map becomes home once the ship touches down.
 - Added stage 3 space POI lifecycle, dynamic universe anchoring, extended zoom, and background reference-frame rotation.
 - Extended the vanilla Odyssey pilot console with Delta-V piloting and primary-console controls.
 - Added fixed-orbit docking through the vanilla Gravship landing selector and placement pipeline, with a fixed-zoom pose-transition landing animation.
