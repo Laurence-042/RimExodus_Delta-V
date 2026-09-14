@@ -11,4 +11,4 @@
 - Made the piloting HUD scrollable and reduced diagnostic log spam.
 - Fixed fixed-orbit docking so the host map remains the sole landing canvas, the selected landing point updates the ship's universe position, and docked ships remain visible from other space maps.
 - Destroyed obsolete pocket maps after landing and now rebuild them from the ship's current footprint on launch, including ships expanded or reduced while docked.
-- Fixed the generated test ship's player ownership and grav-field extender links, and hid the empty host-map group from the Colonist Bar while the ship is flying.
+- Fixed the generated test ship's player ownership and grav-field extender links, preserved pilot-console ownership while docked, and hid the empty host-map group from the Colonist Bar while the ship is flying.

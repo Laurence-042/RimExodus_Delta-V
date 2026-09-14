@@ -7,9 +7,9 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// Mod 入口。阶段2 起初始化 Harmony：唯一补丁是驾驶模式的原版按键抑制
-    /// （Source/Harmony/Patch_KeyBindingSuppression.cs）。补丁初始化失败只记录错误，
-    /// 不杀死主 Mod（AGENTS §17）。补丁挂载结果（方法数）属必要日志，常开输出。
+    /// Mod 入口。阶段2 起由统一 Harmony 实例挂载驾驶输入、POI 休眠、背景/降落表现及
+    /// Colonist Bar 等运行时桥接。补丁初始化失败只记录错误，不杀死主 Mod（AGENTS §17）。
+    /// 补丁挂载结果（方法数）属必要日志，常开输出。
     /// </summary>
     public class DeltaVMod : Mod
     {
@@ -34,13 +34,13 @@ namespace DeltaV
                 int patched = HarmonyInstance.GetPatchedMethods().Count();
                 if (patched == 0)
                 {
-                    Log.Error("[DeltaV] Harmony PatchAll reported 0 patched methods - key suppression and POI dormancy will NOT work. Check patch annotations.");
+                    Log.Error("[DeltaV] Harmony PatchAll reported 0 patched methods - runtime integrations will NOT work. Check patch annotations.");
                 }
                 else
                 {
                     Log.Message($"[DeltaV] Harmony patches applied to {patched} method(s): " +
                         string.Join(", ", HarmonyInstance.GetPatchedMethods().Select(m => m.DeclaringType.Name + "." + m.Name).OrderBy(n => n)) +
-                        " (KeyBindingDef getters + Map tick/update + CurrentMap setter + Storyteller targets expected).");
+                        " (runtime integration patches expected).");
                 }
             }
             catch (Exception ex)

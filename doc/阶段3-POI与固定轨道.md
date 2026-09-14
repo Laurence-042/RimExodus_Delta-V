@@ -76,6 +76,7 @@
 - **口袋图生命周期**：降落动画仍读取旧口袋图中心，所以在 `LandingEnded` Postfix（原版 Gravship/捕获已释放）才销毁旧图并置 `ship.map = null`；停靠期间真实船体只存在于宿主图。旧版 docked 存档若仍带空口袋图，会在加载收尾迁移销毁。
 - **起飞**：不播放起飞动画；`GenerateGravship(engine@dockedMap)` 后先规范主驾驶台为口袋图 East（局部 +X），再按旋转后的 `Foundations` 实际边界生成新口袋图（每边 15 格结构余量、单轴最小 80，并校正奇偶使船体几何中心与 Map 中心精确重合），最后用原版 `GravshipPlacementUtility` 搬入。非对称扩建导致中心变化时，先将宿主图上的新船体中心换算为 `SpacePose.position`，保证所有建筑的绝对 Universe 位置在起飞前后不变；`SpacePose.angle` 写入主驾驶台在降落图上的绝对方向。新图生成失败则以 North 原布局放回宿主图，不吞船。
 - **宿主图 Colonist Bar**：参考 RimExodus 的休眠/无人图过滤方式，在原版 `CheckRecacheEntries` 完成后移除没有停靠船的宿主图整组，并重建连续 group 与绘制缓存。起飞状态提交后立即标脏，空宿主图不再占据顶部栏；再次停靠时恢复原版分组。该过滤只识别当前 Delta-V 宿主图，可与 RimExodus 自身过滤叠加。
+- **停靠船体归属**：停靠后 `ship.map == null`，宿主图上的驾驶台通过所属逆重引擎的 `ValidSubstructure` 反查 `ShipState`；因此固定轨道期间新建的第二台驾驶台仍可设为主台，多个独立停靠结构之间不会串台。
 - **前进方向**：W/S、A/D 与飞行辅助都定义在主驾驶台参考系；`ShipOrientation` 集中换算为 Map 局部指令。HUD 航向同样显示 `SpacePose.angle + 主台局部方向`，无主台才回退历史 +X。
 - 停靠/选点船：物理 tick 跳过、tile 不重锚。选点中由原版 marker 表示；停靠后在宿主图由真实建筑表示，在其他对象图从宿主图 `ValidSubstructure` 实时生成外壳代理，且不重复叠加 `SpacePose.angle`。
 

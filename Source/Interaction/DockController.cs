@@ -347,6 +347,21 @@ namespace DeltaV
             return fallback;
         }
 
+        /// <summary>
+        /// 判断宿主图上的 Thing 是否属于指定停靠船。停靠后 ship.map 已销毁，不能再靠
+        /// ShipOnMap 反查；原版 GravEngine.ValidSubstructure 是此时实际船体归属的权威集合。
+        /// </summary>
+        internal static bool ContainsDockedThing(ShipState ship, Thing thing)
+        {
+            if (ship == null || thing == null || !ship.docked || ship.dockedMap == null
+                || thing.MapHeld != ship.dockedMap)
+            {
+                return false;
+            }
+            Building_GravEngine engine = FindEngineForShip(ship.dockedMap, ship.primaryConsole);
+            return engine != null && engine.ValidSubstructure.Contains(thing.PositionHeld);
+        }
+
         private static void PlaceIntoMap(Gravship gravship, IntVec3 root, Map map)
         {
             GravshipPlacementUtility.PlaceGravshipInMap(gravship, root, map, out List<Thing> spawned);

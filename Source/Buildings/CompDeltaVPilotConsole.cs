@@ -40,9 +40,10 @@ namespace DeltaV
                 {
                     return ship;
                 }
-                // 停靠船的 SpaceObject 不再持有口袋图；实际停靠图上的原版驾驶台通过
-                // 持久化的主台引用反查所属船，避免把能力扩散到普通地表驾驶台。
-                return universe?.Ships.FirstOrDefault(s => s.docked && s.dockedMap == map && s.primaryConsole == parent);
+                // 停靠船的 SpaceObject 不再持有口袋图；通过原版 GravEngine.ValidSubstructure
+                // 识别宿主图上的实际船体，使停靠期新建的第二台驾驶台也能获得 gizmo，
+                // 同时避免把能力扩散到宿主图上的无关建筑或普通地表驾驶台。
+                return universe?.Ships.FirstOrDefault(s => DockController.ContainsDockedThing(s, parent));
             }
         }
 
@@ -116,6 +117,7 @@ namespace DeltaV
             foreach (Thing thing in consoleMap.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
             {
                 if (thing.TryGetComp<CompDeltaVPilotConsole>() != null
+                    && (!ship.docked || DockController.ContainsDockedThing(ship, thing))
                     && (oldest == null || thing.thingIDNumber < oldest.thingIDNumber))
                 {
                     oldest = thing as Building;
