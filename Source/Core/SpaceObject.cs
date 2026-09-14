@@ -7,8 +7,9 @@ namespace DeltaV
     /// Map 对应关系。飞船（ShipState）与太空 POI（PoiState）共用同一坐标系与
     /// SpaceTransform 变换链——坐标语义对所有宇宙对象唯一。
     ///
-    /// "map == null" 只表示当前没有已加载的地图（POI 的 Packed 状态），不表示对象
-    /// 不存在（AGENTS：当前没有 Map 不代表 SpaceObject 不存在）。
+    /// "map == null" 只表示当前没有对象自己的已加载地图（POI 的 Packed 状态，或飞船
+    /// 固定轨道停靠在 dockedMap），不表示对象不存在（AGENTS：当前没有 Map 不代表
+    /// SpaceObject 不存在）。
     /// map 之外的姿态数据是存档事实；外壳显示以 Map 的 SectionLayer 为事实源。
     /// </summary>
     public abstract class SpaceObject : IExposable

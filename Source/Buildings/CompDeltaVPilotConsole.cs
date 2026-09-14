@@ -40,7 +40,7 @@ namespace DeltaV
                 {
                     return ship;
                 }
-                // 停靠船的 SpaceObject 仍引用空口袋图；实际停靠图上的原版驾驶台通过
+                // 停靠船的 SpaceObject 不再持有口袋图；实际停靠图上的原版驾驶台通过
                 // 持久化的主台引用反查所属船，避免把能力扩散到普通地表驾驶台。
                 return universe?.Ships.FirstOrDefault(s => s.docked && s.dockedMap == map && s.primaryConsole == parent);
             }
@@ -87,8 +87,7 @@ namespace DeltaV
 
         public override void PostDestroy(DestroyMode mode, Map previousMap)
         {
-            // 驾驶台可能在口袋图（飞行中）也可能在宿主图（停靠中）——停靠船的 map 字段
-            // 仍指口袋图，所以按"驾驶台所在图"双路径找船。
+            // 驾驶台可能在口袋图（飞行中）也可能在宿主图（停靠中），按所在图双路径找船。
             UniverseManager universe = Universe;
             ShipState ship = universe?.ShipOnMap(previousMap);
             if (ship == null && universe != null)
@@ -107,10 +106,6 @@ namespace DeltaV
 
         private static Building OldestConsoleOn(ShipState ship)
         {
-            if (ship.map == null)
-            {
-                return null;
-            }
             // 停靠中的船上其余驾驶台与被拆台同图（宿主图），从宿主图找；飞行中从口袋图找。
             Map consoleMap = ship.docked ? ship.dockedMap : ship.map;
             if (consoleMap == null)

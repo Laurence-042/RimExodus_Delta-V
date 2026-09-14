@@ -30,23 +30,34 @@ namespace DeltaV
             Vector2 universePoint = SpaceTransform.FocusedToUniverse(frame, frameLocal);
             foreach (SpaceObject obj in universe.objects)
             {
-                if (obj == frame || obj.map == null)
+                if (obj == frame)
                 {
                     continue;
                 }
-                if (obj is ShipState ship && (ship.docked || ship.docking))
+                ShipState ship = obj as ShipState;
+                if (ship != null && ship.docking)
                 {
-                    continue; // 停靠/选点船由原版 marker 或真实建筑处理
+                    continue; // 选点船由原版 marker 处理
                 }
+                bool docked = ship != null && ship.docked;
+                Map objectMap = docked ? ship.dockedMap : obj.map;
+                if (objectMap == null || (docked && objectMap == frameMap)) continue;
                 // UniverseToMapPoint：universe → 地图坐标（含中心偏移）——
                 // 直接拿 UniverseToShipLocal 的中心系输出当地图坐标是已记录三次的反模式。
-                Vector2 mapPoint = SpaceTransform.UniverseToMapPoint(obj, universePoint);
+                Vector2 mapPoint = docked
+                    ? DockController.DockedOriginMapPoint(ship) + universePoint - ship.pose.position
+                    : SpaceTransform.UniverseToMapPoint(obj, universePoint);
                 var cell = new IntVec3(Mathf.FloorToInt(mapPoint.x), 0, Mathf.FloorToInt(mapPoint.y));
-                if (!cell.InBounds(obj.map))
+                if (!cell.InBounds(objectMap))
                 {
                     continue;
                 }
-                if (obj.map.terrainGrid.TerrainAt(cell) != DeltaVDefOf.DeltaV_Void)
+                if (docked)
+                {
+                    Building_GravEngine engine = DockController.FindEngineForShip(objectMap, ship.primaryConsole);
+                    if (engine != null && engine.ValidSubstructure.Contains(cell)) return obj;
+                }
+                else if (objectMap.terrainGrid.TerrainAt(cell) != DeltaVDefOf.DeltaV_Void)
                 {
                     return obj;
                 }

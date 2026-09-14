@@ -387,7 +387,7 @@ namespace DeltaV
             {
                 return;
             }
-            // 停靠中的船（聚焦其空口袋图）没有驾驶入口；出口在实际停靠图按钮/驾驶台 gizmo。
+            // 停靠中的船没有飞行口袋图与驾驶入口；出口在实际停靠图按钮/驾驶台 gizmo。
             if (piloted.docked)
             {
                 return;

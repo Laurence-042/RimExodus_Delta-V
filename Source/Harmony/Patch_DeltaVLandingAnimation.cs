@@ -41,5 +41,10 @@ namespace DeltaV
         {
             DeltaVLandingAnimator.EnsureLaunchInfoBeforeLandingEnds(__instance);
         }
+
+        public static void Postfix()
+        {
+            DockController.NotifyVanillaLandingEnded();
+        }
     }
 }

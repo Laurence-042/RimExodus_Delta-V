@@ -63,6 +63,18 @@ namespace DeltaV
             return shipPoint + ShipLocalOrigin(map);
         }
 
+        /// <summary>
+        /// 原版 Gravship/Prefab 的 Rot4 局部偏移旋转，连续坐标版本。
+        /// 手性严格对应 PrefabUtility.GetAdjustedLocalPosition，固定轨道坐标只能经此入口换算。
+        /// </summary>
+        public static Vector2 RotatePlacementOffset(Vector2 local, Rot4 rotation)
+        {
+            if (rotation == Rot4.East) return new Vector2(local.y, -local.x);
+            if (rotation == Rot4.South) return new Vector2(-local.x, -local.y);
+            if (rotation == Rot4.West) return new Vector2(-local.y, local.x);
+            return local;
+        }
+
         // ---------- Ship local ⇄ universe ----------
 
         public static Vector2 ShipLocalToUniverse(SpaceObject obj, Vector2 shipPoint)

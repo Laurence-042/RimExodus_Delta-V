@@ -55,8 +55,9 @@ namespace DeltaV
 
         /// <summary>主船（锚跟随对象）；失效时回退第一艘活着的船，保持锚与显示有参考。</summary>
         public ShipState PrimaryShip =>
-            (objects.FirstOrDefault(o => o is ShipState s && s.objectId == primaryShipId && s.map != null) as ShipState)
-            ?? objects.FirstOrDefault(o => o is ShipState s2 && s2.map != null) as ShipState;
+            (objects.FirstOrDefault(o => o is ShipState s && s.objectId == primaryShipId
+                && (s.map != null || s.dockedMap != null)) as ShipState)
+            ?? objects.FirstOrDefault(o => o is ShipState s2 && (s2.map != null || s2.dockedMap != null)) as ShipState;
 
         public ShipState ShipById(int id)
         {
@@ -102,6 +103,15 @@ namespace DeltaV
                     hostFrame = new ShipState(0, "host frame (display-only)", hostMap, new SpacePose(Vector2.zero, 0f));
                 }
                 hostFrame.map = hostMap;
+                ShipState primary = PrimaryShip;
+                if (primary != null)
+                {
+                    hostFrame.pose.position = primary.docked && primary.dockedMap == hostMap
+                        ? primary.pose.position + SpaceTransform.ShipLocalOrigin(hostMap)
+                            - DockController.DockedOriginMapPoint(primary)
+                        : primary.pose.position;
+                    hostFrame.pose.angle = 0f;
+                }
                 return hostFrame;
             }
         }
@@ -166,6 +176,8 @@ namespace DeltaV
                     focusedShipId = first.objectId;
                 }
             }
+            DockController.CleanupObsoleteDockedPocketMaps(this);
+            HostColonistBarVisibility.NotifyDockingStateChanged();
         }
 
         public override void GameComponentUpdate()
@@ -220,10 +232,8 @@ namespace DeltaV
                 DeltaVLog.Message(DeltaVLogModule.Core,
                     $"floating origin shifted by -({delta.x:F0}, {delta.y:F0}); cumulative anchor displacement = ({anchorDisplacement.x:F0}, {anchorDisplacement.y:F0})");
             }
-            if (hostFrame != null)
-            {
-                hostFrame.pose.position = primary.pose.position;
-            }
+            // HostFrame 属性同时处理飞行中心锚与停靠真实原点锚。
+            if (hostFrame != null) _ = HostFrame;
         }
 
         // 相机缩放放宽（宇宙视野）：进入 Delta-V 参考系（对象图/宿主图）时记录原 max 并放宽，
@@ -402,15 +412,23 @@ namespace DeltaV
                     // 相机跳到点击位置对应的对象内格（clamp 进地图），落点即所见。
                     SpaceObject frame = FrameOf(current);
                     Vector2 frameLocal = SpaceTransform.MapToShipLocal(current, new Vector2(UI.MouseMapPosition().x, UI.MouseMapPosition().z));
-                    Vector2 mapPoint = SpaceTransform.UniverseToMapPoint(target, SpaceTransform.FocusedToUniverse(frame, frameLocal));
-                    int x = Mathf.Clamp(Mathf.FloorToInt(mapPoint.x), 2, target.map.Size.x - 3);
-                    int z = Mathf.Clamp(Mathf.FloorToInt(mapPoint.y), 2, target.map.Size.z - 3);
+                    Vector2 universePoint = SpaceTransform.FocusedToUniverse(frame, frameLocal);
+                    ShipState dockedTarget = target as ShipState;
+                    Map targetMap = dockedTarget != null && dockedTarget.docked
+                        ? dockedTarget.dockedMap
+                        : target.map;
+                    Vector2 mapPoint = dockedTarget != null && dockedTarget.docked
+                        ? DockController.DockedOriginMapPoint(dockedTarget)
+                            + universePoint - dockedTarget.pose.position
+                        : SpaceTransform.UniverseToMapPoint(target, universePoint);
+                    int x = Mathf.Clamp(Mathf.FloorToInt(mapPoint.x), 2, targetMap.Size.x - 3);
+                    int z = Mathf.Clamp(Mathf.FloorToInt(mapPoint.y), 2, targetMap.Size.z - 3);
                     // 缩放同步（RimExodus SeamlessCameraFocus 同款结论）：CurrentMap setter 的
                     // Notify_SwitchedMap 会用目标图 rememberedCameraPos 同时恢复位置+缩放，
                     // 只 TryJump 恢复位置不够，必须记录 RootSize 并在跳转后显式重设。
                     float zoom = Find.CameraDriver.RootSize;
                     SetFocused(target);
-                    CameraJumper.TryJump(new IntVec3(x, 0, z), target.map, CameraJumper.MovementMode.Cut);
+                    CameraJumper.TryJump(new IntVec3(x, 0, z), targetMap, CameraJumper.MovementMode.Cut);
                     Find.CameraDriver.SetRootSize(zoom);
                 }
             }
@@ -422,7 +440,10 @@ namespace DeltaV
         /// </summary>
         public void SetFocused(SpaceObject obj)
         {
-            if (obj?.map == null)
+            Map targetMap = obj is ShipState dockedShip && dockedShip.docked
+                ? dockedShip.dockedMap
+                : obj?.map;
+            if (targetMap == null)
             {
                 Log.Error($"[DeltaV] SetFocused: object #{obj?.objectId} has no live map.");
                 return;
@@ -431,7 +452,7 @@ namespace DeltaV
             {
                 focusedShipId = ship.objectId;
             }
-            Current.Game.CurrentMap = obj.map;
+            Current.Game.CurrentMap = targetMap;
             // 与 PocketMapUtility 一致：确保回到地图视图而不是世界球面。
             Find.World.renderer.wantedMode = RimWorld.Planet.WorldRenderMode.None;
         }

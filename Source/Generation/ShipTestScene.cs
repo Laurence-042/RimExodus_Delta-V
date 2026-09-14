@@ -56,11 +56,11 @@ namespace DeltaV
             }
             universe.hostMap = hostMap;
 
-            Map playerMap = GenerateShipPocketMap(new IntVec3(MapSize, 1, MapSize), hostMap, Vector2.zero);
+            Map playerMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), hostMap, Vector2.zero);
             if (playerMap == null) return;
             ShipStructureStamp.StampPlayerShip(playerMap);
 
-            Map enemyMap = GenerateShipPocketMap(new IntVec3(MapSize, 1, MapSize), hostMap, EnemyInitialOffset);
+            Map enemyMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), hostMap, EnemyInitialOffset);
             if (enemyMap == null) return;
             ShipStructureStamp.StampEnemyShip(enemyMap);
 
@@ -122,32 +122,5 @@ namespace DeltaV
             universe.hostMap = null;
         }
 
-        /// <summary>
-        /// PocketMapUtility.GeneratePocketMap 的本地复制，两点区别：
-        /// 1. WorldObject 用 DeltaV_ShipMapParent def（便于按 def 识别 Delta-V 飞船图）；
-        /// 2. parent.Tile = 该船 universe 位置在轨道层上的投影（UniverseLayerMapping.ProjectToTile，
-        ///    从宿主 tile 出发贪心走向），投影被占用时取附近最近空闲 tile——
-        ///    MapInfo.Tile 由 parent.Tile 派生（无缓存），Map.Tile 因此有效，renderWorld=true 的
-        ///    星球背景与轨道层视差参数全部走原版正路。tile 不得与其他地图/世界对象重复
-        ///    （Game.FindMap 按 map.Tile 匹配）。
-        /// </summary>
-        private static Map GenerateShipPocketMap(IntVec3 size, Map sourceMap, Vector2 universePos)
-        {
-            PlanetLayer layer = sourceMap.Tile.Layer;
-            PlanetTile projected = UniverseLayerMapping.ProjectToTile(layer, sourceMap.Tile, universePos, sourceMap.Tile);
-            PlanetTile shipTile = UniverseLayerMapping.FindFreeTileNear(layer, projected);
-            if (!shipTile.Valid)
-            {
-                Log.Error("[DeltaV] No free orbit tile near the projected position; aborting scene.");
-                return null;
-            }
-            var parent = (PocketMapParent)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
-            parent.Tile = shipTile;
-            parent.sourceMap = sourceMap;
-            parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
-            Map map = MapGenerator.GenerateMap(size, parent, DeltaVDefOf.DeltaV_ShipPocket, null, null, isPocketMap: true);
-            Find.World.pocketMaps.Add(parent);
-            return map;
-        }
     }
 }

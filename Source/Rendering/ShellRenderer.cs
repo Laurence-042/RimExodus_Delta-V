@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
 using Verse;
@@ -49,24 +50,47 @@ namespace DeltaV
 
         private static void DrawObjectShell(SpaceObject obj, SpaceObject frame, Map frameMap)
         {
-            if (obj.map == null) return;
-            if (obj is ShipState ship && (ship.docked || ship.docking)) return;
+            if (obj is ShipState dockingShip && dockingShip.docking) return;
 
-            Map map = obj.map;
-            Quaternion shellRotation = SpaceTransform.FocusedMeshRotation(frame, obj.pose.angle);
-            Vector3 drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
-            Vector2 center = SpaceTransform.ShipLocalOrigin(map);
-            Vector3 translation = drawPos - shellRotation * new Vector3(center.x, 0f, center.y);
+            ShipState dockedShip = obj as ShipState;
+            bool docked = dockedShip != null && dockedShip.docked;
+            Map map = docked ? dockedShip.dockedMap : obj.map;
+            if (map == null || (docked && map == frameMap)) return;
+
+            HashSet<IntVec3> allowedCells = null;
+            Quaternion shellRotation;
+            Vector3 drawPos;
+            Vector2 sourceOrigin;
+            if (docked)
+            {
+                Building_GravEngine engine = DockController.FindEngineForShip(map, dockedShip.primaryConsole);
+                if (engine == null) return;
+                allowedCells = engine.ValidSubstructure;
+                // 停靠图中的格子已经按最终 Rot4 摆正；这里只撤销聚焦参考系角度，
+                // 不能再叠加一次 ship.pose.angle，否则会重复旋转真实布局。
+                shellRotation = SpaceTransform.FocusedMeshRotation(frame, 0f);
+                drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
+                sourceOrigin = DockController.DockedOriginMapPoint(dockedShip);
+            }
+            else
+            {
+                shellRotation = SpaceTransform.FocusedMeshRotation(frame, obj.pose.angle);
+                drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
+                sourceOrigin = SpaceTransform.ShipLocalOrigin(map);
+            }
+
+            Vector3 translation = drawPos - shellRotation * new Vector3(sourceOrigin.x, 0f, sourceOrigin.y);
             Matrix4x4 shellMatrix = Matrix4x4.TRS(translation, shellRotation, Vector3.one);
             CellRect localView = TransformRectInverse(shellMatrix, Find.CameraDriver.CurrentViewRect).ExpandedBy(4);
 
-            DrawSubstructure(map, shellMatrix, shellRotation, localView);
+            DrawSubstructure(map, shellMatrix, shellRotation, localView, allowedCells);
 
             List<Thing> things = map.listerThings.AllThings;
             for (int i = 0; i < things.Count; i++)
             {
                 Thing thing = things[i];
                 if (thing == null || thing.Destroyed || !thing.Spawned || !localView.Contains(thing.Position)) continue;
+                if (allowedCells != null && !allowedCells.Contains(thing.Position)) continue;
 
                 bool wallLike = thing.def.IsWall || thing.def.IsDoor;
                 Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
@@ -92,7 +116,7 @@ namespace DeltaV
         }
 
         private static void DrawSubstructure(Map map, Matrix4x4 shellMatrix,
-            Quaternion shellRotation, CellRect localView)
+            Quaternion shellRotation, CellRect localView, HashSet<IntVec3> allowedCells)
         {
             TerrainDef substructure = DeltaVDefOf.Substructure;
             Texture texture = substructure?.DrawMatSingle?.mainTexture;
@@ -106,6 +130,7 @@ namespace DeltaV
             CellRect visible = localView.ClipInsideMap(map);
             foreach (IntVec3 cell in visible)
             {
+                if (allowedCells != null && !allowedCells.Contains(cell)) continue;
                 if (map.terrainGrid.FoundationAt(cell) != substructure) continue;
                 Vector3 sourcePos = new Vector3(cell.x + 0.5f,
                     AltitudeLayer.Terrain.AltitudeFor(), cell.z + 0.5f);

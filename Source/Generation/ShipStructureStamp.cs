@@ -24,7 +24,7 @@ namespace DeltaV
         public static void StampPlayerShip(Map map)
         {
             CellRect hull = CenteredRect(map, 40, 24);
-            StampHull(map, hull, doorsOnEast: 2, interiorWall: true, colonists: 0);
+            StampHull(map, hull, doorsOnEast: 2, interiorWall: true, colonists: 0, Faction.OfPlayer);
             StampPlayerEquipment(map, hull);
             // 殖民者最后落位：设备已占的格被 Standable 过滤，也不会被后续 Vanish 波及。
             SpawnColonists(map, hull, 2);
@@ -33,7 +33,7 @@ namespace DeltaV
         public static void StampEnemyShip(Map map)
         {
             CellRect hull = CenteredRect(map, 24, 14);
-            StampHull(map, hull, doorsOnEast: 1, interiorWall: false, colonists: 0);
+            StampHull(map, hull, doorsOnEast: 1, interiorWall: false, colonists: 0, faction: null);
             // 敌舰 24×14：单台线性推进器 + 双向力偶，对称于船体中心；z 带 1-2 / 3-4 / 6-7 / 9-10 / 11-12 互不重叠。
             SpawnThruster(map, hull, 1, 7, Rot4.East);            // 前进（艉、朝东）
             SpawnThruster(map, hull, 22, 6, Rot4.West);           // 减速（艏、朝西）
@@ -50,7 +50,8 @@ namespace DeltaV
             return new CellRect(map.Size.x / 2 - width / 2, map.Size.z / 2 - height / 2, width, height);
         }
 
-        private static void StampHull(Map map, CellRect hull, int doorsOnEast, bool interiorWall, int colonists)
+        private static void StampHull(Map map, CellRect hull, int doorsOnEast, bool interiorWall,
+            int colonists, Faction faction)
         {
             foreach (IntVec3 cell in hull)
             {
@@ -58,7 +59,7 @@ namespace DeltaV
             }
             foreach (IntVec3 cell in hull.EdgeCells)
             {
-                SpawnWall(map, cell);
+                SpawnWall(map, cell, faction);
             }
 
             // 船艏门：东边墙中段。
@@ -66,7 +67,7 @@ namespace DeltaV
             for (int i = 0; i < doorsOnEast; i++)
             {
                 int z = midZ + (i % 2 == 0 ? i / 2 : -(i - i / 2)) * 2;
-                SpawnDoor(map, new IntVec3(hull.maxX, 0, z));
+                SpawnDoor(map, new IntVec3(hull.maxX, 0, z), faction);
             }
 
             if (interiorWall)
@@ -76,11 +77,11 @@ namespace DeltaV
                 {
                     if (z == midZ)
                     {
-                        SpawnDoor(map, new IntVec3(wallX, 0, z));
+                        SpawnDoor(map, new IntVec3(wallX, 0, z), faction);
                     }
                     else
                     {
-                        SpawnWall(map, new IntVec3(wallX, 0, z));
+                        SpawnWall(map, new IntVec3(wallX, 0, z), faction);
                     }
                 }
             }
@@ -98,49 +99,63 @@ namespace DeltaV
         /// </summary>
         private static void StampPlayerEquipment(Map map, CellRect hull)
         {
-            SpawnAnchored(map, ThingDefOf.GravFieldExtender, hull, 1, 3, Rot4.North);
-            SpawnAnchored(map, ThingDefOf.GravFieldExtender, hull, 1, 20, Rot4.North);
-            SpawnAnchored(map, ThingDefOf.GravFieldExtender, hull, 33, 3, Rot4.North);
-            SpawnAnchored(map, ThingDefOf.GravFieldExtender, hull, 33, 21, Rot4.North);
+            // 引擎必须先作为玩家建筑生成；后生成的设施会在 CompFacility.PostSpawnSetup
+            // 立刻找到这个殖民者引擎并建立双向 link，CanBeActive 才会成立。
+            var engine = (Building_GravEngine)SpawnAnchored(map, ThingDefOf.GravEngine, hull,
+                17, 12, Rot4.North, Faction.OfPlayer);
+            SpawnAnchored(map, ThingDefOf.GravFieldExtender, hull, 1, 3, Rot4.North, Faction.OfPlayer);
+            SpawnAnchored(map, ThingDefOf.GravFieldExtender, hull, 1, 20, Rot4.North, Faction.OfPlayer);
+            SpawnAnchored(map, ThingDefOf.GravFieldExtender, hull, 33, 3, Rot4.North, Faction.OfPlayer);
+            SpawnAnchored(map, ThingDefOf.GravFieldExtender, hull, 33, 21, Rot4.North, Faction.OfPlayer);
 
             // 直接使用存档中的原版 PilotConsole；XML patch 为它追加 Delta-V gizmo，
             // 同时保留原版 Gravship 对 ThingDefOf.PilotConsole 的身份识别。
-            SpawnAnchored(map, ThingDefOf.PilotConsole, hull, 14, 12, Rot4.East);
-            SpawnAnchored(map, ThingDefOf.GravEngine, hull, 17, 12, Rot4.North);
+            SpawnAnchored(map, ThingDefOf.PilotConsole, hull, 14, 12, Rot4.East, Faction.OfPlayer);
 
-            SpawnThruster(map, hull, 0, 23, Rot4.East);
-            SpawnThruster(map, hull, 3, 23, Rot4.South);
-            SpawnThruster(map, hull, 0, 1, Rot4.East);
-            SpawnThruster(map, hull, 2, 0, Rot4.North);
-            SpawnThruster(map, hull, 39, 13, Rot4.West);
-            SpawnThruster(map, hull, 39, 8, Rot4.West);
+            SpawnThruster(map, hull, 0, 23, Rot4.East, Faction.OfPlayer);
+            SpawnThruster(map, hull, 3, 23, Rot4.South, Faction.OfPlayer);
+            SpawnThruster(map, hull, 0, 1, Rot4.East, Faction.OfPlayer);
+            SpawnThruster(map, hull, 2, 0, Rot4.North, Faction.OfPlayer);
+            SpawnThruster(map, hull, 39, 13, Rot4.West, Faction.OfPlayer);
+            SpawnThruster(map, hull, 39, 8, Rot4.West, Faction.OfPlayer);
+
+            // 批量盖章结束后显式做一次原版 relink/dirty 收尾，避免生成顺序或同 tick
+            // facility 缓存让延展器停留在未连接状态。
+            engine.AffectedByFacilities.Notify_ThingChanged();
+            engine.ForceSubstructureDirty();
+            _ = engine.GravshipComponents;
         }
 
         /// <summary>按 Thing.Position 锚点生成 2×2 LargeThruster。</summary>
-        private static void SpawnThruster(Map map, CellRect hull, int anchorDx, int anchorDz, Rot4 rotation)
+        private static void SpawnThruster(Map map, CellRect hull, int anchorDx, int anchorDz,
+            Rot4 rotation, Faction faction = null)
         {
-            SpawnAnchored(map, DeltaVDefOf.LargeThruster, hull, anchorDx, anchorDz, rotation);
+            SpawnAnchored(map, DeltaVDefOf.LargeThruster, hull, anchorDx, anchorDz, rotation, faction);
         }
 
-        private static void SpawnAnchored(Map map, ThingDef def, CellRect hull, int anchorDx, int anchorDz, Rot4 rotation)
+        private static Thing SpawnAnchored(Map map, ThingDef def, CellRect hull, int anchorDx, int anchorDz,
+            Rot4 rotation, Faction faction = null)
         {
-            GenSpawn.Spawn(def, new IntVec3(hull.minX + anchorDx, 0, hull.minZ + anchorDz), map, rotation,
-                WipeMode.Vanish);
+            Thing thing = ThingMaker.MakeThing(def);
+            if (faction != null && thing.def.CanHaveFaction) thing.SetFactionDirect(faction);
+            return GenSpawn.Spawn(thing, new IntVec3(hull.minX + anchorDx, 0, hull.minZ + anchorDz), map,
+                rotation, WipeMode.Vanish);
         }
 
-        private static void SpawnWall(Map map, IntVec3 cell)
+        private static void SpawnWall(Map map, IntVec3 cell, Faction faction)
         {
-            Spawn(map, ThingMaker.MakeThing(ThingDefOf.Wall, ThingDefOf.Steel), cell);
+            Spawn(map, ThingMaker.MakeThing(ThingDefOf.Wall, ThingDefOf.Steel), cell, faction);
         }
 
-        private static void SpawnDoor(Map map, IntVec3 cell)
+        private static void SpawnDoor(Map map, IntVec3 cell, Faction faction)
         {
             // WipeMode.Vanish 顺带清掉同格已铺的墙。
-            Spawn(map, ThingMaker.MakeThing(ThingDefOf.Door, ThingDefOf.Steel), cell);
+            Spawn(map, ThingMaker.MakeThing(ThingDefOf.Door, ThingDefOf.Steel), cell, faction);
         }
 
-        private static void Spawn(Map map, Thing thing, IntVec3 cell)
+        private static void Spawn(Map map, Thing thing, IntVec3 cell, Faction faction)
         {
+            if (faction != null && thing.def.CanHaveFaction) thing.SetFactionDirect(faction);
             GenSpawn.Spawn(thing, cell, map, WipeMode.Vanish);
         }
 

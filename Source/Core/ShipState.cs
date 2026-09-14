@@ -21,22 +21,28 @@ namespace DeltaV
 
         // ---- 固定轨道 / 建造模式（阶段3，DockController 维护）----
 
-        /// <summary>停靠中：船体已作为真实建筑落到宿主图，口袋图保留为空图。</summary>
+        /// <summary>停靠中：船体已作为真实建筑落到宿主图；降落动画结束后 map 为 null。</summary>
         public bool docked;
 
         /// <summary>原版降落选点已经开始、但动画尚未确认完成；此时船体在 Gravship 单例中。</summary>
         public bool docking;
 
-        /// <summary>固定轨道中的实际承载图（宿主图或已加载 POI 图）。</summary>
+        /// <summary>固定轨道中的实际承载图（当前架构恒为宿主图）。</summary>
         public Map dockedMap;
 
         /// <summary>本次原版降落选中的整船 Rot4；无驾驶台回航时用于恢复局部布局。</summary>
         public Rot4 dockedRotation = Rot4.North;
 
-        /// <summary>停靠前的宇宙姿态（位置恢复用；朝向恢复优先用主驾驶台朝向）。</summary>
+        /// <summary>
+        /// 口袋图几何中心（即 Ship local 原点）落到停靠图后的连续 Map 坐标。
+        /// 它把停靠图中的真实建筑重新接回统一 Universe 坐标，不是另一套姿态状态。
+        /// </summary>
+        public Vector2 dockedOrigin;
+
+        /// <summary>停靠前的宇宙姿态（降落动画起点；确认落点后不再用于恢复位置）。</summary>
         public SpacePose preDockPose;
 
-        /// <summary>停靠前引擎在口袋图内的位置（起飞时按它原样放回）。</summary>
+        /// <summary>飞行口袋图内的引擎根位置；停靠清图后为 Invalid，新图生成时重写。</summary>
         public IntVec3 pocketRoot;
 
         public ShipState()
@@ -60,6 +66,7 @@ namespace DeltaV
             Scribe_Values.Look(ref docking, "docking", false);
             Scribe_References.Look(ref dockedMap, "dockedMap");
             Scribe_Values.Look(ref dockedRotation, "dockedRotation", Rot4.North);
+            Scribe_Values.Look(ref dockedOrigin, "dockedOrigin", Vector2.zero);
             Scribe_Deep.Look(ref preDockPose, "preDockPose");
             Scribe_Values.Look(ref pocketRoot, "pocketRoot", IntVec3.Invalid);
         }

@@ -16,6 +16,7 @@ namespace DeltaV
     {
         private static ShipState pendingShip;
         private static Gravship pendingGravship;
+        private static ShipState landedShipAwaitingPocketCleanup;
 
         public static float SnapAngle(float angle)
         {
@@ -32,7 +33,9 @@ namespace DeltaV
                 Messages.Message("DeltaV_DockFailBusy".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            Map targetMap = FindLandingMap(universe, ship);
+            // 固定轨道的承载画布永远是宿主图。POI/敌舰保持独立 Map，只通过
+            // Universe 投影出现在宿主图；接近对象绝不能改变玩家船的 Map 归属。
+            Map targetMap = universe.hostMap;
             if (targetMap == null || !Find.Maps.Contains(targetMap))
             {
                 Messages.Message("DeltaV_DockFailHostMap".Translate(), MessageTypeDefOf.RejectInput, false);
@@ -100,10 +103,21 @@ namespace DeltaV
 
         public static void RestorePendingAfterLoad(UniverseManager universe)
         {
-            ShipState ship = universe?.Ships.FirstOrDefault(s => s.docking);
+            pendingShip = null;
+            pendingGravship = null;
+            landedShipAwaitingPocketCleanup = null;
             Gravship gravship = Current.Game?.Gravship;
-            if (ship == null || gravship == null || Find.GravshipController == null
-                || !Find.GravshipController.LandingAreaConfirmationInProgress) return;
+            if (universe == null || gravship == null || Find.GravshipController == null) return;
+            if (!Find.GravshipController.LandingAreaConfirmationInProgress)
+            {
+                // BeginLanding 之后保存：落地动画尚未结束，保留旧图供 Animator 使用，
+                // 并在恢复后的 LandingEnded Postfix 再销毁。
+                landedShipAwaitingPocketCleanup = universe.Ships
+                    .FirstOrDefault(s => s.docked && s.dockedMap == Find.CurrentMap);
+                return;
+            }
+            ShipState ship = universe.Ships.FirstOrDefault(s => s.docking);
+            if (ship == null) return;
             pendingShip = ship;
             pendingGravship = gravship;
         }
@@ -122,17 +136,77 @@ namespace DeltaV
 
             ship.dockedRotation = marker.GravshipRotation;
             ship.dockedMap = marker.Map;
+            Vector2 pocketCenterFromRoot = SpaceTransform.ShipLocalOrigin(ship.map)
+                - new Vector2(ship.pocketRoot.x, ship.pocketRoot.z);
+            ship.dockedOrigin = new Vector2(marker.Position.x, marker.Position.z)
+                + SpaceTransform.RotatePlacementOffset(pocketCenterFromRoot, marker.GravshipRotation);
+
+            // 降落选点发生在旧 HostFrame 中：把真实船体原点的宿主图坐标换回 Universe，
+            // 使“落在敌舰/POI 旁边”成为真正的宇宙位置变化。随后 HostFrame 由
+            // pose.position 与 dockedOrigin 共同反推，确认前后其他对象不会跳位。
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            SpaceObject hostFrame = universe?.HostFrame;
+            if (hostFrame != null && marker.Map == universe.hostMap)
+            {
+                Vector2 hostLocal = ship.dockedOrigin - SpaceTransform.ShipLocalOrigin(marker.Map);
+                ship.pose.position = SpaceTransform.FocusedToUniverse(hostFrame, hostLocal);
+            }
             ship.pose.angle = ShipOrientation.AngleFromRot4(landedFacing);
             ship.pose.velocity = Vector2.zero;
             ship.pose.angularVelocity = 0f;
             ship.docking = false;
             ship.docked = true;
+            HostColonistBarVisibility.NotifyDockingStateChanged();
+            landedShipAwaitingPocketCleanup = ship;
             pendingShip = null;
             pendingGravship = null;
             Messages.Message("DeltaV_DockSuccess".Translate(ship.label), MessageTypeDefOf.PositiveEvent, false);
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"{ship.label}: vanilla landing confirmed; rot={ship.dockedRotation}, heading={ship.pose.angle * Mathf.Rad2Deg:F0} deg");
             return true;
+        }
+
+        /// <summary>
+        /// 原版 LandingEnded Postfix：动画与 Gravship 已彻底释放后销毁空口袋图。
+        /// Prefix 阶段仍有 DeltaVLandingAnimator 读取旧图中心，不能提前销毁。
+        /// </summary>
+        public static void NotifyVanillaLandingEnded()
+        {
+            ShipState ship = landedShipAwaitingPocketCleanup;
+            landedShipAwaitingPocketCleanup = null;
+            DestroyDockedPocketMap(ship);
+        }
+
+        /// <summary>旧版本存档迁移：停靠船若仍引用空口袋图，在加载收尾后销毁。</summary>
+        public static void CleanupObsoleteDockedPocketMaps(UniverseManager universe)
+        {
+            if (universe == null || Current.Game?.Gravship != null) return;
+            List<ShipState> ships = universe.Ships
+                .Where(s => s.docked && s.map != null && s.map != s.dockedMap)
+                .ToList();
+            if (ships.Count == 0) return;
+            LongEventHandler.ExecuteWhenFinished(delegate
+            {
+                foreach (ShipState ship in ships) DestroyDockedPocketMap(ship);
+            });
+        }
+
+        private static void DestroyDockedPocketMap(ShipState ship)
+        {
+            Map pocketMap = ship?.map;
+            if (ship == null || !ship.docked || pocketMap == null || pocketMap == ship.dockedMap) return;
+            // 旧存档可能尚无 dockedOrigin；必须在 map 引用消失前从原口袋中心重建。
+            _ = DockedOriginMapPoint(ship);
+            if (Find.CurrentMap == pocketMap && ship.dockedMap != null)
+            {
+                Current.Game.CurrentMap = ship.dockedMap;
+            }
+            ShipPhysics.ClearCache();
+            PocketMapUtility.DestroyPocketMap(pocketMap);
+            ship.map = null;
+            ship.pocketRoot = IntVec3.Invalid;
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"{ship.label}: obsolete flight pocket map destroyed after landing");
         }
 
         public static void TryLaunch(UniverseManager universe, ShipState ship)
@@ -150,13 +224,16 @@ namespace DeltaV
                 Messages.Message("DeltaV_DockFailNoEngine".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            LongEventHandler.QueueLongEvent(delegate { LaunchInternal(universe, ship, engine, ship.map); },
+            LongEventHandler.QueueLongEvent(delegate { LaunchInternal(universe, ship, engine); },
                 "GeneratingGravship", false, GameAndMapInitExceptionHandlers.ErrorWhileGeneratingMap);
         }
 
         private static void LaunchInternal(UniverseManager universe, ShipState ship,
-            Building_GravEngine engine, Map pocketMap)
+            Building_GravEngine engine)
         {
+            Map sourceMap = ship.dockedMap;
+            IntVec3 sourceRoot = engine.Position;
+            Vector2 oldDockedOrigin = DockedOriginMapPoint(ship);
             Building console = ship.primaryConsole;
             float heading = console != null && console.Spawned
                 ? ShipOrientation.AngleFromRot4(console.Rotation)
@@ -168,20 +245,45 @@ namespace DeltaV
                 return;
             }
 
+            // 固定轨道期间允许非对称扩建；新口袋图会以当前船体中心为局部原点，
+            // 因而 SpacePose 也必须移动到该中心的既有 Universe 位置，保证每个建筑
+            // 起飞前后的绝对位置不变。
+            Vector2 sourceStructureCenter = new Vector2(
+                sourceRoot.x + gravship.engineToCenter.x,
+                sourceRoot.z + gravship.engineToCenter.z);
+            Vector2 launchUniversePosition = ship.pose.position
+                + sourceStructureCenter - oldDockedOrigin;
+
             // 主台在口袋图规范到 East（局部 +X），避免 180° 往返时将降落旋转重复计入。
             gravship.Rotation = gravship.PilotConsole != null
                 ? ShipOrientation.PlacementRotation(gravship.PilotConsole.Rotation, Rot4.East)
                 : new Rot4(-ship.dockedRotation.AsInt);
-            PlaceIntoMap(gravship, ship.pocketRoot, pocketMap);
+            if (!ShipPocketMapFactory.TryGenerateForGravship(gravship, universe.hostMap,
+                launchUniversePosition, out Map pocketMap, out IntVec3 pocketRoot))
+            {
+                // 新容器生成失败时不能吞船：用捕获时的 North 布局原样放回宿主图。
+                gravship.Rotation = Rot4.North;
+                PlaceIntoMap(gravship, sourceRoot, sourceMap);
+                Current.Game.Gravship = null;
+                Messages.Message("DeltaV_DockFailHostMap".Translate(), MessageTypeDefOf.RejectInput, false);
+                Log.Error($"[DeltaV] Launching '{ship.label}': failed to generate replacement pocket map; restored ship to docked map.");
+                return;
+            }
+
+            ship.map = pocketMap;
+            ship.pocketRoot = pocketRoot;
+            PlaceIntoMap(gravship, pocketRoot, pocketMap);
             Current.Game.Gravship = null;
 
-            ship.pose.position = ship.preDockPose.position;
+            ship.pose.position = launchUniversePosition;
             ship.pose.velocity = Vector2.zero;
             ship.pose.angularVelocity = 0f;
             ship.pose.angle = SpaceTransform.WrapAngle(heading);
             ship.docked = false;
             ship.docking = false;
             ship.dockedMap = null;
+            ship.dockedOrigin = Vector2.zero;
+            HostColonistBarVisibility.NotifyDockingStateChanged();
             universe.SetFocused(ship);
             CameraJumper.TryJump(ship.pocketRoot, pocketMap, CameraJumper.MovementMode.Cut);
             Messages.Message("DeltaV_LaunchSuccess".Translate(ship.label), MessageTypeDefOf.PositiveEvent, false);
@@ -208,21 +310,30 @@ namespace DeltaV
             }
         }
 
-        private static Map FindLandingMap(UniverseManager universe, ShipState ship)
+        /// <summary>停靠图中代表该船口袋图几何中心的 Map 坐标；旧存档缺字段时可重建。</summary>
+        public static Vector2 DockedOriginMapPoint(ShipState ship)
         {
-            PoiState nearestPoi = universe.objects.OfType<PoiState>()
-                .Where(p => p.map != null && Find.Maps.Contains(p.map))
-                .Where(p =>
-                {
-                    Vector2 point = SpaceTransform.UniverseToMapPoint(p, ship.pose.position);
-                    return new IntVec3(Mathf.FloorToInt(point.x), 0, Mathf.FloorToInt(point.y)).InBounds(p.map);
-                })
-                .OrderBy(p => (p.pose.position - ship.pose.position).sqrMagnitude)
-                .FirstOrDefault();
-            return nearestPoi?.map ?? universe.hostMap;
+            if (ship?.dockedMap == null) return Vector2.zero;
+            if (ship.dockedOrigin != Vector2.zero) return ship.dockedOrigin;
+            Building_GravEngine engine = FindEngineForShip(ship.dockedMap, ship.primaryConsole);
+            if (engine == null) return SpaceTransform.ShipLocalOrigin(ship.dockedMap);
+            if (ship.map != null && ship.pocketRoot.IsValid)
+            {
+                Vector2 pocketCenterFromRoot = SpaceTransform.ShipLocalOrigin(ship.map)
+                    - new Vector2(ship.pocketRoot.x, ship.pocketRoot.z);
+                ship.dockedOrigin = new Vector2(engine.Position.x, engine.Position.z)
+                    + SpaceTransform.RotatePlacementOffset(pocketCenterFromRoot, ship.dockedRotation);
+            }
+            else
+            {
+                // 极旧存档的最后兜底：以当前有效船体的几何中心作为局部原点。
+                Vector3 center = CellRect.FromCellList(engine.ValidSubstructure).CenterVector3;
+                ship.dockedOrigin = new Vector2(center.x, center.z);
+            }
+            return ship.dockedOrigin;
         }
 
-        private static Building_GravEngine FindEngineForShip(Map map, Building primaryConsole)
+        internal static Building_GravEngine FindEngineForShip(Map map, Building primaryConsole)
         {
             Building_GravEngine fallback = null;
             foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.GravEngine))
