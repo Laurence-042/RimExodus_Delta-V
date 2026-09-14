@@ -233,6 +233,22 @@ namespace DeltaV
             }
             DockController.CleanupObsoleteDockedPocketMaps(this);
             HostColonistBarVisibility.NotifyDockingStateChanged();
+            SweepEmptyDepartedMaps();
+        }
+
+        /// <summary>
+        /// 读档后清扫遗留的空降落图（历史会话起飞后未清理的积累）。判定与起飞后清理
+        /// 同一入口（DockController.TryDeleteEmptyDepartedMap）；延后到加载收尾执行。
+        /// </summary>
+        private void SweepEmptyDepartedMaps()
+        {
+            LongEventHandler.ExecuteWhenFinished(delegate
+            {
+                foreach (Map map in Find.Maps.ToList())
+                {
+                    DockController.TryDeleteEmptyDepartedMap(this, map);
+                }
+            });
         }
 
         /// <summary>

@@ -375,10 +375,50 @@ namespace DeltaV
             CameraJumper.TryJump(ship.pocketRoot, pocketMap, CameraJumper.MovementMode.Cut);
             FinishConsumedVanillaTravel();
             ClearPendingMobileLaunch();
+            QueueEmptyDepartedMapCleanup(universe, sourceMap);
             Messages.Message("DeltaV_MobileSuccess".Translate(ship.label), MessageTypeDefOf.PositiveEvent, false);
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"{ship.label} entered mobile mode without takeoff cutscene; heading={ship.pose.angle * Mathf.Rad2Deg:F0} deg");
             return true;
+        }
+
+        /// <summary>
+        /// 延后到帧边界清点离港地图：此时已完全脱离原版 TakeoffEnded 调用栈，
+        /// DeinitAndRemoveMap 不会踩到上层仍在使用的引用。
+        /// </summary>
+        private static void QueueEmptyDepartedMapCleanup(UniverseManager universe, Map map)
+        {
+            if (map == null) return;
+            LongEventHandler.ExecuteWhenFinished(delegate { TryDeleteEmptyDepartedMap(universe, map); });
+        }
+
+        /// <summary>
+        /// 离港后的空降落图清理：太空层地图若已彻底为空（无人、无建筑/物品、无其他停靠船，
+        /// 只剩 Filth/Gas/Mote 残迹），直接删除——它只是降落后的空画布，走 POI 的休眠/快照
+        /// 机制没有意义。任何遗留内容都保留地图（原版持久语义）。
+        /// </summary>
+        internal static void TryDeleteEmptyDepartedMap(UniverseManager universe, Map map)
+        {
+            if (universe == null || map == null || map.Disposed || !Find.Maps.Contains(map)) return;
+            if (map == Find.CurrentMap) return; // 聚焦/降落选点中的图绝不删
+            if (!map.Tile.Valid || !map.Tile.LayerDef.isSpace) return;
+            if (SpaceLifecycle.IsUniverseHost(map)) return;
+            if (map.mapPawns.AllPawnsSpawned.Any()) return;
+            if (universe.Ships.Any(s => s.dockedMap == map)) return;
+            foreach (Thing thing in map.listerThings.AllThings)
+            {
+                if (thing == null || thing.Destroyed || !thing.Spawned) continue;
+                if (thing.def.category == ThingCategory.Filth
+                    || thing.def.category == ThingCategory.Gas
+                    || thing.def.category == ThingCategory.Mote) continue;
+                return; // 有可留存内容：保留地图
+            }
+            MapParent parent = map.Parent;
+            string label = parent?.Label ?? map.ToString();
+            Current.Game.DeinitAndRemoveMap(map, false);
+            parent?.Destroy();
+            ShipPhysics.ClearCache();
+            DeltaVLog.Message(DeltaVLogModule.Lifecycle, $"{label}: empty departed landing map removed");
         }
 
         private static void FinishConsumedVanillaTravel()

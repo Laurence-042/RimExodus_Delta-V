@@ -84,7 +84,7 @@
 - 降落图 `WorldCameraPosition`（自建 def 与原版 `SpaceMapParent` 经 Harmony Postfix）读取停靠在本图的船的球面位置，所以非中心落点不会让星球背景与降落图坐标脱节。
 - Delta-V 绕过原版起飞仪式，因此在生成 Gravship 前补默认安全 `LaunchInfo(quality=1, doNegativeOutcome=false)`；原版 `LandingEnded` 会无条件读取该对象，缺失正是首轮实测 NRE 的原因。LandingEnded Prefix 另有同样的兼容兜底。
 - **口袋图生命周期**：降落动画仍读取旧口袋图中心，所以在 `LandingEnded` Postfix（原版 Gravship/捕获已释放）才销毁旧图并置 `ship.map = null`；停靠期间真实船体只存在于降落图。旧版 docked 存档若仍带空口袋图，会在加载收尾迁移销毁。
-- **固定 → 移动**：必须选中目标船驾驶台，并从原版 `WorldComponent_GravshipController.InitiateTakeoff` 发起。原版负责截图捕获、`PreSwapMap`、`GenerateGravship`、源图注销与 `TakeoffEnded`；Delta-V 把可见起飞动画时长压到零，仅在 `TakeoffEnded → GravshipUtility.TravelTo` 扩展点把世界旅行改接到独占口袋图。由于原版十秒动画通常会让源图 `PowerNetManager` 自然结算延迟注销，零动画路径在新图放置前显式调用同一个原生结算入口，不能重新实现或逐 Comp 特判电网。随后规范主驾驶台为口袋图 East（局部 +X），按旋转后的 `Foundations` 实际边界生成新图（每边 15 格结构余量、单轴最小 80，并校正奇偶），再用原版 `GravshipPlacementUtility` 放置。非对称扩建导致中心变化时同步改记 `SpacePose.position`；进入后默认未驾驶。生成失败则以 North 原布局放回固定图，不吞船。
+- **固定 → 移动**：必须选中目标船驾驶台，并从原版 `WorldComponent_GravshipController.InitiateTakeoff` 发起。原版负责截图捕获、`PreSwapMap`、`GenerateGravship`、源图注销与 `TakeoffEnded`；Delta-V 把可见起飞动画时长压到零，仅在 `TakeoffEnded → GravshipUtility.TravelTo` 扩展点把世界旅行改接到独占口袋图。由于原版十秒动画通常会让源图 `PowerNetManager` 自然结算延迟注销，零动画路径在新图放置前显式调用同一个原生结算入口，不能重新实现或逐 Comp 特判电网。随后规范主驾驶台为口袋图 East（局部 +X），按旋转后的 `Foundations` 实际边界生成新图（每边 15 格结构余量、单轴最小 80，并校正奇偶），再用原版 `GravshipPlacementUtility` 放置。非对称扩建导致中心变化时同步改记 `SpacePose.position`；进入后默认未驾驶。生成失败则以 North 原布局放回固定图，不吞船。起飞成功后对离港地图做**空降落图清理**（帧边界延后执行，脱离原版 TakeoffEnded 调用栈）：太空层地图若已彻底为空——无人、无建筑/物品、无其他停靠船、只剩 Filth/Gas/Mote 残迹——直接 `DeinitAndRemoveMap + parent.Destroy` 删除；空画布走 POI 的休眠/快照机制没有意义。任何遗留内容（哪怕一件掉落物品）都保留地图（原版持久语义）。读档后同样清扫一次（`UniverseManager.SweepEmptyDepartedMaps`），处理历史会话的积累。
 - **宿主口袋图 Colonist Bar**：宿主无 pawn 本就不会生成分组，`CheckRecacheEntries` Postfix 仍防御性移除宿主图整组（识别 `UniverseHostParent_DeltaV`），与 RimExodus 自身过滤可叠加。降落图有真实船员，走原版分组。
 - **停靠船体归属**：停靠后 `ship.map == null`，宿主图上的驾驶台通过所属逆重引擎的 `ValidSubstructure` 反查 `ShipState`；因此固定轨道期间新建的第二台驾驶台仍可设为主台，多个独立停靠结构之间不会串台。
 - **前进方向**：W/S、A/D 与飞行辅助都定义在主驾驶台参考系；`ShipOrientation` 集中换算为 Map 局部指令。HUD 航向同样显示 `SpacePose.angle + 主台局部方向`，无主台才回退历史 +X。
@@ -98,7 +98,7 @@
 4. **POI 休眠**：距离 300–1200 之间图保留但冻结（放入 pawn 的场景 pawn 不 tick——POI 模板无 pawn，验证日志即可）；聚焦休眠 POI 图立即唤醒。
 5. **存读档**：POI 三种状态分别存读一致；Packed 恢复正确；docked 船读档后仍停靠且 `ship.map == null`；动画中存读档会等恢复后的 `LandingEnded` 再销毁旧图；**平面坐标旧档**读档自动迁移（宿主图/锚记账消失、位置换算成球面、口袋图残留 tile 清空）且无红字；专用宿主口袋图读档后复用不重建。
 6. **驾驶台/模式**：首台自动主；第二台不取代；gizmo 换主生效；拆主台自动转最老台；地面新建船的移动模式 gizmo 灰化且悬停显示重力限制；**原版逆重飞船发射到任意 POI/orbit 图后**，选中某船驾驶台即可进入移动模式（该图不获得任何宿主身份、宇宙中已有其他船也不拒绝），默认未驾驶；固定→移动期间确认走原版 `InitiateTakeoff`，带电器/电线/电池及设施 Comp 无重复注册红字；移动 HUD 始终显示状态，驾驶开关不搬图，多船共享图不出现全局转换按钮。
-7. **固定模式**：在 0°/90°/180°/−90° 分别进入 → 目标为当前球面位置对应的真实轨道图并出现原版移动/旋转/合法性预览/确认选项；**同位置重复降落复用同一张图**（飞走再飞回落回原图）；近距离/小角差对齐明显快于远距离/大角差，平移与旋转均从零速度加速后减速至零；确认后镜头位置与缩放不变且无 `LandingEnded` 红字，动画结束后旧口袋图消失；切到敌舰/POI 图仍可看到固定船代理；在降落图扩建/缩减后从具体驾驶台进入移动模式会生成匹配当前边界的新口袋图，Universe 位置保持落点；宿主口袋图在世界视图不可见、殖民者栏无分组、不 tick（dev 日志核对）；四向均保持固定时航向，W 永远向主台正面。
+7. **固定模式**：在 0°/90°/180°/−90° 分别进入 → 目标为当前球面位置对应的真实轨道图并出现原版移动/旋转/合法性预览/确认选项；**同位置重复降落复用同一张图**（飞走再飞回落回原图）；近距离/小角差对齐明显快于远距离/大角差，平移与旋转均从零速度加速后减速至零；确认后镜头位置与缩放不变且无 `LandingEnded` 红字，动画结束后旧口袋图消失；切到敌舰/POI 图仍可看到固定船代理；在降落图扩建/缩减后从具体驾驶台进入移动模式会生成匹配当前边界的新口袋图，Universe 位置保持落点；宿主口袋图在世界视图不可见、殖民者栏无分组、不 tick（dev 日志核对）；**起飞后原降落图若彻底为空则被删除**（世界视图不再残留空轨道图），地图上留一件物品则保留；四向均保持固定时航向，W 永远向主台正面。
 8. **不变量回归**：聚焦 identity；切换聚焦不改绝对宇宙状态；连续多次切换无漂移；敌舰位姿直写系列照常工作。
 
 ## 明确不做（本阶段）
