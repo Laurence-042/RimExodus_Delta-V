@@ -1,3 +1,4 @@
+using System;
 using RimWorld.Planet;
 using UnityEngine;
 using Verse;
@@ -16,6 +17,28 @@ namespace DeltaV
     /// </summary>
     public class ShipPocketParent_DeltaV : PocketMapParent
     {
+        [NonSerialized] private PlanetTile environmentalTile = PlanetTile.Invalid;
+
+        /// <summary>
+        /// 只供天体、天气和当地时间采样的动态轨道格。它不写入 WorldObject.Tile，
+        /// 不表示世界占位，也不会被 Game.FindMap 命中。缓存随 parent 生命周期释放。
+        /// </summary>
+        public PlanetTile EnvironmentalTile
+        {
+            get
+            {
+                UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+                SpaceObject obj = universe?.SpaceObjectOnMap(Map);
+                if (obj == null || !OrbitSphere.Valid)
+                {
+                    environmentalTile = PlanetTile.Invalid;
+                    return PlanetTile.Invalid;
+                }
+                environmentalTile = OrbitSphere.TileFromDirection(obj.pose.position, environmentalTile);
+                return environmentalTile;
+            }
+        }
+
         public override Vector3 WorldCameraPosition
         {
             get

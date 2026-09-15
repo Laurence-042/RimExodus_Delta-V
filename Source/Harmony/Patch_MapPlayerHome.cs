@@ -1,4 +1,5 @@
 using HarmonyLib;
+using RimWorld;
 using Verse;
 
 namespace DeltaV
@@ -15,7 +16,8 @@ namespace DeltaV
     /// 越界红字/异常（2026-09-14 实测，两条独立调用栈）。
     ///
     /// 处理：Delta-V 口袋图（船/POI）一律返回 false——飞行中与原版 gravship
-    /// 航行同形态（无 home），所有无 home 路径原版自带空值分支。
+    /// 航行同形态（无 home）；Game.AnyPlayerHomeMap 的 Odyssey 引擎二次回退另由
+    /// Patch_Game_AnyPlayerHomeMap_ValidTile 排除无 tile 图。
     /// 玩家真正降落时，逆重引擎随船体落到真实降落图上，该图经同一条引擎回退
     /// 自然成为 home——与原版 gravship 降落语义一致，无需额外处理。
     /// POI 口袋图共用同一 parent 类型，一并排除（它们本就无引擎、非 home）。
@@ -33,6 +35,38 @@ namespace DeltaV
                 return false;
             }
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Odyssey 的 Game.AnyPlayerHomeMap 在 IsPlayerHome 扫描之后还会直接按
+    /// PlayerHasGravEngine 再扫一次；因此仅覆写 IsPlayerHome 不足以排除带引擎的
+    /// 无 tile 移动船。只在原结果确认为 Delta-V 口袋图时介入；原版已经
+    /// 走到 Odyssey 的引擎回退，因此只需在有效 tile 图中重做这一轮。
+    /// </summary>
+    [HarmonyPatch(typeof(Game), nameof(Game.AnyPlayerHomeMap), MethodType.Getter)]
+    public static class Patch_Game_AnyPlayerHomeMap_ValidTile
+    {
+        public static void Postfix(ref Map __result)
+        {
+            if (!(__result?.Parent is ShipPocketParent_DeltaV))
+            {
+                return;
+            }
+            __result = null;
+            if (Faction.OfPlayerSilentFail == null || !ModsConfig.OdysseyActive)
+            {
+                return;
+            }
+            for (int i = 0; i < Find.Maps.Count; i++)
+            {
+                Map map = Find.Maps[i];
+                if (map.Tile.Valid && GravshipUtility.PlayerHasGravEngine(map))
+                {
+                    __result = map;
+                    return;
+                }
+            }
         }
     }
 }

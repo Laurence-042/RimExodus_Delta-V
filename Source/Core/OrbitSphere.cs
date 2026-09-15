@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using RimWorld.Planet;
 using UnityEngine;
 using Verse;
@@ -30,6 +31,7 @@ namespace DeltaV
         [NonSerialized] private static PlanetLayer cachedLayer;
         [NonSerialized] private static float cachedRadius = -1f;
         [NonSerialized] private static float cachedWorldPerCell = -1f;
+        private static readonly List<PlanetTile> NeighborBuffer = new List<PlanetTile>(6);
 
         /// <summary>轨道层（Def.isSpace 的第一层）。无则 null；按 World 实例缓存。</summary>
         public static PlanetLayer Layer
@@ -210,6 +212,54 @@ namespace DeltaV
                 }
             }
             return best < 0 ? PlanetTile.Invalid : new PlanetTile(best, layer);
+        }
+
+        /// <summary>
+        /// 球面方向 → 最近 tile 的热路径版本。hint 来自同一对象上次的结果时，沿球面
+        /// 邻接图向点积更大的格爬坡；连续运动通常只检查当前格的 5/6 个邻居。
+        /// hint 缺失或属于其他层时才退回全量扫描。纯函数语义不变，hint 只是加速提示。
+        /// </summary>
+        public static PlanetTile TileFromDirection(Vector3 dir, PlanetTile hint)
+        {
+            PlanetLayer layer = Layer;
+            if (!Valid)
+            {
+                return PlanetTile.Invalid;
+            }
+            if (!hint.Valid || hint.Layer != layer)
+            {
+                return TileFromDirection(dir);
+            }
+
+            Vector3 d = dir.normalized;
+            PlanetTile current = hint;
+            float currentDot = Vector3.Dot(layer.GetTileCenter(current), d);
+            // 正常连续运动只走 0/1 步；上限防御损坏的邻接数据，极端瞬移超限则
+            // 回到已验证的全量扫描，不能把局部缓存变成坐标事实源。
+            for (int step = 0; step < layer.TilesCount; step++)
+            {
+                NeighborBuffer.Clear();
+                layer.GetTileNeighbors(current, NeighborBuffer);
+                PlanetTile next = current;
+                float nextDot = currentDot;
+                for (int i = 0; i < NeighborBuffer.Count; i++)
+                {
+                    PlanetTile candidate = NeighborBuffer[i];
+                    float dot = Vector3.Dot(layer.GetTileCenter(candidate), d);
+                    if (dot > nextDot)
+                    {
+                        next = candidate;
+                        nextDot = dot;
+                    }
+                }
+                if (next == current)
+                {
+                    return current;
+                }
+                current = next;
+                currentDot = nextDot;
+            }
+            return TileFromDirection(dir);
         }
     }
 }
