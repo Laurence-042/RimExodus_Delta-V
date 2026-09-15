@@ -370,6 +370,8 @@ namespace DeltaV
             ship.docking = false;
             ship.dockedMap = null;
             ship.dockedOrigin = Vector2.zero;
+            // 世界视图标记是“进入移动模式时的船体快照”，不追踪后续战损/建造变化。
+            WorldShipMarkerRenderer.RebuildFor(ship);
             HostColonistBarVisibility.NotifyDockingStateChanged();
             universe.SetFocused(ship);
             CameraJumper.TryJump(ship.pocketRoot, pocketMap, CameraJumper.MovementMode.Cut);

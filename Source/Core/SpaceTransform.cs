@@ -145,6 +145,19 @@ namespace DeltaV
         }
 
         /// <summary>
+        /// 宇宙绝对姿态 → 星球视图球面切平面旋转。局部 X/Z 分别对齐当前位置的
+        /// 东/北基，再叠加与 Map 外壳一致的 SpacePose.angle 手性。世界标记只能
+        /// 消费该结果，不能从 tile 朝向或屏幕旋转反推宇宙姿态。
+        /// </summary>
+        public static Quaternion UniverseWorldMarkerRotation(Vector3 universeDir, float universeAngle)
+        {
+            Vector3 radial = universeDir.normalized;
+            OrbitSphere.Basis(radial, out Vector3 east, out Vector3 north);
+            Quaternion tangentFrame = Quaternion.LookRotation(north, radial);
+            return tangentFrame * Quaternion.Euler(0f, -universeAngle * Mathf.Rad2Deg, 0f);
+        }
+
+        /// <summary>
         /// 代理显示位置：universe 方向 → 聚焦参考系 → 地图世界绘制坐标（y 为海拔）。
         /// focusedMap 是承载本次绘制的地图（聚焦对象地图，或承载帧的真实空间图）；
         /// focused 帧坐标以聚焦对象中心为原点，而地图渲染中该中心位于地图几何中心，

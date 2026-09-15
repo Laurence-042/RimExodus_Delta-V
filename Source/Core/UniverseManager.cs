@@ -198,6 +198,7 @@ namespace DeltaV
         {
             // 白名单/逆重基架 UV mesh 都是可重建的表现缓存，绝不存档。
             ShellRenderer.ClearRuntimeCaches();
+            WorldShipMarkerRenderer.ClearRuntimeCaches();
             ShipPhysics.ClearCache();
             ThrusterEffects.ClearRuntimeCaches();
             SpaceLifecycle.Reset();
@@ -370,6 +371,7 @@ namespace DeltaV
             PilotController.UpdateFrameState(this);
             DebugActions_DeltaV.UpdateFrameMeter();
             ShellRenderer.DrawNonFocusedShells(this);
+            WorldShipMarkerRenderer.DrawPlayerShips(this);
             ThrusterEffects.Draw(this);
         }
 
@@ -593,6 +595,7 @@ namespace DeltaV
         public void ResetObjects(List<SpaceObject> newObjects, int focusId)
         {
             ShellRenderer.ClearRuntimeCaches();
+            WorldShipMarkerRenderer.ClearRuntimeCaches();
             ShipPhysics.ClearCache();
             ThrusterEffects.ClearRuntimeCaches();
             SpaceLifecycle.Reset();

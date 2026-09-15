@@ -33,6 +33,7 @@
 | `Source/Harmony/Patch_GravshipLanding.cs` | 原版确认降落事件 → Delta-V docked 状态的最小桥接 |
 | `Source/Harmony/Patch_WorldCameraRotation.cs` | 给背景 WorldCamera 补聚焦参考系 roll；不旋转 Map 相机/内容 |
 | `Source/Rendering/ShellRenderRuleDef.cs` | 外壳 Thing 白名单；可选 alternateGraphic 与 zIndex |
+| `Source/Rendering/WorldShipMarkerRenderer.cs` | 星球轨道层的玩家飞船剪影标记；由 ValidSubstructure 生成可重建纹理缓存 |
 | `Source/Rendering/DeltaVLandingAnimator.cs` | 保持镜头缩放的起始姿态 → 目标姿态降落插值 |
 | `Source/Harmony/Patch_DeltaVLandingAnimation.cs` | 仅在 Delta-V 降落期间替换原版镜头/飞入表现并补原版收尾前置状态 |
 | `1.6/Patches/DeltaV_PilotConsole.xml` | 向 Odyssey 原版 PilotConsole 追加 Delta-V Comp，保留原版 Gravship 身份与设施兼容 |
@@ -48,6 +49,7 @@
 - **旧档迁移**：平面存档以旧 `hostMap` tile 为切平面原点把绝对偏移换算成球面方向（角度/速度基约定不变直接沿用）；旧档口袋图残留的真实 tile 用反射直写私有字段清空（走 `WorldObject.Tile` setter 置 Invalid 有 Surface 层 FastTileFinder 越界风险）。
 - **背景位置注入点 = `MapParent.WorldCameraPosition`**（船图：该图宇宙对象的球面点；降落图：停靠在本图的船的球面点——两图切换聚焦背景无跳变）；**背景角度注入点 = `WorldCameraDriver.ApplyMapPositionToGameObject` Postfix**（对象图随聚焦姿态；真实空间图随停靠主船姿态）。后者只给父级 WorldCamera 补局部 roll（子级 WorldSkyboxCamera 自动继承），因此星球与星空相对聚焦船反向旋转，而 Map Camera/Thing/鼠标/寻路仍为 identity。
 - **缩放放宽**：聚焦 Delta-V 图（对象图/真实空间图）时幂等设置 `CameraDriver.config.sizeRange.max = universeZoomMax`（默认 400），离开恢复记录的原值。相机高度公式与 farClip(65.5) 按同一 max 归一化，正交投影下放宽安全，无需 patch。
+- **星球视图玩家船标记**：仅在世界视图选中轨道层时绘制；位置直接取 `SpacePose.position` 的连续球面点，姿态经 `SpaceTransform.UniverseWorldMarkerRotation` 对齐当地东/北切空间基。剪影在每次成功进入移动模式时从对应逆重引擎 `ValidSubstructure` 生成一次透明纹理，此后不再扫描结构，战损/建造变化不会改变标记；下次进入移动模式才以当时船体刷新。读档后因运行时缓存不存档，第一次显示时惰性补建一次。移动船叠加 `SpacePose.angle`；固定模式沿用最近一次移动模式剪影及姿态。纹理/材质均为可重建运行时缓存，不创建或占用轨道 tile 的 `WorldObject`。
 
 ### POI 三段生命周期
 
@@ -94,7 +96,7 @@
 ## 游戏内验证清单
 
 1. **背景**：直线驾驶 → 星球背景连续移动；Q/E 旋转 → 星球与星空同步反向旋转、Map 内容不转；聚焦 飞船图 ↔ 降落图 切换背景无跳变；长时间同向飞行（跨多 tile、近半圈）后位置/背景无漂移、无 `GetTileCenter` 红字。
-2. **宇宙视野**：敌舰移远 300/600/1000 格（dev），zoom out 外壳可见、方位正确；离开 Delta-V 图后缩放恢复原版上限。
+2. **宇宙视野**：敌舰移远 300/600/1000 格（dev），zoom out 外壳可见、方位正确；离开 Delta-V 图后缩放恢复原版上限；打开星球视图并切到轨道层，所有玩家船在连续球面位置显示实际船体剪影，移动/固定四向均与真实朝向一致，切到地表层不显示。
 3. **POI 全链**：`POI: create derelict 400 cells east` → 60 tick 内生成图+代理+消息 → zoom out 看到外壳 → 点击聚焦进入 → 拆走物资/破坏墙 → 传送主船 1500 格（跨休眠/删除段）→ 消息"map destroyed (snapshot)"→ 传送回来 → 消息"restored from snapshot"、物资/破坏状态恢复。
 4. **POI 休眠**：距离 300–1200 之间图保留但冻结（放入 pawn 的场景 pawn 不 tick——POI 模板无 pawn，验证日志即可）；聚焦休眠 POI 图立即唤醒。
 5. **存读档**：POI 三种状态分别存读一致；Packed 恢复正确；docked 船读档后仍停靠且 `ship.map == null`；动画中存读档会等恢复后的 `LandingEnded` 再销毁旧图；**平面坐标旧档**读档自动迁移（宿主图/锚记账消失、位置换算成球面、口袋图残留 tile 清空）且无红字；专用宿主口袋图读档后复用不重建。

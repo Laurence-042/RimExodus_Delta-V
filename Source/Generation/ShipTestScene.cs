@@ -75,6 +75,7 @@ namespace DeltaV
 
             universe.ResetObjects(new List<SpaceObject> { playerShip, enemyShip }, playerShip.objectId);
             CompDeltaVPilotConsole.EnsurePrimaryConsole(playerShip);
+            WorldShipMarkerRenderer.RebuildFor(playerShip);
             universe.primaryShipId = playerShip.objectId;
             universe.SetFocused(playerShip);
             CameraJumper.TryJump(playerMap.Center, playerMap, CameraJumper.MovementMode.Cut);
