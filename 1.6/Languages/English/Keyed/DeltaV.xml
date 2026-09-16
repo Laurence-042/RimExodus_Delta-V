@@ -33,8 +33,11 @@
   <DeltaV_SettingsLogHarmony>Log: key suppression decisions</DeltaV_SettingsLogHarmony>
   <DeltaV_SettingsLogLifecycle>Log: POI lifecycle transitions</DeltaV_SettingsLogLifecycle>
   <DeltaV_SettingsUniverseZoomMax>Universe view zoom max (60-5000)</DeltaV_SettingsUniverseZoomMax>
-  <DeltaV_SettingsPoiActiveRadius>POI active radius (cells)</DeltaV_SettingsPoiActiveRadius>
+  <DeltaV_SettingsPoiActiveRadius>POI load/wake radius (cells)</DeltaV_SettingsPoiActiveRadius>
   <DeltaV_SettingsPoiDeleteRadius>POI delete radius (cells)</DeltaV_SettingsPoiDeleteRadius>
+  <DeltaV_SettingsMapGenBudget>Incremental map generation budget (ms/frame, 1-16)</DeltaV_SettingsMapGenBudget>
+  <DeltaV_SaveBlockedGeneratingLabel>Map generation in progress</DeltaV_SaveBlockedGeneratingLabel>
+  <DeltaV_SaveBlockedGenerating>Delta-V is incrementally generating a map ({0}). Please save again after it finishes.</DeltaV_SaveBlockedGenerating>
   <DeltaV_FixedButtonEnter>Enter fixed mode</DeltaV_FixedButtonEnter>
   <DeltaV_DockSuccess>{0} secured in fixed mode on the space anchor map.</DeltaV_DockSuccess>
   <DeltaV_DockFailHostMap>No landing map could be resolved for the current position.</DeltaV_DockFailHostMap>

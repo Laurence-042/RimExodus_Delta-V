@@ -21,8 +21,24 @@ namespace DeltaV
         public DeltaVMod(ModContentPack content) : base(content)
         {
             Settings = GetSettings<DeltaVSettings>();
+            IncrementalMapGenerationService.FrameBudgetMsProvider =
+                () => Settings?.incrementalMapGenBudgetMs ?? 8f;
+            MapDormancyService.Logger = message =>
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle, message);
+            IncrementalMapGenerationService.Logger = message =>
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle, message);
+            IncrementalMapGenerationService.RegisterAdapterFactory(step =>
+                step.def.genStep is RimWorld.GenStep_Space && ModsConfig.OdysseyActive
+                    ? new IncrementalMapGenerationService.TerrainFillGenStepAdapter(
+                        RimWorld.TerrainDefOf.Space, disableRegions: true)
+                    : null);
+            IncrementalMapGenerationService.RegisterAdapterFactory(step =>
+                step.def.genStep is GenStep_DeltaVShipFill
+                    ? new IncrementalMapGenerationService.TerrainFillGenStepAdapter(
+                        DeltaVDefOf.DeltaV_Void, disableRegions: false)
+                    : null);
             InitializeHarmony();
-            Log.Message("[DeltaV] Phase 3 prototype loaded (spherical universe frame, universe host pocket map, POI lifecycle, pilot console, fixed orbit).");
+            Log.Message("[DeltaV] Phase 3 closure build loaded (incremental orbital POI generation, dormancy, map overlays, spherical universe frame, fixed/mobile flight).");
         }
 
         private static void InitializeHarmony()
@@ -68,6 +84,9 @@ namespace DeltaV
             list.TextFieldNumericLabeled("DeltaV_SettingsPoiDeleteRadius".Translate(), ref Settings.poiDeleteRadius,
                 ref poiDeleteBuffer, 100f, 50000f);
             list.Gap(6f);
+            list.TextFieldNumericLabeled("DeltaV_SettingsMapGenBudget".Translate(), ref Settings.incrementalMapGenBudgetMs,
+                ref mapGenBudgetBuffer, 1f, 16f);
+            list.Gap(6f);
             Text.Font = GameFont.Tiny;
             GUI.color = new Color(1f, 1f, 1f, 0.6f);
             list.Label("DeltaV_SettingsLandingMapSizeNote".Translate());
@@ -97,6 +116,8 @@ namespace DeltaV
         private static string poiActiveBuffer;
 
         private static string poiDeleteBuffer;
+
+        private static string mapGenBudgetBuffer;
 
         public override string SettingsCategory()
         {

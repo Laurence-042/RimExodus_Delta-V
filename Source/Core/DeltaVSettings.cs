@@ -26,6 +26,9 @@ namespace DeltaV
         /// <summary>POI 超出此距离即删除收快照（universe 格，阶段3）。</summary>
         public float poiDeleteRadius = 1200f;
 
+        /// <summary>分帧地图生成每个渲染帧的主线程预算（毫秒）。</summary>
+        public float incrementalMapGenBudgetMs = 8f;
+
         // ---- 分模块诊断日志开关（默认全关；Warn/Error 与必要状态日志不受开关控制）----
 
         public bool logCore;
@@ -45,6 +48,7 @@ namespace DeltaV
             Scribe_Values.Look(ref universeZoomMax, "universeZoomMax", 400f);
             Scribe_Values.Look(ref poiActiveRadius, "poiActiveRadius", 300f);
             Scribe_Values.Look(ref poiDeleteRadius, "poiDeleteRadius", 1200f);
+            Scribe_Values.Look(ref incrementalMapGenBudgetMs, "incrementalMapGenBudgetMs", 8f);
             Scribe_Values.Look(ref logCore, "logCore", false);
             Scribe_Values.Look(ref logInput, "logInput", false);
             Scribe_Values.Look(ref logPhysics, "logPhysics", false);

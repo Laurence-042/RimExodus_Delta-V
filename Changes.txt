@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed mapless orbital POIs (asteroids, settlements, and other orbital map parents) being silently dropped from universe governance: the ship-occupancy check compared a null parent map against a null docked map and rejected every POI that had never generated a map, so proximity generation never triggered.
+- Fixed a save-load warning about unconsumed hostMap load IDs on saves from the planar-coordinate era.
 - Added player-ship silhouette markers to the orbit-layer world view; each marker follows the ship's continuous spherical position and orientation while reusing a one-time hull snapshot captured on entry to mobile mode.
 - Replaced the planar universe frame and dynamic-anchor bookkeeping with absolute spherical coordinates on the orbit layer; removed floating-origin shifts and tile re-anchoring entirely.
 - Replaced the player-flow host map with a dedicated tile-less universe host pocket map: all Delta-V pocket maps (ships and POIs) no longer occupy orbit tiles, are hidden from the world view, and the host never ticks or takes focus.

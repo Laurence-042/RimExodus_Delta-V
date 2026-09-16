@@ -405,6 +405,7 @@ namespace DeltaV
             if (map == Find.CurrentMap) return; // 聚焦/降落选点中的图绝不删
             if (!map.Tile.Valid || !map.Tile.LayerDef.isSpace) return;
             if (SpaceLifecycle.IsUniverseHost(map)) return;
+            if (SpaceMapGovernance.IsGoverned(map, universe)) return;
             if (map.mapPawns.AllPawnsSpawned.Any()) return;
             if (universe.Ships.Any(s => s.dockedMap == map)) return;
             foreach (Thing thing in map.listerThings.AllThings)

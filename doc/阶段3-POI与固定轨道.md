@@ -7,7 +7,7 @@
 - **宇宙视野 = 放宽缩放**（用户定夺）：远处对象的外壳代理由 ShellRenderer 画在世界空间（`Graphics.DrawMesh` + `disableMapClippers`），本就不受地图矩形限制，唯一约束是相机缩放上限。
 - **球面宇宙坐标（2026-09-14 重构，用户定夺）**：universe 位置 = 轨道层球面上的单位方向向量；sphere↔tile 互推为纯函数，锚机制（hostMap 锚、floating origin、`anchorDisplacement`、重锚）整体退役。同批落地：专用无 tile 宿主口袋图、全部 Delta-V 口袋图去 tile 化、起降流程与宿主解耦。
 
-**状态：已实现，待游戏内验证（2026-09-14 重构后需全量回归）。**
+**状态：阶段3收口已实现，待游戏内验证（2026-09-16：通用分帧生成、轨道 POI 自动治理、完整休眠与地图代理）。**
 
 ## 实现概览
 
@@ -16,11 +16,16 @@
 | `Source/Core/SpaceObject.cs` | 宇宙对象基类：id/label/pose/map（AGENTS §11 Universe State） |
 | `Source/Core/ShipState.cs` | 飞船状态：+ isPlayerShip、primaryConsole、docked 停靠状态与恢复数据 |
 | `Source/Core/ShipOrientation.cs` | Map 姿态、主驾驶台局部朝向与玩家所见航向的集中换算 |
-| `Source/Core/PoiState.cs` | POI 状态：seed + 快照引用（Packed 时只有轻量状态） |
-| `Source/Lifecycle/SpaceLifecycle.cs` | **POI 生命周期单一管理入口**：三段判定、生成/休眠/唤醒/删除/恢复 |
+| `Source/Core/PoiState.cs` | POI 状态：NativeParent / SnapshotPocket 两类，前者保存 MapParent 引用，后者保存 seed + 快照 |
+| `Source/Lifecycle/SpaceLifecycle.cs` | Delta-V 距离调度：加载/唤醒、休眠、延迟原版删除 |
+| `Source/Lifecycle/SpaceMapGovernance.cs` | 轨道 MapParent 开放式纳管判定 + 自动注册/主动销毁同步 |
+| `Source/Lifecycle/MapDormancyService.cs` | 通用完整休眠：Map 三入口 + TickManager Thing 表的停止/恢复 |
 | `Source/Lifecycle/PoiSnapshot.cs` | 结构级快照（foundation/表层地形、屋顶、建筑、物品）平行列表序列化 |
 | `Source/Generation/PoiTemplate.cs` | 残骸模板（seed 决定，同 seed 重生成一致） |
-| `Source/Harmony/Patch_PoiDormancy.cs` | 休眠拦截：Map MapPreTick/MapPostTick/MapUpdate Prefix + CurrentMap setter 唤醒 + Storyteller 目标剔除 |
+| `Source/Generation/IncrementalMapGenerationService.cs` | 通用单飞生成队列、GenStep adapter、原版准备/收尾与失败清理 |
+| `Source/Generation/PocketMapHostService.cs` | 可抽取的公共无 tile 口袋图宿主接口与实现 |
+| `Source/Rendering/MapOverlayRenderer.cs` | 通用 17×17 section 地图代理缓存；地形/静态 Thing 绘制与命中 |
+| `Source/Harmony/Patch_PoiDormancy.cs` | 休眠、被动删除、生成冲突、存档阻止、代理 dirty 与销毁清理桥接 |
 | `Source/World/ShipPocketParent_DeltaV.cs` | 船/POI 口袋图 WorldObject：覆写 `WorldCameraPosition`（连续球面视角） |
 | `Source/World/SpaceHostParent_DeltaV.cs` | 降落图 WorldObject：背景视角 = 停靠在本图的船的连续球面位置 |
 | `Source/World/UniverseHostParent_DeltaV.cs` | 专用宿主口袋图 WorldObject：无 tile、仅作全部口袋图 sourceMap 锚 |
@@ -46,17 +51,19 @@
 - **没有锚、没有 floating origin**：sphere↔tile 是纯函数（`TileFromDirection` 线性扫描取最大点积，仅降落时调用；`TileCenterDirection` 反向），任何状态都不需要对齐基准。长途航行沿球面推进，绕星球一周回到原点，坐标无漂移也无界问题。
 - **全部 Delta-V 口袋图（船/POI）无 tile**：`Tile` 恒 `PlanetTile.Invalid`，只存在于 `Find.World.pocketMaps`（绝不进 `Find.WorldObjects`——无 tile WorldObject 的 SpawnSetup 会在 FastTileFinder 越界崩溃）。`sourceMap` 统一指向专用宿主口袋图。聚焦口袋图时 `Map.Tile.Layer` 回落地表层，但 `BackgroundWorldCamera*` 视差参数地表/轨道层共用 `PlanetLayerDef` 类默认值（两层 XML 均未覆盖），无视觉差异。
 - **口袋图不是玩家主基地**（Patch_MapPlayerHome.cs，2026-09-14）：原版生态普遍假设主基地图持有有效 tile（DateNotifier 两个助手的 tile 守卫一个缺失一个因 `&&` 短路顺序失效、Ideo 仪式历法读 `AnyPlayerHomeMap.Tile`、`TileTemperaturesComp` 按 tileId 索引按层缓存数组；`AnyPlayerHomeMap` 仅原版就有 94 处调用）。飞船口袋图因 `GravshipUtility.PlayerHasGravEngine` 回退会被判为 home 而触发上述全部路径的越界。覆写 `Map.IsPlayerHome` 对 Delta-V 口袋图返回 false——飞行中与原版 gravship 航行同形态（无 home，原版自带空值分支）；降落后逆重引擎随船体落到真实降落图，该图经同一条引擎回退自然成为 home（与原版 gravship 降落一致）。事件侧闭环：口袋图 def 无 `IncidentTargetTags`，`TargetAllowed` 标签交集恒为空，storyteller 不会选它为事件目标。
-- **旧档迁移**：平面存档以旧 `hostMap` tile 为切平面原点把绝对偏移换算成球面方向（角度/速度基约定不变直接沿用）；旧档口袋图残留的真实 tile 用反射直写私有字段清空（走 `WorldObject.Tile` setter 置 Invalid 有 Surface 层 FastTileFinder 越界风险）。
+- **旧档迁移**：平面存档以旧 `hostMap` tile 为切平面原点把绝对偏移换算成球面方向（角度/速度基约定不变直接沿用）；旧档口袋图残留的真实 tile 用反射直写私有字段清空（走 `WorldObject.Tile` setter 置 Invalid 有 Surface 层 FastTileFinder 越界风险）。`hostMap`/`anchorDisplacement` 的 `Look` 只在非写档阶段调用（LoadingVars 注册 + ResolvingCrossRefs 消费两阶段都是 Verse 契约要求；2026-09-16 修复了只门 LoadingVars 导致旧档 loadID 无人消费的 "Not all loadIDs consumed" 警告）。
 - **背景位置注入点 = `MapParent.WorldCameraPosition`**（船图：该图宇宙对象的球面点；降落图：停靠在本图的船的球面点——两图切换聚焦背景无跳变）；**背景角度注入点 = `WorldCameraDriver.ApplyMapPositionToGameObject` Postfix**（对象图随聚焦姿态；真实空间图随停靠主船姿态）。后者只给父级 WorldCamera 补局部 roll（子级 WorldSkyboxCamera 自动继承），因此星球与星空相对聚焦船反向旋转，而 Map Camera/Thing/鼠标/寻路仍为 identity。
 - **缩放放宽**：聚焦 Delta-V 图（对象图/真实空间图）时幂等设置 `CameraDriver.config.sizeRange.max = universeZoomMax`（默认 400），离开恢复记录的原值。相机高度公式与 farClip(65.5) 按同一 max 归一化，正交投影下放宽安全，无需 patch。
 - **星球视图玩家船标记**：仅在世界视图选中轨道层时绘制；位置直接取 `SpacePose.position` 的连续球面点，姿态经 `SpaceTransform.UniverseWorldMarkerRotation` 对齐当地东/北切空间基。剪影在每次成功进入移动模式时从对应逆重引擎 `ValidSubstructure` 生成一次透明纹理，此后不再扫描结构，战损/建造变化不会改变标记；下次进入移动模式才以当时船体刷新。读档后因运行时缓存不存档，第一次显示时惰性补建一次。移动船叠加 `SpacePose.angle`；固定模式沿用最近一次移动模式剪影及姿态。纹理/材质均为可重建运行时缓存，不创建或占用轨道 tile 的 `WorldObject`。
 
 ### POI 三段生命周期
 
-- 距离参考 = 全部玩家阵营船的最小球面弧距（`OrbitSphere.ArcCells`，格）；阈值 `poiActiveRadius`（默认 300）/ `poiDeleteRadius`（默认 1200）。
-- **Active**：无图 → LongEventHandler 生成口袋图（复用 DeltaV_ShipPocket 管线，无 tile，sourceMap=专用宿主）→ 有快照回放快照（玩家改动恢复，快照用后丢弃），否则模板 + seed 盖章。
-- **Dormant**：图保留、tick 冻结（三个 Harmony Prefix 早退；RimExodus Patches_Dormancy 同款模式，判定集合只含自己的 POI 图，与 RimExodus 互不干扰）。聚焦中的 POI 图强制活跃；进入休眠图（CurrentMap setter，覆盖殖民者栏/外壳点击等全部路径）同步唤醒。休眠集合不存档，读档后先活跃、下次扫描重新分段。
-- **Packed**：图上**无 pawn 才删**（原版 AnyPawnBlockingMapRemoval 同语义；有 pawn 只休眠）→ `PoiSnapshot.Capture` → `PocketMapUtility.DestroyPocketMap`。
+- 距离参考 = 全部玩家阵营船的最小球面弧距（`OrbitSphere.ArcCells`，格）；阈值 `poiActiveRadius`（默认 300）/ `poiDeleteRadius`（默认 1200）。生成、休眠、删除三段共用这一个距离判定，与聚焦/相机状态无关。
+- **注册**：扫描全部 `Tile.LayerDef.isSpace` 的 `MapParent`，类型判定保持开放以覆盖第三方子类；排除 Delta-V 内部 parent、已由 ShipState 表示的图和纯空白 Space 降落画布。NativeParent 的绝对位置始终由轨道 tile 中心纯函数导出，`map == null` 不等于对象消失。占用排除必须先判 `parent.Map != null`（2026-09-16 修复：无图 POI 的 `parent.Map == null` 与飞行船 `dockedMap == null` 形成 null == null 恒真，曾把全部无图 POI 永久拒绝纳管并被 stale 清理静默移除——orbit 层只剩唯一有图 POI 的根因）。
+- **Active**：无图时进入按距离排序的全局单飞队列。原生 POI 保留真实 tile parent，使用自己的 `MapGeneratorDef` / `ExtraGenStepDefs`；SnapshotPocket 才使用公共无 tile 宿主并在完成后盖模板/快照。默认每帧 8ms（设置 1–16ms），Space/DeltaV 填充有 adapter，其他步骤原子执行并记录超预算诊断。入队参数被拒与 `mapBeingGenerated` 被外部持续占用（>5s）都会输出必要日志，激活链无静默断点（2026-09-16）。
+- **Dormant**：图保留，除三个 Map 更新入口早退外，还从 `TickManager` 全局 Thing tick 表摘除；唤醒遍历 spawned Things 恢复一次。当前图、生成中图、玩家 Pawn 所在图、玩家家园与停靠玩家船所在图强制保活。NPC Pawn 不阻止休眠。
+- **删除**：`MapParent.CheckRemoveMapNow` 只拦截受治理 POI 的“人走即删”；超过删除距离后调度器直接调用其虚方法 `ShouldRemoveMapNow`，原样采用 `alsoRemoveWorldObject` 与 `forceRemoveWorldObjectWhenMapRemoved`。暂不可删则保持休眠并重试；任务主动销毁不经此被动入口，立即清状态和缓存。SnapshotPocket 仍走结构快照删除。
+- **生成隔离**：半成品图不 tick、不渲染、不作为可进入 Map，并持续从 Thing tick 表摘除；生成中手动保存对话框和底层 SaveGame 都会用 Keyed 消息拒绝。外部同步 GenerateMap 会先收完当前分帧任务，避免静态状态交错；安全可绑定的第三方 Postfix 在原版 finally 等价时点复放，Prefix/Transpiler 只警告不伪造状态。
 - **快照保真边界**：foundation + 非 Void 表层地形、屋顶、建筑（def/stuff/pos/rot/hp/faction）、物品（含 stack）。不保 pawn、comp 内部状态（电力开关等）、燃气/雪/区带。序列化 = 平行列表（格列表与 def 列表一一对应），保存/加载共用同一组 `Scribe_Collections.Look`，无不对称空间。
 
 ### 驾驶台与主驾驶台规则
@@ -78,6 +85,8 @@
 - 不再重放 `SectionLayer_Terrain` 或整层 `SectionLayer_ThingsGeneral`。每帧直接从真实 Map 读取逆重基架 foundation 和 Thing：基架、`ThingDef.IsWall` / `IsDoor` 自动纳入，其他 Thing 只有命中 `ShellRenderRuleDef.thingDef` 才绘制。
 - 规则的 `alternateGraphic` 使用原版 `GraphicData` XML 结构，可提供 `Graphic_Single`/`Graphic_Multi`、`texPath`、`drawSize`、shader 等；省略则沿用原 Thing Graphic。`zIndex` 以 `Altitudes.AltInc` 为单位叠加，控制代理遮挡次序。
 - 默认只显式加入 `LargeThruster`；驾驶台、逆重引擎、延展器和室内设备不在白名单。该列表可由兼容补丁追加，不要求改核心渲染器。
+- POI 使用同一变换/点击链，但渲染配置改为“可见地形 + 静态物体”：跳过 `TerrainDef.dontRender`（Space 背景不会形成矩形），默认接纳矿物、墙门、建筑和物品，排除 Pawn/Projectile/Mote/Gas/Filth/动态特效。`ShellRenderRuleDef` 的 alternateGraphic、exclude、zIndex 对两类配置均可覆盖。
+- 代理按原版 17×17 section 缓存源内容；Terrain/Things/Buildings 的 `MapMeshDirty` 只令相关及必要相邻 section 失效。缓存不存档，并在地图删除、换档、Def 缓存刷新时释放。
 
 ### 固定轨道 / 建造模式（逆重搬运）
 
@@ -103,12 +112,15 @@
 6. **驾驶台/模式**：首台自动主；第二台不取代；gizmo 换主生效；拆主台自动转最老台；地面新建船的移动模式 gizmo 灰化且悬停显示重力限制；**原版逆重飞船发射到任意 POI/orbit 图后**，选中某船驾驶台即可进入移动模式（该图不获得任何宿主身份、宇宙中已有其他船也不拒绝），默认未驾驶；固定→移动期间确认走原版 `InitiateTakeoff`，带电器/电线/电池及设施 Comp 无重复注册红字；移动 HUD 始终显示状态，驾驶开关不搬图，多船共享图不出现全局转换按钮。
 7. **固定模式**：在 0°/90°/180°/−90° 分别进入 → 目标为当前球面位置对应的真实轨道图并出现原版移动/旋转/合法性预览/确认选项；**同位置重复降落复用同一张图**（飞走再飞回落回原图）；近距离/小角差对齐明显快于远距离/大角差，平移与旋转均从零速度加速后减速至零；确认后镜头位置与缩放不变且无 `LandingEnded` 红字，动画结束后旧口袋图消失；切到敌舰/POI 图仍可看到固定船代理；在降落图扩建/缩减后从具体驾驶台进入移动模式会生成匹配当前边界的新口袋图，Universe 位置保持落点；宿主口袋图在世界视图不可见、殖民者栏无分组、不 tick（dev 日志核对）；**起飞后原降落图若彻底为空则被删除**（世界视图不再残留空轨道图），地图上留一件物品则保留；四向均保持固定时航向，W 永远向主台正面。
 8. **不变量回归**：聚焦 identity；切换聚焦不改绝对宇宙状态；连续多次切换无漂移；敌舰位姿直写系列照常工作。
+9. **原生 POI 与生成器**：同 seed/parent/尺寸比较同步与分帧结果；小行星、SpaceSite、SpaceSettlement、第三方轨道 MapParent 未访问也自动注册，入圈按近到远串行生成且不重复，排队后离圈取消；未知重步骤准确报告耗时。生成中手动/自动保存被拒绝，成功/失败/换档后无半成品与 MapGenerator 静态锁残留。
+10. **原生休眠/删除/代理**：离开真实 POI 后近距不被立即删除，中距 Map 与 Thing 全停 tick，返回只恢复一次；远距严格服从各 parent 的 ShouldRemoveMapNow 输出，强制保活条件和任务主动销毁分别生效。小行星/平台地形、矿物、建筑与物品可见，Space 背景无矩形；采矿/建拆仅更新相关 section；与 RimExodus 同装时两套休眠集合不串图且 Delta-V 不接管地表。
 
 ## 明确不做（本阶段）
 
 - 不 patch 相机 clamp、不做投影重锚、不做屏幕边缘方向标记；背景位置/roll 之外仍沿用原版 PlanetLayer 与视差参数。
 - POI 无降频层（tick 只有活跃/冻结两档）；快照不保 comp 状态/pawn（有 pawn 不删只休眠）。
-- 敌舰停靠（对等架构允许，但未专门验证）；POI 自动生成/任务化（dev action 创建）。
+- 未提供 adapter 的第三方/原版 GenStep 仍是单帧原子步骤，可能产生一次尖峰；日志会给出步骤名和耗时，后续只需新增 adapter。
+- 敌舰停靠（对等架构允许，但未专门验证）；POI 的任务内容仍由其原版/第三方 parent 自身负责。
 - Changes.txt 与版本号（按提交纪律，由用户发起）。
 
 ## 风险与已知问题

@@ -33,8 +33,11 @@
   <DeltaV_SettingsLogHarmony>日志：按键抑制决策</DeltaV_SettingsLogHarmony>
   <DeltaV_SettingsLogLifecycle>日志：POI 生命周期迁移</DeltaV_SettingsLogLifecycle>
   <DeltaV_SettingsUniverseZoomMax>宇宙视野缩放上限（60-5000）</DeltaV_SettingsUniverseZoomMax>
-  <DeltaV_SettingsPoiActiveRadius>POI 活跃距离（格）</DeltaV_SettingsPoiActiveRadius>
+  <DeltaV_SettingsPoiActiveRadius>POI 加载/唤醒距离（格）</DeltaV_SettingsPoiActiveRadius>
   <DeltaV_SettingsPoiDeleteRadius>POI 删除距离（格）</DeltaV_SettingsPoiDeleteRadius>
+  <DeltaV_SettingsMapGenBudget>分帧地图生成预算（毫秒/帧，1-16）</DeltaV_SettingsMapGenBudget>
+  <DeltaV_SaveBlockedGeneratingLabel>地图生成尚未完成</DeltaV_SaveBlockedGeneratingLabel>
+  <DeltaV_SaveBlockedGenerating>Delta-V 正在分帧生成地图（{0}）。请在生成完成后重试保存。</DeltaV_SaveBlockedGenerating>
   <DeltaV_FixedButtonEnter>进入固定模式</DeltaV_FixedButtonEnter>
   <DeltaV_DockSuccess>{0} 已在宿主图进入固定模式。</DeltaV_DockSuccess>
   <DeltaV_DockFailHostMap>无法解析当前位置的降落图。</DeltaV_DockFailHostMap>

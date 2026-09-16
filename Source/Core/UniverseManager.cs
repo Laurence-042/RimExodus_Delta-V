@@ -42,7 +42,7 @@ namespace DeltaV
         /// 专用宿主口袋图（运行时引用，不序列化——按 def 在 pocketMaps 中重扫即可恢复，
         /// 空图无事实价值可随时重建，AGENTS §15）。经 GetOrCreateHostMap 惰性获取。
         /// </summary>
-        [NonSerialized] private Map universeHostMap;
+        [NonSerialized] private PocketMapHostService pocketHostService;
 
         /// <summary>全部飞船（objects 的 ShipState 视图；每次调用有少量分配，勿在热循环内反复取）。</summary>
         public IEnumerable<ShipState> Ships => objects.OfType<ShipState>();
@@ -133,34 +133,22 @@ namespace DeltaV
         /// </summary>
         public Map GetOrCreateHostMap()
         {
-            if (universeHostMap != null && universeHostMap.Parent is UniverseHostParent_DeltaV
-                && Find.Maps.Contains(universeHostMap))
+            if (pocketHostService == null)
             {
-                return universeHostMap;
+                pocketHostService = new PocketMapHostService(
+                    parent => parent is UniverseHostParent_DeltaV,
+                    () => (PocketMapParent)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_UniverseHostParent),
+                    DeltaVDefOf.DeltaV_ShipPocket,
+                    new IntVec3(HostMapEdge, 1, HostMapEdge));
             }
-            foreach (PocketMapParent parent in Find.World.pocketMaps)
-            {
-                if (parent is UniverseHostParent_DeltaV && parent.HasMap)
-                {
-                    universeHostMap = parent.Map;
-                    return universeHostMap;
-                }
-            }
-            var host = (UniverseHostParent_DeltaV)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_UniverseHostParent);
-            host.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
-            Map map = MapGenerator.GenerateMap(new IntVec3(HostMapEdge, 1, HostMapEdge), host,
-                DeltaVDefOf.DeltaV_ShipPocket, null, null, isPocketMap: true);
-            Find.World.pocketMaps.Add(host);
-            universeHostMap = map;
-            DeltaVLog.Message(DeltaVLogModule.Core, "universe host pocket map created (tile-less, sourceMap anchor only)");
-            return map;
+            return pocketHostService.GetOrCreateHostMap();
         }
 
         /// <summary>宿主口袋图边长：只是 sourceMap 契约的载体，越小越好。</summary>
         public const int HostMapEdge = 50;
 
         /// <summary>当前宿主口袋图（可能尚未创建）。</summary>
-        public Map UniverseHostMap => universeHostMap;
+        public Map UniverseHostMap => pocketHostService?.Current;
 
         public UniverseManager(Game game)
         {
@@ -185,10 +173,13 @@ namespace DeltaV
             Scribe_Values.Look(ref focusedShipId, "focusedShipId", -1);
             Scribe_Values.Look(ref pilotShipId, "pilotShipId", -1);
             Scribe_Values.Look(ref primaryShipId, "primaryShipId", -1);
-            if (Scribe.mode == LoadSaveMode.LoadingVars)
+            if (Scribe.mode != LoadSaveMode.Saving)
             {
                 // 平面坐标旧档的锚记账（新档不再保存）：hostMap tile 为切平面原点，
                 // 绝对偏移 = pose.position + anchorDisplacement。LoadedGame 换算后丢弃。
+                // Look 必须在 LoadingVars 与 ResolvingCrossRefs 两个阶段都被调用（Look 内部
+                // 自行分支），外层只排除写档阶段以维持"新档不写这些键"；只门 LoadingVars
+                // 会让旧档 loadID 无人消费，触发 "Not all loadIDs consumed" 警告。
                 Scribe_References.Look(ref legacyHostMap, "hostMap");
                 Scribe_Values.Look(ref legacyAnchorDisplacement, "anchorDisplacement", Vector2.zero);
             }
@@ -202,6 +193,8 @@ namespace DeltaV
             ShipPhysics.ClearCache();
             ThrusterEffects.ClearRuntimeCaches();
             SpaceLifecycle.Reset();
+            IncrementalMapGenerationService.Reset();
+            pocketHostService?.Reset();
             OrbitSphere.ClearCache();
             DeltaVLandingAnimator.ResetTiming();
             mapFrame = null;
@@ -599,6 +592,7 @@ namespace DeltaV
             ShipPhysics.ClearCache();
             ThrusterEffects.ClearRuntimeCaches();
             SpaceLifecycle.Reset();
+            IncrementalMapGenerationService.Reset();
             PilotController.Exit(this);
             objects = newObjects;
             focusedShipId = focusId;

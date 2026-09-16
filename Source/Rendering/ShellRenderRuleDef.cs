@@ -13,10 +13,13 @@ namespace DeltaV
 
         public GraphicData alternateGraphic;
 
+        public bool exclude;
+
         public float zIndex;
 
         public Graphic GraphicFor(Thing thing)
         {
+            if (exclude) return null;
             return alternateGraphic?.GraphicColoredFor(thing) ?? thing.Graphic;
         }
 

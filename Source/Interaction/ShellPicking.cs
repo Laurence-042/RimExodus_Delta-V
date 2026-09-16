@@ -57,7 +57,8 @@ namespace DeltaV
                     Building_GravEngine engine = DockController.FindEngineForShip(objectMap, ship.primaryConsole);
                     if (engine != null && engine.ValidSubstructure.Contains(cell)) return obj;
                 }
-                else if (objectMap.terrainGrid.TerrainAt(cell) != DeltaVDefOf.DeltaV_Void)
+                else if (MapOverlayRenderer.ContainsVisibleContent(objectMap, cell,
+                    obj is PoiState ? ShellRenderer.PoiConfig : ShellRenderer.ShipConfig))
                 {
                     return obj;
                 }

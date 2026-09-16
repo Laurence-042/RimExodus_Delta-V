@@ -32,7 +32,9 @@ namespace DeltaV
 
         private static PoiState FirstPoi()
         {
-            return Um().objects.OfType<PoiState>().FirstOrDefault();
+            // 强制快照/休眠动作只操作 Delta-V 的测试残骸，不能误删自动纳管的任务 POI。
+            return Um().objects.OfType<PoiState>()
+                .FirstOrDefault(p => p.kind == PoiKind.SnapshotPocket);
         }
 
         [DebugAction("Delta-V", "Create two-ship test scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
@@ -232,7 +234,9 @@ namespace DeltaV
             UniverseManager um = Um();
             var sb = new StringBuilder("[DeltaV:Diag] Universe state");
             sb.AppendLine($"\n- universe host pocket map: {(um.UniverseHostMap == null ? "not created" : "alive")}");
-            sb.AppendLine($"- orbit layer: {(OrbitSphere.Layer == null ? "none" : $"tiles={OrbitSphere.Layer.TilesCount} radius={OrbitSphere.Radius:F1}")}");
+            sb.AppendLine($"- orbit layer: {(OrbitSphere.Layer == null ? "none" : $"tiles={OrbitSphere.Layer.TilesCount} radius={OrbitSphere.Radius:F1}" +
+                $" avgTileSize={OrbitSphere.Layer.AverageTileSize:F2} worldPerCell={OrbitSphere.WorldPerCell:F4} cellsPerRadian={OrbitSphere.CellsPerRadian:F0}")}");
+            sb.AppendLine($"- poi radius: active={DeltaVMod.Settings.poiActiveRadius:F0} delete={DeltaVMod.Settings.poiDeleteRadius:F0}");
             sb.AppendLine($"- primary ship: #{um.primaryShipId}; pilot: #{um.pilotShipId}; focused: #{um.focusedShipId}");
             foreach (SpaceObject obj in um.objects)
             {
@@ -241,9 +245,12 @@ namespace DeltaV
                     : ((ShipState)obj).docked ? "docked" : "flying";
                 float lat = Mathf.Asin(Mathf.Clamp(obj.pose.position.y, -1f, 1f)) * Mathf.Rad2Deg;
                 float lon = Mathf.Atan2(obj.pose.position.z, obj.pose.position.x) * Mathf.Rad2Deg;
+                string playerDist = obj is PoiState poi2
+                    ? $" playerDist={SpaceLifecycle.MinPlayerDistance(um, poi2):F0}"
+                    : "";
                 sb.AppendLine($"\n- #{obj.objectId} {obj.label} [{obj.GetType().Name}] {lifecycle}" +
                     $" dir=({obj.pose.position.x:F3},{obj.pose.position.y:F3},{obj.pose.position.z:F3}) lat/lon=({lat:F1}°,{lon:F1}°)" +
-                    $" angle={SpaceTransform.WrapAngle(obj.pose.angle) * Mathf.Rad2Deg:F0}° map={(obj.map == null ? "none" : "loaded")}");
+                    $"{playerDist} angle={SpaceTransform.WrapAngle(obj.pose.angle) * Mathf.Rad2Deg:F0}° map={(obj.map == null ? "none" : "loaded")}");
             }
             Log.Message(sb.ToString());
         }
