@@ -45,7 +45,7 @@ namespace DeltaV
                 // UniverseToMapPoint：universe → 地图坐标（含中心偏移）——
                 // 直接拿 UniverseToShipLocal 的中心系输出当地图坐标是已记录三次的反模式。
                 Vector2 mapPoint = docked
-                    ? SpaceTransform.UniverseToDockedMapPoint(ship, universeDir)
+                    ? SpaceTransform.UniverseToDockedMapPoint(universe, ship, universeDir)
                     : SpaceTransform.UniverseToMapPoint(obj, universeDir);
                 var cell = new IntVec3(Mathf.FloorToInt(mapPoint.x), 0, Mathf.FloorToInt(mapPoint.y));
                 if (!cell.InBounds(objectMap))

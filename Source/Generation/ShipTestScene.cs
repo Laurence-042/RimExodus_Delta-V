@@ -69,7 +69,10 @@ namespace DeltaV
             if (enemyMap == null) return;
             ShipStructureStamp.StampEnemyShip(enemyMap);
 
-            var playerShip = new ShipState(1, "Player ship", playerMap, new SpacePose(playerDir, 0f), isPlayerShip: true);
+            var playerShip = new ShipState(1, "Player ship", playerMap, new SpacePose(playerDir, 0f), isPlayerShip: true)
+            {
+                faction = Faction.OfPlayer
+            };
             var enemyShip = new ShipState(2, "Enemy ship", enemyMap,
                 new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad));
 

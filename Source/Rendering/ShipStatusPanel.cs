@@ -1,0 +1,214 @@
+using System.Collections.Generic;
+using System.Linq;
+using RimWorld;
+using RimWorld.Planet;
+using UnityEngine;
+using Verse;
+
+namespace DeltaV
+{
+    /// <summary>
+    /// 左侧信息面板（星区架构 §11.1）：固定模式、驾驶模式等按钮全部收进的**单一**面板，
+    /// 高度完全随内容自适应（不滚动）；内嵌星球仪（PlanetGlobeRenderer，任何时候的
+    /// 态势显示——与世界视图剪影同源 SpacePose，坐标与姿态逻辑不另写一套）。
+    /// 显示条件：聚焦图属 Delta-V 语境（FrameOf != null：移动船口袋图 / 停靠船宿主图 /
+    /// 轨道图 / POI 内部）；世界视图不叠加（剪影是其自己的显示通道）。
+    /// </summary>
+    public static class ShipStatusPanel
+    {
+        private const float PanelWidth = 248f;
+        private const float GlobeSize = 212f;
+
+        private static readonly List<Building> EmptyConsoles = new List<Building>();
+
+        // 驾驶台扫描缓存（60 tick 重扫）：PlayerConsoles 遍历全图 listerThings，
+        // 面板每帧取用，不能每帧全扫。
+        private static Map consoleScanMap;
+        private static int consoleScanTick = -99999;
+        private static List<Building> consoleScanResult = EmptyConsoles;
+
+        private static List<Building> ConsolesOn(Map map)
+        {
+            if (consoleScanMap != map || Find.TickManager.TicksGame - consoleScanTick >= 60)
+            {
+                consoleScanMap = map;
+                consoleScanTick = Find.TickManager.TicksGame;
+                consoleScanResult = MobileShipBootstrap.PlayerConsoles(map);
+            }
+            return consoleScanResult;
+        }
+
+        public static void Draw(UniverseManager universe)
+        {
+            Map map = Find.CurrentMap;
+            if (universe == null || map == null || !WorldRendererUtility.DrawingMap) return;
+            SpaceObject frame = universe.FrameOf(map);
+            if (frame == null) return;
+
+            ShipState mobileShip = universe.ShipOnMap(map);
+            if (mobileShip != null && (mobileShip.docked || mobileShip.docking)) mobileShip = null;
+            ShipState dockedShip = mobileShip == null
+                ? universe.Ships.FirstOrDefault(s => s.docked && !s.docking && s.dockedMap == map)
+                : null;
+
+            // 固定模式 → 移动模式入口的另一形态：未 bootstrap 的原版 Gravship（首次降落/
+            // 发射到达时还没有 ShipState）。唯一驾驶台可直接从面板进入；多艘船必须选中
+            // 具体驾驶台（按其连接的引擎与 ValidSubstructure 捕获准确船体）。
+            List<Building> consoles = dockedShip != null || mobileShip != null ? EmptyConsoles : ConsolesOn(map);
+            bool bootstrapEntry = consoles.Count == 1;
+            bool multiShipAmbiguous = consoles.Count > 1;
+
+            string title;
+            if (mobileShip != null)
+            {
+                title = "DeltaV_MobileHudTitle".Translate(mobileShip.label);
+            }
+            else if (dockedShip != null)
+            {
+                title = "DeltaV_PanelDockedTitle".Translate(dockedShip.label);
+            }
+            else if (bootstrapEntry || multiShipAmbiguous)
+            {
+                title = "DeltaV_PanelFixedTitle".Translate();
+            }
+            else
+            {
+                title = "DeltaV_PanelSectorTitle".Translate(frame.label);
+            }
+
+            // ---- 内容行（先备好文本，再按真实高度布局：面板高度随内容变化）----
+            bool piloting = mobileShip != null && universe.pilotShipId == mobileShip.objectId;
+            var statusLines = new System.Collections.Generic.List<string>();
+            if (mobileShip != null)
+            {
+                ShipPhysics.MassReport report = ShipPhysics.GetReport(mobileShip);
+                statusLines.Add("DeltaV_HudControl".Translate(
+                    piloting ? "DeltaV_ControlPiloting".Translate() : "DeltaV_ControlInactive".Translate()));
+                statusLines.Add("DeltaV_HudSpeed".Translate(mobileShip.pose.velocity.magnitude.ToString("F1")));
+                statusLines.Add("DeltaV_HudHeading".Translate(
+                    (ShipOrientation.HeadingAngle(mobileShip) * Mathf.Rad2Deg).ToString("F0")));
+                statusLines.Add("DeltaV_HudTurnRate".Translate(
+                    (mobileShip.pose.angularVelocity * Mathf.Rad2Deg).ToString("F1")));
+                statusLines.Add("DeltaV_HudMass".Translate(report == null ? "?" : ((int)report.mass).ToString()));
+                bool brakeHeld = DeltaVDefOf.DeltaV_AssistBrake != null && DeltaVDefOf.DeltaV_AssistBrake.IsDown;
+                statusLines.Add("DeltaV_HudAssist".Translate(
+                    brakeHeld
+                        ? "DeltaV_Braking".Translate()
+                        : (DeltaVMod.Settings.flightAssist
+                            ? "DeltaV_On".Translate()
+                            : "DeltaV_Off".Translate())));
+            }
+            else
+            {
+                statusLines.Add("DeltaV_PanelModeFixed".Translate());
+            }
+
+            Text.Font = GameFont.Small;
+            float contentWidth = PanelWidth - 20f;
+            float titleHeight = Mathf.Max(24f, Text.CalcHeight(title, contentWidth));
+            Text.Font = GameFont.Tiny;
+            float linesHeight = 0f;
+            foreach (string line in statusLines)
+            {
+                linesHeight += Mathf.Max(20f, Text.CalcHeight(line, contentWidth));
+            }
+
+            // 高度完全随内容自适应（不滚动）：星球仪 + 标题/状态行 + 当前模式的按钮行数。
+            float modeButtonsHeight = mobileShip != null
+                ? 27f + 6f + 27f + 8f
+                : (dockedShip != null || bootstrapEntry || multiShipAmbiguous) ? 27f + 6f : 0f;
+            float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + modeButtonsHeight + 27f;
+            float outerHeight = GlobeSize + 8f + contentHeight;
+            float y = Mathf.Clamp(UI.screenHeight * 0.45f - outerHeight * 0.5f, 48f,
+                Mathf.Max(48f, UI.screenHeight - outerHeight - 32f));
+            var panelRect = new Rect(8f, y, PanelWidth, outerHeight);
+            Widgets.DrawMenuSection(panelRect);
+            var inner = panelRect.ContractedBy(8f);
+
+            // 星球仪固定在面板顶部（GL 绘制使用绝对 GUI 屏幕坐标）；
+            // 无任何飞船时（首次到达、尚未 bootstrap）以当前图帧位置为相机锚点。
+            PlanetGlobeRenderer.Draw(new Rect(inner.x, inner.y, inner.width, GlobeSize), universe, frame);
+
+            // 文本与按钮区（相对坐标）。
+            var contentRect = new Rect(inner.x, inner.y + GlobeSize + 8f, inner.width, contentHeight);
+            GUI.BeginGroup(contentRect);
+            float lineY = 0f;
+            float drawWidth = contentWidth;
+
+            Text.Font = GameFont.Small;
+            Widgets.Label(new Rect(0f, lineY, drawWidth, titleHeight), title);
+            lineY += titleHeight + 4f;
+            Text.Font = GameFont.Tiny;
+            foreach (string line in statusLines)
+            {
+                float h = Mathf.Max(20f, Text.CalcHeight(line, drawWidth));
+                Widgets.Label(new Rect(0f, lineY, drawWidth, h), line);
+                lineY += h;
+            }
+            lineY += 8f;
+
+            // 模式按钮全部收进面板（不再分开放）。
+            if (mobileShip != null)
+            {
+                string pilotButton = piloting
+                    ? "DeltaV_PilotButtonExit".Translate()
+                    : "DeltaV_PilotButtonEnter".Translate();
+                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), pilotButton))
+                {
+                    PilotController.Toggle(universe);
+                }
+                lineY += 27f + 6f;
+                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_FixedButtonEnter".Translate()))
+                {
+                    DockController.TryDock(universe, mobileShip);
+                }
+                lineY += 27f + 8f;
+            }
+            else if (dockedShip != null)
+            {
+                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_MobileButtonEnter".Translate()))
+                {
+                    DockController.TryLaunch(universe, dockedShip);
+                }
+                lineY += 27f + 6f;
+            }
+            else if (bootstrapEntry)
+            {
+                // 首次降落/发射到达：图上唯一的玩家驾驶台，直接 bootstrap 进入移动模式。
+                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_MobileButtonEnter".Translate()))
+                {
+                    MobileShipBootstrap.TryEnter(universe, consoles[0]);
+                }
+                lineY += 27f + 6f;
+            }
+            else if (multiShipAmbiguous)
+            {
+                // 多艘逆重飞船共泊：不能任选一台驾驶台，指引到具体驾驶台的 gizmo。
+                var pickRect = new Rect(0f, lineY, drawWidth, 27f);
+                Text.Font = GameFont.Small;
+                GUI.color = new Color(1f, 1f, 1f, 0.4f);
+                Text.Anchor = TextAnchor.MiddleCenter;
+                Widgets.Label(pickRect, "DeltaV_MobileButtonEnter".Translate());
+                Text.Anchor = TextAnchor.UpperLeft;
+                GUI.color = Color.white;
+                TooltipHandler.TipRegion(pickRect, "DeltaV_PanelPickConsoleTip".Translate());
+                Text.Font = GameFont.Tiny;
+                lineY += 27f + 6f;
+            }
+
+            // 打开星区地图（§12.2 形态未定，暂置灰占位）。
+            var sectorMapRect = new Rect(0f, lineY, drawWidth, 27f);
+            Text.Font = GameFont.Small;
+            GUI.color = new Color(1f, 1f, 1f, 0.4f);
+            Text.Anchor = TextAnchor.MiddleCenter;
+            Widgets.Label(sectorMapRect, "DeltaV_PanelSectorMap".Translate());
+            Text.Anchor = TextAnchor.UpperLeft;
+            GUI.color = Color.white;
+            TooltipHandler.TipRegion(sectorMapRect, "DeltaV_PanelSectorMapTip".Translate());
+            Text.Font = GameFont.Tiny;
+
+            GUI.EndGroup();
+            Text.Font = GameFont.Small;
+        }
+    }
+}

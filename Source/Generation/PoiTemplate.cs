@@ -64,7 +64,7 @@ namespace DeltaV
                 {
                     return;
                 }
-                Thing item = ThingMaker.MakeThing(def, ThingDefOf.Steel);
+                Thing item = ThingMaker.MakeThing(def, def.MadeFromStuff ? ThingDefOf.Steel : null);
                 item.stackCount = Mathf.Min(count, def.stackLimit);
                 GenSpawn.Spawn(item, cell, map, WipeMode.Vanish);
             }

@@ -35,18 +35,22 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SpaceObject frame = universe?.FrameOf(map);
             if (frame == null) return;
+            // worldtile 帧的图（合成帧，或以 worldtile 地图为内部的 NativeParent 对象——
+            // 二者位姿同为 tile 中心、角度恒 0）：背景随停靠在该图的主船绝对姿态滚转，
+            // 与聚焦飞船图同源同步、降落前后无跳变。
+            bool tileFrame = universe.IsSyntheticFrame(frame)
+                || (frame is PoiState poi && poi.kind == PoiKind.NativeParent);
             float angle;
-            if (!universe.IsSyntheticFrame(frame))
+            if (tileFrame)
             {
-                // 对象图（口袋图）：背景随聚焦对象自身姿态滚转。
-                angle = frame.pose.angle;
-            }
-            else
-            {
-                // 真实空间图：停靠在该图的主船姿态（与聚焦飞船图背景同源同步）；无则不滚转。
                 ShipState primary = universe.PrimaryShip;
                 if (primary == null || !primary.docked || primary.dockedMap != map) return;
                 angle = primary.pose.angle;
+            }
+            else
+            {
+                // 对象图（船/POI 口袋内部）：背景随聚焦对象自身姿态滚转。
+                angle = frame.pose.angle;
             }
             Find.WorldCamera.transform.rotation *= Quaternion.AngleAxis(angle * Mathf.Rad2Deg, Vector3.forward);
         }

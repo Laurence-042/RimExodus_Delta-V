@@ -3,6 +3,7 @@ using System.Text;
 using HarmonyLib;
 using LudeonTK;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
@@ -116,27 +117,6 @@ namespace DeltaV
             ship.pose.angularVelocity = 0f;
         }
 
-        // ---- 降落图尺寸：设置项（下一次降落生成新图时生效）----
-
-        [DebugAction("Delta-V", "Landing map size 150", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void LandingSize150() { SetLandingMapSize(150); }
-
-        [DebugAction("Delta-V", "Landing map size 300", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void LandingSize300() { SetLandingMapSize(300); }
-
-        [DebugAction("Delta-V", "Landing map size 500", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void LandingSize500() { SetLandingMapSize(500); }
-
-        [DebugAction("Delta-V", "Landing map size 800", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void LandingSize800() { SetLandingMapSize(800); }
-
-        private static void SetLandingMapSize(int size)
-        {
-            DeltaVMod.Settings.landingMapSize = size;
-            DeltaVMod.Settings.Write();
-            Messages.Message($"Landing map size set to {size}; applies to newly generated landing maps.", MessageTypeDefOf.NeutralEvent, false);
-        }
-
         // ---- 帧时间读数（性能测试用，Prefs.DevMode 门控常驻；UniverseManager Update/OnGUI 调用）----
 
         private static float avgFrameMs = 16.7f;
@@ -176,7 +156,7 @@ namespace DeltaV
             var poi = new PoiState(um.NextObjectId(), "Derelict wreck",
                 OrbitSphere.Move(player.pose.position, new Vector2(400f, 0f)),
                 Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
-            um.objects.Add(poi);
+            um.RegisterObject(poi);
             Messages.Message("DeltaV_PoiCreated".Translate(poi.label, "400"), MessageTypeDefOf.PositiveEvent, false);
         }
 
@@ -193,7 +173,7 @@ namespace DeltaV
             var poi = new PoiState(um.NextObjectId(), "Distant wreck",
                 OrbitSphere.Move(player.pose.position, new Vector2(0f, 1500f)),
                 Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
-            um.objects.Add(poi);
+            um.RegisterObject(poi);
             Messages.Message("DeltaV_PoiCreated".Translate(poi.label, "1500"), MessageTypeDefOf.PositiveEvent, false);
         }
 
@@ -228,6 +208,29 @@ namespace DeltaV
             }
         }
 
+        // ---- 星区记账（验证触发链路；正常触发点 = 移动跨界 / 到达链 / 开局）----
+
+        [DebugAction("Delta-V", "Sector: force generate at player", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void SectorForceGenerate()
+        {
+            UniverseManager um = Um();
+            ShipState player = PlayerShip();
+            if (player == null)
+            {
+                Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            PlanetTile tile = OrbitSphere.TileFromDirection(player.pose.position);
+            if (!tile.Valid)
+            {
+                Messages.Message("No orbit layer.", MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            SectorContentService.EnsureSectorGenerated(um, tile);
+            Messages.Message($"Sector {tile}: objects={SectorContentService.ObjectsInSector(um, tile).Count}, " +
+                $"generatedSectors={um.generatedSectorTiles.Count}", MessageTypeDefOf.NeutralEvent, false);
+        }
+
         [DebugAction("Delta-V", "Dump universe state", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void DumpUniverseState()
         {
@@ -236,6 +239,8 @@ namespace DeltaV
             sb.AppendLine($"\n- universe host pocket map: {(um.UniverseHostMap == null ? "not created" : "alive")}");
             sb.AppendLine($"- orbit layer: {(OrbitSphere.Layer == null ? "none" : $"tiles={OrbitSphere.Layer.TilesCount} radius={OrbitSphere.Radius:F1}" +
                 $" avgTileSize={OrbitSphere.Layer.AverageTileSize:F2} worldPerCell={OrbitSphere.WorldPerCell:F4} cellsPerRadian={OrbitSphere.CellsPerRadian:F0}")}");
+            sb.AppendLine($"- scale: cellsPerTile={OrbitSphere.CellsPerTile:F0} (setting {DeltaVMod.Settings.cellsPerTile});" +
+                $" generated sectors={um.generatedSectorTiles.Count}");
             sb.AppendLine($"- poi radius: active={DeltaVMod.Settings.poiActiveRadius:F0} delete={DeltaVMod.Settings.poiDeleteRadius:F0}");
             sb.AppendLine($"- primary ship: #{um.primaryShipId}; pilot: #{um.pilotShipId}; focused: #{um.focusedShipId}");
             foreach (SpaceObject obj in um.objects)
@@ -248,8 +253,11 @@ namespace DeltaV
                 string playerDist = obj is PoiState poi2
                     ? $" playerDist={SpaceLifecycle.MinPlayerDistance(um, poi2):F0}"
                     : "";
+                string sector = OrbitSphere.Valid
+                    ? $" sector={OrbitSphere.TileFromDirection(obj.pose.position)}"
+                    : "";
                 sb.AppendLine($"\n- #{obj.objectId} {obj.label} [{obj.GetType().Name}] {lifecycle}" +
-                    $" dir=({obj.pose.position.x:F3},{obj.pose.position.y:F3},{obj.pose.position.z:F3}) lat/lon=({lat:F1}°,{lon:F1}°)" +
+                    $" dir=({obj.pose.position.x:F3},{obj.pose.position.y:F3},{obj.pose.position.z:F3}) lat/lon=({lat:F1}°,{lon:F1}°){sector}" +
                     $"{playerDist} angle={SpaceTransform.WrapAngle(obj.pose.angle) * Mathf.Rad2Deg:F0}° map={(obj.map == null ? "none" : "loaded")}");
             }
             Log.Message(sb.ToString());

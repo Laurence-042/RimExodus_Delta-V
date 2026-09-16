@@ -106,11 +106,18 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// universe → 停靠船在停靠图上的地图坐标。停靠船的布局已按 Rot4 物理摆正，
-        /// 停靠图 tile 帧角度恒为 0，因此映射是"以 dockedOrigin 为原点的纯平移"。
+        /// universe → 停靠船在停靠图（宿主内部）上的地图坐标。宿主对象承载帧
+        /// （星区架构 §4 坐标桥）：宿主位姿 ⊕ 内部局部坐标的逆变换，对任意角度的
+        /// 宿主（worldtile 画布 / POI 口袋内部）一致；宿主尚未纳管的瞬态回退到
+        /// 「以 dockedOrigin 为原点的纯平移」（worldtile 帧角度恒 0 的旧特例）。
         /// </summary>
-        public static Vector2 UniverseToDockedMapPoint(ShipState ship, Vector3 universeDir)
+        public static Vector2 UniverseToDockedMapPoint(UniverseManager universe, ShipState ship, Vector3 universeDir)
         {
+            SpaceObject host = universe?.FrameOf(ship.dockedMap);
+            if (host != null && host.map == ship.dockedMap)
+            {
+                return UniverseToMapPoint(host, universeDir);
+            }
             return DockController.DockedOriginMapPoint(ship) + OrbitSphere.Offset(ship.pose.position, universeDir);
         }
 

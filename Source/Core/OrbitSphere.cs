@@ -11,29 +11,42 @@ namespace DeltaV
     ///
     /// universe 位置 = 轨道层球面上的单位方向向量（SpacePose.position）；
     /// 切空间约定与旧平面系一致：x = 东向、y = 北向（东向基手性沿用阶段2 EastSign 结论）。
-    /// sphere↔tile 是纯函数（方向→最近 tile / tile→中心方向），不存在任何需要对齐的
-    /// 持久锚——旧实现的 hostMap 锚、floating origin、重锚机制已全部退役。
     ///
-    /// 尺度：CellsPerTile 是设计常量（1 tile ≈ 100 宇宙格），配合轨道层的
-    /// AverageTileSize 与球面半径换算"格 ↔ 弧度"。无轨道层的存档（非 Odyssey 开局）
+    /// 尺度（星区架构 §8）：CellsPerTile 是**设置项**（默认 20000）——1 个星区
+    /// （worldtile）的弧长约等于多少宇宙格；它只参与"格 ↔ 弧度"换算，
+    /// 不参与 tile 划分（球面方向 → tile 是与尺度常量无关的纯几何函数），
+    /// 因此调整该值不会让星区记账错位。无轨道层的存档（非 Odyssey 开局）
     /// 视为退化：Move 原地返回、Offset 归零，上层入口已按 isSpace 门控。
+    ///
+    /// 层参数化（星区架构 §9）：方向 → tile 的地址函数与半径/尺度换算按
+    /// PlanetLayer 参数化（缓存按层分键），不得烧死"只有一个轨道层"——
+    /// 恒星系扩展时新增恒星系坐标系与 manager，把本类按层实例化挂为其成员。
+    /// Move/Offset/Basis 仍以当前轨道层为隐式参数（唯一的飞行空间），
+    /// 其依赖的尺度状态已按层分键，届时扩展是机械动作。
+    ///
+    /// sphere↔tile 互推是纯函数（无锚）；TileFromDirection 只作 coarse address
+    /// （世界视图、原版世界交互、星区记账），**不参与任何战术几何判定**
+    /// （碰撞、降落选点一律在连续轨道坐标中完成，星区架构 §3）。
     /// </summary>
     public static class OrbitSphere
     {
-        /// <summary>1 个星球 tile ≈ 多少宇宙格（阶段2 设计常量，尺度语义见类注释）。</summary>
-        public const float CellsPerTile = 100f;
+        /// <summary>CellsPerTile 设置项的默认值（星区架构 §8：跨一个 worldtile 约 2 分钟）。</summary>
+        public const float DefaultCellsPerTile = 20000f;
+
+        /// <summary>1 个星区（worldtile）弧长 ≈ 多少宇宙格。设置项，可调；只动尺度不动 tile 划分。</summary>
+        public static float CellsPerTile => DeltaVMod.Settings?.cellsPerTile ?? DefaultCellsPerTile;
 
         // 东向基向量手性：若实测星球背景移动方向与飞行方向相反，翻转此常量
         // （沿用 UniverseLayerMapping 阶段2/3 结论）。
         private const float EastSign = 1f;
 
-        [NonSerialized] private static World cachedWorld;
-        [NonSerialized] private static PlanetLayer cachedLayer;
-        [NonSerialized] private static float cachedRadius = -1f;
-        [NonSerialized] private static float cachedWorldPerCell = -1f;
+        private static World cachedWorld;
+        private static PlanetLayer cachedLayer;
+        private static readonly Dictionary<PlanetLayer, float> RadiusByLayer = new Dictionary<PlanetLayer, float>();
+        private static readonly Dictionary<PlanetLayer, float> WorldPerCellByLayer = new Dictionary<PlanetLayer, float>();
         private static readonly List<PlanetTile> NeighborBuffer = new List<PlanetTile>(6);
 
-        /// <summary>轨道层（Def.isSpace 的第一层）。无则 null；按 World 实例缓存。</summary>
+        /// <summary>当前游戏的轨道层（Def.isSpace 的第一层）。无则 null；按 World 实例缓存。</summary>
         public static PlanetLayer Layer
         {
             get
@@ -48,8 +61,6 @@ namespace DeltaV
                 }
                 cachedWorld = Find.World;
                 cachedLayer = null;
-                cachedRadius = -1f;
-                cachedWorldPerCell = -1f;
                 foreach (PlanetLayer layer in Find.WorldGrid.PlanetLayers.Values)
                 {
                     if (layer.Def.isSpace)
@@ -62,46 +73,60 @@ namespace DeltaV
             }
         }
 
-        public static bool Valid => Layer != null && Layer.TilesCount > 0;
+        /// <summary>层是否可承载轨道坐标（有 tile 才能取中心/半径）。</summary>
+        public static bool LayerUsable(PlanetLayer layer)
+        {
+            return layer != null && layer.TilesCount > 0;
+        }
+
+        public static bool Valid => LayerUsable(Layer);
+
+        /// <summary>指定轨道层的球面半径（世界单位）。按层缓存。</summary>
+        public static float RadiusOf(PlanetLayer layer)
+        {
+            if (!LayerUsable(layer)) return 1f;
+            if (!RadiusByLayer.TryGetValue(layer, out float radius))
+            {
+                radius = layer.GetTileCenter(0).magnitude;
+                RadiusByLayer[layer] = radius;
+            }
+            return radius;
+        }
 
         /// <summary>轨道层球面半径（世界单位）。</summary>
-        public static float Radius
+        public static float Radius => RadiusOf(Layer);
+
+        /// <summary>指定轨道层上 1 宇宙格对应的世界单位长度。按层缓存。</summary>
+        public static float WorldPerCellOf(PlanetLayer layer)
         {
-            get
+            if (!LayerUsable(layer)) return 1f;
+            if (!WorldPerCellByLayer.TryGetValue(layer, out float value))
             {
-                if (!Valid) return 1f;
-                if (cachedRadius < 0f)
-                {
-                    cachedRadius = Layer.GetTileCenter(0).magnitude;
-                }
-                return cachedRadius;
+                value = layer.AverageTileSize / CellsPerTile;
+                WorldPerCellByLayer[layer] = value;
             }
+            return value;
         }
 
         /// <summary>1 宇宙格对应的世界单位长度。</summary>
-        public static float WorldPerCell
+        public static float WorldPerCell => WorldPerCellOf(Layer);
+
+        /// <summary>指定层上 1 弧度弧长对应的宇宙格数（球面上量距的换算系数）。</summary>
+        public static float CellsPerRadianOf(PlanetLayer layer)
         {
-            get
-            {
-                if (!Valid) return 1f;
-                if (cachedWorldPerCell < 0f)
-                {
-                    cachedWorldPerCell = Layer.AverageTileSize / CellsPerTile;
-                }
-                return cachedWorldPerCell;
-            }
+            return RadiusOf(layer) / WorldPerCellOf(layer);
         }
 
         /// <summary>1 弧度弧长对应的宇宙格数（球面上量距的换算系数）。</summary>
-        public static float CellsPerRadian => Radius / WorldPerCell;
+        public static float CellsPerRadian => CellsPerRadianOf(Layer);
 
-        /// <summary>读档 / 新世界后清空缓存（与 ShellRenderer 缓存自愈纪律一致）。</summary>
+        /// <summary>读档 / 新世界 / 尺度设置变化后清空缓存（与 ShellRenderer 缓存自愈纪律一致）。</summary>
         public static void ClearCache()
         {
             cachedWorld = null;
             cachedLayer = null;
-            cachedRadius = -1f;
-            cachedWorldPerCell = -1f;
+            RadiusByLayer.Clear();
+            WorldPerCellByLayer.Clear();
         }
 
         // ---- 切空间基与球面移动 ----
@@ -177,25 +202,27 @@ namespace DeltaV
             return dir.normalized * Radius;
         }
 
-        // ---- sphere ⇄ tile（纯函数，无锚）----
+        // ---- sphere ⇄ tile（纯地址函数，无锚；与尺度常量无关）----
 
+        /// <summary>tile → 中心方向。层由 tile 自身导出，可安全用于任意层。</summary>
         public static Vector3 TileCenterDirection(PlanetTile tile)
         {
-            if (!Valid || !tile.Valid)
+            PlanetLayer layer = tile.Valid ? tile.Layer : Layer;
+            if (!LayerUsable(layer) || !tile.Valid)
             {
                 return Vector3.right;
             }
-            return Layer.GetTileCenter(tile).normalized;
+            return layer.GetTileCenter(tile).normalized;
         }
 
         /// <summary>
-        /// 球面方向 → 最近 tile。线性扫描取最大点积；只在降落选图等低频路径调用，
+        /// 球面方向 → 指定层上最近 tile（coarse address：世界视图、原版世界交互、
+        /// 星区记账专用，不作战术几何判定）。线性扫描取最大点积；只在低频路径调用，
         /// 轨道层 tile 数量级（千）下单次调用耗时可忽略。
         /// </summary>
-        public static PlanetTile TileFromDirection(Vector3 dir)
+        public static PlanetTile TileFromDirection(PlanetLayer layer, Vector3 dir)
         {
-            PlanetLayer layer = Layer;
-            if (!Valid)
+            if (!LayerUsable(layer))
             {
                 return PlanetTile.Invalid;
             }
@@ -214,21 +241,26 @@ namespace DeltaV
             return best < 0 ? PlanetTile.Invalid : new PlanetTile(best, layer);
         }
 
+        /// <summary>球面方向 → 当前轨道层最近 tile（转发 <see cref="Layer"/>）。</summary>
+        public static PlanetTile TileFromDirection(Vector3 dir)
+        {
+            return TileFromDirection(Layer, dir);
+        }
+
         /// <summary>
-        /// 球面方向 → 最近 tile 的热路径版本。hint 来自同一对象上次的结果时，沿球面
-        /// 邻接图向点积更大的格爬坡；连续运动通常只检查当前格的 5/6 个邻居。
+        /// 球面方向 → 指定层上最近 tile 的热路径版本。hint 来自同一对象上次的结果时，
+        /// 沿球面邻接图向点积更大的格爬坡；连续运动通常只检查当前格的 5/6 个邻居。
         /// hint 缺失或属于其他层时才退回全量扫描。纯函数语义不变，hint 只是加速提示。
         /// </summary>
-        public static PlanetTile TileFromDirection(Vector3 dir, PlanetTile hint)
+        public static PlanetTile TileFromDirection(PlanetLayer layer, Vector3 dir, PlanetTile hint)
         {
-            PlanetLayer layer = Layer;
-            if (!Valid)
+            if (!LayerUsable(layer))
             {
                 return PlanetTile.Invalid;
             }
             if (!hint.Valid || hint.Layer != layer)
             {
-                return TileFromDirection(dir);
+                return TileFromDirection(layer, dir);
             }
 
             Vector3 d = dir.normalized;
@@ -259,7 +291,13 @@ namespace DeltaV
                 current = next;
                 currentDot = nextDot;
             }
-            return TileFromDirection(dir);
+            return TileFromDirection(layer, dir);
+        }
+
+        /// <summary>球面方向 → 当前轨道层最近 tile（hint 爬坡版，转发 <see cref="Layer"/>）。</summary>
+        public static PlanetTile TileFromDirection(Vector3 dir, PlanetTile hint)
+        {
+            return TileFromDirection(Layer, dir, hint);
         }
     }
 }

@@ -1,11 +1,16 @@
+using RimWorld;
 using Verse;
 
 namespace DeltaV
 {
     /// <summary>
-    /// 宇宙对象基类（AGENTS §11 Universe State）：宇宙位置、朝向、速度、必要身份、
-    /// Map 对应关系。飞船（ShipState）与太空 POI（PoiState）共用同一坐标系与
-    /// SpaceTransform 变换链——坐标语义对所有宇宙对象唯一。
+    /// 宇宙对象基类（AGENTS §11 Universe State；星区架构 §4）：宇宙位置、朝向、速度、
+    /// 必要身份、派系归属、Map 对应关系。飞船（ShipState）与太空 POI（PoiState）共用
+    /// 同一坐标系与 SpaceTransform 变换链——坐标语义对所有宇宙对象唯一。
+    ///
+    /// 「每个可进入地图都属于一个 SpaceObject」：口袋图 = Delta-V 自建对象的内部，
+    /// worldtile 地图 = 原版站点/空画布锚对象的内部；内部地图坐标 ⇄ 轨道坐标的唯一
+    /// 通道是所属对象的位姿（对象位姿 ⊕ 内部局部坐标），不存在图级坐标锚。
     ///
     /// "map == null" 只表示当前没有对象自己的已加载地图（POI 的 Packed 状态，或飞船
     /// 固定轨道停靠在 dockedMap），不表示对象不存在（AGENTS：当前没有 Map 不代表
@@ -17,6 +22,9 @@ namespace DeltaV
         public int objectId;
 
         public string label;
+
+        /// <summary>派系归属（星区架构 §9：§11 敌我差异复用原版派系的前置）。持久化。</summary>
+        public Faction faction;
 
         public SpacePose pose;
 
@@ -39,6 +47,7 @@ namespace DeltaV
         {
             Scribe_Values.Look(ref objectId, "objectId", -1);
             Scribe_Values.Look(ref label, "label");
+            Scribe_References.Look(ref faction, "faction");
             Scribe_Deep.Look(ref pose, "pose");
             Scribe_References.Look(ref map, "map");
         }

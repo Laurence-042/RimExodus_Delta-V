@@ -28,6 +28,13 @@ namespace DeltaV
         /// <summary>权威宇宙对象列表（ShipState + PoiState，多态深序列化）。存档事实。</summary>
         public List<SpaceObject> objects = new List<SpaceObject>();
 
+        /// <summary>
+        /// 已触发生成的星区（持久事实，星区架构 §4）：元素为 PlanetTile 的 "tileId,layerId"。
+        /// 「该星区已触发生成」不能从现存对象推导（对象会被销毁），必须持久化防重复刷对象；
+        /// 「该星区当前有哪些对象」则由 objects + TileFromDirection 查询时重建，不序列化。
+        /// </summary>
+        public List<string> generatedSectorTiles = new List<string>();
+
         public int focusedShipId = -1;
 
         /// <summary>驾驶中的船（阶段2）；-1 = 未驾驶。持久化，读档后驾驶状态恢复。</summary>
@@ -69,6 +76,81 @@ namespace DeltaV
                 max = Mathf.Max(max, obj.objectId);
             }
             return max + 1;
+        }
+
+        /// <summary>宇宙对象增删的唯一入口（AGENTS §11 单一管理入口精神）；星区记账与 id 语义在此收口。</summary>
+        public void RegisterObject(SpaceObject obj)
+        {
+            if (obj == null || objects.Contains(obj)) return;
+            objects.Add(obj);
+        }
+
+        public void UnregisterObject(SpaceObject obj)
+        {
+            if (obj == null) return;
+            objects.Remove(obj);
+        }
+
+        // ---- 尺度重标定（星区架构 §8）----
+
+        /// <summary>存档时的 CellsPerTile（读档后与当前设置不同则触发一次位姿重标定）。</summary>
+        private int cellsPerTileAtSave;
+
+        /// <summary>读档后待执行的旧尺度（-1 = 无）；对象 cross-ref 解析完成后执行。</summary>
+        [NonSerialized] private float pendingScaleRescaleFrom = -1f;
+
+        /// <summary>停靠/起飞流程进行中禁止修改尺度（pending 位姿计算不能中途换尺度）。</summary>
+        public bool CanApplyScaleChange()
+        {
+            if (DockController.MobileLaunchPending) return false;
+            foreach (ShipState ship in Ships)
+            {
+                if (ship.docking) return false;
+            }
+            WorldComponent_GravshipController controller = Find.GravshipController;
+            if (controller != null
+                && (controller.LandingAreaConfirmationInProgress || controller.IsGravshipTravelling))
+            {
+                return false;
+            }
+            return Current.Game?.Gravship == null;
+        }
+
+        /// <summary>
+        /// 尺度调整即时生效：全部 SpaceObject 位姿相对所在星区中心按比例缩放，保持各星区
+        /// 布局密度（战术格距不变、战略距离随尺度拉长）；速度不缩放（战术手感不变）。
+        /// docked 船的位姿偏移即其内部坐标差，同一规则天然保持「悬停↔落点」对应。
+        /// 只动位姿，与物化状态无关（未物化是常态）。
+        /// </summary>
+        public void ApplyCellsPerTileScale(float oldScale, float newScale)
+        {
+            if (oldScale <= 0f || newScale <= 0f || Mathf.Approximately(oldScale, newScale))
+            {
+                return;
+            }
+            // 设置项在调用前已被改写：先清尺度缓存，保证 Offset/Move 统一在新尺度下计量，
+            // 再按 old/new 收缩角度——等价于"保持各对象到星区中心的格数不变"。
+            OrbitSphere.ClearCache();
+            float shrink = oldScale / newScale;
+            foreach (SpaceObject obj in objects)
+            {
+                RescalePoseToSector(ref obj.pose.position, shrink);
+                if (obj is ShipState ship)
+                {
+                    RescalePoseToSector(ref ship.preDockPose.position, shrink);
+                }
+            }
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"cellsPerTile rescaled {oldScale:F0} -> {newScale:F0}; {objects.Count} object poses rebased to sector centers (velocities untouched)");
+        }
+
+        private static void RescalePoseToSector(ref Vector3 position, float shrink)
+        {
+            PlanetTile tile = OrbitSphere.TileFromDirection(position);
+            if (!tile.Valid) return;
+            Vector3 center = OrbitSphere.TileCenterDirection(tile);
+            Vector2 offset = OrbitSphere.Offset(center, position);
+            position = OrbitSphere.Move(center, offset * shrink);
         }
 
         /// <summary>当前地图对应的宇宙对象（船或 POI；无则 null）。显示参考系以此为准。</summary>
@@ -154,6 +236,16 @@ namespace DeltaV
         {
         }
 
+        public override void StartedNewGame()
+        {
+            // 开局出生星区在世界生成时预生成（星区架构 §4 触发时机）。
+            Map current = Find.CurrentMap;
+            if (current != null && current.Tile.Valid && current.Tile.LayerDef.isSpace)
+            {
+                SectorContentService.EnsureSectorGenerated(this, current.Tile);
+            }
+        }
+
         // ---- 旧平面存档迁移（仅加载期）----
 
         [NonSerialized] private Map legacyHostMap;
@@ -170,9 +262,29 @@ namespace DeltaV
                 Log.Warning("[DeltaV] Save predates phase 3 (no 'objects' list); universe state starts empty. Recreate the test scene via Debug actions.");
                 objects = new List<SpaceObject>();
             }
+            Scribe_Collections.Look(ref generatedSectorTiles, "generatedSectorTiles", LookMode.Value);
+            if (Scribe.mode == LoadSaveMode.LoadingVars && generatedSectorTiles == null)
+            {
+                generatedSectorTiles = new List<string>();
+            }
+            if (Scribe.mode == LoadSaveMode.Saving)
+            {
+                cellsPerTileAtSave = DeltaVMod.Settings?.cellsPerTile ?? (int)OrbitSphere.DefaultCellsPerTile;
+            }
+            Scribe_Values.Look(ref cellsPerTileAtSave, "cellsPerTileAtSave", 0);
             Scribe_Values.Look(ref focusedShipId, "focusedShipId", -1);
             Scribe_Values.Look(ref pilotShipId, "pilotShipId", -1);
             Scribe_Values.Look(ref primaryShipId, "primaryShipId", -1);
+            if (Scribe.mode == LoadSaveMode.LoadingVars)
+            {
+                // 主菜单改过尺度再读档：对象位姿仍按存档时尺度分布，读档后统一重标定。
+                // 旧档无此键（0）视为未知，不做重标定（mod 未发布，无兼容负担）。
+                float current = DeltaVMod.Settings?.cellsPerTile ?? (int)OrbitSphere.DefaultCellsPerTile;
+                if (cellsPerTileAtSave > 0 && !Mathf.Approximately(cellsPerTileAtSave, current))
+                {
+                    pendingScaleRescaleFrom = cellsPerTileAtSave;
+                }
+            }
             if (Scribe.mode != LoadSaveMode.Saving)
             {
                 // 平面坐标旧档的锚记账（新档不再保存）：hostMap tile 为切平面原点，
@@ -196,11 +308,18 @@ namespace DeltaV
             IncrementalMapGenerationService.Reset();
             pocketHostService?.Reset();
             OrbitSphere.ClearCache();
+            SectorContentService.Reset();
             DeltaVLandingAnimator.ResetTiming();
             mapFrame = null;
             PilotController.SuppressVanillaKeys = false;
             DockController.RestorePendingAfterLoad(this);
             MigratePlanarSaves();
+            if (pendingScaleRescaleFrom > 0f)
+            {
+                float current = DeltaVMod.Settings?.cellsPerTile ?? (int)OrbitSphere.DefaultCellsPerTile;
+                ApplyCellsPerTileScale(pendingScaleRescaleFrom, current);
+                pendingScaleRescaleFrom = -1f;
+            }
             ClearStalePocketMapTiles();
             // 地图被外部移除等异常情况下的收尾：清掉悬空引用，聚焦无效时退回第一艘活着的船。
             foreach (SpaceObject obj in objects.ToList())
@@ -214,7 +333,7 @@ namespace DeltaV
                 {
                     // 飞船没有"删除段"——口袋图丢失属异常，整体移除避免悬空状态。
                     Log.Warning($"[DeltaV] Ship #{lost.objectId} ({lost.label}) lost its map; removing from universe state.");
-                    objects.Remove(lost);
+                    UnregisterObject(lost);
                 }
             }
             if (Focused == null)
@@ -317,7 +436,9 @@ namespace DeltaV
             north.Normalize();
             Vector3 east = Vector3.Cross(up, north);
             Vector3 tangent = east * absoluteOffset.x + north * absoluteOffset.y;
-            return (center + tangent * (layer.AverageTileSize / OrbitSphere.CellsPerTile)).normalized;
+            // 旧平面档全部保存在 CellsPerTile = 100 时代：迁移换算钉死旧尺度字面量，
+            // 不随设置项（默认 20000）变化，否则旧档对象会被外推到完全错误的球面位置。
+            return (center + tangent * (layer.AverageTileSize / 100f)).normalized;
         }
 
         /// <summary>
@@ -446,10 +567,12 @@ namespace DeltaV
                 }
                 ShipPhysics.Integrate(ship, report, force, torque, dt, assistX, assistZ, assistW);
             }
-            // POI 地图生命周期三段扫描（单一入口 SpaceLifecycle）。
+            // POI 地图生命周期三段扫描（单一入口 SpaceLifecycle）+ 星区记账触发
+            //（移动模式下 tile 地址变化进入新星区时首次生成，星区架构 §4）。
             if (Find.TickManager.TicksGame % 60 == 0)
             {
                 SpaceLifecycle.Tick(this);
+                SectorContentService.TickSectorTracking(this);
             }
         }
 
@@ -482,7 +605,7 @@ namespace DeltaV
             {
                 PilotController.Toggle(this);
             }
-            PilotController.DrawHud(this);
+            ShipStatusPanel.Draw(this);
             DebugActions_DeltaV.DrawFrameMeter();
             HandleShellClick();
         }
@@ -547,7 +670,7 @@ namespace DeltaV
                         ? dockedTarget.dockedMap
                         : target.map;
                     Vector2 mapPoint = dockedTarget != null && dockedTarget.docked
-                        ? SpaceTransform.UniverseToDockedMapPoint(dockedTarget, universeDir)
+                        ? SpaceTransform.UniverseToDockedMapPoint(this, dockedTarget, universeDir)
                         : SpaceTransform.UniverseToMapPoint(target, universeDir);
                     int x = Mathf.Clamp(Mathf.FloorToInt(mapPoint.x), 2, targetMap.Size.x - 3);
                     int z = Mathf.Clamp(Mathf.FloorToInt(mapPoint.y), 2, targetMap.Size.z - 3);
@@ -593,6 +716,7 @@ namespace DeltaV
             ThrusterEffects.ClearRuntimeCaches();
             SpaceLifecycle.Reset();
             IncrementalMapGenerationService.Reset();
+            SectorContentService.Reset();
             PilotController.Exit(this);
             objects = newObjects;
             focusedShipId = focusId;

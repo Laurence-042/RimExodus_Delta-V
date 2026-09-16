@@ -37,9 +37,6 @@ namespace DeltaV
         /// <summary>当前驾驶键（含 A/B 槽）的实际绑定；进入驾驶时重建。</summary>
         public static HashSet<KeyCode> ActivePilotKeys = new HashSet<KeyCode>();
 
-        /// <summary>驾驶 HUD 的运行时滚动位置；不属于游戏状态，不存档。</summary>
-        private static Vector2 hudScrollPosition = Vector2.zero;
-
         // ---- 状态 ----
 
         public static bool IsActive(UniverseManager universe)
@@ -80,7 +77,6 @@ namespace DeltaV
         {
             if (universe == null || ship?.map == null || ship.docked || ship.docking) return;
             universe.pilotShipId = ship.objectId;
-            hudScrollPosition = Vector2.zero;
             RebuildPilotKeySet();
             Log.Message($"[DeltaV] Pilot mode engaged: {ship.label} (#{ship.objectId}). Pilot keys: [{string.Join(", ", ActivePilotKeys)}].");
             DeltaVLog.Message(DeltaVLogModule.Core, $"engage details: speed={ship.pose.velocity} m/s, heading={SpaceTransform.WrapAngle(ship.pose.angle) * Mathf.Rad2Deg:F0} deg, omega={ship.pose.angularVelocity * Mathf.Rad2Deg:F1} deg/s");
@@ -96,7 +92,6 @@ namespace DeltaV
             ShipState ship = PilotedShip(universe);
             Log.Message($"[DeltaV] Pilot mode disengaged (was #{universe.pilotShipId} '{ship?.label ?? "?"}'; suppressed reads: {Patch_KeyBindingSuppression.SuppressedReads}).");
             universe.pilotShipId = -1;
-            hudScrollPosition = Vector2.zero;
             SuppressVanillaKeys = false;
             if (message != null)
             {
@@ -384,82 +379,6 @@ namespace DeltaV
             return true;
         }
 
-        // ---- HUD 与屏幕按钮（UniverseManager.GameComponentOnGUI 调用）----
-
-        public static void DrawHud(UniverseManager universe)
-        {
-            // 移动模式的口袋图一图一船，因此 HUD 可以无歧义地直接操作当前船；
-            // 驾驶只是移动模式中是否把输入交给该船，不是另一种地图生命周期。
-            ShipState mobileShip = universe?.ShipOnMap(Find.CurrentMap);
-            if (mobileShip?.map == null || mobileShip.docked || mobileShip.docking)
-            {
-                return;
-            }
-            bool active = universe.pilotShipId == mobileShip.objectId;
-            float y = UI.screenHeight * 0.42f;
-
-            ShipPhysics.MassReport report = ShipPhysics.GetReport(mobileShip);
-            var rect = new Rect(8f, y, 240f, 190f);
-            Widgets.DrawMenuSection(rect);
-            var inner = rect.ContractedBy(8f);
-
-            string title = "DeltaV_MobileHudTitle".Translate(mobileShip.label);
-            string control = "DeltaV_HudControl".Translate(
-                active ? "DeltaV_ControlPiloting".Translate() : "DeltaV_ControlInactive".Translate());
-            string speed = "DeltaV_HudSpeed".Translate(mobileShip.pose.velocity.magnitude.ToString("F1"));
-            string heading = "DeltaV_HudHeading".Translate(
-                (ShipOrientation.HeadingAngle(mobileShip) * Mathf.Rad2Deg).ToString("F0"));
-            string turnRate = "DeltaV_HudTurnRate".Translate(
-                (mobileShip.pose.angularVelocity * Mathf.Rad2Deg).ToString("F1"));
-            string mass = "DeltaV_HudMass".Translate(report == null ? "?" : ((int)report.mass).ToString());
-            bool brakeHeld = DeltaVDefOf.DeltaV_AssistBrake != null && DeltaVDefOf.DeltaV_AssistBrake.IsDown;
-            string assist = "DeltaV_HudAssist".Translate(
-                brakeHeld
-                    ? "DeltaV_Braking".Translate()
-                    : (DeltaVMod.Settings.flightAssist
-                        ? "DeltaV_On".Translate()
-                        : "DeltaV_Off".Translate()));
-
-            // 为滚动条预留 16px，并按翻译后的真实文本高度计算内容；长船名和语言换行
-            // 不再把底部状态/退出按钮裁掉。
-            float contentWidth = inner.width - 16f;
-            Text.Font = GameFont.Small;
-            float titleHeight = Mathf.Max(24f, Text.CalcHeight(title, contentWidth));
-            Text.Font = GameFont.Tiny;
-            string[] statusLines = { control, speed, heading, turnRate, mass, assist };
-            float contentHeight = titleHeight;
-            foreach (string statusLine in statusLines)
-            {
-                contentHeight += Mathf.Max(20f, Text.CalcHeight(statusLine, contentWidth));
-            }
-            contentHeight += 60f;
-
-            var viewRect = new Rect(0f, 0f, contentWidth, contentHeight);
-            Widgets.BeginScrollView(inner, ref hudScrollPosition, viewRect);
-            float lineY = 0f;
-            Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(0f, lineY, contentWidth, titleHeight), title);
-            lineY += titleHeight;
-            Text.Font = GameFont.Tiny;
-            foreach (string statusLine in statusLines)
-            {
-                float lineHeight = Mathf.Max(20f, Text.CalcHeight(statusLine, contentWidth));
-                Widgets.Label(new Rect(0f, lineY, contentWidth, lineHeight), statusLine);
-                lineY += lineHeight;
-            }
-            string pilotButton = active
-                ? "DeltaV_PilotButtonExit".Translate()
-                : "DeltaV_PilotButtonEnter".Translate();
-            if (Widgets.ButtonText(new Rect(0f, lineY + 3f, contentWidth, 27f), pilotButton))
-            {
-                Toggle(universe);
-            }
-            if (Widgets.ButtonText(new Rect(0f, lineY + 33f, contentWidth, 27f), "DeltaV_FixedButtonEnter".Translate()))
-            {
-                DockController.TryDock(universe, mobileShip);
-            }
-            Widgets.EndScrollView();
-            Text.Font = GameFont.Small;
-        }
+        // ---- HUD 与屏幕按钮：绘制职责已移交 ShipStatusPanel（UniverseManager.GameComponentOnGUI 调用）----
     }
 }

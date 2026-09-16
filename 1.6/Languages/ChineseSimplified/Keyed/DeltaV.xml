@@ -23,8 +23,9 @@
   <DeltaV_Braking>刹停中</DeltaV_Braking>
   <DeltaV_SettingsFlightAssist>飞行辅助</DeltaV_SettingsFlightAssist>
   <DeltaV_SettingsFlightAssistTip>驾驶时，无输入的轴按飞船推进器真实出力反向减速，不使用人为衰减。</DeltaV_SettingsFlightAssistTip>
-  <DeltaV_SettingsLandingMapSize>降落图尺寸（100-1000）</DeltaV_SettingsLandingMapSize>
-  <DeltaV_SettingsLandingMapSizeNote>降落图的显示/性能参数，仅在飞船当前位置需要新生成轨道图时使用，不影响宇宙坐标。</DeltaV_SettingsLandingMapSizeNote>
+  <DeltaV_SettingsCellsPerTile>星区尺度：每个 worldtile 的格数（100-100000）</DeltaV_SettingsCellsPerTile>
+  <DeltaV_SettingsCellsPerTileNote>设定一个星区（worldtile）的弧长等于多少宇宙格。修改即时生效：全部对象位姿相对所在星区中心按比例缩放（速度不变）；停靠/起飞流程进行中禁止修改。不影响 tile 划分与任何战术判定。</DeltaV_SettingsCellsPerTileNote>
+  <DeltaV_ScaleChangeBlocked>停靠/起飞流程进行中，不能修改星区尺度。</DeltaV_ScaleChangeBlocked>
   <DeltaV_SettingsLogSection>诊断日志</DeltaV_SettingsLogSection>
   <DeltaV_SettingsLogNote>分模块详细日志（[DeltaV:模块] 前缀）。警告/错误与关键状态迁移（驾驶进出、抑制激活、补丁初始化）不受开关控制，始终输出。</DeltaV_SettingsLogNote>
   <DeltaV_SettingsLogCore>日志：核心与驾驶状态</DeltaV_SettingsLogCore>
@@ -41,6 +42,7 @@
   <DeltaV_FixedButtonEnter>进入固定模式</DeltaV_FixedButtonEnter>
   <DeltaV_DockSuccess>{0} 已在宿主图进入固定模式。</DeltaV_DockSuccess>
   <DeltaV_DockFailHostMap>无法解析当前位置的降落图。</DeltaV_DockFailHostMap>
+  <DeltaV_DockFailNoTarget>没有可固定目标：飞船下方没有无动力的对象。请接近空间站、残骸等对象后重试；有动力飞船不可降落。</DeltaV_DockFailNoTarget>
   <DeltaV_DockFailOutOfRange>飞船的宇宙位置无法投影到轨道 tile，请先回到星球附近。</DeltaV_DockFailOutOfRange>
   <DeltaV_DockFailBlocked>目标图上的降落区域被占用，请换一处或先清空。</DeltaV_DockFailBlocked>
   <DeltaV_DockFailNoEngine>船上没有逆重引擎。固定模式需要一台逆重引擎作为船体结构锚点。</DeltaV_DockFailNoEngine>
@@ -57,4 +59,11 @@
   <DeltaV_PoiDormant>POI {0}：已休眠（保留地图，冻结 tick）。</DeltaV_PoiDormant>
   <DeltaV_PoiPacked>POI {0}：已删除地图（快照保存）。</DeltaV_PoiPacked>
   <DeltaV_PoiRestored>POI {0}：已从快照恢复地图。</DeltaV_PoiRestored>
+  <DeltaV_PanelDockedTitle>固定模式：{0}</DeltaV_PanelDockedTitle>
+  <DeltaV_PanelFixedTitle>固定模式</DeltaV_PanelFixedTitle>
+  <DeltaV_PanelSectorTitle>太空：{0}</DeltaV_PanelSectorTitle>
+  <DeltaV_PanelModeFixed>模式：固定（已停靠）</DeltaV_PanelModeFixed>
+  <DeltaV_PanelPickConsoleTip>本图共泊多艘逆重飞船：请选中目标船的驾驶台并使用其「进入移动模式」，才能捕获正确的船体。</DeltaV_PanelPickConsoleTip>
+  <DeltaV_PanelSectorMap>打开星区地图</DeltaV_PanelSectorMap>
+  <DeltaV_PanelSectorMapTip>星区地图的具体形态尚未定稿（设计文档 §12.2）。</DeltaV_PanelSectorMapTip>
 </LanguageData>

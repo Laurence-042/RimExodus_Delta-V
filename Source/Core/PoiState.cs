@@ -11,8 +11,14 @@ namespace DeltaV
     }
 
     /// <summary>
-    /// 太空 POI 的宇宙状态（SpaceObject 特化，阶段3）。NativeParent 的位置由真实
-    /// 轨道 tile 纯函数导出；SnapshotPocket 使用独立球面位置。
+    /// 太空 POI 的宇宙状态（SpaceObject 特化，星区架构 §4）。
+    ///
+    /// - NativeParent = 「以 worldtile 地图为内部的 SpaceObject」：事实源是原版或
+    ///   第三方轨道 MapParent（含空画布锚对象），位置由 tile 中心方向纯函数导出
+    ///   （它没有更细的地址），经 GetOrGenerateMap 原版语义物化；降落进入它内部
+    ///   与「最近 tile 选图」无关——战术判定一律在连续轨道坐标完成。
+    /// - SnapshotPocket = Delta-V 自建对象（残骸等）：独立球面位置 + 结构快照，
+    ///   内部是口袋图。
     ///
     /// 地图生命周期三段（活跃/休眠/删除，SpaceLifecycle 统一管理）：
     /// - map != null 且未休眠：活跃（正常 tick）；
@@ -53,6 +59,7 @@ namespace DeltaV
         {
             kind = PoiKind.NativeParent;
             nativeParent = parent;
+            faction = parent?.Faction;
             seed = parent?.ID ?? 0;
         }
 

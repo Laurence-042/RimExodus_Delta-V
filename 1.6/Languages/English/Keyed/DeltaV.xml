@@ -23,8 +23,9 @@
   <DeltaV_Braking>braking</DeltaV_Braking>
   <DeltaV_SettingsFlightAssist>Flight assist</DeltaV_SettingsFlightAssist>
   <DeltaV_SettingsFlightAssistTip>While piloting, axes without player input are counter-thrusted using the ship's real thruster power (no artificial damping).</DeltaV_SettingsFlightAssistTip>
-  <DeltaV_SettingsLandingMapSize>Landing map size (100-1000)</DeltaV_SettingsLandingMapSize>
-  <DeltaV_SettingsLandingMapSizeNote>Display/performance parameter used when a new landing map is generated at the ship's current position; does not affect universe coordinates.</DeltaV_SettingsLandingMapSizeNote>
+  <DeltaV_SettingsCellsPerTile>Sector scale: cells per world tile (100-100000)</DeltaV_SettingsCellsPerTile>
+  <DeltaV_SettingsCellsPerTileNote>Sets how many universe cells one sector (world tile) spans. Changing it takes effect immediately: all object poses rescale around their sector centers (velocities untouched); cannot be changed while docking or launching is in progress. Does not affect tile partitioning or tactical judgments.</DeltaV_SettingsCellsPerTileNote>
+  <DeltaV_ScaleChangeBlocked>Sector scale cannot be changed while docking or launching is in progress.</DeltaV_ScaleChangeBlocked>
   <DeltaV_SettingsLogSection>Diagnostic logs</DeltaV_SettingsLogSection>
   <DeltaV_SettingsLogNote>Module-gated verbose logs ([DeltaV:Module] prefix). Warnings/errors and key state transitions (pilot enter/exit, suppression activation, patch init) are always logged regardless.</DeltaV_SettingsLogNote>
   <DeltaV_SettingsLogCore>Log: core &amp; piloting state</DeltaV_SettingsLogCore>
@@ -41,6 +42,7 @@
   <DeltaV_FixedButtonEnter>Enter fixed mode</DeltaV_FixedButtonEnter>
   <DeltaV_DockSuccess>{0} secured in fixed mode on the space anchor map.</DeltaV_DockSuccess>
   <DeltaV_DockFailHostMap>No landing map could be resolved for the current position.</DeltaV_DockFailHostMap>
+  <DeltaV_DockFailNoTarget>No powered-down object is under the ship to fix onto. Approach a station, wreck or other object and try again; powered ships cannot be docked onto.</DeltaV_DockFailNoTarget>
   <DeltaV_DockFailOutOfRange>Ship's universe position cannot be projected to an orbit tile. Fly closer to the planet first.</DeltaV_DockFailOutOfRange>
   <DeltaV_DockFailBlocked>Landing area on the target map is blocked. Pick another spot or clear it first.</DeltaV_DockFailBlocked>
   <DeltaV_DockFailNoEngine>No grav engine found on the ship. Fixed mode requires a grav engine as the ship's structural anchor.</DeltaV_DockFailNoEngine>
@@ -57,4 +59,11 @@
   <DeltaV_PoiDormant>POI {0}: dormant (map kept, ticking frozen).</DeltaV_PoiDormant>
   <DeltaV_PoiPacked>POI {0}: map removed (snapshot saved).</DeltaV_PoiPacked>
   <DeltaV_PoiRestored>POI {0}: map restored from snapshot.</DeltaV_PoiRestored>
+  <DeltaV_PanelDockedTitle>Fixed mode: {0}</DeltaV_PanelDockedTitle>
+  <DeltaV_PanelFixedTitle>Fixed mode</DeltaV_PanelFixedTitle>
+  <DeltaV_PanelSectorTitle>Space: {0}</DeltaV_PanelSectorTitle>
+  <DeltaV_PanelModeFixed>Mode: fixed (docked)</DeltaV_PanelModeFixed>
+  <DeltaV_PanelPickConsoleTip>Several gravships share this map. Select the target ship's pilot console and use its "Enter mobile mode" gizmo so the correct hull is captured.</DeltaV_PanelPickConsoleTip>
+  <DeltaV_PanelSectorMap>Open sector map</DeltaV_PanelSectorMap>
+  <DeltaV_PanelSectorMapTip>The sector map's exact form is not finalized yet (design doc section 12.2).</DeltaV_PanelSectorMapTip>
 </LanguageData>

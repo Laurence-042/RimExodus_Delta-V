@@ -77,6 +77,9 @@ namespace DeltaV
             /// <summary>ship local 单位推力方向。</summary>
             public Vector2 dir;
 
+            /// <summary>动力来源判定（ThrusterPower 抽象）：不可用的推进器不参与分配。</summary>
+            public bool operational;
+
             /// <summary>本 tick 分配到的油门 [0,1]；运行时派生状态，不参与物理积分或存档。</summary>
             public float throttle;
         }
@@ -134,13 +137,14 @@ namespace DeltaV
                 totalMass += m;
                 moment += r * m;
                 massPoints.Add((r, m));
-                if (thing.def == DeltaVDefOf.LargeThruster)
+                if (ThrusterPower.IsThruster(thing))
                 {
                     report.thrusters.Add(new Thruster
                     {
                         thing = thing,
                         localPos = r,
-                        dir = ThrustDir(thing.Rotation)
+                        dir = ThrustDir(thing.Rotation),
+                        operational = ThrusterPower.IsOperational(thing)
                     });
                 }
             }
@@ -227,6 +231,11 @@ namespace DeltaV
             for (int i = 0; i < report.thrusters.Count; i++)
             {
                 Thruster thruster = report.thrusters[i];
+                if (!thruster.operational)
+                {
+                    thruster.throttle = 0f;
+                    continue;
+                }
                 Vector2 fullForce = thruster.dir * ThrusterThrust;
                 float fullTorque = Cross(thruster.localPos - report.comLocal, fullForce);
                 positiveX += Mathf.Max(fullForce.x, 0f);
@@ -260,6 +269,7 @@ namespace DeltaV
                 {
                     int index = reverse ? report.thrusters.Count - 1 - step : step;
                     Thruster thruster = report.thrusters[index];
+                    if (!thruster.operational) continue;
                     Vector2 fullForce = thruster.dir * ThrusterThrust;
                     float axisX = fullForce.x / scaleX;
                     float axisZ = fullForce.y / scaleZ;
@@ -298,7 +308,7 @@ namespace DeltaV
             for (int i = 0; i < report.thrusters.Count; i++)
             {
                 Thruster thruster = report.thrusters[i];
-                if (thruster.throttle < 0.0001f)
+                if (!thruster.operational || thruster.throttle < 0.0001f)
                 {
                     thruster.throttle = 0f;
                     continue;

@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using HarmonyLib;
+using RimWorld;
 using UnityEngine;
 using Verse;
 
@@ -38,7 +39,7 @@ namespace DeltaV
                         DeltaVDefOf.DeltaV_Void, disableRegions: false)
                     : null);
             InitializeHarmony();
-            Log.Message("[DeltaV] Phase 3 closure build loaded (incremental orbital POI generation, dormancy, map overlays, spherical universe frame, fixed/mobile flight).");
+            Log.Message("[DeltaV] Star sector model build loaded (sector-scale setting, projection-based tactical docking, sector content bookkeeping, unified status panel with globe).");
         }
 
         private static void InitializeHarmony()
@@ -72,8 +73,9 @@ namespace DeltaV
             list.CheckboxLabeled("DeltaV_SettingsFlightAssist".Translate(), ref Settings.flightAssist,
                 "DeltaV_SettingsFlightAssistTip".Translate());
             list.Gap(6f);
-            list.TextFieldNumericLabeled("DeltaV_SettingsLandingMapSize".Translate(), ref Settings.landingMapSize,
-                ref landingMapSizeBuffer, 100, 1000);
+            list.TextFieldNumericLabeled("DeltaV_SettingsCellsPerTile".Translate(), ref Settings.cellsPerTile,
+                ref cellsPerTileBuffer, 100, 100000);
+            ApplyCellsPerTileChangeIfAny();
             list.Gap(6f);
             list.TextFieldNumericLabeled("DeltaV_SettingsUniverseZoomMax".Translate(), ref Settings.universeZoomMax,
                 ref universeZoomMaxBuffer, 60f, 5000f);
@@ -89,7 +91,7 @@ namespace DeltaV
             list.Gap(6f);
             Text.Font = GameFont.Tiny;
             GUI.color = new Color(1f, 1f, 1f, 0.6f);
-            list.Label("DeltaV_SettingsLandingMapSizeNote".Translate());
+            list.Label("DeltaV_SettingsCellsPerTileNote".Translate());
             GUI.color = Color.white;
 
             list.Gap(12f);
@@ -109,7 +111,7 @@ namespace DeltaV
         }
 
         // TextFieldNumeric 的文本缓冲需要跨帧保存；值只经本字段修改，无需外部同步。
-        private static string landingMapSizeBuffer;
+        private static string cellsPerTileBuffer;
 
         private static string universeZoomMaxBuffer;
 
@@ -118,6 +120,43 @@ namespace DeltaV
         private static string poiDeleteBuffer;
 
         private static string mapGenBudgetBuffer;
+
+        /// <summary>上次已应用的尺度值；用于检测设置变化并防止被拒绝的值回写。</summary>
+        private static int appliedCellsPerTile;
+
+        private static bool scaleInitialized;
+
+        /// <summary>
+        /// 星区架构 §8：尺度调整即时生效。停靠/起飞流程进行中禁止修改（回退值与输入缓冲），
+        /// 防止 pending 位姿计算被中途换尺度；主菜单等无宇宙状态下只记录新值，
+        /// 读档时由 UniverseManager 按存档尺度差异统一重标定。
+        /// </summary>
+        private static void ApplyCellsPerTileChangeIfAny()
+        {
+            if (!scaleInitialized)
+            {
+                appliedCellsPerTile = Settings.cellsPerTile;
+                scaleInitialized = true;
+                return;
+            }
+            if (Settings.cellsPerTile == appliedCellsPerTile) return;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe == null)
+            {
+                // 无进行中的游戏（主菜单改设置）：位姿重标定推迟到读档（UniverseManager.LoadedGame）。
+                appliedCellsPerTile = Settings.cellsPerTile;
+                return;
+            }
+            if (!universe.CanApplyScaleChange())
+            {
+                Settings.cellsPerTile = appliedCellsPerTile;
+                cellsPerTileBuffer = appliedCellsPerTile.ToString();
+                Messages.Message("DeltaV_ScaleChangeBlocked".Translate(), MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            universe.ApplyCellsPerTileScale(appliedCellsPerTile, Settings.cellsPerTile);
+            appliedCellsPerTile = Settings.cellsPerTile;
+        }
 
         public override string SettingsCategory()
         {

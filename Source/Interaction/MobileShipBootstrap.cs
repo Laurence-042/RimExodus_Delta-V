@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
 using UnityEngine;
@@ -14,6 +15,27 @@ namespace DeltaV
         public static bool IsZeroGravity(Map map)
         {
             return map != null && map.Tile.Valid && map.Tile.LayerDef.isSpace;
+        }
+
+        /// <summary>
+        /// 图上全部玩家驾驶台（含未 bootstrap 的原版 Gravship 结构）。面板用它判断
+        /// 固定模式入口：唯一驾驶台可直接进入移动模式；多艘船必须选中具体驾驶台
+        /// （按其连接的引擎与 ValidSubstructure 捕获准确船体，不能任选一台）。
+        /// </summary>
+        public static List<Building> PlayerConsoles(Map map)
+        {
+            var result = new List<Building>();
+            if (map?.listerThings?.AllThings == null) return result;
+            foreach (Thing thing in map.listerThings.AllThings)
+            {
+                if (thing is Building building && building.Spawned && !building.Destroyed
+                    && building.Faction == Faction.OfPlayer
+                    && building.TryGetComp<CompDeltaVPilotConsole>() != null)
+                {
+                    result.Add(building);
+                }
+            }
+            return result;
         }
 
         public static void TryEnter(UniverseManager universe, Building console)
@@ -65,13 +87,14 @@ namespace DeltaV
                 new SpacePose(universeDir, ShipOrientation.AngleFromRot4(console.Rotation)),
                 isPlayerShip: true)
             {
+                faction = Faction.OfPlayer,
                 primaryConsole = console,
                 docked = true,
                 dockedMap = sourceMap,
                 dockedOrigin = structureCenter,
                 dockedRotation = Rot4.North
             };
-            universe.objects.Add(ship);
+            universe.RegisterObject(ship);
             if (universe.primaryShipId < 0 || !universe.Ships.Any(s => s.objectId == universe.primaryShipId))
             {
                 universe.primaryShipId = ship.objectId;
