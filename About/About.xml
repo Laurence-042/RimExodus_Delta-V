@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ModMetaData>
   <name>RimExodus: Delta-V (Dev)</name>
-  <packageId>RimExodus.DeltaV</packageId>
+  <packageId>RimExodus.DeltaV.dev</packageId>
   <author>Laurence-042</author>
   <description>阶段3 开发原型：POI 生命周期 + 动态锚 + 驾驶台 + 固定/移动/驾驶模式。每艘移动飞船是一张独立的口袋地图，飞船姿态保存在地图外的统一宇宙坐标系中；当前聚焦地图保持原版朝向，非聚焦飞船以可平移、可任意角旋转的外壳代理显示。阶段2 加入连续驾驶（W/S 推进、A/D 平移、Q/E 转向，可在原版改键界面修改）、按质心与推进器位置的刚体物理、飞行辅助与 Universe Layer 星球 tile 映射。阶段3 加入太空 POI 三段生命周期（活跃/休眠/删除）、动态宇宙锚与连续星球背景、放宽缩放的宇宙视野、驾驶台与固定/移动转换（逆重搬运落宿主图或进入独占口袋图）。
 
