@@ -521,6 +521,16 @@ namespace DeltaV
         }
 
         /// <summary>
+        /// 当前相机上限是否处于 Delta-V 放宽状态；是则给出放宽前的原版值。
+        /// 供 GravshipCapturer 快照补丁在捕获窗口内临时还原原版缩放包络。
+        /// </summary>
+        internal static bool TryGetVanillaZoomMax(out float vanillaMax)
+        {
+            vanillaMax = savedVanillaZoomMax;
+            return !float.IsNaN(savedVanillaZoomMax);
+        }
+
+        /// <summary>
         /// 阶段2 物理积分（TickManager 每 tick 调用，暂停时冻结——正确的模拟语义）。
         /// 驾驶船按输入+辅助出力积分；其余船只在有速度/角速度时漂移积分。
         /// 只写 SpacePose（Map 外的宇宙状态），绝不触碰任何 Map 内 Thing（不变量 #6）。

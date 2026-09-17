@@ -47,6 +47,7 @@
   <DeltaV_DockFailBlocked>目标图上的降落区域被占用，请换一处或先清空。</DeltaV_DockFailBlocked>
   <DeltaV_DockFailNoEngine>船上没有逆重引擎。固定模式需要一台逆重引擎作为船体结构锚点。</DeltaV_DockFailNoEngine>
   <DeltaV_DockFailBusy>另一项逆重飞船降落或航行操作正在进行。</DeltaV_DockFailBusy>
+  <DeltaV_LaunchFailNoThruster>船上没有可工作的推进器。进入移动模式需要至少一台状态正常的推进器。</DeltaV_LaunchFailNoThruster>
   <DeltaV_MobileSuccess>{0} 已进入移动模式。</DeltaV_MobileSuccess>
   <DeltaV_ConsoleGizmoPilot>驾驶此船</DeltaV_ConsoleGizmoPilot>
   <DeltaV_ConsoleGizmoLaunch>进入移动模式</DeltaV_ConsoleGizmoLaunch>

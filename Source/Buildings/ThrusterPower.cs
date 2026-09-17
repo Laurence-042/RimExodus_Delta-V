@@ -5,12 +5,14 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 推进器动力来源抽象（星区架构 §9/§11，现阶段只留接口）。
+    /// 推进器动力来源抽象（星区架构 §9/§11）。
     ///
     /// 物理分配（ShipPhysics）与"无动力"判定（DockController 可降落判定）都经本缝
     /// 读取推进器当前实际可用性，不缓存静态标志。将来的 VEF 燃料管道、电网电推
     /// 只替换实现（含燃料类型从实际消耗管线取），调用方不感知来源；
-    /// 默认实现只看原版完整性（spawned 且未毁），不得实现成"所有推进器都必须接管道"。
+    /// 默认实现只查推进器自身实际状态（故障/排气堵塞/断电），不要求引擎连接或
+    /// 燃料管线——非玩家派系没有逆重引擎也能移动模式飞行（一致性模型见
+    /// doc/星区架构.md §7）。
     /// </summary>
     public interface IThrusterPowerModel
     {
@@ -51,6 +53,23 @@ namespace DeltaV
         }
 
         /// <summary>
+        /// 指定基架范围内是否存在任一可工作推进器。多船共图（停靠宿主图）时按引擎的
+        /// 相连基架连通域圈定单艘船，不误扫他船/站点结构；范围口径与转换捕获一致。
+        /// </summary>
+        public static bool HasWorkingThruster(Map map, ICollection<IntVec3> scope)
+        {
+            if (map?.listerThings?.AllThings == null || scope == null) return false;
+            foreach (Thing thing in map.listerThings.AllThings)
+            {
+                if (IsThruster(thing) && scope.Contains(thing.Position) && IsOperational(thing))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
         /// 图上是否存在任一存活驾驶台。主台被毁时其他台接任（CompDeltaVPilotConsole），
         /// 因此"失去驾驶能力"的口径是全部驾驶台被毁。
         /// </summary>
@@ -69,11 +88,35 @@ namespace DeltaV
         }
     }
 
-    /// <summary>默认动力模型：只看原版完整性（在场且未毁）。</summary>
+    /// <summary>
+    /// 默认动力模型：推进器自身实际状态——故障（CompBreakdownable）、排气堵塞/不露天
+    /// （CompGravshipThruster.Blocked）、断电（如有供电 comp；推进器一般没有）。
+    /// 不调用原版 CanBeActive：那要求连接殖民者逆重引擎与力场基架，会把无引擎的
+    /// 非玩家派系船全部判死。代价是 VGE 燃料条件（挂在 CanBeActive 上）不自动生效，
+    /// 将来由 VEF/VGE 兼容层替换 Model 实现。
+    /// </summary>
     public sealed class VanillaIntegrityPowerModel : IThrusterPowerModel
     {
         public bool IsOperational(Thing thruster)
         {
+            CompGravshipThruster comp = thruster.TryGetComp<CompGravshipThruster>();
+            if (comp == null)
+            {
+                return true;
+            }
+            if (comp.Breakdownable?.BrokenDown == true)
+            {
+                return false;
+            }
+            if (comp.Blocked)
+            {
+                return false;
+            }
+            CompPowerTrader power = thruster.TryGetComp<CompPowerTrader>();
+            if (power != null && !power.PowerOn)
+            {
+                return false;
+            }
             return true;
         }
     }

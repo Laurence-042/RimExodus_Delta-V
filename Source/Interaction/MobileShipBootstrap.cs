@@ -20,7 +20,7 @@ namespace DeltaV
         /// <summary>
         /// 图上全部玩家驾驶台（含未 bootstrap 的原版 Gravship 结构）。面板用它判断
         /// 固定模式入口：唯一驾驶台可直接进入移动模式；多艘船必须选中具体驾驶台
-        /// （按其连接的引擎与 ValidSubstructure 捕获准确船体，不能任选一台）。
+        /// （按其连接的引擎与相连基架连通域捕获准确船体，不能任选一台）。
         /// </summary>
         public static List<Building> PlayerConsoles(Map map)
         {
@@ -62,7 +62,9 @@ namespace DeltaV
                 Messages.Message("DeltaV_DockFailNoEngine".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            if (engine.ValidSubstructure.Count == 0)
+            // 圈定/锚定与转换捕获同口径（相连基架连通域）：bootstrap 的船可能已建得
+            // 超出引擎力场，结构中心按实际船体范围取。
+            if (engine.AllConnectedSubstructure.Count == 0)
             {
                 Messages.Message("CannotLaunchNoSubstructure".Translate().CapitalizeFirst(),
                     MessageTypeDefOf.RejectInput, false);
@@ -79,7 +81,7 @@ namespace DeltaV
                 return;
             }
 
-            Vector3 structureCenter3 = CellRect.FromCellList(engine.ValidSubstructure).CenterVector3;
+            Vector3 structureCenter3 = CellRect.FromCellList(engine.AllConnectedSubstructure).CenterVector3;
             Vector2 structureCenter = new Vector2(structureCenter3.x, structureCenter3.z);
             Vector2 sourceLocal = SpaceTransform.MapToShipLocal(sourceMap, structureCenter);
             Vector3 universeDir = SpaceTransform.FocusedToUniverse(sourceFrame, sourceLocal);

@@ -77,7 +77,9 @@ namespace DeltaV
             /// <summary>ship local 单位推力方向。</summary>
             public Vector2 dir;
 
-            /// <summary>动力来源判定（ThrusterPower 抽象）：不可用的推进器不参与分配。</summary>
+            /// <summary>动力来源判定（ThrusterPower 抽象）：不可用的推进器不参与分配。
+            /// Measure 时先快照；Allocate 每 tick 重读实时状态刷新（故障/排气堵塞即时生效，
+            /// 不受质量报告的 120 tick 重扫间隔拖慢）。</summary>
             public bool operational;
 
             /// <summary>本 tick 分配到的油门 [0,1]；运行时派生状态，不参与物理积分或存档。</summary>
@@ -231,6 +233,8 @@ namespace DeltaV
             for (int i = 0; i < report.thrusters.Count; i++)
             {
                 Thruster thruster = report.thrusters[i];
+                // 实时刷新：推进器实际状态（故障/排气堵塞/断电）变化当 tick 即生效。
+                thruster.operational = ThrusterPower.IsOperational(thruster.thing);
                 if (!thruster.operational)
                 {
                     thruster.throttle = 0f;

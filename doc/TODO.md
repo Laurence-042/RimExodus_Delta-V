@@ -2,6 +2,10 @@
 
 未完成工作与待验证项（AGENTS §1：排期不代表已实现状态）。完成后移除条目，不在本文件保留历史。
 
+## 当前问题
+
+
+
 ## 星区模型（已实现待实测，见 [星区架构.md](星区架构.md)）
 
 - [ ] 实测：连续跨多个星区飞行不再抛 `InvalidOperationException`（2026-09-17：`TickSectorTracking` 惰性枚举 `Ships` 时 `RegisterObject` 添加残骸所致，已快照修复）；RimExodus 地表 tile 到达/起飞不触发星区记账与残骸生成（isSpace 门控）。

@@ -50,7 +50,7 @@ namespace DeltaV
             {
                 Building_GravEngine engine = DockController.FindEngineForShip(map, ship.primaryConsole);
                 if (engine == null) return;
-                allowedCells = engine.ValidSubstructure;
+                allowedCells = engine.AllConnectedSubstructure;
                 rotation = SpaceTransform.FocusedMeshRotation(frame, 0f);
                 drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
                 sourceOrigin = DockController.DockedOriginMapPoint(ship);

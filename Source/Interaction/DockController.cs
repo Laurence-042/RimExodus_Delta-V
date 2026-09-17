@@ -18,7 +18,8 @@ namespace DeltaV
     /// - 深空固定被拒绝，不再凭空生成空画布；
     /// - 落点 = 飞船轨道位姿在该对象内部投影上的对应位置——只是原版降落选点的
     ///   **初始落点**，玩家仍经原版选点、合法性预览与确认调整；Delta-V 不另做裁决；
-    /// - 降落动画照旧：从映射位置/角度运动到实际选定的降落位置/角度。
+    /// - 降落动画从映射位置/角度运动到实际选定位置/角度；船体捕获冻结源船形态，
+    ///   terrain curtain 不绘制，背景直接使用目标图当前结构。
     ///
     /// 固定 → 移动（TryLaunch）：起飞后的轨道位姿 = 宿主 SpaceObject 位姿 ⊕ 起飞点
     /// 的内部坐标；口袋图上的起飞以 TileFromDirection(船 pose) 为战略源地址（§6）。
@@ -35,6 +36,9 @@ namespace DeltaV
         private static IntVec3 pendingMobileSourceRoot;
         private static Vector2 pendingMobileOldOrigin;
         private static float pendingMobileHeading;
+        private static Building_GravEngine directCaptureEngine;
+        private static Building_GravEngine landingCaptureEngine;
+        private static HashSet<IntVec3> landingCaptureCells;
 
         private static readonly FieldInfo ControllerMapHasGravAnchor =
             AccessTools.Field(typeof(WorldComponent_GravshipController), "mapHasGravAnchor");
@@ -49,6 +53,31 @@ namespace DeltaV
             AccessTools.Field(typeof(WorldComponent_GravshipController), "takeoffTile");
 
         public static bool MobileLaunchPending => pendingMobileShip != null;
+
+        /// <summary>
+        /// 指定引擎当前是否有 Delta-V 转换专用捕获范围。移动→固定的源端同步
+        /// GenerateGravship 读取整个相连域；船放入目标图后的二次画面捕获改读冻结的
+        /// Gravship foundation，避免相邻 wreck 污染动画。固定→移动从 InitiateTakeoff
+        /// 到原版捕获/移除完成始终读取整个相连域。
+        /// </summary>
+        public static bool TryGetConversionCaptureScope(Building_GravEngine engine,
+            out HashSet<IntVec3> scope)
+        {
+            scope = null;
+            if (engine == null) return false;
+            if (ReferenceEquals(engine, landingCaptureEngine) && landingCaptureCells != null)
+            {
+                scope = landingCaptureCells;
+                return true;
+            }
+            if (ReferenceEquals(engine, directCaptureEngine)
+                || (pendingMobileShip != null && ReferenceEquals(engine, pendingMobileEngine)))
+            {
+                scope = engine.AllConnectedSubstructure;
+                return true;
+            }
+            return false;
+        }
 
         public static float SnapAngle(float angle)
         {
@@ -145,9 +174,22 @@ namespace DeltaV
                 engine.launchInfo = new LaunchInfo { quality = 1f, doNegativeOutcome = false };
             }
 
-            Gravship gravship = GravshipUtility.GenerateGravship(engine);
+            pendingShip = ship;
+            Gravship gravship;
+            // GenerateGravship 是同步的；只让源端读取 AllConnectedSubstructure。目标图上的
+            // 降落 curtain/船体二次捕获必须回到原版 ValidSubstructure，避免吞入 wreck。
+            directCaptureEngine = engine;
+            try
+            {
+                gravship = GravshipUtility.GenerateGravship(engine);
+            }
+            finally
+            {
+                directCaptureEngine = null;
+            }
             if (gravship == null)
             {
+                pendingShip = null;
                 Log.Error($"[DeltaV] Docking '{ship.label}': GenerateGravship returned null; aborting.");
                 return;
             }
@@ -162,7 +204,6 @@ namespace DeltaV
             gravship.Tile = addressTile;
             gravship.destinationTile = addressTile;
 
-            pendingShip = ship;
             pendingGravship = gravship;
             ship.docking = true;
             PilotController.Exit(universe);
@@ -204,8 +245,10 @@ namespace DeltaV
         /// 悬停位置 → 目标对象内部投影上的初始落点：飞船中心映射为目标图格子，再按
         /// gravship 尺寸/旋转折算 designator 锚点格（GetSizeRotAdjustedCell 与
         /// PrefabUtility.GetRoot 互逆，传锚点格等价于鼠标悬停该处点击）。
-        /// 真实 tile 的空画布在锚点格铺一格 Substructure（原版选点要求至少一格与
-        /// 非 Space 地形相连）；口袋图目标不额外铺地。
+        /// 原版选点要求脚印与地面至少一格重合（Delta-V 空间图已放宽为重合或四邻接，
+        /// 见 Patch_DesignatorMoveGravship_AdjacentLanding）；真实 tile 的空画布全图
+        /// 皆 Space、四邻也无非 Space 格，仍在锚点格预铺一格 Substructure 满足重合；
+        /// 口袋图目标不额外铺地。
         /// </summary>
         private static IntVec3 InitialLandingCell(ShipState ship, SpaceObject target, Map targetMap,
             Gravship gravship, Rot4 facing)
@@ -228,6 +271,9 @@ namespace DeltaV
             pendingShip = null;
             pendingGravship = null;
             landedShipAwaitingPocketCleanup = null;
+            directCaptureEngine = null;
+            landingCaptureEngine = null;
+            landingCaptureCells = null;
             ClearPendingMobileLaunch();
             Gravship gravship = Current.Game?.Gravship;
             if (universe == null || gravship == null || Find.GravshipController == null) return;
@@ -252,6 +298,13 @@ namespace DeltaV
                 || !ReferenceEquals(marker.gravship, pendingGravship)) return false;
 
             ShipState ship = pendingShip;
+            // marker.GravshipCells 来自已捕获 Gravship 自身的 Foundations，而不是目标图
+            // 的现场 flood-fill。先冻结到最终 Map 坐标：PlaceGravship 后原版会再次读取
+            // engine.ValidSubstructure 制作降落画面/遮罩；若改读现场集合，邻接且处于力场
+            // 内的 wreck 会被误并入飞船形态。
+            landingCaptureEngine = marker.gravship.Engine;
+            landingCaptureCells = new HashSet<IntVec3>(
+                marker.GravshipCells.Select(cell => cell + marker.Position));
             Rot4 landedFacing = marker.gravship.PilotConsole != null
                 && marker.gravship.ThingPlacements.TryGetValue(marker.gravship.PilotConsole, out PositionData.Data data)
                 ? data.rotation
@@ -297,6 +350,8 @@ namespace DeltaV
         /// </summary>
         public static void NotifyVanillaLandingEnded()
         {
+            landingCaptureEngine = null;
+            landingCaptureCells = null;
             ShipState ship = landedShipAwaitingPocketCleanup;
             landedShipAwaitingPocketCleanup = null;
             DestroyDockedPocketMap(ship);
@@ -349,6 +404,13 @@ namespace DeltaV
             if (engine == null)
             {
                 Messages.Message("DeltaV_DockFailNoEngine".Translate(), MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            // 门禁与移动模式捕获同口径：控制台所属引擎的整个相连基架域。
+            // 没有任何一台可工作推进器（ThrusterPower 实际状态）则拒绝进入移动模式。
+            if (!ThrusterPower.HasWorkingThruster(sourceMap, engine.AllConnectedSubstructure))
+            {
+                Messages.Message("DeltaV_LaunchFailNoThruster".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
             if (MobileLaunchPending || Find.GravshipController == null
@@ -647,21 +709,31 @@ namespace DeltaV
 
         internal static Building_GravEngine FindEngineForShip(Map map, Building primaryConsole)
         {
+            // 原版 facility comp 保留其实际引擎引用；停靠到另一艘带引擎的船旁时，
+            // 不能只靠共享基架连通性扫描，否则两台引擎都会“包含”主驾驶台。
+            CompPilotConsole consoleComp = primaryConsole?.TryGetComp<CompPilotConsole>();
+            if (consoleComp?.engine != null && consoleComp.engine.Spawned && consoleComp.engine.Map == map)
+            {
+                return consoleComp.engine;
+            }
             Building_GravEngine fallback = null;
             foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.GravEngine))
             {
                 var engine = thing as Building_GravEngine;
                 if (engine == null) continue;
                 if (fallback == null) fallback = engine;
+                // 归属圈定用相连基架连通域（与转换捕获同口径）：超出引擎力场的
+                // 驾驶台/结构仍属于该船，只要基架相连。
                 if (primaryConsole != null && primaryConsole.Spawned && primaryConsole.Map == map
-                    && engine.ValidSubstructure.Contains(primaryConsole.Position)) return engine;
+                    && engine.AllConnectedSubstructure.Contains(primaryConsole.Position)) return engine;
             }
             return fallback;
         }
 
         /// <summary>
         /// 判断宿主图上的 Thing 是否属于指定停靠船。停靠后 ship.map 已销毁，不能再靠
-        /// ShipOnMap 反查；原版 GravEngine.ValidSubstructure 是此时实际船体归属的权威集合。
+        /// ShipOnMap 反查；引擎的相连基架连通域是此时实际船体归属的权威集合
+        /// （与转换捕获同口径，超出力场的相连结构同样计入）。
         /// </summary>
         internal static bool ContainsDockedThing(ShipState ship, Thing thing)
         {
@@ -671,7 +743,7 @@ namespace DeltaV
                 return false;
             }
             Building_GravEngine engine = FindEngineForShip(ship.dockedMap, ship.primaryConsole);
-            return engine != null && engine.ValidSubstructure.Contains(thing.PositionHeld);
+            return engine != null && engine.AllConnectedSubstructure.Contains(thing.PositionHeld);
         }
 
         private static void PlaceIntoMap(Gravship gravship, IntVec3 root, Map map)

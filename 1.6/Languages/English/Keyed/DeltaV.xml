@@ -47,6 +47,7 @@
   <DeltaV_DockFailBlocked>Landing area on the target map is blocked. Pick another spot or clear it first.</DeltaV_DockFailBlocked>
   <DeltaV_DockFailNoEngine>No grav engine found on the ship. Fixed mode requires a grav engine as the ship's structural anchor.</DeltaV_DockFailNoEngine>
   <DeltaV_DockFailBusy>Another gravship landing or flight operation is already in progress.</DeltaV_DockFailBusy>
+  <DeltaV_LaunchFailNoThruster>No operational thruster found on the ship. Entering mobile mode requires at least one functional thruster.</DeltaV_LaunchFailNoThruster>
   <DeltaV_MobileSuccess>{0} has entered mobile mode.</DeltaV_MobileSuccess>
   <DeltaV_ConsoleGizmoPilot>Pilot this ship</DeltaV_ConsoleGizmoPilot>
   <DeltaV_ConsoleGizmoLaunch>Enter mobile mode</DeltaV_ConsoleGizmoLaunch>
