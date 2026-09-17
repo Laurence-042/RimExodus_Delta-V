@@ -41,6 +41,7 @@
   <DeltaV_SaveBlockedGenerating>Delta-V is incrementally generating a map ({0}). Please save again after it finishes.</DeltaV_SaveBlockedGenerating>
   <DeltaV_FixedButtonEnter>Enter fixed mode</DeltaV_FixedButtonEnter>
   <DeltaV_DockSuccess>{0} secured in fixed mode on the space anchor map.</DeltaV_DockSuccess>
+  <DeltaV_ApproachAborted>Landing approach failed unexpectedly. Control was restored; the ship remains in mobile mode and docking can be retried.</DeltaV_ApproachAborted>
   <DeltaV_DockFailHostMap>No landing map could be resolved for the current position.</DeltaV_DockFailHostMap>
   <DeltaV_DockFailNoTarget>No powered-down object is under the ship to fix onto. Approach a station, wreck or other object and try again; powered ships cannot be docked onto.</DeltaV_DockFailNoTarget>
   <DeltaV_DockFailOutOfRange>Ship's universe position cannot be projected to an orbit tile. Fly closer to the planet first.</DeltaV_DockFailOutOfRange>

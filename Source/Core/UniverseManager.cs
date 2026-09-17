@@ -310,7 +310,8 @@ namespace DeltaV
             pocketHostService?.Reset();
             OrbitSphere.ClearCache();
             SectorContentService.Reset();
-            DeltaVLandingAnimator.ResetTiming();
+            ShipAutopilot.ResetOnLoad();
+            LandingApproachController.ResetOnLoad();
             mapFrame = null;
             PilotController.SuppressVanillaKeys = false;
             DockController.RestorePendingAfterLoad(this);
@@ -485,6 +486,8 @@ namespace DeltaV
             // 驾驶状态维护（自动退出 + Harmony 按键抑制开关）。
             PilotController.UpdateFrameState(this);
             DebugActions_DeltaV.UpdateFrameMeter();
+            // 轨道层通用自动驾驶（帧驱动：降落过场期间 tick 冻结），先于船壳绘制推进位姿。
+            ShipAutopilot.Update();
             ShellRenderer.DrawNonFocusedShells(this);
             WorldShipMarkerRenderer.DrawPlayerShips(this);
             ThrusterEffects.Draw(this);
@@ -549,6 +552,10 @@ namespace DeltaV
                 if (ship.docked || ship.docking)
                 {
                     continue; // 停靠/选点中：船体不在活动口袋图上，宇宙状态冻结
+                }
+                if (ShipAutopilot.IsActive(ship))
+                {
+                    continue; // 自动驾驶中的船由 ShipAutopilot 帧驱动，避免双重积分
                 }
                 bool isPiloted = piloting && ship == piloted;
                 bool drifting = ship.pose.velocity.sqrMagnitude > 1e-10f

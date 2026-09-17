@@ -35,7 +35,11 @@ namespace DeltaV
 
         private static void DrawObjectShell(SpaceObject obj, SpaceObject frame, Map frameMap)
         {
-            if (obj is ShipState dockingShip && dockingShip.docking) return;
+            // 选点阶段（docking 且未进场）船体已被捕获进口袋 Gravship，无活图可画；
+            // 进场阶段（LandingApproachController 驾驶中）正是要经下方非停靠分支
+            // 把飞行中的船壳实时显示在聚焦的目标图上。
+            if (obj is ShipState dockingShip && dockingShip.docking
+                && !LandingApproachController.IsApproaching(dockingShip)) return;
             ShipState ship = obj as ShipState;
             bool docked = ship != null && ship.docked;
             Map map = docked ? ship.dockedMap : obj.map;
@@ -75,7 +79,8 @@ namespace DeltaV
             MapOverlayRenderer.ClearRuntimeCaches();
         }
 
-        private static CellRect TransformRectInverse(Matrix4x4 matrix, CellRect rect)
+        /// <summary>显示帧矩阵的逆变换：把相机视野矩形换回源 Map 局部坐标（供裁剪）。</summary>
+        internal static CellRect TransformRectInverse(Matrix4x4 matrix, CellRect rect)
         {
             Matrix4x4 inverse = matrix.inverse;
             Vector3 a = inverse.MultiplyPoint3x4(new Vector3(rect.minX, 0f, rect.minZ));

@@ -47,7 +47,7 @@ namespace DeltaV
         private static int cachedRuleCount = -1;
 
         public static void Draw(Map map, Matrix4x4 matrix, Quaternion rotation, CellRect localView,
-            MapOverlayRenderConfig config, HashSet<IntVec3> allowedCells = null)
+            MapOverlayRenderConfig config, HashSet<IntVec3> allowedCells = null, int layer = 0)
         {
             if (map == null || map.Disposed || IncrementalMapGenerationService.IsGenerating(map)) return;
             if (!localView.Overlaps(CellRect.WholeMap(map))) return;
@@ -59,11 +59,11 @@ namespace DeltaV
             int maxSz = visible.maxZ / SectionSize;
             for (int sz = minSz; sz <= maxSz; sz++)
             for (int sx = minSx; sx <= maxSx; sx++)
-                DrawSection(map, matrix, rotation, visible, config, allowedCells, sx, sz);
+                DrawSection(map, matrix, rotation, visible, config, allowedCells, sx, sz, layer);
         }
 
         private static void DrawSection(Map map, Matrix4x4 matrix, Quaternion rotation, CellRect visible,
-            MapOverlayRenderConfig config, HashSet<IntVec3> allowedCells, int sx, int sz)
+            MapOverlayRenderConfig config, HashSet<IntVec3> allowedCells, int sx, int sz, int layer)
         {
             int key = sx | (sz << 16);
             MapCache cache = CacheFor(map);
@@ -82,7 +82,7 @@ namespace DeltaV
                 Material material = MaterialFor(terrain);
                 if (material == null) continue;
                 Vector3 source = new Vector3(cell.x + 0.5f, AltitudeLayer.Terrain.AltitudeFor(), cell.z + 0.5f);
-                Graphics.DrawMesh(CellMeshFor(cell), matrix.MultiplyPoint3x4(source), rotation, material, 0);
+                Graphics.DrawMesh(CellMeshFor(cell), matrix.MultiplyPoint3x4(source), rotation, material, layer);
             }
 
             for (int i = 0; i < section.things.Count; i++)
@@ -98,7 +98,7 @@ namespace DeltaV
                 target.y += (rule?.zIndex ?? 0f) * Altitudes.AltInc;
                 Material material = graphic is Graphic_Linked ? graphic.MatSingleFor(thing) : graphic.MatAt(rot, thing);
                 if (material != null)
-                    Graphics.DrawMesh(graphic.MeshAt(rot), target, rotation * graphic.QuatFromRot(rot), material, 0);
+                    Graphics.DrawMesh(graphic.MeshAt(rot), target, rotation * graphic.QuatFromRot(rot), material, layer);
             }
         }
 

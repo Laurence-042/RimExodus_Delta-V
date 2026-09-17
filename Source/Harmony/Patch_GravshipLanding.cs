@@ -5,12 +5,16 @@ using Verse;
 
 namespace DeltaV
 {
+    /// <summary>
+    /// 缓存降落 marker（Destroy 前的引用）供 LandingApproachController 到达重放时
+    /// 复活原版 InitiateLanding 依赖的 GravshipCells；接管判定见 TryConsume。
+    /// </summary>
     [HarmonyPatch(typeof(GravshipLandingMarker), nameof(GravshipLandingMarker.BeginLanding))]
     public static class Patch_GravshipLanding
     {
         public static void Prefix(GravshipLandingMarker __instance)
         {
-            DockController.NotifyVanillaLandingBegun(__instance);
+            LandingApproachController.CaptureMarker(__instance);
         }
     }
 

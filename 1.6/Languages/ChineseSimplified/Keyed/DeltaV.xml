@@ -41,6 +41,7 @@
   <DeltaV_SaveBlockedGenerating>Delta-V 正在分帧生成地图（{0}）。请在生成完成后重试保存。</DeltaV_SaveBlockedGenerating>
   <DeltaV_FixedButtonEnter>进入固定模式</DeltaV_FixedButtonEnter>
   <DeltaV_DockSuccess>{0} 已在宿主图进入固定模式。</DeltaV_DockSuccess>
+  <DeltaV_ApproachAborted>降落进场异常中止，已恢复控制。飞船仍处于移动模式，可重新发起降落。</DeltaV_ApproachAborted>
   <DeltaV_DockFailHostMap>无法解析当前位置的降落图。</DeltaV_DockFailHostMap>
   <DeltaV_DockFailNoTarget>没有可固定目标：飞船下方没有无动力的对象。请接近空间站、残骸等对象后重试；有动力飞船不可降落。</DeltaV_DockFailNoTarget>
   <DeltaV_DockFailOutOfRange>飞船的宇宙位置无法投影到轨道 tile，请先回到星球附近。</DeltaV_DockFailOutOfRange>

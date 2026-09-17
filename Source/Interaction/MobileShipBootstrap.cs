@@ -85,8 +85,11 @@ namespace DeltaV
             Vector2 structureCenter = new Vector2(structureCenter3.x, structureCenter3.z);
             Vector2 sourceLocal = SpaceTransform.MapToShipLocal(sourceMap, structureCenter);
             Vector3 universeDir = SpaceTransform.FocusedToUniverse(sourceFrame, sourceLocal);
+            // 初始宇宙角 = 宿主帧角 ⊕ 主台在源图上的朝向（与降落落点反向映射互逆；
+            // 真实轨道图的显示帧角恒 0，此收口为约定统一）。
             var ship = new ShipState(universe.NextObjectId(), engine.RenamableLabel, null,
-                new SpacePose(universeDir, ShipOrientation.AngleFromRot4(console.Rotation)),
+                new SpacePose(universeDir, SpaceTransform.WrapAngle(sourceFrame.pose.angle
+                    + ShipOrientation.AngleFromRot4(console.Rotation))),
                 isPlayerShip: true)
             {
                 faction = Faction.OfPlayer,

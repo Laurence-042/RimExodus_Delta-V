@@ -53,9 +53,20 @@ namespace DeltaV
             }
         }
 
+        /// <summary>按推进器当前地图位置/朝向画火焰（驾驶模式常规路径）。</summary>
         private static void DrawFlame(ShipPhysics.Thruster thruster)
         {
             Thing thing = thruster.thing;
+            DrawFlame(thing, thruster.throttle, thing.Rotation.AsQuat,
+                GenThing.TrueCenter(thing.Position, thing.Rotation, thing.def.size, 0f));
+        }
+
+        /// <summary>
+        /// 指定世界位置/朝向画火焰（降落动画等表现层复用同一套材质与参数；
+        /// 位置/朝向由调用方经动画矩阵换算，不读 Thing 的真实地图位姿）。
+        /// </summary>
+        public static void DrawFlame(Thing thing, float throttle, Quaternion rotation, Vector3 thrusterCenter)
+        {
             CompGravshipThruster comp = thing.TryGetComp<CompGravshipThruster>();
             CompProperties_GravshipThruster props = comp?.Props;
             if (props == null || props.flameSize <= 0f)
@@ -63,14 +74,13 @@ namespace DeltaV
                 return;
             }
 
-            float throttle = Mathf.Clamp01(thruster.throttle);
+            throttle = Mathf.Clamp01(throttle);
             float fullSize = thing.def.size.x * props.flameSize;
             float visualThrottle = Mathf.Sqrt(throttle);
             float flameSize = fullSize * Mathf.Lerp(0.08f, 1f, visualThrottle);
-            Vector3 offset = thing.Rotation.AsQuat * props.flameOffsetsPerDirection[thing.Rotation.AsInt];
-            Vector3 position = GenThing.TrueCenter(thing.Position, thing.Rotation, thing.def.size, 0f)
-                - thing.Rotation.AsIntVec3.ToVector3() * (thing.def.size.z * 0.5f + flameSize * 0.5f)
-                + offset;
+            Vector3 facing = rotation * Vector3.forward;
+            Vector3 offset = rotation * props.flameOffsetsPerDirection[thing.Rotation.AsInt];
+            Vector3 position = thrusterCenter - facing * (thing.def.size.z * 0.5f + flameSize * 0.5f) + offset;
             position = position.SetToAltitude(AltitudeLayer.Skyfaller).WithYOffset(0.07317074f);
 
             MaterialRequest request = new MaterialRequest(props.FlameShaderType.Shader)
@@ -89,7 +99,7 @@ namespace DeltaV
             }
             // Def 参数先应用，油门颜色后写入，避免未来 Def 增加 _Color2 时覆盖动态出力。
             FlameBlock.SetColor(ShaderPropertyColor2, color);
-            GenDraw.DrawQuad(material, position, thing.Rotation.AsQuat, flameSize, FlameBlock);
+            GenDraw.DrawQuad(material, position, rotation, flameSize, FlameBlock);
         }
 
         private static void EmitExhaust(ShipPhysics.Thruster thruster, Map map)

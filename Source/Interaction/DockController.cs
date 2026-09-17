@@ -18,8 +18,9 @@ namespace DeltaV
     /// - 深空固定被拒绝，不再凭空生成空画布；
     /// - 落点 = 飞船轨道位姿在该对象内部投影上的对应位置——只是原版降落选点的
     ///   **初始落点**，玩家仍经原版选点、合法性预览与确认调整；Delta-V 不另做裁决；
-    /// - 降落动画从映射位置/角度运动到实际选定位置/角度；船体捕获冻结源船形态，
-    ///   terrain curtain 照原版绘制——过场用降落前截图遮住已先行放置的真船，收尾揭示。
+    /// - 确认后由 LandingApproachController 接管为进场自动驾驶：船回飞行口袋图、
+    ///   复用原版 cutscene 级联夺取控制权、目标图正常聚焦渲染且非聚焦船壳自动
+    ///   显示；到达后重放原版 InitiateLanding（动画压零）完成真实转移。
     ///
     /// 固定 → 移动（TryLaunch）：起飞后的轨道位姿 = 宿主 SpaceObject 位姿 ⊕ 起飞点
     /// 的内部坐标；口袋图上的起飞以 TileFromDirection(船 pose) 为战略源地址（§6）。
@@ -117,7 +118,7 @@ namespace DeltaV
                 Messages.Message("DeltaV_DockFailNoEngine".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            SpaceObject target = FindLandableTarget(universe, ship);
+            SpaceObject target = FindLandableTarget(universe, ship, engine);
             if (target == null)
             {
                 // 深空固定被拒绝（星区架构 §7）：不再凭空生成空画布；目标尚未物化时
@@ -131,19 +132,95 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 可降落目标扫描。objects 列表顺序 = 生成/纳管顺序：投影重叠时靠后者渲染在上层、
-        /// 重叠区域的降落也落在它上面（星区架构 §4 tie-breaker，与渲染顺序同源）。
+        /// 可降落目标扫描（2026-09-17 修订：投影重叠的 tie-breaker 从「渲染靠后优先」
+        /// 改为「可见船壳最近优先」——渲染顺序只对船壳重叠正确；当目标 A 船壳小而地图大
+        /// 时，玩家看得见下层 B 的船壳、却仍会落到 A，与所见不符）。资格门槛不变：
+        /// 飞船中心在对象内部地图投影内；距离 = 双方可渲染船壳（凸包）的最近距离，
+        /// 无船壳数据的目标记无穷大（全部无穷大时保留渲染顺序兜底）。
         /// </summary>
-        private static SpaceObject FindLandableTarget(UniverseManager universe, ShipState ship)
+        private static SpaceObject FindLandableTarget(UniverseManager universe, ShipState ship,
+            Building_GravEngine playerEngine)
         {
             SpaceObject best = null;
+            float bestDistance = float.MaxValue;
             foreach (SpaceObject obj in universe.objects)
             {
                 if (obj == ship || obj.map == null || !IsLandableObject(obj)) continue;
                 if (!ShipCenterInsideProjection(obj, ship.pose.position)) continue;
-                best = obj;
+                float distance = VisibleShellDistance(universe, ship, playerEngine, obj);
+                if (distance <= bestDistance)
+                {
+                    best = obj;
+                    bestDistance = distance;
+                }
             }
             return best;
+        }
+
+        /// <summary>
+        /// 玩家船壳与目标可渲染船壳的最近距离（目标切空间系中计算；数据流与外壳渲染
+        /// 同源——船壳格列表 + 双方位姿，凸包后求距离）。船壳口径与渲染一致：
+        /// 船 = 引擎相连基架（引擎损毁退化为 ShipConfig 可见内容扫描），
+        /// POI = PoiConfig 可见内容格。
+        /// </summary>
+        private static float VisibleShellDistance(UniverseManager universe, ShipState ship,
+            Building_GravEngine playerEngine, SpaceObject target)
+        {
+            HashSet<IntVec3> playerCells = playerEngine?.AllConnectedSubstructure;
+            if (playerCells == null || playerCells.Count == 0 || ship.map == null) return float.MaxValue;
+            Map targetMap;
+            HashSet<IntVec3> targetCells = null;
+            if (target is ShipState targetShip)
+            {
+                targetMap = targetShip.docked ? targetShip.dockedMap : targetShip.map;
+                Building_GravEngine engine = targetMap == null ? null : FindEngineForShip(targetMap, null);
+                targetCells = engine?.AllConnectedSubstructure;
+            }
+            else
+            {
+                targetMap = target.map;
+            }
+            if (targetMap == null || targetMap.Disposed) return float.MaxValue;
+            // 统一坐标系：目标格子所在图的显示帧（口袋图 = 对象自身；停靠宿主图 = 宿主
+            // 帧——停靠船的格子在宿主图坐标系里，不能投到它自己的位姿帧）。
+            SpaceObject targetFrame = universe.FrameOf(targetMap);
+            if (targetFrame == null) return float.MaxValue;
+
+            // 目标系坐标：目标格子即本系局部坐标；玩家格子经 位姿 → universe → 目标系。
+            var targetPoints = new List<Vector2>();
+            if (targetCells != null)
+            {
+                foreach (IntVec3 cell in targetCells)
+                {
+                    targetPoints.Add(SpaceTransform.MapToShipLocal(targetMap,
+                        new Vector2(cell.x + 0.5f, cell.z + 0.5f)));
+                }
+            }
+            else
+            {
+                MapOverlayRenderConfig config = target is ShipState
+                    ? ShellRenderer.ShipConfig : ShellRenderer.PoiConfig;
+                foreach (IntVec3 cell in CellRect.WholeMap(targetMap))
+                {
+                    if (MapOverlayRenderer.ContainsVisibleContent(targetMap, cell, config))
+                    {
+                        targetPoints.Add(SpaceTransform.MapToShipLocal(targetMap,
+                            new Vector2(cell.x + 0.5f, cell.z + 0.5f)));
+                    }
+                }
+            }
+            if (targetPoints.Count == 0) return float.MaxValue;
+
+            var playerPoints = new List<Vector2>(playerCells.Count);
+            foreach (IntVec3 cell in playerCells)
+            {
+                Vector2 local = SpaceTransform.MapToShipLocal(ship.map,
+                    new Vector2(cell.x + 0.5f, cell.z + 0.5f));
+                playerPoints.Add(SpaceTransform.UniverseToFocused(targetFrame,
+                    SpaceTransform.ShipLocalToUniverse(ship.pose, local)));
+            }
+            return PlanarGeometry.HullDistance(
+                PlanarGeometry.ConvexHull(playerPoints), PlanarGeometry.ConvexHull(targetPoints));
         }
 
         /// <summary>
@@ -185,7 +262,6 @@ namespace DeltaV
         {
             ship.preDockPose = ship.pose;
             ship.pocketRoot = engine.Position;
-            DeltaVLandingAnimator.Prepare(ship);
             ship.pose.velocity = Vector2.zero;
             ship.pose.angularVelocity = 0f;
             if (engine.launchInfo == null)
@@ -215,7 +291,11 @@ namespace DeltaV
                 return;
             }
             Rot4 sourceFacing = gravship.PilotConsole?.Rotation ?? Rot4.East;
-            Rot4 desiredFacing = ShipOrientation.Rot4FromAngle(snappedHeading);
+            // 选点发生在宿主图坐标系：初始建议朝向按宿主帧角换算（角 0 宿主上不变），
+            // 与玩家当前看到的船壳姿态一致。
+            SpaceObject landingHostFrame = universe.FrameOf(targetMap);
+            Rot4 desiredFacing = ShipOrientation.Rot4FromAngle(SpaceTransform.WrapAngle(
+                snappedHeading - (landingHostFrame != null ? landingHostFrame.pose.angle : 0f)));
             gravship.Rotation = ShipOrientation.PlacementRotation(sourceFacing, desiredFacing);
             // 口袋图目标（POI/无动力船内部）没有 tile：以船位姿所在星区为地址，
             // 保证选点期间的任何 world 查询与中途存档都落在合法 tile 上。
@@ -306,8 +386,9 @@ namespace DeltaV
             if (universe == null || gravship == null || Find.GravshipController == null) return;
             if (!Find.GravshipController.LandingAreaConfirmationInProgress)
             {
-                // BeginLanding 之后保存：落地动画尚未结束，保留旧图供 Animator 使用，
-                // 并在恢复后的 LandingEnded Postfix 再销毁。
+                // BeginLanding 之后保存：进场阶段原版禁存档，此分支只覆盖旧版本存档
+                // （选点确认后、LandingEnded 前的历史中间态），保留旧图供
+                // LandingEnded Postfix 再销毁。
                 landedShipAwaitingPocketCleanup = universe.Ships
                     .FirstOrDefault(s => s.docked && s.dockedMap == Find.CurrentMap);
                 return;
@@ -318,58 +399,78 @@ namespace DeltaV
             pendingGravship = gravship;
         }
 
-        /// <summary>原版 GravshipLandingMarker.BeginLanding Prefix 的状态桥。</summary>
-        public static bool NotifyVanillaLandingBegun(GravshipLandingMarker marker)
+        /// <summary>选点/进场流程中的战术降落船（BeginOriginalLanding 置位，WriteDockedState 清除）。</summary>
+        internal static ShipState PendingDockingShip => pendingShip;
+
+        /// <summary>
+        /// 落点反向映射（进场目标与最终停靠写入共用同一公式，保证船壳收敛帧与真船落位
+        /// 严格重合）：落点 cell/旋转 → 轨道层位姿 = 宿主 SpaceObject 位姿 ⊕ 落点局部
+        /// （星区架构 §4 坐标桥）；角度 = 宿主帧角 ⊕ 最终放置朝向——ThingPlacements
+        /// getter 用**当前** gravship.Rotation 合成最终朝向，调用时它必须是玩家确认的
+        /// 落点旋转（详见 LandingApproachController.TryConsume 的时序约束）。
+        /// </summary>
+        internal static void ComputeLandingPose(ShipState ship, Gravship gravship, Map map,
+            IntVec3 landingPos, Rot4 landingRot, out Vector3 direction, out float angle,
+            out Vector2 dockedOrigin)
         {
-            if (marker == null || pendingShip == null || pendingGravship == null
-                || !ReferenceEquals(marker.gravship, pendingGravship)) return false;
-
-            ShipState ship = pendingShip;
-            // foundation 冻结已统一前移到 InitiateLanding Prefix
-            // （Patch_GravshipController_InitiateLanding_FreezeFoundation），此处不再设置。
-            Rot4 landedFacing = marker.gravship.PilotConsole != null
-                && marker.gravship.ThingPlacements.TryGetValue(marker.gravship.PilotConsole, out PositionData.Data data)
-                ? data.rotation
-                : ShipOrientation.Rot4FromAngle(ShipOrientation.HeadingAngle(ship));
-
-            ship.dockedRotation = marker.GravshipRotation;
-            ship.dockedMap = marker.Map;
-            Vector2 pocketCenterFromRoot = SpaceTransform.ShipLocalOrigin(ship.map)
-                - new Vector2(ship.pocketRoot.x, ship.pocketRoot.z);
-            ship.dockedOrigin = new Vector2(marker.Position.x, marker.Position.z)
-                + SpaceTransform.RotatePlacementOffset(pocketCenterFromRoot, marker.GravshipRotation);
-
-            // 降落选点发生在目标图的地图坐标系中：经宿主 SpaceObject 的位姿（对象位姿 ⊕
-            // 内部局部坐标，星区架构 §4 坐标桥）把真实船体原点换回 Universe 球面方向，
-            // 使"落在投影的哪个位置"成为真正的宇宙位置变化；其他对象绝对状态不受影响。
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            SpaceObject hostFrame = universe?.FrameOf(marker.Map);
-            if (hostFrame != null)
+            SpaceObject hostFrame = universe?.FrameOf(map);
+            if (hostFrame == null)
             {
-                Vector2 mapLocal = SpaceTransform.MapToShipLocal(marker.Map, ship.dockedOrigin);
-                ship.pose.position = SpaceTransform.FocusedToUniverse(hostFrame, mapLocal);
+                direction = ship.pose.position; // 宿主未纳管的防御分支：位姿不动
+                angle = ship.pose.angle;
+                dockedOrigin = new Vector2(landingPos.x, landingPos.z);
+                return;
             }
-            ship.pose.angle = ShipOrientation.AngleFromRot4(landedFacing);
+            float hostAngle = hostFrame.pose.angle;
+            Rot4 landedFacing = gravship.PilotConsole != null
+                && gravship.ThingPlacements.TryGetValue(gravship.PilotConsole, out PositionData.Data data)
+                ? data.rotation
+                // 无主台防御：以当前航向（换算到宿主图坐标系）为落地朝向。
+                : ShipOrientation.Rot4FromAngle(SpaceTransform.WrapAngle(
+                    ShipOrientation.HeadingAngle(ship) - hostAngle));
+            angle = SpaceTransform.WrapAngle(hostAngle + ShipOrientation.AngleFromRot4(landedFacing));
+
+            Vector2 pocketCenterFromRoot = ship.map != null
+                ? SpaceTransform.ShipLocalOrigin(ship.map) - new Vector2(ship.pocketRoot.x, ship.pocketRoot.z)
+                : Vector2.zero;
+            dockedOrigin = new Vector2(landingPos.x, landingPos.z)
+                + SpaceTransform.RotatePlacementOffset(pocketCenterFromRoot, landingRot);
+            direction = SpaceTransform.FocusedToUniverse(hostFrame,
+                SpaceTransform.MapToShipLocal(map, dockedOrigin));
+        }
+
+        /// <summary>
+        /// 战术降落的真转移状态写入（LandingApproachController 到达时调用）：docked 字段、
+        /// 落点反算 universe 位姿（"落在投影的哪个位置"成为真正的宇宙位置变化，其他对象
+        /// 绝对状态不受影响）、剪影失效与口袋图清理登记。
+        /// </summary>
+        internal static void WriteDockedState(ShipState ship, Gravship gravship, Map map,
+            IntVec3 landingPos, Rot4 landingRot)
+        {
+            ship.dockedRotation = landingRot;
+            ship.dockedMap = map;
+            ComputeLandingPose(ship, gravship, map, landingPos, landingRot,
+                out Vector3 direction, out float angle, out Vector2 dockedOrigin);
+            ship.dockedOrigin = dockedOrigin;
+            ship.pose.position = direction;
+            ship.pose.angle = angle;
             ship.pose.velocity = Vector2.zero;
             ship.pose.angularVelocity = 0f;
             ship.docking = false;
             ship.docked = true;
             // 剪影快照失效：宿主图新增了停靠船体（星球仪按 Substructure 重扫）。
-            PlanetGlobeRenderer.InvalidateSilhouette(marker.Map);
+            PlanetGlobeRenderer.InvalidateSilhouette(map);
             HostColonistBarVisibility.NotifyDockingStateChanged();
             landedShipAwaitingPocketCleanup = ship;
             pendingShip = null;
             pendingGravship = null;
             Messages.Message("DeltaV_DockSuccess".Translate(ship.label), MessageTypeDefOf.PositiveEvent, false);
             DeltaVLog.Message(DeltaVLogModule.Core,
-                $"{ship.label}: vanilla landing confirmed; rot={ship.dockedRotation}, heading={ship.pose.angle * Mathf.Rad2Deg:F0} deg");
-            return true;
+                $"{ship.label}: docking confirmed; rot={landingRot}, heading={angle * Mathf.Rad2Deg:F0} deg");
         }
 
-        /// <summary>
-        /// 原版 LandingEnded Postfix：动画与 Gravship 已彻底释放后销毁空口袋图。
-        /// Prefix 阶段仍有 DeltaVLandingAnimator 读取旧图中心，不能提前销毁。
-        /// </summary>
+        /// <summary>原版 LandingEnded Postfix：动画与 Gravship 已彻底释放后销毁空口袋图。</summary>
         public static void NotifyVanillaLandingEnded()
         {
             landingCaptureEngine = null;
@@ -404,6 +505,8 @@ namespace DeltaV
                 Current.Game.CurrentMap = ship.dockedMap;
             }
             ShipPhysics.ClearCache();
+            // 进场期间口袋图经 MapOverlayRenderer 绘制过船壳 section，销毁前释放缓存。
+            MapOverlayRenderer.Release(pocketMap);
             PocketMapUtility.DestroyPocketMap(pocketMap);
             ship.map = null;
             ship.pocketRoot = IntVec3.Invalid;
@@ -453,8 +556,12 @@ namespace DeltaV
             pendingMobileSourceMap = sourceMap;
             pendingMobileSourceRoot = engine.Position;
             pendingMobileOldOrigin = DockedOriginMapPoint(ship);
+            // 起飞后的宇宙角 = 宿主帧角 ⊕ 主台在宿主图上的朝向（与 ComputeLandingPose
+            // 的落点反向映射互逆，斜置口袋宿主上 dock/undock 姿态连续；角 0 宿主数值不变）。
+            SpaceObject launchHostFrame = universe.FrameOf(sourceMap);
             pendingMobileHeading = console != null && console.Spawned
-                ? ShipOrientation.AngleFromRot4(console.Rotation)
+                ? SpaceTransform.WrapAngle((launchHostFrame != null ? launchHostFrame.pose.angle : 0f)
+                    + ShipOrientation.AngleFromRot4(console.Rotation))
                 : ship.pose.angle;
 
             // 固定 → 移动必须从原版起飞入口开始，完整复用捕获、PreSwapMap、
@@ -540,15 +647,38 @@ namespace DeltaV
         /// <summary>原版捕获完成后跳过可见起飞动画，但仍让 TakeoffEnded 执行全部收尾。</summary>
         public static void SuppressMobileLaunchAnimation()
         {
-            if (!MobileLaunchPending || ControllerTimeLeft == null || Find.GravshipController == null) return;
-            ControllerTimeLeft.SetValue(Find.GravshipController, 0f);
+            if (!MobileLaunchPending) return;
+            ForceCutsceneTimeZero(Find.GravshipController);
+        }
+
+        /// <summary>把原版 cutscene 时钟压零（移动模式起飞 / 战术降落到达重放共用）。</summary>
+        internal static void ForceCutsceneTimeZero(WorldComponent_GravshipController controller)
+        {
+            if (controller == null || ControllerTimeLeft == null) return;
+            ControllerTimeLeft.SetValue(controller, 0f);
         }
 
         /// <summary>兜底：若 BeginCutscene 发生在其他更新边界，下一帧仍强制完成。</summary>
         public static void BeforeGravshipControllerUpdate(WorldComponent_GravshipController controller)
         {
-            if (!MobileLaunchPending || !controller.IsGravshipTravelling || ControllerTimeLeft == null) return;
-            ControllerTimeLeft.SetValue(controller, 0f);
+            if (!MobileLaunchPending || !controller.IsGravshipTravelling) return;
+            ForceCutsceneTimeZero(controller);
+        }
+
+        /// <summary>到达重放的源端再捕获：与 BeginOriginalLanding 同口径读取整个相连基架域。</summary>
+        internal static Gravship CaptureShipForArrival(ShipState ship)
+        {
+            Building_GravEngine engine = FindEngineForShip(ship.map, ship.primaryConsole);
+            if (engine == null) return null;
+            directCaptureEngine = engine;
+            try
+            {
+                return GravshipUtility.GenerateGravship(engine);
+            }
+            finally
+            {
+                directCaptureEngine = null;
+            }
         }
 
         /// <summary>
@@ -768,7 +898,9 @@ namespace DeltaV
             return engine != null && engine.AllConnectedSubstructure.Contains(thing.PositionHeld);
         }
 
-        private static void PlaceIntoMap(Gravship gravship, IntVec3 root, Map map)
+        /// <summary>把捕获好的 Gravship 放回指定地图（真实放置 + 原版收尾钩子）；
+        /// 战术降落进场恢复（North 布局 + pocketRoot）与起飞失败回退共用。</summary>
+        internal static void PlaceIntoMap(Gravship gravship, IntVec3 root, Map map)
         {
             GravshipPlacementUtility.PlaceGravshipInMap(gravship, root, map, out List<Thing> spawned);
             GravshipPlacementUtility.ApplyTemperatureVacuumFromBase(gravship, root, map);
