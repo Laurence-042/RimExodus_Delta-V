@@ -279,6 +279,8 @@ namespace DeltaV
             ship.pose.angularVelocity = 0f;
             ship.docking = false;
             ship.docked = true;
+            // 剪影快照失效：宿主图新增了停靠船体（星球仪按 Substructure 重扫）。
+            PlanetGlobeRenderer.InvalidateSilhouette(marker.Map);
             HostColonistBarVisibility.NotifyDockingStateChanged();
             landedShipAwaitingPocketCleanup = ship;
             pendingShip = null;
@@ -535,6 +537,9 @@ namespace DeltaV
             ship.dockedOrigin = Vector2.zero;
             // 世界视图标记是“进入移动模式时的船体快照”，不追踪后续战损/建造变化。
             WorldShipMarkerRenderer.RebuildFor(ship);
+            // 剪影快照失效：源图（宿主）已移除船体、新口袋图是全新键——宿主侧不得
+            // 残留已起飞飞船的剪影（2026-09-17 实测事故）。
+            PlanetGlobeRenderer.InvalidateSilhouette(sourceMap);
             HostColonistBarVisibility.NotifyDockingStateChanged();
             universe.SetFocused(ship);
             CameraJumper.TryJump(ship.pocketRoot, pocketMap, CameraJumper.MovementMode.Cut);

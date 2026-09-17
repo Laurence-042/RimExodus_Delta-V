@@ -64,6 +64,8 @@
   <DeltaV_PanelSectorTitle>Space: {0}</DeltaV_PanelSectorTitle>
   <DeltaV_PanelModeFixed>Mode: fixed (docked)</DeltaV_PanelModeFixed>
   <DeltaV_PanelPickConsoleTip>Several gravships share this map. Select the target ship's pilot console and use its "Enter mobile mode" gizmo so the correct hull is captured.</DeltaV_PanelPickConsoleTip>
-  <DeltaV_PanelSectorMap>Open sector map</DeltaV_PanelSectorMap>
-  <DeltaV_PanelSectorMapTip>The sector map's exact form is not finalized yet (design doc section 12.2).</DeltaV_PanelSectorMapTip>
+  <DeltaV_PanelGlobeZoomOut>Planet</DeltaV_PanelGlobeZoomOut>
+  <DeltaV_PanelGlobeZoomIn>Sector</DeltaV_PanelGlobeZoomIn>
+  <DeltaV_PanelGlobeDistance>{0} cells</DeltaV_PanelGlobeDistance>
+  <DeltaV_PanelObjectNotLoaded>Not in visual range yet: approach the object first (unloaded objects cannot be focused).</DeltaV_PanelObjectNotLoaded>
 </LanguageData>

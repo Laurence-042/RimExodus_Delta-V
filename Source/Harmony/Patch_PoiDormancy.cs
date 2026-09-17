@@ -64,10 +64,21 @@ namespace DeltaV
                     value = Find.CurrentMap;
                     return;
                 }
-                if (SpaceLifecycle.IsDormant(value))
+                bool wasFrozen = SpaceLifecycle.IsDormant(value);
+                if (wasFrozen)
                 {
                     // 同步唤醒（轻量，无生成），玩家切进去的图不能是冻结的。
                     SpaceLifecycle.Wake(value, "entering map (CurrentMap switch)");
+                }
+                if (wasFrozen || Current.Game?.GetComponent<UniverseManager>()?.SpaceObjectOnMap(value) is PoiState)
+                {
+                    // 冻结图跳过 MapUpdate：休眠期间累积/未刷新的脏 Section 永不重建，
+                    // 画面空白但数据与悬停正常（2026-09-17 实测：建造一格触发局部
+                    // MeshDirty 后整图恢复）。POI 内部图（含从未休眠的增量生成图，
+                    // 根因未定位前）切入时一律全量重建一次，保证玩家看到的是活图
+                    //（原版读档同款 RegenerateEverythingNow；仅 Delta-V 的图，
+                    // RimExodus 地表图不受影响）。
+                    value.mapDrawer.RegenerateEverythingNow();
                 }
             }
         }

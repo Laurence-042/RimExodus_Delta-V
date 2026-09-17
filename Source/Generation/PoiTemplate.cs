@@ -45,7 +45,12 @@ namespace DeltaV
                 IntVec3 thrusterCell = RandomStandableCell(hull, map);
                 if (thrusterCell.IsValid)
                 {
-                    GenSpawn.Spawn(DeltaVDefOf.LargeThruster, thrusterCell, map, Rot4.Invalid, WipeMode.Vanish);
+                    // 生成方式对齐 ShipStructureStamp.SpawnAnchored：MakeThing + 有效
+                    // Rot4。直接以 def 重载 + Rot4.Invalid 生成会得到无效旋转的建筑，
+                    // 贴图丢失（2026-09-17 实测）。
+                    Thing thruster = ThingMaker.MakeThing(DeltaVDefOf.LargeThruster);
+                    GenSpawn.Spawn(thruster, thrusterCell, map, new Rot4(Rand.RangeInclusive(0, 3)),
+                        WipeMode.Vanish);
                 }
             }
             finally

@@ -231,6 +231,24 @@ namespace DeltaV
                 $"generatedSectors={um.generatedSectorTiles.Count}", MessageTypeDefOf.NeutralEvent, false);
         }
 
+        [DebugAction("Delta-V", "Diagnose focused map (force mesh regen)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void DiagnoseFocusedMap()
+        {
+            Map map = Find.CurrentMap;
+            UniverseManager um = Um();
+            var sb = new StringBuilder("[DeltaV:Diag] Focused map");
+            sb.AppendLine($"\n- map: {map?.Parent?.Label ?? "null"} tile={map?.Tile.ToString() ?? "-"} size={map?.Size.x}x{map?.Size.z}");
+            sb.AppendLine($"- owner: {um?.SpaceObjectOnMap(map)?.label ?? "(none)"}; frame={um?.FrameOf(map)?.label ?? "(none)"}");
+            sb.AppendLine($"- frozen={SpaceLifecycle.IsFrozen(map)} (dormant={MapDormancyService.IsDormant(map)}" +
+                $" generating={IncrementalMapGenerationService.IsGenerating(map)} host={SpaceLifecycle.IsUniverseHost(map)})");
+            sb.AppendLine($"- wantedMode={Find.World?.renderer?.wantedMode} drawingMap={RimWorld.Planet.WorldRendererUtility.DrawingMap}");
+            sb.AppendLine($"- camera rootSize={Find.CameraDriver?.RootSize:F0} pos={Find.CameraDriver?.MapPosition}");
+            map?.mapDrawer.RegenerateEverythingNow();
+            sb.AppendLine("- mapDrawer.RegenerateEverythingNow() executed; if the view recovers, mesh state was stale.");
+            Log.Message(sb.ToString());
+            Messages.Message("Focused-map diagnostics + forced mesh regeneration written to the log.", MessageTypeDefOf.NeutralEvent, false);
+        }
+
         [DebugAction("Delta-V", "Dump universe state", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void DumpUniverseState()
         {

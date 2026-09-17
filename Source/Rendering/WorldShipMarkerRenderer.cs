@@ -73,6 +73,41 @@ namespace DeltaV
             }
         }
 
+        /// <summary>
+        /// 剪影的屏幕位置与命中半径（聚焦点击用）。剪影不是 WorldObject，刻意不走
+        /// RimExodus「useDynamicDrawer 真对象」路线（不进原版世界选择/检查面板），
+        /// 手动做原版 GenWorldUI 同款换算：WorldToScreenPoint / Prefs.UIScale + y 翻转，
+        /// 遮挡用地平线剔除（WorldRendererUtility.HiddenBehindTerrainNow）。
+        /// </summary>
+        public static bool TryGetScreenPosition(ShipState ship, out Vector2 screenPos, out float hitRadiusPx)
+        {
+            screenPos = Vector2.zero;
+            hitRadiusPx = 0f;
+            PlanetLayer layer = OrbitSphere.Layer;
+            if (ship == null || ship.docking || layer == null || PlanetLayer.Selected != layer)
+            {
+                return false;
+            }
+            Vector3 radial = ship.pose.position.normalized;
+            Vector3 world = layer.Origin + OrbitSphere.SpherePoint(radial) + radial * AltitudeOffset;
+            if (WorldRendererUtility.HiddenBehindTerrainNow(world))
+            {
+                return false;
+            }
+            Camera camera = Find.WorldCamera;
+            Vector3 screen = camera.WorldToScreenPoint(world);
+            if (screen.z <= 0f)
+            {
+                return false; // 相机背面
+            }
+            screenPos = new Vector2(screen.x / Prefs.UIScale, UI.screenHeight - screen.y / Prefs.UIScale);
+            // 半径 = 剪影半尺寸（沿相机 up 方向）投影像素差 + 余量。
+            Vector3 edge = camera.WorldToScreenPoint(world + camera.transform.up
+                * (layer.AverageTileSize * MarkerSizeInTiles * 0.5f));
+            hitRadiusPx = Mathf.Abs(UI.screenHeight - edge.y / Prefs.UIScale - screenPos.y) + 4f;
+            return true;
+        }
+
         private static MarkerCache MarkerFor(ShipState ship)
         {
             if (Cache.TryGetValue(ship, out MarkerCache marker) && marker.initialized)

@@ -9,10 +9,11 @@ namespace DeltaV
 {
     /// <summary>
     /// 左侧信息面板（星区架构 §11.1）：固定模式、驾驶模式等按钮全部收进的**单一**面板，
-    /// 高度完全随内容自适应（不滚动）；内嵌星球仪（PlanetGlobeRenderer，任何时候的
-    /// 态势显示——与世界视图剪影同源 SpacePose，坐标与姿态逻辑不另写一套）。
-    /// 显示条件：聚焦图属 Delta-V 语境（FrameOf != null：移动船口袋图 / 停靠船宿主图 /
-    /// 轨道图 / POI 内部）；世界视图不叠加（剪影是其自己的显示通道）。
+    /// 高度完全随内容自适应（不滚动）；内嵌**可缩放星球仪**（PlanetGlobeRenderer）——
+    /// 星区地图即星球仪连续缩放（§12.2 定稿）：滑条/滚轮拉近逐层显示星区网格、对象
+    /// 图标与距离标注，图标可悬停/点击聚焦。显示条件：聚焦图属 Delta-V 语境
+    /// （FrameOf != null：移动船口袋图 / 停靠船宿主图 / 轨道图 / POI 内部）；
+    /// 世界视图不叠加（剪影是其自己的显示通道，且可点击聚焦）。
     /// </summary>
     public static class ShipStatusPanel
     {
@@ -113,12 +114,13 @@ namespace DeltaV
                 linesHeight += Mathf.Max(20f, Text.CalcHeight(line, contentWidth));
             }
 
-            // 高度完全随内容自适应（不滚动）：星球仪 + 标题/状态行 + 当前模式的按钮行数。
+            // 高度完全随内容自适应（不滚动）：星球仪 + 缩放滑条 + 标题/状态行 + 当前模式的按钮行数。
             float modeButtonsHeight = mobileShip != null
                 ? 27f + 6f + 27f + 8f
                 : (dockedShip != null || bootstrapEntry || multiShipAmbiguous) ? 27f + 6f : 0f;
-            float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + modeButtonsHeight + 27f;
-            float outerHeight = GlobeSize + 8f + contentHeight;
+            float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + modeButtonsHeight;
+            const float sliderRowHeight = 30f;
+            float outerHeight = GlobeSize + 8f + sliderRowHeight + contentHeight;
             float y = Mathf.Clamp(UI.screenHeight * 0.45f - outerHeight * 0.5f, 48f,
                 Mathf.Max(48f, UI.screenHeight - outerHeight - 32f));
             var panelRect = new Rect(8f, y, PanelWidth, outerHeight);
@@ -129,8 +131,14 @@ namespace DeltaV
             // 无任何飞船时（首次到达、尚未 bootstrap）以当前图帧位置为相机锚点。
             PlanetGlobeRenderer.Draw(new Rect(inner.x, inner.y, inner.width, GlobeSize), universe, frame);
 
+            // 星球仪缩放滑条：拉远 = 整球态势，拉近 = 星区地图（§12.2 定稿）。
+            PlanetGlobeRenderer.Zoom01 = Widgets.HorizontalSlider(
+                new Rect(inner.x, inner.y + GlobeSize + 8f, inner.width, 22f),
+                PlanetGlobeRenderer.Zoom01, 0f, 1f, false, null,
+                "DeltaV_PanelGlobeZoomOut".Translate(), "DeltaV_PanelGlobeZoomIn".Translate());
+
             // 文本与按钮区（相对坐标）。
-            var contentRect = new Rect(inner.x, inner.y + GlobeSize + 8f, inner.width, contentHeight);
+            var contentRect = new Rect(inner.x, inner.y + GlobeSize + 8f + sliderRowHeight, inner.width, contentHeight);
             GUI.BeginGroup(contentRect);
             float lineY = 0f;
             float drawWidth = contentWidth;
@@ -195,17 +203,6 @@ namespace DeltaV
                 Text.Font = GameFont.Tiny;
                 lineY += 27f + 6f;
             }
-
-            // 打开星区地图（§12.2 形态未定，暂置灰占位）。
-            var sectorMapRect = new Rect(0f, lineY, drawWidth, 27f);
-            Text.Font = GameFont.Small;
-            GUI.color = new Color(1f, 1f, 1f, 0.4f);
-            Text.Anchor = TextAnchor.MiddleCenter;
-            Widgets.Label(sectorMapRect, "DeltaV_PanelSectorMap".Translate());
-            Text.Anchor = TextAnchor.UpperLeft;
-            GUI.color = Color.white;
-            TooltipHandler.TipRegion(sectorMapRect, "DeltaV_PanelSectorMapTip".Translate());
-            Text.Font = GameFont.Tiny;
 
             GUI.EndGroup();
             Text.Font = GameFont.Small;

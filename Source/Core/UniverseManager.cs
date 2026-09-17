@@ -302,6 +302,7 @@ namespace DeltaV
             // 白名单/逆重基架 UV mesh 都是可重建的表现缓存，绝不存档。
             ShellRenderer.ClearRuntimeCaches();
             WorldShipMarkerRenderer.ClearRuntimeCaches();
+            PlanetGlobeRenderer.ClearRuntimeCaches();
             ShipPhysics.ClearCache();
             ThrusterEffects.ClearRuntimeCaches();
             SpaceLifecycle.Reset();
@@ -608,6 +609,73 @@ namespace DeltaV
             ShipStatusPanel.Draw(this);
             DebugActions_DeltaV.DrawFrameMeter();
             HandleShellClick();
+            HandleWorldMarkerClick();
+        }
+
+        // ---- 世界视图剪影点选（聚焦切图；与地图外壳点选对称的世界视图通道）----
+
+        private ShipState pendingWorldClickShip;
+        private Vector2 pendingWorldClickScreen;
+
+        /// <summary>
+        /// 星球视图里点击玩家飞船剪影 → 聚焦切图。让位规则与 HandleShellClick 同型：
+        /// 悬停 UI 优先、按下-抬起间拖拽取消、命中才动作——剪影不是 WorldObject，
+        /// 不吞并无命中时的原版世界点击（拾取数学见 WorldShipMarkerRenderer.TryGetScreenPosition）。
+        /// </summary>
+        private void HandleWorldMarkerClick()
+        {
+            if (Find.World?.renderer == null
+                || Find.World.renderer.wantedMode != RimWorld.Planet.WorldRenderMode.Planet)
+            {
+                pendingWorldClickShip = null;
+                return;
+            }
+            Event ev = Event.current;
+            if (ev.type == EventType.MouseDown && ev.button == 0)
+            {
+                pendingWorldClickShip = null;
+                if (Find.WindowStack.GetWindowAt(UI.GUIToScreenPoint(ev.mousePosition)) != null) return;
+                pendingWorldClickShip = PickWorldMarker(ev.mousePosition);
+                pendingWorldClickScreen = ev.mousePosition;
+            }
+            else if (ev.type == EventType.MouseDrag)
+            {
+                pendingWorldClickShip = null;
+            }
+            else if (ev.type == EventType.MouseUp && ev.button == 0 && pendingWorldClickShip != null)
+            {
+                ShipState target = pendingWorldClickShip;
+                pendingWorldClickShip = null;
+                bool noDrag = (ev.mousePosition - pendingWorldClickScreen).sqrMagnitude < 100f;
+                if (noDrag && PickWorldMarker(ev.mousePosition) == target)
+                {
+                    Map targetMap = target.docked ? target.dockedMap : target.map;
+                    if (targetMap != null)
+                    {
+                        SetFocused(target);
+                        CameraJumper.TryJump(targetMap.Center, targetMap, CameraJumper.MovementMode.Cut);
+                    }
+                }
+            }
+        }
+
+        private ShipState PickWorldMarker(Vector2 mousePos)
+        {
+            if (!OrbitSphere.Valid) return null;
+            ShipState best = null;
+            float bestDistance = float.MaxValue;
+            foreach (ShipState ship in Ships)
+            {
+                if (!ship.isPlayerShip || ship.docking) continue;
+                if (!WorldShipMarkerRenderer.TryGetScreenPosition(ship, out Vector2 pos, out float radius)) continue;
+                float distance = (mousePos - pos).magnitude;
+                if (distance <= radius && distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    best = ship;
+                }
+            }
+            return best;
         }
 
         // ---- 外壳点选（选择层；瞄准兼容契约见 ShellPicking 类注释）----
@@ -712,6 +780,7 @@ namespace DeltaV
         {
             ShellRenderer.ClearRuntimeCaches();
             WorldShipMarkerRenderer.ClearRuntimeCaches();
+            PlanetGlobeRenderer.ClearRuntimeCaches();
             ShipPhysics.ClearCache();
             ThrusterEffects.ClearRuntimeCaches();
             SpaceLifecycle.Reset();

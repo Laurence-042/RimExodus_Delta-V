@@ -36,7 +36,7 @@ namespace DeltaV
             IncrementalMapGenerationService.RegisterAdapterFactory(step =>
                 step.def.genStep is GenStep_DeltaVShipFill
                     ? new IncrementalMapGenerationService.TerrainFillGenStepAdapter(
-                        DeltaVDefOf.DeltaV_Void, disableRegions: false)
+                        RimWorld.TerrainDefOf.Space, disableRegions: false)
                     : null);
             InitializeHarmony();
             Log.Message("[DeltaV] Star sector model build loaded (sector-scale setting, projection-based tactical docking, sector content bookkeeping, unified status panel with globe).");

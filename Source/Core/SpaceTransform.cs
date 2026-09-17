@@ -161,7 +161,18 @@ namespace DeltaV
             Vector3 radial = universeDir.normalized;
             OrbitSphere.Basis(radial, out Vector3 east, out Vector3 north);
             Quaternion tangentFrame = Quaternion.LookRotation(north, radial);
-            return tangentFrame * Quaternion.Euler(0f, -universeAngle * Mathf.Rad2Deg, 0f);
+            return tangentFrame * Quaternion.Euler(0, -universeAngle * Mathf.Rad2Deg, 0);
+        }
+
+        /// <summary>
+        /// 船体 forward（局部 +X）的世界方向：与世界视图剪影（UniverseWorldMarkerRotation →
+        /// plane10 局部 X 轴）同一条旋转链导出。星球仪剪影等一切需要“船头朝哪”的显示
+        /// 必须经此入口，不得各写一套 east·cosθ+north·sinθ（2026-09-17：星球仪自算角度
+        /// 与世界剪影分叉 45° 的事故后统一）。
+        /// </summary>
+        public static Vector3 MarkerForwardWorld(Vector3 universeDir, float universeAngle)
+        {
+            return UniverseWorldMarkerRotation(universeDir, universeAngle) * Vector3.right;
         }
 
         /// <summary>
