@@ -377,7 +377,7 @@ namespace DeltaV
             }
             foreach (Overlay overlay in Overlays)
             {
-                // DrawTextureRotated 正角逆时针（UI.RotateAroundPivot）；角度已按 GUI y 向下换算。
+                // DrawTextureRotated 正角 = 视觉顺时针（GUI y 向下）；角度已按该约定换算。
                 GUI.color = overlay.tint;
                 Widgets.DrawTextureRotated(overlay.rect, overlay.texture, overlay.angleDeg);
             }
@@ -528,7 +528,7 @@ namespace DeltaV
             GL.End();
         }
 
-        // ---- 剪影（物化对象；按 Substructure 地形，与世界视图剪影同快照语义）----
+        // ---- 剪影（物化对象；按 Substructure 地形扫描，纹理经 ShipSilhouette 唯一入口）----
 
         private static Texture2D GetSilhouette(Map map)
         {
@@ -536,41 +536,16 @@ namespace DeltaV
             if (SilhouetteCache.TryGetValue(map, out Texture2D cached)) return cached;
             if (SilhouetteEmpty.Contains(map)) return null;
 
-            int minX = int.MaxValue, maxX = int.MinValue, minZ = int.MaxValue, maxZ = int.MinValue;
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
-            {
-                if (map.terrainGrid.TerrainAt(cell) != DeltaVDefOf.Substructure) continue;
-                minX = Mathf.Min(minX, cell.x);
-                maxX = Mathf.Max(maxX, cell.x);
-                minZ = Mathf.Min(minZ, cell.z);
-                maxZ = Mathf.Max(maxZ, cell.z);
-            }
-            if (minX > maxX)
+            List<IntVec3> cells = ShipSilhouette.ScanSubstructure(map);
+            Texture2D texture = cells.Count > 0
+                ? ShipSilhouette.BuildTexture(cells, $"DeltaV_GlobeSilhouette_{map.Index}")
+                : null;
+            if (texture == null)
             {
                 // 无 Substructure（原版站点等）：没有可剪影的甲板，继续用图标。
                 SilhouetteEmpty.Add(map);
                 return null;
             }
-            const int padding = 1;
-            int side = Mathf.Max(maxX - minX, maxZ - minZ) + 1 + padding * 2;
-            var pixels = new Color32[side * side];
-            Color32 opaque = new Color32(255, 255, 255, 255);
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
-            {
-                if (map.terrainGrid.TerrainAt(cell) != DeltaVDefOf.Substructure) continue;
-                int x = cell.x - minX + padding;
-                // 垂直翻转：地图 +z 是北（屏幕向上），纹理 y 向下。
-                int y = side - 1 - (cell.z - minZ + padding);
-                pixels[x + y * side] = opaque;
-            }
-            var texture = new Texture2D(side, side, TextureFormat.RGBA32, false)
-            {
-                name = $"DeltaV_GlobeSilhouette_{map.Index}",
-                filterMode = FilterMode.Point,
-                wrapMode = TextureWrapMode.Clamp
-            };
-            texture.SetPixels32(pixels);
-            texture.Apply(false, true);
             SilhouetteCache[map] = texture;
             return texture;
         }
@@ -588,7 +563,10 @@ namespace DeltaV
         /// 剪影旋转角（度）：forward 世界方向经 SpaceTransform.MarkerForwardWorld 导出
         /// （与世界视图剪影同一条旋转链，两处显示不分叉）；RotateAroundPivot 在 GUI
         /// （y 向下）中正角 = 视觉顺时针，故 φ = Atan2(+f.y, f.x)——此前按逆时针推导
-        /// 符号写反，产生 2×朝向角的偏差（2026-09-17 实测约 45°）。
+        /// 符号写反，产生 2×朝向角的偏差（2026-09-17 实测约 45°）。该公式对
+        /// ShipSilhouette 标准朝向基底（北在上、东在右，旋转 0 时 forward=+x 指屏幕
+        /// 右）成立：旋转 α 后纹理 +x 落在 φ、+y（北）落在 φ−90°，与世界系一致；
+        /// 旧实现纹理上下颠倒时实测调符号只做了部分补偿（表现为左右反）。
         /// </summary>
         private static float SilhouetteScreenAngle(Vector3 universeDir, float universeAngle,
             Vector3 right, Vector3 up)

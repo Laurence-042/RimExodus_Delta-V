@@ -19,7 +19,7 @@ namespace DeltaV
     /// - 落点 = 飞船轨道位姿在该对象内部投影上的对应位置——只是原版降落选点的
     ///   **初始落点**，玩家仍经原版选点、合法性预览与确认调整；Delta-V 不另做裁决；
     /// - 降落动画从映射位置/角度运动到实际选定位置/角度；船体捕获冻结源船形态，
-    ///   terrain curtain 不绘制，背景直接使用目标图当前结构。
+    ///   terrain curtain 照原版绘制——过场用降落前截图遮住已先行放置的真船，收尾揭示。
     ///
     /// 固定 → 移动（TryLaunch）：起飞后的轨道位姿 = 宿主 SpaceObject 位姿 ⊕ 起飞点
     /// 的内部坐标；口袋图上的起飞以 TileFromDirection(船 pose) 为战略源地址（§6）。
@@ -77,6 +77,16 @@ namespace DeltaV
                 return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// InitiateLanding Prefix 调用：降落放置前冻结本船 foundation（最终 Map 坐标），
+        /// 供降落过场的二次画面/遮罩读取。战术降落与原版战略到达两条路径统一在此覆盖。
+        /// </summary>
+        internal static void SetLandingCaptureScope(Building_GravEngine engine, HashSet<IntVec3> cells)
+        {
+            landingCaptureEngine = engine;
+            landingCaptureCells = cells;
         }
 
         public static float SnapAngle(float angle)
@@ -149,6 +159,16 @@ namespace DeltaV
                 return !ThrusterPower.HasWorkingThruster(obj.map)
                     || !ThrusterPower.HasWorkingConsole(obj.map);
             }
+            // 战术空画布降落退役（2026-09-17 用户决策）：空画布锚对象（真实 tile 的空白
+            // 轨道图）不再作为可固定目标——降落到空无一物的地图属历史遗留场景。留有
+            // 任何内容的画布按原版语义保留可降落；原版战略发射到达按需生成空画布锚
+            // 的路径不受影响（原版 launch 需要落点图）。
+            if (obj is PoiState poi && poi.nativeParent != null
+                && SpaceMapGovernance.IsBlankCanvasAnchor(poi.nativeParent)
+                && SpaceMapGovernance.IsBlankLandingCanvas(obj.map))
+            {
+                return false;
+            }
             return true;
         }
 
@@ -176,8 +196,9 @@ namespace DeltaV
 
             pendingShip = ship;
             Gravship gravship;
-            // GenerateGravship 是同步的；只让源端读取 AllConnectedSubstructure。目标图上的
-            // 降落 curtain/船体二次捕获必须回到原版 ValidSubstructure，避免吞入 wreck。
+            // GenerateGravship 是同步的；只让源端读取 AllConnectedSubstructure。目标图上
+            // 的降落过场（curtain/遮罩）读取 InitiateLanding 冻结的 foundation 集合
+            // （Patch_GravshipController_InitiateLanding_FreezeFoundation），避免吞入 wreck。
             directCaptureEngine = engine;
             try
             {
@@ -230,8 +251,11 @@ namespace DeltaV
                     CameraJumper.MovementMode.Cut);
                 Find.DesignatorManager.Select(designator);
                 // 初始落点只是原版选点的起点（DesignateSingleCell 会放置 marker 并取消
-                // 选中；屏幕下方按钮可重开选点）。落点合法性由原版预览裁决，不另做裁决。
-                if (initialCell.IsValid && designator != null)
+                // 选中；屏幕下方按钮可重开选点）。已按脚印 clamp，但图比船小时仍可能
+                // 不合法：只在原版门禁放行时自动放置，否则留给玩家手动选点，
+                // 杜绝 marker 越界生成（2026-09-17 实测事故）。
+                if (initialCell.IsValid && designator != null
+                    && designator.CanDesignateCell(initialCell).Accepted)
                 {
                     designator.DesignateSingleCell(initialCell);
                 }
@@ -245,23 +269,26 @@ namespace DeltaV
         /// 悬停位置 → 目标对象内部投影上的初始落点：飞船中心映射为目标图格子，再按
         /// gravship 尺寸/旋转折算 designator 锚点格（GetSizeRotAdjustedCell 与
         /// PrefabUtility.GetRoot 互逆，传锚点格等价于鼠标悬停该处点击）。
-        /// 原版选点要求脚印与地面至少一格重合（Delta-V 空间图已放宽为重合或四邻接，
-        /// 见 Patch_DesignatorMoveGravship_AdjacentLanding）；真实 tile 的空画布全图
-        /// 皆 Space、四邻也无非 Space 格，仍在锚点格预铺一格 Substructure 满足重合；
-        /// 口袋图目标不额外铺地。
+        /// 中心按脚印半跨度 clamp 保证整只脚印入界——DesignateSingleCell 会把锚点折算成
+        /// root，大船投影点贴边时 root 可为负 → marker 越界生成；图比船小时 clamp 退化为
+        /// 半图宽，由调用处的 CanDesignateCell 门禁兜底。
         /// </summary>
         private static IntVec3 InitialLandingCell(ShipState ship, SpaceObject target, Map targetMap,
             Gravship gravship, Rot4 facing)
         {
             Vector2 mapPoint = SpaceTransform.UniverseToMapPoint(target, ship.pose.position);
+            // OccupiedRect = 中心 ± 半跨度（水平朝向时宽高互换）；留 2 格边距满足原版
+            // InBounds(map, 1) 的禁建边检查。
+            IntVec2 size = gravship.Bounds.Size;
+            int spanX = facing.IsHorizontal ? size.z : size.x;
+            int spanZ = facing.IsHorizontal ? size.x : size.z;
+            int minX = Mathf.Min(spanX / 2 + 2, targetMap.Size.x / 2);
+            int maxX = Mathf.Max(minX, targetMap.Size.x - spanX / 2 - 3);
+            int minZ = Mathf.Min(spanZ / 2 + 2, targetMap.Size.z / 2);
+            int maxZ = Mathf.Max(minZ, targetMap.Size.z - spanZ / 2 - 3);
             IntVec3 center = new IntVec3(
-                Mathf.Clamp(Mathf.RoundToInt(mapPoint.x), 3, targetMap.Size.x - 4), 0,
-                Mathf.Clamp(Mathf.RoundToInt(mapPoint.y), 3, targetMap.Size.z - 4));
-            if (targetMap.Tile.Valid
-                && targetMap.terrainGrid.TerrainAt(center) == TerrainDefOf.Space)
-            {
-                targetMap.terrainGrid.SetTerrain(center, DeltaVDefOf.Substructure);
-            }
+                Mathf.Clamp(Mathf.RoundToInt(mapPoint.x), minX, maxX), 0,
+                Mathf.Clamp(Mathf.RoundToInt(mapPoint.y), minZ, maxZ));
             CellRect footprint = GenAdj.OccupiedRect(center, facing, gravship.Bounds.Size);
             return PrefabUtility.GetRoot(footprint, facing);
         }
@@ -298,13 +325,8 @@ namespace DeltaV
                 || !ReferenceEquals(marker.gravship, pendingGravship)) return false;
 
             ShipState ship = pendingShip;
-            // marker.GravshipCells 来自已捕获 Gravship 自身的 Foundations，而不是目标图
-            // 的现场 flood-fill。先冻结到最终 Map 坐标：PlaceGravship 后原版会再次读取
-            // engine.ValidSubstructure 制作降落画面/遮罩；若改读现场集合，邻接且处于力场
-            // 内的 wreck 会被误并入飞船形态。
-            landingCaptureEngine = marker.gravship.Engine;
-            landingCaptureCells = new HashSet<IntVec3>(
-                marker.GravshipCells.Select(cell => cell + marker.Position));
+            // foundation 冻结已统一前移到 InitiateLanding Prefix
+            // （Patch_GravshipController_InitiateLanding_FreezeFoundation），此处不再设置。
             Rot4 landedFacing = marker.gravship.PilotConsole != null
                 && marker.gravship.ThingPlacements.TryGetValue(marker.gravship.PilotConsole, out PositionData.Data data)
                 ? data.rotation

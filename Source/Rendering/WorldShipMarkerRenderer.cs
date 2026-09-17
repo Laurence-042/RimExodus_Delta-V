@@ -7,13 +7,13 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 星球视图中的玩家飞船剪影标记。位置/姿态只读取 SpacePose；剪影读取原版
-    /// GravEngine.ValidSubstructure，并缓存成透明纹理。缓存可随时销毁重建，既不
-    /// 序列化，也不创建占用轨道 tile 的 WorldObject。
+    /// 星球视图中的玩家飞船剪影标记。位置/姿态只读取 SpacePose；剪影格子取引擎的
+    /// 相连基架连通域（与转换捕获同口径，超力场扩建与停靠时相连的结构都计入），
+    /// 纹理经 ShipSilhouette 唯一入口生成并缓存。缓存可随时销毁重建，既不序列化，
+    /// 也不创建占用轨道 tile 的 WorldObject。
     /// </summary>
     public static class WorldShipMarkerRenderer
     {
-        private const int TexturePadding = 1;
         private const float MarkerSizeInTiles = 1.25f;
         private const float AltitudeOffset = 0.055f;
 
@@ -149,49 +149,26 @@ namespace DeltaV
             }
 
             Building_GravEngine engine = DockController.FindEngineForShip(map, ship.primaryConsole);
-            HashSet<IntVec3> liveCells = engine?.ValidSubstructureNoRegen;
+            HashSet<IntVec3> liveCells = engine?.AllConnectedSubstructureNoRegen;
             if (liveCells == null || liveCells.Count == 0)
             {
                 return;
             }
 
-            Rebuild(marker, liveCells, ship.objectId);
-            marker.sourceAlreadyWorldAligned = ship.docked;
-        }
-
-        private static void Rebuild(MarkerCache marker, HashSet<IntVec3> liveCells, int shipId)
-        {
-            Release(marker);
-
-            CellRect bounds = CellRect.FromCellList(liveCells);
-            int side = Mathf.Max(bounds.Width, bounds.Height) + TexturePadding * 2;
-            var pixels = new Color32[side * side];
-            int offsetX = (side - bounds.Width) / 2;
-            int offsetY = (side - bounds.Height) / 2;
-            Color32 opaque = new Color32(255, 255, 255, 255);
-            foreach (IntVec3 cell in liveCells)
+            marker.texture = ShipSilhouette.BuildTexture(liveCells,
+                $"DeltaV_PlayerShipSilhouette_{ship.objectId}");
+            if (marker.texture == null)
             {
-                int x = cell.x - bounds.minX + offsetX;
-                int y = cell.z - bounds.minZ + offsetY;
-                pixels[x + y * side] = opaque;
+                return;
             }
-
-            marker.texture = new Texture2D(side, side, TextureFormat.RGBA32, false)
-            {
-                name = $"DeltaV_PlayerShipSilhouette_{shipId}",
-                filterMode = FilterMode.Point,
-                wrapMode = TextureWrapMode.Clamp
-            };
-            marker.texture.SetPixels32(pixels);
-            marker.texture.Apply(false, true);
-
             marker.material = new Material(ShaderDatabase.WorldOverlayTransparentLit)
             {
-                name = $"DeltaV_PlayerShipMarker_{shipId}",
+                name = $"DeltaV_PlayerShipMarker_{ship.objectId}",
                 mainTexture = marker.texture,
                 color = Faction.OfPlayer?.Color ?? Color.white,
                 renderQueue = 3550
             };
+            marker.sourceAlreadyWorldAligned = ship.docked;
         }
 
         private static void EnsureCurrentGame()
