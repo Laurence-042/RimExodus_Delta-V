@@ -63,13 +63,14 @@ namespace DeltaV
                 return;
             }
             // 圈定/锚定与转换捕获同口径（相连基架连通域）：bootstrap 的船可能已建得
-            // 超出引擎力场，结构中心按实际船体范围取。
+            // 超出引擎力场，结构中心按实际船体范围取（停放锚点同族入口）。
             if (engine.AllConnectedSubstructure.Count == 0)
             {
                 Messages.Message("CannotLaunchNoSubstructure".Translate().CapitalizeFirst(),
                     MessageTypeDefOf.RejectInput, false);
                 return;
             }
+            Vector2 structureCenter = SpaceTransform.BoundsCenterOfCells(engine.AllConnectedSubstructure);
 
             // 任意真实轨道图都能 bootstrap：宇宙坐标是球面绝对坐标，源图 tile 帧只是
             // 把"图内结构中心"接到球面方向的纯函数，不需要 Universe 预先存在任何锚。
@@ -81,8 +82,6 @@ namespace DeltaV
                 return;
             }
 
-            Vector3 structureCenter3 = CellRect.FromCellList(engine.AllConnectedSubstructure).CenterVector3;
-            Vector2 structureCenter = new Vector2(structureCenter3.x, structureCenter3.z);
             Vector2 sourceLocal = SpaceTransform.MapToShipLocal(sourceMap, structureCenter);
             Vector3 universeDir = SpaceTransform.FocusedToUniverse(sourceFrame, sourceLocal);
             // 初始宇宙角 = 宿主帧角 ⊕ 主台在源图上的朝向（与降落落点反向映射互逆；

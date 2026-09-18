@@ -271,9 +271,10 @@ namespace DeltaV
             // ---- 飞船标记（底边内凹三角）----
             float focusedSize = Mathf.Lerp(9f, 14f, Zoom01);
             float otherSize = Mathf.Lerp(6.5f, 10f, Zoom01);
+            // 选点/进场（docking）期间船仍在口袋图上（快照不搬运）：docked=false，
+            // 剪影自然取活口袋图，聚焦船的黄色剪影不因进入降落流程而消失。
             foreach (ShipState ship in universe.Ships)
             {
-                if (ship.docking) continue;
                 bool focused = ReferenceEquals(ship, reference);
                 Vector2 pos = Project(ship.pose.position);
                 if (!rect.Contains(pos)) continue;

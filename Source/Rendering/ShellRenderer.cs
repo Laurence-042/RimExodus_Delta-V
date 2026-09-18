@@ -35,11 +35,9 @@ namespace DeltaV
 
         private static void DrawObjectShell(SpaceObject obj, SpaceObject frame, Map frameMap)
         {
-            // 选点阶段（docking 且未进场）船体已被捕获进口袋 Gravship，无活图可画；
-            // 进场阶段（LandingApproachController 驾驶中）正是要经下方非停靠分支
-            // 把飞行中的船壳实时显示在聚焦的目标图上。
-            if (obj is ShipState dockingShip && dockingShip.docking
-                && !LandingApproachController.IsApproaching(dockingShip)) return;
+            // 选点/进场（docking）期间船仍在活口袋图上（快照不搬运），非停靠分支
+            // 直接可画——聚焦目标图上持续显示悬停船壳；到达停靠后走停靠分支，
+            // 由 dockedMap == frameMap 跳过防重复绘制。
             ShipState ship = obj as ShipState;
             bool docked = ship != null && ship.docked;
             Map map = docked ? ship.dockedMap : obj.map;

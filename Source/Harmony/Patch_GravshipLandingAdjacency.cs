@@ -16,9 +16,6 @@ namespace DeltaV
     [HarmonyPatch(typeof(Designator_MoveGravship), "ValidGravshipLocation")]
     public static class Patch_DesignatorMoveGravship_AdjacentLanding
     {
-        private static readonly MethodInfo GetSizeRotAdjustedCell =
-            AccessTools.Method(typeof(Designator_MoveGravship), "GetSizeRotAdjustedCell");
-
         private static readonly MethodInfo IsValidCell =
             AccessTools.Method(typeof(Designator_MoveGravship), "IsValidCell");
 
@@ -33,11 +30,13 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe?.FrameOf(Find.CurrentMap) == null) return;
             GravshipLandingMarker marker = __instance.marker;
-            if (marker?.gravship == null || GetSizeRotAdjustedCell == null) return;
+            if (marker?.gravship == null) return;
 
             Map map = Find.CurrentMap;
-            IntVec3 root = PrefabUtility.GetRoot(
-                (IntVec3)GetSizeRotAdjustedCell.Invoke(__instance, new object[] { loc }),
+            // 停放锚点唯一入口（取代对 designator 私有 GetSizeRotAdjustedCell 的反射）：
+            // 悬停格 → 中心锚格 → 放置 root 格。
+            IntVec3 root = SpaceTransform.AdjustedCellToPlacementRoot(
+                SpaceTransform.PlacementRootToAdjustedCell(loc, marker.gravship.Bounds.Size, marker.GravshipRotation),
                 marker.gravship.Bounds.Size, marker.GravshipRotation);
             if (!AnyCellConnectedToLand(root, marker, map)) return;
 

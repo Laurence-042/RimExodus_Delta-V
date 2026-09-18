@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using RimWorld;
@@ -8,22 +9,25 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 战术降落进场编排（星区架构 §7）。
+    /// 战术降落进场编排（星区架构 §7；2026-09-17 用户决策流程：选点 → 等待自动驾驶
+    /// 完成 → 清除原图 Substructure → 在落点生成 Substructure）。
     ///
     /// 玩家在原版选点流程确认落点后，InitiateLanding Prefix 把流程接到这里：
+    /// - 选点阶段由 DockController 冻结一份**不搬运**的 Gravship 数据快照（Thing/
+    ///   Pawn/zone/地板指令等清单），船体与 Substructure 全程留在飞行口袋图——
+    ///   星球仪剪影、船壳渲染数据源不存在"从星球仪消失"的中间态；
     /// - 选点结果（落点 cell + 旋转）经 DockController.ComputeLandingPose 反向映射为
     ///   轨道层目标位姿（宿主帧 ⊕ 落点局部，含最终放置旋转）；
-    /// - 船体放回飞行口袋图恢复飞行（North 布局 + pocketRoot，与移动模式起飞失败
-    ///   回退同一机制），过场期间它不属于目标图；
     /// - 控制权夺取完全复用原版 cutscene 级联（cutsceneInProgress + ScreenshotMode）：
     ///   玩家输入、时间速度、存档与世界视图由原版锁定；原版动画管线被 Prefix 拦截
     ///   不运行；目标图正常聚焦、正常渲染（GravshipRenderInProgess 覆写避免原版全图
     ///   隐藏地图内容），玩家飞船船壳由 ShellRenderer 的标准非聚焦外壳分支自动显示
     ///   ——与停靠写入共用同一目标位姿，收敛帧与真船落位严格重合；
     /// - 导航交给轨道层通用自动驾驶 ShipAutopilot.FlyTo；完成信号（OnNavigationArrived）
-    ///   触发真转移：再捕获 → WriteDockedState → 重放原版 InitiateLanding（动画时长
-    ///   压零，与移动模式起飞同款）→ 放置/收尾全归原版；LandingEnded Postfix 销毁
-    ///   空口袋图。
+    ///   触发真转移：FinalizeShipCapture（移除快照清单内容 + 剥除口袋图 Substructure，
+    ///   即原版 GenerateGravship 的搬运段）→ WriteDockedState → 重放原版
+    ///   InitiateLanding（动画时长压零，与移动模式起飞同款）→ 放置/收尾全归原版；
+    ///   LandingEnded Postfix 销毁空口袋图。
     ///
     /// 进场期间原版禁存档（SavingIsTemporarilyDisabled 级联），本类状态全部为运行时
     /// 数据、不做存档兼容；读档防御性重置见 ResetOnLoad。
@@ -50,11 +54,6 @@ namespace DeltaV
         public static bool ArrivalPending => approachShip != null && arrivalReplayActive;
 
         public static bool AnyActive => approachShip != null;
-
-        public static bool IsApproaching(ShipState ship)
-        {
-            return ApproachActive && ReferenceEquals(approachShip, ship);
-        }
 
         /// <summary>原版 GravshipLandingMarker.BeginLanding Prefix：缓存 marker 引用（Destroy 前），
         /// 供到达重放时复活原版 InitiateLanding 依赖的 GravshipCells。</summary>
@@ -90,16 +89,10 @@ namespace DeltaV
             landingCell = landingPos;
             landingRotation = landingRot;
 
-            // 目标位姿必须在把 gravship.Rotation 重置为 North（恢复口袋布局）之前反向映射：
-            // 原版 Gravship.ThingPlacements getter 用**当前** gravship.Rotation 合成每个
-            // Thing 的最终放置朝向，此刻它仍是玩家确认的落点旋转（== landingRot）。
+            // 落点反向映射：快照（不搬运）的 ThingPlacements 此刻合成的正是玩家确认的
+            // 最终放置朝向（marker 旋转直接作用于快照）。船体全程留在口袋图，无需恢复。
             DockController.ComputeLandingPose(ship, gravship, map, landingPos, landingRot,
                 out Vector3 targetDirection, out float targetAngle, out _);
-
-            // 放回口袋图恢复飞行：GenerateGravship 的捕获布局归一为 North，
-            // 与移动模式起飞失败回退同一机制。
-            gravship.Rotation = Rot4.North;
-            DockController.PlaceIntoMap(gravship, ship.pocketRoot, ship.map);
 
             // 控制权夺取：复用原版 cutscene 级联（PlayerHasControl / ForcePaused /
             // 禁存档 / 锁世界视图）。原版动画管线被 Prefix 拦截，不会运行。
@@ -127,9 +120,10 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 真转移：再捕获 → 写停靠状态 → 重放原版 InitiateLanding（放置/PostSwapMap/
-        /// 着陆结局/收尾全归原版；动画时长经 SuppressArrivalCutscene/BeforeControllerUpdate
-        /// 压零）。
+        /// 真转移（用户决策流程的收尾："清除原图 Substructure → 在落点生成 Substructure"）：
+        /// FinalizeShipCapture 移除快照清单内容并剥除口袋图地形 → 写停靠状态 → 重放原版
+        /// InitiateLanding（放置/PostSwapMap/着陆结局/收尾全归原版；动画时长经
+        /// SuppressArrivalCutscene/BeforeControllerUpdate 压零）。
         /// </summary>
         private static void CompleteTransfer()
         {
@@ -140,10 +134,10 @@ namespace DeltaV
                 return;
             }
 
-            Gravship gravship = DockController.CaptureShipForArrival(ship);
-            if (gravship == null)
+            Gravship gravship = DockController.PendingDockingGravship;
+            if (!DockController.FinalizeShipCapture(gravship))
             {
-                Abort("re-capture failed");
+                Abort("ship capture finalize failed");
                 return;
             }
             gravship.Rotation = landingRotation;
@@ -170,7 +164,8 @@ namespace DeltaV
             }
         }
 
-        /// <summary>异常出口：取消导航、释放原版控制权，飞船回到速度归零的移动状态，可重新发起降落。</summary>
+        /// <summary>异常出口：取消导航、释放原版控制权并丢弃快照（清单中已转入的 zone 等
+        /// 无法回退到口袋图，仅错误路径可达），飞船回到速度归零的移动状态，可重新发起降落。</summary>
         private static void Abort(string reason)
         {
             Log.Error($"[DeltaV] Landing approach aborted: {reason}.");
@@ -182,6 +177,7 @@ namespace DeltaV
                 ship.pose.angularVelocity = 0f;
                 ship.docking = false; // 回到移动模式；docked 从未置位
             }
+            Current.Game.Gravship = null; // 丢弃未搬运的选点快照
             ReleaseControl();
             ClearState();
             Messages.Message("DeltaV_ApproachAborted".Translate(), MessageTypeDefOf.RejectInput, false);

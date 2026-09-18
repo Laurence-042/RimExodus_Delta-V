@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
@@ -74,6 +77,60 @@ namespace DeltaV
             if (rotation == Rot4.South) return new Vector2(-local.x, -local.y);
             if (rotation == Rot4.West) return new Vector2(-local.y, local.x);
             return local;
+        }
+
+        // ---------- 停放锚点（原版放置语义 ⇄ 船体帧原点；2026-09-17 收口）----------
+        // 两类锚，调用方不得自行组合换算（含 GetRoot / GetSizeRotAdjustedCell /
+        // engineToCenter / 半跨度偏移的散落拼装），只允许经本区段入口：
+        // - 原版放置锚：root 格（脚印角格）+ Rot4——marker / designator /
+        //   PlaceGravshipInMap 的语义；
+        // - 船体帧原点：口袋图几何中心（SpacePose.position 的锚；停靠后 = 落点处的
+        //   该中心位置，见 ShipOriginFromPlacementRoot）。
+        // 连续坐标一律格角空间（格 c 占 [c, c+1)）；需要格心处由调用方显式 +0.5。
+
+        /// <summary>悬停/中心锚格 → 放置 root 格（原版 Designator 的
+        /// GetSizeRotAdjustedCell + PrefabUtility.GetRoot 组合，逐字段等价）。</summary>
+        public static IntVec3 AdjustedCellToPlacementRoot(IntVec3 adjustedCell, IntVec2 size, Rot4 rot)
+        {
+            return PrefabUtility.GetRoot(adjustedCell, size, rot);
+        }
+
+        /// <summary>放置 root 格 → 悬停/中心锚格（原版 Designator.GetSizeRotAdjustedCell
+        /// 的逐字段镜像；与 AdjustedCellToPlacementRoot 在整格取整意义下互逆）。</summary>
+        public static IntVec3 PlacementRootToAdjustedCell(IntVec3 root, IntVec2 size, Rot4 rot)
+        {
+            IntVec3 halfX = new IntVec3(size.x / 2, 0, 0);
+            IntVec3 halfZ = new IntVec3(0, 0, size.z / 2);
+            if (rot == Rot4.North) return root + halfX + halfZ;
+            if (rot == Rot4.East) return root + halfX - halfZ;
+            if (rot == Rot4.South) return root - halfX - halfZ;
+            return root - halfX + halfZ;
+        }
+
+        /// <summary>船以 rot 停靠到 root 后，其口袋图几何中心（SpacePose.position 锚）
+        /// 在宿主图的连续坐标（格角空间）——dockedOrigin 的唯一来源。</summary>
+        public static Vector2 ShipOriginFromPlacementRoot(Map pocketMap, IntVec3 pocketRoot, IntVec3 root, Rot4 rot)
+        {
+            Vector2 pocketCenterFromRoot = ShipLocalOrigin(pocketMap) - new Vector2(pocketRoot.x, pocketRoot.z);
+            return new Vector2(root.x, root.z) + RotatePlacementOffset(pocketCenterFromRoot, rot);
+        }
+
+        /// <summary>引擎 root 格 → gravship 脚印包围盒中心的连续坐标（原版 engineToCenter
+        /// 语义；停靠图坐标系、不旋转）。起飞侧的「未来口袋图几何中心」经此入口：
+        /// ShipPocketMapFactory 把船居中放入新口袋图，该点即新口袋图几何中心——
+        /// SpacePose.position 锚在 dock/undock 间的连续性来源。</summary>
+        public static Vector2 GravshipBoundsCenterFromEngineRoot(Gravship gravship, IntVec3 engineRoot)
+        {
+            return new Vector2(engineRoot.x + gravship.engineToCenter.x,
+                engineRoot.z + gravship.engineToCenter.z);
+        }
+
+        /// <summary>格子集合脚印包围盒中心的连续坐标（格角空间；bootstrap 等尚无
+        /// Gravship 数据时的同族锚——连通域包围盒中心）。</summary>
+        public static Vector2 BoundsCenterOfCells(IEnumerable<IntVec3> cells)
+        {
+            Vector3 center = CellRect.FromCellList(new List<IntVec3>(cells)).CenterVector3;
+            return new Vector2(center.x, center.z);
         }
 
         // ---------- Ship local ⇄ universe ----------

@@ -148,6 +148,7 @@ FocusedToUniverse
 ### 坐标纪律
 
 - 不在调用方手写散落的旋转 + 平移公式。
+- 停放锚（原版 root 格 + Rot4）与船体帧原点（口袋图几何中心，`SpacePose.position` 的锚）的换算唯一入口是 `SpaceTransform` 停放锚点区段（`AdjustedCellToPlacementRoot` / `PlacementRootToAdjustedCell` / `ShipOriginFromPlacementRoot` / `GravshipBoundsCenterFromEngineRoot` / `BoundsCenterOfCells`）；调用方不得自行组合 `PrefabUtility.GetRoot` / designator 半跨度偏移 / `engineToCenter`。
 - 不建立第二套“战斗专用坐标”和第三套“渲染专用坐标”。
 - Projectile、碰撞、外壳渲染和跳帮位置换算必须复用同一坐标定义。
 - Renderer 输出只是表现结果，绝不能反过来成为宇宙状态的数据源。
@@ -611,7 +612,7 @@ Harmony 规则：
 
 ## 19. 星区模型（核心已实现，待游戏内实测）
 
-权威设计见 `doc/星区架构.md`（2026-09-16 六稿评审通过后施工）。§7–§9 核心与 §11.1 左侧面板/星球仪（含 §12.2 星区地图 = 星球仪连续缩放、LOD 分层、图标/剪影点击聚焦）已落地：尺度重标定（CellsPerTile 设置项默认 20000 + 位姿即时重标定）、可降落判定（无动力 SpaceObject 内部投影；空间图落点重合规则放宽为重合或四邻接）、口袋图降落/起飞（战术降落过场为进场自动驾驶：确认落点后船体放回飞行口袋图，控制权夺取复用原版 cutscene 级联、目标图正常显示，船壳走标准非聚焦外壳渲染，落点反向映射「宿主帧 ⊕ 落点局部，角度 = 宿主帧角 ⊕ 最终放置朝向」后交给轨道层通用自动驾驶 `ShipAutopilot`（FlyTo + 到达/失败信号，可复用）飞行、到达信号触发原版 InitiateLanding 压零动画完成真转移，不用原版 terrain curtain；落地后统一为同图建筑拓扑，空白空画布不作战术降落目标；移动模式捕获控制台所属引擎的整个相连基架域，逆重战略发射仍只带力场内结构；剪影纹理唯一入口 ShipSilhouette）、星区生成记账服务（`SectorContentService`）、空画布与被占用宿主图纳管、SpaceObject 派系字段、推进器动力来源接口（`ThrusterPower`，默认模型读推进器自身实际状态：故障/排气堵塞/断电，不查引擎连接）、统一状态面板。未实现：星区内容类型占位、伴生物、VEF/电推与 VGE 燃料的 Model 替换实现（仅接口）。补充约束：
+权威设计见 `doc/星区架构.md`（2026-09-16 六稿评审通过后施工）。§7–§9 核心与 §11.1 左侧面板/星球仪（含 §12.2 星区地图 = 星球仪连续缩放、LOD 分层、图标/剪影点击聚焦）已落地：尺度重标定（CellsPerTile 设置项默认 20000 + 位姿即时重标定）、可降落判定（无动力 SpaceObject 内部投影；空间图落点重合规则放宽为重合或四邻接）、口袋图降落/起飞（战术降落 = 选点 → 自动驾驶 → 清除原图 Substructure → 落点生成 Substructure：选点只冻结不搬运的 Gravship 数据快照、船体全程留在口袋图，控制权夺取复用原版 cutscene 级联、目标图正常显示，船壳走标准非聚焦外壳渲染，落点反向映射「宿主帧 ⊕ 落点局部，角度 = 宿主帧角 ⊕ 最终放置朝向」后交给轨道层通用自动驾驶 `ShipAutopilot`（FlyTo + 到达/失败信号，可复用）飞行、到达信号触发 FinalizeShipCapture + 原版 InitiateLanding 压零动画完成真转移，不用原版 terrain curtain；落地后统一为同图建筑拓扑，空白空画布不作战术降落目标；移动模式捕获控制台所属引擎的整个相连基架域，逆重战略发射仍只带力场内结构；剪影纹理唯一入口 ShipSilhouette）、星区生成记账服务（`SectorContentService`）、空画布与被占用宿主图纳管、SpaceObject 派系字段、推进器动力来源接口（`ThrusterPower`，默认模型读推进器自身实际状态：故障/排气堵塞/断电，不查引擎连接）、统一状态面板。未实现：星区内容类型占位、伴生物、VEF/电推与 VGE 燃料的 Model 替换实现（仅接口）。补充约束：
 
 - 星球轨道坐标系必须可按星球参数化/实例化，不得烧死「只有一个轨道层」（恒星系扩展性）。
 - 星区内容密度数值（保底/分段概率）仍属 `doc/星区架构.md` §12.1 待定项；当前默认残骸保底 1、无额外量，只经 `SectorContentService.Rules` 调整。
