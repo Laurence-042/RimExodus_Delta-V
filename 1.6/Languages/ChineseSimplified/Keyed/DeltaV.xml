@@ -70,4 +70,27 @@
   <DeltaV_PanelGlobeZoomIn>星区</DeltaV_PanelGlobeZoomIn>
   <DeltaV_PanelGlobeDistance>{0} 格</DeltaV_PanelGlobeDistance>
   <DeltaV_PanelObjectNotLoaded>尚未进入可视范围：请先接近该对象（未加载的对象无法聚焦）。</DeltaV_PanelObjectNotLoaded>
+  <!-- 基架归属（2026-09-18） -->
+  <DeltaV_OwnerUnassigned>未指派</DeltaV_OwnerUnassigned>
+  <DeltaV_OwnerUnregistered>独立结构 #{0}</DeltaV_OwnerUnregistered>
+  <DeltaV_SubstructureOwnerConflict>不能在此铺设基架：将同时接触多个不同归属的基架。</DeltaV_SubstructureOwnerConflict>
+  <DeltaV_LandingBlockedForeignSubstructure>不能在此降落：脚印将接触其他对象的基架。请留出间隔，用对接口连接。</DeltaV_LandingBlockedForeignSubstructure>
+  <!-- 修改基架归属命令 -->
+  <DeltaV_ReassignSubstructure>修改基架归属</DeltaV_ReassignSubstructure>
+  <DeltaV_ReassignSubstructureDesc>改写基架格的归属结构。归属决定逆重引擎的范围与承载、发射带走哪些结构，以及每艘飞船的剪影。先选择目标归属，再拖选基架格。</DeltaV_ReassignSubstructureDesc>
+  <DeltaV_ReassignNoTarget>本图没有可改写归属的基架。</DeltaV_ReassignNoTarget>
+  <DeltaV_ReassignPickFirst>请先选择目标归属。</DeltaV_ReassignPickFirst>
+  <DeltaV_ReassignTarget>目标归属：{0}</DeltaV_ReassignTarget>
+  <DeltaV_ReassignHoverOwner>悬停格当前归属：{0}</DeltaV_ReassignHoverOwner>
+  <DeltaV_ReassignOwnerOption>改为归属：{0}</DeltaV_ReassignOwnerOption>
+  <DeltaV_ReassignNewOwnerOption>新建独立结构…</DeltaV_ReassignNewOwnerOption>
+  <DeltaV_ReassignCancelOption>取消</DeltaV_ReassignCancelOption>
+  <DeltaV_ReassignSelected>目标归属已设置：{0}。现在拖选要改写的基架格。</DeltaV_ReassignSelected>
+  <!-- 对接口 -->
+  <DeltaV_DockExtendLabel>延伸对接通道</DeltaV_DockExtendLabel>
+  <DeltaV_DockExtendDesc>沿本对接口的朝向延伸密封对接通道，直至首个结构。范围内没有结构则失败。</DeltaV_DockExtendDesc>
+  <DeltaV_DockRetractLabel>收起对接通道</DeltaV_DockRetractLabel>
+  <DeltaV_DockRetractDesc>收回对接通道，还原为开放太空。</DeltaV_DockRetractDesc>
+  <DeltaV_DockNoFace>本对接口朝向的对接范围内没有结构。</DeltaV_DockNoFace>
+  <DeltaV_DockChannelLaid>对接通道已延伸：{0} 格。</DeltaV_DockChannelLaid>
 </LanguageData>

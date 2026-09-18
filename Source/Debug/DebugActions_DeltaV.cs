@@ -117,6 +117,34 @@ namespace DeltaV
             ship.pose.angularVelocity = 0f;
         }
 
+        /// <summary>
+        /// 手动修复：本图全部基架改归地图默认归属（宿主 SpaceObject）。用于修复早期
+        /// 版本盖章缺口留下的孤儿归属（如 wreck 图被测试改乱）；随后可用「修改基架
+        /// 归属」命令重新拆分。一图多对象的图执行后归属合并，属预期。
+        /// </summary>
+        [DebugAction("Delta-V", "Reset substructure ownership to map default owner", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void ResetSubstructureOwnership()
+        {
+            UniverseManager universe = Um();
+            Map map = Find.CurrentMap;
+            if (universe?.FrameOf(map) == null)
+            {
+                Log.Message("[DeltaV] Reset ownership: current map is not a Delta-V frame map.");
+                return;
+            }
+            SubstructureOwnership ownership = SubstructureOwnership.For(map);
+            if (!ownership.HasAnySubstructure())
+            {
+                Log.Message("[DeltaV] Reset ownership: no substructure on this map.");
+                return;
+            }
+            int defaultOwner = universe.SpaceObjectOnMap(map)?.objectId ?? universe.AllocateOwnerId();
+            int count = ownership.ClaimAllSubstructure(defaultOwner);
+            PlanetGlobeRenderer.InvalidateSilhouette(map);
+            Log.Message($"[DeltaV] Reset ownership: map {map.Index}, {count} cells -> owner #{defaultOwner} "
+                + $"({universe.LabelForOwner(defaultOwner)}).");
+        }
+
         // ---- 帧时间读数（性能测试用，Prefs.DevMode 门控常驻；UniverseManager Update/OnGUI 调用）----
 
         private static float avgFrameMs = 16.7f;

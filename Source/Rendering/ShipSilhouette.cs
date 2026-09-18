@@ -14,9 +14,55 @@ namespace DeltaV
     /// 颠倒，叠加朝向旋转后表现为左右反（2026-09-17 实测：右侧扩建显示在左侧）。
     /// 消费方（世界视图标记 / 星球仪剪影层）各自保留缓存与快照策略，但纹理生成
     /// 与朝向语义必须经此入口，不得再各写一份。
+    ///
+    /// 剪影管线有三个自由度，事故全部出自自由度间的失配（2026-09-18 第三次事故
+    /// 后在此收口）：(1) 纹理格子的源坐标系——口袋图是规范化形状（+x = 船头，
+    /// 进移动模式时 PlacementRotation 归一到 East），停靠图是嵌入宿主图坐标的形状
+    /// （含落点朝向 landedFacing 的旋转，+x = 宿主图东向）；(2) 旋转角输入；(3) 角
+    /// 度数学（MarkerForwardWorld，2026-09-17 已统一）。历史上只统一了 (3)，(1)↔(2)
+    /// 的配对散落在消费者手里：星球仪把船姿态角配停靠图纹理 → 朝向转过 2×
+    /// landedFacing（实测朝西停成朝东）。配对规则：**口袋图纹理配 ship.pose.angle，
+    /// 停靠图纹理配宿主帧角 host.pose.angle**（船形已嵌入图内，再叠加姿态角即重复
+    /// 计入落点朝向）。经 OrientationForCurrentMap 获取，消费者不得自行组合。
     /// </summary>
     public static class ShipSilhouette
     {
+        /// <summary>「按当前图扫描」的剪影朝向：纹理 +x 轴在切空间基（东=0，逆时针）下的方向角。</summary>
+        public struct SilhouetteOrientation
+        {
+            /// <summary>切空间基的取值位置（球面方向）。</summary>
+            public Vector3 referenceDir;
+
+            /// <summary>纹理 +x 轴在该基下的方向角（弧度）。</summary>
+            public float angle;
+        }
+
+        /// <summary>
+        /// 「按当前图（docked ? dockedMap : map）扫描」纹理的朝向配对（见类注释）：
+        /// 停靠态纹理嵌入宿主图坐标系 → 宿主帧角；移动态纹理为口袋图规范化形状 →
+        /// 船姿态角。宿主缺对象时兜底船姿态角（不变量 #17 下不应发生）。
+        /// </summary>
+        public static SilhouetteOrientation OrientationForCurrentMap(ShipState ship, UniverseManager universe)
+        {
+            if (ship.docked && ship.dockedMap != null)
+            {
+                SpaceObject host = universe?.SpaceObjectOnMap(ship.dockedMap);
+                if (host != null)
+                {
+                    return new SilhouetteOrientation
+                    {
+                        referenceDir = ship.pose.position,
+                        angle = host.pose.angle
+                    };
+                }
+            }
+            return new SilhouetteOrientation
+            {
+                referenceDir = ship.pose.position,
+                angle = ship.pose.angle
+            };
+        }
+
         private const int TexturePadding = 1;
 
         /// <summary>
@@ -62,8 +108,8 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 全图基架格扫描（船甲板与残骸甲板同口径；原版站点地图没有 Substructure →
-        /// 空列表 → 调用方退回图标）。星球仪剪影层的格子来源。
+        /// 全图基架格扫描（ownerId ≤ 0 的旧整图口径，仅调试/兜底用；原版站点地图没有
+        /// Substructure → 空列表 → 调用方退回图标）。
         /// </summary>
         public static List<IntVec3> ScanSubstructure(Map map)
         {
@@ -80,6 +126,25 @@ namespace DeltaV
                 }
             }
             return cells;
+        }
+
+        /// <summary>
+        /// 按归属过滤的基架格扫描（2026-09-18 基架归属设计后的正口径）：停靠在 wreck 图
+        /// 上的飞船只扫自己 ID 的格子，与 wreck 剪影互不污染。归属数据缺失（组件不存在
+        /// 或该对象 ID 无格）时回退整图口径。
+        /// </summary>
+        public static List<IntVec3> ScanSubstructure(Map map, int ownerId)
+        {
+            if (map == null || map.Disposed)
+            {
+                return new List<IntVec3>();
+            }
+            SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
+            if (ownership == null)
+            {
+                return ScanSubstructure(map);
+            }
+            return ownership.CellsOwnedBy(ownerId);
         }
     }
 }

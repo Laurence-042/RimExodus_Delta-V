@@ -86,11 +86,15 @@ namespace DeltaV
 
         private static readonly List<Overlay> Overlays = new List<Overlay>(16);
 
-        // 物化对象剪影缓存：按 Substructure 地形扫描（船甲板与残骸甲板同口径；
-        // 原版站点地图没有 Substructure → 空 → 继续用原版图标）。快照语义：不追踪战损，
-        // 与世界视图剪影一致；可随时销毁重建，不序列化。
-        private static readonly Dictionary<Map, Texture2D> SilhouetteCache = new Dictionary<Map, Texture2D>();
-        private static readonly HashSet<Map> SilhouetteEmpty = new HashSet<Map>();
+        // 物化对象剪影缓存：按「地图 + 基架归属 ID」双键（2026-09-18 基架归属设计）——
+        // 同一张 wreck 图上停靠船与 wreck 各持独立剪影纹理，互不污染；归属过滤口径见
+        // ShipSilhouette.ScanSubstructure(map, ownerId)。原版站点地图没有 Substructure →
+        // 空 → 继续用原版图标。快照语义：不追踪战损，与世界视图剪影一致；可随时销毁
+        // 重建，不序列化。
+        private static readonly Dictionary<Map, Dictionary<int, Texture2D>> SilhouetteCache =
+            new Dictionary<Map, Dictionary<int, Texture2D>>();
+        private static readonly Dictionary<Map, HashSet<int>> SilhouetteEmpty =
+            new Dictionary<Map, HashSet<int>>();
 
         // 六边形网格 BFS / 顶点缓冲（复用，避免每帧分配）。
         private static readonly List<PlanetTile> HexQueue = new List<PlanetTile>(MaxHexTiles);
@@ -305,8 +309,10 @@ namespace DeltaV
                 }
                 // 剪影层：物化飞船按真实比例（格→像素）与位姿角度画剪影，替代三角/圆点；
                 // 点击命中区域也随剪影大小——对接前航向调整的主要依据。
+                // 剪影按船自己的归属 ID 过滤：停靠在 wreck 图上时只画本船格子（按 wreck
+                // 地图当前状态绘制），不再与 wreck 剪影共用整图扫描结果。
                 Texture2D silhouette = silhouetteLayer && front
-                    ? GetSilhouette(ship.docked ? ship.dockedMap : ship.map)
+                    ? GetSilhouette(ship.docked ? ship.dockedMap : ship.map, ship.objectId)
                     : null;
                 if (silhouette != null)
                 {
@@ -316,8 +322,12 @@ namespace DeltaV
                         ? new Color(1f, 0.95f, 0.4f)
                         : ship.isPlayerShip ? Color.white
                         : (ship.faction != null ? ship.faction.Color : new Color(1f, 0.4f, 0.35f));
+                    // 朝向配对经 ShipSilhouette 唯一入口：停靠态纹理嵌入宿主图坐标系，
+                    // 旋转输入是宿主帧角而不是船姿态角（2026-09-18 实测朝西停成朝东）。
+                    ShipSilhouette.SilhouetteOrientation orientation =
+                        ShipSilhouette.OrientationForCurrentMap(ship, universe);
                     Overlays.Add(new Overlay(silhouetteRect, silhouette,
-                        SilhouetteScreenAngle(ship.pose.position, ship.pose.angle, right, up), tint));
+                        SilhouetteScreenAngle(orientation.referenceDir, orientation.angle, right, up), tint));
                     RegisterClickable(silhouetteRect, universe, ship, referenceDir);
                 }
                 else if (ship.docked)
@@ -352,7 +362,10 @@ namespace DeltaV
                     if (!(obj is PoiState poi)) continue;
                     if (Vector3.Dot(obj.pose.position, shipDir) <= 0f) continue;
                     // 已物化且进入剪影层：真实比例剪影替代图标（点击区域随剪影大小）。
-                    Texture2D silhouette = silhouetteLayer && poi.map != null ? GetSilhouette(poi.map) : null;
+                    // 按 POI 归属 ID 过滤——停靠船占用其内部图时，wreck 剪影仍是 wreck 自己。
+                    Texture2D silhouette = silhouetteLayer && poi.map != null
+                        ? GetSilhouette(poi.map, poi.objectId)
+                        : null;
                     if (silhouette != null)
                     {
                         Vector2 pos = Project(obj.pose.position);
@@ -529,25 +542,41 @@ namespace DeltaV
             GL.End();
         }
 
-        // ---- 剪影（物化对象；按 Substructure 地形扫描，纹理经 ShipSilhouette 唯一入口）----
+        // ---- 剪影（物化对象；按 Map+归属 ID 扫描，纹理经 ShipSilhouette 唯一入口）----
 
-        private static Texture2D GetSilhouette(Map map)
+        private static Texture2D GetSilhouette(Map map, int ownerId)
         {
             if (map == null || map.Disposed) return null;
-            if (SilhouetteCache.TryGetValue(map, out Texture2D cached)) return cached;
-            if (SilhouetteEmpty.Contains(map)) return null;
+            if (SilhouetteCache.TryGetValue(map, out Dictionary<int, Texture2D> byOwner))
+            {
+                if (byOwner.TryGetValue(ownerId, out Texture2D cached)) return cached;
+            }
+            if (SilhouetteEmpty.TryGetValue(map, out HashSet<int> emptyOwners) && emptyOwners.Contains(ownerId))
+            {
+                return null;
+            }
 
-            List<IntVec3> cells = ShipSilhouette.ScanSubstructure(map);
+            List<IntVec3> cells = ShipSilhouette.ScanSubstructure(map, ownerId);
             Texture2D texture = cells.Count > 0
-                ? ShipSilhouette.BuildTexture(cells, $"DeltaV_GlobeSilhouette_{map.Index}")
+                ? ShipSilhouette.BuildTexture(cells, $"DeltaV_GlobeSilhouette_{map.Index}_{ownerId}")
                 : null;
             if (texture == null)
             {
-                // 无 Substructure（原版站点等）：没有可剪影的甲板，继续用图标。
-                SilhouetteEmpty.Add(map);
+                // 该归属在此图没有基架（原版站点、或对象未物化到本图）：继续用图标。
+                if (!SilhouetteEmpty.TryGetValue(map, out emptyOwners))
+                {
+                    emptyOwners = new HashSet<int>();
+                    SilhouetteEmpty[map] = emptyOwners;
+                }
+                emptyOwners.Add(ownerId);
                 return null;
             }
-            SilhouetteCache[map] = texture;
+            if (!SilhouetteCache.TryGetValue(map, out byOwner))
+            {
+                byOwner = new Dictionary<int, Texture2D>();
+                SilhouetteCache[map] = byOwner;
+            }
+            byOwner[ownerId] = texture;
             return texture;
         }
 
@@ -556,7 +585,7 @@ namespace DeltaV
         {
             if (reference == null) return FallbackSideCells;
             Map map = reference.docked ? reference.dockedMap : reference.map;
-            Texture2D silhouette = GetSilhouette(map);
+            Texture2D silhouette = GetSilhouette(map, reference.objectId);
             return silhouette != null ? silhouette.width : FallbackSideCells;
         }
 
@@ -578,12 +607,15 @@ namespace DeltaV
             return Mathf.Atan2(forwardScreen.y, forwardScreen.x) * Mathf.Rad2Deg;
         }
 
-        /// <summary>读档 / 场景重置时释放剪影缓存（按 Map 重扫自愈）。</summary>
+        /// <summary>读档 / 场景重置时释放剪影缓存（按 Map+归属重扫自愈）。</summary>
         public static void ClearRuntimeCaches()
         {
-            foreach (Texture2D texture in SilhouetteCache.Values)
+            foreach (Dictionary<int, Texture2D> byOwner in SilhouetteCache.Values)
             {
-                if (texture != null) Object.Destroy(texture);
+                foreach (Texture2D texture in byOwner.Values)
+                {
+                    if (texture != null) Object.Destroy(texture);
+                }
             }
             SilhouetteCache.Clear();
             SilhouetteEmpty.Clear();
@@ -592,16 +624,19 @@ namespace DeltaV
 
         /// <summary>
         /// 地图内容变化后失效剪影（快照语义，显式失效点）：降落实置/起飞移除船体、
-        /// 结构扩建等。下次取用按 Substructure 地形重扫。
+        /// 结构扩建、基架归属变更等。同一图上全部归属的剪影一并失效，下次取用重扫。
         /// </summary>
         public static void InvalidateSilhouette(Map map)
         {
             if (map == null) return;
-            if (SilhouetteCache.TryGetValue(map, out Texture2D texture) && texture != null)
+            if (SilhouetteCache.TryGetValue(map, out Dictionary<int, Texture2D> byOwner))
             {
-                Object.Destroy(texture);
+                foreach (Texture2D texture in byOwner.Values)
+                {
+                    if (texture != null) Object.Destroy(texture);
+                }
+                SilhouetteCache.Remove(map);
             }
-            SilhouetteCache.Remove(map);
             SilhouetteEmpty.Remove(map);
         }
 

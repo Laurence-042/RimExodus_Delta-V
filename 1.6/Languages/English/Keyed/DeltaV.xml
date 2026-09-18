@@ -70,4 +70,27 @@
   <DeltaV_PanelGlobeZoomIn>Sector</DeltaV_PanelGlobeZoomIn>
   <DeltaV_PanelGlobeDistance>{0} cells</DeltaV_PanelGlobeDistance>
   <DeltaV_PanelObjectNotLoaded>Not in visual range yet: approach the object first (unloaded objects cannot be focused).</DeltaV_PanelObjectNotLoaded>
+  <!-- Substructure ownership (2026-09-18) -->
+  <DeltaV_OwnerUnassigned>unassigned</DeltaV_OwnerUnassigned>
+  <DeltaV_OwnerUnregistered>Independent structure #{0}</DeltaV_OwnerUnregistered>
+  <DeltaV_SubstructureOwnerConflict>Cannot build substructure here: it would touch substructure belonging to multiple different structures.</DeltaV_SubstructureOwnerConflict>
+  <DeltaV_LandingBlockedForeignSubstructure>Cannot land here: the footprint would touch substructure belonging to another object. Leave a gap and connect via docking ports.</DeltaV_LandingBlockedForeignSubstructure>
+  <!-- Reassign substructure ownership designator -->
+  <DeltaV_ReassignSubstructure>Reassign substructure</DeltaV_ReassignSubstructure>
+  <DeltaV_ReassignSubstructureDesc>Change which structure owns substructure cells. Ownership decides what a grav engine counts, what launches take along, and each ship's silhouette. First pick the target owner, then drag over substructure cells.</DeltaV_ReassignSubstructureDesc>
+  <DeltaV_ReassignNoTarget>No reassignable substructure on this map.</DeltaV_ReassignNoTarget>
+  <DeltaV_ReassignPickFirst>Pick a target owner first.</DeltaV_ReassignPickFirst>
+  <DeltaV_ReassignTarget>Target owner: {0}</DeltaV_ReassignTarget>
+  <DeltaV_ReassignHoverOwner>Hovered: {0}</DeltaV_ReassignHoverOwner>
+  <DeltaV_ReassignOwnerOption>Assign to: {0}</DeltaV_ReassignOwnerOption>
+  <DeltaV_ReassignNewOwnerOption>New independent structure...</DeltaV_ReassignNewOwnerOption>
+  <DeltaV_ReassignCancelOption>Cancel</DeltaV_ReassignCancelOption>
+  <DeltaV_ReassignSelected>Target owner set: {0}. Now drag over substructure cells.</DeltaV_ReassignSelected>
+  <!-- Docking port -->
+  <DeltaV_DockExtendLabel>Extend docking channel</DeltaV_DockExtendLabel>
+  <DeltaV_DockExtendDesc>Extend a sealed docking channel in this port's facing direction, up to the first structure. Fails if nothing stands within range.</DeltaV_DockExtendDesc>
+  <DeltaV_DockRetractLabel>Retract docking channel</DeltaV_DockRetractLabel>
+  <DeltaV_DockRetractDesc>Fold the docking channel away and restore open space.</DeltaV_DockRetractDesc>
+  <DeltaV_DockNoFace>No structure within docking range in this port's facing direction.</DeltaV_DockNoFace>
+  <DeltaV_DockChannelLaid>Docking channel extended: {0} cells.</DeltaV_DockChannelLaid>
 </LanguageData>

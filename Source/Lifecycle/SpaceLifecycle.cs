@@ -105,13 +105,13 @@ namespace DeltaV
                     Find.World.pocketMaps.Add(parent);
                     if (poi.snapshot != null)
                     {
-                        poi.snapshot.ApplyTo(map);
+                        poi.snapshot.ApplyTo(map, poi.objectId);
                         poi.snapshot = null;
                         Messages.Message("DeltaV_PoiRestored".Translate(poi.label), MessageTypeDefOf.NeutralEvent, false);
                     }
                     else
                     {
-                        PoiTemplate.Stamp(map, poi.seed);
+                        PoiTemplate.Stamp(map, poi.seed, poi.objectId);
                         Messages.Message("DeltaV_PoiActivated".Translate(poi.label), MessageTypeDefOf.NeutralEvent, false);
                     }
                     poi.map = map;

@@ -27,6 +27,13 @@ namespace DeltaV
         // "只有基架上的东西才能被逆重引擎抬起"——未来质量/结构判定都以它为准。
         public static TerrainDef Substructure;
 
+        // 对接口（2026-09-18 基架归属设计）与其铺设的对接通道地形；解锁科技真空屏障。
+        public static ThingDef DeltaV_DockingPort;
+
+        public static TerrainDef DeltaV_DockingChannel;
+
+        public static ResearchProjectDef DeltaV_VacuumBarrier;
+
         // 逆重飞船大型推进器（Odyssey，2×2 方形脚印、rotatable、需 Substructure）。
         // 注意：Ship_Engine 是星际飞船（结局飞船）引擎，与逆重飞船无关，勿混用。
         public static ThingDef LargeThruster;

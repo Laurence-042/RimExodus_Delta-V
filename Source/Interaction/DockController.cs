@@ -344,10 +344,19 @@ namespace DeltaV
                 // 选中；屏幕下方按钮可重开选点）。已按脚印 clamp，但图比船小时仍可能
                 // 不合法：只在原版门禁放行时自动放置，否则留给玩家手动选点，
                 // 杜绝 marker 越界生成（2026-09-17 实测事故）。
-                if (initialCell.IsValid && designator != null
-                    && designator.CanDesignateCell(initialCell).Accepted)
+                // 禁触规则下悬停投影常落在 wreck 甲板上：先沿螺旋外扩找最近的合法落点
+                //（与 wreck 保持基架间隔的空位），找不到再交给玩家手动选点。
+                IntVec3 cell = initialCell;
+                if (cell.IsValid && designator != null)
                 {
-                    designator.DesignateSingleCell(initialCell);
+                    if (!designator.CanDesignateCell(cell).Accepted)
+                    {
+                        cell = SpiralSearchValidLandingCell(designator, cell, targetMap);
+                    }
+                    if (cell.IsValid && designator.CanDesignateCell(cell).Accepted)
+                    {
+                        designator.DesignateSingleCell(cell);
+                    }
                 }
             });
             Find.GravshipController.landingMap = null;
@@ -382,6 +391,34 @@ namespace DeltaV
             return SpaceTransform.AdjustedCellToPlacementRoot(center, gravship.Bounds.Size, facing);
         }
 
+        /// <summary>
+        /// 落点合法性（含 Delta-V 禁触规则）失败时的环形外扩搜索：以投影落点为中心，
+        /// 沿逐步扩大的方形环采样（步长 2 控制探测成本，上限 30 格），返回首个合法
+        /// 落点（悬停在 wreck 正上方时退到旁边的空位）。找不到返回 Invalid（交回玩家
+        /// 手动选点）。每次探测经原版 CanDesignateCell 全门禁，只在此一次性执行。
+        /// </summary>
+        private static IntVec3 SpiralSearchValidLandingCell(Designator_MoveGravship designator,
+            IntVec3 origin, Map map)
+        {
+            for (int radius = 2; radius <= 30; radius += 2)
+            {
+                for (int dx = -radius; dx <= radius; dx += 2)
+                {
+                    for (int dz = -radius; dz <= radius; dz += 2)
+                    {
+                        bool onRing = Mathf.Abs(dx) == radius || Mathf.Abs(dz) == radius;
+                        if (!onRing) continue;
+                        IntVec3 probe = new IntVec3(origin.x + dx, 0, origin.z + dz);
+                        if (probe.InBounds(map) && designator.CanDesignateCell(probe).Accepted)
+                        {
+                            return probe;
+                        }
+                    }
+                }
+            }
+            return IntVec3.Invalid;
+        }
+
         public static void RestorePendingAfterLoad(UniverseManager universe)
         {
             pendingShip = null;
@@ -410,6 +447,13 @@ namespace DeltaV
 
         /// <summary>选点/进场流程中的战术降落船（BeginOriginalLanding 置位，WriteDockedState 清除）。</summary>
         internal static ShipState PendingDockingShip => pendingShip;
+
+        /// <summary>
+        /// 已写入停靠状态、等待到达重放与口袋图清理的船（WriteDockedState 置位，
+        /// NotifyVanillaLandingEnded 清除）。到达重放的 InitiateLanding Prefix 发生在
+        /// pendingShip 清空之后，落点归属盖章按此窗口识别战术降落船。
+        /// </summary>
+        internal static ShipState LandedShipAwaitingPocketCleanup => landedShipAwaitingPocketCleanup;
 
         /// <summary>选点/进场流程中的战术降落船（BeginOriginalLanding 置位，WriteDockedState 清除）。</summary>
         internal static Gravship PendingDockingGravship => pendingGravship;
@@ -486,9 +530,18 @@ namespace DeltaV
         {
             landingCaptureEngine = null;
             landingCaptureCells = null;
+            // 放置已收尾：落点归属盖章登记随流程状态一并清除（放置必经 LandingEnded）。
+            SubstructureOwnership.ClearAllStamps();
             ShipState ship = landedShipAwaitingPocketCleanup;
             landedShipAwaitingPocketCleanup = null;
             DestroyDockedPocketMap(ship);
+            // 二次剪影失效：WriteDockedState 的失效发生在落点放置之前，进场 cutscene 期间
+            // 的星球仪查询会把「船 ID 在此图无格」缓存为空；放置完成后按新归属重扫。
+            if (ship?.dockedMap != null)
+            {
+                PlanetGlobeRenderer.InvalidateSilhouette(ship.dockedMap);
+            }
+            Building_DockingPort.NotifyLandingSettled();
         }
 
         /// <summary>旧版本存档迁移：停靠船若仍引用空口袋图，在加载收尾后销毁。</summary>
@@ -806,7 +859,7 @@ namespace DeltaV
             {
                 // 新容器生成失败时不能吞船：用捕获时的 North 布局原样放回停靠图。
                 gravship.Rotation = Rot4.North;
-                PlaceIntoMap(gravship, pendingMobileSourceRoot, sourceMap);
+                PlaceIntoMap(gravship, pendingMobileSourceRoot, sourceMap, ship.objectId);
                 FinishConsumedVanillaTravel();
                 ClearPendingMobileLaunch();
                 Messages.Message("DeltaV_DockFailHostMap".Translate(), MessageTypeDefOf.RejectInput, false);
@@ -816,7 +869,7 @@ namespace DeltaV
 
             ship.map = pocketMap;
             ship.pocketRoot = pocketRoot;
-            PlaceIntoMap(gravship, pocketRoot, pocketMap);
+            PlaceIntoMap(gravship, pocketRoot, pocketMap, ship.objectId);
             Current.Game.Gravship = null;
 
             ship.pose.position = launchDir;
@@ -974,11 +1027,29 @@ namespace DeltaV
             return engine != null && engine.AllConnectedSubstructure.Contains(thing.PositionHeld);
         }
 
-        /// <summary>把捕获好的 Gravship 放回指定地图（真实放置 + 原版收尾钩子）；
-        /// 战术降落进场恢复（North 布局 + pocketRoot）与起飞失败回退共用。</summary>
-        internal static void PlaceIntoMap(Gravship gravship, IntVec3 root, Map map)
+        /// <summary>
+        /// 把捕获好的 Gravship 放回指定地图（真实放置 + 原版收尾钩子）；战术降落进场恢复
+        /// （North 布局 + pocketRoot）与起飞失败回退共用。ownerId = 船的基架归属 ID：
+        /// 放置前登记盖章（放置在 PlaceGravshipInMap 内同步执行），保证新图/回退落点的
+        /// 基架与船身份连续（移动模式剪影、再捕获都按该 ID 过滤）。
+        /// </summary>
+        internal static void PlaceIntoMap(Gravship gravship, IntVec3 root, Map map, int ownerId)
         {
-            GravshipPlacementUtility.PlaceGravshipInMap(gravship, root, map, out List<Thing> spawned);
+            var stampCells = new HashSet<IntVec3>(gravship.Foundations.Count);
+            foreach (IntVec3 cell in gravship.Foundations.Keys)
+            {
+                stampCells.Add(cell + root);
+            }
+            SubstructureOwnership.SetPendingStamp(map, stampCells, ownerId);
+            List<Thing> spawned;
+            try
+            {
+                GravshipPlacementUtility.PlaceGravshipInMap(gravship, root, map, out spawned);
+            }
+            finally
+            {
+                SubstructureOwnership.RemovePendingStamp(map);
+            }
             GravshipPlacementUtility.ApplyTemperatureVacuumFromBase(gravship, root, map);
             map.listerFilthInHomeArea.RebuildAll();
             map.resourceCounter.UpdateResourceCounts();

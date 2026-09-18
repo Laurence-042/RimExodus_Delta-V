@@ -80,12 +80,23 @@ namespace DeltaV
             return snapshot;
         }
 
-        /// <summary>回放到一张刚生成的空 POI 图（全 Void 底），建筑先于物品落位。</summary>
-        public void ApplyTo(Map map)
+        /// <summary>
+        /// 回放到一张刚生成的空 POI 图（全 Void 底），建筑先于物品落位。ownerId 用于
+        /// 基架归属盖章（POI 的 objectId），恢复出的基架与原对象保持同一归属。
+        /// </summary>
+        public void ApplyTo(Map map, int ownerId)
         {
-            for (int i = 0; i < foundationCells.Count; i++)
+            SubstructureOwnership.SetPendingStamp(map, foundationCells, ownerId);
+            try
             {
-                map.terrainGrid.SetFoundation(foundationCells[i], foundationDefs[i]);
+                for (int i = 0; i < foundationCells.Count; i++)
+                {
+                    map.terrainGrid.SetFoundation(foundationCells[i], foundationDefs[i]);
+                }
+            }
+            finally
+            {
+                SubstructureOwnership.RemovePendingStamp(map);
             }
             for (int i = 0; i < topCells.Count; i++)
             {

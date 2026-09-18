@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+	<!--
+		真空屏障（2026-09-18 基架归属设计）：对接口的解锁科技。研究后可建造对接口，
+		在深空对接时以密封对接通道连接船体与外部结构。
+	-->
+	<ResearchProjectDef>
+		<defName>DeltaV_VacuumBarrier</defName>
+		<label>vacuum barrier</label>
+		<description>Build sealed docking ports that keep a ship's atmosphere separate from vacuum and from derelicts it docks onto, connected by walkable, air-tight docking channels.</description>
+		<baseCost>900</baseCost>
+		<techLevel>Industrial</techLevel>
+		<requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+		<prerequisites>
+			<li>BasicGravtech</li>
+		</prerequisites>
+		<researchViewX>10.00</researchViewX>
+		<researchViewY>4.80</researchViewY>
+	</ResearchProjectDef>
+
+</Defs>

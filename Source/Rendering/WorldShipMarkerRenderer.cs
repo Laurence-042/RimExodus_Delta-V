@@ -21,7 +21,8 @@ namespace DeltaV
         {
             public Texture2D texture;
             public Material material;
-            public bool sourceAlreadyWorldAligned;
+            /// <summary>纹理源 = 停靠图（形状嵌入宿主图坐标系）而非口袋图规范化形状。</summary>
+            public bool sourceFromDockedMap;
             public bool initialized;
         }
 
@@ -61,9 +62,20 @@ namespace DeltaV
                 Vector3 radial = ship.pose.position.normalized;
                 Vector3 drawPos = layer.Origin + OrbitSphere.SpherePoint(radial)
                     + radial * AltitudeOffset;
-                // 正常缓存来自移动模式 identity 图，因此固定后仍用 pose 追踪姿态；只有
-                // 读档时从固定图惰性补建的源格已按 Rot4 旋转，不能再重复叠加角度。
-                float angle = marker.sourceAlreadyWorldAligned ? 0f : ship.pose.angle;
+                // 朝向配对（ShipSilhouette 类注释的三自由度规则）：口袋图快照是规范化
+                // 形状（+x = 船头）→ 按船姿态角追踪，停靠后继续有效；读档时从停靠图
+                // 惰性补建的快照嵌入宿主图坐标系（含落点朝向）→ 按宿主帧角旋转，不得
+                // 叠加船姿态角（旧实现取 0，宿主角非 0 时偏差 = 宿主角，2026-09-18 修正）。
+                float angle;
+                if (marker.sourceFromDockedMap)
+                {
+                    SpaceObject host = universe.SpaceObjectOnMap(ship.dockedMap);
+                    angle = host != null ? host.pose.angle : ship.pose.angle;
+                }
+                else
+                {
+                    angle = ship.pose.angle;
+                }
                 Quaternion rotation = SpaceTransform.UniverseWorldMarkerRotation(radial, angle);
                 float size = layer.AverageTileSize * MarkerSizeInTiles;
                 Matrix4x4 matrix = Matrix4x4.TRS(drawPos, rotation,
@@ -168,7 +180,7 @@ namespace DeltaV
                 color = Faction.OfPlayer?.Color ?? Color.white,
                 renderQueue = 3550
             };
-            marker.sourceAlreadyWorldAligned = ship.docked;
+            marker.sourceFromDockedMap = ship.docked;
         }
 
         private static void EnsureCurrentGame()

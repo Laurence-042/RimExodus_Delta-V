@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+
+	<!--
+		给原版 Substructure 地形追加 Delta-V 归属门禁 PlaceWorker（2026-09-18 基架归属
+		设计）：新基架不得同时邻接多个不同归属的基架。PlaceWorker 内部按 FrameOf 门禁，
+		只在 Delta-V 参考系图生效——RimExodus/原版地表的逆重基架建造不受影响。
+	-->
+	<Operation Class="PatchOperationAdd">
+		<xpath>/Defs/TerrainDef[defName="Substructure"]/placeWorkers</xpath>
+		<value>
+			<li>DeltaV.PlaceWorker_DeltaVSubstructureOwnership</li>
+		</value>
+	</Operation>
+
+</Patch>

@@ -63,11 +63,11 @@ namespace DeltaV
 
             Map playerMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
             if (playerMap == null) return;
-            ShipStructureStamp.StampPlayerShip(playerMap);
+            ShipStructureStamp.StampPlayerShip(playerMap, ownerId: 1);
 
             Map enemyMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
             if (enemyMap == null) return;
-            ShipStructureStamp.StampEnemyShip(enemyMap);
+            ShipStructureStamp.StampEnemyShip(enemyMap, ownerId: 2);
 
             var playerShip = new ShipState(1, "Player ship", playerMap, new SpacePose(playerDir, 0f), isPlayerShip: true)
             {

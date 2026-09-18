@@ -31,6 +31,9 @@ namespace DeltaV
         /// 若读现场集合，邻接且处于力场内的 wreck 会被误并入飞船形态。冻结集来自
         /// Gravship 自身的 Foundations（捕获时已定格），与目标图现场拓扑无关。
         /// 仅 Delta-V 语境图生效；地表降落完全走原版语义。
+        /// 同一冻结集同时登记基架归属盖章（SetPendingStamp）：落点基架的归属 ID 按
+        /// 战术降落船（PendingDockingShip）→ 引擎当前图归属（同图移动）→ 新分配 ID
+        /// （原版战略到达：身份已释放，落地即独立域，bootstrap 时再具象化）解析。
         /// </summary>
         private static void FreezeLandingCaptureScope(Gravship gravship, Map map, IntVec3 landingPos)
         {
@@ -45,6 +48,29 @@ namespace DeltaV
                 cells.Add(cell + landingPos);
             }
             DockController.SetLandingCaptureScope(gravship.Engine, cells);
+            SubstructureOwnership.SetPendingStamp(map, cells, ResolveLandingOwnerId(universe, gravship));
+        }
+
+        private static int ResolveLandingOwnerId(UniverseManager universe, Gravship gravship)
+        {
+            // 战术降落到达重放时 pendingShip 已被 WriteDockedState 清空，改读
+            // landedShipAwaitingPocketCleanup 窗口（WriteDockedState → LandingEnded）。
+            ShipState pending = DockController.PendingDockingShip
+                ?? DockController.LandedShipAwaitingPocketCleanup;
+            if (pending != null)
+            {
+                return pending.objectId;
+            }
+            if (gravship.Engine.Spawned)
+            {
+                SubstructureOwnership ownership = SubstructureOwnership.TryGet(gravship.Engine.Map);
+                int owner = ownership?.OwnerAt(gravship.Engine.Position) ?? SubstructureOwnership.Unassigned;
+                if (owner != SubstructureOwnership.Unassigned)
+                {
+                    return owner;
+                }
+            }
+            return universe.AllocateOwnerId();
         }
     }
 

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+
+	<!--
+		「修改基架归属」命令注册进 Orders 类别（与拆除/开采/伐木同组；2026-09-18 基架
+		归属设计）。Designator 内部按 FrameOf 门禁，只在 Delta-V 参考系图有效。
+	-->
+	<Operation Class="PatchOperationAdd">
+		<xpath>/Defs/DesignationCategoryDef[defName="Orders"]/specialDesignatorClasses</xpath>
+		<value>
+			<li>DeltaV.Designator_ReassignSubstructure</li>
+		</value>
+	</Operation>
+
+</Patch>

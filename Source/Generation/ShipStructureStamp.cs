@@ -21,19 +21,20 @@ namespace DeltaV
     /// </summary>
     public static class ShipStructureStamp
     {
-        public static void StampPlayerShip(Map map)
+        /// <summary>ownerId = 船的 objectId：甲板基架从生成起归属该船。</summary>
+        public static void StampPlayerShip(Map map, int ownerId)
         {
             CellRect hull = CenteredRect(map, 40, 24);
-            StampHull(map, hull, doorsOnEast: 2, interiorWall: true, colonists: 0, Faction.OfPlayer);
+            StampHull(map, hull, doorsOnEast: 2, interiorWall: true, colonists: 0, Faction.OfPlayer, ownerId);
             StampPlayerEquipment(map, hull);
             // 殖民者最后落位：设备已占的格被 Standable 过滤，也不会被后续 Vanish 波及。
             SpawnColonists(map, hull, 2);
         }
 
-        public static void StampEnemyShip(Map map)
+        public static void StampEnemyShip(Map map, int ownerId)
         {
             CellRect hull = CenteredRect(map, 24, 14);
-            StampHull(map, hull, doorsOnEast: 1, interiorWall: false, colonists: 0, faction: null);
+            StampHull(map, hull, doorsOnEast: 1, interiorWall: false, colonists: 0, faction: null, ownerId);
             // 敌舰 24×14：单台线性推进器 + 双向力偶，对称于船体中心；z 带 1-2 / 3-4 / 6-7 / 9-10 / 11-12 互不重叠。
             SpawnThruster(map, hull, 1, 7, Rot4.East);            // 前进（艉、朝东）
             SpawnThruster(map, hull, 22, 6, Rot4.West);           // 减速（艏、朝西）
@@ -51,11 +52,19 @@ namespace DeltaV
         }
 
         private static void StampHull(Map map, CellRect hull, int doorsOnEast, bool interiorWall,
-            int colonists, Faction faction)
+            int colonists, Faction faction, int ownerId)
         {
-            foreach (IntVec3 cell in hull)
+            SubstructureOwnership.SetPendingStamp(map, hull.Cells, ownerId);
+            try
             {
-                map.terrainGrid.SetTerrain(cell, DeltaVDefOf.Substructure);
+                foreach (IntVec3 cell in hull)
+                {
+                    map.terrainGrid.SetTerrain(cell, DeltaVDefOf.Substructure);
+                }
+            }
+            finally
+            {
+                SubstructureOwnership.RemovePendingStamp(map);
             }
             foreach (IntVec3 cell in hull.EdgeCells)
             {

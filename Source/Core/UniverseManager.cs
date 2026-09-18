@@ -78,6 +78,37 @@ namespace DeltaV
             return max + 1;
         }
 
+        // ---- 基架归属 ID（2026-09-18 设计，与 SpaceObject 共用 ID 空间）----
+
+        /// <summary>
+        /// 已分配的归属 ID 高水位（持久化）。归属 ID 可能没有对应 SpaceObject（裸 ID
+        /// 平台），NextObjectId 只扫已注册对象，故必须独立计数防碰撞；分配时再与
+        /// NextObjectId 抬平。
+        /// </summary>
+        private int nextFreeOwnerId;
+
+        /// <summary>分配一个新的基架归属 ID（独立新建平台、战略到达落点、归属命令「新建独立 ID」）。</summary>
+        public int AllocateOwnerId()
+        {
+            int objectFloor = NextObjectId() - 1;
+            if (nextFreeOwnerId <= objectFloor)
+            {
+                nextFreeOwnerId = objectFloor + 1;
+            }
+            return nextFreeOwnerId++;
+        }
+
+        /// <summary>归属 ID 的显示名：已注册对象用其 label，裸 ID 显示「独立结构 #N」。</summary>
+        public string LabelForOwner(int ownerId)
+        {
+            if (ownerId <= 0)
+            {
+                return "DeltaV_OwnerUnassigned".Translate();
+            }
+            SpaceObject obj = objects.FirstOrDefault(o => o.objectId == ownerId);
+            return obj != null ? obj.label : "DeltaV_OwnerUnregistered".Translate(ownerId);
+        }
+
         /// <summary>宇宙对象增删的唯一入口（AGENTS §11 单一管理入口精神）；星区记账与 id 语义在此收口。</summary>
         public void RegisterObject(SpaceObject obj)
         {
@@ -275,6 +306,7 @@ namespace DeltaV
             Scribe_Values.Look(ref focusedShipId, "focusedShipId", -1);
             Scribe_Values.Look(ref pilotShipId, "pilotShipId", -1);
             Scribe_Values.Look(ref primaryShipId, "primaryShipId", -1);
+            Scribe_Values.Look(ref nextFreeOwnerId, "nextFreeOwnerId", 0);
             if (Scribe.mode == LoadSaveMode.LoadingVars)
             {
                 // 主菜单改过尺度再读档：对象位姿仍按存档时尺度分布，读档后统一重标定。
@@ -316,6 +348,7 @@ namespace DeltaV
             PilotController.SuppressVanillaKeys = false;
             DockController.RestorePendingAfterLoad(this);
             MigratePlanarSaves();
+            MigrateSubstructureOwnership();
             if (pendingScaleRescaleFrom > 0f)
             {
                 float current = DeltaVMod.Settings?.cellsPerTile ?? (int)OrbitSphere.DefaultCellsPerTile;
@@ -364,6 +397,56 @@ namespace DeltaV
                     DockController.TryDeleteEmptyDepartedMap(this, map);
                 }
             });
+        }
+
+        /// <summary>
+        /// 基架归属旧档自愈：归属体系上线前的存档没有归属组件——全部基架格按
+        /// 「地图默认归属」（宿主 SpaceObject；停靠图归 wreck POI，口袋图归船本身）
+        /// 补齐。无宿主对象的图兜底分配新 ID。仅 Delta-V 参考系图参与。
+        /// 存档已带归属组件的图不做整图迁移：「未占有（0）」是合法的持久状态
+        /// （孤立建造/争议桥），读档吸收会破坏归属语义。
+        /// 定向自愈（口袋图）：一图恒一船，船本人在图上没有任何归属格而图上存在基架
+        /// = 早期版本盖章缺口的损伤签名（起飞进口袋未盖章 → 邻接规则分配孤儿 ID；
+        /// 到达盖章解析失败拿了新 ID）——整图改归船。刻意在口袋图上拆分独立归属的
+        /// 存档船自身仍有归属格，不会命中本分支。
+        /// </summary>
+        private void MigrateSubstructureOwnership()
+        {
+            SubstructureOwnership.ResetStatic();
+            foreach (Map map in Find.Maps)
+            {
+                if (FrameOf(map) == null)
+                {
+                    continue;
+                }
+                if (SubstructureOwnership.TryGet(map) == null)
+                {
+                    SubstructureOwnership ownership = SubstructureOwnership.For(map);
+                    if (ownership.HasUnassignedSubstructure())
+                    {
+                        int defaultOwner = SpaceObjectOnMap(map)?.objectId ?? AllocateOwnerId();
+                        int migrated = ownership.MigrateUnassigned(defaultOwner);
+                        if (migrated > 0)
+                        {
+                            DeltaVLog.Message(DeltaVLogModule.Core,
+                                $"map {map.Index}: migrated {migrated} substructure cells to default owner #{defaultOwner}");
+                        }
+                    }
+                }
+                ShipState pocketShip = ShipOnMap(map);
+                if (pocketShip == null)
+                {
+                    continue;
+                }
+                SubstructureOwnership pocketOwnership = SubstructureOwnership.TryGet(map);
+                if (pocketOwnership != null && pocketOwnership.HasAnySubstructure()
+                    && pocketOwnership.CountCellsOwnedBy(pocketShip.objectId) == 0)
+                {
+                    int healed = pocketOwnership.ClaimAllSubstructure(pocketShip.objectId);
+                    Log.Message($"[DeltaV] Ship #{pocketShip.objectId} '{pocketShip.label}' owns no substructure "
+                        + $"on its pocket map (stale data from a pre-fix build); reclaimed {healed} cells.");
+                }
+            }
         }
 
         /// <summary>
@@ -624,6 +707,7 @@ namespace DeltaV
                 PilotController.Toggle(this);
             }
             ShipStatusPanel.Draw(this);
+            Designator_ReassignSubstructure.DrawPendingLabels();
             DebugActions_DeltaV.DrawFrameMeter();
             HandleShellClick();
             HandleWorldMarkerClick();

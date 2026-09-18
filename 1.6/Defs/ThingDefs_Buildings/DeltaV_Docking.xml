@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+	<!--
+		对接口（2026-09-18 基架归属设计）：门类建筑（Building_DockingPort : Building_Door），
+		常闭密封（ExchangeVacuum=false）。rotatable——建造朝向决定对接通道延伸方向；
+		需铺在基架上；真空屏障科技解锁。贴图暂用原版门占位。
+	-->
+	<ThingDef ParentName="DoorBase">
+		<defName>DeltaV_DockingPort</defName>
+		<label>docking port</label>
+		<description>A sealed airlock door for deep-space docking. When the ship enters fixed mode, the port automatically extends a docking channel in its facing direction toward the nearest structure. The channel is walkable and vacuum-tight, but is not substructure: it never joins the ship's grav-engine domain. Retract or remove the port to fold the channel away.</description>
+		<thingClass>DeltaV.Building_DockingPort</thingClass>
+		<rotatable>true</rotatable>
+		<stuffCategories Inherit="False" />
+		<useStuffTerrainAffordance>false</useStuffTerrainAffordance>
+		<terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
+		<researchPrerequisites>
+			<li>DeltaV_VacuumBarrier</li>
+		</researchPrerequisites>
+		<statBases>
+			<WorkToBuild>1400</WorkToBuild>
+			<MaxHitPoints>200</MaxHitPoints>
+		</statBases>
+		<graphicData>
+			<texPath>Things/Building/Door/DoorSimple_Mover</texPath>
+			<graphicClass>Graphic_Single</graphicClass>
+			<damageData>
+				<enabled>false</enabled>
+			</damageData>
+		</graphicData>
+		<uiIconPath>Things/Building/Door/DoorSimple_MenuIcon</uiIconPath>
+		<costList>
+			<Steel>40</Steel>
+			<ComponentIndustrial>1</ComponentIndustrial>
+		</costList>
+		<placeWorkers>
+			<li>DeltaV.PlaceWorker_DockingPort</li>
+		</placeWorkers>
+		<modExtensions>
+			<li Class="DeltaV.DefModExtension_DockingPort">
+				<channelRange>8</channelRange>
+			</li>
+		</modExtensions>
+	</ThingDef>
+
+</Defs>

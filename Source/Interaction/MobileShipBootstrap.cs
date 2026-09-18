@@ -84,9 +84,26 @@ namespace DeltaV
 
             Vector2 sourceLocal = SpaceTransform.MapToShipLocal(sourceMap, structureCenter);
             Vector3 universeDir = SpaceTransform.FocusedToUniverse(sourceFrame, sourceLocal);
+            // 基架归属域认领（2026-09-18 设计）：bootstrap 捕获的就是引擎所在的整个归属
+            // 连通域——整域（含「未占有」域）重盖章为船 ID，剪影、捕获与再降落保持
+            // 归属连续。裸 ID 域直接继承；域 ID 仍被宿主对象（如残骸 POI）持有时换新
+            // ID（bootstrap 捕获的是整个归属域，残骸的全部基架随之成为船体，POI 只剩
+            // 空图）；未占有域获得全新船 ID。
+            SubstructureOwnership ownership = SubstructureOwnership.TryGet(sourceMap);
+            int shipId = universe.NextObjectId();
+            if (ownership != null)
+            {
+                int domainOwner = ownership.OwnerAt(engine.Position);
+                if (domainOwner != SubstructureOwnership.Unassigned
+                    && !universe.objects.Any(o => o.objectId == domainOwner))
+                {
+                    shipId = domainOwner;
+                }
+                ownership.SetOwner(engine.AllConnectedSubstructure, shipId);
+            }
             // 初始宇宙角 = 宿主帧角 ⊕ 主台在源图上的朝向（与降落落点反向映射互逆；
             // 真实轨道图的显示帧角恒 0，此收口为约定统一）。
-            var ship = new ShipState(universe.NextObjectId(), engine.RenamableLabel, null,
+            var ship = new ShipState(shipId, engine.RenamableLabel, null,
                 new SpacePose(universeDir, SpaceTransform.WrapAngle(sourceFrame.pose.angle
                     + ShipOrientation.AngleFromRot4(console.Rotation))),
                 isPlayerShip: true)
