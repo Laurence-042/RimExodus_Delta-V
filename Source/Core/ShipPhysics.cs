@@ -12,8 +12,11 @@ namespace DeltaV
     /// - 质量 = Substructure 甲板格数 × MassPerDeckCell + 建筑（有 Mass stat 用 stat 值，否则 MassPerBuilding）；
     /// - 质心 / 转动惯量按点质量对质心求和；
     /// - 推进器 = LargeThruster（Odyssey 逆重推进器）：占用矩形中心为作用点，Rot4 朝向为推力方向；
-    /// - 分配器把每台推进器对 Fx/Fz/力矩的贡献放入同一个盒约束最小二乘问题；
-    ///   纯平移优先保持零净力矩，必要时会差动同向推进器或调用正交方向的力偶；
+/// - 分配器把每台推进器对 Fx/Fz/力矩的贡献放入同一个盒约束最小二乘问题；
+///   纯平移优先保持零净力矩，必要时会差动同向推进器或调用正交方向的力偶；
+/// - 所有力源（驾驶输入、自动驾驶、未来舰船 AI）都必须经 ForceToCommand 归一化
+///   后走同一分配器求解油门与可达力，禁止绕过分配器直接合成力——机动因此始终
+///   受推进器布局约束，火焰表现层也只认分配器写出的真实油门；
     /// - 飞行辅助（含按住刹车键临时启用）在 PilotController 合成反向指令，走同一分配器；
     ///   最后的微小残差由 Residual* 常量直接衰减到零（用户决策 2026-09-13：不要求推进器
     ///   布局能完美消除微小漂移——刻意偏离纯牛顿的收尾便利）。
@@ -82,7 +85,9 @@ namespace DeltaV
             /// 不受质量报告的 120 tick 重扫间隔拖慢）。</summary>
             public bool operational;
 
-            /// <summary>本 tick 分配到的油门 [0,1]；运行时派生状态，不参与物理积分或存档。</summary>
+            /// <summary>本 tick 分配到的油门 [0,1]。唯一写入者是 Allocate（驾驶/
+            /// 自动驾驶/未来舰船 AI 共用同一分配器）；火焰表现层（地图路径与
+            /// 船壳路径）只读此值。运行时派生状态，不参与物理积分或存档。</summary>
             public float throttle;
         }
 
@@ -92,6 +97,11 @@ namespace DeltaV
             public Vector2 comLocal;
             public float inertia;
             public readonly List<Thruster> thrusters = new List<Thruster>();
+
+            /// <summary>最近一次 Allocate 求解的时间（Time.time）。0 = 从未求解
+            /// （Measure 重扫后的缺省），火焰读取方据此判定油门新鲜，防止力源
+            /// 停止后的幽灵火焰。运行时表现层标记，不存档。</summary>
+            public float throttlesWrittenAt;
         }
 
         /// <summary>指令各分量 ∈ [-1, 1]；平移分量已经由主驾驶台系换算到 Map 局部 x/z。</summary>
@@ -224,32 +234,8 @@ namespace DeltaV
                 return;
             }
 
-            float positiveX = 0f;
-            float negativeX = 0f;
-            float positiveZ = 0f;
-            float negativeZ = 0f;
-            float positiveTorque = 0f;
-            float negativeTorque = 0f;
-            for (int i = 0; i < report.thrusters.Count; i++)
-            {
-                Thruster thruster = report.thrusters[i];
-                // 实时刷新：推进器实际状态（故障/排气堵塞/断电）变化当 tick 即生效。
-                thruster.operational = ThrusterPower.IsOperational(thruster.thing);
-                if (!thruster.operational)
-                {
-                    thruster.throttle = 0f;
-                    continue;
-                }
-                Vector2 fullForce = thruster.dir * ThrusterThrust;
-                float fullTorque = Cross(thruster.localPos - report.comLocal, fullForce);
-                positiveX += Mathf.Max(fullForce.x, 0f);
-                negativeX += Mathf.Max(-fullForce.x, 0f);
-                positiveZ += Mathf.Max(fullForce.y, 0f);
-                negativeZ += Mathf.Max(-fullForce.y, 0f);
-                positiveTorque += Mathf.Max(fullTorque, 0f);
-                negativeTorque += Mathf.Max(-fullTorque, 0f);
-                thruster.throttle = 0f;
-            }
+            MeasureAuthority(report, out float positiveX, out float negativeX,
+                out float positiveZ, out float negativeZ, out float positiveTorque, out float negativeTorque);
 
             float scaleX = DirectionalScale(command.fx, positiveX, negativeX);
             float scaleZ = DirectionalScale(command.fz, positiveZ, negativeZ);
@@ -321,6 +307,83 @@ namespace DeltaV
                 force += appliedForce;
                 torque += Cross(thruster.localPos - report.comLocal, appliedForce);
             }
+
+            // 表现层新鲜度：本次求解的油门自此计时，火焰读取方只在新鲜期内绘制。
+            report.throttlesWrittenAt = Time.time;
+        }
+
+        /// <summary>
+        /// 刷新全部推进器实际状态（故障/排气堵塞/断电当次调用即生效）并清零油门，
+        /// 同时累计各轴正/负向出力上限——ForceToCommand 的归一化与分配器求解共用
+        /// 同一份上限，保证指令换算与求解目标严格一致。
+        /// </summary>
+        private static void MeasureAuthority(MassReport report,
+            out float positiveX, out float negativeX,
+            out float positiveZ, out float negativeZ,
+            out float positiveTorque, out float negativeTorque)
+        {
+            positiveX = 0f;
+            negativeX = 0f;
+            positiveZ = 0f;
+            negativeZ = 0f;
+            positiveTorque = 0f;
+            negativeTorque = 0f;
+            for (int i = 0; i < report.thrusters.Count; i++)
+            {
+                Thruster thruster = report.thrusters[i];
+                thruster.operational = ThrusterPower.IsOperational(thruster.thing);
+                if (!thruster.operational)
+                {
+                    thruster.throttle = 0f;
+                    continue;
+                }
+                Vector2 fullForce = thruster.dir * ThrusterThrust;
+                float fullTorque = Cross(thruster.localPos - report.comLocal, fullForce);
+                positiveX += Mathf.Max(fullForce.x, 0f);
+                negativeX += Mathf.Max(-fullForce.x, 0f);
+                positiveZ += Mathf.Max(fullForce.y, 0f);
+                negativeZ += Mathf.Max(-fullForce.y, 0f);
+                positiveTorque += Mathf.Max(fullTorque, 0f);
+                negativeTorque += Mathf.Max(-fullTorque, 0f);
+                thruster.throttle = 0f;
+            }
+        }
+
+        /// <summary>
+        /// 制导层换算：把绝对期望力/力矩（Map 局部系）归一化为分配器指令。
+        /// 按力符号匹配该方向出力上限（与 Allocate 内 DirectionalScale 的方向选择
+        /// 同语义），超出布局能力的期望饱和到 ±1，该方向无可用推进器时指令为 0。
+        /// 制导（ShipAutopilot）与未来舰船 AI 共用——期望力必须经此换算再进
+        /// Allocate，得到的出力与油门才是布局内真实可达值。
+        /// </summary>
+        public static Command ForceToCommand(MassReport report, Vector2 force, float torque)
+        {
+            if (report == null || report.thrusters.Count == 0)
+            {
+                return default;
+            }
+            MeasureAuthority(report, out float positiveX, out float negativeX,
+                out float positiveZ, out float negativeZ, out float positiveTorque, out float negativeTorque);
+            return new Command
+            {
+                fx = NormalizeAxis(force.x, positiveX, negativeX),
+                fz = NormalizeAxis(force.y, positiveZ, negativeZ),
+                torque = NormalizeAxis(torque, positiveTorque, negativeTorque)
+            };
+        }
+
+        /// <summary>单轴归一化：正值除正向上限、负值除负向上限，clamp 到 [-1,1]。</summary>
+        private static float NormalizeAxis(float value, float positiveAuthority, float negativeAuthority)
+        {
+            if (value > 1e-6f)
+            {
+                return Mathf.Min(1f, value / Mathf.Max(positiveAuthority, 1f));
+            }
+            if (value < -1e-6f)
+            {
+                return Mathf.Max(-1f, value / Mathf.Max(negativeAuthority, 1f));
+            }
+            return 0f;
         }
 
         private static float DirectionalScale(float command, float positiveAuthority, float negativeAuthority)
@@ -453,6 +516,24 @@ namespace DeltaV
                 || (oldReport.comLocal - newReport.comLocal).sqrMagnitude > 0.0001f
                 || Mathf.Abs(oldReport.inertia - newReport.inertia) > 1f
                 || oldReport.thrusters.Count != newReport.thrusters.Count;
+        }
+
+        /// <summary>
+        /// 清零该船的分配器油门（表现层熄火）：仅当报告已在缓存时生效，不触发扫描。
+        /// 供绕过积分器直接改位姿的出口（自动驾驶到达/取消等）立即熄焰；
+        /// 常规停火由下一次 Allocate 的全零解自然覆盖，无需调用。
+        /// </summary>
+        public static void ClearThrottles(ShipState ship)
+        {
+            if (ship?.map == null || !Cache.TryGetValue(ship.map, out CachedReport cached) || cached.report == null)
+            {
+                return;
+            }
+            for (int i = 0; i < cached.report.thrusters.Count; i++)
+            {
+                cached.report.thrusters[i].throttle = 0f;
+            }
+            cached.report.throttlesWrittenAt = Time.time;
         }
 
         /// <summary>读档 / 场景重置时清空（与 ShellRenderer 的缓存自愈纪律一致）。</summary>

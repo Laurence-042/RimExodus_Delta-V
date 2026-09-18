@@ -69,6 +69,12 @@ namespace DeltaV
             CellRect localView = TransformRectInverse(matrix, Find.CameraDriver.CurrentViewRect).ExpandedBy(4);
             MapOverlayRenderer.Draw(map, matrix, rotation, localView,
                 obj is PoiState ? PoiConfig : ShipConfig, allowedCells);
+            // 船壳火焰：读分配器真实油门（驾驶/自动驾驶共用），POI 与停靠船不参与
+            //（不出力）；矩阵换算与船壳本体同源，火焰与船壳严格对位。
+            if (ship != null && !docked)
+            {
+                ThrusterEffects.DrawShellFlames(ship, matrix, rotation);
+            }
         }
 
         public static void ClearRuntimeCaches()
