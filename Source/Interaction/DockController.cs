@@ -39,6 +39,12 @@ namespace DeltaV
         private static IntVec3 pendingMobileSourceRoot;
         private static Vector2 pendingMobileOldOrigin;
         private static float pendingMobileHeading;
+        // 原版战略起飞的源图善后预存（HandleVanillaTakeoffFromDeltaVSource 写入，
+        // HandleStrategicTravelDeparture 消费）：TravelTo 放行时 ShipState 身份已释放，
+        // 无法回查。读档恢复时一并清空。
+        private static Map pendingStrategicSourceMap;
+        private static PlanetTile pendingStrategicSourceAddress;
+        private static SpacePose? pendingStrategicSourcePose;
         private static Building_GravEngine directCaptureEngine;
         private static Building_GravEngine landingCaptureEngine;
         private static HashSet<IntVec3> landingCaptureCells;
@@ -61,13 +67,16 @@ namespace DeltaV
         /// 指定引擎当前是否有 Delta-V 转换专用捕获范围。移动→固定的源端同步
         /// GenerateGravship 读取整个相连域；船放入目标图后的二次画面捕获改读冻结的
         /// Gravship foundation，避免相邻 wreck 污染动画。固定→移动从 InitiateTakeoff
-        /// 到原版捕获/移除完成始终读取整个相连域。
+        /// 到原版捕获/移除完成始终读取整个相连域。移动模式口袋图上的原版战略发射
+        /// （2026-09-19 放开）同样整船捕获——按原版力场脚印会截断超出力场的船体
+        /// （移动模式允许扩建到力场外）；停靠真实图的船（docked，map=null）不命中，
+        /// 仍为力场内口径。
         /// </summary>
         public static bool TryGetConversionCaptureScope(Building_GravEngine engine,
             out HashSet<IntVec3> scope)
         {
             scope = null;
-            if (engine == null) return false;
+            if (engine == null || engine.Map == null) return false;
             if (ReferenceEquals(engine, landingCaptureEngine) && landingCaptureCells != null)
             {
                 scope = landingCaptureCells;
@@ -75,6 +84,12 @@ namespace DeltaV
             }
             if (ReferenceEquals(engine, directCaptureEngine)
                 || (pendingMobileShip != null && ReferenceEquals(engine, pendingMobileEngine)))
+            {
+                scope = engine.AllConnectedSubstructure;
+                return true;
+            }
+            if (!engine.Map.Tile.Valid
+                && Current.Game?.GetComponent<UniverseManager>()?.ShipOnMap(engine.Map) != null)
             {
                 scope = engine.AllConnectedSubstructure;
                 return true;
@@ -425,6 +440,9 @@ namespace DeltaV
             directCaptureEngine = null;
             landingCaptureEngine = null;
             landingCaptureCells = null;
+            pendingStrategicSourceMap = null;
+            pendingStrategicSourceAddress = PlanetTile.Invalid;
+            pendingStrategicSourcePose = null;
             ClearPendingMobileLaunch();
             Gravship gravship = Current.Game?.Gravship;
             if (universe == null || gravship == null || Find.GravshipController == null) return;
@@ -608,6 +626,18 @@ namespace DeltaV
                 return;
             }
 
+            // 固定→移动不销毁任何 worldtile 图（2026-09-19 二次定稿）：源图保留，去留
+            // 交给锚对象配置与距离生命周期；非 worldtile 源的空白删除在起飞后由
+            // HandleDepartedSourceMap 统一处理。本转换无破坏性内容丢失，不需要确认弹窗。
+            ExecuteLaunch(universe, ship);
+        }
+
+        /// <summary>TryLaunch 的执行体：入口守卫与弃置确认弹窗之后的部分。</summary>
+        private static void ExecuteLaunch(UniverseManager universe, ShipState ship)
+        {
+            Map sourceMap = ship.dockedMap;
+            Building_GravEngine engine = FindEngineForShip(sourceMap, ship.primaryConsole);
+            if (engine == null) return;
             if (engine.launchInfo == null)
             {
                 engine.launchInfo = new LaunchInfo { quality = 1f, doNegativeOutcome = false };
@@ -640,27 +670,33 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 口袋图起飞的战略源地址（星区架构 §6/§9）：口袋图无 tile，原版起飞管线中
+        /// 口袋图起飞的战略源地址（星区架构 §6/§7/§9）：口袋图无 tile，原版起飞管线中
         /// 一切以源图 tile 为输入的环节改接该地址。真实轨道图原样返回自身 tile。
         /// </summary>
         internal static PlanetTile StrategicSourceAddress(UniverseManager universe, Map map)
         {
             if (map != null && map.Tile.Valid) return map.Tile;
             if (!OrbitSphere.Valid) return PlanetTile.Invalid;
-            ShipState ship = universe?.ShipOnMap(map)
-                ?? universe?.Ships.FirstOrDefault(s => s.dockedMap == map);
-            if (ship == null) return PlanetTile.Invalid;
-            return OrbitSphere.TileFromDirection(ship.pose.position);
+            // 口袋图起飞一律视为从所在星区起飞（§7）：船（自有/停靠）优先，其余
+            // Delta-V 口袋图（如 POI 内自建引擎发射）回退图 owner 的星区投影。
+            SpaceObject owner = universe?.ShipOnMap(map)
+                ?? universe?.Ships.FirstOrDefault(s => s.docked && s.dockedMap == map)
+                ?? universe?.SpaceObjectOnMap(map);
+            if (owner == null) return PlanetTile.Invalid;
+            return OrbitSphere.TileFromDirection(owner.pose.position);
         }
 
         /// <summary>
         /// InitiateTakeoff Postfix 的执行体：源图与 Delta-V 相关时的原版战略起飞适配
         /// （星区架构 §6/§9）。本 mod 自己的 TryLaunch 流程（MobileLaunchPending）不经过这里。
         /// - 口袋图源：原版记录的 takeoffTile 无效（TakeoffEnded → TravelTo 会拿它做跨层
-        ///   换算并登记进 WorldObjects），改写为战略源地址；同时保护口袋图不被原版
-        ///   AbandonMap 抛弃（口袋 parent 不在原版语义内，去留由 Delta-V 决定）。
+        ///   换算并登记进 WorldObjects），改写为战略源地址。
+        /// - 源图保留策略统一交 Delta-V（2026-09-19 无锚起飞语义）：真实图源原本会因
+        ///   无锚被原版 TakeoffEnded 直接 AbandonMap（遗留基架来不及转残骸），口袋图源
+        ///   本就不在原版 Abandon 语义内——一律先保护，起飞完成（TravelTo 放行）后由
+        ///   HandleStrategicTravelDeparture 按「有锚保留 / 无锚弃置 + 基架转残骸」统一执行。
         /// - 源图承载的 ShipState 交还原版旅行： unregister 身份（再次进入移动模式时由
-        ///   bootstrap 重建）；移动模式的自有口袋图若彻底为空则随后销毁。
+        ///   bootstrap 重建）。
         /// </summary>
         internal static void HandleVanillaTakeoffFromDeltaVSource(Building_GravEngine engine,
             WorldComponent_GravshipController controller)
@@ -669,41 +705,84 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             Map sourceMap = engine.Map;
             bool pocketSource = !sourceMap.Tile.Valid;
-            if (pocketSource)
+            // 只介入 Delta-V 语境的源图（口袋图或轨道层真实图）；地表 gravship 起飞
+            // 完全走原版行为（无锚地表起飞本就 AbandonMap + 留 GravshipLaunch 标记），
+            // 不因本 mod 改变保留策略。
+            if (pocketSource || sourceMap.Tile.LayerDef.isSpace)
             {
-                PlanetTile address = StrategicSourceAddress(universe, sourceMap);
-                if (address.Valid)
-                {
-                    ControllerTakeoffTile?.SetValue(controller, address);
-                }
                 ControllerMapHasGravAnchor?.SetValue(controller, true);
+                pendingStrategicSourceMap = sourceMap;
+                pendingStrategicSourceAddress = pocketSource
+                    ? StrategicSourceAddress(universe, sourceMap)
+                    : sourceMap.Tile;
+                pendingStrategicSourcePose = universe?.FrameOf(sourceMap)?.pose;
+                if (pocketSource && pendingStrategicSourceAddress.Valid)
+                {
+                    ControllerTakeoffTile?.SetValue(controller, pendingStrategicSourceAddress);
+                }
                 DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"vanilla strategic takeoff from pocket map: source address sector {address}, source map protected");
+                    $"vanilla strategic takeoff from {(pocketSource ? "pocket" : "tile")} map: " +
+                    $"source address sector {pendingStrategicSourceAddress}, source map deferred to Delta-V settlement");
             }
 
             ShipState ship = universe?.ShipOnMap(sourceMap)
                 ?? universe?.Ships.FirstOrDefault(s => s.docked && s.dockedMap == sourceMap);
             if (ship == null) return;
-            bool wasMobileOwner = ReferenceEquals(universe?.ShipOnMap(sourceMap), ship);
             PilotController.Exit(universe);
             HostColonistBarVisibility.NotifyDockingStateChanged();
             universe.UnregisterObject(ship);
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"{ship.label}: handed to vanilla strategic travel; Delta-V identity released (re-bootstrap on arrival)");
-            if (pocketSource && wasMobileOwner && SpaceMapGovernance.IsBlankLandingCanvas(sourceMap))
+        }
+
+        /// <summary>
+        /// 原版战略起飞放行 TravelTo 后的源图善后入口（Patch_GravshipUtility_TravelTo
+        /// 的 Postfix 调用；此刻起飞已完成、相机已离开源图），预存的源图/战略地址/
+        /// 位姿经帧边界延迟执行（2026-09-19 二次定稿）：
+        /// - 飞船自有飞行口袋图源：**总是销毁口袋图**（遗弃滞留者、遗留基架转无主
+        ///   残骸——整船捕获已带走船体，容器无意义）；所在星区 tile 的 worldtile 图
+        ///   按锚配置决定去留（无锚 → 原版 AbandonMap 弃置 + 基架转残骸；有锚保留）。
+        /// - 其他源（worldtile 图 / 残骸口袋图）：与固定→移动同一套处理
+        ///   （HandleDepartedSourceMap）。
+        /// </summary>
+        internal static void HandleStrategicTravelDeparture()
+        {
+            Map sourceMap = pendingStrategicSourceMap;
+            PlanetTile address = pendingStrategicSourceAddress;
+            SpacePose? pose = pendingStrategicSourcePose;
+            pendingStrategicSourceMap = null;
+            pendingStrategicSourceAddress = PlanetTile.Invalid;
+            pendingStrategicSourcePose = null;
+            if (sourceMap == null) return;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            LongEventHandler.ExecuteWhenFinished(delegate
             {
-                LongEventHandler.ExecuteWhenFinished(delegate
+                if (universe == null || sourceMap.Disposed || !Find.Maps.Contains(sourceMap)) return;
+                // 飞船自有飞行口袋图（战略发射源，身份已释放故无 owner）。
+                if (!sourceMap.Tile.Valid && universe.SpaceObjectOnMap(sourceMap) == null
+                    && sourceMap != Find.CurrentMap && !SpaceLifecycle.IsUniverseHost(sourceMap))
                 {
-                    if (Find.Maps.Contains(sourceMap) && sourceMap != Find.CurrentMap
-                        && SpaceMapGovernance.IsBlankLandingCanvas(sourceMap)
-                        && universe.SpaceObjectOnMap(sourceMap) == null)
+                    AbandonPawnsOn(sourceMap);
+                    ConvertLeftoverSubstructureToWreck(universe, sourceMap,
+                        pose ?? new SpacePose(Vector3.right, 0f));
+                    MapOverlayRenderer.Release(sourceMap);
+                    PlanetGlobeRenderer.InvalidateSilhouette(sourceMap);
+                    PocketMapUtility.DestroyPocketMap(sourceMap);
+                    ShipPhysics.ClearCache();
+                    DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                        "flight pocket map removed after strategic takeoff (leftovers converted)");
+                    // 所在星区 tile 的 worldtile 图按锚配置决定去留（无锚弃置的唯一
+                    // 保留场景：从口袋图发射 = 离开该星区，星区代表图承载无锚效果）。
+                    if (address.Valid && address.LayerDef.isSpace)
                     {
-                        PocketMapUtility.DestroyPocketMap(sourceMap);
-                        DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                            "ownerless emptied flight pocket map removed after vanilla takeoff");
+                        Map sectorMap = Find.WorldObjects.MapParentAt(address)?.Map;
+                        if (sectorMap != null && !sectorMap.Disposed && Find.Maps.Contains(sectorMap))
+                            AbandonUnanchoredSectorMap(universe, sectorMap);
                     }
-                });
-            }
+                    return;
+                }
+                HandleDepartedSourceMap(universe, sourceMap);
+            });
         }
 
         /// <summary>原版捕获完成后跳过可见起飞动画，但仍让 TakeoffEnded 执行全部收尾。</summary>
@@ -902,50 +981,154 @@ namespace DeltaV
         private static void QueueEmptyDepartedMapCleanup(UniverseManager universe, Map map)
         {
             if (map == null) return;
-            LongEventHandler.ExecuteWhenFinished(delegate { TryDeleteEmptyDepartedMap(universe, map); });
+            LongEventHandler.ExecuteWhenFinished(delegate { HandleDepartedSourceMap(universe, map); });
         }
 
         /// <summary>
-        /// 离港后的空降落图清理（星区架构 §5 保留「空降落图离港清理」）：空画布锚对象
-        /// （Space def / DeltaV_SpaceHostParent）的图若已彻底为空（无人、无建筑/物品、
-        /// 无其他停靠船，只剩 Filth/Gas/Mote 残迹）则直接删除并销毁锚对象——下一次次
-        /// 到达按需重生成。其他治理对象（留下真实内容的站点）与非纳管地图照旧判定；
-        /// 有任何遗留内容一律保留（原版持久语义）。口袋图宿主（POI 内部）同理：彻底
-        /// 为空则移除整个对象与图，有内容交给 SpaceLifecycle 超距快照收纳。
+        /// 固定→移动与逆重发射（非飞船口袋图源）共用的源图善后（2026-09-19 二次定稿，
+        /// 「真的一致」）：**worldtile 图不受固定↔移动转换影响**——保留，去留交给锚
+        /// 对象配置与距离生命周期；非 worldtile 图空白则立刻删除（遗留基架转无主
+        /// 残骸），非空白交给距离生命周期（SpaceLifecycle 超距快照收纳）。读档清扫
+        /// 复用同一入口自愈历史空白口袋。不按对象身份特判。
         /// </summary>
-        internal static void TryDeleteEmptyDepartedMap(UniverseManager universe, Map map)
+        internal static void HandleDepartedSourceMap(UniverseManager universe, Map sourceMap)
         {
-            if (universe == null || map == null || map.Disposed || !Find.Maps.Contains(map)) return;
-            if (map == Find.CurrentMap) return; // 聚焦/降落选点中的图绝不删
-            if (SpaceLifecycle.IsUniverseHost(map)) return;
-            if (map.mapPawns.AllPawnsSpawned.Any()) return;
-            if (universe.Ships.Any(s => s.dockedMap == map)) return;
-            if (!SpaceMapGovernance.IsBlankLandingCanvas(map)) return;
-
-            if (map.Tile.Valid && map.Tile.LayerDef.isSpace)
+            if (universe == null || sourceMap == null || sourceMap.Disposed
+                || !Find.Maps.Contains(sourceMap)) return;
+            if (sourceMap.Tile.Valid) return; // worldtile 图：不受转换影响
+            if (sourceMap == Find.CurrentMap)
             {
-                MapParent parent = map.Parent;
-                if (SpaceMapGovernance.IsGoverned(map, universe)
-                    && !SpaceMapGovernance.IsBlankCanvasAnchor(parent))
-                {
-                    return; // 有真实身份的治理站点：持久语义
-                }
-                string label = parent?.Label ?? map.ToString();
-                Current.Game.DeinitAndRemoveMap(map, false);
-                parent?.Destroy();
-                ShipPhysics.ClearCache();
-                DeltaVLog.Message(DeltaVLogModule.Lifecycle, $"{label}: empty departed landing map removed");
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"{sourceMap.Parent?.Label ?? sourceMap.ToString()}: pocket cleanup skipped (currently focused)");
                 return;
             }
-            SpaceObject owner = universe.SpaceObjectOnMap(map);
-            if (owner is PoiState poi)
+            if (SpaceLifecycle.IsUniverseHost(sourceMap)
+                || universe.Ships.Any(s => s.docked && s.dockedMap == sourceMap)) return;
+            SpaceObject owner = universe.SpaceObjectOnMap(sourceMap);
+            if (owner is PoiState poi && SpaceMapGovernance.IsBlankLandingCanvas(sourceMap))
             {
-                MapDormancyService.Forget(map);
-                MapOverlayRenderer.Release(map);
-                PocketMapUtility.DestroyPocketMap(map);
+                ConvertLeftoverSubstructureToWreck(universe, sourceMap, poi.pose);
+                MapDormancyService.Forget(sourceMap);
+                MapOverlayRenderer.Release(sourceMap);
+                PocketMapUtility.DestroyPocketMap(sourceMap);
                 universe.UnregisterObject(poi);
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"{poi.label}: emptied pocket interior removed with its object");
+            }
+        }
+
+        /// <summary>
+        /// 逆重起飞的弃置目标图（2026-09-19 用户方案）：源图有 worldtile 且在轨道层
+        /// 即源图本身；口袋图起飞 = 战略源地址 tile 上的图（严格按所在星区——玩家
+        /// 认知中逆重降落产生的图由所在星区代表承载）。返回 null = 无弃置目标。
+        /// </summary>
+        internal static Map DepartedSectorMapFor(UniverseManager universe, Map sourceMap)
+        {
+            if (sourceMap == null) return null;
+            if (sourceMap.Tile.Valid)
+                return sourceMap.Tile.LayerDef.isSpace ? sourceMap : null;
+            PlanetTile address = StrategicSourceAddress(universe, sourceMap);
+            if (!address.Valid || !address.LayerDef.isSpace) return null;
+            return Find.WorldObjects.MapParentAt(address)?.Map;
+        }
+
+        /// <summary>
+        /// 该图将在逆重起飞后按无锚语义弃置（无锚、无其他停靠船）。
+        /// exclude = 即将起飞的船（入口判定时它自己还 docked 在源图上，不算阻挡）。
+        /// 不检查 CurrentMap：入口判定时源图必然是聚焦图（玩家正对着它点起飞），
+        /// 该检查会让确认弹窗永不弹出（2026-09-19 实测 home 静默弃置的根因）；
+        /// 「不删聚焦图」的防御由 AbandonUnanchoredSectorMap 的执行守卫承担。
+        /// </summary>
+        internal static bool SectorMapWillBeAbandoned(UniverseManager universe, Map map, ShipState exclude = null)
+        {
+            return map != null && Find.Maps.Contains(map)
+                && !map.listerThings.AnyThingWithDef(ThingDefOf.GravAnchor)
+                && universe != null && !universe.Ships.Any(s => s != exclude && s.docked && s.dockedMap == map);
+        }
+
+        /// <summary>
+        /// 无锚弃置（唯一保留场景：飞船口袋图发射时对所在星区 worldtile 图）：
+        /// 图上无逆重锚 → 遗留基架先转无主残骸，再走原版 AbandonMap（含滞留 Pawn
+        /// 遗弃——发射链路的确认弹窗已警告）。有锚保留（原版锚定前哨）。
+        /// </summary>
+        private static void AbandonUnanchoredSectorMap(UniverseManager universe, Map map)
+        {
+            string mapLabel = map.Parent?.Label ?? map.ToString();
+            if (map == Find.CurrentMap)
+            {
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"{mapLabel}: unanchored abandon skipped (currently focused)");
+                return;
+            }
+            if (SpaceLifecycle.IsUniverseHost(map))
+            {
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"{mapLabel}: unanchored abandon skipped (universe host)");
+                return;
+            }
+            ShipState dockedBlocker = universe.Ships.FirstOrDefault(s => s.docked && s.dockedMap == map);
+            if (dockedBlocker != null)
+            {
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"{mapLabel}: unanchored abandon skipped (docked ship: {dockedBlocker.label})");
+                return;
+            }
+            if (map.listerThings.AnyThingWithDef(ThingDefOf.GravAnchor))
+            {
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"{mapLabel}: unanchored abandon skipped (grav anchor present)");
+                return;
+            }
+            // 遗留基架转无主残骸（2026-09-19 用户决策）：必须在删图前收快照。
+            ConvertLeftoverSubstructureToWreck(universe, map,
+                new SpacePose(OrbitSphere.TileCenterDirection(map.Tile), 0f));
+            GravshipUtility.AbandonMap(map);
+            ShipPhysics.ClearCache();
+            PlanetGlobeRenderer.InvalidateSilhouette(map);
+            DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                $"{mapLabel}: unanchored sector map abandoned after strategic takeoff from flight pocket");
+        }
+
+        /// <summary>
+        /// 起飞后被遗留的基架不随弃置消失（2026-09-19 用户决策）：删除前收整图结构
+        /// 快照（此刻捕获域已剥除，收到的即遗留内容），在原图位姿生成无主残骸
+        /// SpaceObject（SnapshotPocket，接近后按快照物化）。无遗留基架则不生成——
+        /// 普通杂物仍按原版语义随图失去。label 与 SectorContentService 残骸同款。
+        /// </summary>
+        private static void ConvertLeftoverSubstructureToWreck(UniverseManager universe, Map map, SpacePose pose)
+        {
+            bool hasFoundation = false;
+            foreach (IntVec3 cell in CellRect.WholeMap(map))
+            {
+                if (map.terrainGrid.FoundationAt(cell) != null)
+                {
+                    hasFoundation = true;
+                    break;
+                }
+            }
+            if (!hasFoundation) return;
+            var wreck = new PoiState(universe.NextObjectId(), "Derelict wreck",
+                pose.position, pose.angle, Rand.Int);
+            wreck.snapshot = PoiSnapshot.Capture(map);
+            universe.RegisterObject(wreck);
+            DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                $"{wreck.label} created from leftover substructure ({wreck.snapshot.ThingCount} things)");
+        }
+
+        /// <summary>
+        /// 口袋图删除前的滞留 Pawn 遗弃（照原版 GravshipUtility.AbandonMap 的 Pawn
+        /// 循环：Lost 思想 + Notify_LeftBehind + 销毁）——口袋 parent 不在原版 Abandon
+        /// 语义内，故只取其 Pawn 处理，图删除走 PocketMapUtility。
+        /// </summary>
+        private static void AbandonPawnsOn(Map map)
+        {
+            List<Pawn> pawns = map.mapPawns.AllPawnsSpawned.ToList();
+            PawnDiedOrDownedThoughtsUtility.TryGiveThoughts(pawns, PawnDiedOrDownedThoughtsKind.Lost);
+            for (int i = pawns.Count - 1; i >= 0; i--)
+            {
+                pawns[i].Notify_LeftBehind();
+                if (pawns[i].Spawned) pawns[i].DeSpawn();
+                if (!pawns[i].Destroyed) pawns[i].DestroyOrPassToWorld();
             }
         }
 

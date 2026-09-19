@@ -93,4 +93,6 @@
   <DeltaV_DockRetractDesc>Fold the docking channel away and restore open space.</DeltaV_DockRetractDesc>
   <DeltaV_DockNoFace>No structure within docking range in this port's facing direction.</DeltaV_DockNoFace>
   <DeltaV_DockChannelLaid>Docking channel extended: {0} cells.</DeltaV_DockChannelLaid>
+  <!-- Unanchored takeoff abandonment (2026-09-19) -->
+  <DeltaV_SectorMapAbandonConfirm>Launching will abandon the map of the current sector, "{0}", by the vanilla unanchored-takeoff rule - the map and everything not leaving with the ship will be permanently lost (build a grav anchor on that map to keep it). Proceed?</DeltaV_SectorMapAbandonConfirm>
 </LanguageData>

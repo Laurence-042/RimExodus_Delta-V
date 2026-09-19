@@ -36,6 +36,7 @@
 - 不主动修改版本号，也不自行创建新版本节；版本 bump 由用户明确发起。
 - 开工前检查工作树。用户已有改动必须保留，不能为了方便 reset、checkout 或覆盖无关文件。
 - 查询优先使用环境提供的源码检索工具。涉及 RimWorld 内部行为时，先查仓库已有反编译源码或参考源码，不凭印象施工。
+- **诊断日志禁止挂在每帧/tick 热路径上无条件输出**（2026-09-19 教训：gizmo 每帧经 `ShouldShowGizmo`/`ValidateDisabledState` 轮询 `CanLaunch`/`CanStartRitualNow`，一次选中复现刷出 767 条）。热路径（OnGUI/gizmo 验证/getter/MapMesh）埋点必须：先查 `DeltaVLog.Enabled` 再构造字符串、且只按状态变化（边沿触发）输出；优先把埋点挂在用户事件（点击、浮单、job 下发）等天然低频时机。
 - 新功能优先通过明确的小型接口接入现有架构，不为一个局部症状复制另一套坐标、生命周期或状态系统。
 - 唯一推荐构建命令：`dotnet build Source/DeltaV.csproj -c Release`（net48 + NuGet `Krafs.Rimworld.Ref`，输出到 `1.6/Assemblies/`；构建产物不入库）。
 
@@ -617,4 +618,6 @@ Harmony 规则：
 - 星球轨道坐标系必须可按星球参数化/实例化，不得烧死「只有一个轨道层」（恒星系扩展性）。
 - 星区内容密度数值（保底/分段概率）仍属 `doc/星区架构.md` §12.1 待定项；当前默认残骸保底 1、无额外量，只经 `SectorContentService.Rules` 调整。
 - **自动驾驶出力必须走刚体动量管理**（2026-09-18 用户决策）：制导期望力经 `ShipPhysics.ForceToCommand` 归一化后由联合分配器 `Allocate` 求真实逐推进器油门与可达力，积分使用可达值（玩家船/敌舰/未来舰船 AI 同构，机动受推进器布局硬约束，禁止绕过分配器直接合成力）；**虚空动力**仅限停靠终段收敛辅助（`FlyTo` 的 `allowVoidThrust`，按距离渐变补齐「期望 − 可达」差值），不写油门、不进火焰。推进器火焰表现层（聚焦地图内与非聚焦船壳两条路径）只读分配器真实油门（`MassReport.throttlesWrittenAt` 0.25s 新鲜期防幽灵火焰）。
+- **固定↔移动转换不销毁 worldtile 图**（2026-09-19 二次定稿，「真的一致」）：固定→移动与逆重发射（非飞船口袋图源）共用 `HandleDepartedSourceMap`——worldtile 图不受转换影响（去留只由锚对象配置与距离生命周期决定），非 worldtile 图空白立刻删除（遗留基架转无主残骸）、非空白走距离生命周期；**禁止按对象身份（空画布锚/玩家 Settlement/站点）特判去留，禁止让「起飞」本身成为 worldtile 图的销毁者**。
+- **逆重发射的特例**（2026-09-19 二次定稿）：飞船口袋图发射**总是销毁口袋图**（遗弃滞留者、遗留基架转无主残骸），并按锚配置决定所在星区 worldtile 图去留（无锚 → 原版 `AbandonMap` 弃置 + 基架转残骸，有锚保留）——这是无锚弃置的唯一保留场景；其他源发射同固定→移动处理。口袋图发射 = 整船捕获 + 战略源地址（`TryGetConversionCaptureScope` 对「口袋图 + ShipOnMap 命中」返回整船连通域，`TryGetPathFuelCost` Prefix 改接源地址）；**停靠真实 tile 图的船发起原版战略发射仍为力场内捕获口径**（两口径并存不得合并）；源图善后统一排在 TravelTo 放行后的 Postfix（InitiateTakeoff 时刻 CurrentMap 仍是源图，排队过早会卡守卫——旧 bug 勿回退）。
 - 设计与实现的唯一权威仍是 `doc/星区架构.md`；后续修订以该文档为准并同步 `README.md`。

@@ -15,7 +15,9 @@
 		  轨道层视差参数全部走原版正路，无 tile（-1）时才会越界红字；
 		- disableMapClippers：地图边缘不生成裁切平面，外壳代理绘制到地图矩形之外时不会被 z-erase；
 		- destroyOnParentMapAbandoned=false：各飞船地图相互独立，宿主/sourceMap 被移除时不级联销毁；
-		- canLaunchGravship=false：阶段1 不接入逆重飞船起降 UI；
+		- canLaunchGravship=true：放开移动模式下的原版逆重战略发射（2026-09-19）——燃料/距离
+		  计算与捕获范围由 Harmony 补丁改接战略源地址与整船连通域（Patch_GravshipLanding /
+		  TryGetConversionCaptureScope），起飞后源图善后见 DockController（无锚弃置语义）；
 		- temperature=21：船体内部常温（测试殖民者不冻死），biome Orbit 与原版太空口袋图一致。
 	-->
 	<MapGeneratorDef>
@@ -31,7 +33,7 @@
 		<pocketMapProperties>
 			<biome>Orbit</biome>
 			<temperature>21</temperature>
-			<canLaunchGravship>false</canLaunchGravship>
+			<canLaunchGravship>true</canLaunchGravship>
 			<destroyOnParentMapAbandoned>false</destroyOnParentMapAbandoned>
 			<canBeCleaned>false</canBeCleaned>
 		</pocketMapProperties>
