@@ -67,38 +67,63 @@ namespace DeltaV
             return objects.FirstOrDefault(o => o.objectId == id) as ShipState;
         }
 
-        /// <summary>为运行时接入的新飞船/POI 分配稳定且不重复的对象 ID。</summary>
-        public int NextObjectId()
-        {
-            int max = 0;
-            foreach (SpaceObject obj in objects)
-            {
-                max = Mathf.Max(max, obj.objectId);
-            }
-            return max + 1;
-        }
-
-        // ---- 基架归属 ID（2026-09-18 设计，与 SpaceObject 共用 ID 空间）----
+        // ---- 对象/基架归属 ID（2026-09-18 设计；2026-09-20 收拢单一入口）----
 
         /// <summary>
-        /// 已分配的归属 ID 高水位（持久化）。归属 ID 可能没有对应 SpaceObject（裸 ID
-        /// 平台），NextObjectId 只扫已注册对象，故必须独立计数防碰撞；分配时再与
-        /// NextObjectId 抬平。
+        /// 已分配 ID 的高水位（持久化、单调递增、永不回收）。对象 ID 与基架归属 ID
+        /// 共用同一空间、同一计数器。曾经的双计数器（NextObjectId 只扫已注册对象、
+        /// 与本高水位互不可见）会让落点盖章/独立结构的裸 ID 与之后注册的
+        /// PoiState/残骸撞号：LabelForOwner 反查到错对象（归属域名变降落点名）、
+        /// bootstrap 换新 ID 与独立结构同号合域、捕获把独立结构整体吞并
+        /// （2026-09-20 实测两症状同根）。
         /// </summary>
         private int nextFreeOwnerId;
 
-        /// <summary>分配一个新的基架归属 ID（独立新建平台、战略到达落点、归属命令「新建独立 ID」）。</summary>
+        /// <summary>
+        /// 分配新的对象/基架归属 ID（唯一入口；新船/POI 注册与裸 ID 平台一律经此，
+        /// 不得再各自扫 objects 取 max+1）。读档后由 SyncOwnerIdFloor 对齐下限。
+        /// </summary>
         public int AllocateOwnerId()
         {
-            int objectFloor = NextObjectId() - 1;
-            if (nextFreeOwnerId <= objectFloor)
+            if (nextFreeOwnerId <= 0)
             {
-                nextFreeOwnerId = objectFloor + 1;
+                nextFreeOwnerId = 1; // 0 = Unassigned，绝不能发出
             }
             return nextFreeOwnerId++;
         }
 
-        /// <summary>归属 ID 的显示名：已注册对象用其 label，裸 ID 显示「独立结构 #N」。</summary>
+        /// <summary>
+        /// 读档对齐：抬到 max(已存值, 全部注册对象 ID, 全部图归属格最大 ID)。
+        /// 旧档双计数器产生的撞号不自动拆（无法消歧），玩家经「修改基架归属」修复。
+        /// </summary>
+        private void SyncOwnerIdFloor()
+        {
+            int floor = nextFreeOwnerId;
+            foreach (SpaceObject obj in objects)
+            {
+                floor = Mathf.Max(floor, obj.objectId);
+            }
+            foreach (Map map in Find.Maps)
+            {
+                SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
+                if (ownership != null)
+                {
+                    floor = Mathf.Max(floor, ownership.MaxAssignedOwner());
+                }
+                // 驾驶台 comp 持久持有的身份 ID（含旧档停泊字段迁移值）也要占据号段。
+                foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
+                {
+                    CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
+                    if (console != null)
+                    {
+                        floor = Mathf.Max(floor, console.shipId);
+                    }
+                }
+            }
+            nextFreeOwnerId = floor;
+        }
+
+        /// <summary>归属 ID 的显示名：已注册对象/驾驶台注册表用其 label，裸 ID 显示「独立结构 #N」。</summary>
         public string LabelForOwner(int ownerId)
         {
             if (ownerId <= 0)
@@ -106,7 +131,27 @@ namespace DeltaV
                 return "DeltaV_OwnerUnassigned".Translate();
             }
             SpaceObject obj = objects.FirstOrDefault(o => o.objectId == ownerId);
-            return obj != null ? obj.label : "DeltaV_OwnerUnregistered".Translate(ownerId);
+            if (obj != null)
+            {
+                return obj.label;
+            }
+            return shipNames.TryGetValue(ownerId, out string name)
+                ? name
+                : "DeltaV_OwnerUnregistered".Translate(ownerId);
+        }
+
+        /// <summary>
+        /// 驾驶台身份的名称注册表（id → 船名，持久化；2026-09-20 驾驶台=身份锚点设计）。
+        /// 战略飞行注销 ShipState 期间归属域名仍可解析；bootstrap 重建后 objects 优先命中。
+        /// </summary>
+        private Dictionary<int, string> shipNames = new Dictionary<int, string>();
+
+        public void NoteShipName(int shipId, string label)
+        {
+            if (shipId > 0 && !label.NullOrEmpty())
+            {
+                shipNames[shipId] = label;
+            }
         }
 
         /// <summary>宇宙对象增删的唯一入口（AGENTS §11 单一管理入口精神）；星区记账与 id 语义在此收口。</summary>
@@ -120,6 +165,13 @@ namespace DeltaV
         {
             if (obj == null) return;
             objects.Remove(obj);
+            // 被注销对象的 ID 仍被驾驶台 comp / 图上归属域持有（战略飞行的船、走距离
+            // 生命周期的残骸），推过高水位绝不再发——否则新星区生成物会领走同号，
+            // LabelForOwner 反查错对象、异主域同号合并（2026-09-20 撞号实测）。
+            if (obj.objectId >= nextFreeOwnerId)
+            {
+                nextFreeOwnerId = obj.objectId + 1;
+            }
         }
 
         // ---- 尺度重标定（星区架构 §8）----
@@ -307,6 +359,11 @@ namespace DeltaV
             Scribe_Values.Look(ref pilotShipId, "pilotShipId", -1);
             Scribe_Values.Look(ref primaryShipId, "primaryShipId", -1);
             Scribe_Values.Look(ref nextFreeOwnerId, "nextFreeOwnerId", 0);
+            Scribe_Collections.Look(ref shipNames, "shipNames", LookMode.Value, LookMode.Value);
+            if (Scribe.mode == LoadSaveMode.LoadingVars && shipNames == null)
+            {
+                shipNames = new Dictionary<int, string>();
+            }
             if (Scribe.mode == LoadSaveMode.LoadingVars)
             {
                 // 主菜单改过尺度再读档：对象位姿仍按存档时尺度分布，读档后统一重标定。
@@ -348,6 +405,8 @@ namespace DeltaV
             PilotController.SuppressVanillaKeys = false;
             DockController.RestorePendingAfterLoad(this);
             MigratePlanarSaves();
+            // 先对齐 ID 下限再跑归属迁移（迁移会对无组件图兜底分配新 ID）。
+            SyncOwnerIdFloor();
             MigrateSubstructureOwnership();
             if (pendingScaleRescaleFrom > 0f)
             {

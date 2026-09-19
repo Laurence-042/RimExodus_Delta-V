@@ -70,6 +70,14 @@ namespace DeltaV
                     return owner;
                 }
             }
+            // 战略到达（身份已注销）：驾驶台 = 身份锚点——落点域直接盖驾驶台的持久
+            // 身份 ID（comp 未 Spawned 也可解析/领号），归属域名跨飞行连续；无驾驶台
+            /// 的 gravship 兜底新领裸 ID。
+            CompDeltaVPilotConsole identity = CompDeltaVPilotConsole.IdentityConsoleOf(gravship);
+            if (identity != null)
+            {
+                return identity.ShipIdentityId(universe);
+            }
             return universe.AllocateOwnerId();
         }
     }

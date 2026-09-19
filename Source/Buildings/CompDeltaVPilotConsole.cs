@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
@@ -50,16 +51,15 @@ namespace DeltaV
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
             base.PostSpawnSetup(respawningAfterLoad);
-            if (respawningAfterLoad)
+            if (!respawningAfterLoad)
             {
-                return;
+                ShipState ship = Ship;
+                if (ship != null)
+                {
+                    EnsurePrimaryConsole(ship);
+                }
             }
-            ShipState ship = Ship;
-            if (ship == null)
-            {
-                return;
-            }
-            EnsurePrimaryConsole(ship);
+            RestampShipDomain();
         }
 
         /// <summary>
@@ -124,6 +124,145 @@ namespace DeltaV
                 }
             }
             return oldest;
+        }
+
+        // ---- 船份身份（2026-09-20 设计：驾驶台 = 身份锚点）----
+
+        /// <summary>本结构的持久身份 ID：一经领取永不改变、随 comp 存档。旧档的
+        /// 一次性停泊字段（parkedShipId）在 PostExposeData 迁移读入。</summary>
+        public int shipId = -1;
+
+        /// <summary>
+        /// 解析本结构的身份 ID（确定性顺序）：已有 shipId → 本结构已注册 ShipState →
+        /// 本格归属域 owner（无注册对象持有时认领：副台认领主台、战略降落后域内恢复；
+        /// 被 POI 持有则不认领——wreck 甲板上的新台不冒领 wreck 身份）→ 统一计数器
+        /// 新领（UniverseManager.AllocateOwnerId，永不回号）。领取/认领时同步注册船名。
+        /// 未 Spawned 的 comp（随 Gravship 飞行中）也可调用——跳过域认领，直接领号。
+        /// </summary>
+        public int ShipIdentityId(UniverseManager universe)
+        {
+            if (shipId <= 0)
+            {
+                ShipState ship = Ship;
+                if (ship != null)
+                {
+                    shipId = ship.objectId;
+                }
+                else if (parent.Spawned)
+                {
+                    SubstructureOwnership ownership = SubstructureOwnership.TryGet(parent.Map);
+                    int domainOwner = ownership?.OwnerAt(parent.Position) ?? SubstructureOwnership.Unassigned;
+                    if (domainOwner != SubstructureOwnership.Unassigned
+                        && !universe.objects.Any(o => o.objectId == domainOwner))
+                    {
+                        shipId = domainOwner;
+                    }
+                }
+                if (shipId <= 0)
+                {
+                    shipId = universe != null ? universe.AllocateOwnerId() : -1;
+                }
+            }
+            NoteName(universe);
+            return shipId;
+        }
+
+        /// <summary>把本结构当前船名（引擎名）注册到 UniverseManager（归属域名/显示用）。</summary>
+        private void NoteName(UniverseManager universe)
+        {
+            string label = EngineLabel();
+            if (shipId > 0 && !label.NullOrEmpty())
+            {
+                universe?.NoteShipName(shipId, label);
+            }
+        }
+
+        private string EngineLabel()
+        {
+            return parent.TryGetComp<CompPilotConsole>()?.engine?.RenamableLabel;
+        }
+
+        /// <summary>随船找身份驾驶台：主台（vanilla PilotConsole 链接）优先，兜底遍历
+        /// Gravship 携带的 Thing。返回的 comp 可在未 Spawned 状态下解析/领取身份。</summary>
+        public static CompDeltaVPilotConsole IdentityConsoleOf(Gravship gravship)
+        {
+            CompDeltaVPilotConsole primary = gravship?.PilotConsole?.TryGetComp<CompDeltaVPilotConsole>();
+            if (primary != null)
+            {
+                return primary;
+            }
+            if (gravship != null)
+            {
+                foreach (Thing thing in gravship.Things)
+                {
+                    CompDeltaVPilotConsole comp = thing.TryGetComp<CompDeltaVPilotConsole>();
+                    if (comp != null)
+                    {
+                        return comp;
+                    }
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 驾驶台重生（降落放置 / 读档 / 模式切换后的重新 Spawn）即重盖章：从本台
+        /// BFS 相连基架（谓词：基架 ∧ owner ∈ {本船 ID, 未占有}）全部盖为本船 ID。
+        /// 异主域（独立结构 / 残骸）不可达，不会被吞并；漏盖章的降落自愈。放置时序
+        /// 已核实：原版 PlaceGravshipInMap 先 SpawnFoundations 后 SpawnNonPawnThings，
+        /// 重生时地基已盖章，副台经「本格域 owner」认领主台 ID。
+        /// </summary>
+        private void RestampShipDomain()
+        {
+            UniverseManager universe = Universe;
+            Map map = parent.Map;
+            if (universe == null || map == null || !MobileShipBootstrap.IsZeroGravity(map)
+                || universe.FrameOf(map) == null)
+            {
+                return;
+            }
+            int id = ShipIdentityId(universe);
+            if (id <= 0)
+            {
+                return;
+            }
+            SubstructureOwnership ownership = SubstructureOwnership.For(map);
+            var cells = new List<IntVec3>();
+            map.floodFiller.FloodFill(parent.Position, delegate (IntVec3 x)
+            {
+                if (!x.InBounds(map))
+                {
+                    return false;
+                }
+                TerrainDef foundation = map.terrainGrid.FoundationAt(x);
+                if (foundation == null || !foundation.IsSubstructure)
+                {
+                    return false;
+                }
+                int owner = ownership.OwnerAt(x);
+                return owner == id || owner == SubstructureOwnership.Unassigned;
+            }, delegate (IntVec3 x)
+            {
+                cells.Add(x);
+                return false;
+            });
+            if (cells.Count > 0)
+            {
+                ownership.SetOwner(cells, id);
+            }
+        }
+
+        public override void PostExposeData()
+        {
+            base.PostExposeData();
+            Scribe_Values.Look(ref shipId, "shipId", -1);
+            // 旧档一次性停泊字段：仅迁移读入（停泊语义已删除，身份永久驻留本 comp）。
+            int parkedLegacy = -1;
+            Scribe_Values.Look(ref parkedLegacy, "parkedShipId", -1);
+            if (Scribe.mode == LoadSaveMode.LoadingVars && shipId <= 0 && parkedLegacy > 0)
+            {
+                shipId = parkedLegacy;
+            }
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()

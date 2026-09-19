@@ -253,16 +253,37 @@ namespace DeltaV
             return count;
         }
 
-        // ---- 写入（Harmony SetFoundation postfix 与归属命令的唯一通道） ----
+        // ---- 写入（本组件是基架归属的唯一权威类；外部写路径只走 SetPendingStamp /
+        // SetOwner / ResolveBuilt / ClaimAllSubstructure / MigrateUnassigned 这些语义
+        // 入口，逐格裸写 Assign 收窄为组件内部使用，owner ID 一律经
+        // UniverseManager.AllocateOwnerId 单一计数器分配——2026-09-20 收拢） ----
 
-        /// <summary>写单格归属（不通知；管线批写时逐格调用，由调用方收尾通知）。</summary>
-        public void Assign(IntVec3 cell, int ownerId)
+        /// <summary>写单格归属（不通知；管线批写时逐格调用，由调用方收尾通知）。组件内部使用。</summary>
+        internal void Assign(IntVec3 cell, int ownerId)
         {
             if (ownerGrid == null)
             {
                 ownerGrid = new int[map.cellIndices.NumGridCells];
             }
             ownerGrid[map.cellIndices.CellToIndex(cell)] = ownerId;
+        }
+
+        /// <summary>图中已盖出的最大归属 ID（读档 ID 下限对齐用；无数据返回 0）。</summary>
+        public int MaxAssignedOwner()
+        {
+            int max = 0;
+            if (ownerGrid == null)
+            {
+                return max;
+            }
+            foreach (int owner in ownerGrid)
+            {
+                if (owner > max)
+                {
+                    max = owner;
+                }
+            }
+            return max;
         }
 
         /// <summary>

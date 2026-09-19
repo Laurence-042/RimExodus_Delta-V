@@ -728,6 +728,9 @@ namespace DeltaV
             ShipState ship = universe?.ShipOnMap(sourceMap)
                 ?? universe?.Ships.FirstOrDefault(s => s.docked && s.dockedMap == sourceMap);
             if (ship == null) return;
+            // 身份常驻驾驶台 comp（2026-09-20 设计，无需在此搬运）；注销前把当前船名
+            // 写进注册表，战略飞行期间归属域名仍可解析。
+            universe.NoteShipName(ship.objectId, ship.label);
             PilotController.Exit(universe);
             HostColonistBarVisibility.NotifyDockingStateChanged();
             universe.UnregisterObject(ship);
@@ -1120,7 +1123,7 @@ namespace DeltaV
                 }
             }
             if (!hasFoundation) return;
-            var wreck = new PoiState(universe.NextObjectId(), "Derelict wreck",
+            var wreck = new PoiState(universe.AllocateOwnerId(), "Derelict wreck",
                 pose.position, pose.angle, Rand.Int);
             wreck.snapshot = PoiSnapshot.Capture(map);
             universe.RegisterObject(wreck);

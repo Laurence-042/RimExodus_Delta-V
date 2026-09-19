@@ -108,7 +108,7 @@ namespace DeltaV
                     .FirstOrDefault(p => p.kind == PoiKind.NativeParent && p.nativeParent == parent);
                 if (poi == null)
                 {
-                    poi = new PoiState(universe.NextObjectId(), parent);
+                    poi = new PoiState(universe.AllocateOwnerId(), parent);
                     universe.RegisterObject(poi);
                     DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                         $"registered orbital POI {parent.LabelCap} ({parent.GetType().FullName}, id={parent.ID})");

@@ -8,6 +8,8 @@
 
 船壳渲染应该有分SpaceObject的整体渲染层级，避免两个船壳重叠时建筑同时显示
 
+移动模式到固定模式不该有逆重降落的负面/正面效果，也不该让逆重引擎冷却
+
 ## 星区模型（已实现待实测，见 [星区架构.md](星区架构.md)）
 
 - [ ] 实测：连续跨多个星区飞行不再抛 `InvalidOperationException`（2026-09-17：`TickSectorTracking` 惰性枚举 `Ships` 时 `RegisterObject` 添加残骸所致，已快照修复）；RimExodus 地表 tile 到达/起飞不触发星区记账与残骸生成（isSpace 门控）。

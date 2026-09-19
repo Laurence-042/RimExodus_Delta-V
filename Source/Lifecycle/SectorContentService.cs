@@ -188,7 +188,7 @@ namespace DeltaV
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"sector {tile}: derelict placement relaxed (best spacing {bestSpacing:F0} < {MinSpacingCells})");
             }
-            var poi = new PoiState(universe.NextObjectId(), "Derelict wreck",
+            var poi = new PoiState(universe.AllocateOwnerId(), "Derelict wreck",
                 OrbitSphere.Move(center, bestOffset), Rand.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
             universe.RegisterObject(poi);
         }

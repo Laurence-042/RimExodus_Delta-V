@@ -181,7 +181,7 @@ namespace DeltaV
                 Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            var poi = new PoiState(um.NextObjectId(), "Derelict wreck",
+            var poi = new PoiState(um.AllocateOwnerId(), "Derelict wreck",
                 OrbitSphere.Move(player.pose.position, new Vector2(400f, 0f)),
                 Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
             um.RegisterObject(poi);
@@ -198,7 +198,7 @@ namespace DeltaV
                 Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            var poi = new PoiState(um.NextObjectId(), "Distant wreck",
+            var poi = new PoiState(um.AllocateOwnerId(), "Distant wreck",
                 OrbitSphere.Move(player.pose.position, new Vector2(0f, 1500f)),
                 Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
             um.RegisterObject(poi);
