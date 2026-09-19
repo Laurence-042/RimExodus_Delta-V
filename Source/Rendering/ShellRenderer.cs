@@ -9,20 +9,6 @@ namespace DeltaV
     /// <summary>宇宙对象变换适配层；实际 Map 内容绘制由通用 MapOverlayRenderer 完成。</summary>
     public static class ShellRenderer
     {
-        internal static readonly MapOverlayRenderConfig ShipConfig = new MapOverlayRenderConfig
-        {
-            requiredFoundation = DeltaVDefOf.Substructure,
-            includeWallsAndDoors = true
-        };
-
-        internal static readonly MapOverlayRenderConfig PoiConfig = new MapOverlayRenderConfig
-        {
-            drawVisibleTerrain = true,
-            includeWallsAndDoors = true,
-            includeBuildings = true,
-            includeItems = true
-        };
-
         public static void DrawNonFocusedShells(UniverseManager universe)
         {
             Map current = Find.CurrentMap;
@@ -67,8 +53,7 @@ namespace DeltaV
             Vector3 translation = drawPos - rotation * new Vector3(sourceOrigin.x, 0f, sourceOrigin.y);
             Matrix4x4 matrix = Matrix4x4.TRS(translation, rotation, Vector3.one);
             CellRect localView = TransformRectInverse(matrix, Find.CameraDriver.CurrentViewRect).ExpandedBy(4);
-            MapOverlayRenderer.Draw(map, matrix, rotation, localView,
-                obj is PoiState ? PoiConfig : ShipConfig, allowedCells);
+            MapOverlayRenderer.Draw(map, matrix, rotation, localView, allowedCells);
             // 船壳火焰：读分配器真实油门（驾驶/自动驾驶共用），POI 与停靠船不参与
             //（不出力）；矩阵换算与船壳本体同源，火焰与船壳严格对位。
             if (ship != null && !docked)
@@ -79,7 +64,6 @@ namespace DeltaV
 
         public static void ClearRuntimeCaches()
         {
-            ShipConfig.requiredFoundation = DeltaVDefOf.Substructure;
             MapOverlayRenderer.ClearRuntimeCaches();
         }
 

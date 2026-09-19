@@ -162,8 +162,8 @@ namespace DeltaV
         /// <summary>
         /// 玩家船壳与目标可渲染船壳的最近距离（目标切空间系中计算；数据流与外壳渲染
         /// 同源——船壳格列表 + 双方位姿，凸包后求距离）。船壳口径与渲染一致：
-        /// 船 = 引擎相连基架（引擎损毁退化为 ShipConfig 可见内容扫描），
-        /// POI = PoiConfig 可见内容格。
+        /// 船 = 引擎相连基架（引擎损毁退化为统一结构外观扫描），
+        /// POI = 统一结构外观可见内容格。
         /// </summary>
         private static float VisibleShellDistance(UniverseManager universe, ShipState ship,
             Building_GravEngine playerEngine, SpaceObject target)
@@ -200,11 +200,9 @@ namespace DeltaV
             }
             else
             {
-                MapOverlayRenderConfig config = target is ShipState
-                    ? ShellRenderer.ShipConfig : ShellRenderer.PoiConfig;
                 foreach (IntVec3 cell in CellRect.WholeMap(targetMap))
                 {
-                    if (MapOverlayRenderer.ContainsVisibleContent(targetMap, cell, config))
+                    if (MapOverlayRenderer.ContainsVisibleContent(targetMap, cell))
                     {
                         targetPoints.Add(SpaceTransform.MapToShipLocal(targetMap,
                             new Vector2(cell.x + 0.5f, cell.z + 0.5f)));

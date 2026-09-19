@@ -6,20 +6,23 @@ using Verse;
 
 namespace DeltaV
 {
-    /// <summary>
-    /// 左侧面板星球仪（星区架构 §11.1；星区地图形态 = 星球仪连续缩放，§12.2 定稿）。
-    ///
-    /// 拉远是全局态势：南北轴 + 经纬网格（背面剔除）、玩家船光标三角 + 速度矢量；
-    /// 拉近按视场半宽（格）逐层显示：星区六边形网格（真实 tile 顶点，GetTileVertices）
-    /// → 对象图标（原版 ExpandingIcon + 派系色，Dialog_WorldSearch 同款画法；残骸为
-    /// 菱形标记）→ 名称与距离标注。LOD 阈值以 CellsPerTile 为单位，随尺度设置联动。
-    ///
-    /// 图标可悬停（名称/距离/未物化注记）、可点击聚焦（SetFocused + 相机跳转）；
-    /// 未物化对象点击提示「尚未进入可视范围」。缩放经 Zoom01（滑条，面板提供）与
-    /// 星球仪区域内滚轮调整；数据同源 SpacePose / OrbitSphere.Basis，不引入第二套坐标。
-    /// 显示层只是投影，不是宇宙状态的事实源。本交互层与分帧地图生成均计划抽公共库
-    ///（doc/TODO.md 长期项）。
-    /// </summary>
+        /// <summary>
+        /// 左侧面板星球仪（星区架构 §11.1；星区地图形态 = 星球仪连续缩放，§12.2 定稿）。
+        ///
+        /// 拉远是全局态势：南北轴（星区网格淡入时同步渐隐）+ 经纬网格（背面剔除）、
+        /// 玩家船光标三角 + 速度矢量；拉近按视场半宽（格）逐层显示：星区六边形网格
+        /// （真实 tile 顶点，GetTileVertices）→ 对象图标（原版 ExpandingIcon + 派系色，
+        /// Dialog_WorldSearch 同款画法；残骸为菱形标记）→ 名称与距离标注。LOD 阈值以
+        /// CellsPerTile 为单位，随尺度设置联动。放大后物化对象的标记被真实比例剪影
+        /// 替代（2026-09-19 定稿：图例变成剪影），名称与距离标注统一居中于剪影
+        /// （屏幕方位）下方；无剪影对象保持投影点标记 + 右侧标注。
+        ///
+        /// 图标可悬停（名称/距离/未物化注记）、可点击聚焦（SetFocused + 相机跳转）；
+        /// 未物化对象点击提示「尚未进入可视范围」。缩放经 Zoom01（滑条，面板提供）与
+        /// 星球仪区域内滚轮调整；数据同源 SpacePose / OrbitSphere.Basis，不引入第二套坐标。
+        /// 显示层只是投影，不是宇宙状态的事实源。本交互层与分帧地图生成均计划抽公共库
+        ///（doc/TODO.md 长期项）。
+        /// </summary>
     [StaticConstructorOnStartup]
     public static class PlanetGlobeRenderer
     {
@@ -227,18 +230,23 @@ namespace DeltaV
                 DrawSectorHexes(shipDir, referenceDir, Project, hexAlpha, viewAngleDeg, rect);
             }
 
-            // ---- 南北轴：极点向外延长的可见段（裁剪到矩形；深拉近距离轴通常在视场外）----
-            GL.Begin(GL.LINES);
-            GL.Color(new Color(0.7f, 0.9f, 1f, 0.75f));
-            if (Vector3.Dot(Vector3.up, shipDir) > 0.2f)
+            // ---- 南北轴：极点向外延长的可见段（裁剪到矩形）；星区网格淡入时同步
+            // 渐隐——星区层级地轴不再提供态势信息（2026-09-18 用户决策），与 N 标签
+            // 同用 hexAlpha 门控，轴用连续渐隐过渡。----
+            if (hexAlpha < 0.999f)
             {
-                ClippedLine(center, Project(Vector3.up * (1f + 18f / pixelsPerRad)), rect);
+                GL.Begin(GL.LINES);
+                GL.Color(new Color(0.7f, 0.9f, 1f, 0.75f * (1f - hexAlpha)));
+                if (Vector3.Dot(Vector3.up, shipDir) > 0.2f)
+                {
+                    ClippedLine(center, Project(Vector3.up * (1f + 18f / pixelsPerRad)), rect);
+                }
+                if (Vector3.Dot(-Vector3.up, shipDir) > 0.2f)
+                {
+                    ClippedLine(center, Project(-Vector3.up * (1f + 18f / pixelsPerRad)), rect);
+                }
+                GL.End();
             }
-            if (Vector3.Dot(-Vector3.up, shipDir) > 0.2f)
-            {
-                ClippedLine(center, Project(-Vector3.up * (1f + 18f / pixelsPerRad)), rect);
-            }
-            GL.End();
 
             Clickables.Clear();
             Overlays.Clear();
@@ -254,7 +262,7 @@ namespace DeltaV
                 }
             }
 
-            // ---- POI：残骸菱形（图标层；未物化或未到剪影层时）----
+            // ---- POI：残骸菱形（图标层；已物化且进入剪影层时被剪影替代）----
             if (iconLayer)
             {
                 foreach (SpaceObject obj in universe.objects)
@@ -262,8 +270,9 @@ namespace DeltaV
                     if (obj is PoiState poi && poi.kind == PoiKind.SnapshotPocket
                         && Vector3.Dot(obj.pose.position, shipDir) > 0f)
                     {
-                        // 已物化且进入剪影层：GUI 段画真实比例剪影，不再叠菱形。
-                        if (silhouetteLayer && poi.map != null) continue;
+                        // 已物化且进入剪影层：GUI 段画真实比例剪影，替代菱形；标注层
+                        // 的文字随后移到剪影下方（2026-09-19 定稿：图例变成剪影）。
+                        if (silhouetteLayer && GetSilhouette(poi.map, poi.objectId) != null) continue;
                         Vector2 pos = Project(obj.pose.position);
                         if (!rect.ExpandedBy(8f).Contains(pos)) continue;
                         DrawDiamond(pos, 6f, new Color(1f, 0.85f, 0.55f, 0.95f));
@@ -307,8 +316,10 @@ namespace DeltaV
                 {
                     continue; // 远档只显示玩家船
                 }
-                // 剪影层：物化飞船按真实比例（格→像素）与位姿角度画剪影，替代三角/圆点；
-                // 点击命中区域也随剪影大小——对接前航向调整的主要依据。
+                // 剪影层：物化飞船按真实比例（格→像素）与位姿角度画剪影，替代三角/
+                // 圆点；点击命中区域也随剪影大小——对接前航向调整的主要依据。
+                // 剪影即标记（2026-09-19 定稿：放大后图例变成剪影），不再另画三角；
+                // 名称与距离标注由标注层统一移到剪影下方（见 SilhouetteExtentOf）。
                 // 剪影按船自己的归属 ID 过滤：停靠在 wreck 图上时只画本船格子（按 wreck
                 // 地图当前状态绘制），不再与 wreck 剪影共用整图扫描结果。
                 Texture2D silhouette = silhouetteLayer && front
@@ -380,6 +391,8 @@ namespace DeltaV
                     }
                     if (poi.kind != PoiKind.NativeParent
                         || poi.nativeParent == null || poi.nativeParent.Destroyed) continue;
+                    // 原版站点没有 Substructure → 无剪影（上方分支已 continue），标记即
+                    // 投影点居中 = MarkerBelow 的 extent=0 情形，与其他标记同一套逻辑。
                     Vector2 iconPos = Project(obj.pose.position);
                     var iconRect = new Rect(iconPos.x - 9f, iconPos.y - 9f, 18f, 18f);
                     if (!iconRect.Overlaps(rect)) continue;
@@ -406,7 +419,14 @@ namespace DeltaV
                     Vector2 pos = Project(obj.pose.position);
                     float distance = OrbitSphere.ArcCells(referenceDir, obj.pose.position);
                     string text = $"{obj.label} · " + "DeltaV_PanelGlobeDistance".Translate(((int)distance).ToString("N0"));
-                    var labelRect = new Rect(Mathf.Min(pos.x + 12f, rect.xMax - 130f), pos.y - 8f, 130f, 16f);
+                    // 标注统一水平居中于图例（剪影或图标/三角标记）下方（2026-09-19
+                    // 定稿补全）：旧右侧布局在对象靠右时被 Min 夹回、横穿图标——纯
+                    // 太空 home 锚等无剪影 POI 实测与原版图标重合。
+                    float extent = LegendExtentOf(universe, obj, reference, silhouetteLayer, pixelsPerCell, right, up);
+                    Vector2 textSize = Text.CalcSize(text);
+                    float x = Mathf.Clamp(pos.x - textSize.x * 0.5f, rect.xMin + 2f,
+                        Mathf.Max(rect.xMin + 2f, rect.xMax - textSize.x - 2f));
+                    var labelRect = new Rect(x, pos.y + extent + 4f, textSize.x + 2f, textSize.y);
                     if (!labelRect.Overlaps(rect)) continue;
                     GUI.color = new Color(1f, 1f, 1f, 0.85f);
                     Widgets.Label(labelRect, text);
@@ -605,6 +625,66 @@ namespace DeltaV
             Vector2 forwardScreen = new Vector2(
                 Vector3.Dot(forwardWorld, right), -Vector3.Dot(forwardWorld, up));
             return Mathf.Atan2(forwardScreen.y, forwardScreen.x) * Mathf.Rad2Deg;
+        }
+
+        /// <summary>
+        /// 剪影旋转后包围盒的半高（像素）：剪影是正方形纹理，旋转 θ 后包围盒高 =
+        /// 边长 × (|cosθ| + |sinθ|)。是「下方」偏移的依据——屏幕方位（GUI y 向下），
+        /// 不随极点 roll 变化。
+        /// </summary>
+        private static float SilhouetteHalfHeightPx(float sizePx, float angleDeg)
+        {
+            float rad = angleDeg * Mathf.Deg2Rad;
+            return sizePx * 0.5f * (Mathf.Abs(Mathf.Cos(rad)) + Mathf.Abs(Mathf.Sin(rad)));
+        }
+
+        /// <summary>
+        /// 对象剪影旋转包围盒的半高（像素）；无剪影（未物化/未到剪影层/图上无该归属
+        /// 基架）返回 0。是 <see cref="LegendExtentOf"/> 的剪影分支。船的朝向经
+        /// ShipSilhouette.OrientationForCurrentMap（停靠态用宿主帧角）。
+        /// </summary>
+        private static float SilhouetteExtentOf(UniverseManager universe, SpaceObject obj,
+            bool silhouetteLayer, float pixelsPerCell, Vector3 right, Vector3 up)
+        {
+            if (!silhouetteLayer) return 0f;
+            Map map = obj is ShipState ship && ship.docked ? ship.dockedMap : obj.map;
+            Texture2D silhouette = GetSilhouette(map, obj.objectId);
+            if (silhouette == null) return 0f;
+            float sizePx = Mathf.Max(silhouette.width * pixelsPerCell, 8f);
+            float angleDeg;
+            if (obj is ShipState shipState)
+            {
+                ShipSilhouette.SilhouetteOrientation orientation =
+                    ShipSilhouette.OrientationForCurrentMap(shipState, universe);
+                angleDeg = SilhouetteScreenAngle(orientation.referenceDir, orientation.angle, right, up);
+            }
+            else
+            {
+                angleDeg = SilhouetteScreenAngle(obj.pose.position, obj.pose.angle, right, up);
+            }
+            return SilhouetteHalfHeightPx(sizePx, angleDeg);
+        }
+
+        /// <summary>
+        /// 对象图例（剪影或标记）在屏幕方位上的半高（像素）：有剪影 = 剪影旋转包围盒
+        /// 半高；无剪影 = 标记自身半高（POI 原版图标 18×18 → 9、残骸菱形 6、船三角
+        /// 按绘制尺寸随缩放插值、停靠点 3）。标注层据此把文字统一放在图例下方——
+        /// 右侧旧布局已废除（对象靠右时文字被夹回横穿图标）。
+        /// </summary>
+        private static float LegendExtentOf(UniverseManager universe, SpaceObject obj, ShipState reference,
+            bool silhouetteLayer, float pixelsPerCell, Vector3 right, Vector3 up)
+        {
+            float silhouetteExtent = SilhouetteExtentOf(universe, obj, silhouetteLayer, pixelsPerCell, right, up);
+            if (silhouetteExtent > 0f) return silhouetteExtent;
+            if (obj is ShipState ship)
+            {
+                if (ship.docked) return 3f;
+                return ReferenceEquals(obj, reference)
+                    ? Mathf.Lerp(9f, 14f, Zoom01)
+                    : Mathf.Lerp(6.5f, 10f, Zoom01);
+            }
+            if (obj is PoiState poi && poi.kind == PoiKind.SnapshotPocket) return 6f;
+            return 9f;
         }
 
         /// <summary>读档 / 场景重置时释放剪影缓存（按 Map+归属重扫自愈）。</summary>

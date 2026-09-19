@@ -7,25 +7,25 @@ using Verse;
 
 namespace DeltaV
 {
-    public sealed class MapOverlayRenderConfig
-    {
-        public TerrainDef requiredFoundation;
-        public bool drawVisibleTerrain;
-        public bool includeWallsAndDoors;
-        public bool includeBuildings;
-        public bool includeItems;
-        public bool includeRules = true;
-    }
-
     /// <summary>
-    /// 与宇宙业务解耦的地图叠加器。输入只有 Map、局部到显示帧矩阵和配置；
-    /// 17x17 section 快照是可丢弃运行时缓存。
+    /// 与宇宙业务解耦的地图叠加器。输入只有 Map、局部到显示帧矩阵和归属裁剪集；
+    /// 17x17 section 快照是可丢弃运行时缓存。所有 SpaceObject 共用同一条管线
+    /// （2026-09-18 用户决策：不按对象类型分叉配置），纳入标准 = 结构外观：
+    /// 地形走 TerrainAt 实际显示语义（原版回落链让基架顶替太空表面、地板盖住基架，
+    /// Space/Void 因 dontRender 天然排除）、墙门、气密结构与自然岩石（推进器/船壳/
+    /// 岩石自动入壳）、ShellRenderRuleDef 显式规则（exclude/alternateGraphic/zIndex）。
+    /// Thing 按各自 def.Altitude 真实分层；连接状态贴图（含 CornerFiller 角盖）按
+    /// 当前 LinkGrid 状态取片。
     /// </summary>
     public static class MapOverlayRenderer
     {
         private const int SectionSize = 17;
         private const int TexturePeriod = 16;
         private const float UvScale = 0.0625f;
+
+        // CornerFiller 角盖板常量（照抄 Graphic_LinkedCornerFiller）：0.5×0.5 盖板
+        // 距格中心 (0.5,0.5).magnitude×0.5，UV 退化为 (0.5, 0.6) 单点取样。
+        private const float CornerCoverOffsetDist = 0.35355339f;
 
         private sealed class SectionSnapshot
         {
@@ -44,10 +44,11 @@ namespace DeltaV
         private static readonly Dictionary<TerrainDef, Material> TerrainMaterials = new Dictionary<TerrainDef, Material>();
         private static readonly Mesh[] CellMeshes = new Mesh[TexturePeriod * TexturePeriod];
         private static readonly FieldInfo DrawerMapField = AccessTools.Field(typeof(MapDrawer), "map");
+        private static Mesh cornerFillerMesh;
         private static int cachedRuleCount = -1;
 
         public static void Draw(Map map, Matrix4x4 matrix, Quaternion rotation, CellRect localView,
-            MapOverlayRenderConfig config, HashSet<IntVec3> allowedCells = null, int layer = 0)
+            HashSet<IntVec3> allowedCells = null, int layer = 0)
         {
             if (map == null || map.Disposed || IncrementalMapGenerationService.IsGenerating(map)) return;
             if (!localView.Overlaps(CellRect.WholeMap(map))) return;
@@ -59,11 +60,11 @@ namespace DeltaV
             int maxSz = visible.maxZ / SectionSize;
             for (int sz = minSz; sz <= maxSz; sz++)
             for (int sx = minSx; sx <= maxSx; sx++)
-                DrawSection(map, matrix, rotation, visible, config, allowedCells, sx, sz, layer);
+                DrawSection(map, matrix, rotation, visible, allowedCells, sx, sz, layer);
         }
 
         private static void DrawSection(Map map, Matrix4x4 matrix, Quaternion rotation, CellRect visible,
-            MapOverlayRenderConfig config, HashSet<IntVec3> allowedCells, int sx, int sz, int layer)
+            HashSet<IntVec3> allowedCells, int sx, int sz, int layer)
         {
             int key = sx | (sz << 16);
             MapCache cache = CacheFor(map);
@@ -77,7 +78,7 @@ namespace DeltaV
             {
                 IntVec3 cell = section.terrainCells[i];
                 if (!visible.Contains(cell) || allowedCells != null && !allowedCells.Contains(cell)) continue;
-                TerrainDef terrain = TerrainForConfig(map, cell, config);
+                TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
                 if (terrain == null || terrain.dontRender) continue;
                 Material material = MaterialFor(terrain);
                 if (material == null) continue;
@@ -88,52 +89,134 @@ namespace DeltaV
             for (int i = 0; i < section.things.Count; i++)
             {
                 Thing thing = section.things[i];
-                if (!ShouldDrawThing(thing, config) || !visible.Contains(thing.Position)
+                if (!ShouldDrawThing(thing) || !visible.Contains(thing.Position)
                     || allowedCells != null && !allowedCells.Contains(thing.Position)) continue;
                 Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
                 Graphic graphic = rule?.GraphicFor(thing) ?? thing.Graphic;
                 if (graphic == null) continue;
                 Rot4 rot = thing.Rotation;
                 Vector3 target = matrix.MultiplyPoint3x4(thing.DrawPos + graphic.DrawOffset(rot));
-                target.y += (rule?.zIndex ?? 0f) * Altitudes.AltInc;
+                float zLift = (rule?.zIndex ?? 0f) * Altitudes.AltInc;
+                target.y += zLift;
                 Material material = graphic is Graphic_Linked ? graphic.MatSingleFor(thing) : graphic.MatAt(rot, thing);
-                if (material != null)
-                    Graphics.DrawMesh(graphic.MeshAt(rot), target, rotation * graphic.QuatFromRot(rot), material, layer);
+                if (material == null) continue;
+                Graphics.DrawMesh(graphic.MeshAt(rot), target, rotation * graphic.QuatFromRot(rot), material, layer);
+                if (graphic is Graphic_LinkedCornerFiller cornerFiller)
+                    DrawCornerFillerCovers(thing, cornerFiller, material, zLift, matrix, rotation, layer);
             }
         }
 
-        public static bool ContainsVisibleContent(Map map, IntVec3 cell, MapOverlayRenderConfig config,
-            HashSet<IntVec3> allowedCells = null)
+        public static bool ContainsVisibleContent(Map map, IntVec3 cell, HashSet<IntVec3> allowedCells = null)
         {
             EnsureRules();
             if (map == null || !cell.InBounds(map) || allowedCells != null && !allowedCells.Contains(cell)) return false;
-            TerrainDef terrain = TerrainForConfig(map, cell, config);
+            TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
             if (terrain != null && !terrain.dontRender) return true;
             List<Thing> things = map.thingGrid.ThingsListAtFast(cell);
-            for (int i = 0; i < things.Count; i++) if (ShouldDrawThing(things[i], config)) return true;
+            for (int i = 0; i < things.Count; i++) if (ShouldDrawThing(things[i])) return true;
             return false;
         }
 
-        private static TerrainDef TerrainForConfig(Map map, IntVec3 cell, MapOverlayRenderConfig config)
-        {
-            if (config?.requiredFoundation != null)
-                return map.terrainGrid.FoundationAt(cell) == config.requiredFoundation
-                    ? config.requiredFoundation : null;
-            return config?.drawVisibleTerrain == true ? map.terrainGrid.TerrainAt(cell) : null;
-        }
-
-        private static bool ShouldDrawThing(Thing thing, MapOverlayRenderConfig config)
+        /// <summary>
+        /// 结构外观纳入标准（所有 SpaceObject 统一，2026-09-18 用户决策）：动态物剔除
+        /// → 显式 exclude 最优先 → 墙/门 → 气密结构与自然岩石（推进器、船壳、岩石
+        /// 自动入壳，无规则即用原始贴图）→ 显式规则。物品与非气密建筑（家具、内部
+        /// 设备）不属于外壳，不自动显示。
+        /// </summary>
+        private static bool ShouldDrawThing(Thing thing)
         {
             if (thing == null || thing.Destroyed || !thing.Spawned || thing is Pawn || thing is Projectile
                 || thing is Mote || thing.def.category == ThingCategory.Filth
                 || thing.def.category == ThingCategory.Gas || thing.def.category == ThingCategory.Mote) return false;
             Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
             if (rule?.exclude == true) return false;
-            if (config == null) return false;
-            if (config.includeWallsAndDoors && (thing.def.IsWall || thing.def.IsDoor)) return true;
-            if (config.includeBuildings && thing.def.category == ThingCategory.Building) return true;
-            if (config.includeItems && thing.def.category == ThingCategory.Item) return true;
-            return config.includeRules && rule != null;
+            if (thing.def.IsWall || thing.def.IsDoor) return true;
+            if (thing is Building building
+                && (building.IsAirtight || building.def.building.isNaturalRock)) return true;
+            return rule != null;
+        }
+
+        /// <summary>
+        /// 复刻 Graphic_LinkedCornerFiller.Print 的对角盖板（1.6 反编译 41-77 行）：
+        /// 斜向连接（对角相连且两个相邻正向也相连）时在对角处补 0.5×0.5 盖板，材质
+        /// 与主 quad 相同（连接态 atlas 变体），UV 退化为 (0.5, 0.6) 单点取样；地图
+        /// 边缘外的对角按原版把对应边放大 5 倍。原版 Print 是 SectionLayer 专属，船壳
+        /// 路径按同一判定用 Graphics.DrawMesh 逐块绘制；LinkGrid 变化经 MapMeshDirty
+        /// patch 已覆盖脏化。
+        /// </summary>
+        private static void DrawCornerFillerCovers(Thing thing, Graphic_LinkedCornerFiller graphic,
+            Material material, float zLift, Matrix4x4 matrix, Quaternion rotation, int layer)
+        {
+            IntVec3 position = thing.Position;
+            Map map = thing.Map;
+            Vector3 drawPos = thing.DrawPos;
+            Quaternion quat = rotation * graphic.QuatFromRot(thing.Rotation);
+            for (int i = 0; i < 4; i++)
+            {
+                IntVec3 c = position + GenAdj.DiagonalDirectionsAround[i];
+                if (!graphic.ShouldLinkWith(c, thing)
+                    || (i == 0 && (!graphic.ShouldLinkWith(position + IntVec3.West, thing) || !graphic.ShouldLinkWith(position + IntVec3.South, thing)))
+                    || (i == 1 && (!graphic.ShouldLinkWith(position + IntVec3.West, thing) || !graphic.ShouldLinkWith(position + IntVec3.North, thing)))
+                    || (i == 2 && (!graphic.ShouldLinkWith(position + IntVec3.East, thing) || !graphic.ShouldLinkWith(position + IntVec3.North, thing)))
+                    || (i == 3 && (!graphic.ShouldLinkWith(position + IntVec3.East, thing) || !graphic.ShouldLinkWith(position + IntVec3.South, thing))))
+                {
+                    continue;
+                }
+                Vector3 center = drawPos + GenAdj.DiagonalDirectionsAround[i].ToVector3().normalized * CornerCoverOffsetDist
+                    + new Vector3(0f, Altitudes.AltInc + zLift, 0.09f);
+                Vector2 size = new Vector2(0.5f, 0.5f);
+                if (!c.InBounds(map))
+                {
+                    if (c.x == -1)
+                    {
+                        center.x -= 1f;
+                        size.x *= 5f;
+                    }
+                    if (c.z == -1)
+                    {
+                        center.z -= 1f;
+                        size.y *= 5f;
+                    }
+                    if (c.x == map.Size.x)
+                    {
+                        center.x += 1f;
+                        size.x *= 5f;
+                    }
+                    if (c.z == map.Size.z)
+                    {
+                        center.z += 1f;
+                        size.y *= 5f;
+                    }
+                }
+                Matrix4x4 trs = Matrix4x4.TRS(center, quat, new Vector3(size.x * 2f, 1f, size.y * 2f));
+                Graphics.DrawMesh(CornerFillerMesh(), matrix * trs, material, layer);
+            }
+        }
+
+        /// <summary>角盖板专用 mesh：0.5×0.5，顶点序照 Printer_Plane.PrintPlane（底边 y=0、顶边 y=0.01），UV 全 (0.5, 0.6)。</summary>
+        private static Mesh CornerFillerMesh()
+        {
+            if (cornerFillerMesh != null) return cornerFillerMesh;
+            var mesh = new Mesh { name = "DeltaV_ShellCornerFillerCover" };
+            mesh.vertices = new[]
+            {
+                new Vector3(-0.25f, 0f, -0.25f),
+                new Vector3(-0.25f, 0.01f, 0.25f),
+                new Vector3(0.25f, 0.01f, 0.25f),
+                new Vector3(0.25f, 0f, -0.25f)
+            };
+            var uv = new Vector2[4]
+            {
+                new Vector2(0.5f, 0.6f),
+                new Vector2(0.5f, 0.6f),
+                new Vector2(0.5f, 0.6f),
+                new Vector2(0.5f, 0.6f)
+            };
+            mesh.uv = uv;
+            mesh.triangles = new[] { 0, 1, 2, 0, 2, 3 };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return cornerFillerMesh = mesh;
         }
 
         private static SectionSnapshot BuildSection(Map map, int sx, int sz)
@@ -191,6 +274,11 @@ namespace DeltaV
             Rules.Clear();
             TerrainMaterials.Clear();
             cachedRuleCount = -1;
+            if (cornerFillerMesh != null)
+            {
+                Object.Destroy(cornerFillerMesh);
+                cornerFillerMesh = null;
+            }
             for (int i = 0; i < CellMeshes.Length; i++)
             {
                 if (CellMeshes[i] != null) Object.Destroy(CellMeshes[i]);
