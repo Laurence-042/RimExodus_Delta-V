@@ -28,7 +28,8 @@ namespace DeltaV
         }
 
         // 走到这里说明 TravelTo 被放行（原版战略起飞完成；移动模式在 Prefix 已消费
-        // 并拦截，不会执行本 Postfix）——此刻相机已离开源图，是源图善后的正确时机。
+        // 并拦截，不会执行本 Postfix）——善后时机见 HandleStrategicTravelDeparture：
+        // 此刻相机未必离开源图（战略航行中 CurrentMap 停在源图，焦点在那里显式处理）。
         public static void Postfix()
         {
             DockController.HandleStrategicTravelDeparture();

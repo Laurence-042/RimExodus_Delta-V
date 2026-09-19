@@ -731,14 +731,21 @@ namespace DeltaV
             PilotController.Exit(universe);
             HostColonistBarVisibility.NotifyDockingStateChanged();
             universe.UnregisterObject(ship);
+            // 对象 ID 释放后回池（新星区生成物可能立即复用同一 ID），清掉 HUD 跟踪
+            // 指针；getter 本就按 ShipState 过滤解析为 null，这里防的是陈旧 ID 与
+            // 未来复用者混淆。到达 bootstrap 时重新登记。
+            if (universe.focusedShipId == ship.objectId) universe.focusedShipId = -1;
+            if (universe.primaryShipId == ship.objectId) universe.primaryShipId = -1;
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"{ship.label}: handed to vanilla strategic travel; Delta-V identity released (re-bootstrap on arrival)");
         }
 
         /// <summary>
         /// 原版战略起飞放行 TravelTo 后的源图善后入口（Patch_GravshipUtility_TravelTo
-        /// 的 Postfix 调用；此刻起飞已完成、相机已离开源图），预存的源图/战略地址/
-        /// 位姿经帧边界延迟执行（2026-09-19 二次定稿）：
+        /// 的 Postfix 调用），预存的源图/战略地址/位姿经帧边界延迟执行（2026-09-19
+        /// 二次定稿）。注意此刻玩家在世界视图看 gravship 航行，CurrentMap 通常仍是
+        /// 源图——我们阻止了原版 TakeoffEnded 的 AbandonMap 级联，没有环节会把焦点
+        /// 移走；这不妨碍善后（焦点处理见自有飞行口袋图分支）：
         /// - 飞船自有飞行口袋图源：**总是销毁口袋图**（遗弃滞留者、遗留基架转无主
         ///   残骸——整船捕获已带走船体，容器无意义）；所在星区 tile 的 worldtile 图
         ///   按锚配置决定去留（无锚 → 原版 AbandonMap 弃置 + 基架转残骸；有锚保留）。
@@ -760,8 +767,14 @@ namespace DeltaV
                 if (universe == null || sourceMap.Disposed || !Find.Maps.Contains(sourceMap)) return;
                 // 飞船自有飞行口袋图（战略发射源，身份已释放故无 owner）。
                 if (!sourceMap.Tile.Valid && universe.SpaceObjectOnMap(sourceMap) == null
-                    && sourceMap != Find.CurrentMap && !SpaceLifecycle.IsUniverseHost(sourceMap))
+                    && !SpaceLifecycle.IsUniverseHost(sourceMap))
                 {
+                    // 焦点还在源图上是战略航行的常态。先显式置空（战略航行 = 原版
+                    // 「无当前图」形态），不能交给 DeinitAndRemoveMap 的 maps[0] 轮盘：
+                    // 可能命中宿主图被 CurrentMap patch 拒绝后按陈旧索引重定向，
+                    // 也可能把休眠 POI 图选成当前图并唤醒。
+                    if (sourceMap == Find.CurrentMap)
+                        Current.Game.CurrentMap = null;
                     AbandonPawnsOn(sourceMap);
                     ConvertLeftoverSubstructureToWreck(universe, sourceMap,
                         pose ?? new SpacePose(Vector3.right, 0f));
