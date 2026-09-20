@@ -725,7 +725,11 @@ namespace DeltaV
                     $"source address sector {pendingStrategicSourceAddress}, source map deferred to Delta-V settlement");
             }
 
+            // 多船同图停靠时，引擎所在连通域的船才是发射船（防注销/留名到错误船）；
+            // 找不到再回退任一停靠船（单船停靠的常态路径）。
             ShipState ship = universe?.ShipOnMap(sourceMap)
+                ?? universe?.Ships.FirstOrDefault(s => s.docked && s.dockedMap == sourceMap
+                    && ContainsDockedThing(s, engine))
                 ?? universe?.Ships.FirstOrDefault(s => s.docked && s.dockedMap == sourceMap);
             if (ship == null) return;
             // 身份常驻驾驶台 comp（2026-09-20 设计，无需在此搬运）；注销前把当前船名
@@ -997,6 +1001,9 @@ namespace DeltaV
             // 剪影快照失效：源图（宿主）已移除船体、新口袋图是全新键——宿主侧不得
             // 残留已起飞飞船的剪影（2026-09-17 实测事故）。
             PlanetGlobeRenderer.InvalidateSilhouette(sourceMap);
+            // 进移动模式清除源图旧域（2026-09-20 用户决策）：船体已被捕获剥离，源图上
+            // 残留的本船归属值全是陈旧数据；基架不重叠，按 ID 整清不会误伤他主域。
+            SubstructureOwnership.TryGet(sourceMap)?.ClearOwner(ship.objectId);
             HostColonistBarVisibility.NotifyDockingStateChanged();
             universe.SetFocused(ship);
             CameraJumper.TryJump(ship.pocketRoot, pocketMap, CameraJumper.MovementMode.Cut);

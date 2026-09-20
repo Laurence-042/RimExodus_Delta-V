@@ -123,6 +123,27 @@ namespace DeltaV
             nextFreeOwnerId = floor;
         }
 
+        /// <summary>
+        /// 旧档迁移（shipId 写点2，2026-09-20 铁律「中途安装本 mod」）：身份锚点特性
+        /// 上线前的存档里驾驶台 comp 从未领取过 ID（指纹：nextFreeOwnerId 与 objectId
+        /// 错位、shipNames 全空），读档即按已注册 ShipState 回填主台并注册船名；不为
+        /// 无法解析 Ship 的驾驶台分配新号（留给 Spawn 认领路径）。
+        /// </summary>
+        private void MigrateConsoleIdentities()
+        {
+            foreach (ShipState ship in objects.OfType<ShipState>())
+            {
+                NoteShipName(ship.objectId, ship.label);
+                CompDeltaVPilotConsole console = ship.primaryConsole?.TryGetComp<CompDeltaVPilotConsole>();
+                if (console != null && console.shipId <= 0)
+                {
+                    console.shipId = ship.objectId;
+                    DeltaVLog.Message(DeltaVLogModule.Core,
+                        $"#{ship.objectId} {ship.label}: console identity backfilled on load (pre-feature save)");
+                }
+            }
+        }
+
         /// <summary>归属 ID 的显示名：已注册对象/驾驶台注册表用其 label，裸 ID 显示「独立结构 #N」。</summary>
         public string LabelForOwner(int ownerId)
         {
@@ -407,6 +428,7 @@ namespace DeltaV
             MigratePlanarSaves();
             // 先对齐 ID 下限再跑归属迁移（迁移会对无组件图兜底分配新 ID）。
             SyncOwnerIdFloor();
+            MigrateConsoleIdentities();
             MigrateSubstructureOwnership();
             if (pendingScaleRescaleFrom > 0f)
             {

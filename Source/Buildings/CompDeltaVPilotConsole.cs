@@ -211,12 +211,16 @@ namespace DeltaV
         /// 异主域（独立结构 / 残骸）不可达，不会被吞并；漏盖章的降落自愈。放置时序
         /// 已核实：原版 PlaceGravshipInMap 先 SpawnFoundations 后 SpawnNonPawnThings，
         /// 重生时地基已盖章，副台经「本格域 owner」认领主台 ID。
+        /// 承载图：真实轨道图（IsZeroGravity）或飞船自有口袋图（无 tile，IsZeroGravity
+        /// 不覆盖；2026-09-20 教训——口袋图被守卫拦掉导致身份从未认领、战略飞行后
+        /// 落点新领裸 ID）。wreck 等 POI 口袋图不属于任何 ShipState，照旧不触发。
         /// </summary>
         private void RestampShipDomain()
         {
             UniverseManager universe = Universe;
             Map map = parent.Map;
-            if (universe == null || map == null || !MobileShipBootstrap.IsZeroGravity(map)
+            if (universe == null || map == null
+                || (!MobileShipBootstrap.IsZeroGravity(map) && !(universe.SpaceObjectOnMap(map) is ShipState))
                 || universe.FrameOf(map) == null)
             {
                 return;
@@ -226,6 +230,10 @@ namespace DeltaV
             {
                 return;
             }
+            // 设施链接在引擎 Spawn 时才建立（飞行中更被原版显式清空，见
+            // CompGravshipFacility），此刻 NoteName 可能拿不到引擎名；放置批次
+            // 完成后补注册一次，保证 shipNames 最终有名而非「独立结构 #N」。
+            LongEventHandler.ExecuteWhenFinished(delegate { NoteName(Universe); });
             SubstructureOwnership ownership = SubstructureOwnership.For(map);
             var cells = new List<IntVec3>();
             map.floodFiller.FloodFill(parent.Position, delegate (IntVec3 x)

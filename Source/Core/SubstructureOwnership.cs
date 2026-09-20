@@ -298,6 +298,32 @@ namespace DeltaV
             }
         }
 
+        /// <summary>
+        /// 整图清除指定归属的全部格子（进移动模式清除源图旧域，2026-09-20 用户决策）。
+        /// 不做地形过滤——要清的正是基架已随船走（捕获剥离）或断连遗留的陈旧值；
+        /// 基架不重叠 ⇒ 按 ID 整清不会误伤他主域。清除后照常通知引擎重算与剪影失效。
+        /// </summary>
+        public void ClearOwner(int ownerId)
+        {
+            if (ownerId <= 0 || ownerGrid == null)
+            {
+                return;
+            }
+            bool changed = false;
+            for (int i = 0; i < ownerGrid.Length; i++)
+            {
+                if (ownerGrid[i] == ownerId)
+                {
+                    ownerGrid[i] = Unassigned;
+                    changed = true;
+                }
+            }
+            if (changed)
+            {
+                NotifyOwnershipChanged();
+            }
+        }
+
         /// <summary>批写并返回是否有实际变化（不通知；建造钩子收尾统一通知）。</summary>
         private bool NotifyIfChanged(IEnumerable<IntVec3> cells, int ownerId)
         {
