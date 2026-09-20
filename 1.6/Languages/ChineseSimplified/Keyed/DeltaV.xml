@@ -33,6 +33,7 @@
   <DeltaV_SettingsLogPhysics>日志：物理积分</DeltaV_SettingsLogPhysics>
   <DeltaV_SettingsLogHarmony>日志：按键抑制决策</DeltaV_SettingsLogHarmony>
   <DeltaV_SettingsLogLifecycle>日志：POI 生命周期迁移</DeltaV_SettingsLogLifecycle>
+  <DeltaV_SettingsLogRender>日志：船壳分层（每秒最多 1 条）</DeltaV_SettingsLogRender>
   <DeltaV_SettingsUniverseZoomMax>宇宙视野缩放上限（60-5000）</DeltaV_SettingsUniverseZoomMax>
   <DeltaV_SettingsPoiActiveRadius>POI 加载/唤醒距离（格）</DeltaV_SettingsPoiActiveRadius>
   <DeltaV_SettingsPoiDeleteRadius>POI 删除距离（格）</DeltaV_SettingsPoiDeleteRadius>

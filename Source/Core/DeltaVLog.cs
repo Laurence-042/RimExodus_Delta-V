@@ -10,6 +10,8 @@ namespace DeltaV
     /// - Input：驾驶输入采样与飞行辅助合成（门控）
     /// - Physics：质量扫描与积分（门控，节流输出）
     /// - Harmony：按键抑制决策（门控；抑制激活的一次性摘要常开）
+    /// - Lifecycle：POI 生命周期迁移（门控）
+    /// - Render：船壳分层绘制（门控；每秒最多 1 条，热路径节流在调用侧）
     ///
     /// 纪律（与 RimExodus 相同，勿回退）：Warn/Error 不受开关控制；
     /// 关键状态迁移（驾驶进入/退出、抑制激活、补丁初始化结果）常开；
@@ -21,7 +23,8 @@ namespace DeltaV
         Input,
         Physics,
         Harmony,
-        Lifecycle
+        Lifecycle,
+        Render
     }
 
     /// <summary>
@@ -44,6 +47,7 @@ namespace DeltaV
                 case DeltaVLogModule.Physics: return s.logPhysics;
                 case DeltaVLogModule.Harmony: return s.logHarmony;
                 case DeltaVLogModule.Lifecycle: return s.logLifecycle;
+                case DeltaVLogModule.Render: return s.logRender;
                 default: return false;
             }
         }

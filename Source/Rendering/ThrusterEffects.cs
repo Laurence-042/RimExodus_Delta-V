@@ -11,7 +11,7 @@ namespace DeltaV
     /// 油门（唯一写入者 Allocate，驾驶/自动驾驶/未来舰船 AI 共用；配 0.25s 新鲜期，
     /// 防止力源停止后的幽灵火焰）；火焰材质、尺寸、偏移与排气 Fleck 参数复用
     /// Odyssey Gravship 推进器 Def。两条读取路径：聚焦帧船的真实地图位姿（Draw），
-    /// 非聚焦船壳的显示矩阵换算（DrawShellFlames，经 ShellRenderer 调用）。
+    /// 非聚焦船壳的显示矩阵换算（CollectShellFlames，经 ShellRenderer 调用）。
     /// 表现状态可随时丢弃重建，不反向参与物理或存档。
     /// </summary>
     [StaticConstructorOnStartup]
@@ -70,17 +70,26 @@ namespace DeltaV
                 GenThing.TrueCenter(thing.Position, thing.Rotation, thing.def.size, 0f));
         }
 
-        /// <summary>
-        /// 指定世界位置/朝向画火焰（降落动画等表现层复用同一套材质与参数；
-        /// 位置/朝向由调用方经动画矩阵换算，不读 Thing 的真实地图位姿）。
-        /// </summary>
-        public static void DrawFlame(Thing thing, float throttle, Quaternion rotation, Vector3 thrusterCenter)
+        /// <summary>一次火焰的全部绘制数据（聚焦图立即绘制与船壳缓冲命令共用计算）。</summary>
+        private struct FlameDraw
         {
+            public Vector3 position;
+            public Quaternion rotation;
+            public float flameSize;
+            public Material material;
+            public CompProperties_GravshipThruster props;
+            public Color color;
+        }
+
+        private static bool TryBuildFlame(Thing thing, float throttle, Quaternion rotation, Vector3 thrusterCenter,
+            out FlameDraw flame)
+        {
+            flame = default(FlameDraw);
             CompGravshipThruster comp = thing.TryGetComp<CompGravshipThruster>();
             CompProperties_GravshipThruster props = comp?.Props;
             if (props == null || props.flameSize <= 0f)
             {
-                return;
+                return false;
             }
 
             throttle = Mathf.Clamp01(throttle);
@@ -91,40 +100,77 @@ namespace DeltaV
             Vector3 offset = rotation * props.flameOffsetsPerDirection[thing.Rotation.AsInt];
             Vector3 position = thrusterCenter - facing * (thing.def.size.z * 0.5f + flameSize * 0.5f) + offset;
             position = position.SetToAltitude(AltitudeLayer.Skyfaller).WithYOffset(0.07317074f);
-
             MaterialRequest request = new MaterialRequest(props.FlameShaderType.Shader)
             {
                 renderQueue = FlameRenderQueue
             };
-            Material material = MaterialPool.MatFrom(request);
             float flicker = Mathf.Lerp(0.75f, 1f, Mathf.PerlinNoise(thing.thingIDNumber, Time.time * 10f));
             Color color = Color.white * Mathf.Lerp(0.2f, 1f, visualThrottle) * flicker;
             color.a = Mathf.Lerp(0.12f, 1f, visualThrottle);
-
-            FlameBlock.Clear();
-            for (int i = 0; i < props.flameShaderParameters.Count; i++)
+            flame = new FlameDraw
             {
-                props.flameShaderParameters[i].Apply(FlameBlock);
+                position = position,
+                rotation = rotation,
+                flameSize = flameSize,
+                material = MaterialPool.MatFrom(request),
+                props = props,
+                color = color
+            };
+            return true;
+        }
+
+        private static void ApplyFlameBlock(MaterialPropertyBlock block, FlameDraw flame)
+        {
+            block.Clear();
+            for (int i = 0; i < flame.props.flameShaderParameters.Count; i++)
+            {
+                flame.props.flameShaderParameters[i].Apply(block);
             }
             // Def 参数先应用，油门颜色后写入，避免未来 Def 增加 _Color2 时覆盖动态出力。
-            FlameBlock.SetColor(ShaderPropertyColor2, color);
-            GenDraw.DrawQuad(material, position, rotation, flameSize, FlameBlock);
+            block.SetColor(ShaderPropertyColor2, flame.color);
         }
 
         /// <summary>
-        /// 非聚焦船壳路径：按外壳显示矩阵画真实油门火焰。矩阵/旋转来自
-        /// ShellRenderer.DrawObjectShell（船局部 → 聚焦帧）；推进器本体仍在源 Map 上，
-        /// 只读它的 Def 参数与朝向，不读其真实地图位姿。高度沿用 DrawFlame 内的
-        /// Skyfaller 绝对海拔，与聚焦地图火焰同约定（船壳画在聚焦帧世界坐标里，
-        /// 遮挡关系天然一致）。排气 Fleck 属船自身 Map 的 flecks 体系，画不进
-        /// 聚焦帧，不在船壳层发射。
+        /// 指定世界位置/朝向画火焰（降落动画等表现层复用同一套材质与参数；
+        /// 位置/朝向由调用方经动画矩阵换算，不读 Thing 的真实地图位姿）。
         /// </summary>
-        public static void DrawShellFlames(ShipState ship, Matrix4x4 matrix, Quaternion rotation)
+        public static void DrawFlame(Thing thing, float throttle, Quaternion rotation, Vector3 thrusterCenter)
+        {
+            if (!TryBuildFlame(thing, throttle, rotation, thrusterCenter, out FlameDraw flame))
+            {
+                return;
+            }
+            ApplyFlameBlock(FlameBlock, flame);
+            GenDraw.DrawQuad(flame.material, flame.position, flame.rotation, flame.flameSize, FlameBlock);
+        }
+
+        // 池化火焰命令块：CommandBuffer 对 MaterialPropertyBlock 内容的读取时序不保证
+        // 记录时快照，每条火焰命令必须持有**独立**块（共享块会被同帧后收集的火焰覆盖）。
+        // 游标按帧重置——一帧内多壳连续收集不互踩；收集(Update)与执行(其后渲染)同帧
+        // 完成、池块只在下一帧收集时重写，跨帧安全。
+        private static readonly List<MaterialPropertyBlock> FlameBlockPool = new List<MaterialPropertyBlock>();
+        private static int flameBlockCursor;
+        private static int flameBlockFrame = -1;
+
+        /// <summary>
+        /// 非聚焦船壳路径：按外壳显示矩阵把真实油门火焰收集为缓冲命令（与壳内容同表、
+        /// 经 renderQueue 3201 排在本壳地形之上；随本壳进背景或前台缓冲）。矩阵/旋转
+        /// 来自 ShellRenderer.DrawObjectShell（船局部 → 聚焦帧）；推进器本体仍在源
+        /// Map 上，只读它的 Def 参数与朝向，不读其真实地图位姿。mesh/matrix 照抄
+        /// GenDraw.DrawQuad（反编译核实：plane10 + TRS(pos, rot, (size,1,size))）。
+        /// 排气 Fleck 属船自身 Map 的 flecks 体系，画不进聚焦帧，不在船壳层发射。
+        /// </summary>
+        public static void CollectShellFlames(ShipState ship, Matrix4x4 matrix, Quaternion rotation)
         {
             ShipPhysics.MassReport report = ShipPhysics.GetReport(ship);
             if (report == null || Time.time - report.throttlesWrittenAt > ThrottleFreshSeconds)
             {
                 return;
+            }
+            if (flameBlockFrame != Time.frameCount)
+            {
+                flameBlockFrame = Time.frameCount;
+                flameBlockCursor = 0;
             }
             for (int i = 0; i < report.thrusters.Count; i++)
             {
@@ -135,8 +181,20 @@ namespace DeltaV
                 }
                 Thing thing = thruster.thing;
                 Vector3 center = GenThing.TrueCenter(thing.Position, thing.Rotation, thing.def.size, 0f);
-                DrawFlame(thing, thruster.throttle, rotation * thing.Rotation.AsQuat,
-                    matrix.MultiplyPoint3x4(center));
+                if (!TryBuildFlame(thing, thruster.throttle, rotation * thing.Rotation.AsQuat,
+                    matrix.MultiplyPoint3x4(center), out FlameDraw flame))
+                {
+                    continue;
+                }
+                while (FlameBlockPool.Count <= flameBlockCursor)
+                {
+                    FlameBlockPool.Add(new MaterialPropertyBlock());
+                }
+                MaterialPropertyBlock block = FlameBlockPool[flameBlockCursor++];
+                ApplyFlameBlock(block, flame);
+                MapOverlayRenderer.AddFlameCommand(MeshPool.plane10,
+                    Matrix4x4.TRS(flame.position, flame.rotation, new Vector3(flame.flameSize, 1f, flame.flameSize)),
+                    flame.material, block);
             }
         }
 

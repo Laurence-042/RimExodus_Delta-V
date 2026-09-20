@@ -106,6 +106,7 @@ namespace DeltaV
             list.CheckboxLabeled("DeltaV_SettingsLogPhysics".Translate(), ref Settings.logPhysics);
             list.CheckboxLabeled("DeltaV_SettingsLogHarmony".Translate(), ref Settings.logHarmony);
             list.CheckboxLabeled("DeltaV_SettingsLogLifecycle".Translate(), ref Settings.logLifecycle);
+            list.CheckboxLabeled("DeltaV_SettingsLogRender".Translate(), ref Settings.logRender);
             list.End();
             Settings.Write();
         }

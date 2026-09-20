@@ -44,6 +44,8 @@ namespace DeltaV
 
         public bool logLifecycle;
 
+        public bool logRender;
+
         public override void ExposeData()
         {
             Scribe_Values.Look(ref flightAssist, "flightAssist", true);
@@ -57,6 +59,7 @@ namespace DeltaV
             Scribe_Values.Look(ref logPhysics, "logPhysics", false);
             Scribe_Values.Look(ref logHarmony, "logHarmony", false);
             Scribe_Values.Look(ref logLifecycle, "logLifecycle", false);
+            Scribe_Values.Look(ref logRender, "logRender", false);
             base.ExposeData();
         }
     }

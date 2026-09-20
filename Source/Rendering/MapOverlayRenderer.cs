@@ -3,6 +3,7 @@ using System.Reflection;
 using HarmonyLib;
 using RimWorld;
 using UnityEngine;
+using UnityEngine.Rendering;
 using Verse;
 
 namespace DeltaV
@@ -47,11 +48,37 @@ namespace DeltaV
         private static Mesh cornerFillerMesh;
         private static int cachedRuleCount = -1;
 
-        public static void Draw(Map map, Matrix4x4 matrix, Quaternion rotation, CellRect localView,
-            HashSet<IntVec3> allowedCells = null, int layer = 0)
+        /// <summary>最近一次 CollectShellCommands 收集的四边形数（诊断用：确认壳内容
+        /// 真实提交；收集入口清零、三个提交点自增，无字符串构造成本）。</summary>
+        internal static int QuadsDrawnLastPass { get; private set; }
+
+        /// <summary>缓冲绘制命令：mesh + 完整 TRS 矩阵 + 材质（props 仅火焰命令非空）；
+        /// queue/sequence 供壳内排序。</summary>
+        internal struct OverlayCommand
         {
-            if (map == null || map.Disposed || IncrementalMapGenerationService.IsGenerating(map)) return;
-            if (!localView.Overlaps(CellRect.WholeMap(map))) return;
+            public Mesh mesh;
+            public Matrix4x4 matrix;
+            public Material material;
+            public MaterialPropertyBlock props;
+            public int queue;
+            public int sequence;
+        }
+
+        private static readonly List<OverlayCommand> Commands = new List<OverlayCommand>(512);
+        private static int nextSequence;
+
+        /// <summary>
+        /// 收集一壳的全部四边形（地形/建筑/角盖板）到待发命令表。返回是否有可见内容；
+        /// 调用方随后可经 AddFlameCommand 追加火焰，再 EmitShellCommands 写入目标缓冲。
+        /// </summary>
+        public static bool CollectShellCommands(Map map, Matrix4x4 matrix, Quaternion rotation,
+            CellRect localView, HashSet<IntVec3> allowedCells = null)
+        {
+            QuadsDrawnLastPass = 0;
+            Commands.Clear();
+            nextSequence = 0;
+            if (map == null || map.Disposed || IncrementalMapGenerationService.IsGenerating(map)) return false;
+            if (!localView.Overlaps(CellRect.WholeMap(map))) return false;
             EnsureRules();
             CellRect visible = localView.ClipInsideMap(map);
             int minSx = visible.minX / SectionSize;
@@ -60,11 +87,57 @@ namespace DeltaV
             int maxSz = visible.maxZ / SectionSize;
             for (int sz = minSz; sz <= maxSz; sz++)
             for (int sx = minSx; sx <= maxSx; sx++)
-                DrawSection(map, matrix, rotation, visible, allowedCells, sx, sz, layer);
+                DrawSection(map, matrix, rotation, visible, allowedCells, sx, sz, Commands);
+            return Commands.Count > 0;
+        }
+
+        /// <summary>火焰命令追加（ThrusterEffects 调用）：queue 取材质 renderQueue
+        /// （火焰材质 3201，经排序天然位于壳内地形 3000 之上）；props 必须是本命令
+        /// 独占的池化块（CommandBuffer 对块内容的读取时序不保证记录时快照）。</summary>
+        internal static void AddFlameCommand(Mesh mesh, Matrix4x4 matrix, Material material, MaterialPropertyBlock props)
+        {
+            Commands.Add(new OverlayCommand
+            {
+                mesh = mesh,
+                matrix = matrix,
+                material = material,
+                props = props,
+                queue = material.renderQueue,
+                sequence = nextSequence++
+            });
+        }
+
+        /// <summary>
+        /// 把收集到的命令写入 commandBuffer（RimExodus SeamlessTileRenderer 同款机制，
+        /// 2026-09-20）：按 (renderQueue, sequence) 排序（cutout 先画写深度、transparent
+        /// 后画受深度测试，同原版 SectionLayer 语义），再清深度（保色）后按序绘制——
+        /// 命令顺序即层序，不依赖 3D 深度排序。正交俯视相机下 Graphics.DrawMesh 的
+        /// 透明队列按 bounds 距离排序、x/z 分量会压过海拔差，负海拔高度带方案已实测
+        /// 证伪，勿回退（详见 ShellRenderer.DrawNonFocusedShells）。
+        /// </summary>
+        public static void EmitShellCommands(CommandBuffer buffer)
+        {
+            if (Commands.Count == 0) return;
+            Commands.Sort(CompareCommands);
+            buffer.ClearRenderTarget(true, false, Color.clear, 1f);
+            for (int i = 0; i < Commands.Count; i++)
+            {
+                OverlayCommand command = Commands[i];
+                if (command.props == null)
+                    buffer.DrawMesh(command.mesh, command.matrix, command.material);
+                else
+                    buffer.DrawMesh(command.mesh, command.matrix, command.material, 0, -1, command.props);
+            }
+        }
+
+        private static int CompareCommands(OverlayCommand left, OverlayCommand right)
+        {
+            int queueComparison = left.queue.CompareTo(right.queue);
+            return queueComparison != 0 ? queueComparison : left.sequence.CompareTo(right.sequence);
         }
 
         private static void DrawSection(Map map, Matrix4x4 matrix, Quaternion rotation, CellRect visible,
-            HashSet<IntVec3> allowedCells, int sx, int sz, int layer)
+            HashSet<IntVec3> allowedCells, int sx, int sz, List<OverlayCommand> collector)
         {
             int key = sx | (sz << 16);
             MapCache cache = CacheFor(map);
@@ -83,7 +156,8 @@ namespace DeltaV
                 Material material = MaterialFor(terrain);
                 if (material == null) continue;
                 Vector3 source = new Vector3(cell.x + 0.5f, AltitudeLayer.Terrain.AltitudeFor(), cell.z + 0.5f);
-                Graphics.DrawMesh(CellMeshFor(cell), matrix.MultiplyPoint3x4(source), rotation, material, layer);
+                collector.Add(new OverlayCommand { mesh = CellMeshFor(cell), matrix = Matrix4x4.TRS(matrix.MultiplyPoint3x4(source), rotation, Vector3.one), material = material, queue = material.renderQueue, sequence = nextSequence++ });
+                QuadsDrawnLastPass++;
             }
 
             for (int i = 0; i < section.things.Count; i++)
@@ -100,9 +174,11 @@ namespace DeltaV
                 target.y += zLift;
                 Material material = graphic is Graphic_Linked ? graphic.MatSingleFor(thing) : graphic.MatAt(rot, thing);
                 if (material == null) continue;
-                Graphics.DrawMesh(graphic.MeshAt(rot), target, rotation * graphic.QuatFromRot(rot), material, layer);
+                Quaternion quat = rotation * graphic.QuatFromRot(rot);
+                collector.Add(new OverlayCommand { mesh = graphic.MeshAt(rot), matrix = Matrix4x4.TRS(target, quat, Vector3.one), material = material, queue = material.renderQueue, sequence = nextSequence++ });
+                QuadsDrawnLastPass++;
                 if (graphic is Graphic_LinkedCornerFiller cornerFiller)
-                    DrawCornerFillerCovers(thing, cornerFiller, material, zLift, matrix, rotation, layer);
+                    DrawCornerFillerCovers(thing, cornerFiller, material, zLift, matrix, rotation, collector);
             }
         }
 
@@ -145,7 +221,8 @@ namespace DeltaV
         /// patch 已覆盖脏化。
         /// </summary>
         private static void DrawCornerFillerCovers(Thing thing, Graphic_LinkedCornerFiller graphic,
-            Material material, float zLift, Matrix4x4 matrix, Quaternion rotation, int layer)
+            Material material, float zLift, Matrix4x4 matrix, Quaternion rotation,
+            List<OverlayCommand> collector)
         {
             IntVec3 position = thing.Position;
             Map map = thing.Map;
@@ -189,7 +266,8 @@ namespace DeltaV
                     }
                 }
                 Matrix4x4 trs = Matrix4x4.TRS(center, quat, new Vector3(size.x * 2f, 1f, size.y * 2f));
-                Graphics.DrawMesh(CornerFillerMesh(), matrix * trs, material, layer);
+                collector.Add(new OverlayCommand { mesh = CornerFillerMesh(), matrix = matrix * trs, material = material, queue = material.renderQueue, sequence = nextSequence++ });
+                QuadsDrawnLastPass++;
             }
         }
 

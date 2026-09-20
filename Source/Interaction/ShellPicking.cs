@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -19,6 +20,8 @@ namespace DeltaV
     /// </summary>
     public static class ShellPicking
     {
+        private static readonly List<SpaceObject> PickOrderScratch = new List<SpaceObject>();
+
         public static SpaceObject ShellAtFramePoint(UniverseManager universe, Map frameMap, Vector3 frameMapPoint)
         {
             SpaceObject frame = universe.FrameOf(frameMap);
@@ -28,17 +31,14 @@ namespace DeltaV
             }
             Vector2 frameLocal = SpaceTransform.MapToShipLocal(frameMap, new Vector2(frameMapPoint.x, frameMapPoint.z));
             Vector3 universeDir = SpaceTransform.FocusedToUniverse(frame, frameLocal);
-            foreach (SpaceObject obj in universe.objects)
+            // 与 ShellRenderer 绘制同一排序倒序遍历：整壳分层后 ID 大者在视觉最上，
+            // 重叠处优先命中玩家看得见的壳。进场/选点船由原版 marker 处理，
+            // 已在 OrderShellsById 中排除。
+            ShellRenderer.OrderShellsById(universe, frame, PickOrderScratch);
+            for (int idx = PickOrderScratch.Count - 1; idx >= 0; idx--)
             {
-                if (obj == frame)
-                {
-                    continue;
-                }
+                SpaceObject obj = PickOrderScratch[idx];
                 ShipState ship = obj as ShipState;
-                if (ship != null && ship.docking)
-                {
-                    continue; // 选点船由原版 marker 处理
-                }
                 bool docked = ship != null && ship.docked;
                 Map objectMap = docked ? ship.dockedMap : obj.map;
                 if (objectMap == null || (docked && objectMap == frameMap)) continue;

@@ -33,6 +33,7 @@
   <DeltaV_SettingsLogPhysics>Log: physics integration</DeltaV_SettingsLogPhysics>
   <DeltaV_SettingsLogHarmony>Log: key suppression decisions</DeltaV_SettingsLogHarmony>
   <DeltaV_SettingsLogLifecycle>Log: POI lifecycle transitions</DeltaV_SettingsLogLifecycle>
+  <DeltaV_SettingsLogRender>Log: shell layering (max 1/s)</DeltaV_SettingsLogRender>
   <DeltaV_SettingsUniverseZoomMax>Universe view zoom max (60-5000)</DeltaV_SettingsUniverseZoomMax>
   <DeltaV_SettingsPoiActiveRadius>POI load/wake radius (cells)</DeltaV_SettingsPoiActiveRadius>
   <DeltaV_SettingsPoiDeleteRadius>POI delete radius (cells)</DeltaV_SettingsPoiDeleteRadius>
