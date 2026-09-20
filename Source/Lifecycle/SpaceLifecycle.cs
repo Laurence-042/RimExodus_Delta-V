@@ -176,6 +176,28 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe != null) TryPack(universe, poi);
         }
+
+        /// <summary>
+        /// 逆重起飞离场善后（星区标准流程第 5 步，2026-09-20）：起飞船所在星区内其余
+        /// SpaceObject 地图一律按「距离 = 超删除半径」处理——复用距离生命周期同一条
+        /// 收纳/删除路径（TryPack：快照 POI 收快照销毁口袋图、对象保留为 packed 可
+        /// 重访；MustStayActive 与滞留 Pawn 守卫照常生效，删不掉的只休眠）。
+        /// worldtile 图由锚规则（HandleStrategicTravelDeparture 第 ② 段）另行处理，
+        /// 经 excludeMap 排除。旅行期间 MinPlayerDistance 为 +Infinity 且评估整体
+        /// 跳过，不能依赖自然距离触发——离场时刻必须显式执行。
+        /// </summary>
+        public static void PackDepartedSectorPois(UniverseManager universe, PlanetTile sector, Map excludeMap)
+        {
+            if (universe == null || !sector.Valid) return;
+            foreach (SpaceObject obj in SectorContentService.ObjectsInSector(universe, sector).ToList())
+            {
+                if (!(obj is PoiState poi)) continue;
+                Map map = poi.map;
+                if (map == null || map.Disposed || !Find.Maps.Contains(map)) continue;
+                if (map == excludeMap || IsUniverseHost(map)) continue;
+                TryPack(universe, poi);
+            }
+        }
         private static bool IsPendingGeneration(PoiState poi) => poi != null
             && IncrementalMapGenerationService.IsQueued(GenerationKey(poi));
         private static string GenerationKey(PoiState poi) => poi.kind == PoiKind.NativeParent

@@ -744,16 +744,21 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 原版战略起飞放行 TravelTo 后的源图善后入口（Patch_GravshipUtility_TravelTo
-        /// 的 Postfix 调用），预存的源图/战略地址/位姿经帧边界延迟执行（2026-09-19
-        /// 二次定稿）。注意此刻玩家在世界视图看 gravship 航行，CurrentMap 通常仍是
-        /// 源图——我们阻止了原版 TakeoffEnded 的 AbandonMap 级联，没有环节会把焦点
-        /// 移走；这不妨碍善后（焦点处理见自有飞行口袋图分支）：
-        /// - 飞船自有飞行口袋图源：**总是销毁口袋图**（遗弃滞留者、遗留基架转无主
-        ///   残骸——整船捕获已带走船体，容器无意义）；所在星区 tile 的 worldtile 图
-        ///   按锚配置决定去留（无锚 → 原版 AbandonMap 弃置 + 基架转残骸；有锚保留）。
-        /// - 其他源（worldtile 图 / 残骸口袋图）：与固定→移动同一套处理
-        ///   （HandleDepartedSourceMap）。
+        /// 原版战略起飞放行 TravelTo 后的星区离场善后（Patch_GravshipUtility_TravelTo
+        /// 的 Postfix 调用），预存的源图/战略地址/位姿经帧边界延迟执行（时序约束：
+        /// 必须排在 TravelTo 放行后，排队过早会卡守卫——旧 bug 勿回退）。此刻玩家在
+        /// 世界视图看 gravship 航行，CurrentMap 通常仍是源图——我们阻止了原版
+        /// TakeoffEnded 的 AbandonMap 级联，没有环节会把焦点移走；焦点处理见各段。
+        ///
+        /// 统一标准流程（2026-09-20 用户决策，取代按源图身份分支的多重实现）：
+        /// ① 飞船自有飞行口袋图源 → **总是销毁口袋图**（遗弃滞留者、遗留基架转无主
+        ///    残骸——整船捕获已带走船体，容器无意义）；
+        /// ② 归属星区（战略源地址 tile）的 worldtile 图 → **按逆重锚决定去留**
+        ///    （无锚 → 原版 AbandonMap 弃置 + 基架转残骸；有锚/有其他停靠船保留），
+        ///    任意源图类型统一执行；无 worldtile 图则跳过；
+        /// ③ 星区内**其余 SpaceObject 地图**（含 wreck 等停靠源图）→ 一律按超删除
+        ///    距离处理（休眠 + 快照收纳/删除，守卫照常生效）——旅行期间距离评估因
+        ///    无玩家参考点整体跳过（+Infinity continue），不能依赖自然距离触发。
         /// </summary>
         internal static void HandleStrategicTravelDeparture()
         {
@@ -768,9 +773,11 @@ namespace DeltaV
             LongEventHandler.ExecuteWhenFinished(delegate
             {
                 if (universe == null || sourceMap.Disposed || !Find.Maps.Contains(sourceMap)) return;
-                // 飞船自有飞行口袋图（战略发射源，身份已释放故无 owner）。
-                if (!sourceMap.Tile.Valid && universe.SpaceObjectOnMap(sourceMap) == null
-                    && !SpaceLifecycle.IsUniverseHost(sourceMap))
+
+                // ① 飞船自有飞行口袋图（战略发射源，身份已释放故无 owner）。
+                bool ownPocket = !sourceMap.Tile.Valid && universe.SpaceObjectOnMap(sourceMap) == null
+                    && !SpaceLifecycle.IsUniverseHost(sourceMap);
+                if (ownPocket)
                 {
                     // 焦点还在源图上是战略航行的常态。先显式置空（战略航行 = 原版
                     // 「无当前图」形态），不能交给 DeinitAndRemoveMap 的 maps[0] 轮盘：
@@ -787,17 +794,29 @@ namespace DeltaV
                     ShipPhysics.ClearCache();
                     DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                         "flight pocket map removed after strategic takeoff (leftovers converted)");
-                    // 所在星区 tile 的 worldtile 图按锚配置决定去留（无锚弃置的唯一
-                    // 保留场景：从口袋图发射 = 离开该星区，星区代表图承载无锚效果）。
-                    if (address.Valid && address.LayerDef.isSpace)
-                    {
-                        Map sectorMap = Find.WorldObjects.MapParentAt(address)?.Map;
-                        if (sectorMap != null && !sectorMap.Disposed && Find.Maps.Contains(sectorMap))
-                            AbandonUnanchoredSectorMap(universe, sectorMap);
-                    }
-                    return;
                 }
-                HandleDepartedSourceMap(universe, sourceMap);
+
+                // ② 归属星区 worldtile 图：按锚配置决定去留（任意源统一；用预存地址，
+                // 船已注销、DepartedSectorMapFor 的重算链此刻失效）。worldtile 源时
+                // sectorMap == 源图本身。将弃置前先放焦点（同 ① 理由）；有锚保留时
+                // 不动焦点（原版锚定前哨：玩家可继续留在图上）。
+                Map sectorMap = address.Valid && address.LayerDef.isSpace
+                    ? Find.WorldObjects.MapParentAt(address)?.Map
+                    : null;
+                if (sectorMap != null && !sectorMap.Disposed && Find.Maps.Contains(sectorMap)
+                    && SectorMapWillBeAbandoned(universe, sectorMap))
+                {
+                    if (sectorMap == Find.CurrentMap)
+                        Current.Game.CurrentMap = null;
+                    AbandonUnanchoredSectorMap(universe, sectorMap);
+                }
+
+                // ③ 星区其余 SpaceObject 地图（含 wreck 等停靠源图）：按超删除距离
+                // 休眠 + 收纳。源图即将打包时先放焦点；作为锚保留 worldtile 图的
+                // 源图（sourceMap == sectorMap 且未被弃置）不在此列。
+                if (!ownPocket && sourceMap != sectorMap && sourceMap == Find.CurrentMap)
+                    Current.Game.CurrentMap = null;
+                SpaceLifecycle.PackDepartedSectorPois(universe, address, sectorMap);
             });
         }
 
@@ -1001,11 +1020,11 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 固定→移动与逆重发射（非飞船口袋图源）共用的源图善后（2026-09-19 二次定稿，
-        /// 「真的一致」）：**worldtile 图不受固定↔移动转换影响**——保留，去留交给锚
-        /// 对象配置与距离生命周期；非 worldtile 图空白则立刻删除（遗留基架转无主
-        /// 残骸），非空白交给距离生命周期（SpaceLifecycle 超距快照收纳）。读档清扫
-        /// 复用同一入口自愈历史空白口袋。不按对象身份特判。
+        /// 固定→移动转换与读档清扫的源图善后（战略发射离场已改走星区标准流程
+        /// HandleStrategicTravelDeparture，2026-09-20）：**worldtile 图不受固定↔移动
+        /// 转换影响**——保留，去留交给锚对象配置与距离生命周期；非 worldtile 图空白
+        /// 则立刻删除（遗留基架转无主残骸），非空白交给距离生命周期（SpaceLifecycle
+        /// 超距快照收纳）。不按对象身份特判。
         /// </summary>
         internal static void HandleDepartedSourceMap(UniverseManager universe, Map sourceMap)
         {
@@ -1063,9 +1082,9 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 无锚弃置（唯一保留场景：飞船口袋图发射时对所在星区 worldtile 图）：
-        /// 图上无逆重锚 → 遗留基架先转无主残骸，再走原版 AbandonMap（含滞留 Pawn
-        /// 遗弃——发射链路的确认弹窗已警告）。有锚保留（原版锚定前哨）。
+        /// 无锚弃置（星区标准流程第 ② 段，任意发射源统一，2026-09-20）：图上无逆重
+        /// 锚 → 遗留基架先转无主残骸，再走原版 AbandonMap（含滞留 Pawn 遗弃——发射
+        /// 链路的确认弹窗已警告）。有锚保留（原版锚定前哨）。
         /// </summary>
         private static void AbandonUnanchoredSectorMap(UniverseManager universe, Map map)
         {
@@ -1102,7 +1121,7 @@ namespace DeltaV
             ShipPhysics.ClearCache();
             PlanetGlobeRenderer.InvalidateSilhouette(map);
             DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                $"{mapLabel}: unanchored sector map abandoned after strategic takeoff from flight pocket");
+                $"{mapLabel}: unanchored sector map abandoned after strategic takeoff");
         }
 
         /// <summary>

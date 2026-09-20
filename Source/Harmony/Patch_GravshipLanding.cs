@@ -104,11 +104,11 @@ namespace DeltaV
     }
 
     /// <summary>
-    /// 飞船自有飞行口袋图战略发射的弃置警告补全（2026-09-19 用户决策）：原版
-    /// PreLaunchConfirmation 文案只覆盖「当前地图」，该场景实际还会按无锚语义弃置
-    /// 所在星区 tile 的图，先弹星区弃置确认，确认后链回原版弹窗（滞留者列表口径经
-    /// 捕获域 patch，准确）。停靠 POI 口袋图等其他口袋源走 HandleDepartedSourceMap，
-    /// 不弃置星区图，不预警。chaining 标志防递归：链回的调用直接放行原方法。
+    /// 无 tile 源图战略发射的弃置警告补全（2026-09-19 用户决策；2026-09-20 星区标准
+    /// 流程扩展到一切无 tile 源）：原版 PreLaunchConfirmation 文案只覆盖「当前地图」，
+    /// 战略发射善后会按无锚语义弃置所在星区 tile 的图——自有飞行口袋图与停靠 POI
+    /// 口袋图（wreck 等）统一，先弹星区弃置确认，确认后链回原版弹窗（滞留者列表
+    /// 口径经捕获域 patch，准确）。chaining 标志防递归：链回的调用直接放行原方法。
     /// </summary>
     [HarmonyPatch(typeof(GravshipUtility), nameof(GravshipUtility.PreLaunchConfirmation))]
     public static class Patch_GravshipUtility_PreLaunchConfirmation_Sector
@@ -125,9 +125,8 @@ namespace DeltaV
             Map sourceMap = engine?.Map;
             if (sourceMap == null || sourceMap.Tile.Valid) return true;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            // 只有飞船自有飞行口袋图的发射会在善后中执行 AbandonUnanchoredSectorMap；
-            // 停靠中的源图 owner 是宿主 POI，预警的弃置不会发生。
-            if (universe?.ShipOnMap(sourceMap) == null) return true;
+            // 星区标准流程第 ② 段对任意源执行锚规则弃置；发射前船仍注册（自有口袋
+            // 或停靠），DepartedSectorMapFor 的地址解析链有效。
             Map sectorMap = DockController.DepartedSectorMapFor(universe, sourceMap);
             if (!DockController.SectorMapWillBeAbandoned(universe, sectorMap)) return true;
             string label = sectorMap.Parent?.Label ?? sectorMap.ToString();

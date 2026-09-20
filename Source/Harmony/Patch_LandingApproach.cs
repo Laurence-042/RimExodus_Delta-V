@@ -162,9 +162,22 @@ namespace DeltaV
             // LandingEnded 读取 gravship.Engine.launchInfo；战术降落在选点阶段已合成
             // （BeginOriginalLanding），此处只做缺失防御，战略到达原版自有。
             Gravship gravship = Current.Game?.Gravship;
-            if (gravship?.Engine != null && gravship.Engine.launchInfo == null)
+            if (gravship?.Engine == null)
+            {
+                return;
+            }
+            if (gravship.Engine.launchInfo == null)
             {
                 gravship.Engine.launchInfo = new LaunchInfo { quality = 1f, doNegativeOutcome = false };
+                return;
+            }
+            // 战术降落（移动→固定）不掷原版降落结局（2026-09-20 用户决策）：战略发射
+            // 仪式的 launchInfo 消费后从不复位，残留 doNegativeOutcome=true 不得在战术
+            // 降落二次生效（其"引擎过热"结局还会延长引擎冷却——战术流程本身从不
+            // 启动冷却，这是降落期唯一的冷却写入点）。
+            if (LandingApproachController.TacticalLandingEnding)
+            {
+                gravship.Engine.launchInfo.doNegativeOutcome = false;
             }
         }
 
@@ -172,6 +185,22 @@ namespace DeltaV
         {
             DockController.NotifyVanillaLandingEnded();
             LandingApproachController.NotifyArrivalEnded();
+        }
+    }
+
+    /// <summary>
+    /// 战术降落（移动→固定）不触发原版场景落地钩子（2026-09-20 用户决策）：
+    /// Odyssey 开局的 ScenPart_PursuingMechanoids 会经 PostGravshipLanded 启动
+    /// 机械族追击（警告信+袭击）——对接停靠不应召唤追击。PostGravshipLanded 的
+    /// 唯一调用方是 LandingEnded 末尾，TacticalLandingEnding 窗口即精确判别；
+    /// 原版战略到达照常触发。
+    /// </summary>
+    [HarmonyPatch(typeof(Scenario), nameof(Scenario.PostGravshipLanded))]
+    public static class Patch_Scenario_PostGravshipLanded
+    {
+        public static bool Prefix()
+        {
+            return !LandingApproachController.TacticalLandingEnding;
         }
     }
 

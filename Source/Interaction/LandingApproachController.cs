@@ -55,6 +55,14 @@ namespace DeltaV
 
         public static bool AnyActive => approachShip != null;
 
+        /// <summary>当前结束中的原版 LandingEnded 是否属于 Delta-V 战术降落（移动→固定）：
+        /// 到达重放窗口（ArrivalPending）或降级立即降落窗口（WriteDockedState 置位、
+        /// LandingEnded Postfix 清空的 LandedShipAwaitingPocketCleanup）。战略到达两者皆假。
+        /// 原方法体（降落结局掷骰与 PostGravshipLanded）执行期间该窗口恒为真——两条路径
+        /// 的状态都延后到 Postfix 才清空。</summary>
+        public static bool TacticalLandingEnding =>
+            ArrivalPending || DockController.LandedShipAwaitingPocketCleanup != null;
+
         /// <summary>原版 GravshipLandingMarker.BeginLanding Prefix：缓存 marker 引用（Destroy 前），
         /// 供到达重放时复活原版 InitiateLanding 依赖的 GravshipCells。</summary>
         public static void CaptureMarker(GravshipLandingMarker marker)
