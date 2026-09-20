@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Defs>
+  <!--
+    推进器工作音（ThrusterAudio）。音频素材复用 Odyssey 原版引擎循环音
+    Gravship/Gravship_Engine_Loop（ContentFinder<AudioClip> 跨 Mod 包解析，含 DLC）。
+
+    两个 def 不可混用：Sustainer 构造对「world 子音 + OnCamera 生成」红字、对
+    「onCamera 子音 + InMap 生成」静默转成 OnCamera——Map def 只能 InMap(推进器建筑)
+    生成、Shell def 只能 OnCamera 生成。
+  -->
+
+  <!-- 聚焦图逐推进器：world 声源跟随建筑位置，distRange 随摄像机距离线性衰减，
+       实际音量由 info.volumeFactor = √油门 逐帧控制；多台同 clip 靠 randomStartPoint
+       去相位叠加，maxVoices + PrioritizeNearest 自动裁掉最远的超出者。 -->
+  <SoundDef>
+    <defName>DeltaV_ThrusterLoopMap</defName>
+    <sustain>True</sustain>
+    <context>MapOnly</context>
+    <priorityMode>PrioritizeNearest</priorityMode>
+    <maxVoices>8</maxVoices>
+    <sustainFadeoutTime>0.35</sustainFadeoutTime>
+    <subSounds>
+      <li>
+        <onCamera>False</onCamera>
+        <grains>
+          <li Class="AudioGrain_Clip">
+            <clipPath>Gravship/Gravship_Engine_Loop</clipPath>
+          </li>
+        </grains>
+        <volumeRange>40~48</volumeRange>
+        <distRange>4~60</distRange>
+        <sustainLoop>True</sustainLoop>
+        <randomStartPoint>True</randomStartPoint>
+        <sustainAttack>0.15</sustainAttack>
+        <sustainRelease>0.3</sustainRelease>
+      </li>
+    </subSounds>
+  </SoundDef>
+
+  <!-- 非聚焦船壳整船循环：跨图 InMap 声源会被引擎 context 强制静音
+       （SoundDefHelper.CorrectContextNow），故挂相机上；实际音量全由
+       info.volumeFactor = 总油门 × 摄像机距离衰减 逐帧控制。 -->
+  <SoundDef>
+    <defName>DeltaV_ThrusterLoopShell</defName>
+    <sustain>True</sustain>
+    <context>MapOnly</context>
+    <priorityMode>PrioritizeNearest</priorityMode>
+    <maxVoices>4</maxVoices>
+    <sustainFadeoutTime>0.35</sustainFadeoutTime>
+    <subSounds>
+      <li>
+        <onCamera>True</onCamera>
+        <grains>
+          <li Class="AudioGrain_Clip">
+            <clipPath>Gravship/Gravship_Engine_Loop</clipPath>
+          </li>
+        </grains>
+        <volumeRange>100</volumeRange>
+        <randomStartPoint>True</randomStartPoint>
+        <sustainAttack>0.15</sustainAttack>
+        <sustainRelease>0.3</sustainRelease>
+      </li>
+    </subSounds>
+  </SoundDef>
+</Defs>

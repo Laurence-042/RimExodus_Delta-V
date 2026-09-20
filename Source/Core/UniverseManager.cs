@@ -415,6 +415,7 @@ namespace DeltaV
             PlanetGlobeRenderer.ClearRuntimeCaches();
             ShipPhysics.ClearCache();
             ThrusterEffects.ClearRuntimeCaches();
+            ThrusterAudio.Reset();
             SpaceLifecycle.Reset();
             IncrementalMapGenerationService.Reset();
             pocketHostService?.Reset();
@@ -656,6 +657,8 @@ namespace DeltaV
             ShellRenderer.DrawNonFocusedShells(this);
             WorldShipMarkerRenderer.DrawPlayerShips(this);
             ThrusterEffects.Draw(this);
+            // 推进器工作音（与火焰同源：只读分配器油门；聚焦图逐推进器 + 船壳整船）。
+            ThrusterAudio.Update(this);
         }
 
         // 相机缩放放宽（宇宙视野）：进入 Delta-V 参考系（对象图/真实空间图）时记录原 max 并放宽，
@@ -966,6 +969,7 @@ namespace DeltaV
             PlanetGlobeRenderer.ClearRuntimeCaches();
             ShipPhysics.ClearCache();
             ThrusterEffects.ClearRuntimeCaches();
+            ThrusterAudio.Reset();
             SpaceLifecycle.Reset();
             IncrementalMapGenerationService.Reset();
             SectorContentService.Reset();
