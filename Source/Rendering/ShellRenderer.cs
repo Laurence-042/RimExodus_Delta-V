@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
-using UnityEngine.Rendering;
 using Verse;
 
 namespace DeltaV
@@ -10,18 +9,15 @@ namespace DeltaV
     /// <summary>宇宙对象变换适配层；实际 Map 内容绘制由通用 MapOverlayRenderer 完成。</summary>
     public static class ShellRenderer
     {
-        private const string ShellBufferName = "DeltaV Shell Layering";
-        private const string ShellForegroundBufferName = "DeltaV Shell Layering (approach)";
+        // 挂载层（ShellLayer）：背景 = 非进场壳（聚焦图随后无条件覆盖）；前台 =
+        // 进场/选点悬停壳（聚焦图画完之后再画，临时覆盖目标图）。同一收集/发射管线，
+        // 层对象各自持有相机事件与收尾语义；绘制目的地经 (层, 槽位) 显式传入。
+        private static readonly ShellBackgroundLayer backgroundLayer = new ShellBackgroundLayer();
+        private static readonly ShellForegroundLayer foregroundLayer = new ShellForegroundLayer();
+        private static readonly ShellLayer[] allLayers = { backgroundLayer, foregroundLayer };
 
         private static readonly List<SpaceObject> LayerOrderScratch = new List<SpaceObject>();
         private static readonly List<SpaceObject> ForegroundScratch = new List<SpaceObject>();
-
-        // 双命令缓冲：背景 = 非进场壳（BeforeForwardOpaque，先于聚焦图渲染，画完清
-        // 深度让聚焦图无条件覆盖）；前台 = 进场/选点悬停壳（AfterForwardAlpha，聚焦图
-        // 画完之后，组前清深度临时覆盖聚焦图）。同一收集/发射管线，仅挂载层不同。
-        private static CommandBuffer shellBuffer;
-        private static CommandBuffer shellForegroundBuffer;
-        private static Camera bufferCamera;
 
         // Render 模块诊断：每秒最多 1 条整壳分层摘要（用户 2026-09-20 约束）。
         // 热路径纪律——先查 DeltaVLog.Enabled 再碰 StringBuilder；节流用
@@ -36,15 +32,11 @@ namespace DeltaV
             SpaceObject frame = current == null ? null : universe.FrameOf(current);
             if (current == null || frame == null || !WorldRendererUtility.DrawingMap)
             {
-                // 不画的帧必须清空缓冲命令，否则旧命令在相机上逐帧重放
-                // （RimExodus SeamlessTileRenderer 同款教训）。
-                if (shellBuffer != null) shellBuffer.Clear();
-                if (shellForegroundBuffer != null) shellForegroundBuffer.Clear();
+                foreach (ShellLayer layer in allLayers) layer.BeginFrame();
                 return;
             }
-            EnsureShellBuffers();
-            shellBuffer.Clear();
-            shellForegroundBuffer.Clear();
+            foreach (ShellLayer layer in allLayers) layer.EnsureAttached(Find.Camera);
+            foreach (ShellLayer layer in allLayers) layer.BeginFrame();
             bool logBeat = DeltaVLog.Enabled(DeltaVLogModule.Render) && Time.unscaledTime >= nextLayerLogTime;
             if (logBeat)
             {
@@ -62,15 +54,11 @@ namespace DeltaV
             bool anyBuffered = false;
             for (int i = 0; i < LayerOrderScratch.Count; i++)
             {
-                bool drew = DrawObjectShell(LayerOrderScratch[i], frame, current, shellBuffer);
+                bool drew = DrawObjectShell(LayerOrderScratch[i], frame, current, backgroundLayer.At(i));
                 anyBuffered |= drew;
                 if (logBeat) AppendLayerObj("b" + i + "/" + LayerOrderScratch.Count, LayerOrderScratch[i], drew);
             }
-            if (anyBuffered)
-            {
-                // 只清深度、保留颜色：聚焦图自身内容随后无条件覆盖全部背景壳。
-                shellBuffer.ClearRenderTarget(true, false, Color.clear, 1f);
-            }
+            backgroundLayer.Finish(anyBuffered);
             // 前台层：进场/选点悬停壳（ship.docking）——切固定模式期间聚焦图（降落
             // 目标图）临时被悬停壳覆盖（2026-09-20 用户决策）；悬停壳 + 火焰盖在
             // 目标甲板之上。
@@ -85,15 +73,11 @@ namespace DeltaV
             bool anyForeground = false;
             for (int i = 0; i < ForegroundScratch.Count; i++)
             {
-                bool drew = DrawObjectShell(ForegroundScratch[i], frame, current, shellForegroundBuffer);
+                bool drew = DrawObjectShell(ForegroundScratch[i], frame, current, foregroundLayer.At(i));
                 anyForeground |= drew;
                 if (logBeat) AppendLayerObj("f" + i + "/" + ForegroundScratch.Count, ForegroundScratch[i], drew);
             }
-            if (anyForeground)
-            {
-                // 防御性收尾：不向前台层之后的其他缓冲遗留本组深度。
-                shellForegroundBuffer.ClearRenderTarget(true, false, Color.clear, 1f);
-            }
+            foregroundLayer.Finish(anyForeground);
             if (logBeat) DeltaVLog.Message(DeltaVLogModule.Render, LayerLogBuf.ToString());
         }
 
@@ -120,38 +104,7 @@ namespace DeltaV
             results.Sort(CompareById);
         }
 
-        /// <summary>双缓冲挂当前地图相机（RimExodus SeamlessTileRenderer.EnsureCommandBuffer
-        /// 同款）：背景 BeforeForwardOpaque（先于聚焦图）、前台 AfterForwardAlpha（聚焦图
-        /// 画完之后）。RimWorld 全程复用同一相机对象；相机身份变化时重挂，防跨相机残留。</summary>
-        private static void EnsureShellBuffers()
-        {
-            Camera camera = Find.Camera;
-            if (shellBuffer != null && bufferCamera == camera) return;
-            DetachShellBuffers();
-            shellBuffer = new CommandBuffer { name = ShellBufferName };
-            shellForegroundBuffer = new CommandBuffer { name = ShellForegroundBufferName };
-            bufferCamera = camera;
-            bufferCamera.AddCommandBuffer(CameraEvent.BeforeForwardOpaque, shellBuffer);
-            bufferCamera.AddCommandBuffer(CameraEvent.AfterForwardAlpha, shellForegroundBuffer);
-        }
-
-        private static void DetachShellBuffers()
-        {
-            if (bufferCamera != null)
-            {
-                if (shellBuffer != null)
-                    bufferCamera.RemoveCommandBuffer(CameraEvent.BeforeForwardOpaque, shellBuffer);
-                if (shellForegroundBuffer != null)
-                    bufferCamera.RemoveCommandBuffer(CameraEvent.AfterForwardAlpha, shellForegroundBuffer);
-            }
-            shellBuffer?.Release();
-            shellForegroundBuffer?.Release();
-            shellBuffer = null;
-            shellForegroundBuffer = null;
-            bufferCamera = null;
-        }
-
-        private static bool DrawObjectShell(SpaceObject obj, SpaceObject frame, Map frameMap, CommandBuffer buffer)
+        private static bool DrawObjectShell(SpaceObject obj, SpaceObject frame, Map frameMap, ShellLayer.Slot target)
         {
             // 选点/进场（docking）期间船仍在活口袋图上（快照不搬运），非停靠分支
             // 直接可画——聚焦目标图上持续显示悬停船壳；到达停靠后走停靠分支，
@@ -188,14 +141,14 @@ namespace DeltaV
             bool drew = MapOverlayRenderer.CollectShellCommands(map, matrix, rotation, localView, allowedCells);
             if (drew)
             {
-                // 火焰与壳内容同表同缓冲：renderQueue 3201 排在本壳地形之上，随本壳
+                // 火焰与壳内容同表同层：renderQueue 3201 排在本壳地形之上，随本壳
                 // 走背景（聚焦图之下）或前台（进场时盖住目标甲板）。POI 与停靠船
                 // 不参与（不出力）。
                 if (ship != null && !docked)
                 {
                     ThrusterEffects.CollectShellFlames(ship, matrix, rotation);
                 }
-                MapOverlayRenderer.EmitShellCommands(buffer);
+                target.layer.Emit(target);
             }
             return drew;
         }
@@ -224,7 +177,7 @@ namespace DeltaV
 
         public static void ClearRuntimeCaches()
         {
-            DetachShellBuffers();
+            foreach (ShellLayer layer in allLayers) layer.Detach();
             MapOverlayRenderer.ClearRuntimeCaches();
         }
 

@@ -87,7 +87,7 @@ namespace DeltaV
             int maxSz = visible.maxZ / SectionSize;
             for (int sz = minSz; sz <= maxSz; sz++)
             for (int sx = minSx; sx <= maxSx; sx++)
-                DrawSection(map, matrix, rotation, visible, allowedCells, sx, sz, Commands);
+                CollectSection(map, matrix, rotation, visible, allowedCells, sx, sz, Commands);
             return Commands.Count > 0;
         }
 
@@ -136,7 +136,7 @@ namespace DeltaV
             return queueComparison != 0 ? queueComparison : left.sequence.CompareTo(right.sequence);
         }
 
-        private static void DrawSection(Map map, Matrix4x4 matrix, Quaternion rotation, CellRect visible,
+        private static void CollectSection(Map map, Matrix4x4 matrix, Quaternion rotation, CellRect visible,
             HashSet<IntVec3> allowedCells, int sx, int sz, List<OverlayCommand> collector)
         {
             int key = sx | (sz << 16);

@@ -131,10 +131,10 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 指定世界位置/朝向画火焰（降落动画等表现层复用同一套材质与参数；
-        /// 位置/朝向由调用方经动画矩阵换算，不读 Thing 的真实地图位姿）。
+        /// 立即绘制入口（聚焦图内真实火焰）：指定世界位置/朝向画一次火焰；
+        /// 位置/朝向由调用方换算，不读 Thing 的真实地图位姿。
         /// </summary>
-        public static void DrawFlame(Thing thing, float throttle, Quaternion rotation, Vector3 thrusterCenter)
+        private static void DrawFlame(Thing thing, float throttle, Quaternion rotation, Vector3 thrusterCenter)
         {
             if (!TryBuildFlame(thing, throttle, rotation, thrusterCenter, out FlameDraw flame))
             {
