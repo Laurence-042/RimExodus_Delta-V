@@ -67,15 +67,43 @@ namespace DeltaV
             {
                 Exit(universe, "DeltaV_PilotOff".Translate(focused.label));
             }
+            else if (!CanPlayerControl(focused))
+            {
+                // 派系门禁（2026-09-21 阶段4）：驾驶是完整控制权，限玩家方（dev 模式放行，
+                // 保留双船对等测试工作流）。
+                Messages.Message("DeltaV_PilotWrongFaction".Translate(focused.label), MessageTypeDefOf.RejectInput, false);
+            }
+            else if (focused.docking && !ReferenceEquals(focused, LandingApproachController.ApproachShip))
+            {
+                // 选点中的船不可驾驶（计划船除外——手操打断自动驾驶但不取消计划）。
+                Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
+            }
             else
             {
                 Enter(universe, focused);
             }
         }
 
+        /// <summary>驾驶/模式控制权门禁（2026-09-21 阶段4）：玩家方船只；开发者模式放行
+        /// （测试场景需要驾驶敌舰验证相对运动表现）。</summary>
+        public static bool CanPlayerControl(ShipState ship)
+        {
+            return ship != null && (ship.faction == Faction.OfPlayer || DebugSettings.godMode);
+        }
+
         public static void Enter(UniverseManager universe, ShipState ship)
         {
-            if (universe == null || ship?.map == null || ship.docked || ship.docking) return;
+            if (universe == null || ship?.map == null || ship.docked) return;
+            if (ship.docking && !ReferenceEquals(ship, LandingApproachController.ApproachShip)) return;
+            if (!CanPlayerControl(ship)) return;
+            // 手操打断自动驾驶（不取消对接计划——完成判据是几何的，手飞到位照样对接）。
+            if (ShipAutopilot.IsActive(ship))
+            {
+                ShipAutopilot.Detach(ship, "manual input");
+                DeltaVLog.Message(DeltaVLogModule.Core,
+                    $"autopilot interrupted by manual input: {ship.label} (pilot mode engaged)");
+                Messages.Message("DeltaV_DockAutopilotStopped".Translate(), MessageTypeDefOf.NeutralEvent, false);
+            }
             universe.pilotShipId = ship.objectId;
             RebuildPilotKeySet();
             Log.Message($"[DeltaV] Pilot mode engaged: {ship.label} (#{ship.objectId}). Pilot keys: [{string.Join(", ", ActivePilotKeys)}].");
@@ -100,10 +128,19 @@ namespace DeltaV
         }
 
         /// <summary>每帧由 UniverseManager.GameComponentUpdate 调用：维护自动退出与抑制开关。
+        /// 自动驾驶 = 「驾驶此船」的特殊状态（2026-09-21 用户定案）：计划船被随动自动
+        /// 驾驶且聚焦其图时占用驾驶位——驾驶键抑制生效，且按下任意 W/A/S/D/Q/E 直接
+        /// 打断自动驾驶并接管手操（Enter 内部 Detach；输入为轮询采样，同帧即生效）。
         /// 抑制从关闭翻转为开启时输出一次性摘要（哪些原版绑定将被抑制）——必要日志，常开。</summary>
         public static void UpdateFrameState(UniverseManager universe)
         {
             ShipState piloted = PilotedShip(universe);
+            ShipState autopilotShip = LandingApproachController.AutopilotEngaged
+                ? LandingApproachController.ActivePlan?.ship
+                : null;
+            bool focusOnAutopilotShip = autopilotShip != null && autopilotShip.map != null
+                && Find.CurrentMap == autopilotShip.map;
+
             if (piloted?.map == null)
             {
                 if (universe.pilotShipId != -1)
@@ -111,29 +148,42 @@ namespace DeltaV
                     Log.Warning($"[DeltaV] Piloted ship #{universe.pilotShipId} lost its map; exiting pilot mode.");
                     Exit(universe);
                 }
-                SuppressVanillaKeys = false;
-                return;
+                if (focusOnAutopilotShip)
+                {
+                    PilotInput input = SampleInput();
+                    if (input.fx != 0f || input.fz != 0f || input.torque != 0f)
+                    {
+                        DeltaVLog.Message(DeltaVLogModule.Core,
+                            $"autopilot interrupted by flight key: {autopilotShip.label} (direct takeover)");
+                        Enter(universe, autopilotShip); // 打断自动驾驶并接管：同帧输入生效
+                        piloted = PilotedShip(universe);
+                        focusOnAutopilotShip = false;
+                    }
+                }
             }
-            if (Find.CurrentMap != piloted.map)
+            bool manualPiloting = piloted?.map != null && Find.CurrentMap == piloted.map;
+            if (!manualPiloting && piloted?.map != null)
             {
                 Exit(universe, "DeltaV_PilotExitAuto".Translate(piloted.label));
-                SuppressVanillaKeys = false;
-                return;
             }
-            if (ActivePilotKeys.Count == 0)
+            bool suppress = manualPiloting || focusOnAutopilotShip;
+            if (suppress)
             {
-                RebuildPilotKeySet();
+                if (ActivePilotKeys.Count == 0)
+                {
+                    RebuildPilotKeySet();
+                }
+                if (!SuppressVanillaKeys)
+                {
+                    List<string> overlaps = CountOverlappingVanillaDefs();
+                    Log.Message("[DeltaV] Key suppression ACTIVE. Overlapping vanilla bindings: " +
+                        (overlaps.Count == 0
+                            ? "(none found - WASD/QE will keep their vanilla function!)"
+                            : string.Join(", ", overlaps)));
+                    DeltaVLog.Message(DeltaVLogModule.Harmony, "suppression flag false->true; overlap scan across all KeyBindingDefs done");
+                }
             }
-            if (!SuppressVanillaKeys)
-            {
-                List<string> overlaps = CountOverlappingVanillaDefs();
-                Log.Message("[DeltaV] Key suppression ACTIVE. Overlapping vanilla bindings: " +
-                    (overlaps.Count == 0
-                        ? "(none found - WASD/QE will keep their vanilla function!)"
-                        : string.Join(", ", overlaps)));
-                DeltaVLog.Message(DeltaVLogModule.Harmony, "suppression flag false->true; overlap scan across all KeyBindingDefs done");
-            }
-            SuppressVanillaKeys = true;
+            SuppressVanillaKeys = suppress;
         }
 
         private static List<string> CountOverlappingVanillaDefs()

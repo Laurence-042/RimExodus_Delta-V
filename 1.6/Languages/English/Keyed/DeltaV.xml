@@ -44,7 +44,7 @@
   <DeltaV_DockSuccess>{0} secured in fixed mode on the space anchor map.</DeltaV_DockSuccess>
   <DeltaV_ApproachAborted>Landing approach failed unexpectedly. Control was restored; the ship remains in mobile mode and docking can be retried.</DeltaV_ApproachAborted>
   <DeltaV_DockFailHostMap>No landing map could be resolved for the current position.</DeltaV_DockFailHostMap>
-  <DeltaV_DockFailNoTarget>No powered-down object is under the ship to fix onto. Approach a station, wreck or other object and try again; powered ships cannot be docked onto.</DeltaV_DockFailNoTarget>
+  <DeltaV_DockFailNoTarget>No loaded object interior is under the ship to dock onto. Approach a station, wreck or another ship and try again; powered ships in motion can also be docked (the autopilot matches their velocity).</DeltaV_DockFailNoTarget>
   <DeltaV_DockFailOutOfRange>Ship's universe position cannot be projected to an orbit tile. Fly closer to the planet first.</DeltaV_DockFailOutOfRange>
   <DeltaV_DockFailBlocked>Landing area on the target map is blocked. Pick another spot or clear it first.</DeltaV_DockFailBlocked>
   <DeltaV_DockFailNoEngine>No grav engine found on the ship. Fixed mode requires a grav engine as the ship's structural anchor.</DeltaV_DockFailNoEngine>
@@ -96,4 +96,30 @@
   <DeltaV_DockChannelLaid>Docking channel extended: {0} cells.</DeltaV_DockChannelLaid>
   <!-- Unanchored takeoff abandonment (2026-09-19) -->
   <DeltaV_SectorMapAbandonConfirm>Launching will abandon the map of the current sector, "{0}", by the vanilla unanchored-takeoff rule - the map and everything not leaving with the ship will be permanently lost (build a grav anchor on that map to keep it). Proceed?</DeltaV_SectorMapAbandonConfirm>
+  <!-- Docking plan (2026-09-21, phase 4) -->
+  <DeltaV_DockPlanStarted>Docking plan engaged: {0} -> {1}. The autopilot is closing in; you may also fly to the marked position (semi-transparent ghost) manually - holding the pose there long enough completes the docking.</DeltaV_DockPlanStarted>
+  <DeltaV_DockPlanStatus>Docking: {0} (distance {1})</DeltaV_DockPlanStatus>
+  <DeltaV_DockPlanAutopilotOn>Autopilot: tracking approach</DeltaV_DockPlanAutopilotOn>
+  <DeltaV_DockPlanAutopilotOff>Autopilot: disengaged (manual or resume)</DeltaV_DockPlanAutopilotOff>
+  <DeltaV_DockAutopilotResumeButton>Resume autopilot</DeltaV_DockAutopilotResumeButton>
+  <DeltaV_DockAutopilotStopButton>Stop autopilot</DeltaV_DockAutopilotStopButton>
+  <DeltaV_DockCancelButton>Cancel docking</DeltaV_DockCancelButton>
+  <DeltaV_DockPlanCancelled>Docking plan cancelled - the ship is back in mobile mode and may re-dock at any time.</DeltaV_DockPlanCancelled>
+  <DeltaV_DockAutopilotStopped>Autopilot disengaged (docking plan retained).</DeltaV_DockAutopilotStopped>
+  <DeltaV_DockPlanBlocksDesignator>Docking in progress: structural and planning changes are locked. Cancel the docking first.</DeltaV_DockPlanBlocksDesignator>
+  <DeltaV_DockPlanBlocksLaunch>Docking in progress: gravship launch is locked. Cancel the docking first.</DeltaV_DockPlanBlocksLaunch>
+  <DeltaV_PilotWrongFaction>Only player-owned ships can be piloted.</DeltaV_PilotWrongFaction>
+  <!-- Boarding pod (2026-09-21, phase 4) -->
+  <DeltaV_PodLaunchLabel>Launch boarding pod</DeltaV_PodLaunchLabel>
+  <DeltaV_PodLaunchDesc>Load the currently selected colonists into a boarding pod and fire it: the pod homes in on the target ship like a missile, punches through the outer shell, seals the breach with its own hull and deploys the crew inside. One-way insertion.</DeltaV_PodLaunchDesc>
+  <DeltaV_PodNeedCrew>Select the colonists to deploy (on this ship) first.</DeltaV_PodNeedCrew>
+  <DeltaV_PodNoTarget>You must aim at another loaded ship's hull.</DeltaV_PodNoTarget>
+  <DeltaV_PodLaunched>Boarding pod launched: {0} crew -> {1}.</DeltaV_PodLaunched>
+  <DeltaV_PodImpact>Boarding pod hit {0}: the breach is plugged by the sealed pod hull and the crew is inside.</DeltaV_PodImpact>
+  <DeltaV_PodLost>Boarding pod lost (timeout or target destroyed); crew missing.</DeltaV_PodLost>
+  <!-- Settings (phase 4) -->
+  <DeltaV_SettingsDockingHoldTicks>Docking hold time (ticks)</DeltaV_SettingsDockingHoldTicks>
+  <DeltaV_SettingsDockingPosWindow>Alignment tolerance - position (cells)</DeltaV_SettingsDockingPosWindow>
+  <DeltaV_SettingsDockingAngleWindow>Alignment tolerance - angle (degrees)</DeltaV_SettingsDockingAngleWindow>
+  <DeltaV_SettingsDockingCancelDistance>Docking auto-cancel distance (cells)</DeltaV_SettingsDockingCancelDistance>
 </LanguageData>

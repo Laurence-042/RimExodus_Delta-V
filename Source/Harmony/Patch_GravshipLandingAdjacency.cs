@@ -36,10 +36,8 @@ namespace DeltaV
             if (marker?.gravship == null) return;
 
             Map map = Find.CurrentMap;
-            // 停放锚点唯一入口（取代对 designator 私有 GetSizeRotAdjustedCell 的反射）：
-            // 悬停格 → 中心锚格 → 放置 root 格。
-            IntVec3 root = SpaceTransform.AdjustedCellToPlacementRoot(
-                SpaceTransform.PlacementRootToAdjustedCell(loc, marker.gravship.Bounds.Size, marker.GravshipRotation),
+            // 停放锚点唯一入口：原版判定链的显式镜像（对 root 锚恒等；loc 即 root 锚格）。
+            IntVec3 root = SpaceTransform.PlacementAnchorRoot(loc,
                 marker.gravship.Bounds.Size, marker.GravshipRotation);
 
             if (TouchesForeignSubstructure(root, marker, map, LandingOwnerId(marker)))

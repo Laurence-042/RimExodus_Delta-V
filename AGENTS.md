@@ -2,7 +2,7 @@
 
 为了验证此文件确实完整读入，你需要在对话开始给出这个文件内容的标题目录，如果你觉得内容似乎被截断了，你需要补充读取这个AGENTS.md被截断的部分（这是个mm豆测试）。
 
-它只记录后续开发必须遵守的规则、当前仍有效的架构不变量，以及少量容易复犯且难从代码表面看出的约束。功能介绍、设置项、兼容性、已知限制、历史尝试、回归清单和待办不在这里重复维护。
+它只记录后续开发必须遵守的规则、当前仍有效的架构不变量，以及少量容易复犯且难从代码表面看出的约束；§20 是当前代码架构地图（单实现入口索引）、§21 是单实现/单计算纪律的事故教训汇总。功能介绍、设置项、兼容性、已知限制、历史尝试、回归清单和待办不在这里重复维护。
 
 开始工作前必须完整阅读本文件和 `README.md`。如果工具输出截断，继续分段读取到文件末尾；首次回复中给出上述目录，以确认读取的是正确仓库。长期信息应写入本文件、对应专题文档或代码注释，不要依赖 agent/harness 的临时记忆。
 
@@ -38,6 +38,7 @@
 - 查询优先使用环境提供的源码检索工具。涉及 RimWorld 内部行为时，先查仓库已有反编译源码或参考源码，不凭印象施工。
 - **诊断日志禁止挂在每帧/tick 热路径上无条件输出**（2026-09-19 教训：gizmo 每帧经 `ShouldShowGizmo`/`ValidateDisabledState` 轮询 `CanLaunch`/`CanStartRitualNow`，一次选中复现刷出 767 条）。热路径（OnGUI/gizmo 验证/getter/MapMesh）埋点必须：先查 `DeltaVLog.Enabled` 再构造字符串、且只按状态变化（边沿触发）输出；优先把埋点挂在用户事件（点击、浮单、job 下发）等天然低频时机。
 - 新功能优先通过明确的小型接口接入现有架构，不为一个局部症状复制另一套坐标、生命周期或状态系统。
+- **同一功能只允许一份实现（铁律，不变量 #21）**：动代码前先查 §20 架构地图与既有入口；已有实现（本 mod 的唯一入口，或原版/参考源码的公共调用链）必须直接复用，不得并行写第二份等价实现或"镜像"。复用原版私有逻辑时只在唯一入口做一次显式镜像并注明来源（如 `SpaceTransform` 停放锚区段）；调用点禁止自行组合换算。教训（2026-09-21 三连事故）：自组合 root↔中心锚格换算与原版判定链的恒等语义不符（脚印偏移几十格、复核必败）、速度基变换点乘在两处各写一份。
 - 唯一推荐构建命令：`dotnet build Source/DeltaV.csproj -c Release`（net48 + NuGet `Krafs.Rimworld.Ref`，输出到 `1.6/Assemblies/`；构建产物不入库）。
 
 ## 3. 外部源码与 RimExodus 参考
@@ -327,7 +328,7 @@ SpacePose.angle
 
 **降落与起飞**（星区模型语义，权威设计见 `doc/星区架构.md` §7）：
 
-- 战术降落目标 = 飞船球面位置所在**无动力 SpaceObject** 的内部投影；落点 = 投影对应位置（原版降落选点的初始落点）；深空无目标则拒绝固定，不再凭空生成空画布。
+- 战术降落（对接）目标 = 飞船球面位置所在 SpaceObject 的内部投影（**任何已物化对象均可**，含移动中的有动力飞船——2026-09-21 阶段4 修订，见 §12 与 `doc/星区架构.md` §7）；落点 = 投影对应位置（原版降落选点的初始落点）；深空无目标则拒绝固定，不再凭空生成空画布。
 - 原版 gravship launch = 跨星区战略转移：降落到目标 worldtile 上 SpaceObject 的内部（worldtile 地图；tile 上无现成对象时按需生成空画布锚对象）。
 - 起飞来源 = 任意宿主 SpaceObject 的内部地图（`ship.dockedMap`；任意真实轨道图，含原版发射到任意 POI tile 生成的图，都能 bootstrap 进入移动模式）；起飞后位姿 = 宿主对象位姿 ⊕ 起飞点内部坐标。
 - 与宿主口袋图完全解耦；worldtile 不与任何一张图一一对应、不参与战术几何，其弧长由 `CellsPerTile` 定义。
@@ -369,50 +370,42 @@ Universe State 至少负责保存：
 - 可重建的渲染缓存不应决定对象生命周期。
 - 加载 / 卸载必须有单一管理入口，避免 POI、战斗和 UI 各自操作 Map 生命周期。
 
-## 12. 接舷、跳帮与 Map 转移
+## 12. 对接、跳帮与进入他船（2026-09-21 阶段4 定案；旧 BoardingConnection 方案退役）
 
-两艘飞船接舷后，本质仍是两个独立 Map。
+进入另一艘船**不建立跨图 live 连接、不自研自由 Pawn 跨图转移**。两条途径：
 
-两图之间只建立显式连接，例如：
+- **对接（接舷）**= 整机战术降落到目标 SpaceObject 内部图（移动 ↔ 固定互转管线）：
+  对接计划（目标对象 + Map 内落点 + 幽灵船位置提示）+（可选）随动自动驾驶 + 几何
+  完成判据（与预定落点位姿重合保持可配置 tick 数）。**自动驾驶 = 「驾驶此船」的特殊状态**：占用驾驶位与按键抑制，按下任意驾驶键即打断自动驾驶并接管手操（打断不取消计划）。
+  **选点阶段零消费**（游戏照常运行——2026-09-21 用户决策移除选点暂停）：预览用空洞 Gravship（私有无参构造器 + 只读填充
+  Foundations/Bounds/驾驶台/推进器，供原版选点/合法性/禁触链路读取）——严禁在此
+  阶段做 Gravship(engine) 消费式冻结（会删除 zone、收缴地板指令、清算区域限制与
+  储物组）。**真实消费式冻结唯一发生在完成时刻**（CaptureShipForCompletion），与
+  FinalizeShipCapture 移除、重放 InitiateLanding 重建同一调用栈（原版起飞同款毫秒
+  级窗口）——对接期间的建造/扩建/zone 变更全部随捕获带走；完成前以新鲜脚印复核
+  落点合法性。**落点注册单一数据源**：选点确认时经 ComputeLandingPose 一次性注册
+  （host ⊕ 偏移 + 相对角 + 地图锚 cell/rot），此后停靠剪影、对齐判据、最终落位
+  （WriteDockedState 直写注册值）全部读同一份数据，**不得二次计算**；停靠剪影
+  锚 = 位姿锚（口袋图几何中心），视觉重叠即判据本身。对接后两船同图（建筑拓扑
+  共享、基架归属分离），Pawn 移动/战斗/追击全走原版同图机制。
+- **跳帮舱**= 载人制导飞行器：导弹式追踪命中敌舰外壳、开孔、密封舱落位堵孔、
+  乘员在目标图落点生成（经容器搬运送达）。RimExodus 的 transfer 实现不再直接复用于
+  本主题，但其多图共存、聚焦切换、Harmony patch 与兼容处理经验仍是通用参考。
 
-```text
-BoardingConnection
-- sourceMap / sourceShip
-- sourceCell
-- targetMap / targetShip
-- targetCell
-```
+纪律：
 
-Pawn 穿过连接时：
+- ShipAutopilot 是**纯自动驾驶算法**（固定航点 / 随动目标两类），不得与对接完成
+  语义耦合——对接完成判据是几何的（位姿窗口 + 保持 tick），不依赖自动驾驶信号。
+- 幽灵船是无图、只带船壳快照图的**派生渲染缓存**：不参与降落判定、拾取/聚焦、
+  生命周期、星区记账与剪影扫描，无推进器火焰；不入 `universe.objects` 权威列表。
+- 对接计划为运行时数据不存档，存续期禁存档；玩家同时最多一个计划；超出可配置
+  距离（小于休眠距离）自动取消。
 
-1. 捕获需要跨图保留的状态；
-2. 从源 Map 移除；
-3. 映射到目标入口；
-4. 在目标 Map 生成；
-5. 恢复状态；
-6. 根据交互需要切换聚焦 Map。
+### 聚焦切换与 Pawn 移动分离
 
-优先复用 RimExodus 已验证的跨 Map transfer 经验，不要重新发明一套“直接改 Map 字段”的传送方式。
-
-### 聚焦切换与 Pawn 转移分离
-
-Pawn 进入另一艘船和玩家相机切换到另一艘船是两个不同事件。
-
-不要把：
-
-```text
-Pawn changed Map
-```
-
-硬编码为：
-
-```text
-FocusedMap = Pawn.Map
-```
-
-是否切换聚焦由玩家体验层决定。
-
-多人分队、无人机、远程观察等场景以后都依赖这两个概念保持分离。
+Pawn 移动（对接后两船同图，不存在跨图行走）和玩家相机切换地图是两个不同事件；
+聚焦切换只经现有 CurrentMap 通道（点击船壳/面板/殖民者栏），任何转移逻辑不得硬编码
+跟随切换。多人分队、无人机、远程观察等场景以后都依赖这两个概念保持分离。
 
 ## 13. 太空战与 Projectile
 
@@ -614,6 +607,9 @@ Harmony 规则：
 16. **星区（worldtile）只是 coarse address 与 SpaceObject 管理/生成记账维度；碰撞、降落选点等一切战术几何判定一律在星球轨道坐标中完成，不由 tile 几何决定。**
 17. **每个可进入地图都属于一个 SpaceObject；内部地图坐标 ⇄ 轨道坐标的换算唯一通道是所属对象（对象位姿 ⊕ 内部局部坐标），不存在图级坐标锚。**
 18. **星区无实体、无图；不存在「与星区对应的 Map」。**
+19. **进入他船只经对接（模式互转 + 原版管线）或跳帮舱容器投放；不建跨图 live 连接、不自研自由 Pawn 跨图转移；ShipAutopilot 完成语义不与对接耦合（对接完成判据是几何的：位姿窗口 + 保持 tick）。**
+20. **SpaceObject 的运动只属于游戏时钟（tick 驱动）：自动驾驶、跳帮舱、未来弹道与一切宇宙状态积分一律按游戏 tick 推进（暂停 = 无 tick = 冻结；倍速 = 加速）。模拟路径禁止 `Time.deltaTime`/帧驱动积分——那是硬造时间。表现层（火焰粒子/音频/帧表）只读真实时间、不移动对象，不受此限（2026-09-21 用户定案）。**
+21. **同一功能只有一份实现：先查 §20 架构地图复用既有入口（本 mod 或原版调用链）；原版私有逻辑的镜像只做一次并收口在唯一入口；调用点禁止自组合换算。**
 
 ## 19. 星区模型（核心已实现，待游戏内实测）
 
@@ -628,3 +624,45 @@ Harmony 规则：
 - **shipId 写入仅两场景（2026-09-20 用户决策铁律）**：驾驶台增删（Spawn 认领/随 comp 消亡）与中途安装本 mod 的读档迁移回填（`MigrateConsoleIdentities`）；**战术/战略起飞一律不写归属数据**——驾驶台是飞船本体、唯一与 SpaceObject 绑定的依托，身份一开始就准备好，写入点越少越不容易漏。重生重盖章的承载图必须含飞船自有口袋图（无 tile，勿再用 `IsZeroGravity` 一类要求有效 tile 的守卫拦掉）。**飞船进移动模式时按 ID 整清源图旧域**（`SubstructureOwnership.ClearOwner`；基架不重叠，直接清零归属即可）。
 - **战术降落（移动→固定）豁免原版降落结局与场景落地钩子**（2026-09-20 用户决策）：LandingEnded 的降落结局掷骰与 `Scenario.PostGravshipLanded`（机械族追击等 ScenPart）在战术降落窗口（`LandingApproachController.TacticalLandingEnding` = 到达重放 ArrivalPending 或降级立即降落窗口）内一律跳过；不得让战略仪式残留的 `launchInfo.doNegativeOutcome=true` 在战术降落二次生效。战术流程不启动/不延长逆重引擎冷却（冷却唯一启动点 = 战略发射 `ConsumeFuel`，降落期唯一写入 = "引擎过热"结局）；战略到达的结局、场景钩子与冷却保持原版。
 - 设计与实现的唯一权威仍是 `doc/星区架构.md`；后续修订以该文档为准并同步 `README.md`。
+
+
+## 20. 当前代码架构地图（单实现入口索引，2026-09-21）
+
+后续开发动代码前先在此查入口；同一功能不得出现第二份实现（铁律/不变量 #21）。架构演化时同步本节。
+
+### 驱动节奏
+- `UniverseManager.GameComponentTick`（唯一 tick 总装，游戏时间语义）：`ShipAutopilot.Tick() → BoardingPodFlight.Tick() → LandingApproachController.Tick() → ShipPhysics 物理积分循环`（自动驾驶中的船被积分循环按 `IsActive` 跳过，无双驱动）。
+- `UniverseManager.GameComponentUpdate`（每帧）：只做渲染/输入分发（船壳分层、星球仪/面板、驾驶状态维护、火焰/音频、跳帮舱标记投影）——模拟路径禁止入帧路径（不变量 #20）。
+
+### Core/（数据与算法）
+- `OrbitSphere`：球面几何唯一入口（`Basis/Move/Offset/ArcCells/TileFromDirection`；按 PlanetLayer 参数化、缓存分键）。
+- `SpaceTransform`：全项目唯一坐标变换 API——2D 旋转/`WrapAngle`；Map⇄ship-local（`ShipLocalOrigin/MapToShipLocal/ShipLocalToMap`）；**停放锚区段**（`AdjustedCellToPlacementRoot`/`PlacementRootToAdjustedCell`/`PlacementAnchorRoot`/`ShipOriginFromPlacementRoot`/`GravshipBoundsCenterFromEngineRoot`/`BoundsCenterOfCells`，原版放置语义的唯一镜像）；速度换基 `TransportVelocity`（唯一入口）；ship-local⇄universe（`ShipLocalToUniverse/UniverseToShipLocal/UniverseToMapPoint/UniverseToDockedMapPoint`）；universe⇄focused（`UniverseToFocused/FocusedToUniverse/UniverseAngleToFocused`）；显示层投影（`FocusedDrawPosition/FocusedMeshRotation/UniverseWorldMarkerRotation/MarkerForwardWorld`）。
+- `UniverseManager`：`objects` 权威列表与 `RegisterObject/UnregisterObject`、`AllocateOwnerId`（对象/归属共用唯一 ID 计数器）、专用宿主口袋图、`FrameOf/MapFrame`（图→帧对象解析）、`SetFocused`（聚焦切换唯一入口）、tick/update 总装。
+- `ShipState/SpaceObject/PoiState/SpacePose`：宇宙状态（存档事实）。`ShipPhysics`：质量/惯量/联合分配器/积分（刚体动量管理唯一实现）。`SubstructureOwnership`：基架归属 MapComponent。`DeltaVSettings/DeltaVMod/DeltaVDefOf/DeltaVLog`。
+
+### Interaction/（玩法流程）
+- `DockController`：模式互转状态机——`TryDock → BeginOriginalLanding`（选点零消费：`BuildPreviewGravship` 空洞预览，游戏照常运行）；`CaptureShipForCompletion`（完成时刻唯一消费冻结）；`TryLaunch/ExecuteLaunch`（固定→移动走原版起飞）；`FinalizeShipCapture/PlaceIntoMap`（原版搬运段）；`WriteDockedState`；`StrategicSourceAddress` 与战略离场善后。
+- `LandingApproachController`：对接计划编排——`DockingPlan` 状态对象（构造即完整，对外唯一事实源 `ActivePlan`）、`TryConsume`（原子发布）、`Tick`（守卫/位姿窗口/保持计数）、`CompleteDocking`（新鲜脚印复核→完成时刻冻结→真转移）、`CancelSelectionOrPlan`（选点/计划通用取消）。
+- `ShipAutopilot`：纯自动驾驶算法（`FlyTo` 固定航点 / `TrackTo` 随动目标+前馈+站位保持；tick 驱动；不耦合对接完成语义）。
+- `PilotController`：手操驾驶 + 自动驾驶占用驾驶位（任意驾驶键直接打断接管）；`CanPlayerControl` 派系门禁。
+- `BoardingPodFlight`：跳帮舱（tick 驱动纯追踪、命中开孔、密封舱落位、乘员投放；自包含，非通用弹道系统）。
+- `MobileShipBootstrap`（固定船 bootstrap 认领）、`Designator_ReassignSubstructure`（修改基架归属命令）。
+
+### Rendering / Lifecycle / Generation / World / Buildings / Harmony / Debug
+- `ShellRenderer + ShellLayer + MapOverlayRenderer`：整壳分层唯一管线（背景/前台命令缓冲，按 objectId 整壳层序）；`ShellPicking`：外壳命中唯一入口（选择与未来瞄准共用）；`DockingGhostRenderer`：对接幽灵船（派生缓存，不入 objects）；`ShipSilhouette`：剪影纹理唯一入口；`PlanetGlobeRenderer`（星球仪/星区地图）、`WorldShipMarkerRenderer`（世界剪影）、`ThrusterEffects/ThrusterAudio`（火焰/工作音，只读分配器油门）、`ShipStatusPanel`（统一左侧面板）。
+- `SpaceLifecycle`（POI 距离三段唯一管理入口）、`MapDormancyService`、`SpaceMapGovernance`、`IncrementalMapGenerationService`（分帧生成）、`PoiSnapshot`、`PocketMapHostService`。
+- `ShipPocketMapFactory`/`ShipStructureStamp`/`ShipTestScene`（口袋图与测试场景）；`UniverseHostParent_DeltaV`/`ShipPocketParent_DeltaV`/`SpaceHostParent_DeltaV`/`SectorContentService`（世界对象与星区记账）。
+- `CompDeltaVPilotConsole`（船身份锚点：shipId 持久与解析链）、`Building_DockingPort`（对接口+通道）、`Building_BoardingPodLauncher/Building_BoardingPodLanded`（跳帮舱发射管/落位密封舱）。
+- Harmony 按文件分域（LandingApproach/DockingPlanOrders/GravshipLanding*/GravshipCaptureScope/PoiDormancy/KeyBindingSuppression/SubstructureOwnership/…）；`DebugActions_DeltaV`（dev 设施）。
+
+
+## 21. 单实现/单计算纪律（2026-09-21 对接调试连环事故的教训汇总）
+
+§2 铁律与不变量 #21 的展开；每条都来自实测事故，违者复犯：
+
+- **注册即唯一**：任何"确认时刻"产生的数据（落点、目标位姿、锚点）只计算一次、存入状态对象，此后显示/判据/写回**全部只读注册值**；写回路径禁止重算（事故：完成时用真实清单把落点位姿重算了一遍，与注册数据分叉，落位偏移）。
+- **显示锚 = 逻辑锚**：给玩家的视觉对齐参考（停靠剪影/幽灵/标记）必须锚定在对应逻辑量的锚点上（事故：剪影按脚印包围盒居中、位姿锚在口袋图几何中心，手操视觉对准但落位偏了两个中心之差；自动驾驶锚对锚反而正确，长期掩盖了 bug——两条路径"都对"本身就是坏味道）。
+- **喂原版 API 前先抄原版调用方**：给原版判定链传参前，先看原版自己的调用点喂的是什么锚/格式，照抄；不要凭"语义理解"预习一层换算（事故：以为 CanDesignateCell 要中心锚格而 +半跨度——原版判定链 GetRoot(GetSizeRotAdjustedCell(loc)) 对 root 锚恒等，脚印偏移几十格必败）。
+- **复核 = 重走主路径**：验证/复核代码必须调用与主路径**相同的入口**在当前数据上再跑一遍；另写一份"近似检查"就是第二实现，必错（同一次落点复核先后踩了三个坑：读错 Find.CurrentMap、漏设预览 Rotation、自组合换算——全在第二实现上，主路径从没错过）。
+- **流程状态 = 单一对象**：多字段流程状态收敛为构造即完整的状态对象（DockingPlan 模式），对外唯一事实源（ActivePlan 模式）；禁止散落静态字段 + 从 ship.docking 等标志推断拼装状态（事故：「对接中但目标未知」成为可表示、可观测的状态）。
+- **模拟只认游戏时钟**（不变量 #20 的由来）：任何宇宙运动一旦脱离游戏 tick 就会在暂停期继续动——发现"暂停时东西还在动"不要修表象，删掉帧驱动/deltaTime，回到 tick。

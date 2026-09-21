@@ -107,6 +107,21 @@ namespace DeltaV
             });
         }
 
+        /// <summary>单四边形杂项命令（对接幽灵船提示等，DockingGhostRenderer 调用）：
+        /// 独占整条命令表——不经整壳收集，直接装载一条后由调用方 Emit 到目标层槽位。</summary>
+        internal static void CollectSingleQuad(Mesh mesh, Matrix4x4 matrix, Material material)
+        {
+            Commands.Clear();
+            nextSequence = 0;
+            Commands.Add(new OverlayCommand
+            {
+                mesh = mesh,
+                matrix = matrix,
+                material = material,
+                queue = material.renderQueue
+            });
+        }
+
         /// <summary>
         /// 把收集到的命令写入 commandBuffer（RimExodus SeamlessTileRenderer 同款机制，
         /// 2026-09-20）：按 (renderQueue, sequence) 排序（cutout 先画写深度、transparent

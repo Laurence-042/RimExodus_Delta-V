@@ -8,35 +8,49 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 轨道层通用自动驾驶：把任意 ShipState 自动驾驶到统一宇宙坐标的目标位姿
-    /// （球面方向 + 宇宙角），到达（收敛或超时兜底）后精确对位并发完成信号。
+    /// 轨道层通用自动驾驶（纯算法，2026-09-21 阶段4 定案：与对接完成语义解耦）：把船
+    /// 自动驾驶到目标位姿，两类目标——
+    /// - 固定航点（FlyTo）：球面方向 + 宇宙角，到达（收敛或超时兜底）后精确对位并发
+    ///   完成信号；未来巡航/舰船 AI 用；
+    /// - 随动目标（TrackTo）：宿主 SpaceObject ⊕ 局部偏移 + 相对转角，每帧随宿主位姿
+    ///   重算；宿主速度/角速度经**前馈匹配**（阻尼项取相对速度/相对角速度），到位后
+    ///   **站位保持**直到取消——不自动到达、无超时兜底、无完成回调。完成判据归调用方
+    ///   （对接计划 = 几何窗口 + 保持 tick），本类不感知对接。
     ///
     /// 出力架构（刚体动量管理）：制导回路（临界阻尼 PD）只产生期望力/力矩，
     /// 经 ShipPhysics.ForceToCommand 归一化后由联合分配器 Allocate 求解**真实**
     /// 逐推进器油门与可达力/力矩，积分使用可达值——机动受推进器布局硬约束，
     /// 玩家船/敌舰/未来舰船 AI 完全同构，火焰表现层读到的油门即真实出力。
-    /// 停靠任务（allowVoidThrust）在终段按距离渐变叠加虚空动力补齐「期望 − 可达」
-    /// 差值，保证任意推进器布局都能精确对接；虚空动力不写油门、不进火焰。
+    /// 停靠级任务（allowVoidThrust）在终段按距离渐变叠加虚空动力补齐「期望 − 可达」
+    /// 差值，保证任意推进器布局都能精确对位；虚空动力不写油门、不进火焰。
     ///
     /// 语义纯轨道层：目标与内部误差全部经 OrbitSphere/SpaceTransform 表达，不接触
     /// 任何 Map/聚焦坐标——「地图放置位置/旋转 → 轨道位姿」的反向映射由调用方完成
-    /// （战术降落见 DockController.ComputeLandingPose）。后续飞船 AI / 点击巡航等
+    /// （战术对接见 LandingApproachController.TryConsume）。后续飞船 AI / 点击巡航等
     /// 可直接复用本能力（非停靠用途传 allowVoidThrust: false 获得纯真实动力）；
     /// 自动驾驶中的船由 UniverseManager.GameComponentTick 跳过正常积分，不会双重驱动。
     ///
-    /// 帧驱动（Time.deltaTime）：降落过场期间 tick 冻结所必需；常规飞行使用如需
-    /// 游戏时间语义（暂停/倍速跟随），可另行增加 tick 驱动入口。
+    /// tick 驱动（UniverseManager.GameComponentTick，每 tick = 1/60 游戏秒）：
+    /// **SpaceObject 的运动只属于游戏时钟**——暂停 = 无 tick = 冻结，倍速 = 更多
+    /// tick = 加速（2026-09-21 用户定案，AGENTS §18 不变量 #20）。模拟路径禁止
+    /// Time.deltaTime/帧驱动积分（硬造时间）；表现层（火焰/音频）只读真实时间、
+    /// 不移动对象，不受此限。
     ///
     /// 积分复用 ShipPhysics.Integrate（球面三步走 + 平行输运，assist 全关）。
-    /// 任务为运行时数据不存档——进场期间原版禁存档；常规使用如需跨存档，
-    /// 由调用方持久化目标并在读档后重启任务。
+    /// 任务为运行时数据不存档——任务存续期由调用方保证禁存档（对接计划/跳帮舱）；
+    /// 读档防御见 ResetOnLoad。
     /// </summary>
     public static class ShipAutopilot
     {
         private class Flight
         {
+            // 固定航点模式：direction/angle；随动模式：host ⊕ hostOffset（+ 相对转角）。
+            public bool tracked;
             public Vector3 direction;
             public float angle;
+            public SpaceObject host;
+            public Vector2 hostOffset;
+            public float relativeAngle;
             public float elapsed;
             public bool allowVoidThrust;
             public Action onArrived;
@@ -78,8 +92,9 @@ namespace DeltaV
         private const float ArriveAngleEpsilon = 0.01f;    // rad
         private const float ArriveOmegaEpsilon = 0.03f;    // rad/s
 
-        /// <summary>超时兜底：无论如何强制对位并视为到达。</summary>
-        private const float MaxFlightSeconds = 20f;
+        /// <summary>固定航点模式的超时兜底（tick）：无论如何强制对位并视为到达。
+        /// 随动模式无超时（完成判据归调用方）。</summary>
+        private const int MaxFlightTicks = 1200;
 
         /// <summary>
         /// 把船自动驾驶到轨道坐标（球面方向 direction，宇宙角 angle）。到达（收敛或
@@ -96,8 +111,11 @@ namespace DeltaV
                 onFailed?.Invoke();
                 return;
             }
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"autopilot waypoint engaged: {ship.label} -> ({targetDirection.x:F2},{targetDirection.y:F2},{targetDirection.z:F2}) angle={targetAngle * Mathf.Rad2Deg:F0} deg voidThrust={allowVoidThrust}");
             active[ship] = new Flight
             {
+                tracked = false,
                 direction = targetDirection.normalized,
                 angle = SpaceTransform.WrapAngle(targetAngle),
                 elapsed = 0f,
@@ -117,6 +135,51 @@ namespace DeltaV
             return tcs.Task;
         }
 
+        /// <summary>
+        /// 随动目标模式：把船持续对位到「宿主对象位姿 ⊕ 局部偏移」（宇宙角 = 宿主角 ⊕
+        /// relativeAngle）的**移动**位姿上——目标每帧随宿主重算，宿主速度/角速度经前馈
+        /// 匹配（阻尼项取相对量），收敛后站位保持直到取消。不自动到达、无超时兜底、
+        /// 无完成回调：完成判据归调用方（对接计划 = 几何窗口 + 保持 tick）。宿主失效按
+        /// onFailed 退出（计划是否随之取消由调用方决定）。
+        /// </summary>
+        public static void TrackTo(ShipState ship, SpaceObject host, Vector2 hostOffset,
+            float relativeAngle, Action onFailed = null, bool allowVoidThrust = true)
+        {
+            if (ship == null || host == null)
+            {
+                onFailed?.Invoke();
+                return;
+            }
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"autopilot track engaged: {ship.label} -> '{host.label}' offset=({hostOffset.x:F0},{hostOffset.y:F0}) relAngle={SpaceTransform.WrapAngle(relativeAngle) * Mathf.Rad2Deg:F0} deg voidThrust={allowVoidThrust}");
+            active[ship] = new Flight
+            {
+                tracked = true,
+                host = host,
+                hostOffset = hostOffset,
+                relativeAngle = SpaceTransform.WrapAngle(relativeAngle),
+                elapsed = 0f,
+                allowVoidThrust = allowVoidThrust,
+                onFailed = onFailed,
+            };
+        }
+
+        /// <summary>
+        /// 静默摘除任务（清除油门、不触发任何回调）：对接完成接管位姿、玩家手操打断
+        /// 自动驾驶（不取消对接计划）、计划取消等场景使用；reason 记入日志（边沿事件，
+        /// 只在实际摘除时输出）。需要失败信号反馈的退出走 Cancel。
+        /// </summary>
+        public static void Detach(ShipState ship, string reason = null)
+        {
+            if (ship == null || !active.ContainsKey(ship)) return;
+            active.Remove(ship);
+            ShipPhysics.ClearThrottles(ship); // 绕过积分器的出口：显式熄火
+            if (reason != null)
+            {
+                DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot detached ({reason}): {ship.label}");
+            }
+        }
+
         public static bool IsActive(ShipState ship)
         {
             return ship != null && active.ContainsKey(ship);
@@ -131,8 +194,9 @@ namespace DeltaV
             flight.onFailed?.Invoke();
         }
 
-        /// <summary>UniverseManager.GameComponentUpdate 每帧驱动。</summary>
-        public static void Update()
+        /// <summary>UniverseManager.GameComponentTick 每 tick 驱动（游戏时间语义：
+        /// 暂停冻结、倍速加速）。</summary>
+        public static void Tick()
         {
             if (active.Count == 0) return;
             // 回调可能在迭代中增删任务（到达后立即发起新任务等），按快照迭代。
@@ -150,28 +214,57 @@ namespace DeltaV
             {
                 active.Remove(ship);
                 ShipPhysics.ClearThrottles(ship); // 绕过积分器的出口：显式熄火
+                DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot failed (ship map lost): {ship.label}");
+                flight.onFailed?.Invoke();
+                return;
+            }
+            if (flight.tracked && flight.host == null)
+            {
+                active.Remove(ship);
+                ShipPhysics.ClearThrottles(ship);
+                DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot failed (host lost): {ship.label}");
                 flight.onFailed?.Invoke();
                 return;
             }
 
-            float dt = Time.deltaTime;
-            flight.elapsed += dt;
-            if (flight.elapsed > MaxFlightSeconds)
+            const float dt = 1f / 60f; // 游戏 tick 时间；绝不使用帧时钟（AGENTS §18 #20）
+            flight.elapsed += 1;
+            if (!flight.tracked && flight.elapsed > MaxFlightTicks)
             {
-                Arrive(ship, flight);
+                Arrive(ship, flight); // 超时兜底仅固定航点模式；随动模式由调用方判完成
                 return;
             }
 
             ShipPhysics.MassReport report = ShipPhysics.GetReport(ship);
             if (report == null) return;
 
-            // 误差与速度统一表达在目标锚点的切空间基下（球面几何唯一入口 OrbitSphere）。
-            Vector2 posErr = -OrbitSphere.Offset(flight.direction, ship.pose.position);
-            Vector2 vel = VelocityInTargetFrame(ship, flight.direction);
-            float angleErr = SpaceTransform.WrapAngle(flight.angle - ship.pose.angle);
-            float omega = ship.pose.angularVelocity;
+            // 目标位姿与宿主前馈：误差/速度统一表达在目标锚点的切空间基下（球面几何
+            // 唯一入口 OrbitSphere）。随动模式的「速度」是相对宿主的量——宿主速度
+            // 平行输运到目标基后作差，PD 阻尼项即天然完成速度匹配（一阶预测：宿主
+            // 机动由 PD 重新收敛，不需要高阶前馈）。
+            Vector3 targetDirection;
+            float targetAngle;
+            Vector2 hostVelocity = Vector2.zero;
+            float hostOmega = 0f;
+            if (flight.tracked)
+            {
+                targetDirection = SpaceTransform.FocusedToUniverse(flight.host, flight.hostOffset);
+                targetAngle = SpaceTransform.WrapAngle(flight.host.pose.angle + flight.relativeAngle);
+                hostVelocity = SpaceTransform.TransportVelocity(flight.host.pose, targetDirection);
+                hostOmega = flight.host.pose.angularVelocity;
+            }
+            else
+            {
+                targetDirection = flight.direction;
+                targetAngle = flight.angle;
+            }
+            Vector2 posErr = -OrbitSphere.Offset(targetDirection, ship.pose.position);
+            Vector2 vel = SpaceTransform.TransportVelocity(ship.pose, targetDirection) - hostVelocity;
+            float angleErr = SpaceTransform.WrapAngle(targetAngle - ship.pose.angle);
+            float omega = ship.pose.angularVelocity - hostOmega;
 
-            if (posErr.sqrMagnitude < ArrivePositionEpsilon * ArrivePositionEpsilon
+            if (!flight.tracked
+                && posErr.sqrMagnitude < ArrivePositionEpsilon * ArrivePositionEpsilon
                 && vel.sqrMagnitude < ArriveVelocityEpsilon * ArriveVelocityEpsilon
                 && Mathf.Abs(angleErr) < ArriveAngleEpsilon
                 && Mathf.Abs(omega) < ArriveOmegaEpsilon)
@@ -197,8 +290,8 @@ namespace DeltaV
             ShipPhysics.Command command = ShipPhysics.ForceToCommand(report, desiredForce, desiredTorque);
             ShipPhysics.Allocate(report, command, out Vector2 realForce, out float realTorque);
 
-            // 停靠终段虚空动力：按距离渐变补齐「期望 − 可达」差值（远场 0 → 吸附圈 1），
-            // 保证任意推进器布局都能精确对接；不写油门、不进火焰（表现层只见真实出力）。
+            // 终段虚空动力：按距离渐变补齐「期望 − 可达」差值（远场 0 → 吸附圈 1），
+            // 保证任意推进器布局都能精确对位；不写油门、不进火焰（表现层只见真实出力）。
             Vector2 appliedForce = realForce;
             float appliedTorque = realTorque;
             if (flight.allowVoidThrust)
@@ -214,22 +307,12 @@ namespace DeltaV
         {
             active.Remove(ship);
             ShipPhysics.ClearThrottles(ship); // 直接改位姿绕过积分器：显式熄火
-            // 精确对位：到达即目标位姿、速度清零（对接语义；与停靠写入共用同一目标，
-            // 保证船壳收敛帧与真船落位严格重合）。
+            // 精确对位（仅固定航点模式）：到达即目标位姿、速度清零。
             ship.pose.position = flight.direction;
             ship.pose.angle = flight.angle;
             ship.pose.velocity = Vector2.zero;
             ship.pose.angularVelocity = 0f;
             flight.onArrived?.Invoke();
-        }
-
-        /// <summary>船速从其锚点基平行输运到目标锚点基（精确换基，供 PD 阻尼项使用）。</summary>
-        private static Vector2 VelocityInTargetFrame(ShipState ship, Vector3 targetDirection)
-        {
-            OrbitSphere.Basis(ship.pose.position, out Vector3 east, out Vector3 north);
-            Vector3 world = east * ship.pose.velocity.x + north * ship.pose.velocity.y;
-            OrbitSphere.Basis(targetDirection, out east, out north);
-            return new Vector2(Vector3.Dot(world, east), Vector3.Dot(world, north));
         }
 
         /// <summary>读档防御：任务为运行时数据，静默清空（不回调；调用方各自的读档

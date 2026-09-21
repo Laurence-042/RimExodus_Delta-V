@@ -44,7 +44,7 @@
   <DeltaV_DockSuccess>{0} 已在宿主图进入固定模式。</DeltaV_DockSuccess>
   <DeltaV_ApproachAborted>降落进场异常中止，已恢复控制。飞船仍处于移动模式，可重新发起降落。</DeltaV_ApproachAborted>
   <DeltaV_DockFailHostMap>无法解析当前位置的降落图。</DeltaV_DockFailHostMap>
-  <DeltaV_DockFailNoTarget>没有可固定目标：飞船下方没有无动力的对象。请接近空间站、残骸等对象后重试；有动力飞船不可降落。</DeltaV_DockFailNoTarget>
+  <DeltaV_DockFailNoTarget>没有可对接目标：飞船下方没有已加载的对象内部。请接近空间站、残骸或其他飞船后重试；移动中的有动力飞船也可对接（自动驾驶会做速度匹配）。</DeltaV_DockFailNoTarget>
   <DeltaV_DockFailOutOfRange>飞船的宇宙位置无法投影到轨道 tile，请先回到星球附近。</DeltaV_DockFailOutOfRange>
   <DeltaV_DockFailBlocked>目标图上的降落区域被占用，请换一处或先清空。</DeltaV_DockFailBlocked>
   <DeltaV_DockFailNoEngine>船上没有逆重引擎。固定模式需要一台逆重引擎作为船体结构锚点。</DeltaV_DockFailNoEngine>
@@ -96,4 +96,30 @@
   <DeltaV_DockChannelLaid>对接通道已延伸：{0} 格。</DeltaV_DockChannelLaid>
   <!-- 无锚起飞弃置（2026-09-19） -->
   <DeltaV_SectorMapAbandonConfirm>发射后将按原版无锚起飞语义弃置当前所在星区的地图「{0}」——地图与其中未随船离开的一切都将永久失去（在该地图上建造逆重锚可使其保留）。确认发射？</DeltaV_SectorMapAbandonConfirm>
+  <!-- 对接计划（2026-09-21 阶段4） -->
+  <DeltaV_DockPlanStarted>{0} 对接计划已建立：目标 {1}。自动驾驶接近中，也可手动飞入预定位置（半透明幽灵船处）——位姿重合保持足够时间即完成对接。</DeltaV_DockPlanStarted>
+  <DeltaV_DockPlanStatus>对接中：{0}（距离 {1} 格）</DeltaV_DockPlanStatus>
+  <DeltaV_DockPlanAutopilotOn>自动驾驶：随动接近中</DeltaV_DockPlanAutopilotOn>
+  <DeltaV_DockPlanAutopilotOff>自动驾驶：已停止（可手操或重新开启）</DeltaV_DockPlanAutopilotOff>
+  <DeltaV_DockAutopilotResumeButton>继续自动驾驶</DeltaV_DockAutopilotResumeButton>
+  <DeltaV_DockAutopilotStopButton>停止自动驾驶</DeltaV_DockAutopilotStopButton>
+  <DeltaV_DockCancelButton>取消对接</DeltaV_DockCancelButton>
+  <DeltaV_DockPlanCancelled>对接计划已取消：飞船回到移动模式，可随时重新发起。</DeltaV_DockPlanCancelled>
+  <DeltaV_DockAutopilotStopped>自动驾驶已停止（对接计划保留）。</DeltaV_DockAutopilotStopped>
+  <DeltaV_DockPlanBlocksDesignator>对接进行中：无法变更船体结构或规划。取消对接后再试。</DeltaV_DockPlanBlocksDesignator>
+  <DeltaV_DockPlanBlocksLaunch>对接进行中：无法发起逆重发射。取消对接后再试。</DeltaV_DockPlanBlocksLaunch>
+  <DeltaV_PilotWrongFaction>只有玩家方的飞船可以驾驶。</DeltaV_PilotWrongFaction>
+  <!-- 跳帮舱（2026-09-21 阶段4） -->
+  <DeltaV_PodLaunchLabel>发射跳帮舱</DeltaV_PodLaunchLabel>
+  <DeltaV_PodLaunchDesc>把当前选中的殖民者装入跳帮舱发射：舱体像导弹一样追踪目标船，命中后撞穿外壳开孔、密封舱落位堵孔，乘员在落点旁进入目标船内部。单程投放。</DeltaV_PodLaunchDesc>
+  <DeltaV_PodNeedCrew>请先选中要投放的殖民者（在本船上）。</DeltaV_PodNeedCrew>
+  <DeltaV_PodNoTarget>必须瞄准另一艘已加载的飞船外壳。</DeltaV_PodNoTarget>
+  <DeltaV_PodLaunched>跳帮舱已发射：{0} 名乘员 → {1}。</DeltaV_PodLaunched>
+  <DeltaV_PodImpact>跳帮舱命中 {0}：外壳破孔已由密封舱封堵，乘员已进入。</DeltaV_PodImpact>
+  <DeltaV_PodLost>跳帮舱失联（超时或目标被摧毁），乘员失踪。</DeltaV_PodLost>
+  <!-- 设置（阶段4） -->
+  <DeltaV_SettingsDockingHoldTicks>对接保持时长（tick）</DeltaV_SettingsDockingHoldTicks>
+  <DeltaV_SettingsDockingPosWindow>对齐容差-位置（格）</DeltaV_SettingsDockingPosWindow>
+  <DeltaV_SettingsDockingAngleWindow>对齐容差-角度（度）</DeltaV_SettingsDockingAngleWindow>
+  <DeltaV_SettingsDockingCancelDistance>对接自动取消距离（格）</DeltaV_SettingsDockingCancelDistance>
 </LanguageData>

@@ -27,6 +27,16 @@ namespace DeltaV
             CellRect hull = CenteredRect(map, 40, 24);
             StampHull(map, hull, doorsOnEast: 2, interiorWall: true, colonists: 0, Faction.OfPlayer, ownerId);
             StampPlayerEquipment(map, hull);
+            // 跳帮舱发射管（阶段4 测试）：船艉内侧首个可站立格。
+            for (int z = hull.minZ + 1; z <= hull.maxZ - 1; z++)
+            {
+                IntVec3 cell = new IntVec3(hull.minX + 2, 0, z);
+                if (cell.Standable(map))
+                {
+                    Spawn(map, ThingMaker.MakeThing(DeltaVDefOf.DeltaV_BoardingPodLauncher), cell, Faction.OfPlayer);
+                    break;
+                }
+            }
             // 殖民者最后落位：设备已占的格被 Standable 过滤，也不会被后续 Vanish 波及。
             SpawnColonists(map, hull, 2);
         }

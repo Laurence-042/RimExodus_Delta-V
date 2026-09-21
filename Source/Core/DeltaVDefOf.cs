@@ -34,6 +34,11 @@ namespace DeltaV
 
         public static ResearchProjectDef DeltaV_VacuumBarrier;
 
+        // 跳帮舱（2026-09-21 阶段4）：发射管（玩家建造）与落位密封舱（命中产物）。
+        public static ThingDef DeltaV_BoardingPodLauncher;
+
+        public static ThingDef DeltaV_BoardingPodLanded;
+
         // 逆重飞船大型推进器（Odyssey，2×2 方形脚印、rotatable、需 Substructure）。
         // 注意：Ship_Engine 是星际飞船（结局飞船）引擎，与逆重飞船无关，勿混用。
         public static ThingDef LargeThruster;

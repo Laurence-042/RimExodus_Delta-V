@@ -89,6 +89,15 @@ namespace DeltaV
             list.TextFieldNumericLabeled("DeltaV_SettingsMapGenBudget".Translate(), ref Settings.incrementalMapGenBudgetMs,
                 ref mapGenBudgetBuffer, 1f, 16f);
             list.Gap(6f);
+            list.TextFieldNumericLabeled("DeltaV_SettingsDockingHoldTicks".Translate(), ref Settings.dockingHoldTicks,
+                ref dockingHoldTicksBuffer, 1, 600);
+            list.TextFieldNumericLabeled("DeltaV_SettingsDockingPosWindow".Translate(), ref Settings.dockingPositionWindow,
+                ref dockingPosWindowBuffer, 0.05f, 5f);
+            list.TextFieldNumericLabeled("DeltaV_SettingsDockingAngleWindow".Translate(), ref Settings.dockingAngleWindowDeg,
+                ref dockingAngleWindowBuffer, 0.1f, 15f);
+            list.TextFieldNumericLabeled("DeltaV_SettingsDockingCancelDistance".Translate(), ref Settings.dockingCancelDistance,
+                ref dockingCancelDistanceBuffer, 50f, 10000f);
+            list.Gap(6f);
             Text.Font = GameFont.Tiny;
             GUI.color = new Color(1f, 1f, 1f, 0.6f);
             list.Label("DeltaV_SettingsCellsPerTileNote".Translate());
@@ -121,6 +130,14 @@ namespace DeltaV
         private static string poiDeleteBuffer;
 
         private static string mapGenBudgetBuffer;
+
+        private static string dockingHoldTicksBuffer;
+
+        private static string dockingPosWindowBuffer;
+
+        private static string dockingAngleWindowBuffer;
+
+        private static string dockingCancelDistanceBuffer;
 
         /// <summary>上次已应用的尺度值；用于检测设置变化并防止被拒绝的值回写。</summary>
         private static int appliedCellsPerTile;

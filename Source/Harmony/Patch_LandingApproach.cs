@@ -83,33 +83,17 @@ namespace DeltaV
     }
 
     /// <summary>
-    /// 进场期间保持目标图内容可见：原版 cutscene 级联会让 SectionLayer_Things 全图隐藏
-    /// 建筑/Pawn（CutsceneInProgress &amp;&amp; !GravshipRenderInProgess 分支），与
-    /// "聚焦目标图观看进场"的语义冲突。这里只在进场阶段覆写该只读透传，让原版把
-    /// 进场当作"截图进行中"处理——地图内容正常绘制；副作用仅为 MapDrawer/
-    /// DynamicDrawManager 多提交几个 section，无视觉差异。GravshipCapturer 自身
-    /// 读字段不读属性，不受影响；到达重放阶段原版捕获会真实置位该状态。
-    /// </summary>
-    [HarmonyPatch(typeof(WorldComponent_GravshipController), nameof(WorldComponent_GravshipController.GravshipRenderInProgess), MethodType.Getter)]
-    public static class Patch_GravshipController_RenderInProgress_Approach
-    {
-        public static void Postfix(ref bool __result)
-        {
-            if (LandingApproachController.ApproachActive) __result = true;
-        }
-    }
-
-    /// <summary>
-    /// 进场期间跳过 GravshipMask 层重生成：CutsceneInProgress=true 会让 None 模式走
-    /// 阴影分支（此时 SectionLayer_GravshipMask.Engine 为空）。进场期间模拟冻结、
-    /// 该层无内容变化，保留旧网格即可；到达重放阶段恢复正常重生成。
+    /// 对接计划期间跳过 GravshipMask 层重生成：到达重放（ArrivalPending）期间
+    /// CutsceneInProgress=true 会让 None 模式走阴影分支（此时
+    /// SectionLayer_GravshipMask.Engine 为空）。计划飞行阶段无 cutscene、模拟照常，
+    /// 不需要跳过；到达重放阶段恢复正常重生成。
     /// </summary>
     [HarmonyPatch(typeof(SectionLayer_GravshipMask), nameof(SectionLayer_GravshipMask.Regenerate))]
     public static class Patch_GravshipMask_Regenerate_Approach
     {
         public static bool Prefix()
         {
-            return !LandingApproachController.ApproachActive;
+            return !LandingApproachController.ArrivalPending;
         }
     }
 
@@ -212,6 +196,24 @@ namespace DeltaV
         {
             DockController.BeforeGravshipControllerUpdate(__instance);
             LandingApproachController.BeforeControllerUpdate(__instance);
+        }
+    }
+
+    /// <summary>
+    /// 选点/对接计划/跳帮舱飞行期间禁存档（2026-09-21 阶段4）：选点用空洞预览 Gravship
+    /// 与 marker 不具备存档语义，计划与飞行均为运行时数据（不序列化）；原版 cutscene
+    /// 门禁不再覆盖全程（计划期无 cutscene）。
+    /// </summary>
+    [HarmonyPatch(typeof(GameDataSaveLoader), nameof(GameDataSaveLoader.SavingIsTemporarilyDisabled), MethodType.Getter)]
+    public static class Patch_SavingIsTemporarilyDisabled_DeltaVRuntime
+    {
+        public static void Postfix(ref bool __result)
+        {
+            if (LandingApproachController.AnyActive || BoardingPodFlight.AnyInFlight
+                || DockController.PendingDockingShip != null)
+            {
+                __result = true;
+            }
         }
     }
 }

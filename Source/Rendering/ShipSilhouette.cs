@@ -66,10 +66,15 @@ namespace DeltaV
         private const int TexturePadding = 1;
 
         /// <summary>
-        /// 按格子集合构建正方形剪影纹理（内容在方形内居中——旋转围绕方形中心即围绕
-        /// 船体中心，细长船不会画圆弧甩摆）。无有效格子返回 null；调用方负责纹理生命周期。
+        /// 按格子集合构建正方形剪影纹理。contentAnchor = null 时内容按包围盒居中
+        /// （世界剪影语义：旋转围绕船体中心，细长船不甩摆）；显式传锚点（连续格角坐标，
+        /// 与格子同空间）时按「锚点 → 方形中心」布置、边长按各格到锚点最大距离取齐——
+        /// 停靠剪影传口袋图几何中心（位姿锚），剪影内容与未来真实脚印逐格重合
+        /// （2026-09-21 用户定案：视觉重叠即判据本身）。无有效格子返回 null；
+        /// 调用方负责纹理生命周期。
         /// </summary>
-        public static Texture2D BuildTexture(IEnumerable<IntVec3> cells, string name)
+        public static Texture2D BuildTexture(IEnumerable<IntVec3> cells, string name,
+            Vector2? contentAnchor = null)
         {
             int minX = int.MaxValue, maxX = int.MinValue, minZ = int.MaxValue, maxZ = int.MinValue;
             foreach (IntVec3 cell in cells)
@@ -82,6 +87,38 @@ namespace DeltaV
             if (minX > maxX)
             {
                 return null;
+            }
+            if (contentAnchor.HasValue)
+            {
+                float ax = contentAnchor.Value.x;
+                float az = contentAnchor.Value.y;
+                int reach = TexturePadding + 1;
+                foreach (IntVec3 cell in cells)
+                {
+                    reach = Mathf.Max(reach, Mathf.CeilToInt(
+                        Mathf.Max(Mathf.Abs(cell.x + 0.5f - ax), Mathf.Abs(cell.z + 0.5f - az))));
+                }
+                int anchoredSide = reach * 2;
+                var anchoredPixels = new Color32[anchoredSide * anchoredSide];
+                Color32 anchoredOpaque = new Color32(255, 255, 255, 255);
+                foreach (IntVec3 cell in cells)
+                {
+                    int x = Mathf.RoundToInt(cell.x - ax) + reach;
+                    int y = Mathf.RoundToInt(cell.z - az) + reach;
+                    if (x >= 0 && x < anchoredSide && y >= 0 && y < anchoredSide)
+                    {
+                        anchoredPixels[x + y * anchoredSide] = anchoredOpaque;
+                    }
+                }
+                var anchoredTexture = new Texture2D(anchoredSide, anchoredSide, TextureFormat.RGBA32, false)
+                {
+                    name = name,
+                    filterMode = FilterMode.Point,
+                    wrapMode = TextureWrapMode.Clamp
+                };
+                anchoredTexture.SetPixels32(anchoredPixels);
+                anchoredTexture.Apply(false, true);
+                return anchoredTexture;
             }
             int width = maxX - minX + 1;
             int height = maxZ - minZ + 1;

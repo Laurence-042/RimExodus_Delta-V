@@ -1,6 +1,5 @@
+using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using HarmonyLib;
 using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
@@ -9,51 +8,117 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 战术降落进场编排（星区架构 §7；2026-09-17 用户决策流程：选点 → 等待自动驾驶
-    /// 完成 → 清除原图 Substructure → 在落点生成 Substructure）。
+    /// 对接计划编排（2026-09-21 阶段4 定案，取代 2026-09-17 进场自动驾驶流程；星区
+    /// 架构 §7 / AGENTS §12）。战术降落（移动 → 固定）= 持久计划 + 几何完成判据：
     ///
-    /// 玩家在原版选点流程确认落点后，InitiateLanding Prefix 把流程接到这里：
-    /// - 选点阶段由 DockController 冻结一份**不搬运**的 Gravship 数据快照（Thing/
-    ///   Pawn/zone/地板指令等清单），船体与 Substructure 全程留在飞行口袋图——
-    ///   星球仪剪影、船壳渲染数据源不存在"从星球仪消失"的中间态；
-    /// - 选点结果（落点 cell + 旋转）经 DockController.ComputeLandingPose 反向映射为
-    ///   轨道层目标位姿（宿主帧 ⊕ 落点局部，含最终放置旋转）；
-    /// - 控制权夺取完全复用原版 cutscene 级联（cutsceneInProgress + ScreenshotMode）：
-    ///   玩家输入、时间速度、存档与世界视图由原版锁定；原版动画管线被 Prefix 拦截
-    ///   不运行；目标图正常聚焦、正常渲染（GravshipRenderInProgess 覆写避免原版全图
-    ///   隐藏地图内容），玩家飞船船壳由 ShellRenderer 的标准非聚焦外壳分支自动显示
-    ///   ——与停靠写入共用同一目标位姿，收敛帧与真船落位严格重合；
-    /// - 导航交给轨道层通用自动驾驶 ShipAutopilot.FlyTo；完成信号（OnNavigationArrived）
-    ///   触发真转移：FinalizeShipCapture（移除快照清单内容 + 剥除口袋图 Substructure，
-    ///   即原版 GenerateGravship 的搬运段）→ WriteDockedState → 重放原版
-    ///   InitiateLanding（动画时长压零，与移动模式起飞同款）→ 放置/收尾全归原版；
-    ///   LandingEnded Postfix 销毁空口袋图。
+    /// - 选点阶段（DockController.BeginOriginalLanding，pendingShip 持有）：**零消费**
+    ///   （游戏照常运行——2026-09-21 用户决策移除选点暂停：玩家不应选完落点后还要
+    ///   手动恢复游戏）——预览用空洞 Gravship（私有构造器 + 只读填充），原版选点/
+    ///   合法性/禁触链路照常工作，船体/zone/区域数据全程不动；
+    /// - 玩家确认落点后，InitiateLanding Prefix 把流程接到这里：**原子发布一个完整的
+    ///   <see cref="DockingPlan"/>**（ship/host/targetMap/落点/偏移/转角构造时全部有效
+    ///   ——「对接中但目标未知」不可表示），恢复游戏速度、聚焦切回自己船、生成幽灵
+    ///   船位置提示、挂随动自动驾驶（ShipAutopilot.TrackTo）。不启用 cutscene 级联
+    ///   ——玩家保留控制（建造/规划照常，扩建随完成时捕获带走）；
+    /// - 每 tick（UniverseManager.GameComponentTick）：宿主/目标图一致性复核（失效即
+    ///   整体拆除）→ 取消距离 → 位姿窗口累计保持 tick；手操打断自动驾驶不取消计划
+    ///   ——完成判据是几何的，与驾驶方式无关；玩家同时最多一个计划；
+    /// - 满足保持判据 → 新鲜脚印合法性复核（零消费，不合法可无损取消）→ **完成时刻
+    ///   的真实冻结**（CaptureShipForCompletion：唯一消费点，zone/地板指令/区域限制/
+    ///   储物组此刻收缴）→ 位姿对齐目标（继承宿主速度）→ FinalizeShipCapture 移除 →
+    ///   WriteDockedState → 重放原版 InitiateLanding（动画压零；聚焦/cutscene/截图锁
+    ///   由原版自设，LandingEnded 自行释放）；LandingEnded Postfix 销毁空口袋图。
     ///
-    /// 进场期间原版禁存档（SavingIsTemporarilyDisabled 级联），本类状态全部为运行时
-    /// 数据、不做存档兼容；读档防御性重置见 ResetOnLoad。
+    /// 状态模型纪律：对外的「对接计划」语义唯一来源是 <see cref="ActivePlan"/>（null
+    /// = 无计划或到达重放期——重放是转移流程不是可干预的计划；非空 ⇒ 全字段有效）。
+    /// 消费方（面板/门禁/补丁）一律查询本控制器，**不得从 ship.docking 等散落标志
+    /// 推断计划存在**——docking 只是「对接流程中（选点或计划）」的快速标志，供外壳
+    /// 渲染/剪影跳过/尺度门禁使用。计划为运行时数据不存档（选点+计划全程禁存档）；
+    /// 读档防御见 ResetOnLoad。
     /// </summary>
     public static class LandingApproachController
     {
-        // ---- 进场状态（全部运行时，不存档）----
+        /// <summary>
+        /// 一个进行中的对接计划。字段在构造时全部有效（构造即完整）；host ==
+        /// FrameOf(targetMap) 的一致性由 Tick 每刻复核，失效即整体拆除——不存在
+        /// 部分初始化或目标未知的计划。
+        /// </summary>
+        public sealed class DockingPlan
+        {
+            public readonly ShipState ship;
+            public readonly SpaceObject host;
+            public readonly Map targetMap;
+            public readonly IntVec3 landingCell;
+            public readonly Rot4 landingRotation;
 
-        private static ShipState approachShip;
-        private static GravshipLandingMarker confirmMarker;
-        private static Map targetMap;
-        private static IntVec3 landingCell;
-        private static Rot4 landingRotation;
+            /// <summary>宿主帧局部坐标：宿主位姿 ⊕ 此偏移 = 预定落点位姿锚（绘制/判据共用）。</summary>
+            public readonly Vector2 hostOffset;
+
+            /// <summary>目标宇宙角 = 宿主角 ⊕ 此相对角。</summary>
+            public readonly float relativeAngle;
+
+            /// <summary>位姿窗口内的连续保持计数（运行时，达到设置值即完成）。</summary>
+            public int holdTicks;
+
+            public DockingPlan(ShipState ship, SpaceObject host, Map targetMap,
+                IntVec3 landingCell, Rot4 landingRotation, Vector2 hostOffset, float relativeAngle)
+            {
+                this.ship = ship;
+                this.host = host;
+                this.targetMap = targetMap;
+                this.landingCell = landingCell;
+                this.landingRotation = landingRotation;
+                this.hostOffset = hostOffset;
+                this.relativeAngle = SpaceTransform.WrapAngle(relativeAngle);
+            }
+
+            /// <summary>预定落点当前位姿（随宿主运动重算：宿主位姿 ⊕ 计划偏移）。</summary>
+            public void TargetPose(out Vector3 direction, out float angle)
+            {
+                direction = SpaceTransform.FocusedToUniverse(host, hostOffset);
+                angle = SpaceTransform.WrapAngle(host.pose.angle + relativeAngle);
+            }
+
+            /// <summary>计划船与目标中心的当前距离（格）。</summary>
+            public float Distance()
+            {
+                return OrbitSphere.ArcCells(ship.pose.position, host.pose.position);
+            }
+        }
+
+        // ---- 状态（运行时，不存档）----
+        // plan 非 null ⇒ 全字段有效；arrivalReplayActive 标记其后的到达重放段
+        // （转移流程，不再是对外可干预的「计划」）。confirmMarker 是选点期捕获、
+        // 完成重放时需要复活的 vanilla 对象；bypassInitiateLanding 是重放的再入标志。
+        private static DockingPlan plan;
         private static bool arrivalReplayActive;
+        private static GravshipLandingMarker confirmMarker;
         private static bool bypassInitiateLanding;
 
-        private static readonly FieldInfo CutsceneInProgressField =
-            AccessTools.Field(typeof(WorldComponent_GravshipController), "cutsceneInProgress");
+        /// <summary>对齐容差（唯一读口）：完成时按目标位姿精确对齐，容差只需覆盖
+        /// 手操可达精度（自动驾驶的虚空动力终段天然收敛到窗口内）；可在设置中调整。
+        /// 角度设置以度存储、此处换算弧度。</summary>
+        internal static float HoldPositionWindow =>
+            Mathf.Max(0.05f, DeltaVMod.Settings?.dockingPositionWindow ?? 0.35f);
 
-        /// <summary>进场飞行阶段：船在口袋图中，由 ShipAutopilot 驾驶。</summary>
-        public static bool ApproachActive => approachShip != null && !arrivalReplayActive;
+        internal static float HoldAngleWindow =>
+            Mathf.Max(0.0017f, (DeltaVMod.Settings?.dockingAngleWindowDeg ?? 1.15f) * Mathf.Deg2Rad);
+
+        /// <summary>当前是否处于对齐窗口内（保持计数 > 0）——幽灵船变色提示的依据；
+        /// 对齐后保持 dockingHoldTicks 即完成对接。</summary>
+        public static bool AlignedNow => ActivePlan?.holdTicks > 0;
+
+        /// <summary>当前对接计划；无计划或到达重放期为 null。非空 ⇒ 全字段有效。</summary>
+        public static DockingPlan ActivePlan => arrivalReplayActive ? null : plan;
+
+        /// <summary>计划飞行阶段（计划存在且未进入到达重放）。</summary>
+        public static bool ApproachActive => plan != null && !arrivalReplayActive;
 
         /// <summary>到达重放阶段：原版 InitiateLanding 管线运行中（动画压零）。</summary>
-        public static bool ArrivalPending => approachShip != null && arrivalReplayActive;
+        public static bool ArrivalPending => plan != null && arrivalReplayActive;
 
-        public static bool AnyActive => approachShip != null;
+        /// <summary>计划相关流程存在（飞行段或重放段）。</summary>
+        public static bool AnyActive => plan != null;
 
         /// <summary>当前结束中的原版 LandingEnded 是否属于 Delta-V 战术降落（移动→固定）：
         /// 到达重放窗口（ArrivalPending）或降级立即降落窗口（WriteDockedState 置位、
@@ -62,6 +127,12 @@ namespace DeltaV
         /// 的状态都延后到 Postfix 才清空。</summary>
         public static bool TacticalLandingEnding =>
             ArrivalPending || DockController.LandedShipAwaitingPocketCleanup != null;
+
+        /// <summary>计划船（无计划/重放期为 null；供驾驶门禁做身份比较，不用于推断计划存在性）。</summary>
+        internal static ShipState ApproachShip => ActivePlan?.ship;
+
+        /// <summary>计划船的口袋图（重放期仍有效；发射封锁的地图键）。</summary>
+        internal static Map ApproachShipMap => plan?.ship?.map;
 
         /// <summary>原版 GravshipLandingMarker.BeginLanding Prefix：缓存 marker 引用（Destroy 前），
         /// 供到达重放时复活原版 InitiateLanding 依赖的 GravshipCells。</summary>
@@ -72,8 +143,8 @@ namespace DeltaV
 
         /// <summary>
         /// InitiateLanding Prefix 的接管判定：是本 mod 的战术降落（选点阶段的捕获匹配）则
-        /// 启动进场并拦截原版动画管线。口袋图意外失效时退化为旧式立即降落
-        /// （WriteDockedState + 放行原方法），保证流程总能收尾。
+        /// 原子发布对接计划并拦截原版动画管线。口袋图意外失效时降级为取消——此刻仍未
+        /// 消费任何数据，零损失；仍拦截原方法（预览清单不能进原版降落管线）。
         /// </summary>
         public static bool TryConsume(Gravship gravship, Map map, IntVec3 landingPos, Rot4 landingRot)
         {
@@ -84,78 +155,291 @@ namespace DeltaV
                 if (ship == null) confirmMarker = null; // 战略降落：不持有无关 marker
                 return false;
             }
-            if (ship.map == null || ship.map.Disposed || !Find.Maps.Contains(ship.map))
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            SpaceObject host = universe?.FrameOf(map);
+            if (ship.map == null || ship.map.Disposed || !Find.Maps.Contains(ship.map) || host == null)
             {
-                Log.Error($"[DeltaV] Approach for '{ship.label}': flight pocket map lost; degrading to immediate vanilla landing.");
-                DockController.WriteDockedState(ship, gravship, map, landingPos, landingRot);
-                ClearState();
-                return false;
+                Log.Error($"[DeltaV] Docking plan for '{ship.label}': flight pocket map or target frame lost; cancelling (nothing consumed).");
+                CancelSelectionOrPlan("flight pocket map or target frame lost", silent: true);
+                Messages.Message("DeltaV_ApproachAborted".Translate(), MessageTypeDefOf.RejectInput, false);
+                return true;
             }
 
-            approachShip = ship;
-            targetMap = map;
-            landingCell = landingPos;
-            landingRotation = landingRot;
-
-            // 落点反向映射：快照（不搬运）的 ThingPlacements 此刻合成的正是玩家确认的
-            // 最终放置朝向（marker 旋转直接作用于快照）。船体全程留在口袋图，无需恢复。
+            // 落点反向映射分解（与 ComputeLandingPose 同一公式）：宿主 ⊕ 局部偏移、
+            // 宿主角 ⊕ 相对转角——随动目标、幽灵船与完成窗口都按这两分量随宿主重算。
             DockController.ComputeLandingPose(ship, gravship, map, landingPos, landingRot,
-                out Vector3 targetDirection, out float targetAngle, out _);
+                out _, out float targetAngle, out Vector2 dockedOrigin);
+            var newPlan = new DockingPlan(ship, host, map, landingPos, landingRot,
+                SpaceTransform.MapToShipLocal(map, dockedOrigin),
+                SpaceTransform.WrapAngle(targetAngle - host.pose.angle));
 
-            // 控制权夺取：复用原版 cutscene 级联（PlayerHasControl / ForcePaused /
-            // 禁存档 / 锁世界视图）。原版动画管线被 Prefix 拦截，不会运行。
-            Current.Game.CurrentMap = map;
-            Find.ScreenshotModeHandler.Active = true;
-            SetCutsceneInProgress(true);
+            // 原子发布：全部校验与构造完成之后才切换全局状态，发布前不产生任何可观测副作用。
+            plan = newPlan;
 
-            // 导航交给轨道层通用自动驾驶；到达/失败信号驱动后续流程。
-            ShipAutopilot.FlyTo(ship, targetDirection, targetAngle, OnNavigationArrived, OnNavigationFailed);
+            // 聚焦切回自己船（计划期玩家保留控制；目标以标准非聚焦壳呈现、真实油门
+            // 火焰可见）。SetFocused 只切参考系，不触碰任何 pose。
+            universe.SetFocused(ship);
+
+            // 幽灵船位置提示（派生缓存，不进 universe.objects）。
+            DockingGhostRenderer.BuildFor(newPlan);
+
+            EngageAutopilot();
+            if (Find.TickManager.CurTimeSpeed == TimeSpeed.Paused)
+            {
+                DeltaVLog.Message(DeltaVLogModule.Core,
+                    "docking plan engaged while game paused; approach frozen until unpaused (motion is tick-driven)");
+            }
+            Messages.Message("DeltaV_DockPlanStarted".Translate(ship.label, host.label),
+                MessageTypeDefOf.PositiveEvent, false);
+            Vector2 registeredOrigin = SpaceTransform.ShipLocalToMap(map, newPlan.hostOffset);
             DeltaVLog.Message(DeltaVLogModule.Core,
-                $"{ship.label}: approach autopilot engaged toward '{Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map)?.label}'; rot={landingRot.AsInt}");
+                $"{ship.label}: landing registered on '{host.label}'; cell={landingPos}, rot={landingRot.AsInt}, dockedOrigin=({registeredOrigin.x:F1},{registeredOrigin.y:F1}), offset=({newPlan.hostOffset.x:F1},{newPlan.hostOffset.y:F1}), relAngle={newPlan.relativeAngle * Mathf.Rad2Deg:F1} deg");
             return true;
         }
 
-        /// <summary>ShipAutopilot 完成信号：导航到达落点位姿，执行真转移。</summary>
-        private static void OnNavigationArrived()
+        /// <summary>（重）挂随动自动驾驶：计划建立时与面板「继续自动驾驶」共用。
+        /// 手操驾驶中挂自动驾驶先退出手操（自动驾驶接管驾驶位；打断路径 = 按驾驶键）。</summary>
+        public static void EngageAutopilot()
         {
-            CompleteTransfer();
+            DockingPlan active = ActivePlan;
+            if (active == null) return;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe != null && PilotController.PilotedShip(universe) == active.ship)
+            {
+                PilotController.Exit(universe, "DeltaV_PilotOff".Translate(active.ship.label));
+            }
+            ShipAutopilot.TrackTo(active.ship, active.host, active.hostOffset, active.relativeAngle,
+                OnNavigationFailed, allowVoidThrust: true);
         }
 
-        /// <summary>ShipAutopilot 失败信号：释放控制权，回到移动模式可重试。</summary>
+        /// <summary>随动任务当前是否在驾驶计划船。</summary>
+        public static bool AutopilotEngaged =>
+            ActivePlan != null && ShipAutopilot.IsActive(ActivePlan.ship);
+
         private static void OnNavigationFailed()
         {
-            Abort("autopilot failed");
+            // 随动任务异常退出（船图失效等）或被手动停止：计划保留——完成判据是几何的，
+            // 可手操对接或经面板重新开启自动驾驶。船图/目标失效由 Tick 的守卫拆除计划。
+            if (ApproachActive)
+            {
+                Messages.Message("DeltaV_DockAutopilotStopped".Translate(), MessageTypeDefOf.NeutralEvent, false);
+            }
         }
 
         /// <summary>
-        /// 真转移（用户决策流程的收尾："清除原图 Substructure → 在落点生成 Substructure"）：
-        /// FinalizeShipCapture 移除快照清单内容并剥除口袋图地形 → 写停靠状态 → 重放原版
-        /// InitiateLanding（放置/PostSwapMap/着陆结局/收尾全归原版；动画时长经
-        /// SuppressArrivalCutscene/BeforeControllerUpdate 压零）。
+        /// UniverseManager.GameComponentTick 每 tick 驱动：宿主/目标图一致性复核、
+        /// 取消距离、位姿窗口与保持计数（对接条件 = 与预定落点位姿重合保持可配置 tick 数）。
         /// </summary>
-        private static void CompleteTransfer()
+        public static void Tick(UniverseManager universe)
         {
-            ShipState ship = approachShip;
+            DockingPlan active = plan;
+            if (active == null || arrivalReplayActive) return;
+            if (universe == null || Current.Game == null)
+            {
+                CancelSelectionOrPlan("universe lost", silent: true);
+                return;
+            }
+            if (active.ship.map == null || active.ship.map.Disposed || !active.ship.docking)
+            {
+                CancelSelectionOrPlan("approach ship state lost");
+                return;
+            }
+            if (active.targetMap == null || active.targetMap.Disposed || !Find.Maps.Contains(active.targetMap)
+                || !ReferenceEquals(universe.FrameOf(active.targetMap), active.host))
+            {
+                // 目标图失效或换帧（被收纳、战略离场等）。
+                CancelSelectionOrPlan("docking target lost");
+                return;
+            }
+            if (active.Distance() > DeltaVMod.Settings.dockingCancelDistance)
+            {
+                CancelSelectionOrPlan("left docking range");
+                return;
+            }
+
+            active.TargetPose(out Vector3 targetDir, out float targetAngle);
+            Vector2 posErr = OrbitSphere.Offset(targetDir, active.ship.pose.position);
+            float angleErr = Mathf.Abs(SpaceTransform.WrapAngle(targetAngle - active.ship.pose.angle));
+            bool inWindow = posErr.magnitude <= HoldPositionWindow && angleErr <= HoldAngleWindow;
+            if (inWindow)
+            {
+                active.holdTicks++;
+                if (active.holdTicks == 1)
+                {
+                    DeltaVLog.Message(DeltaVLogModule.Core,
+                        $"docking window entered: posErr={posErr.magnitude:F3} cells, angleErr={angleErr * Mathf.Rad2Deg:F2} deg");
+                }
+            }
+            else if (active.holdTicks > 0)
+            {
+                DeltaVLog.Message(DeltaVLogModule.Core,
+                    $"docking window lost after {active.holdTicks} ticks (posErr={posErr.magnitude:F3}, angleErr={angleErr * Mathf.Rad2Deg:F2} deg)");
+                active.holdTicks = 0;
+            }
+            if (active.holdTicks >= Mathf.Max(1, DeltaVMod.Settings.dockingHoldTicks))
+            {
+                DeltaVLog.Message(DeltaVLogModule.Core,
+                    $"docking conditions met: window held {active.holdTicks} ticks; starting completion transfer");
+                CompleteDocking();
+            }
+        }
+
+        /// <summary>dev 回归入口：跳过保持计数直接执行完成段（合法性复核照常）。</summary>
+        internal static void DebugForceComplete()
+        {
+            if (ApproachActive) CompleteDocking();
+        }
+
+        /// <summary>
+        /// 对接条件满足（定案流程第 7 步）：新鲜脚印合法性复核（零消费，不合法可无损
+        /// 取消）→ **完成时刻的真实冻结**（唯一消费点，与移除重建同一调用栈）→ 位姿
+        /// 对齐 → 真转移。
+        /// </summary>
+        private static void CompleteDocking()
+        {
+            DockingPlan active = plan;
+            if (active.targetMap == null || active.targetMap.Disposed)
+            {
+                CancelSelectionOrPlan("target map lost");
+                return;
+            }
+            if (!LandingSiteStillValid(active))
+            {
+                Messages.Message("DeltaV_DockPlanSiteInvalid".Translate(), MessageTypeDefOf.RejectInput, false);
+                CancelSelectionOrPlan("landing site no longer valid", silent: true);
+                return;
+            }
+
+            ShipAutopilot.Detach(active.ship, "docking complete");
+            if (!ReferenceEquals(
+                    Current.Game?.GetComponent<UniverseManager>()?.FrameOf(active.targetMap), active.host))
+            {
+                CancelSelectionOrPlan("docking target lost");
+                return;
+            }
+
+            // 完成时刻的真实冻结：Gravship(engine) 消费式捕获（zone/地板指令/区域限制/
+            // 储物组收缴进清单），随即在同一调用栈内移除重建——对接期间的建造/扩建
+            // 全部随本次捕获带走，无陈旧清单（原版起飞同款毫秒级窗口）。
+            Building_GravEngine engine = DockController.FindEngineForShip(active.ship.map, active.ship.primaryConsole);
+            Gravship gravship = DockController.CaptureShipForCompletion(engine);
+            if (gravship == null)
+            {
+                Abort("ship capture freeze failed");
+                return;
+            }
+            gravship.Rotation = active.landingRotation;
+            PlanetTile addressTile = active.targetMap.Tile.Valid
+                ? active.targetMap.Tile
+                : OrbitSphere.TileFromDirection(active.ship.pose.position);
+            gravship.Tile = addressTile;
+            gravship.destinationTile = addressTile;
+            // 重放用的 marker 指向真实清单（脚印与复核用的新鲜预览同源）。
+            if (confirmMarker != null)
+            {
+                confirmMarker.gravship = gravship;
+                confirmMarker.CacheCells();
+            }
+
+            // 对齐到目标位姿并继承宿主速度/角速度：WriteDockedState 写权威值前的显示
+            // 连续（到达重放的 LongEvent 间隙里船壳/剪影仍按此位姿显示）。
+            active.TargetPose(out Vector3 targetDir, out float targetAngle);
+            active.ship.pose.position = targetDir;
+            active.ship.pose.angle = targetAngle;
+            // 继承宿主速度（换基唯一入口 SpaceTransform.TransportVelocity）。
+            active.ship.pose.velocity = SpaceTransform.TransportVelocity(
+                active.host.pose, active.ship.pose.position);
+            active.ship.pose.angularVelocity = active.host.pose.angularVelocity;
+            DockingGhostRenderer.Destroy();
+            CompleteTransfer(gravship);
+        }
+
+        /// <summary>
+        /// 落点合法性复核（同选点门禁全链，含禁触规则）：以**当前**脚印重建零消费预览
+        /// 刷新 marker 缓存——对接期间的扩建会改变脚印，旧缓存不可信。
+        /// 原版判定与禁触补丁全部读 Find.CurrentMap（2026-09-21 实测事故：计划期聚焦在
+        /// 自己船，脚印格被拿到自己口袋图上检查，复核必然失败、计划反复以「落点失效」
+        /// 取消）——复核期间同帧临时聚焦目标图，结束后切回；相机位置由 CurrentMap
+        /// setter 的记忆/恢复机制保持不变。
+        /// </summary>
+        private static bool LandingSiteStillValid(DockingPlan active)
+        {
+            if (!active.landingCell.IsValid || confirmMarker == null || active.ship.map == null) return false;
+            Map originalMap = Find.CurrentMap;
+            if (originalMap == active.targetMap) return ValidateLandingSite(active);
+            Current.Game.CurrentMap = active.targetMap;
+            try
+            {
+                return ValidateLandingSite(active);
+            }
+            finally
+            {
+                Current.Game.CurrentMap = originalMap;
+            }
+        }
+
+        private static bool ValidateLandingSite(DockingPlan active)
+        {
+            try
+            {
+                Building_GravEngine engine = DockController.FindEngineForShip(
+                    active.ship.map, active.ship.primaryConsole);
+                Gravship preview = DockController.BuildPreviewGravship(active.ship, engine);
+                if (preview == null) return false;
+                // 复核必须按选点朝向旋转脚印（2026-09-21 实测事故：漏设 Rotation 时
+                // Foundations/锚格换算按默认朝向错位，脚印整体偏移，复核必败）。
+                preview.Rotation = active.landingRotation;
+                confirmMarker.gravship = preview;
+                confirmMarker.CacheCells();
+                var designator = new Designator_MoveGravship(active.targetMap, confirmMarker);
+                // 锚格语义与选点路径严格一致：原版判定链 GetRoot(GetSizeRotAdjustedCell(loc))
+                // 对 root 格是**恒等变换**（选点时 CanDesignateCell/DesignateSingleCell 收到的
+                // 就是 root 格，marker.Position 也是 root 格）——直接传 landingCell，禁止任何
+                // 自组合换算（2026-09-21 实测事故：误转中心锚格 +半跨度，脚印整体偏移几十格，
+                // 复核必然「边界外/禁建边」失败）。
+                AcceptanceReport report = designator.CanDesignateCell(active.landingCell);
+                if (!report.Accepted)
+                {
+                    DeltaVLog.Message(DeltaVLogModule.Core,
+                        $"docking site revalidation failed: {report.Reason}");
+                }
+                return report.Accepted;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 真转移（定案流程收尾："清除原图 Substructure → 在落点生成 Substructure"）：
+        /// FinalizeShipCapture 移除 CompleteDocking 刚冻结的清单内容并剥除口袋图地形 →
+        /// 写停靠状态 → 重放原版 InitiateLanding（聚焦目标图/cutscene/截图锁全由原版
+        /// 自设，LandingEnded 自行释放；动画时长经 SuppressArrivalCutscene/
+        /// BeforeControllerUpdate 压零）。
+        /// </summary>
+        private static void CompleteTransfer(Gravship gravship)
+        {
+            ShipState ship = plan.ship;
+            Map targetMap = plan.targetMap;
             if (targetMap == null || targetMap.Disposed)
             {
                 Abort("target map lost");
                 return;
             }
 
-            Gravship gravship = DockController.PendingDockingGravship;
             if (!DockController.FinalizeShipCapture(gravship))
             {
                 Abort("ship capture finalize failed");
                 return;
             }
-            gravship.Rotation = landingRotation;
-            PlanetTile addressTile = targetMap.Tile.Valid
-                ? targetMap.Tile
-                : OrbitSphere.TileFromDirection(ship.pose.position);
-            gravship.Tile = addressTile;
-            gravship.destinationTile = addressTile;
 
-            DockController.WriteDockedState(ship, gravship, targetMap, landingCell, landingRotation);
+            // 最终落位 = 注册数据原样写入（direction/angle 来自 TargetPose；dockedOrigin
+            // 是 hostOffset 的同源取逆——不经 ShipOriginFromPlacementRoot 链二次计算）。
+            plan.TargetPose(out Vector3 direction, out float angle);
+            Vector2 dockedOrigin = SpaceTransform.ShipLocalToMap(targetMap, plan.hostOffset);
+            DockController.WriteDockedState(ship, targetMap, plan.landingCell, plan.landingRotation,
+                direction, angle, dockedOrigin);
 
             arrivalReplayActive = true;
             // 复活原版 InitiateLanding 依赖的 marker（GravshipCells 缓存仍有效），
@@ -164,7 +448,7 @@ namespace DeltaV
             bypassInitiateLanding = true;
             try
             {
-                Find.GravshipController.InitiateLanding(gravship, targetMap, landingCell, landingRotation);
+                Find.GravshipController.InitiateLanding(gravship, targetMap, plan.landingCell, plan.landingRotation);
             }
             finally
             {
@@ -172,31 +456,90 @@ namespace DeltaV
             }
         }
 
-        /// <summary>异常出口：取消导航、释放原版控制权并丢弃快照（清单中已转入的 zone 等
-        /// 无法回退到口袋图，仅错误路径可达），飞船回到速度归零的移动状态，可重新发起降落。</summary>
-        private static void Abort(string reason)
+        /// <summary>
+        /// 取消对接（选点阶段或计划阶段通用）：选点阶段清除 marker/确认状态并恢复
+        /// 游戏速度（此刻零消费，取消无损失）；计划阶段回到移动模式（docking 清除、
+        /// 速度保持现状——玩家可能正处于手操）。到达重放期拒绝执行（转移进行中）。
+        /// 均可重新发起。silent 供守卫性收尾。
+        /// </summary>
+        public static void CancelSelectionOrPlan(string reason = null, bool silent = false)
         {
-            Log.Error($"[DeltaV] Landing approach aborted: {reason}.");
-            ShipState ship = approachShip;
+            if (arrivalReplayActive)
+            {
+                Log.WarningOnce("[DeltaV] Docking arrival replay in progress; cancel ignored.", 0x4D51C0DE);
+                return;
+            }
+            ShipState ship = plan?.ship ?? DockController.PendingDockingShip;
+            bool selectionPhase = plan == null && ship != null;
+            plan = null;
             if (ship != null)
             {
-                ShipAutopilot.Cancel(ship);
+                ShipAutopilot.Detach(ship, "plan cancelled"); // 静默摘除：取消路径不需要失败反馈
+                ship.docking = false;
+            }
+            DockController.DiscardPendingDocking();
+            DockingGhostRenderer.Destroy();
+            if (selectionPhase)
+            {
+                CancelSiteSelection(ship);
+            }
+            if (!silent)
+            {
+                Messages.Message("DeltaV_DockPlanCancelled".Translate(), MessageTypeDefOf.NeutralEvent, false);
+            }
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"docking {(selectionPhase ? "site selection" : "plan")} cancelled: {reason ?? "user"}");
+        }
+
+        /// <summary>选点阶段取消的收尾：销毁本流程的 marker、结束原版确认状态、
+        /// 恢复选点暂停前的时间速度。marker 经「预览 Gravship 的引擎 = 计划船引擎」
+        /// 识别，不误伤原版降落选点的 marker。</summary>
+        private static void CancelSiteSelection(ShipState ship)
+        {
+            Find.GravshipController?.Notify_LandingAreaConfirmationStarted(null);
+            if (ship?.map == null) return;
+            Building_GravEngine engine = DockController.FindEngineForShip(ship.map, ship.primaryConsole);
+            foreach (Map map in Find.Maps)
+            {
+                foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.GravshipLandingMarker).ToList())
+                {
+                    if (thing is GravshipLandingMarker marker
+                        && marker.gravship != null && marker.gravship.Engine == engine)
+                    {
+                        marker.Destroy();
+                    }
+                }
+            }
+        }
+
+        /// <summary>异常出口（真转移失败）：取消导航、丢弃快照，飞船回到速度归零的移动
+        /// 状态，可重新发起降落。</summary>
+        private static void Abort(string reason)
+        {
+            Log.Error($"[DeltaV] Docking completion aborted: {reason}.");
+            ShipState ship = plan?.ship;
+            plan = null;
+            arrivalReplayActive = false;
+            if (ship != null)
+            {
+                ShipAutopilot.Detach(ship, "aborted");
                 ship.pose.velocity = Vector2.zero;
                 ship.pose.angularVelocity = 0f;
                 ship.docking = false; // 回到移动模式；docked 从未置位
             }
-            Current.Game.Gravship = null; // 丢弃未搬运的选点快照
-            ReleaseControl();
-            ClearState();
+            DockController.DiscardPendingDocking();
+            DockingGhostRenderer.Destroy();
             Messages.Message("DeltaV_ApproachAborted".Translate(), MessageTypeDefOf.RejectInput, false);
         }
 
-        /// <summary>LandingEnded Postfix：到达重放收尾——清掉复活的 marker 与全部进场状态。</summary>
+        /// <summary>LandingEnded Postfix：到达重放收尾——清掉复活的 marker 与全部计划状态。</summary>
         public static void NotifyArrivalEnded()
         {
-            if (approachShip == null) return;
+            if (plan == null) return;
             Find.GravshipController?.Notify_LandingAreaConfirmationStarted(null);
-            ClearState();
+            DockingGhostRenderer.Destroy();
+            plan = null;
+            arrivalReplayActive = false;
         }
 
         /// <summary>GravshipRenderer.BeginCutscene Postfix：到达重放起播即压零动画时长。</summary>
@@ -211,33 +554,22 @@ namespace DeltaV
             if (ArrivalPending) DockController.ForceCutsceneTimeZero(controller);
         }
 
-        /// <summary>读档防御：进场期间原版禁存档，正常不会带状态读档；异常路径下释放控制权并丢弃。</summary>
+        /// <summary>读档防御：选点+计划全程禁存档，正常不会带状态读档；异常路径下丢弃
+        /// （快照随存档整体不存在，静默清理即可）。</summary>
         public static void ResetOnLoad()
         {
-            if (approachShip == null) return;
-            ReleaseControl();
-            ClearState();
-        }
-
-        private static void ReleaseControl()
-        {
-            Find.ScreenshotModeHandler.Active = false;
-            SetCutsceneInProgress(false);
-        }
-
-        private static void SetCutsceneInProgress(bool value)
-        {
-            CutsceneInProgressField?.SetValue(null, value);
-        }
-
-        private static void ClearState()
-        {
-            approachShip = null;
-            confirmMarker = null;
-            targetMap = null;
-            landingCell = IntVec3.Invalid;
-            landingRotation = Rot4.North;
+            if (plan == null)
+            {
+                DockingGhostRenderer.Destroy();
+                return;
+            }
+            ShipState ship = plan.ship;
+            plan = null;
             arrivalReplayActive = false;
+            ShipAutopilot.Detach(ship, "load reset");
+            ship.docking = false;
+            DockController.DiscardPendingDocking();
+            DockingGhostRenderer.Destroy();
         }
     }
 }

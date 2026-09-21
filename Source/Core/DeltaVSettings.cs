@@ -32,6 +32,25 @@ namespace DeltaV
         /// <summary>分帧地图生成每个渲染帧的主线程预算（毫秒）。</summary>
         public float incrementalMapGenBudgetMs = 8f;
 
+        /// <summary>
+        /// 对接完成判据的保持时长（tick，2026-09-21 阶段4）：与预定落点位姿重合持续
+        /// 这么久才完成对接——防高速掠过误触发；自动驾驶收敛后天然满足。
+        /// </summary>
+        public int dockingHoldTicks = 60;
+
+        /// <summary>对齐容差-位置（格）：与预定落点距离在此内（且角度在容差内）视为
+        /// 已对齐——幽灵船变色提示，保持 dockingHoldTicks 后完成对接。</summary>
+        public float dockingPositionWindow = 0.35f;
+
+        /// <summary>对齐容差-角度（度）：与预定落点朝向差在此内视为已对齐。</summary>
+        public float dockingAngleWindowDeg = 1.15f;
+
+        /// <summary>
+        /// 对接计划自动取消距离（universe 格，阶段4）：计划船与目标中心距离超出即取消
+        /// （通常小于休眠距离，目标图不应在计划期休眠）。
+        /// </summary>
+        public float dockingCancelDistance = 250f;
+
         // ---- 分模块诊断日志开关（默认全关；Warn/Error 与必要状态日志不受开关控制）----
 
         public bool logCore;
@@ -54,6 +73,10 @@ namespace DeltaV
             Scribe_Values.Look(ref poiActiveRadius, "poiActiveRadius", 300f);
             Scribe_Values.Look(ref poiDeleteRadius, "poiDeleteRadius", 1200f);
             Scribe_Values.Look(ref incrementalMapGenBudgetMs, "incrementalMapGenBudgetMs", 8f);
+            Scribe_Values.Look(ref dockingHoldTicks, "dockingHoldTicks", 60);
+            Scribe_Values.Look(ref dockingPositionWindow, "dockingPositionWindow", 0.35f);
+            Scribe_Values.Look(ref dockingAngleWindowDeg, "dockingAngleWindowDeg", 1.15f);
+            Scribe_Values.Look(ref dockingCancelDistance, "dockingCancelDistance", 250f);
             Scribe_Values.Look(ref logCore, "logCore", false);
             Scribe_Values.Look(ref logInput, "logInput", false);
             Scribe_Values.Look(ref logPhysics, "logPhysics", false);

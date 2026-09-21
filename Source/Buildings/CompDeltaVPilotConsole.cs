@@ -296,16 +296,23 @@ namespace DeltaV
             if (ship.docked)
             {
                 // 固定图可能同时有多艘逆重飞船，必须由玩家点中这艘船的驾驶台来选择目标。
-                yield return NewAction("DeltaV_MobileButtonEnter".Translate(), TexCommand.Draft,
-                    () => DockController.TryLaunch(universe, ship));
+                // 控制权门禁（阶段4）：限玩家方（dev 放行）——敌舰驾驶台不是玩家入口。
+                if (PilotController.CanPlayerControl(ship))
+                {
+                    yield return NewAction("DeltaV_MobileButtonEnter".Translate(), TexCommand.Draft,
+                        () => DockController.TryLaunch(universe, ship));
+                }
             }
             else
             {
-                yield return NewAction(
-                    universe.pilotShipId == ship.objectId
-                        ? "DeltaV_PilotButtonExit".Translate()
-                        : "DeltaV_PilotButtonEnter".Translate(),
-                    TexCommand.Draft, () => PilotController.Toggle(universe));
+                if (PilotController.CanPlayerControl(ship))
+                {
+                    yield return NewAction(
+                        universe.pilotShipId == ship.objectId
+                            ? "DeltaV_PilotButtonExit".Translate()
+                            : "DeltaV_PilotButtonEnter".Translate(),
+                        TexCommand.Draft, () => PilotController.Toggle(universe));
+                }
             }
 
             if (ship.primaryConsole != parent)

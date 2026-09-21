@@ -422,6 +422,9 @@ namespace DeltaV
             OrbitSphere.ClearCache();
             SectorContentService.Reset();
             ShipAutopilot.ResetOnLoad();
+            BoardingPodFlight.ResetOnLoad();
+            BoardingPodFlight.ClearRuntimeCaches();
+            DockingGhostRenderer.Destroy();
             LandingApproachController.ResetOnLoad();
             mapFrame = null;
             PilotController.SuppressVanillaKeys = false;
@@ -652,8 +655,6 @@ namespace DeltaV
             // 驾驶状态维护（自动退出 + Harmony 按键抑制开关）。
             PilotController.UpdateFrameState(this);
             DebugActions_DeltaV.UpdateFrameMeter();
-            // 轨道层通用自动驾驶（帧驱动：降落过场期间 tick 冻结），先于船壳绘制推进位姿。
-            ShipAutopilot.Update();
             ShellRenderer.DrawNonFocusedShells(this);
             WorldShipMarkerRenderer.DrawPlayerShips(this);
             ThrusterEffects.Draw(this);
@@ -709,6 +710,13 @@ namespace DeltaV
         public override void GameComponentTick()
         {
             const float dt = 1f / 60f;
+            // 宇宙运动只属于游戏时钟（AGENTS §18 不变量 #20）：自动驾驶/跳帮舱按
+            // 游戏 tick 推进——暂停冻结、倍速加速；先于计划判据与物理积分
+            //（IsActive 跳过防双驱动，计划判据看到本 tick 最新位姿）。
+            ShipAutopilot.Tick();
+            BoardingPodFlight.Tick();
+            // 对接计划（几何完成判据 + 取消守卫；2026-09-21 阶段4）。
+            LandingApproachController.Tick(this);
             ShipState piloted = PilotController.PilotedShip(this);
             bool piloting = piloted?.map != null && Find.CurrentMap == piloted.map;
             foreach (SpaceObject obj in objects)
@@ -717,14 +725,16 @@ namespace DeltaV
                 {
                     continue;
                 }
-                if (ship.docked || ship.docking)
+                if (ship.docked)
                 {
-                    continue; // 停靠/选点中：船体不在活动口袋图上，宇宙状态冻结
+                    continue; // 停靠中：船体不在活动口袋图上，宇宙状态冻结
                 }
                 if (ShipAutopilot.IsActive(ship))
                 {
                     continue; // 自动驾驶中的船由 ShipAutopilot 帧驱动，避免双重积分
                 }
+                // 对接计划中的船（docking）照常积分：自动驾驶摘除后可手操/漂移——
+                // 完成判据是几何的，不依赖驾驶方式（2026-09-21 阶段4）。
                 bool isPiloted = piloting && ship == piloted;
                 bool drifting = ship.pose.velocity.sqrMagnitude > 1e-10f
                     || Mathf.Abs(ship.pose.angularVelocity) > 1e-10f;
@@ -974,6 +984,7 @@ namespace DeltaV
             IncrementalMapGenerationService.Reset();
             SectorContentService.Reset();
             PilotController.Exit(this);
+            DockingGhostRenderer.Destroy();
             objects = newObjects;
             focusedShipId = focusId;
             mapFrame = null;

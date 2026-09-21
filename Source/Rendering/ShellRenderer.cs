@@ -77,6 +77,18 @@ namespace DeltaV
                 anyForeground |= drew;
                 if (logBeat) AppendLayerObj("f" + i + "/" + ForegroundScratch.Count, ForegroundScratch[i], drew);
             }
+            // 对接幽灵船（预定落点提示）：计划期常显，随悬停壳之后走前台层——聚焦
+            // 自己船时提示在空间中可见，聚焦目标图时覆盖在落点上（不被聚焦图吞掉）。
+            int nextSlot = ForegroundScratch.Count;
+            if (DockingGhostRenderer.TryEmit(frame, current, foregroundLayer.At(nextSlot)))
+            {
+                anyForeground = true;
+                nextSlot++;
+                if (logBeat) LayerLogBuf.Append(" | ghost");
+            }
+            // 跳帮舱飞行标记（轨道层位置在聚焦帧的投影；与幽灵船同管线）。
+            nextSlot = BoardingPodFlight.TryEmitMarkers(frame, current, foregroundLayer, nextSlot);
+            if (nextSlot > ForegroundScratch.Count) anyForeground = true;
             foregroundLayer.Finish(anyForeground);
             if (logBeat) DeltaVLog.Message(DeltaVLogModule.Render, LayerLogBuf.ToString());
         }

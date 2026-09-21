@@ -47,10 +47,21 @@ namespace DeltaV
             if (frame == null) return;
 
             ShipState mobileShip = universe.ShipOnMap(map);
-            if (mobileShip != null && (mobileShip.docked || mobileShip.docking)) mobileShip = null;
+            if (mobileShip != null && mobileShip.docked) mobileShip = null;
+            // 「对接计划」语义唯一来源是 ActivePlan（null = 无计划或到达重放期，非空 ⇒
+            // 全字段有效）；不从 ship.docking 等标志推断（选点中的船 docking 但无计划）。
+            LandingApproachController.DockingPlan plan = LandingApproachController.ActivePlan;
+            if (mobileShip != null && mobileShip.docking && plan?.ship != mobileShip)
+            {
+                mobileShip = null; // 选点/到达重放中的船：不显示移动 HUD
+            }
             ShipState dockedShip = mobileShip == null
                 ? universe.Ships.FirstOrDefault(s => s.docked && !s.docking && s.dockedMap == map)
                 : null;
+            // 计划 UI（计划船聚焦时）：状态行 + 自动驾驶开关 + 取消。
+            bool dockingPlan = plan != null && plan.ship == mobileShip;
+            // 控制权门禁（阶段4）：驾驶/模式按钮限玩家方（dev 放行）。
+            bool playerControlled = mobileShip == null || PilotController.CanPlayerControl(mobileShip);
 
             // 固定模式 → 移动模式入口的另一形态：未 bootstrap 的原版 Gravship（首次降落/
             // 发射到达时还没有 ShipState）。唯一驾驶台可直接从面板进入；多艘船必须选中
@@ -103,6 +114,14 @@ namespace DeltaV
             {
                 statusLines.Add("DeltaV_PanelModeFixed".Translate());
             }
+            if (dockingPlan)
+            {
+                statusLines.Add("DeltaV_DockPlanStatus".Translate(
+                    plan.host.label, ((int)plan.Distance()).ToString()));
+                statusLines.Add(LandingApproachController.AutopilotEngaged
+                    ? "DeltaV_DockPlanAutopilotOn".Translate()
+                    : "DeltaV_DockPlanAutopilotOff".Translate());
+            }
 
             Text.Font = GameFont.Small;
             float contentWidth = PanelWidth - 20f;
@@ -116,7 +135,9 @@ namespace DeltaV
 
             // 高度完全随内容自适应（不滚动）：星球仪 + 缩放滑条 + 标题/状态行 + 当前模式的按钮行数。
             float modeButtonsHeight = mobileShip != null
-                ? 27f + 6f + 27f + 8f
+                ? (dockingPlan
+                    ? (playerControlled ? 27f + 6f : 0f) + 27f + 6f + 27f + 8f
+                    : (playerControlled ? 27f + 6f + 27f + 8f : 0f))
                 : (dockedShip != null || bootstrapEntry || multiShipAmbiguous) ? 27f + 6f : 0f;
             float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + modeButtonsHeight;
             const float sliderRowHeight = 30f;
@@ -158,23 +179,58 @@ namespace DeltaV
             // 模式按钮全部收进面板（不再分开放）。
             if (mobileShip != null)
             {
-                string pilotButton = piloting
-                    ? "DeltaV_PilotButtonExit".Translate()
-                    : "DeltaV_PilotButtonEnter".Translate();
-                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), pilotButton))
+                if (playerControlled)
                 {
-                    PilotController.Toggle(universe);
+                    string pilotButton = piloting
+                        ? "DeltaV_PilotButtonExit".Translate()
+                        : "DeltaV_PilotButtonEnter".Translate();
+                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), pilotButton))
+                    {
+                        PilotController.Toggle(universe);
+                    }
+                    lineY += 27f + 6f;
                 }
-                lineY += 27f + 6f;
-                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_FixedButtonEnter".Translate()))
+                if (dockingPlan)
                 {
-                    DockController.TryDock(universe, mobileShip);
+                    // 计划期：自动驾驶开关（手操打断后可重新挂上）+ 取消对接。
+                    string autopilotButton = LandingApproachController.AutopilotEngaged
+                        ? "DeltaV_DockAutopilotStopButton".Translate()
+                        : "DeltaV_DockAutopilotResumeButton".Translate();
+                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), autopilotButton))
+                    {
+                        if (LandingApproachController.AutopilotEngaged)
+                        {
+                            ShipAutopilot.Cancel(mobileShip);
+                        }
+                        else
+                        {
+                            LandingApproachController.EngageAutopilot();
+                        }
+                    }
+                    lineY += 27f + 6f;
+                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_DockCancelButton".Translate()))
+                    {
+                        LandingApproachController.CancelSelectionOrPlan("user");
+                    }
+                    lineY += 27f + 8f;
                 }
-                lineY += 27f + 8f;
+                else if (playerControlled)
+                {
+                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_FixedButtonEnter".Translate()))
+                    {
+                        DockController.TryDock(universe, mobileShip);
+                    }
+                    lineY += 27f + 8f;
+                }
+                else
+                {
+                    lineY += 8f;
+                }
             }
             else if (dockedShip != null)
             {
-                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_MobileButtonEnter".Translate()))
+                if (PilotController.CanPlayerControl(dockedShip)
+                    && Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_MobileButtonEnter".Translate()))
                 {
                     DockController.TryLaunch(universe, dockedShip);
                 }

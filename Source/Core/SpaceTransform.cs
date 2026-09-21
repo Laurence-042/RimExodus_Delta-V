@@ -96,7 +96,10 @@ namespace DeltaV
         }
 
         /// <summary>放置 root 格 → 悬停/中心锚格（原版 Designator.GetSizeRotAdjustedCell
-        /// 的逐字段镜像；与 AdjustedCellToPlacementRoot 在整格取整意义下互逆）。</summary>
+        /// 的逐字段镜像；与 AdjustedCellToPlacementRoot 在整格取整意义下互逆）。
+        /// **注意**：原版 Designator 判定链 GetRoot(GetSizeRotAdjustedCell(loc)) 对 root 格
+        /// 是恒等变换——经 designator（CanDesignateCell 等）复核落点时**直接传 root 格**，
+        /// 禁止叠加本换算自组合往返（2026-09-21 实测事故源）。</summary>
         public static IntVec3 PlacementRootToAdjustedCell(IntVec3 root, IntVec2 size, Rot4 rot)
         {
             IntVec3 halfX = new IntVec3(size.x / 2, 0, 0);
@@ -105,6 +108,14 @@ namespace DeltaV
             if (rot == Rot4.East) return root + halfX - halfZ;
             if (rot == Rot4.South) return root - halfX - halfZ;
             return root - halfX + halfZ;
+        }
+
+        /// <summary>原版 Designator 判定链 GetRoot(GetSizeRotAdjustedCell(loc)) 的显式镜像：
+        /// 对 root 锚格**恒等**（选点与完成复核共用同一锚语义）。需要在该判定链之外计算
+        /// 同一 root 时（如禁触补丁）用本入口，不得另行组合（不变量 #21）。</summary>
+        public static IntVec3 PlacementAnchorRoot(IntVec3 anchorCell, IntVec2 size, Rot4 rot)
+        {
+            return AdjustedCellToPlacementRoot(PlacementRootToAdjustedCell(anchorCell, size, rot), size, rot);
         }
 
         /// <summary>船以 rot 停靠到 root 后，其口袋图几何中心（SpacePose.position 锚）
@@ -131,6 +142,19 @@ namespace DeltaV
         {
             Vector3 center = CellRect.FromCellList(new List<IntVec3>(cells)).CenterVector3;
             return new Vector2(center.x, center.z);
+        }
+
+        // ---------- 速度换基（唯一入口） ----------
+
+        /// <summary>速度从一个位姿的锚点基平行输运到目标锚点基（x=东、y=北）。
+        /// 自动驾驶 PD 阻尼/宿主前馈、对接完成的宿主速度继承共用本入口，不得各写一份
+        /// 基变换点乘（2026-09-21 去重收口，不变量 #21）。</summary>
+        public static Vector2 TransportVelocity(SpacePose pose, Vector3 frameDirection)
+        {
+            OrbitSphere.Basis(pose.position, out Vector3 east, out Vector3 north);
+            Vector3 world = east * pose.velocity.x + north * pose.velocity.y;
+            OrbitSphere.Basis(frameDirection, out east, out north);
+            return new Vector2(Vector3.Dot(world, east), Vector3.Dot(world, north));
         }
 
         // ---------- Ship local ⇄ universe ----------

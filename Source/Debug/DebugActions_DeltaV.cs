@@ -391,5 +391,71 @@ namespace DeltaV
             Vector2 leftDir = new Vector2(-Mathf.Sin(angle), Mathf.Cos(angle));
             ship.pose.position = OrbitSphere.Move(ship.pose.position, fwd * forward + leftDir * left);
         }
+
+        // ---- 阶段4：对接计划与跳帮测试设施 ----
+
+        [DebugAction("Delta-V", "Enemy ship: set drift velocity (20 east)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void EnemyDriftEast()
+        {
+            ShipState ship = OtherShip();
+            if (ship != null)
+            {
+                ship.pose.velocity = new Vector2(20f, 0f);
+            }
+        }
+
+        [DebugAction("Delta-V", "Enemy ship: set spin (+10 deg/s)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void EnemySpin()
+        {
+            ShipState ship = OtherShip();
+            if (ship != null)
+            {
+                ship.pose.angularVelocity = 10f * Mathf.Deg2Rad;
+            }
+        }
+
+        [DebugAction("Delta-V", "Enemy ship: hostile faction + spawn crew (3)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void EnemyHostileCrew()
+        {
+            ShipState ship = OtherShip();
+            if (ship?.map == null)
+            {
+                return;
+            }
+            Faction hostile = Faction.OfPirates
+                ?? Find.FactionManager.AllFactionsVisible.FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer));
+            if (hostile == null)
+            {
+                Log.Warning("[DeltaV] No hostile faction available for enemy crew spawn.");
+                return;
+            }
+            ship.faction = hostile;
+            int spawned = 0;
+            for (int attempt = 0; attempt < 30 && spawned < 3; attempt++)
+            {
+                Pawn pawn = PawnGenerator.GeneratePawn(new PawnGenerationRequest(
+                    hostile.def.basicMemberKind, hostile, PawnGenerationContext.NonPlayer));
+                IntVec3 cell = CellFinder.RandomClosewalkCellNear(ship.map.Center, ship.map, 18);
+                if (!cell.IsValid || !cell.Standable(ship.map))
+                {
+                    continue;
+                }
+                GenSpawn.Spawn(pawn, cell, ship.map);
+                spawned++;
+            }
+            Log.Message($"[DeltaV] Enemy ship '{ship.label}' set hostile to player; {spawned} defenders spawned.");
+        }
+
+        [DebugAction("Delta-V", "Docking plan: force complete", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void DockingPlanForceComplete()
+        {
+            LandingApproachController.DebugForceComplete();
+        }
+
+        [DebugAction("Delta-V", "Docking: cancel (site selection or plan)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void DockingPlanCancel()
+        {
+            LandingApproachController.CancelSelectionOrPlan("dev action");
+        }
     }
 }
