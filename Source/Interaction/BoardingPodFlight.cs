@@ -17,12 +17,15 @@ namespace DeltaV
     /// - 自包含实现，**不是**阶段5 的通用 SpaceProjectile 系统（AGENTS §13 战斗纪律
     ///   不提前铺开；届时按正式设计重构，本类只保留「载人投放」职责）；
     /// - 只在轨道层持有位置（球面方向 + 追踪速度），显示层只投影不模拟；
-    /// - 飞行期禁存档（Patch_SavingGate；运行时数据不序列化）；
+    /// - **本类是 UniverseManager 持有的实例服务**（universe.BoardingPods，2026-09-22
+    ///   实例化迁移）：在飞列表随组件实例存亡，读档 = 重建组件 = 自动归零（不再需要
+    ///   读档清扫）；飞行期禁存档（Patch_SavingIsTemporarilyDisabled_DeltaVRuntime；
+    ///   乘员在运行时容器中，落盘即丢失），材质/纹理为静态渲染缓存、经
+    ///   ClearRuntimeCaches 换档重建；
     /// - 目标限 ShipState（有引擎连通域可估壳半径；POI 走整机对接）；
     /// - 单程：撤离 = 整机对接或占领目标。
     /// </summary>
-    [StaticConstructorOnStartup]
-    public static class BoardingPodFlight
+    public class BoardingPodFlight
     {
         private class Flight : IThingHolder
         {
@@ -52,18 +55,19 @@ namespace DeltaV
 
         private const int MaxFlightTicks = 3600;
 
-        private static readonly List<Flight> flights = new List<Flight>();
+        private readonly List<Flight> flights = new List<Flight>();
 
+        // 渲染缓存（静态，ClearRuntimeCaches 换档销毁重建）。
         private static Texture2D markerTexture;
         private static Material markerMaterial;
 
-        public static bool AnyInFlight => flights.Count > 0;
+        public bool AnyInFlight => flights.Count > 0;
 
         /// <summary>
         /// 发射：乘员 DeSpawn 装入舱内容器，从源船位姿出发追踪目标。命中半径按目标
         /// 引擎相连基架域到 pose 锚（口袋图几何中心）的最远格估等效壳半径。
         /// </summary>
-        public static void Launch(ShipState source, ShipState target, List<Pawn> pawns)
+        public void Launch(ShipState source, ShipState target, List<Pawn> pawns)
         {
             if (source?.map == null || target?.map == null || pawns.NullOrEmpty()) return;
             var flight = new Flight
@@ -93,7 +97,7 @@ namespace DeltaV
 
         /// <summary>UniverseManager.GameComponentTick 每 tick 驱动（游戏时间语义：
         /// 暂停冻结、倍速加速；绝不使用帧时钟）。</summary>
-        public static void Tick()
+        public void Tick()
         {
             if (flights.Count == 0) return;
             const float dt = 1f / 60f;
@@ -125,7 +129,7 @@ namespace DeltaV
         private static float EstimateShellRadius(ShipState target)
         {
             Map map = target.map;
-            Building_GravEngine engine = DockController.FindEngineForShip(map, target.primaryConsole);
+            Building_GravEngine engine = ShipStructureResolver.EngineOf(target);
             HashSet<IntVec3> cells = engine?.AllConnectedSubstructure;
             if (cells == null || cells.Count == 0) return map.Size.x * 0.5f;
             Vector2 center = SpaceTransform.ShipLocalOrigin(map);
@@ -224,7 +228,7 @@ namespace DeltaV
         /// 飞行标记渲染（ShellRenderer 前台层，与幽灵船同管线）：聚焦帧中的小四边形，
         /// 位置 = 轨道层飞行位置在聚焦帧的投影。返回消耗后的下一槽位号。
         /// </summary>
-        internal static int TryEmitMarkers(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)
+        internal int TryEmitMarkers(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)
         {
             if (flights.Count == 0) return baseSlot;
             EnsureMarkerMaterial();
@@ -259,9 +263,11 @@ namespace DeltaV
             };
         }
 
-        /// <summary>读档防御：飞行期禁存档，正常无状态；异常存档丢弃（防御性不杀乘员——
-        /// 直接按落空处理会把人留在无图容器，销毁反而产生幽灵尸体，这里静默清空）。</summary>
-        public static void ResetOnLoad()
+        /// <summary>同实例上的流程清零（dev ResetObjects 重建场景用；读档路径 = 组件
+        /// 重建，天然无需调用）。飞行期禁存档故正常无状态；异常存档丢弃时防御性
+        /// 不杀乘员——直接按落空处理会把人留在无图容器，销毁反而产生幽灵尸体，
+        /// 这里静默清空。</summary>
+        public void ResetFlow()
         {
             foreach (Flight flight in flights)
             {

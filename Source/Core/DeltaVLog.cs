@@ -35,7 +35,7 @@ namespace DeltaV
     {
         public static bool Enabled(DeltaVLogModule module)
         {
-            var s = DeltaVMod.Settings;
+            var s = DeltaVMod.CurrentSettings;
             if (s == null)
             {
                 return false;

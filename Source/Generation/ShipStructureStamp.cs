@@ -64,7 +64,7 @@ namespace DeltaV
         private static void StampHull(Map map, CellRect hull, int doorsOnEast, bool interiorWall,
             int colonists, Faction faction, int ownerId)
         {
-            SubstructureOwnership.SetPendingStamp(map, hull.Cells, ownerId);
+            SubstructureOwnership.For(map).SetPendingStamp(hull.Cells, ownerId);
             try
             {
                 foreach (IntVec3 cell in hull)
@@ -74,7 +74,7 @@ namespace DeltaV
             }
             finally
             {
-                SubstructureOwnership.RemovePendingStamp(map);
+                SubstructureOwnership.For(map).ClearPendingStamp();
             }
             foreach (IntVec3 cell in hull.EdgeCells)
             {

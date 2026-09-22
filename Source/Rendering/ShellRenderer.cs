@@ -54,7 +54,7 @@ namespace DeltaV
             bool anyBuffered = false;
             for (int i = 0; i < LayerOrderScratch.Count; i++)
             {
-                bool drew = DrawObjectShell(LayerOrderScratch[i], frame, current, backgroundLayer.At(i));
+                bool drew = DrawObjectShell(universe, LayerOrderScratch[i], frame, current, backgroundLayer.At(i));
                 anyBuffered |= drew;
                 if (logBeat) AppendLayerObj("b" + i + "/" + LayerOrderScratch.Count, LayerOrderScratch[i], drew);
             }
@@ -73,21 +73,21 @@ namespace DeltaV
             bool anyForeground = false;
             for (int i = 0; i < ForegroundScratch.Count; i++)
             {
-                bool drew = DrawObjectShell(ForegroundScratch[i], frame, current, foregroundLayer.At(i));
+                bool drew = DrawObjectShell(universe, ForegroundScratch[i], frame, current, foregroundLayer.At(i));
                 anyForeground |= drew;
                 if (logBeat) AppendLayerObj("f" + i + "/" + ForegroundScratch.Count, ForegroundScratch[i], drew);
             }
             // 对接幽灵船（预定落点提示）：计划期常显，随悬停壳之后走前台层——聚焦
             // 自己船时提示在空间中可见，聚焦目标图时覆盖在落点上（不被聚焦图吞掉）。
             int nextSlot = ForegroundScratch.Count;
-            if (DockingGhostRenderer.TryEmit(frame, current, foregroundLayer.At(nextSlot)))
+            if (DockingGhostRenderer.TryEmit(universe, frame, current, foregroundLayer.At(nextSlot)))
             {
                 anyForeground = true;
                 nextSlot++;
                 if (logBeat) LayerLogBuf.Append(" | ghost");
             }
             // 跳帮舱飞行标记（轨道层位置在聚焦帧的投影；与幽灵船同管线）。
-            nextSlot = BoardingPodFlight.TryEmitMarkers(frame, current, foregroundLayer, nextSlot);
+            nextSlot = universe.BoardingPods.TryEmitMarkers(frame, current, foregroundLayer, nextSlot);
             if (nextSlot > ForegroundScratch.Count) anyForeground = true;
             foregroundLayer.Finish(anyForeground);
             if (logBeat) DeltaVLog.Message(DeltaVLogModule.Render, LayerLogBuf.ToString());
@@ -116,15 +116,16 @@ namespace DeltaV
             results.Sort(CompareById);
         }
 
-        private static bool DrawObjectShell(SpaceObject obj, SpaceObject frame, Map frameMap, ShellLayer.Slot target)
+        private static bool DrawObjectShell(UniverseManager universe, SpaceObject obj,
+            SpaceObject frame, Map frameMap, ShellLayer.Slot target)
         {
             // 选点/进场（docking）期间船仍在活口袋图上（快照不搬运），非停靠分支
             // 直接可画——聚焦目标图上持续显示悬停船壳；到达停靠后走停靠分支，
             // 由 dockedMap == frameMap 跳过防重复绘制。
             ShipState ship = obj as ShipState;
             bool docked = ship != null && ship.docked;
-            Map map = docked ? ship.dockedMap : obj.map;
-            if (map == null || map.Disposed || IncrementalMapGenerationService.IsGenerating(map)
+            Map map = obj.InteriorMap;
+            if (map == null || map.Disposed || universe.Generation?.IsGenerating(map) == true
                 || docked && map == frameMap) return false;
 
             HashSet<IntVec3> allowedCells = null;
@@ -133,12 +134,12 @@ namespace DeltaV
             Vector2 sourceOrigin;
             if (docked)
             {
-                Building_GravEngine engine = DockController.FindEngineForShip(map, ship.primaryConsole);
+                Building_GravEngine engine = ShipStructureResolver.EngineOf(ship);
                 if (engine == null) return false;
                 allowedCells = engine.AllConnectedSubstructure;
                 rotation = SpaceTransform.FocusedMeshRotation(frame, 0f);
                 drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
-                sourceOrigin = DockController.DockedOriginMapPoint(ship);
+                sourceOrigin = ShipStructureResolver.DockedOrigin(ship);
             }
             else
             {
@@ -181,7 +182,7 @@ namespace DeltaV
                 LayerLogBuf.Append(" SKIP");
                 return;
             }
-            Map map = ship != null && ship.docked ? ship.dockedMap : obj.map;
+            Map map = obj.InteriorMap;
             LayerLogBuf.Append(" map#").Append(map.uniqueID)
                 .Append('(').Append(map.Size.x).Append('x').Append(map.Size.z).Append(')')
                 .Append(" q=").Append(MapOverlayRenderer.QuadsDrawnLastPass);

@@ -38,7 +38,8 @@ namespace DeltaV
         private static void Prefix(ref State __state)
         {
             CameraDriver driver = Find.CameraDriver;
-            if (driver?.config == null || !UniverseManager.TryGetVanillaZoomMax(out float vanilla))
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (driver?.config == null || !(universe?.TryGetVanillaZoomMax(out float vanilla) ?? false))
             {
                 return;
             }

@@ -30,26 +30,16 @@ namespace DeltaV
             yield return AccessTools.PropertyGetter(typeof(KeyBindingDef), nameof(KeyBindingDef.KeyDownEvent));
         }
 
-        /// <summary>抑制命中计数（仅主线程读写；诊断用）。</summary>
-        public static long SuppressedReads;
-
-        private static readonly HashSet<KeyBindingDef> LoggedDefs = new HashSet<KeyBindingDef>();
-
         public static bool Prefix(KeyBindingDef __instance, ref bool __result)
         {
-            if (!PilotController.SuppressVanillaKeys)
+            if (!PilotKeyBridge.SuppressVanillaKeys)
             {
                 return true;
             }
-            if (PilotController.OverlapsActiveKeys(__instance))
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe?.Pilot.TrySuppressBinding(__instance) == true)
             {
                 __result = false;
-                SuppressedReads++;
-                if (DeltaVLog.Enabled(DeltaVLogModule.Harmony) && LoggedDefs.Add(__instance))
-                {
-                    DeltaVLog.Message(DeltaVLogModule.Harmony,
-                        $"suppressing vanilla binding '{__instance.defName}' (reads so far will not trigger it)");
-                }
                 return false;
             }
             return true;

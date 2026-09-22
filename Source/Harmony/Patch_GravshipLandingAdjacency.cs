@@ -92,7 +92,8 @@ namespace DeltaV
         /// </summary>
         private static int LandingOwnerId(GravshipLandingMarker marker)
         {
-            ShipState pending = DockController.PendingDockingShip;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            ShipState pending = universe?.ShipModes.PendingDockingShip(universe);
             if (pending != null)
             {
                 return pending.objectId;

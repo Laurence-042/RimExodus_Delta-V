@@ -110,14 +110,14 @@ namespace DeltaV
                 dockedRotation = Rot4.North
             };
             universe.RegisterObject(ship);
-            if (universe.primaryShipId < 0 || !universe.Ships.Any(s => s.objectId == universe.primaryShipId))
+            if (universe.ShipById(universe.primaryShipId) == null)
             {
                 universe.primaryShipId = ship.objectId;
             }
             HostColonistBarVisibility.NotifyDockingStateChanged();
             // 驾驶台只负责明确选择“哪一艘”离开共享地图进入移动模式。
             // 生成口袋图后保持未驾驶；玩家再通过该独占地图的 HUD 启用控制。
-            DockController.TryLaunch(universe, ship);
+            universe.ShipModes.TryLaunch(universe, ship);
         }
     }
 }

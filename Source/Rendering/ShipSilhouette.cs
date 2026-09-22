@@ -38,7 +38,7 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 「按当前图（docked ? dockedMap : map）扫描」纹理的朝向配对（见类注释）：
+        /// 「按 SpaceObject.InteriorMap 扫描」纹理的朝向配对（见类注释）：
         /// 停靠态纹理嵌入宿主图坐标系 → 宿主帧角；移动态纹理为口袋图规范化形状 →
         /// 船姿态角。宿主缺对象时兜底船姿态角（不变量 #17 下不应发生）。
         /// </summary>

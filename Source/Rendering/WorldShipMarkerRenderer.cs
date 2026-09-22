@@ -154,13 +154,13 @@ namespace DeltaV
             Release(marker);
             marker.initialized = true;
 
-            Map map = ship.docked ? ship.dockedMap : ship.map;
+            Map map = ship.InteriorMap;
             if (map == null || map.Disposed)
             {
                 return;
             }
 
-            Building_GravEngine engine = DockController.FindEngineForShip(map, ship.primaryConsole);
+            Building_GravEngine engine = ShipStructureResolver.EngineOf(ship);
             HashSet<IntVec3> liveCells = engine?.AllConnectedSubstructureNoRegen;
             if (liveCells == null || liveCells.Count == 0)
             {

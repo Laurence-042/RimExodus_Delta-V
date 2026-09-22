@@ -40,7 +40,7 @@ namespace DeltaV
                 SpaceObject obj = PickOrderScratch[idx];
                 ShipState ship = obj as ShipState;
                 bool docked = ship != null && ship.docked;
-                Map objectMap = docked ? ship.dockedMap : obj.map;
+                Map objectMap = obj.InteriorMap;
                 if (objectMap == null || (docked && objectMap == frameMap)) continue;
                 // UniverseToMapPoint：universe → 地图坐标（含中心偏移）——
                 // 直接拿 UniverseToShipLocal 的中心系输出当地图坐标是已记录三次的反模式。
@@ -54,7 +54,7 @@ namespace DeltaV
                 }
                 if (docked)
                 {
-                    Building_GravEngine engine = DockController.FindEngineForShip(objectMap, ship.primaryConsole);
+                    Building_GravEngine engine = ShipStructureResolver.EngineOf(ship);
                     if (engine != null && engine.AllConnectedSubstructure.Contains(cell)) return obj;
                 }
                 else if (MapOverlayRenderer.ContainsVisibleContent(objectMap, cell))

@@ -86,7 +86,7 @@ namespace DeltaV
         /// </summary>
         public void ApplyTo(Map map, int ownerId)
         {
-            SubstructureOwnership.SetPendingStamp(map, foundationCells, ownerId);
+            SubstructureOwnership.For(map).SetPendingStamp(foundationCells, ownerId);
             try
             {
                 for (int i = 0; i < foundationCells.Count; i++)
@@ -96,7 +96,7 @@ namespace DeltaV
             }
             finally
             {
-                SubstructureOwnership.RemovePendingStamp(map);
+                SubstructureOwnership.For(map).ClearPendingStamp();
             }
             for (int i = 0; i < topCells.Count; i++)
             {

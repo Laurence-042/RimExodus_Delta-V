@@ -31,6 +31,13 @@ namespace DeltaV
         /// <summary>对应的口袋地图（已加载时非空）。Scribe_References 在 cross-ref 阶段解析。</summary>
         public Map map;
 
+        /// <summary>
+        /// 对象当前可进入的内部地图。普通对象就是 <see cref="map"/>；停靠飞船由
+        /// <see cref="ShipState"/> 覆盖为共享宿主图。所有 UI、渲染、拾取与结构查询
+        /// 必须消费本入口，禁止在调用点重复拼装 docked/map 分支。
+        /// </summary>
+        public virtual Map InteriorMap => map;
+
         protected SpaceObject()
         {
         }

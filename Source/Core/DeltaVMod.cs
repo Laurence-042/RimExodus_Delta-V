@@ -14,35 +14,22 @@ namespace DeltaV
     /// </summary>
     public class DeltaVMod : Mod
     {
-        public static DeltaVSettings Settings { get; private set; }
+        public DeltaVSettings Settings { get; private set; }
+
+        public static DeltaVSettings CurrentSettings =>
+            LoadedModManager.GetMod<DeltaVMod>()?.Settings;
 
         /// <summary>诊断用：本 mod 的 Harmony 实例（DebugActions 检查补丁挂载状态）。</summary>
-        public static Harmony HarmonyInstance { get; private set; }
+        public Harmony HarmonyInstance { get; private set; }
 
         public DeltaVMod(ModContentPack content) : base(content)
         {
             Settings = GetSettings<DeltaVSettings>();
-            IncrementalMapGenerationService.FrameBudgetMsProvider =
-                () => Settings?.incrementalMapGenBudgetMs ?? 8f;
-            MapDormancyService.Logger = message =>
-                DeltaVLog.Message(DeltaVLogModule.Lifecycle, message);
-            IncrementalMapGenerationService.Logger = message =>
-                DeltaVLog.Message(DeltaVLogModule.Lifecycle, message);
-            IncrementalMapGenerationService.RegisterAdapterFactory(step =>
-                step.def.genStep is RimWorld.GenStep_Space && ModsConfig.OdysseyActive
-                    ? new IncrementalMapGenerationService.TerrainFillGenStepAdapter(
-                        RimWorld.TerrainDefOf.Space, disableRegions: true)
-                    : null);
-            IncrementalMapGenerationService.RegisterAdapterFactory(step =>
-                step.def.genStep is GenStep_DeltaVShipFill
-                    ? new IncrementalMapGenerationService.TerrainFillGenStepAdapter(
-                        RimWorld.TerrainDefOf.Space, disableRegions: false)
-                    : null);
             InitializeHarmony();
             Log.Message("[DeltaV] Star sector model build loaded (sector-scale setting, projection-based tactical docking, sector content bookkeeping, unified status panel with globe).");
         }
 
-        private static void InitializeHarmony()
+        private void InitializeHarmony()
         {
             try
             {
@@ -121,35 +108,35 @@ namespace DeltaV
         }
 
         // TextFieldNumeric 的文本缓冲需要跨帧保存；值只经本字段修改，无需外部同步。
-        private static string cellsPerTileBuffer;
+        private string cellsPerTileBuffer;
 
-        private static string universeZoomMaxBuffer;
+        private string universeZoomMaxBuffer;
 
-        private static string poiActiveBuffer;
+        private string poiActiveBuffer;
 
-        private static string poiDeleteBuffer;
+        private string poiDeleteBuffer;
 
-        private static string mapGenBudgetBuffer;
+        private string mapGenBudgetBuffer;
 
-        private static string dockingHoldTicksBuffer;
+        private string dockingHoldTicksBuffer;
 
-        private static string dockingPosWindowBuffer;
+        private string dockingPosWindowBuffer;
 
-        private static string dockingAngleWindowBuffer;
+        private string dockingAngleWindowBuffer;
 
-        private static string dockingCancelDistanceBuffer;
+        private string dockingCancelDistanceBuffer;
 
         /// <summary>上次已应用的尺度值；用于检测设置变化并防止被拒绝的值回写。</summary>
-        private static int appliedCellsPerTile;
+        private int appliedCellsPerTile;
 
-        private static bool scaleInitialized;
+        private bool scaleInitialized;
 
         /// <summary>
         /// 星区架构 §8：尺度调整即时生效。停靠/起飞流程进行中禁止修改（回退值与输入缓冲），
         /// 防止 pending 位姿计算被中途换尺度；主菜单等无宇宙状态下只记录新值，
         /// 读档时由 UniverseManager 按存档尺度差异统一重标定。
         /// </summary>
-        private static void ApplyCellsPerTileChangeIfAny()
+        private void ApplyCellsPerTileChangeIfAny()
         {
             if (!scaleInitialized)
             {

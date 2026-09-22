@@ -54,19 +54,16 @@ namespace DeltaV
             public bool finalizing;
         }
 
-        private static readonly List<IncrementalMapGenerationRequest> Queue =
+        private readonly List<IncrementalMapGenerationRequest> Queue =
             new List<IncrementalMapGenerationRequest>();
-        private static readonly List<Func<GenStepWithParams, IIncrementalGenStepAdapter>> AdapterFactories =
+        private readonly List<Func<GenStepWithParams, IIncrementalGenStepAdapter>> AdapterFactories =
             new List<Func<GenStepWithParams, IIncrementalGenStepAdapter>>();
 
-        public static Func<float> FrameBudgetMsProvider = () => 8f;
-        public static Action<string> Logger;
-
-        private static ActiveJob active;
-        private static bool drainingSynchronously;
+        private ActiveJob active;
+        private bool drainingSynchronously;
         // mapBeingGenerated 被外部同步生成短暂占用是正常的（玩家降落等）；只有持续
         // 占用才说明静态状态被遗留脏置，此时排队 POI 会整体静默停摆——必须可见。
-        private static float blockedSinceRealtime = -1f;
+        private float blockedSinceRealtime = -1f;
 
         private static readonly FieldInfo GravshipField = AccessTools.Field(typeof(MapGenerator), "gravship");
         private static readonly FieldInfo TmpGenStepsField = AccessTools.Field(typeof(MapGenerator), "tmpGenSteps");
@@ -75,36 +72,36 @@ namespace DeltaV
         private static readonly PropertyInfo RandStateProperty =
             AccessTools.Property(typeof(Rand), "StateCompressed");
 
-        public static bool IsAnyGenerating => active != null;
+        public bool IsAnyGenerating => active != null;
 
-        public static string ProgressDescription => active == null
+        public string ProgressDescription => active == null
             ? null
             : active.finalizing
                 ? "Finalizing"
                 : $"{Mathf.Min(active.stepIndex + 1, active.steps.Count)}/{active.steps.Count} " +
                   (active.stepIndex < active.steps.Count ? active.steps[active.stepIndex].def.defName : "Finalizing");
 
-        public static float Progress01 => active == null ? 0f
+        public float Progress01 => active == null ? 0f
             : active.finalizing ? 1f : active.steps.Count == 0 ? 0f
             : Mathf.Clamp01((float)active.stepIndex / active.steps.Count);
 
-        public static bool IsGenerating(Map map)
+        public bool IsGenerating(Map map)
         {
             return map != null && active?.map == map;
         }
 
-        public static bool IsIncomplete(Map map)
+        public bool IsIncomplete(Map map)
         {
             return map != null && active?.map == map && !active.finalizing;
         }
 
-        public static bool IsQueued(string key)
+        public bool IsQueued(string key)
         {
             if (key.NullOrEmpty()) return false;
             return active?.request.key == key || Queue.Any(r => r.key == key);
         }
 
-        public static bool Enqueue(IncrementalMapGenerationRequest request)
+        public bool Enqueue(IncrementalMapGenerationRequest request)
         {
             if (request == null || request.parent == null || request.generator == null
                 || request.size.x <= 0 || request.size.z <= 0 || request.key.NullOrEmpty())
@@ -122,18 +119,18 @@ namespace DeltaV
             return true;
         }
 
-        public static void RegisterAdapterFactory(
+        private void RegisterAdapterFactory(
             Func<GenStepWithParams, IIncrementalGenStepAdapter> factory)
         {
             if (factory != null && !AdapterFactories.Contains(factory)) AdapterFactories.Add(factory);
         }
 
-        public static bool CancelQueued(string key)
+        public bool CancelQueued(string key)
         {
             return !key.NullOrEmpty() && Queue.RemoveAll(r => r.key == key) > 0;
         }
 
-        public static void UpdatePriority(string key, float priority)
+        public void UpdatePriority(string key, float priority)
         {
             IncrementalMapGenerationRequest request = Queue.FirstOrDefault(r => r.key == key);
             if (request == null) return;
@@ -141,13 +138,13 @@ namespace DeltaV
             Queue.Sort((a, b) => a.priority.CompareTo(b.priority));
         }
 
-        public static void CancelQueuedForParent(MapParent parent)
+        public void CancelQueuedForParent(MapParent parent)
         {
             if (parent != null) Queue.RemoveAll(r => r.parent == parent);
         }
 
         /// <summary>主动任务销毁 parent/map 时放弃生成静态状态，让原版删除继续。</summary>
-        public static void NotifyExternalMapRemoval(Map map)
+        public void NotifyExternalMapRemoval(Map map)
         {
             if (map == null || active?.map != map) return;
             ActiveJob job = active;
@@ -159,7 +156,7 @@ namespace DeltaV
                 "Map parent was explicitly removed during incremental generation."));
         }
 
-        public static void Reset()
+        public void Reset()
         {
             Queue.Clear();
             if (active != null)
@@ -172,6 +169,14 @@ namespace DeltaV
 
         public IncrementalMapGenerationService(Game game)
         {
+            RegisterAdapterFactory(step =>
+                step.def.genStep is GenStep_Space && ModsConfig.OdysseyActive
+                    ? new TerrainFillGenStepAdapter(TerrainDefOf.Space, disableRegions: true)
+                    : null);
+            RegisterAdapterFactory(step =>
+                step.def.genStep is GenStep_DeltaVShipFill
+                    ? new TerrainFillGenStepAdapter(TerrainDefOf.Space, disableRegions: false)
+                    : null);
         }
 
         public override void GameComponentUpdate()
@@ -184,7 +189,7 @@ namespace DeltaV
                 if (active == null) return;
             }
 
-            float budgetMs = Mathf.Clamp(FrameBudgetMsProvider?.Invoke() ?? 8f, 1f, 16f);
+            float budgetMs = Mathf.Clamp(DeltaVMod.CurrentSettings?.incrementalMapGenBudgetMs ?? 8f, 1f, 16f);
             Advance(Time.realtimeSinceStartup + budgetMs / 1000f, false);
         }
 
@@ -192,7 +197,7 @@ namespace DeltaV
         /// 原版同步 GenerateMap 将与本服务争用进程级静态状态时，先同步收完当前任务。
         /// 只在 Harmony Prefix 中调用，属于罕见兼容逃生路径。
         /// </summary>
-        public static void DrainSynchronouslyForExternalGeneration()
+        public void DrainSynchronouslyForExternalGeneration()
         {
             if (active == null) return;
             if (active.finalizing)
@@ -213,7 +218,7 @@ namespace DeltaV
             }
         }
 
-        private static void TryStartNext()
+        private void TryStartNext()
         {
             if (Queue.Count == 0)
             {
@@ -246,7 +251,8 @@ namespace DeltaV
             try
             {
                 active = Prepare(request);
-                Logger?.Invoke($"started: {request.key}, steps={active.steps.Count}");
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"map generation started: {request.key}, steps={active.steps.Count}");
             }
             catch (Exception ex)
             {
@@ -351,7 +357,7 @@ namespace DeltaV
             {
                 if (map != null && Find.Maps.Contains(map))
                 {
-                    try { Current.Game.DeinitAndRemoveMap(map, false); }
+                    try { Current.Game.GetComponent<UniverseManager>().Lifecycle.DeinitMap(map, false); }
                     catch { Find.Maps.Remove(map); }
                 }
                 throw;
@@ -396,7 +402,7 @@ namespace DeltaV
                 typeof(ScenPart_DisableMapGen).IsAssignableFrom(p.def.scenPartClass) && p.def.genStep == def);
         }
 
-        private static void Advance(float deadline, bool synchronous)
+        private void Advance(float deadline, bool synchronous)
         {
             ActiveJob job = active;
             if (job == null) return;
@@ -468,7 +474,7 @@ namespace DeltaV
                 Current.ProgramState = oldState;
             }
             float elapsed = (Time.realtimeSinceStartup - started) * 1000f;
-            float budget = Mathf.Clamp(FrameBudgetMsProvider?.Invoke() ?? 8f, 1f, 16f);
+            float budget = Mathf.Clamp(DeltaVMod.CurrentSettings?.incrementalMapGenBudgetMs ?? 8f, 1f, 16f);
             if (elapsed > budget)
             {
                 Log.Warning($"[DeltaV] Incremental GenStep '{step.def.defName}' took {elapsed:F1}ms " +
@@ -476,7 +482,7 @@ namespace DeltaV
             }
         }
 
-        private static void Finish(ActiveJob job)
+        private void Finish(ActiveJob job)
         {
             job.finalizing = true;
             ProgramState oldState = Current.ProgramState;
@@ -513,20 +519,19 @@ namespace DeltaV
             }
 
             GenerateMapPostfixReplay.Replay(completedMap, job.originalArgs);
-            Logger?.Invoke($"completed: {job.request.key}, map={completedMap.uniqueID}");
+            DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                $"map generation completed: {job.request.key}, map={completedMap.uniqueID}");
         }
 
-        private static void CleanupFailed(ActiveJob job, Exception error)
+        private void CleanupFailed(ActiveJob job, Exception error)
         {
             job.adapter?.Dispose();
             job.adapter = null;
             Map map = job.map;
-            MapDormancyService.Forget(map);
-            MapOverlayRenderer.Release(map);
             ResetGeneratorStatics();
             if (map != null && Find.Maps.Contains(map))
             {
-                try { Current.Game.DeinitAndRemoveMap(map, false); }
+                try { Current.Game.GetComponent<UniverseManager>().Lifecycle.DeinitMap(map, false); }
                 catch (Exception ex)
                 {
                     Log.Error($"[DeltaV] Failed to remove partial map: {ex}");
@@ -536,7 +541,7 @@ namespace DeltaV
             job.request.onFailure?.Invoke(error);
         }
 
-        private static IIncrementalGenStepAdapter CreateAdapter(GenStepWithParams step)
+        private IIncrementalGenStepAdapter CreateAdapter(GenStepWithParams step)
         {
             for (int i = 0; i < AdapterFactories.Count; i++)
             {

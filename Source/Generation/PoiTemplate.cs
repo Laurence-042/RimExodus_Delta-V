@@ -20,7 +20,7 @@ namespace DeltaV
             try
             {
                 List<IntVec3> deck = GenerateAsymmetricDeck(map);
-                SubstructureOwnership.SetPendingStamp(map, deck, ownerId);
+                SubstructureOwnership.For(map).SetPendingStamp(deck, ownerId);
                 try
                 {
                     foreach (IntVec3 cell in deck)
@@ -30,7 +30,7 @@ namespace DeltaV
                 }
                 finally
                 {
-                    SubstructureOwnership.RemovePendingStamp(map);
+                    SubstructureOwnership.For(map).ClearPendingStamp();
                 }
                 var deckSet = new HashSet<IntVec3>(deck);
                 // 破损边缘墙：甲板边界格（四邻存在非甲板格）约四成缺口，其余钢墙

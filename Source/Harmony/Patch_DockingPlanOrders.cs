@@ -17,8 +17,9 @@ namespace DeltaV
     {
         public static bool Prefix(Building_GravEngine engine)
         {
-            if (!LandingApproachController.AnyActive) return true;
-            Map shipMap = LandingApproachController.ApproachShipMap;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe?.Approach.AnyActive != true) return true;
+            Map shipMap = universe.Approach.ApproachShipMap;
             if (shipMap == null || engine?.Map != shipMap) return true;
             Messages.Message("DeltaV_DockPlanBlocksLaunch".Translate(), MessageTypeDefOf.RejectInput, false);
             return false;

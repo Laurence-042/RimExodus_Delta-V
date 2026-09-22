@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -37,10 +36,12 @@ namespace DeltaV
     /// 不移动对象，不受此限。
     ///
     /// 积分复用 ShipPhysics.Integrate（球面三步走 + 平行输运，assist 全关）。
-    /// 任务为运行时数据不存档——任务存续期由调用方保证禁存档（对接计划/跳帮舱）；
-    /// 读档防御见 ResetOnLoad。
+    /// 任务为运行时数据不存档——**本类是 UniverseManager 持有的实例服务**
+    /// （universe.Autopilot，2026-09-22 实例化迁移）：任务表随组件实例存亡，读档 =
+    /// 反序列化器重建组件 = 任务表自动归零（不再需要任何读档清扫）；对接计划飞行期
+    /// 可正常存档（任务不落盘、读档即丢），跳帮舱飞行期仍禁存档。
     /// </summary>
-    public static class ShipAutopilot
+    public class ShipAutopilot
     {
         private class Flight
         {
@@ -57,9 +58,9 @@ namespace DeltaV
             public Action onFailed;
         }
 
-        private static readonly Dictionary<ShipState, Flight> active = new Dictionary<ShipState, Flight>();
+        private readonly Dictionary<ShipState, Flight> active = new Dictionary<ShipState, Flight>();
 
-        private static readonly List<ShipState> tmpShips = new List<ShipState>();
+        private readonly List<ShipState> tmpShips = new List<ShipState>();
 
         // ---- PD 参数（制导回路：只产生期望力/力矩；实际出力上限由分配器按推进器
         //      布局决定，MaxAccel/MaxAngularAccel 仅作为期望值的饱和保护）----
@@ -103,7 +104,7 @@ namespace DeltaV
         /// allowVoidThrust：停靠任务传 true，终段叠加虚空动力保证任意布局精确对接；
         /// 非停靠用途（未来敌舰巡航/战斗）传 false，获得纯真实动力。
         /// </summary>
-        public static void FlyTo(ShipState ship, Vector3 targetDirection, float targetAngle,
+        public void FlyTo(ShipState ship, Vector3 targetDirection, float targetAngle,
             Action onArrived, Action onFailed = null, bool allowVoidThrust = true)
         {
             if (ship == null)
@@ -125,16 +126,6 @@ namespace DeltaV
             };
         }
 
-        /// <summary>FlyTo 的可等待版本：到达完成、失败取消（延续回到 Unity 主线程同步上下文）。</summary>
-        public static Task FlyToAsync(ShipState ship, Vector3 targetDirection, float targetAngle,
-            bool allowVoidThrust = true)
-        {
-            var tcs = new TaskCompletionSource<object>();
-            FlyTo(ship, targetDirection, targetAngle,
-                () => tcs.TrySetResult(null), () => tcs.TrySetCanceled(), allowVoidThrust);
-            return tcs.Task;
-        }
-
         /// <summary>
         /// 随动目标模式：把船持续对位到「宿主对象位姿 ⊕ 局部偏移」（宇宙角 = 宿主角 ⊕
         /// relativeAngle）的**移动**位姿上——目标每帧随宿主重算，宿主速度/角速度经前馈
@@ -142,7 +133,7 @@ namespace DeltaV
         /// 无完成回调：完成判据归调用方（对接计划 = 几何窗口 + 保持 tick）。宿主失效按
         /// onFailed 退出（计划是否随之取消由调用方决定）。
         /// </summary>
-        public static void TrackTo(ShipState ship, SpaceObject host, Vector2 hostOffset,
+        public void TrackTo(ShipState ship, SpaceObject host, Vector2 hostOffset,
             float relativeAngle, Action onFailed = null, bool allowVoidThrust = true)
         {
             if (ship == null || host == null)
@@ -169,7 +160,7 @@ namespace DeltaV
         /// 自动驾驶（不取消对接计划）、计划取消等场景使用；reason 记入日志（边沿事件，
         /// 只在实际摘除时输出）。需要失败信号反馈的退出走 Cancel。
         /// </summary>
-        public static void Detach(ShipState ship, string reason = null)
+        public void Detach(ShipState ship, string reason = null)
         {
             if (ship == null || !active.ContainsKey(ship)) return;
             active.Remove(ship);
@@ -180,13 +171,13 @@ namespace DeltaV
             }
         }
 
-        public static bool IsActive(ShipState ship)
+        public bool IsActive(ShipState ship)
         {
             return ship != null && active.ContainsKey(ship);
         }
 
         /// <summary>异常出口：按失败信号收尾并清除任务。</summary>
-        public static void Cancel(ShipState ship)
+        public void Cancel(ShipState ship)
         {
             if (ship == null || !active.TryGetValue(ship, out Flight flight)) return;
             active.Remove(ship);
@@ -196,7 +187,7 @@ namespace DeltaV
 
         /// <summary>UniverseManager.GameComponentTick 每 tick 驱动（游戏时间语义：
         /// 暂停冻结、倍速加速）。</summary>
-        public static void Tick()
+        public void Tick()
         {
             if (active.Count == 0) return;
             // 回调可能在迭代中增删任务（到达后立即发起新任务等），按快照迭代。
@@ -208,7 +199,7 @@ namespace DeltaV
             }
         }
 
-        private static void Step(ShipState ship, Flight flight)
+        private void Step(ShipState ship, Flight flight)
         {
             if (ship.map == null || ship.map.Disposed || Current.Game == null)
             {
@@ -303,7 +294,7 @@ namespace DeltaV
             ShipPhysics.Integrate(ship, report, appliedForce, appliedTorque, dt, false, false, false);
         }
 
-        private static void Arrive(ShipState ship, Flight flight)
+        private void Arrive(ShipState ship, Flight flight)
         {
             active.Remove(ship);
             ShipPhysics.ClearThrottles(ship); // 直接改位姿绕过积分器：显式熄火
@@ -315,10 +306,9 @@ namespace DeltaV
             flight.onArrived?.Invoke();
         }
 
-        /// <summary>读档防御：任务为运行时数据，静默清空（不回调；调用方各自的读档
-        /// 防御负责收尾，避免读档期弹消息）。FlyToAsync 的等待方会看到任务永悬，
-        /// 由调用方避免在跨存档流程中持有该 Task。</summary>
-        public static void ResetOnLoad()
+        /// <summary>同实例上的流程清零（dev ResetObjects 重建场景用；读档路径 = 组件
+        /// 重建，天然无需调用）。静默清空、不回调。</summary>
+        public void ResetFlow()
         {
             active.Clear();
         }

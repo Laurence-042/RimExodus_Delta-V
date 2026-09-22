@@ -77,7 +77,8 @@ namespace DeltaV
             QuadsDrawnLastPass = 0;
             Commands.Clear();
             nextSequence = 0;
-            if (map == null || map.Disposed || IncrementalMapGenerationService.IsGenerating(map)) return false;
+            if (map == null || map.Disposed
+                || Current.Game?.GetComponent<UniverseManager>()?.Generation?.IsGenerating(map) == true) return false;
             if (!localView.Overlaps(CellRect.WholeMap(map))) return false;
             EnsureRules();
             CellRect visible = localView.ClipInsideMap(map);

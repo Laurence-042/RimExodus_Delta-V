@@ -30,6 +30,9 @@ namespace DeltaV
 
         private int[] ownerGrid;
 
+        [System.NonSerialized] private HashSet<IntVec3> pendingStampCells;
+        [System.NonSerialized] private int pendingStampOwner;
+
         public SubstructureOwnership(Map map) : base(map)
         {
         }
@@ -299,6 +302,29 @@ namespace DeltaV
         }
 
         /// <summary>
+        /// 从指定格认领相连的「本 ID 或未占有」基架域。驾驶台重生、自愈与未来其他
+        /// 身份锚点必须复用此入口，不得在调用点另写 flood-fill。
+        /// </summary>
+        public void ClaimConnectedDomain(IntVec3 start, int ownerId)
+        {
+            if (ownerId <= 0 || !start.InBounds(map)) return;
+            var cells = new List<IntVec3>();
+            map.floodFiller.FloodFill(start, delegate (IntVec3 cell)
+            {
+                if (!cell.InBounds(map)) return false;
+                TerrainDef foundation = map.terrainGrid.FoundationAt(cell);
+                if (foundation == null || !foundation.IsSubstructure) return false;
+                int current = OwnerAt(cell);
+                return current == ownerId || current == Unassigned;
+            }, delegate (IntVec3 cell)
+            {
+                cells.Add(cell);
+                return false;
+            });
+            SetOwner(cells, ownerId);
+        }
+
+        /// <summary>
         /// 整图清除指定归属的全部格子（进移动模式清除源图旧域，2026-09-20 用户决策）。
         /// 不做地形过滤——要清的正是基架已随船走（捕获剥离）或断连遗留的陈旧值；
         /// 基架不重叠 ⇒ 按 ID 整清不会误伤他主域。清除后照常通知引擎重算与剪影失效。
@@ -501,40 +527,26 @@ namespace DeltaV
         // 改用「待盖章」登记：管线预先登记 (map, cells, ownerId)，SetFoundation postfix
         // 消费；LandingEnded 后统一清除。同一图的后续登记直接覆盖，残登记无副作用。
 
-        private static readonly Dictionary<Map, KeyValuePair<HashSet<IntVec3>, int>> PendingStamps =
-            new Dictionary<Map, KeyValuePair<HashSet<IntVec3>, int>>();
-
-        public static void SetPendingStamp(Map map, IEnumerable<IntVec3> cells, int ownerId)
+        public void SetPendingStamp(IEnumerable<IntVec3> cells, int ownerId)
         {
-            PendingStamps[map] = new KeyValuePair<HashSet<IntVec3>, int>(
-                new HashSet<IntVec3>(cells), ownerId);
+            pendingStampCells = new HashSet<IntVec3>(cells);
+            pendingStampOwner = ownerId;
         }
 
         /// <summary>该格是否命中待盖章（生成/降落管线优先于邻接规则）。</summary>
-        public static bool TryGetStamp(Map map, IntVec3 cell, out int ownerId)
+        public bool TryGetStamp(IntVec3 cell, out int ownerId)
         {
             ownerId = Unassigned;
-            return PendingStamps.TryGetValue(map, out KeyValuePair<HashSet<IntVec3>, int> stamp)
-                && stamp.Value != Unassigned
-                && stamp.Key.Contains(cell)
-                && (ownerId = stamp.Value) != Unassigned;
+            return pendingStampOwner != Unassigned
+                && pendingStampCells != null
+                && pendingStampCells.Contains(cell)
+                && (ownerId = pendingStampOwner) != Unassigned;
         }
 
-        public static void ClearAllStamps()
+        public void ClearPendingStamp()
         {
-            PendingStamps.Clear();
-        }
-
-        /// <summary>移除某图的待盖章登记（同步生成管线收尾；降落管线用 ClearAllStamps 统一清）。</summary>
-        public static void RemovePendingStamp(Map map)
-        {
-            PendingStamps.Remove(map);
-        }
-
-        /// <summary>读档/场景重置：静态登记随流程状态一并清理。</summary>
-        public static void ResetStatic()
-        {
-            PendingStamps.Clear();
+            pendingStampCells = null;
+            pendingStampOwner = Unassigned;
         }
     }
 }

@@ -398,8 +398,13 @@ Universe State 至少负责保存：
   语义耦合——对接完成判据是几何的（位姿窗口 + 保持 tick），不依赖自动驾驶信号。
 - 幽灵船是无图、只带船壳快照图的**派生渲染缓存**：不参与降落判定、拾取/聚焦、
   生命周期、星区记账与剪影扫描，无推进器火焰；不入 `universe.objects` 权威列表。
-- 对接计划为运行时数据不存档，存续期禁存档；玩家同时最多一个计划；超出可配置
-  距离（小于休眠距离）自动取消。
+- 对接计划为运行时数据不存档（2026-09-22 修订：不再全程禁存档）：**计划飞行期可正常
+  存档**——存档不含计划与自动驾驶任务，读档后计划丢弃、船按已保存速度漂移、不自动
+  续接（读档 = 组件重建自动丢弃，`RestoreDanglingDockingFlags` 清悬空 docking 标志）；
+  仍禁存档的窗口 = 选点阶段（原版深序列化 marker.gravship 与控制器
+  landingMarker，空洞预览 Gravship 不具备落盘语义）、到达重放（转移中状态）与跳帮舱
+  飞行（乘员在运行时容器，落盘即丢失）。玩家同时最多一个计划；超出可配置距离
+  （小于休眠距离）自动取消。
 
 ### 聚焦切换与 Pawn 移动分离
 
@@ -626,31 +631,45 @@ Harmony 规则：
 - 设计与实现的唯一权威仍是 `doc/星区架构.md`；后续修订以该文档为准并同步 `README.md`。
 
 
-## 20. 当前代码架构地图（单实现入口索引，2026-09-21）
+## 20. 当前代码架构地图（单实现入口索引，2026-09-22）
 
 后续开发动代码前先在此查入口；同一功能不得出现第二份实现（铁律/不变量 #21）。架构演化时同步本节。
 
+**流程状态实例归属（2026-09-22 迁移定案）**：一切可变游戏流程状态收进 UniverseManager
+持有的**不序列化实例服务**（`Approach`/`Autopilot`/`BoardingPods`/`ShipModes`/
+`Lifecycle`/`Generation`，惰性属性）——
+读档时原版反序列化器重建组件（`Scribe_Collections.Look(..., LookMode.Deep)` →
+`Activator.CreateInstance`），实例字段自动归零，「读其他档/退主菜单残留旧流程」不可表示。
+**禁止再造可变静态游戏状态**（新代码要写 static 可变字段前先自问它是否属于某个
+universe 实例）。静态白名单仅四类：无状态纯过程/纯函数（`SpaceTransform`、
+`ShipModeService` 模式编排、`GravshipInterop` 原版边界镜像）；输入层快速门（`PilotKeyBridge.SuppressVanillaKeys`/
+`ActivePilotKeys`——按键补丁在主菜单也被轮询，必须免判空）；渲染/反射/几何缓存（材质、
+纹理、FieldInfo、`OrbitSphere`——§15「换档重建」）；同调用链重入卫兵与日志沿检测计数
+（`Patch_GravshipUtility_PreLaunchConfirmation.chaining`、`lastLoggedFx` 系列）。
+dev `ResetObjects` 在**同一 universe 实例**上换 objects，必须显式调各服务 `ResetFlow()`
+（见该处注释）。渲染缓存与按键抑制门仍为静态、读档经 `LoadedGame` 清理。
+
 ### 驱动节奏
-- `UniverseManager.GameComponentTick`（唯一 tick 总装，游戏时间语义）：`ShipAutopilot.Tick() → BoardingPodFlight.Tick() → LandingApproachController.Tick() → ShipPhysics 物理积分循环`（自动驾驶中的船被积分循环按 `IsActive` 跳过，无双驱动）。
+- `UniverseManager.GameComponentTick`（唯一 tick 总装，游戏时间语义）：`Autopilot.Tick() → BoardingPods.Tick() → Approach.Tick(this) → ShipPhysics 物理积分循环`（自动驾驶中的船被积分循环按 `IsActive` 跳过，无双驱动）。
 - `UniverseManager.GameComponentUpdate`（每帧）：只做渲染/输入分发（船壳分层、星球仪/面板、驾驶状态维护、火焰/音频、跳帮舱标记投影）——模拟路径禁止入帧路径（不变量 #20）。
 
 ### Core/（数据与算法）
 - `OrbitSphere`：球面几何唯一入口（`Basis/Move/Offset/ArcCells/TileFromDirection`；按 PlanetLayer 参数化、缓存分键）。
 - `SpaceTransform`：全项目唯一坐标变换 API——2D 旋转/`WrapAngle`；Map⇄ship-local（`ShipLocalOrigin/MapToShipLocal/ShipLocalToMap`）；**停放锚区段**（`AdjustedCellToPlacementRoot`/`PlacementRootToAdjustedCell`/`PlacementAnchorRoot`/`ShipOriginFromPlacementRoot`/`GravshipBoundsCenterFromEngineRoot`/`BoundsCenterOfCells`，原版放置语义的唯一镜像）；速度换基 `TransportVelocity`（唯一入口）；ship-local⇄universe（`ShipLocalToUniverse/UniverseToShipLocal/UniverseToMapPoint/UniverseToDockedMapPoint`）；universe⇄focused（`UniverseToFocused/FocusedToUniverse/UniverseAngleToFocused`）；显示层投影（`FocusedDrawPosition/FocusedMeshRotation/UniverseWorldMarkerRotation/MarkerForwardWorld`）。
-- `UniverseManager`：`objects` 权威列表与 `RegisterObject/UnregisterObject`、`AllocateOwnerId`（对象/归属共用唯一 ID 计数器）、专用宿主口袋图、`FrameOf/MapFrame`（图→帧对象解析）、`SetFocused`（聚焦切换唯一入口）、tick/update 总装。
-- `ShipState/SpaceObject/PoiState/SpacePose`：宇宙状态（存档事实）。`ShipPhysics`：质量/惯量/联合分配器/积分（刚体动量管理唯一实现）。`SubstructureOwnership`：基架归属 MapComponent。`DeltaVSettings/DeltaVMod/DeltaVDefOf/DeltaVLog`。
+- `UniverseManager`：`objects` 权威列表与 `RegisterObject/UnregisterObject`、`ObjectById/ShipById`、`AllocateOwnerId`（对象/归属共用唯一 ID 计数器）、专用宿主口袋图、`FrameOf/MapFrame`（图→帧对象解析）、`SetFocused`（聚焦切换唯一入口）、`ResetRuntimeServices`（读档/dev 重置共用清理）、tick/update 总装。
+- `ShipState/SpaceObject/PoiState/SpacePose`：宇宙状态（存档事实）；`SpaceObject.InteriorMap` 是当前内部图唯一语义。`ShipStructureResolver`：引擎、连通域、Thing 成员、停靠原点唯一查询。`ShipPhysics`：质量/惯量/联合分配器/积分（刚体动量管理唯一实现）。`SubstructureOwnership`：基架归属 MapComponent 与 `ClaimConnectedDomain` 唯一归属算法。`DeltaVSettings/DeltaVMod/DeltaVDefOf/DeltaVLog`。
 
 ### Interaction/（玩法流程）
-- `DockController`：模式互转状态机——`TryDock → BeginOriginalLanding`（选点零消费：`BuildPreviewGravship` 空洞预览，游戏照常运行）；`CaptureShipForCompletion`（完成时刻唯一消费冻结）；`TryLaunch/ExecuteLaunch`（固定→移动走原版起飞）；`FinalizeShipCapture/PlaceIntoMap`（原版搬运段）；`WriteDockedState`；`StrategicSourceAddress` 与战略离场善后。
-- `LandingApproachController`：对接计划编排——`DockingPlan` 状态对象（构造即完整，对外唯一事实源 `ActivePlan`）、`TryConsume`（原子发布）、`Tick`（守卫/位姿窗口/保持计数）、`CompleteDocking`（新鲜脚印复核→完成时刻冻结→真转移）、`CancelSelectionOrPlan`（选点/计划通用取消）。
-- `ShipAutopilot`：纯自动驾驶算法（`FlyTo` 固定航点 / `TrackTo` 随动目标+前馈+站位保持；tick 驱动；不耦合对接完成语义）。
-- `PilotController`：手操驾驶 + 自动驾驶占用驾驶位（任意驾驶键直接打断接管）；`CanPlayerControl` 派系门禁。
-- `BoardingPodFlight`：跳帮舱（tick 驱动纯追踪、命中开孔、密封舱落位、乘员投放；自包含，非通用弹道系统）。
+- `ShipModeService`：universe 独占、非序列化的模式互转流程状态与唯一模式编排入口——`TryDock → BeginOriginalLanding`、`CaptureShipForCompletion`、`TryLaunch/ExecuteLaunch`、`WriteDockedState`、战略离场委托；选点、移动起飞、战略离场和捕获窗口不再由静态字段表达。`GravshipInterop` 是空洞预览、原版私有字段、cutscene 压零与真实放置收尾的唯一镜像。
+- `LandingApproachController`：对接计划编排（**universe.`Approach` 实例服务**）——`DockingPlan` 状态对象（构造即完整，对外唯一事实源 `ActivePlan`）、`TryConsume`（原子发布）、`Tick`（守卫/位姿窗口/保持计数）、`CompleteDocking`（新鲜脚印复核→完成时刻冻结→真转移）、`CancelSelectionOrPlan`（选点/计划通用取消）。
+- `ShipAutopilot`：纯自动驾驶算法（**universe.`Autopilot` 实例服务**；`FlyTo` 固定航点 / `TrackTo` 随动目标+前馈+站位保持；tick 驱动；不耦合对接完成语义）。
+- `PilotService`：universe 独占的手操驾驶 + 自动驾驶占用驾驶位（任意驾驶键直接打断接管）；`CanPlayerControl` 派系门禁。`PilotKeyBridge` 是 Harmony 按键快速通道的唯一可变 static 例外。
+- `BoardingPodFlight`：跳帮舱（**universe.`BoardingPods` 实例服务**；tick 驱动纯追踪、命中开孔、密封舱落位、乘员投放；自包含，非通用弹道系统）。
 - `MobileShipBootstrap`（固定船 bootstrap 认领）、`Designator_ReassignSubstructure`（修改基架归属命令）。
 
 ### Rendering / Lifecycle / Generation / World / Buildings / Harmony / Debug
 - `ShellRenderer + ShellLayer + MapOverlayRenderer`：整壳分层唯一管线（背景/前台命令缓冲，按 objectId 整壳层序）；`ShellPicking`：外壳命中唯一入口（选择与未来瞄准共用）；`DockingGhostRenderer`：对接幽灵船（派生缓存，不入 objects）；`ShipSilhouette`：剪影纹理唯一入口；`PlanetGlobeRenderer`（星球仪/星区地图）、`WorldShipMarkerRenderer`（世界剪影）、`ThrusterEffects/ThrusterAudio`（火焰/工作音，只读分配器油门）、`ShipStatusPanel`（统一左侧面板）。
-- `SpaceLifecycle`（POI 距离三段唯一管理入口）、`MapDormancyService`、`SpaceMapGovernance`、`IncrementalMapGenerationService`（分帧生成）、`PoiSnapshot`、`PocketMapHostService`。
+- `SpaceLifecycleService`（universe 实例持有；POI 距离三段、休眠/唤醒、地图销毁与缓存释放唯一管理入口）、内部 `MapDormancyService`、`SpaceMapGovernance`、实例 `IncrementalMapGenerationService`（分帧生成队列/活动任务/阻塞计时）、`PoiSnapshot`、`PocketMapHostService`。
 - `ShipPocketMapFactory`/`ShipStructureStamp`/`ShipTestScene`（口袋图与测试场景）；`UniverseHostParent_DeltaV`/`ShipPocketParent_DeltaV`/`SpaceHostParent_DeltaV`/`SectorContentService`（世界对象与星区记账）。
 - `CompDeltaVPilotConsole`（船身份锚点：shipId 持久与解析链）、`Building_DockingPort`（对接口+通道）、`Building_BoardingPodLauncher/Building_BoardingPodLanded`（跳帮舱发射管/落位密封舱）。
 - Harmony 按文件分域（LandingApproach/DockingPlanOrders/GravshipLanding*/GravshipCaptureScope/PoiDormancy/KeyBindingSuppression/SubstructureOwnership/…）；`DebugActions_DeltaV`（dev 设施）。

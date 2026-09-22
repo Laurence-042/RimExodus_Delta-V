@@ -31,16 +31,16 @@ namespace DeltaV
             {
                 if (obj.map != null)
                 {
-                    PocketMapUtility.DestroyPocketMap(obj.map);
+                    universe.Lifecycle.DestroyPocketMap(obj.map);
                 }
+                universe.UnregisterObject(obj);
             }
-            universe.objects.Clear();
             // 孤儿口袋图清理：已无宇宙状态引用、但 sourceMap 仍是宿主的口袋图。
             if (universe.UniverseHostMap != null)
             {
                 foreach (Map orphan in universe.UniverseHostMap.ChildPocketMaps.ToList())
                 {
-                    PocketMapUtility.DestroyPocketMap(orphan);
+                    universe.Lifecycle.DestroyPocketMap(orphan);
                 }
             }
 

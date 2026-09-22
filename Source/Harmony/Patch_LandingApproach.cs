@@ -16,11 +16,12 @@ namespace DeltaV
     {
         public static bool Prefix(Gravship gravship, Map map, IntVec3 landingPos, Rot4 landingRot)
         {
-            if (LandingApproachController.TryConsume(gravship, map, landingPos, landingRot))
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe?.Approach.TryConsume(universe, gravship, map, landingPos, landingRot) == true)
             {
                 return false;
             }
-            FreezeLandingCaptureScope(gravship, map, landingPos);
+            FreezeLandingCaptureScope(universe, gravship, map, landingPos);
             return true;
         }
 
@@ -35,9 +36,9 @@ namespace DeltaV
         /// 战术降落船（PendingDockingShip）→ 引擎当前图归属（同图移动）→ 新分配 ID
         /// （原版战略到达：身份已释放，落地即独立域，bootstrap 时再具象化）解析。
         /// </summary>
-        private static void FreezeLandingCaptureScope(Gravship gravship, Map map, IntVec3 landingPos)
+        private static void FreezeLandingCaptureScope(UniverseManager universe,
+            Gravship gravship, Map map, IntVec3 landingPos)
         {
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe?.FrameOf(map) == null || gravship?.Engine == null)
             {
                 return;
@@ -47,16 +48,16 @@ namespace DeltaV
             {
                 cells.Add(cell + landingPos);
             }
-            DockController.SetLandingCaptureScope(gravship.Engine, cells);
-            SubstructureOwnership.SetPendingStamp(map, cells, ResolveLandingOwnerId(universe, gravship));
+            universe.ShipModes.SetLandingCaptureScope(map, gravship.Engine, cells);
+            SubstructureOwnership.For(map).SetPendingStamp(cells, ResolveLandingOwnerId(universe, gravship));
         }
 
         private static int ResolveLandingOwnerId(UniverseManager universe, Gravship gravship)
         {
             // 战术降落到达重放时 pendingShip 已被 WriteDockedState 清空，改读
             // landedShipAwaitingPocketCleanup 窗口（WriteDockedState → LandingEnded）。
-            ShipState pending = DockController.PendingDockingShip
-                ?? DockController.LandedShipAwaitingPocketCleanup;
+            ShipState pending = universe.ShipModes.PendingDockingShip(universe)
+                ?? universe.ShipModes.LandedShipAwaitingPocketCleanup(universe);
             if (pending != null)
             {
                 return pending.objectId;
@@ -93,7 +94,7 @@ namespace DeltaV
     {
         public static bool Prefix()
         {
-            return !LandingApproachController.ArrivalPending;
+            return Current.Game?.GetComponent<UniverseManager>()?.Approach.ArrivalPending != true;
         }
     }
 
@@ -103,8 +104,9 @@ namespace DeltaV
     {
         public static void Postfix()
         {
-            DockController.SuppressMobileLaunchAnimation();
-            LandingApproachController.SuppressArrivalCutscene();
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            universe?.ShipModes.SuppressMobileLaunchAnimation(universe);
+            universe?.Approach.SuppressArrivalCutscene();
         }
     }
 
@@ -118,7 +120,8 @@ namespace DeltaV
     {
         public static bool Prefix(PanCompletionCallback onComplete)
         {
-            if (!LandingApproachController.AnyActive && !DockController.MobileLaunchPending) return true;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe?.Approach.AnyActive != true && universe?.ShipModes.MobileLaunchPending() != true) return true;
             onComplete?.Invoke();
             return false;
         }
@@ -134,7 +137,7 @@ namespace DeltaV
     {
         public static bool Prefix()
         {
-            return !LandingApproachController.AnyActive;
+            return Current.Game?.GetComponent<UniverseManager>()?.Approach.AnyActive != true;
         }
     }
 
@@ -159,7 +162,8 @@ namespace DeltaV
             // 仪式的 launchInfo 消费后从不复位，残留 doNegativeOutcome=true 不得在战术
             // 降落二次生效（其"引擎过热"结局还会延长引擎冷却——战术流程本身从不
             // 启动冷却，这是降落期唯一的冷却写入点）。
-            if (LandingApproachController.TacticalLandingEnding)
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe?.Approach.TacticalLandingEnding(universe) == true)
             {
                 gravship.Engine.launchInfo.doNegativeOutcome = false;
             }
@@ -167,8 +171,9 @@ namespace DeltaV
 
         public static void Postfix()
         {
-            DockController.NotifyVanillaLandingEnded();
-            LandingApproachController.NotifyArrivalEnded();
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            universe?.ShipModes.NotifyVanillaLandingEnded(universe);
+            universe?.Approach.NotifyArrivalEnded();
         }
     }
 
@@ -184,7 +189,8 @@ namespace DeltaV
     {
         public static bool Prefix()
         {
-            return !LandingApproachController.TacticalLandingEnding;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            return universe?.Approach.TacticalLandingEnding(universe) != true;
         }
     }
 
@@ -194,23 +200,34 @@ namespace DeltaV
     {
         public static void Prefix(WorldComponent_GravshipController __instance)
         {
-            DockController.BeforeGravshipControllerUpdate(__instance);
-            LandingApproachController.BeforeControllerUpdate(__instance);
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            universe?.ShipModes.BeforeGravshipControllerUpdate(universe, __instance);
+            universe?.Approach.BeforeControllerUpdate(__instance);
         }
     }
 
     /// <summary>
-    /// 选点/对接计划/跳帮舱飞行期间禁存档（2026-09-21 阶段4）：选点用空洞预览 Gravship
-    /// 与 marker 不具备存档语义，计划与飞行均为运行时数据（不序列化）；原版 cutscene
-    /// 门禁不再覆盖全程（计划期无 cutscene）。
+    /// Delta-V 运行时流程禁存档门禁（2026-09-22 用户决策修订：对接计划不再全程禁存档）：
+    /// 计划**飞行阶段可正常存档**——计划与自动驾驶任务均为 universe 实例服务上的运行时
+    /// 数据、不落盘，读档后组件重建即丢弃、船按已保存速度漂移、不自动续接（序列化标志
+    /// 自愈 = RestoreDanglingDockingFlags）。仍禁存档的窗口：
+    /// 选点阶段（原版会深序列化 marker.gravship 与控制器 landingMarker——空洞预览
+    /// Gravship 不具备落盘语义）、到达重放（转移中状态，毫秒级窗口）、跳帮舱飞行
+    /// （乘员在运行时 ThingOwner 容器中，落盘即丢失）。
     /// </summary>
     [HarmonyPatch(typeof(GameDataSaveLoader), nameof(GameDataSaveLoader.SavingIsTemporarilyDisabled), MethodType.Getter)]
     public static class Patch_SavingIsTemporarilyDisabled_DeltaVRuntime
     {
         public static void Postfix(ref bool __result)
         {
-            if (LandingApproachController.AnyActive || BoardingPodFlight.AnyInFlight
-                || DockController.PendingDockingShip != null)
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe == null) return;
+            // 选点阶段 = pendingShip 已置位但计划尚未发布（发布后 pendingShip 保留到
+            // WriteDockedState，由 AnyActive 区分选点与计划两段）。
+            bool siteSelection = universe.ShipModes.PendingDockingShip(universe) != null
+                && !universe.Approach.AnyActive;
+            if (siteSelection || universe.Approach.ArrivalPending
+                || universe.BoardingPods.AnyInFlight)
             {
                 __result = true;
             }

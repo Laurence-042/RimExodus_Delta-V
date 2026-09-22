@@ -199,7 +199,7 @@ namespace DeltaV
             {
                 return UniverseToMapPoint(host, universeDir);
             }
-            return DockController.DockedOriginMapPoint(ship) + OrbitSphere.Offset(ship.pose.position, universeDir);
+            return ShipStructureResolver.DockedOrigin(ship) + OrbitSphere.Offset(ship.pose.position, universeDir);
         }
 
         // ---------- Universe ⇄ focused 参考系 ----------

@@ -77,7 +77,7 @@ namespace DeltaV
                 Messages.Message("DeltaV_PodNoTarget".Translate(), this, MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            BoardingPodFlight.Launch(source, target, crew);
+            universe.BoardingPods.Launch(source, target, crew);
         }
     }
 

@@ -30,9 +30,10 @@ namespace DeltaV
             {
                 return;
             }
-            if (SubstructureOwnership.TryGetStamp(map, c, out int stamped))
+            SubstructureOwnership ownership = SubstructureOwnership.For(map);
+            if (ownership.TryGetStamp(c, out int stamped))
             {
-                SubstructureOwnership.For(map).Assign(c, stamped);
+                ownership.Assign(c, stamped);
                 return;
             }
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
@@ -43,7 +44,7 @@ namespace DeltaV
             // 「未占有」语义（2026-09-18 用户决策）：继承唯一有效邻接归属并整域吸收
             // 相连未占有区域；孤立建造保持未占有（不分配新 ID），等待后续相连吸收
             // 或经驾驶台 bootstrap 认领。多归属冲突同样保持未占有（PlaceWorker 已拒）。
-            SubstructureOwnership.For(map).ResolveBuilt(c);
+            ownership.ResolveBuilt(c);
         }
     }
 

@@ -19,8 +19,17 @@ namespace DeltaV
     ///   快速通道是静态 bool，每帧由 UniverseManager.GameComponentUpdate 刷新，
     ///   键集合在进入驾驶时按当前实际绑定重建（支持任意一侧改键）。
     /// </summary>
-    public static class PilotController
+    public sealed class PilotService
     {
+        private readonly UniverseManager universe;
+        private readonly HashSet<KeyBindingDef> loggedSuppressedDefs = new HashSet<KeyBindingDef>();
+
+        public long SuppressedReads { get; private set; }
+
+        internal PilotService(UniverseManager universe)
+        {
+            this.universe = universe;
+        }
         /// <summary>低于此速度/角速度不再发辅助反推指令（推进器只负责主要减速）。</summary>
         private const float MinAssistSpeed = 0.05f;
 
@@ -32,24 +41,19 @@ namespace DeltaV
         private const float AssistOmegaEpsilon = 0.0005f;
 
         /// <summary>Harmony Prefix 的快速开关：驾驶激活时抑制与驾驶键重叠的原版按键。</summary>
-        public static volatile bool SuppressVanillaKeys;
-
-        /// <summary>当前驾驶键（含 A/B 槽）的实际绑定；进入驾驶时重建。</summary>
-        public static HashSet<KeyCode> ActivePilotKeys = new HashSet<KeyCode>();
-
         // ---- 状态 ----
 
-        public static bool IsActive(UniverseManager universe)
+        public bool IsActive(UniverseManager universe)
         {
             return universe.pilotShipId != -1 && universe.ShipById(universe.pilotShipId)?.map != null;
         }
 
-        public static ShipState PilotedShip(UniverseManager universe)
+        public ShipState PilotedShip(UniverseManager universe)
         {
             return universe.ShipById(universe.pilotShipId);
         }
 
-        public static void Toggle(UniverseManager universe)
+        public void Toggle(UniverseManager universe)
         {
             ShipState focused = universe.ShipOnMap(Find.CurrentMap);
             if (focused == null)
@@ -59,7 +63,7 @@ namespace DeltaV
             }
             if (focused.docked)
             {
-                // 停靠中的船没有可驾驶的船体（真实建筑在降落图）；起飞入口见 DockController。
+                // 停靠中的船没有可驾驶的船体（真实建筑在降落图）；起飞入口见 ShipModeService。
                 Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
@@ -73,7 +77,7 @@ namespace DeltaV
                 // 保留双船对等测试工作流）。
                 Messages.Message("DeltaV_PilotWrongFaction".Translate(focused.label), MessageTypeDefOf.RejectInput, false);
             }
-            else if (focused.docking && !ReferenceEquals(focused, LandingApproachController.ApproachShip))
+            else if (focused.docking && !ReferenceEquals(focused, universe.Approach.ApproachShip))
             {
                 // 选点中的船不可驾驶（计划船除外——手操打断自动驾驶但不取消计划）。
                 Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
@@ -86,41 +90,41 @@ namespace DeltaV
 
         /// <summary>驾驶/模式控制权门禁（2026-09-21 阶段4）：玩家方船只；开发者模式放行
         /// （测试场景需要驾驶敌舰验证相对运动表现）。</summary>
-        public static bool CanPlayerControl(ShipState ship)
+        public bool CanPlayerControl(ShipState ship)
         {
             return ship != null && (ship.faction == Faction.OfPlayer || DebugSettings.godMode);
         }
 
-        public static void Enter(UniverseManager universe, ShipState ship)
+        public void Enter(UniverseManager universe, ShipState ship)
         {
             if (universe == null || ship?.map == null || ship.docked) return;
-            if (ship.docking && !ReferenceEquals(ship, LandingApproachController.ApproachShip)) return;
+            if (ship.docking && !ReferenceEquals(ship, universe.Approach.ApproachShip)) return;
             if (!CanPlayerControl(ship)) return;
             // 手操打断自动驾驶（不取消对接计划——完成判据是几何的，手飞到位照样对接）。
-            if (ShipAutopilot.IsActive(ship))
+            if (universe.Autopilot.IsActive(ship))
             {
-                ShipAutopilot.Detach(ship, "manual input");
+                universe.Autopilot.Detach(ship, "manual input");
                 DeltaVLog.Message(DeltaVLogModule.Core,
                     $"autopilot interrupted by manual input: {ship.label} (pilot mode engaged)");
                 Messages.Message("DeltaV_DockAutopilotStopped".Translate(), MessageTypeDefOf.NeutralEvent, false);
             }
             universe.pilotShipId = ship.objectId;
             RebuildPilotKeySet();
-            Log.Message($"[DeltaV] Pilot mode engaged: {ship.label} (#{ship.objectId}). Pilot keys: [{string.Join(", ", ActivePilotKeys)}].");
+            Log.Message($"[DeltaV] Pilot mode engaged: {ship.label} (#{ship.objectId}). Pilot keys: [{string.Join(", ", PilotKeyBridge.ActiveKeys)}].");
             DeltaVLog.Message(DeltaVLogModule.Core, $"engage details: speed={ship.pose.velocity} m/s, heading={SpaceTransform.WrapAngle(ship.pose.angle) * Mathf.Rad2Deg:F0} deg, omega={ship.pose.angularVelocity * Mathf.Rad2Deg:F1} deg/s");
             Messages.Message("DeltaV_PilotOn".Translate(ship.label), MessageTypeDefOf.PositiveEvent, false);
         }
 
-        public static void Exit(UniverseManager universe, string message = null)
+        public void Exit(UniverseManager universe, string message = null)
         {
             if (universe.pilotShipId == -1)
             {
                 return;
             }
             ShipState ship = PilotedShip(universe);
-            Log.Message($"[DeltaV] Pilot mode disengaged (was #{universe.pilotShipId} '{ship?.label ?? "?"}'; suppressed reads: {Patch_KeyBindingSuppression.SuppressedReads}).");
+            Log.Message($"[DeltaV] Pilot mode disengaged (was #{universe.pilotShipId} '{ship?.label ?? "?"}'; suppressed reads: {SuppressedReads}).");
             universe.pilotShipId = -1;
-            SuppressVanillaKeys = false;
+            PilotKeyBridge.SuppressVanillaKeys = false;
             if (message != null)
             {
                 Messages.Message(message, MessageTypeDefOf.NeutralEvent, false);
@@ -132,11 +136,11 @@ namespace DeltaV
         /// 驾驶且聚焦其图时占用驾驶位——驾驶键抑制生效，且按下任意 W/A/S/D/Q/E 直接
         /// 打断自动驾驶并接管手操（Enter 内部 Detach；输入为轮询采样，同帧即生效）。
         /// 抑制从关闭翻转为开启时输出一次性摘要（哪些原版绑定将被抑制）——必要日志，常开。</summary>
-        public static void UpdateFrameState(UniverseManager universe)
+        public void UpdateFrameState(UniverseManager universe)
         {
             ShipState piloted = PilotedShip(universe);
-            ShipState autopilotShip = LandingApproachController.AutopilotEngaged
-                ? LandingApproachController.ActivePlan?.ship
+            ShipState autopilotShip = universe.Approach.AutopilotEngaged(universe)
+                ? universe.Approach.ActivePlan?.ship
                 : null;
             bool focusOnAutopilotShip = autopilotShip != null && autopilotShip.map != null
                 && Find.CurrentMap == autopilotShip.map;
@@ -169,11 +173,11 @@ namespace DeltaV
             bool suppress = manualPiloting || focusOnAutopilotShip;
             if (suppress)
             {
-                if (ActivePilotKeys.Count == 0)
+                if (PilotKeyBridge.ActiveKeys.Count == 0)
                 {
                     RebuildPilotKeySet();
                 }
-                if (!SuppressVanillaKeys)
+                if (!PilotKeyBridge.SuppressVanillaKeys)
                 {
                     List<string> overlaps = CountOverlappingVanillaDefs();
                     Log.Message("[DeltaV] Key suppression ACTIVE. Overlapping vanilla bindings: " +
@@ -183,10 +187,10 @@ namespace DeltaV
                     DeltaVLog.Message(DeltaVLogModule.Harmony, "suppression flag false->true; overlap scan across all KeyBindingDefs done");
                 }
             }
-            SuppressVanillaKeys = suppress;
+            PilotKeyBridge.SuppressVanillaKeys = suppress;
         }
 
-        private static List<string> CountOverlappingVanillaDefs()
+        private List<string> CountOverlappingVanillaDefs()
         {
             var overlaps = new List<string>();
             foreach (KeyBindingDef def in DefDatabase<KeyBindingDef>.AllDefs)
@@ -206,7 +210,7 @@ namespace DeltaV
         /// <summary>按当前实际绑定重建驾驶键集合（进入驾驶 / 键集合为空时调用）。
         /// 含切换键：驾驶中按切换键不应触发与它重叠的原版绑定。
         /// keyPrefs 缺项（播种异常）时回退 def 默认键，保证集合非空、抑制可用。</summary>
-        public static void RebuildPilotKeySet()
+        public void RebuildPilotKeySet()
         {
             var set = new HashSet<KeyCode>();
             foreach (KeyBindingDef def in SuppressionKeyDefs())
@@ -225,12 +229,12 @@ namespace DeltaV
                     set.Add(b);
                 }
             }
-            ActivePilotKeys = set;
+            PilotKeyBridge.ActiveKeys = set;
             DeltaVLog.Message(DeltaVLogModule.Harmony, $"pilot key set rebuilt: [{string.Join(", ", set)}]");
         }
 
         /// <summary>取 def 的实际绑定；keyPrefs 无条目时回退默认键（A/B 槽）。</summary>
-        private static void GetBoundKeys(KeyBindingDef def, out KeyCode a, out KeyCode b)
+        private void GetBoundKeys(KeyBindingDef def, out KeyCode a, out KeyCode b)
         {
             if (KeyPrefs.KeyPrefsData?.keyPrefs.TryGetValue(def, out KeyBindingData data) == true)
             {
@@ -242,7 +246,7 @@ namespace DeltaV
             b = def.defaultKeyCodeB;
         }
 
-        private static string BoundKeysLabel(KeyBindingDef def)
+        private string BoundKeysLabel(KeyBindingDef def)
         {
             GetBoundKeys(def, out KeyCode a, out KeyCode b);
             if (a != KeyCode.None && b != KeyCode.None)
@@ -252,7 +256,7 @@ namespace DeltaV
             return a != KeyCode.None ? a.ToString() : b.ToString();
         }
 
-        private static IEnumerable<KeyBindingDef> FlightKeyDefs()
+        private IEnumerable<KeyBindingDef> FlightKeyDefs()
         {
             yield return DeltaVDefOf.DeltaV_ThrustForward;
             yield return DeltaVDefOf.DeltaV_ThrustBackward;
@@ -262,7 +266,7 @@ namespace DeltaV
             yield return DeltaVDefOf.DeltaV_RotateRight;
         }
 
-        private static IEnumerable<KeyBindingDef> SuppressionKeyDefs()
+        private IEnumerable<KeyBindingDef> SuppressionKeyDefs()
         {
             foreach (KeyBindingDef def in FlightKeyDefs())
             {
@@ -273,15 +277,25 @@ namespace DeltaV
         }
 
         /// <summary>非本 mod 分类的绑定是否与当前驾驶键重叠（供 Harmony Prefix 判定抑制）。</summary>
-        public static bool OverlapsActiveKeys(KeyBindingDef def)
+        public bool OverlapsActiveKeys(KeyBindingDef def)
         {
-            if (def.category == DeltaVDefOf.DeltaV || ActivePilotKeys.Count == 0)
+            if (def.category == DeltaVDefOf.DeltaV || PilotKeyBridge.ActiveKeys.Count == 0)
             {
                 return false;
             }
             GetBoundKeys(def, out KeyCode a, out KeyCode b);
-            return (a != KeyCode.None && ActivePilotKeys.Contains(a))
-                || (b != KeyCode.None && ActivePilotKeys.Contains(b));
+            return (a != KeyCode.None && PilotKeyBridge.ActiveKeys.Contains(a))
+                || (b != KeyCode.None && PilotKeyBridge.ActiveKeys.Contains(b));
+        }
+
+        internal bool TrySuppressBinding(KeyBindingDef def)
+        {
+            if (!OverlapsActiveKeys(def)) return false;
+            SuppressedReads++;
+            if (DeltaVLog.Enabled(DeltaVLogModule.Harmony) && loggedSuppressedDefs.Add(def))
+                DeltaVLog.Message(DeltaVLogModule.Harmony,
+                    $"suppressing vanilla binding '{def.defName}' (reads so far will not trigger it)");
+            return true;
         }
 
         // ---- 输入采样与指令合成 ----
@@ -293,7 +307,7 @@ namespace DeltaV
             public float torque; // Q = +1（逆时针）/ E = −1
         }
 
-        public static PilotInput SampleInput()
+        public PilotInput SampleInput()
         {
             var input = new PilotInput();
             if (DeltaVDefOf.DeltaV_ThrustForward == null)
@@ -336,7 +350,7 @@ namespace DeltaV
             public bool assistW;
         }
 
-        public static PilotCommand ComposeCommand(ShipState ship)
+        public PilotCommand ComposeCommand(ShipState ship)
         {
             var result = new PilotCommand();
             PilotInput input = SampleInput();
@@ -352,7 +366,7 @@ namespace DeltaV
             }
             // 辅助生效 = 设置开启 或 按住刹车键（临时启用，辅助关闭时也可刹停）。
             bool brakeHeld = DeltaVDefOf.DeltaV_AssistBrake != null && DeltaVDefOf.DeltaV_AssistBrake.IsDown;
-            if (!DeltaVMod.Settings.flightAssist && !brakeHeld)
+            if (!DeltaVMod.CurrentSettings.flightAssist && !brakeHeld)
             {
                 Vector2 mapTranslation = SpaceTransform.Rotate(pilotTranslation, consoleAngle);
                 result.command.fx = mapTranslation.x;
@@ -394,17 +408,17 @@ namespace DeltaV
             if (DeltaVLog.Enabled(DeltaVLogModule.Input) && HasAssistChanged(result))
             {
                 DeltaVLog.Message(DeltaVLogModule.Input,
-                    $"assist axes x={result.assistX} z={result.assistZ} w={result.assistW} (brake={brakeHeld}, setting={DeltaVMod.Settings.flightAssist}); cmd=({result.command.fx:+0;-0;0},{result.command.fz:+0;-0;0},{result.command.torque:+0;-0;0}); bodyV={bodyVelocity:F2} omega={ship.pose.angularVelocity:F3}");
+                    $"assist axes x={result.assistX} z={result.assistZ} w={result.assistW} (brake={brakeHeld}, setting={DeltaVMod.CurrentSettings.flightAssist}); cmd=({result.command.fx:+0;-0;0},{result.command.fz:+0;-0;0},{result.command.torque:+0;-0;0}); bodyV={bodyVelocity:F2} omega={ship.pose.angularVelocity:F3}");
             }
             return result;
         }
 
         // 变更检测缓存：全部输入埋点只在变化沿输出（触发式，避免持续辅助反推每 tick 刷爆日志）。
-        private static float lastLoggedFx;
-        private static float lastLoggedFz;
-        private static float lastLoggedTorque = -999f;
+        private float lastLoggedFx;
+        private float lastLoggedFz;
+        private float lastLoggedTorque = -999f;
 
-        private static bool HasInputChanged(PilotInput input)
+        private bool HasInputChanged(PilotInput input)
         {
             if (input.fx == lastLoggedFx && input.fz == lastLoggedFz && input.torque == lastLoggedTorque)
             {
@@ -416,9 +430,9 @@ namespace DeltaV
             return true;
         }
 
-        private static int lastAssistFlags = -1;
+        private int lastAssistFlags = -1;
 
-        private static bool HasAssistChanged(PilotCommand command)
+        private bool HasAssistChanged(PilotCommand command)
         {
             int flags = (command.assistX ? 1 : 0) | (command.assistZ ? 2 : 0) | (command.assistW ? 4 : 0);
             if (flags == lastAssistFlags)

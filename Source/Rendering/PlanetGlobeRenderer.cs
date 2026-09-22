@@ -323,7 +323,7 @@ namespace DeltaV
                 // 剪影按船自己的归属 ID 过滤：停靠在 wreck 图上时只画本船格子（按 wreck
                 // 地图当前状态绘制），不再与 wreck 剪影共用整图扫描结果。
                 Texture2D silhouette = silhouetteLayer && front
-                    ? GetSilhouette(ship.docked ? ship.dockedMap : ship.map, ship.objectId)
+                    ? GetSilhouette(ship.InteriorMap, ship.objectId)
                     : null;
                 if (silhouette != null)
                 {
@@ -483,7 +483,7 @@ namespace DeltaV
             Vector3 referenceDir)
         {
             float distance = OrbitSphere.ArcCells(referenceDir, obj.pose.position);
-            Map map = obj is ShipState ship && ship.docked ? ship.dockedMap : obj.map;
+            Map map = obj.InteriorMap;
             string tip = $"{obj.label}\n" + "DeltaV_PanelGlobeDistance".Translate(((int)distance).ToString("N0"));
             if (map == null)
             {
@@ -494,7 +494,7 @@ namespace DeltaV
 
         private static void FocusObject(UniverseManager universe, SpaceObject obj)
         {
-            Map map = obj is ShipState ship && ship.docked ? ship.dockedMap : obj.map;
+            Map map = obj.InteriorMap;
             if (map == null)
             {
                 // 未物化对象无法聚焦（内部尚未加载）——星区架构：接近后物化即可。
@@ -505,7 +505,7 @@ namespace DeltaV
             CameraJumper.TryJump(map.Center, map, CameraJumper.MovementMode.Cut);
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"globe focus '{obj.label}': map={map.Parent?.Label ?? map.ToString()} size={map.Size.x}x{map.Size.z}" +
-                $" frozen={SpaceLifecycle.IsFrozen(map)} rootSize={Find.CameraDriver?.RootSize:F0}");
+                $" frozen={universe.Lifecycle.IsFrozen(map)} rootSize={Find.CameraDriver?.RootSize:F0}");
         }
 
         // ---- 星区六边形网格 ----
@@ -604,7 +604,7 @@ namespace DeltaV
         private static float SideCellsOf(ShipState reference)
         {
             if (reference == null) return FallbackSideCells;
-            Map map = reference.docked ? reference.dockedMap : reference.map;
+            Map map = reference.InteriorMap;
             Texture2D silhouette = GetSilhouette(map, reference.objectId);
             return silhouette != null ? silhouette.width : FallbackSideCells;
         }
@@ -647,7 +647,7 @@ namespace DeltaV
             bool silhouetteLayer, float pixelsPerCell, Vector3 right, Vector3 up)
         {
             if (!silhouetteLayer) return 0f;
-            Map map = obj is ShipState ship && ship.docked ? ship.dockedMap : obj.map;
+            Map map = obj.InteriorMap;
             Texture2D silhouette = GetSilhouette(map, obj.objectId);
             if (silhouette == null) return 0f;
             float sizePx = Mathf.Max(silhouette.width * pixelsPerCell, 8f);

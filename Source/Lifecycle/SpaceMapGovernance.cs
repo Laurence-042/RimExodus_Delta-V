@@ -45,7 +45,7 @@ namespace DeltaV
         {
             if (map == null || map.Disposed) return false;
             return map == Find.CurrentMap || map.IsPlayerHome || HasPlayerPawn(map)
-                || IncrementalMapGenerationService.IsGenerating(map)
+                || universe?.Generation?.IsGenerating(map) == true
                 || (universe != null && universe.Ships.Any(s => s.isPlayerShip && s.dockedMap == map));
         }
 
@@ -85,15 +85,14 @@ namespace DeltaV
     {
         public static void NotifyDestroyed(MapParent parent)
         {
-            IncrementalMapGenerationService.CancelQueuedForParent(parent);
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            universe?.Generation?.CancelQueuedForParent(parent);
             if (universe == null || parent == null) return;
             foreach (PoiState poi in universe.objects.OfType<PoiState>()
                 .Where(p => p.kind == PoiKind.NativeParent && p.nativeParent == parent).ToList())
             {
-                MapDormancyService.Forget(poi.map);
-                MapOverlayRenderer.Release(poi.map);
-                universe.objects.Remove(poi);
+                universe.Lifecycle.Forget(poi.map);
+                universe.UnregisterObject(poi);
             }
         }
 
@@ -125,8 +124,7 @@ namespace DeltaV
                 .Where(p => p.kind == PoiKind.NativeParent
                     && (p.nativeParent == null || p.nativeParent.Destroyed || !live.Contains(p.nativeParent))).ToList())
             {
-                MapDormancyService.Forget(stale.map);
-                MapOverlayRenderer.Release(stale.map);
+                universe.Lifecycle.Forget(stale.map);
                 universe.UnregisterObject(stale);
             }
         }

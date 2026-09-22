@@ -33,7 +33,7 @@
 | `Source/Core/UniverseManager.cs` | objects 权威列表、专用宿主惰性入口、真实空间图 tile 帧、缩放放宽、SpaceLifecycle 挂载、平面旧档迁移 |
 | `Source/Buildings/CompDeltaVPilotConsole.cs` | 驾驶台 Comp：进/出驾驶 gizmo + 主驾驶台规则 |
 | `Source/Interaction/MobileShipBootstrap.cs` | 普通地图新建 Gravship 接入移动模式；Orbit 启动、地面重力限制（任意真实轨道图可起飞，无宿主前置） |
-| `Source/Interaction/DockController.cs` | 固定轨道停靠/起飞（逆重搬运管线 + 角度吸附 + 落点校验/回滚） |
+| `Source/Interaction/ShipModeService.Docking.cs` | 固定轨道停靠/起飞（逆重搬运管线 + 角度吸附 + 落点校验/回滚） |
 | `Source/Generation/ShipPocketMapFactory.cs` | 飞船口袋图单一生成入口；起飞时按当前 Gravship 实际边界动态定尺寸并居中 |
 | `Source/Harmony/Patch_GravshipLanding.cs` | 原版确认降落事件 → Delta-V docked 状态的最小桥接 |
 | `Source/Harmony/Patch_WorldCameraRotation.cs` | 给背景 WorldCamera 补聚焦参考系 roll；不旋转 Map 相机/内容 |

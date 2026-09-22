@@ -153,7 +153,7 @@ namespace DeltaV
                     continue;
                 }
                 Map map = ship.map;
-                if (map == null || map.Disposed || IncrementalMapGenerationService.IsGenerating(map))
+                if (map == null || map.Disposed || universe.Generation?.IsGenerating(map) == true)
                 {
                     continue;
                 }

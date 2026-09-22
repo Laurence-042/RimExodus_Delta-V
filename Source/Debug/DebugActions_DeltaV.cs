@@ -47,7 +47,8 @@ namespace DeltaV
         [DebugAction("Delta-V", "Toggle pilot mode", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void TogglePilotMode()
         {
-            PilotController.Toggle(Um());
+            UniverseManager universe = Um();
+            universe?.Pilot.Toggle(universe);
         }
 
         /// <summary>
@@ -71,14 +72,14 @@ namespace DeltaV
                     : string.Join(",", info.Owners);
                 sb.AppendLine($"\n- patch KeyBindingDef.get_{name}: {(owners == "RimExodus.DeltaV" ? "OK (owner=RimExodus.DeltaV)" : owners)}");
             }
-            // ② 抑制状态
-            sb.AppendLine($"- SuppressVanillaKeys flag: {PilotController.SuppressVanillaKeys}; suppressed reads so far: {Patch_KeyBindingSuppression.SuppressedReads}");
-            // ③ 驾驶状态
             UniverseManager um = Um();
-            ShipState piloted = PilotController.PilotedShip(um);
+            // ② 抑制状态
+            sb.AppendLine($"- SuppressVanillaKeys flag: {PilotKeyBridge.SuppressVanillaKeys}; suppressed reads so far: {um.Pilot.SuppressedReads}");
+            // ③ 驾驶状态
+            ShipState piloted = um.Pilot.PilotedShip(um);
             sb.AppendLine($"- pilotShipId: {um.pilotShipId} ({piloted?.label ?? "none"}), piloted map alive: {piloted?.map != null}, CurrentMap == piloted map: {piloted?.map != null && Find.CurrentMap == piloted.map}");
             // ④ 键集合 + 本 mod 绑定
-            sb.AppendLine($"- ActivePilotKeys: [{(PilotController.ActivePilotKeys.Count == 0 ? "EMPTY" : string.Join(", ", PilotController.ActivePilotKeys))}]");
+            sb.AppendLine($"- ActivePilotKeys: [{(PilotKeyBridge.ActiveKeys.Count == 0 ? "EMPTY" : string.Join(", ", PilotKeyBridge.ActiveKeys))}]");
             foreach (string defName in new[] { "DeltaV_ThrustForward", "DeltaV_ThrustBackward", "DeltaV_StrafeLeft", "DeltaV_StrafeRight", "DeltaV_RotateLeft", "DeltaV_RotateRight", "DeltaV_TogglePilotMode" })
             {
                 KeyBindingDef def = KeyBindingDef.Named(defName);
@@ -99,7 +100,7 @@ namespace DeltaV
                     continue;
                 }
                 KeyPrefs.KeyPrefsData.keyPrefs.TryGetValue(def, out KeyBindingData d);
-                sb.AppendLine($"- vanilla {defName}: {d.keyBindingA}/{d.keyBindingB} -> overlap={PilotController.OverlapsActiveKeys(def)}");
+                sb.AppendLine($"- vanilla {defName}: {d.keyBindingA}/{d.keyBindingB} -> overlap={um.Pilot.OverlapsActiveKeys(def)}");
             }
             Log.Message(sb.ToString());
             Messages.Message("Key suppression diagnostics written to the log (dev console / Ctrl+F12).", MessageTypeDefOf.NeutralEvent, false);
@@ -165,7 +166,7 @@ namespace DeltaV
             Widgets.Label(new Rect(UI.screenWidth - 310f, UI.screenHeight - 100f, 300f, 20f),
                 $"DeltaV frame: {avgFrameMs:F1} ms ({1000f / Mathf.Max(avgFrameMs, 0.01f):F0} fps)");
             Widgets.Label(new Rect(UI.screenWidth - 310f, UI.screenHeight - 80f, 300f, 20f),
-                $"DeltaV key suppression: {(PilotController.SuppressVanillaKeys ? "ACTIVE" : "off")} (suppressed reads: {Patch_KeyBindingSuppression.SuppressedReads})");
+                $"DeltaV key suppression: {(PilotKeyBridge.SuppressVanillaKeys ? "ACTIVE" : "off")} (suppressed reads: {Current.Game?.GetComponent<UniverseManager>()?.Pilot.SuppressedReads ?? 0})");
             GUI.color = Color.white;
         }
 
@@ -209,21 +210,21 @@ namespace DeltaV
         private static void PoiForceActivate()
         {
             PoiState poi = FirstPoi();
-            if (poi != null) SpaceLifecycle.ForceActivate(Um(), poi);
+            if (poi != null) Um().Lifecycle.ForceActivate(poi);
         }
 
         [DebugAction("Delta-V", "POI: force dormant nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void PoiForceDormant()
         {
             PoiState poi = FirstPoi();
-            if (poi != null) SpaceLifecycle.ForceDormant(poi);
+            if (poi != null) Um().Lifecycle.ForceDormant(poi);
         }
 
         [DebugAction("Delta-V", "POI: force pack (delete) nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void PoiForcePack()
         {
             PoiState poi = FirstPoi();
-            if (poi != null) SpaceLifecycle.ForcePack(poi);
+            if (poi != null) Um().Lifecycle.ForcePack(poi);
         }
 
         [DebugAction("Delta-V", "Player ship: teleport +1500 east (cross lifecycle ranges)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
@@ -267,8 +268,8 @@ namespace DeltaV
             var sb = new StringBuilder("[DeltaV:Diag] Focused map");
             sb.AppendLine($"\n- map: {map?.Parent?.Label ?? "null"} tile={map?.Tile.ToString() ?? "-"} size={map?.Size.x}x{map?.Size.z}");
             sb.AppendLine($"- owner: {um?.SpaceObjectOnMap(map)?.label ?? "(none)"}; frame={um?.FrameOf(map)?.label ?? "(none)"}");
-            sb.AppendLine($"- frozen={SpaceLifecycle.IsFrozen(map)} (dormant={MapDormancyService.IsDormant(map)}" +
-                $" generating={IncrementalMapGenerationService.IsGenerating(map)} host={SpaceLifecycle.IsUniverseHost(map)})");
+            sb.AppendLine($"- frozen={um?.Lifecycle.IsFrozen(map) == true} (dormant={um?.Lifecycle.IsDormant(map) == true}" +
+                $" generating={um?.Generation?.IsGenerating(map) == true} host={SpaceLifecycleService.IsUniverseHost(map)})");
             sb.AppendLine($"- wantedMode={Find.World?.renderer?.wantedMode} drawingMap={RimWorld.Planet.WorldRendererUtility.DrawingMap}");
             sb.AppendLine($"- camera rootSize={Find.CameraDriver?.RootSize:F0} pos={Find.CameraDriver?.MapPosition}");
             map?.mapDrawer.RegenerateEverythingNow();
@@ -285,19 +286,19 @@ namespace DeltaV
             sb.AppendLine($"\n- universe host pocket map: {(um.UniverseHostMap == null ? "not created" : "alive")}");
             sb.AppendLine($"- orbit layer: {(OrbitSphere.Layer == null ? "none" : $"tiles={OrbitSphere.Layer.TilesCount} radius={OrbitSphere.Radius:F1}" +
                 $" avgTileSize={OrbitSphere.Layer.AverageTileSize:F2} worldPerCell={OrbitSphere.WorldPerCell:F4} cellsPerRadian={OrbitSphere.CellsPerRadian:F0}")}");
-            sb.AppendLine($"- scale: cellsPerTile={OrbitSphere.CellsPerTile:F0} (setting {DeltaVMod.Settings.cellsPerTile});" +
+            sb.AppendLine($"- scale: cellsPerTile={OrbitSphere.CellsPerTile:F0} (setting {DeltaVMod.CurrentSettings.cellsPerTile});" +
                 $" generated sectors={um.generatedSectorTiles.Count}");
-            sb.AppendLine($"- poi radius: active={DeltaVMod.Settings.poiActiveRadius:F0} delete={DeltaVMod.Settings.poiDeleteRadius:F0}");
+            sb.AppendLine($"- poi radius: active={DeltaVMod.CurrentSettings.poiActiveRadius:F0} delete={DeltaVMod.CurrentSettings.poiDeleteRadius:F0}");
             sb.AppendLine($"- primary ship: #{um.primaryShipId}; pilot: #{um.pilotShipId}; focused: #{um.focusedShipId}");
             foreach (SpaceObject obj in um.objects)
             {
                 string lifecycle = obj is PoiState poi
-                    ? (poi.map == null ? "packed" + (poi.snapshot != null ? " (snapshot)" : " (fresh)") : SpaceLifecycle.IsDormant(poi.map) ? "dormant" : "active")
+                    ? (poi.map == null ? "packed" + (poi.snapshot != null ? " (snapshot)" : " (fresh)") : um.Lifecycle.IsDormant(poi.map) ? "dormant" : "active")
                     : ((ShipState)obj).docked ? "docked" : "flying";
                 float lat = Mathf.Asin(Mathf.Clamp(obj.pose.position.y, -1f, 1f)) * Mathf.Rad2Deg;
                 float lon = Mathf.Atan2(obj.pose.position.z, obj.pose.position.x) * Mathf.Rad2Deg;
                 string playerDist = obj is PoiState poi2
-                    ? $" playerDist={SpaceLifecycle.MinPlayerDistance(um, poi2):F0}"
+                    ? $" playerDist={um.Lifecycle.MinPlayerDistance(poi2):F0}"
                     : "";
                 string sector = OrbitSphere.Valid
                     ? $" sector={OrbitSphere.TileFromDirection(obj.pose.position)}"
@@ -449,13 +450,14 @@ namespace DeltaV
         [DebugAction("Delta-V", "Docking plan: force complete", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void DockingPlanForceComplete()
         {
-            LandingApproachController.DebugForceComplete();
+            Um()?.Approach.DebugForceComplete();
         }
 
         [DebugAction("Delta-V", "Docking: cancel (site selection or plan)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void DockingPlanCancel()
         {
-            LandingApproachController.CancelSelectionOrPlan("dev action");
+            UniverseManager universe = Um();
+            universe?.Approach.CancelSelectionOrPlan(universe, "dev action");
         }
     }
 }

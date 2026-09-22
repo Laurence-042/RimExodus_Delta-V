@@ -34,7 +34,7 @@ namespace DeltaV
         public const float DefaultCellsPerTile = 20000f;
 
         /// <summary>1 个星区（worldtile）弧长 ≈ 多少宇宙格。设置项，可调；只动尺度不动 tile 划分。</summary>
-        public static float CellsPerTile => DeltaVMod.Settings?.cellsPerTile ?? DefaultCellsPerTile;
+        public static float CellsPerTile => DeltaVMod.CurrentSettings?.cellsPerTile ?? DefaultCellsPerTile;
 
         // 东向基向量手性：若实测星球背景移动方向与飞行方向相反，翻转此常量
         // （沿用 UniverseLayerMapping 阶段2/3 结论）。

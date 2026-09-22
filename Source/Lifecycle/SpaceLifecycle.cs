@@ -8,42 +8,50 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>Delta-V 距离策略；地图生成、休眠和父对象语义分别委托通用服务。</summary>
-    public static class SpaceLifecycle
+    public sealed class SpaceLifecycleService
     {
         public const int PoiMapSize = 90;
 
-        public static bool IsDormant(Map map) => MapDormancyService.IsDormant(map);
-        public static bool IsFrozen(Map map) => IsDormant(map) || IsUniverseHost(map)
-            || IncrementalMapGenerationService.IsGenerating(map);
-        public static bool IsUniverseHost(Map map) => map?.Parent is UniverseHostParent_DeltaV;
-        public static void Wake(Map map, string reason) => MapDormancyService.Wake(map, reason);
+        private readonly UniverseManager universe;
+        private readonly MapDormancyService dormancy = new MapDormancyService();
 
-        public static void Tick(UniverseManager universe)
+        public SpaceLifecycleService(UniverseManager universe)
+        {
+            this.universe = universe;
+        }
+
+        public bool IsDormant(Map map) => dormancy.IsDormant(map);
+        public bool IsFrozen(Map map) => IsDormant(map) || IsUniverseHost(map)
+            || universe.Generation?.IsGenerating(map) == true;
+        public static bool IsUniverseHost(Map map) => map?.Parent is UniverseHostParent_DeltaV;
+        public void Wake(Map map, string reason) => dormancy.Wake(map, reason);
+
+        public void Tick()
         {
             OrbitalPoiRegistry.Synchronize(universe);
-            float activeRadius = DeltaVMod.Settings.poiActiveRadius;
-            float deleteRadius = Mathf.Max(DeltaVMod.Settings.poiDeleteRadius, activeRadius + 1f);
+            float activeRadius = DeltaVMod.CurrentSettings.poiActiveRadius;
+            float deleteRadius = Mathf.Max(DeltaVMod.CurrentSettings.poiDeleteRadius, activeRadius + 1f);
             foreach (PoiState poi in universe.objects.OfType<PoiState>().ToList())
             {
                 SynchronizeNative(poi);
-                float distance = MinPlayerDistance(universe, poi);
+                float distance = MinPlayerDistance(poi);
                 if (float.IsPositiveInfinity(distance)) continue;
                 string key = GenerationKey(poi);
-                IncrementalMapGenerationService.UpdatePriority(key, distance);
-                if (distance > activeRadius) IncrementalMapGenerationService.CancelQueued(key);
+                universe.Generation.UpdatePriority(key, distance);
+                if (distance > activeRadius) universe.Generation.CancelQueued(key);
                 if (poi.map != null && SpaceMapGovernance.MustStayActive(poi.map, universe))
                 {
-                    MapDormancyService.Wake(poi.map, "protected map");
+                    dormancy.Wake(poi.map, "protected map");
                     continue;
                 }
                 if (IsPendingGeneration(poi)) continue;
-                if (distance <= activeRadius) EnsureActive(universe, poi, distance);
+                if (distance <= activeRadius) EnsureActive(poi, distance);
                 else if (distance <= deleteRadius) EnsureDormant(poi);
-                else TryPack(universe, poi);
+                else TryPack(poi);
             }
         }
 
-        public static float MinPlayerDistance(UniverseManager universe, PoiState poi)
+        public float MinPlayerDistance(PoiState poi)
         {
             float best = float.PositiveInfinity;
             foreach (ShipState ship in universe.Ships)
@@ -60,22 +68,22 @@ namespace DeltaV
                 poi.pose.position = OrbitSphere.TileCenterDirection(poi.nativeParent.Tile);
         }
 
-        private static void EnsureActive(UniverseManager universe, PoiState poi, float priority = 0f)
+        private void EnsureActive(PoiState poi, float priority = 0f)
         {
             if (poi.map != null)
             {
-                MapDormancyService.Wake(poi.map, "inside POI load radius");
+                dormancy.Wake(poi.map, "inside POI load radius");
                 return;
             }
             if (poi.kind == PoiKind.NativeParent) QueueNativeGeneration(poi, priority);
-            else QueueSnapshotGeneration(universe, poi, priority);
+            else QueueSnapshotGeneration(poi, priority);
         }
 
-        private static void QueueNativeGeneration(PoiState poi, float priority)
+        private void QueueNativeGeneration(PoiState poi, float priority)
         {
             MapParent parent = poi.nativeParent;
             if (parent == null || parent.Destroyed || parent.HasMap) return;
-            IncrementalMapGenerationService.Enqueue(new IncrementalMapGenerationRequest
+            universe.Generation.Enqueue(new IncrementalMapGenerationRequest
             {
                 key = GenerationKey(poi), priority = priority, parent = parent,
                 size = SpaceMapGovernance.GenerationSize(parent), generator = parent.MapGeneratorDef,
@@ -83,19 +91,19 @@ namespace DeltaV
                 onComplete = map =>
                 {
                     poi.map = map;
-                    MapDormancyService.Wake(map, "generation complete");
+                    dormancy.Wake(map, "generation complete");
                     Messages.Message("DeltaV_PoiActivated".Translate(poi.label), MessageTypeDefOf.NeutralEvent, false);
                 },
                 onFailure = ex => ReportGenerationFailure(poi.label, ex)
             });
         }
 
-        private static void QueueSnapshotGeneration(UniverseManager universe, PoiState poi, float priority)
+        private void QueueSnapshotGeneration(PoiState poi, float priority)
         {
             var parent = (ShipPocketParent_DeltaV)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
             parent.sourceMap = universe.GetOrCreateHostMap();
             parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
-            IncrementalMapGenerationService.Enqueue(new IncrementalMapGenerationRequest
+            universe.Generation.Enqueue(new IncrementalMapGenerationRequest
             {
                 key = GenerationKey(poi), priority = priority, parent = parent,
                 size = new IntVec3(PoiMapSize, 1, PoiMapSize), generator = DeltaVDefOf.DeltaV_ShipPocket,
@@ -120,12 +128,12 @@ namespace DeltaV
             });
         }
 
-        private static void EnsureDormant(PoiState poi)
+        private void EnsureDormant(PoiState poi)
         {
-            if (poi.map != null) MapDormancyService.Sleep(poi.map, "outside POI load radius");
+            if (poi.map != null) dormancy.Sleep(poi.map, "outside POI load radius");
         }
 
-        private static void TryPack(UniverseManager universe, PoiState poi)
+        private void TryPack(PoiState poi)
         {
             Map map = poi.map;
             if (map == null || SpaceMapGovernance.MustStayActive(map, universe)) return;
@@ -135,12 +143,11 @@ namespace DeltaV
                 if (parent == null || parent.Destroyed) return;
                 if (!parent.ShouldRemoveMapNow(out bool alsoRemoveWorldObject))
                 {
-                    MapDormancyService.Sleep(map, "native removal blocked");
+                    dormancy.Sleep(map, "native removal blocked");
                     return;
                 }
-                Forget(map);
                 poi.map = null;
-                Current.Game.DeinitAndRemoveMap(map, true);
+                DeinitMap(map, true);
                 if (!parent.Destroyed && (alsoRemoveWorldObject || parent.forceRemoveWorldObjectWhenMapRemoved))
                     parent.Destroy();
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
@@ -150,31 +157,43 @@ namespace DeltaV
 
             if (map.mapPawns.AllPawnsSpawned.Any())
             {
-                MapDormancyService.Sleep(map, "snapshot removal blocked by pawn");
+                dormancy.Sleep(map, "snapshot removal blocked by pawn");
                 return;
             }
             poi.snapshot = PoiSnapshot.Capture(map);
             poi.map = null;
-            Forget(map);
-            PocketMapUtility.DestroyPocketMap(map);
+            DestroyPocketMap(map);
             Messages.Message("DeltaV_PoiPacked".Translate(poi.label), MessageTypeDefOf.NeutralEvent, false);
         }
 
-        public static void Forget(Map map)
+        public void Forget(Map map)
         {
-            MapDormancyService.Forget(map);
+            dormancy.Forget(map);
             MapOverlayRenderer.Release(map);
         }
 
-        public static void ForceActivate(UniverseManager universe, PoiState poi) => EnsureActive(universe, poi);
-        public static void ForceDormant(PoiState poi)
+        public void DestroyPocketMap(Map map)
         {
-            if (poi.map != null && poi.map != Find.CurrentMap) MapDormancyService.Sleep(poi.map, "dev action");
+            if (map == null || map.Disposed) return;
+            Forget(map);
+            PocketMapUtility.DestroyPocketMap(map);
         }
-        public static void ForcePack(PoiState poi)
+
+        public void DeinitMap(Map map, bool notifyPlayer)
         {
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (universe != null) TryPack(universe, poi);
+            if (map == null || map.Disposed) return;
+            Forget(map);
+            Current.Game.DeinitAndRemoveMap(map, notifyPlayer);
+        }
+
+        public void ForceActivate(PoiState poi) => EnsureActive(poi);
+        public void ForceDormant(PoiState poi)
+        {
+            if (poi.map != null && poi.map != Find.CurrentMap) dormancy.Sleep(poi.map, "dev action");
+        }
+        public void ForcePack(PoiState poi)
+        {
+            TryPack(poi);
         }
 
         /// <summary>
@@ -186,7 +205,7 @@ namespace DeltaV
         /// 经 excludeMap 排除。旅行期间 MinPlayerDistance 为 +Infinity 且评估整体
         /// 跳过，不能依赖自然距离触发——离场时刻必须显式执行。
         /// </summary>
-        public static void PackDepartedSectorPois(UniverseManager universe, PlanetTile sector, Map excludeMap)
+        public void PackDepartedSectorPois(PlanetTile sector, Map excludeMap)
         {
             if (universe == null || !sector.Valid) return;
             foreach (SpaceObject obj in SectorContentService.ObjectsInSector(universe, sector).ToList())
@@ -195,11 +214,11 @@ namespace DeltaV
                 Map map = poi.map;
                 if (map == null || map.Disposed || !Find.Maps.Contains(map)) continue;
                 if (map == excludeMap || IsUniverseHost(map)) continue;
-                TryPack(universe, poi);
+                TryPack(poi);
             }
         }
-        private static bool IsPendingGeneration(PoiState poi) => poi != null
-            && IncrementalMapGenerationService.IsQueued(GenerationKey(poi));
+        private bool IsPendingGeneration(PoiState poi) => poi != null
+            && universe.Generation?.IsQueued(GenerationKey(poi)) == true;
         private static string GenerationKey(PoiState poi) => poi.kind == PoiKind.NativeParent
             ? $"orbital-parent:{poi.nativeParent?.ID ?? poi.objectId}" : $"snapshot-poi:{poi.objectId}";
         private static void ReportGenerationFailure(string label, Exception error)
@@ -209,6 +228,6 @@ namespace DeltaV
             else
                 Log.Error($"[DeltaV] Failed to generate POI {label}: {error}");
         }
-        public static void Reset() => MapDormancyService.Reset();
+        public void Reset() => dormancy.Reset();
     }
 }

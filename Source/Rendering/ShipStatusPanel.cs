@@ -50,7 +50,7 @@ namespace DeltaV
             if (mobileShip != null && mobileShip.docked) mobileShip = null;
             // 「对接计划」语义唯一来源是 ActivePlan（null = 无计划或到达重放期，非空 ⇒
             // 全字段有效）；不从 ship.docking 等标志推断（选点中的船 docking 但无计划）。
-            LandingApproachController.DockingPlan plan = LandingApproachController.ActivePlan;
+            LandingApproachController.DockingPlan plan = universe.Approach.ActivePlan;
             if (mobileShip != null && mobileShip.docking && plan?.ship != mobileShip)
             {
                 mobileShip = null; // 选点/到达重放中的船：不显示移动 HUD
@@ -61,7 +61,7 @@ namespace DeltaV
             // 计划 UI（计划船聚焦时）：状态行 + 自动驾驶开关 + 取消。
             bool dockingPlan = plan != null && plan.ship == mobileShip;
             // 控制权门禁（阶段4）：驾驶/模式按钮限玩家方（dev 放行）。
-            bool playerControlled = mobileShip == null || PilotController.CanPlayerControl(mobileShip);
+            bool playerControlled = mobileShip == null || universe.Pilot.CanPlayerControl(mobileShip);
 
             // 固定模式 → 移动模式入口的另一形态：未 bootstrap 的原版 Gravship（首次降落/
             // 发射到达时还没有 ShipState）。唯一驾驶台可直接从面板进入；多艘船必须选中
@@ -106,7 +106,7 @@ namespace DeltaV
                 statusLines.Add("DeltaV_HudAssist".Translate(
                     brakeHeld
                         ? "DeltaV_Braking".Translate()
-                        : (DeltaVMod.Settings.flightAssist
+                        : (DeltaVMod.CurrentSettings.flightAssist
                             ? "DeltaV_On".Translate()
                             : "DeltaV_Off".Translate())));
             }
@@ -118,7 +118,7 @@ namespace DeltaV
             {
                 statusLines.Add("DeltaV_DockPlanStatus".Translate(
                     plan.host.label, ((int)plan.Distance()).ToString()));
-                statusLines.Add(LandingApproachController.AutopilotEngaged
+                statusLines.Add(universe.Approach.AutopilotEngaged(universe)
                     ? "DeltaV_DockPlanAutopilotOn".Translate()
                     : "DeltaV_DockPlanAutopilotOff".Translate());
             }
@@ -186,31 +186,31 @@ namespace DeltaV
                         : "DeltaV_PilotButtonEnter".Translate();
                     if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), pilotButton))
                     {
-                        PilotController.Toggle(universe);
+                        universe.Pilot.Toggle(universe);
                     }
                     lineY += 27f + 6f;
                 }
                 if (dockingPlan)
                 {
                     // 计划期：自动驾驶开关（手操打断后可重新挂上）+ 取消对接。
-                    string autopilotButton = LandingApproachController.AutopilotEngaged
+                    string autopilotButton = universe.Approach.AutopilotEngaged(universe)
                         ? "DeltaV_DockAutopilotStopButton".Translate()
                         : "DeltaV_DockAutopilotResumeButton".Translate();
                     if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), autopilotButton))
                     {
-                        if (LandingApproachController.AutopilotEngaged)
+                        if (universe.Approach.AutopilotEngaged(universe))
                         {
-                            ShipAutopilot.Cancel(mobileShip);
+                            universe.Autopilot.Cancel(mobileShip);
                         }
                         else
                         {
-                            LandingApproachController.EngageAutopilot();
+                            universe.Approach.EngageAutopilot(universe);
                         }
                     }
                     lineY += 27f + 6f;
                     if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_DockCancelButton".Translate()))
                     {
-                        LandingApproachController.CancelSelectionOrPlan("user");
+                        universe.Approach.CancelSelectionOrPlan(universe, "user");
                     }
                     lineY += 27f + 8f;
                 }
@@ -218,7 +218,7 @@ namespace DeltaV
                 {
                     if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_FixedButtonEnter".Translate()))
                     {
-                        DockController.TryDock(universe, mobileShip);
+                        universe.ShipModes.TryDock(mobileShip);
                     }
                     lineY += 27f + 8f;
                 }
@@ -229,10 +229,10 @@ namespace DeltaV
             }
             else if (dockedShip != null)
             {
-                if (PilotController.CanPlayerControl(dockedShip)
+                if (universe.Pilot.CanPlayerControl(dockedShip)
                     && Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_MobileButtonEnter".Translate()))
                 {
-                    DockController.TryLaunch(universe, dockedShip);
+                    universe.ShipModes.TryLaunch(universe, dockedShip);
                 }
                 lineY += 27f + 6f;
             }

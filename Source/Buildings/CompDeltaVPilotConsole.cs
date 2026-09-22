@@ -12,7 +12,7 @@ namespace DeltaV
     ///
     /// 主驾驶台规则（story.md「固定轨道/建造模式」）：第一台自动成为主驾驶台，
     /// 第二台不会取代主台，除非玩家显式用 gizmo 设置；进入移动模式时飞船朝向跟随
-    /// 主驾驶台的朝向（DockController 消费）。主台被拆除时转交给船上最老的一台。
+    /// 主驾驶台的朝向（ShipModeService 消费）。主台被拆除时转交给船上最老的一台。
     ///
     /// 本 Comp 由 XML patch 追加到原版 PilotConsole，与原版 CompPilotConsole 共存：原版
     /// Gravship 继续按 ThingDefOf.PilotConsole 识别设施与发射方向。本 Comp 在共享地图上
@@ -36,15 +36,32 @@ namespace DeltaV
             {
                 UniverseManager universe = Universe;
                 Map map = parent.Map;
-                ShipState ship = universe?.ShipOnMap(map);
-                if (ship != null)
+                if (universe == null || map == null)
                 {
-                    return ship;
+                    return null;
                 }
-                // 停靠船的 SpaceObject 不再持有口袋图；通过原版 GravEngine.ValidSubstructure
-                // 识别宿主图上的实际船体，使停靠期新建的第二台驾驶台也能获得 gizmo，
-                // 同时避免把能力扩散到宿主图上的无关建筑或普通地表驾驶台。
-                return universe?.Ships.FirstOrDefault(s => DockController.ContainsDockedThing(s, parent));
+
+                // 驾驶台身份是第一裁决源：共享图上可能同时有一个仍持有该 Map 的移动
+                // ShipState 和若干停靠船，不能先用 ShipOnMap 把所有驾驶台都归给宿主。
+                ShipState identified = universe.ShipById(shipId);
+                if (identified != null && ShipStructureResolver.Contains(identified, parent))
+                {
+                    return identified;
+                }
+
+                // 新建驾驶台尚未领取 shipId 时按船体域解析；停靠船优先，保证玩家把残骸
+                // 基架改归本船并接通后，新域上的驾驶台仍得到固定模式/解除固定入口。
+                ShipState docked = universe.Ships.FirstOrDefault(s => s.docked
+                    && s.dockedMap == map && ShipStructureResolver.Contains(s, parent));
+                if (docked != null)
+                {
+                    return docked;
+                }
+
+                ShipState mapOwner = universe.ShipOnMap(map);
+                return mapOwner != null && ShipStructureResolver.Contains(mapOwner, parent)
+                    ? mapOwner
+                    : null;
             }
         }
 
@@ -108,7 +125,7 @@ namespace DeltaV
         private static Building OldestConsoleOn(ShipState ship)
         {
             // 停靠中的船上其余驾驶台与被拆台同图（宿主图），从宿主图找；飞行中从口袋图找。
-            Map consoleMap = ship.docked ? ship.dockedMap : ship.map;
+            Map consoleMap = ship.InteriorMap;
             if (consoleMap == null)
             {
                 return null;
@@ -117,7 +134,7 @@ namespace DeltaV
             foreach (Thing thing in consoleMap.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
             {
                 if (thing.TryGetComp<CompDeltaVPilotConsole>() != null
-                    && (!ship.docked || DockController.ContainsDockedThing(ship, thing))
+                    && (!ship.docked || ShipStructureResolver.Contains(ship, thing))
                     && (oldest == null || thing.thingIDNumber < oldest.thingIDNumber))
                 {
                     oldest = thing as Building;
@@ -153,7 +170,7 @@ namespace DeltaV
                     SubstructureOwnership ownership = SubstructureOwnership.TryGet(parent.Map);
                     int domainOwner = ownership?.OwnerAt(parent.Position) ?? SubstructureOwnership.Unassigned;
                     if (domainOwner != SubstructureOwnership.Unassigned
-                        && !universe.objects.Any(o => o.objectId == domainOwner))
+                        && universe.ObjectById(domainOwner) == null)
                     {
                         shipId = domainOwner;
                     }
@@ -234,30 +251,7 @@ namespace DeltaV
             // CompGravshipFacility），此刻 NoteName 可能拿不到引擎名；放置批次
             // 完成后补注册一次，保证 shipNames 最终有名而非「独立结构 #N」。
             LongEventHandler.ExecuteWhenFinished(delegate { NoteName(Universe); });
-            SubstructureOwnership ownership = SubstructureOwnership.For(map);
-            var cells = new List<IntVec3>();
-            map.floodFiller.FloodFill(parent.Position, delegate (IntVec3 x)
-            {
-                if (!x.InBounds(map))
-                {
-                    return false;
-                }
-                TerrainDef foundation = map.terrainGrid.FoundationAt(x);
-                if (foundation == null || !foundation.IsSubstructure)
-                {
-                    return false;
-                }
-                int owner = ownership.OwnerAt(x);
-                return owner == id || owner == SubstructureOwnership.Unassigned;
-            }, delegate (IntVec3 x)
-            {
-                cells.Add(x);
-                return false;
-            });
-            if (cells.Count > 0)
-            {
-                ownership.SetOwner(cells, id);
-            }
+            SubstructureOwnership.For(map).ClaimConnectedDomain(parent.Position, id);
         }
 
         public override void PostExposeData()
@@ -297,21 +291,21 @@ namespace DeltaV
             {
                 // 固定图可能同时有多艘逆重飞船，必须由玩家点中这艘船的驾驶台来选择目标。
                 // 控制权门禁（阶段4）：限玩家方（dev 放行）——敌舰驾驶台不是玩家入口。
-                if (PilotController.CanPlayerControl(ship))
+                if (universe.Pilot.CanPlayerControl(ship))
                 {
                     yield return NewAction("DeltaV_MobileButtonEnter".Translate(), TexCommand.Draft,
-                        () => DockController.TryLaunch(universe, ship));
+                        () => universe.ShipModes.TryLaunch(universe, ship));
                 }
             }
             else
             {
-                if (PilotController.CanPlayerControl(ship))
+                if (universe.Pilot.CanPlayerControl(ship))
                 {
                     yield return NewAction(
                         universe.pilotShipId == ship.objectId
                             ? "DeltaV_PilotButtonExit".Translate()
                             : "DeltaV_PilotButtonEnter".Translate(),
-                        TexCommand.Draft, () => PilotController.Toggle(universe));
+                        TexCommand.Draft, () => universe.Pilot.Toggle(universe));
                 }
             }
 

@@ -6,7 +6,7 @@ namespace DeltaV
     /// <summary>
     /// 一艘飞船的宇宙状态（SpaceObject 特化，AGENTS §11）。
     /// 阶段3 新增：玩家阵营标记（POI 距离的参考对象）、主驾驶台引用、固定轨道停靠状态
-    /// （docked 及其恢复数据，见 DockController）。
+    /// （docked 及其恢复数据，见 ShipModeService）。
     /// </summary>
     public class ShipState : SpaceObject
     {
@@ -19,7 +19,7 @@ namespace DeltaV
         /// </summary>
         public Building primaryConsole;
 
-        // ---- 固定轨道 / 建造模式（阶段3，DockController 维护）----
+        // ---- 固定轨道 / 建造模式（阶段3，ShipModeService 维护）----
 
         /// <summary>停靠中：船体已作为真实建筑落到宿主图；降落动画结束后 map 为 null。</summary>
         public bool docked;
@@ -38,6 +38,8 @@ namespace DeltaV
         /// 它把停靠图中的真实建筑重新接回统一 Universe 坐标，不是另一套姿态状态。
         /// </summary>
         public Vector2 dockedOrigin;
+
+        public override Map InteriorMap => docked && dockedMap != null ? dockedMap : map;
 
         /// <summary>停靠前的宇宙姿态（降落动画起点；确认落点后不再用于恢复位置）。</summary>
         public SpacePose preDockPose;

@@ -21,7 +21,7 @@ namespace DeltaV
 
         internal static bool ShouldHide(Map map)
         {
-            return SpaceLifecycle.IsUniverseHost(map);
+            return SpaceLifecycleService.IsUniverseHost(map);
         }
     }
 
