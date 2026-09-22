@@ -147,7 +147,7 @@ namespace DeltaV
         // ---------- 速度换基（唯一入口） ----------
 
         /// <summary>速度从一个位姿的锚点基平行输运到目标锚点基（x=东、y=北）。
-        /// 自动驾驶 PD 阻尼/宿主前馈、对接完成的宿主速度继承共用本入口，不得各写一份
+        /// 自动驾驶相对速度/宿主前馈、对接完成的宿主速度继承共用本入口，不得各写一份
         /// 基变换点乘（2026-09-21 去重收口，不变量 #21）。</summary>
         public static Vector2 TransportVelocity(SpacePose pose, Vector3 frameDirection)
         {
@@ -155,6 +155,26 @@ namespace DeltaV
             Vector3 world = east * pose.velocity.x + north * pose.velocity.y;
             OrbitSphere.Basis(frameDirection, out east, out north);
             return new Vector2(Vector3.Dot(world, east), Vector3.Dot(world, north));
+        }
+
+        /// <summary>
+        /// 刚体上 ship-local 点在该点球面切基中的速度。先在对象锚点切基中合成锚点
+        /// 平移与 ω×r，再统一平行输运到目标点；随动对接和未来硬点制导只能走本入口，
+        /// 不得各自遗漏旋转目标偏置点的切向速度。
+        /// </summary>
+        public static Vector2 VelocityAtLocalPoint(SpacePose pose, Vector2 localPoint, Vector3 pointDirection)
+        {
+            Vector2 rotatedOffset = Rotate(localPoint, pose.angle);
+            Vector2 anchorVelocity = pose.velocity + pose.angularVelocity
+                * new Vector2(-rotatedOffset.y, rotatedOffset.x);
+            var pointPose = new SpacePose
+            {
+                position = pose.position,
+                velocity = anchorVelocity,
+                angle = pose.angle,
+                angularVelocity = pose.angularVelocity
+            };
+            return TransportVelocity(pointPose, pointDirection);
         }
 
         // ---------- Ship local ⇄ universe ----------

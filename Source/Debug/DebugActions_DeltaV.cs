@@ -118,6 +118,31 @@ namespace DeltaV
             ship.pose.angularVelocity = 0f;
         }
 
+        [DebugAction("Delta-V", "MPC: cycle developer profile", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.Playing)]
+        private static void CycleMpcProfile()
+        {
+            AutopilotMpcProfile profile = Um().Autopilot.CycleProfile();
+            Messages.Message($"Delta-V MPC profile: {profile}", MessageTypeDefOf.NeutralEvent, false);
+        }
+
+        [DebugAction("Delta-V", "MPC: diagnostics summary", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.Playing)]
+        private static void MpcDiagnosticsSummary()
+        {
+            UniverseManager universe = Um();
+            string summary = "[DeltaV:MPC] " + AutopilotMpcDiagnostics.Summary(
+                universe?.Autopilot.Profile ?? AutopilotMpcProfile.Balanced);
+            Log.Message(summary);
+            Messages.Message("MPC diagnostics written to the log.", MessageTypeDefOf.NeutralEvent, false);
+        }
+
+        [DebugAction("Delta-V", "MPC: deterministic self-test", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.Playing)]
+        private static void MpcSelfTest()
+        {
+            string report = AutopilotMpcDiagnostics.RunSelfTest();
+            Log.Message(report);
+            Messages.Message("MPC self-test written to the log.", MessageTypeDefOf.NeutralEvent, false);
+        }
+
         /// <summary>
         /// 手动修复：本图全部基架改归地图默认归属（宿主 SpaceObject）。用于修复早期
         /// 版本盖章缺口留下的孤儿归属（如 wreck 图被测试改乱）；随后可用「修改基架

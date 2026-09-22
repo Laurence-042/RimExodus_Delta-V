@@ -98,6 +98,11 @@ namespace DeltaV
             public float inertia;
             public readonly List<Thruster> thrusters = new List<Thruster>();
 
+            // 分配器工作区。真实分配与只读预览共用同一求解核心；数组随质量报告重建，
+            // 热路径不产生临时分配。只有 Allocate 会把结果提交到 Thruster.throttle。
+            internal float[] allocationScratch;
+            internal float[] previewScratch;
+
             /// <summary>最近一次 Allocate 求解的时间（Time.time）。0 = 从未求解
             /// （Measure 重扫后的缺省），火焰读取方据此判定油门新鲜，防止力源
             /// 停止后的幽灵火焰。运行时表现层标记，不存档。</summary>
@@ -110,6 +115,35 @@ namespace DeltaV
             public float fx;
             public float fz;
             public float torque;
+        }
+
+        /// <summary>
+        /// 当前推进器布局在零指令附近的局部控制模型。force/torque 列分别是归一化
+        /// fx/fz/torque 指令对真实可达广义力的中心差分；方向上限只用于把 MPC 的
+        /// 首个归一化控制量还原为期望力，再进入 ForceToCommand → Allocate 唯一链。
+        /// </summary>
+        public sealed class ControlModel
+        {
+            public float mass;
+            public float inertia;
+            public readonly Vector2[] forceColumns = new Vector2[3];
+            public readonly float[] torqueColumns = new float[3];
+            public float positiveX;
+            public float negativeX;
+            public float positiveZ;
+            public float negativeZ;
+            public float positiveTorque;
+            public float negativeTorque;
+
+            public void DesiredWrench(Command command, out Vector2 force, out float torque)
+            {
+                force = new Vector2(
+                    command.fx >= 0f ? command.fx * positiveX : command.fx * negativeX,
+                    command.fz >= 0f ? command.fz * positiveZ : command.fz * negativeZ);
+                torque = command.torque >= 0f
+                    ? command.torque * positiveTorque
+                    : command.torque * negativeTorque;
+            }
         }
 
         // ---- 质量模型 ----
@@ -227,13 +261,105 @@ namespace DeltaV
         /// </summary>
         public static void Allocate(MassReport report, Command command, out Vector2 force, out float torque)
         {
+            EnsureAllocatorScratch(report);
+            if (report == null || report.thrusters.Count == 0)
+            {
+                force = Vector2.zero;
+                torque = 0f;
+                return;
+            }
+            RefreshOperational(report);
+            SolveAllocation(report, command, report.allocationScratch, out force, out torque);
+            for (int i = 0; i < report.thrusters.Count; i++)
+            {
+                report.thrusters[i].throttle = report.allocationScratch[i];
+            }
+            report.throttlesWrittenAt = Time.time;
+        }
+
+        /// <summary>
+        /// 构造制导器使用的只读局部控制模型。采样调用与 Allocate 完全相同的分配核心，
+        /// 但结果只写 previewScratch，不触碰真实油门及火焰新鲜度。
+        /// </summary>
+        public static ControlModel BuildControlModel(MassReport report, ControlModel reuse = null)
+        {
+            ControlModel model = reuse ?? new ControlModel();
+            model.mass = 0f;
+            model.inertia = 0f;
+            model.positiveX = model.negativeX = model.positiveZ = model.negativeZ = 0f;
+            model.positiveTorque = model.negativeTorque = 0f;
+            for (int i = 0; i < 3; i++)
+            {
+                model.forceColumns[i] = Vector2.zero;
+                model.torqueColumns[i] = 0f;
+            }
+            if (report == null)
+            {
+                return model;
+            }
+            model.mass = report.mass;
+            model.inertia = report.inertia;
+            EnsureAllocatorScratch(report);
+            RefreshOperational(report);
+            MeasureAuthority(report, out model.positiveX, out model.negativeX,
+                out model.positiveZ, out model.negativeZ,
+                out model.positiveTorque, out model.negativeTorque);
+
+            Command positive = default;
+            Command negative = default;
+            for (int axis = 0; axis < 3; axis++)
+            {
+                positive = default;
+                negative = default;
+                SetAxis(ref positive, axis, 1f);
+                SetAxis(ref negative, axis, -1f);
+                SolveAllocation(report, positive, report.previewScratch,
+                    out Vector2 positiveForce, out float positiveMoment);
+                SolveAllocation(report, negative, report.previewScratch,
+                    out Vector2 negativeForce, out float negativeMoment);
+                model.forceColumns[axis] = (positiveForce - negativeForce) * 0.5f;
+                model.torqueColumns[axis] = (positiveMoment - negativeMoment) * 0.5f;
+            }
+            return model;
+        }
+
+        private static void SetAxis(ref Command command, int axis, float value)
+        {
+            if (axis == 0) command.fx = value;
+            else if (axis == 1) command.fz = value;
+            else command.torque = value;
+        }
+
+        private static void EnsureAllocatorScratch(MassReport report)
+        {
+            if (report == null) return;
+            int count = report.thrusters.Count;
+            if (report.allocationScratch == null || report.allocationScratch.Length != count)
+            {
+                report.allocationScratch = new float[count];
+                report.previewScratch = new float[count];
+            }
+        }
+
+        private static void RefreshOperational(MassReport report)
+        {
+            for (int i = 0; i < report.thrusters.Count; i++)
+            {
+                Thruster thruster = report.thrusters[i];
+                thruster.operational = ThrusterPower.IsOperational(thruster.thing);
+            }
+        }
+
+        private static void SolveAllocation(MassReport report, Command command, float[] throttles,
+            out Vector2 force, out float torque)
+        {
             force = Vector2.zero;
             torque = 0f;
-            if (report == null || report.thrusters.Count == 0)
+            if (report == null || report.thrusters.Count == 0 || throttles == null)
             {
                 return;
             }
-
+            System.Array.Clear(throttles, 0, throttles.Length);
             MeasureAuthority(report, out float positiveX, out float negativeX,
                 out float positiveZ, out float negativeZ, out float positiveTorque, out float negativeTorque);
 
@@ -247,7 +373,7 @@ namespace DeltaV
             float weightTorque = Mathf.Abs(command.torque) > 1e-6f
                 ? CommandedTorqueWeight : UncommandedTorqueWeight;
 
-            // residual = A*u-b；u 从零开始，坐标下降直接在 Thruster.throttle 上迭代，无临时数组。
+            // residual = A*u-b；u 从零开始，在调用方提供的复用工作区上迭代。
             float residualX = -Mathf.Clamp(command.fx, -1f, 1f);
             float residualZ = -Mathf.Clamp(command.fz, -1f, 1f);
             float residualTorque = -Mathf.Clamp(command.torque, -1f, 1f);
@@ -275,14 +401,14 @@ namespace DeltaV
                     float gradient = weightX * axisX * residualX
                         + weightZ * axisZ * residualZ
                         + weightTorque * axisTorque * residualTorque
-                        + AllocationRegularization * thruster.throttle;
-                    float next = Mathf.Clamp01(thruster.throttle - gradient / denominator);
-                    float delta = next - thruster.throttle;
+                        + AllocationRegularization * throttles[index];
+                    float next = Mathf.Clamp01(throttles[index] - gradient / denominator);
+                    float delta = next - throttles[index];
                     if (Mathf.Abs(delta) <= 1e-7f)
                     {
                         continue;
                     }
-                    thruster.throttle = next;
+                    throttles[index] = next;
                     residualX += axisX * delta;
                     residualZ += axisZ * delta;
                     residualTorque += axisTorque * delta;
@@ -298,23 +424,20 @@ namespace DeltaV
             for (int i = 0; i < report.thrusters.Count; i++)
             {
                 Thruster thruster = report.thrusters[i];
-                if (!thruster.operational || thruster.throttle < 0.0001f)
+                float throttle = throttles[i];
+                if (!thruster.operational || throttle < 0.0001f)
                 {
-                    thruster.throttle = 0f;
+                    throttles[i] = 0f;
                     continue;
                 }
-                Vector2 appliedForce = thruster.dir * (ThrusterThrust * thruster.throttle);
+                Vector2 appliedForce = thruster.dir * (ThrusterThrust * throttle);
                 force += appliedForce;
                 torque += Cross(thruster.localPos - report.comLocal, appliedForce);
             }
-
-            // 表现层新鲜度：本次求解的油门自此计时，火焰读取方只在新鲜期内绘制。
-            report.throttlesWrittenAt = Time.time;
         }
 
         /// <summary>
-        /// 刷新全部推进器实际状态（故障/排气堵塞/断电当次调用即生效）并清零油门，
-        /// 同时累计各轴正/负向出力上限——ForceToCommand 的归一化与分配器求解共用
+        /// 累计当前 operational 快照的各轴正/负向出力上限——ForceToCommand 的归一化与分配器求解共用
         /// 同一份上限，保证指令换算与求解目标严格一致。
         /// </summary>
         private static void MeasureAuthority(MassReport report,
@@ -331,10 +454,8 @@ namespace DeltaV
             for (int i = 0; i < report.thrusters.Count; i++)
             {
                 Thruster thruster = report.thrusters[i];
-                thruster.operational = ThrusterPower.IsOperational(thruster.thing);
                 if (!thruster.operational)
                 {
-                    thruster.throttle = 0f;
                     continue;
                 }
                 Vector2 fullForce = thruster.dir * ThrusterThrust;
@@ -345,7 +466,6 @@ namespace DeltaV
                 negativeZ += Mathf.Max(-fullForce.y, 0f);
                 positiveTorque += Mathf.Max(fullTorque, 0f);
                 negativeTorque += Mathf.Max(-fullTorque, 0f);
-                thruster.throttle = 0f;
             }
         }
 
@@ -362,6 +482,7 @@ namespace DeltaV
             {
                 return default;
             }
+            RefreshOperational(report);
             MeasureAuthority(report, out float positiveX, out float negativeX,
                 out float positiveZ, out float negativeZ, out float positiveTorque, out float negativeTorque);
             return new Command

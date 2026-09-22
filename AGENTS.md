@@ -394,7 +394,8 @@ Universe State 至少负责保存：
 
 纪律：
 
-- ShipAutopilot 是**纯自动驾驶算法**（固定航点 / 随动目标两类），不得与对接完成
+- ShipAutopilot 是**纯自动驾驶任务编排器**（固定航点 / 随动目标两类），控制律只经
+  `IAutopilotGuidance` 接入；两者均不得与对接完成
   语义耦合——对接完成判据是几何的（位姿窗口 + 保持 tick），不依赖自动驾驶信号。
 - 幽灵船是无图、只带船壳快照图的**派生渲染缓存**：不参与降落判定、拾取/聚焦、
   生命周期、星区记账与剪影扫描，无推进器火焰；不入 `universe.objects` 权威列表。
@@ -655,14 +656,14 @@ dev `ResetObjects` 在**同一 universe 实例**上换 objects，必须显式调
 
 ### Core/（数据与算法）
 - `OrbitSphere`：球面几何唯一入口（`Basis/Move/Offset/ArcCells/TileFromDirection`；按 PlanetLayer 参数化、缓存分键）。
-- `SpaceTransform`：全项目唯一坐标变换 API——2D 旋转/`WrapAngle`；Map⇄ship-local（`ShipLocalOrigin/MapToShipLocal/ShipLocalToMap`）；**停放锚区段**（`AdjustedCellToPlacementRoot`/`PlacementRootToAdjustedCell`/`PlacementAnchorRoot`/`ShipOriginFromPlacementRoot`/`GravshipBoundsCenterFromEngineRoot`/`BoundsCenterOfCells`，原版放置语义的唯一镜像）；速度换基 `TransportVelocity`（唯一入口）；ship-local⇄universe（`ShipLocalToUniverse/UniverseToShipLocal/UniverseToMapPoint/UniverseToDockedMapPoint`）；universe⇄focused（`UniverseToFocused/FocusedToUniverse/UniverseAngleToFocused`）；显示层投影（`FocusedDrawPosition/FocusedMeshRotation/UniverseWorldMarkerRotation/MarkerForwardWorld`）。
+- `SpaceTransform`：全项目唯一坐标变换 API——2D 旋转/`WrapAngle`；Map⇄ship-local（`ShipLocalOrigin/MapToShipLocal/ShipLocalToMap`）；**停放锚区段**（`AdjustedCellToPlacementRoot`/`PlacementRootToAdjustedCell`/`PlacementAnchorRoot`/`ShipOriginFromPlacementRoot`/`GravshipBoundsCenterFromEngineRoot`/`BoundsCenterOfCells`，原版放置语义的唯一镜像）；速度换基 `TransportVelocity` 与刚体局部点速度 `VelocityAtLocalPoint`（唯一入口）；ship-local⇄universe（`ShipLocalToUniverse/UniverseToShipLocal/UniverseToMapPoint/UniverseToDockedMapPoint`）；universe⇄focused（`UniverseToFocused/FocusedToUniverse/UniverseAngleToFocused`）；显示层投影（`FocusedDrawPosition/FocusedMeshRotation/UniverseWorldMarkerRotation/MarkerForwardWorld`）。
 - `UniverseManager`：`objects` 权威列表与 `RegisterObject/UnregisterObject`、`ObjectById/ShipById`、`AllocateOwnerId`（对象/归属共用唯一 ID 计数器）、专用宿主口袋图、`FrameOf/MapFrame`（图→帧对象解析）、`SetFocused`（聚焦切换唯一入口）、`ResetRuntimeServices`（读档/dev 重置共用清理）、tick/update 总装。
-- `ShipState/SpaceObject/PoiState/SpacePose`：宇宙状态（存档事实）；`SpaceObject.InteriorMap` 是当前内部图唯一语义。`ShipStructureResolver`：引擎、连通域、Thing 成员、停靠原点唯一查询。`ShipPhysics`：质量/惯量/联合分配器/积分（刚体动量管理唯一实现）。`SubstructureOwnership`：基架归属 MapComponent 与 `ClaimConnectedDomain` 唯一归属算法。`DeltaVSettings/DeltaVMod/DeltaVDefOf/DeltaVLog`。
+- `ShipState/SpaceObject/PoiState/SpacePose`：宇宙状态（存档事实）；`SpaceObject.InteriorMap` 是当前内部图唯一语义。`ShipStructureResolver`：引擎、连通域、Thing 成员、停靠原点唯一查询。`ShipPhysics`：质量/惯量/联合分配器/积分（刚体动量管理唯一实现）；`BuildControlModel` 只读预览与真实 `Allocate` 共用同一分配核心，只有 `Allocate` 写油门。`DenseAdmmQpSolver`：无游戏依赖的小型凸 QP 唯一实现。`SubstructureOwnership`：基架归属 MapComponent 与 `ClaimConnectedDomain` 唯一归属算法。`DeltaVSettings/DeltaVMod/DeltaVDefOf/DeltaVLog`。
 
 ### Interaction/（玩法流程）
 - `ShipModeService`：universe 独占、非序列化的模式互转流程状态与唯一模式编排入口——`TryDock → BeginOriginalLanding`、`CaptureShipForCompletion`、`TryLaunch/ExecuteLaunch`、`WriteDockedState`、战略离场委托；选点、移动起飞、战略离场和捕获窗口不再由静态字段表达。`GravshipInterop` 是空洞预览、原版私有字段、cutscene 压零与真实放置收尾的唯一镜像。
 - `LandingApproachController`：对接计划编排（**universe.`Approach` 实例服务**）——`DockingPlan` 状态对象（构造即完整，对外唯一事实源 `ActivePlan`）、`TryConsume`（原子发布）、`Tick`（守卫/位姿窗口/保持计数）、`CompleteDocking`（新鲜脚印复核→完成时刻冻结→真转移）、`CancelSelectionOrPlan`（选点/计划通用取消）。
-- `ShipAutopilot`：纯自动驾驶算法（**universe.`Autopilot` 实例服务**；`FlyTo` 固定航点 / `TrackTo` 随动目标+前馈+站位保持；tick 驱动；不耦合对接完成语义）。
+- `ShipAutopilot`：自动驾驶任务编排器（**universe.`Autopilot` 实例服务**；`FlyTo` 固定航点 / `TrackTo` 随动目标+前馈+站位保持；tick 驱动；不耦合对接完成语义）。制导算法唯一边界为 `IAutopilotGuidance`，当前 `OnlineMpcGuidance` 每 6 tick 求解六状态联合 MPC，`BrakingGuidanceFallback` 只在数值失败时按停止距离回退；不得把控制律重新散写进任务/对接调用方。
 - `PilotService`：universe 独占的手操驾驶 + 自动驾驶占用驾驶位（任意驾驶键直接打断接管）；`CanPlayerControl` 派系门禁。`PilotKeyBridge` 是 Harmony 按键快速通道的唯一可变 static 例外。
 - `BoardingPodFlight`：跳帮舱（**universe.`BoardingPods` 实例服务**；tick 驱动纯追踪、命中开孔、密封舱落位、乘员投放；自包含，非通用弹道系统）。
 - `MobileShipBootstrap`（固定船 bootstrap 认领）、`Designator_ReassignSubstructure`（修改基架归属命令）。

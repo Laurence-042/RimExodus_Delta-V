@@ -9,14 +9,15 @@ namespace DeltaV
     /// <summary>
     /// 轨道层通用自动驾驶（纯算法，2026-09-21 阶段4 定案：与对接完成语义解耦）：把船
     /// 自动驾驶到目标位姿，两类目标——
-    /// - 固定航点（FlyTo）：球面方向 + 宇宙角，到达（收敛或超时兜底）后精确对位并发
-    ///   完成信号；未来巡航/舰船 AI 用；
-    /// - 随动目标（TrackTo）：宿主 SpaceObject ⊕ 局部偏移 + 相对转角，每帧随宿主位姿
+    /// - 固定航点（FlyTo）：球面方向 + 宇宙角，物理收敛后精确对位并发完成信号；
+    ///   超时/无进展只失败、不瞬移；未来巡航/舰船 AI 用；
+    /// - 随动目标（TrackTo）：宿主 SpaceObject ⊕ 局部偏移 + 相对转角，每 tick 随宿主位姿
     ///   重算；宿主速度/角速度经**前馈匹配**（阻尼项取相对速度/相对角速度），到位后
     ///   **站位保持**直到取消——不自动到达、无超时兜底、无完成回调。完成判据归调用方
     ///   （对接计划 = 几何窗口 + 保持 tick），本类不感知对接。
     ///
-    /// 出力架构（刚体动量管理）：制导回路（临界阻尼 PD）只产生期望力/力矩，
+    /// 出力架构（刚体动量管理）：可替换 IAutopilotGuidance 制导器当前使用 10 Hz
+    /// 六状态在线 MPC，只产生期望力/力矩；
     /// 经 ShipPhysics.ForceToCommand 归一化后由联合分配器 Allocate 求解**真实**
     /// 逐推进器油门与可达力/力矩，积分使用可达值——机动受推进器布局硬约束，
     /// 玩家船/敌舰/未来舰船 AI 完全同构，火焰表现层读到的油门即真实出力。
@@ -56,32 +57,33 @@ namespace DeltaV
             public bool allowVoidThrust;
             public Action onArrived;
             public Action onFailed;
+            public readonly IAutopilotGuidance guidance = new OnlineMpcGuidance();
+            public readonly double[] controlAcceleration = new double[9];
+            public readonly ShipPhysics.ControlModel controlModel = new ShipPhysics.ControlModel();
+            public GuidanceCommand heldCommand;
+            public bool hasCommand;
+            public int ticksUntilSolve;
+            public AutopilotMpcProfile profile;
+            public float bestError = float.PositiveInfinity;
+            public int noProgressTicks;
+            public bool failureLogged;
         }
 
         private readonly Dictionary<ShipState, Flight> active = new Dictionary<ShipState, Flight>();
 
         private readonly List<ShipState> tmpShips = new List<ShipState>();
 
-        // ---- PD 参数（制导回路：只产生期望力/力矩；实际出力上限由分配器按推进器
-        //      布局决定，MaxAccel/MaxAngularAccel 仅作为期望值的饱和保护）----
+        private AutopilotMpcProfile profile = AutopilotMpcProfile.Balanced;
 
-        /// <summary>平移自然频率（rad/s)；临界阻尼下约 2.5–3 s 收敛。</summary>
-        private const float PositionOmega = 1.6f;
+        internal AutopilotMpcProfile Profile => profile;
 
-        /// <summary>平移期望加速度上限（cells/s²)；参考船推进器实测约 2.2。</summary>
-        private const float MaxAccel = 4f;
+        internal AutopilotMpcProfile CycleProfile()
+        {
+            profile = (AutopilotMpcProfile)(((int)profile + 1) % 3);
+            return profile;
+        }
 
-        /// <summary>旋转自然频率（rad/s）。</summary>
-        private const float AngleOmega = 1.8f;
-
-        /// <summary>角期望加速度上限（rad/s²）。</summary>
-        private const float MaxAngularAccel = 0.6f;
-
-        /// <summary>吸附半径（格）：进入后放大位置弹簧，保证有限时间收敛。</summary>
-        private const float SnapRadius = 1.5f;
-
-        /// <summary>吸附弹簧倍率。</summary>
-        private const float SnapGain = 4f;
+        private const int GuidancePeriodTicks = 6; // 10 Hz；积分仍为 60 Hz。
 
         /// <summary>虚空动力渐变半径（格）：外沿起效、进入吸附圈补满——只在停靠任务
         /// （allowVoidThrust）中补齐推进器布局无法形成的「期望 − 可达」差值，
@@ -93,13 +95,13 @@ namespace DeltaV
         private const float ArriveAngleEpsilon = 0.01f;    // rad
         private const float ArriveOmegaEpsilon = 0.03f;    // rad/s
 
-        /// <summary>固定航点模式的超时兜底（tick）：无论如何强制对位并视为到达。
-        /// 随动模式无超时（完成判据归调用方）。</summary>
-        private const int MaxFlightTicks = 1200;
+        /// <summary>固定航点最长 120 秒；超时/连续 10 秒无进展走失败，不再瞬移。</summary>
+        private const int MaxFlightTicks = 7200;
+        private const int MaxNoProgressTicks = 600;
 
         /// <summary>
-        /// 把船自动驾驶到轨道坐标（球面方向 direction，宇宙角 angle）。到达（收敛或
-        /// 超时）时精确对位（pose := 目标、速度清零）并回调 onArrived；ship.map 失效
+        /// 把船自动驾驶到轨道坐标（球面方向 direction，宇宙角 angle）。物理收敛到
+        /// 容差时精确对位（pose := 目标、速度清零）并回调 onArrived；超时/无进展或 ship.map 失效
         /// 等异常按 onFailed 退出。重复登记同一艘船会覆盖旧任务（旧任务静默作废）。
         /// allowVoidThrust：停靠任务传 true，终段叠加虚空动力保证任意布局精确对接；
         /// 非停靠用途（未来敌舰巡航/战斗）传 false，获得纯真实动力。
@@ -114,7 +116,7 @@ namespace DeltaV
             }
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"autopilot waypoint engaged: {ship.label} -> ({targetDirection.x:F2},{targetDirection.y:F2},{targetDirection.z:F2}) angle={targetAngle * Mathf.Rad2Deg:F0} deg voidThrust={allowVoidThrust}");
-            active[ship] = new Flight
+            var flight = new Flight
             {
                 tracked = false,
                 direction = targetDirection.normalized,
@@ -124,11 +126,15 @@ namespace DeltaV
                 onArrived = onArrived,
                 onFailed = onFailed,
             };
+            flight.profile = profile;
+            flight.guidance.Reset(flight.profile);
+            active[ship] = flight;
         }
 
         /// <summary>
         /// 随动目标模式：把船持续对位到「宿主对象位姿 ⊕ 局部偏移」（宇宙角 = 宿主角 ⊕
-        /// relativeAngle）的**移动**位姿上——目标每帧随宿主重算，宿主速度/角速度经前馈
+        /// relativeAngle）的**移动**位姿上——目标每 tick 随宿主重算，宿主落点线速度
+        /// （含 ω×offset）/角速度经前馈
         /// 匹配（阻尼项取相对量），收敛后站位保持直到取消。不自动到达、无超时兜底、
         /// 无完成回调：完成判据归调用方（对接计划 = 几何窗口 + 保持 tick）。宿主失效按
         /// onFailed 退出（计划是否随之取消由调用方决定）。
@@ -143,7 +149,7 @@ namespace DeltaV
             }
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"autopilot track engaged: {ship.label} -> '{host.label}' offset=({hostOffset.x:F0},{hostOffset.y:F0}) relAngle={SpaceTransform.WrapAngle(relativeAngle) * Mathf.Rad2Deg:F0} deg voidThrust={allowVoidThrust}");
-            active[ship] = new Flight
+            var flight = new Flight
             {
                 tracked = true,
                 host = host,
@@ -153,6 +159,9 @@ namespace DeltaV
                 allowVoidThrust = allowVoidThrust,
                 onFailed = onFailed,
             };
+            flight.profile = profile;
+            flight.guidance.Reset(flight.profile);
+            active[ship] = flight;
         }
 
         /// <summary>
@@ -220,19 +229,12 @@ namespace DeltaV
 
             const float dt = 1f / 60f; // 游戏 tick 时间；绝不使用帧时钟（AGENTS §18 #20）
             flight.elapsed += 1;
-            if (!flight.tracked && flight.elapsed > MaxFlightTicks)
-            {
-                Arrive(ship, flight); // 超时兜底仅固定航点模式；随动模式由调用方判完成
-                return;
-            }
-
             ShipPhysics.MassReport report = ShipPhysics.GetReport(ship);
             if (report == null) return;
 
             // 目标位姿与宿主前馈：误差/速度统一表达在目标锚点的切空间基下（球面几何
-            // 唯一入口 OrbitSphere）。随动模式的「速度」是相对宿主的量——宿主速度
-            // 平行输运到目标基后作差，PD 阻尼项即天然完成速度匹配（一阶预测：宿主
-            // 机动由 PD 重新收敛，不需要高阶前馈）。
+            // 唯一入口 OrbitSphere）。随动模式取宿主刚体目标点速度（含 ω×offset），
+            // MPC 在 0.1 s 后重新观测；预测期内按恒速/恒角速度目标处理。
             Vector3 targetDirection;
             float targetAngle;
             Vector2 hostVelocity = Vector2.zero;
@@ -241,7 +243,8 @@ namespace DeltaV
             {
                 targetDirection = SpaceTransform.FocusedToUniverse(flight.host, flight.hostOffset);
                 targetAngle = SpaceTransform.WrapAngle(flight.host.pose.angle + flight.relativeAngle);
-                hostVelocity = SpaceTransform.TransportVelocity(flight.host.pose, targetDirection);
+                hostVelocity = SpaceTransform.VelocityAtLocalPoint(
+                    flight.host.pose, flight.hostOffset, targetDirection);
                 hostOmega = flight.host.pose.angularVelocity;
             }
             else
@@ -264,20 +267,78 @@ namespace DeltaV
                 return;
             }
 
-            // 临界阻尼 PD + 近距吸附（制导回路：只产生期望力/力矩）。
-            float gain = PositionOmega * PositionOmega;
-            if (posErr.magnitude < SnapRadius) gain *= SnapGain;
-            Vector2 accel = gain * posErr - 2f * PositionOmega * vel;
-            if (accel.magnitude > MaxAccel) accel = accel.normalized * MaxAccel;
-            float alpha = Mathf.Clamp(AngleOmega * AngleOmega * angleErr - 2f * AngleOmega * omega,
-                -MaxAngularAccel, MaxAngularAccel);
+            if (!flight.tracked)
+            {
+                float progressMetric = posErr.magnitude + Mathf.Abs(angleErr) * 10f;
+                if (progressMetric + 0.05f < flight.bestError)
+                {
+                    flight.bestError = progressMetric;
+                    flight.noProgressTicks = 0;
+                }
+                else
+                {
+                    flight.noProgressTicks++;
+                }
+                if (flight.elapsed > MaxFlightTicks || flight.noProgressTicks > MaxNoProgressTicks)
+                {
+                    Fail(ship, flight, "waypoint timeout/no progress");
+                    return;
+                }
+            }
+
+            float voidBlend = flight.allowVoidThrust
+                ? 1f - Mathf.Clamp01(posErr.magnitude / VoidRampRadius)
+                : 0f;
+            if (flight.profile != profile)
+            {
+                flight.profile = profile;
+                flight.guidance.Reset(flight.profile);
+                flight.ticksUntilSolve = 0;
+                flight.hasCommand = false;
+            }
+            if (!flight.hasCommand || flight.ticksUntilSolve <= 0)
+            {
+                ShipPhysics.ControlModel controlModel = ShipPhysics.BuildControlModel(report, flight.controlModel);
+                BuildControlAcceleration(ship, controlModel, voidBlend, flight.controlAcceleration);
+                var request = new GuidanceRequest
+                {
+                    positionError = posErr,
+                    relativeVelocity = vel,
+                    angleError = angleErr,
+                    relativeAngularVelocity = omega,
+                    dt = GuidancePeriodTicks / 60f,
+                    voidBlend = voidBlend,
+                    previousX = flight.hasCommand ? flight.heldCommand.normalizedX : 0.0,
+                    previousZ = flight.hasCommand ? flight.heldCommand.normalizedZ : 0.0,
+                    previousAngular = flight.hasCommand ? flight.heldCommand.normalizedAngular : 0.0,
+                    controlModel = controlModel,
+                    controlAcceleration = flight.controlAcceleration
+                };
+                bool solved = flight.guidance.Compute(request, out flight.heldCommand);
+                flight.hasCommand = true;
+                flight.ticksUntilSolve = GuidancePeriodTicks;
+                AutopilotMpcDiagnostics.Record(flight.heldCommand);
+                if (!solved && !flight.failureLogged)
+                {
+                    flight.failureLogged = true;
+                    Log.Warning($"[DeltaV] MPC solve degraded; braking fallback active for '{ship.label}' "
+                        + $"(primal={flight.heldCommand.primalResidual:F3}, dual={flight.heldCommand.dualResidual:F3}).");
+                }
+                else if (solved && flight.failureLogged)
+                {
+                    flight.failureLogged = false;
+                    DeltaVLog.Message(DeltaVLogModule.Core,
+                        $"MPC solve recovered: {ship.label}");
+                }
+            }
+            flight.ticksUntilSolve--;
 
             // 刚体动量管理：期望力/力矩经归一化后由联合分配器求真实油门与可达出力，
             // 积分使用可达值——机动受推进器布局硬约束（玩家船/敌舰同构），火焰
             // 表现层读到的油门即真实出力。目标锚点系与船锚点系的切空间基在战术
             // 距离下夹角可忽略（≤1°），按船局部系直喂。
-            Vector2 desiredForce = SpaceTransform.RotateInverse(accel, ship.pose.angle) * report.mass;
-            float desiredTorque = alpha * report.inertia;
+            Vector2 desiredForce = flight.heldCommand.desiredLocalForce;
+            float desiredTorque = flight.heldCommand.desiredTorque;
             ShipPhysics.Command command = ShipPhysics.ForceToCommand(report, desiredForce, desiredTorque);
             ShipPhysics.Allocate(report, command, out Vector2 realForce, out float realTorque);
 
@@ -287,11 +348,41 @@ namespace DeltaV
             float appliedTorque = realTorque;
             if (flight.allowVoidThrust)
             {
-                float blend = 1f - Mathf.Clamp01(posErr.magnitude / VoidRampRadius);
-                appliedForce += (desiredForce - realForce) * blend;
-                appliedTorque += (desiredTorque - realTorque) * blend;
+                appliedForce += (desiredForce - realForce) * voidBlend;
+                appliedTorque += (desiredTorque - realTorque) * voidBlend;
             }
             ShipPhysics.Integrate(ship, report, appliedForce, appliedTorque, dt, false, false, false);
+        }
+
+        private static void BuildControlAcceleration(ShipState ship, ShipPhysics.ControlModel model,
+            float voidBlend, double[] result)
+        {
+            Array.Clear(result, 0, result.Length);
+            if (model == null || model.mass <= 1e-6f || model.inertia <= 1e-6f) return;
+            float desiredX = (model.positiveX + model.negativeX) * 0.5f;
+            float desiredZ = (model.positiveZ + model.negativeZ) * 0.5f;
+            float desiredMoment = (model.positiveTorque + model.negativeTorque) * 0.5f;
+            for (int axis = 0; axis < 3; axis++)
+            {
+                Vector2 desiredForce = axis == 0
+                    ? new Vector2(desiredX, 0f)
+                    : (axis == 1 ? new Vector2(0f, desiredZ) : Vector2.zero);
+                float desiredTorque = axis == 2 ? desiredMoment : 0f;
+                Vector2 appliedForce = Vector2.Lerp(model.forceColumns[axis], desiredForce, voidBlend);
+                float appliedTorque = Mathf.Lerp(model.torqueColumns[axis], desiredTorque, voidBlend);
+                Vector2 targetFrameAcceleration = SpaceTransform.Rotate(appliedForce / model.mass, ship.pose.angle);
+                result[axis] = targetFrameAcceleration.x;
+                result[3 + axis] = targetFrameAcceleration.y;
+                result[6 + axis] = appliedTorque / model.inertia;
+            }
+        }
+
+        private void Fail(ShipState ship, Flight flight, string reason)
+        {
+            active.Remove(ship);
+            ShipPhysics.ClearThrottles(ship);
+            DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot failed ({reason}): {ship.label}");
+            flight.onFailed?.Invoke();
         }
 
         private void Arrive(ShipState ship, Flight flight)
