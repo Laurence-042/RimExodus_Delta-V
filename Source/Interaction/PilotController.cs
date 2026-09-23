@@ -6,6 +6,13 @@ using Verse;
 
 namespace DeltaV
 {
+    public enum ShipControlState : byte
+    {
+        Uncontrolled,
+        Manual,
+        Autopilot
+    }
+
     /// <summary>
     /// 阶段2 驾驶交互（权威设计见 doc/阶段2-基础驾驶.md）。
     ///
@@ -23,6 +30,7 @@ namespace DeltaV
     {
         private readonly UniverseManager universe;
         private readonly HashSet<KeyBindingDef> loggedSuppressedDefs = new HashSet<KeyBindingDef>();
+        private int autopilotInputShipId = -1;
 
         public long SuppressedReads { get; private set; }
 
@@ -53,7 +61,33 @@ namespace DeltaV
             return universe.ShipById(universe.pilotShipId);
         }
 
-        public void Toggle(UniverseManager universe)
+        public ShipControlState GetControlState(ShipState ship)
+        {
+            if (ship == null) return ShipControlState.Uncontrolled;
+            if (universe.Autopilot.IsActive(ship)) return ShipControlState.Autopilot;
+            return universe.pilotShipId == ship.objectId
+                ? ShipControlState.Manual
+                : ShipControlState.Uncontrolled;
+        }
+
+        public bool IsPlayerInputArmed(ShipState ship)
+        {
+            ShipControlState state = GetControlState(ship);
+            return state == ShipControlState.Manual
+                || state == ShipControlState.Autopilot && autopilotInputShipId == ship.objectId;
+        }
+
+        public void ArmAutopilotInput(ShipState ship)
+        {
+            autopilotInputShipId = ship?.objectId ?? -1;
+        }
+
+        public void DisarmAutopilotInput(ShipState ship = null)
+        {
+            if (ship == null || autopilotInputShipId == ship.objectId) autopilotInputShipId = -1;
+        }
+
+        public void ToggleControl(UniverseManager universe)
         {
             ShipState focused = universe.ShipOnMap(Find.CurrentMap);
             if (focused == null)
@@ -61,13 +95,24 @@ namespace DeltaV
                 Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            if (focused.docked)
+            if (focused.IsDocked)
             {
-                // 停靠中的船没有可驾驶的船体（真实建筑在降落图）；起飞入口见 ShipModeService。
+                // 已停靠船没有可手操的独立刚体；自由飞行入口见 ShipFlightTransitionService。
                 Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            if (universe.pilotShipId == focused.objectId)
+            ShipControlState state = GetControlState(focused);
+            if (state == ShipControlState.Autopilot)
+            {
+                if (IsPlayerInputArmed(focused)) DisarmAutopilotInput(focused);
+                else ArmAutopilotInput(focused);
+            }
+            else if (state == ShipControlState.Manual
+                && universe.Approach.ActivePlan?.ship == focused)
+            {
+                universe.Approach.EngageAutopilot(universe);
+            }
+            else if (state == ShipControlState.Manual)
             {
                 Exit(universe, "DeltaV_PilotOff".Translate(focused.label));
             }
@@ -77,7 +122,8 @@ namespace DeltaV
                 // 保留双船对等测试工作流）。
                 Messages.Message("DeltaV_PilotWrongFaction".Translate(focused.label), MessageTypeDefOf.RejectInput, false);
             }
-            else if (focused.docking && !ReferenceEquals(focused, universe.Approach.ApproachShip))
+            else if (universe.ShipTransitions.IsDockingFlowShip(focused)
+                && !ReferenceEquals(focused, universe.Approach.ApproachShip))
             {
                 // 选点中的船不可驾驶（计划船除外——手操打断自动驾驶但不取消计划）。
                 Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
@@ -97,8 +143,9 @@ namespace DeltaV
 
         public void Enter(UniverseManager universe, ShipState ship)
         {
-            if (universe == null || ship?.map == null || ship.docked) return;
-            if (ship.docking && !ReferenceEquals(ship, universe.Approach.ApproachShip)) return;
+            if (universe == null || ship?.map == null || ship.IsDocked) return;
+            if (universe.ShipTransitions.IsDockingFlowShip(ship)
+                && !ReferenceEquals(ship, universe.Approach.ApproachShip)) return;
             if (!CanPlayerControl(ship)) return;
             // 手操打断自动驾驶（不取消对接计划——完成判据是几何的，手飞到位照样对接）。
             if (universe.Autopilot.IsActive(ship))
@@ -108,6 +155,7 @@ namespace DeltaV
                     $"autopilot interrupted by manual input: {ship.label} (pilot mode engaged)");
                 Messages.Message("DeltaV_DockAutopilotStopped".Translate(), MessageTypeDefOf.NeutralEvent, false);
             }
+            DisarmAutopilotInput(ship);
             universe.pilotShipId = ship.objectId;
             RebuildPilotKeySet();
             Log.Message($"[DeltaV] Pilot mode engaged: {ship.label} (#{ship.objectId}). Pilot keys: [{string.Join(", ", PilotKeyBridge.ActiveKeys)}].");
@@ -139,11 +187,12 @@ namespace DeltaV
         public void UpdateFrameState(UniverseManager universe)
         {
             ShipState piloted = PilotedShip(universe);
-            ShipState autopilotShip = universe.Approach.AutopilotEngaged(universe)
-                ? universe.Approach.ActivePlan?.ship
+            ShipState focusedShip = universe.ShipOnMap(Find.CurrentMap);
+            ShipState autopilotShip = focusedShip != null && universe.Autopilot.IsActive(focusedShip)
+                ? focusedShip
                 : null;
             bool focusOnAutopilotShip = autopilotShip != null && autopilotShip.map != null
-                && Find.CurrentMap == autopilotShip.map;
+                && Find.CurrentMap == autopilotShip.map && IsPlayerInputArmed(autopilotShip);
 
             if (piloted?.map == null)
             {

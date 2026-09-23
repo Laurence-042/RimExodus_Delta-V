@@ -7,10 +7,10 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 把普通地图上新建的原版 Gravship 接入 Delta-V 移动模式。地面控制台仍显示入口，
+    /// 把普通地图上新建的原版 Gravship 接入 Delta-V 自由飞行。地面控制台仍显示入口，
     /// 但只给出重力环境说明；Orbit Layer 才允许把真实结构搬入独立飞行口袋图。
     /// </summary>
-    public static class MobileShipBootstrap
+    public static class FreeFlightBootstrap
     {
         public static bool IsZeroGravity(Map map)
         {
@@ -19,7 +19,7 @@ namespace DeltaV
 
         /// <summary>
         /// 图上全部玩家驾驶台（含未 bootstrap 的原版 Gravship 结构）。面板用它判断
-        /// 固定模式入口：唯一驾驶台可直接进入移动模式；多艘船必须选中具体驾驶台
+        /// 已停靠飞船入口：唯一驾驶台可直接开始自由飞行；多艘船必须选中具体驾驶台
         /// （按其连接的引擎与相连基架连通域捕获准确船体，不能任选一台）。
         /// </summary>
         public static List<Building> PlayerConsoles(Map map)
@@ -72,18 +72,16 @@ namespace DeltaV
             }
             Vector2 structureCenter = SpaceTransform.BoundsCenterOfCells(engine.AllConnectedSubstructure);
 
-            // 任意真实轨道图都能 bootstrap：宇宙坐标是球面绝对坐标，源图 tile 帧只是
-            // 把"图内结构中心"接到球面方向的纯函数，不需要 Universe 预先存在任何锚。
+            // 任意真实轨道图都能 bootstrap：它和口袋图一样由 SpaceObject 承载。
             // 原版逆重飞船发射到任意 POI/orbit 图后起飞因此天然可用（该图只是普通来源图）。
             SpaceObject sourceFrame = universe.FrameOf(sourceMap);
             if (sourceFrame == null)
             {
-                Log.Error($"[DeltaV] Bootstrap on '{sourceMap.Parent?.Label}': no tile frame for a valid space map.");
+                Log.Error($"[DeltaV] Bootstrap on '{sourceMap.Parent?.Label}': no SpaceObject for a valid orbital map.");
                 return;
             }
 
-            Vector2 sourceLocal = SpaceTransform.MapToShipLocal(sourceMap, structureCenter);
-            Vector3 universeDir = SpaceTransform.FocusedToUniverse(sourceFrame, sourceLocal);
+            Vector3 universeDir = SpaceTransform.MapPointToUniverse(sourceFrame, sourceMap, structureCenter);
             // 驾驶台 = 身份锚点（2026-09-20 设计）：船 ID 一律取点击台的持久身份
             //（已有 → 本结构 ShipState → 本格域认领 → 统一计数器新领，见
             // CompDeltaVPilotConsole.ShipIdentityId）。捕获域重盖章为该 ID——剪影、
@@ -99,12 +97,11 @@ namespace DeltaV
             // 真实轨道图的显示帧角恒 0，此收口为约定统一）。
             var ship = new ShipState(shipId, shipLabel, null,
                 new SpacePose(universeDir, SpaceTransform.WrapAngle(sourceFrame.pose.angle
-                    + ShipOrientation.AngleFromRot4(console.Rotation))),
-                isPlayerShip: true)
+                    + ShipOrientation.AngleFromRot4(console.Rotation))))
             {
                 faction = Faction.OfPlayer,
                 primaryConsole = console,
-                docked = true,
+                flightState = ShipFlightState.Docked,
                 dockedMap = sourceMap,
                 dockedOrigin = structureCenter,
                 dockedRotation = Rot4.North
@@ -115,9 +112,9 @@ namespace DeltaV
                 universe.primaryShipId = ship.objectId;
             }
             HostColonistBarVisibility.NotifyDockingStateChanged();
-            // 驾驶台只负责明确选择“哪一艘”离开共享地图进入移动模式。
+            // 驾驶台只负责明确选择“哪一艘”脱离停靠开始自由飞行。
             // 生成口袋图后保持未驾驶；玩家再通过该独占地图的 HUD 启用控制。
-            universe.ShipModes.TryLaunch(universe, ship);
+            universe.ShipTransitions.BeginFreeFlight(universe, ship);
         }
     }
 }

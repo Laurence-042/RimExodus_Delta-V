@@ -8,7 +8,7 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 左侧信息面板（星区架构 §11.1）：固定模式、驾驶模式等按钮全部收进的**单一**面板，
+    /// 左侧信息面板（星区架构 §11.1）：飞行状态、控制状态与操作收口的单一面板，
     /// 高度完全随内容自适应（不滚动）；内嵌**可缩放星球仪**（PlanetGlobeRenderer）——
     /// 星区地图即星球仪连续缩放（§12.2 定稿）：滑条/滚轮拉近逐层显示星区网格、对象
     /// 图标与距离标注，图标可悬停/点击聚焦。显示条件：聚焦图属 Delta-V 语境
@@ -34,7 +34,7 @@ namespace DeltaV
             {
                 consoleScanMap = map;
                 consoleScanTick = Find.TickManager.TicksGame;
-                consoleScanResult = MobileShipBootstrap.PlayerConsoles(map);
+                consoleScanResult = FreeFlightBootstrap.PlayerConsoles(map);
             }
             return consoleScanResult;
         }
@@ -46,42 +46,39 @@ namespace DeltaV
             SpaceObject frame = universe.FrameOf(map);
             if (frame == null) return;
 
-            ShipState mobileShip = universe.ShipOnMap(map);
-            if (mobileShip != null && mobileShip.docked) mobileShip = null;
-            // 「对接计划」语义唯一来源是 ActivePlan（null = 无计划或到达重放期，非空 ⇒
-            // 全字段有效）；不从 ship.docking 等标志推断（选点中的船 docking 但无计划）。
+            ShipState freeFlightShip = universe.ShipOnMap(map);
+            if (freeFlightShip != null && freeFlightShip.IsDocked) freeFlightShip = null;
             LandingApproachController.DockingPlan plan = universe.Approach.ActivePlan;
-            if (mobileShip != null && mobileShip.docking && plan?.ship != mobileShip)
+            if (freeFlightShip != null && universe.ShipTransitions.IsDockingFlowShip(freeFlightShip)
+                && plan?.ship != freeFlightShip)
             {
-                mobileShip = null; // 选点/到达重放中的船：不显示移动 HUD
+                freeFlightShip = null;
             }
-            ShipState dockedShip = mobileShip == null
-                ? universe.Ships.FirstOrDefault(s => s.docked && !s.docking && s.dockedMap == map)
+            ShipState dockedShip = freeFlightShip == null
+                ? universe.Ships.FirstOrDefault(s => s.IsDocked && s.dockedMap == map)
                 : null;
-            // 计划 UI（计划船聚焦时）：状态行 + 自动驾驶开关 + 取消。
-            bool dockingPlan = plan != null && plan.ship == mobileShip;
-            // 控制权门禁（阶段4）：驾驶/模式按钮限玩家方（dev 放行）。
-            bool playerControlled = mobileShip == null || universe.Pilot.CanPlayerControl(mobileShip);
+            bool dockingPlan = plan != null && plan.ship == freeFlightShip;
+            bool playerControlled = freeFlightShip == null || universe.Pilot.CanPlayerControl(freeFlightShip);
 
-            // 固定模式 → 移动模式入口的另一形态：未 bootstrap 的原版 Gravship（首次降落/
+            // 已停靠 → 自由飞行入口的另一形态：未 bootstrap 的原版 Gravship（首次降落/
             // 发射到达时还没有 ShipState）。唯一驾驶台可直接从面板进入；多艘船必须选中
             // 具体驾驶台（按其连接的引擎与 ValidSubstructure 捕获准确船体）。
-            List<Building> consoles = dockedShip != null || mobileShip != null ? EmptyConsoles : ConsolesOn(map);
+            List<Building> consoles = dockedShip != null || freeFlightShip != null ? EmptyConsoles : ConsolesOn(map);
             bool bootstrapEntry = consoles.Count == 1;
             bool multiShipAmbiguous = consoles.Count > 1;
 
             string title;
-            if (mobileShip != null)
+            if (freeFlightShip != null)
             {
-                title = "DeltaV_MobileHudTitle".Translate(mobileShip.label);
+                title = "DeltaV_ShipPanelTitle".Translate(freeFlightShip.label);
             }
             else if (dockedShip != null)
             {
-                title = "DeltaV_PanelDockedTitle".Translate(dockedShip.label);
+                title = "DeltaV_ShipPanelTitle".Translate(dockedShip.label);
             }
             else if (bootstrapEntry || multiShipAmbiguous)
             {
-                title = "DeltaV_PanelFixedTitle".Translate();
+                title = "DeltaV_DockedAreaTitle".Translate();
             }
             else
             {
@@ -89,18 +86,23 @@ namespace DeltaV
             }
 
             // ---- 内容行（先备好文本，再按真实高度布局：面板高度随内容变化）----
-            bool piloting = mobileShip != null && universe.pilotShipId == mobileShip.objectId;
             var statusLines = new System.Collections.Generic.List<string>();
-            if (mobileShip != null)
+            ShipControlState controlState = universe.Pilot.GetControlState(freeFlightShip);
+            if (freeFlightShip != null)
             {
-                ShipPhysics.MassReport report = ShipPhysics.GetReport(mobileShip);
-                statusLines.Add("DeltaV_HudControl".Translate(
-                    piloting ? "DeltaV_ControlPiloting".Translate() : "DeltaV_ControlInactive".Translate()));
-                statusLines.Add("DeltaV_HudSpeed".Translate(mobileShip.pose.velocity.magnitude.ToString("F1")));
+                ShipPhysics.MassReport report = ShipPhysics.GetReport(freeFlightShip);
+                string controlLabel = controlState == ShipControlState.Autopilot
+                    ? "DeltaV_ControlAutopilot".Translate()
+                    : controlState == ShipControlState.Manual
+                        ? "DeltaV_ControlManual".Translate()
+                        : "DeltaV_ControlUncontrolled".Translate();
+                statusLines.Add("DeltaV_PanelFlightState".Translate("DeltaV_FlightStateFree".Translate()));
+                statusLines.Add("DeltaV_HudControl".Translate(controlLabel));
+                statusLines.Add("DeltaV_HudSpeed".Translate(freeFlightShip.pose.velocity.magnitude.ToString("F1")));
                 statusLines.Add("DeltaV_HudHeading".Translate(
-                    (ShipOrientation.HeadingAngle(mobileShip) * Mathf.Rad2Deg).ToString("F0")));
+                    (ShipOrientation.HeadingAngle(freeFlightShip) * Mathf.Rad2Deg).ToString("F0")));
                 statusLines.Add("DeltaV_HudTurnRate".Translate(
-                    (mobileShip.pose.angularVelocity * Mathf.Rad2Deg).ToString("F1")));
+                    (freeFlightShip.pose.angularVelocity * Mathf.Rad2Deg).ToString("F1")));
                 statusLines.Add("DeltaV_HudMass".Translate(report == null ? "?" : ((int)report.mass).ToString()));
                 bool brakeHeld = DeltaVDefOf.DeltaV_AssistBrake != null && DeltaVDefOf.DeltaV_AssistBrake.IsDown;
                 statusLines.Add("DeltaV_HudAssist".Translate(
@@ -110,17 +112,14 @@ namespace DeltaV
                             ? "DeltaV_On".Translate()
                             : "DeltaV_Off".Translate())));
             }
-            else
+            else if (dockedShip != null || bootstrapEntry || multiShipAmbiguous)
             {
-                statusLines.Add("DeltaV_PanelModeFixed".Translate());
+                statusLines.Add("DeltaV_PanelFlightState".Translate("DeltaV_FlightStateDocked".Translate()));
             }
             if (dockingPlan)
             {
                 statusLines.Add("DeltaV_DockPlanStatus".Translate(
                     plan.host.label, ((int)plan.Distance()).ToString()));
-                statusLines.Add(universe.Approach.AutopilotEngaged(universe)
-                    ? "DeltaV_DockPlanAutopilotOn".Translate()
-                    : "DeltaV_DockPlanAutopilotOff".Translate());
             }
 
             Text.Font = GameFont.Small;
@@ -134,10 +133,8 @@ namespace DeltaV
             }
 
             // 高度完全随内容自适应（不滚动）：星球仪 + 缩放滑条 + 标题/状态行 + 当前模式的按钮行数。
-            float modeButtonsHeight = mobileShip != null
-                ? (dockingPlan
-                    ? (playerControlled ? 27f + 6f : 0f) + 27f + 6f + 27f + 8f
-                    : (playerControlled ? 27f + 6f + 27f + 8f : 0f))
+            float modeButtonsHeight = freeFlightShip != null
+                ? (playerControlled ? 27f + 6f : 0f) + (dockingPlan || playerControlled ? 27f + 8f : 0f)
                 : (dockedShip != null || bootstrapEntry || multiShipAmbiguous) ? 27f + 6f : 0f;
             float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + modeButtonsHeight;
             const float sliderRowHeight = 30f;
@@ -177,37 +174,23 @@ namespace DeltaV
             lineY += 8f;
 
             // 模式按钮全部收进面板（不再分开放）。
-            if (mobileShip != null)
+            if (freeFlightShip != null)
             {
                 if (playerControlled)
                 {
-                    string pilotButton = piloting
-                        ? "DeltaV_PilotButtonExit".Translate()
-                        : "DeltaV_PilotButtonEnter".Translate();
+                    string pilotButton = controlState == ShipControlState.Manual && dockingPlan
+                        ? "DeltaV_ControlSwitchAutopilot".Translate()
+                        : universe.Pilot.IsPlayerInputArmed(freeFlightShip)
+                            ? "DeltaV_PilotButtonExit".Translate()
+                            : "DeltaV_PilotButtonEnter".Translate();
                     if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), pilotButton))
                     {
-                        universe.Pilot.Toggle(universe);
+                        universe.Pilot.ToggleControl(universe);
                     }
                     lineY += 27f + 6f;
                 }
                 if (dockingPlan)
                 {
-                    // 计划期：自动驾驶开关（手操打断后可重新挂上）+ 取消对接。
-                    string autopilotButton = universe.Approach.AutopilotEngaged(universe)
-                        ? "DeltaV_DockAutopilotStopButton".Translate()
-                        : "DeltaV_DockAutopilotResumeButton".Translate();
-                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), autopilotButton))
-                    {
-                        if (universe.Approach.AutopilotEngaged(universe))
-                        {
-                            universe.Autopilot.Cancel(mobileShip);
-                        }
-                        else
-                        {
-                            universe.Approach.EngageAutopilot(universe);
-                        }
-                    }
-                    lineY += 27f + 6f;
                     if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_DockCancelButton".Translate()))
                     {
                         universe.Approach.CancelSelectionOrPlan(universe, "user");
@@ -216,9 +199,9 @@ namespace DeltaV
                 }
                 else if (playerControlled)
                 {
-                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_FixedButtonEnter".Translate()))
+                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginDockingButton".Translate()))
                     {
-                        universe.ShipModes.TryDock(mobileShip);
+                        universe.ShipTransitions.BeginDocking(freeFlightShip);
                     }
                     lineY += 27f + 8f;
                 }
@@ -230,18 +213,18 @@ namespace DeltaV
             else if (dockedShip != null)
             {
                 if (universe.Pilot.CanPlayerControl(dockedShip)
-                    && Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_MobileButtonEnter".Translate()))
+                    && Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginFreeFlightButton".Translate()))
                 {
-                    universe.ShipModes.TryLaunch(universe, dockedShip);
+                    universe.ShipTransitions.BeginFreeFlight(universe, dockedShip);
                 }
                 lineY += 27f + 6f;
             }
             else if (bootstrapEntry)
             {
-                // 首次降落/发射到达：图上唯一的玩家驾驶台，直接 bootstrap 进入移动模式。
-                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_MobileButtonEnter".Translate()))
+                // 首次降落/发射到达：图上唯一的玩家驾驶台，直接 bootstrap 为自由飞行船。
+                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginFreeFlightButton".Translate()))
                 {
-                    MobileShipBootstrap.TryEnter(universe, consoles[0]);
+                    FreeFlightBootstrap.TryEnter(universe, consoles[0]);
                 }
                 lineY += 27f + 6f;
             }
@@ -252,7 +235,7 @@ namespace DeltaV
                 Text.Font = GameFont.Small;
                 GUI.color = new Color(1f, 1f, 1f, 0.4f);
                 Text.Anchor = TextAnchor.MiddleCenter;
-                Widgets.Label(pickRect, "DeltaV_MobileButtonEnter".Translate());
+                Widgets.Label(pickRect, "DeltaV_BeginFreeFlightButton".Translate());
                 Text.Anchor = TextAnchor.UpperLeft;
                 GUI.color = Color.white;
                 TooltipHandler.TipRegion(pickRect, "DeltaV_PanelPickConsoleTip".Translate());

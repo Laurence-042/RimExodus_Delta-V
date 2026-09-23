@@ -124,6 +124,11 @@ namespace DeltaV
             {
                 Current.Game?.GetComponent<UniverseManager>()?.Generation?.DrainSynchronouslyForExternalGeneration();
             }
+
+            private static void Postfix(Map __result)
+            {
+                OrbitalPoiRegistry.EnsureForMap(Current.Game?.GetComponent<UniverseManager>(), __result);
+            }
         }
 
         [HarmonyPatch(typeof(Dialog_SaveFileList_Save), "DoFileInteraction", new[] { typeof(string) })]

@@ -6,7 +6,7 @@ namespace DeltaV
 {
     /// <summary>
     /// 飞船口袋图的唯一生成入口。口袋图只是飞行态的局部坐标容器；每次从固定轨道
-    /// 进入移动模式时按当前 Gravship 的实际旋转后边界重建，不继承旧图尺寸或空网格。
+    /// 开始自由飞行时按当前 Gravship 的实际旋转后边界重建，不继承旧图尺寸或空网格。
     ///
     /// 口袋图不占任何轨道 tile（Tile 恒 Invalid，只进 Find.World.pocketMaps）；
     /// sourceMap 统一取 UniverseManager.GetOrCreateHostMap() 的专用宿主口袋图。

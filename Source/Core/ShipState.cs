@@ -1,31 +1,35 @@
+using RimWorld;
 using UnityEngine;
 using Verse;
 
 namespace DeltaV
 {
+    public enum ShipFlightState : byte
+    {
+        FreeFlight,
+        Docked
+    }
+
     /// <summary>
     /// 一艘飞船的宇宙状态（SpaceObject 特化，AGENTS §11）。
     /// 阶段3 新增：玩家阵营标记（POI 距离的参考对象）、主驾驶台引用、固定轨道停靠状态
-    /// （docked 及其恢复数据，见 ShipModeService）。
+    /// （FreeFlight / Docked 及其恢复数据，见 ShipFlightTransitionService）。
     /// </summary>
     public class ShipState : SpaceObject
     {
-        /// <summary>玩家阵营船：动态锚候选、POI 生命周期距离参考。存档事实。</summary>
-        public bool isPlayerShip;
+        [Unsaved] internal bool legacyPlayerShip;
 
         /// <summary>
         /// 主驾驶台（story 规则：第一台自动成为主，仅显式 gizmo 可换主；
-        /// 进入移动模式时的飞船朝向跟随它的朝向）。Scribe_References，可失效。
+        /// 开始自由飞行时的飞船朝向跟随它的朝向）。Scribe_References，可失效。
         /// </summary>
         public Building primaryConsole;
 
-        // ---- 固定轨道 / 建造模式（阶段3，ShipModeService 维护）----
+        // ---- 自由飞行 / 已停靠（ShipFlightTransitionService 维护）----
 
-        /// <summary>停靠中：船体已作为真实建筑落到宿主图；降落动画结束后 map 为 null。</summary>
-        public bool docked;
+        public ShipFlightState flightState = ShipFlightState.FreeFlight;
 
-        /// <summary>原版降落选点已经开始、但动画尚未确认完成；此时船体在 Gravship 单例中。</summary>
-        public bool docking;
+        public bool IsDocked => flightState == ShipFlightState.Docked;
 
         /// <summary>固定轨道中的实际承载图（船降落时球面位置对应的真实轨道 tile 图）。</summary>
         public Map dockedMap;
@@ -39,7 +43,10 @@ namespace DeltaV
         /// </summary>
         public Vector2 dockedOrigin;
 
-        public override Map InteriorMap => docked && dockedMap != null ? dockedMap : map;
+        /// <summary>已停靠船体坐标系相对宿主坐标系的朝向。</summary>
+        public float dockedLocalAngle;
+
+        public override Map InteriorMap => IsDocked && dockedMap != null ? dockedMap : map;
 
         /// <summary>停靠前的宇宙姿态（降落动画起点；确认落点后不再用于恢复位置）。</summary>
         public SpacePose preDockPose;
@@ -51,10 +58,9 @@ namespace DeltaV
         {
         }
 
-        public ShipState(int shipId, string label, Map map, SpacePose pose, bool isPlayerShip = false)
+        public ShipState(int shipId, string label, Map map, SpacePose pose)
             : base(shipId, label, map, pose)
         {
-            this.isPlayerShip = isPlayerShip;
             preDockPose = pose;
             pocketRoot = IntVec3.Invalid;
         }
@@ -62,13 +68,28 @@ namespace DeltaV
         public override void ExposeData()
         {
             base.ExposeData();
-            Scribe_Values.Look(ref isPlayerShip, "isPlayerShip", false);
+            if (Scribe.mode == LoadSaveMode.Saving)
+            {
+                Scribe_Values.Look(ref flightState, "flightState", ShipFlightState.FreeFlight);
+            }
+            else
+            {
+                Scribe_Values.Look(ref flightState, "flightState", ShipFlightState.FreeFlight);
+                bool legacyDocked = false;
+                bool legacyDocking = false;
+                Scribe_Values.Look(ref legacyDocked, "docked", false);
+                Scribe_Values.Look(ref legacyDocking, "docking", false);
+                Scribe_Values.Look(ref legacyPlayerShip, "isPlayerShip", false);
+                if (Scribe.mode == LoadSaveMode.LoadingVars && legacyDocked)
+                {
+                    flightState = ShipFlightState.Docked;
+                }
+            }
             Scribe_References.Look(ref primaryConsole, "primaryConsole");
-            Scribe_Values.Look(ref docked, "docked", false);
-            Scribe_Values.Look(ref docking, "docking", false);
             Scribe_References.Look(ref dockedMap, "dockedMap");
             Scribe_Values.Look(ref dockedRotation, "dockedRotation", Rot4.North);
             Scribe_Values.Look(ref dockedOrigin, "dockedOrigin", Vector2.zero);
+            Scribe_Values.Look(ref dockedLocalAngle, "dockedLocalAngle", 0f);
             Scribe_Deep.Look(ref preDockPose, "preDockPose");
             Scribe_Values.Look(ref pocketRoot, "pocketRoot", IntVec3.Invalid);
         }

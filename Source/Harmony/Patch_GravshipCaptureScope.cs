@@ -24,7 +24,7 @@ namespace DeltaV
         public static void Postfix(Building_GravEngine __instance, ref HashSet<IntVec3> __result)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (universe == null || !universe.ShipModes.TryGetConversionCaptureScope(__instance, out HashSet<IntVec3> scope))
+            if (universe == null || !universe.ShipTransitions.TryGetConversionCaptureScope(__instance, out HashSet<IntVec3> scope))
             {
                 return;
             }

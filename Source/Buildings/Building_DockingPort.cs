@@ -8,13 +8,13 @@ namespace DeltaV
     /// <summary>
     /// 对接口（2026-09-18 基架归属设计）：门类建筑，常闭密封（ExchangeVacuum=false，
     /// 开门通行也不透真空——它就是船体与外界之间的气闸边界）。建造朝向决定对接通道
-    /// 的延伸方向。进入固定模式落定后自动沿朝向铺设对接通道（DeltaV_DockingChannel
+    /// 的延伸方向。完成停靠后自动沿朝向铺设对接通道（DeltaV_DockingChannel
     /// 地形 + 建造顶）直至遇到首个障碍（wreck 结构/非 Space 地形/建筑）；范围内无障碍
     /// 则保持收起。通道是「类基架」地形：可铺在 Space 上供通行，但不属于基架——不进
     /// 引擎连通域、不参与捕获与剪影。密封由原版房间机制原生承担：通道格有顶且地形
     /// 不 exposesToVacuum，Space 不可通行构成房间边界，通道自成一个不暴露真空的房间
     /// （Room.ExposedToSpace = 无顶 ∨ 地形 exposesToVacuum）。对接口被摧毁/移除（含随
-    /// 起飞搬运、进入移动模式）时同步移除通道并还原为 Space。
+    /// 脱离停靠开始自由飞行）时同步移除通道并还原为 Space。
     /// </summary>
     public class Building_DockingPort : Building_Door
     {
@@ -156,7 +156,7 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 移除同步（含摧毁、起飞搬运的 WillReplace despawn、进入移动模式）：先收通道再离场。
+        /// 移除同步（含摧毁、起飞搬运的 WillReplace despawn、脱离停靠）：先收通道再离场。
         /// Thing.Destroy 内部必经 DeSpawn，无需另挂销毁钩子。
         /// </summary>
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)

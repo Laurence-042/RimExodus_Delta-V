@@ -148,7 +148,7 @@ namespace DeltaV
             List<SpaceObject> objects = universe.objects;
             for (int i = 0; i < objects.Count; i++)
             {
-                if (!(objects[i] is ShipState ship) || ship == frame || ship.docked)
+                if (!(objects[i] is ShipState ship) || ship == frame || ship.IsDocked)
                 {
                     continue;
                 }

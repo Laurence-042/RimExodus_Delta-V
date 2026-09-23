@@ -55,7 +55,7 @@ namespace DeltaV
         /// AllConnectedSubstructure(+NoRegen) 四个 getter、原版 overlay 与一切捕获管线
         /// 读者自动获得新口径：
         /// - 逆重战略发射（ValidSubstructure：力场内限量域）只算/只带走自己 ID 的基架；
-        /// - 移动模式捕获（AllConnectedSubstructure）只含自己 ID 的连通域，停靠图上的
+        /// - 自由飞行捕获（AllConnectedSubstructure）只含自己 ID 的连通域，停靠图上的
         ///   wreck 基架不再被误并入。
         /// 未占有（0）是真实归属域：其上的引擎只连通同为未占有的基架（孤立平台可
         /// bootstrap 成船）。仅组件缺失（迁移前防御态）走原版口径；仅 Delta-V 参考

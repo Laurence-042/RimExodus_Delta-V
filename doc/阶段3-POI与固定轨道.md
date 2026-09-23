@@ -92,7 +92,7 @@
 
 - 测试船配置复刻参考存档 map2：`GravEngine` 3×3 的 `Thing.Position` 锚点位于船体偏移 `(17,12)`，四角布置 4× `GravFieldExtender`（引擎 SubstructureSupport 500、延展器各 +250）→ 支持上限 1500 ≥ 960 格甲板，`ValidSubstructure`（foundation floodfill ∩ footprint 并集）覆盖全船。生成时引擎先以玩家阵营生成，延展器/驾驶台/推进器随后生成并在批量盖章末尾经原版 `CompAffectedByFacilities.Notify_ThingChanged` 重连；玩家船墙、门和设备全部归玩家占有。不得把 3×3 引擎锚点误作其他坐标语义。
 - **停靠**：以 `SpacePose.angle + 主台局部朝向` 得到真实航向并吸附 90° → `GenerateGravship` → 只设置原版 `Gravship.Rotation` 的初始值 → 直接调用 `GravshipUtility.ArriveExistingMap`。移动/旋转选点、合法性预览、确认 UI、捕获/遮罩、实际放置与落地收尾仍是原版；仅替换表现为固定镜头缩放下的“降落前 universe 位置/Map 角度 → 所选落点/Rot4”动态对齐，不再从视野外飞入。源图被清空前缓存 `ShipPhysics.MassReport`，选点确认后分别以实际定向净推力/质量和实际净力矩/转动惯量得到线加速度 `a` 与角加速度 `α`，按静止到静止的 `T=2√(distance/acceleration)` 计算平移/旋转时间并取较大者（0.35–15 秒表现边界）；两轴共用对称恒加速—恒减速位移曲线，较短轴自动降低有效出力同步到达。整船绘制仍回调原版 `GravshipRenderer.DrawGravship`，因此推进器火焰、耀斑、尾烟及引擎辉光沿用原版。承载目标 = 船当前球面位置经 `TileFromDirection` 得到的真实轨道 tile 图（`GetOrGenerateMap`：有图复用、没图按 `landingMapSize` 生成，图中心补一格 Substructure 满足原版选点合法性）；敌舰/POI 是无 tile 口袋图，不挡路。
-- **落点回写**：记录口袋图几何中心落到降落图后的 `dockedOrigin`，再经该图的 tile 帧把它换回新的球面方向 `SpacePose.position`（`MapFrame`，角度恒 0 的合成显示帧）。确认前后其他对象绝对状态不变，代理不跳位。
+- **落点回写（当前坐标规则）**：记录口袋图几何中心落到目标图后的 `dockedOrigin`；目标图所属 `SpaceObject` 经统一地图点⇄球面变换给出 `SpacePose.position`。真实轨道图所属对象为 `PoiState(NativeParent)`，不再使用合成 `MapFrame`。当前对接计划与到达流程以 `doc/星区架构.md` §7 为准。
 - 降落图 `WorldCameraPosition`（自建 def 与原版 `SpaceMapParent` 经 Harmony Postfix）读取停靠在本图的船的球面位置，所以非中心落点不会让星球背景与降落图坐标脱节。
 - Delta-V 绕过原版起飞仪式，因此在生成 Gravship 前补默认安全 `LaunchInfo(quality=1, doNegativeOutcome=false)`；原版 `LandingEnded` 会无条件读取该对象，缺失正是首轮实测 NRE 的原因。LandingEnded Prefix 另有同样的兼容兜底。
 - **口袋图生命周期**：降落动画仍读取旧口袋图中心，所以在 `LandingEnded` Postfix（原版 Gravship/捕获已释放）才销毁旧图并置 `ship.map = null`；停靠期间真实船体只存在于降落图。旧版 docked 存档若仍带空口袋图，会在加载收尾迁移销毁。

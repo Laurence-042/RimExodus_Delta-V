@@ -59,7 +59,7 @@ namespace DeltaV
                 if (logBeat) AppendLayerObj("b" + i + "/" + LayerOrderScratch.Count, LayerOrderScratch[i], drew);
             }
             backgroundLayer.Finish(anyBuffered);
-            // 前台层：进场/选点悬停壳（ship.docking）——切固定模式期间聚焦图（降落
+            // 前台层：对接进场/选点悬停壳——聚焦目标图时临时前置。
             // 目标图）临时被悬停壳覆盖（2026-09-20 用户决策）；悬停壳 + 火焰盖在
             // 目标甲板之上。
             ForegroundScratch.Clear();
@@ -67,7 +67,7 @@ namespace DeltaV
             {
                 if (obj == frame) continue;
                 ShipState ship = obj as ShipState;
-                if (ship != null && ship.docking) ForegroundScratch.Add(obj);
+                if (ship != null && universe.ShipTransitions.IsDockingFlowShip(ship)) ForegroundScratch.Add(obj);
             }
             ForegroundScratch.Sort(CompareById);
             bool anyForeground = false;
@@ -110,7 +110,7 @@ namespace DeltaV
             {
                 if (obj == frame) continue;
                 ShipState ship = obj as ShipState;
-                if (ship != null && ship.docking) continue;
+                if (ship != null && universe.ShipTransitions.IsDockingFlowShip(ship)) continue;
                 results.Add(obj);
             }
             results.Sort(CompareById);
@@ -123,7 +123,7 @@ namespace DeltaV
             // 直接可画——聚焦目标图上持续显示悬停船壳；到达停靠后走停靠分支，
             // 由 dockedMap == frameMap 跳过防重复绘制。
             ShipState ship = obj as ShipState;
-            bool docked = ship != null && ship.docked;
+            bool docked = ship != null && ship.IsDocked;
             Map map = obj.InteriorMap;
             if (map == null || map.Disposed || universe.Generation?.IsGenerating(map) == true
                 || docked && map == frameMap) return false;
@@ -175,8 +175,10 @@ namespace DeltaV
                 .Append(" obj").Append(obj.objectId);
             if (obj.label != null) LayerLogBuf.Append('(').Append(obj.label).Append(')');
             ShipState ship = obj as ShipState;
-            if (ship != null && ship.docked) LayerLogBuf.Append(" docked");
-            if (ship != null && ship.docking) LayerLogBuf.Append(" docking");
+            if (ship != null && ship.IsDocked) LayerLogBuf.Append(" docked");
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (ship != null && universe?.ShipTransitions.IsDockingFlowShip(ship) == true)
+                LayerLogBuf.Append(" docking");
             if (!drew)
             {
                 LayerLogBuf.Append(" SKIP");

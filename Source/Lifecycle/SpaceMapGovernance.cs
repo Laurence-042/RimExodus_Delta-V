@@ -46,7 +46,8 @@ namespace DeltaV
             if (map == null || map.Disposed) return false;
             return map == Find.CurrentMap || map.IsPlayerHome || HasPlayerPawn(map)
                 || universe?.Generation?.IsGenerating(map) == true
-                || (universe != null && universe.Ships.Any(s => s.isPlayerShip && s.dockedMap == map));
+                || (universe != null && universe.Ships.Any(s =>
+                    s.faction == Faction.OfPlayer && s.dockedMap == map));
         }
 
         public static IntVec3 GenerationSize(MapParent parent)
@@ -83,6 +84,38 @@ namespace DeltaV
     /// <summary>把所有轨道 POI WorldObject 投影进持久化 Universe State。</summary>
     public static class OrbitalPoiRegistry
     {
+        /// <summary>地图首次可用时立即建立其真实 SpaceObject；周期同步只负责维护。</summary>
+        public static PoiState EnsureForMap(UniverseManager universe, Map map)
+        {
+            if (universe == null || !SpaceMapGovernance.IsGoverned(map, universe)) return null;
+            return EnsureForParent(universe, map.Parent);
+        }
+
+        private static PoiState EnsureForParent(UniverseManager universe, MapParent parent)
+        {
+            if (universe == null || !SpaceMapGovernance.IsGoverned(parent, universe)) return null;
+            PoiState poi = universe.objects.OfType<PoiState>()
+                .FirstOrDefault(p => p.kind == PoiKind.NativeParent && p.nativeParent == parent);
+            if (poi == null)
+            {
+                poi = new PoiState(universe.AllocateOwnerId(), parent);
+                universe.RegisterObject(poi);
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"registered orbital POI {parent.LabelCap} ({parent.GetType().FullName}, id={parent.ID})");
+            }
+            UpdateFromParent(poi, parent);
+            return poi;
+        }
+
+        private static void UpdateFromParent(PoiState poi, MapParent parent)
+        {
+            poi.label = parent.LabelCap;
+            poi.map = parent.Map;
+            poi.faction = parent.Faction;
+            poi.pose.position = OrbitSphere.TileCenterDirection(parent.Tile);
+            poi.pose.angle = 0f;
+        }
+
         public static void NotifyDestroyed(MapParent parent)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
@@ -103,20 +136,7 @@ namespace DeltaV
                 .OfType<MapParent>().Where(p => SpaceMapGovernance.IsGoverned(p, universe)).ToList();
             foreach (MapParent parent in parents)
             {
-                PoiState poi = universe.objects.OfType<PoiState>()
-                    .FirstOrDefault(p => p.kind == PoiKind.NativeParent && p.nativeParent == parent);
-                if (poi == null)
-                {
-                    poi = new PoiState(universe.AllocateOwnerId(), parent);
-                    universe.RegisterObject(poi);
-                    DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                        $"registered orbital POI {parent.LabelCap} ({parent.GetType().FullName}, id={parent.ID})");
-                }
-                poi.label = parent.LabelCap;
-                poi.map = parent.Map;
-                poi.faction = parent.Faction;
-                poi.pose.position = OrbitSphere.TileCenterDirection(parent.Tile);
-                poi.pose.angle = 0f;
+                EnsureForParent(universe, parent);
             }
 
             HashSet<MapParent> live = new HashSet<MapParent>(parents);

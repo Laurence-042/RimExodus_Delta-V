@@ -171,8 +171,10 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 两方向间的切空间偏移（格，观察者基下）。点积 × CellsPerRadian，
-        /// 对游戏尺度（跨数十 tile）内的相对量算足够精确，且全程无状态。
+        /// Move 的局部逆变换：两方向间的球面弧偏移（格，观察者切基下）。
+        /// 切向投影的长度是 sin(angle)，必须用 atan2 还原弧角；直接乘
+        /// CellsPerRadian 会使 Map→universe→Map 在远处不互逆。
+        /// 对跖点没有唯一的最短方向，返回零偏移（调用方不得用它表示跨半球地图点）。
         /// </summary>
         public static Vector2 Offset(Vector3 fromDir, Vector3 toDir)
         {
@@ -180,9 +182,16 @@ namespace DeltaV
             {
                 return Vector2.zero;
             }
-            Basis(fromDir, out Vector3 east, out Vector3 north);
+            Vector3 from = fromDir.normalized;
             Vector3 to = toDir.normalized;
-            return new Vector2(Vector3.Dot(to, east), Vector3.Dot(to, north)) * CellsPerRadian;
+            Basis(from, out Vector3 east, out Vector3 north);
+            Vector2 tangent = new Vector2(Vector3.Dot(to, east), Vector3.Dot(to, north));
+            float tangentLength = tangent.magnitude;
+            float radial = Mathf.Clamp(Vector3.Dot(from, to), -1f, 1f);
+            if (tangentLength == 0f || (radial < 0f && tangentLength < 1e-7f))
+                return Vector2.zero;
+            float arc = Mathf.Atan2(tangentLength, radial) * CellsPerRadian;
+            return tangent * (arc / tangentLength);
         }
 
         /// <summary>两方向间的球面弧距（格）。POI 生命周期等距离判定用。</summary>

@@ -69,12 +69,16 @@ namespace DeltaV
             if (enemyMap == null) return;
             ShipStructureStamp.StampEnemyShip(enemyMap, ownerId: 2);
 
-            var playerShip = new ShipState(1, "Player ship", playerMap, new SpacePose(playerDir, 0f), isPlayerShip: true)
+            var playerShip = new ShipState(1, "Player ship", playerMap, new SpacePose(playerDir, 0f))
             {
                 faction = Faction.OfPlayer
             };
             var enemyShip = new ShipState(2, "Enemy ship", enemyMap,
-                new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad));
+                new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad))
+            {
+                faction = Faction.OfPirates
+                    ?? Find.FactionManager.AllFactionsVisible.FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer))
+            };
 
             universe.ResetObjects(new List<SpaceObject> { playerShip, enemyShip }, playerShip.objectId);
             CompDeltaVPilotConsole.EnsurePrimaryConsole(playerShip);

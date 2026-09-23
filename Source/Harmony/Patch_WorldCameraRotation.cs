@@ -19,7 +19,7 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe == null) return;
             Map map = __instance.Map;
-            ShipState docked = universe.Ships.FirstOrDefault(s => s.docked && s.dockedMap == map);
+            ShipState docked = universe.Ships.FirstOrDefault(s => s.IsDocked && s.dockedMap == map);
             if (docked == null) return;
             __result = OrbitSphere.SpherePoint(docked.pose.position);
         }
@@ -35,16 +35,15 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SpaceObject frame = universe?.FrameOf(map);
             if (frame == null) return;
-            // worldtile 帧的图（合成帧，或以 worldtile 地图为内部的 NativeParent 对象——
-            // 二者位姿同为 tile 中心、角度恒 0）：背景随停靠在该图的主船绝对姿态滚转，
+            // worldtile 图由 NativeParent 对象承载（tile 中心、角度恒 0）：
+            // 背景随停靠在该图的主船绝对姿态滚转，
             // 与聚焦飞船图同源同步、降落前后无跳变。
-            bool tileFrame = universe.IsSyntheticFrame(frame)
-                || (frame is PoiState poi && poi.kind == PoiKind.NativeParent);
+            bool tileFrame = frame is PoiState poi && poi.kind == PoiKind.NativeParent;
             float angle;
             if (tileFrame)
             {
                 ShipState primary = universe.PrimaryShip;
-                if (primary == null || !primary.docked || primary.dockedMap != map) return;
+                if (primary == null || !primary.IsDocked || primary.dockedMap != map) return;
                 angle = primary.pose.angle;
             }
             else

@@ -7,11 +7,11 @@ namespace DeltaV
     /// <summary>
     /// 推进器动力来源抽象（星区架构 §9/§11）。
     ///
-    /// 物理分配（ShipPhysics）与"无动力"判定（ShipModeService 可降落判定）都经本缝
+    /// 物理分配（ShipPhysics）与对接门禁（ShipFlightTransitionService）都经本缝
     /// 读取推进器当前实际可用性，不缓存静态标志。将来的 VEF 燃料管道、电网电推
     /// 只替换实现（含燃料类型从实际消耗管线取），调用方不感知来源；
     /// 默认实现只查推进器自身实际状态（故障/排气堵塞/断电），不要求引擎连接或
-    /// 燃料管线——非玩家派系没有逆重引擎也能移动模式飞行（一致性模型见
+    /// 燃料管线——非玩家派系没有逆重引擎也能自由飞行（一致性模型见
     /// doc/星区架构.md §7）。
     /// </summary>
     public interface IThrusterPowerModel

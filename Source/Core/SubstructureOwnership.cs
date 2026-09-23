@@ -8,12 +8,12 @@ namespace DeltaV
 {
     /// <summary>
     /// 基架归属网格（2026-09-18 设计）：每个基架格记录归属 SpaceObject ID。飞船引擎的
-    /// 范围/承载、逆重发射与移动模式捕获只按「自己的 ID」过滤；星球仪剪影按 ID 过滤；
+    /// 范围/承载、逆重发射与自由飞行捕获只按「自己的 ID」过滤；星球仪剪影按 ID 过滤；
     /// 停靠在 wreck 上的飞船与 wreck 各自保有独立身份。归属是存档事实（无法从地形推导）。
     ///
     /// ID 语义：与 SpaceObject.objectId 同一 ID 空间（UniverseManager 统一分配）。裸 ID
     /// （没有对应 SpaceObject 的归属域，如独立新建的平台）合法存在，经「修改基架归属」
-    /// 命令引用；在其上建引擎 + 驾驶台 bootstrap 成船时由 MobileShipBootstrap 继承为船 ID。
+    /// 命令引用；在其上建引擎 + 驾驶台 bootstrap 成船时由 FreeFlightBootstrap 继承为船 ID。
     ///
     /// 写入口唯一收口在 Harmony patch（Patch_SubstructureOwnership 的 TerrainGrid.
     /// SetFoundation postfix）：显式盖章（生成/降落/快照恢复管线）优先，其余按邻接规则
@@ -325,7 +325,7 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 整图清除指定归属的全部格子（进移动模式清除源图旧域，2026-09-20 用户决策）。
+        /// 整图清除指定归属的全部格子（脱离停靠时清除源图旧域）。
         /// 不做地形过滤——要清的正是基架已随船走（捕获剥离）或断连遗留的陈旧值；
         /// 基架不重叠 ⇒ 按 ID 整清不会误伤他主域。清除后照常通知引擎重算与剪影失效。
         /// </summary>

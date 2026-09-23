@@ -36,11 +36,12 @@ namespace DeltaV
             if (marker?.gravship == null) return;
 
             Map map = Find.CurrentMap;
-            // 停放锚点唯一入口：原版判定链的显式镜像（对 root 锚恒等；loc 即 root 锚格）。
-            IntVec3 root = SpaceTransform.PlacementAnchorRoot(loc,
+            // loc 是原版 designator 输入格；与原版 ValidGravshipLocation 同一入口求 root。
+            IntVec3 root = GravshipInterop.DesignatorInputToRoot(loc,
                 marker.gravship.Bounds.Size, marker.GravshipRotation);
 
-            if (TouchesForeignSubstructure(root, marker, map, LandingOwnerId(marker)))
+            if (TouchesForeignSubstructure(root, marker, map, LandingOwnerId(marker),
+                out _, out _))
             {
                 // 异主基架重合/邻接：与建造归属规则同构的禁触（不能紧贴 wreck 基架）。
                 __result = "DeltaV_LandingBlockedForeignSubstructure".Translate();
@@ -93,7 +94,7 @@ namespace DeltaV
         private static int LandingOwnerId(GravshipLandingMarker marker)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            ShipState pending = universe?.ShipModes.PendingDockingShip(universe);
+            ShipState pending = universe?.ShipTransitions.PendingDockingShip(universe);
             if (pending != null)
             {
                 return pending.objectId;
@@ -107,23 +108,62 @@ namespace DeltaV
             return SubstructureOwnership.Unassigned;
         }
 
+        /// <summary>
+        /// 只在确认落点与完成复核两个事件调用。复用实际禁触判定，记录两次检查
+        /// 使用的 root、脚印与第一处异主接触，避免另造一份近似几何诊断。
+        /// </summary>
+        internal static string DescribeFootprint(GravshipLandingMarker marker, Map map, IntVec3 root)
+        {
+            if (marker?.gravship == null || map == null) return "marker/target map missing";
+            int count = 0;
+            int minX = int.MaxValue, minZ = int.MaxValue;
+            int maxX = int.MinValue, maxZ = int.MinValue;
+            int hash = 0;
+            foreach (IntVec3 cell in marker.GravshipCells)
+            {
+                count++;
+                if (cell.x < minX) minX = cell.x;
+                if (cell.x > maxX) maxX = cell.x;
+                if (cell.z < minZ) minZ = cell.z;
+                if (cell.z > maxZ) maxZ = cell.z;
+                unchecked { hash += cell.x * 73856093 ^ cell.z * 19349663; }
+            }
+            int ownerId = LandingOwnerId(marker);
+            bool touches = TouchesForeignSubstructure(root, marker, map, ownerId,
+                out IntVec3 footprintCell, out IntVec3 foreignCell);
+            Building_GravEngine engine = marker.gravship.Engine;
+            return $"root={root} marker={marker.Position} rot={marker.GravshipRotation.AsInt} "
+                + $"bounds={marker.gravship.Bounds.Size} footprint={count} "
+                + (count == 0 ? "range=empty " : $"range=({minX},{minZ})..({maxX},{maxZ}) ")
+                + $"hash={hash:X8} owner={ownerId} engine={engine?.Position} "
+                + (touches ? $"foreignTouch={footprintCell}->{foreignCell}" : "foreignTouch=none");
+        }
+
         /// <summary>脚印任一格自身或四邻触碰异主基架。</summary>
         private static bool TouchesForeignSubstructure(IntVec3 root, GravshipLandingMarker marker,
-            Map map, int ownerId)
+            Map map, int ownerId, out IntVec3 footprintCell, out IntVec3 foreignCell)
         {
             SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
             foreach (IntVec3 gravshipCell in marker.GravshipCells)
             {
                 IntVec3 cell = root + gravshipCell;
-                if (IsForeignSubstructure(cell, map, ownership, ownerId)
-                    || IsForeignSubstructure(cell + IntVec3.East, map, ownership, ownerId)
-                    || IsForeignSubstructure(cell + IntVec3.West, map, ownership, ownerId)
-                    || IsForeignSubstructure(cell + IntVec3.North, map, ownership, ownerId)
-                    || IsForeignSubstructure(cell + IntVec3.South, map, ownership, ownerId))
-                {
-                    return true;
-                }
+                IntVec3 neighbor;
+                if (IsForeignSubstructure(cell, map, ownership, ownerId)) neighbor = cell;
+                else if (IsForeignSubstructure(cell + IntVec3.East, map, ownership, ownerId))
+                    neighbor = cell + IntVec3.East;
+                else if (IsForeignSubstructure(cell + IntVec3.West, map, ownership, ownerId))
+                    neighbor = cell + IntVec3.West;
+                else if (IsForeignSubstructure(cell + IntVec3.North, map, ownership, ownerId))
+                    neighbor = cell + IntVec3.North;
+                else if (IsForeignSubstructure(cell + IntVec3.South, map, ownership, ownerId))
+                    neighbor = cell + IntVec3.South;
+                else continue;
+                footprintCell = cell;
+                foreignCell = neighbor;
+                return true;
             }
+            footprintCell = IntVec3.Invalid;
+            foreignCell = IntVec3.Invalid;
             return false;
         }
 

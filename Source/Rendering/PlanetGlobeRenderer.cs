@@ -303,12 +303,12 @@ namespace DeltaV
                 else if (iconLayer)
                 {
                     // 图标层起全部飞船可见：玩家船白色、其余按派系色（无派系红）。
-                    Color baseColor = ship.isPlayerShip
+                    Color baseColor = ship.faction == Faction.OfPlayer
                         ? new Color(1f, 1f, 1f, 0.85f)
                         : (ship.faction != null ? ship.faction.Color : new Color(1f, 0.4f, 0.35f));
                     color = new Color(baseColor.r, baseColor.g, baseColor.b, alpha * (front ? 1f : 0.6f));
                 }
-                else if (ship.isPlayerShip)
+                else if (ship.faction == Faction.OfPlayer)
                 {
                     color = new Color(1f, 1f, 1f, alpha * 0.8f);
                 }
@@ -331,7 +331,7 @@ namespace DeltaV
                     var silhouetteRect = new Rect(pos.x - sizePx * 0.5f, pos.y - sizePx * 0.5f, sizePx, sizePx);
                     Color tint = focused
                         ? new Color(1f, 0.95f, 0.4f)
-                        : ship.isPlayerShip ? Color.white
+                        : ship.faction == Faction.OfPlayer ? Color.white
                         : (ship.faction != null ? ship.faction.Color : new Color(1f, 0.4f, 0.35f));
                     // 朝向配对经 ShipSilhouette 唯一入口：停靠态纹理嵌入宿主图坐标系，
                     // 旋转输入是宿主帧角而不是船姿态角（2026-09-18 实测朝西停成朝东）。
@@ -341,7 +341,7 @@ namespace DeltaV
                         SilhouetteScreenAngle(orientation.referenceDir, orientation.angle, right, up), tint));
                     RegisterClickable(silhouetteRect, universe, ship, referenceDir);
                 }
-                else if (ship.docked)
+                else if (ship.IsDocked)
                 {
                     DrawDot(pos, 3f, new Color(1f, 0.95f, 0.4f, front ? 0.8f : 0.25f));
                 }
@@ -350,7 +350,7 @@ namespace DeltaV
                     DrawCursorTriangle(pos, focused ? focusedSize : otherSize, heading, color);
                 }
                 // 速度矢量：聚焦船常驻；标注层起所有船。
-                if (!ship.docked && ship.pose.velocity.sqrMagnitude > 0.01f && (focused || labelLayer))
+                if (!ship.IsDocked && ship.pose.velocity.sqrMagnitude > 0.01f && (focused || labelLayer))
                 {
                     Vector2 velocity = ScreenDir(east, north,
                         Mathf.Atan2(ship.pose.velocity.y, ship.pose.velocity.x), right, up);
@@ -414,7 +414,7 @@ namespace DeltaV
                 Text.Font = GameFont.Tiny;
                 foreach (SpaceObject obj in universe.objects)
                 {
-                    if (obj is ShipState ship && ship.docking) continue;
+                    if (obj is ShipState ship && universe.ShipTransitions.IsDockingFlowShip(ship)) continue;
                     if (Vector3.Dot(obj.pose.position, shipDir) <= 0f) continue;
                     Vector2 pos = Project(obj.pose.position);
                     float distance = OrbitSphere.ArcCells(referenceDir, obj.pose.position);
@@ -678,7 +678,7 @@ namespace DeltaV
             if (silhouetteExtent > 0f) return silhouetteExtent;
             if (obj is ShipState ship)
             {
-                if (ship.docked) return 3f;
+                if (ship.IsDocked) return 3f;
                 return ReferenceEquals(obj, reference)
                     ? Mathf.Lerp(9f, 14f, Zoom01)
                     : Mathf.Lerp(6.5f, 10f, Zoom01);

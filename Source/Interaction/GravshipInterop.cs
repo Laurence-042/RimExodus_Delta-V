@@ -25,6 +25,41 @@ namespace DeltaV
         private static readonly FieldInfo ControllerTimeLeft =
             AccessTools.Field(typeof(WorldComponent_GravshipController), "timeLeft");
 
+        /// <summary>
+        /// 原版 Designator_MoveGravship.GetSizeRotAdjustedCell 与
+        /// ValidGravshipLocation 的 GetRoot 组合（references/RimWorldDecompiled/RimWorld/
+        /// Designator_MoveGravship.cs）。输入是鼠标/CanDesignateCell 的格，不是放置 root。
+        /// 偶数尺寸时二者可能相差一格，不能把 designator 输入当轨道坐标锚。
+        /// </summary>
+        internal static IntVec3 DesignatorInputToRoot(IntVec3 input, IntVec2 size, Rot4 rot)
+        {
+            IntVec3 halfX = new IntVec3(size.x / 2, 0, 0);
+            IntVec3 halfZ = new IntVec3(0, 0, size.z / 2);
+            IntVec3 adjusted = input;
+            if (rot == Rot4.North) adjusted += halfX + halfZ;
+            else if (rot == Rot4.East) adjusted += halfX - halfZ;
+            else if (rot == Rot4.South) adjusted -= halfX + halfZ;
+            else if (rot == Rot4.West) adjusted += -halfX + halfZ;
+            return PrefabUtility.GetRoot(adjusted, size, rot);
+        }
+
+        internal static IntVec3 RootToDesignatorInput(IntVec3 root, IntVec2 size, Rot4 rot)
+        {
+            // GetRoot 与调整均为整数平移；测一次原点即可取得精确逆平移。
+            return root - DesignatorInputToRoot(IntVec3.Zero, size, rot);
+        }
+
+        internal static IntVec3 CenterToDesignatorInput(IntVec3 center, IntVec2 size, Rot4 rot)
+        {
+            return RootToDesignatorInput(PrefabUtility.GetRoot(center, size, rot), size, rot);
+        }
+
+        internal static AcceptanceReport CanDesignateRoot(Designator_MoveGravship designator,
+            IntVec3 root, IntVec2 size, Rot4 rot)
+        {
+            return designator.CanDesignateCell(RootToDesignatorInput(root, size, rot));
+        }
+
         internal static Gravship BuildPreview(ShipState ship, Building_GravEngine engine)
         {
             if (EmptyCtor == null || engine == null || !engine.Spawned || engine.Map == null) return null;

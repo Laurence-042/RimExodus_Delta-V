@@ -25,15 +25,15 @@ namespace DeltaV
         public static bool Prefix(Gravship gravship)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            return universe?.ShipModes.TryCompleteMobileLaunch(gravship) != true;
+            return universe?.ShipTransitions.TryCompleteFreeFlight(gravship) != true;
         }
 
-        // 走到这里说明 TravelTo 被放行（原版战略起飞完成；移动模式在 Prefix 已消费
+        // 走到这里说明 TravelTo 被放行（原版战略起飞完成；自由飞行转换在 Prefix 已消费
         // 并拦截，不会执行本 Postfix）——善后时机见 HandleStrategicTravelDeparture：
         // 此刻相机未必离开源图（战略航行中 CurrentMap 停在源图，焦点在那里显式处理）。
         public static void Postfix()
         {
-            Current.Game?.GetComponent<UniverseManager>()?.ShipModes.HandleStrategicTravelDeparture();
+            Current.Game?.GetComponent<UniverseManager>()?.ShipTransitions.HandleStrategicTravelDeparture();
         }
     }
 
@@ -53,7 +53,7 @@ namespace DeltaV
             Map map = __instance.parent?.Map;
             if (map == null || map.Tile.Valid) return;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            PlanetTile address = universe?.ShipModes.StrategicSourceAddress(universe, map) ?? PlanetTile.Invalid;
+            PlanetTile address = universe?.ShipTransitions.StrategicSourceAddress(universe, map) ?? PlanetTile.Invalid;
             if (address.Valid) CameraJumper.TryJump(address);
         }
     }
@@ -76,7 +76,7 @@ namespace DeltaV
             Map map = Find.CurrentMap;
             if (map == null || map.Tile.Valid) return true;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            PlanetTile address = universe?.ShipModes.StrategicSourceAddress(universe, map) ?? PlanetTile.Invalid;
+            PlanetTile address = universe?.ShipTransitions.StrategicSourceAddress(universe, map) ?? PlanetTile.Invalid;
             if (!address.Valid) return true;
             __result = address.Layer == __instance ? address : PlanetTile.Invalid;
             return false;
@@ -84,7 +84,7 @@ namespace DeltaV
     }
 
     /// <summary>
-    /// 口袋图战略发射的燃料/距离计算源地址改写（2026-09-19 放开移动模式发射）：
+    /// 自由飞行口袋图战略发射的燃料/距离计算源地址改写：
     /// 口袋图 Map.Tile 无效，原版 TryGetPathFuelCost 对 Invalid 起点给出天文距离 →
     /// 选图界面全部「燃料不足」。Prefix 在「起点无效且当前聚焦图可解析出 Delta-V
     /// 战略源地址」时改写——船自有口袋图与停靠 POI 口袋图同口径（§7：口袋图起飞
@@ -99,7 +99,7 @@ namespace DeltaV
             if (from.Valid) return;
             Map map = Find.CurrentMap;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            PlanetTile address = universe?.ShipModes.StrategicSourceAddress(universe, map) ?? PlanetTile.Invalid;
+            PlanetTile address = universe?.ShipTransitions.StrategicSourceAddress(universe, map) ?? PlanetTile.Invalid;
             if (address.Valid) from = address;
         }
     }
@@ -118,22 +118,22 @@ namespace DeltaV
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe == null) return true;
-            if (universe.ShipModes.preLaunchConfirmationChaining)
+            if (universe.ShipTransitions.preLaunchConfirmationChaining)
             {
-                universe.ShipModes.preLaunchConfirmationChaining = false;
+                universe.ShipTransitions.preLaunchConfirmationChaining = false;
                 return true;
             }
             Map sourceMap = engine?.Map;
             if (sourceMap == null || sourceMap.Tile.Valid) return true;
             // 星区标准流程第 ② 段对任意源执行锚规则弃置；发射前船仍注册（自有口袋
             // 或停靠），DepartedSectorMapFor 的地址解析链有效。
-            Map sectorMap = universe.ShipModes.DepartedSectorMapFor(universe, sourceMap);
-            if (!universe.ShipModes.SectorMapWillBeAbandoned(universe, sectorMap)) return true;
+            Map sectorMap = universe.ShipTransitions.DepartedSectorMapFor(universe, sourceMap);
+            if (!universe.ShipTransitions.SectorMapWillBeAbandoned(universe, sectorMap)) return true;
             string label = sectorMap.Parent?.Label ?? sectorMap.ToString();
             Find.WindowStack.Add(new Dialog_MessageBox(
                 "DeltaV_SectorMapAbandonConfirm".Translate(label), null, delegate
                 {
-                    universe.ShipModes.preLaunchConfirmationChaining = true;
+                    universe.ShipTransitions.preLaunchConfirmationChaining = true;
                     GravshipUtility.PreLaunchConfirmation(engine, launchAction);
                 }));
             return false;
@@ -145,14 +145,14 @@ namespace DeltaV
     /// InitiateTakeoff 把 engine.Map.Tile 记为 takeoffTile，口袋图无 tile；TakeoffEnded →
     /// TravelTo 会拿它做跨层换算并登记进 WorldObjects。Postfix 在字段刚写入后改写为
     /// TileFromDirection(船 pose)——原版起飞管线中一切以源图 tile 为输入的环节由此改接源地址。
-    /// 详见 ShipModeService.HandleVanillaTakeoffFromDeltaVSource。
+    /// 详见 ShipFlightTransitionService.HandleVanillaTakeoffFromDeltaVSource。
     /// </summary>
     [HarmonyPatch(typeof(WorldComponent_GravshipController), nameof(WorldComponent_GravshipController.InitiateTakeoff))]
     public static class Patch_GravshipController_InitiateTakeoff_DeltaV
     {
         public static void Postfix(WorldComponent_GravshipController __instance, Building_GravEngine engine)
         {
-            Current.Game?.GetComponent<UniverseManager>()?.ShipModes
+            Current.Game?.GetComponent<UniverseManager>()?.ShipTransitions
                 .HandleVanillaTakeoffFromDeltaVSource(engine, __instance);
         }
     }

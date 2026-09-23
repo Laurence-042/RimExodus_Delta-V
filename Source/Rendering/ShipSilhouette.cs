@@ -17,7 +17,7 @@ namespace DeltaV
     ///
     /// 剪影管线有三个自由度，事故全部出自自由度间的失配（2026-09-18 第三次事故
     /// 后在此收口）：(1) 纹理格子的源坐标系——口袋图是规范化形状（+x = 船头，
-    /// 进移动模式时 PlacementRotation 归一到 East），停靠图是嵌入宿主图坐标的形状
+    /// 开始自由飞行时 PlacementRotation 归一到 East），停靠图是嵌入宿主图坐标的形状
     /// （含落点朝向 landedFacing 的旋转，+x = 宿主图东向）；(2) 旋转角输入；(3) 角
     /// 度数学（MarkerForwardWorld，2026-09-17 已统一）。历史上只统一了 (3)，(1)↔(2)
     /// 的配对散落在消费者手里：星球仪把船姿态角配停靠图纹理 → 朝向转过 2×
@@ -44,7 +44,7 @@ namespace DeltaV
         /// </summary>
         public static SilhouetteOrientation OrientationForCurrentMap(ShipState ship, UniverseManager universe)
         {
-            if (ship.docked && ship.dockedMap != null)
+            if (ship.IsDocked && ship.dockedMap != null)
             {
                 SpaceObject host = universe?.SpaceObjectOnMap(ship.dockedMap);
                 if (host != null)

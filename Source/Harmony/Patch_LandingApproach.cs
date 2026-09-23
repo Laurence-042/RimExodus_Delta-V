@@ -48,7 +48,7 @@ namespace DeltaV
             {
                 cells.Add(cell + landingPos);
             }
-            universe.ShipModes.SetLandingCaptureScope(map, gravship.Engine, cells);
+            universe.ShipTransitions.SetLandingCaptureScope(map, gravship.Engine, cells);
             SubstructureOwnership.For(map).SetPendingStamp(cells, ResolveLandingOwnerId(universe, gravship));
         }
 
@@ -56,8 +56,8 @@ namespace DeltaV
         {
             // 战术降落到达重放时 pendingShip 已被 WriteDockedState 清空，改读
             // landedShipAwaitingPocketCleanup 窗口（WriteDockedState → LandingEnded）。
-            ShipState pending = universe.ShipModes.PendingDockingShip(universe)
-                ?? universe.ShipModes.LandedShipAwaitingPocketCleanup(universe);
+            ShipState pending = universe.ShipTransitions.PendingDockingShip(universe)
+                ?? universe.ShipTransitions.LandedShipAwaitingPocketCleanup(universe);
             if (pending != null)
             {
                 return pending.objectId;
@@ -98,20 +98,20 @@ namespace DeltaV
         }
     }
 
-    /// <summary>移动模式起飞 / 战术降落到达重放：起播即压零 cutscene 时长，收尾照常。</summary>
+    /// <summary>脱离停靠 / 对接到达重放：起播即压零 cutscene 时长，收尾照常。</summary>
     [HarmonyPatch(typeof(GravshipRenderer), nameof(GravshipRenderer.BeginCutscene))]
     public static class Patch_GravshipRenderer_BeginCutscene
     {
         public static void Postfix()
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            universe?.ShipModes.SuppressMobileLaunchAnimation(universe);
+            universe?.ShipTransitions.SuppressFreeFlightTransitionAnimation(universe);
             universe?.Approach.SuppressArrivalCutscene();
         }
     }
 
     /// <summary>
-    /// Delta-V 接管的降落（进场 + 到达重放）与移动模式起飞期间跳过原版相机平移：
+    /// Delta-V 接管的对接与脱离停靠期间跳过原版相机平移：
     /// 到达重放的 pan 目标来自截图包络（快照尺度），在对接尺度不可接受；相机在
     /// 选点跳转后保持不动即可。原版战略降落不受影响。
     /// </summary>
@@ -121,7 +121,7 @@ namespace DeltaV
         public static bool Prefix(PanCompletionCallback onComplete)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (universe?.Approach.AnyActive != true && universe?.ShipModes.MobileLaunchPending() != true) return true;
+            if (universe?.Approach.AnyActive != true && universe?.ShipTransitions.FreeFlightTransitionPending() != true) return true;
             onComplete?.Invoke();
             return false;
         }
@@ -172,7 +172,7 @@ namespace DeltaV
         public static void Postfix()
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            universe?.ShipModes.NotifyVanillaLandingEnded(universe);
+            universe?.ShipTransitions.NotifyVanillaLandingEnded(universe);
             universe?.Approach.NotifyArrivalEnded();
         }
     }
@@ -194,14 +194,14 @@ namespace DeltaV
         }
     }
 
-    /// <summary>移动模式起飞 / 到达重放期间持续压零动画时钟（跨更新边界双保险）。</summary>
+    /// <summary>脱离停靠 / 到达重放期间持续压零动画时钟（跨更新边界双保险）。</summary>
     [HarmonyPatch(typeof(WorldComponent_GravshipController), nameof(WorldComponent_GravshipController.WorldComponentUpdate))]
     public static class Patch_GravshipController_WorldComponentUpdate_Approach
     {
         public static void Prefix(WorldComponent_GravshipController __instance)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            universe?.ShipModes.BeforeGravshipControllerUpdate(universe, __instance);
+            universe?.ShipTransitions.BeforeGravshipControllerUpdate(universe, __instance);
             universe?.Approach.BeforeControllerUpdate(__instance);
         }
     }
@@ -224,7 +224,7 @@ namespace DeltaV
             if (universe == null) return;
             // 选点阶段 = pendingShip 已置位但计划尚未发布（发布后 pendingShip 保留到
             // WriteDockedState，由 AnyActive 区分选点与计划两段）。
-            bool siteSelection = universe.ShipModes.PendingDockingShip(universe) != null
+            bool siteSelection = universe.ShipTransitions.PendingDockingShip(universe) != null
                 && !universe.Approach.AnyActive;
             if (siteSelection || universe.Approach.ArrivalPending
                 || universe.BoardingPods.AnyInFlight)

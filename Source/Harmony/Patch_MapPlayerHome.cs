@@ -5,7 +5,7 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 移动模式中的飞船口袋图不是玩家主基地（Map.IsPlayerHome 覆写为 false）。
+    /// 自由飞行船的口袋图不是玩家主基地（Map.IsPlayerHome 覆写为 false）。
     ///
     /// 原版支持"玩家暂无主基地"的形态（gravship 航行途中），但原版+模组生态普遍
     /// 假设主基地图持有有效世界 tile（DateNotifier 季节检查的其中两个助手对

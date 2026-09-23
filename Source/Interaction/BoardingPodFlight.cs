@@ -69,7 +69,9 @@ namespace DeltaV
         /// </summary>
         public void Launch(ShipState source, ShipState target, List<Pawn> pawns)
         {
-            if (source?.map == null || target?.map == null || pawns.NullOrEmpty()) return;
+            if (source?.map == null || target?.InteriorMap == null || pawns.NullOrEmpty()) return;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe?.FrameOf(target.InteriorMap) == null) return;
             var flight = new Flight
             {
                 sourceShip = source,
@@ -106,9 +108,9 @@ namespace DeltaV
                 Flight flight = flights[i];
                 flight.age += 1;
                 if (flight.age > MaxFlightTicks
-                    || flight.target.map == null || flight.target.map.Disposed)
+                    || flight.target.InteriorMap == null || flight.target.InteriorMap.Disposed)
                 {
-                    AbortFlight(flight, flight.target.map == null ? "target lost" : "timeout");
+                    AbortFlight(flight, flight.target.InteriorMap == null ? "target lost" : "timeout");
                     flights.RemoveAt(i);
                     continue;
                 }
@@ -128,11 +130,13 @@ namespace DeltaV
         /// <summary>目标壳等效半径：引擎相连基架域各格到 pose 锚（口袋图几何中心）的最远距离 + 2。</summary>
         private static float EstimateShellRadius(ShipState target)
         {
-            Map map = target.map;
+            Map map = target.InteriorMap;
             Building_GravEngine engine = ShipStructureResolver.EngineOf(target);
             HashSet<IntVec3> cells = engine?.AllConnectedSubstructure;
             if (cells == null || cells.Count == 0) return map.Size.x * 0.5f;
-            Vector2 center = SpaceTransform.ShipLocalOrigin(map);
+            Vector2 center = target.IsDocked
+                ? ShipStructureResolver.DockedOrigin(target)
+                : SpaceTransform.ShipLocalOrigin(map);
             float radius = 0f;
             foreach (IntVec3 cell in cells)
             {
@@ -145,9 +149,15 @@ namespace DeltaV
         /// <summary>命中即降落：命中点 → 目标图格子 → 沿入射方向找首个外壳结构格开孔 → 密封舱落位 → 乘员投放。</summary>
         private static void Impact(Flight flight)
         {
-            Map map = flight.target.map;
-            Vector2 hitPoint = SpaceTransform.UniverseToMapPoint(flight.target, flight.position);
-            IntVec3 breach = FindBreachCell(map, hitPoint);
+            Map map = flight.target.InteriorMap;
+            SpaceObject frame = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map);
+            if (frame == null)
+            {
+                AbortFlight(flight, "target map owner lost");
+                return;
+            }
+            Vector2 hitPoint = SpaceTransform.UniverseToMapPoint(frame, map, flight.position);
+            IntVec3 breach = FindBreachCell(flight.target, map, hitPoint);
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"boarding pod impact on '{flight.target.label}': breach cell {breach}");
 
@@ -189,9 +199,12 @@ namespace DeltaV
         /// 破口格：从命中点向目标中心逐格采样，首个有可见结构外观的格子（船壳外沿）；
         /// 全程无结构（图比估算半径空）则退化为命中格。
         /// </summary>
-        private static IntVec3 FindBreachCell(Map map, Vector2 hitPoint)
+        private static IntVec3 FindBreachCell(ShipState target, Map map, Vector2 hitPoint)
         {
-            Vector2 center = SpaceTransform.ShipLocalOrigin(map);
+            Vector2 center = target.IsDocked
+                ? ShipStructureResolver.DockedOrigin(target)
+                : SpaceTransform.ShipLocalOrigin(map);
+            HashSet<IntVec3> targetCells = ShipStructureResolver.EngineOf(target)?.AllConnectedSubstructure;
             Vector2 dir = center - hitPoint;
             dir = dir.sqrMagnitude > 1e-6f ? dir.normalized : Vector2.right;
             for (int i = 0; i < 200; i++)
@@ -199,7 +212,8 @@ namespace DeltaV
                 Vector2 probe = hitPoint + dir * i;
                 var cell = new IntVec3(Mathf.FloorToInt(probe.x), 0, Mathf.FloorToInt(probe.y));
                 if (!cell.InBounds(map)) continue;
-                if (MapOverlayRenderer.ContainsVisibleContent(map, cell))
+                if ((targetCells == null || targetCells.Contains(cell))
+                    && MapOverlayRenderer.ContainsVisibleContent(map, cell))
                 {
                     return cell;
                 }

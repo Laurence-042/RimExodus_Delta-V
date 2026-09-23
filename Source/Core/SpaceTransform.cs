@@ -88,36 +88,6 @@ namespace DeltaV
         //   该中心位置，见 ShipOriginFromPlacementRoot）。
         // 连续坐标一律格角空间（格 c 占 [c, c+1)）；需要格心处由调用方显式 +0.5。
 
-        /// <summary>悬停/中心锚格 → 放置 root 格（原版 Designator 的
-        /// GetSizeRotAdjustedCell + PrefabUtility.GetRoot 组合，逐字段等价）。</summary>
-        public static IntVec3 AdjustedCellToPlacementRoot(IntVec3 adjustedCell, IntVec2 size, Rot4 rot)
-        {
-            return PrefabUtility.GetRoot(adjustedCell, size, rot);
-        }
-
-        /// <summary>放置 root 格 → 悬停/中心锚格（原版 Designator.GetSizeRotAdjustedCell
-        /// 的逐字段镜像；与 AdjustedCellToPlacementRoot 在整格取整意义下互逆）。
-        /// **注意**：原版 Designator 判定链 GetRoot(GetSizeRotAdjustedCell(loc)) 对 root 格
-        /// 是恒等变换——经 designator（CanDesignateCell 等）复核落点时**直接传 root 格**，
-        /// 禁止叠加本换算自组合往返（2026-09-21 实测事故源）。</summary>
-        public static IntVec3 PlacementRootToAdjustedCell(IntVec3 root, IntVec2 size, Rot4 rot)
-        {
-            IntVec3 halfX = new IntVec3(size.x / 2, 0, 0);
-            IntVec3 halfZ = new IntVec3(0, 0, size.z / 2);
-            if (rot == Rot4.North) return root + halfX + halfZ;
-            if (rot == Rot4.East) return root + halfX - halfZ;
-            if (rot == Rot4.South) return root - halfX - halfZ;
-            return root - halfX + halfZ;
-        }
-
-        /// <summary>原版 Designator 判定链 GetRoot(GetSizeRotAdjustedCell(loc)) 的显式镜像：
-        /// 对 root 锚格**恒等**（选点与完成复核共用同一锚语义）。需要在该判定链之外计算
-        /// 同一 root 时（如禁触补丁）用本入口，不得另行组合（不变量 #21）。</summary>
-        public static IntVec3 PlacementAnchorRoot(IntVec3 anchorCell, IntVec2 size, Rot4 rot)
-        {
-            return AdjustedCellToPlacementRoot(PlacementRootToAdjustedCell(anchorCell, size, rot), size, rot);
-        }
-
         /// <summary>船以 rot 停靠到 root 后，其口袋图几何中心（SpacePose.position 锚）
         /// 在宿主图的连续坐标（格角空间）——dockedOrigin 的唯一来源。</summary>
         public static Vector2 ShipOriginFromPlacementRoot(Map pocketMap, IntVec3 pocketRoot, IntVec3 root, Rot4 rot)
@@ -177,6 +147,23 @@ namespace DeltaV
             return TransportVelocity(pointPose, pointDirection);
         }
 
+        /// <summary>
+        /// 宿主刚体上一个局部点的完整位姿。已停靠船同步、脱离停靠与未来硬点载具
+        /// 只允许经此入口合成位置、v+ω×r、朝向和角速度。
+        /// </summary>
+        public static SpacePose RigidPointPose(SpacePose hostPose, Vector2 hostLocalPoint,
+            float localAngle)
+        {
+            Vector3 direction = ShipLocalToUniverse(hostPose, hostLocalPoint);
+            return new SpacePose
+            {
+                position = direction,
+                velocity = VelocityAtLocalPoint(hostPose, hostLocalPoint, direction),
+                angle = WrapAngle(hostPose.angle + localAngle),
+                angularVelocity = hostPose.angularVelocity
+            };
+        }
+
         // ---------- Ship local ⇄ universe ----------
 
         public static Vector3 ShipLocalToUniverse(SpaceObject obj, Vector2 shipPoint)
@@ -189,37 +176,33 @@ namespace DeltaV
             return OrbitSphere.Move(pose.position, Rotate(shipPoint, pose.angle));
         }
 
+        /// <summary>所属对象内部图的连续地图点 → 唯一球面轨道位置。</summary>
+        public static Vector3 MapPointToUniverse(SpaceObject owner, Map map, Vector2 mapPoint)
+        {
+            return ShipLocalToUniverse(owner, MapToShipLocal(map, mapPoint));
+        }
+
         public static Vector2 UniverseToShipLocal(SpaceObject obj, Vector3 universeDir)
         {
-            return RotateInverse(OrbitSphere.Offset(obj.pose.position, universeDir), obj.pose.angle);
+            return UniverseToShipLocal(obj.pose, universeDir);
+        }
+
+        public static Vector2 UniverseToShipLocal(SpacePose pose, Vector3 universeDir)
+        {
+            return RotateInverse(OrbitSphere.Offset(pose.position, universeDir), pose.angle);
         }
 
         /// <summary>
-        /// universe → 目标船的**地图坐标**（含中心偏移）。
+        /// universe → 所属对象内部图的**地图坐标**（含中心偏移）。
         /// 专为消灭"中心系/地图系"混用 bug 家族而设（2026-09-12 三次同族事故：
         /// FocusedDrawPosition / ShellPicking / 相机跳转都把 UniverseToShipLocal 的
         /// 中心系输出当地图坐标用）。消费方要落格子/落相机一律用本方法，
         /// 直接拿 UniverseToShipLocal 输出当地图坐标 = 反模式。
         /// </summary>
-        public static Vector2 UniverseToMapPoint(SpaceObject obj, Vector3 universeDir)
+        /// <summary>球面轨道位置 → 所属对象内部图的连续地图点。</summary>
+        public static Vector2 UniverseToMapPoint(SpaceObject owner, Map map, Vector3 universeDir)
         {
-            return ShipLocalToMap(obj.map, UniverseToShipLocal(obj, universeDir));
-        }
-
-        /// <summary>
-        /// universe → 停靠船在停靠图（宿主内部）上的地图坐标。宿主对象承载帧
-        /// （星区架构 §4 坐标桥）：宿主位姿 ⊕ 内部局部坐标的逆变换，对任意角度的
-        /// 宿主（worldtile 画布 / POI 口袋内部）一致；宿主尚未纳管的瞬态回退到
-        /// 「以 dockedOrigin 为原点的纯平移」（worldtile 帧角度恒 0 的旧特例）。
-        /// </summary>
-        public static Vector2 UniverseToDockedMapPoint(UniverseManager universe, ShipState ship, Vector3 universeDir)
-        {
-            SpaceObject host = universe?.FrameOf(ship.dockedMap);
-            if (host != null && host.map == ship.dockedMap)
-            {
-                return UniverseToMapPoint(host, universeDir);
-            }
-            return ShipStructureResolver.DockedOrigin(ship) + OrbitSphere.Offset(ship.pose.position, universeDir);
+            return ShipLocalToMap(map, UniverseToShipLocal(owner, universeDir));
         }
 
         // ---------- Universe ⇄ focused 参考系 ----------
@@ -227,12 +210,12 @@ namespace DeltaV
 
         public static Vector2 UniverseToFocused(SpaceObject focused, Vector3 universeDir)
         {
-            return RotateInverse(OrbitSphere.Offset(focused.pose.position, universeDir), focused.pose.angle);
+            return UniverseToShipLocal(focused, universeDir);
         }
 
         public static Vector3 FocusedToUniverse(SpaceObject focused, Vector2 focusedPoint)
         {
-            return OrbitSphere.Move(focused.pose.position, Rotate(focusedPoint, focused.pose.angle));
+            return ShipLocalToUniverse(focused, focusedPoint);
         }
 
         public static float UniverseAngleToFocused(SpaceObject focused, float universeAngle)
@@ -284,8 +267,7 @@ namespace DeltaV
         /// </summary>
         public static Vector3 FocusedDrawPosition(SpaceObject focused, Map focusedMap, Vector3 universeDir, float altitude)
         {
-            Vector2 rel = UniverseToFocused(focused, universeDir);
-            Vector2 mapPoint = ShipLocalToMap(focusedMap, rel);
+            Vector2 mapPoint = UniverseToMapPoint(focused, focusedMap, universeDir);
             return new Vector3(mapPoint.x, altitude, mapPoint.y);
         }
     }

@@ -2,17 +2,24 @@
 
 <LanguageData>
   <DeltaV_PilotNeedShipFocus>请先聚焦到一艘飞船的地图。</DeltaV_PilotNeedShipFocus>
-  <DeltaV_PilotOn>驾驶模式开启：{0}</DeltaV_PilotOn>
-  <DeltaV_PilotOff>驾驶模式关闭：{0}</DeltaV_PilotOff>
-  <DeltaV_PilotExitAuto>驾驶模式结束（焦点已离开 {0}）。</DeltaV_PilotExitAuto>
+  <DeltaV_PilotOn>已开始手动驾驶：{0}</DeltaV_PilotOn>
+  <DeltaV_PilotOff>已停止手动驾驶：{0}</DeltaV_PilotOff>
+  <DeltaV_PilotExitAuto>已停止手动驾驶（焦点已离开 {0}）。</DeltaV_PilotExitAuto>
   <DeltaV_PilotButtonEnter>驾驶此船</DeltaV_PilotButtonEnter>
   <DeltaV_PilotButtonExit>停止驾驶</DeltaV_PilotButtonExit>
-  <DeltaV_MobileButtonEnter>进入移动模式</DeltaV_MobileButtonEnter>
-  <DeltaV_PilotGravityRestricted>重力环境下只能使用逆重引擎结合推进器进行近抛物线定点移动；只有在无重力环境下才能进入非定点移动模式。</DeltaV_PilotGravityRestricted>
-    <DeltaV_MobileHudTitle>移动模式：{0}</DeltaV_MobileHudTitle>
+  <DeltaV_BeginFreeFlightButton>脱离停靠并开始自由飞行</DeltaV_BeginFreeFlightButton>
+  <DeltaV_BeginDockingButton>选择对接</DeltaV_BeginDockingButton>
+  <DeltaV_PilotGravityRestricted>重力环境下只能使用逆重引擎结合推进器进行近抛物线定点移动；只有在无重力环境下才能自由飞行。</DeltaV_PilotGravityRestricted>
+  <DeltaV_ShipPanelTitle>{0}</DeltaV_ShipPanelTitle>
+  <DeltaV_DockedAreaTitle>停靠区</DeltaV_DockedAreaTitle>
+  <DeltaV_PanelFlightState>飞行状态：{0}</DeltaV_PanelFlightState>
+  <DeltaV_FlightStateFree>自由飞行</DeltaV_FlightStateFree>
+  <DeltaV_FlightStateDocked>已停靠</DeltaV_FlightStateDocked>
   <DeltaV_HudControl>控制状态：{0}</DeltaV_HudControl>
-  <DeltaV_ControlPiloting>正在驾驶</DeltaV_ControlPiloting>
-  <DeltaV_ControlInactive>未驾驶</DeltaV_ControlInactive>
+  <DeltaV_ControlUncontrolled>未控制</DeltaV_ControlUncontrolled>
+  <DeltaV_ControlManual>正在手动控制</DeltaV_ControlManual>
+  <DeltaV_ControlAutopilot>正在自动驾驶</DeltaV_ControlAutopilot>
+  <DeltaV_ControlSwitchAutopilot>切换为自动驾驶</DeltaV_ControlSwitchAutopilot>
   <DeltaV_HudSpeed>速度：{0} 格/秒</DeltaV_HudSpeed>
   <DeltaV_HudHeading>航向：{0}°</DeltaV_HudHeading>
   <DeltaV_HudTurnRate>转速：{0}°/秒</DeltaV_HudTurnRate>
@@ -40,21 +47,19 @@
   <DeltaV_SettingsMapGenBudget>分帧地图生成预算（毫秒/帧，1-16）</DeltaV_SettingsMapGenBudget>
   <DeltaV_SaveBlockedGeneratingLabel>地图生成尚未完成</DeltaV_SaveBlockedGeneratingLabel>
   <DeltaV_SaveBlockedGenerating>Delta-V 正在分帧生成地图（{0}）。请在生成完成后重试保存。</DeltaV_SaveBlockedGenerating>
-  <DeltaV_FixedButtonEnter>进入固定模式</DeltaV_FixedButtonEnter>
-  <DeltaV_DockSuccess>{0} 已在宿主图进入固定模式。</DeltaV_DockSuccess>
-  <DeltaV_ApproachAborted>降落进场异常中止，已恢复控制。飞船仍处于移动模式，可重新发起降落。</DeltaV_ApproachAborted>
+  <DeltaV_DockSuccess>{0} 已完成停靠。</DeltaV_DockSuccess>
+  <DeltaV_ApproachAborted>对接异常中止。飞船仍在自由飞行，可重新发起对接。</DeltaV_ApproachAborted>
   <DeltaV_DockFailHostMap>无法解析当前位置的降落图。</DeltaV_DockFailHostMap>
   <DeltaV_DockFailNoTarget>没有可对接目标：飞船下方没有已加载的对象内部。请接近空间站、残骸或其他飞船后重试；移动中的有动力飞船也可对接（自动驾驶会做速度匹配）。</DeltaV_DockFailNoTarget>
   <DeltaV_DockFailOutOfRange>飞船的宇宙位置无法投影到轨道 tile，请先回到星球附近。</DeltaV_DockFailOutOfRange>
   <DeltaV_DockFailBlocked>目标图上的降落区域被占用，请换一处或先清空。</DeltaV_DockFailBlocked>
-  <DeltaV_DockFailNoEngine>船上没有逆重引擎。固定模式需要一台逆重引擎作为船体结构锚点。</DeltaV_DockFailNoEngine>
+  <DeltaV_DockFailNoEngine>船上没有逆重引擎，无法完成对接或脱离停靠。</DeltaV_DockFailNoEngine>
   <DeltaV_DockFailBusy>另一项逆重飞船降落或航行操作正在进行。</DeltaV_DockFailBusy>
-  <DeltaV_LaunchFailNoThruster>船上没有可工作的推进器。进入移动模式需要至少一台状态正常的推进器。</DeltaV_LaunchFailNoThruster>
-  <DeltaV_MobileSuccess>{0} 已进入移动模式。</DeltaV_MobileSuccess>
+  <DeltaV_LaunchFailNoThruster>船上没有可工作的推进器，无法开始自由飞行。</DeltaV_LaunchFailNoThruster>
+  <DeltaV_FreeFlightSuccess>{0} 已开始自由飞行。</DeltaV_FreeFlightSuccess>
   <DeltaV_ConsoleGizmoPilot>驾驶此船</DeltaV_ConsoleGizmoPilot>
-  <DeltaV_ConsoleGizmoLaunch>进入移动模式</DeltaV_ConsoleGizmoLaunch>
   <DeltaV_ConsoleGizmoMakePrimary>设为主驾驶台</DeltaV_ConsoleGizmoMakePrimary>
-  <DeltaV_ConsoleGizmoPrimaryTip>进入移动模式时，飞船朝向跟随主驾驶台的朝向。</DeltaV_ConsoleGizmoPrimaryTip>
+  <DeltaV_ConsoleGizmoPrimaryTip>开始自由飞行时，飞船朝向跟随主驾驶台的朝向。</DeltaV_ConsoleGizmoPrimaryTip>
   <DeltaV_ConsolePrimarySet>主驾驶台已设置：{0}</DeltaV_ConsolePrimarySet>
   <DeltaV_ConsolePrimary>这是主驾驶台。</DeltaV_ConsolePrimary>
   <DeltaV_PoiCreated>POI 已创建：{0}，距离 {1} 格。</DeltaV_PoiCreated>
@@ -62,11 +67,8 @@
   <DeltaV_PoiDormant>POI {0}：已休眠（保留地图，冻结 tick）。</DeltaV_PoiDormant>
   <DeltaV_PoiPacked>POI {0}：已删除地图（快照保存）。</DeltaV_PoiPacked>
   <DeltaV_PoiRestored>POI {0}：已从快照恢复地图。</DeltaV_PoiRestored>
-  <DeltaV_PanelDockedTitle>固定模式：{0}</DeltaV_PanelDockedTitle>
-  <DeltaV_PanelFixedTitle>固定模式</DeltaV_PanelFixedTitle>
   <DeltaV_PanelSectorTitle>太空：{0}</DeltaV_PanelSectorTitle>
-  <DeltaV_PanelModeFixed>模式：固定（已停靠）</DeltaV_PanelModeFixed>
-  <DeltaV_PanelPickConsoleTip>本图共泊多艘逆重飞船：请选中目标船的驾驶台并使用其「进入移动模式」，才能捕获正确的船体。</DeltaV_PanelPickConsoleTip>
+  <DeltaV_PanelPickConsoleTip>本图停靠了多艘逆重飞船：请选中目标船的驾驶台，再选择「脱离停靠并开始自由飞行」。</DeltaV_PanelPickConsoleTip>
   <DeltaV_PanelGlobeZoomOut>星球</DeltaV_PanelGlobeZoomOut>
   <DeltaV_PanelGlobeZoomIn>星区</DeltaV_PanelGlobeZoomIn>
   <DeltaV_PanelGlobeDistance>{0} 格</DeltaV_PanelGlobeDistance>
@@ -99,12 +101,8 @@
   <!-- 对接计划（2026-09-21 阶段4） -->
   <DeltaV_DockPlanStarted>{0} 对接计划已建立：目标 {1}。自动驾驶接近中，也可手动飞入预定位置（半透明幽灵船处）——位姿重合保持足够时间即完成对接。</DeltaV_DockPlanStarted>
   <DeltaV_DockPlanStatus>对接中：{0}（距离 {1} 格）</DeltaV_DockPlanStatus>
-  <DeltaV_DockPlanAutopilotOn>自动驾驶：随动接近中</DeltaV_DockPlanAutopilotOn>
-  <DeltaV_DockPlanAutopilotOff>自动驾驶：已停止（可手操或重新开启）</DeltaV_DockPlanAutopilotOff>
-  <DeltaV_DockAutopilotResumeButton>继续自动驾驶</DeltaV_DockAutopilotResumeButton>
-  <DeltaV_DockAutopilotStopButton>停止自动驾驶</DeltaV_DockAutopilotStopButton>
   <DeltaV_DockCancelButton>取消对接</DeltaV_DockCancelButton>
-  <DeltaV_DockPlanCancelled>对接计划已取消：飞船回到移动模式，可随时重新发起。</DeltaV_DockPlanCancelled>
+  <DeltaV_DockPlanCancelled>对接计划已取消：飞船继续自由飞行。</DeltaV_DockPlanCancelled>
   <DeltaV_DockAutopilotStopped>自动驾驶已停止（对接计划保留）。</DeltaV_DockAutopilotStopped>
   <DeltaV_DockPlanBlocksDesignator>对接进行中：无法变更船体结构或规划。取消对接后再试。</DeltaV_DockPlanBlocksDesignator>
   <DeltaV_DockPlanBlocksLaunch>对接进行中：无法发起逆重发射。取消对接后再试。</DeltaV_DockPlanBlocksLaunch>

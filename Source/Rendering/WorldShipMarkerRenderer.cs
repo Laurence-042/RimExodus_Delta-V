@@ -48,7 +48,7 @@ namespace DeltaV
             EnsureCurrentGame();
             foreach (ShipState ship in universe.Ships)
             {
-                if (!ship.isPlayerShip || ship.docking)
+                if (ship.faction != Faction.OfPlayer || universe.ShipTransitions.IsDockingFlowShip(ship))
                 {
                     continue;
                 }
@@ -96,7 +96,9 @@ namespace DeltaV
             screenPos = Vector2.zero;
             hitRadiusPx = 0f;
             PlanetLayer layer = OrbitSphere.Layer;
-            if (ship == null || ship.docking || layer == null || PlanetLayer.Selected != layer)
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (ship == null || universe?.ShipTransitions.IsDockingFlowShip(ship) == true
+                || layer == null || PlanetLayer.Selected != layer)
             {
                 return false;
             }
@@ -127,16 +129,14 @@ namespace DeltaV
                 return marker;
             }
 
-            // 读档后运行时缓存为空，而船可能已经处于移动/固定模式；第一次显示时
-            // 允许惰性补建一次。正常游戏流程则由移动模式入口主动调用 RebuildFor。
+            // 读档后运行时缓存为空，第一次显示时允许惰性补建一次。
             RebuildFor(ship);
             Cache.TryGetValue(ship, out marker);
             return marker;
         }
 
         /// <summary>
-        /// 移动模式入口调用：以进入瞬间的完整船体重建一次剪影。此后无论建造或
-        /// 战斗如何改变结构，标记都继续沿用该快照，直到下一次进入移动模式。
+        /// 自由飞行入口调用：以脱离停靠瞬间的完整船体重建一次剪影。
         /// </summary>
         public static void RebuildFor(ShipState ship)
         {
@@ -180,7 +180,7 @@ namespace DeltaV
                 color = Faction.OfPlayer?.Color ?? Color.white,
                 renderQueue = 3550
             };
-            marker.sourceFromDockedMap = ship.docked;
+            marker.sourceFromDockedMap = ship.IsDocked;
         }
 
         private static void EnsureCurrentGame()

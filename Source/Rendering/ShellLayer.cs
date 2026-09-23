@@ -113,8 +113,7 @@ namespace DeltaV
         }
     }
 
-    /// <summary>前台层：进场/选点悬停壳（ship.docking）在聚焦图画完之后再绘制
-    /// （AfterForwardAlpha）——切固定模式期间聚焦图（降落目标图）临时被悬停壳覆盖。</summary>
+    /// <summary>前台层：对接进场/选点悬停壳在聚焦图画完之后再绘制。</summary>
     internal sealed class ShellForegroundLayer : ShellLayer
     {
         protected override CameraEvent Event => CameraEvent.AfterForwardAlpha;

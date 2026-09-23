@@ -2,17 +2,24 @@
 
 <LanguageData>
   <DeltaV_PilotNeedShipFocus>Focus a ship map first.</DeltaV_PilotNeedShipFocus>
-  <DeltaV_PilotOn>Pilot mode engaged: {0}</DeltaV_PilotOn>
-  <DeltaV_PilotOff>Pilot mode disengaged: {0}</DeltaV_PilotOff>
-  <DeltaV_PilotExitAuto>Pilot mode ended (focus left {0}).</DeltaV_PilotExitAuto>
+  <DeltaV_PilotOn>Manual control engaged: {0}</DeltaV_PilotOn>
+  <DeltaV_PilotOff>Manual control released: {0}</DeltaV_PilotOff>
+  <DeltaV_PilotExitAuto>Manual control released (focus left {0}).</DeltaV_PilotExitAuto>
   <DeltaV_PilotButtonEnter>Pilot this ship</DeltaV_PilotButtonEnter>
   <DeltaV_PilotButtonExit>Stop piloting</DeltaV_PilotButtonExit>
-  <DeltaV_MobileButtonEnter>Enter mobile mode</DeltaV_MobileButtonEnter>
+  <DeltaV_BeginFreeFlightButton>Undock and begin free flight</DeltaV_BeginFreeFlightButton>
+  <DeltaV_BeginDockingButton>Select docking site</DeltaV_BeginDockingButton>
   <DeltaV_PilotGravityRestricted>In gravity, a grav engine and thrusters can only make short, targeted ballistic hops. Free non-targeted flight is available only in zero gravity.</DeltaV_PilotGravityRestricted>
-    <DeltaV_MobileHudTitle>Mobile mode: {0}</DeltaV_MobileHudTitle>
+  <DeltaV_ShipPanelTitle>{0}</DeltaV_ShipPanelTitle>
+  <DeltaV_DockedAreaTitle>Docked ships</DeltaV_DockedAreaTitle>
+  <DeltaV_PanelFlightState>Flight state: {0}</DeltaV_PanelFlightState>
+  <DeltaV_FlightStateFree>free flight</DeltaV_FlightStateFree>
+  <DeltaV_FlightStateDocked>docked</DeltaV_FlightStateDocked>
   <DeltaV_HudControl>Controls: {0}</DeltaV_HudControl>
-  <DeltaV_ControlPiloting>piloting</DeltaV_ControlPiloting>
-  <DeltaV_ControlInactive>inactive</DeltaV_ControlInactive>
+  <DeltaV_ControlUncontrolled>uncontrolled</DeltaV_ControlUncontrolled>
+  <DeltaV_ControlManual>manual control</DeltaV_ControlManual>
+  <DeltaV_ControlAutopilot>autopilot</DeltaV_ControlAutopilot>
+  <DeltaV_ControlSwitchAutopilot>Switch to autopilot</DeltaV_ControlSwitchAutopilot>
   <DeltaV_HudSpeed>Speed: {0} c/s</DeltaV_HudSpeed>
   <DeltaV_HudHeading>Heading: {0}°</DeltaV_HudHeading>
   <DeltaV_HudTurnRate>Turn rate: {0}°/s</DeltaV_HudTurnRate>
@@ -40,21 +47,19 @@
   <DeltaV_SettingsMapGenBudget>Incremental map generation budget (ms/frame, 1-16)</DeltaV_SettingsMapGenBudget>
   <DeltaV_SaveBlockedGeneratingLabel>Map generation in progress</DeltaV_SaveBlockedGeneratingLabel>
   <DeltaV_SaveBlockedGenerating>Delta-V is incrementally generating a map ({0}). Please save again after it finishes.</DeltaV_SaveBlockedGenerating>
-  <DeltaV_FixedButtonEnter>Enter fixed mode</DeltaV_FixedButtonEnter>
-  <DeltaV_DockSuccess>{0} secured in fixed mode on the space anchor map.</DeltaV_DockSuccess>
-  <DeltaV_ApproachAborted>Landing approach failed unexpectedly. Control was restored; the ship remains in mobile mode and docking can be retried.</DeltaV_ApproachAborted>
+  <DeltaV_DockSuccess>{0} has docked.</DeltaV_DockSuccess>
+  <DeltaV_ApproachAborted>Docking failed unexpectedly. The ship remains in free flight and docking can be retried.</DeltaV_ApproachAborted>
   <DeltaV_DockFailHostMap>No landing map could be resolved for the current position.</DeltaV_DockFailHostMap>
   <DeltaV_DockFailNoTarget>No loaded object interior is under the ship to dock onto. Approach a station, wreck or another ship and try again; powered ships in motion can also be docked (the autopilot matches their velocity).</DeltaV_DockFailNoTarget>
   <DeltaV_DockFailOutOfRange>Ship's universe position cannot be projected to an orbit tile. Fly closer to the planet first.</DeltaV_DockFailOutOfRange>
   <DeltaV_DockFailBlocked>Landing area on the target map is blocked. Pick another spot or clear it first.</DeltaV_DockFailBlocked>
-  <DeltaV_DockFailNoEngine>No grav engine found on the ship. Fixed mode requires a grav engine as the ship's structural anchor.</DeltaV_DockFailNoEngine>
+  <DeltaV_DockFailNoEngine>No grav engine found; the ship cannot dock or undock.</DeltaV_DockFailNoEngine>
   <DeltaV_DockFailBusy>Another gravship landing or flight operation is already in progress.</DeltaV_DockFailBusy>
-  <DeltaV_LaunchFailNoThruster>No operational thruster found on the ship. Entering mobile mode requires at least one functional thruster.</DeltaV_LaunchFailNoThruster>
-  <DeltaV_MobileSuccess>{0} has entered mobile mode.</DeltaV_MobileSuccess>
+  <DeltaV_LaunchFailNoThruster>No operational thruster found; the ship cannot begin free flight.</DeltaV_LaunchFailNoThruster>
+  <DeltaV_FreeFlightSuccess>{0} has begun free flight.</DeltaV_FreeFlightSuccess>
   <DeltaV_ConsoleGizmoPilot>Pilot this ship</DeltaV_ConsoleGizmoPilot>
-  <DeltaV_ConsoleGizmoLaunch>Enter mobile mode</DeltaV_ConsoleGizmoLaunch>
   <DeltaV_ConsoleGizmoMakePrimary>Set as primary console</DeltaV_ConsoleGizmoMakePrimary>
-  <DeltaV_ConsoleGizmoPrimaryTip>The ship's heading when entering mobile mode follows the primary console's facing.</DeltaV_ConsoleGizmoPrimaryTip>
+  <DeltaV_ConsoleGizmoPrimaryTip>The ship's heading when beginning free flight follows the primary console's facing.</DeltaV_ConsoleGizmoPrimaryTip>
   <DeltaV_ConsolePrimarySet>Primary console set: {0}</DeltaV_ConsolePrimarySet>
   <DeltaV_ConsolePrimary>This is the primary pilot console.</DeltaV_ConsolePrimary>
   <DeltaV_PoiCreated>POI created: {0} at {1} cells.</DeltaV_PoiCreated>
@@ -62,11 +67,8 @@
   <DeltaV_PoiDormant>POI {0}: dormant (map kept, ticking frozen).</DeltaV_PoiDormant>
   <DeltaV_PoiPacked>POI {0}: map removed (snapshot saved).</DeltaV_PoiPacked>
   <DeltaV_PoiRestored>POI {0}: map restored from snapshot.</DeltaV_PoiRestored>
-  <DeltaV_PanelDockedTitle>Fixed mode: {0}</DeltaV_PanelDockedTitle>
-  <DeltaV_PanelFixedTitle>Fixed mode</DeltaV_PanelFixedTitle>
   <DeltaV_PanelSectorTitle>Space: {0}</DeltaV_PanelSectorTitle>
-  <DeltaV_PanelModeFixed>Mode: fixed (docked)</DeltaV_PanelModeFixed>
-  <DeltaV_PanelPickConsoleTip>Several gravships share this map. Select the target ship's pilot console and use its "Enter mobile mode" gizmo so the correct hull is captured.</DeltaV_PanelPickConsoleTip>
+  <DeltaV_PanelPickConsoleTip>Several gravships are docked here. Select the target ship's pilot console, then choose "Undock and begin free flight".</DeltaV_PanelPickConsoleTip>
   <DeltaV_PanelGlobeZoomOut>Planet</DeltaV_PanelGlobeZoomOut>
   <DeltaV_PanelGlobeZoomIn>Sector</DeltaV_PanelGlobeZoomIn>
   <DeltaV_PanelGlobeDistance>{0} cells</DeltaV_PanelGlobeDistance>
@@ -99,12 +101,8 @@
   <!-- Docking plan (2026-09-21, phase 4) -->
   <DeltaV_DockPlanStarted>Docking plan engaged: {0} -> {1}. The autopilot is closing in; you may also fly to the marked position (semi-transparent ghost) manually - holding the pose there long enough completes the docking.</DeltaV_DockPlanStarted>
   <DeltaV_DockPlanStatus>Docking: {0} (distance {1})</DeltaV_DockPlanStatus>
-  <DeltaV_DockPlanAutopilotOn>Autopilot: tracking approach</DeltaV_DockPlanAutopilotOn>
-  <DeltaV_DockPlanAutopilotOff>Autopilot: disengaged (manual or resume)</DeltaV_DockPlanAutopilotOff>
-  <DeltaV_DockAutopilotResumeButton>Resume autopilot</DeltaV_DockAutopilotResumeButton>
-  <DeltaV_DockAutopilotStopButton>Stop autopilot</DeltaV_DockAutopilotStopButton>
   <DeltaV_DockCancelButton>Cancel docking</DeltaV_DockCancelButton>
-  <DeltaV_DockPlanCancelled>Docking plan cancelled - the ship is back in mobile mode and may re-dock at any time.</DeltaV_DockPlanCancelled>
+  <DeltaV_DockPlanCancelled>Docking plan cancelled; the ship continues in free flight.</DeltaV_DockPlanCancelled>
   <DeltaV_DockAutopilotStopped>Autopilot disengaged (docking plan retained).</DeltaV_DockAutopilotStopped>
   <DeltaV_DockPlanBlocksDesignator>Docking in progress: structural and planning changes are locked. Cancel the docking first.</DeltaV_DockPlanBlocksDesignator>
   <DeltaV_DockPlanBlocksLaunch>Docking in progress: gravship launch is locked. Cancel the docking first.</DeltaV_DockPlanBlocksLaunch>

@@ -21,7 +21,7 @@ namespace DeltaV
             {
                 UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
                 ShipState docked = universe?.Ships
-                    .FirstOrDefault(s => s.docked && s.dockedMap == Map);
+                    .FirstOrDefault(s => s.IsDocked && s.dockedMap == Map);
                 return docked != null
                     ? OrbitSphere.SpherePoint(docked.pose.position)
                     : base.WorldCameraPosition;

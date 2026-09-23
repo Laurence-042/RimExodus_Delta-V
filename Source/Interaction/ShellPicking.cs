@@ -29,8 +29,8 @@ namespace DeltaV
             {
                 return null;
             }
-            Vector2 frameLocal = SpaceTransform.MapToShipLocal(frameMap, new Vector2(frameMapPoint.x, frameMapPoint.z));
-            Vector3 universeDir = SpaceTransform.FocusedToUniverse(frame, frameLocal);
+            Vector3 universeDir = SpaceTransform.MapPointToUniverse(frame, frameMap,
+                new Vector2(frameMapPoint.x, frameMapPoint.z));
             // 与 ShellRenderer 绘制同一排序倒序遍历：整壳分层后 ID 大者在视觉最上，
             // 重叠处优先命中玩家看得见的壳。进场/选点船由原版 marker 处理，
             // 已在 OrderShellsById 中排除。
@@ -39,14 +39,14 @@ namespace DeltaV
             {
                 SpaceObject obj = PickOrderScratch[idx];
                 ShipState ship = obj as ShipState;
-                bool docked = ship != null && ship.docked;
+                bool docked = ship != null && ship.IsDocked;
                 Map objectMap = obj.InteriorMap;
                 if (objectMap == null || (docked && objectMap == frameMap)) continue;
                 // UniverseToMapPoint：universe → 地图坐标（含中心偏移）——
                 // 直接拿 UniverseToShipLocal 的中心系输出当地图坐标是已记录三次的反模式。
-                Vector2 mapPoint = docked
-                    ? SpaceTransform.UniverseToDockedMapPoint(universe, ship, universeDir)
-                    : SpaceTransform.UniverseToMapPoint(obj, universeDir);
+                SpaceObject objectFrame = universe.FrameOf(objectMap);
+                if (objectFrame == null) continue;
+                Vector2 mapPoint = SpaceTransform.UniverseToMapPoint(objectFrame, objectMap, universeDir);
                 var cell = new IntVec3(Mathf.FloorToInt(mapPoint.x), 0, Mathf.FloorToInt(mapPoint.y));
                 if (!cell.InBounds(objectMap))
                 {

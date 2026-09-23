@@ -48,7 +48,7 @@ namespace DeltaV
         private static void TogglePilotMode()
         {
             UniverseManager universe = Um();
-            universe?.Pilot.Toggle(universe);
+            universe?.Pilot.ToggleControl(universe);
         }
 
         /// <summary>
@@ -141,6 +141,81 @@ namespace DeltaV
             string report = AutopilotMpcDiagnostics.RunSelfTest();
             Log.Message(report);
             Messages.Message("MPC self-test written to the log.", MessageTypeDefOf.NeutralEvent, false);
+        }
+
+        [DebugAction("Delta-V", "Coordinates: inverse and landing-root self-test", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void CoordinateSelfTest()
+        {
+            var report = new StringBuilder("[DeltaV:Coordinates] inverse/placement self-test");
+            int failures = 0;
+            IntVec2[] sizes = { new IntVec2(40, 24), new IntVec2(39, 23),
+                new IntVec2(40, 23), new IntVec2(39, 24) };
+            IntVec3 root = new IntVec3(73, 0, 55);
+            foreach (IntVec2 size in sizes)
+            {
+                foreach (Rot4 rot in new[] { Rot4.North, Rot4.East, Rot4.South, Rot4.West })
+                {
+                    IntVec3 input = GravshipInterop.RootToDesignatorInput(root, size, rot);
+                    IntVec3 actual = GravshipInterop.DesignatorInputToRoot(input, size, rot);
+                    if (actual != root)
+                    {
+                        failures++;
+                        report.AppendLine($"FAIL size={size} rot={rot}: root={root} input={input} actual={actual}");
+                    }
+                    IntVec3 sampleInput = new IntVec3(31, 0, 47);
+                    IntVec3 roundTrip = GravshipInterop.RootToDesignatorInput(
+                        GravshipInterop.DesignatorInputToRoot(sampleInput, size, rot), size, rot);
+                    if (roundTrip != sampleInput)
+                    {
+                        failures++;
+                        report.AppendLine($"FAIL input inverse size={size} rot={rot}: {roundTrip}");
+                    }
+                }
+            }
+            IntVec3 sample = GravshipInterop.RootToDesignatorInput(root, sizes[0], Rot4.North);
+            if (sample != new IntVec3(72, 0, 54))
+            {
+                failures++;
+                report.AppendLine($"FAIL 40x24 North regression: root={root}, designator input={sample}");
+            }
+
+            SpaceObject owner = Um().FrameOf(Find.CurrentMap);
+            if (owner != null && OrbitSphere.Valid)
+            {
+                Map map = Find.CurrentMap;
+                Vector2 mapPoint = SpaceTransform.ShipLocalOrigin(map) + new Vector2(8.25f, -5.75f);
+                Vector3 direction = SpaceTransform.MapPointToUniverse(owner, map, mapPoint);
+                float mapError = (SpaceTransform.UniverseToMapPoint(owner, map, direction) - mapPoint).magnitude;
+                if (mapError > 0.5f)
+                {
+                    failures++;
+                    report.AppendLine($"FAIL map round trip: error={mapError:F4} cells");
+                }
+                Vector2 longOffset = new Vector2(OrbitSphere.CellsPerRadian * 0.15f, 1200f);
+                float arcError = (OrbitSphere.Offset(owner.pose.position,
+                    OrbitSphere.Move(owner.pose.position, longOffset)) - longOffset).magnitude;
+                if (arcError > 2f)
+                {
+                    failures++;
+                    report.AppendLine($"FAIL spherical log/exp: error={arcError:F3} cells");
+                }
+                SpacePose rotating = owner.pose;
+                rotating.angle = SpaceTransform.WrapAngle(rotating.angle + 0.47f);
+                rotating.velocity = new Vector2(20f, -4f);
+                rotating.angularVelocity = 10f * Mathf.Deg2Rad;
+                Vector2 localPoint = new Vector2(43.25f, -18.5f);
+                Vector3 pointDir = SpaceTransform.ShipLocalToUniverse(rotating, localPoint);
+                float rotatingError = (SpaceTransform.UniverseToShipLocal(rotating, pointDir) - localPoint).magnitude;
+                if (rotatingError > 0.5f)
+                {
+                    failures++;
+                    report.AppendLine($"FAIL rotating host inverse: error={rotatingError:F4} cells");
+                }
+                report.AppendLine($"map round trip={mapError:F4} cells; spherical log/exp={arcError:F3} cells; rotating host={rotatingError:F4} cells");
+            }
+            else report.AppendLine("map round trip skipped: current map has no orbital SpaceObject");
+            report.AppendLine($"result: {(failures == 0 ? "PASS" : "FAIL")}, failures={failures}");
+            Log.Message(report.ToString());
         }
 
         /// <summary>
@@ -319,7 +394,7 @@ namespace DeltaV
             {
                 string lifecycle = obj is PoiState poi
                     ? (poi.map == null ? "packed" + (poi.snapshot != null ? " (snapshot)" : " (fresh)") : um.Lifecycle.IsDormant(poi.map) ? "dormant" : "active")
-                    : ((ShipState)obj).docked ? "docked" : "flying";
+                    : ((ShipState)obj).IsDocked ? "docked" : "free-flight";
                 float lat = Mathf.Asin(Mathf.Clamp(obj.pose.position.y, -1f, 1f)) * Mathf.Rad2Deg;
                 float lon = Mathf.Atan2(obj.pose.position.z, obj.pose.position.x) * Mathf.Rad2Deg;
                 string playerDist = obj is PoiState poi2

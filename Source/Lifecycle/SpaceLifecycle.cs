@@ -55,7 +55,7 @@ namespace DeltaV
         {
             float best = float.PositiveInfinity;
             foreach (ShipState ship in universe.Ships)
-                if (ship.isPlayerShip)
+                if (ship.faction == Faction.OfPlayer)
                     best = Mathf.Min(best, OrbitSphere.ArcCells(ship.pose.position, poi.pose.position));
             return best;
         }
@@ -91,6 +91,7 @@ namespace DeltaV
                 onComplete = map =>
                 {
                     poi.map = map;
+                    OrbitalPoiRegistry.EnsureForMap(universe, map);
                     dormancy.Wake(map, "generation complete");
                     Messages.Message("DeltaV_PoiActivated".Translate(poi.label), MessageTypeDefOf.NeutralEvent, false);
                 },

@@ -11,8 +11,8 @@ namespace DeltaV
     /// Delta-V 驾驶台（阶段3）：正式进入/退出驾驶的入口 + 主驾驶台规则。
     ///
     /// 主驾驶台规则（story.md「固定轨道/建造模式」）：第一台自动成为主驾驶台，
-    /// 第二台不会取代主台，除非玩家显式用 gizmo 设置；进入移动模式时飞船朝向跟随
-    /// 主驾驶台的朝向（ShipModeService 消费）。主台被拆除时转交给船上最老的一台。
+    /// 第二台不会取代主台，除非玩家显式用 gizmo 设置；开始自由飞行时飞船朝向跟随
+    /// 主驾驶台的朝向（ShipFlightTransitionService 消费）。主台被拆除时转交给船上最老的一台。
     ///
     /// 本 Comp 由 XML patch 追加到原版 PilotConsole，与原版 CompPilotConsole 共存：原版
     /// Gravship 继续按 ThingDefOf.PilotConsole 识别设施与发射方向。本 Comp 在共享地图上
@@ -50,8 +50,8 @@ namespace DeltaV
                 }
 
                 // 新建驾驶台尚未领取 shipId 时按船体域解析；停靠船优先，保证玩家把残骸
-                // 基架改归本船并接通后，新域上的驾驶台仍得到固定模式/解除固定入口。
-                ShipState docked = universe.Ships.FirstOrDefault(s => s.docked
+                // 基架改归本船并接通后，新域上的驾驶台仍得到脱离停靠入口。
+                ShipState docked = universe.Ships.FirstOrDefault(s => s.IsDocked
                     && s.dockedMap == map && ShipStructureResolver.Contains(s, parent));
                 if (docked != null)
                 {
@@ -110,7 +110,7 @@ namespace DeltaV
             ShipState ship = universe?.ShipOnMap(previousMap);
             if (ship == null && universe != null)
             {
-                ship = universe.Ships.FirstOrDefault(s => s.docked && s.dockedMap == previousMap
+                ship = universe.Ships.FirstOrDefault(s => s.IsDocked && s.dockedMap == previousMap
                     && s.primaryConsole == parent);
             }
             if (ship != null && ship.primaryConsole == parent)
@@ -134,7 +134,7 @@ namespace DeltaV
             foreach (Thing thing in consoleMap.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
             {
                 if (thing.TryGetComp<CompDeltaVPilotConsole>() != null
-                    && (!ship.docked || ShipStructureResolver.Contains(ship, thing))
+                    && (!ship.IsDocked || ShipStructureResolver.Contains(ship, thing))
                     && (oldest == null || thing.thingIDNumber < oldest.thingIDNumber))
                 {
                     oldest = thing as Building;
@@ -237,7 +237,7 @@ namespace DeltaV
             UniverseManager universe = Universe;
             Map map = parent.Map;
             if (universe == null || map == null
-                || (!MobileShipBootstrap.IsZeroGravity(map) && !(universe.SpaceObjectOnMap(map) is ShipState))
+                || (!FreeFlightBootstrap.IsZeroGravity(map) && !(universe.SpaceObjectOnMap(map) is ShipState))
                 || universe.FrameOf(map) == null)
             {
                 return;
@@ -273,13 +273,13 @@ namespace DeltaV
             UniverseManager universe = Universe;
             if (ship == null)
             {
-                // 所有玩家原版驾驶台都提供移动模式入口：地面图灰化并解释重力限制；
-                // 未登记的 Orbit Gravship 则由 MobileShipBootstrap 接入 Universe。
+                // 所有玩家原版驾驶台都提供自由飞行入口：地面图灰化并解释重力限制；
+                // 未登记的 Orbit Gravship 则由 FreeFlightBootstrap 接入 Universe。
                 if (parent.Spawned && parent.Faction == Faction.OfPlayer)
                 {
-                    Command_Action action = NewAction("DeltaV_MobileButtonEnter".Translate(), TexCommand.Draft,
-                        () => MobileShipBootstrap.TryEnter(universe, parent as Building));
-                    if (!MobileShipBootstrap.IsZeroGravity(parent.Map))
+                    Command_Action action = NewAction("DeltaV_BeginFreeFlightButton".Translate(), TexCommand.Draft,
+                        () => FreeFlightBootstrap.TryEnter(universe, parent as Building));
+                    if (!FreeFlightBootstrap.IsZeroGravity(parent.Map))
                     {
                         action.Disable("DeltaV_PilotGravityRestricted".Translate());
                     }
@@ -287,25 +287,30 @@ namespace DeltaV
                 }
                 yield break;
             }
-            if (ship.docked)
+            if (ship.IsDocked)
             {
                 // 固定图可能同时有多艘逆重飞船，必须由玩家点中这艘船的驾驶台来选择目标。
                 // 控制权门禁（阶段4）：限玩家方（dev 放行）——敌舰驾驶台不是玩家入口。
                 if (universe.Pilot.CanPlayerControl(ship))
                 {
-                    yield return NewAction("DeltaV_MobileButtonEnter".Translate(), TexCommand.Draft,
-                        () => universe.ShipModes.TryLaunch(universe, ship));
+                    yield return NewAction("DeltaV_BeginFreeFlightButton".Translate(), TexCommand.Draft,
+                        () => universe.ShipTransitions.BeginFreeFlight(universe, ship));
                 }
             }
             else
             {
                 if (universe.Pilot.CanPlayerControl(ship))
                 {
-                    yield return NewAction(
-                        universe.pilotShipId == ship.objectId
+                    ShipControlState control = universe.Pilot.GetControlState(ship);
+                    bool planUnderManualControl = control == ShipControlState.Manual
+                        && universe.Approach.ActivePlan?.ship == ship;
+                    string label = planUnderManualControl
+                        ? "DeltaV_ControlSwitchAutopilot".Translate()
+                        : universe.Pilot.IsPlayerInputArmed(ship)
                             ? "DeltaV_PilotButtonExit".Translate()
-                            : "DeltaV_PilotButtonEnter".Translate(),
-                        TexCommand.Draft, () => universe.Pilot.Toggle(universe));
+                            : "DeltaV_PilotButtonEnter".Translate();
+                    yield return NewAction(label, TexCommand.Draft,
+                        () => universe.Pilot.ToggleControl(universe));
                 }
             }
 
