@@ -21,10 +21,10 @@ namespace DeltaV
                 return false;
             if (!parent.Tile.Valid || !parent.Tile.LayerDef.isSpace) return false;
             universe = universe ?? Current.Game?.GetComponent<UniverseManager>();
-            // 口袋船图（ShipState.map）一律不作为独立 POI 纳管；停靠宿主图（dockedMap）
-            // 仍属于宿主对象——多船同泊、他船再降落都依赖宿主保持 SpaceObject 身份。
+            // 已有容器承载的图（口袋容器图）不作为独立 POI 纳管；多船宿主图由宿主
+            // 容器承载——多船同泊、他船再降落都依赖宿主保持 SpaceObject 身份。
             if (universe != null && parent.Map != null
-                && universe.Ships.Any(s => s.map == parent.Map))
+                && universe.SpaceObjectOnMap(parent.Map) != null)
                 return false;
             return true;
         }
@@ -44,10 +44,20 @@ namespace DeltaV
         public static bool MustStayActive(Map map, UniverseManager universe)
         {
             if (map == null || map.Disposed) return false;
-            return map == Find.CurrentMap || map.IsPlayerHome || HasPlayerPawn(map)
-                || universe?.Generation?.IsGenerating(map) == true
-                || (universe != null && universe.Ships.Any(s =>
-                    s.faction == Faction.OfPlayer && s.dockedMap == map));
+            if (map == Find.CurrentMap || map.IsPlayerHome || HasPlayerPawn(map)
+                || universe?.Generation?.IsGenerating(map) == true)
+            {
+                return true;
+            }
+            // 图上有玩家船（主台派系 = 玩家）即保护（停靠船保持宿主图活跃）。
+            if (universe != null)
+            {
+                foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
+                {
+                    if (ShipRegistry.FactionOf(ship) == Faction.OfPlayer) return true;
+                }
+            }
+            return false;
         }
 
         public static IntVec3 GenerationSize(MapParent parent)
@@ -109,7 +119,7 @@ namespace DeltaV
 
         private static void UpdateFromParent(PoiState poi, MapParent parent)
         {
-            poi.label = parent.LabelCap;
+            poi.envLabel = parent.LabelCap;
             poi.map = parent.Map;
             poi.faction = parent.Faction;
             poi.pose.position = OrbitSphere.TileCenterDirection(parent.Tile);

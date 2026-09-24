@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -30,18 +31,18 @@ namespace DeltaV
 
         public static bool Ready => material != null;
 
-        /// <summary>计划建立时烘焙快照：格子集合 → 剪影纹理（ShipSilhouette 唯一入口）。
+        /// <summary>计划建立时烘焙快照：控制域 → 剪影纹理（ShipSilhouette 唯一入口）。
         /// 位姿始终直接读取 ActivePlan，本缓存只保存由船体派生的纹理。</summary>
         public static void BuildFor(LandingApproachController.DockingPlan plan)
         {
             Destroy();
-            if (plan?.ship?.map == null || plan.host == null) return;
-            Building_GravEngine engine = ShipStructureResolver.EngineOf(plan.ship);
-            if (engine == null) return;
+            if (plan == null || !plan.ship.IsValid || plan.ship.map == null || plan.host == null) return;
+            HashSet<IntVec3> domain = ShipRegistry.ControlDomain(plan.ship);
+            if (domain.Count == 0) return;
             // 剪影锚 = 位姿锚（口袋图几何中心）：剪影内容与未来真实脚印逐格重合——
             // 玩家看到的剪影重叠就是对齐判据本身（2026-09-21 修复：旧实现按脚印
             // 包围盒居中，两个中心不重合时手操视觉对准但落位偏移）。
-            texture = ShipSilhouette.BuildTexture(engine.AllConnectedSubstructure,
+            texture = ShipSilhouette.BuildTexture(domain,
                 "DeltaV_DockingGhost", SpaceTransform.ShipLocalOrigin(plan.ship.map));
             if (texture == null) return;
             sideCells = texture.width; // 正方形（内容居中，旋转绕中心即绕船体中心）

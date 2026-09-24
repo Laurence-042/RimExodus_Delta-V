@@ -31,6 +31,7 @@ namespace DeltaV
                 return;
             }
             SubstructureOwnership ownership = SubstructureOwnership.For(map);
+            SubstructureOwnership.BumpStructureVersion();
             if (ownership.TryGetStamp(c, out int stamped))
             {
                 ownership.Assign(c, stamped);
@@ -41,9 +42,11 @@ namespace DeltaV
             {
                 return;
             }
-            // 「未占有」语义（2026-09-18 用户决策）：继承唯一有效邻接归属并整域吸收
-            // 相连未占有区域；孤立建造保持未占有（不分配新 ID），等待后续相连吸收
-            // 或经驾驶台 bootstrap 认领。多归属冲突同样保持未占有（PlaceWorker 已拒）。
+            // 「未占有」语义（2026-09-18 用户决策；2026-09-24 解耦修订）：继承唯一有效
+            // 邻接归属并整域吸收相连未占有区域；孤立建造保持未占有（不分配新 ID），
+            // 等待后续相连吸收或经驾驶台认领。多归属邻接同样保持未占有，交由玩家
+            // 「修改基架归属」划分（不再拒建，PlaceWorker_DeltaVSubstructureOwnership
+            // 仅提示不拦截）。
             ownership.ResolveBuilt(c);
         }
     }

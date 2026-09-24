@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -163,6 +164,78 @@ namespace DeltaV
         {
             RetractChannel();
             base.DeSpawn(mode);
+        }
+
+        // ---- 脱离事务的通道编排（解耦架构 §9）----
+
+        /// <summary>
+        /// 本端口的通道是否与指定脱离域相关：端口在脱离域上，或任一通道格与脱离域
+        /// 四邻接。A、B、C 场景只收回与本次脱离相关的通道，B、C 之间无关通道保留。
+        /// </summary>
+        private bool ChannelRelatesTo(HashSet<IntVec3> departingDomain)
+        {
+            if (departingDomain.Contains(Position))
+            {
+                return true;
+            }
+            foreach (IntVec3 cell in channelCells)
+            {
+                foreach (IntVec3 delta in GenAdj.CardinalDirectionsAround)
+                {
+                    if (departingDomain.Contains(cell + delta))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 脱离前收集「本次脱离相关通道」上的滞留内容（§9 确认窗清单）：通道格上的
+        /// Pawn 与物品——通道收回后它们原格留在未脱离方地图（不自动迁往安全格）。
+        /// </summary>
+        public static List<Thing> CollectChannelLeftBehind(Map map, HashSet<IntVec3> departingDomain)
+        {
+            var leftBehind = new List<Thing>();
+            if (map == null || departingDomain == null) return leftBehind;
+            foreach (Thing thing in map.listerThings.ThingsOfDef(DeltaVDefOf.DeltaV_DockingPort))
+            {
+                if (!(thing is Building_DockingPort port) || !port.Spawned
+                    || !port.ChannelExtended || !port.ChannelRelatesTo(departingDomain))
+                {
+                    continue;
+                }
+                foreach (IntVec3 cell in port.channelCells)
+                {
+                    foreach (Thing content in map.thingGrid.ThingsListAt(cell))
+                    {
+                        if (content is Pawn || content.def.category == ThingCategory.Item)
+                        {
+                            leftBehind.Add(content);
+                        }
+                    }
+                }
+            }
+            return leftBehind;
+        }
+
+        /// <summary>
+        /// 脱离事务的统一收通道入口（§9：不能只依赖离开一方端口的 DeSpawn——另一侧
+        /// 端口仍在原图，也必须通知收回）：收回本图上全部与脱离域相关的通道。
+        /// 通道上的 Pawn 与物品原格留置（地形还原 Space 后由原版真空语义接管）。
+        /// </summary>
+        public static void RetractChannelsFor(Map map, HashSet<IntVec3> departingDomain)
+        {
+            if (map == null || departingDomain == null) return;
+            foreach (Thing thing in map.listerThings.ThingsOfDef(DeltaVDefOf.DeltaV_DockingPort).ToList())
+            {
+                if (thing is Building_DockingPort port && port.Spawned && port.ChannelExtended
+                    && port.ChannelRelatesTo(departingDomain))
+                {
+                    port.RetractChannel();
+                }
+            }
         }
     }
 

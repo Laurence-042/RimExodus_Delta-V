@@ -85,6 +85,15 @@ namespace DeltaV
             list.TextFieldNumericLabeled("DeltaV_SettingsDockingCancelDistance".Translate(), ref Settings.dockingCancelDistance,
                 ref dockingCancelDistanceBuffer, 50f, 10000f);
             list.Gap(6f);
+            // 被动阻力（解耦架构 §11.1）：开关 + 平移/角速度半衰期（tick）；即时生效——
+            // 实际积分与 MPC 预测同一因子，参数变化同时反映到两者。
+            list.CheckboxLabeled("DeltaV_SettingsPassiveDrag".Translate(), ref Settings.passiveDrag,
+                "DeltaV_SettingsPassiveDragTip".Translate());
+            list.TextFieldNumericLabeled("DeltaV_SettingsDragLinearHalfLife".Translate(),
+                ref Settings.dragLinearHalfLifeTicks, ref dragLinearHalfLifeBuffer, 1, 60000);
+            list.TextFieldNumericLabeled("DeltaV_SettingsDragAngularHalfLife".Translate(),
+                ref Settings.dragAngularHalfLifeTicks, ref dragAngularHalfLifeBuffer, 1, 60000);
+            list.Gap(6f);
             Text.Font = GameFont.Tiny;
             GUI.color = new Color(1f, 1f, 1f, 0.6f);
             list.Label("DeltaV_SettingsCellsPerTileNote".Translate());
@@ -125,6 +134,10 @@ namespace DeltaV
         private string dockingAngleWindowBuffer;
 
         private string dockingCancelDistanceBuffer;
+
+        private string dragLinearHalfLifeBuffer;
+
+        private string dragAngularHalfLifeBuffer;
 
         /// <summary>上次已应用的尺度值；用于检测设置变化并防止被拒绝的值回写。</summary>
         private int appliedCellsPerTile;

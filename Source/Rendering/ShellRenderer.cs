@@ -63,11 +63,17 @@ namespace DeltaV
             // 目标图）临时被悬停壳覆盖（2026-09-20 用户决策）；悬停壳 + 火焰盖在
             // 目标甲板之上。
             ForegroundScratch.Clear();
+            Ship flowShip = universe.Approach.FlowShip;
+            Ship pendingShip = universe.ShipTransitions.PendingDockingShip(universe);
             foreach (SpaceObject obj in universe.objects)
             {
                 if (obj == frame) continue;
-                ShipState ship = obj as ShipState;
-                if (ship != null && universe.ShipTransitions.IsDockingFlowShip(ship)) ForegroundScratch.Add(obj);
+                // 进场/选点船的容器壳走前台（聚焦目标图时临时被悬停壳覆盖）。
+                if ((flowShip.IsValid && universe.FrameOf(flowShip.map) == obj)
+                    || (pendingShip.IsValid && universe.FrameOf(pendingShip.map) == obj))
+                {
+                    ForegroundScratch.Add(obj);
+                }
             }
             ForegroundScratch.Sort(CompareById);
             bool anyForeground = false;
@@ -100,17 +106,20 @@ namespace DeltaV
 
         /// <summary>
         /// 船壳绘制与拾取共用的整壳排序（objectId 升序 = 自下而上；拾取倒序遍历，
-        /// 视觉最上层优先命中）。进场/选点船不参与背景组：绘制侧走前台缓冲
-        /// （聚焦图临时被悬停壳覆盖），拾取侧由原版 marker 处理。
+        /// 视觉最上层优先命中）。**每容器一壳**（解耦重构：容器图 = 整壳，同图多船
+        /// 不分壳）；进场/选点船的容器不参与背景组：绘制侧走前台缓冲（聚焦图临时被
+        /// 悬停壳覆盖），拾取侧由原版 marker 处理。
         /// </summary>
         internal static void OrderShellsById(UniverseManager universe, SpaceObject frame, List<SpaceObject> results)
         {
             results.Clear();
+            Ship flowShip = universe.Approach.FlowShip;
+            Ship pendingShip = universe.ShipTransitions.PendingDockingShip(universe);
             foreach (SpaceObject obj in universe.objects)
             {
                 if (obj == frame) continue;
-                ShipState ship = obj as ShipState;
-                if (ship != null && universe.ShipTransitions.IsDockingFlowShip(ship)) continue;
+                if ((flowShip.IsValid && universe.FrameOf(flowShip.map) == obj)
+                    || (pendingShip.IsValid && universe.FrameOf(pendingShip.map) == obj)) continue;
                 results.Add(obj);
             }
             results.Sort(CompareById);
@@ -119,72 +128,49 @@ namespace DeltaV
         private static bool DrawObjectShell(UniverseManager universe, SpaceObject obj,
             SpaceObject frame, Map frameMap, ShellLayer.Slot target)
         {
-            // 选点/进场（docking）期间船仍在活口袋图上（快照不搬运），非停靠分支
-            // 直接可画——聚焦目标图上持续显示悬停船壳；到达停靠后走停靠分支，
-            // 由 dockedMap == frameMap 跳过防重复绘制。
-            ShipState ship = obj as ShipState;
-            bool docked = ship != null && ship.IsDocked;
-            Map map = obj.InteriorMap;
-            if (map == null || map.Disposed || universe.Generation?.IsGenerating(map) == true
-                || docked && map == frameMap) return false;
+            // 每容器一壳：整图内容（含停靠船与残骸归属的格）统一绘制，allowedCells
+            // 恒为 null（不再按船裁剪）；选点/进场期间计划船留在其容器图上，
+            // 其壳由前台缓冲承载。
+            Map map = obj.map;
+            if (map == null || map.Disposed || universe.Generation?.IsGenerating(map) == true) return false;
 
-            HashSet<IntVec3> allowedCells = null;
-            Quaternion rotation;
-            Vector3 drawPos;
-            Vector2 sourceOrigin;
-            if (docked)
-            {
-                Building_GravEngine engine = ShipStructureResolver.EngineOf(ship);
-                if (engine == null) return false;
-                allowedCells = engine.AllConnectedSubstructure;
-                rotation = SpaceTransform.FocusedMeshRotation(frame, 0f);
-                drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
-                sourceOrigin = ShipStructureResolver.DockedOrigin(ship);
-            }
-            else
-            {
-                rotation = SpaceTransform.FocusedMeshRotation(frame, obj.pose.angle);
-                drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
-                sourceOrigin = SpaceTransform.ShipLocalOrigin(map);
-            }
+            Quaternion rotation = SpaceTransform.FocusedMeshRotation(frame, obj.pose.angle);
+            Vector3 drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
+            Vector2 sourceOrigin = SpaceTransform.ShipLocalOrigin(map);
 
             Vector3 translation = drawPos - rotation * new Vector3(sourceOrigin.x, 0f, sourceOrigin.y);
             Matrix4x4 matrix = Matrix4x4.TRS(translation, rotation, Vector3.one);
             CellRect localView = TransformRectInverse(matrix, Find.CameraDriver.CurrentViewRect).ExpandedBy(4);
-            bool drew = MapOverlayRenderer.CollectShellCommands(map, matrix, rotation, localView, allowedCells);
+            bool drew = MapOverlayRenderer.CollectShellCommands(map, matrix, rotation, localView, null);
             if (drew)
             {
                 // 火焰与壳内容同表同层：renderQueue 3201 排在本壳地形之上，随本壳
-                // 走背景（聚焦图之下）或前台（进场时盖住目标甲板）。POI 与停靠船
-                // 不参与（不出力）。
-                if (ship != null && !docked)
-                {
-                    ThrusterEffects.CollectShellFlames(ship, matrix, rotation);
-                }
+                // 走背景（聚焦图之下）或前台（进场时盖住目标甲板）。油门只由分配器
+                // 写（无人出力的残骸/POI 恒为零，天然无火焰）。
+                ThrusterEffects.CollectShellFlames(obj, map, matrix, rotation);
                 target.layer.Emit(target);
             }
             return drew;
         }
 
         /// <summary>分层摘要追加一壳：槽位（b=背景 / f=前台进场）、ID、标签、状态、
-        /// 源图与提交四边形数；drew=false 时只记 SKIP（原因 = 图空/销毁/生成中/
-        /// 停靠本图/无引擎，可由状态字段推断）。</summary>
+        /// 源图与提交四边形数；drew=false 时只记 SKIP（原因 = 图空/销毁/生成中，
+        /// 可由状态字段推断）。</summary>
         private static void AppendLayerObj(string slot, SpaceObject obj, bool drew)
         {
             LayerLogBuf.Append(" | ").Append(slot)
                 .Append(" obj").Append(obj.objectId);
             if (obj.label != null) LayerLogBuf.Append('(').Append(obj.label).Append(')');
-            ShipState ship = obj as ShipState;
-            if (ship != null && ship.IsDocked) LayerLogBuf.Append(" docked");
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (ship != null && universe?.ShipTransitions.IsDockingFlowShip(ship) == true)
+            Ship flowShip = universe?.Approach.FlowShip ?? Ship.Invalid;
+            if (flowShip.IsValid && universe.FrameOf(flowShip.map) == obj)
                 LayerLogBuf.Append(" docking");
             if (!drew)
             {
                 LayerLogBuf.Append(" SKIP");
                 return;
             }
-            Map map = obj.InteriorMap;
+            Map map = obj.map;
             LayerLogBuf.Append(" map#").Append(map.uniqueID)
                 .Append('(').Append(map.Size.x).Append('x').Append(map.Size.z).Append(')')
                 .Append(" q=").Append(MapOverlayRenderer.QuadsDrawnLastPass);

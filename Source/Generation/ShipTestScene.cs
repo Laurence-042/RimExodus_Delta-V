@@ -61,30 +61,35 @@ namespace DeltaV
             }
             Vector3 playerDir = OrbitSphere.TileCenterDirection(anchorTile);
 
+            // 容器先注册、结构后铺设：驾驶台 spawn 认领要求 FrameOf 已解析（ClaimOnSpawn
+            // 守卫）。归属 ID 与容器对象 ID 解耦（各经 AllocateOwnerId 独立发放）。
+            int playerOwnerId = universe.AllocateOwnerId();
             Map playerMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
             if (playerMap == null) return;
-            ShipStructureStamp.StampPlayerShip(playerMap, ownerId: 1);
+            var playerContainer = new SpaceObject(universe.AllocateOwnerId(), playerMap,
+                new SpacePose(playerDir, 0f));
+            universe.RegisterObject(playerContainer);
+            universe.NoteStructureName(playerOwnerId, "Player ship");
+            ShipStructureStamp.StampPlayerShip(playerMap, ownerId: playerOwnerId);
 
+            int enemyOwnerId = universe.AllocateOwnerId();
             Map enemyMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
             if (enemyMap == null) return;
-            ShipStructureStamp.StampEnemyShip(enemyMap, ownerId: 2);
+            Faction enemyFaction = Faction.OfPirates
+                ?? Find.FactionManager.AllFactionsVisible.FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer));
+            var enemyContainer = new SpaceObject(universe.AllocateOwnerId(), enemyMap,
+                new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad));
+            universe.RegisterObject(enemyContainer);
+            universe.NoteStructureName(enemyOwnerId, "Enemy ship");
+            ShipStructureStamp.StampEnemyShip(enemyMap, ownerId: enemyOwnerId, faction: enemyFaction);
 
-            var playerShip = new ShipState(1, "Player ship", playerMap, new SpacePose(playerDir, 0f))
+            universe.ResetObjects(new List<SpaceObject> { playerContainer, enemyContainer });
+            Ship playerShip = ShipRegistry.ShipByOwner(playerOwnerId);
+            if (playerShip.IsValid)
             {
-                faction = Faction.OfPlayer
-            };
-            var enemyShip = new ShipState(2, "Enemy ship", enemyMap,
-                new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad))
-            {
-                faction = Faction.OfPirates
-                    ?? Find.FactionManager.AllFactionsVisible.FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer))
-            };
-
-            universe.ResetObjects(new List<SpaceObject> { playerShip, enemyShip }, playerShip.objectId);
-            CompDeltaVPilotConsole.EnsurePrimaryConsole(playerShip);
-            WorldShipMarkerRenderer.RebuildFor(playerShip);
-            universe.primaryShipId = playerShip.objectId;
-            universe.SetFocused(playerShip);
+                WorldShipMarkerRenderer.RebuildFor(playerShip);
+            }
+            universe.SetFocused(playerContainer);
             CameraJumper.TryJump(playerMap.Center, playerMap, CameraJumper.MovementMode.Cut);
         }
     }

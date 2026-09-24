@@ -22,16 +22,16 @@ namespace DeltaV
         /// <summary>
         /// 防御性覆写：宿主永不聚焦（renderWorld=false），本属性正常不被消费；
         /// 若被查询绝不回落 base（Invalid tile 会 GetTileCenter(-1) 每帧红字），
-        /// 返回主船球面点作为最接近的合理值。
+        /// 返回主参考船球面点作为最接近的合理值。
         /// </summary>
         public override Vector3 WorldCameraPosition
         {
             get
             {
                 UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-                ShipState primary = universe?.PrimaryShip;
-                return primary != null
-                    ? OrbitSphere.SpherePoint(primary.pose.position)
+                Ship primary = universe == null ? Ship.Invalid : universe.PrimaryPlayerShip();
+                return primary.IsValid
+                    ? OrbitSphere.SpherePoint(ShipRegistry.ShipPose(primary).position)
                     : Vector3.zero;
             }
         }

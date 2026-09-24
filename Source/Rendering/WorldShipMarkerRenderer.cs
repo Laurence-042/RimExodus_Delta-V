@@ -7,10 +7,11 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 星球视图中的玩家飞船剪影标记。位置/姿态只读取 SpacePose；剪影格子取引擎的
-    /// 相连基架连通域（与转换捕获同口径，超力场扩建与停靠时相连的结构都计入），
-    /// 纹理经 ShipSilhouette 唯一入口生成并缓存。缓存可随时销毁重建，既不序列化，
-    /// 也不创建占用轨道 tile 的 WorldObject。
+    /// 星球视图中的玩家飞船剪影标记（解耦重构：按船 = 结构归属渲染）。位置/姿态只读
+    /// 派生查询（ShipRegistry.ShipPose——容器位姿 ⊕ 船体锚）；剪影格子取船的控制域
+    /// （与捕获同口径），纹理经 ShipSilhouette 唯一入口生成并缓存。缓存可随时销毁重建，
+    /// 既不序列化，也不创建占用轨道 tile 的 WorldObject。飞船级剪影用于识别成员，
+    /// 不伪装成独立运动对象（§10）。
     /// </summary>
     public static class WorldShipMarkerRenderer
     {
@@ -21,13 +22,11 @@ namespace DeltaV
         {
             public Texture2D texture;
             public Material material;
-            /// <summary>纹理源 = 停靠图（形状嵌入宿主图坐标系）而非口袋图规范化形状。</summary>
-            public bool sourceFromDockedMap;
             public bool initialized;
         }
 
-        private static readonly Dictionary<ShipState, MarkerCache> Cache =
-            new Dictionary<ShipState, MarkerCache>();
+        private static readonly Dictionary<int, MarkerCache> Cache =
+            new Dictionary<int, MarkerCache>();
 
         private static Game cachedGame;
 
@@ -46,9 +45,9 @@ namespace DeltaV
             }
 
             EnsureCurrentGame();
-            foreach (ShipState ship in universe.Ships)
+            foreach (Ship ship in universe.PlayerShips())
             {
-                if (ship.faction != Faction.OfPlayer || universe.ShipTransitions.IsDockingFlowShip(ship))
+                if (universe.ShipTransitions.IsDockingFlowShip(ship))
                 {
                     continue;
                 }
@@ -59,23 +58,15 @@ namespace DeltaV
                     continue;
                 }
 
-                Vector3 radial = ship.pose.position.normalized;
+                SpacePose pose = ShipRegistry.ShipPose(ship);
+                Vector3 radial = pose.position.normalized;
                 Vector3 drawPos = layer.Origin + OrbitSphere.SpherePoint(radial)
                     + radial * AltitudeOffset;
-                // 朝向配对（ShipSilhouette 类注释的三自由度规则）：口袋图快照是规范化
-                // 形状（+x = 船头）→ 按船姿态角追踪，停靠后继续有效；读档时从停靠图
-                // 惰性补建的快照嵌入宿主图坐标系（含落点朝向）→ 按宿主帧角旋转，不得
-                // 叠加船姿态角（旧实现取 0，宿主角非 0 时偏差 = 宿主角，2026-09-18 修正）。
-                float angle;
-                if (marker.sourceFromDockedMap)
-                {
-                    SpaceObject host = universe.SpaceObjectOnMap(ship.dockedMap);
-                    angle = host != null ? host.pose.angle : ship.pose.angle;
-                }
-                else
-                {
-                    angle = ship.pose.angle;
-                }
+                // 朝向配对（ShipSilhouette 类注释的三自由度规则）：剪影纹理在船所在
+                // 图的图帧内扫描 → 按该图容器角旋转（口袋图与停靠宿主图同一规则——
+                // 多船图上各船同容器角、位置按各自船体锚）。
+                SpaceObject frame = universe.FrameOf(ship.map);
+                float angle = frame != null ? frame.pose.angle : pose.angle;
                 Quaternion rotation = SpaceTransform.UniverseWorldMarkerRotation(radial, angle);
                 float size = layer.AverageTileSize * MarkerSizeInTiles;
                 Matrix4x4 matrix = Matrix4x4.TRS(drawPos, rotation,
@@ -91,18 +82,18 @@ namespace DeltaV
         /// 手动做原版 GenWorldUI 同款换算：WorldToScreenPoint / Prefs.UIScale + y 翻转，
         /// 遮挡用地平线剔除（WorldRendererUtility.HiddenBehindTerrainNow）。
         /// </summary>
-        public static bool TryGetScreenPosition(ShipState ship, out Vector2 screenPos, out float hitRadiusPx)
+        public static bool TryGetScreenPosition(Ship ship, out Vector2 screenPos, out float hitRadiusPx)
         {
             screenPos = Vector2.zero;
             hitRadiusPx = 0f;
             PlanetLayer layer = OrbitSphere.Layer;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (ship == null || universe?.ShipTransitions.IsDockingFlowShip(ship) == true
+            if (!ship.IsValid || universe?.ShipTransitions.IsDockingFlowShip(ship) == true
                 || layer == null || PlanetLayer.Selected != layer)
             {
                 return false;
             }
-            Vector3 radial = ship.pose.position.normalized;
+            Vector3 radial = ShipRegistry.ShipPose(ship).position.normalized;
             Vector3 world = layer.Origin + OrbitSphere.SpherePoint(radial) + radial * AltitudeOffset;
             if (WorldRendererUtility.HiddenBehindTerrainNow(world))
             {
@@ -122,65 +113,63 @@ namespace DeltaV
             return true;
         }
 
-        private static MarkerCache MarkerFor(ShipState ship)
+        private static MarkerCache MarkerFor(Ship ship)
         {
-            if (Cache.TryGetValue(ship, out MarkerCache marker) && marker.initialized)
+            if (Cache.TryGetValue(ship.ownerId, out MarkerCache marker) && marker.initialized)
             {
                 return marker;
             }
 
             // 读档后运行时缓存为空，第一次显示时允许惰性补建一次。
             RebuildFor(ship);
-            Cache.TryGetValue(ship, out marker);
+            Cache.TryGetValue(ship.ownerId, out marker);
             return marker;
         }
 
         /// <summary>
-        /// 自由飞行入口调用：以脱离停靠瞬间的完整船体重建一次剪影。
+        /// 自由飞行入口调用：以脱离停靠瞬间的完整船体（控制域）重建一次剪影。
         /// </summary>
-        public static void RebuildFor(ShipState ship)
+        public static void RebuildFor(Ship ship)
         {
-            if (ship == null)
+            if (!ship.IsValid)
             {
                 return;
             }
             EnsureCurrentGame();
 
-            if (!Cache.TryGetValue(ship, out MarkerCache marker))
+            if (!Cache.TryGetValue(ship.ownerId, out MarkerCache marker))
             {
                 marker = new MarkerCache();
-                Cache.Add(ship, marker);
+                Cache.Add(ship.ownerId, marker);
             }
             Release(marker);
             marker.initialized = true;
 
-            Map map = ship.InteriorMap;
+            Map map = ship.map;
             if (map == null || map.Disposed)
             {
                 return;
             }
 
-            Building_GravEngine engine = ShipStructureResolver.EngineOf(ship);
-            HashSet<IntVec3> liveCells = engine?.AllConnectedSubstructureNoRegen;
+            HashSet<IntVec3> liveCells = ShipRegistry.ControlDomain(ship);
             if (liveCells == null || liveCells.Count == 0)
             {
                 return;
             }
 
             marker.texture = ShipSilhouette.BuildTexture(liveCells,
-                $"DeltaV_PlayerShipSilhouette_{ship.objectId}");
+                $"DeltaV_PlayerShipSilhouette_{ship.ownerId}");
             if (marker.texture == null)
             {
                 return;
             }
             marker.material = new Material(ShaderDatabase.WorldOverlayTransparentLit)
             {
-                name = $"DeltaV_PlayerShipMarker_{ship.objectId}",
+                name = $"DeltaV_PlayerShipMarker_{ship.ownerId}",
                 mainTexture = marker.texture,
                 color = Faction.OfPlayer?.Color ?? Color.white,
                 renderQueue = 3550
             };
-            marker.sourceFromDockedMap = ship.IsDocked;
         }
 
         private static void EnsureCurrentGame()

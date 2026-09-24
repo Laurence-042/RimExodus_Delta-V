@@ -120,4 +120,45 @@
   <DeltaV_SettingsDockingPosWindow>对齐容差-位置（格）</DeltaV_SettingsDockingPosWindow>
   <DeltaV_SettingsDockingAngleWindow>对齐容差-角度（度）</DeltaV_SettingsDockingAngleWindow>
   <DeltaV_SettingsDockingCancelDistance>对接自动取消距离（格）</DeltaV_SettingsDockingCancelDistance>
+  <!-- 解耦架构（2026-09-24） -->
+  <DeltaV_NameSeparator> + </DeltaV_NameSeparator>
+  <DeltaV_ShipDefaultName>飞船 #{0}</DeltaV_ShipDefaultName>
+  <DeltaV_WreckDefaultName>残骸 #{0}</DeltaV_WreckDefaultName>
+  <DeltaV_RenameTitle>重命名飞船</DeltaV_RenameTitle>
+  <DeltaV_ConsoleGizmoRename>重命名飞船</DeltaV_ConsoleGizmoRename>
+  <DeltaV_ConsoleGizmoMakeBackup>设为备用驾驶台</DeltaV_ConsoleGizmoMakeBackup>
+  <DeltaV_ConsoleGizmoBackupTip>放弃对本结构的认领。结构将保持残骸状态，直到另一台驾驶台认领（停靠中的船请改用脱离按钮）。</DeltaV_ConsoleGizmoBackupTip>
+  <DeltaV_PanelShipRowTip>将「{0}」设为当前查看/操作的船。</DeltaV_PanelShipRowTip>
+  <DeltaV_SplitConfirmText>推进器出力会把这组结构撕裂开来。
+
+{0}
+
+确认将这些结构分离为独立残骸并继续？</DeltaV_SplitConfirmText>
+  <DeltaV_SplitBlockLine>- {0}：{1} 格</DeltaV_SplitBlockLine>
+  <DeltaV_SplitCancelled>推进器指令已取消：断连结构保持原样。</DeltaV_SplitCancelled>
+  <DeltaV_DockSourceLeftoverConfirm>对接「{0}」将处置其船体以外、留在源图上的全部内容：
+
+{1}
+
+继续？</DeltaV_DockSourceLeftoverConfirm>
+  <DeltaV_DockSourceLeftoverChanged>进场期间留置内容发生变化，对接已中止。请重新发起对接并确认新清单。</DeltaV_DockSourceLeftoverChanged>
+  <DeltaV_UndockFragmentsLine>- 本船 {0} 片断连基架将作为残骸留在本图</DeltaV_UndockFragmentsLine>
+  <DeltaV_LeftBehindLine>- 将留在本图的人员/物品清单：
+{0}</DeltaV_LeftBehindLine>
+  <DeltaV_UndockConfirmText>现在脱离？
+
+{0}
+
+脱离将收回相关对接通道；通道上的人员与物品按当前格留置本图。</DeltaV_UndockConfirmText>
+  <DeltaV_LeftBehindConfirmText>
+
+{0}
+
+继续？</DeltaV_LeftBehindConfirmText>
+  <!-- 设置：被动阻力（解耦架构 11.1） -->
+  <DeltaV_SettingsPassiveDrag>被动阻力（牛顿在棺材里代替飞船旋转）</DeltaV_SettingsPassiveDrag>
+  <DeltaV_SettingsPassiveDragTip>按半衰期阻尼线速度与角速度，与飞行辅助并存。不是推进器指令：不耗油、不出火焰、不触发拆船。自动驾驶预测使用同一模型。</DeltaV_SettingsPassiveDragTip>
+  <DeltaV_SettingsDragLinearHalfLife>线速度半衰期（tick）</DeltaV_SettingsDragLinearHalfLife>
+  <DeltaV_SettingsDragAngularHalfLife>角速度半衰期（tick）</DeltaV_SettingsDragAngularHalfLife>
+  <DeltaV_ReassignProtectedMainConsole>主驾驶台下方的基架归属不能修改（已跳过 {0} 格）；请先设为备用驾驶台或拆除。</DeltaV_ReassignProtectedMainConsole>
 </LanguageData>

@@ -20,7 +20,9 @@ namespace DeltaV
     /// - SnapshotPocket = Delta-V 自建对象（残骸等）：独立球面位置 + 结构快照，
     ///   内部是口袋图。
     ///
-    /// 地图生命周期三段（活跃/休眠/删除，SpaceLifecycle 统一管理）：
+    /// POI 名（envLabel）是持久的环境结构名（无基架的小行星等环境不能显示为空对象，
+    /// 解耦架构 §10）；派系是环境事实。地图生命周期三段（活跃/休眠/删除，
+    /// SpaceLifecycle 统一管理）：
     /// - map != null 且未休眠：活跃（正常 tick）；
     /// - map != null 且休眠：地图保留但冻结 tick（Harmony 前缀早退）；
     /// - map == null：NativeParent 仍由 MapParent 表示，SnapshotPocket 则为 Packed；
@@ -40,23 +42,32 @@ namespace DeltaV
         /// <summary>删除段收起的结构级快照（地形/屋顶/建筑/物品；不保 pawn 与 comp 内部状态）。</summary>
         public PoiSnapshot snapshot;
 
+        /// <summary>环境结构名（持久事实；POI 显示名的唯一来源）。</summary>
+        public string envLabel;
+
+        public override string label => envLabel;
+
         public PoiState()
         {
         }
 
         public PoiState(int poiId, string label, Vector3 position, float angle, int seed)
-            : base(poiId, label, null, new SpacePose(position, angle))
         {
+            objectId = poiId;
+            envLabel = label;
+            pose = new SpacePose(position, angle);
             kind = PoiKind.SnapshotPocket;
             this.seed = seed;
         }
 
         public PoiState(int poiId, MapParent parent)
-            : base(poiId, parent?.LabelCap ?? "Orbital POI", parent?.Map,
-                new SpacePose(parent != null && parent.Tile.Valid
-                    ? OrbitSphere.TileCenterDirection(parent.Tile)
-                    : Vector3.right, 0f))
         {
+            objectId = poiId;
+            envLabel = parent?.LabelCap ?? "Orbital POI";
+            map = parent?.Map;
+            pose = new SpacePose(parent != null && parent.Tile.Valid
+                ? OrbitSphere.TileCenterDirection(parent.Tile)
+                : Vector3.right, 0f);
             kind = PoiKind.NativeParent;
             nativeParent = parent;
             faction = parent?.Faction;
@@ -70,6 +81,7 @@ namespace DeltaV
             Scribe_References.Look(ref nativeParent, "nativeParent");
             Scribe_Values.Look(ref seed, "seed", 0);
             Scribe_Deep.Look(ref snapshot, "snapshot");
+            Scribe_Values.Look(ref envLabel, "label", null);
         }
     }
 }

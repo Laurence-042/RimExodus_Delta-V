@@ -7,19 +7,18 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 基架归属网格（2026-09-18 设计）：每个基架格记录归属 SpaceObject ID。飞船引擎的
-    /// 范围/承载、逆重发射与自由飞行捕获只按「自己的 ID」过滤；星球仪剪影按 ID 过滤；
-    /// 停靠在 wreck 上的飞船与 wreck 各自保有独立身份。归属是存档事实（无法从地形推导）。
-    ///
-    /// ID 语义：与 SpaceObject.objectId 同一 ID 空间（UniverseManager 统一分配）。裸 ID
-    /// （没有对应 SpaceObject 的归属域，如独立新建的平台）合法存在，经「修改基架归属」
-    /// 命令引用；在其上建引擎 + 驾驶台 bootstrap 成船时由 FreeFlightBootstrap 继承为船 ID。
+    /// 基架归属网格（2026-09-18 设计；2026-09-24 解耦重构修订）：每个基架格记录归属
+    /// **结构 ID**。归属身份与 SpaceObject 对象身份分离（解耦架构 §2）——ID 仍经
+    /// UniverseManager.AllocateOwnerId 同一计数器发放（共用号段防撞号），但不再通过数值
+    /// 相等建立关系，不得用 ObjectById(ownerId) 推断船或地图归属。飞船引擎的范围/承载、
+    /// 逆重发射与自由飞行捕获只按「自己的 ID」过滤；剪影按 ID 过滤；同图各归属各自保有
+    /// 独立身份。归属格数据是存档事实（无法从地形推导）。
     ///
     /// 写入口唯一收口在 Harmony patch（Patch_SubstructureOwnership 的 TerrainGrid.
     /// SetFoundation postfix）：显式盖章（生成/降落/快照恢复管线）优先，其余按邻接规则
-    /// （四邻同为基架且归属一致 → 继承；无邻接基架 → 新 ID；邻接多个不同归属 → 拒建由
-    /// PlaceWorker_DeltaVSubstructureOwnership 把关，防御性落到 Unassigned）。
-    /// 仅 Delta-V 参考系图参与（RimExodus 地表零影响）。
+    /// （四邻同为基架且归属一致 → 继承并吸收相连未占有域；无邻接或多归属邻接 → 保持
+    /// 未占有，交由玩家划分——多归属邻接**不拒建**，解耦架构 §4 已定）。仅 Delta-V
+    /// 参考系图参与（RimExodus 地表零影响）。
     ///
     /// owner 值只在「当前有基架的格」上有意义：拆除基架不清写 owner（消费者一律先判
     /// 地形再读归属），SetFoundation 恒重写，因此残留值不可能被读到。
@@ -27,6 +26,17 @@ namespace DeltaV
     public class SubstructureOwnership : MapComponent
     {
         public const int Unassigned = 0;
+
+        /// <summary>
+        /// 全局结构版本（单调递增）：任何归属/基架写入后 +1。ShipRegistry 控制域缓存与
+        /// SpaceObject 拼接名缓存据此失效——只读派生查询不重复扫描事实源。
+        /// </summary>
+        public static int GlobalStructureVersion { get; private set; }
+
+        public static void BumpStructureVersion()
+        {
+            GlobalStructureVersion++;
+        }
 
         private int[] ownerGrid;
 
@@ -67,6 +77,7 @@ namespace DeltaV
                         }
                     }
                 }
+                BumpStructureVersion();
             }
         }
 
@@ -269,6 +280,7 @@ namespace DeltaV
                 ownerGrid = new int[map.cellIndices.NumGridCells];
             }
             ownerGrid[map.cellIndices.CellToIndex(cell)] = ownerId;
+            BumpStructureVersion();
         }
 
         /// <summary>图中已盖出的最大归属 ID（读档 ID 下限对齐用；无数据返回 0）。</summary>
@@ -346,6 +358,7 @@ namespace DeltaV
             }
             if (changed)
             {
+                BumpStructureVersion();
                 NotifyOwnershipChanged();
             }
         }
@@ -384,12 +397,13 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 建造完成时的归属落位（2026-09-18 用户决策的「未占有」语义）：新基架继承
-        /// 唯一有效邻接归属，并把与之相连的**整片未占有（Unassigned）基架区域**一并
-        /// 同步为该归属（多行建造时无论施工顺序如何，最终整片与船同归属）。区域若
-        /// 同时邻接其他有效归属（争议桥），只写新格本身、区域保持未占有，交由
-        /// 「修改基架归属」命令人工裁决。孤立建造（无有效邻接）不分配 ID：保持未
-        /// 占有，等待后续相连吸收或经驾驶台 bootstrap 认领成船。
+        /// 建造完成时的归属落位（解耦架构 §4 已定语义）：新基架继承唯一有效邻接归属，
+        /// 并把与之相连的**整片未占有（Unassigned）基架区域**一并同步为该归属（多行建造
+        /// 时无论施工顺序如何，最终整片与船同归属）。区域若同时邻接其他有效归属
+        /// （争议桥），只写新格本身、区域保持未占有，交由「修改基架归属」命令人工裁决。
+        /// 孤立建造（无有效邻接）不分配 ID：保持未占有，等待后续相连吸收或经驾驶台
+        /// 认领成船。**同时邻接多个不同归属不拒建**：保持未占有，交由玩家划分
+        /// （2026-09-24 解耦重构取代旧「多归属拒建」）。
         /// </summary>
         public void ResolveBuilt(IntVec3 cell)
         {
@@ -404,8 +418,8 @@ namespace DeltaV
                 }
             }
             // count == 0：孤立建造 → 保持未占有（Unassigned 为默认值，无需写入）。
-            // count >= 2：PlaceWorker 已在放置门禁拒绝；脚本/破坏性路径漏到这里时同样
-            // 保持未占有（引擎连通域按 0 过滤，不会越界并入任何现有域）。
+            // count >= 2：多归属邻接 → 同样保持未占有，玩家经「修改基架归属」划分；
+            // 引擎连通域按归属过滤，未占有域不会被任何现有船吞并。
         }
 
         /// <summary>

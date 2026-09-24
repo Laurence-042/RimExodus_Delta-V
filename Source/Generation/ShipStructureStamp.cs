@@ -21,7 +21,7 @@ namespace DeltaV
     /// </summary>
     public static class ShipStructureStamp
     {
-        /// <summary>ownerId = 船的 objectId：甲板基架从生成起归属该船。</summary>
+        /// <summary>ownerId = 结构归属 ID（与容器对象 ID 解耦）：甲板基架从生成起归属该结构。</summary>
         public static void StampPlayerShip(Map map, int ownerId)
         {
             CellRect hull = CenteredRect(map, 40, 24);
@@ -41,19 +41,22 @@ namespace DeltaV
             SpawnColonists(map, hull, 2);
         }
 
-        public static void StampEnemyShip(Map map, int ownerId)
+        /// <summary>敌舰（可驾驶对等船）：需要驾驶台使其成为有效 NPC 船（有主台的归属）。</summary>
+        public static void StampEnemyShip(Map map, int ownerId, Faction faction)
         {
             CellRect hull = CenteredRect(map, 24, 14);
-            StampHull(map, hull, doorsOnEast: 1, interiorWall: false, colonists: 0, faction: null, ownerId);
+            StampHull(map, hull, doorsOnEast: 1, interiorWall: false, colonists: 0, faction, ownerId);
             // 敌舰 24×14：单台线性推进器 + 双向力偶，对称于船体中心；z 带 1-2 / 3-4 / 6-7 / 9-10 / 11-12 互不重叠。
-            SpawnThruster(map, hull, 1, 7, Rot4.East);            // 前进（艉、朝东）
-            SpawnThruster(map, hull, 22, 6, Rot4.West);           // 减速（艏、朝西）
-            SpawnThruster(map, hull, 11, 1, Rot4.North);          // 左平移（南缘、朝北）
-            SpawnThruster(map, hull, 12, 12, Rot4.South);         // 右平移（北缘、朝南）
-            SpawnThruster(map, hull, 2, 10, Rot4.South);          // 逆时针力偶
-            SpawnThruster(map, hull, 21, 9, Rot4.North);
-            SpawnThruster(map, hull, 1, 3, Rot4.North);           // 顺时针力偶
-            SpawnThruster(map, hull, 22, 4, Rot4.South);
+            SpawnThruster(map, hull, 1, 7, Rot4.East, faction);            // 前进（艉、朝东）
+            SpawnThruster(map, hull, 22, 6, Rot4.West, faction);           // 减速（艏、朝西）
+            SpawnThruster(map, hull, 11, 1, Rot4.North, faction);          // 左平移（南缘、朝北）
+            SpawnThruster(map, hull, 12, 12, Rot4.South, faction);         // 右平移（北缘、朝南）
+            SpawnThruster(map, hull, 2, 10, Rot4.South, faction);          // 逆时针力偶
+            SpawnThruster(map, hull, 21, 9, Rot4.North, faction);
+            SpawnThruster(map, hull, 1, 3, Rot4.North, faction);           // 顺时针力偶
+            SpawnThruster(map, hull, 22, 4, Rot4.South, faction);
+            // 驾驶台（主台）：使该归属成为有效 NPC 船；朝向 East（船帧对齐图帧）。
+            SpawnAnchored(map, ThingDefOf.PilotConsole, hull, 11, 6, Rot4.East, faction);
         }
 
         private static CellRect CenteredRect(Map map, int width, int height)

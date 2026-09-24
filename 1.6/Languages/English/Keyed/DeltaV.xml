@@ -120,4 +120,45 @@
   <DeltaV_SettingsDockingPosWindow>Alignment tolerance - position (cells)</DeltaV_SettingsDockingPosWindow>
   <DeltaV_SettingsDockingAngleWindow>Alignment tolerance - angle (degrees)</DeltaV_SettingsDockingAngleWindow>
   <DeltaV_SettingsDockingCancelDistance>Docking auto-cancel distance (cells)</DeltaV_SettingsDockingCancelDistance>
+  <!-- Decoupled architecture (2026-09-24) -->
+  <DeltaV_NameSeparator> + </DeltaV_NameSeparator>
+  <DeltaV_ShipDefaultName>Ship #{0}</DeltaV_ShipDefaultName>
+  <DeltaV_WreckDefaultName>Wreck #{0}</DeltaV_WreckDefaultName>
+  <DeltaV_RenameTitle>Rename ship</DeltaV_RenameTitle>
+  <DeltaV_ConsoleGizmoRename>Rename ship</DeltaV_ConsoleGizmoRename>
+  <DeltaV_ConsoleGizmoMakeBackup>Set as backup console</DeltaV_ConsoleGizmoMakeBackup>
+  <DeltaV_ConsoleGizmoBackupTip>Release the claim on this structure. The structure becomes a wreck until another console claims it (docked ships: use the undock button instead).</DeltaV_ConsoleGizmoBackupTip>
+  <DeltaV_PanelShipRowTip>Select '{0}' as the ship to view and operate.</DeltaV_PanelShipRowTip>
+  <DeltaV_SplitConfirmText>Thruster fire would tear this formation apart.
+
+{0}
+
+Separate these structures into independent wrecks and continue?</DeltaV_SplitConfirmText>
+  <DeltaV_SplitBlockLine>- {0}: {1} cells</DeltaV_SplitBlockLine>
+  <DeltaV_SplitCancelled>Thruster command cancelled: disconnected structures remain in place.</DeltaV_SplitCancelled>
+  <DeltaV_DockSourceLeftoverConfirm>Docking '{0}' will dispose of everything left outside its hull on the source map:
+
+{1}
+
+Proceed?</DeltaV_DockSourceLeftoverConfirm>
+  <DeltaV_DockSourceLeftoverChanged>Left-behind contents changed during approach; docking aborted. Restart docking to confirm the new list.</DeltaV_DockSourceLeftoverChanged>
+  <DeltaV_UndockFragmentsLine>- {0} disconnected fragment(s) of this ship will be left behind as wrecks</DeltaV_UndockFragmentsLine>
+  <DeltaV_LeftBehindLine>- Pawn/item list left behind on this map:
+{0}</DeltaV_LeftBehindLine>
+  <DeltaV_UndockConfirmText>Undock now?
+
+{0}
+
+Undocking retracts the related docking channels; pawns and items on them stay on this map at their current cells.</DeltaV_UndockConfirmText>
+  <DeltaV_LeftBehindConfirmText>
+
+{0}
+
+Proceed?</DeltaV_LeftBehindConfirmText>
+  <!-- Settings: passive drag (decoupled architecture 11.1) -->
+  <DeltaV_SettingsPassiveDrag>Passive drag (Newton spins in his coffin)</DeltaV_SettingsPassiveDrag>
+  <DeltaV_SettingsPassiveDragTip>Damps linear and angular velocity with a half-life, coexisting with flight assist. Not a thruster command: no fuel, no flames, no hull splitting. Uses the same model in the autopilot's prediction.</DeltaV_SettingsPassiveDragTip>
+  <DeltaV_SettingsDragLinearHalfLife>Linear velocity half-life (ticks)</DeltaV_SettingsDragLinearHalfLife>
+  <DeltaV_SettingsDragAngularHalfLife>Angular velocity half-life (ticks)</DeltaV_SettingsDragAngularHalfLife>
+  <DeltaV_ReassignProtectedMainConsole>Main console foundations cannot be reassigned ({0} cell(s) skipped). Set the console to backup or deconstruct it first.</DeltaV_ReassignProtectedMainConsole>
 </LanguageData>

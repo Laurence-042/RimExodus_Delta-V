@@ -51,6 +51,21 @@ namespace DeltaV
         /// </summary>
         public float dockingCancelDistance = 250f;
 
+        // ---- 被动阻力（解耦架构 §11.1，默认开启）----
+
+        /// <summary>
+        /// 「牛顿在棺材里代替飞船旋转」：为平移和旋转增加被动阻力（指数半衰期衰减），
+        /// 提高游戏性；与飞行辅助的主动反推并存。不是推进器指令——不消耗油门、
+        /// 不生成火焰、不触发拆船。实际积分与 MPC 预测使用同一阻力定义。
+        /// </summary>
+        public bool passiveDrag = true;
+
+        /// <summary>线速度半衰期（tick；默认 480 = 8 秒）。</summary>
+        public int dragLinearHalfLifeTicks = 480;
+
+        /// <summary>角速度半衰期（tick；默认 180 = 3 秒）。</summary>
+        public int dragAngularHalfLifeTicks = 180;
+
         // ---- 分模块诊断日志开关（默认全关；Warn/Error 与必要状态日志不受开关控制）----
 
         public bool logCore;
@@ -77,6 +92,9 @@ namespace DeltaV
             Scribe_Values.Look(ref dockingPositionWindow, "dockingPositionWindow", 0.35f);
             Scribe_Values.Look(ref dockingAngleWindowDeg, "dockingAngleWindowDeg", 1.15f);
             Scribe_Values.Look(ref dockingCancelDistance, "dockingCancelDistance", 250f);
+            Scribe_Values.Look(ref passiveDrag, "passiveDrag", true);
+            Scribe_Values.Look(ref dragLinearHalfLifeTicks, "dragLinearHalfLifeTicks", 480);
+            Scribe_Values.Look(ref dragAngularHalfLifeTicks, "dragAngularHalfLifeTicks", 180);
             Scribe_Values.Look(ref logCore, "logCore", false);
             Scribe_Values.Look(ref logInput, "logInput", false);
             Scribe_Values.Look(ref logPhysics, "logPhysics", false);

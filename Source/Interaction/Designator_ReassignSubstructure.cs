@@ -91,14 +91,36 @@ namespace DeltaV
                 FinalizeDesignationFailed();
                 return;
             }
+            // 主台脚下格保护（解耦架构 §3.2 已定）：不写入、其余合法格正常修改、
+            // 一次汇总提示——不通过强行改主台归属制造多个主台竞争。
+            var protectedCells = new HashSet<IntVec3>();
+            foreach (Ship ship in ShipRegistry.ShipsOnMap(Find.CurrentMap))
+            {
+                if (ship.console?.parent != null && ship.console.parent.Spawned)
+                {
+                    protectedCells.Add(ship.console.parent.Position);
+                }
+            }
+            int protectedSkipped = 0;
             // 批量一次写入：SetOwner 收尾统一做引擎 dirty 与剪影失效，避免逐格通知。
             var targets = new List<IntVec3>();
             foreach (IntVec3 cell in cells)
             {
-                if (CanDesignateCell(cell).Accepted)
+                if (!CanDesignateCell(cell).Accepted)
                 {
-                    targets.Add(cell);
+                    continue;
                 }
+                if (protectedCells.Contains(cell))
+                {
+                    protectedSkipped++;
+                    continue;
+                }
+                targets.Add(cell);
+            }
+            if (protectedSkipped > 0)
+            {
+                Messages.Message("DeltaV_ReassignProtectedMainConsole".Translate(protectedSkipped),
+                    MessageTypeDefOf.RejectInput, false);
             }
             if (targets.Count == 0)
             {

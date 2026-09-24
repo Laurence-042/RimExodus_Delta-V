@@ -617,10 +617,12 @@ Harmony 规则：
 19. **进入他船只经对接（模式互转 + 原版管线）或跳帮舱容器投放；不建跨图 live 连接、不自研自由 Pawn 跨图转移；ShipAutopilot 完成语义不与对接耦合（对接完成判据是几何的：位姿窗口 + 保持 tick）。**
 20. **SpaceObject 的运动只属于游戏时钟（tick 驱动）：自动驾驶、跳帮舱、未来弹道与一切宇宙状态积分一律按游戏 tick 推进（暂停 = 无 tick = 冻结；倍速 = 加速）。模拟路径禁止 `Time.deltaTime`/帧驱动积分——那是硬造时间。表现层（火焰粒子/音频/帧表）只读真实时间、不移动对象，不受此限（2026-09-21 用户定案）。**
 21. **同一功能只有一份实现：先查 §20 架构地图复用既有入口（本 mod 或原版调用链）；原版私有逻辑的镜像只做一次并收口在唯一入口；调用点禁止自组合换算。**
+22. **飞船不是 SpaceObject（解耦架构 §16.1–3）：SpaceObject = 地图容器（一图一刚体、每对象只积分一次）；船 = 主驾驶台认领的归属 + 同归属四连通控制域（ShipRegistry 唯一查询）；船不保存可与容器分叉的第二套宇宙积分状态，停靠船位姿 = 容器位姿 ⊕ 船体锚派生。**
+23. **玩家与 NPC controller 必须是同一 ShipController 基类的两个子类（解耦架构 §5.4/§16.17）；出力前公共检查与拆分入口（RequestThrust）独立于 controller，玩家确认用原版 forcePause 弹窗；被动阻力与纯漂移不拆船，实际积分与 MPC 预测用同一阻力因子。**
 
 ## 19. 星区模型（核心已实现，待游戏内实测）
 
-权威设计见 `doc/星区架构.md`（2026-09-16 六稿评审通过后施工）。§7–§9 核心与 §11.1 左侧面板/星球仪（含 §12.2 星区地图 = 星球仪连续缩放、LOD 分层、图标/剪影点击聚焦）已落地：尺度重标定（CellsPerTile 设置项默认 20000 + 位姿即时重标定）、可降落判定（任何已物化 SpaceObject 内部投影，含移动目标；空间图落点规则 = 纯太空可停但禁触异主基架）、**基架归属体系**（每个基架格记录归属 SpaceObject ID，`SubstructureOwnership` MapComponent；引擎范围/承载、逆重发射与自由飞行捕获一律按「自己 ID」过滤，`GetConnectedSubstructure` 归属过滤 prefix 单点收口；建造按邻接规则继承/保持未占有(0)/拒建多归属冲突，未占有域相连时整域吸收、争议桥保持未占有，未占有(0) 是真实归属域（可 bootstrap 成船）；剪影按 Map+归属 ID 双键、朝向配对经 ShipSilhouette.OrientationForCurrentMap（口袋图纹理配船姿态角、停靠图纹理配宿主帧角，不得自行组合）；「修改基架归属」命令在 Orders 分类，支持新建独立 ID；详见 `doc/星区架构.md` §7 基架归属模型）、口袋图降落/起飞（战术降落 = 选点 → 自动驾驶 → 清除原图 Substructure → 落点生成 Substructure：选点只冻结不搬运的 Gravship 数据快照、船体全程留在口袋图，控制权夺取复用原版 cutscene 级联、目标图正常显示，船壳走标准非聚焦外壳渲染，落点反向映射「宿主帧 ⊕ 落点局部，角度 = 宿主帧角 ⊕ 最终放置朝向」后交给轨道层通用自动驾驶 `ShipAutopilot`（FlyTo + 到达/失败信号，可复用）飞行、到达信号触发 FinalizeShipCapture + 原版 InitiateLanding 压零动画完成真转移，不用原版 terrain curtain；落地后同图建筑拓扑但基架归属分离（落点盖章为船 ID），空白空画布不作战术降落目标；**对接口**（门类建筑，真空屏障科技，朝向决定延伸方向；已停靠落定后自动铺设密封对接通道至首个障碍，通道非基架、原版房间机制原生密封，端口移除同步收回）、星区生成记账服务（`SectorContentService`）、空画布与被占用宿主图纳管、SpaceObject 派系字段、推进器动力来源接口（`ThrusterPower`，默认模型读推进器自身实际状态：故障/排气堵塞/断电，不查引擎连接）、统一状态面板。未实现：星区内容类型占位、伴生物、VEF/电推与 VGE 燃料的 Model 替换实现（仅接口）。补充约束：
+权威设计见 `doc/星区架构.md`（2026-09-16 六稿评审通过后施工）。§7–§9 核心与 §11.1 左侧面板/星球仪（含 §12.2 星区地图 = 星球仪连续缩放、LOD 分层、图标/剪影点击聚焦）已落地：尺度重标定（CellsPerTile 设置项默认 20000 + 位姿即时重标定）、可降落判定（任何已物化 SpaceObject 内部投影，含移动目标；空间图落点规则 = 纯太空可停但禁触异主基架）、**基架归属体系**（每个基架格记录归属 SpaceObject ID，`SubstructureOwnership` MapComponent；引擎范围/承载、逆重发射与自由飞行捕获一律按「自己 ID」过滤，`GetConnectedSubstructure` 归属过滤 prefix 单点收口；建造按邻接规则继承/保持未占有(0)/拒建多归属冲突，未占有域相连时整域吸收、争议桥保持未占有，未占有(0) 是真实归属域（可 bootstrap 成船）；剪影按 Map+归属 ID 双键、朝向配对经 ShipSilhouette.OrientationForCurrentMap（口袋图纹理配船姿态角、停靠图纹理配宿主帧角，不得自行组合）；「修改基架归属」命令在 Orders 分类，支持新建独立 ID；详见 `doc/星区架构.md` §7 基架归属模型）、口袋图降落/起飞（战术降落 = 选点 → 自动驾驶 → 清除原图 Substructure → 落点生成 Substructure：选点只冻结不搬运的 Gravship 数据快照、船体全程留在口袋图，控制权夺取复用原版 cutscene 级联、目标图正常显示，船壳走标准非聚焦外壳渲染，落点反向映射「宿主帧 ⊕ 落点局部，角度 = 宿主帧角 ⊕ 最终放置朝向」后交给轨道层通用自动驾驶 `ShipAutopilot`（TrackTo 随动 + 失败信号，可复用）飞行；保持判据满足后**直接放置**完成真转移（2026-09-24 解耦重构：GravshipInterop.CaptureDomain 按当前控制域捕获 → StripDomain 剥离源图 → PlaceIntoMap 放入目标图，与移除同一调用栈；不再重放原版 InitiateLanding，不进 cutscene/mask/LandingEnded 链路）；落地后同图建筑拓扑但基架归属分离（落点盖章为船 ID），空白空画布不作战术降落目标；**对接口**（门类建筑，真空屏障科技，朝向决定延伸方向；已停靠落定后自动铺设密封对接通道至首个障碍，通道非基架、原版房间机制原生密封，端口移除同步收回）、星区生成记账服务（`SectorContentService`）、空画布与被占用宿主图纳管、SpaceObject 派系字段、推进器动力来源接口（`ThrusterPower`，默认模型读推进器自身实际状态：故障/排气堵塞/断电，不查引擎连接）、统一状态面板。未实现：星区内容类型占位、伴生物、VEF/电推与 VGE 燃料的 Model 替换实现（仅接口）。补充约束：
 
 - 星球轨道坐标系必须可按星球参数化/实例化，不得烧死「只有一个轨道层」（恒星系扩展性）。
 - 星区内容密度数值（保底/分段概率）仍属 `doc/星区架构.md` §12.1 待定项；当前默认残骸保底 1、无额外量，只经 `SectorContentService.Rules` 调整。
@@ -628,18 +630,18 @@ Harmony 规则：
 - **已停靠→自由飞行转换源图善后**（`HandleDepartedSourceMap`，只服务已停靠→自由飞行与读档清扫）：worldtile 图不受转换影响（去留只由锚对象配置与距离生命周期决定），非 worldtile 图空白立刻删除（遗留基架转无主残骸）、非空白走距离生命周期；**禁止按对象身份（空画布锚/玩家 Settlement/站点）特判去留，转换不得成为 worldtile 图的销毁者**。
 - **逆重发射离场 = 星区驱动标准流程**（2026-09-20 用户决策，取代按源图身份分支的多重实现——旧实现从 wreck 等停靠源发射时星区 worldtile 图无人处理、wreck 图被 CurrentMap/非空白守卫跳过、旅行期间距离评估因无玩家参考点整体短路，双图均不删）：① 任意地图触发起飞，战略源地址 = 地图归属星区 worldtile；② 飞船自有飞行口袋图源总是销毁口袋图（遗弃滞留者、遗留基架转无主残骸）；③ 归属星区 worldtile 图按逆重锚决定去留（无锚 → 原版 `AbandonMap` 弃置 + 基架转残骸，有锚/有其他停靠船保留；无图跳过）——**任意源类型统一执行，禁止只对特定源跑锚规则**；④ 星区内其余 SpaceObject 地图（含停靠源图）一律按超删除距离处理（`SpaceLifecycle.PackDepartedSectorPois` → TryPack：休眠 + 快照收纳/删除、对象保留为 packed，守卫照常生效）——**旅行期间 `MinPlayerDistance` 为 +Infinity 且评估整体跳过，不得依赖自然距离触发，离场时刻必须显式执行**。捕获口径不变（口袋图发射 = 整船捕获，停靠图发射 = 力场内捕获，两口径并存不得合并）；无 tile 源的星区弃置确认弹窗对自有口袋图与停靠源统一；善后统一排在 TravelTo 放行后的 Postfix + 帧边界（排队过早会卡守卫——旧 bug 勿回退）。
 - **归属/对象 ID 一律经 `UniverseManager.AllocateOwnerId` 单一计数器分配**（2026-09-20 撞号教训：对象注册与裸 ID 双计数器互不可见 → 域名反查错对象、异主域同号合并被捕获吞并）：单调递增；**注销对象必须推高计数器**（被注销 ID 仍被驾驶台/图域持有，绝不再发）；读档对齐到 max(对象, 全部图归属格, 全部驾驶台身份)；**禁止任何调用点自行扫 objects 取 max+1 发号**。**飞船身份常驻驾驶台**（`CompDeltaVPilotConsole.shipId` 持久，创建/首次解析时领取，解析链与重生 BFS 重盖章见 `doc/星区架构.md` §7）；不得再造停泊/恢复等一次性身份搬运。
-- **shipId 写入仅两场景（2026-09-20 用户决策铁律）**：驾驶台增删（Spawn 认领/随 comp 消亡）与中途安装本 mod 的读档迁移回填（`MigrateConsoleIdentities`）；**战术/战略起飞一律不写归属数据**——驾驶台是飞船本体、唯一与 SpaceObject 绑定的依托，身份一开始就准备好，写入点越少越不容易漏。重生重盖章的承载图必须含飞船自有口袋图（无 tile，勿再用 `IsZeroGravity` 一类要求有效 tile 的守卫拦掉）。**飞船进自由飞行时按 ID 整清源图旧域**（`SubstructureOwnership.ClearOwner`；基架不重叠，直接清零归属即可）。
+- **shipId 写入场景（2026-09-24 解耦重构修订）**：驾驶台 spawn 认领（ClaimOnSpawn：无身份的新台按脚下归属领主/备用、未占有域领新 ID 只认领连通片）与随 comp 消亡；战略起飞不写归属数据（身份随 comp 飞行，容器销毁）。归属 ID 与对象 ID **语义分离**（共用计数器防撞号，禁止 ObjectById(ownerId) 反查）。重生重盖章的承载图必须含飞船自有口袋图（无 tile，勿再用 `IsZeroGravity` 一类要求有效 tile 的守卫拦掉）。**飞船进自由飞行时按 ID 整清源图旧域**（`SubstructureOwnership.ClearOwner`；基架不重叠，直接清零归属即可）。
 - **战术降落（自由飞行→已停靠）豁免原版降落结局与场景落地钩子**（2026-09-20 用户决策）：LandingEnded 的降落结局掷骰与 `Scenario.PostGravshipLanded`（机械族追击等 ScenPart）在战术降落窗口（`LandingApproachController.TacticalLandingEnding` = 到达重放 ArrivalPending 或降级立即降落窗口）内一律跳过；不得让战略仪式残留的 `launchInfo.doNegativeOutcome=true` 在战术降落二次生效。战术流程不启动/不延长逆重引擎冷却（冷却唯一启动点 = 战略发射 `ConsumeFuel`，降落期唯一写入 = "引擎过热"结局）；战略到达的结局、场景钩子与冷却保持原版。
 - 设计与实现的唯一权威仍是 `doc/星区架构.md`；后续修订以该文档为准并同步 `README.md`。
 
 
-## 20. 当前代码架构地图（单实现入口索引，2026-09-22）
+## 20. 当前代码架构地图（单实现入口索引，2026-09-24 解耦重构版）
 
 后续开发动代码前先在此查入口；同一功能不得出现第二份实现（铁律/不变量 #21）。架构演化时同步本节。
 
-**流程状态实例归属（2026-09-22 迁移定案）**：一切可变游戏流程状态收进 UniverseManager
-持有的**不序列化实例服务**（`Approach`/`Autopilot`/`BoardingPods`/`ShipModes`/
-`Lifecycle`/`Generation`，惰性属性）——
+**流程状态实例归属（2026-09-22 迁移定案；2026-09-24 解耦重构后服务清单）**：一切可变
+游戏流程状态收进 UniverseManager 持有的**不序列化实例服务**（`Approach`/`Autopilot`/
+`BoardingPods`/`ShipTransitions`/`Lifecycle`/`Generation`，惰性属性）——
 读档时原版反序列化器重建组件（`Scribe_Collections.Look(..., LookMode.Deep)` →
 `Activator.CreateInstance`），实例字段自动归零，「读其他档/退主菜单残留旧流程」不可表示。
 **禁止再造可变静态游戏状态**（新代码要写 static 可变字段前先自问它是否属于某个
@@ -652,29 +654,32 @@ dev `ResetObjects` 在**同一 universe 实例**上换 objects，必须显式调
 （见该处注释）。渲染缓存与按键抑制门仍为静态、读档经 `LoadedGame` 清理。
 
 ### 驱动节奏
-- `UniverseManager.GameComponentTick`（唯一 tick 总装，游戏时间语义）：`Autopilot.Tick() → BoardingPods.Tick() → Approach.Tick(this) → ShipPhysics 物理积分循环`（自动驾驶中的船被积分循环按 `IsActive` 跳过，无双驱动）。
+- `UniverseManager.GameComponentTick`（唯一 tick 总装，游戏时间语义）：`Autopilot.Tick() → BoardingPods.Tick() → Approach.Tick(this) → 容器物理积分循环`（自动驾驶中的容器被积分循环按 `IsActive` 跳过，无双驱动；对接组合体随宿主容器惯性漂移 + 被动阻力）。
 - `UniverseManager.GameComponentUpdate`（每帧）：只做渲染/输入分发（船壳分层、星球仪/面板、驾驶状态维护、火焰/音频、跳帮舱标记投影）——模拟路径禁止入帧路径（不变量 #20）。
 
 ### Core/（数据与算法）
 - `OrbitSphere`：球面几何唯一入口（`Basis/Move/Offset/ArcCells/TileFromDirection`；`Offset` 是 `Move` 的局部球面反解；按 PlanetLayer 参数化、缓存分键）。
-- `SpaceTransform`：全项目唯一坐标变换 API——2D 旋转/`WrapAngle`；Map⇄对象局部（`ShipLocalOrigin/MapToShipLocal/ShipLocalToMap`）；Map 连续点⇄universe（`MapPointToUniverse/UniverseToMapPoint`，统一消费地图所属对象位姿）；停放 root→船体帧原点（`ShipOriginFromPlacementRoot/GravshipBoundsCenterFromEngineRoot/BoundsCenterOfCells`）；速度换基 `TransportVelocity`、刚体点位姿 `RigidPointPose`；显示层参考系与投影。原版 designator 输入格⇄放置 root 只在 `GravshipInterop` 适配。
-- `UniverseManager`：`objects` 权威列表与 `RegisterObject/UnregisterObject`、`ObjectById/ShipById`、`AllocateOwnerId`（对象/归属共用唯一 ID 计数器）、专用宿主口袋图、`FrameOf`（只解析真实对象；真实轨道图由 `OrbitalPoiRegistry` 及时注册）、`SetFocused`（聚焦切换唯一入口）、`ResetRuntimeServices`（读档/dev 重置共用清理）、tick/update 总装。
-- `ShipState/SpaceObject/PoiState/SpacePose`：宇宙状态（存档事实）；`ShipState.flightState` 只表示 `FreeFlight/Docked`，`SpaceObject.faction` 是玩家/NPC 身份唯一事实源，控制状态由 `PilotService.GetControlState` 派生，不另存标志。`SpaceObject.InteriorMap` 是当前内部图唯一语义。`ShipStructureResolver`：引擎、连通域、Thing 成员、停靠原点唯一查询。`ShipPhysics`：质量/惯量/联合分配器/积分（刚体动量管理唯一实现）；`BuildControlModel` 只读预览与真实 `Allocate` 共用同一分配核心，只有 `Allocate` 写油门。`DenseAdmmQpSolver`：无游戏依赖的小型凸 QP 唯一实现。`SubstructureOwnership`：基架归属 MapComponent 与 `ClaimConnectedDomain` 唯一归属算法。`DeltaVSettings/DeltaVMod/DeltaVDefOf/DeltaVLog`。
+- `SpaceTransform`：全项目唯一坐标变换 API——2D 旋转/`WrapAngle`；Map⇄对象局部（`ShipLocalOrigin/MapToShipLocal/ShipLocalToMap`）；Map 连续点⇄universe（`MapPointToUniverse/UniverseToMapPoint`，统一消费地图所属容器位姿）；停放 root→船体帧原点（`ShipOriginFromPlacementRoot/GravshipBoundsCenterFromEngineRoot/BoundsCenterOfCells`）；速度换基 `TransportVelocity`、刚体点位姿 `RigidPointPose`；显示层参考系与投影。原版 designator 输入格⇄放置 root 只在 `GravshipInterop` 适配。
+- `SpaceObject/PoiState/SpacePose`：宇宙状态（存档事实）。**SpaceObject = 地图容器**（具体类；objectId/pose/map + 环境 faction，label 为派生拼接名/环境名虚属性）；`ShipState` 已删除（解耦重构），飞船不再持久化为宇宙对象。`PoiState` 特化 POI（NativeParent/SnapshotPocket + envLabel/快照）。
+- `ShipRegistry`（新，飞船查询唯一入口）：`Ship` 句柄（ownerId/map/主台 comp）与 `ShipsOnMap/ShipByOwner/OwnershipHasMainConsole` 枚举；**控制域 = 主台脚下同归属四连通**（缓存经 `SubstructureOwnership.GlobalStructureVersion` + TTL 失效）；**残留块 = 剩余基架物理四连通**（两语义不得混用，§8.1）；状态派生 `StateOf`（自由飞行 = 唯一船 + 非天然地面接触 `RestsOnNaturalGround`（基架下非 Space 真实地面）+ 非地表图）；位姿派生 `ShipPose/HeadingAngle`（容器 ⊕ 船体中心锚 ⊕ σ=AngleFromRot4(主台朝向)，控制台 East ⇔ 船帧对齐图帧）；`FactionOf/Contains/EngineOn`（引擎查询仅供战略发射）。
+- `UniverseManager`：`objects` 权威列表与 `RegisterObject/UnregisterObject`、`ObjectById`、`AllocateOwnerId`（对象/结构归属共用唯一计数器；**语义分离，禁止反查**）、结构名注册表 `NoteStructureName/RenameStructure/NewWreckName/LabelForOwner`（改名唯一出口，同步本船引擎 RenamableLabel）、专用宿主口袋图、`FrameOf`、`SetFocused`（聚焦 = CurrentMap 派生，不再持久化 ID）、`ResetRuntimeServices`、tick/update 总装（积分对象 = 容器）。
+- `ShipPhysics`：质量/惯量/联合分配器/积分（刚体动量管理唯一实现；`GetReport(Map)`、`Integrate(SpaceObject,…,pilotFrameAngle)` 含**被动阻力**半衰期衰减，`PassiveDragFactors` 与 MPC 预测同一因子）；`BuildControlModel` 只读预览与真实 `Allocate` 共用同一分配核心，只有 `Allocate` 写油门。`DenseAdmmQpSolver`：无游戏依赖的小型凸 QP 唯一实现。
+- `SubstructureOwnership`：基架归属 MapComponent（归属 = 结构 ID）；`GlobalStructureVersion` 域缓存失效源；`ClaimConnectedDomain` 唯一归属算法；`ResolveBuilt` 多归属邻接保持未占有（不拒建）。`DeltaVSettings/DeltaVMod/DeltaVDefOf/DeltaVLog`。
 
 ### Interaction/（玩法流程）
-- `ShipFlightTransitionService`：universe 独占、非序列化的自由飞行/停靠转换流程状态与唯一编排入口——`BeginDocking → BeginOriginalLanding`、`CaptureShipForCompletion`、`BeginFreeFlight/ExecuteLaunch`、`WriteDockedState`、战略离场委托；选点、脱离停靠、战略离场和捕获窗口不再由静态字段表达。`GravshipInterop` 是空洞预览、原版私有字段、cutscene 压零与真实放置收尾的唯一镜像。
-- `LandingApproachController`：对接计划编排（**universe.`Approach` 实例服务**）——`DockingPlan` 状态对象（构造即完整，对外唯一事实源 `ActivePlan`）、`TryConsume`（原子发布）、`Tick`（守卫/位姿窗口/保持计数）、`CompleteDocking`（新鲜脚印复核→完成时刻冻结→真转移）、`CancelSelectionOrPlan`（选点/计划通用取消）。
-- `ShipAutopilot`：自动驾驶任务编排器（**universe.`Autopilot` 实例服务**；`FlyTo` 固定航点 / `TrackTo` 随动目标+前馈+站位保持；tick 驱动；不耦合对接完成语义）。制导算法唯一边界为 `IAutopilotGuidance`，当前 `OnlineMpcGuidance` 每 6 tick 求解六状态联合 MPC，`BrakingGuidanceFallback` 只在数值失败时按停止距离回退；不得把控制律重新散写进任务/对接调用方。
-- `PilotService`：universe 独占的 `Uncontrolled/Manual/Autopilot` 派生控制状态与单按钮切换；自动驾驶按键监听可临时关闭，监听开启时任意驾驶键直接打断接管；`CanPlayerControl` 仅查派系。`PilotKeyBridge` 是 Harmony 按键快速通道的唯一可变 static 例外。
-- `BoardingPodFlight`：跳帮舱（**universe.`BoardingPods` 实例服务**；tick 驱动纯追踪、命中开孔、密封舱落位、乘员投放；自包含，非通用弹道系统）。
-- `FreeFlightBootstrap`（固定船 bootstrap 认领）、`Designator_ReassignSubstructure`（修改基架归属命令）。
+- **ShipController 基类 + PlayerShipController/NpcShipController 双子类**（解耦架构 §5.4 强制）：统一驾驶契约（`CanEnter/Enter/Exit/ComposeCommand` + 确认边界 `PresentSplitConfirmation/PresentLeftBehindConfirmation`）；玩家子类 = 手操输入 + 自动驾驶交互 + 拆船/留置确认；NPC 子类内持 `INpcShipAi`（接入边界，本轮空实现 NoopNpcShipAi）。`PilotService` 是路由服务（universe.`Pilot`）：控制状态派生、按键维护与抑制、controller 生命周期；驾驶状态为运行时数据不跨档。
+- `ShipFlightTransitionService`（universe.`ShipTransitions`）：转换与拆分的唯一编排——**出力前公共检查与拆分入口 `RequestThrust`**（仅推进器出力触发；玩家经 controller 弹 forcePause 确认窗，NPC 直接执行；取消后结构版本不变不重复弹窗）、`SplitResiduals`（公共拆分：残留块 → 各自新容器+残骸归属+「残骸 #N」）、`TransferDomainToNewPocket`（无引擎搬运核心：CaptureDomain → StripDomain → 新口袋图 → PlaceIntoMap → 新容器注册，脱离/拆分共用）、`BeginDocking`（源图残留事前确认 → 选点）、`CompleteTransferIntoHost/FinishDocking`（直接放置合图 + 源图处置）、`BeginFreeFlight/BeginFreeFlightFromConsole`（脱离：通道收回 + 断片/留置汇总确认 + 控制域转移）、战略离场适配（`HandleVanillaTakeoffFromDeltaVSource/HandleStrategicTravelDeparture`，星区标准流程保留）。`GravshipInterop` 是原版私有字段镜像的唯一收口（设计器输入格换算、`BuildPreview`（按控制域）、**`CaptureDomain`/`StripDomain`**（按 cells 的捕获/移除段镜像，无引擎搬运基础）、`PlaceIntoMap`、cutscene 压零）。
+- `LandingApproachController`（universe.`Approach`）：对接计划编排——`DockingPlan` 状态对象（含 structureId 落点盖章；构造即完整，唯一事实源 `ActivePlan`）、`TryConsume`（原子发布 + marker 复核引用保留）、`Tick`（守卫/位姿窗口/保持计数）、`CompleteDocking`（新鲜脚印复核 → 完成时刻捕获 → 直接放置 → 帧边界 FinishDocking）、`CancelSelectionOrPlan`。
+- `ShipAutopilot`（universe.`Autopilot`）：任务按归属 ID 键控、物理作用于容器（`FlyTo`/`TrackTo`，出力前经 `RequestThrust` gate）。制导唯一边界 `IAutopilotGuidance`：`OnlineMpcGuidance`（六状态 MPC，**预测含与积分同口径的被动阻力**）、`BrakingGuidanceFallback` 数值回退。
+- `BoardingPodFlight`（universe.`BoardingPods`）：跳帮舱（目标 = 地图容器，整图即跳帮面；tick 驱动纯追踪、命中开孔、密封舱落位、乘员投放）。
+- `FreeFlightBootstrap`（重力门禁查询）、`Designator_ReassignSubstructure`（修改基架归属命令，**主台脚下格保护 + 汇总提示**）、`PlaceWorker_DeltaVSubstructureOwnership`（多归属邻接不拒建，仅邻接着色提示）、`ShellPicking`（外壳命中唯一入口，每容器一壳）。
 
 ### Rendering / Lifecycle / Generation / World / Buildings / Harmony / Debug
-- `ShellRenderer + ShellLayer + MapOverlayRenderer`：整壳分层唯一管线（背景/前台命令缓冲，按 objectId 整壳层序）；`ShellPicking`：外壳命中唯一入口（选择与未来瞄准共用）；`DockingGhostRenderer`：对接幽灵船（派生缓存，不入 objects）；`ShipSilhouette`：剪影纹理唯一入口；`PlanetGlobeRenderer`（星球仪/星区地图）、`WorldShipMarkerRenderer`（世界剪影）、`ThrusterEffects/ThrusterAudio`（火焰/工作音，只读分配器油门）、`ShipStatusPanel`（统一左侧面板）。
-- `SpaceLifecycleService`（universe 实例持有；POI 距离三段、休眠/唤醒、地图销毁与缓存释放唯一管理入口）、内部 `MapDormancyService`、`SpaceMapGovernance`、实例 `IncrementalMapGenerationService`（分帧生成队列/活动任务/阻塞计时）、`PoiSnapshot`、`PocketMapHostService`。
-- `ShipPocketMapFactory`/`ShipStructureStamp`/`ShipTestScene`（口袋图与测试场景）；`UniverseHostParent_DeltaV`/`ShipPocketParent_DeltaV`/`SpaceHostParent_DeltaV`/`SectorContentService`（世界对象与星区记账）。
-- `CompDeltaVPilotConsole`（船身份锚点：shipId 持久与解析链）、`Building_DockingPort`（对接口+通道）、`Building_BoardingPodLauncher/Building_BoardingPodLanded`（跳帮舱发射管/落位密封舱）。
-- Harmony 按文件分域（LandingApproach/DockingPlanOrders/GravshipLanding*/GravshipCaptureScope/PoiDormancy/KeyBindingSuppression/SubstructureOwnership/…）；`DebugActions_DeltaV`（dev 设施）。
+- `ShellRenderer + ShellLayer + MapOverlayRenderer`：整壳分层唯一管线（背景/前台命令缓冲，**每容器一壳**、按 objectId 层序）；`DockingGhostRenderer`：对接幽灵船（按控制域烘焙，不入 objects）；`ShipSilhouette`：剪影纹理唯一入口（朝向配对 = 船所在图容器角，口袋/宿主同一规则）；`PlanetGlobeRenderer`（星球仪/星区地图：容器图标/标注 + 逐船剪影标记）；`WorldShipMarkerRenderer`（世界剪影，按船 = 归属渲染）；`ThrusterEffects/ThrusterAudio`（火焰/工作音，只读容器报告油门）；`ShipStatusPanel`（统一左侧面板：**多船列表 + 当前查看/操作船切换** `TryGetSelectedShip`）。
+- `SpaceLifecycleService`（universe 实例持有；POI 距离三段、休眠/唤醒、地图销毁与缓存释放唯一管理入口）、内部 `MapDormancyService`、`SpaceMapGovernance`（MustStayActive 按「图上有玩家主台派系船」保护）、实例 `IncrementalMapGenerationService`、`PoiSnapshot`、`PocketMapHostService`。
+- `ShipPocketMapFactory`/`ShipStructureStamp`/`ShipTestScene`（口袋图与测试场景；测试敌舰含驾驶台 = 有效 NPC 船）；`UniverseHostParent_DeltaV`/`ShipPocketParent_DeltaV`/`SpaceHostParent_DeltaV`/`SectorContentService`（世界对象与星区记账）。
+- `CompDeltaVPilotConsole`（船身份与认领锚点：shipId/isMain 持久、ClaimOnSpawn/继任/主备切换/改名 gizmo）、`Building_DockingPort`（对接口+通道；脱离编排 `RetractChannelsFor/CollectChannelLeftBehind`）、`Building_BoardingPodLauncher/Building_BoardingPodLanded`（跳帮舱发射管/落位密封舱）。
+- Harmony 按文件分域（LandingApproach/DockingPlanOrders/GravshipLanding*/GravshipCaptureScope（仅到达画面冻结，口袋发射整域例外已退役）/PoiDormancy/KeyBindingSuppression/SubstructureOwnership/**SubstructureBuildRules（太空图基架范围放开 + 引擎改名反向同步）**/WorldCameraRotation/…）；`DebugActions_DeltaV`（dev 设施：测试场景/阻力开关/强制拆分/宇宙 dump 等）。
 
 
 ## 21. 单实现/单计算纪律（2026-09-21 对接调试连环事故的教训汇总）

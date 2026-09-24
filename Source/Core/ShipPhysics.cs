@@ -516,26 +516,40 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 半隐式欧拉积分一个 tick。assist* 为真的轴做两层收口：
+        /// 半隐式欧拉积分一个 tick（积分对象 = 地图容器，一张图一个刚体，§5.3「每个对象
+        /// 只积分一次」）。pilotFrameAngle = 驾驶船的船帧角 σ（辅助轴定义在主台参考系；
+        /// 非驾驶容器传 0）。
+        /// assist* 为真的轴做两层收口：
         /// ① "反推不越过零"（推进器反推的过冲保护）；
         /// ② 残差直接衰减——低于 ResidualSpeed/ResidualOmega 的剩余漂移按固定减速度
         ///    MoveTowards 到零（用户决策：不要求推进器布局完美消除微小漂移）。
+        /// 被动阻力（解耦架构 §11.1，默认开启）：按半衰期对速度/角速度指数衰减，
+        /// 与飞行辅助的主动反推并存；不是推进器指令——不消耗分配器油门、不生成火焰、
+        /// 不触发拆船；漂移积分（零力）同样生效（纯漂移也因此会停下）。
         /// 速度/力都在船位置处的切空间基下表达；位置沿球面推进（OrbitSphere.Move），
         /// 质心不变量换成球面三步走：锚→质心（旧角）→平移→回锚（新角），
         /// 切空间速度随后平行输运到新锚点的基。
         /// </summary>
-        public static void Integrate(ShipState ship, MassReport report, Vector2 force, float torque, float dt,
-            bool assistX, bool assistZ, bool assistW)
+        public static void Integrate(SpaceObject obj, MassReport report, Vector2 force, float torque, float dt,
+            bool assistX, bool assistZ, bool assistW, float pilotFrameAngle = 0f)
         {
-            SpacePose pose = ship.pose;
+            SpacePose pose = obj.pose;
             Vector3 oldDir = pose.position;
             // 分配器与推进器几何都在稳定 Map 局部系；只有积分入切空间速度时旋转一次。
             Vector2 accel = SpaceTransform.Rotate(force, pose.angle) / report.mass;
             float alpha = torque / report.inertia;
 
             Vector2 velocity = pose.velocity + accel * dt;
+            float angularVelocity = pose.angularVelocity + alpha * dt;
+
+            // 被动阻力：v ← v · 2^(−dt/halfLife)（精确的每 tick 半衰期指数衰减）。
+            // 开关/参数变化即时生效；与 MPC 预测（OnlineMpcGuidance）同一定义。
+            (float linearDecay, float angularDecay) = PassiveDragFactors(dt);
+            velocity *= linearDecay;
+            angularVelocity *= angularDecay;
+
             // 辅助轴与 W/S、A/D 一样定义在主驾驶台参考系，不能按切空间 x/y 直接截断。
-            float pilotAngle = pose.angle + ShipOrientation.LocalForwardAngle(ship);
+            float pilotAngle = pose.angle + pilotFrameAngle;
             Vector2 previousPilotVelocity = SpaceTransform.RotateInverse(pose.velocity, pilotAngle);
             Vector2 pilotVelocity = SpaceTransform.RotateInverse(velocity, pilotAngle);
             if (assistX && previousPilotVelocity.x != 0f
@@ -548,7 +562,6 @@ namespace DeltaV
             {
                 pilotVelocity.y = 0f;
             }
-            float angularVelocity = pose.angularVelocity + alpha * dt;
             if (assistW && pose.angularVelocity != 0f && angularVelocity * pose.angularVelocity < 0f)
             {
                 angularVelocity = 0f;
@@ -583,7 +596,28 @@ namespace DeltaV
             OrbitSphere.Basis(pose.position, out east, out north);
             pose.velocity = new Vector2(Vector3.Dot(velocityWorld, east), Vector3.Dot(velocityWorld, north));
             pose.angularVelocity = angularVelocity;
-            ship.pose = pose;
+            obj.pose = pose;
+        }
+
+        /// <summary>
+        /// 被动阻力的每 tick 衰减因子（线速度, 角速度）。开关关闭时返回 (1,1)（零阻力）；
+        /// 半衰期非正视为关闭。OnlineMpcGuidance 的预测模型必须使用同一因子定义，
+        /// 避免「预测无阻力、实际有阻力」的持续误差（解耦架构 §11.1 设计要求）。
+        /// </summary>
+        public static (float linear, float angular) PassiveDragFactors(float dt)
+        {
+            DeltaVSettings settings = DeltaVMod.CurrentSettings;
+            if (settings == null || !settings.passiveDrag)
+            {
+                return (1f, 1f);
+            }
+            float linear = settings.dragLinearHalfLifeTicks > 0
+                ? Mathf.Pow(0.5f, dt * 60f / settings.dragLinearHalfLifeTicks)
+                : 1f;
+            float angular = settings.dragAngularHalfLifeTicks > 0
+                ? Mathf.Pow(0.5f, dt * 60f / settings.dragAngularHalfLifeTicks)
+                : 1f;
+            return (linear, angular);
         }
 
         /// <summary>2D 叉积（z 分量）：逆时针为正，与 SpaceTransform 角度约定一致。</summary>
@@ -602,10 +636,9 @@ namespace DeltaV
 
         private static readonly Dictionary<Map, CachedReport> Cache = new Dictionary<Map, CachedReport>();
 
-        public static MassReport GetReport(ShipState ship)
+        public static MassReport GetReport(Map map)
         {
-            Map map = ship.map;
-            if (map == null)
+            if (map == null || map.Disposed)
             {
                 return null;
             }
@@ -640,13 +673,13 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 清零该船的分配器油门（表现层熄火）：仅当报告已在缓存时生效，不触发扫描。
+        /// 清零该图的分配器油门（表现层熄火）：仅当报告已在缓存时生效，不触发扫描。
         /// 供绕过积分器直接改位姿的出口（自动驾驶到达/取消等）立即熄焰；
         /// 常规停火由下一次 Allocate 的全零解自然覆盖，无需调用。
         /// </summary>
-        public static void ClearThrottles(ShipState ship)
+        public static void ClearThrottles(Map map)
         {
-            if (ship?.map == null || !Cache.TryGetValue(ship.map, out CachedReport cached) || cached.report == null)
+            if (map == null || !Cache.TryGetValue(map, out CachedReport cached) || cached.report == null)
             {
                 return;
             }

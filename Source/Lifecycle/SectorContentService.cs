@@ -213,24 +213,25 @@ namespace DeltaV
         /// 每 60 tick 由 UniverseManager 调用：自由飞行的玩家船 tile 地址变化进入
         /// 新星区时触发首次生成。hint 爬坡避免每次全量扫描。
         /// 必须先快照船列表：EnsureSectorGenerated 会向 universe.objects 添加残骸，
-        /// 而 Ships 是 objects 上的惰性枚举——边枚举边 Add 会抛
-        /// InvalidOperationException（2026-09-17 实测事故，每进一个新星区一次）。
+        /// 惰性枚举边走边 Add 会抛 InvalidOperationException（2026-09-17 实测事故）。
         /// </summary>
         public static void TickSectorTracking(UniverseManager universe)
         {
             if (universe == null || !OrbitSphere.Valid) return;
-            foreach (ShipState ship in universe.Ships.ToList())
+            List<Ship> ships = universe.PlayerShips();
+            foreach (Ship ship in ships)
             {
-                if (ship.faction != Faction.OfPlayer || ship.IsDocked
+                if (!ShipRegistry.IsFreeFlight(ship)
                     || universe.ShipTransitions.IsDockingFlowShip(ship) || ship.map == null) continue;
-                SectorHintByShip.TryGetValue(ship.objectId, out PlanetTile hint);
+                SpacePose pose = ShipRegistry.ShipPose(ship);
+                SectorHintByShip.TryGetValue(ship.ownerId, out PlanetTile hint);
                 PlanetTile tile = hint.Valid
-                    ? OrbitSphere.TileFromDirection(ship.pose.position, hint)
-                    : OrbitSphere.TileFromDirection(ship.pose.position);
+                    ? OrbitSphere.TileFromDirection(pose.position, hint)
+                    : OrbitSphere.TileFromDirection(pose.position);
                 if (!tile.Valid) continue;
                 if (!hint.Valid || tile != hint)
                 {
-                    SectorHintByShip[ship.objectId] = tile;
+                    SectorHintByShip[ship.ownerId] = tile;
                     EnsureSectorGenerated(universe, tile);
                 }
             }

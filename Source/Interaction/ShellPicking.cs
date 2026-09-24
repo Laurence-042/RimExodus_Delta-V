@@ -38,10 +38,9 @@ namespace DeltaV
             for (int idx = PickOrderScratch.Count - 1; idx >= 0; idx--)
             {
                 SpaceObject obj = PickOrderScratch[idx];
-                ShipState ship = obj as ShipState;
-                bool docked = ship != null && ship.IsDocked;
-                Map objectMap = obj.InteriorMap;
-                if (objectMap == null || (docked && objectMap == frameMap)) continue;
+                // 每容器一壳（解耦重构：容器图即整壳；多船图不再按船分壳）。
+                Map objectMap = obj.map;
+                if (objectMap == null || objectMap == frameMap) continue;
                 // UniverseToMapPoint：universe → 地图坐标（含中心偏移）——
                 // 直接拿 UniverseToShipLocal 的中心系输出当地图坐标是已记录三次的反模式。
                 SpaceObject objectFrame = universe.FrameOf(objectMap);
@@ -52,12 +51,7 @@ namespace DeltaV
                 {
                     continue;
                 }
-                if (docked)
-                {
-                    Building_GravEngine engine = ShipStructureResolver.EngineOf(ship);
-                    if (engine != null && engine.AllConnectedSubstructure.Contains(cell)) return obj;
-                }
-                else if (MapOverlayRenderer.ContainsVisibleContent(objectMap, cell))
+                if (MapOverlayRenderer.ContainsVisibleContent(objectMap, cell))
                 {
                     return obj;
                 }

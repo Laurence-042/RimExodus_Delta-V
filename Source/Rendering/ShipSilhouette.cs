@@ -38,28 +38,18 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 「按 SpaceObject.InteriorMap 扫描」纹理的朝向配对（见类注释）：
-        /// 停靠态纹理嵌入宿主图坐标系 → 宿主帧角；移动态纹理为口袋图规范化形状 →
-        /// 船姿态角。宿主缺对象时兜底船姿态角（不变量 #17 下不应发生）。
+        /// 「按船所在图扫描」纹理的朝向配对（解耦重构后的统一规则）：纹理格子嵌在
+        /// 船所在图的图帧内（口袋图与停靠宿主图同一条规则——图帧角 = 该图容器角），
+        /// 不得叠加船姿态角（形状已含落点朝向，再叠加即重复计入）。
         /// </summary>
-        public static SilhouetteOrientation OrientationForCurrentMap(ShipState ship, UniverseManager universe)
+        public static SilhouetteOrientation OrientationForCurrentMap(Ship ship, UniverseManager universe)
         {
-            if (ship.IsDocked && ship.dockedMap != null)
-            {
-                SpaceObject host = universe?.SpaceObjectOnMap(ship.dockedMap);
-                if (host != null)
-                {
-                    return new SilhouetteOrientation
-                    {
-                        referenceDir = ship.pose.position,
-                        angle = host.pose.angle
-                    };
-                }
-            }
+            SpacePose pose = ShipRegistry.ShipPose(ship);
+            SpaceObject frame = universe?.FrameOf(ship.map);
             return new SilhouetteOrientation
             {
-                referenceDir = ship.pose.position,
-                angle = ship.pose.angle
+                referenceDir = pose.position,
+                angle = frame != null ? frame.pose.angle : pose.angle
             };
         }
 

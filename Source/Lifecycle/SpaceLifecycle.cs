@@ -54,9 +54,11 @@ namespace DeltaV
         public float MinPlayerDistance(PoiState poi)
         {
             float best = float.PositiveInfinity;
-            foreach (ShipState ship in universe.Ships)
-                if (ship.faction == Faction.OfPlayer)
-                    best = Mathf.Min(best, OrbitSphere.ArcCells(ship.pose.position, poi.pose.position));
+            foreach (Ship ship in universe.PlayerShips())
+            {
+                best = Mathf.Min(best,
+                    OrbitSphere.ArcCells(ShipRegistry.ShipPose(ship).position, poi.pose.position));
+            }
             return best;
         }
 

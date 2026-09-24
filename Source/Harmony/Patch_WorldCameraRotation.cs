@@ -8,8 +8,8 @@ namespace DeltaV
 {
     /// <summary>
     /// 原版流程在空白 Orbit tile 上生成的是 SpaceMapParent 地图，不能改换为 Delta-V 的
-    /// WorldObject 类型。这里对"有 Delta-V 船停靠的任意真实空间图"替换背景球面位置，
-    /// 让它与自建 SpaceHostParent_DeltaV 服从同一个连续语义（停靠船球面方向）。
+    /// WorldObject 类型。这里对"承载 Delta-V 船的任意真实空间图"替换背景球面位置，
+    /// 让它与自建 SpaceHostParent_DeltaV 服从同一个连续语义（容器球面方向）。
     /// </summary>
     [HarmonyPatch(typeof(MapParent), nameof(MapParent.WorldCameraPosition), MethodType.Getter)]
     public static class Patch_MapParent_WorldCameraPosition_DeltaVHost
@@ -19,9 +19,9 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe == null) return;
             Map map = __instance.Map;
-            ShipState docked = universe.Ships.FirstOrDefault(s => s.IsDocked && s.dockedMap == map);
-            if (docked == null) return;
-            __result = OrbitSphere.SpherePoint(docked.pose.position);
+            SpaceObject frame = map == null ? null : universe.SpaceObjectOnMap(map);
+            if (frame == null) return;
+            __result = OrbitSphere.SpherePoint(frame.pose.position);
         }
     }
 
@@ -35,23 +35,10 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SpaceObject frame = universe?.FrameOf(map);
             if (frame == null) return;
-            // worldtile 图由 NativeParent 对象承载（tile 中心、角度恒 0）：
-            // 背景随停靠在该图的主船绝对姿态滚转，
-            // 与聚焦飞船图同源同步、降落前后无跳变。
-            bool tileFrame = frame is PoiState poi && poi.kind == PoiKind.NativeParent;
-            float angle;
-            if (tileFrame)
-            {
-                ShipState primary = universe.PrimaryShip;
-                if (primary == null || !primary.IsDocked || primary.dockedMap != map) return;
-                angle = primary.pose.angle;
-            }
-            else
-            {
-                // 对象图（船/POI 口袋内部）：背景随聚焦对象自身姿态滚转。
-                angle = frame.pose.angle;
-            }
-            Find.WorldCamera.transform.rotation *= Quaternion.AngleAxis(angle * Mathf.Rad2Deg, Vector3.forward);
+            // 背景随聚焦容器自身姿态滚转（worldtile 图与口袋图同一规则——容器位姿是
+            /// 唯一承载，多船图的成员不再各自持有姿态）。
+            Find.WorldCamera.transform.rotation *=
+                Quaternion.AngleAxis(frame.pose.angle * Mathf.Rad2Deg, Vector3.forward);
         }
     }
 }

@@ -8,10 +8,11 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 跳帮舱飞行（2026-09-21 阶段4）：载人制导飞行器——像导弹一样**追踪**目标船
-    /// （纯追踪制导，无需速度匹配对接），命中即在命中点自动降落：撞穿外壳开孔 →
-    /// 密封舱落位堵孔 → 乘员在目标图落点旁生成（乘员经 ThingOwner 容器搬运送达，
-    /// 非自由 Pawn 跨图转移）。此后一切移动/战斗/追击都是目标图上的原版同图行为。
+    /// 跳帮舱飞行（2026-09-21 阶段4；2026-09-24 解耦重构：目标 = 地图容器）：载人制导
+    /// 飞行器——像导弹一样**追踪**目标（纯追踪制导，无需速度匹配对接），命中即在命中点
+    /// 自动降落：撞穿外壳开孔 → 密封舱落位堵孔 → 乘员在目标图落点旁生成（乘员经
+    /// ThingOwner 容器搬运送达，非自由 Pawn 跨图转移）。此后一切移动/战斗/追击都是
+    /// 目标图上的原版同图行为。
     ///
     /// 边界与纪律：
     /// - 自包含实现，**不是**阶段5 的通用 SpaceProjectile 系统（AGENTS §13 战斗纪律
@@ -22,15 +23,15 @@ namespace DeltaV
     ///   读档清扫）；飞行期禁存档（Patch_SavingIsTemporarilyDisabled_DeltaVRuntime；
     ///   乘员在运行时容器中，落盘即丢失），材质/纹理为静态渲染缓存、经
     ///   ClearRuntimeCaches 换档重建；
-    /// - 目标限 ShipState（有引擎连通域可估壳半径；POI 走整机对接）；
+    /// - 目标 = 任意地图容器（整图即跳帮面；多船图命中点按实际破口格落位）；
     /// - 单程：撤离 = 整机对接或占领目标。
     /// </summary>
     public class BoardingPodFlight
     {
         private class Flight : IThingHolder
         {
-            public ShipState sourceShip;
-            public ShipState target;
+            public int sourceOwnerId;
+            public SpaceObject target;
             public float hitRadius;
             public Vector3 position;
             public float speed;
@@ -64,19 +65,20 @@ namespace DeltaV
         public bool AnyInFlight => flights.Count > 0;
 
         /// <summary>
-        /// 发射：乘员 DeSpawn 装入舱内容器，从源船位姿出发追踪目标。命中半径按目标
-        /// 引擎相连基架域到 pose 锚（口袋图几何中心）的最远格估等效壳半径。
+        /// 发射：乘员 DeSpawn 装入舱内容器，从源船容器位姿出发追踪目标容器。命中半径按
+        /// 目标图全部基架格到图几何中心的最远格估等效壳半径。
         /// </summary>
-        public void Launch(ShipState source, ShipState target, List<Pawn> pawns)
+        public void Launch(Ship source, SpaceObject target, List<Pawn> pawns)
         {
-            if (source?.map == null || target?.InteriorMap == null || pawns.NullOrEmpty()) return;
+            if (!source.IsValid || target?.map == null || pawns.NullOrEmpty()) return;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (universe?.FrameOf(target.InteriorMap) == null) return;
+            SpaceObject sourceFrame = universe?.FrameOf(source.map);
+            if (sourceFrame == null || universe.FrameOf(target.map) == null) return;
             var flight = new Flight
             {
-                sourceShip = source,
+                sourceOwnerId = source.ownerId,
                 target = target,
-                position = source.pose.position,
+                position = sourceFrame.pose.position,
                 speed = CruiseSpeed,
                 hitRadius = EstimateShellRadius(target),
             };
@@ -94,7 +96,7 @@ namespace DeltaV
             Messages.Message("DeltaV_PodLaunched".Translate(pawns.Count, target.label),
                 MessageTypeDefOf.PositiveEvent, false);
             DeltaVLog.Message(DeltaVLogModule.Core,
-                $"boarding pod launched: {pawns.Count} pawns, '{source.label}' -> '{target.label}' (hit radius {flight.hitRadius:F0})");
+                $"boarding pod launched: {pawns.Count} pawns, structure #{source.ownerId} -> '{target.label}' (hit radius {flight.hitRadius:F0})");
         }
 
         /// <summary>UniverseManager.GameComponentTick 每 tick 驱动（游戏时间语义：
@@ -108,9 +110,9 @@ namespace DeltaV
                 Flight flight = flights[i];
                 flight.age += 1;
                 if (flight.age > MaxFlightTicks
-                    || flight.target.InteriorMap == null || flight.target.InteriorMap.Disposed)
+                    || flight.target.map == null || flight.target.map.Disposed)
                 {
-                    AbortFlight(flight, flight.target.InteriorMap == null ? "target lost" : "timeout");
+                    AbortFlight(flight, flight.target.map == null ? "target lost" : "timeout");
                     flights.RemoveAt(i);
                     continue;
                 }
@@ -127,29 +129,27 @@ namespace DeltaV
             }
         }
 
-        /// <summary>目标壳等效半径：引擎相连基架域各格到 pose 锚（口袋图几何中心）的最远距离 + 2。</summary>
-        private static float EstimateShellRadius(ShipState target)
+        /// <summary>目标壳等效半径：目标图全部基架格到图几何中心的最远距离 + 2。</summary>
+        private static float EstimateShellRadius(SpaceObject target)
         {
-            Map map = target.InteriorMap;
-            Building_GravEngine engine = ShipStructureResolver.EngineOf(target);
-            HashSet<IntVec3> cells = engine?.AllConnectedSubstructure;
-            if (cells == null || cells.Count == 0) return map.Size.x * 0.5f;
-            Vector2 center = target.IsDocked
-                ? ShipStructureResolver.DockedOrigin(target)
-                : SpaceTransform.ShipLocalOrigin(map);
+            Map map = target.map;
+            Vector2 center = SpaceTransform.ShipLocalOrigin(map);
             float radius = 0f;
-            foreach (IntVec3 cell in cells)
+            bool anySubstructure = false;
+            foreach (IntVec3 cell in CellRect.WholeMap(map))
             {
+                if (map.terrainGrid.FoundationAt(cell)?.IsSubstructure != true) continue;
+                anySubstructure = true;
                 float d = Vector2.SqrMagnitude(new Vector2(cell.x + 0.5f - center.x, cell.z + 0.5f - center.y));
                 if (d > radius) radius = d;
             }
-            return Mathf.Sqrt(radius) + 2f;
+            return anySubstructure ? Mathf.Sqrt(radius) + 2f : map.Size.x * 0.5f;
         }
 
         /// <summary>命中即降落：命中点 → 目标图格子 → 沿入射方向找首个外壳结构格开孔 → 密封舱落位 → 乘员投放。</summary>
         private static void Impact(Flight flight)
         {
-            Map map = flight.target.InteriorMap;
+            Map map = flight.target.map;
             SpaceObject frame = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map);
             if (frame == null)
             {
@@ -157,7 +157,7 @@ namespace DeltaV
                 return;
             }
             Vector2 hitPoint = SpaceTransform.UniverseToMapPoint(frame, map, flight.position);
-            IntVec3 breach = FindBreachCell(flight.target, map, hitPoint);
+            IntVec3 breach = FindBreachCell(map, hitPoint);
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"boarding pod impact on '{flight.target.label}': breach cell {breach}");
 
@@ -196,15 +196,12 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 破口格：从命中点向目标中心逐格采样，首个有可见结构外观的格子（船壳外沿）；
+        /// 破口格：从命中点向图中心逐格采样，首个有可见结构外观的格子（船壳外沿）；
         /// 全程无结构（图比估算半径空）则退化为命中格。
         /// </summary>
-        private static IntVec3 FindBreachCell(ShipState target, Map map, Vector2 hitPoint)
+        private static IntVec3 FindBreachCell(Map map, Vector2 hitPoint)
         {
-            Vector2 center = target.IsDocked
-                ? ShipStructureResolver.DockedOrigin(target)
-                : SpaceTransform.ShipLocalOrigin(map);
-            HashSet<IntVec3> targetCells = ShipStructureResolver.EngineOf(target)?.AllConnectedSubstructure;
+            Vector2 center = SpaceTransform.ShipLocalOrigin(map);
             Vector2 dir = center - hitPoint;
             dir = dir.sqrMagnitude > 1e-6f ? dir.normalized : Vector2.right;
             for (int i = 0; i < 200; i++)
@@ -212,7 +209,7 @@ namespace DeltaV
                 Vector2 probe = hitPoint + dir * i;
                 var cell = new IntVec3(Mathf.FloorToInt(probe.x), 0, Mathf.FloorToInt(probe.y));
                 if (!cell.InBounds(map)) continue;
-                if ((targetCells == null || targetCells.Contains(cell))
+                if (map.terrainGrid.FoundationAt(cell)?.IsSubstructure == true
                     && MapOverlayRenderer.ContainsVisibleContent(map, cell))
                 {
                     return cell;

@@ -109,7 +109,9 @@ namespace DeltaV
                 maxPrimal = Math.Max(maxPrimal, command.primalResidual);
                 maxDual = Math.Max(maxDual, command.dualResidual);
                 double appliedAcceleration = command.desiredLocalForce.x;
-                velocity += appliedAcceleration * 0.1;
+                // 被动阻力同口径进入自测被控对象（预测模型一致性的确定性验证）。
+                (float linearDecay, _) = ShipPhysics.PassiveDragFactors(0.1f);
+                velocity = velocity * linearDecay + appliedAcceleration * 0.1 * linearDecay;
                 position += velocity * 0.1;
                 if (Math.Sign(previousPosition) != Math.Sign(position)
                     && Math.Abs(previousPosition) > 0.25 && Math.Abs(position) > 0.25) crossings++;
@@ -458,6 +460,21 @@ namespace DeltaV
         {
             int baseControl = step * InputCount;
             double halfDt2 = 0.5 * dt * dt;
+            // 被动阻力（与 ShipPhysics.Integrate 同一定义/参数，§11.1：预测与实际积分
+            // 同口径，避免「预测无阻力、实际有阻力」的持续误差）。顺序与积分器一致：
+            // 速度先衰减（含输入增量），位置再按衰减后速度推进（半隐式）。
+            (float linearDecay, float angularDecay) = ShipPhysics.PassiveDragFactors((float)dt);
+            double dl = linearDecay;
+            double da = angularDecay;
+            state[2] *= dl;
+            state[3] *= dl;
+            state[5] *= da;
+            for (int col = 0; col < variables; col++)
+            {
+                SetSens(2, col, Sens(2, col) * dl);
+                SetSens(3, col, Sens(3, col) * dl);
+                SetSens(5, col, Sens(5, col) * da);
+            }
             state[0] += state[2] * dt;
             state[1] += state[3] * dt;
             state[4] += state[5] * dt;
@@ -470,12 +487,12 @@ namespace DeltaV
             for (int c = 0; c < InputCount; c++)
             {
                 int col = baseControl + c;
-                SetSens(0, col, Sens(0, col) + b[c] * halfDt2);
-                SetSens(1, col, Sens(1, col) + b[3 + c] * halfDt2);
-                SetSens(2, col, Sens(2, col) + b[c] * dt);
-                SetSens(3, col, Sens(3, col) + b[3 + c] * dt);
-                SetSens(4, col, Sens(4, col) + b[6 + c] * halfDt2);
-                SetSens(5, col, Sens(5, col) + b[6 + c] * dt);
+                SetSens(0, col, Sens(0, col) + b[c] * halfDt2 * dl);
+                SetSens(1, col, Sens(1, col) + b[3 + c] * halfDt2 * dl);
+                SetSens(2, col, Sens(2, col) + b[c] * dt * dl);
+                SetSens(3, col, Sens(3, col) + b[3 + c] * dt * dl);
+                SetSens(4, col, Sens(4, col) + b[6 + c] * halfDt2 * da);
+                SetSens(5, col, Sens(5, col) + b[6 + c] * dt * da);
             }
         }
 

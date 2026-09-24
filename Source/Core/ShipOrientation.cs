@@ -4,29 +4,13 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 飞船地图姿态与主驾驶台（船艏）之间的唯一换算入口。
-    /// SpacePose.angle 仍表示稳定 Map 局部系到宇宙系的旋转；玩家所见“航向”则是
-    /// 该旋转再叠加主驾驶台在 Map 内的朝向。没有有效主台时沿用历史 +X 船艏。
+    /// 驾驶台 Rot4 ⇄ Delta-V 平面角的唯一换算入口（纯函数，无状态）。
+    /// 玩家所见「航向」= 容器角 ⊕ 主台朝向（ShipRegistry.HeadingAngle 的派生组成）；
+    /// 船帧相对地图帧的角 σ = AngleFromRot4(主台.Rotation)——主台 East ⇔ 船帧对齐
+    /// 地图帧（与原自由飞行口袋图 East 规范一致）。没有有效主台时沿用历史 +X 船艏。
     /// </summary>
     public static class ShipOrientation
     {
-        public static float LocalForwardAngle(ShipState ship)
-        {
-            Building console = ship?.primaryConsole;
-            if (console == null || console.Destroyed)
-            {
-                return 0f;
-            }
-            return AngleFromRot4(console.Rotation);
-        }
-
-        public static float HeadingAngle(ShipState ship)
-        {
-            return ship == null
-                ? 0f
-                : SpaceTransform.WrapAngle(ship.pose.angle + LocalForwardAngle(ship));
-        }
-
         /// <summary>RimWorld 格向（East=+X, North=+Z）转为 Delta-V 平面角。</summary>
         public static float AngleFromRot4(Rot4 rot)
         {

@@ -30,17 +30,17 @@ namespace DeltaV
 
         public static void Draw(UniverseManager universe)
         {
-            // 聚焦帧飞船（驾驶船是其子集；未来聚焦敌舰、其 AI 出力时同样在
-            // 地图内显示真实火焰，与船壳路径对称）。
-            ShipState ship = universe.FrameOf(Find.CurrentMap) as ShipState;
+            // 聚焦容器（驾驶船的刚体；未来聚焦敌舰、其 AI 出力时同样在地图内显示
+            // 真实火焰，与船壳路径对称）。
             Map current = Find.CurrentMap;
-            if (ship?.map == null || current != ship.map || !WorldRendererUtility.DrawingMap)
+            SpaceObject frame = universe.FrameOf(current);
+            if (frame == null || !WorldRendererUtility.DrawingMap)
             {
                 ExhaustEmissionRemainder.Clear();
                 return;
             }
 
-            ShipPhysics.MassReport report = ShipPhysics.GetReport(ship);
+            ShipPhysics.MassReport report = ShipPhysics.GetReport(current);
             if (report == null || Time.time - report.throttlesWrittenAt > ThrottleFreshSeconds)
             {
                 return;
@@ -160,9 +160,9 @@ namespace DeltaV
         /// GenDraw.DrawQuad（反编译核实：plane10 + TRS(pos, rot, (size,1,size))）。
         /// 排气 Fleck 属船自身 Map 的 flecks 体系，画不进聚焦帧，不在船壳层发射。
         /// </summary>
-        public static void CollectShellFlames(ShipState ship, Matrix4x4 matrix, Quaternion rotation)
+        public static void CollectShellFlames(SpaceObject container, Map map, Matrix4x4 matrix, Quaternion rotation)
         {
-            ShipPhysics.MassReport report = ShipPhysics.GetReport(ship);
+            ShipPhysics.MassReport report = ShipPhysics.GetReport(map);
             if (report == null || Time.time - report.throttlesWrittenAt > ThrottleFreshSeconds)
             {
                 return;

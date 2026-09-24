@@ -10,8 +10,8 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 阶段1 开发者模式调试入口（Dev mode → Debug actions → Delta-V）。
-    /// 平移/旋转敌舰直接写绝对宇宙状态——这正是验证"显示层只是投影"的手段。
+    /// 开发者模式调试入口（Dev mode → Debug actions → Delta-V）。
+    /// 平移/旋转敌舰直接写容器绝对宇宙状态——这正是验证"显示层只是投影"的手段。
     /// </summary>
     public static class DebugActions_DeltaV
     {
@@ -20,15 +20,16 @@ namespace DeltaV
             return Current.Game.GetComponent<UniverseManager>();
         }
 
-        private static ShipState OtherShip()
+        /// <summary>「敌舰」= 非聚焦的其他容器（测试场景第二船的承载对象）。</summary>
+        private static SpaceObject OtherContainer()
         {
             UniverseManager um = Um();
-            return um.Ships.FirstOrDefault(s => s != um.Focused && s.map != null);
+            return um.objects.FirstOrDefault(o => o != um.Focused && o.map != null);
         }
 
-        private static ShipState PlayerShip()
+        private static Ship PlayerShip()
         {
-            return Um().PrimaryShip;
+            return Um().PrimaryPlayerShip();
         }
 
         private static PoiState FirstPoi()
@@ -49,6 +50,18 @@ namespace DeltaV
         {
             UniverseManager universe = Um();
             universe?.Pilot.ToggleControl(universe);
+        }
+
+        [DebugAction("Delta-V", "Toggle passive drag", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.Playing)]
+        private static void TogglePassiveDrag()
+        {
+            DeltaVSettings settings = DeltaVMod.CurrentSettings;
+            if (settings == null) return;
+            settings.passiveDrag = !settings.passiveDrag;
+            LoadedModManager.GetMod<DeltaVMod>()?.WriteSettings();
+            Messages.Message($"Delta-V passive drag: {settings.passiveDrag} "
+                + $"(linear half-life {settings.dragLinearHalfLifeTicks} ticks, angular {settings.dragAngularHalfLifeTicks} ticks)",
+                MessageTypeDefOf.NeutralEvent, false);
         }
 
         /// <summary>
@@ -76,8 +89,8 @@ namespace DeltaV
             // ② 抑制状态
             sb.AppendLine($"- SuppressVanillaKeys flag: {PilotKeyBridge.SuppressVanillaKeys}; suppressed reads so far: {um.Pilot.SuppressedReads}");
             // ③ 驾驶状态
-            ShipState piloted = um.Pilot.PilotedShip(um);
-            sb.AppendLine($"- pilotShipId: {um.pilotShipId} ({piloted?.label ?? "none"}), piloted map alive: {piloted?.map != null}, CurrentMap == piloted map: {piloted?.map != null && Find.CurrentMap == piloted.map}");
+            Ship piloted = um.Pilot.PilotedShip(um);
+            sb.AppendLine($"- piloted structure: #{(piloted.IsValid ? piloted.ownerId.ToString() : "none")}, piloted map alive: {piloted.IsValid}, CurrentMap == piloted map: {piloted.IsValid && Find.CurrentMap == piloted.map}");
             // ④ 键集合 + 本 mod 绑定
             sb.AppendLine($"- ActivePilotKeys: [{(PilotKeyBridge.ActiveKeys.Count == 0 ? "EMPTY" : string.Join(", ", PilotKeyBridge.ActiveKeys))}]");
             foreach (string defName in new[] { "DeltaV_ThrustForward", "DeltaV_ThrustBackward", "DeltaV_StrafeLeft", "DeltaV_StrafeRight", "DeltaV_RotateLeft", "DeltaV_RotateRight", "DeltaV_TogglePilotMode" })
@@ -109,13 +122,13 @@ namespace DeltaV
         [DebugAction("Delta-V", "Zero focused ship velocity", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void ZeroFocusedShipVelocity()
         {
-            ShipState ship = Um().ShipOnMap(Find.CurrentMap);
-            if (ship == null)
+            SpaceObject frame = Um().FrameOf(Find.CurrentMap);
+            if (frame == null)
             {
                 return;
             }
-            ship.pose.velocity = Vector2.zero;
-            ship.pose.angularVelocity = 0f;
+            frame.pose.velocity = Vector2.zero;
+            frame.pose.angularVelocity = 0f;
         }
 
         [DebugAction("Delta-V", "MPC: cycle developer profile", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.Playing)]
@@ -219,11 +232,10 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 手动修复：本图全部基架改归地图默认归属（宿主 SpaceObject）。用于修复早期
-        /// 版本盖章缺口留下的孤儿归属（如 wreck 图被测试改乱）；随后可用「修改基架
-        /// 归属」命令重新拆分。一图多对象的图执行后归属合并，属预期。
+        /// 手动修复：本图全部基架改归新分配的结构归属（无主残骸语义）。用于修复盖章
+        /// 缺口留下的孤儿归属；随后可用「修改基架归属」命令重新拆分。
         /// </summary>
-        [DebugAction("Delta-V", "Reset substructure ownership to map default owner", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        [DebugAction("Delta-V", "Reset substructure ownership to fresh owner", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void ResetSubstructureOwnership()
         {
             UniverseManager universe = Um();
@@ -239,10 +251,11 @@ namespace DeltaV
                 Log.Message("[DeltaV] Reset ownership: no substructure on this map.");
                 return;
             }
-            int defaultOwner = universe.SpaceObjectOnMap(map)?.objectId ?? universe.AllocateOwnerId();
+            int defaultOwner = universe.AllocateOwnerId();
+            universe.NoteStructureName(defaultOwner, universe.NewWreckName(defaultOwner));
             int count = ownership.ClaimAllSubstructure(defaultOwner);
             PlanetGlobeRenderer.InvalidateSilhouette(map);
-            Log.Message($"[DeltaV] Reset ownership: map {map.Index}, {count} cells -> owner #{defaultOwner} "
+            Log.Message($"[DeltaV] Reset ownership: map {map.Index}, {count} cells -> structure #{defaultOwner} "
                 + $"({universe.LabelForOwner(defaultOwner)}).");
         }
 
@@ -276,14 +289,14 @@ namespace DeltaV
         private static void CreatePoi400East()
         {
             UniverseManager um = Um();
-            ShipState player = PlayerShip();
-            if (player == null)
+            Ship player = PlayerShip();
+            if (!player.IsValid)
             {
                 Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
                 return;
             }
             var poi = new PoiState(um.AllocateOwnerId(), "Derelict wreck",
-                OrbitSphere.Move(player.pose.position, new Vector2(400f, 0f)),
+                OrbitSphere.Move(ShipRegistry.ShipPose(player).position, new Vector2(400f, 0f)),
                 Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
             um.RegisterObject(poi);
             Messages.Message("DeltaV_PoiCreated".Translate(poi.label, "400"), MessageTypeDefOf.PositiveEvent, false);
@@ -293,14 +306,14 @@ namespace DeltaV
         private static void CreatePoi1500North()
         {
             UniverseManager um = Um();
-            ShipState player = PlayerShip();
-            if (player == null)
+            Ship player = PlayerShip();
+            if (!player.IsValid)
             {
                 Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
                 return;
             }
             var poi = new PoiState(um.AllocateOwnerId(), "Distant wreck",
-                OrbitSphere.Move(player.pose.position, new Vector2(0f, 1500f)),
+                OrbitSphere.Move(ShipRegistry.ShipPose(player).position, new Vector2(0f, 1500f)),
                 Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
             um.RegisterObject(poi);
             Messages.Message("DeltaV_PoiCreated".Translate(poi.label, "1500"), MessageTypeDefOf.PositiveEvent, false);
@@ -330,10 +343,12 @@ namespace DeltaV
         [DebugAction("Delta-V", "Player ship: teleport +1500 east (cross lifecycle ranges)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void PlayerTeleportEast1500()
         {
-            ShipState player = PlayerShip();
-            if (player != null)
+            UniverseManager um = Um();
+            Ship player = PlayerShip();
+            SpaceObject frame = player.IsValid ? um.FrameOf(player.map) : um.Focused;
+            if (frame != null)
             {
-                player.pose.position = OrbitSphere.Move(player.pose.position, new Vector2(1500f, 0f));
+                frame.pose.position = OrbitSphere.Move(frame.pose.position, new Vector2(1500f, 0f));
             }
         }
 
@@ -343,13 +358,13 @@ namespace DeltaV
         private static void SectorForceGenerate()
         {
             UniverseManager um = Um();
-            ShipState player = PlayerShip();
-            if (player == null)
+            Ship player = PlayerShip();
+            if (!player.IsValid)
             {
                 Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            PlanetTile tile = OrbitSphere.TileFromDirection(player.pose.position);
+            PlanetTile tile = OrbitSphere.TileFromDirection(ShipRegistry.ShipPose(player).position);
             if (!tile.Valid)
             {
                 Messages.Message("No orbit layer.", MessageTypeDefOf.RejectInput, false);
@@ -360,6 +375,22 @@ namespace DeltaV
                 $"generatedSectors={um.generatedSectorTiles.Count}", MessageTypeDefOf.NeutralEvent, false);
         }
 
+        /// <summary>拆分测试：把聚焦图上当前船以外的基架块立刻拆为独立残骸容器（§8 公共拆分直驱）。</summary>
+        [DebugAction("Delta-V", "Split test: force split residual blocks on focused map", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void SplitTestForceSplit()
+        {
+            UniverseManager um = Um();
+            Map map = Find.CurrentMap;
+            Ship ship = ShipRegistry.ShipsOnMap(map).FirstOrDefault();
+            if (!ship.IsValid)
+            {
+                Messages.Message("No ship on focused map.", MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            um.ShipTransitions.SplitResiduals(um, ship);
+            Messages.Message("Residual blocks split (see log).", MessageTypeDefOf.NeutralEvent, false);
+        }
+
         [DebugAction("Delta-V", "Diagnose focused map (force mesh regen)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void DiagnoseFocusedMap()
         {
@@ -367,7 +398,7 @@ namespace DeltaV
             UniverseManager um = Um();
             var sb = new StringBuilder("[DeltaV:Diag] Focused map");
             sb.AppendLine($"\n- map: {map?.Parent?.Label ?? "null"} tile={map?.Tile.ToString() ?? "-"} size={map?.Size.x}x{map?.Size.z}");
-            sb.AppendLine($"- owner: {um?.SpaceObjectOnMap(map)?.label ?? "(none)"}; frame={um?.FrameOf(map)?.label ?? "(none)"}");
+            sb.AppendLine($"- frame: {um?.FrameOf(map)?.label ?? "(none)"}");
             sb.AppendLine($"- frozen={um?.Lifecycle.IsFrozen(map) == true} (dormant={um?.Lifecycle.IsDormant(map) == true}" +
                 $" generating={um?.Generation?.IsGenerating(map) == true} host={SpaceLifecycleService.IsUniverseHost(map)})");
             sb.AppendLine($"- wantedMode={Find.World?.renderer?.wantedMode} drawingMap={RimWorld.Planet.WorldRendererUtility.DrawingMap}");
@@ -389,12 +420,11 @@ namespace DeltaV
             sb.AppendLine($"- scale: cellsPerTile={OrbitSphere.CellsPerTile:F0} (setting {DeltaVMod.CurrentSettings.cellsPerTile});" +
                 $" generated sectors={um.generatedSectorTiles.Count}");
             sb.AppendLine($"- poi radius: active={DeltaVMod.CurrentSettings.poiActiveRadius:F0} delete={DeltaVMod.CurrentSettings.poiDeleteRadius:F0}");
-            sb.AppendLine($"- primary ship: #{um.primaryShipId}; pilot: #{um.pilotShipId}; focused: #{um.focusedShipId}");
             foreach (SpaceObject obj in um.objects)
             {
                 string lifecycle = obj is PoiState poi
                     ? (poi.map == null ? "packed" + (poi.snapshot != null ? " (snapshot)" : " (fresh)") : um.Lifecycle.IsDormant(poi.map) ? "dormant" : "active")
-                    : ((ShipState)obj).IsDocked ? "docked" : "free-flight";
+                    : (obj.map == null ? "mapless" : "container");
                 float lat = Mathf.Asin(Mathf.Clamp(obj.pose.position.y, -1f, 1f)) * Mathf.Rad2Deg;
                 float lon = Mathf.Atan2(obj.pose.position.z, obj.pose.position.x) * Mathf.Rad2Deg;
                 string playerDist = obj is PoiState poi2
@@ -407,6 +437,16 @@ namespace DeltaV
                     $" dir=({obj.pose.position.x:F3},{obj.pose.position.y:F3},{obj.pose.position.z:F3}) lat/lon=({lat:F1}°,{lon:F1}°){sector}" +
                     $"{playerDist} angle={SpaceTransform.WrapAngle(obj.pose.angle) * Mathf.Rad2Deg:F0}° map={(obj.map == null ? "none" : "loaded")}");
             }
+            sb.AppendLine("\n- ships:");
+            foreach (Map map in Find.Maps)
+            {
+                foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
+                {
+                    sb.AppendLine($"  structure #{ship.ownerId} '{um.LabelForOwner(ship.ownerId)}' map={map.Index} " +
+                        $"state={ShipRegistry.StateOf(ship)} faction={ShipRegistry.FactionOf(ship)?.Name ?? "none"} " +
+                        $"console#{ship.console.parent.thingIDNumber} domain={ShipRegistry.ControlDomain(ship).Count} cells");
+                }
+            }
             Log.Message(sb.ToString());
         }
 
@@ -414,13 +454,13 @@ namespace DeltaV
         private static void SwitchFocusToOtherShip()
         {
             UniverseManager um = Um();
-            ShipState other = OtherShip();
+            SpaceObject other = OtherContainer();
             if (other == null)
             {
-                Messages.Message("No other ship in universe state.", MessageTypeDefOf.RejectInput, false);
+                Messages.Message("No other container in universe state.", MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            ShipState previous = um.Focused;
+            SpaceObject previous = um.Focused;
             // 缩放同步：Notify_SwitchedMap 恢复目标图记忆的位置+缩放，跳转后需显式重设（RimExodus 同款）。
             float zoom = Find.CameraDriver.RootSize;
             um.SetFocused(other);
@@ -462,7 +502,7 @@ namespace DeltaV
         [DebugAction("Delta-V", "Enemy ship: rotate +15 deg (CCW)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void EnemyRotatePlus15()
         {
-            ShipState ship = OtherShip();
+            SpaceObject ship = OtherContainer();
             if (ship != null)
             {
                 ship.pose.angle = SpaceTransform.WrapAngle(ship.pose.angle + 15f * Mathf.Deg2Rad);
@@ -472,7 +512,7 @@ namespace DeltaV
         [DebugAction("Delta-V", "Enemy ship: rotate -15 deg (CW)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void EnemyRotateMinus15()
         {
-            ShipState ship = OtherShip();
+            SpaceObject ship = OtherContainer();
             if (ship != null)
             {
                 ship.pose.angle = SpaceTransform.WrapAngle(ship.pose.angle - 15f * Mathf.Deg2Rad);
@@ -482,7 +522,7 @@ namespace DeltaV
         /// <summary>沿敌舰自身参考系平移（前向 + 左向），沿球面写入绝对方向。</summary>
         private static void MoveEnemy(float forward, float left)
         {
-            ShipState ship = OtherShip();
+            SpaceObject ship = OtherContainer();
             if (ship == null)
             {
                 return;
@@ -498,7 +538,7 @@ namespace DeltaV
         [DebugAction("Delta-V", "Enemy ship: set drift velocity (20 east)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void EnemyDriftEast()
         {
-            ShipState ship = OtherShip();
+            SpaceObject ship = OtherContainer();
             if (ship != null)
             {
                 ship.pose.velocity = new Vector2(20f, 0f);
@@ -508,7 +548,7 @@ namespace DeltaV
         [DebugAction("Delta-V", "Enemy ship: set spin (+10 deg/s)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void EnemySpin()
         {
-            ShipState ship = OtherShip();
+            SpaceObject ship = OtherContainer();
             if (ship != null)
             {
                 ship.pose.angularVelocity = 10f * Mathf.Deg2Rad;
@@ -518,8 +558,10 @@ namespace DeltaV
         [DebugAction("Delta-V", "Enemy ship: hostile faction + spawn crew (3)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void EnemyHostileCrew()
         {
-            ShipState ship = OtherShip();
-            if (ship?.map == null)
+            UniverseManager um = Um();
+            SpaceObject other = OtherContainer();
+            Map enemyMap = other?.map;
+            if (enemyMap == null)
             {
                 return;
             }
@@ -530,21 +572,30 @@ namespace DeltaV
                 Log.Warning("[DeltaV] No hostile faction available for enemy crew spawn.");
                 return;
             }
-            ship.faction = hostile;
+            // 船的派系事实 = 驾驶台派系：把敌舰全部建筑改派系（含驾驶台）。
+            int setFaction = 0;
+            foreach (Thing thing in enemyMap.listerThings.AllThings.ToList())
+            {
+                if (thing is Building building && building.def.CanHaveFaction && building.Faction != hostile)
+                {
+                    building.SetFaction(hostile);
+                    setFaction++;
+                }
+            }
             int spawned = 0;
             for (int attempt = 0; attempt < 30 && spawned < 3; attempt++)
             {
                 Pawn pawn = PawnGenerator.GeneratePawn(new PawnGenerationRequest(
                     hostile.def.basicMemberKind, hostile, PawnGenerationContext.NonPlayer));
-                IntVec3 cell = CellFinder.RandomClosewalkCellNear(ship.map.Center, ship.map, 18);
-                if (!cell.IsValid || !cell.Standable(ship.map))
+                IntVec3 cell = CellFinder.RandomClosewalkCellNear(enemyMap.Center, enemyMap, 18);
+                if (!cell.IsValid || !cell.Standable(enemyMap))
                 {
                     continue;
                 }
-                GenSpawn.Spawn(pawn, cell, ship.map);
+                GenSpawn.Spawn(pawn, cell, enemyMap);
                 spawned++;
             }
-            Log.Message($"[DeltaV] Enemy ship '{ship.label}' set hostile to player; {spawned} defenders spawned.");
+            Log.Message($"[DeltaV] Enemy container set hostile to player ({setFaction} buildings refactioned); {spawned} defenders spawned.");
         }
 
         [DebugAction("Delta-V", "Docking plan: force complete", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]

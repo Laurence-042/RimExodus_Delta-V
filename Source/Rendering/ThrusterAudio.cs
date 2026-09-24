@@ -65,19 +65,17 @@ namespace DeltaV
                 EndAll();
                 return;
             }
-            UpdateFocusedLoops(frame as ShipState, current);
+            UpdateFocusedLoops(current);
             UpdateShellLoops(universe, frame, current);
         }
 
         /// <summary>
-        /// 聚焦图路径（守卫与 ThrusterEffects.Draw 逐条一致）：聚焦帧船自身地图内，
+        /// 聚焦图路径（守卫与 ThrusterEffects.Draw 逐条一致）：聚焦容器自身地图内，
         /// 每台点火推进器一个空间化循环，声源跟随建筑、镜头衰减交给 distRange。
         /// </summary>
-        private static void UpdateFocusedLoops(ShipState ship, Map current)
+        private static void UpdateFocusedLoops(Map current)
         {
-            ShipPhysics.MassReport report = ship != null && ship.map == current
-                ? ShipPhysics.GetReport(ship)
-                : null;
+            ShipPhysics.MassReport report = ShipPhysics.GetReport(current);
             bool fresh = report != null && Time.time - report.throttlesWrittenAt <= ThrottleFreshSeconds;
 
             ActiveMapThrusters.Clear();
@@ -137,9 +135,9 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 船壳路径（人口与 ShellRenderer.DrawObjectShell 的火焰条件一致：非聚焦、
-        /// 非停靠、源图有效；docking 悬停船包含——降落进场时船壳火焰可见、声音同在）。
-        /// 每船一个 OnCamera 循环，音量 = 总油门 × 与摄像机距离的线性衰减。
+        /// 船壳路径（口径与 ShellRenderer.DrawObjectShell 的火焰条件一致：非聚焦容器、
+        /// 源图有效；进场悬停船的容器包含——降落进场时船壳火焰可见、声音同在）。
+        /// 每容器一个 OnCamera 循环，音量 = 总油门 × 与摄像机距离的线性衰减。
         /// </summary>
         private static void UpdateShellLoops(UniverseManager universe, SpaceObject frame, Map frameMap)
         {
@@ -148,16 +146,17 @@ namespace DeltaV
             List<SpaceObject> objects = universe.objects;
             for (int i = 0; i < objects.Count; i++)
             {
-                if (!(objects[i] is ShipState ship) || ship == frame || ship.IsDocked)
+                SpaceObject obj = objects[i];
+                if (obj == frame)
                 {
                     continue;
                 }
-                Map map = ship.map;
+                Map map = obj.map;
                 if (map == null || map.Disposed || universe.Generation?.IsGenerating(map) == true)
                 {
                     continue;
                 }
-                ShipPhysics.MassReport report = ShipPhysics.GetReport(ship);
+                ShipPhysics.MassReport report = ShipPhysics.GetReport(map);
                 if (report == null || Time.time - report.throttlesWrittenAt > ThrottleFreshSeconds)
                 {
                     continue;
@@ -177,7 +176,7 @@ namespace DeltaV
                 }
                 // 位置复用船壳绘制同款换算（与所见一致）；距离含镜头高度——宇宙视野
                 // 拉远时随摄像机远离自然衰减。
-                Vector3 drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, ship.pose.position, 0f);
+                Vector3 drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
                 float distance = Vector3.Distance(cameraPos, drawPos);
                 if (distance >= ShellHearFar)
                 {
@@ -191,15 +190,15 @@ namespace DeltaV
                 {
                     continue;
                 }
-                ActiveShellShips.Add(ship.objectId);
-                if (!ShellLoops.TryGetValue(ship.objectId, out Sustainer loop) || loop == null || loop.Ended)
+                ActiveShellShips.Add(obj.objectId);
+                if (!ShellLoops.TryGetValue(obj.objectId, out Sustainer loop) || loop == null || loop.Ended)
                 {
                     loop = loopShellDef.TrySpawnSustainer(SoundInfo.OnCamera(MaintenanceType.PerFrame));
-                    ShellLoops[ship.objectId] = loop;
+                    ShellLoops[obj.objectId] = loop;
                     if (loop != null && DeltaVLog.Enabled(DeltaVLogModule.Render))
                     {
                         DeltaVLog.Message(DeltaVLogModule.Render,
-                            $"thruster audio shell+ obj{ship.objectId} d={distance:F0} vol={volume:F2}");
+                            $"thruster audio shell+ obj{obj.objectId} d={distance:F0} vol={volume:F2}");
                     }
                 }
                 if (loop != null)

@@ -11,11 +11,14 @@ namespace DeltaV
 {
     /// <summary>
     /// 统一宇宙状态管理器。GameComponent 由 Game.FillComponents 反射自动注册，
-    /// 无需 XML。objects 列表（飞船 + POI）是权威宇宙状态；外壳代理只是缓存。
+    /// 无需 XML。objects 列表（**地图容器** + POI，解耦架构 §2）是权威宇宙状态；
+    /// 飞船不是宇宙对象——船 = 主台 + 同归属连通域（ShipRegistry 派生查询）。
+    /// 外壳代理、拼接名、控制域等全部是可重建缓存。
     ///
     /// 职责边界：
     /// - 非聚焦对象代理绘制在 GameComponentUpdate 分发（WorldComponent_GravshipController 同款节奏）；
     /// - SetFocused 只切换参考系（CurrentMap），绝不修改任何 pose 数值（不变量 #5）；
+    /// - 聚焦 = 当前聚焦地图的承载容器（FrameOf(CurrentMap)），不再持久化聚焦 ID；
     /// - POI 地图生命周期统一委托 SpaceLifecycle（单一管理入口，AGENTS §11）；
     /// - 宿主：所有 Delta-V 口袋图（飞船/POI）共用的 sourceMap 锚——一张专用的
     ///   无 tile 口袋图（UniverseHostParent_DeltaV，仅存在于 Find.World.pocketMaps），
@@ -25,7 +28,7 @@ namespace DeltaV
     /// </summary>
     public class UniverseManager : GameComponent
     {
-        /// <summary>权威宇宙对象列表（ShipState + PoiState，多态深序列化）。存档事实。</summary>
+        /// <summary>权威宇宙对象列表（地图容器 + POI，多态深序列化）。存档事实。</summary>
         public List<SpaceObject> objects = new List<SpaceObject>();
 
         /// <summary>
@@ -34,16 +37,6 @@ namespace DeltaV
         /// 「该星区当前有哪些对象」则由 objects + TileFromDirection 查询时重建，不序列化。
         /// </summary>
         public List<string> generatedSectorTiles = new List<string>();
-
-        public int focusedShipId = -1;
-
-        /// <summary>驾驶中的船（阶段2）；-1 = 未驾驶。持久化，读档后驾驶状态恢复。</summary>
-        public int pilotShipId = -1;
-
-        /// <summary>
-        /// 玩家主船：背景相机跟随对象、POI 生命周期距离参考。失效时回退第一艘活着的船。
-        /// </summary>
-        public int primaryShipId = -1;
 
         /// <summary>
         /// 专用宿主口袋图（运行时引用，不序列化——按 def 在 pocketMaps 中重扫即可恢复，
@@ -85,20 +78,37 @@ namespace DeltaV
         public IncrementalMapGenerationService Generation =>
             Current.Game?.GetComponent<IncrementalMapGenerationService>();
 
-        /// <summary>全部飞船（objects 的 ShipState 视图；每次调用有少量分配，勿在热循环内反复取）。</summary>
-        public IEnumerable<ShipState> Ships => objects.OfType<ShipState>();
+        /// <summary>当前聚焦的承载容器（= 当前聚焦地图的容器；无则 null）。聚焦不再持久化。</summary>
+        public SpaceObject Focused => SpaceObjectOnMap(Find.CurrentMap);
 
-        public ShipState Focused => ShipById(focusedShipId);
-
-        /// <summary>主船（背景相机跟随对象）；失效时回退第一艘活着的船，保持显示有参考。</summary>
-        public ShipState PrimaryShip =>
-            (objects.FirstOrDefault(o => o is ShipState s && s.objectId == primaryShipId
-                && (s.map != null || s.dockedMap != null)) as ShipState)
-            ?? objects.FirstOrDefault(o => o is ShipState s2 && (s2.map != null || s2.dockedMap != null)) as ShipState;
-
-        public ShipState ShipById(int id)
+        /// <summary>全部玩家船（扫全部已加载图；显示/生命周期参考用，非热路径）。</summary>
+        public List<Ship> PlayerShips()
         {
-            return ObjectById(id) as ShipState;
+            var ships = new List<Ship>();
+            foreach (Map map in Find.Maps)
+            {
+                foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
+                {
+                    if (ShipRegistry.FactionOf(ship) == Faction.OfPlayer) ships.Add(ship);
+                }
+            }
+            return ships;
+        }
+
+        /// <summary>
+        /// 玩家主参考船（背景相机/POI 距离参考的回退锚）：优先聚焦图上的玩家船，
+        /// 否则任意一艘活着的玩家船；无则 Invalid。
+        /// </summary>
+        public Ship PrimaryPlayerShip()
+        {
+            Map focused = Find.CurrentMap;
+            if (focused != null)
+            {
+                Ship onFocused = ShipRegistry.ShipsOnMap(focused)
+                    .FirstOrDefault(s => ShipRegistry.FactionOf(s) == Faction.OfPlayer);
+                if (onFocused.IsValid) return onFocused;
+            }
+            return PlayerShips().FirstOrDefault();
         }
 
         public SpaceObject ObjectById(int id)
@@ -106,20 +116,18 @@ namespace DeltaV
             return id <= 0 ? null : objects.FirstOrDefault(o => o.objectId == id);
         }
 
-        // ---- 对象/基架归属 ID（2026-09-18 设计；2026-09-20 收拢单一入口）----
+        // ---- 对象/结构 ID（单一计数器；语义分离）----
 
         /// <summary>
-        /// 已分配 ID 的高水位（持久化、单调递增、永不回收）。对象 ID 与基架归属 ID
-        /// 共用同一空间、同一计数器。曾经的双计数器（NextObjectId 只扫已注册对象、
-        /// 与本高水位互不可见）会让落点盖章/独立结构的裸 ID 与之后注册的
-        /// PoiState/残骸撞号：LabelForOwner 反查到错对象（归属域名变降落点名）、
-        /// bootstrap 换新 ID 与独立结构同号合域、捕获把独立结构整体吞并
-        /// （2026-09-20 实测两症状同根）。
+        /// 已分配 ID 的高水位（持久化、单调递增、永不回收）。对象 ID 与结构归属 ID
+        /// 共用同一计数器与号段（防撞号），但**语义分离**（解耦架构 §2）：不得用
+        /// ObjectById(ownerId) 推断船名或地图归属。曾经的双计数器事故（2026-09-20：
+        /// 裸 ID 与新注册对象撞号 → 域名反查错对象、异主域同号合域）由此防复发。
         /// </summary>
         private int nextFreeOwnerId;
 
         /// <summary>
-        /// 分配新的对象/基架归属 ID（唯一入口；新船/POI 注册与裸 ID 平台一律经此，
+        /// 分配新的对象/结构归属 ID（唯一入口；新容器/新归属/残骸断片一律经此，
         /// 不得再各自扫 objects 取 max+1）。读档后由 SyncOwnerIdFloor 对齐下限。
         /// </summary>
         public int AllocateOwnerId()
@@ -132,8 +140,8 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 读档对齐：抬到 max(已存值, 全部注册对象 ID, 全部图归属格最大 ID)。
-        /// 旧档双计数器产生的撞号不自动拆（无法消歧），玩家经「修改基架归属」修复。
+        /// 读档对齐：抬到 max(已存值, 全部注册对象 ID, 全部图归属格最大 ID, 全部驾驶台身份)。
+        /// 旧档撞号不自动拆（无法消歧），玩家经「修改基架归属」修复。
         /// </summary>
         private void SyncOwnerIdFloor()
         {
@@ -149,7 +157,7 @@ namespace DeltaV
                 {
                     maxOccupied = Mathf.Max(maxOccupied, ownership.MaxAssignedOwner());
                 }
-                // 驾驶台 comp 持久持有的身份 ID（含旧档停泊字段迁移值）也要占据号段。
+                // 驾驶台 comp 持久持有的结构身份 ID 也要占据号段。
                 foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
                 {
                     CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
@@ -162,56 +170,65 @@ namespace DeltaV
             nextFreeOwnerId = Mathf.Max(Mathf.Max(nextFreeOwnerId, 1), maxOccupied + 1);
         }
 
-        /// <summary>
-        /// 旧档迁移（shipId 写点2，2026-09-20 铁律「中途安装本 mod」）：身份锚点特性
-        /// 上线前的存档里驾驶台 comp 从未领取过 ID（指纹：nextFreeOwnerId 与 objectId
-        /// 错位、shipNames 全空），读档即按已注册 ShipState 回填主台并注册船名；不为
-        /// 无法解析 Ship 的驾驶台分配新号（留给 Spawn 认领路径）。
-        /// </summary>
-        private void MigrateConsoleIdentities()
+        // ---- 结构名称注册表（归属 ID → 名称；单一名称事实，解耦架构 §3.3/§10）----
+
+        private Dictionary<int, string> structureNames = new Dictionary<int, string>();
+
+        private static int structureNameVersion;
+
+        /// <summary>名称版本（单调递增）：拼接名等派生缓存据此失效。</summary>
+        public static int StructureNameVersion => structureNameVersion;
+
+        /// <summary>登记/更新结构名称（船名 = 归属名）。改名唯一入口见 RenameStructure。</summary>
+        public void NoteStructureName(int ownerId, string name)
         {
-            foreach (ShipState ship in objects.OfType<ShipState>())
+            if (ownerId > 0 && !name.NullOrEmpty()
+                && (!structureNames.TryGetValue(ownerId, out string existing) || existing != name))
             {
-                NoteShipName(ship.objectId, ship.label);
-                CompDeltaVPilotConsole console = ship.primaryConsole?.TryGetComp<CompDeltaVPilotConsole>();
-                if (console != null && console.shipId <= 0)
-                {
-                    console.shipId = ship.objectId;
-                    DeltaVLog.Message(DeltaVLogModule.Core,
-                        $"#{ship.objectId} {ship.label}: console identity backfilled on load (pre-feature save)");
-                }
+                structureNames[ownerId] = name;
+                structureNameVersion++;
             }
         }
 
-        /// <summary>归属 ID 的显示名：已注册对象/驾驶台注册表用其 label，裸 ID 显示「独立结构 #N」。</summary>
+        /// <summary>
+        /// 改名唯一入口（驾驶台改名 gizmo 与引擎 RenamableLabel 同步都走这里）：
+        /// 修改归属名 = 修改船名，并同步本船控制域范围内的全部逆重引擎 RenamableLabel
+        /// （只同步属于该船的引擎，不取同图任意引擎）。
+        /// </summary>
+        public void RenameStructure(int ownerId, string name)
+        {
+            if (ownerId <= 0 || name.NullOrEmpty()) return;
+            NoteStructureName(ownerId, name.Trim());
+            Ship ship = ShipRegistry.ShipByOwner(ownerId);
+            if (ship.IsValid)
+            {
+                foreach (Thing thing in ship.map.listerThings.ThingsOfDef(ThingDefOf.GravEngine))
+                {
+                    if (ShipRegistry.Contains(ship, thing) && thing is Building_GravEngine engine)
+                    {
+                        engine.RenamableLabel = name.Trim();
+                    }
+                }
+            }
+            DeltaVLog.Message(DeltaVLogModule.Core, $"structure #{ownerId} renamed to '{name.Trim()}'");
+        }
+
+        /// <summary>新残骸断片的默认名：「残骸 #N」（N = 新归属 ID，确定性、无需额外计数器）。</summary>
+        public string NewWreckName(int ownerId)
+        {
+            return "DeltaV_WreckDefaultName".Translate(ownerId);
+        }
+
+        /// <summary>归属 ID 的显示名：名称注册表 → 「未注册结构」兜底。不再反查对象（ID 语义分离）。</summary>
         public string LabelForOwner(int ownerId)
         {
             if (ownerId <= 0)
             {
                 return "DeltaV_OwnerUnassigned".Translate();
             }
-            SpaceObject obj = ObjectById(ownerId);
-            if (obj != null)
-            {
-                return obj.label;
-            }
-            return shipNames.TryGetValue(ownerId, out string name)
+            return structureNames.TryGetValue(ownerId, out string name)
                 ? name
                 : "DeltaV_OwnerUnregistered".Translate(ownerId);
-        }
-
-        /// <summary>
-        /// 驾驶台身份的名称注册表（id → 船名，持久化；2026-09-20 驾驶台=身份锚点设计）。
-        /// 战略飞行注销 ShipState 期间归属域名仍可解析；bootstrap 重建后 objects 优先命中。
-        /// </summary>
-        private Dictionary<int, string> shipNames = new Dictionary<int, string>();
-
-        public void NoteShipName(int shipId, string label)
-        {
-            if (shipId > 0 && !label.NullOrEmpty())
-            {
-                shipNames[shipId] = label;
-            }
         }
 
         /// <summary>宇宙对象增删的唯一入口（AGENTS §11 单一管理入口精神）；星区记账与 id 语义在此收口。</summary>
@@ -222,7 +239,7 @@ namespace DeltaV
             if (obj.objectId <= 0 || collision != null)
             {
                 Log.Error($"[DeltaV] Refusing to register object '{obj.label}' with invalid/colliding ID " +
-                    $"#{obj.objectId} (existing='{collision?.label ?? "none"}').");
+                          $"#{obj.objectId} (existing='{collision?.label ?? "none"}').");
                 return;
             }
             objects.Add(obj);
@@ -233,9 +250,9 @@ namespace DeltaV
         {
             if (obj == null) return;
             objects.Remove(obj);
-            // 被注销对象的 ID 仍被驾驶台 comp / 图上归属域持有（战略飞行的船、走距离
+            // 被注销对象的 ID 仍被驾驶台 comp / 图上归属格持有（战略飞行中的船、走距离
             // 生命周期的残骸），推过高水位绝不再发——否则新星区生成物会领走同号，
-            // LabelForOwner 反查错对象、异主域同号合并（2026-09-20 撞号实测）。
+            // 异主域同号合并（2026-09-20 撞号实测）。
             if (obj.objectId >= nextFreeOwnerId)
             {
                 nextFreeOwnerId = obj.objectId + 1;
@@ -253,11 +270,7 @@ namespace DeltaV
         /// <summary>停靠/起飞流程进行中禁止修改尺度（pending 位姿计算不能中途换尺度）。</summary>
         public bool CanApplyScaleChange()
         {
-            if (ShipTransitions.FreeFlightTransitionPending()) return false;
-            foreach (ShipState ship in Ships)
-            {
-                if (ShipTransitions.IsDockingFlowShip(ship)) return false;
-            }
+            if (ShipTransitions.FreeFlightTransitionPending() || Approach.AnyActive) return false;
             WorldComponent_GravshipController controller = Find.GravshipController;
             if (controller != null
                 && (controller.LandingAreaConfirmationInProgress || controller.IsGravshipTravelling))
@@ -268,9 +281,8 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 尺度调整即时生效：全部 SpaceObject 位姿相对所在星区中心按比例缩放，保持各星区
+        /// 尺度调整即时生效：全部容器位姿相对所在星区中心按比例缩放，保持各星区
         /// 布局密度（战术格距不变、战略距离随尺度拉长）；速度不缩放（战术手感不变）。
-        /// docked 船的位姿偏移即其内部坐标差，同一规则天然保持「悬停↔落点」对应。
         /// 只动位姿，与物化状态无关（未物化是常态）。
         /// </summary>
         public void ApplyCellsPerTileScale(float oldScale, float newScale)
@@ -286,10 +298,6 @@ namespace DeltaV
             foreach (SpaceObject obj in objects)
             {
                 RescalePoseToSector(ref obj.pose.position, shrink);
-                if (obj is ShipState ship)
-                {
-                    RescalePoseToSector(ref ship.preDockPose.position, shrink);
-                }
             }
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"cellsPerTile rescaled {oldScale:F0} -> {newScale:F0}; {objects.Count} object poses rebased to sector centers (velocities untouched)");
@@ -304,7 +312,7 @@ namespace DeltaV
             position = OrbitSphere.Move(center, offset * shrink);
         }
 
-        /// <summary>当前地图对应的宇宙对象（船或 POI；无则 null）。显示参考系以此为准。</summary>
+        /// <summary>当前地图对应的宇宙容器（无则 null）。显示参考系以此为准。</summary>
         public SpaceObject SpaceObjectOnMap(Map map)
         {
             if (map == null) return null;
@@ -313,12 +321,6 @@ namespace DeltaV
                 if (objects[i].map == map) return objects[i];
             }
             return null;
-        }
-
-        /// <summary>当前地图对应的船（无则 null）。驾驶等飞船专属逻辑用。</summary>
-        public ShipState ShipOnMap(Map map)
-        {
-            return SpaceObjectOnMap(map) as ShipState;
         }
 
         /// <summary>
@@ -385,20 +387,13 @@ namespace DeltaV
             }
         }
 
-        // ---- 旧平面存档迁移（仅加载期）----
-
-        [NonSerialized] private Map legacyHostMap;
-        [NonSerialized] private Vector2 legacyAnchorDisplacement;
-
         public override void ExposeData()
         {
             Scribe_Collections.Look(ref objects, "objects", LookMode.Deep);
             if (Scribe.mode == LoadSaveMode.LoadingVars && objects == null)
             {
-                // 存档由阶段2 及更早版本保存（旧键名 "ships"，字段结构已变、不做迁移）：
-                // XML 加载路径绕过字段初始化器，这里必须兜底，否则 LoadedGame/tick 全链 NRE。
-                // 宇宙状态按空处理，用 dev action "Create two-ship test scene" 重建即可。
-                Log.Warning("[DeltaV] Save predates phase 3 (no 'objects' list); universe state starts empty. Recreate the test scene via Debug actions.");
+                Log.Warning("[DeltaV] Save has no 'objects' list; universe state starts empty. " +
+                            "Recreate the test scene via Debug actions.");
                 objects = new List<SpaceObject>();
             }
             Scribe_Collections.Look(ref generatedSectorTiles, "generatedSectorTiles", LookMode.Value);
@@ -411,34 +406,20 @@ namespace DeltaV
                 cellsPerTileAtSave = DeltaVMod.CurrentSettings?.cellsPerTile ?? (int)OrbitSphere.DefaultCellsPerTile;
             }
             Scribe_Values.Look(ref cellsPerTileAtSave, "cellsPerTileAtSave", 0);
-            Scribe_Values.Look(ref focusedShipId, "focusedShipId", -1);
-            Scribe_Values.Look(ref pilotShipId, "pilotShipId", -1);
-            Scribe_Values.Look(ref primaryShipId, "primaryShipId", -1);
             Scribe_Values.Look(ref nextFreeOwnerId, "nextFreeOwnerId", 0);
-            Scribe_Collections.Look(ref shipNames, "shipNames", LookMode.Value, LookMode.Value);
-            if (Scribe.mode == LoadSaveMode.LoadingVars && shipNames == null)
+            Scribe_Collections.Look(ref structureNames, "structureNames", LookMode.Value, LookMode.Value);
+            if (Scribe.mode == LoadSaveMode.LoadingVars && structureNames == null)
             {
-                shipNames = new Dictionary<int, string>();
+                structureNames = new Dictionary<int, string>();
             }
             if (Scribe.mode == LoadSaveMode.LoadingVars)
             {
                 // 主菜单改过尺度再读档：对象位姿仍按存档时尺度分布，读档后统一重标定。
-                // 旧档无此键（0）视为未知，不做重标定（mod 未发布，无兼容负担）。
                 float current = DeltaVMod.CurrentSettings?.cellsPerTile ?? (int)OrbitSphere.DefaultCellsPerTile;
                 if (cellsPerTileAtSave > 0 && !Mathf.Approximately(cellsPerTileAtSave, current))
                 {
                     pendingScaleRescaleFrom = cellsPerTileAtSave;
                 }
-            }
-            if (Scribe.mode != LoadSaveMode.Saving)
-            {
-                // 平面坐标旧档的锚记账（新档不再保存）：hostMap tile 为切平面原点，
-                // 绝对偏移 = pose.position + anchorDisplacement。LoadedGame 换算后丢弃。
-                // Look 必须在 LoadingVars 与 ResolvingCrossRefs 两个阶段都被调用（Look 内部
-                // 自行分支），外层只排除写档阶段以维持"新档不写这些键"；只门 LoadingVars
-                // 会让旧档 loadID 无人消费，触发 "Not all loadIDs consumed" 警告。
-                Scribe_References.Look(ref legacyHostMap, "hostMap");
-                Scribe_Values.Look(ref legacyAnchorDisplacement, "anchorDisplacement", Vector2.zero);
             }
         }
 
@@ -447,12 +428,9 @@ namespace DeltaV
             ResetRuntimeServices();
             pocketHostService?.Reset();
             OrbitSphere.ClearCache();
-            MigratePlanarSaves();
-            MigrateLegacyPlayerFactions();
             // 先对齐 ID 下限再跑归属迁移（迁移会对无组件图兜底分配新 ID）。
             SyncOwnerIdFloor();
             OrbitalPoiRegistry.Synchronize(this);
-            MigrateConsoleIdentities();
             MigrateSubstructureOwnership();
             if (pendingScaleRescaleFrom > 0f)
             {
@@ -461,7 +439,8 @@ namespace DeltaV
                 pendingScaleRescaleFrom = -1f;
             }
             ClearStalePocketMapTiles();
-            // 地图被外部移除等异常情况下的收尾：清掉悬空引用，聚焦无效时退回第一艘活着的船。
+            // 地图被外部移除等异常情况下的收尾：清掉悬空引用；丢失地图的纯容器
+            // （POI 的 Packed 状态除外）整体移除避免悬空状态。
             foreach (SpaceObject obj in objects.ToList())
             {
                 if (obj.map != null && !Find.Maps.Contains(obj.map))
@@ -469,39 +448,14 @@ namespace DeltaV
                     Log.Warning($"[DeltaV] Object #{obj.objectId} ({obj.label}) lost its map after load; clearing map reference.");
                     obj.map = null;
                 }
-                if (obj is ShipState lost && lost.map == null && !lost.IsDocked)
+                if (obj.map == null && !(obj is PoiState))
                 {
-                    // 飞船没有"删除段"——口袋图丢失属异常，整体移除避免悬空状态。
-                    Log.Warning($"[DeltaV] Ship #{lost.objectId} ({lost.label}) lost its map; removing from universe state.");
-                    UnregisterObject(lost);
+                    Log.Warning($"[DeltaV] Container #{obj.objectId} ({obj.label}) lost its map; removing from universe state.");
+                    UnregisterObject(obj);
                 }
             }
-            if (Focused == null)
-            {
-                ShipState first = objects.OfType<ShipState>().FirstOrDefault(s => s.map != null);
-                if (first != null)
-                {
-                    focusedShipId = first.objectId;
-                }
-            }
-            ShipTransitions.CleanupObsoleteDockedPocketMaps(this);
             HostColonistBarVisibility.NotifyDockingStateChanged();
-            SynchronizeDockedShipPoses();
             SweepEmptyDepartedMaps();
-        }
-
-        private void MigrateLegacyPlayerFactions()
-        {
-            for (int i = 0; i < objects.Count; i++)
-            {
-                ShipState ship = objects[i] as ShipState;
-                if (ship == null) continue;
-                if (ship.legacyPlayerShip && ship.faction == null)
-                {
-                    ship.faction = Faction.OfPlayer;
-                }
-                ship.legacyPlayerShip = false;
-            }
         }
 
         /// <summary>
@@ -521,15 +475,10 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 基架归属旧档自愈：归属体系上线前的存档没有归属组件——全部基架格按
-        /// 「地图默认归属」（宿主 SpaceObject；停靠图归 wreck POI，口袋图归船本身）
-        /// 补齐。无宿主对象的图兜底分配新 ID。仅 Delta-V 参考系图参与。
+        /// 基架归属旧档自愈：归属体系上线前的存档没有归属组件——全部基架格按新分配的
+        /// 结构 ID 补齐（不再关联对象 ID，ID 语义分离）。仅 Delta-V 参考系图参与。
         /// 存档已带归属组件的图不做整图迁移：「未占有（0）」是合法的持久状态
         /// （孤立建造/争议桥），读档吸收会破坏归属语义。
-        /// 定向自愈（口袋图）：一图恒一船，船本人在图上没有任何归属格而图上存在基架
-        /// = 早期版本盖章缺口的损伤签名（起飞进口袋未盖章 → 邻接规则分配孤儿 ID；
-        /// 到达盖章解析失败拿了新 ID）——整图改归船。刻意在口袋图上拆分独立归属的
-        /// 存档船自身仍有归属格，不会命中本分支。
         /// </summary>
         private void MigrateSubstructureOwnership()
         {
@@ -544,106 +493,17 @@ namespace DeltaV
                     SubstructureOwnership ownership = SubstructureOwnership.For(map);
                     if (ownership.HasUnassignedSubstructure())
                     {
-                        int defaultOwner = SpaceObjectOnMap(map)?.objectId ?? AllocateOwnerId();
+                        int defaultOwner = AllocateOwnerId();
                         int migrated = ownership.MigrateUnassigned(defaultOwner);
                         if (migrated > 0)
                         {
+                            NoteStructureName(defaultOwner, NewWreckName(defaultOwner));
                             DeltaVLog.Message(DeltaVLogModule.Core,
-                                $"map {map.Index}: migrated {migrated} substructure cells to default owner #{defaultOwner}");
+                                $"map {map.Index}: migrated {migrated} substructure cells to structure #{defaultOwner}");
                         }
                     }
                 }
-                ShipState pocketShip = ShipOnMap(map);
-                if (pocketShip == null)
-                {
-                    continue;
-                }
-                SubstructureOwnership pocketOwnership = SubstructureOwnership.TryGet(map);
-                if (pocketOwnership != null && pocketOwnership.HasAnySubstructure()
-                    && pocketOwnership.CountCellsOwnedBy(pocketShip.objectId) == 0)
-                {
-                    int healed = pocketOwnership.ClaimAllSubstructure(pocketShip.objectId);
-                    Log.Message($"[DeltaV] Ship #{pocketShip.objectId} '{pocketShip.label}' owns no substructure "
-                        + $"on its pocket map (stale data from a pre-fix build); reclaimed {healed} cells.");
-                }
             }
-        }
-
-        /// <summary>
-        /// 平面坐标旧档 → 球面：以旧 hostMap tile 为切平面原点，把每个对象的
-        /// 绝对平面偏移（pose.position + anchorDisplacement）换算成球面方向。
-        /// 角度/速度基约定不变（旧平面 x/y 就是东/北），直接沿用。
-        /// </summary>
-        private void MigratePlanarSaves()
-        {
-            bool anyLegacy = objects.Any(o => o.pose.legacyPlanar)
-                || objects.OfType<ShipState>().Any(s => s.preDockPose.legacyPlanar);
-            if (!anyLegacy)
-            {
-                return;
-            }
-            PlanetTile anchorTile = legacyHostMap != null && legacyHostMap.Tile.Valid
-                ? legacyHostMap.Tile
-                : PlanetTile.Invalid;
-            if (!anchorTile.Valid)
-            {
-                // 锚图丢失的兜底：任一停靠图的 tile，否则轨道层首个 tile（偏移语义尽力保留）。
-                anchorTile = objects.OfType<ShipState>()
-                    .Where(s => s.dockedMap != null && s.dockedMap.Tile.Valid)
-                    .Select(s => s.dockedMap.Tile).DefaultIfEmpty(PlanetTile.Invalid).First();
-                if (!anchorTile.Valid && OrbitSphere.Valid)
-                {
-                    anchorTile = new PlanetTile(0, OrbitSphere.Layer);
-                }
-                if (anchorTile.Valid)
-                {
-                    Log.Warning("[DeltaV] Planar save lost its host map; migrating positions from a fallback tile anchor.");
-                }
-            }
-            if (!anchorTile.Valid)
-            {
-                Log.Error("[DeltaV] Cannot migrate planar save positions: no orbit layer tile available.");
-                return;
-            }
-            int migrated = 0;
-            foreach (SpaceObject obj in objects)
-            {
-                if (obj.pose.legacyPlanar)
-                {
-                    obj.pose.position = PlanarToDirection(anchorTile, obj.pose.legacyPosition + legacyAnchorDisplacement);
-                    obj.pose.legacyPlanar = false;
-                    migrated++;
-                }
-                if (obj is ShipState ship && ship.preDockPose.legacyPlanar)
-                {
-                    ship.preDockPose.position = PlanarToDirection(anchorTile,
-                        ship.preDockPose.legacyPosition + legacyAnchorDisplacement);
-                    ship.preDockPose.legacyPlanar = false;
-                }
-            }
-            legacyHostMap = null;
-            legacyAnchorDisplacement = Vector2.zero;
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"migrated {migrated} planar poses to sphere coordinates (anchor tile {anchorTile})");
-        }
-
-        /// <summary>旧平面偏移 → 球面方向：tile 中心 + 切平面外推后归一（旧 centerTangent 语义）。</summary>
-        private static Vector3 PlanarToDirection(PlanetTile anchorTile, Vector2 absoluteOffset)
-        {
-            PlanetLayer layer = anchorTile.Layer;
-            Vector3 center = layer.GetTileCenter(anchorTile);
-            Vector3 up = center.normalized;
-            Vector3 north = Vector3.up - up * Vector3.Dot(Vector3.up, up);
-            if (north.sqrMagnitude < 1e-6f)
-            {
-                north = Vector3.forward;
-            }
-            north.Normalize();
-            Vector3 east = Vector3.Cross(up, north);
-            Vector3 tangent = east * absoluteOffset.x + north * absoluteOffset.y;
-            // 旧平面档全部保存在 CellsPerTile = 100 时代：迁移换算钉死旧尺度字面量，
-            // 不随设置项（默认 20000）变化，否则旧档对象会被外推到完全错误的球面位置。
-            return (center + tangent * (layer.AverageTileSize / 100f)).normalized;
         }
 
         /// <summary>
@@ -673,20 +533,8 @@ namespace DeltaV
 
         public override void GameComponentUpdate()
         {
-            // 玩家可能经殖民者栏/地图按钮等原版途径切图：focusedShipId 跟随当前船图，
-            // 只同步参考系字段，不触碰任何 pose（不变量 #5）。
-            ShipState onMap = ShipOnMap(Find.CurrentMap);
-            if (onMap != null && onMap.objectId != focusedShipId)
-            {
-                focusedShipId = onMap.objectId;
-            }
-            ShipState primary = PrimaryShip;
-            if (primary != null && primaryShipId != primary.objectId)
-            {
-                primaryShipId = primary.objectId;
-            }
             UpdateUniverseZoom();
-            // 驾驶状态维护（自动退出 + Harmony 按键抑制开关）。
+            // 驾驶状态维护（自动退出 + Harmony 按键抑制开关）。聚焦跟随由 CurrentMap 天然承载。
             Pilot.UpdateFrameState(this);
             DebugActions_DeltaV.UpdateFrameMeter();
             ShellRenderer.DrawNonFocusedShells(this);
@@ -737,9 +585,11 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 阶段2 物理积分（TickManager 每 tick 调用，暂停时冻结——正确的模拟语义）。
-        /// 驾驶船按输入+辅助出力积分；其余船只在有速度/角速度时漂移积分。
-        /// 只写 SpacePose（Map 外的宇宙状态），绝不触碰任何 Map 内 Thing（不变量 #6）。
+        /// 物理 tick（TickManager 每 tick 调用，暂停时冻结——正确的模拟语义）。
+        /// 积分对象 = **容器**（一张图一个刚体，§5.3「每个对象只积分一次」）：驾驶船
+        /// 的容器按输入+辅助出力积分；其余容器只在有速度/角速度时漂移积分（对接组合体
+        /// 随宿主容器惯性漂移）。只写 SpacePose（Map 外的宇宙状态），绝不触碰任何
+        /// Map 内 Thing（不变量 #6）。
         /// </summary>
         public override void GameComponentTick()
         {
@@ -751,32 +601,26 @@ namespace DeltaV
             BoardingPods.Tick();
             // 对接计划（几何完成判据 + 取消守卫；2026-09-21 阶段4）。
             Approach.Tick(this);
-            ShipState piloted = Pilot.PilotedShip(this);
-            bool piloting = piloted?.map != null && Find.CurrentMap == piloted.map;
+            Ship piloted = Pilot.PilotedShip(this);
+            bool piloting = piloted.IsValid && Find.CurrentMap == piloted.map;
             foreach (SpaceObject obj in objects)
             {
-                if (!(obj is ShipState ship) || ship.map == null)
+                if (obj.map == null)
                 {
                     continue;
                 }
-                if (ship.IsDocked)
+                if (Autopilot.IsActive(obj))
                 {
-                    continue; // 停靠中：不独立积分；本 tick 结束时从宿主刚体刷新派生位姿
+                    continue; // 自动驾驶中的容器由 ShipAutopilot 驱动，避免双重积分
                 }
-                if (Autopilot.IsActive(ship))
-                {
-                    continue; // 自动驾驶中的船由 ShipAutopilot 帧驱动，避免双重积分
-                }
-                // 对接计划中的船（docking）照常积分：自动驾驶摘除后可手操/漂移——
-                // 完成判据是几何的，不依赖驾驶方式（2026-09-21 阶段4）。
-                bool isPiloted = piloting && ship == piloted;
-                bool drifting = ship.pose.velocity.sqrMagnitude > 1e-10f
-                    || Mathf.Abs(ship.pose.angularVelocity) > 1e-10f;
+                bool isPiloted = piloting && obj.map == piloted.map;
+                bool drifting = obj.pose.velocity.sqrMagnitude > 1e-10f
+                    || Mathf.Abs(obj.pose.angularVelocity) > 1e-10f;
                 if (!isPiloted && !drifting)
                 {
                     continue;
                 }
-                ShipPhysics.MassReport report = ShipPhysics.GetReport(ship);
+                ShipPhysics.MassReport report = ShipPhysics.GetReport(obj.map);
                 if (report == null)
                 {
                     continue;
@@ -786,18 +630,32 @@ namespace DeltaV
                 bool assistX = false;
                 bool assistZ = false;
                 bool assistW = false;
+                float pilotFrameAngle = 0f;
                 if (isPiloted)
                 {
-                    PilotService.PilotCommand command = Pilot.ComposeCommand(ship);
-                    ShipPhysics.Allocate(report, command.command, out force, out torque);
-                    assistX = command.assistX;
-                    assistZ = command.assistZ;
-                    assistW = command.assistW;
-                    LogEngineFiringTransition(ship, report, force, torque);
+                    PilotService.PilotCommand command = Pilot.ComposeCommand(piloted);
+                    // 出力前公共检查（§8）：将要施加推进器出力时先过结构完整性 gate
+                    // （手控输入/主动刹车辅助均在此触发）；被拒绝的 tick 只积分零力
+                    // （被动阻力照常、不施推进器动量）。
+                    bool wantsThrust = Mathf.Abs(command.command.fx) > 1e-6f
+                        || Mathf.Abs(command.command.fz) > 1e-6f
+                        || Mathf.Abs(command.command.torque) > 1e-6f;
+                    if (wantsThrust && !ShipTransitions.RequestThrust(this, piloted, playerInitiated: true))
+                    {
+                        command = default;
+                    }
+                    if (wantsThrust)
+                    {
+                        ShipPhysics.Allocate(report, command.command, out force, out torque);
+                        assistX = command.assistX;
+                        assistZ = command.assistZ;
+                        assistW = command.assistW;
+                        pilotFrameAngle = ShipRegistry.LocalFrameAngle(piloted);
+                        LogEngineFiringTransition(obj, report, force, torque);
+                    }
                 }
-                ShipPhysics.Integrate(ship, report, force, torque, dt, assistX, assistZ, assistW);
+                ShipPhysics.Integrate(obj, report, force, torque, dt, assistX, assistZ, assistW, pilotFrameAngle);
             }
-            SynchronizeDockedShipPoses();
             // POI 地图生命周期三段扫描（单一入口 SpaceLifecycle）+ 星区记账触发
             //（自由飞行中 tile 地址变化进入新星区时首次生成，星区架构 §4）。
             if (Find.TickManager.TicksGame % 60 == 0)
@@ -807,46 +665,6 @@ namespace DeltaV
             }
         }
 
-        /// <summary>已停靠船的 SpacePose 是宿主刚体局部点的派生缓存；每 tick 物理积分后统一刷新。</summary>
-        private void SynchronizeDockedShipPoses()
-        {
-            foreach (ShipState ship in objects.OfType<ShipState>())
-            {
-                if (!ship.IsDocked || ship.dockedMap == null) continue;
-                SpaceObject host = FrameOf(ship.dockedMap);
-                if (host == null)
-                {
-                    Log.WarningOnce($"[DeltaV] Docked ship #{ship.objectId} '{ship.label}' has no host frame; preserving its last finite pose.",
-                        0x5D0C0000 ^ ship.objectId);
-                    continue;
-                }
-                Building console = ship.primaryConsole;
-                if (console != null && console.Spawned && console.Map == ship.dockedMap)
-                {
-                    ship.dockedLocalAngle = ShipOrientation.AngleFromRot4(console.Rotation);
-                }
-                Vector2 localPoint = SpaceTransform.MapToShipLocal(ship.dockedMap,
-                    ShipStructureResolver.DockedOrigin(ship));
-                SpacePose pose = SpaceTransform.RigidPointPose(host.pose, localPoint, ship.dockedLocalAngle);
-                if (!Finite(pose))
-                {
-                    Log.WarningOnce($"[DeltaV] Docked pose for #{ship.objectId} '{ship.label}' became non-finite; preserving the previous pose.",
-                        0x5D0CF000 ^ ship.objectId);
-                    continue;
-                }
-                ship.pose = pose;
-            }
-        }
-
-        private static bool Finite(SpacePose pose)
-        {
-            return Finite(pose.position.x) && Finite(pose.position.y) && Finite(pose.position.z)
-                && Finite(pose.velocity.x) && Finite(pose.velocity.y)
-                && Finite(pose.angle) && Finite(pose.angularVelocity);
-        }
-
-        private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
-
         // 物理埋点（触发式）：只记录引擎点火/停火的转换沿，杜绝持续出力期间的每 tick 输出。
         // 非 readonly：GameComponent 的 XML 加载路径（GetUninitializedObject）不跑字段初始化器，
         // readonly 字段会停留在 null 且无法补偿；这里用惰性属性兜底。
@@ -855,18 +673,18 @@ namespace DeltaV
         private Dictionary<int, bool> EnginesFiringByShip =>
             enginesFiringByShip ?? (enginesFiringByShip = new Dictionary<int, bool>());
 
-        private void LogEngineFiringTransition(ShipState ship, ShipPhysics.MassReport report, Vector2 force, float torque)
+        private void LogEngineFiringTransition(SpaceObject obj, ShipPhysics.MassReport report, Vector2 force, float torque)
         {
             bool firing = force.sqrMagnitude > 1e-6f || Mathf.Abs(torque) > 1e-6f;
-            bool was = EnginesFiringByShip.TryGetValue(ship.objectId, out bool previous) && previous;
+            bool was = EnginesFiringByShip.TryGetValue(obj.objectId, out bool previous) && previous;
             if (firing == was)
             {
                 return;
             }
-            EnginesFiringByShip[ship.objectId] = firing;
+            EnginesFiringByShip[obj.objectId] = firing;
             DeltaVLog.Message(DeltaVLogModule.Physics, firing
-                ? $"{ship.label}: thrusters firing | F=({force.x:F0},{force.y:F0}) tau={torque:F0} | mass={report.mass:F0} I={report.inertia:F0} thrusters={report.thrusters.Count}"
-                : $"{ship.label}: engines stopped | v=({ship.pose.velocity.x:F2},{ship.pose.velocity.y:F2}) omega={ship.pose.angularVelocity:F3}");
+                ? $"{obj.label}: thrusters firing | F=({force.x:F0},{force.y:F0}) tau={torque:F0} | mass={report.mass:F0} I={report.inertia:F0} thrusters={report.thrusters.Count}"
+                : $"{obj.label}: engines stopped | v=({obj.pose.velocity.x:F2},{obj.pose.velocity.y:F2}) omega={obj.pose.angularVelocity:F3}");
         }
 
         public override void GameComponentOnGUI()
@@ -885,7 +703,7 @@ namespace DeltaV
 
         // ---- 世界视图剪影点选（聚焦切图；与地图外壳点选对称的世界视图通道）----
 
-        private ShipState pendingWorldClickShip;
+        private Ship pendingWorldClickShip;
         private Vector2 pendingWorldClickScreen;
 
         /// <summary>
@@ -898,46 +716,47 @@ namespace DeltaV
             if (Find.World?.renderer == null
                 || Find.World.renderer.wantedMode != RimWorld.Planet.WorldRenderMode.Planet)
             {
-                pendingWorldClickShip = null;
+                pendingWorldClickShip = Ship.Invalid;
                 return;
             }
             Event ev = Event.current;
             if (ev.type == EventType.MouseDown && ev.button == 0)
             {
-                pendingWorldClickShip = null;
+                pendingWorldClickShip = Ship.Invalid;
                 if (Find.WindowStack.GetWindowAt(UI.GUIToScreenPoint(ev.mousePosition)) != null) return;
                 pendingWorldClickShip = PickWorldMarker(ev.mousePosition);
                 pendingWorldClickScreen = ev.mousePosition;
             }
             else if (ev.type == EventType.MouseDrag)
             {
-                pendingWorldClickShip = null;
+                pendingWorldClickShip = Ship.Invalid;
             }
-            else if (ev.type == EventType.MouseUp && ev.button == 0 && pendingWorldClickShip != null)
+            else if (ev.type == EventType.MouseUp && ev.button == 0 && pendingWorldClickShip.IsValid)
             {
-                ShipState target = pendingWorldClickShip;
-                pendingWorldClickShip = null;
+                Ship target = pendingWorldClickShip;
+                pendingWorldClickShip = Ship.Invalid;
                 bool noDrag = (ev.mousePosition - pendingWorldClickScreen).sqrMagnitude < 100f;
-                if (noDrag && PickWorldMarker(ev.mousePosition) == target)
+                if (noDrag && PickWorldMarker(ev.mousePosition).ownerId == target.ownerId)
                 {
-                    Map targetMap = target.InteriorMap;
-                    if (targetMap != null)
+                    Map targetMap = target.map;
+                    if (targetMap != null && ShipRegistry.ShipByOwner(target.ownerId).IsValid)
                     {
-                        SetFocused(target);
+                        SetFocused(FrameOf(targetMap));
                         CameraJumper.TryJump(targetMap.Center, targetMap, CameraJumper.MovementMode.Cut);
                     }
                 }
             }
         }
 
-        private ShipState PickWorldMarker(Vector2 mousePos)
+        private Ship PickWorldMarker(Vector2 mousePos)
         {
-            if (!OrbitSphere.Valid) return null;
-            ShipState best = null;
+            if (!OrbitSphere.Valid) return Ship.Invalid;
+            Ship best = Ship.Invalid;
             float bestDistance = float.MaxValue;
-            foreach (ShipState ship in Ships)
+            foreach (Ship ship in PlayerShips())
             {
-                if (ship.faction != Faction.OfPlayer || ShipTransitions.IsDockingFlowShip(ship)) continue;
+                if (!ShipRegistry.IsFreeFlight(ship) && !universeMarkerAlsoDocked(ship)) continue;
+                if (ShipTransitions.IsDockingFlowShip(ship)) continue;
                 if (!WorldShipMarkerRenderer.TryGetScreenPosition(ship, out Vector2 pos, out float radius)) continue;
                 float distance = (mousePos - pos).magnitude;
                 if (distance <= radius && distance < bestDistance)
@@ -949,13 +768,16 @@ namespace DeltaV
             return best;
         }
 
+        /// <summary>世界标记只画自由飞行船的剪影快照（WorldShipMarkerRenderer 同口径）。</summary>
+        private static bool universeMarkerAlsoDocked(Ship ship) => false;
+
         // ---- 外壳点选（选择层；瞄准兼容契约见 ShellPicking 类注释）----
 
         private SpaceObject pendingClickObject;
         private Vector2 pendingClickScreen;
 
         /// <summary>
-        /// 点击显示中的宇宙对象外壳 → 聚焦切换到对应地图（飞船与 POI 通用）。
+        /// 点击显示中的宇宙对象外壳 → 聚焦切换到对应地图（容器与 POI 通用）。
         /// 让位规则：瞄准会话（Targeter 激活）或建造设计器选中时完全不参与；
         /// 悬停 UI、原版可选物优先；按下-抬起间发生拖拽（框选）即取消。
         /// 不消费事件，原版点击流程不受影响。
@@ -1033,28 +855,28 @@ namespace DeltaV
                 Log.Error($"[DeltaV] SetFocused: object #{obj?.objectId} has no live map.");
                 return;
             }
-            if (obj is ShipState ship)
-            {
-                focusedShipId = ship.objectId;
-            }
             Current.Game.CurrentMap = targetMap;
             // 与 PocketMapUtility 一致：确保回到地图视图而不是世界球面。
             Find.World.renderer.wantedMode = RimWorld.Planet.WorldRenderMode.None;
         }
 
-        public void ResetObjects(List<SpaceObject> newObjects, int focusId)
+        public void ResetObjects(List<SpaceObject> newObjects)
         {
             ResetRuntimeServices();
             Pilot.Exit(this);
             // 同实例上的流程清零（2026-09-22 实例化迁移补洞）：旧 objects 整体替换，
-            // 残留的对接计划/自动驾驶任务/跳帮舱会指向已废弃的 ShipState，必须一并丢弃。
+            // 残留的对接计划/自动驾驶任务/跳帮舱会指向已废弃的容器，必须一并丢弃。
             Approach.ResetFlow(this);
             Autopilot.ResetFlow();
             BoardingPods.ResetFlow();
             ShipTransitions.Reset();
             objects = newObjects;
-            focusedShipId = focusId;
             unframedMaps?.Clear();
+            SpaceObject focus = objects.FirstOrDefault(o => o.map != null);
+            if (focus != null)
+            {
+                SetFocused(focus);
+            }
         }
 
         /// <summary>
@@ -1067,6 +889,7 @@ namespace DeltaV
             WorldShipMarkerRenderer.ClearRuntimeCaches();
             PlanetGlobeRenderer.ClearRuntimeCaches();
             ShipPhysics.ClearCache();
+            ShipRegistry.ClearCaches();
             ThrusterEffects.ClearRuntimeCaches();
             ThrusterAudio.Reset();
             Lifecycle.Reset();

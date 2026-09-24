@@ -8,35 +8,50 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 左侧信息面板（星区架构 §11.1）：飞行状态、控制状态与操作收口的单一面板，
+    /// 左侧信息面板（星区架构 §11.1；解耦重构 §4：多船同图显示船只列表，可切换当前
+    /// 查看/操作的船）：承载对象与成员、飞行状态、控制状态与操作收口的单一面板，
     /// 高度完全随内容自适应（不滚动）；内嵌**可缩放星球仪**（PlanetGlobeRenderer）——
     /// 星区地图即星球仪连续缩放（§12.2 定稿）：滑条/滚轮拉近逐层显示星区网格、对象
     /// 图标与距离标注，图标可悬停/点击聚焦。显示条件：聚焦图属 Delta-V 语境
-    /// （FrameOf != null：移动船口袋图 / 停靠船宿主图 / 轨道图 / POI 内部）；
+    /// （FrameOf != null：口袋容器图 / 停靠宿主图 / 轨道图 / POI 内部）；
     /// 世界视图不叠加（剪影是其自己的显示通道，且可点击聚焦）。
     /// </summary>
     public static class ShipStatusPanel
     {
         private const float PanelWidth = 248f;
         private const float GlobeSize = 212f;
+        private const float ShipRowHeight = 24f;
 
-        private static readonly List<Building> EmptyConsoles = new List<Building>();
+        // 每图选中的「当前查看/操作的船」（运行时 UI 状态；按归属 ID 记忆）。
+        private static readonly Dictionary<Map, int> selectedShipByMap = new Dictionary<Map, int>();
 
-        // 驾驶台扫描缓存（60 tick 重扫）：PlayerConsoles 遍历全图 listerThings，
-        // 面板每帧取用，不能每帧全扫。
-        private static Map consoleScanMap;
-        private static int consoleScanTick = -99999;
-        private static List<Building> consoleScanResult = EmptyConsoles;
-
-        private static List<Building> ConsolesOn(Map map)
+        /// <summary>面板当前选中的船（驾驶切换键等多船入口共用；无选择返回 false）。</summary>
+        public static bool TryGetSelectedShip(Map map, out Ship ship)
         {
-            if (consoleScanMap != map || Find.TickManager.TicksGame - consoleScanTick >= 60)
+            ship = Ship.Invalid;
+            if (map == null) return false;
+            if (!selectedShipByMap.TryGetValue(map, out int ownerId)) return false;
+            Ship resolved = ShipRegistry.ShipByOwner(ownerId);
+            if (!resolved.IsValid || resolved.map != map)
             {
-                consoleScanMap = map;
-                consoleScanTick = Find.TickManager.TicksGame;
-                consoleScanResult = FreeFlightBootstrap.PlayerConsoles(map);
+                selectedShipByMap.Remove(map);
+                return false;
             }
-            return consoleScanResult;
+            ship = resolved;
+            return true;
+        }
+
+        /// <summary>该图的当前操作船：面板已选择则用之；唯一船直取。</summary>
+        private static Ship SelectedOrOnlyShip(UniverseManager universe, Map map)
+        {
+            if (TryGetSelectedShip(map, out Ship selected)) return selected;
+            List<Ship> ships = ShipRegistry.ShipsOnMap(map);
+            if (ships.Count == 1)
+            {
+                selectedShipByMap[map] = ships[0].ownerId;
+                return ships[0];
+            }
+            return Ship.Invalid;
         }
 
         public static void Draw(UniverseManager universe)
@@ -46,37 +61,38 @@ namespace DeltaV
             SpaceObject frame = universe.FrameOf(map);
             if (frame == null) return;
 
-            ShipState freeFlightShip = universe.ShipOnMap(map);
-            if (freeFlightShip != null && freeFlightShip.IsDocked) freeFlightShip = null;
+            // 图上的船列表（§4：多船同图各自列出，可切换查看/操作）。
+            List<Ship> ships = ShipRegistry.ShipsOnMap(map);
+            Ship selected = SelectedOrOnlyShip(universe, map);
             LandingApproachController.DockingPlan plan = universe.Approach.ActivePlan;
-            if (freeFlightShip != null && universe.ShipTransitions.IsDockingFlowShip(freeFlightShip)
-                && plan?.ship != freeFlightShip)
-            {
-                freeFlightShip = null;
-            }
-            ShipState dockedShip = freeFlightShip == null
-                ? universe.Ships.FirstOrDefault(s => s.IsDocked && s.dockedMap == map)
-                : null;
-            bool dockingPlan = plan != null && plan.ship == freeFlightShip;
-            bool playerControlled = freeFlightShip == null || universe.Pilot.CanPlayerControl(freeFlightShip);
+            bool dockingPlan = plan != null && plan.ship.ownerId == selected.ownerId;
+            bool hasShip = selected.IsValid;
+            bool playerControlled = !hasShip || universe.Pilot.CanPlayerControl(selected);
 
-            // 已停靠 → 自由飞行入口的另一形态：未 bootstrap 的原版 Gravship（首次降落/
-            // 发射到达时还没有 ShipState）。唯一驾驶台可直接从面板进入；多艘船必须选中
-            // 具体驾驶台（按其连接的引擎与 ValidSubstructure 捕获准确船体）。
-            List<Building> consoles = dockedShip != null || freeFlightShip != null ? EmptyConsoles : ConsolesOn(map);
-            bool bootstrapEntry = consoles.Count == 1;
-            bool multiShipAmbiguous = consoles.Count > 1;
+            // 未形成船的原版 Gravship（首次降落/发射到达）：唯一玩家驾驶台可直接
+            // 进入自由飞行；多台须选中具体驾驶台（经其 gizmo）。
+            bool bootstrapEntry = false;
+            bool multiConsoleAmbiguous = false;
+            if (!hasShip)
+            {
+                int playerConsoles = 0;
+                foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
+                {
+                    if (thing.Faction == Faction.OfPlayer && thing.TryGetComp<CompDeltaVPilotConsole>() != null)
+                    {
+                        playerConsoles++;
+                    }
+                }
+                bootstrapEntry = playerConsoles == 1;
+                multiConsoleAmbiguous = playerConsoles > 1;
+            }
 
             string title;
-            if (freeFlightShip != null)
+            if (hasShip)
             {
-                title = "DeltaV_ShipPanelTitle".Translate(freeFlightShip.label);
+                title = "DeltaV_ShipPanelTitle".Translate(universe.LabelForOwner(selected.ownerId));
             }
-            else if (dockedShip != null)
-            {
-                title = "DeltaV_ShipPanelTitle".Translate(dockedShip.label);
-            }
-            else if (bootstrapEntry || multiShipAmbiguous)
+            else if (bootstrapEntry || multiConsoleAmbiguous)
             {
                 title = "DeltaV_DockedAreaTitle".Translate();
             }
@@ -86,23 +102,27 @@ namespace DeltaV
             }
 
             // ---- 内容行（先备好文本，再按真实高度布局：面板高度随内容变化）----
-            var statusLines = new System.Collections.Generic.List<string>();
-            ShipControlState controlState = universe.Pilot.GetControlState(freeFlightShip);
-            if (freeFlightShip != null)
+            var statusLines = new List<string>();
+            ShipControlState controlState = universe.Pilot.GetControlState(selected);
+            SpacePose shipPose = hasShip ? ShipRegistry.ShipPose(selected) : default;
+            if (hasShip)
             {
-                ShipPhysics.MassReport report = ShipPhysics.GetReport(freeFlightShip);
+                ShipPhysics.MassReport report = ShipPhysics.GetReport(selected.map);
                 string controlLabel = controlState == ShipControlState.Autopilot
                     ? "DeltaV_ControlAutopilot".Translate()
                     : controlState == ShipControlState.Manual
                         ? "DeltaV_ControlManual".Translate()
                         : "DeltaV_ControlUncontrolled".Translate();
-                statusLines.Add("DeltaV_PanelFlightState".Translate("DeltaV_FlightStateFree".Translate()));
+                statusLines.Add("DeltaV_PanelFlightState".Translate(
+                    ShipRegistry.StateOf(selected) == ShipDerivedState.FreeFlight
+                        ? "DeltaV_FlightStateFree".Translate()
+                        : "DeltaV_FlightStateDocked".Translate()));
                 statusLines.Add("DeltaV_HudControl".Translate(controlLabel));
-                statusLines.Add("DeltaV_HudSpeed".Translate(freeFlightShip.pose.velocity.magnitude.ToString("F1")));
+                statusLines.Add("DeltaV_HudSpeed".Translate(shipPose.velocity.magnitude.ToString("F1")));
                 statusLines.Add("DeltaV_HudHeading".Translate(
-                    (ShipOrientation.HeadingAngle(freeFlightShip) * Mathf.Rad2Deg).ToString("F0")));
+                    (shipPose.angle * Mathf.Rad2Deg).ToString("F0")));
                 statusLines.Add("DeltaV_HudTurnRate".Translate(
-                    (freeFlightShip.pose.angularVelocity * Mathf.Rad2Deg).ToString("F1")));
+                    (shipPose.angularVelocity * Mathf.Rad2Deg).ToString("F1")));
                 statusLines.Add("DeltaV_HudMass".Translate(report == null ? "?" : ((int)report.mass).ToString()));
                 bool brakeHeld = DeltaVDefOf.DeltaV_AssistBrake != null && DeltaVDefOf.DeltaV_AssistBrake.IsDown;
                 statusLines.Add("DeltaV_HudAssist".Translate(
@@ -112,7 +132,7 @@ namespace DeltaV
                             ? "DeltaV_On".Translate()
                             : "DeltaV_Off".Translate())));
             }
-            else if (dockedShip != null || bootstrapEntry || multiShipAmbiguous)
+            else if (bootstrapEntry || multiConsoleAmbiguous)
             {
                 statusLines.Add("DeltaV_PanelFlightState".Translate("DeltaV_FlightStateDocked".Translate()));
             }
@@ -131,12 +151,14 @@ namespace DeltaV
             {
                 linesHeight += Mathf.Max(20f, Text.CalcHeight(line, contentWidth));
             }
+            float shipListHeight = ships.Count > 1 ? ships.Count * ShipRowHeight + 4f : 0f;
 
-            // 高度完全随内容自适应（不滚动）：星球仪 + 缩放滑条 + 标题/状态行 + 当前模式的按钮行数。
-            float modeButtonsHeight = freeFlightShip != null
+            // 高度完全随内容自适应（不滚动）：星球仪 + 缩放滑条 + 标题/状态行 + 船列表
+            // + 当前模式的按钮行数。
+            float modeButtonsHeight = hasShip
                 ? (playerControlled ? 27f + 6f : 0f) + (dockingPlan || playerControlled ? 27f + 8f : 0f)
-                : (dockedShip != null || bootstrapEntry || multiShipAmbiguous) ? 27f + 6f : 0f;
-            float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + modeButtonsHeight;
+                : (bootstrapEntry || multiConsoleAmbiguous) ? 27f + 6f : 0f;
+            float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + shipListHeight + modeButtonsHeight;
             const float sliderRowHeight = 30f;
             float outerHeight = GlobeSize + 8f + sliderRowHeight + contentHeight;
             float y = Mathf.Clamp(UI.screenHeight * 0.45f - outerHeight * 0.5f, 48f,
@@ -146,7 +168,7 @@ namespace DeltaV
             var inner = panelRect.ContractedBy(8f);
 
             // 星球仪固定在面板顶部（GL 绘制使用绝对 GUI 屏幕坐标）；
-            // 无任何飞船时（首次到达、尚未 bootstrap）以当前图帧位置为相机锚点。
+            // 无任何飞船时（首次到达、尚未认领）以当前图帧位置为相机锚点。
             PlanetGlobeRenderer.Draw(new Rect(inner.x, inner.y, inner.width, GlobeSize), universe, frame);
 
             // 星球仪缩放滑条：拉远 = 整球态势，拉近 = 星区地图（§12.2 定稿）。
@@ -173,14 +195,46 @@ namespace DeltaV
             }
             lineY += 8f;
 
+            // ---- 船只列表（多船同图，§4）：当前查看/操作的船可切换 ----
+            if (ships.Count > 1)
+            {
+                foreach (Ship ship in ships)
+                {
+                    string stateLabel = ShipRegistry.StateOf(ship) == ShipDerivedState.FreeFlight
+                        ? "DeltaV_FlightStateFree".Translate()
+                        : "DeltaV_FlightStateDocked".Translate();
+                    string rowLabel = $"{universe.LabelForOwner(ship.ownerId)} · {stateLabel}";
+                    var rowRect = new Rect(0f, lineY, drawWidth, ShipRowHeight);
+                    bool isSelected = ship.ownerId == selected.ownerId;
+                    if (isSelected)
+                    {
+                        Widgets.DrawHighlight(rowRect);
+                    }
+                    if (Widgets.ButtonInvisible(rowRect, false))
+                    {
+                        selectedShipByMap[map] = ship.ownerId;
+                    }
+                    Text.Font = GameFont.Tiny;
+                    GUI.color = isSelected ? Color.white : new Color(1f, 1f, 1f, 0.75f);
+                    Text.Anchor = TextAnchor.MiddleLeft;
+                    Widgets.Label(rowRect.ContractedBy(4f), rowLabel);
+                    Text.Anchor = TextAnchor.UpperLeft;
+                    GUI.color = Color.white;
+                    TooltipHandler.TipRegion(rowRect,
+                        "DeltaV_PanelShipRowTip".Translate(universe.LabelForOwner(ship.ownerId)));
+                    lineY += ShipRowHeight;
+                }
+                lineY += 4f;
+            }
+
             // 模式按钮全部收进面板（不再分开放）。
-            if (freeFlightShip != null)
+            if (hasShip)
             {
                 if (playerControlled)
                 {
                     string pilotButton = controlState == ShipControlState.Manual && dockingPlan
                         ? "DeltaV_ControlSwitchAutopilot".Translate()
-                        : universe.Pilot.IsPlayerInputArmed(freeFlightShip)
+                        : universe.Pilot.IsPlayerInputArmed(selected)
                             ? "DeltaV_PilotButtonExit".Translate()
                             : "DeltaV_PilotButtonEnter".Translate();
                     if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), pilotButton))
@@ -199,36 +253,48 @@ namespace DeltaV
                 }
                 else if (playerControlled)
                 {
-                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginDockingButton".Translate()))
+                    if (ShipRegistry.StateOf(selected) == ShipDerivedState.FreeFlight)
                     {
-                        universe.ShipTransitions.BeginDocking(freeFlightShip);
+                        if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginDockingButton".Translate()))
+                        {
+                            universe.ShipTransitions.BeginDocking(selected);
+                        }
+                        lineY += 27f + 8f;
                     }
-                    lineY += 27f + 8f;
+                    else
+                    {
+                        if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginFreeFlightButton".Translate()))
+                        {
+                            universe.ShipTransitions.BeginFreeFlight(universe, selected);
+                        }
+                        lineY += 27f + 8f;
+                    }
                 }
                 else
                 {
                     lineY += 8f;
                 }
             }
-            else if (dockedShip != null)
-            {
-                if (universe.Pilot.CanPlayerControl(dockedShip)
-                    && Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginFreeFlightButton".Translate()))
-                {
-                    universe.ShipTransitions.BeginFreeFlight(universe, dockedShip);
-                }
-                lineY += 27f + 6f;
-            }
             else if (bootstrapEntry)
             {
-                // 首次降落/发射到达：图上唯一的玩家驾驶台，直接 bootstrap 为自由飞行船。
-                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginFreeFlightButton".Translate()))
+                // 首次降落/发射到达：图上唯一的玩家驾驶台，直接进入自由飞行（认领+脱离）。
+                Building console = null;
+                foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
                 {
-                    FreeFlightBootstrap.TryEnter(universe, consoles[0]);
+                    if (thing.Faction == Faction.OfPlayer && thing.TryGetComp<CompDeltaVPilotConsole>() != null)
+                    {
+                        console = thing as Building;
+                        break;
+                    }
+                }
+                if (console != null
+                    && Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginFreeFlightButton".Translate()))
+                {
+                    universe.ShipTransitions.BeginFreeFlightFromConsole(universe, console);
                 }
                 lineY += 27f + 6f;
             }
-            else if (multiShipAmbiguous)
+            else if (multiConsoleAmbiguous)
             {
                 // 多艘逆重飞船共泊：不能任选一台驾驶台，指引到具体驾驶台的 gizmo。
                 var pickRect = new Rect(0f, lineY, drawWidth, 27f);

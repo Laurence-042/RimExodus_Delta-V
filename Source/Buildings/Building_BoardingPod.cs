@@ -57,22 +57,21 @@ namespace DeltaV
                 null, null, null, false);
         }
 
-        /// <summary>瞄准会话内解析被点外壳：限其他飞船（有活图的 ShipState）。</summary>
-        private static ShipState ResolveTargetShip(UniverseManager universe, Map frameMap, IntVec3 cell)
+        /// <summary>瞄准会话内解析被点外壳：限其他地图容器（有活图的承载对象）。</summary>
+        private static SpaceObject ResolveTargetShip(UniverseManager universe, Map frameMap, IntVec3 cell)
         {
             if (universe == null || frameMap == null || !cell.InBounds(frameMap)) return null;
             SpaceObject picked = ShellPicking.ShellAtFramePoint(universe, frameMap,
                 new Vector3(cell.x + 0.5f, 0f, cell.z + 0.5f));
-            ShipState ship = picked as ShipState;
-            if (ship == null || ship.map == null || ship.map.Disposed) return null;
-            return ship;
+            if (picked?.map == null || picked.map.Disposed) return null;
+            return picked;
         }
 
         private void TryLaunchAt(UniverseManager universe, Map frameMap, IntVec3 cell, List<Pawn> crew)
         {
-            ShipState source = universe?.ShipOnMap(Map);
-            ShipState target = ResolveTargetShip(universe, frameMap, cell);
-            if (source == null || target == null || target == source)
+            Ship source = ShipRegistry.ShipsOnMap(Map).FirstOrDefault();
+            SpaceObject target = ResolveTargetShip(universe, frameMap, cell);
+            if (!source.IsValid || target == null || target == universe.FrameOf(source.map))
             {
                 Messages.Message("DeltaV_PodNoTarget".Translate(), this, MessageTypeDefOf.RejectInput, false);
                 return;

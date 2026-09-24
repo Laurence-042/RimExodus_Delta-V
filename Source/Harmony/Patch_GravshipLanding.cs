@@ -22,15 +22,11 @@ namespace DeltaV
     [HarmonyPatch(typeof(GravshipUtility), nameof(GravshipUtility.TravelTo))]
     public static class Patch_GravshipUtility_TravelTo_DeltaVMobile
     {
-        public static bool Prefix(Gravship gravship)
-        {
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            return universe?.ShipTransitions.TryCompleteFreeFlight(gravship) != true;
-        }
+        // 解耦重构（2026-09-24）：脱离不再经原版起飞/旅行管线（无引擎直接搬运），
+        // 本 Prefix 的自由飞行拦截退役；TravelTo 只服务原版战略发射。
 
-        // 走到这里说明 TravelTo 被放行（原版战略起飞完成；自由飞行转换在 Prefix 已消费
-        // 并拦截，不会执行本 Postfix）——善后时机见 HandleStrategicTravelDeparture：
-        // 此刻相机未必离开源图（战略航行中 CurrentMap 停在源图，焦点在那里显式处理）。
+        // 战略起飞放行后的星区离场善后：此刻相机未必离开源图（战略航行中 CurrentMap
+        // 停在源图，焦点在那里显式处理）。
         public static void Postfix()
         {
             Current.Game?.GetComponent<UniverseManager>()?.ShipTransitions.HandleStrategicTravelDeparture();
