@@ -288,25 +288,43 @@ namespace DeltaV
 
         public void BeginDocking(Ship ship)
         {
-            if (universe == null || !ship.IsValid || !ShipRegistry.IsFreeFlight(ship)
-                || IsDockingFlowShip(ship)) return;
-            if (Find.GravshipController == null || Find.GravshipController.LandingAreaConfirmationInProgress
-                || Find.GravshipController.IsGravshipTravelling || Current.Game.Gravship != null
-                || universe.ShipTransitions.pendingShip.IsValid)
-            {
-                Messages.Message("DeltaV_DockFailBusy".Translate(), MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            if (!OrbitSphere.Valid)
-            {
-                Messages.Message("DeltaV_DockFailHostMap".Translate(), MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            SpaceObject target = FindLandableTarget(universe, ship);
-            if (target == null)
+            if (DockingFlowBlocked(ship)) return;
+            List<(SpaceObject target, float distance)> candidates = CollectLandableTargets(universe, ship);
+            if (candidates.Count == 0)
             {
                 // 深空固定被拒绝（星区架构 §7）：不再凭空生成空画布；目标尚未物化时
                 // 继续接近，进入 activation radius 加载后即可正常降落（软限制）。
+                Messages.Message("DeltaV_DockFailNoTarget".Translate(), MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            if (candidates.Count == 1)
+            {
+                BeginDockingTargeted(ship, candidates[0].target);
+                return;
+            }
+            // 多目标投影重叠（拥挤环境）时按外壳间距排序交给玩家选择（2026-09-24）。
+            // 构建顺序即距离序：FloatMenu 构造器对同优先级稳定排序，保持插入序。
+            var options = new List<FloatMenuOption>(candidates.Count);
+            foreach ((SpaceObject target, float distance) in candidates)
+            {
+                SpaceObject captured = target;
+                string label = distance < float.MaxValue
+                    ? "DeltaV_DockTargetEntry".Translate(target.label, distance.ToString("0.#"))
+                    : target.label;
+                options.Add(new FloatMenuOption(label, delegate { BeginDockingTargeted(ship, captured); }));
+            }
+            Find.WindowStack.Add(new FloatMenu(options, "DeltaV_DockTargetMenuTitle".Translate()));
+        }
+
+        /// <summary>菜单选择 / 单候选直入的公共入口：重跑门禁与目标资格后进入残留确认。</summary>
+        private void BeginDockingTargeted(Ship ship, SpaceObject target)
+        {
+            if (DockingFlowBlocked(ship)) return;
+            // FloatMenu 不暂停：菜单打开期间对象可移动/失效，点击时按同一资格口径复核。
+            if (target == null || target.map == null || target.map.Disposed
+                || target == universe.FrameOf(ship.map) || !IsLandableObject(target)
+                || !ShipCenterInsideProjection(target, universe.FrameOf(ship.map).pose.position))
+            {
                 Messages.Message("DeltaV_DockFailNoTarget".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
@@ -326,6 +344,26 @@ namespace DeltaV
             BeginDockingConfirmed(universe, ship, target, null);
         }
 
+        /// <summary>对接发起门禁（编排入口与目标入口共用）。</summary>
+        private bool DockingFlowBlocked(Ship ship)
+        {
+            if (universe == null || !ship.IsValid || !ShipRegistry.IsFreeFlight(ship)
+                || IsDockingFlowShip(ship) || universe.FrameOf(ship.map) == null) return true;
+            if (Find.GravshipController == null || Find.GravshipController.LandingAreaConfirmationInProgress
+                || Find.GravshipController.IsGravshipTravelling || Current.Game.Gravship != null
+                || universe.ShipTransitions.pendingShip.IsValid)
+            {
+                Messages.Message("DeltaV_DockFailBusy".Translate(), MessageTypeDefOf.RejectInput, false);
+                return true;
+            }
+            if (!OrbitSphere.Valid)
+            {
+                Messages.Message("DeltaV_DockFailHostMap".Translate(), MessageTypeDefOf.RejectInput, false);
+                return true;
+            }
+            return false;
+        }
+
         private void BeginDockingConfirmed(UniverseManager universe, Ship ship, SpaceObject target,
             List<Thing> confirmedLeftovers)
         {
@@ -336,27 +374,26 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 可降落目标扫描（2026-09-17 修订：投影重叠的 tie-breaker 从「渲染靠后优先」
-        /// 改为「可见船壳最近优先」）。资格门槛：飞船中心在对象内部地图投影内（任何已
-        /// 物化对象——含移动中的有动力飞船；空白空画布不可固定）；距离 = 双方可渲染
-        /// 船壳（凸包）的最近距离，无船壳数据的目标记无穷大。
+        /// 可降落目标枚举，按可见船壳距离升序返回（2026-09-24 修订：多目标投影重叠时
+        /// 交给玩家按距离选择；**自身容器显式排除**——旧单选实现漏排时自己恒以凸包
+        /// 包含距离 0 获胜，任何真实目标不可能被选中）。资格门槛：飞船中心在对象内部
+        /// 地图投影内（任何已物化对象——含移动中的有动力飞船；空白空画布不可固定）；
+        /// 距离 = 双方可渲染船壳（凸包）的最近距离，无船壳数据的目标记无穷大排尾。
         /// </summary>
-        private SpaceObject FindLandableTarget(UniverseManager universe, Ship ship)
+        private List<(SpaceObject target, float distance)> CollectLandableTargets(
+            UniverseManager universe, Ship ship)
         {
-            SpaceObject best = null;
-            float bestDistance = float.MaxValue;
+            SpaceObject ownContainer = universe.FrameOf(ship.map);
+            var candidates = new List<(SpaceObject target, float distance)>();
             foreach (SpaceObject obj in universe.objects)
             {
+                if (obj == ownContainer) continue;
                 if (obj.map == null || !IsLandableObject(obj)) continue;
-                if (!ShipCenterInsideProjection(obj, universe.FrameOf(ship.map).pose.position)) continue;
-                float distance = VisibleShellDistance(universe, ship, obj);
-                if (distance <= bestDistance)
-                {
-                    best = obj;
-                    bestDistance = distance;
-                }
+                if (!ShipCenterInsideProjection(obj, ownContainer.pose.position)) continue;
+                candidates.Add((obj, VisibleShellDistance(universe, ship, obj)));
             }
-            return best;
+            candidates.Sort((a, b) => a.distance.CompareTo(b.distance));
+            return candidates;
         }
 
         /// <summary>
@@ -612,14 +649,12 @@ namespace DeltaV
                     ShipRegistry.HeadingAngle(ship) - hostAngle));
             angle = SpaceTransform.WrapAngle(hostAngle + ShipOrientation.AngleFromRot4(landedFacing));
 
-            // 停放锚点唯一入口：preview 原点 = 域包围盒 min（GravshipInterop.BuildPreview
-            // 同一约定）；口袋图几何中心相对该原点的偏移经放置旋转落到宿主图。
-            Map pocketMap = ship.map;
-            Vector2 pocketCenterFromOrigin = SpaceTransform.MapToShipLocal(pocketMap,
-                SpaceTransform.ShipLocalOrigin(pocketMap))
-                - new Vector2(gravship.originalPosition.x, gravship.originalPosition.z);
-            dockedOrigin = new Vector2(landingPos.x, landingPos.z)
-                + SpaceTransform.RotatePlacementOffset(pocketCenterFromOrigin, landingRot);
+            // 停放锚点唯一入口（SpaceTransform.cs「dockedOrigin 的唯一来源」；2026-09-24
+            // 事故：此处曾手写「中心系恒零 − 地图系原点」的混用偏移，丢口袋图几何中心
+            // 项致幽灵船/判据整体偏约半张口袋图）。pocketRoot = preview 原点（域包围盒
+            // min，GravshipInterop.BuildPreview 同一约定）。
+            dockedOrigin = SpaceTransform.ShipOriginFromPlacementRoot(
+                ship.map, gravship.originalPosition, landingPos, landingRot);
             direction = SpaceTransform.MapPointToUniverse(hostFrame, map, dockedOrigin);
             return true;
         }
@@ -677,13 +712,42 @@ namespace DeltaV
         /// </summary>
         internal void FinishDocking(UniverseManager universe, Ship ship)
         {
-            if (!landedShipAwaitingCleanup.IsValid || landedShipAwaitingCleanup.ownerId != ship.ownerId)
+            // 完成转移后船体已在宿主图（console.parent.Map = 宿主图），此处的
+            // landedShipAwaitingCleanup 是转移前快照，其 Ship.IsValid（含「驾驶台
+            // 在册于快照地图」校验）必然为假——完成期守卫只做身份匹配，不校验旧
+            // 快照活性（2026-09-24 事故：旧守卫用 IsValid 致本方法静默早退——源图
+            // 不删、聚焦不切、通道不铺、成功消息不发）。
+            if (landedShipAwaitingCleanup.ownerId <= 0 || landedShipAwaitingCleanup.ownerId != ship.ownerId)
             {
                 return;
             }
             landedShipAwaitingCleanup = Ship.Invalid;
             Map sourceMap = pendingDockingSourceMap;
             pendingDockingSourceMap = null;
+            // 完成时的聚焦/相机交接（2026-09-24）：完成前聚焦在源口袋图，源图销毁会让
+            // 原版 CurrentMap 回退到 maps[0]（通常是地表图）。玩家视点按宇宙参考系连续
+            // 换算到宿主图（同外壳点击聚焦口径，SetFocusedWithCamera 单实现）；玩家中途
+            // 看向别处（CurrentMap ≠ 源图）则不打扰。换算需在源容器注销前完成。
+            SpaceObject handoffHost = null;
+            Vector2 handoffPoint = default;
+            float handoffZoom = 0f;
+            if (sourceMap != null && !sourceMap.Disposed && Find.CurrentMap == sourceMap)
+            {
+                Ship settled = ShipRegistry.ShipByOwner(ship.ownerId);
+                Map hostMap = settled.IsValid ? settled.map : null;
+                SpaceObject hostFrame = hostMap != null && hostMap != sourceMap
+                    ? universe.FrameOf(hostMap) : null;
+                SpaceObject pocketFrame = universe.FrameOf(sourceMap);
+                if (hostFrame != null && pocketFrame != null)
+                {
+                    Vector3 viewCenter = Find.CameraDriver.CurrentViewRect.CenterVector3;
+                    Vector3 universeDir = SpaceTransform.MapPointToUniverse(pocketFrame, sourceMap,
+                        new Vector2(viewCenter.x, viewCenter.z));
+                    handoffPoint = SpaceTransform.UniverseToMapPoint(hostFrame, hostMap, universeDir);
+                    handoffZoom = Find.CameraDriver.RootSize;
+                    handoffHost = hostFrame;
+                }
+            }
             if (sourceMap != null && !sourceMap.Disposed && Find.Maps.Contains(sourceMap))
             {
                 SpaceObject pocketContainer = universe.SpaceObjectOnMap(sourceMap);
@@ -695,6 +759,11 @@ namespace DeltaV
                 if (pocketContainer != null)
                 {
                     universe.UnregisterObject(pocketContainer);
+                }
+                // 先交接再销毁：CurrentMap 已在宿主图上，maps[0] 回退不会触发。
+                if (handoffHost != null)
+                {
+                    universe.SetFocusedWithCamera(handoffHost, handoffPoint, handoffZoom);
                 }
                 universe.Lifecycle.DestroyPocketMap(sourceMap);
                 ShipPhysics.ClearCache();

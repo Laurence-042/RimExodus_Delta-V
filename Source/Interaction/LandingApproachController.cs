@@ -154,9 +154,11 @@ namespace DeltaV
             IntVec3 landingPos, Rot4 landingRot)
         {
             Ship ship = universe.ShipTransitions.PendingDockingShip(universe);
-            if (ship.IsValid || confirmMarker == null)
+            // 接管语义：无 pending 战术船或未捕获 marker = 非本流程（战略降落等）——
+            // 清掉无关 marker 后放行原版；战术选点确认时 ship 必然有效，不得放行。
+            if (!ship.IsValid || confirmMarker == null)
             {
-                if (!ship.IsValid) confirmMarker = null; // 战略降落：不持有无关 marker
+                if (!ship.IsValid) confirmMarker = null;
                 return false;
             }
             if (!ReferenceEquals(confirmMarker.gravship, gravship))

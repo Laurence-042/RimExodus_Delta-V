@@ -288,7 +288,8 @@ namespace DeltaV
                         universe.LabelForOwner(ship.ownerId),
                         name => universe.RenameStructure(ship.ownerId, name))));
                 yield return NewAction("DeltaV_ConsoleGizmoMakeBackup".Translate(),
-                    ContentFinder<Texture2D>.Get("UI/Commands/Cancel"),
+                    // 1.6 无 UI/Commands/Cancel；原版取消图标在 Designators 下（TexCommand:41）。
+                    ContentFinder<Texture2D>.Get("UI/Designators/Cancel"),
                     () => MakeBackupConsole(),
                     "DeltaV_ConsoleGizmoBackupTip".Translate());
             }

@@ -99,6 +99,8 @@
   <!-- 无锚起飞弃置（2026-09-19） -->
   <DeltaV_SectorMapAbandonConfirm>发射后将按原版无锚起飞语义弃置当前所在星区的地图「{0}」——地图与其中未随船离开的一切都将永久失去（在该地图上建造逆重锚可使其保留）。确认发射？</DeltaV_SectorMapAbandonConfirm>
   <!-- 对接计划（2026-09-21 阶段4） -->
+  <DeltaV_DockTargetMenuTitle>选择对接目标</DeltaV_DockTargetMenuTitle>
+  <DeltaV_DockTargetEntry>{0}（外壳距离 {1} 格）</DeltaV_DockTargetEntry>
   <DeltaV_DockPlanStarted>{0} 对接计划已建立：目标 {1}。自动驾驶接近中，也可手动飞入预定位置（半透明幽灵船处）——位姿重合保持足够时间即完成对接。</DeltaV_DockPlanStarted>
   <DeltaV_DockPlanStatus>对接中：{0}（距离 {1} 格）</DeltaV_DockPlanStatus>
   <DeltaV_DockCancelButton>取消对接</DeltaV_DockCancelButton>

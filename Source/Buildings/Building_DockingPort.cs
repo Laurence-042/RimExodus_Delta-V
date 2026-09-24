@@ -53,7 +53,8 @@ namespace DeltaV
                 defaultDesc = ChannelExtended
                     ? "DeltaV_DockRetractDesc".Translate()
                     : "DeltaV_DockExtendDesc".Translate(),
-                icon = ContentFinder<Texture2D>.Get(ChannelExtended ? "UI/Commands/Cancel" : "UI/Commands/Claim"),
+                // 1.6 无 UI/Commands/Cancel、UI/Commands/Claim；原版两图标均在 Designators 下。
+                icon = ContentFinder<Texture2D>.Get(ChannelExtended ? "UI/Designators/Cancel" : "UI/Designators/Claim"),
                 action = delegate
                 {
                     if (ChannelExtended) RetractChannel();

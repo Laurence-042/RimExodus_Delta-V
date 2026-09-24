@@ -830,15 +830,7 @@ namespace DeltaV
                     SpaceObject targetFrame = FrameOf(targetMap);
                     if (targetFrame == null) return;
                     Vector2 mapPoint = SpaceTransform.UniverseToMapPoint(targetFrame, targetMap, universeDir);
-                    int x = Mathf.Clamp(Mathf.FloorToInt(mapPoint.x), 2, targetMap.Size.x - 3);
-                    int z = Mathf.Clamp(Mathf.FloorToInt(mapPoint.y), 2, targetMap.Size.z - 3);
-                    // 缩放同步（RimExodus SeamlessCameraFocus 同款结论）：CurrentMap setter 的
-                    // Notify_SwitchedMap 会用目标图 rememberedCameraPos 同时恢复位置+缩放，
-                    // 只 TryJump 恢复位置不够，必须记录 RootSize 并在跳转后显式重设。
-                    float zoom = Find.CameraDriver.RootSize;
-                    SetFocused(target);
-                    CameraJumper.TryJump(new IntVec3(x, 0, z), targetMap, CameraJumper.MovementMode.Cut);
-                    Find.CameraDriver.SetRootSize(zoom);
+                    SetFocusedWithCamera(target, mapPoint, Find.CameraDriver.RootSize);
                 }
             }
         }
@@ -858,6 +850,24 @@ namespace DeltaV
             Current.Game.CurrentMap = targetMap;
             // 与 PocketMapUtility 一致：确保回到地图视图而不是世界球面。
             Find.World.renderer.wantedMode = RimWorld.Planet.WorldRenderMode.None;
+        }
+
+        /// <summary>
+        /// 聚焦切换 + 相机连续性（单实现入口，外壳点击聚焦与对接完成交接共用）：
+        /// mapPoint 为调用方按宇宙参考系换算好的目标图连续坐标。缩放同步（RimExodus
+        /// SeamlessCameraFocus 同款结论）：CurrentMap setter 的 Notify_SwitchedMap 会用
+        /// 目标图 rememberedCameraPos 同时恢复位置+缩放，只 TryJump 恢复位置不够，必须
+        /// 由调用方先记录 RootSize、跳转后经此显式重设。
+        /// </summary>
+        public void SetFocusedWithCamera(SpaceObject target, Vector2 mapPoint, float rootSize)
+        {
+            Map targetMap = target?.InteriorMap;
+            if (targetMap == null) return;
+            SetFocused(target);
+            int x = Mathf.Clamp(Mathf.FloorToInt(mapPoint.x), 2, targetMap.Size.x - 3);
+            int z = Mathf.Clamp(Mathf.FloorToInt(mapPoint.y), 2, targetMap.Size.z - 3);
+            CameraJumper.TryJump(new IntVec3(x, 0, z), targetMap, CameraJumper.MovementMode.Cut);
+            Find.CameraDriver.SetRootSize(rootSize);
         }
 
         public void ResetObjects(List<SpaceObject> newObjects)

@@ -99,6 +99,8 @@
   <!-- Unanchored takeoff abandonment (2026-09-19) -->
   <DeltaV_SectorMapAbandonConfirm>Launching will abandon the map of the current sector, "{0}", by the vanilla unanchored-takeoff rule - the map and everything not leaving with the ship will be permanently lost (build a grav anchor on that map to keep it). Proceed?</DeltaV_SectorMapAbandonConfirm>
   <!-- Docking plan (2026-09-21, phase 4) -->
+  <DeltaV_DockTargetMenuTitle>Choose docking target</DeltaV_DockTargetMenuTitle>
+  <DeltaV_DockTargetEntry>{0} (shell distance {1})</DeltaV_DockTargetEntry>
   <DeltaV_DockPlanStarted>Docking plan engaged: {0} -> {1}. The autopilot is closing in; you may also fly to the marked position (semi-transparent ghost) manually - holding the pose there long enough completes the docking.</DeltaV_DockPlanStarted>
   <DeltaV_DockPlanStatus>Docking: {0} (distance {1})</DeltaV_DockPlanStatus>
   <DeltaV_DockCancelButton>Cancel docking</DeltaV_DockCancelButton>
