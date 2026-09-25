@@ -16,11 +16,15 @@ namespace DeltaV
     ///   重算；宿主速度/角速度经**前馈匹配**，到位后**站位保持**直到取消——不自动到达、
     ///   无超时兜底、无完成回调。完成判据归调用方（对接计划 = 几何窗口 + 保持 tick）。
     ///
-    /// 出力架构（刚体动量管理）：可替换 IAutopilotGuidance 制导器当前使用 10 Hz
-    /// 六状态在线 MPC，只产生期望力/力矩；经 ShipPhysics.ForceToCommand 归一化后由联合
-    /// 分配器 Allocate 求解**真实**逐推进器油门与可达力/力矩，积分使用可达值——机动受
-    /// 推进器布局硬约束，玩家船/敌舰/未来舰船 AI 完全同构，火焰表现层读到的油门即
-    /// 真实出力。停靠级任务（allowVoidThrust）在终段按距离渐变叠加虚空动力补齐
+    /// 出力架构（刚体动量管理）：可替换 IAutopilotGuidance 制导器当前使用六状态在线 MPC，
+    /// 只产生期望力/力矩；经 ShipPhysics.ForceToCommand 归一化后由联合分配器 Allocate 求解
+    /// **真实**逐推进器油门与可达力/力矩，积分使用可达值——机动受推进器布局硬约束，
+    /// 玩家船/敌舰/未来舰船 AI 完全同构，火焰表现层读到的油门即真实出力。制导按微步
+    /// （6 tick = 0.1 s）节拍：QP 求解周期按距离自适应（终段每微步、中程 2 微步、远场
+    /// 4 微步，多船按 ownerId 确定性错峰），解之间逐微步**回放计划控制**
+    /// （TryGetPlannedStep）而非持有首控制量——2026-09-25 定案：10 Hz 全速求解实测
+    /// 拖垮 6x 倍速（360 tps 下单 tick 预算 2.78 ms，单次求解 avg ~3 ms）。
+    /// 停靠级任务（allowVoidThrust）在终段按距离渐变叠加虚空动力补齐
     /// 「期望 − 可达」差值；虚空动力不写油门、不进火焰。
     ///
     /// 出力前公共检查（解耦架构 §8）：将要施加推进器出力时先经
@@ -59,7 +63,20 @@ namespace DeltaV
             public readonly ShipPhysics.ControlModel controlModel = new ShipPhysics.ControlModel();
             public GuidanceCommand heldCommand;
             public bool hasCommand;
-            public int ticksUntilSolve;
+            // 计划回放：currentPlanStep = 当前应用的计划步（0 = 求解当步）；
+            // planStepsReady = 上一解可回放的微步数（数值回退解为 1，无可回放计划）。
+            public int currentPlanStep;
+            public int planStepsReady;
+            // 微步内应用路径去重缓存：指令与质量报告版本未变时跳过重复
+            // ForceToCommand/Allocate（同输入确定性同输出）。
+            public bool hasAllocation;
+            public ShipPhysics.Command cachedCommand;
+            public Vector2 cachedDesiredForce;
+            public float cachedDesiredTorque;
+            public Vector2 cachedRealForce;
+            public float cachedRealTorque;
+            public int cachedReportVersion;
+            public int cachedMicroStep;
             public AutopilotMpcProfile profile;
             public float bestError = float.PositiveInfinity;
             public int noProgressTicks;
@@ -69,6 +86,11 @@ namespace DeltaV
         private readonly Dictionary<int, Flight> active = new Dictionary<int, Flight>();
 
         private readonly List<int> tmpShips = new List<int>();
+
+        // 本 tick 活跃容器集合（Tick 内随 Step 解析容器顺带构建）：积分循环的
+        // IsActive(SpaceObject) 跳过判据由此变 O(1)，替代旧的「每对象 × 每任务」线性扫描。
+        private readonly HashSet<SpaceObject> activeContainers = new HashSet<SpaceObject>();
+        private int activeContainersTick = -1;
 
         private AutopilotMpcProfile profile = AutopilotMpcProfile.Balanced;
 
@@ -80,7 +102,30 @@ namespace DeltaV
             return profile;
         }
 
-        private const int GuidancePeriodTicks = 6; // 10 Hz；积分仍为 60 Hz。
+        /// <summary>制导微步（tick）：MPC 计划步长与指令更新粒度，积分仍 60 Hz。</summary>
+        private const int GuidanceMicroStepTicks = 6;
+
+        /// <summary>QP 求解周期（微步）按距离自适应：终段每微步求解（紧反馈）、中程
+        /// 2 微步（5 Hz）、远场 4 微步（2.5 Hz）；解之间逐微步回放计划控制。</summary>
+        private const int NearSolvePeriodSteps = 1;
+        private const int MidSolvePeriodSteps = 2;
+        private const int FarSolvePeriodSteps = 4;
+        private const float TightSolveDistance = 9f;  // 格（约 2× 虚空动力渐变半径）
+        private const float MidSolveDistance = 40f;   // 格
+
+        private static int SolvePeriodFor(float distance)
+        {
+            if (distance <= TightSolveDistance) return NearSolvePeriodSteps;
+            if (distance <= MidSolveDistance) return MidSolvePeriodSteps;
+            return FarSolvePeriodSteps;
+        }
+
+        /// <summary>确定性错峰：多船任务的 QP 求解按 (微步序号 + ownerId) mod K 错开，
+        /// 避免同 tick 叠加求解尖峰；纯游戏时钟判定（不变量 #20）。</summary>
+        private static bool SolveDue(int ownerId, int microIndex, int solvePeriod)
+        {
+            return (microIndex + ownerId) % solvePeriod == 0;
+        }
 
         /// <summary>虚空动力渐变半径（格）：外沿起效、进入吸附圈补满——只在停靠任务
         /// （allowVoidThrust）中补齐推进器布局无法形成的「期望 − 可达」差值，
@@ -184,10 +229,15 @@ namespace DeltaV
             return ownerId > 0 && active.ContainsKey(ownerId);
         }
 
-        /// <summary>容器当前是否被任一自动驾驶任务驱动（tick 积分循环的跳过判据）。</summary>
+        /// <summary>容器当前是否被任一自动驾驶任务驱动（tick 积分循环的跳过判据）。
+        /// 优先查本 tick 由 Tick()/Step 构建的容器集合（O(1)）；集合缺失时回退线性扫描。</summary>
         public bool IsActive(SpaceObject container)
         {
             if (container == null || active.Count == 0) return false;
+            if (activeContainersTick == Find.TickManager.TicksGame)
+            {
+                return activeContainers.Contains(container);
+            }
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe == null) return false;
             foreach (KeyValuePair<int, Flight> pair in active)
@@ -212,6 +262,9 @@ namespace DeltaV
         public void Tick()
         {
             if (active.Count == 0) return;
+            // 重建本 tick 活跃容器集合（Step 解析容器时登记；先于物理积分循环消费）。
+            activeContainers.Clear();
+            activeContainersTick = Find.TickManager.TicksGame;
             // 回调可能在迭代中增删任务（到达后立即发起新任务等），按快照迭代。
             tmpShips.Clear();
             foreach (KeyValuePair<int, Flight> pair in active) tmpShips.Add(pair.Key);
@@ -250,6 +303,7 @@ namespace DeltaV
                 flight.onFailed?.Invoke();
                 return;
             }
+            activeContainers.Add(container);
 
             const float dt = 1f / 60f; // 游戏 tick 时间；绝不使用帧时钟（AGENTS §18 #20）
             flight.elapsed += 1;
@@ -318,51 +372,54 @@ namespace DeltaV
             {
                 flight.profile = profile;
                 flight.guidance.Reset(flight.profile);
-                flight.ticksUntilSolve = 0;
                 flight.hasCommand = false;
+                flight.planStepsReady = 0;
             }
-            if (!flight.hasCommand || flight.ticksUntilSolve <= 0)
+            // 制导微步节拍（2026-09-25 定案）：QP 按 K 个微步解一次（K 按距离自适应、
+            // ownerId 确定性错峰），中间微步回放上一解的计划控制；计划耗尽或数值回退
+            // 时立即重解恢复反馈节奏。微步内指令恒定，应用侧由此可安全去重（见下）。
+            int ticksGame = Find.TickManager.TicksGame;
+            if (!flight.hasCommand)
             {
-                ShipPhysics.ControlModel controlModel = ShipPhysics.BuildControlModel(report, flight.controlModel);
-                BuildControlAcceleration(pose, controlModel, voidBlend, flight.controlAcceleration);
-                var request = new GuidanceRequest
+                Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, voidBlend,
+                    SolvePeriodFor(posErr.magnitude));
+            }
+            else if (ticksGame % GuidanceMicroStepTicks == 0)
+            {
+                int solvePeriod = SolvePeriodFor(posErr.magnitude);
+                if (SolveDue(ownerId, ticksGame / GuidanceMicroStepTicks, solvePeriod))
                 {
-                    positionError = posErr,
-                    relativeVelocity = vel,
-                    angleError = angleErr,
-                    relativeAngularVelocity = omega,
-                    dt = GuidancePeriodTicks / 60f,
-                    voidBlend = voidBlend,
-                    previousX = flight.hasCommand ? flight.heldCommand.normalizedX : 0.0,
-                    previousZ = flight.hasCommand ? flight.heldCommand.normalizedZ : 0.0,
-                    previousAngular = flight.hasCommand ? flight.heldCommand.normalizedAngular : 0.0,
-                    controlModel = controlModel,
-                    controlAcceleration = flight.controlAcceleration
-                };
-                bool solved = flight.guidance.Compute(request, out flight.heldCommand);
-                flight.hasCommand = true;
-                flight.ticksUntilSolve = GuidancePeriodTicks;
-                AutopilotMpcDiagnostics.Record(flight.heldCommand);
-                if (!solved && !flight.failureLogged)
-                {
-                    flight.failureLogged = true;
-                    Log.Warning($"[DeltaV] MPC solve degraded; braking fallback active for structure #{ownerId} "
-                        + $"(primal={flight.heldCommand.primalResidual:F3}, dual={flight.heldCommand.dualResidual:F3}).");
+                    Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, voidBlend, solvePeriod);
                 }
-                else if (solved && flight.failureLogged)
+                else if (flight.currentPlanStep + 1 < flight.planStepsReady
+                    && flight.guidance.TryGetPlannedStep(flight.currentPlanStep + 1, flight.controlModel,
+                        out GuidanceCommand planned))
                 {
-                    flight.failureLogged = false;
-                    DeltaVLog.Message(DeltaVLogModule.Core,
-                        $"MPC solve recovered: structure #{ownerId}");
+                    flight.heldCommand = planned;
+                    flight.currentPlanStep++;
+                }
+                else
+                {
+                    Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, voidBlend, solvePeriod);
                 }
             }
-            flight.ticksUntilSolve--;
 
             // 刚体动量管理：期望力/力矩经归一化后由联合分配器求真实油门与可达出力，
             // 积分使用可达值——机动受推进器布局硬约束，火焰表现层读到的油门即真实出力。
+            // 微步内去重：指令与质量报告版本都未变时直接复用上一次 ForceToCommand/
+            // Allocate 结果（同输入确定性同输出，油门值无需重写）；微步边界、报告重扫
+            // （version 变化）或指令变化即失效——推进器故障的建模延迟因此 ≤ 1 微步。
             Vector2 desiredForce = flight.heldCommand.desiredLocalForce;
             float desiredTorque = flight.heldCommand.desiredTorque;
-            ShipPhysics.Command command = ShipPhysics.ForceToCommand(report, desiredForce, desiredTorque);
+            int microStep = ticksGame / GuidanceMicroStepTicks;
+            bool allocationCached = flight.hasAllocation
+                && flight.cachedMicroStep == microStep
+                && flight.cachedReportVersion == report.version
+                && flight.cachedDesiredForce == desiredForce
+                && flight.cachedDesiredTorque == desiredTorque;
+            ShipPhysics.Command command = allocationCached
+                ? flight.cachedCommand
+                : ShipPhysics.ForceToCommand(report, desiredForce, desiredTorque);
 
             // 出力前分离 gate（§7 脱离 + §8 拆分统一）：将要施加推进器出力时先过
             // 「移动的船与其余部分分离」检查——玩家确认/排队分离在那一入口收口；
@@ -374,7 +431,26 @@ namespace DeltaV
                 return; // 本 tick 不施加推进器动量（确认窗暂停游戏，拆分后下一 tick 继续）。
             }
 
-            ShipPhysics.Allocate(report, command, out Vector2 realForce, out float realTorque);
+            Vector2 realForce;
+            float realTorque;
+            if (allocationCached)
+            {
+                realForce = flight.cachedRealForce;
+                realTorque = flight.cachedRealTorque;
+            }
+            else
+            {
+                // 零指令也照常 Allocate：把油门清零，火焰随之熄灭（不能因去重跳过首次写）。
+                ShipPhysics.Allocate(report, command, out realForce, out realTorque);
+                flight.hasAllocation = true;
+                flight.cachedMicroStep = microStep;
+                flight.cachedReportVersion = report.version;
+                flight.cachedDesiredForce = desiredForce;
+                flight.cachedDesiredTorque = desiredTorque;
+                flight.cachedCommand = command;
+                flight.cachedRealForce = realForce;
+                flight.cachedRealTorque = realTorque;
+            }
 
             // 终段虚空动力：按距离渐变补齐「期望 − 可达」差值（远场 0 → 吸附圈 1），
             // 保证任意推进器布局都能精确对位；不写油门、不进火焰（表现层只见真实出力）。
@@ -386,6 +462,48 @@ namespace DeltaV
                 appliedTorque += (desiredTorque - realTorque) * voidBlend;
             }
             ShipPhysics.Integrate(container, report, appliedForce, appliedTorque, dt, false, false, false);
+        }
+
+        /// <summary>执行一次 MPC 求解（微步边界或首次/重解），并把解登记为可回放计划。
+        /// elapsedSteps = 自上次求解以来已消费的微步数，供热启动平移对齐时间轴；
+        /// previous* 传上一微步实际应用的指令（回放时即上一计划步），保持变化率代价连续。</summary>
+        private void Solve(int ownerId, Flight flight, ShipPhysics.MassReport report, SpacePose pose,
+            Vector2 posErr, Vector2 vel, float angleErr, float omega, float voidBlend, int solvePeriod)
+        {
+            ShipPhysics.ControlModel controlModel = ShipPhysics.BuildControlModel(report, flight.controlModel);
+            BuildControlAcceleration(pose, controlModel, voidBlend, flight.controlAcceleration);
+            var request = new GuidanceRequest
+            {
+                positionError = posErr,
+                relativeVelocity = vel,
+                angleError = angleErr,
+                relativeAngularVelocity = omega,
+                dt = GuidanceMicroStepTicks / 60f,
+                voidBlend = voidBlend,
+                elapsedSteps = flight.hasCommand ? flight.currentPlanStep + 1 : 1,
+                previousX = flight.hasCommand ? flight.heldCommand.normalizedX : 0.0,
+                previousZ = flight.hasCommand ? flight.heldCommand.normalizedZ : 0.0,
+                previousAngular = flight.hasCommand ? flight.heldCommand.normalizedAngular : 0.0,
+                controlModel = controlModel,
+                controlAcceleration = flight.controlAcceleration
+            };
+            bool solved = flight.guidance.Compute(request, out flight.heldCommand);
+            flight.hasCommand = true;
+            flight.currentPlanStep = 0;
+            flight.planStepsReady = solved ? solvePeriod : 1; // 数值回退无计划：下一微步重解
+            AutopilotMpcDiagnostics.Record(flight.heldCommand);
+            if (!solved && !flight.failureLogged)
+            {
+                flight.failureLogged = true;
+                Log.Warning($"[DeltaV] MPC solve degraded; braking fallback active for structure #{ownerId} "
+                    + $"(primal={flight.heldCommand.primalResidual:F3}, dual={flight.heldCommand.dualResidual:F3}).");
+            }
+            else if (solved && flight.failureLogged)
+            {
+                flight.failureLogged = false;
+                DeltaVLog.Message(DeltaVLogModule.Core,
+                    $"MPC solve recovered: structure #{ownerId}");
+            }
         }
 
         private static void BuildControlAcceleration(SpacePose pose, ShipPhysics.ControlModel model,

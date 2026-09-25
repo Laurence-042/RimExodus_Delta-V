@@ -51,19 +51,24 @@ namespace DeltaV
             bool allPassed = true;
             foreach (double acceleration in accelerations)
             {
-                bool passed = RunOne(acceleration, out double finalPosition, out double finalSpeed,
-                    out int crossings, out int fallbackUses, out double maxPrimal, out double maxDual);
-                allPassed &= passed;
-                result.Append($"\n- a={acceleration:F1}: {(passed ? "PASS" : "FAIL")}; "
-                    + $"p={finalPosition:F3}; v={finalSpeed:F3}; crossings={crossings}; fallback={fallbackUses}; "
-                    + $"maxResidual=({maxPrimal:F3},{maxDual:F3})");
+                // K=1：每微步求解（终段紧反馈语义）；K=4：每 4 微步求解 + 计划回放（远场降频语义）。
+                foreach (int playbackSteps in new[] { 1, 4 })
+                {
+                    bool passed = RunOne(acceleration, playbackSteps, out double finalPosition,
+                        out double finalSpeed, out int crossings, out int fallbackUses,
+                        out double maxPrimal, out double maxDual);
+                    allPassed &= passed;
+                    result.Append($"\n- a={acceleration:F1} K={playbackSteps}: {(passed ? "PASS" : "FAIL")}; "
+                        + $"p={finalPosition:F3}; v={finalSpeed:F3}; crossings={crossings}; fallback={fallbackUses}; "
+                        + $"maxResidual=({maxPrimal:F3},{maxDual:F3})");
+                }
             }
             result.Append($"\n- overall: {(allPassed ? "PASS" : "FAIL")}");
             return result.ToString();
         }
 
-        private static bool RunOne(double acceleration, out double finalPosition, out double finalSpeed,
-            out int crossings, out int fallbackUses, out double maxPrimal, out double maxDual)
+        private static bool RunOne(double acceleration, int playbackSteps, out double finalPosition,
+            out double finalSpeed, out int crossings, out int fallbackUses, out double maxPrimal, out double maxDual)
         {
             var model = new ShipPhysics.ControlModel
             {
@@ -96,15 +101,34 @@ namespace DeltaV
             maxDual = 0.0;
             for (int step = 0; step < 1200; step++)
             {
-                var request = new GuidanceRequest
+                GuidanceCommand command;
+                if (step % playbackSteps == 0)
                 {
-                    positionError = new Vector2((float)-position, 0f),
-                    relativeVelocity = new Vector2((float)velocity, 0f),
-                    dt = 0.1f,
-                    controlModel = model,
-                    controlAcceleration = b
-                };
-                guidance.Compute(request, out GuidanceCommand command);
+                    var request = new GuidanceRequest
+                    {
+                        positionError = new Vector2((float)-position, 0f),
+                        relativeVelocity = new Vector2((float)velocity, 0f),
+                        dt = 0.1f,
+                        elapsedSteps = playbackSteps,
+                        controlModel = model,
+                        controlAcceleration = b
+                    };
+                    guidance.Compute(request, out command);
+                }
+                else if (!guidance.TryGetPlannedStep(step % playbackSteps, model, out command))
+                {
+                    // 计划不可用（数值回退）：与 ShipAutopilot 同语义，立即重解恢复反馈。
+                    var request = new GuidanceRequest
+                    {
+                        positionError = new Vector2((float)-position, 0f),
+                        relativeVelocity = new Vector2((float)velocity, 0f),
+                        dt = 0.1f,
+                        elapsedSteps = 1,
+                        controlModel = model,
+                        controlAcceleration = b
+                    };
+                    guidance.Compute(request, out command);
+                }
                 if (command.usedFallback) fallbackUses++;
                 maxPrimal = Math.Max(maxPrimal, command.primalResidual);
                 maxDual = Math.Max(maxDual, command.dualResidual);
@@ -132,6 +156,9 @@ namespace DeltaV
         public float relativeAngularVelocity;
         public float dt;
         public float voidBlend;
+        // 自上次求解以来已消费的微步数（计划回放步数）：热启动平移量按此对齐；
+        // ≤0 视为 1（每次求解都立即应用首控制量的旧语义）。
+        public int elapsedSteps;
         public double previousX;
         public double previousZ;
         public double previousAngular;
@@ -157,19 +184,28 @@ namespace DeltaV
     internal interface IAutopilotGuidance
     {
         void Reset(AutopilotMpcProfile profile);
+
         bool Compute(GuidanceRequest request, out GuidanceCommand command);
+
+        /// <summary>读取上一次成功解的计划步（stepIndex ≥ 1 的后续控制）用于微步间回放；
+        /// 无有效计划（数值回退/未求解/越界）返回 false，调用方应立即重解。</summary>
+        bool TryGetPlannedStep(int stepIndex, ShipPhysics.ControlModel model, out GuidanceCommand command);
     }
 
     /// <summary>求解异常时的停止距离制导；不会退回旧饱和 PD。</summary>
     internal static class BrakingGuidanceFallback
     {
+        /// <summary>安全加速度系数：回退制导与 MPC 软包络共用同一标量（单一实现）——
+        /// 覆盖离散化误差与分配器真实出力相对控制模型上限的缺口。</summary>
+        internal const double SafetyFactor = 0.8;
+
         public static void Compute(GuidanceRequest request, out GuidanceCommand command)
         {
             command = default;
             Vector2 p = -request.positionError; // ship - target
             Vector2 v = request.relativeVelocity;
-            double safeAccel = MaxTranslationAcceleration(request.controlAcceleration) * 0.8;
-            double safeAlpha = MaxAngularAcceleration(request.controlAcceleration) * 0.8;
+            double safeAccel = SafeTranslationAcceleration(request.controlAcceleration);
+            double safeAlpha = SafeAngularAcceleration(request.controlAcceleration);
             double desiredX = 0.0;
             double desiredY = 0.0;
             double desiredAlpha = 0.0;
@@ -198,6 +234,18 @@ namespace DeltaV
                 out double ux, out double uz, out double uw);
             WriteDesired(request.controlModel, ux, uz, uw, ref command);
             command.usedFallback = true;
+        }
+
+        /// <summary>包络与回退共用的安全平移加速度（cells/s²）：控制模型各轴上限的最大列模 × 安全系数。</summary>
+        internal static double SafeTranslationAcceleration(double[] b)
+        {
+            return MaxTranslationAcceleration(b) * SafetyFactor;
+        }
+
+        /// <summary>包络与回退共用的安全角加速度（rad/s²）。</summary>
+        internal static double SafeAngularAcceleration(double[] b)
+        {
+            return MaxAngularAcceleration(b) * SafetyFactor;
         }
 
         private static double MaxTranslationAcceleration(double[] b)
@@ -277,6 +325,14 @@ namespace DeltaV
         private static readonly double[] StateScale = { 10, 10, 5, 5, 10 * Math.PI / 180, 10 * Math.PI / 180 };
         private static readonly double[] StateWeight = { 4, 4, 2, 2, 4, 2 };
 
+        // 软接近包络（刹车曲线形状，2026-09-25 定案）：闭合速度 ≤ floor + √(2·a_safe·d)。
+        // 旧线性包络 0.15 + 0.2·d 在最后几格把闭合速度压成随距离线性衰减的爬行，终段
+        // 对齐耗时过长；√(2·a·d) 是双积分器时间最优切换曲线——满推接近、满推反推、
+        // v=0 时恰好到点（与 BrakingGuidanceFallback 的停止距离曲线同形状，两段衔接连续）。
+        private const double CaptureSpeedFloor = 0.15;    // 格/s
+        private const double CaptureOmegaFloor = 0.03;    // rad/s
+        private const double EnvelopeSpeedCeiling = 20.0; // 格/s，与回退制导的速度上限对齐
+
         private readonly DenseAdmmQpSolver solver = new DenseAdmmQpSolver();
         private AutopilotMpcProfile profile;
         private int horizonSteps;
@@ -293,6 +349,7 @@ namespace DeltaV
         private double[] sensitivities;
         private double[] state;
         private double[] intervals;
+        private bool hasPlannedSolution;
 
         public void Reset(AutopilotMpcProfile selectedProfile)
         {
@@ -321,11 +378,26 @@ namespace DeltaV
             state = new double[StateCount];
             intervals = new double[horizonSteps];
             solver.ResetDual();
+            hasPlannedSolution = false;
+        }
+
+        public bool TryGetPlannedStep(int stepIndex, ShipPhysics.ControlModel model, out GuidanceCommand command)
+        {
+            command = default;
+            if (!hasPlannedSolution || stepIndex < 0 || stepIndex >= horizonSteps)
+            {
+                return false;
+            }
+            int input = stepIndex * InputCount;
+            BrakingGuidanceFallback.WriteDesired(model,
+                solution[input], solution[input + 1], solution[input + 2], ref command);
+            return true;
         }
 
         public bool Compute(GuidanceRequest request, out GuidanceCommand command)
         {
             command = default;
+            hasPlannedSolution = false;
             if (solution == null) Reset(AutopilotMpcProfile.Balanced);
             if (!ValidRequest(request))
             {
@@ -346,12 +418,15 @@ namespace DeltaV
             state[4] = -request.angleError;
             state[5] = request.relativeAngularVelocity;
             BuildIntervals(request);
-            ShiftWarmStart();
+            ShiftWarmStart(request.elapsedSteps <= 0 ? 1 : request.elapsedSteps);
 
             double distance = Math.Sqrt(state[0] * state[0] + state[1] * state[1]);
             double nx = distance > 1e-6 ? state[0] / distance : 1.0;
             double ny = distance > 1e-6 ? state[1] / distance : 0.0;
             double angleSign = Math.Abs(state[4]) > 1e-6 ? Math.Sign(state[4]) : 1.0;
+            // 包络可用加速度与停止距离回退共用同一安全标量（单一实现）。
+            double safeAccel = BrakingGuidanceFallback.SafeTranslationAcceleration(request.controlAcceleration);
+            double safeAlpha = BrakingGuidanceFallback.SafeAngularAcceleration(request.controlAcceleration);
             int constraints = 0;
 
             // Input box constraints.
@@ -379,29 +454,43 @@ namespace DeltaV
                     AddStateCost(s, StateWeight[s] * weightScale, StateScale[s]);
                 }
 
-                // Frozen line-of-sight soft approach envelope.
+                // 刹车曲线软接近包络：闭合速度 ≤ floor + √(2·a_safe·d)，每步在零输入
+                // rollout 状态（state[]）处线性化成切线约束 v_close − slope·d ≤ cap − slope·d₀；
+                // 切线斜率 slope = a_safe/√(2·a_safe·d)（d→0 由 floor 封底），高速段封顶
+                // EnvelopeSpeedCeiling（斜率归零）。视线方向冻结在求解时刻（与旧实现一致）。
                 int row = constraints++;
+                double losDistance = nx * state[0] + ny * state[1];
+                double brakingSpeed = Math.Sqrt(2.0 * safeAccel * Math.Max(losDistance, 0.0));
+                double speedCap = CaptureSpeedFloor + brakingSpeed;
+                double speedSlope = speedCap >= EnvelopeSpeedCeiling
+                    ? 0.0
+                    : safeAccel / Math.Max(brakingSpeed, CaptureSpeedFloor);
                 for (int col = 0; col < inputVariables; col++)
                 {
                     a[row * variables + col] = -nx * Sens(2, col) - ny * Sens(3, col)
-                        - 0.2 * (nx * Sens(0, col) + ny * Sens(1, col));
+                        - speedSlope * (nx * Sens(0, col) + ny * Sens(1, col));
                 }
                 a[row * variables + translationSlack] = -1.0;
                 double constant = -nx * state[2] - ny * state[3]
-                    - 0.2 * (nx * state[0] + ny * state[1]);
+                    - speedSlope * (nx * state[0] + ny * state[1]);
                 lower[row] = -Infinite;
-                upper[row] = 0.15 - constant;
+                upper[row] = speedCap - speedSlope * losDistance - constant;
 
+                // 角向同构：|ω| ≤ floor + √(2·α_safe·|θ|)，在零输入 rollout 剩余角差处线性化。
                 row = constraints++;
+                double thetaSigned = angleSign * state[4];
+                double brakingOmega = Math.Sqrt(2.0 * safeAlpha * Math.Max(thetaSigned, 0.0));
+                double omegaCap = CaptureOmegaFloor + brakingOmega;
+                double omegaSlope = safeAlpha / Math.Max(brakingOmega, CaptureOmegaFloor);
                 for (int col = 0; col < inputVariables; col++)
                 {
                     a[row * variables + col] = -angleSign * Sens(5, col)
-                        - angleSign * Sens(4, col);
+                        - omegaSlope * angleSign * Sens(4, col);
                 }
                 a[row * variables + angularSlack] = -1.0;
-                constant = -angleSign * state[5] - angleSign * state[4];
+                constant = -angleSign * state[5] - omegaSlope * thetaSigned;
                 lower[row] = -Infinite;
-                upper[row] = 0.03 - constant;
+                upper[row] = omegaCap - omegaSlope * thetaSigned - constant;
             }
 
             for (int s = 0; s < StateCount; s++) AddStateCost(s, StateWeight[s] * 20.0, StateScale[s]);
@@ -429,6 +518,7 @@ namespace DeltaV
                 return false;
             }
 
+            hasPlannedSolution = true; // 可回放：微步间经 TryGetPlannedStep 消费后续控制
             BrakingGuidanceFallback.WriteDesired(request.controlModel,
                 solution[0], solution[1], solution[2], ref command);
             command.solved = true;
@@ -539,11 +629,14 @@ namespace DeltaV
             }
         }
 
-        private void ShiftWarmStart()
+        /// <summary>热启动平移：上次解左移 steps 个输入步（= 两次求解间已消费的微步数），
+        /// 对齐「上次计划已执行到哪」的时间轴；steps 钳制到 [1, horizonSteps-1]。</summary>
+        private void ShiftWarmStart(int steps)
         {
             int inputVariables = horizonSteps * InputCount;
-            for (int i = 0; i < inputVariables - InputCount; i++) solution[i] = solution[i + InputCount];
-            for (int i = inputVariables - InputCount; i < inputVariables; i++) solution[i] = 0.0;
+            int shift = Math.Max(1, Math.Min(steps, horizonSteps - 1)) * InputCount;
+            for (int i = 0; i < inputVariables - shift; i++) solution[i] = solution[i + shift];
+            for (int i = inputVariables - shift; i < inputVariables; i++) solution[i] = 0.0;
         }
 
         private double Sens(int stateIndex, int variable)

@@ -98,6 +98,11 @@ namespace DeltaV
             public float inertia;
             public readonly List<Thruster> thrusters = new List<Thruster>();
 
+            /// <summary>质量模型重扫版本号：GetReport 每次用新 Measure 替换时 +1。
+            /// 消费方（ShipAutopilot 的微步内分配去重缓存）据此让「同指令跳过重复
+            /// 分配」在重扫后立即失效。运行时派生计数，不存档。</summary>
+            public int version;
+
             // 分配器工作区。真实分配与只读预览共用同一求解核心；数组随质量报告重建，
             // 热路径不产生临时分配。只有 Allocate 会把结果提交到 Thruster.throttle。
             internal float[] allocationScratch;
@@ -651,6 +656,7 @@ namespace DeltaV
             if (cached.report == null || now - cached.measuredAtTick >= RescanIntervalTicks)
             {
                 MassReport fresh = Measure(map);
+                fresh.version = (cached.report?.version ?? 0) + 1;
                 if (cached.report != null && MassModelChanged(cached.report, fresh))
                 {
                     DeltaVLog.Message(DeltaVLogModule.Physics,
