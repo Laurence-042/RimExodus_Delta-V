@@ -60,45 +60,50 @@ namespace DeltaV
             list.CheckboxLabeled("DeltaV_SettingsFlightAssist".Translate(), ref Settings.flightAssist,
                 "DeltaV_SettingsFlightAssistTip".Translate());
             list.Gap(6f);
-            list.TextFieldNumericLabeled("DeltaV_SettingsCellsPerTile".Translate(), ref Settings.cellsPerTile,
-                ref cellsPerTileBuffer, 100, 100000);
+            TippedRow(list, inRect, "DeltaV_SettingsCellsPerTileTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsCellsPerTile".Translate(), ref Settings.cellsPerTile,
+                    ref cellsPerTileBuffer, 100, 100000));
             ApplyCellsPerTileChangeIfAny();
             list.Gap(6f);
-            list.TextFieldNumericLabeled("DeltaV_SettingsUniverseZoomMax".Translate(), ref Settings.universeZoomMax,
-                ref universeZoomMaxBuffer, 60f, 5000f);
+            TippedRow(list, inRect, "DeltaV_SettingsUniverseZoomMaxTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsUniverseZoomMax".Translate(), ref Settings.universeZoomMax,
+                    ref universeZoomMaxBuffer, 60f, 5000f));
             list.Gap(6f);
-            list.TextFieldNumericLabeled("DeltaV_SettingsPoiActiveRadius".Translate(), ref Settings.poiActiveRadius,
-                ref poiActiveBuffer, 50f, 10000f);
+            TippedRow(list, inRect, "DeltaV_SettingsPoiActiveRadiusTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsPoiActiveRadius".Translate(), ref Settings.poiActiveRadius,
+                    ref poiActiveBuffer, 50f, 10000f));
             list.Gap(6f);
-            list.TextFieldNumericLabeled("DeltaV_SettingsPoiDeleteRadius".Translate(), ref Settings.poiDeleteRadius,
-                ref poiDeleteBuffer, 100f, 50000f);
+            TippedRow(list, inRect, "DeltaV_SettingsPoiDeleteRadiusTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsPoiDeleteRadius".Translate(), ref Settings.poiDeleteRadius,
+                    ref poiDeleteBuffer, 100f, 50000f));
             list.Gap(6f);
-            list.TextFieldNumericLabeled("DeltaV_SettingsMapGenBudget".Translate(), ref Settings.incrementalMapGenBudgetMs,
-                ref mapGenBudgetBuffer, 1f, 16f);
+            TippedRow(list, inRect, "DeltaV_SettingsMapGenBudgetTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsMapGenBudget".Translate(), ref Settings.incrementalMapGenBudgetMs,
+                    ref mapGenBudgetBuffer, 1f, 16f));
             list.Gap(6f);
-            list.TextFieldNumericLabeled("DeltaV_SettingsDockingHoldTicks".Translate(), ref Settings.dockingHoldTicks,
-                ref dockingHoldTicksBuffer, 1, 600);
-            list.TextFieldNumericLabeled("DeltaV_SettingsDockingPosWindow".Translate(), ref Settings.dockingPositionWindow,
-                ref dockingPosWindowBuffer, 0.05f, 5f);
-            list.TextFieldNumericLabeled("DeltaV_SettingsDockingAngleWindow".Translate(), ref Settings.dockingAngleWindowDeg,
-                ref dockingAngleWindowBuffer, 0.1f, 15f);
-            list.TextFieldNumericLabeled("DeltaV_SettingsDockingCancelDistance".Translate(), ref Settings.dockingCancelDistance,
-                ref dockingCancelDistanceBuffer, 50f, 10000f);
+            TippedRow(list, inRect, "DeltaV_SettingsDockingHoldTicksTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingHoldTicks".Translate(), ref Settings.dockingHoldTicks,
+                    ref dockingHoldTicksBuffer, 1, 600));
+            TippedRow(list, inRect, "DeltaV_SettingsDockingPosWindowTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingPosWindow".Translate(), ref Settings.dockingPositionWindow,
+                    ref dockingPosWindowBuffer, 0.05f, 5f));
+            TippedRow(list, inRect, "DeltaV_SettingsDockingAngleWindowTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingAngleWindow".Translate(), ref Settings.dockingAngleWindowDeg,
+                    ref dockingAngleWindowBuffer, 0.1f, 15f));
+            TippedRow(list, inRect, "DeltaV_SettingsDockingCancelDistanceTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingCancelDistance".Translate(), ref Settings.dockingCancelDistance,
+                    ref dockingCancelDistanceBuffer, 50f, 10000f));
             list.Gap(6f);
             // 被动阻力（解耦架构 §11.1）：开关 + 平移/角速度半衰期（tick）；即时生效——
             // 实际积分与 MPC 预测同一因子，参数变化同时反映到两者。
             list.CheckboxLabeled("DeltaV_SettingsPassiveDrag".Translate(), ref Settings.passiveDrag,
                 "DeltaV_SettingsPassiveDragTip".Translate());
-            list.TextFieldNumericLabeled("DeltaV_SettingsDragLinearHalfLife".Translate(),
-                ref Settings.dragLinearHalfLifeTicks, ref dragLinearHalfLifeBuffer, 1, 60000);
-            list.TextFieldNumericLabeled("DeltaV_SettingsDragAngularHalfLife".Translate(),
-                ref Settings.dragAngularHalfLifeTicks, ref dragAngularHalfLifeBuffer, 1, 60000);
-            list.Gap(6f);
-            Text.Font = GameFont.Tiny;
-            GUI.color = new Color(1f, 1f, 1f, 0.6f);
-            list.Label("DeltaV_SettingsCellsPerTileNote".Translate());
-            GUI.color = Color.white;
-
+            TippedRow(list, inRect, "DeltaV_SettingsDragLinearHalfLifeTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsDragLinearHalfLife".Translate(),
+                    ref Settings.dragLinearHalfLifeTicks, ref dragLinearHalfLifeBuffer, 1, 60000));
+            TippedRow(list, inRect, "DeltaV_SettingsDragAngularHalfLifeTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsDragAngularHalfLife".Translate(),
+                    ref Settings.dragAngularHalfLifeTicks, ref dragAngularHalfLifeBuffer, 1, 60000));
             list.Gap(12f);
             Text.Font = GameFont.Small;
             list.Label("DeltaV_SettingsLogSection".Translate());
@@ -114,6 +119,19 @@ namespace DeltaV
             list.CheckboxLabeled("DeltaV_SettingsLogRender".Translate(), ref Settings.logRender);
             list.End();
             Settings.Write();
+        }
+
+        /// <summary>
+        /// 数值行挂悬停说明。TextFieldNumericLabeled 返回 void，拿不到行矩形，
+        /// 这里用 CurHeight 前后差拼出该行区域；矩形是 listing 组内局部坐标，
+        /// 与原版 SliderLabeled 内 TipRegion 的用法一致。
+        /// </summary>
+        private static void TippedRow(Listing_Standard list, Rect containingRect, string tipKey, Action drawRow)
+        {
+            float y = list.CurHeight;
+            drawRow();
+            TooltipHandler.TipRegion(new Rect(0f, y, containingRect.width, list.CurHeight - y),
+                tipKey.Translate());
         }
 
         // TextFieldNumeric 的文本缓冲需要跨帧保存；值只经本字段修改，无需外部同步。

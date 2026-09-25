@@ -28,22 +28,26 @@
   <DeltaV_Off>off</DeltaV_Off>
   <DeltaV_Braking>braking</DeltaV_Braking>
   <DeltaV_SettingsFlightAssist>Flight assist</DeltaV_SettingsFlightAssist>
-  <DeltaV_SettingsFlightAssistTip>While piloting, axes without player input are counter-thrusted using the ship's real thruster power (no artificial damping).</DeltaV_SettingsFlightAssistTip>
-  <DeltaV_SettingsCellsPerTile>Sector scale: cells per world tile (100-100000)</DeltaV_SettingsCellsPerTile>
-  <DeltaV_SettingsCellsPerTileNote>Sets how many universe cells one sector (world tile) spans. Changing it takes effect immediately: all object poses rescale around their sector centers (velocities untouched); cannot be changed while docking or launching is in progress. Does not affect tile partitioning or tactical judgments.</DeltaV_SettingsCellsPerTileNote>
+  <DeltaV_SettingsFlightAssistTip>While piloting, released directions are automatically counter-thrusted to a stop - braking uses the ship's real thruster output, so weak thrusters stop you slowly. Turn off for pure inertial flight: the ship keeps drifting at its current velocity - but holding Ctrl (rebindable) still brakes you at any time, so you keep both the freedom and the control. On by default.</DeltaV_SettingsFlightAssistTip>
+  <DeltaV_SettingsCellsPerTile>Sector scale (cells per sector)</DeltaV_SettingsCellsPerTile>
+  <DeltaV_SettingsCellsPerTileTip>How empty space is: larger values place neighboring sectors farther apart, so flying across one sector under thrust takes longer; smaller values make sectors more compact and travel faster. Changes apply immediately - every object's position rescales to the new measure (velocities keep their values). Cannot be changed while docking or launching is in progress; the edit is then rejected and reverted. Range 100-100000; default 20000.</DeltaV_SettingsCellsPerTileTip>
   <DeltaV_ScaleChangeBlocked>Sector scale cannot be changed while docking or launching is in progress.</DeltaV_ScaleChangeBlocked>
   <DeltaV_SettingsLogSection>Diagnostic logs</DeltaV_SettingsLogSection>
-  <DeltaV_SettingsLogNote>Module-gated verbose logs ([DeltaV:Module] prefix). Warnings/errors and key state transitions (pilot enter/exit, suppression activation, patch init) are always logged regardless.</DeltaV_SettingsLogNote>
+  <DeltaV_SettingsLogNote>Module-gated verbose logs ([DeltaV:Module] prefix) for troubleshooting; all off by default, keep them off in normal play. Warnings, errors and key state transitions (pilot enter/exit, key suppression, patch init) are always logged regardless.</DeltaV_SettingsLogNote>
   <DeltaV_SettingsLogCore>Log: core &amp; piloting state</DeltaV_SettingsLogCore>
   <DeltaV_SettingsLogInput>Log: pilot input &amp; flight assist</DeltaV_SettingsLogInput>
   <DeltaV_SettingsLogPhysics>Log: physics integration</DeltaV_SettingsLogPhysics>
   <DeltaV_SettingsLogHarmony>Log: key suppression decisions</DeltaV_SettingsLogHarmony>
   <DeltaV_SettingsLogLifecycle>Log: POI lifecycle transitions</DeltaV_SettingsLogLifecycle>
   <DeltaV_SettingsLogRender>Log: shell layering (max 1/s)</DeltaV_SettingsLogRender>
-  <DeltaV_SettingsUniverseZoomMax>Universe view zoom max (60-5000)</DeltaV_SettingsUniverseZoomMax>
-  <DeltaV_SettingsPoiActiveRadius>POI load/wake radius (cells)</DeltaV_SettingsPoiActiveRadius>
+  <DeltaV_SettingsUniverseZoomMax>Universe view zoom max (cells)</DeltaV_SettingsUniverseZoomMax>
+  <DeltaV_SettingsUniverseZoomMaxTip>How far the camera can zoom out while focused on a ship map. Larger values show more of space on screen at once - distant ship and station shells enter view sooner - at the cost of everything on the map appearing smaller. Range 60-5000; default 400.</DeltaV_SettingsUniverseZoomMaxTip>
+  <DeltaV_SettingsPoiActiveRadius>POI load radius (cells)</DeltaV_SettingsPoiActiveRadius>
+  <DeltaV_SettingsPoiActiveRadiusTip>Approaching a station, wreck or other object within this distance generates and keeps its interior map (enterable, dockable, boardable). Larger values bring distant objects to life sooner, at the cost of more simultaneously active maps. Keep below the delete radius. Range 50-10000; default 300.</DeltaV_SettingsPoiActiveRadiusTip>
   <DeltaV_SettingsPoiDeleteRadius>POI delete radius (cells)</DeltaV_SettingsPoiDeleteRadius>
-  <DeltaV_SettingsMapGenBudget>Incremental map generation budget (ms/frame, 1-16)</DeltaV_SettingsMapGenBudget>
+  <DeltaV_SettingsPoiDeleteRadiusTip>Once you leave an object farther than this, its interior map is packed into a snapshot and restored as-is on your next visit; maps still holding ships or people are only put to sleep, never packed. Larger values make revisits instant but use more memory. Keep above the load radius. Range 100-50000; default 1200.</DeltaV_SettingsPoiDeleteRadiusTip>
+  <DeltaV_SettingsMapGenBudget>Map generation budget (ms/frame)</DeltaV_SettingsMapGenBudget>
+  <DeltaV_SettingsMapGenBudgetTip>How many milliseconds each frame may spend generating an approaching POI's interior map. Larger values finish the map sooner but make frames choppier during generation; smaller values keep frames smooth but take longer. Range 1-16; default 8.</DeltaV_SettingsMapGenBudgetTip>
   <DeltaV_SaveBlockedGeneratingLabel>Map generation in progress</DeltaV_SaveBlockedGeneratingLabel>
   <DeltaV_SaveBlockedGenerating>Delta-V is incrementally generating a map ({0}). Please save again after it finishes.</DeltaV_SaveBlockedGenerating>
   <DeltaV_DockSuccess>{0} has docked.</DeltaV_DockSuccess>
@@ -114,9 +118,13 @@
   <DeltaV_PodLost>Boarding pod lost (timeout or target destroyed); crew missing.</DeltaV_PodLost>
   <!-- Settings (phase 4) -->
   <DeltaV_SettingsDockingHoldTicks>Docking hold time (ticks)</DeltaV_SettingsDockingHoldTicks>
-  <DeltaV_SettingsDockingPosWindow>Alignment tolerance - position (cells)</DeltaV_SettingsDockingPosWindow>
-  <DeltaV_SettingsDockingAngleWindow>Alignment tolerance - angle (degrees)</DeltaV_SettingsDockingAngleWindow>
+  <DeltaV_SettingsDockingHoldTicksTip>Docking check: after matching the marked pose, the ship must hold it this long to complete docking (so a fast fly-by never counts as docked). Larger values are safer against misjudged dockings but demand steadier flying and patience; smaller values finish sooner. Range 1-600; default 60 (1 second).</DeltaV_SettingsDockingHoldTicksTip>
+  <DeltaV_SettingsDockingPosWindow>Docking alignment tolerance: position (cells)</DeltaV_SettingsDockingPosWindow>
+  <DeltaV_SettingsDockingPosWindowTip>Docking check: how close to the marked spot still counts as aligned (the ghost turns green inside the window). Larger values dock easier but land sloppier; smaller values demand finer flying. Range 0.05-5; default 0.35.</DeltaV_SettingsDockingPosWindowTip>
+  <DeltaV_SettingsDockingAngleWindow>Docking alignment tolerance: angle (degrees)</DeltaV_SettingsDockingAngleWindow>
+  <DeltaV_SettingsDockingAngleWindowTip>Docking check: how many degrees of heading error from the marked pose still count as aligned. Larger values dock easier but crooked; smaller values are stricter. Range 0.1-15; default 1.15.</DeltaV_SettingsDockingAngleWindowTip>
   <DeltaV_SettingsDockingCancelDistance>Docking auto-cancel distance (cells)</DeltaV_SettingsDockingCancelDistance>
+  <DeltaV_SettingsDockingCancelDistanceTip>While a docking plan is active, it cancels itself once the ship drifts farther than this from the target (so stale plans cannot linger). Larger values tolerate detours; smaller values cancel early and make you restart. Range 50-10000; default 250.</DeltaV_SettingsDockingCancelDistanceTip>
   <!-- Decoupled architecture (2026-09-24) -->
   <DeltaV_NameSeparator> + </DeltaV_NameSeparator>
   <DeltaV_ShipDefaultName>Ship #{0}</DeltaV_ShipDefaultName>
@@ -156,9 +164,11 @@ Proceed?</DeltaV_DockSourceLeftoverConfirm>
 
 Separation retracts the related docking channels; pawns and items on them stay on this map at their current cells.</DeltaV_UndockConfirmText>
   <!-- Settings: passive drag (decoupled architecture 11.1) -->
-  <DeltaV_SettingsPassiveDrag>Passive drag (Newton spins in his coffin)</DeltaV_SettingsPassiveDrag>
-  <DeltaV_SettingsPassiveDragTip>Damps linear and angular velocity with a half-life, coexisting with flight assist. Not a thruster command: no fuel, no flames, no hull splitting. Uses the same model in the autopilot's prediction.</DeltaV_SettingsPassiveDragTip>
+  <DeltaV_SettingsPassiveDrag>Let Newton keep spinning in his coffin so the ship doesn't have to</DeltaV_SettingsPassiveDrag>
+  <DeltaV_SettingsPassiveDragTip>There is no drag in space, so objects drift and spin forever - unless you turn this switch on and let old Newton keep spinning in his coffin so the ship doesn't have to. The ship then slows down over time even without counter-thrust. Turning it off makes handling more realistic but harder to control, and scattered debris becomes much harder to recover. Not recommended to turn off unless you are a devoted Newton fan or a realism enthusiast. On by default.</DeltaV_SettingsPassiveDragTip>
   <DeltaV_SettingsDragLinearHalfLife>Linear velocity half-life (ticks)</DeltaV_SettingsDragLinearHalfLife>
+  <DeltaV_SettingsDragLinearHalfLifeTip>While this switch is on, translation speed halves every this many ticks. Smaller stops you sooner; larger drifts longer. Range 1-60000; default 480 (halved every 8 seconds).</DeltaV_SettingsDragLinearHalfLifeTip>
   <DeltaV_SettingsDragAngularHalfLife>Angular velocity half-life (ticks)</DeltaV_SettingsDragAngularHalfLife>
+  <DeltaV_SettingsDragAngularHalfLifeTip>While this switch is on, spin rate halves every this many ticks. Smaller stops the turn sooner; larger spins longer. Range 1-60000; default 180 (halved every 3 seconds).</DeltaV_SettingsDragAngularHalfLifeTip>
   <DeltaV_ReassignProtectedMainConsole>Main console foundations cannot be reassigned ({0} cell(s) skipped). Set the console to backup or deconstruct it first.</DeltaV_ReassignProtectedMainConsole>
 </LanguageData>

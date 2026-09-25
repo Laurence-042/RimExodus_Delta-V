@@ -28,22 +28,26 @@
   <DeltaV_Off>关</DeltaV_Off>
   <DeltaV_Braking>刹停中</DeltaV_Braking>
   <DeltaV_SettingsFlightAssist>飞行辅助</DeltaV_SettingsFlightAssist>
-  <DeltaV_SettingsFlightAssistTip>驾驶时，无输入的轴按飞船推进器真实出力反向减速，不使用人为衰减。</DeltaV_SettingsFlightAssistTip>
-  <DeltaV_SettingsCellsPerTile>星区尺度：每个 worldtile 的格数（100-100000）</DeltaV_SettingsCellsPerTile>
-  <DeltaV_SettingsCellsPerTileNote>设定一个星区（worldtile）的弧长等于多少宇宙格。修改即时生效：全部对象位姿相对所在星区中心按比例缩放（速度不变）；停靠/起飞流程进行中禁止修改。不影响 tile 划分与任何战术判定。</DeltaV_SettingsCellsPerTileNote>
+  <DeltaV_SettingsFlightAssistTip>驾驶时，松开按键的方向会由推进器自动反推刹停——刹车力来自推进器真实出力，推进器不够力就刹得慢。关闭后是纯惯性飞行：松开按键后飞船保持当前速度一直漂下去；不过按住 Ctrl（可改键）随时可以临时反推刹停，自由度和易用性可以兼得。默认开启。</DeltaV_SettingsFlightAssistTip>
+  <DeltaV_SettingsCellsPerTile>星区尺度（每星区格数）</DeltaV_SettingsCellsPerTile>
+  <DeltaV_SettingsCellsPerTileTip>决定宇宙有多空旷：数值越大，相邻星区相隔越远，靠推进器飞越一个星区要花的时间越长；数值越小，星区越紧凑、转场越快。改动即时生效——所有物体的位置按比例缩放到新尺度（速度保持原值）；停靠或起飞进行中不能修改，此时输入会被拒绝并还原。范围 100–100000；默认 20000。</DeltaV_SettingsCellsPerTileTip>
   <DeltaV_ScaleChangeBlocked>停靠/起飞流程进行中，不能修改星区尺度。</DeltaV_ScaleChangeBlocked>
   <DeltaV_SettingsLogSection>诊断日志</DeltaV_SettingsLogSection>
-  <DeltaV_SettingsLogNote>分模块详细日志（[DeltaV:模块] 前缀）。警告/错误与关键状态迁移（驾驶进出、抑制激活、补丁初始化）不受开关控制，始终输出。</DeltaV_SettingsLogNote>
+  <DeltaV_SettingsLogNote>按模块打开详细运行日志（前缀 [DeltaV:模块]），用于排查问题；默认全部关闭，平时无需打开。警告、错误与关键状态变化（进出驾驶、按键抑制、补丁初始化）始终输出，不受这些开关影响。</DeltaV_SettingsLogNote>
   <DeltaV_SettingsLogCore>日志：核心与驾驶状态</DeltaV_SettingsLogCore>
   <DeltaV_SettingsLogInput>日志：驾驶输入与飞行辅助</DeltaV_SettingsLogInput>
   <DeltaV_SettingsLogPhysics>日志：物理积分</DeltaV_SettingsLogPhysics>
   <DeltaV_SettingsLogHarmony>日志：按键抑制决策</DeltaV_SettingsLogHarmony>
   <DeltaV_SettingsLogLifecycle>日志：POI 生命周期迁移</DeltaV_SettingsLogLifecycle>
   <DeltaV_SettingsLogRender>日志：船壳分层（每秒最多 1 条）</DeltaV_SettingsLogRender>
-  <DeltaV_SettingsUniverseZoomMax>宇宙视野缩放上限（60-5000）</DeltaV_SettingsUniverseZoomMax>
-  <DeltaV_SettingsPoiActiveRadius>POI 加载/唤醒距离（格）</DeltaV_SettingsPoiActiveRadius>
+  <DeltaV_SettingsUniverseZoomMax>宇宙视野缩放上限（格）</DeltaV_SettingsUniverseZoomMax>
+  <DeltaV_SettingsUniverseZoomMaxTip>聚焦飞船图时相机最多能拉多远。数值越大，一屏能看到的太空范围越大，远处的飞船和空间站外壳会更早进入画面；代价是拉远后地图内容显示得越小。范围 60–5000；默认 400。</DeltaV_SettingsUniverseZoomMaxTip>
+  <DeltaV_SettingsPoiActiveRadius>POI 加载距离（格）</DeltaV_SettingsPoiActiveRadius>
+  <DeltaV_SettingsPoiActiveRadiusTip>飞船接近空间站、残骸等对象到这个距离以内时，会生成并保持它们的内部地图（可进入、可对接、可跳帮）。数值越大，远处对象越早变成可进入状态，但同时活跃的地图越多、开销越大。应小于删除距离。范围 50–10000；默认 300。</DeltaV_SettingsPoiActiveRadiusTip>
   <DeltaV_SettingsPoiDeleteRadius>POI 删除距离（格）</DeltaV_SettingsPoiDeleteRadius>
-  <DeltaV_SettingsMapGenBudget>分帧地图生成预算（毫秒/帧，1-16）</DeltaV_SettingsMapGenBudget>
+  <DeltaV_SettingsPoiDeleteRadiusTip>离开对象超过这个距离后，其内部地图收起为快照，下次接近时原样恢复；地图上还有飞船或人员时不会收起，只会休眠。数值越大，重访时恢复越快，但也越占内存。应大于加载距离。范围 100–50000；默认 1200。</DeltaV_SettingsPoiDeleteRadiusTip>
+  <DeltaV_SettingsMapGenBudget>地图生成预算（毫秒/帧）</DeltaV_SettingsMapGenBudget>
+  <DeltaV_SettingsMapGenBudgetTip>接近 POI 生成内部地图时，每帧最多投入多少毫秒做生成。数值越大地图越快生成完，但生成期间帧率越抖；越小帧率越平稳，等待越久。范围 1–16；默认 8。</DeltaV_SettingsMapGenBudgetTip>
   <DeltaV_SaveBlockedGeneratingLabel>地图生成尚未完成</DeltaV_SaveBlockedGeneratingLabel>
   <DeltaV_SaveBlockedGenerating>Delta-V 正在分帧生成地图（{0}）。请在生成完成后重试保存。</DeltaV_SaveBlockedGenerating>
   <DeltaV_DockSuccess>{0} 已完成停靠。</DeltaV_DockSuccess>
@@ -114,9 +118,13 @@
   <DeltaV_PodLost>跳帮舱失联（超时或目标被摧毁），乘员失踪。</DeltaV_PodLost>
   <!-- 设置（阶段4） -->
   <DeltaV_SettingsDockingHoldTicks>对接保持时长（tick）</DeltaV_SettingsDockingHoldTicks>
-  <DeltaV_SettingsDockingPosWindow>对齐容差-位置（格）</DeltaV_SettingsDockingPosWindow>
-  <DeltaV_SettingsDockingAngleWindow>对齐容差-角度（度）</DeltaV_SettingsDockingAngleWindow>
+  <DeltaV_SettingsDockingHoldTicksTip>对接判定：与预定落点对准后需要原地保持多久才算完成（防止高速掠过被误判为对接成功）。数值越大越不容易误判，但要求飞得更稳、等得更久；越小完成越快。范围 1–600；默认 60（1 秒）。</DeltaV_SettingsDockingHoldTicksTip>
+  <DeltaV_SettingsDockingPosWindow>对接对齐容差：位置（格）</DeltaV_SettingsDockingPosWindow>
+  <DeltaV_SettingsDockingPosWindowTip>对接判定：与预定落点相距多少格以内算“对准”（进入范围时幽灵船会变绿提示）。数值越大越容易接上，但落点越潦草；越小对接越干净，但需要更精细的飞行。范围 0.05–5；默认 0.35。</DeltaV_SettingsDockingPosWindowTip>
+  <DeltaV_SettingsDockingAngleWindow>对接对齐容差：角度（度）</DeltaV_SettingsDockingAngleWindow>
+  <DeltaV_SettingsDockingAngleWindowTip>对接判定：船头朝向与预定朝向偏差多少度以内算“对准”。数值越大越容易接上，但接得越歪；越小要求越严格。范围 0.1–15；默认 1.15。</DeltaV_SettingsDockingAngleWindowTip>
   <DeltaV_SettingsDockingCancelDistance>对接自动取消距离（格）</DeltaV_SettingsDockingCancelDistance>
+  <DeltaV_SettingsDockingCancelDistanceTip>对接计划进行中，与目标的距离一旦超过这个值就自动取消计划（避免目标远去后计划一直悬着）。数值越大越宽容、允许绕远路；越小则稍一偏离就取消重来。范围 50–10000；默认 250。</DeltaV_SettingsDockingCancelDistanceTip>
   <!-- 解耦架构（2026-09-24） -->
   <DeltaV_NameSeparator> + </DeltaV_NameSeparator>
   <DeltaV_ShipDefaultName>飞船 #{0}</DeltaV_ShipDefaultName>
@@ -156,9 +164,11 @@
 
 分离将收回相关对接通道；通道上的人员与物品按当前格留置本图。</DeltaV_UndockConfirmText>
   <!-- 设置：被动阻力（解耦架构 11.1） -->
-  <DeltaV_SettingsPassiveDrag>被动阻力（牛顿在棺材里代替飞船旋转）</DeltaV_SettingsPassiveDrag>
-  <DeltaV_SettingsPassiveDragTip>按半衰期阻尼线速度与角速度，与飞行辅助并存。不是推进器指令：不耗油、不出火焰、不触发拆船。自动驾驶预测使用同一模型。</DeltaV_SettingsPassiveDragTip>
+  <DeltaV_SettingsPassiveDrag>让牛顿在棺材里代替飞船旋转</DeltaV_SettingsPassiveDrag>
+  <DeltaV_SettingsPassiveDragTip>太空中没有阻力，所以物体会一直漂移、旋转——除非打开这个开关，让牛顿老爷子在棺材里代替飞船旋转，以此让飞船即使不反推也会因阻力减速。关闭的话操作会更拟真，但也更难控制，飞散的残骸也会更难以回收。不推荐牛顿单推人或者拟真爱好者之外的人关闭。默认开启。</DeltaV_SettingsPassiveDragTip>
   <DeltaV_SettingsDragLinearHalfLife>线速度半衰期（tick）</DeltaV_SettingsDragLinearHalfLife>
+  <DeltaV_SettingsDragLinearHalfLifeTip>开关打开时，平移速度每过这么多 tick 减半。数值越小松开推进器后停得越快，越大漂得越久。范围 1–60000；默认 480（8 秒减半）。</DeltaV_SettingsDragLinearHalfLifeTip>
   <DeltaV_SettingsDragAngularHalfLife>角速度半衰期（tick）</DeltaV_SettingsDragAngularHalfLife>
+  <DeltaV_SettingsDragAngularHalfLifeTip>开关打开时，自旋速度每过这么多 tick 减半。数值越小停转越快，越大转得越久。范围 1–60000；默认 180（3 秒减半）。</DeltaV_SettingsDragAngularHalfLifeTip>
   <DeltaV_ReassignProtectedMainConsole>主驾驶台下方的基架归属不能修改（已跳过 {0} 格）；请先设为备用驾驶台或拆除。</DeltaV_ReassignProtectedMainConsole>
 </LanguageData>
