@@ -32,11 +32,30 @@ namespace DeltaV
         private List<int> thingStacks = new List<int>();
         private List<Faction> thingFactions = new List<Faction>();
 
+        // 源图尺寸（Capture 时记录，快照几何 = 捕获事实的一部分）：快照格是**源图绝对
+        // 坐标**，物化目标图必须不小于源图——TerrainGrid.SetFoundation 是三个地形写
+        // 入口中唯一无 InBounds 守卫者，尺寸不足时越界写经 CellToIndex 静默回卷落到
+        // 错误格子（2026-09-24 事故）。旧档缺省 0 = 未知，物化侧退回 PoiMapSize 并靠
+        // ApplyTo 边界守卫丢弃越界项。
+        private int sourceSizeX;
+        private int sourceSizeZ;
+
         public int ThingCount => thingCells.Count;
+
+        /// <summary>快照是否有归档价值（有基架或有建筑/物品）；完全空白的图不值得建 marker。</summary>
+        public bool HasContent => foundationCells.Count > 0 || thingCells.Count > 0;
+
+        /// <summary>快照是否记录了有效源图尺寸（旧档快照为否）。</summary>
+        public bool HasSourceSize => sourceSizeX > 0 && sourceSizeZ > 0;
+
+        /// <summary>物化目标图应采用的尺寸（= 源图尺寸，保证绝对坐标全部落界）。</summary>
+        public IntVec3 SourceMapSize => new IntVec3(sourceSizeX, 1, sourceSizeZ);
 
         public static PoiSnapshot Capture(Map map)
         {
             var snapshot = new PoiSnapshot();
+            snapshot.sourceSizeX = map.Size.x;
+            snapshot.sourceSizeZ = map.Size.z;
             foreach (IntVec3 cell in CellRect.WholeMap(map))
             {
                 TerrainDef foundation = map.terrainGrid.FoundationAt(cell);
@@ -82,15 +101,26 @@ namespace DeltaV
 
         /// <summary>
         /// 回放到一张刚生成的空 POI 图（全 Void 底），建筑先于物品落位。ownerId 用于
-        /// 基架归属盖章（POI 的 objectId），恢复出的基架与原对象保持同一归属。
+        /// 基架归属盖章（物化对象的 objectId），恢复出的基架与该对象同一归属。
+        /// 边界守卫：快照格是源图绝对坐标，越界项（目标图小于源图——只应来自旧档无
+        /// 尺寸记录的回放）跳过并在末尾一次性聚合报错；绝不带病回卷写图
+        /// （SetFoundation 无 InBounds 守卫，越界写会静默落到错误格子）。
         /// </summary>
         public void ApplyTo(Map map, int ownerId)
         {
-            SubstructureOwnership.For(map).SetPendingStamp(foundationCells, ownerId);
+            int skipped = 0;
+            var stampCells = new List<IntVec3>(foundationCells.Count);
+            foreach (IntVec3 cell in foundationCells)
+            {
+                if (cell.InBounds(map)) stampCells.Add(cell);
+                else skipped++;
+            }
+            SubstructureOwnership.For(map).SetPendingStamp(stampCells, ownerId);
             try
             {
                 for (int i = 0; i < foundationCells.Count; i++)
                 {
+                    if (!foundationCells[i].InBounds(map)) continue;
                     map.terrainGrid.SetFoundation(foundationCells[i], foundationDefs[i]);
                 }
             }
@@ -100,26 +130,42 @@ namespace DeltaV
             }
             for (int i = 0; i < topCells.Count; i++)
             {
+                if (!topCells[i].InBounds(map)) { skipped++; continue; }
                 map.terrainGrid.SetTerrain(topCells[i], topDefs[i]);
             }
             for (int i = 0; i < roofCells.Count; i++)
             {
+                if (!roofCells[i].InBounds(map)) { skipped++; continue; }
                 map.roofGrid.SetRoof(roofCells[i], roofDefs[i]);
             }
             for (int i = 0; i < thingCells.Count; i++)
             {
-                if (!thingDefs[i].MadeFromStuff)
+                if (!thingDefs[i].MadeFromStuff && thingCells[i].InBounds(map))
                 {
                     SpawnThing(map, i, ThingMaker.MakeThing(thingDefs[i]));
+                }
+                else if (!thingDefs[i].MadeFromStuff)
+                {
+                    skipped++;
                 }
             }
             for (int i = 0; i < thingCells.Count; i++)
             {
-                if (thingDefs[i].MadeFromStuff)
+                if (thingDefs[i].MadeFromStuff && thingCells[i].InBounds(map))
                 {
                     ThingDef stuff = DefDatabase<ThingDef>.GetNamedSilentFail(thingStuffDefNames[i]);
                     SpawnThing(map, i, ThingMaker.MakeThing(thingDefs[i], stuff));
                 }
+                else if (thingDefs[i].MadeFromStuff)
+                {
+                    skipped++;
+                }
+            }
+            if (skipped > 0)
+            {
+                Log.Error($"[DeltaV] PoiSnapshot.ApplyTo: {skipped} out-of-bounds entries skipped "
+                    + $"(snapshot from {sourceSizeX}x{sourceSizeZ}, target {map.Size.x}x{map.Size.z}); "
+                    + $"POI geometry may be incomplete.");
             }
         }
 
@@ -146,6 +192,8 @@ namespace DeltaV
 
         public void ExposeData()
         {
+            Scribe_Values.Look(ref sourceSizeX, "sourceSizeX", 0);
+            Scribe_Values.Look(ref sourceSizeZ, "sourceSizeZ", 0);
             Scribe_Collections.Look(ref foundationCells, "foundationCells", LookMode.Value);
             Scribe_Collections.Look(ref foundationDefs, "foundationDefs", LookMode.Def);
             Scribe_Collections.Look(ref topCells, "topCells", LookMode.Value);

@@ -231,9 +231,18 @@ namespace DeltaV
                 : "DeltaV_OwnerUnregistered".Translate(ownerId);
         }
 
-        /// <summary>宇宙对象增删的唯一入口（AGENTS §11 单一管理入口精神）；星区记账与 id 语义在此收口。</summary>
-        public void RegisterObject(SpaceObject obj)
+        /// <summary>
+        /// 诊断用的图标识（全项目单实现，日志/dump 统一）：uniqueID 全会话稳定（图增删
+        /// 不变），Index 是 Find.Maps 列表位（增删洗牌，仅供对照 PerfProbe）。两套数字
+        /// 不共线——只看 uniqueID 定位图，Index 只用于和性能日志对表。
+        /// </summary>
+        public static string MapTag(Map map)
         {
+            return map == null ? "map=null" : $"map#{map.uniqueID}[{map.Index}]{map.Size.x}x{map.Size.z}";
+        }
+
+        /// <summary>宇宙对象增删的唯一入口（AGENTS §11 单一管理入口精神）；星区记账与 id 语义在此收口。</summary>
+        public void RegisterObject(SpaceObject obj)        {
             if (obj == null || objects.Contains(obj)) return;
             SpaceObject collision = ObjectById(obj.objectId);
             if (obj.objectId <= 0 || collision != null)
@@ -241,6 +250,19 @@ namespace DeltaV
                 Log.Error($"[DeltaV] Refusing to register object '{obj.label}' with invalid/colliding ID " +
                           $"#{obj.objectId} (existing='{collision?.label ?? "none"}').");
                 return;
+            }
+            // map 单一持有（2026-09-25 不变量）：一张图只允许一个承载对象——SpaceObjectOnMap
+            // 取列表首个命中，双持有会让第二个对象绕过所有「自身容器」排除（对接目标
+            // 泄漏事故）并遮蔽 FrameOf。注册期硬校验，复现即在此报错点名泄漏源。
+            if (obj.map != null)
+            {
+                SpaceObject mapHeld = SpaceObjectOnMap(obj.map);
+                if (mapHeld != null)
+                {
+                    Log.Error($"[DeltaV] Refusing to register object '{obj.label}' #{obj.objectId}: " +
+                              $"map already held by '{mapHeld.label}' #{mapHeld.objectId}.");
+                    return;
+                }
             }
             objects.Add(obj);
             if (obj.objectId >= nextFreeOwnerId) nextFreeOwnerId = obj.objectId + 1;
@@ -256,6 +278,12 @@ namespace DeltaV
             if (obj.objectId >= nextFreeOwnerId)
             {
                 nextFreeOwnerId = obj.objectId + 1;
+            }
+            // POI 注销时取消其排队中的生成（生成闭包捕获实例，不取消会给死实例赋
+            // map 产出孤儿图）并清理失败退避记录。
+            if (obj is PoiState poi)
+            {
+                Lifecycle.NotifyUnregistered(poi);
             }
         }
 
@@ -439,8 +467,26 @@ namespace DeltaV
                 pendingScaleRescaleFrom = -1f;
             }
             ClearStalePocketMapTiles();
-            // 地图被外部移除等异常情况下的收尾：清掉悬空引用；丢失地图的纯容器
-            // （POI 的 Packed 状态除外）整体移除避免悬空状态。
+            // 读档形态自愈（2026-09-25 对象模型）：有图 SnapshotPocket PoiState 是旧模型
+            //（物化 POI）残留——物化容器 = 普通 SpaceObject（marker 恒无图）。转换为
+            // 普通容器（继承 pose/map/faction；envLabel 降级 ambientLabel），同栈注销旧
+            // PoiState。NativeParent 例外（map 跟随原版镜像，不转换）。
+            foreach (PoiState legacy in objects.OfType<PoiState>()
+                .Where(p => p.kind == PoiKind.SnapshotPocket && p.map != null).ToList())
+            {
+                var converted = new SpaceObject(legacy.objectId, legacy.map, legacy.pose)
+                {
+                    faction = legacy.faction,
+                    ambientLabel = legacy.envLabel,
+                };
+                objects.Remove(legacy);
+                objects.Add(converted);
+                // ID 不变（归属章已盖此 ID）；不计入注销（nextFreeOwnerId 不推高）。
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"{legacy.envLabel}: legacy materialized POI #{legacy.objectId} converted to plain container");
+            }
+            // 地图被外部移除等异常情况下的收尾：清掉悬空引用；丢失地图的纯容器整体
+            // 移除避免悬空状态。PoiState（marker/NativeParent）保留等待物化/同步。
             foreach (SpaceObject obj in objects.ToList())
             {
                 if (obj.map != null && !Find.Maps.Contains(obj.map))
@@ -465,7 +511,9 @@ namespace DeltaV
         /// </summary>
         private void SweepEmptyDepartedMaps()
         {
-            LongEventHandler.ExecuteWhenFinished(delegate
+            // 读档收尾：帧动作队列在加载完成后的首个 GameComponentUpdate 消费
+            //（QueueFrameAction 统一机制，不占 ExecuteWhenFinished 内联语义的坑）。
+            QueueFrameAction(delegate
             {
                 foreach (Map map in Find.Maps.ToList())
                 {
@@ -531,8 +579,51 @@ namespace DeltaV
             }
         }
 
+        // ---- 帧上下文动作队列（唯一的「离开当前调用栈」延迟机制）----
+
+        /// <summary>
+        /// 待执行的帧上下文动作。GameComponent 的 XML 加载路径（GetUninitializedObject）
+        /// 不跑字段初始化器，必须按惰性属性模式访问（同 EnginesFiringByShip 先例）。
+        /// </summary>
+        private List<Action> frameActions;
+
+        private List<Action> FrameActions =>
+            frameActions ?? (frameActions = new List<Action>());
+
+        /// <summary>
+        /// 把动作延迟到 GameComponentUpdate 开头（帧上下文）执行——**本项目唯一**的
+        /// 「离开当前 tick/加载调用栈」延迟机制，供会变更宇宙流程状态（容器注册/注销、
+        /// 图生成/销毁、聚焦切换）的收尾使用：出力 gate 位于容器积分 foreach 内、
+        /// 对接完成位于 Approach.Tick 内，迭代/调用栈安全都要求先离开再执行。
+        /// 不是帧驱动模拟（不变量 #20）：入队动作源自 tick 触发，此处只做调用栈安全
+        /// 延迟。**不得用 LongEventHandler.ExecuteWhenFinished 代替**——无正在执行的
+        /// 长事件时它会立即内联执行（2026-09-24 实测事故，见 AGENTS §21）。
+        /// </summary>
+        internal void QueueFrameAction(Action action)
+        {
+            if (action != null)
+            {
+                FrameActions.Add(action);
+            }
+        }
+
+        /// <summary>消费帧上下文动作（拷贝后清空：动作内再入队者下一帧执行）。</summary>
+        private void RunFrameActions()
+        {
+            if (frameActions == null || frameActions.Count == 0) return;
+            Action[] batch = frameActions.ToArray();
+            frameActions.Clear();
+            foreach (Action action in batch)
+            {
+                action();
+            }
+        }
+
         public override void GameComponentUpdate()
         {
+            // 帧上下文动作消费（分离执行、对接完成收尾、源图善后、战略离场善后等
+            // 「必须离开 tick 调用栈」的收尾唯一出口），先消费再处理渲染/输入。
+            RunFrameActions();
             UpdateUniverseZoom();
             // 驾驶状态维护（自动退出 + Harmony 按键抑制开关）。聚焦跟随由 CurrentMap 天然承载。
             Pilot.UpdateFrameState(this);
@@ -634,9 +725,10 @@ namespace DeltaV
                 if (isPiloted)
                 {
                     PilotService.PilotCommand command = Pilot.ComposeCommand(piloted);
-                    // 出力前公共检查（§8）：将要施加推进器出力时先过结构完整性 gate
-                    // （手控输入/主动刹车辅助均在此触发）；被拒绝的 tick 只积分零力
-                    // （被动阻力照常、不施推进器动量）。
+                    // 出力前分离 gate（§7 脱离 + §8 拆分统一）：将要施加推进器出力时先过
+                    // 「移动的船与其余部分分离」检查（手控输入/主动刹车辅助/已停靠船的
+                    // 首次出力均在此触发）；被拒绝的 tick 只积分零力（被动阻力照常、
+                    // 不施推进器动量）。
                     bool wantsThrust = Mathf.Abs(command.command.fx) > 1e-6f
                         || Mathf.Abs(command.command.fz) > 1e-6f
                         || Mathf.Abs(command.command.torque) > 1e-6f;
@@ -693,6 +785,15 @@ namespace DeltaV
             if (DeltaVDefOf.DeltaV_TogglePilotMode != null && DeltaVDefOf.DeltaV_TogglePilotMode.KeyDownEvent)
             {
                 Pilot.ToggleControl(this);
+            }
+            // 选点阶段 ESC 取消（2026-09-25 补齐）：pendingShip 在册且无计划 = 正在选点。
+            // 有窗口打开时让位（暂停菜单等窗口自己消费 ESC）。
+            if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape
+                && Find.WindowStack.Windows.Count == 0
+                && ShipTransitions.pendingShip.IsValid && Approach.ActivePlan == null)
+            {
+                Approach.CancelSelectionOrPlan(this, "esc");
+                Event.current.Use();
             }
             ShipStatusPanel.Draw(this);
             Designator_ReassignSubstructure.DrawPendingLabels();
@@ -909,6 +1010,8 @@ namespace DeltaV
             DockingGhostRenderer.Destroy();
             unframedMaps?.Clear();
             PilotKeyBridge.Reset();
+            // 指向旧宇宙的帧上下文动作一并丢弃（读档 / dev ResetObjects）。
+            frameActions?.Clear();
         }
     }
 }

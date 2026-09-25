@@ -34,9 +34,30 @@ namespace DeltaV
 
         private static PoiState FirstPoi()
         {
-            // 强制快照/休眠动作只操作 Delta-V 的测试残骸，不能误删自动纳管的任务 POI。
+            // 强制物化动作只操作 Delta-V 的测试残骸 marker，不能误删自动纳管的任务 POI。
             return Um().objects.OfType<PoiState>()
                 .FirstOrDefault(p => p.kind == PoiKind.SnapshotPocket);
+        }
+
+        /// <summary>最近的物化容器（非自身容器；物化 POI 图 = 普通容器，2026-09-25 起）。</summary>
+        private static SpaceObject NearestMaterializedContainer()
+        {
+            UniverseManager um = Um();
+            Ship player = PlayerShip();
+            if (!player.IsValid) return null;
+            SpaceObject best = null;
+            float bestDist = float.MaxValue;
+            foreach (SpaceObject obj in um.objects)
+            {
+                if (obj is PoiState || obj.map == null || obj.map == player.map) continue;
+                float distance = um.Lifecycle.MinPlayerDistance(obj);
+                if (distance < bestDist)
+                {
+                    bestDist = distance;
+                    best = obj;
+                }
+            }
+            return best;
         }
 
         [DebugAction("Delta-V", "Create two-ship test scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
@@ -329,15 +350,19 @@ namespace DeltaV
         [DebugAction("Delta-V", "POI: force dormant nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void PoiForceDormant()
         {
+            UniverseManager um = Um();
+            // 休眠针对物化容器（marker 无图）；NativeParent 仍走 PoiState 入口。
             PoiState poi = FirstPoi();
-            if (poi != null) Um().Lifecycle.ForceDormant(poi);
+            if (poi != null && poi.map != null) um.Lifecycle.ForceDormant(poi);
+            um.Lifecycle.ForceDormantContainer(NearestMaterializedContainer());
         }
 
         [DebugAction("Delta-V", "POI: force pack (delete) nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void PoiForcePack()
         {
-            PoiState poi = FirstPoi();
-            if (poi != null) Um().Lifecycle.ForcePack(poi);
+            // 归档 = 容器收快照替换为 marker（2026-09-25 对象模型；PoiState 归档已退役）。
+            SpaceObject container = NearestMaterializedContainer();
+            if (container?.map != null) Um().Lifecycle.ArchiveContainer(container, container.map);
         }
 
         [DebugAction("Delta-V", "Player ship: teleport +1500 east (cross lifecycle ranges)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
@@ -415,7 +440,8 @@ namespace DeltaV
             UniverseManager um = Um();
             var sb = new StringBuilder("[DeltaV:Diag] Universe state");
             sb.AppendLine($"\n- universe host pocket map: {(um.UniverseHostMap == null ? "not created" : "alive")}");
-            sb.AppendLine($"- orbit layer: {(OrbitSphere.Layer == null ? "none" : $"tiles={OrbitSphere.Layer.TilesCount} radius={OrbitSphere.Radius:F1}" +
+            sb.AppendLine($"- current map (Find.CurrentMap): {UniverseManager.MapTag(Find.CurrentMap)}");
+            sb.AppendLine($"- orbit layer: {(OrbitSphere.Layer == null ? "none" : $"tiles={OrbitSphere.Layer.TilesCount} radius={OrbitSphere.Layer.Radius:F1}" +
                 $" avgTileSize={OrbitSphere.Layer.AverageTileSize:F2} worldPerCell={OrbitSphere.WorldPerCell:F4} cellsPerRadian={OrbitSphere.CellsPerRadian:F0}")}");
             sb.AppendLine($"- scale: cellsPerTile={OrbitSphere.CellsPerTile:F0} (setting {DeltaVMod.CurrentSettings.cellsPerTile});" +
                 $" generated sectors={um.generatedSectorTiles.Count}");
@@ -435,14 +461,17 @@ namespace DeltaV
                     : "";
                 sb.AppendLine($"\n- #{obj.objectId} {obj.label} [{obj.GetType().Name}] {lifecycle}" +
                     $" dir=({obj.pose.position.x:F3},{obj.pose.position.y:F3},{obj.pose.position.z:F3}) lat/lon=({lat:F1}°,{lon:F1}°){sector}" +
-                    $"{playerDist} angle={SpaceTransform.WrapAngle(obj.pose.angle) * Mathf.Rad2Deg:F0}° map={(obj.map == null ? "none" : "loaded")}");
+                    $"{playerDist} angle={SpaceTransform.WrapAngle(obj.pose.angle) * Mathf.Rad2Deg:F0}° {UniverseManager.MapTag(obj.map)}");
             }
+            // 全部已加载图（含无船图）+ 每图上的船；图标识与其他日志同口径
+            //（MapTag：uniqueID 全会话稳定，Index 仅供对照 PerfProbe，勿混用）。
             sb.AppendLine("\n- ships:");
             foreach (Map map in Find.Maps)
             {
+                sb.AppendLine($"  {UniverseManager.MapTag(map)}");
                 foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
                 {
-                    sb.AppendLine($"  structure #{ship.ownerId} '{um.LabelForOwner(ship.ownerId)}' map={map.Index} " +
+                    sb.AppendLine($"    structure #{ship.ownerId} '{um.LabelForOwner(ship.ownerId)}' " +
                         $"state={ShipRegistry.StateOf(ship)} faction={ShipRegistry.FactionOf(ship)?.Name ?? "none"} " +
                         $"console#{ship.console.parent.thingIDNumber} domain={ShipRegistry.ControlDomain(ship).Count} cells");
                 }

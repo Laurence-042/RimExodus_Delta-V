@@ -256,19 +256,17 @@ namespace DeltaV
             }
             bool playerSide = parent.Faction == Faction.OfPlayer || DebugSettings.godMode;
 
+            // 驾驶入口只服务「有宇宙容器且零重力」的图（地表/重力图只能逆重战略发射）。
+            bool spaceMap = parent.Map != null && universe.FrameOf(parent.Map) != null
+                && FreeFlightBootstrap.IsZeroGravity(universe, parent.Map);
+
             Ship ship = Ship;
             if (ship.IsValid)
             {
-                if (ShipRegistry.StateOf(ship) == ShipDerivedState.Docked)
-                {
-                    // 停靠中的船：唯一主动出力入口是先脱离（§5.2 对接禁止机动）。
-                    if (playerSide)
-                    {
-                        yield return NewAction("DeltaV_BeginFreeFlightButton".Translate(), TexCommand.Draft,
-                            () => universe.ShipTransitions.BeginFreeFlight(universe, ship));
-                    }
-                }
-                else if (playerSide)
+                // 驾驶切换（停靠/自由飞行统一入口，2026-09-24 统一分离定案）：已停靠的
+                // 船同样可进入驾驶——首次推进器出力即触发与其余部分的分离，「脱离
+                // 停靠」不再是独立命令。
+                if (playerSide && spaceMap)
                 {
                     ShipControlState control = universe.Pilot.GetControlState(ship);
                     bool planUnderManualControl = control == ShipControlState.Manual
@@ -293,15 +291,28 @@ namespace DeltaV
                     () => MakeBackupConsole(),
                     "DeltaV_ConsoleGizmoBackupTip".Translate());
             }
-            else if (parent.Faction == Faction.OfPlayer)
+            else if (parent.Faction == Faction.OfPlayer && spaceMap)
             {
-                // 未形成船的驾驶台（地表图 / 未认领）：提供自由飞行入口，重力环境灰化。
-                yield return NewAction("DeltaV_BeginFreeFlightButton".Translate(), TexCommand.Draft,
-                    () => universe.ShipTransitions.BeginFreeFlightFromConsole(universe, parent as Building));
-                if (!FreeFlightBootstrap.IsZeroGravity(parent.Map))
-                {
-                    // 地表图入口在 ShipStatusPanel 侧灰化；此处对已 Spawned 的台保持可用提示。
-                }
+                // 未形成船的驾驶台（口袋/POI 图未认领）：认领主台并直接进入驾驶；
+                // 首次出力触发分离。重力/地表图无此入口（只能逆重战略发射）。
+                yield return NewAction("DeltaV_PilotButtonEnter".Translate(), TexCommand.Draft,
+                    () =>
+                    {
+                        if (!isMain)
+                        {
+                            MakeMainConsole();
+                        }
+                        Ship claimed = Ship;
+                        if (claimed.IsValid)
+                        {
+                            universe.Pilot.Enter(universe, claimed);
+                        }
+                        else
+                        {
+                            Messages.Message("DeltaV_PilotNeedShipFocus".Translate(),
+                                MessageTypeDefOf.RejectInput, false);
+                        }
+                    });
             }
 
             if (!isMain)

@@ -67,7 +67,11 @@ namespace DeltaV
             LandingApproachController.DockingPlan plan = universe.Approach.ActivePlan;
             bool dockingPlan = plan != null && plan.ship.ownerId == selected.ownerId;
             bool hasShip = selected.IsValid;
+            bool freeFlight = hasShip
+                && ShipRegistry.StateOf(selected) == ShipDerivedState.FreeFlight;
             bool playerControlled = !hasShip || universe.Pilot.CanPlayerControl(selected);
+            // 驾驶/认领入口只服务零重力图（重力图只能逆重战略发射）。
+            bool zeroGravity = FreeFlightBootstrap.IsZeroGravity(universe, map);
 
             // 未形成船的原版 Gravship（首次降落/发射到达）：唯一玩家驾驶台可直接
             // 进入自由飞行；多台须选中具体驾驶台（经其 gizmo）。
@@ -154,10 +158,11 @@ namespace DeltaV
             float shipListHeight = ships.Count > 1 ? ships.Count * ShipRowHeight + 4f : 0f;
 
             // 高度完全随内容自适应（不滚动）：星球仪 + 缩放滑条 + 标题/状态行 + 船列表
-            // + 当前模式的按钮行数。
+            // + 当前模式的按钮行数（已停靠的船只有驾驶按钮——首次出力即分离）。
             float modeButtonsHeight = hasShip
-                ? (playerControlled ? 27f + 6f : 0f) + (dockingPlan || playerControlled ? 27f + 8f : 0f)
-                : (bootstrapEntry || multiConsoleAmbiguous) ? 27f + 6f : 0f;
+                ? (playerControlled && zeroGravity ? 27f + 6f : 0f)
+                  + (dockingPlan || (playerControlled && freeFlight) ? 27f + 8f : 0f)
+                : (bootstrapEntry || multiConsoleAmbiguous) && zeroGravity ? 27f + 6f : 0f;
             float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + shipListHeight + modeButtonsHeight;
             const float sliderRowHeight = 30f;
             float outerHeight = GlobeSize + 8f + sliderRowHeight + contentHeight;
@@ -227,10 +232,11 @@ namespace DeltaV
                 lineY += 4f;
             }
 
-            // 模式按钮全部收进面板（不再分开放）。
+            // 模式按钮全部收进面板（不再分开放）。已停靠的船同样提供驾驶（2026-09-24
+            // 统一分离定案）：首次推进器出力即触发分离，「脱离停靠」不再是独立按钮。
             if (hasShip)
             {
-                if (playerControlled)
+                if (playerControlled && zeroGravity)
                 {
                     string pilotButton = controlState == ShipControlState.Manual && dockingPlan
                         ? "DeltaV_ControlSwitchAutopilot".Translate()
@@ -251,33 +257,20 @@ namespace DeltaV
                     }
                     lineY += 27f + 8f;
                 }
-                else if (playerControlled)
+                else if (playerControlled && freeFlight)
                 {
-                    if (ShipRegistry.StateOf(selected) == ShipDerivedState.FreeFlight)
+                    // 自由飞行专属：选择对接（已停靠的船先经出力分离回到自由飞行）。
+                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginDockingButton".Translate()))
                     {
-                        if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginDockingButton".Translate()))
-                        {
-                            universe.ShipTransitions.BeginDocking(selected);
-                        }
-                        lineY += 27f + 8f;
+                        universe.ShipTransitions.BeginDocking(selected);
                     }
-                    else
-                    {
-                        if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginFreeFlightButton".Translate()))
-                        {
-                            universe.ShipTransitions.BeginFreeFlight(universe, selected);
-                        }
-                        lineY += 27f + 8f;
-                    }
-                }
-                else
-                {
-                    lineY += 8f;
+                    lineY += 27f + 8f;
                 }
             }
-            else if (bootstrapEntry)
+            else if (bootstrapEntry && zeroGravity)
             {
-                // 首次降落/发射到达：图上唯一的玩家驾驶台，直接进入自由飞行（认领+脱离）。
+                // 首次降落/发射到达：图上唯一的玩家驾驶台——认领并直接进入驾驶
+                //（首次出力触发分离；重力图无驾驶入口，只能逆重战略发射）。
                 Building console = null;
                 foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
                 {
@@ -288,20 +281,29 @@ namespace DeltaV
                     }
                 }
                 if (console != null
-                    && Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginFreeFlightButton".Translate()))
+                    && Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_PilotButtonEnter".Translate()))
                 {
-                    universe.ShipTransitions.BeginFreeFlightFromConsole(universe, console);
+                    CompDeltaVPilotConsole comp = console.TryGetComp<CompDeltaVPilotConsole>();
+                    if (!comp.isMain)
+                    {
+                        comp.MakeMainConsole();
+                    }
+                    Ship claimed = comp.Ship;
+                    if (claimed.IsValid)
+                    {
+                        universe.Pilot.Enter(universe, claimed);
+                    }
                 }
                 lineY += 27f + 6f;
             }
-            else if (multiConsoleAmbiguous)
+            else if (multiConsoleAmbiguous && zeroGravity)
             {
                 // 多艘逆重飞船共泊：不能任选一台驾驶台，指引到具体驾驶台的 gizmo。
                 var pickRect = new Rect(0f, lineY, drawWidth, 27f);
                 Text.Font = GameFont.Small;
                 GUI.color = new Color(1f, 1f, 1f, 0.4f);
                 Text.Anchor = TextAnchor.MiddleCenter;
-                Widgets.Label(pickRect, "DeltaV_BeginFreeFlightButton".Translate());
+                Widgets.Label(pickRect, "DeltaV_PilotButtonEnter".Translate());
                 Text.Anchor = TextAnchor.UpperLeft;
                 GUI.color = Color.white;
                 TooltipHandler.TipRegion(pickRect, "DeltaV_PanelPickConsoleTip".Translate());

@@ -364,8 +364,9 @@ namespace DeltaV
             float desiredTorque = flight.heldCommand.desiredTorque;
             ShipPhysics.Command command = ShipPhysics.ForceToCommand(report, desiredForce, desiredTorque);
 
-            // 出力前公共检查（§8）：将要施加推进器出力时先过结构完整性 gate——
-            // 断连拆分/玩家确认在那一入口收口；被拒绝的 tick 不施力。
+            // 出力前分离 gate（§7 脱离 + §8 拆分统一）：将要施加推进器出力时先过
+            // 「移动的船与其余部分分离」检查——玩家确认/排队分离在那一入口收口；
+            // 被拒绝的 tick 不施力。
             bool wantsThrust = Mathf.Abs(command.fx) > 1e-6f || Mathf.Abs(command.fz) > 1e-6f
                 || Mathf.Abs(command.torque) > 1e-6f;
             if (wantsThrust && !universe.ShipTransitions.RequestThrust(universe, ship, flight.playerInitiated))

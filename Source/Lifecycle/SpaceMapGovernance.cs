@@ -23,9 +23,20 @@ namespace DeltaV
             universe = universe ?? Current.Game?.GetComponent<UniverseManager>();
             // 已有容器承载的图（口袋容器图）不作为独立 POI 纳管；多船宿主图由宿主
             // 容器承载——多船同泊、他船再降落都依赖宿主保持 SpaceObject 身份。
-            if (universe != null && parent.Map != null
-                && universe.SpaceObjectOnMap(parent.Map) != null)
-                return false;
+            // 例外：该图由本 parent 自己的 NativeParent 镜像承载 = 正常物化态，
+            // **自引用不算占用**（2026-09-25 修复：旧判定命中镜像自身 → IsGoverned
+            // 恒 false → Synchronize 每 120 tick 注销/重注册振荡，objectId churn、
+            // FrameOf 空窗、原版移除拦截失效）。
+            if (universe != null && parent.Map != null)
+            {
+                SpaceObject occupant = universe.SpaceObjectOnMap(parent.Map);
+                if (occupant != null
+                    && !(occupant is PoiState mirror && mirror.kind == PoiKind.NativeParent
+                         && mirror.nativeParent == parent))
+                {
+                    return false;
+                }
+            }
             return true;
         }
 

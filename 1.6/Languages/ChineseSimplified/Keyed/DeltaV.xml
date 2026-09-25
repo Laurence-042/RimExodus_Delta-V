@@ -7,7 +7,6 @@
   <DeltaV_PilotExitAuto>已停止手动驾驶（焦点已离开 {0}）。</DeltaV_PilotExitAuto>
   <DeltaV_PilotButtonEnter>驾驶此船</DeltaV_PilotButtonEnter>
   <DeltaV_PilotButtonExit>停止驾驶</DeltaV_PilotButtonExit>
-  <DeltaV_BeginFreeFlightButton>脱离停靠并开始自由飞行</DeltaV_BeginFreeFlightButton>
   <DeltaV_BeginDockingButton>选择对接</DeltaV_BeginDockingButton>
   <DeltaV_PilotGravityRestricted>重力环境下只能使用逆重引擎结合推进器进行近抛物线定点移动；只有在无重力环境下才能自由飞行。</DeltaV_PilotGravityRestricted>
   <DeltaV_ShipPanelTitle>{0}</DeltaV_ShipPanelTitle>
@@ -51,13 +50,9 @@
   <DeltaV_ApproachAborted>对接异常中止。飞船仍在自由飞行，可重新发起对接。</DeltaV_ApproachAborted>
   <DeltaV_DockFailHostMap>无法解析当前位置的降落图。</DeltaV_DockFailHostMap>
   <DeltaV_DockFailNoTarget>没有可对接目标：飞船下方没有已加载的对象内部。请接近空间站、残骸或其他飞船后重试；移动中的有动力飞船也可对接（自动驾驶会做速度匹配）。</DeltaV_DockFailNoTarget>
-  <DeltaV_DockFailOutOfRange>飞船的宇宙位置无法投影到轨道 tile，请先回到星球附近。</DeltaV_DockFailOutOfRange>
-  <DeltaV_DockFailBlocked>目标图上的降落区域被占用，请换一处或先清空。</DeltaV_DockFailBlocked>
-  <DeltaV_DockFailNoEngine>船上没有逆重引擎，无法完成对接或脱离停靠。</DeltaV_DockFailNoEngine>
   <DeltaV_DockFailBusy>另一项逆重飞船降落或航行操作正在进行。</DeltaV_DockFailBusy>
-  <DeltaV_LaunchFailNoThruster>船上没有可工作的推进器，无法开始自由飞行。</DeltaV_LaunchFailNoThruster>
+  <DeltaV_LaunchFailNoThruster>船上没有可工作的推进器，无法出力分离并开始自由飞行。</DeltaV_LaunchFailNoThruster>
   <DeltaV_FreeFlightSuccess>{0} 已开始自由飞行。</DeltaV_FreeFlightSuccess>
-  <DeltaV_ConsoleGizmoPilot>驾驶此船</DeltaV_ConsoleGizmoPilot>
   <DeltaV_ConsoleGizmoMakePrimary>设为主驾驶台</DeltaV_ConsoleGizmoMakePrimary>
   <DeltaV_ConsoleGizmoPrimaryTip>开始自由飞行时，飞船朝向跟随主驾驶台的朝向。</DeltaV_ConsoleGizmoPrimaryTip>
   <DeltaV_ConsolePrimarySet>主驾驶台已设置：{0}</DeltaV_ConsolePrimarySet>
@@ -68,7 +63,7 @@
   <DeltaV_PoiPacked>POI {0}：已删除地图（快照保存）。</DeltaV_PoiPacked>
   <DeltaV_PoiRestored>POI {0}：已从快照恢复地图。</DeltaV_PoiRestored>
   <DeltaV_PanelSectorTitle>太空：{0}</DeltaV_PanelSectorTitle>
-  <DeltaV_PanelPickConsoleTip>本图停靠了多艘逆重飞船：请选中目标船的驾驶台，再选择「脱离停靠并开始自由飞行」。</DeltaV_PanelPickConsoleTip>
+  <DeltaV_PanelPickConsoleTip>本图停靠了多艘飞船：请选中目标船的驾驶台，经其「驾驶此船」进入驾驶。</DeltaV_PanelPickConsoleTip>
   <DeltaV_PanelGlobeZoomOut>星球</DeltaV_PanelGlobeZoomOut>
   <DeltaV_PanelGlobeZoomIn>星区</DeltaV_PanelGlobeZoomIn>
   <DeltaV_PanelGlobeDistance>{0} 格</DeltaV_PanelGlobeDistance>
@@ -129,7 +124,7 @@
   <DeltaV_RenameTitle>重命名飞船</DeltaV_RenameTitle>
   <DeltaV_ConsoleGizmoRename>重命名飞船</DeltaV_ConsoleGizmoRename>
   <DeltaV_ConsoleGizmoMakeBackup>设为备用驾驶台</DeltaV_ConsoleGizmoMakeBackup>
-  <DeltaV_ConsoleGizmoBackupTip>放弃对本结构的认领。结构将保持残骸状态，直到另一台驾驶台认领（停靠中的船请改用脱离按钮）。</DeltaV_ConsoleGizmoBackupTip>
+  <DeltaV_ConsoleGizmoBackupTip>放弃对本结构的认领。结构将保持残骸状态，直到另一台驾驶台认领（已停靠的船请先经推进器出力分离）。</DeltaV_ConsoleGizmoBackupTip>
   <DeltaV_PanelShipRowTip>将「{0}」设为当前查看/操作的船。</DeltaV_PanelShipRowTip>
   <DeltaV_SplitConfirmText>推进器出力会把这组结构撕裂开来。
 
@@ -137,7 +132,7 @@
 
 确认将这些结构分离为独立残骸并继续？</DeltaV_SplitConfirmText>
   <DeltaV_SplitBlockLine>- {0}：{1} 格</DeltaV_SplitBlockLine>
-  <DeltaV_SplitCancelled>推进器指令已取消：断连结构保持原样。</DeltaV_SplitCancelled>
+  <DeltaV_SeparationCancelled>已取消分离并退出驾驶。重新进入驾驶并推进即可再次尝试。</DeltaV_SeparationCancelled>
   <DeltaV_DockSourceLeftoverConfirm>对接「{0}」将处置其船体以外、留在源图上的全部内容：
 
 {1}
@@ -147,16 +142,11 @@
   <DeltaV_UndockFragmentsLine>- 本船 {0} 片断连基架将作为残骸留在本图</DeltaV_UndockFragmentsLine>
   <DeltaV_LeftBehindLine>- 将留在本图的人员/物品清单：
 {0}</DeltaV_LeftBehindLine>
-  <DeltaV_UndockConfirmText>现在脱离？
+  <DeltaV_UndockConfirmText>推进器出力将使本船与所在结构分离（脱离停靠）。
 
 {0}
 
-脱离将收回相关对接通道；通道上的人员与物品按当前格留置本图。</DeltaV_UndockConfirmText>
-  <DeltaV_LeftBehindConfirmText>
-
-{0}
-
-继续？</DeltaV_LeftBehindConfirmText>
+分离将收回相关对接通道；通道上的人员与物品按当前格留置本图。</DeltaV_UndockConfirmText>
   <!-- 设置：被动阻力（解耦架构 11.1） -->
   <DeltaV_SettingsPassiveDrag>被动阻力（牛顿在棺材里代替飞船旋转）</DeltaV_SettingsPassiveDrag>
   <DeltaV_SettingsPassiveDragTip>按半衰期阻尼线速度与角速度，与飞行辅助并存。不是推进器指令：不耗油、不出火焰、不触发拆船。自动驾驶预测使用同一模型。</DeltaV_SettingsPassiveDragTip>

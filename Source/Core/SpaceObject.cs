@@ -9,19 +9,20 @@ namespace DeltaV
     /// 保存该地图整体的轨道运动状态。它不是某艘飞船的子类型或永久所有者——飞船 =
     /// 主驾驶台 + 同归属四连通基架（见 ShipRegistry），同图可承载多艘船与残骸归属。
     ///
-    /// 权威事实：对象 ID、唯一逻辑内部地图、轨道位姿与动量、物化/生命周期所需数据
-    /// （PoiState 特化）。名称是派生结果：纯容器名 = 内部全部结构名拼接
-    /// （UTF-8 字节序，见 label 虚属性），POI 保留环境结构名；派生缓存不落盘。
-    /// faction 字段保留为环境派系（仅 PoiState 赋值并持久化；多船图的驾驶授权
-    /// 逐船从主台派系判定，不得把容器 faction 当作全部船的授权）。
+    /// **物化容器 = 本类（普通 SpaceObject）**（2026-09-25 用户定案）：有图容器一律
+    /// 没有独立的图标/POI 身份——显示名 = 图上全部结构名拼接（UTF-8 字节序），
+    /// 图标/剪影按图上实际内容（船→船剪影；基架无船→残骸剪影；纯环境→点+环境名）。
+    /// 未物化 POI（PoiState marker）才是无图的触发器特例，按设置的类型显示。
+    /// faction 字段保留为环境派系（仅 POI 赋值并持久化；多船图的驾驶授权逐船从主台
+    /// 派系判定，不得把容器 faction 当作全部船的授权）。
     ///
     /// 「每个可进入地图都属于一个 SpaceObject」：口袋图 = Delta-V 自建对象的内部，
     /// worldtile 地图 = 原版站点/空画布锚对象的内部；内部地图坐标 ⇄ 轨道坐标的唯一
     /// 通道是所属对象的位姿（对象位姿 ⊕ 内部局部坐标），不存在图级坐标锚。
     ///
-    /// "map == null" 只表示当前没有对象自己的已加载地图（POI 的 Packed 状态），
-    /// 不表示对象不存在。map 之外的姿态数据是存档事实；外壳显示以 Map 的
-    /// SectionLayer 为事实源。
+    /// "map == null" 只对 PoiState marker 有意义（未物化触发器）；普通容器 map 恒在
+    /// （丢失即注销，见 UniverseManager.LoadedGame 清扫）。map 之外的姿态数据是存档
+    /// 事实；外壳显示以 Map 的 SectionLayer 为事实源。
     /// </summary>
     public class SpaceObject : IExposable
     {
@@ -38,12 +39,19 @@ namespace DeltaV
         /// </summary>
         public Faction faction;
 
+        /// <summary>
+        /// 环境兜底名（小行星等纯环境内部——图上无任何基架归属时的显示名；从物化
+        /// marker 的 envLabel 继承，归档时随拼接名一起带回 marker）。可空；为空且图上
+        /// 无结构时显示「未注册对象」。
+        /// </summary>
+        public string ambientLabel;
+
         [Unsaved] private string cachedLabel;
         [Unsaved] private int cachedLabelVersion = -1;
 
         /// <summary>
-        /// 显示名。纯容器 = 内部全部结构名拼接（可重建派生，不落盘）；PoiState 覆盖为
-        /// 环境结构名（持久事实）。名称只用于显示，不参与身份与定位（解耦架构 §10）。
+        /// 显示名 = 内部全部结构名拼接（可重建派生，不落盘）；图上无结构时退回
+        /// ambientLabel。名称只用于显示，不参与身份与定位（解耦架构 §10）。
         /// </summary>
         public virtual string label
         {
@@ -74,7 +82,7 @@ namespace DeltaV
         /// <summary>
         /// 容器拼接名：图上现存基架的归属名按 UTF-8 字节序排序、同名按结构 ID 稳定排序，
         /// 以本地化分隔符连接；同归属的多个未分离断片合为一个条目（一个 ID 只出现一次）。
-        /// 无任何结构的容器显示「未注册对象」。
+        /// 图上无任何结构 → ambientLabel（纯环境容器）→「未注册对象」兜底。
         /// </summary>
         private string ComputeContainerLabel()
         {
@@ -82,13 +90,17 @@ namespace DeltaV
             Map interior = InteriorMap;
             if (universe == null || interior == null || interior.Disposed)
             {
-                return "DeltaV_OwnerUnregistered".Translate(objectId);
+                return !string.IsNullOrEmpty(ambientLabel)
+                    ? ambientLabel
+                    : "DeltaV_OwnerUnregistered".Translate(objectId);
             }
             SubstructureOwnership ownership = SubstructureOwnership.TryGet(interior);
             List<int> owners = ownership?.OwnersOnMap();
             if (owners == null || owners.Count == 0)
             {
-                return "DeltaV_OwnerUnregistered".Translate(objectId);
+                return !string.IsNullOrEmpty(ambientLabel)
+                    ? ambientLabel
+                    : "DeltaV_OwnerUnregistered".Translate(objectId);
             }
             owners.Sort(CompareOwners);
             var parts = new System.Text.StringBuilder();
@@ -120,6 +132,7 @@ namespace DeltaV
             Scribe_References.Look(ref faction, "faction");
             Scribe_Deep.Look(ref pose, "pose");
             Scribe_References.Look(ref map, "map");
+            Scribe_Values.Look(ref ambientLabel, "ambientLabel", null);
         }
     }
 }

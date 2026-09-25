@@ -71,14 +71,15 @@ namespace DeltaV
                     // 同步唤醒（轻量，无生成），玩家切进去的图不能是冻结的。
                     universe.Lifecycle.Wake(value, "entering map (CurrentMap switch)");
                 }
-                if (wasFrozen || universe?.SpaceObjectOnMap(value) is PoiState)
+                if (wasFrozen || universe?.SpaceObjectOnMap(value) != null)
                 {
                     // 冻结图跳过 MapUpdate：休眠期间累积/未刷新的脏 Section 永不重建，
                     // 画面空白但数据与悬停正常（2026-09-17 实测：建造一格触发局部
-                    // MeshDirty 后整图恢复）。POI 内部图（含从未休眠的增量生成图，
-                    // 根因未定位前）切入时一律全量重建一次，保证玩家看到的是活图
-                    //（原版读档同款 RegenerateEverythingNow；仅 Delta-V 的图，
-                    // RimExodus 地表图不受影响）。
+                    // MeshDirty 后整图恢复）。Delta-V 容器图（含从未休眠的增量生成图，
+                    // 根因未定位前——2026-09-25 起物化 POI 图也是普通容器，条件从
+                    // PoiState 扩为任意容器图）切入时一律全量重建一次，保证玩家看到
+                    // 的是活图（原版读档同款 RegenerateEverythingNow；仅 Delta-V 的
+                    // 图，RimExodus 地表图不受影响）。
                     value.mapDrawer.RegenerateEverythingNow();
                 }
             }

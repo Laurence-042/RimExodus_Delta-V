@@ -7,7 +7,6 @@
   <DeltaV_PilotExitAuto>Manual control released (focus left {0}).</DeltaV_PilotExitAuto>
   <DeltaV_PilotButtonEnter>Pilot this ship</DeltaV_PilotButtonEnter>
   <DeltaV_PilotButtonExit>Stop piloting</DeltaV_PilotButtonExit>
-  <DeltaV_BeginFreeFlightButton>Undock and begin free flight</DeltaV_BeginFreeFlightButton>
   <DeltaV_BeginDockingButton>Select docking site</DeltaV_BeginDockingButton>
   <DeltaV_PilotGravityRestricted>In gravity, a grav engine and thrusters can only make short, targeted ballistic hops. Free non-targeted flight is available only in zero gravity.</DeltaV_PilotGravityRestricted>
   <DeltaV_ShipPanelTitle>{0}</DeltaV_ShipPanelTitle>
@@ -51,13 +50,9 @@
   <DeltaV_ApproachAborted>Docking failed unexpectedly. The ship remains in free flight and docking can be retried.</DeltaV_ApproachAborted>
   <DeltaV_DockFailHostMap>No landing map could be resolved for the current position.</DeltaV_DockFailHostMap>
   <DeltaV_DockFailNoTarget>No loaded object interior is under the ship to dock onto. Approach a station, wreck or another ship and try again; powered ships in motion can also be docked (the autopilot matches their velocity).</DeltaV_DockFailNoTarget>
-  <DeltaV_DockFailOutOfRange>Ship's universe position cannot be projected to an orbit tile. Fly closer to the planet first.</DeltaV_DockFailOutOfRange>
-  <DeltaV_DockFailBlocked>Landing area on the target map is blocked. Pick another spot or clear it first.</DeltaV_DockFailBlocked>
-  <DeltaV_DockFailNoEngine>No grav engine found; the ship cannot dock or undock.</DeltaV_DockFailNoEngine>
   <DeltaV_DockFailBusy>Another gravship landing or flight operation is already in progress.</DeltaV_DockFailBusy>
-  <DeltaV_LaunchFailNoThruster>No operational thruster found; the ship cannot begin free flight.</DeltaV_LaunchFailNoThruster>
+  <DeltaV_LaunchFailNoThruster>No operational thruster found; the ship cannot separate under thrust and begin free flight.</DeltaV_LaunchFailNoThruster>
   <DeltaV_FreeFlightSuccess>{0} has begun free flight.</DeltaV_FreeFlightSuccess>
-  <DeltaV_ConsoleGizmoPilot>Pilot this ship</DeltaV_ConsoleGizmoPilot>
   <DeltaV_ConsoleGizmoMakePrimary>Set as primary console</DeltaV_ConsoleGizmoMakePrimary>
   <DeltaV_ConsoleGizmoPrimaryTip>The ship's heading when beginning free flight follows the primary console's facing.</DeltaV_ConsoleGizmoPrimaryTip>
   <DeltaV_ConsolePrimarySet>Primary console set: {0}</DeltaV_ConsolePrimarySet>
@@ -68,7 +63,7 @@
   <DeltaV_PoiPacked>POI {0}: map removed (snapshot saved).</DeltaV_PoiPacked>
   <DeltaV_PoiRestored>POI {0}: map restored from snapshot.</DeltaV_PoiRestored>
   <DeltaV_PanelSectorTitle>Space: {0}</DeltaV_PanelSectorTitle>
-  <DeltaV_PanelPickConsoleTip>Several gravships are docked here. Select the target ship's pilot console, then choose "Undock and begin free flight".</DeltaV_PanelPickConsoleTip>
+  <DeltaV_PanelPickConsoleTip>Several ships are docked here. Select the target ship's pilot console and enter pilot mode from its gizmo.</DeltaV_PanelPickConsoleTip>
   <DeltaV_PanelGlobeZoomOut>Planet</DeltaV_PanelGlobeZoomOut>
   <DeltaV_PanelGlobeZoomIn>Sector</DeltaV_PanelGlobeZoomIn>
   <DeltaV_PanelGlobeDistance>{0} cells</DeltaV_PanelGlobeDistance>
@@ -129,7 +124,7 @@
   <DeltaV_RenameTitle>Rename ship</DeltaV_RenameTitle>
   <DeltaV_ConsoleGizmoRename>Rename ship</DeltaV_ConsoleGizmoRename>
   <DeltaV_ConsoleGizmoMakeBackup>Set as backup console</DeltaV_ConsoleGizmoMakeBackup>
-  <DeltaV_ConsoleGizmoBackupTip>Release the claim on this structure. The structure becomes a wreck until another console claims it (docked ships: use the undock button instead).</DeltaV_ConsoleGizmoBackupTip>
+  <DeltaV_ConsoleGizmoBackupTip>Release the claim on this structure. The structure becomes a wreck until another console claims it (docked ships: separate via thruster fire first).</DeltaV_ConsoleGizmoBackupTip>
   <DeltaV_PanelShipRowTip>Select '{0}' as the ship to view and operate.</DeltaV_PanelShipRowTip>
   <DeltaV_SplitConfirmText>Thruster fire would tear this formation apart.
 
@@ -137,7 +132,7 @@
 
 Separate these structures into independent wrecks and continue?</DeltaV_SplitConfirmText>
   <DeltaV_SplitBlockLine>- {0}: {1} cells</DeltaV_SplitBlockLine>
-  <DeltaV_SplitCancelled>Thruster command cancelled: disconnected structures remain in place.</DeltaV_SplitCancelled>
+  <DeltaV_SeparationCancelled>Separation cancelled and pilot mode exited. Re-enter pilot mode and thrust to try again.</DeltaV_SeparationCancelled>
   <DeltaV_DockSourceLeftoverConfirm>Docking '{0}' will dispose of everything left outside its hull on the source map:
 
 {1}
@@ -147,16 +142,11 @@ Proceed?</DeltaV_DockSourceLeftoverConfirm>
   <DeltaV_UndockFragmentsLine>- {0} disconnected fragment(s) of this ship will be left behind as wrecks</DeltaV_UndockFragmentsLine>
   <DeltaV_LeftBehindLine>- Pawn/item list left behind on this map:
 {0}</DeltaV_LeftBehindLine>
-  <DeltaV_UndockConfirmText>Undock now?
+  <DeltaV_UndockConfirmText>Thruster fire will separate this ship from the structure it is docked to.
 
 {0}
 
-Undocking retracts the related docking channels; pawns and items on them stay on this map at their current cells.</DeltaV_UndockConfirmText>
-  <DeltaV_LeftBehindConfirmText>
-
-{0}
-
-Proceed?</DeltaV_LeftBehindConfirmText>
+Separation retracts the related docking channels; pawns and items on them stay on this map at their current cells.</DeltaV_UndockConfirmText>
   <!-- Settings: passive drag (decoupled architecture 11.1) -->
   <DeltaV_SettingsPassiveDrag>Passive drag (Newton spins in his coffin)</DeltaV_SettingsPassiveDrag>
   <DeltaV_SettingsPassiveDragTip>Damps linear and angular velocity with a half-life, coexisting with flight assist. Not a thruster command: no fuel, no flames, no hull splitting. Uses the same model in the autopilot's prediction.</DeltaV_SettingsPassiveDragTip>

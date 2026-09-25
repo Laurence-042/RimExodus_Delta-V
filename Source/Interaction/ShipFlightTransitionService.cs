@@ -31,9 +31,6 @@ namespace DeltaV
         /// <summary>已放入目标图、等待收尾（源口袋图删除）的对接完成窗口。</summary>
         internal Ship landedShipAwaitingCleanup;
 
-        /// <summary>完成时刻捕获的 Gravship（WriteDockedSegment 使用；与移除同一调用栈）。</summary>
-        internal Gravship pendingCapture;
-
         // ---- 战略发射（原版管线适配）----
 
         internal Map pendingStrategicSourceMap;
@@ -45,24 +42,22 @@ namespace DeltaV
 
         internal bool preLaunchConfirmationChaining;
 
-        // ---- 出力前拆分确认（§8.2：流程状态，不存档）----
+        // ---- 出力前分离（§8.2：流程状态，不存档）----
 
-        /// <summary>等待玩家确认的拆分请求（同一次分离只弹一个汇总窗口）。</summary>
-        internal int pendingSplitOwnerId = -1;
-
-        /// <summary>该次请求是否由自动驾驶触发（取消时撤销对应任务，§8.2 步骤 5）。</summary>
-        internal bool pendingSplitFromAutopilot;
-
-        /// <summary>玩家取消后的抑制记录：结构版本不变期间不再重复弹窗。</summary>
-        internal int splitPromptSuppressedOwnerId = -1;
-        internal int splitPromptSuppressedVersion = -1;
+        /// <summary>
+        /// 等待结果的分离请求（确认窗已打开或已排队到帧上下文）：同一条船只挂一个待决
+        /// 分离；确认/取消/执行时移除。不设「结构版本抑制」——旧机制取消后按
+        /// GlobalStructureVersion 记忆，玩家不改结构就永远无法再出力且无任何反馈
+        /// （2026-09-24 用户报障），已随统一分离入口删除：取消 = 撤销自动驾驶任务 +
+        /// 退出驾驶并提示，重试 = 重新进入驾驶再按推进键。
+        /// </summary>
+        internal readonly HashSet<int> pendingSeparationOwnerIds = new HashSet<int>();
 
         internal void Reset()
         {
             pendingShip = Ship.Invalid;
             pendingSelectionWasManual = false;
             landedShipAwaitingCleanup = Ship.Invalid;
-            pendingCapture = null;
             pendingDockingSourceMap = null;
             pendingLeftoverThingIds = null;
             pendingStrategicSourceMap = null;
@@ -70,10 +65,7 @@ namespace DeltaV
             pendingStrategicSourcePose = null;
             pendingStrategicOwnPocket = null;
             preLaunchConfirmationChaining = false;
-            pendingSplitOwnerId = -1;
-            pendingSplitFromAutopilot = false;
-            splitPromptSuppressedOwnerId = -1;
-            splitPromptSuppressedVersion = -1;
+            pendingSeparationOwnerIds.Clear();
             landingCaptureEngine = null;
             landingCaptureMap = null;
             landingCaptureCells = null;

@@ -25,14 +25,17 @@ namespace DeltaV
     /// 不在捕获中途询问）；完成后 A、B 进入对接状态（派生：同图多船），共享容器继续
     /// 惯性运动（沿用 b 的运动状态，不新增合并冲量求解）。
     ///
-    /// 脱离（固定 → 移动，拆图 §7）：新建容器 c 及其口袋图，仅转移主台控制域（无引擎
-    /// 要求）；c 的位姿/速度 = 宿主容器刚体上该船体点的位姿（含自旋切向）；收通道 =
-    /// 脱离事务的一部分（通知两侧端口，只收本次脱离相关通道）；通道 Pawn/物品原格留在
-    /// 宿主图，操作前汇总确认。
-    ///
-    /// 出力前公共检查与拆分（§8）：仅「将要产生推进器出力」的行为触发（手控输入、
-    /// 主动刹车辅助、自动驾驶），被动阻力与纯漂移不拆；公共拆分独立于 controller，
-    /// 玩家 controller 负责事前确认（forcePause 弹窗），NPC 直接执行。
+    /// 分离（§7 脱离 + §8 拆分统一，2026-09-24 用户定案）：「将要出力的船与其余部分
+    /// 分离」是唯一语义，出力请求（<see cref="RequestThrust"/>）是唯一触发点——
+    /// 「脱离停靠」不再是独立命令/按钮，已停靠的船同样可进入驾驶，首次推进器出力即
+    /// 触发分离。方向按派生态分派：自由飞行船 = 控制域外残留块逐块独立成残骸容器
+    /// （船留原图）；已停靠船 = 本船控制域搬入新口袋容器（宿主图与其余内容不动，
+    /// 位姿/速度 = 宿主刚体上该船体点的位姿，含自旋切向；收通道 = 分离事务的一部分，
+    /// 只收相关通道，通道 Pawn/物品原格留宿主图）。干净分离（无断片无滞留）立即执行
+    /// 不弹窗；有留置内容时玩家 controller 弹 forcePause 汇总确认（NPC 直接执行）；
+    /// 取消 = 撤销自动驾驶任务 + 退出驾驶并提示。执行时序：弹窗确认回调（暂停中）
+    /// 直接执行；立即执行与 NPC 路径排队到帧边界——手操路径的出力 gate 在容器积分
+    /// foreach 内被调用，分离会注册/注销容器对象，禁止循环内执行。
     /// </summary>
     internal sealed partial class ShipFlightTransitionService
     {
@@ -44,6 +47,15 @@ namespace DeltaV
 
         private static readonly FieldInfo ControllerTakeoffTile =
             AccessTools.Field(typeof(WorldComponent_GravshipController), "takeoffTile");
+
+        /// <summary>
+        /// 原版 controller 的设计器缓存（moveDesignator）。原版只在 LandingEnded 复位它；
+        /// 战术对接不走 LandingEnded 链路，陈旧实例（readonly map 绑定上一张目标图）会跨
+        /// 对接存活——选点入口显式清空，任何后续使用（含原版世界视图降落确认 UI 的
+        /// 「移动飞船」按钮）都重新按当前 marker 绑定。见 §21 MoveDesignator 教训。
+        /// </summary>
+        private static readonly FieldInfo ControllerMoveDesignator =
+            AccessTools.Field(typeof(WorldComponent_GravshipController), "moveDesignator");
 
         public bool FreeFlightTransitionPending()
         {
@@ -96,87 +108,183 @@ namespace DeltaV
             return SpaceTransform.WrapAngle(Mathf.Round(angle / quarter) * quarter);
         }
 
-        // ---- 出力前公共检查与拆分（§8；挂点 = 仅有的两个 Allocate 调用方）----
+        // ---- 出力前分离（§7 脱离 + §8 拆分统一；挂点 = 仅有的两个 Allocate 调用方）----
 
         /// <summary>
         /// 出力请求 gate（唯一入口；UniverseManager 手操路径与 ShipAutopilot 在施加推进器
-        /// 出力之前调用）。返回 true = 本次允许出力；false = 本 tick 中止出力（对接状态、
-        /// 待确认拆分或取消抑制期间）。断连拆分只在这里与脱离流程触发——纯惯性漂移与
-        /// 被动阻力不经本入口。
+        /// 出力之前调用）。「将要出力的船与其余部分分离」：自由飞行船 = 拆分方向（控制域
+        /// 外残留块逐块独立成残骸容器，船留原图）；已停靠船 = 脱离方向（本船控制域搬入
+        /// 新口袋容器，宿主图与其余内容不动）。返回 true = 本次允许出力；false = 本 tick
+        /// 中止出力（待确认分离、分离已排队或门禁拒绝）。分离只在这里触发——纯惯性漂移
+        /// 与被动阻力不经本入口。
         /// </summary>
         public bool RequestThrust(UniverseManager universe, Ship ship, bool playerInitiated)
         {
             if (!ship.IsValid) return false;
-            // 对接中的所有船不能手控推进或执行主动自动驾驶（§5.2）。
-            if (!ShipRegistry.IsFreeFlight(ship)) return false;
-            // 取消后的抑制期：结构版本不变不再重复弹窗，出力保持拒绝。
-            if (splitPromptSuppressedOwnerId == ship.ownerId
-                && splitPromptSuppressedVersion == SubstructureOwnership.GlobalStructureVersion)
+            Map sourceMap = ship.map;
+            if (sourceMap == null || universe.FrameOf(sourceMap) == null) return false;
+            // 重力门禁：地表/重力图只能逆重战略发射（§5.2「地面上的 A」行）。
+            if (!FreeFlightBootstrap.IsZeroGravity(universe, sourceMap))
+            {
+                Messages.Message("DeltaV_PilotGravityRestricted".Translate(), MessageTypeDefOf.RejectInput, false);
+                return false;
+            }
+            // 对接流程互斥（§5.2）；例外 = 对接计划船（手操打断自动驾驶、完成判据是几何的）。
+            if (universe.ShipTransitions.IsDockingFlowShip(ship)
+                && universe.Approach.ActivePlan?.ship.ownerId != ship.ownerId)
             {
                 return false;
             }
-            List<HashSet<IntVec3>> blocks = CollectResidualBlocks(ship);
-            if (blocks.Count == 0)
+            // 确认窗已打开或分离已排队（游戏因 forcePause 暂停 / 帧边界未到）：等待结果。
+            if (pendingSeparationOwnerIds.Contains(ship.ownerId))
             {
-                return true;
+                return false;
             }
-            if (pendingSplitOwnerId == ship.ownerId)
+
+            if (ShipRegistry.IsFreeFlight(ship))
             {
-                return false; // 确认窗已打开（游戏已暂停）：等待玩家决定，不重复弹。
+                // 拆分方向：控制域外残留块（不分归属）必须离开本容器，否则会随船整体运动。
+                List<HashSet<IntVec3>> blocks = CollectResidualBlocks(ship);
+                if (blocks.Count == 0)
+                {
+                    return true;
+                }
+                if (!playerInitiated)
+                {
+                    // NPC（或无 controller 上下文）：直接执行同一公共拆分，不弹玩家确认（§8.2）。
+                    QueueSeparation(universe, ship.ownerId);
+                    return false;
+                }
+                PresentSeparationPrompt(universe, ship, "DeltaV_SplitConfirmText",
+                    BuildSplitSummary(universe, ship, blocks));
+                return false;
             }
-            string summary = BuildSplitSummary(universe, ship, blocks);
-            if (playerInitiated)
+
+            // 脱离方向：本船控制域搬出宿主图（2026-09-24 起「脱离停靠」不再是独立命令，
+            // 门禁沿用旧脱离流程：零重力、可用推进器、流程繁忙互斥）。
+            HashSet<IntVec3> domain = ShipRegistry.ControlDomain(ship);
+            if (domain.Count == 0 || !ThrusterPower.HasWorkingThruster(sourceMap, domain))
             {
-                pendingSplitOwnerId = ship.ownerId;
-                pendingSplitFromAutopilot = false;
-                ShipController controller = universe.Pilot.ActiveController;
-                if (controller != null)
-                {
-                    controller.PresentSplitConfirmation(ship, summary);
-                }
-                else
-                {
-                    Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
-                        "DeltaV_SplitConfirmText".Translate(summary),
-                        () => ConfirmSplitAndResume(universe, ship),
-                        () => CancelSplitPrompt(universe, ship),
-                        destructive: true));
-                }
+                Messages.Message("DeltaV_LaunchFailNoThruster".Translate(), MessageTypeDefOf.RejectInput, false);
+                return false;
+            }
+            if (FreeFlightTransitionPending() || Find.GravshipController == null
+                || Find.GravshipController.LandingAreaConfirmationInProgress
+                || Find.GravshipController.IsGravshipTravelling || Current.Game.Gravship != null)
+            {
+                Messages.Message("DeltaV_DockFailBusy".Translate(), MessageTypeDefOf.RejectInput, false);
+                return false;
+            }
+            if (!playerInitiated)
+            {
+                QueueSeparation(universe, ship.ownerId);
+                return false;
+            }
+            // 断裂 + 留置汇总确认（§7 步骤 2、§9 方案建议）：同归属断连基架（将留在宿主
+            // 图）与对接通道上的 Pawn/物品（通道收回后原格留置）一次列清；两者皆无的
+            // 干净脱离立即执行、不新增确认窗（2026-09-24 用户定案）。
+            CollectUndockLeftBehinds(sourceMap, ship, domain,
+                out List<Thing> channelLeftovers, out List<HashSet<IntVec3>> fragments);
+            if (channelLeftovers.Count == 0 && fragments.Count == 0)
+            {
+                QueueSeparation(universe, ship.ownerId);
+                return false;
+            }
+            PresentSeparationPrompt(universe, ship, "DeltaV_UndockConfirmText",
+                BuildUndockSummary(sourceMap, channelLeftovers, fragments));
+            return false; // 本 tick 不施加该次推进器动量；分离后的下一次请求再出力。
+        }
+
+        /// <summary>
+        /// 玩家分离确认（经 ShipController 边界路由；NPC/无 controller 退化为原版确认窗）。
+        /// 文案 key 按方向传入（拆分/脱离两套），回调直连统一执行体。
+        /// </summary>
+        private void PresentSeparationPrompt(UniverseManager universe, Ship ship, string textKey, string summary)
+        {
+            pendingSeparationOwnerIds.Add(ship.ownerId);
+            string text = textKey.Translate(summary);
+            void Confirm() => ConfirmSeparation(universe, ship.ownerId);
+            void Cancel() => CancelSeparation(universe, ship.ownerId);
+            ShipController controller = universe.Pilot.ActiveController;
+            if (controller != null)
+            {
+                controller.PresentSeparationConfirmation(ship, text, Confirm, Cancel);
             }
             else
             {
-                // NPC（或无 controller 上下文）：直接执行同一公共拆分，不弹玩家确认（§8.2）。
+                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(text, Confirm, Cancel, destructive: true));
+            }
+        }
+
+        /// <summary>
+        /// 分离执行排队：立即分离（干净脱离）与 NPC 路径不能在出力 gate 的调用栈里执行
+        /// ——手操路径位于容器积分 foreach 循环内，分离会注册/注销容器对象（List 迭代中
+        /// 修改即抛异常）。统一经 <see cref="UniverseManager.QueueFrameAction"/> 延迟到
+        /// GameComponentUpdate 帧上下文（与旧按钮流程同上下文，地图生成/销毁、聚焦切换
+        /// 在该上下文执行过）；排队期间由 pendingSeparationOwnerIds 占位防重复入队。
+        /// 弹窗确认回调（forcePause 暂停中、GUI 上下文）不经此处，直接执行。
+        /// </summary>
+        private void QueueSeparation(UniverseManager universe, int ownerId)
+        {
+            pendingSeparationOwnerIds.Add(ownerId);
+            universe.QueueFrameAction(delegate
+            {
+                ExecuteSeparation(universe, ownerId);
+            });
+        }
+
+        /// <summary>确认回调：复核 = 重走主路径——执行体按 ownerId 现查当前派生态分派。</summary>
+        private void ConfirmSeparation(UniverseManager universe, int ownerId)
+        {
+            pendingSeparationOwnerIds.Remove(ownerId);
+            ExecuteSeparation(universe, ownerId);
+        }
+
+        /// <summary>
+        /// 取消回调（2026-09-24 用户定案）：清待决；若自动驾驶任务仍在驱动该船则撤销
+        /// （否则下一 tick 重新请求出力会再次弹窗循环）；退出驾驶模式并提示——重试 =
+        /// 重新进入驾驶再按推进键。不设结构版本抑制：旧机制会让取消后永远无法出力且
+        /// 无反馈（用户报障的根因），已删除。
+        /// </summary>
+        private void CancelSeparation(UniverseManager universe, int ownerId)
+        {
+            pendingSeparationOwnerIds.Remove(ownerId);
+            Ship ship = ShipRegistry.ShipByOwner(ownerId);
+            if (ship.IsValid && universe.Autopilot.IsActive(ownerId))
+            {
+                universe.Autopilot.Cancel(ship);
+            }
+            string message = "DeltaV_SeparationCancelled".Translate();
+            if (universe.Pilot.PilotedShip(universe).ownerId == ownerId)
+            {
+                universe.Pilot.Exit(universe, message);
+            }
+            else
+            {
+                Messages.Message(message, MessageTypeDefOf.NeutralEvent, false);
+            }
+        }
+
+        /// <summary>
+        /// 分离执行体（确认回调与帧边界排队共用）：按 ownerId 重解析句柄（§21：跨图搬运
+        /// 后旧快照必失效，一律现查），方向按当前派生态分派。
+        /// </summary>
+        private void ExecuteSeparation(UniverseManager universe, int ownerId)
+        {
+            pendingSeparationOwnerIds.Remove(ownerId);
+            Ship ship = ShipRegistry.ShipByOwner(ownerId);
+            if (!ship.IsValid)
+            {
+                return;
+            }
+            if (ShipRegistry.IsFreeFlight(ship))
+            {
                 SplitResiduals(universe, ship);
             }
-            return false; // 本 tick 不施加该次推进器动量；确认/拆分后的下一次请求再出力。
-        }
-
-        /// <summary>确认回调：复核（同一查询入口）后执行公共拆分。清单变化则按当前状态重拆。</summary>
-        public void ConfirmSplitAndResume(UniverseManager universe, Ship ship)
-        {
-            pendingSplitOwnerId = -1;
-            pendingSplitFromAutopilot = false;
-            splitPromptSuppressedOwnerId = -1;
-            if (!ship.IsValid) return;
-            SplitResiduals(universe, ship);
-        }
-
-        /// <summary>取消回调：取消本次触发操作；自动驾驶撤销任务；结构版本不变期间不再弹窗。</summary>
-        public void CancelSplitPrompt(UniverseManager universe, Ship ship)
-        {
-            bool fromAutopilot = pendingSplitFromAutopilot;
-            pendingSplitOwnerId = -1;
-            pendingSplitFromAutopilot = false;
-            if (ship.IsValid)
+            else
             {
-                splitPromptSuppressedOwnerId = ship.ownerId;
-                splitPromptSuppressedVersion = SubstructureOwnership.GlobalStructureVersion;
-                if (fromAutopilot)
-                {
-                    universe.Autopilot.Cancel(ship);
-                }
+                ExecuteUndockSeparation(universe, ship);
             }
-            Messages.Message("DeltaV_SplitCancelled".Translate(), MessageTypeDefOf.NeutralEvent, false);
         }
 
         /// <summary>残留块 = 图上控制域之外的基架物理四连通块（同归属断片与异主结构都算）。</summary>
@@ -272,7 +380,7 @@ namespace DeltaV
             {
                 ownerId = retainedOwnerId;
             }
-            GravshipInterop.StripDomain(gravship, sourceMap);
+            GravshipInterop.StripDomain(gravship, sourceMap, cells);
             GravshipInterop.PlaceIntoMap(gravship, pocketRoot, pocketMap, ownerId);
             var container = new SpaceObject(universe.AllocateOwnerId(), pocketMap, launchPose);
             universe.RegisterObject(container);
@@ -320,9 +428,11 @@ namespace DeltaV
         private void BeginDockingTargeted(Ship ship, SpaceObject target)
         {
             if (DockingFlowBlocked(ship)) return;
-            // FloatMenu 不暂停：菜单打开期间对象可移动/失效，点击时按同一资格口径复核。
+            // FloatMenu 不暂停：菜单打开期间对象可移动/失效，点击时按同一资格口径复核
+            //（自身排除同样用容器引用 + map 身份双条件）。
             if (target == null || target.map == null || target.map.Disposed
-                || target == universe.FrameOf(ship.map) || !IsLandableObject(target)
+                || target == universe.FrameOf(ship.map) || target.map == ship.map
+                || !IsLandableObject(target)
                 || !ShipCenterInsideProjection(target, universe.FrameOf(ship.map).pose.position))
             {
                 Messages.Message("DeltaV_DockFailNoTarget".Translate(), MessageTypeDefOf.RejectInput, false);
@@ -370,6 +480,12 @@ namespace DeltaV
             pendingLeftoverThingIds = confirmedLeftovers?.Select(t => t.thingIDNumber).ToList();
             pendingSelectionWasManual = universe.Pilot.GetControlState(ship) == ShipControlState.Manual;
             float snappedHeading = SnapAngle(ShipRegistry.HeadingAngle(ship));
+            // 目标确认日志（Core 模块，低频）：记录选点即将发生的图与承载对象，
+            // 与枚举/物化日志的 map#uniqueID 可直接关联。
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"docking confirmed: target #{target.objectId}({target.label}) {target.GetType().Name} "
+                + $"{UniverseManager.MapTag(target.map)}, holder #{universe.FrameOf(target.map)?.objectId}("
+                + $"{universe.FrameOf(target.map)?.label}), heading={snappedHeading * Mathf.Rad2Deg:F0} deg");
             BeginOriginalLanding(universe, ship, target, target.map, snappedHeading);
         }
 
@@ -385,14 +501,39 @@ namespace DeltaV
         {
             SpaceObject ownContainer = universe.FrameOf(ship.map);
             var candidates = new List<(SpaceObject target, float distance)>();
+            // 目标枚举日志（Core 模块，按钮触发的低频事件）：只记录有图对象与排除
+            // 原因；无图 marker 跳过不记。图标识经 MapTag（uniqueID 与物化/性能
+            // 日志可直接关联）。
+            var verdicts = new List<string>();
             foreach (SpaceObject obj in universe.objects)
             {
-                if (obj == ownContainer) continue;
-                if (obj.map == null || !IsLandableObject(obj)) continue;
-                if (!ShipCenterInsideProjection(obj, ownContainer.pose.position)) continue;
-                candidates.Add((obj, VisibleShellDistance(universe, ship, obj)));
+                if (obj is PoiState markerCheck && markerCheck.map == null) continue;
+                // 自身排除 = 容器引用 + map 身份双条件（2026-09-25 事故加固）：引用
+                // 相等在 FrameOf 取错对象/双持有时会漏（对接目标选成了自己的图）；
+                // map 相等无条件兜底——自己的图永远不可能是自己的降落目标。
+                if (obj == ownContainer || obj.map == ship.map)
+                {
+                    verdicts.Add($"#{obj.objectId}({obj.label}) OWN");
+                    continue;
+                }
+                if (obj.map == null || !IsLandableObject(obj))
+                {
+                    verdicts.Add($"#{obj.objectId}({obj.label}) not-landable");
+                    continue;
+                }
+                if (!ShipCenterInsideProjection(obj, ownContainer.pose.position))
+                {
+                    verdicts.Add($"#{obj.objectId}({obj.label}) {UniverseManager.MapTag(obj.map)} outside-projection");
+                    continue;
+                }
+                float distance = VisibleShellDistance(universe, ship, obj);
+                candidates.Add((obj, distance));
+                verdicts.Add($"#{obj.objectId}({obj.label}) {UniverseManager.MapTag(obj.map)} CANDIDATE dist={distance:0.#}");
             }
             candidates.Sort((a, b) => a.distance.CompareTo(b.distance));
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"docking target scan (own #{ownContainer?.objectId} {UniverseManager.MapTag(ship.map)}): "
+                + $"{string.Join(" | ", verdicts)} => {candidates.Count} candidate(s)");
             return candidates;
         }
 
@@ -507,16 +648,39 @@ namespace DeltaV
 
             // 自持选点流程（原版 ArriveExistingMap 经 WorldObjects tile 查图，口袋图不通）：
             // 复刻其主体（锁 landingMap、构造 marker、进入确认状态），初始落点放到
-            // 悬停位置在目标对象内部投影上的对应格（星区架构 §7）。designator 必须在
-            // landingMap 仍非空时构造（其构造器缓存 map），随后置 null 隐藏原版 Abort——
-            // AbortLanding 依赖 landingMap.Tile 做坠毁改道，口袋图没有可用 tile。
+            // 悬停位置在目标对象内部投影上的对应格（星区架构 §7）。设计器显式绑定
+            // targetMap 新建（勿用 controller.MoveDesignator()——终身缓存陈旧 map 字段），
+            // 随后 landingMap 置 null 隐藏原版 Abort——AbortLanding 依赖 landingMap.Tile
+            // 做坠毁改道，口袋图没有可用 tile。
+            // 不变量守卫（边沿触发，Core 模块）：上一次选点未清干净的 landingMap
+            /// 只在异常时可见——正常流程选点结束即置 null。
+            Map prevLandingMap = Find.GravshipController.landingMap;
+            if (prevLandingMap != null)
+            {
+                DeltaVLog.Message(DeltaVLogModule.Core,
+                    $"docking selection: STALE landingMap before set = {UniverseManager.MapTag(prevLandingMap)} "
+                    + $"(about to overwrite with {UniverseManager.MapTag(targetMap)})");
+            }
             Find.GravshipController.landingMap = targetMap;
+            // 清掉原版的设计器缓存（用的时候实例化，2026-09-25 用户定案）：战术对接不走
+            // LandingEnded，原版自己的复位永不触发；残留实例绑定上一张目标图，世界视图
+            // 降落确认 UI 的「移动飞船」按钮会再次取到它。
+            ControllerMoveDesignator?.SetValue(Find.GravshipController, null);
             GravshipLandingMarker marker = ThingMaker.MakeThing(ThingDefOf.GravshipLandingMarker) as GravshipLandingMarker;
             marker.gravship = gravship;
             marker.CacheCells();
             Find.GravshipController.Notify_LandingAreaConfirmationStarted(marker);
-            Designator_MoveGravship designator = Find.GravshipController.MoveDesignator();
+            // 必须每次新建设计器（2026-09-25 修复）：原版 controller.MoveDesignator() 终身
+            // 缓存首个实例，只刷新 marker 字段、不刷新 readonly 的 map 字段——连续对接
+            // 不同目标图时复用陈旧实例，marker 被生成到上一张目标图，其 SpawnSetup 再把
+            // 相机跳过去（实测：选点指示器与相机全落在上一次的敌舰图上）。原版自身
+            // 1:1（控制器↔图）无此问题；显式绑定 targetMap 与本次 marker。
+            var designator = new Designator_MoveGravship(targetMap, marker);
             IntVec3 initialCell = InitialLandingCell(universe, ship, target, targetMap, gravship, desiredFacing);
+            // 有意保留 ExecuteWhenFinished（勿改成 QueueFrameAction）：本委托内的
+            // DesignateSingleCell（自动放置）必须先于下面的 landingMap = null 执行——
+            // GUI 上下文（面板按钮触发）下 ExecuteWhenFinished 立即内联，恰好保证了
+            // 这个顺序；帧队列会把它颠倒到 landingMap 清空之后。
             LongEventHandler.ExecuteWhenFinished(delegate
             {
                 CameraJumper.TryJump(initialCell.IsValid ? initialCell : targetMap.Center, targetMap,
@@ -525,6 +689,7 @@ namespace DeltaV
                 // 初始落点只是原版选点的起点。已按脚印 clamp，但图比船小时仍可能
                 // 不合法：只在原版门禁放行时自动放置，否则留给玩家手动选点。
                 IntVec3 cell = initialCell;
+                string autoPlace = "skip (invalid initial cell)";
                 if (cell.IsValid && designator != null)
                 {
                     if (!designator.CanDesignateCell(cell).Accepted)
@@ -534,12 +699,21 @@ namespace DeltaV
                     if (cell.IsValid && designator.CanDesignateCell(cell).Accepted)
                     {
                         designator.DesignateSingleCell(cell);
+                        autoPlace = $"placed at {cell}";
+                    }
+                    else
+                    {
+                        autoPlace = $"left for manual (initial={initialCell}, probed={cell})";
                     }
                 }
+                // 选点 UI 落点日志（Core 模块）：相机与自动放置的最终去向。
+                DeltaVLog.Message(DeltaVLogModule.Core,
+                    $"docking selection UI: on {UniverseManager.MapTag(targetMap)}; auto-place: {autoPlace}");
             });
             Find.GravshipController.landingMap = null;
             DeltaVLog.Message(DeltaVLogModule.Core,
-                $"structure #{ship.ownerId}: docking site selection on '{target.label}' (zero-consumption preview); initial cell={initialCell}, heading={snappedHeading * Mathf.Rad2Deg:F0} deg");
+                $"structure #{ship.ownerId}: docking site selection on '{target.label}' (zero-consumption preview); initial cell={initialCell}, heading={snappedHeading * Mathf.Rad2Deg:F0} deg"
+                + $", targetMap={UniverseManager.MapTag(targetMap)}, bounds={gravship.Bounds.Size.x}x{gravship.Bounds.Size.z}, desiredFacing={desiredFacing.AsByte}");
         }
 
         /// <summary>
@@ -685,7 +859,10 @@ namespace DeltaV
             Map pocketMap = ship.map;
             if (pocketMap == null || pocketMap == targetMap) return false;
             // 源图残留复核（§6：确认后新增的残留不静默处置——中止并要求重新发起）。
-            List<Thing> leftovers = CollectSourceLeftovers(pocketMap, ShipRegistry.ControlDomain(ship));
+            // domain 与完成时刻捕获（CaptureShipForCompletion）同调用栈、同一查询入口，
+            // 兼作 StripDomain 的剥离格集合（禁止从 Foundations 旋转视图反推，见其注释）。
+            HashSet<IntVec3> domain = ShipRegistry.ControlDomain(ship);
+            List<Thing> leftovers = CollectSourceLeftovers(pocketMap, domain);
             List<int> confirmed = pendingLeftoverThingIds ?? new List<int>();
             foreach (Thing leftover in leftovers)
             {
@@ -697,7 +874,7 @@ namespace DeltaV
                 }
             }
             pendingDockingSourceMap = pocketMap;
-            GravshipInterop.StripDomain(gravship, pocketMap);
+            GravshipInterop.StripDomain(gravship, pocketMap, domain);
             GravshipInterop.PlaceIntoMap(gravship, landingRoot, targetMap, structureId);
             landedShipAwaitingCleanup = ship;
             pendingShip = Ship.Invalid;
@@ -813,97 +990,49 @@ namespace DeltaV
             return string.Join("\n", parts);
         }
 
-        // ---- 脱离（固定 → 移动，拆图 §7）----
+        // ---- 脱离方向执行体（固定 → 移动，拆图 §7；出力 gate 触发，无独立入口）----
 
         /// <summary>
-        /// 已登记船的脱离入口（面板/驾驶台按钮）。
+        /// 脱离方向的留置汇总输入：同归属断连基架（将留在宿主图）与对接通道上的
+        /// Pawn/物品（通道收回后原格留置）。注意与拆分方向的口径差异是语义性的：
+        /// 脱离时移动的是本船域，其余一切（含异主结构）留在宿主容器；拆分时移动的是
+        /// 本船容器，域外一切必须逐块搬走。
         /// </summary>
-        public void BeginFreeFlight(UniverseManager universe, Ship ship)
+        private static void CollectUndockLeftBehinds(Map sourceMap, Ship ship, HashSet<IntVec3> domain,
+            out List<Thing> channelLeftovers, out List<HashSet<IntVec3>> fragments)
         {
-            if (universe == null || !ship.IsValid) return;
-            Map sourceMap = ship.map;
-            if (sourceMap == null || !Find.Maps.Contains(sourceMap) || universe.FrameOf(sourceMap) == null)
-            {
-                Messages.Message("DeltaV_DockFailHostMap".Translate(), MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            if (!FreeFlightBootstrap.IsZeroGravity(sourceMap))
-            {
-                // 重力门禁：地表/重力图只能逆重战略发射（§5.2「地面上的 A」行）。
-                Messages.Message("DeltaV_PilotGravityRestricted".Translate(), MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            HashSet<IntVec3> domain = ShipRegistry.ControlDomain(ship);
-            if (domain.Count == 0
-                || !ThrusterPower.HasWorkingThruster(sourceMap, domain))
-            {
-                Messages.Message("DeltaV_LaunchFailNoThruster".Translate(), MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            if (FreeFlightTransitionPending() || Find.GravshipController == null
-                || Find.GravshipController.LandingAreaConfirmationInProgress
-                || Find.GravshipController.IsGravshipTravelling || Current.Game.Gravship != null)
-            {
-                Messages.Message("DeltaV_DockFailBusy".Translate(), MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            // 断裂 + 留置汇总确认（§7 步骤 2、§9 方案建议）：同归属断连基架（将留在宿主图）
-            // 与对接通道上的 Pawn/物品（通道收回后原格留置）一次列清；两者皆无的正常
-            // 脱离不新增确认窗。
-            List<Thing> channelLeftovers = Building_DockingPort.CollectChannelLeftBehind(sourceMap, domain);
-            List<HashSet<IntVec3>> fragments = ShipRegistry.ResidualBlocks(sourceMap, domain)
+            channelLeftovers = Building_DockingPort.CollectChannelLeftBehind(sourceMap, domain);
+            fragments = ShipRegistry.ResidualBlocks(sourceMap, domain)
                 .Where(block =>
                 {
                     SubstructureOwnership ownership = SubstructureOwnership.TryGet(sourceMap);
                     return ownership != null && ownership.OwnerAt(block.First()) == ship.ownerId;
                 })
                 .ToList();
-            if (channelLeftovers.Count > 0 || fragments.Count > 0)
-            {
-                var summary = new List<string>();
-                if (fragments.Count > 0)
-                {
-                    summary.Add("DeltaV_UndockFragmentsLine".Translate(fragments.Count));
-                }
-                if (channelLeftovers.Count > 0)
-                {
-                    summary.Add("DeltaV_LeftBehindLine".Translate(BuildLeftBehindSummary(sourceMap, channelLeftovers)));
-                }
-                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
-                    "DeltaV_UndockConfirmText".Translate(string.Join("\n", summary)),
-                    () => ExecuteUndock(universe, ship),
-                    null, destructive: true));
-                return;
-            }
-            ExecuteUndock(universe, ship);
         }
 
-        /// <summary>未形成船的驾驶台入口（原 FreeFlightBootstrap 场景）：先认领身份再脱离。</summary>
-        public void BeginFreeFlightFromConsole(UniverseManager universe, Building console)
+        private static string BuildUndockSummary(Map sourceMap, List<Thing> channelLeftovers,
+            List<HashSet<IntVec3>> fragments)
         {
-            if (universe == null || console == null || !console.Spawned) return;
-            CompDeltaVPilotConsole comp = console.TryGetComp<CompDeltaVPilotConsole>();
-            if (comp == null) return;
-            if (!FreeFlightBootstrap.IsZeroGravity(console.Map))
+            var summary = new List<string>();
+            if (fragments.Count > 0)
             {
-                Messages.Message("DeltaV_PilotGravityRestricted".Translate(), MessageTypeDefOf.RejectInput, false);
-                return;
+                summary.Add("DeltaV_UndockFragmentsLine".Translate(fragments.Count));
             }
-            if (!comp.isMain)
+            if (channelLeftovers.Count > 0)
             {
-                comp.MakeMainConsole();
+                summary.Add("DeltaV_LeftBehindLine".Translate(BuildLeftBehindSummary(sourceMap, channelLeftovers)));
             }
-            Ship ship = comp.Ship;
-            if (!ship.IsValid)
-            {
-                Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            BeginFreeFlight(universe, ship);
+            return string.Join("\n", summary);
         }
 
-        /// <summary>脱离执行体（确认弹窗之后的部分；无引擎搬运，不走原版起飞管线）。</summary>
-        private void ExecuteUndock(UniverseManager universe, Ship ship)
+        /// <summary>
+        /// 脱离方向执行体（确认弹窗之后 / NPC 与干净脱离的帧边界排队；无引擎搬运，不走
+        /// 原版起飞管线）。自动驾驶任务不在此撤销：手动触发的分离在重新 Enter 时已
+        /// Detach；自动驾驶自触发的分离保留任务——Flight 按 ownerId 每 tick 现查船与
+        /// 容器，脱离后在新容器上继续请求出力。
+        /// </summary>
+        private void ExecuteUndockSeparation(UniverseManager universe, Ship ship)
         {
             Map sourceMap = ship.map;
             SpaceObject sourceFrame = universe.FrameOf(sourceMap);
@@ -920,8 +1049,11 @@ namespace DeltaV
             // Pawn/物品原格留置（不自动迁往安全格）。
             Building_DockingPort.RetractChannelsFor(sourceMap, domain);
 
-            universe.Pilot.Exit(universe);
-            universe.Autopilot.Cancel(ship);
+            // 只退本船的驾驶位（玩家可能在驾驶另一艘船）；转移后重新进入。
+            if (universe.Pilot.PilotedShip(universe).ownerId == ship.ownerId)
+            {
+                universe.Pilot.Exit(universe);
+            }
 
             SpaceObject container = TransferDomainToNewPocket(universe, sourceMap, sourceFrame,
                 domain, ship.console.parent as Building, wreckOwnership: false, retainedOwnerId: ship.ownerId);
@@ -933,11 +1065,20 @@ namespace DeltaV
             // 转移后 ship 的主台已在新图上；重解析句柄。
             Ship resolved = ShipRegistry.ShipByOwner(ship.ownerId);
             WorldShipMarkerRenderer.RebuildFor(resolved.IsValid ? resolved : ship);
-            universe.SetFocused(container);
+            // 聚焦/相机交接（SetFocusedWithCamera 单实现，与对接完成同口径）：玩家正
+            // 注视源图（含手动驾驶——驾驶要求聚焦在该图）时视点按宇宙参考系连续换算
+            // 到新口袋图；NPC 脱离且玩家看向别处时不打扰。换算需在源容器仍注册时
+            // 完成（善后排在之后的帧边界）。
+            if (Find.CurrentMap == sourceMap)
+            {
+                Vector3 viewCenter = Find.CameraDriver.CurrentViewRect.CenterVector3;
+                Vector3 universeDir = SpaceTransform.MapPointToUniverse(sourceFrame, sourceMap,
+                    new Vector2(viewCenter.x, viewCenter.z));
+                Vector2 mapPoint = SpaceTransform.UniverseToMapPoint(container, container.InteriorMap, universeDir);
+                universe.SetFocusedWithCamera(container, mapPoint, Find.CameraDriver.RootSize);
+            }
             if (resolved.IsValid)
             {
-                CameraJumper.TryJump(resolved.console.parent.Position, resolved.map,
-                    CameraJumper.MovementMode.Cut);
                 if (universe.Pilot.CanPlayerControl(resolved))
                 {
                     universe.Pilot.Enter(universe, resolved);
@@ -951,13 +1092,13 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 延后到帧边界清点离港地图：此时已完全脱离调用栈，DeinitAndRemoveMap
-        /// 不会踩到上层仍在使用的引用。
+        /// 延后到帧上下文清点离港地图（QueueFrameAction 统一机制）：此时已完全脱离
+        /// 调用栈，DeinitAndRemoveMap 不会踩到上层仍在使用的引用。
         /// </summary>
         private void QueueEmptyDepartedMapCleanup(UniverseManager universe, Map map)
         {
             if (map == null) return;
-            LongEventHandler.ExecuteWhenFinished(delegate { HandleDepartedSourceMap(universe, map); });
+            universe.QueueFrameAction(delegate { HandleDepartedSourceMap(universe, map); });
         }
 
         /// <summary>
@@ -1092,7 +1233,9 @@ namespace DeltaV
                 flow.pendingStrategicOwnPocket = null;
             }
             if (sourceMap == null) return;
-            LongEventHandler.ExecuteWhenFinished(delegate
+            // 善后经 QueueFrameAction 延迟到帧上下文（统一机制）；入队时机保持在
+            // TravelTo 放行后的 Postfix 内——更早入队会卡守卫（2026-09-20 教训勿回退）。
+            universe.QueueFrameAction(delegate
             {
                 if (universe == null || sourceMap.Disposed || !Find.Maps.Contains(sourceMap)) return;
 

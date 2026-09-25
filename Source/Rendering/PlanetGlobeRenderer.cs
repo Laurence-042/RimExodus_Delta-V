@@ -102,6 +102,12 @@ namespace DeltaV
         private static readonly Dictionary<Map, HashSet<int>> SilhouetteEmpty =
             new Dictionary<Map, HashSet<int>>();
 
+        // 残骸剪影（普通物化容器，图上有基架无船时按**全图基架**扫描，不分归属——
+        // 2026-09-25 用户定案：物化容器图标按图内容）。与按归属的船剪影分开缓存。
+        private static readonly Dictionary<Map, Texture2D> StructureSilhouetteCache =
+            new Dictionary<Map, Texture2D>();
+        private static readonly HashSet<Map> StructureSilhouetteEmpty = new HashSet<Map>();
+
         // 六边形网格 BFS / 顶点缓冲（复用，避免每帧分配）。
         private static readonly List<PlanetTile> HexQueue = new List<PlanetTile>(MaxHexTiles);
         private static readonly HashSet<PlanetTile> HexSeen = new HashSet<PlanetTile>();
@@ -268,17 +274,16 @@ namespace DeltaV
                 }
             }
 
-            // ---- POI：残骸菱形（图标层；已物化且进入剪影层时被剪影替代）----
+            // ---- marker 菱形（图标层；未物化 PoiState 触发器按设置的类型显示）----
+            // 物化容器（普通 SpaceObject）没有 POI 图标身份（2026-09-25 用户定案）：
+            // 拉近后按图内容画剪影（船剪影/残骸剪影），远档只有常驻小白点 + 拼接名标注。
             if (iconLayer)
             {
                 foreach (SpaceObject obj in universe.objects)
                 {
-                    if (obj is PoiState poi && poi.kind == PoiKind.SnapshotPocket
+                    if (obj is PoiState poi && poi.kind == PoiKind.SnapshotPocket && poi.map == null
                         && Vector3.Dot(obj.pose.position, shipDir) > 0f)
                     {
-                        // 已物化且进入剪影层：GUI 段画真实比例剪影，替代菱形；标注层
-                        // 的文字随后移到剪影下方（2026-09-19 定稿：图例变成剪影）。
-                        if (silhouetteLayer && GetSilhouette(poi.map, poi.objectId) != null) continue;
                         Vector2 pos = Project(obj.pose.position);
                         if (!rect.ExpandedBy(8f).Contains(pos)) continue;
                         DrawDiamond(pos, 6f, new Color(1f, 0.85f, 0.55f, 0.95f));
@@ -394,36 +399,57 @@ namespace DeltaV
             {
                 foreach (SpaceObject obj in universe.objects)
                 {
-                    if (!(obj is PoiState poi)) continue;
                     if (Vector3.Dot(obj.pose.position, shipDir) <= 0f) continue;
-                    // 已物化且进入剪影层：真实比例剪影替代图标（点击区域随剪影大小）。
-                    // 按 POI 归属 ID 过滤——停靠船占用其内部图时，wreck 剪影仍是 wreck 自己。
-                    Texture2D silhouette = silhouetteLayer && poi.map != null
-                        ? GetSilhouette(poi.map, poi.objectId)
-                        : null;
-                    if (silhouette != null)
+                    if (obj is PoiState poi)
                     {
-                        Vector2 pos = Project(obj.pose.position);
-                        float sizePx = Mathf.Max(silhouette.width * pixelsPerCell, 8f);
-                        var silhouetteRect = new Rect(pos.x - sizePx * 0.5f, pos.y - sizePx * 0.5f, sizePx, sizePx);
-                        if (!silhouetteRect.Overlaps(rect)) continue;
-                        Overlays.Add(new Overlay(silhouetteRect, silhouette,
-                            SilhouetteScreenAngle(obj.pose.position, poi.pose.angle, right, up),
-                            new Color(1f, 0.85f, 0.55f)));
-                        RegisterClickable(silhouetteRect, universe, poi, referenceDir);
+                        // marker（无图触发器）：菱形已在 GL 段画过，无 GUI 内容。
+                        // NativeParent：原版站点镜像——剪影（有基架的原版站点）或原版图标。
+                        if (poi.kind != PoiKind.NativeParent || poi.nativeParent == null
+                            || poi.nativeParent.Destroyed)
+                        {
+                            continue;
+                        }
+                        Texture2D silhouette = silhouetteLayer && poi.map != null
+                            ? GetSilhouette(poi.map, poi.objectId)
+                            : null;
+                        if (silhouette != null)
+                        {
+                            Vector2 pos = Project(obj.pose.position);
+                            float sizePx = Mathf.Max(silhouette.width * pixelsPerCell, 8f);
+                            var silhouetteRect = new Rect(pos.x - sizePx * 0.5f, pos.y - sizePx * 0.5f, sizePx, sizePx);
+                            if (!silhouetteRect.Overlaps(rect)) continue;
+                            Overlays.Add(new Overlay(silhouetteRect, silhouette,
+                                SilhouetteScreenAngle(obj.pose.position, poi.pose.angle, right, up),
+                                new Color(1f, 0.85f, 0.55f)));
+                            RegisterClickable(silhouetteRect, universe, poi, referenceDir);
+                            continue;
+                        }
+                        // 原版站点没有 Substructure → 无剪影（上方分支已 continue），标记即
+                        // 投影点居中 = MarkerBelow 的 extent=0 情形，与其他标记同一套逻辑。
+                        Vector2 iconPos = Project(obj.pose.position);
+                        var iconRect = new Rect(iconPos.x - 9f, iconPos.y - 9f, 18f, 18f);
+                        if (!iconRect.Overlaps(rect)) continue;
+                        GUI.color = poi.nativeParent.ExpandingIconColor;
+                        GUI.DrawTexture(iconRect, poi.nativeParent.ExpandingIcon);
+                        GUI.color = Color.white;
+                        RegisterClickable(iconRect, universe, poi, referenceDir);
                         continue;
                     }
-                    if (poi.kind != PoiKind.NativeParent
-                        || poi.nativeParent == null || poi.nativeParent.Destroyed) continue;
-                    // 原版站点没有 Substructure → 无剪影（上方分支已 continue），标记即
-                    // 投影点居中 = MarkerBelow 的 extent=0 情形，与其他标记同一套逻辑。
-                    Vector2 iconPos = Project(obj.pose.position);
-                    var iconRect = new Rect(iconPos.x - 9f, iconPos.y - 9f, 18f, 18f);
-                    if (!iconRect.Overlaps(rect)) continue;
-                    GUI.color = poi.nativeParent.ExpandingIconColor;
-                    GUI.DrawTexture(iconRect, poi.nativeParent.ExpandingIcon);
-                    GUI.color = Color.white;
-                    RegisterClickable(iconRect, universe, poi, referenceDir);
+                    // 普通物化容器：图标按图内容——有船由船剪影段表达（不重复画）；
+                    // 有基架无船 = 残骸，画全图基架合并剪影（真实比例，可点击聚焦）。
+                    if (!silhouetteLayer || obj.map == null) continue;
+                    if (ShipRegistry.ShipsOnMap(obj.map).Count > 0) continue;
+                    Texture2D wreck = GetStructureSilhouette(obj.map);
+                    if (wreck == null) continue;
+                    Vector2 wreckPos = Project(obj.pose.position);
+                    float wreckPx = Mathf.Max(wreck.width * pixelsPerCell, 8f);
+                    var wreckRect = new Rect(wreckPos.x - wreckPx * 0.5f, wreckPos.y - wreckPx * 0.5f,
+                        wreckPx, wreckPx);
+                    if (!wreckRect.Overlaps(rect)) continue;
+                    Overlays.Add(new Overlay(wreckRect, wreck,
+                        SilhouetteScreenAngle(obj.pose.position, obj.pose.angle, right, up),
+                        new Color(1f, 0.85f, 0.55f)));
+                    RegisterClickable(wreckRect, universe, obj, referenceDir);
                 }
             }
             foreach (Overlay overlay in Overlays)
@@ -625,6 +651,28 @@ namespace DeltaV
             return texture;
         }
 
+        /// <summary>
+        /// 残骸剪影（普通物化容器）：全图基架扫描（<see cref="ShipSilhouette.ScanSubstructure(Map)"/>
+        /// 整图口径，单实现入口），不分归属。图上无基架（纯环境容器）返回 null → 小点+名。
+        /// </summary>
+        private static Texture2D GetStructureSilhouette(Map map)
+        {
+            if (map == null || map.Disposed) return null;
+            if (StructureSilhouetteCache.TryGetValue(map, out Texture2D cached)) return cached;
+            if (StructureSilhouetteEmpty.Contains(map)) return null;
+            List<IntVec3> cells = ShipSilhouette.ScanSubstructure(map);
+            Texture2D texture = cells.Count > 0
+                ? ShipSilhouette.BuildTexture(cells, $"DeltaV_GlobeWreckSilhouette_{map.Index}")
+                : null;
+            if (texture == null)
+            {
+                StructureSilhouetteEmpty.Add(map);
+                return null;
+            }
+            StructureSilhouetteCache[map] = texture;
+            return texture;
+        }
+
         /// <summary>聚焦船最长边（格）：优先剪影侧长，兜底 FallbackSideCells。缩放最深档与剪影层阈值都以它为单位。</summary>
         private static float SideCellsOf(Ship reference)
         {
@@ -666,14 +714,24 @@ namespace DeltaV
         /// <summary>
         /// 对象剪影旋转包围盒的半高（像素）；无剪影（未物化/未到剪影层/图上无该归属
         /// 基架）返回 0。是 <see cref="LegendExtentOf"/> 的剪影分支。容器角即旋转输入
-        /// （剪影纹理嵌在对象内部图的图帧内）。
+        ///（剪影纹理嵌在对象内部图的图帧内）。普通容器用全图合并残骸剪影（有船时不
+        /// 画合并剪影——船剪影各自表达，extent 走标记兜底）。
         /// </summary>
         private static float SilhouetteExtentOf(UniverseManager universe, SpaceObject obj,
             bool silhouetteLayer, float pixelsPerCell, Vector3 right, Vector3 up)
         {
             if (!silhouetteLayer) return 0f;
             Map map = obj.map;
-            Texture2D silhouette = GetSilhouette(map, obj.objectId);
+            Texture2D silhouette;
+            if (obj is PoiState)
+            {
+                silhouette = GetSilhouette(map, obj.objectId);
+            }
+            else
+            {
+                if (map == null || ShipRegistry.ShipsOnMap(map).Count > 0) return 0f;
+                silhouette = GetStructureSilhouette(map);
+            }
             if (silhouette == null) return 0f;
             float sizePx = Mathf.Max(silhouette.width * pixelsPerCell, 8f);
             float angleDeg = SilhouetteScreenAngle(obj.pose.position, obj.pose.angle, right, up);
@@ -708,6 +766,12 @@ namespace DeltaV
             }
             SilhouetteCache.Clear();
             SilhouetteEmpty.Clear();
+            foreach (Texture2D texture in StructureSilhouetteCache.Values)
+            {
+                if (texture != null) Object.Destroy(texture);
+            }
+            StructureSilhouetteCache.Clear();
+            StructureSilhouetteEmpty.Clear();
             lastStateLog = null;
         }
 
@@ -727,6 +791,12 @@ namespace DeltaV
                 SilhouetteCache.Remove(map);
             }
             SilhouetteEmpty.Remove(map);
+            if (StructureSilhouetteCache.TryGetValue(map, out Texture2D wreck))
+            {
+                if (wreck != null) Object.Destroy(wreck);
+                StructureSilhouetteCache.Remove(map);
+            }
+            StructureSilhouetteEmpty.Remove(map);
         }
 
         // ---- 基础绘制 ----

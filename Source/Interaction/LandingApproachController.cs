@@ -245,7 +245,7 @@ namespace DeltaV
                 MessageTypeDefOf.PositiveEvent, false);
             Vector2 registeredOrigin = newPlan.dockedOrigin;
             DeltaVLog.Message(DeltaVLogModule.Core,
-                $"structure #{ship.ownerId}: landing registered on '{host.label}'; cell={landingPos}, rot={landingRot.AsInt}, dockedOrigin=({registeredOrigin.x:F1},{registeredOrigin.y:F1}), offset=({newPlan.hostOffset.x:F1},{newPlan.hostOffset.y:F1}), relAngle={newPlan.relativeAngle * Mathf.Rad2Deg:F1} deg");
+                $"structure #{ship.ownerId}: landing registered on '{host.label}' (hostMap#{map.uniqueID} {map.Size.x}x{map.Size.z}); cell={landingPos}, rot={landingRot.AsInt}, dockedOrigin=({registeredOrigin.x:F1},{registeredOrigin.y:F1}), offset=({newPlan.hostOffset.x:F1},{newPlan.hostOffset.y:F1}), relAngle={newPlan.relativeAngle * Mathf.Rad2Deg:F1} deg");
             return true;
         }
 
@@ -403,7 +403,11 @@ namespace DeltaV
             }
             plan = null;
             Ship settled = ship;
-            LongEventHandler.ExecuteWhenFinished(delegate
+            // 帧上下文收尾（QueueFrameAction 统一机制）：CompleteDocking 在 Approach.Tick
+            //（GameComponentTick）内执行，FinishDocking 的源图销毁/聚焦交接/通道铺设
+            // 必须离开 tick 调用栈再执行——旧 ExecuteWhenFinished 写法实际在 Tick 内联
+            // 执行（碰巧位于积分循环之前才没炸），语义与本注释一直声称的「帧边界」不符。
+            universe.QueueFrameAction(delegate
             {
                 universe.ShipTransitions.FinishDocking(universe, settled);
             });
@@ -512,6 +516,8 @@ namespace DeltaV
         private static void CancelSiteSelection(UniverseManager universe, Ship ship)
         {
             Find.GravshipController?.Notify_LandingAreaConfirmationStarted(null);
+            // 取消选点时退出设计器（选点中断不再持有鼠标模式）。
+            Find.DesignatorManager.Deselect();
             if (!ship.IsValid) return;
             foreach (Map map in Find.Maps)
             {

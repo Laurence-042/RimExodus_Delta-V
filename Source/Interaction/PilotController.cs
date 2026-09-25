@@ -40,14 +40,18 @@ namespace DeltaV
         /// <summary>该方是否对目标船有控制权（玩家 = 派系门禁；NPC = AI 归属）。</summary>
         protected internal abstract bool HasAuthority(Ship target);
 
-        /// <summary>公共驾驶门禁（两子类同一流程）：目标有效、自由飞行、非流程互斥。</summary>
+        /// <summary>
+        /// 公共驾驶门禁（两子类同一流程）：目标有效、所在图有宇宙容器且零重力、非流程
+        /// 互斥。已停靠的船同样可进入驾驶（2026-09-24 统一分离定案）——首次推进器出力
+        /// 即触发与其余部分的分离（脱离方向 gate 在 RequestThrust 收口）；无容器/重力图
+        /// 只能逆重战略发射，无驾驶。
+        /// </summary>
         public virtual bool CanEnter(Ship target)
         {
             if (!target.IsValid) return false;
-            // 对接中的所有船禁止主动控制（§5.2）；唯一例外 = 对接计划船（手操打断自动
-            // 驾驶但不取消计划，完成判据是几何的）。
-            if (!ShipRegistry.IsFreeFlight(target)
-                && !ReferenceEquals(universe.Approach.ActivePlan?.ship.ownerId, target.ownerId))
+            Map map = target.map;
+            if (map == null || universe.FrameOf(map) == null
+                || !FreeFlightBootstrap.IsZeroGravity(universe, map))
             {
                 return false;
             }
@@ -76,14 +80,14 @@ namespace DeltaV
         /// </summary>
         public abstract PilotService.PilotCommand ComposeCommand();
 
-        // ---- 确认边界（§8.2：提示属于玩家 controller；拆分属于公共机制）----
+        // ---- 确认边界（§8.2：提示属于玩家 controller；分离属于公共机制）----
 
-        /// <summary>出力前拆分确认（有分裂结构时启动推进器）。NPC 不弹窗，直接执行。</summary>
-        internal abstract void PresentSplitConfirmation(Ship ship, string summary);
-
-        /// <summary>脱离/拆分时的留置内容汇总确认（人员姓名、物品名称与数量、留置地图）。</summary>
-        internal abstract void PresentLeftBehindConfirmation(string summary, System.Action onConfirm,
-            System.Action onCancel);
+        /// <summary>
+        /// 出力前分离确认（拆分/脱离两方向共用，文案由公共机制按方向备好）。NPC 不弹
+        /// 窗，直接执行。
+        /// </summary>
+        internal abstract void PresentSeparationConfirmation(Ship ship, string text,
+            System.Action onConfirm, System.Action onCancel);
     }
 
     /// <summary>
@@ -107,22 +111,13 @@ namespace DeltaV
             return universe.Pilot.ComposePlayerCommand(ship);
         }
 
-        internal override void PresentSplitConfirmation(Ship target, string summary)
+        internal override void PresentSeparationConfirmation(Ship target, string text,
+            System.Action onConfirm, System.Action onCancel)
         {
             // 复用原版暂停确认窗（Dialog_MessageBox 构造器 forcePause = true，
             // WindowStack 汇总该标志——窗口存在时游戏不 tick，§8.2 已定）。
             Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
-                "DeltaV_SplitConfirmText".Translate(summary),
-                () => universe.ShipTransitions.ConfirmSplitAndResume(universe, target),
-                () => universe.ShipTransitions.CancelSplitPrompt(universe, target),
-                destructive: true));
-        }
-
-        internal override void PresentLeftBehindConfirmation(string summary, System.Action onConfirm,
-            System.Action onCancel)
-        {
-            Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
-                "DeltaV_LeftBehindConfirmText".Translate(summary), onConfirm, onCancel, destructive: true));
+                text, onConfirm, onCancel, destructive: true));
         }
     }
 
@@ -157,16 +152,10 @@ namespace DeltaV
             return command;
         }
 
-        internal override void PresentSplitConfirmation(Ship target, string summary)
+        internal override void PresentSeparationConfirmation(Ship target, string text,
+            System.Action onConfirm, System.Action onCancel)
         {
-            // NPC 不向玩家请求批准（§8.2）：直接执行同一公共拆分。
-            universe.ShipTransitions.ConfirmSplitAndResume(universe, target);
-        }
-
-        internal override void PresentLeftBehindConfirmation(string summary, System.Action onConfirm,
-            System.Action onCancel)
-        {
-            // NPC 直接执行，不弹玩家确认。
+            // NPC 不向玩家请求批准（§8.2）：直接执行同一公共分离。
             onConfirm?.Invoke();
         }
     }
@@ -226,10 +215,6 @@ namespace DeltaV
 
         /// <summary>当前活动 controller（玩家手操）。NPC controller 由 AI 创建，不经本字段。</summary>
         private PlayerShipController playerController;
-
-        /// <summary>取消拆分确认后的抑制记录：结构版本不变期间不再重复弹窗（§8.2）。</summary>
-        internal int splitPromptSuppressedOwnerId = -1;
-        internal int splitPromptSuppressedVersion = -1;
 
         public long SuppressedReads { get; private set; }
 
@@ -343,7 +328,17 @@ namespace DeltaV
 
         public void Enter(UniverseManager universe, Ship ship)
         {
-            if (!PlayerController.CanEnter(ship)) return;
+            if (!PlayerController.CanEnter(ship))
+            {
+                // 可读反馈（原先静默拒绝）：重力图不可驾驶，只能逆重战略发射。
+                if (ship.IsValid && ship.map != null && universe.FrameOf(ship.map) != null
+                    && !FreeFlightBootstrap.IsZeroGravity(universe, ship.map))
+                {
+                    Messages.Message("DeltaV_PilotGravityRestricted".Translate(),
+                        MessageTypeDefOf.RejectInput, false);
+                }
+                return;
+            }
             // 手操打断自动驾驶（不取消对接计划——完成判据是几何的，手飞到位照样对接）。
             if (universe.Autopilot.IsActive(ship.ownerId))
             {

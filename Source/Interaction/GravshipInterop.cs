@@ -540,19 +540,24 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 镜像原版 GenerateGravship 的移除段：按捕获时冻结的 Foundations
-        /// （gravship.originalPosition 为原点）移除清单内容并剥除地形/屋顶/区域标志。
-        /// 不要求 engine。
+        /// 镜像原版 GenerateGravship 的移除段：按**捕获时的绝对格集合** cells 移除清单
+        /// 内容并剥除地形/屋顶/区域标志。不要求 engine。
+        ///
+        /// cells 必须与 <see cref="CaptureDomain"/> 传入的集合同源（同调用栈现查或直接
+        /// 传参）——**禁止**从 <c>gravship.Foundations.Keys</c> 反推源图格：原版
+        /// <c>Foundations</c> 属性是按当前 Rotation 旋转后的视图（Gravship.cs
+        /// GetRotatedValues），对接完成/脱离都会在 strip 前设置 Rotation，旋转视图反推
+        /// 的格集会绕 origin 错位（2026-09-24 事故：South 旋转下 960 格 hull 只剥中 1 格，
+        /// 其余全部残留源图）。原版镜子本尊用绝对坐标 engine.ValidSubstructure 剥离。
         /// </summary>
-        internal static void StripDomain(Gravship gravship, Map map)
+        internal static void StripDomain(Gravship gravship, Map map, HashSet<IntVec3> cells)
         {
-            if (gravship == null || map == null) return;
-            IntVec3 origin = gravship.originalPosition;
-            var cells = new IntVec3[gravship.Foundations.Count];
+            if (gravship == null || map == null || cells == null || cells.Count == 0) return;
+            IntVec3[] stripCells = new IntVec3[cells.Count];
             int i = 0;
-            foreach (IntVec3 local in gravship.Foundations.Keys)
+            foreach (IntVec3 cell in cells)
             {
-                cells[i++] = local + origin;
+                stripCells[i++] = cell;
             }
 
             // 移除清单内容（与原版同序：先全体 PreSwapMap，再 DeSpawn）。
@@ -581,9 +586,9 @@ namespace DeltaV
             // 剥除 Substructure 地形（镜像原版 GenerateGravship 的逐格清理）。
             ulong dirtyFlags = (ulong)MapMeshFlagDefOf.Terrain | (ulong)MapMeshFlagDefOf.Roofs
                 | (ulong)MapMeshFlagDefOf.Snow | (ulong)MapMeshFlagDefOf.Sand | (ulong)MapMeshFlagDefOf.Gas;
-            for (int c = 0; c < cells.Length; c++)
+            for (int c = 0; c < stripCells.Length; c++)
             {
-                IntVec3 cell = cells[c];
+                IntVec3 cell = stripCells[c];
                 int index = map.cellIndices.CellToIndex(cell);
                 map.terrainGrid.RemoveGravshipTerrainUnsafe(cell, index);
                 map.roofGrid.RemoveRoofUnsafe(index);
