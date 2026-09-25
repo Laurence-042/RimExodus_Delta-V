@@ -323,7 +323,7 @@ namespace DeltaV
             foreach (HashSet<IntVec3> block in CollectResidualBlocks(ship))
             {
                 TransferDomainToNewPocket(universe, ship.map, frame, block, null,
-                    wreckOwnership: true, retainedOwnerId: 0);
+                    wreckOwnership: true, retainedOwnerId: 0, targetConsoleFacing: Rot4.North);
             }
             if (SubstructureOwnership.TryGet(ship.map) != null)
             {
@@ -336,13 +336,15 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 转移核心（脱离/拆分/合图共用）：把 sourceMap 上 cells 集合整体搬入一张新口袋图，
-        /// 并创建/注册新容器。wreckOwnership = true 时新域领取残骸归属与默认名；
-        /// retainedOwnerId &gt; 0 时保留原归属（脱离本船）。返回新容器（失败 null，图不动）。
+        /// 转移核心（脱离/拆分/朝向旋转共用）：把 sourceMap 上 cells 集合整体搬入一张新
+        /// 口袋图，并创建/注册新容器。wreckOwnership = true 时新域领取残骸归属与默认名；
+        /// retainedOwnerId &gt; 0 时保留原归属（脱离本船/旋转）。targetConsoleFacing = 主台
+        /// 在新图中的朝向（脱离/拆分恒 East；朝向旋转传目标方向），容器角随之反调 σ−τ
+        /// 使主台在轨道坐标的朝向跨搬运不变。返回新容器（失败 null，图不动）。
         /// </summary>
         private SpaceObject TransferDomainToNewPocket(UniverseManager universe, Map sourceMap,
             SpaceObject sourceFrame, HashSet<IntVec3> cells, Building mainConsole,
-            bool wreckOwnership, int retainedOwnerId)
+            bool wreckOwnership, int retainedOwnerId, Rot4 targetConsoleFacing)
         {
             Faction faction = mainConsole != null ? mainConsole.Faction : null;
             Gravship gravship = GravshipInterop.CaptureDomain(sourceMap, cells, mainConsole, faction);
@@ -358,11 +360,18 @@ namespace DeltaV
             // 位姿/速度继承：宿主刚体上船体中心点的完整位姿（含 v+ω×r 与自旋切向）。
             SpacePose launchPose = SpaceTransform.RigidPointPose(sourceFrame.pose,
                 SpaceTransform.MapToShipLocal(sourceMap, hullCenter), consoleAngle);
-            // 主台在口袋图规范到 East（局部 +X），避免往返时把降落旋转重复计入；
-            // 残片无主台，保持 North（σ=0 = 地图帧对齐，与 launchPose 的 0 角一致）。
+            // 主台在口袋图规范到 targetConsoleFacing（图帧 = 聚焦图屏上方向）；容器角
+            // 反调 σ−τ：放置后主台朝向 = 容器角 ⊕ τ = θ+σ（源图主台轨道朝向），跨搬运
+            // 不变（τ=East 时与旧行为一致）。残片无主台，保持 North（σ=0 = 地图帧
+            // 对齐，与 launchPose 的 0 角一致）。
             gravship.Rotation = mainConsole != null
-                ? ShipOrientation.PlacementRotation(mainConsole.Rotation, Rot4.East)
+                ? ShipOrientation.PlacementRotation(mainConsole.Rotation, targetConsoleFacing)
                 : Rot4.North;
+            if (mainConsole != null)
+            {
+                launchPose.angle = SpaceTransform.WrapAngle(launchPose.angle
+                    - ShipOrientation.AngleFromRot4(targetConsoleFacing));
+            }
             if (!ShipPocketMapFactory.TryGenerateForGravship(gravship, universe,
                 out Map pocketMap, out IntVec3 pocketRoot))
             {
@@ -532,7 +541,7 @@ namespace DeltaV
             }
             candidates.Sort((a, b) => a.distance.CompareTo(b.distance));
             DeltaVLog.Message(DeltaVLogModule.Core,
-                $"docking target scan (own #{ownContainer?.objectId} {UniverseManager.MapTag(ship.map)}): "
+                $"docking target scan (own ship #{ship.ownerId}, container #{ownContainer?.objectId} {UniverseManager.MapTag(ship.map)}): "
                 + $"{string.Join(" | ", verdicts)} => {candidates.Count} candidate(s)");
             return candidates;
         }
@@ -858,6 +867,8 @@ namespace DeltaV
             if (gravship == null || targetMap == null) return false;
             Map pocketMap = ship.map;
             if (pocketMap == null || pocketMap == targetMap) return false;
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"docking transfer: structure #{ship.ownerId} {UniverseManager.MapTag(pocketMap)} -> host {UniverseManager.MapTag(targetMap)} (root {landingRoot}, rot {landingRot})");
             // 源图残留复核（§6：确认后新增的残留不静默处置——中止并要求重新发起）。
             // domain 与完成时刻捕获（CaptureShipForCompletion）同调用栈、同一查询入口，
             // 兼作 StripDomain 的剥离格集合（禁止从 Foundations 旋转视图反推，见其注释）。
@@ -870,6 +881,8 @@ namespace DeltaV
                 {
                     Messages.Message("DeltaV_DockSourceLeftoverChanged".Translate(),
                         MessageTypeDefOf.RejectInput, false);
+                    DeltaVLog.Message(DeltaVLogModule.Core,
+                        $"docking transfer rejected: unconfirmed leftover #{leftover.thingIDNumber} ({leftover.def?.defName}) on source map");
                     return false;
                 }
             }
@@ -894,8 +907,12 @@ namespace DeltaV
             // 在册于快照地图」校验）必然为假——完成期守卫只做身份匹配，不校验旧
             // 快照活性（2026-09-24 事故：旧守卫用 IsValid 致本方法静默早退——源图
             // 不删、聚焦不切、通道不铺、成功消息不发）。
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"FinishDocking: structure #{ship.ownerId}, awaitingCleanup #{landedShipAwaitingCleanup.ownerId}, source={UniverseManager.MapTag(pendingDockingSourceMap)}, currentMap={UniverseManager.MapTag(Find.CurrentMap)}");
             if (landedShipAwaitingCleanup.ownerId <= 0 || landedShipAwaitingCleanup.ownerId != ship.ownerId)
             {
+                DeltaVLog.Message(DeltaVLogModule.Core,
+                    $"FinishDocking skipped: awaiting owner #{landedShipAwaitingCleanup.ownerId} != #{ship.ownerId}");
                 return;
             }
             landedShipAwaitingCleanup = Ship.Invalid;
@@ -924,6 +941,16 @@ namespace DeltaV
                     handoffZoom = Find.CameraDriver.RootSize;
                     handoffHost = hostFrame;
                 }
+                if (handoffHost == null)
+                {
+                    DeltaVLog.Message(DeltaVLogModule.Core,
+                        $"FinishDocking handoff unresolved: settled={settled.IsValid}, hostFrame={hostFrame != null}, pocketFrame={pocketFrame != null}");
+                }
+            }
+            else if (sourceMap != null)
+            {
+                DeltaVLog.Message(DeltaVLogModule.Core,
+                    $"FinishDocking focus handoff skipped (player not on source): currentMap={UniverseManager.MapTag(Find.CurrentMap)}, source={UniverseManager.MapTag(sourceMap)}");
             }
             if (sourceMap != null && !sourceMap.Disposed && Find.Maps.Contains(sourceMap))
             {
@@ -941,11 +968,23 @@ namespace DeltaV
                 if (handoffHost != null)
                 {
                     universe.SetFocusedWithCamera(handoffHost, handoffPoint, handoffZoom);
+                    DeltaVLog.Message(DeltaVLogModule.Core,
+                        $"FinishDocking focus handoff -> {UniverseManager.MapTag(handoffHost.InteriorMap)}; currentMap now {UniverseManager.MapTag(Find.CurrentMap)}");
+                }
+                else
+                {
+                    DeltaVLog.Message(DeltaVLogModule.Core,
+                        $"FinishDocking destroying source with no handoff; currentMap={UniverseManager.MapTag(Find.CurrentMap)}");
                 }
                 universe.Lifecycle.DestroyPocketMap(sourceMap);
                 ShipPhysics.ClearCache();
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     "docking source pocket map removed after merge (leftovers disposed per confirmation)");
+            }
+            else
+            {
+                DeltaVLog.Message(DeltaVLogModule.Core,
+                    $"FinishDocking source disposal skipped: source={UniverseManager.MapTag(sourceMap)}");
             }
             HostColonistBarVisibility.NotifyDockingStateChanged();
             Building_DockingPort.NotifyLandingSettled();
@@ -1049,26 +1088,44 @@ namespace DeltaV
             // Pawn/物品原格留置（不自动迁往安全格）。
             Building_DockingPort.RetractChannelsFor(sourceMap, domain);
 
-            // 只退本船的驾驶位（玩家可能在驾驶另一艘船）；转移后重新进入。
-            if (universe.Pilot.PilotedShip(universe).ownerId == ship.ownerId)
-            {
-                universe.Pilot.Exit(universe);
-            }
-
-            SpaceObject container = TransferDomainToNewPocket(universe, sourceMap, sourceFrame,
-                domain, ship.console.parent as Building, wreckOwnership: false, retainedOwnerId: ship.ownerId);
+            SpaceObject container = TransferOwnDomain(universe, ship, sourceMap, sourceFrame, domain,
+                Rot4.East);
             if (container == null)
             {
                 Messages.Message("DeltaV_DockFailBusy".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
+            Messages.Message("DeltaV_FreeFlightSuccess".Translate(universe.LabelForOwner(ship.ownerId)),
+                MessageTypeDefOf.PositiveEvent, false);
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"structure #{ship.ownerId} undocked into new container #{container.objectId}; heading={container.pose.angle * Mathf.Rad2Deg:F0} deg");
+        }
+
+        /// <summary>
+        /// 本船控制域 → 新口袋图的转移+交接公共编排（脱离/朝向旋转共用，2026-09-25 提取）：
+        /// 退出本船驾驶位（句柄随图失效，§21）→ 搬运（主台规范到 targetFacing）→ 句柄
+        /// 重解析 → 世界剪影重建 → 玩家注视源图时相机连续交接（SetFocusedWithCamera
+        /// 单实现，与对接完成同口径；换算需在源容器仍注册时完成，善后排在之后的帧
+        /// 边界）→ 重新进入驾驶 → 帧边界源图善后。返回新容器（失败 null，图不动）。
+        /// </summary>
+        private SpaceObject TransferOwnDomain(UniverseManager universe, Ship ship,
+            Map sourceMap, SpaceObject sourceFrame, HashSet<IntVec3> domain, Rot4 targetFacing)
+        {
+            // 只退本船的驾驶位（玩家可能在驾驶另一艘船）；转移后重新进入。
+            if (universe.Pilot.PilotedShip(universe).ownerId == ship.ownerId)
+            {
+                universe.Pilot.Exit(universe);
+            }
+            SpaceObject container = TransferDomainToNewPocket(universe, sourceMap, sourceFrame,
+                domain, ship.console.parent as Building, wreckOwnership: false,
+                retainedOwnerId: ship.ownerId, targetConsoleFacing: targetFacing);
+            if (container == null)
+            {
+                return null;
+            }
             // 转移后 ship 的主台已在新图上；重解析句柄。
             Ship resolved = ShipRegistry.ShipByOwner(ship.ownerId);
             WorldShipMarkerRenderer.RebuildFor(resolved.IsValid ? resolved : ship);
-            // 聚焦/相机交接（SetFocusedWithCamera 单实现，与对接完成同口径）：玩家正
-            // 注视源图（含手动驾驶——驾驶要求聚焦在该图）时视点按宇宙参考系连续换算
-            // 到新口袋图；NPC 脱离且玩家看向别处时不打扰。换算需在源容器仍注册时
-            // 完成（善后排在之后的帧边界）。
             if (Find.CurrentMap == sourceMap)
             {
                 Vector3 viewCenter = Find.CameraDriver.CurrentViewRect.CenterVector3;
@@ -1077,18 +1134,51 @@ namespace DeltaV
                 Vector2 mapPoint = SpaceTransform.UniverseToMapPoint(container, container.InteriorMap, universeDir);
                 universe.SetFocusedWithCamera(container, mapPoint, Find.CameraDriver.RootSize);
             }
-            if (resolved.IsValid)
+            if (resolved.IsValid && universe.Pilot.CanPlayerControl(resolved))
             {
-                if (universe.Pilot.CanPlayerControl(resolved))
-                {
-                    universe.Pilot.Enter(universe, resolved);
-                }
+                universe.Pilot.Enter(universe, resolved);
             }
             QueueEmptyDepartedMapCleanup(universe, sourceMap);
-            Messages.Message("DeltaV_FreeFlightSuccess".Translate(universe.LabelForOwner(ship.ownerId)),
+            return container;
+        }
+
+        /// <summary>
+        /// 玩家主动确认的飞船地图旋转（2026-09-25 定案，侧边栏罗盘入口）：自由飞行中的船
+        /// 整体搬入与当前位置重合的新 SpaceObject（新口袋图），建筑旋转使主台朝向
+        /// targetFacing（聚焦图 identity，图帧即屏上方向——一次点击指定主台屏上朝向）；
+        /// 容器角反调 σ−τ 保证主台在轨道坐标的朝向不变，位姿/速度按船体中心连续继承
+        ///（RigidPointPose）。GUI 点击触发（OnGUI 调用栈，与弹窗确认回调同口径直接执行）。
+        /// </summary>
+        public void RotateShipHeading(UniverseManager universe, Ship ship, Rot4 targetFacing)
+        {
+            if (!ship.IsValid) return;
+            if (universe.Approach.ActivePlan?.ship.ownerId == ship.ownerId)
+            {
+                Messages.Message("DeltaV_RotateBlockedPlan".Translate(), MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            if (!ShipRegistry.IsFreeFlight(ship)) return; // 罗盘只在自由飞行显示；防御性守卫
+            if (ship.console.parent.Rotation == targetFacing) return; // 已是目标朝向，无操作
+            Map sourceMap = ship.map;
+            SpaceObject sourceFrame = universe.FrameOf(sourceMap);
+            if (sourceFrame == null) return;
+            HashSet<IntVec3> domain = ShipRegistry.ControlDomain(ship);
+            if (domain.Count == 0) return;
+            // 自由飞行图上不应有对接通道；防御性收回与本域相关的通道。
+            Building_DockingPort.RetractChannelsFor(sourceMap, domain);
+            SpaceObject container = TransferOwnDomain(universe, ship, sourceMap, sourceFrame, domain,
+                targetFacing);
+            if (container == null)
+            {
+                Messages.Message("DeltaV_DockFailBusy".Translate(), MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            Messages.Message("DeltaV_ShipRotated".Translate(ShipStatusPanel.CompassLabel(targetFacing)),
                 MessageTypeDefOf.PositiveEvent, false);
+            Ship rotated = ShipRegistry.ShipByOwner(ship.ownerId);
+            float headingDeg = rotated.IsValid ? ShipRegistry.HeadingAngle(rotated) * Mathf.Rad2Deg : float.NaN;
             DeltaVLog.Message(DeltaVLogModule.Core,
-                $"structure #{ship.ownerId} undocked into new container #{container.objectId}; heading={container.pose.angle * Mathf.Rad2Deg:F0} deg");
+                $"structure #{ship.ownerId} rotated: console faces {targetFacing} in container #{container.objectId}; orbital heading {headingDeg:F0} deg (preserved)");
         }
 
         /// <summary>
@@ -1127,6 +1217,19 @@ namespace DeltaV
                 universe.UnregisterObject(poi);
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"{poi.label}: emptied pocket interior removed with its object");
+            }
+            else if (owner != null && SpaceMapGovernance.IsBlankLandingCanvas(sourceMap))
+            {
+                // 普通容器口袋同样「空白立刻删除」（§19 政策）：朝向旋转/脱离清空的自有
+                // 口袋图与被搬空的物化容器——遗留基架转无主残骸快照后销图注销，不再
+                // 等距离归档（空图与船同位同速漂移，永不触发距离清理 → 常驻加载泄漏）。
+                // 非空白图（有滞留物/断片）仍交给距离生命周期。
+                ConvertLeftoverSubstructureToWreck(universe, sourceMap, owner.pose);
+                universe.Lifecycle.Forget(sourceMap);
+                universe.Lifecycle.DestroyPocketMap(sourceMap);
+                universe.UnregisterObject(owner);
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"{owner.label}: emptied pocket interior removed with its object");
             }
         }
 

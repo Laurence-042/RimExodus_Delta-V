@@ -782,9 +782,11 @@ namespace DeltaV
         public override void GameComponentOnGUI()
         {
             // 驾驶模式切换键（本 mod 分类的绑定不受抑制影响，驾驶中仍可退出）。
+            // 作用于「当前查看/操作的船」：面板选择或图上默认（玩家船优先，SelectedShipOnMap）。
             if (DeltaVDefOf.DeltaV_TogglePilotMode != null && DeltaVDefOf.DeltaV_TogglePilotMode.KeyDownEvent)
             {
-                Pilot.ToggleControl(this);
+                Map pilotMap = Focused?.InteriorMap;
+                Pilot.ToggleControl(this, pilotMap != null ? Pilot.SelectedShipOnMap(pilotMap) : Ship.Invalid);
             }
             // 选点阶段 ESC 取消（2026-09-25 补齐）：pendingShip 在册且无计划 = 正在选点。
             // 有窗口打开时让位（暂停菜单等窗口自己消费 ESC）。

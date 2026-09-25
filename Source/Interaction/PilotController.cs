@@ -272,52 +272,53 @@ namespace DeltaV
             if (!ship.IsValid || autopilotInputOwnerId == ship.ownerId) autopilotInputOwnerId = -1;
         }
 
-        public void ToggleControl(UniverseManager universe)
+        /// <summary>
+        /// 驾驶切换统一入口（面板按钮/驾驶台 gizmo/快捷键共用）：目标船由调用方显式传入
+        /// ——gizmo 传驾驶台自己的船、面板传当前选中船、快捷键/dev action 传
+        /// <see cref="SelectedShipOnMap"/> 的推导结果（不得在内部反推，两个入口会错位）。
+        /// </summary>
+        public void ToggleControl(UniverseManager universe, Ship ship)
         {
-            // 多船同图（§4）：切换键作用于「当前查看/操作的船」（面板选择或图上唯一船）。
-            Ship focused = universe.Focused != null && universe.Focused.InteriorMap != null
-                ? SelectedShipOnMap(universe, universe.Focused.InteriorMap)
-                : Ship.Invalid;
-            if (!focused.IsValid)
+            if (!ship.IsValid)
             {
                 Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            ShipControlState state = GetControlState(focused);
+            ShipControlState state = GetControlState(ship);
             if (state == ShipControlState.Autopilot)
             {
-                if (IsPlayerInputArmed(focused)) DisarmAutopilotInput(focused);
-                else ArmAutopilotInput(focused);
+                if (IsPlayerInputArmed(ship)) DisarmAutopilotInput(ship);
+                else ArmAutopilotInput(ship);
             }
             else if (state == ShipControlState.Manual
-                && universe.Approach.ActivePlan?.ship.ownerId == focused.ownerId)
+                && universe.Approach.ActivePlan?.ship.ownerId == ship.ownerId)
             {
                 universe.Approach.EngageAutopilot(universe);
             }
             else if (state == ShipControlState.Manual)
             {
-                Exit(universe, "DeltaV_PilotOff".Translate(universe.LabelForOwner(focused.ownerId)));
+                Exit(universe, "DeltaV_PilotOff".Translate(universe.LabelForOwner(ship.ownerId)));
             }
-            else if (!PlayerController.HasAuthority(focused))
+            else if (!PlayerController.HasAuthority(ship))
             {
-                Messages.Message("DeltaV_PilotWrongFaction".Translate(universe.LabelForOwner(focused.ownerId)),
+                Messages.Message("DeltaV_PilotWrongFaction".Translate(universe.LabelForOwner(ship.ownerId)),
                     MessageTypeDefOf.RejectInput, false);
             }
             else
             {
-                Enter(universe, focused);
+                Enter(universe, ship);
             }
         }
 
-        /// <summary>多船图的「当前查看/操作的船」：面板已选择则用之；唯一船直取；多船提示选台。</summary>
-        private Ship SelectedShipOnMap(UniverseManager universe, Map map)
+        /// <summary>多船图的「当前查看/操作的船」（快捷键/dev action 的推导入口）：面板已
+        /// 选择则用之；否则默认船（玩家派系船优先、唯一船直取，DefaultShipOnMap）。</summary>
+        public Ship SelectedShipOnMap(Map map)
         {
             if (ShipStatusPanel.TryGetSelectedShip(map, out Ship selected) && selected.IsValid)
             {
                 return selected;
             }
-            List<Ship> ships = ShipRegistry.ShipsOnMap(map);
-            return ships.Count == 1 ? ships[0] : Ship.Invalid;
+            return ShipRegistry.DefaultShipOnMap(map);
         }
 
         /// <summary>驾驶/模式控制权门禁（玩家侧）：玩家方船只；开发者模式放行。</summary>

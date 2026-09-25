@@ -70,7 +70,10 @@ namespace DeltaV
         private static void TogglePilotMode()
         {
             UniverseManager universe = Um();
-            universe?.Pilot.ToggleControl(universe);
+            if (universe == null) return;
+            Map map = universe.Focused?.InteriorMap;
+            universe.Pilot.ToggleControl(universe,
+                map != null ? universe.Pilot.SelectedShipOnMap(map) : Ship.Invalid);
         }
 
         [DebugAction("Delta-V", "Toggle passive drag", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.Playing)]

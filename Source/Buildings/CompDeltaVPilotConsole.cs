@@ -277,7 +277,7 @@ namespace DeltaV
                             ? "DeltaV_PilotButtonExit".Translate()
                             : "DeltaV_PilotButtonEnter".Translate();
                     yield return NewAction(label, TexCommand.Draft,
-                        () => universe.Pilot.ToggleControl(universe));
+                        () => universe.Pilot.ToggleControl(universe, ship));
                 }
 
                 // 主台专属：改名与主动降级。

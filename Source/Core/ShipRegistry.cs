@@ -94,6 +94,44 @@ namespace DeltaV
             return Ship.Invalid;
         }
 
+        /// <summary>
+        /// 图的默认操作船：玩家派系船优先，否则唯一船直取；多船且无玩家船返回 Invalid。
+        /// 面板/快捷键在「无显式选择」时的默认（玩家显式点选恒优先于本默认）。
+        /// </summary>
+        public static Ship DefaultShipOnMap(Map map)
+        {
+            Ship playerShip = Ship.Invalid;
+            List<Ship> ships = ShipsOnMap(map);
+            foreach (Ship ship in ships)
+            {
+                if (FactionOf(ship) == Faction.OfPlayer)
+                {
+                    playerShip = ship;
+                    break;
+                }
+            }
+            if (playerShip.IsValid) return playerShip;
+            return ships.Count == 1 ? ships[0] : Ship.Invalid;
+        }
+
+        /// <summary>
+        /// 点击物所在归属域的船：扫描 OccupiedRect 首个能解析为有效船（同图主台）的归属格。
+        /// 未占有格、无主台残骸归属与无归属组件的图自然落空（不在地表生效）。
+        /// </summary>
+        public static Ship ShipByThing(Thing thing)
+        {
+            Map map = thing?.MapHeld;
+            if (map == null) return Ship.Invalid;
+            SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
+            if (ownership == null) return Ship.Invalid;
+            foreach (IntVec3 cell in thing.OccupiedRect())
+            {
+                Ship ship = ShipByOwner(ownership.OwnerAt(cell));
+                if (ship.IsValid && ship.map == map) return ship;
+            }
+            return Ship.Invalid;
+        }
+
         /// <summary>图上是否存在归属 ownerId 的主台（判定「已有主台的归属」；不要求主台仍 Spawned）。</summary>
         public static bool OwnershipHasMainConsole(Map map, int ownerId)
         {

@@ -126,6 +126,14 @@
   <DeltaV_ConsoleGizmoMakeBackup>Set as backup console</DeltaV_ConsoleGizmoMakeBackup>
   <DeltaV_ConsoleGizmoBackupTip>Release the claim on this structure. The structure becomes a wreck until another console claims it (docked ships: separate via thruster fire first).</DeltaV_ConsoleGizmoBackupTip>
   <DeltaV_PanelShipRowTip>Select '{0}' as the ship to view and operate.</DeltaV_PanelShipRowTip>
+  <DeltaV_PanelHeadingCaption>Console facing (click to rotate ship)</DeltaV_PanelHeadingCaption>
+  <DeltaV_PanelHeadingTip>Click a compass direction to rotate the whole ship map to that on-screen facing (buildings rotate into a new pocket map coinciding with the current position). The ship's orbital heading, position and velocity are preserved; free flight only, unavailable during a docking plan.</DeltaV_PanelHeadingTip>
+  <DeltaV_ShipRotated>Ship rotated: console now faces {0}.</DeltaV_ShipRotated>
+  <DeltaV_RotateBlockedPlan>Cannot rotate the ship while a docking plan is active.</DeltaV_RotateBlockedPlan>
+  <DeltaV_CompassNorth>North</DeltaV_CompassNorth>
+  <DeltaV_CompassEast>East</DeltaV_CompassEast>
+  <DeltaV_CompassSouth>South</DeltaV_CompassSouth>
+  <DeltaV_CompassWest>West</DeltaV_CompassWest>
   <DeltaV_SplitConfirmText>Thruster fire would tear this formation apart.
 
 {0}

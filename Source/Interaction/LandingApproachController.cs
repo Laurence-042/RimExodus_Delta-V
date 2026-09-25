@@ -357,6 +357,8 @@ namespace DeltaV
         private void CompleteDocking(UniverseManager universe)
         {
             DockingPlan active = plan;
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"docking completion: structure #{active.ship.ownerId} -> host #{active.host.objectId} {UniverseManager.MapTag(active.targetMap)}; currentMap={UniverseManager.MapTag(Find.CurrentMap)}");
             if (active.targetMap == null || active.targetMap.Disposed)
             {
                 CancelSelectionOrPlan(universe, "target map lost");

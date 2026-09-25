@@ -126,6 +126,14 @@
   <DeltaV_ConsoleGizmoMakeBackup>设为备用驾驶台</DeltaV_ConsoleGizmoMakeBackup>
   <DeltaV_ConsoleGizmoBackupTip>放弃对本结构的认领。结构将保持残骸状态，直到另一台驾驶台认领（已停靠的船请先经推进器出力分离）。</DeltaV_ConsoleGizmoBackupTip>
   <DeltaV_PanelShipRowTip>将「{0}」设为当前查看/操作的船。</DeltaV_PanelShipRowTip>
+  <DeltaV_PanelHeadingCaption>驾驶台朝向（点击旋转飞船）</DeltaV_PanelHeadingCaption>
+  <DeltaV_PanelHeadingTip>点击罗盘方向，把飞船整图旋转到该屏上朝向（建筑随之旋转、移入与当前位置重合的新口袋图）。飞船在轨道坐标中的朝向、位置与速度保持不变；仅自由飞行可用，对接计划进行中不可用。</DeltaV_PanelHeadingTip>
+  <DeltaV_ShipRotated>飞船已旋转：主台朝向「{0}」。</DeltaV_ShipRotated>
+  <DeltaV_RotateBlockedPlan>对接计划进行中，不能旋转飞船。</DeltaV_RotateBlockedPlan>
+  <DeltaV_CompassNorth>北</DeltaV_CompassNorth>
+  <DeltaV_CompassEast>东</DeltaV_CompassEast>
+  <DeltaV_CompassSouth>南</DeltaV_CompassSouth>
+  <DeltaV_CompassWest>西</DeltaV_CompassWest>
   <DeltaV_SplitConfirmText>推进器出力会把这组结构撕裂开来。
 
 {0}

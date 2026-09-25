@@ -25,6 +25,9 @@ namespace DeltaV
         // 每图选中的「当前查看/操作的船」（运行时 UI 状态；按归属 ID 记忆）。
         private static readonly Dictionary<Map, int> selectedShipByMap = new Dictionary<Map, int>();
 
+        // 上一次 Draw 的聚焦图（检测聚焦切图时刻，应用「优先玩家船」的重新默认）。
+        private static Map lastDrawnMap;
+
         /// <summary>面板当前选中的船（驾驶切换键等多船入口共用；无选择返回 false）。</summary>
         public static bool TryGetSelectedShip(Map map, out Ship ship)
         {
@@ -41,17 +44,56 @@ namespace DeltaV
             return true;
         }
 
-        /// <summary>该图的当前操作船：面板已选择则用之；唯一船直取。</summary>
+        /// <summary>该图的当前操作船：面板已选择则用之；否则默认船（玩家派系船优先、
+        /// 唯一船直取，DefaultShipOnMap 单一实现）并写入记忆，行高亮保持稳定。</summary>
         private static Ship SelectedOrOnlyShip(UniverseManager universe, Map map)
         {
             if (TryGetSelectedShip(map, out Ship selected)) return selected;
-            List<Ship> ships = ShipRegistry.ShipsOnMap(map);
-            if (ships.Count == 1)
+            Ship defaulted = ShipRegistry.DefaultShipOnMap(map);
+            if (defaulted.IsValid)
             {
-                selectedShipByMap[map] = ships[0].ownerId;
-                return ships[0];
+                selectedShipByMap[map] = defaulted.ownerId;
+                return defaulted;
             }
             return Ship.Invalid;
+        }
+
+        /// <summary>
+        /// 聚焦切到该图时刻的「优先玩家船」（需求 1 完整语义）：当前记忆已是玩家船则不动；
+        /// 否则图上有玩家船就覆盖陈旧的非玩家记忆——典型场景：对接完成切到宿主图时，把
+        /// 选点阶段（当时宿主图唯一船）自动记忆的宿主船换成刚停靠进来的玩家船。玩家显式
+        /// 点选在本图期间始终有效，离开再回来按本规则重新默认；无玩家船则保持现状。
+        /// </summary>
+        private static void ApplyFocusPreference(Map map)
+        {
+            if (TryGetSelectedShip(map, out Ship memo) && memo.IsValid
+                && ShipRegistry.FactionOf(memo) == Faction.OfPlayer)
+            {
+                return;
+            }
+            Ship preferred = ShipRegistry.DefaultShipOnMap(map);
+            if (preferred.IsValid && ShipRegistry.FactionOf(preferred) == Faction.OfPlayer)
+            {
+                selectedShipByMap[map] = preferred.ownerId;
+            }
+        }
+
+        /// <summary>外部写入口（点击选中物聚焦归属船，Patch_SelectorShipFocus）：只改面板选中状态。</summary>
+        public static void SelectShip(Ship ship)
+        {
+            if (ship.IsValid && ship.map != null && !ship.map.Disposed)
+            {
+                selectedShipByMap[ship.map] = ship.ownerId;
+            }
+        }
+
+        /// <summary>罗盘方向名（Keyed 单实现；面板朝向罗盘按钮与旋转完成消息共用）。</summary>
+        public static string CompassLabel(Rot4 facing)
+        {
+            return facing == Rot4.North ? "DeltaV_CompassNorth".Translate()
+                : facing == Rot4.East ? "DeltaV_CompassEast".Translate()
+                : facing == Rot4.South ? "DeltaV_CompassSouth".Translate()
+                : "DeltaV_CompassWest".Translate();
         }
 
         public static void Draw(UniverseManager universe)
@@ -60,6 +102,11 @@ namespace DeltaV
             if (universe == null || map == null || !WorldRendererUtility.DrawingMap) return;
             SpaceObject frame = universe.FrameOf(map);
             if (frame == null) return;
+            if (map != lastDrawnMap)
+            {
+                lastDrawnMap = map;
+                ApplyFocusPreference(map);
+            }
 
             // 图上的船列表（§4：多船同图各自列出，可切换查看/操作）。
             List<Ship> ships = ShipRegistry.ShipsOnMap(map);
@@ -162,6 +209,7 @@ namespace DeltaV
             float modeButtonsHeight = hasShip
                 ? (playerControlled && zeroGravity ? 27f + 6f : 0f)
                   + (dockingPlan || (playerControlled && freeFlight) ? 27f + 8f : 0f)
+                  + (playerControlled && freeFlight && !dockingPlan ? 20f + 26f * 3f + 6f : 0f)
                 : (bootstrapEntry || multiConsoleAmbiguous) && zeroGravity ? 27f + 6f : 0f;
             float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + shipListHeight + modeButtonsHeight;
             const float sliderRowHeight = 30f;
@@ -245,7 +293,7 @@ namespace DeltaV
                             : "DeltaV_PilotButtonEnter".Translate();
                     if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), pilotButton))
                     {
-                        universe.Pilot.ToggleControl(universe);
+                        universe.Pilot.ToggleControl(universe, selected);
                     }
                     lineY += 27f + 6f;
                 }
@@ -265,6 +313,38 @@ namespace DeltaV
                         universe.ShipTransitions.BeginDocking(selected);
                     }
                     lineY += 27f + 8f;
+                }
+                if (playerControlled && freeFlight && !dockingPlan)
+                {
+                    // 自由飞行专属：驾驶台朝向罗盘（十字排布四向，一次点击指定主台屏上
+                    // 朝向）——整图搬入与当前位置重合的新口袋图并旋转建筑，容器角反调
+                    // 使轨道坐标朝向、位置与速度保持不变（RotateShipHeading）。
+                    Text.Font = GameFont.Tiny;
+                    Widgets.Label(new Rect(0f, lineY, drawWidth, 20f),
+                        "DeltaV_PanelHeadingCaption".Translate());
+                    lineY += 20f;
+                    const float dirBtnW = 64f;
+                    const float dirBtnH = 26f;
+                    float centerX = (drawWidth - dirBtnW) * 0.5f;
+                    Rot4 currentFacing = selected.console.parent.Rotation;
+                    void DirButton(Rot4 facing, Rect rect)
+                    {
+                        if (facing == currentFacing)
+                        {
+                            Widgets.DrawHighlight(rect);
+                        }
+                        if (Widgets.ButtonText(rect, CompassLabel(facing)))
+                        {
+                            universe.ShipTransitions.RotateShipHeading(universe, selected, facing);
+                        }
+                    }
+                    DirButton(Rot4.North, new Rect(centerX, lineY, dirBtnW, dirBtnH));
+                    DirButton(Rot4.West, new Rect(4f, lineY + dirBtnH, dirBtnW, dirBtnH));
+                    DirButton(Rot4.East, new Rect(drawWidth - dirBtnW - 4f, lineY + dirBtnH, dirBtnW, dirBtnH));
+                    DirButton(Rot4.South, new Rect(centerX, lineY + dirBtnH * 2f, dirBtnW, dirBtnH));
+                    TooltipHandler.TipRegion(new Rect(0f, lineY, drawWidth, dirBtnH * 3f),
+                        "DeltaV_PanelHeadingTip".Translate());
+                    lineY += dirBtnH * 3f + 6f;
                 }
             }
             else if (bootstrapEntry && zeroGravity)
