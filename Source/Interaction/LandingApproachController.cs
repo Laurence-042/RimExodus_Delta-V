@@ -23,7 +23,7 @@ namespace DeltaV
     ///   整体拆除）→ 取消距离 → 位姿窗口累计保持 tick；手操打断自动驾驶不取消计划
     ///   ——完成判据是几何的，与驾驶方式无关；玩家同时最多一个计划；
     /// - 满足保持判据 → 新鲜脚印合法性复核（零消费，不合法可无损取消）→ **完成时刻的
-    ///   真实捕获**（CaptureShipForCompletion：唯一消费点，zone/地板指令/区域限制/储物
+    ///   真实捕获**（CaptureDockingTargetForCompletion：唯一消费点，zone/地板指令/区域限制/储物
     ///   组此刻收缴）→ 剥离源图 → 直接放入目标图（原版放置收尾；落点 root/旋转/盖章
     ///   归属全部读注册值）→ 帧边界处置源口袋图（FinishDocking）。
     ///
@@ -84,7 +84,8 @@ namespace DeltaV
 
             /// <summary>shuttle 计划（脚印来源 = 舱体 def 脚印；structureId 不盖章——舱体无归属）。</summary>
             public DockingPlan(Building shuttleBody, SpaceObject host, Map targetMap,
-                IntVec3 landingCell, Rot4 landingRotation, Vector2 dockedOrigin, float relativeAngle)
+                IntVec3 landingCell, Rot4 landingRotation, Vector2 dockedOrigin,
+                float relativeAngle)
             {
                 ship = Ship.Invalid;
                 this.shuttleBody = shuttleBody;
@@ -164,11 +165,17 @@ namespace DeltaV
         /// <summary>计划船（无计划为 Invalid；供驾驶门禁做身份比较，不用于推断计划存在性）。</summary>
         internal Ship ApproachShip => ActivePlan?.ship ?? Ship.Invalid;
 
+        /// <summary>计划主体（船或 shuttle）的统一句柄。</summary>
+        internal PilotTarget ApproachTarget => ActivePlan?.Target ?? PilotTarget.Invalid;
+
         /// <summary>选点、计划飞行中的船。流程是运行时事实，不写回任何持久状态。</summary>
         internal Ship FlowShip => plan?.ship ?? Ship.Invalid;
 
+        /// <summary>计划飞行主体（船或 shuttle）的统一句柄。</summary>
+        internal PilotTarget FlowTarget => plan?.Target ?? PilotTarget.Invalid;
+
         /// <summary>计划船的图（发射封锁的地图键）。</summary>
-        internal Map ApproachShipMap => plan?.ship.map;
+        internal Map ApproachShipMap => plan?.Target.Map;
 
         /// <summary>原版 GravshipLandingMarker.BeginLanding Prefix：缓存 marker 引用（Destroy 前），
         /// 供选点确认时核对发起者身份。</summary>
@@ -217,8 +224,9 @@ namespace DeltaV
                     Messages.Message("DeltaV_ApproachAborted".Translate(), MessageTypeDefOf.RejectInput, false);
                     return true;
                 }
-                if (!universe.ShipTransitions.ComputeLandingPose(universe, pendingShuttle, gravship,
-                        map, landingPos, landingRot, out _, out float shuttleAngle, out Vector2 shuttleOrigin))
+                if (!universe.ShipTransitions.ComputeLandingPose(universe,
+                        PilotTarget.Of(pendingShuttle), gravship, map, landingPos, landingRot,
+                        out _, out float shuttleAngle, out Vector2 shuttleOrigin))
                 {
                     CancelSelectionOrPlan(universe, "shuttle landing pose lost", silent: true);
                     Messages.Message("DeltaV_ApproachAborted".Translate(), MessageTypeDefOf.RejectInput, false);
@@ -263,7 +271,8 @@ namespace DeltaV
 
             // 落点反向映射（落点注册的唯一计算点）：宿主 ⊕ 局部偏移、宿主角 ⊕ 相对转角
             // ——随动目标、幽灵船与完成窗口都按这两分量随宿主重算。
-            if (!universe.ShipTransitions.ComputeLandingPose(universe, ship, gravship, map, landingPos, landingRot,
+            if (!universe.ShipTransitions.ComputeLandingPose(universe, PilotTarget.Of(ship), gravship,
+                    map, landingPos, landingRot,
                     out _, out float targetAngle, out Vector2 dockedOrigin))
             {
                 CancelSelectionOrPlan(universe, "landing pose owner lost", silent: true);
@@ -335,8 +344,7 @@ namespace DeltaV
             DockingPlan active = ActivePlan;
             if (active == null) return;
             PilotTarget target = active.Target;
-            if (universe != null && !target.IsShuttle
-                && universe.Pilot.PilotedShip(universe).ownerId == active.ship.ownerId)
+            if (universe != null && universe.Pilot.PilotedTarget(universe).ControlKey == target.ControlKey)
             {
                 universe.Pilot.Exit(universe);
             }
@@ -464,82 +472,68 @@ namespace DeltaV
             universe.Autopilot.Detach(active.Target, "docking complete");
             universe.Pilot.DisarmAutopilotInput(active.Target);
 
-            // ---- shuttle 完成分支（§7.4：与船唯一差异点 = 降落后处理——回落建筑 +
-            // 原版冷却；同图建筑拓扑、无归属盖章）。----
-            if (active.IsShuttlePlan)
-            {
-                if (!ReferenceEquals(universe.FrameOf(active.targetMap), active.host))
-                {
-                    CancelSelectionOrPlan(universe, "docking target lost");
-                    return;
-                }
-                Building hull = active.shuttleBody;
-                Map pocketMap = hull.Map;
-                Map hostMap = active.targetMap;
-                IntVec3 cell = active.landingCell;
-                Rot4 rotation = active.landingRotation;
-                SpaceObject host = active.host;
-                plan = null;
-                DockingGhostRenderer.Destroy();
-                universe.Shuttles.PlaceDockedShuttle(hull, hostMap, cell, rotation);
-                // 帧边界收尾：口袋容器处置 + 聚焦交接（完成在 tick 调用栈内）。
-                universe.QueueFrameAction(delegate
-                {
-                    universe.Shuttles.DisposeShuttlePocket(pocketMap);
-                    if (Find.CurrentMap == null || Find.CurrentMap.Disposed || Find.CurrentMap == pocketMap)
-                    {
-                        Vector2 mapPoint = SpaceTransform.UniverseToMapPoint(host, hostMap,
-                            SpaceTransform.MapPointToUniverse(host, hostMap, active.dockedOrigin));
-                        universe.SetFocusedWithCamera(host, mapPoint, Find.CameraDriver.RootSize);
-                    }
-                });
-                Messages.Message("DeltaV_DockSuccess".Translate(hull.LabelCap),
-                    MessageTypeDefOf.PositiveEvent, false);
-                universe.ShipTransitions.DiscardPendingDocking(universe);
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"shuttle '{hull.LabelCap}' docked into '{host.label}' at {cell} rot={rotation.AsInt}; pocket disposed");
-                return;
-            }
             if (!ReferenceEquals(universe.FrameOf(active.targetMap), active.host))
             {
                 CancelSelectionOrPlan(universe, "docking target lost");
                 return;
             }
 
-            // 完成时刻的真实捕获：按当前控制域捕获（zone/地板指令/区域限制/储物组
-            // 此刻收缴进清单），随即在同一调用栈内移除放置——对接期间的建造/扩建
-            // 全部随本次捕获带走，无陈旧清单（原版起飞同款毫秒级窗口）。
-            Ship ship = ShipRegistry.ShipByOwner(active.ship.ownerId);
-            if (!ship.IsValid)
+            // 飞船与 shuttle 共用同一完成链：当前脚印 → CaptureDomain → StripDomain →
+            // PlaceIntoMap。shuttle 只是「驾驶台与基架合一」的单建筑域，唯一差异是
+            // includeTerrain=false、ownerId=0，以及放置后的原版发射冷却。
+            PilotTarget dockingTarget;
+            Ship ship = Ship.Invalid;
+            if (active.IsShuttlePlan)
             {
-                Abort(universe, "approach ship lost before capture");
-                return;
+                dockingTarget = PilotTarget.Of(active.shuttleBody);
             }
-            Gravship gravship = universe.ShipTransitions.CaptureShipForCompletion(universe, ship);
+            else
+            {
+                ship = ShipRegistry.ShipByOwner(active.ship.ownerId);
+                if (!ship.IsValid)
+                {
+                    Abort(universe, "approach ship lost before capture");
+                    return;
+                }
+                dockingTarget = PilotTarget.Of(ship);
+            }
+            Map sourceMap = dockingTarget.Map;
+            // 聚焦交接在完成 tick 同步捕获（飞船与 shuttle 同一调用）：host 取计划快照
+            // targetMap（Tick/CompleteDocking 已双重校验 FrameOf(targetMap) == active.host），
+            // 玩家不在源图时 CaptureDockingFocusHandoff 自然返回 default。
+            var handoff = universe.ShipTransitions.CaptureDockingFocusHandoff(
+                universe, sourceMap, active.targetMap);
+            Gravship gravship = universe.ShipTransitions.CaptureDockingTargetForCompletion(
+                dockingTarget, out HashSet<IntVec3> capturedCells, out bool includeTerrain);
             if (gravship == null)
             {
-                Abort(universe, "ship capture freeze failed");
+                Abort(universe, "docking body capture failed");
                 return;
             }
             gravship.Rotation = active.landingRotation;
             DockingGhostRenderer.Destroy();
 
-            if (!universe.ShipTransitions.CompleteTransferIntoHost(universe, ship, gravship,
-                    active.targetMap, active.landingCell, active.landingRotation, active.structureId))
+            if (!universe.ShipTransitions.CompleteTransferIntoHost(universe, dockingTarget,
+                    gravship, capturedCells, includeTerrain, active.targetMap,
+                    active.landingCell, active.landingRotation, active.structureId))
             {
                 Abort(universe, "transfer into host map failed");
                 return;
             }
             plan = null;
-            Ship settled = ship;
+            // 完成流程工厂（唯一的类型分叉点）：公共收尾在 DockingCompletion 基类
+            // 模板方法，船/shuttle 差异全部收敛到子类钩子（冷却、运行时键、标签）。
             // 帧上下文收尾（QueueFrameAction 统一机制）：CompleteDocking 在 Approach.Tick
-            //（GameComponentTick）内执行，FinishDocking 的源图销毁/聚焦交接/通道铺设
-            // 必须离开 tick 调用栈再执行——旧 ExecuteWhenFinished 写法实际在 Tick 内联
-            // 执行（碰巧位于积分循环之前才没炸），语义与本注释一直声称的「帧边界」不符。
-            universe.QueueFrameAction(delegate
-            {
-                universe.ShipTransitions.FinishDocking(universe, settled);
-            });
+            //（GameComponentTick）内执行，源图销毁/聚焦交接/通道铺设必须离开 tick
+            // 调用栈再执行——旧 ExecuteWhenFinished 写法实际在 Tick 内联执行（碰巧
+            // 位于积分循环之前才没炸），语义与本注释一直声称的「帧边界」不符。
+            DockingCompletion completion = active.IsShuttlePlan
+                ? new DockingCompletion.ShuttleDockingCompletion(
+                    universe, active.shuttleBody, active.targetMap, handoff)
+                : new DockingCompletion.ShipDockingCompletion(
+                    universe, ship.ownerId, active.targetMap, handoff);
+            completion.OnTransferedIntoHost();
+            universe.QueueFrameAction(completion.Finish);
         }
 
         /// <summary>
@@ -580,7 +574,7 @@ namespace DeltaV
                     if (!active.shuttleBody.Spawned || active.shuttleBody.Map == null) return false;
                     preview = GravshipInterop.BuildPreview(
                         new HashSet<IntVec3>(active.shuttleBody.OccupiedRect().Cells),
-                        null, active.shuttleBody.Map);
+                        null, active.shuttleBody.Map, active.shuttleBody);
                 }
                 else
                 {

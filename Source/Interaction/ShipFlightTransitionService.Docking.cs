@@ -799,7 +799,7 @@ namespace DeltaV
             if (flowTarget.IsShuttle)
             {
                 var cells = new HashSet<IntVec3>(flowTarget.shuttle.OccupiedRect().Cells);
-                gravship = GravshipInterop.BuildPreview(cells, null, flowTarget.Map);
+                gravship = GravshipInterop.BuildPreview(cells, null, flowTarget.Map, flowTarget.shuttle);
             }
             else
             {
@@ -1006,72 +1006,114 @@ namespace DeltaV
         /// 角度 = 宿主帧角 ⊕ 落地主台朝向（preview 的 PlacementData）；dockedOrigin =
         /// 放置 root + 旋转后的「口袋图几何中心 - 域包围盒 min」偏移（船位姿锚的落点）。
         /// </summary>
-        internal bool ComputeLandingPose(UniverseManager universe, Ship ship, Gravship gravship, Map map,
+        internal bool ComputeLandingPose(UniverseManager universe, PilotTarget target,
+            Gravship gravship, Map map,
             IntVec3 landingPos, Rot4 landingRot, out Vector3 direction, out float angle,
             out Vector2 dockedOrigin)
         {
             SpaceObject hostFrame = universe?.FrameOf(map);
-            if (hostFrame == null || !ship.IsValid)
+            Map sourceMap = target.Map;
+            Thing placementAnchor = target.IsShuttle
+                ? (Thing)target.shuttle
+                : target.ship.console?.parent;
+            if (hostFrame == null || !target.IsValid || sourceMap == null || placementAnchor == null)
             {
                 direction = default(Vector3);
                 angle = 0f;
                 dockedOrigin = default(Vector2);
                 return false;
             }
+            gravship.Rotation = landingRot;
             float hostAngle = hostFrame.pose.angle;
-            Rot4 landedFacing = gravship.PilotConsole != null
-                && gravship.ThingPlacements.TryGetValue(gravship.PilotConsole, out PositionData.Data data)
-                ? data.rotation
-                // 无主台防御：以当前航向（换算到宿主图坐标系）为落地朝向。
-                : ShipOrientation.Rot4FromAngle(SpaceTransform.WrapAngle(
-                    ShipRegistry.HeadingAngle(ship) - hostAngle));
-            angle = SpaceTransform.WrapAngle(hostAngle + ShipOrientation.AngleFromRot4(landedFacing));
+            if (!GravshipInterop.TryPlacedRotation(gravship, placementAnchor, out Rot4 landedFacing))
+            {
+                direction = default(Vector3);
+                angle = 0f;
+                dockedOrigin = default(Vector2);
+                return false;
+            }
+            // 对齐的是承载图刚体帧，不是建筑/驾驶台自身朝向。最终锚建筑朝向减去
+            // 源图中的局部帧角，得到与原版 Gravship 放置完全相同的刚体旋转量。
+            // 飞船与 shuttle 共用本式；因此 shuttle 不再把 landingRot.AsInt 误当角度。
+            angle = SpaceTransform.WrapAngle(hostAngle
+                + ShipOrientation.AngleFromRot4(landedFacing) - target.FrameAngle);
 
             // 停放锚点唯一入口（SpaceTransform.cs「dockedOrigin 的唯一来源」；2026-09-24
             // 事故：此处曾手写「中心系恒零 − 地图系原点」的混用偏移，丢口袋图几何中心
             // 项致幽灵船/判据整体偏约半张口袋图）。pocketRoot = preview 原点（域包围盒
             // min，GravshipInterop.BuildPreview 同一约定）。
             dockedOrigin = SpaceTransform.ShipOriginFromPlacementRoot(
-                ship.map, gravship.originalPosition, landingPos, landingRot);
+                sourceMap, gravship.originalPosition, landingPos, landingRot);
             direction = SpaceTransform.MapPointToUniverse(hostFrame, map, dockedOrigin);
             return true;
         }
 
-        /// <summary>
-        /// shuttle 版落点注册（§7.4/§19：角度 = 宿主帧角 ⊕ 最终放置朝向；锚 = 口袋几何
-        /// 中心经放置 root 换算的落点——与船版同一 ShipOriginFromPlacementRoot 唯一入口）。
-        /// </summary>
-        internal bool ComputeLandingPose(UniverseManager universe, Building shuttleBody, Gravship gravship,
-            Map map, IntVec3 landingPos, Rot4 landingRot, out Vector3 direction, out float angle,
-            out Vector2 dockedOrigin)
+        internal readonly struct DockingFocusHandoff
         {
-            SpaceObject hostFrame = universe?.FrameOf(map);
-            if (hostFrame == null || shuttleBody == null || !shuttleBody.Spawned || shuttleBody.Map == null)
+            internal readonly SpaceObject host;
+            internal readonly Vector2 mapPoint;
+            internal readonly float zoom;
+
+            internal DockingFocusHandoff(SpaceObject host, Vector2 mapPoint, float zoom)
             {
-                direction = default(Vector3);
-                angle = 0f;
-                dockedOrigin = default(Vector2);
-                return false;
+                this.host = host;
+                this.mapPoint = mapPoint;
+                this.zoom = zoom;
             }
-            angle = SpaceTransform.WrapAngle(hostFrame.pose.angle
-                + ShipOrientation.AngleFromRot4(landingRot));
-            dockedOrigin = SpaceTransform.ShipOriginFromPlacementRoot(
-                shuttleBody.Map, gravship.originalPosition, landingPos, landingRot);
-            direction = SpaceTransform.MapPointToUniverse(hostFrame, map, dockedOrigin);
-            return true;
+
+            internal bool IsValid => host?.InteriorMap != null;
+        }
+
+        /// <summary>对接完成的聚焦交接单一入口：必须在源图销毁前捕获宇宙视点。</summary>
+        internal DockingFocusHandoff CaptureDockingFocusHandoff(UniverseManager universe,
+            Map sourceMap, Map targetMap)
+        {
+            if (universe == null || sourceMap == null || targetMap == null
+                || sourceMap.Disposed || targetMap.Disposed || Find.CurrentMap != sourceMap)
+            {
+                return default(DockingFocusHandoff);
+            }
+            SpaceObject source = universe.FrameOf(sourceMap);
+            SpaceObject host = universe.FrameOf(targetMap);
+            if (source == null || host == null) return default(DockingFocusHandoff);
+            Vector3 center = Find.CameraDriver.CurrentViewRect.CenterVector3;
+            Vector3 direction = SpaceTransform.MapPointToUniverse(source, sourceMap,
+                new Vector2(center.x, center.z));
+            return new DockingFocusHandoff(host,
+                SpaceTransform.UniverseToMapPoint(host, targetMap, direction),
+                Find.CameraDriver.RootSize);
+        }
+
+        internal void ApplyDockingFocusHandoff(UniverseManager universe, DockingFocusHandoff handoff)
+        {
+            if (handoff.IsValid) universe.SetFocusedWithCamera(handoff.host, handoff.mapPoint, handoff.zoom);
         }
 
         /// <summary>
         /// 完成时刻的真实捕获（**唯一消费点**）：按当前控制域捕获（LandingApproachController
         /// 完成时调用，与移除/放置同一调用栈；对接期间的建造/扩建全部随本次捕获带走）。
         /// </summary>
-        internal Gravship CaptureShipForCompletion(UniverseManager universe, Ship ship)
+        internal Gravship CaptureDockingTargetForCompletion(PilotTarget target,
+            out HashSet<IntVec3> domain, out bool includeTerrain)
         {
-            if (!ship.IsValid) return null;
-            HashSet<IntVec3> domain = ShipRegistry.ControlDomain(ship);
+            domain = null;
+            includeTerrain = !target.IsShuttle;
+            if (!target.IsValid || target.Map == null) return null;
+            Building mainConsole = null;
+            if (target.IsShuttle)
+            {
+                domain = new HashSet<IntVec3>(target.shuttle.OccupiedRect().Cells);
+            }
+            else
+            {
+                Ship ship = ShipRegistry.ShipByOwner(target.ship.ownerId);
+                if (!ship.IsValid) return null;
+                domain = ShipRegistry.ControlDomain(ship);
+                mainConsole = ship.console.parent as Building;
+            }
             if (domain.Count == 0) return null;
-            return GravshipInterop.CaptureDomain(ship.map, domain, ship.console.parent as Building,
-                ShipRegistry.FactionOf(ship));
+            return GravshipInterop.CaptureDomain(target.Map, domain, mainConsole,
+                target.Faction, includeTerrain);
         }
 
         /// <summary>
@@ -1080,18 +1122,19 @@ namespace DeltaV
         /// DockingPlan 注册值）。**不重放原版 InitiateLanding**——不进 cutscene/mask/
         /// LandingEnded 链路（§6 六步：完成时捕获 → 转移 → 发布新关系 → 清理旧容器）。
         /// </summary>
-        internal bool CompleteTransferIntoHost(UniverseManager universe, Ship ship, Gravship gravship,
-            Map targetMap, IntVec3 landingRoot, Rot4 landingRot, int structureId)
+        internal bool CompleteTransferIntoHost(UniverseManager universe, PilotTarget target,
+            Gravship gravship, HashSet<IntVec3> domain, bool includeTerrain, Map targetMap,
+            IntVec3 landingRoot, Rot4 landingRot, int structureId)
         {
             if (gravship == null || targetMap == null) return false;
-            Map pocketMap = ship.map;
+            Map pocketMap = target.Map;
             if (pocketMap == null || pocketMap == targetMap) return false;
             DeltaVLog.Message(DeltaVLogModule.Core,
-                $"docking transfer: structure #{ship.ownerId} {UniverseManager.MapTag(pocketMap)} -> host {UniverseManager.MapTag(targetMap)} (root {landingRoot}, rot {landingRot})");
+                $"docking transfer: {target.Label} {UniverseManager.MapTag(pocketMap)} -> host "
+                + $"{UniverseManager.MapTag(targetMap)} (root {landingRoot}, rot {landingRot})");
             // 源图残留复核（§6：确认后新增的残留不静默处置——中止并要求重新发起）。
-            // domain 与完成时刻捕获（CaptureShipForCompletion）同调用栈、同一查询入口，
+            // domain 与完成时刻捕获（CaptureDockingTargetForCompletion）同调用栈、同一查询入口，
             // 兼作 StripDomain 的剥离格集合（禁止从 Foundations 旋转视图反推，见其注释）。
-            HashSet<IntVec3> domain = ShipRegistry.ControlDomain(ship);
             List<Thing> leftovers = CollectSourceLeftovers(pocketMap, domain);
             List<int> confirmed = pendingLeftoverThingIds ?? new List<int>();
             foreach (Thing leftover in leftovers)
@@ -1106,112 +1149,15 @@ namespace DeltaV
                 }
             }
             pendingDockingSourceMap = pocketMap;
-            GravshipInterop.StripDomain(gravship, pocketMap, domain);
+            GravshipInterop.StripDomain(gravship, pocketMap, domain, includeTerrain);
             GravshipInterop.PlaceIntoMap(gravship, landingRoot, targetMap, structureId);
-            landedShipAwaitingCleanup = ship;
+            if (!target.IsShuttle) landedShipAwaitingCleanup = target.ship;
             pendingShip = Ship.Invalid;
             pendingLeftoverThingIds = null;
             return true;
         }
 
-        /// <summary>
-        /// 对接完成收尾（CompleteTransferIntoHost 成功后、帧边界执行）：处置源口袋图
-        /// 残留（已确认清单内的滞留 Pawn 遗弃 + 遗留基架转无主残骸）→ 删除源口袋图与
-        /// 源容器 → 通知对接口铺设通道。A 不保留无图子对象（§6 步骤 4）。
-        /// </summary>
-        internal void FinishDocking(UniverseManager universe, Ship ship)
-        {
-            // 完成转移后船体已在宿主图（console.parent.Map = 宿主图），此处的
-            // landedShipAwaitingCleanup 是转移前快照，其 Ship.IsValid（含「驾驶台
-            // 在册于快照地图」校验）必然为假——完成期守卫只做身份匹配，不校验旧
-            // 快照活性（2026-09-24 事故：旧守卫用 IsValid 致本方法静默早退——源图
-            // 不删、聚焦不切、通道不铺、成功消息不发）。
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"FinishDocking: structure #{ship.ownerId}, awaitingCleanup #{landedShipAwaitingCleanup.ownerId}, source={UniverseManager.MapTag(pendingDockingSourceMap)}, currentMap={UniverseManager.MapTag(Find.CurrentMap)}");
-            if (landedShipAwaitingCleanup.ownerId <= 0 || landedShipAwaitingCleanup.ownerId != ship.ownerId)
-            {
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"FinishDocking skipped: awaiting owner #{landedShipAwaitingCleanup.ownerId} != #{ship.ownerId}");
-                return;
-            }
-            landedShipAwaitingCleanup = Ship.Invalid;
-            Map sourceMap = pendingDockingSourceMap;
-            pendingDockingSourceMap = null;
-            // 完成时的聚焦/相机交接（2026-09-24）：完成前聚焦在源口袋图，源图销毁会让
-            // 原版 CurrentMap 回退到 maps[0]（通常是地表图）。玩家视点按宇宙参考系连续
-            // 换算到宿主图（同外壳点击聚焦口径，SetFocusedWithCamera 单实现）；玩家中途
-            // 看向别处（CurrentMap ≠ 源图）则不打扰。换算需在源容器注销前完成。
-            SpaceObject handoffHost = null;
-            Vector2 handoffPoint = default;
-            float handoffZoom = 0f;
-            if (sourceMap != null && !sourceMap.Disposed && Find.CurrentMap == sourceMap)
-            {
-                Ship settled = ShipRegistry.ShipByOwner(ship.ownerId);
-                Map hostMap = settled.IsValid ? settled.map : null;
-                SpaceObject hostFrame = hostMap != null && hostMap != sourceMap
-                    ? universe.FrameOf(hostMap) : null;
-                SpaceObject pocketFrame = universe.FrameOf(sourceMap);
-                if (hostFrame != null && pocketFrame != null)
-                {
-                    Vector3 viewCenter = Find.CameraDriver.CurrentViewRect.CenterVector3;
-                    Vector3 universeDir = SpaceTransform.MapPointToUniverse(pocketFrame, sourceMap,
-                        new Vector2(viewCenter.x, viewCenter.z));
-                    handoffPoint = SpaceTransform.UniverseToMapPoint(hostFrame, hostMap, universeDir);
-                    handoffZoom = Find.CameraDriver.RootSize;
-                    handoffHost = hostFrame;
-                }
-                if (handoffHost == null)
-                {
-                    DeltaVLog.Message(DeltaVLogModule.Core,
-                        $"FinishDocking handoff unresolved: settled={settled.IsValid}, hostFrame={hostFrame != null}, pocketFrame={pocketFrame != null}");
-                }
-            }
-            else if (sourceMap != null)
-            {
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"FinishDocking focus handoff skipped (player not on source): currentMap={UniverseManager.MapTag(Find.CurrentMap)}, source={UniverseManager.MapTag(sourceMap)}");
-            }
-            if (sourceMap != null && !sourceMap.Disposed && Find.Maps.Contains(sourceMap))
-            {
-                SpaceObject pocketContainer = universe.SpaceObjectOnMap(sourceMap);
-                SpacePose sourcePose = pocketContainer?.pose ?? new SpacePose(Vector3.right, 0f);
-                AbandonPawnsOn(sourceMap);
-                ConvertLeftoverSubstructureToWreck(universe, sourceMap, sourcePose);
-                MapOverlayRenderer.Release(sourceMap);
-                PlanetGlobeRenderer.InvalidateSilhouette(sourceMap);
-                if (pocketContainer != null)
-                {
-                    universe.UnregisterObject(pocketContainer);
-                }
-                // 先交接再销毁：CurrentMap 已在宿主图上，maps[0] 回退不会触发。
-                if (handoffHost != null)
-                {
-                    universe.SetFocusedWithCamera(handoffHost, handoffPoint, handoffZoom);
-                    DeltaVLog.Message(DeltaVLogModule.Core,
-                        $"FinishDocking focus handoff -> {UniverseManager.MapTag(handoffHost.InteriorMap)}; currentMap now {UniverseManager.MapTag(Find.CurrentMap)}");
-                }
-                else
-                {
-                    DeltaVLog.Message(DeltaVLogModule.Core,
-                        $"FinishDocking destroying source with no handoff; currentMap={UniverseManager.MapTag(Find.CurrentMap)}");
-                }
-                universe.Lifecycle.DestroyPocketMap(sourceMap);
-                ShipPhysics.ClearCache();
-                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                    "docking source pocket map removed after merge (leftovers disposed per confirmation)");
-            }
-            else
-            {
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"FinishDocking source disposal skipped: source={UniverseManager.MapTag(sourceMap)}");
-            }
-            HostColonistBarVisibility.NotifyDockingStateChanged();
-            Building_DockingPort.NotifyLandingSettled();
-            Messages.Message("DeltaV_DockSuccess".Translate(universe.LabelForOwner(ship.ownerId)),
-                MessageTypeDefOf.PositiveEvent, false);
-        }
-
-        /// <summary>完成时刻记录的源口袋图（CompleteTransferIntoHost 置位，FinishDocking 消费）。</summary>
+        /// <summary>完成时刻记录的源口袋图（CompleteTransferIntoHost 置位，DockingCompletion.Finish 消费）。</summary>
         internal Map pendingDockingSourceMap;
 
         internal List<int> pendingLeftoverThingIds;
@@ -1671,7 +1617,7 @@ namespace DeltaV
         /// 收到的即遗留内容），在原图位姿生成无主残骸 POI（SnapshotPocket，接近后按
         /// 快照物化）。无遗留基架则不生成。残骸名 = 「残骸 #N」（N = 其自身归属 ID）。
         /// </summary>
-        private void ConvertLeftoverSubstructureToWreck(UniverseManager universe, Map map, SpacePose pose)
+        internal void ConvertLeftoverSubstructureToWreck(UniverseManager universe, Map map, SpacePose pose)
         {
             bool hasFoundation = false;
             foreach (IntVec3 cell in CellRect.WholeMap(map))
@@ -1697,7 +1643,7 @@ namespace DeltaV
         /// 口袋图删除前的滞留 Pawn 遗弃（照原版 GravshipUtility.AbandonMap 的 Pawn
         /// 循环：Lost 思想 + Notify_LeftBehind + 销毁）。
         /// </summary>
-        private static void AbandonPawnsOn(Map map)
+        internal static void AbandonPawnsOn(Map map)
         {
             List<Pawn> pawns = map.mapPawns.AllPawnsSpawned.ToList();
             PawnDiedOrDownedThoughtsUtility.TryGiveThoughts(pawns, PawnDiedOrDownedThoughtsKind.Lost);

@@ -440,10 +440,8 @@ namespace DeltaV
                 {
                     hull.Destroy(DestroyMode.Vanish); // 无处安放：舱毁（乘员随 transporter 语义）
                 }
-                ShipPhysics.ClearVirtualThrusters(pocket);
+                ClearShuttlePocketRuntime(pocket, container);
                 universe.Lifecycle.DestroyPocketMap(pocket);
-                intrusionArmed.Remove(container.objectId);
-                intrusionTargets.Remove(container.objectId);
                 if (universe.objects.Contains(container))
                 {
                     universe.UnregisterObject(container);
@@ -455,21 +453,21 @@ namespace DeltaV
             });
         }
 
-        /// <summary>停靠/击落后的口袋容器处置（帧边界执行）：销图 + 注销容器 + 清运行时键。</summary>
-        public void DisposeShuttlePocket(Map pocketMap)
+        /// <summary>
+        /// shuttle 源口袋的运行时键清理（图销毁前，FinishDocking 公共收尾调用）：
+        /// 虚拟推进器表 + 侵入武装/目标键。图的销毁与容器注销走公共
+        /// ShipFlightTransitionService.FinishDocking，不在此另实现。
+        /// </summary>
+        internal void ClearShuttlePocketRuntime(Map pocketMap, SpaceObject container)
         {
-            if (pocketMap == null || pocketMap.Disposed) return;
-            SpaceObject container = universe.SpaceObjectOnMap(pocketMap);
-            ShipPhysics.ClearVirtualThrusters(pocketMap);
-            universe.Lifecycle.DestroyPocketMap(pocketMap);
+            if (pocketMap != null && !pocketMap.Disposed)
+            {
+                ShipPhysics.ClearVirtualThrusters(pocketMap);
+            }
             if (container != null)
             {
                 intrusionArmed.Remove(container.objectId);
                 intrusionTargets.Remove(container.objectId);
-                if (universe.objects.Contains(container))
-                {
-                    universe.UnregisterObject(container);
-                }
             }
         }
 
