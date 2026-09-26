@@ -144,6 +144,21 @@ namespace DeltaV
             return false;
         }
 
+        /// <summary>
+        /// 图上是否存在任何有效主台（不分配列表；SpaceObject.Tag 的 Ship 派生唯一判据，
+        /// 不得在别处另写主台扫描来判「这是船图」）。
+        /// </summary>
+        public static bool MapHasMainConsole(Map map)
+        {
+            if (map == null || map.Disposed) return false;
+            foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
+            {
+                CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
+                if (console?.isMain == true && console.shipId > 0) return true;
+            }
+            return false;
+        }
+
         // ---- 控制域 / 残留块 ----
 
         /// <summary>

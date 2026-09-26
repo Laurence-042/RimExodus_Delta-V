@@ -5,6 +5,31 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
+    /// 容器类别 tag（太空战架构 §2/§3.1）：**行为分派维度，不是类型分叉**——
+    /// 「弹体」「飞船」都是抽象角色。存储值只有 Container/Marker/Projectile/Shuttle；
+    /// Ship 是派生值（图上有有效主台的 Container，见 <see cref="SpaceObject.Tag"/>）。
+    /// tag 只驱动单点分派属性（见 SpaceObject 上的分派区），调用方禁止散写 tag 比较；
+    /// POI 显示等既有逻辑仍按 PoiState 类型判断，不经 tag。
+    /// </summary>
+    public enum SpaceObjectTag : byte
+    {
+        /// <summary>有图普通容器（船图/残骸/物化 POI/空画布锚）。</summary>
+        Container = 0,
+
+        /// <summary>未物化 POI 触发器（PoiState marker，恒无图）。</summary>
+        Marker = 1,
+
+        /// <summary>弹体（纯弹体是瞬态成员不落盘；侵入飞控的 shuttle 经运行时覆盖派发为本值）。</summary>
+        Projectile = 2,
+
+        /// <summary>在飞 shuttle（MiniShip；停靠后回落普通建筑，不再存在本 tag 的对象）。</summary>
+        Shuttle = 3,
+
+        /// <summary>派生值：承载有效飞船的容器（图上有主台）。永不落盘、不得手写。</summary>
+        Ship = 4
+    }
+
+    /// <summary>
     /// 宇宙承载对象（解耦架构 §2）：**一张内部地图与星球轨道坐标之间的中间层**，
     /// 保存该地图整体的轨道运动状态。它不是某艘飞船的子类型或永久所有者——飞船 =
     /// 主驾驶台 + 同归属四连通基架（见 ShipRegistry），同图可承载多艘船与残骸归属。
@@ -30,6 +55,17 @@ namespace DeltaV
 
         public SpacePose pose;
 
+        /// <summary>存储 tag（存档事实；默认 Container，PoiState 构造置 Marker，弹体/shuttle 由服务设置）。</summary>
+        public SpaceObjectTag baseTag;
+
+        /// <summary>
+        /// 侵入式对接的运行时角色覆盖（太空战架构 §7.5）：shuttle 进入侵入飞控时置 true，
+        /// <see cref="Tag"/> 随之分派为 Projectile（碰撞主动参与/阻力豁免/可拦截随之生效）。
+        /// 属性不经 RimWorld 序列化（只序列化公共字段）——读档后侵入计划丢弃、
+        /// shuttle 自动回 shuttle tag 按存档速度漂移（§4.4 口径）。
+        /// </summary>
+        internal bool projectileRoleOverride { get; set; }
+
         /// <summary>对应的内部地图（已加载时非空）。Scribe_References 在 cross-ref 阶段解析。</summary>
         public Map map;
 
@@ -48,6 +84,51 @@ namespace DeltaV
 
         [Unsaved] private string cachedLabel;
         [Unsaved] private int cachedLabelVersion = -1;
+
+        // ---- tag 派生与单点分派（太空战架构 §3.1；调用方禁止散写 tag 判断）----
+
+        /// <summary>读档无 tag 键时的缺省值（PoiState 覆盖为 Marker，兼容旧档）。</summary>
+        protected virtual SpaceObjectTag DefaultTag => SpaceObjectTag.Container;
+
+        /// <summary>
+        /// 有效 tag（派生）：侵入 shuttle → Projectile；有图容器（Container 或带图的原生
+        /// 镜像 Marker）且图上有有效主台 → Ship（敌舰 AI 将来按此寻路/索敌的统一入口；
+        /// 单点派生、不落盘——船身份的唯一事实源是驾驶台，不变量 #22，不得另存一份）。
+        /// 其余 = <see cref="baseTag"/>。
+        /// </summary>
+        public SpaceObjectTag Tag
+        {
+            get
+            {
+                if (baseTag == SpaceObjectTag.Shuttle && projectileRoleOverride) return SpaceObjectTag.Projectile;
+                if (map != null && baseTag != SpaceObjectTag.Projectile
+                    && baseTag != SpaceObjectTag.Shuttle
+                    && ShipRegistry.MapHasMainConsole(map))
+                {
+                    return SpaceObjectTag.Ship;
+                }
+                return baseTag;
+            }
+        }
+
+        /// <summary>瞬态成员（纯弹体）：写档剔除、读档无残留（§4.4）。侵入 shuttle 不算（baseTag=Shuttle 照常落盘）。</summary>
+        public bool IsTransient => baseTag == SpaceObjectTag.Projectile;
+
+        /// <summary>碰撞主动参与（弹体恒为主动方；侵入 shuttle 经 Tag 覆盖同样命中，§3.1）。</summary>
+        public bool IsActiveCollider => Tag == SpaceObjectTag.Projectile;
+
+        /// <summary>被动阻力适用（弹体豁免——无推进器的飞行体不受阻力减速；shuttle 与船照常）。</summary>
+        public bool AppliesPassiveDrag => Tag != SpaceObjectTag.Projectile;
+
+        /// <summary>剪影/星球仪/世界标记/音效/星区记账参与（弹体不进，§3.1；将来弹体上星球仪只改这里）。</summary>
+        public bool ParticipatesInOverlays => baseTag != SpaceObjectTag.Projectile;
+
+        /// <summary>点防御可拦截性（结构派生，§3.2：有图 ∧ tag ∈ {projectile, shuttle}；不是 def 标记字段）。</summary>
+        public bool InterceptionEligible =>
+            map != null && (Tag == SpaceObjectTag.Projectile || baseTag == SpaceObjectTag.Shuttle);
+
+        /// <summary>显示朝向策略：无姿态角的点状弹体按速度方向，其余按位姿角（§3.1）。</summary>
+        public bool UsesVelocityHeading => baseTag == SpaceObjectTag.Projectile;
 
         /// <summary>
         /// 显示名 = 内部全部结构名拼接（可重建派生，不落盘）；图上无结构时退回
@@ -129,6 +210,7 @@ namespace DeltaV
         public virtual void ExposeData()
         {
             Scribe_Values.Look(ref objectId, "objectId", -1);
+            Scribe_Values.Look(ref baseTag, "tag", DefaultTag);
             Scribe_References.Look(ref faction, "faction");
             Scribe_Deep.Look(ref pose, "pose");
             Scribe_References.Look(ref map, "map");

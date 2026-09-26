@@ -34,10 +34,14 @@ namespace DeltaV
 
         public static ResearchProjectDef DeltaV_VacuumBarrier;
 
-        // 跳帮舱（2026-09-21 阶段4）：发射管（玩家建造）与落位密封舱（命中产物）。
-        public static ThingDef DeltaV_BoardingPodLauncher;
+        // 阶段5 测试弹体（Defs/SpaceCombat/DeltaV_SpaceProjectiles.xml；正式武器 def 随段6）。
+        public static ThingDef DeltaV_Projectile_Cannon;
 
-        public static ThingDef DeltaV_BoardingPodLanded;
+        public static ThingDef DeltaV_Projectile_Laser;
+
+        public static ThingDef DeltaV_Projectile_Missile;
+
+        public static ThingDef DeltaV_Projectile_PDBullet;
 
         // 逆重飞船大型推进器（Odyssey，2×2 方形脚印、rotatable、需 Substructure）。
         // 注意：Ship_Engine 是星际飞船（结局飞船）引擎，与逆重飞船无关，勿混用。
@@ -61,5 +65,8 @@ namespace DeltaV
         public static Verse.KeyBindingDef DeltaV_TogglePilotMode;
 
         public static Verse.KeyBindingDef DeltaV_AssistBrake;
+
+        // 瞄准模式切换（阶段5 §6.1，默认 B；驾驶期抑制其原版功能）。
+        public static Verse.KeyBindingDef DeltaV_AimMode;
     }
 }

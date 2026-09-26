@@ -147,7 +147,7 @@ namespace DeltaV
             for (int i = 0; i < objects.Count; i++)
             {
                 SpaceObject obj = objects[i];
-                if (obj == frame)
+                if (obj == frame || !obj.ParticipatesInOverlays)
                 {
                     continue;
                 }

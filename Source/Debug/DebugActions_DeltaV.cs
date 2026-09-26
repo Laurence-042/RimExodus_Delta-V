@@ -462,7 +462,7 @@ namespace DeltaV
                 string sector = OrbitSphere.Valid
                     ? $" sector={OrbitSphere.TileFromDirection(obj.pose.position)}"
                     : "";
-                sb.AppendLine($"\n- #{obj.objectId} {obj.label} [{obj.GetType().Name}] {lifecycle}" +
+                sb.AppendLine($"\n- #{obj.objectId} {obj.label} [{obj.GetType().Name}] tag={obj.Tag} {lifecycle}" +
                     $" dir=({obj.pose.position.x:F3},{obj.pose.position.y:F3},{obj.pose.position.z:F3}) lat/lon=({lat:F1}°,{lon:F1}°){sector}" +
                     $"{playerDist} angle={SpaceTransform.WrapAngle(obj.pose.angle) * Mathf.Rad2Deg:F0}° {UniverseManager.MapTag(obj.map)}");
             }
@@ -641,6 +641,140 @@ namespace DeltaV
         {
             UniverseManager universe = Um();
             universe?.Approach.CancelSelectionOrPlan(universe, "dev action");
+        }
+
+        // ---- 阶段5 太空战（太空战架构 §9）----
+
+        /// <summary>发射侧公共入口：从玩家船容器炮口（外推出自己碰撞面）朝最近敌方容器。</summary>
+        private static void FireTestProjectile(ThingDef projectileDef, SpaceObject missileTarget = null)
+        {
+            UniverseManager um = Um();
+            Ship player = PlayerShip();
+            SpaceObject source = player.IsValid ? um.FrameOf(player.map) : um.Focused;
+            SpaceObject target = NearestMaterializedContainer();
+            if (source == null || target == null)
+            {
+                Messages.Message("No source container / no other materialized container in range.",
+                    MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            // 炮口 = 己方碰撞面外一格，朝目标方向（dev 简化：容器中心连线）。
+            Vector2 toTarget = OrbitSphere.Offset(source.pose.position, target.pose.position);
+            if (toTarget.sqrMagnitude < 1e-6f) toTarget = Vector2.right;
+            Vector2 dir = toTarget.normalized;
+            Vector3 muzzle = OrbitSphere.Move(source.pose.position,
+                dir * (SpaceCollision.BoundsRadiusOf(source) + 2f));
+            OrbitSphere.Basis(muzzle, out Vector3 east, out Vector3 north);
+            var directionWorld = east * dir.x + north * dir.y;
+            um.Projectiles.Launch(projectileDef, source, muzzle, directionWorld,
+                Faction.OfPlayer, null, missileTarget);
+        }
+
+        [DebugAction("Delta-V", "Combat: fire cannon shot at nearest enemy", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void CombatFireCannon()
+        {
+            FireTestProjectile(DeltaVDefOf.DeltaV_Projectile_Cannon);
+        }
+
+        [DebugAction("Delta-V", "Combat: fire laser at nearest enemy", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void CombatFireLaser()
+        {
+            FireTestProjectile(DeltaVDefOf.DeltaV_Projectile_Laser);
+        }
+
+        [DebugAction("Delta-V", "Combat: launch guided missile at nearest enemy", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void CombatFireMissile()
+        {
+            FireTestProjectile(DeltaVDefOf.DeltaV_Projectile_Missile, NearestMaterializedContainer());
+        }
+
+        /// <summary>敌舰侧发射公共入口：从最近敌舰容器朝玩家船（固定等价技能口径——散布不参与 dev 直发）。</summary>
+        private static void EnemyFireAtPlayer(ThingDef projectileDef, int shots, bool guided)
+        {
+            UniverseManager um = Um();
+            SpaceObject source = NearestMaterializedContainer();
+            Ship player = PlayerShip();
+            SpaceObject target = player.IsValid ? um.FrameOf(player.map) : um.Focused;
+            if (source == null || target == null)
+            {
+                Messages.Message("No enemy container / no player ship in range.",
+                    MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            Faction hostile = Find.FactionManager.AllFactionsVisible
+                .FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer)) ?? Faction.OfPirates;
+            Vector2 toTarget = OrbitSphere.Offset(source.pose.position, target.pose.position);
+            if (toTarget.sqrMagnitude < 1e-6f) toTarget = Vector2.right;
+            Vector2 dir = toTarget.normalized;
+            Vector3 muzzle = OrbitSphere.Move(source.pose.position,
+                dir * (SpaceCollision.BoundsRadiusOf(source) + 2f));
+            OrbitSphere.Basis(muzzle, out Vector3 east, out Vector3 north);
+            var directionWorld = east * dir.x + north * dir.y;
+            for (int i = 0; i < shots; i++)
+            {
+                um.Projectiles.Launch(projectileDef, source, muzzle, directionWorld,
+                    hostile, null, guided ? target : null);
+            }
+        }
+
+        [DebugAction("Delta-V", "Combat: enemy volley at player (5 cannon shots)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void CombatEnemyVolley()
+        {
+            EnemyFireAtPlayer(DeltaVDefOf.DeltaV_Projectile_Cannon, 5, guided: false);
+        }
+
+        [DebugAction("Delta-V", "Combat: enemy missile at player", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void CombatEnemyMissile()
+        {
+            EnemyFireAtPlayer(DeltaVDefOf.DeltaV_Projectile_Missile, 1, guided: true);
+        }
+
+        [DebugAction("Delta-V", "Combat: force-destroy all projectiles", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void CombatDestroyProjectiles()
+        {
+            Um()?.Projectiles.DestroyAll();
+        }
+
+        [DebugAction("Delta-V", "Combat: toggle combat event logging", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void CombatToggleLogging()
+        {
+            if (DeltaVMod.CurrentSettings == null) return;
+            DeltaVMod.CurrentSettings.logCombat = !DeltaVMod.CurrentSettings.logCombat;
+            DeltaVMod.CurrentSettings.Write();
+            Messages.Message($"Combat logging: {(DeltaVMod.CurrentSettings.logCombat ? "ON" : "OFF")}",
+                MessageTypeDefOf.NeutralEvent, false);
+        }
+
+        [DebugAction("Delta-V", "Combat: dump projectile pool state", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void CombatDumpPool()
+        {
+            Log.Message($"[DeltaV:Combat] {Um()?.Projectiles.PoolStatus()}");
+        }
+
+        [DebugAction("Delta-V", "Combat: enemy boarding shuttle intrusion at player", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void CombatEnemyIntrusion()
+        {
+            UniverseManager um = Um();
+            SpaceObject source = NearestMaterializedContainer();
+            Ship player = PlayerShip();
+            SpaceObject target = player.IsValid ? um.FrameOf(player.map) : um.Focused;
+            if (source == null || target == null) return;
+            // 敌舰图上生成一台跳帮 shuttle 并原地起飞 → 侵入玩家（验证 PD 拦截与被撞链路）。
+            IntVec3 cell = CellFinder.RandomClosewalkCellNear(source.map.Center, source.map, 20);
+            Building hull = ThingMaker.MakeThing(DefDatabase<ThingDef>.GetNamed("DeltaV_ShuttleBoarding")) as Building;
+            if (hull == null || !cell.Standable(source.map)) return;
+            GenSpawn.Spawn(hull, cell, source.map);
+            Faction hostile = Find.FactionManager.AllFactionsVisible
+                .FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer)) ?? Faction.OfPirates;
+            hull.SetFaction(hostile);
+            um.Shuttles.Launch(hull);
+            SpaceObject container = um.objects.FirstOrDefault(o =>
+                o.baseTag == SpaceObjectTag.Shuttle && o.faction == hostile);
+            if (container != null)
+            {
+                um.Shuttles.ToggleIntrusionArmed(container);
+                um.Shuttles.EngageIntrusion(hull, target);
+            }
         }
     }
 }

@@ -40,6 +40,7 @@
   <DeltaV_SettingsLogHarmony>日志：按键抑制决策</DeltaV_SettingsLogHarmony>
   <DeltaV_SettingsLogLifecycle>日志：POI 生命周期迁移</DeltaV_SettingsLogLifecycle>
   <DeltaV_SettingsLogRender>日志：船壳分层（每秒最多 1 条）</DeltaV_SettingsLogRender>
+  <DeltaV_SettingsLogCombat>日志：战斗事件（发射/命中/拦截/跳弹/放行）</DeltaV_SettingsLogCombat>
   <DeltaV_SettingsUniverseZoomMax>宇宙视野缩放上限（格）</DeltaV_SettingsUniverseZoomMax>
   <DeltaV_SettingsUniverseZoomMaxTip>聚焦飞船图时相机最多能拉多远。数值越大，一屏能看到的太空范围越大，远处的飞船和空间站外壳会更早进入画面；代价是拉远后地图内容显示得越小。范围 60–5000；默认 400。</DeltaV_SettingsUniverseZoomMaxTip>
   <DeltaV_SettingsPoiActiveRadius>POI 加载距离（格）</DeltaV_SettingsPoiActiveRadius>
@@ -171,4 +172,45 @@
   <DeltaV_SettingsDragAngularHalfLife>角速度半衰期（tick）</DeltaV_SettingsDragAngularHalfLife>
   <DeltaV_SettingsDragAngularHalfLifeTip>开关打开时，自旋速度每过这么多 tick 减半。数值越小停转越快，越大转得越久。范围 1–60000；默认 180（3 秒减半）。</DeltaV_SettingsDragAngularHalfLifeTip>
   <DeltaV_ReassignProtectedMainConsole>主驾驶台下方的基架归属不能修改（已跳过 {0} 格）；请先设为备用驾驶台或拆除。</DeltaV_ReassignProtectedMainConsole>
+
+  <!-- 阶段5：战斗（瞄准模式/武器组/战斗位置） -->
+  <DeltaV_PanelAimMode>瞄准模式：{0}</DeltaV_PanelAimMode>
+  <DeltaV_PanelAimModeTip>本按钮或瞄准键（默认 B）切换。瞄准模式中按住左键射击主套激活组武器、右键射击副套激活组，原版点选让位；不占用空格（暂停）。</DeltaV_PanelAimModeTip>
+  <DeltaV_PanelWeaponGroupTip>{0}套 第 {1} 组。点击切换该组是否激活；只有激活组会被射击与召集战斗位置。</DeltaV_PanelWeaponGroupTip>
+  <DeltaV_WeaponSetMain>主</DeltaV_WeaponSetMain>
+  <DeltaV_WeaponSetSecondary>副</DeltaV_WeaponSetSecondary>
+  <DeltaV_PanelBattleStationsOn>进入战斗位置</DeltaV_PanelBattleStationsOn>
+  <DeltaV_PanelBattleStationsOff>退出战斗位置</DeltaV_PanelBattleStationsOff>
+  <DeltaV_PanelBattleStationsTip>召集殖民者就位本图全部激活组的玩家武器（预留炮手优先，其次随机选可胜任者；已征召者不征用）。再按一次解除。</DeltaV_PanelBattleStationsTip>
+  <DeltaV_BattleStationsOn>{0} 名炮手已进入战斗位置。</DeltaV_BattleStationsOn>
+  <DeltaV_BattleStationsOff>已退出战斗位置，炮手返回原工作。</DeltaV_BattleStationsOff>
+  <DeltaV_WeaponGroupGizmo>武器组：{0}{1}</DeltaV_WeaponGroupGizmo>
+  <DeltaV_WeaponGroupGizmoTip>循环本武器的组别（主/副 × 1–6）；组激活在状态面板切换。</DeltaV_WeaponGroupGizmoTip>
+  <DeltaV_WeaponPdgizmo>点防御</DeltaV_WeaponPdgizmo>
+  <DeltaV_WeaponPdgizmoTip>点防御模式：自动索敌射程内可拦截容器（导弹、有图炮弹、shuttle），不受瞄准模式控制。</DeltaV_WeaponPdgizmoTip>
+  <DeltaV_WeaponReserveGizmo>预留炮手：{0}</DeltaV_WeaponReserveGizmo>
+  <DeltaV_WeaponReserveNone>不指定</DeltaV_WeaponReserveNone>
+  <DeltaV_WeaponReserveGizmoTip>指定进入战斗位置时优先就位本武器的殖民者（不指定 = 随机选可胜任者）。</DeltaV_WeaponReserveGizmoTip>
+
+  <DeltaV_CasemateNeedsWall>炮廓必须贴着实心舱壁放置（朝向背对墙面）。</DeltaV_CasemateNeedsWall>
+  <DeltaV_RailgunNeedsChain>轨道炮部件必须接着既有链放置（先装弹机构，再加速段，最后炮口）。</DeltaV_RailgunNeedsChain>
+
+  <!-- 阶段5：shuttle 与月池 -->
+  <DeltaV_ShuttleLaunchGizmo>起飞</DeltaV_ShuttleLaunchGizmo>
+  <DeltaV_ShuttleLaunchGizmoTip>起飞进入自由飞行（MiniShip）。门禁 = 原版发射检查（装货/燃料/超重/冷却）；月池上屋顶不挡起飞。</DeltaV_ShuttleLaunchGizmoTip>
+  <DeltaV_ShuttleLaunchDenied>无法起飞：{0}</DeltaV_ShuttleLaunchDenied>
+  <DeltaV_ShuttleLaunched>{0} 已起飞进入自由飞行。</DeltaV_ShuttleLaunched>
+  <DeltaV_ShuttleBoardGizmo>撞击敌壳</DeltaV_ShuttleBoardGizmo>
+  <DeltaV_ShuttleBoardGizmoTip>点选敌方容器外壳：shuttle 化为导弹满推追踪，撞穿破口并以舱体堵孔。</DeltaV_ShuttleBoardGizmoTip>
+  <DeltaV_ShuttleBoardNoTarget>该处没有可撞击的容器外壳。</DeltaV_ShuttleBoardNoTarget>
+  <DeltaV_ShuttleBoardEngaged>侵入已发起：正在冲撞 {0}。</DeltaV_ShuttleBoardEngaged>
+  <DeltaV_PanelBoardArm>侵入</DeltaV_PanelBoardArm>
+  <DeltaV_PanelBoardArmTip>武装此 shuttle 的侵入驱动（在其舱体 gizmo 上指定目标）。任意驾驶键可打断冲撞回到手动；目标保留。</DeltaV_PanelBoardArmTip>
+
+  <DeltaV_ShuttleDockGizmo>对接</DeltaV_ShuttleDockGizmo>
+  <DeltaV_ShuttleDockGizmoTip>选择目标容器与落点，自动驾驶（或手操）入泊——与飞船完全相同的对接计划管线。</DeltaV_ShuttleDockGizmoTip>
+  <DeltaV_DebugThrustersToggleButton>显示 Delta-V 推进器矢量与船体范围</DeltaV_DebugThrustersToggleButton>
+
+  <DeltaV_ThrusterPowerTitle>设置推进器出力上限</DeltaV_ThrusterPowerTitle>
+  <DeltaV_ThrusterPowerEntry>推进器出力：{0}%</DeltaV_ThrusterPowerEntry>
 </LanguageData>

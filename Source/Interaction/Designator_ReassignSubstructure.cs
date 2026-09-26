@@ -71,7 +71,7 @@ namespace DeltaV
             {
                 return "DeltaV_ReassignPickFirst".Translate();
             }
-            if (!c.InBounds(Map) || Map.terrainGrid.TerrainAt(c) != DeltaVDefOf.Substructure)
+            if (!c.InBounds(Map) || Map.terrainGrid.TerrainAt(c)?.IsSubstructure != true)
             {
                 return false;
             }
@@ -219,7 +219,7 @@ namespace DeltaV
             IntVec3 hover = UI.MouseMapPosition().ToIntVec3();
             SubstructureOwnership ownership = OwnershipOnCurrentMap(universe);
             if (ownership != null && hover.InBounds(Map)
-                && Map.terrainGrid.TerrainAt(hover) == DeltaVDefOf.Substructure)
+                && Map.terrainGrid.TerrainAt(hover)?.IsSubstructure == true)
             {
                 int hoverOwner = ownership.OwnerAt(hover);
                 text += "\n" + "DeltaV_ReassignHoverOwner".Translate(

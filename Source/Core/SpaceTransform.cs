@@ -164,6 +164,64 @@ namespace DeltaV
             };
         }
 
+        /// <summary>
+        /// 两容器的相对速度（太空战架构 §3.3：v_攻 − v_守，表达在守方位置切空间基；
+        /// 碰撞事件的相对速度标量/矢量唯一入口，调用方禁止自行做基变换点乘）。
+        /// 内部复用 TransportVelocity 的平行输运。
+        /// </summary>
+        public static Vector2 RelativeVelocity(SpacePose attackerPose, SpacePose defenderPose)
+        {
+            return TransportVelocity(attackerPose, defenderPose.position) - defenderPose.velocity;
+        }
+
+        /// <summary>
+        /// 入射角（弧度，0 = 正对被撞面法线，π/2 = 掠射）：入射方向（守方局部、单位、
+        /// 指向行进方向）与被撞面法线（守方局部、单位、指向入射来侧）的夹角。
+        /// 法线由调用方按命中面语义给出（碰撞核心按扫掠进入面推导；基架格按同规则
+        /// 的格面法线抽象——与实心建筑同一规则，不另设第二套角度约定）。
+        /// </summary>
+        public static float IncidenceAngle(Vector2 incidentDir, Vector2 surfaceNormal)
+        {
+            float cos = Vector2.Dot(incidentDir.normalized, surfaceNormal.normalized);
+            return Mathf.Acos(Mathf.Clamp(-cos, -1f, 1f));
+        }
+
+        /// <summary>
+        /// 截击解算（切平面近似，预瞄指示器与 PD 提前量同一纯函数，太空战架构 §6.3）：
+        /// 相对位置 p（发射点切基下目标 − 发射点）、相对漂移 w（目标速度 − 发射点速度，
+        /// 同基），求最小正根 t 使 |p + w·t| = speed·t。无解（追不上/同速绕圈）返回 false。
+        /// 战术距离内球面曲率可忽略；跨层换算仍由调用方经 OrbitSphere/TransportVelocity。
+        /// </summary>
+        public static bool TrySolveInterceptPlanar(Vector2 p, Vector2 w, float speed, out float time)
+        {
+            time = 0f;
+            if (speed <= 0f) return false;
+            float a = Vector2.Dot(w, w) - speed * speed;
+            float b = 2f * Vector2.Dot(p, w);
+            float c = Vector2.Dot(p, p);
+            if (Mathf.Abs(a) < 1e-6f)
+            {
+                if (Mathf.Abs(b) < 1e-6f) return false;
+                float linear = -c / b;
+                if (linear > 0f)
+                {
+                    time = linear;
+                    return true;
+                }
+                return false;
+            }
+            float discriminant = b * b - 4f * a * c;
+            if (discriminant < 0f) return false;
+            float root = Mathf.Sqrt(discriminant);
+            float t1 = (-b - root) / (2f * a);
+            float t2 = (-b + root) / (2f * a);
+            // 取最小正根（最早截击点）。
+            if (t1 > 0f && (t2 <= 0f || t1 <= t2)) time = t1;
+            else if (t2 > 0f) time = t2;
+            else return false;
+            return time > 0f && float.IsFinite(time);
+        }
+
         // ---------- Ship local ⇄ universe ----------
 
         public static Vector3 ShipLocalToUniverse(SpaceObject obj, Vector2 shipPoint)

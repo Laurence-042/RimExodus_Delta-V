@@ -371,7 +371,7 @@ Universe State 至少负责保存：
 - 可重建的渲染缓存不应决定对象生命周期。
 - 加载 / 卸载必须有单一管理入口，避免 POI、战斗和 UI 各自操作 Map 生命周期。
 
-## 12. 对接、跳帮与进入他船（2026-09-21 阶段4 定案；旧 BoardingConnection 方案退役）
+## 12. 对接、跳帮与进入他船（2026-09-21 阶段4 定案；2026-09-26 跳帮舱改制 shuttle，旧 BoardingPod* 已删除）
 
 进入另一艘船**不建立跨图 live 连接、不自研自由 Pawn 跨图转移**。两条途径：
 
@@ -389,9 +389,22 @@ Universe State 至少负责保存：
   （WriteDockedState 直写注册值）全部读同一份数据，**不得二次计算**；停靠剪影
   锚 = 位姿锚（口袋图几何中心），视觉重叠即判据本身。对接后两船同图（建筑拓扑
   共享、基架归属分离），Pawn 移动/战斗/追击全走原版同图机制。
-- **跳帮舱**= 载人制导飞行器：导弹式追踪命中敌舰外壳、开孔、密封舱落位堵孔、
-  乘员在目标图落点生成（经容器搬运送达）。RimExodus 的 transfer 实现不再直接复用于
-  本主题，但其多图共存、聚焦切换、Harmony patch 与兼容处理经验仍是通用参考。
+- **跳帮 = shuttle 侵入（2026-09-26 太空战架构 §7 定案；旧跳帮舱/发射管/落位舱已退役删除）**：
+  shuttle = 原版 CompTransporter 装货 + CompLaunchable 发射语义的小艇建筑；起飞门禁 =
+  原版 CanLaunch 结果直取（月池地形豁免屋顶项，Patch_MoonPool）；起飞后 = MiniShip
+  （Shuttle tag 容器，虚拟推进器注入 ShipPhysics，PilotTarget 泛化驾驶/自动驾驶）。
+  **侵入 = 导弹机制无单独实现**：容器 tag 由 shuttle 覆盖为 projectile（运行时
+  projectileRoleOverride，读档自动回 shuttle tag）、ShipAutopilot.Pursue 满推追踪
+  （无刹车包络）、命中走联合效果（攻方 PlaceBody = 舱体放置撞击位内侧偏移 + 容器
+  销毁；守方撞击毁伤）；护盾容量未破 = 挡停（速度清零，SweptBody.haltOnShield）。
+  PD 拦截 shuttle 与拦截导弹同链（InterceptionEligible 结构派生）。月池
+  （DeltaV_MoonPool = **ParentName="Substructure" 真继承**原版基架 def，2026-09-27）：
+  屋顶豁免唯一挂点 = RoofGrid.Roofed 根层三重载（月池格恒无顶——放置/起飞/着陆选点
+  等一切消费者自动一致，**禁止消费者层再单独 patch 屋顶**）；气密唯一挂点 =
+  District.ExposedVacuumCount（月池格从真空暴露计数剔除，独立于屋顶）；降落管线
+  不触碰屋顶；力场视觉 = 墙壁式连接图（MoonPoolGraphics）；跳帮档位（canBoard/
+  出力）经 modExtensions（DefModExtension_BoardingProfile，comps li 追加会与原版
+  patch 的 comp 实例重复）。
 
 纪律：
 
@@ -414,7 +427,7 @@ Pawn 移动（对接后两船同图，不存在跨图行走）和玩家相机切
 聚焦切换只经现有 CurrentMap 通道（点击船壳/面板/殖民者栏），任何转移逻辑不得硬编码
 跟随切换。多人分队、无人机、远程观察等场景以后都依赖这两个概念保持分离。
 
-## 13. 太空战与 Projectile
+## 13. 太空战与 Projectile（2026-09-26 起权威设计 = doc/太空战架构.md；本节保留骨架纪律）
 
 太空飞行阶段不要求普通 RimWorld Projectile 永远存在于某张 Map 中。
 
@@ -653,8 +666,9 @@ universe 实例）。静态白名单仅四类：无状态纯过程/纯函数（`
 dev `ResetObjects` 在**同一 universe 实例**上换 objects，必须显式调各服务 `ResetFlow()`
 （见该处注释）。渲染缓存与按键抑制门仍为静态、读档经 `LoadedGame` 清理。
 
-### 驱动节奏
-- `UniverseManager.GameComponentTick`（唯一 tick 总装，游戏时间语义）：`Autopilot.Tick() → BoardingPods.Tick() → Approach.Tick(this) → 容器物理积分循环`（自动驾驶中的容器被积分循环按 `IsActive` 跳过，无双驱动；对接组合体随宿主容器惯性漂移 + 被动阻力）。
+### 驱动节奏（2026-09-26 太空战后）
+- `UniverseManager.GameComponentTick`（唯一 tick 总装，游戏时间语义）：`Autopilot.Tick()（含侵入 Pursue）→ Projectiles.Tick()（弹体制导/超时）→ Weapons.TickWeapons()（瞄准模式射击 + PD 索敌）→ Shuttles.Tick()（舱体被毁收尾）→ Approach.Tick(this) → 容器物理积分循环（含弹体：无图弹体走 PointMassReport 快路径；侵入 shuttle 走容器积分）→ Projectiles.ResolveCollisions()（SpaceCollision 扫掠与结算，先动后撞）`（自动驾驶中的容器被积分循环按 `IsActive` 跳过，无双驱动）。
+- 实例服务清单（§20 前言纪律）：`Approach/Autopilot/BoardingPods→已删除/Projectiles/Weapons/Shuttles/ShipTransitions/Lifecycle/Generation`。
 - `UniverseManager.GameComponentUpdate`（每帧）：开头消费**帧上下文动作队列**（`QueueFrameAction`——全项目唯一「离开当前 tick/加载调用栈」延迟机制：分离执行、FinishDocking、源图善后、战略离场善后、读档清扫；tick 触发动作的调用栈安全延迟，不是帧驱动模拟），其后只做渲染/输入分发（船壳分层、星球仪/面板、驾驶状态维护、火焰/音频、跳帮舱标记投影）——模拟路径禁止入帧路径（不变量 #20）。
 
 ### Core/（数据与算法）
@@ -664,14 +678,26 @@ dev `ResetObjects` 在**同一 universe 实例**上换 objects，必须显式调
 - `ShipRegistry`（新，飞船查询唯一入口）：`Ship` 句柄（ownerId/map/主台 comp）与 `ShipsOnMap/ShipByOwner/OwnershipHasMainConsole/DefaultShipOnMap（默认操作船：玩家派系优先、唯一船兜底）/ShipByThing（点击物→所在归属域的船）` 枚举；**控制域 = 主台脚下同归属四连通**（缓存经 `SubstructureOwnership.GlobalStructureVersion` + TTL 失效）；**残留块 = 剩余基架物理四连通**（两语义不得混用，§8.1）；状态派生 `StateOf`（自由飞行 = 唯一船 + 非天然地面接触 `RestsOnNaturalGround`（基架下非 Space 真实地面）+ 非地表图）；位姿派生 `ShipPose/HeadingAngle`（容器 ⊕ 船体中心锚 ⊕ σ=AngleFromRot4(主台朝向)，控制台 East ⇔ 船帧对齐图帧）；`FactionOf/Contains/EngineOn`（引擎查询仅供战略发射）。
 - `UniverseManager`：`objects` 权威列表与 `RegisterObject/UnregisterObject`、`ObjectById`、`AllocateOwnerId`（对象/结构归属共用唯一计数器；**语义分离，禁止反查**）、结构名注册表 `NoteStructureName/RenameStructure/NewWreckName/LabelForOwner`（改名唯一出口，同步本船引擎 RenamableLabel）、专用宿主口袋图、`FrameOf`、`SetFocused`（聚焦 = CurrentMap 派生，不再持久化 ID）、`SetFocusedWithCamera`（聚焦 + 相机连续性单实现：换算目标点 + TryJump + RootSize 显式重设，外壳点击聚焦与对接完成交接共用）、`ResetRuntimeServices`、tick/update 总装（积分对象 = 容器）。
 - `ShipPhysics`：质量/惯量/联合分配器/积分（刚体动量管理唯一实现；`GetReport(Map)`、`Integrate(SpaceObject,…,pilotFrameAngle)` 含**被动阻力**半衰期衰减，`PassiveDragFactors` 与 MPC 预测同一因子）；`BuildControlModel` 只读预览与真实 `Allocate` 共用同一分配核心，只有 `Allocate` 写油门。`DenseAdmmQpSolver`：无游戏依赖的小型凸 QP 唯一实现。
-- `SubstructureOwnership`：基架归属 MapComponent（归属 = 结构 ID）；`GlobalStructureVersion` 域缓存失效源；`ClaimConnectedDomain` 唯一归属算法；`ResolveBuilt` 多归属邻接保持未占有（不拒建）。`DeltaVSettings/DeltaVMod/DeltaVDefOf/DeltaVLog`。
+- `SubstructureOwnership`：基架归属 MapComponent（归属 = 结构 ID；**基架判定唯一口径 = TerrainDef.IsSubstructure（tag）**——2026-09-27 全链收口，月池等 tag 变体与原版基架在归属/控制域/捕获/质量/碰撞完全同权，禁止精确 def 比较）；`GlobalStructureVersion` 域缓存失效源；`ClaimConnectedDomain` 唯一归属算法；`ResolveBuilt` 多归属邻接保持未占有（不拒建）。`DeltaVSettings/DeltaVMod/DeltaVDefOf/DeltaVLog`。
+- `SpaceObjectTag { Container/Marker/Projectile/Ship/Shuttle }`（太空战架构 §3.1 单点分派）：Ship 为派生值（MapHasMainConsole）；行为分派收口 SpaceObject 分派属性（IsTransient/IsActiveCollider/AppliesPassiveDrag/ParticipatesInOverlays/InterceptionEligible/UsesVelocityHeading），调用方禁止散写 tag 判断；侵入覆盖 = `projectileRoleOverride`（运行时、读档自动回 Shuttle）。
+- `SpaceCollision`：唯一碰撞实现（占用格集/护盾弧缓存、扫掠求交、参与判定、命中事件、先弧后格、侵入挡停）；占用判定与外壳渲染共用 `SpaceStructureRules` 分类器；相对速度/入射角经 SpaceTransform（RelativeVelocity/IncidenceAngle）。
+- `SpaceImpactEffects`：联合效果注册表唯一来源（HitTest 二值 + 对称 Apply；同等耐久兜底；SpaceImpactEffectDef XML 可扩展；伤害原语 TakeDamage/GenExplosion 单点封装）；攻方 DestroySelf/PlaceBody 经 SweptBody 回调由服务帧边界执行。
+- `SpaceTransform` 增量：`RelativeVelocity/IncidenceAngle/TrySolveInterceptPlanar`（预瞄与 PD 提前量同一纯函数）。
+- `MoonPoolUtility`：月池存在性/格清单判定单点。Patch_MoonPool = 屋顶豁免与气密的唯一挂点（RoofGrid.Roofed 三重载 Prefix：月池格恒无顶，一切消费者自动一致，禁止消费者层单独 patch；District.ExposedVacuumCount Prefix：月池格不计入真空暴露——气密独立于屋顶）。
+- `CompThrusterPowerLimit` + `Command_SetThrusterPower`：飞船推进器出力上限滑条（多选合组统一设置，原版 Command_SetTargetFuelLevel 同机制）；出力唯一收口 = ShipPhysics.Measure 创建 Thruster 时乘百分比。
+- `ThrusterDebugOverlay`：推进器矢量（真实=绿/虚拟=洋红）+ 船体范围遮罩的聚焦图调试叠加；开关挂右下角 PlaySettings 行（Patch_DeltaVPlaySettings，原版屋顶显示同款 ToggleableIcon）；`Show` 为会话级视图开关（渲染类静态白名单口径，不落盘）。
+- `MoonPoolGraphics`：月池力场视觉唯一入口——墙壁式连接图（Terrain/MoonPoolAtlas 十六格图集 + 4 位邻接掩码，MaterialAtlasPool 与墙同机制）；地形本体 dontRender（透出宇宙），聚焦图每帧 DrawQuad、外壳路径在 MapOverlayRenderer 地形分支取同一材质。
 
 ### Interaction/（玩法流程）
 - **ShipController 基类 + PlayerShipController/NpcShipController 双子类**（解耦架构 §5.4 强制）：统一驾驶契约（`CanEnter/Enter/Exit/ComposeCommand` + 确认边界 `PresentSeparationConfirmation`）；已停靠船可进入驾驶（CanEnter = 图有宇宙容器 + 零重力，非自由飞行专属）；玩家子类 = 手操输入 + 自动驾驶交互 + 分离确认（forcePause）；NPC 子类内持 `INpcShipAi`（接入边界，本轮空实现 NoopNpcShipAi），分离直接执行不弹窗。`PilotService` 是路由服务（universe.`Pilot`）：控制状态派生、按键维护与抑制、controller 生命周期；驾驶状态为运行时数据不跨档；驾驶切换统一入口 `ToggleControl(universe, ship)`——目标船由调用方显式传入（驾驶台 gizmo 传本台船、面板传选中船、快捷键/dev action 传 `SelectedShipOnMap(Map)` 推导），不得在内部反推目标（侧边栏选中 NPC 船时点玩家驾驶台 gizmo 曾被错误拒绝）。
 - `ShipFlightTransitionService`（universe.`ShipTransitions`）：转换与分离的唯一编排——**出力即分离统一门禁 `RequestThrust`**（2026-09-24 用户定案：拆分/脱离同一语义「将要出力的船与其余部分分离」，唯一触发点；自由飞行 = 拆分方向残留块逐块独立成残骸容器、船留原图，已停靠 = 脱离方向本船控制域搬入新口袋容器；干净脱离立即执行、有断片/通道滞留经 controller 弹 forcePause 确认、NPC 直接执行；取消 = 撤销自动驾驶任务 + 退出驾驶，无结构版本抑制；立即分离/NPC 路径排队到帧边界执行，禁止在容器积分 foreach 内分离）、`SplitResiduals`（拆分执行体，dev action 亦调）、`ExecuteUndockSeparation`（脱离执行体：通道收回 + `TransferOwnDomain`；不撤销自动驾驶任务——Flight 每 tick 现查容器）、`TransferOwnDomain`（脱离/旋转共用的转移+交接编排：退本船驾驶位 → 搬运 → 句柄重解析 → 剪影重建 → 注视源图时 SetFocusedWithCamera 相机交接 → 重进驾驶 → 帧边界源图善后）、`TransferDomainToNewPocket`（无引擎搬运核心：CaptureDomain → StripDomain → 新口袋图 → PlaceIntoMap → 新容器注册，脱离/拆分/旋转共用；targetConsoleFacing = 主台新图朝向，容器角反调 σ−τ 保主台轨道朝向跨搬运不变）、`RotateShipHeading`（2026-09-25 面板罗盘入口：自由飞行玩家主动确认的整图旋转——新 SpaceObject 与当前位置重合 + 建筑旋转至目标朝向 + 轨道朝向/位置/速度不变；对接计划中拒绝；源图善后经 HandleDepartedSourceMap 普通容器空白分支销毁）、`BeginDocking`（目标枚举排除自身容器 → 单候选直入 / 多候选按可见船壳距离升序 FloatMenu 选择 → 源图残留事前确认 → 选点）、`CompleteTransferIntoHost/FinishDocking`（直接放置合图 + 源图处置 + 完成时聚焦/相机连续性交接——防原版删图后 CurrentMap 回退 maps[0]）、战略离场适配（`HandleVanillaTakeoffFromDeltaVSource/HandleStrategicTravelDeparture`，星区标准流程保留；BeginFreeFlight/BeginFreeFlightFromConsole 已随统一分离退役）。`GravshipInterop` 是原版私有字段镜像的唯一收口（设计器输入格换算、`BuildPreview`（按控制域）、**`CaptureDomain`/`StripDomain`**（按 cells 的捕获/移除段镜像，无引擎搬运基础）、`PlaceIntoMap`、cutscene 压零）。
 - `LandingApproachController`（universe.`Approach`）：对接计划编排——`DockingPlan` 状态对象（含 structureId 落点盖章；构造即完整，唯一事实源 `ActivePlan`）、`TryConsume`（原子发布 + marker 复核引用保留）、`Tick`（守卫/位姿窗口/保持计数）、`CompleteDocking`（新鲜脚印复核 → 完成时刻捕获 → 直接放置 → 帧边界 FinishDocking）、`CancelSelectionOrPlan`。
 - `ShipAutopilot`（universe.`Autopilot`）：任务按归属 ID 键控、物理作用于容器（`FlyTo`/`TrackTo`，出力前经 `RequestThrust` gate）。制导按微步（6 tick）节拍：QP 求解周期按距离自适应（终段每微步 / ≤40 格 2 微步 / 远场 4 微步，2026-09-25 定案——10 Hz 全速求解拖垮 6x 倍速）、按 `(微步序号+ownerId) mod K` 确定性错峰、解间逐微步**回放计划控制**（`IAutopilotGuidance.TryGetPlannedStep`，不得退回「只持有首控制量」丢弃后续计划）；应用侧微步内按指令 + `MassReport.version` 去重 ForceToCommand/Allocate；`IsActive(SpaceObject)` 走 Tick 内构建的活跃容器集合。制导唯一边界 `IAutopilotGuidance`：`OnlineMpcGuidance`（六状态 MPC，**预测含与积分同口径的被动阻力**；软接近包络 = √(2·a_safe·d) 刹车曲线逐步线性化，a_safe 与回退共用同一安全标量——旧线性包络致终段爬行，勿回退）、`BrakingGuidanceFallback` 数值回退。
-- `BoardingPodFlight`（universe.`BoardingPods`）：跳帮舱（目标 = 地图容器，整图即跳帮面；tick 驱动纯追踪、命中开孔、密封舱落位、乘员投放）。
+- `SpaceProjectileService`（universe.`Projectiles`）：弹体创建/图池（借出注册/归还注销+回收，帧边界）/导弹速度转向/超时/渲染（def 图形投影+激光线段）/读档孤儿图回收；侵入 shuttle 扫掠体在此并入 SpaceCollision。
+- `SpaceWeaponService`（universe.`Weapons`）：每武器就绪判定与发射单实现（瞄准模式按住射击 + PD 索敌/截击）、战斗位置征用（ManTurret 批量）、HostileTo/TargetAlongRay/SpreadFactorForSkill 单点。
+- `SpaceShuttleService`（universe.`Shuttles`）：起飞（原版 CanLaunch 直取 + 单建筑进口袋 + RigidPointPose + 虚拟推进器注入 + 冷却字段镜像单点）、侵入编排（EngageIntrusion/BreakIntrusion/PlaceBoardedShuttle）、舱体巡护。shuttle 普通对接走同一管线（`BeginDockingShuttle` → `pendingShuttleBody`/`DockingPlan.shuttleBody` 变体，脚印 = 舱体 def 脚印，完成 = 回落建筑 + 冷却 + `DisposeShuttlePocket`）。
+- `PilotTarget`（PilotController.cs）：驾驶目标泛化句柄（Ship/Building 二选一，Container/FrameAngle/Faction/ControlKey 派生收口）；ShipController/PilotService/ShipAutopilot/RequestThrust 均有 PilotTarget 口径。
+- 瞄准模式 = PilotService 驾驶子状态（`AimModeActive`，B 键/面板按钮同入口，退出驾驶自动退出）；原版点击让位 = Patch_AimModeClicks（HandleMapClicks/HandleLowPriorityInput Prefix）。
 - `FreeFlightBootstrap`（重力门禁查询）、`Designator_ReassignSubstructure`（修改基架归属命令，**主台脚下格保护 + 汇总提示**）、`PlaceWorker_DeltaVSubstructureOwnership`（多归属邻接不拒建，仅邻接着色提示）、`ShellPicking`（外壳命中唯一入口，每容器一壳）。
 
 ### Rendering / Lifecycle / Generation / World / Buildings / Harmony / Debug

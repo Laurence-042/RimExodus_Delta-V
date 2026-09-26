@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+
+	<!--
+		阶段5 §7（2026-09-27 修订：真继承）：
+		① 给原版 PassengerShuttle 补 Name 特性（原版无 Name → ParentName 无法引用；
+		  无害标记，只服务于继承）并追加 DeltaV shuttle comp——补齐它缺少的 Delta-V
+		  自由飞行起飞（gizmo 经 CompSpaceShuttle；门禁 = 原版 CompLaunchable.CanLaunch
+		  结果直取）。
+		② 给原版 Substructure 基架补 Name 特性（月池 def 经 ParentName 真继承它，
+		  游戏更新改基架属性月池自动跟随）。
+	-->
+
+	<Operation Class="PatchOperationAttributeAdd">
+		<xpath>/Defs/ThingDef[defName="PassengerShuttle"]</xpath>
+		<attribute>Name</attribute>
+		<value>PassengerShuttle</value>
+	</Operation>
+
+	<Operation Class="PatchOperationAdd">
+		<xpath>/Defs/ThingDef[defName="PassengerShuttle"]/comps</xpath>
+		<value>
+			<li Class="DeltaV.CompProperties_SpaceShuttle">
+				<canBoard>false</canBoard>
+				<virtualThrusterThrust>160</virtualThrusterThrust>
+			</li>
+		</value>
+	</Operation>
+
+	<Operation Class="PatchOperationAttributeAdd">
+		<xpath>/Defs/TerrainDef[defName="Substructure"]</xpath>
+		<attribute>Name</attribute>
+		<value>Substructure</value>
+	</Operation>
+
+</Patch>

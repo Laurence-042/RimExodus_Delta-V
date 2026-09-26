@@ -5,12 +5,60 @@ using Verse;
 
 namespace DeltaV
 {
-    public enum ShipControlState : byte
+public enum ShipControlState : byte
+{
+    Uncontrolled,
+    Manual,
+    Autopilot
+}
+
+/// <summary>
+/// 驾驶目标（太空战架构 §7.2 泛化）：Ship（主台归属）或在飞/停靠的 shuttle 舱体
+/// 二选一。飞船与 shuttle 不得有两套驾驶实现——本结构是两条链共用的目标句柄；
+/// 容器/帧角/派系/控制键的派生全部收口在此，调用方不得自行分叉。
+/// </summary>
+public readonly struct PilotTarget
+{
+    public readonly Ship ship;
+    public readonly Building shuttle;
+
+    private PilotTarget(Ship ship, Building shuttle)
     {
-        Uncontrolled,
-        Manual,
-        Autopilot
+        this.ship = ship;
+        this.shuttle = shuttle;
     }
+
+    public static PilotTarget Of(Ship ship) => new PilotTarget(ship, null);
+    public static PilotTarget Of(Building shuttleBody) => new PilotTarget(Ship.Invalid, shuttleBody);
+
+    public bool IsValid => ship.IsValid || (shuttle != null && shuttle.Spawned && !shuttle.Destroyed);
+    public static readonly PilotTarget Invalid = default;
+
+    /// <summary>目标所在图（shuttle = 舱体所在图，含 MiniShip 口袋图与停靠宿主图）。</summary>
+    public Map Map => ship.IsValid ? ship.map : shuttle?.Map;
+
+    /// <summary>驾驶控制键（身份比较用；船 = 归属 ID，shuttle = thingID）。</summary>
+    public int ControlKey => ship.IsValid ? ship.ownerId : (shuttle?.thingIDNumber ?? 0);
+
+    /// <summary>船体帧角 σ（船 = 主台朝向；shuttle = 舱体朝向）。</summary>
+    public float FrameAngle => ship.IsValid
+        ? ShipRegistry.LocalFrameAngle(ship)
+        : (shuttle != null ? ShipOrientation.AngleFromRot4(shuttle.Rotation) : 0f);
+
+    /// <summary>目标船体帧锚（连续 Map 坐标；船 = 控制域包围盒中心，shuttle = 舱体脚印中心）。</summary>
+    public Vector2 HullCenter => ship.IsValid
+        ? ShipRegistry.HullCenter(ship)
+        : (shuttle != null ? SpaceTransform.BoundsCenterOfCells(shuttle.OccupiedRect().Cells) : Vector2.zero);
+
+    public Faction Faction => ship.IsValid ? ShipRegistry.FactionOf(ship) : shuttle?.Faction;
+
+    public bool IsShuttle => !ship.IsValid;
+
+    /// <summary>流程/诊断标签（船 = 归属名，shuttle = 舱体名；仅显示用）。</summary>
+    public string Label => ship.IsValid
+        ? Current.Game?.GetComponent<UniverseManager>()?.LabelForOwner(ship.ownerId) ?? $"structure #{ship.ownerId}"
+        : shuttle.LabelCap;
+}
 
     /// <summary>
     /// 统一驾驶契约的共同基类（解耦架构 §5.4 **强制继承架构**）：NPC controller 与玩家
@@ -27,50 +75,51 @@ namespace DeltaV
     {
         protected readonly UniverseManager universe;
 
-        /// <summary>当前驾驶目标（主台 + 归属 + 图）。无效 = 未驾驶任何船。</summary>
-        internal Ship ship = Ship.Invalid;
+        /// <summary>当前驾驶目标（Ship 或 shuttle 舱体，二选一）。无效 = 未驾驶。</summary>
+        internal PilotTarget target = PilotTarget.Invalid;
 
         protected ShipController(UniverseManager universe)
         {
             this.universe = universe;
         }
 
-        public bool Active => ship.IsValid && ship.map != null;
+        public bool Active => target.IsValid && target.Map != null;
 
-        /// <summary>该方是否对目标船有控制权（玩家 = 派系门禁；NPC = AI 归属）。</summary>
-        protected internal abstract bool HasAuthority(Ship target);
+        /// <summary>该方是否对目标有控制权（玩家 = 派系门禁；NPC = AI 归属）。</summary>
+        protected internal abstract bool HasAuthority(PilotTarget target);
 
         /// <summary>
         /// 公共驾驶门禁（两子类同一流程）：目标有效、所在图有宇宙容器且零重力、非流程
         /// 互斥。已停靠的船同样可进入驾驶（2026-09-24 统一分离定案）——首次推进器出力
         /// 即触发与其余部分的分离（脱离方向 gate 在 RequestThrust 收口）；无容器/重力图
-        /// 只能逆重战略发射，无驾驶。
+        /// 只能逆重战略发射，无驾驶。shuttle 目标同门禁（独占口袋图或停靠宿主图）。
         /// </summary>
-        public virtual bool CanEnter(Ship target)
+        public virtual bool CanEnter(PilotTarget target)
         {
             if (!target.IsValid) return false;
-            Map map = target.map;
+            Map map = target.Map;
             if (map == null || universe.FrameOf(map) == null
                 || !FreeFlightBootstrap.IsZeroGravity(universe, map))
             {
                 return false;
             }
-            if (universe.ShipTransitions.IsDockingFlowShip(target)
-                && !ReferenceEquals(universe.Approach.ApproachShip.ownerId, target.ownerId))
+            if (!target.IsShuttle
+                && universe.ShipTransitions.IsDockingFlowShip(target.ship)
+                && !ReferenceEquals(universe.Approach.ApproachShip.ownerId, target.ship.ownerId))
             {
                 return false;
             }
             return HasAuthority(target);
         }
 
-        public virtual void Enter(Ship target)
+        public virtual void Enter(PilotTarget target)
         {
-            ship = target;
+            this.target = target;
         }
 
         public virtual void Exit()
         {
-            ship = Ship.Invalid;
+            target = PilotTarget.Invalid;
         }
 
         /// <summary>
@@ -86,7 +135,7 @@ namespace DeltaV
         /// 出力前分离确认（拆分/脱离两方向共用，文案由公共机制按方向备好）。NPC 不弹
         /// 窗，直接执行。
         /// </summary>
-        internal abstract void PresentSeparationConfirmation(Ship ship, string text,
+        internal abstract void PresentSeparationConfirmation(PilotTarget target, string text,
             System.Action onConfirm, System.Action onCancel);
     }
 
@@ -100,18 +149,18 @@ namespace DeltaV
         {
         }
 
-        protected internal override bool HasAuthority(Ship target)
+        protected internal override bool HasAuthority(PilotTarget target)
         {
-            // 控制权门禁：玩家方船只；开发者模式放行（测试场景需要驾驶敌舰验证相对运动）。
-            return ShipRegistry.FactionOf(target) == Faction.OfPlayer || DebugSettings.godMode;
+            // 控制权门禁：玩家方目标（船 = 主台派系，shuttle = 舱体派系）；开发者模式放行。
+            return target.Faction == Faction.OfPlayer || DebugSettings.godMode;
         }
 
         public override PilotService.PilotCommand ComposeCommand()
         {
-            return universe.Pilot.ComposePlayerCommand(ship);
+            return universe.Pilot.ComposePlayerCommand(target);
         }
 
-        internal override void PresentSeparationConfirmation(Ship target, string text,
+        internal override void PresentSeparationConfirmation(PilotTarget target, string text,
             System.Action onConfirm, System.Action onCancel)
         {
             // 复用原版暂停确认窗（Dialog_MessageBox 构造器 forcePause = true，
@@ -135,24 +184,24 @@ namespace DeltaV
         {
         }
 
-        protected internal override bool HasAuthority(Ship target)
+        protected internal override bool HasAuthority(PilotTarget target)
         {
             // NPC 控制权由 AI 组件声明（本轮无行为）；派系仅用于敌我关系与权限，
             // 不替代 controller 类型。
-            return Ai != null && Ai.HasAuthority(target);
+            return Ai != null && Ai.HasAuthority(target.ship);
         }
 
         public override PilotService.PilotCommand ComposeCommand()
         {
             var command = default(PilotService.PilotCommand);
-            if (Ai != null && ship.IsValid)
+            if (Ai != null && target.ship.IsValid)
             {
-                Ai.ComposeCommand(ship, ref command);
+                Ai.ComposeCommand(target.ship, ref command);
             }
             return command;
         }
 
-        internal override void PresentSeparationConfirmation(Ship target, string text,
+        internal override void PresentSeparationConfirmation(PilotTarget target, string text,
             System.Action onConfirm, System.Action onCancel)
         {
             // NPC 不向玩家请求批准（§8.2）：直接执行同一公共分离。
@@ -241,74 +290,115 @@ namespace DeltaV
 
         // ---- 状态 ----
 
-        public Ship PilotedShip(UniverseManager universe)
+        /// <summary>
+        /// 瞄准模式（驾驶的子模式，太空战架构 §6.1）：运行时开关、不序列化；只改输入
+        /// 路由（瞄准会话内左键=主套射击、右键=副套，原版点选/命令让位），不改任何
+        /// 宇宙状态。退出驾驶/失焦自动退出；不占用暂停键。
+        /// </summary>
+        public bool AimModeActive { get; private set; }
+
+        /// <summary>
+        /// 切换瞄准/巡航模式（面板「瞄准模式」按钮与瞄准键唯一入口）。仅手动驾驶且
+        /// 聚焦驾驶目标图时有效；PD 武器不受影响（恒自动索敌）。
+        /// </summary>
+        public void ToggleAimMode(UniverseManager universe)
         {
-            return PlayerController.Active ? PlayerController.ship : Ship.Invalid;
+            PilotTarget piloted = PilotedTarget(universe);
+            if (!piloted.IsValid || Find.CurrentMap != piloted.Map)
+            {
+                return;
+            }
+            AimModeActive = !AimModeActive;
+            DeltaVLog.Message(DeltaVLogModule.Input,
+                $"aim mode {(AimModeActive ? "engaged" : "disengaged")} (target key #{piloted.ControlKey})");
         }
 
-        public ShipControlState GetControlState(Ship ship)
+        public PilotTarget PilotedTarget(UniverseManager universe)
         {
-            if (!ship.IsValid) return ShipControlState.Uncontrolled;
-            if (universe.Autopilot.IsActive(ship.ownerId)) return ShipControlState.Autopilot;
-            return ActiveController != null && ActiveController.ship.ownerId == ship.ownerId
+            return PlayerController.Active ? PlayerController.target : PilotTarget.Invalid;
+        }
+
+        /// <summary>旧入口（Ship 口径）：驾驶目标是船时返回之（面板/gizmo 消费）。</summary>
+        public Ship PilotedShip(UniverseManager universe)
+        {
+            PilotTarget target = PilotedTarget(universe);
+            return target.IsShuttle ? Ship.Invalid : target.ship;
+        }
+
+        public ShipControlState GetControlState(PilotTarget target)
+        {
+            if (!target.IsValid) return ShipControlState.Uncontrolled;
+            if (universe.Autopilot.IsActive(target.ControlKey)) return ShipControlState.Autopilot;
+            return ActiveController != null && ActiveController.target.ControlKey == target.ControlKey
                 ? ShipControlState.Manual
                 : ShipControlState.Uncontrolled;
         }
 
-        public bool IsPlayerInputArmed(Ship ship)
+        public ShipControlState GetControlState(Ship ship) => GetControlState(PilotTarget.Of(ship));
+
+        public bool IsPlayerInputArmed(PilotTarget target)
         {
-            ShipControlState state = GetControlState(ship);
+            ShipControlState state = GetControlState(target);
             return state == ShipControlState.Manual
-                || state == ShipControlState.Autopilot && autopilotInputOwnerId == ship.ownerId;
+                || state == ShipControlState.Autopilot && autopilotInputOwnerId == target.ControlKey;
         }
 
-        public void ArmAutopilotInput(Ship ship)
+        public bool IsPlayerInputArmed(Ship ship) => IsPlayerInputArmed(PilotTarget.Of(ship));
+
+        public void ArmAutopilotInput(PilotTarget target)
         {
-            autopilotInputOwnerId = ship.IsValid ? ship.ownerId : -1;
+            autopilotInputOwnerId = target.IsValid ? target.ControlKey : -1;
         }
 
-        public void DisarmAutopilotInput(Ship ship = default)
+        public void DisarmAutopilotInput(PilotTarget target = default)
         {
-            if (!ship.IsValid || autopilotInputOwnerId == ship.ownerId) autopilotInputOwnerId = -1;
+            if (!target.IsValid || autopilotInputOwnerId == target.ControlKey) autopilotInputOwnerId = -1;
         }
+
+        public void ArmAutopilotInput(Ship ship) => ArmAutopilotInput(PilotTarget.Of(ship));
+
+        public void DisarmAutopilotInput(Ship ship) => DisarmAutopilotInput(PilotTarget.Of(ship));
 
         /// <summary>
         /// 驾驶切换统一入口（面板按钮/驾驶台 gizmo/快捷键共用）：目标船由调用方显式传入
         /// ——gizmo 传驾驶台自己的船、面板传当前选中船、快捷键/dev action 传
         /// <see cref="SelectedShipOnMap"/> 的推导结果（不得在内部反推，两个入口会错位）。
         /// </summary>
-        public void ToggleControl(UniverseManager universe, Ship ship)
+        public void ToggleControl(UniverseManager universe, PilotTarget target)
         {
-            if (!ship.IsValid)
+            if (!target.IsValid)
             {
                 Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            ShipControlState state = GetControlState(ship);
+            ShipControlState state = GetControlState(target);
             if (state == ShipControlState.Autopilot)
             {
-                if (IsPlayerInputArmed(ship)) DisarmAutopilotInput(ship);
-                else ArmAutopilotInput(ship);
+                if (IsPlayerInputArmed(target)) DisarmAutopilotInput(target);
+                else ArmAutopilotInput(target);
             }
-            else if (state == ShipControlState.Manual
-                && universe.Approach.ActivePlan?.ship.ownerId == ship.ownerId)
+            else if (state == ShipControlState.Manual && !target.IsShuttle
+                && universe.Approach.ActivePlan?.ship.ownerId == target.ship.ownerId)
             {
                 universe.Approach.EngageAutopilot(universe);
             }
             else if (state == ShipControlState.Manual)
             {
-                Exit(universe, "DeltaV_PilotOff".Translate(universe.LabelForOwner(ship.ownerId)));
+                Exit(universe, "DeltaV_PilotOff".Translate(universe.LabelForOwner(target.ControlKey)));
             }
-            else if (!PlayerController.HasAuthority(ship))
+            else if (!PlayerController.HasAuthority(target))
             {
-                Messages.Message("DeltaV_PilotWrongFaction".Translate(universe.LabelForOwner(ship.ownerId)),
+                Messages.Message("DeltaV_PilotWrongFaction".Translate(
+                        target.IsShuttle ? target.shuttle.LabelCap : universe.LabelForOwner(target.ControlKey)),
                     MessageTypeDefOf.RejectInput, false);
             }
             else
             {
-                Enter(universe, ship);
+                Enter(universe, target);
             }
         }
+
+        public void ToggleControl(UniverseManager universe, Ship ship) => ToggleControl(universe, PilotTarget.Of(ship));
 
         /// <summary>多船图的「当前查看/操作的船」（快捷键/dev action 的推导入口）：面板已
         /// 选择则用之；否则默认船（玩家派系船优先、唯一船直取，DefaultShipOnMap）。</summary>
@@ -321,19 +411,20 @@ namespace DeltaV
             return ShipRegistry.DefaultShipOnMap(map);
         }
 
-        /// <summary>驾驶/模式控制权门禁（玩家侧）：玩家方船只；开发者模式放行。</summary>
+        /// <summary>驾驶/模式控制权门禁（玩家侧）：玩家方目标（船/shuttle）；开发者模式放行。</summary>
         public bool CanPlayerControl(Ship ship)
         {
-            return PlayerController.HasAuthority(ship);
+            return PlayerController.HasAuthority(PilotTarget.Of(ship));
         }
 
-        public void Enter(UniverseManager universe, Ship ship)
+        public void Enter(UniverseManager universe, PilotTarget target)
         {
-            if (!PlayerController.CanEnter(ship))
+            if (!PlayerController.CanEnter(target))
             {
                 // 可读反馈（原先静默拒绝）：重力图不可驾驶，只能逆重战略发射。
-                if (ship.IsValid && ship.map != null && universe.FrameOf(ship.map) != null
-                    && !FreeFlightBootstrap.IsZeroGravity(universe, ship.map))
+                Map map = target.Map;
+                if (target.IsValid && map != null && universe.FrameOf(map) != null
+                    && !FreeFlightBootstrap.IsZeroGravity(universe, map))
                 {
                     Messages.Message("DeltaV_PilotGravityRestricted".Translate(),
                         MessageTypeDefOf.RejectInput, false);
@@ -341,20 +432,22 @@ namespace DeltaV
                 return;
             }
             // 手操打断自动驾驶（不取消对接计划——完成判据是几何的，手飞到位照样对接）。
-            if (universe.Autopilot.IsActive(ship.ownerId))
+            if (universe.Autopilot.IsActive(target.ControlKey))
             {
-                universe.Autopilot.Detach(ship, "manual input");
+                universe.Autopilot.Detach(target, "manual input");
                 DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"autopilot interrupted by manual input: structure #{ship.ownerId} (pilot mode engaged)");
+                    $"autopilot interrupted by manual input: target key #{target.ControlKey} (pilot mode engaged)");
                 Messages.Message("DeltaV_DockAutopilotStopped".Translate(), MessageTypeDefOf.NeutralEvent, false);
             }
-            DisarmAutopilotInput(ship);
-            PlayerController.Enter(ship);
+            DisarmAutopilotInput(target);
+            PlayerController.Enter(target);
             RebuildPilotKeySet();
-            string label = universe.LabelForOwner(ship.ownerId);
-            Log.Message($"[DeltaV] Pilot mode engaged: {label} (#{ship.ownerId}). Pilot keys: [{string.Join(", ", PilotKeyBridge.ActiveKeys)}].");
+            string label = target.IsShuttle ? target.shuttle.LabelCap : universe.LabelForOwner(target.ControlKey);
+            Log.Message($"[DeltaV] Pilot mode engaged: {label} (#{target.ControlKey}). Pilot keys: [{string.Join(", ", PilotKeyBridge.ActiveKeys)}].");
             Messages.Message("DeltaV_PilotOn".Translate(label), MessageTypeDefOf.PositiveEvent, false);
         }
+
+        public void Enter(UniverseManager universe, Ship ship) => Enter(universe, PilotTarget.Of(ship));
 
         public void Exit(UniverseManager universe, string message = null)
         {
@@ -362,9 +455,12 @@ namespace DeltaV
             {
                 return;
             }
-            string label = universe.LabelForOwner(PlayerController.ship.ownerId);
+            string label = PlayerController.target.IsShuttle
+                ? PlayerController.target.shuttle.LabelCap
+                : universe.LabelForOwner(PlayerController.target.ControlKey);
             Log.Message($"[DeltaV] Pilot mode disengaged (was '{label}'; suppressed reads: {SuppressedReads}).");
             PlayerController.Exit();
+            AimModeActive = false; // 退出驾驶自动退出瞄准模式（§6.1）
             PilotKeyBridge.SuppressVanillaKeys = false;
             if (message != null)
             {
@@ -379,22 +475,34 @@ namespace DeltaV
         /// 抑制从关闭翻转为开启时输出一次性摘要（哪些原版绑定将被抑制）——必要日志，常开。</summary>
         public void UpdateFrameState(UniverseManager universe)
         {
-            Ship piloted = PilotedShip(universe);
+            PilotTarget piloted = PilotedTarget(universe);
             Map focusedMap = Find.CurrentMap;
-            Ship autopilotShip = Ship.Invalid;
+            PilotTarget autopilotTarget = PilotTarget.Invalid;
             if (focusedMap != null)
             {
                 foreach (Ship ship in ShipRegistry.ShipsOnMap(focusedMap))
                 {
                     if (universe.Autopilot.IsActive(ship.ownerId))
                     {
-                        autopilotShip = ship;
+                        autopilotTarget = PilotTarget.Of(ship);
                         break;
                     }
                 }
+                // 在飞 shuttle 的自动驾驶任务（对接计划随动）同样占用驾驶位。
+                if (!autopilotTarget.IsValid)
+                {
+                    foreach (Building shuttle in universe.Shuttles.InFlightBodiesOn(focusedMap))
+                    {
+                        if (universe.Autopilot.IsActive(shuttle.thingIDNumber))
+                        {
+                            autopilotTarget = PilotTarget.Of(shuttle);
+                            break;
+                        }
+                    }
+                }
             }
-            bool focusOnAutopilotShip = autopilotShip.IsValid && autopilotShip.map == focusedMap
-                && IsPlayerInputArmed(autopilotShip);
+            bool focusOnAutopilotShip = autopilotTarget.IsValid && autopilotTarget.Map == focusedMap
+                && IsPlayerInputArmed(autopilotTarget);
 
             if (!piloted.IsValid)
             {
@@ -404,17 +512,18 @@ namespace DeltaV
                     if (input.fx != 0f || input.fz != 0f || input.torque != 0f)
                     {
                         DeltaVLog.Message(DeltaVLogModule.Core,
-                            $"autopilot interrupted by flight key: structure #{autopilotShip.ownerId} (direct takeover)");
-                        Enter(universe, autopilotShip); // 打断自动驾驶并接管：同帧输入生效
-                        piloted = PilotedShip(universe);
+                            $"autopilot interrupted by flight key: target key #{autopilotTarget.ControlKey} (direct takeover)");
+                        Enter(universe, autopilotTarget); // 打断自动驾驶并接管：同帧输入生效
+                        piloted = PilotedTarget(universe);
                         focusOnAutopilotShip = false;
                     }
                 }
             }
-            bool manualPiloting = piloted.IsValid && focusedMap == piloted.map;
+            bool manualPiloting = piloted.IsValid && focusedMap == piloted.Map;
             if (!manualPiloting && piloted.IsValid)
             {
-                Exit(universe, "DeltaV_PilotExitAuto".Translate(universe.LabelForOwner(piloted.ownerId)));
+                Exit(universe, "DeltaV_PilotExitAuto".Translate(
+                    piloted.IsShuttle ? piloted.shuttle.LabelCap : universe.LabelForOwner(piloted.ControlKey)));
             }
             bool suppress = manualPiloting || focusOnAutopilotShip;
             if (suppress)
@@ -520,6 +629,9 @@ namespace DeltaV
             }
             yield return DeltaVDefOf.DeltaV_TogglePilotMode;
             yield return DeltaVDefOf.DeltaV_AssistBrake; // Ctrl 刹停时抑制原版 Ctrl 用途
+            // 瞄准键（默认 B，§6.1）：驾驶期抑制其原版功能（建筑菜单等）；
+            // 不含空格/暂停——瞄准模式不占用暂停。
+            yield return DeltaVDefOf.DeltaV_AimMode;
         }
 
         /// <summary>非本 mod 分类的绑定是否与当前驾驶键重叠（供 Harmony Prefix 判定抑制）。</summary>
@@ -596,18 +708,19 @@ namespace DeltaV
             public bool assistW;
         }
 
-        /// <summary>玩家手操指令合成（PlayerShipController.ComposeCommand 的实现体）。</summary>
-        internal PilotCommand ComposePlayerCommand(Ship ship)
+        /// <summary>玩家手操指令合成（PlayerShipController.ComposeCommand 的实现体；
+        /// 船与 shuttle 同一实现——帧角经 PilotTarget.FrameAngle 派生）。</summary>
+        internal PilotCommand ComposePlayerCommand(PilotTarget target)
         {
             var result = new PilotCommand();
-            if (!ship.IsValid)
+            if (!target.IsValid)
             {
                 return result;
             }
             PilotInput input = SampleInput();
-            // W/S 与 A/D 定义在主驾驶台参考系；推进器分配器使用 Map 局部系。
-            // 主台不是 East 时在这里集中旋转一次，避免把“船艏恒为 +X”的假设扩散到物理层。
-            float consoleAngle = ShipRegistry.LocalFrameAngle(ship);
+            // W/S 与 A/D 定义在驾驶目标参考系（船 = 主台朝向；shuttle = 舱体朝向）；
+            // 推进器分配器使用 Map 局部系，在此集中旋转一次。
+            float consoleAngle = target.FrameAngle;
             Vector2 pilotTranslation = new Vector2(input.fx, input.fz);
             result.command.torque = input.torque;
             if (DeltaVLog.Enabled(DeltaVLogModule.Input) && HasInputChanged(input))
@@ -617,7 +730,7 @@ namespace DeltaV
             }
             // 辅助生效 = 设置开启 或 按住刹车键（临时启用，辅助关闭时也可刹停）。
             bool brakeHeld = DeltaVDefOf.DeltaV_AssistBrake != null && DeltaVDefOf.DeltaV_AssistBrake.IsDown;
-            SpaceObject frame = universe.FrameOf(ship.map);
+            SpaceObject frame = universe.FrameOf(target.Map);
             SpacePose pose = frame != null ? frame.pose : new SpacePose();
             if (!DeltaVMod.CurrentSettings.flightAssist && !brakeHeld)
             {
@@ -667,9 +780,9 @@ namespace DeltaV
         }
 
         /// <summary>tick 循环的驾驶指令入口（controller 路由：手操或 NPC AI）。</summary>
-        public PilotCommand ComposeCommand(Ship ship)
+        public PilotCommand ComposeCommand(PilotTarget target)
         {
-            if (ActiveController != null && ActiveController.ship.ownerId == ship.ownerId)
+            if (ActiveController != null && ActiveController.target.ControlKey == target.ControlKey)
             {
                 return ActiveController.ComposeCommand();
             }

@@ -85,6 +85,9 @@ namespace DeltaV
             /// 不受质量报告的 120 tick 重扫间隔拖慢）。</summary>
             public bool operational;
 
+            /// <summary>本台推进器的推力（默认原版常量；shuttle 虚拟推进器按 comp 配置覆盖，§7.3）。</summary>
+            public float thrust = ThrusterThrust;
+
             /// <summary>本 tick 分配到的油门 [0,1]。唯一写入者是 Allocate（驾驶/
             /// 自动驾驶/未来舰船 AI 共用同一分配器）；火焰表现层（地图路径与
             /// 船壳路径）只读此值。运行时派生状态，不参与物理积分或存档。</summary>
@@ -165,7 +168,8 @@ namespace DeltaV
             TerrainGrid terrain = map.terrainGrid;
             foreach (IntVec3 cell in CellRect.WholeMap(map))
             {
-                if (terrain.TerrainAt(cell) != DeltaVDefOf.Substructure)
+                // IsSubstructure（tag 口径）：原版基架与月池（§7）同一计入，勿退回特定 def 比较。
+                if (terrain.TerrainAt(cell)?.IsSubstructure != true)
                 {
                     continue;
                 }
@@ -190,12 +194,21 @@ namespace DeltaV
                 massPoints.Add((r, m));
                 if (ThrusterPower.IsThruster(thing))
                 {
+                    // 出力上限收口（2026-09-27）：滑条 comp 的百分比在此一次性乘入——
+                    // 分配器/权威测量/火焰只读 thruster.thrust，自动跟随。
+                    CompThrusterPowerLimit powerLimit = thing.TryGetComp<CompThrusterPowerLimit>();
+                    float thrust = ThrusterThrust;
+                    if (powerLimit != null)
+                    {
+                        thrust *= Mathf.Clamp(powerLimit.powerPercent, 0f, 100f) * 0.01f;
+                    }
                     report.thrusters.Add(new Thruster
                     {
                         thing = thing,
                         localPos = r,
                         dir = ThrustDir(thing.Rotation),
-                        operational = ThrusterPower.IsOperational(thing)
+                        operational = ThrusterPower.IsOperational(thing) && thrust > 0f,
+                        thrust = thrust
                     });
                 }
             }
@@ -215,8 +228,29 @@ namespace DeltaV
                 inertia += massPoints[i].mass * (massPoints[i].pos - report.comLocal).sqrMagnitude;
             }
             report.inertia = Mathf.Max(inertia, 1f);
+            // 虚拟推进器注入（shuttle MiniShip，太空战架构 §7.3）：XML comp 配置的
+            // 包围盒四角 8 台（角点偏移与推力可覆盖）——不经图内推进器建筑，
+            // 但与真实推进器走同一分配器/油门/火焰读取链。
+            if (VirtualThrustersByMap.TryGetValue(map, out Thruster[] virtualThrusters))
+            {
+                report.thrusters.AddRange(virtualThrusters);
+            }
             return report;
         }
+
+        // ---- 虚拟推进器注册（shuttle MiniShip 专用；真实推进器经 Measure 扫描）----
+
+        private static readonly Dictionary<Map, Thruster[]> VirtualThrustersByMap = new Dictionary<Map, Thruster[]>();
+
+        public static void SetVirtualThrusters(Map map, Thruster[] thrusters)
+        {
+            if (map == null) return;
+            if (thrusters == null) VirtualThrustersByMap.Remove(map);
+            else VirtualThrustersByMap[map] = thrusters;
+            Cache.Remove(map); // 立即失效质量报告（控制模型随之重建）
+        }
+
+        public static void ClearVirtualThrusters(Map map) => SetVirtualThrusters(map, null);
 
         /// <summary>建筑质量：def 带 Mass stat（如 LargeThruster=30）用 stat 实值，否则用 MassPerBuilding。</summary>
         private static float BuildingMass(Thing thing)
@@ -351,6 +385,10 @@ namespace DeltaV
             for (int i = 0; i < report.thrusters.Count; i++)
             {
                 Thruster thruster = report.thrusters[i];
+                if (thruster.thing == null)
+                {
+                    continue; // 虚拟推进器（shuttle MiniShip，§7.3）：无实体，恒可用
+                }
                 thruster.operational = ThrusterPower.IsOperational(thruster.thing);
             }
         }
@@ -391,7 +429,7 @@ namespace DeltaV
                     int index = reverse ? report.thrusters.Count - 1 - step : step;
                     Thruster thruster = report.thrusters[index];
                     if (!thruster.operational) continue;
-                    Vector2 fullForce = thruster.dir * ThrusterThrust;
+                    Vector2 fullForce = thruster.dir * thruster.thrust;
                     float axisX = fullForce.x / scaleX;
                     float axisZ = fullForce.y / scaleZ;
                     float axisTorque = Cross(thruster.localPos - report.comLocal, fullForce) / scaleTorque;
@@ -435,7 +473,7 @@ namespace DeltaV
                     throttles[i] = 0f;
                     continue;
                 }
-                Vector2 appliedForce = thruster.dir * (ThrusterThrust * throttle);
+                Vector2 appliedForce = thruster.dir * (thruster.thrust * throttle);
                 force += appliedForce;
                 torque += Cross(thruster.localPos - report.comLocal, appliedForce);
             }
@@ -463,7 +501,7 @@ namespace DeltaV
                 {
                     continue;
                 }
-                Vector2 fullForce = thruster.dir * ThrusterThrust;
+                Vector2 fullForce = thruster.dir * thruster.thrust;
                 float fullTorque = Cross(thruster.localPos - report.comLocal, fullForce);
                 positiveX += Mathf.Max(fullForce.x, 0f);
                 negativeX += Mathf.Max(-fullForce.x, 0f);
@@ -549,7 +587,11 @@ namespace DeltaV
 
             // 被动阻力：v ← v · 2^(−dt/halfLife)（精确的每 tick 半衰期指数衰减）。
             // 开关/参数变化即时生效；与 MPC 预测（OnlineMpcGuidance）同一定义。
-            (float linearDecay, float angularDecay) = PassiveDragFactors(dt);
+            // 弹体按 tag 豁免（太空战架构 §3.1：无推进器的飞行体不受阻力减速；
+            // shuttle 与船照常受阻力）。
+            (float linearDecay, float angularDecay) = obj.AppliesPassiveDrag
+                ? PassiveDragFactors(dt)
+                : (1f, 1f);
             velocity *= linearDecay;
             angularVelocity *= angularDecay;
 
@@ -624,6 +666,19 @@ namespace DeltaV
                 : 1f;
             return (linear, angular);
         }
+
+        /// <summary>
+        /// 无图弹体（轻导弹等）积分用的共享哑报告（tag 快路径，太空战架构 §3.3）：
+        /// 单位质量/零质心/单位惯量、无推进器——力恒为零，积分退化为
+        /// 「速度 × dt 的球面平移 + 平行输运」，与容器积分同一条 Integrate 核心
+        ///（数据一致性），不经过按图缓存的质量报告。只读共享，绝不 Allocate。
+        /// </summary>
+        public static readonly MassReport PointMassReport = new MassReport
+        {
+            mass = 1f,
+            comLocal = Vector2.zero,
+            inertia = 1f
+        };
 
         /// <summary>2D 叉积（z 分量）：逆时针为正，与 SpaceTransform 角度约定一致。</summary>
         private static float Cross(Vector2 a, Vector2 b)

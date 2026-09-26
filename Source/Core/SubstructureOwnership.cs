@@ -102,7 +102,7 @@ namespace DeltaV
             {
                 foreach (IntVec3 cell in CellRect.WholeMap(map))
                 {
-                    if (map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.Substructure
+                    if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true
                         && ownerGrid[map.cellIndices.CellToIndex(cell)] != Unassigned)
                     {
                         owners.Add(ownerGrid[map.cellIndices.CellToIndex(cell)]);
@@ -124,7 +124,7 @@ namespace DeltaV
             }
             foreach (IntVec3 cell in CellRect.WholeMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.Substructure
+                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true
                     && ownerGrid[map.cellIndices.CellToIndex(cell)] == ownerId)
                 {
                     cells.Add(cell);
@@ -142,7 +142,7 @@ namespace DeltaV
             }
             foreach (IntVec3 cell in CellRect.WholeMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.Substructure
+                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true
                     && ownerGrid[map.cellIndices.CellToIndex(cell)] != Unassigned)
                 {
                     return true;
@@ -156,7 +156,7 @@ namespace DeltaV
         {
             foreach (IntVec3 cell in CellRect.WholeMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.Substructure)
+                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true)
                 {
                     return true;
                 }
@@ -174,7 +174,7 @@ namespace DeltaV
             int count = 0;
             foreach (IntVec3 cell in CellRect.WholeMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.Substructure
+                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true
                     && ownerGrid[map.cellIndices.CellToIndex(cell)] == ownerId)
                 {
                     count++;
@@ -192,7 +192,7 @@ namespace DeltaV
             int count = 0;
             foreach (IntVec3 cell in CellRect.WholeMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.Substructure)
+                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true)
                 {
                     Assign(cell, ownerId);
                     count++;
@@ -209,7 +209,7 @@ namespace DeltaV
             {
                 foreach (IntVec3 cell in CellRect.WholeMap(map))
                 {
-                    if (map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.Substructure)
+                    if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true)
                     {
                         int owner = ownerGrid[map.cellIndices.CellToIndex(cell)];
                         if (!domains.TryGetValue(owner, out List<IntVec3> cells))
@@ -243,7 +243,7 @@ namespace DeltaV
             foreach (IntVec3 neighbor in GenAdj.CardinalDirectionsAround)
             {
                 IntVec3 c = cell + neighbor;
-                if (!c.InBounds(map) || map.terrainGrid.TerrainAt(c) != DeltaVDefOf.Substructure)
+                if (!c.InBounds(map) || map.terrainGrid.TerrainAt(c)?.IsSubstructure != true)
                 {
                     continue;
                 }
@@ -369,7 +369,7 @@ namespace DeltaV
             bool changed = false;
             foreach (IntVec3 cell in cells)
             {
-                if (!cell.InBounds(map) || map.terrainGrid.TerrainAt(cell) != DeltaVDefOf.Substructure)
+                if (!cell.InBounds(map) || map.terrainGrid.TerrainAt(cell)?.IsSubstructure != true)
                 {
                     continue;
                 }
@@ -435,7 +435,7 @@ namespace DeltaV
             {
                 IntVec3 neighbor = cell + delta;
                 if (neighbor.InBounds(map)
-                    && map.terrainGrid.TerrainAt(neighbor) == DeltaVDefOf.Substructure
+                    && map.terrainGrid.TerrainAt(neighbor)?.IsSubstructure == true
                     && OwnerAt(neighbor) == Unassigned
                     && seen.Add(neighbor))
                 {
@@ -450,7 +450,7 @@ namespace DeltaV
                 {
                     IntVec3 neighbor = current + delta;
                     if (neighbor.InBounds(map)
-                        && map.terrainGrid.TerrainAt(neighbor) == DeltaVDefOf.Substructure
+                        && map.terrainGrid.TerrainAt(neighbor)?.IsSubstructure == true
                         && OwnerAt(neighbor) == Unassigned
                         && seen.Add(neighbor))
                     {
@@ -465,7 +465,7 @@ namespace DeltaV
                 {
                     IntVec3 neighbor = regionCell + delta;
                     if (neighbor.InBounds(map)
-                        && map.terrainGrid.TerrainAt(neighbor) == DeltaVDefOf.Substructure)
+                        && map.terrainGrid.TerrainAt(neighbor)?.IsSubstructure == true)
                     {
                         int neighborOwner = OwnerAt(neighbor);
                         if (neighborOwner != Unassigned && neighborOwner != owner)
@@ -491,7 +491,7 @@ namespace DeltaV
             int migrated = 0;
             foreach (IntVec3 cell in CellRect.WholeMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.Substructure
+                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true
                     && OwnerAt(cell) == Unassigned)
                 {
                     Assign(cell, defaultOwner);
@@ -506,7 +506,7 @@ namespace DeltaV
         {
             foreach (IntVec3 cell in CellRect.WholeMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.Substructure
+                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true
                     && OwnerAt(cell) == Unassigned)
                 {
                     return true;

@@ -98,3 +98,14 @@
 - 外壳代理不重放 LightingOverlay/雾/动态物件（夜间全亮、看不到敌舰船内 Pawn）。
 - Pawn/货物质量计入飞船质量模型（当前基架近似）。
 - 非测试场景的正式玩法入口。
+
+
+## 阶段5 太空战（2026-09-26 施工完成，待游戏内实测）
+
+- [ ] 全链验收：doc/太空战架构.md §13 的 24 条验收场景逐项实测（含 shuttle 普通对接 §13.20；静态自检见交付说明）。
+- [ ] shuttle 普通对接（已接线：BeginDockingShuttle → 同一选点/计划/完成管线，2026-09-26）：待游戏内实测（选点 → 随动 → 位姿窗口 → 回落建筑 + 冷却 + 口袋处置 + 聚焦交接）。
+- [ ] 月池视觉为程序生成占位图集（三段带 alpha 已按需求分层；正式美术替换 Terrain/MoonPoolAtlas.png 同路径即可）。
+- [ ] 月池铺设的引擎范围限制核对（现随 Substructure 太空图放开规则）；月池格上能否建墙/门的一致性核对。
+- [ ] 武器/弹体/护盾/shuttle 数值平衡（全部在 XML：DeltaV_SpaceImpactEffects/DeltaV_SpaceWeapons/DeltaV_ShuttlesAndMoonPool/DeltaV_SpaceProjectiles）。
+- [ ] shuttle 载重质量未计入口袋质量模型（Measure 只算建筑；乘员/货物质量待燃料/载重系统一并接入）。
+- [ ] 跳帮 shuttle def 的气密 fillage 语义核对（§7.6：舱体堵破口的气密性；现为普通 Impassable 建筑）。

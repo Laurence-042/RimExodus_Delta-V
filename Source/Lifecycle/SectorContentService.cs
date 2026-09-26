@@ -97,13 +97,14 @@ namespace DeltaV
             }
         }
 
-        /// <summary>该星区当前有哪些对象（查询时由 TileFromDirection 重建，不序列化）。</summary>
+        /// <summary>该星区当前有哪些对象（查询时由 TileFromDirection 重建，不序列化；弹体不进星区记账，§3.1）。</summary>
         public static List<SpaceObject> ObjectsInSector(UniverseManager universe, PlanetTile tile)
         {
             var result = new List<SpaceObject>();
             if (universe == null || !tile.Valid) return result;
             foreach (SpaceObject obj in universe.objects)
             {
+                if (!obj.ParticipatesInOverlays) continue;
                 if (OrbitSphere.TileFromDirection(tile.Layer, obj.pose.position) == tile)
                 {
                     result.Add(obj);

@@ -119,10 +119,11 @@ namespace DeltaV
             if (universe == null) return;
             // 选点阶段 = pendingShip 已置位但计划尚未发布（发布后 pendingShip 保留到
             // 完成转移，由 AnyActive 区分选点与计划两段）。
-            bool siteSelection = universe.ShipTransitions.PendingDockingShip(universe).IsValid
+            bool siteSelection = (universe.ShipTransitions.PendingDockingShip(universe).IsValid
+                    || universe.ShipTransitions.pendingShuttleBody != null)
                 && !universe.Approach.AnyActive;
             bool transferPending = universe.ShipTransitions.LandedShipAwaitingPocketCleanup(universe).IsValid;
-            if (siteSelection || transferPending || universe.BoardingPods.AnyInFlight)
+            if (siteSelection || transferPending)
             {
                 __result = true;
             }

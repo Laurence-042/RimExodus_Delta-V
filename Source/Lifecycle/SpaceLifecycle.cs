@@ -98,6 +98,10 @@ namespace DeltaV
             Map map = container.map;
             if (map == null) return; // 不应存在（LoadedGame 清扫纯容器丢图即注销）
             if (IsUniverseHost(map)) return;
+            // 在飞弹体图按 tag 豁免距离休眠/归档（太空战架构 §3.2）：弹体生命周期由
+            // 弹体服务（超时/碰撞结算）独占管理，生命周期扫描不得收纳/销毁在飞弹体的图
+            //（图池空闲图的豁免同样见弹体服务）。
+            if (container.Tag == SpaceObjectTag.Projectile) return;
             // 悬死自愈：图被外部销毁 → 容器随图消亡。
             if (map.Disposed || !Find.Maps.Contains(map))
             {
@@ -361,6 +365,7 @@ namespace DeltaV
         {
             dormancy.Forget(map);
             MapOverlayRenderer.Release(map);
+            SpaceCollision.Forget(map);
         }
 
         public void DestroyPocketMap(Map map)

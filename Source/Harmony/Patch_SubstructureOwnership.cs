@@ -21,7 +21,7 @@ namespace DeltaV
 
         public static void Postfix(TerrainGrid __instance, IntVec3 c, TerrainDef newTerr)
         {
-            if (newTerr != DeltaVDefOf.Substructure)
+            if (!newTerr.IsSubstructure) // tag 判据（基架判定唯一口径）：月池等 tag 变体同权
             {
                 return; // 目前唯一基架地形；未来其他 foundation 不自动纳入归属体系
             }

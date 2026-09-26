@@ -47,6 +47,10 @@ namespace DeltaV
         {
             public int ownerId;
             public bool playerInitiated;
+            /// <summary>shuttle 舱体（MiniShip 任务；null = 船任务）。身份解析不走 ShipByOwner。</summary>
+            public Building shuttleBody;
+            /// <summary>满推追踪（侵入式对接，§7.5）：无刹车包络、全程全速追目标当前位姿（与导弹同律）。</summary>
+            public bool pursue;
             // 固定航点模式：direction/angle；随动模式：host ⊕ hostOffset（+ 相对转角）。
             public bool tracked;
             public Vector3 direction;
@@ -208,6 +212,83 @@ namespace DeltaV
             active[ship.ownerId] = flight;
         }
 
+        /// <summary>PilotTarget 口径（shuttle MiniShip 任务同表；键 = ControlKey）。</summary>
+        public void Detach(PilotTarget target, string reason = null)
+        {
+            if (target.IsShuttle)
+            {
+                if (!active.ContainsKey(target.ControlKey)) return;
+                active.Remove(target.ControlKey);
+                if (target.Map != null) ShipPhysics.ClearThrottles(target.Map);
+                if (reason != null)
+                {
+                    DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot detached ({reason}): shuttle #{target.ControlKey}");
+                }
+                return;
+            }
+            Detach(target.ship, reason);
+        }
+
+        /// <summary>TrackTo 的 PilotTarget 口径（shuttle 对接计划随动）。</summary>
+        public void TrackTo(PilotTarget target, SpaceObject host, Vector2 hostOffset,
+            float relativeAngle, Action onFailed = null, bool allowVoidThrust = true,
+            bool playerInitiated = true)
+        {
+            if (!target.IsShuttle)
+            {
+                TrackTo(target.ship, host, hostOffset, relativeAngle, onFailed, allowVoidThrust, playerInitiated);
+                return;
+            }
+            var flight = new Flight
+            {
+                ownerId = target.ControlKey,
+                playerInitiated = playerInitiated,
+                shuttleBody = target.shuttle,
+                tracked = true,
+                host = host,
+                hostOffset = hostOffset,
+                relativeAngle = SpaceTransform.WrapAngle(relativeAngle),
+                elapsed = 0f,
+                allowVoidThrust = allowVoidThrust,
+                onFailed = onFailed,
+            };
+            flight.profile = profile;
+            flight.guidance.Reset(flight.profile);
+            active[flight.ownerId] = flight;
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"autopilot track engaged: shuttle #{flight.ownerId} -> '{host.label}' voidThrust={allowVoidThrust}");
+        }
+
+        /// <summary>
+        /// 满推追踪任务（侵入式对接，§7.5）：shuttle 容器 tag 切换为 projectile 后由
+        /// Shuttles 服务发起——无刹车包络、全程全速追目标容器当前位姿（与导弹同律）。
+        /// 命中判据不在本任务内（碰撞核心结算）；目标失效按 onFailed 退出。
+        /// </summary>
+        public void Pursue(Building shuttleBody, SpaceObject target, Action onFailed = null, bool playerInitiated = true)
+        {
+            if (shuttleBody == null || target == null)
+            {
+                onFailed?.Invoke();
+                return;
+            }
+            var flight = new Flight
+            {
+                ownerId = shuttleBody.thingIDNumber,
+                playerInitiated = playerInitiated,
+                shuttleBody = shuttleBody,
+                pursue = true,
+                tracked = true,
+                host = target,
+                elapsed = 0f,
+                allowVoidThrust = false,
+                onFailed = onFailed,
+            };
+            flight.profile = profile;
+            active[flight.ownerId] = flight;
+            DeltaVLog.Message(DeltaVLogModule.Core,
+                $"autopilot pursue engaged: shuttle #{flight.ownerId} -> '{target.label}' (full thrust, no braking envelope)");
+        }
+
         /// <summary>
         /// 静默摘除任务（清除油门、不触发任何回调）：对接完成接管位姿、玩家手操打断
         /// 自动驾驶（不取消对接计划）、计划取消等场景使用；reason 记入日志（边沿事件，
@@ -242,6 +323,12 @@ namespace DeltaV
             if (universe == null) return false;
             foreach (KeyValuePair<int, Flight> pair in active)
             {
+                if (pair.Value.shuttleBody != null)
+                {
+                    if (pair.Value.shuttleBody.Spawned
+                        && universe.FrameOf(pair.Value.shuttleBody.Map) == container) return true;
+                    continue;
+                }
                 Ship ship = ShipRegistry.ShipByOwner(pair.Key);
                 if (ship.IsValid && universe.FrameOf(ship.map) == container) return true;
             }
@@ -278,7 +365,21 @@ namespace DeltaV
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             Ship ship = ShipRegistry.ShipByOwner(ownerId);
-            if (!ship.IsValid || ship.map == null || ship.map.Disposed || universe == null)
+            Map bodyMap;
+            if (flight.shuttleBody != null)
+            {
+                // MiniShip 任务：身份 = 舱体（无主台/归属，不走 ShipByOwner）。
+                if (universe == null || !flight.shuttleBody.Spawned || flight.shuttleBody.Map == null
+                    || flight.shuttleBody.Map.Disposed)
+                {
+                    active.Remove(ownerId);
+                    DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot failed (shuttle lost): shuttle #{ownerId}");
+                    flight.onFailed?.Invoke();
+                    return;
+                }
+                bodyMap = flight.shuttleBody.Map;
+            }
+            else if (!ship.IsValid || ship.map == null || ship.map.Disposed || universe == null)
             {
                 active.Remove(ownerId);
                 if (ship.IsValid && ship.map != null) ShipPhysics.ClearThrottles(ship.map);
@@ -286,19 +387,23 @@ namespace DeltaV
                 flight.onFailed?.Invoke();
                 return;
             }
+            else
+            {
+                bodyMap = ship.map;
+            }
             if (flight.tracked && flight.host == null)
             {
                 active.Remove(ownerId);
-                ShipPhysics.ClearThrottles(ship.map);
+                ShipPhysics.ClearThrottles(bodyMap);
                 DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot failed (host lost): structure #{ownerId}");
                 flight.onFailed?.Invoke();
                 return;
             }
-            SpaceObject container = universe.FrameOf(ship.map);
+            SpaceObject container = universe.FrameOf(bodyMap);
             if (container == null)
             {
                 active.Remove(ownerId);
-                ShipPhysics.ClearThrottles(ship.map);
+                ShipPhysics.ClearThrottles(bodyMap);
                 DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot failed (container lost): structure #{ownerId}");
                 flight.onFailed?.Invoke();
                 return;
@@ -309,6 +414,35 @@ namespace DeltaV
             flight.elapsed += 1;
             ShipPhysics.MassReport report = ShipPhysics.GetReport(container.map);
             if (report == null) return;
+
+            if (flight.pursue)
+            {
+                // 满推追踪（§7.5）：无刹车包络、全程全速追目标当前位姿——不走 MPC
+                //（软接近包络必刹车），但仍经 RequestThrust gate 与同一分配器（机动
+                // 受推进器布局硬约束）。命中判据归碰撞核心。
+                Vector2 pursueErr = OrbitSphere.Offset(container.pose.position, flight.host.pose.position);
+                if (pursueErr.sqrMagnitude < 1e-8f) pursueErr = Vector2.right;
+                Vector2 mapDir = SpaceTransform.Rotate(pursueErr.normalized, container.pose.angle);
+                var pursueCommand = new ShipPhysics.Command
+                {
+                    fx = mapDir.x,
+                    fz = mapDir.y,
+                    torque = Mathf.Clamp(SpaceTransform.WrapAngle(flight.host.pose.angle - container.pose.angle) * 2f, -1f, 1f),
+                };
+                PilotTarget pursueTarget = flight.shuttleBody != null
+                    ? PilotTarget.Of(flight.shuttleBody)
+                    : PilotTarget.Of(ship);
+                if (universe.ShipTransitions.RequestThrust(universe, pursueTarget, flight.playerInitiated))
+                {
+                    ShipPhysics.Allocate(report, pursueCommand, out Vector2 pursueForce, out float pursueTorque);
+                    ShipPhysics.Integrate(container, report, pursueForce, pursueTorque, dt, false, false, false);
+                }
+                else
+                {
+                    ShipPhysics.Integrate(container, report, Vector2.zero, 0f, dt, false, false, false);
+                }
+                return;
+            }
 
             // 目标位姿与宿主前馈：误差/速度统一表达在目标锚点的切空间基下（球面几何
             // 唯一入口 OrbitSphere）。随动模式取宿主刚体目标点速度（含 ω×offset），

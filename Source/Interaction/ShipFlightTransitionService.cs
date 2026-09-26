@@ -25,6 +25,15 @@ namespace DeltaV
         /// <summary>选点/进场流程中的战术降落船（BeginDocking 置位，完成/取消清除）。</summary>
         internal Ship pendingShip;
 
+        /// <summary>
+        /// 选点/进场流程中的 shuttle 舱体（BeginDockingShuttle 置位；与 pendingShip
+        /// 互斥——同一时刻最多一个对接流程，§7.4「降落逻辑只有一套」的 shuttle 变体）。
+        /// </summary>
+        internal Building pendingShuttleBody;
+
+        /// <summary>本流程创建的选点 marker（取消时直接销毁；shuttle 预览无主台，不能靠 PilotConsole 识别）。</summary>
+        internal GravshipLandingMarker pendingSelectionMarker;
+
         /// <summary>发起对接时是否处于手操驾驶（取消选点时恢复驾驶位）。</summary>
         internal bool pendingSelectionWasManual;
 
@@ -56,6 +65,8 @@ namespace DeltaV
         internal void Reset()
         {
             pendingShip = Ship.Invalid;
+            pendingShuttleBody = null;
+            pendingSelectionMarker = null;
             pendingSelectionWasManual = false;
             landedShipAwaitingCleanup = Ship.Invalid;
             pendingDockingSourceMap = null;

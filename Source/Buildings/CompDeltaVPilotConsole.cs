@@ -47,6 +47,26 @@ namespace DeltaV
         /// <summary>是否为该归属的主驾驶台（认领事实；一归属至多一主台）。</summary>
         public bool isMain;
 
+        // ---- 武器组激活位（太空战架构 §5.5；存档事实，随 comp 捕获搬运）----
+
+        /// <summary>主套激活组位掩码（bit0 = 组1；默认仅组1 激活）。</summary>
+        public int weaponGroupsMain = 1;
+
+        /// <summary>副套激活组位掩码（bit0 = 组1；默认仅组1 激活）。</summary>
+        public int weaponGroupsSecondary = 1;
+
+        /// <summary>指定套别的激活位掩码（面板两排方块唯一读写入口）。</summary>
+        public int WeaponGroupMask(SpaceWeaponSalvoSet set)
+        {
+            return set == SpaceWeaponSalvoSet.Main ? weaponGroupsMain : weaponGroupsSecondary;
+        }
+
+        public void SetWeaponGroupMask(SpaceWeaponSalvoSet set, int mask)
+        {
+            if (set == SpaceWeaponSalvoSet.Main) weaponGroupsMain = mask;
+            else weaponGroupsSecondary = mask;
+        }
+
         public Ship Ship => isMain && shipId > 0 && parent.Spawned
             ? new Ship(shipId, parent.Map, this)
             : Ship.Invalid;
@@ -245,6 +265,8 @@ namespace DeltaV
             base.PostExposeData();
             Scribe_Values.Look(ref shipId, "shipId", -1);
             Scribe_Values.Look(ref isMain, "isMain", false);
+            Scribe_Values.Look(ref weaponGroupsMain, "weaponGroupsMain", 1);
+            Scribe_Values.Look(ref weaponGroupsSecondary, "weaponGroupsSecondary", 1);
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()

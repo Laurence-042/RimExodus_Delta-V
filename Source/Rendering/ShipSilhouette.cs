@@ -147,7 +147,7 @@ namespace DeltaV
             }
             foreach (IntVec3 cell in CellRect.WholeMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.Substructure)
+                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true)
                 {
                     cells.Add(cell);
                 }

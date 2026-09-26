@@ -12,6 +12,8 @@ namespace DeltaV
     /// - Harmony：按键抑制决策（门控；抑制激活的一次性摘要常开）
     /// - Lifecycle：POI 生命周期迁移（门控）
     /// - Render：船壳分层绘制（门控；每秒最多 1 条，热路径节流在调用侧）
+    /// - Combat：战斗链用户事件（发射/命中/拦截/跳弹/放行/tag 切换；门控，边沿触发——
+    ///   每 tick 碰撞求交热路径不埋点，§2 诊断纪律）
     ///
     /// 纪律（与 RimExodus 相同，勿回退）：Warn/Error 不受开关控制；
     /// 关键状态迁移（驾驶进入/退出、抑制激活、补丁初始化结果）常开；
@@ -24,7 +26,8 @@ namespace DeltaV
         Physics,
         Harmony,
         Lifecycle,
-        Render
+        Render,
+        Combat
     }
 
     /// <summary>
@@ -48,6 +51,7 @@ namespace DeltaV
                 case DeltaVLogModule.Harmony: return s.logHarmony;
                 case DeltaVLogModule.Lifecycle: return s.logLifecycle;
                 case DeltaVLogModule.Render: return s.logRender;
+                case DeltaVLogModule.Combat: return s.logCombat;
                 default: return false;
             }
         }

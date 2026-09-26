@@ -54,9 +54,31 @@ namespace DeltaV
 
         public ShipAutopilot Autopilot => autopilot ?? (autopilot = new ShipAutopilot());
 
-        [NonSerialized] private BoardingPodFlight boardingPods;
+        [NonSerialized] private SpaceProjectileService projectiles;
 
-        public BoardingPodFlight BoardingPods => boardingPods ?? (boardingPods = new BoardingPodFlight());
+        /// <summary>
+        /// 弹体服务（太空战架构 §4.1：取代 BoardingPods 槽位，段7 完成接管）：弹体
+        /// 创建/注册、制导、超时、碰撞调度对接、渲染、图池。实例服务不序列化、读档归零。
+        /// </summary>
+        public SpaceProjectileService Projectiles =>
+            projectiles ?? (projectiles = new SpaceProjectileService(this));
+
+        [NonSerialized] private SpaceWeaponService weapons;
+
+        /// <summary>
+        /// 武器服务（太空战架构 §5/§6）：每武器每 tick 就绪判定与发射（瞄准模式 +
+        /// PD）、「进入战斗位置」征用。实例服务不序列化、读档归零（武器持久配置在
+        /// 武器 comp、激活位在主驾驶台 comp）。
+        /// </summary>
+        public SpaceWeaponService Weapons => weapons ?? (weapons = new SpaceWeaponService(this));
+
+        [NonSerialized] private SpaceShuttleService shuttles;
+
+        /// <summary>
+        /// shuttle 服务（太空战架构 §7/§10）：起飞/侵入编排（tag 切换）；停靠直接用
+        /// 对接计划服务。实例服务不序列化、读档归零（侵入计划 = 运行时数据读档丢弃）。
+        /// </summary>
+        public SpaceShuttleService Shuttles => shuttles ?? (shuttles = new SpaceShuttleService(this));
 
         [NonSerialized] private LandingApproachController approach;
 
@@ -417,7 +439,23 @@ namespace DeltaV
 
         public override void ExposeData()
         {
-            Scribe_Collections.Look(ref objects, "objects", LookMode.Deep);
+            if (Scribe.mode == LoadSaveMode.Saving)
+            {
+                // 弹体是瞬态成员（太空战架构 §4.4）：写档按 tag 过滤剔除纯弹体
+                //（IsTransient = baseTag==Projectile；侵入 shuttle 的 baseTag 仍是
+                // Shuttle，照常落盘，读档后回 shuttle tag 按存档速度漂移）。已造成的
+                // 毁伤是图事实已持久；其弹体小图的读档清扫由弹体服务负责。
+                var saveView = new List<SpaceObject>(objects.Count);
+                for (int i = 0; i < objects.Count; i++)
+                {
+                    if (!objects[i].IsTransient) saveView.Add(objects[i]);
+                }
+                Scribe_Collections.Look(ref saveView, "objects", LookMode.Deep);
+            }
+            else
+            {
+                Scribe_Collections.Look(ref objects, "objects", LookMode.Deep);
+            }
             if (Scribe.mode == LoadSaveMode.LoadingVars && objects == null)
             {
                 Log.Warning("[DeltaV] Save has no 'objects' list; universe state starts empty. " +
@@ -519,6 +557,8 @@ namespace DeltaV
                 {
                     ShipTransitions.HandleDepartedSourceMap(this, map);
                 }
+                // 弹体孤儿图回收（写档剔除了弹体容器，小图随档残留；帧上下文收尾）。
+                Projectiles.SweepOrphanProjectileMaps();
             });
         }
 
@@ -631,6 +671,10 @@ namespace DeltaV
             ShellRenderer.DrawNonFocusedShells(this);
             WorldShipMarkerRenderer.DrawPlayerShips(this);
             ThrusterEffects.Draw(this);
+            // 月池力场（墙壁式连接图；聚焦图每帧绘制，外壳路径在 MapOverlayRenderer）。
+            MoonPoolGraphics.DrawFocused(this);
+            // 推进器/船体范围调试叠加（右下角 PlaySettings 开关控制）。
+            ThrusterDebugOverlay.DrawFocused(this);
             // 推进器工作音（与火焰同源：只读分配器油门；聚焦图逐推进器 + 船壳整船）。
             ThrusterAudio.Update(this);
         }
@@ -685,26 +729,40 @@ namespace DeltaV
         public override void GameComponentTick()
         {
             const float dt = 1f / 60f;
-            // 宇宙运动只属于游戏时钟（AGENTS §18 不变量 #20）：自动驾驶/跳帮舱按
+            // 宇宙运动只属于游戏时钟（AGENTS §18 不变量 #20）：自动驾驶/弹体制导/跳帮舱按
             // 游戏 tick 推进——暂停冻结、倍速加速；先于计划判据与物理积分
             //（IsActive 跳过防双驱动，计划判据看到本 tick 最新位姿）。
             Autopilot.Tick();
-            BoardingPods.Tick();
+            Projectiles.Tick();
+            // 武器射击（瞄准模式输入 + PD 自动索敌）：发射的弹体本 tick 即被积分与扫掠。
+            Weapons.TickWeapons();
+            // shuttle 巡护（舱体被毁收尾等，§7）。
+            Shuttles.Tick();
             // 对接计划（几何完成判据 + 取消守卫；2026-09-21 阶段4）。
             Approach.Tick(this);
-            Ship piloted = Pilot.PilotedShip(this);
-            bool piloting = piloted.IsValid && Find.CurrentMap == piloted.map;
+            PilotTarget piloted = Pilot.PilotedTarget(this);
+            bool piloting = piloted.IsValid && Find.CurrentMap == piloted.Map;
             foreach (SpaceObject obj in objects)
             {
                 if (obj.map == null)
                 {
+                    // 无图弹体的 tag 快路径（太空战架构 §3.3）：与容器同一条 Integrate
+                    // 核心（数据一致性），哑报告 + 零力——纯「速度 × dt 球面平移 +
+                    // 平行输运」，被动阻力已在 Integrate 内按 tag 豁免。其余无图对象
+                    //（marker）维持跳过。
+                    if (obj.baseTag == SpaceObjectTag.Projectile
+                        && obj.pose.velocity.sqrMagnitude > 1e-10f)
+                    {
+                        ShipPhysics.Integrate(obj, ShipPhysics.PointMassReport,
+                            Vector2.zero, 0f, dt, false, false, false);
+                    }
                     continue;
                 }
                 if (Autopilot.IsActive(obj))
                 {
                     continue; // 自动驾驶中的容器由 ShipAutopilot 驱动，避免双重积分
                 }
-                bool isPiloted = piloting && obj.map == piloted.map;
+                bool isPiloted = piloting && obj.map == piloted.Map;
                 bool drifting = obj.pose.velocity.sqrMagnitude > 1e-10f
                     || Mathf.Abs(obj.pose.angularVelocity) > 1e-10f;
                 if (!isPiloted && !drifting)
@@ -725,10 +783,10 @@ namespace DeltaV
                 if (isPiloted)
                 {
                     PilotService.PilotCommand command = Pilot.ComposeCommand(piloted);
-                    // 出力前分离 gate（§7 脱离 + §8 拆分统一）：将要施加推进器出力时先过
-                    // 「移动的船与其余部分分离」检查（手控输入/主动刹车辅助/已停靠船的
-                    // 首次出力均在此触发）；被拒绝的 tick 只积分零力（被动阻力照常、
-                    // 不施推进器动量）。
+                    // 出力前分离 gate（§7 脱离 + §8 拆分统一；shuttle 独占口袋图免分离）：
+                    // 将要施加推进器出力时先过「移动的船与其余部分分离」检查（手控输入/
+                    // 主动刹车辅助/已停靠船的首次出力均在此触发）；被拒绝的 tick 只积分
+                    // 零力（被动阻力照常、不施推进器动量）。
                     bool wantsThrust = Mathf.Abs(command.command.fx) > 1e-6f
                         || Mathf.Abs(command.command.fz) > 1e-6f
                         || Mathf.Abs(command.command.torque) > 1e-6f;
@@ -742,12 +800,15 @@ namespace DeltaV
                         assistX = command.assistX;
                         assistZ = command.assistZ;
                         assistW = command.assistW;
-                        pilotFrameAngle = ShipRegistry.LocalFrameAngle(piloted);
+                        pilotFrameAngle = piloted.FrameAngle;
                         LogEngineFiringTransition(obj, report, force, torque);
                     }
                 }
                 ShipPhysics.Integrate(obj, report, force, torque, dt, assistX, assistZ, assistW, pilotFrameAngle);
             }
+            // 碰撞扫掠与结算（太空战架构 §3.3：先动后撞——本 tick 位移段对全部有碰撞面
+            // 容器求交，命中经联合效果注册表对称结算；销毁/归池经帧边界回调）。
+            Projectiles.ResolveCollisions();
             // POI 地图生命周期三段扫描（单一入口 SpaceLifecycle）+ 星区记账触发
             //（自由飞行中 tile 地址变化进入新星区时首次生成，星区架构 §4）。
             if (Find.TickManager.TicksGame % 60 == 0)
@@ -788,11 +849,18 @@ namespace DeltaV
                 Map pilotMap = Focused?.InteriorMap;
                 Pilot.ToggleControl(this, pilotMap != null ? Pilot.SelectedShipOnMap(pilotMap) : Ship.Invalid);
             }
+            // 瞄准模式切换键（太空战架构 §6.1，默认 B；与面板按钮同一入口）。
+            // 被绑定为瞄准键的原版功能在驾驶期经按键抑制桥让位；不占用空格/暂停。
+            if (DeltaVDefOf.DeltaV_AimMode != null && DeltaVDefOf.DeltaV_AimMode.KeyDownEvent)
+            {
+                Pilot.ToggleAimMode(this);
+            }
             // 选点阶段 ESC 取消（2026-09-25 补齐）：pendingShip 在册且无计划 = 正在选点。
             // 有窗口打开时让位（暂停菜单等窗口自己消费 ESC）。
             if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape
                 && Find.WindowStack.Windows.Count == 0
-                && ShipTransitions.pendingShip.IsValid && Approach.ActivePlan == null)
+                && (ShipTransitions.pendingShip.IsValid || ShipTransitions.pendingShuttleBody != null)
+                && Approach.ActivePlan == null)
             {
                 Approach.CancelSelectionOrPlan(this, "esc");
                 Event.current.Use();
@@ -900,13 +968,24 @@ namespace DeltaV
                 bool targeting = Find.Targeter.IsTargeting;
                 bool designator = Find.DesignatorManager.SelectedDesignator != null;
                 bool overWindow = Find.WindowStack.GetWindowAt(UI.GUIToScreenPoint(ev.mousePosition)) != null;
-                if (targeting || designator || overWindow)
+                // 瞄准会话让位（§6.1）：瞄准模式中左键 = 射击，不作聚焦切换。
+                bool aimSession = Pilot.AimModeActive;
+                if (targeting || designator || overWindow || aimSession)
                 {
                     return;
                 }
                 IntVec3 mouseCell = UI.MouseMapPosition().ToIntVec3();
                 bool selectableHere = mouseCell.InBounds(current) && mouseCell.GetThingList(current).Any(ThingSelectionUtility.SelectableByMapClick);
                 if (selectableHere)
+                {
+                    return;
+                }
+                // 聚焦图内容遮挡（2026-09-26 用户报障）：背景船壳无条件位于聚焦图内容
+                // 之下——点击处聚焦图自身渲染了内容（甲板/结构；ContainsVisibleContent
+                // 与外壳渲染同一语义）时，被覆盖的船壳在视觉上不可见，点击不穿透切焦。
+                // 空 Space 格透明（dontRender 不画），照常点击穿通选择后方船壳。
+                if (mouseCell.InBounds(current)
+                    && MapOverlayRenderer.ContainsVisibleContent(current, mouseCell))
                 {
                     return;
                 }
@@ -981,7 +1060,9 @@ namespace DeltaV
             // 残留的对接计划/自动驾驶任务/跳帮舱会指向已废弃的容器，必须一并丢弃。
             Approach.ResetFlow(this);
             Autopilot.ResetFlow();
-            BoardingPods.ResetFlow();
+            Projectiles.ResetFlow();
+            Weapons.ResetFlow();
+            Shuttles.ResetFlow();
             ShipTransitions.Reset();
             objects = newObjects;
             unframedMaps?.Clear();
@@ -1008,7 +1089,10 @@ namespace DeltaV
             Lifecycle.Reset();
             Generation?.Reset();
             SectorContentService.Reset();
-            BoardingPodFlight.ClearRuntimeCaches();
+            MoonPoolUtility.ClearCache();
+            SpaceCollision.ClearCaches();
+            SpaceProjectileService.ClearRuntimeCaches();
+            AimMarkersRenderer.ClearRuntimeCaches();
             DockingGhostRenderer.Destroy();
             unframedMaps?.Clear();
             PilotKeyBridge.Reset();

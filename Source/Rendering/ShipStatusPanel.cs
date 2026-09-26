@@ -205,13 +205,41 @@ namespace DeltaV
             float shipListHeight = ships.Count > 1 ? ships.Count * ShipRowHeight + 4f : 0f;
 
             // 高度完全随内容自适应（不滚动）：星球仪 + 缩放滑条 + 标题/状态行 + 船列表
-            // + 当前模式的按钮行数（已停靠的船只有驾驶按钮——首次出力即分离）。
+            // + 当前模式的按钮行数（已停靠的船只有驾驶按钮——首次出力即分离）
+            // + 战斗区块（阶段5 §5.5/§6.1：瞄准模式 + 两排武器组 + 战斗位置）。
+            bool mapHasWeapons = SpaceWeaponService.AllWeaponsOn(map).Any(w =>
+                w.parent.Faction == Faction.OfPlayer);
+            // 在飞 shuttle 列表（§7.2）：聚焦图是 shuttle 口袋图时该行也是「当前查看对象」。
+            List<SpaceObject> shuttles = universe.Shuttles.InFlightContainers();
+            bool shuttleFocused = frame.baseTag == SpaceObjectTag.Shuttle;
+            float shuttleListHeight = shuttles.Count > 0 ? shuttles.Count * ShipRowHeight + 4f : 0f;
+            bool combatBlock = hasShip && playerControlled && zeroGravity && mapHasWeapons;
+            bool aimButton = combatBlock && controlState == ShipControlState.Manual
+                && Find.CurrentMap == selected.map;
+            float combatHeight = 0f;
+            if (combatBlock)
+            {
+                combatHeight += 8f;
+                if (aimButton) combatHeight += 27f + 6f;
+                combatHeight += 26f * 2f + 4f; // 主/副两排武器组方块
+                combatHeight += 27f + 6f;      // 进入战斗位置
+            }
             float modeButtonsHeight = hasShip
                 ? (playerControlled && zeroGravity ? 27f + 6f : 0f)
                   + (dockingPlan || (playerControlled && freeFlight) ? 27f + 8f : 0f)
                   + (playerControlled && freeFlight && !dockingPlan ? 20f + 26f * 3f + 6f : 0f)
                 : (bootstrapEntry || multiConsoleAmbiguous) && zeroGravity ? 27f + 6f : 0f;
-            float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + shipListHeight + modeButtonsHeight;
+            if (shuttleFocused && zeroGravity && SpaceShuttleService.HullOf(frame) != null)
+            {
+                modeButtonsHeight += 27f + 6f;
+                if (frame.baseTag == SpaceObjectTag.Shuttle && !frame.projectileRoleOverride)
+                {
+                    modeButtonsHeight += 27f + 8f;
+                }
+            }
+            modeButtonsHeight += combatHeight;
+            float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + shipListHeight
+                + shuttleListHeight + modeButtonsHeight;
             const float sliderRowHeight = 30f;
             float outerHeight = GlobeSize + 8f + sliderRowHeight + contentHeight;
             float y = Mathf.Clamp(UI.screenHeight * 0.45f - outerHeight * 0.5f, 48f,
@@ -275,6 +303,53 @@ namespace DeltaV
                     GUI.color = Color.white;
                     TooltipHandler.TipRegion(rowRect,
                         "DeltaV_PanelShipRowTip".Translate(universe.LabelForOwner(ship.ownerId)));
+                    lineY += ShipRowHeight;
+                }
+                lineY += 4f;
+            }
+
+            // ---- 在飞 shuttle 列表（§7.2）：点击聚焦其口袋图；跳帮 shuttle 提供侵入开关 ----
+            if (shuttles.Count > 0)
+            {
+                foreach (SpaceObject shuttleContainer in shuttles)
+                {
+                    var rowRect = new Rect(0f, lineY, drawWidth, ShipRowHeight);
+                    bool focused = shuttleContainer == frame;
+                    if (focused)
+                    {
+                        Widgets.DrawHighlight(rowRect);
+                    }
+                    string rowLabel = $"'{shuttleContainer.label}' · shuttle";
+                    if (Widgets.ButtonInvisible(rowRect, false))
+                    {
+                        universe.SetFocused(shuttleContainer);
+                    }
+                    Text.Font = GameFont.Tiny;
+                    GUI.color = focused ? Color.white : new Color(1f, 1f, 1f, 0.75f);
+                    Text.Anchor = TextAnchor.MiddleLeft;
+                    Widgets.Label(rowRect.ContractedBy(4f), rowLabel);
+                    Text.Anchor = TextAnchor.UpperLeft;
+                    GUI.color = Color.white;
+                    // 侵入武装开关（canBoard 的在飞 shuttle；gizmo 在舱体上）。
+                    Building hull = SpaceShuttleService.HullOf(shuttleContainer);
+                    if (hull?.TryGetComp<CompSpaceShuttle>()?.CanBoard == true)
+                    {
+                        var armRect = new Rect(drawWidth - 64f, lineY + 2f, 60f, ShipRowHeight - 4f);
+                        bool armed = universe.Shuttles.IntrusionArmed(shuttleContainer);
+                        if (armed)
+                        {
+                            Widgets.DrawHighlight(armRect);
+                        }
+                        if (Widgets.ButtonInvisible(armRect, false))
+                        {
+                            universe.Shuttles.ToggleIntrusionArmed(shuttleContainer);
+                        }
+                        Text.Font = GameFont.Tiny;
+                        Text.Anchor = TextAnchor.MiddleCenter;
+                        Widgets.Label(armRect, "DeltaV_PanelBoardArm".Translate());
+                        Text.Anchor = TextAnchor.UpperLeft;
+                        TooltipHandler.TipRegion(armRect, "DeltaV_PanelBoardArmTip".Translate());
+                    }
                     lineY += ShipRowHeight;
                 }
                 lineY += 4f;
@@ -388,6 +463,107 @@ namespace DeltaV
                 GUI.color = Color.white;
                 TooltipHandler.TipRegion(pickRect, "DeltaV_PanelPickConsoleTip".Translate());
                 Text.Font = GameFont.Tiny;
+                lineY += 27f + 6f;
+            }
+
+            // 聚焦在飞 shuttle 口袋图：驾驶切换（PilotTarget 泛化入口，§7.2）。
+            if (shuttleFocused && zeroGravity)
+            {
+                Building hull = SpaceShuttleService.HullOf(frame);
+                if (hull != null && (hull.Faction == Faction.OfPlayer || DebugSettings.godMode))
+                {
+                    bool manual = universe.Pilot.GetControlState(PilotTarget.Of(hull)) == ShipControlState.Manual;
+                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f),
+                        manual ? "DeltaV_PilotButtonExit".Translate() : "DeltaV_PilotButtonEnter".Translate()))
+                    {
+                        universe.Pilot.ToggleControl(universe, PilotTarget.Of(hull));
+                    }
+                    lineY += 27f + 6f;
+                    // 选择对接（在飞、非侵入时可发起；与船按钮同一管线入口，§7.4）。
+                    if (frame.baseTag == SpaceObjectTag.Shuttle && !frame.projectileRoleOverride)
+                    {
+                        if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f),
+                            "DeltaV_BeginDockingButton".Translate()))
+                        {
+                            universe.ShipTransitions.BeginDockingShuttle(hull);
+                        }
+                        lineY += 27f + 8f;
+                    }
+                }
+            }
+
+            // ---- 战斗区块（阶段5 §5.5/§6.1）：瞄准模式 + 主/副武器组 + 战斗位置 ----
+            if (combatBlock)
+            {
+                lineY += 8f;
+                if (aimButton)
+                {
+                    // 瞄准模式切换（与 B 键同一入口；退出驾驶自动退出）。
+                    string aimLabel = "DeltaV_PanelAimMode".Translate(
+                        universe.Pilot.AimModeActive
+                            ? "DeltaV_On".Translate()
+                            : "DeltaV_Off".Translate());
+                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), aimLabel))
+                    {
+                        universe.Pilot.ToggleAimMode(universe);
+                    }
+                    TooltipHandler.TipRegion(new Rect(0f, lineY, drawWidth, 27f),
+                        "DeltaV_PanelAimModeTip".Translate());
+                    lineY += 27f + 6f;
+                }
+                // 两排武器组方块（主/副各一排 1–6；点击切换激活——激活位存主驾驶台）。
+                CompDeltaVPilotConsole consoleComp = selected.console;
+                void GroupRow(SpaceWeaponSalvoSet set, string rowLabel)
+                {
+                    var labelRect = new Rect(0f, lineY, 24f, 26f);
+                    Text.Font = GameFont.Tiny;
+                    GUI.color = new Color(1f, 1f, 1f, 0.7f);
+                    Text.Anchor = TextAnchor.MiddleCenter;
+                    Widgets.Label(labelRect, rowLabel);
+                    Text.Anchor = TextAnchor.UpperLeft;
+                    GUI.color = Color.white;
+                    int mask = consoleComp.WeaponGroupMask(set);
+                    const float square = 30f;
+                    for (int group = 1; group <= 6; group++)
+                    {
+                        var rect = new Rect(26f + (group - 1) * square, lineY, square - 2f, 26f);
+                        bool active = (mask & (1 << (group - 1))) != 0;
+                        if (active)
+                        {
+                            Widgets.DrawHighlight(rect);
+                        }
+                        else
+                        {
+                            Widgets.DrawBoxSolid(rect, new Color(1f, 1f, 1f, 0.08f));
+                        }
+                        Text.Font = GameFont.Tiny;
+                        Text.Anchor = TextAnchor.MiddleCenter;
+                        GUI.color = active ? Color.white : new Color(1f, 1f, 1f, 0.55f);
+                        Widgets.Label(rect, group.ToString());
+                        Text.Anchor = TextAnchor.UpperLeft;
+                        GUI.color = Color.white;
+                        if (Widgets.ButtonInvisible(rect, false))
+                        {
+                            consoleComp.SetWeaponGroupMask(set, active ? mask & ~(1 << (group - 1)) : mask | (1 << (group - 1)));
+                        }
+                        TooltipHandler.TipRegion(rect, "DeltaV_PanelWeaponGroupTip".Translate(
+                            ("DeltaV_WeaponSet" + set).Translate(), group.ToString()));
+                    }
+                    lineY += 26f + 2f;
+                }
+                GroupRow(SpaceWeaponSalvoSet.Main, "DeltaV_WeaponSetMain".Translate());
+                GroupRow(SpaceWeaponSalvoSet.Secondary, "DeltaV_WeaponSetSecondary".Translate());
+                lineY += 2f;
+                // 进入战斗位置（作用域 = 本图全部玩家武器的激活组；同按钮切换退出）。
+                string stationsLabel = universe.Weapons.BattleStationsActive(map)
+                    ? "DeltaV_PanelBattleStationsOff".Translate()
+                    : "DeltaV_PanelBattleStationsOn".Translate();
+                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), stationsLabel))
+                {
+                    universe.Weapons.ToggleBattleStations(map);
+                }
+                TooltipHandler.TipRegion(new Rect(0f, lineY, drawWidth, 27f),
+                    "DeltaV_PanelBattleStationsTip".Translate());
                 lineY += 27f + 6f;
             }
 

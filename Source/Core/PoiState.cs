@@ -52,6 +52,9 @@ namespace DeltaV
         /// 物化容器（普通 SpaceObject）不经本类，名 = 结构拼接。</summary>
         public override string label => envLabel;
 
+        /// <summary>PoiState 的缺省 tag 是 Marker（旧档无 tag 键时按类型正确回填）。</summary>
+        protected override SpaceObjectTag DefaultTag => SpaceObjectTag.Marker;
+
         public PoiState()
         {
         }
@@ -62,6 +65,7 @@ namespace DeltaV
             envLabel = label;
             pose = new SpacePose(position, angle);
             kind = PoiKind.SnapshotPocket;
+            baseTag = SpaceObjectTag.Marker;
             this.seed = seed;
         }
 
@@ -74,6 +78,7 @@ namespace DeltaV
                 ? OrbitSphere.TileCenterDirection(parent.Tile)
                 : Vector3.right, 0f);
             kind = PoiKind.NativeParent;
+            baseTag = SpaceObjectTag.Marker;
             nativeParent = parent;
             faction = parent?.Faction;
             seed = parent?.ID ?? 0;

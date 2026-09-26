@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+	<!--
+		阶段5 测试弹体（太空战架构 §4/§5.1）：不可建造、只经弹体服务/武器发射 spawn。
+		弹体 def = 联合效果注册表键 + 贴图来源 + 脚印/HP 载体；
+		可拦截性结构派生（有图 ⇔ 可拦截），无标记字段。
+		贴图暂借原版弹丸图占位（正式贴图随段6 武器 def 族）。
+	-->
+
+	<!-- 测试直射弹：有图型（1×1，可拦截）、恒速直线。 -->
+	<ThingDef ParentName="BuildingBase">
+		<defName>DeltaV_Projectile_Cannon</defName>
+		<label>cannon shot</label>
+		<description>Test projectile: a slow heavy shell flying straight in the universe layer.</description>
+		<thingClass>Verse.Building</thingClass>
+		<category>Building</category>
+		<rotatable>false</rotatable>
+		<passability>Impassable</passability>
+		<fillPercent>0.4</fillPercent>
+		<size>(1,1)</size>
+		<designationCategory Inherit="False" />
+		<researchPrerequisites Inherit="False" />
+		<stuffCategories Inherit="False" />
+		<statBases>
+			<WorkToBuild>1</WorkToBuild>
+			<MaxHitPoints>40</MaxHitPoints>
+			<Flammability>0</Flammability>
+		</statBases>
+		<graphicData>
+			<texPath>Things/Projectile/Bullet_Big</texPath>
+			<graphicClass>Graphic_Single</graphicClass>
+			<drawSize>(1.4,1.4)</drawSize>
+			<shaderType>Cutout</shaderType>
+			<damageData>
+				<enabled>false</enabled>
+			</damageData>
+		</graphicData>
+		<comps>
+			<li Class="DeltaV.CompProperties_SpaceProjectile">
+				<speed>45</speed>
+				<timeoutTicks>900</timeoutTicks>
+				<hasMap>true</hasMap>
+			</li>
+		</comps>
+	</ThingDef>
+
+	<!-- 测试激光：无图即时链（不可拦截），全射程一次扫掠。 -->
+	<ThingDef ParentName="BuildingBase">
+		<defName>DeltaV_Projectile_Laser</defName>
+		<label>laser bolt</label>
+		<description>Test projectile: an instant laser beam sweeping to its maximum range on the tick it fires.</description>
+		<thingClass>Verse.Building</thingClass>
+		<category>Building</category>
+		<rotatable>false</rotatable>
+		<passability>Impassable</passability>
+		<fillPercent>0.1</fillPercent>
+		<size>(1,1)</size>
+		<designationCategory Inherit="False" />
+		<researchPrerequisites Inherit="False" />
+		<stuffCategories Inherit="False" />
+		<statBases>
+			<WorkToBuild>1</WorkToBuild>
+			<MaxHitPoints>10</MaxHitPoints>
+			<Flammability>0</Flammability>
+		</statBases>
+		<graphicData>
+			<texPath>Things/Projectile/Bullet_Big</texPath>
+			<graphicClass>Graphic_Single</graphicClass>
+			<drawSize>(1.2,1.2)</drawSize>
+			<shaderType>Cutout</shaderType>
+			<damageData>
+				<enabled>false</enabled>
+			</damageData>
+		</graphicData>
+		<comps>
+			<li Class="DeltaV.CompProperties_SpaceProjectile">
+				<hasMap>false</hasMap>
+				<laserRange>120</laserRange>
+			</li>
+		</comps>
+	</ThingDef>
+
+	<!-- 测试导弹：有图型（可拦截）、纯追踪制导。 -->
+	<ThingDef ParentName="BuildingBase">
+		<defName>DeltaV_Projectile_Missile</defName>
+		<label>guided missile</label>
+		<description>Test projectile: a guided missile that turns toward its target every tick.</description>
+		<thingClass>Verse.Building</thingClass>
+		<category>Building</category>
+		<rotatable>false</rotatable>
+		<passability>Impassable</passability>
+		<fillPercent>0.4</fillPercent>
+		<size>(1,1)</size>
+		<designationCategory Inherit="False" />
+		<researchPrerequisites Inherit="False" />
+		<stuffCategories Inherit="False" />
+		<statBases>
+			<WorkToBuild>1</WorkToBuild>
+			<MaxHitPoints>25</MaxHitPoints>
+			<Flammability>0</Flammability>
+		</statBases>
+		<graphicData>
+			<texPath>Things/Projectile/Bullet_Big</texPath>
+			<graphicClass>Graphic_Single</graphicClass>
+			<drawSize>(1.3,1.3)</drawSize>
+			<shaderType>Cutout</shaderType>
+			<damageData>
+				<enabled>false</enabled>
+			</damageData>
+		</graphicData>
+		<comps>
+			<li Class="DeltaV.CompProperties_SpaceProjectile">
+				<speed>32</speed>
+				<timeoutTicks>1800</timeoutTicks>
+				<guided>true</guided>
+				<turnRateDegPerSec>540</turnRateDegPerSec>
+				<hasMap>true</hasMap>
+			</li>
+		</comps>
+	</ThingDef>
+
+
+	<!-- PD 弹：有图高速小弹（命中走统一联合效果链；效果条目见 DeltaV_SpaceImpactEffects）。 -->
+	<ThingDef ParentName="BuildingBase">
+		<defName>DeltaV_Projectile_PDBullet</defName>
+		<label>PD bullet</label>
+		<description>Test projectile: fast small interceptor bullet.</description>
+		<thingClass>Verse.Building</thingClass>
+		<category>Building</category>
+		<rotatable>false</rotatable>
+		<passability>Impassable</passability>
+		<fillPercent>0.2</fillPercent>
+		<size>(1,1)</size>
+		<designationCategory Inherit="False" />
+		<researchPrerequisites Inherit="False" />
+		<stuffCategories Inherit="False" />
+		<statBases>
+			<WorkToBuild>1</WorkToBuild>
+			<MaxHitPoints>10</MaxHitPoints>
+			<Flammability>0</Flammability>
+		</statBases>
+		<graphicData>
+			<texPath>Things/Projectile/Bullet_Big</texPath>
+			<graphicClass>Graphic_Single</graphicClass>
+			<drawSize>(1.1,1.1)</drawSize>
+			<shaderType>Cutout</shaderType>
+			<damageData>
+				<enabled>false</enabled>
+			</damageData>
+		</graphicData>
+		<comps>
+			<li Class="DeltaV.CompProperties_SpaceProjectile">
+				<speed>90</speed>
+				<timeoutTicks>300</timeoutTicks>
+				<hasMap>true</hasMap>
+			</li>
+		</comps>
+	</ThingDef>
+
+</Defs>

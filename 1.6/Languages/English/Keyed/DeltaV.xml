@@ -40,6 +40,7 @@
   <DeltaV_SettingsLogHarmony>Log: key suppression decisions</DeltaV_SettingsLogHarmony>
   <DeltaV_SettingsLogLifecycle>Log: POI lifecycle transitions</DeltaV_SettingsLogLifecycle>
   <DeltaV_SettingsLogRender>Log: shell layering (max 1/s)</DeltaV_SettingsLogRender>
+  <DeltaV_SettingsLogCombat>Log: combat events (launch/impact/intercept/ricochet/pass-through)</DeltaV_SettingsLogCombat>
   <DeltaV_SettingsUniverseZoomMax>Universe view zoom max (cells)</DeltaV_SettingsUniverseZoomMax>
   <DeltaV_SettingsUniverseZoomMaxTip>How far the camera can zoom out while focused on a ship map. Larger values show more of space on screen at once - distant ship and station shells enter view sooner - at the cost of everything on the map appearing smaller. Range 60-5000; default 400.</DeltaV_SettingsUniverseZoomMaxTip>
   <DeltaV_SettingsPoiActiveRadius>POI load radius (cells)</DeltaV_SettingsPoiActiveRadius>
@@ -171,4 +172,45 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SettingsDragAngularHalfLife>Angular velocity half-life (ticks)</DeltaV_SettingsDragAngularHalfLife>
   <DeltaV_SettingsDragAngularHalfLifeTip>While this switch is on, spin rate halves every this many ticks. Smaller stops the turn sooner; larger spins longer. Range 1-60000; default 180 (halved every 3 seconds).</DeltaV_SettingsDragAngularHalfLifeTip>
   <DeltaV_ReassignProtectedMainConsole>Main console foundations cannot be reassigned ({0} cell(s) skipped). Set the console to backup or deconstruct it first.</DeltaV_ReassignProtectedMainConsole>
+
+  <!-- Stage 5: combat (aim mode / weapon groups / battle stations) -->
+  <DeltaV_PanelAimMode>Aim mode: {0}</DeltaV_PanelAimMode>
+  <DeltaV_PanelAimModeTip>Toggle with this button or the aim key (default B). In aim mode, hold LMB to fire the active main-set weapons and RMB to fire the active secondary-set weapons; vanilla clicking yields. Space (pause) is never taken.</DeltaV_PanelAimModeTip>
+  <DeltaV_PanelWeaponGroupTip>{0} set, group {1}. Click to toggle whether this group is active. Only active groups are fired and called to battle stations.</DeltaV_PanelWeaponGroupTip>
+  <DeltaV_WeaponSetMain>Main</DeltaV_WeaponSetMain>
+  <DeltaV_WeaponSetSecondary>Secondary</DeltaV_WeaponSetSecondary>
+  <DeltaV_PanelBattleStationsOn>Man battle stations</DeltaV_PanelBattleStationsOn>
+  <DeltaV_PanelBattleStationsOff>Leave battle stations</DeltaV_PanelBattleStationsOff>
+  <DeltaV_PanelBattleStationsTip>Calls colonists to man every active-group player weapon on this map (reserved gunners first, then random able colonists; drafted colonists are not called). Same button releases them.</DeltaV_PanelBattleStationsTip>
+  <DeltaV_BattleStationsOn>{0} gunners manned battle stations.</DeltaV_BattleStationsOn>
+  <DeltaV_BattleStationsOff>Battle stations released; gunners return to work.</DeltaV_BattleStationsOff>
+  <DeltaV_WeaponGroupGizmo>Weapon group: {0} {1}</DeltaV_WeaponGroupGizmo>
+  <DeltaV_WeaponGroupGizmoTip>Cycles this weapon's salvo set and group (Main/Secondary 1-6). Activation is toggled per group on the status panel.</DeltaV_WeaponGroupGizmoTip>
+  <DeltaV_WeaponPdgizmo>Point defense</DeltaV_WeaponPdgizmo>
+  <DeltaV_WeaponPdgizmoTip>Point defense mode: automatically engages interceptable containers (missiles, mapped shots, shuttles) in range. Not controlled by the aim mode.</DeltaV_WeaponPdgizmoTip>
+  <DeltaV_WeaponReserveGizmo>Reserve gunner: {0}</DeltaV_WeaponReserveGizmo>
+  <DeltaV_WeaponReserveNone>any</DeltaV_WeaponReserveNone>
+  <DeltaV_WeaponReserveGizmoTip>Chooses which colonist mans this weapon when battle stations are called (any = random able colonist).</DeltaV_WeaponReserveGizmoTip>
+
+  <DeltaV_CasemateNeedsWall>A casemate must be placed against a solid hull wall (its facing points away from the wall).</DeltaV_CasemateNeedsWall>
+  <DeltaV_RailgunNeedsChain>Railgun parts must extend an existing chain (loader first, then accelerator segments, muzzle last).</DeltaV_RailgunNeedsChain>
+
+  <!-- Stage 5: shuttles & moon pool -->
+  <DeltaV_ShuttleLaunchGizmo>Launch shuttle</DeltaV_ShuttleLaunchGizmo>
+  <DeltaV_ShuttleLaunchGizmoTip>Launch into free flight as a mini-ship. Gate = vanilla launch checks (loadout/fuel/mass/cooldown); on a moon pool the roof never blocks launch.</DeltaV_ShuttleLaunchGizmoTip>
+  <DeltaV_ShuttleLaunchDenied>Launch denied: {0}</DeltaV_ShuttleLaunchDenied>
+  <DeltaV_ShuttleLaunched>{0} launched into free flight.</DeltaV_ShuttleLaunched>
+  <DeltaV_ShuttleBoardGizmo>Ram target hull</DeltaV_ShuttleBoardGizmo>
+  <DeltaV_ShuttleBoardGizmoTip>Pick an enemy container's hull: the shuttle becomes a missile under full thrust, punches through and seals the breach with its own cabin.</DeltaV_ShuttleBoardGizmoTip>
+  <DeltaV_ShuttleBoardNoTarget>No container hull at that spot.</DeltaV_ShuttleBoardNoTarget>
+  <DeltaV_ShuttleBoardEngaged>Intrusion engaged: ramming {0}.</DeltaV_ShuttleBoardEngaged>
+  <DeltaV_PanelBoardArm>Board</DeltaV_PanelBoardArm>
+  <DeltaV_PanelBoardArmTip>Arm the intrusion drive for this shuttle (gizmo on its hull picks the target). Pressing any flight key breaks off the ram and returns manual control; the target is kept.</DeltaV_PanelBoardArmTip>
+
+  <DeltaV_ShuttleDockGizmo>Dock</DeltaV_ShuttleDockGizmo>
+  <DeltaV_ShuttleDockGizmoTip>Pick a target container, choose a landing site, and autopilot (or fly manually) into the hold — the same docking plan pipeline ships use.</DeltaV_ShuttleDockGizmoTip>
+  <DeltaV_DebugThrustersToggleButton>Show Delta-V thruster vectors and hull extent</DeltaV_DebugThrustersToggleButton>
+
+  <DeltaV_ThrusterPowerTitle>Set thruster power limit</DeltaV_ThrusterPowerTitle>
+  <DeltaV_ThrusterPowerEntry>Thruster power: {0}%</DeltaV_ThrusterPowerEntry>
 </LanguageData>

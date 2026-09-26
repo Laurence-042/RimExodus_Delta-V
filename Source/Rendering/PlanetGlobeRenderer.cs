@@ -263,9 +263,10 @@ namespace DeltaV
             Clickables.Clear();
             Overlays.Clear();
 
-            // ---- 对象点（常驻：全对象小点，远距离态势参考）----
+            // ---- 对象点（常驻：全对象小点，远距离态势参考；弹体不进星球仪，§3.1）----
             foreach (SpaceObject obj in universe.objects)
             {
+                if (!obj.ParticipatesInOverlays) continue;
                 Vector2 pos = Project(obj.pose.position);
                 if (!rect.Contains(pos)) continue;
                 if (Vector3.Dot(obj.pose.position, shipDir) > 0f)
@@ -399,6 +400,7 @@ namespace DeltaV
             {
                 foreach (SpaceObject obj in universe.objects)
                 {
+                    if (!obj.ParticipatesInOverlays) continue;
                     if (Vector3.Dot(obj.pose.position, shipDir) <= 0f) continue;
                     if (obj is PoiState poi)
                     {
@@ -464,6 +466,7 @@ namespace DeltaV
                 Text.Font = GameFont.Tiny;
                 foreach (SpaceObject obj in universe.objects)
                 {
+                    if (!obj.ParticipatesInOverlays) continue;
                     Ship flowShip = universe.Approach.FlowShip;
                     if (flowShip.IsValid && universe.FrameOf(flowShip.map) == obj) continue;
                     if (Vector3.Dot(obj.pose.position, shipDir) <= 0f) continue;

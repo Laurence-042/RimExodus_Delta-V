@@ -74,4 +74,14 @@
     <defaultKeyCodeB>RightControl</defaultKeyCodeB>
   </KeyBindingDef>
 
+  <!-- 瞄准模式切换（阶段5 太空战 §6.1）：驾驶的子模式，默认 B；B 的原版用途（建筑菜单）
+       在驾驶中被抑制。不占用空格/暂停——改键界面的 tooltip 建议玩家勿绑关键功能键
+      （DefInjected tooltip 文案）。 -->
+  <KeyBindingDef>
+    <defName>DeltaV_AimMode</defName>
+    <label>toggle aim mode</label>
+    <category>DeltaV</category>
+    <defaultKeyCodeA>B</defaultKeyCodeA>
+  </KeyBindingDef>
+
 </Defs>

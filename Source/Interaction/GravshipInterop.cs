@@ -88,13 +88,15 @@ namespace DeltaV
         /// <summary>
         /// 选点/合法性复核共用的零消费预览：脚印取船的控制域（捕获同口径，不要求引擎），
         /// 字段只读填充。选点期与完成期复核各建一次（复核要读**当前**脚印——对接期间的
-        /// 扩建会改变它）。
+        /// 扩建会改变它）。mainConsole 可为 null（shuttle 舱体脚印预览：跳过主台/驾驶台
+        /// 字段，落点朝向由调用方以舱体朝向提供——ComputeLandingPose 的 shuttle 分支）。
         /// </summary>
-        internal static Gravship BuildPreview(HashSet<IntVec3> cells, Building mainConsole)
+        internal static Gravship BuildPreview(HashSet<IntVec3> cells, Building mainConsole, Map sourceMap = null)
         {
-            if (EmptyCtor == null || cells == null || cells.Count == 0 || mainConsole == null
-                || !mainConsole.Spawned || mainConsole.Map == null) return null;
-            Map map = mainConsole.Map;
+            if (EmptyCtor == null || cells == null || cells.Count == 0) return null;
+            Map map = sourceMap ?? mainConsole?.Map;
+            if (mainConsole != null && (!mainConsole.Spawned || mainConsole.Map == null)) return null;
+            if (map == null) return null;
 
             var hollow = (Gravship)EmptyCtor.Invoke(null);
             Gravship gravship = WorldObjectMaker.MakeWorldObject(WorldObjectDefOf.Gravship, hollow) as Gravship;
@@ -109,11 +111,13 @@ namespace DeltaV
             {
                 IntVec3 local = cell - origin;
                 localCells.Add(local);
-                foundations[local] = map.terrainGrid.FoundationAt(cell);
+                // 预览只消费脚印形状；无基架层（shuttle 口袋图）时以原版基架 def 占位，
+                // 避免 null 地形 def 流入原版 Foundations 视图（marker 缓存/旋转/放置链）。
+                foundations[local] = map.terrainGrid.FoundationAt(cell) ?? DeltaVDefOf.Substructure;
             }
             BoundsField?.SetValue(gravship, CellRect.FromCellList(localCells));
 
-            if (cells.Contains(mainConsole.Position))
+            if (mainConsole != null && cells.Contains(mainConsole.Position))
             {
                 var things = (Dictionary<Thing, PositionData>)ThingsField?.GetValue(gravship);
                 things[mainConsole] = new PositionData(mainConsole.Position - origin, mainConsole.Rotation);
@@ -144,7 +148,7 @@ namespace DeltaV
         /// 捕获**不修改**源图——移除由 <see cref="StripDomain"/> 完成。
         /// </summary>
         internal static Gravship CaptureDomain(Map map, HashSet<IntVec3> cells, Building mainConsole,
-            Faction ownerFaction)
+            Faction ownerFaction, bool includeTerrain = true)
         {
             if (EmptyCtor == null || map == null || cells == null || cells.Count == 0) return null;
             var hollow = (Gravship)EmptyCtor.Invoke(null);
@@ -210,30 +214,33 @@ namespace DeltaV
                     }
                 }
                 occupied.Add(local);
-                foundations[local] = map.terrainGrid.FoundationAt(cell);
-                terrains[local] = map.terrainGrid.TerrainAt(cell);
-                terrainColors[local] = map.terrainGrid.ColorAt(cell);
-                roofs[local] = map.roofGrid.RoofAt(cell);
-                foreach (Designation designation in map.designationManager.AllDesignationsAt(cell))
+                if (includeTerrain)
                 {
-                    if (designation.def == DesignationDefOf.RemoveFloor
-                        || designation.def == DesignationDefOf.PaintFloor
-                        || designation.def == DesignationDefOf.RemovePaintFloor)
+                    foundations[local] = map.terrainGrid.FoundationAt(cell);
+                    terrains[local] = map.terrainGrid.TerrainAt(cell);
+                    terrainColors[local] = map.terrainGrid.ColorAt(cell);
+                    roofs[local] = map.roofGrid.RoofAt(cell);
+                    foreach (Designation designation in map.designationManager.AllDesignationsAt(cell))
                     {
-                        terrainDesignations[local] = designation;
-                        map.designationManager.RemoveDesignation(designation);
+                        if (designation.def == DesignationDefOf.RemoveFloor
+                            || designation.def == DesignationDefOf.PaintFloor
+                            || designation.def == DesignationDefOf.RemovePaintFloor)
+                        {
+                            terrainDesignations[local] = designation;
+                            map.designationManager.RemoveDesignation(designation);
+                        }
                     }
-                }
-                gases[local] = map.gasGrid.GetDirect(cell);
-                Room room = cell.GetRoom(map);
-                if (room != null && seenRooms.Add(room) && !room.UsesOutdoorTemperature)
-                {
-                    roomTemperatures.Add(new RoomTemperatureVacuum
+                    gases[local] = map.gasGrid.GetDirect(cell);
+                    Room room = cell.GetRoom(map);
+                    if (room != null && seenRooms.Add(room) && !room.UsesOutdoorTemperature)
                     {
-                        roomCell = local,
-                        temperature = room.Temperature,
-                        vacuum = room.Vacuum,
-                    });
+                        roomTemperatures.Add(new RoomTemperatureVacuum
+                        {
+                            roomCell = local,
+                            temperature = room.Temperature,
+                            vacuum = room.Vacuum,
+                        });
+                    }
                 }
             }
 
@@ -550,7 +557,8 @@ namespace DeltaV
         /// 的格集会绕 origin 错位（2026-09-24 事故：South 旋转下 960 格 hull 只剥中 1 格，
         /// 其余全部残留源图）。原版镜子本尊用绝对坐标 engine.ValidSubstructure 剥离。
         /// </summary>
-        internal static void StripDomain(Gravship gravship, Map map, HashSet<IntVec3> cells)
+        internal static void StripDomain(Gravship gravship, Map map, HashSet<IntVec3> cells,
+            bool includeTerrain = true)
         {
             if (gravship == null || map == null || cells == null || cells.Count == 0) return;
             IntVec3[] stripCells = new IntVec3[cells.Count];
@@ -584,16 +592,21 @@ namespace DeltaV
             }
 
             // 剥除 Substructure 地形（镜像原版 GenerateGravship 的逐格清理）。
+            // includeTerrain=false（shuttle 起飞，§7.2「不搬基架」）：只移除清单内容，
+            // 宿主的甲板/屋顶/气/温度原样保留——舱体起飞不在宿主图开洞。
             ulong dirtyFlags = (ulong)MapMeshFlagDefOf.Terrain | (ulong)MapMeshFlagDefOf.Roofs
                 | (ulong)MapMeshFlagDefOf.Snow | (ulong)MapMeshFlagDefOf.Sand | (ulong)MapMeshFlagDefOf.Gas;
             for (int c = 0; c < stripCells.Length; c++)
             {
                 IntVec3 cell = stripCells[c];
                 int index = map.cellIndices.CellToIndex(cell);
-                map.terrainGrid.RemoveGravshipTerrainUnsafe(cell, index);
-                map.roofGrid.RemoveRoofUnsafe(index);
-                map.areaManager.BuildRoof[index] = false;
-                map.areaManager.NoRoof[index] = false;
+                if (includeTerrain)
+                {
+                    map.terrainGrid.RemoveGravshipTerrainUnsafe(cell, index);
+                    map.roofGrid.RemoveRoofUnsafe(index);
+                    map.areaManager.BuildRoof[index] = false;
+                    map.areaManager.NoRoof[index] = false;
+                }
                 map.glowGrid.DirtyCell(cell);
                 map.snowGrid.SetDepth(cell, 0f);
                 map.sandGrid.SetDepth(cell, 0f);

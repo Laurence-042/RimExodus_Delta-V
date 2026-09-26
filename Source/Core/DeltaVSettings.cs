@@ -80,6 +80,9 @@ namespace DeltaV
 
         public bool logRender;
 
+        /// <summary>战斗链诊断（发射/命中/拦截/跳弹/放行/tag 切换等用户事件级，边沿触发）。</summary>
+        public bool logCombat;
+
         public override void ExposeData()
         {
             Scribe_Values.Look(ref flightAssist, "flightAssist", true);
@@ -101,6 +104,7 @@ namespace DeltaV
             Scribe_Values.Look(ref logHarmony, "logHarmony", false);
             Scribe_Values.Look(ref logLifecycle, "logLifecycle", false);
             Scribe_Values.Look(ref logRender, "logRender", false);
+            Scribe_Values.Look(ref logCombat, "logCombat", false);
             base.ExposeData();
         }
     }

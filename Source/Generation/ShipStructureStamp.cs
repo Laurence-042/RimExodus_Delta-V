@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -27,13 +28,13 @@ namespace DeltaV
             CellRect hull = CenteredRect(map, 40, 24);
             StampHull(map, hull, doorsOnEast: 2, interiorWall: true, colonists: 0, Faction.OfPlayer, ownerId);
             StampPlayerEquipment(map, hull);
-            // 跳帮舱发射管（阶段4 测试）：船艉内侧首个可站立格。
-            for (int z = hull.minZ + 1; z <= hull.maxZ - 1; z++)
+            // 跳帮 shuttle（阶段5 测试，§7：原版 PassengerShuttle 的装甲变体，3×5）：船艉内侧首个可站立脚印位。
+            for (int z = hull.minZ + 1; z <= hull.maxZ - 5; z++)
             {
                 IntVec3 cell = new IntVec3(hull.minX + 2, 0, z);
-                if (cell.Standable(map))
+                if (cell.Standable(map) && GenAdj.OccupiedRect(cell, Rot4.North, new IntVec2(3, 5)).Cells.All(c => c.InBounds(map) && c.Standable(map)))
                 {
-                    Spawn(map, ThingMaker.MakeThing(DeltaVDefOf.DeltaV_BoardingPodLauncher), cell, Faction.OfPlayer);
+                    Spawn(map, ThingMaker.MakeThing(DefDatabase<ThingDef>.GetNamed("DeltaV_ShuttleBoarding")), cell, Faction.OfPlayer);
                     break;
                 }
             }
@@ -82,6 +83,13 @@ namespace DeltaV
             foreach (IntVec3 cell in hull.EdgeCells)
             {
                 SpawnWall(map, cell, faction);
+            }
+
+            // 舱顶（2026-09-26 补）：测试船此前不盖屋顶，增压舱内装载/月池流程无法
+            // 验证。整块 hull 盖建造顶（含门格——气闸语义），舱外照旧无顶。
+            foreach (IntVec3 cell in hull)
+            {
+                map.roofGrid.SetRoof(cell, RoofDefOf.RoofConstructed);
             }
 
             // 船艏门：东边墙中段。

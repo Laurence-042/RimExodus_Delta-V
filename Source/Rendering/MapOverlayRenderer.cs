@@ -168,7 +168,30 @@ namespace DeltaV
                 IntVec3 cell = section.terrainCells[i];
                 if (!visible.Contains(cell) || allowedCells != null && !allowedCells.Contains(cell)) continue;
                 TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
-                if (terrain == null || terrain.dontRender) continue;
+                if (terrain == null || terrain.dontRender)
+                {
+                    // 月池：地形本体 dontRender（透出宇宙），力场走墙壁式连接图
+                    //（MoonPoolGraphics 唯一材质入口；外缘包边/中心力场按邻接自动取片）。
+                    if (terrain == MoonPoolUtility.MoonPoolTerrain)
+                    {
+                        Material fieldMaterial = MoonPoolGraphics.MaterialFor(map, cell);
+                        if (fieldMaterial != null && fieldMaterial != BaseContent.BadMat)
+                        {
+                            Vector3 fieldPos = matrix.MultiplyPoint3x4(new Vector3(cell.x + 0.5f,
+                                AltitudeLayer.Terrain.AltitudeFor(), cell.z + 0.5f));
+                            collector.Add(new OverlayCommand
+                            {
+                                mesh = MeshPool.plane10,
+                                matrix = Matrix4x4.TRS(fieldPos, rotation, Vector3.one),
+                                material = fieldMaterial,
+                                queue = fieldMaterial.renderQueue,
+                                sequence = nextSequence++
+                            });
+                            QuadsDrawnLastPass++;
+                        }
+                    }
+                    continue;
+                }
                 Material material = MaterialFor(terrain);
                 if (material == null) continue;
                 Vector3 source = new Vector3(cell.x + 0.5f, AltitudeLayer.Terrain.AltitudeFor(), cell.z + 0.5f);
@@ -211,9 +234,10 @@ namespace DeltaV
 
         /// <summary>
         /// 结构外观纳入标准（所有 SpaceObject 统一，2026-09-18 用户决策）：动态物剔除
-        /// → 显式 exclude 最优先 → 墙/门 → 气密结构与自然岩石（推进器、船壳、岩石
-        /// 自动入壳，无规则即用原始贴图）→ 显式规则。物品与非气密建筑（家具、内部
-        /// 设备）不属于外壳，不自动显示。
+        /// → 显式 exclude 最优先 → 实心结构（墙/门/气密建筑/自然岩石，判定收口
+        /// SpaceStructureRules.IsSolidStructure——与碰撞占用集同一分类器，太空战架构
+        /// §3.3「同数据源」）→ 显式规则。物品与非气密建筑（家具、内部设备）不属于
+        /// 外壳，不自动显示。
         /// </summary>
         private static bool ShouldDrawThing(Thing thing)
         {
@@ -222,9 +246,7 @@ namespace DeltaV
                 || thing.def.category == ThingCategory.Gas || thing.def.category == ThingCategory.Mote) return false;
             Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
             if (rule?.exclude == true) return false;
-            if (thing.def.IsWall || thing.def.IsDoor) return true;
-            if (thing is Building building
-                && (building.IsAirtight || building.def.building.isNaturalRock)) return true;
+            if (SpaceStructureRules.IsSolidStructure(thing)) return true;
             return rule != null;
         }
 

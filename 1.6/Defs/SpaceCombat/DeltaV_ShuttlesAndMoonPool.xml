@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+	<!--
+		月池（太空战架构 §7；2026-09-27 修订：真继承）。**ParentName="Substructure"
+		直接继承原版逆重基架**（原版 def 经 Patches/DeltaV_Shuttle.xml 补 Name 特性）：
+		只写差异字段，tags/affordances/placeWorkers/造价/工时/引擎门禁/建造分类等全部
+		继承——游戏更新改基架属性月池自动跟随。特殊行为在代码侧：无顶密封 =
+		Patch_MoonPool（District.ExposedVacuumCount 剔除月池格 + RoofGrid.Roofed 根层
+		豁免——屋顶相关检查对月池格恒视为无顶）；力场视觉 = MoonPoolGraphics 墙壁式
+		连接图（地形本体 dontRender 透出宇宙）。
+	-->
+	<TerrainDef ParentName="Substructure">
+		<defName>DeltaV_MoonPool</defName>
+		<label>moon pool</label>
+		<description>A gravship substructure deck section sealed by a blue force field. Cells above it hold air without a roof, and shuttles may launch and land through it even if a roof was mistakenly built (landing never breaks the roof).</description>
+		<texturePath>Terrain/MoonPool</texturePath>
+		<uiIconPath>Terrain/MoonPool</uiIconPath>
+		<dontRender>true</dontRender>
+		<holdSnowOrSand>false</holdSnowOrSand>
+		<designationHotKey Inherit="False" />
+		<uiOrder>1001</uiOrder>
+	</TerrainDef>
+
+	<!--
+		跳帮 shuttle（2026-09-27 修订：真继承）。**ParentName="PassengerShuttle"
+		直接继承原版载人穿梭机**（原版 def 经 patch 补 Name 特性 + CompSpaceShuttle）：
+		size/graphicData/全套原版 comps（CompShuttle/CompLaunchable/CompTransporter/
+		CompRefuelable）/inspectorTabs/placeWorkers 全部继承，子 def 只写数值差异。
+		**跳帮档位（canBoard/出力）放 modExtensions**——comps li 追加会与原版 patch
+		的 comp 实例重复（TryGetComp 取首个导致 canBoard=false 生效），modExtensions
+		是允许追加的字段族且原版无此项，无重复；CompSpaceShuttle.CanBoard/
+		EffectiveThrust 单一解析点读它。
+	-->
+	<ThingDef ParentName="PassengerShuttle">
+		<defName>DeltaV_ShuttleBoarding</defName>
+		<label>boarding shuttle</label>
+		<description>An armored assault variant of the passenger shuttle. Fewer seats, far tougher hull, far more agile in free flight. Arm its intrusion drive, pick an enemy hull, and it rams straight through like a missile — the cabin seals the breach and marines pour out.</description>
+		<terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
+		<statBases>
+			<MaxHitPoints>850</MaxHitPoints>
+			<Flammability>0.3</Flammability>
+			<WorkToBuild>48000</WorkToBuild>
+			<Mass>140</Mass>
+		</statBases>
+		<costList>
+			<Plasteel>200</Plasteel>
+		</costList>
+		<researchPrerequisites>
+			<li>DeltaV_VacuumBarrier</li>
+		</researchPrerequisites>
+		<modExtensions>
+			<li Class="DeltaV.DefModExtension_BoardingProfile">
+				<canBoard>true</canBoard>
+				<thrusterThrust>260</thrusterThrust>
+			</li>
+		</modExtensions>
+		<uiOrder>2601</uiOrder>
+	</ThingDef>
+
+</Defs>

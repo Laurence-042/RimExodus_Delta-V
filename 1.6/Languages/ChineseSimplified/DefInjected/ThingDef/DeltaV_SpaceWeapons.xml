@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_Weapon_CannonTurret.label>太空炮塔</DeltaV_Weapon_CannonTurret.label>
+  <DeltaV_Weapon_CannonTurret.description>载人炮塔，向宇宙层发射重型炮弹。顶部安装：其炮弹不会命中发射船自己的容器。</DeltaV_Weapon_CannonTurret.description>
+  <DeltaV_Weapon_CasemateCannon.label>炮廓炮</DeltaV_Weapon_CasemateCannon.label>
+  <DeltaV_Weapon_CasemateCannon.description>挂壁安装的炮廓炮。沿朝向固定射界（需贴舱壁建造）；位于舰体内，其炮弹可能命中本船容器——误伤是特性。</DeltaV_Weapon_CasemateCannon.description>
+  <DeltaV_Weapon_MissileLauncher.label>导弹发射架</DeltaV_Weapon_MissileLauncher.label>
+  <DeltaV_Weapon_MissileLauncher.description>制导导弹发射架。导弹锁定瞄准方向上最近的敌方容器并逐 tick 追踪；可被点防御拦截。</DeltaV_Weapon_MissileLauncher.description>
+  <DeltaV_Weapon_LaserTurret.label>激光炮塔</DeltaV_Weapon_LaserTurret.label>
+  <DeltaV_Weapon_LaserTurret.description>载人激光炮塔。光束在发射的 tick 内即时命中瞄准线——不可被拦截，但可被护盾弧吸收。</DeltaV_Weapon_LaserTurret.description>
+  <DeltaV_Weapon_PDTurret.label>点防御炮塔</DeltaV_Weapon_PDTurret.label>
+  <DeltaV_Weapon_PDTurret.description>载人点防御炮塔，自动索敌射程内可拦截容器——导弹、有图炮弹与 shuttle。不受瞄准模式控制。</DeltaV_Weapon_PDTurret.description>
+  <DeltaV_Weapon_RailgunLoader.label>轨道炮装弹机构</DeltaV_Weapon_RailgunLoader.label>
+  <DeltaV_Weapon_RailgunLoader.description>分体轨道炮的弹药端：存储并装填轨道炮弹。每条链对应一个炮口；装弹机构必须供电链才能发射。</DeltaV_Weapon_RailgunLoader.description>
+  <DeltaV_Weapon_RailgunAccelerator.label>轨道炮加速段</DeltaV_Weapon_RailgunAccelerator.label>
+  <DeltaV_Weapon_RailgunAccelerator.description>分体轨道炮的加速段。链上每节（装弹机构→加速段→炮口）都会增加炮口弹丸的伤害与穿深。仅支持直线链。</DeltaV_Weapon_RailgunAccelerator.description>
+  <DeltaV_Weapon_RailgunMuzzle.label>轨道炮炮口</DeltaV_Weapon_RailgunMuzzle.label>
+  <DeltaV_Weapon_RailgunMuzzle.description>分体轨道炮的发射端。放置在直线链的末端（装弹机构→加速段→炮口，朝向背对链）。发射超高速弹丸，伤害与穿深随加速段数量增长。</DeltaV_Weapon_RailgunMuzzle.description>
+  <DeltaV_Building_AutoAimPluginI.label>自动瞄准插件 I</DeltaV_Building_AutoAimPluginI.label>
+  <DeltaV_Building_AutoAimPluginI.description>辅助火控计算机。紧邻同结构基架上的太空武器时，该武器可无炮手射击，等效于 10 级射手。与炮手技能取高者。</DeltaV_Building_AutoAimPluginI.description>
+  <DeltaV_Building_AutoAimPluginII.label>自动瞄准插件 II</DeltaV_Building_AutoAimPluginII.label>
+  <DeltaV_Building_AutoAimPluginII.description>高级辅助火控计算机。紧邻同结构基架上的太空武器时，该武器可无炮手射击，等效于 16 级射手。与炮手技能取高者。</DeltaV_Building_AutoAimPluginII.description>
+  <DeltaV_Item_RailgunShell.label>轨道炮弹</DeltaV_Item_RailgunShell.label>
+  <DeltaV_Item_RailgunShell.description>轨道炮用的导电钨弹丸。</DeltaV_Item_RailgunShell.description>
+  <DeltaV_Projectile_RailgunSlug.description>超高速轨道炮射弹。</DeltaV_Projectile_RailgunSlug.description>
+</LanguageData>

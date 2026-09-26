@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+
+	<!--
+		推进器出力上限（2026-09-27）：给原版大/小推进器追加 DeltaV.CompProperties_
+		ThrusterPowerLimit——多选推进器后弹滑条统一设置出力百分比（存档事实；
+		出力收口在 ShipPhysics.Measure）。同型合并与原版推进器 def 结构一致。
+	-->
+
+	<Operation Class="PatchOperationAdd">
+		<xpath>/Defs/ThingDef[defName="LargeThruster"]/comps</xpath>
+		<value>
+			<li Class="DeltaV.CompProperties_ThrusterPowerLimit" />
+		</value>
+	</Operation>
+
+	<Operation Class="PatchOperationAdd">
+		<xpath>/Defs/ThingDef[defName="SmallThruster"]/comps</xpath>
+		<value>
+			<li Class="DeltaV.CompProperties_ThrusterPowerLimit" />
+		</value>
+	</Operation>
+
+</Patch>
