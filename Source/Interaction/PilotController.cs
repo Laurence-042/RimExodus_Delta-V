@@ -103,9 +103,8 @@ public readonly struct PilotTarget
             {
                 return false;
             }
-            if (!target.IsShuttle
-                && universe.ShipTransitions.IsDockingFlowShip(target.ship)
-                && !ReferenceEquals(universe.Approach.ApproachShip.ownerId, target.ship.ownerId))
+            if (universe.Approach.AnyActive
+                && universe.Approach.ApproachTarget.ControlKey != target.ControlKey)
             {
                 return false;
             }
@@ -377,8 +376,8 @@ public readonly struct PilotTarget
                 if (IsPlayerInputArmed(target)) DisarmAutopilotInput(target);
                 else ArmAutopilotInput(target);
             }
-            else if (state == ShipControlState.Manual && !target.IsShuttle
-                && universe.Approach.ActivePlan?.ship.ownerId == target.ship.ownerId)
+            else if (state == ShipControlState.Manual
+                && universe.Approach.ActivePlan?.Target.ControlKey == target.ControlKey)
             {
                 universe.Approach.EngageAutopilot(universe);
             }

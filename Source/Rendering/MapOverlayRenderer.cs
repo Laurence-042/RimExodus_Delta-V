@@ -174,17 +174,31 @@ namespace DeltaV
                     //（MoonPoolGraphics 唯一材质入口；外缘包边/中心力场按邻接自动取片）。
                     if (terrain == MoonPoolUtility.MoonPoolTerrain)
                     {
-                        Material fieldMaterial = MoonPoolGraphics.MaterialFor(map, cell);
+                        Vector3 fieldPos = matrix.MultiplyPoint3x4(new Vector3(cell.x + 0.5f,
+                            AltitudeLayer.Terrain.AltitudeFor(), cell.z + 0.5f));
+                        Material fieldMaterial = MoonPoolGraphics.FieldMaterial;
                         if (fieldMaterial != null && fieldMaterial != BaseContent.BadMat)
                         {
-                            Vector3 fieldPos = matrix.MultiplyPoint3x4(new Vector3(cell.x + 0.5f,
-                                AltitudeLayer.Terrain.AltitudeFor(), cell.z + 0.5f));
                             collector.Add(new OverlayCommand
                             {
                                 mesh = MeshPool.plane10,
                                 matrix = Matrix4x4.TRS(fieldPos, rotation, Vector3.one),
                                 material = fieldMaterial,
                                 queue = fieldMaterial.renderQueue,
+                                sequence = nextSequence++
+                            });
+                            QuadsDrawnLastPass++;
+                        }
+                        Material rimMaterial = MoonPoolGraphics.RimMaterialFor(map, cell);
+                        if (rimMaterial != null && rimMaterial != BaseContent.BadMat)
+                        {
+                            Vector3 rimPos = fieldPos + rotation * new Vector3(0f, Altitudes.AltInc, 0f);
+                            collector.Add(new OverlayCommand
+                            {
+                                mesh = MeshPool.plane10,
+                                matrix = Matrix4x4.TRS(rimPos, rotation, Vector3.one),
+                                material = rimMaterial,
+                                queue = rimMaterial.renderQueue,
                                 sequence = nextSequence++
                             });
                             QuadsDrawnLastPass++;

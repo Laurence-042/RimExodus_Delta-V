@@ -63,14 +63,16 @@ namespace DeltaV
             // 目标图）临时被悬停壳覆盖（2026-09-20 用户决策）；悬停壳 + 火焰盖在
             // 目标甲板之上。
             ForegroundScratch.Clear();
-            Ship flowShip = universe.Approach.FlowShip;
+            PilotTarget flowTarget = universe.Approach.FlowTarget;
             Ship pendingShip = universe.ShipTransitions.PendingDockingShip(universe);
+            Building pendingShuttle = universe.ShipTransitions.pendingShuttleBody;
             foreach (SpaceObject obj in universe.objects)
             {
                 if (obj == frame || !obj.ParticipatesInOverlays) continue;
                 // 进场/选点船的容器壳走前台（聚焦目标图时临时被悬停壳覆盖）。
-                if ((flowShip.IsValid && universe.FrameOf(flowShip.map) == obj)
-                    || (pendingShip.IsValid && universe.FrameOf(pendingShip.map) == obj))
+                if ((flowTarget.IsValid && universe.FrameOf(flowTarget.Map) == obj)
+                    || (pendingShip.IsValid && universe.FrameOf(pendingShip.map) == obj)
+                    || (pendingShuttle != null && universe.FrameOf(pendingShuttle.Map) == obj))
                 {
                     ForegroundScratch.Add(obj);
                 }
@@ -117,13 +119,15 @@ namespace DeltaV
         internal static void OrderShellsById(UniverseManager universe, SpaceObject frame, List<SpaceObject> results)
         {
             results.Clear();
-            Ship flowShip = universe.Approach.FlowShip;
+            PilotTarget flowTarget = universe.Approach.FlowTarget;
             Ship pendingShip = universe.ShipTransitions.PendingDockingShip(universe);
+            Building pendingShuttle = universe.ShipTransitions.pendingShuttleBody;
             foreach (SpaceObject obj in universe.objects)
             {
                 if (obj == frame || !obj.ParticipatesInOverlays) continue;
-                if ((flowShip.IsValid && universe.FrameOf(flowShip.map) == obj)
-                    || (pendingShip.IsValid && universe.FrameOf(pendingShip.map) == obj)) continue;
+                if ((flowTarget.IsValid && universe.FrameOf(flowTarget.Map) == obj)
+                    || (pendingShip.IsValid && universe.FrameOf(pendingShip.map) == obj)
+                    || (pendingShuttle != null && universe.FrameOf(pendingShuttle.Map) == obj)) continue;
                 results.Add(obj);
             }
             results.Sort(CompareById);
@@ -166,8 +170,8 @@ namespace DeltaV
                 .Append(" obj").Append(obj.objectId);
             if (obj.label != null) LayerLogBuf.Append('(').Append(obj.label).Append(')');
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            Ship flowShip = universe?.Approach.FlowShip ?? Ship.Invalid;
-            if (flowShip.IsValid && universe.FrameOf(flowShip.map) == obj)
+            PilotTarget flowTarget = universe?.Approach.FlowTarget ?? PilotTarget.Invalid;
+            if (flowTarget.IsValid && universe.FrameOf(flowTarget.Map) == obj)
                 LayerLogBuf.Append(" docking");
             if (!drew)
             {

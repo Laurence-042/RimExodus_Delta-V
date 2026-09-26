@@ -672,7 +672,6 @@ namespace DeltaV
             WorldShipMarkerRenderer.DrawPlayerShips(this);
             ThrusterEffects.Draw(this);
             // 月池力场（墙壁式连接图；聚焦图每帧绘制，外壳路径在 MapOverlayRenderer）。
-            MoonPoolGraphics.DrawFocused(this);
             // 推进器/船体范围调试叠加（右下角 PlaySettings 开关控制）。
             ThrusterDebugOverlay.DrawFocused(this);
             // 推进器工作音（与火焰同源：只读分配器油门；聚焦图逐推进器 + 船壳整船）。
@@ -1082,7 +1081,7 @@ namespace DeltaV
             ShellRenderer.ClearRuntimeCaches();
             WorldShipMarkerRenderer.ClearRuntimeCaches();
             PlanetGlobeRenderer.ClearRuntimeCaches();
-            ShipPhysics.ClearCache();
+            ShipPhysics.ClearRuntimeCaches();
             ShipRegistry.ClearCaches();
             ThrusterEffects.ClearRuntimeCaches();
             ThrusterAudio.Reset();

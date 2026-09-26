@@ -164,6 +164,7 @@ namespace DeltaV
             float totalMass = 0f;
             var moment = Vector2.zero;
             var massPoints = new List<(Vector2 pos, float mass)>(256);
+            float intrinsicInertia = 0f;
 
             TerrainGrid terrain = map.terrainGrid;
             foreach (IntVec3 cell in CellRect.WholeMap(map))
@@ -192,6 +193,10 @@ namespace DeltaV
                 totalMass += m;
                 moment += r * m;
                 massPoints.Add((r, m));
+                // 建筑不是位于中心的数学质点。矩形薄板绕中心的本征惯量为
+                // m(w²+h²)/12；此前 shuttle 独占图只有一个 3x5 建筑，点质量模型把
+                // 惯量夹成 1，任何侧推都产生数百 rad/s² 的虚假角加速度。
+                intrinsicInertia += m * (rect.Width * rect.Width + rect.Height * rect.Height) / 12f;
                 if (ThrusterPower.IsThruster(thing))
                 {
                     // 出力上限收口（2026-09-27）：滑条 comp 的百分比在此一次性乘入——
@@ -222,14 +227,14 @@ namespace DeltaV
 
             report.mass = totalMass;
             report.comLocal = moment / totalMass;
-            float inertia = 0f;
+            float inertia = intrinsicInertia;
             for (int i = 0; i < massPoints.Count; i++)
             {
                 inertia += massPoints[i].mass * (massPoints[i].pos - report.comLocal).sqrMagnitude;
             }
             report.inertia = Mathf.Max(inertia, 1f);
-            // 虚拟推进器注入（shuttle MiniShip，太空战架构 §7.3）：XML comp 配置的
-            // 包围盒四角 8 台（角点偏移与推力可覆盖）——不经图内推进器建筑，
+            // 虚拟推进器注入（shuttle MiniShip，太空战架构 §7.3）：XML 逐台配置的
+            // 船体帧位置 + 推力矢量（PassengerShuttle 默认 8 台）——不经图内推进器建筑，
             // 但与真实推进器走同一分配器/油门/火焰读取链。
             if (VirtualThrustersByMap.TryGetValue(map, out Thruster[] virtualThrusters))
             {
@@ -252,20 +257,37 @@ namespace DeltaV
 
         public static void ClearVirtualThrusters(Map map) => SetVirtualThrusters(map, null);
 
-        /// <summary>建筑质量：def 带 Mass stat（如 LargeThruster=30）用 stat 实值，否则用 MassPerBuilding。</summary>
+        /// <summary>shuttle 服务的读档自愈判定；布局事实仍来自舱体 def，本表只是缓存。</summary>
+        public static bool HasVirtualThrusters(Map map)
+        {
+            return map != null && VirtualThrustersByMap.ContainsKey(map);
+        }
+
+        /// <summary>
+        /// 建筑质量：def 带 Mass stat（如 LargeThruster=30）用 stat 实值，否则用
+        /// MassPerBuilding；运输舱的 held 内容按原版 CompTransporter.MassUsage 加入，
+        /// 使 shuttle 的质量/矩形惯量随实际载重变化（§7.3）。
+        /// </summary>
         private static float BuildingMass(Thing thing)
         {
+            float mass = MassPerBuilding;
             if (thing.def.statBases != null)
             {
                 for (int i = 0; i < thing.def.statBases.Count; i++)
                 {
                     if (thing.def.statBases[i].stat == StatDefOf.Mass)
                     {
-                        return thing.GetStatValue(StatDefOf.Mass);
+                        mass = thing.GetStatValue(StatDefOf.Mass);
+                        break;
                     }
                 }
             }
-            return MassPerBuilding;
+            CompTransporter transporter = thing.TryGetComp<CompTransporter>();
+            if (transporter != null)
+            {
+                mass += Mathf.Max(0f, transporter.MassUsage);
+            }
+            return mass;
         }
 
         /// <summary>
@@ -755,6 +777,16 @@ namespace DeltaV
         public static void ClearCache()
         {
             Cache.Clear();
+        }
+
+        /// <summary>
+        /// 换档/dev 重建时清除全部可重建物理缓存。普通 ClearCache 不能清虚拟推进器：
+        /// 它也用于同一局游戏内的跨图搬运，清掉会让仍在飞的 shuttle 失去动力。
+        /// </summary>
+        public static void ClearRuntimeCaches()
+        {
+            Cache.Clear();
+            VirtualThrustersByMap.Clear();
         }
     }
 }

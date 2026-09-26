@@ -560,7 +560,11 @@ namespace DeltaV
             // 被拒绝的 tick 不施力。
             bool wantsThrust = Mathf.Abs(command.fx) > 1e-6f || Mathf.Abs(command.fz) > 1e-6f
                 || Mathf.Abs(command.torque) > 1e-6f;
-            if (wantsThrust && !universe.ShipTransitions.RequestThrust(universe, ship, flight.playerInitiated))
+            PilotTarget thrustTarget = flight.shuttleBody != null
+                ? PilotTarget.Of(flight.shuttleBody)
+                : PilotTarget.Of(ship);
+            if (wantsThrust
+                && !universe.ShipTransitions.RequestThrust(universe, thrustTarget, flight.playerInitiated))
             {
                 return; // 本 tick 不施加推进器动量（确认窗暂停游戏，拆分后下一 tick 继续）。
             }

@@ -49,7 +49,7 @@ namespace DeltaV
             for (int i = 0; i < report.thrusters.Count; i++)
             {
                 ShipPhysics.Thruster thruster = report.thrusters[i];
-                if (thruster.throttle <= MinVisibleThrottle || thruster.thing == null || !thruster.thing.Spawned)
+                if (thruster.throttle <= MinVisibleThrottle)
                 {
                     if (thruster.thing != null)
                     {
@@ -57,6 +57,12 @@ namespace DeltaV
                     }
                     continue;
                 }
+                if (thruster.thing == null)
+                {
+                    DrawVirtualFlame(thruster, current);
+                    continue;
+                }
+                if (!thruster.thing.Spawned) continue;
                 DrawFlame(thruster);
                 EmitExhaust(thruster, current);
             }
@@ -68,6 +74,22 @@ namespace DeltaV
             Thing thing = thruster.thing;
             DrawFlame(thing, thruster.throttle, thing.Rotation.AsQuat,
                 GenThing.TrueCenter(thing.Position, thing.Rotation, thing.def.size, 0f));
+        }
+
+        private static CompProperties_GravshipThruster VirtualFlameProps =>
+            DeltaVDefOf.LargeThruster?.GetCompProperties<CompProperties_GravshipThruster>();
+
+        /// <summary>虚拟推进器沿 XML 力矢量反向喷焰；位置与物理作用点完全共用。</summary>
+        private static void DrawVirtualFlame(ShipPhysics.Thruster thruster, Map map)
+        {
+            Vector2 origin = SpaceTransform.ShipLocalOrigin(map);
+            Vector3 center = new Vector3(origin.x + thruster.localPos.x, 0f,
+                origin.y + thruster.localPos.y);
+            Quaternion rotation = Quaternion.LookRotation(
+                new Vector3(thruster.dir.x, 0f, thruster.dir.y), Vector3.up);
+            if (!TryBuildVirtualFlame(thruster, rotation, center, out FlameDraw flame)) return;
+            ApplyFlameBlock(FlameBlock, flame);
+            GenDraw.DrawQuad(flame.material, flame.position, flame.rotation, flame.flameSize, FlameBlock);
         }
 
         /// <summary>一次火焰的全部绘制数据（聚焦图立即绘制与船壳缓冲命令共用计算）。</summary>
@@ -105,6 +127,40 @@ namespace DeltaV
                 renderQueue = FlameRenderQueue
             };
             float flicker = Mathf.Lerp(0.75f, 1f, Mathf.PerlinNoise(thing.thingIDNumber, Time.time * 10f));
+            Color color = Color.white * Mathf.Lerp(0.2f, 1f, visualThrottle) * flicker;
+            color.a = Mathf.Lerp(0.12f, 1f, visualThrottle);
+            flame = new FlameDraw
+            {
+                position = position,
+                rotation = rotation,
+                flameSize = flameSize,
+                material = MaterialPool.MatFrom(request),
+                props = props,
+                color = color
+            };
+            return true;
+        }
+
+        private static bool TryBuildVirtualFlame(ShipPhysics.Thruster thruster, Quaternion rotation,
+            Vector3 thrusterCenter, out FlameDraw flame)
+        {
+            flame = default(FlameDraw);
+            CompProperties_GravshipThruster props = VirtualFlameProps;
+            if (props == null || thruster.thrust <= 0f) return false;
+            float throttle = Mathf.Clamp01(thruster.throttle);
+            float visualThrottle = Mathf.Sqrt(throttle);
+            // 以推力矢量长度同时区分主喷口与姿控喷口；不另设脱离物理事实的视觉布局。
+            float fullSize = Mathf.Lerp(0.35f, 1.35f, Mathf.Clamp01(thruster.thrust / 280f));
+            float flameSize = fullSize * Mathf.Lerp(0.08f, 1f, visualThrottle);
+            Vector3 facing = rotation * Vector3.forward;
+            Vector3 position = thrusterCenter - facing * flameSize * 0.5f;
+            position = position.SetToAltitude(AltitudeLayer.Skyfaller).WithYOffset(0.07317074f);
+            MaterialRequest request = new MaterialRequest(props.FlameShaderType.Shader)
+            {
+                renderQueue = FlameRenderQueue
+            };
+            float seed = thruster.localPos.x * 17.13f + thruster.localPos.y * 31.71f;
+            float flicker = Mathf.Lerp(0.75f, 1f, Mathf.PerlinNoise(seed, Time.time * 10f));
             Color color = Color.white * Mathf.Lerp(0.2f, 1f, visualThrottle) * flicker;
             color.a = Mathf.Lerp(0.12f, 1f, visualThrottle);
             flame = new FlameDraw
@@ -175,10 +231,25 @@ namespace DeltaV
             for (int i = 0; i < report.thrusters.Count; i++)
             {
                 ShipPhysics.Thruster thruster = report.thrusters[i];
-                if (thruster.throttle <= MinVisibleThrottle || thruster.thing == null || !thruster.thing.Spawned)
+                if (thruster.throttle <= MinVisibleThrottle)
                 {
                     continue;
                 }
+                if (thruster.thing == null)
+                {
+                    Vector2 origin = SpaceTransform.ShipLocalOrigin(map);
+                    Vector3 virtualCenter = new Vector3(origin.x + thruster.localPos.x, 0f,
+                        origin.y + thruster.localPos.y);
+                    Quaternion localRotation = Quaternion.LookRotation(
+                        new Vector3(thruster.dir.x, 0f, thruster.dir.y), Vector3.up);
+                    if (TryBuildVirtualFlame(thruster, rotation * localRotation,
+                        matrix.MultiplyPoint3x4(virtualCenter), out FlameDraw virtualFlame))
+                    {
+                        AddFlameCommand(virtualFlame);
+                    }
+                    continue;
+                }
+                if (!thruster.thing.Spawned) continue;
                 Thing thing = thruster.thing;
                 Vector3 center = GenThing.TrueCenter(thing.Position, thing.Rotation, thing.def.size, 0f);
                 if (!TryBuildFlame(thing, thruster.throttle, rotation * thing.Rotation.AsQuat,
@@ -186,16 +257,21 @@ namespace DeltaV
                 {
                     continue;
                 }
-                while (FlameBlockPool.Count <= flameBlockCursor)
-                {
-                    FlameBlockPool.Add(new MaterialPropertyBlock());
-                }
-                MaterialPropertyBlock block = FlameBlockPool[flameBlockCursor++];
-                ApplyFlameBlock(block, flame);
-                MapOverlayRenderer.AddFlameCommand(MeshPool.plane10,
-                    Matrix4x4.TRS(flame.position, flame.rotation, new Vector3(flame.flameSize, 1f, flame.flameSize)),
-                    flame.material, block);
+                AddFlameCommand(flame);
             }
+        }
+
+        private static void AddFlameCommand(FlameDraw flame)
+        {
+            while (FlameBlockPool.Count <= flameBlockCursor)
+            {
+                FlameBlockPool.Add(new MaterialPropertyBlock());
+            }
+            MaterialPropertyBlock block = FlameBlockPool[flameBlockCursor++];
+            ApplyFlameBlock(block, flame);
+            MapOverlayRenderer.AddFlameCommand(MeshPool.plane10,
+                Matrix4x4.TRS(flame.position, flame.rotation,
+                    new Vector3(flame.flameSize, 1f, flame.flameSize)), flame.material, block);
         }
 
         private static void EmitExhaust(ShipPhysics.Thruster thruster, Map map)

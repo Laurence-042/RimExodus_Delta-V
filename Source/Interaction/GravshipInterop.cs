@@ -88,10 +88,11 @@ namespace DeltaV
         /// <summary>
         /// 选点/合法性复核共用的零消费预览：脚印取船的控制域（捕获同口径，不要求引擎），
         /// 字段只读填充。选点期与完成期复核各建一次（复核要读**当前**脚印——对接期间的
-        /// 扩建会改变它）。mainConsole 可为 null（shuttle 舱体脚印预览：跳过主台/驾驶台
-        /// 字段，落点朝向由调用方以舱体朝向提供——ComputeLandingPose 的 shuttle 分支）。
+        /// 扩建会改变它）。mainConsole 可为 null；previewBody 用于 shuttle，把真实舱体
+        /// 作为只读 PositionData 放进同一个原版 ThingPlacements 旋转链，禁止调用方另算朝向。
         /// </summary>
-        internal static Gravship BuildPreview(HashSet<IntVec3> cells, Building mainConsole, Map sourceMap = null)
+        internal static Gravship BuildPreview(HashSet<IntVec3> cells, Building mainConsole,
+            Map sourceMap = null, Building previewBody = null)
         {
             if (EmptyCtor == null || cells == null || cells.Count == 0) return null;
             Map map = sourceMap ?? mainConsole?.Map;
@@ -123,6 +124,12 @@ namespace DeltaV
                 things[mainConsole] = new PositionData(mainConsole.Position - origin, mainConsole.Rotation);
                 ConsoleField?.SetValue(gravship, mainConsole);
             }
+            if (previewBody != null && previewBody != mainConsole && previewBody.Spawned
+                && previewBody.Map == map && cells.Contains(previewBody.Position))
+            {
+                var things = (Dictionary<Thing, PositionData>)ThingsField?.GetValue(gravship);
+                things[previewBody] = new PositionData(previewBody.Position - origin, previewBody.Rotation);
+            }
 
             var thrusters = (Dictionary<Thing, PositionData>)ThrustersField?.GetValue(gravship);
             foreach (Thing thing in map.listerThings.AllThings)
@@ -135,6 +142,19 @@ namespace DeltaV
                 }
             }
             return gravship;
+        }
+
+        /// <summary>读取原版 Gravship.ThingPlacements 得到旋转后的最终 Thing 朝向。</summary>
+        internal static bool TryPlacedRotation(Gravship gravship, Thing thing, out Rot4 rotation)
+        {
+            if (gravship != null && thing != null
+                && gravship.ThingPlacements.TryGetValue(thing, out PositionData.Data placement))
+            {
+                rotation = placement.rotation;
+                return true;
+            }
+            rotation = Rot4.Invalid;
+            return false;
         }
 
         // ---- 无引擎搬运镜像（本 mod 对 Gravship(engine) 构造器与 GenerateGravship

@@ -467,8 +467,8 @@ namespace DeltaV
                 foreach (SpaceObject obj in universe.objects)
                 {
                     if (!obj.ParticipatesInOverlays) continue;
-                    Ship flowShip = universe.Approach.FlowShip;
-                    if (flowShip.IsValid && universe.FrameOf(flowShip.map) == obj) continue;
+                    PilotTarget flowTarget = universe.Approach.FlowTarget;
+                    if (flowTarget.IsValid && universe.FrameOf(flowTarget.Map) == obj) continue;
                     if (Vector3.Dot(obj.pose.position, shipDir) <= 0f) continue;
                     Vector2 pos = Project(obj.pose.position);
                     float distance = OrbitSphere.ArcCells(referenceDir, obj.pose.position);

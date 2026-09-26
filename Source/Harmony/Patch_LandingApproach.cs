@@ -107,7 +107,8 @@ namespace DeltaV
     /// 到达重放窗口已退役）。仍禁存档的窗口：
     /// 选点阶段（原版会深序列化 marker.gravship 与控制器 landingMarker——空洞预览
     /// Gravship 不具备落盘语义）、对接完成→收尾之间的源图处置窗口（转移中状态，
-    /// 毫秒级）、跳帮舱飞行（乘员在运行时 ThingOwner 容器中，落盘即丢失）。
+    /// 毫秒级）。在飞 shuttle 是可序列化 SpaceObject + 原版 CompTransporter，飞行期
+    /// 可正常存档；侵入/对接任务不落盘，读档后按已保存速度漂移。
     /// 计划飞行阶段可正常存档（计划与自动驾驶任务均为实例运行时数据、不落盘）。
     /// </summary>
     [HarmonyPatch(typeof(GameDataSaveLoader), nameof(GameDataSaveLoader.SavingIsTemporarilyDisabled), MethodType.Getter)]

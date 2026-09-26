@@ -52,7 +52,21 @@
 		<modExtensions>
 			<li Class="DeltaV.DefModExtension_BoardingProfile">
 				<canBoard>true</canBoard>
-				<thrusterThrust>260</thrusterThrust>
+				<!--
+					完整替换继承 comp 的默认布局，而非覆盖一个全局推力。空载 140 质量，
+					矩形惯量 I=140*(3^2+5^2)/12≈396.7；姿控单台 35 时一对
+					产生 157.5 力矩，角加速度≈0.397 rad/s²。载重会按真实质量继续降低响应。
+				-->
+				<virtualThrusters>
+					<li><position>(-2.25,0)</position><force>(280,0)</force></li>
+					<li><position>(2.25,0)</position><force>(-280,0)</force></li>
+					<li><position>(0,-1.25)</position><force>(0,70)</force></li>
+					<li><position>(0,1.25)</position><force>(0,-70)</force></li>
+					<li><position>(2.25,-1.25)</position><force>(0,35)</force></li>
+					<li><position>(-2.25,1.25)</position><force>(0,-35)</force></li>
+					<li><position>(2.25,1.25)</position><force>(0,-35)</force></li>
+					<li><position>(-2.25,-1.25)</position><force>(0,35)</force></li>
+				</virtualThrusters>
 			</li>
 		</modExtensions>
 		<uiOrder>2601</uiOrder>
