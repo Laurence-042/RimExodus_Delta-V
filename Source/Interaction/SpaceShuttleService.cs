@@ -9,21 +9,21 @@ namespace DeltaV
     /// <summary>
     /// shuttle comp（太空战架构 §7）：舱体建筑 = 原版 CompTransporter 装货 + 原版
     /// CompLaunchable 发射语义（起飞门禁 = 原版 CanLaunch 结果直取，月池豁免屋顶项
-    /// 见 Patch_MoonPool）+ 虚拟推进器 XML 配置（默认包围盒四角 8 台）+ 侵入能力
-    ///（per-def canBoard）。停靠时是普通建筑；起飞后 = MiniShip（tag=Shuttle 容器，
-    /// 停靠回落建筑）。与飞船不得有两套逻辑：飞行/驾驶/自动驾驶/受击/停靠全部复用
-    /// 同一实现，shuttle 特有的只有起飞后的回落与侵入（= 导弹机制）。
+    /// 见 Patch_MoonPool）+ 虚拟推进器 XML 配置（默认 8 台；位置/推力矢量逐台定义）+ 侵入能力
+    ///（per-def canBoard）。停靠时是普通建筑；起飞后 = MiniShip（tag=Shuttle 容器）。
+    /// 与飞船不得有两套逻辑：飞行/驾驶/自动驾驶/受击/普通停靠全部复用同一实现；
+    /// shuttle 特有的只有单建筑域属性、落地冷却与侵入（= 导弹机制）。
     /// </summary>
     public class CompProperties_SpaceShuttle : CompProperties
     {
         /// <summary>具备侵入式对接能力（跳帮特化；普通 shuttle false）。</summary>
         public bool canBoard;
 
-        /// <summary>虚拟推进器单台推力（默认与原版常量同量级；机动性 per-def 调）。</summary>
-        public float virtualThrusterThrust = 400f;
-
-        /// <summary>角点内缩（相对包围盒角；0 = 精确四角）。</summary>
-        public float cornerInset = 0.25f;
+        /// <summary>
+        /// 默认虚拟推进器布局。每项的位置/推力矢量都在 shuttle 船体帧中表达；
+        /// DefModExtension_BoardingProfile.virtualThrusters 非空时整体覆盖本表。
+        /// </summary>
+        public List<ShuttleThrusterConfig> virtualThrusters;
 
         public CompProperties_SpaceShuttle()
         {
@@ -41,15 +41,11 @@ namespace DeltaV
         /// <summary>是否具备侵入式对接能力（唯一解析点：modExtension.canBoard ∨ comp.canBoard）。</summary>
         public bool CanBoard => BoardingProfile?.canBoard == true || ShuttleProps.canBoard;
 
-        /// <summary>虚拟推进器出力（唯一解析点：modExtension 覆盖 &gt;0 时优先，否则 comp 默认）。</summary>
-        public float EffectiveThrust
-        {
-            get
-            {
-                float overrideThrust = BoardingProfile?.thrusterThrust ?? -1f;
-                return overrideThrust > 0f ? overrideThrust : ShuttleProps.virtualThrusterThrust;
-            }
-        }
+        /// <summary>虚拟推进器布局唯一解析点：modExtension 非空表优先，否则用 comp 默认表。</summary>
+        public IReadOnlyList<ShuttleThrusterConfig> ThrusterLayout =>
+            BoardingProfile?.virtualThrusters != null && BoardingProfile.virtualThrusters.Count > 0
+                ? BoardingProfile.virtualThrusters
+                : ShuttleProps.virtualThrusters;
 
         public CompLaunchable Launchable => parent.TryGetComp<CompLaunchable>();
 
@@ -83,41 +79,15 @@ namespace DeltaV
                 }
                 yield return launch;
             }
-            // 普通对接（§7.4：与飞船同一对接计划管线；入口 = 舱体 gizmo）。
-            SpaceObject ownContainer = Container;
-            if (ownContainer != null && ownContainer.baseTag == SpaceObjectTag.Shuttle
-                && !ownContainer.projectileRoleOverride && parent is Building dockableBody)
-            {
-                var dock = new Command_Action
-                {
-                    defaultLabel = "DeltaV_ShuttleDockGizmo".Translate(),
-                    defaultDesc = "DeltaV_ShuttleDockGizmoTip".Translate(),
-                    icon = TexCommand.Install,
-                    action = delegate { universe.ShipTransitions.BeginDockingShuttle(dockableBody); }
-                };
-                yield return dock;
-            }
-            // 侵入目标指定（在飞 + canBoard + 面板开关）：点击敌舰外壳。
-            if (CanBoard && ownContainer != null
-                && ownContainer.baseTag == SpaceObjectTag.Shuttle
-                && universe.Shuttles.IntrusionArmed(ownContainer)
-                && parent is Building shuttleBuilding)
-            {
-                yield return new Command_Action
-                {
-                    defaultLabel = "DeltaV_ShuttleBoardGizmo".Translate(),
-                    defaultDesc = "DeltaV_ShuttleBoardGizmoTip".Translate(),
-                    icon = TexCommand.Attack,
-                    action = delegate { universe.Shuttles.BeginBoardTargeting(PilotTarget.Of((Building)parent)); }
-                };
-            }
+            // 起飞后其余操作（驾驶切换/选择对接/侵入目标指定）统一在 ShipStatusPanel，
+            // gizmo 只保留停船状态（普通建筑）必需的起飞入口（2026-09-27 双入口收敛定案）。
         }
     }
 
     /// <summary>
     /// shuttle 服务（太空战架构 §7/§10，universe.Shuttles 实例服务）：起飞（原版校验
-    /// 直取 + 单建筑捕获进口袋）、停靠直接用对接计划服务（LandingApproachController
-    /// 的 shuttle 变体，降落后处理=唯一差异分支）、侵入编排（tag 切换的导弹机制）。
+    /// 直取 + 单建筑捕获进口袋）、停靠复用飞船的 Gravship 捕获/剥离/放置链、
+    /// 侵入编排（tag 切换的导弹机制）。
     /// 与飞船共用：ShipPhysics（虚拟推进器注入）、ShipAutopilot（TrackTo/Pursue）、
     /// PilotService（PilotTarget）、SpaceCollision（联合效果）。运行时数据不序列化。
     /// </summary>
@@ -183,42 +153,35 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 虚拟推进器注入（§7.3，2026-09-26 二次修正）：四角各一组两台 RCS——
-        /// **喷口向外喷、推力指向船内**（dir = 推力方向 = 指向该角内侧）。四角合计
-        /// ±X/±Y 四向全覆盖且力臂对称（推力过角点、喷口远离船体；旧版 dir 向外 =
-        /// 喷口朝船体喷，仅一个角的表恰好正确——实测报障）。推力 comp 可覆盖。
+        /// 虚拟推进器注入（§7.3）：逐项读取 XML 的「船体帧位置 + 推力矢量」，再按
+        /// 舱体当前 Rot4 一次性转进稳定 Map 局部系。默认 PassengerShuttle 表是 8 台，
+        /// 但数量、位置、方向和大小都可由 def/跳帮档位完整替换；此处不生成第二套布局。
         /// </summary>
         private static void InjectVirtualThrusters(CompSpaceShuttle comp, Map pocket, Building hull)
         {
             Vector2 origin = SpaceTransform.ShipLocalOrigin(pocket);
-            CellRect rect = hull.OccupiedRect();
-            var props = comp.ShuttleProps;
-            float minX = rect.minX + 0.5f + props.cornerInset;
-            float maxX = rect.maxX + 0.5f - props.cornerInset;
-            float minZ = rect.minZ + 0.5f + props.cornerInset;
-            float maxZ = rect.maxZ + 0.5f - props.cornerInset;
-            var corners = new[]
+            Vector2 hullCenter = SpaceTransform.BoundsCenterOfCells(hull.OccupiedRect().Cells);
+            float frameAngle = ShipOrientation.AngleFromRot4(hull.Rotation);
+            IReadOnlyList<ShuttleThrusterConfig> layout = comp.ThrusterLayout;
+            var thrusters = new List<ShipPhysics.Thruster>(layout?.Count ?? 0);
+            if (layout != null)
             {
-                new Vector2(minX, minZ), new Vector2(maxX, minZ),
-                new Vector2(minX, maxZ), new Vector2(maxX, maxZ),
-            };
-            var thrusters = new List<ShipPhysics.Thruster>(8);
-            foreach (Vector2 corner in corners)
-            {
-                Vector2 local = corner - origin;
-                // 推力方向 = 指向中心的分量符号（角在 +x 侧 → X 轴推力 −x，喷口朝 +x 外喷）。
-                float sx = corner.x >= origin.x ? -1f : 1f;
-                float sz = corner.y >= origin.y ? -1f : 1f;
-                thrusters.Add(new ShipPhysics.Thruster
+                for (int i = 0; i < layout.Count; i++)
                 {
-                    thing = null, localPos = local, dir = new Vector2(sx, 0f),
-                    operational = true, thrust = comp.EffectiveThrust,
-                });
-                thrusters.Add(new ShipPhysics.Thruster
-                {
-                    thing = null, localPos = local, dir = new Vector2(0f, sz),
-                    operational = true, thrust = comp.EffectiveThrust,
-                });
+                    ShuttleThrusterConfig configured = layout[i];
+                    if (configured == null || configured.force.sqrMagnitude <= 1e-6f) continue;
+                    Vector2 mapForce = SpaceTransform.Rotate(configured.force, frameAngle);
+                    float thrust = mapForce.magnitude;
+                    thrusters.Add(new ShipPhysics.Thruster
+                    {
+                        thing = null,
+                        localPos = hullCenter - origin
+                            + SpaceTransform.Rotate(configured.position, frameAngle),
+                        dir = mapForce / thrust,
+                        operational = true,
+                        thrust = thrust,
+                    });
+                }
             }
             ShipPhysics.SetVirtualThrusters(pocket, thrusters.ToArray());
         }
@@ -282,7 +245,17 @@ namespace DeltaV
             foreach (SpaceObject container in containers)
             {
                 Building hull = HullOf(container);
-                if (hull != null && !hull.Destroyed) continue;
+                if (hull != null && !hull.Destroyed)
+                {
+                    // 虚拟推进器是由舱体 def 可重建的运行时缓存，不序列化。换档清理后
+                    // 首 tick 在唯一注入入口重建，保证在飞 shuttle 存读档后仍可驾驶。
+                    if (!ShipPhysics.HasVirtualThrusters(container.map))
+                    {
+                        CompSpaceShuttle comp = hull.TryGetComp<CompSpaceShuttle>();
+                        if (comp != null) InjectVirtualThrusters(comp, container.map, hull);
+                    }
+                    continue;
+                }
                 SpaceObject captured = container;
                 DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"shuttle container #{captured.objectId}: hull destroyed in-map; MiniShip torn down");
@@ -480,25 +453,6 @@ namespace DeltaV
                 DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"boarded shuttle placed inside '{defender.label}' at {placed}; container #{container.objectId} destroyed");
             });
-        }
-
-        /// <summary>
-        /// 停靠回落（普通对接完成，§7.4 唯一差异分支的执行体）：回落建筑 + 原版冷却。
-        /// 口袋容器的处置（销图/注销）由调用方在帧边界经 <see cref="DisposeShuttlePocket"/>
-        /// 执行（完成路径在 tick 调用栈内）。
-        /// </summary>
-        public void PlaceDockedShuttle(Building hull, Map targetMap, IntVec3 cell, Rot4 rotation)
-        {
-            Map pocket = hull.Map;
-            hull.DeSpawn(DestroyMode.WillReplace);
-            GenSpawn.Spawn(hull, cell, targetMap, rotation);
-            StartLaunchCooldown(hull.TryGetComp<CompLaunchable>());
-            if (pocket != null && pocket != targetMap)
-            {
-                ShipPhysics.ClearVirtualThrusters(pocket);
-            }
-            SubstructureOwnership.BumpStructureVersion();
-            PlanetGlobeRenderer.InvalidateSilhouette(targetMap);
         }
 
         /// <summary>停靠/击落后的口袋容器处置（帧边界执行）：销图 + 注销容器 + 清运行时键。</summary>

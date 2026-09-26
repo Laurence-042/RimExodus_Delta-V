@@ -68,7 +68,7 @@
   <DeltaV_PoiPacked>POI {0}: map removed (snapshot saved).</DeltaV_PoiPacked>
   <DeltaV_PoiRestored>POI {0}: map restored from snapshot.</DeltaV_PoiRestored>
   <DeltaV_PanelSectorTitle>Space: {0}</DeltaV_PanelSectorTitle>
-  <DeltaV_PanelPickConsoleTip>Several ships are docked here. Select the target ship's pilot console and enter pilot mode from its gizmo.</DeltaV_PanelPickConsoleTip>
+  <DeltaV_PanelPickConsoleTip>Several ships are docked here. Select the target ship's pilot console, claim it with its "Make primary console" gizmo, then enter pilot mode.</DeltaV_PanelPickConsoleTip>
   <DeltaV_PanelGlobeZoomOut>Planet</DeltaV_PanelGlobeZoomOut>
   <DeltaV_PanelGlobeZoomIn>Sector</DeltaV_PanelGlobeZoomIn>
   <DeltaV_PanelGlobeDistance>{0} cells</DeltaV_PanelGlobeDistance>
@@ -109,14 +109,6 @@
   <DeltaV_DockPlanBlocksDesignator>Docking in progress: structural and planning changes are locked. Cancel the docking first.</DeltaV_DockPlanBlocksDesignator>
   <DeltaV_DockPlanBlocksLaunch>Docking in progress: gravship launch is locked. Cancel the docking first.</DeltaV_DockPlanBlocksLaunch>
   <DeltaV_PilotWrongFaction>Only player-owned ships can be piloted.</DeltaV_PilotWrongFaction>
-  <!-- Boarding pod (2026-09-21, phase 4) -->
-  <DeltaV_PodLaunchLabel>Launch boarding pod</DeltaV_PodLaunchLabel>
-  <DeltaV_PodLaunchDesc>Load the currently selected colonists into a boarding pod and fire it: the pod homes in on the target ship like a missile, punches through the outer shell, seals the breach with its own hull and deploys the crew inside. One-way insertion.</DeltaV_PodLaunchDesc>
-  <DeltaV_PodNeedCrew>Select the colonists to deploy (on this ship) first.</DeltaV_PodNeedCrew>
-  <DeltaV_PodNoTarget>You must aim at another loaded ship's hull.</DeltaV_PodNoTarget>
-  <DeltaV_PodLaunched>Boarding pod launched: {0} crew -> {1}.</DeltaV_PodLaunched>
-  <DeltaV_PodImpact>Boarding pod hit {0}: the breach is plugged by the sealed pod hull and the crew is inside.</DeltaV_PodImpact>
-  <DeltaV_PodLost>Boarding pod lost (timeout or target destroyed); crew missing.</DeltaV_PodLost>
   <!-- Settings (phase 4) -->
   <DeltaV_SettingsDockingHoldTicks>Docking hold time (ticks)</DeltaV_SettingsDockingHoldTicks>
   <DeltaV_SettingsDockingHoldTicksTip>Docking check: after matching the marked pose, the ship must hold it this long to complete docking (so a fast fly-by never counts as docked). Larger values are safer against misjudged dockings but demand steadier flying and patience; smaller values finish sooner. Range 1-600; default 60 (1 second).</DeltaV_SettingsDockingHoldTicksTip>
@@ -205,10 +197,8 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShuttleBoardNoTarget>No container hull at that spot.</DeltaV_ShuttleBoardNoTarget>
   <DeltaV_ShuttleBoardEngaged>Intrusion engaged: ramming {0}.</DeltaV_ShuttleBoardEngaged>
   <DeltaV_PanelBoardArm>Board</DeltaV_PanelBoardArm>
-  <DeltaV_PanelBoardArmTip>Arm the intrusion drive for this shuttle (gizmo on its hull picks the target). Pressing any flight key breaks off the ram and returns manual control; the target is kept.</DeltaV_PanelBoardArmTip>
+  <DeltaV_PanelBoardArmTip>Arm the intrusion drive for this shuttle (pick the target with the "Ram target hull" button in the status panel). Pressing any flight key breaks off the ram and returns manual control; the target is kept.</DeltaV_PanelBoardArmTip>
 
-  <DeltaV_ShuttleDockGizmo>Dock</DeltaV_ShuttleDockGizmo>
-  <DeltaV_ShuttleDockGizmoTip>Pick a target container, choose a landing site, and autopilot (or fly manually) into the hold — the same docking plan pipeline ships use.</DeltaV_ShuttleDockGizmoTip>
   <DeltaV_DebugThrustersToggleButton>Show Delta-V thruster vectors and hull extent</DeltaV_DebugThrustersToggleButton>
 
   <DeltaV_ThrusterPowerTitle>Set thruster power limit</DeltaV_ThrusterPowerTitle>

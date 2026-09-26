@@ -330,7 +330,7 @@ namespace DeltaV
                     Widgets.Label(rowRect.ContractedBy(4f), rowLabel);
                     Text.Anchor = TextAnchor.UpperLeft;
                     GUI.color = Color.white;
-                    // 侵入武装开关（canBoard 的在飞 shuttle；gizmo 在舱体上）。
+                        // 侵入武装开关（canBoard 的在飞 shuttle）；目标指定按钮在下方 shuttle 区块。
                     Building hull = SpaceShuttleService.HullOf(shuttleContainer);
                     if (hull?.TryGetComp<CompSpaceShuttle>()?.CanBoard == true)
                     {
@@ -453,7 +453,8 @@ namespace DeltaV
             }
             else if (multiConsoleAmbiguous && zeroGravity)
             {
-                // 多艘逆重飞船共泊：不能任选一台驾驶台，指引到具体驾驶台的 gizmo。
+                // 多艘逆重飞船共泊：不能任选一台驾驶台，指引选中具体驾驶台后用
+                // 「设为主驾驶台」gizmo 认领（该 gizmo 是侧边栏未覆盖的保留项）。
                 var pickRect = new Rect(0f, lineY, drawWidth, 27f);
                 Text.Font = GameFont.Small;
                 GUI.color = new Color(1f, 1f, 1f, 0.4f);
@@ -487,6 +488,19 @@ namespace DeltaV
                         {
                             universe.ShipTransitions.BeginDockingShuttle(hull);
                         }
+                        lineY += 27f + 8f;
+                    }
+                    // 侵入目标指定（在飞 + canBoard + 武装开启）：唯一入口，点击敌舰外壳。
+                    if (frame.baseTag == SpaceObjectTag.Shuttle
+                        && hull.TryGetComp<CompSpaceShuttle>()?.CanBoard == true
+                        && universe.Shuttles.IntrusionArmed(frame))
+                    {
+                        var boardRect = new Rect(0f, lineY, drawWidth, 27f);
+                        if (Widgets.ButtonText(boardRect, "DeltaV_ShuttleBoardGizmo".Translate()))
+                        {
+                            universe.Shuttles.BeginBoardTargeting(PilotTarget.Of(hull));
+                        }
+                        TooltipHandler.TipRegion(boardRect, "DeltaV_ShuttleBoardGizmoTip".Translate());
                         lineY += 27f + 8f;
                     }
                 }

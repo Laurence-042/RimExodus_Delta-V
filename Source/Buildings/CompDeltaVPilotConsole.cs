@@ -276,33 +276,11 @@ namespace DeltaV
             {
                 yield break;
             }
-            bool playerSide = parent.Faction == Faction.OfPlayer || DebugSettings.godMode;
-
-            // 驾驶入口只服务「有宇宙容器且零重力」的图（地表/重力图只能逆重战略发射）。
-            bool spaceMap = parent.Map != null && universe.FrameOf(parent.Map) != null
-                && FreeFlightBootstrap.IsZeroGravity(universe, parent.Map);
-
             Ship ship = Ship;
             if (ship.IsValid)
             {
-                // 驾驶切换（停靠/自由飞行统一入口，2026-09-24 统一分离定案）：已停靠的
-                // 船同样可进入驾驶——首次推进器出力即触发与其余部分的分离，「脱离
-                // 停靠」不再是独立命令。
-                if (playerSide && spaceMap)
-                {
-                    ShipControlState control = universe.Pilot.GetControlState(ship);
-                    bool planUnderManualControl = control == ShipControlState.Manual
-                        && universe.Approach.ActivePlan?.ship.ownerId == ship.ownerId;
-                    string label = planUnderManualControl
-                        ? "DeltaV_ControlSwitchAutopilot".Translate()
-                        : universe.Pilot.IsPlayerInputArmed(ship)
-                            ? "DeltaV_PilotButtonExit".Translate()
-                            : "DeltaV_PilotButtonEnter".Translate();
-                    yield return NewAction(label, TexCommand.Draft,
-                        () => universe.Pilot.ToggleControl(universe, ship));
-                }
-
-                // 主台专属：改名与主动降级。
+                // 主台专属：改名与主动降级。驾驶切换/认领入口统一在 ShipStatusPanel，
+                // gizmo 只保留侧边栏没有的功能（2026-09-27 双入口收敛定案）。
                 yield return NewAction("DeltaV_ConsoleGizmoRename".Translate(), TexButton.Rename,
                     () => Find.WindowStack.Add(new Dialog_RenameStructure(
                         universe.LabelForOwner(ship.ownerId),
@@ -312,29 +290,6 @@ namespace DeltaV
                     ContentFinder<Texture2D>.Get("UI/Designators/Cancel"),
                     () => MakeBackupConsole(),
                     "DeltaV_ConsoleGizmoBackupTip".Translate());
-            }
-            else if (parent.Faction == Faction.OfPlayer && spaceMap)
-            {
-                // 未形成船的驾驶台（口袋/POI 图未认领）：认领主台并直接进入驾驶；
-                // 首次出力触发分离。重力/地表图无此入口（只能逆重战略发射）。
-                yield return NewAction("DeltaV_PilotButtonEnter".Translate(), TexCommand.Draft,
-                    () =>
-                    {
-                        if (!isMain)
-                        {
-                            MakeMainConsole();
-                        }
-                        Ship claimed = Ship;
-                        if (claimed.IsValid)
-                        {
-                            universe.Pilot.Enter(universe, claimed);
-                        }
-                        else
-                        {
-                            Messages.Message("DeltaV_PilotNeedShipFocus".Translate(),
-                                MessageTypeDefOf.RejectInput, false);
-                        }
-                    });
             }
 
             if (!isMain)

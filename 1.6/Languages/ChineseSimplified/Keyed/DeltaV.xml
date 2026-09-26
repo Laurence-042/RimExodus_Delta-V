@@ -68,7 +68,7 @@
   <DeltaV_PoiPacked>POI {0}：已删除地图（快照保存）。</DeltaV_PoiPacked>
   <DeltaV_PoiRestored>POI {0}：已从快照恢复地图。</DeltaV_PoiRestored>
   <DeltaV_PanelSectorTitle>太空：{0}</DeltaV_PanelSectorTitle>
-  <DeltaV_PanelPickConsoleTip>本图停靠了多艘飞船：请选中目标船的驾驶台，经其「驾驶此船」进入驾驶。</DeltaV_PanelPickConsoleTip>
+  <DeltaV_PanelPickConsoleTip>本图停靠了多艘飞船：请选中目标船的驾驶台，用其「设为主驾驶台」认领后再进入驾驶。</DeltaV_PanelPickConsoleTip>
   <DeltaV_PanelGlobeZoomOut>星球</DeltaV_PanelGlobeZoomOut>
   <DeltaV_PanelGlobeZoomIn>星区</DeltaV_PanelGlobeZoomIn>
   <DeltaV_PanelGlobeDistance>{0} 格</DeltaV_PanelGlobeDistance>
@@ -109,14 +109,6 @@
   <DeltaV_DockPlanBlocksDesignator>对接进行中：无法变更船体结构或规划。取消对接后再试。</DeltaV_DockPlanBlocksDesignator>
   <DeltaV_DockPlanBlocksLaunch>对接进行中：无法发起逆重发射。取消对接后再试。</DeltaV_DockPlanBlocksLaunch>
   <DeltaV_PilotWrongFaction>只有玩家方的飞船可以驾驶。</DeltaV_PilotWrongFaction>
-  <!-- 跳帮舱（2026-09-21 阶段4） -->
-  <DeltaV_PodLaunchLabel>发射跳帮舱</DeltaV_PodLaunchLabel>
-  <DeltaV_PodLaunchDesc>把当前选中的殖民者装入跳帮舱发射：舱体像导弹一样追踪目标船，命中后撞穿外壳开孔、密封舱落位堵孔，乘员在落点旁进入目标船内部。单程投放。</DeltaV_PodLaunchDesc>
-  <DeltaV_PodNeedCrew>请先选中要投放的殖民者（在本船上）。</DeltaV_PodNeedCrew>
-  <DeltaV_PodNoTarget>必须瞄准另一艘已加载的飞船外壳。</DeltaV_PodNoTarget>
-  <DeltaV_PodLaunched>跳帮舱已发射：{0} 名乘员 → {1}。</DeltaV_PodLaunched>
-  <DeltaV_PodImpact>跳帮舱命中 {0}：外壳破孔已由密封舱封堵，乘员已进入。</DeltaV_PodImpact>
-  <DeltaV_PodLost>跳帮舱失联（超时或目标被摧毁），乘员失踪。</DeltaV_PodLost>
   <!-- 设置（阶段4） -->
   <DeltaV_SettingsDockingHoldTicks>对接保持时长（tick）</DeltaV_SettingsDockingHoldTicks>
   <DeltaV_SettingsDockingHoldTicksTip>对接判定：与预定落点对准后需要原地保持多久才算完成（防止高速掠过被误判为对接成功）。数值越大越不容易误判，但要求飞得更稳、等得更久；越小完成越快。范围 1–600；默认 60（1 秒）。</DeltaV_SettingsDockingHoldTicksTip>
@@ -205,10 +197,8 @@
   <DeltaV_ShuttleBoardNoTarget>该处没有可撞击的容器外壳。</DeltaV_ShuttleBoardNoTarget>
   <DeltaV_ShuttleBoardEngaged>侵入已发起：正在冲撞 {0}。</DeltaV_ShuttleBoardEngaged>
   <DeltaV_PanelBoardArm>侵入</DeltaV_PanelBoardArm>
-  <DeltaV_PanelBoardArmTip>武装此 shuttle 的侵入驱动（在其舱体 gizmo 上指定目标）。任意驾驶键可打断冲撞回到手动；目标保留。</DeltaV_PanelBoardArmTip>
+  <DeltaV_PanelBoardArmTip>武装此 shuttle 的侵入驱动（在侧边栏「撞击敌壳」按钮指定目标）。任意驾驶键可打断冲撞回到手动；目标保留。</DeltaV_PanelBoardArmTip>
 
-  <DeltaV_ShuttleDockGizmo>对接</DeltaV_ShuttleDockGizmo>
-  <DeltaV_ShuttleDockGizmoTip>选择目标容器与落点，自动驾驶（或手操）入泊——与飞船完全相同的对接计划管线。</DeltaV_ShuttleDockGizmoTip>
   <DeltaV_DebugThrustersToggleButton>显示 Delta-V 推进器矢量与船体范围</DeltaV_DebugThrustersToggleButton>
 
   <DeltaV_ThrusterPowerTitle>设置推进器出力上限</DeltaV_ThrusterPowerTitle>
