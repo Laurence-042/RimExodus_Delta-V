@@ -289,29 +289,6 @@ public readonly struct PilotTarget
 
         // ---- 状态 ----
 
-        /// <summary>
-        /// 瞄准模式（驾驶的子模式，太空战架构 §6.1）：运行时开关、不序列化；只改输入
-        /// 路由（瞄准会话内左键=主套射击、右键=副套，原版点选/命令让位），不改任何
-        /// 宇宙状态。退出驾驶/失焦自动退出；不占用暂停键。
-        /// </summary>
-        public bool AimModeActive { get; private set; }
-
-        /// <summary>
-        /// 切换瞄准/巡航模式（面板「瞄准模式」按钮与瞄准键唯一入口）。仅手动驾驶且
-        /// 聚焦驾驶目标图时有效；PD 武器不受影响（恒自动索敌）。
-        /// </summary>
-        public void ToggleAimMode(UniverseManager universe)
-        {
-            PilotTarget piloted = PilotedTarget(universe);
-            if (!piloted.IsValid || Find.CurrentMap != piloted.Map)
-            {
-                return;
-            }
-            AimModeActive = !AimModeActive;
-            DeltaVLog.Message(DeltaVLogModule.Input,
-                $"aim mode {(AimModeActive ? "engaged" : "disengaged")} (target key #{piloted.ControlKey})");
-        }
-
         public PilotTarget PilotedTarget(UniverseManager universe)
         {
             return PlayerController.Active ? PlayerController.target : PilotTarget.Invalid;
@@ -459,7 +436,8 @@ public readonly struct PilotTarget
                 : universe.LabelForOwner(PlayerController.target.ControlKey);
             Log.Message($"[DeltaV] Pilot mode disengaged (was '{label}'; suppressed reads: {SuppressedReads}).");
             PlayerController.Exit();
-            AimModeActive = false; // 退出驾驶自动退出瞄准模式（§6.1）
+            // 瞄准会话归 SpaceWeaponService（独立于驾驶与自动驾驶，对接中可用），
+            // 退出驾驶不再连带退出瞄准。
             PilotKeyBridge.SuppressVanillaKeys = false;
             if (message != null)
             {

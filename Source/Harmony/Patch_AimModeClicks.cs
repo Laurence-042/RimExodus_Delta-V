@@ -21,7 +21,7 @@ namespace DeltaV
         public static bool Prefix()
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (universe == null || !universe.Pilot.AimModeActive) return true;
+            if (universe == null || !universe.Weapons.AimSessionOnFocusedMap) return true;
             if (Find.CurrentMap == null || !WorldRendererUtility.DrawingMap) return true;
             // 悬停窗口（含本 mod 面板）：窗口交互优先，点击交还原版。
             if (Find.WindowStack.GetWindowAt(Verse.UI.GUIToScreenPoint(Verse.UI.MousePositionOnUI)) != null)

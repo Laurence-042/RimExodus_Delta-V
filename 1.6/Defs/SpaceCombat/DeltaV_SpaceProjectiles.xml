@@ -8,7 +8,8 @@
 		贴图暂借原版弹丸图占位（正式贴图随段6 武器 def 族）。
 	-->
 
-	<!-- 测试直射弹：有图型（1×1，可拦截）、恒速直线。 -->
+	<!-- 测试直射弹：无图型（不可拦截）、恒速直线。「低速重弹（有图直射示例）」是
+	     §15.8 清单的独立项，将来需要时另建 def；默认直射弹不持有地图（齐射零建图开销）。 -->
 	<ThingDef ParentName="BuildingBase">
 		<defName>DeltaV_Projectile_Cannon</defName>
 		<label>cannon shot</label>
@@ -40,7 +41,7 @@
 			<li Class="DeltaV.CompProperties_SpaceProjectile">
 				<speed>45</speed>
 				<timeoutTicks>900</timeoutTicks>
-				<hasMap>true</hasMap>
+				<hasMap>false</hasMap>
 			</li>
 		</comps>
 	</ThingDef>
@@ -121,7 +122,9 @@
 	</ThingDef>
 
 
-	<!-- PD 弹：有图高速小弹（命中走统一联合效果链；效果条目见 DeltaV_SpaceImpactEffects）。 -->
+	<!-- PD 弹：无图高速小弹（命中走统一联合效果链；效果条目见 DeltaV_SpaceImpactEffects）。
+	     纯攻击方不持有地图：PD 开火频率最高，每发借图既 churn 图池又会被敌方 PD
+	     按「有图 ∧ projectile tag」合法锁定为目标浪费其火力。 -->
 	<ThingDef ParentName="BuildingBase">
 		<defName>DeltaV_Projectile_PDBullet</defName>
 		<label>PD bullet</label>
@@ -153,7 +156,7 @@
 			<li Class="DeltaV.CompProperties_SpaceProjectile">
 				<speed>90</speed>
 				<timeoutTicks>300</timeoutTicks>
-				<hasMap>true</hasMap>
+				<hasMap>false</hasMap>
 			</li>
 		</comps>
 	</ThingDef>

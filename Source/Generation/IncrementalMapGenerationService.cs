@@ -101,6 +101,44 @@ namespace DeltaV
             return active?.request.key == key || Queue.Any(r => r.key == key);
         }
 
+        /// <summary>
+        /// 同步完成一次生成请求：与分帧路径共用 Prepare/Advance/Finish（含 RNG 隔离、
+        /// FinalizeInit 与 postfix 复放），只是不跨帧。适用于极小图（如射弹临时图），
+        /// 也绕开 MapGenerator.GenerateMap 方法体及其 Harmony 补丁链。
+        /// </summary>
+        public Map GenerateSynchronously(IncrementalMapGenerationRequest request)
+        {
+            if (request == null || request.parent == null || request.generator == null
+                || request.size.x <= 0 || request.size.z <= 0)
+            {
+                Log.WarningOnce("[DeltaV] Synchronous map generation request rejected: " +
+                    $"key={request?.key ?? "null"}, parent={(request != null && request.parent != null).ToString()}, " +
+                    $"generator={(request != null && request.generator != null).ToString()}, size={request?.size.ToString() ?? "null"}",
+                    0x44564702);
+                return null;
+            }
+            DrainSynchronouslyForExternalGeneration();
+            if (active != null) return null;
+            if (request.parent.Destroyed || request.parent.HasMap) return null;
+            try
+            {
+                ActiveJob job = Prepare(request);
+                active = job;
+                Advance(float.PositiveInfinity, true);
+                // 成功与失败都会置空 active；失败路径已销毁半成品图，以 map 是否仍在
+                // 游戏地图列表区分。
+                return job.map != null && Find.Maps.Contains(job.map) ? job.map : null;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[DeltaV] Synchronous map generation failed ({request.key}): {ex}");
+                ActiveJob failed = active;
+                active = null;
+                if (failed != null) CleanupFailed(failed, ex);
+                return null;
+            }
+        }
+
         public bool Enqueue(IncrementalMapGenerationRequest request)
         {
             if (request == null || request.parent == null || request.generator == null

@@ -369,14 +369,20 @@ namespace DeltaV
 
         private Map BorrowMap(IntVec2 footprint)
         {
-            int key = PoolKey(footprint.x, footprint.z);
+            // 尺寸下限 2×2（§15.17 定案）：1×1 图 Area=1，GasGrid 构造的
+            // Rand.Range(0, Area/2) 提前返回不消耗 RNG，与原版组件「恰好 1 次」的
+            // 校准不符（MapPreview 等按 Rand.iterations 对账的 mod 会误报）。弹体
+            // building 始终居中放置，不受下限影响。
+            int x = Mathf.Max(2, footprint.x);
+            int z = Mathf.Max(2, footprint.z);
+            int key = PoolKey(x, z);
             if (mapPool.TryGetValue(key, out List<Map> idle) && idle.Count > 0)
             {
                 Map map = idle[idle.Count - 1];
                 idle.RemoveAt(idle.Count - 1);
                 return map;
             }
-            return ShipPocketMapFactory.Generate(new IntVec3(footprint.x, 1, footprint.z), universe);
+            return ShipPocketMapFactory.GenerateImmediate(new IntVec3(x, 1, z), universe);
         }
 
         private void ReturnMapToPool(Map map)

@@ -562,7 +562,8 @@
 		</costList>
 	</ThingDef>
 
-	<!-- 轨道炮弹体：高速直射弹（穿深优势 = 注册表高 AP × 链倍率）。 -->
+	<!-- 轨道炮弹体：无图高速直射弹（不可拦截——穿深优势只能靠护盾弧硬接；
+	     穿深优势 = 注册表高 AP × 链倍率）。 -->
 	<ThingDef ParentName="BuildingBase">
 		<defName>DeltaV_Projectile_RailgunSlug</defName>
 		<label>railgun slug</label>
@@ -594,7 +595,7 @@
 			<li Class="DeltaV.CompProperties_SpaceProjectile">
 				<speed>120</speed>
 				<timeoutTicks>600</timeoutTicks>
-				<hasMap>true</hasMap>
+				<hasMap>false</hasMap>
 			</li>
 		</comps>
 	</ThingDef>

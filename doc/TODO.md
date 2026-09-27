@@ -4,32 +4,26 @@
 
 ## 临时需求（这段空了也别删）
 
-问题处理
-- 调整架构，新的架构铁律：
-  - SpaceObject里有且只有一个地图（但可以有其他口袋图将其作为锚图，以此实现多层空间站），一个地图里可以有多个归属的基架，一片有控制台的基架就是一个飞船，没有控制台就是残骸。
-  - 对接本质上就是把自己的SpaceObject挂载到对面SpaceObject下面、飞船结构转移到对面地图里的行为。
-    - 飞船在对接时，改成允许不同归属基架相连，但不允许基架重叠
-  - 飞船进入驾驶模式手控或者因为自动驾驶改变动量时，会抛弃没有连接的基架使其成为一个新的独立SpaceObject，不管其是否和飞船一个归属
-    - SpaceObject名称就是其中所有结构名拼接起来
-- ~~左侧面板的“驾驶此船、选择对接”等按钮不该在同时有多艘船在同一个map里显示，因为我们把“自由飞行”gizmo做到驾驶台上就是为了让同地图多个飞船的情况下可以选择一艘船控制。~~（2026-09-27 定案反向处理：驾驶台的驾驶切换/认领 gizmo 与 shuttle 的对接/侵入指定 gizmo 已删除，统一只走左侧面板；面板本身点击船只列表即可选择同图多船中的操作对象。多船时名称同时显示待验证。）
-- 目的测试场景的敌方飞船缺少敌方派系驾驶台和敌方派系人员，不该出现这种没驾驶台但被视为飞船的状态
-  - 最好抽象出一个方法用于放置飞船，预埋SpaceObject的生成。之后生成SpaceObject的时候，也应该只是传入类型、蓝图和派系，然后保证蓝图里的建筑归属对应派系
-- 驾驶台的脱离停靠之类的功能不该依赖逆重引擎，就像自由飞行时推进器能否工作也不依赖逆重引擎一样
+射弹摧毁基架的时候逻辑显然不对
+Tried to set terrain at (63, 0, 80) to null.
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+(wrapper dynamic-method) MonoMod.Utils.DynamicMethodDefinition:Verse.Log.Error_Patch2 (string)
+(wrapper dynamic-method) MonoMod.Utils.DynamicMethodDefinition:Verse.TerrainGrid.SetFoundation_Patch1 (Verse.TerrainGrid,Verse.IntVec3,Verse.TerrainDef)
+DeltaV.SpaceImpactEffects:StripSubstructureAt (Verse.Map,Verse.IntVec3)
+DeltaV.SpaceImpactEffects:ApplyToDefender (DeltaV.SpaceCollision/ImpactEvent,DeltaV.ImpactOutcomePart,single)
+DeltaV.SpaceCollision:SweepOne (DeltaV.SpaceCollision/SweptBody,DeltaV.SpaceObject,Verse.Map)
+DeltaV.SpaceCollision:SweepAndResolve (DeltaV.UniverseManager,System.Collections.Generic.List`1<DeltaV.SpaceCollision/SweptBody>)
+DeltaV.SpaceProjectileService:ResolveCollisions ()
+DeltaV.UniverseManager:GameComponentTick ()
+(wrapper dynamic-method) MonoMod.Utils.DynamicMethodDefinition:Verse.GameComponentUtility.GameComponentTick_Patch1 ()
+(wrapper dynamic-method) MonoMod.Utils.DynamicMethodDefinition:Verse.TickManager.DoSingleTick_Patch1 (Verse.TickManager)
+(wrapper dynamic-method) MonoMod.Utils.DynamicMethodDefinition:Verse.TickManager.TickManagerUpdate_Patch1 (Verse.TickManager)
+(wrapper dynamic-method) MonoMod.Utils.DynamicMethodDefinition:Verse.Game.UpdatePlay_Patch1 (Verse.Game)
+Verse.Root_Play:Update ()
 
-添加多飞船支持
-- 添加修改船名的功能
-  - 可以在驾驶台上改归属名，也是改船名（注意当船上有逆重引擎的时候，也要同步改这个逆重船名）
-- 允许在一个SpaceObject上建造新飞船（包括在飞船上建造新飞船）
-  - 允许逆重基架在逆重引擎覆盖范围外建造
-  - 驾驶台和归属其的基架共同组成一个飞船
-  - 扩展飞船控制台（后续简称为驾驶台）的“设为主驾驶台”功能，如果已经是主驾驶台，会变成“设为备用驾驶台”按钮。按下后会变成不认领任何归属的备用驾驶台
-    - 如果某个归属里没有驾驶台，在对应归属的基架上建造的驾驶台会自动认领这个归属，并使其成为独立飞船
-    - 如果同一个归属被两个驾驶台先后认领，后认领的驾驶台成为这个归属的主驾驶台，先认领的驾驶台成为备用
-    - 如果一个归属上旧的主驾驶台被摧毁，会在归属内任选一个同方向驾驶台自动认领，如果没有同方向的，那么归属上的其他不同向的残留驾驶台仍然保持备用
-    - 基架归属被修改后，重新按照上述逻辑处理驾驶台认领
-  - 通过如上机制，玩家可以在自己飞船外建造一片基架，将其归属修改为新的结构，然后在上面拍一个驾驶台来产生新的船
-  - 新的船生成时，需要判断自己当前是否是某个SpaceObject的附属。如果是在地面、宇宙中的小行星上建造的，那么不是某个船的附属，其初始视为自由飞行。如果是在一个已有SpaceObject上，那么其初始视为对接到这个已有的SpaceObject上，需要使用脱离停靠功能成为独立飞行的SpaceObject
+射弹的贴图朝向不对
 
+命中需要在船壳上复现爆炸、命中火花等效果
 
 ## 星区模型（已实现待实测，见 [星区架构.md](星区架构.md)）
 

@@ -214,8 +214,8 @@ namespace DeltaV
             bool shuttleFocused = frame.baseTag == SpaceObjectTag.Shuttle;
             float shuttleListHeight = shuttles.Count > 0 ? shuttles.Count * ShipRowHeight + 4f : 0f;
             bool combatBlock = hasShip && playerControlled && zeroGravity && mapHasWeapons;
-            bool aimButton = combatBlock && controlState == ShipControlState.Manual
-                && Find.CurrentMap == selected.map;
+            // 瞄准会话独立于控制态（对接中自动驾驶状态同样可瞄准），只要求聚焦本船。
+            bool aimButton = combatBlock && Find.CurrentMap == selected.map;
             float combatHeight = 0f;
             if (combatBlock)
             {
@@ -512,14 +512,14 @@ namespace DeltaV
                 lineY += 8f;
                 if (aimButton)
                 {
-                    // 瞄准模式切换（与 B 键同一入口；退出驾驶自动退出）。
+                    // 瞄准模式切换（与 B 键同一入口）：会话归武器服务，跨聚焦/换图保持。
                     string aimLabel = "DeltaV_PanelAimMode".Translate(
-                        universe.Pilot.AimModeActive
+                        universe.Weapons.AimActiveFor(selected)
                             ? "DeltaV_On".Translate()
                             : "DeltaV_Off".Translate());
                     if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), aimLabel))
                     {
-                        universe.Pilot.ToggleAimMode(universe);
+                        universe.Weapons.ToggleAim(selected);
                     }
                     TooltipHandler.TipRegion(new Rect(0f, lineY, drawWidth, 27f),
                         "DeltaV_PanelAimModeTip".Translate());

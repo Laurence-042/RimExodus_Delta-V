@@ -611,6 +611,12 @@ namespace DeltaV
                 }
             }
 
+            // 原版起飞后由源图 MapUpdate/Deinit 在降落放置前冲刷 delayed 电网队列
+            // （DeregisterTransmitter → ResetPowerVars 清空 transmitter.connectChildren）。
+            // 本流程 strip 与 place 同栈执行，必须在此手动补上同一冲刷，否则
+            // PowerBuildings 会向 connectChildren 重复注册 connector。
+            map.powerNetManager.UpdatePowerNetsAndConnections_First();
+
             // 剥除 Substructure 地形（镜像原版 GenerateGravship 的逐格清理）。
             // includeTerrain=false（shuttle 起飞，§7.2「不搬基架」）：只移除清单内容，
             // 宿主的甲板/屋顶/气/温度原样保留——舱体起飞不在宿主图开洞。

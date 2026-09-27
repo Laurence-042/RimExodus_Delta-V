@@ -849,10 +849,17 @@ namespace DeltaV
                 Pilot.ToggleControl(this, pilotMap != null ? Pilot.SelectedShipOnMap(pilotMap) : Ship.Invalid);
             }
             // 瞄准模式切换键（太空战架构 §6.1，默认 B；与面板按钮同一入口）。
-            // 被绑定为瞄准键的原版功能在驾驶期经按键抑制桥让位；不占用空格/暂停。
+            // 目标解析：当前驾驶船 → 面板/图上选中船。会话独立于驾驶与自动驾驶
+            //（对接中可瞄准），跨聚焦/换图保持；被绑定为瞄准键的原版功能在驾驶期
+            // 经按键抑制桥让位；不占用空格/暂停。
             if (DeltaVDefOf.DeltaV_AimMode != null && DeltaVDefOf.DeltaV_AimMode.KeyDownEvent)
             {
-                Pilot.ToggleAimMode(this);
+                Ship aimShip = Pilot.PilotedShip(this);
+                if (!aimShip.IsValid || aimShip.map != Find.CurrentMap)
+                {
+                    aimShip = Find.CurrentMap != null ? Pilot.SelectedShipOnMap(Find.CurrentMap) : Ship.Invalid;
+                }
+                Weapons.ToggleAim(aimShip);
             }
             // 选点阶段 ESC 取消（2026-09-25 补齐）：pendingShip 在册且无计划 = 正在选点。
             // 有窗口打开时让位（暂停菜单等窗口自己消费 ESC）。
@@ -967,8 +974,8 @@ namespace DeltaV
                 bool targeting = Find.Targeter.IsTargeting;
                 bool designator = Find.DesignatorManager.SelectedDesignator != null;
                 bool overWindow = Find.WindowStack.GetWindowAt(UI.GUIToScreenPoint(ev.mousePosition)) != null;
-                // 瞄准会话让位（§6.1）：瞄准模式中左键 = 射击，不作聚焦切换。
-                bool aimSession = Pilot.AimModeActive;
+                // 瞄准会话让位（§6.1）：瞄准会话作用于本图时左键 = 射击，不作聚焦切换。
+                bool aimSession = Weapons.AimSessionOnFocusedMap;
                 if (targeting || designator || overWindow || aimSession)
                 {
                     return;

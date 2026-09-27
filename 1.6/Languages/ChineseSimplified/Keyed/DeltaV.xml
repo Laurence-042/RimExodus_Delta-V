@@ -167,7 +167,7 @@
 
   <!-- 阶段5：战斗（瞄准模式/武器组/战斗位置） -->
   <DeltaV_PanelAimMode>瞄准模式：{0}</DeltaV_PanelAimMode>
-  <DeltaV_PanelAimModeTip>本按钮或瞄准键（默认 B）切换。瞄准模式中按住左键射击主套激活组武器、右键射击副套激活组，原版点选让位；不占用空格（暂停）。</DeltaV_PanelAimModeTip>
+  <DeltaV_PanelAimModeTip>本按钮或瞄准键（默认 B）切换。瞄准模式中按住左键射击主套激活组武器、右键射击副套激活组，原版点选让位；不占用空格（暂停）。瞄准会话独立于驾驶与自动驾驶（对接中可用），跨聚焦切换与对接/脱离换图保持。</DeltaV_PanelAimModeTip>
   <DeltaV_PanelWeaponGroupTip>{0}套 第 {1} 组。点击切换该组是否激活；只有激活组会被射击与召集战斗位置。</DeltaV_PanelWeaponGroupTip>
   <DeltaV_WeaponSetMain>主</DeltaV_WeaponSetMain>
   <DeltaV_WeaponSetSecondary>副</DeltaV_WeaponSetSecondary>
@@ -177,7 +177,9 @@
   <DeltaV_BattleStationsOn>{0} 名炮手已进入战斗位置。</DeltaV_BattleStationsOn>
   <DeltaV_BattleStationsOff>已退出战斗位置，炮手返回原工作。</DeltaV_BattleStationsOff>
   <DeltaV_WeaponGroupGizmo>武器组：{0}{1}</DeltaV_WeaponGroupGizmo>
-  <DeltaV_WeaponGroupGizmoTip>循环本武器的组别（主/副 × 1–6）；组激活在状态面板切换。</DeltaV_WeaponGroupGizmoTip>
+  <DeltaV_WeaponGroupGizmoTip>弹出菜单指派本武器的套别与组号（主/副 × 1–6）；组激活在状态面板切换。</DeltaV_WeaponGroupGizmoTip>
+  <DeltaV_WeaponGroupMenuTitle>武器组指派</DeltaV_WeaponGroupMenuTitle>
+  <DeltaV_WeaponGroupEntry>{0} · 第 {1} 组</DeltaV_WeaponGroupEntry>
   <DeltaV_WeaponPdgizmo>点防御</DeltaV_WeaponPdgizmo>
   <DeltaV_WeaponPdgizmoTip>点防御模式：自动索敌射程内可拦截容器（导弹、有图炮弹、shuttle），不受瞄准模式控制。</DeltaV_WeaponPdgizmoTip>
   <DeltaV_WeaponReserveGizmo>预留炮手：{0}</DeltaV_WeaponReserveGizmo>

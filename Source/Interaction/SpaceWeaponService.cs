@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -9,8 +10,12 @@ namespace DeltaV
     /// <summary>
     /// 武器服务（太空战架构 §5/§6）：每武器每 tick 的就绪判定与发射（玩家瞄准射击 +
     /// PD 自动索敌）、「进入战斗位置」炮手征用/退出、敌对判定与沿射线目标锁定。
-    /// 实例服务（universe.Weapons）：战斗位置状态等运行时数据不序列化、读档归零；
-    /// 武器持久配置（组别/PD 模式/炮手预留）驻留武器 comp、激活位驻留主驾驶台 comp。
+    /// 实例服务（universe.Weapons）：瞄准会话（<see cref="SpaceAimController"/>）与
+    /// 战斗位置状态等运行时数据不序列化、读档归零；武器持久配置（组别/PD 模式/
+    /// 炮手预留）驻留武器 comp、激活位驻留主驾驶台 comp。
+    ///
+    /// 瞄准会话与战斗位置均按归属域 ownerId 记录：对接合图/脱离换图后自动跟随
+    /// （武器与图都换了，ownerId 不变）。会话独立于驾驶/自动驾驶——对接中可瞄准。
     ///
     /// 就绪口径（§6.1，单实现）：所在组激活 ∧（MannedNow ∨ 插件（段6））∧ 供电 ∧
     /// 冷却完毕 ∧ 瞄准方向在射界内 ∧ 非地表图（有宇宙容器）。地表/同图战斗完全走
@@ -23,46 +28,97 @@ namespace DeltaV
 
         private readonly UniverseManager universe;
 
-        /// <summary>战斗位置已激活的图（运行时；退出/图销毁移除）。</summary>
-        private readonly HashSet<Map> battleStations = new HashSet<Map>();
+        /// <summary>当前瞄准会话（无 = 巡航模式）。会话对象自持全部瞄准工作。</summary>
+        private SpaceAimController aimController;
+
+        /// <summary>战斗位置已激活的归属域（运行时）：按 ownerId 记录，换图后随船保持；
+        /// 查询/切换时惰性剔除已消失的归属域。不序列化。</summary>
+        private readonly HashSet<int> battleStations = new HashSet<int>();
 
         public SpaceWeaponService(UniverseManager universe)
         {
             this.universe = universe;
         }
 
-        public bool BattleStationsActive(Map map) => map != null && battleStations.Contains(map);
+        // ---- 瞄准会话（面板按钮与瞄准键的唯一入口）----
+
+        /// <summary>瞄准会话是否激活（任意船）。</summary>
+        public bool AimActive => aimController != null && aimController.Active;
+
+        /// <summary>指定船是否处于瞄准会话中（面板按钮态）。</summary>
+        public bool AimActiveFor(Ship ship)
+        {
+            return AimActive && aimController.ownerId == ship.ownerId;
+        }
+
+        /// <summary>瞄准会话是否作用于当前聚焦图（点击让位/射击/标记的共同前提）。</summary>
+        public bool AimSessionOnFocusedMap =>
+            aimController != null && aimController.SessionOnFocusedMap;
+
+        /// <summary>
+        /// 切换瞄准/巡航：同船再切 = 退出；异船 = 切换目标（旧会话析构）。会话独立于
+        /// 驾驶与自动驾驶，跨聚焦切换、对接/脱离换图保持（§6.1 修订：PD 不受影响）。
+        /// </summary>
+        public void ToggleAim(Ship target)
+        {
+            if (!target.IsValid)
+            {
+                Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            if (aimController != null)
+            {
+                bool sameShip = aimController.ownerId == target.ownerId;
+                aimController.Dispose(sameShip ? "toggled off" : "target switched");
+                aimController = null;
+                if (sameShip) return;
+            }
+            aimController = new SpaceAimController(universe, target.ownerId);
+            DeltaVLog.Message(DeltaVLogModule.Input, $"aim session engaged (owner #{target.ownerId})");
+        }
+
+        /// <summary>帧路径：前台层瞄准标记（无会话 = 不发任何指示器）。</summary>
+        internal int EmitAimMarkers(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)
+        {
+            return aimController != null && aimController.Active
+                ? aimController.EmitMarkers(frame, frameMap, layer, baseSlot)
+                : baseSlot;
+        }
+
+        // ---- 战斗位置（§5.5；按归属域记录，跨换图保持）----
+
+        /// <summary>图上是否有任一玩家船处于战斗位置（面板按钮态）。</summary>
+        public bool BattleStationsActive(Map map)
+        {
+            if (map == null) return false;
+            PruneStaleBattleStations();
+            foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
+            {
+                if (battleStations.Contains(ship.ownerId)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>剔除已消失归属域的陈旧条目（船销毁/脱离控制域后 ownerId 无船）。</summary>
+        private void PruneStaleBattleStations()
+        {
+            battleStations.RemoveWhere(id => !ShipRegistry.ShipByOwner(id).IsValid);
+        }
 
         // ---- tick（GameComponentTick 内、Projectiles 制导之后、容器积分之前）----
 
         public void TickWeapons()
         {
-            TickAimFire();
+            TickAim();
             TickPointDefense();
         }
 
-        /// <summary>玩家瞄准射击：瞄准模式 + 按住左键（主套）/右键（副套），按住持续开火。</summary>
-        private void TickAimFire()
+        /// <summary>瞄准会话射击 tick；会话自检失效（船损毁）时在此收尾析构。</summary>
+        private void TickAim()
         {
-            if (!universe.Pilot.AimModeActive) return;
-            Ship piloted = universe.Pilot.PilotedShip(universe);
-            if (!piloted.IsValid || piloted.map != Find.CurrentMap) return;
-            SpaceObject container = universe.FrameOf(piloted.map);
-            if (container == null) return;
-            // 悬停窗口（面板/原版 UI）不射击；暂停时无 tick，天然不射。
-            if (MouseOverUiWindow()) return;
-            bool main = Input.GetMouseButton(0);
-            bool secondary = Input.GetMouseButton(1);
-            if (!main && !secondary) return;
-            Vector3 aimPoint = MouseUniversePoint(container, piloted.map);
-            foreach (CompSpaceWeapon weapon in WeaponsOn(piloted.map, piloted.ownerId))
-            {
-                if (weapon.aimMode != SpaceWeaponAimMode.Volley) continue;
-                bool wanted = main && weapon.salvoSet == SpaceWeaponSalvoSet.Main
-                    || secondary && weapon.salvoSet == SpaceWeaponSalvoSet.Secondary;
-                if (!wanted) continue;
-                TryFire(weapon, container, aimPoint, null);
-            }
+            if (aimController == null) return;
+            aimController.Tick();
+            if (!aimController.Active) aimController = null;
         }
 
         /// <summary>
@@ -318,7 +374,7 @@ namespace DeltaV
             return SpaceTransform.MapPointToUniverse(container, map, new Vector2(mouse.x, mouse.z));
         }
 
-        private static bool MouseOverUiWindow()
+        internal static bool MouseOverUiWindow()
         {
             // 与 HandleShellClick 同一坐标口径（GUI → screen 后查窗口矩形）。
             return Find.WindowStack.GetWindowAt(UI.GUIToScreenPoint(UI.MousePositionOnUI)) != null;
@@ -341,7 +397,7 @@ namespace DeltaV
         }
 
         /// <summary>指定船（归属域）上的武器。</summary>
-        private static List<CompSpaceWeapon> WeaponsOn(Map map, int ownerId)
+        internal static List<CompSpaceWeapon> WeaponsOn(Map map, int ownerId)
         {
             var result = new List<CompSpaceWeapon>();
             SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
@@ -359,13 +415,22 @@ namespace DeltaV
         /// 切换战斗位置：召集炮手（ManTurret job 批量下发）/ 退出（结束 job）。
         /// 征用规则：gizmo 预留炮手仍可射击且未征召 → 由其操作；否则从
         /// 「胜任（Violent 未禁用）+ 可到达 + 未征召」随机；drafted 不征用。
+        /// 记账按图上全部玩家船的 ownerId（换图后随船保持；job 挂在 pawn 上随
+        /// 捕获搬运，本就存活）。
         /// </summary>
         public void ToggleBattleStations(Map map)
         {
             if (map == null) return;
-            if (battleStations.Contains(map))
+            PruneStaleBattleStations();
+            var playerShips = new List<Ship>();
+            foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
             {
-                battleStations.Remove(map);
+                if (ShipRegistry.FactionOf(ship) == Faction.OfPlayer) playerShips.Add(ship);
+            }
+            bool anyActive = playerShips.Any(ship => battleStations.Contains(ship.ownerId));
+            if (anyActive)
+            {
+                foreach (Ship ship in playerShips) battleStations.Remove(ship.ownerId);
                 foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
                 {
                     if (pawn.CurJob?.def == JobDefOf.ManTurret
@@ -393,7 +458,7 @@ namespace DeltaV
                     manned++;
                 }
             }
-            battleStations.Add(map);
+            foreach (Ship ship in playerShips) battleStations.Add(ship.ownerId);
             Messages.Message("DeltaV_BattleStationsOn".Translate(manned), MessageTypeDefOf.NeutralEvent, false);
         }
 
@@ -430,6 +495,8 @@ namespace DeltaV
         /// <summary>dev ResetObjects / 图销毁时的流程清零。</summary>
         public void ResetFlow()
         {
+            aimController?.Dispose("reset");
+            aimController = null;
             battleStations.Clear();
         }
     }
