@@ -66,6 +66,20 @@ namespace DeltaV
             LongEventHandler.QueueLongEvent(ShipTestScene.Create, "GeneratingMap", false, null);
         }
 
+        // 居住区预制导出（HomePrefab，地图工具包的预制序列化能力）：当前聚焦图 Home area
+        // 内的非太空结构与物品 → Prefabs/*.json；存在文件时测试场景改由预制回放布局。
+        [DebugAction("Delta-V", "Prefab: export home area as player test ship", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void ExportHomePrefabPlayerShip()
+        {
+            HomePrefab.ExportHomeArea(HomePrefabNames.PlayerShip);
+        }
+
+        [DebugAction("Delta-V", "Prefab: export home area as enemy test ship", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void ExportHomePrefabEnemyShip()
+        {
+            HomePrefab.ExportHomeArea(HomePrefabNames.EnemyShip);
+        }
+
         [DebugAction("Delta-V", "Toggle pilot mode", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void TogglePilotMode()
         {

@@ -163,7 +163,9 @@
   <DeltaV_SettingsDragLinearHalfLifeTip>开关打开时，平移速度每过这么多 tick 减半。数值越小松开推进器后停得越快，越大漂得越久。范围 1–60000；默认 480（8 秒减半）。</DeltaV_SettingsDragLinearHalfLifeTip>
   <DeltaV_SettingsDragAngularHalfLife>角速度半衰期（tick）</DeltaV_SettingsDragAngularHalfLife>
   <DeltaV_SettingsDragAngularHalfLifeTip>开关打开时，自旋速度每过这么多 tick 减半。数值越小停转越快，越大转得越久。范围 1–60000；默认 180（3 秒减半）。</DeltaV_SettingsDragAngularHalfLifeTip>
-  <DeltaV_ReassignProtectedMainConsole>主驾驶台下方的基架归属不能修改（已跳过 {0} 格）；请先设为备用驾驶台或拆除。</DeltaV_ReassignProtectedMainConsole>
+  <DeltaV_SettingsSpaceImpactSound>超凡智能的听觉</DeltaV_SettingsSpaceImpactSound>
+  <DeltaV_SettingsSpaceImpactSoundTip>太空战命中点播放爆炸、命中与护盾音效。有人说宇宙中没有空气所以不能传声——超凡智能认为这是凡人的思维。默认开启。</DeltaV_SettingsSpaceImpactSoundTip>
+<DeltaV_ReassignProtectedMainConsole>主驾驶台下方的基架归属不能修改（已跳过 {0} 格）；请先设为备用驾驶台或拆除。</DeltaV_ReassignProtectedMainConsole>
 
   <!-- 阶段5：战斗（瞄准模式/武器组/战斗位置） -->
   <DeltaV_PanelAimMode>瞄准模式：{0}</DeltaV_PanelAimMode>

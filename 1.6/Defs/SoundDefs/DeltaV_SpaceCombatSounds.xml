@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Defs>
+  <!--
+    太空战命中音效（SpaceProjectileService.RegisterImpactFx）。素材复用原版 grain
+    文件夹（ContentFinder 跨包解析）。Map 系 = 聚焦守方图位置化 one-shot（distRange
+    交给引擎做镜头衰减）；Shell 系 = 非聚焦守方，跨图 InMap 声源被引擎 context 硬闸
+    （SoundDefHelper.CorrectContextNow），挂相机 + info.volumeFactor 手工距离衰减
+    （与 DeltaV_ThrusterSounds 的 Map/Shell 双 def 纪律一致，不可混用）。
+    聚焦图的爆炸命中不在此发声——GenExplosion 原生 soundExplosion 已覆盖。
+  -->
+
+  <!-- 非聚焦守方：爆炸闪光（素材 = 原版 Bomb 爆炸音） -->
+  <SoundDef>
+    <defName>DeltaV_ImpactExplosionShell</defName>
+    <context>MapOnly</context>
+    <maxSimultaneous>4</maxSimultaneous>
+    <subSounds>
+      <li>
+        <onCamera>True</onCamera>
+        <grains>
+          <li Class="AudioGrain_Folder">
+            <clipFolderPath>Weapon/Artillery/Mortar_Explode_Dry</clipFolderPath>
+          </li>
+        </grains>
+        <volumeRange>100</volumeRange>
+        <pitchRange>0.9152174~1.084783</pitchRange>
+        <repeatMode>Any</repeatMode>
+      </li>
+    </subSounds>
+  </SoundDef>
+
+  <!-- 非聚焦守方：动能命中金属船壳（素材 = 原版 BulletImpact_Metal） -->
+  <SoundDef>
+    <defName>DeltaV_ImpactHitShell</defName>
+    <context>MapOnly</context>
+    <maxSimultaneous>6</maxSimultaneous>
+    <subSounds>
+      <li>
+        <onCamera>True</onCamera>
+        <grains>
+          <li Class="AudioGrain_Folder">
+            <clipFolderPath>Impact/Bullet_Metal</clipFolderPath>
+          </li>
+        </grains>
+        <volumeRange>70~75</volumeRange>
+        <pitchRange>0.9152174~1.084783</pitchRange>
+        <repeatMode>Any</repeatMode>
+      </li>
+    </subSounds>
+  </SoundDef>
+
+  <!-- 非聚焦守方：护盾拦截（素材 = 原版 EnergyShield Absorb） -->
+  <SoundDef>
+    <defName>DeltaV_ShieldHitShell</defName>
+    <context>MapOnly</context>
+    <maxSimultaneous>4</maxSimultaneous>
+    <subSounds>
+      <li>
+        <onCamera>True</onCamera>
+        <grains>
+          <li Class="AudioGrain_Folder">
+            <clipFolderPath>Misc/EnergyShield/Absorb</clipFolderPath>
+          </li>
+        </grains>
+        <volumeRange>65~70</volumeRange>
+        <pitchRange>0.95~1.05</pitchRange>
+        <repeatMode>Any</repeatMode>
+      </li>
+    </subSounds>
+  </SoundDef>
+
+  <!-- 聚焦守方图：动能命中（位置化，distRange 镜头衰减） -->
+  <SoundDef>
+    <defName>DeltaV_ImpactHitMap</defName>
+    <context>MapOnly</context>
+    <maxSimultaneous>4</maxSimultaneous>
+    <subSounds>
+      <li>
+        <onCamera>False</onCamera>
+        <grains>
+          <li Class="AudioGrain_Folder">
+            <clipFolderPath>Impact/Bullet_Metal</clipFolderPath>
+          </li>
+        </grains>
+        <volumeRange>45~55</volumeRange>
+        <pitchRange>0.9152174~1.084783</pitchRange>
+        <distRange>10~90</distRange>
+        <repeatMode>Any</repeatMode>
+      </li>
+    </subSounds>
+  </SoundDef>
+
+  <!-- 聚焦守方图：护盾拦截（位置化） -->
+  <SoundDef>
+    <defName>DeltaV_ShieldHitMap</defName>
+    <context>MapOnly</context>
+    <maxSimultaneous>4</maxSimultaneous>
+    <subSounds>
+      <li>
+        <onCamera>False</onCamera>
+        <grains>
+          <li Class="AudioGrain_Folder">
+            <clipFolderPath>Misc/EnergyShield/Absorb</clipFolderPath>
+          </li>
+        </grains>
+        <volumeRange>40~45</volumeRange>
+        <pitchRange>0.95~1.05</pitchRange>
+        <distRange>10~80</distRange>
+        <repeatMode>Any</repeatMode>
+      </li>
+    </subSounds>
+  </SoundDef>
+</Defs>

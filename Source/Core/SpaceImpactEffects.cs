@@ -287,11 +287,16 @@ namespace DeltaV
             return thing?.def.GetStatValueAbstract(StatDefOf.MaxHitPoints) ?? 100f;
         }
 
+        /// <summary>
+        /// 摧毁命中格基架。原版 SetFoundation 是「放置」API（null 只红字不动网格），
+        /// 移除唯一入口是 RemoveFoundation（doLeavings:false——战斗剥离不掉资源，破片
+        /// 溅射逐格掉落会刷屏）。归属同步由 RemoveFoundation postfix 完成（含版本 bump）。
+        /// </summary>
         private static void StripSubstructureAt(Map map, IntVec3 cell)
         {
             if (map.terrainGrid.FoundationAt(cell)?.IsSubstructure == true)
             {
-                map.terrainGrid.SetFoundation(cell, null);
+                map.terrainGrid.RemoveFoundation(cell, doLeavings: false);
             }
         }
 

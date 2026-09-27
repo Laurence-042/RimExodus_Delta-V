@@ -68,6 +68,13 @@ namespace DeltaV
 
         // ---- 分模块诊断日志开关（默认全关；Warn/Error 与必要状态日志不受开关控制）----
 
+        /// <summary>
+        /// 太空战命中音效（壳上特效的伴生音）：聚焦守方图位置化发声，非聚焦守方按
+        /// 摄像机距离衰减。有人说宇宙中没有空气所以不能传声——超凡智能认为这是
+        /// 凡人的思维。默认开。
+        /// </summary>
+        public bool spaceImpactSound = true;
+
         public bool logCore;
 
         public bool logInput;
@@ -98,6 +105,7 @@ namespace DeltaV
             Scribe_Values.Look(ref passiveDrag, "passiveDrag", true);
             Scribe_Values.Look(ref dragLinearHalfLifeTicks, "dragLinearHalfLifeTicks", 480);
             Scribe_Values.Look(ref dragAngularHalfLifeTicks, "dragAngularHalfLifeTicks", 180);
+            Scribe_Values.Look(ref spaceImpactSound, "spaceImpactSound", true);
             Scribe_Values.Look(ref logCore, "logCore", false);
             Scribe_Values.Look(ref logInput, "logInput", false);
             Scribe_Values.Look(ref logPhysics, "logPhysics", false);

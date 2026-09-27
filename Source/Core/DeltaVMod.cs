@@ -104,6 +104,8 @@ namespace DeltaV
             TippedRow(list, inRect, "DeltaV_SettingsDragAngularHalfLifeTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsDragAngularHalfLife".Translate(),
                     ref Settings.dragAngularHalfLifeTicks, ref dragAngularHalfLifeBuffer, 1, 60000));
+            list.CheckboxLabeled("DeltaV_SettingsSpaceImpactSound".Translate(), ref Settings.spaceImpactSound,
+                "DeltaV_SettingsSpaceImpactSoundTip".Translate());
             list.Gap(12f);
             Text.Font = GameFont.Small;
             list.Label("DeltaV_SettingsLogSection".Translate());

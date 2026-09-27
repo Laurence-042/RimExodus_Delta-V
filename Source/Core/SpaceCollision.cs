@@ -56,6 +56,16 @@ namespace DeltaV
             /// <summary>本 tick 是否产生命中（激光线段视觉取命中点而非全射程）。</summary>
             public bool resolvedHit;
             public Vector3 resolvedHitUniverse;
+            /// <summary>命中守方容器（壳上命中特效的归属与聚焦判定）。</summary>
+            public SpaceObject resolvedHitDefender;
+            /// <summary>命中点守方 Map 连续局部坐标（聚焦图 InMap 音效定位用）。</summary>
+            public Vector2 resolvedHitLocal;
+            /// <summary>守方后效为爆炸（爆炸半径见 resolvedHitRadius）。</summary>
+            public bool resolvedHitExplosive;
+            /// <summary>护盾弧拦截命中。</summary>
+            public bool resolvedHitShield;
+            /// <summary>守方爆炸后效半径（非爆炸 = 0；特效尺寸与音效选型）。</summary>
+            public float resolvedHitRadius;
             /// <summary>伤害/穿深倍率（轨道炮 Σ 加速段；随事件进入结算）。</summary>
             public float damageScale = 1f;
             /// <summary>「放置」后效回调（侵入 shuttle §7.5）：shuttle 服务闭包——
@@ -343,6 +353,14 @@ namespace DeltaV
                 // 对称结算（§3.5）：每个参与容器各自解析自己的后效。
                 body.resolvedHit = true;
                 body.resolvedHitUniverse = evt.hitUniverse;
+                body.resolvedHitDefender = defender;
+                body.resolvedHitLocal = p;
+                var defenderPart = effect?.defenderEffect;
+                body.resolvedHitExplosive = defenderPart != null
+                    && defenderPart.kind == ImpactEffectKind.DamageMap
+                    && defenderPart.explosionRadius > 0f;
+                body.resolvedHitShield = false;
+                body.resolvedHitRadius = body.resolvedHitExplosive ? defenderPart.explosionRadius : 0f;
                 DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"impact: {body.projectileDef?.defName} -> " +
                     (evt.defenderIsSubstructure
@@ -383,6 +401,11 @@ namespace DeltaV
                 evt.damageScale = body.damageScale;
                 body.resolvedHit = true;
                 body.resolvedHitUniverse = evt.hitUniverse;
+                body.resolvedHitDefender = defender;
+                body.resolvedHitLocal = shieldPoint;
+                body.resolvedHitExplosive = false;
+                body.resolvedHitShield = true;
+                body.resolvedHitRadius = 0f;
                 DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"shield intercept: {body.projectileDef?.defName} absorbed by '{shieldArc.building.def.defName}' " +
                     $"on '{defender.label}' (drain {SpaceImpactEffects.ComputeDamage(shieldEffect?.defenderEffect, evt.relativeSpeed, shieldIncidence):F0}, " +

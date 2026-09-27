@@ -20,8 +20,11 @@ namespace DeltaV
     /// 未占有，交由玩家划分——多归属邻接**不拒建**，解耦架构 §4 已定）。仅 Delta-V
     /// 参考系图参与（RimExodus 地表零影响）。
     ///
-    /// owner 值只在「当前有基架的格」上有意义：拆除基架不清写 owner（消费者一律先判
-    /// 地形再读归属），SetFoundation 恒重写，因此残留值不可能被读到。
+    /// 基架与归属同步移除（2026-09-27 用户决策，替代旧「拆基架不清写」设计）：任何
+    /// 路径的基架移除（TerrainGrid.RemoveFoundation / RemoveGravshipTerrainUnsafe 的
+    /// Harmony postfix）立即把该格归属清为 Unassigned——「归属仅在有基架的格上有意义」
+    /// 恒成立，WeaponsOn/OwnerShip/ShipByThing 等裸读者不再读到陈旧值，起飞/降落的
+    /// 区域判定（域缓存、碰撞面、月池）随版本 bump 即时失效。SetFoundation 恒重写。
     /// </summary>
     public class SubstructureOwnership : MapComponent
     {
@@ -394,6 +397,22 @@ namespace DeltaV
                 }
             }
             PlanetGlobeRenderer.InvalidateSilhouette(map);
+        }
+
+        /// <summary>
+        /// 基架移除同步（RemoveFoundation / RemoveGravshipTerrainUnsafe postfix 的唯一
+        /// 落点）：该格归属清为 Unassigned + 版本 bump（域缓存/碰撞面/月池即时失效）
+        /// + 引擎/剪影通知。邻接不重解：移除不产生新归属，断连由读取端 flood 截断。
+        /// 与批末 ClearOwner(ownerId) 幂等共存。
+        /// </summary>
+        public void NotifyFoundationRemoved(IntVec3 cell)
+        {
+            if (!cell.InBounds(map) || OwnerAt(cell) == Unassigned)
+            {
+                return;
+            }
+            Assign(cell, Unassigned);
+            NotifyOwnershipChanged();
         }
 
         /// <summary>

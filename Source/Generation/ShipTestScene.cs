@@ -63,6 +63,9 @@ namespace DeltaV
 
             // 容器先注册、结构后铺设：驾驶台 spawn 认领要求 FrameOf 已解析（ClaimOnSpawn
             // 守卫）。归属 ID 与容器对象 ID 解耦（各经 AllocateOwnerId 独立发放）。
+            // 布局数据源（2026-09-27 居住区预制）：Prefabs/ 下存在导出文件则 hull stamp 后
+            // 由预制回放设备/物品（推进器照旧 stamp），否则用写死布局表。
+            bool playerPrefab = HomePrefab.Exists(HomePrefabNames.PlayerShip);
             int playerOwnerId = universe.AllocateOwnerId();
             Map playerMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
             if (playerMap == null) return;
@@ -70,8 +73,16 @@ namespace DeltaV
                 new SpacePose(playerDir, 0f));
             universe.RegisterObject(playerContainer);
             universe.NoteStructureName(playerOwnerId, "Player ship");
-            ShipStructureStamp.StampPlayerShip(playerMap, ownerId: playerOwnerId);
+            CellRect playerHull = ShipStructureStamp.StampPlayerShip(playerMap,
+                ownerId: playerOwnerId, prefabLayout: playerPrefab);
+            if (playerPrefab)
+            {
+                HomePrefab.SpawnInto(HomePrefabNames.PlayerShip, playerMap, playerHull, Faction.OfPlayer);
+                ShipStructureStamp.RelinkGravshipComponents(playerMap);
+                EnsurePilotConsole(playerMap, playerHull, Faction.OfPlayer);
+            }
 
+            bool enemyPrefab = HomePrefab.Exists(HomePrefabNames.EnemyShip);
             int enemyOwnerId = universe.AllocateOwnerId();
             Map enemyMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
             if (enemyMap == null) return;
@@ -81,7 +92,13 @@ namespace DeltaV
                 new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad));
             universe.RegisterObject(enemyContainer);
             universe.NoteStructureName(enemyOwnerId, "Enemy ship");
-            ShipStructureStamp.StampEnemyShip(enemyMap, ownerId: enemyOwnerId, faction: enemyFaction);
+            CellRect enemyHull = ShipStructureStamp.StampEnemyShip(enemyMap,
+                ownerId: enemyOwnerId, faction: enemyFaction, prefabLayout: enemyPrefab);
+            if (enemyPrefab)
+            {
+                HomePrefab.SpawnInto(HomePrefabNames.EnemyShip, enemyMap, enemyHull, enemyFaction);
+                EnsurePilotConsole(enemyMap, enemyHull, enemyFaction);
+            }
 
             universe.ResetObjects(new List<SpaceObject> { playerContainer, enemyContainer });
             Ship playerShip = ShipRegistry.ShipByOwner(playerOwnerId);
@@ -92,5 +109,22 @@ namespace DeltaV
             universe.SetFocused(playerContainer);
             CameraJumper.TryJump(playerMap.Center, playerMap, CameraJumper.MovementMode.Cut);
         }
+
+        /// <summary>预制回放后的驾驶台兜底：无主台则不成船（驾驶/归属域都失效），记错并补一台。</summary>
+        private static void EnsurePilotConsole(Map map, CellRect hull, Faction faction)
+        {
+            if (map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole).Any(t => t.Spawned)) return;
+            Log.Error("[DeltaV] HomePrefab replay produced no pilot console - spawning a fallback "
+                + "console at hull center (ship would be uncontrollable without it).");
+            MapContentSpawner.SpawnRecord(map, ThingDefOf.PilotConsole, null, hull.CenterCell,
+                Rot4.East, 0, 0, faction);
+        }
+    }
+
+    /// <summary>预制文件名（导出调试动作与测试场景共用同一份约定）。</summary>
+    public static class HomePrefabNames
+    {
+        public const string PlayerShip = "PlayerShip";
+        public const string EnemyShip = "EnemyShip";
     }
 }

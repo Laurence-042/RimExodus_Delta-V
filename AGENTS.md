@@ -184,7 +184,7 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `OrbitSphere`：球面移动、弧距、切空间基和 sphere↔tile。
 - `SpaceTransform`：全部坐标、速度、刚体点和停放锚转换。
 - `ShipRegistry`：船、控制域、状态、船体锚、朝向和派系查询。
-- `SubstructureOwnership`：基架归属、连通认领和结构版本。
+- `SubstructureOwnership`：基架归属、连通认领和结构版本；基架与归属同步移除（`RemoveFoundation`/`RemoveGravshipTerrainUnsafe` postfix → `NotifyFoundationRemoved`），「归属仅在有基架的格上有意义」恒成立。
 - `ShipPhysics`：质量/惯量、推进器、分配器、阻力和积分。
 - `PilotTarget` / `PilotService` / `ShipController`：普通船与 shuttle 的统一驾驶层。
 - `ShipAutopilot`：固定/随动/追踪任务；制导经 `IAutopilotGuidance`。
@@ -199,6 +199,12 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `MoonPoolUtility` / `Patch_MoonPool` / `MoonPoolGraphics` / `SectionLayer_MoonPool`：月池判定、无顶密封和连接视觉。
 - `SpaceLifecycleService`：生成、休眠、物化、归档和销图。
 - `QueueFrameAction`：离开当前 tick/加载调用栈的唯一帧边界延迟机制。
+
+通用地图工具包（上述坐标/渲染/搬运/生命周期/生成条目同属一个将来通用的地图工具包；后续地图能力一律扩展这些入口，不建平行实现）：
+
+- `MapContentSpawner`：Thing 记录回放（def/stuff/quality/hp/stack/faction → `GenSpawn`）与基架盖章包裹器的唯一入口；`PoiSnapshot`/`ShipStructureStamp`/`PoiTemplate`/`HomePrefab` 的落物一律经此。
+- `HomePrefab`：居住区预制序列化（Home area 捕获 → JSON 文件 → 回放）；排除推进器、shuttle 与船体外壳环，派系落图时指定。
+- `ShipStructureStamp` / `PoiTemplate` / `ShipPocketMapFactory` / `ShipTestScene`：测试布局 stamp 与口袋图生成；测试船布局数据源优先 `HomePrefab` 预制，缺失回退写死表。
 
 流程状态属于 `UniverseManager` 的实例服务，不建立可变静态游戏状态。静态只允许无状态纯函数、输入快速门、渲染/反射缓存和同调用栈重入卫兵。
 

@@ -287,10 +287,24 @@ namespace DeltaV
         /// 非聚焦船外壳代理网格的显示旋转。proxy 网格顶点在 ship local（y = 0 平面），
         /// 传入该船的宇宙角度，得到聚焦参考系下的网格旋转四元数。
         /// 必须与 2D 公式成对使用，禁止在渲染代码里另行手写 Euler。
+        /// 轴向约定（前向 = 局部 +X）：地图几何壳、世界剪影（UniverseWorldMarkerRotation/
+        /// MarkerForwardWorld 同链）与 X 向拉伸的四边形（激光束）。
         /// </summary>
         public static Quaternion FocusedMeshRotation(SpaceObject focused, float universeAngle)
         {
             return Quaternion.Euler(0f, -UniverseAngleToFocused(focused, universeAngle) * Mathf.Rad2Deg, 0f);
+        }
+
+        /// <summary>
+        /// 「UV 上方 = 图案朝向」贴图的显示旋转（唯一入口，2026-09-27 弹头 90° 事故后
+        /// 收敛）：原版 Projectile/Graphic 平面贴图的图案朝局部 +Z（MeshMakerPlanes
+        /// 的 V 轴沿 +Z；原版弹体以 LookRotation 把 +Z 对准飞行方向），与
+        /// <see cref="FocusedMeshRotation"/> 的 +X 前向约定不同源。一切「带朝向的原版
+        /// 贴图」渲染必须经此入口，禁止调用点手写 π/2 轴向修正。
+        /// </summary>
+        public static Quaternion FocusedSpriteRotation(SpaceObject focused, float universeAngle)
+        {
+            return FocusedMeshRotation(focused, universeAngle - Mathf.PI / 2f);
         }
 
         /// <summary>

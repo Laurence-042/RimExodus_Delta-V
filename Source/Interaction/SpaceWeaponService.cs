@@ -35,6 +35,9 @@ namespace DeltaV
         /// 查询/切换时惰性剔除已消失的归属域。不序列化。</summary>
         private readonly HashSet<int> battleStations = new HashSet<int>();
 
+        /// <summary>炮塔状态变更事件登记的待补分配图（事件驱动，见 NotifyWeaponAvailabilityChanged）。</summary>
+        private readonly HashSet<Map> pendingRedispatchMaps = new HashSet<Map>();
+
         public SpaceWeaponService(UniverseManager universe)
         {
             this.universe = universe;
@@ -109,8 +112,39 @@ namespace DeltaV
 
         public void TickWeapons()
         {
+            ProcessPendingRedispatch();
             TickAim();
             TickPointDefense();
+        }
+
+        // ---- 战斗位置补分配（事件驱动，2026-09-27 用户决策——炮塔状态变更时触发，不做轮询）----
+
+        /// <summary>
+        /// 炮塔状态变更登记：事件源为 <see cref="CompSpaceWeapon"/> 的 PowerTurnedOn
+        /// 信号（短路损毁后重连、转移后电网恢复）与 PostSpawnSetup（起飞/对接搬运
+        /// StripDomain → PlaceIntoMap 后重放置；JobDriver_ManTurret 的
+        /// FailOnDespawned 在 DeSpawn 时已丢 job，原版无召回）。信号可能于电网重连/
+        /// 放置链的任意调用栈内到达，这里只登记，延迟到 TickWeapons 头部处理——
+        /// 仅为离开当前调用栈的安全时点，不是轮询。
+        /// </summary>
+        public void NotifyWeaponAvailabilityChanged(Map map)
+        {
+            if (map != null && !map.Disposed)
+            {
+                pendingRedispatchMaps.Add(map);
+            }
+        }
+
+        private void ProcessPendingRedispatch()
+        {
+            if (pendingRedispatchMaps.Count == 0) return;
+            foreach (Map map in pendingRedispatchMaps)
+            {
+                if (map == null || map.Disposed) continue;
+                if (!BattleStationsActive(map)) continue; // 战斗位置未启用：事件空转
+                DispatchGunners(map);
+            }
+            pendingRedispatchMaps.Clear();
         }
 
         /// <summary>瞄准会话射击 tick；会话自检失效（船损毁）时在此收尾析构。</summary>
@@ -443,6 +477,19 @@ namespace DeltaV
                 Messages.Message("DeltaV_BattleStationsOff".Translate(), MessageTypeDefOf.NeutralEvent, false);
                 return;
             }
+            int manned = DispatchGunners(map);
+            foreach (Ship ship in playerShips) battleStations.Add(ship.ownerId);
+            Messages.Message("DeltaV_BattleStationsOn".Translate(manned), MessageTypeDefOf.NeutralEvent, false);
+        }
+
+        /// <summary>
+        /// 战斗位置炮手征用（唯一计算入口：ToggleBattleStations 开启与状态变更补分配
+        /// 共用）。征用规则：图上玩家武器的激活组 ∧ Mannable ∧ 供电 ∧ 未在岗 →
+        /// PickGunner 下发 ManTurret；断电窗口不征用（炮手站死炮无意义），恢复供电后
+        /// 由 PowerTurnedOn 事件补上。返回征用后已在岗/已征用数。
+        /// </summary>
+        private static int DispatchGunners(Map map)
+        {
             int manned = 0;
             foreach (CompSpaceWeapon weapon in AllWeaponsOn(map))
             {
@@ -450,6 +497,7 @@ namespace DeltaV
                 if (!weapon.GroupActive) continue;
                 if (weapon.Mannable == null) continue;
                 if (weapon.Mannable.MannedNow) { manned++; continue; }
+                if (!PowerOn(weapon.parent)) continue;
                 Pawn pawn = PickGunner(weapon);
                 if (pawn == null) continue;
                 Job job = JobMaker.MakeJob(JobDefOf.ManTurret, weapon.parent);
@@ -458,8 +506,7 @@ namespace DeltaV
                     manned++;
                 }
             }
-            foreach (Ship ship in playerShips) battleStations.Add(ship.ownerId);
-            Messages.Message("DeltaV_BattleStationsOn".Translate(manned), MessageTypeDefOf.NeutralEvent, false);
+            return manned;
         }
 
         /// <summary>征用：预留炮手优先（可用时）；否则随机选「胜任 + 可到达 + 未征召」殖民者。</summary>
@@ -498,6 +545,7 @@ namespace DeltaV
             aimController?.Dispose("reset");
             aimController = null;
             battleStations.Clear();
+            pendingRedispatchMaps.Clear();
         }
     }
 }

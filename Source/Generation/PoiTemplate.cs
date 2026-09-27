@@ -20,18 +20,13 @@ namespace DeltaV
             try
             {
                 List<IntVec3> deck = GenerateAsymmetricDeck(map);
-                SubstructureOwnership.For(map).SetPendingStamp(deck, ownerId);
-                try
+                MapContentSpawner.WithOwnershipStamp(map, deck, ownerId, delegate
                 {
                     foreach (IntVec3 cell in deck)
                     {
                         map.terrainGrid.SetTerrain(cell, DeltaVDefOf.Substructure);
                     }
-                }
-                finally
-                {
-                    SubstructureOwnership.For(map).ClearPendingStamp();
-                }
+                });
                 var deckSet = new HashSet<IntVec3>(deck);
                 // 破损边缘墙：甲板边界格（四邻存在非甲板格）约四成缺口，其余钢墙
                 //（部分残血，表现为可拆的残骸结构）。
@@ -41,9 +36,9 @@ namespace DeltaV
                     {
                         continue;
                     }
-                    Building wall = (Building)ThingMaker.MakeThing(ThingDefOf.Wall, ThingDefOf.Steel);
-                    GenSpawn.Spawn(wall, cell, map, WipeMode.Vanish);
-                    if (Rand.Value < 0.5f)
+                    Building wall = (Building)MapContentSpawner.SpawnRecord(map,
+                        ThingDefOf.Wall, ThingDefOf.Steel, cell, Rot4.North, 0, 0, null);
+                    if (wall != null && Rand.Value < 0.5f)
                     {
                         wall.HitPoints = Mathf.CeilToInt(wall.MaxHitPoints * Rand.Range(0.2f, 0.6f));
                     }
@@ -54,12 +49,10 @@ namespace DeltaV
                 IntVec3 thrusterCell = RandomStandableCell(deck, map);
                 if (thrusterCell.IsValid)
                 {
-                    // 生成方式对齐 ShipStructureStamp.SpawnAnchored：MakeThing + 有效
-                    // Rot4。直接以 def 重载 + Rot4.Invalid 生成会得到无效旋转的建筑，
-                    // 贴图丢失（2026-09-17 实测）。
-                    Thing thruster = ThingMaker.MakeThing(DeltaVDefOf.LargeThruster);
-                    GenSpawn.Spawn(thruster, thrusterCell, map, new Rot4(Rand.RangeInclusive(0, 3)),
-                        WipeMode.Vanish);
+                    // 有效 Rot4 生成（直接 def 重载 + Rot4.Invalid 会得到无效旋转的建筑，
+                    // 贴图丢失，2026-09-17 实测）。
+                    MapContentSpawner.SpawnRecord(map, DeltaVDefOf.LargeThruster, null, thrusterCell,
+                        new Rot4(Rand.RangeInclusive(0, 3)), 0, 0, null);
                 }
             }
             finally
@@ -172,9 +165,8 @@ namespace DeltaV
                 {
                     return;
                 }
-                Thing item = ThingMaker.MakeThing(def, def.MadeFromStuff ? ThingDefOf.Steel : null);
-                item.stackCount = Mathf.Min(count, def.stackLimit);
-                GenSpawn.Spawn(item, cell, map, WipeMode.Vanish);
+                MapContentSpawner.SpawnRecord(map, def, def.MadeFromStuff ? ThingDefOf.Steel : null,
+                    cell, Rot4.North, 0, count, null);
             }
         }
 

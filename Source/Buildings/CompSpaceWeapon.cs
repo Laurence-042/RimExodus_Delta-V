@@ -125,6 +125,35 @@ namespace DeltaV
         /// <summary>当前炮手（原版 CompMannable 在册者）。</summary>
         public Pawn CurrentGunner => Mannable?.ManningPawn;
 
+        // ---- 炮塔状态变更事件源（事件驱动补分配，见 SpaceWeaponService.NotifyWeaponAvailabilityChanged）----
+
+        /// <summary>
+        /// 供电恢复事件（原版 CompPowerTrader 的 PowerOn setter 切换时广播
+        /// "PowerTurnedOn"）：短路损毁后重连、起飞/对接搬运后电网恢复等一切停电窗口
+        /// 的恢复端。登记到武器服务，下一 tick 在战斗位置激活的图上补分配炮手
+        /// （JobDriver_ManTurret 无供电检查、断电不丢 job，但转移 DeSpawn 会丢）。
+        /// </summary>
+        public override void ReceiveCompSignal(string signal)
+        {
+            base.ReceiveCompSignal(signal);
+            if (signal == "PowerTurnedOn")
+            {
+                Universe?.Weapons?.NotifyWeaponAvailabilityChanged(parent.Map);
+            }
+        }
+
+        /// <summary>
+        /// 重放置完成（起飞/对接搬运 StripDomain → PlaceIntoMap 的 GenSpawn 收尾；
+        /// DeSpawn 已使 FailOnDespawnedNullOrForbidden 丢掉炮手 job，原版无召回）。
+        /// 读档重建不触发（battleStations 运行时已清零，事件空转）。
+        /// </summary>
+        public override void PostSpawnSetup(bool respawningAfterLoad)
+        {
+            base.PostSpawnSetup(respawningAfterLoad);
+            if (respawningAfterLoad) return;
+            Universe?.Weapons?.NotifyWeaponAvailabilityChanged(parent.Map);
+        }
+
         /// <summary>
         /// 开火技能来源（§5.4 优先级：自动瞄准插件的等价技能 → 炮手 shooting；
         /// 与炮手并存取高者；两者皆无 → 不满足开火条件）。插件需四邻接本武器

@@ -4,26 +4,7 @@
 
 ## 临时需求（这段空了也别删）
 
-射弹摧毁基架的时候逻辑显然不对
-Tried to set terrain at (63, 0, 80) to null.
-UnityEngine.StackTraceUtility:ExtractStackTrace ()
-(wrapper dynamic-method) MonoMod.Utils.DynamicMethodDefinition:Verse.Log.Error_Patch2 (string)
-(wrapper dynamic-method) MonoMod.Utils.DynamicMethodDefinition:Verse.TerrainGrid.SetFoundation_Patch1 (Verse.TerrainGrid,Verse.IntVec3,Verse.TerrainDef)
-DeltaV.SpaceImpactEffects:StripSubstructureAt (Verse.Map,Verse.IntVec3)
-DeltaV.SpaceImpactEffects:ApplyToDefender (DeltaV.SpaceCollision/ImpactEvent,DeltaV.ImpactOutcomePart,single)
-DeltaV.SpaceCollision:SweepOne (DeltaV.SpaceCollision/SweptBody,DeltaV.SpaceObject,Verse.Map)
-DeltaV.SpaceCollision:SweepAndResolve (DeltaV.UniverseManager,System.Collections.Generic.List`1<DeltaV.SpaceCollision/SweptBody>)
-DeltaV.SpaceProjectileService:ResolveCollisions ()
-DeltaV.UniverseManager:GameComponentTick ()
-(wrapper dynamic-method) MonoMod.Utils.DynamicMethodDefinition:Verse.GameComponentUtility.GameComponentTick_Patch1 ()
-(wrapper dynamic-method) MonoMod.Utils.DynamicMethodDefinition:Verse.TickManager.DoSingleTick_Patch1 (Verse.TickManager)
-(wrapper dynamic-method) MonoMod.Utils.DynamicMethodDefinition:Verse.TickManager.TickManagerUpdate_Patch1 (Verse.TickManager)
-(wrapper dynamic-method) MonoMod.Utils.DynamicMethodDefinition:Verse.Game.UpdatePlay_Patch1 (Verse.Game)
-Verse.Root_Play:Update ()
-
-射弹的贴图朝向不对
-
-命中需要在船壳上复现爆炸、命中火花等效果
+（2026-09-27 六项已全部实现，验收项移入「阶段5 太空战」；新需求记在这里。）
 
 ## 星区模型（已实现待实测，见 [星区架构.md](星区架构.md)）
 
@@ -92,6 +73,8 @@ Verse.Root_Play:Update ()
 
 ## 阶段5 太空战（2026-09-26 施工完成，待游戏内实测）
 
+- [ ] 实测（2026-09-27 实测问题修复六项）：① 射弹击毁基架不再红字（`RemoveFoundation` 替换 `SetFoundation(null)`），归属网格随基架移除同步清空（战斗剥离与玩家手拆后，「修改基架归属」候选、武器归属判定、起飞/降落域缓存即时一致）；② 瞄准/预瞄指示器改原版 `TargetHighlight_Square`/`Circle75Solid` 图标，随聚焦船旋转（从聚焦船看恒水平）；③ 射弹贴图朝向稳定（按容器姿态，不随速度向旋转；激光束角度随聚焦船旋转修正）；④ 非聚焦船被命中时船壳上出现爆炸闪光/火花/烟，且伴随音效（聚焦图爆炸走原版出声、动能/护盾补位置化音效；非聚焦按摄像机距离衰减；设置「超凡智能的听觉」默认开、可关）；⑤ 战斗位置启用期间，断电重连（PowerTurnedOn）与起飞/转移重放置（PostSpawnSetup）事件触发炮手自动补分配；⑥ 居住区预制导出/回放见下条。
+- [ ] 实测（2026-09-27 居住区预制，地图工具包）：设计好测试船后画 Home area → dev「Prefab: export home area as player/enemy test ship」导出 → 重建测试场景改由预制回放设备/物品（推进器照旧 stamp、外环墙/门与基架不进预制、无 PilotConsole 时记错兜底）；无预制文件时回退写死布局；导出计数与路径日志正确。
 - [ ] 全链验收：doc/太空战架构.md §13 的 24 条验收场景逐项实测（含 shuttle 普通对接 §13.20；静态自检见交付说明）。
 - [ ] shuttle 普通对接（已接线：BeginDockingShuttle → 同一选点/计划/完成管线，2026-09-26）：待游戏内实测（选点 → 随动 → 位姿窗口 → 回落建筑 + 冷却 + 口袋处置 + 聚焦交接）。
 - [ ] 月池视觉为程序生成占位图集（三段带 alpha 已按需求分层；正式美术替换 Terrain/MoonPoolAtlas.png 同路径即可）。

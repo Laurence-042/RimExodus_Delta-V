@@ -163,7 +163,9 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SettingsDragLinearHalfLifeTip>While this switch is on, translation speed halves every this many ticks. Smaller stops you sooner; larger drifts longer. Range 1-60000; default 480 (halved every 8 seconds).</DeltaV_SettingsDragLinearHalfLifeTip>
   <DeltaV_SettingsDragAngularHalfLife>Angular velocity half-life (ticks)</DeltaV_SettingsDragAngularHalfLife>
   <DeltaV_SettingsDragAngularHalfLifeTip>While this switch is on, spin rate halves every this many ticks. Smaller stops the turn sooner; larger spins longer. Range 1-60000; default 180 (halved every 3 seconds).</DeltaV_SettingsDragAngularHalfLifeTip>
-  <DeltaV_ReassignProtectedMainConsole>Main console foundations cannot be reassigned ({0} cell(s) skipped). Set the console to backup or deconstruct it first.</DeltaV_ReassignProtectedMainConsole>
+  <DeltaV_SettingsSpaceImpactSound>Archotech hearing</DeltaV_SettingsSpaceImpactSound>
+  <DeltaV_SettingsSpaceImpactSoundTip>Play explosion, hit and shield sounds at impact points during space combat. Someone says there is no air in space so sound cannot travel - the archotech mind considers this mortal thinking. On by default.</DeltaV_SettingsSpaceImpactSoundTip>
+<DeltaV_ReassignProtectedMainConsole>Main console foundations cannot be reassigned ({0} cell(s) skipped). Set the console to backup or deconstruct it first.</DeltaV_ReassignProtectedMainConsole>
 
   <!-- Stage 5: combat (aim mode / weapon groups / battle stations) -->
   <DeltaV_PanelAimMode>Aim mode: {0}</DeltaV_PanelAimMode>

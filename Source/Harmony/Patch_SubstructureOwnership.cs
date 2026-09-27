@@ -7,25 +7,37 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
+    /// TerrainGrid 私有 map 字段的统一读取（归属 patch 族共用，不各建 FieldInfo）。
+    /// </summary>
+    internal static class TerrainGridOwnershipAccess
+    {
+        private static readonly FieldInfo MapField = AccessTools.Field(typeof(TerrainGrid), "map");
+
+        internal static Map MapOf(TerrainGrid grid)
+        {
+            return (Map)MapField?.GetValue(grid);
+        }
+    }
+
+    /// <summary>
     /// 基架归属的唯一写入口（2026-09-18 设计）。基架写入全部经 TerrainGrid.SetFoundation
     /// （SetTerrain 对 isFoundation 地形的分支路由；玩家建造、生成盖章、降落放置、快照恢复
     /// 四条路径共用），此处统一登记归属：
     /// 1. 显式盖章（SubstructureOwnership.SetPendingStamp 登记的降落/生成管线）优先；
     /// 2. 其余仅 Delta-V 参考系图按邻接规则（四邻一致继承 / 孤立新建 / 冲突弃写为 Unassigned）。
     /// RimExodus/原版地表图不参与（FrameOf 门禁，AGENTS §3/§16）。
+    /// 基架移除的归属同步见 Patch_TerrainGrid_RemoveFoundation_Ownership（两方向闭环）。
     /// </summary>
     [HarmonyPatch(typeof(TerrainGrid), nameof(TerrainGrid.SetFoundation))]
     public static class Patch_TerrainGrid_SetFoundation_Ownership
     {
-        private static readonly FieldInfo MapField = AccessTools.Field(typeof(TerrainGrid), "map");
-
         public static void Postfix(TerrainGrid __instance, IntVec3 c, TerrainDef newTerr)
         {
-            if (!newTerr.IsSubstructure) // tag 判据（基架判定唯一口径）：月池等 tag 变体同权
+            if (newTerr == null || !newTerr.IsSubstructure) // tag 判据（基架判定唯一口径）：月池等 tag 变体同权；null 防御（原版对 null 早退，不产生归属事实）
             {
                 return; // 目前唯一基架地形；未来其他 foundation 不自动纳入归属体系
             }
-            Map map = (Map)MapField?.GetValue(__instance);
+            Map map = TerrainGridOwnershipAccess.MapOf(__instance);
             if (map == null)
             {
                 return;
@@ -48,6 +60,39 @@ namespace DeltaV
             // 「修改基架归属」划分（不再拒建，PlaceWorker_DeltaVSubstructureOwnership
             // 仅提示不拦截）。
             ownership.ResolveBuilt(c);
+        }
+    }
+
+    /// <summary>
+    /// 基架移除的归属同步（2026-09-27 用户决策）：RemoveFoundation 是一切「单格移除」
+    /// 的漏斗（玩家手拆 JobDriver/Designator、火焚 Notify_FoundationDestroyed、战斗剥离
+    /// SpaceImpactEffects、降落放置前的旧层清理），RemoveGravshipTerrainUnsafe 覆盖起飞
+    /// 批量剥离（原版战略起飞 + GravshipInterop.StripDomain）。两者都经
+    /// NotifyFoundationRemoved 清该格归属（内含版本 bump 与引擎/剪影通知）；
+    /// StripDomain 批末 ClearOwner(ownerId) 与此幂等共存。RimExodus/原版地表图无
+    /// 归属组件（TryGet 早退），零影响。
+    /// </summary>
+    [HarmonyPatch(typeof(TerrainGrid), nameof(TerrainGrid.RemoveFoundation))]
+    public static class Patch_TerrainGrid_RemoveFoundation_Ownership
+    {
+        public static void Postfix(TerrainGrid __instance, IntVec3 c)
+        {
+            Map map = TerrainGridOwnershipAccess.MapOf(__instance);
+            if (map == null) return;
+            SubstructureOwnership.TryGet(map)?.NotifyFoundationRemoved(c);
+        }
+    }
+
+    [HarmonyPatch(typeof(TerrainGrid), nameof(TerrainGrid.RemoveGravshipTerrainUnsafe))]
+    public static class Patch_TerrainGrid_RemoveGravshipTerrainUnsafe_Ownership
+    {
+        // 参数名按目标方法真实签名绑定（RemoveGravshipTerrainUnsafe(IntVec3 cell, int index)，
+        // 与 RemoveFoundation 的 c 不同；名字不匹配会中断整个 PatchAll）。
+        public static void Postfix(TerrainGrid __instance, IntVec3 cell)
+        {
+            Map map = TerrainGridOwnershipAccess.MapOf(__instance);
+            if (map == null) return;
+            SubstructureOwnership.TryGet(map)?.NotifyFoundationRemoved(cell);
         }
     }
 

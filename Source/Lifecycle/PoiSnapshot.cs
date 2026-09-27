@@ -31,6 +31,7 @@ namespace DeltaV
         private List<int> thingHitPoints = new List<int>();
         private List<int> thingStacks = new List<int>();
         private List<Faction> thingFactions = new List<Faction>();
+        private List<int> thingQualities = new List<int>(); // 品质枚举值；-1 = 无 CompQuality
 
         // 源图尺寸（Capture 时记录，快照几何 = 捕获事实的一部分）：快照格是**源图绝对
         // 坐标**，物化目标图必须不小于源图——TerrainGrid.SetFoundation 是三个地形写
@@ -95,6 +96,9 @@ namespace DeltaV
                 snapshot.thingHitPoints.Add(thing.HitPoints);
                 snapshot.thingStacks.Add(thing.stackCount);
                 snapshot.thingFactions.Add(thing.Faction);
+                snapshot.thingQualities.Add(thing.TryGetComp<CompQuality>() is { } quality
+                    ? (int)quality.Quality
+                    : -1);
             }
             return snapshot;
         }
@@ -115,19 +119,17 @@ namespace DeltaV
                 if (cell.InBounds(map)) stampCells.Add(cell);
                 else skipped++;
             }
-            SubstructureOwnership.For(map).SetPendingStamp(stampCells, ownerId);
-            try
+            // 回放内核（MapContentSpawner，地图工具包公共件）：盖章包裹 + 记录落物。
+            MapContentSpawner.WithOwnershipStamp(map, stampCells, ownerId, delegate
             {
                 for (int i = 0; i < foundationCells.Count; i++)
                 {
-                    if (!foundationCells[i].InBounds(map)) continue;
-                    map.terrainGrid.SetFoundation(foundationCells[i], foundationDefs[i]);
+                    if (foundationCells[i].InBounds(map))
+                    {
+                        map.terrainGrid.SetFoundation(foundationCells[i], foundationDefs[i]);
+                    }
                 }
-            }
-            finally
-            {
-                SubstructureOwnership.For(map).ClearPendingStamp();
-            }
+            });
             for (int i = 0; i < topCells.Count; i++)
             {
                 if (!topCells[i].InBounds(map)) { skipped++; continue; }
@@ -142,7 +144,7 @@ namespace DeltaV
             {
                 if (!thingDefs[i].MadeFromStuff && thingCells[i].InBounds(map))
                 {
-                    SpawnThing(map, i, ThingMaker.MakeThing(thingDefs[i]));
+                    SpawnRecord(map, i, null);
                 }
                 else if (!thingDefs[i].MadeFromStuff)
                 {
@@ -154,7 +156,7 @@ namespace DeltaV
                 if (thingDefs[i].MadeFromStuff && thingCells[i].InBounds(map))
                 {
                     ThingDef stuff = DefDatabase<ThingDef>.GetNamedSilentFail(thingStuffDefNames[i]);
-                    SpawnThing(map, i, ThingMaker.MakeThing(thingDefs[i], stuff));
+                    SpawnRecord(map, i, stuff);
                 }
                 else if (thingDefs[i].MadeFromStuff)
                 {
@@ -169,25 +171,12 @@ namespace DeltaV
             }
         }
 
-        private void SpawnThing(Map map, int i, Thing thing)
+        /// <summary>单条 Thing 记录回放（走 MapContentSpawner 统一入口）。</summary>
+        private void SpawnRecord(Map map, int i, ThingDef stuff)
         {
-            if (thing == null)
-            {
-                return;
-            }
-            if (thingDefs[i].useHitPoints)
-            {
-                thing.HitPoints = Mathf.Clamp(thingHitPoints[i], 1, thing.MaxHitPoints);
-            }
-            if (thingStacks[i] > 1 && thing.def.stackLimit > 1)
-            {
-                thing.stackCount = Mathf.Min(thingStacks[i], thing.def.stackLimit);
-            }
-            if (thingFactions[i] != null)
-            {
-                thing.SetFaction(thingFactions[i]);
-            }
-            GenSpawn.Spawn(thing, thingCells[i], map, new Rot4(thingRots[i]), WipeMode.Vanish);
+            MapContentSpawner.SpawnRecord(map, thingDefs[i], stuff, thingCells[i],
+                new Rot4(thingRots[i]), thingHitPoints[i], thingStacks[i], thingFactions[i],
+                thingQualities[i] >= 0 ? (QualityCategory)thingQualities[i] : (QualityCategory?)null);
         }
 
         public void ExposeData()
@@ -207,6 +196,7 @@ namespace DeltaV
             Scribe_Collections.Look(ref thingHitPoints, "thingHitPoints", LookMode.Value);
             Scribe_Collections.Look(ref thingStacks, "thingStacks", LookMode.Value);
             Scribe_Collections.Look(ref thingFactions, "thingFactions", LookMode.Reference);
+            Scribe_Collections.Look(ref thingQualities, "thingQualities", LookMode.Value);
             if (Scribe.mode == LoadSaveMode.LoadingVars)
             {
                 // XML 加载路径绕过字段初始化器；缺失节点的列表保持 null，统一兜底为空表
@@ -224,6 +214,7 @@ namespace DeltaV
                 thingHitPoints ??= new List<int>();
                 thingStacks ??= new List<int>();
                 thingFactions ??= new List<Faction>();
+                thingQualities ??= new List<int>();
             }
         }
     }
