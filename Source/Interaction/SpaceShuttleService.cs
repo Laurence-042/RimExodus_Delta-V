@@ -150,6 +150,16 @@ namespace DeltaV
                 $"({UniverseManager.MapTag(container.map)})");
             Messages.Message("DeltaV_ShuttleLaunched".Translate(shuttleBody.LabelCap),
                 MessageTypeDefOf.PositiveEvent, false);
+            // 起飞即驾驶：shuttle 靠起飞按钮进入宇宙，玩家方起飞后直接接管（飞船无需
+            // 此机制——本就处于驾驶状态才能出力起飞）。只处理聚焦已随起飞交接进新
+            // 口袋图的情况，否则下一帧聚焦自动退出驾驶，进入无意义；dev 敌对发射与
+            // NPC shuttle 经派系门排除。其余门禁（零重力/流程互斥/派系）由 Enter
+            // 内部 CanEnter 兜底。
+            if (shuttleBody.Faction == Faction.OfPlayer && container.map != null
+                && Find.CurrentMap == container.map)
+            {
+                universe.Pilot.Enter(universe, PilotTarget.Of(shuttleBody));
+            }
         }
 
         /// <summary>
