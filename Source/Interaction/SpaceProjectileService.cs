@@ -8,6 +8,30 @@ using Verse.Sound;
 
 namespace DeltaV
 {
+    public readonly struct SpaceProjectileLaunchSpec
+    {
+        public readonly float speed;
+        public readonly int coldLaunchTicks;
+        public readonly float coldLaunchSpeed;
+        public readonly float damageScale;
+
+        public SpaceProjectileLaunchSpec(float speed, int coldLaunchTicks, float coldLaunchSpeed,
+            float damageScale = 1f)
+        {
+            this.speed = speed;
+            this.coldLaunchTicks = coldLaunchTicks;
+            this.coldLaunchSpeed = coldLaunchSpeed;
+            this.damageScale = damageScale;
+        }
+
+        public static SpaceProjectileLaunchSpec FromDef(CompProperties_SpaceProjectile props,
+            float damageScale = 1f)
+        {
+            return new SpaceProjectileLaunchSpec(props.speed, props.coldLaunchTicks,
+                props.speed * props.coldLaunchSpeedFactor, damageScale);
+        }
+    }
+
     /// <summary>
     /// 弹体服务（太空战架构 §4.1；取代 BoardingPods 槽位，段7 完成接管）：弹体
     /// 创建/注册（图池借出）、制导（导弹速度转向/直射恒速）、超时自毁、碰撞调度
@@ -50,6 +74,9 @@ namespace DeltaV
             public bool dead;
             public Vector3 prevPosition;
             public bool laser;
+            public float cruiseSpeed;
+            public int ignitionTick;
+            public bool ignited;
             public Vector3 laserFrom;
             public Vector3 laserTo;
             /// <summary>伤害/穿深倍率（轨道炮 Σ 加速段；随弹体携带到命中结算）。</summary>
@@ -97,6 +124,8 @@ namespace DeltaV
 
         /// <summary>图池（footprint 哈希 → 空闲小图）。运行时缓存，不序列化。</summary>
         private readonly Dictionary<int, List<Map>> mapPool = new Dictionary<int, List<Map>>();
+        // 在飞与闲置池共用同一集合：这些图是弹体实现细节，不能在殖民者栏暴露。
+        private readonly HashSet<Map> projectileMaps = new HashSet<Map>();
 
         // 激光线段材质（静态渲染缓存，ClearRuntimeCaches 换档销毁；三档透明度近似渐隐）。
         private static Material[] beamMaterials;
@@ -132,6 +161,19 @@ namespace DeltaV
         public bool Launch(ThingDef def, SpaceObject source, Vector3 muzzle, Vector3 directionWorld,
             Faction faction, Thing launcher = null, SpaceObject missileTarget = null, float damageScale = 1f)
         {
+            CompProperties_SpaceProjectile props = def?.GetCompProperties<CompProperties_SpaceProjectile>();
+            if (props == null)
+            {
+                Log.Error($"[DeltaV] Launch: {def?.defName ?? "null"} has no CompProperties_SpaceProjectile.");
+                return false;
+            }
+            return Launch(def, source, muzzle, directionWorld, faction, launcher, missileTarget,
+                SpaceProjectileLaunchSpec.FromDef(props, damageScale));
+        }
+
+        public bool Launch(ThingDef def, SpaceObject source, Vector3 muzzle, Vector3 directionWorld,
+            Faction faction, Thing launcher, SpaceObject missileTarget, SpaceProjectileLaunchSpec launchSpec)
+        {
             var props = def?.GetCompProperties<CompProperties_SpaceProjectile>();
             if (props == null)
             {
@@ -155,6 +197,9 @@ namespace DeltaV
                 target = missileTarget,
                 spawnedAtTick = Find.TickManager.TicksGame,
                 laser = props.laserRange > 0f,
+                cruiseSpeed = launchSpec.speed,
+                ignitionTick = Find.TickManager.TicksGame + Mathf.Max(0, launchSpec.coldLaunchTicks),
+                ignited = launchSpec.coldLaunchTicks <= 0,
             };
 
             if (projectile.laser)
@@ -182,7 +227,9 @@ namespace DeltaV
                     baseTag = SpaceObjectTag.Projectile,
                     faction = faction,
                 };
-                projectile.container.pose.velocity = dirTangent * props.speed + launcherVelocity;
+                float initialSpeed = launchSpec.coldLaunchTicks > 0
+                    ? launchSpec.coldLaunchSpeed : launchSpec.speed;
+                projectile.container.pose.velocity = dirTangent * initialSpeed + launcherVelocity;
                 projectile.building = ThingMaker.MakeThing(def) as Building;
                 if (projectile.building != null)
                 {
@@ -200,15 +247,17 @@ namespace DeltaV
                     baseTag = SpaceObjectTag.Projectile,
                     faction = faction,
                 };
-                projectile.container.pose.velocity = dirTangent * props.speed + launcherVelocity;
+                float initialSpeed = launchSpec.coldLaunchTicks > 0
+                    ? launchSpec.coldLaunchSpeed : launchSpec.speed;
+                projectile.container.pose.velocity = dirTangent * initialSpeed + launcherVelocity;
                 projectile.prevPosition = muzzle;
             }
             universe.RegisterObject(projectile.container);
-            projectile.damageScale = damageScale;
+            projectile.damageScale = launchSpec.damageScale;
             projectiles.Add(projectile);
             DeltaVLog.Message(DeltaVLogModule.Combat,
                 $"{def.defName} launched from '{source?.label ?? "nowhere"}' " +
-                $"(speed {props.speed:F0}, {(props.hasMap ? "mapped" : "mapless")}" +
+                $"(speed {launchSpec.speed:F0}, {(props.hasMap ? "mapped" : "mapless")}" +
                 $"{(projectile.laser ? ", laser" : "")})");
             return true;
         }
@@ -242,7 +291,16 @@ namespace DeltaV
                         continue;
                     }
                     p.prevPosition = p.container.pose.position;
-                    if (p.props.guided && !p.laser && TargetAlive(p.target))
+                    if (!p.laser && !p.ignited && now >= p.ignitionTick)
+                    {
+                        Vector2 direction = p.container.pose.velocity.sqrMagnitude > 1e-8f
+                            ? p.container.pose.velocity.normalized
+                            : Vector2.right;
+                        p.container.pose.velocity = direction * p.cruiseSpeed;
+                        p.container.pose.angle = Mathf.Atan2(direction.y, direction.x);
+                        p.ignited = true;
+                    }
+                    if (p.props.guided && !p.laser && p.ignited && TargetAlive(p.target))
                     {
                         SteerTowards(p);
                     }
@@ -268,7 +326,7 @@ namespace DeltaV
             float maxTurn = p.props.turnRateDegPerSec * Mathf.Deg2Rad * Dt;
             float turn = Mathf.Min(angle, maxTurn);
             Vector2 newDir = SpaceTransform.Rotate(current, signed * turn);
-            p.container.pose.velocity = newDir * p.props.speed;
+            p.container.pose.velocity = newDir * p.cruiseSpeed;
             p.container.pose.angle = Mathf.Atan2(newDir.y, newDir.x);
         }
 
@@ -299,6 +357,7 @@ namespace DeltaV
                 body.projectileDef = p.def;
                 body.attackerBuilding = p.building;
                 body.excludeContainer = p.sourceContainer;
+                body.ignoreNonHostileProjectiles = true;
                 body.launcher = p.launcher;
                 body.dead = false;
                 body.resolvedHit = false;
@@ -361,10 +420,10 @@ namespace DeltaV
             // 激光当 tick 消费完毕：视觉线段（命中点或全射程）+ 销毁。
             foreach (Projectile p in sweepScratch)
             {
-                if (!p.laser || p.dead) continue;
+                if (!p.laser) continue;
                 Vector3 end = p.body.resolvedHit ? p.body.resolvedHitUniverse : p.laserTo;
                 beams.Add(new Beam { from = p.laserFrom, to = end, bornTick = Find.TickManager.TicksGame });
-                DestroyProjectile(p, "laser spent");
+                if (!p.dead) DestroyProjectile(p, "laser spent");
             }
         }
 
@@ -509,9 +568,18 @@ namespace DeltaV
             {
                 Map map = idle[idle.Count - 1];
                 idle.RemoveAt(idle.Count - 1);
+                projectileMaps.Add(map);
                 return map;
             }
-            return ShipPocketMapFactory.GenerateImmediate(new IntVec3(x, 1, z), universe);
+            Map generated = ShipPocketMapFactory.GenerateImmediate(new IntVec3(x, 1, z), universe);
+            if (generated != null)
+            {
+                DeltaVPocketMapMetadata metadata = generated.GetComponent<DeltaVPocketMapMetadata>();
+                if (metadata != null) metadata.projectileMap = true;
+                projectileMaps.Add(generated);
+                HostColonistBarVisibility.NotifyDockingStateChanged();
+            }
+            return generated;
         }
 
         private void ReturnMapToPool(Map map)
@@ -520,6 +588,7 @@ namespace DeltaV
             // 保险：图上不应再有内容（弹体 building 已毁）；有残留则不入池直接销毁。
             if (map.listerThings.AllThings.Count > 0)
             {
+                projectileMaps.Remove(map);
                 universe.Lifecycle.DeinitMap(map, false);
                 return;
             }
@@ -529,6 +598,21 @@ namespace DeltaV
                 mapPool[key] = idle = new List<Map>();
             }
             idle.Add(map);
+            projectileMaps.Add(map);
+        }
+
+        /// <summary>殖民者栏等 UI 判断弹体内部图的唯一入口（包含在飞与闲置池）。</summary>
+        internal bool IsProjectileMap(Map map)
+        {
+            if (map == null) return false;
+            if (projectileMaps.Contains(map)) return true;
+            if (map.GetComponent<DeltaVPocketMapMetadata>()?.projectileMap == true) return true;
+            SpaceObject obj = universe.SpaceObjectOnMap(map);
+            if (obj != null && obj.baseTag == SpaceObjectTag.Projectile) return true;
+            // marker 上线前的存档兼容：普通飞船图最小边长 80，专用宿主为 50；
+            // 只有旧弹体池会留下小于宿主边长的 ShipPocketParent 图。
+            return map.Parent is ShipPocketParent_DeltaV
+                && (map.Size.x < UniverseManager.HostMapEdge || map.Size.z < UniverseManager.HostMapEdge);
         }
 
         private static int PoolKey(int x, int z) => x * 4096 + z;
@@ -563,6 +647,7 @@ namespace DeltaV
                 if (map == Find.CurrentMap) continue;
                 if (universe.SpaceObjectOnMap(map) != null) continue;
                 if (map.mapPawns.AllPawnsSpawned.Count > 0) continue;
+                bool marked = IsProjectileMap(map);
                 bool any = false;
                 bool onlyProjectiles = true;
                 foreach (Thing thing in map.listerThings.AllThings)
@@ -576,7 +661,9 @@ namespace DeltaV
                     onlyProjectiles = false;
                     break;
                 }
-                if (!any || !onlyProjectiles) continue;
+                // 新存档由持久 marker 识别，空闲池图即使没有 building 也可回收；
+                // marker 上线前的旧档仍以「内容只有弹体 building」兼容识别。
+                if ((!marked && !any) || !onlyProjectiles) continue;
                 foreach (Thing thing in map.listerThings.AllThings.ToList())
                 {
                     if (!thing.Destroyed) thing.Destroy(DestroyMode.Vanish);
@@ -605,10 +692,12 @@ namespace DeltaV
                 {
                     foreach (Map map in maps)
                     {
+                        projectileMaps.Remove(map);
                         if (!map.Disposed) universe.Lifecycle.DeinitMap(map, false);
                     }
                 }
                 mapPool.Clear();
+                HostColonistBarVisibility.NotifyDockingStateChanged();
             });
         }
 

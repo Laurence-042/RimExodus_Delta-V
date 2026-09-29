@@ -240,6 +240,17 @@ namespace DeltaV
             return ShipLocalToUniverse(owner, MapToShipLocal(map, mapPoint));
         }
 
+        /// <summary>地图帧方向在指定地图点换算为该 universe 点的切空间方向。</summary>
+        public static Vector2 MapDirectionToUniverseTangent(SpaceObject owner, Map map,
+            Vector2 mapPoint, Vector2 mapDirection)
+        {
+            if (mapDirection.sqrMagnitude < 1e-8f) return Vector2.zero;
+            Vector3 from = MapPointToUniverse(owner, map, mapPoint);
+            Vector3 to = MapPointToUniverse(owner, map, mapPoint + mapDirection.normalized);
+            Vector2 tangent = OrbitSphere.Offset(from, to);
+            return tangent.sqrMagnitude > 1e-8f ? tangent.normalized : Vector2.zero;
+        }
+
         public static Vector2 UniverseToShipLocal(SpaceObject obj, Vector3 universeDir)
         {
             return UniverseToShipLocal(obj.pose, universeDir);

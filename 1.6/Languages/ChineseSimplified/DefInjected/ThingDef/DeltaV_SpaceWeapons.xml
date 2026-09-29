@@ -1,26 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-  <DeltaV_Weapon_CannonTurret.label>太空炮塔</DeltaV_Weapon_CannonTurret.label>
-  <DeltaV_Weapon_CannonTurret.description>载人炮塔，向宇宙层发射重型炮弹。顶部安装：其炮弹不会命中发射船自己的容器。</DeltaV_Weapon_CannonTurret.description>
-  <DeltaV_Weapon_CasemateCannon.label>炮廓炮</DeltaV_Weapon_CasemateCannon.label>
-  <DeltaV_Weapon_CasemateCannon.description>挂壁安装的炮廓炮。沿朝向固定射界（需贴舱壁建造）；位于舰体内，其炮弹可能命中本船容器——误伤是特性。</DeltaV_Weapon_CasemateCannon.description>
-  <DeltaV_Weapon_MissileLauncher.label>导弹发射架</DeltaV_Weapon_MissileLauncher.label>
-  <DeltaV_Weapon_MissileLauncher.description>制导导弹发射架。导弹锁定瞄准方向上最近的敌方容器并逐 tick 追踪；可被点防御拦截。</DeltaV_Weapon_MissileLauncher.description>
-  <DeltaV_Weapon_LaserTurret.label>激光炮塔</DeltaV_Weapon_LaserTurret.label>
-  <DeltaV_Weapon_LaserTurret.description>载人激光炮塔。光束在发射的 tick 内即时命中瞄准线——不可被拦截，但可被护盾弧吸收。</DeltaV_Weapon_LaserTurret.description>
-  <DeltaV_Weapon_PDTurret.label>点防御炮塔</DeltaV_Weapon_PDTurret.label>
-  <DeltaV_Weapon_PDTurret.description>载人点防御炮塔，自动索敌射程内可拦截容器——导弹、有图炮弹与 shuttle。不受瞄准模式控制。</DeltaV_Weapon_PDTurret.description>
-  <DeltaV_Weapon_RailgunLoader.label>轨道炮装弹机构</DeltaV_Weapon_RailgunLoader.label>
-  <DeltaV_Weapon_RailgunLoader.description>分体轨道炮的弹药端：存储并装填轨道炮弹。每条链对应一个炮口；装弹机构必须供电链才能发射。</DeltaV_Weapon_RailgunLoader.description>
-  <DeltaV_Weapon_RailgunAccelerator.label>轨道炮加速段</DeltaV_Weapon_RailgunAccelerator.label>
-  <DeltaV_Weapon_RailgunAccelerator.description>分体轨道炮的加速段。链上每节（装弹机构→加速段→炮口）都会增加炮口弹丸的伤害与穿深。仅支持直线链。</DeltaV_Weapon_RailgunAccelerator.description>
-  <DeltaV_Weapon_RailgunMuzzle.label>轨道炮炮口</DeltaV_Weapon_RailgunMuzzle.label>
-  <DeltaV_Weapon_RailgunMuzzle.description>分体轨道炮的发射端。放置在直线链的末端（装弹机构→加速段→炮口，朝向背对链）。发射超高速弹丸，伤害与穿深随加速段数量增长。</DeltaV_Weapon_RailgunMuzzle.description>
+  <DeltaV_Weapon_PDTurret.label>小型速射副炮</DeltaV_Weapon_PDTurret.label>
+  <DeltaV_Weapon_PDTurret.description>炮艇/驱逐舰级载人速射副炮，可在齐射与点防御模式之间切换。</DeltaV_Weapon_PDTurret.description>
+  <DeltaV_Weapon_RapidSecondaryLarge.label>大型速射副炮</DeltaV_Weapon_RapidSecondaryLarge.label>
+  <DeltaV_Weapon_RapidSecondaryLarge.description>巡洋舰级载人速射副炮。</DeltaV_Weapon_RapidSecondaryLarge.description>
+  <DeltaV_Weapon_CannonTurret.label>小型重炮主炮</DeltaV_Weapon_CannonTurret.label>
+  <DeltaV_Weapon_CannonTurret.description>炮艇/驱逐舰级载人重炮主炮。</DeltaV_Weapon_CannonTurret.description>
+  <DeltaV_Weapon_RapidMainSmall.label>小型速射主炮</DeltaV_Weapon_RapidMainSmall.label>
+  <DeltaV_Weapon_RapidMainSmall.description>炮艇/驱逐舰级速射主炮。</DeltaV_Weapon_RapidMainSmall.description>
+  <DeltaV_Weapon_LaserTurret.label>小型激光主炮</DeltaV_Weapon_LaserTurret.label>
+  <DeltaV_Weapon_LaserTurret.description>炮艇/驱逐舰级载人激光主炮。</DeltaV_Weapon_LaserTurret.description>
+  <DeltaV_Weapon_HeavyMainLarge.label>大型重炮主炮</DeltaV_Weapon_HeavyMainLarge.label>
+  <DeltaV_Weapon_HeavyMainLarge.description>巡洋舰级重炮主炮。</DeltaV_Weapon_HeavyMainLarge.description>
+  <DeltaV_Weapon_RapidMainLarge.label>大型速射主炮</DeltaV_Weapon_RapidMainLarge.label>
+  <DeltaV_Weapon_RapidMainLarge.description>巡洋舰级速射主炮。</DeltaV_Weapon_RapidMainLarge.description>
+  <DeltaV_Weapon_LaserMainLarge.label>大型激光主炮</DeltaV_Weapon_LaserMainLarge.label>
+  <DeltaV_Weapon_LaserMainLarge.description>巡洋舰级激光主炮。</DeltaV_Weapon_LaserMainLarge.description>
+  <DeltaV_Weapon_CasemateCannon.label>小型炮廓炮</DeltaV_Weapon_CasemateCannon.label>
+  <DeltaV_Weapon_CasemateCannon.description>炮艇/驱逐舰级气密炮廓炮，本体即为舱壁。</DeltaV_Weapon_CasemateCannon.description>
+  <DeltaV_Weapon_CasemateLarge.label>大型炮廓炮</DeltaV_Weapon_CasemateLarge.label>
+  <DeltaV_Weapon_CasemateLarge.description>巡洋舰级气密炮廓炮，本体即为舱壁。</DeltaV_Weapon_CasemateLarge.description>
+  <DeltaV_Weapon_MissileLauncher.label>小型导弹发射架</DeltaV_Weapon_MissileLauncher.label>
+  <DeltaV_Weapon_MissileLauncher.description>气密冷发射导弹架；导弹离架一段时间后点火追踪。</DeltaV_Weapon_MissileLauncher.description>
+  <DeltaV_Weapon_MissileLauncherLarge.label>大型导弹发射架</DeltaV_Weapon_MissileLauncherLarge.label>
+  <DeltaV_Weapon_MissileLauncherLarge.description>巡洋舰级气密冷发射导弹架。</DeltaV_Weapon_MissileLauncherLarge.description>
+  <DeltaV_Weapon_RailgunLoader.label>小型轨道炮装弹机</DeltaV_Weapon_RailgunLoader.label>
+  <DeltaV_Weapon_RailgunLoader.description>完整的炮艇/驱逐舰级轨道武器；串联加速导轨会延长炮口并提高出膛速度。</DeltaV_Weapon_RailgunLoader.description>
+  <DeltaV_Weapon_RailgunLoaderLarge.label>大型轨道炮装弹机</DeltaV_Weapon_RailgunLoaderLarge.label>
+  <DeltaV_Weapon_RailgunLoaderLarge.description>完整的巡洋舰级轨道武器。</DeltaV_Weapon_RailgunLoaderLarge.description>
+  <DeltaV_Weapon_RailgunAccelerator.label>小型轨道炮加速段</DeltaV_Weapon_RailgunAccelerator.label>
+  <DeltaV_Weapon_RailgunAccelerator.description>具有明确输入与输出连接位置的串联加速导轨。</DeltaV_Weapon_RailgunAccelerator.description>
+  <DeltaV_Weapon_RailgunAcceleratorLarge.label>大型轨道炮加速段</DeltaV_Weapon_RailgunAcceleratorLarge.label>
+  <DeltaV_Weapon_RailgunAcceleratorLarge.description>巡洋舰级串联加速导轨。</DeltaV_Weapon_RailgunAcceleratorLarge.description>
   <DeltaV_Building_AutoAimPluginI.label>自动瞄准插件 I</DeltaV_Building_AutoAimPluginI.label>
-  <DeltaV_Building_AutoAimPluginI.description>辅助火控计算机。紧邻同结构基架上的太空武器时，该武器可无炮手射击，等效于 10 级射手。与炮手技能取高者。</DeltaV_Building_AutoAimPluginI.description>
+  <DeltaV_Building_AutoAimPluginI.description>覆盖建造在挂件槽中的火控计算机，等效射击技能 10。</DeltaV_Building_AutoAimPluginI.description>
   <DeltaV_Building_AutoAimPluginII.label>自动瞄准插件 II</DeltaV_Building_AutoAimPluginII.label>
-  <DeltaV_Building_AutoAimPluginII.description>高级辅助火控计算机。紧邻同结构基架上的太空武器时，该武器可无炮手射击，等效于 16 级射手。与炮手技能取高者。</DeltaV_Building_AutoAimPluginII.description>
-  <DeltaV_Item_RailgunShell.label>轨道炮弹</DeltaV_Item_RailgunShell.label>
-  <DeltaV_Item_RailgunShell.description>轨道炮用的导电钨弹丸。</DeltaV_Item_RailgunShell.description>
+  <DeltaV_Building_AutoAimPluginII.description>高级火控计算机，等效射击技能 16。</DeltaV_Building_AutoAimPluginII.description>
+  <DeltaV_Building_UraniumMagazine.label>铀制附加弹仓</DeltaV_Building_UraniumMagazine.label>
+  <DeltaV_Building_UraniumMagazine.description>覆盖建造在挂件槽中的优先级 1 弹仓，以铀弹替换默认弹药。</DeltaV_Building_UraniumMagazine.description>
+  <DeltaV_Projectile_RailgunSlug.label>轨道炮弹丸</DeltaV_Projectile_RailgunSlug.label>
   <DeltaV_Projectile_RailgunSlug.description>超高速轨道炮射弹。</DeltaV_Projectile_RailgunSlug.description>
 </LanguageData>

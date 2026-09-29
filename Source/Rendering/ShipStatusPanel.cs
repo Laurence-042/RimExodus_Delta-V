@@ -222,7 +222,7 @@ namespace DeltaV
                 combatHeight += 8f;
                 if (aimButton) combatHeight += 27f + 6f;
                 combatHeight += 26f * 2f + 4f; // 主/副两排武器组方块
-                combatHeight += 27f + 6f;      // 进入战斗位置
+                combatHeight += (27f + 4f) * 2f + 2f; // 进入/重新协调 + 退出战斗位置
             }
             float modeButtonsHeight = hasShip
                 ? (playerControlled && zeroGravity ? 27f + 6f : 0f)
@@ -568,16 +568,23 @@ namespace DeltaV
                 GroupRow(SpaceWeaponSalvoSet.Main, "DeltaV_WeaponSetMain".Translate());
                 GroupRow(SpaceWeaponSalvoSet.Secondary, "DeltaV_WeaponSetSecondary".Translate());
                 lineY += 2f;
-                // 进入战斗位置（作用域 = 本图全部玩家武器的激活组；同按钮切换退出）。
-                string stationsLabel = universe.Weapons.BattleStationsActive(map)
-                    ? "DeltaV_PanelBattleStationsOff".Translate()
-                    : "DeltaV_PanelBattleStationsOn".Translate();
-                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), stationsLabel))
+                // 进入与退出是两个独立动作；再次进入会按最新预留完整重排。
+                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f),
+                    "DeltaV_PanelBattleStationsOn".Translate()))
                 {
-                    universe.Weapons.ToggleBattleStations(map);
+                    universe.Weapons.EnterBattleStations(map);
                 }
                 TooltipHandler.TipRegion(new Rect(0f, lineY, drawWidth, 27f),
-                    "DeltaV_PanelBattleStationsTip".Translate());
+                    "DeltaV_PanelBattleStationsOnTip".Translate());
+                lineY += 27f + 4f;
+                int stationCount = universe.Weapons.BattleStationGunnerCount(map);
+                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f),
+                    "DeltaV_PanelBattleStationsOff".Translate(stationCount)))
+                {
+                    universe.Weapons.ExitBattleStations(map);
+                }
+                TooltipHandler.TipRegion(new Rect(0f, lineY, drawWidth, 27f),
+                    "DeltaV_PanelBattleStationsOffTip".Translate());
                 lineY += 27f + 6f;
             }
 

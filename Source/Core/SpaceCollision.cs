@@ -43,6 +43,11 @@ namespace DeltaV
             public Thing attackerBuilding;
             /// <summary>己方容器排除（顶部炮塔语义：弹不撞发射容器；舰中武器传 null 允许自伤）。</summary>
             public SpaceObject excludeContainer;
+            /// <summary>
+            /// 非敌对弹体互相穿过。用于并列发射架齐射：冷发射后的转弯轨迹可以交叉，
+            /// 但敌方点防弹与来袭弹仍按派系敌意正常碰撞。
+            /// </summary>
+            public bool ignoreNonHostileProjectiles;
             public Vector3 from;
             public Vector3 to;
             /// <summary>弹体脚印等效半径（1×1 ≈ 0.71、2×1 ≈ 1.12）。</summary>
@@ -122,6 +127,7 @@ namespace DeltaV
             public bool anySolid;
             public int structureVersion = -1;
             public int measuredAtTick = -1;
+            public readonly List<IntVec3> occupiedCells = new List<IntVec3>();
             public readonly List<ShieldArc> arcs = new List<ShieldArc>();
         }
 
@@ -165,6 +171,25 @@ namespace DeltaV
             return SurfaceFor(obj).boundsRadius;
         }
 
+        /// <summary>
+        /// 调试显示读取碰撞系统实际正在使用的缓存，而不是另算一份近似碰撞体。
+        /// 输出格为对象 Map 坐标；调用方经 SpaceTransform 投影到当前聚焦参考系。
+        /// </summary>
+        public static bool CollectDebugSurface(SpaceObject obj, List<IntVec3> occupied,
+            out Vector2 boundsCenter, out float boundsRadius)
+        {
+            occupied.Clear();
+            boundsCenter = Vector2.zero;
+            boundsRadius = 0f;
+            if (obj?.map == null || obj.map.Disposed) return false;
+            Surface surface = SurfaceFor(obj);
+            boundsCenter = surface.boundsCenter;
+            boundsRadius = surface.boundsRadius;
+            if (surface.kinds == null) return false;
+            occupied.AddRange(surface.occupiedCells);
+            return occupied.Count > 0;
+        }
+
         private static void Rebuild(Map map, Surface surface, int version, int now)
         {
             int cells = map.cellIndices.NumGridCells;
@@ -173,7 +198,14 @@ namespace DeltaV
                 surface.kinds = new byte[cells];
                 surface.buildings = new Thing[cells];
             }
+            else
+            {
+                // 重建是完整快照；不清空会让已摧毁建筑永久残留在窄相位占用格中。
+                System.Array.Clear(surface.kinds, 0, surface.kinds.Length);
+                System.Array.Clear(surface.buildings, 0, surface.buildings.Length);
+            }
             bool any = false;
+            surface.occupiedCells.Clear();
             int minX = int.MaxValue, minZ = int.MaxValue, maxX = int.MinValue, maxZ = int.MinValue;
             foreach (IntVec3 cell in CellRect.WholeMap(map))
             {
@@ -182,6 +214,7 @@ namespace DeltaV
                 int index = map.cellIndices.CellToIndex(cell);
                 surface.kinds[index] = (byte)kind;
                 surface.buildings[index] = thing;
+                surface.occupiedCells.Add(cell);
                 any = true;
                 minX = Mathf.Min(minX, cell.x); maxX = Mathf.Max(maxX, cell.x);
                 minZ = Mathf.Min(minZ, cell.z); maxZ = Mathf.Max(maxZ, cell.z);
@@ -190,8 +223,10 @@ namespace DeltaV
             if (any)
             {
                 surface.boundsCenter = new Vector2((minX + maxX + 1) * 0.5f, (minZ + maxZ + 1) * 0.5f);
-                float ext = Mathf.Max(maxX - minX + 1, maxZ - minZ + 1);
-                surface.boundsRadius = ext * 0.5f + 0.71f; // 半对角线近似（正方形半径）
+                float width = maxX - minX + 1;
+                float height = maxZ - minZ + 1;
+                // 宽相位圆必须包住脚印四角；最大边长的一半会漏掉矩形/方形角部。
+                surface.boundsRadius = 0.5f * Mathf.Sqrt(width * width + height * height);
             }
             else
             {
@@ -246,6 +281,11 @@ namespace DeltaV
                 {
                     SpaceObject defender = objects[d];
                     if (defender == body.attacker || defender == body.excludeContainer) continue;
+                    if (body.ignoreNonHostileProjectiles && defender.IsActiveCollider
+                        && !AreHostile(body.attacker.faction, defender.faction))
+                    {
+                        continue;
+                    }
                     Map defMap = defender.map;
                     if (defMap == null || defMap.Disposed) continue;
                     if (universe.Generation?.IsGenerating(defMap) == true) continue;
@@ -253,6 +293,12 @@ namespace DeltaV
                     if (body.dead) break;
                 }
             }
+        }
+
+        private static bool AreHostile(Faction first, Faction second)
+        {
+            if (first == null || second == null) return first != second;
+            return first.HostileTo(second) || second.HostileTo(first);
         }
 
         /// <summary>单个 body 对单个守方的窄相位求交与结算；返回是否产生命中事件。</summary>

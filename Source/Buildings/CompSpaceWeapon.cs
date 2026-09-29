@@ -23,7 +23,8 @@ namespace DeltaV
     /// 太空武器 comp（太空战架构 §5.1，双模）：地表/同图战斗完全走原版炮塔 comp
     ///（本 comp 零介入）；太空跨容器射击 = 本 comp + 弹体服务。弹道类型由
     /// projectileDef 引用的弹体 building def 决定（直射/激光/导弹，§5.1 单一事实源）。
-    /// 组别（套别+组号）、PD 模式、炮手预留是存档事实；冷却与本 tick 发射为运行时。
+    /// 组别（套别+组号）、PD 模式与安全限制是本 comp 的存档事实；炮手预留属于 Crew，
+    /// 弹仓优先级属于 Magazine；冷却与本 tick 发射为运行时。
     /// 武器必须位于基架格上（含墙下基架）——归属随基架、随控制域捕获搬运。
     /// </summary>
     public class CompProperties_SpaceWeapon : CompProperties
@@ -34,11 +35,17 @@ namespace DeltaV
         /// <summary>默认瞄准模式（齐射/PD；玩家可经 gizmo 切换，当前值随 comp 存档）。</summary>
         public SpaceWeaponAimMode aimMode = SpaceWeaponAimMode.Volley;
 
+        public SpaceWeaponSalvoSet defaultSalvoSet = SpaceWeaponSalvoSet.Main;
+        public int defaultGroupNumber = 1;
+
         /// <summary>跨墙感知：true = 顶部炮塔（弹排除己方容器）；false = 舰中固定（可自伤）。</summary>
         public bool topTurret = true;
 
         /// <summary>射界（度，绕挂载朝向对称；360 = 全向）。</summary>
         public float fireArcDeg = 360f;
+
+        /// <summary>目标锁定范围；负数表示与 fireArcDeg 相同。冷发射导弹可固定轴、全向锁定。</summary>
+        public float lockArcDeg = -1f;
 
         /// <summary>基础散射角（度；实际偏移 × 技能偏差系数，§5.4）。</summary>
         public float baseSpreadDeg = 2f;
@@ -48,6 +55,35 @@ namespace DeltaV
 
         /// <summary>射程（格；PD 索敌与导弹沿射线锁定目标的范围）。</summary>
         public float range = 120f;
+
+        /// <summary>朝北局部坐标中的炮口连续偏移（相对脚印中心）。</summary>
+        public Vector2 muzzleOffset = Vector2.zero;
+
+        /// <summary>朝北局部坐标中的覆盖挂件槽；旋转后精确匹配槽内 Thing。</summary>
+        public List<IntVec3> attachmentSlots = new List<IntVec3>();
+
+        /// <summary>
+        /// 可安装的挂件 Def。空列表表示开放槽，供其他 Mod 直接通过挂件 comp 接入；
+        /// 非空时既约束放置，也约束运行时发现。
+        /// </summary>
+        public List<ThingDef> allowedAttachmentDefs = new List<ThingDef>();
+
+        /// <summary>通用加速链第一部件的 root 位置；空列表表示不接受串联加速件。</summary>
+        public List<IntVec3> acceleratorStarts = new List<IntVec3>();
+
+        public List<ThingDef> allowedAcceleratorDefs = new List<ThingDef>();
+
+        /// <summary>默认启用自身结构发射路径预检。</summary>
+        public bool safeFireByDefault = true;
+
+        /// <summary>
+        /// 默认允许炮管未对准瞄点时沿当前炮管/固定安装轴开火。轨道炮等固定轴武器
+        /// 依此工作；转速慢、射速快的炮可用同一实例开关在转动中持续射击。
+        /// </summary>
+        public bool canFireWithoutAlignmentByDefault;
+
+        /// <summary>覆盖弹体默认冷发射时长；负数表示使用弹体 Def。</summary>
+        public int ignitionDelayTicks = -1;
 
         public CompProperties_SpaceWeapon()
         {
@@ -62,7 +98,12 @@ namespace DeltaV
         public SpaceWeaponSalvoSet salvoSet = SpaceWeaponSalvoSet.Main;
         public int groupNumber = 1;
         public SpaceWeaponAimMode aimMode = SpaceWeaponAimMode.Volley;
-        public Pawn reservedGunner;
+        public bool safeFire = true;
+        public bool canFireWithoutAlignment;
+        private bool safeFireInitialized;
+        private bool alignmentConfigurationInitialized;
+        private bool configurationInitialized;
+        private int lastMagazineThingId = -1;
 
         // ---- 运行时（不存档）----
 
@@ -84,12 +125,13 @@ namespace DeltaV
             {
                 SpaceObject container = Container;
                 return SpaceTransform.MapPointToUniverse(container, parent.Map,
-                    new Vector2(parent.Position.x + 0.5f, parent.Position.z + 0.5f));
+                    SpaceWeaponGeometry.MuzzleMapPoint(this));
             }
         }
 
         /// <summary>武器挂载朝向的地图帧角（射界基准 = 建筑朝向）。</summary>
-        public float FacingAngle => ShipOrientation.AngleFromRot4(parent.Rotation);
+        public float FacingAngle => parent.TryGetComp<CompSpaceWeaponTraverse>()?.CurrentAngle
+            ?? ShipOrientation.AngleFromRot4(parent.Rotation);
 
         public CompMannable Mannable => parent.TryGetComp<CompMannable>();
 
@@ -103,7 +145,7 @@ namespace DeltaV
                 Map map = parent?.Map;
                 if (map == null) return Ship.Invalid;
                 SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
-                int owner = ownership?.OwnerAt(parent.Position) ?? 0;
+                int owner = SpaceWeaponGeometry.OwnerIdOf(parent);
                 if (owner <= 0) return Ship.Invalid;
                 Ship ship = ShipRegistry.ShipByOwner(owner);
                 return ship.IsValid && ship.map == map ? ship : Ship.Invalid;
@@ -123,7 +165,46 @@ namespace DeltaV
         }
 
         /// <summary>当前炮手（原版 CompMannable 在册者）。</summary>
-        public Pawn CurrentGunner => Mannable?.ManningPawn;
+        public CompSpaceWeaponCrew Crew => parent.TryGetComp<CompSpaceWeaponCrew>();
+
+        public Pawn CurrentGunner => Crew != null ? Crew.ManningPawn : Mannable?.ManningPawn;
+
+        public IEnumerable<ThingWithComps> AttachedThings()
+        {
+            if (parent.Map == null || WeaponProps.attachmentSlots.NullOrEmpty()) yield break;
+            int owner = SpaceWeaponGeometry.OwnerIdOf(parent);
+            var seen = new HashSet<int>();
+            foreach (IntVec3 offset in WeaponProps.attachmentSlots)
+            {
+                IntVec3 cell = SpaceWeaponGeometry.RotatedCell(parent, offset);
+                if (!parent.OccupiedRect().Contains(cell)) continue;
+                if (!cell.InBounds(parent.Map)) continue;
+                foreach (Thing thing in parent.Map.thingGrid.ThingsListAtFast(cell))
+                {
+                    if (thing == parent || thing is not ThingWithComps comps || thing.Destroyed) continue;
+                    CompSpaceWeaponAttachment attachment = comps.TryGetComp<CompSpaceWeaponAttachment>();
+                    if (attachment == null || attachment.HostWeapon != this) continue;
+                    if (!WeaponProps.allowedAttachmentDefs.NullOrEmpty()
+                        && !WeaponProps.allowedAttachmentDefs.Contains(thing.def)) continue;
+                    if (owner > 0 && SpaceWeaponGeometry.OwnerIdOf(thing) != owner) continue;
+                    if (!seen.Add(thing.thingIDNumber)) continue;
+                    yield return comps;
+                }
+            }
+        }
+
+        public bool AutoAimEffective
+        {
+            get
+            {
+                foreach (ThingWithComps attached in AttachedThings())
+                {
+                    CompSpaceAutoAimPlugin plugin = attached.TryGetComp<CompSpaceAutoAimPlugin>();
+                    if (plugin != null && plugin.EffectiveFor(this)) return true;
+                }
+                return false;
+            }
+        }
 
         // ---- 炮塔状态变更事件源（事件驱动补分配，见 SpaceWeaponService.NotifyWeaponAvailabilityChanged）----
 
@@ -150,14 +231,31 @@ namespace DeltaV
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
             base.PostSpawnSetup(respawningAfterLoad);
+            if (!configurationInitialized)
+            {
+                salvoSet = WeaponProps.defaultSalvoSet;
+                groupNumber = Mathf.Clamp(WeaponProps.defaultGroupNumber, 1, 6);
+                aimMode = WeaponProps.aimMode;
+                configurationInitialized = true;
+            }
+            if (!safeFireInitialized)
+            {
+                safeFire = WeaponProps.safeFireByDefault;
+                safeFireInitialized = true;
+            }
+            if (!alignmentConfigurationInitialized)
+            {
+                canFireWithoutAlignment = WeaponProps.canFireWithoutAlignmentByDefault;
+                alignmentConfigurationInitialized = true;
+            }
             if (respawningAfterLoad) return;
             Universe?.Weapons?.NotifyWeaponAvailabilityChanged(parent.Map);
         }
 
         /// <summary>
-        /// 开火技能来源（§5.4 优先级：自动瞄准插件的等价技能 → 炮手 shooting；
-        /// 与炮手并存取高者；两者皆无 → 不满足开火条件）。插件需四邻接本武器
-        /// 且同归属基架（生效判定收口 CompSpaceAutoAimPlugin）。
+        /// 开火技能来源（§5.4）：自动瞄准插件与炮手 shooting 取高者；
+        /// 两者皆无且存在 Crew 时不满足开火条件。插件必须覆盖声明槽位并与武器
+        /// 同归属基架（生效判定收口 CompSpaceAutoAimPlugin）。
         /// </summary>
         public bool TryGetSkillLevel(out int skillLevel)
         {
@@ -170,19 +268,20 @@ namespace DeltaV
             int? pluginSkill = null;
             if (parent.Map != null)
             {
-                foreach (IntVec3 cell in parent.OccupiedRect().ExpandedBy(1).Cells)
+                foreach (ThingWithComps attached in AttachedThings())
                 {
-                    if (parent.OccupiedRect().Contains(cell) || !cell.InBounds(parent.Map)) continue;
-                    foreach (Thing thing in parent.Map.thingGrid.ThingsListAtFast(cell))
+                    CompSpaceAutoAimPlugin plugin = attached.TryGetComp<CompSpaceAutoAimPlugin>();
+                    if (plugin != null && plugin.EffectiveFor(this))
                     {
-                        if (thing is Building building && !building.Destroyed
-                            && building.TryGetComp<CompSpaceAutoAimPlugin>() is { } plugin
-                            && plugin.EffectiveFor(this))
-                        {
-                            pluginSkill = Mathf.Max(pluginSkill ?? 0, plugin.SkillLevel);
-                        }
+                        pluginSkill = Mathf.Max(pluginSkill ?? 0, plugin.SkillLevel);
                     }
                 }
+            }
+            // Crew 不存在表示武器自带基础火控；第三方只加核心 Comp 即可工作。
+            if (Crew == null && Mannable == null && pluginSkill == null && gunnerSkill == null)
+            {
+                skillLevel = 10;
+                return true;
             }
             if (gunnerSkill == null && pluginSkill == null)
             {
@@ -196,10 +295,48 @@ namespace DeltaV
         public override void PostExposeData()
         {
             base.PostExposeData();
-            Scribe_Values.Look(ref salvoSet, "salvoSet", SpaceWeaponSalvoSet.Main);
-            Scribe_Values.Look(ref groupNumber, "groupNumber", 1);
-            Scribe_Values.Look(ref aimMode, "aimMode", SpaceWeaponAimMode.Volley);
-            Scribe_References.Look(ref reservedGunner, "reservedGunner");
+            Scribe_Values.Look(ref salvoSet, "salvoSet", WeaponProps.defaultSalvoSet);
+            Scribe_Values.Look(ref groupNumber, "groupNumber", WeaponProps.defaultGroupNumber);
+            Scribe_Values.Look(ref aimMode, "aimMode", WeaponProps.aimMode);
+            Scribe_Values.Look(ref configurationInitialized, "configurationInitialized", true);
+            Scribe_Values.Look(ref safeFire, "safeFire", true);
+            Scribe_Values.Look(ref safeFireInitialized, "safeFireInitialized", true);
+            Scribe_Values.Look(ref canFireWithoutAlignment, "canFireWithoutAlignment",
+                WeaponProps.canFireWithoutAlignmentByDefault);
+            Scribe_Values.Look(ref alignmentConfigurationInitialized,
+                "alignmentConfigurationInitialized", true);
+            Scribe_Values.Look(ref lastMagazineThingId, "lastMagazineThingId", -1);
+        }
+
+        public CompSpaceWeaponMagazine SelectMagazine()
+        {
+            var candidates = new List<CompSpaceWeaponMagazine>();
+            CompSpaceWeaponMagazine own = parent.TryGetComp<CompSpaceWeaponMagazine>();
+            if (own != null && own.HasShot) candidates.Add(own);
+            foreach (ThingWithComps attached in AttachedThings())
+            {
+                CompSpaceWeaponAttachment attachment = attached.TryGetComp<CompSpaceWeaponAttachment>();
+                CompSpaceWeaponMagazine magazine = attached.TryGetComp<CompSpaceWeaponMagazine>();
+                if (magazine != null && magazine.HasShot && (attachment == null || attachment.Enabled))
+                {
+                    candidates.Add(magazine);
+                }
+            }
+            if (candidates.Count == 0) return null;
+            int max = int.MinValue;
+            foreach (CompSpaceWeaponMagazine candidate in candidates) max = Mathf.Max(max, candidate.Priority);
+            candidates.RemoveAll(m => m.Priority != max);
+            candidates.Sort((a, b) => a.parent.thingIDNumber.CompareTo(b.parent.thingIDNumber));
+            foreach (CompSpaceWeaponMagazine candidate in candidates)
+            {
+                if (candidate.parent.thingIDNumber > lastMagazineThingId) return candidate;
+            }
+            return candidates[0];
+        }
+
+        public void NotifyMagazineConsumed(CompSpaceWeaponMagazine magazine)
+        {
+            if (magazine != null) lastMagazineThingId = magazine.parent.thingIDNumber;
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
@@ -263,13 +400,45 @@ namespace DeltaV
                 }
             };
 
+            // 对准门禁是实例配置：关闭时仍持续追踪瞄点，但每发沿炮管当前方向射出。
+            yield return new Command_Toggle
+            {
+                defaultLabel = "DeltaV_FireWithoutAlignment".Translate(),
+                defaultDesc = "DeltaV_FireWithoutAlignmentTip".Translate(),
+                icon = TexCommand.FireAtWill,
+                isActive = () => canFireWithoutAlignment,
+                toggleAction = delegate { canFireWithoutAlignment = !canFireWithoutAlignment; }
+            };
+
+            // 复用原版设施关联按钮语义：选中炮塔时直接给出兼容附件的建造 designator。
+            if (!WeaponProps.attachmentSlots.NullOrEmpty())
+            {
+                foreach (ThingDef attachmentDef in CompatibleAttachmentDefs())
+                {
+                    Designator_Build designator = BuildCopyCommandUtility.FindAllowedDesignator(attachmentDef);
+                    if (designator != null) yield return designator;
+                }
+            }
+
+            CompSpaceWeaponCrew crew = Crew;
+            if (crew == null) yield break;
+
+            yield return new Command_Toggle
+            {
+                defaultLabel = "DeltaV_SafeFire".Translate(),
+                defaultDesc = "DeltaV_SafeFireTip".Translate(),
+                icon = TexCommand.FireAtWill,
+                isActive = () => safeFire,
+                toggleAction = delegate { safeFire = !safeFire; }
+            };
+
             // 炮手预留（含「不指定」）：浮单列本图殖民者。
             yield return new Command_Action
             {
                 defaultLabel = "DeltaV_WeaponReserveGizmo".Translate(
-                    reservedGunner == null
+                    crew.reservedGunner == null
                         ? "DeltaV_WeaponReserveNone".Translate()
-                        : reservedGunner.LabelShort),
+                        : crew.reservedGunner.LabelShort),
                 defaultDesc = "DeltaV_WeaponReserveGizmoTip".Translate(),
                 icon = TexCommand.Install,
                 action = delegate
@@ -278,7 +447,7 @@ namespace DeltaV
                     {
                         new FloatMenuOption("DeltaV_WeaponReserveNone".Translate(), delegate
                         {
-                            reservedGunner = null;
+                            crew.reservedGunner = null;
                         })
                     };
                     foreach (Pawn pawn in parent.Map.mapPawns.FreeColonistsSpawned)
@@ -286,12 +455,61 @@ namespace DeltaV
                         Pawn captured = pawn;
                         options.Add(new FloatMenuOption(captured.LabelShortCap, delegate
                         {
-                            reservedGunner = captured;
+                            crew.reservedGunner = captured;
                         }));
                     }
                     Find.WindowStack.Add(new FloatMenu(options));
                 }
             };
+        }
+
+        public override void PostDrawExtraSelectionOverlays()
+        {
+            base.PostDrawExtraSelectionOverlays();
+            if (parent.Map == null) return;
+
+            // 覆盖式挂件槽：黄色 = 空槽，绿色 = 已安装兼容挂件。
+            foreach (IntVec3 offset in WeaponProps.attachmentSlots)
+            {
+                IntVec3 cell = SpaceWeaponGeometry.RotatedCell(parent, offset);
+                if (!parent.OccupiedRect().Contains(cell)) continue;
+                bool occupied = false;
+                foreach (ThingWithComps attached in AttachedThings())
+                {
+                    if (attached.OccupiedRect().Contains(cell)) { occupied = true; break; }
+                }
+                GenDraw.DrawFieldEdges(new List<IntVec3> { cell },
+                    occupied ? Color.green : Color.yellow);
+            }
+
+            foreach (IntVec3 offset in WeaponProps.acceleratorStarts)
+            {
+                IntVec3 root = SpaceWeaponGeometry.RotatedCell(parent, offset);
+                ThingDef nextDef = !WeaponProps.allowedAcceleratorDefs.NullOrEmpty()
+                    ? WeaponProps.allowedAcceleratorDefs[0]
+                    : null;
+                var cells = new List<IntVec3>();
+                if (nextDef == null) cells.Add(root);
+                else foreach (IntVec3 cell in GenAdj.OccupiedRect(root, parent.Rotation, nextDef.Size))
+                    cells.Add(cell);
+                GenDraw.DrawFieldEdges(cells,
+                    CompSpaceRailgun.SegmentAtRoot(parent.Map, root, parent.Rotation) != null
+                        ? Color.green : Color.yellow);
+            }
+        }
+
+        private IEnumerable<ThingDef> CompatibleAttachmentDefs()
+        {
+            if (!WeaponProps.allowedAttachmentDefs.NullOrEmpty())
+            {
+                foreach (ThingDef def in WeaponProps.allowedAttachmentDefs) yield return def;
+                yield break;
+            }
+            foreach (ThingDef def in DefDatabase<ThingDef>.AllDefsListForReading)
+            {
+                if (def.GetCompProperties<CompProperties_SpaceWeaponAttachment>() != null)
+                    yield return def;
+            }
         }
     }
 }

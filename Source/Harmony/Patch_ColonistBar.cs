@@ -21,7 +21,9 @@ namespace DeltaV
 
         internal static bool ShouldHide(Map map)
         {
-            return SpaceLifecycleService.IsUniverseHost(map);
+            if (SpaceLifecycleService.IsUniverseHost(map)) return true;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            return universe?.Projectiles.IsProjectileMap(map) == true;
         }
     }
 

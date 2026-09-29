@@ -21,6 +21,15 @@ namespace DeltaV
         /// <summary>转向率上限（度/秒；默认近似即时转向）。</summary>
         public float turnRateDegPerSec = 1080f;
 
+        /// <summary>可选通用冷发射程序：点火前 tick 数；0 表示立即进入原有飞行阶段。</summary>
+        public int coldLaunchTicks;
+
+        /// <summary>冷发射速度相对巡航速度的倍率。</summary>
+        public float coldLaunchSpeedFactor = 0.25f;
+
+        /// <summary>程序允许的锁定弧；360 表示可锁定任意方向目标。</summary>
+        public float lockArcDeg = 360f;
+
         /// <summary>有图形态：弹体 building spawn 于自己的小图（可拦截；血量由 building 实例计算）。</summary>
         public bool hasMap = true;
 

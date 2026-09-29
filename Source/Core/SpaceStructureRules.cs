@@ -62,7 +62,7 @@ namespace DeltaV
             for (int i = 0; i < things.Count; i++)
             {
                 Thing thing = things[i];
-                if (thing.Position != cell || !IsSolidStructure(thing)) continue;
+                if (!IsSolidStructure(thing) || !thing.OccupiedRect().Contains(cell)) continue;
                 solidThing = thing;
                 return thing.def.building.isNaturalRock ? SpaceCellKind.NaturalRock : SpaceCellKind.Building;
             }

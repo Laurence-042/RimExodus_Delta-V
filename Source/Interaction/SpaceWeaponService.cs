@@ -181,7 +181,7 @@ namespace DeltaV
                     if (target == null) continue;
                     // 截击提前量 = 与预瞄同一纯函数；解不出（追不上）本 tick 不射。
                     if (!TrySolveIntercept(weapon, weapon.Container, target,
-                        ProjectileSpeedOf(weapon.WeaponProps.projectileDef), out Vector3 interceptPoint))
+                        ProjectileSpeedOf(weapon), out Vector3 interceptPoint))
                     {
                         continue;
                     }
@@ -244,71 +244,7 @@ namespace DeltaV
         /// </summary>
         public bool TryFire(CompSpaceWeapon weapon, SpaceObject container, Vector3 aimPoint, SpaceObject explicitTarget)
         {
-            CompProperties_SpaceWeapon props = weapon.WeaponProps;
-            if (container == null || props.projectileDef == null) return false;
-            if (!weapon.parent.Spawned || weapon.parent.Destroyed) return false;
-            int now = Find.TickManager.TicksGame;
-            if (now < weapon.cooldownUntilTick) return false;
-            // 炮手或插件（§5.4 同一映射）：两者皆无不开火。
-            if (!weapon.TryGetSkillLevel(out int skill)) return false;
-            if (!PowerOn(weapon.parent)) return false;
-            // 轨道炮分体门禁（§5.7）：完整链（直线邻接 + 装弹机构收尾）∧ 装弹机构供电
-            // ∧ 有弹药；倍率 = Σ 加速段加成（唯一查询入口），发射成功后消耗 1 弹。
-            float damageScale = 1f;
-            CompRefuelable railgunLoader = null;
-            if (weapon.parent.TryGetComp<CompSpaceRailgun>() != null)
-            {
-                if (!CompSpaceRailgun.TryGetChain((Building)weapon.parent, out damageScale, out _, out railgunLoader))
-                {
-                    return false;
-                }
-            }
-            // 射界：瞄准方向相对挂载朝向夹角 ≤ 射界弧/2。
-            Map map = weapon.parent.Map;
-            Vector2 muzzleMap = new Vector2(weapon.parent.Position.x + 0.5f, weapon.parent.Position.z + 0.5f);
-            Vector2 aimMap = SpaceTransform.UniverseToMapPoint(container, map, aimPoint);
-            Vector2 mapDelta = aimMap - muzzleMap;
-            if (mapDelta.sqrMagnitude < 1e-6f) return false;
-            float aimAngle = Mathf.Atan2(mapDelta.y, mapDelta.x);
-            float arcLimit = props.fireArcDeg * 0.5f * Mathf.Deg2Rad;
-            if (arcLimit < Mathf.PI - 0.01f
-                && Mathf.Abs(SpaceTransform.WrapAngle(aimAngle - weapon.FacingAngle)) > arcLimit)
-            {
-                return false;
-            }
-
-            // 散布：基础散射角 × 技能偏差系数（skill 0–20 线性 1.6→0.4），高斯偏移。
-            Vector3 muzzle = weapon.MuzzleUniverse;
-            Vector2 dir = OrbitSphere.Offset(muzzle, aimPoint);
-            if (dir.sqrMagnitude < 1e-8f) return false;
-            dir.Normalize();
-            float offset = Mathf.Clamp(Rand.Gaussian(0f, 0.4f), -1.2f, 1.2f)
-                * props.baseSpreadDeg * Mathf.Deg2Rad * SpreadFactorForSkill(skill);
-            dir = SpaceTransform.Rotate(dir, offset);
-            OrbitSphere.Basis(muzzle, out Vector3 east, out Vector3 north);
-            Vector3 directionWorld = east * dir.x + north * dir.y;
-
-            SpaceObject missileTarget = explicitTarget;
-            if (missileTarget == null && IsGuided(props.projectileDef))
-            {
-                missileTarget = TargetAlongRay(universe, container, muzzle, dir, faction: weapon.parent.Faction);
-            }
-            bool launched = universe.Projectiles.Launch(props.projectileDef, container, muzzle,
-                directionWorld, weapon.parent.Faction, weapon.parent, missileTarget, damageScale);
-            if (launched)
-            {
-                weapon.cooldownUntilTick = now + props.cooldownTicks;
-                railgunLoader?.ConsumeFuel(1f);
-                // 开火后效接口（§5.8 预留，无实现 def）：发射时刻回调。
-                foreach (ThingComp comp in weapon.parent.AllComps)
-                {
-                    if (comp is IFireEffect fireEffect)
-                    {
-                        fireEffect.NotifyFired(weapon, container, muzzle);
-                    }
-                }
-            }
-            return launched;
+            return new SpaceWeaponShot(universe, weapon, container, aimPoint, explicitTarget).TryExecute();
         }
 
         /// <summary>供电判定（原版 comp 状态直读：无供电 comp = 不要求供电，per def）。</summary>
@@ -335,6 +271,13 @@ namespace DeltaV
         {
             var props = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
             return props?.speed ?? 0f;
+        }
+
+        public static float ProjectileSpeedOf(CompSpaceWeapon weapon)
+        {
+            CompSpaceWeaponMagazine magazine = weapon?.SelectMagazine();
+            ThingDef projectile = magazine?.MagazineProps.projectileDef ?? weapon?.WeaponProps.projectileDef;
+            return ProjectileSpeedOf(projectile) + (weapon == null ? 0f : CompSpaceRailgun.Resolve(weapon).speedBonus);
         }
 
         /// <summary>
@@ -438,21 +381,18 @@ namespace DeltaV
             if (ownership == null) return result;
             foreach (CompSpaceWeapon weapon in AllWeaponsOn(map))
             {
-                if (ownership.OwnerAt(weapon.parent.Position) == ownerId) result.Add(weapon);
+                if (SpaceWeaponGeometry.OwnerIdOf(weapon.parent) == ownerId) result.Add(weapon);
             }
             return result;
         }
 
-        // ---- 进入战斗位置（§5.5；作用域 = 本图全部玩家派系武器的激活组）----
+        // ---- 战斗位置（§5.5；本图全部可用玩家武器，激活组仅作人手不足时的优先级）----
 
         /// <summary>
-        /// 切换战斗位置：召集炮手（ManTurret job 批量下发）/ 退出（结束 job）。
-        /// 征用规则：gizmo 预留炮手仍可射击且未征召 → 由其操作；否则从
-        /// 「胜任（Violent 未禁用）+ 可到达 + 未征召」随机；drafted 不征用。
-        /// 记账按图上全部玩家船的 ownerId（换图后随船保持；job 挂在 pawn 上随
-        /// 捕获搬运，本就存活）。
+        /// 进入或重新协调战斗位置。每次显式进入先结束本图现有舰炮岗位，再按最新
+        /// 预留完整重排；激活组优先，但人手足够时全部可用武器都会上人。
         /// </summary>
-        public void ToggleBattleStations(Map map)
+        public void EnterBattleStations(Map map)
         {
             if (map == null) return;
             PruneStaleBattleStations();
@@ -461,46 +401,87 @@ namespace DeltaV
             {
                 if (ShipRegistry.FactionOf(ship) == Faction.OfPlayer) playerShips.Add(ship);
             }
-            bool anyActive = playerShips.Any(ship => battleStations.Contains(ship.ownerId));
-            if (anyActive)
-            {
-                foreach (Ship ship in playerShips) battleStations.Remove(ship.ownerId);
-                foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
-                {
-                    if (pawn.CurJob?.def == JobDefOf.ManTurret
-                        && pawn.CurJob.targetA.Thing is Building turret
-                        && turret.TryGetComp<CompSpaceWeapon>() != null)
-                    {
-                        pawn.jobs.EndCurrentJob(Verse.AI.JobCondition.InterruptForced);
-                    }
-                }
-                Messages.Message("DeltaV_BattleStationsOff".Translate(), MessageTypeDefOf.NeutralEvent, false);
-                return;
-            }
+            EndBattleStationJobs(map);
             int manned = DispatchGunners(map);
             foreach (Ship ship in playerShips) battleStations.Add(ship.ownerId);
             Messages.Message("DeltaV_BattleStationsOn".Translate(manned), MessageTypeDefOf.NeutralEvent, false);
         }
 
+        /// <summary>退出战斗位置；与进入分离，返回工作的实际炮手数用于 UI/消息。</summary>
+        public void ExitBattleStations(Map map)
+        {
+            if (map == null) return;
+            PruneStaleBattleStations();
+            foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
+            {
+                if (ShipRegistry.FactionOf(ship) == Faction.OfPlayer) battleStations.Remove(ship.ownerId);
+            }
+            int released = EndBattleStationJobs(map);
+            Messages.Message("DeltaV_BattleStationsOff".Translate(released),
+                MessageTypeDefOf.NeutralEvent, false);
+        }
+
+        public int BattleStationGunnerCount(Map map)
+        {
+            if (map == null) return 0;
+            int count = 0;
+            foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
+            {
+                if (TryGetJobWeapon(pawn.CurJob, out _)) count++;
+            }
+            return count;
+        }
+
+        private static int EndBattleStationJobs(Map map)
+        {
+            int released = 0;
+            // EndCurrentJob 会同步刷新 MapPawns 派生列表，必须先快照。
+            var colonists = new List<Pawn>(map.mapPawns.FreeColonistsSpawned);
+            foreach (Pawn pawn in colonists)
+            {
+                if (!TryGetJobWeapon(pawn.CurJob, out _)) continue;
+                released++;
+                pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
+            }
+            return released;
+        }
+
+        private static bool TryGetJobWeapon(Job job, out CompSpaceWeapon weapon)
+        {
+            weapon = null;
+            if (job == null) return false;
+            ThingWithComps parent = null;
+            if (job.def == DeltaVDefOf.DeltaV_OperateSpaceWeapon)
+                parent = job.targetB.Thing as ThingWithComps;
+            else if (job.def == JobDefOf.ManTurret)
+                parent = job.targetA.Thing as ThingWithComps;
+            weapon = parent?.TryGetComp<CompSpaceWeapon>();
+            return weapon != null;
+        }
+
         /// <summary>
-        /// 战斗位置炮手征用（唯一计算入口：ToggleBattleStations 开启与状态变更补分配
-        /// 共用）。征用规则：图上玩家武器的激活组 ∧ Mannable ∧ 供电 ∧ 未在岗 →
-        /// PickGunner 下发 ManTurret；断电窗口不征用（炮手站死炮无意义），恢复供电后
-        /// 由 PowerTurnedOn 事件补上。返回征用后已在岗/已征用数。
+        /// 战斗位置炮手征用。全部可用玩家武器都参与；激活组优先、同优先级内有可用
+        /// 预留炮手者优先，再按 thingId 稳定排序。断电窗口不征用，恢复后事件补分配。
         /// </summary>
         private static int DispatchGunners(Map map)
         {
             int manned = 0;
-            foreach (CompSpaceWeapon weapon in AllWeaponsOn(map))
+            var weapons = AllWeaponsOn(map)
+                .Where(w => w.parent.Faction == Faction.OfPlayer && w.Crew != null
+                    && !w.AutoAimEffective && PowerOn(w.parent))
+                .OrderByDescending(w => w.GroupActive)
+                .ThenByDescending(w => GunnerUsable(w.Crew.reservedGunner, w))
+                .ThenBy(w => w.parent.thingIDNumber)
+                .ToList();
+            foreach (CompSpaceWeapon weapon in weapons)
             {
-                if (weapon.parent.Faction != Faction.OfPlayer) continue;
-                if (!weapon.GroupActive) continue;
-                if (weapon.Mannable == null) continue;
-                if (weapon.Mannable.MannedNow) { manned++; continue; }
-                if (!PowerOn(weapon.parent)) continue;
+                CompSpaceWeaponCrew crew = weapon.Crew;
+                if (crew.MannedNow) { manned++; continue; }
+                if (WeaponHasAssignedJob(map, weapon)) { manned++; continue; }
                 Pawn pawn = PickGunner(weapon);
                 if (pawn == null) continue;
-                Job job = JobMaker.MakeJob(JobDefOf.ManTurret, weapon.parent);
+                Job job = JobMaker.MakeJob(DeltaVDefOf.DeltaV_OperateSpaceWeapon);
+                job.targetB = weapon.parent;
                 if (pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc))
                 {
                     manned++;
@@ -509,11 +490,21 @@ namespace DeltaV
             return manned;
         }
 
+        private static bool WeaponHasAssignedJob(Map map, CompSpaceWeapon weapon)
+        {
+            foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
+            {
+                if (TryGetJobWeapon(pawn.CurJob, out CompSpaceWeapon assigned)
+                    && assigned == weapon) return true;
+            }
+            return false;
+        }
+
         /// <summary>征用：预留炮手优先（可用时）；否则随机选「胜任 + 可到达 + 未征召」殖民者。</summary>
         private static Pawn PickGunner(CompSpaceWeapon weapon)
         {
             Map map = weapon.parent.Map;
-            Pawn reserved = weapon.reservedGunner;
+            Pawn reserved = weapon.Crew?.reservedGunner;
             if (GunnerUsable(reserved, weapon)) return reserved;
             var candidates = new List<Pawn>();
             foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
@@ -534,9 +525,9 @@ namespace DeltaV
             Map map = weapon.parent.Map;
             if (pawn.Map != map) return false;
             if (!pawn.CanReserve(weapon.parent)) return false;
-            Thing parent = weapon.parent;
-            return !parent.def.hasInteractionCell
-                || pawn.CanReach(parent.InteractionCell, PathEndMode.OnCell, Danger.Deadly);
+            CompSpaceWeaponCrew crew = weapon.Crew;
+            return crew != null && crew.GunnerCell.Standable(map)
+                && pawn.CanReach(crew.GunnerCell, PathEndMode.OnCell, Danger.Deadly);
         }
 
         /// <summary>dev ResetObjects / 图销毁时的流程清零。</summary>

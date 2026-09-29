@@ -116,6 +116,9 @@
 				<timeoutTicks>1800</timeoutTicks>
 				<guided>true</guided>
 				<turnRateDegPerSec>540</turnRateDegPerSec>
+				<coldLaunchTicks>30</coldLaunchTicks>
+				<coldLaunchSpeedFactor>0.25</coldLaunchSpeedFactor>
+				<lockArcDeg>360</lockArcDeg>
 				<hasMap>true</hasMap>
 			</li>
 		</comps>

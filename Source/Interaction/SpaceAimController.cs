@@ -97,11 +97,12 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in SpaceWeaponService.WeaponsOn(frameMap, ownerId))
             {
                 if (weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive) continue;
-                ThingDef projectileDef = weapon.WeaponProps.projectileDef;
+                CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
+                ThingDef projectileDef = magazine?.MagazineProps.projectileDef ?? weapon.WeaponProps.projectileDef;
                 var props = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
                 if (props == null) continue;
                 if (props.laserRange > 0f) laserSeen = true;
-                else speedScratch.Add(props.speed);
+                else speedScratch.Add(SpaceWeaponService.ProjectileSpeedOf(weapon));
             }
             int slot = baseSlot;
             bool drewAny = false;

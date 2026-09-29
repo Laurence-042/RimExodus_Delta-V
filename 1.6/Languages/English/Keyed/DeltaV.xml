@@ -170,14 +170,15 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <!-- Stage 5: combat (aim mode / weapon groups / battle stations) -->
   <DeltaV_PanelAimMode>Aim mode: {0}</DeltaV_PanelAimMode>
   <DeltaV_PanelAimModeTip>Toggle with this button or the aim key (default B). In aim mode, hold LMB to fire the active main-set weapons and RMB to fire the active secondary-set weapons; vanilla clicking yields. Space (pause) is never taken. The aim session is independent of piloting and autopilot (usable during docking) and persists across focus switches, docking and undocking.</DeltaV_PanelAimModeTip>
-  <DeltaV_PanelWeaponGroupTip>{0} set, group {1}. Click to toggle whether this group is active. Only active groups are fired and called to battle stations.</DeltaV_PanelWeaponGroupTip>
+  <DeltaV_PanelWeaponGroupTip>{0} set, group {1}. Click to toggle whether this group is active. Only active groups fire, and they receive gunner priority when crew is short.</DeltaV_PanelWeaponGroupTip>
   <DeltaV_WeaponSetMain>Main</DeltaV_WeaponSetMain>
   <DeltaV_WeaponSetSecondary>Secondary</DeltaV_WeaponSetSecondary>
-  <DeltaV_PanelBattleStationsOn>Man battle stations</DeltaV_PanelBattleStationsOn>
-  <DeltaV_PanelBattleStationsOff>Leave battle stations</DeltaV_PanelBattleStationsOff>
-  <DeltaV_PanelBattleStationsTip>Calls colonists to man every active-group player weapon on this map (reserved gunners first, then random able colonists; drafted colonists are not called). Same button releases them.</DeltaV_PanelBattleStationsTip>
+  <DeltaV_PanelBattleStationsOn>Man / recoordinate battle stations</DeltaV_PanelBattleStationsOn>
+  <DeltaV_PanelBattleStationsOff>Leave battle stations ({0})</DeltaV_PanelBattleStationsOff>
+  <DeltaV_PanelBattleStationsOnTip>Fully reassigns all usable player weapons on this map using the latest gunner reservations; active groups take priority when crew is short.</DeltaV_PanelBattleStationsOnTip>
+  <DeltaV_PanelBattleStationsOffTip>Releases every current space-weapon post and returns its gunners to normal work.</DeltaV_PanelBattleStationsOffTip>
   <DeltaV_BattleStationsOn>{0} gunners manned battle stations.</DeltaV_BattleStationsOn>
-  <DeltaV_BattleStationsOff>Battle stations released; gunners return to work.</DeltaV_BattleStationsOff>
+  <DeltaV_BattleStationsOff>Battle stations released; {0} gunners return to work.</DeltaV_BattleStationsOff>
   <DeltaV_WeaponGroupGizmo>Weapon group: {0} {1}</DeltaV_WeaponGroupGizmo>
   <DeltaV_WeaponGroupGizmoTip>Opens a menu to assign this weapon's salvo set and group (Main/Secondary 1-6). Activation is toggled per group on the status panel.</DeltaV_WeaponGroupGizmoTip>
   <DeltaV_WeaponGroupMenuTitle>Assign weapon group</DeltaV_WeaponGroupMenuTitle>
@@ -188,8 +189,16 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_WeaponReserveNone>any</DeltaV_WeaponReserveNone>
   <DeltaV_WeaponReserveGizmoTip>Chooses which colonist mans this weapon when battle stations are called (any = random able colonist).</DeltaV_WeaponReserveGizmoTip>
 
-  <DeltaV_CasemateNeedsWall>A casemate must be placed against a solid hull wall (its facing points away from the wall).</DeltaV_CasemateNeedsWall>
-  <DeltaV_RailgunNeedsChain>Railgun parts must extend an existing chain (loader first, then accelerator segments, muzzle last).</DeltaV_RailgunNeedsChain>
+  <DeltaV_MagazinePriority>Magazine priority: {0}</DeltaV_MagazinePriority>
+  <DeltaV_MagazinePriorityTip>Higher-priority magazines are consumed first. Equal-priority magazines alternate in Thing ID order.</DeltaV_MagazinePriorityTip>
+  <DeltaV_AttachmentEnabled>Attachment enabled</DeltaV_AttachmentEnabled>
+  <DeltaV_AttachmentEnabledTip>Temporarily enables or disables this weapon attachment. This command supports multi-selection.</DeltaV_AttachmentEnabledTip>
+  <DeltaV_SafeFire>Hull-safe fire</DeltaV_SafeFire>
+  <DeltaV_SafeFireTip>Prevent fixed weapons from firing when their shot path intersects their own solid hull. Disable only for emergencies.</DeltaV_SafeFireTip>
+  <DeltaV_GunnerCellBlocked>The fixed gunner position is blocked.</DeltaV_GunnerCellBlocked>
+  <DeltaV_WouldBlockGunnerCell>This building would block an active weapon's fixed gunner position.</DeltaV_WouldBlockGunnerCell>
+  <DeltaV_WeaponNeedsSingleOwner>The entire weapon footprint must be on substructure owned by one ship.</DeltaV_WeaponNeedsSingleOwner>
+  <DeltaV_AttachmentNeedsSlot>This attachment must cover a compatible weapon's declared attachment slot.</DeltaV_AttachmentNeedsSlot>
 
   <!-- Stage 5: shuttles & moon pool -->
   <DeltaV_ShuttleLaunchGizmo>Launch shuttle</DeltaV_ShuttleLaunchGizmo>
@@ -203,7 +212,10 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_PanelBoardArm>Board</DeltaV_PanelBoardArm>
   <DeltaV_PanelBoardArmTip>Arm the intrusion drive for this shuttle (pick the target with the "Ram target hull" button in the status panel). Pressing any flight key breaks off the ram and returns manual control; the target is kept.</DeltaV_PanelBoardArmTip>
 
-  <DeltaV_DebugThrustersToggleButton>Show Delta-V thruster vectors and hull extent</DeltaV_DebugThrustersToggleButton>
+  <DeltaV_DebugThrustersToggleButton>Show Delta-V thruster vectors, hull extent, and weapon arcs</DeltaV_DebugThrustersToggleButton>
+  <DeltaV_DebugCollisionToggleButton>Show actual collision cells and broad-phase bounds for all visible objects</DeltaV_DebugCollisionToggleButton>
+  <DeltaV_FireWithoutAlignment>Fire while traversing</DeltaV_FireWithoutAlignment>
+  <DeltaV_FireWithoutAlignmentTip>When enabled, the weapon keeps turning toward its aim point but does not wait for perfect alignment; every shot follows the barrel's current direction or the fixed mounting axis. Supports multi-selection.</DeltaV_FireWithoutAlignmentTip>
 
   <DeltaV_ThrusterPowerTitle>Set thruster power limit</DeltaV_ThrusterPowerTitle>
   <DeltaV_ThrusterPowerEntry>Thruster power: {0}%</DeltaV_ThrusterPowerEntry>
