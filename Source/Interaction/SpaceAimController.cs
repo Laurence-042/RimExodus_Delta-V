@@ -46,7 +46,8 @@ namespace DeltaV
 
         // ---- tick 路径（Weapons.TickAim 转发）----
 
-        /// <summary>玩家瞄准射击：按住左键（主套激活组）/右键（副套激活组）持续开火（§6.1）。</summary>
+        /// <summary>玩家瞄准射击（§6.1）：会话期间炮塔持续跟踪瞄点（不依赖射击按键），
+        /// 按住左键（主套）/右键（副套）持续开火；组未激活的武器不参与跟踪与开火。</summary>
         public void Tick()
         {
             if (disposed) return;
@@ -63,11 +64,20 @@ namespace DeltaV
             if (SpaceWeaponService.MouseOverUiWindow()) return;
             bool main = Input.GetMouseButton(0);
             bool secondary = Input.GetMouseButton(1);
-            if (!main && !secondary) return;
             Vector3 aimPoint = SpaceWeaponService.MouseUniversePoint(container, ship.map);
             foreach (CompSpaceWeapon weapon in SpaceWeaponService.WeaponsOn(ship.map, ownerId))
             {
-                if (weapon.aimMode != SpaceWeaponAimMode.Volley) continue;
+                if (weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive) continue;
+                CompSpaceWeaponTraverse traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
+                if (traverse != null)
+                {
+                    // 跟踪与 Prepare 同口径：muzzle → 瞄点的 Map 角，每 tick 喂给 Traverse。
+                    Vector2 muzzleMap = SpaceWeaponGeometry.MuzzleMapPoint(weapon);
+                    Vector2 aimMap = SpaceTransform.UniverseToMapPoint(container, ship.map, aimPoint);
+                    Vector2 delta = aimMap - muzzleMap;
+                    if (delta.sqrMagnitude > 1e-6f)
+                        traverse.AimAt(Mathf.Atan2(delta.y, delta.x));
+                }
                 bool wanted = main && weapon.salvoSet == SpaceWeaponSalvoSet.Main
                     || secondary && weapon.salvoSet == SpaceWeaponSalvoSet.Secondary;
                 if (!wanted) continue;

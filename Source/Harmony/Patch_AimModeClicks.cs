@@ -30,6 +30,9 @@ namespace DeltaV
             }
             // 让位中让 Targeter 保留输入（取消会话语义，ShellPicking 同族契约）。
             if (Find.Targeter.IsTargeting) return true;
+            // designator 选中（对接/降落选点）时放行：DesignatorManager 的
+            // ESC/右键取消路径不能被瞄准会话整体吞掉。
+            if (Find.DesignatorManager.SelectedDesignator != null) return true;
             return false;
         }
 

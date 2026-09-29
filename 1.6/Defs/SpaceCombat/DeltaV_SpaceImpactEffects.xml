@@ -64,7 +64,7 @@
 		</attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
-	<!-- 激光 × 舱壁/任意实心建筑：按入射角决定伤害（掠射显著衰减），无爆炸单体毁伤。 -->
+	<!-- 激光 × 舱壁/任意实心建筑：高频低伤（hitscan 无速度缩放语义），仅按入射角衰减。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_LaserVsStructure</defName>
 		<projectileDefs>
@@ -74,11 +74,9 @@
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bullet</damageDef>
-			<damage>16</damage>
-			<referenceSpeed>60</referenceSpeed>
-			<speedExponent>0.5</speedExponent>
-			<incidenceMinFactor>0.15</incidenceMinFactor>
-			<armorPenetration>15</armorPenetration>
+			<damage>3</damage>
+			<incidenceMinFactor>0.5</incidenceMinFactor>
+			<armorPenetration>8</armorPenetration>
 			<explosionRadius>0</explosionRadius>
 		</defenderEffect>
 		<attackerEffect>
@@ -91,6 +89,45 @@
 		<defName>DeltaV_Impact_LaserVsSubstructure</defName>
 		<projectileDefs>
 			<li>DeltaV_Projectile_Laser</li>
+		</projectileDefs>
+		<targetsSubstructure>true</targetsSubstructure>
+		<hitTest>Always</hitTest>
+		<defenderEffect>
+			<kind>DamageMap</kind>
+			<damageDef>Bullet</damageDef>
+			<damage>10</damage>
+			<explosionRadius>0</explosionRadius>
+		</defenderEffect>
+		<attackerEffect>
+			<kind>DestroySelf</kind>
+		</attackerEffect>
+	</DeltaV.SpaceImpactEffectDef>
+
+	<!-- 重激光 × 舱壁：高频中伤（hitscan 无速度缩放语义），仅按入射角衰减。 -->
+	<DeltaV.SpaceImpactEffectDef>
+		<defName>DeltaV_Impact_LaserHeavyVsStructure</defName>
+		<projectileDefs>
+			<li>DeltaV_Projectile_LaserHeavy</li>
+		</projectileDefs>
+		<hitTest>Always</hitTest>
+		<defenderEffect>
+			<kind>DamageMap</kind>
+			<damageDef>Bullet</damageDef>
+			<damage>8</damage>
+			<incidenceMinFactor>0.5</incidenceMinFactor>
+			<armorPenetration>15</armorPenetration>
+			<explosionRadius>0</explosionRadius>
+		</defenderEffect>
+		<attackerEffect>
+			<kind>DestroySelf</kind>
+		</attackerEffect>
+	</DeltaV.SpaceImpactEffectDef>
+
+	<!-- 重激光 × 基架：固定伤害（摧毁命中格基架）。 -->
+	<DeltaV.SpaceImpactEffectDef>
+		<defName>DeltaV_Impact_LaserHeavyVsSubstructure</defName>
+		<projectileDefs>
+			<li>DeltaV_Projectile_LaserHeavy</li>
 		</projectileDefs>
 		<targetsSubstructure>true</targetsSubstructure>
 		<hitTest>Always</hitTest>
@@ -207,7 +244,7 @@
 		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
-			<damageDef>Bullet</damageDef>
+			<damageDef>Bomb</damageDef>
 			<damage>55</damage>
 			<referenceSpeed>120</referenceSpeed>
 			<speedExponent>1</speedExponent>

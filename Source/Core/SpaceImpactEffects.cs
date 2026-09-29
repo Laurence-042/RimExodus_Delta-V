@@ -50,8 +50,9 @@ namespace DeltaV
         /// <summary>基准相对速度（格/s）。</summary>
         public float referenceSpeed = 60f;
 
-        /// <summary>伤害 ∝ (v/v_ref)^exponent（1 = 线性）。</summary>
-        public float speedExponent = 1f;
+        /// <summary>伤害 ∝ (v/v_ref)^exponent（1 = 线性；默认 0 = 不随速度缩放，
+        /// 速度缩放是动能弹语义，需在 XML 中显式启用）。</summary>
+        public float speedExponent = 0f;
 
         /// <summary>入射角权重：正入射 ×1 → 掠射（90°）×此值。</summary>
         public float incidenceMinFactor = 0.35f;

@@ -82,6 +82,42 @@
 		</comps>
 	</ThingDef>
 
+	<!-- 重激光：大型激光炮用即时链，射程随炮型（160）。 -->
+	<ThingDef ParentName="BuildingBase">
+		<defName>DeltaV_Projectile_LaserHeavy</defName>
+		<label>heavy laser bolt</label>
+		<description>An instant heavy laser beam sweeping to its maximum range on the tick it fires.</description>
+		<thingClass>Verse.Building</thingClass>
+		<category>Building</category>
+		<rotatable>false</rotatable>
+		<passability>Impassable</passability>
+		<fillPercent>0.1</fillPercent>
+		<size>(1,1)</size>
+		<designationCategory Inherit="False" />
+		<researchPrerequisites Inherit="False" />
+		<stuffCategories Inherit="False" />
+		<statBases>
+			<WorkToBuild>1</WorkToBuild>
+			<MaxHitPoints>10</MaxHitPoints>
+			<Flammability>0</Flammability>
+		</statBases>
+		<graphicData>
+			<texPath>Things/Projectile/Bullet_Big</texPath>
+			<graphicClass>Graphic_Single</graphicClass>
+			<drawSize>(1.6,1.6)</drawSize>
+			<shaderType>Cutout</shaderType>
+			<damageData>
+				<enabled>false</enabled>
+			</damageData>
+		</graphicData>
+		<comps>
+			<li Class="DeltaV.CompProperties_SpaceProjectile">
+				<hasMap>false</hasMap>
+				<laserRange>160</laserRange>
+			</li>
+		</comps>
+	</ThingDef>
+
 	<!-- 测试导弹：有图型（可拦截）、纯追踪制导。 -->
 	<ThingDef ParentName="BuildingBase">
 		<defName>DeltaV_Projectile_Missile</defName>

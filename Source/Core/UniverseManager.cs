@@ -863,14 +863,30 @@ namespace DeltaV
                 Weapons.ToggleAim(aimShip);
             }
             // 选点阶段 ESC 取消（2026-09-25 补齐）：pendingShip 在册且无计划 = 正在选点。
-            // 有窗口打开时让位（暂停菜单等窗口自己消费 ESC）。
-            if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape
-                && Find.WindowStack.Windows.Count == 0
-                && (ShipTransitions.pendingShip.IsValid || ShipTransitions.pendingShuttleBody != null)
-                && Approach.ActivePlan == null)
+            // 让位条件是「存在会自己消费 ESC 的窗口」（Dialog 层及以上），而非窗口栈非空——
+            // Inspect 等主标签窗口常驻 GameUI 层且不吞 ESC，不能因此禁用本处理器。
+            // GameComponentOnGUI 先于 DesignatorManager/WindowStack 执行，这里消费后
+            // 原版只会 Deselect 设计器而不清流程的路径不会再跑，一次 ESC 退出整个选点。
+            if (KeyBindingDefOf.Cancel.KeyDownEvent
+                && (ShipTransitions.pendingShip.IsValid || ShipTransitions.pendingShuttleBody != null))
             {
-                Approach.CancelSelectionOrPlan(this, "esc");
-                Event.current.Use();
+                // 事件边沿诊断（用户实测排查用；只在 ESC 按下且选点流程在册时输出一条）。
+                // 只有 closeOnCancel 的窗口（暂停菜单/确认框）会真正消费 ESC——
+                // 开发者调色板、性能 mod 的 ImmediateWindow 等常驻 Super/Dialog 层但不响应取消键。
+                string blockingWindows = string.Join(",",
+                    Find.WindowStack.Windows.Where(w => w.layer > WindowLayer.GameUI && w.closeOnCancel)
+                        .Select(w => $"{w.GetType().Name}@{w.layer}"));
+                Log.Message($"[DeltaV] esc during selection: pendingShip={ShipTransitions.pendingShip.IsValid}, "
+                    + $"pendingShuttle={ShipTransitions.pendingShuttleBody != null}, "
+                    + $"activePlan={Approach.ActivePlan != null}, blockingWindows=[{blockingWindows}], "
+                    + $"eventUsed={Event.current.type == EventType.Used}, "
+                    + $"designator={Find.DesignatorManager.SelectedDesignator?.GetType().Name ?? "none"}");
+                if (string.IsNullOrEmpty(blockingWindows) && Approach.ActivePlan == null)
+                {
+                    Find.DesignatorManager.Deselect();
+                    Approach.CancelSelectionOrPlan(this, "esc");
+                    Event.current.Use();
+                }
             }
             ShipStatusPanel.Draw(this);
             Designator_ReassignSubstructure.DrawPendingLabels();

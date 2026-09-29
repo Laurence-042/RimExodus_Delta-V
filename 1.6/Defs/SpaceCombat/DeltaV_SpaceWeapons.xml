@@ -106,8 +106,8 @@
     <costList><Steel>220</Steel><ComponentIndustrial>8</ComponentIndustrial></costList>
     <statBases><WorkToBuild>5200</WorkToBuild><MaxHitPoints>250</MaxHitPoints></statBases>
     <comps>
-      <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>60</turnRateDegPerSec><fireToleranceDeg>2</fireToleranceDeg></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Laser</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.8</baseSpreadDeg><cooldownTicks>90</cooldownTicks><range>120</range><attachmentSlots><li>(0,0,0)</li></attachmentSlots></li>
+      <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>180</turnRateDegPerSec><fireToleranceDeg>4</fireToleranceDeg></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Laser</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.8</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>120</range><attachmentSlots><li>(0,0,0)</li></attachmentSlots></li>
     </comps>
   </ThingDef>
 
@@ -143,8 +143,8 @@
     <costList><Steel>440</Steel><ComponentSpacer>8</ComponentSpacer></costList>
     <statBases><WorkToBuild>10000</WorkToBuild><MaxHitPoints>480</MaxHitPoints></statBases>
     <comps>
-      <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>30</turnRateDegPerSec><fireToleranceDeg>1.5</fireToleranceDeg></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Laser</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.5</baseSpreadDeg><cooldownTicks>60</cooldownTicks><range>160</range><attachmentSlots><li>(-1,0,-1)</li><li>(1,0,-1)</li></attachmentSlots></li>
+      <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>90</turnRateDegPerSec><fireToleranceDeg>3</fireToleranceDeg></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_LaserHeavy</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.5</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>160</range><attachmentSlots><li>(-1,0,-1)</li><li>(1,0,-1)</li></attachmentSlots></li>
     </comps>
   </ThingDef>
 

@@ -76,9 +76,13 @@ namespace DeltaV
                     bonus += segment.RailProps.speedBonus;
                     if (segment.RailProps.movesMuzzle)
                     {
-                        IntVec3 output = SpaceWeaponGeometry.RotatedCell(segment.parent,
-                            segment.RailProps.outputOffset);
-                        muzzle = new Vector2(output.x + 0.5f, output.z + 0.5f);
+                        // 出膛点 = 段脚印中心 + 输出偏移（outputOffset 与 muzzleOffset 同为
+                        // 朝北 Def 坐标）。origin 格基偏移在宽段上偏轴（2×1 偏 0.5 格、
+                        // 4×1 偏 1.5 格），会让弹道偏离炮轨中线、SafePathClear 误判受阻。
+                        Vector2 center = SpaceWeaponGeometry.FootprintCenter(segment.parent);
+                        muzzle = center + SpaceTransform.RotatePlacementOffset(
+                            new Vector2(segment.RailProps.outputOffset.x, segment.RailProps.outputOffset.z),
+                            segment.parent.Rotation);
                     }
                     root = SpaceWeaponGeometry.RotatedCell(segment.parent,
                         segment.RailProps.nextRootOffset);

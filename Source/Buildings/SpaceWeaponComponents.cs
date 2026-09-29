@@ -194,7 +194,13 @@ namespace DeltaV
         public override void CompTick()
         {
             base.CompTick();
-            if (parent is Building_TurretGun turret && turret.CurrentTarget.IsValid)
+            // 玩家瞄准会话期间不让原版炮塔目标覆盖瞄准角——两者每 tick 竞写
+            // desiredAngle 会让 Traverse 对准门禁反复失准。会话无 Map 内目标时
+            // 原版目标（如图内入侵者）仍可驱动炮塔回转。
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            bool playerAiming = universe != null && universe.Weapons.AimSessionOnFocusedMap
+                && parent.Map == Find.CurrentMap;
+            if (!playerAiming && parent is Building_TurretGun turret && turret.CurrentTarget.IsValid)
                 AimAt(MapAngleTo(turret.CurrentTarget, turret));
             if (hasDesired)
             {
