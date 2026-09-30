@@ -37,9 +37,11 @@ Assert-NoMatch 'hand-written current interior-map selection' `
     @('Source') @('*.cs', '!ShipState.cs')
 
 # 停放锚换算的原版私有语义只允许在 SpaceTransform 的唯一镜像中出现。
+# MapPrefab 豁免：它调用的是 GetRoot(PrefabDef, pos, rot) 的 prefab 放置角点重载
+# （原版 prefab 放置语义，与 SpawnPrefab 内部同一 root），不涉及停放锚/universe 换算。
 Assert-NoMatch 'parking-anchor conversion outside SpaceTransform' `
     '(PrefabUtility\.GetRoot\s*\(|\.engineToCenter\b)' `
-    @('Source') @('*.cs', '!SpaceTransform.cs')
+    @('Source') @('*.cs', '!SpaceTransform.cs', '!MapPrefab.cs')
 
 # 游戏状态积分必须服从 tick。生成预算与表现层不属于模拟；这里锁定三类业务目录。
 Assert-NoMatch 'frame-clock simulation in Core/Interaction/Lifecycle' `
