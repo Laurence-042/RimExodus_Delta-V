@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
@@ -12,6 +13,8 @@ namespace DeltaV
     /// ShipPocketMapFactory 惰性创建）+ 球面宇宙状态 + 聚焦玩家船。
     /// 经 DebugActions 以 LongEventHandler 调用（同步生成，与原版 gravship 到达一致）。
     /// 幂等：重复创建时先销毁旧场景。
+    /// 布局数据源：先试 prefab 导入接口（HomePrefab.SpawnInto）；接口未实现、prefab
+    /// 缺失等一切失败以异常表达，捕获后回退程序生成布局（ShipProceduralLayout）。
     /// </summary>
     public static class ShipTestScene
     {
@@ -63,9 +66,6 @@ namespace DeltaV
 
             // 容器先注册、结构后铺设：驾驶台 spawn 认领要求 FrameOf 已解析（ClaimOnSpawn
             // 守卫）。归属 ID 与容器对象 ID 解耦（各经 AllocateOwnerId 独立发放）。
-            // 布局数据源（2026-09-27 居住区预制）：Prefabs/ 下存在导出文件则 hull stamp 后
-            // 由预制回放设备/物品（推进器照旧 stamp），否则用写死布局表。
-            bool playerPrefab = HomePrefab.Exists(HomePrefabNames.PlayerShip);
             int playerOwnerId = universe.AllocateOwnerId();
             Map playerMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
             if (playerMap == null) return;
@@ -73,16 +73,9 @@ namespace DeltaV
                 new SpacePose(playerDir, 0f));
             universe.RegisterObject(playerContainer);
             universe.NoteStructureName(playerOwnerId, "Player ship");
-            CellRect playerHull = ShipStructureStamp.StampPlayerShip(playerMap,
-                ownerId: playerOwnerId, prefabLayout: playerPrefab);
-            if (playerPrefab)
-            {
-                HomePrefab.SpawnInto(HomePrefabNames.PlayerShip, playerMap, playerHull, Faction.OfPlayer);
-                ShipStructureStamp.RelinkGravshipComponents(playerMap);
-                EnsurePilotConsole(playerMap, playerHull, Faction.OfPlayer);
-            }
+            SpawnShipLayout(playerMap, Faction.OfPlayer,
+                () => ShipProceduralLayout.GeneratePlayerShip(playerMap, playerOwnerId));
 
-            bool enemyPrefab = HomePrefab.Exists(HomePrefabNames.EnemyShip);
             int enemyOwnerId = universe.AllocateOwnerId();
             Map enemyMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
             if (enemyMap == null) return;
@@ -92,13 +85,8 @@ namespace DeltaV
                 new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad));
             universe.RegisterObject(enemyContainer);
             universe.NoteStructureName(enemyOwnerId, "Enemy ship");
-            CellRect enemyHull = ShipStructureStamp.StampEnemyShip(enemyMap,
-                ownerId: enemyOwnerId, faction: enemyFaction, prefabLayout: enemyPrefab);
-            if (enemyPrefab)
-            {
-                HomePrefab.SpawnInto(HomePrefabNames.EnemyShip, enemyMap, enemyHull, enemyFaction);
-                EnsurePilotConsole(enemyMap, enemyHull, enemyFaction);
-            }
+            SpawnShipLayout(enemyMap, enemyFaction,
+                () => ShipProceduralLayout.GenerateEnemyShip(enemyMap, enemyOwnerId, enemyFaction));
 
             universe.ResetObjects(new List<SpaceObject> { playerContainer, enemyContainer });
             Ship playerShip = ShipRegistry.ShipByOwner(playerOwnerId);
@@ -110,21 +98,20 @@ namespace DeltaV
             CameraJumper.TryJump(playerMap.Center, playerMap, CameraJumper.MovementMode.Cut);
         }
 
-        /// <summary>预制回放后的驾驶台兜底：无主台则不成船（驾驶/归属域都失效），记错并补一台。</summary>
-        private static void EnsurePilotConsole(Map map, CellRect hull, Faction faction)
+        /// <summary>布局数据源统一口径：先试 prefab 导入接口，抛异常（未实现/无 prefab）
+        /// 即回退程序生成布局。</summary>
+        private static void SpawnShipLayout(Map map, Faction faction, Action fallbackLayout)
         {
-            if (map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole).Any(t => t.Spawned)) return;
-            Log.Error("[DeltaV] HomePrefab replay produced no pilot console - spawning a fallback "
-                + "console at hull center (ship would be uncontrollable without it).");
-            MapContentSpawner.SpawnRecord(map, ThingDefOf.PilotConsole, null, hull.CenterCell,
-                Rot4.East, 0, 0, faction);
+            try
+            {
+                HomePrefab.SpawnInto(faction, map, map.Center);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[DeltaV] HomePrefab import unavailable ({ex.GetType().Name}: {ex.Message})"
+                    + " - falling back to procedural layout.");
+                fallbackLayout();
+            }
         }
-    }
-
-    /// <summary>预制文件名（导出调试动作与测试场景共用同一份约定）。</summary>
-    public static class HomePrefabNames
-    {
-        public const string PlayerShip = "PlayerShip";
-        public const string EnemyShip = "EnemyShip";
     }
 }

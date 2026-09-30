@@ -203,9 +203,9 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 
 通用地图工具包（上述坐标/渲染/搬运/生命周期/生成条目同属一个将来通用的地图工具包；后续地图能力一律扩展这些入口，不建平行实现）：
 
-- `MapContentSpawner`：Thing 记录回放（def/stuff/quality/hp/stack/faction → `GenSpawn`）与基架盖章包裹器的唯一入口；`PoiSnapshot`/`ShipStructureStamp`/`PoiTemplate`/`HomePrefab` 的落物一律经此。
-- `HomePrefab`：居住区预制序列化（Home area 捕获 → JSON 文件 → 回放）；排除推进器、shuttle 与船体外壳环，派系落图时指定。
-- `ShipStructureStamp` / `PoiTemplate` / `ShipPocketMapFactory` / `ShipTestScene`：测试布局 stamp 与口袋图生成；测试船布局数据源优先 `HomePrefab` 预制，缺失回退写死表。
+- `MapContentSpawner`：Thing 记录回放（def/stuff/quality/hp/stack/faction → `GenSpawn`）与基架盖章包裹器的唯一入口；`PoiSnapshot`/`ShipProceduralLayout`/`PoiTemplate` 的落物一律经此。
+- `HomePrefab`：prefab 导出/导入接口挂点（当前空实现，调用即抛 `NotImplementedException`）；导出 = 调试动作 `ExportHomeArea(name)`，导入 = `SpawnInto(faction, map, position)`，失败以异常表达，由 `ShipTestScene` 捕获后回退程序生成布局。
+- `ShipProceduralLayout` / `PoiTemplate` / `ShipPocketMapFactory` / `ShipTestScene`：口袋图生成与程序生成布局（prefab 导入接口抛异常时的 fallback；`ShipTestScene` 统一 try 导入 / catch 回退）。
 
 流程状态属于 `UniverseManager` 的实例服务，不建立可变静态游戏状态。静态只允许无状态纯函数、输入快速门、渲染/反射缓存和同调用栈重入卫兵。
 
