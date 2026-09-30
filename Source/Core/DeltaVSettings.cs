@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Verse;
 
 namespace DeltaV
@@ -90,6 +92,32 @@ namespace DeltaV
         /// <summary>战斗链诊断（发射/命中/拦截/跳弹/放行/tag 切换等用户事件级，边沿触发）。</summary>
         public bool logCombat;
 
+        // ---- 星区内容生成（「生成」页；全局设置，只影响尚未首次生成的星区）----
+
+        /// <summary>按类型的星区生成规则（SectorContentTypes 键；缺条目时读注册表默认）。</summary>
+        public List<SectorTypeRule> sectorRules = new List<SectorTypeRule>();
+
+        /// <summary>
+        /// 该叶子类型的生效规则：设置有条目用条目，否则用注册表默认（读路径不静默改写设置）。
+        /// </summary>
+        public SectorTypeRule EffectiveSectorRule(SectorContentType leaf)
+        {
+            SectorTypeRule existing = sectorRules?.FirstOrDefault(r => r.typeId == leaf.id);
+            if (existing != null) return existing;
+            return new SectorTypeRule { typeId = leaf.id, minCount = leaf.defaultMin };
+        }
+
+        /// <summary>为注册表中的每个叶子类型补齐缺失的设置条目（只补缺，不覆盖已有值）。</summary>
+        public void EnsureSectorRulesSeeded()
+        {
+            if (sectorRules == null) sectorRules = new List<SectorTypeRule>();
+            foreach (SectorContentType leaf in SectorContentTypes.AllLeaves())
+            {
+                if (sectorRules.Any(r => r.typeId == leaf.id)) continue;
+                sectorRules.Add(new SectorTypeRule { typeId = leaf.id, minCount = leaf.defaultMin });
+            }
+        }
+
         public override void ExposeData()
         {
             Scribe_Values.Look(ref flightAssist, "flightAssist", true);
@@ -113,6 +141,7 @@ namespace DeltaV
             Scribe_Values.Look(ref logLifecycle, "logLifecycle", false);
             Scribe_Values.Look(ref logRender, "logRender", false);
             Scribe_Values.Look(ref logCombat, "logCombat", false);
+            Scribe_Collections.Look(ref sectorRules, "sectorRules", LookMode.Deep);
             base.ExposeData();
         }
     }

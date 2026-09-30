@@ -165,6 +165,43 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SettingsDragAngularHalfLifeTip>While this switch is on, spin rate halves every this many ticks. Smaller stops the turn sooner; larger spins longer. Range 1-60000; default 180 (halved every 3 seconds).</DeltaV_SettingsDragAngularHalfLifeTip>
   <DeltaV_SettingsSpaceImpactSound>Archotech hearing</DeltaV_SettingsSpaceImpactSound>
   <DeltaV_SettingsSpaceImpactSoundTip>Play explosion, hit and shield sounds at impact points during space combat. Someone says there is no air in space so sound cannot travel - the archotech mind considers this mortal thinking. On by default.</DeltaV_SettingsSpaceImpactSoundTip>
+
+  <!-- Settings: tab labels -->
+  <DeltaV_SettingsTabGeneral>General</DeltaV_SettingsTabGeneral>
+  <DeltaV_SettingsTabDocking>Docking</DeltaV_SettingsTabDocking>
+  <DeltaV_SettingsTabPhysics>Physics</DeltaV_SettingsTabPhysics>
+  <DeltaV_SettingsTabWorld>World</DeltaV_SettingsTabWorld>
+  <DeltaV_SettingsTabGeneration>Generation</DeltaV_SettingsTabGeneration>
+  <DeltaV_SettingsTabLogging>Logging</DeltaV_SettingsTabLogging>
+
+  <!-- Settings: generation tab (sector content types) -->
+  <DeltaV_SettingsSectorIntro>Sector content rules. Global mod settings shared across saves; only sectors not yet generated are affected. Points of interest with an empty (or all-invalid) prefab pool materialize with the procedural template instead.</DeltaV_SettingsSectorIntro>
+  <DeltaV_SettingsSectorMinCount>Base count per sector</DeltaV_SettingsSectorMinCount>
+  <DeltaV_SettingsSectorMinCountTip>Guaranteed minimum number of objects of this type in each newly generated sector; existing objects are never removed. Zero disables the type.</DeltaV_SettingsSectorMinCountTip>
+  <DeltaV_SettingsSectorSegments>Extra segments</DeltaV_SettingsSectorSegments>
+  <DeltaV_SettingsSectorSegmentsTip>Random extra objects on top of the base count. Each segment rolls independently: on a hit (chance, %) it appends between 1 and the cap. Stack several segments for a long-tail distribution.</DeltaV_SettingsSectorSegmentsTip>
+  <DeltaV_SettingsSectorAddSegment>Add segment</DeltaV_SettingsSectorAddSegment>
+  <DeltaV_SettingsSectorRemoveSegment>Remove</DeltaV_SettingsSectorRemoveSegment>
+  <DeltaV_SettingsSectorSegmentTip>Segment: chance (%) to append between 1 and the cap as extra objects of this type.</DeltaV_SettingsSectorSegmentTip>
+  <DeltaV_SettingsSectorPrefabPool>Prefab pool ({0}/{1} selected)</DeltaV_SettingsSectorPrefabPool>
+  <DeltaV_SettingsSectorPrefabPoolTip>Map prefabs used when a point of interest of this type first materializes (chosen deterministically from its seed, random rotation). Paths are relative to the mod's Prefabs folder - export prefabs with the debug action, then move or rename them into subfolders as needed. Empty or missing files fall back to the procedural template.</DeltaV_SettingsSectorPrefabPoolTip>
+  <DeltaV_SettingsSectorPrefabRefresh>Rescan</DeltaV_SettingsSectorPrefabRefresh>
+  <DeltaV_SectorTypeDerelict>Derelict</DeltaV_SectorTypeDerelict>
+  <DeltaV_SectorTypeCraft>Craft</DeltaV_SectorTypeCraft>
+  <DeltaV_SectorTypeFighter>Fighter</DeltaV_SectorTypeFighter>
+  <DeltaV_SectorTypeGunboat>Gunboat</DeltaV_SectorTypeGunboat>
+  <DeltaV_SectorTypeFrigate>Frigate</DeltaV_SectorTypeFrigate>
+  <DeltaV_SectorTypeDestroyer>Destroyer</DeltaV_SectorTypeDestroyer>
+  <DeltaV_SectorTypeCruiser>Cruiser</DeltaV_SectorTypeCruiser>
+  <DeltaV_SectorTypeStation>Station</DeltaV_SectorTypeStation>
+  <DeltaV_SectorTypeSatellite>Satellite</DeltaV_SectorTypeSatellite>
+  <DeltaV_SectorTypeWeaponUnlockSatellite>Weapon-unlock satellite</DeltaV_SectorTypeWeaponUnlockSatellite>
+  <DeltaV_SectorTypeAbandonedSatellite>Abandoned satellite</DeltaV_SectorTypeAbandonedSatellite>
+  <DeltaV_SectorTypeWeaponPlatform>Weapon platform</DeltaV_SectorTypeWeaponPlatform>
+  <DeltaV_SectorTypeTradeStation>Trade station</DeltaV_SectorTypeTradeStation>
+  <DeltaV_SectorTypeShipyard>Shipyard</DeltaV_SectorTypeShipyard>
+  <DeltaV_SectorTypeHostileStation>Hostile station</DeltaV_SectorTypeHostileStation>
+  <DeltaV_SectorTypeAsteroid>Asteroid</DeltaV_SectorTypeAsteroid>
 <DeltaV_ReassignProtectedMainConsole>Main console foundations cannot be reassigned ({0} cell(s) skipped). Set the console to backup or deconstruct it first.</DeltaV_ReassignProtectedMainConsole>
 
   <!-- Stage 5: combat (aim mode / weapon groups / battle stations) -->

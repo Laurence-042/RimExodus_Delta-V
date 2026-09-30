@@ -165,6 +165,43 @@
   <DeltaV_SettingsDragAngularHalfLifeTip>开关打开时，自旋速度每过这么多 tick 减半。数值越小停转越快，越大转得越久。范围 1–60000；默认 180（3 秒减半）。</DeltaV_SettingsDragAngularHalfLifeTip>
   <DeltaV_SettingsSpaceImpactSound>超凡智能的听觉</DeltaV_SettingsSpaceImpactSound>
   <DeltaV_SettingsSpaceImpactSoundTip>太空战命中点播放爆炸、命中与护盾音效。有人说宇宙中没有空气所以不能传声——超凡智能认为这是凡人的思维。默认开启。</DeltaV_SettingsSpaceImpactSoundTip>
+
+  <!-- 设置：tab 标签 -->
+  <DeltaV_SettingsTabGeneral>通用</DeltaV_SettingsTabGeneral>
+  <DeltaV_SettingsTabDocking>对接</DeltaV_SettingsTabDocking>
+  <DeltaV_SettingsTabPhysics>物理</DeltaV_SettingsTabPhysics>
+  <DeltaV_SettingsTabWorld>世界</DeltaV_SettingsTabWorld>
+  <DeltaV_SettingsTabGeneration>生成</DeltaV_SettingsTabGeneration>
+  <DeltaV_SettingsTabLogging>日志</DeltaV_SettingsTabLogging>
+
+  <!-- 设置：生成页（星区内容类型） -->
+  <DeltaV_SettingsSectorIntro>星区内容生成规则。属于全局 Mod 设置、跨存档共享，只影响尚未生成过的星区。prefab 池为空（或全部失效）的物体在物化时回退程序生成模板。</DeltaV_SettingsSectorIntro>
+  <DeltaV_SettingsSectorMinCount>每星区保底数</DeltaV_SettingsSectorMinCount>
+  <DeltaV_SettingsSectorMinCountTip>每个新生成星区中该类型物体的保底数量；已存在的对象不会被删除。填 0 即关闭该类型。</DeltaV_SettingsSectorMinCountTip>
+  <DeltaV_SettingsSectorSegments>额外生成分段</DeltaV_SettingsSectorSegments>
+  <DeltaV_SettingsSectorSegmentsTip>在保底数之上的随机额外量。每段独立掷骰：按概率（%）命中后追加 1 到上限个。叠加多段可以得到长尾分布。</DeltaV_SettingsSectorSegmentsTip>
+  <DeltaV_SettingsSectorAddSegment>添加段</DeltaV_SettingsSectorAddSegment>
+  <DeltaV_SettingsSectorRemoveSegment>删除</DeltaV_SettingsSectorRemoveSegment>
+  <DeltaV_SettingsSectorSegmentTip>分段：以概率（%）追加 1 到上限个该类型额外物体。</DeltaV_SettingsSectorSegmentTip>
+  <DeltaV_SettingsSectorPrefabPool>prefab 池（已选 {0} / 共 {1}）</DeltaV_SettingsSectorPrefabPool>
+  <DeltaV_SettingsSectorPrefabPoolTip>该类型物体首次物化时使用的地图 prefab（由各自 seed 确定性选取，旋转随机）。路径相对 mod 的 Prefabs 目录——用调试动作导出后，可自行移动或重命名进子目录。池为空或文件缺失时回退程序生成模板。</DeltaV_SettingsSectorPrefabPoolTip>
+  <DeltaV_SettingsSectorPrefabRefresh>重新扫描</DeltaV_SettingsSectorPrefabRefresh>
+  <DeltaV_SectorTypeDerelict>残骸</DeltaV_SectorTypeDerelict>
+  <DeltaV_SectorTypeCraft>飞行器</DeltaV_SectorTypeCraft>
+  <DeltaV_SectorTypeFighter>战机</DeltaV_SectorTypeFighter>
+  <DeltaV_SectorTypeGunboat>炮艇</DeltaV_SectorTypeGunboat>
+  <DeltaV_SectorTypeFrigate>护卫舰</DeltaV_SectorTypeFrigate>
+  <DeltaV_SectorTypeDestroyer>驱逐舰</DeltaV_SectorTypeDestroyer>
+  <DeltaV_SectorTypeCruiser>巡洋舰</DeltaV_SectorTypeCruiser>
+  <DeltaV_SectorTypeStation>空间站</DeltaV_SectorTypeStation>
+  <DeltaV_SectorTypeSatellite>卫星</DeltaV_SectorTypeSatellite>
+  <DeltaV_SectorTypeWeaponUnlockSatellite>天基武器解锁卫星</DeltaV_SectorTypeWeaponUnlockSatellite>
+  <DeltaV_SectorTypeAbandonedSatellite>废弃卫星</DeltaV_SectorTypeAbandonedSatellite>
+  <DeltaV_SectorTypeWeaponPlatform>武器平台</DeltaV_SectorTypeWeaponPlatform>
+  <DeltaV_SectorTypeTradeStation>贸易空间站</DeltaV_SectorTypeTradeStation>
+  <DeltaV_SectorTypeShipyard>造船厂</DeltaV_SectorTypeShipyard>
+  <DeltaV_SectorTypeHostileStation>敌对空间站</DeltaV_SectorTypeHostileStation>
+  <DeltaV_SectorTypeAsteroid>小行星</DeltaV_SectorTypeAsteroid>
 <DeltaV_ReassignProtectedMainConsole>主驾驶台下方的基架归属不能修改（已跳过 {0} 格）；请先设为备用驾驶台或拆除。</DeltaV_ReassignProtectedMainConsole>
 
   <!-- 阶段5：战斗（瞄准模式/武器组/战斗位置） -->

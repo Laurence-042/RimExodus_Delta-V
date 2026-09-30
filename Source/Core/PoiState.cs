@@ -42,6 +42,13 @@ namespace DeltaV
         /// <summary>模板种子：无快照重生成时使用（快照优先，保证玩家改动可恢复）。</summary>
         public int seed;
 
+        /// <summary>
+        /// 内容类型（SectorContentTypes 注册键）：无快照首次物化时按它取该类型的
+        /// prefab 池。带快照的 marker（归档/遗留残骸）永远走快照恢复，不消费池；
+        /// 旧档无键时按 Derelict 回填。
+        /// </summary>
+        public string contentTypeId;
+
         /// <summary>删除段收起的结构级快照（地形/屋顶/建筑/物品；不保 pawn 与 comp 内部状态）。</summary>
         public PoiSnapshot snapshot;
 
@@ -59,7 +66,8 @@ namespace DeltaV
         {
         }
 
-        public PoiState(int poiId, string label, Vector3 position, float angle, int seed)
+        public PoiState(int poiId, string label, Vector3 position, float angle, int seed,
+            string contentTypeId = null)
         {
             objectId = poiId;
             envLabel = label;
@@ -67,6 +75,7 @@ namespace DeltaV
             kind = PoiKind.SnapshotPocket;
             baseTag = SpaceObjectTag.Marker;
             this.seed = seed;
+            this.contentTypeId = contentTypeId ?? SectorContentTypes.DerelictId;
         }
 
         public PoiState(int poiId, MapParent parent)
@@ -90,6 +99,7 @@ namespace DeltaV
             Scribe_Values.Look(ref kind, "kind", PoiKind.SnapshotPocket);
             Scribe_References.Look(ref nativeParent, "nativeParent");
             Scribe_Values.Look(ref seed, "seed", 0);
+            Scribe_Values.Look(ref contentTypeId, "contentType", SectorContentTypes.DerelictId);
             Scribe_Deep.Look(ref snapshot, "snapshot");
             Scribe_Values.Look(ref envLabel, "label", null);
         }

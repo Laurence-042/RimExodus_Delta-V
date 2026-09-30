@@ -180,6 +180,80 @@ namespace DeltaV
         }
 
         /// <summary>
+        /// 按相对路径加载（相对 Prefabs/，支持子目录，正斜杠或平台分隔符均可）。
+        /// 解析后必须仍位于 Prefabs/ 内（拒绝 .. 逃逸与绝对路径），越界抛异常。
+        /// </summary>
+        public static MapPrefabDocument LoadRelative(string relativePath)
+        {
+            return MapPrefabDocument.Load(ResolveRelativePath(relativePath));
+        }
+
+        /// <summary>递归枚举 Prefabs/ 下全部 prefab 的相对路径（正斜杠分隔，稳定排序）。</summary>
+        public static List<string> ListPrefabFiles()
+        {
+            string dir = PrefabDirectory;
+            var result = new List<string>();
+            DirectoryInfo info = new DirectoryInfo(dir);
+            if (!info.Exists) return result;
+            string root = Path.GetFullPath(dir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            foreach (FileInfo file in info.GetFiles("*.xml", SearchOption.AllDirectories))
+            {
+                string relative = file.FullName.Substring(root.Length);
+                result.Add(relative.Replace(Path.AltDirectorySeparatorChar, '/'));
+            }
+            result.Sort(StringComparer.Ordinal);
+            return result;
+        }
+
+        /// <summary>
+        /// 确定性解析 prefab 池：过滤磁盘上仍存在的条目后按 seed 取模选一份（排序保证
+        /// 与设置列表的书写顺序无关）；池为空、全部失效或路径越界返回 null，由调用方
+        /// 回退程序生成。
+        /// </summary>
+        public static string ResolvePoolPath(List<string> pool, int seed)
+        {
+            if (pool == null || pool.Count == 0) return null;
+            List<string> valid = new List<string>();
+            foreach (string entry in pool)
+            {
+                if (string.IsNullOrEmpty(entry)) continue;
+                try
+                {
+                    if (File.Exists(ResolveRelativePath(entry)))
+                    {
+                        valid.Add(entry);
+                    }
+                }
+                catch (Exception)
+                {
+                    // 越界/非法路径条目直接视为失效，不中断池解析。
+                }
+            }
+            if (valid.Count == 0) return null;
+            valid.Sort(StringComparer.Ordinal);
+            return valid[(seed & int.MaxValue) % valid.Count];
+        }
+
+        /// <summary>相对路径 → Prefabs/ 内的绝对路径，带越界防护。</summary>
+        private static string ResolveRelativePath(string relativePath)
+        {
+            if (string.IsNullOrWhiteSpace(relativePath))
+            {
+                throw new ArgumentException("MapPrefab relative path is empty.");
+            }
+            string root = Path.GetFullPath(PrefabDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            string full = Path.GetFullPath(Path.Combine(root, relativePath));
+            if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException($"MapPrefab relative path escapes the prefab directory: {relativePath}");
+            }
+            return full;
+        }
+
+        /// <summary>
         /// 把文档整片放置到 map：foundation（+指定归属的域认领）→ SpawnPrefab（terrain+things，
         /// 派系透传）→ roofs → 设施重链 → 标记建筑展开。ownerId ≤ 0 时不认领（驾驶台 spawn
         /// 时会自行认领连通域）。返回 SpawnPrefab 实际放置的 thing 列表（marker 产物不含）。

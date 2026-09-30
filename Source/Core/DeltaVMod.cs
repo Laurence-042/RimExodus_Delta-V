@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 using RimWorld;
@@ -25,6 +26,7 @@ namespace DeltaV
         public DeltaVMod(ModContentPack content) : base(content)
         {
             Settings = GetSettings<DeltaVSettings>();
+            Settings.EnsureSectorRulesSeeded();
             InitializeHarmony();
             Log.Message("[DeltaV] Star sector model build loaded (sector-scale setting, projection-based tactical docking, sector content bookkeeping, unified status panel with globe).");
         }
@@ -53,60 +55,146 @@ namespace DeltaV
             }
         }
 
+        /// <summary>设置页 tab（顺序即显示顺序）。</summary>
+        private enum SettingsTab
+        {
+            General,
+            Docking,
+            Physics,
+            World,
+            Generation,
+            Logging
+        }
+
+        private SettingsTab settingsTab = SettingsTab.General;
+
         public override void DoSettingsWindowContents(Rect inRect)
         {
+            // tab 悬挂在内容面板上沿（原版 TabDrawer 语义：tab 画在传入矩形上方 32px）。
+            var tabRect = new Rect(inRect) { y = inRect.y + 40f };
+            var mainRect = new Rect(inRect) { height = inRect.height - 40f, y = inRect.y + 40f };
+            Widgets.DrawMenuSection(mainRect);
+            var tabs = new List<TabRecord>
+            {
+                new TabRecord("DeltaV_SettingsTabGeneral".Translate(),
+                    () => settingsTab = SettingsTab.General, settingsTab == SettingsTab.General),
+                new TabRecord("DeltaV_SettingsTabDocking".Translate(),
+                    () => settingsTab = SettingsTab.Docking, settingsTab == SettingsTab.Docking),
+                new TabRecord("DeltaV_SettingsTabPhysics".Translate(),
+                    () => settingsTab = SettingsTab.Physics, settingsTab == SettingsTab.Physics),
+                new TabRecord("DeltaV_SettingsTabWorld".Translate(),
+                    () => settingsTab = SettingsTab.World, settingsTab == SettingsTab.World),
+                new TabRecord("DeltaV_SettingsTabGeneration".Translate(),
+                    () => settingsTab = SettingsTab.Generation, settingsTab == SettingsTab.Generation),
+                new TabRecord("DeltaV_SettingsTabLogging".Translate(),
+                    () => settingsTab = SettingsTab.Logging, settingsTab == SettingsTab.Logging),
+            };
+            TabDrawer.DrawTabs(tabRect, tabs);
+            Rect content = mainRect.ContractedBy(15f);
+            switch (settingsTab)
+            {
+                case SettingsTab.General:
+                    DrawGeneralTab(content);
+                    break;
+                case SettingsTab.Docking:
+                    DrawDockingTab(content);
+                    break;
+                case SettingsTab.Physics:
+                    DrawPhysicsTab(content);
+                    break;
+                case SettingsTab.World:
+                    DrawWorldTab(content);
+                    break;
+                case SettingsTab.Generation:
+                    SectorSettingsUI.Draw(content, Settings);
+                    break;
+                case SettingsTab.Logging:
+                    DrawLoggingTab(content);
+                    break;
+            }
+            Settings.Write();
+        }
+
+        private void DrawGeneralTab(Rect rect)
+        {
             var list = new Listing_Standard();
-            list.Begin(inRect);
+            list.Begin(rect);
             list.CheckboxLabeled("DeltaV_SettingsFlightAssist".Translate(), ref Settings.flightAssist,
                 "DeltaV_SettingsFlightAssistTip".Translate());
             list.Gap(6f);
-            TippedRow(list, inRect, "DeltaV_SettingsCellsPerTileTip",
+            TippedRow(list, rect, "DeltaV_SettingsUniverseZoomMaxTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsUniverseZoomMax".Translate(), ref Settings.universeZoomMax,
+                    ref universeZoomMaxBuffer, 60f, 5000f));
+            list.End();
+        }
+
+        private void DrawDockingTab(Rect rect)
+        {
+            var list = new Listing_Standard();
+            list.Begin(rect);
+            TippedRow(list, rect, "DeltaV_SettingsDockingHoldTicksTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingHoldTicks".Translate(), ref Settings.dockingHoldTicks,
+                    ref dockingHoldTicksBuffer, 1, 600));
+            TippedRow(list, rect, "DeltaV_SettingsDockingPosWindowTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingPosWindow".Translate(), ref Settings.dockingPositionWindow,
+                    ref dockingPosWindowBuffer, 0.05f, 5f));
+            TippedRow(list, rect, "DeltaV_SettingsDockingAngleWindowTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingAngleWindow".Translate(), ref Settings.dockingAngleWindowDeg,
+                    ref dockingAngleWindowBuffer, 0.1f, 15f));
+            TippedRow(list, rect, "DeltaV_SettingsDockingCancelDistanceTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingCancelDistance".Translate(), ref Settings.dockingCancelDistance,
+                    ref dockingCancelDistanceBuffer, 50f, 10000f));
+            list.End();
+        }
+
+        private void DrawPhysicsTab(Rect rect)
+        {
+            // 被动阻力（解耦架构 §11.1）：开关 + 平移/角速度半衰期（tick）；即时生效——
+            // 实际积分与 MPC 预测同一因子，参数变化同时反映到两者。
+            var list = new Listing_Standard();
+            list.Begin(rect);
+            list.CheckboxLabeled("DeltaV_SettingsPassiveDrag".Translate(), ref Settings.passiveDrag,
+                "DeltaV_SettingsPassiveDragTip".Translate());
+            TippedRow(list, rect, "DeltaV_SettingsDragLinearHalfLifeTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsDragLinearHalfLife".Translate(),
+                    ref Settings.dragLinearHalfLifeTicks, ref dragLinearHalfLifeBuffer, 1, 60000));
+            TippedRow(list, rect, "DeltaV_SettingsDragAngularHalfLifeTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsDragAngularHalfLife".Translate(),
+                    ref Settings.dragAngularHalfLifeTicks, ref dragAngularHalfLifeBuffer, 1, 60000));
+            // 真空传声是物理问题——太空战命中音效开关归物理页（2026-09-30 用户决策）。
+            list.Gap(6f);
+            list.CheckboxLabeled("DeltaV_SettingsSpaceImpactSound".Translate(), ref Settings.spaceImpactSound,
+                "DeltaV_SettingsSpaceImpactSoundTip".Translate());
+            list.End();
+        }
+
+        private void DrawWorldTab(Rect rect)
+        {
+            var list = new Listing_Standard();
+            list.Begin(rect);
+            TippedRow(list, rect, "DeltaV_SettingsCellsPerTileTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsCellsPerTile".Translate(), ref Settings.cellsPerTile,
                     ref cellsPerTileBuffer, 100, 100000));
             ApplyCellsPerTileChangeIfAny();
             list.Gap(6f);
-            TippedRow(list, inRect, "DeltaV_SettingsUniverseZoomMaxTip",
-                () => list.TextFieldNumericLabeled("DeltaV_SettingsUniverseZoomMax".Translate(), ref Settings.universeZoomMax,
-                    ref universeZoomMaxBuffer, 60f, 5000f));
-            list.Gap(6f);
-            TippedRow(list, inRect, "DeltaV_SettingsPoiActiveRadiusTip",
-                () => list.TextFieldNumericLabeled("DeltaV_SettingsPoiActiveRadius".Translate(), ref Settings.poiActiveRadius,
-                    ref poiActiveBuffer, 50f, 10000f));
-            list.Gap(6f);
-            TippedRow(list, inRect, "DeltaV_SettingsPoiDeleteRadiusTip",
-                () => list.TextFieldNumericLabeled("DeltaV_SettingsPoiDeleteRadius".Translate(), ref Settings.poiDeleteRadius,
-                    ref poiDeleteBuffer, 100f, 50000f));
-            list.Gap(6f);
-            TippedRow(list, inRect, "DeltaV_SettingsMapGenBudgetTip",
+            TippedRow(list, rect, "DeltaV_SettingsMapGenBudgetTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsMapGenBudget".Translate(), ref Settings.incrementalMapGenBudgetMs,
                     ref mapGenBudgetBuffer, 1f, 16f));
             list.Gap(6f);
-            TippedRow(list, inRect, "DeltaV_SettingsDockingHoldTicksTip",
-                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingHoldTicks".Translate(), ref Settings.dockingHoldTicks,
-                    ref dockingHoldTicksBuffer, 1, 600));
-            TippedRow(list, inRect, "DeltaV_SettingsDockingPosWindowTip",
-                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingPosWindow".Translate(), ref Settings.dockingPositionWindow,
-                    ref dockingPosWindowBuffer, 0.05f, 5f));
-            TippedRow(list, inRect, "DeltaV_SettingsDockingAngleWindowTip",
-                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingAngleWindow".Translate(), ref Settings.dockingAngleWindowDeg,
-                    ref dockingAngleWindowBuffer, 0.1f, 15f));
-            TippedRow(list, inRect, "DeltaV_SettingsDockingCancelDistanceTip",
-                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingCancelDistance".Translate(), ref Settings.dockingCancelDistance,
-                    ref dockingCancelDistanceBuffer, 50f, 10000f));
+            TippedRow(list, rect, "DeltaV_SettingsPoiActiveRadiusTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsPoiActiveRadius".Translate(), ref Settings.poiActiveRadius,
+                    ref poiActiveBuffer, 50f, 10000f));
             list.Gap(6f);
-            // 被动阻力（解耦架构 §11.1）：开关 + 平移/角速度半衰期（tick）；即时生效——
-            // 实际积分与 MPC 预测同一因子，参数变化同时反映到两者。
-            list.CheckboxLabeled("DeltaV_SettingsPassiveDrag".Translate(), ref Settings.passiveDrag,
-                "DeltaV_SettingsPassiveDragTip".Translate());
-            TippedRow(list, inRect, "DeltaV_SettingsDragLinearHalfLifeTip",
-                () => list.TextFieldNumericLabeled("DeltaV_SettingsDragLinearHalfLife".Translate(),
-                    ref Settings.dragLinearHalfLifeTicks, ref dragLinearHalfLifeBuffer, 1, 60000));
-            TippedRow(list, inRect, "DeltaV_SettingsDragAngularHalfLifeTip",
-                () => list.TextFieldNumericLabeled("DeltaV_SettingsDragAngularHalfLife".Translate(),
-                    ref Settings.dragAngularHalfLifeTicks, ref dragAngularHalfLifeBuffer, 1, 60000));
-            list.CheckboxLabeled("DeltaV_SettingsSpaceImpactSound".Translate(), ref Settings.spaceImpactSound,
-                "DeltaV_SettingsSpaceImpactSoundTip".Translate());
-            list.Gap(12f);
+            TippedRow(list, rect, "DeltaV_SettingsPoiDeleteRadiusTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsPoiDeleteRadius".Translate(), ref Settings.poiDeleteRadius,
+                    ref poiDeleteBuffer, 100f, 50000f));
+            list.End();
+        }
+
+        private void DrawLoggingTab(Rect rect)
+        {
+            var list = new Listing_Standard();
+            list.Begin(rect);
             Text.Font = GameFont.Small;
             list.Label("DeltaV_SettingsLogSection".Translate());
             Text.Font = GameFont.Tiny;
@@ -121,7 +209,6 @@ namespace DeltaV
             list.CheckboxLabeled("DeltaV_SettingsLogRender".Translate(), ref Settings.logRender);
             list.CheckboxLabeled("DeltaV_SettingsLogCombat".Translate(), ref Settings.logCombat);
             list.End();
-            Settings.Write();
         }
 
         /// <summary>

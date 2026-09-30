@@ -200,11 +200,22 @@ namespace DeltaV
             parent.sourceMap = universe.GetOrCreateHostMap();
             parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
             // 物化目标图尺寸随快照几何走（快照格是源图绝对坐标，目标图小于源图时
-            // 越界写经 CellToIndex 静默回卷坏图——2026-09-24 事故）；模板态 marker
-            //（无快照）或旧档无尺寸记录时维持 PoiMapSize，越界项由 ApplyTo 守卫兜底。
-            IntVec3 size = marker.snapshot != null && marker.snapshot.HasSourceSize
-                ? marker.snapshot.SourceMapSize
-                : new IntVec3(PoiMapSize, 1, PoiMapSize);
+            // 越界写经 CellToIndex 静默回卷坏图——2026-09-24 事故）；无快照 marker
+            //（首次物化）在类型 prefab 池可用时按选定 prefab 尺寸（+边距），否则
+            // 维持 PoiMapSize（模板态，越界项由 ApplyTo 守卫兜底）。
+            IntVec3 size;
+            if (marker.snapshot != null && marker.snapshot.HasSourceSize)
+            {
+                size = marker.snapshot.SourceMapSize;
+            }
+            else if (TryGetPrefabPoolSize(marker, out IntVec3 prefabSize))
+            {
+                size = prefabSize;
+            }
+            else
+            {
+                size = new IntVec3(PoiMapSize, 1, PoiMapSize);
+            }
             universe.Generation.Enqueue(new IncrementalMapGenerationRequest
             {
                 key = GenerationKey(marker), priority = priority, parent = parent,
@@ -264,7 +275,11 @@ namespace DeltaV
             }
             else
             {
-                PoiTemplate.Stamp(map, marker.seed, containerId);
+                // 首次物化内容链：类型 prefab 池 > 程序生成模板（PoiTemplate.Stamp）。
+                if (!TrySpawnPoolPrefab(marker, map, containerId))
+                {
+                    PoiTemplate.Stamp(map, marker.seed, containerId);
+                }
                 Messages.Message("DeltaV_PoiActivated".Translate(container.label),
                     MessageTypeDefOf.NeutralEvent, false);
             }
@@ -274,6 +289,67 @@ namespace DeltaV
             DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                 $"{container.label}: marker #{marker.objectId} materialized into plain container "
                 + $"#{container.objectId} (map#{map.uniqueID} {map.Size.x}x{map.Size.z})");
+        }
+
+        /// <summary>无快照 marker 首次物化时的类型 prefab 池目标图边距（格）。</summary>
+        private const int PrefabPoolSizeMargin = 10;
+
+        /// <summary>
+        /// 无快照 marker 的类型 prefab 池路径（seed 确定性解析；与盖章同一算法，
+        /// 保证入队测尺寸与最终放置取到同一份）。类型未注册或池为空/全失效返回 null。
+        /// </summary>
+        private static string ResolvePoolPrefabPath(PoiState marker)
+        {
+            SectorContentType type = SectorContentTypes.ById(marker.contentTypeId);
+            if (type == null) return null;
+            DeltaVSettings settings = DeltaVMod.CurrentSettings;
+            if (settings == null) return null;
+            return MapPrefab.ResolvePoolPath(settings.EffectiveSectorRule(type).prefabPaths, marker.seed);
+        }
+
+        /// <summary>池可用时按选定 prefab 尺寸 + 边距决定目标图尺寸（下限 PoiMapSize）。</summary>
+        private static bool TryGetPrefabPoolSize(PoiState marker, out IntVec3 size)
+        {
+            size = IntVec3.Invalid;
+            string path = ResolvePoolPrefabPath(marker);
+            if (path == null) return false;
+            try
+            {
+                MapPrefabDocument doc = MapPrefab.LoadRelative(path);
+                size = new IntVec3(Mathf.Max(PoiMapSize, doc.size.x + PrefabPoolSizeMargin), 1,
+                    Mathf.Max(PoiMapSize, doc.size.z + PrefabPoolSizeMargin));
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[DeltaV] prefab pool size probe failed for '{path}' ({marker.label}): {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 无快照 marker 的首次物化尝试：按类型 prefab 池放置（seed 派生旋转，增加
+        /// 残骸朝向多样性）。池为空或加载/放置失败返回 false，调用方回退程序生成模板。
+        /// </summary>
+        private bool TrySpawnPoolPrefab(PoiState marker, Map map, int containerId)
+        {
+            string path = ResolvePoolPrefabPath(marker);
+            if (path == null) return false;
+            try
+            {
+                MapPrefabDocument doc = MapPrefab.LoadRelative(path);
+                Rot4 rotation = new Rot4(marker.seed & 3);
+                MapPrefab.Spawn(doc, map, map.Center, marker.faction, containerId, rotation, universe);
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"{marker.label}: materialized from prefab pool '{path}' (rot {rotation.AsInt})");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[DeltaV] prefab pool spawn failed for '{path}' ({marker.label}); "
+                    + $"falling back to procedural template: {ex.Message}");
+                return false;
+            }
         }
 
         private void EnsureDormant(PoiState poi)
