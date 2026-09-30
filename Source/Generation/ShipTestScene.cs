@@ -13,8 +13,9 @@ namespace DeltaV
     /// ShipPocketMapFactory 惰性创建）+ 球面宇宙状态 + 聚焦玩家船。
     /// 经 DebugActions 以 LongEventHandler 调用（同步生成，与原版 gravship 到达一致）。
     /// 幂等：重复创建时先销毁旧场景。
-    /// 布局数据源：先试 prefab 导入接口（HomePrefab.SpawnInto）；接口未实现、prefab
-    /// 缺失等一切失败以异常表达，捕获后回退程序生成布局（ShipProceduralLayout）。
+    /// 布局数据源：先试通用地图 prefab（MapPrefab.LoadLatest，玩家导出的居住区/飞船，
+    /// 两舰共用一份、仅派系不同）；目录为空、解析失败等一切异常回退程序生成布局
+    /// （ShipProceduralLayout）。
     /// </summary>
     public static class ShipTestScene
     {
@@ -73,7 +74,7 @@ namespace DeltaV
                 new SpacePose(playerDir, 0f));
             universe.RegisterObject(playerContainer);
             universe.NoteStructureName(playerOwnerId, "Player ship");
-            SpawnShipLayout(playerMap, Faction.OfPlayer,
+            SpawnShipLayout(playerMap, Faction.OfPlayer, playerOwnerId, universe,
                 () => ShipProceduralLayout.GeneratePlayerShip(playerMap, playerOwnerId));
 
             int enemyOwnerId = universe.AllocateOwnerId();
@@ -85,7 +86,7 @@ namespace DeltaV
                 new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad));
             universe.RegisterObject(enemyContainer);
             universe.NoteStructureName(enemyOwnerId, "Enemy ship");
-            SpawnShipLayout(enemyMap, enemyFaction,
+            SpawnShipLayout(enemyMap, enemyFaction, enemyOwnerId, universe,
                 () => ShipProceduralLayout.GenerateEnemyShip(enemyMap, enemyOwnerId, enemyFaction));
 
             universe.ResetObjects(new List<SpaceObject> { playerContainer, enemyContainer });
@@ -98,17 +99,19 @@ namespace DeltaV
             CameraJumper.TryJump(playerMap.Center, playerMap, CameraJumper.MovementMode.Cut);
         }
 
-        /// <summary>布局数据源统一口径：先试 prefab 导入接口，抛异常（未实现/无 prefab）
-        /// 即回退程序生成布局。</summary>
-        private static void SpawnShipLayout(Map map, Faction faction, Action fallbackLayout)
+        /// <summary>布局数据源统一口径：先试通用地图 prefab（两舰共用最新导出、仅派系
+        /// 不同、结构归属各认各的容器 ownerId），任何异常回退程序生成布局。</summary>
+        private static void SpawnShipLayout(Map map, Faction faction, int ownerId, UniverseManager universe,
+            Action fallbackLayout)
         {
             try
             {
-                HomePrefab.SpawnInto(faction, map, map.Center);
+                MapPrefabDocument prefab = MapPrefab.LoadLatest();
+                MapPrefab.Spawn(prefab, map, map.Center, faction, ownerId, Rot4.North, universe);
             }
             catch (Exception ex)
             {
-                Log.Warning($"[DeltaV] HomePrefab import unavailable ({ex.GetType().Name}: {ex.Message})"
+                Log.Warning($"[DeltaV] MapPrefab import unavailable ({ex.GetType().Name}: {ex.Message})"
                     + " - falling back to procedural layout.");
                 fallbackLayout();
             }

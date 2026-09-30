@@ -7,7 +7,7 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 程序生成布局：prefab 导入接口（HomePrefab.SpawnInto）抛异常时的 fallback，
+    /// 程序生成布局：通用地图 prefab（MapPrefab）导入失败时的 fallback，
     /// 在已生成的飞船地图上程序化铺设测试船体——逆重基架（Substructure）甲板、外墙、
     /// 门、内部隔墙、推进器组与船员。玩家船布局复刻自 doc/tmp/新移民114.rws 的 map2：
     /// 40×24 的“日”字船体与其中设备的 Thing.Position 锚点。甲板必须用逆重基架：
@@ -140,7 +140,7 @@ namespace DeltaV
             SpawnAnchored(map, ThingDefOf.PilotConsole, hull, 14, 12, Rot4.East, Faction.OfPlayer);
 
             GeneratePlayerThrusters(map, hull);
-            RelinkGravshipComponents(map);
+            MapContentSpawner.RelinkGravshipComponents(map);
         }
 
         /// <summary>推进器组（程序生成布局用，锚点相对 hull 边缘）。</summary>
@@ -153,23 +153,6 @@ namespace DeltaV
             SpawnThruster(map, hull, 2, 0, Rot4.North, Faction.OfPlayer);
             SpawnThruster(map, hull, w - 1, h / 2 + 1, Rot4.West, Faction.OfPlayer);
             SpawnThruster(map, hull, w - 1, h / 2 - 4, Rot4.West, Faction.OfPlayer);
-        }
-
-        /// <summary>
-        /// 批量生成结束后的 relink/dirty 收尾：避免生成顺序或同 tick facility 缓存让
-        /// 延展器停留在未连接状态。
-        /// </summary>
-        private static void RelinkGravshipComponents(Map map)
-        {
-            foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.GravEngine))
-            {
-                if (thing is Building_GravEngine engine)
-                {
-                    engine.AffectedByFacilities.Notify_ThingChanged();
-                    engine.ForceSubstructureDirty();
-                    _ = engine.GravshipComponents;
-                }
-            }
         }
 
         /// <summary>按 Thing.Position 锚点生成 2×2 LargeThruster。</summary>

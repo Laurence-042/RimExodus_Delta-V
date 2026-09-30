@@ -203,9 +203,10 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 
 通用地图工具包（上述坐标/渲染/搬运/生命周期/生成条目同属一个将来通用的地图工具包；后续地图能力一律扩展这些入口，不建平行实现）：
 
-- `MapContentSpawner`：Thing 记录回放（def/stuff/quality/hp/stack/faction → `GenSpawn`）与基架盖章包裹器的唯一入口；`PoiSnapshot`/`ShipProceduralLayout`/`PoiTemplate` 的落物一律经此。
-- `HomePrefab`：prefab 导出/导入接口挂点（当前空实现，调用即抛 `NotImplementedException`）；导出 = 调试动作 `ExportHomeArea(name)`，导入 = `SpawnInto(faction, map, position)`，失败以异常表达，由 `ShipTestScene` 捕获后回退程序生成布局。
-- `ShipProceduralLayout` / `PoiTemplate` / `ShipPocketMapFactory` / `ShipTestScene`：口袋图生成与程序生成布局（prefab 导入接口抛异常时的 fallback；`ShipTestScene` 统一 try 导入 / catch 回退）。
+- `MapContentSpawner`：Thing 记录回放（def/stuff/quality/hp/stack/faction → `GenSpawn`）、基架盖章包裹器与设施重链（`RelinkGravshipComponents`）的唯一入口；`PoiSnapshot`/`ShipProceduralLayout`/`PoiTemplate` 的落物一律经此。
+- `MapPrefab` / `MapPrefabDocument`：通用地图内容 prefab 的唯一门面与文档。核心建筑/物品/地形完全复用原版 `PrefabUtility`（CreatePrefab 捕获、SpawnPrefab 派系透传 + 旋转），自研面仅限 foundation/roof 侧车、cell 掩码裁剪（thing 白名单 Building+Item、多格建筑按 anchor）与标记展开。导出 = 任意 cell 集合（调试动作取 Home Area），文件落 mod 根 `Prefabs/`；读入走原版 `ObjectFromXml` + `DirectXmlCrossRefLoader` 运行时管线（无需重启、零自写 def 解析）；重建 = `Spawn(doc, map, pos, faction, ownerId, rot)`，顺序 foundation（含 `ClaimConnectedDomain` 指定归属）→ terrain+things → roofs → 重链 → marker 展开；PrefabDef internal 列表仅在 `BuildPrefabDef` 反射装填（字段名 = XML 标签契约）。零 Harmony。
+- `CompPrefabMarker` / `CompPrefabPawnSpawner`：prefab 重建标记框架——整片放置完成后统一 `Expand(PrefabSpawnContext)`（context 含 Map/Faction/OwnerId/Root/Rotation/Universe，为后续 SpaceObject 展开器预留）；新展开器 = 新子类 + CompProperties，`TryGetComp` 基类匹配零修改纳入，不建家族特判。
+- `ShipProceduralLayout` / `PoiTemplate` / `ShipPocketMapFactory` / `ShipTestScene`：口袋图生成与程序生成布局（MapPrefab 导入失败时的 fallback；`ShipTestScene` 统一 try 导入 / catch 回退）。
 
 流程状态属于 `UniverseManager` 的实例服务，不建立可变静态游戏状态。静态只允许无状态纯函数、输入快速门、渲染/反射缓存和同调用栈重入卫兵。
 

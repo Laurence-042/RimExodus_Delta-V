@@ -63,5 +63,22 @@ namespace DeltaV
                 SubstructureOwnership.For(map).ClearPendingStamp();
             }
         }
+
+        /// <summary>
+        /// 批量生成结束后的 relink/dirty 收尾：避免生成顺序或同 tick facility 缓存让
+        /// 重力引擎/延展器停留在未连接状态。程序生成布局与 MapPrefab spawn 共用（单实现）。
+        /// </summary>
+        internal static void RelinkGravshipComponents(Map map)
+        {
+            foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.GravEngine))
+            {
+                if (thing is Building_GravEngine engine)
+                {
+                    engine.AffectedByFacilities.Notify_ThingChanged();
+                    engine.ForceSubstructureDirty();
+                    _ = engine.GravshipComponents;
+                }
+            }
+        }
     }
 }

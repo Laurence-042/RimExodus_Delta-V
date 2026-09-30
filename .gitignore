@@ -14,3 +14,6 @@ references/
 
 # 本地测试存档（布局提取脚本可入库，原始存档不可入库）
 doc/tmp/*.rws
+
+# 通用地图 prefab 导出文件（MapPrefab.Export 的本地输出）
+Prefabs/

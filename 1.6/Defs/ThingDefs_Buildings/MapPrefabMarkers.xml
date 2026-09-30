@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+	<!--
+		通用地图 prefab 的标记建筑（MapPrefab / CompPrefabMarker 框架）：放进被导出的
+		区域，prefab 重建时在整片内容放置完成后按目标派系展开。本文件给首个展开器
+		（CompPrefabPawnSpawner：生成船员）一个示例 def；贴图沿用原版占位。
+		标记建筑本身也是普通 Building——会作为 prefab 内容被导出/重建，派系随 SpawnPrefab
+		透传。不可玩家建造（无 designationCategory），用开发者模式放置。
+	-->
+	<ThingDef ParentName="BuildingBase">
+		<defName>DeltaV_PrefabCrewMarker</defName>
+		<label>prefab crew marker</label>
+		<description>A debug marker building. When a map prefab containing it is spawned, it expands into pawns of the spawning faction.</description>
+		<thingClass>Building</thingClass>
+		<rotatable>false</rotatable>
+		<passability>Standable</passability>
+		<fillPercent>0.1</fillPercent>
+		<statBases>
+			<WorkToBuild>100</WorkToBuild>
+			<MaxHitPoints>50</MaxHitPoints>
+		</statBases>
+		<graphicData>
+			<texPath>Things/Building/GravshipShieldGenerator</texPath>
+			<graphicClass>Graphic_Single</graphicClass>
+			<drawSize>(1, 1)</drawSize>
+		</graphicData>
+		<comps>
+			<li Class="DeltaV.CompProperties_PrefabPawnSpawner">
+				<pawnKind>Pirate</pawnKind>
+				<count>3</count>
+				<radius>6</radius>
+			</li>
+		</comps>
+	</ThingDef>
+
+</Defs>

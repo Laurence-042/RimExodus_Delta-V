@@ -66,12 +66,13 @@ namespace DeltaV
             LongEventHandler.QueueLongEvent(ShipTestScene.Create, "GeneratingMap", false, null);
         }
 
-        // prefab 导出空接口挂点（HomePrefab.ExportHomeArea，当前未实现，调用抛
-        // NotImplementedException）：将来实现后把当前聚焦图居住区导出为 prefab。
+        // 通用地图 prefab 导出：把当前聚焦图居住区（Home Area 掩码）导出为
+        // mod 根 Prefabs/ 下的时间戳文件，供 MapPrefab.Spawn 重建（无需重启）。
         [DebugAction("Delta-V", "Prefab: export home area as timestamped file", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void ExportHomePrefabTimestamped()
         {
-            HomePrefab.ExportHomeArea("Prefab_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+            MapPrefab.Export("Prefab_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss"),
+                Find.CurrentMap.areaManager.Home.ActiveCells);
         }
 
         [DebugAction("Delta-V", "Toggle pilot mode", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
