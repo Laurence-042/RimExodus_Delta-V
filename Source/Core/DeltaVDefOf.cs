@@ -70,5 +70,10 @@ namespace DeltaV
 
         // 瞄准模式切换（阶段5 §6.1，默认 B；驾驶期抑制其原版功能）。
         public static Verse.KeyBindingDef DeltaV_AimMode;
+
+        // 星区 POI 命名器（1.6/Defs/RulePackDefs/RulePacks_Namers_SpacePoi.xml）：
+        // 只产名字主干，类型名经 [poi_type] 由调用方注入；尾缀「(派系名) #ID」由
+        // SectorContentService 在代码侧拼接。
+        public static Verse.RulePackDef DeltaV_NamerSpacePoi;
     }
 }

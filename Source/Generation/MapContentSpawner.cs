@@ -9,7 +9,7 @@ namespace DeltaV
     /// <summary>
     /// 地图工具包公共回放内核（单实现，2026-09-27 收敛）：「一条 Thing 记录 → 图上一个
     /// 实体」的统一入口与基架归属盖章包裹器。PoiSnapshot（存档事实回放）与
-    /// ShipProceduralLayout / PoiTemplate（程序生成布局）的落物一律经此，
+    /// ShipProceduralLayout（测试场景程序布局）的落物一律经此，
     /// 不再各写 MakeThing/SetFaction/GenSpawn 变体（AGENTS §21）。
     /// pawn 不属于记录词汇（PoiSnapshot 不保 pawn；殖民者等生成走各自入口）。
     /// </summary>

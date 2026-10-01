@@ -21,7 +21,7 @@
 | `Source/Lifecycle/SpaceMapGovernance.cs` | 轨道 MapParent 开放式纳管判定 + 自动注册/主动销毁同步 |
 | `Source/Lifecycle/MapDormancyService.cs` | 通用完整休眠：Map 三入口 + TickManager Thing 表的停止/恢复 |
 | `Source/Lifecycle/PoiSnapshot.cs` | 结构级快照（foundation/表层地形、屋顶、建筑、物品）平行列表序列化 |
-| `Source/Generation/PoiTemplate.cs` | 残骸模板（seed 决定，同 seed 重生成一致） |
+| `Source/Generation/PoiTemplate.cs` | 残骸模板（seed 决定，同 seed 重生成一致）——**2026-09-30 移除**：物化改 prefab-only（池空/失效报错取消），程序布局仅存于双船测试场景 |
 | `Source/Generation/IncrementalMapGenerationService.cs` | 通用单飞生成队列、GenStep adapter、原版准备/收尾与失败清理 |
 | `Source/Generation/PocketMapHostService.cs` | 可抽取的公共无 tile 口袋图宿主接口与实现 |
 | `Source/Rendering/MapOverlayRenderer.cs` | 通用 17×17 section 地图代理缓存；地形/静态 Thing 绘制与命中 |

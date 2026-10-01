@@ -202,16 +202,16 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `ShellRenderer` / `MapOverlayRenderer` / `DockingGhostRenderer` / `ShipSilhouette`：外壳、覆盖物、幽灵和剪影。
 - `ThrusterEffects` / `ThrusterAudio`：只读真实分配油门的表现。
 - `MoonPoolUtility` / `Patch_MoonPool` / `MoonPoolGraphics` / `SectionLayer_MoonPool`：月池判定、无顶密封和连接视觉。
-- `SpaceLifecycleService`：生成、休眠、物化、归档和销图。无快照 marker 首次物化的内容链 = 类型 prefab 池（seed 确定性选取，入队测尺寸与盖章同一解析）> `PoiTemplate` 程序生成。
-- `SectorContentService` / `SectorContentTypes`：星区首次生成的幂等记账与按类型生成循环；`SectorContentTypes` 是任意深度的分类树（星区架构 §11 分类），分支只分组、生成与设置只遍历叶子；规则读 `DeltaVSettings.sectorRules`（`SectorTypeRule`：保底数/分段额外量/prefab 池；缺条目用注册表默认，读路径不静默改写设置）。
+- `SpaceLifecycleService`：生成、休眠、物化、归档和销图。无快照 marker 首次物化的内容链 = 类型 prefab 池（seed 确定性选取，入队测尺寸与盖章同一解析），**容器先注册、结构后铺设**（驾驶台 `ClaimOnSpawn` 认领要求 FrameOf 已解析；归属名 = marker 生成时决定的完整名，经 envLabel/归档 carriedLabel 传承）。池空在生成期拦截；池失效在入队/物化期报错并取消该 POI（prefab-only，不回退程序生成）。
+- `SectorContentService` / `SectorContentTypes`：星区首次生成的幂等记账与按类型生成循环；marker 身份在生成时一次性决定——随机派系（可见非玩家派系，不做类型→派系映射）+ 完整名（`DeltaV_NamerSpacePoi` RulePack 词干 + 类型名 + (派系名) + #ID）烘焙进 envLabel/faction，物化时直接应用。`SectorContentTypes` 是任意深度的分类树（星区架构 §11 分类），分支只分组、生成与设置只遍历叶子；规则读 `DeltaVSettings.sectorRules`（`SectorTypeRule`：保底数/分段额外量/prefab 池；缺条目用注册表默认，读路径不静默改写设置）。
 - `QueueFrameAction`：离开当前 tick/加载调用栈的唯一帧边界延迟机制。
 
 通用地图工具包（上述坐标/渲染/搬运/生命周期/生成条目同属一个将来通用的地图工具包；后续地图能力一律扩展这些入口，不建平行实现）：
 
-- `MapContentSpawner`：Thing 记录回放（def/stuff/quality/hp/stack/faction → `GenSpawn`）、基架盖章包裹器与设施重链（`RelinkGravshipComponents`）的唯一入口；`PoiSnapshot`/`ShipProceduralLayout`/`PoiTemplate` 的落物一律经此。
+- `MapContentSpawner`：Thing 记录回放（def/stuff/quality/hp/stack/faction → `GenSpawn`）、基架盖章包裹器与设施重链（`RelinkGravshipComponents`）的唯一入口；`PoiSnapshot`/`ShipProceduralLayout` 的落物一律经此。
 - `MapPrefab` / `MapPrefabDocument`：通用地图内容 prefab 的唯一门面与文档。核心建筑/物品/地形完全复用原版 `PrefabUtility`（CreatePrefab 捕获、SpawnPrefab 派系透传 + 旋转），自研面仅限 foundation/roof 侧车、cell 掩码裁剪（thing 白名单 Building+Item、多格建筑按 anchor）与标记展开。导出 = 任意 cell 集合（调试动作取 Home Area），文件落 mod 根 `Prefabs/`；读入走原版 `ObjectFromXml` + `DirectXmlCrossRefLoader` 运行时管线（无需重启、零自写 def 解析）；重建 = `Spawn(doc, map, pos, faction, ownerId, rot)`，顺序 foundation（含 `ClaimConnectedDomain` 指定归属）→ terrain+things → roofs → 重链 → marker 展开；PrefabDef internal 列表仅在 `BuildPrefabDef` 反射装填（字段名 = XML 标签契约）。零 Harmony。prefab 池（星区内容类型的物化生成池）同门面：`LoadRelative`（相对路径 + 越界防护）、`ListPrefabFiles`（目录扫描，设置「生成」页勾选用）与 `ResolvePoolPath`（seed 确定性选取，失效条目跳过）。
 - `CompPrefabMarker` / `CompPrefabPawnSpawner`：prefab 重建标记框架——整片放置完成后统一 `Expand(PrefabSpawnContext)`（context 含 Map/Faction/OwnerId/Root/Rotation/Universe，为后续 SpaceObject 展开器预留）；新展开器 = 新子类 + CompProperties，`TryGetComp` 基类匹配零修改纳入，不建家族特判。
-- `ShipProceduralLayout` / `PoiTemplate` / `ShipPocketMapFactory` / `ShipTestScene`：口袋图生成与程序生成布局（MapPrefab 导入失败时的 fallback；`ShipTestScene` 统一 try 导入 / catch 回退）。
+- `ShipProceduralLayout` / `ShipPocketMapFactory` / `ShipTestScene`：口袋图生成与程序生成布局。程序生成仅存于 `ShipTestScene`（MapPrefab 导入失败时的唯一回退特例）；星区 POI 物化不走程序生成。
 
 流程状态属于 `UniverseManager` 的实例服务，不建立可变静态游戏状态。静态只允许无状态纯函数、输入快速门、渲染/反射缓存和同调用栈重入卫兵。
 

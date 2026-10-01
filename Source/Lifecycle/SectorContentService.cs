@@ -4,6 +4,7 @@ using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
 using Verse;
+using Verse.Grammar;
 
 namespace DeltaV
 {
@@ -123,6 +124,17 @@ namespace DeltaV
                         target += Rand.RangeInclusive(1, Mathf.Max(1, segment.maxCount));
                     }
                 }
+                // 物化内容链是 prefab-only（2026-09-30 定案）：池空的类型无法物化，
+                // 生成期即拦截——报错并跳过本类型（物化侧对存量 marker 同判兜底）。
+                // ErrorOnce 防逐星区刷屏。
+                if (target > existing && rule.prefabPaths.NullOrEmpty())
+                {
+                    Log.ErrorOnce($"[DeltaV] Content type '{type.id}' has no prefab pool; skipped " +
+                        $"{target - existing} spawn(s) in sector {tile}. Materialization is prefab-only; " +
+                        "configure the pool in Mod settings (生成 tab).",
+                        ("DeltaVSectorTypePoolEmpty:" + type.id).GetHashCode());
+                    continue;
+                }
                 int spawned = 0;
                 for (int i = existing; i < target; i++)
                 {
@@ -176,10 +188,43 @@ namespace DeltaV
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"sector {tile}: {type.id} placement relaxed (best spacing {bestSpacing:F0} < {MinSpacingCells})");
             }
-            // 显示名在生成时烘焙（沿用既定模式：envLabel 是持久事实，不随语言切换）。
-            var poi = new PoiState(universe.AllocateOwnerId(), type.Label,
-                OrbitSphere.Move(center, bestOffset), Rand.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int, type.id);
+            // 身份在生成时一次性决定（2026-09-30 定案）：随机派系 + 完整名
+            //（RulePack 词干 + 类型名 + (派系名) + #ID），烘焙进 envLabel/faction 随档
+            // 持久；物化时直接应用（容器派系、prefab 建筑与 pawn 派系、归属名），
+            // 之后不改不变。envLabel 是持久事实，不随语言切换。
+            int poiId = universe.AllocateOwnerId();
+            Faction faction = RandomSpaceFaction();
+            string label = NameGenerator.GenerateName(DeltaVDefOf.DeltaV_NamerSpacePoi,
+                extraRules: new List<Rule> { new Rule_String("poi_type", type.Label) });
+            if (faction != null)
+            {
+                label += $"({faction.Name})";
+            }
+            label += $" #{poiId}";
+            var poi = new PoiState(poiId, label,
+                OrbitSphere.Move(center, bestOffset), Rand.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int, type.id)
+            {
+                faction = faction,
+            };
             universe.RegisterObject(poi);
+        }
+
+        /// <summary>
+        /// POI 派系在生成时随机落定（2026-09-30 定案，不做类型→派系映射）：候选 =
+        /// 可见、非玩家、未灭亡的派系——敌友皆有可能（敌方贸易站可劫、友方战机只是
+        /// 路过），与原版地表对象随机派系同思路。无候选（极端孤派系世界）返回 null
+        ///（POI 无派系，名称省略派系段）。
+        /// </summary>
+        private static Faction RandomSpaceFaction()
+        {
+            Faction player = Faction.OfPlayer;
+            var candidates = new List<Faction>();
+            foreach (Faction faction in Find.FactionManager.AllFactionsVisible)
+            {
+                if (faction == null || faction == player || faction.defeated) continue;
+                candidates.Add(faction);
+            }
+            return candidates.Count > 0 ? candidates.RandomElement() : null;
         }
 
         private static float MinSpacingToObjects(UniverseManager universe, PlanetTile tile, Vector2 offset)

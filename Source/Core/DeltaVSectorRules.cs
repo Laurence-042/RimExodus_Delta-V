@@ -24,7 +24,8 @@ namespace DeltaV
     /// 单个星区内容类型的生成规则（Mod 设置「生成」页的数据载体）。
     /// 属于全局 Mod 设置：跨存档共享，只影响尚未首次生成的星区（星区一旦标记
     /// generatedSectorTiles 即定型，后改设置不追溯）。prefabPaths 是相对
-    /// MapPrefab.PrefabDirectory 的路径池；为空或全部失效时物化回退程序生成模板。
+    /// MapPrefab.PrefabDirectory 的路径池；物化内容链 prefab-only——池为空时生成期
+    /// 即拦截（报错跳过该类型），配置了但失效时物化期取消该 POI。
     /// </summary>
     public sealed class SectorTypeRule : IExposable
     {
