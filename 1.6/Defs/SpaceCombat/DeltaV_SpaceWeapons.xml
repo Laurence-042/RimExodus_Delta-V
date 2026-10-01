@@ -3,7 +3,7 @@
 
   <!-- Structural templates. Art remains vanilla placeholder until the image pass. -->
   <ThingDef ParentName="BuildingBase" Name="DeltaV_SpaceTurret1" Abstract="True">
-    <thingClass>Building_TurretGun</thingClass><rotatable>true</rotatable><tickerType>Normal</tickerType><drawerType>MapMeshAndRealTime</drawerType>
+    <thingClass>DeltaV.Building_SpaceTurretGun</thingClass><rotatable>true</rotatable><tickerType>Normal</tickerType><drawerType>MapMeshAndRealTime</drawerType>
     <passability>PassThroughOnly</passability><pathCost>50</pathCost><fillPercent>0.4</fillPercent>
     <size>(1,1)</size><hasInteractionCell>true</hasInteractionCell><interactionCellOffset>(0,0,-1)</interactionCellOffset><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
     <designationCategory>Security</designationCategory>
@@ -20,7 +20,7 @@
   <ThingDef ParentName="DeltaV_SpaceTurret1" Name="DeltaV_SpaceTurret2" Abstract="True">
     <size>(2,2)</size>
     <building><turretTopDrawSize>2.4</turretTopDrawSize></building>
-    <graphicData><texPath>Things/Building/Security/TurretHeavy_Base</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2.6,2.6)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
+    <graphicData><texPath>Things/Building/SpaceWeapons/Turret2_Base</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2.6,2.6)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
   </ThingDef>
 
   <ThingDef ParentName="DeltaV_SpaceTurret1" Name="DeltaV_SpaceTurret3" Abstract="True">
@@ -69,8 +69,9 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>90</turnRateDegPerSec><fireToleranceDeg>3</fireToleranceDeg></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>300</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>1</ammoPerShot><defaultPriority>0</defaultPriority></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_PDBullet</projectileDef><aimMode>PointDefense</aimMode><defaultSalvoSet>Secondary</defaultSalvoSet><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>1.2</baseSpreadDeg><cooldownTicks>8</cooldownTicks><range>80</range><attachmentSlots><li>(0,0,0)</li><li>(1,0,0)</li></attachmentSlots></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_PDBullet</projectileDef><aimMode>PointDefense</aimMode><defaultSalvoSet>Secondary</defaultSalvoSet><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>1.2</baseSpreadDeg><cooldownTicks>8</cooldownTicks><range>80</range><attachmentSlots><li>(0,0,0)</li></attachmentSlots></li>
     </comps>
+    <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/RapidTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
 
   <!-- Main turrets. Existing names remain on the small heavy and small laser variants. -->
@@ -85,6 +86,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>8</ammoPerShot><defaultPriority>0</defaultPriority></li>
       <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Cannon</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>2</baseSpreadDeg><cooldownTicks>300</cooldownTicks><range>160</range><attachmentSlots><li>(0,0,0)</li></attachmentSlots></li>
     </comps>
+    <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/CannonTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
 
   <ThingDef ParentName="DeltaV_SpaceTurret2">
@@ -96,8 +98,9 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>60</turnRateDegPerSec><fireToleranceDeg>2</fireToleranceDeg></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>48</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>2</ammoPerShot><defaultPriority>0</defaultPriority></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Cannon</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>2.2</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>140</range><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><attachmentSlots><li>(0,0,0)</li><li>(1,0,0)</li></attachmentSlots></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Cannon</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>2.2</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>140</range><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><attachmentSlots><li>(0,0,0)</li></attachmentSlots></li>
     </comps>
+    <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/RapidTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
 
   <ThingDef ParentName="DeltaV_SpaceTurret2">
@@ -109,6 +112,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>180</turnRateDegPerSec><fireToleranceDeg>4</fireToleranceDeg></li>
       <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Laser</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.8</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>120</range><attachmentSlots><li>(0,0,0)</li></attachmentSlots></li>
     </comps>
+    <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/LaserTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
 
   <ThingDef ParentName="DeltaV_SpaceTurret3">

@@ -49,6 +49,7 @@ Mod 尚未发布，不做旧开发快照的存档兼容、迁移键或兼容分�
 - 涉及 RimWorld 内部行为时先查 `references/` 中对应版本源码，不凭记忆猜签名或流程。
 - 热路径日志必须先检查 `DeltaVLog.Enabled`，只在状态边沿或用户事件输出，禁止每帧/tick 无条件刷屏。
 - 当前阶段优先清晰的现有契约，不为未来兼容制造额外抽象。
+- Delta-V 贴图生成、分层与对齐施工时加载仓库 `.agents/skills/delta-v-art/SKILL.md`；资源清单与施工进度只在 `doc/美术资源施工表.md` 维护。
 
 ## 3. 外部源码与 RimExodus 参考
 
@@ -196,6 +197,7 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `GravshipInterop`：原版 Gravship 私有逻辑镜像、designator 适配、预览和 `CaptureDomain/StripDomain/PlaceIntoMap`。
 - `SpaceShuttleService`：shuttle 起飞、虚拟推进器注入、侵入状态和口袋清理；普通对接不在此另实现。
 - `SpaceWeaponService` / `SpaceWeaponShot`：跨容器开火总装与唯一 Prepare→Launch→Commit 事务；Crew/Traverse/Magazine/Attachment/加速件以正交 Comp/能力接口参与，第三方不得建立家族特判。
+- `Building_SpaceTurretGun` / `DefModExtension_SpaceTurretArt`：只替换指定炮塔的旋转顶部材质，位置、角度和绘制继续走原版 `Building_TurretGun`/`TurretTop`。
 - `SpaceProjectileService` / `SpaceCollision` / `SpaceImpactEffects`：含冷发射程序的宇宙弹体、统一碰撞与联合命中效果链。
 - `ShellRenderer` / `MapOverlayRenderer` / `DockingGhostRenderer` / `ShipSilhouette`：外壳、覆盖物、幽灵和剪影。
 - `ThrusterEffects` / `ThrusterAudio`：只读真实分配油门的表现。
