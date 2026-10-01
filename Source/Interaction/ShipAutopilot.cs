@@ -20,8 +20,8 @@ namespace DeltaV
     /// 只产生期望力/力矩；经 ShipPhysics.ForceToCommand 归一化后由联合分配器 Allocate 求解
     /// **真实**逐推进器油门与可达力/力矩，积分使用可达值——机动受推进器布局硬约束，
     /// 玩家船/敌舰/未来舰船 AI 完全同构，火焰表现层读到的油门即真实出力。制导按微步
-    /// （6 tick = 0.1 s）节拍：QP 求解周期按距离自适应（终段每微步、中程 2 微步、远场
-    /// 4 微步，多船按 ownerId 确定性错峰），解之间逐微步**回放计划控制**
+    /// （6 tick = 0.1 s）节拍：巡航/制动/精确对位分别每 4/2/1 微步求解
+    /// （多船按 ownerId 确定性错峰），解之间逐微步**回放计划控制**
     /// （TryGetPlannedStep）而非持有首控制量——2026-09-25 定案：10 Hz 全速求解实测
     /// 拖垮 6x 倍速（360 tps 下单 tick 预算 2.78 ms，单次求解 avg ~3 ms）。
     /// 停靠级任务（allowVoidThrust）在终段按距离渐变叠加虚空动力补齐
@@ -43,6 +43,8 @@ namespace DeltaV
     /// </summary>
     public class ShipAutopilot
     {
+        private enum ApproachPhase { Cruise, Braking, Precision }
+
         private class Flight
         {
             public int ownerId;
@@ -85,6 +87,11 @@ namespace DeltaV
             public float bestError = float.PositiveInfinity;
             public int noProgressTicks;
             public bool failureLogged;
+            public ApproachPhase phase;
+            public float brakingAcceleration;
+            public float stoppingDistance;
+            public int safeFarTicks;
+            public int previewReportVersion = -1;
         }
 
         private readonly Dictionary<int, Flight> active = new Dictionary<int, Flight>();
@@ -109,19 +116,17 @@ namespace DeltaV
         /// <summary>制导微步（tick）：MPC 计划步长与指令更新粒度，积分仍 60 Hz。</summary>
         private const int GuidanceMicroStepTicks = 6;
 
-        /// <summary>QP 求解周期（微步）按距离自适应：终段每微步求解（紧反馈）、中程
-        /// 2 微步（5 Hz）、远场 4 微步（2.5 Hz）；解之间逐微步回放计划控制。</summary>
+        /// <summary>阶段对应 QP 求解周期；解之间逐微步回放计划控制。</summary>
         private const int NearSolvePeriodSteps = 1;
         private const int MidSolvePeriodSteps = 2;
         private const int FarSolvePeriodSteps = 4;
         private const float TightSolveDistance = 9f;  // 格（约 2× 虚空动力渐变半径）
-        private const float MidSolveDistance = 40f;   // 格
+        private const int FarRecoveryTicks = 60;
 
-        private static int SolvePeriodFor(float distance)
+        private static int SolvePeriodFor(ApproachPhase phase)
         {
-            if (distance <= TightSolveDistance) return NearSolvePeriodSteps;
-            if (distance <= MidSolveDistance) return MidSolvePeriodSteps;
-            return FarSolvePeriodSteps;
+            if (phase == ApproachPhase.Precision) return NearSolvePeriodSteps;
+            return phase == ApproachPhase.Braking ? MidSolvePeriodSteps : FarSolvePeriodSteps;
         }
 
         /// <summary>确定性错峰：多船任务的 QP 求解按 (微步序号 + ownerId) mod K 错开，
@@ -513,15 +518,68 @@ namespace DeltaV
             // ownerId 确定性错峰），中间微步回放上一解的计划控制；计划耗尽或数值回退
             // 时立即重解恢复反馈节奏。微步内指令恒定，应用侧由此可安全去重（见下）。
             int ticksGame = Find.TickManager.TicksGame;
+            bool microBoundary = ticksGame % GuidanceMicroStepTicks == 0;
+            bool phaseChanged = false;
+            bool unsafePlan = false;
+            bool reportChanged = report.version != flight.previewReportVersion;
+            if (!flight.hasCommand || microBoundary || reportChanged)
+            {
+                flight.previewReportVersion = report.version;
+                Vector2 towardLocal = posErr.sqrMagnitude > 1e-8f
+                    ? SpaceTransform.RotateInverse(posErr.normalized, pose.angle)
+                    : Vector2.zero;
+                flight.brakingAcceleration = ShipPhysics.PreviewBrakingAcceleration(report, towardLocal);
+                float closing = posErr.sqrMagnitude > 1e-8f
+                    ? Mathf.Max(0f, Vector2.Dot(vel, posErr.normalized)) : 0f;
+                double safeAcceleration = flight.brakingAcceleration * BrakingGuidanceFallback.SafetyFactor;
+                double stopping = BrakingGuidanceFallback.StoppingDistance(closing, safeAcceleration);
+                flight.stoppingDistance = double.IsInfinity(stopping)
+                    ? float.PositiveInfinity : (float)stopping;
+                // 巡航计划最多再回放四个微步；从切换判据中扣除这段闭合距离。
+                float remaining = posErr.magnitude;
+                float brakeMargin = flight.stoppingDistance + closing *
+                    (FarSolvePeriodSteps * GuidanceMicroStepTicks / 60f);
+                unsafePlan = flight.brakingAcceleration > 1e-6f
+                    && closing > 0.15f
+                    && remaining <= flight.stoppingDistance
+                        + closing * (GuidanceMicroStepTicks / 60f);
+                ApproachPhase next = remaining <= TightSolveDistance
+                    ? ApproachPhase.Precision
+                    : remaining <= brakeMargin || flight.brakingAcceleration <= 1e-6f
+                        ? ApproachPhase.Braking : ApproachPhase.Cruise;
+                if (flight.phase == ApproachPhase.Precision
+                    && remaining <= 2f * TightSolveDistance)
+                    next = ApproachPhase.Precision;
+                if (flight.phase != ApproachPhase.Cruise && next == ApproachPhase.Cruise
+                    && flight.tracked)
+                {
+                    // 长期随动目标移远时持续安全一秒才恢复低频，防止边界抖动。
+                    flight.safeFarTicks += GuidanceMicroStepTicks;
+                    if (flight.safeFarTicks < FarRecoveryTicks
+                        || remaining <= 2f * Mathf.Max(TightSolveDistance, brakeMargin))
+                        next = flight.phase;
+                }
+                else flight.safeFarTicks = 0;
+                if (next != flight.phase)
+                {
+                    flight.phase = next;
+                    phaseChanged = true;
+                    if (DeltaVLog.Enabled(DeltaVLogModule.Physics))
+                        DeltaVLog.Message(DeltaVLogModule.Physics,
+                            $"autopilot phase: #{ownerId} {next} d={remaining:F1} closing={closing:F2} "
+                            + $"brake={flight.brakingAcceleration:F3} stop={flight.stoppingDistance:F1}");
+                }
+            }
             if (!flight.hasCommand)
             {
                 Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, voidBlend,
-                    SolvePeriodFor(posErr.magnitude));
+                    SolvePeriodFor(flight.phase));
             }
-            else if (ticksGame % GuidanceMicroStepTicks == 0)
+            else if (microBoundary || reportChanged)
             {
-                int solvePeriod = SolvePeriodFor(posErr.magnitude);
-                if (SolveDue(ownerId, ticksGame / GuidanceMicroStepTicks, solvePeriod))
+                int solvePeriod = SolvePeriodFor(flight.phase);
+                if (reportChanged || phaseChanged || unsafePlan
+                    || SolveDue(ownerId, ticksGame / GuidanceMicroStepTicks, solvePeriod))
                 {
                     Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, voidBlend, solvePeriod);
                 }
@@ -623,13 +681,19 @@ namespace DeltaV
                 previousZ = flight.hasCommand ? flight.heldCommand.normalizedZ : 0.0,
                 previousAngular = flight.hasCommand ? flight.heldCommand.normalizedAngular : 0.0,
                 controlModel = controlModel,
-                controlAcceleration = flight.controlAcceleration
+                controlAcceleration = flight.controlAcceleration,
+                brakingAcceleration = flight.brakingAcceleration,
+                approachReserveDistance = flight.phase == ApproachPhase.Braking
+                    && posErr.sqrMagnitude > 1e-8f
+                    ? Mathf.Max(0f, Vector2.Dot(vel, posErr.normalized))
+                        * (solvePeriod - 1) * GuidanceMicroStepTicks / 60f
+                    : 0.0
             };
             bool solved = flight.guidance.Compute(request, out flight.heldCommand);
             flight.hasCommand = true;
             flight.currentPlanStep = 0;
             flight.planStepsReady = solved ? solvePeriod : 1; // 数值回退无计划：下一微步重解
-            AutopilotMpcDiagnostics.Record(flight.heldCommand);
+            AutopilotMpcDiagnostics.Record(flight.heldCommand, solvePeriod);
             if (!solved && !flight.failureLogged)
             {
                 flight.failureLogged = true;

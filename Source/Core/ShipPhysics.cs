@@ -384,6 +384,20 @@ namespace DeltaV
             return model;
         }
 
+        /// <summary>当前朝目标方向的实际反推能力。只读地调用真实分配核心；不提交油门。
+        /// towardTargetLocal 是 Map 局部单位方向，返回沿反方向可获得的加速度。</summary>
+        public static float PreviewBrakingAcceleration(MassReport report, Vector2 towardTargetLocal)
+        {
+            if (report == null || report.mass <= 0f || towardTargetLocal.sqrMagnitude < 1e-8f)
+                return 0f;
+            EnsureAllocatorScratch(report);
+            RefreshOperational(report);
+            Vector2 reverse = -towardTargetLocal.normalized;
+            var command = new Command { fx = reverse.x, fz = reverse.y };
+            SolveAllocation(report, command, report.previewScratch, out Vector2 force, out _);
+            return Mathf.Max(0f, Vector2.Dot(force, reverse) / report.mass);
+        }
+
         private static void SetAxis(ref Command command, int axis, float value)
         {
             if (axis == 0) command.fx = value;

@@ -19,12 +19,14 @@ namespace DeltaV
         private static int sampleCursor;
         private static int solveCount;
         private static int fallbackCount;
+        private static readonly int[] periodCounts = new int[3];
         private static double totalMilliseconds;
         private static double maximumMilliseconds;
 
-        public static void Record(GuidanceCommand command)
+        public static void Record(GuidanceCommand command, int solvePeriod = 1)
         {
             solveCount++;
+            periodCounts[solvePeriod == 4 ? 2 : solvePeriod == 2 ? 1 : 0]++;
             if (command.usedFallback) fallbackCount++;
             totalMilliseconds += command.solveMilliseconds;
             maximumMilliseconds = Math.Max(maximumMilliseconds, command.solveMilliseconds);
@@ -40,7 +42,7 @@ namespace DeltaV
             Array.Sort(sorted);
             double p95 = sampleCount == 0 ? 0.0 : sorted[(int)Math.Floor((sampleCount - 1) * 0.95)];
             double average = solveCount == 0 ? 0.0 : totalMilliseconds / solveCount;
-            return $"profile={profile}; solves={solveCount}; fallback={fallbackCount}; "
+            return $"profile={profile}; solves={solveCount} (precision={periodCounts[0]}, braking={periodCounts[1]}, cruise={periodCounts[2]}); fallback={fallbackCount}; "
                 + $"avg={average:F3}ms; p95(last {sampleCount})={p95:F3}ms; max={maximumMilliseconds:F3}ms";
         }
 
@@ -54,7 +56,7 @@ namespace DeltaV
                 // K=1：每微步求解（终段紧反馈语义）；K=4：每 4 微步求解 + 计划回放（远场降频语义）。
                 foreach (int playbackSteps in new[] { 1, 4 })
                 {
-                    bool passed = RunOne(acceleration, playbackSteps, out double finalPosition,
+                    bool passed = RunOne(acceleration, playbackSteps, 1.0, 0.0, out double finalPosition,
                         out double finalSpeed, out int crossings, out int fallbackUses,
                         out double maxPrimal, out double maxDual);
                     allPassed &= passed;
@@ -63,37 +65,62 @@ namespace DeltaV
                         + $"maxResidual=({maxPrimal:F3},{maxDual:F3})");
                 }
             }
+            // 非对称反推、不同质量/惯量、移动目标：每步执行真实 Allocate。
+            bool asymmetric = RunOne(0.5, 4, 0.55, 1.0, out double asymmetricPosition,
+                out double asymmetricSpeed, out int asymmetricCrossings, out int asymmetricFallback,
+                out _, out _);
+            allPassed &= asymmetric;
+            result.Append($"\n- asymmetric moving target: {(asymmetric ? "PASS" : "FAIL")}; "
+                + $"p={asymmetricPosition:F3}; v={asymmetricSpeed:F3}; crossings={asymmetricCrossings}; "
+                + $"fallback={asymmetricFallback}");
+            double noDragStop = BrakingGuidanceFallback.StoppingDistance(20.0, 0.5, 1.0);
+            double mildDragStop = BrakingGuidanceFallback.StoppingDistance(20.0, 0.5, Math.Pow(0.5, 1.0 / 8.0));
+            double strongDragStop = BrakingGuidanceFallback.StoppingDistance(20.0, 0.5, 0.5);
+            bool dragPassed = noDragStop > mildDragStop && mildDragStop > strongDragStop
+                && Math.Abs(noDragStop - 400.0) < 1e-6;
+            allPassed &= dragPassed;
+            result.Append($"\n- drag stopping distance: {(dragPassed ? "PASS" : "FAIL")}; "
+                + $"none={noDragStop:F1} mild={mildDragStop:F1} strong={strongDragStop:F1}");
+            var damaged = new ShipPhysics.MassReport { mass = 3f, inertia = 12f };
+            var reverseThruster = new ShipPhysics.Thruster { dir = Vector2.left,
+                thrust = 3f, operational = true };
+            damaged.thrusters.Add(reverseThruster);
+            float available = ShipPhysics.PreviewBrakingAcceleration(damaged, Vector2.right);
+            reverseThruster.operational = false;
+            float disabled = ShipPhysics.PreviewBrakingAcceleration(damaged, Vector2.right);
+            bool damagePassed = available > 0.5f && disabled == 0f;
+            allPassed &= damagePassed;
+            result.Append($"\n- failed reverse thruster: {(damagePassed ? "PASS" : "FAIL")}; "
+                + $"available={available:F3} disabled={disabled:F3}");
             result.Append($"\n- overall: {(allPassed ? "PASS" : "FAIL")}");
             return result.ToString();
         }
 
-        private static bool RunOne(double acceleration, int playbackSteps, out double finalPosition,
+        private static bool RunOne(double acceleration, int playbackSteps, double reverseFactor,
+            double hostVelocity, out double finalPosition,
             out double finalSpeed, out int crossings, out int fallbackUses, out double maxPrimal, out double maxDual)
         {
-            var model = new ShipPhysics.ControlModel
-            {
-                mass = 1f,
-                inertia = 1f,
-                positiveX = (float)acceleration,
-                negativeX = (float)acceleration,
-                positiveZ = (float)acceleration,
-                negativeZ = (float)acceleration,
-                positiveTorque = 1f,
-                negativeTorque = 1f
-            };
-            model.forceColumns[0] = new Vector2((float)acceleration, 0f);
-            model.forceColumns[1] = new Vector2(0f, (float)acceleration);
-            model.torqueColumns[2] = 1f;
+            var report = new ShipPhysics.MassReport { mass = 3f, inertia = 12f };
+            report.thrusters.Add(new ShipPhysics.Thruster { dir = Vector2.right,
+                localPos = Vector2.zero, thrust = (float)(report.mass * acceleration), operational = true });
+            report.thrusters.Add(new ShipPhysics.Thruster { dir = Vector2.left,
+                localPos = Vector2.zero, thrust = (float)(report.mass * acceleration * reverseFactor), operational = true });
+            report.thrusters.Add(new ShipPhysics.Thruster { dir = Vector2.up,
+                localPos = Vector2.zero, thrust = (float)(report.mass * acceleration), operational = true });
+            report.thrusters.Add(new ShipPhysics.Thruster { dir = Vector2.down,
+                localPos = Vector2.zero, thrust = (float)(report.mass * acceleration), operational = true });
+            ShipPhysics.ControlModel model = ShipPhysics.BuildControlModel(report);
             double[] b =
             {
-                acceleration, 0, 0,
-                0, acceleration, 0,
-                0, 0, 1
+                model.forceColumns[0].x / report.mass, model.forceColumns[1].x / report.mass, model.forceColumns[2].x / report.mass,
+                model.forceColumns[0].y / report.mass, model.forceColumns[1].y / report.mass, model.forceColumns[2].y / report.mass,
+                model.torqueColumns[0] / report.inertia, model.torqueColumns[1] / report.inertia, model.torqueColumns[2] / report.inertia
             };
             IAutopilotGuidance guidance = new OnlineMpcGuidance();
             guidance.Reset(AutopilotMpcProfile.Balanced);
-            double position = -Math.Max(120.0, 20.0 * 20.0 / (2.0 * acceleration) + 20.0);
-            double velocity = 20.0;
+            double position = -Math.Max(120.0, 20.0 * 20.0 / (2.0 * acceleration * reverseFactor) + 20.0);
+            double velocity = 20.0 + hostVelocity;
+            double targetPosition = 0.0;
             double previousPosition = position;
             crossings = 0;
             fallbackUses = 0;
@@ -106,12 +133,14 @@ namespace DeltaV
                 {
                     var request = new GuidanceRequest
                     {
-                        positionError = new Vector2((float)-position, 0f),
-                        relativeVelocity = new Vector2((float)velocity, 0f),
+                        positionError = new Vector2((float)(targetPosition - position), 0f),
+                        relativeVelocity = new Vector2((float)(velocity - hostVelocity), 0f),
                         dt = 0.1f,
                         elapsedSteps = playbackSteps,
                         controlModel = model,
-                        controlAcceleration = b
+                        controlAcceleration = b,
+                        brakingAcceleration = ShipPhysics.PreviewBrakingAcceleration(report,
+                            targetPosition >= position ? Vector2.right : Vector2.left)
                     };
                     guidance.Compute(request, out command);
                 }
@@ -120,30 +149,37 @@ namespace DeltaV
                     // 计划不可用（数值回退）：与 ShipAutopilot 同语义，立即重解恢复反馈。
                     var request = new GuidanceRequest
                     {
-                        positionError = new Vector2((float)-position, 0f),
-                        relativeVelocity = new Vector2((float)velocity, 0f),
+                        positionError = new Vector2((float)(targetPosition - position), 0f),
+                        relativeVelocity = new Vector2((float)(velocity - hostVelocity), 0f),
                         dt = 0.1f,
                         elapsedSteps = 1,
                         controlModel = model,
-                        controlAcceleration = b
+                        controlAcceleration = b,
+                        brakingAcceleration = ShipPhysics.PreviewBrakingAcceleration(report,
+                            targetPosition >= position ? Vector2.right : Vector2.left)
                     };
                     guidance.Compute(request, out command);
                 }
                 if (command.usedFallback) fallbackUses++;
                 maxPrimal = Math.Max(maxPrimal, command.primalResidual);
                 maxDual = Math.Max(maxDual, command.dualResidual);
-                double appliedAcceleration = command.desiredLocalForce.x;
+                ShipPhysics.Command allocatedCommand = ShipPhysics.ForceToCommand(report,
+                    command.desiredLocalForce, command.desiredTorque);
+                ShipPhysics.Allocate(report, allocatedCommand, out Vector2 actualForce, out _);
+                double appliedAcceleration = actualForce.x / report.mass;
                 // 被动阻力同口径进入自测被控对象（预测模型一致性的确定性验证）。
                 (float linearDecay, _) = ShipPhysics.PassiveDragFactors(0.1f);
                 velocity = velocity * linearDecay + appliedAcceleration * 0.1 * linearDecay;
                 position += velocity * 0.1;
-                if (Math.Sign(previousPosition) != Math.Sign(position)
-                    && Math.Abs(previousPosition) > 0.25 && Math.Abs(position) > 0.25) crossings++;
-                previousPosition = position;
+                targetPosition += hostVelocity * 0.1;
+                double relativePosition = position - targetPosition;
+                if (Math.Sign(previousPosition) != Math.Sign(relativePosition)
+                    && Math.Abs(previousPosition) > 0.25 && Math.Abs(relativePosition) > 0.25) crossings++;
+                previousPosition = relativePosition;
             }
-            finalPosition = position;
-            finalSpeed = velocity;
-            return Math.Abs(position) < 0.5 && Math.Abs(velocity) < 0.2 && crossings <= 1;
+            finalPosition = position - targetPosition;
+            finalSpeed = velocity - hostVelocity;
+            return Math.Abs(finalPosition) < 0.5 && Math.Abs(finalSpeed) < 0.2 && crossings <= 1;
         }
     }
 
@@ -165,6 +201,10 @@ namespace DeltaV
         public ShipPhysics.ControlModel controlModel;
         // 归一化 [fx,fz,torque] → 目标切基 [ax,ay,alpha]，row-major 3x3。
         public double[] controlAcceleration;
+        // 真实分配器沿目标接近方向预览的反推加速度；包络和回退共用。
+        public double brakingAcceleration;
+        // 制动阶段在下一次反馈前可能消耗的闭合距离，直接从速度与求解周期派生。
+        public double approachReserveDistance;
     }
 
     internal struct GuidanceCommand
@@ -204,17 +244,17 @@ namespace DeltaV
             command = default;
             Vector2 p = -request.positionError; // ship - target
             Vector2 v = request.relativeVelocity;
-            double safeAccel = SafeTranslationAcceleration(request.controlAcceleration);
+            double safeAccel = SafeTranslationAcceleration(request);
             double safeAlpha = SafeAngularAcceleration(request.controlAcceleration);
             double desiredX = 0.0;
             double desiredY = 0.0;
             double desiredAlpha = 0.0;
 
-            double distance = p.magnitude;
+            double distance = Math.Max(0.0, p.magnitude - request.approachReserveDistance);
             if (safeAccel > 1e-6 && distance > 1e-6)
             {
                 Vector2 toward = -p.normalized;
-                double speedLimit = Math.Min(20.0, Math.Sqrt(2.0 * safeAccel * distance));
+                double speedLimit = Math.Sqrt(2.0 * safeAccel * distance);
                 Vector2 targetVelocity = toward * (float)speedLimit;
                 Vector2 accel = (targetVelocity - v) / 0.5f;
                 if (accel.magnitude > safeAccel) accel = accel.normalized * (float)safeAccel;
@@ -237,28 +277,34 @@ namespace DeltaV
         }
 
         /// <summary>包络与回退共用的安全平移加速度（cells/s²）：控制模型各轴上限的最大列模 × 安全系数。</summary>
-        internal static double SafeTranslationAcceleration(double[] b)
+        internal static double SafeTranslationAcceleration(GuidanceRequest request)
         {
-            return MaxTranslationAcceleration(b) * SafetyFactor;
+            return Math.Max(0.0, request.brakingAcceleration) * SafetyFactor;
+        }
+
+        // 相对闭合速度在当前阻力下的连续停止距离；零阻力时退化为 v²/(2a)。
+        internal static double StoppingDistance(double closingSpeed, double acceleration)
+        {
+            (float decay, _) = ShipPhysics.PassiveDragFactors(1f);
+            return StoppingDistance(closingSpeed, acceleration, decay);
+        }
+
+        internal static double StoppingDistance(double closingSpeed, double acceleration,
+            double linearDecayPerSecond)
+        {
+            if (closingSpeed <= 0.0) return 0.0;
+            double drag = linearDecayPerSecond > 0.0 ? -Math.Log(linearDecayPerSecond) : 0.0;
+            if (drag < 1e-6) return acceleration > 1e-6
+                ? closingSpeed * closingSpeed / (2.0 * acceleration) : double.PositiveInfinity;
+            if (acceleration <= 1e-6) return closingSpeed / drag;
+            double ratio = drag * closingSpeed / acceleration;
+            return acceleration / (drag * drag) * (ratio - Math.Log(1.0 + ratio));
         }
 
         /// <summary>包络与回退共用的安全角加速度（rad/s²）。</summary>
         internal static double SafeAngularAcceleration(double[] b)
         {
             return MaxAngularAcceleration(b) * SafetyFactor;
-        }
-
-        private static double MaxTranslationAcceleration(double[] b)
-        {
-            if (b == null) return 0.0;
-            double max = 0.0;
-            for (int c = 0; c < 3; c++)
-            {
-                double x = b[c];
-                double y = b[3 + c];
-                max = Math.Max(max, Math.Sqrt(x * x + y * y));
-            }
-            return max;
         }
 
         private static double MaxAngularAcceleration(double[] b)
@@ -331,7 +377,7 @@ namespace DeltaV
         // v=0 时恰好到点（与 BrakingGuidanceFallback 的停止距离曲线同形状，两段衔接连续）。
         private const double CaptureSpeedFloor = 0.15;    // 格/s
         private const double CaptureOmegaFloor = 0.03;    // rad/s
-        private const double EnvelopeSpeedCeiling = 20.0; // 格/s，与回退制导的速度上限对齐
+        private const double EnvelopeSpeedCeiling = 20.0; // 高速时停止线性化斜率；不限制速度
 
         private readonly DenseAdmmQpSolver solver = new DenseAdmmQpSolver();
         private AutopilotMpcProfile profile;
@@ -425,7 +471,7 @@ namespace DeltaV
             double ny = distance > 1e-6 ? state[1] / distance : 0.0;
             double angleSign = Math.Abs(state[4]) > 1e-6 ? Math.Sign(state[4]) : 1.0;
             // 包络可用加速度与停止距离回退共用同一安全标量（单一实现）。
-            double safeAccel = BrakingGuidanceFallback.SafeTranslationAcceleration(request.controlAcceleration);
+            double safeAccel = BrakingGuidanceFallback.SafeTranslationAcceleration(request);
             double safeAlpha = BrakingGuidanceFallback.SafeAngularAcceleration(request.controlAcceleration);
             int constraints = 0;
 
@@ -460,7 +506,8 @@ namespace DeltaV
                 // EnvelopeSpeedCeiling（斜率归零）。视线方向冻结在求解时刻（与旧实现一致）。
                 int row = constraints++;
                 double losDistance = nx * state[0] + ny * state[1];
-                double brakingSpeed = Math.Sqrt(2.0 * safeAccel * Math.Max(losDistance, 0.0));
+                double brakingSpeed = Math.Sqrt(2.0 * safeAccel *
+                    Math.Max(losDistance - request.approachReserveDistance, 0.0));
                 double speedCap = CaptureSpeedFloor + brakingSpeed;
                 double speedSlope = speedCap >= EnvelopeSpeedCeiling
                     ? 0.0
@@ -508,6 +555,26 @@ namespace DeltaV
             // 接近约束尚未完全吸收的残差误判成控制器故障。
             bool accepted = numerical && primal <= 100.0 && dual <= 1000.0
                 && AllFinite(solution, variables);
+            // 松弛变量与未完全收敛的 ADMM 解可能越过软包络。若首步已经不具备
+            // 在目标前停下的余量，不回放这份计划，而走共用的制动回退。
+            if (accepted && distance > 1e-6)
+            {
+                double firstDt = intervals[0];
+                double ax = 0.0, ay = 0.0;
+                for (int c = 0; c < InputCount; c++)
+                {
+                    ax += request.controlAcceleration[c] * solution[c];
+                    ay += request.controlAcceleration[3 + c] * solution[c];
+                }
+                double projectedClosing = Math.Max(0.0,
+                    -(nx * request.relativeVelocity.x + ny * request.relativeVelocity.y)
+                    - (nx * ax + ny * ay) * firstDt);
+                double projectedDistance = Math.Max(0.0, distance
+                    + (nx * request.relativeVelocity.x + ny * request.relativeVelocity.y) * firstDt);
+                double stop = BrakingGuidanceFallback.StoppingDistance(projectedClosing, safeAccel);
+                if (stop > projectedDistance + CaptureSpeedFloor * firstDt
+                    && projectedClosing > CaptureSpeedFloor) accepted = false;
+            }
             if (!accepted)
             {
                 BrakingGuidanceFallback.Compute(request, out GuidanceCommand fallback);
