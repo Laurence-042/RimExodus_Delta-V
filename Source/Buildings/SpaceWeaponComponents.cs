@@ -23,6 +23,16 @@ namespace DeltaV
         {
             return weapon?.Crew != null && !weapon.AutoAimEffective;
         }
+
+        public static void DrawGunnerCell(IntVec3 cell, Map map)
+        {
+            if (map == null || !cell.InBounds(map)) return;
+            Building edifice = cell.GetEdifice(map);
+            if (edifice?.def.building?.isSittable == true) return;
+            Graphics.DrawMesh(MeshPool.plane10,
+                cell.ToVector3ShiftedWithAltitude(AltitudeLayer.MetaOverlays),
+                Quaternion.identity, GenDraw.InteractionCellMaterial, 0);
+        }
     }
 
     /// <summary>武器局部几何的唯一入口。偏移均以朝北 Def 坐标记录，再随 Rot4 旋转。</summary>
@@ -74,6 +84,16 @@ namespace DeltaV
         {
             compClass = typeof(CompSpaceWeaponCrew);
         }
+
+        public override void DrawGhost(IntVec3 center, Rot4 rot, ThingDef thingDef,
+            Color ghostCol, AltitudeLayer drawAltitude, Thing thing = null)
+        {
+            if (thing is ThingWithComps host
+                && host.TryGetComp<CompSpaceWeapon>() is CompSpaceWeapon weapon
+                && !SpaceWeaponCrewUtility.RequiresClearCell(weapon)) return;
+            SpaceWeaponCrewUtility.DrawGunnerCell(
+                SpaceWeaponCrewUtility.GunnerCellAt(center, rot, this), Find.CurrentMap);
+        }
     }
 
     /// <summary>载人需求与固定炮手位。原版 CompMannable 仅作为双模炮塔适配器。</summary>
@@ -102,6 +122,13 @@ namespace DeltaV
             if (pawn == null || pawn.Position != GunnerCell) return;
             lastManTick = Find.TickManager.TicksGame;
             lastManPawn = pawn;
+        }
+
+        public override void PostDrawExtraSelectionOverlays()
+        {
+            base.PostDrawExtraSelectionOverlays();
+            if (SpaceWeaponCrewUtility.RequiresClearCell(parent.TryGetComp<CompSpaceWeapon>()))
+                SpaceWeaponCrewUtility.DrawGunnerCell(GunnerCell, parent.Map);
         }
 
         public override void PostExposeData()

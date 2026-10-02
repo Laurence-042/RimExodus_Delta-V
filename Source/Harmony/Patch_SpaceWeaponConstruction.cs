@@ -4,7 +4,7 @@ using Verse;
 
 namespace DeltaV
 {
-    /// <summary>原版静态 interactionCell 无法表达自瞄启用后释放炮手位，故只追加动态约束。</summary>
+    /// <summary>炮手格由 Crew 唯一声明；原版静态 interactionCell 无法随自瞄插件启停。</summary>
     [HarmonyPatch(typeof(GenConstruct), nameof(GenConstruct.CanPlaceBlueprintAt))]
     public static class Patch_GenConstruct_SpaceWeaponCrewCell
     {
