@@ -202,11 +202,12 @@
   <!-- Complete rail weapons and optional serial accelerators. -->
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Weapon_RailgunLoader</defName><label>small railgun loading unit</label><description>A complete destroyer-grade rail weapon; serial accelerators extend its muzzle and velocity.</description>
-    <thingClass>Building</thingClass><rotatable>true</rotatable><tickerType>Normal</tickerType><passability>Impassable</passability><size>(2,1)</size><hasInteractionCell>true</hasInteractionCell><interactionCellOffset>(0,0,-1)</interactionCellOffset><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory><fillPercent>1</fillPercent><holdsRoof>true</holdsRoof><blockLight>true</blockLight><blockWind>true</blockWind><building><isAirtight>true</isAirtight><isEdifice>true</isEdifice></building>
-    <graphicData><texPath>Things/Building/GravshipShieldGenerator</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2.2,1.2)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
+    <thingClass>Building</thingClass><drawerType>MapMeshAndRealTime</drawerType><rotatable>true</rotatable><tickerType>Normal</tickerType><passability>Impassable</passability><size>(2,1)</size><hasInteractionCell>true</hasInteractionCell><interactionCellOffset>(0,0,-1)</interactionCellOffset><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory><fillPercent>1</fillPercent><holdsRoof>true</holdsRoof><blockLight>true</blockLight><blockWind>true</blockWind><building><isAirtight>true</isAirtight><isEdifice>true</isEdifice></building>
+    <graphicData><texPath>Things/Building/SpaceWeapons/RailgunLoader_Inner</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,1)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
     <placeWorkers><li>DeltaV.PlaceWorker_RailgunPart</li></placeWorkers>
     <costList><Steel>240</Steel><ComponentIndustrial>8</ComponentIndustrial></costList><statBases><WorkToBuild>5000</WorkToBuild><MaxHitPoints>400</MaxHitPoints></statBases>
     <comps>
+      <li Class="DeltaV.CompProperties_RailgunShell"><texPath>Things/Building/SpaceWeapons/RailgunShell</texPath></li>
       <li Class="CompProperties_Forbiddable" /><li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>140</basePowerConsumption></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponCrew"><gunnerOffset>(0,0,-1)</gunnerOffset></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>60</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel slugs</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
@@ -217,34 +218,35 @@
 
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Weapon_RailgunLoaderLarge</defName><label>large railgun loading unit</label><description>A complete cruiser-grade rail weapon.</description>
-    <thingClass>Building</thingClass><rotatable>true</rotatable><tickerType>Normal</tickerType><passability>Impassable</passability><size>(4,1)</size><hasInteractionCell>true</hasInteractionCell><interactionCellOffset>(0,0,-1)</interactionCellOffset><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory><fillPercent>1</fillPercent><holdsRoof>true</holdsRoof><blockLight>true</blockLight><blockWind>true</blockWind><building><isAirtight>true</isAirtight><isEdifice>true</isEdifice></building>
-    <graphicData><texPath>Things/Building/GravshipShieldGenerator</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(4.2,1.2)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
+    <thingClass>Building</thingClass><drawerType>MapMeshAndRealTime</drawerType><rotatable>true</rotatable><tickerType>Normal</tickerType><passability>Impassable</passability><size>(4,2)</size><hasInteractionCell>true</hasInteractionCell><interactionCellOffset>(0,0,-1)</interactionCellOffset><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory><fillPercent>1</fillPercent><holdsRoof>true</holdsRoof><blockLight>true</blockLight><blockWind>true</blockWind><building><isAirtight>true</isAirtight><isEdifice>true</isEdifice></building>
+    <graphicData><texPath>Things/Building/SpaceWeapons/RailgunLoader_Inner</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(4,2)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
     <placeWorkers><li>DeltaV.PlaceWorker_RailgunPart</li></placeWorkers>
     <costList><Steel>520</Steel><ComponentIndustrial>16</ComponentIndustrial></costList><statBases><WorkToBuild>10000</WorkToBuild><MaxHitPoints>800</MaxHitPoints></statBases>
     <comps>
+      <li Class="DeltaV.CompProperties_RailgunShell"><texPath>Things/Building/SpaceWeapons/RailgunShell</texPath></li>
       <li Class="CompProperties_Forbiddable" /><li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>300</basePowerConsumption></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponCrew"><gunnerOffset>(0,0,-1)</gunnerOffset></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>216</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel slugs</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>18</ammoPerShot></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_RailgunSlug</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><baseSpreadDeg>0.25</baseSpreadDeg><cooldownTicks>420</cooldownTicks><range>280</range><muzzleOffset>(0,0.6)</muzzleOffset><attachmentSlots><li>(1,0,0)</li></attachmentSlots><acceleratorStarts><li>(0,0,1)</li></acceleratorStarts><allowedAcceleratorDefs><li>DeltaV_Weapon_RailgunAcceleratorLarge</li></allowedAcceleratorDefs></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_RailgunSlug</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><baseSpreadDeg>0.25</baseSpreadDeg><cooldownTicks>420</cooldownTicks><range>280</range><muzzleOffset>(0,1.1)</muzzleOffset><attachmentSlots><li>(1,0,0)</li></attachmentSlots><acceleratorStarts><li>(0,0,2)</li></acceleratorStarts><allowedAcceleratorDefs><li>DeltaV_Weapon_RailgunAcceleratorLarge</li></allowedAcceleratorDefs></li>
     </comps><researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
   </ThingDef>
 
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Weapon_RailgunAccelerator</defName><label>small rail accelerator</label><description>A serial accelerator with explicit input and output connectors.</description>
-    <thingClass>Building</thingClass><rotatable>true</rotatable><passability>PassThroughOnly</passability><size>(2,1)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory>
-    <graphicData><texPath>Things/Building/GravFieldExtender</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2.2,1.2)</drawSize><damageData><enabled>false</enabled></damageData></graphicData><placeWorkers><li>DeltaV.PlaceWorker_RailgunPart</li></placeWorkers>
+    <thingClass>Building</thingClass><drawerType>MapMeshAndRealTime</drawerType><rotatable>true</rotatable><passability>PassThroughOnly</passability><size>(2,1)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory>
+    <graphicData><texPath>Things/Building/SpaceWeapons/RailgunAccelerator_Inner</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,1)</drawSize><damageData><enabled>false</enabled></damageData></graphicData><placeWorkers><li>DeltaV.PlaceWorker_RailgunPart</li></placeWorkers>
     <costList><Steel>100</Steel><ComponentIndustrial>3</ComponentIndustrial></costList><statBases><WorkToBuild>1600</WorkToBuild><MaxHitPoints>180</MaxHitPoints></statBases>
-    <comps><li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_SpaceRailgun"><role>Accelerator</role><speedBonus>22</speedBonus><movesMuzzle>true</movesMuzzle><outputOffset>(0,0,1)</outputOffset><nextRootOffset>(0,0,1)</nextRootOffset></li></comps>
+    <comps><li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_RailgunShell"><texPath>Things/Building/SpaceWeapons/RailgunShell</texPath></li><li Class="DeltaV.CompProperties_SpaceRailgun"><role>Accelerator</role><speedBonus>22</speedBonus><movesMuzzle>true</movesMuzzle><outputOffset>(0,0,1)</outputOffset><nextRootOffset>(0,0,1)</nextRootOffset></li></comps>
     <researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
   </ThingDef>
 
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Weapon_RailgunAcceleratorLarge</defName><label>large rail accelerator</label><description>A cruiser-scale serial accelerator.</description>
-    <thingClass>Building</thingClass><rotatable>true</rotatable><passability>PassThroughOnly</passability><size>(4,1)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory>
-    <graphicData><texPath>Things/Building/GravFieldExtender</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(4.2,1.2)</drawSize><damageData><enabled>false</enabled></damageData></graphicData><placeWorkers><li>DeltaV.PlaceWorker_RailgunPart</li></placeWorkers>
+    <thingClass>Building</thingClass><drawerType>MapMeshAndRealTime</drawerType><rotatable>true</rotatable><passability>PassThroughOnly</passability><size>(4,2)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory>
+    <graphicData><texPath>Things/Building/SpaceWeapons/RailgunAccelerator_Inner</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(4,2)</drawSize><damageData><enabled>false</enabled></damageData></graphicData><placeWorkers><li>DeltaV.PlaceWorker_RailgunPart</li></placeWorkers>
     <costList><Steel>240</Steel><ComponentIndustrial>7</ComponentIndustrial></costList><statBases><WorkToBuild>3600</WorkToBuild><MaxHitPoints>360</MaxHitPoints></statBases>
-    <comps><li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_SpaceRailgun"><role>Accelerator</role><speedBonus>35</speedBonus><movesMuzzle>true</movesMuzzle><outputOffset>(0,0,1)</outputOffset><nextRootOffset>(0,0,1)</nextRootOffset></li></comps>
+    <comps><li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_RailgunShell"><texPath>Things/Building/SpaceWeapons/RailgunShell</texPath></li><li Class="DeltaV.CompProperties_SpaceRailgun"><role>Accelerator</role><speedBonus>35</speedBonus><movesMuzzle>true</movesMuzzle><outputOffset>(0,0,1)</outputOffset><nextRootOffset>(0,0,2)</nextRootOffset></li></comps>
     <researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
   </ThingDef>
 
