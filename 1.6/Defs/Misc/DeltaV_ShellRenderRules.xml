@@ -2,19 +2,41 @@
 
 <Defs>
   <!--
-    外壳 Thing 白名单。墙与门由代码自动包含；其他建筑只有出现在这里才会显示。
-    可选 alternateGraphic 完整沿用 GraphicData 语法；zIndex 单位为一个 AltInc。
+    外壳 Thing 规则。实心结构自动包含；规则可纳入非实心建筑或排除内部部件。
+    render 将贴图来源、表面层级、替代 GraphicData 与 zIndex 放在一起。
+    Hull 是普通船壳，Exposed 在整片船壳上方；zIndex 单位为一个 AltInc。
+    TurretTop 来源的 alternateGraphic 只替换材质，尺寸仍取 turretTopDrawSize。
 
     示例：
-    <alternateGraphic>
-      <graphicClass>Graphic_Multi</graphicClass>
-      <texPath>MyMod/Things/MyAlternateShellSprite</texPath>
-      <drawSize>(2.2, 2.2)</drawSize>
-    </alternateGraphic>
+    <render>
+      <source>Thing</source><layer>Hull</layer>
+      <alternateGraphic>
+        <graphicClass>Graphic_Multi</graphicClass>
+        <texPath>MyMod/Things/MyAlternateShellSprite</texPath>
+        <drawSize>(2.2, 2.2)</drawSize>
+      </alternateGraphic>
+    </render>
   -->
   <DeltaV.ShellRenderRuleDef>
     <defName>DeltaV_Shell_LargeThruster</defName>
     <thingDef>LargeThruster</thingDef>
-    <zIndex>1</zIndex>
+    <render><zIndex>1</zIndex></render>
   </DeltaV.ShellRenderRuleDef>
+
+  <!-- 顶部炮塔只把旋转炮身画在船壳表面；底座和覆盖插件不进入外壳。 -->
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_PDTurret</defName><thingDef>DeltaV_Weapon_PDTurret</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_CannonTurret</defName><thingDef>DeltaV_Weapon_CannonTurret</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_RapidTurret</defName><thingDef>DeltaV_Weapon_RapidMainSmall</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_LaserTurret</defName><thingDef>DeltaV_Weapon_LaserTurret</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HeavyMainMedium</defName><thingDef>DeltaV_Weapon_HeavyMainMedium</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_RapidMainMedium</defName><thingDef>DeltaV_Weapon_RapidMainMedium</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_LaserMainMedium</defName><thingDef>DeltaV_Weapon_LaserMainMedium</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+
+  <!-- 船体内的固定武器不在船壳表面露出；碰撞分类仍由 SpaceStructureRules 决定。 -->
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideCasemateCannon</defName><thingDef>DeltaV_Weapon_CasemateCannon</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideCasemateLarge</defName><thingDef>DeltaV_Weapon_CasemateLarge</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunLoader</defName><thingDef>DeltaV_Weapon_RailgunLoader</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunLoaderLarge</defName><thingDef>DeltaV_Weapon_RailgunLoaderLarge</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunAccelerator</defName><thingDef>DeltaV_Weapon_RailgunAccelerator</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunAcceleratorLarge</defName><thingDef>DeltaV_Weapon_RailgunAcceleratorLarge</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
 </Defs>

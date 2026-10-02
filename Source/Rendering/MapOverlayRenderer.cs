@@ -14,9 +14,8 @@ namespace DeltaV
     /// （2026-09-18 用户决策：不按对象类型分叉配置），纳入标准 = 结构外观：
     /// 地形走 TerrainAt 实际显示语义（原版回落链让基架顶替太空表面、地板盖住基架，
     /// Space/Void 因 dontRender 天然排除）、墙门、气密结构与自然岩石（推进器/船壳/
-    /// 岩石自动入壳）、ShellRenderRuleDef 显式规则（exclude/alternateGraphic/zIndex）。
-    /// Thing 按各自 def.Altitude 真实分层；连接状态贴图（含 CornerFiller 角盖）按
-    /// 当前 LinkGrid 状态取片。
+    /// 岩石自动入壳）、ShellRenderRuleDef 显式规则。配置可选建筑本体或旋转炮身，
+    /// 并决定船壳内层级；连接状态贴图（含 CornerFiller 角盖）按当前 LinkGrid 取片。
     /// </summary>
     public static class MapOverlayRenderer
     {
@@ -53,13 +52,14 @@ namespace DeltaV
         internal static int QuadsDrawnLastPass { get; private set; }
 
         /// <summary>缓冲绘制命令：mesh + 完整 TRS 矩阵 + 材质（props 仅火焰命令非空）；
-        /// queue/sequence 供壳内排序。</summary>
+        /// surface/queue/sequence 供壳内排序。</summary>
         internal struct OverlayCommand
         {
             public Mesh mesh;
             public Matrix4x4 matrix;
             public Material material;
             public MaterialPropertyBlock props;
+            public ShellSurfaceLayer surface;
             public int queue;
             public int sequence;
         }
@@ -103,6 +103,7 @@ namespace DeltaV
                 matrix = matrix,
                 material = material,
                 props = props,
+                surface = ShellSurfaceLayer.Effects,
                 queue = material.renderQueue,
                 sequence = nextSequence++
             });
@@ -124,10 +125,9 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 把收集到的命令写入 commandBuffer（RimExodus SeamlessTileRenderer 同款机制，
-        /// 2026-09-20）：按 (renderQueue, sequence) 排序（cutout 先画写深度、transparent
-        /// 后画受深度测试，同原版 SectionLayer 语义），再清深度（保色）后按序绘制——
-        /// 命令顺序即层序，不依赖 3D 深度排序。正交俯视相机下 Graphics.DrawMesh 的
+        /// 把收集到的命令写入 commandBuffer：按 (surface, renderQueue, sequence) 排序，
+        /// 每个表面层清深度（保色）后绘制。炮身因此确定位于船壳之上，内部部件可
+        /// 显式排除；壳间继续由 ShellLayer 独立清深度。正交俯视相机下 Graphics.DrawMesh 的
         /// 透明队列按 bounds 距离排序、x/z 分量会压过海拔差，负海拔高度带方案已实测
         /// 证伪，勿回退（详见 ShellRenderer.DrawNonFocusedShells）。
         /// </summary>
@@ -135,10 +135,15 @@ namespace DeltaV
         {
             if (Commands.Count == 0) return;
             Commands.Sort(CompareCommands);
-            buffer.ClearRenderTarget(true, false, Color.clear, 1f);
+            ShellSurfaceLayer currentSurface = (ShellSurfaceLayer)byte.MaxValue;
             for (int i = 0; i < Commands.Count; i++)
             {
                 OverlayCommand command = Commands[i];
+                if (command.surface != currentSurface)
+                {
+                    buffer.ClearRenderTarget(true, false, Color.clear, 1f);
+                    currentSurface = command.surface;
+                }
                 if (command.props == null)
                     buffer.DrawMesh(command.mesh, command.matrix, command.material);
                 else
@@ -148,6 +153,8 @@ namespace DeltaV
 
         private static int CompareCommands(OverlayCommand left, OverlayCommand right)
         {
+            int surfaceComparison = left.surface.CompareTo(right.surface);
+            if (surfaceComparison != 0) return surfaceComparison;
             int queueComparison = left.queue.CompareTo(right.queue);
             return queueComparison != 0 ? queueComparison : left.sequence.CompareTo(right.sequence);
         }
@@ -219,20 +226,52 @@ namespace DeltaV
                 if (!ShouldDrawThing(thing) || !visible.Contains(thing.Position)
                     || allowedCells != null && !allowedCells.Contains(thing.Position)) continue;
                 Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
-                Graphic graphic = rule?.GraphicFor(thing) ?? thing.Graphic;
+                ShellRenderConfig config = rule?.render;
+                if (config?.source == ShellGraphicSource.TurretTop)
+                {
+                    CollectTurretTop(thing, config, matrix, rotation, collector);
+                    continue;
+                }
+                Graphic graphic = config?.GraphicFor(thing) ?? thing.Graphic;
                 if (graphic == null) continue;
                 Rot4 rot = thing.Rotation;
                 Vector3 target = matrix.MultiplyPoint3x4(thing.DrawPos + graphic.DrawOffset(rot));
-                float zLift = (rule?.zIndex ?? 0f) * Altitudes.AltInc;
+                float zLift = (config?.zIndex ?? 0f) * Altitudes.AltInc;
                 target.y += zLift;
                 Material material = graphic is Graphic_Linked ? graphic.MatSingleFor(thing) : graphic.MatAt(rot, thing);
                 if (material == null) continue;
                 Quaternion quat = rotation * graphic.QuatFromRot(rot);
-                collector.Add(new OverlayCommand { mesh = graphic.MeshAt(rot), matrix = Matrix4x4.TRS(target, quat, Vector3.one), material = material, queue = material.renderQueue, sequence = nextSequence++ });
+                collector.Add(new OverlayCommand { mesh = graphic.MeshAt(rot), matrix = Matrix4x4.TRS(target, quat, Vector3.one), material = material, surface = config?.layer ?? ShellSurfaceLayer.Hull, queue = material.renderQueue, sequence = nextSequence++ });
                 QuadsDrawnLastPass++;
                 if (graphic is Graphic_LinkedCornerFiller cornerFiller)
-                    DrawCornerFillerCovers(thing, cornerFiller, material, zLift, matrix, rotation, collector);
+                    DrawCornerFillerCovers(thing, cornerFiller, material, zLift,
+                        config?.layer ?? ShellSurfaceLayer.Hull, matrix, rotation, collector);
             }
+        }
+
+        private static void CollectTurretTop(Thing thing, ShellRenderConfig config,
+            Matrix4x4 matrix, Quaternion rotation, List<OverlayCommand> collector)
+        {
+            if (thing is not IShellTurretTopSource source || thing.def.building == null) return;
+            Material material = config.alternateGraphic?.GraphicColoredFor(thing).MatSingleFor(thing)
+                ?? source.ShellTopMaterial;
+            if (material == null) return;
+            Vector2 offset = thing.def.building.turretTopOffset;
+            Vector3 local = thing.DrawPos + Altitudes.AltIncVect
+                + new Vector3(offset.x, config.zIndex * Altitudes.AltInc, offset.y);
+            float angle = TurretTop.ArtworkRotation + source.ShellTopAngle;
+            float size = thing.def.building.turretTopDrawSize;
+            collector.Add(new OverlayCommand
+            {
+                mesh = MeshPool.plane10,
+                matrix = Matrix4x4.TRS(matrix.MultiplyPoint3x4(local), rotation * angle.ToQuat(),
+                    new Vector3(size, 1f, size)),
+                material = material,
+                surface = config.layer,
+                queue = material.renderQueue,
+                sequence = nextSequence++
+            });
+            QuadsDrawnLastPass++;
         }
 
         public static bool ContainsVisibleContent(Map map, IntVec3 cell, HashSet<IntVec3> allowedCells = null)
@@ -273,7 +312,7 @@ namespace DeltaV
         /// patch 已覆盖脏化。
         /// </summary>
         private static void DrawCornerFillerCovers(Thing thing, Graphic_LinkedCornerFiller graphic,
-            Material material, float zLift, Matrix4x4 matrix, Quaternion rotation,
+            Material material, float zLift, ShellSurfaceLayer surface, Matrix4x4 matrix, Quaternion rotation,
             List<OverlayCommand> collector)
         {
             IntVec3 position = thing.Position;
@@ -318,7 +357,7 @@ namespace DeltaV
                     }
                 }
                 Matrix4x4 trs = Matrix4x4.TRS(center, quat, new Vector3(size.x * 2f, 1f, size.y * 2f));
-                collector.Add(new OverlayCommand { mesh = CornerFillerMesh(), matrix = matrix * trs, material = material, queue = material.renderQueue, sequence = nextSequence++ });
+                collector.Add(new OverlayCommand { mesh = CornerFillerMesh(), matrix = matrix * trs, material = material, surface = surface, queue = material.renderQueue, sequence = nextSequence++ });
                 QuadsDrawnLastPass++;
             }
         }

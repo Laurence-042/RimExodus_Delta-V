@@ -199,7 +199,7 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `SpaceWeaponService` / `SpaceWeaponShot`：跨容器开火总装与唯一 Prepare→Launch→Commit 事务；Crew/Traverse/Magazine/Attachment/加速件以正交 Comp/能力接口参与，第三方不得建立家族特判。
 - `Building_SpaceTurretGun` / `DefModExtension_SpaceTurretArt`：只替换指定炮塔的旋转顶部材质，位置、角度和绘制继续走原版 `Building_TurretGun`/`TurretTop`。
 - `SpaceProjectileService` / `SpaceCollision` / `SpaceImpactEffects`：含冷发射程序的宇宙弹体、统一碰撞与联合命中效果链。
-- `ShellRenderer` / `MapOverlayRenderer` / `DockingGhostRenderer` / `ShipSilhouette`：外壳、覆盖物、幽灵和剪影。
+- `ShellRenderer` / `MapOverlayRenderer` / `ShellRenderRuleDef` / `DockingGhostRenderer` / `ShipSilhouette`：整壳分层、地图内容收集、Thing 外壳绘制配置、幽灵和剪影。炮塔旋转炮身由 `IShellTurretTopSource` 提供当前材质和角度，规则决定仅绘炮身并置于船壳上层；船内武器用规则排除，不修改碰撞分类。
 - `ThrusterEffects` / `ThrusterAudio`：只读真实分配油门的表现。
 - `MoonPoolUtility` / `Patch_MoonPool` / `MoonPoolGraphics` / `SectionLayer_MoonPool`：月池判定、无顶密封和连接视觉。
 - `SpaceLifecycleService`：生成、休眠、物化、归档和销图。无快照 marker 首次物化的内容链 = 类型 prefab 池（seed 确定性选取，入队测尺寸与盖章同一解析），**容器先注册、结构后铺设**（驾驶台 `ClaimOnSpawn` 认领要求 FrameOf 已解析；归属名 = marker 生成时决定的完整名，经 envLabel/归档 carriedLabel 传承）。池空在生成期拦截；池失效在入队/物化期报错并取消该 POI（prefab-only，不回退程序生成）。

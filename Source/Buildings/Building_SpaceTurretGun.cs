@@ -10,9 +10,13 @@ namespace DeltaV
     }
 
     /// <summary>Only substitutes the rotating artwork; vanilla turret draw and rotation stay intact.</summary>
-    public class Building_SpaceTurretGun : Building_TurretGun
+    public class Building_SpaceTurretGun : Building_TurretGun, IShellTurretTopSource
     {
         private Material topMaterial;
+
+        public Material ShellTopMaterial => TurretTopMaterial;
+
+        public float ShellTopAngle => CurrentEffectiveVerb?.AimAngleOverride ?? top?.CurRotation ?? Rotation.AsAngle;
 
         public override Material TurretTopMaterial
         {

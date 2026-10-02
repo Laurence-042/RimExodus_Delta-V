@@ -37,7 +37,7 @@
 | `Source/Generation/ShipPocketMapFactory.cs` | 飞船口袋图单一生成入口；起飞时按当前 Gravship 实际边界动态定尺寸并居中 |
 | `Source/Harmony/Patch_GravshipLanding.cs` | 原版确认降落事件 → Delta-V docked 状态的最小桥接 |
 | `Source/Harmony/Patch_WorldCameraRotation.cs` | 给背景 WorldCamera 补聚焦参考系 roll；不旋转 Map 相机/内容 |
-| `Source/Rendering/ShellRenderRuleDef.cs` | 外壳 Thing 白名单；可选 alternateGraphic 与 zIndex |
+| `Source/Rendering/ShellRenderRuleDef.cs` | 外壳 Thing 纳入／排除及 `render` 配置（贴图来源、表面层级、替代图和 zIndex） |
 | `Source/Rendering/WorldShipMarkerRenderer.cs` | 星球轨道层的玩家飞船剪影标记；由 ValidSubstructure 生成可重建纹理缓存 |
 | `Source/Rendering/DeltaVLandingAnimator.cs` | 保持镜头缩放的起始姿态 → 目标姿态降落插值 |
 | `Source/Harmony/Patch_DeltaVLandingAnimation.cs` | 仅在 Delta-V 降落期间替换原版镜头/飞入表现并补原版收尾前置状态 |
@@ -82,10 +82,10 @@
 
 ### 白名单外壳
 
-- 不再重放 `SectionLayer_Terrain` 或整层 `SectionLayer_ThingsGeneral`。每帧直接从真实 Map 读取逆重基架 foundation 和 Thing：基架、`ThingDef.IsWall` / `IsDoor` 自动纳入，其他 Thing 只有命中 `ShellRenderRuleDef.thingDef` 才绘制。
-- 规则的 `alternateGraphic` 使用原版 `GraphicData` XML 结构，可提供 `Graphic_Single`/`Graphic_Multi`、`texPath`、`drawSize`、shader 等；省略则沿用原 Thing Graphic。`zIndex` 以 `Altitudes.AltInc` 为单位叠加，控制代理遮挡次序。
-- 默认只显式加入 `LargeThruster`；驾驶台、逆重引擎、延展器和室内设备不在白名单。该列表可由兼容补丁追加，不要求改核心渲染器。
-- POI 使用同一变换/点击链，但渲染配置改为“可见地形 + 静态物体”：跳过 `TerrainDef.dontRender`（Space 背景不会形成矩形），默认接纳矿物、墙门、建筑和物品，排除 Pawn/Projectile/Mote/Gas/Filth/动态特效。`ShellRenderRuleDef` 的 alternateGraphic、exclude、zIndex 对两类配置均可覆盖。
+- 不再重放 `SectionLayer_Terrain` 或整层 `SectionLayer_ThingsGeneral`。每帧从真实 Map 读取可见地形、墙门、气密建筑与自然岩石；其他 Thing 由 `ShellRenderRuleDef` 显式纳入，规则也可排除自动纳入的实心建筑。所有 SpaceObject 使用同一收集路径。
+- 规则的 `render` 把 `source`（`Thing` 或 `TurretTop`）、`layer`（`Hull`／`Exposed`／`Effects`）、可选 `alternateGraphic` 和 `zIndex` 收在一起。替代图仍采用原版 `GraphicData` XML；`zIndex` 以 `Altitudes.AltInc` 为单位，仅调整所在表面层内的深度。层间清深度保色，顺序由命令缓冲决定。
+- 当前规则显式纳入 `LargeThruster`，七种点防／小型／中型炮塔只绘旋转炮身于 `Exposed` 层；炮廓和轨道炮装弹机／加速段明确排除。驾驶台、逆重引擎和其他室内设备默认不绘制。
+- POI 与飞船共用同一变换、点击和绘制规则；`TerrainDef.dontRender` 的 Space 背景天然跳过，Pawn/Projectile/Mote/Gas/Filth 和动态特效不进入普通船壳内容。
 - 代理按原版 17×17 section 缓存源内容；Terrain/Things/Buildings 的 `MapMeshDirty` 只令相关及必要相邻 section 失效。缓存不存档，并在地图删除、换档、Def 缓存刷新时释放。
 
 ### 固定轨道 / 建造模式（逆重搬运）

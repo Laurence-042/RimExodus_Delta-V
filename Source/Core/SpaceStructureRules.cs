@@ -24,8 +24,7 @@ namespace DeltaV
     /// 同数据源）。外壳渲染（MapOverlayRenderer.ShouldDrawThing）的建筑实心部分与
     /// 碰撞核心（SpaceCollision）的占用集都经本类判定——两份规则不得各自演化
     ///（规则越一致、维护越简单；漂移即「渲染显示但打不中/打中了却看不见」）。
-    /// 渲染侧的 ShellRenderRuleDef（exclude/替代贴图/zIndex）只影响画不画，
-    /// 不改变本分类。
+    /// 渲染侧的 ShellRenderRuleDef（排除/贴图来源/表面层级）不改变本分类。
     /// </summary>
     public static class SpaceStructureRules
     {
