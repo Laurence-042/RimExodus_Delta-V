@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
 
-  <!-- Structural templates. Art remains vanilla placeholder until the image pass. -->
+  <!-- Structural templates. Fixed base and rotating top are separate graphics. -->
   <ThingDef ParentName="BuildingBase" Name="DeltaV_SpaceTurret1" Abstract="True">
     <thingClass>DeltaV.Building_SpaceTurretGun</thingClass><rotatable>true</rotatable><tickerType>Normal</tickerType><drawerType>MapMeshAndRealTime</drawerType>
     <passability>PassThroughOnly</passability><pathCost>50</pathCost><fillPercent>0.4</fillPercent>
@@ -23,11 +23,12 @@
     <graphicData><texPath>Things/Building/SpaceWeapons/Turret2_Base</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2.6,2.6)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
   </ThingDef>
 
-  <ThingDef ParentName="DeltaV_SpaceTurret1" Name="DeltaV_SpaceTurret3" Abstract="True">
+  <ThingDef ParentName="DeltaV_SpaceTurret2" Name="DeltaV_SpaceTurret3" Abstract="True">
+    <thingClass>DeltaV.Building_SpaceTurretGun</thingClass>
     <size>(3,3)</size>
     <building><turretTopDrawSize>3.4</turretTopDrawSize></building>
     <interactionCellOffset>(0,0,-2)</interactionCellOffset>
-    <graphicData><texPath>Things/Building/Security/TurretHeavy_Base</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(3.6,3.6)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
+    <graphicData><texPath>Things/Building/SpaceWeapons/Turret3_Base</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(3.6,3.6)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
     <comps Inherit="False">
       <li Class="CompProperties_Forbiddable" />
       <li Class="DeltaV.CompProperties_SpaceWeaponCrew"><gunnerOffset>(0,0,-2)</gunnerOffset><requiredWorkTags>Violent</requiredWorkTags></li>
@@ -46,10 +47,10 @@
     <researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
   </ThingDef>
 
-  <!-- Small rapid secondary / point-defense-capable gun, 1x1. -->
+  <!-- 1x1 point-defense autocannon. -->
   <ThingDef ParentName="DeltaV_SpaceTurret1">
-    <defName>DeltaV_Weapon_PDTurret</defName><label>small rapid secondary turret</label>
-    <description>A crewed rapid secondary gun which can switch between volley and point-defense modes.</description>
+    <defName>DeltaV_Weapon_PDTurret</defName><label>point-defense autocannon</label>
+    <description>A crewed point-defense autocannon which can switch between volley and point-defense modes.</description>
     <costList><Steel>70</Steel><ComponentIndustrial>3</ComponentIndustrial></costList>
     <statBases><WorkToBuild>1500</WorkToBuild><MaxHitPoints>110</MaxHitPoints><Flammability>0.4</Flammability></statBases>
     <comps>
@@ -60,23 +61,9 @@
     </comps>
   </ThingDef>
 
+  <!-- 2x2 small and 3x3 medium turrets. -->
   <ThingDef ParentName="DeltaV_SpaceTurret2">
-    <defName>DeltaV_Weapon_RapidSecondaryLarge</defName><label>large rapid secondary turret</label>
-    <description>A cruiser-grade crewed rapid secondary gun.</description>
-    <costList><Steel>220</Steel><ComponentIndustrial>7</ComponentIndustrial></costList>
-    <statBases><WorkToBuild>4000</WorkToBuild><MaxHitPoints>280</MaxHitPoints><Flammability>0.3</Flammability></statBases>
-    <comps>
-      <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>90</turnRateDegPerSec><fireToleranceDeg>3</fireToleranceDeg></li>
-      <li Class="CompProperties_Refuelable"><fuelCapacity>300</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
-      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>1</ammoPerShot><defaultPriority>0</defaultPriority></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_PDBullet</projectileDef><aimMode>PointDefense</aimMode><defaultSalvoSet>Secondary</defaultSalvoSet><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>1.2</baseSpreadDeg><cooldownTicks>8</cooldownTicks><range>80</range><attachmentSlots><li>(0,0,0)</li></attachmentSlots></li>
-    </comps>
-    <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/RapidTurret_Top</topTexPath></li></modExtensions>
-  </ThingDef>
-
-  <!-- Main turrets. Existing names remain on the small heavy and small laser variants. -->
-  <ThingDef ParentName="DeltaV_SpaceTurret2">
-    <defName>DeltaV_Weapon_CannonTurret</defName><label>small heavy main turret</label>
+    <defName>DeltaV_Weapon_CannonTurret</defName><label>small heavy turret</label>
     <description>A destroyer-grade crewed heavy main battery.</description>
     <costList><Steel>260</Steel><ComponentIndustrial>7</ComponentIndustrial></costList>
     <statBases><WorkToBuild>4800</WorkToBuild><MaxHitPoints>320</MaxHitPoints><Flammability>0.3</Flammability></statBases>
@@ -90,7 +77,7 @@
   </ThingDef>
 
   <ThingDef ParentName="DeltaV_SpaceTurret2">
-    <defName>DeltaV_Weapon_RapidMainSmall</defName><label>small rapid main turret</label>
+    <defName>DeltaV_Weapon_RapidMainSmall</defName><label>small rapid turret</label>
     <description>A destroyer-grade rapid-firing main battery.</description>
     <costList><Steel>240</Steel><ComponentIndustrial>6</ComponentIndustrial></costList>
     <statBases><WorkToBuild>4200</WorkToBuild><MaxHitPoints>290</MaxHitPoints></statBases>
@@ -104,7 +91,7 @@
   </ThingDef>
 
   <ThingDef ParentName="DeltaV_SpaceTurret2">
-    <defName>DeltaV_Weapon_LaserTurret</defName><label>small laser main turret</label>
+    <defName>DeltaV_Weapon_LaserTurret</defName><label>small laser turret</label>
     <description>A destroyer-grade crewed laser main battery.</description>
     <costList><Steel>220</Steel><ComponentIndustrial>8</ComponentIndustrial></costList>
     <statBases><WorkToBuild>5200</WorkToBuild><MaxHitPoints>250</MaxHitPoints></statBases>
@@ -116,7 +103,7 @@
   </ThingDef>
 
   <ThingDef ParentName="DeltaV_SpaceTurret3">
-    <defName>DeltaV_Weapon_HeavyMainLarge</defName><label>large heavy main turret</label>
+    <defName>DeltaV_Weapon_HeavyMainMedium</defName><label>medium heavy turret</label>
     <description>A cruiser-grade heavy main battery.</description>
     <costList><Steel>520</Steel><Plasteel>50</Plasteel><ComponentIndustrial>14</ComponentIndustrial></costList>
     <statBases><WorkToBuild>9000</WorkToBuild><MaxHitPoints>600</MaxHitPoints></statBases>
@@ -126,10 +113,11 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>12</ammoPerShot><defaultPriority>0</defaultPriority></li>
       <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Cannon</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>1.5</baseSpreadDeg><cooldownTicks>360</cooldownTicks><range>200</range><attachmentSlots><li>(-1,0,-1)</li><li>(1,0,-1)</li></attachmentSlots></li>
     </comps>
+    <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/CannonTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
 
   <ThingDef ParentName="DeltaV_SpaceTurret3">
-    <defName>DeltaV_Weapon_RapidMainLarge</defName><label>large rapid main turret</label>
+    <defName>DeltaV_Weapon_RapidMainMedium</defName><label>medium rapid turret</label>
     <description>A cruiser-grade rapid-firing main battery.</description>
     <costList><Steel>480</Steel><ComponentIndustrial>13</ComponentIndustrial></costList>
     <statBases><WorkToBuild>8200</WorkToBuild><MaxHitPoints>540</MaxHitPoints></statBases>
@@ -139,10 +127,11 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>3</ammoPerShot><defaultPriority>0</defaultPriority></li>
       <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Cannon</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>1.8</baseSpreadDeg><cooldownTicks>10</cooldownTicks><range>180</range><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><attachmentSlots><li>(-1,0,-1)</li><li>(1,0,-1)</li></attachmentSlots></li>
     </comps>
+    <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/RapidTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
 
   <ThingDef ParentName="DeltaV_SpaceTurret3">
-    <defName>DeltaV_Weapon_LaserMainLarge</defName><label>large laser main turret</label>
+    <defName>DeltaV_Weapon_LaserMainMedium</defName><label>medium laser turret</label>
     <description>A cruiser-grade laser main battery.</description>
     <costList><Steel>440</Steel><ComponentSpacer>8</ComponentSpacer></costList>
     <statBases><WorkToBuild>10000</WorkToBuild><MaxHitPoints>480</MaxHitPoints></statBases>
@@ -150,6 +139,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>90</turnRateDegPerSec><fireToleranceDeg>3</fireToleranceDeg></li>
       <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_LaserHeavy</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.5</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>160</range><attachmentSlots><li>(-1,0,-1)</li><li>(1,0,-1)</li></attachmentSlots></li>
     </comps>
+    <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/LaserTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
 
   <!-- Airtight wall weapons. -->
@@ -262,7 +252,7 @@
   <ThingDef ParentName="BuildingBase" Name="DeltaV_AutoAimPluginBase">
     <defName>DeltaV_Building_AutoAimPluginI</defName><label>auto-aim plugin I</label><description>A slot-mounted targeting computer equivalent to Shooting 10.</description>
     <thingClass>Building</thingClass><passability>Standable</passability><size>(1,1)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory><altitudeLayer>BuildingOnTop</altitudeLayer><building><isEdifice>false</isEdifice><isAttachment>true</isAttachment></building>
-    <graphicData><texPath>Things/Building/GravshipShieldGenerator</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1,1)</drawSize></graphicData><placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers><costList><Steel>40</Steel><ComponentIndustrial>4</ComponentIndustrial></costList><statBases><WorkToBuild>1200</WorkToBuild><MaxHitPoints>80</MaxHitPoints></statBases>
+    <graphicData><texPath>Things/Building/GravshipShieldGenerator</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1,1)</drawSize><drawOffset>(0,-0.712,0)</drawOffset></graphicData><placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers><costList><Steel>40</Steel><ComponentIndustrial>4</ComponentIndustrial></costList><statBases><WorkToBuild>1200</WorkToBuild><MaxHitPoints>80</MaxHitPoints></statBases>
     <comps><li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_SpaceAutoAimPlugin"><equivalentSkillLevel>10</equivalentSkillLevel></li></comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_AutoAimPluginBase">
@@ -274,7 +264,7 @@
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Building_UraniumMagazine</defName><label>uranium auxiliary magazine</label><description>A slot-mounted priority-1 magazine which substitutes uranium ammunition.</description>
     <thingClass>Building</thingClass><passability>Standable</passability><size>(1,1)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory><altitudeLayer>BuildingOnTop</altitudeLayer><building><isEdifice>false</isEdifice><isAttachment>true</isAttachment></building>
-    <graphicData><texPath>Things/Building/GravshipShieldGenerator</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1,1)</drawSize></graphicData><placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers><costList><Steel>50</Steel><ComponentIndustrial>2</ComponentIndustrial></costList><statBases><WorkToBuild>1000</WorkToBuild><MaxHitPoints>100</MaxHitPoints></statBases>
+    <graphicData><texPath>Things/Building/GravshipShieldGenerator</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1,1)</drawSize><drawOffset>(0,-0.712,0)</drawOffset></graphicData><placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers><costList><Steel>50</Steel><ComponentIndustrial>2</ComponentIndustrial></costList><statBases><WorkToBuild>1000</WorkToBuild><MaxHitPoints>100</MaxHitPoints></statBases>
     <comps>
       <li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_SpaceWeaponAttachment" />
       <li Class="CompProperties_Refuelable"><fuelCapacity>60</fuelCapacity><initialFuelPercent>0</initialFuelPercent><fuelFilter><thingDefs><li>Uranium</li></thingDefs></fuelFilter><fuelLabel>Uranium ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>

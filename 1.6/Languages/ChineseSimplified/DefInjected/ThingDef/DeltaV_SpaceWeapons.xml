@@ -1,21 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-  <DeltaV_Weapon_PDTurret.label>小型速射副炮</DeltaV_Weapon_PDTurret.label>
-  <DeltaV_Weapon_PDTurret.description>炮艇/驱逐舰级载人速射副炮，可在齐射与点防御模式之间切换。</DeltaV_Weapon_PDTurret.description>
-  <DeltaV_Weapon_RapidSecondaryLarge.label>大型速射副炮</DeltaV_Weapon_RapidSecondaryLarge.label>
-  <DeltaV_Weapon_RapidSecondaryLarge.description>巡洋舰级载人速射副炮。</DeltaV_Weapon_RapidSecondaryLarge.description>
-  <DeltaV_Weapon_CannonTurret.label>小型重炮主炮</DeltaV_Weapon_CannonTurret.label>
-  <DeltaV_Weapon_CannonTurret.description>炮艇/驱逐舰级载人重炮主炮。</DeltaV_Weapon_CannonTurret.description>
-  <DeltaV_Weapon_RapidMainSmall.label>小型速射主炮</DeltaV_Weapon_RapidMainSmall.label>
-  <DeltaV_Weapon_RapidMainSmall.description>炮艇/驱逐舰级速射主炮。</DeltaV_Weapon_RapidMainSmall.description>
-  <DeltaV_Weapon_LaserTurret.label>小型激光主炮</DeltaV_Weapon_LaserTurret.label>
-  <DeltaV_Weapon_LaserTurret.description>炮艇/驱逐舰级载人激光主炮。</DeltaV_Weapon_LaserTurret.description>
-  <DeltaV_Weapon_HeavyMainLarge.label>大型重炮主炮</DeltaV_Weapon_HeavyMainLarge.label>
-  <DeltaV_Weapon_HeavyMainLarge.description>巡洋舰级重炮主炮。</DeltaV_Weapon_HeavyMainLarge.description>
-  <DeltaV_Weapon_RapidMainLarge.label>大型速射主炮</DeltaV_Weapon_RapidMainLarge.label>
-  <DeltaV_Weapon_RapidMainLarge.description>巡洋舰级速射主炮。</DeltaV_Weapon_RapidMainLarge.description>
-  <DeltaV_Weapon_LaserMainLarge.label>大型激光主炮</DeltaV_Weapon_LaserMainLarge.label>
-  <DeltaV_Weapon_LaserMainLarge.description>巡洋舰级激光主炮。</DeltaV_Weapon_LaserMainLarge.description>
+  <DeltaV_Weapon_PDTurret.label>点防御机炮</DeltaV_Weapon_PDTurret.label>
+  <DeltaV_Weapon_PDTurret.description>1×1 载人机炮，可在齐射与点防御模式之间切换。</DeltaV_Weapon_PDTurret.description>
+  <DeltaV_Weapon_CannonTurret.label>小型重炮</DeltaV_Weapon_CannonTurret.label>
+  <DeltaV_Weapon_CannonTurret.description>2×2 载人重炮。</DeltaV_Weapon_CannonTurret.description>
+  <DeltaV_Weapon_RapidMainSmall.label>小型速射炮</DeltaV_Weapon_RapidMainSmall.label>
+  <DeltaV_Weapon_RapidMainSmall.description>2×2 载人速射炮。</DeltaV_Weapon_RapidMainSmall.description>
+  <DeltaV_Weapon_LaserTurret.label>小型激光炮</DeltaV_Weapon_LaserTurret.label>
+  <DeltaV_Weapon_LaserTurret.description>2×2 载人激光炮。</DeltaV_Weapon_LaserTurret.description>
+  <DeltaV_Weapon_HeavyMainMedium.label>中型重炮</DeltaV_Weapon_HeavyMainMedium.label>
+  <DeltaV_Weapon_HeavyMainMedium.description>3×3 载人重炮。</DeltaV_Weapon_HeavyMainMedium.description>
+  <DeltaV_Weapon_RapidMainMedium.label>中型速射炮</DeltaV_Weapon_RapidMainMedium.label>
+  <DeltaV_Weapon_RapidMainMedium.description>3×3 载人速射炮。</DeltaV_Weapon_RapidMainMedium.description>
+  <DeltaV_Weapon_LaserMainMedium.label>中型激光炮</DeltaV_Weapon_LaserMainMedium.label>
+  <DeltaV_Weapon_LaserMainMedium.description>3×3 载人激光炮。</DeltaV_Weapon_LaserMainMedium.description>
   <DeltaV_Weapon_CasemateCannon.label>小型炮廓炮</DeltaV_Weapon_CasemateCannon.label>
   <DeltaV_Weapon_CasemateCannon.description>炮艇/驱逐舰级气密炮廓炮，本体即为舱壁。</DeltaV_Weapon_CasemateCannon.description>
   <DeltaV_Weapon_CasemateLarge.label>大型炮廓炮</DeltaV_Weapon_CasemateLarge.label>
