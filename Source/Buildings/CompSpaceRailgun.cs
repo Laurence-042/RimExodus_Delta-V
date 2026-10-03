@@ -20,6 +20,9 @@ namespace DeltaV
         public bool movesMuzzle = true;
         public IntVec3 outputOffset = IntVec3.Zero;
         public IntVec3 nextRootOffset = new IntVec3(0, 0, 1);
+        public float shotEnergy;
+        public List<SpaceWeaponAttachmentSlot> attachmentSlots = new List<SpaceWeaponAttachmentSlot>();
+        public List<ThingDef> allowedAttachmentDefs = new List<ThingDef>();
 
         public CompProperties_SpaceRailgun()
         {
@@ -47,6 +50,35 @@ namespace DeltaV
     {
         public CompProperties_SpaceRailgun RailProps => (CompProperties_SpaceRailgun)props;
         public RailgunPartRole Role => RailProps.role;
+
+        public SpaceWeaponAttachmentSlot AttachmentSlotAt(IntVec3 cell)
+        {
+            foreach (SpaceWeaponAttachmentSlot slot in RailProps.attachmentSlots)
+                if (SpaceWeaponGeometry.RotatedCell(parent, slot.cell) == cell) return slot;
+            return null;
+        }
+
+        public IEnumerable<ThingWithComps> AttachedThings()
+        {
+            if (parent.Map == null || RailProps.attachmentSlots.NullOrEmpty()) yield break;
+            int owner = SpaceWeaponGeometry.OwnerIdOf(parent);
+            foreach (SpaceWeaponAttachmentSlot slot in RailProps.attachmentSlots)
+            {
+                IntVec3 cell = SpaceWeaponGeometry.RotatedCell(parent, slot.cell);
+                if (!cell.InBounds(parent.Map) || !parent.OccupiedRect().Contains(cell)) continue;
+                foreach (Thing thing in parent.Map.thingGrid.ThingsListAtFast(cell))
+                {
+                    if (thing is not ThingWithComps attached || thing == parent || thing.Destroyed) continue;
+                    CompSpaceWeaponAttachment attachment = attached.TryGetComp<CompSpaceWeaponAttachment>();
+                    if (attachment == null || attachment.HostRailgun != this
+                        || !attachment.CompatibleWith(parent.def)) continue;
+                    if (!RailProps.allowedAttachmentDefs.NullOrEmpty()
+                        && !RailProps.allowedAttachmentDefs.Contains(thing.def)) continue;
+                    if (owner > 0 && SpaceWeaponGeometry.OwnerIdOf(thing) != owner) continue;
+                    yield return attached;
+                }
+            }
+        }
 
         public static SpaceWeaponAccelerationSolution Resolve(CompSpaceWeapon weapon)
         {

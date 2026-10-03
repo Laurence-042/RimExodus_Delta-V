@@ -230,6 +230,7 @@
   <DeltaV_MagazinePriorityTip>优先消耗数值更高的弹仓；同优先级按 Thing ID 顺序轮流发射。</DeltaV_MagazinePriorityTip>
   <DeltaV_AttachmentEnabled>启用挂件</DeltaV_AttachmentEnabled>
   <DeltaV_AttachmentEnabledTip>临时启用或停用此武器挂件；支持多选后一并切换。</DeltaV_AttachmentEnabledTip>
+  <DeltaV_RailCapacitorCharges>已储存加速脉冲：{0}/{1}</DeltaV_RailCapacitorCharges>
   <DeltaV_SafeFire>舱壁安全限制</DeltaV_SafeFire>
   <DeltaV_SafeFireTip>固定武器的弹道会穿过本船实心舱壁时拒绝发射；仅建议紧急时关闭。</DeltaV_SafeFireTip>
   <DeltaV_GunnerCellBlocked>固定炮手位被占用。</DeltaV_GunnerCellBlocked>

@@ -14,14 +14,16 @@ namespace DeltaV
         public readonly int coldLaunchTicks;
         public readonly float coldLaunchSpeed;
         public readonly float damageScale;
+        public readonly float armorPenetrationScale;
 
         public SpaceProjectileLaunchSpec(float speed, int coldLaunchTicks, float coldLaunchSpeed,
-            float damageScale = 1f)
+            float damageScale = 1f, float armorPenetrationScale = 1f)
         {
             this.speed = speed;
             this.coldLaunchTicks = coldLaunchTicks;
             this.coldLaunchSpeed = coldLaunchSpeed;
             this.damageScale = damageScale;
+            this.armorPenetrationScale = armorPenetrationScale;
         }
 
         public static SpaceProjectileLaunchSpec FromDef(CompProperties_SpaceProjectile props,
@@ -81,6 +83,7 @@ namespace DeltaV
             public Vector3 laserTo;
             /// <summary>伤害/穿深倍率（轨道炮 Σ 加速段；随弹体携带到命中结算）。</summary>
             public float damageScale = 1f;
+            public float armorPenetrationScale = 1f;
             /// <summary>复用的扫掠查询（每 tick 重填字段，热路径零分配）。</summary>
             public readonly SpaceCollision.SweptBody body = new SpaceCollision.SweptBody();
         }
@@ -254,6 +257,7 @@ namespace DeltaV
             }
             universe.RegisterObject(projectile.container);
             projectile.damageScale = launchSpec.damageScale;
+            projectile.armorPenetrationScale = launchSpec.armorPenetrationScale;
             projectiles.Add(projectile);
             DeltaVLog.Message(DeltaVLogModule.Combat,
                 $"{def.defName} launched from '{source?.label ?? "nowhere"}' " +
@@ -363,6 +367,7 @@ namespace DeltaV
                 body.resolvedHit = false;
                 body.sweepRadius = FootprintRadius(p.def);
                 body.damageScale = p.damageScale;
+                body.armorPenetrationScale = p.armorPenetrationScale;
                 if (p.laser)
                 {
                     body.from = p.laserFrom;

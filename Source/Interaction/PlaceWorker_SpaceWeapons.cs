@@ -63,18 +63,35 @@ namespace DeltaV
             Map map, Thing thingToIgnore = null, Thing thing = null)
         {
             CompSpaceWeapon weapon = center.GetEdifice(map)?.TryGetComp<CompSpaceWeapon>();
-            if (weapon == null || SpaceWeaponGeometry.OwnerIdOf(weapon.parent) <= 0)
+            CompSpaceRailgun rail = null;
+            if (weapon == null)
+            {
+                foreach (Thing candidate in map.thingGrid.ThingsListAtFast(center))
+                {
+                    rail = (candidate as ThingWithComps)?.TryGetComp<CompSpaceRailgun>();
+                    if (rail != null && rail.AttachmentSlotAt(center) != null) break;
+                    rail = null;
+                }
+            }
+            ThingWithComps host = weapon?.parent ?? rail?.parent;
+            if (host == null || SpaceWeaponGeometry.OwnerIdOf(host) <= 0)
                 return "DeltaV_AttachmentNeedsSlot".Translate();
-            if (!weapon.WeaponProps.allowedAttachmentDefs.NullOrEmpty()
-                && (def is not ThingDef thingDef
-                    || !weapon.WeaponProps.allowedAttachmentDefs.Contains(thingDef)))
+            var allowed = weapon != null
+                ? weapon.WeaponProps.allowedAttachmentDefs : rail.RailProps.allowedAttachmentDefs;
+            if (!allowed.NullOrEmpty()
+                && (def is not ThingDef thingDef || !allowed.Contains(thingDef)))
+                return "DeltaV_AttachmentNeedsSlot".Translate();
+            var attachmentProps = (def as ThingDef)?
+                .GetCompProperties<CompProperties_SpaceWeaponAttachment>();
+            if (attachmentProps != null && !attachmentProps.allowedHostDefs.NullOrEmpty()
+                && !attachmentProps.allowedHostDefs.Contains(host.def))
                 return "DeltaV_AttachmentNeedsSlot".Translate();
 
-            CellRect hostRect = weapon.parent.OccupiedRect();
+            CellRect hostRect = host.OccupiedRect();
             foreach (IntVec3 occupied in GenAdj.OccupiedRect(center, rot, def.Size))
                 if (!hostRect.Contains(occupied)) return "DeltaV_AttachmentNeedsSlot".Translate();
 
-            return weapon.AttachmentSlotAt(center) != null
+            return (weapon?.AttachmentSlotAt(center) ?? rail?.AttachmentSlotAt(center)) != null
                 ? AcceptanceReport.WasAccepted
                 : "DeltaV_AttachmentNeedsSlot".Translate();
         }

@@ -262,6 +262,8 @@ namespace DeltaV
         public float ammoPerShot = 1f;
         public int defaultPriority;
         public bool attachment;
+        public bool replacesShotEnergy;
+        public float armorPenetrationScale = 1f;
 
         public CompProperties_SpaceWeaponMagazine()
         {
@@ -329,6 +331,7 @@ namespace DeltaV
     {
         public bool enabledByDefault = true;
         public bool requiresHostPower;
+        public List<ThingDef> allowedHostDefs = new List<ThingDef>();
 
         public CompProperties_SpaceWeaponAttachment()
         {
@@ -343,6 +346,9 @@ namespace DeltaV
         public bool Enabled => enabled && Powered;
         public CompProperties_SpaceWeaponAttachment AttachmentProps =>
             (CompProperties_SpaceWeaponAttachment)props;
+        public bool CompatibleWith(ThingDef hostDef) =>
+            AttachmentProps.allowedHostDefs.NullOrEmpty()
+            || AttachmentProps.allowedHostDefs.Contains(hostDef);
 
         /// <summary>
         /// 覆盖式挂件不是 edifice；同格 EdificeGrid 中留下的建筑就是宿主。
@@ -357,14 +363,29 @@ namespace DeltaV
             }
         }
 
+        public CompSpaceRailgun HostRailgun
+        {
+            get
+            {
+                if (!parent.Spawned || parent.Map == null) return null;
+                foreach (Thing thing in parent.Map.thingGrid.ThingsListAtFast(parent.Position))
+                {
+                    if (thing == parent || thing is not ThingWithComps host || thing.Destroyed) continue;
+                    CompSpaceRailgun rail = host.TryGetComp<CompSpaceRailgun>();
+                    if (rail != null && rail.AttachmentSlotAt(parent.Position) != null) return rail;
+                }
+                return null;
+            }
+        }
+
         public bool Powered
         {
             get
             {
                 if (!AttachmentProps.requiresHostPower) return true;
-                CompSpaceWeapon host = HostWeapon;
+                ThingWithComps host = HostWeapon?.parent ?? HostRailgun?.parent;
                 if (host == null) return false;
-                return host.parent.TryGetComp<CompPowerTrader>()?.PowerOn ?? true;
+                return host.TryGetComp<CompPowerTrader>()?.PowerOn ?? true;
             }
         }
 

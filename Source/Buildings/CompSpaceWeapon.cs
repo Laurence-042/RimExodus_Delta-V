@@ -64,6 +64,12 @@ namespace DeltaV
         /// <summary>射程（格；PD 索敌与导弹沿射线锁定目标的范围）。</summary>
         public float range = 120f;
 
+        /// <summary>逐发从本武器所在电网蓄电池提取的能量（W·d）；持续功耗仍由 CompPowerTrader 负责。</summary>
+        public float shotEnergy;
+
+        /// <summary>内置火控技能；负数表示仍需炮手或自瞄插件。</summary>
+        public int intrinsicAimSkill = -1;
+
         /// <summary>朝北局部坐标中的炮口连续偏移（相对脚印中心）。</summary>
         public Vector2 muzzleOffset = Vector2.zero;
 
@@ -198,7 +204,8 @@ namespace DeltaV
                 {
                     if (thing == parent || thing is not ThingWithComps comps || thing.Destroyed) continue;
                     CompSpaceWeaponAttachment attachment = comps.TryGetComp<CompSpaceWeaponAttachment>();
-                    if (attachment == null || attachment.HostWeapon != this) continue;
+                    if (attachment == null || attachment.HostWeapon != this
+                        || !attachment.CompatibleWith(parent.def)) continue;
                     if (!WeaponProps.allowedAttachmentDefs.NullOrEmpty()
                         && !WeaponProps.allowedAttachmentDefs.Contains(thing.def)) continue;
                     if (owner > 0 && SpaceWeaponGeometry.OwnerIdOf(thing) != owner) continue;
@@ -212,6 +219,7 @@ namespace DeltaV
         {
             get
             {
+                if (WeaponProps.intrinsicAimSkill >= 0) return true;
                 foreach (ThingWithComps attached in AttachedThings())
                 {
                     CompSpaceAutoAimPlugin plugin = attached.TryGetComp<CompSpaceAutoAimPlugin>();
@@ -280,7 +288,8 @@ namespace DeltaV
             {
                 gunnerSkill = gunner.skills.GetSkill(SkillDefOf.Shooting).Level;
             }
-            int? pluginSkill = null;
+            int? pluginSkill = WeaponProps.intrinsicAimSkill >= 0
+                ? WeaponProps.intrinsicAimSkill : null;
             if (parent.Map != null)
             {
                 foreach (ThingWithComps attached in AttachedThings())

@@ -245,7 +245,8 @@ namespace DeltaV
 
             float amount = ComputeDamage(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale)
                 * evt.damageScale;
-            float ap = part.armorPenetration * (amount / Mathf.Max(1f, part.damage));
+            float ap = part.armorPenetration * (amount / Mathf.Max(1f, part.damage))
+                * evt.armorPenetrationScale;
             DamageDef damType = part.damageDef ?? DamageDefOf.Bullet;
 
             if (part.explosionRadius > 0f)

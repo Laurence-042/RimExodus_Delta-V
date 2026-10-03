@@ -42,7 +42,10 @@ namespace DeltaV
         public int ignitionDelayTicks;
         public float coldLaunchSpeed;
         public float damageScale = 1f;
+        public float armorPenetrationScale = 1f;
         public int skill;
+        private readonly Dictionary<PowerNet, float> energyByNet = new Dictionary<PowerNet, float>();
+        private readonly List<CompRailgunCapacitor> dischargingCapacitors = new List<CompRailgunCapacitor>();
 
         public SpaceWeaponShot(UniverseManager universe, CompSpaceWeapon weapon,
             SpaceObject container, Vector3 aimPoint, SpaceObject explicitTarget)
@@ -68,7 +71,7 @@ namespace DeltaV
             OrbitSphere.Basis(muzzleUniverse, out Vector3 east, out Vector3 north);
             Vector3 directionWorld = east * tangent.x + north * tangent.y;
             var spec = new SpaceProjectileLaunchSpec(speed, ignitionDelayTicks,
-                coldLaunchSpeed, damageScale);
+                coldLaunchSpeed, damageScale, armorPenetrationScale);
             if (!universe.Projectiles.Launch(projectileDef, container, muzzleUniverse,
                 directionWorld, weapon.parent.Faction, weapon.parent, target, spec))
             {
@@ -94,6 +97,7 @@ namespace DeltaV
             bool magazineRequired = weapon.parent.TryGetComp<CompSpaceWeaponMagazine>() != null;
             if (magazineRequired && magazine == null) return false;
             projectileDef = magazine?.MagazineProps.projectileDef ?? weapon.WeaponProps.projectileDef;
+            armorPenetrationScale = magazine?.MagazineProps.armorPenetrationScale ?? 1f;
             projectileProps = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
             if (projectileProps == null) return false;
             ignitionDelayTicks = weapon.WeaponProps.ignitionDelayTicks >= 0
@@ -162,11 +166,62 @@ namespace DeltaV
             {
                 if (comp is ISpaceWeaponFireGate gate && !gate.CanFire(this)) return false;
             }
-            return !weapon.safeFire || SafePathClear();
+            if (weapon.safeFire && !SafePathClear()) return false;
+            return PrepareEnergy(acceleration);
+        }
+
+        private bool PrepareEnergy(SpaceWeaponAccelerationSolution acceleration)
+        {
+            dischargingCapacitors.Clear();
+            energyByNet.Clear();
+            if (magazine?.MagazineProps.replacesShotEnergy != true
+                && !AddEnergyCost(weapon.parent, weapon.WeaponProps.shotEnergy)) return false;
+            foreach (CompSpaceRailgun segment in acceleration.segments)
+            {
+                CompRailgunCapacitor selected = null;
+                foreach (ThingWithComps attached in segment.AttachedThings())
+                {
+                    CompRailgunCapacitor capacitor = attached.TryGetComp<CompRailgunCapacitor>();
+                    if (capacitor == null || !capacitor.HasShot) continue;
+                    if (selected == null || capacitor.Charges > selected.Charges
+                        || (capacitor.Charges == selected.Charges
+                            && capacitor.parent.thingIDNumber < selected.parent.thingIDNumber))
+                        selected = capacitor;
+                }
+                if (selected != null) dischargingCapacitors.Add(selected);
+                else if (!AddEnergyCost(segment.parent, segment.RailProps.shotEnergy)) return false;
+            }
+            foreach (var cost in energyByNet)
+                if (cost.Key.CurrentStoredEnergy() + 0.0001f < cost.Value) return false;
+            return true;
+        }
+
+        private bool AddEnergyCost(ThingWithComps source, float wattDays)
+        {
+            if (wattDays <= 0f) return true;
+            PowerNet net = source.TryGetComp<CompPowerTrader>()?.PowerNet;
+            if (net == null) return false;
+            energyByNet.TryGetValue(net, out float existing);
+            energyByNet[net] = existing + wattDays;
+            return true;
         }
 
         private void Commit()
         {
+            foreach (var cost in energyByNet)
+            {
+                float remaining = cost.Value;
+                foreach (CompPowerBattery battery in cost.Key.batteryComps)
+                {
+                    if (battery.StunnedByEMP || remaining <= 0f) continue;
+                    float drawn = Mathf.Min(remaining, battery.StoredEnergy);
+                    if (drawn <= 0f) continue;
+                    battery.DrawPower(drawn);
+                    remaining -= drawn;
+                }
+            }
+            foreach (CompRailgunCapacitor capacitor in dischargingCapacitors)
+                capacitor.ConsumeShot();
             magazine?.ConsumeShot();
             weapon.NotifyMagazineConsumed(magazine);
             weapon.cooldownUntilTick = Find.TickManager.TicksGame + weapon.WeaponProps.cooldownTicks;

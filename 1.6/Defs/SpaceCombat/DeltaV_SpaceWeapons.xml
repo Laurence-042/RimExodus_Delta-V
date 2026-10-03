@@ -96,7 +96,7 @@
     <statBases><WorkToBuild>5200</WorkToBuild><MaxHitPoints>250</MaxHitPoints></statBases>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>180</turnRateDegPerSec><fireToleranceDeg>4</fireToleranceDeg></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Laser</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.8</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>120</range><attachmentSlots><li><cell>(0,0,0)</cell><drawOffset>(-0.075,0.07)</drawOffset><drawScale>0.46</drawScale></li></attachmentSlots></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Laser</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.8</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>120</range><shotEnergy>0.4</shotEnergy><attachmentSlots><li><cell>(0,0,0)</cell><drawOffset>(-0.075,0.07)</drawOffset><drawScale>0.46</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_AutoAimPluginI</li><li>DeltaV_Building_AutoAimPluginII</li><li>DeltaV_Building_LaserCapacitor</li></allowedAttachmentDefs></li>
     </comps>
     <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/LaserTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
@@ -136,7 +136,7 @@
     <statBases><WorkToBuild>10000</WorkToBuild><MaxHitPoints>480</MaxHitPoints></statBases>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>90</turnRateDegPerSec><fireToleranceDeg>3</fireToleranceDeg></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_LaserHeavy</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.5</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>160</range><attachmentSlots><li><cell>(-1,0,-1)</cell><drawOffset>(0.24,0.125)</drawOffset><drawScale>0.58</drawScale></li><li><cell>(1,0,-1)</cell><drawOffset>(-0.175,0.175)</drawOffset><drawScale>0.58</drawScale></li></attachmentSlots></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_LaserHeavy</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.5</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>160</range><shotEnergy>0.8</shotEnergy><attachmentSlots><li><cell>(-1,0,-1)</cell><drawOffset>(0.24,0.125)</drawOffset><drawScale>0.58</drawScale></li><li><cell>(1,0,-1)</cell><drawOffset>(-0.175,0.175)</drawOffset><drawScale>0.58</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_AutoAimPluginI</li><li>DeltaV_Building_AutoAimPluginII</li><li>DeltaV_Building_LaserCapacitor</li></allowedAttachmentDefs></li>
     </comps>
     <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/LaserTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
@@ -211,7 +211,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponCrew"><gunnerOffset>(0,0,-1)</gunnerOffset></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>60</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel slugs</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>10</ammoPerShot></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_RailgunSlug</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><baseSpreadDeg>0.4</baseSpreadDeg><cooldownTicks>360</cooldownTicks><range>220</range><muzzleOffset>(0,0.6)</muzzleOffset><attachmentSlots><li><cell>(1,0,0)</cell><drawOffset>(0.18,0)</drawOffset><drawScale>0.50</drawScale></li></attachmentSlots><acceleratorStarts><li>(0,0,1)</li></acceleratorStarts><allowedAcceleratorDefs><li>DeltaV_Weapon_RailgunAccelerator</li></allowedAcceleratorDefs></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_RailgunSlug</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><intrinsicAimSkill>10</intrinsicAimSkill><baseSpreadDeg>0.4</baseSpreadDeg><cooldownTicks>360</cooldownTicks><range>220</range><shotEnergy>50</shotEnergy><muzzleOffset>(0,0.6)</muzzleOffset><attachmentSlots><li><cell>(1,0,0)</cell><drawOffset>(0.18,0)</drawOffset><drawScale>0.50</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_UraniumMagazine</li></allowedAttachmentDefs><acceleratorStarts><li>(0,0,1)</li></acceleratorStarts><allowedAcceleratorDefs><li>DeltaV_Weapon_RailgunAccelerator</li></allowedAcceleratorDefs></li>
     </comps><researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
   </ThingDef>
 
@@ -227,7 +227,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponCrew"><gunnerOffset>(0,0,-1)</gunnerOffset></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>216</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel slugs</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>18</ammoPerShot></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_RailgunSlug</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><baseSpreadDeg>0.25</baseSpreadDeg><cooldownTicks>420</cooldownTicks><range>280</range><muzzleOffset>(0,1.1)</muzzleOffset><attachmentSlots><li><cell>(1,0,0)</cell><drawOffset>(0.86,0.5)</drawOffset><drawScale>1</drawScale></li></attachmentSlots><acceleratorStarts><li>(0,0,2)</li></acceleratorStarts><allowedAcceleratorDefs><li>DeltaV_Weapon_RailgunAcceleratorLarge</li></allowedAcceleratorDefs></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_RailgunSlug</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><intrinsicAimSkill>10</intrinsicAimSkill><baseSpreadDeg>0.25</baseSpreadDeg><cooldownTicks>420</cooldownTicks><range>280</range><shotEnergy>100</shotEnergy><muzzleOffset>(0,1.1)</muzzleOffset><attachmentSlots><li><cell>(1,0,0)</cell><drawOffset>(0.86,0.5)</drawOffset><drawScale>1</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_UraniumMagazine</li></allowedAttachmentDefs><acceleratorStarts><li>(0,0,2)</li></acceleratorStarts><allowedAcceleratorDefs><li>DeltaV_Weapon_RailgunAcceleratorLarge</li></allowedAcceleratorDefs></li>
     </comps><researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
   </ThingDef>
 
@@ -236,7 +236,7 @@
     <thingClass>Building</thingClass><drawerType>MapMeshAndRealTime</drawerType><rotatable>true</rotatable><passability>PassThroughOnly</passability><size>(2,1)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory>
     <graphicData><texPath>Things/Building/SpaceWeapons/RailgunAccelerator_Inner</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,1)</drawSize><damageData><enabled>false</enabled></damageData></graphicData><placeWorkers><li>DeltaV.PlaceWorker_RailgunPart</li></placeWorkers>
     <costList><Steel>100</Steel><ComponentIndustrial>3</ComponentIndustrial></costList><statBases><WorkToBuild>1600</WorkToBuild><MaxHitPoints>180</MaxHitPoints></statBases>
-    <comps><li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_RailgunShell"><texPath>Things/Building/SpaceWeapons/RailgunShell</texPath></li><li Class="DeltaV.CompProperties_SpaceRailgun"><role>Accelerator</role><speedBonus>22</speedBonus><movesMuzzle>true</movesMuzzle><outputOffset>(0,0,1)</outputOffset><nextRootOffset>(0,0,1)</nextRootOffset></li></comps>
+    <comps><li Class="CompProperties_Forbiddable" /><li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>20</basePowerConsumption></li><li Class="DeltaV.CompProperties_RailgunShell"><texPath>Things/Building/SpaceWeapons/RailgunShell</texPath></li><li Class="DeltaV.CompProperties_SpaceRailgun"><role>Accelerator</role><speedBonus>22</speedBonus><shotEnergy>80</shotEnergy><movesMuzzle>true</movesMuzzle><outputOffset>(0,0,1)</outputOffset><nextRootOffset>(0,0,1)</nextRootOffset><attachmentSlots><li><cell>(0,0,0)</cell><drawOffset>(-0.16,0)</drawOffset><drawScale>0.46</drawScale></li><li><cell>(1,0,0)</cell><drawOffset>(0.16,0)</drawOffset><drawScale>0.46</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_RailgunCapacitor</li></allowedAttachmentDefs></li></comps>
     <researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
   </ThingDef>
 
@@ -245,7 +245,7 @@
     <thingClass>Building</thingClass><drawerType>MapMeshAndRealTime</drawerType><rotatable>true</rotatable><passability>PassThroughOnly</passability><size>(4,2)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory>
     <graphicData><texPath>Things/Building/SpaceWeapons/RailgunAccelerator_Inner</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(4,2)</drawSize><damageData><enabled>false</enabled></damageData></graphicData><placeWorkers><li>DeltaV.PlaceWorker_RailgunPart</li></placeWorkers>
     <costList><Steel>240</Steel><ComponentIndustrial>7</ComponentIndustrial></costList><statBases><WorkToBuild>3600</WorkToBuild><MaxHitPoints>360</MaxHitPoints></statBases>
-    <comps><li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_RailgunShell"><texPath>Things/Building/SpaceWeapons/RailgunShell</texPath></li><li Class="DeltaV.CompProperties_SpaceRailgun"><role>Accelerator</role><speedBonus>35</speedBonus><movesMuzzle>true</movesMuzzle><outputOffset>(0,0,1)</outputOffset><nextRootOffset>(0,0,2)</nextRootOffset></li></comps>
+    <comps><li Class="CompProperties_Forbiddable" /><li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>40</basePowerConsumption></li><li Class="DeltaV.CompProperties_RailgunShell"><texPath>Things/Building/SpaceWeapons/RailgunShell</texPath></li><li Class="DeltaV.CompProperties_SpaceRailgun"><role>Accelerator</role><speedBonus>35</speedBonus><shotEnergy>160</shotEnergy><movesMuzzle>true</movesMuzzle><outputOffset>(0,0,1)</outputOffset><nextRootOffset>(0,0,2)</nextRootOffset><attachmentSlots><li><cell>(-1,0,0)</cell><drawOffset>(-0.18,0.5)</drawOffset><drawScale>0.8</drawScale></li><li><cell>(2,0,0)</cell><drawOffset>(0.18,0.5)</drawOffset><drawScale>0.8</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_RailgunCapacitorLarge</li></allowedAttachmentDefs></li></comps>
     <researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
   </ThingDef>
 
@@ -266,12 +266,36 @@
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Building_UraniumMagazine</defName><label>uranium auxiliary magazine</label><description>A slot-mounted priority-1 magazine which substitutes uranium ammunition.</description>
     <thingClass>Building</thingClass><passability>Standable</passability><size>(1,1)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory><altitudeLayer>BuildingOnTop</altitudeLayer><building><isEdifice>false</isEdifice></building>
-    <graphicData><texPath>Things/Building/GravshipShieldGenerator</texPath><graphicClass>DeltaV.Graphic_SpaceWeaponAttachment</graphicClass><drawSize>(1,1)</drawSize><drawOffset>(0,-0.712,0)</drawOffset></graphicData><placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers><costList><Steel>50</Steel><ComponentIndustrial>2</ComponentIndustrial></costList><statBases><WorkToBuild>1000</WorkToBuild><MaxHitPoints>100</MaxHitPoints></statBases>
+    <graphicData><texPath>Things/Building/SpaceWeapons/UraniumMagazine</texPath><graphicClass>DeltaV.Graphic_SpaceWeaponAttachment</graphicClass><drawSize>(1,1)</drawSize><drawOffset>(0,-0.712,0)</drawOffset></graphicData><placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers><costList><Steel>50</Steel><ComponentIndustrial>2</ComponentIndustrial></costList><statBases><WorkToBuild>1000</WorkToBuild><MaxHitPoints>100</MaxHitPoints></statBases>
     <comps>
-      <li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_SpaceWeaponAttachment" />
+      <li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_SpaceWeaponAttachment"><allowedHostDefs><li>DeltaV_Weapon_PDTurret</li><li>DeltaV_Weapon_CannonTurret</li><li>DeltaV_Weapon_RapidMainSmall</li><li>DeltaV_Weapon_HeavyMainMedium</li><li>DeltaV_Weapon_RapidMainMedium</li><li>DeltaV_Weapon_CasemateCannon</li><li>DeltaV_Weapon_CasemateLarge</li><li>DeltaV_Weapon_RailgunLoader</li><li>DeltaV_Weapon_RailgunLoaderLarge</li></allowedHostDefs></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>60</fuelCapacity><initialFuelPercent>0</initialFuelPercent><fuelFilter><thingDefs><li>Uranium</li></thingDefs></fuelFilter><fuelLabel>Uranium ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
-      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>3</ammoPerShot><defaultPriority>1</defaultPriority><attachment>true</attachment></li>
+      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>3</ammoPerShot><defaultPriority>1</defaultPriority><attachment>true</attachment><armorPenetrationScale>1.5</armorPenetrationScale></li>
     </comps>
+  </ThingDef>
+
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_Building_LaserCapacitor</defName><label>disposable laser battery pack</label><description>A slot-mounted battery pack. Its component cells replace grid energy for each laser shot while charge remains.</description>
+    <thingClass>Building</thingClass><passability>Standable</passability><size>(1,1)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory><altitudeLayer>BuildingOnTop</altitudeLayer><building><isEdifice>false</isEdifice></building>
+    <graphicData><texPath>Things/Building/SpaceWeapons/LaserCapacitor</texPath><graphicClass>DeltaV.Graphic_SpaceWeaponAttachment</graphicClass><drawSize>(1,1)</drawSize><drawOffset>(0,-0.712,0)</drawOffset></graphicData><placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers><costList><Steel>30</Steel><ComponentIndustrial>2</ComponentIndustrial></costList><statBases><WorkToBuild>800</WorkToBuild><MaxHitPoints>80</MaxHitPoints></statBases>
+    <comps>
+      <li Class="CompProperties_Forbiddable" />
+      <li Class="DeltaV.CompProperties_SpaceWeaponAttachment"><allowedHostDefs><li>DeltaV_Weapon_LaserTurret</li><li>DeltaV_Weapon_LaserMainMedium</li></allowedHostDefs></li>
+      <li Class="CompProperties_Refuelable"><fuelCapacity>18</fuelCapacity><initialFuelPercent>0</initialFuelPercent><fuelFilter><thingDefs><li>ComponentIndustrial</li></thingDefs></fuelFilter><fuelLabel>Battery cells</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
+      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>1</ammoPerShot><defaultPriority>1</defaultPriority><attachment>true</attachment><replacesShotEnergy>true</replacesShotEnergy></li>
+    </comps>
+  </ThingDef>
+
+  <ThingDef ParentName="BuildingBase" Name="DeltaV_RailgunCapacitorBase">
+    <defName>DeltaV_Building_RailgunCapacitor</defName><label>rail accelerator capacitor</label><description>A side-mounted capacitor that stores three acceleration pulses and slowly recharges from the grid.</description>
+    <thingClass>Building</thingClass><tickerType>Normal</tickerType><passability>Standable</passability><size>(1,1)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory><altitudeLayer>BuildingOnTop</altitudeLayer><building><isEdifice>false</isEdifice></building>
+    <graphicData><texPath>Things/Building/SpaceWeapons/RailgunCapacitor</texPath><graphicClass>DeltaV.Graphic_SpaceWeaponAttachment</graphicClass><drawSize>(1,1)</drawSize><drawOffset>(0,-0.712,0)</drawOffset></graphicData><placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers><costList><Steel>60</Steel><ComponentIndustrial>6</ComponentIndustrial></costList><statBases><WorkToBuild>1800</WorkToBuild><MaxHitPoints>120</MaxHitPoints></statBases>
+    <comps><li Class="CompProperties_Forbiddable" /><li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>0</basePowerConsumption></li><li Class="DeltaV.CompProperties_RailgunCapacitor"><capacity>3</capacity><rechargeTicks>4800</rechargeTicks><chargingWatts>1000</chargingWatts><allowedHostDefs><li>DeltaV_Weapon_RailgunAccelerator</li></allowedHostDefs></li></comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RailgunCapacitorBase">
+    <defName>DeltaV_Building_RailgunCapacitorLarge</defName><label>large rail accelerator capacitor</label><description>A cruiser-scale side capacitor storing three acceleration pulses.</description>
+    <costList><Steel>110</Steel><ComponentIndustrial>10</ComponentIndustrial></costList><statBases><WorkToBuild>3000</WorkToBuild><MaxHitPoints>180</MaxHitPoints></statBases>
+    <comps Inherit="False"><li Class="CompProperties_Forbiddable" /><li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>0</basePowerConsumption></li><li Class="DeltaV.CompProperties_RailgunCapacitor"><capacity>3</capacity><rechargeTicks>4800</rechargeTicks><chargingWatts>2000</chargingWatts><allowedHostDefs><li>DeltaV_Weapon_RailgunAcceleratorLarge</li></allowedHostDefs></li></comps>
   </ThingDef>
 
   <!-- Rail projectile remains a normal projectile Def; ammunition uses Steel directly. -->

@@ -36,6 +36,12 @@
   <DeltaV_Building_AutoAimPluginII.description>高级火控计算机，等效射击技能 16。</DeltaV_Building_AutoAimPluginII.description>
   <DeltaV_Building_UraniumMagazine.label>铀制附加弹仓</DeltaV_Building_UraniumMagazine.label>
   <DeltaV_Building_UraniumMagazine.description>覆盖建造在挂件槽中的优先级 1 弹仓，以铀弹替换默认弹药。</DeltaV_Building_UraniumMagazine.description>
+  <DeltaV_Building_LaserCapacitor.label>激光炮电池仓</DeltaV_Building_LaserCapacitor.label>
+  <DeltaV_Building_LaserCapacitor.description>用工业零部件补充电池芯；有电池芯时逐发射击不从电网蓄电池取电，耗尽后恢复用电。</DeltaV_Building_LaserCapacitor.description>
+  <DeltaV_Building_RailgunCapacitor.label>小型轨道炮附加电容</DeltaV_Building_RailgunCapacitor.label>
+  <DeltaV_Building_RailgunCapacitor.description>装在加速段侧面的三发电容，缓慢从电网充能；有电时替代该段的逐发电费。</DeltaV_Building_RailgunCapacitor.description>
+  <DeltaV_Building_RailgunCapacitorLarge.label>大型轨道炮附加电容</DeltaV_Building_RailgunCapacitorLarge.label>
+  <DeltaV_Building_RailgunCapacitorLarge.description>装在大型加速段侧面的三发电容，缓慢从电网充能；有电时替代该段的逐发电费。</DeltaV_Building_RailgunCapacitorLarge.description>
   <DeltaV_Projectile_RailgunSlug.label>轨道炮弹丸</DeltaV_Projectile_RailgunSlug.label>
   <DeltaV_Projectile_RailgunSlug.description>超高速轨道炮射弹。</DeltaV_Projectile_RailgunSlug.description>
 </LanguageData>

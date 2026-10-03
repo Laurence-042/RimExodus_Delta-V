@@ -230,6 +230,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_MagazinePriorityTip>Higher-priority magazines are consumed first. Equal-priority magazines alternate in Thing ID order.</DeltaV_MagazinePriorityTip>
   <DeltaV_AttachmentEnabled>Attachment enabled</DeltaV_AttachmentEnabled>
   <DeltaV_AttachmentEnabledTip>Temporarily enables or disables this weapon attachment. This command supports multi-selection.</DeltaV_AttachmentEnabledTip>
+  <DeltaV_RailCapacitorCharges>Stored acceleration pulses: {0}/{1}</DeltaV_RailCapacitorCharges>
   <DeltaV_SafeFire>Hull-safe fire</DeltaV_SafeFire>
   <DeltaV_SafeFireTip>Prevent fixed weapons from firing when their shot path intersects their own solid hull. Disable only for emergencies.</DeltaV_SafeFireTip>
   <DeltaV_GunnerCellBlocked>The fixed gunner position is blocked.</DeltaV_GunnerCellBlocked>

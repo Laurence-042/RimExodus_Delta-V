@@ -73,6 +73,7 @@ namespace DeltaV
             public float resolvedHitRadius;
             /// <summary>伤害/穿深倍率（轨道炮 Σ 加速段；随事件进入结算）。</summary>
             public float damageScale = 1f;
+            public float armorPenetrationScale = 1f;
             /// <summary>「放置」后效回调（侵入 shuttle §7.5）：shuttle 服务闭包——
             /// 舱体放置在撞击位内侧偏移 + 容器销毁（帧边界）。</summary>
             public System.Action<SpaceObject, Vector3, Vector2> onPlace;
@@ -98,6 +99,7 @@ namespace DeltaV
             public float incidenceAngleRad;
             /// <summary>伤害/穿深倍率（发射侧携带，如轨道炮 Σ 加速段）。</summary>
             public float damageScale = 1f;
+            public float armorPenetrationScale = 1f;
         }
 
         private static readonly ImpactEvent SharedEvent = new ImpactEvent();
@@ -379,6 +381,7 @@ namespace DeltaV
                 evt.relativeVelocity = SpaceTransform.RelativeVelocity(body.attacker.pose, defender.pose);
                 evt.relativeSpeed = evt.relativeVelocity.magnitude;
                 evt.damageScale = body.damageScale;
+                evt.armorPenetrationScale = body.armorPenetrationScale;
 
                 // 入射角：按扫掠进入面推导法线（法线指向来侧；基架格同规则，不设第二套约定）。
                 Vector2 normal = Mathf.Abs(dir.x) >= Mathf.Abs(dir.y)
@@ -445,6 +448,7 @@ namespace DeltaV
                 evt.relativeSpeed = evt.relativeVelocity.magnitude;
                 evt.incidenceAngleRad = shieldIncidence;
                 evt.damageScale = body.damageScale;
+                evt.armorPenetrationScale = body.armorPenetrationScale;
                 body.resolvedHit = true;
                 body.resolvedHitUniverse = evt.hitUniverse;
                 body.resolvedHitDefender = defender;

@@ -16,11 +16,13 @@ namespace DeltaV
             hostRotation = Rot4.North;
             slot = null;
             if (thing is not ThingWithComps attachment) return false;
-            CompSpaceWeapon host = attachment.TryGetComp<CompSpaceWeaponAttachment>()?.HostWeapon;
-            if (host == null) return false;
-            slot = host.AttachmentSlotAt(thing.Position);
+            CompSpaceWeaponAttachment attachmentComp = attachment.TryGetComp<CompSpaceWeaponAttachment>();
+            CompSpaceWeapon host = attachmentComp?.HostWeapon;
+            CompSpaceRailgun rail = attachmentComp?.HostRailgun;
+            slot = host?.AttachmentSlotAt(thing.Position)
+                ?? rail?.AttachmentSlotAt(thing.Position);
             if (slot == null) return false;
-            hostRotation = host.parent.Rotation;
+            hostRotation = host?.parent.Rotation ?? rail.parent.Rotation;
             return true;
         }
 
