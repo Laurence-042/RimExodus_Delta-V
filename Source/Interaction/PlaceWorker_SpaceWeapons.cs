@@ -74,9 +74,9 @@ namespace DeltaV
             foreach (IntVec3 occupied in GenAdj.OccupiedRect(center, rot, def.Size))
                 if (!hostRect.Contains(occupied)) return "DeltaV_AttachmentNeedsSlot".Translate();
 
-            foreach (IntVec3 offset in weapon.WeaponProps.attachmentSlots)
-                if (SpaceWeaponGeometry.RotatedCell(weapon.parent, offset) == center) return true;
-            return "DeltaV_AttachmentNeedsSlot".Translate();
+            return weapon.AttachmentSlotAt(center) != null
+                ? AcceptanceReport.WasAccepted
+                : "DeltaV_AttachmentNeedsSlot".Translate();
         }
     }
 }

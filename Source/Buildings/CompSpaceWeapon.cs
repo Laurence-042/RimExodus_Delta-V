@@ -19,6 +19,14 @@ namespace DeltaV
         PointDefense = 1
     }
 
+    /// <summary>插件建造格与视觉参数。偏移以朝北时的格心为原点，单位为地图格。</summary>
+    public class SpaceWeaponAttachmentSlot
+    {
+        public IntVec3 cell;
+        public Vector2 drawOffset = Vector2.zero;
+        public float drawScale = 1f;
+    }
+
     /// <summary>
     /// 太空武器 comp（太空战架构 §5.1，双模）：地表/同图战斗完全走原版炮塔 comp
     ///（本 comp 零介入）；太空跨容器射击 = 本 comp + 弹体服务。弹道类型由
@@ -59,8 +67,8 @@ namespace DeltaV
         /// <summary>朝北局部坐标中的炮口连续偏移（相对脚印中心）。</summary>
         public Vector2 muzzleOffset = Vector2.zero;
 
-        /// <summary>朝北局部坐标中的覆盖挂件槽；旋转后精确匹配槽内 Thing。</summary>
-        public List<IntVec3> attachmentSlots = new List<IntVec3>();
+        /// <summary>覆盖挂件槽：同一条目决定建造格及该格上的插件贴图中心和缩放。</summary>
+        public List<SpaceWeaponAttachmentSlot> attachmentSlots = new List<SpaceWeaponAttachmentSlot>();
 
         /// <summary>
         /// 可安装的挂件 Def。空列表表示开放槽，供其他 Mod 直接通过挂件 comp 接入；
@@ -169,14 +177,21 @@ namespace DeltaV
 
         public Pawn CurrentGunner => Crew != null ? Crew.ManningPawn : Mannable?.ManningPawn;
 
+        public SpaceWeaponAttachmentSlot AttachmentSlotAt(IntVec3 cell)
+        {
+            foreach (SpaceWeaponAttachmentSlot slot in WeaponProps.attachmentSlots)
+                if (SpaceWeaponGeometry.RotatedCell(parent, slot.cell) == cell) return slot;
+            return null;
+        }
+
         public IEnumerable<ThingWithComps> AttachedThings()
         {
             if (parent.Map == null || WeaponProps.attachmentSlots.NullOrEmpty()) yield break;
             int owner = SpaceWeaponGeometry.OwnerIdOf(parent);
             var seen = new HashSet<int>();
-            foreach (IntVec3 offset in WeaponProps.attachmentSlots)
+            foreach (SpaceWeaponAttachmentSlot slot in WeaponProps.attachmentSlots)
             {
-                IntVec3 cell = SpaceWeaponGeometry.RotatedCell(parent, offset);
+                IntVec3 cell = SpaceWeaponGeometry.RotatedCell(parent, slot.cell);
                 if (!parent.OccupiedRect().Contains(cell)) continue;
                 if (!cell.InBounds(parent.Map)) continue;
                 foreach (Thing thing in parent.Map.thingGrid.ThingsListAtFast(cell))
@@ -469,9 +484,9 @@ namespace DeltaV
             if (parent.Map == null) return;
 
             // 覆盖式挂件槽：黄色 = 空槽，绿色 = 已安装兼容挂件。
-            foreach (IntVec3 offset in WeaponProps.attachmentSlots)
+            foreach (SpaceWeaponAttachmentSlot slot in WeaponProps.attachmentSlots)
             {
-                IntVec3 cell = SpaceWeaponGeometry.RotatedCell(parent, offset);
+                IntVec3 cell = SpaceWeaponGeometry.RotatedCell(parent, slot.cell);
                 if (!parent.OccupiedRect().Contains(cell)) continue;
                 bool occupied = false;
                 foreach (ThingWithComps attached in AttachedThings())

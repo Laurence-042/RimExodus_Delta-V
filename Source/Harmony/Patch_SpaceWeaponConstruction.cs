@@ -33,8 +33,7 @@ namespace DeltaV
                 {
                     bool attachment = thingDef?.GetCompProperties<CompProperties_SpaceWeaponAttachment>() != null;
                     if (attachment && center.GetEdifice(map) == weapon.parent
-                        && weapon.WeaponProps.attachmentSlots.Exists(offset =>
-                            SpaceWeaponGeometry.RotatedCell(weapon.parent, offset) == center))
+                        && weapon.AttachmentSlotAt(center) != null)
                     {
                         continue;
                     }

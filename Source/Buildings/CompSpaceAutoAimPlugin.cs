@@ -31,8 +31,7 @@ namespace DeltaV
         {
             if (!parent.Spawned || parent.Destroyed || !Enabled || weapon?.parent == null) return false;
             if (weapon.parent.Map != parent.Map || HostWeapon != weapon) return false;
-            bool slotted = weapon.WeaponProps.attachmentSlots.Exists(offset =>
-                SpaceWeaponGeometry.RotatedCell(weapon.parent, offset) == parent.Position);
+            bool slotted = weapon.AttachmentSlotAt(parent.Position) != null;
             return slotted && SpaceWeaponGeometry.OwnerIdOf(parent) > 0
                 && SpaceWeaponGeometry.OwnerIdOf(parent) == SpaceWeaponGeometry.OwnerIdOf(weapon.parent);
         }
