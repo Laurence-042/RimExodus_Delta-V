@@ -262,12 +262,20 @@ namespace DeltaV
         public float ammoPerShot = 1f;
         public int defaultPriority;
         public bool attachment;
-        public bool replacesShotEnergy;
         public float armorPenetrationScale = 1f;
 
         public CompProperties_SpaceWeaponMagazine()
         {
             compClass = typeof(CompSpaceWeaponMagazine);
+        }
+
+        public override IEnumerable<StatDrawEntry> SpecialDisplayStats(StatRequest req)
+        {
+            yield return SpaceCombatStats.Entry("DeltaV_StatAmmoPerShot",
+                ammoPerShot.ToString("0.##"), 5060);
+            if (armorPenetrationScale > 1f)
+                yield return SpaceCombatStats.Entry("DeltaV_StatArmorPenetrationScale",
+                    armorPenetrationScale.ToString("0.##") + "×", 5050);
         }
     }
 

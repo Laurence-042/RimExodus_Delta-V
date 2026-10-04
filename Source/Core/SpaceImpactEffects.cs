@@ -34,6 +34,13 @@ namespace DeltaV
         SpeedChance = 1
     }
 
+    /// <summary>从命中格起沿弹道前进一格的结构毁伤；伤害倍率与横向半宽分别配置。</summary>
+    public class ImpactPenetrationLayer
+    {
+        public float damageFactor = 1f;
+        public int halfWidth;
+    }
+
     /// <summary>一侧的后效参数（数值全部 XML 可调；伤害随相对速度/入射角缩放）。</summary>
     public class ImpactOutcomePart
     {
@@ -57,10 +64,13 @@ namespace DeltaV
         /// <summary>入射角权重：正入射 ×1 → 掠射（90°）×此值。</summary>
         public float incidenceMinFactor = 0.35f;
 
-        /// <summary>基准穿深（与伤害同系数缩放）。</summary>
+        /// <summary>原版护甲穿透值（与基础伤害同系数缩放）；不决定穿过几层结构。</summary>
         public float armorPenetration = 10f;
 
-        /// <summary>爆炸半径（>0 = GenExplosion 对整图波及；0 = 只对被撞建筑 TakeDamage）。</summary>
+        /// <summary>按顺序列出各深度格的毁伤。空表只命中表层；几何穿透与护甲穿透独立。</summary>
+        public List<ImpactPenetrationLayer> penetrationLayers;
+
+        /// <summary>爆炸半径（>0 = GenExplosion 波及；0 = 单格直击或逐层结构毁伤）。</summary>
         public float explosionRadius = 0f;
 
         /// <summary>破片摧毁基架的半径（>0 生效；中心概率按距离线性衰减到 0）。</summary>
@@ -225,7 +235,8 @@ namespace DeltaV
             }
             if (part.kind != ImpactEffectKind.DamageMap) return;
 
-            var cell = new IntVec3(Mathf.FloorToInt(evt.hitDefenderLocal.x), 0,
+            IntVec3 cell = evt.hitCell.IsValid ? evt.hitCell : new IntVec3(
+                Mathf.FloorToInt(evt.hitDefenderLocal.x), 0,
                 Mathf.FloorToInt(evt.hitDefenderLocal.y)).ClampInsideMap(map);
 
             // 跳弹（当前默认实现 = 消灭无伤；可反弹类型留扩展位，太空战架构 §3.4）：
@@ -249,7 +260,12 @@ namespace DeltaV
                 * evt.armorPenetrationScale;
             DamageDef damType = part.damageDef ?? DamageDefOf.Bullet;
 
-            if (part.explosionRadius > 0f)
+            if (part.penetrationLayers != null && part.penetrationLayers.Count > 0
+                && evt.defenderBuilding != null)
+            {
+                ApplyDirectionalPenetration(evt, part, map, cell, amount, ap, damType);
+            }
+            else if (part.explosionRadius > 0f)
             {
                 // 爆炸：波及（人员杀伤/建筑毁伤）交原版 GenExplosion 原生处理。
                 GenExplosion.DoExplosion(cell, map, part.explosionRadius, damType, evt.launcher,
@@ -282,6 +298,64 @@ namespace DeltaV
             SubstructureOwnership.BumpStructureVersion();
             PlanetGlobeRenderer.InvalidateSilhouette(map);
         }
+
+        /// <summary>
+        /// 每层先伤中央结构，再伤两侧；中央结构尚存时弹芯在该层停止。
+        /// 空格可跨越，同一多格建筑只结算一次，避免同一物体被一发重复击中。
+        /// </summary>
+        private static void ApplyDirectionalPenetration(SpaceCollision.ImpactEvent evt,
+            ImpactOutcomePart part, Map map, IntVec3 entry, float amount, float ap, DamageDef damType)
+        {
+            Vector2 dir = evt.incidentDir.normalized;
+            if (dir.sqrMagnitude < 0.001f) dir = Vector2.up;
+            Vector2 side = new Vector2(-dir.y, dir.x);
+            Vector2 origin = new Vector2(entry.x + 0.5f, entry.z + 0.5f);
+            var hitThings = new HashSet<Thing>();
+            var hitCells = new HashSet<IntVec3>();
+            IntVec3 center = entry;
+            float travel = 0f;
+            for (int depth = 0; depth < part.penetrationLayers.Count; depth++)
+            {
+                ImpactPenetrationLayer layer = part.penetrationLayers[depth];
+                if (layer == null || layer.damageFactor <= 0f) continue;
+                if (depth > 0)
+                {
+                    // 逐格穿越，斜入射不会因固定距离采样把同一格当作两层。
+                    IntVec3 previous = center;
+                    do
+                    {
+                        travel += 0.1f;
+                        center = CellAt(origin + dir * travel);
+                    } while (center == previous && travel < 2f * (depth + 1));
+                }
+                if (!center.InBounds(map)) break;
+                Vector2 centerPoint = new Vector2(center.x + 0.5f, center.z + 0.5f);
+                Thing centerThing = SolidAt(map, center);
+                bool centerStopped = false;
+                for (int lane = 0; lane <= Mathf.Max(0, layer.halfWidth) * 2; lane++)
+                {
+                    int offset = lane == 0 ? 0 : (lane + 1) / 2 * (lane % 2 == 1 ? -1 : 1);
+                    IntVec3 targetCell = offset == 0 ? center : CellAt(centerPoint + side * offset);
+                    if (!targetCell.InBounds(map)) continue;
+                    Thing target = offset == 0 ? centerThing : SolidAt(map, targetCell);
+                    if (target == null) continue;
+                    if (hitCells.Add(targetCell) && hitThings.Add(target))
+                    {
+                        target.TakeDamage(new DamageInfo(damType, amount * layer.damageFactor,
+                            ap, -1f, evt.launcher, null, evt.projectileDef));
+                    }
+                    if (offset == 0 && !target.Destroyed) centerStopped = true;
+                }
+                if (centerStopped) break;
+            }
+        }
+
+        private static IntVec3 CellAt(Vector2 point) => new IntVec3(
+            Mathf.FloorToInt(point.x), 0, Mathf.FloorToInt(point.y));
+
+        private static Thing SolidAt(Map map, IntVec3 cell) =>
+            SpaceStructureRules.ClassifyCell(map, cell, out Thing solid) == SpaceCellKind.Empty
+                ? null : solid;
 
         /// <summary>守方 building 的基准耐久（跳弹门槛与兜底耐久缩放的口径）。</summary>
         public static float MaxHitPointsOf(Thing thing)

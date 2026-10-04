@@ -27,13 +27,39 @@
 			<speedExponent>1</speedExponent>
 			<incidenceMinFactor>0.35</incidenceMinFactor>
 			<armorPenetration>12</armorPenetration>
-			<explosionRadius>1.2</explosionRadius>
+			<explosionRadius>0</explosionRadius>
+			<penetrationLayers>
+				<li><damageFactor>3.5</damageFactor><halfWidth>1</halfWidth></li>
+				<li><damageFactor>1.6</damageFactor></li>
+				<li><damageFactor>0.8</damageFactor></li>
+			</penetrationLayers>
 			<ricochetMinHitPoints>250</ricochetMinHitPoints>
 			<ricochetMinIncidenceDeg>60</ricochetMinIncidenceDeg>
 		</defenderEffect>
 		<attackerEffect>
 			<kind>DestroySelf</kind>
 		</attackerEffect>
+	</DeltaV.SpaceImpactEffectDef>
+
+	<!-- 速射弹单格点射，不继承重炮的宽弹孔与穿层。 -->
+	<DeltaV.SpaceImpactEffectDef>
+		<defName>DeltaV_Impact_RapidVsStructure</defName>
+		<projectileDefs><li>DeltaV_Projectile_Rapid</li></projectileDefs>
+		<hitTest>Always</hitTest>
+		<defenderEffect>
+			<kind>DamageMap</kind><damageDef>Bullet</damageDef>
+			<damage>22</damage><referenceSpeed>60</referenceSpeed><speedExponent>1</speedExponent>
+			<incidenceMinFactor>0.35</incidenceMinFactor><armorPenetration>12</armorPenetration>
+		</defenderEffect>
+		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
+	</DeltaV.SpaceImpactEffectDef>
+	<DeltaV.SpaceImpactEffectDef>
+		<defName>DeltaV_Impact_RapidVsSubstructure</defName>
+		<projectileDefs><li>DeltaV_Projectile_Rapid</li></projectileDefs>
+		<targetsSubstructure>true</targetsSubstructure>
+		<hitTest>SpeedChance</hitTest><passThroughChance>0.8</passThroughChance>
+		<defenderEffect><kind>DamageMap</kind><damageDef>Bullet</damageDef><damage>7</damage></defenderEffect>
+		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
 	<!-- 直射弹 × 基架：概率放行（越快越难穿）；后效 = 命中位爆炸 + 递减摧毁基架 + 破片溅射。 -->
@@ -64,7 +90,7 @@
 		</attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
-	<!-- 激光 × 舱壁/任意实心建筑：高频低伤（hitscan 无速度缩放语义），仅按入射角衰减。 -->
+	<!-- 激光 × 舱壁/任意实心建筑：高频直击（hitscan 无速度缩放语义），仅按入射角衰减。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_LaserVsStructure</defName>
 		<projectileDefs>
@@ -74,9 +100,9 @@
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bullet</damageDef>
-			<damage>3</damage>
+			<damage>12</damage>
 			<incidenceMinFactor>0.5</incidenceMinFactor>
-			<armorPenetration>8</armorPenetration>
+			<armorPenetration>16</armorPenetration>
 			<explosionRadius>0</explosionRadius>
 		</defenderEffect>
 		<attackerEffect>
@@ -103,7 +129,7 @@
 		</attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
-	<!-- 重激光 × 舱壁：高频中伤（hitscan 无速度缩放语义），仅按入射角衰减。 -->
+	<!-- 重激光 × 舱壁：基础直击量由武器 impactScale 放大；无速度缩放语义。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_LaserHeavyVsStructure</defName>
 		<projectileDefs>
@@ -113,7 +139,7 @@
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bullet</damageDef>
-			<damage>8</damage>
+			<damage>12</damage>
 			<incidenceMinFactor>0.5</incidenceMinFactor>
 			<armorPenetration>15</armorPenetration>
 			<explosionRadius>0</explosionRadius>
@@ -250,7 +276,15 @@
 			<speedExponent>1</speedExponent>
 			<incidenceMinFactor>0.6</incidenceMinFactor>
 			<armorPenetration>60</armorPenetration>
-			<explosionRadius>0.8</explosionRadius>
+			<explosionRadius>0</explosionRadius>
+			<penetrationLayers>
+				<li><damageFactor>2.4</damageFactor></li>
+				<li><damageFactor>2.2</damageFactor></li>
+				<li><damageFactor>2</damageFactor></li>
+				<li><damageFactor>1.6</damageFactor></li>
+				<li><damageFactor>1.2</damageFactor></li>
+				<li><damageFactor>0.8</damageFactor></li>
+			</penetrationLayers>
 			<ricochetMinHitPoints>600</ricochetMinHitPoints>
 			<ricochetMinIncidenceDeg>70</ricochetMinIncidenceDeg>
 		</defenderEffect>
@@ -293,7 +327,8 @@
 		<defName>DeltaV_Impact_VsShield</defName>
 		<projectileDefs>
 			<li>DeltaV_Projectile_Cannon</li>
-			<li>DeltaV_Projectile_Laser</li>
+			<li>DeltaV_Projectile_Rapid</li>
+			<li>DeltaV_Projectile_RailgunSlug</li>
 			<li>DeltaV_Projectile_Missile</li>
 			<li>DeltaV_Projectile_PDBullet</li>
 		</projectileDefs>
@@ -307,6 +342,28 @@
 			<referenceSpeed>60</referenceSpeed>
 			<speedExponent>1</speedExponent>
 			<incidenceMinFactor>0.5</incidenceMinFactor>
+		</defenderEffect>
+		<attackerEffect>
+			<kind>DestroySelf</kind>
+		</attackerEffect>
+	</DeltaV.SpaceImpactEffectDef>
+
+	<!-- 即时激光没有弹速，护盾消耗不得乘相对速度。中型炮的 impactScale 同时作用于该值。 -->
+	<DeltaV.SpaceImpactEffectDef>
+		<defName>DeltaV_Impact_LaserVsShield</defName>
+		<projectileDefs>
+			<li>DeltaV_Projectile_Laser</li>
+			<li>DeltaV_Projectile_LaserHeavy</li>
+		</projectileDefs>
+		<targetThingDefs>
+			<li>GravshipShieldGenerator</li>
+		</targetThingDefs>
+		<hitTest>Always</hitTest>
+		<defenderEffect>
+			<kind>ShieldDrain</kind>
+			<damage>12</damage>
+			<speedExponent>0</speedExponent>
+			<incidenceMinFactor>1</incidenceMinFactor>
 		</defenderEffect>
 		<attackerEffect>
 			<kind>DestroySelf</kind>

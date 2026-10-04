@@ -46,6 +46,24 @@
 		</comps>
 	</ThingDef>
 
+	<!-- 速射炮用独立弹体注册低穿层效果；视觉采用原版机炮弹。 -->
+	<ThingDef ParentName="BuildingBase">
+		<defName>DeltaV_Projectile_Rapid</defName>
+		<label>rapid cannon shot</label>
+		<description>A compact rapid cannon projectile.</description>
+		<thingClass>Verse.Building</thingClass><category>Building</category>
+		<rotatable>false</rotatable><passability>Impassable</passability><fillPercent>0.2</fillPercent>
+		<size>(1,1)</size><designationCategory Inherit="False" />
+		<researchPrerequisites Inherit="False" /><stuffCategories Inherit="False" />
+		<statBases><WorkToBuild>1</WorkToBuild><MaxHitPoints>10</MaxHitPoints><Flammability>0</Flammability></statBases>
+		<graphicData><texPath>Things/Projectile/Bullet_Big</texPath><graphicClass>Graphic_Single</graphicClass>
+			<drawSize>(1.1,1.1)</drawSize><shaderType>Cutout</shaderType>
+			<damageData><enabled>false</enabled></damageData></graphicData>
+		<comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+			<speed>45</speed><timeoutTicks>900</timeoutTicks><hasMap>false</hasMap>
+		</li></comps>
+	</ThingDef>
+
 	<!-- 测试激光：无图即时链（不可拦截），全射程一次扫掠。 -->
 	<ThingDef ParentName="BuildingBase">
 		<defName>DeltaV_Projectile_Laser</defName>

@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <DeltaV_Weapon_PDTurret.label>点防御机炮</DeltaV_Weapon_PDTurret.label>
-  <DeltaV_Weapon_PDTurret.description>1×1 载人机炮，可在齐射与点防御模式之间切换。</DeltaV_Weapon_PDTurret.description>
+  <DeltaV_Weapon_PDTurret.description>近距离拦截来袭弹体和小型目标的机炮，也可加入齐射。需要炮手，弹药由钢材装填。</DeltaV_Weapon_PDTurret.description>
   <DeltaV_Weapon_CannonTurret.label>小型重炮</DeltaV_Weapon_CannonTurret.label>
-  <DeltaV_Weapon_CannonTurret.description>2×2 载人重炮。</DeltaV_Weapon_CannonTurret.description>
+  <DeltaV_Weapon_CannonTurret.description>小型旋转重炮，单发威力高，适合打击装甲目标。需要炮手，可安装一个火控或弹仓插件。</DeltaV_Weapon_CannonTurret.description>
   <DeltaV_Weapon_RapidMainSmall.label>小型速射炮</DeltaV_Weapon_RapidMainSmall.label>
-  <DeltaV_Weapon_RapidMainSmall.description>2×2 载人速射炮。</DeltaV_Weapon_RapidMainSmall.description>
+  <DeltaV_Weapon_RapidMainSmall.description>小型旋转速射炮，以持续射击压制目标。需要炮手，可安装一个火控或弹仓插件。</DeltaV_Weapon_RapidMainSmall.description>
   <DeltaV_Weapon_LaserTurret.label>小型激光炮</DeltaV_Weapon_LaserTurret.label>
-  <DeltaV_Weapon_LaserTurret.description>2×2 载人激光炮。</DeltaV_Weapon_LaserTurret.description>
+  <DeltaV_Weapon_LaserTurret.description>小型旋转激光炮，无需弹药，但每发从电网蓄电池取电。需要炮手；可安装火控插件或可回充电容。</DeltaV_Weapon_LaserTurret.description>
   <DeltaV_Weapon_HeavyMainMedium.label>中型重炮</DeltaV_Weapon_HeavyMainMedium.label>
-  <DeltaV_Weapon_HeavyMainMedium.description>3×3 载人重炮。</DeltaV_Weapon_HeavyMainMedium.description>
+  <DeltaV_Weapon_HeavyMainMedium.description>中型旋转重炮，以较高单发威力打击重装甲目标。需要炮手，两个槽位可安装火控或弹仓插件。</DeltaV_Weapon_HeavyMainMedium.description>
   <DeltaV_Weapon_RapidMainMedium.label>中型速射炮</DeltaV_Weapon_RapidMainMedium.label>
-  <DeltaV_Weapon_RapidMainMedium.description>3×3 载人速射炮。</DeltaV_Weapon_RapidMainMedium.description>
+  <DeltaV_Weapon_RapidMainMedium.description>中型旋转速射炮，依靠持续火力压制目标。需要炮手，两个槽位可安装火控或弹仓插件。</DeltaV_Weapon_RapidMainMedium.description>
   <DeltaV_Weapon_LaserMainMedium.label>中型激光炮</DeltaV_Weapon_LaserMainMedium.label>
-  <DeltaV_Weapon_LaserMainMedium.description>3×3 载人激光炮。</DeltaV_Weapon_LaserMainMedium.description>
+  <DeltaV_Weapon_LaserMainMedium.description>中型旋转激光炮，无需弹药，但每发从电网蓄电池取电。需要炮手；两个槽位可安装火控插件或可回充电容。</DeltaV_Weapon_LaserMainMedium.description>
   <DeltaV_Weapon_CasemateCannon.label>小型炮廓炮</DeltaV_Weapon_CasemateCannon.label>
   <DeltaV_Weapon_CasemateCannon.description>炮艇/驱逐舰级气密炮廓炮，本体即为舱壁。</DeltaV_Weapon_CasemateCannon.description>
   <DeltaV_Weapon_CasemateLarge.label>大型炮廓炮</DeltaV_Weapon_CasemateLarge.label>
@@ -23,25 +23,25 @@
   <DeltaV_Weapon_MissileLauncherLarge.label>大型导弹发射架</DeltaV_Weapon_MissileLauncherLarge.label>
   <DeltaV_Weapon_MissileLauncherLarge.description>巡洋舰级气密冷发射导弹架。</DeltaV_Weapon_MissileLauncherLarge.description>
   <DeltaV_Weapon_RailgunLoader.label>小型轨道炮装弹机</DeltaV_Weapon_RailgunLoader.label>
-  <DeltaV_Weapon_RailgunLoader.description>完整的炮艇/驱逐舰级轨道武器；串联加速导轨会延长炮口并提高出膛速度。</DeltaV_Weapon_RailgunLoader.description>
+  <DeltaV_Weapon_RailgunLoader.description>小型固定轴轨道炮的装弹与火控核心，自带瞄准。每发消耗钢材和 600 W·d 蓄电；基础脉冲不足时不能发射。在炮口方向串联小型加速段可提高弹速，缺电的段会被跳过而不阻止本发发射。可安装一个铀制附加弹仓。机身状态灯以青／琥珀／红表示就绪／冷却／不可发射。</DeltaV_Weapon_RailgunLoader.description>
   <DeltaV_Weapon_RailgunLoaderLarge.label>大型轨道炮装弹机</DeltaV_Weapon_RailgunLoaderLarge.label>
-  <DeltaV_Weapon_RailgunLoaderLarge.description>完整的巡洋舰级轨道武器。</DeltaV_Weapon_RailgunLoaderLarge.description>
+  <DeltaV_Weapon_RailgunLoaderLarge.description>大型固定轴轨道炮的装弹与火控核心，自带瞄准。每发消耗钢材和 1200 W·d 蓄电；基础脉冲不足时不能发射。在炮口方向串联大型加速段可提高弹速，缺电的段会被跳过而不阻止本发发射。可安装一个铀制附加弹仓。机身状态灯以青／琥珀／红表示就绪／冷却／不可发射。</DeltaV_Weapon_RailgunLoaderLarge.description>
   <DeltaV_Weapon_RailgunAccelerator.label>小型轨道炮加速段</DeltaV_Weapon_RailgunAccelerator.label>
-  <DeltaV_Weapon_RailgunAccelerator.description>具有明确输入与输出连接位置的串联加速导轨。</DeltaV_Weapon_RailgunAccelerator.description>
+  <DeltaV_Weapon_RailgunAccelerator.description>串联在小型轨道炮装弹机前方的加速段。本段每发需 400 W·d，储能不足时炮弹仍能通过但不获得加速。两侧各可安装一个储存三发本段能量的电容；指示灯标明本发是否能加速。</DeltaV_Weapon_RailgunAccelerator.description>
   <DeltaV_Weapon_RailgunAcceleratorLarge.label>大型轨道炮加速段</DeltaV_Weapon_RailgunAcceleratorLarge.label>
-  <DeltaV_Weapon_RailgunAcceleratorLarge.description>巡洋舰级串联加速导轨。</DeltaV_Weapon_RailgunAcceleratorLarge.description>
+  <DeltaV_Weapon_RailgunAcceleratorLarge.description>串联在大型轨道炮装弹机前方的加速段。本段每发需 800 W·d，储能不足时炮弹仍能通过但不获得加速。两侧各可安装一个储存三发本段能量的电容；指示灯标明本发是否能加速。</DeltaV_Weapon_RailgunAcceleratorLarge.description>
   <DeltaV_Building_AutoAimPluginI.label>自动瞄准插件 I</DeltaV_Building_AutoAimPluginI.label>
   <DeltaV_Building_AutoAimPluginI.description>覆盖建造在挂件槽中的火控计算机，等效射击技能 10。</DeltaV_Building_AutoAimPluginI.description>
   <DeltaV_Building_AutoAimPluginII.label>自动瞄准插件 II</DeltaV_Building_AutoAimPluginII.label>
   <DeltaV_Building_AutoAimPluginII.description>高级火控计算机，等效射击技能 16。</DeltaV_Building_AutoAimPluginII.description>
   <DeltaV_Building_UraniumMagazine.label>铀制附加弹仓</DeltaV_Building_UraniumMagazine.label>
   <DeltaV_Building_UraniumMagazine.description>覆盖建造在挂件槽中的优先级 1 弹仓，以铀弹替换默认弹药。</DeltaV_Building_UraniumMagazine.description>
-  <DeltaV_Building_LaserCapacitor.label>激光炮电池仓</DeltaV_Building_LaserCapacitor.label>
-  <DeltaV_Building_LaserCapacitor.description>用工业零部件补充电池芯；有电池芯时逐发射击不从电网蓄电池取电，耗尽后恢复用电。</DeltaV_Building_LaserCapacitor.description>
+  <DeltaV_Building_LaserCapacitor.label>激光炮附加电容</DeltaV_Building_LaserCapacitor.label>
+  <DeltaV_Building_LaserCapacitor.description>安装在激光炮槽位上的可回充电容，建成时无储能，上限 80 W·d；充电功率 240 W，从空到满需 20000 tick。可代付完整的逐发耗电；储能不足时激光炮仍可从电网蓄电池取电。</DeltaV_Building_LaserCapacitor.description>
   <DeltaV_Building_RailgunCapacitor.label>小型轨道炮附加电容</DeltaV_Building_RailgunCapacitor.label>
-  <DeltaV_Building_RailgunCapacitor.description>装在加速段侧面的三发电容，缓慢从电网充能；有电时替代该段的逐发电费。</DeltaV_Building_RailgunCapacitor.description>
+  <DeltaV_Building_RailgunCapacitor.description>装在小型加速段侧面的附加电容，储能 1200 W·d，足够该段发射三次；以 1000 W 回充，从空到满需 72000 tick。储能不足时加速段仍从电网蓄电池取电。</DeltaV_Building_RailgunCapacitor.description>
   <DeltaV_Building_RailgunCapacitorLarge.label>大型轨道炮附加电容</DeltaV_Building_RailgunCapacitorLarge.label>
-  <DeltaV_Building_RailgunCapacitorLarge.description>装在大型加速段侧面的三发电容，缓慢从电网充能；有电时替代该段的逐发电费。</DeltaV_Building_RailgunCapacitorLarge.description>
+  <DeltaV_Building_RailgunCapacitorLarge.description>装在大型加速段侧面的附加电容，储能 2400 W·d，足够该段发射三次；以 2000 W 回充，从空到满需 72000 tick。储能不足时加速段仍从电网蓄电池取电。</DeltaV_Building_RailgunCapacitorLarge.description>
   <DeltaV_Projectile_RailgunSlug.label>轨道炮弹丸</DeltaV_Projectile_RailgunSlug.label>
   <DeltaV_Projectile_RailgunSlug.description>超高速轨道炮射弹。</DeltaV_Projectile_RailgunSlug.description>
 </LanguageData>

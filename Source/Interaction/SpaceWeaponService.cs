@@ -275,9 +275,7 @@ namespace DeltaV
 
         public static float ProjectileSpeedOf(CompSpaceWeapon weapon)
         {
-            CompSpaceWeaponMagazine magazine = weapon?.SelectMagazine();
-            ThingDef projectile = magazine?.MagazineProps.projectileDef ?? weapon?.WeaponProps.projectileDef;
-            return ProjectileSpeedOf(projectile) + (weapon == null ? 0f : CompSpaceRailgun.Resolve(weapon).speedBonus);
+            return SpaceWeaponShot.ProjectedSpeed(weapon);
         }
 
         /// <summary>

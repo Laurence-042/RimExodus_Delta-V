@@ -45,7 +45,11 @@ namespace DeltaV
         public float armorPenetrationScale = 1f;
         public int skill;
         private readonly Dictionary<PowerNet, float> energyByNet = new Dictionary<PowerNet, float>();
-        private readonly List<CompRailgunCapacitor> dischargingCapacitors = new List<CompRailgunCapacitor>();
+        private readonly Dictionary<CompSpaceWeaponCapacitor, float> dischargingCapacitors =
+            new Dictionary<CompSpaceWeaponCapacitor, float>();
+        private readonly List<CompSpaceRailgun> activeAccelerators = new List<CompSpaceRailgun>();
+        private List<CompSpaceRailgun> connectedAccelerators;
+        private float activeSpeedBonus;
 
         public SpaceWeaponShot(UniverseManager universe, CompSpaceWeapon weapon,
             SpaceObject container, Vector3 aimPoint, SpaceObject explicitTarget)
@@ -55,6 +59,7 @@ namespace DeltaV
             this.container = container;
             this.aimPoint = aimPoint;
             target = explicitTarget;
+            damageScale = weapon.WeaponProps.impactScale;
         }
 
         public bool TryExecute()
@@ -147,7 +152,8 @@ namespace DeltaV
                 launchMapAngle = desiredMapAngle;
             }
 
-            speed = projectileProps.speed + acceleration.speedBonus;
+            if (!PrepareEnergy(acceleration)) return false;
+            speed = projectileProps.speed + activeSpeedBonus;
             coldLaunchSpeed = speed * projectileProps.coldLaunchSpeedFactor;
             if (target == null && projectileProps.guided)
             {
@@ -167,41 +173,96 @@ namespace DeltaV
                 if (comp is ISpaceWeaponFireGate gate && !gate.CanFire(this)) return false;
             }
             if (weapon.safeFire && !SafePathClear()) return false;
-            return PrepareEnergy(acceleration);
+            return true;
         }
 
         private bool PrepareEnergy(SpaceWeaponAccelerationSolution acceleration)
         {
             dischargingCapacitors.Clear();
             energyByNet.Clear();
-            if (magazine?.MagazineProps.replacesShotEnergy != true
-                && !AddEnergyCost(weapon.parent, weapon.WeaponProps.shotEnergy)) return false;
+            activeAccelerators.Clear();
+            activeSpeedBonus = 0f;
+            connectedAccelerators = acceleration.segments;
+            if (!ReserveCapacitor(weapon.AttachedThings(), weapon.WeaponProps.shotEnergy)
+                && !TryReserveGridEnergy(weapon.parent, weapon.WeaponProps.shotEnergy)) return false;
             foreach (CompSpaceRailgun segment in acceleration.segments)
             {
-                CompRailgunCapacitor selected = null;
-                foreach (ThingWithComps attached in segment.AttachedThings())
-                {
-                    CompRailgunCapacitor capacitor = attached.TryGetComp<CompRailgunCapacitor>();
-                    if (capacitor == null || !capacitor.HasShot) continue;
-                    if (selected == null || capacitor.Charges > selected.Charges
-                        || (capacitor.Charges == selected.Charges
-                            && capacitor.parent.thingIDNumber < selected.parent.thingIDNumber))
-                        selected = capacitor;
-                }
-                if (selected != null) dischargingCapacitors.Add(selected);
-                else if (!AddEnergyCost(segment.parent, segment.RailProps.shotEnergy)) return false;
+                if (segment.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }) continue;
+                if (!ReserveCapacitor(segment.AttachedThings(), segment.RailProps.shotEnergy)
+                    && !TryReserveGridEnergy(segment.parent, segment.RailProps.shotEnergy)) continue;
+                activeAccelerators.Add(segment);
+                activeSpeedBonus += segment.RailProps.speedBonus;
             }
-            foreach (var cost in energyByNet)
-                if (cost.Key.CurrentStoredEnergy() + 0.0001f < cost.Value) return false;
             return true;
         }
 
-        private bool AddEnergyCost(ThingWithComps source, float wattDays)
+        /// <summary>仅供建筑状态显示；与真实发射使用同一份能量规划与门禁。</summary>
+        public static bool HasShotEnergy(CompSpaceWeapon weapon)
+        {
+            if (weapon?.parent == null || !weapon.parent.Spawned) return false;
+            var probe = new SpaceWeaponShot(null, weapon, null, default, null);
+            return probe.PrepareEnergy(CompSpaceRailgun.Resolve(weapon));
+        }
+
+        /// <summary>预瞄、状态灯和实际发射共用逐段能量规划。</summary>
+        public static float ProjectedSpeed(CompSpaceWeapon weapon)
+        {
+            if (weapon == null) return 0f;
+            CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
+            ThingDef projectile = magazine?.MagazineProps.projectileDef ?? weapon.WeaponProps.projectileDef;
+            float baseSpeed = projectile?.GetCompProperties<CompProperties_SpaceProjectile>()?.speed ?? 0f;
+            var probe = new SpaceWeaponShot(null, weapon, null, default, null);
+            return probe.PrepareEnergy(CompSpaceRailgun.Resolve(weapon))
+                ? baseSpeed + probe.activeSpeedBonus : baseSpeed;
+        }
+
+        public static bool WillAccelerate(CompSpaceWeapon weapon, CompSpaceRailgun segment)
+        {
+            if (weapon == null || segment == null) return false;
+            if (weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
+                || (weapon.parent.TryGetComp<CompSpaceWeaponMagazine>() != null
+                    && weapon.SelectMagazine() == null)) return false;
+            var probe = new SpaceWeaponShot(null, weapon, null, default, null);
+            return probe.PrepareEnergy(CompSpaceRailgun.Resolve(weapon))
+                && probe.activeAccelerators.Contains(segment);
+        }
+
+        public static bool HasClearFixedPath(CompSpaceWeapon weapon)
+        {
+            if (weapon?.parent == null || !weapon.parent.Spawned) return false;
+            if (!weapon.safeFire || weapon.WeaponProps.topTurret) return true;
+            var probe = new SpaceWeaponShot(null, weapon, null, default, null);
+            SpaceWeaponAccelerationSolution acceleration = CompSpaceRailgun.Resolve(weapon);
+            probe.muzzleMap = acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
+            probe.launchMapAngle = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
+            return probe.SafePathClear();
+        }
+
+        private bool ReserveCapacitor(IEnumerable<ThingWithComps> attachments, float wattDays)
+        {
+            if (wattDays <= 0f) return false;
+            CompSpaceWeaponCapacitor selected = null;
+            foreach (ThingWithComps attached in attachments)
+            {
+                CompSpaceWeaponCapacitor capacitor = attached.TryGetComp<CompSpaceWeaponCapacitor>();
+                if (capacitor == null || !capacitor.CanSupply(wattDays)) continue;
+                if (selected == null || capacitor.StoredEnergy > selected.StoredEnergy
+                    || (capacitor.StoredEnergy == selected.StoredEnergy
+                        && capacitor.parent.thingIDNumber < selected.parent.thingIDNumber))
+                    selected = capacitor;
+            }
+            if (selected == null) return false;
+            dischargingCapacitors[selected] = wattDays;
+            return true;
+        }
+
+        private bool TryReserveGridEnergy(ThingWithComps source, float wattDays)
         {
             if (wattDays <= 0f) return true;
             PowerNet net = source.TryGetComp<CompPowerTrader>()?.PowerNet;
             if (net == null) return false;
             energyByNet.TryGetValue(net, out float existing);
+            if (net.CurrentStoredEnergy() + 0.0001f < existing + wattDays) return false;
             energyByNet[net] = existing + wattDays;
             return true;
         }
@@ -220,11 +281,14 @@ namespace DeltaV
                     remaining -= drawn;
                 }
             }
-            foreach (CompRailgunCapacitor capacitor in dischargingCapacitors)
-                capacitor.ConsumeShot();
+            foreach (var capacitor in dischargingCapacitors)
+                capacitor.Key.Consume(capacitor.Value);
             magazine?.ConsumeShot();
             weapon.NotifyMagazineConsumed(magazine);
             weapon.cooldownUntilTick = Find.TickManager.TicksGame + weapon.WeaponProps.cooldownTicks;
+            if (connectedAccelerators != null)
+                foreach (CompSpaceRailgun segment in connectedAccelerators)
+                    segment.parent.TryGetComp<CompRailgunAcceleratorGlow>()?.Refresh();
             foreach (ThingComp comp in CapabilityComps())
             {
                 if (comp is ISpaceWeaponFireCommit commit) commit.NotifyShotCommitted(this);

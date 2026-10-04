@@ -93,6 +93,8 @@ namespace DeltaV
             public bool defenderIsSubstructure;
             public Vector3 hitUniverse;
             public Vector2 hitDefenderLocal;
+            /// <summary>碰撞占用集选中的实际格；扫掠采样点可能位于相邻格。</summary>
+            public IntVec3 hitCell;
             public Vector2 incidentDir;
             public Vector2 relativeVelocity;
             public float relativeSpeed;
@@ -376,6 +378,7 @@ namespace DeltaV
                 evt.defenderBuilding = bestThing;
                 evt.defenderIsSubstructure = bestKind == SpaceCellKind.Substructure;
                 evt.hitDefenderLocal = p;
+                evt.hitCell = bestCell;
                 evt.hitUniverse = SpaceTransform.MapPointToUniverse(defender, defMap, p);
                 evt.incidentDir = dir;
                 evt.relativeVelocity = SpaceTransform.RelativeVelocity(body.attacker.pose, defender.pose);
@@ -407,9 +410,14 @@ namespace DeltaV
                 var defenderPart = effect?.defenderEffect;
                 body.resolvedHitExplosive = defenderPart != null
                     && defenderPart.kind == ImpactEffectKind.DamageMap
-                    && defenderPart.explosionRadius > 0f;
+                    && (defenderPart.explosionRadius > 0f
+                        || defenderPart.penetrationLayers?.Count > 0
+                        && defenderPart.penetrationLayers[0].halfWidth > 0);
                 body.resolvedHitShield = false;
-                body.resolvedHitRadius = body.resolvedHitExplosive ? defenderPart.explosionRadius : 0f;
+                body.resolvedHitRadius = body.resolvedHitExplosive
+                    ? Mathf.Max(defenderPart.explosionRadius,
+                        defenderPart.penetrationLayers?.Count > 0
+                            ? defenderPart.penetrationLayers[0].halfWidth : 0f) : 0f;
                 DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"impact: {body.projectileDef?.defName} -> " +
                     (evt.defenderIsSubstructure

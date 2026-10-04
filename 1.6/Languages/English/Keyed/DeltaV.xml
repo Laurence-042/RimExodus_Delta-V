@@ -230,7 +230,27 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_MagazinePriorityTip>Higher-priority magazines are consumed first. Equal-priority magazines alternate in Thing ID order.</DeltaV_MagazinePriorityTip>
   <DeltaV_AttachmentEnabled>Attachment enabled</DeltaV_AttachmentEnabled>
   <DeltaV_AttachmentEnabledTip>Temporarily enables or disables this weapon attachment. This command supports multi-selection.</DeltaV_AttachmentEnabledTip>
-  <DeltaV_RailCapacitorCharges>Stored acceleration pulses: {0}/{1}</DeltaV_RailCapacitorCharges>
+  <DeltaV_CapacitorStored>Capacitor energy: {0}/{1} W·d</DeltaV_CapacitorStored>
+  <DeltaV_StatShotEnergy>Battery energy per shot</DeltaV_StatShotEnergy>
+  <DeltaV_StatImpactScale>Impact effect multiplier</DeltaV_StatImpactScale>
+  <DeltaV_StatSegmentEnergy>Acceleration energy per shot</DeltaV_StatSegmentEnergy>
+  <DeltaV_StatCooldown>Shot interval</DeltaV_StatCooldown>
+  <DeltaV_StatRange>Space range (cells)</DeltaV_StatRange>
+  <DeltaV_StatAttachmentSlots>Attachment slots</DeltaV_StatAttachmentSlots>
+  <DeltaV_StatAmmoPerShot>Ammunition per shot</DeltaV_StatAmmoPerShot>
+  <DeltaV_StatArmorPenetrationScale>Armor penetration multiplier</DeltaV_StatArmorPenetrationScale>
+  <DeltaV_StatSpeedBonus>Speed bonus</DeltaV_StatSpeedBonus>
+  <DeltaV_StatCapCapacity>Capacitor capacity</DeltaV_StatCapCapacity>
+  <DeltaV_StatCapChargingPower>Charging power</DeltaV_StatCapChargingPower>
+  <DeltaV_StatCapFullCharge>Empty to full</DeltaV_StatCapFullCharge>
+  <DeltaV_StatTicks>ticks</DeltaV_StatTicks>
+  <DeltaV_RailReadiness>Railgun status: {0}</DeltaV_RailReadiness>
+  <DeltaV_RailReady>ready (cyan)</DeltaV_RailReady>
+  <DeltaV_RailCooling>cooling (amber)</DeltaV_RailCooling>
+  <DeltaV_RailUnavailable>resources missing, unpowered or muzzle blocked (red/off)</DeltaV_RailUnavailable>
+  <DeltaV_RailAcceleratorStatus>Next-shot accelerator: {0}</DeltaV_RailAcceleratorStatus>
+  <DeltaV_RailAcceleratorActive>active (cyan)</DeltaV_RailAcceleratorActive>
+  <DeltaV_RailAcceleratorSkipped>skipped (red; off without power)</DeltaV_RailAcceleratorSkipped>
   <DeltaV_SafeFire>Hull-safe fire</DeltaV_SafeFire>
   <DeltaV_SafeFireTip>Prevent fixed weapons from firing when their shot path intersects their own solid hull. Disable only for emergencies.</DeltaV_SafeFireTip>
   <DeltaV_GunnerCellBlocked>The fixed gunner position is blocked.</DeltaV_GunnerCellBlocked>

@@ -67,6 +67,9 @@ namespace DeltaV
         /// <summary>逐发从本武器所在电网蓄电池提取的能量（W·d）；持续功耗仍由 CompPowerTrader 负责。</summary>
         public float shotEnergy;
 
+        /// <summary>本武器对联合命中效果的倍率；弹体 Def 仍是效果注册表键。</summary>
+        public float impactScale = 1f;
+
         /// <summary>内置火控技能；负数表示仍需炮手或自瞄插件。</summary>
         public int intrinsicAimSkill = -1;
 
@@ -98,6 +101,22 @@ namespace DeltaV
 
         /// <summary>覆盖弹体默认冷发射时长；负数表示使用弹体 Def。</summary>
         public int ignitionDelayTicks = -1;
+
+        public override IEnumerable<StatDrawEntry> SpecialDisplayStats(StatRequest req)
+        {
+            if (impactScale != 1f)
+                yield return SpaceCombatStats.Entry("DeltaV_StatImpactScale",
+                    impactScale.ToString("0.##") + "×", 5110);
+            if (shotEnergy > 0f)
+                yield return SpaceCombatStats.Entry("DeltaV_StatShotEnergy",
+                    SpaceCombatStats.WattDays(shotEnergy), 5100);
+            yield return SpaceCombatStats.Entry("DeltaV_StatCooldown",
+                SpaceCombatStats.Ticks(cooldownTicks), 5090);
+            yield return SpaceCombatStats.Entry("DeltaV_StatRange", range.ToString("0"), 5080);
+            if (!attachmentSlots.NullOrEmpty())
+                yield return SpaceCombatStats.Entry("DeltaV_StatAttachmentSlots",
+                    attachmentSlots.Count.ToString(), 5070);
+        }
 
         public CompProperties_SpaceWeapon()
         {
@@ -435,14 +454,9 @@ namespace DeltaV
             };
 
             // 复用原版设施关联按钮语义：选中炮塔时直接给出兼容附件的建造 designator。
-            if (!WeaponProps.attachmentSlots.NullOrEmpty())
-            {
-                foreach (ThingDef attachmentDef in CompatibleAttachmentDefs())
-                {
-                    Designator_Build designator = BuildCopyCommandUtility.FindAllowedDesignator(attachmentDef);
-                    if (designator != null) yield return designator;
-                }
-            }
+            foreach (Gizmo gizmo in SpaceWeaponAttachmentSlots.BuildGizmos(parent,
+                WeaponProps.attachmentSlots, WeaponProps.allowedAttachmentDefs)) yield return gizmo;
+            foreach (Gizmo gizmo in SpaceRailgunConstruction.BuildGizmos(parent)) yield return gizmo;
 
             CompSpaceWeaponCrew crew = Crew;
             if (crew == null) yield break;
@@ -492,19 +506,7 @@ namespace DeltaV
             base.PostDrawExtraSelectionOverlays();
             if (parent.Map == null) return;
 
-            // 覆盖式挂件槽：黄色 = 空槽，绿色 = 已安装兼容挂件。
-            foreach (SpaceWeaponAttachmentSlot slot in WeaponProps.attachmentSlots)
-            {
-                IntVec3 cell = SpaceWeaponGeometry.RotatedCell(parent, slot.cell);
-                if (!parent.OccupiedRect().Contains(cell)) continue;
-                bool occupied = false;
-                foreach (ThingWithComps attached in AttachedThings())
-                {
-                    if (attached.OccupiedRect().Contains(cell)) { occupied = true; break; }
-                }
-                GenDraw.DrawFieldEdges(new List<IntVec3> { cell },
-                    occupied ? Color.green : Color.yellow);
-            }
+            SpaceWeaponAttachmentSlots.DrawSelection(parent, WeaponProps.attachmentSlots, AttachedThings());
 
             foreach (IntVec3 offset in WeaponProps.acceleratorStarts)
             {
@@ -522,18 +524,5 @@ namespace DeltaV
             }
         }
 
-        private IEnumerable<ThingDef> CompatibleAttachmentDefs()
-        {
-            if (!WeaponProps.allowedAttachmentDefs.NullOrEmpty())
-            {
-                foreach (ThingDef def in WeaponProps.allowedAttachmentDefs) yield return def;
-                yield break;
-            }
-            foreach (ThingDef def in DefDatabase<ThingDef>.AllDefsListForReading)
-            {
-                if (def.GetCompProperties<CompProperties_SpaceWeaponAttachment>() != null)
-                    yield return def;
-            }
-        }
     }
 }

@@ -28,6 +28,17 @@ namespace DeltaV
         {
             compClass = typeof(CompSpaceRailgun);
         }
+
+        public override IEnumerable<StatDrawEntry> SpecialDisplayStats(StatRequest req)
+        {
+            yield return SpaceCombatStats.Entry("DeltaV_StatSegmentEnergy",
+                SpaceCombatStats.WattDays(shotEnergy), 5100);
+            yield return SpaceCombatStats.Entry("DeltaV_StatSpeedBonus",
+                speedBonus.ToString("0.##"), 5090);
+            if (!attachmentSlots.NullOrEmpty())
+                yield return SpaceCombatStats.Entry("DeltaV_StatAttachmentSlots",
+                    attachmentSlots.Count.ToString(), 5080);
+        }
     }
 
     public readonly struct SpaceWeaponAccelerationSolution
@@ -80,6 +91,20 @@ namespace DeltaV
             }
         }
 
+        public CompSpaceWeapon ConnectedWeapon()
+        {
+            if (parent.Map == null || !parent.Spawned) return null;
+            foreach (ThingDef loaderDef in SpaceRailgunConstruction.LoaderDefsFor(parent.def))
+            {
+                foreach (Thing thing in parent.Map.listerThings.ThingsOfDef(loaderDef))
+                {
+                    CompSpaceWeapon weapon = (thing as ThingWithComps)?.TryGetComp<CompSpaceWeapon>();
+                    if (weapon != null && Resolve(weapon).segments.Contains(this)) return weapon;
+                }
+            }
+            return null;
+        }
+
         public static SpaceWeaponAccelerationSolution Resolve(CompSpaceWeapon weapon)
         {
             var used = new List<CompSpaceRailgun>();
@@ -103,7 +128,6 @@ namespace DeltaV
                     if (!weapon.WeaponProps.allowedAcceleratorDefs.NullOrEmpty()
                         && !weapon.WeaponProps.allowedAcceleratorDefs.Contains(segment.parent.def)) break;
                     if (owner <= 0 || SpaceWeaponGeometry.OwnerIdOf(segment.parent) != owner) break;
-                    if (segment.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }) break;
                     used.Add(segment);
                     bonus += segment.RailProps.speedBonus;
                     if (segment.RailProps.movesMuzzle)
@@ -140,13 +164,18 @@ namespace DeltaV
             CompSpaceWeapon weapon = weaponThing?.TryGetComp<CompSpaceWeapon>();
             if (weapon == null) return "not a space weapon";
             SpaceWeaponAccelerationSolution solution = Resolve(weapon);
-            return $"accelerators={solution.segments.Count} speed+={solution.speedBonus:F1}";
+            ThingDef projectile = weapon.SelectMagazine()?.MagazineProps.projectileDef
+                ?? weapon.WeaponProps.projectileDef;
+            float baseSpeed = SpaceWeaponService.ProjectileSpeedOf(projectile);
+            float activeBonus = SpaceWeaponShot.ProjectedSpeed(weapon) - baseSpeed;
+            return $"accelerators={solution.segments.Count} active speed+={activeBonus:F1}";
         }
 
         public override void PostDrawExtraSelectionOverlays()
         {
             base.PostDrawExtraSelectionOverlays();
             if (parent.Map == null) return;
+            SpaceWeaponAttachmentSlots.DrawSelection(parent, RailProps.attachmentSlots, AttachedThings());
             IntVec3 root = SpaceWeaponGeometry.RotatedCell(parent, RailProps.nextRootOffset);
             var cells = new List<IntVec3>();
             ThingDef def = parent.def;
@@ -154,6 +183,13 @@ namespace DeltaV
             GenDraw.DrawFieldEdges(cells,
                 SegmentAtRoot(parent.Map, root, parent.Rotation) != null ? Color.green : Color.yellow);
             GenDraw.DrawLineBetween(parent.TrueCenter(), root.ToVector3Shifted());
+        }
+
+        public override IEnumerable<Gizmo> CompGetGizmosExtra()
+        {
+            foreach (Gizmo gizmo in SpaceWeaponAttachmentSlots.BuildGizmos(parent,
+                RailProps.attachmentSlots, RailProps.allowedAttachmentDefs)) yield return gizmo;
+            foreach (Gizmo gizmo in SpaceRailgunConstruction.BuildGizmos(parent)) yield return gizmo;
         }
     }
 }
