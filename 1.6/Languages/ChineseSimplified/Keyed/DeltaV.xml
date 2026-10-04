@@ -39,7 +39,7 @@
   <DeltaV_SettingsLogPhysics>日志：物理积分</DeltaV_SettingsLogPhysics>
   <DeltaV_SettingsLogHarmony>日志：按键抑制决策</DeltaV_SettingsLogHarmony>
   <DeltaV_SettingsLogLifecycle>日志：POI 生命周期迁移</DeltaV_SettingsLogLifecycle>
-  <DeltaV_SettingsLogRender>日志：船壳分层（每秒最多 1 条）</DeltaV_SettingsLogRender>
+  <DeltaV_SettingsLogRender>日志：渲染（船壳分层／轨道炮状态色）</DeltaV_SettingsLogRender>
   <DeltaV_SettingsLogCombat>日志：战斗事件（发射/命中/拦截/跳弹/放行）</DeltaV_SettingsLogCombat>
   <DeltaV_SettingsUniverseZoomMax>宇宙视野缩放上限（格）</DeltaV_SettingsUniverseZoomMax>
   <DeltaV_SettingsUniverseZoomMaxTip>聚焦飞船图时相机最多能拉多远。数值越大，一屏能看到的太空范围越大，远处的飞船和空间站外壳会更早进入画面；代价是拉远后地图内容显示得越小。范围 60–5000；默认 400。</DeltaV_SettingsUniverseZoomMaxTip>
@@ -245,12 +245,12 @@
   <DeltaV_StatCapFullCharge>从空到满</DeltaV_StatCapFullCharge>
   <DeltaV_StatTicks>tick</DeltaV_StatTicks>
   <DeltaV_RailReadiness>轨道炮状态：{0}</DeltaV_RailReadiness>
-  <DeltaV_RailReady>可发射（青色）</DeltaV_RailReady>
-  <DeltaV_RailCooling>冷却中（琥珀色）</DeltaV_RailCooling>
-  <DeltaV_RailUnavailable>资源不足、断电或炮口受阻（红色／熄灭）</DeltaV_RailUnavailable>
+  <DeltaV_RailReady>可发射</DeltaV_RailReady>
+  <DeltaV_RailCooling>冷却中</DeltaV_RailCooling>
+  <DeltaV_RailUnavailable>暂不可发射（检查弹药、蓄电和炮口通路）</DeltaV_RailUnavailable>
   <DeltaV_RailAcceleratorStatus>本发加速段：{0}</DeltaV_RailAcceleratorStatus>
-  <DeltaV_RailAcceleratorActive>可起效（青色）</DeltaV_RailAcceleratorActive>
-  <DeltaV_RailAcceleratorSkipped>将跳过（红色／断电时熄灭）</DeltaV_RailAcceleratorSkipped>
+  <DeltaV_RailAcceleratorActive>本发预计起效</DeltaV_RailAcceleratorActive>
+  <DeltaV_RailAcceleratorSkipped>本发预计跳过</DeltaV_RailAcceleratorSkipped>
   <DeltaV_SafeFire>舱壁安全限制</DeltaV_SafeFire>
   <DeltaV_SafeFireTip>固定武器的弹道会穿过本船实心舱壁时拒绝发射；仅建议紧急时关闭。</DeltaV_SafeFireTip>
   <DeltaV_GunnerCellBlocked>固定炮手位被占用。</DeltaV_GunnerCellBlocked>

@@ -47,6 +47,7 @@ Mod 尚未发布，不做旧开发快照的存档兼容、迁移键或兼容分�
 - 开工前检查工作树并保留用户已有改动；禁止为方便而 reset、checkout 或覆盖无关文件。
 - 唯一推荐构建命令：`dotnet build Source/DeltaV.csproj -c Release`。
 - 涉及 RimWorld 内部行为时先查 `references/` 中对应版本源码，不凭记忆猜签名或流程。
+- 实现用户指定方案时，若遇到素材契约不明、原版机制证据不足或实测结果与方案不符，优先向用户说明具体问题并提问；不得自行猜测或换用另一方案。
 - 热路径日志必须先检查 `DeltaVLog.Enabled`，只在状态边沿或用户事件输出，禁止每帧/tick 无条件刷屏。
 - 当前阶段优先清晰的现有契约，不为未来兼容制造额外抽象。
 - Delta-V 贴图生成、分层与对齐施工时加载仓库 `.agents/skills/delta-v-art/SKILL.md`；资源清单与施工进度只在 `doc/美术资源施工表.md` 维护。
@@ -197,7 +198,7 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `GravshipInterop`：原版 Gravship 私有逻辑镜像、designator 适配、预览和 `CaptureDomain/StripDomain/PlaceIntoMap`。
 - `SpaceShuttleService`：shuttle 起飞、虚拟推进器注入、侵入状态和口袋清理；普通对接不在此另实现。
 - `SpaceWeaponService` / `SpaceWeaponShot`：跨容器开火总装与唯一 Prepare→Launch→Commit 事务；逐发弹药、装弹机基础脉冲、沿物理链逐段预留的加速脉冲、电容放电与末端炮口在此一次性冻结，成功发射后统一扣费；缺电加速段跳过且不增加弹速，后段仍继续检查。Crew/Traverse/Magazine/Attachment/加速件以正交 Comp/能力接口参与，第三方不得建立家族特判。
-- `SpaceWeaponAttachmentSlots` / `SpaceRailgunConstruction`：武器 Def 声明的插件槽位、允许挂件与串联加速件的选中建造按钮及槽位提示唯一入口；加速段到装弹机的反向关联从 Def 注册反查。`CompRailgunReadinessGlow` 和 `CompRailgunAcceleratorGlow` 只在状态边沿改变原版 `CompGlower` 实例颜色；两者与预瞄都复用 `SpaceWeaponShot` 的能量规划，安全路径复用同一判定。
+- `SpaceWeaponAttachmentSlots` / `SpaceRailgunConstruction`：武器 Def 声明的插件槽位、允许挂件与串联加速件的选中建造按钮及槽位提示唯一入口；加速段到装弹机的反向关联从 Def 注册反查。轨道炮状态 Comp 经原版 `ThingWithComps.DrawColor → ThingComp.ForceColor` 给 `CutoutComplex`／`_m` 红色蒙版提供主色；绿色通道才对应 `DrawColorTwo`。状态变化经 `Notify_ColorChanged` 刷新 MapMesh，不要求建筑专用 `thingClass`；不切换整张贴图，也不使用 `CompGlower`。状态与预瞄都复用 `SpaceWeaponShot` 的能量规划，安全路径复用同一判定。
 - `Building_SpaceTurretGun` / `DefModExtension_SpaceTurretArt`：只替换指定炮塔的旋转顶部材质，位置、角度和绘制继续走原版 `Building_TurretGun`/`TurretTop`。
 - `SpaceProjectileService` / `SpaceCollision` / `SpaceImpactEffects`：含冷发射程序的宇宙弹体、统一碰撞与联合命中效果链。
 - `ShellRenderer` / `MapOverlayRenderer` / `ShellRenderRuleDef` / `DockingGhostRenderer` / `ShipSilhouette`：整壳分层、地图内容收集、Thing 外壳绘制配置、幽灵和剪影。炮塔旋转炮身由 `IShellTurretTopSource` 提供当前材质和角度，规则决定仅绘炮身并置于船壳上层；船内武器用规则排除，不修改碰撞分类。

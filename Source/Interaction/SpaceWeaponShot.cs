@@ -204,7 +204,7 @@ namespace DeltaV
             return probe.PrepareEnergy(CompSpaceRailgun.Resolve(weapon));
         }
 
-        /// <summary>预瞄、状态灯和实际发射共用逐段能量规划。</summary>
+        /// <summary>预瞄、部件状态色和实际发射共用逐段能量规划。</summary>
         public static float ProjectedSpeed(CompSpaceWeapon weapon)
         {
             if (weapon == null) return 0f;
@@ -288,7 +288,7 @@ namespace DeltaV
             weapon.cooldownUntilTick = Find.TickManager.TicksGame + weapon.WeaponProps.cooldownTicks;
             if (connectedAccelerators != null)
                 foreach (CompSpaceRailgun segment in connectedAccelerators)
-                    segment.parent.TryGetComp<CompRailgunAcceleratorGlow>()?.Refresh();
+                    segment.parent.TryGetComp<CompRailgunAcceleratorAppearance>()?.Refresh();
             foreach (ThingComp comp in CapabilityComps())
             {
                 if (comp is ISpaceWeaponFireCommit commit) commit.NotifyShotCommitted(this);

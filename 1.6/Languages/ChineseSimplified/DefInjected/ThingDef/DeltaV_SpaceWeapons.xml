@@ -23,13 +23,13 @@
   <DeltaV_Weapon_MissileLauncherLarge.label>大型导弹发射架</DeltaV_Weapon_MissileLauncherLarge.label>
   <DeltaV_Weapon_MissileLauncherLarge.description>巡洋舰级气密冷发射导弹架。</DeltaV_Weapon_MissileLauncherLarge.description>
   <DeltaV_Weapon_RailgunLoader.label>小型轨道炮装弹机</DeltaV_Weapon_RailgunLoader.label>
-  <DeltaV_Weapon_RailgunLoader.description>小型固定轴轨道炮的装弹与火控核心，自带瞄准。每发消耗钢材和 600 W·d 蓄电；基础脉冲不足时不能发射。在炮口方向串联小型加速段可提高弹速，缺电的段会被跳过而不阻止本发发射。可安装一个铀制附加弹仓。机身状态灯以青／琥珀／红表示就绪／冷却／不可发射。</DeltaV_Weapon_RailgunLoader.description>
+  <DeltaV_Weapon_RailgunLoader.description>小型固定轴轨道炮的装弹与火控核心，自带瞄准。每发消耗钢材和 600 W·d 蓄电；基础脉冲不足时不能发射。在炮口方向串联小型加速段可提高弹速；可用储能不足的段会被跳过，不阻止本发发射。可安装一个铀制附加弹仓。</DeltaV_Weapon_RailgunLoader.description>
   <DeltaV_Weapon_RailgunLoaderLarge.label>大型轨道炮装弹机</DeltaV_Weapon_RailgunLoaderLarge.label>
-  <DeltaV_Weapon_RailgunLoaderLarge.description>大型固定轴轨道炮的装弹与火控核心，自带瞄准。每发消耗钢材和 1200 W·d 蓄电；基础脉冲不足时不能发射。在炮口方向串联大型加速段可提高弹速，缺电的段会被跳过而不阻止本发发射。可安装一个铀制附加弹仓。机身状态灯以青／琥珀／红表示就绪／冷却／不可发射。</DeltaV_Weapon_RailgunLoaderLarge.description>
+  <DeltaV_Weapon_RailgunLoaderLarge.description>大型固定轴轨道炮的装弹与火控核心，自带瞄准。每发消耗钢材和 1200 W·d 蓄电；基础脉冲不足时不能发射。在炮口方向串联大型加速段可提高弹速；可用储能不足的段会被跳过，不阻止本发发射。可安装一个铀制附加弹仓。</DeltaV_Weapon_RailgunLoaderLarge.description>
   <DeltaV_Weapon_RailgunAccelerator.label>小型轨道炮加速段</DeltaV_Weapon_RailgunAccelerator.label>
-  <DeltaV_Weapon_RailgunAccelerator.description>串联在小型轨道炮装弹机前方的加速段。本段每发需 400 W·d，储能不足时炮弹仍能通过但不获得加速。两侧各可安装一个储存三发本段能量的电容；指示灯标明本发是否能加速。</DeltaV_Weapon_RailgunAccelerator.description>
+  <DeltaV_Weapon_RailgunAccelerator.description>串联在小型轨道炮装弹机前方的加速段。本段每发需 400 W·d，可用储能不足时炮弹仍能通过但不获得加速。两侧各可安装一个储存三发本段能量的电容。</DeltaV_Weapon_RailgunAccelerator.description>
   <DeltaV_Weapon_RailgunAcceleratorLarge.label>大型轨道炮加速段</DeltaV_Weapon_RailgunAcceleratorLarge.label>
-  <DeltaV_Weapon_RailgunAcceleratorLarge.description>串联在大型轨道炮装弹机前方的加速段。本段每发需 800 W·d，储能不足时炮弹仍能通过但不获得加速。两侧各可安装一个储存三发本段能量的电容；指示灯标明本发是否能加速。</DeltaV_Weapon_RailgunAcceleratorLarge.description>
+  <DeltaV_Weapon_RailgunAcceleratorLarge.description>串联在大型轨道炮装弹机前方的加速段。本段每发需 800 W·d，可用储能不足时炮弹仍能通过但不获得加速。两侧各可安装一个储存三发本段能量的电容。</DeltaV_Weapon_RailgunAcceleratorLarge.description>
   <DeltaV_Building_AutoAimPluginI.label>自动瞄准插件 I</DeltaV_Building_AutoAimPluginI.label>
   <DeltaV_Building_AutoAimPluginI.description>覆盖建造在挂件槽中的火控计算机，等效射击技能 10。</DeltaV_Building_AutoAimPluginI.description>
   <DeltaV_Building_AutoAimPluginII.label>自动瞄准插件 II</DeltaV_Building_AutoAimPluginII.label>
