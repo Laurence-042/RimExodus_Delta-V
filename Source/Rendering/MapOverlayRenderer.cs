@@ -14,8 +14,8 @@ namespace DeltaV
     /// （2026-09-18 用户决策：不按对象类型分叉配置），纳入标准 = 结构外观：
     /// 地形走 TerrainAt 实际显示语义（原版回落链让基架顶替太空表面、地板盖住基架，
     /// Space/Void 因 dontRender 天然排除）、墙门、气密结构与自然岩石（推进器/船壳/
-    /// 岩石自动入壳）、ShellRenderRuleDef 显式规则。配置可选建筑本体或旋转炮身，
-    /// 并决定船壳内层级；连接状态贴图（含 CornerFiller 角盖）按当前 LinkGrid 取片。
+    /// 岩石自动入壳）、ShellRenderRuleDef 显式规则。建筑的静态层由原版 Print
+    /// 生成，实时层在限定作用域内采集原版 DrawMesh；连接图与 Comp 附加层共用此路径。
     /// </summary>
     public static class MapOverlayRenderer
     {
@@ -23,20 +23,40 @@ namespace DeltaV
         private const int TexturePeriod = 16;
         private const float UvScale = 0.0625f;
 
-        // CornerFiller 角盖板常量（照抄 Graphic_LinkedCornerFiller）：0.5×0.5 盖板
-        // 距格中心 (0.5,0.5).magnitude×0.5，UV 退化为 (0.5, 0.6) 单点取样。
-        private const float CornerCoverOffsetDist = 0.35355339f;
-
         private sealed class SectionSnapshot
         {
             public readonly List<IntVec3> terrainCells = new List<IntVec3>();
             public readonly List<Thing> things = new List<Thing>();
+            public readonly List<PrintBatch> printed = new List<PrintBatch>();
+
+            public void Dispose()
+            {
+                foreach (PrintBatch batch in printed) batch.layer.Dispose();
+            }
+        }
+
+        private sealed class PrintBatch
+        {
+            public ShellSurfaceLayer surface;
+            public float zIndex;
+            public bool shared;
+            public SectionLayer_ThingsGeneral layer;
+
+            public void Complete()
+            {
+                foreach (LayerSubMesh submesh in layer.subMeshes)
+                    if (submesh.verts.Count > 0) submesh.FinalizeMesh(MeshParts.All);
+            }
         }
 
         private sealed class MapCache
         {
             public readonly Dictionary<int, SectionSnapshot> sections = new Dictionary<int, SectionSnapshot>();
             public readonly HashSet<int> dirty = new HashSet<int>();
+            private Section printContext;
+
+            public Section PrintContext(Map map)
+                => printContext ??= new Section(IntVec3.Zero, map);
         }
 
         private static readonly Dictionary<Map, MapCache> Caches = new Dictionary<Map, MapCache>();
@@ -44,11 +64,10 @@ namespace DeltaV
         private static readonly Dictionary<TerrainDef, Material> TerrainMaterials = new Dictionary<TerrainDef, Material>();
         private static readonly Mesh[] CellMeshes = new Mesh[TexturePeriod * TexturePeriod];
         private static readonly FieldInfo DrawerMapField = AccessTools.Field(typeof(MapDrawer), "map");
-        private static Mesh cornerFillerMesh;
         private static int cachedRuleCount = -1;
 
-        /// <summary>最近一次 CollectShellCommands 收集的四边形数（诊断用：确认壳内容
-        /// 真实提交；收集入口清零、三个提交点自增，无字符串构造成本）。</summary>
+        /// <summary>最近一次 CollectShellCommands 收集的四边形数（诊断用；
+        /// 静态网格按三角形数估算，实时图形按绘制命令计数）。</summary>
         internal static int QuadsDrawnLastPass { get; private set; }
 
         /// <summary>缓冲绘制命令：mesh + 完整 TRS 矩阵 + 材质（props 仅火焰命令非空）；
@@ -59,6 +78,7 @@ namespace DeltaV
             public Matrix4x4 matrix;
             public Material material;
             public MaterialPropertyBlock props;
+            public int submeshIndex;
             public ShellSurfaceLayer surface;
             public int queue;
             public int sequence;
@@ -155,10 +175,8 @@ namespace DeltaV
                     buffer.ClearRenderTarget(true, false, Color.clear, 1f);
                     currentSurface = command.surface;
                 }
-                if (command.props == null)
-                    buffer.DrawMesh(command.mesh, command.matrix, command.material);
-                else
-                    buffer.DrawMesh(command.mesh, command.matrix, command.material, 0, -1, command.props);
+                buffer.DrawMesh(command.mesh, command.matrix, command.material,
+                    command.submeshIndex, -1, command.props);
             }
         }
 
@@ -175,8 +193,10 @@ namespace DeltaV
         {
             int key = sx | (sz << 16);
             MapCache cache = CacheFor(map);
-            if (!cache.sections.TryGetValue(key, out SectionSnapshot section) || cache.dirty.Remove(key))
+            bool dirty = cache.dirty.Remove(key);
+            if (!cache.sections.TryGetValue(key, out SectionSnapshot section) || dirty)
             {
+                section?.Dispose();
                 section = BuildSection(map, sx, sz);
                 cache.sections[key] = section;
             }
@@ -231,6 +251,18 @@ namespace DeltaV
                 QuadsDrawnLastPass++;
             }
 
+            foreach (PrintBatch batch in section.printed)
+            foreach (LayerSubMesh submesh in batch.layer.subMeshes)
+            {
+                if (!submesh.finalized || submesh.disabled) continue;
+                Matrix4x4 lift = Matrix4x4.Translate(new Vector3(0f,
+                    batch.zIndex * Altitudes.AltInc, 0f));
+                collector.Add(new OverlayCommand { mesh = submesh.mesh, matrix = matrix * lift,
+                    material = submesh.material, surface = batch.surface,
+                    queue = submesh.material.renderQueue, sequence = nextSequence++ });
+                QuadsDrawnLastPass += submesh.tris.Count / 6;
+            }
+
             for (int i = 0; i < section.things.Count; i++)
             {
                 Thing thing = section.things[i];
@@ -243,28 +275,36 @@ namespace DeltaV
                     CollectTurretTop(thing, config, matrix, rotation, collector);
                     continue;
                 }
-                Graphic graphic = config?.GraphicFor(thing) ?? thing.Graphic;
-                if (graphic == null) continue;
-                Rot4 rot = thing.Rotation;
-                Vector3 target = matrix.MultiplyPoint3x4(thing.DrawPos + graphic.DrawOffset(rot));
-                float zLift = (config?.zIndex ?? 0f) * Altitudes.AltInc;
-                target.y += zLift;
-                Material material = graphic is Graphic_Linked ? graphic.MatSingleFor(thing) : graphic.MatAt(rot, thing);
-                if (material == null) continue;
-                Quaternion quat = rotation * graphic.QuatFromRot(rot);
-                collector.Add(new OverlayCommand { mesh = graphic.MeshAt(rot), matrix = Matrix4x4.TRS(target, quat, Vector3.one), material = material, surface = config?.layer ?? ShellSurfaceLayer.Hull, queue = material.renderQueue, sequence = nextSequence++ });
-                QuadsDrawnLastPass++;
-                if (graphic is Graphic_LinkedCornerFiller cornerFiller)
-                    DrawCornerFillerCovers(thing, cornerFiller, material, zLift,
-                        config?.layer ?? ShellSurfaceLayer.Hull, matrix, rotation, collector);
+                if (config?.alternateGraphics != null || thing.def.drawerType == DrawerType.MapMeshOnly
+                    || thing.def.drawerType == DrawerType.None) continue;
+                try
+                {
+                    ShellDrawCapture.Capture(() => thing.DrawNowAt(thing.DrawPos), matrix,
+                        config?.layer ?? ShellSurfaceLayer.Hull, config?.zIndex ?? 0f);
+                }
+                catch (System.Exception ex)
+                {
+                    Log.ErrorOnce($"[DeltaV] Cannot capture shell draw for {thing}: {ex}",
+                        thing.thingIDNumber ^ 0x5A31D0);
+                }
             }
+        }
+
+        internal static void AddCapturedDraw(Mesh mesh, Matrix4x4 matrix, Material material,
+            int submeshIndex, MaterialPropertyBlock props, ShellSurfaceLayer surface)
+        {
+            Commands.Add(new OverlayCommand { mesh = mesh, matrix = matrix, material = material,
+                submeshIndex = submeshIndex, props = props, surface = surface,
+                queue = material.renderQueue, sequence = nextSequence++ });
+            QuadsDrawnLastPass++;
         }
 
         private static void CollectTurretTop(Thing thing, ShellRenderConfig config,
             Matrix4x4 matrix, Quaternion rotation, List<OverlayCommand> collector)
         {
             if (thing is not IShellTurretTopSource source || thing.def.building == null) return;
-            Material material = config.alternateGraphic?.GraphicColoredFor(thing).MatSingleFor(thing)
+            Material material = (config.alternateGraphics?.Count == 1
+                    ? config.alternateGraphics[0].GraphicColoredFor(thing).MatSingleFor(thing) : null)
                 ?? source.ShellTopMaterial;
             if (material == null) return;
             Vector2 offset = thing.def.building.turretTopOffset;
@@ -314,91 +354,6 @@ namespace DeltaV
             return rule != null;
         }
 
-        /// <summary>
-        /// 复刻 Graphic_LinkedCornerFiller.Print 的对角盖板（1.6 反编译 41-77 行）：
-        /// 斜向连接（对角相连且两个相邻正向也相连）时在对角处补 0.5×0.5 盖板，材质
-        /// 与主 quad 相同（连接态 atlas 变体），UV 退化为 (0.5, 0.6) 单点取样；地图
-        /// 边缘外的对角按原版把对应边放大 5 倍。原版 Print 是 SectionLayer 专属，船壳
-        /// 路径按同一判定用 Graphics.DrawMesh 逐块绘制；LinkGrid 变化经 MapMeshDirty
-        /// patch 已覆盖脏化。
-        /// </summary>
-        private static void DrawCornerFillerCovers(Thing thing, Graphic_LinkedCornerFiller graphic,
-            Material material, float zLift, ShellSurfaceLayer surface, Matrix4x4 matrix, Quaternion rotation,
-            List<OverlayCommand> collector)
-        {
-            IntVec3 position = thing.Position;
-            Map map = thing.Map;
-            Vector3 drawPos = thing.DrawPos;
-            Quaternion quat = rotation * graphic.QuatFromRot(thing.Rotation);
-            for (int i = 0; i < 4; i++)
-            {
-                IntVec3 c = position + GenAdj.DiagonalDirectionsAround[i];
-                if (!graphic.ShouldLinkWith(c, thing)
-                    || (i == 0 && (!graphic.ShouldLinkWith(position + IntVec3.West, thing) || !graphic.ShouldLinkWith(position + IntVec3.South, thing)))
-                    || (i == 1 && (!graphic.ShouldLinkWith(position + IntVec3.West, thing) || !graphic.ShouldLinkWith(position + IntVec3.North, thing)))
-                    || (i == 2 && (!graphic.ShouldLinkWith(position + IntVec3.East, thing) || !graphic.ShouldLinkWith(position + IntVec3.North, thing)))
-                    || (i == 3 && (!graphic.ShouldLinkWith(position + IntVec3.East, thing) || !graphic.ShouldLinkWith(position + IntVec3.South, thing))))
-                {
-                    continue;
-                }
-                Vector3 center = drawPos + GenAdj.DiagonalDirectionsAround[i].ToVector3().normalized * CornerCoverOffsetDist
-                    + new Vector3(0f, Altitudes.AltInc + zLift, 0.09f);
-                Vector2 size = new Vector2(0.5f, 0.5f);
-                if (!c.InBounds(map))
-                {
-                    if (c.x == -1)
-                    {
-                        center.x -= 1f;
-                        size.x *= 5f;
-                    }
-                    if (c.z == -1)
-                    {
-                        center.z -= 1f;
-                        size.y *= 5f;
-                    }
-                    if (c.x == map.Size.x)
-                    {
-                        center.x += 1f;
-                        size.x *= 5f;
-                    }
-                    if (c.z == map.Size.z)
-                    {
-                        center.z += 1f;
-                        size.y *= 5f;
-                    }
-                }
-                Matrix4x4 trs = Matrix4x4.TRS(center, quat, new Vector3(size.x * 2f, 1f, size.y * 2f));
-                collector.Add(new OverlayCommand { mesh = CornerFillerMesh(), matrix = matrix * trs, material = material, surface = surface, queue = material.renderQueue, sequence = nextSequence++ });
-                QuadsDrawnLastPass++;
-            }
-        }
-
-        /// <summary>角盖板专用 mesh：0.5×0.5，顶点序照 Printer_Plane.PrintPlane（底边 y=0、顶边 y=0.01），UV 全 (0.5, 0.6)。</summary>
-        private static Mesh CornerFillerMesh()
-        {
-            if (cornerFillerMesh != null) return cornerFillerMesh;
-            var mesh = new Mesh { name = "DeltaV_ShellCornerFillerCover" };
-            mesh.vertices = new[]
-            {
-                new Vector3(-0.25f, 0f, -0.25f),
-                new Vector3(-0.25f, 0.01f, 0.25f),
-                new Vector3(0.25f, 0.01f, 0.25f),
-                new Vector3(0.25f, 0f, -0.25f)
-            };
-            var uv = new Vector2[4]
-            {
-                new Vector2(0.5f, 0.6f),
-                new Vector2(0.5f, 0.6f),
-                new Vector2(0.5f, 0.6f),
-                new Vector2(0.5f, 0.6f)
-            };
-            mesh.uv = uv;
-            mesh.triangles = new[] { 0, 1, 2, 0, 2, 3 };
-            mesh.RecalculateNormals();
-            mesh.RecalculateBounds();
-            return cornerFillerMesh = mesh;
-        }
-
         private static SectionSnapshot BuildSection(Map map, int sx, int sz)
         {
             var result = new SectionSnapshot();
@@ -411,6 +366,50 @@ namespace DeltaV
                 for (int i = 0; i < things.Count; i++)
                     if (things[i].Position == cell && !result.things.Contains(things[i])) result.things.Add(things[i]);
             }
+            // Only the SectionLayer material/mesh collector is used; no source-map layer is redrawn.
+            Section sourceSection = CacheFor(map).PrintContext(map);
+            foreach (Thing thing in result.things)
+            {
+                if (!ShouldDrawThing(thing)) continue;
+                Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
+                ShellRenderConfig config = rule?.render;
+                if (config?.source == ShellGraphicSource.TurretTop) continue;
+                if (config?.alternateGraphics == null && (thing.def.drawerType == DrawerType.RealtimeOnly
+                    || thing.def.drawerType == DrawerType.None)) continue;
+                ShellSurfaceLayer surface = config?.layer ?? ShellSurfaceLayer.Hull;
+                float zIndex = config?.zIndex ?? 0f;
+                if (config?.alternateGraphics != null)
+                {
+                    foreach (GraphicData graphic in config.alternateGraphics)
+                    {
+                        var replacement = new PrintBatch { surface = surface, zIndex = zIndex,
+                            layer = new SectionLayer_ThingsGeneral(sourceSection) };
+                        result.printed.Add(replacement);
+                        try { graphic.GraphicColoredFor(thing).Print(replacement.layer, thing, 0f); }
+                        catch (System.Exception ex)
+                        {
+                            Log.ErrorOnce($"[DeltaV] Cannot print shell replacement for {thing}: {ex}",
+                                thing.thingIDNumber ^ 0x5A31D2);
+                        }
+                    }
+                    continue;
+                }
+                PrintBatch batch = result.printed.Find(candidate => candidate.surface == surface
+                    && candidate.zIndex == zIndex && candidate.shared);
+                if (batch == null)
+                {
+                    batch = new PrintBatch { surface = surface, zIndex = zIndex,
+                        shared = true, layer = new SectionLayer_ThingsGeneral(sourceSection) };
+                    result.printed.Add(batch);
+                }
+                try { thing.Print(batch.layer); }
+                catch (System.Exception ex)
+                {
+                    Log.ErrorOnce($"[DeltaV] Cannot print shell graphic for {thing}: {ex}",
+                        thing.thingIDNumber ^ 0x5A31D1);
+                }
+            }
+            foreach (PrintBatch batch in result.printed) batch.Complete();
             return result;
         }
 
@@ -445,20 +444,19 @@ namespace DeltaV
 
         public static void Release(Map map)
         {
-            if (map != null) Caches.Remove(map);
+            if (map == null || !Caches.TryGetValue(map, out MapCache cache)) return;
+            foreach (SectionSnapshot section in cache.sections.Values) section.Dispose();
+            Caches.Remove(map);
         }
 
         public static void ClearRuntimeCaches()
         {
+            foreach (MapCache cache in Caches.Values)
+                foreach (SectionSnapshot section in cache.sections.Values) section.Dispose();
             Caches.Clear();
             Rules.Clear();
             TerrainMaterials.Clear();
             cachedRuleCount = -1;
-            if (cornerFillerMesh != null)
-            {
-                Object.Destroy(cornerFillerMesh);
-                cornerFillerMesh = null;
-            }
             for (int i = 0; i < CellMeshes.Length; i++)
             {
                 if (CellMeshes[i] != null) Object.Destroy(CellMeshes[i]);
@@ -507,6 +505,12 @@ namespace DeltaV
         {
             List<ShellRenderRuleDef> defs = DefDatabase<ShellRenderRuleDef>.AllDefsListForReading;
             if (cachedRuleCount == defs.Count) return;
+            foreach (MapCache cache in Caches.Values)
+            {
+                foreach (SectionSnapshot section in cache.sections.Values) section.Dispose();
+                cache.sections.Clear();
+                cache.dirty.Clear();
+            }
             Rules.Clear();
             for (int i = 0; i < defs.Count; i++) if (defs[i].thingDef != null) Rules[defs[i].thingDef] = defs[i];
             cachedRuleCount = defs.Count;

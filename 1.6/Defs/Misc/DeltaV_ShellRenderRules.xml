@@ -5,16 +5,16 @@
     外壳 Thing 规则。实心结构自动包含；规则可纳入非实心建筑或排除内部部件。
     render 将贴图来源、表面层级、替代 GraphicData 与 zIndex 放在一起。
     Hull 是普通船壳，Exposed 在整片船壳上方；zIndex 单位为一个 AltInc。
-    TurretTop 来源的 alternateGraphic 只替换材质，尺寸仍取 turretTopDrawSize。
+    alternateGraphics 是按顺序绘制的整组替换图；未设置时复用建筑的原版多层绘制。
+    TurretTop 来源只允许一张替换图，尺寸仍取 turretTopDrawSize。
 
     示例：
     <render>
       <source>Thing</source><layer>Hull</layer>
-      <alternateGraphic>
-        <graphicClass>Graphic_Multi</graphicClass>
-        <texPath>MyMod/Things/MyAlternateShellSprite</texPath>
-        <drawSize>(2.2, 2.2)</drawSize>
-      </alternateGraphic>
+      <alternateGraphics>
+        <li><graphicClass>Graphic_Multi</graphicClass><texPath>MyMod/Things/Lower</texPath><drawSize>(2.2,2.2)</drawSize></li>
+        <li><graphicClass>Graphic_Single</graphicClass><texPath>MyMod/Things/Upper</texPath><drawSize>(2.2,2.2)</drawSize><drawOffset>(0,0.03,0)</drawOffset></li>
+      </alternateGraphics>
     </render>
   -->
   <DeltaV.ShellRenderRuleDef>
@@ -32,9 +32,9 @@
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_RapidMainMedium</defName><thingDef>DeltaV_Weapon_RapidMainMedium</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_LaserMainMedium</defName><thingDef>DeltaV_Weapon_LaserMainMedium</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
 
-  <!-- 船体内的固定武器不在船壳表面露出；碰撞分类仍由 SpaceStructureRules 决定。 -->
+  <!-- 装弹机在船内；加速段的内构与外壳按原版多层绘制进入船壳。 -->
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunLoader</defName><thingDef>DeltaV_Weapon_RailgunLoader</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunLoaderLarge</defName><thingDef>DeltaV_Weapon_RailgunLoaderLarge</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
-  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunAccelerator</defName><thingDef>DeltaV_Weapon_RailgunAccelerator</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
-  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunAcceleratorLarge</defName><thingDef>DeltaV_Weapon_RailgunAcceleratorLarge</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_RailgunAccelerator</defName><thingDef>DeltaV_Weapon_RailgunAccelerator</thingDef><render><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_RailgunAcceleratorLarge</defName><thingDef>DeltaV_Weapon_RailgunAcceleratorLarge</thingDef><render><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
 </Defs>

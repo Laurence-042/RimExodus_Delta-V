@@ -202,7 +202,7 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `Building_SpaceTurretGun` / `DefModExtension_SpaceTurretArt`：替换指定炮塔的旋转顶部材质，位置、角度和绘制继续走原版 `Building_TurretGun`/`TurretTop`；Def 固定为仅点防的 1×1 激光炮不触发原版同图索敌，以免发射原版机炮弹。
 - `CompMissileAutoloader` / `SpaceMissileMagazineGeometry` / `CompLoadedProjectileGraphic`：唯一 1×3 无人导弹架使用原版 `CompChangeableProjectile` 的一发待发状态和弹种筛选；前一格嵌墙、后两格在船内。1×2 气密导弹仓只可与船内两格同向并排，左右槽位由发射架 Def 声明，建造与运行时复用同一几何判定；同归属同派系才自动送入实体导弹。发射架保留三层整图，以 `Patch_MissileLauncherWallLink` 使原版墙在 `LinkGrid` 中与其相连。导弹物品通过 `DefModExtension_SpaceMissileAmmo` 指向宇宙弹体，三层绘制中层读取同一 `SelectMagazine()` 结果；不改共享 `GraphicData`。
 - `SpaceProjectileService` / `SpaceCollision` / `SpaceImpactEffects`：含冷发射程序的宇宙弹体、统一碰撞与联合命中效果链；炮口闪光、点火尾焰/烟迹和命中视觉只由弹体服务登记并在前台层绘制，不另建弹道。
-- `ShellRenderer` / `MapOverlayRenderer` / `ShellRenderRuleDef` / `DockingGhostRenderer` / `ShipSilhouette`：整壳分层、地图内容收集、Thing 外壳绘制配置、幽灵和剪影。炮塔旋转炮身由 `IShellTurretTopSource` 提供当前材质和角度，规则决定仅绘炮身并置于船壳上层；船内武器用规则排除，不修改碰撞分类。
+- `ShellRenderer` / `MapOverlayRenderer` / `ShellRenderRuleDef` / `DockingGhostRenderer` / `ShipSilhouette`：整壳分层、地图内容收集、Thing 外壳绘制配置、幽灵和剪影。入壳 Thing 的静态层走原版 `Thing.Print`，实时层经限定作用域捕获原版 `Graphics.DrawMesh`；替代图为有序整组替换。门在外壳上仅同步全开／全关终态。炮塔旋转炮身由 `IShellTurretTopSource` 提供当前材质和角度，规则决定仅绘炮身并置于船壳上层；轨道装弹机用规则排除，加速段内构与外壳入壳，不修改碰撞分类。
 - `ThrusterEffects` / `ThrusterAudio`：只读真实分配油门的表现。
 - `MoonPoolUtility` / `Patch_MoonPool` / `MoonPoolGraphics` / `SectionLayer_MoonPool`：月池判定、无顶密封和连接视觉。
 - `SpaceLifecycleService`：生成、休眠、物化、归档和销图。无快照 marker 首次物化的内容链 = 类型 prefab 池（seed 确定性选取，入队测尺寸与盖章同一解析），**容器先注册、结构后铺设**（驾驶台 `ClaimOnSpawn` 认领要求 FrameOf 已解析；归属名 = marker 生成时决定的完整名，经 envLabel/归档 carriedLabel 传承）。池空在生成期拦截；池失效在入队/物化期报错并取消该 POI（prefab-only，不回退程序生成）。

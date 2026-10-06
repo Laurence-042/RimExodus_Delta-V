@@ -18,16 +18,25 @@ namespace DeltaV
         {
             foreach (string error in base.ConfigErrors()) yield return error;
             if (thingDef == null) yield return $"{defName}: thingDef must be set";
-            if (render?.alternateGraphic != null && render.alternateGraphic.graphicClass == null)
+            if (render?.alternateGraphics != null)
             {
-                yield return $"{defName}: render.alternateGraphic requires graphicClass";
+                if (render.alternateGraphics.Count == 0)
+                    yield return $"{defName}: render.alternateGraphics cannot be empty";
+                foreach (GraphicData graphic in render.alternateGraphics)
+                    if (graphic == null || graphic.graphicClass == null)
+                        yield return $"{defName}: each render.alternateGraphics entry requires graphicClass";
             }
             if (render?.source == ShellGraphicSource.TurretTop && thingDef?.thingClass != null
                 && !typeof(IShellTurretTopSource).IsAssignableFrom(thingDef.thingClass))
                 yield return $"{defName}: TurretTop source requires IShellTurretTopSource";
-            if (render?.source == ShellGraphicSource.TurretTop && render.alternateGraphic?.graphicClass != null
-                && !typeof(Graphic_Single).IsAssignableFrom(render.alternateGraphic.graphicClass))
-                yield return $"{defName}: TurretTop alternateGraphic must use Graphic_Single";
+            if (render?.source == ShellGraphicSource.TurretTop && render.alternateGraphics != null)
+            {
+                if (render.alternateGraphics.Count != 1)
+                    yield return $"{defName}: TurretTop requires exactly one alternate graphic";
+                else if (render.alternateGraphics[0]?.graphicClass != null
+                    && !typeof(Graphic_Single).IsAssignableFrom(render.alternateGraphics[0].graphicClass))
+                    yield return $"{defName}: TurretTop alternate graphic must use Graphic_Single";
+            }
         }
     }
 
@@ -48,10 +57,8 @@ namespace DeltaV
     {
         public ShellGraphicSource source;
         public ShellSurfaceLayer layer;
-        public GraphicData alternateGraphic;
+        public List<GraphicData> alternateGraphics;
         public float zIndex;
-
-        public Graphic GraphicFor(Thing thing) => alternateGraphic?.GraphicColoredFor(thing) ?? thing.Graphic;
     }
 
     /// <summary>把原版旋转炮身状态提供给船壳；其他炮塔可按需实现此接口。</summary>

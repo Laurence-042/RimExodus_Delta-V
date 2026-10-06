@@ -37,6 +37,7 @@ namespace DeltaV
             {
                 HarmonyInstance = new Harmony("RimExodus.DeltaV");
                 HarmonyInstance.PatchAll(typeof(DeltaVMod).Assembly);
+                ShellDrawCapture.Install(HarmonyInstance);
                 int patched = HarmonyInstance.GetPatchedMethods().Count();
                 if (patched == 0)
                 {
