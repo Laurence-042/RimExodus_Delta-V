@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-  <DeltaV_Weapon_PDTurret.label>点防御机炮</DeltaV_Weapon_PDTurret.label>
-  <DeltaV_Weapon_PDTurret.description>近距离拦截来袭弹体和小型目标的机炮，也可加入齐射。需要炮手，弹药由钢材装填。</DeltaV_Weapon_PDTurret.description>
+  <DeltaV_Weapon_PDTurret.label>点防御激光炮</DeltaV_Weapon_PDTurret.label>
+  <DeltaV_Weapon_PDTurret.description>内置自瞄的单格激光点防御，只自动拦截来袭导弹及其他可拦截目标。无需炮手和弹药；保持通电，每发消耗 1 W·d 蓄电。不支持插件或手动齐射。</DeltaV_Weapon_PDTurret.description>
   <DeltaV_Weapon_CannonTurret.label>小型重炮</DeltaV_Weapon_CannonTurret.label>
   <DeltaV_Weapon_CannonTurret.description>小型旋转重炮，单发威力高，适合打击装甲目标。需要炮手，可安装一个火控或弹仓插件。</DeltaV_Weapon_CannonTurret.description>
   <DeltaV_Weapon_RapidMainSmall.label>小型速射炮</DeltaV_Weapon_RapidMainSmall.label>

@@ -45,7 +45,7 @@ namespace DeltaV
 
         public static ThingDef DeltaV_Projectile_Missile;
 
-        public static ThingDef DeltaV_Projectile_PDBullet;
+        public static ThingDef DeltaV_Projectile_PDLaser;
 
         // 逆重飞船大型推进器（Odyssey，2×2 方形脚印、rotatable、需 Substructure）。
         // 注意：Ship_Engine 是星际飞船（结局飞船）引擎，与逆重飞船无关，勿混用。

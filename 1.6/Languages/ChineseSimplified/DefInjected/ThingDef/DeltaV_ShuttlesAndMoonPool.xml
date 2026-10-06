@@ -7,6 +7,6 @@
   <DeltaV_Projectile_Cannon.label>炮弹</DeltaV_Projectile_Cannon.label>
   <DeltaV_Projectile_Laser.label>激光</DeltaV_Projectile_Laser.label>
   <DeltaV_Projectile_Missile.label>导弹</DeltaV_Projectile_Missile.label>
-  <DeltaV_Projectile_PDBullet.label>拦截弹</DeltaV_Projectile_PDBullet.label>
+  <DeltaV_Projectile_PDLaser.label>点防激光</DeltaV_Projectile_PDLaser.label>
   <DeltaV_Projectile_RailgunSlug.label>轨道炮弹丸</DeltaV_Projectile_RailgunSlug.label>
 </LanguageData>

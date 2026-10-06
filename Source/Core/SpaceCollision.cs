@@ -45,7 +45,7 @@ namespace DeltaV
             public SpaceObject excludeContainer;
             /// <summary>
             /// 非敌对弹体互相穿过。用于并列发射架齐射：冷发射后的转弯轨迹可以交叉，
-            /// 但敌方点防弹与来袭弹仍按派系敌意正常碰撞。
+            /// 但敌方点防射束与来袭弹仍按派系敌意正常碰撞。
             /// </summary>
             public bool ignoreNonHostileProjectiles;
             public Vector3 from;

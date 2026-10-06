@@ -95,6 +95,7 @@ namespace DeltaV
             public Vector3 from;
             public Vector3 to;
             public int bornTick;
+            public float width;
         }
 
         private sealed class TrailPuff
@@ -488,7 +489,8 @@ namespace DeltaV
             {
                 if (!p.laser) continue;
                 Vector3 end = p.body.resolvedHit ? p.body.resolvedHitUniverse : p.laserTo;
-                beams.Add(new Beam { from = p.laserFrom, to = end, bornTick = Find.TickManager.TicksGame });
+                beams.Add(new Beam { from = p.laserFrom, to = end,
+                    bornTick = Find.TickManager.TicksGame, width = p.props.laserBeamWidth });
                 if (!p.dead) DestroyProjectile(p, "laser spent");
             }
         }
@@ -881,7 +883,8 @@ namespace DeltaV
                     int age = Find.TickManager.TicksGame - beam.bornTick;
                     Material material = beamMaterials[Mathf.Clamp(age * beamMaterials.Length
                         / BeamLifetimeTicks, 0, beamMaterials.Length - 1)];
-                    Matrix4x4 matrix = Matrix4x4.TRS(mid, rot, new Vector3(length, 1f, 0.3f));
+                    Matrix4x4 matrix = Matrix4x4.TRS(mid, rot,
+                        new Vector3(length, 1f, beam.width));
                     MapOverlayRenderer.CollectSingleQuad(MeshPool.plane10, matrix, material);
                     ShellLayer.Slot s = layer.At(slot++);
                     s.layer.Emit(s);

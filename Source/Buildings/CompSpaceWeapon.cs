@@ -43,6 +43,9 @@ namespace DeltaV
         /// <summary>默认瞄准模式（齐射/PD；玩家可经 gizmo 切换，当前值随 comp 存档）。</summary>
         public SpaceWeaponAimMode aimMode = SpaceWeaponAimMode.Volley;
 
+        /// <summary>固定为自动点防御，不提供齐射模式。</summary>
+        public bool pointDefenseOnly;
+
         public SpaceWeaponSalvoSet defaultSalvoSet = SpaceWeaponSalvoSet.Main;
         public int defaultGroupNumber = 1;
 
@@ -431,8 +434,8 @@ namespace DeltaV
                 }
             };
 
-            // 瞄准模式：齐射 ⇄ 点防御。
-            yield return new Command_Toggle
+            // 专用点防武器的模式由 Def 固定；其他武器仍可切换。
+            if (!WeaponProps.pointDefenseOnly) yield return new Command_Toggle
             {
                 defaultLabel = "DeltaV_WeaponPdgizmo".Translate(),
                 defaultDesc = "DeltaV_WeaponPdgizmoTip".Translate(),

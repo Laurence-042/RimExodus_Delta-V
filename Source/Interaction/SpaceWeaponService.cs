@@ -179,9 +179,15 @@ namespace DeltaV
                     }
                     SpaceObject target = weapon.pdTarget;
                     if (target == null) continue;
-                    // 截击提前量 = 与预瞄同一纯函数；解不出（追不上）本 tick 不射。
-                    if (!TrySolveIntercept(weapon, weapon.Container, target,
-                        ProjectileSpeedOf(weapon), out Vector3 interceptPoint))
+                    // 即时束瞄当前位置；有飞行时间的弹体继续走统一提前量解算。
+                    ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef
+                        ?? weapon.WeaponProps.projectileDef;
+                    var projectileProps = projectile?.GetCompProperties<CompProperties_SpaceProjectile>();
+                    Vector3 interceptPoint;
+                    if (projectileProps != null && projectileProps.laserRange > 0f)
+                        interceptPoint = target.pose.position;
+                    else if (!TrySolveIntercept(weapon, weapon.Container, target,
+                        ProjectileSpeedOf(weapon), out interceptPoint))
                     {
                         continue;
                     }
@@ -193,8 +199,10 @@ namespace DeltaV
         private static bool PdTargetValid(CompSpaceWeapon weapon)
         {
             SpaceObject target = weapon.pdTarget;
-            return target != null && target.map != null && !target.map.Disposed
-                && target.InterceptionEligible;
+            if (target == null || target.map == null || target.map.Disposed
+                || !target.InterceptionEligible || !HostileTo(target, weapon.parent.Faction)) return false;
+            return OrbitSphere.Offset(weapon.MuzzleUniverse, target.pose.position).magnitude
+                - SpaceCollision.BoundsRadiusOf(target) <= weapon.WeaponProps.range;
         }
 
         /// <summary>
@@ -207,6 +215,7 @@ namespace DeltaV
             if (own == null) return null;
             Faction faction = weapon.parent.Faction;
             float range = weapon.WeaponProps.range;
+            Vector3 muzzle = weapon.MuzzleUniverse;
             SpaceObject best = null;
             float bestScore = float.MaxValue;
             foreach (SpaceObject obj in universe.objects)
@@ -214,7 +223,8 @@ namespace DeltaV
                 if (obj == own || !obj.InterceptionEligible) continue;
                 if (!HostileTo(obj, faction)) continue;
                 Vector2 offset = OrbitSphere.Offset(own.pose.position, obj.pose.position);
-                float distance = offset.magnitude - SpaceCollision.BoundsRadiusOf(obj);
+                float distance = OrbitSphere.Offset(muzzle, obj.pose.position).magnitude
+                    - SpaceCollision.BoundsRadiusOf(obj);
                 if (distance > range) continue;
                 // 来袭判定：目标相对速度朝己方逼近 → 预计命中时间（秒）作优先分；
                 // 非来袭（掠过/远离）兜底排在所有来袭之后、按距离。

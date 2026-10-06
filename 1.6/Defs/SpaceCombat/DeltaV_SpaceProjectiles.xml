@@ -182,18 +182,16 @@
 	</ThingDef>
 
 
-	<!-- PD 弹：无图高速小弹（命中走统一联合效果链；效果条目见 DeltaV_SpaceImpactEffects）。
-	     纯攻击方不持有地图：PD 开火频率最高，每发借图既 churn 图池又会被敌方 PD
-	     按「有图 ∧ projectile tag」合法锁定为目标浪费其火力。 -->
+	<!-- 点防激光：复用即时扫掠和光束材质，以独立 Def 控制伤害和线宽。 -->
 	<ThingDef ParentName="BuildingBase">
-		<defName>DeltaV_Projectile_PDBullet</defName>
-		<label>PD bullet</label>
-		<description>Test projectile: fast small interceptor bullet.</description>
+		<defName>DeltaV_Projectile_PDLaser</defName>
+		<label>point-defense laser</label>
+		<description>An instant narrow laser beam used by the point-defense turret.</description>
 		<thingClass>Verse.Building</thingClass>
 		<category>Building</category>
 		<rotatable>false</rotatable>
 		<passability>Impassable</passability>
-		<fillPercent>0.2</fillPercent>
+		<fillPercent>0.1</fillPercent>
 		<size>(1,1)</size>
 		<designationCategory Inherit="False" />
 		<researchPrerequisites Inherit="False" />
@@ -204,9 +202,9 @@
 			<Flammability>0</Flammability>
 		</statBases>
 		<graphicData>
-			<texPath>Things/Projectile/Bullet_Big</texPath>
+			<texPath>Things/Projectile/Bullet_Small</texPath>
 			<graphicClass>Graphic_Single</graphicClass>
-			<drawSize>(1.1,1.1)</drawSize>
+			<drawSize>(1.2,1.2)</drawSize>
 			<shaderType>Cutout</shaderType>
 			<damageData>
 				<enabled>false</enabled>
@@ -214,9 +212,9 @@
 		</graphicData>
 		<comps>
 			<li Class="DeltaV.CompProperties_SpaceProjectile">
-				<speed>90</speed>
-				<timeoutTicks>300</timeoutTicks>
 				<hasMap>false</hasMap>
+				<laserRange>50</laserRange>
+				<laserBeamWidth>0.12</laserBeamWidth>
 			</li>
 		</comps>
 	</ThingDef>

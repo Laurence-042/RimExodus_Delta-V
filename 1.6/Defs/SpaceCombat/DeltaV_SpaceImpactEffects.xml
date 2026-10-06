@@ -220,21 +220,20 @@
 		</attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
-	<!-- PD 弹 × 任意目标：高速小弹，直伤击毁弹体/shuttle 舱体（与打导弹同一链，§4.2）。 -->
+	<!-- 点防激光 × 任意实体：三次命中可击毁当前 25 HP 高爆导弹。 -->
 	<DeltaV.SpaceImpactEffectDef>
-		<defName>DeltaV_Impact_PdVsStructure</defName>
+		<defName>DeltaV_Impact_PdLaserVsStructure</defName>
 		<projectileDefs>
-			<li>DeltaV_Projectile_PDBullet</li>
+			<li>DeltaV_Projectile_PDLaser</li>
 		</projectileDefs>
 		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bullet</damageDef>
-			<damage>35</damage>
-			<referenceSpeed>90</referenceSpeed>
-			<speedExponent>0.5</speedExponent>
-			<incidenceMinFactor>0.6</incidenceMinFactor>
-			<armorPenetration>20</armorPenetration>
+			<damage>10</damage>
+			<speedExponent>0</speedExponent>
+			<incidenceMinFactor>1</incidenceMinFactor>
+			<armorPenetration>4</armorPenetration>
 			<explosionRadius>0</explosionRadius>
 		</defenderEffect>
 		<attackerEffect>
@@ -242,18 +241,19 @@
 		</attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
-	<!-- PD 弹 × 基架：直伤（穿过守方甲板格的概率放行不适用——命中即结算）。 -->
+	<!-- 点防激光 × 基架：局部熔蚀。 -->
 	<DeltaV.SpaceImpactEffectDef>
-		<defName>DeltaV_Impact_PdVsSubstructure</defName>
+		<defName>DeltaV_Impact_PdLaserVsSubstructure</defName>
 		<projectileDefs>
-			<li>DeltaV_Projectile_PDBullet</li>
+			<li>DeltaV_Projectile_PDLaser</li>
 		</projectileDefs>
 		<targetsSubstructure>true</targetsSubstructure>
 		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bullet</damageDef>
-			<damage>12</damage>
+			<damage>8</damage>
+			<speedExponent>0</speedExponent>
 			<explosionRadius>0</explosionRadius>
 		</defenderEffect>
 		<attackerEffect>
@@ -330,7 +330,6 @@
 			<li>DeltaV_Projectile_Rapid</li>
 			<li>DeltaV_Projectile_RailgunSlug</li>
 			<li>DeltaV_Projectile_Missile</li>
-			<li>DeltaV_Projectile_PDBullet</li>
 		</projectileDefs>
 		<targetThingDefs>
 			<li>GravshipShieldGenerator</li>
@@ -354,6 +353,7 @@
 		<projectileDefs>
 			<li>DeltaV_Projectile_Laser</li>
 			<li>DeltaV_Projectile_LaserHeavy</li>
+			<li>DeltaV_Projectile_PDLaser</li>
 		</projectileDefs>
 		<targetThingDefs>
 			<li>GravshipShieldGenerator</li>

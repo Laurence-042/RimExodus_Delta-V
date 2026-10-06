@@ -36,6 +36,9 @@ namespace DeltaV
         /// <summary>激光（>0 = 最大射程，即时链：发射 tick 内一次全射程扫掠，无图不可拦截）。</summary>
         public float laserRange = 0f;
 
+        /// <summary>即时激光在前台层的线宽（地图格）。</summary>
+        public float laserBeamWidth = 0.3f;
+
         /// <summary>飞行表现：点火后留下烟迹并在尾部绘制推进焰；不参与弹道。</summary>
         public bool exhaustTrail;
         public float exhaustSize = 1f;
