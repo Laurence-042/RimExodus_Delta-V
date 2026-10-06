@@ -53,6 +53,9 @@ namespace DeltaV
             public Building shuttleBody;
             /// <summary>满推追踪（侵入式对接，§7.5）：无刹车包络、全程全速追目标当前位姿（与导弹同律）。</summary>
             public bool pursue;
+            public bool combatOrbit;
+            public float orbitRadius;
+            public float orbitPhase;
             // 固定航点模式：direction/angle；随动模式：host ⊕ hostOffset（+ 相对转角）。
             public bool tracked;
             public Vector3 direction;
@@ -214,6 +217,30 @@ namespace DeltaV
             };
             flight.profile = profile;
             flight.guidance.Reset(flight.profile);
+            active[ship.ownerId] = flight;
+        }
+
+        /// <summary>动态环绕任务：只调整同一任务的半径，不反复重建 MPC；始终使用真实推力。</summary>
+        public void TrackOrbit(Ship ship, SpaceObject host, float radius)
+        {
+            if (!ship.IsValid || host == null) return;
+            radius = Mathf.Max(radius, SpaceCollision.BoundsRadiusOf(host) + 8f);
+            if (active.TryGetValue(ship.ownerId, out Flight existing)
+                && existing.combatOrbit && existing.host == host)
+            {
+                existing.orbitRadius = radius;
+                return;
+            }
+            SpaceObject own = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(ship.map);
+            if (own == null) return;
+            Vector2 local = SpaceTransform.UniverseToShipLocal(host, own.pose.position);
+            var flight = new Flight
+            {
+                ownerId = ship.ownerId, tracked = true, host = host, combatOrbit = true,
+                orbitRadius = radius, orbitPhase = Mathf.Atan2(local.y, local.x),
+                allowVoidThrust = false, playerInitiated = false, profile = profile
+            };
+            flight.guidance.Reset(profile);
             active[ship.ownerId] = flight;
         }
 
@@ -458,10 +485,26 @@ namespace DeltaV
             float hostOmega = 0f;
             if (flight.tracked)
             {
+                if (flight.combatOrbit)
+                {
+                    const float orbitAngularRate = 0.03f;
+                    flight.orbitPhase = SpaceTransform.WrapAngle(flight.orbitPhase
+                        + orbitAngularRate * dt);
+                    flight.hostOffset = new Vector2(Mathf.Cos(flight.orbitPhase),
+                        Mathf.Sin(flight.orbitPhase)) * flight.orbitRadius;
+                }
                 targetDirection = SpaceTransform.FocusedToUniverse(flight.host, flight.hostOffset);
-                targetAngle = SpaceTransform.WrapAngle(flight.host.pose.angle + flight.relativeAngle);
-                hostVelocity = SpaceTransform.VelocityAtLocalPoint(
-                    flight.host.pose, flight.hostOffset, targetDirection);
+                targetAngle = flight.combatOrbit
+                    ? SpaceTransform.WrapAngle(Mathf.Atan2(
+                        OrbitSphere.Offset(targetDirection, flight.host.pose.position).y,
+                        OrbitSphere.Offset(targetDirection, flight.host.pose.position).x)
+                        - PilotTarget.Of(ship).FrameAngle)
+                    : SpaceTransform.WrapAngle(flight.host.pose.angle + flight.relativeAngle);
+                Vector2 orbitVelocity = flight.combatOrbit
+                    ? new Vector2(-flight.hostOffset.y, flight.hostOffset.x) * 0.03f
+                    : Vector2.zero;
+                hostVelocity = SpaceTransform.VelocityAtMovingLocalPoint(
+                    flight.host.pose, flight.hostOffset, orbitVelocity, targetDirection);
                 hostOmega = flight.host.pose.angularVelocity;
             }
             else

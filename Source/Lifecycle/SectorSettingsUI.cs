@@ -32,6 +32,7 @@ namespace DeltaV
         public static void Draw(Rect rect, DeltaVSettings settings)
         {
             settings.EnsureSectorRulesSeeded();
+            settings.prefabDoctrines ??= new List<PrefabDoctrineRule>();
             if (scannedFiles == null) ScanPrefabFiles();
 
             // 说明 + 全局「重新扫描」画在滚动区外（固定头部，不参与高度计算）。
@@ -92,6 +93,16 @@ namespace DeltaV
             leafHeight += rule.segments.Count * RowHeight;                      // 各段
             leafHeight += RowHeight;                                            // 池标题（计数）
             leafHeight += (scannedFiles?.Count ?? 0) * FileRowHeight;           // 池文件勾选行
+            if (scannedFiles != null)
+            {
+                foreach (string file in scannedFiles)
+                {
+                    if (!rule.prefabPaths.Contains(file)) continue;
+                    PrefabDoctrineRule doctrine = settings.prefabDoctrines
+                        ?.FirstOrDefault(r => r.prefabPath == file);
+                    leafHeight += RowHeight * (2 + (doctrine?.priorities?.Count ?? 3));
+                }
+            }
             return leafHeight;
         }
 
@@ -195,9 +206,70 @@ namespace DeltaV
                         if (toggled) rule.prefabPaths.Add(file);
                         else rule.prefabPaths.Remove(file);
                     }
+                    if (toggled) DrawDoctrineEditor(list, settings, file, indent + IndentPerDepth);
                 }
             }
         }
+
+        private static void DrawDoctrineEditor(Listing_Standard list, DeltaVSettings settings,
+            string file, float indent)
+        {
+            PrefabDoctrineRule entry = settings.prefabDoctrines
+                .FirstOrDefault(r => r.prefabPath == file);
+            List<NpcDoctrine> priorities = entry?.priorities ?? NpcDoctrineDefaults.Create();
+            Rect header = Indented(list.GetRect(RowHeight), indent);
+            Widgets.Label(header, "DeltaV_SettingsNpcDoctrine".Translate());
+            for (int i = 0; i < priorities.Count; i++)
+            {
+                int index = i;
+                Rect row = Indented(list.GetRect(RowHeight), indent);
+                Widgets.Label(new Rect(row.x, row.y, row.width - 126f, row.height),
+                    (i + 1) + ". " + DoctrineLabel(priorities[i]));
+                if (i > 0 && Widgets.ButtonText(new Rect(row.xMax - 126f, row.y, 38f, row.height), "↑"))
+                {
+                    entry = EnsureDoctrineEntry(settings, file);
+                    (entry.priorities[index - 1], entry.priorities[index]) =
+                        (entry.priorities[index], entry.priorities[index - 1]);
+                }
+                if (i < priorities.Count - 1 && Widgets.ButtonText(new Rect(row.xMax - 84f, row.y, 38f, row.height), "↓"))
+                {
+                    entry = EnsureDoctrineEntry(settings, file);
+                    (entry.priorities[index + 1], entry.priorities[index]) =
+                        (entry.priorities[index], entry.priorities[index + 1]);
+                }
+                if (Widgets.ButtonText(new Rect(row.xMax - 42f, row.y, 38f, row.height), "×"))
+                {
+                    entry = EnsureDoctrineEntry(settings, file);
+                    entry.priorities.RemoveAt(index);
+                    break;
+                }
+            }
+            Rect add = Indented(list.GetRect(RowHeight), indent);
+            if (Widgets.ButtonText(add, "DeltaV_SettingsNpcDoctrineAdd".Translate()))
+            {
+                var choices = new List<FloatMenuOption>();
+                foreach (NpcDoctrine doctrine in System.Enum.GetValues(typeof(NpcDoctrine)))
+                {
+                    if (priorities.Contains(doctrine)) continue;
+                    NpcDoctrine selected = doctrine;
+                    choices.Add(new FloatMenuOption(DoctrineLabel(selected), () =>
+                        EnsureDoctrineEntry(settings, file).priorities.Add(selected)));
+                }
+                if (choices.Count > 0) Find.WindowStack.Add(new FloatMenu(choices));
+            }
+        }
+
+        private static PrefabDoctrineRule EnsureDoctrineEntry(DeltaVSettings settings, string file)
+        {
+            PrefabDoctrineRule entry = settings.prefabDoctrines.FirstOrDefault(r => r.prefabPath == file);
+            if (entry != null) return entry;
+            entry = new PrefabDoctrineRule { prefabPath = file, priorities = NpcDoctrineDefaults.Create() };
+            settings.prefabDoctrines.Add(entry);
+            return entry;
+        }
+
+        private static string DoctrineLabel(NpcDoctrine doctrine) =>
+            ("DeltaV_NpcDoctrine_" + doctrine).Translate();
 
         /// <summary>带左标签 + 右数值输入 + 整行 tooltip 的行；缓冲按 key 存取并写回。</summary>
         private static void NumericRow(Listing_Standard list, float indent, string bufferKey, string label,

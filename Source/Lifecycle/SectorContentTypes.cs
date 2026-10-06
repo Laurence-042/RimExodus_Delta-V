@@ -73,7 +73,7 @@ namespace DeltaV
                 new SectorContentType("WeaponPlatform", "DeltaV_SectorTypeWeaponPlatform"),
                 new SectorContentType("TradeStation", "DeltaV_SectorTypeTradeStation"),
                 new SectorContentType("Shipyard", "DeltaV_SectorTypeShipyard"),
-                new SectorContentType("HostileStation", "DeltaV_SectorTypeHostileStation"),
+                new SectorContentType("FactoryStation", "DeltaV_SectorTypeFactoryStation"),
                 new SectorContentType("Asteroid", "DeltaV_SectorTypeAsteroid")),
         };
 

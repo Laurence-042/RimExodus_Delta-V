@@ -369,12 +369,12 @@ namespace DeltaV
             um.Lifecycle.ForceDormantContainer(NearestMaterializedContainer());
         }
 
-        [DebugAction("Delta-V", "POI: force pack (delete) nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        [DebugAction("Delta-V", "POI: full archive nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void PoiForcePack()
         {
-            // 归档 = 容器收快照替换为 marker（2026-09-25 对象模型；PoiState 归档已退役）。
+            // 只绕过距离门禁；聚焦图、玩家图和原生 MapParent 仍受保护。
             SpaceObject container = NearestMaterializedContainer();
-            if (container?.map != null) Um().Lifecycle.ArchiveContainer(container, container.map);
+            if (container?.map != null) Um().Lifecycle.ArchiveContainer(container, container.map, force: true);
         }
 
         [DebugAction("Delta-V", "Player ship: teleport +1500 east (cross lifecycle ranges)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]

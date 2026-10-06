@@ -761,6 +761,18 @@ namespace DeltaV
             return cached.report;
         }
 
+        public static float AvailableThrust(Map map)
+        {
+            MassReport report = GetReport(map);
+            if (report == null) return 0f;
+            float total = 0f;
+            foreach (Thruster thruster in report.thrusters)
+                if ((thruster.thing == null && thruster.operational)
+                    || (thruster.thing != null && ThrusterPower.IsOperational(thruster.thing)))
+                    total += thruster.thrust;
+            return total;
+        }
+
         private static bool MassModelChanged(MassReport oldReport, MassReport newReport)
         {
             return Mathf.Abs(oldReport.mass - newReport.mass) > 0.01f
@@ -791,6 +803,13 @@ namespace DeltaV
         public static void ClearCache()
         {
             Cache.Clear();
+        }
+
+        public static void Forget(Map map)
+        {
+            if (map == null) return;
+            Cache.Remove(map);
+            VirtualThrustersByMap.Remove(map);
         }
 
         /// <summary>

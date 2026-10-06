@@ -47,7 +47,6 @@ namespace DeltaV
         /// prefab 池。带快照的 marker（归档/遗留残骸）永远走快照恢复，不消费池；
         /// 旧档无键时按 Derelict 回填。
         /// </summary>
-        public string contentTypeId;
 
         /// <summary>删除段收起的结构级快照（地形/屋顶/建筑/物品；不保 pawn 与 comp 内部状态）。</summary>
         public PoiSnapshot snapshot;
@@ -99,7 +98,6 @@ namespace DeltaV
             Scribe_Values.Look(ref kind, "kind", PoiKind.SnapshotPocket);
             Scribe_References.Look(ref nativeParent, "nativeParent");
             Scribe_Values.Look(ref seed, "seed", 0);
-            Scribe_Values.Look(ref contentTypeId, "contentType", SectorContentTypes.DerelictId);
             Scribe_Deep.Look(ref snapshot, "snapshot");
             Scribe_Values.Look(ref envLabel, "label", null);
         }

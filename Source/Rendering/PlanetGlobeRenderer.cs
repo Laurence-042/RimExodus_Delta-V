@@ -282,12 +282,16 @@ namespace DeltaV
             {
                 foreach (SpaceObject obj in universe.objects)
                 {
-                    if (obj is PoiState poi && poi.kind == PoiKind.SnapshotPocket && poi.map == null
-                        && Vector3.Dot(obj.pose.position, shipDir) > 0f)
+                    bool marker = obj is PoiState poi && poi.kind == PoiKind.SnapshotPocket
+                        && poi.map == null;
+                    bool archived = !obj.archivedMapData.NullOrEmpty() && obj.map == null;
+                    if ((marker || archived) && Vector3.Dot(obj.pose.position, shipDir) > 0f)
                     {
                         Vector2 pos = Project(obj.pose.position);
                         if (!rect.ExpandedBy(8f).Contains(pos)) continue;
-                        DrawDiamond(pos, 6f, new Color(1f, 0.85f, 0.55f, 0.95f));
+                        DrawDiamond(pos, 6f, archived
+                            ? new Color(0.65f, 0.82f, 1f, 0.95f)
+                            : new Color(1f, 0.85f, 0.55f, 0.95f));
                         RegisterClickable(new Rect(pos.x - 9f, pos.y - 9f, 18f, 18f), universe, obj, referenceDir);
                     }
                 }
@@ -751,7 +755,8 @@ namespace DeltaV
         {
             float silhouetteExtent = SilhouetteExtentOf(universe, obj, silhouetteLayer, pixelsPerCell, right, up);
             if (silhouetteExtent > 0f) return silhouetteExtent;
-            if (obj is PoiState poi && poi.kind == PoiKind.SnapshotPocket) return 6f;
+            if (obj is PoiState poi && poi.kind == PoiKind.SnapshotPocket
+                || !obj.archivedMapData.NullOrEmpty()) return 6f;
             return ReferenceEquals(obj, reference)
                 ? Mathf.Lerp(9f, 14f, Zoom01)
                 : Mathf.Lerp(6.5f, 10f, Zoom01);

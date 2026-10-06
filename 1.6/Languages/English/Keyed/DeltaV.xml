@@ -200,7 +200,14 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SectorTypeWeaponPlatform>Weapon platform</DeltaV_SectorTypeWeaponPlatform>
   <DeltaV_SectorTypeTradeStation>Trade station</DeltaV_SectorTypeTradeStation>
   <DeltaV_SectorTypeShipyard>Shipyard</DeltaV_SectorTypeShipyard>
-  <DeltaV_SectorTypeHostileStation>Hostile station</DeltaV_SectorTypeHostileStation>
+  <DeltaV_SectorTypeFactoryStation>Factory station</DeltaV_SectorTypeFactoryStation>
+  <DeltaV_SettingsNpcDoctrine>NPC combat doctrine priority</DeltaV_SettingsNpcDoctrine>
+  <DeltaV_SettingsNpcDoctrineAdd>Add doctrine</DeltaV_SettingsNpcDoctrineAdd>
+  <DeltaV_NpcDoctrine_Standoff>Standoff</DeltaV_NpcDoctrine_Standoff>
+  <DeltaV_NpcDoctrine_Brawler>Brawler</DeltaV_NpcDoctrine_Brawler>
+  <DeltaV_NpcDoctrine_MissileBoat>Missile boat</DeltaV_NpcDoctrine_MissileBoat>
+  <DeltaV_NpcDoctrine_Boarder>Boarder</DeltaV_NpcDoctrine_Boarder>
+  <DeltaV_NpcDoctrine_Retreat>Retreat</DeltaV_NpcDoctrine_Retreat>
   <DeltaV_SectorTypeAsteroid>Asteroid</DeltaV_SectorTypeAsteroid>
 <DeltaV_ReassignProtectedMainConsole>Main console foundations cannot be reassigned ({0} cell(s) skipped). Set the console to backup or deconstruct it first.</DeltaV_ReassignProtectedMainConsole>
 

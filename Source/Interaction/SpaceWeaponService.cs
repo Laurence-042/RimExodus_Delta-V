@@ -190,6 +190,89 @@ namespace DeltaV
             }
         }
 
+        /// <summary>NPC 齐射入口；发射仍完全交给 SpaceWeaponShot 的事务与门禁。</summary>
+        public void TickNpcVolley(Ship ship, SpaceObject target, bool suppressSystems)
+        {
+            if (!ship.IsValid || target?.map == null || target.map.Disposed) return;
+            if (Find.TickManager.TicksGame % 60 == ship.ownerId % 60)
+                DispatchGunners(ship.map, ShipRegistry.FactionOf(ship), ship.ownerId);
+            Vector3 aim = target.pose.position;
+            if (suppressSystems)
+            {
+                Thing system = AllWeaponsOn(target.map)
+                    .Where(w => w.aimMode == SpaceWeaponAimMode.PointDefense
+                        && w.parent.Spawned && !w.parent.Destroyed)
+                    .Select(w => w.parent).FirstOrDefault();
+                if (system == null)
+                    system = ShipPhysics.GetReport(target.map)?.thrusters
+                        .FirstOrDefault(t => t.operational && t.thing != null)?.thing;
+                if (system != null)
+                    aim = SpaceTransform.MapPointToUniverse(target, target.map,
+                        new Vector2(system.DrawPos.x, system.DrawPos.z));
+            }
+            foreach (CompSpaceWeapon weapon in WeaponsOn(ship.map, ship.ownerId))
+            {
+                if (weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
+                    || Find.TickManager.TicksGame < weapon.cooldownUntilTick) continue;
+                Vector3 intercept = aim;
+                if (!suppressSystems && !TrySolveIntercept(weapon, weapon.Container,
+                        target, ProjectileSpeedOf(weapon), out intercept))
+                    intercept = aim;
+                TryFire(weapon, weapon.Container, intercept, target);
+            }
+        }
+
+        /// <summary>只读火力估计：武器当前可用性、射程、命中散布、冷却与弹体后效同源。</summary>
+        public float EstimateFirepower(Ship ship, float distance, float targetRadius,
+            bool missileOnly = false)
+        {
+            if (!ship.IsValid) return 0f;
+            float total = 0f;
+            foreach (CompSpaceWeapon weapon in WeaponsOn(ship.map, ship.ownerId))
+            {
+                if (weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
+                    || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
+                    || !weapon.TryGetSkillLevel(out int skill)
+                    || !SpaceWeaponShot.HasShotEnergy(weapon)) continue;
+                CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
+                if (weapon.parent.TryGetComp<CompSpaceWeaponMagazine>() != null && magazine == null)
+                    continue;
+                ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
+                bool missile = IsGuided(projectile);
+                if (missileOnly && !missile) continue;
+                float range = weapon.WeaponProps.range;
+                if (distance > range || range <= 0f) continue;
+                SpaceImpactEffectDef impact = SpaceImpactEffects.Resolve(projectile, null);
+                float damage = impact?.defenderEffect?.damage ?? 20f;
+                float spread = weapon.WeaponProps.baseSpreadDeg
+                    * SpreadFactorForSkill(skill) * Mathf.Deg2Rad;
+                float hitChance = Mathf.Clamp01(targetRadius
+                    / Mathf.Max(targetRadius, distance * Mathf.Tan(spread)));
+                total += damage * weapon.WeaponProps.impactScale * hitChance
+                    * (60f / Mathf.Max(1, weapon.WeaponProps.cooldownTicks));
+            }
+            return total;
+        }
+
+        public float EstimatePointDefense(Ship ship)
+        {
+            if (!ship.IsValid) return 0f;
+            float total = 0f;
+            foreach (CompSpaceWeapon weapon in WeaponsOn(ship.map, ship.ownerId))
+            {
+                if (weapon.aimMode != SpaceWeaponAimMode.PointDefense || !weapon.GroupActive
+                    || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
+                    || !weapon.TryGetSkillLevel(out _)
+                    || !SpaceWeaponShot.HasShotEnergy(weapon)) continue;
+                ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef
+                    ?? weapon.WeaponProps.projectileDef;
+                SpaceImpactEffectDef impact = SpaceImpactEffects.Resolve(projectile, null);
+                total += (impact?.defenderEffect?.damage ?? 20f)
+                    * (60f / Mathf.Max(1, weapon.WeaponProps.cooldownTicks));
+            }
+            return total;
+        }
+
         private static bool PdTargetValid(CompSpaceWeapon weapon)
         {
             SpaceObject target = weapon.pdTarget;
@@ -463,9 +546,15 @@ namespace DeltaV
         /// </summary>
         private static int DispatchGunners(Map map)
         {
+            return DispatchGunners(map, Faction.OfPlayer, 0);
+        }
+
+        private static int DispatchGunners(Map map, Faction faction, int ownerId)
+        {
             int manned = 0;
             var weapons = AllWeaponsOn(map)
-                .Where(w => w.parent.Faction == Faction.OfPlayer && w.Crew != null
+                .Where(w => w.parent.Faction == faction
+                    && (ownerId == 0 || w.OwnerShip.ownerId == ownerId) && w.Crew != null
                     && !w.AutoAimEffective && PowerOn(w.parent))
                 .OrderByDescending(w => w.GroupActive)
                 .ThenByDescending(w => GunnerUsable(w.Crew.reservedGunner, w))
@@ -476,7 +565,7 @@ namespace DeltaV
                 CompSpaceWeaponCrew crew = weapon.Crew;
                 if (crew.MannedNow) { manned++; continue; }
                 if (WeaponHasAssignedJob(map, weapon)) { manned++; continue; }
-                Pawn pawn = PickGunner(weapon);
+                Pawn pawn = PickGunner(weapon, faction);
                 if (pawn == null) continue;
                 Job job = JobMaker.MakeJob(DeltaVDefOf.DeltaV_OperateSpaceWeapon);
                 job.targetB = weapon.parent;
@@ -490,7 +579,7 @@ namespace DeltaV
 
         private static bool WeaponHasAssignedJob(Map map, CompSpaceWeapon weapon)
         {
-            foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
+            foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
             {
                 if (TryGetJobWeapon(pawn.CurJob, out CompSpaceWeapon assigned)
                     && assigned == weapon) return true;
@@ -499,15 +588,15 @@ namespace DeltaV
         }
 
         /// <summary>征用：预留炮手优先（可用时）；否则随机选「胜任 + 可到达 + 未征召」殖民者。</summary>
-        private static Pawn PickGunner(CompSpaceWeapon weapon)
+        private static Pawn PickGunner(CompSpaceWeapon weapon, Faction faction)
         {
             Map map = weapon.parent.Map;
             Pawn reserved = weapon.Crew?.reservedGunner;
-            if (GunnerUsable(reserved, weapon)) return reserved;
+            if (reserved?.Faction == faction && GunnerUsable(reserved, weapon)) return reserved;
             var candidates = new List<Pawn>();
-            foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
+            foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
             {
-                if (GunnerUsable(pawn, weapon)) candidates.Add(pawn);
+                if (pawn.Faction == faction && GunnerUsable(pawn, weapon)) candidates.Add(pawn);
             }
             return candidates.RandomElementWithFallback();
         }

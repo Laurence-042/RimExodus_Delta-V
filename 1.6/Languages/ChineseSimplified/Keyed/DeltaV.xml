@@ -200,7 +200,14 @@
   <DeltaV_SectorTypeWeaponPlatform>武器平台</DeltaV_SectorTypeWeaponPlatform>
   <DeltaV_SectorTypeTradeStation>贸易空间站</DeltaV_SectorTypeTradeStation>
   <DeltaV_SectorTypeShipyard>造船厂</DeltaV_SectorTypeShipyard>
-  <DeltaV_SectorTypeHostileStation>敌对空间站</DeltaV_SectorTypeHostileStation>
+  <DeltaV_SectorTypeFactoryStation>工厂空间站</DeltaV_SectorTypeFactoryStation>
+  <DeltaV_SettingsNpcDoctrine>敌舰战术姿态优先级</DeltaV_SettingsNpcDoctrine>
+  <DeltaV_SettingsNpcDoctrineAdd>添加战术姿态</DeltaV_SettingsNpcDoctrineAdd>
+  <DeltaV_NpcDoctrine_Standoff>远距交火</DeltaV_NpcDoctrine_Standoff>
+  <DeltaV_NpcDoctrine_Brawler>近距强攻</DeltaV_NpcDoctrine_Brawler>
+  <DeltaV_NpcDoctrine_MissileBoat>导弹艇</DeltaV_NpcDoctrine_MissileBoat>
+  <DeltaV_NpcDoctrine_Boarder>跳帮</DeltaV_NpcDoctrine_Boarder>
+  <DeltaV_NpcDoctrine_Retreat>撤退</DeltaV_NpcDoctrine_Retreat>
   <DeltaV_SectorTypeAsteroid>小行星</DeltaV_SectorTypeAsteroid>
 <DeltaV_ReassignProtectedMainConsole>主驾驶台下方的基架归属不能修改（已跳过 {0} 格）；请先设为备用驾驶台或拆除。</DeltaV_ReassignProtectedMainConsole>
 
