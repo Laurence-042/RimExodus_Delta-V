@@ -38,6 +38,13 @@ namespace DeltaV
     /// <summary>武器局部几何的唯一入口。偏移均以朝北 Def 坐标记录，再随 Rot4 旋转。</summary>
     public static class SpaceWeaponGeometry
     {
+        public static bool WithinFireDeviation(float targetMapAngle, float muzzleMapAngle,
+            float allowedDegrees)
+        {
+            return Mathf.Abs(Mathf.DeltaAngle(targetMapAngle * Mathf.Rad2Deg,
+                muzzleMapAngle * Mathf.Rad2Deg)) <= Mathf.Clamp(allowedDegrees, 0f, 180f) + 0.001f;
+        }
+
         public static IntVec3 RotatedCell(Thing thing, IntVec3 northOffset)
         {
             return thing.Position + northOffset.RotatedBy(thing.Rotation);
@@ -53,6 +60,10 @@ namespace DeltaV
         public static Vector2 MuzzleMapPoint(CompSpaceWeapon weapon)
         {
             Vector2 center = FootprintCenter(weapon.parent);
+            if (weapon.WeaponProps.topTurret && weapon.WeaponProps.turretMuzzleDistance > 0f
+                && weapon.parent.TryGetComp<CompSpaceWeaponTraverse>() != null)
+                return center + SpaceTransform.Rotate(Vector2.right, weapon.FacingAngle)
+                    * weapon.WeaponProps.turretMuzzleDistance;
             Vector2 local = weapon.WeaponProps.muzzleOffset;
             // muzzleOffset 与 IntVec3 槽位同样以朝北 Def 坐标记录；不要混用
             // East=0 的航向角，否则 North 建筑的 +Z 偏移会被错误转到 -X。
@@ -256,6 +267,11 @@ namespace DeltaV
         }
     }
 
+    public class DefModExtension_SpaceMissileAmmo : DefModExtension
+    {
+        public ThingDef spaceProjectileDef;
+    }
+
     public class CompProperties_SpaceWeaponMagazine : CompProperties
     {
         public ThingDef projectileDef;
@@ -288,8 +304,14 @@ namespace DeltaV
         public CompProperties_SpaceWeaponMagazine MagazineProps =>
             (CompProperties_SpaceWeaponMagazine)props;
         public CompRefuelable Refuelable => parent.TryGetComp<CompRefuelable>();
+        public CompChangeableProjectile ChangeableProjectile => parent.TryGetComp<CompChangeableProjectile>();
         public int Priority => priority;
-        public bool HasShot => Refuelable != null && Refuelable.Fuel + 0.0001f >= MagazineProps.ammoPerShot;
+        public bool HasShot => ChangeableProjectile != null
+            ? ChangeableProjectile.Loaded && ChangeableProjectile.Projectile != null
+            : Refuelable != null && Refuelable.Fuel + 0.0001f >= MagazineProps.ammoPerShot;
+        public ThingDef SelectedProjectileDef => ChangeableProjectile?.LoadedShell
+            ?.GetModExtension<DefModExtension_SpaceMissileAmmo>()?.spaceProjectileDef
+            ?? ChangeableProjectile?.Projectile ?? MagazineProps.projectileDef;
 
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
@@ -303,7 +325,10 @@ namespace DeltaV
 
         public void ConsumeShot()
         {
-            Refuelable?.ConsumeFuel(MagazineProps.ammoPerShot);
+            if (ChangeableProjectile != null)
+                ChangeableProjectile.Notify_ProjectileLaunched();
+            else
+                Refuelable?.ConsumeFuel(MagazineProps.ammoPerShot);
         }
 
         public override void PostExposeData()
@@ -315,6 +340,7 @@ namespace DeltaV
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
+            if (ChangeableProjectile != null) yield break;
             if (parent.Faction != Faction.OfPlayer && !DebugSettings.godMode) yield break;
             yield return new Command_Action
             {

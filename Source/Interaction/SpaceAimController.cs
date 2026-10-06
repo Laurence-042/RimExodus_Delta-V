@@ -108,7 +108,7 @@ namespace DeltaV
             {
                 if (weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive) continue;
                 CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
-                ThingDef projectileDef = magazine?.MagazineProps.projectileDef ?? weapon.WeaponProps.projectileDef;
+                ThingDef projectileDef = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
                 var props = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
                 if (props == null) continue;
                 if (props.laserRange > 0f) laserSeen = true;

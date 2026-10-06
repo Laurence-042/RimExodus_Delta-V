@@ -164,7 +164,7 @@ namespace DeltaV
             CompSpaceWeapon weapon = weaponThing?.TryGetComp<CompSpaceWeapon>();
             if (weapon == null) return "not a space weapon";
             SpaceWeaponAccelerationSolution solution = Resolve(weapon);
-            ThingDef projectile = weapon.SelectMagazine()?.MagazineProps.projectileDef
+            ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef
                 ?? weapon.WeaponProps.projectileDef;
             float baseSpeed = SpaceWeaponService.ProjectileSpeedOf(projectile);
             float activeBonus = SpaceWeaponShot.ProjectedSpeed(weapon) - baseSpeed;

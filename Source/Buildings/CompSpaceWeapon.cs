@@ -76,6 +76,12 @@ namespace DeltaV
         /// <summary>朝北局部坐标中的炮口连续偏移（相对脚印中心）。</summary>
         public Vector2 muzzleOffset = Vector2.zero;
 
+        /// <summary>旋转炮身沿当前朝向从脚印中心到炮口的距离（格）。</summary>
+        public float turretMuzzleDistance;
+
+        /// <summary>成功发射时的炮口闪光尺寸；0 表示无。</summary>
+        public float muzzleFlashSize;
+
         /// <summary>覆盖挂件槽：同一条目决定建造格及该格上的插件贴图中心和缩放。</summary>
         public List<SpaceWeaponAttachmentSlot> attachmentSlots = new List<SpaceWeaponAttachmentSlot>();
 
@@ -93,11 +99,8 @@ namespace DeltaV
         /// <summary>默认启用自身结构发射路径预检。</summary>
         public bool safeFireByDefault = true;
 
-        /// <summary>
-        /// 默认允许炮管未对准瞄点时沿当前炮管/固定安装轴开火。轨道炮等固定轴武器
-        /// 依此工作；转速慢、射速快的炮可用同一实例开关在转动中持续射击。
-        /// </summary>
-        public bool canFireWithoutAlignmentByDefault;
+        /// <summary>发射方向与目标方向允许的最大夹角（度）。</summary>
+        public float defaultFireDeviationDeg = 3f;
 
         /// <summary>覆盖弹体默认冷发射时长；负数表示使用弹体 Def。</summary>
         public int ignitionDelayTicks = -1;
@@ -132,7 +135,7 @@ namespace DeltaV
         public int groupNumber = 1;
         public SpaceWeaponAimMode aimMode = SpaceWeaponAimMode.Volley;
         public bool safeFire = true;
-        public bool canFireWithoutAlignment;
+        public float fireDeviationDeg;
         private bool safeFireInitialized;
         private bool alignmentConfigurationInitialized;
         private bool configurationInitialized;
@@ -287,7 +290,7 @@ namespace DeltaV
             }
             if (!alignmentConfigurationInitialized)
             {
-                canFireWithoutAlignment = WeaponProps.canFireWithoutAlignmentByDefault;
+                fireDeviationDeg = Mathf.Clamp(WeaponProps.defaultFireDeviationDeg, 0f, 180f);
                 alignmentConfigurationInitialized = true;
             }
             if (respawningAfterLoad) return;
@@ -344,8 +347,8 @@ namespace DeltaV
             Scribe_Values.Look(ref configurationInitialized, "configurationInitialized", true);
             Scribe_Values.Look(ref safeFire, "safeFire", true);
             Scribe_Values.Look(ref safeFireInitialized, "safeFireInitialized", true);
-            Scribe_Values.Look(ref canFireWithoutAlignment, "canFireWithoutAlignment",
-                WeaponProps.canFireWithoutAlignmentByDefault);
+            Scribe_Values.Look(ref fireDeviationDeg, "fireDeviationDeg",
+                WeaponProps.defaultFireDeviationDeg);
             Scribe_Values.Look(ref alignmentConfigurationInitialized,
                 "alignmentConfigurationInitialized", true);
             Scribe_Values.Look(ref lastMagazineThingId, "lastMagazineThingId", -1);
@@ -443,14 +446,32 @@ namespace DeltaV
                 }
             };
 
-            // 对准门禁是实例配置：关闭时仍持续追踪瞄点，但每发沿炮管当前方向射出。
-            yield return new Command_Toggle
+            // 同一角度配置约束旋转炮塔当前炮口和固定轴武器安装轴。
+            yield return new Command_Action
             {
-                defaultLabel = "DeltaV_FireWithoutAlignment".Translate(),
-                defaultDesc = "DeltaV_FireWithoutAlignmentTip".Translate(),
+                defaultLabel = "DeltaV_FireDeviation".Translate(fireDeviationDeg.ToString("0")),
+                defaultDesc = "DeltaV_FireDeviationTip".Translate(),
                 icon = TexCommand.FireAtWill,
-                isActive = () => canFireWithoutAlignment,
-                toggleAction = delegate { canFireWithoutAlignment = !canFireWithoutAlignment; }
+                action = delegate
+                {
+                    Find.WindowStack.Add(new Dialog_Slider(
+                        value => "DeltaV_FireDeviation".Translate(value.ToString()),
+                        0, 180, value =>
+                        {
+                            if (!parent.Spawned || parent.Destroyed) return;
+                            fireDeviationDeg = value;
+                            // 原切换钮支持多选；滑条确认同样应用到已选武器。
+                            foreach (object selected in Find.Selector.SelectedObjectsListForReading)
+                            {
+                                if (selected is ThingWithComps other && other != parent
+                                    && other.Spawned && !other.Destroyed)
+                                {
+                                    CompSpaceWeapon selectedWeapon = other.TryGetComp<CompSpaceWeapon>();
+                                    if (selectedWeapon != null) selectedWeapon.fireDeviationDeg = value;
+                                }
+                            }
+                        }, Mathf.RoundToInt(fireDeviationDeg)));
+                }
             };
 
             // 复用原版设施关联按钮语义：选中炮塔时直接给出兼容附件的建造 designator。

@@ -33,8 +33,6 @@
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_LaserMainMedium</defName><thingDef>DeltaV_Weapon_LaserMainMedium</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
 
   <!-- 船体内的固定武器不在船壳表面露出；碰撞分类仍由 SpaceStructureRules 决定。 -->
-  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideCasemateCannon</defName><thingDef>DeltaV_Weapon_CasemateCannon</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
-  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideCasemateLarge</defName><thingDef>DeltaV_Weapon_CasemateLarge</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunLoader</defName><thingDef>DeltaV_Weapon_RailgunLoader</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunLoaderLarge</defName><thingDef>DeltaV_Weapon_RailgunLoaderLarge</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunAccelerator</defName><thingDef>DeltaV_Weapon_RailgunAccelerator</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>

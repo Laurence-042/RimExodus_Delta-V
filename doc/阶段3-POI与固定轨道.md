@@ -84,7 +84,7 @@
 
 - 不再重放 `SectionLayer_Terrain` 或整层 `SectionLayer_ThingsGeneral`。每帧从真实 Map 读取可见地形、墙门、气密建筑与自然岩石；其他 Thing 由 `ShellRenderRuleDef` 显式纳入，规则也可排除自动纳入的实心建筑。所有 SpaceObject 使用同一收集路径。
 - 规则的 `render` 把 `source`（`Thing` 或 `TurretTop`）、`layer`（`Hull`／`Exposed`／`Effects`）、可选 `alternateGraphic` 和 `zIndex` 收在一起。替代图仍采用原版 `GraphicData` XML；`zIndex` 以 `Altitudes.AltInc` 为单位，仅调整所在表面层内的深度。层间清深度保色，顺序由命令缓冲决定。
-- 当前规则显式纳入 `LargeThruster`，七种点防／小型／中型炮塔只绘旋转炮身于 `Exposed` 层；炮廓和轨道炮装弹机／加速段明确排除。驾驶台、逆重引擎和其他室内设备默认不绘制。
+- 当前规则显式纳入 `LargeThruster`，七种点防／小型／中型炮塔只绘旋转炮身于 `Exposed` 层；轨道炮装弹机／加速段明确排除。驾驶台、逆重引擎和其他室内设备默认不绘制。
 - POI 与飞船共用同一变换、点击和绘制规则；`TerrainDef.dontRender` 的 Space 背景天然跳过，Pawn/Projectile/Mote/Gas/Filth 和动态特效不进入普通船壳内容。
 - 代理按原版 17×17 section 缓存源内容；Terrain/Things/Buildings 的 `MapMeshDirty` 只令相关及必要相邻 section 失效。缓存不存档，并在地图删除、换档、Def 缓存刷新时释放。
 

@@ -82,6 +82,9 @@ namespace DeltaV
             {
                 return false;
             }
+            if (weapon.WeaponProps.muzzleFlashSize > 0f)
+                universe.Projectiles.RegisterMuzzleFlash(muzzleUniverse,
+                    Mathf.Atan2(tangent.y, tangent.x), weapon.WeaponProps.muzzleFlashSize);
             Commit();
             return true;
         }
@@ -101,7 +104,7 @@ namespace DeltaV
             magazine = weapon.SelectMagazine();
             bool magazineRequired = weapon.parent.TryGetComp<CompSpaceWeaponMagazine>() != null;
             if (magazineRequired && magazine == null) return false;
-            projectileDef = magazine?.MagazineProps.projectileDef ?? weapon.WeaponProps.projectileDef;
+            projectileDef = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
             armorPenetrationScale = magazine?.MagazineProps.armorPenetrationScale ?? 1f;
             projectileProps = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
             if (projectileProps == null) return false;
@@ -132,25 +135,19 @@ namespace DeltaV
             if (traverse != null)
             {
                 traverse.AimAt(desiredMapAngle);
-                if (!weapon.canFireWithoutAlignment && !traverse.AlignedTo(desiredMapAngle)) return false;
                 launchMapAngle = traverse.CurrentAngle;
             }
-            else if (coldLaunch)
+            else if (!coldLaunch && weapon.WeaponProps.topTurret)
             {
-                // 冷发射固定沿架体轴线推出；目标锁定角与发射轴相互独立。
-                launchMapAngle = baseAngle;
-            }
-            else if (weapon.canFireWithoutAlignment)
-            {
-                // 固定轴炮（轨道炮）或无 Traverse 的第三方武器沿安装轴发射；
-                // lockArc 仍负责能否选中目标，发射轴与目标方向不再混为一谈。
-                launchMapAngle = baseAngle;
+                // 未装 Delta-V Traverse 的第三方顶置炮沿其瞄点开火，维持核心 Comp 的最小契约。
+                launchMapAngle = desiredMapAngle;
             }
             else
             {
-                if (!WithinArc(desiredMapAngle, baseAngle, weapon.WeaponProps.fireArcDeg)) return false;
-                launchMapAngle = desiredMapAngle;
+                launchMapAngle = baseAngle;
             }
+            if (!SpaceWeaponGeometry.WithinFireDeviation(desiredMapAngle, launchMapAngle,
+                    weapon.fireDeviationDeg)) return false;
 
             if (!PrepareEnergy(acceleration)) return false;
             speed = projectileProps.speed + activeSpeedBonus;
@@ -209,7 +206,7 @@ namespace DeltaV
         {
             if (weapon == null) return 0f;
             CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
-            ThingDef projectile = magazine?.MagazineProps.projectileDef ?? weapon.WeaponProps.projectileDef;
+            ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
             float baseSpeed = projectile?.GetCompProperties<CompProperties_SpaceProjectile>()?.speed ?? 0f;
             var probe = new SpaceWeaponShot(null, weapon, null, default, null);
             return probe.PrepareEnergy(CompSpaceRailgun.Resolve(weapon))

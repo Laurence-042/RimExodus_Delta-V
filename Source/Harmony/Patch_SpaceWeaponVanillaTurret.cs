@@ -52,7 +52,8 @@ namespace DeltaV
             float angle = CompSpaceWeaponTraverse.MapAngleTo(__instance.CurrentTarget, __instance);
             traverse.AimAt(angle);
             CompSpaceWeapon weapon = __instance.TryGetComp<CompSpaceWeapon>();
-            return weapon?.canFireWithoutAlignment == true || traverse.AlignedTo(angle);
+            float tolerance = weapon?.fireDeviationDeg ?? traverse.TraverseProps.fireToleranceDeg;
+            return SpaceWeaponGeometry.WithinFireDeviation(angle, traverse.CurrentAngle, tolerance);
         }
     }
 

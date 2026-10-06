@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using RimWorld;
 using Verse;
 
@@ -94,6 +95,57 @@ namespace DeltaV
             return (weapon?.AttachmentSlotAt(center) ?? rail?.AttachmentSlotAt(center)) != null
                 ? AcceptanceReport.WasAccepted
                 : "DeltaV_AttachmentNeedsSlot".Translate();
+        }
+    }
+
+    public sealed class PlaceWorker_MissileMagazine : PlaceWorker
+    {
+        public override AcceptanceReport AllowsPlacing(BuildableDef def, IntVec3 center, Rot4 rot,
+            Map map, Thing thingToIgnore = null, Thing thing = null)
+        {
+            if (def is not ThingDef magazineDef || map == null) return false;
+            var seen = new HashSet<Thing>();
+            for (int x = center.x - 3; x <= center.x + 3; x++)
+            for (int z = center.z - 3; z <= center.z + 3; z++)
+            {
+                IntVec3 cell = new IntVec3(x, 0, z);
+                if (!cell.InBounds(map)) continue;
+                foreach (Thing candidate in map.thingGrid.ThingsListAt(cell))
+                {
+                    if (!seen.Add(candidate) || candidate == thingToIgnore) continue;
+                    ThingDef launcherDef = candidate.def.IsBlueprint || candidate.def.IsFrame
+                        ? candidate.def.entityDefToBuild as ThingDef : candidate.def;
+                    if (!SpaceMissileMagazineGeometry.Fits(launcherDef, candidate.Position,
+                            candidate.Rotation, magazineDef, center, rot)) continue;
+                    UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+                    if (universe?.FrameOf(map) == null) return AcceptanceReport.WasAccepted;
+                    int owner = SpaceWeaponGeometry.OwnerIdOf(candidate);
+                    SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
+                    if (owner <= 0 || ownership == null) return "DeltaV_WeaponNeedsSingleOwner".Translate();
+                    foreach (IntVec3 occupied in GenAdj.OccupiedRect(center, rot, magazineDef.Size))
+                        if (!occupied.InBounds(map) || ownership.OwnerAt(occupied) != owner)
+                            return "DeltaV_WeaponNeedsSingleOwner".Translate();
+                    return AcceptanceReport.WasAccepted;
+                }
+            }
+            return "DeltaV_MissileMagazineNeedsLauncher".Translate();
+        }
+    }
+
+    public sealed class PlaceWorker_MissileLauncher : PlaceWorker_RailgunPart
+    {
+        public override void DrawGhost(ThingDef def, IntVec3 center, Rot4 rot,
+            UnityEngine.Color ghostCol, Thing thing = null)
+        {
+            base.DrawGhost(def, center, rot, ghostCol, thing);
+            CompProperties_MissileAutoloader props = def.GetCompProperties<CompProperties_MissileAutoloader>();
+            if (props == null || props.magazineDefs.NullOrEmpty()) return;
+            var cells = new List<IntVec3>();
+            ThingDef magazine = props.magazineDefs[0];
+            foreach (IntVec3 offset in props.magazineRootOffsets)
+                foreach (IntVec3 cell in GenAdj.OccupiedRect(center + offset.RotatedBy(rot),
+                    rot, magazine.Size)) cells.Add(cell);
+            GenDraw.DrawFieldEdges(cells, UnityEngine.Color.yellow);
         }
     }
 }

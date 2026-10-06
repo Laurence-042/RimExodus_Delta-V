@@ -257,6 +257,7 @@
   <DeltaV_WouldBlockGunnerCell>该建筑会占用一门需要炮手的武器的固定炮手位。</DeltaV_WouldBlockGunnerCell>
   <DeltaV_WeaponNeedsSingleOwner>武器的完整占地必须位于同一艘船所属的基架上。</DeltaV_WeaponNeedsSingleOwner>
   <DeltaV_AttachmentNeedsSlot>挂件必须覆盖兼容武器声明的挂件槽位。</DeltaV_AttachmentNeedsSlot>
+  <DeltaV_MissileMagazineNeedsLauncher>导弹仓必须与导弹发射架同向，贴在其船内两格的左侧或右侧。</DeltaV_MissileMagazineNeedsLauncher>
 
   <!-- 阶段5：shuttle 与月池 -->
   <DeltaV_ShuttleLaunchGizmo>起飞</DeltaV_ShuttleLaunchGizmo>
@@ -272,8 +273,8 @@
 
   <DeltaV_DebugThrustersToggleButton>显示 Delta-V 推进器矢量、船体范围与舰炮射界</DeltaV_DebugThrustersToggleButton>
   <DeltaV_DebugCollisionToggleButton>显示全部可见对象的实际碰撞占用格与宽相位包围圆</DeltaV_DebugCollisionToggleButton>
-  <DeltaV_FireWithoutAlignment>允许未对准时开火</DeltaV_FireWithoutAlignment>
-  <DeltaV_FireWithoutAlignmentTip>启用后，武器仍会转向瞄点，但无需等待炮管完全对准；每发沿当前炮管方向或固定安装轴射出。支持多选后一并切换。</DeltaV_FireWithoutAlignmentTip>
+  <DeltaV_FireDeviation>开火允许偏离角：{0}°</DeltaV_FireDeviation>
+  <DeltaV_FireDeviationTip>炮口当前方向或固定安装轴与目标方向的最大夹角。弹体仍沿实际炮口方向发射；制导弹可在发射后转向。</DeltaV_FireDeviationTip>
 
   <DeltaV_ThrusterPowerTitle>设置推进器出力上限</DeltaV_ThrusterPowerTitle>
   <DeltaV_ThrusterPowerEntry>推进器出力：{0}%</DeltaV_ThrusterPowerEntry>

@@ -111,7 +111,7 @@ namespace DeltaV
                 float range = Mathf.Max(1f, weapon.WeaponProps.range);
                 float arc = Mathf.Clamp(weapon.WeaponProps.fireArcDeg, 0f, 360f) * Mathf.Deg2Rad;
                 // 射界是安装座允许目标的区域，中心必须取建筑基准朝向；当前炮管角只
-                // 表示正在转向哪里，否则有限炮廓转到边缘时会把填充错误平移出机械弧。
+                // 表示正在转向哪里，否则有限射界武器转到边缘时会把填充错误平移出机械弧。
                 float center = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
                 int segments = Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(arc, 0.03f) * 12f));
                 float start = center - arc * 0.5f;

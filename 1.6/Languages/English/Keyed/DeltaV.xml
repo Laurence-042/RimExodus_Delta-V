@@ -257,6 +257,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_WouldBlockGunnerCell>This building would block an active weapon's fixed gunner position.</DeltaV_WouldBlockGunnerCell>
   <DeltaV_WeaponNeedsSingleOwner>The entire weapon footprint must be on substructure owned by one ship.</DeltaV_WeaponNeedsSingleOwner>
   <DeltaV_AttachmentNeedsSlot>This attachment must cover a compatible weapon's declared attachment slot.</DeltaV_AttachmentNeedsSlot>
+  <DeltaV_MissileMagazineNeedsLauncher>Place the missile magazine parallel to either inboard side of a missile launcher.</DeltaV_MissileMagazineNeedsLauncher>
 
   <!-- Stage 5: shuttles & moon pool -->
   <DeltaV_ShuttleLaunchGizmo>Launch shuttle</DeltaV_ShuttleLaunchGizmo>
@@ -272,8 +273,8 @@ Separation retracts the related docking channels; pawns and items on them stay o
 
   <DeltaV_DebugThrustersToggleButton>Show Delta-V thruster vectors, hull extent, and weapon arcs</DeltaV_DebugThrustersToggleButton>
   <DeltaV_DebugCollisionToggleButton>Show actual collision cells and broad-phase bounds for all visible objects</DeltaV_DebugCollisionToggleButton>
-  <DeltaV_FireWithoutAlignment>Fire while traversing</DeltaV_FireWithoutAlignment>
-  <DeltaV_FireWithoutAlignmentTip>When enabled, the weapon keeps turning toward its aim point but does not wait for perfect alignment; every shot follows the barrel's current direction or the fixed mounting axis. Supports multi-selection.</DeltaV_FireWithoutAlignmentTip>
+  <DeltaV_FireDeviation>Firing deviation: {0}°</DeltaV_FireDeviation>
+  <DeltaV_FireDeviationTip>Maximum angle between the current barrel or fixed launch axis and the target. Shots follow the actual launch direction; guided missiles can turn afterward.</DeltaV_FireDeviationTip>
 
   <DeltaV_ThrusterPowerTitle>Set thruster power limit</DeltaV_ThrusterPowerTitle>
   <DeltaV_ThrusterPowerEntry>Thruster power: {0}%</DeltaV_ThrusterPowerEntry>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="MakeableShellBase">
+    <defName>DeltaV_Missile_HE</defName>
+    <label>high-explosive ship missile</label>
+    <description>A guided ship missile with a high-explosive warhead. Load it into a missile launcher or stock it in a missile magazine wall.</description>
+    <graphicData><texPath>Things/Projectile/DeltaV_MissileHE</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(0.8,0.8)</drawSize></graphicData>
+    <thingCategories Inherit="False"><li>Manufactured</li></thingCategories>
+    <tradeTags Inherit="False" />
+    <projectileWhenLoaded>Bullet_Shell_HighExplosive</projectileWhenLoaded>
+    <modExtensions><li Class="DeltaV.DefModExtension_SpaceMissileAmmo"><spaceProjectileDef>DeltaV_Projectile_Missile</spaceProjectileDef></li></modExtensions>
+    <stackLimit>10</stackLimit>
+    <statBases><MarketValue>70</MarketValue><Mass>2</Mass></statBases>
+    <costList><Steel>25</Steel><Chemfuel>10</Chemfuel><ComponentIndustrial>1</ComponentIndustrial></costList>
+    <recipeMaker><workAmount>1100</workAmount><targetCountAdjustment>1</targetCountAdjustment></recipeMaker>
+  </ThingDef>
+</Defs>

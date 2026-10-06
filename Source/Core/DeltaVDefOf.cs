@@ -35,6 +35,8 @@ namespace DeltaV
         public static ResearchProjectDef DeltaV_VacuumBarrier;
 
         public static JobDef DeltaV_OperateSpaceWeapon;
+        public static JobDef DeltaV_LoadMissileLauncher;
+        public static ThingDef DeltaV_Weapon_MissileLauncher;
 
         // 阶段5 测试弹体（Defs/SpaceCombat/DeltaV_SpaceProjectiles.xml；正式武器 def 随段6）。
         public static ThingDef DeltaV_Projectile_Cannon;

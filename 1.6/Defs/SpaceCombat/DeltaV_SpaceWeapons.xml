@@ -56,7 +56,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>180</turnRateDegPerSec><fireToleranceDeg>4</fireToleranceDeg></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>120</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo><showAllowAutoRefuelToggle>true</showAllowAutoRefuelToggle></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>1</ammoPerShot><defaultPriority>0</defaultPriority></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_PDBullet</projectileDef><aimMode>PointDefense</aimMode><defaultSalvoSet>Secondary</defaultSalvoSet><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>1.5</baseSpreadDeg><cooldownTicks>6</cooldownTicks><range>60</range><attachmentSlots><li><cell>(0,0,0)</cell><drawScale>0.46</drawScale></li></attachmentSlots></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_PDBullet</projectileDef><aimMode>PointDefense</aimMode><defaultSalvoSet>Secondary</defaultSalvoSet><topTurret>true</topTurret><turretMuzzleDistance>0.55</turretMuzzleDistance><fireArcDeg>360</fireArcDeg><baseSpreadDeg>1.5</baseSpreadDeg><cooldownTicks>6</cooldownTicks><range>60</range><muzzleFlashSize>0.45</muzzleFlashSize><attachmentSlots><li><cell>(0,0,0)</cell><drawScale>0.46</drawScale></li></attachmentSlots></li>
     </comps>
   </ThingDef>
 
@@ -70,7 +70,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>60</turnRateDegPerSec><fireToleranceDeg>2</fireToleranceDeg></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>64</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>8</ammoPerShot><defaultPriority>0</defaultPriority></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Cannon</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>2</baseSpreadDeg><cooldownTicks>300</cooldownTicks><range>160</range><impactScale>7.2</impactScale><attachmentSlots><li><cell>(0,0,0)</cell><drawOffset>(-0.075,0.07)</drawOffset><drawScale>0.46</drawScale></li></attachmentSlots></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Cannon</projectileDef><topTurret>true</topTurret><turretMuzzleDistance>1.14</turretMuzzleDistance><fireArcDeg>360</fireArcDeg><baseSpreadDeg>2</baseSpreadDeg><cooldownTicks>300</cooldownTicks><range>160</range><impactScale>7.2</impactScale><muzzleFlashSize>2.2</muzzleFlashSize><attachmentSlots><li><cell>(0,0,0)</cell><drawOffset>(-0.075,0.07)</drawOffset><drawScale>0.46</drawScale></li></attachmentSlots></li>
     </comps>
     <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/CannonTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
@@ -84,7 +84,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>60</turnRateDegPerSec><fireToleranceDeg>2</fireToleranceDeg></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>48</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>2</ammoPerShot><defaultPriority>0</defaultPriority></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Rapid</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>2.2</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>140</range><impactScale>0.3</impactScale><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><attachmentSlots><li><cell>(0,0,0)</cell><drawOffset>(-0.075,0.07)</drawOffset><drawScale>0.46</drawScale></li></attachmentSlots></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Rapid</projectileDef><topTurret>true</topTurret><turretMuzzleDistance>1.16</turretMuzzleDistance><fireArcDeg>360</fireArcDeg><baseSpreadDeg>2.2</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>140</range><impactScale>0.3</impactScale><muzzleFlashSize>0.65</muzzleFlashSize><defaultFireDeviationDeg>180</defaultFireDeviationDeg><attachmentSlots><li><cell>(0,0,0)</cell><drawOffset>(-0.075,0.07)</drawOffset><drawScale>0.46</drawScale></li></attachmentSlots></li>
     </comps>
     <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/RapidTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
@@ -96,7 +96,7 @@
     <statBases><WorkToBuild>5200</WorkToBuild><MaxHitPoints>250</MaxHitPoints></statBases>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>180</turnRateDegPerSec><fireToleranceDeg>4</fireToleranceDeg></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Laser</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.8</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>120</range><shotEnergy>2</shotEnergy><attachmentSlots><li><cell>(0,0,0)</cell><drawOffset>(-0.075,0.07)</drawOffset><drawScale>0.46</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_AutoAimPluginI</li><li>DeltaV_Building_AutoAimPluginII</li><li>DeltaV_Building_LaserCapacitor</li></allowedAttachmentDefs></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Laser</projectileDef><topTurret>true</topTurret><turretMuzzleDistance>1.18</turretMuzzleDistance><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.8</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>120</range><shotEnergy>2</shotEnergy><attachmentSlots><li><cell>(0,0,0)</cell><drawOffset>(-0.075,0.07)</drawOffset><drawScale>0.46</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_AutoAimPluginI</li><li>DeltaV_Building_AutoAimPluginII</li><li>DeltaV_Building_LaserCapacitor</li></allowedAttachmentDefs></li>
     </comps>
     <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/LaserTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
@@ -110,7 +110,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>30</turnRateDegPerSec><fireToleranceDeg>1.5</fireToleranceDeg></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>192</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>12</ammoPerShot><defaultPriority>0</defaultPriority></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Cannon</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>1.5</baseSpreadDeg><cooldownTicks>360</cooldownTicks><range>200</range><impactScale>13.2</impactScale><attachmentSlots><li><cell>(-1,0,-1)</cell><drawOffset>(0.24,0.125)</drawOffset><drawScale>0.58</drawScale></li><li><cell>(1,0,-1)</cell><drawOffset>(-0.175,0.175)</drawOffset><drawScale>0.58</drawScale></li></attachmentSlots></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Cannon</projectileDef><topTurret>true</topTurret><turretMuzzleDistance>1.61</turretMuzzleDistance><fireArcDeg>360</fireArcDeg><baseSpreadDeg>1.5</baseSpreadDeg><cooldownTicks>360</cooldownTicks><range>200</range><impactScale>13.2</impactScale><muzzleFlashSize>3.1</muzzleFlashSize><attachmentSlots><li><cell>(-1,0,-1)</cell><drawOffset>(0.24,0.125)</drawOffset><drawScale>0.58</drawScale></li><li><cell>(1,0,-1)</cell><drawOffset>(-0.175,0.175)</drawOffset><drawScale>0.58</drawScale></li></attachmentSlots></li>
     </comps>
     <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/CannonTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
@@ -124,7 +124,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>30</turnRateDegPerSec><fireToleranceDeg>1.5</fireToleranceDeg></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>144</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>3</ammoPerShot><defaultPriority>0</defaultPriority></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Rapid</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>1.8</baseSpreadDeg><cooldownTicks>10</cooldownTicks><range>180</range><impactScale>0.42</impactScale><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><attachmentSlots><li><cell>(-1,0,-1)</cell><drawOffset>(0.24,0.125)</drawOffset><drawScale>0.58</drawScale></li><li><cell>(1,0,-1)</cell><drawOffset>(-0.175,0.175)</drawOffset><drawScale>0.58</drawScale></li></attachmentSlots></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Rapid</projectileDef><topTurret>true</topTurret><turretMuzzleDistance>1.64</turretMuzzleDistance><fireArcDeg>360</fireArcDeg><baseSpreadDeg>1.8</baseSpreadDeg><cooldownTicks>10</cooldownTicks><range>180</range><impactScale>0.42</impactScale><muzzleFlashSize>0.85</muzzleFlashSize><defaultFireDeviationDeg>180</defaultFireDeviationDeg><attachmentSlots><li><cell>(-1,0,-1)</cell><drawOffset>(0.24,0.125)</drawOffset><drawScale>0.58</drawScale></li><li><cell>(1,0,-1)</cell><drawOffset>(-0.175,0.175)</drawOffset><drawScale>0.58</drawScale></li></attachmentSlots></li>
     </comps>
     <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/RapidTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
@@ -136,66 +136,42 @@
     <statBases><WorkToBuild>10000</WorkToBuild><MaxHitPoints>480</MaxHitPoints></statBases>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>90</turnRateDegPerSec><fireToleranceDeg>3</fireToleranceDeg></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_LaserHeavy</projectileDef><topTurret>true</topTurret><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.5</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>160</range><shotEnergy>4</shotEnergy><impactScale>2</impactScale><attachmentSlots><li><cell>(-1,0,-1)</cell><drawOffset>(0.24,0.125)</drawOffset><drawScale>0.58</drawScale></li><li><cell>(1,0,-1)</cell><drawOffset>(-0.175,0.175)</drawOffset><drawScale>0.58</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_AutoAimPluginI</li><li>DeltaV_Building_AutoAimPluginII</li><li>DeltaV_Building_LaserCapacitor</li></allowedAttachmentDefs></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_LaserHeavy</projectileDef><topTurret>true</topTurret><turretMuzzleDistance>1.67</turretMuzzleDistance><fireArcDeg>360</fireArcDeg><baseSpreadDeg>0.5</baseSpreadDeg><cooldownTicks>12</cooldownTicks><range>160</range><shotEnergy>4</shotEnergy><impactScale>2</impactScale><attachmentSlots><li><cell>(-1,0,-1)</cell><drawOffset>(0.24,0.125)</drawOffset><drawScale>0.58</drawScale></li><li><cell>(1,0,-1)</cell><drawOffset>(-0.175,0.175)</drawOffset><drawScale>0.58</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_AutoAimPluginI</li><li>DeltaV_Building_AutoAimPluginII</li><li>DeltaV_Building_LaserCapacitor</li></allowedAttachmentDefs></li>
     </comps>
     <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/LaserTurret_Top</topTexPath></li></modExtensions>
   </ThingDef>
 
-  <!-- Airtight wall weapons. -->
+  <!-- Airtight wall launchers. -->
   <ThingDef ParentName="DeltaV_SpaceWallWeapon">
-    <defName>DeltaV_Weapon_CasemateCannon</defName><label>small casemate cannon</label><description>A destroyer-grade airtight casemate gun.</description>
-    <thingClass>Building_TurretGun</thingClass><drawerType>MapMeshAndRealTime</drawerType>
-    <size>(2,1)</size><costList><Steel>150</Steel><ComponentIndustrial>4</ComponentIndustrial></costList>
-    <graphicData><drawSize>(2,1)</drawSize></graphicData>
-    <statBases><WorkToBuild>2600</WorkToBuild><MaxHitPoints>360</MaxHitPoints></statBases><building><isInert>false</isInert><turretGunDef>Gun_MiniTurret</turretGunDef><turretBurstCooldownTime>2</turretBurstCooldownTime><turretTopDrawSize>1.7</turretTopDrawSize></building>
-    <comps>
-      <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>45</turnRateDegPerSec><fireToleranceDeg>2</fireToleranceDeg><mechanicalArcDeg>60</mechanicalArcDeg></li>
-      <li Class="DeltaV.CompProperties_SpaceWeaponCrew"><gunnerOffset>(0,0,-1)</gunnerOffset></li>
-      <li Class="CompProperties_Refuelable"><fuelCapacity>36</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
-      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>3</ammoPerShot></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Cannon</projectileDef><topTurret>false</topTurret><fireArcDeg>60</fireArcDeg><baseSpreadDeg>2</baseSpreadDeg><cooldownTicks>150</cooldownTicks><range>140</range><muzzleOffset>(0,0.6)</muzzleOffset><attachmentSlots><li><cell>(1,0,0)</cell><drawScale>0.46</drawScale></li></attachmentSlots></li>
-    </comps>
-  </ThingDef>
-
-  <ThingDef ParentName="DeltaV_SpaceWallWeapon">
-    <defName>DeltaV_Weapon_CasemateLarge</defName><label>large casemate cannon</label><description>A cruiser-grade airtight casemate gun.</description>
-    <thingClass>Building_TurretGun</thingClass><drawerType>MapMeshAndRealTime</drawerType>
-    <size>(3,2)</size><costList><Steel>360</Steel><ComponentIndustrial>9</ComponentIndustrial></costList>
-    <graphicData><drawSize>(3,2)</drawSize></graphicData>
-    <statBases><WorkToBuild>6000</WorkToBuild><MaxHitPoints>720</MaxHitPoints></statBases><building><isInert>false</isInert><turretGunDef>Gun_MiniTurret</turretGunDef><turretBurstCooldownTime>2</turretBurstCooldownTime><turretTopDrawSize>2.3</turretTopDrawSize></building>
-    <comps>
-      <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>30</turnRateDegPerSec><fireToleranceDeg>1.5</fireToleranceDeg><mechanicalArcDeg>45</mechanicalArcDeg></li>
-      <li Class="DeltaV.CompProperties_SpaceWeaponCrew"><gunnerOffset>(0,0,-1)</gunnerOffset></li>
-      <li Class="CompProperties_Refuelable"><fuelCapacity>96</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
-      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>4</ammoPerShot></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Cannon</projectileDef><topTurret>false</topTurret><fireArcDeg>45</fireArcDeg><baseSpreadDeg>1.5</baseSpreadDeg><cooldownTicks>120</cooldownTicks><range>180</range><muzzleOffset>(0,1.1)</muzzleOffset><attachmentSlots><li><cell>(-1,0,0)</cell><drawScale>0.46</drawScale></li><li><cell>(1,0,0)</cell><drawScale>0.46</drawScale></li></attachmentSlots></li>
-    </comps>
-  </ThingDef>
-
-  <ThingDef ParentName="DeltaV_SpaceWallWeapon">
-    <defName>DeltaV_Weapon_MissileLauncher</defName><label>small missile launcher</label><description>An airtight cold-launch missile rack.</description>
-    <size>(1,2)</size><costList><Steel>180</Steel><ComponentIndustrial>6</ComponentIndustrial></costList>
-    <graphicData><drawSize>(1,2)</drawSize></graphicData>
-    <statBases><WorkToBuild>3400</WorkToBuild><MaxHitPoints>300</MaxHitPoints></statBases>
-    <comps>
-      <li Class="DeltaV.CompProperties_SpaceWeaponCrew"><gunnerOffset>(0,0,-1)</gunnerOffset></li>
-      <li Class="CompProperties_Refuelable"><fuelCapacity>60</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Missile materials</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
-      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>15</ammoPerShot></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Missile</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><ignitionDelayTicks>30</ignitionDelayTicks><baseSpreadDeg>0.5</baseSpreadDeg><cooldownTicks>420</cooldownTicks><range>180</range><muzzleOffset>(0,1.1)</muzzleOffset><attachmentSlots><li><cell>(0,0,0)</cell><drawScale>0.46</drawScale></li></attachmentSlots></li>
-    </comps>
-  </ThingDef>
-
-  <ThingDef ParentName="DeltaV_SpaceWallWeapon">
-    <defName>DeltaV_Weapon_MissileLauncherLarge</defName><label>large missile launcher</label><description>A cruiser-grade airtight cold-launch missile rack.</description>
-    <size>(1,3)</size><costList><Steel>420</Steel><ComponentIndustrial>12</ComponentIndustrial></costList>
-    <graphicData><drawSize>(1,3)</drawSize></graphicData>
+    <defName>DeltaV_Weapon_MissileLauncher</defName><label>missile launcher</label><description>An airtight cold-launch missile rack with autonomous guidance.</description>
+    <size>(1,3)</size><drawerType>MapMeshAndRealTime</drawerType><costList><Steel>420</Steel><ComponentIndustrial>12</ComponentIndustrial></costList>
+    <graphicData><texPath>Things/Building/SpaceWeapons/MissileLauncher_Inner</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>Cutout</shaderType><drawSize>(1.06,3)</drawSize><drawOffsetNorth>(0,0,0.15)</drawOffsetNorth><drawOffsetEast>(0.15,0,0)</drawOffsetEast><drawOffsetSouth>(0,0,-0.15)</drawOffsetSouth><drawOffsetWest>(-0.15,0,0)</drawOffsetWest><linkFlags><li>Wall</li></linkFlags></graphicData>
+    <placeWorkers><li>DeltaV.PlaceWorker_MissileLauncher</li></placeWorkers>
+    <inspectorTabs><li>ITab_Storage</li></inspectorTabs>
+    <building><fixedStorageSettings><filter><thingDefs><li>DeltaV_Missile_HE</li></thingDefs></filter></fixedStorageSettings><defaultStorageSettings><filter><thingDefs><li>DeltaV_Missile_HE</li></thingDefs></filter></defaultStorageSettings><relatedBuildCommands><li>DeltaV_Building_MissileMagazine</li></relatedBuildCommands></building>
     <statBases><WorkToBuild>7000</WorkToBuild><MaxHitPoints>620</MaxHitPoints></statBases>
     <comps>
-      <li Class="DeltaV.CompProperties_SpaceWeaponCrew"><gunnerOffset>(0,0,-2)</gunnerOffset></li>
-      <li Class="CompProperties_Refuelable"><fuelCapacity>200</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Missile materials</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
-      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>25</ammoPerShot></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Missile</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><ignitionDelayTicks>30</ignitionDelayTicks><baseSpreadDeg>0.4</baseSpreadDeg><cooldownTicks>300</cooldownTicks><range>220</range><muzzleOffset>(0,1.6)</muzzleOffset><attachmentSlots><li><cell>(0,0,-1)</cell><drawScale>0.46</drawScale></li></attachmentSlots></li>
+      <li Class="CompProperties_ChangeableProjectile" />
+      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine" />
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_Missile</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><defaultFireDeviationDeg>180</defaultFireDeviationDeg><ignitionDelayTicks>30</ignitionDelayTicks><baseSpreadDeg>0.4</baseSpreadDeg><cooldownTicks>300</cooldownTicks><range>220</range><muzzleOffset>(0,1.6)</muzzleOffset><intrinsicAimSkill>20</intrinsicAimSkill></li>
+      <li Class="DeltaV.CompProperties_MissileAutoloader"><magazineDefs><li>DeltaV_Building_MissileMagazine</li></magazineDefs><magazineRootOffsets><li>(-1,0,-1)</li><li>(1,0,-1)</li></magazineRootOffsets></li>
+      <li Class="DeltaV.CompProperties_LoadedProjectileGraphic"><drawSize>(1.3,1.3)</drawSize><drawOffset>(-0.05,0.35)</drawOffset></li>
+      <li Class="CompProperties_DrawAdditionalGraphics"><graphics><li><texPath>Things/Building/SpaceWeapons/MissileLauncher_Outer</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>Cutout</shaderType><drawSize>(1.06,3)</drawSize><drawOffsetNorth>(0,0.033,0.15)</drawOffsetNorth><drawOffsetEast>(0.15,0.033,0)</drawOffsetEast><drawOffsetSouth>(0,0.033,-0.15)</drawOffsetSouth><drawOffsetWest>(-0.15,0.033,0)</drawOffsetWest></li></graphics></li>
     </comps>
+  </ThingDef>
+
+  <ThingDef ParentName="Wall">
+    <defName>DeltaV_Building_MissileMagazine</defName><label>missile magazine wall</label><description>A two-cell armored airtight magazine mounted parallel to the inboard side of a missile launcher. Haulers stock guided missiles here for automatic loading.</description>
+    <thingClass>Building_Storage</thingClass><designationCategory>Security</designationCategory><size>(1,2)</size><rotatable>true</rotatable>
+    <graphicData Inherit="False"><texPath>Things/Building/SpaceWeapons/MissileMagazine</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>Cutout</shaderType><drawSize>(1.26,2)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
+    <placeWorkers><li>DeltaV.PlaceWorker_MissileMagazine</li></placeWorkers>
+    <uiIconPath>Things/Building/SpaceWeapons/MissileMagazine</uiIconPath>
+    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><surfaceType>Item</surfaceType>
+    <useStuffTerrainAffordance>false</useStuffTerrainAffordance><costStuffCount>0</costStuffCount>
+    <stuffCategories Inherit="False" /><costList><Steel>180</Steel><ComponentIndustrial>5</ComponentIndustrial></costList>
+    <statBases><WorkToBuild>3600</WorkToBuild><MaxHitPoints>450</MaxHitPoints></statBases>
+    <building><isAirtight>true</isAirtight><isEdifice>true</isEdifice><maxItemsInCell>1</maxItemsInCell><preventDeteriorationOnTop>true</preventDeteriorationOnTop><fixedStorageSettings><filter><thingDefs><li>DeltaV_Missile_HE</li></thingDefs></filter></fixedStorageSettings><defaultStorageSettings><priority>Preferred</priority><filter><thingDefs><li>DeltaV_Missile_HE</li></thingDefs></filter></defaultStorageSettings><relatedBuildCommands><li>DeltaV_Weapon_MissileLauncher</li></relatedBuildCommands></building>
+    <inspectorTabs><li>ITab_Storage</li></inspectorTabs>
   </ThingDef>
 
   <!-- Complete rail weapons and optional serial accelerators. -->
@@ -211,7 +187,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponCrew"><gunnerOffset>(0,0,-1)</gunnerOffset></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>60</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel slugs</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>10</ammoPerShot></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_RailgunSlug</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><intrinsicAimSkill>10</intrinsicAimSkill><baseSpreadDeg>0.4</baseSpreadDeg><cooldownTicks>360</cooldownTicks><range>220</range><shotEnergy>600</shotEnergy><impactScale>4</impactScale><muzzleOffset>(0,0.6)</muzzleOffset><attachmentSlots><li><cell>(1,0,0)</cell><drawOffset>(0.18,0)</drawOffset><drawScale>0.50</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_UraniumMagazine</li></allowedAttachmentDefs><acceleratorStarts><li>(0,0,1)</li></acceleratorStarts><allowedAcceleratorDefs><li>DeltaV_Weapon_RailgunAccelerator</li></allowedAcceleratorDefs></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_RailgunSlug</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><defaultFireDeviationDeg>15</defaultFireDeviationDeg><intrinsicAimSkill>10</intrinsicAimSkill><baseSpreadDeg>0.4</baseSpreadDeg><cooldownTicks>360</cooldownTicks><range>220</range><shotEnergy>600</shotEnergy><impactScale>4</impactScale><muzzleFlashSize>2.6</muzzleFlashSize><muzzleOffset>(0,0.6)</muzzleOffset><attachmentSlots><li><cell>(1,0,0)</cell><drawOffset>(0.18,0)</drawOffset><drawScale>0.50</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_UraniumMagazine</li></allowedAttachmentDefs><acceleratorStarts><li>(0,0,1)</li></acceleratorStarts><allowedAcceleratorDefs><li>DeltaV_Weapon_RailgunAccelerator</li></allowedAcceleratorDefs></li>
       <li Class="DeltaV.CompProperties_RailgunReadinessAppearance" />
     </comps><researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
   </ThingDef>
@@ -228,7 +204,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeaponCrew"><gunnerOffset>(0,0,-1)</gunnerOffset></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>216</fuelCapacity><initialFuelPercent>1</initialFuelPercent><fuelFilter><thingDefs><li>Steel</li></thingDefs></fuelFilter><fuelLabel>Steel slugs</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>18</ammoPerShot></li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_RailgunSlug</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><canFireWithoutAlignmentByDefault>true</canFireWithoutAlignmentByDefault><intrinsicAimSkill>10</intrinsicAimSkill><baseSpreadDeg>0.25</baseSpreadDeg><cooldownTicks>420</cooldownTicks><range>280</range><shotEnergy>1200</shotEnergy><impactScale>8</impactScale><muzzleOffset>(0,1.1)</muzzleOffset><attachmentSlots><li><cell>(1,0,0)</cell><drawOffset>(0.86,0.5)</drawOffset><drawScale>1</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_UraniumMagazine</li></allowedAttachmentDefs><acceleratorStarts><li>(0,0,2)</li></acceleratorStarts><allowedAcceleratorDefs><li>DeltaV_Weapon_RailgunAcceleratorLarge</li></allowedAcceleratorDefs></li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon"><projectileDef>DeltaV_Projectile_RailgunSlug</projectileDef><topTurret>false</topTurret><fireArcDeg>0</fireArcDeg><lockArcDeg>360</lockArcDeg><defaultFireDeviationDeg>15</defaultFireDeviationDeg><intrinsicAimSkill>10</intrinsicAimSkill><baseSpreadDeg>0.25</baseSpreadDeg><cooldownTicks>420</cooldownTicks><range>280</range><shotEnergy>1200</shotEnergy><impactScale>8</impactScale><muzzleFlashSize>3.6</muzzleFlashSize><muzzleOffset>(0,1.1)</muzzleOffset><attachmentSlots><li><cell>(1,0,0)</cell><drawOffset>(0.86,0.5)</drawOffset><drawScale>1</drawScale></li></attachmentSlots><allowedAttachmentDefs><li>DeltaV_Building_UraniumMagazine</li></allowedAttachmentDefs><acceleratorStarts><li>(0,0,2)</li></acceleratorStarts><allowedAcceleratorDefs><li>DeltaV_Weapon_RailgunAcceleratorLarge</li></allowedAcceleratorDefs></li>
       <li Class="DeltaV.CompProperties_RailgunReadinessAppearance" />
     </comps><researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
   </ThingDef>
@@ -270,7 +246,7 @@
     <thingClass>Building</thingClass><passability>Standable</passability><size>(1,1)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory><altitudeLayer>BuildingOnTop</altitudeLayer><building><isEdifice>false</isEdifice></building>
     <graphicData><texPath>Things/Building/SpaceWeapons/UraniumMagazine</texPath><graphicClass>DeltaV.Graphic_SpaceWeaponAttachment</graphicClass><drawSize>(1,1)</drawSize><drawOffset>(0,-0.712,0)</drawOffset></graphicData><placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers><costList><Steel>50</Steel><ComponentIndustrial>2</ComponentIndustrial></costList><statBases><WorkToBuild>1000</WorkToBuild><MaxHitPoints>100</MaxHitPoints></statBases>
     <comps>
-      <li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_SpaceWeaponAttachment"><allowedHostDefs><li>DeltaV_Weapon_PDTurret</li><li>DeltaV_Weapon_CannonTurret</li><li>DeltaV_Weapon_RapidMainSmall</li><li>DeltaV_Weapon_HeavyMainMedium</li><li>DeltaV_Weapon_RapidMainMedium</li><li>DeltaV_Weapon_CasemateCannon</li><li>DeltaV_Weapon_CasemateLarge</li><li>DeltaV_Weapon_RailgunLoader</li><li>DeltaV_Weapon_RailgunLoaderLarge</li></allowedHostDefs></li>
+      <li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_SpaceWeaponAttachment"><allowedHostDefs><li>DeltaV_Weapon_PDTurret</li><li>DeltaV_Weapon_CannonTurret</li><li>DeltaV_Weapon_RapidMainSmall</li><li>DeltaV_Weapon_HeavyMainMedium</li><li>DeltaV_Weapon_RapidMainMedium</li><li>DeltaV_Weapon_RailgunLoader</li><li>DeltaV_Weapon_RailgunLoaderLarge</li></allowedHostDefs></li>
       <li Class="CompProperties_Refuelable"><fuelCapacity>60</fuelCapacity><initialFuelPercent>0</initialFuelPercent><fuelFilter><thingDefs><li>Uranium</li></thingDefs></fuelFilter><fuelLabel>Uranium ammunition</fuelLabel><consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed><autoRefuelPercent>0.5</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine"><ammoPerShot>3</ammoPerShot><defaultPriority>1</defaultPriority><attachment>true</attachment><armorPenetrationScale>1.5</armorPenetrationScale></li>
     </comps>

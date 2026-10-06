@@ -113,14 +113,25 @@ namespace DeltaV
         /// 独占整条命令表——不经整壳收集，直接装载一条后由调用方 Emit 到目标层槽位。</summary>
         internal static void CollectSingleQuad(Mesh mesh, Matrix4x4 matrix, Material material)
         {
+            BeginQuadBatch();
+            AddQuadToBatch(mesh, matrix, material);
+        }
+
+        internal static void BeginQuadBatch()
+        {
             Commands.Clear();
             nextSequence = 0;
+        }
+
+        internal static void AddQuadToBatch(Mesh mesh, Matrix4x4 matrix, Material material)
+        {
             Commands.Add(new OverlayCommand
             {
                 mesh = mesh,
                 matrix = matrix,
                 material = material,
-                queue = material.renderQueue
+                queue = material.renderQueue,
+                sequence = nextSequence++
             });
         }
 
