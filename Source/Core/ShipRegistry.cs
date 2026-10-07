@@ -264,6 +264,11 @@ namespace DeltaV
             domainCache.Clear();
         }
 
+        public static void Forget(Map map)
+        {
+            if (map != null) domainCache.Remove(map);
+        }
+
         // ---- 状态派生（§5.2）----
 
         /// <summary>

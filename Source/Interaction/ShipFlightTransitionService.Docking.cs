@@ -455,7 +455,8 @@ namespace DeltaV
             SpaceObject sourceFrame = universe.FrameOf(sourceMap);
             if (sourceFrame == null) return null;
             // 起飞前记录玩家视点（源图注视才交接，中途看向别处不打扰）。
-            bool handoverFocus = Find.CurrentMap == sourceMap;
+            bool handoverFocus = Find.CurrentMap == sourceMap
+                && hull.Faction == Faction.OfPlayer;
             Vector3 viewUniverse = default;
             float handoffZoom = 0f;
             if (handoverFocus)

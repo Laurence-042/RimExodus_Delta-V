@@ -47,9 +47,14 @@ namespace DeltaV
 
         public static bool HasPlayerPawn(Map map)
         {
-            if (map?.mapPawns?.AllPawnsSpawned == null) return false;
+            if (map == null || map.Disposed) return false;
             Faction player = Faction.OfPlayerSilentFail;
-            return player != null && map.mapPawns.AllPawnsSpawned.Any(p => p.Faction == player);
+            if (player == null) return false;
+            if (map.mapPawns.AllPawnsSpawned.Any(p => p.Faction == player || p.HostFaction == player))
+                return true;
+            var nested = new List<Thing>();
+            ThingOwnerUtility.GetAllThingsRecursively(map, nested);
+            return nested.OfType<Pawn>().Any(p => p.Faction == player || p.HostFaction == player);
         }
 
         public static bool MustStayActive(Map map, UniverseManager universe)

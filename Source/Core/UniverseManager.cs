@@ -54,6 +54,10 @@ namespace DeltaV
 
         public ShipAutopilot Autopilot => autopilot ?? (autopilot = new ShipAutopilot());
 
+        [NonSerialized] private NpcShipAiService npcShips;
+
+        public NpcShipAiService NpcShips => npcShips ?? (npcShips = new NpcShipAiService(this));
+
         [NonSerialized] private SpaceProjectileService projectiles;
 
         /// <summary>
@@ -532,7 +536,8 @@ namespace DeltaV
                     Log.Warning($"[DeltaV] Object #{obj.objectId} ({obj.label}) lost its map after load; clearing map reference.");
                     obj.map = null;
                 }
-                if (obj.map == null && !(obj is PoiState))
+                if (obj.map == null && !(obj is PoiState)
+                    && obj.archivedMapData.NullOrEmpty())
                 {
                     Log.Warning($"[DeltaV] Container #{obj.objectId} ({obj.label}) lost its map; removing from universe state.");
                     UnregisterObject(obj);
@@ -732,6 +737,8 @@ namespace DeltaV
             // 宇宙运动只属于游戏时钟（AGENTS §18 不变量 #20）：自动驾驶/弹体制导/跳帮舱按
             // 游戏 tick 推进——暂停冻结、倍速加速；先于计划判据与物理积分
             //（IsActive 跳过防双驱动，计划判据看到本 tick 最新位姿）。
+            NpcShips.Tick();
+            Lifecycle.TickArchivedTravel();
             Autopilot.Tick();
             Projectiles.Tick();
             // 武器射击（瞄准模式输入 + PD 自动索敌）：发射的弹体本 tick 即被积分与扫掠。
@@ -1102,6 +1109,7 @@ namespace DeltaV
         /// </summary>
         private void ResetRuntimeServices()
         {
+            npcShips = null;
             ShellRenderer.ClearRuntimeCaches();
             WorldShipMarkerRenderer.ClearRuntimeCaches();
             PlanetGlobeRenderer.ClearRuntimeCaches();

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using RimWorld;
+using UnityEngine;
 using Verse;
 
 namespace DeltaV
@@ -45,8 +46,8 @@ namespace DeltaV
     /// worldtile 地图 = 原版站点/空画布锚对象的内部；内部地图坐标 ⇄ 轨道坐标的唯一
     /// 通道是所属对象的位姿（对象位姿 ⊕ 内部局部坐标），不存在图级坐标锚。
     ///
-    /// "map == null" 只对 PoiState marker 有意义（未物化触发器）；普通容器 map 恒在
-    /// （丢失即注销，见 UniverseManager.LoadedGame 清扫）。map 之外的姿态数据是存档
+    /// "map == null" 表示未物化 PoiState 或持有 archivedMapData 的整图归档容器；
+    /// 无归档数据的普通容器丢图即注销。map 之外的姿态数据是存档
     /// 事实；外壳显示以 Map 的 SectionLayer 为事实源。
     /// </summary>
     public class SpaceObject : IExposable
@@ -81,6 +82,26 @@ namespace DeltaV
         /// 无结构时显示「未注册对象」。
         /// </summary>
         public string ambientLabel;
+
+        /// <summary>生成时固定的内容类型和 prefab 身份；归档与母港查询沿用。</summary>
+        public string contentTypeId;
+        public string sourcePrefabPath;
+        public List<NpcDoctrine> npcDoctrines;
+
+        /// <summary>NPC 战损比较基线与撤退目的地，均由首次完整物化时的真实结构得出。</summary>
+        public float npcInitialThrust;
+        public float npcInitialFirepower;
+        public int npcInitialMainConsoleId;
+        public bool npcRetreating;
+        public int npcHomeObjectId;
+        public Vector3 npcRetreatOrigin;
+
+        /// <summary>原版 Map.ExposeData 的压缩 XML；有值时本容器的地图已从 Game.maps 卸载。</summary>
+        public string archivedMapData;
+        public float archivedCruiseCellsPerTick;
+        public Vector3 archivedCruiseDestination;
+        public int archivedMapId;
+        public RimWorld.Planet.PocketMapParent archivedParent;
 
         [Unsaved] private string cachedLabel;
         [Unsaved] private int cachedLabelVersion = -1;
@@ -215,6 +236,20 @@ namespace DeltaV
             Scribe_Deep.Look(ref pose, "pose");
             Scribe_References.Look(ref map, "map");
             Scribe_Values.Look(ref ambientLabel, "ambientLabel", null);
+            Scribe_Values.Look(ref contentTypeId, "contentTypeId");
+            Scribe_Values.Look(ref sourcePrefabPath, "sourcePrefabPath");
+            Scribe_Collections.Look(ref npcDoctrines, "npcDoctrines", LookMode.Value);
+            Scribe_Values.Look(ref npcInitialThrust, "npcInitialThrust");
+            Scribe_Values.Look(ref npcInitialFirepower, "npcInitialFirepower");
+            Scribe_Values.Look(ref npcInitialMainConsoleId, "npcInitialMainConsoleId");
+            Scribe_Values.Look(ref npcRetreating, "npcRetreating");
+            Scribe_Values.Look(ref npcHomeObjectId, "npcHomeObjectId");
+            Scribe_Values.Look(ref npcRetreatOrigin, "npcRetreatOrigin");
+            Scribe_Values.Look(ref archivedMapData, "archivedMapData");
+            Scribe_Values.Look(ref archivedCruiseCellsPerTick, "archivedCruiseCellsPerTick");
+            Scribe_Values.Look(ref archivedCruiseDestination, "archivedCruiseDestination");
+            Scribe_Values.Look(ref archivedMapId, "archivedMapId");
+            Scribe_References.Look(ref archivedParent, "archivedParent");
         }
     }
 }

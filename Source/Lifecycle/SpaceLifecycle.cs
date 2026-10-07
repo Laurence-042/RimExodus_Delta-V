@@ -15,11 +15,9 @@ namespace DeltaV
     /// - marker（未物化 PoiState）= 无图触发器：按设置的类型显示图标/名称，接近后
     ///   物化——产物是**普通 SpaceObject 容器**（无 POI 图标身份，名称 = 图上结构
     ///   拼接、ambientLabel 兜底纯环境）。
-    /// - 物化容器（普通 SpaceObject）的生命周期**按图内容判定，不看对象类型**：
-    ///   MustStayActive（玩家侧）恒活跃；图上有任何有效船（含 NPC）或滞留 pawn →
-    ///   只休眠冻结、永不归档（快照会拍平归属、丢驾驶台 comp）；无船无 pawn →
-    ///   超删除距离归档 = 收快照、新建 marker 替换、销图、注销容器（帧上下文）；
-    ///   完全空白图直接注销。
+    /// - 物化容器（普通 SpaceObject）：MustStayActive（玩家侧）恒活跃；离开活跃
+    ///   距离休眠，超删除距离使用原版 Map 整图序列化并卸载，保留容器身份与姿态；
+    ///   靠近时从同一地图内容恢复，不经 prefab 重盖。
     /// - NativeParent 型 PoiState 例外：map 字段跟随原版 MapParent 镜像
     ///   （SynchronizeNative/UpdateFromParent），保留原版图标与生命周期。
     /// </summary>
@@ -90,18 +88,25 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 物化容器（普通 SpaceObject）：生命周期按图内容判定（2026-09-25 用户定案）。
-        /// 拆分残骸容器从此也有距离生命周期（修「地图永久加载泄漏」）。
+        /// 物化容器（普通 SpaceObject）：舰船、空间站与拆分残骸统一使用距离生命周期。
         /// </summary>
         private void TickMaterializedContainer(SpaceObject container, float activeRadius, float deleteRadius)
         {
             Map map = container.map;
-            if (map == null) return; // 不应存在（LoadedGame 清扫纯容器丢图即注销）
+            if (map == null)
+            {
+                if (!container.archivedMapData.NullOrEmpty()
+                    && MinPlayerDistance(container) <= activeRadius)
+                    QueueRestore(container);
+                return;
+            }
             if (IsUniverseHost(map)) return;
+            if (map.Parent is not ShipPocketParent_DeltaV) return;
             // 在飞弹体图按 tag 豁免距离休眠/归档（太空战架构 §3.2）：弹体生命周期由
             // 弹体服务（超时/碰撞结算）独占管理，生命周期扫描不得收纳/销毁在飞弹体的图
             //（图池空闲图的豁免同样见弹体服务）。
-            if (container.Tag == SpaceObjectTag.Projectile) return;
+            if (container.Tag == SpaceObjectTag.Projectile
+                || container.baseTag == SpaceObjectTag.Shuttle) return;
             // 悬死自愈：图被外部销毁 → 容器随图消亡。
             if (map.Disposed || !Find.Maps.Contains(map))
             {
@@ -121,13 +126,6 @@ namespace DeltaV
             if (distance <= activeRadius)
             {
                 dormancy.Wake(map, "inside load radius");
-                return;
-            }
-            // 图上有任何有效船（含 NPC）或滞留 pawn：永不归档（快照会拍平归属、丢
-            // 驾驶台 comp），只休眠冻结。
-            if (ShipRegistry.ShipsOnMap(map).Count > 0 || map.mapPawns.AllPawnsSpawned.Any())
-            {
-                dormancy.Sleep(map, "ship or pawns aboard");
                 return;
             }
             if (distance <= deleteRadius)
@@ -273,6 +271,9 @@ namespace DeltaV
             {
                 faction = marker.faction,
                 ambientLabel = marker.envLabel,
+                contentTypeId = marker.contentTypeId,
+                sourcePrefabPath = marker.sourcePrefabPath,
+                npcDoctrines = marker.npcDoctrines,
             };
             universe.RegisterObject(container);
             if (!marker.envLabel.NullOrEmpty())
@@ -319,6 +320,14 @@ namespace DeltaV
                 Messages.Message("DeltaV_PoiActivated".Translate(container.label),
                     MessageTypeDefOf.NeutralEvent, false);
             }
+            Ship initialShip = ShipRegistry.ShipsOnMap(map)
+                .FirstOrDefault(s => ShipRegistry.FactionOf(s) != Faction.OfPlayer);
+            if (initialShip.IsValid)
+            {
+                container.npcInitialThrust = ShipPhysics.AvailableThrust(map);
+                container.npcInitialFirepower = universe.Weapons.EstimateFirepower(initialShip, 50f, 20f);
+                container.npcInitialMainConsoleId = initialShip.console.parent.thingIDNumber;
+            }
             universe.UnregisterObject(marker);
             dormancy.Wake(map, "generation complete");
             DeltaVLog.Message(DeltaVLogModule.Lifecycle,
@@ -352,7 +361,8 @@ namespace DeltaV
             if (type == null) return null;
             DeltaVSettings settings = DeltaVMod.CurrentSettings;
             if (settings == null) return null;
-            return MapPrefab.ResolvePoolPath(settings.EffectiveSectorRule(type).prefabPaths, marker.seed);
+            return marker.sourcePrefabPath
+                ?? MapPrefab.ResolvePoolPath(settings.EffectiveSectorRule(type).prefabPaths, marker.seed);
         }
 
         /// <summary>池可用时按选定 prefab 尺寸 + 边距决定目标图尺寸（下限 PoiMapSize）。</summary>
@@ -406,12 +416,10 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 普通物化容器的归档（B→marker 替换，2026-09-25 用户定案）：收快照 → 新建
-        /// marker（envLabel = 当前显示名：拼接名或纯环境兜底名）→ 先注册 marker →
-        /// 销图 → 注销容器，整段经 QueueFrameAction 帧上下文执行。完全空白的图直接
-        /// 注销不建 marker。帧上下文复核：图可能已被销毁/对象已被替换/有船落上。
+        /// 整图归档：Map.ExposeData 原样存入对象，然后从 Game.maps 卸载。
+        /// 失败时保留原图与身份；不经 prefab/浅快照重建。
         /// </summary>
-        internal void ArchiveContainer(SpaceObject container, Map map)
+        internal void ArchiveContainer(SpaceObject container, Map map, bool force = false)
         {
             universe.QueueFrameAction(delegate
             {
@@ -424,40 +432,117 @@ namespace DeltaV
                     return;
                 }
                 if (SpaceMapGovernance.MustStayActive(map, universe)
-                    || ShipRegistry.ShipsOnMap(map).Count > 0
-                    || map.mapPawns.AllPawnsSpawned.Any())
+                    || container.Tag == SpaceObjectTag.Projectile
+                    || container.baseTag == SpaceObjectTag.Shuttle
+                    || map.Parent is not ShipPocketParent_DeltaV
+                    || (!force && MinPlayerDistance(container)
+                        <= DeltaVMod.CurrentSettings.poiDeleteRadius))
                 {
-                    return; // 帧间隙里有船落上/结构变化 → 放弃归档，下轮重判
-                }
-                PoiSnapshot snapshot = PoiSnapshot.Capture(map);
-                if (!snapshot.HasContent)
-                {
-                    // 完全空白：无基架无建筑/物品——不值得归档，直接注销销图。
-                    string blankLabel = container.label;
-                    DestroyPocketMap(map);
-                    universe.UnregisterObject(container);
-                    DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                        $"{blankLabel}: blank map destroyed at delete radius (no marker created)");
                     return;
                 }
-                // 销图前取显示名（拼接名或 ambientLabel 兜底）作为 marker 的 envLabel。
+                if (!ArchivedMapStore.TryCapture(map, out string data)) return;
                 string carriedLabel = container.label;
-                var marker = new PoiState(universe.AllocateOwnerId(), carriedLabel,
-                    container.pose.position, container.pose.angle, Rand.Int)
+                float cruise = 0f;
+                if (container.npcRetreating)
                 {
-                    faction = container.faction,
-                    snapshot = snapshot,
-                };
-                marker.pose = container.pose; // 完整位姿接管（含速度）
-                universe.RegisterObject(marker); // 先注册 marker
-                DestroyPocketMap(map);          // 销图
-                universe.UnregisterObject(container); // 再注销容器
-                Messages.Message("DeltaV_PoiPacked".Translate(marker.label),
-                    MessageTypeDefOf.NeutralEvent, false);
+                    ShipPhysics.MassReport report = ShipPhysics.GetReport(map);
+                    float thrust = ShipPhysics.AvailableThrust(map);
+                    float acceleration = thrust / Mathf.Max(1f, report?.mass ?? 1f);
+                    cruise = Mathf.Max(container.pose.velocity.magnitude,
+                        Mathf.Sqrt(2f * acceleration * 100f)) / 60f;
+                    SpaceObject home = universe.ObjectById(container.npcHomeObjectId);
+                    container.archivedCruiseDestination = home?.pose.position ??
+                        OrbitSphere.Move(container.npcRetreatOrigin,
+                            container.pose.velocity.sqrMagnitude > 1e-6f
+                                ? container.pose.velocity.normalized * OrbitSphere.CellsPerTile
+                                : Vector2.right * OrbitSphere.CellsPerTile);
+                }
+                if (!ArchivedMapStore.TryUnload(map)) return;
+                Forget(map);
+                container.ambientLabel = carriedLabel;
+                container.archivedMapId = map.uniqueID;
+                container.archivedParent = map.Parent as PocketMapParent;
+                container.archivedCruiseCellsPerTick = cruise;
+                container.archivedMapData = data;
+                container.map = null;
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                    $"{marker.label}: container #{container.objectId} archived into "
-                    + $"marker #{marker.objectId}");
+                    $"{carriedLabel}: full map #{container.archivedMapId} archived on container #{container.objectId}");
             });
+        }
+
+        private readonly HashSet<int> restoreQueued = new HashSet<int>();
+
+        private void QueueRestore(SpaceObject container)
+        {
+            if (!restoreQueued.Add(container.objectId)) return;
+            universe.QueueFrameAction(() =>
+            {
+                restoreQueued.Remove(container.objectId);
+                if (universe.ObjectById(container.objectId) != container || container.map != null
+                    || container.archivedMapData.NullOrEmpty()) return;
+                if (!ArchivedMapStore.TryRestore(container.archivedMapData,
+                    container.archivedMapId, container.archivedParent, out Map restored)) return;
+                container.map = restored;
+                container.archivedMapData = null;
+                container.archivedMapId = 0;
+                container.archivedParent = null;
+                dormancy.Wake(restored, "full map archive restored");
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"{container.label}: full map restored ({UniverseManager.MapTag(restored)})");
+            });
+        }
+
+        public void TickArchivedTravel()
+        {
+            foreach (SpaceObject obj in universe.objects.ToList())
+            {
+                if (obj.map != null || obj.archivedMapData.NullOrEmpty()) continue;
+                if (MinPlayerDistance(obj) <= DeltaVMod.CurrentSettings.poiActiveRadius)
+                {
+                    QueueRestore(obj);
+                    continue;
+                }
+                if (!obj.npcRetreating || obj.archivedCruiseCellsPerTick <= 0f)
+                {
+                    if (obj.pose.velocity.sqrMagnitude > 1e-10f
+                        || Mathf.Abs(obj.pose.angularVelocity) > 1e-10f)
+                        ShipPhysics.Integrate(obj, ShipPhysics.PointMassReport,
+                            Vector2.zero, 0f, 1f / 60f, false, false, false);
+                    if (obj.npcRetreating && obj.npcHomeObjectId == 0
+                        && OrbitSphere.TileFromDirection(obj.pose.position)
+                            != OrbitSphere.TileFromDirection(obj.npcRetreatOrigin))
+                    {
+                        RetireArchivedParent(obj);
+                        universe.UnregisterObject(obj);
+                    }
+                    continue;
+                }
+                SpaceObject home = universe.ObjectById(obj.npcHomeObjectId);
+                Vector3 destination = home?.pose.position ?? obj.archivedCruiseDestination;
+                float remaining = OrbitSphere.ArcCells(obj.pose.position, destination);
+                if (remaining <= Mathf.Max(20f, obj.archivedCruiseCellsPerTick))
+                {
+                    RetireArchivedParent(obj);
+                    universe.UnregisterObject(obj);
+                    continue;
+                }
+                Vector2 offset = OrbitSphere.Offset(obj.pose.position, destination);
+                SpacePose pose = obj.pose;
+                pose.velocity = offset.normalized * (obj.archivedCruiseCellsPerTick * 60f);
+                pose.position = OrbitSphere.Move(pose.position,
+                    offset.normalized * Mathf.Min(remaining, obj.archivedCruiseCellsPerTick));
+                obj.pose = pose;
+            }
+        }
+
+        private static void RetireArchivedParent(SpaceObject obj)
+        {
+            PocketMapParent parent = obj.archivedParent;
+            if (parent == null) return;
+            Find.World.pocketMaps.Remove(parent);
+            if (!parent.Destroyed) parent.Destroy();
+            obj.archivedParent = null;
+            obj.archivedMapData = null;
         }
 
         public void Forget(Map map)
@@ -465,6 +550,9 @@ namespace DeltaV
             dormancy.Forget(map);
             MapOverlayRenderer.Release(map);
             SpaceCollision.Forget(map);
+            ShipRegistry.Forget(map);
+            ShipPhysics.Forget(map);
+            PlanetGlobeRenderer.ClearRuntimeCaches();
         }
 
         public void DestroyPocketMap(Map map)

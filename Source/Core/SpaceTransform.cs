@@ -134,9 +134,16 @@ namespace DeltaV
         /// </summary>
         public static Vector2 VelocityAtLocalPoint(SpacePose pose, Vector2 localPoint, Vector3 pointDirection)
         {
+            return VelocityAtMovingLocalPoint(pose, localPoint, Vector2.zero, pointDirection);
+        }
+
+        /// <summary>随宿主移动且在宿主局部系内自行运动的目标点速度；战斗环绕与随动制导共用。</summary>
+        public static Vector2 VelocityAtMovingLocalPoint(SpacePose pose, Vector2 localPoint,
+            Vector2 localVelocity, Vector3 pointDirection)
+        {
             Vector2 rotatedOffset = Rotate(localPoint, pose.angle);
             Vector2 anchorVelocity = pose.velocity + pose.angularVelocity
-                * new Vector2(-rotatedOffset.y, rotatedOffset.x);
+                * new Vector2(-rotatedOffset.y, rotatedOffset.x) + Rotate(localVelocity, pose.angle);
             var pointPose = new SpacePose
             {
                 position = pose.position,

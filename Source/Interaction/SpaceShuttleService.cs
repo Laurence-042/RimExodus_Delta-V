@@ -348,19 +348,20 @@ namespace DeltaV
         ///（Pursue，无刹车包络）。打断接管 = 驾驶键 Enter 内 Detach 后由
         /// BreakIntrusion 在 UpdateFrameState 兜底（目标保留可重入）。
         /// </summary>
-        public void EngageIntrusion(Building body, SpaceObject target)
+        public void EngageIntrusion(Building body, SpaceObject target, bool playerInitiated = true)
         {
             SpaceObject container = universe.FrameOf(body.Map);
             if (container == null || container.baseTag != SpaceObjectTag.Shuttle) return;
             container.projectileRoleOverride = true;
             intrusionTargets[container.objectId] = target;
-            universe.Pilot.Exit(universe);
+            if (universe.Pilot.PilotedTarget(universe).ControlKey == body.thingIDNumber)
+                universe.Pilot.Exit(universe);
             universe.Autopilot.Pursue(body, target, delegate
             {
                 // 目标失效：退出侵入（tag 切回），目标丢弃。
                 var captured = container;
                 BreakIntrusion(captured, dropTarget: true);
-            });
+            }, playerInitiated);
             DeltaVLog.Message(DeltaVLogModule.Combat,
                 $"intrusion engaged: shuttle container #{container.objectId} -> '{target.label}' (tag->projectile)");
             Messages.Message("DeltaV_ShuttleBoardEngaged".Translate(target.label),
