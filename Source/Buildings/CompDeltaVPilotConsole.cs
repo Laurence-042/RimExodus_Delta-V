@@ -156,12 +156,14 @@ namespace DeltaV
 
         // ---- 主/备用切换（显式认领，§3.2）----
 
+        private bool PlayerMayManage => parent.Spawned && parent.Faction == Faction.OfPlayer;
+
         /// <summary>本台设为主驾驶台：认领脚下归属，原主台（若在）降为备用；朝向定义新船头。</summary>
         public void MakeMainConsole()
         {
             UniverseManager universe = Universe;
             Map map = parent.Map;
-            if (universe == null || map == null || !parent.Spawned) return;
+            if (universe == null || map == null || !PlayerMayManage) return;
             SubstructureOwnership ownership = SubstructureOwnership.For(map);
             int target = shipId > 0 ? shipId : ownership.OwnerAt(parent.Position);
             if (target <= 0)
@@ -194,7 +196,7 @@ namespace DeltaV
         /// <summary>主台主动降为备用（不自动选回自己或另一台，保证按钮真正解除控制）。</summary>
         public void MakeBackupConsole()
         {
-            if (!isMain) return;
+            if (!PlayerMayManage || !isMain) return;
             isMain = false;
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"structure #{shipId}: main console demoted to backup by player");
@@ -272,7 +274,7 @@ namespace DeltaV
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
             UniverseManager universe = Universe;
-            if (universe == null || !parent.Spawned)
+            if (universe == null || !PlayerMayManage)
             {
                 yield break;
             }

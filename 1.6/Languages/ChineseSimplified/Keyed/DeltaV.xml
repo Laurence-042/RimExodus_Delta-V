@@ -184,9 +184,8 @@
   <DeltaV_SettingsSectorRemoveSegment>删除</DeltaV_SettingsSectorRemoveSegment>
   <DeltaV_SettingsSectorSegmentTip>分段：以概率（%）追加 1 到上限个该类型额外物体。</DeltaV_SettingsSectorSegmentTip>
   <DeltaV_SettingsSectorPrefabPool>prefab 池（已选 {0} / 共 {1}）</DeltaV_SettingsSectorPrefabPool>
-  <DeltaV_SettingsSectorPrefabPoolTip>该类型物体首次物化时使用的地图 prefab（由各自 seed 确定性选取，旋转随机）。路径相对 mod 的 Prefabs 目录——用调试动作导出后，可自行移动或重命名进子目录。池为空或文件缺失时回退程序生成模板。</DeltaV_SettingsSectorPrefabPoolTip>
+  <DeltaV_SettingsSectorPrefabPoolTip>该类型物体首次物化时使用的地图 prefab（由各自 seed 确定性选取，旋转随机）。路径相对 mod 的 Prefabs 目录。池为空时该类型不生成；文件失效时取消物化。</DeltaV_SettingsSectorPrefabPoolTip>
   <DeltaV_SettingsSectorPrefabRefresh>重新扫描</DeltaV_SettingsSectorPrefabRefresh>
-  <DeltaV_SectorTypeDerelict>残骸</DeltaV_SectorTypeDerelict>
   <DeltaV_SectorTypeCraft>飞行器</DeltaV_SectorTypeCraft>
   <DeltaV_SectorTypeFighter>战机</DeltaV_SectorTypeFighter>
   <DeltaV_SectorTypeGunboat>炮艇</DeltaV_SectorTypeGunboat>

@@ -27,6 +27,30 @@ namespace DeltaV
                 && storage.OccupiedRect().Contains(cell)
                 && !GenSpawn.SpawningWipes(thing.def, storage.def))
                 canSpawn = true;
+            // CanSpawnAt requires a walkable cell, even for a saved under-wall conduit
+            // or a slot attachment that originally coexisted with its host edifice.
+            // GenSpawn.Spawn(Thing) supports the overlap; retain its wipe rules here.
+            if (!canSpawn && thing.def.category == ThingCategory.Building
+                && (thing.def.building?.isPowerConduit == true
+                    || thing.TryGetComp<CompSpaceWeaponAttachment>() != null)
+                && thing.def.CanSpawnAt(cell, rot, map)
+                && GenAdj.OccupiedRect(cell, rot, thing.def.Size).InBounds(map))
+            {
+                bool attachment = thing.TryGetComp<CompSpaceWeaponAttachment>() != null;
+                bool validHost = !attachment || new PlaceWorker_SpaceWeaponAttachment()
+                    .AllowsPlacing(thing.def, cell, rot, map).Accepted;
+                bool safeOverlap = validHost;
+                foreach (IntVec3 occupied in GenAdj.OccupiedRect(cell, rot, thing.def.Size))
+                {
+                    if (!GenConstruct.CanBuildOnTerrain(thing.def, occupied, map, rot))
+                        safeOverlap = false;
+                    foreach (Thing existing in occupied.GetThingList(map))
+                        if (existing.def == thing.def
+                            || GenSpawn.SpawningWipes(thing.def, existing.def))
+                            safeOverlap = false;
+                }
+                canSpawn = safeOverlap;
+            }
             if (!canSpawn) return null;
             return GenSpawn.Spawn(thing, cell, map, rot, WipeMode.Vanish, respawningAfterLoad);
         }
@@ -86,6 +110,9 @@ namespace DeltaV
         /// </summary>
         internal static void RelinkGravshipComponents(Map map)
         {
+            // Bulk prefab replay queues native transmitter/connector registration.
+            // Flush it before the rebuilt map is shown or used by weapon power checks.
+            map.powerNetManager.UpdatePowerNetsAndConnections_First();
             foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.GravEngine))
             {
                 if (thing is Building_GravEngine engine)

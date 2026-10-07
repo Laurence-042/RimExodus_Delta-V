@@ -49,17 +49,14 @@ namespace DeltaV
 
     public static class SectorContentTypes
     {
-        public const string DerelictId = "Derelict";
-
         /// <summary>
         /// 类型树根清单（星区架构 §11「星区内容类型」）：飞行器五级、空间站六类
-        /// （卫星再分两级）；全部占位默认 0。残骸保留为根级叶子、默认保底 1（内容
-        /// 同走类型 prefab 池；未来计划换飞行器 prefab + 损毁后处理）。伴生物不在此
+        /// （卫星再分两级）；全部占位默认 0。残骸是地图内容的派生结果，不是生成类型。
+        /// 伴生物不在此
         /// 树——它由空间站蓝图生成点伴生，不是独立星区生成项（§11 仍为设计状态）。
         /// </summary>
         public static readonly List<SectorContentType> All = new List<SectorContentType>
         {
-            new SectorContentType(DerelictId, "DeltaV_SectorTypeDerelict", 1),
             new SectorContentType("Craft", "DeltaV_SectorTypeCraft", 0,
                 new SectorContentType("Fighter", "DeltaV_SectorTypeFighter"),
                 new SectorContentType("Gunboat", "DeltaV_SectorTypeGunboat"),

@@ -695,15 +695,6 @@ namespace DeltaV
             return $"in-flight={projectiles.Count} beams={beams.Count} pooledIdleMaps={pooled}";
         }
 
-        /// <summary>dev：强制击毁全部在飞弹体（帧边界收尾）。</summary>
-        public void DestroyAll()
-        {
-            for (int i = projectiles.Count - 1; i >= 0; i--)
-            {
-                DestroyProjectile(projectiles[i], "dev force-destroy");
-            }
-        }
-
         /// <summary>
         /// 读档收尾：写档剔除的是弹体容器，弹体小图随档落盘残留为无容器图——按内容
         /// 回收（清掉弹体 building 后回池）。只动「无承载容器、无人、内容只有弹体

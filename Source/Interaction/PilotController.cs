@@ -12,6 +12,16 @@ public enum ShipControlState : byte
     Autopilot
 }
 
+internal enum PilotEntryBlockReason : byte
+{
+    None,
+    InvalidTarget,
+    NoUniverseFrame,
+    GravityRestricted,
+    ApproachConflict,
+    NoAuthority
+}
+
 /// <summary>
 /// 驾驶目标（太空战架构 §7.2 泛化）：Ship（主台归属）或在飞/停靠的 shuttle 舱体
 /// 二选一。飞船与 shuttle 不得有两套驾驶实现——本结构是两条链共用的目标句柄；
@@ -90,25 +100,28 @@ public readonly struct PilotTarget
 
         /// <summary>
         /// 公共驾驶门禁（两子类同一流程）：目标有效、所在图有宇宙容器且零重力、非流程
-        /// 互斥。已停靠的船同样可进入驾驶（2026-09-24 统一分离定案）——首次推进器出力
-        /// 即触发与其余部分的分离（脱离方向 gate 在 RequestThrust 收口）；无容器/重力图
+        /// 互斥。与其他船同图的船同样可进入驾驶（2026-09-24 统一分离定案）——首次推进器出力
+        /// 即触发控制域提取（分离 gate 在 RequestThrust 收口）；无容器/重力图
         /// 只能逆重战略发射，无驾驶。shuttle 目标同门禁（独占口袋图或停靠宿主图）。
         /// </summary>
         public virtual bool CanEnter(PilotTarget target)
         {
-            if (!target.IsValid) return false;
+            return EntryBlockReason(target) == PilotEntryBlockReason.None;
+        }
+
+        internal PilotEntryBlockReason EntryBlockReason(PilotTarget target)
+        {
+            if (!target.IsValid) return PilotEntryBlockReason.InvalidTarget;
             Map map = target.Map;
-            if (map == null || universe.FrameOf(map) == null
-                || !FreeFlightBootstrap.IsZeroGravity(universe, map))
-            {
-                return false;
-            }
+            if (map == null || universe.FrameOf(map) == null)
+                return PilotEntryBlockReason.NoUniverseFrame;
+            if (!FreeFlightBootstrap.IsZeroGravity(universe, map))
+                return PilotEntryBlockReason.GravityRestricted;
             if (universe.Approach.AnyActive
                 && universe.Approach.ApproachTarget.ControlKey != target.ControlKey)
-            {
-                return false;
-            }
-            return HasAuthority(target);
+                return PilotEntryBlockReason.ApproachConflict;
+            return HasAuthority(target)
+                ? PilotEntryBlockReason.None : PilotEntryBlockReason.NoAuthority;
         }
 
         public virtual void Enter(PilotTarget target)
@@ -172,11 +185,11 @@ public readonly struct PilotTarget
     /// <summary>
     /// NPC controller：内部持有 AI 组件，由该组件自动触发驾驶行为；AI 决定驾驶意图/任务，
     /// 通过共同驾驶契约执行，不直接搬运结构、写推进器油门或积分轨道位姿。
-    /// 本轮只落实接入边界（具体敌舰战术、目标选择属于后续 AI 工作）。
+    /// 敌舰战术与目标选择由 NpcShipAiService 持有，本类保持驾驶边界。
     /// </summary>
     public sealed class NpcShipController : ShipController
     {
-        /// <summary>内部 AI 组件（接入边界；默认空实现）。</summary>
+        /// <summary>内部 AI 组件；默认空实现，NpcShipAiService 为敌舰注入战术实现。</summary>
         public INpcShipAi Ai { get; set; } = new NoopNpcShipAi();
 
         internal NpcShipController(UniverseManager universe) : base(universe)
@@ -185,7 +198,7 @@ public readonly struct PilotTarget
 
         protected internal override bool HasAuthority(PilotTarget target)
         {
-            // NPC 控制权由 AI 组件声明（本轮无行为）；派系仅用于敌我关系与权限，
+            // NPC 控制权由 AI 组件声明；派系仅用于敌我关系与权限，
             // 不替代 controller 类型。
             return Ai != null && Ai.HasAuthority(target.ship);
         }

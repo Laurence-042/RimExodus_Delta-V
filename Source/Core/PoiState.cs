@@ -45,7 +45,7 @@ namespace DeltaV
         /// <summary>
         /// 内容类型（SectorContentTypes 注册键）：无快照首次物化时按它取该类型的
         /// prefab 池。带快照的 marker（归档/遗留残骸）永远走快照恢复，不消费池；
-        /// 旧档无键时按 Derelict 回填。
+        /// 这类快照 marker 不需要内容类型。
         /// </summary>
 
         /// <summary>删除段收起的结构级快照（地形/屋顶/建筑/物品；不保 pawn 与 comp 内部状态）。</summary>
@@ -74,7 +74,7 @@ namespace DeltaV
             kind = PoiKind.SnapshotPocket;
             baseTag = SpaceObjectTag.Marker;
             this.seed = seed;
-            this.contentTypeId = contentTypeId ?? SectorContentTypes.DerelictId;
+            this.contentTypeId = contentTypeId;
         }
 
         public PoiState(int poiId, MapParent parent)

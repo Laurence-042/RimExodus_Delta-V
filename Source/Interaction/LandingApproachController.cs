@@ -439,13 +439,6 @@ namespace DeltaV
             }
         }
 
-        /// <summary>dev 回归入口：跳过保持计数直接执行完成段（合法性复核照常）。</summary>
-        internal void DebugForceComplete()
-        {
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (universe != null && ApproachActive) CompleteDocking(universe);
-        }
-
         /// <summary>
         /// 对接条件满足：新鲜脚印合法性复核（零消费，不合法可无损取消）→ **完成时刻的
         /// 真实捕获**（唯一消费点，与移除/放置同一调用栈）→ 直接放入目标图 →

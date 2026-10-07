@@ -11,7 +11,7 @@ namespace DeltaV
 {
     /// <summary>
     /// 开发者模式调试入口（Dev mode → Debug actions → Delta-V）。
-    /// 平移/旋转敌舰直接写容器绝对宇宙状态——这正是验证"显示层只是投影"的手段。
+    /// 保留明确标注的场景/生命周期回归入口和只读诊断；不提供绕过控制链的捷径。
     /// </summary>
     public static class DebugActions_DeltaV
     {
@@ -20,23 +20,9 @@ namespace DeltaV
             return Current.Game.GetComponent<UniverseManager>();
         }
 
-        /// <summary>「敌舰」= 非聚焦的其他容器（测试场景第二船的承载对象）。</summary>
-        private static SpaceObject OtherContainer()
-        {
-            UniverseManager um = Um();
-            return um.objects.FirstOrDefault(o => o != um.Focused && o.map != null);
-        }
-
         private static Ship PlayerShip()
         {
             return Um().PrimaryPlayerShip();
-        }
-
-        private static PoiState FirstPoi()
-        {
-            // 强制物化动作只操作 Delta-V 的测试残骸 marker，不能误删自动纳管的任务 POI。
-            return Um().objects.OfType<PoiState>()
-                .FirstOrDefault(p => p.kind == PoiKind.SnapshotPocket);
         }
 
         /// <summary>最近的物化容器（非自身容器；物化 POI 图 = 普通容器，2026-09-25 起）。</summary>
@@ -73,28 +59,6 @@ namespace DeltaV
         {
             MapPrefab.Export("Prefab_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss"),
                 Find.CurrentMap.areaManager.Home.ActiveCells);
-        }
-
-        [DebugAction("Delta-V", "Toggle pilot mode", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void TogglePilotMode()
-        {
-            UniverseManager universe = Um();
-            if (universe == null) return;
-            Map map = universe.Focused?.InteriorMap;
-            universe.Pilot.ToggleControl(universe,
-                map != null ? universe.Pilot.SelectedShipOnMap(map) : Ship.Invalid);
-        }
-
-        [DebugAction("Delta-V", "Toggle passive drag", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.Playing)]
-        private static void TogglePassiveDrag()
-        {
-            DeltaVSettings settings = DeltaVMod.CurrentSettings;
-            if (settings == null) return;
-            settings.passiveDrag = !settings.passiveDrag;
-            LoadedModManager.GetMod<DeltaVMod>()?.WriteSettings();
-            Messages.Message($"Delta-V passive drag: {settings.passiveDrag} "
-                + $"(linear half-life {settings.dragLinearHalfLifeTicks} ticks, angular {settings.dragAngularHalfLifeTicks} ticks)",
-                MessageTypeDefOf.NeutralEvent, false);
         }
 
         /// <summary>
@@ -150,25 +114,6 @@ namespace DeltaV
             }
             Log.Message(sb.ToString());
             Messages.Message("Key suppression diagnostics written to the log (dev console / Ctrl+F12).", MessageTypeDefOf.NeutralEvent, false);
-        }
-
-        [DebugAction("Delta-V", "Zero focused ship velocity", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void ZeroFocusedShipVelocity()
-        {
-            SpaceObject frame = Um().FrameOf(Find.CurrentMap);
-            if (frame == null)
-            {
-                return;
-            }
-            frame.pose.velocity = Vector2.zero;
-            frame.pose.angularVelocity = 0f;
-        }
-
-        [DebugAction("Delta-V", "MPC: cycle developer profile", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.Playing)]
-        private static void CycleMpcProfile()
-        {
-            AutopilotMpcProfile profile = Um().Autopilot.CycleProfile();
-            Messages.Message($"Delta-V MPC profile: {profile}", MessageTypeDefOf.NeutralEvent, false);
         }
 
         [DebugAction("Delta-V", "MPC: diagnostics summary", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.Playing)]
@@ -264,34 +209,6 @@ namespace DeltaV
             Log.Message(report.ToString());
         }
 
-        /// <summary>
-        /// 手动修复：本图全部基架改归新分配的结构归属（无主残骸语义）。用于修复盖章
-        /// 缺口留下的孤儿归属；随后可用「修改基架归属」命令重新拆分。
-        /// </summary>
-        [DebugAction("Delta-V", "Reset substructure ownership to fresh owner", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void ResetSubstructureOwnership()
-        {
-            UniverseManager universe = Um();
-            Map map = Find.CurrentMap;
-            if (universe?.FrameOf(map) == null)
-            {
-                Log.Message("[DeltaV] Reset ownership: current map is not a Delta-V frame map.");
-                return;
-            }
-            SubstructureOwnership ownership = SubstructureOwnership.For(map);
-            if (!ownership.HasAnySubstructure())
-            {
-                Log.Message("[DeltaV] Reset ownership: no substructure on this map.");
-                return;
-            }
-            int defaultOwner = universe.AllocateOwnerId();
-            universe.NoteStructureName(defaultOwner, universe.NewWreckName(defaultOwner));
-            int count = ownership.ClaimAllSubstructure(defaultOwner);
-            PlanetGlobeRenderer.InvalidateSilhouette(map);
-            Log.Message($"[DeltaV] Reset ownership: map {map.Index}, {count} cells -> structure #{defaultOwner} "
-                + $"({universe.LabelForOwner(defaultOwner)}).");
-        }
-
         // ---- 帧时间读数（性能测试用，Prefs.DevMode 门控常驻；UniverseManager Update/OnGUI 调用）----
 
         private static float avgFrameMs = 16.7f;
@@ -316,58 +233,7 @@ namespace DeltaV
             GUI.color = Color.white;
         }
 
-        // ---- POI 生命周期验证工具（阶段3；全部经 SpaceLifecycle 单一入口）----
-
-        [DebugAction("Delta-V", "POI: create derelict 400 cells east", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void CreatePoi400East()
-        {
-            UniverseManager um = Um();
-            Ship player = PlayerShip();
-            if (!player.IsValid)
-            {
-                Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            var poi = new PoiState(um.AllocateOwnerId(), "Derelict wreck",
-                OrbitSphere.Move(ShipRegistry.ShipPose(player).position, new Vector2(400f, 0f)),
-                Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
-            um.RegisterObject(poi);
-            Messages.Message("DeltaV_PoiCreated".Translate(poi.label, "400"), MessageTypeDefOf.PositiveEvent, false);
-        }
-
-        [DebugAction("Delta-V", "POI: create derelict 1500 cells north (delete range)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void CreatePoi1500North()
-        {
-            UniverseManager um = Um();
-            Ship player = PlayerShip();
-            if (!player.IsValid)
-            {
-                Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            var poi = new PoiState(um.AllocateOwnerId(), "Distant wreck",
-                OrbitSphere.Move(ShipRegistry.ShipPose(player).position, new Vector2(0f, 1500f)),
-                Random.Range(0f, 360f) * Mathf.Deg2Rad, Rand.Int);
-            um.RegisterObject(poi);
-            Messages.Message("DeltaV_PoiCreated".Translate(poi.label, "1500"), MessageTypeDefOf.PositiveEvent, false);
-        }
-
-        [DebugAction("Delta-V", "POI: force activate nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void PoiForceActivate()
-        {
-            PoiState poi = FirstPoi();
-            if (poi != null) Um().Lifecycle.ForceActivate(poi);
-        }
-
-        [DebugAction("Delta-V", "POI: force dormant nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void PoiForceDormant()
-        {
-            UniverseManager um = Um();
-            // 休眠针对物化容器（marker 无图）；NativeParent 仍走 PoiState 入口。
-            PoiState poi = FirstPoi();
-            if (poi != null && poi.map != null) um.Lifecycle.ForceDormant(poi);
-            um.Lifecycle.ForceDormantContainer(NearestMaterializedContainer());
-        }
+        // ---- POI 生命周期验证工具 ----
 
         [DebugAction("Delta-V", "POI: full archive nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void PoiForcePack()
@@ -410,22 +276,6 @@ namespace DeltaV
             SectorContentService.EnsureSectorGenerated(um, tile);
             Messages.Message($"Sector {tile}: objects={SectorContentService.ObjectsInSector(um, tile).Count}, " +
                 $"generatedSectors={um.generatedSectorTiles.Count}", MessageTypeDefOf.NeutralEvent, false);
-        }
-
-        /// <summary>拆分测试：把聚焦图上当前船以外的基架块立刻拆为独立残骸容器（§8 公共拆分直驱）。</summary>
-        [DebugAction("Delta-V", "Split test: force split residual blocks on focused map", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void SplitTestForceSplit()
-        {
-            UniverseManager um = Um();
-            Map map = Find.CurrentMap;
-            Ship ship = ShipRegistry.ShipsOnMap(map).FirstOrDefault();
-            if (!ship.IsValid)
-            {
-                Messages.Message("No ship on focused map.", MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            um.ShipTransitions.SplitResiduals(um, ship);
-            Messages.Message("Residual blocks split (see log).", MessageTypeDefOf.NeutralEvent, false);
         }
 
         [DebugAction("Delta-V", "Diagnose focused map (force mesh regen)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
@@ -481,278 +331,29 @@ namespace DeltaV
             foreach (Map map in Find.Maps)
             {
                 sb.AppendLine($"  {UniverseManager.MapTag(map)}");
-                foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
+                SpaceObject frame = um.FrameOf(map);
+                var ships = ShipRegistry.ShipsOnMap(map);
+                if (ships.Count == 0 && um.NpcShips.HasUnclaimedNpcConsole(frame))
+                    sb.AppendLine($"    NPC console present without valid main ship; "
+                        + $"AI gate={um.NpcShips.GateFor(frame, Ship.Invalid)}");
+                foreach (Ship ship in ships)
                 {
+                    int hostileTargets = frame == null ? 0
+                        : NpcCombatAi.CountEligibleTargets(um, ship, frame);
                     sb.AppendLine($"    structure #{ship.ownerId} '{um.LabelForOwner(ship.ownerId)}' " +
-                        $"state={ShipRegistry.StateOf(ship)} faction={ShipRegistry.FactionOf(ship)?.Name ?? "none"} " +
-                        $"console#{ship.console.parent.thingIDNumber} domain={ShipRegistry.ControlDomain(ship).Count} cells");
+                        $"relation={ShipRegistry.StateOf(ship)} faction={ShipRegistry.FactionOf(ship)?.Name ?? "none"} " +
+                        $"console#{ship.console.parent.thingIDNumber} domain={ShipRegistry.ControlDomain(ship).Count} cells " +
+                        $"frozen={um.Lifecycle.IsFrozen(map)} zeroG={FreeFlightBootstrap.IsZeroGravity(um, map)} " +
+                        $"playerDist={(frame == null ? float.PositiveInfinity : um.Lifecycle.MinPlayerDistance(frame)):F0} " +
+                        $"mapThrust={ShipPhysics.AvailableThrust(map):F0} hostileTargets={hostileTargets} " +
+                        $"AI gate={um.NpcShips.GateFor(frame, ship)} " +
+                        $"autopilot={um.Autopilot.IsActive(ship.ownerId)}");
                 }
             }
             Log.Message(sb.ToString());
         }
 
-        [DebugAction("Delta-V", "Switch focus to the other ship", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void SwitchFocusToOtherShip()
-        {
-            UniverseManager um = Um();
-            SpaceObject other = OtherContainer();
-            if (other == null)
-            {
-                Messages.Message("No other container in universe state.", MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            SpaceObject previous = um.Focused;
-            // 缩放同步：Notify_SwitchedMap 恢复目标图记忆的位置+缩放，跳转后需显式重设（RimExodus 同款）。
-            float zoom = Find.CameraDriver.RootSize;
-            um.SetFocused(other);
-            // 相机直接跳到旧船在新参考系里的显示位置（clamp 进地图），切过去立刻看到反向代理。
-            if (previous != null && other.map != null)
-            {
-                Vector3 pos = SpaceTransform.FocusedDrawPosition(other, other.map, previous.pose.position, 0f);
-                int x = Mathf.Clamp(Mathf.RoundToInt(pos.x), 2, other.map.Size.x - 3);
-                int z = Mathf.Clamp(Mathf.RoundToInt(pos.z), 2, other.map.Size.z - 3);
-                CameraJumper.TryJump(new IntVec3(x, 0, z), other.map, CameraJumper.MovementMode.Cut);
-            }
-            Find.CameraDriver.SetRootSize(zoom);
-        }
-
-        [DebugAction("Delta-V", "Enemy ship: forward 10", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void EnemyForward10()
-        {
-            MoveEnemy(10f, 0f);
-        }
-
-        [DebugAction("Delta-V", "Enemy ship: backward 10", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void EnemyBackward10()
-        {
-            MoveEnemy(-10f, 0f);
-        }
-
-        [DebugAction("Delta-V", "Enemy ship: strafe left 10", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void EnemyLeft10()
-        {
-            MoveEnemy(0f, 10f);
-        }
-
-        [DebugAction("Delta-V", "Enemy ship: strafe right 10", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void EnemyRight10()
-        {
-            MoveEnemy(0f, -10f);
-        }
-
-        [DebugAction("Delta-V", "Enemy ship: rotate +15 deg (CCW)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void EnemyRotatePlus15()
-        {
-            SpaceObject ship = OtherContainer();
-            if (ship != null)
-            {
-                ship.pose.angle = SpaceTransform.WrapAngle(ship.pose.angle + 15f * Mathf.Deg2Rad);
-            }
-        }
-
-        [DebugAction("Delta-V", "Enemy ship: rotate -15 deg (CW)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void EnemyRotateMinus15()
-        {
-            SpaceObject ship = OtherContainer();
-            if (ship != null)
-            {
-                ship.pose.angle = SpaceTransform.WrapAngle(ship.pose.angle - 15f * Mathf.Deg2Rad);
-            }
-        }
-
-        /// <summary>沿敌舰自身参考系平移（前向 + 左向），沿球面写入绝对方向。</summary>
-        private static void MoveEnemy(float forward, float left)
-        {
-            SpaceObject ship = OtherContainer();
-            if (ship == null)
-            {
-                return;
-            }
-            float angle = ship.pose.angle;
-            Vector2 fwd = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
-            Vector2 leftDir = new Vector2(-Mathf.Sin(angle), Mathf.Cos(angle));
-            ship.pose.position = OrbitSphere.Move(ship.pose.position, fwd * forward + leftDir * left);
-        }
-
-        // ---- 阶段4：对接计划与跳帮测试设施 ----
-
-        [DebugAction("Delta-V", "Enemy ship: set drift velocity (20 east)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void EnemyDriftEast()
-        {
-            SpaceObject ship = OtherContainer();
-            if (ship != null)
-            {
-                ship.pose.velocity = new Vector2(20f, 0f);
-            }
-        }
-
-        [DebugAction("Delta-V", "Enemy ship: set spin (+10 deg/s)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void EnemySpin()
-        {
-            SpaceObject ship = OtherContainer();
-            if (ship != null)
-            {
-                ship.pose.angularVelocity = 10f * Mathf.Deg2Rad;
-            }
-        }
-
-        [DebugAction("Delta-V", "Enemy ship: hostile faction + spawn crew (3)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void EnemyHostileCrew()
-        {
-            UniverseManager um = Um();
-            SpaceObject other = OtherContainer();
-            Map enemyMap = other?.map;
-            if (enemyMap == null)
-            {
-                return;
-            }
-            Faction hostile = Faction.OfPirates
-                ?? Find.FactionManager.AllFactionsVisible.FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer));
-            if (hostile == null)
-            {
-                Log.Warning("[DeltaV] No hostile faction available for enemy crew spawn.");
-                return;
-            }
-            // 船的派系事实 = 驾驶台派系：把敌舰全部建筑改派系（含驾驶台）。
-            int setFaction = 0;
-            foreach (Thing thing in enemyMap.listerThings.AllThings.ToList())
-            {
-                if (thing is Building building && building.def.CanHaveFaction && building.Faction != hostile)
-                {
-                    building.SetFaction(hostile);
-                    setFaction++;
-                }
-            }
-            int spawned = 0;
-            for (int attempt = 0; attempt < 30 && spawned < 3; attempt++)
-            {
-                Pawn pawn = PawnGenerator.GeneratePawn(new PawnGenerationRequest(
-                    hostile.def.basicMemberKind, hostile, PawnGenerationContext.NonPlayer));
-                IntVec3 cell = CellFinder.RandomClosewalkCellNear(enemyMap.Center, enemyMap, 18);
-                if (!cell.IsValid || !cell.Standable(enemyMap))
-                {
-                    continue;
-                }
-                GenSpawn.Spawn(pawn, cell, enemyMap);
-                spawned++;
-            }
-            Log.Message($"[DeltaV] Enemy container set hostile to player ({setFaction} buildings refactioned); {spawned} defenders spawned.");
-        }
-
-        [DebugAction("Delta-V", "Docking plan: force complete", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void DockingPlanForceComplete()
-        {
-            Um()?.Approach.DebugForceComplete();
-        }
-
-        [DebugAction("Delta-V", "Docking: cancel (site selection or plan)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void DockingPlanCancel()
-        {
-            UniverseManager universe = Um();
-            universe?.Approach.CancelSelectionOrPlan(universe, "dev action");
-        }
-
-        // ---- 阶段5 太空战（太空战架构 §9）----
-
-        /// <summary>发射侧公共入口：从玩家船容器炮口（外推出自己碰撞面）朝最近敌方容器。</summary>
-        private static void FireTestProjectile(ThingDef projectileDef, SpaceObject missileTarget = null)
-        {
-            UniverseManager um = Um();
-            Ship player = PlayerShip();
-            SpaceObject source = player.IsValid ? um.FrameOf(player.map) : um.Focused;
-            SpaceObject target = NearestMaterializedContainer();
-            if (source == null || target == null)
-            {
-                Messages.Message("No source container / no other materialized container in range.",
-                    MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            // 炮口 = 己方碰撞面外一格，朝目标方向（dev 简化：容器中心连线）。
-            Vector2 toTarget = OrbitSphere.Offset(source.pose.position, target.pose.position);
-            if (toTarget.sqrMagnitude < 1e-6f) toTarget = Vector2.right;
-            Vector2 dir = toTarget.normalized;
-            Vector3 muzzle = OrbitSphere.Move(source.pose.position,
-                dir * (SpaceCollision.BoundsRadiusOf(source) + 2f));
-            OrbitSphere.Basis(muzzle, out Vector3 east, out Vector3 north);
-            var directionWorld = east * dir.x + north * dir.y;
-            um.Projectiles.Launch(projectileDef, source, muzzle, directionWorld,
-                Faction.OfPlayer, null, missileTarget);
-        }
-
-        [DebugAction("Delta-V", "Combat: fire cannon shot at nearest enemy", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void CombatFireCannon()
-        {
-            FireTestProjectile(DeltaVDefOf.DeltaV_Projectile_Cannon);
-        }
-
-        [DebugAction("Delta-V", "Combat: fire laser at nearest enemy", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void CombatFireLaser()
-        {
-            FireTestProjectile(DeltaVDefOf.DeltaV_Projectile_Laser);
-        }
-
-        [DebugAction("Delta-V", "Combat: launch guided missile at nearest enemy", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void CombatFireMissile()
-        {
-            FireTestProjectile(DeltaVDefOf.DeltaV_Projectile_Missile, NearestMaterializedContainer());
-        }
-
-        /// <summary>敌舰侧发射公共入口：从最近敌舰容器朝玩家船（固定等价技能口径——散布不参与 dev 直发）。</summary>
-        private static void EnemyFireAtPlayer(ThingDef projectileDef, int shots, bool guided)
-        {
-            UniverseManager um = Um();
-            SpaceObject source = NearestMaterializedContainer();
-            Ship player = PlayerShip();
-            SpaceObject target = player.IsValid ? um.FrameOf(player.map) : um.Focused;
-            if (source == null || target == null)
-            {
-                Messages.Message("No enemy container / no player ship in range.",
-                    MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            Faction hostile = Find.FactionManager.AllFactionsVisible
-                .FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer)) ?? Faction.OfPirates;
-            Vector2 toTarget = OrbitSphere.Offset(source.pose.position, target.pose.position);
-            if (toTarget.sqrMagnitude < 1e-6f) toTarget = Vector2.right;
-            Vector2 dir = toTarget.normalized;
-            Vector3 muzzle = OrbitSphere.Move(source.pose.position,
-                dir * (SpaceCollision.BoundsRadiusOf(source) + 2f));
-            OrbitSphere.Basis(muzzle, out Vector3 east, out Vector3 north);
-            var directionWorld = east * dir.x + north * dir.y;
-            for (int i = 0; i < shots; i++)
-            {
-                um.Projectiles.Launch(projectileDef, source, muzzle, directionWorld,
-                    hostile, null, guided ? target : null);
-            }
-        }
-
-        [DebugAction("Delta-V", "Combat: enemy volley at player (5 cannon shots)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void CombatEnemyVolley()
-        {
-            EnemyFireAtPlayer(DeltaVDefOf.DeltaV_Projectile_Cannon, 5, guided: false);
-        }
-
-        [DebugAction("Delta-V", "Combat: enemy missile at player", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void CombatEnemyMissile()
-        {
-            EnemyFireAtPlayer(DeltaVDefOf.DeltaV_Projectile_Missile, 1, guided: true);
-        }
-
-        [DebugAction("Delta-V", "Combat: force-destroy all projectiles", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void CombatDestroyProjectiles()
-        {
-            Um()?.Projectiles.DestroyAll();
-        }
-
-        [DebugAction("Delta-V", "Combat: toggle combat event logging", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void CombatToggleLogging()
-        {
-            if (DeltaVMod.CurrentSettings == null) return;
-            DeltaVMod.CurrentSettings.logCombat = !DeltaVMod.CurrentSettings.logCombat;
-            DeltaVMod.CurrentSettings.Write();
-            Messages.Message($"Combat logging: {(DeltaVMod.CurrentSettings.logCombat ? "ON" : "OFF")}",
-                MessageTypeDefOf.NeutralEvent, false);
-        }
+        // ---- 太空战诊断 ----
 
         [DebugAction("Delta-V", "Combat: dump projectile pool state", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void CombatDumpPool()
@@ -760,30 +361,5 @@ namespace DeltaV
             Log.Message($"[DeltaV:Combat] {Um()?.Projectiles.PoolStatus()}");
         }
 
-        [DebugAction("Delta-V", "Combat: enemy boarding shuttle intrusion at player", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        private static void CombatEnemyIntrusion()
-        {
-            UniverseManager um = Um();
-            SpaceObject source = NearestMaterializedContainer();
-            Ship player = PlayerShip();
-            SpaceObject target = player.IsValid ? um.FrameOf(player.map) : um.Focused;
-            if (source == null || target == null) return;
-            // 敌舰图上生成一台跳帮 shuttle 并原地起飞 → 侵入玩家（验证 PD 拦截与被撞链路）。
-            IntVec3 cell = CellFinder.RandomClosewalkCellNear(source.map.Center, source.map, 20);
-            Building hull = ThingMaker.MakeThing(DefDatabase<ThingDef>.GetNamed("DeltaV_ShuttleBoarding")) as Building;
-            if (hull == null || !cell.Standable(source.map)) return;
-            GenSpawn.Spawn(hull, cell, source.map);
-            Faction hostile = Find.FactionManager.AllFactionsVisible
-                .FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer)) ?? Faction.OfPirates;
-            hull.SetFaction(hostile);
-            um.Shuttles.Launch(hull);
-            SpaceObject container = um.objects.FirstOrDefault(o =>
-                o.baseTag == SpaceObjectTag.Shuttle && o.faction == hostile);
-            if (container != null)
-            {
-                um.Shuttles.ToggleIntrusionArmed(container);
-                um.Shuttles.EngageIntrusion(hull, target);
-            }
-        }
     }
 }

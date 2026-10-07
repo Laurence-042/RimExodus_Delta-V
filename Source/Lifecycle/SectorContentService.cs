@@ -22,7 +22,7 @@ namespace DeltaV
     /// - 触发时机（§4）：自由飞行中玩家船 tile 地址变化进入新星区；逆重战略飞行
     ///   到达链在生成降落图之前；开局出生星区在世界生成时预生成（StartedNewGame）。
     ///
-    /// 生成内容只有 Delta-V 自建对象（残骸等 SnapshotPocket）；原版 orbit 站点本来就
+    /// 生成内容只有 Delta-V 自建对象（类型树叶子的 SnapshotPocket）；原版 orbit 站点本来就
     /// 按 tile 生成，天然已按星区分布，本服务不触碰。对象被摧毁后的补充策略按类型
     /// 区分——现阶段不做补充（接口占位，星区架构 §4）。
     /// </summary>
@@ -250,7 +250,7 @@ namespace DeltaV
         /// <summary>
         /// 每 60 tick 由 UniverseManager 调用：自由飞行的玩家船 tile 地址变化进入
         /// 新星区时触发首次生成。hint 爬坡避免每次全量扫描。
-        /// 必须先快照船列表：EnsureSectorGenerated 会向 universe.objects 添加残骸，
+        /// 必须先快照船列表：EnsureSectorGenerated 会向 universe.objects 添加 marker，
         /// 惰性枚举边走边 Add 会抛 InvalidOperationException（2026-09-17 实测事故）。
         /// </summary>
         public static void TickSectorTracking(UniverseManager universe)

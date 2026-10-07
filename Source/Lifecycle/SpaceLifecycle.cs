@@ -569,25 +569,6 @@ namespace DeltaV
             Current.Game.DeinitAndRemoveMap(map, notifyPlayer);
         }
 
-        public void ForceActivate(PoiState poi) => EnsureActive(poi);
-        public void ForceDormant(PoiState poi)
-        {
-            if (poi.map != null && poi.map != Find.CurrentMap) dormancy.Sleep(poi.map, "dev action");
-        }
-        public void ForcePack(PoiState poi)
-        {
-            TryPack(poi);
-        }
-
-        /// <summary>dev：强制休眠一个物化容器（图上冻结 tick；仅非当前图）。</summary>
-        public void ForceDormantContainer(SpaceObject container)
-        {
-            if (container?.map != null && container.map != Find.CurrentMap)
-            {
-                dormancy.Sleep(container.map, "dev action");
-            }
-        }
-
         /// <summary>
         /// 逆重起飞离场善后（星区标准流程第 5 步，2026-09-20）：起飞船所在星区内其余
         /// SpaceObject 地图一律按「距离 = 超删除半径」处理——复用距离生命周期同一条

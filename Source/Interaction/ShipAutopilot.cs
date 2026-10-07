@@ -110,12 +110,6 @@ namespace DeltaV
 
         internal AutopilotMpcProfile Profile => profile;
 
-        internal AutopilotMpcProfile CycleProfile()
-        {
-            profile = (AutopilotMpcProfile)(((int)profile + 1) % 3);
-            return profile;
-        }
-
         /// <summary>制导微步（tick）：MPC 计划步长与指令更新粒度，积分仍 60 Hz。</summary>
         private const int GuidanceMicroStepTicks = 6;
 

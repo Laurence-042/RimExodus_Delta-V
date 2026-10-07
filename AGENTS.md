@@ -97,7 +97,7 @@ RimExodus 可参考多 Map 生命周期、跨图状态、聚焦切换、Projecti
 - 玩家、自动驾驶和 NPC 控制都经 `RequestThrust → ForceToCommand → Allocate → Integrate`。
 - `ShipController` 必须保持玩家与 NPC 两个子类；`PilotTarget` 统一表示普通船或 shuttle。
 - 飞船 = 主驾驶台认领的归属控制域；SpaceObject 只是承载 Map 和运动的容器。
-- 已停靠船首次实际推进器出力时经统一分离门禁；被动阻力和纯漂移不触发分离。
+- 一张 Map 只由一个 SpaceObject 承载，但可含多艘船。对接把船放进目标图，实际出力时从同图提取控制域并分离；被动阻力和纯漂移不触发分离。`ShipRegistry.StateOf` 的 `Docked/FreeFlight` 只由当前同图船数及天然地面等事实即时推导，不是存档状态。独立口袋图中的单艘物化敌舰通常为 `FreeFlight`，不得预设为 `Docked`。
 - shuttle 虚拟推进器由 XML `position + force` 整表定义，数量、位置、方向和推力不得写死。
 
 ## 9. 非聚焦对象与外壳代理
@@ -206,7 +206,7 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `ThrusterEffects` / `ThrusterAudio`：只读真实分配油门的表现。
 - `MoonPoolUtility` / `Patch_MoonPool` / `MoonPoolGraphics` / `SectionLayer_MoonPool`：月池判定、无顶密封和连接视觉。
 - `SpaceLifecycleService`：生成、休眠、物化、归档和销图。无快照 marker 首次物化的内容链 = 类型 prefab 池（seed 确定性选取，入队测尺寸与盖章同一解析），**容器先注册、结构后铺设**（驾驶台 `ClaimOnSpawn` 认领要求 FrameOf 已解析；归属名 = marker 生成时决定的完整名，经 envLabel/归档 carriedLabel 传承）。池空在生成期拦截；池失效在入队/物化期报错并取消该 POI（prefab-only，不回退程序生成）。
-- `NpcShipAiService` / `NpcShipController`：NPC 每 tick 决策，自动驾驶负责任务与真实出力，开火走 `SpaceWeaponService`。`ArchivedMapStore` 是远距普通口袋容器的原版 `Map.ExposeData` 整图序列化与运行时卸载/恢复入口，归档内容随 `SpaceObject` 落档；撤退航程由 `SpaceLifecycleService` 逐 tick 推进。该路径尚待游戏内存读档和引用完整性验收。
+- `NpcShipAiService` / `NpcShipController`：NPC 每 tick 决策，自动驾驶负责任务与真实出力，开火走 `SpaceWeaponService`；AI 资格门禁与 dev 诊断共用同一判定，Combat 日志只输出状态变化。`ArchivedMapStore` 是远距普通口袋容器的原版 `Map.ExposeData` 整图序列化与运行时卸载/恢复入口，归档内容随 `SpaceObject` 落档；撤退航程由 `SpaceLifecycleService` 逐 tick 推进。该路径尚待游戏内存读档和引用完整性验收。
 - `SectorContentService` / `SectorContentTypes`：星区首次生成的幂等记账与按类型生成循环；marker 身份在生成时一次性决定——随机派系（可见非玩家派系，不做类型→派系映射）+ 完整名（`DeltaV_NamerSpacePoi` RulePack 词干 + 类型名 + (派系名) + #ID）烘焙进 envLabel/faction，物化时直接应用。`SectorContentTypes` 是任意深度的分类树（星区架构 §11 分类），分支只分组、生成与设置只遍历叶子；规则读 `DeltaVSettings.sectorRules`（`SectorTypeRule`：保底数/分段额外量/prefab 池；缺条目用注册表默认，读路径不静默改写设置）。
 - `QueueFrameAction`：离开当前 tick/加载调用栈的唯一帧边界延迟机制。
 

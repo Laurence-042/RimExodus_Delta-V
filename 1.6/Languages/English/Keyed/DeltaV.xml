@@ -184,9 +184,8 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SettingsSectorRemoveSegment>Remove</DeltaV_SettingsSectorRemoveSegment>
   <DeltaV_SettingsSectorSegmentTip>Segment: chance (%) to append between 1 and the cap as extra objects of this type.</DeltaV_SettingsSectorSegmentTip>
   <DeltaV_SettingsSectorPrefabPool>Prefab pool ({0}/{1} selected)</DeltaV_SettingsSectorPrefabPool>
-  <DeltaV_SettingsSectorPrefabPoolTip>Map prefabs used when a point of interest of this type first materializes (chosen deterministically from its seed, random rotation). Paths are relative to the mod's Prefabs folder - export prefabs with the debug action, then move or rename them into subfolders as needed. Empty or missing files fall back to the procedural template.</DeltaV_SettingsSectorPrefabPoolTip>
+  <DeltaV_SettingsSectorPrefabPoolTip>Map prefabs used when a point of interest of this type first materializes (chosen deterministically from its seed, random rotation). Paths are relative to the mod's Prefabs folder. An empty pool prevents this type from spawning; an invalid file cancels materialization.</DeltaV_SettingsSectorPrefabPoolTip>
   <DeltaV_SettingsSectorPrefabRefresh>Rescan</DeltaV_SettingsSectorPrefabRefresh>
-  <DeltaV_SectorTypeDerelict>Derelict</DeltaV_SectorTypeDerelict>
   <DeltaV_SectorTypeCraft>Craft</DeltaV_SectorTypeCraft>
   <DeltaV_SectorTypeFighter>Fighter</DeltaV_SectorTypeFighter>
   <DeltaV_SectorTypeGunboat>Gunboat</DeltaV_SectorTypeGunboat>

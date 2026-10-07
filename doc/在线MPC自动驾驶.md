@@ -73,8 +73,8 @@ QP 使用状态/终端/输入/输入变化率二次成本，加上**刹车曲线
 - Balanced：24 段、40 次迭代、最长 45 秒，默认。
 - Precise：32 段、64 次迭代、最长 60 秒。
 
-预设属于 `ShipAutopilot` 实例，不存档、不进入玩家设置。开发者菜单可循环切换；活动任务
-在下次制导更新时重置热启动。参考：Wang & Boyd, *Fast Model Predictive Control Using
+当前运行时使用 `Balanced` 预设，属于 `ShipAutopilot` 实例且不存档；开发者菜单的
+预设切换已移除，避免测试期间悄悄改变制导行为。参考：Wang & Boyd, *Fast Model Predictive Control Using
 Online Optimization*；Richards et al., *Model Predictive Control for Spacecraft Rendezvous*。
 
 ## 失败与验证
@@ -86,7 +86,6 @@ Online Optimization*；Richards et al., *Model Predictive Control for Spacecraft
 
 开发者入口：
 
-- `MPC: cycle developer profile`
 - `MPC: diagnostics summary`
 - `MPC: deterministic self-test`
 

@@ -73,7 +73,7 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 降落落定后的自动延伸（战术降落到达重放与原版战略到达统一经 LandingEnded）。
+        /// 放置落定后的自动延伸（战术对接由 DockingCompletion 通知，原版战略到达由补丁通知）。
         /// 静默失败：口袋图/开阔太空上的端口范围内无障碍，保持收起即可。
         /// </summary>
         public static void NotifyLandingSettled()
