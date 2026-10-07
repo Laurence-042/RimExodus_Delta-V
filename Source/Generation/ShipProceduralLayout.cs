@@ -194,24 +194,11 @@ namespace DeltaV
                 IntVec3 cell = candidates[Mathf.Clamp(candidates.Count / 2 + i, 0, candidates.Count - 1)];
                 candidates.Remove(cell);
                 Pawn pawn = PawnGenerator.GeneratePawn(new PawnGenerationRequest(pawnKind, faction));
-                GenSpawn.Spawn(pawn, cell, map, WipeMode.Vanish);
                 if (wearVacsuit)
                 {
-                    // Orbit 环境的 EVA 常备：真空服 + 头盔（Odyssey Apparel_Vacsuit*）。
-                    Wear(pawn, "Apparel_Vacsuit");
-                    Wear(pawn, "Apparel_VacsuitHelmet");
+                    SpacePawnEquipment.EnsureVacuumSuit(pawn);
                 }
-            }
-        }
-
-        private static void Wear(Pawn pawn, string defName)
-        {
-            ThingDef def = ThingDef.Named(defName);
-            if (def == null) return;
-            var apparel = (Apparel)ThingMaker.MakeThing(def);
-            if (ApparelUtility.HasPartsToWear(pawn, def))
-            {
-                pawn.apparel.Wear(apparel);
+                GenSpawn.Spawn(pawn, cell, map, WipeMode.Vanish);
             }
         }
     }

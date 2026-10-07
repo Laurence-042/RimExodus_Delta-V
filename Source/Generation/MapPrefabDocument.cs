@@ -7,7 +7,6 @@ using System.Reflection;
 using System.Text;
 using System.Xml;
 using RimWorld;
-using UnityEngine;
 using Verse;
 
 namespace DeltaV
@@ -27,22 +26,18 @@ namespace DeltaV
     }
 
     /// <summary>
-    /// 通用地图 prefab 文档：原版 prefab 词汇（PrefabThingData/PrefabTerrainData + size）加
-    /// 原版不保存的 foundation/roof 侧车。文档始终持有自有列表形态（PrefabThingData 的字段
-    /// 全部 public，可自由构造与裁剪）；PrefabDef 的 things/terrain 是 internal，只在
-    /// BuildPrefabDef() 生成 SpawnPrefab 入参时装填（反射字段名 = XML 标签名，属稳定契约）。
-    /// &lt;prefab&gt; 节点保持原版 PrefabDef 的 XML 形状，Load 完全走 ObjectFromXml 原版管线
-    /// （含 PrefabThingData.LoadDataFromXmlCustom），Def 交叉引用经 DirectXmlCrossRefLoader
-    /// 运行时解析——不重启、不自写 def 解析。不支持 sub-prefab（本导出器从不产生）。
+    /// 通用地图 prefab 文档：原版 PrefabTerrainData + size、逐实例 Thing 状态与
+    /// foundation/roof 侧车。地形的 PrefabDef 仍经原版 XML 和交叉引用管线读取；
+    /// Thing 的完整 ExposeData XML 在每次重建时由 Scribe 整批读取。
     /// </summary>
     public class MapPrefabDocument
     {
-        public const int CurrentFormatVersion = 1;
+        public const int CurrentFormatVersion = 2;
 
         public string name;
         public int formatVersion = CurrentFormatVersion;
         public IntVec2 size;
-        public List<PrefabThingData> things = new List<PrefabThingData>();
+        public List<MapPrefabThingEntry> thingEntries = new List<MapPrefabThingEntry>();
         public List<PrefabTerrainData> terrain = new List<PrefabTerrainData>();
         public List<PrefabFoundationEntry> foundations = new List<PrefabFoundationEntry>();
         public List<PrefabRoofEntry> roofs = new List<PrefabRoofEntry>();
@@ -58,12 +53,7 @@ namespace DeltaV
         {
             get
             {
-                int count = 0;
-                foreach (PrefabThingData entry in things)
-                {
-                    count += entry.positions?.Count ?? 1;
-                }
-                return count;
+                return thingEntries.Count;
             }
         }
 
@@ -79,7 +69,7 @@ namespace DeltaV
             {
                 size = size,
             };
-            PrefabThingsField.SetValue(def, things);
+            PrefabThingsField.SetValue(def, new List<PrefabThingData>());
             PrefabTerrainField.SetValue(def, terrain);
             return def;
         }
@@ -97,7 +87,7 @@ namespace DeltaV
             int version = versionText.NullOrEmpty() ? 0 : ParseHelper.FromString<int>(versionText);
             if (version != CurrentFormatVersion)
             {
-                throw new InvalidDataException($"MapPrefab formatVersion {version} is not supported (expected {CurrentFormatVersion}): {path}");
+                throw new InvalidDataException($"MapPrefab formatVersion {version} is not supported (expected {CurrentFormatVersion}); export this prefab again: {path}");
             }
             XmlElement prefabNode = root["prefab"];
             if (prefabNode == null)
@@ -112,6 +102,9 @@ namespace DeltaV
             }
             XmlElement foundationsNode = root["foundations"];
             XmlElement roofsNode = root["roofs"];
+            XmlElement statesNode = root["thingStates"];
+            if (statesNode == null)
+                throw new InvalidDataException($"MapPrefab has no <thingStates> node; export again: {path}");
             // foundations/roofs 必须与核心节点一起在 resolve 之前解析：Def 引用（TerrainDef/
             // RoofDef）在 ObjectFromXml 里注册为延迟交叉引用，任何一组在 resolve 之后才解析，
             // 其引用就永远不会被解析（def 留 null，下游 SetFoundation 逐格静默失败）。
@@ -140,22 +133,32 @@ namespace DeltaV
                 foundations = foundations,
                 roofs = roofs,
             };
-            // 重组为文档自有形态：GetThings()/GetTerrain() 按格展开且共享 data 引用。
-            var thingsByData = new Dictionary<PrefabThingData, List<IntVec3>>();
-            foreach (var (data, cell) in parsed.GetThings())
+            foreach (XmlNode child in statesNode.ChildNodes)
             {
-                if (!thingsByData.TryGetValue(data, out List<IntVec3> cells))
+                if (child is not XmlElement node || node.Name != "li") continue;
+                string defName = node["def"]?.InnerText;
+                ThingDef thingDef = DefDatabase<ThingDef>.GetNamedSilentFail(defName);
+                if (thingDef == null)
+                    throw new InvalidDataException($"MapPrefab state has missing ThingDef '{defName}': {path}");
+                string stuffName = node["stuff"]?.InnerText;
+                ThingDef stuff = string.IsNullOrEmpty(stuffName) ? null : DefDatabase<ThingDef>.GetNamedSilentFail(stuffName);
+                if (!string.IsNullOrEmpty(stuffName) && stuff == null)
+                    throw new InvalidDataException($"MapPrefab state has missing stuff '{stuffName}': {path}");
+                XmlElement state = node["state"]?["saveable"];
+                doc.thingEntries.Add(new MapPrefabThingEntry
                 {
-                    cells = new List<IntVec3>();
-                    thingsByData[data] = cells;
-                }
-                cells.Add(cell);
+                    pos = ParseHelper.FromString<IntVec3>(node["pos"].InnerText),
+                    def = thingDef,
+                    stuff = stuff,
+                    rotation = ParseHelper.FromString<Rot4>(node["rotation"].InnerText),
+                    hitPoints = ParseHelper.FromString<int>(node["hitPoints"].InnerText),
+                    stackCount = ParseHelper.FromString<int>(node["stackCount"].InnerText),
+                    stateXml = state?.OuterXml,
+                });
             }
-            foreach (KeyValuePair<PrefabThingData, List<IntVec3>> pair in thingsByData)
-            {
-                pair.Key.positions = pair.Value;
-                doc.things.Add(pair.Key);
-            }
+            if (parsed.GetThings().Any())
+                throw new InvalidDataException($"MapPrefab state format cannot include legacy <prefab><things>: {path}");
+            // 地形仍由原版 PrefabDef 解析；Thing 状态在独立列表中逐实例保存。
             var terrainByData = new Dictionary<(TerrainDef def, ColorDef color), PrefabTerrainData>();
             foreach (var (data, cell) in parsed.GetTerrain())
             {
@@ -197,51 +200,6 @@ namespace DeltaV
                 writer.WriteStartElement("prefab");
                 writer.WriteElementString("defName", "MapPrefab_" + name);
                 writer.WriteElementString("size", size.ToString());
-                if (things.Count > 0)
-                {
-                    writer.WriteStartElement("things");
-                    foreach (PrefabThingData entry in things)
-                    {
-                        writer.WriteStartElement(entry.def.defName);
-                        writer.WriteStartElement("positions");
-                        foreach (IntVec3 pos in entry.positions)
-                        {
-                            writer.WriteElementString("li", pos.ToString());
-                        }
-                        writer.WriteEndElement();
-                        if (entry.relativeRotation != RotationDirection.None)
-                        {
-                            writer.WriteElementString("relativeRotation", entry.relativeRotation.ToString());
-                        }
-                        if (entry.stuff != null)
-                        {
-                            writer.WriteElementString("stuff", entry.stuff.defName);
-                        }
-                        if (entry.quality.HasValue)
-                        {
-                            writer.WriteElementString("quality", entry.quality.Value.ToString());
-                        }
-                        if (entry.hp != 0)
-                        {
-                            writer.WriteElementString("hp", entry.hp.ToString());
-                        }
-                        if (entry.stackCountRange != IntRange.One)
-                        {
-                            writer.WriteElementString("stackCountRange",
-                                $"{entry.stackCountRange.min}~{entry.stackCountRange.max}");
-                        }
-                        if (entry.colorDef != null)
-                        {
-                            writer.WriteElementString("colorDef", entry.colorDef.defName);
-                        }
-                        if (entry.color != default(Color))
-                        {
-                            writer.WriteElementString("color", ColorToString(entry.color));
-                        }
-                        writer.WriteEndElement();
-                    }
-                    writer.WriteEndElement();
-                }
                 if (terrain.Count > 0)
                 {
                     writer.WriteStartElement("terrain");
@@ -258,6 +216,26 @@ namespace DeltaV
                             writer.WriteElementString("li", rect.ToString());
                         }
                         writer.WriteEndElement();
+                        writer.WriteEndElement();
+                    }
+                    writer.WriteEndElement();
+                }
+                writer.WriteEndElement();
+
+                writer.WriteStartElement("thingStates");
+                foreach (MapPrefabThingEntry entry in thingEntries)
+                {
+                    writer.WriteStartElement("li");
+                    writer.WriteElementString("pos", entry.pos.ToString());
+                    writer.WriteElementString("def", entry.def.defName);
+                    if (entry.stuff != null) writer.WriteElementString("stuff", entry.stuff.defName);
+                    writer.WriteElementString("rotation", entry.rotation.ToString());
+                    writer.WriteElementString("hitPoints", entry.hitPoints.ToString(CultureInfo.InvariantCulture));
+                    writer.WriteElementString("stackCount", entry.stackCount.ToString(CultureInfo.InvariantCulture));
+                    if (!string.IsNullOrWhiteSpace(entry.stateXml))
+                    {
+                        writer.WriteStartElement("state");
+                        writer.WriteRaw(entry.stateXml);
                         writer.WriteEndElement();
                     }
                     writer.WriteEndElement();
@@ -292,10 +270,5 @@ namespace DeltaV
             }
         }
 
-        private static string ColorToString(Color color)
-        {
-            static string F(float f) => f.ToString("0.###", CultureInfo.InvariantCulture);
-            return $"({F(color.r)}, {F(color.g)}, {F(color.b)}, {F(color.a)})";
-        }
     }
 }

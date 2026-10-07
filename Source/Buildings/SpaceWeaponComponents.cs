@@ -198,6 +198,13 @@ namespace DeltaV
             (CompProperties_SpaceWeaponTraverse)props;
         public float CurrentAngle => currentAngle;
 
+        public void RotateForPrefab(Rot4 rotation)
+        {
+            currentAngle = SpaceTransform.WrapAngle(currentAngle
+                + ShipOrientation.AngleFromRot4(rotation)
+                - ShipOrientation.AngleFromRot4(Rot4.North));
+        }
+
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
             base.PostSpawnSetup(respawningAfterLoad);

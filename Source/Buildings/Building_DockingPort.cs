@@ -24,6 +24,15 @@ namespace DeltaV
 
         public bool ChannelExtended => channelCells.Count > 0;
 
+        public void RebasePrefabLocalState(Map map, IntVec3 sourceMin, IntVec3 root, Rot4 rotation)
+        {
+            channelCells = channelCells
+                .Select(cell => root + PrefabUtility.GetAdjustedLocalPosition(cell - sourceMin, rotation))
+                .Where(cell => cell.InBounds(map)
+                    && map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.DeltaV_DockingChannel)
+                .ToList();
+        }
+
         private int ChannelRange => def.GetModExtension<DefModExtension_DockingPort>()?.channelRange ?? 8;
 
         /// <summary>密封门：开门通行仍不与相邻房间交换真空。</summary>

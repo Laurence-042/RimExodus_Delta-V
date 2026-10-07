@@ -38,8 +38,9 @@ namespace DeltaV
     /// 新的展开器（生成 pawn、子结构、物化 SpaceObject 等）= 新子类 + 对应
     /// CompProperties，发现机制（TryGetComp&lt;CompPrefabMarker&gt; 的基类匹配）
     /// 零修改纳入，不写家族特判。
-    /// 不在 PostSpawnSetup 里展开：单个 building spawn 时整片 prefab 尚未就位，
-    /// marker 依赖的相邻内容可能还不存在。
+    /// 不在 PostSpawnSetup/PostMapInit/PostExposeData 里展开：这些回调也会在普通
+    /// 读档或整图快照回放时发生。只有 MapPrefab.Spawn 显式调用 Expand 才能生成产物；
+    /// 此时整片 prefab 也已就位，marker 可依赖相邻内容。
     /// </summary>
     public class CompPrefabMarker : ThingComp
     {

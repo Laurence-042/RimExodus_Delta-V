@@ -1,35 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
 
-	<!--
-		通用地图 prefab 的标记建筑（MapPrefab / CompPrefabMarker 框架）：放进被导出的
-		区域，prefab 重建时在整片内容放置完成后按目标派系展开。本文件给首个展开器
-		（CompPrefabPawnSpawner：生成船员）一个示例 def；贴图沿用原版占位。
-		标记建筑本身也是普通 Building——会作为 prefab 内容被导出/重建，派系随 SpawnPrefab
-		透传。不可玩家建造（无 designationCategory），用开发者模式放置。
-	-->
+	<!-- 放在导出区域中，每个标记在 prefab 重建后于自身位置生成一名目标派系成员。
+		具体 PawnKind 可由此 Comp 单独指定；缺省先取目标派系成员，最后回退 Colonist。
+		展开后标记消失；放在地板建造分类，与其他模组的 prefab 标记区分。 -->
 	<ThingDef ParentName="BuildingBase">
-		<defName>DeltaV_PrefabCrewMarker</defName>
-		<label>prefab crew marker</label>
-		<description>A debug marker building. When a map prefab containing it is spawned, it expands into pawns of the spawning faction.</description>
+		<defName>DeltaV_PrefabPawnMarker</defName>
+		<label>Delta-V prefab pawn marker</label>
+		<description>Place this marker in a map prefab to spawn one pawn at this cell when the prefab is built. It uses a member of the destination faction when available, or a colonist otherwise. Humanlike crew receive a vacsuit and helmet. The marker disappears after expansion.</description>
 		<thingClass>Building</thingClass>
+		<designationCategory>Floors</designationCategory>
 		<rotatable>false</rotatable>
 		<passability>Standable</passability>
 		<fillPercent>0.1</fillPercent>
+		<uiIconPath>Things/Building/Prefab/PawnMarker</uiIconPath>
 		<statBases>
 			<WorkToBuild>100</WorkToBuild>
 			<MaxHitPoints>50</MaxHitPoints>
 		</statBases>
 		<graphicData>
-			<texPath>Things/Building/GravshipShieldGenerator</texPath>
+			<texPath>Things/Building/Prefab/PawnMarker</texPath>
 			<graphicClass>Graphic_Single</graphicClass>
 			<drawSize>(1, 1)</drawSize>
 		</graphicData>
 		<comps>
 			<li Class="DeltaV.CompProperties_PrefabPawnSpawner">
-				<pawnKind>Pirate</pawnKind>
-				<count>3</count>
-				<radius>6</radius>
+				<fallbackPawnKind>Colonist</fallbackPawnKind>
+				<fallbackRadius>3</fallbackRadius>
 			</li>
 		</comps>
 	</ThingDef>

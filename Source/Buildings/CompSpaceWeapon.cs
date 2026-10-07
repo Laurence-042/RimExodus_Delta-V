@@ -144,6 +144,8 @@ namespace DeltaV
         private bool configurationInitialized;
         private int lastMagazineThingId = -1;
 
+        public void ResetPrefabIdentity() => lastMagazineThingId = -1;
+
         // ---- 运行时（不存档）----
 
         [Unsaved] public int cooldownUntilTick;

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_PrefabPawnMarker.label>Delta-V 预制图角色标记</DeltaV_PrefabPawnMarker.label>
+  <DeltaV_PrefabPawnMarker.description>在预制图中放置此标记。重建时优先在该格生成一名目标派系成员；派系没有可用角色类型时使用殖民者类型。人形船员会穿真空服和头盔。原格不可站立时寻找附近格；成功生成后标记消失。</DeltaV_PrefabPawnMarker.description>
+</LanguageData>

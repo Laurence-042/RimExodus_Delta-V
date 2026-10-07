@@ -15,6 +15,22 @@ namespace DeltaV
     /// </summary>
     internal static class MapContentSpawner
     {
+        /// <summary>已由 Scribe 恢复的实体共用此落位入口；不重新 MakeThing。</summary>
+        internal static Thing SpawnExisting(Thing thing, Map map, IntVec3 cell, Rot4 rot,
+            bool respawningAfterLoad)
+        {
+            bool canSpawn = GenSpawn.CanSpawnAt(thing.def, cell, map, rot);
+            // 原版的 CanSpawnAt 要求格子可行走；带储物格的墙（例如导弹仓）虽不可
+            // 行走，却允许物品放在其 SlotGroup 中。这里以原版登记的储物格为依据。
+            if (!canSpawn && thing.def.category == ThingCategory.Item && cell.InBounds(map)
+                && cell.GetSlotGroup(map)?.parent is Building_Storage storage
+                && storage.OccupiedRect().Contains(cell)
+                && !GenSpawn.SpawningWipes(thing.def, storage.def))
+                canSpawn = true;
+            if (!canSpawn) return null;
+            return GenSpawn.Spawn(thing, cell, map, rot, WipeMode.Vanish, respawningAfterLoad);
+        }
+
         /// <summary>
         /// 按记录生成并放置一个 Thing：MakeThing(def, stuff) → hp/堆数/品质/派系恢复 →
         /// GenSpawn.Spawn(WipeMode.Vanish)。hitPoints/stackCount ≤ 0 = 保持默认（满血/单件）；

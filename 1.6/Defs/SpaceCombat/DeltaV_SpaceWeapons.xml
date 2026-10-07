@@ -148,6 +148,7 @@
   <ThingDef ParentName="DeltaV_SpaceWallWeapon">
     <defName>DeltaV_Weapon_MissileLauncher</defName><label>missile launcher</label><description>An airtight cold-launch missile rack with autonomous guidance.</description>
     <size>(1,3)</size><drawerType>MapMeshAndRealTime</drawerType><costList><Steel>420</Steel><ComponentIndustrial>12</ComponentIndustrial></costList>
+    <uiIconPath>Things/Building/SpaceWeapons/MissileLauncher_MenuIcon</uiIconPath>
     <graphicData><texPath>Things/Building/SpaceWeapons/MissileLauncher_Inner</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>Cutout</shaderType><drawSize>(1.06,3)</drawSize><drawOffsetNorth>(0,0,0.15)</drawOffsetNorth><drawOffsetEast>(0.15,0,0)</drawOffsetEast><drawOffsetSouth>(0,0,-0.15)</drawOffsetSouth><drawOffsetWest>(-0.15,0,0)</drawOffsetWest><linkFlags><li>Wall</li></linkFlags></graphicData>
     <placeWorkers><li>DeltaV.PlaceWorker_MissileLauncher</li></placeWorkers>
     <inspectorTabs><li>ITab_Storage</li></inspectorTabs>

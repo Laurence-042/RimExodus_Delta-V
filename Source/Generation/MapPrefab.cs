@@ -10,12 +10,8 @@ namespace DeltaV
     /// <summary>
     /// 通用地图内容 prefab 门面（单实现入口）：以任意 cell 掩码把当前聚焦图的一片内容
     /// 导出为可重复实例化、派系无关的模板；重建时以指定派系整体放回任意地图。
-    /// 核心建筑/物品/地形完全复用原版 PrefabUtility（CreatePrefab 捕获 def/stuff/quality/
-    /// hp/stack/paint/rotation，SpawnPrefab 派系透传 + 旋转），本类只补原版不保存的
-    /// foundation/roof 侧车与掩码裁剪，并在整片放置完成后触发标记建筑展开
-    /// （CompPrefabMarker）。放置顺序与 GravshipPlacementUtility 一致：
-    /// foundation → terrain+things（SpawnPrefab 内部）→ roofs → marker 展开。
-    /// 零 Harmony。能力边界：不保存 comp 私有运行状态与容器内容物；
+    /// 地形与布局坐标复用原版 PrefabUtility；Thing 逐实例走原版 Scribe 存档机制。
+    /// foundation/roof 另存侧车，整片落位后触发 CompPrefabMarker 展开。
     /// 多格建筑按 anchor（Thing.Position）是否在掩码内判定归属。
     /// </summary>
     public static class MapPrefab
@@ -80,40 +76,31 @@ namespace DeltaV
                 size = bounds.Size,
             };
 
-            // thing 裁剪：GetThings() 按格展开（多格建筑为 anchor），按源 data 引用重组。
-            var thingsByData = new Dictionary<PrefabThingData, List<IntVec3>>();
-            foreach (var (data, cell) in core.GetThings())
+            // CreatePrefab 仍负责地形；实体逐实例保存，不能按相同 def/外观合并。
+            foreach (Thing thing in map.listerThings.AllThings
+                .Where(t => (t.def.category == ThingCategory.Building || t.def.category == ThingCategory.Item)
+                    && mask.Contains(t.Position))
+                .OrderBy(t => t.def.building?.isAttachment == true
+                    || t.TryGetComp<CompSpaceWeaponAttachment>() != null ? 1 : 0)
+                .ThenByDescending(t => t.def.category == ThingCategory.Building)
+                .ThenByDescending(t => t.TryGetComp<CompDeltaVPilotConsole>()?.isMain == true)
+                .ThenByDescending(t => t.def.shortHash))
             {
-                ThingCategory category = data.def.category;
-                if (category != ThingCategory.Building && category != ThingCategory.Item)
+                string state = null;
+                try { state = MapPrefabThingState.Capture(thing); }
+                catch (Exception ex)
                 {
-                    continue;
+                    Log.Warning($"[DeltaV] MapPrefab '{name}' could not save {thing.def.defName} at {thing.Position}; it will use default state: {ex}");
                 }
-                if (!mask.Contains(bounds.Min + cell))
+                doc.thingEntries.Add(new MapPrefabThingEntry
                 {
-                    continue;
-                }
-                if (!thingsByData.TryGetValue(data, out List<IntVec3> kept))
-                {
-                    kept = new List<IntVec3>();
-                    thingsByData[data] = kept;
-                }
-                kept.Add(cell);
-            }
-            foreach (KeyValuePair<PrefabThingData, List<IntVec3>> pair in thingsByData)
-            {
-                doc.things.Add(new PrefabThingData
-                {
-                    def = pair.Key.def,
-                    stuff = pair.Key.stuff,
-                    colorDef = pair.Key.colorDef,
-                    color = pair.Key.color,
-                    stackCountRange = pair.Key.stackCountRange,
-                    hp = pair.Key.hp,
-                    chance = pair.Key.chance,
-                    quality = pair.Key.quality,
-                    relativeRotation = pair.Key.relativeRotation,
-                    positions = pair.Value,
+                    pos = thing.Position - bounds.Min,
+                    def = thing.def,
+                    stuff = thing.Stuff,
+                    rotation = thing.Rotation,
+                    hitPoints = thing.HitPoints,
+                    stackCount = thing.stackCount,
+                    stateXml = state,
                 });
             }
 
@@ -254,9 +241,9 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 把文档整片放置到 map：foundation（+指定归属的域认领）→ SpawnPrefab（terrain+things，
-        /// 派系透传）→ roofs → 设施重链 → 标记建筑展开。ownerId ≤ 0 时不认领（驾驶台 spawn
-        /// 时会自行认领连通域）。返回 SpawnPrefab 实际放置的 thing 列表（marker 产物不含）。
+        /// 把文档整片放置到 map：foundation（+指定归属的域认领）→ 原版地形 →
+        /// 整批 Thing 状态恢复与落位 → roofs → 设施重链 → 标记建筑展开。ownerId ≤ 0 时不认领（驾驶台 spawn
+        /// 时会自行认领连通域）。返回仍在地图上的 prefab thing（marker 产物不含）。
         /// </summary>
         public static List<Thing> Spawn(MapPrefabDocument doc, Map map, IntVec3 position, Faction faction,
             int ownerId = 0, Rot4 rot = default, UniverseManager universe = null)
@@ -286,8 +273,45 @@ namespace DeltaV
                 SubstructureOwnership.For(map).ClaimConnectedDomain(firstFoundation, ownerId);
             }
 
+            // 原版负责 terrain；Thing 由 Scribe 读取完整实例后统一落位。
+            PrefabUtility.SpawnPrefab(prefabDef, map, position, rotation, faction);
+            List<Thing> loaded = MapPrefabThingState.Instantiate(doc.thingEntries, doc.name);
             var spawned = new List<Thing>();
-            PrefabUtility.SpawnPrefab(prefabDef, map, position, rotation, faction, spawned);
+            for (int i = 0; i < doc.thingEntries.Count; i++)
+            {
+                MapPrefabThingEntry entry = doc.thingEntries[i];
+                Thing thing = i < loaded.Count ? loaded[i] : null;
+                bool restoredState = thing != null && thing.def == entry.def;
+                if (!restoredState)
+                {
+                    Log.Warning($"[DeltaV] MapPrefab '{doc.name}' using default state for {entry.def.defName} at {entry.pos}.");
+                    thing = ThingMaker.MakeThing(entry.def, entry.stuff);
+                    if (entry.def.useHitPoints && entry.hitPoints > 0)
+                        thing.HitPoints = Math.Min(entry.hitPoints, thing.MaxHitPoints);
+                    thing.stackCount = Math.Max(1, entry.stackCount);
+                }
+                MapPrefabThingState.Reidentify(thing, faction);
+                thing.spawnedTick = Find.TickManager.TicksGame;
+                thing.despawnedTick = -1;
+                if (thing.TryGetComp<CompDeltaVPilotConsole>() is { } console)
+                {
+                    console.shipId = -1;
+                    console.isMain = false;
+                }
+                thing.TryGetComp<CompSpaceWeapon>()?.ResetPrefabIdentity();
+                thing.TryGetComp<CompSpaceWeaponTraverse>()?.RotateForPrefab(rotation);
+                if (thing is Building_DockingPort port)
+                    port.RebasePrefabLocalState(map, thing.Position - entry.pos, root, rotation);
+
+                IntVec3 cell = root + PrefabUtility.GetAdjustedThingLocalPosition(entry.def, rotation, entry.pos);
+                Rot4 thingRot = entry.def.rotatable
+                    ? rotation.Rotated(Rot4.GetRelativeRotation(Rot4.North, entry.rotation))
+                    : entry.def.defaultPlacingRot;
+                Thing placed = MapContentSpawner.SpawnExisting(thing, map, cell, thingRot, restoredState);
+                if (placed != null) spawned.Add(placed);
+                else Log.Warning($"[DeltaV] MapPrefab '{doc.name}' cannot place {entry.def.defName} at {cell}.");
+            }
+            int placedCount = spawned.Count;
 
             foreach (PrefabRoofEntry entry in doc.roofs)
             {
@@ -305,11 +329,12 @@ namespace DeltaV
             {
                 thing.TryGetComp<CompPrefabMarker>()?.Expand(context);
             }
+            spawned.RemoveAll(thing => thing.Destroyed);
 
-            if (spawned.Count != doc.ThingCellCount)
+            if (placedCount != doc.ThingCellCount)
             {
                 Log.Warning($"[DeltaV] MapPrefab '{doc.name}' spawn mismatch: expected {doc.ThingCellCount} "
-                    + $"things, placed {spawned.Count} (SpawnPrefab silently skips things that cannot spawn).");
+                    + $"things, placed {placedCount} (see placement warnings above).");
             }
             return spawned;
         }
