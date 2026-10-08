@@ -8,7 +8,7 @@ namespace DeltaV
     /// <summary>
     /// 统一容器碰撞核心（太空战架构 §3.3，唯一碰撞实现——弹丸/激光/侵入/PD 四消费方
     /// 共用，不得出现第二份求交或第二份己方排除规则）：
-    /// - 碰撞面缓存：每容器「占用格集」（SpaceStructureRules 唯一分类器）+ 包围域，
+    /// - 碰撞面缓存：每容器「建筑/基架占用格集」（SpaceStructureRules 分类）+ 包围域，
     ///   经 GlobalStructureVersion + 周期重扫失效（ShipPhysics 质量报告同风格），
     ///   容器注销/图销毁释放（Forget/ClearCaches）；
     /// - 参与判定（tag）：主动方 = projectile tag 容器（IsActiveCollider）；被动方 =
@@ -358,11 +358,13 @@ namespace DeltaV
 
             // 窄相位：0.5 格步进采样占用集（至多采到弧交点）。
             int steps = Mathf.Max(1, Mathf.CeilToInt(sampleLength / SampleStep));
-            var lastPassed = new IntVec3(int.MinValue, 0, int.MinValue);
+            HashSet<Thing> passedBuildings = null;
+            HashSet<IntVec3> passedSubstructure = null;
             for (int s = 0; s <= steps; s++)
             {
                 Vector2 p = fromLocal + dir * (SampleStep * s);
-                if (!FindBestCell(body, defMap, surface, fromLocal, p, lastPassed,
+                if (!FindBestCell(body, defMap, surface, fromLocal, p,
+                    passedBuildings, passedSubstructure,
                     out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing))
                 {
                     continue;
@@ -393,12 +395,17 @@ namespace DeltaV
                 evt.incidenceAngleRad = SpaceTransform.IncidenceAngle(dir, normal);
 
                 // 命中判定（二值）：放行 = 弹体穿过、本 tick 后续采样继续（下次碰撞再判定）。
-                if (!SpaceImpactEffects.HitTest(effect, evt.relativeSpeed))
+                if (!SpaceImpactEffects.HitTest(effect, evt.relativeSpeed, bestKind, bestThing))
                 {
-                    DeltaVLog.Message(DeltaVLogModule.Combat,
-                        $"pass-through: {body.projectileDef?.defName} through substructure at {bestCell} " +
-                        $"of '{defender.label}' (v_rel {evt.relativeSpeed:F1})");
-                    lastPassed = bestCell;
+                    if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
+                        DeltaVLog.Message(DeltaVLogModule.Combat,
+                            $"pass-through: {body.projectileDef?.defName} past " +
+                            (bestThing?.def.defName ?? "substructure") + $" at {bestCell} " +
+                            $"of '{defender.label}' (v_rel {evt.relativeSpeed:F1})");
+                    if (bestThing != null)
+                        (passedBuildings ??= new HashSet<Thing>()).Add(bestThing);
+                    else
+                        (passedSubstructure ??= new HashSet<IntVec3>()).Add(bestCell);
                     continue;
                 }
 
@@ -548,11 +555,12 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 找采样点周围（扫掠块半径内）「沿弹道更早、实心优先」的占用格。lastPassed
-        /// 是刚放行穿过的基架格（跳过，防同一格反复掷骰）。
+        /// 找采样点周围（扫掠块半径内）「建筑优先、沿弹道更早」的占用格。
+        /// 已放行的建筑/基架不重掷；建筑放行后同格基架仍可被判定。
         /// </summary>
         private static bool FindBestCell(SweptBody body, Map defMap, Surface surface, Vector2 fromLocal,
-            Vector2 p, IntVec3 lastPassed, out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing)
+            Vector2 p, HashSet<Thing> passedBuildings, HashSet<IntVec3> passedSubstructure,
+            out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing)
         {
             bestCell = IntVec3.Invalid;
             bestKind = SpaceCellKind.Empty;
@@ -577,16 +585,27 @@ namespace DeltaV
                 int index = defMap.cellIndices.CellToIndex(cell);
                 SpaceCellKind kind = (SpaceCellKind)surface.kinds[index];
                 if (kind == SpaceCellKind.Empty) continue;
-                if (kind == SpaceCellKind.Substructure && cell == lastPassed) continue;
-                // 同一采样点内取「沿弹道更早、实心优先」的格子（墙旁甲板先打墙）。
-                float rank = (new Vector2(cell.x + 0.5f, cell.z + 0.5f) - fromLocal).sqrMagnitude
-                    - (kind == SpaceCellKind.Substructure ? 0.25f : 0f);
-                if (rank < bestRank)
+                Thing thing = surface.buildings[index];
+                if (thing != null && passedBuildings?.Contains(thing) == true)
+                {
+                    if (defMap.terrainGrid.FoundationAt(cell)?.IsSubstructure != true) continue;
+                    kind = SpaceCellKind.Substructure;
+                    thing = null;
+                }
+                if (kind == SpaceCellKind.Substructure
+                    && passedSubstructure?.Contains(cell) == true) continue;
+                // 建筑高于同一带内的基架；同类再按沿弹道距离排序。
+                float rank = (new Vector2(cell.x + 0.5f, cell.z + 0.5f) - fromLocal).sqrMagnitude;
+                bool buildingWins = bestKind == SpaceCellKind.Substructure
+                    && kind != SpaceCellKind.Substructure;
+                bool sameLayer = bestKind == SpaceCellKind.Empty
+                    || (bestKind == SpaceCellKind.Substructure) == (kind == SpaceCellKind.Substructure);
+                if (buildingWins || sameLayer && rank < bestRank)
                 {
                     bestRank = rank;
                     bestCell = cell;
                     bestKind = kind;
-                    bestThing = surface.buildings[index];
+                    bestThing = thing;
                 }
             }
             return bestKind != SpaceCellKind.Empty;

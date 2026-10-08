@@ -339,9 +339,8 @@ namespace DeltaV
         /// <summary>
         /// 结构外观纳入标准（所有 SpaceObject 统一，2026-09-18 用户决策）：动态物剔除
         /// → 显式 exclude 最优先 → 实心结构（墙/门/气密建筑/自然岩石，判定收口
-        /// SpaceStructureRules.IsSolidStructure——与碰撞占用集同一分类器，太空战架构
-        /// §3.3「同数据源」）→ 显式规则。物品与非气密建筑（家具、内部设备）不属于
-        /// 外壳，不自动显示。
+        /// SpaceStructureRules.IsSolidStructure）→ 显式规则。碰撞占用另纳入全部建筑，
+        /// 但物品与非气密建筑（家具、内部设备）不因此进入外壳。
         /// </summary>
         private static bool ShouldDrawThing(Thing thing)
         {

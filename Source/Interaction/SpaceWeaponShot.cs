@@ -325,8 +325,9 @@ namespace DeltaV
                 previous = cell;
                 if (weapon.parent.OccupiedRect().Contains(cell)) continue;
                 if (SubstructureOwnership.TryGet(map)?.OwnerAt(cell) != owner) continue;
-                SpaceCellKind kind = SpaceStructureRules.ClassifyCell(map, cell, out _);
-                if (kind == SpaceCellKind.Building || kind == SpaceCellKind.NaturalRock) return false;
+                SpaceCellKind kind = SpaceStructureRules.ClassifyCell(map, cell, out Thing building);
+                if ((kind == SpaceCellKind.Building || kind == SpaceCellKind.NaturalRock)
+                    && SpaceStructureRules.BuildingHitChance(building) > 0f) return false;
             }
             return true;
         }

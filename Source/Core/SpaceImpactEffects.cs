@@ -194,6 +194,19 @@ namespace DeltaV
             return !Rand.Chance(Mathf.Clamp01(passChance));
         }
 
+        /// <summary>建筑以原版掩体效果为命中概率；墙恒中，基架沿用注册表的概率。</summary>
+        public static bool HitTest(SpaceImpactEffectDef effect, float relativeSpeed,
+            SpaceCellKind kind, Thing building)
+        {
+            if (kind != SpaceCellKind.Substructure && building != null)
+            {
+                if (building.def.IsWall) return true;
+                float chance = SpaceStructureRules.BuildingHitChance(building);
+                if (chance <= 0f || chance < 1f && !Rand.Chance(chance)) return false;
+            }
+            return HitTest(effect, relativeSpeed);
+        }
+
         /// <summary>
         /// 后效量计算（单实现）：基准 × 速度因子 × 入射角因子（× 兜底耐久缩放）。
         /// DamageMap 的伤害与 ShieldDrain 的容量消耗共用同一缩放口径。

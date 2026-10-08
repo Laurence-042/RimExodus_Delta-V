@@ -1,18 +1,19 @@
 using System.Collections.Generic;
+using UnityEngine;
 using Verse;
 
 namespace DeltaV
 {
-    /// <summary>格内容类别（碰撞占用集与外壳渲染共用的分类结果）。</summary>
+    /// <summary>格内容类别（碰撞占用集；外壳另按实体结构规则筛选）。</summary>
     public enum SpaceCellKind : byte
     {
         /// <summary>无碰撞面（空真空/地板格……）。</summary>
         Empty = 0,
 
-        /// <summary>实心建筑（墙/门/气密结构；含护盾发生器、推进器等气密设备）。</summary>
+        /// <summary>建筑（含非气密炮塔等；命中概率读取掩体效果）。</summary>
         Building = 1,
 
-        /// <summary>基架格（无实心建筑覆盖的甲板基架；命中判定可概率放行）。</summary>
+        /// <summary>基架格（无建筑覆盖的甲板，或覆盖建筑已被放行；可概率命中）。</summary>
         Substructure = 2,
 
         /// <summary>自然岩石（ asteroid 岩壁，实心）。</summary>
@@ -20,16 +21,16 @@ namespace DeltaV
     }
 
     /// <summary>
-    /// 「哪些东西算船体结构」的唯一分类器（太空战架构 §3.3：占用格集来源与外壳渲染
-    /// 同数据源）。外壳渲染（MapOverlayRenderer.ShouldDrawThing）的建筑实心部分与
-    /// 碰撞核心（SpaceCollision）的占用集都经本类判定——两份规则不得各自演化
-    ///（规则越一致、维护越简单；漂移即「渲染显示但打不中/打中了却看不见」）。
-    /// 渲染侧的 ShellRenderRuleDef（排除/贴图来源/表面层级）不改变本分类。
+    /// 建筑碰撞与船壳可见结构的分类入口。碰撞纳入全部建筑，再按掩体效果掷命中；
+    /// 外壳只绘实体结构或显式规则，内部炮塔可被击中但不因此画在外壳上。
     /// </summary>
     public static class SpaceStructureRules
     {
+        public static float BuildingHitChance(Thing building) => building?.def.IsWall == true
+            ? 1f : Mathf.Clamp01(building?.def.fillPercent ?? 0f);
+
         /// <summary>
-        /// 建筑是否属于实心结构（墙/门/气密建筑/自然岩石；外壳渲染与碰撞占用同判）。
+        /// 建筑是否属于可绘入外壳的实体结构（墙/门/气密建筑/自然岩石）。
         /// 另含两类**实体船体**（太空战架构 §3.2/§7.3：弹体与 shuttle 的碰撞面 =
         /// 其 building 脚印，与气密性无关——否则非气密舱体会被占用集漏掉、无法被
         /// PD 命中）：挂 CompSpaceProjectile / CompSpaceShuttle 的建筑恒为实心。
@@ -50,21 +51,28 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 分类一个格子（碰撞占用集构建用）：实心建筑优先于基架（门/墙下的甲板格
-        /// 命中建筑本体）；无实心建筑但有基架 → Substructure；否则 Empty。
+        /// 分类一个格子（碰撞占用集构建用）：建筑优先于基架；同格重叠时墙优先，
+        /// 其余取掩体效果最高者。无建筑但有基架 → Substructure；否则 Empty。
         /// </summary>
         public static SpaceCellKind ClassifyCell(Map map, IntVec3 cell, out Thing solidThing)
         {
             solidThing = null;
             if (map == null || !cell.InBounds(map)) return SpaceCellKind.Empty;
             List<Thing> things = map.thingGrid.ThingsListAtFast(cell);
+            float bestChance = -1f;
             for (int i = 0; i < things.Count; i++)
             {
                 Thing thing = things[i];
-                if (!IsSolidStructure(thing) || !thing.OccupiedRect().Contains(cell)) continue;
+                if (thing is not Building building || building.Destroyed || !building.Spawned
+                    || !building.OccupiedRect().Contains(cell)) continue;
+                float chance = BuildingHitChance(thing);
+                if (solidThing != null && (chance < bestChance
+                    || chance == bestChance && !thing.def.IsWall)) continue;
                 solidThing = thing;
-                return thing.def.building.isNaturalRock ? SpaceCellKind.NaturalRock : SpaceCellKind.Building;
+                bestChance = chance;
             }
+            if (solidThing != null)
+                return solidThing.def.building.isNaturalRock ? SpaceCellKind.NaturalRock : SpaceCellKind.Building;
             if (map.terrainGrid.FoundationAt(cell)?.IsSubstructure == true) return SpaceCellKind.Substructure;
             return SpaceCellKind.Empty;
         }
