@@ -439,11 +439,23 @@ namespace DeltaV
                 body.launcher = p.launcher;
                 body.dead = false;
                 body.resolvedHit = false;
+                body.shieldResidualFraction = 0f;
                 body.sweepRadius = FootprintRadius(p.def);
                 body.damageScale = p.damageScale;
                 body.armorPenetrationScale = p.armorPenetrationScale;
                 if (p.laser)
                 {
+                    // 专用点防束在结算 tick 追踪导弹现位，避免一 tick 位移把必中特性变成擦边。
+                    if (p.props.guaranteedHitMissiles && TargetAlive(p.target)
+                        && p.target.map != null && !p.target.map.Disposed)
+                    {
+                        foreach (Thing thing in p.target.map.listerThings.AllThings)
+                        {
+                            if (!SpaceImpactEffects.GuaranteedMissileHit(p.def, thing.def)) continue;
+                            p.laserTo = p.target.pose.position;
+                            break;
+                        }
+                    }
                     body.from = p.laserFrom;
                     body.to = p.laserTo;
                 }
@@ -496,6 +508,45 @@ namespace DeltaV
             }
             SpaceCollision.SweepAndResolve(universe, bodyScratch);
             RegisterImpactFx();
+            foreach (Projectile p in sweepScratch)
+            {
+                float residual = p.body.shieldResidualFraction;
+                if (residual <= 0f || p.dead) continue;
+                Vector3 hit = p.body.shieldResidualPoint;
+                Vector2 travel = OrbitSphere.Offset(p.body.from, p.body.to);
+                if (travel.sqrMagnitude < 1e-8f) continue;
+                Vector2 direction = travel.normalized;
+                if (p.laser)
+                {
+                    // 即时光束不能降速续飞；在弧后生成一枚低能破片，走同一弹体/碰撞链。
+                    ThingDef fragment = DefDatabase<ThingDef>.GetNamedSilentFail("DeltaV_Projectile_ShieldFragment");
+                    if (fragment != null)
+                    {
+                        OrbitSphere.Basis(hit, out Vector3 east, out Vector3 north);
+                        Vector3 worldDirection = east * direction.x + north * direction.y;
+                        Launch(fragment, p.sourceContainer, OrbitSphere.Move(hit, direction * 0.1f),
+                            worldDirection, p.container.faction, p.launcher, null,
+                            new SpaceProjectileLaunchSpec(45f, 0, 45f,
+                                p.damageScale * residual, p.armorPenetrationScale * residual));
+                    }
+                    else
+                    {
+                        Log.ErrorOnce("[DeltaV] Missing shield breach fragment def; residual beam cannot continue.",
+                            0x44565346);
+                    }
+                }
+                else
+                {
+                    // 弹体在弧内侧留下，速度与命中能量下降；导弹巡航速度也同步下降。
+                    float speedFactor = Mathf.Sqrt(residual);
+                    p.container.pose.position = OrbitSphere.Move(hit, direction * 0.1f);
+                    p.container.pose.velocity *= speedFactor;
+                    p.cruiseSpeed *= speedFactor;
+                    p.damageScale *= residual;
+                    p.armorPenetrationScale *= residual;
+                    p.ignited = true;
+                }
+            }
             // 激光当 tick 消费完毕：视觉线段（命中点或全射程）+ 销毁。
             foreach (Projectile p in sweepScratch)
             {

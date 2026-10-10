@@ -182,6 +182,24 @@
 	</ThingDef>
 
 
+	<!-- 护盾未能完全吸收即时光束时抛出的低能破片；走普通无图弹体链。 -->
+	<ThingDef ParentName="BuildingBase">
+		<defName>DeltaV_Projectile_ShieldFragment</defName>
+		<label>shield breach fragment</label>
+		<description>A weakened fragment emerging from a collapsed shield.</description>
+		<thingClass>Verse.Building</thingClass><category>Building</category>
+		<rotatable>false</rotatable><passability>Impassable</passability><fillPercent>0.2</fillPercent>
+		<size>(1,1)</size><designationCategory Inherit="False" />
+		<researchPrerequisites Inherit="False" /><stuffCategories Inherit="False" />
+		<statBases><WorkToBuild>1</WorkToBuild><MaxHitPoints>10</MaxHitPoints><Flammability>0</Flammability></statBases>
+		<graphicData><texPath>Things/Projectile/Bullet_Small</texPath><graphicClass>Graphic_Single</graphicClass>
+			<drawSize>(0.7,0.7)</drawSize><shaderType>Cutout</shaderType>
+			<damageData><enabled>false</enabled></damageData></graphicData>
+		<comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+			<speed>45</speed><timeoutTicks>300</timeoutTicks><hasMap>false</hasMap>
+		</li></comps>
+	</ThingDef>
+
 	<!-- 点防激光：复用即时扫掠和光束材质，以独立 Def 控制伤害和线宽。 -->
 	<ThingDef ParentName="BuildingBase">
 		<defName>DeltaV_Projectile_PDLaser</defName>
@@ -215,6 +233,7 @@
 				<hasMap>false</hasMap>
 				<laserRange>50</laserRange>
 				<laserBeamWidth>0.12</laserBeamWidth>
+				<guaranteedHitMissiles>true</guaranteedHitMissiles>
 			</li>
 		</comps>
 	</ThingDef>
