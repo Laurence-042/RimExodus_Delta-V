@@ -39,9 +39,6 @@ namespace DeltaV
         /// <summary>单台推进器推力。玩家船（约 1800 质量、2 台前向推进器）→ 前进加速度约 2.2 cells/s²。</summary>
         public const float ThrusterThrust = 2000f;
 
-        /// <summary>质量模型重扫间隔（tick）。建造期间允许最多 2s 的质量/推进器过期。</summary>
-        public const int RescanIntervalTicks = 120;
-
         // ---- 联合推进器分配 ----
 
         /// <summary>坐标下降轮数。阶段2 船通常只有 8–12 台推进器，该值足以收敛且不产生每 tick GC。</summary>
@@ -721,7 +718,8 @@ namespace DeltaV
         private sealed class CachedReport
         {
             public MassReport report;
-            public int measuredAtTick;
+            public int measuredAtTick = -1;
+            public int structureVersion = -1;
         }
 
         private static readonly Dictionary<Map, CachedReport> Cache = new Dictionary<Map, CachedReport>();
@@ -738,11 +736,12 @@ namespace DeltaV
                 Cache[map] = cached;
             }
             int now = Find.TickManager.TicksGame;
-            if (cached.report == null || now - cached.measuredAtTick >= RescanIntervalTicks)
+            if (cached.report == null || SubstructureOwnership.CacheNeedsRefresh(cached.structureVersion, cached.measuredAtTick))
             {
                 MassReport fresh = Measure(map);
                 fresh.version = (cached.report?.version ?? 0) + 1;
-                if (cached.report != null && MassModelChanged(cached.report, fresh))
+                if (DeltaVLog.Enabled(DeltaVLogModule.Physics)
+                    && cached.report != null && MassModelChanged(cached.report, fresh))
                 {
                     DeltaVLog.Message(DeltaVLogModule.Physics,
                         $"mass model changed on '{map.Parent?.Label ?? map.ToString()}': mass {cached.report.mass:F0}->{fresh.mass:F0}, " +
@@ -751,6 +750,7 @@ namespace DeltaV
                 }
                 cached.report = fresh;
                 cached.measuredAtTick = now;
+                cached.structureVersion = SubstructureOwnership.GlobalStructureVersion;
             }
             return cached.report;
         }

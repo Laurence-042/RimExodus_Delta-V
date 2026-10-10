@@ -196,6 +196,9 @@ namespace DeltaV
             TippedRow(list, rect, "DeltaV_SettingsLifecycleScanIntervalTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsLifecycleScanInterval".Translate(),
                     ref Settings.lifecycleScanIntervalTicks, ref lifecycleScanIntervalBuffer, 1, 600));
+            TippedRow(list, rect, "DeltaV_SettingsShipStructureCacheIntervalTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsShipStructureCacheInterval".Translate(),
+                    ref Settings.shipStructureCacheIntervalTicks, ref shipStructureCacheIntervalBuffer, 1, 600));
             list.End();
         }
 
@@ -242,6 +245,7 @@ namespace DeltaV
         private string poiDeleteBuffer;
         private string npcDecisionIntervalBuffer;
         private string lifecycleScanIntervalBuffer;
+        private string shipStructureCacheIntervalBuffer;
 
         private string mapGenBudgetBuffer;
 

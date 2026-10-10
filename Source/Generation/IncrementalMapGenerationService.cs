@@ -33,7 +33,7 @@ namespace DeltaV
         void Start(Map map, GenStepWithParams step, int seed);
 
         /// <returns>true = 步骤完成；false = 下帧继续。</returns>
-        bool Tick(float deadlineRealtime);
+        bool Advance(float deadlineRealtime);
     }
 
     /// <summary>
@@ -458,7 +458,7 @@ namespace DeltaV
 
                     if (job.adapter != null)
                     {
-                        if (!job.adapter.Tick(deadline)) return;
+                        if (!job.adapter.Advance(deadline)) return;
                         job.adapter.Dispose();
                         job.adapter = null;
                     }
@@ -645,7 +645,7 @@ namespace DeltaV
                 if (disableRegions) map.regionAndRoomUpdater.Enabled = false;
             }
 
-            public bool Tick(float deadlineRealtime)
+            public bool Advance(float deadlineRealtime)
             {
                 int total = map.cellIndices.NumGridCells;
                 do

@@ -112,20 +112,31 @@ namespace DeltaV
     {
         private int lastManTick = -1;
         private Pawn lastManPawn;
+        [Unsaved] private Pawn operatingPawn;
         public Pawn reservedGunner;
 
         public CompProperties_SpaceWeaponCrew CrewProps => (CompProperties_SpaceWeaponCrew)props;
         public IntVec3 GunnerCell => SpaceWeaponCrewUtility.GunnerCell(parent, CrewProps);
-        public bool MannedNow => Find.TickManager.TicksGame - lastManTick <= 1
+        private bool OperatingNow => operatingPawn != null && parent.Spawned
+            && operatingPawn.Spawned && !operatingPawn.Downed && !operatingPawn.Drafted
+            && operatingPawn.Map == parent.Map && operatingPawn.Position == GunnerCell
+            && operatingPawn.CurJob?.def == DeltaVDefOf.DeltaV_OperateSpaceWeapon
+            && operatingPawn.CurJob.targetB.Thing == parent;
+        private bool VanillaMannedNow => Find.TickManager.TicksGame - lastManTick <= 1
             && lastManPawn != null && lastManPawn.Spawned;
-        public Pawn ManningPawn => MannedNow ? lastManPawn : null;
+        public bool MannedNow => OperatingNow || VanillaMannedNow;
+        public Pawn ManningPawn => OperatingNow ? operatingPawn
+            : VanillaMannedNow ? lastManPawn : null;
 
-        public void ManForATick(Pawn pawn)
+        public void BeginOperating(Pawn pawn)
         {
-            lastManTick = Find.TickManager.TicksGame;
-            lastManPawn = pawn;
+            operatingPawn = pawn;
             pawn.mindState.lastMannedThing = parent;
-            parent.TryGetComp<CompMannable>()?.ManForATick(pawn);
+        }
+
+        public void EndOperating(Pawn pawn)
+        {
+            if (operatingPawn == pawn) operatingPawn = null;
         }
 
         public void NotifyVanillaManned(Pawn pawn)
@@ -191,8 +202,9 @@ namespace DeltaV
     public class CompSpaceWeaponTraverse : ThingComp
     {
         private float currentAngle;
-        [Unsaved] private float desiredAngle;
-        [Unsaved] private bool hasDesired;
+        [Unsaved] private float angleAtTickStart;
+        [Unsaved] private int rotationTick = -1;
+        [Unsaved] private int spaceCommandTick = -1;
 
         public CompProperties_SpaceWeaponTraverse TraverseProps =>
             (CompProperties_SpaceWeaponTraverse)props;
@@ -220,8 +232,14 @@ namespace DeltaV
 
         public void AimAt(float mapAngle)
         {
-            desiredAngle = ClampToMechanicalArc(mapAngle);
-            hasDesired = true;
+            spaceCommandTick = Find.TickManager.TicksGame;
+            AdvanceToward(mapAngle);
+        }
+
+        public void AimAtVanilla(float mapAngle)
+        {
+            if (spaceCommandTick == Find.TickManager.TicksGame) return;
+            AdvanceToward(mapAngle);
         }
 
         public bool AlignedTo(float mapAngle)
@@ -236,23 +254,18 @@ namespace DeltaV
             return Mathf.Atan2(delta.z, delta.x);
         }
 
-        public override void CompTick()
+        private void AdvanceToward(float mapAngle)
         {
-            base.CompTick();
-            // 玩家瞄准会话期间不让原版炮塔目标覆盖瞄准角——两者每 tick 竞写
-            // desiredAngle 会让 Traverse 对准门禁反复失准。会话无 Map 内目标时
-            // 原版目标（如图内入侵者）仍可驱动炮塔回转。
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            bool playerAiming = universe != null && universe.Controls.AimSessionOnFocusedMap
-                && parent.Map == Find.CurrentMap;
-            if (!playerAiming && parent is Building_TurretGun turret && turret.CurrentTarget.IsValid)
-                AimAt(MapAngleTo(turret.CurrentTarget, turret));
-            if (hasDesired)
+            int now = Find.TickManager.TicksGame;
+            if (rotationTick != now)
             {
-                float delta = SpaceTransform.WrapAngle(desiredAngle - currentAngle);
-                float max = TraverseProps.turnRateDegPerSec * Mathf.Deg2Rad / 60f;
-                currentAngle += Mathf.Clamp(delta, -max, max);
+                rotationTick = now;
+                angleAtTickStart = currentAngle;
             }
+            float desiredAngle = ClampToMechanicalArc(mapAngle);
+            float delta = SpaceTransform.WrapAngle(desiredAngle - angleAtTickStart);
+            float max = TraverseProps.turnRateDegPerSec * Mathf.Deg2Rad / 60f;
+            currentAngle = angleAtTickStart + Mathf.Clamp(delta, -max, max);
             ApplyToVanillaTop();
         }
 

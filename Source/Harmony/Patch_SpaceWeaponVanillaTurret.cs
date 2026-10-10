@@ -13,6 +13,27 @@ namespace DeltaV
         }
     }
 
+    // 太空炮手由岗位进入／结束事件登记；原版炮塔仍经 CompMannable 查询同一人。
+    [HarmonyPatch(typeof(CompMannable), nameof(CompMannable.MannedNow), MethodType.Getter)]
+    public static class Patch_CompMannable_SpaceCrewManned
+    {
+        public static void Postfix(CompMannable __instance, ref bool __result)
+        {
+            if (!__result && __instance.parent?.TryGetComp<CompSpaceWeaponCrew>() is CompSpaceWeaponCrew crew)
+                __result = crew.MannedNow;
+        }
+    }
+
+    [HarmonyPatch(typeof(CompMannable), nameof(CompMannable.ManningPawn), MethodType.Getter)]
+    public static class Patch_CompMannable_SpaceCrewPawn
+    {
+        public static void Postfix(CompMannable __instance, ref Pawn __result)
+        {
+            if (__result == null)
+                __result = __instance.parent?.TryGetComp<CompSpaceWeaponCrew>()?.ManningPawn;
+        }
+    }
+
     [HarmonyPatch(typeof(Building_TurretGun), nameof(Building_TurretGun.Active), MethodType.Getter)]
     public static class Patch_BuildingTurretGun_SpaceWeaponCrewGate
     {
@@ -36,7 +57,7 @@ namespace DeltaV
             LocalTargetInfo target = ___parentTurret.CurrentTarget;
             if (target.IsValid)
             {
-                traverse.AimAt(CompSpaceWeaponTraverse.MapAngleTo(target, ___parentTurret));
+                traverse.AimAtVanilla(CompSpaceWeaponTraverse.MapAngleTo(target, ___parentTurret));
             }
             return false;
         }
@@ -50,7 +71,7 @@ namespace DeltaV
             CompSpaceWeaponTraverse traverse = __instance.TryGetComp<CompSpaceWeaponTraverse>();
             if (traverse == null || !__instance.CurrentTarget.IsValid) return true;
             float angle = CompSpaceWeaponTraverse.MapAngleTo(__instance.CurrentTarget, __instance);
-            traverse.AimAt(angle);
+            traverse.AimAtVanilla(angle);
             CompSpaceWeapon weapon = __instance.TryGetComp<CompSpaceWeapon>();
             float tolerance = weapon?.fireDeviationDeg ?? traverse.TraverseProps.fireToleranceDeg;
             return SpaceWeaponGeometry.WithinFireDeviation(angle, traverse.CurrentAngle, tolerance);

@@ -41,6 +41,14 @@ namespace DeltaV
             GlobalStructureVersion++;
         }
 
+        /// <summary>质量、控制域和碰撞面共用的结构缓存失效条件。</summary>
+        public static bool CacheNeedsRefresh(int cachedVersion, int measuredAtTick)
+        {
+            if (cachedVersion != GlobalStructureVersion || measuredAtTick < 0) return true;
+            int interval = Mathf.Clamp(DeltaVMod.CurrentSettings?.shipStructureCacheIntervalTicks ?? 120, 1, 600);
+            return Find.TickManager.TicksGame - measuredAtTick >= interval;
+        }
+
         private int[] ownerGrid;
 
         [System.NonSerialized] private HashSet<IntVec3> pendingStampCells;

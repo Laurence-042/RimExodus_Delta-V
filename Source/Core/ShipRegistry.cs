@@ -186,8 +186,7 @@ namespace DeltaV
             int now = Find.TickManager.TicksGame;
             CachedDomain cached;
             if (!byOwner.TryGetValue(ownerId, out cached)
-                || cached.version != version
-                || now - cached.cachedAtTick > DomainRescanIntervalTicks)
+                || SubstructureOwnership.CacheNeedsRefresh(cached.version, cached.cachedAtTick))
             {
                 cached = new CachedDomain
                 {
@@ -199,13 +198,6 @@ namespace DeltaV
             }
             return cached.cells;
         }
-
-        /// <summary>
-        /// 域缓存重扫间隔（tick）：已知写入（归属/盖章/放置/剥离）经全局结构版本即时
-        /// 失效；拆除基架等少数未经挂钩的地形变更允许至多 1 秒过期（与质量报告的
-        /// RescanIntervalTicks 同风格的折衷）。
-        /// </summary>
-        private const int DomainRescanIntervalTicks = 60;
 
         /// <summary>
         /// 残留块划分：图上不在 exclude（控制域等保留集）内的全部基架格按**物理四连通**

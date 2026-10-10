@@ -25,9 +25,6 @@ namespace DeltaV
     /// </summary>
     public static class SpaceCollision
     {
-        /// <summary>碰撞面重扫间隔（tick）：已知写入经结构版本即时失效，其余允许至多 2s 过期。</summary>
-        private const int RescanIntervalTicks = 120;
-
         /// <summary>扫掠采样步长（格）。</summary>
         private const float SampleStep = 0.5f;
 
@@ -160,8 +157,7 @@ namespace DeltaV
             }
             int version = SubstructureOwnership.GlobalStructureVersion;
             int now = Find.TickManager.TicksGame;
-            if (surface.kinds == null || surface.structureVersion != version
-                || now - surface.measuredAtTick >= RescanIntervalTicks)
+            if (surface.kinds == null || SubstructureOwnership.CacheNeedsRefresh(surface.structureVersion, surface.measuredAtTick))
             {
                 Rebuild(map, surface, version, now);
             }

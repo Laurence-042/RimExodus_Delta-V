@@ -12,6 +12,14 @@ namespace DeltaV
         // Driver 直接取 Crew.GunnerCell，不向选择覆盖层暴露目标线。
         private ThingWithComps Weapon => job.targetB.Thing as ThingWithComps;
 
+        public override void ExposeData()
+        {
+            base.ExposeData();
+            // JobDriver 恢复当前 toil 时不会再调用 initAction；重建运行时炮手登记。
+            if (Scribe.mode == LoadSaveMode.PostLoadInit && CurToilIndex == 1)
+                Weapon?.TryGetComp<CompSpaceWeaponCrew>()?.BeginOperating(pawn);
+        }
+
         public override bool TryMakePreToilReservations(bool errorOnFailed)
         {
             return pawn.Reserve(job.targetB, job, 1, -1, null, errorOnFailed);
@@ -23,20 +31,22 @@ namespace DeltaV
             CompSpaceWeaponCrew crew = Weapon?.TryGetComp<CompSpaceWeaponCrew>();
             if (crew == null) yield break;
             Map assignedMap = Weapon.Map;
-            AddFinishAction(_ => ShipControlService.NotifyGunnerChange(assignedMap));
+            AddFinishAction(_ =>
+            {
+                crew.EndOperating(pawn);
+                ShipControlService.NotifyGunnerChange(assignedMap);
+            });
             yield return Toils_Goto.GotoCell(crew.GunnerCell, PathEndMode.OnCell);
             Toil operate = ToilMaker.MakeToil("OperateSpaceWeapon");
-            operate.tickAction = delegate
+            operate.initAction = delegate
             {
-                ThingWithComps weapon = Weapon;
-                CompSpaceWeaponCrew current = weapon?.TryGetComp<CompSpaceWeaponCrew>();
-                if (current == null || pawn.Position != current.GunnerCell)
+                if (Weapon == null || pawn.Position != crew.GunnerCell)
                 {
                     EndJobWith(JobCondition.Incompletable);
                     return;
                 }
-                current.ManForATick(pawn);
-                pawn.rotationTracker.FaceCell(weapon.Position);
+                crew.BeginOperating(pawn);
+                pawn.rotationTracker.FaceCell(Weapon.Position);
             };
             operate.handlingFacing = true;
             operate.defaultCompleteMode = ToilCompleteMode.Never;
