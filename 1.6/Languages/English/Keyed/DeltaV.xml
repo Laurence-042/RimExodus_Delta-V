@@ -214,9 +214,13 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SectorTypeAsteroid>Asteroid</DeltaV_SectorTypeAsteroid>
 <DeltaV_ReassignProtectedMainConsole>Main console foundations cannot be reassigned ({0} cell(s) skipped). Set the console to backup or deconstruct it first.</DeltaV_ReassignProtectedMainConsole>
 
-  <!-- Stage 5: combat (aim mode / weapon groups / battle stations) -->
-  <DeltaV_PanelAimMode>Aim mode: {0}</DeltaV_PanelAimMode>
-  <DeltaV_PanelAimModeTip>Toggle with this button or the aim key (default B). In aim mode, hold LMB to fire the active main-set weapons and RMB to fire the active secondary-set weapons; vanilla clicking yields. Space (pause) is never taken. The aim session is independent of piloting and autopilot (usable during docking) and persists across focus switches, docking and undocking.</DeltaV_PanelAimModeTip>
+  <!-- Combat controls -->
+  <DeltaV_PanelFireControl>Fire control: {0}</DeltaV_PanelFireControl>
+  <DeltaV_FireControlAutomatic>Automatic</DeltaV_FireControlAutomatic>
+  <DeltaV_FireControlManual>Manual focus fire</DeltaV_FireControlManual>
+  <DeltaV_PanelFireControlTip>Toggle with this button or B. Automatic fire control engages hostile ships; manual focus fire uses LMB for active main-set weapons and RMB for active secondary-set weapons on the selected ship. Point defense and battle stations are independent.</DeltaV_PanelFireControlTip>
+  <DeltaV_PanelAutoManeuver>Auto combat maneuver: {0}</DeltaV_PanelAutoManeuver>
+  <DeltaV_PanelAutoManeuverTip>Orbit a hostile ship using automatic combat positioning. Enabling replaces the current autopilot task, including docking or waypoint guidance, but keeps the docking plan. A flight key takes manual control. This setting resets after loading.</DeltaV_PanelAutoManeuverTip>
   <DeltaV_PanelWeaponGroupTip>{0} set, group {1}. Click to toggle whether this group is active. Only active groups fire, and they receive gunner priority when crew is short.</DeltaV_PanelWeaponGroupTip>
   <DeltaV_WeaponSetMain>Main</DeltaV_WeaponSetMain>
   <DeltaV_WeaponSetSecondary>Secondary</DeltaV_WeaponSetSecondary>

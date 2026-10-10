@@ -901,18 +901,12 @@ namespace DeltaV
                 Map pilotMap = Focused?.InteriorMap;
                 Pilot.ToggleControl(this, pilotMap != null ? Pilot.SelectedShipOnMap(pilotMap) : Ship.Invalid);
             }
-            // 瞄准模式切换键（太空战架构 §6.1，默认 B；与面板按钮同一入口）。
-            // 目标解析：当前驾驶船 → 面板/图上选中船。会话独立于驾驶与自动驾驶
-            //（对接中可瞄准），跨聚焦/换图保持；被绑定为瞄准键的原版功能在驾驶期
-            // 经按键抑制桥让位；不占用空格/暂停。
+            // 火控切换键与面板作用于同一选中船；手动瞄准会话独立于驾驶任务。
             if (DeltaVDefOf.DeltaV_AimMode != null && DeltaVDefOf.DeltaV_AimMode.KeyDownEvent)
             {
-                Ship aimShip = Pilot.PilotedShip(this);
-                if (!aimShip.IsValid || aimShip.map != Find.CurrentMap)
-                {
-                    aimShip = Find.CurrentMap != null ? Pilot.SelectedShipOnMap(Find.CurrentMap) : Ship.Invalid;
-                }
-                Controls.ToggleAim(aimShip);
+                Ship selectedShip = Find.CurrentMap != null
+                    ? Pilot.SelectedShipOnMap(Find.CurrentMap) : Ship.Invalid;
+                Controls.ToggleFireControl(selectedShip);
             }
             // 选点阶段 ESC 取消（2026-09-25 补齐）：pendingShip 在册且无计划 = 正在选点。
             // 让位条件是「存在会自己消费 ESC 的窗口」（Dialog 层及以上），而非窗口栈非空——

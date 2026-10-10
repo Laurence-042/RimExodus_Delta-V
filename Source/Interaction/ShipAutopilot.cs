@@ -215,7 +215,8 @@ namespace DeltaV
         }
 
         /// <summary>动态环绕任务：只调整同一任务的半径，不反复重建 MPC；始终使用真实推力。</summary>
-        public void TrackOrbit(Ship ship, SpaceObject host, float radius)
+        public void TrackOrbit(Ship ship, SpaceObject host, float radius,
+            bool playerInitiated = false)
         {
             if (!ship.IsValid || host == null) return;
             radius = Mathf.Max(radius, SpaceCollision.BoundsRadiusOf(host) + 8f);
@@ -232,11 +233,14 @@ namespace DeltaV
             {
                 ownerId = ship.ownerId, tracked = true, host = host, combatOrbit = true,
                 orbitRadius = radius, orbitPhase = Mathf.Atan2(local.y, local.x),
-                allowVoidThrust = false, playerInitiated = false, profile = profile
+                allowVoidThrust = false, playerInitiated = playerInitiated, profile = profile
             };
             flight.guidance.Reset(profile);
             active[ship.ownerId] = flight;
         }
+
+        internal bool IsCombatOrbit(int ownerId) => active.TryGetValue(ownerId, out Flight flight)
+            && flight.combatOrbit;
 
         /// <summary>PilotTarget 口径（shuttle MiniShip 任务同表；键 = ControlKey）。</summary>
         public void Detach(PilotTarget target, string reason = null)

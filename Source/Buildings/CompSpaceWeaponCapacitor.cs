@@ -33,6 +33,7 @@ namespace DeltaV
     public class CompSpaceWeaponCapacitor : CompSpaceWeaponAttachment
     {
         private float storedEnergy = -1f;
+        [Unsaved] private bool chargingDemand;
         public CompProperties_SpaceWeaponCapacitor CapacitorProps =>
             (CompProperties_SpaceWeaponCapacitor)props;
         public float StoredEnergy => storedEnergy < 0f
@@ -46,25 +47,37 @@ namespace DeltaV
             base.PostSpawnSetup(respawningAfterLoad);
             if (storedEnergy < 0f) storedEnergy = CapacitorProps.capacityWattDays
                 * UnityEngine.Mathf.Clamp01(CapacitorProps.initialEnergyPercent);
+            UpdateChargingDemand(force: true);
         }
 
         public override void CompTick()
         {
             base.CompTick();
+            if (StoredEnergy + 0.0001f >= CapacitorProps.capacityWattDays) return;
+            UpdateChargingDemand();
+            if (!chargingDemand) return;
             CompPowerTrader power = parent.TryGetComp<CompPowerTrader>();
-            if (power == null) return;
-            bool charging = Enabled && StoredEnergy + 0.0001f < CapacitorProps.capacityWattDays;
-            power.PowerOutput = charging ? -CapacitorProps.chargingWatts : 0f;
-            if (charging && power.PowerOn)
-                storedEnergy = UnityEngine.Mathf.Min(CapacitorProps.capacityWattDays,
-                    StoredEnergy + CapacitorProps.chargingWatts * CompPower.WattsToWattDaysPerTick);
+            if (power?.PowerOn != true) return;
+            storedEnergy = UnityEngine.Mathf.Min(CapacitorProps.capacityWattDays,
+                StoredEnergy + CapacitorProps.chargingWatts * CompPower.WattsToWattDaysPerTick);
+            if (storedEnergy + 0.0001f >= CapacitorProps.capacityWattDays)
+                UpdateChargingDemand();
         }
 
         public void Consume(float wattDays)
         {
             storedEnergy = UnityEngine.Mathf.Max(0f, StoredEnergy - wattDays);
+            UpdateChargingDemand();
+        }
+
+        private void UpdateChargingDemand(bool force = false)
+        {
+            bool charging = Enabled && CapacitorProps.chargingWatts > 0f
+                && StoredEnergy + 0.0001f < CapacitorProps.capacityWattDays;
+            if (!force && chargingDemand == charging) return;
+            chargingDemand = charging;
             CompPowerTrader power = parent.TryGetComp<CompPowerTrader>();
-            if (power != null) power.PowerOutput = -CapacitorProps.chargingWatts;
+            if (power != null) power.PowerOutput = charging ? -CapacitorProps.chargingWatts : 0f;
         }
 
         public override void PostExposeData()

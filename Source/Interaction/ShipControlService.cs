@@ -12,6 +12,7 @@ namespace DeltaV
         private readonly HashSet<Map> pendingGunnerMaps = new HashSet<Map>();
         private readonly List<ShipController> tickBuffer = new List<ShipController>();
         private int activeAimOwnerId;
+        private int lastPlayerDecisionTick = -1;
 
         internal ShipControlService(UniverseManager universe) { this.universe = universe; }
 
@@ -109,14 +110,29 @@ namespace DeltaV
             foreach (int ownerId in new List<int>(controllers.Keys)) Remove(ownerId);
             pendingGunnerMaps.Clear();
             activeAimOwnerId = 0;
+            lastPlayerDecisionTick = -1;
             tickBuffer.Clear();
         }
 
         public void Tick()
         {
             if (pendingGunnerMaps.Count > 0) ProcessGunnerEvents();
+            SyncManualAimSelection();
             tickBuffer.Clear();
             tickBuffer.AddRange(controllers.Values);
+            int now = Find.TickManager.TicksGame;
+            int interval = UnityEngine.Mathf.Clamp(
+                DeltaVMod.CurrentSettings?.npcDecisionIntervalTicks ?? 60, 1, 600);
+            if (lastPlayerDecisionTick < 0 || now - lastPlayerDecisionTick >= interval)
+            {
+                lastPlayerDecisionTick = now;
+                foreach (ShipController controller in tickBuffer)
+                    if (controller is PlayerShipController player && player.OwnerId > 0)
+                    {
+                        Ship ship = ShipRegistry.ShipByOwner(player.OwnerId);
+                        if (ship.IsValid) player.DecideAutoCombat(ship);
+                    }
+            }
             foreach (ShipController controller in tickBuffer)
                 controller.TickCombat();
             tickBuffer.Clear();
@@ -159,32 +175,97 @@ namespace DeltaV
         public bool AimActiveFor(Ship ship) => ship.IsValid && AimActive
             && activeAimOwnerId == ship.ownerId;
 
-        public bool AimSessionOnFocusedMap => AimActive
-            && ((PlayerShipController)controllers[activeAimOwnerId]).AimSessionOnFocusedMap;
+        internal bool ManualAimOwner(int ownerId) => activeAimOwnerId == ownerId && AimActive;
 
-        public void ToggleAim(Ship ship)
+        public ShipFireControlMode FireControlModeFor(Ship ship) => ship.IsValid
+            ? ship.console.fireControlMode : ShipFireControlMode.Automatic;
+
+        public bool AimSessionOnFocusedMap
+        {
+            get
+            {
+                SyncManualAimSelection();
+                return AimActive
+                    && ((PlayerShipController)controllers[activeAimOwnerId]).AimSessionOnFocusedMap;
+            }
+        }
+
+        private void SyncManualAimSelection()
+        {
+            Map map = Find.CurrentMap;
+            Ship selected = map != null ? universe.Pilot.SelectedShipOnMap(map) : Ship.Invalid;
+            int wanted = selected.IsValid && (ShipRegistry.FactionOf(selected) == Faction.OfPlayer
+                || DebugSettings.godMode)
+                && selected.console.fireControlMode == ShipFireControlMode.Manual
+                ? selected.ownerId : 0;
+            if (wanted == activeAimOwnerId && (wanted == 0 || AimActive)) return;
+            int oldOwnerId = activeAimOwnerId;
+            bool endedOldSession = false;
+            if (oldOwnerId > 0 && controllers.TryGetValue(oldOwnerId, out ShipController old)
+                && old is PlayerShipController previous)
+            {
+                Ship priorShip = ShipRegistry.ShipByOwner(oldOwnerId);
+                // 切走聚焦图时保留会话；同图改选或切回自动火控时结束。
+                if (!priorShip.IsValid || priorShip.map == map)
+                {
+                    previous.EndAim("selection changed");
+                    endedOldSession = true;
+                }
+            }
+            activeAimOwnerId = 0;
+            if (endedOldSession) ReleaseDebugControl(oldOwnerId);
+            if (wanted == 0) return;
+            PlayerShipController player = PlayerFor(selected, debugTakeover: true);
+            if (player == null) return;
+            if (!player.AimActive) player.BeginAim();
+            activeAimOwnerId = wanted;
+        }
+
+        public void ToggleFireControl(Ship ship)
         {
             if (!ship.IsValid)
             {
                 Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            bool same = activeAimOwnerId == ship.ownerId && AimActive;
-            int oldOwnerId = activeAimOwnerId;
-            if (oldOwnerId > 0 && controllers.TryGetValue(oldOwnerId, out ShipController old)
-                && old is PlayerShipController previous)
-                previous.EndAim(same ? "toggled off" : "target switched");
-            activeAimOwnerId = 0;
-            if (oldOwnerId > 0) ReleaseDebugControl(oldOwnerId);
-            if (same) return;
             PlayerShipController player = PlayerFor(ship, debugTakeover: true);
             if (player == null) return;
-            player.BeginAim();
-            activeAimOwnerId = ship.ownerId;
+            ship.console.fireControlMode = ship.console.fireControlMode == ShipFireControlMode.Automatic
+                ? ShipFireControlMode.Manual : ShipFireControlMode.Automatic;
+            SyncManualAimSelection();
+            if (ship.console.fireControlMode == ShipFireControlMode.Automatic)
+                player.DecideAutoCombat(ship);
+        }
+
+        public bool AutoManeuverActiveFor(Ship ship) => ship.IsValid
+            && controllers.TryGetValue(ship.ownerId, out ShipController controller)
+            && controller is PlayerShipController player && player.AutoManeuverEnabled;
+
+        public void ToggleAutoManeuver(Ship ship)
+        {
+            if (!ship.IsValid) return;
+            PlayerShipController player = PlayerFor(ship);
+            if (player == null) return;
+            bool enable = !player.AutoManeuverEnabled;
+            if (enable)
+            {
+                if (universe.Pilot.PilotedShip(universe).ownerId == ship.ownerId)
+                    universe.Pilot.Exit(universe);
+                universe.Autopilot.Detach(ship, "combat maneuver engaged");
+                player.SetAutoManeuver(true);
+                universe.Pilot.ArmAutopilotInput(ship);
+                player.DecideAutoCombat(ship);
+            }
+            else
+            {
+                player.SetAutoManeuver(false);
+                universe.Pilot.DisarmAutopilotInput(ship);
+            }
         }
 
         internal int EmitAimMarkers(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)
         {
+            SyncManualAimSelection();
             if (!AimActive) return baseSlot;
             return ((PlayerShipController)controllers[activeAimOwnerId])
                 .EmitAimMarkers(frame, frameMap, layer, baseSlot);

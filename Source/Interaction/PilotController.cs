@@ -86,14 +86,18 @@ public readonly struct PilotTarget
         protected readonly UniverseManager universe;
         public readonly int OwnerId;
         private Ship cachedShip;
+        internal readonly ShipAutoFireControl AutoFire;
+        internal readonly ShipAutoManeuverControl AutoManeuver;
 
         /// <summary>当前驾驶目标（Ship 或 shuttle 舱体，二选一）。无效 = 未驾驶。</summary>
         internal PilotTarget target = PilotTarget.Invalid;
 
-        protected ShipController(UniverseManager universe, int ownerId)
+        protected ShipController(UniverseManager universe, int ownerId, bool shipsOnly)
         {
             this.universe = universe;
             OwnerId = ownerId;
+            AutoFire = new ShipAutoFireControl(universe, ownerId, shipsOnly);
+            AutoManeuver = new ShipAutoManeuverControl(universe, ownerId);
         }
 
         internal abstract bool GunnersEnabled { get; }
@@ -289,14 +293,36 @@ public readonly struct PilotTarget
     {
         private SpaceAimController aim;
         private bool battleStations;
+        private bool autoManeuverEnabled;
 
-        internal PlayerShipController(UniverseManager universe, int ownerId) : base(universe, ownerId)
+        internal PlayerShipController(UniverseManager universe, int ownerId) : base(universe, ownerId, true)
         {
         }
 
         internal override bool GunnersEnabled => battleStations;
-        internal override bool WantsVolley => AimActive;
+        internal override bool WantsVolley => FireControlMode == ShipFireControlMode.Manual
+            ? universe.Controls.ManualAimOwner(OwnerId) : AutoFire.Target != null;
         internal void SetBattleStations(bool active) { battleStations = active; }
+        internal ShipFireControlMode FireControlMode =>
+            ShipRegistry.ShipByOwner(OwnerId).console?.fireControlMode ?? ShipFireControlMode.Automatic;
+        internal bool AutoManeuverEnabled => autoManeuverEnabled;
+        internal void SetAutoManeuver(bool enabled)
+        {
+            autoManeuverEnabled = enabled;
+            if (!enabled) AutoManeuver.Clear(ShipRegistry.ShipByOwner(OwnerId));
+        }
+
+        internal void DecideAutoCombat(Ship ship)
+        {
+            SpaceObject own = universe.FrameOf(ship.map);
+            if (own == null || universe.Lifecycle.IsFrozen(ship.map)) return;
+            if (FireControlMode == ShipFireControlMode.Automatic || autoManeuverEnabled)
+                AutoFire.Decide(ship, own);
+            else AutoFire.Clear();
+            if (autoManeuverEnabled)
+                AutoManeuver.Decide(ship, own, AutoFire.Target, null,
+                    allowBoarding: false, playerInitiated: true);
+        }
         internal bool AimActive => aim?.Active == true;
         internal bool AimSessionOnFocusedMap => aim?.SessionOnFocusedMap == true;
 
@@ -320,6 +346,9 @@ public readonly struct PilotTarget
             out ShipVolleyIntent intent)
         {
             intent = default;
+            if (FireControlMode == ShipFireControlMode.Automatic)
+                return AutoFire.TryGetIntent(ship, container, false, out intent);
+            if (!universe.Controls.ManualAimOwner(OwnerId)) return false;
             if (aim == null) return false;
             if (!aim.Active)
             {
@@ -369,16 +398,20 @@ public readonly struct PilotTarget
         /// <summary>内部 AI 组件；默认空实现，NpcShipAiService 为敌舰注入战术实现。</summary>
         public INpcShipAi Ai { get; set; } = new NoopNpcShipAi();
 
-        internal NpcShipController(UniverseManager universe, int ownerId) : base(universe, ownerId)
+        internal NpcShipController(UniverseManager universe, int ownerId) : base(universe, ownerId, false)
         {
         }
 
         internal override bool GunnersEnabled => combatReady;
-        internal override bool WantsVolley => combatReady;
+        internal override bool WantsVolley => combatReady && AutoFire.Target != null;
 
         internal void SetCombatReady(bool ready)
         {
-            if (!ready) Ai?.ClearCombatTarget();
+            if (!ready)
+            {
+                AutoFire.Clear();
+                AutoManeuver.Clear(ShipRegistry.ShipByOwner(OwnerId));
+            }
             if (combatReady == ready) return;
             combatReady = ready;
             if (ready) universe.Controls.NotifyGunnerAvailabilityChanged(
@@ -389,12 +422,8 @@ public readonly struct PilotTarget
             out ShipVolleyIntent intent)
         {
             intent = default;
-            if (!combatReady || Ai == null
-                || !Ai.TryGetVolleyTarget(ship, container, out SpaceObject victim,
-                    out Thing system, out bool suppressSystems))
-                return false;
-            intent = new ShipVolleyIntent(victim, system, !suppressSystems);
-            return true;
+            return combatReady && AutoFire.TryGetIntent(ship, container,
+                AutoManeuver.Doctrine == NpcDoctrine.Boarder, out intent);
         }
 
         protected internal override bool HasAuthority(PilotTarget target)
@@ -438,10 +467,6 @@ public readonly struct PilotTarget
         /// <summary>手操指令合成（NPC 机动请求；经统一分配器执行）。</summary>
         void ComposeCommand(Ship ship, ref PilotService.PilotCommand command);
 
-        bool TryGetVolleyTarget(Ship ship, SpaceObject own, out SpaceObject target,
-            out Thing system, out bool suppressSystems);
-
-        void ClearCombatTarget();
     }
 
     /// <summary>空实现（本轮接入边界；后续敌舰 AI 在此挂接）。</summary>
@@ -457,16 +482,6 @@ public readonly struct PilotTarget
         {
         }
 
-        public bool TryGetVolleyTarget(Ship ship, SpaceObject own, out SpaceObject target,
-            out Thing system, out bool suppressSystems)
-        {
-            target = null;
-            system = null;
-            suppressSystems = false;
-            return false;
-        }
-
-        public void ClearCombatTarget() { }
     }
 
     /// <summary>
@@ -662,6 +677,8 @@ public readonly struct PilotTarget
                     $"autopilot interrupted by manual input: target key #{target.ControlKey} (pilot mode engaged)");
                 Messages.Message("DeltaV_DockAutopilotStopped".Translate(), MessageTypeDefOf.NeutralEvent, false);
             }
+            if (!target.IsShuttle)
+                controller.SetAutoManeuver(false);
             DisarmAutopilotInput(target);
             if (activePlayerController != null && activePlayerController != controller)
             {
@@ -858,8 +875,7 @@ public readonly struct PilotTarget
             }
             yield return DeltaVDefOf.DeltaV_TogglePilotMode;
             yield return DeltaVDefOf.DeltaV_AssistBrake; // Ctrl 刹停时抑制原版 Ctrl 用途
-            // 瞄准键（默认 B，§6.1）：驾驶期抑制其原版功能（建筑菜单等）；
-            // 不含空格/暂停——瞄准模式不占用暂停。
+            // 火控键（默认 B）：驾驶期抑制其原版功能（建筑菜单等）。
             yield return DeltaVDefOf.DeltaV_AimMode;
         }
 

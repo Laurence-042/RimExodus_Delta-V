@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
@@ -46,7 +47,8 @@ namespace DeltaV
         /// 会话本身跨聚焦保持；此属性为 false 时只挂起、不析构。
         /// </summary>
         public bool SessionOnFocusedMap =>
-            !disposed && Find.CurrentMap != null && Ship.IsValid && Ship.map == Find.CurrentMap;
+            !disposed && WorldRendererUtility.DrawingMap && Find.CurrentMap != null
+            && Ship.IsValid && Ship.map == Find.CurrentMap;
 
         // ---- tick 路径（PlayerShipController 转发）----
 
@@ -62,7 +64,7 @@ namespace DeltaV
                 Dispose("aim ship lost");
                 return;
             }
-            if (ship.map != Find.CurrentMap) return;
+            if (!WorldRendererUtility.DrawingMap || ship.map != Find.CurrentMap) return;
             SpaceObject container = universe.FrameOf(ship.map);
             if (container == null) return;
             // 悬停窗口（面板/原版 UI）不射击；暂停时无 tick，天然不射。

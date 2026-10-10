@@ -70,7 +70,7 @@ namespace DeltaV
 
         public static Verse.KeyBindingDef DeltaV_AssistBrake;
 
-        // 瞄准模式切换（阶段5 §6.1，默认 B；驾驶期抑制其原版功能）。
+        // 玩家火控模式切换（默认 B；驾驶期抑制其原版功能）。
         public static Verse.KeyBindingDef DeltaV_AimMode;
 
         // 星区 POI 命名器（1.6/Defs/RulePackDefs/RulePacks_Namers_SpacePoi.xml）：

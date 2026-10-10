@@ -7,6 +7,8 @@ using Verse;
 
 namespace DeltaV
 {
+    public enum ShipFireControlMode : byte { Automatic, Manual }
+
     /// <summary>
     /// Delta-V 驾驶台（解耦架构 §3）：飞船身份与认领的锚点。
     ///
@@ -54,6 +56,9 @@ namespace DeltaV
 
         /// <summary>副套激活组位掩码（bit0 = 组1；默认仅组1 激活）。</summary>
         public int weaponGroupsSecondary = 1;
+
+        /// <summary>玩家火控选择随主驾驶台保存；自动为新船默认值。</summary>
+        public ShipFireControlMode fireControlMode = ShipFireControlMode.Automatic;
 
         /// <summary>指定套别的激活位掩码（面板两排方块唯一读写入口）。</summary>
         public int WeaponGroupMask(SpaceWeaponSalvoSet set)
@@ -282,6 +287,7 @@ namespace DeltaV
             Scribe_Values.Look(ref isMain, "isMain", false);
             Scribe_Values.Look(ref weaponGroupsMain, "weaponGroupsMain", 1);
             Scribe_Values.Look(ref weaponGroupsSecondary, "weaponGroupsSecondary", 1);
+            Scribe_Values.Look(ref fireControlMode, "fireControlMode", ShipFireControlMode.Automatic);
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
