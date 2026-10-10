@@ -24,16 +24,6 @@ namespace DeltaV
         PlaceBody = 4
     }
 
-    /// <summary>命中判定的种类（二值：产生后效 / 放行穿过）。</summary>
-    public enum ImpactHitTestKind : byte
-    {
-        /// <summary>恒产生后效。</summary>
-        Always = 0,
-
-        /// <summary>按相对速度的概率放行（射弹 × 基架：越快越难穿过；放行则弹体继续飞行）。</summary>
-        SpeedChance = 1
-    }
-
     /// <summary>从命中格起沿弹道前进一格的结构毁伤；伤害倍率与横向半宽分别配置。</summary>
     public class ImpactPenetrationLayer
     {
@@ -88,7 +78,7 @@ namespace DeltaV
 
     /// <summary>
     /// 联合效果注册表条目（太空战架构 §3.4）：键 =（弹体 building def × 对面
-    /// building/基架），两段契约 = 命中判定（二值）+ 命中后效（攻守两侧各一份）。
+    /// building/基架），记录命中后的攻守两侧效果；命中概率由目标类型统一判定。
     /// XML 可扩展；未注册的 def 对按「同等耐久舱壁」兜底条目结算（fallback 特例：
     /// projectileDefs 留空的条目即全局兜底）。本 def 族不持有运行时状态，纯数据。
     /// </summary>
@@ -102,19 +92,6 @@ namespace DeltaV
 
         /// <summary>匹配的守方 building def（空 = 该弹体的任意目标兜底）。</summary>
         public List<ThingDef> targetThingDefs;
-
-        public ImpactHitTestKind hitTest = ImpactHitTestKind.Always;
-
-        // ---- SpeedChance 放行参数 ----
-
-        /// <summary>基准速度下的放行概率（0–1；放行 = 弹体穿过、下次碰撞再判定）。</summary>
-        public float passThroughChance = 0.5f;
-
-        /// <summary>放行判定的基准相对速度（格/s）。</summary>
-        public float passThroughReferenceSpeed = 60f;
-
-        /// <summary>放行 ∝ (v/v_ref)^exponent（负值 = 越快越难穿）。</summary>
-        public float passThroughSpeedExponent = -1f;
 
         /// <summary>攻方（弹体）一侧的后效。</summary>
         public ImpactOutcomePart attackerEffect;
@@ -181,30 +158,31 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 命中判定（二值）：true = 产生后效；false = 放行穿过（弹体继续飞行，下次
-        /// 碰撞再判定）。SpeedChance 按相对速度联合判定。
+        /// 命中判定（二值）：true = 产生后效；false = 放行穿过。
+        /// 命中概率只由目标种类及其掩体效果决定。
         /// </summary>
-        public static bool HitTest(SpaceImpactEffectDef effect, float relativeSpeed)
-        {
-            if (effect == null) return true;
-            if (effect.hitTest != ImpactHitTestKind.SpeedChance) return true;
-            float passChance = effect.passThroughChance
-                * Mathf.Pow(relativeSpeed / Mathf.Max(1f, effect.passThroughReferenceSpeed),
-                    effect.passThroughSpeedExponent);
-            return !Rand.Chance(Mathf.Clamp01(passChance));
-        }
-
-        /// <summary>建筑以原版掩体效果为命中概率；墙恒中，基架沿用注册表的概率。</summary>
-        public static bool HitTest(SpaceImpactEffectDef effect, float relativeSpeed,
+        public static bool HitTest(ThingDef projectileDef,
             SpaceCellKind kind, Thing building)
         {
+            if (kind == SpaceCellKind.Substructure)
+                return Rand.Chance(SpaceStructureRules.SubstructureHitChance);
             if (kind != SpaceCellKind.Substructure && building != null)
             {
+                if (GuaranteedMissileHit(projectileDef, building.def)) return true;
                 if (building.def.IsWall) return true;
                 float chance = SpaceStructureRules.BuildingHitChance(building);
                 if (chance <= 0f || chance < 1f && !Rand.Chance(chance)) return false;
             }
-            return HitTest(effect, relativeSpeed);
+            return true;
+        }
+
+        /// <summary>点防专用弹体与有图制导导弹的配对规则，瞄准和命中共用。</summary>
+        public static bool GuaranteedMissileHit(ThingDef projectileDef, ThingDef targetDef)
+        {
+            var projectile = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
+            var target = targetDef?.GetCompProperties<CompProperties_SpaceProjectile>();
+            return projectile?.guaranteedHitMissiles == true && target?.guided == true
+                && target.hasMap;
         }
 
         /// <summary>

@@ -2,10 +2,10 @@
 <Defs>
 
 	<!--
-		联合效果注册表默认条目（太空战架构 §3.4，用户定案示例；数值为方案默认，
-		全部可在此调参，不改代码）。两段契约：
-		- 命中判定 hitTest（Always / SpeedChance 按相对速度概率放行——放行 = 弹体
-		  穿过、下次碰撞再判定，用于射弹 × 基架）；
+		联合效果注册表默认条目（太空战架构 §3.4，用户定案示例；效果数值
+		可在此调参）。命中判定先按目标类型执行：
+		墙恒中，其他建筑按 fillPercent，基架固定 50%，点防专用弹体对导弹恒中。
+		未命中时弹体穿过，下一候选可继续判定。然后执行本表的命中后效：
 		- 命中后效：attackerEffect（弹体一侧）与 defenderEffect（被撞容器一侧）
 		  各自解析执行（对称结算，§3.5）。
 		匹配链：精确 def 对 → 该弹体 × 基架 → 该弹体 × 任意目标 → 全局兜底
@@ -18,7 +18,6 @@
 		<projectileDefs>
 			<li>DeltaV_Projectile_Cannon</li>
 		</projectileDefs>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bomb</damageDef>
@@ -45,7 +44,6 @@
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_RapidVsStructure</defName>
 		<projectileDefs><li>DeltaV_Projectile_Rapid</li></projectileDefs>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind><damageDef>Bullet</damageDef>
 			<damage>22</damage><referenceSpeed>60</referenceSpeed><speedExponent>1</speedExponent>
@@ -57,22 +55,17 @@
 		<defName>DeltaV_Impact_RapidVsSubstructure</defName>
 		<projectileDefs><li>DeltaV_Projectile_Rapid</li></projectileDefs>
 		<targetsSubstructure>true</targetsSubstructure>
-		<hitTest>SpeedChance</hitTest><passThroughChance>0.8</passThroughChance>
 		<defenderEffect><kind>DamageMap</kind><damageDef>Bullet</damageDef><damage>7</damage></defenderEffect>
 		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
-	<!-- 直射弹 × 基架：概率放行（越快越难穿）；后效 = 命中位爆炸 + 递减摧毁基架 + 破片溅射。 -->
+	<!-- 直射弹 × 基架：固定概率放行；后效 = 命中位爆炸 + 递减摧毁基架 + 破片溅射。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_CannonVsSubstructure</defName>
 		<projectileDefs>
 			<li>DeltaV_Projectile_Cannon</li>
 		</projectileDefs>
 		<targetsSubstructure>true</targetsSubstructure>
-		<hitTest>SpeedChance</hitTest>
-		<passThroughChance>0.5</passThroughChance>
-		<passThroughReferenceSpeed>60</passThroughReferenceSpeed>
-		<passThroughSpeedExponent>-1</passThroughSpeedExponent>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bomb</damageDef>
@@ -96,7 +89,6 @@
 		<projectileDefs>
 			<li>DeltaV_Projectile_Laser</li>
 		</projectileDefs>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bullet</damageDef>
@@ -117,7 +109,6 @@
 			<li>DeltaV_Projectile_Laser</li>
 		</projectileDefs>
 		<targetsSubstructure>true</targetsSubstructure>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bullet</damageDef>
@@ -135,7 +126,6 @@
 		<projectileDefs>
 			<li>DeltaV_Projectile_LaserHeavy</li>
 		</projectileDefs>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bullet</damageDef>
@@ -156,7 +146,6 @@
 			<li>DeltaV_Projectile_LaserHeavy</li>
 		</projectileDefs>
 		<targetsSubstructure>true</targetsSubstructure>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bullet</damageDef>
@@ -168,49 +157,40 @@
 		</attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
-	<!-- 导弹 × 舱壁：直射弹同律，爆炸稍大。 -->
+	<!-- 高爆导弹 × 舱壁：化学战斗部不随撞击速度衰减，单发可击毁 420 HP 基础舱壁。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_MissileVsStructure</defName>
 		<projectileDefs>
 			<li>DeltaV_Projectile_Missile</li>
 		</projectileDefs>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bomb</damageDef>
-			<damage>28</damage>
-			<referenceSpeed>60</referenceSpeed>
-			<speedExponent>1</speedExponent>
-			<incidenceMinFactor>0.4</incidenceMinFactor>
-			<armorPenetration>14</armorPenetration>
+			<damage>450</damage>
+			<speedExponent>0</speedExponent>
+			<incidenceMinFactor>1</incidenceMinFactor>
+			<armorPenetration>8</armorPenetration>
 			<explosionRadius>1.6</explosionRadius>
-			<ricochetMinHitPoints>400</ricochetMinHitPoints>
-			<ricochetMinIncidenceDeg>65</ricochetMinIncidenceDeg>
 		</defenderEffect>
 		<attackerEffect>
 			<kind>DestroySelf</kind>
 		</attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
-	<!-- 导弹 × 基架：直射弹同律。 -->
+	<!-- 高爆导弹 × 基架：固定概率触发爆炸；威力不随撞击速度衰减。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_MissileVsSubstructure</defName>
 		<projectileDefs>
 			<li>DeltaV_Projectile_Missile</li>
 		</projectileDefs>
 		<targetsSubstructure>true</targetsSubstructure>
-		<hitTest>SpeedChance</hitTest>
-		<passThroughChance>0.4</passThroughChance>
-		<passThroughReferenceSpeed>60</passThroughReferenceSpeed>
-		<passThroughSpeedExponent>-1</passThroughSpeedExponent>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bomb</damageDef>
-			<damage>22</damage>
-			<referenceSpeed>60</referenceSpeed>
-			<speedExponent>1</speedExponent>
-			<incidenceMinFactor>0.5</incidenceMinFactor>
-			<armorPenetration>10</armorPenetration>
+			<damage>450</damage>
+			<speedExponent>0</speedExponent>
+			<incidenceMinFactor>1</incidenceMinFactor>
+			<armorPenetration>6</armorPenetration>
 			<explosionRadius>2.2</explosionRadius>
 			<stripSubstructureRadius>3</stripSubstructureRadius>
 			<stripSubstructureChance>0.7</stripSubstructureChance>
@@ -220,13 +200,29 @@
 		</attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
+	<!-- 护盾后破片：能量比例由弹体服务带入 damageScale。 -->
+	<DeltaV.SpaceImpactEffectDef>
+		<defName>DeltaV_Impact_ShieldFragmentVsStructure</defName>
+		<projectileDefs><li>DeltaV_Projectile_ShieldFragment</li></projectileDefs>
+		<defenderEffect><kind>DamageMap</kind><damageDef>Bullet</damageDef>
+			<damage>12</damage><speedExponent>0</speedExponent><incidenceMinFactor>1</incidenceMinFactor>
+			<armorPenetration>4</armorPenetration></defenderEffect>
+		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
+	</DeltaV.SpaceImpactEffectDef>
+	<DeltaV.SpaceImpactEffectDef>
+		<defName>DeltaV_Impact_ShieldFragmentVsSubstructure</defName>
+		<projectileDefs><li>DeltaV_Projectile_ShieldFragment</li></projectileDefs>
+		<targetsSubstructure>true</targetsSubstructure>
+		<defenderEffect><kind>DamageMap</kind><damageDef>Bullet</damageDef><damage>8</damage></defenderEffect>
+		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
+	</DeltaV.SpaceImpactEffectDef>
+
 	<!-- 点防激光 × 任意实体：三次命中可击毁当前 25 HP 高爆导弹。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_PdLaserVsStructure</defName>
 		<projectileDefs>
 			<li>DeltaV_Projectile_PDLaser</li>
 		</projectileDefs>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bullet</damageDef>
@@ -248,7 +244,6 @@
 			<li>DeltaV_Projectile_PDLaser</li>
 		</projectileDefs>
 		<targetsSubstructure>true</targetsSubstructure>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bullet</damageDef>
@@ -267,7 +262,6 @@
 		<projectileDefs>
 			<li>DeltaV_Projectile_RailgunSlug</li>
 		</projectileDefs>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bomb</damageDef>
@@ -293,17 +287,13 @@
 		</attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
-	<!-- 轨道炮弹 × 基架：高动能，低放行率；贯穿破片。 -->
+	<!-- 轨道炮弹 × 基架：统一 50% 命中，高动能贯穿破片。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_RailgunVsSubstructure</defName>
 		<projectileDefs>
 			<li>DeltaV_Projectile_RailgunSlug</li>
 		</projectileDefs>
 		<targetsSubstructure>true</targetsSubstructure>
-		<hitTest>SpeedChance</hitTest>
-		<passThroughChance>0.25</passThroughChance>
-		<passThroughReferenceSpeed>120</passThroughReferenceSpeed>
-		<passThroughSpeedExponent>-1</passThroughSpeedExponent>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bomb</damageDef>
@@ -321,20 +311,19 @@
 		</attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
-	<!-- 弹体 × 护盾弧（段5）：判定 = 容量足够则产生后效（容量破则放行撞格）；
-	     守方后效 = 原版 comp 容量消耗（消耗量按相对速度缩放）；攻方自毁。 -->
+	<!-- 动能弹与侵入舱 × 护盾弧：有容量即截获；不足时留下降速弹体。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_VsShield</defName>
 		<projectileDefs>
 			<li>DeltaV_Projectile_Cannon</li>
 			<li>DeltaV_Projectile_Rapid</li>
 			<li>DeltaV_Projectile_RailgunSlug</li>
-			<li>DeltaV_Projectile_Missile</li>
+			<li>DeltaV_ShuttleBoarding</li>
+			<li>DeltaV_Projectile_ShieldFragment</li>
 		</projectileDefs>
 		<targetThingDefs>
 			<li>GravshipShieldGenerator</li>
 		</targetThingDefs>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>ShieldDrain</kind>
 			<damage>25</damage>
@@ -345,6 +334,16 @@
 		<attackerEffect>
 			<kind>DestroySelf</kind>
 		</attackerEffect>
+	</DeltaV.SpaceImpactEffectDef>
+
+	<!-- 高爆战斗部的盾耗由化学载荷决定，不按撞击速度缩小。 -->
+	<DeltaV.SpaceImpactEffectDef>
+		<defName>DeltaV_Impact_MissileVsShield</defName>
+		<projectileDefs><li>DeltaV_Projectile_Missile</li></projectileDefs>
+		<targetThingDefs><li>GravshipShieldGenerator</li></targetThingDefs>
+		<defenderEffect><kind>ShieldDrain</kind><damage>450</damage>
+			<speedExponent>0</speedExponent><incidenceMinFactor>1</incidenceMinFactor></defenderEffect>
+		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
 	<!-- 即时激光没有弹速，护盾消耗不得乘相对速度。中型炮的 impactScale 同时作用于该值。 -->
@@ -358,7 +357,6 @@
 		<targetThingDefs>
 			<li>GravshipShieldGenerator</li>
 		</targetThingDefs>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>ShieldDrain</kind>
 			<damage>12</damage>
@@ -377,7 +375,6 @@
 		<projectileDefs>
 			<li>DeltaV_ShuttleBoarding</li>
 		</projectileDefs>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bomb</damageDef>
@@ -401,7 +398,6 @@
 			<li>DeltaV_ShuttleBoarding</li>
 		</projectileDefs>
 		<targetsSubstructure>true</targetsSubstructure>
-		<hitTest>Always</hitTest>
 		<defenderEffect>
 			<kind>DamageMap</kind>
 			<damageDef>Bomb</damageDef>
@@ -423,7 +419,6 @@
 	     耐久只换参数（基准 100 耐久，按守方耐久缩放）、满足跳弹条件跳弹。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_FallbackWall</defName>
-		<hitTest>Always</hitTest>
 		<fallbackBaselineHitPoints>100</fallbackBaselineHitPoints>
 		<defenderEffect>
 			<kind>DamageMap</kind>

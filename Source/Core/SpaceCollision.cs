@@ -77,9 +77,12 @@ namespace DeltaV
             /// <summary>「放置」后效回调（侵入 shuttle §7.5）：shuttle 服务闭包——
             /// 舱体放置在撞击位内侧偏移 + 容器销毁（帧边界）。</summary>
             public System.Action<SpaceObject, Vector3, Vector2> onPlace;
-            /// <summary>护盾挡停语义（侵入 shuttle，§15.2 默认）：容量未破时速度清零
-            /// 而非吸收摧毁；破弧放行撞格。</summary>
+            /// <summary>护盾挡停语义（侵入 shuttle）：活动弧截获时速度清零，
+            /// 不按普通弹体生成残余。</summary>
             public bool haltOnShield;
+            /// <summary>护盾未能挡尽后留下的能量比例；弹体服务在本次扫掠后续飞或生成破片。</summary>
+            public float shieldResidualFraction;
+            public Vector3 shieldResidualPoint;
         }
 
         /// <summary>命中事件（几何事实一次性计算；池化复用，调用方不得持有引用）。</summary>
@@ -324,13 +327,11 @@ namespace DeltaV
             float distanceToCenter = (toCenter - dir * along).magnitude;
             if (distanceToCenter > surface.boundsRadius + body.sweepRadius + 0.5f) return false;
 
-            // 先弧后格（段5）：扫掠段 × 弧环求交——Active ∧ 容量足够 → 护盾事件
-            //（采样只到弧交点）；弧未激活/容量破 → 放行，继续对占用格采样。
+            // 先弧后格：活动护盾只要仍有容量就拦截；不足部分由弹体服务续飞。
             float sampleLength = length;
             ShieldArc shieldArc = null;
             Vector2 shieldPoint = default;
             float shieldIncidence = 0f;
-            float shieldDurabilityScale = 1f;
             SpaceImpactEffectDef shieldEffect = null;
             float relativeSpeed = SpaceTransform.RelativeVelocity(body.attacker.pose, defender.pose).magnitude;
             if (surface.arcs.Count > 0
@@ -339,20 +340,13 @@ namespace DeltaV
                 Vector2 radial = (point - arc.center).normalized;
                 float incidence = SpaceTransform.IncidenceAngle(dir, radial);
                 SpaceImpactEffectDef effect = SpaceImpactEffects.Resolve(body.projectileDef, arc.building.def);
-                float drain = SpaceImpactEffects.ComputeDamage(effect?.defenderEffect, relativeSpeed, incidence);
-                if (arc.interceptor.currentHitPoints >= Mathf.Max(1f, drain))
+                if (arc.interceptor.currentHitPoints > 0)
                 {
                     sampleLength = arcAlong;
                     shieldArc = arc;
                     shieldPoint = point;
                     shieldIncidence = incidence;
                     shieldEffect = effect;
-                }
-                else
-                {
-                    DeltaVLog.Message(DeltaVLogModule.Combat,
-                        $"shield broken through: {body.projectileDef?.defName} over '{defender.label}' arc " +
-                        $"(hp {arc.interceptor.currentHitPoints} < drain {drain:F0}); projectile continues to grid");
                 }
             }
 
@@ -395,7 +389,7 @@ namespace DeltaV
                 evt.incidenceAngleRad = SpaceTransform.IncidenceAngle(dir, normal);
 
                 // 命中判定（二值）：放行 = 弹体穿过、本 tick 后续采样继续（下次碰撞再判定）。
-                if (!SpaceImpactEffects.HitTest(effect, evt.relativeSpeed, bestKind, bestThing))
+                if (!SpaceImpactEffects.HitTest(body.projectileDef, bestKind, bestThing))
                 {
                     if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
                         DeltaVLog.Message(DeltaVLogModule.Combat,
@@ -471,18 +465,30 @@ namespace DeltaV
                 body.resolvedHitExplosive = false;
                 body.resolvedHitShield = true;
                 body.resolvedHitRadius = 0f;
-                DeltaVLog.Message(DeltaVLogModule.Combat,
-                    $"shield intercept: {body.projectileDef?.defName} absorbed by '{shieldArc.building.def.defName}' " +
-                    $"on '{defender.label}' (drain {SpaceImpactEffects.ComputeDamage(shieldEffect?.defenderEffect, evt.relativeSpeed, shieldIncidence):F0}, " +
-                    $"hp {shieldArc.interceptor.currentHitPoints}/{shieldArc.interceptor.HitPointsMax})");
-                SpaceImpactEffects.ApplyToDefender(evt, shieldEffect?.defenderEffect, shieldDurabilityScale);
+                int capacityBefore = shieldArc.interceptor.currentHitPoints;
+                float drain = Mathf.Max(1f, Mathf.RoundToInt(
+                    SpaceImpactEffects.ComputeDamage(shieldEffect?.defenderEffect,
+                        evt.relativeSpeed, shieldIncidence) * evt.damageScale));
+                SpaceImpactEffects.ApplyToDefender(evt, shieldEffect?.defenderEffect);
+                float residual = Mathf.Clamp01((drain - capacityBefore) / drain);
+                if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
+                    DeltaVLog.Message(DeltaVLogModule.Combat,
+                        $"shield intercept: {body.projectileDef?.defName} on '{defender.label}' " +
+                        $"(drain {drain:F0}, hp {capacityBefore}→{shieldArc.interceptor.currentHitPoints}, " +
+                        $"residual {residual:P0})");
                 if (body.haltOnShield)
                 {
-                    // 侵入 shuttle 的护盾挡停（§15.2 默认）：容量未破 → 速度清零、容量照耗、
-                    // 不摧毁；破弧已被上一步放行撞格。玩家可重入（目标保留）。
+                    // 侵入 shuttle 的护盾挡停：有容量 → 速度清零、容量照耗、
+                    // 不摧毁；侵入舱独立使用挡停语义。玩家可重入（目标保留）。
                     evt.attacker.pose.velocity = Vector2.zero;
                     DeltaVLog.Message(DeltaVLogModule.Combat,
                         $"intrusion halted by shield: '{body.projectileDef?.defName}' stopped at '{defender.label}' arc");
+                }
+                else if (residual > 0f)
+                {
+                    body.shieldResidualFraction = residual;
+                    body.shieldResidualPoint = evt.hitUniverse;
+                    body.dead = true; // 本 tick 停在弧上，下 tick 从弧内续飞。
                 }
                 else
                 {

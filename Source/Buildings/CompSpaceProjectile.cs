@@ -39,6 +39,9 @@ namespace DeltaV
         /// <summary>即时激光在前台层的线宽（地图格）。</summary>
         public float laserBeamWidth = 0.3f;
 
+        /// <summary>此专用弹体对有图制导导弹跳过目标掩体命中概率。</summary>
+        public bool guaranteedHitMissiles;
+
         /// <summary>飞行表现：点火后留下烟迹并在尾部绘制推进焰；不参与弹道。</summary>
         public bool exhaustTrail;
         public float exhaustSize = 1f;

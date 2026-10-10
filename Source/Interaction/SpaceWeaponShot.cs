@@ -66,9 +66,23 @@ namespace DeltaV
         {
             if (!Prepare()) return false;
             Vector2 mapDirection = SpaceTransform.Rotate(Vector2.right, launchMapAngle);
-            float spread = Mathf.Clamp(Rand.Gaussian(0f, 0.4f), -1.2f, 1.2f)
-                * weapon.WeaponProps.baseSpreadDeg * Mathf.Deg2Rad
-                * SpaceWeaponService.SpreadFactorForSkill(skill);
+            bool guaranteedMissileHit = false;
+            if (target?.map != null && !target.map.Disposed
+                && target.Tag == SpaceObjectTag.Projectile)
+            {
+                foreach (Thing thing in target.map.listerThings.AllThings)
+                {
+                    if (SpaceImpactEffects.GuaranteedMissileHit(projectileDef, thing.def))
+                    {
+                        guaranteedMissileHit = true;
+                        break;
+                    }
+                }
+            }
+            float spread = guaranteedMissileHit ? 0f
+                : Mathf.Clamp(Rand.Gaussian(0f, 0.4f), -1.2f, 1.2f)
+                    * weapon.WeaponProps.baseSpreadDeg * Mathf.Deg2Rad
+                    * SpaceWeaponService.SpreadFactorForSkill(skill);
             mapDirection = SpaceTransform.Rotate(mapDirection, spread);
             Vector2 tangent = SpaceTransform.MapDirectionToUniverseTangent(container,
                 weapon.parent.Map, muzzleMap, mapDirection);
