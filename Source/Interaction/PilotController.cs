@@ -725,14 +725,9 @@ public readonly struct PilotTarget
                 // 在飞 shuttle 的自动驾驶任务（对接计划随动）同样占用驾驶位。
                 if (!autopilotTarget.IsValid)
                 {
-                    foreach (Building shuttle in universe.Shuttles.InFlightBodiesOn(focusedMap))
-                    {
-                        if (universe.Autopilot.IsActive(shuttle.thingIDNumber))
-                        {
-                            autopilotTarget = PilotTarget.Of(shuttle);
-                            break;
-                        }
-                    }
+                    Building shuttle = universe.Shuttles.InFlightBodyOn(focusedMap);
+                    if (shuttle != null && universe.Autopilot.IsActive(shuttle.thingIDNumber))
+                        autopilotTarget = PilotTarget.Of(shuttle);
                 }
             }
             bool focusOnAutopilotShip = autopilotTarget.IsValid && autopilotTarget.Map == focusedMap

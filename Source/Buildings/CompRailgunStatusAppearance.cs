@@ -1,35 +1,16 @@
+using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
 using Verse;
 
 namespace DeltaV
 {
-    /// <summary>CutoutComplex's red mask uses the primary color supplied by ThingComp.ForceColor.</summary>
+    /// <summary>CutoutComplex 的红色蒙版从 ThingComp.ForceColor 取主色。</summary>
     internal static class RailgunStatusAppearance
     {
         public static readonly Color ReadyTint = new Color(0.66f, 0.92f, 1f);
         public static readonly Color CoolingTint = new Color(1f, 0.62f, 0.20f);
         public static readonly Color UnavailableTint = new Color(0.72f, 0.19f, 0.22f);
-
-        public static void LogPrinted(ThingWithComps parent)
-        {
-            if (!DeltaVLog.Enabled(DeltaVLogModule.Render)) return;
-            Graphic graphic = parent.Graphic;
-            Material source = graphic.MatAt(parent.Rotation, parent);
-            bool sourceRequestFound = MaterialPool.TryGetRequestForMat(source, out MaterialRequest sourceRequest);
-            bool atlasUsed = Graphic.TryGetTextureAtlasReplacementInfo(source,
-                parent.def.category.ToAtlasGroup(), false, true, out Material printed, out _, out Color32 vertexColor);
-            bool printedRequestFound = MaterialPool.TryGetRequestForMat(printed, out MaterialRequest printedRequest);
-            DeltaVLog.Message(DeltaVLogModule.Render,
-                $"rail-status print thing={parent.ThingID} runtimeType={parent.GetType().Name} graphic={graphic.GetType().Name} " +
-                $"drawColor={parent.DrawColor} defShader={parent.def.graphicData?.shaderType?.defName} sourceShader={source.shader?.name} " +
-                $"sourceTex={source.mainTexture?.name} sourceMask={(sourceRequestFound ? sourceRequest.maskTex?.name : "request-missing")} " +
-                $"sourceColor={(sourceRequestFound ? sourceRequest.color.ToString() : "request-missing")} " +
-                $"sourceColorTwo={(sourceRequestFound ? sourceRequest.colorTwo.ToString() : "request-missing")} " +
-                $"atlas={atlasUsed} printedShader={printed.shader?.name} " +
-                $"printedMask={(printedRequestFound ? printedRequest.maskTex?.name : "request-missing")} " +
-                $"vertexColor={vertexColor}");
-        }
     }
 
     public class CompProperties_RailgunReadinessAppearance : CompProperties
@@ -45,7 +26,7 @@ namespace DeltaV
     {
         private enum State : byte { Unknown, Unavailable, Cooling, Ready }
         private State lastState;
-        private bool logNextPrint;
+        private readonly List<CompRailgunAcceleratorAppearance> registered = new List<CompRailgunAcceleratorAppearance>();
 
         public Color Tint => lastState == State.Ready ? RailgunStatusAppearance.ReadyTint
             : lastState == State.Cooling ? RailgunStatusAppearance.CoolingTint
@@ -60,11 +41,12 @@ namespace DeltaV
             Refresh();
         }
 
-        public override void PostPrintOnto(SectionLayer layer)
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
         {
-            if (!logNextPrint || !DeltaVLog.Enabled(DeltaVLogModule.Render)) return;
-            logNextPrint = false;
-            RailgunStatusAppearance.LogPrinted(parent);
+            foreach (CompRailgunAcceleratorAppearance appearance in registered)
+                appearance.SetLoader(null);
+            registered.Clear();
+            base.PostDeSpawn(map, mode);
         }
 
         public override void CompTick()
@@ -87,37 +69,36 @@ namespace DeltaV
             return "DeltaV_RailReadiness".Translate(key.Translate());
         }
 
-        private void Refresh()
+        public void Refresh()
         {
             if (!parent.Spawned || parent.Map == null) return;
             CompSpaceWeapon weapon = parent.TryGetComp<CompSpaceWeapon>();
             if (weapon == null) return;
-            CompPowerTrader power = parent.TryGetComp<CompPowerTrader>();
-            bool resources = (power == null || power.PowerOn)
-                && weapon.TryGetSkillLevel(out _)
-                && (parent.TryGetComp<CompSpaceWeaponMagazine>() == null
-                    || weapon.SelectMagazine() != null)
-                && SpaceWeaponShot.HasShotEnergy(weapon)
-                && SpaceWeaponShot.HasClearFixedPath(weapon);
+            SpaceWeaponAccelerationSolution acceleration = CompSpaceRailgun.Resolve(weapon);
+            foreach (CompRailgunAcceleratorAppearance appearance in registered)
+                if (!acceleration.segments.Contains(appearance.Segment)) appearance.SetLoader(null);
+            registered.Clear();
+            foreach (CompSpaceRailgun segment in acceleration.segments)
+            {
+                CompRailgunAcceleratorAppearance appearance = segment.parent.TryGetComp<CompRailgunAcceleratorAppearance>();
+                if (appearance == null) continue;
+                appearance.SetLoader(this);
+                registered.Add(appearance);
+            }
+            bool powerOn = parent.TryGetComp<CompPowerTrader>()?.PowerOn != false;
+            bool ammo = weapon.MagazineAvailable(weapon.SelectMagazine());
+            List<CompSpaceRailgun> active = null;
+            bool shotEnergy = powerOn && ammo
+                && SpaceWeaponShot.TryPlanEnergy(weapon, acceleration, out active);
+            foreach (CompRailgunAcceleratorAppearance appearance in registered)
+                appearance.SetActive(shotEnergy && active.Contains(appearance.Segment));
+            bool resources = shotEnergy && weapon.TryGetSkillLevel(out _)
+                && SpaceWeaponShot.HasClearFixedPath(weapon, acceleration);
             State state = !resources ? State.Unavailable
                 : Find.TickManager.TicksGame < weapon.cooldownUntilTick ? State.Cooling : State.Ready;
             if (state == lastState) return;
-            if (DeltaVLog.Enabled(DeltaVLogModule.Render))
-                DeltaVLog.Message(DeltaVLogModule.Render,
-                    $"rail-status loader thing={parent.ThingID} {lastState}->{state} " +
-                    $"power={(power == null || power.PowerOn)} crew={weapon.TryGetSkillLevel(out _)} " +
-                    $"ammo={(parent.TryGetComp<CompSpaceWeaponMagazine>() == null || weapon.SelectMagazine() != null)} " +
-                    $"shotEnergy={SpaceWeaponShot.HasShotEnergy(weapon)} path={SpaceWeaponShot.HasClearFixedPath(weapon)} " +
-                    $"cooldownUntil={weapon.cooldownUntilTick} tick={Find.TickManager.TicksGame}");
             lastState = state;
             parent.Notify_ColorChanged();
-            if (DeltaVLog.Enabled(DeltaVLogModule.Render))
-            {
-                logNextPrint = true;
-                DeltaVLog.Message(DeltaVLogModule.Render,
-                    $"rail-status color-refresh thing={parent.ThingID} runtimeType={parent.GetType().Name} " +
-                    $"drawColor={parent.DrawColor} tint={Tint}");
-            }
         }
     }
 
@@ -133,7 +114,9 @@ namespace DeltaV
     public class CompRailgunAcceleratorAppearance : ThingComp
     {
         private bool? lastActive;
-        private bool logNextPrint;
+        private CompRailgunReadinessAppearance loader;
+
+        public CompSpaceRailgun Segment => parent.TryGetComp<CompSpaceRailgun>();
 
         public Color Tint => lastActive == true ? RailgunStatusAppearance.ReadyTint
             : RailgunStatusAppearance.UnavailableTint;
@@ -143,52 +126,39 @@ namespace DeltaV
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
             base.PostSpawnSetup(respawningAfterLoad);
-            Refresh();
+            Segment?.ConnectedWeapon()?.parent.TryGetComp<CompRailgunReadinessAppearance>()?.Refresh();
         }
 
-        public override void PostPrintOnto(SectionLayer layer)
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
         {
-            if (!logNextPrint || !DeltaVLog.Enabled(DeltaVLogModule.Render)) return;
-            logNextPrint = false;
-            RailgunStatusAppearance.LogPrinted(parent);
-        }
-
-        public override void CompTick()
-        {
-            if (parent.IsHashIntervalTick(60)) Refresh();
+            CompRailgunReadinessAppearance previous = loader;
+            SetLoader(null);
+            base.PostDeSpawn(map, mode);
+            // 帧边界重解链，避免在移除回调中读到尚未清理的 ThingGrid。
+            if (previous != null)
+                Current.Game?.GetComponent<UniverseManager>()?.QueueFrameAction(previous.Refresh);
         }
 
         public override void ReceiveCompSignal(string signal)
         {
-            if (signal == "PowerTurnedOn" || signal == "PowerTurnedOff") Refresh();
+            if (signal == "PowerTurnedOn" || signal == "PowerTurnedOff") loader?.Refresh();
         }
 
         public override string CompInspectStringExtra() =>
             "DeltaV_RailAcceleratorStatus".Translate((lastActive == true
                 ? "DeltaV_RailAcceleratorActive" : "DeltaV_RailAcceleratorSkipped").Translate());
 
-        public void Refresh()
+        public void SetLoader(CompRailgunReadinessAppearance value)
         {
-            if (!parent.Spawned || parent.Map == null) return;
-            CompSpaceRailgun segment = parent.TryGetComp<CompSpaceRailgun>();
-            if (segment == null) return;
-            CompSpaceWeapon weapon = segment.ConnectedWeapon();
-            bool active = SpaceWeaponShot.WillAccelerate(weapon, segment);
+            loader = value;
+            if (value == null) SetActive(false);
+        }
+
+        public void SetActive(bool active)
+        {
             if (lastActive == active) return;
-            if (DeltaVLog.Enabled(DeltaVLogModule.Render))
-                DeltaVLog.Message(DeltaVLogModule.Render,
-                    $"rail-status accelerator thing={parent.ThingID} {lastActive?.ToString() ?? "unknown"}->{active} " +
-                    $"loader={weapon?.parent?.ThingID ?? "none"} power={parent.TryGetComp<CompPowerTrader>()?.PowerOn} " +
-                    $"tick={Find.TickManager.TicksGame}");
             lastActive = active;
-            parent.Notify_ColorChanged();
-            if (DeltaVLog.Enabled(DeltaVLogModule.Render))
-            {
-                logNextPrint = true;
-                DeltaVLog.Message(DeltaVLogModule.Render,
-                    $"rail-status color-refresh thing={parent.ThingID} runtimeType={parent.GetType().Name} " +
-                    $"drawColor={parent.DrawColor} tint={Tint}");
-            }
+            if (parent.Spawned) parent.Notify_ColorChanged();
         }
     }
 }

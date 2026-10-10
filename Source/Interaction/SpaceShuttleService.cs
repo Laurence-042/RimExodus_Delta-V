@@ -52,6 +52,13 @@ namespace DeltaV
         /// <summary>所在图是否为宇宙容器图（太空侧语义适用）。</summary>
         public SpaceObject Container => Current.Game?.GetComponent<UniverseManager>()?.FrameOf(parent.Map);
 
+        public override void PostDestroy(DestroyMode mode, Map previousMap)
+        {
+            base.PostDestroy(mode, previousMap);
+            Current.Game?.GetComponent<UniverseManager>()?.Shuttles
+                .NotifyHullDestroyed(previousMap);
+        }
+
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
@@ -143,7 +150,6 @@ namespace DeltaV
                 Log.Error($"[DeltaV] Shuttle '{shuttleBody.LabelCap}': transfer-to-pocket failed.");
                 return;
             }
-            InjectVirtualThrusters(comp, container.map, shuttleBody);
             StartLaunchCooldown(launchable);
             DeltaVLog.Message(DeltaVLogModule.Combat,
                 $"shuttle launched: '{shuttleBody.LabelCap}' -> MiniShip container #{container.objectId} " +
@@ -196,6 +202,20 @@ namespace DeltaV
             ShipPhysics.SetVirtualThrusters(pocket, thrusters.ToArray());
         }
 
+        internal void RegisterContainer(SpaceObject container)
+        {
+            if (container?.baseTag != SpaceObjectTag.Shuttle || container.map == null
+                || container.map.Disposed) return;
+            Building hull = HullOf(container);
+            CompSpaceShuttle comp = hull?.TryGetComp<CompSpaceShuttle>();
+            if (comp != null) InjectVirtualThrusters(comp, container.map, hull);
+        }
+
+        internal void RebuildVirtualThrusters()
+        {
+            foreach (SpaceObject obj in universe.objects) RegisterContainer(obj);
+        }
+
         /// <summary>原版 CompLaunchable.lastLaunchTick 字段镜像（起飞与停靠回落共用的冷却单点）。</summary>
         private static readonly System.Reflection.FieldInfo LastLaunchTickField =
             HarmonyLib.AccessTools.Field(typeof(CompLaunchable), "lastLaunchTick");
@@ -210,23 +230,11 @@ namespace DeltaV
 
         // ---- 查询 ----
 
-        /// <summary>图上的在飞 shuttle 舱体（UpdateFrameState 的接管扫描用）。</summary>
-        public List<Building> InFlightBodiesOn(Map map)
+        /// <summary>当前图上的在飞 shuttle 舱体（UpdateFrameState 的接管查询用）。</summary>
+        public Building InFlightBodyOn(Map map)
         {
-            var result = new List<Building>();
-            if (map == null) return result;
-            foreach (SpaceObject obj in universe.objects)
-            {
-                if (obj.baseTag != SpaceObjectTag.Shuttle || obj.map != map) continue;
-                foreach (Thing thing in map.listerThings.AllThings)
-                {
-                    if (thing is Building building && building.TryGetComp<CompSpaceShuttle>() != null)
-                    {
-                        result.Add(building);
-                    }
-                }
-            }
-            return result;
+            SpaceObject container = universe.FrameOf(map);
+            return container?.baseTag == SpaceObjectTag.Shuttle ? HullOf(container) : null;
         }
 
         /// <summary>舱体所在容器（图上首个 shuttle comp 的容器归属；无则 null）。</summary>
@@ -244,46 +252,30 @@ namespace DeltaV
             return null;
         }
 
-        /// <summary>
-        /// 每 tick 巡护（GameComponentTick 内、Projectiles 之前）：舱体被图内结算摧毁
-        ///（PD/毁伤链 TakeDamage，§3.5「与飞船通用的受击链即此」）→ 容器收尾
-        ///（乘员/货物按原版 transporter 摧毁语义，帧边界销图注销）。
-        /// </summary>
-        public void Tick()
+        /// <summary>舱体销毁事件：乘员/货物由原版 transporter 处理，容器在帧边界收尾。</summary>
+        internal void NotifyHullDestroyed(Map map)
         {
-            List<SpaceObject> containers = InFlightContainers();
-            foreach (SpaceObject container in containers)
+            SpaceObject container = universe.FrameOf(map);
+            if (container?.baseTag != SpaceObjectTag.Shuttle) return;
+            DeltaVLog.Message(DeltaVLogModule.Combat,
+                $"shuttle container #{container.objectId}: hull destroyed in-map; MiniShip torn down");
+            universe.QueueFrameAction(delegate
             {
-                Building hull = HullOf(container);
-                if (hull != null && !hull.Destroyed)
-                {
-                    // 虚拟推进器是由舱体 def 可重建的运行时缓存，不序列化。换档清理后
-                    // 首 tick 在唯一注入入口重建，保证在飞 shuttle 存读档后仍可驾驶。
-                    if (!ShipPhysics.HasVirtualThrusters(container.map))
-                    {
-                        CompSpaceShuttle comp = hull.TryGetComp<CompSpaceShuttle>();
-                        if (comp != null) InjectVirtualThrusters(comp, container.map, hull);
-                    }
-                    continue;
-                }
-                SpaceObject captured = container;
-                DeltaVLog.Message(DeltaVLogModule.Combat,
-                    $"shuttle container #{captured.objectId}: hull destroyed in-map; MiniShip torn down");
-                universe.QueueFrameAction(delegate
-                {
-                    if (captured.map != null)
-                    {
-                        ShipPhysics.ClearVirtualThrusters(captured.map);
-                        universe.Lifecycle.DestroyPocketMap(captured.map);
-                    }
-                    intrusionArmed.Remove(captured.objectId);
-                    intrusionTargets.Remove(captured.objectId);
-                    if (universe.objects.Contains(captured))
-                    {
-                        universe.UnregisterObject(captured);
-                    }
-                });
-            }
+                if (!universe.objects.Contains(container)) return;
+                universe.Lifecycle.DestroyPocketMap(map);
+                universe.UnregisterObject(container);
+            });
+        }
+
+        /// <summary>外部卸图时，注销已失去地图的 shuttle 容器。</summary>
+        internal void NotifyMapRemoved(Map map)
+        {
+            SpaceObject container = universe.FrameOf(map);
+            if (container?.baseTag != SpaceObjectTag.Shuttle) return;
+            universe.QueueFrameAction(delegate
+            {
+                if (universe.objects.Contains(container)) universe.UnregisterObject(container);
+            });
         }
 
         /// <summary>全部在飞 shuttle 容器（面板列表）。</summary>
@@ -451,7 +443,6 @@ namespace DeltaV
                 {
                     hull.Destroy(DestroyMode.Vanish); // 无处安放：舱毁（乘员随 transporter 语义）
                 }
-                ClearShuttlePocketRuntime(pocket, container);
                 universe.Lifecycle.DestroyPocketMap(pocket);
                 if (universe.objects.Contains(container))
                 {
@@ -465,13 +456,11 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// shuttle 源口袋的运行时键清理（图销毁前，FinishDocking 公共收尾调用）：
-        /// 虚拟推进器表 + 侵入武装/目标键。图的销毁与容器注销走公共
-        /// ShipFlightTransitionService.FinishDocking，不在此另实现。
+        /// 容器注销时统一清理虚拟推进器表及侵入运行时键。
         /// </summary>
         internal void ClearShuttlePocketRuntime(Map pocketMap, SpaceObject container)
         {
-            if (pocketMap != null && !pocketMap.Disposed)
+            if (pocketMap != null)
             {
                 ShipPhysics.ClearVirtualThrusters(pocketMap);
             }

@@ -7,7 +7,7 @@ namespace DeltaV
     /// <summary>
     /// 对接完成流程基类（飞船与 shuttle 公共收尾的模板方法）：公共部分实现宿主图
     /// 失效、源口袋残留处置、聚焦交接、殖民者条/对接口通知、成功消息与 pending
-    /// 清理；子类只经 OnTransferedIntoHost / OnSourcePocketDisposing 注入专属增量。
+    /// 清理；子类只经 OnTransferedIntoHost 注入专属增量。
     /// 生命周期：完成 tick（CompleteDocking 调用栈）调 OnTransferedIntoHost，帧边界
     /// （QueueFrameAction）调 Finish——源图销毁与聚焦交接必须离开 tick 调用栈。
     /// shuttle 口袋无域外内容，公共残留处置（遗弃/残骸）对其自动空转，不设特例。
@@ -33,11 +33,6 @@ namespace DeltaV
 
         /// <summary>转移成功后、帧边界前的专属增量（完成 tick 调用栈内）。</summary>
         public virtual void OnTransferedIntoHost()
-        {
-        }
-
-        /// <summary>源口袋图销毁前的专属运行时清理（帧边界）。</summary>
-        protected virtual void OnSourcePocketDisposing(Map sourceMap, SpaceObject container)
         {
         }
 
@@ -77,7 +72,6 @@ namespace DeltaV
                 transitions.ConvertLeftoverSubstructureToWreck(universe, sourceMap, sourcePose);
                 MapOverlayRenderer.Release(sourceMap);
                 PlanetGlobeRenderer.InvalidateSilhouette(sourceMap);
-                OnSourcePocketDisposing(sourceMap, pocketContainer);
                 if (pocketContainer != null)
                 {
                     universe.UnregisterObject(pocketContainer);
@@ -125,8 +119,7 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// shuttle 完成流程：落地后启动原版发射冷却（tick 期增量）；源图销毁前清
-        /// 虚拟推进器表与侵入运行时键（帧边界增量）。
+        /// shuttle 完成流程：落地后启动原版发射冷却；容器注销时统一清理运行时键。
         /// </summary>
         internal sealed class ShuttleDockingCompletion : DockingCompletion
         {
@@ -151,10 +144,6 @@ namespace DeltaV
                     $"shuttle '{hull.LabelCap}' docked into '{universe.FrameOf(targetMap)?.label}' via shared Gravship placement chain");
             }
 
-            protected override void OnSourcePocketDisposing(Map sourceMap, SpaceObject container)
-            {
-                universe.Shuttles.ClearShuttlePocketRuntime(sourceMap, container);
-            }
         }
     }
 }

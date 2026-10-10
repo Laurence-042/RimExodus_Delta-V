@@ -257,12 +257,6 @@ namespace DeltaV
 
         public static void ClearVirtualThrusters(Map map) => SetVirtualThrusters(map, null);
 
-        /// <summary>shuttle 服务的读档自愈判定；布局事实仍来自舱体 def，本表只是缓存。</summary>
-        public static bool HasVirtualThrusters(Map map)
-        {
-            return map != null && VirtualThrustersByMap.ContainsKey(map);
-        }
-
         /// <summary>
         /// 建筑质量：def 带 Mass stat（如 LargeThruster=30）用 stat 实值，否则用
         /// MassPerBuilding；运输舱的 held 内容按原版 CompTransporter.MassUsage 加入，

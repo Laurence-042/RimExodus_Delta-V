@@ -16,22 +16,49 @@ namespace DeltaV
     }
 
     /// <summary>Moves one stocked missile into the launcher's ready chamber.</summary>
-    public class CompMissileAutoloader : ThingComp
+    public class CompMissileAutoloader : ThingComp, ISpaceWeaponFireCommit
     {
-        public override void CompTick()
+        private UniverseManager Universe => Current.Game?.GetComponent<UniverseManager>();
+
+        public override void PostSpawnSetup(bool respawningAfterLoad)
         {
-            base.CompTick();
-            if (!parent.IsHashIntervalTick(60) || !parent.Spawned || parent.Map == null) return;
+            base.PostSpawnSetup(respawningAfterLoad);
+            QueueReload();
+        }
+
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
+        {
+            base.PostDeSpawn(map, mode);
+            Universe?.Weapons.CancelMissileReload(this);
+        }
+
+        public override void ReceiveCompSignal(string signal)
+        {
+            base.ReceiveCompSignal(signal);
+            if (signal == "PowerTurnedOn" || signal == "PowerTurnedOff") QueueReload();
+        }
+
+        public void NotifyShotCommitted(SpaceWeaponShot shot) => QueueReload();
+
+        internal void QueueReload()
+        {
+            if (parent.Spawned) Universe?.Weapons.QueueMissileReload(this);
+        }
+
+        internal bool TryReload()
+        {
+            if (!parent.Spawned || parent.Map == null || parent.Map.Disposed) return false;
             CompChangeableProjectile chamber = parent.TryGetComp<CompChangeableProjectile>();
-            if (chamber == null) return;
+            if (chamber == null) return false;
             if (chamber.Loaded && !chamber.allowedShellsSettings.AllowedToAccept(chamber.LoadedShell))
                 GenPlace.TryPlaceThing(chamber.RemoveShell(), parent.Position, parent.Map, ThingPlaceMode.Near);
-            if (chamber.Loaded) return;
+            if (chamber.Loaded) return false;
             CompPowerTrader power = parent.TryGetComp<CompPowerTrader>();
-            if (power != null && !power.PowerOn) return;
+            if (power != null && !power.PowerOn) return false;
 
             int ownerId = SpaceWeaponGeometry.OwnerIdOf(parent);
-            if (ownerId <= 0) return;
+            if (ownerId <= 0) return false;
+            bool waitingForReservation = false;
             foreach (Building_Storage magazine in SpaceMissileMagazineGeometry.ConnectedMagazines(parent))
             {
                 if (magazine.Faction != parent.Faction
@@ -40,16 +67,21 @@ namespace DeltaV
                 {
                     if (item == null || !item.Spawned || !magazine.OccupiedRect().Contains(item.Position)
                         || item.stackCount <= 0 || item.def.projectileWhenLoaded == null
-                        || parent.Map.reservationManager.IsReservedByAnyoneOf(item, parent.Faction)
                         || !magazine.GetStoreSettings().AllowedToAccept(item)
                         || !chamber.allowedShellsSettings.AllowedToAccept(item)) continue;
+                    if (parent.Map.reservationManager.IsReservedByAnyoneOf(item, parent.Faction))
+                    {
+                        waitingForReservation = true;
+                        continue;
+                    }
                     Thing missile = item.SplitOff(1);
                     if (missile == null) continue;
                     chamber.LoadShell(missile.def, 1);
                     missile.Destroy(DestroyMode.Vanish);
-                    return;
+                    return false;
                 }
             }
+            return waitingForReservation;
         }
 
         public override void PostDestroy(DestroyMode mode, Map previousMap)
@@ -59,6 +91,34 @@ namespace DeltaV
             CompChangeableProjectile chamber = parent.TryGetComp<CompChangeableProjectile>();
             if (chamber?.Loaded == true)
                 GenPlace.TryPlaceThing(chamber.RemoveShell(), parent.Position, previousMap, ThingPlaceMode.Near);
+        }
+    }
+
+    /// <summary>原版设施链接负责发现相邻发射架；最终槽位仍由 Fits 判定。</summary>
+    public class CompMissileMagazineFacility : CompFacility
+    {
+        public override void PostSpawnSetup(bool respawningAfterLoad)
+        {
+            OnLinkAdded += NotifyLinkChanged;
+            OnLinkRemoved += NotifyLinkChanged;
+            base.PostSpawnSetup(respawningAfterLoad);
+            NotifyStockChanged();
+        }
+
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
+        {
+            base.PostDeSpawn(map, mode);
+            OnLinkAdded -= NotifyLinkChanged;
+            OnLinkRemoved -= NotifyLinkChanged;
+        }
+
+        private void NotifyLinkChanged(CompFacility facility, Thing launcher) =>
+            launcher.TryGetComp<CompMissileAutoloader>()?.QueueReload();
+
+        internal void NotifyStockChanged()
+        {
+            foreach (Thing launcher in LinkedBuildings)
+                launcher.TryGetComp<CompMissileAutoloader>()?.QueueReload();
         }
     }
 }

@@ -193,14 +193,14 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `PilotTarget` / `PilotService` / `ShipControlService` / `ShipController`：普通船与 shuttle 的统一驾驶层；每个船归属由实例注册表持有一个玩家或 NPC controller，基类统一调度齐射、转向、点防与炮手事件，玩家瞄准会话只提供输入和预瞄。
 - `ShipAutopilot`：固定/随动/追踪任务；制导经 `IAutopilotGuidance`。
 - `ShipFlightTransitionService`：分离、跨图转移、对接发起和源图善后。
-- `DockingCompletion`：对接完成收尾的模板方法基类；飞船/shuttle 子类只注入钩子增量（冷却、运行时键、标签），公共源图处置/聚焦交接/通知不得分叉。
+- `DockingCompletion`：对接完成收尾的模板方法基类；shuttle 子类只注入落地冷却与标签，运行时键由容器注销统一清理；公共源图处置/聚焦交接/通知不得分叉。
 - `LandingApproachController`：唯一对接计划、落点注册、复核和完成触发。
 - `GravshipInterop`：原版 Gravship 私有逻辑镜像、designator 适配、预览和 `CaptureDomain/StripDomain/PlaceIntoMap`。
-- `SpaceShuttleService`：shuttle 起飞、虚拟推进器注入、侵入状态和口袋清理；普通对接不在此另实现。
+- `SpaceShuttleService`：shuttle 起飞、注册／读档时虚拟推进器注入、侵入状态和事件驱动的口袋清理；驾驶、物理、自动驾驶与普通飞船共用现有入口，普通对接不在此另实现。
 - `SpaceWeaponService` / `SpaceWeaponShot`：跨容器开火总装与唯一 Prepare→Launch→Commit 事务；逐发弹药、装弹机基础脉冲、沿物理链逐段预留的加速脉冲、电容放电与末端炮口在此一次性冻结，成功发射后统一扣费；缺电加速段跳过且不增加弹速，后段仍继续检查。锁定弧与发射轴分离，全部武器统一以实例 `fireDeviationDeg` 检查目标与实际炮口/固定轴夹角。Crew/Traverse/Magazine/Attachment/加速件以正交 Comp/能力接口参与，第三方不得建立家族特判。
-- `SpaceWeaponAttachmentSlots` / `SpaceRailgunConstruction`：武器 Def 声明的插件槽位、允许挂件与串联加速件的选中建造按钮及槽位提示唯一入口；加速段到装弹机的反向关联从 Def 注册反查。轨道炮状态 Comp 经原版 `ThingWithComps.DrawColor → ThingComp.ForceColor` 给 `CutoutComplex`／`_m` 红色蒙版提供主色；绿色通道才对应 `DrawColorTwo`。状态变化经 `Notify_ColorChanged` 刷新 MapMesh，不要求建筑专用 `thingClass`；不切换整张贴图，也不使用 `CompGlower`。状态与预瞄都复用 `SpaceWeaponShot` 的能量规划，安全路径复用同一判定。
+- `SpaceWeaponAttachmentSlots` / `SpaceRailgunConstruction`：武器 Def 声明的插件槽位、允许挂件与串联加速件的选中建造按钮及槽位提示唯一入口；加速段到装弹机的反向关联从 Def 注册反查。轨道炮由装弹机的状态 Comp 管理已解析加速段并统一规划能量、分发颜色；加速段颜色 Comp 不独立轮询。两者经原版 `ThingWithComps.DrawColor → ThingComp.ForceColor` 给 `CutoutComplex`／`_m` 红色蒙版提供主色；绿色通道才对应 `DrawColorTwo`。状态变化经 `Notify_ColorChanged` 刷新 MapMesh，不要求建筑专用 `thingClass`；不切换整张贴图，也不使用 `CompGlower`。状态与预瞄都复用 `SpaceWeaponShot` 的能量规划，安全路径复用同一判定。
 - `Building_SpaceTurretGun` / `DefModExtension_SpaceTurretArt`：替换指定炮塔的旋转顶部材质，位置、角度和绘制继续走原版 `Building_TurretGun`/`TurretTop`；Def 固定为仅点防的 1×1 激光炮不触发原版同图索敌，以免发射原版机炮弹。
-- `CompMissileAutoloader` / `SpaceMissileMagazineGeometry` / `CompLoadedProjectileGraphic`：唯一 1×3 无人导弹架使用原版 `CompChangeableProjectile` 的一发待发状态和弹种筛选；前一格嵌墙、后两格在船内。1×2 气密导弹仓只可与船内两格同向并排，左右槽位由发射架 Def 声明，建造与运行时复用同一几何判定；同归属同派系才自动送入实体导弹。发射架保留三层整图，以 `Patch_MissileLauncherWallLink` 使原版墙在 `LinkGrid` 中与其相连。导弹物品通过 `DefModExtension_SpaceMissileAmmo` 指向宇宙弹体，三层绘制中层读取同一 `SelectMagazine()` 结果；不改共享 `GraphicData`。
+- `CompMissileAutoloader` / `SpaceMissileMagazineGeometry` / `CompLoadedProjectileGraphic`：唯一 1×3 无人导弹架使用原版 `CompChangeableProjectile` 的一发待发状态和弹种筛选；前一格嵌墙、后两格在船内。1×2 气密导弹仓只可与船内两格同向并排，左右槽位由发射架 Def 声明；原版设施 Comp 登记链接，建造与运行时复用同一几何判定，同归属同派系才自动送入实体导弹。开火、库存、筛选、供电和归属事件合并到下一游戏 tick 按发射架 ID 顺序补弹，双架共享仓不重复取弹；仅库存被原版预留而受阻时保留条件性 60 tick 重试。发射架保留三层整图，以 `Patch_MissileLauncherWallLink` 使原版墙在 `LinkGrid` 中与其相连。导弹物品通过 `DefModExtension_SpaceMissileAmmo` 指向宇宙弹体，三层绘制中层读取同一 `SelectMagazine()` 结果；不改共享 `GraphicData`。
 - `SpaceProjectileService` / `SpaceCollision` / `SpaceImpactEffects`：含冷发射程序的宇宙弹体、统一碰撞与联合命中效果链；弹道工作对象与弹体小图分别池化，SpaceObject 身份每发新建；炮口闪光、点火尾焰/烟迹和命中视觉只由弹体服务登记并在前台层绘制，不另建弹道。
 - `ShellRenderer` / `MapOverlayRenderer` / `ShellRenderRuleDef` / `DockingGhostRenderer` / `ShipSilhouette`：整壳分层、地图内容收集、Thing 外壳绘制配置、幽灵和剪影。入壳 Thing 的静态层走原版 `Thing.Print`，实时层经限定作用域捕获原版 `Graphics.DrawMesh`；替代图为有序整组替换。门在外壳上仅同步全开／全关终态。炮塔旋转炮身由 `IShellTurretTopSource` 提供当前材质和角度，规则决定仅绘炮身并置于船壳上层；轨道装弹机用规则排除，加速段内构与外壳入壳，不修改碰撞分类。
 - `ThrusterEffects` / `ThrusterAudio`：只读真实分配油门的表现。

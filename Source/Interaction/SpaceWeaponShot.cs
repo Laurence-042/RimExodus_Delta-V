@@ -48,7 +48,6 @@ namespace DeltaV
         private readonly Dictionary<CompSpaceWeaponCapacitor, float> dischargingCapacitors =
             new Dictionary<CompSpaceWeaponCapacitor, float>();
         private readonly List<CompSpaceRailgun> activeAccelerators = new List<CompSpaceRailgun>();
-        private List<CompSpaceRailgun> connectedAccelerators;
         private float activeSpeedBonus;
 
         public SpaceWeaponShot(UniverseManager universe, CompSpaceWeapon weapon,
@@ -178,7 +177,6 @@ namespace DeltaV
             energyByNet.Clear();
             activeAccelerators.Clear();
             activeSpeedBonus = 0f;
-            connectedAccelerators = acceleration.segments;
             if (!ReserveCapacitor(weapon.AttachedThings(), weapon.WeaponProps.shotEnergy)
                 && !TryReserveGridEnergy(weapon.parent, weapon.WeaponProps.shotEnergy)) return false;
             foreach (CompSpaceRailgun segment in acceleration.segments)
@@ -192,7 +190,7 @@ namespace DeltaV
             return true;
         }
 
-        /// <summary>仅供建筑状态显示；与真实发射使用同一份能量规划与门禁。</summary>
+        /// <summary>武器候选筛选与真实发射共用逐段能量规划。</summary>
         public static bool HasShotEnergy(CompSpaceWeapon weapon)
         {
             if (weapon?.parent == null || !weapon.parent.Spawned) return false;
@@ -200,7 +198,22 @@ namespace DeltaV
             return probe.PrepareEnergy(CompSpaceRailgun.Resolve(weapon));
         }
 
-        /// <summary>预瞄、部件状态色和实际发射共用逐段能量规划。</summary>
+        // 状态显示和真实发射共用 PrepareEnergy 的逐段预留结果。
+        public static bool TryPlanEnergy(CompSpaceWeapon weapon,
+            SpaceWeaponAccelerationSolution acceleration, out List<CompSpaceRailgun> active)
+        {
+            if (weapon?.parent == null || !weapon.parent.Spawned)
+            {
+                active = null;
+                return false;
+            }
+            var probe = new SpaceWeaponShot(null, weapon, null, default, null);
+            bool ready = probe.PrepareEnergy(acceleration);
+            active = probe.activeAccelerators;
+            return ready;
+        }
+
+        /// <summary>预瞄弹速与实际发射共用逐段能量规划。</summary>
         public static float ProjectedSpeed(CompSpaceWeapon weapon)
         {
             if (weapon == null) return 0f;
@@ -212,22 +225,12 @@ namespace DeltaV
                 ? baseSpeed + probe.activeSpeedBonus : baseSpeed;
         }
 
-        public static bool WillAccelerate(CompSpaceWeapon weapon, CompSpaceRailgun segment)
-        {
-            if (weapon == null || segment == null) return false;
-            if (weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
-                || !weapon.MagazineAvailable(weapon.SelectMagazine())) return false;
-            var probe = new SpaceWeaponShot(null, weapon, null, default, null);
-            return probe.PrepareEnergy(CompSpaceRailgun.Resolve(weapon))
-                && probe.activeAccelerators.Contains(segment);
-        }
-
-        public static bool HasClearFixedPath(CompSpaceWeapon weapon)
+        public static bool HasClearFixedPath(CompSpaceWeapon weapon,
+            SpaceWeaponAccelerationSolution acceleration)
         {
             if (weapon?.parent == null || !weapon.parent.Spawned) return false;
             if (!weapon.safeFire || weapon.WeaponProps.topTurret) return true;
             var probe = new SpaceWeaponShot(null, weapon, null, default, null);
-            SpaceWeaponAccelerationSolution acceleration = CompSpaceRailgun.Resolve(weapon);
             probe.muzzleMap = acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
             probe.launchMapAngle = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
             return probe.SafePathClear();
@@ -281,9 +284,6 @@ namespace DeltaV
             magazine?.ConsumeShot();
             weapon.NotifyMagazineConsumed(magazine);
             weapon.cooldownUntilTick = Find.TickManager.TicksGame + weapon.WeaponProps.cooldownTicks;
-            if (connectedAccelerators != null)
-                foreach (CompSpaceRailgun segment in connectedAccelerators)
-                    segment.parent.TryGetComp<CompRailgunAcceleratorAppearance>()?.Refresh();
             foreach (ThingComp comp in CapabilityComps())
             {
                 if (comp is ISpaceWeaponFireCommit commit) commit.NotifyShotCommitted(this);

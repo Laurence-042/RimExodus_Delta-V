@@ -405,14 +405,16 @@ namespace DeltaV
                 CancelSelectionOrPlan(universe, "docking target lost");
                 return;
             }
-            if (active.Distance() > DeltaVMod.CurrentSettings.dockingCancelDistance)
+            // 只取一次当前容器位姿；落点与角度始终读确认时固定的计划值。
+            SpacePose shipPose = active.shipContainerPose();
+            if (OrbitSphere.ArcCells(shipPose.position, active.host.pose.position)
+                > DeltaVMod.CurrentSettings.dockingCancelDistance)
             {
                 CancelSelectionOrPlan(universe, "left docking range");
                 return;
             }
 
             active.TargetPose(out Vector3 targetDir, out float targetAngle);
-            SpacePose shipPose = active.shipContainerPose();
             Vector2 posErr = OrbitSphere.Offset(targetDir, shipPose.position);
             float angleErr = Mathf.Abs(SpaceTransform.WrapAngle(targetAngle - shipPose.angle));
             bool inWindow = posErr.magnitude <= HoldPositionWindow && angleErr <= HoldAngleWindow;
@@ -515,7 +517,7 @@ namespace DeltaV
             }
             plan = null;
             // 完成流程工厂（唯一的类型分叉点）：公共收尾在 DockingCompletion 基类
-            // 模板方法，船/shuttle 差异全部收敛到子类钩子（冷却、运行时键、标签）。
+            // 模板方法，船/shuttle 差异由落地冷却与标签钩子处理；运行时键由注销清理。
             // 帧上下文收尾（QueueFrameAction 统一机制）：CompleteDocking 在 Approach.Tick
             //（GameComponentTick）内执行，源图销毁/聚焦交接/通道铺设必须离开 tick
             // 调用栈再执行——旧 ExecuteWhenFinished 写法实际在 Tick 内联执行（碰巧

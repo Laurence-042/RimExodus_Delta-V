@@ -397,6 +397,7 @@ namespace DeltaV
                 }
             }
             PlanetGlobeRenderer.InvalidateSilhouette(map);
+            Current.Game?.GetComponent<UniverseManager>()?.Weapons.NotifyMissileOwnershipChanged(map);
         }
 
         /// <summary>

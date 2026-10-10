@@ -161,6 +161,7 @@ namespace DeltaV
             {
                 UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
                 universe?.Generation?.NotifyExternalMapRemoval(map);
+                universe?.Shuttles.NotifyMapRemoved(map);
                 universe?.Lifecycle.Forget(map);
             }
         }

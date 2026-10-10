@@ -300,6 +300,7 @@ namespace DeltaV
             }
             objects.Add(obj);
             if (obj.objectId >= nextFreeOwnerId) nextFreeOwnerId = obj.objectId + 1;
+            if (obj.baseTag == SpaceObjectTag.Shuttle) Shuttles.RegisterContainer(obj);
             if (obj.map != null && obj.Tag == SpaceObjectTag.Ship)
             {
                 Weapons.RegisterMapWeapons(obj.map);
@@ -311,6 +312,8 @@ namespace DeltaV
         {
             if (obj == null) return;
             objects.Remove(obj);
+            if (obj.baseTag == SpaceObjectTag.Shuttle)
+                Shuttles.ClearShuttlePocketRuntime(obj.map, obj);
             if (obj.map != null && obj.Tag == SpaceObjectTag.Ship)
                 Weapons.ForgetMap(obj.map);
             enginesFiringByShip?.Remove(obj.objectId);
@@ -460,6 +463,7 @@ namespace DeltaV
             OrbitalPoiRegistry.Synchronize(this);
             Weapons.RebuildWeaponIndex();
             Controls.Rebuild();
+            Shuttles.RebuildVirtualThrusters();
             // 开局出生星区在世界生成时预生成（星区架构 §4 触发时机）。
             Map current = Find.CurrentMap;
             if (current != null && current.Tile.Valid && current.Tile.LayerDef.isSpace)
@@ -575,6 +579,7 @@ namespace DeltaV
             SweepEmptyDepartedMaps();
             Weapons.RebuildWeaponIndex();
             Controls.Rebuild();
+            Shuttles.RebuildVirtualThrusters();
         }
 
         /// <summary>
@@ -772,10 +777,9 @@ namespace DeltaV
             NpcShips.Tick();
             Autopilot.Tick();
             Projectiles.Tick();
+            Weapons.TickPendingMissileReloads();
             // 同一归属 controller 调度瞄准、齐射、点防与炮手事件。
             Controls.Tick();
-            // shuttle 巡护（舱体被毁收尾等，§7）。
-            Shuttles.Tick();
             // 对接计划（几何完成判据 + 取消守卫；2026-09-21 阶段4）。
             Approach.Tick(this);
             PilotTarget piloted = Pilot.PilotedTarget(this);
@@ -1138,6 +1142,7 @@ namespace DeltaV
             objects = newObjects;
             Weapons.RebuildWeaponIndex();
             Controls.Rebuild();
+            Shuttles.RebuildVirtualThrusters();
             unframedMaps?.Clear();
             SpaceObject focus = objects.FirstOrDefault(o => o.map != null);
             if (focus != null)
