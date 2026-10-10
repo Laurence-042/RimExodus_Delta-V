@@ -47,6 +47,10 @@
   <DeltaV_SettingsPoiActiveRadiusTip>飞船接近空间站、残骸等对象到这个距离以内时，会生成并保持它们的内部地图（可进入、可对接、可跳帮）。数值越大，远处对象越早变成可进入状态，但同时活跃的地图越多、开销越大。应小于删除距离。范围 50–10000；默认 300。</DeltaV_SettingsPoiActiveRadiusTip>
   <DeltaV_SettingsPoiDeleteRadius>POI 删除距离（格）</DeltaV_SettingsPoiDeleteRadius>
   <DeltaV_SettingsPoiDeleteRadiusTip>离开对象超过这个距离后，其内部地图收起为快照，下次接近时原样恢复；地图上还有飞船或人员时不会收起，只会休眠。数值越大，重访时恢复越快，但也越占内存。应大于加载距离。范围 100–50000；默认 1200。</DeltaV_SettingsPoiDeleteRadiusTip>
+  <DeltaV_SettingsNpcDecisionInterval>敌舰战术决策间隔（tick）</DeltaV_SettingsNpcDecisionInterval>
+  <DeltaV_SettingsNpcDecisionIntervalTip>敌舰重新检查资格、目标、战术和撤退条件的间隔。已选目标的武器射击和自动驾驶仍逐 tick 运行。范围 1–600；默认 60。</DeltaV_SettingsNpcDecisionIntervalTip>
+  <DeltaV_SettingsLifecycleScanInterval>宇宙对象生命周期扫描间隔（tick）</DeltaV_SettingsLifecycleScanInterval>
+  <DeltaV_SettingsLifecycleScanIntervalTip>检查对象物化、休眠、归档、恢复及归档航行的间隔；航行按实际经过的游戏 tick 一次推进。范围 1–600；默认 60。</DeltaV_SettingsLifecycleScanIntervalTip>
   <DeltaV_SettingsMapGenBudget>地图生成预算（毫秒/帧）</DeltaV_SettingsMapGenBudget>
   <DeltaV_SettingsMapGenBudgetTip>接近 POI 生成内部地图时，每帧最多投入多少毫秒做生成。数值越大地图越快生成完，但生成期间帧率越抖；越小帧率越平稳，等待越久。范围 1–16；默认 8。</DeltaV_SettingsMapGenBudgetTip>
   <DeltaV_SaveBlockedGeneratingLabel>地图生成尚未完成</DeltaV_SaveBlockedGeneratingLabel>
@@ -231,6 +235,8 @@
   <DeltaV_WeaponReserveGizmo>预留炮手：{0}</DeltaV_WeaponReserveGizmo>
   <DeltaV_WeaponReserveNone>不指定</DeltaV_WeaponReserveNone>
   <DeltaV_WeaponReserveGizmoTip>指定进入战斗位置时优先就位本武器的殖民者（不指定 = 随机选可胜任者）。</DeltaV_WeaponReserveGizmoTip>
+  <DeltaV_KeepGunnerWhenUnavailable>武器无法工作时保留炮手</DeltaV_KeepGunnerWhenUnavailable>
+  <DeltaV_KeepGunnerWhenUnavailableTip>默认开启。断电或缺少必需弹药时，已就位炮手继续留在本武器岗位，等待恢复；关闭后会在下一游戏 tick 离岗并尝试操作其他可用武器。失效武器不会征用新炮手。</DeltaV_KeepGunnerWhenUnavailableTip>
 
   <DeltaV_MagazinePriority>弹仓优先级：{0}</DeltaV_MagazinePriority>
   <DeltaV_MagazinePriorityTip>优先消耗数值更高的弹仓；同优先级按 Thing ID 顺序轮流发射。</DeltaV_MagazinePriorityTip>

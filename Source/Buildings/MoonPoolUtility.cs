@@ -87,5 +87,10 @@ namespace DeltaV
         {
             Flags.Clear();
         }
+
+        public static void Forget(Map map)
+        {
+            if (map != null) Flags.Remove(map);
+        }
     }
 }

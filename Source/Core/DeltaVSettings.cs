@@ -31,6 +31,12 @@ namespace DeltaV
         /// <summary>POI 超出此距离即删除收快照（universe 格，阶段3）。</summary>
         public float poiDeleteRadius = 1200f;
 
+        /// <summary>NPC 战术决策间隔；自动驾驶积分和已选目标的武器射击仍逐 tick。</summary>
+        public int npcDecisionIntervalTicks = 60;
+
+        /// <summary>POI/普通容器生命周期与归档对象恢复、航行检查间隔。</summary>
+        public int lifecycleScanIntervalTicks = 60;
+
         /// <summary>分帧地图生成每个渲染帧的主线程预算（毫秒）。</summary>
         public float incrementalMapGenBudgetMs = 8f;
 
@@ -135,6 +141,8 @@ namespace DeltaV
             Scribe_Values.Look(ref universeZoomMax, "universeZoomMax", 400f);
             Scribe_Values.Look(ref poiActiveRadius, "poiActiveRadius", 300f);
             Scribe_Values.Look(ref poiDeleteRadius, "poiDeleteRadius", 1200f);
+            Scribe_Values.Look(ref npcDecisionIntervalTicks, "npcDecisionIntervalTicks", 60);
+            Scribe_Values.Look(ref lifecycleScanIntervalTicks, "lifecycleScanIntervalTicks", 60);
             Scribe_Values.Look(ref incrementalMapGenBudgetMs, "incrementalMapGenBudgetMs", 8f);
             Scribe_Values.Look(ref dockingHoldTicks, "dockingHoldTicks", 60);
             Scribe_Values.Look(ref dockingPositionWindow, "dockingPositionWindow", 0.35f);

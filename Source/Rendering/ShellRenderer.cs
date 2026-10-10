@@ -98,7 +98,7 @@ namespace DeltaV
             nextSlot = universe.Projectiles.TryEmitProjectiles(frame, current, foregroundLayer, nextSlot);
             // 瞄准标记（§6.3）：解算与「画不画」都在瞄准会话 controller 内，无会话
             // 即零标记（ShellRenderer 只转发，不持瞄准状态）。
-            nextSlot = universe.Weapons.EmitAimMarkers(frame, current, foregroundLayer, nextSlot);
+            nextSlot = universe.Controls.EmitAimMarkers(frame, current, foregroundLayer, nextSlot);
             if (nextSlot > ForegroundScratch.Count) anyForeground = true;
             foregroundLayer.Finish(anyForeground);
             if (logBeat) DeltaVLog.Message(DeltaVLogModule.Render, LayerLogBuf.ToString());

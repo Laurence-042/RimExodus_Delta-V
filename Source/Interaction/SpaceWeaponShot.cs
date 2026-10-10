@@ -102,8 +102,7 @@ namespace DeltaV
             if (power != null && !power.PowerOn) return false;
 
             magazine = weapon.SelectMagazine();
-            bool magazineRequired = weapon.parent.TryGetComp<CompSpaceWeaponMagazine>() != null;
-            if (magazineRequired && magazine == null) return false;
+            if (!weapon.MagazineAvailable(magazine)) return false;
             projectileDef = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
             armorPenetrationScale = magazine?.MagazineProps.armorPenetrationScale ?? 1f;
             projectileProps = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
@@ -217,8 +216,7 @@ namespace DeltaV
         {
             if (weapon == null || segment == null) return false;
             if (weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
-                || (weapon.parent.TryGetComp<CompSpaceWeaponMagazine>() != null
-                    && weapon.SelectMagazine() == null)) return false;
+                || !weapon.MagazineAvailable(weapon.SelectMagazine())) return false;
             var probe = new SpaceWeaponShot(null, weapon, null, default, null);
             return probe.PrepareEnergy(CompSpaceRailgun.Resolve(weapon))
                 && probe.activeAccelerators.Contains(segment);

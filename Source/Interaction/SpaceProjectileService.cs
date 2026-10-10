@@ -142,6 +142,9 @@ namespace DeltaV
         private const float ImpactHearFar = 120f;
 
         private readonly List<Projectile> projectiles = new List<Projectile>();
+        // 只复用短命的弹道工作对象；SpaceObject 身份和 Map 分别由注册表、现有图池管理。
+        private const int MaxPooledProjectiles = 256;
+        private readonly Stack<Projectile> projectilePool = new Stack<Projectile>();
         private readonly List<Beam> beams = new List<Beam>();
         private readonly List<TrailPuff> trailPuffs = new List<TrailPuff>();
         private readonly List<MuzzleFlash> muzzleFlashes = new List<MuzzleFlash>();
@@ -153,6 +156,13 @@ namespace DeltaV
         private readonly Dictionary<int, List<Map>> mapPool = new Dictionary<int, List<Map>>();
         // 在飞与闲置池共用同一集合：这些图是弹体实现细节，不能在殖民者栏暴露。
         private readonly HashSet<Map> projectileMaps = new HashSet<Map>();
+
+        public void ForgetMap(Map map)
+        {
+            if (map == null) return;
+            projectileMaps.Remove(map);
+            foreach (List<Map> maps in mapPool.Values) maps.Remove(map);
+        }
 
         // 激光线段材质（静态渲染缓存，ClearRuntimeCaches 换档销毁；三档透明度近似渐隐）。
         private static Material[] beamMaterials;
@@ -230,19 +240,17 @@ namespace DeltaV
                 ? SpaceTransform.TransportVelocity(source.pose, muzzle)
                 : Vector2.zero;
 
-            var projectile = new Projectile
-            {
-                def = def,
-                props = props,
-                launcher = launcher,
-                sourceContainer = source,
-                target = missileTarget,
-                spawnedAtTick = Find.TickManager.TicksGame,
-                laser = props.laserRange > 0f,
-                cruiseSpeed = launchSpec.speed,
-                ignitionTick = Find.TickManager.TicksGame + Mathf.Max(0, launchSpec.coldLaunchTicks),
-                ignited = launchSpec.coldLaunchTicks <= 0,
-            };
+            Projectile projectile = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
+            projectile.def = def;
+            projectile.props = props;
+            projectile.launcher = launcher;
+            projectile.sourceContainer = source;
+            projectile.target = missileTarget;
+            projectile.spawnedAtTick = Find.TickManager.TicksGame;
+            projectile.laser = props.laserRange > 0f;
+            projectile.cruiseSpeed = launchSpec.speed;
+            projectile.ignitionTick = Find.TickManager.TicksGame + Mathf.Max(0, launchSpec.coldLaunchTicks);
+            projectile.ignited = launchSpec.coldLaunchTicks <= 0;
 
             if (projectile.laser)
             {
@@ -262,7 +270,11 @@ namespace DeltaV
             else if (props.hasMap)
             {
                 Map map = BorrowMap(def.Size);
-                if (map == null) return false;
+                if (map == null)
+                {
+                    RecycleProjectile(projectile);
+                    return false;
+                }
                 projectile.container = new SpaceObject(universe.AllocateOwnerId(), map,
                     new SpacePose(muzzle, Mathf.Atan2(dirTangent.y, dirTangent.x)))
                 {
@@ -608,7 +620,11 @@ namespace DeltaV
             {
                 projectiles.Remove(p);
                 SpaceObject container = p.container;
-                if (container == null) return;
+                if (container == null)
+                {
+                    RecycleProjectile(p);
+                    return;
+                }
                 if (p.building != null && !p.building.Destroyed)
                 {
                     p.building.Destroy(DestroyMode.Vanish);
@@ -622,7 +638,34 @@ namespace DeltaV
                 {
                     universe.UnregisterObject(container);
                 }
+                RecycleProjectile(p);
             });
+        }
+
+        private void RecycleProjectile(Projectile p)
+        {
+            p.container = null;
+            p.def = null;
+            p.props = null;
+            p.building = null;
+            p.launcher = null;
+            p.sourceContainer = null;
+            p.target = null;
+            p.dead = false;
+            p.laser = false;
+            p.damageScale = 1f;
+            p.armorPenetrationScale = 1f;
+            p.body.attacker = null;
+            p.body.projectileDef = null;
+            p.body.attackerBuilding = null;
+            p.body.excludeContainer = null;
+            p.body.launcher = null;
+            p.body.onSelfDestruct = null;
+            p.body.onPlace = null;
+            p.body.resolvedHitDefender = null;
+            p.body.dead = false;
+            p.body.resolvedHit = false;
+            if (projectilePool.Count < MaxPooledProjectiles) projectilePool.Push(p);
         }
 
         private Map BorrowMap(IntVec2 footprint)

@@ -84,13 +84,111 @@ public readonly struct PilotTarget
     public abstract class ShipController
     {
         protected readonly UniverseManager universe;
+        public readonly int OwnerId;
+        private Ship cachedShip;
 
         /// <summary>当前驾驶目标（Ship 或 shuttle 舱体，二选一）。无效 = 未驾驶。</summary>
         internal PilotTarget target = PilotTarget.Invalid;
 
-        protected ShipController(UniverseManager universe)
+        protected ShipController(UniverseManager universe, int ownerId)
         {
             this.universe = universe;
+            OwnerId = ownerId;
+        }
+
+        internal abstract bool GunnersEnabled { get; }
+        internal abstract bool WantsVolley { get; }
+        internal void BindShip(Ship ship) { cachedShip = ship; }
+
+        /// <summary>驾驶与战斗共用船归属，但未驾驶仍可瞄准或自动点防。</summary>
+        internal void TickCombat()
+        {
+            if (OwnerId <= 0) return; // shuttle 只有驾驶层
+            if (!WantsVolley && !cachedShip.IsValid) return;
+            if (!WantsVolley && cachedShip.IsValid
+                && !universe.Weapons.HasPointDefenseWeapons(cachedShip.map)) return;
+            Ship ship = cachedShip.IsValid ? cachedShip : ShipRegistry.ShipByOwner(OwnerId);
+            if (!ship.IsValid || universe.FrameOf(ship.map) is not SpaceObject container
+                || container.Tag != SpaceObjectTag.Ship
+                || !HasAuthority(PilotTarget.Of(ship))) return;
+            cachedShip = ship;
+            if (TryGetVolleyIntent(ship, container, out ShipVolleyIntent intent))
+                TickVolley(ship, container, intent);
+            TickPointDefense(ship, container);
+        }
+
+        protected abstract bool TryGetVolleyIntent(Ship ship, SpaceObject container,
+            out ShipVolleyIntent intent);
+
+        private void TickVolley(Ship ship, SpaceObject container, ShipVolleyIntent intent)
+        {
+            int now = Find.TickManager.TicksGame;
+            foreach (CompSpaceWeapon weapon in SpaceWeaponService.WeaponsOn(ship.map, OwnerId))
+            {
+                if (weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive) continue;
+                Vector3 aim = intent.point;
+                if (intent.target != null)
+                {
+                    if (intent.system != null && intent.system.Spawned
+                        && intent.system.Map == intent.target.map)
+                        aim = SpaceTransform.MapPointToUniverse(intent.target, intent.target.map,
+                            new Vector2(intent.system.DrawPos.x, intent.system.DrawPos.z));
+                    else if (!intent.predictIntercept)
+                        aim = intent.target.pose.position;
+                    else if (!SpaceWeaponService.TrySolveIntercept(weapon, container, intent.target,
+                        SpaceWeaponService.ProjectileSpeedOf(weapon), out aim))
+                        aim = intent.target.pose.position;
+                }
+                AimWeapon(weapon, container, aim);
+                bool fire = intent.fireAll || intent.main && weapon.salvoSet == SpaceWeaponSalvoSet.Main
+                    || intent.secondary && weapon.salvoSet == SpaceWeaponSalvoSet.Secondary;
+                if (fire && now >= weapon.cooldownUntilTick)
+                    universe.Weapons.TryFire(weapon, container, aim, intent.target);
+            }
+        }
+
+        private void TickPointDefense(Ship ship, SpaceObject container)
+        {
+            if (!universe.Weapons.TryGetPointDefenseWeapons(ship.map,
+                out HashSet<CompSpaceWeapon> weapons)) return;
+            int now = Find.TickManager.TicksGame;
+            foreach (CompSpaceWeapon weapon in weapons)
+            {
+                if (weapon?.parent == null || weapon.parent.Map != ship.map
+                    || weapon.aimMode != SpaceWeaponAimMode.PointDefense
+                    || SpaceWeaponGeometry.OwnerIdOf(weapon.parent) != OwnerId
+                    || !weapon.parent.Spawned || weapon.parent.Destroyed || !weapon.GroupActive
+                    || now < weapon.cooldownUntilTick || weapon.Container != container) continue;
+                if (now >= weapon.pdRetargetAtTick || !universe.Weapons.PdTargetValid(weapon))
+                {
+                    weapon.pdRetargetAtTick = now + 30;
+                    weapon.pdTarget = universe.Weapons.FindPdTarget(weapon);
+                }
+                SpaceObject target = weapon.pdTarget;
+                if (target == null) continue;
+                ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef
+                    ?? weapon.WeaponProps.projectileDef;
+                var props = projectile?.GetCompProperties<CompProperties_SpaceProjectile>();
+                Vector3 aim;
+                if (props != null && props.laserRange > 0f)
+                    aim = target.pose.position;
+                else if (!SpaceWeaponService.TrySolveIntercept(weapon, container, target,
+                    SpaceWeaponService.ProjectileSpeedOf(weapon), out aim))
+                    continue;
+                AimWeapon(weapon, container, aim);
+                universe.Weapons.TryFire(weapon, container, aim, target);
+            }
+        }
+
+        private static void AimWeapon(CompSpaceWeapon weapon, SpaceObject container, Vector3 aim)
+        {
+            CompSpaceWeaponTraverse traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
+            if (traverse == null) return;
+            Vector2 muzzle = SpaceWeaponGeometry.MuzzleMapPoint(weapon);
+            Vector2 point = SpaceTransform.UniverseToMapPoint(container, weapon.parent.Map, aim);
+            Vector2 delta = point - muzzle;
+            if (delta.sqrMagnitude > 1e-6f)
+                traverse.AimAt(Mathf.Atan2(delta.y, delta.x));
         }
 
         public bool Active => target.IsValid && target.Map != null;
@@ -151,14 +249,92 @@ public readonly struct PilotTarget
             System.Action onConfirm, System.Action onCancel);
     }
 
+    public readonly struct ShipVolleyIntent
+    {
+        internal readonly Vector3 point;
+        internal readonly SpaceObject target;
+        internal readonly Thing system;
+        internal readonly bool main;
+        internal readonly bool secondary;
+        internal readonly bool fireAll;
+        internal readonly bool predictIntercept;
+
+        internal ShipVolleyIntent(Vector3 point, bool main, bool secondary)
+        {
+            this.point = point;
+            target = null;
+            system = null;
+            this.main = main;
+            this.secondary = secondary;
+            fireAll = false;
+            predictIntercept = false;
+        }
+
+        internal ShipVolleyIntent(SpaceObject target, Thing system, bool predictIntercept)
+        {
+            point = target.pose.position;
+            this.target = target;
+            this.system = system;
+            main = secondary = false;
+            fireAll = true;
+            this.predictIntercept = predictIntercept;
+        }
+    }
+
     /// <summary>
     /// 玩家 controller：手操输入与自动驾驶两种驱动来源都在本子类（切入自动驾驶不把
     /// 玩家 controller 换成 NPC controller），并承担按键接管、拆船及留置确认等交互。
     /// </summary>
     public sealed class PlayerShipController : ShipController
     {
-        internal PlayerShipController(UniverseManager universe) : base(universe)
+        private SpaceAimController aim;
+        private bool battleStations;
+
+        internal PlayerShipController(UniverseManager universe, int ownerId) : base(universe, ownerId)
         {
+        }
+
+        internal override bool GunnersEnabled => battleStations;
+        internal override bool WantsVolley => AimActive;
+        internal void SetBattleStations(bool active) { battleStations = active; }
+        internal bool AimActive => aim?.Active == true;
+        internal bool AimSessionOnFocusedMap => aim?.SessionOnFocusedMap == true;
+
+        internal void BeginAim()
+        {
+            aim = new SpaceAimController(universe, OwnerId);
+            if (DeltaVLog.Enabled(DeltaVLogModule.Input))
+                DeltaVLog.Message(DeltaVLogModule.Input, $"aim session engaged (owner #{OwnerId})");
+        }
+
+        internal void EndAim(string reason)
+        {
+            aim?.Dispose(reason);
+            aim = null;
+        }
+
+        internal int EmitAimMarkers(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)
+            => aim != null ? aim.EmitMarkers(frame, frameMap, layer, baseSlot) : baseSlot;
+
+        protected override bool TryGetVolleyIntent(Ship ship, SpaceObject container,
+            out ShipVolleyIntent intent)
+        {
+            intent = default;
+            if (aim == null) return false;
+            if (!aim.Active)
+            {
+                aim = null;
+                return false;
+            }
+            aim.Tick();
+            if (!aim.Active)
+            {
+                aim = null;
+                return false;
+            }
+            if (!aim.HasInput) return false;
+            intent = new ShipVolleyIntent(aim.AimPoint, aim.FireMain, aim.FireSecondary);
+            return true;
         }
 
         protected internal override bool HasAuthority(PilotTarget target)
@@ -189,11 +365,36 @@ public readonly struct PilotTarget
     /// </summary>
     public sealed class NpcShipController : ShipController
     {
+        private bool combatReady;
         /// <summary>内部 AI 组件；默认空实现，NpcShipAiService 为敌舰注入战术实现。</summary>
         public INpcShipAi Ai { get; set; } = new NoopNpcShipAi();
 
-        internal NpcShipController(UniverseManager universe) : base(universe)
+        internal NpcShipController(UniverseManager universe, int ownerId) : base(universe, ownerId)
         {
+        }
+
+        internal override bool GunnersEnabled => combatReady;
+        internal override bool WantsVolley => combatReady;
+
+        internal void SetCombatReady(bool ready)
+        {
+            if (!ready) Ai?.ClearCombatTarget();
+            if (combatReady == ready) return;
+            combatReady = ready;
+            if (ready) universe.Controls.NotifyGunnerAvailabilityChanged(
+                ShipRegistry.ShipByOwner(OwnerId).map);
+        }
+
+        protected override bool TryGetVolleyIntent(Ship ship, SpaceObject container,
+            out ShipVolleyIntent intent)
+        {
+            intent = default;
+            if (!combatReady || Ai == null
+                || !Ai.TryGetVolleyTarget(ship, container, out SpaceObject victim,
+                    out Thing system, out bool suppressSystems))
+                return false;
+            intent = new ShipVolleyIntent(victim, system, !suppressSystems);
+            return true;
         }
 
         protected internal override bool HasAuthority(PilotTarget target)
@@ -236,6 +437,11 @@ public readonly struct PilotTarget
 
         /// <summary>手操指令合成（NPC 机动请求；经统一分配器执行）。</summary>
         void ComposeCommand(Ship ship, ref PilotService.PilotCommand command);
+
+        bool TryGetVolleyTarget(Ship ship, SpaceObject own, out SpaceObject target,
+            out Thing system, out bool suppressSystems);
+
+        void ClearCombatTarget();
     }
 
     /// <summary>空实现（本轮接入边界；后续敌舰 AI 在此挂接）。</summary>
@@ -250,6 +456,17 @@ public readonly struct PilotTarget
         public void ComposeCommand(Ship ship, ref PilotService.PilotCommand command)
         {
         }
+
+        public bool TryGetVolleyTarget(Ship ship, SpaceObject own, out SpaceObject target,
+            out Thing system, out bool suppressSystems)
+        {
+            target = null;
+            system = null;
+            suppressSystems = false;
+            return false;
+        }
+
+        public void ClearCombatTarget() { }
     }
 
     /// <summary>
@@ -274,8 +491,9 @@ public readonly struct PilotTarget
         /// <summary>自动驾驶输入武装的船（按任意驾驶键直接接管的对象）。</summary>
         private int autopilotInputOwnerId = -1;
 
-        /// <summary>当前活动 controller（玩家手操）。NPC controller 由 AI 创建，不经本字段。</summary>
-        private PlayerShipController playerController;
+        /// <summary>玩家当前手操的 controller；普通船取归属注册表，shuttle 使用临时实例。</summary>
+        private PlayerShipController activePlayerController;
+        private PlayerShipController shuttleController;
 
         public long SuppressedReads { get; private set; }
 
@@ -294,17 +512,31 @@ public readonly struct PilotTarget
 
         private const float AssistOmegaEpsilon = 0.0005f;
 
-        internal PlayerShipController PlayerController =>
-            playerController ?? (playerController = new PlayerShipController(universe));
+        private PlayerShipController ControllerFor(PilotTarget target)
+        {
+            if (!target.IsValid) return null;
+            if (!target.IsShuttle) return universe.Controls.PlayerFor(target.ship, debugTakeover: true);
+            return shuttleController ?? (shuttleController = new PlayerShipController(universe, 0));
+        }
 
         /// <summary>当前活动 controller（供门禁/确认路由；无玩家驾驶时为 null 语义）。</summary>
-        internal ShipController ActiveController => PlayerController.Active ? PlayerController : null;
+        internal ShipController ActiveController => activePlayerController?.Active == true
+            ? activePlayerController : null;
+
+        internal void ForgetController(ShipController controller)
+        {
+            if (activePlayerController != controller) return;
+            activePlayerController.Exit();
+            activePlayerController = null;
+            PilotKeyBridge.SuppressVanillaKeys = false;
+        }
 
         // ---- 状态 ----
 
         public PilotTarget PilotedTarget(UniverseManager universe)
         {
-            return PlayerController.Active ? PlayerController.target : PilotTarget.Invalid;
+            return activePlayerController?.Active == true
+                ? activePlayerController.target : PilotTarget.Invalid;
         }
 
         /// <summary>旧入口（Ship 口径）：驾驶目标是船时返回之（面板/gizmo 消费）。</summary>
@@ -375,7 +607,7 @@ public readonly struct PilotTarget
             {
                 Exit(universe, "DeltaV_PilotOff".Translate(universe.LabelForOwner(target.ControlKey)));
             }
-            else if (!PlayerController.HasAuthority(target))
+            else if (ControllerFor(target)?.HasAuthority(target) != true)
             {
                 Messages.Message("DeltaV_PilotWrongFaction".Translate(
                         target.IsShuttle ? target.shuttle.LabelCap : universe.LabelForOwner(target.ControlKey)),
@@ -403,12 +635,14 @@ public readonly struct PilotTarget
         /// <summary>驾驶/模式控制权门禁（玩家侧）：玩家方目标（船/shuttle）；开发者模式放行。</summary>
         public bool CanPlayerControl(Ship ship)
         {
-            return PlayerController.HasAuthority(PilotTarget.Of(ship));
+            return ship.IsValid && (ShipRegistry.FactionOf(ship) == Faction.OfPlayer
+                || DebugSettings.godMode);
         }
 
         public void Enter(UniverseManager universe, PilotTarget target)
         {
-            if (!PlayerController.CanEnter(target))
+            PlayerShipController controller = ControllerFor(target);
+            if (controller == null || !controller.CanEnter(target))
             {
                 // 可读反馈（原先静默拒绝）：重力图不可驾驶，只能逆重战略发射。
                 Map map = target.Map;
@@ -429,7 +663,15 @@ public readonly struct PilotTarget
                 Messages.Message("DeltaV_DockAutopilotStopped".Translate(), MessageTypeDefOf.NeutralEvent, false);
             }
             DisarmAutopilotInput(target);
-            PlayerController.Enter(target);
+            if (activePlayerController != null && activePlayerController != controller)
+            {
+                int previousOwner = activePlayerController.OwnerId;
+                activePlayerController.Exit();
+                activePlayerController = null;
+                if (previousOwner > 0) universe.Controls.ReleaseDebugControl(previousOwner);
+            }
+            activePlayerController = controller;
+            controller.Enter(target);
             RebuildPilotKeySet();
             string label = target.IsShuttle ? target.shuttle.LabelCap : universe.LabelForOwner(target.ControlKey);
             Log.Message($"[DeltaV] Pilot mode engaged: {label} (#{target.ControlKey}). Pilot keys: [{string.Join(", ", PilotKeyBridge.ActiveKeys)}].");
@@ -440,16 +682,18 @@ public readonly struct PilotTarget
 
         public void Exit(UniverseManager universe, string message = null)
         {
-            if (!PlayerController.Active)
+            if (activePlayerController == null)
             {
                 return;
             }
-            string label = PlayerController.target.IsShuttle
-                ? PlayerController.target.shuttle.LabelCap
-                : universe.LabelForOwner(PlayerController.target.ControlKey);
+            int ownerId = activePlayerController.OwnerId;
+            string label = ownerId > 0 ? universe.LabelForOwner(ownerId)
+                : activePlayerController.target.shuttle?.LabelCap ?? "shuttle";
             Log.Message($"[DeltaV] Pilot mode disengaged (was '{label}'; suppressed reads: {SuppressedReads}).");
-            PlayerController.Exit();
-            // 瞄准会话归 SpaceWeaponService（独立于驾驶与自动驾驶，对接中可用），
+            activePlayerController.Exit();
+            activePlayerController = null;
+            if (ownerId > 0) universe.Controls.ReleaseDebugControl(ownerId);
+            // 瞄准会话留在本船 controller（独立于驾驶与自动驾驶，对接中可用），
             // 退出驾驶不再连带退出瞄准。
             PilotKeyBridge.SuppressVanillaKeys = false;
             if (message != null)

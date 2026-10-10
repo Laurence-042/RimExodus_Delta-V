@@ -243,7 +243,7 @@ namespace DeltaV
             // desiredAngle 会让 Traverse 对准门禁反复失准。会话无 Map 内目标时
             // 原版目标（如图内入侵者）仍可驱动炮塔回转。
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            bool playerAiming = universe != null && universe.Weapons.AimSessionOnFocusedMap
+            bool playerAiming = universe != null && universe.Controls.AimSessionOnFocusedMap
                 && parent.Map == Find.CurrentMap;
             if (!playerAiming && parent is Building_TurretGun turret && turret.CurrentTarget.IsValid)
                 AimAt(MapAngleTo(turret.CurrentTarget, turret));
@@ -328,6 +328,20 @@ namespace DeltaV
                 priority = MagazineProps.defaultPriority;
                 initialized = true;
             }
+            if (!respawningAfterLoad) ShipControlService.NotifyGunnerChange(parent.Map);
+        }
+
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
+        {
+            base.PostDeSpawn(map, mode);
+            ShipControlService.NotifyGunnerChange(map);
+        }
+
+        public override void ReceiveCompSignal(string signal)
+        {
+            base.ReceiveCompSignal(signal);
+            if (signal == "Refueled" || signal == "RanOutOfFuel")
+                ShipControlService.NotifyGunnerChange(parent.Map);
         }
 
         public void ConsumeShot()
@@ -438,6 +452,13 @@ namespace DeltaV
                 enabled = AttachmentProps.enabledByDefault;
                 initialized = true;
             }
+            if (!respawningAfterLoad) ShipControlService.NotifyGunnerChange(parent.Map);
+        }
+
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
+        {
+            base.PostDeSpawn(map, mode);
+            ShipControlService.NotifyGunnerChange(map);
         }
 
         public override void PostExposeData()
@@ -456,7 +477,11 @@ namespace DeltaV
                 defaultDesc = "DeltaV_AttachmentEnabledTip".Translate(),
                 icon = TexCommand.ForbidOff,
                 isActive = () => enabled,
-                toggleAction = delegate { enabled = !enabled; }
+                toggleAction = delegate
+                {
+                    enabled = !enabled;
+                    ShipControlService.NotifyGunnerChange(parent.Map);
+                }
             };
         }
     }

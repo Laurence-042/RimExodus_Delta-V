@@ -6,13 +6,13 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 瞄准会话 controller（太空战架构 §6，OOP 收口）：瞄准模式 = 挂在武器服务上的
-    /// 一个会话对象，自行完成射击 tick 与标记解算（预瞄指示器/瞄准位置标记的截击
+    /// 瞄准输入会话（太空战架构 §6）：挂在玩家船 controller 上，只采样玩家输入与
+    /// 标记解算（预瞄指示器/瞄准位置标记的截击
     /// 计算在此，绘制走 <see cref="AimMarkersRenderer"/> 无状态助手）；Dispose 即
     /// 收尾——标记管线以会话存在为唯一门槛，会话销毁后自然停发，无注册/反注册
     /// 路径可泄漏（修复：脱离对接后其他船上的预瞄残留）。
     ///
-    /// 身份 = 归属域 ownerId（跨图稳定）：武器每 tick 经
+    /// 身份 = 归属域 ownerId（跨图稳定）：武器由共同 controller 每 tick 经
     /// <see cref="SpaceWeaponService.WeaponsOn"/> 重查（§21 单实现：不缓存武器清单），
     /// 对接合图/脱离换图后自动跟随——瞄准会话与战斗状态跨地图变更保持。
     /// 会话独立于驾驶（PlayerController）与自动驾驶：进入对接/切换控制态不影响；
@@ -34,6 +34,10 @@ namespace DeltaV
         }
 
         public bool Active => !disposed;
+        public bool HasInput { get; private set; }
+        public bool FireMain { get; private set; }
+        public bool FireSecondary { get; private set; }
+        public Vector3 AimPoint { get; private set; }
 
         public Ship Ship => ShipRegistry.ShipByOwner(ownerId);
 
@@ -44,12 +48,13 @@ namespace DeltaV
         public bool SessionOnFocusedMap =>
             !disposed && Find.CurrentMap != null && Ship.IsValid && Ship.map == Find.CurrentMap;
 
-        // ---- tick 路径（Weapons.TickAim 转发）----
+        // ---- tick 路径（PlayerShipController 转发）----
 
-        /// <summary>玩家瞄准射击（§6.1）：会话期间炮塔持续跟踪瞄点（不依赖射击按键），
-        /// 按住左键（主套）/右键（副套）持续开火；组未激活的武器不参与跟踪与开火。</summary>
+        /// <summary>只采样瞄准输入；公共 ShipController 负责转向和开火。</summary>
         public void Tick()
         {
+            HasInput = false;
+            FireMain = FireSecondary = false;
             if (disposed) return;
             Ship ship = Ship;
             if (!ship.IsValid)
@@ -62,30 +67,13 @@ namespace DeltaV
             if (container == null) return;
             // 悬停窗口（面板/原版 UI）不射击；暂停时无 tick，天然不射。
             if (SpaceWeaponService.MouseOverUiWindow()) return;
-            bool main = Input.GetMouseButton(0);
-            bool secondary = Input.GetMouseButton(1);
-            Vector3 aimPoint = SpaceWeaponService.MouseUniversePoint(container, ship.map);
-            foreach (CompSpaceWeapon weapon in SpaceWeaponService.WeaponsOn(ship.map, ownerId))
-            {
-                if (weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive) continue;
-                CompSpaceWeaponTraverse traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
-                if (traverse != null)
-                {
-                    // 跟踪与 Prepare 同口径：muzzle → 瞄点的 Map 角，每 tick 喂给 Traverse。
-                    Vector2 muzzleMap = SpaceWeaponGeometry.MuzzleMapPoint(weapon);
-                    Vector2 aimMap = SpaceTransform.UniverseToMapPoint(container, ship.map, aimPoint);
-                    Vector2 delta = aimMap - muzzleMap;
-                    if (delta.sqrMagnitude > 1e-6f)
-                        traverse.AimAt(Mathf.Atan2(delta.y, delta.x));
-                }
-                bool wanted = main && weapon.salvoSet == SpaceWeaponSalvoSet.Main
-                    || secondary && weapon.salvoSet == SpaceWeaponSalvoSet.Secondary;
-                if (!wanted) continue;
-                universe.Weapons.TryFire(weapon, container, aimPoint, null);
-            }
+            FireMain = Input.GetMouseButton(0);
+            FireSecondary = Input.GetMouseButton(1);
+            AimPoint = SpaceWeaponService.MouseUniversePoint(container, ship.map);
+            HasInput = true;
         }
 
-        // ---- 帧路径（ShellRenderer 经 Weapons.EmitAimMarkers 转发）----
+        // ---- 帧路径（ShellRenderer 经 Controls.EmitAimMarkers 转发）----
 
         private readonly HashSet<float> speedScratch = new HashSet<float>();
 

@@ -113,7 +113,7 @@ namespace DeltaV
                     DrawLoggingTab(content);
                     break;
             }
-            Settings.Write();
+            // 原版 Dialog_ModSettings.PreClose 调用 Mod.WriteSettings；绘制事件不写盘。
         }
 
         private void DrawGeneralTab(Rect rect)
@@ -189,6 +189,13 @@ namespace DeltaV
             TippedRow(list, rect, "DeltaV_SettingsPoiDeleteRadiusTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsPoiDeleteRadius".Translate(), ref Settings.poiDeleteRadius,
                     ref poiDeleteBuffer, 100f, 50000f));
+            list.Gap(6f);
+            TippedRow(list, rect, "DeltaV_SettingsNpcDecisionIntervalTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsNpcDecisionInterval".Translate(),
+                    ref Settings.npcDecisionIntervalTicks, ref npcDecisionIntervalBuffer, 1, 600));
+            TippedRow(list, rect, "DeltaV_SettingsLifecycleScanIntervalTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsLifecycleScanInterval".Translate(),
+                    ref Settings.lifecycleScanIntervalTicks, ref lifecycleScanIntervalBuffer, 1, 600));
             list.End();
         }
 
@@ -233,6 +240,8 @@ namespace DeltaV
         private string poiActiveBuffer;
 
         private string poiDeleteBuffer;
+        private string npcDecisionIntervalBuffer;
+        private string lifecycleScanIntervalBuffer;
 
         private string mapGenBudgetBuffer;
 

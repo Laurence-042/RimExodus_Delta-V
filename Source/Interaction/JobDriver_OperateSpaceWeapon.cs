@@ -22,6 +22,8 @@ namespace DeltaV
             this.FailOnDespawnedNullOrForbidden(TargetIndex.B);
             CompSpaceWeaponCrew crew = Weapon?.TryGetComp<CompSpaceWeaponCrew>();
             if (crew == null) yield break;
+            Map assignedMap = Weapon.Map;
+            AddFinishAction(_ => ShipControlService.NotifyGunnerChange(assignedMap));
             yield return Toils_Goto.GotoCell(crew.GunnerCell, PathEndMode.OnCell);
             Toil operate = ToilMaker.MakeToil("OperateSpaceWeapon");
             operate.tickAction = delegate

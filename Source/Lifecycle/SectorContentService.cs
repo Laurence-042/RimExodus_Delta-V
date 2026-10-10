@@ -257,6 +257,9 @@ namespace DeltaV
         {
             if (universe == null || !OrbitSphere.Valid) return;
             List<Ship> ships = universe.PlayerShips();
+            var activeIds = new HashSet<int>(ships.Select(ship => ship.ownerId));
+            foreach (int id in SectorHintByShip.Keys.ToList())
+                if (!activeIds.Contains(id)) SectorHintByShip.Remove(id);
             foreach (Ship ship in ships)
             {
                 if (!ShipRegistry.IsFreeFlight(ship)

@@ -8,14 +8,13 @@ using Verse.AI;
 namespace DeltaV
 {
     /// <summary>
-    /// 武器服务（太空战架构 §5/§6）：每武器每 tick 的就绪判定与发射（玩家瞄准射击 +
-    /// PD 自动索敌）、「进入战斗位置」炮手征用/退出、敌对判定与沿射线目标锁定。
-    /// 实例服务（universe.Weapons）：瞄准会话（<see cref="SpaceAimController"/>）与
-    /// 战斗位置状态等运行时数据不序列化、读档归零；武器持久配置（组别/PD 模式/
+    /// 武器服务（太空战架构 §5/§6）：武器索引、同一发射事务、炮手分配算法、
+    /// 敌对判定与沿射线目标锁定；逐 tick 调度由归属 ShipController 执行。
+    /// 实例服务（universe.Weapons）的武器索引不序列化、读档重建；武器持久配置（组别/PD 模式/
     /// 炮手预留）驻留武器 comp、激活位驻留主驾驶台 comp。
     ///
-    /// 瞄准会话与战斗位置均按归属域 ownerId 记录：对接合图/脱离换图后自动跟随
-    /// （武器与图都换了，ownerId 不变）。会话独立于驾驶/自动驾驶——对接中可瞄准。
+    /// 瞄准会话与战斗位置由归属 controller 按 ownerId 记录：对接合图/脱离换图后
+    /// 自动跟随。会话独立于驾驶/自动驾驶——对接中可瞄准。
     ///
     /// 就绪口径（§6.1，单实现）：所在组激活 ∧（MannedNow ∨ 插件（段6））∧ 供电 ∧
     /// 冷却完毕 ∧ 瞄准方向在射界内 ∧ 非地表图（有宇宙容器）。地表/同图战斗完全走
@@ -23,210 +22,77 @@ namespace DeltaV
     /// </summary>
     public sealed class SpaceWeaponService
     {
-        /// <summary>PD 索敌重扫间隔（tick）。</summary>
-        private const int PdRetargetIntervalTicks = 30;
-
         private readonly UniverseManager universe;
 
-        /// <summary>当前瞄准会话（无 = 巡航模式）。会话对象自持全部瞄准工作。</summary>
-        private SpaceAimController aimController;
-
-        /// <summary>战斗位置已激活的归属域（运行时）：按 ownerId 记录，换图后随船保持；
-        /// 查询/切换时惰性剔除已消失的归属域。不序列化。</summary>
-        private readonly HashSet<int> battleStations = new HashSet<int>();
-
-        /// <summary>炮塔状态变更事件登记的待补分配图（事件驱动，见 NotifyWeaponAvailabilityChanged）。</summary>
-        private readonly HashSet<Map> pendingRedispatchMaps = new HashSet<Map>();
+        // PD 武器随 spawn/despawn/模式切换登记；空态让 controller 立即早退。
+        // 读档与 dev 场景重置时从现有图重建一次，不让索引成为事实源。
+        private readonly Dictionary<Map, HashSet<CompSpaceWeapon>> weaponsByMap =
+            new Dictionary<Map, HashSet<CompSpaceWeapon>>();
 
         public SpaceWeaponService(UniverseManager universe)
         {
             this.universe = universe;
         }
 
-        // ---- 瞄准会话（面板按钮与瞄准键的唯一入口）----
-
-        /// <summary>瞄准会话是否激活（任意船）。</summary>
-        public bool AimActive => aimController != null && aimController.Active;
-
-        /// <summary>指定船是否处于瞄准会话中（面板按钮态）。</summary>
-        public bool AimActiveFor(Ship ship)
+        public void RegisterWeapon(CompSpaceWeapon weapon)
         {
-            return AimActive && aimController.ownerId == ship.ownerId;
+            Map map = weapon?.parent?.Map;
+            if (map == null || map.Disposed || weapon.aimMode != SpaceWeaponAimMode.PointDefense) return;
+            if (!weaponsByMap.TryGetValue(map, out HashSet<CompSpaceWeapon> weapons))
+                weaponsByMap[map] = weapons = new HashSet<CompSpaceWeapon>();
+            weapons.Add(weapon);
         }
 
-        /// <summary>瞄准会话是否作用于当前聚焦图（点击让位/射击/标记的共同前提）。</summary>
-        public bool AimSessionOnFocusedMap =>
-            aimController != null && aimController.SessionOnFocusedMap;
-
-        /// <summary>
-        /// 切换瞄准/巡航：同船再切 = 退出；异船 = 切换目标（旧会话析构）。会话独立于
-        /// 驾驶与自动驾驶，跨聚焦切换、对接/脱离换图保持（§6.1 修订：PD 不受影响）。
-        /// </summary>
-        public void ToggleAim(Ship target)
+        public void UnregisterWeapon(CompSpaceWeapon weapon, Map map)
         {
-            if (!target.IsValid)
-            {
-                Messages.Message("DeltaV_PilotNeedShipFocus".Translate(), MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            if (aimController != null)
-            {
-                bool sameShip = aimController.ownerId == target.ownerId;
-                aimController.Dispose(sameShip ? "toggled off" : "target switched");
-                aimController = null;
-                if (sameShip) return;
-            }
-            aimController = new SpaceAimController(universe, target.ownerId);
-            DeltaVLog.Message(DeltaVLogModule.Input, $"aim session engaged (owner #{target.ownerId})");
+            if (map == null || weapon == null) return;
+            if (!weaponsByMap.TryGetValue(map, out HashSet<CompSpaceWeapon> weapons)) return;
+            weapons.Remove(weapon);
+            if (weapons.Count == 0) weaponsByMap.Remove(map);
         }
 
-        /// <summary>帧路径：前台层瞄准标记（无会话 = 不发任何指示器）。</summary>
-        internal int EmitAimMarkers(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)
+        public void NotifyWeaponModeChanged(CompSpaceWeapon weapon)
         {
-            return aimController != null && aimController.Active
-                ? aimController.EmitMarkers(frame, frameMap, layer, baseSlot)
-                : baseSlot;
+            Map map = weapon?.parent?.Map;
+            if (map == null) return;
+            UnregisterWeapon(weapon, map);
+            RegisterWeapon(weapon);
+            universe.Controls.NotifyGunnerAvailabilityChanged(map);
         }
 
-        // ---- 战斗位置（§5.5；按归属域记录，跨换图保持）----
-
-        /// <summary>图上是否有任一玩家船处于战斗位置（面板按钮态）。</summary>
-        public bool BattleStationsActive(Map map)
+        public void ForgetMap(Map map)
         {
-            if (map == null) return false;
-            PruneStaleBattleStations();
-            foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
+            if (map == null) return;
+            weaponsByMap.Remove(map);
+            universe.Controls.ForgetMap(map);
+        }
+
+        public void RebuildWeaponIndex()
+        {
+            weaponsByMap.Clear();
+            foreach (SpaceObject obj in universe.objects)
             {
-                if (battleStations.Contains(ship.ownerId)) return true;
+                Map map = obj.map;
+                if (map == null || map.Disposed) continue;
+                RegisterMapWeapons(map);
             }
+        }
+
+        internal void RegisterMapWeapons(Map map)
+        {
+            if (map == null || map.Disposed) return;
+            foreach (CompSpaceWeapon weapon in AllWeaponsOn(map)) RegisterWeapon(weapon);
+        }
+
+        /// <summary>已登记的点防武器，按结构归属交给对应 controller。</summary>
+        internal bool TryGetPointDefenseWeapons(Map map, out HashSet<CompSpaceWeapon> weapons)
+        {
+            if (map != null && weaponsByMap.TryGetValue(map, out weapons)) return true;
+            weapons = null;
             return false;
         }
 
-        /// <summary>剔除已消失归属域的陈旧条目（船销毁/脱离控制域后 ownerId 无船）。</summary>
-        private void PruneStaleBattleStations()
-        {
-            battleStations.RemoveWhere(id => !ShipRegistry.ShipByOwner(id).IsValid);
-        }
-
-        // ---- tick（GameComponentTick 内、Projectiles 制导之后、容器积分之前）----
-
-        public void TickWeapons()
-        {
-            ProcessPendingRedispatch();
-            TickAim();
-            TickPointDefense();
-        }
-
-        // ---- 战斗位置补分配（事件驱动，2026-09-27 用户决策——炮塔状态变更时触发，不做轮询）----
-
-        /// <summary>
-        /// 炮塔状态变更登记：事件源为 <see cref="CompSpaceWeapon"/> 的 PowerTurnedOn
-        /// 信号（短路损毁后重连、转移后电网恢复）与 PostSpawnSetup（起飞/对接搬运
-        /// StripDomain → PlaceIntoMap 后重放置；JobDriver_ManTurret 的
-        /// FailOnDespawned 在 DeSpawn 时已丢 job，原版无召回）。信号可能于电网重连/
-        /// 放置链的任意调用栈内到达，这里只登记，延迟到 TickWeapons 头部处理——
-        /// 仅为离开当前调用栈的安全时点，不是轮询。
-        /// </summary>
-        public void NotifyWeaponAvailabilityChanged(Map map)
-        {
-            if (map != null && !map.Disposed)
-            {
-                pendingRedispatchMaps.Add(map);
-            }
-        }
-
-        private void ProcessPendingRedispatch()
-        {
-            if (pendingRedispatchMaps.Count == 0) return;
-            foreach (Map map in pendingRedispatchMaps)
-            {
-                if (map == null || map.Disposed) continue;
-                if (!BattleStationsActive(map)) continue; // 战斗位置未启用：事件空转
-                DispatchGunners(map);
-            }
-            pendingRedispatchMaps.Clear();
-        }
-
-        /// <summary>瞄准会话射击 tick；会话自检失效（船损毁）时在此收尾析构。</summary>
-        private void TickAim()
-        {
-            if (aimController == null) return;
-            aimController.Tick();
-            if (!aimController.Active) aimController = null;
-        }
-
-        /// <summary>
-        /// 点防御（段4 完整接入；先跑基础链验证）：PD 武器自动索敌「可拦截容器」
-        ///（结构判据 InterceptionEligible）并按截击提前量射击，不受瞄准模式控制。
-        /// </summary>
-        private void TickPointDefense()
-        {
-            int now = Find.TickManager.TicksGame;
-            foreach (Map map in Find.Maps)
-            {
-                SpaceObject container = universe.FrameOf(map);
-                if (container == null) continue;
-                foreach (CompSpaceWeapon weapon in AllWeaponsOn(map))
-                {
-                    if (weapon.aimMode != SpaceWeaponAimMode.PointDefense) continue;
-                    if (!weapon.GroupActive) continue;
-                    if (now < weapon.cooldownUntilTick) continue;
-                    if (weapon.Container == null) continue;
-                    if (now >= weapon.pdRetargetAtTick || !PdTargetValid(weapon))
-                    {
-                        weapon.pdRetargetAtTick = now + PdRetargetIntervalTicks;
-                        weapon.pdTarget = FindPdTarget(weapon);
-                    }
-                    SpaceObject target = weapon.pdTarget;
-                    if (target == null) continue;
-                    // 即时束瞄当前位置；有飞行时间的弹体继续走统一提前量解算。
-                    ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef
-                        ?? weapon.WeaponProps.projectileDef;
-                    var projectileProps = projectile?.GetCompProperties<CompProperties_SpaceProjectile>();
-                    Vector3 interceptPoint;
-                    if (projectileProps != null && projectileProps.laserRange > 0f)
-                        interceptPoint = target.pose.position;
-                    else if (!TrySolveIntercept(weapon, weapon.Container, target,
-                        ProjectileSpeedOf(weapon), out interceptPoint))
-                    {
-                        continue;
-                    }
-                    TryFire(weapon, weapon.Container, interceptPoint, target);
-                }
-            }
-        }
-
-        /// <summary>NPC 齐射入口；发射仍完全交给 SpaceWeaponShot 的事务与门禁。</summary>
-        public void TickNpcVolley(Ship ship, SpaceObject target, bool suppressSystems)
-        {
-            if (!ship.IsValid || target?.map == null || target.map.Disposed) return;
-            if (Find.TickManager.TicksGame % 60 == ship.ownerId % 60)
-                DispatchGunners(ship.map, ShipRegistry.FactionOf(ship), ship.ownerId);
-            Vector3 aim = target.pose.position;
-            if (suppressSystems)
-            {
-                Thing system = AllWeaponsOn(target.map)
-                    .Where(w => w.aimMode == SpaceWeaponAimMode.PointDefense
-                        && w.parent.Spawned && !w.parent.Destroyed)
-                    .Select(w => w.parent).FirstOrDefault();
-                if (system == null)
-                    system = ShipPhysics.GetReport(target.map)?.thrusters
-                        .FirstOrDefault(t => t.operational && t.thing != null)?.thing;
-                if (system != null)
-                    aim = SpaceTransform.MapPointToUniverse(target, target.map,
-                        new Vector2(system.DrawPos.x, system.DrawPos.z));
-            }
-            foreach (CompSpaceWeapon weapon in WeaponsOn(ship.map, ship.ownerId))
-            {
-                if (weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
-                    || Find.TickManager.TicksGame < weapon.cooldownUntilTick) continue;
-                Vector3 intercept = aim;
-                if (!suppressSystems && !TrySolveIntercept(weapon, weapon.Container,
-                        target, ProjectileSpeedOf(weapon), out intercept))
-                    intercept = aim;
-                TryFire(weapon, weapon.Container, intercept, target);
-            }
-        }
+        internal bool HasPointDefenseWeapons(Map map) => map != null && weaponsByMap.ContainsKey(map);
 
         /// <summary>只读火力估计：武器当前可用性、射程、命中散布、冷却与弹体后效同源。</summary>
         public float EstimateFirepower(Ship ship, float distance, float targetRadius,
@@ -241,8 +107,7 @@ namespace DeltaV
                     || !weapon.TryGetSkillLevel(out int skill)
                     || !SpaceWeaponShot.HasShotEnergy(weapon)) continue;
                 CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
-                if (weapon.parent.TryGetComp<CompSpaceWeaponMagazine>() != null && magazine == null)
-                    continue;
+                if (!weapon.MagazineAvailable(magazine)) continue;
                 ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
                 bool missile = IsGuided(projectile);
                 if (missileOnly && !missile) continue;
@@ -270,7 +135,9 @@ namespace DeltaV
                     || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out _)
                     || !SpaceWeaponShot.HasShotEnergy(weapon)) continue;
-                ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef
+                CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
+                if (!weapon.MagazineAvailable(magazine)) continue;
+                ThingDef projectile = magazine?.SelectedProjectileDef
                     ?? weapon.WeaponProps.projectileDef;
                 SpaceImpactEffectDef impact = SpaceImpactEffects.Resolve(projectile, null);
                 total += (impact?.defenderEffect?.damage ?? 20f)
@@ -279,7 +146,7 @@ namespace DeltaV
             return total;
         }
 
-        private static bool PdTargetValid(CompSpaceWeapon weapon)
+        internal bool PdTargetValid(CompSpaceWeapon weapon)
         {
             SpaceObject target = weapon.pdTarget;
             if (target == null || target.map == null || target.map.Disposed
@@ -292,7 +159,7 @@ namespace DeltaV
         /// PD 索敌（§4.2）：射程内敌对的可拦截容器；优先级 =「预计命中己方的最近
         /// 容器优先」（来袭弹逼近自身容器 → 按预计命中时间升序），兜底最近。
         /// </summary>
-        private SpaceObject FindPdTarget(CompSpaceWeapon weapon)
+        internal SpaceObject FindPdTarget(CompSpaceWeapon weapon)
         {
             SpaceObject own = weapon.Container;
             if (own == null) return null;
@@ -479,39 +346,6 @@ namespace DeltaV
 
         // ---- 战斗位置（§5.5；本图全部可用玩家武器，激活组仅作人手不足时的优先级）----
 
-        /// <summary>
-        /// 进入或重新协调战斗位置。每次显式进入先结束本图现有舰炮岗位，再按最新
-        /// 预留完整重排；激活组优先，但人手足够时全部可用武器都会上人。
-        /// </summary>
-        public void EnterBattleStations(Map map)
-        {
-            if (map == null) return;
-            PruneStaleBattleStations();
-            var playerShips = new List<Ship>();
-            foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
-            {
-                if (ShipRegistry.FactionOf(ship) == Faction.OfPlayer) playerShips.Add(ship);
-            }
-            EndBattleStationJobs(map);
-            int manned = DispatchGunners(map);
-            foreach (Ship ship in playerShips) battleStations.Add(ship.ownerId);
-            Messages.Message("DeltaV_BattleStationsOn".Translate(manned), MessageTypeDefOf.NeutralEvent, false);
-        }
-
-        /// <summary>退出战斗位置；与进入分离，返回工作的实际炮手数用于 UI/消息。</summary>
-        public void ExitBattleStations(Map map)
-        {
-            if (map == null) return;
-            PruneStaleBattleStations();
-            foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
-            {
-                if (ShipRegistry.FactionOf(ship) == Faction.OfPlayer) battleStations.Remove(ship.ownerId);
-            }
-            int released = EndBattleStationJobs(map);
-            Messages.Message("DeltaV_BattleStationsOff".Translate(released),
-                MessageTypeDefOf.NeutralEvent, false);
-        }
-
         public int BattleStationGunnerCount(Map map)
         {
             if (map == null) return 0;
@@ -523,14 +357,16 @@ namespace DeltaV
             return count;
         }
 
-        private static int EndBattleStationJobs(Map map)
+        internal int EndBattleStationJobs(Map map, Faction faction, HashSet<int> ownerIds)
         {
             int released = 0;
             // EndCurrentJob 会同步刷新 MapPawns 派生列表，必须先快照。
             var colonists = new List<Pawn>(map.mapPawns.FreeColonistsSpawned);
             foreach (Pawn pawn in colonists)
             {
-                if (!TryGetJobWeapon(pawn.CurJob, out _)) continue;
+                if (pawn.Faction != faction
+                    || !TryGetJobWeapon(pawn.CurJob, out CompSpaceWeapon weapon)
+                    || !ownerIds.Contains(weapon.OwnerShip.ownerId)) continue;
                 released++;
                 pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
             }
@@ -551,21 +387,27 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 战斗位置炮手征用。全部可用玩家武器都参与；激活组优先、同优先级内有可用
+        /// 玩家/NPC 共用炮手分配。全部可用武器都参与；激活组优先、同优先级内有可用
         /// 预留炮手者优先，再按 thingId 稳定排序。断电窗口不征用，恢复后事件补分配。
         /// </summary>
-        private static int DispatchGunners(Map map)
+        internal int DispatchGunners(Map map, Faction faction, int ownerId)
         {
-            return DispatchGunners(map, Faction.OfPlayer, 0);
+            return DispatchGunners(map, faction, new HashSet<int> { ownerId });
         }
 
-        private static int DispatchGunners(Map map, Faction faction, int ownerId)
+        internal int DispatchGunners(Map map, Faction faction, HashSet<int> ownerIds)
         {
+            // 任一状态边沿都重走同一判定；先释放失效岗位，再用同一候选集补位。
+            foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned.ToList())
+            {
+                if (pawn.Faction != faction || !TryGetJobWeapon(pawn.CurJob, out CompSpaceWeapon assigned)
+                    || !ownerIds.Contains(assigned.OwnerShip.ownerId)) continue;
+                if (CanStaff(assigned, map, faction, ownerIds, alreadyAssigned: true)) continue;
+                pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
+            }
             int manned = 0;
             var weapons = AllWeaponsOn(map)
-                .Where(w => w.parent.Faction == faction
-                    && (ownerId == 0 || w.OwnerShip.ownerId == ownerId) && w.Crew != null
-                    && !w.AutoAimEffective && PowerOn(w.parent))
+                .Where(w => CanStaff(w, map, faction, ownerIds, alreadyAssigned: false))
                 .OrderByDescending(w => w.GroupActive)
                 .ThenByDescending(w => GunnerUsable(w.Crew.reservedGunner, w))
                 .ThenBy(w => w.parent.thingIDNumber)
@@ -585,6 +427,17 @@ namespace DeltaV
                 }
             }
             return manned;
+        }
+
+        private static bool CanStaff(CompSpaceWeapon weapon, Map map, Faction faction,
+            HashSet<int> ownerIds, bool alreadyAssigned)
+        {
+            if (weapon?.parent == null || !weapon.parent.Spawned || weapon.parent.Destroyed
+                || weapon.parent.Map != map || weapon.parent.Faction != faction
+                || !ownerIds.Contains(weapon.OwnerShip.ownerId) || weapon.Crew == null
+                || weapon.AutoAimEffective) return false;
+            return alreadyAssigned && weapon.keepGunnerWhenUnavailable
+                || PowerOn(weapon.parent) && weapon.MagazineAvailable(weapon.SelectMagazine());
         }
 
         private static bool WeaponHasAssignedJob(Map map, CompSpaceWeapon weapon)
@@ -630,10 +483,7 @@ namespace DeltaV
         /// <summary>dev ResetObjects / 图销毁时的流程清零。</summary>
         public void ResetFlow()
         {
-            aimController?.Dispose("reset");
-            aimController = null;
-            battleStations.Clear();
-            pendingRedispatchMaps.Clear();
+            weaponsByMap.Clear();
         }
     }
 }

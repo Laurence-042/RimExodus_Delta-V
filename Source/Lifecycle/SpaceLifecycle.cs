@@ -487,13 +487,16 @@ namespace DeltaV
                 container.archivedMapId = 0;
                 container.archivedParent = null;
                 dormancy.Wake(restored, "full map archive restored");
+                universe.Weapons.RegisterMapWeapons(restored);
+                universe.Controls.RegisterMap(restored);
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"{container.label}: full map restored ({UniverseManager.MapTag(restored)})");
             });
         }
 
-        public void TickArchivedTravel()
+        public void TickArchivedTravel(int elapsedTicks)
         {
+            if (elapsedTicks <= 0) return;
             foreach (SpaceObject obj in universe.objects.ToList())
             {
                 if (obj.map != null || obj.archivedMapData.NullOrEmpty()) continue;
@@ -507,7 +510,7 @@ namespace DeltaV
                     if (obj.pose.velocity.sqrMagnitude > 1e-10f
                         || Mathf.Abs(obj.pose.angularVelocity) > 1e-10f)
                         ShipPhysics.Integrate(obj, ShipPhysics.PointMassReport,
-                            Vector2.zero, 0f, 1f / 60f, false, false, false);
+                            Vector2.zero, 0f, elapsedTicks / 60f, false, false, false);
                     if (obj.npcRetreating && obj.npcHomeObjectId == 0
                         && OrbitSphere.TileFromDirection(obj.pose.position)
                             != OrbitSphere.TileFromDirection(obj.npcRetreatOrigin))
@@ -520,7 +523,8 @@ namespace DeltaV
                 SpaceObject home = universe.ObjectById(obj.npcHomeObjectId);
                 Vector3 destination = home?.pose.position ?? obj.archivedCruiseDestination;
                 float remaining = OrbitSphere.ArcCells(obj.pose.position, destination);
-                if (remaining <= Mathf.Max(20f, obj.archivedCruiseCellsPerTick))
+                float travel = obj.archivedCruiseCellsPerTick * elapsedTicks;
+                if (remaining <= Mathf.Max(20f, travel))
                 {
                     RetireArchivedParent(obj);
                     universe.UnregisterObject(obj);
@@ -530,7 +534,7 @@ namespace DeltaV
                 SpacePose pose = obj.pose;
                 pose.velocity = offset.normalized * (obj.archivedCruiseCellsPerTick * 60f);
                 pose.position = OrbitSphere.Move(pose.position,
-                    offset.normalized * Mathf.Min(remaining, obj.archivedCruiseCellsPerTick));
+                    offset.normalized * Mathf.Min(remaining, travel));
                 obj.pose = pose;
             }
         }
@@ -548,10 +552,14 @@ namespace DeltaV
         public void Forget(Map map)
         {
             dormancy.Forget(map);
+            universe.ForgetMapRuntimeState(map);
+            universe.Weapons.ForgetMap(map);
+            ShipStatusPanel.Forget(map);
             MapOverlayRenderer.Release(map);
             SpaceCollision.Forget(map);
             ShipRegistry.Forget(map);
             ShipPhysics.Forget(map);
+            MoonPoolUtility.Forget(map);
             PlanetGlobeRenderer.ClearRuntimeCaches();
         }
 

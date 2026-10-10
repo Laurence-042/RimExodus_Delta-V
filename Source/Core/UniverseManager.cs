@@ -58,6 +58,10 @@ namespace DeltaV
 
         public NpcShipAiService NpcShips => npcShips ?? (npcShips = new NpcShipAiService(this));
 
+        [NonSerialized] private ShipControlService controls;
+
+        public ShipControlService Controls => controls ?? (controls = new ShipControlService(this));
+
         [NonSerialized] private SpaceProjectileService projectiles;
 
         /// <summary>
@@ -70,8 +74,8 @@ namespace DeltaV
         [NonSerialized] private SpaceWeaponService weapons;
 
         /// <summary>
-        /// 武器服务（太空战架构 §5/§6）：每武器每 tick 就绪判定与发射（瞄准模式 +
-        /// PD）、「进入战斗位置」征用。实例服务不序列化、读档归零（武器持久配置在
+        /// 武器服务（太空战架构 §5/§6）：武器索引、炮手分配与唯一发射事务。
+        /// 逐 tick 战斗调度归 Controls；本服务不序列化、读档重建（武器持久配置在
         /// 武器 comp、激活位在主驾驶台 comp）。
         /// </summary>
         public SpaceWeaponService Weapons => weapons ?? (weapons = new SpaceWeaponService(this));
@@ -91,6 +95,10 @@ namespace DeltaV
         [NonSerialized] private PilotService pilot;
 
         public PilotService Pilot => pilot ?? (pilot = new PilotService(this));
+
+        internal void ForgetPilotController(ShipController controller) => pilot?.ForgetController(controller);
+        internal bool IsPilotControllingOwner(int ownerId) =>
+            pilot?.ActiveController?.target.ControlKey == ownerId;
 
         [NonSerialized] private ShipFlightTransitionService shipTransitions;
 
@@ -292,12 +300,20 @@ namespace DeltaV
             }
             objects.Add(obj);
             if (obj.objectId >= nextFreeOwnerId) nextFreeOwnerId = obj.objectId + 1;
+            if (obj.map != null && obj.Tag == SpaceObjectTag.Ship)
+            {
+                Weapons.RegisterMapWeapons(obj.map);
+                foreach (Ship ship in ShipRegistry.ShipsOnMap(obj.map)) Controls.For(ship);
+            }
         }
 
         public void UnregisterObject(SpaceObject obj)
         {
             if (obj == null) return;
             objects.Remove(obj);
+            if (obj.map != null && obj.Tag == SpaceObjectTag.Ship)
+                Weapons.ForgetMap(obj.map);
+            enginesFiringByShip?.Remove(obj.objectId);
             // 被注销对象的 ID 仍被驾驶台 comp / 图上归属格持有（战略飞行中的船、走距离
             // 生命周期的残骸），推过高水位绝不再发——否则新星区生成物会领走同号，
             // 异主域同号合并（2026-09-20 撞号实测）。
@@ -317,6 +333,8 @@ namespace DeltaV
 
         /// <summary>存档时的 CellsPerTile（读档后与当前设置不同则触发一次位姿重标定）。</summary>
         private int cellsPerTileAtSave;
+        // 上一次生命周期批量检查的原版游戏 tick；只记录时间戳，不维护第二套时钟。
+        private int lastLifecycleScanTick = -1;
 
         /// <summary>读档后待执行的旧尺度（-1 = 无）；对象 cross-ref 解析完成后执行。</summary>
         [NonSerialized] private float pendingScaleRescaleFrom = -1f;
@@ -400,6 +418,13 @@ namespace DeltaV
 
         [NonSerialized] private HashSet<Map> unframedMaps;
 
+        internal void ForgetMapRuntimeState(Map map)
+        {
+            if (map == null) return;
+            unframedMaps?.Remove(map);
+            Projectiles.ForgetMap(map);
+        }
+
         // ---- 专用宿主 ----
 
         /// <summary>
@@ -433,6 +458,8 @@ namespace DeltaV
         public override void StartedNewGame()
         {
             OrbitalPoiRegistry.Synchronize(this);
+            Weapons.RebuildWeaponIndex();
+            Controls.Rebuild();
             // 开局出生星区在世界生成时预生成（星区架构 §4 触发时机）。
             Map current = Find.CurrentMap;
             if (current != null && current.Tile.Valid && current.Tile.LayerDef.isSpace)
@@ -476,6 +503,7 @@ namespace DeltaV
                 cellsPerTileAtSave = DeltaVMod.CurrentSettings?.cellsPerTile ?? (int)OrbitSphere.DefaultCellsPerTile;
             }
             Scribe_Values.Look(ref cellsPerTileAtSave, "cellsPerTileAtSave", 0);
+            Scribe_Values.Look(ref lastLifecycleScanTick, "lastLifecycleScanTick", -1);
             Scribe_Values.Look(ref nextFreeOwnerId, "nextFreeOwnerId", 0);
             Scribe_Collections.Look(ref structureNames, "structureNames", LookMode.Value, LookMode.Value);
             if (Scribe.mode == LoadSaveMode.LoadingVars && structureNames == null)
@@ -545,6 +573,8 @@ namespace DeltaV
             }
             HostColonistBarVisibility.NotifyDockingStateChanged();
             SweepEmptyDepartedMaps();
+            Weapons.RebuildWeaponIndex();
+            Controls.Rebuild();
         }
 
         /// <summary>
@@ -733,16 +763,17 @@ namespace DeltaV
         /// </summary>
         public override void GameComponentTick()
         {
+            // 原版 TickManager 每次只调用一次；速度单位为格/秒，故单次积分步长为 1/60 秒。
+            // 倍速增加调用次数而非放大单次 dt，暂停时本方法不被调用。
             const float dt = 1f / 60f;
             // 宇宙运动只属于游戏时钟（AGENTS §18 不变量 #20）：自动驾驶/弹体制导/跳帮舱按
             // 游戏 tick 推进——暂停冻结、倍速加速；先于计划判据与物理积分
             //（IsActive 跳过防双驱动，计划判据看到本 tick 最新位姿）。
             NpcShips.Tick();
-            Lifecycle.TickArchivedTravel();
             Autopilot.Tick();
             Projectiles.Tick();
-            // 武器射击（瞄准模式输入 + PD 自动索敌）：发射的弹体本 tick 即被积分与扫掠。
-            Weapons.TickWeapons();
+            // 同一归属 controller 调度瞄准、齐射、点防与炮手事件。
+            Controls.Tick();
             // shuttle 巡护（舱体被毁收尾等，§7）。
             Shuttles.Tick();
             // 对接计划（几何完成判据 + 取消守卫；2026-09-21 阶段4）。
@@ -816,11 +847,21 @@ namespace DeltaV
             // 碰撞扫掠与结算（太空战架构 §3.3：先动后撞——本 tick 位移段对全部有碰撞面
             // 容器求交，命中经联合效果注册表对称结算；销毁/归池经帧边界回调）。
             Projectiles.ResolveCollisions();
-            // POI 地图生命周期三段扫描（单一入口 SpaceLifecycle）+ 星区记账触发
-            //（自由飞行中 tile 地址变化进入新星区时首次生成，星区架构 §4）。
+            // 生命周期只按设置周期扫描；归档航行按实际经过的原版游戏 tick 推进。
+            int now = Find.TickManager.TicksGame;
+            if (lastLifecycleScanTick < 0) lastLifecycleScanTick = now;
+            int lifecycleInterval = Mathf.Clamp(
+                DeltaVMod.CurrentSettings?.lifecycleScanIntervalTicks ?? 60, 1, 600);
+            if (now - lastLifecycleScanTick >= lifecycleInterval)
+            {
+                int elapsed = now - lastLifecycleScanTick;
+                lastLifecycleScanTick = now;
+                Lifecycle.TickArchivedTravel(elapsed);
+                Lifecycle.Tick();
+            }
+            // 星区记账仍按原有周期触发（自由飞行跨 tile 首次生成）。
             if (Find.TickManager.TicksGame % 60 == 0)
             {
-                Lifecycle.Tick();
                 SectorContentService.TickSectorTracking(this);
             }
         }
@@ -867,7 +908,7 @@ namespace DeltaV
                 {
                     aimShip = Find.CurrentMap != null ? Pilot.SelectedShipOnMap(Find.CurrentMap) : Ship.Invalid;
                 }
-                Weapons.ToggleAim(aimShip);
+                Controls.ToggleAim(aimShip);
             }
             // 选点阶段 ESC 取消（2026-09-25 补齐）：pendingShip 在册且无计划 = 正在选点。
             // 让位条件是「存在会自己消费 ESC 的窗口」（Dialog 层及以上），而非窗口栈非空——
@@ -999,7 +1040,7 @@ namespace DeltaV
                 bool designator = Find.DesignatorManager.SelectedDesignator != null;
                 bool overWindow = Find.WindowStack.GetWindowAt(UI.GUIToScreenPoint(ev.mousePosition)) != null;
                 // 瞄准会话让位（§6.1）：瞄准会话作用于本图时左键 = 射击，不作聚焦切换。
-                bool aimSession = Weapons.AimSessionOnFocusedMap;
+                bool aimSession = Controls.AimSessionOnFocusedMap;
                 if (targeting || designator || overWindow || aimSession)
                 {
                     return;
@@ -1095,6 +1136,8 @@ namespace DeltaV
             Shuttles.ResetFlow();
             ShipTransitions.Reset();
             objects = newObjects;
+            Weapons.RebuildWeaponIndex();
+            Controls.Rebuild();
             unframedMaps?.Clear();
             SpaceObject focus = objects.FirstOrDefault(o => o.map != null);
             if (focus != null)
@@ -1110,6 +1153,11 @@ namespace DeltaV
         private void ResetRuntimeServices()
         {
             npcShips = null;
+            controls?.Reset();
+            controls = null;
+            pilot = null;
+            enginesFiringByShip?.Clear();
+            ShipStatusPanel.ClearRuntimeState();
             ShellRenderer.ClearRuntimeCaches();
             WorldShipMarkerRenderer.ClearRuntimeCaches();
             PlanetGlobeRenderer.ClearRuntimeCaches();

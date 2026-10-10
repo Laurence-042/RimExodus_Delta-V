@@ -76,6 +76,16 @@ namespace DeltaV
             base.PostSpawnSetup(respawningAfterLoad);
             ClaimOnSpawn();
             RestampShipDomain();
+            if (isMain) Universe?.Controls.For(Ship);
+        }
+
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
+        {
+            base.PostDeSpawn(map, mode);
+            int ownerId = shipId;
+            UniverseManager universe = Universe;
+            if (isMain && ownerId > 0 && universe != null)
+                universe.QueueFrameAction(() => universe.Controls.ReconcileOwner(ownerId));
         }
 
         /// <summary>
@@ -135,6 +145,7 @@ namespace DeltaV
                 }
             }
             base.PostDestroy(mode, previousMap);
+            universe?.Controls.ReconcileOwner(shipId);
         }
 
         /// <summary>同归属、同方向、非主台的候选中 Thing ID 最小者（确定性，不受遍历顺序影响）。</summary>
@@ -187,6 +198,7 @@ namespace DeltaV
                 }
             }
             isMain = true;
+            universe.Controls.ReconcileOwner(shipId);
             Messages.Message("DeltaV_ConsolePrimarySet".Translate(parent.LabelCap),
                 MessageTypeDefOf.NeutralEvent, false);
             DeltaVLog.Message(DeltaVLogModule.Core,
@@ -198,6 +210,7 @@ namespace DeltaV
         {
             if (!PlayerMayManage || !isMain) return;
             isMain = false;
+            Universe?.Controls.ReconcileOwner(shipId);
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"structure #{shipId}: main console demoted to backup by player");
         }

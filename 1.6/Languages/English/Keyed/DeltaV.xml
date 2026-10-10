@@ -47,6 +47,10 @@
   <DeltaV_SettingsPoiActiveRadiusTip>Approaching a station, wreck or other object within this distance generates and keeps its interior map (enterable, dockable, boardable). Larger values bring distant objects to life sooner, at the cost of more simultaneously active maps. Keep below the delete radius. Range 50-10000; default 300.</DeltaV_SettingsPoiActiveRadiusTip>
   <DeltaV_SettingsPoiDeleteRadius>POI delete radius (cells)</DeltaV_SettingsPoiDeleteRadius>
   <DeltaV_SettingsPoiDeleteRadiusTip>Once you leave an object farther than this, its interior map is packed into a snapshot and restored as-is on your next visit; maps still holding ships or people are only put to sleep, never packed. Larger values make revisits instant but use more memory. Keep above the load radius. Range 100-50000; default 1200.</DeltaV_SettingsPoiDeleteRadiusTip>
+  <DeltaV_SettingsNpcDecisionInterval>NPC tactical decision interval (ticks)</DeltaV_SettingsNpcDecisionInterval>
+  <DeltaV_SettingsNpcDecisionIntervalTip>How often NPC ships recheck eligibility, targets, doctrine and retreat conditions. Autopilot and firing at the selected target still run each tick. Range 1-600; default 60.</DeltaV_SettingsNpcDecisionIntervalTip>
+  <DeltaV_SettingsLifecycleScanInterval>Space object lifecycle scan interval (ticks)</DeltaV_SettingsLifecycleScanInterval>
+  <DeltaV_SettingsLifecycleScanIntervalTip>How often objects are materialized, slept, archived or restored and archived travel is checked. Travel advances by the actual elapsed game ticks. Range 1-600; default 60.</DeltaV_SettingsLifecycleScanIntervalTip>
   <DeltaV_SettingsMapGenBudget>Map generation budget (ms/frame)</DeltaV_SettingsMapGenBudget>
   <DeltaV_SettingsMapGenBudgetTip>How many milliseconds each frame may spend generating an approaching POI's interior map. Larger values finish the map sooner but make frames choppier during generation; smaller values keep frames smooth but take longer. Range 1-16; default 8.</DeltaV_SettingsMapGenBudgetTip>
   <DeltaV_SaveBlockedGeneratingLabel>Map generation in progress</DeltaV_SaveBlockedGeneratingLabel>
@@ -231,6 +235,8 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_WeaponReserveGizmo>Reserve gunner: {0}</DeltaV_WeaponReserveGizmo>
   <DeltaV_WeaponReserveNone>any</DeltaV_WeaponReserveNone>
   <DeltaV_WeaponReserveGizmoTip>Chooses which colonist mans this weapon when battle stations are called (any = random able colonist).</DeltaV_WeaponReserveGizmoTip>
+  <DeltaV_KeepGunnerWhenUnavailable>Keep gunner at unavailable weapon</DeltaV_KeepGunnerWhenUnavailable>
+  <DeltaV_KeepGunnerWhenUnavailableTip>On by default. An assigned gunner stays at this weapon when power or required ammunition is unavailable. Turn off to release them on the next game tick for other usable weapons. Unavailable weapons do not recruit new gunners.</DeltaV_KeepGunnerWhenUnavailableTip>
 
   <DeltaV_MagazinePriority>Magazine priority: {0}</DeltaV_MagazinePriority>
   <DeltaV_MagazinePriorityTip>Higher-priority magazines are consumed first. Equal-priority magazines alternate in Thing ID order.</DeltaV_MagazinePriorityTip>

@@ -138,6 +138,7 @@ namespace DeltaV
         public int groupNumber = 1;
         public SpaceWeaponAimMode aimMode = SpaceWeaponAimMode.Volley;
         public bool safeFire = true;
+        public bool keepGunnerWhenUnavailable = true;
         public float fireDeviationDeg;
         private bool safeFireInitialized;
         private bool alignmentConfigurationInitialized;
@@ -256,20 +257,17 @@ namespace DeltaV
             }
         }
 
-        // ---- 炮塔状态变更事件源（事件驱动补分配，见 SpaceWeaponService.NotifyWeaponAvailabilityChanged）----
+        // ---- 炮塔状态变更事件源（事件驱动补分配，见 ShipControlService.NotifyGunnerAvailabilityChanged）----
 
         /// <summary>
-        /// 供电恢复事件（原版 CompPowerTrader 的 PowerOn setter 切换时广播
-        /// "PowerTurnedOn"）：短路损毁后重连、起飞/对接搬运后电网恢复等一切停电窗口
-        /// 的恢复端。登记到武器服务，下一 tick 在战斗位置激活的图上补分配炮手
-        /// （JobDriver_ManTurret 无供电检查、断电不丢 job，但转移 DeSpawn 会丢）。
+        /// 供电边沿登记到 controller；下一 tick 释放断电岗位并重新分配空闲炮手。
         /// </summary>
         public override void ReceiveCompSignal(string signal)
         {
             base.ReceiveCompSignal(signal);
-            if (signal == "PowerTurnedOn")
+            if (signal == "PowerTurnedOn" || signal == "PowerTurnedOff")
             {
-                Universe?.Weapons?.NotifyWeaponAvailabilityChanged(parent.Map);
+                Universe?.Controls?.NotifyGunnerAvailabilityChanged(parent.Map);
             }
         }
 
@@ -298,8 +296,16 @@ namespace DeltaV
                 fireDeviationDeg = Mathf.Clamp(WeaponProps.defaultFireDeviationDeg, 0f, 180f);
                 alignmentConfigurationInitialized = true;
             }
+            Universe?.Weapons?.RegisterWeapon(this);
             if (respawningAfterLoad) return;
-            Universe?.Weapons?.NotifyWeaponAvailabilityChanged(parent.Map);
+            Universe?.Controls?.NotifyGunnerAvailabilityChanged(parent.Map);
+        }
+
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
+        {
+            base.PostDeSpawn(map, mode);
+            Universe?.Weapons?.UnregisterWeapon(this, map);
+            Universe?.Controls?.NotifyGunnerAvailabilityChanged(map);
         }
 
         /// <summary>
@@ -351,6 +357,7 @@ namespace DeltaV
             Scribe_Values.Look(ref aimMode, "aimMode", WeaponProps.aimMode);
             Scribe_Values.Look(ref configurationInitialized, "configurationInitialized", true);
             Scribe_Values.Look(ref safeFire, "safeFire", true);
+            Scribe_Values.Look(ref keepGunnerWhenUnavailable, "keepGunnerWhenUnavailable", true);
             Scribe_Values.Look(ref safeFireInitialized, "safeFireInitialized", true);
             Scribe_Values.Look(ref fireDeviationDeg, "fireDeviationDeg",
                 WeaponProps.defaultFireDeviationDeg);
@@ -384,6 +391,9 @@ namespace DeltaV
             }
             return candidates[0];
         }
+
+        internal bool MagazineAvailable(CompSpaceWeaponMagazine selected) =>
+            parent.TryGetComp<CompSpaceWeaponMagazine>() == null || selected != null;
 
         public void NotifyMagazineConsumed(CompSpaceWeaponMagazine magazine)
         {
@@ -448,6 +458,7 @@ namespace DeltaV
                     aimMode = aimMode == SpaceWeaponAimMode.PointDefense
                         ? SpaceWeaponAimMode.Volley
                         : SpaceWeaponAimMode.PointDefense;
+                    Universe?.Weapons?.NotifyWeaponModeChanged(this);
                 }
             };
 
@@ -486,6 +497,19 @@ namespace DeltaV
 
             CompSpaceWeaponCrew crew = Crew;
             if (crew == null) yield break;
+
+            if (WeaponProps.intrinsicAimSkill < 0) yield return new Command_Toggle
+            {
+                defaultLabel = "DeltaV_KeepGunnerWhenUnavailable".Translate(),
+                defaultDesc = "DeltaV_KeepGunnerWhenUnavailableTip".Translate(),
+                icon = TexCommand.Install,
+                isActive = () => keepGunnerWhenUnavailable,
+                toggleAction = delegate
+                {
+                    keepGunnerWhenUnavailable = !keepGunnerWhenUnavailable;
+                    Universe?.Controls?.NotifyGunnerAvailabilityChanged(parent.Map);
+                }
+            };
 
             yield return new Command_Toggle
             {
