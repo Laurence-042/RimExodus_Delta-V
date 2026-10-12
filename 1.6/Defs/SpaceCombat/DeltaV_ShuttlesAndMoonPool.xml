@@ -25,8 +25,9 @@
 	<!--
 		跳帮 shuttle（2026-09-27 修订：真继承）。**ParentName="PassengerShuttle"
 		直接继承原版载人穿梭机**（原版 def 经 patch 补 Name 特性 + CompSpaceShuttle）：
-		size/graphicData/全套原版 comps（CompShuttle/CompLaunchable/CompTransporter/
-		CompRefuelable）/inspectorTabs/placeWorkers 全部继承，子 def 只写数值差异。
+		size/全套原版 comps（CompShuttle/CompLaunchable/CompTransporter/
+		CompRefuelable）/inspectorTabs/placeWorkers 全部继承，子 def 另写数值与美术差异。
+		graphicData 换成 Delta-V 专属单张俯视图，四向由 Graphic_Single 旋转。
 		**跳帮档位（canBoard/出力）放 modExtensions**——comps li 追加会与原版 patch
 		的 comp 实例重复（TryGetComp 取首个导致 canBoard=false 生效），modExtensions
 		是允许追加的字段族且原版无此项，无重复；CompSpaceShuttle.CanBoard/
@@ -36,6 +37,13 @@
 		<defName>DeltaV_ShuttleBoarding</defName>
 		<label>boarding shuttle</label>
 		<description>An armored assault variant of the passenger shuttle. Fewer seats, far tougher hull, far more agile in free flight. Arm its intrusion drive, pick an enemy hull, and it rams straight through like a missile — the cabin seals the breach and marines pour out.</description>
+		<uiIconPath>Things/Building/Shuttle/BoardingShuttle_MenuIcon</uiIconPath>
+		<graphicData>
+			<graphicClass>Graphic_Single</graphicClass>
+			<texPath>Things/Building/Shuttle/BoardingShuttle</texPath>
+			<shaderType>CutoutComplex</shaderType>
+			<drawSize>(3,5)</drawSize>
+		</graphicData>
 		<terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
 		<statBases>
 			<MaxHitPoints>850</MaxHitPoints>

@@ -151,6 +151,8 @@ namespace DeltaV
         private readonly List<ImpactFx> impacts = new List<ImpactFx>();
         private readonly List<Projectile> sweepScratch = new List<Projectile>();
         private readonly List<SpaceCollision.SweptBody> bodyScratch = new List<SpaceCollision.SweptBody>();
+        private readonly List<SpaceCollision.ShieldVisualSegment> shieldVisualScratch =
+            new List<SpaceCollision.ShieldVisualSegment>();
 
         /// <summary>图池（footprint 哈希 → 空闲小图）。运行时缓存，不序列化。</summary>
         private readonly Dictionary<int, List<Map>> mapPool = new Dictionary<int, List<Map>>();
@@ -166,6 +168,7 @@ namespace DeltaV
 
         // 激光线段材质（静态渲染缓存，ClearRuntimeCaches 换档销毁；三档透明度近似渐隐）。
         private static Material[] beamMaterials;
+        private static Material shieldLineMaterial;
 
         // 壳上命中特效材质（静态渲染缓存；种类 × 三档透明度。贴图复用原版 mote 素材，
         // 克隆材质自持以设 renderQueue，ClearRuntimeCaches 只销毁克隆不动共享贴图）。
@@ -221,6 +224,17 @@ namespace DeltaV
             }
             return Launch(def, source, muzzle, directionWorld, faction, launcher, missileTarget,
                 SpaceProjectileLaunchSpec.FromDef(props, damageScale));
+        }
+
+        internal void LaunchShieldFragment(ThingDef def, in SpaceShieldFragmentContext context,
+            Vector2 direction, float speed, float damageScale, float armorScale)
+        {
+            OrbitSphere.Basis(context.hit, out Vector3 east, out Vector3 north);
+            Vector3 worldDirection = east * direction.x + north * direction.y;
+            Launch(def, context.sourceContainer,
+                OrbitSphere.Move(context.hit, direction * 0.06f), worldDirection,
+                context.sourceContainer?.faction, context.launcher, null,
+                new SpaceProjectileLaunchSpec(speed, 0, speed, damageScale, armorScale));
         }
 
         public bool Launch(ThingDef def, SpaceObject source, Vector3 muzzle, Vector3 directionWorld,
@@ -439,6 +453,7 @@ namespace DeltaV
                 body.launcher = p.launcher;
                 body.dead = false;
                 body.resolvedHit = false;
+                body.didRedirect = false;
                 body.shieldResidualFraction = 0f;
                 body.sweepRadius = FootprintRadius(p.def);
                 body.damageScale = p.damageScale;
@@ -466,6 +481,25 @@ namespace DeltaV
                 }
                 Projectile captured = p;
                 body.onSelfDestruct = delegate { DestroyProjectile(captured, "impact"); };
+                body.onShieldRedirect = delegate (Vector3 from, Vector3 hit,
+                    Vector2 direction, bool shatter)
+                {
+                    if (captured.laser)
+                        beams.Add(new Beam { from = from, to = hit,
+                            bornTick = Find.TickManager.TicksGame,
+                            width = captured.props.laserBeamWidth });
+                };
+                body.onShieldShatter = delegate (Vector3 hit, Vector2 direction)
+                {
+                    SpaceShieldProjectileBehavior response =
+                        SpaceShieldProjectileBehavior.For(captured.def);
+                    var context = new SpaceShieldFragmentContext(captured.def,
+                        captured.sourceContainer, hit, direction,
+                        captured.container.pose.velocity.magnitude,
+                        captured.damageScale, captured.armorPenetrationScale,
+                        captured.launcher);
+                    response.SpawnFragments(this, in context);
+                };
                 sweepScratch.Add(p);
                 bodyScratch.Add(body);
             }
@@ -510,6 +544,15 @@ namespace DeltaV
             RegisterImpactFx();
             foreach (Projectile p in sweepScratch)
             {
+                if (p.dead || p.laser || !p.body.didRedirect) continue;
+                p.container.pose.position = p.body.to;
+                Vector2 direction = p.body.redirectDirection;
+                float speed = p.container.pose.velocity.magnitude;
+                p.container.pose.velocity = direction * speed;
+                p.container.pose.angle = Mathf.Atan2(direction.y, direction.x);
+            }
+            foreach (Projectile p in sweepScratch)
+            {
                 float residual = p.body.shieldResidualFraction;
                 if (residual <= 0f || p.dead) continue;
                 Vector3 hit = p.body.shieldResidualPoint;
@@ -551,8 +594,8 @@ namespace DeltaV
             foreach (Projectile p in sweepScratch)
             {
                 if (!p.laser) continue;
-                Vector3 end = p.body.resolvedHit ? p.body.resolvedHitUniverse : p.laserTo;
-                beams.Add(new Beam { from = p.laserFrom, to = end,
+                Vector3 end = p.body.resolvedHit ? p.body.resolvedHitUniverse : p.body.to;
+                beams.Add(new Beam { from = p.body.from, to = end,
                     bornTick = Find.TickManager.TicksGame, width = p.props.laserBeamWidth });
                 if (!p.dead) DestroyProjectile(p, "laser spent");
             }
@@ -867,6 +910,37 @@ namespace DeltaV
         internal int TryEmitProjectiles(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)
         {
             int slot = baseSlot;
+            shieldVisualScratch.Clear();
+            foreach (SpaceObject obj in universe.objects)
+                SpaceCollision.CollectVisibleShieldSegments(obj, shieldVisualScratch);
+            if (shieldVisualScratch.Count > 0)
+            {
+                shieldLineMaterial ??= new Material(MaterialPool.MatFrom(
+                    "Things/Building/SpaceWeapons/ShieldField", ShaderDatabase.Transparent))
+                {
+                    name = "DeltaV_ShieldLine",
+                    color = new Color(1f, 1f, 1f, 0.72f),
+                    renderQueue = 3201,
+                };
+                float altitude = AltitudeLayer.Terrain.AltitudeFor() + Altitudes.AltInc * 11f;
+                foreach (SpaceCollision.ShieldVisualSegment segment in shieldVisualScratch)
+                {
+                    Vector3 a = SpaceTransform.FocusedDrawPosition(frame, frameMap,
+                        segment.from, altitude);
+                    Vector3 b = SpaceTransform.FocusedDrawPosition(frame, frameMap,
+                        segment.to, altitude);
+                    Vector3 delta = b - a;
+                    float span = new Vector2(delta.x, delta.z).magnitude;
+                    if (span < 0.1f) continue;
+                    float angle = Mathf.Atan2(delta.z, delta.x) + frame.pose.angle;
+                    Quaternion rotation = SpaceTransform.FocusedMeshRotation(frame, angle);
+                    MapOverlayRenderer.CollectSingleQuad(MeshPool.plane10,
+                        Matrix4x4.TRS((a + b) * 0.5f, rotation,
+                            new Vector3(span, 1f, 0.8f)), shieldLineMaterial);
+                    ShellLayer.Slot shieldSlot = layer.At(slot++);
+                    shieldSlot.layer.Emit(shieldSlot);
+                }
+            }
             if (trailPuffs.Count > 0)
             {
                 EnsureImpactMaterials();
@@ -1142,6 +1216,11 @@ namespace DeltaV
         /// <summary>换档清理静态渲染缓存（UniverseManager.ResetRuntimeServices）。</summary>
         public static void ClearRuntimeCaches()
         {
+            if (shieldLineMaterial != null)
+            {
+                Object.Destroy(shieldLineMaterial);
+                shieldLineMaterial = null;
+            }
             if (beamMaterials != null)
             {
                 foreach (Material material in beamMaterials)

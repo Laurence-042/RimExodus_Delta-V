@@ -1,3 +1,4 @@
+using System;
 using Verse;
 
 namespace DeltaV
@@ -46,6 +47,19 @@ namespace DeltaV
         public bool exhaustTrail;
         public float exhaustSize = 1f;
         public int smokeLifetimeTicks = 120;
+
+        /// <summary>每种弹体指定的太空盾响应类；空值时走普通折射。</summary>
+        public Type shieldBehaviorClass = typeof(RefractingShieldProjectileBehavior);
+        /// <summary>该弹体在一层盾上的基础脉冲电费（W·d）。</summary>
+        public float shieldPulseCost = 4f;
+        /// <summary>重弹不碎裂的最大入射角，0 = 不启用碎裂。</summary>
+        public float shieldBreakAngleDeg;
+        public ThingDef shieldFragmentDef;
+        public int shieldFragmentCount;
+        public float shieldFragmentScatterDeg = 12f;
+        public float shieldFragmentSpeedFactor = 0.7f;
+        public float shieldFragmentDamageFraction = 0.2f;
+        public float shieldFragmentArmorFactor = 0.3f;
 
         public CompProperties_SpaceProjectile()
         {

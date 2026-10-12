@@ -6,8 +6,8 @@ namespace DeltaV
 {
     /// <summary>
     /// 右下角 PlaySettings 开关行追加（原版「开关屋顶区显示」同款机制，2026-09-26
-    /// 用户需求）：追加「显示推进器位置与方向、船体范围以及舰炮射界」开关（聚焦图叠加，
-    /// ThrusterDebugOverlay）。仅地图视图（worldView = false）显示。
+    /// 用户需求）：推进器/船体、武器射界与碰撞各有独立视图开关。
+    /// 仅地图视图（worldView = false）显示。
     /// </summary>
     [HarmonyPatch(typeof(PlaySettings), nameof(PlaySettings.DoPlaySettingsGlobalControls))]
     public static class Patch_DeltaVPlaySettings_Thrusters
@@ -17,6 +17,10 @@ namespace DeltaV
             if (worldView) return;
             row.ToggleableIcon(ref ThrusterDebugOverlay.Show, TexCommand.SquadAttack,
                 "DeltaV_DebugThrustersToggleButton".Translate(), SoundDefOf.Mouseover_ButtonToggle);
+            bool showWeaponArcs = WeaponArcOverlay.Show;
+            row.ToggleableIcon(ref showWeaponArcs, TexCommand.FireAtWill,
+                "DeltaV_DebugWeaponArcsToggleButton".Translate(), SoundDefOf.Mouseover_ButtonToggle);
+            WeaponArcOverlay.SetEnabled(showWeaponArcs);
             row.ToggleableIcon(ref CollisionDebugOverlay.Show, TexCommand.Attack,
                 "DeltaV_DebugCollisionToggleButton".Translate(), SoundDefOf.Mouseover_ButtonToggle);
         }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -70,6 +71,31 @@ public readonly struct PilotTarget
         : shuttle.LabelCap;
 }
 
+internal readonly struct PilotPanelAction
+{
+    internal readonly string Label;
+    internal readonly string Tooltip;
+    internal readonly Action Execute;
+
+    internal PilotPanelAction(string label, Action execute, string tooltip = null)
+    {
+        Label = label;
+        Execute = execute;
+        Tooltip = tooltip;
+    }
+}
+
+internal readonly struct HeadingPanelAction
+{
+    internal readonly Rot4 Facing;
+    internal readonly Action Execute;
+    internal HeadingPanelAction(Rot4 facing, Action execute)
+    {
+        Facing = facing;
+        Execute = execute;
+    }
+}
+
     /// <summary>
     /// 统一驾驶契约的共同基类（解耦架构 §5.4 **强制继承架构**）：NPC controller 与玩家
     /// controller 必须是本类的两个不同子类——明确的类型边界是后续敌舰 AI 接入的架构
@@ -103,6 +129,40 @@ public readonly struct PilotTarget
         internal abstract bool GunnersEnabled { get; }
         internal abstract bool WantsVolley { get; }
         internal void BindShip(Ship ship) { cachedShip = ship; }
+
+        // The target's controller owns its sidebar operations. Common piloting and
+        // docking actions live here; target-specific actions belong to subclasses.
+        internal virtual void CollectPanelActions(PilotTarget panelTarget, List<PilotPanelAction> actions)
+        {
+            if (!panelTarget.IsValid || !HasAuthority(panelTarget)) return;
+            ShipControlState state = universe.Pilot.GetControlState(panelTarget);
+            bool hasPlan = universe.Approach.ActivePlan?.Target.ControlKey == panelTarget.ControlKey;
+            string pilotLabel = state == ShipControlState.Manual && hasPlan
+                ? "DeltaV_ControlSwitchAutopilot".Translate()
+                : universe.Pilot.IsPlayerInputArmed(panelTarget)
+                    ? "DeltaV_PilotButtonExit".Translate()
+                    : "DeltaV_PilotButtonEnter".Translate();
+            actions.Add(new PilotPanelAction(pilotLabel,
+                () => universe.Pilot.ToggleControl(universe, panelTarget)));
+            if (hasPlan)
+                actions.Add(new PilotPanelAction("DeltaV_DockCancelButton".Translate(),
+                    () => universe.Approach.CancelSelectionOrPlan(universe, "user")));
+            else if (panelTarget.IsShuttle)
+            {
+                SpaceObject frame = universe.FrameOf(panelTarget.Map);
+                if (frame != null && !frame.projectileRoleOverride)
+                    actions.Add(new PilotPanelAction("DeltaV_BeginDockingButton".Translate(),
+                        () => universe.ShipTransitions.BeginDockingShuttle(panelTarget.shuttle)));
+            }
+            else if (ShipRegistry.StateOf(panelTarget.ship) == ShipDerivedState.FreeFlight)
+                actions.Add(new PilotPanelAction("DeltaV_BeginDockingButton".Translate(),
+                    () => universe.ShipTransitions.BeginDocking(panelTarget.ship)));
+        }
+
+        internal virtual void CollectCombatPanelActions(Ship ship, bool hasWeapons,
+            List<PilotPanelAction> beforeGroups, List<PilotPanelAction> afterGroups) { }
+        internal virtual void CollectHeadingPanelActions(Ship ship,
+            List<HeadingPanelAction> actions) { }
 
         /// <summary>驾驶与战斗共用船归属，但未驾驶仍可瞄准或自动点防。</summary>
         internal void TickCombat()
@@ -297,6 +357,65 @@ public readonly struct PilotTarget
 
         internal PlayerShipController(UniverseManager universe, int ownerId) : base(universe, ownerId, true)
         {
+        }
+
+        internal override void CollectPanelActions(PilotTarget panelTarget, List<PilotPanelAction> actions)
+        {
+            base.CollectPanelActions(panelTarget, actions);
+            if (!panelTarget.IsShuttle || !panelTarget.IsValid
+                || panelTarget.shuttle.TryGetComp<CompSpaceShuttle>()?.CanBoard != true
+                || !HasAuthority(panelTarget)) return;
+            SpaceObject frame = universe.FrameOf(panelTarget.Map);
+            if (frame == null) return;
+            actions.Add(new PilotPanelAction(
+                "DeltaV_PanelBoardArm".Translate() + ": "
+                    + (universe.Shuttles.IntrusionArmed(frame) ? "DeltaV_On" : "DeltaV_Off").Translate(),
+                () => universe.Shuttles.ToggleIntrusionArmed(frame),
+                "DeltaV_PanelBoardArmTip".Translate()));
+            if (universe.Shuttles.IntrusionArmed(frame))
+                actions.Add(new PilotPanelAction("DeltaV_ShuttleBoardGizmo".Translate(),
+                    () => universe.Shuttles.BeginBoardTargeting(panelTarget),
+                    "DeltaV_ShuttleBoardGizmoTip".Translate()));
+        }
+
+        internal override void CollectCombatPanelActions(Ship ship, bool hasWeapons,
+            List<PilotPanelAction> beforeGroups, List<PilotPanelAction> afterGroups)
+        {
+            if (!ship.IsValid || !HasAuthority(PilotTarget.Of(ship))) return;
+            beforeGroups.Add(new PilotPanelAction(
+                "DeltaV_PanelFireControl".Translate(
+                    (universe.Controls.FireControlModeFor(ship) == ShipFireControlMode.Automatic
+                        ? "DeltaV_FireControlAutomatic" : "DeltaV_FireControlManual").Translate()),
+                () => universe.Controls.ToggleFireControl(ship),
+                "DeltaV_PanelFireControlTip".Translate()));
+            beforeGroups.Add(new PilotPanelAction(
+                "DeltaV_PanelAutoManeuver".Translate(
+                    universe.Controls.AutoManeuverActiveFor(ship)
+                        ? "DeltaV_On".Translate() : "DeltaV_Off".Translate()),
+                () => universe.Controls.ToggleAutoManeuver(ship),
+                "DeltaV_PanelAutoManeuverTip".Translate()));
+            if (!hasWeapons) return;
+            afterGroups.Add(new PilotPanelAction("DeltaV_PanelBattleStationsOn".Translate(),
+                () => universe.Controls.EnterBattleStations(ship.map),
+                "DeltaV_PanelBattleStationsOnTip".Translate()));
+            afterGroups.Add(new PilotPanelAction("DeltaV_PanelBattleStationsOff".Translate(
+                    universe.Weapons.BattleStationGunnerCount(ship.map)),
+                () => universe.Controls.ExitBattleStations(ship.map),
+                "DeltaV_PanelBattleStationsOffTip".Translate()));
+        }
+
+        internal override void CollectHeadingPanelActions(Ship ship,
+            List<HeadingPanelAction> actions)
+        {
+            if (!ship.IsValid || !HasAuthority(PilotTarget.Of(ship))
+                || ShipRegistry.StateOf(ship) != ShipDerivedState.FreeFlight
+                || universe.Approach.ActivePlan?.Target.ControlKey == ship.ownerId) return;
+            foreach (Rot4 facing in new[] { Rot4.North, Rot4.East, Rot4.South, Rot4.West })
+            {
+                Rot4 choice = facing;
+                actions.Add(new HeadingPanelAction(choice,
+                    () => universe.ShipTransitions.RotateShipHeading(universe, ship, choice)));
+            }
         }
 
         internal override bool GunnersEnabled => battleStations;
@@ -527,7 +646,7 @@ public readonly struct PilotTarget
 
         private const float AssistOmegaEpsilon = 0.0005f;
 
-        private PlayerShipController ControllerFor(PilotTarget target)
+        internal PlayerShipController ControllerFor(PilotTarget target)
         {
             if (!target.IsValid) return null;
             if (!target.IsShuttle) return universe.Controls.PlayerFor(target.ship, debugTakeover: true);

@@ -714,6 +714,7 @@ namespace DeltaV
             // 月池力场（墙壁式连接图；聚焦图每帧绘制，外壳路径在 MapOverlayRenderer）。
             // 推进器/船体范围调试叠加（右下角 PlaySettings 开关控制）。
             ThrusterDebugOverlay.DrawFocused(this);
+            if (WeaponArcOverlay.Show) WeaponArcOverlay.DrawFocused(this);
             CollisionDebugOverlay.DrawFocused(this);
             // 推进器工作音（与火焰同源：只读分配器油门；聚焦图逐推进器 + 船壳整船）。
             ThrusterAudio.Update(this);

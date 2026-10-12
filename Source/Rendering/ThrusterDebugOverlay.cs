@@ -10,7 +10,7 @@ namespace DeltaV
     ///（原版「开关屋顶区显示」同款 ToggleableIcon，经 Patch_PlaySettings 行追加）；
     /// 开启后在聚焦图叠加显示——全部推进器的**位置与推力方向矢量**（真实推进器绿色、
     /// shuttle 虚拟推进器洋红）、全部船体范围遮罩（船 = 控制域格、在飞 shuttle =
-    /// 舱体脚印格）与全部舰炮的当前射界/射程。只读派生
+    /// 舱体脚印格）。武器射界由独立 WeaponArcOverlay 开关控制。只读派生
     ///（MassReport/ShipRegistry/武器 Comp/脚印），表现层纪律。
     /// </summary>
     [StaticConstructorOnStartup]
@@ -20,8 +20,6 @@ namespace DeltaV
         public static bool Show;
 
         private static Material domainMaterial;
-        private static Material weaponArcMaterial;
-        private static readonly Dictionary<int, Mesh> WeaponArcMeshes = new Dictionary<int, Mesh>();
 
         [StaticConstructorOnStartup]
         private static class Assets
@@ -39,13 +37,6 @@ namespace DeltaV
                     mainTexture = texture,
                     color = new Color(1f, 0.85f, 0.3f, 0.28f),
                     renderQueue = 3100,
-                };
-                weaponArcMaterial = new Material(ShaderDatabase.Transparent)
-                {
-                    name = "DeltaV_WeaponArcOverlay",
-                    mainTexture = texture,
-                    color = new Color(1f, 0.1f, 0.65f, 0.12f),
-                    renderQueue = 3101,
                 };
             }
         }
@@ -99,92 +90,6 @@ namespace DeltaV
                 }
             }
 
-            DrawWeaponArcs(map);
-        }
-
-        private static void DrawWeaponArcs(Map map)
-        {
-            float altitude = AltitudeLayer.MetaOverlays.AltitudeFor() + Altitudes.AltInc * 3f;
-            foreach (CompSpaceWeapon weapon in SpaceWeaponService.AllWeaponsOn(map))
-            {
-                Vector2 muzzle = SpaceWeaponGeometry.MuzzleMapPoint(weapon);
-                float range = Mathf.Max(1f, weapon.WeaponProps.range);
-                float arc = Mathf.Clamp(weapon.WeaponProps.fireArcDeg, 0f, 360f) * Mathf.Deg2Rad;
-                // 射界是安装座允许目标的区域，中心必须取建筑基准朝向；当前炮管角只
-                // 表示正在转向哪里，否则有限射界武器转到边缘时会把填充错误平移出机械弧。
-                float center = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
-                int segments = Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(arc, 0.03f) * 12f));
-                float start = center - arc * 0.5f;
-                Vector3 origin = ArcPoint(muzzle, 0f, altitude);
-                Vector3 previous = ArcPoint(muzzle, range, start, altitude);
-                // 有面积的射界使用半透明填充；0° 固定轴炮只画明确发射轴。
-                if (arc <= 0.001f)
-                {
-                    GenDraw.DrawLineBetween(origin, previous, SimpleColor.Magenta, 0.12f);
-                    continue;
-                }
-                DrawArcFill(origin, range, center, Mathf.RoundToInt(arc * Mathf.Rad2Deg));
-                if (arc < Mathf.PI * 2f - 0.001f)
-                {
-                    GenDraw.DrawLineBetween(origin, previous, SimpleColor.Magenta, 0.1f);
-                }
-                for (int i = 1; i <= segments; i++)
-                {
-                    float angle = start + arc * i / segments;
-                    Vector3 next = ArcPoint(muzzle, range, angle, altitude);
-                    GenDraw.DrawLineBetween(previous, next, SimpleColor.Magenta, 0.1f);
-                    previous = next;
-                }
-                if (arc < Mathf.PI * 2f - 0.001f)
-                {
-                    GenDraw.DrawLineBetween(origin, previous, SimpleColor.Magenta, 0.1f);
-                }
-            }
-        }
-
-        private static void DrawArcFill(Vector3 origin, float range, float centerAngle, int degrees)
-        {
-            if (weaponArcMaterial == null || degrees <= 0) return;
-            degrees = Mathf.Clamp(degrees, 1, 360);
-            if (!WeaponArcMeshes.TryGetValue(degrees, out Mesh mesh))
-            {
-                int segments = Mathf.Max(2, Mathf.CeilToInt(degrees / 3f));
-                var vertices = new Vector3[segments + 2];
-                var triangles = new int[segments * 3];
-                vertices[0] = Vector3.zero;
-                float half = degrees * 0.5f * Mathf.Deg2Rad;
-                for (int i = 0; i <= segments; i++)
-                {
-                    float angle = Mathf.Lerp(-half, half, i / (float)segments);
-                    vertices[i + 1] = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
-                    if (i == segments) continue;
-                    int tri = i * 3;
-                    triangles[tri] = 0;
-                    triangles[tri + 1] = i + 2;
-                    triangles[tri + 2] = i + 1;
-                }
-                mesh = new Mesh { name = $"DeltaV_WeaponArc_{degrees}" };
-                mesh.vertices = vertices;
-                mesh.triangles = triangles;
-                mesh.RecalculateNormals();
-                mesh.RecalculateBounds();
-                WeaponArcMeshes.Add(degrees, mesh);
-            }
-            Matrix4x4 matrix = Matrix4x4.TRS(origin,
-                Quaternion.Euler(0f, -centerAngle * Mathf.Rad2Deg, 0f),
-                new Vector3(range, 1f, range));
-            Graphics.DrawMesh(mesh, matrix, weaponArcMaterial, 0);
-        }
-
-        private static Vector3 ArcPoint(Vector2 center, float distance, float angle, float altitude)
-        {
-            return new Vector3(center.x + Mathf.Cos(angle) * distance, altitude,
-                center.y + Mathf.Sin(angle) * distance);
-        }
-
-        private static Vector3 ArcPoint(Vector2 center, float distance, float altitude)
-        {
-            return new Vector3(center.x + distance, altitude, center.y);
         }
 
         private static void DrawCells(IEnumerable<IntVec3> cells, float altitude)

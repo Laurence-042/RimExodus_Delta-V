@@ -203,7 +203,7 @@
 	<!-- 护盾后破片：能量比例由弹体服务带入 damageScale。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_ShieldFragmentVsStructure</defName>
-		<projectileDefs><li>DeltaV_Projectile_ShieldFragment</li></projectileDefs>
+		<projectileDefs><li>DeltaV_Projectile_ShieldFragment</li><li>DeltaV_Projectile_RailFragment</li></projectileDefs>
 		<defenderEffect><kind>DamageMap</kind><damageDef>Bullet</damageDef>
 			<damage>12</damage><speedExponent>0</speedExponent><incidenceMinFactor>1</incidenceMinFactor>
 			<armorPenetration>4</armorPenetration></defenderEffect>
@@ -211,7 +211,7 @@
 	</DeltaV.SpaceImpactEffectDef>
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_ShieldFragmentVsSubstructure</defName>
-		<projectileDefs><li>DeltaV_Projectile_ShieldFragment</li></projectileDefs>
+		<projectileDefs><li>DeltaV_Projectile_ShieldFragment</li><li>DeltaV_Projectile_RailFragment</li></projectileDefs>
 		<targetsSubstructure>true</targetsSubstructure>
 		<defenderEffect><kind>DamageMap</kind><damageDef>Bullet</damageDef><damage>8</damage></defenderEffect>
 		<attackerEffect><kind>DestroySelf</kind></attackerEffect>

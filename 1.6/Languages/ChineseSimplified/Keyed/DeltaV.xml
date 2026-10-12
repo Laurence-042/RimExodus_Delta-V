@@ -287,13 +287,34 @@
   <DeltaV_ShuttleBoardNoTarget>该处没有可撞击的容器外壳。</DeltaV_ShuttleBoardNoTarget>
   <DeltaV_ShuttleBoardEngaged>侵入已发起：正在冲撞 {0}。</DeltaV_ShuttleBoardEngaged>
   <DeltaV_PanelBoardArm>侵入</DeltaV_PanelBoardArm>
-  <DeltaV_PanelBoardArmTip>武装此 shuttle 的侵入驱动（在侧边栏「撞击敌壳」按钮指定目标）。任意驾驶键可打断冲撞回到手动；目标保留。</DeltaV_PanelBoardArmTip>
+  <DeltaV_PanelBoardArmTip>武装跳帮艇的侵入驱动，然后用「撞击敌壳」指定目标。任意驾驶键可打断冲撞回到手动；目标保留。</DeltaV_PanelBoardArmTip>
+  <DeltaV_PanelCombatOptions>战斗选项</DeltaV_PanelCombatOptions>
 
-  <DeltaV_DebugThrustersToggleButton>显示 Delta-V 推进器矢量、船体范围与舰炮射界</DeltaV_DebugThrustersToggleButton>
+  <DeltaV_DebugThrustersToggleButton>显示 Delta-V 推进器矢量与船体范围</DeltaV_DebugThrustersToggleButton>
+  <DeltaV_DebugWeaponArcsToggleButton>显示舰炮射界与射程扫描</DeltaV_DebugWeaponArcsToggleButton>
   <DeltaV_DebugCollisionToggleButton>显示全部可见对象的实际碰撞占用格与宽相位包围圆</DeltaV_DebugCollisionToggleButton>
   <DeltaV_FireDeviation>开火允许偏离角：{0}°</DeltaV_FireDeviation>
   <DeltaV_FireDeviationTip>炮口当前方向或固定安装轴与目标方向的最大夹角。弹体仍沿实际炮口方向发射；制导弹可在发射后转向。</DeltaV_FireDeviationTip>
 
   <DeltaV_ThrusterPowerTitle>设置推进器出力上限</DeltaV_ThrusterPowerTitle>
   <DeltaV_ThrusterPowerEntry>推进器出力：{0}%</DeltaV_ThrusterPowerEntry>
+  <DeltaV_ShieldModeGround>切换为太空线盾</DeltaV_ShieldModeGround>
+  <DeltaV_ShieldActivate>启动地面护盾</DeltaV_ShieldActivate>
+  <DeltaV_ShieldDeactivate>关闭地面护盾</DeltaV_ShieldDeactivate>
+  <DeltaV_ShieldNeedCharge>护盾需要至少 100 点容量且完成充能。</DeltaV_ShieldNeedCharge>
+  <DeltaV_ShieldModeSpace>切换为地面圆盾</DeltaV_ShieldModeSpace>
+  <DeltaV_ShieldModeDesc>切换地面／舰内单向圆盾与太空单向折射线盾。太空线盾通电且有蓄电时立即生效；地面圆盾沿用自身的充能状态。</DeltaV_ShieldModeDesc>
+  <DeltaV_ShieldStateGround>地面圆盾</DeltaV_ShieldStateGround>
+  <DeltaV_ShieldStateSpace>太空线盾</DeltaV_ShieldStateSpace>
+  <DeltaV_ShieldRadius>地面盾半径</DeltaV_ShieldRadius>
+  <DeltaV_ShieldProjection>线盾投射距离</DeltaV_ShieldProjection>
+  <DeltaV_ShieldLength>线盾长度</DeltaV_ShieldLength>
+  <DeltaV_ShieldAngle>线盾相对角度</DeltaV_ShieldAngle>
+  <DeltaV_ShieldStrength>折射强度</DeltaV_ShieldStrength>
+  <DeltaV_ShieldStrengthDesc>强度 1–5 对应折射倍率 1.2–2.0；强度越高，弹道越远离盾面法向，也越容易全反射。每次折射或碎裂会额外消耗蓄电。垂直入射不会偏转或耗电，导弹不受线盾影响。</DeltaV_ShieldStrengthDesc>
+  <DeltaV_ShieldReferenceIntro>按当前强度、正面 30° 入射计算（实际数值随入射角变化）：</DeltaV_ShieldReferenceIntro>
+  <DeltaV_ShieldPulseIntro>单发脉冲耗电参考（正面 30° 入射；随折射强度和实际入射角变化）：</DeltaV_ShieldPulseIntro>
+  <DeltaV_ShieldReferenceShatter>碎裂</DeltaV_ShieldReferenceShatter>
+  <DeltaV_ShieldReferenceReflect>全反射</DeltaV_ShieldReferenceReflect>
+  <DeltaV_ShieldReferenceDeviation>转向 {0}°</DeltaV_ShieldReferenceDeviation>
 </LanguageData>

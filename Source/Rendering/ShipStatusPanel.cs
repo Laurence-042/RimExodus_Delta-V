@@ -21,6 +21,8 @@ namespace DeltaV
         private const float PanelWidth = 248f;
         private const float GlobeSize = 212f;
         private const float ShipRowHeight = 24f;
+        private const float MaxPanelHeight = 660f;
+        private const float MaxCombatHeight = 165f;
 
         // 每图选中的「当前查看/操作的船」（运行时 UI 状态；按归属 ID 记忆）。
         private static readonly Dictionary<Map, int> selectedShipByMap = new Dictionary<Map, int>();
@@ -28,6 +30,8 @@ namespace DeltaV
         // 上一次 Draw 的聚焦图（检测聚焦切图时刻，应用「优先玩家船」的重新默认）。
         private static Map lastDrawnMap;
         private static Vector2 contentScroll;
+        private static Vector2 combatScroll;
+        private static bool combatExpanded = true;
 
         public static void Forget(Map map)
         {
@@ -41,6 +45,7 @@ namespace DeltaV
             selectedShipByMap.Clear();
             lastDrawnMap = null;
             contentScroll = Vector2.zero;
+            combatScroll = Vector2.zero;
         }
 
         /// <summary>面板当前选中的船（驾驶切换键等多船入口共用；无选择返回 false）。</summary>
@@ -130,8 +135,6 @@ namespace DeltaV
             LandingApproachController.DockingPlan plan = universe.Approach.ActivePlan;
             bool dockingPlan = plan != null && plan.ship.ownerId == selected.ownerId;
             bool hasShip = selected.IsValid;
-            bool freeFlight = hasShip
-                && ShipRegistry.StateOf(selected) == ShipDerivedState.FreeFlight;
             bool playerControlled = !hasShip || universe.Pilot.CanPlayerControl(selected);
             // 驾驶/认领入口只服务零重力图（重力图只能逆重战略发射）。
             bool zeroGravity = FreeFlightBootstrap.IsZeroGravity(universe, map);
@@ -231,42 +234,46 @@ namespace DeltaV
             bool shuttleFocused = frame.baseTag == SpaceObjectTag.Shuttle;
             float shuttleListHeight = shuttles.Count > 0 ? shuttles.Count * ShipRowHeight + 4f : 0f;
             bool combatBlock = hasShip && playerControlled && zeroGravity;
-            bool fireControlButton = combatBlock && Find.CurrentMap == selected.map;
+            var combatActionsBefore = new List<PilotPanelAction>();
+            var combatActionsAfter = new List<PilotPanelAction>();
+            float combatBodyHeight = 0f;
+            var panelActions = new List<PilotPanelAction>();
+            var headingActions = new List<HeadingPanelAction>();
+            if (zeroGravity)
+            {
+                PilotTarget panelTarget = hasShip ? PilotTarget.Of(selected)
+                    : shuttleFocused ? PilotTarget.Of(SpaceShuttleService.HullOf(frame)) : PilotTarget.Invalid;
+                if (panelTarget.IsValid)
+                    universe.Pilot.ControllerFor(panelTarget)?.CollectPanelActions(panelTarget, panelActions);
+                if (hasShip)
+                    universe.Pilot.ControllerFor(panelTarget)?.CollectHeadingPanelActions(selected, headingActions);
+            }
+            if (combatBlock)
+                universe.Pilot.ControllerFor(PilotTarget.Of(selected))?.CollectCombatPanelActions(
+                    selected, mapHasWeapons, combatActionsBefore, combatActionsAfter);
             float combatHeight = 0f;
             if (combatBlock)
             {
-                combatHeight += 8f;
-                if (fireControlButton) combatHeight += 27f + 6f;
-                combatHeight += 27f + 6f;
-                if (mapHasWeapons)
+                combatHeight = 29f;
+                if (combatExpanded)
                 {
-                    combatHeight += 26f * 2f + 4f; // 主/副两排武器组方块
-                    combatHeight += (27f + 4f) * 2f + 2f; // 进入/重新协调 + 退出战斗位置
+                    combatBodyHeight = combatActionsBefore.Count * 33f;
+                    if (mapHasWeapons)
+                        combatBodyHeight += 26f * 2f + 4f;
+                    combatBodyHeight += combatActionsAfter.Count * 33f;
+                    combatHeight += Mathf.Min(combatBodyHeight, MaxCombatHeight);
                 }
             }
-            float modeButtonsHeight = hasShip
-                ? (playerControlled && zeroGravity ? 27f + 6f : 0f)
-                  + (dockingPlan || (playerControlled && freeFlight) ? 27f + 8f : 0f)
-                  + (playerControlled && freeFlight && !dockingPlan ? 20f + 26f * 3f + 6f : 0f)
-                : (bootstrapEntry || multiConsoleAmbiguous) && zeroGravity ? 27f + 6f : 0f;
-            Building shuttleHull = shuttleFocused ? SpaceShuttleService.HullOf(frame) : null;
-            bool shuttleControls = shuttleFocused && zeroGravity && shuttleHull != null
-                && (shuttleHull.Faction == Faction.OfPlayer || DebugSettings.godMode);
-            bool shuttleDockButton = shuttleControls && !frame.projectileRoleOverride;
-            bool shuttleBoardButton = shuttleControls && shuttleHull.TryGetComp<CompSpaceShuttle>()?.CanBoard == true
-                && universe.Shuttles.IntrusionArmed(frame);
-            if (shuttleControls)
-            {
-                modeButtonsHeight += 27f + 6f;
-                if (shuttleDockButton) modeButtonsHeight += 27f + 8f;
-                if (shuttleBoardButton) modeButtonsHeight += 27f + 8f;
-            }
+            float modeButtonsHeight = panelActions.Count * 33f
+                + (headingActions.Count > 0 ? 20f + 26f * 3f + 6f : 0f)
+                + (!hasShip && (bootstrapEntry || multiConsoleAmbiguous) && zeroGravity ? 33f : 0f);
             modeButtonsHeight += combatHeight;
             float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + shipListHeight
                 + shuttleListHeight + modeButtonsHeight + 8f;
             const float sliderRowHeight = 30f;
             float headerHeight = GlobeSize + 8f + sliderRowHeight;
-            float maxPanelHeight = Mathf.Max(headerHeight + 80f, UI.screenHeight - 80f);
+            float maxPanelHeight = Mathf.Max(headerHeight + 80f,
+                Mathf.Min(MaxPanelHeight, UI.screenHeight - 80f));
             float visibleContentHeight = Mathf.Min(contentHeight, maxPanelHeight - headerHeight);
             float outerHeight = headerHeight + visibleContentHeight;
             float y = Mathf.Clamp(UI.screenHeight * 0.45f - outerHeight * 0.5f, 48f,
@@ -336,7 +343,7 @@ namespace DeltaV
                 lineY += 4f;
             }
 
-            // ---- 在飞 shuttle 列表（§7.2）：点击聚焦其口袋图；跳帮 shuttle 提供侵入开关 ----
+            // ---- 在飞 shuttle 列表（§7.2）：点击聚焦其口袋图；操作由对应 controller 提供 ----
             if (shuttles.Count > 0)
             {
                 foreach (SpaceObject shuttleContainer in shuttles)
@@ -347,7 +354,7 @@ namespace DeltaV
                     {
                         Widgets.DrawHighlight(rowRect);
                     }
-                    string rowLabel = $"'{shuttleContainer.label}' · shuttle";
+                    string rowLabel = shuttleContainer.label;
                     if (Widgets.ButtonInvisible(rowRect, false))
                     {
                         universe.SetFocused(shuttleContainer);
@@ -358,26 +365,6 @@ namespace DeltaV
                     Widgets.Label(rowRect.ContractedBy(4f), rowLabel);
                     Text.Anchor = TextAnchor.UpperLeft;
                     GUI.color = Color.white;
-                        // 侵入武装开关（canBoard 的在飞 shuttle）；目标指定按钮在下方 shuttle 区块。
-                    Building hull = SpaceShuttleService.HullOf(shuttleContainer);
-                    if (hull?.TryGetComp<CompSpaceShuttle>()?.CanBoard == true)
-                    {
-                        var armRect = new Rect(drawWidth - 64f, lineY + 2f, 60f, ShipRowHeight - 4f);
-                        bool armed = universe.Shuttles.IntrusionArmed(shuttleContainer);
-                        if (armed)
-                        {
-                            Widgets.DrawHighlight(armRect);
-                        }
-                        if (Widgets.ButtonInvisible(armRect, false))
-                        {
-                            universe.Shuttles.ToggleIntrusionArmed(shuttleContainer);
-                        }
-                        Text.Font = GameFont.Tiny;
-                        Text.Anchor = TextAnchor.MiddleCenter;
-                        Widgets.Label(armRect, "DeltaV_PanelBoardArm".Translate());
-                        Text.Anchor = TextAnchor.UpperLeft;
-                        TooltipHandler.TipRegion(armRect, "DeltaV_PanelBoardArmTip".Translate());
-                    }
                     lineY += ShipRowHeight;
                 }
                 lineY += 4f;
@@ -385,39 +372,16 @@ namespace DeltaV
 
             // 模式按钮全部收进面板（不再分开放）。已停靠的船同样提供驾驶（2026-09-24
             // 统一分离定案）：首次推进器出力即触发分离，「脱离停靠」不再是独立按钮。
+            foreach (PilotPanelAction action in panelActions)
+            {
+                var actionRect = new Rect(0f, lineY, drawWidth, 27f);
+                if (Widgets.ButtonText(actionRect, action.Label)) action.Execute();
+                if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
+                lineY += 33f;
+            }
             if (hasShip)
             {
-                if (playerControlled && zeroGravity)
-                {
-                    string pilotButton = controlState == ShipControlState.Manual && dockingPlan
-                        ? "DeltaV_ControlSwitchAutopilot".Translate()
-                        : universe.Pilot.IsPlayerInputArmed(selected)
-                            ? "DeltaV_PilotButtonExit".Translate()
-                            : "DeltaV_PilotButtonEnter".Translate();
-                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), pilotButton))
-                    {
-                        universe.Pilot.ToggleControl(universe, selected);
-                    }
-                    lineY += 27f + 6f;
-                }
-                if (dockingPlan)
-                {
-                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_DockCancelButton".Translate()))
-                    {
-                        universe.Approach.CancelSelectionOrPlan(universe, "user");
-                    }
-                    lineY += 27f + 8f;
-                }
-                else if (playerControlled && freeFlight)
-                {
-                    // 自由飞行专属：选择对接（已停靠的船先经出力分离回到自由飞行）。
-                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_BeginDockingButton".Translate()))
-                    {
-                        universe.ShipTransitions.BeginDocking(selected);
-                    }
-                    lineY += 27f + 8f;
-                }
-                if (playerControlled && freeFlight && !dockingPlan)
+                if (headingActions.Count > 0)
                 {
                     // 自由飞行专属：驾驶台朝向罗盘（十字排布四向，一次点击指定主台屏上
                     // 朝向）——整图搬入与当前位置重合的新口袋图并旋转建筑，容器角反调
@@ -438,7 +402,7 @@ namespace DeltaV
                         }
                         if (Widgets.ButtonText(rect, CompassLabel(facing)))
                         {
-                            universe.ShipTransitions.RotateShipHeading(universe, selected, facing);
+                            headingActions.Find(action => action.Facing == facing).Execute?.Invoke();
                         }
                     }
                     DirButton(Rot4.North, new Rect(centerX, lineY, dirBtnW, dirBtnH));
@@ -495,131 +459,83 @@ namespace DeltaV
                 lineY += 27f + 6f;
             }
 
-            // 聚焦在飞 shuttle 口袋图：驾驶切换（PilotTarget 泛化入口，§7.2）。
-            if (shuttleControls)
-            {
-                Building hull = shuttleHull;
-                if (hull != null)
-                {
-                    bool manual = universe.Pilot.GetControlState(PilotTarget.Of(hull)) == ShipControlState.Manual;
-                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f),
-                        manual ? "DeltaV_PilotButtonExit".Translate() : "DeltaV_PilotButtonEnter".Translate()))
-                    {
-                        universe.Pilot.ToggleControl(universe, PilotTarget.Of(hull));
-                    }
-                    lineY += 27f + 6f;
-                    // 选择对接（在飞、非侵入时可发起；与船按钮同一管线入口，§7.4）。
-                    if (shuttleDockButton)
-                    {
-                        if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f),
-                            "DeltaV_BeginDockingButton".Translate()))
-                        {
-                            universe.ShipTransitions.BeginDockingShuttle(hull);
-                        }
-                        lineY += 27f + 8f;
-                    }
-                    // 侵入目标指定（在飞 + canBoard + 武装开启）：唯一入口，点击敌舰外壳。
-                    if (shuttleBoardButton)
-                    {
-                        var boardRect = new Rect(0f, lineY, drawWidth, 27f);
-                        if (Widgets.ButtonText(boardRect, "DeltaV_ShuttleBoardGizmo".Translate()))
-                        {
-                            universe.Shuttles.BeginBoardTargeting(PilotTarget.Of(hull));
-                        }
-                        TooltipHandler.TipRegion(boardRect, "DeltaV_ShuttleBoardGizmoTip".Translate());
-                        lineY += 27f + 8f;
-                    }
-                }
-            }
-
             // ---- 战斗区块：火控与机动分别控制，炮手岗位独立 ----
             if (combatBlock)
             {
-                lineY += 8f;
-                if (fireControlButton)
+                var combatHeader = new Rect(0f, lineY + 2f, drawWidth, 25f);
+                if (Widgets.ButtonText(combatHeader,
+                    (combatExpanded ? "▼ " : "▶ ") + "DeltaV_PanelCombatOptions".Translate()))
+                    combatExpanded = !combatExpanded;
+                lineY += 29f;
+                if (combatExpanded)
                 {
-                    string fireLabel = "DeltaV_PanelFireControl".Translate(
-                        (universe.Controls.FireControlModeFor(selected) == ShipFireControlMode.Automatic
-                            ? "DeltaV_FireControlAutomatic" : "DeltaV_FireControlManual").Translate());
-                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), fireLabel))
+                    float combatOuterY = lineY;
+                    float combatVisibleHeight = Mathf.Min(combatBodyHeight, MaxCombatHeight);
+                    Widgets.BeginScrollView(new Rect(0f, lineY, drawWidth, combatVisibleHeight),
+                        ref combatScroll, new Rect(0f, 0f, drawWidth - 16f, combatBodyHeight));
+                    lineY = 0f;
+                    foreach (PilotPanelAction action in combatActionsBefore)
                     {
-                        universe.Controls.ToggleFireControl(selected);
+                        var actionRect = new Rect(0f, lineY, drawWidth - 16f, 27f);
+                        if (Widgets.ButtonText(actionRect, action.Label)) action.Execute();
+                        if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
+                        lineY += 33f;
                     }
-                    TooltipHandler.TipRegion(new Rect(0f, lineY, drawWidth, 27f),
-                        "DeltaV_PanelFireControlTip".Translate());
-                    lineY += 27f + 6f;
-                }
-                var maneuverRect = new Rect(0f, lineY, drawWidth, 27f);
-                string maneuverLabel = "DeltaV_PanelAutoManeuver".Translate(
-                    universe.Controls.AutoManeuverActiveFor(selected)
-                        ? "DeltaV_On".Translate() : "DeltaV_Off".Translate());
-                if (Widgets.ButtonText(maneuverRect, maneuverLabel))
-                    universe.Controls.ToggleAutoManeuver(selected);
-                TooltipHandler.TipRegion(maneuverRect, "DeltaV_PanelAutoManeuverTip".Translate());
-                lineY += 27f + 6f;
-                if (mapHasWeapons)
-                {
-                    // 两排武器组方块（主/副各一排 1–6；点击切换激活——激活位存主驾驶台）。
-                    CompDeltaVPilotConsole consoleComp = selected.console;
-                    void GroupRow(SpaceWeaponSalvoSet set, string rowLabel)
+                    if (mapHasWeapons)
                     {
-                        var labelRect = new Rect(0f, lineY, 24f, 26f);
-                        Text.Font = GameFont.Tiny;
-                        GUI.color = new Color(1f, 1f, 1f, 0.7f);
-                        Text.Anchor = TextAnchor.MiddleCenter;
-                        Widgets.Label(labelRect, rowLabel);
-                        Text.Anchor = TextAnchor.UpperLeft;
-                        GUI.color = Color.white;
-                        int mask = consoleComp.WeaponGroupMask(set);
-                        const float square = 30f;
-                        for (int group = 1; group <= 6; group++)
+                        // 两排武器组方块（主/副各一排 1–6；点击切换激活——激活位存主驾驶台）。
+                        CompDeltaVPilotConsole consoleComp = selected.console;
+                        void GroupRow(SpaceWeaponSalvoSet set, string rowLabel)
                         {
-                            var rect = new Rect(26f + (group - 1) * square, lineY, square - 2f, 26f);
-                            bool active = (mask & (1 << (group - 1))) != 0;
-                            if (active)
-                            {
-                                Widgets.DrawHighlight(rect);
-                            }
-                            else
-                            {
-                                Widgets.DrawBoxSolid(rect, new Color(1f, 1f, 1f, 0.08f));
-                            }
+                            var labelRect = new Rect(0f, lineY, 24f, 26f);
                             Text.Font = GameFont.Tiny;
+                            GUI.color = new Color(1f, 1f, 1f, 0.7f);
                             Text.Anchor = TextAnchor.MiddleCenter;
-                            GUI.color = active ? Color.white : new Color(1f, 1f, 1f, 0.55f);
-                            Widgets.Label(rect, group.ToString());
+                            Widgets.Label(labelRect, rowLabel);
                             Text.Anchor = TextAnchor.UpperLeft;
                             GUI.color = Color.white;
-                            if (Widgets.ButtonInvisible(rect, false))
+                            int mask = consoleComp.WeaponGroupMask(set);
+                            const float square = 27f;
+                            for (int group = 1; group <= 6; group++)
                             {
-                                consoleComp.SetWeaponGroupMask(set, active ? mask & ~(1 << (group - 1)) : mask | (1 << (group - 1)));
+                                var rect = new Rect(26f + (group - 1) * square, lineY, square - 2f, 26f);
+                                bool active = (mask & (1 << (group - 1))) != 0;
+                                if (active)
+                                {
+                                    Widgets.DrawHighlight(rect);
+                                }
+                                else
+                                {
+                                    Widgets.DrawBoxSolid(rect, new Color(1f, 1f, 1f, 0.08f));
+                                }
+                                Text.Font = GameFont.Tiny;
+                                Text.Anchor = TextAnchor.MiddleCenter;
+                                GUI.color = active ? Color.white : new Color(1f, 1f, 1f, 0.55f);
+                                Widgets.Label(rect, group.ToString());
+                                Text.Anchor = TextAnchor.UpperLeft;
+                                GUI.color = Color.white;
+                                if (Widgets.ButtonInvisible(rect, false))
+                                {
+                                    consoleComp.SetWeaponGroupMask(set, active ? mask & ~(1 << (group - 1)) : mask | (1 << (group - 1)));
+                                }
+                                TooltipHandler.TipRegion(rect, "DeltaV_PanelWeaponGroupTip".Translate(
+                                    ("DeltaV_WeaponSet" + set).Translate(), group.ToString()));
                             }
-                            TooltipHandler.TipRegion(rect, "DeltaV_PanelWeaponGroupTip".Translate(
-                                ("DeltaV_WeaponSet" + set).Translate(), group.ToString()));
+                            lineY += 26f + 2f;
                         }
-                        lineY += 26f + 2f;
+                        GroupRow(SpaceWeaponSalvoSet.Main, "DeltaV_WeaponSetMain".Translate());
+                        GroupRow(SpaceWeaponSalvoSet.Secondary, "DeltaV_WeaponSetSecondary".Translate());
+                        lineY += 2f;
                     }
-                    GroupRow(SpaceWeaponSalvoSet.Main, "DeltaV_WeaponSetMain".Translate());
-                    GroupRow(SpaceWeaponSalvoSet.Secondary, "DeltaV_WeaponSetSecondary".Translate());
-                    lineY += 2f;
-                    // 进入与退出是两个独立动作；再次进入会按最新预留完整重排。
-                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f),
-                        "DeltaV_PanelBattleStationsOn".Translate()))
+                    foreach (PilotPanelAction action in combatActionsAfter)
                     {
-                        universe.Controls.EnterBattleStations(map);
+                        var actionRect = new Rect(0f, lineY, drawWidth - 16f, 27f);
+                        if (Widgets.ButtonText(actionRect, action.Label)) action.Execute();
+                        if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
+                        lineY += 33f;
                     }
-                    TooltipHandler.TipRegion(new Rect(0f, lineY, drawWidth, 27f),
-                        "DeltaV_PanelBattleStationsOnTip".Translate());
-                    lineY += 27f + 4f;
-                    int stationCount = universe.Weapons.BattleStationGunnerCount(map);
-                    if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f),
-                        "DeltaV_PanelBattleStationsOff".Translate(stationCount)))
-                    {
-                        universe.Controls.ExitBattleStations(map);
-                    }
-                    TooltipHandler.TipRegion(new Rect(0f, lineY, drawWidth, 27f),
-                        "DeltaV_PanelBattleStationsOffTip".Translate());
-                    lineY += 27f + 6f;
+                    Widgets.EndScrollView();
+                    lineY = combatOuterY + combatVisibleHeight;
                 }
             }
 

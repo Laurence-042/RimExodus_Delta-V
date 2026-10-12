@@ -80,6 +80,13 @@ namespace DeltaV
             /// <summary>护盾未能挡尽后留下的能量比例；弹体服务在本次扫掠后续飞或生成破片。</summary>
             public float shieldResidualFraction;
             public Vector3 shieldResidualPoint;
+            public bool redirected;
+            public bool didRedirect;
+            public Vector3 redirectPoint;
+            public Vector2 redirectDirection;
+            public float redirectRemaining;
+            public System.Action<Vector3, Vector3, Vector2, bool> onShieldRedirect;
+            public System.Action<Vector3, Vector2> onShieldShatter;
         }
 
         /// <summary>命中事件（几何事实一次性计算；池化复用，调用方不得持有引用）。</summary>
@@ -133,6 +140,7 @@ namespace DeltaV
             public int measuredAtTick = -1;
             public readonly List<IntVec3> occupiedCells = new List<IntVec3>();
             public readonly List<ShieldArc> arcs = new List<ShieldArc>();
+            public readonly List<CompSpaceShield> lineShields = new List<CompSpaceShield>();
         }
 
         private static readonly Dictionary<Map, Surface> Caches = new Dictionary<Map, Surface>();
@@ -147,6 +155,12 @@ namespace DeltaV
         public static void Forget(Map map)
         {
             if (map != null) Caches.Remove(map);
+        }
+
+        public static void InvalidateShield(Map map)
+        {
+            if (map != null && Caches.TryGetValue(map, out Surface surface))
+                surface.structureVersion = -1;
         }
 
         /// <summary>容器的碰撞面（需要炮口外推起点的发射侧也可查询）。</summary>
@@ -193,6 +207,34 @@ namespace DeltaV
             return occupied.Count > 0;
         }
 
+        public readonly struct ShieldVisualSegment
+        {
+            public readonly Vector3 from;
+            public readonly Vector3 to;
+
+            public ShieldVisualSegment(Vector3 from, Vector3 to)
+            {
+                this.from = from;
+                this.to = to;
+            }
+        }
+
+        /// <summary>显示直接读取碰撞缓存中的盾实例及同一 GetSegment 几何。</summary>
+        public static void CollectVisibleShieldSegments(SpaceObject obj,
+            List<ShieldVisualSegment> output)
+        {
+            if (obj?.map == null || obj.map.Disposed) return;
+            Surface surface = SurfaceFor(obj);
+            foreach (CompSpaceShield shield in surface.lineShields)
+            {
+                if (shield.State != SpaceShieldState.SpaceActive) continue;
+                shield.GetSegment(out Vector2 a, out Vector2 b, out _);
+                output.Add(new ShieldVisualSegment(
+                    SpaceTransform.MapPointToUniverse(obj, obj.map, a),
+                    SpaceTransform.MapPointToUniverse(obj, obj.map, b)));
+            }
+        }
+
         private static void Rebuild(Map map, Surface surface, int version, int now)
         {
             int cells = map.cellIndices.NumGridCells;
@@ -236,24 +278,33 @@ namespace DeltaV
                 surface.boundsCenter = SpaceTransform.ShipLocalOrigin(map);
                 surface.boundsRadius = 0f;
             }
-            // 护盾弧（段5）：全部 CompGravshipShieldGenerator 建筑各注册一段弧；
-            // 弧跨/朝向经 CompSpaceShieldArc（def patch），缺省全圆环。弧半径计入
-            // 包围域（宽相位必须覆盖弧）。
+            // 目标发生器走逐实例线盾；其他原版拦截器保留旧圆弧路径。
+            // 两者的最大端点都计入宽相位包围域。
             surface.arcs.Clear();
+            surface.lineShields.Clear();
             float arcBoost = 0f;
             foreach (Thing thing in map.listerThings.AllThings)
             {
                 if (thing is not Building building || building.Destroyed) continue;
                 CompProjectileInterceptor interceptor = building.TryGetComp<CompProjectileInterceptor>();
                 if (interceptor == null) continue;
-                CompSpaceShieldArc arcProps = building.TryGetComp<CompSpaceShieldArc>();
+                CompSpaceShield line = building.TryGetComp<CompSpaceShield>();
+                if (line != null)
+                {
+                    surface.lineShields.Add(line);
+                    line.GetSegment(out Vector2 a, out Vector2 b, out _);
+                    arcBoost = Mathf.Max(arcBoost, (a - surface.boundsCenter).magnitude
+                        - surface.boundsRadius, (b - surface.boundsCenter).magnitude
+                        - surface.boundsRadius);
+                    continue;
+                }
                 var arc = new ShieldArc
                 {
                     center = new Vector2(building.Position.x + building.def.Size.x * 0.5f,
                         building.Position.z + building.def.Size.z * 0.5f),
                     radius = interceptor.Props.radius,
-                    facing = arcProps?.FacingRad ?? 0f,
-                    span = arcProps?.SpanRad ?? Mathf.PI * 2f,
+                    facing = 0f,
+                    span = Mathf.PI * 2f,
                     building = building,
                     interceptor = interceptor,
                 };
@@ -280,20 +331,35 @@ namespace DeltaV
             {
                 SweptBody body = bodies[b];
                 if (body.dead || body.attacker == null) continue;
-                for (int d = 0; d < objects.Count; d++)
+                for (int bounce = 0; bounce < 16 && !body.dead; bounce++)
                 {
-                    SpaceObject defender = objects[d];
-                    if (defender == body.attacker || defender == body.excludeContainer) continue;
-                    if (body.ignoreNonHostileProjectiles && defender.IsActiveCollider
-                        && !AreHostile(body.attacker.faction, defender.faction))
+                    bool redirected = false;
+                    for (int d = 0; d < objects.Count; d++)
                     {
-                        continue;
+                        SpaceObject defender = objects[d];
+                        if (defender == body.attacker || defender == body.excludeContainer) continue;
+                        if (body.ignoreNonHostileProjectiles && defender.IsActiveCollider
+                            && !AreHostile(body.attacker.faction, defender.faction)) continue;
+                        Map defMap = defender.map;
+                        if (defMap == null || defMap.Disposed) continue;
+                        if (universe.Generation?.IsGenerating(defMap) == true) continue;
+                        body.redirected = false;
+                        if (!SweepOne(body, defender, defMap)) continue;
+                        if (body.dead) break;
+                        if (!body.redirected) continue;
+                        Vector3 oldFrom = body.from;
+                        body.onShieldRedirect?.Invoke(oldFrom, body.redirectPoint,
+                            body.redirectDirection, false);
+                        body.from = OrbitSphere.Move(body.redirectPoint,
+                            body.redirectDirection * 0.03f);
+                        body.to = OrbitSphere.Move(body.from,
+                            body.redirectDirection * body.redirectRemaining);
+                        body.didRedirect = true;
+                        if (bounce == 15) body.to = body.from;
+                        redirected = true;
+                        break;
                     }
-                    Map defMap = defender.map;
-                    if (defMap == null || defMap.Disposed) continue;
-                    if (universe.Generation?.IsGenerating(defMap) == true) continue;
-                    if (!SweepOne(body, defender, defMap)) continue;
-                    if (body.dead) break;
+                    if (!redirected) break;
                 }
             }
         }
@@ -323,20 +389,28 @@ namespace DeltaV
             float distanceToCenter = (toCenter - dir * along).magnitude;
             if (distanceToCenter > surface.boundsRadius + body.sweepRadius + 0.5f) return false;
 
-            // 先弧后格：活动护盾只要仍有容量就拦截；不足部分由弹体服务续飞。
+            // 先求最近盾交，再只采样交点前的建筑；折射后由外层继续同一求交链。
             float sampleLength = length;
+            CompSpaceShield lineShield = null;
+            Vector2 linePoint = default;
+            Vector2 lineNormal = default;
+            float lineAlong = float.MaxValue;
+            SpaceShieldProjectileBehavior behavior = SpaceShieldProjectileBehavior.For(body.projectileDef);
+            if (!behavior.IgnoresShield && TryFindLineHit(surface, fromLocal, dir, length,
+                out lineShield, out linePoint, out lineNormal, out lineAlong))
+                sampleLength = lineAlong;
             ShieldArc shieldArc = null;
             Vector2 shieldPoint = default;
             float shieldIncidence = 0f;
             SpaceImpactEffectDef shieldEffect = null;
             float relativeSpeed = SpaceTransform.RelativeVelocity(body.attacker.pose, defender.pose).magnitude;
-            if (surface.arcs.Count > 0
+            if (!behavior.IgnoresShield && surface.arcs.Count > 0
                 && TryFindArcHit(surface, fromLocal, dir, length, out ShieldArc arc, out Vector2 point, out float arcAlong))
             {
                 Vector2 radial = (point - arc.center).normalized;
                 float incidence = SpaceTransform.IncidenceAngle(dir, radial);
                 SpaceImpactEffectDef effect = SpaceImpactEffects.Resolve(body.projectileDef, arc.building.def);
-                if (arc.interceptor.currentHitPoints > 0)
+                if (arc.interceptor.currentHitPoints > 0 && arcAlong < sampleLength)
                 {
                     sampleLength = arcAlong;
                     shieldArc = arc;
@@ -352,7 +426,7 @@ namespace DeltaV
             HashSet<IntVec3> passedSubstructure = null;
             for (int s = 0; s <= steps; s++)
             {
-                Vector2 p = fromLocal + dir * (SampleStep * s);
+                Vector2 p = fromLocal + dir * Mathf.Min(sampleLength, SampleStep * s);
                 if (!FindBestCell(body, defMap, surface, fromLocal, p,
                     passedBuildings, passedSubstructure,
                     out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing))
@@ -433,6 +507,42 @@ namespace DeltaV
                 }
                 SpaceImpactEffects.ApplyToDefender(evt, effect?.defenderEffect, durabilityScale);
                 ApplyAttackerOutcome(body, effect, defender, evt.hitUniverse, evt.hitDefenderLocal);
+                return true;
+            }
+
+            if (lineShield != null && lineAlong <= sampleLength + 0.001f)
+            {
+                Vector2 outgoing = SpaceShieldRefraction.Refract(dir, lineNormal,
+                    lineShield.refractionStrength, out float incident, out _);
+                CompProperties_SpaceProjectile projectileProps = body.projectileDef
+                    ?.GetCompProperties<CompProperties_SpaceProjectile>();
+                bool shatter = projectileProps != null && behavior.Shatters(projectileProps, incident);
+                float change = Vector2.Angle(dir, outgoing);
+                Vector3 hit = SpaceTransform.MapPointToUniverse(defender, defMap, linePoint);
+                // 垂直入射没有折射与碎裂，穿过该层且不产生脉冲费用。
+                if (change > 0.01f || shatter)
+                {
+                    float cost = behavior.PulseCost(projectileProps, lineShield.refractionStrength,
+                        change, shatter);
+                    if (!lineShield.TryConsumePulse(cost)) outgoing = dir;
+                    else if (shatter)
+                    {
+                        body.resolvedHit = true;
+                        body.resolvedHitShield = true;
+                        body.resolvedHitUniverse = hit;
+                        body.resolvedHitDefender = defender;
+                        body.resolvedHitLocal = linePoint;
+                        body.onShieldShatter?.Invoke(hit, outgoing);
+                        body.dead = true;
+                        body.onSelfDestruct?.Invoke();
+                        return true;
+                    }
+                }
+                body.redirected = true;
+                body.redirectPoint = hit;
+                body.redirectDirection = SpaceTransform.MapDirectionToUniverseTangent(defender,
+                    defMap, linePoint, outgoing);
+                body.redirectRemaining = length - lineAlong;
                 return true;
             }
 
@@ -554,6 +664,34 @@ namespace DeltaV
                 }
             }
             return hitArc != null;
+        }
+
+        private static bool TryFindLineHit(Surface surface, Vector2 from, Vector2 dir,
+            float length, out CompSpaceShield hitShield, out Vector2 hitPoint,
+            out Vector2 hitNormal, out float along)
+        {
+            hitShield = null;
+            hitPoint = default;
+            hitNormal = default;
+            along = float.MaxValue;
+            foreach (CompSpaceShield shield in surface.lineShields)
+            {
+                if (shield.State != SpaceShieldState.SpaceActive) continue;
+                shield.GetSegment(out Vector2 a, out Vector2 b, out Vector2 normal);
+                if (Vector2.Dot(dir, normal) >= -0.0001f) continue;
+                Vector2 edge = b - a;
+                float cross = dir.x * edge.y - dir.y * edge.x;
+                if (Mathf.Abs(cross) < 1e-6f) continue;
+                Vector2 difference = a - from;
+                float t = (difference.x * edge.y - difference.y * edge.x) / cross;
+                float u = (difference.x * dir.y - difference.y * dir.x) / cross;
+                if (t < 0.001f || t > length || u < 0f || u > 1f || t >= along) continue;
+                along = t;
+                hitShield = shield;
+                hitPoint = from + dir * t;
+                hitNormal = normal;
+            }
+            return hitShield != null;
         }
 
         /// <summary>

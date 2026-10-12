@@ -190,7 +190,7 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `ShipRegistry`：船、控制域、状态、船体锚、朝向和派系查询。
 - `SubstructureOwnership`：基架归属、连通认领和结构版本；质量报告、控制域与碰撞面共用其结构版本失效判定及设置页重扫间隔。基架与归属同步移除（`RemoveFoundation`/`RemoveGravshipTerrainUnsafe` postfix → `NotifyFoundationRemoved`），「归属仅在有基架的格上有意义」恒成立。
 - `ShipPhysics`：质量/惯量、推进器、分配器、阻力和积分。
-- `PilotTarget` / `PilotService` / `ShipControlService` / `ShipController`：普通船与 shuttle 的统一驾驶层；每个船归属由实例注册表持有一个玩家或 NPC controller，基类统一调度齐射、转向、点防与炮手事件。主驾驶台保存玩家火控模式（默认自动），`SpaceAimController` 只在手动集火且为聚焦图所选船时提供输入和预瞄。
+- `PilotTarget` / `PilotService` / `ShipControlService` / `ShipController`：普通船与 shuttle 的统一驾驶层；每个船归属由实例注册表持有一个玩家或 NPC controller，基类统一调度齐射、转向、点防与炮手事件。侧边栏操作由对应 controller 注册，公共驾驶／对接操作放基类，跳帮艇侵入操作放玩家子类；面板只负责显示和布局。主驾驶台保存玩家火控模式（默认自动），`SpaceAimController` 只在手动集火且为聚焦图所选船时提供输入和预瞄。
 - `ShipAutoFireControl` / `ShipAutoManeuverControl`：玩家与 NPC controller 共用的自动选敌、齐射意图和战斗站位类；玩家自动火控只筛敌对 Ship tag，自动机动开关为运行时状态且不触发 NPC 撤退或跳帮。
 - `ShipAutopilot`：固定/随动/追踪任务；制导经 `IAutopilotGuidance`。
 - `ShipFlightTransitionService`：分离、跨图转移、对接发起和源图善后。
@@ -203,8 +203,10 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `Building_SpaceTurretGun` / `DefModExtension_SpaceTurretArt`：替换指定炮塔的旋转顶部材质，位置、角度和绘制继续走原版 `Building_TurretGun`/`TurretTop`；Def 固定为仅点防的 1×1 激光炮不触发原版同图索敌，以免发射原版机炮弹。
 - `CompMissileAutoloader` / `SpaceMissileMagazineGeometry` / `CompLoadedProjectileGraphic`：唯一 1×3 无人导弹架使用原版 `CompChangeableProjectile` 的一发待发状态和弹种筛选；前一格嵌墙、后两格在船内。1×2 气密导弹仓只可与船内两格同向并排，左右槽位由发射架 Def 声明；原版设施 Comp 登记链接，建造与运行时复用同一几何判定，同归属同派系才自动送入实体导弹。开火、库存、筛选、供电和归属事件合并到下一游戏 tick 按发射架 ID 顺序补弹，双架共享仓不重复取弹；仅库存被原版预留而受阻时保留条件性 60 tick 重试。发射架保留三层整图，以 `Patch_MissileLauncherWallLink` 使原版墙在 `LinkGrid` 中与其相连。导弹物品通过 `DefModExtension_SpaceMissileAmmo` 指向宇宙弹体，三层绘制中层读取同一 `SelectMagazine()` 结果；不改共享 `GraphicData`。
 - `SpaceProjectileService` / `SpaceCollision` / `SpaceImpactEffects`：含冷发射程序的宇宙弹体、统一碰撞与联合命中效果链；弹道工作对象与弹体小图分别池化，SpaceObject 身份每发新建；炮口闪光、点火尾焰/烟迹和命中视觉只由弹体服务登记并在前台层绘制，不另建弹道。
+- `CompSpaceShield` / `CompDeltaVShieldInterceptor` / `SpaceShieldRefraction` / `SpaceShieldProjectileBehavior`：独立 `DeltaV_ShieldGenerator` 建筑的地面圆盾与太空单向线盾逐实例模式、几何、电费和分层投射器绘制；原版发生器保持原样。专用拦截器继承原版容量／计时／拦截，仅以本机电网充能；地面半径由实例化的原版拦截器 Props 提供。太空盾交点只在 `SpaceCollision` 求解，弹体类型决定碎裂及新 projectile 初始化；折射方向由碰撞与动态说明共用 `SpaceShieldRefraction`，脉冲电费由弹体行为计算。盾层显示、选中预览、碰撞与脉冲扣费只读取 `CompSpaceShield.State`，盾段几何共用 `GetSegment`；切换太空模式后有蓄电即生效，欠电失效时同时隐藏并停止拦截。设置窗口拖动时写入实例参数，关闭未确认时恢复旧值；不修改 Def 共享 `GraphicData` 或原版盾 Props。
 - `ShellRenderer` / `MapOverlayRenderer` / `ShellRenderRuleDef` / `DockingGhostRenderer` / `ShipSilhouette`：整壳分层、地图内容收集、Thing 外壳绘制配置、幽灵和剪影。入壳 Thing 的静态层走原版 `Thing.Print`，实时层经限定作用域捕获原版 `Graphics.DrawMesh`；替代图为有序整组替换。门在外壳上仅同步全开／全关终态。炮塔旋转炮身由 `IShellTurretTopSource` 提供当前材质和角度，规则决定仅绘炮身并置于船壳上层；轨道装弹机用规则排除，加速段内构与外壳入壳，不修改碰撞分类。
 - `ThrusterEffects` / `ThrusterAudio`：只读真实分配油门的表现。
+- `ThrusterDebugOverlay` / `WeaponArcOverlay` / `CollisionDebugOverlay`：聚焦图上的三个独立会话视图开关。武器射界直接读取武器 Def 的真实射程与安装射界；只绘边界和按游戏 tick 扫动的线，实例颜色由 Thing ID 稳定分配，不影响火控。射界开关关闭时不调用绘制入口，材质和网格只在开启后首次需要时创建，并在关闭时释放。
 - `MoonPoolUtility` / `Patch_MoonPool` / `MoonPoolGraphics` / `SectionLayer_MoonPool`：月池判定、无顶密封和连接视觉；每图月池格缓存首次查询建立，此后随地形变化逐格维护，不按 tick 重扫。
 - `SpaceLifecycleService`：生成、休眠、物化、归档和销图。无快照 marker 首次物化的内容链 = 类型 prefab 池（seed 确定性选取，入队测尺寸与盖章同一解析），**容器先注册、结构后铺设**（驾驶台 `ClaimOnSpawn` 认领要求 FrameOf 已解析；归属名 = marker 生成时决定的完整名，经 envLabel/归档 carriedLabel 传承）。池空在生成期拦截；池失效在入队/物化期报错并取消该 POI（prefab-only，不回退程序生成）。
 - `NpcShipAiService` / `NpcShipController`：NPC 战术资格、战损撤退、退场及跳帮仍在 NPC 层；选敌和站位调用上述共用类。已选目标的射击、点防与自动驾驶仍逐 tick，开火走共同 controller 和 `SpaceWeaponShot`。炮手补位由岗位结束、武器状态和 Pawn 可用性事件触发，NPC 不再每 60 tick 重派。AI 资格门禁与 dev 诊断共用同一判定，Combat 日志只输出状态变化。`ArchivedMapStore` 是远距普通口袋容器的原版 `Map.ExposeData` 整图序列化与运行时卸载/恢复入口，归档内容随 `SpaceObject` 落档；远距归档与恢复按设置周期全量检查，撤退航程按实际经过的游戏 tick 推进。该路径尚待游戏内存读档和引用完整性验收。

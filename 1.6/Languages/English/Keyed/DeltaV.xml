@@ -288,12 +288,33 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShuttleBoardEngaged>Intrusion engaged: ramming {0}.</DeltaV_ShuttleBoardEngaged>
   <DeltaV_PanelBoardArm>Board</DeltaV_PanelBoardArm>
   <DeltaV_PanelBoardArmTip>Arm the intrusion drive for this shuttle (pick the target with the "Ram target hull" button in the status panel). Pressing any flight key breaks off the ram and returns manual control; the target is kept.</DeltaV_PanelBoardArmTip>
+  <DeltaV_PanelCombatOptions>Combat options</DeltaV_PanelCombatOptions>
 
-  <DeltaV_DebugThrustersToggleButton>Show Delta-V thruster vectors, hull extent, and weapon arcs</DeltaV_DebugThrustersToggleButton>
+  <DeltaV_DebugThrustersToggleButton>Show Delta-V thruster vectors and hull extent</DeltaV_DebugThrustersToggleButton>
+  <DeltaV_DebugWeaponArcsToggleButton>Show weapon traverse and range scans</DeltaV_DebugWeaponArcsToggleButton>
   <DeltaV_DebugCollisionToggleButton>Show actual collision cells and broad-phase bounds for all visible objects</DeltaV_DebugCollisionToggleButton>
   <DeltaV_FireDeviation>Firing deviation: {0}°</DeltaV_FireDeviation>
   <DeltaV_FireDeviationTip>Maximum angle between the current barrel or fixed launch axis and the target. Shots follow the actual launch direction; guided missiles can turn afterward.</DeltaV_FireDeviationTip>
 
   <DeltaV_ThrusterPowerTitle>Set thruster power limit</DeltaV_ThrusterPowerTitle>
   <DeltaV_ThrusterPowerEntry>Thruster power: {0}%</DeltaV_ThrusterPowerEntry>
+  <DeltaV_ShieldModeGround>Switch to space shield</DeltaV_ShieldModeGround>
+  <DeltaV_ShieldActivate>Activate ground shield</DeltaV_ShieldActivate>
+  <DeltaV_ShieldDeactivate>Deactivate ground shield</DeltaV_ShieldDeactivate>
+  <DeltaV_ShieldNeedCharge>The shield needs at least 100 capacity and must finish charging.</DeltaV_ShieldNeedCharge>
+  <DeltaV_ShieldModeSpace>Switch to ground shield</DeltaV_ShieldModeSpace>
+  <DeltaV_ShieldModeDesc>Switch between the ground one-way dome and the space refracting line. The space line activates immediately when powered and supplied with stored energy; the ground dome uses its own charge state.</DeltaV_ShieldModeDesc>
+  <DeltaV_ShieldStateGround>Ground dome</DeltaV_ShieldStateGround>
+  <DeltaV_ShieldStateSpace>Space shield line</DeltaV_ShieldStateSpace>
+  <DeltaV_ShieldRadius>Ground shield radius</DeltaV_ShieldRadius>
+  <DeltaV_ShieldProjection>Shield projection distance</DeltaV_ShieldProjection>
+  <DeltaV_ShieldLength>Shield line length</DeltaV_ShieldLength>
+  <DeltaV_ShieldAngle>Shield angle from facing</DeltaV_ShieldAngle>
+  <DeltaV_ShieldStrength>Refraction strength</DeltaV_ShieldStrength>
+  <DeltaV_ShieldStrengthDesc>Strength 1–5 gives a refraction factor of 1.2–2.0. Higher strength bends projectiles farther from the shield normal and causes total reflection sooner. Each refraction or fragmentation pulse draws stored energy. Normal incidence has no effect or pulse cost; missiles ignore the line shield.</DeltaV_ShieldStrengthDesc>
+  <DeltaV_ShieldReferenceIntro>At the current strength and 30° incidence from the front (actual values vary with angle):</DeltaV_ShieldReferenceIntro>
+  <DeltaV_ShieldPulseIntro>Pulse energy per shot at 30° incidence (varies with strength and actual angle):</DeltaV_ShieldPulseIntro>
+  <DeltaV_ShieldReferenceShatter>fragments</DeltaV_ShieldReferenceShatter>
+  <DeltaV_ShieldReferenceReflect>total reflection</DeltaV_ShieldReferenceReflect>
+  <DeltaV_ShieldReferenceDeviation>deflects {0}°</DeltaV_ShieldReferenceDeviation>
 </LanguageData>
