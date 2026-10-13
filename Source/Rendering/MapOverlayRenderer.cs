@@ -3,7 +3,6 @@ using System.Reflection;
 using HarmonyLib;
 using RimWorld;
 using UnityEngine;
-using UnityEngine.Rendering;
 using Verse;
 
 namespace DeltaV
@@ -89,7 +88,7 @@ namespace DeltaV
 
         /// <summary>
         /// 收集一壳的全部四边形（地形/建筑/角盖板）到待发命令表。返回是否有可见内容；
-        /// 调用方随后可经 AddFlameCommand 追加火焰，再 EmitShellCommands 写入目标缓冲。
+        /// 调用方随后可经 AddFlameCommand 追加火焰，再交由绘制接收器同步消费。
         /// </summary>
         public static bool CollectShellCommands(Map map, Matrix4x4 matrix, Quaternion rotation,
             CellRect localView, HashSet<IntVec3> allowedCells = null)
@@ -114,7 +113,7 @@ namespace DeltaV
 
         /// <summary>火焰命令追加（ThrusterEffects 调用）：queue 取材质 renderQueue
         /// （火焰材质 3201，经排序天然位于壳内地形 3000 之上）；props 必须是本命令
-        /// 独占的池化块（CommandBuffer 对块内容的读取时序不保证记录时快照）。</summary>
+        /// 独占的池化块，保证后端同步消费时每条命令的属性独立。</summary>
         internal static void AddFlameCommand(Mesh mesh, Matrix4x4 matrix, Material material, MaterialPropertyBlock props)
         {
             Commands.Add(new OverlayCommand
@@ -156,28 +155,15 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 把收集到的命令写入 commandBuffer：按 (surface, renderQueue, sequence) 排序，
-        /// 每个表面层清深度（保色）后绘制。炮身因此确定位于船壳之上，内部部件可
-        /// 显式排除；壳间继续由 ShellLayer 独立清深度。正交俯视相机下 Graphics.DrawMesh 的
-        /// 透明队列按 bounds 距离排序、x/z 分量会压过海拔差，负海拔高度带方案已实测
-        /// 证伪，勿回退（详见 ShellRenderer.DrawNonFocusedShells）。
+        /// 按 (surface, renderQueue, sequence) 排序后整批同步交给绘制后端。
+        /// 当前命令表会被下一次收集复用，火焰属性块也在帧内池化；后端不得保留命令引用。
+        /// 表面层与整壳间的深度处理由后端实现，内容收集不依赖具体绘制 API。
         /// </summary>
-        public static void EmitShellCommands(CommandBuffer buffer)
+        internal static void EmitShellCommands(IShellDrawBackend backend)
         {
             if (Commands.Count == 0) return;
             Commands.Sort(CompareCommands);
-            ShellSurfaceLayer currentSurface = (ShellSurfaceLayer)byte.MaxValue;
-            for (int i = 0; i < Commands.Count; i++)
-            {
-                OverlayCommand command = Commands[i];
-                if (command.surface != currentSurface)
-                {
-                    buffer.ClearRenderTarget(true, false, Color.clear, 1f);
-                    currentSurface = command.surface;
-                }
-                buffer.DrawMesh(command.mesh, command.matrix, command.material,
-                    command.submeshIndex, -1, command.props);
-            }
+            backend.DrawSorted(Commands);
         }
 
         private static int CompareCommands(OverlayCommand left, OverlayCommand right)

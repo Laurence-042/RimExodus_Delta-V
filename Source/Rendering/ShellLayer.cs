@@ -5,21 +5,19 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 船壳挂载层（2026-09-20 用户决策的结构收口）：一「层」= 一个相机事件上的
-    /// 命令缓冲 + 该层的收尾语义。调用方经 <see cref="Slot"/>（哪一层 + 层内哪个
-    /// 槽位）显式声明绘制目的地；层序由发射顺序保证，不依赖 3D 深度（机制与
-    /// 「勿回退海拔/深度排序」约束见 MapOverlayRenderer.EmitShellCommands 与
-    /// AGENTS §9 整壳分层机制）。
+    /// 船壳编排层：调用方经 <see cref="Slot"/>（哪一层 + 层内哪个槽位）显式声明
+    /// 绘制目的地；层序由发射顺序保证。相机挂载、网格提交与清深度由后端负责。
     /// </summary>
     internal abstract class ShellLayer
     {
-        private CommandBuffer buffer;
-        private Camera attachedCamera;
+        private IShellDrawBackend backend;
         private int lastEmittedSlot = -1;
 
         protected abstract CameraEvent Event { get; }
 
         protected abstract string BufferName { get; }
+
+        private IShellDrawBackend Backend => backend ??= new CommandBufferShellDrawBackend(Event, BufferName);
 
         /// <summary>绘制目的地：哪一层 + 层内槽位（自下而上的整组序号）。
         /// 由层的 At(i) 构造，防止调用方手工拼装。</summary>
@@ -40,32 +38,22 @@ namespace DeltaV
             return new Slot(this, index);
         }
 
-        /// <summary>挂到地图相机（RimExodus SeamlessTileRenderer.EnsureCommandBuffer
-        /// 同款）。RimWorld 全程复用同一相机对象；相机身份变化时重挂，防跨相机残留。</summary>
+        /// <summary>确保当前绘制后端绑定地图相机。</summary>
         public void EnsureAttached(Camera camera)
         {
-            if (buffer != null && attachedCamera == camera) return;
-            Detach();
-            buffer = new CommandBuffer { name = BufferName };
-            attachedCamera = camera;
-            attachedCamera.AddCommandBuffer(Event, buffer);
+            Backend.EnsureAttached(camera);
         }
 
         public void Detach()
         {
-            if (attachedCamera != null && buffer != null)
-                attachedCamera.RemoveCommandBuffer(Event, buffer);
-            buffer?.Release();
-            buffer = null;
-            attachedCamera = null;
+            backend?.Detach();
             lastEmittedSlot = -1;
         }
 
-        /// <summary>每帧开始（含不画的帧）：清空旧命令——不清会在相机上逐帧重放
-        /// （RimExodus 同款教训）；同时重置槽位自检基线。</summary>
+        /// <summary>每帧开始（含不画的帧）：清理后端帧状态并重置槽位自检基线。</summary>
         public void BeginFrame()
         {
-            buffer?.Clear();
+            backend?.BeginFrame();
             lastEmittedSlot = -1;
         }
 
@@ -85,15 +73,15 @@ namespace DeltaV
             {
                 Log.WarningOnce($"[DeltaV] ShellLayer 收到外层槽位：{BufferName} <- {slot.layer.BufferName}", 0x4D31A02 + (int)Event * 2);
             }
-            MapOverlayRenderer.EmitShellCommands(buffer);
+            MapOverlayRenderer.EmitShellCommands(Backend);
         }
 
         /// <summary>本帧全部槽位发射完的收尾；语义由子类定义（两层语义不同，勿合并）。</summary>
         public abstract void Finish(bool anyDrawn);
 
-        protected void ClearDepthOnly()
+        protected void FinishLayer()
         {
-            buffer?.ClearRenderTarget(true, false, Color.clear, 1f);
+            backend?.FinishLayer();
         }
     }
 
@@ -109,7 +97,7 @@ namespace DeltaV
         /// 全部背景壳（玩家关注聚焦图内部，2026-09-20 用户决策）。</summary>
         public override void Finish(bool anyDrawn)
         {
-            if (anyDrawn) ClearDepthOnly();
+            if (anyDrawn) FinishLayer();
         }
     }
 
@@ -123,7 +111,7 @@ namespace DeltaV
         /// <summary>防御性收尾：不向前台层之后的其他缓冲遗留本组深度。</summary>
         public override void Finish(bool anyDrawn)
         {
-            if (anyDrawn) ClearDepthOnly();
+            if (anyDrawn) FinishLayer();
         }
     }
 }

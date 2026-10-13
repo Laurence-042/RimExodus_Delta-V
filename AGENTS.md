@@ -102,7 +102,7 @@ RimExodus 可参考多 Map 生命周期、跨图状态、聚焦切换、Projecti
 
 ## 9. 非聚焦对象与外壳代理
 
-外壳代理是可丢弃缓存，真实结构来自 Map。它支持连续位置、任意角旋转、结构 dirty/rebuild 和命令缓冲分层。
+外壳代理是可丢弃缓存，真实结构来自 Map。它支持连续位置、任意角旋转、结构 dirty/rebuild 和绘制命令分层；当前 1.6 绘制后端使用命令缓冲。
 
 重叠外壳按 objectId 整壳排序；背景壳在聚焦图下，进场/选点壳在聚焦图上。不得退回依赖海拔或透明队列的逐建筑排序。推进器火焰命令的 `MaterialPropertyBlock` 每命令独立。
 
@@ -205,7 +205,7 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `CompMissileAutoloader` / `SpaceMissileMagazineGeometry` / `CompLoadedProjectileGraphic`：唯一 1×3 无人导弹架使用原版 `CompChangeableProjectile` 的一发待发状态和弹种筛选；前一格嵌墙、后两格在船内。1×2 气密导弹仓只可与船内两格同向并排，左右槽位由发射架 Def 声明；原版设施 Comp 登记链接，建造与运行时复用同一几何判定，同归属同派系才自动送入实体导弹。开火、库存、筛选、供电和归属事件合并到下一游戏 tick 按发射架 ID 顺序补弹，双架共享仓不重复取弹；仅库存被原版预留而受阻时保留条件性 60 tick 重试。发射架保留三层整图，以 `Patch_MissileLauncherWallLink` 使原版墙在 `LinkGrid` 中与其相连。导弹物品通过 `DefModExtension_SpaceMissileAmmo` 指向宇宙弹体，三层绘制中层读取同一 `SelectMagazine()` 结果；不改共享 `GraphicData`。
 - `SpaceProjectileService` / `SpaceCollision` / `SpaceImpactEffects`：含冷发射程序的宇宙弹体、统一碰撞与联合命中效果链；普通弹体每发新建 SpaceObject，侵入 shuttle 接管现有容器与地图，复用同一导弹工作表而不归入普通弹体图池。炮口闪光、点火尾焰/烟迹和命中视觉只由弹体服务登记并在前台层绘制，不另建弹道。
 - `CompSpaceShield` / `CompDeltaVShieldInterceptor` / `SpaceShieldRefraction` / `SpaceShieldProjectileBehavior`：独立 `DeltaV_ShieldGenerator` 建筑的地面圆盾与太空单向线盾逐实例模式、几何、电费和分层投射器绘制；原版发生器保持原样。专用拦截器继承原版容量／计时／拦截，仅以本机电网充能；地面半径由实例化的原版拦截器 Props 提供。太空盾交点只在 `SpaceCollision` 求解，弹体类型决定碎裂及新 projectile 初始化；折射方向由碰撞与动态说明共用 `SpaceShieldRefraction`，脉冲电费由弹体行为计算。盾层显示、选中预览、碰撞与脉冲扣费只读取 `CompSpaceShield.State`，盾段几何共用 `GetSegment`；切换太空模式后有蓄电即生效，欠电失效时同时隐藏并停止拦截。设置窗口拖动时写入实例参数，关闭未确认时恢复旧值；不修改 Def 共享 `GraphicData` 或原版盾 Props。
-- `ShellRenderer` / `MapOverlayRenderer` / `ShellRenderRuleDef` / `DockingGhostRenderer` / `ShipSilhouette`：整壳分层、地图内容收集、Thing 外壳绘制配置、幽灵和剪影。入壳 Thing 的静态层走原版 `Thing.Print`，实时层经限定作用域捕获原版 `Graphics.DrawMesh`；替代图为有序整组替换。门在外壳上仅同步全开／全关终态。炮塔旋转炮身由 `IShellTurretTopSource` 提供当前材质和角度，规则决定仅绘炮身并置于船壳上层；轨道装弹机用规则排除，加速段内构与外壳入壳，不修改碰撞分类。
+- `ShellRenderer` / `MapOverlayRenderer` / `ShellDrawBackend` / `ShellRenderRuleDef` / `DockingGhostRenderer` / `ShipSilhouette`：整壳分层、地图内容收集、绘制后端、Thing 外壳绘制配置、幽灵和剪影。`MapOverlayRenderer` 只收集、排序并同步交付命令，`ShellLayer` 管理前后层及槽位，`ShellDrawBackend` 是当前 1.6 的命令缓冲提交与清深度入口。入壳 Thing 的静态层走原版 `Thing.Print`，实时层经限定作用域捕获原版 `Graphics.DrawMesh`；替代图为有序整组替换。门在外壳上仅同步全开／全关终态。炮塔旋转炮身由 `IShellTurretTopSource` 提供当前材质和角度，规则决定仅绘炮身并置于船壳上层；轨道装弹机用规则排除，加速段内构与外壳入壳，不修改碰撞分类。
 - `ThrusterEffects` / `ThrusterAudio`：只读真实分配油门的表现。
 - `ThrusterDebugOverlay` / `WeaponArcOverlay` / `CollisionDebugOverlay`：聚焦图上的三个独立会话视图开关。武器射界直接读取武器 Def 的真实射程与安装射界；只绘边界和按游戏 tick 扫动的线，实例颜色由 Thing ID 稳定分配，不影响火控。射界开关关闭时不调用绘制入口，材质和网格只在开启后首次需要时创建，并在关闭时释放。
 - `MoonPoolUtility` / `Patch_MoonPool` / `MoonPoolGraphics` / `SectionLayer_MoonPool`：月池判定、无顶密封和连接视觉；每图月池格缓存首次查询建立，此后随地形变化逐格维护，不按 tick 重扫。
