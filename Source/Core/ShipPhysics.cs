@@ -389,6 +389,17 @@ namespace DeltaV
             return Mathf.Max(0f, Vector2.Dot(force, reverse) / report.mass);
         }
 
+        /// <summary>只读预览指定转向的实际角加速度；与真实 Allocate 共用分配核心。</summary>
+        public static float PreviewAngularAcceleration(MassReport report, int direction)
+        {
+            if (report == null || report.inertia <= 0f || direction == 0) return 0f;
+            EnsureAllocatorScratch(report);
+            RefreshOperational(report);
+            SolveAllocation(report, new Command { torque = direction > 0 ? 1f : -1f },
+                report.previewScratch, out _, out float torque);
+            return Mathf.Max(0f, torque * (direction > 0 ? 1f : -1f) / report.inertia);
+        }
+
         private static void SetAxis(ref Command command, int axis, float value)
         {
             if (axis == 0) command.fx = value;
@@ -561,6 +572,24 @@ namespace DeltaV
                 fz = NormalizeAxis(force.y, positiveZ, negativeZ),
                 torque = NormalizeAxis(torque, positiveTorque, negativeTorque)
             };
+        }
+
+        /// <summary>按当前可用推进器的轴向上限，求沿指定局部方向的满推期望力。</summary>
+        public static Vector2 FullThrustAlong(MassReport report, Vector2 localDirection)
+        {
+            if (report == null || localDirection.sqrMagnitude < 1e-8f) return Vector2.zero;
+            RefreshOperational(report);
+            MeasureAuthority(report, out float positiveX, out float negativeX,
+                out float positiveZ, out float negativeZ, out _, out _);
+            Vector2 direction = localDirection.normalized;
+            float limit = float.PositiveInfinity;
+            if (Mathf.Abs(direction.x) > 1e-6f)
+                limit = Mathf.Min(limit, (direction.x > 0f ? positiveX : negativeX)
+                    / Mathf.Abs(direction.x));
+            if (Mathf.Abs(direction.y) > 1e-6f)
+                limit = Mathf.Min(limit, (direction.y > 0f ? positiveZ : negativeZ)
+                    / Mathf.Abs(direction.y));
+            return direction * (float.IsInfinity(limit) ? 0f : limit);
         }
 
         /// <summary>单轴归一化：正值除正向上限、负值除负向上限，clamp 到 [-1,1]。</summary>

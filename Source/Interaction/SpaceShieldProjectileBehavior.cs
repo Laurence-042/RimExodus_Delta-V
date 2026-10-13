@@ -51,7 +51,7 @@ namespace DeltaV
             return response;
         }
 
-        public virtual bool IgnoresShield => false;
+        public virtual bool IgnoresLineShield => false;
         public virtual bool Shatters(CompProperties_SpaceProjectile props, float incidenceDeg) => false;
 
         public virtual float PulseCost(CompProperties_SpaceProjectile props, int strength,
@@ -67,7 +67,7 @@ namespace DeltaV
 
     public sealed class UnshieldedProjectileBehavior : SpaceShieldProjectileBehavior
     {
-        public override bool IgnoresShield => true;
+        public override bool IgnoresLineShield => true;
     }
 
     public sealed class RefractingShieldProjectileBehavior : SpaceShieldProjectileBehavior { }

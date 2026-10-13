@@ -311,9 +311,23 @@ namespace DeltaV
         public void UnregisterObject(SpaceObject obj)
         {
             if (obj == null) return;
+            if (obj.baseTag != SpaceObjectTag.Projectile
+                && DeltaVLog.Enabled(DeltaVLogModule.Lifecycle))
+            {
+                var caller = new System.Diagnostics.StackTrace(1, false).GetFrame(0)?.GetMethod();
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"object unregister tick={Find.TickManager.TicksGame} id=#{obj.objectId} " +
+                    $"label='{obj.label}' baseTag={obj.baseTag} " +
+                    $"projectileRole={obj.projectileRoleOverride} " +
+                    $"map={MapTag(obj.map)} registered={objects.Contains(obj)} " +
+                    $"caller={caller?.DeclaringType?.Name}.{caller?.Name}");
+            }
             objects.Remove(obj);
             if (obj.baseTag == SpaceObjectTag.Shuttle)
+            {
+                Projectiles.ReleaseShuttle(obj);
                 Shuttles.ClearShuttlePocketRuntime(obj.map, obj);
+            }
             if (obj.map != null && obj.Tag == SpaceObjectTag.Ship)
                 Weapons.ForgetMap(obj.map);
             enginesFiringByShip?.Remove(obj.objectId);

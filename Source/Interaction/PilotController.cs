@@ -135,6 +135,8 @@ internal readonly struct HeadingPanelAction
         internal virtual void CollectPanelActions(PilotTarget panelTarget, List<PilotPanelAction> actions)
         {
             if (!panelTarget.IsValid || !HasAuthority(panelTarget)) return;
+            if (panelTarget.IsShuttle
+                && universe.FrameOf(panelTarget.Map)?.projectileRoleOverride == true) return;
             ShipControlState state = universe.Pilot.GetControlState(panelTarget);
             bool hasPlan = universe.Approach.ActivePlan?.Target.ControlKey == panelTarget.ControlKey;
             string pilotLabel = state == ShipControlState.Manual && hasPlan
@@ -189,7 +191,8 @@ internal readonly struct HeadingPanelAction
             int now = Find.TickManager.TicksGame;
             foreach (CompSpaceWeapon weapon in SpaceWeaponService.WeaponsOn(ship.map, OwnerId))
             {
-                if (weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive) continue;
+                if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.Volley
+                    || !weapon.GroupActive) continue;
                 Vector3 aim = intent.point;
                 if (intent.target != null)
                 {
@@ -219,7 +222,7 @@ internal readonly struct HeadingPanelAction
             foreach (CompSpaceWeapon weapon in weapons)
             {
                 if (weapon?.parent == null || weapon.parent.Map != ship.map
-                    || weapon.aimMode != SpaceWeaponAimMode.PointDefense
+                    || !weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.PointDefense
                     || SpaceWeaponGeometry.OwnerIdOf(weapon.parent) != OwnerId
                     || !weapon.parent.Spawned || weapon.parent.Destroyed || !weapon.GroupActive
                     || now < weapon.cooldownUntilTick || weapon.Container != container) continue;
@@ -367,6 +370,13 @@ internal readonly struct HeadingPanelAction
                 || !HasAuthority(panelTarget)) return;
             SpaceObject frame = universe.FrameOf(panelTarget.Map);
             if (frame == null) return;
+            if (frame.projectileRoleOverride)
+            {
+                actions.Add(new PilotPanelAction("DeltaV_ShuttleBoardCancel".Translate(),
+                    () => universe.Shuttles.BreakIntrusion(frame, dropTarget: true),
+                    "DeltaV_ShuttleBoardCancelTip".Translate()));
+                return;
+            }
             actions.Add(new PilotPanelAction(
                 "DeltaV_PanelBoardArm".Translate() + ": "
                     + (universe.Shuttles.IntrusionArmed(frame) ? "DeltaV_On" : "DeltaV_Off").Translate(),

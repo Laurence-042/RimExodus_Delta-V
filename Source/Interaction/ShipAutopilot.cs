@@ -51,11 +51,19 @@ namespace DeltaV
             public bool playerInitiated;
             /// <summary>shuttle 舱体（MiniShip 任务；null = 船任务）。身份解析不走 ShipByOwner。</summary>
             public Building shuttleBody;
-            /// <summary>满推追踪（侵入式对接，§7.5）：无刹车包络、全程全速追目标当前位姿（与导弹同律）。</summary>
-            public bool pursue;
             public bool combatOrbit;
             public float orbitRadius;
-            public float orbitPhase;
+            public CombatTrajectoryPlanner combatPlanner;
+            public CombatTrajectoryIntent combatIntent;
+            public int combatIntentMicroStep = -1;
+            public int combatIntentTick;
+            public float diagnosticTargetAngle;
+            public float diagnosticAngleError;
+            public float diagnosticTargetOmega;
+            public float diagnosticActualOmega;
+            public float diagnosticRequestedTorque;
+            public float diagnosticAllocatedTorque;
+            public float diagnosticDistance;
             // 固定航点模式：direction/angle；随动模式：host ⊕ hostOffset（+ 相对转角）。
             public bool tracked;
             public Vector3 direction;
@@ -214,25 +222,25 @@ namespace DeltaV
             active[ship.ownerId] = flight;
         }
 
-        /// <summary>动态环绕任务：只调整同一任务的半径，不反复重建 MPC；始终使用真实推力。</summary>
-        public void TrackOrbit(Ship ship, SpaceObject host, float radius,
-            bool playerInitiated = false)
+        /// <summary>战术轨迹任务：战略层提供可达未来位姿，共同 MPC 执行且不反复重建。</summary>
+        internal void TrackOrbit(Ship ship, SpaceObject host, float radius,
+            CombatTrajectoryPlanner planner, bool playerInitiated = false)
         {
-            if (!ship.IsValid || host == null) return;
+            if (!ship.IsValid || host == null || planner == null) return;
             radius = Mathf.Max(radius, SpaceCollision.BoundsRadiusOf(host) + 8f);
             if (active.TryGetValue(ship.ownerId, out Flight existing)
                 && existing.combatOrbit && existing.host == host)
             {
                 existing.orbitRadius = radius;
+                existing.combatPlanner = planner;
                 return;
             }
             SpaceObject own = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(ship.map);
             if (own == null) return;
-            Vector2 local = SpaceTransform.UniverseToShipLocal(host, own.pose.position);
             var flight = new Flight
             {
                 ownerId = ship.ownerId, tracked = true, host = host, combatOrbit = true,
-                orbitRadius = radius, orbitPhase = Mathf.Atan2(local.y, local.x),
+                orbitRadius = radius, combatPlanner = planner,
                 allowVoidThrust = false, playerInitiated = playerInitiated, profile = profile
             };
             flight.guidance.Reset(profile);
@@ -241,6 +249,25 @@ namespace DeltaV
 
         internal bool IsCombatOrbit(int ownerId) => active.TryGetValue(ownerId, out Flight flight)
             && flight.combatOrbit;
+
+        /// <summary>开发者按需读取的姿态／力矩快照；热路径只更新标量，不刷日志。</summary>
+        internal string CombatDiagnostics()
+        {
+            var result = new System.Text.StringBuilder("[DeltaV:Combat] autopilot trajectory");
+            foreach (KeyValuePair<int, Flight> pair in active)
+            {
+                Flight flight = pair.Value;
+                if (!flight.combatOrbit) continue;
+                result.Append($"\n- ship #{pair.Key} target=#{flight.host?.objectId ?? 0} "
+                    + $"distance={flight.diagnosticDistance:F1}/{flight.orbitRadius:F1} "
+                    + $"horizon={flight.combatIntent.seconds:F1}s phase={flight.combatIntent.phaseAdvance * Mathf.Rad2Deg:F1}° "
+                    + $"heading={flight.diagnosticTargetAngle * Mathf.Rad2Deg:F1}° "
+                    + $"error={flight.diagnosticAngleError * Mathf.Rad2Deg:F1}° "
+                    + $"omega={flight.diagnosticActualOmega:F3}/{flight.diagnosticTargetOmega:F3} rad/s "
+                    + $"torque={flight.diagnosticRequestedTorque:F2}/{flight.diagnosticAllocatedTorque:F2}");
+            }
+            return result.ToString();
+        }
 
         /// <summary>PilotTarget 口径（shuttle MiniShip 任务同表；键 = ControlKey）。</summary>
         public void Detach(PilotTarget target, string reason = null)
@@ -287,36 +314,6 @@ namespace DeltaV
             active[flight.ownerId] = flight;
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"autopilot track engaged: shuttle #{flight.ownerId} -> '{host.label}' voidThrust={allowVoidThrust}");
-        }
-
-        /// <summary>
-        /// 满推追踪任务（侵入式对接，§7.5）：shuttle 容器 tag 切换为 projectile 后由
-        /// Shuttles 服务发起——无刹车包络、全程全速追目标容器当前位姿（与导弹同律）。
-        /// 命中判据不在本任务内（碰撞核心结算）；目标失效按 onFailed 退出。
-        /// </summary>
-        public void Pursue(Building shuttleBody, SpaceObject target, Action onFailed = null, bool playerInitiated = true)
-        {
-            if (shuttleBody == null || target == null)
-            {
-                onFailed?.Invoke();
-                return;
-            }
-            var flight = new Flight
-            {
-                ownerId = shuttleBody.thingIDNumber,
-                playerInitiated = playerInitiated,
-                shuttleBody = shuttleBody,
-                pursue = true,
-                tracked = true,
-                host = target,
-                elapsed = 0f,
-                allowVoidThrust = false,
-                onFailed = onFailed,
-            };
-            flight.profile = profile;
-            active[flight.ownerId] = flight;
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"autopilot pursue engaged: shuttle #{flight.ownerId} -> '{target.label}' (full thrust, no braking envelope)");
         }
 
         /// <summary>
@@ -421,7 +418,8 @@ namespace DeltaV
             {
                 bodyMap = ship.map;
             }
-            if (flight.tracked && flight.host == null)
+            if (flight.tracked && (flight.host == null || flight.host.map == null
+                || flight.host.map.Disposed || universe.FrameOf(flight.host.map) != flight.host))
             {
                 active.Remove(ownerId);
                 ShipPhysics.ClearThrottles(bodyMap);
@@ -444,35 +442,7 @@ namespace DeltaV
             flight.elapsed += 1;
             ShipPhysics.MassReport report = ShipPhysics.GetReport(container.map);
             if (report == null) return;
-
-            if (flight.pursue)
-            {
-                // 满推追踪（§7.5）：无刹车包络、全程全速追目标当前位姿——不走 MPC
-                //（软接近包络必刹车），但仍经 RequestThrust gate 与同一分配器（机动
-                // 受推进器布局硬约束）。命中判据归碰撞核心。
-                Vector2 pursueErr = OrbitSphere.Offset(container.pose.position, flight.host.pose.position);
-                if (pursueErr.sqrMagnitude < 1e-8f) pursueErr = Vector2.right;
-                Vector2 mapDir = SpaceTransform.Rotate(pursueErr.normalized, container.pose.angle);
-                var pursueCommand = new ShipPhysics.Command
-                {
-                    fx = mapDir.x,
-                    fz = mapDir.y,
-                    torque = Mathf.Clamp(SpaceTransform.WrapAngle(flight.host.pose.angle - container.pose.angle) * 2f, -1f, 1f),
-                };
-                PilotTarget pursueTarget = flight.shuttleBody != null
-                    ? PilotTarget.Of(flight.shuttleBody)
-                    : PilotTarget.Of(ship);
-                if (universe.ShipTransitions.RequestThrust(universe, pursueTarget, flight.playerInitiated))
-                {
-                    ShipPhysics.Allocate(report, pursueCommand, out Vector2 pursueForce, out float pursueTorque);
-                    ShipPhysics.Integrate(container, report, pursueForce, pursueTorque, dt, false, false, false);
-                }
-                else
-                {
-                    ShipPhysics.Integrate(container, report, Vector2.zero, 0f, dt, false, false, false);
-                }
-                return;
-            }
+            int ticksGame = Find.TickManager.TicksGame;
 
             // 目标位姿与宿主前馈：误差/速度统一表达在目标锚点的切空间基下（球面几何
             // 唯一入口 OrbitSphere）。随动模式取宿主刚体目标点速度（含 ω×offset），
@@ -481,29 +451,56 @@ namespace DeltaV
             float targetAngle;
             Vector2 hostVelocity = Vector2.zero;
             float hostOmega = 0f;
+            float combatHorizon = 0f;
+            float combatReferenceTime = 0f;
             if (flight.tracked)
             {
                 if (flight.combatOrbit)
                 {
-                    const float orbitAngularRate = 0.03f;
-                    flight.orbitPhase = SpaceTransform.WrapAngle(flight.orbitPhase
-                        + orbitAngularRate * dt);
-                    flight.hostOffset = new Vector2(Mathf.Cos(flight.orbitPhase),
-                        Mathf.Sin(flight.orbitPhase)) * flight.orbitRadius;
+                    int planMicroStep = ticksGame / GuidanceMicroStepTicks;
+                    if (flight.combatIntentMicroStep != planMicroStep
+                        || report.version != flight.previewReportVersion)
+                    {
+                        if (flight.combatPlanner == null || !flight.combatPlanner(ship,
+                            container, flight.host, flight.orbitRadius, report,
+                            out flight.combatIntent))
+                        {
+                            active.Remove(ownerId);
+                            activeContainers.Remove(container);
+                            ShipPhysics.ClearThrottles(bodyMap);
+                            return;
+                        }
+                        flight.combatIntentMicroStep = planMicroStep;
+                        flight.combatIntentTick = ticksGame;
+                    }
+                    CombatTrajectoryIntent intent = flight.combatIntent;
+                    combatHorizon = intent.seconds;
+                    combatReferenceTime = (ticksGame - flight.combatIntentTick) / 60f;
+                    intent.Sample(combatReferenceTime, out targetDirection, out hostVelocity,
+                        out _, out _);
+                    Vector2 toCenter = OrbitSphere.Offset(container.pose.position,
+                        flight.host.pose.position);
+                    targetAngle = SpaceTransform.WrapAngle(Mathf.Atan2(toCenter.y,
+                        toCenter.x) - PilotTarget.Of(ship).FrameAngle);
+                    Vector2 relativeVelocity = container.pose.velocity
+                        - SpaceTransform.TransportVelocity(flight.host.pose,
+                            container.pose.position);
+                    Vector2 outward = toCenter.sqrMagnitude > 1e-8f
+                        ? -toCenter.normalized : Vector2.zero;
+                    hostOmega = toCenter.magnitude > 0.01f
+                        ? (outward.x * relativeVelocity.y - outward.y * relativeVelocity.x)
+                            / toCenter.magnitude : 0f;
                 }
-                targetDirection = SpaceTransform.FocusedToUniverse(flight.host, flight.hostOffset);
-                targetAngle = flight.combatOrbit
-                    ? SpaceTransform.WrapAngle(Mathf.Atan2(
-                        OrbitSphere.Offset(targetDirection, flight.host.pose.position).y,
-                        OrbitSphere.Offset(targetDirection, flight.host.pose.position).x)
-                        - PilotTarget.Of(ship).FrameAngle)
-                    : SpaceTransform.WrapAngle(flight.host.pose.angle + flight.relativeAngle);
-                Vector2 orbitVelocity = flight.combatOrbit
-                    ? new Vector2(-flight.hostOffset.y, flight.hostOffset.x) * 0.03f
-                    : Vector2.zero;
-                hostVelocity = SpaceTransform.VelocityAtMovingLocalPoint(
-                    flight.host.pose, flight.hostOffset, orbitVelocity, targetDirection);
-                hostOmega = flight.host.pose.angularVelocity;
+                else
+                {
+                    targetDirection = SpaceTransform.FocusedToUniverse(flight.host,
+                        flight.hostOffset);
+                    targetAngle = SpaceTransform.WrapAngle(flight.host.pose.angle
+                        + flight.relativeAngle);
+                    hostVelocity = SpaceTransform.VelocityAtMovingLocalPoint(
+                        flight.host.pose, flight.hostOffset, Vector2.zero, targetDirection);
+                    hostOmega = flight.host.pose.angularVelocity;
+                }
             }
             else
             {
@@ -515,6 +512,15 @@ namespace DeltaV
             Vector2 vel = SpaceTransform.TransportVelocity(pose, targetDirection) - hostVelocity;
             float angleErr = SpaceTransform.WrapAngle(targetAngle - pose.angle);
             float omega = pose.angularVelocity - hostOmega;
+            if (flight.combatOrbit)
+            {
+                flight.diagnosticDistance = OrbitSphere.ArcCells(pose.position,
+                    flight.host.pose.position);
+                flight.diagnosticTargetAngle = targetAngle;
+                flight.diagnosticAngleError = angleErr;
+                flight.diagnosticTargetOmega = hostOmega;
+                flight.diagnosticActualOmega = pose.angularVelocity;
+            }
 
             if (!flight.tracked
                 && posErr.sqrMagnitude < ArrivePositionEpsilon * ArrivePositionEpsilon
@@ -558,7 +564,6 @@ namespace DeltaV
             // 制导微步节拍（2026-09-25 定案）：QP 按 K 个微步解一次（K 按距离自适应、
             // ownerId 确定性错峰），中间微步回放上一解的计划控制；计划耗尽或数值回退
             // 时立即重解恢复反馈节奏。微步内指令恒定，应用侧由此可安全去重（见下）。
-            int ticksGame = Find.TickManager.TicksGame;
             bool microBoundary = ticksGame % GuidanceMicroStepTicks == 0;
             bool phaseChanged = false;
             bool unsafePlan = false;
@@ -591,6 +596,14 @@ namespace DeltaV
                 if (flight.phase == ApproachPhase.Precision
                     && remaining <= 2f * TightSolveDistance)
                     next = ApproachPhase.Precision;
+                if (flight.combatOrbit && next == ApproachPhase.Precision
+                    && Mathf.Abs(OrbitSphere.ArcCells(pose.position,
+                        flight.host.pose.position) - flight.orbitRadius) < 4f
+                    && Mathf.Abs(angleErr) < 0.15f && vel.magnitude < 2f)
+                {
+                    // 环绕参考点常在船附近，不能因此让所有稳定环绕船常驻 10 Hz 求解。
+                    next = ApproachPhase.Braking;
+                }
                 if (flight.phase != ApproachPhase.Cruise && next == ApproachPhase.Cruise
                     && flight.tracked)
                 {
@@ -614,7 +627,8 @@ namespace DeltaV
             if (!flight.hasCommand)
             {
                 Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, voidBlend,
-                    SolvePeriodFor(flight.phase));
+                    SolvePeriodFor(flight.phase), combatHorizon, combatReferenceTime,
+                    targetDirection, hostVelocity, targetAngle, hostOmega);
             }
             else if (microBoundary || reportChanged)
             {
@@ -622,7 +636,9 @@ namespace DeltaV
                 if (reportChanged || phaseChanged || unsafePlan
                     || SolveDue(ownerId, ticksGame / GuidanceMicroStepTicks, solvePeriod))
                 {
-                    Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, voidBlend, solvePeriod);
+                    Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, voidBlend,
+                        solvePeriod, combatHorizon, combatReferenceTime,
+                        targetDirection, hostVelocity, targetAngle, hostOmega);
                 }
                 else if (flight.currentPlanStep + 1 < flight.planStepsReady
                     && flight.guidance.TryGetPlannedStep(flight.currentPlanStep + 1, flight.controlModel,
@@ -633,7 +649,9 @@ namespace DeltaV
                 }
                 else
                 {
-                    Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, voidBlend, solvePeriod);
+                    Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, voidBlend,
+                        solvePeriod, combatHorizon, combatReferenceTime,
+                        targetDirection, hostVelocity, targetAngle, hostOmega);
                 }
             }
 
@@ -644,6 +662,7 @@ namespace DeltaV
             // （version 变化）或指令变化即失效——推进器故障的建模延迟因此 ≤ 1 微步。
             Vector2 desiredForce = flight.heldCommand.desiredLocalForce;
             float desiredTorque = flight.heldCommand.desiredTorque;
+            if (flight.combatOrbit) flight.diagnosticRequestedTorque = desiredTorque;
             int microStep = ticksGame / GuidanceMicroStepTicks;
             bool allocationCached = flight.hasAllocation
                 && flight.cachedMicroStep == microStep
@@ -688,6 +707,7 @@ namespace DeltaV
                 flight.cachedRealForce = realForce;
                 flight.cachedRealTorque = realTorque;
             }
+            if (flight.combatOrbit) flight.diagnosticAllocatedTorque = realTorque;
 
             // 终段虚空动力：按距离渐变补齐「期望 − 可达」差值（远场 0 → 吸附圈 1），
             // 保证任意推进器布局都能精确对位；不写油门、不进火焰（表现层只见真实出力）。
@@ -705,7 +725,10 @@ namespace DeltaV
         /// elapsedSteps = 自上次求解以来已消费的微步数，供热启动平移对齐时间轴；
         /// previous* 传上一微步实际应用的指令（回放时即上一计划步），保持变化率代价连续。</summary>
         private void Solve(int ownerId, Flight flight, ShipPhysics.MassReport report, SpacePose pose,
-            Vector2 posErr, Vector2 vel, float angleErr, float omega, float voidBlend, int solvePeriod)
+            Vector2 posErr, Vector2 vel, float angleErr, float omega, float voidBlend,
+            int solvePeriod, float trajectorySeconds, float combatReferenceTime,
+            Vector3 referencePosition, Vector2 referenceVelocity, float referenceAngle,
+            float referenceAngularVelocity)
         {
             ShipPhysics.ControlModel controlModel = ShipPhysics.BuildControlModel(report, flight.controlModel);
             BuildControlAcceleration(pose, controlModel, voidBlend, flight.controlAcceleration);
@@ -724,6 +747,13 @@ namespace DeltaV
                 controlModel = controlModel,
                 controlAcceleration = flight.controlAcceleration,
                 brakingAcceleration = flight.brakingAcceleration,
+                trajectorySeconds = trajectorySeconds,
+                combatTrajectory = flight.combatIntent,
+                referenceStartSeconds = combatReferenceTime,
+                referencePosition = referencePosition,
+                referenceVelocity = referenceVelocity,
+                referenceAngle = referenceAngle,
+                referenceAngularVelocity = referenceAngularVelocity,
                 approachReserveDistance = flight.phase == ApproachPhase.Braking
                     && posErr.sqrMagnitude > 1e-8f
                     ? Mathf.Max(0f, Vector2.Dot(vel, posErr.normalized))

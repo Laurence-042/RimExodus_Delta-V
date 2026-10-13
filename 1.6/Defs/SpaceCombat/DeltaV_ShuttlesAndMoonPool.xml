@@ -45,6 +45,20 @@
 			<drawSize>(3,5)</drawSize>
 		</graphicData>
 		<terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
+		<interactionCellOffset>(0,0,3)</interactionCellOffset>
+		<comps>
+			<li Class="DeltaV.CompProperties_SpaceProjectile">
+				<speed>60</speed>
+				<timeoutTicks>1800</timeoutTicks>
+				<guided>true</guided>
+				<turnRateDegPerSec>540</turnRateDegPerSec>
+				<hasMap>true</hasMap>
+				<shieldBehaviorClass>DeltaV.UnshieldedProjectileBehavior</shieldBehaviorClass>
+				<exhaustTrail>true</exhaustTrail>
+				<exhaustSize>1.8</exhaustSize>
+				<smokeLifetimeTicks>150</smokeLifetimeTicks>
+			</li>
+		</comps>
 		<statBases>
 			<MaxHitPoints>850</MaxHitPoints>
 			<Flammability>0.3</Flammability>

@@ -69,7 +69,6 @@ namespace DeltaV
             pendingSelectionMarker = null;
             pendingSelectionWasManual = false;
             landedShipAwaitingCleanup = Ship.Invalid;
-            pendingDockingSourceMap = null;
             pendingLeftoverThingIds = null;
             pendingStrategicSourceMap = null;
             pendingStrategicSourceAddress = PlanetTile.Invalid;

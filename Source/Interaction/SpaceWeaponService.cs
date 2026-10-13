@@ -17,8 +17,8 @@ namespace DeltaV
     /// 自动跟随。会话独立于驾驶/自动驾驶——对接中可瞄准。
     ///
     /// 就绪口径（§6.1，单实现）：所在组激活 ∧（MannedNow ∨ 插件（段6））∧ 供电 ∧
-    /// 冷却完毕 ∧ 瞄准方向在射界内 ∧ 非地表图（有宇宙容器）。地表/同图战斗完全走
-    /// 原版炮塔 comp，本服务零介入（双模互不干涉）。
+    /// 冷却完毕 ∧ 瞄准方向在射界内 ∧ 处于太空模式 ∧ 非地表图（有宇宙容器）。
+    /// 地面模式只由原版炮塔 Verb 负责同图战斗。
     /// </summary>
     public sealed class SpaceWeaponService
     {
@@ -42,7 +42,8 @@ namespace DeltaV
         public void RegisterWeapon(CompSpaceWeapon weapon)
         {
             Map map = weapon?.parent?.Map;
-            if (map == null || map.Disposed || weapon.aimMode != SpaceWeaponAimMode.PointDefense) return;
+            if (map == null || map.Disposed || weapon.aimMode != SpaceWeaponAimMode.PointDefense
+                || !weapon.SpaceModeEnabled) return;
             if (!weaponsByMap.TryGetValue(map, out HashSet<CompSpaceWeapon> weapons))
                 weaponsByMap[map] = weapons = new HashSet<CompSpaceWeapon>();
             weapons.Add(weapon);
@@ -149,7 +150,7 @@ namespace DeltaV
             float total = 0f;
             foreach (CompSpaceWeapon weapon in WeaponsOn(ship.map, ship.ownerId))
             {
-                if (weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
+                if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
                     || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out int skill)
                     || !SpaceWeaponShot.HasShotEnergy(weapon)) continue;
@@ -159,7 +160,7 @@ namespace DeltaV
                 bool missile = IsGuided(projectile);
                 if (missileOnly && !missile) continue;
                 float range = weapon.WeaponProps.range;
-                if (distance > range || range <= 0f) continue;
+                if (distance < weapon.WeaponProps.minRange || distance > range || range <= 0f) continue;
                 SpaceImpactEffectDef impact = SpaceImpactEffects.Resolve(projectile, null);
                 float damage = impact?.defenderEffect?.damage ?? 20f;
                 float spread = weapon.WeaponProps.baseSpreadDeg
@@ -178,7 +179,7 @@ namespace DeltaV
             float total = 0f;
             foreach (CompSpaceWeapon weapon in WeaponsOn(ship.map, ship.ownerId))
             {
-                if (weapon.aimMode != SpaceWeaponAimMode.PointDefense || !weapon.GroupActive
+                if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.PointDefense || !weapon.GroupActive
                     || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out _)
                     || !SpaceWeaponShot.HasShotEnergy(weapon)) continue;
@@ -198,8 +199,10 @@ namespace DeltaV
             SpaceObject target = weapon.pdTarget;
             if (target == null || target.map == null || target.map.Disposed
                 || !target.InterceptionEligible || !HostileTo(target, weapon.parent.Faction)) return false;
-            return OrbitSphere.Offset(weapon.MuzzleUniverse, target.pose.position).magnitude
-                - SpaceCollision.BoundsRadiusOf(target) <= weapon.WeaponProps.range;
+            float distance = OrbitSphere.Offset(weapon.MuzzleUniverse, target.pose.position).magnitude
+                - SpaceCollision.BoundsRadiusOf(target);
+            return distance >= weapon.WeaponProps.minRange
+                && distance <= weapon.WeaponProps.range;
         }
 
         /// <summary>
@@ -222,7 +225,7 @@ namespace DeltaV
                 Vector2 offset = OrbitSphere.Offset(own.pose.position, obj.pose.position);
                 float distance = OrbitSphere.Offset(muzzle, obj.pose.position).magnitude
                     - SpaceCollision.BoundsRadiusOf(obj);
-                if (distance > range) continue;
+                if (distance < weapon.WeaponProps.minRange || distance > range) continue;
                 // 来袭判定：目标相对速度朝己方逼近 → 预计命中时间（秒）作优先分；
                 // 非来袭（掠过/远离）兜底排在所有来袭之后、按距离。
                 Vector2 targetVel = SpaceTransform.TransportVelocity(obj.pose, own.pose.position)

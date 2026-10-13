@@ -254,6 +254,9 @@
   <DeltaV_StatSegmentEnergy>每发加速耗电</DeltaV_StatSegmentEnergy>
   <DeltaV_StatCooldown>射击间隔</DeltaV_StatCooldown>
   <DeltaV_StatRange>太空射程（格）</DeltaV_StatRange>
+  <DeltaV_StatMinRange>太空最小射程（格）</DeltaV_StatMinRange>
+  <DeltaV_GroundMode>地面模式</DeltaV_GroundMode>
+  <DeltaV_GroundModeTip>启用时只使用原版炮塔机制攻击同图目标；关闭时只进行太空跨容器射击，点防模式仍可拦截来袭弹体。</DeltaV_GroundModeTip>
   <DeltaV_StatAttachmentSlots>插件槽位</DeltaV_StatAttachmentSlots>
   <DeltaV_StatAmmoPerShot>每发弹药消耗</DeltaV_StatAmmoPerShot>
   <DeltaV_StatArmorPenetrationScale>护甲穿透倍率</DeltaV_StatArmorPenetrationScale>
@@ -286,8 +289,10 @@
   <DeltaV_ShuttleBoardGizmoTip>点选敌方容器外壳：shuttle 化为导弹满推追踪，撞穿破口并以舱体堵孔。</DeltaV_ShuttleBoardGizmoTip>
   <DeltaV_ShuttleBoardNoTarget>该处没有可撞击的容器外壳。</DeltaV_ShuttleBoardNoTarget>
   <DeltaV_ShuttleBoardEngaged>侵入已发起：正在冲撞 {0}。</DeltaV_ShuttleBoardEngaged>
+  <DeltaV_ShuttleBoardCancel>中止侵入</DeltaV_ShuttleBoardCancel>
+  <DeltaV_ShuttleBoardCancelTip>关闭导弹推进模式，保留当前位置与速度并恢复跳帮艇驾驶。</DeltaV_ShuttleBoardCancelTip>
   <DeltaV_PanelBoardArm>侵入</DeltaV_PanelBoardArm>
-  <DeltaV_PanelBoardArmTip>武装跳帮艇的侵入驱动，然后用「撞击敌壳」指定目标。任意驾驶键可打断冲撞回到手动；目标保留。</DeltaV_PanelBoardArmTip>
+  <DeltaV_PanelBoardArmTip>武装侵入驱动，再用「撞击敌壳」指定目标。导弹模式下可用「中止侵入」恢复跳帮艇飞行。</DeltaV_PanelBoardArmTip>
   <DeltaV_PanelCombatOptions>战斗选项</DeltaV_PanelCombatOptions>
 
   <DeltaV_DebugThrustersToggleButton>显示 Delta-V 推进器矢量与船体范围</DeltaV_DebugThrustersToggleButton>

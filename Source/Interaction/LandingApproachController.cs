@@ -510,7 +510,8 @@ namespace DeltaV
 
             if (!universe.ShipTransitions.CompleteTransferIntoHost(universe, dockingTarget,
                     gravship, capturedCells, includeTerrain, active.targetMap,
-                    active.landingCell, active.landingRotation, active.structureId))
+                    active.landingCell, active.landingRotation, active.structureId,
+                    out Map transferredSource))
             {
                 Abort(universe, "transfer into host map failed");
                 return;
@@ -524,9 +525,9 @@ namespace DeltaV
             // 位于积分循环之前才没炸），语义与本注释一直声称的「帧边界」不符。
             DockingCompletion completion = active.IsShuttlePlan
                 ? new DockingCompletion.ShuttleDockingCompletion(
-                    universe, active.shuttleBody, active.targetMap, handoff)
+                    universe, active.shuttleBody, active.targetMap, transferredSource, handoff)
                 : new DockingCompletion.ShipDockingCompletion(
-                    universe, ship.ownerId, active.targetMap, handoff);
+                    universe, ship.ownerId, active.targetMap, transferredSource, handoff);
             completion.OnTransferedIntoHost();
             universe.QueueFrameAction(completion.Finish);
         }

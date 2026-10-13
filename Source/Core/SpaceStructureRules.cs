@@ -26,9 +26,6 @@ namespace DeltaV
     /// </summary>
     public static class SpaceStructureRules
     {
-        /// <summary>无掩体值的基架格统一使用的命中概率。</summary>
-        public const float SubstructureHitChance = 0.5f;
-
         public static float BuildingHitChance(Thing building) => building?.def.IsWall == true
             ? 1f : Mathf.Clamp01(building?.def.fillPercent ?? 0f);
 

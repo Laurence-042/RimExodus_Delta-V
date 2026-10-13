@@ -566,6 +566,10 @@ namespace DeltaV
         public void DestroyPocketMap(Map map)
         {
             if (map == null || map.Disposed) return;
+            if (DeltaVLog.Enabled(DeltaVLogModule.Lifecycle))
+                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                    $"pocket map destroy tick={Find.TickManager.TicksGame} " +
+                    $"{UniverseManager.MapTag(map)} holder=#{universe.FrameOf(map)?.objectId}");
             Forget(map);
             PocketMapUtility.DestroyPocketMap(map);
         }

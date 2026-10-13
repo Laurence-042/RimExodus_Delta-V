@@ -416,8 +416,15 @@ namespace DeltaV
         /// </summary>
         public void NotifyFoundationRemoved(IntVec3 cell)
         {
-            if (!cell.InBounds(map) || OwnerAt(cell) == Unassigned)
+            if (!cell.InBounds(map))
             {
+                return;
+            }
+            if (OwnerAt(cell) == Unassigned)
+            {
+                // Even unowned substructure participates in the collision surface.
+                BumpStructureVersion();
+                PlanetGlobeRenderer.InvalidateSilhouette(map);
                 return;
             }
             Assign(cell, Unassigned);

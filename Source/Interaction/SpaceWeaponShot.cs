@@ -105,7 +105,8 @@ namespace DeltaV
         private bool Prepare()
         {
             if (container == null || weapon?.parent == null || !weapon.parent.Spawned
-                || weapon.parent.Destroyed || weapon.WeaponProps.projectileDef == null)
+                || weapon.parent.Destroyed || weapon.WeaponProps.projectileDef == null
+                || !weapon.SpaceModeEnabled)
             {
                 return false;
             }
@@ -128,6 +129,9 @@ namespace DeltaV
             SpaceWeaponAccelerationSolution acceleration = CompSpaceRailgun.Resolve(weapon);
             muzzleMap = acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
             muzzleUniverse = SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzleMap);
+            float shotDistance = OrbitSphere.Offset(muzzleUniverse, aimPoint).magnitude;
+            if (shotDistance < weapon.WeaponProps.minRange
+                || shotDistance > weapon.WeaponProps.range) return false;
             Vector2 aimMap = SpaceTransform.UniverseToMapPoint(container, weapon.parent.Map, aimPoint);
             Vector2 delta = aimMap - muzzleMap;
             if (delta.sqrMagnitude < 1e-6f) return false;

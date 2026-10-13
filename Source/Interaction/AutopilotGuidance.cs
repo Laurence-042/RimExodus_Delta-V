@@ -92,8 +92,61 @@ namespace DeltaV
             allPassed &= damagePassed;
             result.Append($"\n- failed reverse thruster: {(damagePassed ? "PASS" : "FAIL")}; "
                 + $"available={available:F3} disabled={disabled:F3}");
+            bool headingPassed = RunHeadingCheck(out float leftTorque,
+                out float rightTorque, out float brakeTorque);
+            allPassed &= headingPassed;
+            result.Append($"\n- fixed heading/rotation sign: {(headingPassed ? "PASS" : "FAIL")}; "
+                + $"left={leftTorque:F3} right={rightTorque:F3} brake={brakeTorque:F3}");
             result.Append($"\n- overall: {(allPassed ? "PASS" : "FAIL")}");
             return result.ToString();
+        }
+
+        private static bool RunHeadingCheck(out float leftTorque, out float rightTorque,
+            out float brakeTorque)
+        {
+            var report = new ShipPhysics.MassReport { mass = 3f, inertia = 10f };
+            report.thrusters.Add(new ShipPhysics.Thruster { localPos = new Vector2(0f, -1f),
+                dir = Vector2.right, thrust = 5f, operational = true });
+            report.thrusters.Add(new ShipPhysics.Thruster { localPos = new Vector2(0f, 1f),
+                dir = Vector2.left, thrust = 5f, operational = true });
+            report.thrusters.Add(new ShipPhysics.Thruster { localPos = new Vector2(0f, -1f),
+                dir = Vector2.left, thrust = 5f, operational = true });
+            report.thrusters.Add(new ShipPhysics.Thruster { localPos = new Vector2(0f, 1f),
+                dir = Vector2.right, thrust = 5f, operational = true });
+            ShipPhysics.ControlModel model = ShipPhysics.BuildControlModel(report);
+            double[] acceleration = new double[9];
+            for (int axis = 0; axis < 3; axis++)
+            {
+                acceleration[axis] = model.forceColumns[axis].x / report.mass;
+                acceleration[3 + axis] = model.forceColumns[axis].y / report.mass;
+                acceleration[6 + axis] = model.torqueColumns[axis] / report.inertia;
+            }
+            leftTorque = HeadingTorque(report, model, acceleration, 0.5f, 0f);
+            rightTorque = HeadingTorque(report, model, acceleration, -0.5f, 0f);
+            brakeTorque = HeadingTorque(report, model, acceleration, 0f, 0.25f);
+            return leftTorque > 0.001f && rightTorque < -0.001f
+                && brakeTorque < -0.001f;
+        }
+
+        private static float HeadingTorque(ShipPhysics.MassReport report,
+            ShipPhysics.ControlModel model, double[] acceleration, float angleError,
+            float relativeOmega)
+        {
+            IAutopilotGuidance guidance = new OnlineMpcGuidance();
+            guidance.Reset(AutopilotMpcProfile.Balanced);
+            guidance.Compute(new GuidanceRequest
+            {
+                angleError = angleError,
+                relativeAngularVelocity = relativeOmega,
+                dt = 0.1f,
+                controlModel = model,
+                controlAcceleration = acceleration,
+                trajectorySeconds = 3f
+            }, out GuidanceCommand command);
+            ShipPhysics.Command allocated = ShipPhysics.ForceToCommand(report,
+                command.desiredLocalForce, command.desiredTorque);
+            ShipPhysics.Allocate(report, allocated, out _, out float torque);
+            return torque;
         }
 
         private static bool RunOne(double acceleration, int playbackSteps, double reverseFactor,
@@ -203,6 +256,14 @@ namespace DeltaV
         public double[] controlAcceleration;
         // 真实分配器沿目标接近方向预览的反推加速度；包络和回退共用。
         public double brakingAcceleration;
+        // 战斗轨迹每个预测步由同一球面曲线采样；普通任务保持零。
+        public float trajectorySeconds;
+        public CombatTrajectoryIntent combatTrajectory;
+        public float referenceStartSeconds;
+        public Vector3 referencePosition;
+        public Vector2 referenceVelocity;
+        public float referenceAngle;
+        public float referenceAngularVelocity;
         // 制动阶段在下一次反馈前可能消耗的闭合距离，直接从速度与求解周期派生。
         public double approachReserveDistance;
     }
@@ -474,6 +535,8 @@ namespace DeltaV
             double safeAccel = BrakingGuidanceFallback.SafeTranslationAcceleration(request);
             double safeAlpha = BrakingGuidanceFallback.SafeAngularAcceleration(request.controlAcceleration);
             int constraints = 0;
+            bool combatTrajectory = request.combatTrajectory.seconds > 0f;
+            double predictionTime = 0.0;
 
             // Input box constraints.
             int inputVariables = horizonSteps * InputCount;
@@ -494,53 +557,96 @@ namespace DeltaV
             for (int step = 0; step < horizonSteps; step++)
             {
                 AdvanceStateAndSensitivity(step, intervals[step], request.controlAcceleration);
+                predictionTime += intervals[step];
+                Vector2 desiredPosition = Vector2.zero;
+                Vector2 desiredVelocity = Vector2.zero;
+                float desiredAngle = 0f;
+                float desiredOmega = 0f;
+                if (combatTrajectory)
+                    CombatReferenceOffsets(request, (float)predictionTime,
+                        out desiredPosition, out desiredVelocity,
+                        out desiredAngle, out desiredOmega);
                 double weightScale = intervals[step];
                 for (int s = 0; s < StateCount; s++)
                 {
-                    AddStateCost(s, StateWeight[s] * weightScale, StateScale[s]);
+                    double target = s switch
+                    {
+                        0 => desiredPosition.x, 1 => desiredPosition.y,
+                        2 => desiredVelocity.x, 3 => desiredVelocity.y,
+                        4 => desiredAngle, _ => desiredOmega
+                    };
+                    double headingPriority = combatTrajectory && s >= 4 ? 4.0 : 1.0;
+                    AddStateCost(s, StateWeight[s] * weightScale * headingPriority,
+                        StateScale[s], -target);
                 }
 
                 // 刹车曲线软接近包络：闭合速度 ≤ floor + √(2·a_safe·d)，每步在零输入
                 // rollout 状态（state[]）处线性化成切线约束 v_close − slope·d ≤ cap − slope·d₀；
                 // 切线斜率 slope = a_safe/√(2·a_safe·d)（d→0 由 floor 封底），高速段封顶
                 // EnvelopeSpeedCeiling（斜率归零）。视线方向冻结在求解时刻（与旧实现一致）。
-                int row = constraints++;
-                double losDistance = nx * state[0] + ny * state[1];
-                double brakingSpeed = Math.Sqrt(2.0 * safeAccel *
-                    Math.Max(losDistance - request.approachReserveDistance, 0.0));
-                double speedCap = CaptureSpeedFloor + brakingSpeed;
-                double speedSlope = speedCap >= EnvelopeSpeedCeiling
-                    ? 0.0
-                    : safeAccel / Math.Max(brakingSpeed, CaptureSpeedFloor);
-                for (int col = 0; col < inputVariables; col++)
+                int row;
+                if (!combatTrajectory)
                 {
-                    a[row * variables + col] = -nx * Sens(2, col) - ny * Sens(3, col)
-                        - speedSlope * (nx * Sens(0, col) + ny * Sens(1, col));
+                    row = constraints++;
+                    double losDistance = nx * state[0] + ny * state[1];
+                    double brakingSpeed = Math.Sqrt(2.0 * safeAccel *
+                        Math.Max(losDistance - request.approachReserveDistance, 0.0));
+                    double speedCap = CaptureSpeedFloor + brakingSpeed;
+                    double speedSlope = speedCap >= EnvelopeSpeedCeiling
+                        ? 0.0
+                        : safeAccel / Math.Max(brakingSpeed, CaptureSpeedFloor);
+                    for (int col = 0; col < inputVariables; col++)
+                    {
+                        a[row * variables + col] = -nx * Sens(2, col) - ny * Sens(3, col)
+                            - speedSlope * (nx * Sens(0, col) + ny * Sens(1, col));
+                    }
+                    a[row * variables + translationSlack] = -1.0;
+                    double translationConstant = -nx * state[2] - ny * state[3]
+                        - speedSlope * (nx * state[0] + ny * state[1]);
+                    lower[row] = -Infinite;
+                    upper[row] = speedCap - speedSlope * losDistance - translationConstant;
                 }
-                a[row * variables + translationSlack] = -1.0;
-                double constant = -nx * state[2] - ny * state[3]
-                    - speedSlope * (nx * state[0] + ny * state[1]);
-                lower[row] = -Infinite;
-                upper[row] = speedCap - speedSlope * losDistance - constant;
 
                 // 角向同构：|ω| ≤ floor + √(2·α_safe·|θ|)，在零输入 rollout 剩余角差处线性化。
                 row = constraints++;
-                double thetaSigned = angleSign * state[4];
+                double thetaSign = Math.Abs(state[4] - desiredAngle) > 1e-6
+                    ? Math.Sign(state[4] - desiredAngle) : angleSign;
+                double thetaSigned = thetaSign * (state[4] - desiredAngle);
                 double brakingOmega = Math.Sqrt(2.0 * safeAlpha * Math.Max(thetaSigned, 0.0));
                 double omegaCap = CaptureOmegaFloor + brakingOmega;
                 double omegaSlope = safeAlpha / Math.Max(brakingOmega, CaptureOmegaFloor);
                 for (int col = 0; col < inputVariables; col++)
                 {
-                    a[row * variables + col] = -angleSign * Sens(5, col)
-                        - omegaSlope * angleSign * Sens(4, col);
+                    a[row * variables + col] = -thetaSign * Sens(5, col)
+                        - omegaSlope * thetaSign * Sens(4, col);
                 }
                 a[row * variables + angularSlack] = -1.0;
-                constant = -angleSign * state[5] - omegaSlope * thetaSigned;
+                double angularConstant = -thetaSign * (state[5] - desiredOmega)
+                    - omegaSlope * thetaSigned;
                 lower[row] = -Infinite;
-                upper[row] = omegaCap - omegaSlope * thetaSigned - constant;
+                upper[row] = omegaCap - omegaSlope * thetaSigned - angularConstant;
             }
 
-            for (int s = 0; s < StateCount; s++) AddStateCost(s, StateWeight[s] * 20.0, StateScale[s]);
+            Vector2 terminalPosition = Vector2.zero;
+            Vector2 terminalVelocity = Vector2.zero;
+            float terminalAngle = 0f;
+            float terminalOmega = 0f;
+            if (combatTrajectory)
+                CombatReferenceOffsets(request, (float)predictionTime,
+                    out terminalPosition, out terminalVelocity,
+                    out terminalAngle, out terminalOmega);
+            for (int s = 0; s < StateCount; s++)
+            {
+                double terminalOffset = s switch
+                {
+                    0 => -terminalPosition.x, 1 => -terminalPosition.y,
+                    2 => -terminalVelocity.x, 3 => -terminalVelocity.y,
+                    4 => -terminalAngle, _ => -terminalOmega
+                };
+                double headingPriority = combatTrajectory && s >= 4 ? 4.0 : 1.0;
+                AddStateCost(s, StateWeight[s] * 20.0 * headingPriority,
+                    StateScale[s], terminalOffset);
+            }
             AddControlCosts(inputVariables, request.previousX, request.previousZ, request.previousAngular);
             p[translationSlack * variables + translationSlack] += 20000.0;
             p[angularSlack * variables + angularSlack] += 20000.0;
@@ -557,7 +663,7 @@ namespace DeltaV
                 && AllFinite(solution, variables);
             // 松弛变量与未完全收敛的 ADMM 解可能越过软包络。若首步已经不具备
             // 在目标前停下的余量，不回放这份计划，而走共用的制动回退。
-            if (accepted && distance > 1e-6)
+            if (accepted && !combatTrajectory && distance > 1e-6)
             {
                 double firstDt = intervals[0];
                 double ax = 0.0, ay = 0.0;
@@ -577,7 +683,13 @@ namespace DeltaV
             }
             if (!accepted)
             {
-                BrakingGuidanceFallback.Compute(request, out GuidanceCommand fallback);
+                GuidanceRequest fallbackRequest = request;
+                if (combatTrajectory)
+                {
+                    fallbackRequest.positionError += terminalPosition;
+                    fallbackRequest.relativeVelocity -= terminalVelocity;
+                }
+                BrakingGuidanceFallback.Compute(fallbackRequest, out GuidanceCommand fallback);
                 fallback.solveMilliseconds = command.solveMilliseconds;
                 fallback.primalResidual = primal;
                 fallback.dualResidual = dual;
@@ -592,8 +704,37 @@ namespace DeltaV
             return true;
         }
 
+        private static void CombatReferenceOffsets(GuidanceRequest request, float predictionTime,
+            out Vector2 position, out Vector2 velocity, out float angle, out float omega)
+        {
+            float sampleTime = request.referenceStartSeconds + predictionTime;
+            request.combatTrajectory.Sample(sampleTime, out Vector3 desiredPosition,
+                out Vector2 desiredVelocity, out float desiredAngle, out float desiredOmega);
+            Vector3 baselinePosition = OrbitSphere.Move(request.referencePosition,
+                request.referenceVelocity * predictionTime);
+            Vector2 displacement = OrbitSphere.Offset(baselinePosition, desiredPosition);
+            position = SpaceTransform.TransportVelocity(new SpacePose(baselinePosition, 0f)
+                { velocity = displacement }, request.referencePosition);
+            velocity = SpaceTransform.TransportVelocity(new SpacePose(desiredPosition, 0f)
+                { velocity = desiredVelocity }, request.referencePosition)
+                - request.referenceVelocity;
+            angle = SpaceTransform.WrapAngle(desiredAngle - request.referenceAngle
+                - request.referenceAngularVelocity * predictionTime);
+            omega = desiredOmega - request.referenceAngularVelocity;
+        }
+
         private void BuildIntervals(GuidanceRequest request)
         {
+            if (request.trajectorySeconds > 0f)
+            {
+                double duration = Math.Max(2.0, Math.Min(6.0, request.trajectorySeconds));
+                int fineSteps = Math.Min(8, horizonSteps);
+                for (int i = 0; i < fineSteps; i++) intervals[i] = request.dt;
+                double combatCoarse = (duration - fineSteps * request.dt)
+                    / Math.Max(1, horizonSteps - fineSteps);
+                for (int i = fineSteps; i < horizonSteps; i++) intervals[i] = combatCoarse;
+                return;
+            }
             double speed = request.relativeVelocity.magnitude;
             double accel = 0.0;
             for (int c = 0; c < 3; c++)
@@ -653,10 +794,11 @@ namespace DeltaV
             }
         }
 
-        private void AddStateCost(int stateIndex, double weight, double scale)
+        private void AddStateCost(int stateIndex, double weight, double scale,
+            double referenceOffset = 0.0)
         {
             double normalizedWeight = weight / (scale * scale);
-            double offset = state[stateIndex];
+            double offset = state[stateIndex] + referenceOffset;
             for (int i = 0; i < variables; i++)
             {
                 double si = Sens(stateIndex, i);

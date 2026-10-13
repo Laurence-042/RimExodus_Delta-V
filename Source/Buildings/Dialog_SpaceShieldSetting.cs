@@ -122,7 +122,7 @@ namespace DeltaV
             foreach (ThingDef def in DefDatabase<ThingDef>.AllDefsListForReading)
             {
                 CompProperties_SpaceProjectile props = def.GetCompProperties<CompProperties_SpaceProjectile>();
-                if (props != null && !SpaceShieldProjectileBehavior.For(def).IgnoresShield)
+                if (props != null && !SpaceShieldProjectileBehavior.For(def).IgnoresLineShield)
                     result.Add(def);
             }
             result.Sort((a, b) => string.CompareOrdinal(a.defName, b.defName));

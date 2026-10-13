@@ -126,6 +126,16 @@ namespace DeltaV
             Messages.Message("MPC diagnostics written to the log.", MessageTypeDefOf.NeutralEvent, false);
         }
 
+        [DebugAction("Delta-V", "Combat autopilot: trajectory snapshot", actionType = DebugActionType.Action,
+            allowedGameStates = AllowedGameStates.Playing)]
+        private static void CombatAutopilotSnapshot()
+        {
+            Log.Message(Um()?.Autopilot.CombatDiagnostics()
+                ?? "[DeltaV:Combat] universe unavailable");
+            Messages.Message("Combat autopilot snapshot written to the log.",
+                MessageTypeDefOf.NeutralEvent, false);
+        }
+
         [DebugAction("Delta-V", "MPC: deterministic self-test", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.Playing)]
         private static void MpcSelfTest()
         {

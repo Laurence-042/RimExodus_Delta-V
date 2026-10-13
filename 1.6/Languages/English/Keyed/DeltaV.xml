@@ -254,6 +254,9 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_StatSegmentEnergy>Acceleration energy per shot</DeltaV_StatSegmentEnergy>
   <DeltaV_StatCooldown>Shot interval</DeltaV_StatCooldown>
   <DeltaV_StatRange>Space range (cells)</DeltaV_StatRange>
+  <DeltaV_StatMinRange>Minimum space range (cells)</DeltaV_StatMinRange>
+  <DeltaV_GroundMode>Ground mode</DeltaV_GroundMode>
+  <DeltaV_GroundModeTip>When enabled, the vanilla turret attacks targets on this map only. When disabled, it fires across space containers; point-defense mode can still intercept incoming projectiles.</DeltaV_GroundModeTip>
   <DeltaV_StatAttachmentSlots>Attachment slots</DeltaV_StatAttachmentSlots>
   <DeltaV_StatAmmoPerShot>Ammunition per shot</DeltaV_StatAmmoPerShot>
   <DeltaV_StatArmorPenetrationScale>Armor penetration multiplier</DeltaV_StatArmorPenetrationScale>
@@ -286,8 +289,10 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShuttleBoardGizmoTip>Pick an enemy container's hull: the shuttle becomes a missile under full thrust, punches through and seals the breach with its own cabin.</DeltaV_ShuttleBoardGizmoTip>
   <DeltaV_ShuttleBoardNoTarget>No container hull at that spot.</DeltaV_ShuttleBoardNoTarget>
   <DeltaV_ShuttleBoardEngaged>Intrusion engaged: ramming {0}.</DeltaV_ShuttleBoardEngaged>
+  <DeltaV_ShuttleBoardCancel>Abort intrusion</DeltaV_ShuttleBoardCancel>
+  <DeltaV_ShuttleBoardCancelTip>Disengage missile drive and return to normal shuttle flight at the current position and speed.</DeltaV_ShuttleBoardCancelTip>
   <DeltaV_PanelBoardArm>Board</DeltaV_PanelBoardArm>
-  <DeltaV_PanelBoardArmTip>Arm the intrusion drive for this shuttle (pick the target with the "Ram target hull" button in the status panel). Pressing any flight key breaks off the ram and returns manual control; the target is kept.</DeltaV_PanelBoardArmTip>
+  <DeltaV_PanelBoardArmTip>Arm the intrusion drive, then pick a target hull. In missile mode, use Abort intrusion to return to shuttle flight.</DeltaV_PanelBoardArmTip>
   <DeltaV_PanelCombatOptions>Combat options</DeltaV_PanelCombatOptions>
 
   <DeltaV_DebugThrustersToggleButton>Show Delta-V thruster vectors and hull extent</DeltaV_DebugThrustersToggleButton>

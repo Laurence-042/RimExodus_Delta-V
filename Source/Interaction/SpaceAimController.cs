@@ -96,7 +96,8 @@ namespace DeltaV
             bool laserSeen = false;
             foreach (CompSpaceWeapon weapon in SpaceWeaponService.WeaponsOn(frameMap, ownerId))
             {
-                if (weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive) continue;
+                if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.Volley
+                    || !weapon.GroupActive) continue;
                 CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
                 ThingDef projectileDef = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
                 var props = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();

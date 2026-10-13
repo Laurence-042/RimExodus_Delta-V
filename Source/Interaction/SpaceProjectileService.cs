@@ -74,6 +74,8 @@ namespace DeltaV
             public Thing launcher;
             public SpaceObject sourceContainer;
             public SpaceObject target;
+            public Vector2? targetLocalPoint;
+            public bool adoptedShuttle;
             public int spawnedAtTick;
             public bool dead;
             public Vector3 prevPosition;
@@ -331,6 +333,52 @@ namespace DeltaV
             return true;
         }
 
+        /// <summary>把已经起飞的 shuttle 作为一枚有图导弹接入同一制导与碰撞工作表。</summary>
+        internal bool AdoptShuttle(SpaceObject shuttle, Building hull, SpaceObject target,
+            Vector2? targetLocalPoint)
+        {
+            CompProperties_SpaceProjectile props = hull?.def.GetCompProperties<CompProperties_SpaceProjectile>();
+            if (props == null || !props.guided || !props.hasMap || shuttle?.map != hull.Map
+                || shuttle.baseTag != SpaceObjectTag.Shuttle || target?.map == null
+                || target.map.Disposed || projectiles.Any(p => p.container == shuttle)) return false;
+            Projectile p = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
+            p.container = shuttle;
+            p.building = hull;
+            p.def = hull.def;
+            p.props = props;
+            p.launcher = hull;
+            p.sourceContainer = null;
+            p.target = target;
+            p.targetLocalPoint = targetLocalPoint;
+            p.adoptedShuttle = true;
+            p.spawnedAtTick = Find.TickManager.TicksGame;
+            p.dead = false;
+            p.laser = false;
+            p.cruiseSpeed = props.speed;
+            p.ignitionTick = p.spawnedAtTick;
+            p.ignited = true;
+            p.prevPosition = shuttle.pose.position;
+            p.damageScale = p.armorPenetrationScale = 1f;
+            shuttle.pose.angularVelocity = 0f;
+            shuttle.projectileRoleOverride = true;
+            projectiles.Add(p);
+            if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
+                DeltaVLog.Message(DeltaVLogModule.Combat,
+                    $"boarding missile adopted shuttle #{shuttle.objectId} target #{target.objectId}");
+            return true;
+        }
+
+        internal bool ReleaseShuttle(SpaceObject shuttle)
+        {
+            Projectile p = projectiles.FirstOrDefault(item => item.adoptedShuttle && item.container == shuttle);
+            if (p == null) return false;
+            p.dead = true;
+            projectiles.Remove(p);
+            shuttle.projectileRoleOverride = false;
+            universe.QueueFrameAction(() => RecycleProjectile(p));
+            return true;
+        }
+
         // ---- tick（制导/超时；容器积分之前）----
 
         /// <summary>
@@ -350,13 +398,21 @@ namespace DeltaV
                     // 有图弹体被图内结算摧毁（PD/毁伤链经 TakeDamage）→ 销毁收尾。
                     if (p.building != null && p.building.Destroyed)
                     {
-                        DestroyProjectile(p, "building destroyed in-map");
+                        if (p.adoptedShuttle) ReleaseShuttle(p.container);
+                        else DestroyProjectile(p, "building destroyed in-map");
                         continue;
                     }
                     // 超时自毁（无后效；激光同 tick 结算不超时）。
                     if (!p.laser && now - p.spawnedAtTick > p.props.timeoutTicks)
                     {
-                        DestroyProjectile(p, "timeout");
+                        if (p.adoptedShuttle) ReleaseShuttle(p.container);
+                        else DestroyProjectile(p, "timeout");
+                        continue;
+                    }
+                    if (p.adoptedShuttle && (!TargetAlive(p.target)
+                        || p.target.map == null || p.target.map.Disposed))
+                    {
+                        ReleaseShuttle(p.container);
                         continue;
                     }
                     p.prevPosition = p.container.pose.position;
@@ -408,7 +464,10 @@ namespace DeltaV
         /// <summary>纯追踪制导：速度方向每 tick 向目标容器当前位姿转向（转向率受限）。</summary>
         private void SteerTowards(Projectile p)
         {
-            Vector2 toTarget = OrbitSphere.Offset(p.container.pose.position, p.target.pose.position);
+            Vector3 aimPoint = p.targetLocalPoint.HasValue && p.target.map != null
+                ? SpaceTransform.MapPointToUniverse(p.target, p.target.map, p.targetLocalPoint.Value)
+                : p.target.pose.position;
+            Vector2 toTarget = OrbitSphere.Offset(p.container.pose.position, aimPoint);
             if (toTarget.sqrMagnitude < 1e-8f) return;
             Vector2 desired = toTarget.normalized;
             Vector2 velocity = p.container.pose.velocity;
@@ -419,7 +478,10 @@ namespace DeltaV
             float turn = Mathf.Min(angle, maxTurn);
             Vector2 newDir = SpaceTransform.Rotate(current, signed * turn);
             p.container.pose.velocity = newDir * p.cruiseSpeed;
-            p.container.pose.angle = Mathf.Atan2(newDir.y, newDir.x);
+            float facingOffset = p.adoptedShuttle
+                ? ShipOrientation.AngleFromRot4(p.building.Rotation) : 0f;
+            p.container.pose.angle = SpaceTransform.WrapAngle(
+                Mathf.Atan2(newDir.y, newDir.x) - facingOffset);
         }
 
         /// <summary>
@@ -438,7 +500,6 @@ namespace DeltaV
         /// </summary>
         public void ResolveCollisions()
         {
-            if (projectiles.Count == 0) return;
             sweepScratch.Clear();
             bodyScratch.Clear();
             foreach (Projectile p in projectiles)
@@ -449,6 +510,7 @@ namespace DeltaV
                 body.projectileDef = p.def;
                 body.attackerBuilding = p.building;
                 body.excludeContainer = p.sourceContainer;
+                body.requiredDefender = p.adoptedShuttle ? p.target : null;
                 body.ignoreNonHostileProjectiles = true;
                 body.launcher = p.launcher;
                 body.dead = false;
@@ -456,6 +518,8 @@ namespace DeltaV
                 body.didRedirect = false;
                 body.shieldResidualFraction = 0f;
                 body.sweepRadius = FootprintRadius(p.def);
+                body.noseHalfWidth = p.adoptedShuttle ? p.def.Size.x * 0.5f : 0f;
+                body.noseForwardOffset = p.adoptedShuttle ? (p.def.Size.z - 1) * 0.5f : 0f;
                 body.damageScale = p.damageScale;
                 body.armorPenetrationScale = p.armorPenetrationScale;
                 if (p.laser)
@@ -480,7 +544,28 @@ namespace DeltaV
                     body.to = p.container.pose.position;
                 }
                 Projectile captured = p;
-                body.onSelfDestruct = delegate { DestroyProjectile(captured, "impact"); };
+                body.onSelfDestruct = delegate
+                {
+                    if (captured.adoptedShuttle) ReleaseShuttle(captured.container);
+                    else DestroyProjectile(captured, "impact");
+                };
+                body.onPlace = p.adoptedShuttle
+                    ? (System.Action<SpaceObject, Vector3, Vector2>)((defender, hit, local) =>
+                    {
+                        SpaceObject shuttle = captured.container;
+                        Vector2 incident = OrbitSphere.Offset(captured.body.from, captured.body.to);
+                        Vector2 incidentAtHit = incident.sqrMagnitude > 1e-8f
+                            ? SpaceTransform.TransportVelocity(new SpacePose
+                            {
+                                position = captured.body.from,
+                                velocity = incident.normalized
+                            }, hit)
+                            : Vector2.up;
+                        ReleaseShuttle(shuttle);
+                        universe.Shuttles.PlaceBoardedShuttle(shuttle, defender, hit, local,
+                            incidentAtHit, captured.body.resolvedHitCell,
+                            captured.body.resolvedHitShield);
+                    }) : null;
                 body.onShieldRedirect = delegate (Vector3 from, Vector3 hit,
                     Vector2 direction, bool shatter)
                 {
@@ -501,43 +586,6 @@ namespace DeltaV
                     response.SpawnFragments(this, in context);
                 };
                 sweepScratch.Add(p);
-                bodyScratch.Add(body);
-            }
-            // 侵入 shuttle（tag 覆盖为 projectile 的在飞 shuttle，§7.5）：同一碰撞核心
-            // 扫掠（脚印 = 舱体脚印；PlaceBody/挡停语义见 SweptBody 回调）。
-            foreach (SpaceObject obj in universe.objects)
-            {
-                if (obj.baseTag != SpaceObjectTag.Shuttle || !obj.projectileRoleOverride || obj.map == null)
-                {
-                    continue;
-                }
-                Building hull = null;
-                foreach (Thing thing in obj.map.listerThings.AllThings)
-                {
-                    if (thing is Building b && b.TryGetComp<CompSpaceShuttle>() != null)
-                    {
-                        hull = b;
-                        break;
-                    }
-                }
-                if (hull == null) continue;
-                var body = new SpaceCollision.SweptBody
-                {
-                    attacker = obj,
-                    projectileDef = hull.def,
-                    attackerBuilding = hull,
-                    excludeContainer = null,
-                    to = obj.pose.position,
-                    from = OrbitSphere.Move(obj.pose.position, -obj.pose.velocity * (1f / 60f)),
-                    sweepRadius = FootprintRadius(hull.def),
-                    launcher = hull,
-                    haltOnShield = true,
-                };
-                SpaceObject container = obj;
-                body.onPlace = delegate (SpaceObject defender, Vector3 hitUniverse, Vector2 hitLocal)
-                {
-                    universe.Shuttles.PlaceBoardedShuttle(container, defender, hitUniverse, hitLocal);
-                };
                 bodyScratch.Add(body);
             }
             SpaceCollision.SweepAndResolve(universe, bodyScratch);
@@ -745,6 +793,8 @@ namespace DeltaV
             p.launcher = null;
             p.sourceContainer = null;
             p.target = null;
+            p.targetLocalPoint = null;
+            p.adoptedShuttle = false;
             p.dead = false;
             p.laser = false;
             p.damageScale = 1f;
@@ -753,10 +803,14 @@ namespace DeltaV
             p.body.projectileDef = null;
             p.body.attackerBuilding = null;
             p.body.excludeContainer = null;
+            p.body.requiredDefender = null;
+            p.body.noseHalfWidth = 0f;
+            p.body.noseForwardOffset = 0f;
             p.body.launcher = null;
             p.body.onSelfDestruct = null;
             p.body.onPlace = null;
             p.body.resolvedHitDefender = null;
+            p.body.resolvedHitCell = IntVec3.Invalid;
             p.body.dead = false;
             p.body.resolvedHit = false;
             if (projectilePool.Count < MaxPooledProjectiles) projectilePool.Push(p);
@@ -879,24 +933,27 @@ namespace DeltaV
         {
             for (int i = projectiles.Count - 1; i >= 0; i--)
             {
-                DestroyProjectile(projectiles[i], "reset");
+                if (projectiles[i].adoptedShuttle) ReleaseShuttle(projectiles[i].container);
+                else DestroyProjectile(projectiles[i], "reset");
             }
             beams.Clear();
             trailPuffs.Clear();
             muzzleFlashes.Clear();
             impacts.Clear();
-            List<List<Map>> pooledLists = new List<List<Map>>(mapPool.Values);
+            // Capture map identities, not pool list references. The queued projectile
+            // teardown above can return active maps to those same lists before this runs.
+            Map[] resetMaps = projectileMaps.ToArray();
             universe.QueueFrameAction(delegate
             {
-                foreach (List<Map> maps in pooledLists)
+                foreach (Map map in resetMaps)
                 {
-                    foreach (Map map in maps)
-                    {
-                        projectileMaps.Remove(map);
-                        if (!map.Disposed) universe.Lifecycle.DeinitMap(map, false);
-                    }
+                    if (map == null) continue;
+                    ForgetMap(map);
+                    if (!map.Disposed) universe.Lifecycle.DeinitMap(map, false);
                 }
-                mapPool.Clear();
+                // Leave any maps created after ResetFlow intact.
+                foreach (int key in mapPool.Keys.ToArray())
+                    if (mapPool[key].Count == 0) mapPool.Remove(key);
                 HostColonistBarVisibility.NotifyDockingStateChanged();
             });
         }
@@ -968,21 +1025,20 @@ namespace DeltaV
                 foreach (Projectile p in projectiles)
                 {
                     if (p.dead) continue;
-                    Graphic graphic = p.def.graphicData?.Graphic;
-                    Material material = graphic?.MatAt(Rot4.North);
-                    if (material == null) continue;
-                    Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, frameMap,
-                        p.container.pose.position, altitude);
-                    // 弹体自身不转（2026-09-27 用户决策）：mesh 只随自身 space object 姿态
-                    // 换算——容器角度发射时设定一次（哑弹恒定，导弹仅制导转向时更新），
-                    // 与建筑弹体（口袋图内 Rot4 恒定、旋转由船壳姿态携带）同一模型。
-                    // 原版弹贴图图案朝 UV 上方（局部 +Z），轴向换算走 FocusedSpriteRotation
-                    // 唯一入口；MeshAt(North) 网格已含 drawSize，TRS 不再二次缩放。
-                    Quaternion rot = SpaceTransform.FocusedSpriteRotation(frame, p.container.pose.angle);
-                    Matrix4x4 matrix = Matrix4x4.TRS(pos, rot, Vector3.one);
-                    MapOverlayRenderer.CollectSingleQuad(graphic.MeshAt(Rot4.North), matrix, material);
-                    ShellLayer.Slot s = layer.At(slot++);
-                    s.layer.Emit(s);
+                    // 接管的跳帮艇继续由真实 Map 的船壳代理绘制，弹体层只添尾焰。
+                    if (!p.adoptedShuttle)
+                    {
+                        Graphic graphic = p.def.graphicData?.Graphic;
+                        Material material = graphic?.MatAt(Rot4.North);
+                        if (material == null) continue;
+                        Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, frameMap,
+                            p.container.pose.position, altitude);
+                        Quaternion rot = SpaceTransform.FocusedSpriteRotation(frame, p.container.pose.angle);
+                        Matrix4x4 matrix = Matrix4x4.TRS(pos, rot, Vector3.one);
+                        MapOverlayRenderer.CollectSingleQuad(graphic.MeshAt(Rot4.North), matrix, material);
+                        ShellLayer.Slot s = layer.At(slot++);
+                        s.layer.Emit(s);
+                    }
                     if (p.props.exhaustTrail && p.ignited)
                     {
                         EnsureImpactMaterials();
@@ -992,8 +1048,11 @@ namespace DeltaV
                             back * (p.props.exhaustSize * 0.7f));
                         Vector3 flame = SpaceTransform.FocusedDrawPosition(frame, frameMap,
                             exhaustPos, altitude + Altitudes.AltInc);
+                        float exhaustHeading = p.adoptedShuttle
+                            ? Mathf.Atan2(p.container.pose.velocity.y, p.container.pose.velocity.x)
+                            : p.container.pose.angle;
                         Quaternion heading = SpaceTransform.FocusedMeshRotation(frame,
-                            p.container.pose.angle);
+                            exhaustHeading);
                         EmitStretchQuad(exhaustFlashMaterials[0], flame, heading,
                             p.props.exhaustSize * 2.2f, p.props.exhaustSize * 0.85f,
                             layer, ref slot);

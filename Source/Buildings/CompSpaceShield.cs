@@ -27,12 +27,13 @@ namespace DeltaV
         public int minGroundRadius = 8;
         public int maxGroundRadius = 40;
         public int minProjection = 2;
-        public int maxProjection = 50;
+        public int maxProjection = 32;
         public int minLength = 4;
-        public int maxLength = 60;
+        public int maxLength = 32;
         public float basePowerWatts = 200f;
         public float groundRadiusPowerWatts = 4f;
-        public float spaceAreaPowerWatts = 4f;
+        public float spaceProjectionPowerWatts = 12f;
+        public float spaceLengthPowerWatts = 24f;
         public int pulseFailureTicks = 180;
         public string projectorTexPath = "Things/Building/SpaceWeapons/ShieldProjector";
         public float projectorDrawSize = 2.8f;
@@ -170,7 +171,11 @@ namespace DeltaV
             ? ShieldProps.basePowerWatts + ShieldProps.groundRadiusPowerWatts
                 * Mathf.Max(0f, groundRadius * groundRadius
                     - ShieldProps.minGroundRadius * ShieldProps.minGroundRadius)
-            : ShieldProps.basePowerWatts + ShieldProps.spaceAreaPowerWatts * projection * length;
+            : ShieldProps.basePowerWatts
+                + ShieldProps.spaceProjectionPowerWatts
+                    * Mathf.Max(0f, projection - ShieldProps.minProjection)
+                + ShieldProps.spaceLengthPowerWatts
+                    * Mathf.Max(0f, length - ShieldProps.minLength);
 
         private void UpdatePowerDraw()
         {

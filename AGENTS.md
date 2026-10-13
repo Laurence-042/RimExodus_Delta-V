@@ -46,7 +46,7 @@ Mod 尚未发布，不做旧开发快照的存档兼容、迁移键或兼容分�
 - 未经用户当次明确授权，不得 `git commit` 或 `git push`，也不得修改版本号。
 - 开工前检查工作树并保留用户已有改动；禁止为方便而 reset、checkout 或覆盖无关文件。
 - 唯一推荐构建命令：`dotnet build Source/DeltaV.csproj -c Release`。
-- 涉及 RimWorld 内部行为时先查 `references/` 中对应版本源码，不凭记忆猜签名或流程。
+- 涉及 RimWorld 内部行为时先查统一参考目录 `C:\Users\Laure\Documents\workspace\rimworld\_refernces` 中对应版本源码，不凭记忆猜签名或流程。
 - 实现用户指定方案时，若遇到素材契约不明、原版机制证据不足或实测结果与方案不符，优先向用户说明具体问题并提问；不得自行猜测或换用另一方案。
 - 热路径日志必须先检查 `DeltaVLog.Enabled`，只在状态边沿或用户事件输出，禁止每帧/tick 无条件刷屏。
 - 当前阶段优先清晰的现有契约，不为未来兼容制造额外抽象。
@@ -54,7 +54,7 @@ Mod 尚未发布，不做旧开发快照的存档兼容、迁移键或兼容分�
 
 ## 3. 外部源码与 RimExodus 参考
 
-RimWorld、Harmony 和其他 Mod 行为以仓库中的源码或反编译结果为依据。缺少可靠参考时先说明，不猜测、不擅自增加依赖。
+RimWorld、Harmony 和其他 Mod 的源码及反编译参考统一存放在 `C:\Users\Laure\Documents\workspace\rimworld\_refernces`；以该目录中的对应版本内容为依据。缺少可靠参考时先说明，不猜测、不擅自增加依赖。
 
 RimExodus 可参考多 Map 生命周期、跨图状态、聚焦切换、Projectile 后效和 Harmony 模式；不得复用其地表 tile 邻接、六边形、接缝带或平移连续地图语义来表示宇宙空间。Delta-V 行为只在宇宙与口袋图语境生效，不影响 RimExodus 地面地图。
 
@@ -128,7 +128,7 @@ POI marker 无图；物化后成为普通 SpaceObject。地图加载、休眠、
 
 落点 root、旋转、宿主局部锚和相对角只在确认时计算并写入计划；幽灵、自动驾驶、完成判据和最终放置只读计划值。
 
-shuttle 在降落语义上是“驾驶台与基架合一的单建筑飞船”：预览、落点位姿、捕获、剥离和放置必须走普通飞船同一套 Gravship 链。它只在以下方面特殊：不搬地形、不盖结构归属、落地后启动原版 shuttle 冷却、可切换侵入模式、起飞后立即进入驾驶状态（玩家方且聚焦随起飞交接时——常规飞船本就在驾驶状态中出力起飞，无需此机制）。禁止使用 `DeSpawn + GenSpawn` 另写 shuttle 落位。
+shuttle 在降落语义上是“驾驶台与基架合一的单建筑飞船”：预览、落点位姿、捕获、剥离和放置必须走普通飞船同一套 Gravship 链。它只在以下方面特殊：不搬地形、不盖结构归属、落地后启动原版 shuttle 冷却、可切换侵入模式、起飞后立即进入驾驶状态（玩家方且聚焦随起飞交接时——常规飞船本就在驾驶状态中出力起飞，无需此机制）。侵入时由 `SpaceProjectileService` 接管现有艇体，命中后效执行破拆再调用同一 Gravship 转移链；不得启用自动驾驶追击或另写扫掠/`DeSpawn + GenSpawn` 落位。
 
 自动驾驶只负责任务与控制律，不决定对接完成；任意驾驶键可打断自动驾驶但不取消计划。计划不存档，读档后主体按保存速度漂移。
 
@@ -191,18 +191,19 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `SubstructureOwnership`：基架归属、连通认领和结构版本；质量报告、控制域与碰撞面共用其结构版本失效判定及设置页重扫间隔。基架与归属同步移除（`RemoveFoundation`/`RemoveGravshipTerrainUnsafe` postfix → `NotifyFoundationRemoved`），「归属仅在有基架的格上有意义」恒成立。
 - `ShipPhysics`：质量/惯量、推进器、分配器、阻力和积分。
 - `PilotTarget` / `PilotService` / `ShipControlService` / `ShipController`：普通船与 shuttle 的统一驾驶层；每个船归属由实例注册表持有一个玩家或 NPC controller，基类统一调度齐射、转向、点防与炮手事件。侧边栏操作由对应 controller 注册，公共驾驶／对接操作放基类，跳帮艇侵入操作放玩家子类；面板只负责显示和布局。主驾驶台保存玩家火控模式（默认自动），`SpaceAimController` 只在手动集火且为聚焦图所选船时提供输入和预瞄。
-- `ShipAutoFireControl` / `ShipAutoManeuverControl`：玩家与 NPC controller 共用的自动选敌、齐射意图和战斗站位类；玩家自动火控只筛敌对 Ship tag，自动机动开关为运行时状态且不触发 NPC 撤退或跳帮。
-- `ShipAutopilot`：固定/随动/追踪任务；制导经 `IAutopilotGuidance`。
+- `ShipAutoFireControl` / `ShipAutoManeuverControl`：玩家与 NPC controller 共用的自动选敌、齐射意图和战斗站位类；战术距离低频更新，战斗轨迹按制导微步用 `ShipPhysics` 的只读真实分配预览规划 2–6 秒可达位姿和途中船首方向。玩家自动火控只筛敌对 Ship tag，自动机动开关为运行时状态且不触发 NPC 撤退或跳帮。
+- `ShipAutopilot`：固定/随动/战斗轨迹任务；制导经同一 `IAutopilotGuidance`，战斗轨迹不建立独立出力链。姿态参考从本船当前位置到目标中心的视线计算，不能由提前点或目标船自身角速度代替。
 - `ShipFlightTransitionService`：分离、跨图转移、对接发起和源图善后。
 - `DockingCompletion`：对接完成收尾的模板方法基类；shuttle 子类只注入落地冷却与标签，运行时键由容器注销统一清理；公共源图处置/聚焦交接/通知不得分叉。
 - `LandingApproachController`：唯一对接计划、落点注册、复核和完成触发。
 - `GravshipInterop`：原版 Gravship 私有逻辑镜像、designator 适配、预览和 `CaptureDomain/StripDomain/PlaceIntoMap`。
-- `SpaceShuttleService`：shuttle 起飞、注册／读档时虚拟推进器注入、侵入状态和事件驱动的口袋清理；驾驶、物理、自动驾驶与普通飞船共用现有入口，普通对接不在此另实现。
+- `SpaceShuttleService`：shuttle 起飞、注册／读档时虚拟推进器注入、侵入指挥与命中落点、事件驱动的口袋清理；侵入导弹的制导/碰撞由 `SpaceProjectileService` 唯一负责，跳帮后效的落地与普通对接共用 Gravship 转移和 `DockingCompletion`。
 - `SpaceWeaponService` / `SpaceWeaponShot`：跨容器开火总装与唯一 Prepare→Launch→Commit 事务；逐发弹药、装弹机基础脉冲、沿物理链逐段预留的加速脉冲、电容放电与末端炮口在此一次性冻结，成功发射后统一扣费；缺电加速段跳过且不增加弹速，后段仍继续检查。附件电容独立储能、限速充电，仅充电需求变化时更新 `CompPowerTrader.PowerOutput`。锁定弧与发射轴分离，全部武器统一以实例 `fireDeviationDeg` 检查目标与实际炮口/固定轴夹角。Traverse 无独立逐 tick 扫描，只按火控或原版图内目标命令转向；太空炮手由 Job 进入／结束登记并供原版 Mannable 查询。Crew/Traverse/Magazine/Attachment/加速件以正交 Comp/能力接口参与，第三方不得建立家族特判。
 - `SpaceWeaponAttachmentSlots` / `SpaceRailgunConstruction`：武器 Def 声明的插件槽位、允许挂件与串联加速件的选中建造按钮及槽位提示唯一入口；加速段到装弹机的反向关联从 Def 注册反查。轨道炮由装弹机的状态 Comp 管理已解析加速段并统一规划能量、分发颜色；加速段颜色 Comp 不独立轮询。两者经原版 `ThingWithComps.DrawColor → ThingComp.ForceColor` 给 `CutoutComplex`／`_m` 红色蒙版提供主色；绿色通道才对应 `DrawColorTwo`。状态变化经 `Notify_ColorChanged` 刷新 MapMesh，不要求建筑专用 `thingClass`；不切换整张贴图，也不使用 `CompGlower`。状态与预瞄都复用 `SpaceWeaponShot` 的能量规划，安全路径复用同一判定。
 - `Building_SpaceTurretGun` / `DefModExtension_SpaceTurretArt`：替换指定炮塔的旋转顶部材质，位置、角度和绘制继续走原版 `Building_TurretGun`/`TurretTop`；Def 固定为仅点防的 1×1 激光炮不触发原版同图索敌，以免发射原版机炮弹。
+- 重炮、速射炮、激光炮的 2×2／3×3 炮塔逐实例地面／太空模式互斥：地面原版 `Building_TurretGun` + `Verb_SpaceTurretGround`，太空 `SpaceWeaponShot`；`CompSpaceWeapon` 是模式和太空最小射程的事实源。专用点防不切换。
 - `CompMissileAutoloader` / `SpaceMissileMagazineGeometry` / `CompLoadedProjectileGraphic`：唯一 1×3 无人导弹架使用原版 `CompChangeableProjectile` 的一发待发状态和弹种筛选；前一格嵌墙、后两格在船内。1×2 气密导弹仓只可与船内两格同向并排，左右槽位由发射架 Def 声明；原版设施 Comp 登记链接，建造与运行时复用同一几何判定，同归属同派系才自动送入实体导弹。开火、库存、筛选、供电和归属事件合并到下一游戏 tick 按发射架 ID 顺序补弹，双架共享仓不重复取弹；仅库存被原版预留而受阻时保留条件性 60 tick 重试。发射架保留三层整图，以 `Patch_MissileLauncherWallLink` 使原版墙在 `LinkGrid` 中与其相连。导弹物品通过 `DefModExtension_SpaceMissileAmmo` 指向宇宙弹体，三层绘制中层读取同一 `SelectMagazine()` 结果；不改共享 `GraphicData`。
-- `SpaceProjectileService` / `SpaceCollision` / `SpaceImpactEffects`：含冷发射程序的宇宙弹体、统一碰撞与联合命中效果链；弹道工作对象与弹体小图分别池化，SpaceObject 身份每发新建；炮口闪光、点火尾焰/烟迹和命中视觉只由弹体服务登记并在前台层绘制，不另建弹道。
+- `SpaceProjectileService` / `SpaceCollision` / `SpaceImpactEffects`：含冷发射程序的宇宙弹体、统一碰撞与联合命中效果链；普通弹体每发新建 SpaceObject，侵入 shuttle 接管现有容器与地图，复用同一导弹工作表而不归入普通弹体图池。炮口闪光、点火尾焰/烟迹和命中视觉只由弹体服务登记并在前台层绘制，不另建弹道。
 - `CompSpaceShield` / `CompDeltaVShieldInterceptor` / `SpaceShieldRefraction` / `SpaceShieldProjectileBehavior`：独立 `DeltaV_ShieldGenerator` 建筑的地面圆盾与太空单向线盾逐实例模式、几何、电费和分层投射器绘制；原版发生器保持原样。专用拦截器继承原版容量／计时／拦截，仅以本机电网充能；地面半径由实例化的原版拦截器 Props 提供。太空盾交点只在 `SpaceCollision` 求解，弹体类型决定碎裂及新 projectile 初始化；折射方向由碰撞与动态说明共用 `SpaceShieldRefraction`，脉冲电费由弹体行为计算。盾层显示、选中预览、碰撞与脉冲扣费只读取 `CompSpaceShield.State`，盾段几何共用 `GetSegment`；切换太空模式后有蓄电即生效，欠电失效时同时隐藏并停止拦截。设置窗口拖动时写入实例参数，关闭未确认时恢复旧值；不修改 Def 共享 `GraphicData` 或原版盾 Props。
 - `ShellRenderer` / `MapOverlayRenderer` / `ShellRenderRuleDef` / `DockingGhostRenderer` / `ShipSilhouette`：整壳分层、地图内容收集、Thing 外壳绘制配置、幽灵和剪影。入壳 Thing 的静态层走原版 `Thing.Print`，实时层经限定作用域捕获原版 `Graphics.DrawMesh`；替代图为有序整组替换。门在外壳上仅同步全开／全关终态。炮塔旋转炮身由 `IShellTurretTopSource` 提供当前材质和角度，规则决定仅绘炮身并置于船壳上层；轨道装弹机用规则排除，加速段内构与外壳入壳，不修改碰撞分类。
 - `ThrusterEffects` / `ThrusterAudio`：只读真实分配油门的表现。

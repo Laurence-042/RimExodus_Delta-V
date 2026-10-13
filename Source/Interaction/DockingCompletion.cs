@@ -16,15 +16,19 @@ namespace DeltaV
     {
         protected readonly UniverseManager universe;
         protected readonly Map targetMap;
+        private readonly Map sourceMap;
+        private readonly bool impactLanding;
         private readonly ShipFlightTransitionService.DockingFocusHandoff handoff;
 
         private string labelCache;
 
-        private DockingCompletion(UniverseManager universe, Map targetMap,
-            ShipFlightTransitionService.DockingFocusHandoff handoff)
+        private DockingCompletion(UniverseManager universe, Map targetMap, Map sourceMap,
+            ShipFlightTransitionService.DockingFocusHandoff handoff, bool impactLanding = false)
         {
             this.universe = universe;
             this.targetMap = targetMap;
+            this.sourceMap = sourceMap;
+            this.impactLanding = impactLanding;
             this.handoff = handoff;
         }
 
@@ -44,9 +48,7 @@ namespace DeltaV
         public void Finish()
         {
             ShipFlightTransitionService transitions = universe.ShipTransitions;
-            Map sourceMap = transitions.pendingDockingSourceMap;
-            transitions.pendingDockingSourceMap = null;
-            transitions.landedShipAwaitingCleanup = Ship.Invalid;
+            if (!impactLanding) transitions.landedShipAwaitingCleanup = Ship.Invalid;
             string label = labelCache ?? (labelCache = BuildLabel());
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"docking finish: '{label}' {GetType().Name}, source={UniverseManager.MapTag(sourceMap)}, currentMap={UniverseManager.MapTag(Find.CurrentMap)}");
@@ -97,7 +99,7 @@ namespace DeltaV
             Building_DockingPort.NotifyLandingSettled();
             Messages.Message("DeltaV_DockSuccess".Translate(label),
                 MessageTypeDefOf.PositiveEvent, false);
-            transitions.DiscardPendingDocking(universe);
+            if (!impactLanding) transitions.DiscardPendingDocking(universe);
         }
 
         /// <summary>普通飞船完成流程：无 tick 期增量，标签取结构归属名。</summary>
@@ -106,8 +108,9 @@ namespace DeltaV
             private readonly int ownerId;
 
             public ShipDockingCompletion(UniverseManager universe, int ownerId, Map targetMap,
+                Map sourceMap,
                 ShipFlightTransitionService.DockingFocusHandoff handoff)
-                : base(universe, targetMap, handoff)
+                : base(universe, targetMap, sourceMap, handoff)
             {
                 this.ownerId = ownerId;
             }
@@ -126,8 +129,9 @@ namespace DeltaV
             private readonly Building hull;
 
             public ShuttleDockingCompletion(UniverseManager universe, Building hull, Map targetMap,
-                ShipFlightTransitionService.DockingFocusHandoff handoff)
-                : base(universe, targetMap, handoff)
+                Map sourceMap,
+                ShipFlightTransitionService.DockingFocusHandoff handoff, bool impactLanding = false)
+                : base(universe, targetMap, sourceMap, handoff, impactLanding)
             {
                 this.hull = hull;
             }

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
@@ -95,7 +96,7 @@ namespace DeltaV
     /// shuttle 服务（太空战架构 §7/§10，universe.Shuttles 实例服务）：起飞（原版校验
     /// 直取 + 单建筑捕获进口袋）、停靠复用飞船的 Gravship 捕获/剥离/放置链、
     /// 侵入编排（tag 切换的导弹机制）。
-    /// 与飞船共用：ShipPhysics（虚拟推进器注入）、ShipAutopilot（TrackTo/Pursue）、
+    /// 与飞船共用：ShipPhysics（虚拟推进器注入）、ShipAutopilot（普通对接）、
     /// PilotService（PilotTarget）、SpaceCollision（联合效果）。运行时数据不序列化。
     /// </summary>
     public sealed class SpaceShuttleService
@@ -105,8 +106,6 @@ namespace DeltaV
         /// <summary>侵入武装开关（面板；容器 objectId → armed）。</summary>
         private readonly HashSet<int> intrusionArmed = new HashSet<int>();
 
-        /// <summary>侵入计划（目标容器；读档丢弃——运行时数据）。</summary>
-        private readonly Dictionary<int, SpaceObject> intrusionTargets = new Dictionary<int, SpaceObject>();
 
         public SpaceShuttleService(UniverseManager universe)
         {
@@ -289,7 +288,7 @@ namespace DeltaV
             return result;
         }
 
-        // ---- 侵入式对接（§7.5 = 导弹机制：tag 切换 + 满推追踪 + 联合后效放置）----
+        // ---- 侵入式对接（§7.5 = 导弹接管 + 联合后效 + 共同降落链）----
 
         public bool IntrusionArmed(SpaceObject container)
         {
@@ -309,6 +308,11 @@ namespace DeltaV
         public void BeginBoardTargeting(PilotTarget shuttle)
         {
             Building body = shuttle.shuttle;
+            if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
+                DeltaVLog.Message(DeltaVLogModule.Combat,
+                    $"boarding targeter begin tick={Find.TickManager.TicksGame} hull=#{body?.thingIDNumber} " +
+                    $"spawned={body?.Spawned} current={UniverseManager.MapTag(Find.CurrentMap)} " +
+                    $"hullMap={UniverseManager.MapTag(body?.Map)}");
             if (body == null || !body.Spawned) return;
             Find.Targeter.BeginTargeting(new TargetingParameters
             {
@@ -321,39 +325,59 @@ namespace DeltaV
                 // 目标 = 点击处命中的宇宙容器（ShellPicking 在瞄准会话内解析）。
                 Map frameMap = Find.CurrentMap;
                 SpaceObject frame = universe.FrameOf(frameMap);
+                Vector3 mouse = UI.MouseMapPosition();
                 SpaceObject target = frame != null
-                    ? ShellPicking.ShellAtFramePoint(universe, frameMap, UI.MouseMapPosition())
+                    ? ShellPicking.ShellAtFramePoint(universe, frameMap, mouse)
                     : null;
+                if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
+                    DeltaVLog.Message(DeltaVLogModule.Combat,
+                        $"boarding targeter callback tick={Find.TickManager.TicksGame} " +
+                        $"local={localTarget} mouse={UI.MouseMapPosition()} frame=#{frame?.objectId} " +
+                        $"picked=#{target?.objectId} tag={target?.Tag} " +
+                        $"targetMap={UniverseManager.MapTag(target?.map)}");
                 if (target == null || target == frame)
                 {
                     Messages.Message("DeltaV_ShuttleBoardNoTarget".Translate(),
                         MessageTypeDefOf.RejectInput, false);
                     return;
                 }
-                EngageIntrusion(body, target);
+                Vector3 hitDirection = SpaceTransform.MapPointToUniverse(frame, frameMap,
+                    new Vector2(mouse.x, mouse.z));
+                Vector2 hitMapPoint = SpaceTransform.UniverseToMapPoint(target, target.map, hitDirection);
+                EngageIntrusion(body, target, true, hitMapPoint);
+            }, highlightAction: null, targetValidator: localTarget =>
+            {
+                // 原版 LocalTargetInfo 仅接受当前 Map 内的格；非聚焦船壳可显示在
+                // 11×13 shuttle 口袋图之外。让 Targeter 交付点击，再由 ShellPicking 判壳。
+                if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
+                    DeltaVLog.Message(DeltaVLogModule.Combat,
+                        $"boarding targeter validate tick={Find.TickManager.TicksGame} " +
+                        $"local={localTarget} valid={localTarget.IsValid} " +
+                        $"mouseCell={UI.MouseCell()} current={UniverseManager.MapTag(Find.CurrentMap)}");
+                return true;
             });
         }
 
         /// <summary>
-        /// 进入侵入：容器 tag 由 shuttle 切换为 projectile（获得弹体角色：碰撞主动参与
-        /// /阻力豁免/可拦截；projectileRoleOverride，§3.1），自动驾驶切满推追踪
-        ///（Pursue，无刹车包络）。打断接管 = 驾驶键 Enter 内 Detach 后由
-        /// BreakIntrusion 在 UpdateFrameState 兜底（目标保留可重入）。
+        /// 进入侵入：现有艇体交给导弹服务，不创建第二个容器或自动驾驶任务。
         /// </summary>
-        public void EngageIntrusion(Building body, SpaceObject target, bool playerInitiated = true)
+        public void EngageIntrusion(Building body, SpaceObject target, bool playerInitiated = true,
+            Vector2? targetMapPoint = null)
         {
             SpaceObject container = universe.FrameOf(body.Map);
-            if (container == null || container.baseTag != SpaceObjectTag.Shuttle) return;
-            container.projectileRoleOverride = true;
-            intrusionTargets[container.objectId] = target;
+            if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
+                DeltaVLog.Message(DeltaVLogModule.Combat,
+                    $"boarding engage request tick={Find.TickManager.TicksGame} hull=#{body.thingIDNumber} " +
+                    $"shuttle=#{container?.objectId} baseTag={container?.baseTag} " +
+                    $"target=#{target?.objectId} targetTag={target?.Tag} " +
+                    $"targetMap={UniverseManager.MapTag(target?.map)} " +
+                    $"ordinaryProjectiles={universe.Projectiles.InFlightCount} player={playerInitiated}");
+            if (container == null || container.baseTag != SpaceObjectTag.Shuttle
+                || container.projectileRoleOverride || target == null || target == container) return;
+            universe.Autopilot.Detach(PilotTarget.Of(body), "boarding missile launch");
             if (universe.Pilot.PilotedTarget(universe).ControlKey == body.thingIDNumber)
                 universe.Pilot.Exit(universe);
-            universe.Autopilot.Pursue(body, target, delegate
-            {
-                // 目标失效：退出侵入（tag 切回），目标丢弃。
-                var captured = container;
-                BreakIntrusion(captured, dropTarget: true);
-            }, playerInitiated);
+            if (!universe.Projectiles.AdoptShuttle(container, body, target, targetMapPoint)) return;
             DeltaVLog.Message(DeltaVLogModule.Combat,
                 $"intrusion engaged: shuttle container #{container.objectId} -> '{target.label}' (tag->projectile)");
             Messages.Message("DeltaV_ShuttleBoardEngaged".Translate(target.label),
@@ -364,94 +388,117 @@ namespace DeltaV
         public void BreakIntrusion(SpaceObject container, bool dropTarget)
         {
             if (container == null) return;
-            container.projectileRoleOverride = false;
-            if (dropTarget) intrusionTargets.Remove(container.objectId);
+            universe.Projectiles.ReleaseShuttle(container);
             DeltaVLog.Message(DeltaVLogModule.Combat,
                 $"intrusion broken off: shuttle container #{container.objectId} (tag->shuttle)");
         }
 
-        /// <summary>
-        /// 侵入命中结算（联合后效的放置段，§7.5）：舱体 building 放置在撞击位置**靠船体
-        /// 内侧一些**（沿内法线偏移；脚印冲突建筑清障、沿入射回退首个可放位置），
-        /// 容器销毁、乘员/货物仍 held 由原版一键卸货出击。帧边界执行。
-        /// </summary>
+        /// <summary>导弹命中后效：在帧边界以真正的 Gravship 搬运链降落。</summary>
         public void PlaceBoardedShuttle(SpaceObject container, SpaceObject defender,
-            Vector3 hitUniverse, Vector2 hitLocal)
+            Vector3 hitUniverse, Vector2 hitLocal, Vector2 incidentWorld,
+            IntVec3 hitCell, bool shieldHit)
         {
             universe.QueueFrameAction(delegate
             {
-                Building hull = null;
-                if (container?.map != null)
+                Map targetMap = defender?.map;
+                Map sourceMap = container?.map;
+                Building hull = HullOf(container);
+                if (hull == null || sourceMap == null || targetMap == null || targetMap.Disposed
+                    || !universe.objects.Contains(defender) || !universe.objects.Contains(container))
+                    return;
+
+                // 护盾点在舱壁之外：沿本发实际入射方向找第一格船壳。
+                Vector3 ahead = OrbitSphere.Move(hitUniverse, incidentWorld * 0.25f);
+                Vector2 localDirection = SpaceTransform.UniverseToMapPoint(defender, targetMap, ahead)
+                    - SpaceTransform.UniverseToMapPoint(defender, targetMap, hitUniverse);
+                if (localDirection.sqrMagnitude < 1e-8f) return;
+                localDirection.Normalize();
+                IntVec3 entry = hitCell;
+                if (shieldHit)
                 {
-                    foreach (Thing thing in container.map.listerThings.AllThings)
+                    entry = IntVec3.Invalid;
+                    for (float distance = 0f; distance <= 64f; distance += 0.25f)
                     {
-                        if (thing is Building building && building.TryGetComp<CompSpaceShuttle>() != null)
+                        Vector2 probe = hitLocal + localDirection * distance;
+                        IntVec3 cell = new IntVec3(Mathf.FloorToInt(probe.x), 0,
+                            Mathf.FloorToInt(probe.y));
+                        if (!cell.InBounds(targetMap)) continue;
+                        if (cell.GetThingList(targetMap).Any(t => t is Building b && b.def.IsWall))
                         {
-                            hull = building;
+                            entry = cell;
                             break;
                         }
                     }
                 }
-                Map targetMap = defender?.map;
-                if (hull == null || targetMap == null || targetMap.Disposed)
+                if (!entry.IsValid || !entry.InBounds(targetMap))
                 {
                     DeltaVLog.Message(DeltaVLogModule.Combat,
-                        "boarded shuttle placement failed: hull or target map lost");
+                        $"boarding landing refused: no target hull near {hitLocal} on {UniverseManager.MapTag(targetMap)}");
                     return;
                 }
-                // 内法线偏移：命中点向宿主中心回退（沿入射反方向）一格起步，找首个可放位置。
-                Vector2 center = SpaceTransform.ShipLocalOrigin(targetMap);
-                Vector2 inward = center - hitLocal;
-                Vector2 dir = inward.sqrMagnitude > 1e-6f ? inward.normalized : Vector2.zero;
-                IntVec3 placed = IntVec3.Invalid;
-                for (int step = 0; step <= 8; step++)
+
+                Rot4 facing = ShipOrientation.Rot4FromAngle(
+                    Mathf.Atan2(localDirection.y, localDirection.x));
+                IntVec3 lateralStep = facing == Rot4.North || facing == Rot4.South
+                    ? IntVec3.East : IntVec3.North;
+                for (int depth = 0; depth < 2; depth++)
+                for (int lateral = -1; lateral <= 1; lateral++)
+                    if (!(entry + facing.FacingCell * depth + lateralStep * lateral).InBounds(targetMap))
+                        return;
+                // Thing.Position 是原版多格建筑的中心锚，不是脚印左下角。
+                IntVec3 desiredCenter = entry - facing.FacingCell * 2;
+                CellRect occupied = GenAdj.OccupiedRect(desiredCenter, facing, hull.def.size);
+                if (!occupied.Cells.All(c => c.InBounds(targetMap)))
                 {
-                    Vector2 probe = hitLocal + dir * step;
-                    IntVec3 root = new IntVec3(Mathf.FloorToInt(probe.x), 0, Mathf.FloorToInt(probe.y))
-                        .ClampInsideMap(targetMap);
-                    root = new IntVec3(
-                        Mathf.Clamp(root.x, 0, targetMap.Size.x - hull.def.Size.x), 0,
-                        Mathf.Clamp(root.z, 0, targetMap.Size.z - hull.def.Size.z));
-                    // 清障：脚印冲突建筑摧毁（Vanish），地形保留。
-                    bool blocked = false;
-                    foreach (IntVec3 cell in hull.OccupiedRect().MovedBy(root))
+                    DeltaVLog.Message(DeltaVLogModule.Combat,
+                        $"boarding landing refused: footprint crosses map edge at {entry}");
+                    return;
+                }
+                // 艇身后四排应位于船外；不能借原版 GenSpawn 的 wipe 语义
+                // 无提示地抹掉另一片结构。入口两排由破拆后效显式处理。
+                foreach (IntVec3 cell in occupied.Cells)
+                {
+                    bool inBreach = cell == entry || cell == entry + lateralStep
+                        || cell == entry - lateralStep;
+                    if (inBreach) continue;
+                    if (cell.GetThingList(targetMap).Any(t => t is Building))
                     {
-                        foreach (Thing thing in cell.GetThingList(targetMap).ToList())
-                        {
-                            if (thing is Building conflict && !conflict.Destroyed && conflict != hull)
-                            {
-                                conflict.Destroy(DestroyMode.Vanish);
-                            }
-                        }
-                        if (!cell.Standable(targetMap) && cell.GetDoor(targetMap) == null) blocked = true;
-                    }
-                    if (!blocked)
-                    {
-                        placed = root;
-                        break;
+                        DeltaVLog.Message(DeltaVLogModule.Combat,
+                            $"boarding landing refused: occupied rear footprint at {cell}; " +
+                            $"entry={entry} facing={facing} center={desiredCenter} " +
+                            $"hitLocal={hitLocal} incident={localDirection}");
+                        return;
                     }
                 }
-                Map pocket = container.map;
-                hull.DeSpawn(DestroyMode.WillReplace);
-                if (placed.IsValid)
+
+                PilotTarget shuttle = PilotTarget.Of(hull);
+                Gravship gravship = universe.ShipTransitions.CaptureDockingTargetForCompletion(
+                    shuttle, out HashSet<IntVec3> capturedCells, out bool includeTerrain);
+                if (gravship == null) return;
+                Rot4 placementRotation = ShipOrientation.PlacementRotation(hull.Rotation, facing);
+                gravship.Rotation = placementRotation;
+                if (!gravship.ThingPlacements.TryGetValue(hull, out RimWorld.Planet.PositionData.Data placement))
+                    return;
+                if (placement.rotation != facing) return;
+                IntVec3 landingRoot = desiredCenter - placement.local;
+                var handoff = Find.CurrentMap == sourceMap
+                    ? new ShipFlightTransitionService.DockingFocusHandoff(defender,
+                        new Vector2(entry.x + 0.5f, entry.z + 0.5f),
+                        Find.CameraDriver.RootSize)
+                    : default(ShipFlightTransitionService.DockingFocusHandoff);
+                // 破拆在落点确定之后，且只对两排三格的建筑生效；基架不动。
+                SpaceImpactEffects.BreachBoardingCorridor(targetMap, entry, facing, hull);
+                if (!universe.ShipTransitions.CompleteTransferIntoHost(universe, shuttle,
+                    gravship, capturedCells, includeTerrain, targetMap, landingRoot,
+                    placementRotation, 0, out Map transferredSource, impactLanding: true))
                 {
-                    GenSpawn.Spawn(hull, placed, targetMap, hull.Rotation);
-                    CompLaunchable launchable = hull.TryGetComp<CompLaunchable>();
-                    StartLaunchCooldown(launchable); // 降落后处理：回落建筑 + 原版冷却（§7.4 唯一差异分支）
+                    Log.Error("[DeltaV] Boarding breach completed but shared Gravship transfer failed.");
+                    return;
                 }
-                else
-                {
-                    hull.Destroy(DestroyMode.Vanish); // 无处安放：舱毁（乘员随 transporter 语义）
-                }
-                universe.Lifecycle.DestroyPocketMap(pocket);
-                if (universe.objects.Contains(container))
-                {
-                    universe.UnregisterObject(container);
-                }
-                PlanetGlobeRenderer.InvalidateSilhouette(targetMap);
-                SubstructureOwnership.BumpStructureVersion();
-                DeltaVLog.Message(DeltaVLogModule.Combat,
-                    $"boarded shuttle placed inside '{defender.label}' at {placed}; container #{container.objectId} destroyed");
+                var completion = new DockingCompletion.ShuttleDockingCompletion(
+                    universe, hull, targetMap, transferredSource, handoff, impactLanding: true);
+                completion.OnTransferedIntoHost();
+                universe.QueueFrameAction(completion.Finish);
             });
         }
 
@@ -467,7 +514,6 @@ namespace DeltaV
             if (container != null)
             {
                 intrusionArmed.Remove(container.objectId);
-                intrusionTargets.Remove(container.objectId);
             }
         }
 
@@ -475,7 +521,6 @@ namespace DeltaV
         public void ResetFlow()
         {
             intrusionArmed.Clear();
-            intrusionTargets.Clear();
         }
     }
 }

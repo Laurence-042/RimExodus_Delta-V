@@ -102,7 +102,7 @@ namespace DeltaV
         {
             if (victim?.map == null) return null;
             Thing pointDefense = SpaceWeaponService.AllWeaponsOn(victim.map)
-                .Where(w => w.aimMode == SpaceWeaponAimMode.PointDefense
+                .Where(w => w.SpaceModeEnabled && w.aimMode == SpaceWeaponAimMode.PointDefense
                     && w.parent.Spawned && !w.parent.Destroyed)
                 .Select(w => w.parent).FirstOrDefault();
             return pointDefense ?? ShipPhysics.GetReport(victim.map)?.thrusters
@@ -121,6 +121,7 @@ namespace DeltaV
         private NpcDoctrine lastOrbitDoctrine;
         private SpaceObject lastOrbitTarget;
         private int lastOrbitLogTick = int.MinValue;
+        private int orbitDirection;
 
         internal NpcDoctrine Doctrine { get; private set; }
 
@@ -145,11 +146,14 @@ namespace DeltaV
             lastDoctrineTick = now;
             PickDoctrine(ship, own, target, priorities, allowBoarding, out NpcDoctrine doctrine,
                 out float radius);
+            bool taskActive = universe.Autopilot.IsCombatOrbit(ship.ownerId);
             bool changed = !orbitTaskObserved || lastOrbitTarget != target
                 || lastOrbitDoctrine != doctrine || Mathf.Abs(lastOrbitRadius - radius) > 0.5f
-                || !universe.Autopilot.IsCombatOrbit(ship.ownerId);
+                || !taskActive;
+            if (lastOrbitTarget != target || !taskActive) orbitDirection = 0;
             Doctrine = doctrine;
-            universe.Autopilot.TrackOrbit(ship, target, radius, playerInitiated);
+            lastOrbitRadius = radius;
+            universe.Autopilot.TrackOrbit(ship, target, radius, PlanTrajectory, playerInitiated);
             if (changed && DeltaVLog.Enabled(DeltaVLogModule.Combat)
                 && (lastOrbitLogTick == int.MinValue || now - lastOrbitLogTick >= 60))
             {
@@ -161,7 +165,6 @@ namespace DeltaV
             orbitTaskObserved = true;
             lastOrbitTarget = target;
             lastOrbitDoctrine = doctrine;
-            lastOrbitRadius = radius;
         }
 
         internal void Clear(Ship ship)
@@ -170,6 +173,86 @@ namespace DeltaV
                 universe.Autopilot.Detach(ship, "combat target lost");
             orbitTaskObserved = false;
             lastOrbitTarget = null;
+            orbitDirection = 0;
+        }
+
+        /// <summary>每个制导微步给共同 MPC 一段实际推进器可达的轨迹；不直接写推力。</summary>
+        private bool PlanTrajectory(Ship ship, SpaceObject own, SpaceObject target,
+            float radius, ShipPhysics.MassReport report, out CombatTrajectoryIntent intent)
+        {
+            intent = default;
+            if (!ship.IsValid || own == null || target == null || report == null
+                || report.mass <= 0f || report.inertia <= 0f) return false;
+            Vector2 toCenter = OrbitSphere.Offset(own.pose.position, target.pose.position);
+            float distance = toCenter.magnitude;
+            if (distance < 0.01f) return false;
+            Vector2 outward = -toCenter / distance;
+            Vector2 tangent = new Vector2(-outward.y, outward.x);
+            Vector2 relativeVelocity = own.pose.velocity
+                - SpaceTransform.TransportVelocity(target.pose, own.pose.position);
+            float frameAngle = PilotTarget.Of(ship).FrameAngle;
+            float pathAngle = SpaceTransform.WrapAngle(Mathf.Atan2(toCenter.y, toCenter.x)
+                - frameAngle);
+            float desiredMapAngle = pathAngle;
+            float mapFacing = own.pose.angle;
+
+            // 侧推选择以船首对准圆心时的 Map 局部推进器能力为依据，只在目标切换时决定。
+            if (orbitDirection == 0)
+            {
+                Vector2 mapPositive = SpaceTransform.RotateInverse(tangent, desiredMapAngle);
+                float positive = ShipPhysics.PreviewBrakingAcceleration(report, -mapPositive);
+                float negative = ShipPhysics.PreviewBrakingAcceleration(report, mapPositive);
+                orbitDirection = positive >= negative ? 1 : -1;
+            }
+            Vector2 mapSide = SpaceTransform.RotateInverse(tangent * orbitDirection,
+                desiredMapAngle);
+            Vector2 mapOutward = SpaceTransform.RotateInverse(outward, desiredMapAngle);
+            float sideAcceleration = ShipPhysics.PreviewBrakingAcceleration(report, -mapSide);
+            float outwardAcceleration = ShipPhysics.PreviewBrakingAcceleration(report, -mapOutward);
+            float inwardAcceleration = ShipPhysics.PreviewBrakingAcceleration(report, mapOutward);
+            float angularAcceleration = ShipPhysics.PreviewAngularAcceleration(report,
+                orbitDirection);
+            float radiusError = radius - distance;
+            float radialAcceleration = radiusError >= 0f ? outwardAcceleration : inwardAcceleration;
+            float seconds = Mathf.Clamp(2f + Mathf.Sqrt(2f * Mathf.Abs(radiusError)
+                / Mathf.Max(0.1f, radialAcceleration)), 2f, 6f);
+            float radialSpeed = Vector2.Dot(relativeVelocity, outward);
+            float radialLow = radialSpeed * seconds
+                - 0.5f * inwardAcceleration * seconds * seconds;
+            float radialHigh = radialSpeed * seconds
+                + 0.5f * outwardAcceleration * seconds * seconds;
+            float radialStep = Mathf.Clamp(radiusError, radialLow, radialHigh);
+            float futureRadius = Mathf.Max(0.1f, distance + radialStep);
+            float sideSpeed = Vector2.Dot(relativeVelocity, tangent) * orbitDirection;
+            float sideTravel = Mathf.Max(0f, sideSpeed * seconds
+                + 0.5f * sideAcceleration * seconds * seconds);
+            float headingError = Mathf.Abs(SpaceTransform.WrapAngle(pathAngle - mapFacing));
+            float yawTravel = Mathf.Max(0f, own.pose.angularVelocity * orbitDirection * seconds
+                + 0.5f * angularAcceleration * seconds * seconds
+                - Mathf.Max(0f, headingError - 0.1f));
+            float phase = Mathf.Min(Mathf.PI / 3f,
+                sideTravel / Mathf.Max(Mathf.Max(distance, futureRadius), 8f), yawTravel);
+
+            Vector2 currentFromCenter = OrbitSphere.Offset(target.pose.position,
+                own.pose.position);
+            float currentPhase = Mathf.Atan2(currentFromCenter.y, currentFromCenter.x);
+            intent = new CombatTrajectoryIntent
+            {
+                seconds = seconds,
+                center = target.pose.position,
+                centerVelocity = target.pose.velocity,
+                startRadius = distance,
+                radialStep = radialStep,
+                startPhase = currentPhase,
+                frameAngle = frameAngle,
+                pathAngle = pathAngle,
+                pathAngularVelocity = (outward.x * relativeVelocity.y
+                    - outward.y * relativeVelocity.x) / distance,
+                phaseAdvance = orbitDirection * phase
+            };
+            intent.Sample(seconds, out intent.futurePosition, out intent.futureVelocity,
+                out intent.futureAngle, out intent.futureAngularVelocity);
+            return true;
         }
 
         private void PickDoctrine(Ship ship, SpaceObject own, SpaceObject enemy,
@@ -181,7 +264,7 @@ namespace DeltaV
             float clearance = SpaceCollision.BoundsRadiusOf(own)
                 + SpaceCollision.BoundsRadiusOf(enemy) + 10f;
             float maxRange = SpaceWeaponService.WeaponsOn(ship.map, ship.ownerId)
-                .Where(w => w.aimMode == SpaceWeaponAimMode.Volley)
+                .Where(w => w.SpaceModeEnabled && w.aimMode == SpaceWeaponAimMode.Volley)
                 .Select(w => w.WeaponProps.range).DefaultIfEmpty(clearance + 30f).Max();
             float[] samples = { clearance, Mathf.Max(clearance, maxRange * 0.45f),
                 Mathf.Max(clearance, maxRange * 0.7f), Mathf.Max(clearance, maxRange * 0.9f) };

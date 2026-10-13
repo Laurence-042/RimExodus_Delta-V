@@ -69,6 +69,9 @@ namespace DeltaV
         /// <summary>破片在命中格处摧毁基架的概率（随距离线性衰减）。</summary>
         public float stripSubstructureChance = 0.5f;
 
+        /// <summary>基架被直接命中后，伤害达到此值时必定摧毁命中格；不累计损伤。</summary>
+        public float substructureBreakThreshold = 60f;
+
         /// <summary>跳弹门槛：守方耐久 ≥ 此值才可能跳弹（0 = 该后效不判跳弹）。</summary>
         public float ricochetMinHitPoints = 0f;
 
@@ -84,11 +87,16 @@ namespace DeltaV
     /// </summary>
     public class SpaceImpactEffectDef : Def
     {
+        public const float DefaultSubstructureHitChance = 0.02f;
+
         /// <summary>匹配的弹体 building def（空 = 任意弹体 → 全局兜底条目）。</summary>
         public List<ThingDef> projectileDefs;
 
         /// <summary>本条目以基架格为目标（命中判定走 Substructure 语义）。</summary>
         public bool targetsSubstructure;
+
+        /// <summary>弹体遇到无建筑遮盖的基架格时发生碰撞的概率。</summary>
+        public float substructureHitChance = DefaultSubstructureHitChance;
 
         /// <summary>匹配的守方 building def（空 = 该弹体的任意目标兜底）。</summary>
         public List<ThingDef> targetThingDefs;
@@ -99,6 +107,9 @@ namespace DeltaV
         /// <summary>守方（被撞容器）一侧的后效。</summary>
         public ImpactOutcomePart defenderEffect;
 
+        /// <summary>护盾容量结算之后在盾面执行的地图后效（导弹爆炸）。</summary>
+        public ImpactOutcomePart shieldSurfaceEffect;
+
         /// <summary>
         /// 兜底条目专用：基准舱壁耐久。守方伤害按「基准耐久 / 守方耐久」缩放
         ///（同等耐久舱壁规则：耐久只换参数，不换规则）。
@@ -108,6 +119,11 @@ namespace DeltaV
         public override IEnumerable<string> ConfigErrors()
         {
             foreach (string error in base.ConfigErrors()) yield return error;
+            if (targetsSubstructure && (substructureHitChance < 0f || substructureHitChance > 1f))
+                yield return $"{defName}: substructureHitChance must be between 0 and 1";
+            if (defenderEffect?.kind == ImpactEffectKind.DamageMap
+                && defenderEffect.substructureBreakThreshold <= 0f)
+                yield return $"{defName}: substructureBreakThreshold must be positive";
             if (attackerEffect == null && defenderEffect == null)
             {
                 yield return $"{defName}: neither attackerEffect nor defenderEffect configured";
@@ -123,6 +139,33 @@ namespace DeltaV
     /// </summary>
     public static class SpaceImpactEffects
     {
+        /// <summary>跳帮后效的保证破口；只移除两排三格内的建筑，不触及基架。</summary>
+        public static void BreachBoardingCorridor(Map map, IntVec3 nose, Rot4 facing, Thing launcher)
+        {
+            IntVec3 forward = facing.FacingCell;
+            IntVec3 side = facing == Rot4.North || facing == Rot4.South
+                ? IntVec3.East : IntVec3.North;
+            var buildings = new HashSet<Building>();
+            for (int depth = 0; depth < 2; depth++)
+            for (int lateral = -1; lateral <= 1; lateral++)
+            {
+                IntVec3 cell = nose + forward * depth + side * lateral;
+                if (!cell.InBounds(map)) continue;
+                foreach (Thing thing in cell.GetThingList(map))
+                    if (thing is Building building) buildings.Add(building);
+            }
+            foreach (Building building in buildings)
+            {
+                if (building.Destroyed) continue;
+                building.TakeDamage(new DamageInfo(DamageDefOf.Bomb,
+                    building.MaxHitPoints, 100f, -1f, launcher));
+                if (!building.Destroyed) building.Destroy(DestroyMode.KillFinalize);
+            }
+            if (buildings.Count == 0) return;
+            SubstructureOwnership.BumpStructureVersion();
+            PlanetGlobeRenderer.InvalidateSilhouette(map);
+        }
+
         private static Dictionary<ThingDef, Dictionary<ThingDef, SpaceImpactEffectDef>> byTarget;
         private static Dictionary<ThingDef, SpaceImpactEffectDef> substructureFor;
         private static Dictionary<ThingDef, SpaceImpactEffectDef> anyTargetFor;
@@ -159,13 +202,14 @@ namespace DeltaV
 
         /// <summary>
         /// 命中判定（二值）：true = 产生后效；false = 放行穿过。
-        /// 命中概率只由目标种类及其掩体效果决定。
+        /// 建筑按掩体效果，基架按本弹体的联合效果条目判定。
         /// </summary>
         public static bool HitTest(ThingDef projectileDef,
-            SpaceCellKind kind, Thing building)
+            SpaceCellKind kind, Thing building, SpaceImpactEffectDef effect)
         {
             if (kind == SpaceCellKind.Substructure)
-                return Rand.Chance(SpaceStructureRules.SubstructureHitChance);
+                return Rand.Chance(Mathf.Clamp01(effect?.substructureHitChance
+                    ?? SpaceImpactEffectDef.DefaultSubstructureHitChance));
             if (kind != SpaceCellKind.Substructure && building != null)
             {
                 if (GuaranteedMissileHit(projectileDef, building.def)) return true;
@@ -203,8 +247,8 @@ namespace DeltaV
         /// <summary>
         /// 守方后效应用（原版伤害原语单点）：伤害 = 基准 × 速度因子 × 入射角因子
         ///（× 兜底耐久缩放）。跳弹（高耐久 ∧ 斜入射）= 消灭无伤——由攻方 DestroySelf
-        /// 后效完成「消灭」，本方法不施加伤害。基架格的「伤害」= 摧毁命中处基架
-        ///（含破片递减半径）。护盾容量消耗 = 直写原版 comp（EMP/击破/重充沿用原版状态机）。
+        /// 后效完成「消灭」，本方法不施加伤害。基架格由单次伤害决定摧毁概率，
+        /// 不累计耐久；爆炸及破片仍可破坏周围基架。护盾容量消耗 = 直写原版 comp。
         /// </summary>
         public static void ApplyToDefender(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part,
             float durabilityScale = 1f)
@@ -250,27 +294,33 @@ namespace DeltaV
             float ap = part.armorPenetration * (amount / Mathf.Max(1f, part.damage))
                 * evt.armorPenetrationScale;
             DamageDef damType = part.damageDef ?? DamageDefOf.Bullet;
+            bool buildingGeometryChanged = false;
+
+            if (evt.defenderIsSubstructure && map.terrainGrid.FoundationAt(cell)?.IsSubstructure == true
+                && Rand.Chance(Mathf.Clamp01(amount / part.substructureBreakThreshold)))
+            {
+                StripSubstructureAt(map, cell);
+            }
 
             if (part.penetrationLayers != null && part.penetrationLayers.Count > 0
                 && evt.defenderBuilding != null)
             {
-                ApplyDirectionalPenetration(evt, part, map, cell, amount, ap, damType);
+                buildingGeometryChanged = ApplyDirectionalPenetration(evt, part, map, cell,
+                    amount, ap, damType);
             }
             else if (part.explosionRadius > 0f)
             {
                 // 爆炸：波及（人员杀伤/建筑毁伤）交原版 GenExplosion 原生处理。
                 GenExplosion.DoExplosion(cell, map, part.explosionRadius, damType, evt.launcher,
                     Mathf.Max(1, Mathf.RoundToInt(amount)), ap, projectile: evt.projectileDef);
+                // Explosion can destroy structures outside the directly hit cell.
+                buildingGeometryChanged = true;
             }
             else if (evt.defenderBuilding != null && !evt.defenderBuilding.Destroyed)
             {
                 evt.defenderBuilding.TakeDamage(new DamageInfo(damType, amount, ap, -1f,
                     evt.launcher, null, evt.projectileDef));
-            }
-            else if (evt.defenderIsSubstructure)
-            {
-                // 基架单体命中（无爆炸参数时的「固定伤害」语义）：摧毁命中格基架。
-                StripSubstructureAt(map, cell);
+                buildingGeometryChanged = evt.defenderBuilding.Destroyed;
             }
 
             if (part.stripSubstructureRadius > 0f)
@@ -278,7 +328,7 @@ namespace DeltaV
                 // 破片溅射：按递减概率摧毁命中点周围基架（人员杀伤已由爆炸原生覆盖）。
                 foreach (IntVec3 nearby in GenRadial.RadialCellsAround(cell, part.stripSubstructureRadius, true))
                 {
-                    if (!nearby.InBounds(map)) continue;
+                    if (!nearby.InBounds(map) || nearby == cell) continue;
                     float falloff = 1f - (nearby - cell).LengthHorizontal / part.stripSubstructureRadius;
                     if (Rand.Chance(part.stripSubstructureChance * falloff))
                     {
@@ -286,17 +336,21 @@ namespace DeltaV
                     }
                 }
             }
-            SubstructureOwnership.BumpStructureVersion();
-            PlanetGlobeRenderer.InvalidateSilhouette(map);
+            if (buildingGeometryChanged)
+            {
+                SubstructureOwnership.BumpStructureVersion();
+                PlanetGlobeRenderer.InvalidateSilhouette(map);
+            }
         }
 
         /// <summary>
         /// 每层先伤中央结构，再伤两侧；中央结构尚存时弹芯在该层停止。
         /// 空格可跨越，同一多格建筑只结算一次，避免同一物体被一发重复击中。
         /// </summary>
-        private static void ApplyDirectionalPenetration(SpaceCollision.ImpactEvent evt,
+        private static bool ApplyDirectionalPenetration(SpaceCollision.ImpactEvent evt,
             ImpactOutcomePart part, Map map, IntVec3 entry, float amount, float ap, DamageDef damType)
         {
+            bool destroyedBuilding = false;
             Vector2 dir = evt.incidentDir.normalized;
             if (dir.sqrMagnitude < 0.001f) dir = Vector2.up;
             Vector2 side = new Vector2(-dir.y, dir.x);
@@ -334,11 +388,13 @@ namespace DeltaV
                     {
                         target.TakeDamage(new DamageInfo(damType, amount * layer.damageFactor,
                             ap, -1f, evt.launcher, null, evt.projectileDef));
+                        destroyedBuilding |= target.Destroyed;
                     }
                     if (offset == 0 && !target.Destroyed) centerStopped = true;
                 }
                 if (centerStopped) break;
             }
+            return destroyedBuilding;
         }
 
         private static IntVec3 CellAt(Vector2 point) => new IntVec3(

@@ -121,7 +121,7 @@ namespace DeltaV
         /// <summary>
         /// 出力前分离 gate 的泛化入口（PilotTarget）：shuttle 独占自己口袋图、停靠时也
         /// 不构成「船与其余部分」的分离语义（无归属/控制域）——直接放行；船走既有
-        /// 分离分支（§7 脱离 + §8 拆分统一）。侵入 shuttle 的满推追踪同样经此免分离。
+        /// 分离分支（§7 脱离 + §8 拆分统一）。侵入 shuttle 已由导弹服务接管，不走此门禁。
         /// </summary>
         public bool RequestThrust(UniverseManager universe, PilotTarget target, bool playerInitiated)
         {
@@ -1125,8 +1125,10 @@ namespace DeltaV
         /// </summary>
         internal bool CompleteTransferIntoHost(UniverseManager universe, PilotTarget target,
             Gravship gravship, HashSet<IntVec3> domain, bool includeTerrain, Map targetMap,
-            IntVec3 landingRoot, Rot4 landingRot, int structureId)
+            IntVec3 landingRoot, Rot4 landingRot, int structureId, out Map sourceMap,
+            bool impactLanding = false)
         {
+            sourceMap = null;
             if (gravship == null || targetMap == null) return false;
             Map pocketMap = target.Map;
             if (pocketMap == null || pocketMap == targetMap) return false;
@@ -1136,30 +1138,33 @@ namespace DeltaV
             // 源图残留复核（§6：确认后新增的残留不静默处置——中止并要求重新发起）。
             // domain 与完成时刻捕获（CaptureDockingTargetForCompletion）同调用栈、同一查询入口，
             // 兼作 StripDomain 的剥离格集合（禁止从 Foundations 旋转视图反推，见其注释）。
-            List<Thing> leftovers = CollectSourceLeftovers(pocketMap, domain);
-            List<int> confirmed = pendingLeftoverThingIds ?? new List<int>();
-            foreach (Thing leftover in leftovers)
+            if (!impactLanding)
             {
-                if (!confirmed.Contains(leftover.thingIDNumber))
+                List<Thing> leftovers = CollectSourceLeftovers(pocketMap, domain);
+                List<int> confirmed = pendingLeftoverThingIds ?? new List<int>();
+                foreach (Thing leftover in leftovers)
                 {
-                    Messages.Message("DeltaV_DockSourceLeftoverChanged".Translate(),
-                        MessageTypeDefOf.RejectInput, false);
-                    DeltaVLog.Message(DeltaVLogModule.Core,
-                        $"docking transfer rejected: unconfirmed leftover #{leftover.thingIDNumber} ({leftover.def?.defName}) on source map");
-                    return false;
+                    if (!confirmed.Contains(leftover.thingIDNumber))
+                    {
+                        Messages.Message("DeltaV_DockSourceLeftoverChanged".Translate(),
+                            MessageTypeDefOf.RejectInput, false);
+                        DeltaVLog.Message(DeltaVLogModule.Core,
+                            $"docking transfer rejected: unconfirmed leftover #{leftover.thingIDNumber} ({leftover.def?.defName}) on source map");
+                        return false;
+                    }
                 }
             }
-            pendingDockingSourceMap = pocketMap;
             GravshipInterop.StripDomain(gravship, pocketMap, domain, includeTerrain);
             GravshipInterop.PlaceIntoMap(gravship, landingRoot, targetMap, structureId);
-            if (!target.IsShuttle) landedShipAwaitingCleanup = target.ship;
-            pendingShip = Ship.Invalid;
-            pendingLeftoverThingIds = null;
+            sourceMap = pocketMap;
+            if (!impactLanding)
+            {
+                if (!target.IsShuttle) landedShipAwaitingCleanup = target.ship;
+                pendingShip = Ship.Invalid;
+                pendingLeftoverThingIds = null;
+            }
             return true;
         }
-
-        /// <summary>完成时刻记录的源口袋图（CompleteTransferIntoHost 置位，DockingCompletion.Finish 消费）。</summary>
-        internal Map pendingDockingSourceMap;
 
         internal List<int> pendingLeftoverThingIds;
 

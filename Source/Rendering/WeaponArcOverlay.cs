@@ -39,8 +39,9 @@ namespace DeltaV
             int tick = Find.TickManager.TicksGame;
             foreach (CompSpaceWeapon weapon in SpaceWeaponService.AllWeaponsOn(map))
             {
-                if (weapon?.parent?.Spawned != true) continue;
+                if (weapon?.parent?.Spawned != true || !weapon.SpaceModeEnabled) continue;
                 float range = weapon.WeaponProps.range;
+                float minRange = Mathf.Clamp(weapon.WeaponProps.minRange, 0f, range);
                 if (range <= 0f) continue;
                 colors ??= MakeColors();
                 float arcDeg = Mathf.Clamp(weapon.WeaponProps.fireArcDeg, 0f, 360f);
@@ -54,7 +55,8 @@ namespace DeltaV
 
                 if (arcDeg <= 0.001f)
                 {
-                    GenDraw.DrawLineBetween(origin, Point(muzzle, range, center, altitude),
+                    GenDraw.DrawLineBetween(Point(muzzle, minRange, center, altitude),
+                        Point(muzzle, range, center, altitude),
                         color, 0.14f);
                     continue;
                 }
@@ -64,11 +66,19 @@ namespace DeltaV
                     Matrix4x4.TRS(origin, Quaternion.Euler(0f, -center * Mathf.Rad2Deg, 0f),
                         Vector3.one), color, 0);
 
+                if (minRange > 0f)
+                    Graphics.DrawMesh(BoundaryMesh(minRange, Mathf.RoundToInt(arcDeg)),
+                        Matrix4x4.TRS(origin,
+                            Quaternion.Euler(0f, -center * Mathf.Rad2Deg, 0f), Vector3.one),
+                        color, 0);
+
                 if (arcDeg < 359.999f)
                 {
-                    GenDraw.DrawLineBetween(origin, Point(muzzle, range, start, altitude),
+                    GenDraw.DrawLineBetween(Point(muzzle, minRange, start, altitude),
+                        Point(muzzle, range, start, altitude),
                         color, 0.10f);
-                    GenDraw.DrawLineBetween(origin, Point(muzzle, range, start + arc, altitude),
+                    GenDraw.DrawLineBetween(Point(muzzle, minRange, start + arc, altitude),
+                        Point(muzzle, range, start + arc, altitude),
                         color, 0.10f);
                 }
 
@@ -77,7 +87,8 @@ namespace DeltaV
                 float scan = arcDeg >= 359.999f
                     ? start + Mathf.Repeat(motion + phase, Mathf.PI * 2f)
                     : start + Mathf.PingPong(motion + phase, arc);
-                GenDraw.DrawLineBetween(origin, Point(muzzle, range, scan, altitude),
+                GenDraw.DrawLineBetween(Point(muzzle, minRange, scan, altitude),
+                    Point(muzzle, range, scan, altitude),
                     color, 0.20f);
             }
         }

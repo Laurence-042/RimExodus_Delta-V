@@ -19,6 +19,12 @@ namespace DeltaV
         PointDefense = 1
     }
 
+    public enum SpaceWeaponEngagementMode : byte
+    {
+        Space = 0,
+        Ground = 1
+    }
+
     /// <summary>插件建造格与视觉参数。偏移以朝北时的格心为原点，单位为地图格。</summary>
     public class SpaceWeaponAttachmentSlot
     {
@@ -28,8 +34,8 @@ namespace DeltaV
     }
 
     /// <summary>
-    /// 太空武器 comp（太空战架构 §5.1，双模）：地表/同图战斗完全走原版炮塔 comp
-    ///（本 comp 零介入）；太空跨容器射击 = 本 comp + 弹体服务。弹道类型由
+    /// 太空武器 comp（太空战架构 §5.1）：可切换炮塔在地面模式走原版炮塔 Verb，
+    /// 太空模式走本 comp + 弹体服务；两种模式互斥。弹道类型由
     /// projectileDef 引用的弹体 building def 决定（直射/激光/导弹，§5.1 单一事实源）。
     /// 组别（套别+组号）、PD 模式与安全限制是本 comp 的存档事实；炮手预留属于 Crew，
     /// 弹仓优先级属于 Magazine；冷却与本 tick 发射为运行时。
@@ -66,6 +72,12 @@ namespace DeltaV
 
         /// <summary>射程（格；PD 索敌与导弹沿射线锁定目标的范围）。</summary>
         public float range = 120f;
+
+        /// <summary>太空弹道从炮口算起的最小有效距离（格）。</summary>
+        public float minRange;
+
+        /// <summary>是否允许在原版同图炮塔和跨容器弹道之间切换。</summary>
+        public bool groundModeAvailable;
 
         /// <summary>逐发从本武器所在电网蓄电池提取的能量（W·d）；持续功耗仍由 CompPowerTrader 负责。</summary>
         public float shotEnergy;
@@ -119,6 +131,8 @@ namespace DeltaV
             yield return SpaceCombatStats.Entry("DeltaV_StatCooldown",
                 SpaceCombatStats.Ticks(cooldownTicks), 5090);
             yield return SpaceCombatStats.Entry("DeltaV_StatRange", range.ToString("0"), 5080);
+            if (minRange > 0f)
+                yield return SpaceCombatStats.Entry("DeltaV_StatMinRange", minRange.ToString("0"), 5079);
             if (!attachmentSlots.NullOrEmpty())
                 yield return SpaceCombatStats.Entry("DeltaV_StatAttachmentSlots",
                     attachmentSlots.Count.ToString(), 5070);
@@ -137,6 +151,7 @@ namespace DeltaV
         public SpaceWeaponSalvoSet salvoSet = SpaceWeaponSalvoSet.Main;
         public int groupNumber = 1;
         public SpaceWeaponAimMode aimMode = SpaceWeaponAimMode.Volley;
+        public SpaceWeaponEngagementMode engagementMode = SpaceWeaponEngagementMode.Space;
         public bool safeFire = true;
         public bool keepGunnerWhenUnavailable = true;
         public float fireDeviationDeg;
@@ -154,6 +169,12 @@ namespace DeltaV
         [Unsaved] public int pdRetargetAtTick;
 
         public CompProperties_SpaceWeapon WeaponProps => (CompProperties_SpaceWeapon)props;
+
+        public bool SpaceModeEnabled => !WeaponProps.groundModeAvailable
+            || engagementMode == SpaceWeaponEngagementMode.Space;
+
+        public bool GroundModeEnabled => WeaponProps.groundModeAvailable
+            && engagementMode == SpaceWeaponEngagementMode.Ground;
 
         public UniverseManager Universe => Current.Game?.GetComponent<UniverseManager>();
 
@@ -355,6 +376,7 @@ namespace DeltaV
             Scribe_Values.Look(ref salvoSet, "salvoSet", WeaponProps.defaultSalvoSet);
             Scribe_Values.Look(ref groupNumber, "groupNumber", WeaponProps.defaultGroupNumber);
             Scribe_Values.Look(ref aimMode, "aimMode", WeaponProps.aimMode);
+            Scribe_Values.Look(ref engagementMode, "engagementMode", SpaceWeaponEngagementMode.Space);
             Scribe_Values.Look(ref configurationInitialized, "configurationInitialized", true);
             Scribe_Values.Look(ref safeFire, "safeFire", true);
             Scribe_Values.Look(ref keepGunnerWhenUnavailable, "keepGunnerWhenUnavailable", true);
@@ -408,6 +430,22 @@ namespace DeltaV
             {
                 yield break;
             }
+
+            if (WeaponProps.groundModeAvailable) yield return new Command_Toggle
+            {
+                defaultLabel = "DeltaV_GroundMode".Translate(),
+                defaultDesc = "DeltaV_GroundModeTip".Translate(),
+                icon = TexCommand.FireAtWill,
+                isActive = () => GroundModeEnabled,
+                toggleAction = delegate
+                {
+                    engagementMode = GroundModeEnabled
+                        ? SpaceWeaponEngagementMode.Space : SpaceWeaponEngagementMode.Ground;
+                    (parent as Building_SpaceTurretGun)?.NotifyEngagementModeChanged();
+                    pdTarget = null;
+                    Universe?.Weapons?.NotifyWeaponModeChanged(this);
+                }
+            };
 
             // 武器组指派（主/副两套 × 1–6）：弹出菜单选择，当前项打勾（取代旧循环
             // 步进——12 个组合不该靠单击轮转）。组的激活位在状态面板切换。
