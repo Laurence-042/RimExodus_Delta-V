@@ -1,4 +1,4 @@
 interface:
   display_name: "Delta-V 地图预制图"
-  short_description: "制作与验证 Delta-V 飞船布局、存档状态、地形、电网和导入流程"
-  default_prompt: "使用 $delta-v-prefab 制作或检查地图预制图，核对示意图、建筑落位和实际导入内容。"
+  short_description: "从布局到示意图和实装预制图，核对建筑锚点、旋转与重建契约"
+  default_prompt: "使用 $delta-v-prefab 设计布局，依据原版占地生成示意图和可导入的地图预制图。"

@@ -5,6 +5,8 @@ Source/obj/
 
 # 本地反编译/参考源码（只用于开发核对，不属于 Mod）
 references/
+!.agents/skills/delta-v-prefab/references/
+!.agents/skills/delta-v-prefab/references/*.md
 
 # IDE / 工具
 .vs/
