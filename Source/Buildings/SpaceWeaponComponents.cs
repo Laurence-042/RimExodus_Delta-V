@@ -2,39 +2,9 @@ using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
 using Verse;
-using Verse.AI;
 
 namespace DeltaV
 {
-    public static class SpaceWeaponCrewUtility
-    {
-        public static IntVec3 GunnerCell(Thing thing, CompProperties_SpaceWeaponCrew props)
-        {
-            return SpaceWeaponGeometry.RotatedCell(thing, props.gunnerOffset);
-        }
-
-        public static IntVec3 GunnerCellAt(IntVec3 root, Rot4 rotation,
-            CompProperties_SpaceWeaponCrew props)
-        {
-            return root + props.gunnerOffset.RotatedBy(rotation);
-        }
-
-        public static bool RequiresClearCell(CompSpaceWeapon weapon)
-        {
-            return weapon?.Crew != null && !weapon.AutoAimEffective;
-        }
-
-        public static void DrawGunnerCell(IntVec3 cell, Map map)
-        {
-            if (map == null || !cell.InBounds(map)) return;
-            Building edifice = cell.GetEdifice(map);
-            if (edifice?.def.building?.isSittable == true) return;
-            Graphics.DrawMesh(MeshPool.plane10,
-                cell.ToVector3ShiftedWithAltitude(AltitudeLayer.MetaOverlays),
-                Quaternion.identity, GenDraw.InteractionCellMaterial, 0);
-        }
-    }
-
     /// <summary>武器局部几何的唯一入口。偏移均以朝北 Def 坐标记录，再随 Rot4 旋转。</summary>
     public static class SpaceWeaponGeometry
     {
@@ -83,106 +53,6 @@ namespace DeltaV
                 owner = at;
             }
             return owner;
-        }
-    }
-
-    public class CompProperties_SpaceWeaponCrew : CompProperties
-    {
-        public IntVec3 gunnerOffset = new IntVec3(0, 0, -1);
-        public WorkTags requiredWorkTags = WorkTags.Violent;
-
-        public CompProperties_SpaceWeaponCrew()
-        {
-            compClass = typeof(CompSpaceWeaponCrew);
-        }
-
-        public override void DrawGhost(IntVec3 center, Rot4 rot, ThingDef thingDef,
-            Color ghostCol, AltitudeLayer drawAltitude, Thing thing = null)
-        {
-            if (thing is ThingWithComps host
-                && host.TryGetComp<CompSpaceWeapon>() is CompSpaceWeapon weapon
-                && !SpaceWeaponCrewUtility.RequiresClearCell(weapon)) return;
-            SpaceWeaponCrewUtility.DrawGunnerCell(
-                SpaceWeaponCrewUtility.GunnerCellAt(center, rot, this), Find.CurrentMap);
-        }
-    }
-
-    /// <summary>载人需求与固定炮手位。原版 CompMannable 仅作为双模炮塔适配器。</summary>
-    public class CompSpaceWeaponCrew : ThingComp
-    {
-        private int lastManTick = -1;
-        private Pawn lastManPawn;
-        [Unsaved] private Pawn operatingPawn;
-        public Pawn reservedGunner;
-
-        public CompProperties_SpaceWeaponCrew CrewProps => (CompProperties_SpaceWeaponCrew)props;
-        public IntVec3 GunnerCell => SpaceWeaponCrewUtility.GunnerCell(parent, CrewProps);
-        private bool OperatingNow => operatingPawn != null && parent.Spawned
-            && operatingPawn.Spawned && !operatingPawn.Downed && !operatingPawn.Drafted
-            && operatingPawn.Map == parent.Map && operatingPawn.Position == GunnerCell
-            && operatingPawn.CurJob?.def == DeltaVDefOf.DeltaV_OperateSpaceWeapon
-            && operatingPawn.CurJob.targetB.Thing == parent;
-        private bool VanillaMannedNow => Find.TickManager.TicksGame - lastManTick <= 1
-            && lastManPawn != null && lastManPawn.Spawned;
-        public bool MannedNow => OperatingNow || VanillaMannedNow;
-        public Pawn ManningPawn => OperatingNow ? operatingPawn
-            : VanillaMannedNow ? lastManPawn : null;
-
-        public void BeginOperating(Pawn pawn)
-        {
-            operatingPawn = pawn;
-            pawn.mindState.lastMannedThing = parent;
-        }
-
-        public void EndOperating(Pawn pawn)
-        {
-            if (operatingPawn == pawn) operatingPawn = null;
-        }
-
-        public void NotifyVanillaManned(Pawn pawn)
-        {
-            if (pawn == null || pawn.Position != GunnerCell) return;
-            lastManTick = Find.TickManager.TicksGame;
-            lastManPawn = pawn;
-        }
-
-        public override void PostDrawExtraSelectionOverlays()
-        {
-            base.PostDrawExtraSelectionOverlays();
-            if (SpaceWeaponCrewUtility.RequiresClearCell(parent.TryGetComp<CompSpaceWeapon>()))
-                SpaceWeaponCrewUtility.DrawGunnerCell(GunnerCell, parent.Map);
-        }
-
-        public override void PostExposeData()
-        {
-            base.PostExposeData();
-            Scribe_References.Look(ref reservedGunner, "reservedGunner");
-        }
-
-        public override IEnumerable<FloatMenuOption> CompFloatMenuOptions(Pawn pawn)
-        {
-            if (!pawn.RaceProps.ToolUser || pawn.Map != parent.Map
-                || !pawn.CanReserveAndReach(parent, PathEndMode.Touch, Danger.Deadly))
-            {
-                yield break;
-            }
-            if (CrewProps.requiredWorkTags != WorkTags.None
-                && pawn.WorkTagIsDisabled(CrewProps.requiredWorkTags))
-            {
-                yield return new FloatMenuOption("CannotManThing".Translate(parent.LabelShort, parent), null);
-                yield break;
-            }
-            if (!GunnerCell.Standable(parent.Map)
-                || !pawn.CanReach(GunnerCell, PathEndMode.OnCell, Danger.Deadly))
-            {
-                yield break;
-            }
-            yield return new FloatMenuOption("OrderManThing".Translate(parent.LabelShort, parent), delegate
-            {
-                Job job = JobMaker.MakeJob(DeltaVDefOf.DeltaV_OperateSpaceWeapon);
-                job.targetB = parent;
-                pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
-            });
         }
     }
 

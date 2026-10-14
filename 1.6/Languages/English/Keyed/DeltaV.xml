@@ -274,8 +274,6 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_RailAcceleratorSkipped>skipped (red; off without power)</DeltaV_RailAcceleratorSkipped>
   <DeltaV_SafeFire>Hull-safe fire</DeltaV_SafeFire>
   <DeltaV_SafeFireTip>Prevent fixed weapons from firing when their shot path intersects their own solid hull. Disable only for emergencies.</DeltaV_SafeFireTip>
-  <DeltaV_GunnerCellBlocked>The fixed gunner position is blocked.</DeltaV_GunnerCellBlocked>
-  <DeltaV_WouldBlockGunnerCell>This building would block an active weapon's fixed gunner position.</DeltaV_WouldBlockGunnerCell>
   <DeltaV_WeaponNeedsSingleOwner>The entire weapon footprint must be on substructure owned by one ship.</DeltaV_WeaponNeedsSingleOwner>
   <DeltaV_AttachmentNeedsSlot>This attachment must cover a compatible weapon's declared attachment slot.</DeltaV_AttachmentNeedsSlot>
   <DeltaV_AttachmentSlotOccupied>This weapon attachment slot is already occupied.</DeltaV_AttachmentSlotOccupied>

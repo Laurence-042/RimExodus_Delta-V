@@ -34,7 +34,6 @@ namespace DeltaV
 
         public static ResearchProjectDef DeltaV_VacuumBarrier;
 
-        public static JobDef DeltaV_OperateSpaceWeapon;
         public static JobDef DeltaV_LoadMissileLauncher;
         public static ThingDef DeltaV_Weapon_MissileLauncher;
 

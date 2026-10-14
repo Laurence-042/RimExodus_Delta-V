@@ -403,7 +403,7 @@ namespace DeltaV
             int count = 0;
             foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
             {
-                if (TryGetJobWeapon(pawn.CurJob, out _)) count++;
+                if (SpaceWeaponManning.WeaponFor(pawn.CurJob) != null) count++;
             }
             return count;
         }
@@ -415,26 +415,13 @@ namespace DeltaV
             var colonists = new List<Pawn>(map.mapPawns.FreeColonistsSpawned);
             foreach (Pawn pawn in colonists)
             {
-                if (pawn.Faction != faction
-                    || !TryGetJobWeapon(pawn.CurJob, out CompSpaceWeapon weapon)
+                CompSpaceWeapon weapon = SpaceWeaponManning.WeaponFor(pawn.CurJob);
+                if (pawn.Faction != faction || weapon == null
                     || !ownerIds.Contains(weapon.OwnerShip.ownerId)) continue;
                 released++;
                 pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
             }
             return released;
-        }
-
-        private static bool TryGetJobWeapon(Job job, out CompSpaceWeapon weapon)
-        {
-            weapon = null;
-            if (job == null) return false;
-            ThingWithComps parent = null;
-            if (job.def == DeltaVDefOf.DeltaV_OperateSpaceWeapon)
-                parent = job.targetB.Thing as ThingWithComps;
-            else if (job.def == JobDefOf.ManTurret)
-                parent = job.targetA.Thing as ThingWithComps;
-            weapon = parent?.TryGetComp<CompSpaceWeapon>();
-            return weapon != null;
         }
 
         /// <summary>
@@ -451,7 +438,8 @@ namespace DeltaV
             // 任一状态边沿都重走同一判定；先释放失效岗位，再用同一候选集补位。
             foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned.ToList())
             {
-                if (pawn.Faction != faction || !TryGetJobWeapon(pawn.CurJob, out CompSpaceWeapon assigned)
+                CompSpaceWeapon assigned = SpaceWeaponManning.WeaponFor(pawn.CurJob);
+                if (pawn.Faction != faction || assigned == null
                     || !ownerIds.Contains(assigned.OwnerShip.ownerId)) continue;
                 if (CanStaff(assigned, map, faction, ownerIds, alreadyAssigned: true)) continue;
                 pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
@@ -460,18 +448,15 @@ namespace DeltaV
             var weapons = AllWeaponsOn(map)
                 .Where(w => CanStaff(w, map, faction, ownerIds, alreadyAssigned: false))
                 .OrderByDescending(w => w.GroupActive)
-                .ThenByDescending(w => GunnerUsable(w.Crew.reservedGunner, w))
+                .ThenByDescending(w => GunnerUsable(w.reservedGunner, w))
                 .ThenBy(w => w.parent.thingIDNumber)
                 .ToList();
             foreach (CompSpaceWeapon weapon in weapons)
             {
-                CompSpaceWeaponCrew crew = weapon.Crew;
-                if (crew.MannedNow) { manned++; continue; }
                 if (WeaponHasAssignedJob(map, weapon)) { manned++; continue; }
                 Pawn pawn = PickGunner(weapon, faction);
                 if (pawn == null) continue;
-                Job job = JobMaker.MakeJob(DeltaVDefOf.DeltaV_OperateSpaceWeapon);
-                job.targetB = weapon.parent;
+                Job job = JobMaker.MakeJob(JobDefOf.ManTurret, weapon.parent);
                 if (pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc))
                 {
                     manned++;
@@ -483,10 +468,11 @@ namespace DeltaV
         private static bool CanStaff(CompSpaceWeapon weapon, Map map, Faction faction,
             HashSet<int> ownerIds, bool alreadyAssigned)
         {
+            // 自瞄只阻止征用新炮手，不取消已经下达的岗位（包括玩家右键操作）。
             if (weapon?.parent == null || !weapon.parent.Spawned || weapon.parent.Destroyed
                 || weapon.parent.Map != map || weapon.parent.Faction != faction
-                || !ownerIds.Contains(weapon.OwnerShip.ownerId) || weapon.Crew == null
-                || weapon.AutoAimEffective) return false;
+                || !ownerIds.Contains(weapon.OwnerShip.ownerId) || weapon.Mannable == null
+                || !alreadyAssigned && weapon.AutoAimEffective) return false;
             return alreadyAssigned && weapon.keepGunnerWhenUnavailable
                 || PowerOn(weapon.parent) && weapon.MagazineAvailable(weapon.SelectMagazine());
         }
@@ -495,8 +481,9 @@ namespace DeltaV
         {
             foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
             {
-                if (TryGetJobWeapon(pawn.CurJob, out CompSpaceWeapon assigned)
-                    && assigned == weapon) return true;
+                if (SpaceWeaponManning.WeaponFor(pawn.CurJob) == weapon) return true;
+                foreach (QueuedJob queued in pawn.jobs.jobQueue)
+                    if (SpaceWeaponManning.WeaponFor(queued.job) == weapon) return true;
             }
             return false;
         }
@@ -505,7 +492,7 @@ namespace DeltaV
         private static Pawn PickGunner(CompSpaceWeapon weapon, Faction faction)
         {
             Map map = weapon.parent.Map;
-            Pawn reserved = weapon.Crew?.reservedGunner;
+            Pawn reserved = weapon.reservedGunner;
             if (reserved?.Faction == faction && GunnerUsable(reserved, weapon)) return reserved;
             var candidates = new List<Pawn>();
             foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
@@ -519,16 +506,19 @@ namespace DeltaV
         private static bool GunnerUsable(Pawn pawn, CompSpaceWeapon weapon)
         {
             if (pawn == null || !pawn.Spawned || pawn.Downed || pawn.Drafted
-                || pawn.WorkTagIsDisabled(WorkTags.Violent) || pawn.InAggroMentalState)
+                || pawn.InAggroMentalState)
             {
                 return false;
             }
             Map map = weapon.parent.Map;
             if (pawn.Map != map) return false;
-            if (!pawn.CanReserve(weapon.parent)) return false;
-            CompSpaceWeaponCrew crew = weapon.Crew;
-            return crew != null && crew.GunnerCell.Standable(map)
-                && pawn.CanReach(crew.GunnerCell, PathEndMode.OnCell, Danger.Deadly);
+            // 自动补位不抢走其他岗位或玩家刚下达的命令。
+            if (SpaceWeaponManning.WeaponFor(pawn.CurJob) != null
+                || pawn.CurJob?.playerForced == true || pawn.jobs.jobQueue.AnyPlayerForced) return false;
+            WorkTags required = weapon.Mannable?.Props.manWorkType ?? WorkTags.None;
+            if (required != WorkTags.None && pawn.WorkTagIsDisabled(required)) return false;
+            return weapon.Mannable != null
+                && pawn.CanReserveAndReach(weapon.parent, PathEndMode.InteractionCell, Danger.Deadly);
         }
 
         /// <summary>dev ResetObjects / 图销毁时的流程清零。</summary>

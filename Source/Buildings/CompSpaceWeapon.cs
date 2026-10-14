@@ -37,7 +37,7 @@ namespace DeltaV
     /// 太空武器 comp（太空战架构 §5.1）：可切换炮塔在地面模式走原版炮塔 Verb，
     /// 太空模式走本 comp + 弹体服务；两种模式互斥。弹道类型由
     /// projectileDef 引用的弹体 building def 决定（直射/激光/导弹，§5.1 单一事实源）。
-    /// 组别（套别+组号）、PD 模式与安全限制是本 comp 的存档事实；炮手预留属于 Crew，
+    /// 组别（套别+组号）、PD 模式与安全限制是本 comp 的存档事实；炮手预留同存本 comp，
     /// 弹仓优先级属于 Magazine；冷却与本 tick 发射为运行时。
     /// 武器必须位于基架格上（含墙下基架）——归属随基架、随控制域捕获搬运。
     /// </summary>
@@ -154,6 +154,7 @@ namespace DeltaV
         public SpaceWeaponEngagementMode engagementMode = SpaceWeaponEngagementMode.Space;
         public bool safeFire = true;
         public bool keepGunnerWhenUnavailable = true;
+        public Pawn reservedGunner;
         public float fireDeviationDeg;
         private bool safeFireInitialized;
         private bool alignmentConfigurationInitialized;
@@ -228,9 +229,7 @@ namespace DeltaV
         }
 
         /// <summary>当前炮手（原版 CompMannable 在册者）。</summary>
-        public CompSpaceWeaponCrew Crew => parent.TryGetComp<CompSpaceWeaponCrew>();
-
-        public Pawn CurrentGunner => Crew != null ? Crew.ManningPawn : Mannable?.ManningPawn;
+        public Pawn CurrentGunner => Mannable?.ManningPawn;
 
         public SpaceWeaponAttachmentSlot AttachmentSlotAt(IntVec3 cell)
         {
@@ -331,7 +330,7 @@ namespace DeltaV
 
         /// <summary>
         /// 开火技能来源（§5.4）：自动瞄准插件与炮手 shooting 取高者；
-        /// 两者皆无且存在 Crew 时不满足开火条件。插件必须覆盖声明槽位并与武器
+        /// 两者皆无且存在 Mannable 时不满足开火条件。插件必须覆盖声明槽位并与武器
         /// 同归属基架（生效判定收口 CompSpaceAutoAimPlugin）。
         /// </summary>
         public bool TryGetSkillLevel(out int skillLevel)
@@ -355,8 +354,8 @@ namespace DeltaV
                     }
                 }
             }
-            // Crew 不存在表示武器自带基础火控；第三方只加核心 Comp 即可工作。
-            if (Crew == null && Mannable == null && pluginSkill == null && gunnerSkill == null)
+            // Mannable 不存在表示武器自带基础火控；第三方只加核心 Comp 即可工作。
+            if (Mannable == null && pluginSkill == null && gunnerSkill == null)
             {
                 skillLevel = 10;
                 return true;
@@ -380,6 +379,7 @@ namespace DeltaV
             Scribe_Values.Look(ref configurationInitialized, "configurationInitialized", true);
             Scribe_Values.Look(ref safeFire, "safeFire", true);
             Scribe_Values.Look(ref keepGunnerWhenUnavailable, "keepGunnerWhenUnavailable", true);
+            Scribe_References.Look(ref reservedGunner, "reservedGunner");
             Scribe_Values.Look(ref safeFireInitialized, "safeFireInitialized", true);
             Scribe_Values.Look(ref fireDeviationDeg, "fireDeviationDeg",
                 WeaponProps.defaultFireDeviationDeg);
@@ -533,8 +533,7 @@ namespace DeltaV
                 WeaponProps.attachmentSlots, WeaponProps.allowedAttachmentDefs)) yield return gizmo;
             foreach (Gizmo gizmo in SpaceRailgunConstruction.BuildGizmos(parent)) yield return gizmo;
 
-            CompSpaceWeaponCrew crew = Crew;
-            if (crew == null) yield break;
+            if (Mannable == null) yield break;
 
             if (WeaponProps.intrinsicAimSkill < 0) yield return new Command_Toggle
             {
@@ -562,9 +561,9 @@ namespace DeltaV
             yield return new Command_Action
             {
                 defaultLabel = "DeltaV_WeaponReserveGizmo".Translate(
-                    crew.reservedGunner == null
+                    reservedGunner == null
                         ? "DeltaV_WeaponReserveNone".Translate()
-                        : crew.reservedGunner.LabelShort),
+                        : reservedGunner.LabelShort),
                 defaultDesc = "DeltaV_WeaponReserveGizmoTip".Translate(),
                 icon = TexCommand.Install,
                 action = delegate
@@ -573,7 +572,7 @@ namespace DeltaV
                     {
                         new FloatMenuOption("DeltaV_WeaponReserveNone".Translate(), delegate
                         {
-                            crew.reservedGunner = null;
+                            reservedGunner = null;
                         })
                     };
                     foreach (Pawn pawn in parent.Map.mapPawns.FreeColonistsSpawned)
@@ -581,7 +580,7 @@ namespace DeltaV
                         Pawn captured = pawn;
                         options.Add(new FloatMenuOption(captured.LabelShortCap, delegate
                         {
-                            crew.reservedGunner = captured;
+                            reservedGunner = captured;
                         }));
                     }
                     Find.WindowStack.Add(new FloatMenu(options));

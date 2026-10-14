@@ -274,8 +274,6 @@
   <DeltaV_RailAcceleratorSkipped>本发预计跳过</DeltaV_RailAcceleratorSkipped>
   <DeltaV_SafeFire>舱壁安全限制</DeltaV_SafeFire>
   <DeltaV_SafeFireTip>固定武器的弹道会穿过本船实心舱壁时拒绝发射；仅建议紧急时关闭。</DeltaV_SafeFireTip>
-  <DeltaV_GunnerCellBlocked>固定炮手位被占用。</DeltaV_GunnerCellBlocked>
-  <DeltaV_WouldBlockGunnerCell>该建筑会占用一门需要炮手的武器的固定炮手位。</DeltaV_WouldBlockGunnerCell>
   <DeltaV_WeaponNeedsSingleOwner>武器的完整占地必须位于同一艘船所属的基架上。</DeltaV_WeaponNeedsSingleOwner>
   <DeltaV_AttachmentNeedsSlot>挂件必须覆盖兼容武器声明的挂件槽位。</DeltaV_AttachmentNeedsSlot>
   <DeltaV_AttachmentSlotOccupied>该武器插件槽位已被占用。</DeltaV_AttachmentSlotOccupied>

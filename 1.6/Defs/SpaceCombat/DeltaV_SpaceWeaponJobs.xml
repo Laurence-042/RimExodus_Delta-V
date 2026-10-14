@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Defs>
-  <JobDef>
-    <defName>DeltaV_OperateSpaceWeapon</defName>
-    <driverClass>DeltaV.JobDriver_OperateSpaceWeapon</driverClass>
-    <reportString>Operating TargetB.</reportString>
-    <playerInterruptible>true</playerInterruptible>
-  </JobDef>
-</Defs>

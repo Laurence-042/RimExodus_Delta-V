@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -10,9 +12,14 @@ namespace DeltaV
         public string topTexPath;
     }
 
-    /// <summary>Only substitutes the rotating artwork; vanilla turret draw and rotation stay intact.</summary>
+    /// <summary>舰炮顶部美术与地面/太空交互适配；原版继续绘制和旋转炮身。</summary>
     public class Building_SpaceTurretGun : Building_TurretGun, IShellTurretTopSource
     {
+        // 太空模式跳过地面射程/强制目标提示，但仍调用原版 ThingWithComps 的完整覆盖层入口。
+        private static readonly Action<ThingWithComps> DrawCompSelectionOverlays =
+            AccessTools.MethodDelegate<Action<ThingWithComps>>(
+                AccessTools.DeclaredMethod(typeof(ThingWithComps), nameof(DrawExtraSelectionOverlays)),
+                virtualCall: false);
         private Material topMaterial;
 
         private bool GroundFireEnabled => this.TryGetComp<CompSpaceWeapon>()?.GroundModeEnabled == true;
@@ -88,8 +95,8 @@ namespace DeltaV
 
         public override void DrawExtraSelectionOverlays()
         {
-            if (!GroundFireEnabled) return;
-            base.DrawExtraSelectionOverlays();
+            if (GroundFireEnabled) base.DrawExtraSelectionOverlays();
+            else DrawCompSelectionOverlays(this);
         }
     }
 }

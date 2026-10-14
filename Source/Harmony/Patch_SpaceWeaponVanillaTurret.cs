@@ -4,48 +4,6 @@ using Verse;
 
 namespace DeltaV
 {
-    [HarmonyPatch(typeof(CompMannable), nameof(CompMannable.ManForATick))]
-    public static class Patch_CompMannable_SpaceWeaponCrewRecord
-    {
-        public static void Postfix(CompMannable __instance, Pawn pawn)
-        {
-            __instance.parent?.TryGetComp<CompSpaceWeaponCrew>()?.NotifyVanillaManned(pawn);
-        }
-    }
-
-    // 太空炮手由岗位进入／结束事件登记；原版炮塔仍经 CompMannable 查询同一人。
-    [HarmonyPatch(typeof(CompMannable), nameof(CompMannable.MannedNow), MethodType.Getter)]
-    public static class Patch_CompMannable_SpaceCrewManned
-    {
-        public static void Postfix(CompMannable __instance, ref bool __result)
-        {
-            if (!__result && __instance.parent?.TryGetComp<CompSpaceWeaponCrew>() is CompSpaceWeaponCrew crew)
-                __result = crew.MannedNow;
-        }
-    }
-
-    [HarmonyPatch(typeof(CompMannable), nameof(CompMannable.ManningPawn), MethodType.Getter)]
-    public static class Patch_CompMannable_SpaceCrewPawn
-    {
-        public static void Postfix(CompMannable __instance, ref Pawn __result)
-        {
-            if (__result == null)
-                __result = __instance.parent?.TryGetComp<CompSpaceWeaponCrew>()?.ManningPawn;
-        }
-    }
-
-    [HarmonyPatch(typeof(Building_TurretGun), nameof(Building_TurretGun.Active), MethodType.Getter)]
-    public static class Patch_BuildingTurretGun_SpaceWeaponCrewGate
-    {
-        public static void Postfix(Building_TurretGun __instance, ref bool __result)
-        {
-            if (!__result) return;
-            CompSpaceWeapon weapon = __instance.TryGetComp<CompSpaceWeapon>();
-            CompSpaceWeaponCrew crew = weapon?.Crew;
-            if (crew != null && !crew.MannedNow && !weapon.AutoAimEffective) __result = false;
-        }
-    }
-
     [HarmonyPatch(typeof(TurretTop), nameof(TurretTop.TurretTopTick))]
     public static class Patch_TurretTop_SpaceWeaponTraverse
     {
@@ -86,7 +44,7 @@ namespace DeltaV
         {
             if (acc.HasValue || caster is not ThingWithComps comps) return true;
             CompSpaceWeapon weapon = comps.TryGetComp<CompSpaceWeapon>();
-            if (weapon?.Crew == null || !weapon.TryGetSkillLevel(out int skill)) return true;
+            if (weapon?.Mannable == null || !weapon.TryGetSkillLevel(out int skill)) return true;
             float equivalentAccuracy = UnityEngine.Mathf.Lerp(0.80f, 0.99f,
                 UnityEngine.Mathf.Clamp01(skill / 20f));
             __result = ShotReport.HitFactorFromShooter(caster, distance, equivalentAccuracy);
