@@ -14,8 +14,8 @@ namespace DeltaV
     /// 经 DebugActions 以 LongEventHandler 调用（同步生成，与原版 gravship 到达一致）。
     /// 幂等：重复创建时先销毁旧场景。
     /// 布局数据源：先试通用地图 prefab（MapPrefab.LoadLatest，玩家导出的居住区/飞船，
-    /// 两舰共用一份、仅派系不同）；目录为空、解析失败等一切异常回退程序生成布局
-    /// （ShipProceduralLayout）。
+    /// 两舰共用一份、仅派系不同）；目录为空、解析失败回退程序生成布局
+    /// （ShipProceduralLayout）。落位失败销毁失败测试图并中止，不叠加另一套布局。
     /// </summary>
     public static class ShipTestScene
     {
@@ -74,8 +74,12 @@ namespace DeltaV
                 new SpacePose(playerDir, 0f));
             universe.RegisterObject(playerContainer);
             universe.NoteStructureName(playerOwnerId, "Player ship");
-            SpawnShipLayout(playerMap, Faction.OfPlayer, playerOwnerId, universe,
-                () => ShipProceduralLayout.GeneratePlayerShip(playerMap, playerOwnerId));
+            if (!SpawnShipLayout(playerMap, Faction.OfPlayer, playerOwnerId, universe,
+                () => ShipProceduralLayout.GeneratePlayerShip(playerMap, playerOwnerId)))
+            {
+                QueueFailedSceneCleanup(universe, playerContainer);
+                return;
+            }
 
             int enemyOwnerId = universe.AllocateOwnerId();
             Map enemyMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
@@ -86,8 +90,12 @@ namespace DeltaV
                 new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad));
             universe.RegisterObject(enemyContainer);
             universe.NoteStructureName(enemyOwnerId, "Enemy ship");
-            SpawnShipLayout(enemyMap, enemyFaction, enemyOwnerId, universe,
-                () => ShipProceduralLayout.GenerateEnemyShip(enemyMap, enemyOwnerId, enemyFaction));
+            if (!SpawnShipLayout(enemyMap, enemyFaction, enemyOwnerId, universe,
+                () => ShipProceduralLayout.GenerateEnemyShip(enemyMap, enemyOwnerId, enemyFaction)))
+            {
+                QueueFailedSceneCleanup(universe, enemyContainer, playerContainer);
+                return;
+            }
 
             universe.ResetObjects(new List<SpaceObject> { playerContainer, enemyContainer });
             Ship playerShip = ShipRegistry.ShipByOwner(playerOwnerId);
@@ -99,21 +107,48 @@ namespace DeltaV
             CameraJumper.TryJump(playerMap.Center, playerMap, CameraJumper.MovementMode.Cut);
         }
 
+        private static void QueueFailedSceneCleanup(UniverseManager universe, params SpaceObject[] containers)
+        {
+            // Map.FinalizeInit queues native power/mesh initialization after the
+            // generation long event. Destroying here would dispose an uninitialized
+            // MapDrawer, then let those queued callbacks render disposed grids.
+            universe.QueueFrameAction(delegate
+            {
+                foreach (SpaceObject container in containers)
+                {
+                    universe.Lifecycle.DestroyPocketMap(container.map);
+                    universe.UnregisterObject(container);
+                }
+            });
+        }
+
         /// <summary>布局数据源统一口径：先试通用地图 prefab（两舰共用最新导出、仅派系
-        /// 不同、结构归属各认各的容器 ownerId），任何异常回退程序生成布局。</summary>
-        private static void SpawnShipLayout(Map map, Faction faction, int ownerId, UniverseManager universe,
+        /// 不同、结构归属各认各的容器 ownerId）。仅加载失败可在空图回退；落位失败中止。</summary>
+        private static bool SpawnShipLayout(Map map, Faction faction, int ownerId, UniverseManager universe,
             Action fallbackLayout)
         {
+            MapPrefabDocument prefab;
             try
             {
-                MapPrefabDocument prefab = MapPrefab.LoadLatest();
-                MapPrefab.Spawn(prefab, map, map.Center, faction, ownerId, Rot4.North, universe);
+                prefab = MapPrefab.LoadLatest();
             }
             catch (Exception ex)
             {
                 Log.Warning($"[DeltaV] MapPrefab import unavailable ({ex.GetType().Name}: {ex.Message})"
                     + " - falling back to procedural layout.");
                 fallbackLayout();
+                return true;
+            }
+            try
+            {
+                MapPrefab.Spawn(prefab, map, map.Center, faction, ownerId, Rot4.North, universe);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[DeltaV] MapPrefab '{prefab.name}' placement failed on "
+                    + $"{UniverseManager.MapTag(map)}; canceling test scene: {ex}");
+                return false;
             }
         }
     }

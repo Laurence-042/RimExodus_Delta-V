@@ -262,6 +262,8 @@ namespace DeltaV
                     continue;
                 }
                 map.terrainGrid.SetFoundation(cell, entry.def);
+                if (map.terrainGrid.FoundationAt(cell) != entry.def)
+                    throw new InvalidDataException($"MapPrefab '{doc.name}' cannot set foundation {entry.def.defName} at {cell}.");
                 if (!firstFoundation.IsValid)
                 {
                     firstFoundation = cell;
@@ -307,9 +309,20 @@ namespace DeltaV
                 Rot4 thingRot = entry.def.rotatable
                     ? rotation.Rotated(Rot4.GetRelativeRotation(Rot4.North, entry.rotation))
                     : entry.def.defaultPlacingRot;
-                Thing placed = MapContentSpawner.SpawnExisting(thing, map, cell, thingRot, restoredState);
-                if (placed != null) spawned.Add(placed);
-                else Log.Warning($"[DeltaV] MapPrefab '{doc.name}' cannot place {entry.def.defName} at {cell}.");
+                Thing placed;
+                try
+                {
+                    placed = MapContentSpawner.SpawnExisting(thing, map, cell, thingRot, restoredState);
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidDataException($"MapPrefab '{doc.name}' failed placing entry {i} "
+                        + $"({entry.def.defName}) at {cell}, rotation {thingRot}.", ex);
+                }
+                if (placed == null)
+                    throw new InvalidDataException($"MapPrefab '{doc.name}' cannot place entry {i} "
+                        + $"({entry.def.defName}) at {cell}, rotation {thingRot}.");
+                spawned.Add(placed);
             }
             int placedCount = spawned.Count;
 

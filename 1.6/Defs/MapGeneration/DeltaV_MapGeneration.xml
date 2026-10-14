@@ -27,6 +27,9 @@
 		<disableCallAid>true</disableCallAid>
 		<renderWorld>true</renderWorld>
 		<disableMapClippers>true</disableMapClippers>
+		<!-- Layerable floors over impassable Space must keep Space underneath;
+		     TerrainGrid.SetTerrain otherwise inserts Sand and marks ships as grounded. -->
+		<defaultUnderGridTerrain>Space</defaultUnderGridTerrain>
 		<customMapComponents>
 			<li>DeltaV.DeltaVPocketMapMetadata</li>
 		</customMapComponents>

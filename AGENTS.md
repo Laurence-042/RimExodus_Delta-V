@@ -51,6 +51,7 @@ Mod 尚未发布，不做旧开发快照的存档兼容、迁移键或兼容分�
 - 热路径日志必须先检查 `DeltaVLog.Enabled`，只在状态边沿或用户事件输出，禁止每帧/tick 无条件刷屏。
 - 当前阶段优先清晰的现有契约，不为未来兼容制造额外抽象。
 - Delta-V 贴图生成、分层与对齐施工时加载仓库 `.agents/skills/delta-v-art/SKILL.md`；资源清单与施工进度只在 `doc/美术资源施工表.md` 维护。
+- 编制地图 prefab、布局示意图或排查重建错误时加载仓库 `.agents/skills/delta-v-prefab/SKILL.md`；运行时契约仍以 `doc/Prefab状态重建.md` 与 §20 的现有入口为准。
 
 ## 3. 外部源码与 RimExodus 参考
 
