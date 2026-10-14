@@ -435,6 +435,7 @@ namespace DeltaV
                     || container.Tag == SpaceObjectTag.Projectile
                     || container.baseTag == SpaceObjectTag.Shuttle
                     || map.Parent is not ShipPocketParent_DeltaV
+                    || !ArchivedMapStore.CanUnloadLosslessly(map)
                     || (!force && MinPlayerDistance(container)
                         <= DeltaVMod.CurrentSettings.poiDeleteRadius))
                 {
@@ -458,13 +459,20 @@ namespace DeltaV
                                 : Vector2.right * OrbitSphere.CellsPerTile);
                 }
                 if (!ArchivedMapStore.TryUnload(map)) return;
-                Forget(map);
                 container.ambientLabel = carriedLabel;
                 container.archivedMapId = map.uniqueID;
                 container.archivedParent = map.Parent as PocketMapParent;
                 container.archivedCruiseCellsPerTick = cruise;
                 container.archivedMapData = data;
                 container.map = null;
+                try { Forget(map); }
+                catch (Exception ex)
+                { Log.Error($"[DeltaV] Archived map runtime cleanup failed ({UniverseManager.MapTag(map)}): {ex}"); }
+                finally
+                {
+                    // 快照已独立保存；断开废弃 Thing → spawnedThings → Map 的持有链。
+                    map.spawnedThings.Clear();
+                }
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"{carriedLabel}: full map #{container.archivedMapId} archived on container #{container.objectId}");
             });
@@ -483,12 +491,13 @@ namespace DeltaV
                 if (!ArchivedMapStore.TryRestore(container.archivedMapData,
                     container.archivedMapId, container.archivedParent, out Map restored)) return;
                 container.map = restored;
-                container.archivedMapData = null;
-                container.archivedMapId = 0;
-                container.archivedParent = null;
                 dormancy.Wake(restored, "full map archive restored");
                 universe.Weapons.RegisterMapWeapons(restored);
                 universe.Controls.RegisterMap(restored);
+                // 运行时注册全部成功后，归档才不再是唯一可恢复的事实。
+                container.archivedMapData = null;
+                container.archivedMapId = 0;
+                container.archivedParent = null;
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"{container.label}: full map restored ({UniverseManager.MapTag(restored)})");
             });
@@ -559,6 +568,8 @@ namespace DeltaV
             SpaceCollision.Forget(map);
             ShipRegistry.Forget(map);
             ShipPhysics.Forget(map);
+            ThrusterAudio.Forget(map);
+            ThrusterEffects.Forget(map);
             MoonPoolUtility.Forget(map);
             PlanetGlobeRenderer.ClearRuntimeCaches();
         }

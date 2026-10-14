@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <DeltaV_ShieldGenerator.label>Delta-V 护盾发生器</DeltaV_ShieldGenerator.label>
-  <DeltaV_ShieldGenerator.description>独立建造的定向护盾。可在地面单向圆盾与太空折射线盾之间切换，并调整投射距离、线盾角度、长度和折射强度。</DeltaV_ShieldGenerator.description>
+  <DeltaV_ShieldGenerator.description>三模式护盾。守卫模式断电维持 3000 点圆盾，每小时免费充满，期间可用白银按 1:1 补充。动能线盾碎裂实弹并可降速或反弹破片；电磁线盾折射激光并可将其反射。两种线盾需要供电。</DeltaV_ShieldGenerator.description>
 </LanguageData>

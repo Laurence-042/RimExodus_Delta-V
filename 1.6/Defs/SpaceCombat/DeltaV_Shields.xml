@@ -4,7 +4,7 @@
   <ThingDef ParentName="GravshipComponentBase">
     <defName>DeltaV_ShieldGenerator</defName>
     <label>Delta-V shield generator</label>
-    <description>A directional projector with a ground security dome and a spaceborne refracting line. Its projection distance, line angle, length and refraction strength can be configured.</description>
+    <description>A three-mode shield. Guard uses a 3000-point dome without power and refills fully every hour; silver restores one point per unit before then. Kinetic fragments incoming solid shots and can slow or reverse fragments. Electromagnetic refracts lasers and can turn them back. The two line modes need power.</description>
     <designationCategory>Security</designationCategory>
     <uiIconPath>Things/Building/SpaceWeapons/ShieldGenerator_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
@@ -30,7 +30,16 @@
     <comps Inherit="False">
       <li Class="CompProperties_Flickable" />
       <li Class="CompProperties_Power">
-        <compClass>CompPowerTrader</compClass><basePowerConsumption>200</basePowerConsumption>
+        <compClass>DeltaV.CompDeltaVShieldPower</compClass><basePowerConsumption>0</basePowerConsumption>
+      </li>
+      <li Class="CompProperties_Refuelable">
+        <compClass>DeltaV.CompDeltaVShieldSilverFuel</compClass>
+        <fuelCapacity>3000</fuelCapacity><initialFuelPercent>0</initialFuelPercent>
+        <fuelFilter><thingDefs><li>Silver</li></thingDefs></fuelFilter>
+        <fuelLabel>shield repair silver</fuelLabel>
+        <consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed>
+        <autoRefuelPercent>1</autoRefuelPercent><showFuelGizmo>false</showFuelGizmo>
+        <drawOutOfFuelOverlay>false</drawOutOfFuelOverlay>
       </li>
       <li Class="CompProperties_ProjectileInterceptor">
         <compClass>DeltaV.CompDeltaVShieldInterceptor</compClass>
@@ -40,16 +49,16 @@
         <color>(0.4, 0.4, 0.4)</color>
         <reactivateEffect>BulletShieldGenerator_Reactivate</reactivateEffect>
         <activeSound>BulletShield_Ambience</activeSound>
-        <hitPoints>500</hitPoints>
+        <hitPoints>3000</hitPoints>
         <hitPointsRestoreInstantlyAfterCharge>false</hitPointsRestoreInstantlyAfterCharge>
-        <startWithMaxHitPoints>false</startWithMaxHitPoints>
-        <chargeDurationTicks>10000</chargeDurationTicks>
+        <startWithMaxHitPoints>true</startWithMaxHitPoints>
+        <chargeDurationTicks>0</chargeDurationTicks>
         <minIdleAlpha>0.2</minIdleAlpha><drawWithNoSelection>true</drawWithNoSelection>
         <disarmedByEmpForTicks>1500</disarmedByEmpForTicks>
         <gizmoTipKey>GravshipShieldTip</gizmoTipKey>
         <alwaysShowHitpointsGizmo>true</alwaysShowHitpointsGizmo>
         <rechargeHitPointsIntervalTicks>75</rechargeHitPointsIntervalTicks>
-        <activated>true</activated><activeDuration>6000</activeDuration>
+        <activated>false</activated>
       </li>
       <li Class="DeltaV.CompProperties_SpaceShield">
         <projectorTexPath>Things/Building/SpaceWeapons/ShieldProjector</projectorTexPath>

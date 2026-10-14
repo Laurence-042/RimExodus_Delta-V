@@ -42,13 +42,9 @@
 				<speed>45</speed>
 				<timeoutTicks>900</timeoutTicks>
 				<hasMap>false</hasMap>
-				<shieldBehaviorClass>DeltaV.CannonShieldProjectileBehavior</shieldBehaviorClass>
-				<shieldPulseCost>18</shieldPulseCost><shieldBreakAngleDeg>7</shieldBreakAngleDeg>
+				<shieldFragmentCost>2</shieldFragmentCost><shieldStopEnergy>80</shieldStopEnergy>
 				<shieldFragmentDef>DeltaV_Projectile_ShieldFragment</shieldFragmentDef>
 				<shieldFragmentCount>3</shieldFragmentCount><shieldFragmentScatterDeg>11</shieldFragmentScatterDeg>
-				<shieldFragmentSpeedFactor>0.72</shieldFragmentSpeedFactor>
-				<shieldFragmentDamageFraction>0.28</shieldFragmentDamageFraction>
-				<shieldFragmentArmorFactor>0.28</shieldFragmentArmorFactor>
 			</li>
 		</comps>
 	</ThingDef>
@@ -68,6 +64,8 @@
 			<damageData><enabled>false</enabled></damageData></graphicData>
 		<comps><li Class="DeltaV.CompProperties_SpaceProjectile">
 			<speed>45</speed><timeoutTicks>900</timeoutTicks><hasMap>false</hasMap>
+			<shieldFragmentDef>DeltaV_Projectile_RapidFragment</shieldFragmentDef>
+			<shieldFragmentCount>1</shieldFragmentCount><shieldStopEnergy>18</shieldStopEnergy>
 		</li></comps>
 	</ThingDef>
 
@@ -139,6 +137,7 @@
 			<li Class="DeltaV.CompProperties_SpaceProjectile">
 				<hasMap>false</hasMap>
 				<laserRange>160</laserRange>
+				<shieldLaserTurnEnergy>4</shieldLaserTurnEnergy>
 			</li>
 		</comps>
 	</ThingDef>
@@ -176,7 +175,6 @@
 				<speed>32</speed>
 				<timeoutTicks>1800</timeoutTicks>
 				<guided>true</guided>
-				<shieldBehaviorClass>DeltaV.UnshieldedProjectileBehavior</shieldBehaviorClass>
 				<turnRateDegPerSec>540</turnRateDegPerSec>
 				<coldLaunchTicks>30</coldLaunchTicks>
 				<coldLaunchSpeedFactor>0.25</coldLaunchSpeedFactor>
@@ -205,7 +203,8 @@
 			<damageData><enabled>false</enabled></damageData></graphicData>
 		<comps><li Class="DeltaV.CompProperties_SpaceProjectile">
 			<speed>45</speed><timeoutTicks>300</timeoutTicks><hasMap>false</hasMap>
-			<shieldPulseCost>2</shieldPulseCost>
+			<shieldFragmentDef>DeltaV_Projectile_ShieldFragment</shieldFragmentDef>
+			<shieldFragmentCount>1</shieldFragmentCount><shieldStopEnergy>18</shieldStopEnergy>
 		</li></comps>
 	</ThingDef>
 
@@ -224,7 +223,28 @@
 			<damageData><enabled>false</enabled></damageData></graphicData>
 		<comps><li Class="DeltaV.CompProperties_SpaceProjectile">
 			<speed>80</speed><timeoutTicks>240</timeoutTicks><hasMap>false</hasMap>
-			<shieldPulseCost>3</shieldPulseCost>
+			<shieldFragmentDef>DeltaV_Projectile_RailFragment</shieldFragmentDef>
+			<shieldFragmentCount>1</shieldFragmentCount><shieldStopEnergy>25</shieldStopEnergy>
+		</li></comps>
+	</ThingDef>
+
+	<!-- A light fragment for rapid-fire rounds; its own impact Def determines damage. -->
+	<ThingDef ParentName="BuildingBase">
+		<defName>DeltaV_Projectile_RapidFragment</defName>
+		<label>rapid cannon fragment</label>
+		<description>A light splinter left by a rapid cannon round crossing a kinetic shield.</description>
+		<thingClass>Verse.Building</thingClass><category>Building</category>
+		<rotatable>false</rotatable><passability>Impassable</passability><fillPercent>0.2</fillPercent>
+		<size>(1,1)</size><designationCategory Inherit="False" />
+		<researchPrerequisites Inherit="False" /><stuffCategories Inherit="False" />
+		<statBases><WorkToBuild>1</WorkToBuild><MaxHitPoints>10</MaxHitPoints><Flammability>0</Flammability></statBases>
+		<graphicData><texPath>Things/Projectile/Bullet_Small</texPath><graphicClass>Graphic_Single</graphicClass>
+			<drawSize>(0.45,0.45)</drawSize><shaderType>Cutout</shaderType>
+			<damageData><enabled>false</enabled></damageData></graphicData>
+		<comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+			<speed>45</speed><timeoutTicks>240</timeoutTicks><hasMap>false</hasMap>
+			<shieldFragmentDef>DeltaV_Projectile_RapidFragment</shieldFragmentDef>
+			<shieldFragmentCount>1</shieldFragmentCount><shieldStopEnergy>12</shieldStopEnergy>
 		</li></comps>
 	</ThingDef>
 
@@ -261,6 +281,7 @@
 				<hasMap>false</hasMap>
 				<laserRange>50</laserRange>
 				<laserBeamWidth>0.12</laserBeamWidth>
+				<shieldLaserTurnEnergy>1</shieldLaserTurnEnergy>
 				<guaranteedHitMissiles>true</guaranteedHitMissiles>
 			</li>
 		</comps>

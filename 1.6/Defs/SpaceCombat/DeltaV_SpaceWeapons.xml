@@ -313,11 +313,9 @@
     <statBases><WorkToBuild>1</WorkToBuild><MaxHitPoints>30</MaxHitPoints><Flammability>0</Flammability></statBases>
     <graphicData><texPath>Things/Projectile/Bullet_Big</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,0.6)</drawSize><shaderType>Cutout</shaderType><damageData><enabled>false</enabled></damageData></graphicData>
     <comps><li Class="DeltaV.CompProperties_SpaceProjectile"><speed>120</speed><timeoutTicks>600</timeoutTicks><hasMap>false</hasMap>
-      <shieldBehaviorClass>DeltaV.RailgunShieldProjectileBehavior</shieldBehaviorClass>
-      <shieldPulseCost>34</shieldPulseCost><shieldBreakAngleDeg>5</shieldBreakAngleDeg>
+      <shieldFragmentCost>2</shieldFragmentCost><shieldStopEnergy>600</shieldStopEnergy>
       <shieldFragmentDef>DeltaV_Projectile_RailFragment</shieldFragmentDef><shieldFragmentCount>4</shieldFragmentCount>
-      <shieldFragmentScatterDeg>8</shieldFragmentScatterDeg><shieldFragmentSpeedFactor>0.85</shieldFragmentSpeedFactor>
-      <shieldFragmentDamageFraction>0.22</shieldFragmentDamageFraction><shieldFragmentArmorFactor>0.18</shieldFragmentArmorFactor>
+      <shieldFragmentScatterDeg>8</shieldFragmentScatterDeg>
     </li></comps>
   </ThingDef>
 

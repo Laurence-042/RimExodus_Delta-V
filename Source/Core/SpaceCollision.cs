@@ -91,8 +91,8 @@ namespace DeltaV
             public Vector3 redirectPoint;
             public Vector2 redirectDirection;
             public float redirectRemaining;
-            public System.Action<Vector3, Vector3, Vector2, bool> onShieldRedirect;
-            public System.Action<Vector3, Vector2> onShieldShatter;
+            public System.Action<Vector3, Vector3> onShieldRedirect;
+            public System.Action<Vector3, SpaceObject, Vector2, float> onShieldShatter;
         }
 
         /// <summary>命中事件（几何事实一次性计算；池化复用，调用方不得持有引用）。</summary>
@@ -233,7 +233,7 @@ namespace DeltaV
             Surface surface = SurfaceFor(obj);
             foreach (CompSpaceShield shield in surface.lineShields)
             {
-                if (shield.State != SpaceShieldState.SpaceActive) continue;
+                if (shield.State != SpaceShieldState.LineActive) continue;
                 shield.GetSegment(out Vector2 a, out Vector2 b, out _);
                 output.Add(new ShieldVisualSegment(
                     SpaceTransform.MapPointToUniverse(obj, obj.map, a),
@@ -295,7 +295,7 @@ namespace DeltaV
                 CompProjectileInterceptor interceptor = building.TryGetComp<CompProjectileInterceptor>();
                 if (interceptor == null) continue;
                 CompSpaceShield shield = building.TryGetComp<CompSpaceShield>();
-                if (shield != null && shield.mode == SpaceShieldMode.Space)
+                if (shield != null && shield.mode != SpaceShieldMode.Guard)
                 {
                     surface.lineShields.Add(shield);
                     shield.GetSegment(out Vector2 a, out Vector2 b, out _);
@@ -345,7 +345,7 @@ namespace DeltaV
                         SpaceObject defender = objects[d];
                         if (defender == body.attacker || defender == body.excludeContainer
                             || (body.requiredDefender != null && defender != body.requiredDefender)) continue;
-                        if (body.ignoreNonHostileProjectiles && defender.IsActiveCollider
+                        if (body.ignoreNonHostileProjectiles && !body.didRedirect && defender.IsActiveCollider
                             && !AreHostile(body.attacker.faction, defender.faction)) continue;
                         Map defMap = defender.map;
                         if (defMap == null || defMap.Disposed) continue;
@@ -355,13 +355,13 @@ namespace DeltaV
                         if (body.dead) break;
                         if (!body.redirected) continue;
                         Vector3 oldFrom = body.from;
-                        body.onShieldRedirect?.Invoke(oldFrom, body.redirectPoint,
-                            body.redirectDirection, false);
+                        body.onShieldRedirect?.Invoke(oldFrom, body.redirectPoint);
                         body.from = OrbitSphere.Move(body.redirectPoint,
                             body.redirectDirection * 0.03f);
                         body.to = OrbitSphere.Move(body.from,
                             body.redirectDirection * body.redirectRemaining);
                         body.didRedirect = true;
+                        body.excludeContainer = null;
                         if (bounce == 15) body.to = body.from;
                         redirected = true;
                         break;
@@ -402,8 +402,9 @@ namespace DeltaV
             Vector2 linePoint = default;
             Vector2 lineNormal = default;
             float lineAlong = float.MaxValue;
-            SpaceShieldProjectileBehavior behavior = SpaceShieldProjectileBehavior.For(body.projectileDef);
-            if (!behavior.IgnoresLineShield && TryFindLineHit(surface, fromLocal, dir, length,
+            CompProperties_SpaceProjectile projectileProps = body.projectileDef
+                ?.GetCompProperties<CompProperties_SpaceProjectile>();
+            if (TryFindLineHit(surface, fromLocal, dir, length, projectileProps,
                 out lineShield, out linePoint, out lineNormal, out lineAlong))
                 sampleLength = lineAlong;
             ShieldArc shieldArc = null;
@@ -520,32 +521,36 @@ namespace DeltaV
 
             if (lineShield != null && lineAlong <= sampleLength + 0.001f)
             {
-                Vector2 outgoing = SpaceShieldRefraction.Refract(dir, lineNormal,
-                    lineShield.refractionStrength, out float incident, out _);
-                CompProperties_SpaceProjectile projectileProps = body.projectileDef
-                    ?.GetCompProperties<CompProperties_SpaceProjectile>();
-                bool shatter = projectileProps != null && behavior.Shatters(projectileProps, incident);
-                float change = Vector2.Angle(dir, outgoing);
                 Vector3 hit = SpaceTransform.MapPointToUniverse(defender, defMap, linePoint);
-                // 垂直入射没有折射与碎裂，穿过该层且不产生脉冲费用。
-                if (change > 0.01f || shatter)
+                if (lineShield.mode == SpaceShieldMode.Kinetic)
                 {
-                    float cost = behavior.PulseCost(projectileProps, lineShield.refractionStrength,
-                        change, shatter);
-                    if (!lineShield.TryConsumePulse(cost)) outgoing = dir;
-                    else if (shatter)
-                    {
-                        body.resolvedHit = true;
-                        body.resolvedHitShield = true;
-                        body.resolvedHitUniverse = hit;
-                        body.resolvedHitDefender = defender;
-                        body.resolvedHitLocal = linePoint;
-                        body.onShieldShatter?.Invoke(hit, outgoing);
-                        body.dead = true;
-                        body.onSelfDestruct?.Invoke();
-                        return true;
-                    }
+                    float speed = relativeSpeed;
+                    float requested = lineShield.ShieldProps.kineticMaxDeltaV
+                        * lineShield.kineticStrengthPercent / 100f;
+                    float baseCost = projectileProps.shieldFragmentCost;
+                    float extra = SpaceShieldProjectileBehavior.KineticCost(projectileProps, requested, speed)
+                        - baseCost;
+                    float paid = lineShield.ConsumePulseFraction(baseCost + extra)
+                        * (baseCost + extra);
+                    float actualDeltaV = extra <= 0f ? 0f
+                        : requested * Mathf.Clamp01((paid - baseCost) / extra);
+                    body.resolvedHit = true;
+                    body.resolvedHitShield = true;
+                    body.resolvedHitUniverse = hit;
+                    body.resolvedHitDefender = defender;
+                    body.resolvedHitLocal = linePoint;
+                    Vector2 worldDirection = SpaceTransform.MapDirectionToUniverseTangent(
+                        defender, defMap, linePoint, dir);
+                    body.onShieldShatter?.Invoke(hit, defender, worldDirection, speed - actualDeltaV);
+                    body.dead = true;
+                    body.onSelfDestruct?.Invoke();
+                    return true;
                 }
+                int strength = lineShield.electromagneticStrengthPercent;
+                SpaceShieldRefraction.Plan plan = SpaceShieldRefraction.Calculate(dir, lineNormal, strength);
+                float cost = projectileProps.shieldLaserTurnEnergy * plan.addedDeg / 180f;
+                float funded = lineShield.ConsumePulseFraction(cost);
+                Vector2 outgoing = plan.Direction(funded);
                 body.redirected = true;
                 body.redirectPoint = hit;
                 body.redirectDirection = SpaceTransform.MapDirectionToUniverseTangent(defender,
@@ -592,7 +597,8 @@ namespace DeltaV
                     body.resolvedHitExplosive = true;
                     body.resolvedHitRadius = shieldEffect.shieldSurfaceEffect.explosionRadius;
                 }
-                float residual = Mathf.Clamp01((drain - capacityBefore) / drain);
+                bool guard = shieldArc.building.TryGetComp<CompSpaceShield>()?.mode == SpaceShieldMode.Guard;
+                float residual = guard ? 0f : Mathf.Clamp01((drain - capacityBefore) / drain);
                 if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
                     DeltaVLog.Message(DeltaVLogModule.Combat,
                         $"shield intercept: {body.projectileDef?.defName} on '{defender.label}' " +
@@ -694,7 +700,8 @@ namespace DeltaV
         }
 
         private static bool TryFindLineHit(Surface surface, Vector2 from, Vector2 dir,
-            float length, out CompSpaceShield hitShield, out Vector2 hitPoint,
+            float length, CompProperties_SpaceProjectile projectileProps,
+            out CompSpaceShield hitShield, out Vector2 hitPoint,
             out Vector2 hitNormal, out float along)
         {
             hitShield = null;
@@ -703,7 +710,10 @@ namespace DeltaV
             along = float.MaxValue;
             foreach (CompSpaceShield shield in surface.lineShields)
             {
-                if (shield.State != SpaceShieldState.SpaceActive) continue;
+                if (shield.State != SpaceShieldState.LineActive) continue;
+                if (shield.mode == SpaceShieldMode.Kinetic
+                    ? !SpaceShieldProjectileBehavior.IsKinetic(projectileProps)
+                    : !SpaceShieldProjectileBehavior.IsLaser(projectileProps)) continue;
                 shield.GetSegment(out Vector2 a, out Vector2 b, out Vector2 normal);
                 if (Vector2.Dot(dir, normal) >= -0.0001f) continue;
                 Vector2 edge = b - a;

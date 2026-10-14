@@ -14,7 +14,8 @@ namespace DeltaV
         public static void Active(ref bool __result, CompProjectileInterceptor __instance)
         {
             CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
-            if (shield != null && shield.State != SpaceShieldState.Ground) __result = false;
+            if (shield != null && (shield.State != SpaceShieldState.Guard || !shield.FlickedOn))
+                __result = false;
         }
 
         [HarmonyPatch(typeof(CompProjectileInterceptor), nameof(CompProjectileInterceptor.PostDraw))]
@@ -22,7 +23,7 @@ namespace DeltaV
         public static bool PostDraw(CompProjectileInterceptor __instance)
         {
             CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
-            return shield == null || shield.State == SpaceShieldState.Ground;
+            return shield == null || shield.State == SpaceShieldState.Guard;
         }
 
         [HarmonyPatch(typeof(CompProjectileInterceptor), nameof(CompProjectileInterceptor.PostDrawExtraSelectionOverlays))]
@@ -30,7 +31,7 @@ namespace DeltaV
         public static bool PostDrawExtraSelectionOverlays(CompProjectileInterceptor __instance)
         {
             CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
-            return shield == null || shield.State == SpaceShieldState.Ground;
+            return shield == null || shield.State == SpaceShieldState.Guard;
         }
 
         [HarmonyPatch(typeof(CompProjectileInterceptor), nameof(CompProjectileInterceptor.CompGetGizmosExtra))]
@@ -39,7 +40,7 @@ namespace DeltaV
             ref IEnumerable<Gizmo> __result)
         {
             CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
-            if (shield == null || shield.State == SpaceShieldState.Ground)
+            if (shield == null || shield.State == SpaceShieldState.Guard)
                 return true;
             __result = System.Array.Empty<Gizmo>();
             return false;
@@ -50,7 +51,7 @@ namespace DeltaV
         public static bool CompInspectStringExtra(CompProjectileInterceptor __instance, ref string __result)
         {
             CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
-            if (shield == null || shield.State == SpaceShieldState.Ground)
+            if (shield == null || shield.State == SpaceShieldState.Guard)
                 return true;
             __result = null;
             return false;

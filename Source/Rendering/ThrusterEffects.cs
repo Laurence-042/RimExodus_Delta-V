@@ -332,5 +332,11 @@ namespace DeltaV
         {
             ExhaustEmissionRemainder.Clear();
         }
+
+        public static void Forget(Map map)
+        {
+            if (map == null) return;
+            foreach (Thing thing in map.spawnedThings) ExhaustEmissionRemainder.Remove(thing);
+        }
     }
 }

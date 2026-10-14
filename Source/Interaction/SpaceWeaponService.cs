@@ -70,8 +70,9 @@ namespace DeltaV
         {
             if (map == null) return;
             weaponsByMap.Remove(map);
-            pendingMissileReloads.RemoveWhere(loader => loader.parent.Map == map);
-            reservedMissileReloads.RemoveWhere(loader => loader.parent.Map == map);
+            // 归档时 Thing 的 Map 索引已清除；源图的 spawnedThings 仍持有废弃实例。
+            pendingMissileReloads.RemoveWhere(loader => map.spawnedThings.Contains(loader.parent));
+            reservedMissileReloads.RemoveWhere(loader => map.spawnedThings.Contains(loader.parent));
             universe.Controls.ForgetMap(map);
         }
 

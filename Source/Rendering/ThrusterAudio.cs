@@ -237,6 +237,20 @@ namespace DeltaV
             EndAll();
         }
 
+        public static void Forget(Map map)
+        {
+            if (map == null) return;
+            foreach (Thing thing in map.spawnedThings)
+            {
+                if (MapLoops.TryGetValue(thing, out Sustainer loop))
+                {
+                    if (loop != null && !loop.Ended) loop.End();
+                    MapLoops.Remove(thing);
+                }
+                ActiveMapThrusters.Remove(thing);
+            }
+        }
+
         private static void EndAll()
         {
             foreach (KeyValuePair<Thing, Sustainer> kv in MapLoops)

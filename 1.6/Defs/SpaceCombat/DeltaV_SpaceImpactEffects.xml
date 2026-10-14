@@ -210,7 +210,7 @@
 		<defName>DeltaV_Impact_ShieldFragmentVsStructure</defName>
 		<projectileDefs><li>DeltaV_Projectile_ShieldFragment</li><li>DeltaV_Projectile_RailFragment</li></projectileDefs>
 		<defenderEffect><kind>DamageMap</kind><damageDef>Bullet</damageDef>
-			<damage>12</damage><speedExponent>0</speedExponent><incidenceMinFactor>1</incidenceMinFactor>
+			<damage>12</damage><referenceSpeed>60</referenceSpeed><speedExponent>1</speedExponent><incidenceMinFactor>1</incidenceMinFactor>
 			<armorPenetration>4</armorPenetration></defenderEffect>
 		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
@@ -219,7 +219,23 @@
 		<projectileDefs><li>DeltaV_Projectile_ShieldFragment</li><li>DeltaV_Projectile_RailFragment</li></projectileDefs>
 		<targetsSubstructure>true</targetsSubstructure>
 		<substructureHitChance>0.01</substructureHitChance>
-		<defenderEffect><kind>DamageMap</kind><damageDef>Bullet</damageDef><damage>8</damage></defenderEffect>
+		<defenderEffect><kind>DamageMap</kind><damageDef>Bullet</damageDef><damage>8</damage><referenceSpeed>60</referenceSpeed><speedExponent>1</speedExponent></defenderEffect>
+		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
+	</DeltaV.SpaceImpactEffectDef>
+	<DeltaV.SpaceImpactEffectDef>
+		<defName>DeltaV_Impact_RapidFragmentVsStructure</defName>
+		<projectileDefs><li>DeltaV_Projectile_RapidFragment</li></projectileDefs>
+		<defenderEffect><kind>DamageMap</kind><damageDef>Bullet</damageDef>
+			<damage>3.5</damage><referenceSpeed>60</referenceSpeed><speedExponent>1</speedExponent>
+			<incidenceMinFactor>1</incidenceMinFactor><armorPenetration>1</armorPenetration></defenderEffect>
+		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
+	</DeltaV.SpaceImpactEffectDef>
+	<DeltaV.SpaceImpactEffectDef>
+		<defName>DeltaV_Impact_RapidFragmentVsSubstructure</defName>
+		<projectileDefs><li>DeltaV_Projectile_RapidFragment</li></projectileDefs>
+		<targetsSubstructure>true</targetsSubstructure><substructureHitChance>0.01</substructureHitChance>
+		<defenderEffect><kind>DamageMap</kind><damageDef>Bullet</damageDef>
+			<damage>2</damage><referenceSpeed>60</referenceSpeed><speedExponent>1</speedExponent></defenderEffect>
 		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
@@ -327,6 +343,8 @@
 			<li>DeltaV_Projectile_Rapid</li>
 			<li>DeltaV_Projectile_RailgunSlug</li>
 			<li>DeltaV_Projectile_ShieldFragment</li>
+			<li>DeltaV_Projectile_RapidFragment</li>
+			<li>DeltaV_Projectile_RailFragment</li>
 		</projectileDefs>
 		<targetThingDefs>
 			<li>GravshipShieldGenerator</li>

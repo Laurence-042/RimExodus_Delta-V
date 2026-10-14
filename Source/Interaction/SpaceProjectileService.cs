@@ -73,6 +73,7 @@ namespace DeltaV
             public Building building;
             public Thing launcher;
             public SpaceObject sourceContainer;
+            public bool reflectedByShield;
             public SpaceObject target;
             public Vector2? targetLocalPoint;
             public bool adoptedShuttle;
@@ -228,15 +229,23 @@ namespace DeltaV
                 SpaceProjectileLaunchSpec.FromDef(props, damageScale));
         }
 
-        internal void LaunchShieldFragment(ThingDef def, in SpaceShieldFragmentContext context,
-            Vector2 direction, float speed, float damageScale, float armorScale)
+        internal void LaunchShieldFragment(ThingDef def, SpaceObject source, SpaceObject defender,
+            Thing launcher, Vector3 hit, Vector2 direction, float signedSpeed)
         {
-            OrbitSphere.Basis(context.hit, out Vector3 east, out Vector3 north);
+            OrbitSphere.Basis(hit, out Vector3 east, out Vector3 north);
             Vector3 worldDirection = east * direction.x + north * direction.y;
-            Launch(def, context.sourceContainer,
-                OrbitSphere.Move(context.hit, direction * 0.06f), worldDirection,
-                context.sourceContainer?.faction, context.launcher, null,
-                new SpaceProjectileLaunchSpec(speed, 0, speed, damageScale, armorScale));
+            Vector2 travel = signedSpeed >= 0f ? direction : -direction;
+            Vector3 muzzle = OrbitSphere.Move(hit, travel * 0.06f);
+            float speed = Mathf.Abs(signedSpeed);
+            if (!Launch(def, null, muzzle, worldDirection, source?.faction, launcher, null,
+                new SpaceProjectileLaunchSpec(speed, 0, speed, 1f, 1f))) return;
+            Projectile fragment = projectiles[projectiles.Count - 1];
+            fragment.sourceContainer = source;
+            fragment.reflectedByShield = signedSpeed < 0f;
+            fragment.container.pose.velocity = travel * speed
+                + SpaceTransform.TransportVelocity(defender.pose, muzzle);
+            fragment.container.pose.angle = Mathf.Atan2(travel.y, travel.x);
+            fragment.cruiseSpeed = speed;
         }
 
         public bool Launch(ThingDef def, SpaceObject source, Vector3 muzzle, Vector3 directionWorld,
@@ -261,6 +270,7 @@ namespace DeltaV
             projectile.props = props;
             projectile.launcher = launcher;
             projectile.sourceContainer = source;
+            projectile.reflectedByShield = false;
             projectile.target = missileTarget;
             projectile.spawnedAtTick = Find.TickManager.TicksGame;
             projectile.laser = props.laserRange > 0f;
@@ -348,6 +358,7 @@ namespace DeltaV
             p.props = props;
             p.launcher = hull;
             p.sourceContainer = null;
+            p.reflectedByShield = false;
             p.target = target;
             p.targetLocalPoint = targetLocalPoint;
             p.adoptedShuttle = true;
@@ -509,9 +520,9 @@ namespace DeltaV
                 body.attacker = p.container;
                 body.projectileDef = p.def;
                 body.attackerBuilding = p.building;
-                body.excludeContainer = p.sourceContainer;
+                body.excludeContainer = p.reflectedByShield ? null : p.sourceContainer;
                 body.requiredDefender = p.adoptedShuttle ? p.target : null;
-                body.ignoreNonHostileProjectiles = true;
+                body.ignoreNonHostileProjectiles = !p.reflectedByShield;
                 body.launcher = p.launcher;
                 body.dead = false;
                 body.resolvedHit = false;
@@ -566,24 +577,19 @@ namespace DeltaV
                             incidentAtHit, captured.body.resolvedHitCell,
                             captured.body.resolvedHitShield);
                     }) : null;
-                body.onShieldRedirect = delegate (Vector3 from, Vector3 hit,
-                    Vector2 direction, bool shatter)
+                body.onShieldRedirect = delegate (Vector3 from, Vector3 hit)
                 {
                     if (captured.laser)
                         beams.Add(new Beam { from = from, to = hit,
                             bornTick = Find.TickManager.TicksGame,
                             width = captured.props.laserBeamWidth });
                 };
-                body.onShieldShatter = delegate (Vector3 hit, Vector2 direction)
+                body.onShieldShatter = delegate (Vector3 hit, SpaceObject defender,
+                    Vector2 direction, float signedSpeed)
                 {
-                    SpaceShieldProjectileBehavior response =
-                        SpaceShieldProjectileBehavior.For(captured.def);
-                    var context = new SpaceShieldFragmentContext(captured.def,
-                        captured.sourceContainer, hit, direction,
-                        captured.container.pose.velocity.magnitude,
-                        captured.damageScale, captured.armorPenetrationScale,
-                        captured.launcher);
-                    response.SpawnFragments(this, in context);
+                    SpaceShieldProjectileBehavior.SpawnFragments(this, captured.def,
+                        captured.sourceContainer, defender, captured.launcher, hit,
+                        direction, signedSpeed);
                 };
                 sweepScratch.Add(p);
                 bodyScratch.Add(body);
@@ -792,6 +798,7 @@ namespace DeltaV
             p.building = null;
             p.launcher = null;
             p.sourceContainer = null;
+            p.reflectedByShield = false;
             p.target = null;
             p.targetLocalPoint = null;
             p.adoptedShuttle = false;
