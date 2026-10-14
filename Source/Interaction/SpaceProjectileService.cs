@@ -171,7 +171,8 @@ namespace DeltaV
 
         // 激光线段材质（静态渲染缓存，ClearRuntimeCaches 换档销毁；三档透明度近似渐隐）。
         private static Material[] beamMaterials;
-        private static Material shieldLineMaterial;
+        private static Material kineticShieldLineMaterial;
+        private static Material electromagneticShieldLineMaterial;
 
         // 壳上命中特效材质（静态渲染缓存；种类 × 三档透明度。贴图复用原版 mote 素材，
         // 克隆材质自持以设 renderQueue，ClearRuntimeCaches 只销毁克隆不动共享贴图）。
@@ -979,13 +980,6 @@ namespace DeltaV
                 SpaceCollision.CollectVisibleShieldSegments(obj, shieldVisualScratch);
             if (shieldVisualScratch.Count > 0)
             {
-                shieldLineMaterial ??= new Material(MaterialPool.MatFrom(
-                    "Things/Building/SpaceWeapons/ShieldField", ShaderDatabase.Transparent))
-                {
-                    name = "DeltaV_ShieldLine",
-                    color = new Color(1f, 1f, 1f, 0.72f),
-                    renderQueue = 3201,
-                };
                 float altitude = AltitudeLayer.Terrain.AltitudeFor() + Altitudes.AltInc * 11f;
                 foreach (SpaceCollision.ShieldVisualSegment segment in shieldVisualScratch)
                 {
@@ -1000,7 +994,7 @@ namespace DeltaV
                     Quaternion rotation = SpaceTransform.FocusedMeshRotation(frame, angle);
                     MapOverlayRenderer.CollectSingleQuad(MeshPool.plane10,
                         Matrix4x4.TRS((a + b) * 0.5f, rotation,
-                            new Vector3(span, 1f, 0.8f)), shieldLineMaterial);
+                            new Vector3(span, 1f, 0.8f)), ShieldLineMaterial(segment.mode));
                     ShellLayer.Slot shieldSlot = layer.At(slot++);
                     shieldSlot.layer.Emit(shieldSlot);
                 }
@@ -1279,13 +1273,34 @@ namespace DeltaV
             }
         }
 
+        private static Material ShieldLineMaterial(SpaceShieldMode mode)
+        {
+            // Keep separate immutable materials: queued draws retain their references.
+            ref Material material = ref (mode == SpaceShieldMode.Electromagnetic
+                ? ref electromagneticShieldLineMaterial : ref kineticShieldLineMaterial);
+            return material ??= new Material(MaterialPool.MatFrom(
+                "Things/Building/SpaceWeapons/ShieldField", ShaderDatabase.Transparent))
+            {
+                name = $"DeltaV_ShieldLine_{mode}",
+                color = mode == SpaceShieldMode.Electromagnetic
+                    ? new Color(1f, 0.25f, 0.85f, 0.85f)
+                    : new Color(1f, 1f, 1f, 0.72f),
+                renderQueue = 3201,
+            };
+        }
+
         /// <summary>换档清理静态渲染缓存（UniverseManager.ResetRuntimeServices）。</summary>
         public static void ClearRuntimeCaches()
         {
-            if (shieldLineMaterial != null)
+            if (kineticShieldLineMaterial != null)
             {
-                Object.Destroy(shieldLineMaterial);
-                shieldLineMaterial = null;
+                Object.Destroy(kineticShieldLineMaterial);
+                kineticShieldLineMaterial = null;
+            }
+            if (electromagneticShieldLineMaterial != null)
+            {
+                Object.Destroy(electromagneticShieldLineMaterial);
+                electromagneticShieldLineMaterial = null;
             }
             if (beamMaterials != null)
             {

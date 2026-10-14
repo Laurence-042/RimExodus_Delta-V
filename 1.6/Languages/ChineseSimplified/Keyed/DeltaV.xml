@@ -305,19 +305,20 @@
   <DeltaV_ShieldModeGuard>切换为守卫模式</DeltaV_ShieldModeGuard>
   <DeltaV_ShieldModeKinetic>切换为动能模式</DeltaV_ShieldModeKinetic>
   <DeltaV_ShieldModeElectromagnetic>切换为电磁模式</DeltaV_ShieldModeElectromagnetic>
-  <DeltaV_ShieldModeDesc>守卫模式断电阻挡所有投射物，但锁定一小时；动能模式碎裂实弹；电磁模式折射激光。</DeltaV_ShieldModeDesc>
-  <DeltaV_ShieldGuardLocked>守卫模式还需 {0} 才能切换。</DeltaV_ShieldGuardLocked>
+  <DeltaV_ShieldModeDesc>守卫模式耗电 10 W，切回后锁定至累计通电一小时；断电暂停恢复，已有盾容仍可拦截。动能模式碎裂实弹；电磁模式折射激光。</DeltaV_ShieldModeDesc>
+  <DeltaV_ShieldGuardLocked>守卫模式还需通电 {0} 才能切换。</DeltaV_ShieldGuardLocked>
   <DeltaV_ShieldStateGuard>守卫圆盾</DeltaV_ShieldStateGuard>
   <DeltaV_ShieldStateKinetic>动能线盾</DeltaV_ShieldStateKinetic>
   <DeltaV_ShieldStateElectromagnetic>电磁线盾</DeltaV_ShieldStateElectromagnetic>
-  <DeltaV_ShieldGuardStatus>盾容 {0}/{1}；{2} 后免费充满。当前可用 1 白银补充 1 盾容。</DeltaV_ShieldGuardStatus>
+  <DeltaV_ShieldGuardStatus>盾容 {0}/{1}；再通电 {2} 后免费充满。当前可用 1 白银补充 1 盾容。</DeltaV_ShieldGuardStatus>
+  <DeltaV_ShieldGuardRecoveryPaused>恢复倒计时已暂停：需要接通电源并开启开关。</DeltaV_ShieldGuardRecoveryPaused>
   <DeltaV_ShieldRadius>守卫盾半径</DeltaV_ShieldRadius>
   <DeltaV_ShieldProjection>线盾投射距离</DeltaV_ShieldProjection>
   <DeltaV_ShieldLength>线盾长度</DeltaV_ShieldLength>
   <DeltaV_ShieldAngle>线盾相对角度</DeltaV_ShieldAngle>
   <DeltaV_ShieldKineticStrength>动能强度</DeltaV_ShieldKineticStrength>
   <DeltaV_ShieldElectromagneticStrength>电磁强度</DeltaV_ShieldElectromagneticStrength>
-  <DeltaV_ShieldGuardReference>盾容上限 {0}；每 {1} 免费充满。半径不影响盾容。</DeltaV_ShieldGuardReference>
+  <DeltaV_ShieldGuardReference>盾容上限 {0}；每累计通电 {1} 免费充满。断电暂停倒计时，半径不影响盾容。</DeltaV_ShieldGuardReference>
   <DeltaV_ShieldKineticReference>所有实弹均碎裂；要求降低速度 {0} 格/秒。脉冲电费取决于弹体种类。</DeltaV_ShieldKineticReference>
   <DeltaV_ShieldElectromagneticReference>以 30° 入射为例，被动折射后主动额外转向 {0}°。</DeltaV_ShieldElectromagneticReference>
 </LanguageData>

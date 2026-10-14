@@ -305,19 +305,20 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShieldModeGuard>Switch to guard mode</DeltaV_ShieldModeGuard>
   <DeltaV_ShieldModeKinetic>Switch to kinetic mode</DeltaV_ShieldModeKinetic>
   <DeltaV_ShieldModeElectromagnetic>Switch to electromagnetic mode</DeltaV_ShieldModeElectromagnetic>
-  <DeltaV_ShieldModeDesc>Guard blocks all projectiles without power but locks mode switching for one hour. Kinetic fragments solid shots; electromagnetic refracts lasers.</DeltaV_ShieldModeDesc>
-  <DeltaV_ShieldGuardLocked>Guard mode locked for {0}.</DeltaV_ShieldGuardLocked>
+  <DeltaV_ShieldModeDesc>Guard draws 10 W and locks switching after re-entry until one powered hour elapses. Power loss pauses recovery; stored capacity still intercepts. Kinetic fragments solid shots; electromagnetic refracts lasers.</DeltaV_ShieldModeDesc>
+  <DeltaV_ShieldGuardLocked>Guard mode needs {0} more powered time to unlock.</DeltaV_ShieldGuardLocked>
   <DeltaV_ShieldStateGuard>Guard dome</DeltaV_ShieldStateGuard>
   <DeltaV_ShieldStateKinetic>Kinetic line</DeltaV_ShieldStateKinetic>
   <DeltaV_ShieldStateElectromagnetic>Electromagnetic line</DeltaV_ShieldStateElectromagnetic>
-  <DeltaV_ShieldGuardStatus>Capacity {0}/{1}; next free refill in {2}. One silver restores one point now.</DeltaV_ShieldGuardStatus>
+  <DeltaV_ShieldGuardStatus>Capacity {0}/{1}; free refill after {2} more powered time. One silver restores one point now.</DeltaV_ShieldGuardStatus>
+  <DeltaV_ShieldGuardRecoveryPaused>Recovery countdown paused: connect power and turn on the switch.</DeltaV_ShieldGuardRecoveryPaused>
   <DeltaV_ShieldRadius>Guard shield radius</DeltaV_ShieldRadius>
   <DeltaV_ShieldProjection>Shield projection distance</DeltaV_ShieldProjection>
   <DeltaV_ShieldLength>Shield line length</DeltaV_ShieldLength>
   <DeltaV_ShieldAngle>Shield angle from facing</DeltaV_ShieldAngle>
   <DeltaV_ShieldKineticStrength>Kinetic strength</DeltaV_ShieldKineticStrength>
   <DeltaV_ShieldElectromagneticStrength>Electromagnetic strength</DeltaV_ShieldElectromagneticStrength>
-  <DeltaV_ShieldGuardReference>Maximum capacity {0}; free refill every {1}. Radius does not change capacity.</DeltaV_ShieldGuardReference>
+  <DeltaV_ShieldGuardReference>Maximum capacity {0}; free refill every {1} of powered operation. Power loss pauses the countdown; radius does not change capacity.</DeltaV_ShieldGuardReference>
   <DeltaV_ShieldKineticReference>Fragments every solid shot; requested speed reduction {0} cells/s. Pulse cost comes from the projectile type.</DeltaV_ShieldKineticReference>
   <DeltaV_ShieldElectromagneticReference>At 30° incidence, active turning adds {0}° after passive refraction.</DeltaV_ShieldElectromagneticReference>
 </LanguageData>

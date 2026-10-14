@@ -31,6 +31,7 @@ namespace DeltaV
         public int maxProjection = 32;
         public int minLength = 4;
         public int maxLength = 32;
+        public float guardPowerWatts = 10f;
         public float lineBasePowerWatts = 10f;
         public float spaceProjectionPowerWatts = 1f;
         public float spaceLengthPowerWatts = 1.5f;
@@ -61,21 +62,6 @@ namespace DeltaV
         public override IEnumerable<StatDrawEntry> SpecialDisplayStats() { yield break; }
     }
 
-    /// <summary>Restore the selected mode's draw when the vanilla power net reconnects.</summary>
-    public sealed class CompDeltaVShieldPower : CompPowerTrader
-    {
-        public override void SetUpPowerVars()
-        {
-            base.SetUpPowerVars();
-            CompSpaceShield shield = parent?.TryGetComp<CompSpaceShield>();
-            if (shield != null) PowerOutput = -shield.WantedPowerWatts;
-        }
-
-        public override string CompInspectStringExtra() =>
-            parent?.TryGetComp<CompSpaceShield>()?.mode == SpaceShieldMode.Guard
-                ? null : base.CompInspectStringExtra();
-    }
-
     /// <summary>
     /// Three mutually exclusive modes. The vanilla interceptor stores guard hitpoints;
     /// SpaceCollision consumes the two projected line modes.
@@ -93,7 +79,7 @@ namespace DeltaV
         public int kineticStrengthPercent;
         public int electromagneticStrengthPercent;
         private int disabledUntilTick;
-        private int nextGuardRefillTick;
+        private int guardRecoveryTicksRemaining = -1;
         private bool guardUnlocked;
         private CompPowerTrader power;
         private CompFlickable flick;
@@ -105,7 +91,10 @@ namespace DeltaV
         public CompProperties_SpaceShield ShieldProps => (CompProperties_SpaceShield)props;
         public bool GuardLocked => mode == SpaceShieldMode.Guard && !guardUnlocked;
         public int GuardTicksRemaining => mode == SpaceShieldMode.Guard
-            ? Mathf.Max(0, nextGuardRefillTick - Find.TickManager.TicksGame) : 0;
+            ? Mathf.Max(0, guardRecoveryTicksRemaining) : 0;
+        public bool GuardRecoveryPowered => parent.Spawned
+            && (power ??= parent.TryGetComp<CompPowerTrader>())?.PowerOn == true
+            && power.PowerNet != null && FlickedOn;
         public int GuardHitPoints => (interceptor ??= parent.TryGetComp<CompProjectileInterceptor>())?.currentHitPoints ?? 0;
         public int GuardHitPointsMax => (interceptor ??= parent.TryGetComp<CompProjectileInterceptor>())?.HitPointsMax ?? 0;
         public bool FlickedOn => (flick ??= parent.TryGetComp<CompFlickable>())?.SwitchIsOn != false;
@@ -134,7 +123,7 @@ namespace DeltaV
         {
             base.PostSpawnSetup(respawningAfterLoad);
             EnsureInstanceInterceptorProps();
-            if (mode == SpaceShieldMode.Guard && nextGuardRefillTick <= 0)
+            if (mode == SpaceShieldMode.Guard && guardRecoveryTicksRemaining <= 0)
                 StartGuardInterval(lockSwitching: false);
             UpdateSilverTarget();
             UpdatePowerDraw();
@@ -151,7 +140,7 @@ namespace DeltaV
             Scribe_Values.Look(ref kineticStrengthPercent, "DeltaV_kineticStrengthPercent", 0);
             Scribe_Values.Look(ref electromagneticStrengthPercent, "DeltaV_electromagneticStrengthPercent", 0);
             Scribe_Values.Look(ref disabledUntilTick, "DeltaV_shieldDisabledUntilTick", 0);
-            Scribe_Values.Look(ref nextGuardRefillTick, "DeltaV_nextGuardRefillTick", 0);
+            Scribe_Values.Look(ref guardRecoveryTicksRemaining, "DeltaV_guardRecoveryTicksRemaining", -1);
             Scribe_Values.Look(ref guardUnlocked, "DeltaV_guardUnlocked", false);
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
@@ -173,14 +162,13 @@ namespace DeltaV
             base.CompTick();
             if (mode == SpaceShieldMode.Guard && silverFuel?.Fuel >= 1f
                 && GuardHitPoints < GuardHitPointsMax) ApplySilverFuel();
-            if (mode == SpaceShieldMode.Guard && nextGuardRefillTick > 0
-                && Find.TickManager.TicksGame >= nextGuardRefillTick)
+            // Only ticks actually supplied by the local power net count toward recovery.
+            if (mode == SpaceShieldMode.Guard && GuardRecoveryPowered
+                && --guardRecoveryTicksRemaining <= 0)
             {
                 guardUnlocked = true;
                 (interceptor ??= parent.TryGetComp<CompProjectileInterceptor>()).currentHitPoints = GuardHitPointsMax;
-                int period = Mathf.Max(1, ShieldProps.guardRecoveryTicks);
-                nextGuardRefillTick += (1 + (Find.TickManager.TicksGame - nextGuardRefillTick)
-                    / period) * period;
+                guardRecoveryTicksRemaining = Mathf.Max(1, ShieldProps.guardRecoveryTicks);
                 UpdateSilverTarget();
             }
             else if (mode == SpaceShieldMode.Guard) UpdateSilverTarget();
@@ -195,7 +183,7 @@ namespace DeltaV
         private void StartGuardInterval(bool lockSwitching)
         {
             guardUnlocked = !lockSwitching;
-            nextGuardRefillTick = Find.TickManager.TicksGame + ShieldProps.guardRecoveryTicks;
+            guardRecoveryTicksRemaining = Mathf.Max(1, ShieldProps.guardRecoveryTicks);
         }
 
         private void UpdateSilverTarget()
@@ -236,7 +224,7 @@ namespace DeltaV
             instanceInterceptorProps.radius = groundRadius;
         }
 
-        public float WantedPowerWatts => mode == SpaceShieldMode.Guard ? 0f
+        public float WantedPowerWatts => mode == SpaceShieldMode.Guard ? ShieldProps.guardPowerWatts
             : ShieldProps.lineBasePowerWatts
                 + ShieldProps.spaceProjectionPowerWatts
                     * Mathf.Max(0f, projection - ShieldProps.minProjection)
@@ -331,7 +319,7 @@ namespace DeltaV
                     {
                         mode = next;
                         if (next == SpaceShieldMode.Guard) StartGuardInterval(lockSwitching: true);
-                        else nextGuardRefillTick = 0;
+                        else guardRecoveryTicksRemaining = 0;
                         SettingsChanged();
                     },
                 };
@@ -369,8 +357,10 @@ namespace DeltaV
             Vector3 b = new Vector3(end.x, altitude, end.y);
             Vector3 center = (a + b) * 0.5f;
             Vector3 front = center + new Vector3(normal.x, 0f, normal.y) * 1.5f;
-            GenDraw.DrawLineBetween(a, b, SimpleColor.Cyan, 0.15f);
-            GenDraw.DrawLineBetween(center, front, SimpleColor.Cyan, 0.12f);
+            SimpleColor color = mode == SpaceShieldMode.Electromagnetic
+                ? SimpleColor.Magenta : SimpleColor.Cyan;
+            GenDraw.DrawLineBetween(a, b, color, 0.15f);
+            GenDraw.DrawLineBetween(center, front, color, 0.12f);
         }
 
         private Command_Action Slider(string key, int min, int max, int initial, Action<int> assign)
@@ -392,7 +382,8 @@ namespace DeltaV
             if (mode == SpaceShieldMode.Guard)
                 return "DeltaV_ShieldStateGuard".Translate() + "\n"
                     + "DeltaV_ShieldGuardStatus".Translate(GuardHitPoints, GuardHitPointsMax,
-                        GuardTicksRemaining.ToStringTicksToPeriod());
+                        GuardTicksRemaining.ToStringTicksToPeriod())
+                    + (GuardRecoveryPowered ? "" : "\n" + "DeltaV_ShieldGuardRecoveryPaused".Translate().ToString());
             string state = (mode == SpaceShieldMode.Kinetic
                 ? "DeltaV_ShieldStateKinetic" : "DeltaV_ShieldStateElectromagnetic").Translate();
             return state + "\n" + SpaceShieldReference.Build(this);

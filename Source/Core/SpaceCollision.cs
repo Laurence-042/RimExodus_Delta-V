@@ -217,11 +217,13 @@ namespace DeltaV
         {
             public readonly Vector3 from;
             public readonly Vector3 to;
+            public readonly SpaceShieldMode mode;
 
-            public ShieldVisualSegment(Vector3 from, Vector3 to)
+            public ShieldVisualSegment(Vector3 from, Vector3 to, SpaceShieldMode mode)
             {
                 this.from = from;
                 this.to = to;
+                this.mode = mode;
             }
         }
 
@@ -237,7 +239,7 @@ namespace DeltaV
                 shield.GetSegment(out Vector2 a, out Vector2 b, out _);
                 output.Add(new ShieldVisualSegment(
                     SpaceTransform.MapPointToUniverse(obj, obj.map, a),
-                    SpaceTransform.MapPointToUniverse(obj, obj.map, b)));
+                    SpaceTransform.MapPointToUniverse(obj, obj.map, b), shield.mode));
             }
         }
 

@@ -4,7 +4,7 @@
   <ThingDef ParentName="GravshipComponentBase">
     <defName>DeltaV_ShieldGenerator</defName>
     <label>Delta-V shield generator</label>
-    <description>A three-mode shield. Guard uses a 3000-point dome without power and refills fully every hour; silver restores one point per unit before then. Kinetic fragments incoming solid shots and can slow or reverse fragments. Electromagnetic refracts lasers and can turn them back. The two line modes need power.</description>
+    <description>A three-mode shield. Guard draws 10 W and refills its 3000-point dome after each hour of powered operation; loss of power pauses recovery but stored capacity still intercepts. Silver restores one point per unit before then. Kinetic fragments incoming solid shots and can slow or reverse fragments. Electromagnetic refracts lasers and can turn them back. The two line modes need power.</description>
     <designationCategory>Security</designationCategory>
     <uiIconPath>Things/Building/SpaceWeapons/ShieldGenerator_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
@@ -30,7 +30,7 @@
     <comps Inherit="False">
       <li Class="CompProperties_Flickable" />
       <li Class="CompProperties_Power">
-        <compClass>DeltaV.CompDeltaVShieldPower</compClass><basePowerConsumption>0</basePowerConsumption>
+        <compClass>CompPowerTrader</compClass><basePowerConsumption>10</basePowerConsumption>
       </li>
       <li Class="CompProperties_Refuelable">
         <compClass>DeltaV.CompDeltaVShieldSilverFuel</compClass>

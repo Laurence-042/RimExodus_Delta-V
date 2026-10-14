@@ -9,6 +9,15 @@ namespace DeltaV
     [HarmonyPatch]
     public static class Patch_SpaceShieldMode
     {
+        // ThingDef.ConnectToPower requires the vanilla CompPowerTrader class exactly.
+        [HarmonyPatch(typeof(CompPowerTrader), nameof(CompPowerTrader.SetUpPowerVars))]
+        [HarmonyPostfix]
+        public static void SetUpPowerVars(CompPowerTrader __instance)
+        {
+            CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
+            if (shield != null) __instance.PowerOutput = -shield.WantedPowerWatts;
+        }
+
         [HarmonyPatch(typeof(CompProjectileInterceptor), nameof(CompProjectileInterceptor.Active), MethodType.Getter)]
         [HarmonyPostfix]
         public static void Active(ref bool __result, CompProjectileInterceptor __instance)
