@@ -92,9 +92,20 @@ namespace DeltaV
             foreach (IntVec3 occupied in GenAdj.OccupiedRect(center, rot, def.Size))
                 if (!hostRect.Contains(occupied)) return "DeltaV_AttachmentNeedsSlot".Translate();
 
-            return (weapon?.AttachmentSlotAt(center) ?? rail?.AttachmentSlotAt(center)) != null
-                ? AcceptanceReport.WasAccepted
-                : "DeltaV_AttachmentNeedsSlot".Translate();
+            if ((weapon?.AttachmentSlotAt(center) ?? rail?.AttachmentSlotAt(center)) == null)
+                return "DeltaV_AttachmentNeedsSlot".Translate();
+
+            foreach (IntVec3 occupied in GenAdj.OccupiedRect(center, rot, def.Size))
+            {
+                foreach (Thing existing in map.thingGrid.ThingsListAtFast(occupied))
+                {
+                    if (existing == thingToIgnore || existing.Destroyed) continue;
+                    ThingDef existingDef = existing.def.entityDefToBuild as ThingDef ?? existing.def;
+                    if (existingDef.GetCompProperties<CompProperties_SpaceWeaponAttachment>() != null)
+                        return "DeltaV_AttachmentSlotOccupied".Translate();
+                }
+            }
+            return AcceptanceReport.WasAccepted;
         }
     }
 

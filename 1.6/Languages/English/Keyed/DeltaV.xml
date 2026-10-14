@@ -278,6 +278,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_WouldBlockGunnerCell>This building would block an active weapon's fixed gunner position.</DeltaV_WouldBlockGunnerCell>
   <DeltaV_WeaponNeedsSingleOwner>The entire weapon footprint must be on substructure owned by one ship.</DeltaV_WeaponNeedsSingleOwner>
   <DeltaV_AttachmentNeedsSlot>This attachment must cover a compatible weapon's declared attachment slot.</DeltaV_AttachmentNeedsSlot>
+  <DeltaV_AttachmentSlotOccupied>This weapon attachment slot is already occupied.</DeltaV_AttachmentSlotOccupied>
   <DeltaV_MissileMagazineNeedsLauncher>Place the missile magazine parallel to either inboard side of a missile launcher.</DeltaV_MissileMagazineNeedsLauncher>
 
   <!-- Stage 5: shuttles & moon pool -->

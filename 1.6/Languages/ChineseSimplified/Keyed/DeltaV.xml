@@ -278,6 +278,7 @@
   <DeltaV_WouldBlockGunnerCell>该建筑会占用一门需要炮手的武器的固定炮手位。</DeltaV_WouldBlockGunnerCell>
   <DeltaV_WeaponNeedsSingleOwner>武器的完整占地必须位于同一艘船所属的基架上。</DeltaV_WeaponNeedsSingleOwner>
   <DeltaV_AttachmentNeedsSlot>挂件必须覆盖兼容武器声明的挂件槽位。</DeltaV_AttachmentNeedsSlot>
+  <DeltaV_AttachmentSlotOccupied>该武器插件槽位已被占用。</DeltaV_AttachmentSlotOccupied>
   <DeltaV_MissileMagazineNeedsLauncher>导弹仓必须与导弹发射架同向，贴在其船内两格的左侧或右侧。</DeltaV_MissileMagazineNeedsLauncher>
 
   <!-- 阶段5：shuttle 与月池 -->
