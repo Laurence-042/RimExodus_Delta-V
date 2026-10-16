@@ -321,4 +321,13 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShieldGuardReference>Maximum capacity {0}; free refill every {1} of powered operation. Power loss pauses the countdown; radius does not change capacity.</DeltaV_ShieldGuardReference>
   <DeltaV_ShieldKineticReference>Fragments every solid shot; requested speed reduction {0} cells/s. Pulse cost comes from the projectile type.</DeltaV_ShieldKineticReference>
   <DeltaV_ShieldElectromagneticReference>At 30° incidence, active turning adds {0}° after passive refraction.</DeltaV_ShieldElectromagneticReference>
+  <DeltaV_PrefabReplaceSelect>Select a prefab to replace the entire focused map (old contents will be removed)</DeltaV_PrefabReplaceSelect>
+  <DeltaV_PrefabReplaceSelectFaction>Select the faction for prefab: {0}</DeltaV_PrefabReplaceSelectFaction>
+  <DeltaV_PrefabReplaceKeepFaction>Keep current map faction (default): {0}</DeltaV_PrefabReplaceKeepFaction>
+  <DeltaV_PrefabReplaceNoFaction>No faction</DeltaV_PrefabReplaceNoFaction>
+  <DeltaV_PrefabReplaceNoFiles>No prefab XML files were found under Prefabs/.</DeltaV_PrefabReplaceNoFiles>
+  <DeltaV_PrefabReplaceRequiresMap>Focus a loaded Delta-V space map before replacing it.</DeltaV_PrefabReplaceRequiresMap>
+  <DeltaV_PrefabReplaceBusy>Wait for map generation, replacement, takeoff or docking to finish before replacing this map.</DeltaV_PrefabReplaceBusy>
+  <DeltaV_PrefabReplaceFailed>Prefab map replacement failed. See the error log for details.</DeltaV_PrefabReplaceFailed>
+  <DeltaV_PrefabReplaceComplete>Replaced the focused map with prefab: {0}</DeltaV_PrefabReplaceComplete>
 </LanguageData>

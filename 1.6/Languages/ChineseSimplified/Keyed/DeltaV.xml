@@ -321,4 +321,13 @@
   <DeltaV_ShieldGuardReference>盾容上限 {0}；每累计通电 {1} 免费充满。断电暂停倒计时，半径不影响盾容。</DeltaV_ShieldGuardReference>
   <DeltaV_ShieldKineticReference>所有实弹均碎裂；要求降低速度 {0} 格/秒。脉冲电费取决于弹体种类。</DeltaV_ShieldKineticReference>
   <DeltaV_ShieldElectromagneticReference>以 30° 入射为例，被动折射后主动额外转向 {0}°。</DeltaV_ShieldElectromagneticReference>
+  <DeltaV_PrefabReplaceSelect>选择 prefab 替换整个聚焦地图（旧图内容将被移除）</DeltaV_PrefabReplaceSelect>
+  <DeltaV_PrefabReplaceSelectFaction>选择 prefab 的派系：{0}</DeltaV_PrefabReplaceSelectFaction>
+  <DeltaV_PrefabReplaceKeepFaction>沿用当前地图派系（默认）：{0}</DeltaV_PrefabReplaceKeepFaction>
+  <DeltaV_PrefabReplaceNoFaction>无派系</DeltaV_PrefabReplaceNoFaction>
+  <DeltaV_PrefabReplaceNoFiles>Prefabs/ 目录下没有找到 prefab XML 文件。</DeltaV_PrefabReplaceNoFiles>
+  <DeltaV_PrefabReplaceRequiresMap>请先聚焦一张已加载的 Delta-V 宇宙地图。</DeltaV_PrefabReplaceRequiresMap>
+  <DeltaV_PrefabReplaceBusy>请等待地图生成、替换、起飞或对接流程结束后再替换地图。</DeltaV_PrefabReplaceBusy>
+  <DeltaV_PrefabReplaceFailed>Prefab 地图替换失败，详情见错误日志。</DeltaV_PrefabReplaceFailed>
+  <DeltaV_PrefabReplaceComplete>已使用 prefab 替换聚焦地图：{0}</DeltaV_PrefabReplaceComplete>
 </LanguageData>

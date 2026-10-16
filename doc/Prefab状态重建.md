@@ -8,6 +8,8 @@
 
 失败测试图的销毁与容器注销经 `UniverseManager.QueueFrameAction` 延后到帧边界，等待原版 `Map.FinalizeInit` 已排队的电网与地图绘制初始化结束；不能在生成长事件内同步销图，否则原版 `MapDrawer.Dispose` 会遇到尚未初始化的 sections，后续绘制回调还会访问已释放的网格。
 
+聚焦图原地替换由 `SpaceLifecycleService.ReplaceFocusedMapFromPrefab` 总装：调试菜单选定文件与派系后显式传入，派系只确定一次，新容器与 `MapPrefab.Spawn` 共用该值（null 表示无派系）。先解析所选文件，再经 `ShipPocketMapFactory` 建空图、注册新容器和独立结构归属，调用同一 `MapPrefab.Spawn`。原图保留到放置成功；长事件结束后的帧边界经 `SetFocusedWithCamera` 交接，再走生命周期删图与旧容器注销。新容器继承原 `SpacePose`，旧图局部尺寸与新图局部尺寸的差异由 `SpaceTransform` 换算相机位置。失败的新图也在帧边界清理；不回退程序布局。用户入口与适用范围见 README「通用地图 prefab」。
+
 Scribe 对同一份 prefab 内的引用在整批读取时解析。对外部 Pawn、任务或旧地图 Thing 的引用无法在新副本成立，解析后为空。第三方 Comp 只要按 RimWorld `ExposeData` 持久化且不依赖旧地图或全局注册表，即可一同恢复；无法保存或读取的实例会给出警告并按 Def 默认状态建立。跨地图原始坐标、原始 Thing ID 数值等自定义字段不具有通用语义，具体模组须适配。
 
 建筑存储格中的物品仍是地图上的独立 Item。不可通行的 `Building_Storage`（例如导弹仓）会让原版 `CanSpawnAt` 的行走检查失败；重建只在原版 SlotGroup 已登记且不会擦除储物建筑的格子放宽此检查。储存组本身是旧地图对象，不复制其引用；导出时把该建筑实际生效的筛选和优先级写为自身设置。

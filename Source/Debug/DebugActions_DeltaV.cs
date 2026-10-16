@@ -61,6 +61,69 @@ namespace DeltaV
                 Find.CurrentMap.areaManager.Home.ActiveCells);
         }
 
+        [DebugAction("Delta-V", "Prefab: replace focused map...", actionType = DebugActionType.Action,
+            allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void ReplaceFocusedMapFromPrefab()
+        {
+            UniverseManager universe = Um();
+            SpaceObject source = universe.FrameOf(Find.CurrentMap);
+            if (!universe.Lifecycle.CanReplaceFocusedMap(source, out string reason))
+            {
+                Messages.Message(reason, MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            try
+            {
+                var files = MapPrefab.ListPrefabFiles();
+                if (files.Count == 0)
+                {
+                    Messages.Message("DeltaV_PrefabReplaceNoFiles".Translate(), MessageTypeDefOf.RejectInput, false);
+                    return;
+                }
+                Find.WindowStack.Add(new Dialog_DebugOptionListLister(files.Select(path =>
+                    new DebugMenuOption(path, DebugMenuOptionMode.Action,
+                        () => SelectPrefabReplacementFaction(universe, source, path))),
+                    "DeltaV_PrefabReplaceSelect".Translate()));
+            }
+            catch (System.Exception ex)
+            {
+                Log.Error($"[DeltaV] Cannot list map prefabs: {ex}");
+                Messages.Message("DeltaV_PrefabReplaceFailed".Translate(), MessageTypeDefOf.RejectInput, false);
+            }
+        }
+
+        private static void SelectPrefabReplacementFaction(UniverseManager universe, SpaceObject source, string path)
+        {
+            if (!universe.Lifecycle.CanReplaceFocusedMap(source, out string reason))
+            {
+                Messages.Message(reason, MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            Faction currentFaction = source.faction ?? source.map.Parent?.Faction;
+            if (currentFaction == null)
+            {
+                // Plain ship containers have no environment faction; resolve their ship instead.
+                Ship selected = universe.Pilot.SelectedShipOnMap(source.map);
+                if (selected.IsValid) currentFaction = ShipRegistry.FactionOf(selected);
+            }
+            string noFaction = "DeltaV_PrefabReplaceNoFaction".Translate();
+            var options = new System.Collections.Generic.List<DebugMenuOption>
+            {
+                new DebugMenuOption("DeltaV_PrefabReplaceKeepFaction".Translate(currentFaction?.Name ?? noFaction),
+                    DebugMenuOptionMode.Action,
+                    () => universe.Lifecycle.ReplaceFocusedMapFromPrefab(source, path, currentFaction)),
+                new DebugMenuOption(noFaction, DebugMenuOptionMode.Action,
+                    () => universe.Lifecycle.ReplaceFocusedMapFromPrefab(source, path, null))
+            };
+            foreach (Faction faction in Find.FactionManager.AllFactionsListForReading.OrderBy(f => f.Name))
+            {
+                options.Add(new DebugMenuOption(faction.Name, DebugMenuOptionMode.Action,
+                    () => universe.Lifecycle.ReplaceFocusedMapFromPrefab(source, path, faction)));
+            }
+            Find.WindowStack.Add(new Dialog_DebugOptionListLister(options,
+                "DeltaV_PrefabReplaceSelectFaction".Translate(path)));
+        }
+
         /// <summary>
         /// 按键抑制链路逐层体检（启动时另有一条补丁挂载常开日志）：
         /// ① 补丁是否真的挂在三个 getter 上（owner=RimExodus.DeltaV）；

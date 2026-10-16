@@ -21,7 +21,7 @@ namespace DeltaV
     /// - NativeParent 型 PoiState 例外：map 字段跟随原版 MapParent 镜像
     ///   （SynchronizeNative/UpdateFromParent），保留原版图标与生命周期。
     /// </summary>
-    public sealed class SpaceLifecycleService
+    public sealed partial class SpaceLifecycleService
     {
         public const int PoiMapSize = 90;
 
