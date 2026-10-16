@@ -28,8 +28,9 @@ namespace DeltaV
     /// 分离（§7 脱离 + §8 拆分统一，2026-09-24 用户定案）：「将要出力的船与其余部分
     /// 分离」是唯一语义，出力请求（<see cref="RequestThrust"/>）是唯一触发点——
     /// 「脱离停靠」不再是独立命令/按钮，已停靠的船同样可进入驾驶，首次推进器出力即
-    /// 触发分离。方向按派生态分派：自由飞行船 = 控制域外残留块逐块独立成残骸容器
-    /// （船留原图）；已停靠船 = 本船控制域搬入新口袋容器（宿主图与其余内容不动，
+    /// 触发分离。方向按当前内容分派：自由飞行且域外内容均落在基架块上时，残留块
+    /// 逐块独立成残骸容器（船留原图）；已停靠或有无基架残留内容时，本船控制域
+    /// 搬入新口袋容器（宿主图与其余内容不动，
     /// 位姿/速度 = 宿主刚体上该船体点的位姿，含自旋切向；收通道 = 分离事务的一部分，
     /// 只收相关通道，通道 Pawn/物品原格留宿主图）。干净分离（无断片无滞留）立即执行
     /// 不弹窗；有留置内容时玩家 controller 弹 forcePause 汇总确认（NPC 直接执行）；
@@ -113,8 +114,8 @@ namespace DeltaV
         /// <summary>
         /// 出力请求 gate（唯一入口；UniverseManager 手操路径与 ShipAutopilot 在施加推进器
         /// 出力之前调用）。「将要出力的船与其余部分分离」：自由飞行船 = 拆分方向（控制域
-        /// 外残留块逐块独立成残骸容器，船留原图）；已停靠船 = 脱离方向（本船控制域搬入
-        /// 新口袋容器，宿主图与其余内容不动）。返回 true = 本次允许出力；false = 本 tick
+        /// 外残留块逐块独立成残骸容器，船留原图）；已有停靠或无基架残留内容时提取本船
+        /// 控制域进入新口袋容器，宿主图与其余内容不动。返回 true = 本次允许出力；false = 本 tick
         /// 中止出力（待确认分离、分离已排队或门禁拒绝）。分离只在这里触发——纯惯性漂移
         /// 与被动阻力不经本入口。
         /// </summary>
@@ -155,7 +156,7 @@ namespace DeltaV
                 return false;
             }
 
-            if (ShipRegistry.IsFreeFlight(ship))
+            if (!MustExtractOwnDomain(ship))
             {
                 // 拆分方向：控制域外残留块（不分归属）必须离开本容器，否则会随船整体运动。
                 List<HashSet<IntVec3>> blocks = CollectResidualBlocks(ship);
@@ -281,7 +282,7 @@ namespace DeltaV
 
         /// <summary>
         /// 分离执行体（确认回调与帧边界排队共用）：按 ownerId 重解析句柄（§21：跨图搬运
-        /// 后旧快照必失效，一律现查），方向按当前派生态分派。
+        /// 后旧快照必失效，一律现查），复用预检的同一方向判定。
         /// </summary>
         private void ExecuteSeparation(UniverseManager universe, int ownerId)
         {
@@ -291,7 +292,7 @@ namespace DeltaV
             {
                 return;
             }
-            if (ShipRegistry.IsFreeFlight(ship))
+            if (!MustExtractOwnDomain(ship))
             {
                 SplitResiduals(universe, ship);
             }
@@ -306,6 +307,14 @@ namespace DeltaV
         {
             HashSet<IntVec3> domain = ShipRegistry.ControlDomain(ship);
             return ShipRegistry.ResidualBlocks(ship.map, domain);
+        }
+
+        private static bool MustExtractOwnDomain(Ship ship)
+        {
+            // 与无主残骸同图仍可派生为 FreeFlight；该状态不代表 Map 只含本船。
+            // 若宿主有基架块之外的内容，提取本船即可完整保留环境，不猜测漂浮物归属。
+            return !ShipRegistry.IsFreeFlight(ship)
+                || ShipRegistry.HasLooseContents(ship.map, ShipRegistry.ControlDomain(ship));
         }
 
         private string BuildSplitSummary(UniverseManager universe, Ship ship, List<HashSet<IntVec3>> blocks)
@@ -1212,6 +1221,13 @@ namespace DeltaV
             out List<Thing> channelLeftovers, out List<HashSet<IntVec3>> fragments)
         {
             channelLeftovers = Building_DockingPort.CollectChannelLeftBehind(sourceMap, domain);
+            if (ShipRegistry.IsFreeFlight(ship))
+            {
+                // 因零散内容而保留宿主时，留置清单不限于对接通道。
+                channelLeftovers = sourceMap.listerThings.AllThings
+                    .Where(t => t.Spawned && !t.Destroyed && !domain.Contains(t.Position)
+                        && (t is Pawn || t.def.category == ThingCategory.Item)).ToList();
+            }
             fragments = ShipRegistry.ResidualBlocks(sourceMap, domain)
                 .Where(block =>
                 {
@@ -1254,8 +1270,8 @@ namespace DeltaV
             HashSet<IntVec3> domain = ShipRegistry.ControlDomain(ship);
             if (domain.Count == 0) return;
 
-            // 收通道 = 脱离事务的一部分（§9）：只收回与本次脱离相关的通道（端口在
-            // 脱离域上，或通道格与脱离域四邻接）；B、C 之间无关通道保留。通道上的
+            // 收通道 = 脱离事务的一部分（§9）：只收回端口或实际对接面在脱离域上的
+            // 通道；B、C 之间无关通道保留。通道上的
             // Pawn/物品原格留置（不自动迁往安全格）。
             Building_DockingPort.RetractChannelsFor(sourceMap, domain);
 
@@ -1379,6 +1395,8 @@ namespace DeltaV
                 return;
             }
             if (SpaceLifecycleService.IsUniverseHost(sourceMap)) return;
+            // 原版“空降落画布”忽略污渍和屋顶；它们仍是刚才明确留给宿主的真实内容。
+            if (ShipRegistry.HasLooseContents(sourceMap)) return;
             SpaceObject owner = universe.SpaceObjectOnMap(sourceMap);
             if (owner is PoiState poi && SpaceMapGovernance.IsBlankLandingCanvas(sourceMap))
             {

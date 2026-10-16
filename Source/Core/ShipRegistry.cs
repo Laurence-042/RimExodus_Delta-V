@@ -227,6 +227,36 @@ namespace DeltaV
             return blocks;
         }
 
+        /// <summary>
+        /// 基架块搬运不能覆盖的持久内容。exclude 是本船将带走的控制域；其余无基架格上
+        /// 的实物、屋顶或非真空地形必须留给宿主，不能让该 Map 继续作为本船的运动容器。
+        /// </summary>
+        internal static bool HasLooseContents(Map map, HashSet<IntVec3> exclude = null)
+        {
+            if (map == null || map.Disposed) return false;
+            foreach (Thing thing in map.listerThings.AllThings)
+            {
+                if (thing == null || thing.Destroyed || !thing.Spawned
+                    || exclude?.Contains(thing.Position) == true
+                    || map.terrainGrid.FoundationAt(thing.Position)?.IsSubstructure == true) continue;
+                ThingCategory category = thing.def.category;
+                if (category == ThingCategory.Mote || category == ThingCategory.Projectile
+                    || category == ThingCategory.Gas
+                    || category == ThingCategory.Ethereal && !(thing is Blueprint) && !(thing is Frame)) continue;
+                return true;
+            }
+            foreach (IntVec3 cell in map.AllCells)
+            {
+                if (exclude?.Contains(cell) == true
+                    || map.terrainGrid.FoundationAt(cell)?.IsSubstructure == true) continue;
+                if (map.roofGrid.RoofAt(cell) != null) return true;
+                TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
+                if (terrain != null && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void)
+                    return true;
+            }
+            return false;
+        }
+
         private static HashSet<IntVec3> FloodOwnedDomain(Map map, SubstructureOwnership ownership,
             int ownerId, IntVec3 seedCell)
         {
