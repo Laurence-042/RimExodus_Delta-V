@@ -70,7 +70,7 @@ namespace DeltaV
             int playerOwnerId = universe.AllocateOwnerId();
             Map playerMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
             if (playerMap == null) return;
-            var playerContainer = new SpaceObject(universe.AllocateOwnerId(), playerMap,
+            var playerContainer = new MapSpaceObject(universe.AllocateOwnerId(), playerMap,
                 new SpacePose(playerDir, 0f));
             universe.RegisterObject(playerContainer);
             universe.NoteStructureName(playerOwnerId, "Player ship");
@@ -86,7 +86,7 @@ namespace DeltaV
             if (enemyMap == null) return;
             Faction enemyFaction = Faction.OfPirates
                 ?? Find.FactionManager.AllFactionsVisible.FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer));
-            var enemyContainer = new SpaceObject(universe.AllocateOwnerId(), enemyMap,
+            var enemyContainer = new MapSpaceObject(universe.AllocateOwnerId(), enemyMap,
                 new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad));
             universe.RegisterObject(enemyContainer);
             universe.NoteStructureName(enemyOwnerId, "Enemy ship");

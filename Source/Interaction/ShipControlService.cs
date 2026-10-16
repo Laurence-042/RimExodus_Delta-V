@@ -251,7 +251,7 @@ namespace DeltaV
             {
                 if (universe.Pilot.PilotedShip(universe).ownerId == ship.ownerId)
                     universe.Pilot.Exit(universe);
-                universe.Autopilot.Detach(ship, "combat maneuver engaged");
+                universe.Autopilot.Detach(DriveSubject.Of(ship), "combat maneuver engaged");
                 player.SetAutoManeuver(true);
                 universe.Pilot.ArmAutopilotInput(ship);
                 player.DecideAutoCombat(ship);

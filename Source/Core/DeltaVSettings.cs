@@ -34,7 +34,7 @@ namespace DeltaV
         /// <summary>NPC 战术决策间隔；自动驾驶积分和已选目标的武器射击仍逐 tick。</summary>
         public int npcDecisionIntervalTicks = 60;
 
-        /// <summary>POI/普通容器生命周期与归档对象恢复、航行检查间隔。</summary>
+        /// <summary>POI/普通容器的距离生命周期扫描间隔；宇宙运动仍逐游戏 tick 推进。</summary>
         public int lifecycleScanIntervalTicks = 60;
 
         /// <summary>质量、控制域和碰撞面缓存的按需重扫间隔；结构变更立即失效。</summary>

@@ -16,7 +16,7 @@ namespace DeltaV
     /// **marker（本类）= 无图的触发器特例**：按设置的类型显示图标与名称（envLabel），
     /// 玩家接近后经 SpaceLifecycle 物化——物化产物是**普通 SpaceObject 容器**
     /// （不是 PoiState；ambientLabel 继承 envLabel 作纯环境兜底名）。归档（收纳）
-    /// 同样以新 marker 替换容器。即：**SnapshotPocket 型 PoiState 永远没有图**。
+    /// 保留同 ID，替换为 ArchivedSpaceObject。即：**SnapshotPocket 型 PoiState 永远没有图**。
     ///
     /// - NativeParent = 例外：原版/第三方轨道 MapParent 的镜像（含空画布锚对象），
     ///   map 字段跟随 vanilla 生命周期（SynchronizeNative/UpdateFromParent），物化态
@@ -26,13 +26,13 @@ namespace DeltaV
     ///
     /// POI 名（envLabel）是持久的环境结构名（无基架的小行星等环境不能显示为空对象，
     /// 解耦架构 §10）；派系是环境事实。地图生命周期三段（活跃/休眠/归档，
-    /// SpaceLifecycle 统一管理，判定按图内容而非对象类型——图上有船永不归档）：
+    /// SpaceLifecycle 统一管理，判定沿用普通距离与玩家保护规则）：
     /// - 有图未休眠：活跃（正常 tick）；
     /// - 有图休眠：地图保留但冻结 tick（Harmony 前缀早退）；
     /// - marker（无图）：接近后物化替换。
     /// 休眠集合是运行时状态、不存档：读档后先活跃，下一次生命周期扫描重新分段。
     /// </summary>
-    public class PoiState : SpaceObject
+    public class PoiState : MapSpaceObject
     {
         public PoiKind kind;
 

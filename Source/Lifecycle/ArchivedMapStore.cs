@@ -76,56 +76,55 @@ namespace DeltaV
             // 这些全局事件不在 Map.ExposeData 内；先留图等待事件结束，避免归档时丢失。
             if (preserveExternalEvents && !CanUnloadLosslessly(map)) return false;
             Map focused = Current.Game.CurrentMap;
-            bool detached = false;
+            var indexed = new List<(Map map, List<Thing> things, List<District> districts, List<Region> regions)>();
             try
             {
-                // 归档快照已保存；只清理这份即将废弃的运行时图实例。
-                // 原版 MapDeiniter 会处理被移除图的索引，跳过它时仍须做同等的索引清理。
-                // 不能调用 Thing.Notify_MyMapRemoved/PassPawnsToWorld，它们会改写游戏事实。
-                Find.TickManager.RemoveAllFromMap(map);
-                Find.SoundRoot.sustainerManager.EndAllInMap(map);
-                map.weatherManager.EndAllSustainers();
-                // 历史条目的 Thing 目标经 MapHeld 找图，必须在清除 Thing 的索引前摘除。
-                Find.Archive.Notify_MapRemoved(map);
-                foreach (Thing thing in map.spawnedThings)
+                // 所有可失败的枚举先完成；预检失败时不碰原图、tick 注册或地图索引。
+                for (int i = index; i < maps.Count; i++)
                 {
-                    if (thing.def.receivesSignals) Find.SignalManager.DeregisterReceiver(thing);
-                    thing.ForceSetStateToUnspawned();
+                    Map current = maps[i];
+                    indexed.Add((current, current.spawnedThings.ToList(),
+                        current.regionGrid.AllRooms.SelectMany(r => r.Districts).Distinct().ToList(),
+                        current.regionGrid.AllRegions_NoRebuild_InvalidAllowed.ToList()));
                 }
-                foreach (Room room in map.regionGrid.AllRooms)
-                    foreach (District district in room.Districts) district.Notify_MyMapRemoved();
-                foreach (Region region in map.regionGrid.AllRegions_NoRebuild_InvalidAllowed)
-                    region.Notify_MyMapRemoved();
-                for (int i = index + 1; i < maps.Count; i++)
-                {
-                    Map remaining = maps[i];
-                    foreach (Thing thing in remaining.spawnedThings) thing.DecrementMapIndex();
-                    foreach (Room room in remaining.regionGrid.AllRooms)
-                        foreach (District district in room.Districts) district.DecrementMapIndex();
-                    foreach (Region region in remaining.regionGrid.AllRegions_NoRebuild_InvalidAllowed)
-                        region.DecrementMapIndex();
-                }
-                maps.RemoveAt(index);
-                detached = true;
-                Current.Game.currentMapIndex = focused == null
-                    ? (sbyte)-1 : (sbyte)maps.IndexOf(focused);
-                MapComponentUtility.MapRemoved(map);
-                Find.Storyteller.incidentQueue.Notify_MapRemoved(map);
-                Find.Scenario.MapRemoved(map);
-                map.Dispose();
-                Find.ColonistBar.MarkColonistsDirty();
-                return true;
             }
             catch (Exception ex)
             {
-                Log.Error($"[DeltaV] Full map archive unload failed ({UniverseManager.MapTag(map)}): {ex}");
-                if (!detached) return false;
-                // 地图已经离开 Game.maps；交还成功以便调用方保留完整归档数据。
-                try { if (!map.Disposed) map.Dispose(); }
-                catch (Exception disposeEx)
-                { Log.Error($"[DeltaV] Archive map resource cleanup failed: {disposeEx}"); }
-                return true;
+                Log.Error($"[DeltaV] Full map archive unload preflight failed ({UniverseManager.MapTag(map)}): {ex}");
+                return false;
             }
+            void Cleanup(Action action)
+            {
+                try { action(); }
+                catch (Exception ex) { Log.Error($"[DeltaV] Archived map resource cleanup failed ({UniverseManager.MapTag(map)}): {ex}"); }
+            }
+            // 从这里开始完成卸载；资源通知异常只报错，不返回一张已被部分拆掉的“原图”。
+            // 不调用 MapDeiniter 或 Thing.Notify_MyMapRemoved，不交接或销毁船员。
+            Cleanup(() => Find.Archive.Notify_MapRemoved(map));
+            Cleanup(() => Find.TickManager.RemoveAllFromMap(map));
+            Cleanup(() => Find.SoundRoot.sustainerManager.EndAllInMap(map));
+            Cleanup(() => map.weatherManager.EndAllSustainers());
+            foreach (Thing thing in indexed[0].things)
+            {
+                if (thing.def.receivesSignals) Cleanup(() => Find.SignalManager.DeregisterReceiver(thing));
+                thing.ForceSetStateToUnspawned();
+            }
+            foreach (District district in indexed[0].districts) district.Notify_MyMapRemoved();
+            foreach (Region region in indexed[0].regions) region.Notify_MyMapRemoved();
+            for (int i = 1; i < indexed.Count; i++)
+            {
+                foreach (Thing thing in indexed[i].things) thing.DecrementMapIndex();
+                foreach (District district in indexed[i].districts) district.DecrementMapIndex();
+                foreach (Region region in indexed[i].regions) region.DecrementMapIndex();
+            }
+            maps.RemoveAt(index);
+            Current.Game.currentMapIndex = focused == null ? (sbyte)-1 : (sbyte)maps.IndexOf(focused);
+            Cleanup(() => MapComponentUtility.MapRemoved(map));
+            Cleanup(() => Find.Storyteller.incidentQueue.Notify_MapRemoved(map));
+            Cleanup(() => Find.Scenario.MapRemoved(map));
+            Cleanup(map.Dispose);
+            Cleanup(() => Find.ColonistBar.MarkColonistsDirty());
+            return true;
         }
 
         public static bool TryRestore(string data, int expectedMapId,

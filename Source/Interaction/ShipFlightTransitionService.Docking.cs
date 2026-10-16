@@ -242,8 +242,13 @@ namespace DeltaV
         private void QueueSeparation(UniverseManager universe, int ownerId)
         {
             pendingSeparationOwnerIds.Add(ownerId);
+            Ship ship = ShipRegistry.ShipByOwner(ownerId);
+            SpaceObject source = ship.IsValid ? universe.FrameOf(ship.map) : null;
+            int sourceId = source?.objectId ?? 0, version = source?.RepresentationVersion ?? -1;
             universe.QueueFrameAction(delegate
             {
+                if (universe.ObjectById(sourceId)?.RepresentationVersion != version)
+                { pendingSeparationOwnerIds.Remove(ownerId); return; }
                 ExecuteSeparation(universe, ownerId);
             });
         }
@@ -265,9 +270,9 @@ namespace DeltaV
         {
             pendingSeparationOwnerIds.Remove(ownerId);
             Ship ship = ShipRegistry.ShipByOwner(ownerId);
-            if (ship.IsValid && universe.Autopilot.IsActive(ownerId))
+            if (ship.IsValid && universe.Autopilot.IsActive(DriveSubject.Of(ship)))
             {
-                universe.Autopilot.Cancel(ship);
+                universe.Autopilot.Cancel(DriveSubject.Of(ship));
             }
             string message = "DeltaV_SeparationCancelled".Translate();
             if (universe.Pilot.PilotedShip(universe).ownerId == ownerId)
@@ -352,7 +357,7 @@ namespace DeltaV
             {
                 // 拆分后重算质量/惯量/控制模型（新 MassReport 重扫自动生效）；
                 // 陈旧油门清零防幽灵火焰。
-                ShipPhysics.ClearThrottles(ship.map);
+                universe.FrameOf(ship.map)?.ClearDrive();
             }
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"structure #{ship.ownerId}: residual blocks split off before thrust");
@@ -433,7 +438,7 @@ namespace DeltaV
             }
             GravshipInterop.StripDomain(gravship, sourceMap, cells, includeTerrain);
             GravshipInterop.PlaceIntoMap(gravship, pocketRoot, pocketMap, ownerId);
-            var container = new SpaceObject(universe.AllocateOwnerId(), pocketMap, launchPose)
+            var container = new MapSpaceObject(universe.AllocateOwnerId(), pocketMap, launchPose)
             {
                 // shuttle 起飞的产物 = MiniShip 容器（§7.2；普通船域转移为默认 Container）。
                 baseTag = shuttleBody != null ? SpaceObjectTag.Shuttle : SpaceObjectTag.Container,
@@ -529,12 +534,12 @@ namespace DeltaV
             var options = new List<FloatMenuOption>(candidates.Count);
             foreach ((SpaceObject dockTarget, float distance) in candidates)
             {
-                SpaceObject captured = dockTarget;
+                int capturedId = dockTarget.objectId;
                 PilotTarget flowTarget = target;
                 string label = distance < float.MaxValue
                     ? "DeltaV_DockTargetEntry".Translate(dockTarget.label, distance.ToString("0.#"))
                     : dockTarget.label;
-                options.Add(new FloatMenuOption(label, delegate { BeginDockingTargeted(flowTarget, captured); }));
+                options.Add(new FloatMenuOption(label, delegate { BeginDockingTargeted(flowTarget, universe.ObjectById(capturedId)); }));
             }
             Find.WindowStack.Add(new FloatMenu(options, "DeltaV_DockTargetMenuTitle".Translate()));
         }
@@ -563,10 +568,15 @@ namespace DeltaV
             if (leftovers.Count > 0 && !flowTarget.IsShuttle)
             {
                 string summary = BuildLeftBehindSummary(flowTarget.Map, leftovers);
+                int targetId = target.objectId, version = target.RepresentationVersion;
                 Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
                     "DeltaV_DockSourceLeftoverConfirm".Translate(
                         universe.LabelForOwner(flowTarget.ControlKey), summary),
-                    () => BeginDockingConfirmed(universe, flowTarget, target, leftovers),
+                    () => {
+                        SpaceObject current = universe.ObjectById(targetId);
+                        if (current?.RepresentationVersion == version)
+                            BeginDockingConfirmed(universe, flowTarget, current, leftovers);
+                    },
                     null, destructive: true));
                 return;
             }
@@ -585,7 +595,7 @@ namespace DeltaV
                 SpaceObject container = universe.FrameOf(target.Map);
                 if (container == null || container.baseTag != SpaceObjectTag.Shuttle
                     || container.projectileRoleOverride  // 侵入中不可软对接（先打断/命中）
-                    || universe.Autopilot.IsActive(target.ControlKey))
+                    || universe.Autopilot.IsActive(DriveSubject.Of(target)))
                 {
                     return true;
                 }
@@ -1060,18 +1070,21 @@ namespace DeltaV
 
         internal readonly struct DockingFocusHandoff
         {
-            internal readonly SpaceObject host;
+            internal readonly int hostId;
+            public SpaceObject host => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(hostId);
+            private readonly int hostVersion;
             internal readonly Vector2 mapPoint;
             internal readonly float zoom;
 
             internal DockingFocusHandoff(SpaceObject host, Vector2 mapPoint, float zoom)
             {
-                this.host = host;
+                this.hostId = host?.objectId ?? 0;
+                hostVersion = host?.RepresentationVersion ?? -1;
                 this.mapPoint = mapPoint;
                 this.zoom = zoom;
             }
 
-            internal bool IsValid => host?.InteriorMap != null;
+            internal bool IsValid => host?.InteriorMap != null && host.RepresentationVersion == hostVersion;
         }
 
         /// <summary>对接完成的聚焦交接单一入口：必须在源图销毁前捕获宇宙视点。</summary>
@@ -1485,7 +1498,7 @@ namespace DeltaV
                 if (launcher.IsValid)
                 {
                     universe.Pilot.Exit(universe);
-                    universe.Autopilot.Cancel(launcher);
+                    universe.Autopilot.Cancel(DriveSubject.Of(launcher));
                     HostColonistBarVisibility.NotifyDockingStateChanged();
                 }
                 DeltaVLog.Message(DeltaVLogModule.Core,
@@ -1516,7 +1529,8 @@ namespace DeltaV
             Map sourceMap = flow?.pendingStrategicSourceMap;
             PlanetTile address = flow?.pendingStrategicSourceAddress ?? PlanetTile.Invalid;
             SpacePose? pose = flow?.pendingStrategicSourcePose;
-            SpaceObject ownPocket = flow?.pendingStrategicOwnPocket;
+            int ownPocketId = flow?.pendingStrategicOwnPocket?.objectId ?? 0;
+            int ownPocketVersion = flow?.pendingStrategicOwnPocket?.RepresentationVersion ?? -1;
             if (flow != null)
             {
                 flow.pendingStrategicSourceMap = null;
@@ -1531,6 +1545,8 @@ namespace DeltaV
             {
                 if (universe == null || sourceMap.Disposed || !Find.Maps.Contains(sourceMap)) return;
 
+                SpaceObject ownPocket = universe.ObjectById(ownPocketId);
+                if (ownPocketId != 0 && ownPocket?.RepresentationVersion != ownPocketVersion) return;
                 // ① 发射船的自有飞行口袋容器（战略发射源）。
                 if (ownPocket != null && ownPocket.map == sourceMap && !sourceMap.Disposed)
                 {

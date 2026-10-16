@@ -96,7 +96,7 @@ namespace DeltaV
     /// shuttle 服务（太空战架构 §7/§10，universe.Shuttles 实例服务）：起飞（原版校验
     /// 直取 + 单建筑捕获进口袋）、停靠复用飞船的 Gravship 捕获/剥离/放置链、
     /// 侵入编排（tag 切换的导弹机制）。
-    /// 与飞船共用：ShipPhysics（虚拟推进器注入）、ShipAutopilot（普通对接）、
+    /// 与飞船共用：SpaceObject 驾驶契约、ShipAutopilot（普通对接）、
     /// PilotService（PilotTarget）、SpaceCollision（联合效果）。运行时数据不序列化。
     /// </summary>
     public sealed class SpaceShuttleService
@@ -165,54 +165,6 @@ namespace DeltaV
             {
                 universe.Pilot.Enter(universe, PilotTarget.Of(shuttleBody));
             }
-        }
-
-        /// <summary>
-        /// 虚拟推进器注入（§7.3）：逐项读取 XML 的「船体帧位置 + 推力矢量」，再按
-        /// 舱体当前 Rot4 一次性转进稳定 Map 局部系。默认 PassengerShuttle 表是 8 台，
-        /// 但数量、位置、方向和大小都可由 def/跳帮档位完整替换；此处不生成第二套布局。
-        /// </summary>
-        private static void InjectVirtualThrusters(CompSpaceShuttle comp, Map pocket, Building hull)
-        {
-            Vector2 origin = SpaceTransform.ShipLocalOrigin(pocket);
-            Vector2 hullCenter = SpaceTransform.BoundsCenterOfCells(hull.OccupiedRect().Cells);
-            float frameAngle = ShipOrientation.AngleFromRot4(hull.Rotation);
-            IReadOnlyList<ShuttleThrusterConfig> layout = comp.ThrusterLayout;
-            var thrusters = new List<ShipPhysics.Thruster>(layout?.Count ?? 0);
-            if (layout != null)
-            {
-                for (int i = 0; i < layout.Count; i++)
-                {
-                    ShuttleThrusterConfig configured = layout[i];
-                    if (configured == null || configured.force.sqrMagnitude <= 1e-6f) continue;
-                    Vector2 mapForce = SpaceTransform.Rotate(configured.force, frameAngle);
-                    float thrust = mapForce.magnitude;
-                    thrusters.Add(new ShipPhysics.Thruster
-                    {
-                        thing = null,
-                        localPos = hullCenter - origin
-                            + SpaceTransform.Rotate(configured.position, frameAngle),
-                        dir = mapForce / thrust,
-                        operational = true,
-                        thrust = thrust,
-                    });
-                }
-            }
-            ShipPhysics.SetVirtualThrusters(pocket, thrusters.ToArray());
-        }
-
-        internal void RegisterContainer(SpaceObject container)
-        {
-            if (container?.baseTag != SpaceObjectTag.Shuttle || container.map == null
-                || container.map.Disposed) return;
-            Building hull = HullOf(container);
-            CompSpaceShuttle comp = hull?.TryGetComp<CompSpaceShuttle>();
-            if (comp != null) InjectVirtualThrusters(comp, container.map, hull);
-        }
-
-        internal void RebuildVirtualThrusters()
-        {
-            foreach (SpaceObject obj in universe.objects) RegisterContainer(obj);
         }
 
         /// <summary>原版 CompLaunchable.lastLaunchTick 字段镜像（起飞与停靠回落共用的冷却单点）。</summary>
@@ -374,7 +326,7 @@ namespace DeltaV
                     $"ordinaryProjectiles={universe.Projectiles.InFlightCount} player={playerInitiated}");
             if (container == null || container.baseTag != SpaceObjectTag.Shuttle
                 || container.projectileRoleOverride || target == null || target == container) return;
-            universe.Autopilot.Detach(PilotTarget.Of(body), "boarding missile launch");
+            universe.Autopilot.Detach(DriveSubject.Of(PilotTarget.Of(body)), "boarding missile launch");
             if (universe.Pilot.PilotedTarget(universe).ControlKey == body.thingIDNumber)
                 universe.Pilot.Exit(universe);
             if (!universe.Projectiles.AdoptShuttle(container, body, target, targetMapPoint)) return;
@@ -398,8 +350,13 @@ namespace DeltaV
             Vector3 hitUniverse, Vector2 hitLocal, Vector2 incidentWorld,
             IntVec3 hitCell, bool shieldHit)
         {
+            int sourceId = container.objectId, sourceVersion = container.RepresentationVersion;
+            int targetId = defender.objectId, targetVersion = defender.RepresentationVersion;
             universe.QueueFrameAction(delegate
             {
+                container = universe.ObjectById(sourceId);
+                defender = universe.ObjectById(targetId);
+                if (container?.RepresentationVersion != sourceVersion || defender?.RepresentationVersion != targetVersion) return;
                 Map targetMap = defender?.map;
                 Map sourceMap = container?.map;
                 Building hull = HullOf(container);
@@ -503,14 +460,10 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 容器注销时统一清理虚拟推进器表及侵入运行时键。
+        /// 容器注销时清理侵入运行时键。
         /// </summary>
-        internal void ClearShuttlePocketRuntime(Map pocketMap, SpaceObject container)
+        internal void ForgetContainer(SpaceObject container)
         {
-            if (pocketMap != null)
-            {
-                ShipPhysics.ClearVirtualThrusters(pocketMap);
-            }
             if (container != null)
             {
                 intrusionArmed.Remove(container.objectId);

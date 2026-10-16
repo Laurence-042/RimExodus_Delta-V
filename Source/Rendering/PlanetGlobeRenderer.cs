@@ -284,7 +284,7 @@ namespace DeltaV
                 {
                     bool marker = obj is PoiState poi && poi.kind == PoiKind.SnapshotPocket
                         && poi.map == null;
-                    bool archived = !obj.archivedMapData.NullOrEmpty() && obj.map == null;
+                    bool archived = obj.IsArchived && obj.map == null;
                     if ((marker || archived) && Vector3.Dot(obj.pose.position, shipDir) > 0f)
                     {
                         Vector2 pos = Project(obj.pose.position);
@@ -756,7 +756,7 @@ namespace DeltaV
             float silhouetteExtent = SilhouetteExtentOf(universe, obj, silhouetteLayer, pixelsPerCell, right, up);
             if (silhouetteExtent > 0f) return silhouetteExtent;
             if (obj is PoiState poi && poi.kind == PoiKind.SnapshotPocket
-                || !obj.archivedMapData.NullOrEmpty()) return 6f;
+                || obj.IsArchived) return 6f;
             return ReferenceEquals(obj, reference)
                 ? Mathf.Lerp(9f, 14f, Zoom01)
                 : Mathf.Lerp(6.5f, 10f, Zoom01);

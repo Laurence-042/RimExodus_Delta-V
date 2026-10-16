@@ -47,7 +47,8 @@ namespace DeltaV
         internal SpacePose? pendingStrategicSourcePose;
 
         /// <summary>战略发射源 = 发射船的自有口袋容器（发射后按离场标准流程销毁）。</summary>
-        internal SpaceObject pendingStrategicOwnPocket;
+        private int pendingStrategicOwnPocketId;
+        internal SpaceObject pendingStrategicOwnPocket { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(pendingStrategicOwnPocketId); set => pendingStrategicOwnPocketId = value?.objectId ?? 0; }
 
         internal bool preLaunchConfirmationChaining;
 

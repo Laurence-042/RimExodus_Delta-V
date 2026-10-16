@@ -17,7 +17,7 @@ foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'Assemb
 }
 Copy-Item -LiteralPath "$repo/1.6/Assemblies/DeltaV.dll" -Destination $out -Force
 foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'DeltaV.dll')) { $lines += '/r:"' + "$out/$name" + '"' }
-$lines += @("$PSScriptRoot/Program.cs", "$repo/Source/Core/DenseAdmmQpSolver.cs", "$repo/Source/Interaction/AutopilotGuidance.cs", "$repo/Source/Interaction/CombatTrajectoryIntent.cs") | ForEach-Object { '"' + $_ + '"' }
+$lines += @("$PSScriptRoot/Program.cs") | ForEach-Object { '"' + $_ + '"' }
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & dotnet $sdk /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

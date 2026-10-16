@@ -31,24 +31,10 @@ namespace DeltaV
     }
 
     /// <summary>
-    /// 宇宙承载对象（解耦架构 §2）：**一张内部地图与星球轨道坐标之间的中间层**，
-    /// 保存该地图整体的轨道运动状态。它不是某艘飞船的子类型或永久所有者——飞船 =
-    /// 主驾驶台 + 同归属四连通基架（见 ShipRegistry），同图可承载多艘船与残骸归属。
-    ///
-    /// **物化容器 = 本类（普通 SpaceObject）**（2026-09-25 用户定案）：有图容器一律
-    /// 没有独立的图标/POI 身份——显示名 = 图上全部结构名拼接（UTF-8 字节序），
-    /// 图标/剪影按图上实际内容（船→船剪影；基架无船→残骸剪影；纯环境→点+环境名）。
-    /// 未物化 POI（PoiState marker）才是无图的触发器特例，按设置的类型显示。
-    /// faction 字段保留为环境派系（仅 POI 赋值并持久化；多船图的驾驶授权逐船从主台
-    /// 派系判定，不得把容器 faction 当作全部船的授权）。
-    ///
-    /// 「每个可进入地图都属于一个 SpaceObject」：口袋图 = Delta-V 自建对象的内部，
-    /// worldtile 地图 = 原版站点/空画布锚对象的内部；内部地图坐标 ⇄ 轨道坐标的唯一
-    /// 通道是所属对象的位姿（对象位姿 ⊕ 内部局部坐标），不存在图级坐标锚。
-    ///
-    /// "map == null" 表示未物化 PoiState 或持有 archivedMapData 的整图归档容器；
-    /// 无归档数据的普通容器丢图即注销。map 之外的姿态数据是存档
-    /// 事实；外壳显示以 Map 的 SectionLayer 为事实源。
+    /// 宇宙刚体身份、唯一位姿和公共元数据。驾驶信息、预览、执行、清理与漂移由本契约统一暴露。
+    /// MapSpaceObject 承载真实图；ArchivedSpaceObject 承载整图快照及必要数值摘要。
+    /// 飞船仍由主台和归属域定义；一个容器可含多艘船，驾驶主体身份不等于 objectId。
+    /// 无主动驾驶能力的基类对象只参与被动物理运动；弹体角色仍由 tag 决定。
     /// </summary>
     public class SpaceObject : IExposable
     {
@@ -68,7 +54,9 @@ namespace DeltaV
         internal bool projectileRoleOverride { get; set; }
 
         /// <summary>对应的内部地图（已加载时非空）。Scribe_References 在 cross-ref 阶段解析。</summary>
-        public Map map;
+        public virtual Map map { get => null; internal set { if (value != null) throw new System.InvalidOperationException("A passive object cannot own a map"); } }
+        public int RepresentationVersion { get; internal set; }
+        public bool IsArchived => this is ArchivedSpaceObject;
 
         /// <summary>
         /// 环境派系（POI 的归属事实；纯容器恒为 null）。多船混合时显示层应作组合标记，
@@ -88,20 +76,14 @@ namespace DeltaV
         public string sourcePrefabPath;
         public List<NpcDoctrine> npcDoctrines;
 
-        /// <summary>NPC 战损比较基线与撤退目的地，均由首次完整物化时的真实结构得出。</summary>
+        /// <summary>NPC 初始能力及最近决策；有图时重新评估战损，无图时使用该摘要。</summary>
+        public bool npcBaselineRecorded;
         public float npcInitialThrust;
         public float npcInitialFirepower;
         public int npcInitialMainConsoleId;
         public bool npcRetreating;
         public int npcHomeObjectId;
-        public Vector3 npcRetreatOrigin;
-
-        /// <summary>原版 Map.ExposeData 的压缩 XML；有值时本容器的地图已从 Game.maps 卸载。</summary>
-        public string archivedMapData;
-        public float archivedCruiseCellsPerTick;
-        public Vector3 archivedCruiseDestination;
-        public int archivedMapId;
-        public RimWorld.Planet.PocketMapParent archivedParent;
+        public Faction npcFaction;
 
         [Unsaved] private string cachedLabel;
         [Unsaved] private int cachedLabelVersion = -1;
@@ -174,10 +156,9 @@ namespace DeltaV
         {
         }
 
-        public SpaceObject(int objectId, Map map, SpacePose pose)
+        public SpaceObject(int objectId, SpacePose pose)
         {
             this.objectId = objectId;
-            this.map = map;
             this.pose = pose;
         }
 
@@ -228,28 +209,111 @@ namespace DeltaV
             return byName != 0 ? byName : a.CompareTo(b);
         }
 
+        protected virtual ShipPhysics.MassReport MotionReport => ShipPhysics.PointMassReport;
+        public virtual DriveSubject PrimaryDriver => default;
+        public virtual bool TryGetDrive(DriveSubject subject, out DriveInfo info) { info = null; return false; }
+        public DriveInfo MotionInfo => ReadDriveInfo();
+        private readonly Dictionary<float, DriveInfo> driveViews = new Dictionary<float, DriveInfo>();
+        private ShipPhysics.MassReport driveViewReport;
+        protected DriveInfo ReadDriveInfo(float frameAngle = 0f)
+        {
+            var report = MotionReport;
+            if (driveViewReport != report) { driveViewReport = report; driveViews.Clear(); }
+            if (!driveViews.TryGetValue(frameAngle, out DriveInfo view))
+                driveViews[frameAngle] = view = new DriveInfo(report, frameAngle);
+            view.pose = pose;
+            return view;
+        }
+        public virtual DriveResult ApplyDrive(DriveSubject subject, DriveControl control, float dt,
+            out float allocatedTorque) { allocatedTorque = 0f; return DriveResult.InvalidSubject; }
+        public virtual void ClearDrive() { cachedAllocationReport = null; }
+        private int lastMotionTick = -1;
+        protected bool BeginMotion(float dt)
+        {
+            if (dt <= 0f) return false;
+            int tick = Find.TickManager.TicksGame;
+            if (lastMotionTick == tick) return false;
+            lastMotionTick = tick;
+            return true;
+        }
+        public void AdvanceDrift(float dt)
+        {
+            if (!BeginMotion(dt)) return;
+            ClearDrive();
+            if (pose.velocity.sqrMagnitude < 1e-10f && Mathf.Abs(pose.angularVelocity) < 1e-10f) return;
+            ShipPhysics.Integrate(this, MotionReport, Vector2.zero, 0f, dt, false, false, false);
+        }
+        private ShipPhysics.MassReport cachedAllocationReport;
+        private int cachedAllocationVersion, cachedAllocationStep;
+        private Vector2 cachedForceRequest, cachedForce;
+        private float cachedTorqueRequest, cachedTorque;
+        protected virtual DriveResult AuthorizeDrive(DriveSubject subject, ShipPhysics.Command command, bool playerInitiated)
+            => DriveResult.Executed;
+        protected virtual void AllocateDrive(ShipPhysics.MassReport report, ShipPhysics.Command command,
+            out Vector2 force, out float torque) => ShipPhysics.PreviewAllocation(report, command, out force, out torque);
+        protected DriveResult ExecuteDrive(ShipPhysics.MassReport report, float frameAngle,
+            DriveSubject subject, DriveControl control, float dt, out float allocatedTorque)
+        {
+            allocatedTorque = 0f;
+            if (dt <= 0f || lastMotionTick == Find.TickManager.TicksGame) return DriveResult.AlreadyAdvanced;
+            var command = ShipPhysics.ForceToCommand(report, control.force, control.torque);
+            DriveResult permission = AuthorizeDrive(subject, command, control.playerInitiated);
+            if (permission != DriveResult.Executed) { ClearDrive(); return permission; }
+            if (!BeginMotion(dt)) return DriveResult.AlreadyAdvanced;
+            int step = Find.TickManager.TicksGame / 6;
+            if (cachedAllocationReport != report || cachedAllocationVersion != report.version
+                || cachedAllocationStep != step || cachedForceRequest != control.force || cachedTorqueRequest != control.torque)
+            {
+                AllocateDrive(report, command, out cachedForce, out cachedTorque);
+                cachedAllocationReport = report; cachedAllocationVersion = report.version; cachedAllocationStep = step;
+                cachedForceRequest = control.force; cachedTorqueRequest = control.torque;
+            }
+            Vector2 force = cachedForce;
+            allocatedTorque = cachedTorque;
+            ShipPhysics.Integrate(this, report, Vector2.Lerp(force, control.force, control.voidBlend),
+                Mathf.Lerp(allocatedTorque, control.torque, control.voidBlend), dt,
+                control.assistX, control.assistZ, control.assistW, frameAngle);
+            return DriveResult.Executed;
+        }
+        public void SettleDrive(Vector3 direction, float angle)
+        {
+            ClearDrive();
+            if (!BeginMotion(1f / 60f)) return;
+            pose.position = direction; pose.angle = angle;
+            pose.velocity = Vector2.zero; pose.angularVelocity = 0f;
+        }
+        internal void CopyFactsTo(SpaceObject other)
+        {
+            other.objectId = objectId; other.pose = pose; other.baseTag = baseTag;
+            other.faction = faction; other.ambientLabel = ambientLabel;
+            other.contentTypeId = contentTypeId; other.sourcePrefabPath = sourcePrefabPath;
+            other.npcDoctrines = npcDoctrines;
+            other.npcBaselineRecorded = npcBaselineRecorded;
+            other.npcInitialThrust = npcInitialThrust; other.npcInitialFirepower = npcInitialFirepower;
+            other.npcInitialMainConsoleId = npcInitialMainConsoleId;
+            other.npcRetreating = npcRetreating; other.npcHomeObjectId = npcHomeObjectId;
+            other.npcFaction = npcFaction;
+            other.lastMotionTick = lastMotionTick;
+        }
+
         public virtual void ExposeData()
         {
             Scribe_Values.Look(ref objectId, "objectId", -1);
             Scribe_Values.Look(ref baseTag, "tag", DefaultTag);
             Scribe_References.Look(ref faction, "faction");
             Scribe_Deep.Look(ref pose, "pose");
-            Scribe_References.Look(ref map, "map");
             Scribe_Values.Look(ref ambientLabel, "ambientLabel", null);
             Scribe_Values.Look(ref contentTypeId, "contentTypeId");
             Scribe_Values.Look(ref sourcePrefabPath, "sourcePrefabPath");
             Scribe_Collections.Look(ref npcDoctrines, "npcDoctrines", LookMode.Value);
+            Scribe_Values.Look(ref npcBaselineRecorded, "npcBaselineRecorded");
             Scribe_Values.Look(ref npcInitialThrust, "npcInitialThrust");
             Scribe_Values.Look(ref npcInitialFirepower, "npcInitialFirepower");
             Scribe_Values.Look(ref npcInitialMainConsoleId, "npcInitialMainConsoleId");
             Scribe_Values.Look(ref npcRetreating, "npcRetreating");
             Scribe_Values.Look(ref npcHomeObjectId, "npcHomeObjectId");
-            Scribe_Values.Look(ref npcRetreatOrigin, "npcRetreatOrigin");
-            Scribe_Values.Look(ref archivedMapData, "archivedMapData");
-            Scribe_Values.Look(ref archivedCruiseCellsPerTick, "archivedCruiseCellsPerTick");
-            Scribe_Values.Look(ref archivedCruiseDestination, "archivedCruiseDestination");
-            Scribe_Values.Look(ref archivedMapId, "archivedMapId");
-            Scribe_References.Look(ref archivedParent, "archivedParent");
+            Scribe_References.Look(ref npcFaction, "npcFaction");
+
         }
     }
 }

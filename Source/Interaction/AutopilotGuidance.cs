@@ -85,9 +85,9 @@ namespace DeltaV
             var reverseThruster = new ShipPhysics.Thruster { dir = Vector2.left,
                 thrust = 3f, operational = true };
             damaged.thrusters.Add(reverseThruster);
-            float available = ShipPhysics.PreviewBrakingAcceleration(damaged, Vector2.right);
+            float available = new DriveInfo(damaged).PreviewBraking(Vector2.right);
             reverseThruster.operational = false;
-            float disabled = ShipPhysics.PreviewBrakingAcceleration(damaged, Vector2.right);
+            float disabled = new DriveInfo(damaged).PreviewBraking(Vector2.right);
             bool damagePassed = available > 0.5f && disabled == 0f;
             allPassed &= damagePassed;
             result.Append($"\n- failed reverse thruster: {(damagePassed ? "PASS" : "FAIL")}; "
@@ -113,7 +113,8 @@ namespace DeltaV
                 dir = Vector2.left, thrust = 5f, operational = true });
             report.thrusters.Add(new ShipPhysics.Thruster { localPos = new Vector2(0f, 1f),
                 dir = Vector2.right, thrust = 5f, operational = true });
-            ShipPhysics.ControlModel model = ShipPhysics.BuildControlModel(report);
+            var capabilities = new DriveInfo(report);
+            ShipPhysics.ControlModel model = capabilities.PreviewModel();
             double[] acceleration = new double[9];
             for (int axis = 0; axis < 3; axis++)
             {
@@ -121,14 +122,14 @@ namespace DeltaV
                 acceleration[3 + axis] = model.forceColumns[axis].y / report.mass;
                 acceleration[6 + axis] = model.torqueColumns[axis] / report.inertia;
             }
-            leftTorque = HeadingTorque(report, model, acceleration, 0.5f, 0f);
-            rightTorque = HeadingTorque(report, model, acceleration, -0.5f, 0f);
-            brakeTorque = HeadingTorque(report, model, acceleration, 0f, 0.25f);
+            leftTorque = HeadingTorque(capabilities, model, acceleration, 0.5f, 0f);
+            rightTorque = HeadingTorque(capabilities, model, acceleration, -0.5f, 0f);
+            brakeTorque = HeadingTorque(capabilities, model, acceleration, 0f, 0.25f);
             return leftTorque > 0.001f && rightTorque < -0.001f
                 && brakeTorque < -0.001f;
         }
 
-        private static float HeadingTorque(ShipPhysics.MassReport report,
+        private static float HeadingTorque(DriveInfo capabilities,
             ShipPhysics.ControlModel model, double[] acceleration, float angleError,
             float relativeOmega)
         {
@@ -143,9 +144,7 @@ namespace DeltaV
                 controlAcceleration = acceleration,
                 trajectorySeconds = 3f
             }, out GuidanceCommand command);
-            ShipPhysics.Command allocated = ShipPhysics.ForceToCommand(report,
-                command.desiredLocalForce, command.desiredTorque);
-            ShipPhysics.Allocate(report, allocated, out _, out float torque);
+            capabilities.Preview(command.desiredLocalForce, command.desiredTorque, out _, out float torque);
             return torque;
         }
 
@@ -162,7 +161,8 @@ namespace DeltaV
                 localPos = Vector2.zero, thrust = (float)(report.mass * acceleration), operational = true });
             report.thrusters.Add(new ShipPhysics.Thruster { dir = Vector2.down,
                 localPos = Vector2.zero, thrust = (float)(report.mass * acceleration), operational = true });
-            ShipPhysics.ControlModel model = ShipPhysics.BuildControlModel(report);
+            var capabilities = new DriveInfo(report);
+            ShipPhysics.ControlModel model = capabilities.PreviewModel();
             double[] b =
             {
                 model.forceColumns[0].x / report.mass, model.forceColumns[1].x / report.mass, model.forceColumns[2].x / report.mass,
@@ -193,8 +193,7 @@ namespace DeltaV
                         elapsedSteps = playbackSteps,
                         controlModel = model,
                         controlAcceleration = b,
-                        brakingAcceleration = ShipPhysics.PreviewBrakingAcceleration(report,
-                            targetPosition >= position ? Vector2.right : Vector2.left)
+                        brakingAcceleration = capabilities.PreviewBraking(targetPosition >= position ? Vector2.right : Vector2.left)
                     };
                     guidance.Compute(request, out command);
                 }
@@ -210,17 +209,14 @@ namespace DeltaV
                         elapsedSteps = 1,
                         controlModel = model,
                         controlAcceleration = b,
-                        brakingAcceleration = ShipPhysics.PreviewBrakingAcceleration(report,
-                            targetPosition >= position ? Vector2.right : Vector2.left)
+                        brakingAcceleration = capabilities.PreviewBraking(targetPosition >= position ? Vector2.right : Vector2.left)
                     };
                     guidance.Compute(request, out command);
                 }
                 if (command.usedFallback) fallbackUses++;
                 maxPrimal = Math.Max(maxPrimal, command.primalResidual);
                 maxDual = Math.Max(maxDual, command.dualResidual);
-                ShipPhysics.Command allocatedCommand = ShipPhysics.ForceToCommand(report,
-                    command.desiredLocalForce, command.desiredTorque);
-                ShipPhysics.Allocate(report, allocatedCommand, out Vector2 actualForce, out _);
+                capabilities.Preview(command.desiredLocalForce, command.desiredTorque, out Vector2 actualForce, out _);
                 double appliedAcceleration = actualForce.x / report.mass;
                 // 被动阻力同口径进入自测被控对象（预测模型一致性的确定性验证）。
                 (float linearDecay, _) = ShipPhysics.PassiveDragFactors(1f / 60f);

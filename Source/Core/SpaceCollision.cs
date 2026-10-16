@@ -194,6 +194,15 @@ namespace DeltaV
             return SurfaceFor(obj).boundsRadius;
         }
 
+        /// <summary>以容器原点为圆心的保守包围半径，复用同一碰撞面，供站位留空。</summary>
+        internal static float OriginBoundsRadiusOf(SpaceObject obj)
+        {
+            if (obj?.map == null) return 0f;
+            Surface surface = SurfaceFor(obj);
+            return surface.boundsRadius + SpaceTransform.MapToShipLocal(obj.map,
+                surface.boundsCenter).magnitude;
+        }
+
         /// <summary>
         /// 调试显示读取碰撞系统实际正在使用的缓存，而不是另算一份近似碰撞体。
         /// 输出格为对象 Map 坐标；调用方经 SpaceTransform 投影到当前聚焦参考系。

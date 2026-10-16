@@ -67,14 +67,17 @@ namespace DeltaV
 
         private sealed class Projectile
         {
-            public SpaceObject container;
+            public int containerId;
+            public SpaceObject container { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(containerId); set => containerId = value?.objectId ?? 0; }
             public ThingDef def;
             public CompProperties_SpaceProjectile props;
             public Building building;
             public Thing launcher;
-            public SpaceObject sourceContainer;
+            private int sourceContainerId;
+            public SpaceObject sourceContainer { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(sourceContainerId); set => sourceContainerId = value?.objectId ?? 0; }
             public bool reflectedByShield;
-            public SpaceObject target;
+            private int targetId;
+            public SpaceObject target { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(targetId); set => targetId = value?.objectId ?? 0; }
             public Vector2? targetLocalPoint;
             public bool adoptedShuttle;
             public int spawnedAtTick;
@@ -279,19 +282,20 @@ namespace DeltaV
             projectile.ignitionTick = Find.TickManager.TicksGame + Mathf.Max(0, launchSpec.coldLaunchTicks);
             projectile.ignited = launchSpec.coldLaunchTicks <= 0;
 
+            SpaceObject created;
             if (projectile.laser)
             {
                 // 激光：即时链——无图、不积分；容器只为「同一注册表结算链」存在，
                 // 速度取发射瞬间双方速度的攻方位（相对速度语义，§4.3）。
                 projectile.laserFrom = muzzle;
                 projectile.laserTo = OrbitSphere.Move(muzzle, dirTangent * props.laserRange);
-                projectile.container = new SpaceObject(universe.AllocateOwnerId(), null,
+                created = new SpaceObject(universe.AllocateOwnerId(),
                     new SpacePose(muzzle, Mathf.Atan2(dirTangent.y, dirTangent.x)))
                 {
                     baseTag = SpaceObjectTag.Projectile,
                     faction = faction,
                 };
-                projectile.container.pose.velocity = launcherVelocity;
+                created.pose.velocity = launcherVelocity;
                 projectile.prevPosition = muzzle;
             }
             else if (props.hasMap)
@@ -302,7 +306,7 @@ namespace DeltaV
                     RecycleProjectile(projectile);
                     return false;
                 }
-                projectile.container = new SpaceObject(universe.AllocateOwnerId(), map,
+                created = new MapSpaceObject(universe.AllocateOwnerId(), map,
                     new SpacePose(muzzle, Mathf.Atan2(dirTangent.y, dirTangent.x)))
                 {
                     baseTag = SpaceObjectTag.Projectile,
@@ -310,7 +314,7 @@ namespace DeltaV
                 };
                 float initialSpeed = launchSpec.coldLaunchTicks > 0
                     ? launchSpec.coldLaunchSpeed : launchSpec.speed;
-                projectile.container.pose.velocity = dirTangent * initialSpeed + launcherVelocity;
+                created.pose.velocity = dirTangent * initialSpeed + launcherVelocity;
                 projectile.building = ThingMaker.MakeThing(def) as Building;
                 if (projectile.building != null)
                 {
@@ -322,7 +326,7 @@ namespace DeltaV
             }
             else
             {
-                projectile.container = new SpaceObject(universe.AllocateOwnerId(), null,
+                created = new SpaceObject(universe.AllocateOwnerId(),
                     new SpacePose(muzzle, Mathf.Atan2(dirTangent.y, dirTangent.x)))
                 {
                     baseTag = SpaceObjectTag.Projectile,
@@ -330,10 +334,11 @@ namespace DeltaV
                 };
                 float initialSpeed = launchSpec.coldLaunchTicks > 0
                     ? launchSpec.coldLaunchSpeed : launchSpec.speed;
-                projectile.container.pose.velocity = dirTangent * initialSpeed + launcherVelocity;
+                created.pose.velocity = dirTangent * initialSpeed + launcherVelocity;
                 projectile.prevPosition = muzzle;
             }
-            universe.RegisterObject(projectile.container);
+            universe.RegisterObject(created);
+            projectile.container = created;
             projectile.damageScale = launchSpec.damageScale;
             projectile.armorPenetrationScale = launchSpec.armorPenetrationScale;
             projectiles.Add(projectile);
@@ -382,7 +387,7 @@ namespace DeltaV
 
         internal bool ReleaseShuttle(SpaceObject shuttle)
         {
-            Projectile p = projectiles.FirstOrDefault(item => item.adoptedShuttle && item.container == shuttle);
+            Projectile p = projectiles.FirstOrDefault(item => item.adoptedShuttle && item.containerId == shuttle.objectId);
             if (p == null) return false;
             p.dead = true;
             projectiles.Remove(p);
@@ -407,6 +412,7 @@ namespace DeltaV
                 {
                     Projectile p = projectiles[i];
                     if (p.dead) continue;
+                    if (p.container == null) { projectiles.RemoveAt(i); RecycleProjectile(p); continue; }
                     // 有图弹体被图内结算摧毁（PD/毁伤链经 TakeDamage）→ 销毁收尾。
                     if (p.building != null && p.building.Destroyed)
                     {
@@ -765,8 +771,10 @@ namespace DeltaV
             if (p.dead) return;
             p.dead = true;
             DeltaVLog.Message(DeltaVLogModule.Combat, $"{p.def.defName} #{p.container.objectId} destroyed ({reason})");
+            int expectedVersion = p.container.RepresentationVersion;
             universe.QueueFrameAction(delegate
             {
+                if (p.container != null && p.container.RepresentationVersion != expectedVersion) return;
                 projectiles.Remove(p);
                 SpaceObject container = p.container;
                 if (container == null)

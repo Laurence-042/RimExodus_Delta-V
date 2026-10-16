@@ -40,7 +40,7 @@ namespace DeltaV
                 return;
             }
 
-            ShipPhysics.MassReport report = ShipPhysics.GetReport(current);
+            DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(current)?.MotionInfo;
             if (report == null || Time.time - report.throttlesWrittenAt > ThrottleFreshSeconds)
             {
                 return;
@@ -48,7 +48,7 @@ namespace DeltaV
 
             for (int i = 0; i < report.thrusters.Count; i++)
             {
-                ShipPhysics.Thruster thruster = report.thrusters[i];
+                ThrusterInfo thruster = report.thrusters[i];
                 if (thruster.throttle <= MinVisibleThrottle)
                 {
                     if (thruster.thing != null)
@@ -69,7 +69,7 @@ namespace DeltaV
         }
 
         /// <summary>按推进器当前地图位置/朝向画火焰（驾驶模式常规路径）。</summary>
-        private static void DrawFlame(ShipPhysics.Thruster thruster)
+        private static void DrawFlame(ThrusterInfo thruster)
         {
             Thing thing = thruster.thing;
             DrawFlame(thing, thruster.throttle, thing.Rotation.AsQuat,
@@ -80,7 +80,7 @@ namespace DeltaV
             DeltaVDefOf.LargeThruster?.GetCompProperties<CompProperties_GravshipThruster>();
 
         /// <summary>虚拟推进器沿 XML 力矢量反向喷焰；位置与物理作用点完全共用。</summary>
-        private static void DrawVirtualFlame(ShipPhysics.Thruster thruster, Map map)
+        private static void DrawVirtualFlame(ThrusterInfo thruster, Map map)
         {
             Vector2 origin = SpaceTransform.ShipLocalOrigin(map);
             Vector3 center = new Vector3(origin.x + thruster.localPos.x, 0f,
@@ -141,7 +141,7 @@ namespace DeltaV
             return true;
         }
 
-        private static bool TryBuildVirtualFlame(ShipPhysics.Thruster thruster, Quaternion rotation,
+        private static bool TryBuildVirtualFlame(ThrusterInfo thruster, Quaternion rotation,
             Vector3 thrusterCenter, out FlameDraw flame)
         {
             flame = default(FlameDraw);
@@ -218,7 +218,7 @@ namespace DeltaV
         /// </summary>
         public static void CollectShellFlames(SpaceObject container, Map map, Matrix4x4 matrix, Quaternion rotation)
         {
-            ShipPhysics.MassReport report = ShipPhysics.GetReport(map);
+            DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map)?.MotionInfo;
             if (report == null || Time.time - report.throttlesWrittenAt > ThrottleFreshSeconds)
             {
                 return;
@@ -230,7 +230,7 @@ namespace DeltaV
             }
             for (int i = 0; i < report.thrusters.Count; i++)
             {
-                ShipPhysics.Thruster thruster = report.thrusters[i];
+                ThrusterInfo thruster = report.thrusters[i];
                 if (thruster.throttle <= MinVisibleThrottle)
                 {
                     continue;
@@ -274,7 +274,7 @@ namespace DeltaV
                     new Vector3(flame.flameSize, 1f, flame.flameSize)), flame.material, block);
         }
 
-        private static void EmitExhaust(ShipPhysics.Thruster thruster, Map map)
+        private static void EmitExhaust(ThrusterInfo thruster, Map map)
         {
             if (Find.TickManager.Paused)
             {

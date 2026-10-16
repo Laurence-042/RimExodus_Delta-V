@@ -47,6 +47,6 @@ namespace DeltaV
         }
     }
 
-    internal delegate bool CombatTrajectoryPlanner(Ship ship, SpaceObject own, SpaceObject target,
-        float radius, ShipPhysics.MassReport report, out CombatTrajectoryIntent intent);
+    internal delegate bool CombatTrajectoryPlanner(SpaceObject own, SpaceObject target,
+        float radius, DriveInfo report, out CombatTrajectoryIntent intent);
 }

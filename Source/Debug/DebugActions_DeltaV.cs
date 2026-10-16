@@ -418,9 +418,9 @@ namespace DeltaV
                         $"console#{ship.console.parent.thingIDNumber} domain={ShipRegistry.ControlDomain(ship).Count} cells " +
                         $"frozen={um.Lifecycle.IsFrozen(map)} zeroG={FreeFlightBootstrap.IsZeroGravity(um, map)} " +
                         $"playerDist={(frame == null ? float.PositiveInfinity : um.Lifecycle.MinPlayerDistance(frame)):F0} " +
-                        $"mapThrust={ShipPhysics.AvailableThrust(map):F0} hostileTargets={hostileTargets} " +
+                        $"mapThrust={(frame?.MotionInfo.AvailableThrust ?? 0f):F0} hostileTargets={hostileTargets} " +
                         $"AI gate={um.NpcShips.GateFor(frame, ship)} " +
-                        $"autopilot={um.Autopilot.IsActive(ship.ownerId)}");
+                        $"autopilot={um.Autopilot.IsActive(DriveSubject.Of(ship))}");
                 }
             }
             Log.Message(sb.ToString());

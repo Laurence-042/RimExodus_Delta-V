@@ -9,7 +9,7 @@ namespace DeltaV
 {
     /// <summary>
     /// 推进器工作音表现层：与 ThrusterEffects（火焰）同源同判据——只读分配器真实油门
-    /// （ShipPhysics.GetReport + throttlesWrittenAt 0.25s 新鲜期），火焰在、声音在。
+    /// （SpaceObject.MotionInfo + throttlesWrittenAt 0.25s 新鲜期），火焰在、声音在。
     /// 两条路径与火焰对称：聚焦图逐推进器空间化循环（SoundInfo.InMap(建筑)：声源每帧
     /// 跟随建筑、distRange 随摄像机距离自动衰减，音量 = √油门）；非聚焦船壳整船
     /// OnCamera 循环（跨图 InMap 声源会被引擎 context 强制静音，音量 = 总油门 ×
@@ -75,7 +75,7 @@ namespace DeltaV
         /// </summary>
         private static void UpdateFocusedLoops(Map current)
         {
-            ShipPhysics.MassReport report = ShipPhysics.GetReport(current);
+            DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(current)?.MotionInfo;
             bool fresh = report != null && Time.time - report.throttlesWrittenAt <= ThrottleFreshSeconds;
 
             ActiveMapThrusters.Clear();
@@ -83,7 +83,7 @@ namespace DeltaV
             {
                 for (int i = 0; i < report.thrusters.Count; i++)
                 {
-                    ShipPhysics.Thruster thruster = report.thrusters[i];
+                    ThrusterInfo thruster = report.thrusters[i];
                     if (thruster.throttle <= MinAudibleThrottle || thruster.thing == null || !thruster.thing.Spawned)
                     {
                         continue;
@@ -156,7 +156,7 @@ namespace DeltaV
                 {
                     continue;
                 }
-                ShipPhysics.MassReport report = ShipPhysics.GetReport(map);
+                DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map)?.MotionInfo;
                 if (report == null || Time.time - report.throttlesWrittenAt > ThrottleFreshSeconds)
                 {
                     continue;
@@ -164,7 +164,7 @@ namespace DeltaV
                 float thrust = 0f;
                 for (int t = 0; t < report.thrusters.Count; t++)
                 {
-                    ShipPhysics.Thruster thruster = report.thrusters[t];
+                    ThrusterInfo thruster = report.thrusters[t];
                     if (thruster.throttle > MinAudibleThrottle && thruster.thing != null && thruster.thing.Spawned)
                     {
                         thrust += Mathf.Sqrt(Mathf.Clamp01(thruster.throttle));

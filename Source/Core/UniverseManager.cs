@@ -47,8 +47,7 @@ namespace DeltaV
         // ---- 流程服务实例（2026-09-22 实例化迁移）----
         // 对接计划/自动驾驶/跳帮舱/模式互转流程状态全部收进实例服务：读档时反序列化器
         // 重建组件，未进 ExposeData 的实例字段即自动归零——「读其他档残留旧流程」不可
-        // 表示，不再需要读档清扫。GameComponent 构造路径存在不跑字段初始化器的边缘
-        // （见 enginesFiringByShip 注释），一律走惰性属性自愈。
+        // 表示，不再需要读档清扫。GameComponent 构造路径存在不跑字段初始化器的情况，一律走惰性属性自愈。
 
         [NonSerialized] private ShipAutopilot autopilot;
 
@@ -57,6 +56,22 @@ namespace DeltaV
         [NonSerialized] private NpcShipAiService npcShips;
 
         public NpcShipAiService NpcShips => npcShips ?? (npcShips = new NpcShipAiService(this));
+
+        // 地图表示变化的服务交接；生命周期不解释各服务保存的业务状态。
+        internal void NotifyObjectMaterialized(SpaceObject previous, SpaceObject current)
+            => NpcShips.NotifyMaterialized(previous, current);
+
+        /// <summary>帧边界表示替换；身份与绝对位姿不变，不触发注销／新生。</summary>
+        internal void ReplaceRepresentation(SpaceObject previous, SpaceObject current)
+        {
+            int index = objects.IndexOf(previous);
+            if (index < 0 || previous.objectId != current.objectId || !previous.pose.Equals(current.pose))
+                throw new InvalidOperationException("Invalid space object representation replacement");
+            current.RepresentationVersion = previous.RepresentationVersion + 1;
+            objects[index] = current;
+            try { Autopilot.Detach(previous); previous.ClearDrive(); }
+            catch (Exception ex) { Log.Error($"[DeltaV] Representation #{current.objectId} changed, but old drive cleanup failed: {ex}"); }
+        }
 
         [NonSerialized] private ShipControlService controls;
 
@@ -300,7 +315,6 @@ namespace DeltaV
             }
             objects.Add(obj);
             if (obj.objectId >= nextFreeOwnerId) nextFreeOwnerId = obj.objectId + 1;
-            if (obj.baseTag == SpaceObjectTag.Shuttle) Shuttles.RegisterContainer(obj);
             if (obj.map != null && obj.Tag == SpaceObjectTag.Ship)
             {
                 Weapons.RegisterMapWeapons(obj.map);
@@ -323,14 +337,14 @@ namespace DeltaV
                     $"caller={caller?.DeclaringType?.Name}.{caller?.Name}");
             }
             objects.Remove(obj);
+            Autopilot.Detach(obj);
             if (obj.baseTag == SpaceObjectTag.Shuttle)
             {
                 Projectiles.ReleaseShuttle(obj);
-                Shuttles.ClearShuttlePocketRuntime(obj.map, obj);
+                Shuttles.ForgetContainer(obj);
             }
             if (obj.map != null && obj.Tag == SpaceObjectTag.Ship)
                 Weapons.ForgetMap(obj.map);
-            enginesFiringByShip?.Remove(obj.objectId);
             // 被注销对象的 ID 仍被驾驶台 comp / 图上归属格持有（战略飞行中的船、走距离
             // 生命周期的残骸），推过高水位绝不再发——否则新星区生成物会领走同号，
             // 异主域同号合并（2026-09-20 撞号实测）。
@@ -477,7 +491,6 @@ namespace DeltaV
             OrbitalPoiRegistry.Synchronize(this);
             Weapons.RebuildWeaponIndex();
             Controls.Rebuild();
-            Shuttles.RebuildVirtualThrusters();
             // 开局出生星区在世界生成时预生成（星区架构 §4 触发时机）。
             Map current = Find.CurrentMap;
             if (current != null && current.Tile.Valid && current.Tile.LayerDef.isSpace)
@@ -555,24 +568,6 @@ namespace DeltaV
                 pendingScaleRescaleFrom = -1f;
             }
             ClearStalePocketMapTiles();
-            // 读档形态自愈（2026-09-25 对象模型）：有图 SnapshotPocket PoiState 是旧模型
-            //（物化 POI）残留——物化容器 = 普通 SpaceObject（marker 恒无图）。转换为
-            // 普通容器（继承 pose/map/faction；envLabel 降级 ambientLabel），同栈注销旧
-            // PoiState。NativeParent 例外（map 跟随原版镜像，不转换）。
-            foreach (PoiState legacy in objects.OfType<PoiState>()
-                .Where(p => p.kind == PoiKind.SnapshotPocket && p.map != null).ToList())
-            {
-                var converted = new SpaceObject(legacy.objectId, legacy.map, legacy.pose)
-                {
-                    faction = legacy.faction,
-                    ambientLabel = legacy.envLabel,
-                };
-                objects.Remove(legacy);
-                objects.Add(converted);
-                // ID 不变（归属章已盖此 ID）；不计入注销（nextFreeOwnerId 不推高）。
-                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                    $"{legacy.envLabel}: legacy materialized POI #{legacy.objectId} converted to plain container");
-            }
             // 地图被外部移除等异常情况下的收尾：清掉悬空引用；丢失地图的纯容器整体
             // 移除避免悬空状态。PoiState（marker/NativeParent）保留等待物化/同步。
             foreach (SpaceObject obj in objects.ToList())
@@ -583,7 +578,7 @@ namespace DeltaV
                     obj.map = null;
                 }
                 if (obj.map == null && !(obj is PoiState)
-                    && obj.archivedMapData.NullOrEmpty())
+                    && !obj.IsArchived)
                 {
                     Log.Warning($"[DeltaV] Container #{obj.objectId} ({obj.label}) lost its map; removing from universe state.");
                     UnregisterObject(obj);
@@ -593,7 +588,6 @@ namespace DeltaV
             SweepEmptyDepartedMaps();
             Weapons.RebuildWeaponIndex();
             Controls.Rebuild();
-            Shuttles.RebuildVirtualThrusters();
         }
 
         /// <summary>
@@ -677,7 +671,7 @@ namespace DeltaV
 
         /// <summary>
         /// 待执行的帧上下文动作。GameComponent 的 XML 加载路径（GetUninitializedObject）
-        /// 不跑字段初始化器，必须按惰性属性模式访问（同 EnginesFiringByShip 先例）。
+        /// 不跑字段初始化器，必须按惰性属性模式访问。
         /// </summary>
         private List<Action> frameActions;
 
@@ -801,81 +795,35 @@ namespace DeltaV
             bool piloting = piloted.IsValid && Find.CurrentMap == piloted.Map;
             foreach (SpaceObject obj in objects)
             {
-                if (obj.map == null)
+                if (piloting && obj.map == piloted.Map && !Autopilot.IsActive(obj))
                 {
-                    // 无图弹体的 tag 快路径（太空战架构 §3.3）：与容器同一条 Integrate
-                    // 核心（数据一致性），哑报告 + 零力——纯「速度 × dt 球面平移 +
-                    // 平行输运」，被动阻力已在 Integrate 内按 tag 豁免。其余无图对象
-                    //（marker）维持跳过。
-                    if (obj.baseTag == SpaceObjectTag.Projectile
-                        && obj.pose.velocity.sqrMagnitude > 1e-10f)
+                    DriveSubject subject = DriveSubject.Of(piloted);
+                    if (obj.TryGetDrive(subject, out DriveInfo info))
                     {
-                        ShipPhysics.Integrate(obj, ShipPhysics.PointMassReport,
-                            Vector2.zero, 0f, dt, false, false, false);
-                    }
-                    continue;
-                }
-                if (Autopilot.IsActive(obj))
-                {
-                    continue; // 自动驾驶中的容器由 ShipAutopilot 驱动，避免双重积分
-                }
-                bool isPiloted = piloting && obj.map == piloted.Map;
-                bool drifting = obj.pose.velocity.sqrMagnitude > 1e-10f
-                    || Mathf.Abs(obj.pose.angularVelocity) > 1e-10f;
-                if (!isPiloted && !drifting)
-                {
-                    continue;
-                }
-                ShipPhysics.MassReport report = ShipPhysics.GetReport(obj.map);
-                if (report == null)
-                {
-                    continue;
-                }
-                Vector2 force = Vector2.zero;
-                float torque = 0f;
-                bool assistX = false;
-                bool assistZ = false;
-                bool assistW = false;
-                float pilotFrameAngle = 0f;
-                if (isPiloted)
-                {
-                    PilotService.PilotCommand command = Pilot.ComposeCommand(piloted);
-                    // 出力前分离 gate（§7 脱离 + §8 拆分统一；shuttle 独占口袋图免分离）：
-                    // 将要施加推进器出力时先过「移动的船与其余部分分离」检查（手控输入/
-                    // 主动刹车辅助/已停靠船的首次出力均在此触发）；被拒绝的 tick 只积分
-                    // 零力（被动阻力照常、不施推进器动量）。
-                    bool wantsThrust = Mathf.Abs(command.command.fx) > 1e-6f
-                        || Mathf.Abs(command.command.fz) > 1e-6f
-                        || Mathf.Abs(command.command.torque) > 1e-6f;
-                    if (wantsThrust && !ShipTransitions.RequestThrust(this, piloted, playerInitiated: true))
-                    {
-                        command = default;
-                    }
-                    if (wantsThrust)
-                    {
-                        ShipPhysics.Allocate(report, command.command, out force, out torque);
-                        assistX = command.assistX;
-                        assistZ = command.assistZ;
-                        assistW = command.assistW;
-                        pilotFrameAngle = piloted.FrameAngle;
-                        LogEngineFiringTransition(obj, report, force, torque);
+                        var command = Pilot.ComposeCommand(piloted);
+                        obj.ApplyDrive(subject, info.ControlFromInput(command.command,
+                            command.assistX, command.assistZ, command.assistW), dt, out _);
                     }
                 }
-                ShipPhysics.Integrate(obj, report, force, torque, dt, assistX, assistZ, assistW, pilotFrameAngle);
+                // 对象自身保证每 tick 只积分一次；等待分离、失效任务仍保留真实漂移。
+                obj.AdvanceDrift(dt);
+                if (obj.IsArchived)
+                {
+                    Lifecycle.CheckArchivedProximity(obj);
+                    NpcShips.NotifyArchivedMovement((ArchivedSpaceObject)obj);
+                }
             }
             // 碰撞扫掠与结算（太空战架构 §3.3：先动后撞——本 tick 位移段对全部有碰撞面
             // 容器求交，命中经联合效果注册表对称结算；销毁/归池经帧边界回调）。
             Projectiles.ResolveCollisions();
-            // 生命周期只按设置周期扫描；归档航行按实际经过的原版游戏 tick 推进。
+            // 生命周期只按设置周期扫描；归档对象已在上方与其他容器一起逐 tick 推进。
             int now = Find.TickManager.TicksGame;
             if (lastLifecycleScanTick < 0) lastLifecycleScanTick = now;
             int lifecycleInterval = Mathf.Clamp(
                 DeltaVMod.CurrentSettings?.lifecycleScanIntervalTicks ?? 60, 1, 600);
             if (now - lastLifecycleScanTick >= lifecycleInterval)
             {
-                int elapsed = now - lastLifecycleScanTick;
                 lastLifecycleScanTick = now;
-                Lifecycle.TickArchivedTravel(elapsed);
                 Lifecycle.Tick();
             }
             // 星区记账仍按原有周期触发（自由飞行跨 tile 首次生成）。
@@ -883,28 +831,6 @@ namespace DeltaV
             {
                 SectorContentService.TickSectorTracking(this);
             }
-        }
-
-        // 物理埋点（触发式）：只记录引擎点火/停火的转换沿，杜绝持续出力期间的每 tick 输出。
-        // 非 readonly：GameComponent 的 XML 加载路径（GetUninitializedObject）不跑字段初始化器，
-        // readonly 字段会停留在 null 且无法补偿；这里用惰性属性兜底。
-        private Dictionary<int, bool> enginesFiringByShip;
-
-        private Dictionary<int, bool> EnginesFiringByShip =>
-            enginesFiringByShip ?? (enginesFiringByShip = new Dictionary<int, bool>());
-
-        private void LogEngineFiringTransition(SpaceObject obj, ShipPhysics.MassReport report, Vector2 force, float torque)
-        {
-            bool firing = force.sqrMagnitude > 1e-6f || Mathf.Abs(torque) > 1e-6f;
-            bool was = EnginesFiringByShip.TryGetValue(obj.objectId, out bool previous) && previous;
-            if (firing == was)
-            {
-                return;
-            }
-            EnginesFiringByShip[obj.objectId] = firing;
-            DeltaVLog.Message(DeltaVLogModule.Physics, firing
-                ? $"{obj.label}: thrusters firing | F=({force.x:F0},{force.y:F0}) tau={torque:F0} | mass={report.mass:F0} I={report.inertia:F0} thrusters={report.thrusters.Count}"
-                : $"{obj.label}: engines stopped | v=({obj.pose.velocity.x:F2},{obj.pose.velocity.y:F2}) omega={obj.pose.angularVelocity:F3}");
         }
 
         public override void GameComponentOnGUI()
@@ -1151,7 +1077,6 @@ namespace DeltaV
             objects = newObjects;
             Weapons.RebuildWeaponIndex();
             Controls.Rebuild();
-            Shuttles.RebuildVirtualThrusters();
             unframedMaps?.Clear();
             SpaceObject focus = objects.FirstOrDefault(o => o.map != null);
             if (focus != null)
@@ -1170,12 +1095,11 @@ namespace DeltaV
             controls?.Reset();
             controls = null;
             pilot = null;
-            enginesFiringByShip?.Clear();
             ShipStatusPanel.ClearRuntimeState();
             ShellRenderer.ClearRuntimeCaches();
             WorldShipMarkerRenderer.ClearRuntimeCaches();
             PlanetGlobeRenderer.ClearRuntimeCaches();
-            ShipPhysics.ClearRuntimeCaches();
+            ShipPhysics.ClearCache();
             ShipRegistry.ClearCaches();
             ThrusterEffects.ClearRuntimeCaches();
             ThrusterAudio.Reset();

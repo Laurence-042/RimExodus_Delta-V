@@ -47,7 +47,9 @@ namespace DeltaV
 
             /// <summary>shuttle 舱体（§7.4 计划变体；null = 船计划。ship 与 shuttleBody 恒互斥）。</summary>
             public readonly Building shuttleBody;
-            public readonly SpaceObject host;
+            public readonly int hostId;
+            public readonly int hostVersion;
+            public SpaceObject host => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(hostId);
             public readonly Map targetMap;
             public readonly IntVec3 landingCell;
             public readonly Rot4 landingRotation;
@@ -72,7 +74,8 @@ namespace DeltaV
                 Vector2 dockedOrigin, float relativeAngle)
             {
                 this.ship = ship;
-                this.host = host;
+                this.hostId = host?.objectId ?? 0;
+                hostVersion = host?.RepresentationVersion ?? -1;
                 this.targetMap = targetMap;
                 this.landingCell = landingCell;
                 this.landingRotation = landingRotation;
@@ -89,7 +92,8 @@ namespace DeltaV
             {
                 ship = Ship.Invalid;
                 this.shuttleBody = shuttleBody;
-                this.host = host;
+                this.hostId = host?.objectId ?? 0;
+                hostVersion = host?.RepresentationVersion ?? -1;
                 this.targetMap = targetMap;
                 this.landingCell = landingCell;
                 this.landingRotation = landingRotation;
@@ -312,7 +316,7 @@ namespace DeltaV
             {
                 universe.Pilot.Exit(universe);
             }
-            universe.Autopilot.TrackTo(target, active.host, active.hostOffset, active.relativeAngle,
+            universe.Autopilot.TrackTo(DriveSubject.Of(target), active.host, active.hostOffset, active.relativeAngle,
                 OnNavigationFailed, allowVoidThrust: true);
             universe.Pilot.ArmAutopilotInput(target);
         }
@@ -320,7 +324,7 @@ namespace DeltaV
         /// <summary>随动任务当前是否在驾驶计划主体。</summary>
         public bool AutopilotEngaged(UniverseManager universe)
         {
-            return ActivePlan != null && universe.Autopilot.IsActive(ActivePlan.Target.ControlKey);
+            return ActivePlan != null && universe.Autopilot.IsActive(DriveSubject.Of(ActivePlan.Target));
         }
 
         private static void OnNavigationFailed()
@@ -362,7 +366,7 @@ namespace DeltaV
                 CancelSelectionOrPlan(universe, "approach ship state lost");
                 return;
             }
-            if (active.targetMap == null || active.targetMap.Disposed || !Find.Maps.Contains(active.targetMap)
+            if (active.host?.RepresentationVersion != active.hostVersion || active.targetMap == null || active.targetMap.Disposed || !Find.Maps.Contains(active.targetMap)
                 || !ReferenceEquals(universe.FrameOf(active.targetMap), active.host))
             {
                 // 目标图失效或换帧（被收纳、战略离场等）。
@@ -405,7 +409,7 @@ namespace DeltaV
         private void CompleteDocking(UniverseManager universe)
         {
             DockingPlan active = plan;
-            if (active.targetMap == null || active.targetMap.Disposed)
+            if (active.host?.RepresentationVersion != active.hostVersion || active.targetMap == null || active.targetMap.Disposed)
             {
                 CancelSelectionOrPlan(universe, "target map lost");
                 return;
@@ -417,7 +421,7 @@ namespace DeltaV
                 return;
             }
 
-            universe.Autopilot.Detach(active.Target, "docking complete");
+            universe.Autopilot.Detach(DriveSubject.Of(active.Target), "docking complete");
             universe.Pilot.DisarmAutopilotInput(active.Target);
 
             if (!ReferenceEquals(universe.FrameOf(active.targetMap), active.host))
@@ -570,7 +574,7 @@ namespace DeltaV
             plan = null;
             if (target.IsValid)
             {
-                universe?.Autopilot.Detach(target, "plan cancelled"); // 静默摘除：取消路径不需要失败反馈
+                universe?.Autopilot.Detach(DriveSubject.Of(target), "plan cancelled"); // 静默摘除：取消路径不需要失败反馈
                 universe?.Pilot.DisarmAutopilotInput(target);
             }
             universe.ShipTransitions.DiscardPendingDocking(universe);
@@ -625,7 +629,7 @@ namespace DeltaV
             plan = null;
             if (target.IsValid)
             {
-                universe?.Autopilot.Detach(target, "aborted");
+                universe?.Autopilot.Detach(DriveSubject.Of(target), "aborted");
                 universe?.Pilot.DisarmAutopilotInput(target);
             }
             universe.ShipTransitions.DiscardPendingDocking(universe);

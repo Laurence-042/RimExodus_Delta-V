@@ -166,7 +166,8 @@ namespace DeltaV
         // ---- 运行时（不存档）----
 
         [Unsaved] public int cooldownUntilTick;
-        [Unsaved] public SpaceObject pdTarget;
+        private int pdTargetId;
+        public SpaceObject pdTarget { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(pdTargetId); set => pdTargetId = value?.objectId ?? 0; }
         [Unsaved] public int pdRetargetAtTick;
 
         public CompProperties_SpaceWeapon WeaponProps => (CompProperties_SpaceWeapon)props;

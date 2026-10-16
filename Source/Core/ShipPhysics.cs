@@ -161,7 +161,7 @@ namespace DeltaV
 
         // ---- 质量模型 ----
 
-        public static MassReport Measure(Map map)
+        internal static MassReport Measure(Map map, Thruster[] virtualThrusters)
         {
             var report = new MassReport();
             Vector2 origin = SpaceTransform.ShipLocalOrigin(map);
@@ -227,6 +227,7 @@ namespace DeltaV
             {
                 // 空图防御：无结构时给单位质量，质心落在原点。
                 report.mass = 1f;
+                report.inertia = 1f;
                 return report;
             }
 
@@ -241,26 +242,12 @@ namespace DeltaV
             // 虚拟推进器注入（shuttle MiniShip，太空战架构 §7.3）：XML 逐台配置的
             // 船体帧位置 + 推力矢量（PassengerShuttle 默认 8 台）——不经图内推进器建筑，
             // 但与真实推进器走同一分配器/油门/火焰读取链。
-            if (VirtualThrustersByMap.TryGetValue(map, out Thruster[] virtualThrusters))
+            if (virtualThrusters != null)
             {
                 report.thrusters.AddRange(virtualThrusters);
             }
             return report;
         }
-
-        // ---- 虚拟推进器注册（shuttle MiniShip 专用；真实推进器经 Measure 扫描）----
-
-        private static readonly Dictionary<Map, Thruster[]> VirtualThrustersByMap = new Dictionary<Map, Thruster[]>();
-
-        public static void SetVirtualThrusters(Map map, Thruster[] thrusters)
-        {
-            if (map == null) return;
-            if (thrusters == null) VirtualThrustersByMap.Remove(map);
-            else VirtualThrustersByMap[map] = thrusters;
-            Cache.Remove(map); // 立即失效质量报告（控制模型随之重建）
-        }
-
-        public static void ClearVirtualThrusters(Map map) => SetVirtualThrusters(map, null);
 
         /// <summary>
         /// 建筑质量：def 带 Mass stat（如 LargeThruster=30）用 stat 实值，否则用
@@ -319,7 +306,7 @@ namespace DeltaV
         /// 求解器可以差动侧推器，或使用 WS 方向的相反推进器组成力偶抵消力矩。
         /// 若当前布局无法同时满足目标，则优先降低姿态/串轴误差，不伪造物理出力。
         /// </summary>
-        public static void Allocate(MassReport report, Command command, out Vector2 force, out float torque)
+        internal static void Allocate(MassReport report, Command command, out Vector2 force, out float torque)
         {
             EnsureAllocatorScratch(report);
             if (report == null || report.thrusters.Count == 0)
@@ -334,14 +321,23 @@ namespace DeltaV
             {
                 report.thrusters[i].throttle = report.allocationScratch[i];
             }
-            report.throttlesWrittenAt = Time.time;
+            MarkThrottlesWritten(report);
         }
+
+        internal static void PreviewAllocation(MassReport report, Command command, out Vector2 force, out float torque)
+        {
+            EnsureAllocatorScratch(report);
+            RefreshOperational(report);
+            SolveAllocation(report, command, report.previewScratch, out force, out torque);
+        }
+
+        private static void MarkThrottlesWritten(MassReport report) => report.throttlesWrittenAt = Time.time;
 
         /// <summary>
         /// 构造制导器使用的只读局部控制模型。采样调用与 Allocate 完全相同的分配核心，
         /// 但结果只写 previewScratch，不触碰真实油门及火焰新鲜度。
         /// </summary>
-        public static ControlModel BuildControlModel(MassReport report, ControlModel reuse = null)
+        internal static ControlModel BuildControlModel(MassReport report, ControlModel reuse = null)
         {
             ControlModel model = reuse ?? new ControlModel();
             model.mass = 0f;
@@ -385,7 +381,7 @@ namespace DeltaV
 
         /// <summary>当前朝目标方向的实际反推能力。只读地调用真实分配核心；不提交油门。
         /// towardTargetLocal 是 Map 局部单位方向，返回沿反方向可获得的加速度。</summary>
-        public static float PreviewBrakingAcceleration(MassReport report, Vector2 towardTargetLocal)
+        internal static float PreviewBrakingAcceleration(MassReport report, Vector2 towardTargetLocal)
         {
             if (report == null || report.mass <= 0f || towardTargetLocal.sqrMagnitude < 1e-8f)
                 return 0f;
@@ -398,7 +394,7 @@ namespace DeltaV
         }
 
         /// <summary>只读预览指定转向的实际角加速度；与真实 Allocate 共用分配核心。</summary>
-        public static float PreviewAngularAcceleration(MassReport report, int direction)
+        internal static float PreviewAngularAcceleration(MassReport report, int direction)
         {
             if (report == null || report.inertia <= 0f || direction == 0) return 0f;
             EnsureAllocatorScratch(report);
@@ -426,7 +422,7 @@ namespace DeltaV
             }
         }
 
-        private static void RefreshOperational(MassReport report)
+        internal static void RefreshOperational(MassReport report)
         {
             for (int i = 0; i < report.thrusters.Count; i++)
             {
@@ -435,7 +431,8 @@ namespace DeltaV
                 {
                     continue; // 虚拟推进器（shuttle MiniShip，§7.3）：无实体，恒可用
                 }
-                thruster.operational = ThrusterPower.IsOperational(thruster.thing);
+                bool operational = ThrusterPower.IsOperational(thruster.thing) && thruster.thrust > 0f;
+                if (operational != thruster.operational) { thruster.operational = operational; report.version++; }
             }
         }
 
@@ -478,7 +475,8 @@ namespace DeltaV
                     Vector2 fullForce = thruster.dir * thruster.thrust;
                     float axisX = fullForce.x / scaleX;
                     float axisZ = fullForce.y / scaleZ;
-                    float axisTorque = Cross(thruster.localPos - report.comLocal, fullForce) / scaleTorque;
+                    float axisTorque = (Cross(thruster.localPos - report.comLocal, fullForce)
+                       ) / scaleTorque;
                     float denominator = weightX * axisX * axisX
                         + weightZ * axisZ * axisZ
                         + weightTorque * axisTorque * axisTorque
@@ -565,7 +563,16 @@ namespace DeltaV
         /// 制导（ShipAutopilot）与未来舰船 AI 共用——期望力必须经此换算再进
         /// Allocate，得到的出力与油门才是布局内真实可达值。
         /// </summary>
-        public static Command ForceToCommand(MassReport report, Vector2 force, float torque)
+        internal static void CommandToForce(MassReport report, Command command, out Vector2 force, out float torque)
+        {
+            RefreshOperational(report);
+            MeasureAuthority(report, out float px, out float nx, out float pz, out float nz, out float pt, out float nt);
+            force = new Vector2(command.fx * DirectionalScale(command.fx, px, nx),
+                command.fz * DirectionalScale(command.fz, pz, nz));
+            torque = command.torque * DirectionalScale(command.torque, pt, nt);
+        }
+
+        internal static Command ForceToCommand(MassReport report, Vector2 force, float torque)
         {
             if (report == null || report.thrusters.Count == 0)
             {
@@ -580,24 +587,6 @@ namespace DeltaV
                 fz = NormalizeAxis(force.y, positiveZ, negativeZ),
                 torque = NormalizeAxis(torque, positiveTorque, negativeTorque)
             };
-        }
-
-        /// <summary>按当前可用推进器的轴向上限，求沿指定局部方向的满推期望力。</summary>
-        public static Vector2 FullThrustAlong(MassReport report, Vector2 localDirection)
-        {
-            if (report == null || localDirection.sqrMagnitude < 1e-8f) return Vector2.zero;
-            RefreshOperational(report);
-            MeasureAuthority(report, out float positiveX, out float negativeX,
-                out float positiveZ, out float negativeZ, out _, out _);
-            Vector2 direction = localDirection.normalized;
-            float limit = float.PositiveInfinity;
-            if (Mathf.Abs(direction.x) > 1e-6f)
-                limit = Mathf.Min(limit, (direction.x > 0f ? positiveX : negativeX)
-                    / Mathf.Abs(direction.x));
-            if (Mathf.Abs(direction.y) > 1e-6f)
-                limit = Mathf.Min(limit, (direction.y > 0f ? positiveZ : negativeZ)
-                    / Mathf.Abs(direction.y));
-            return direction * (float.IsInfinity(limit) ? 0f : limit);
         }
 
         /// <summary>单轴归一化：正值除正向上限、负值除负向上限，clamp 到 [-1,1]。</summary>
@@ -637,7 +626,7 @@ namespace DeltaV
         /// 质心不变量换成球面三步走：锚→质心（旧角）→平移→回锚（新角），
         /// 切空间速度随后平行输运到新锚点的基。
         /// </summary>
-        public static void Integrate(SpaceObject obj, MassReport report, Vector2 force, float torque, float dt,
+        internal static void Integrate(SpaceObject obj, MassReport report, Vector2 force, float torque, float dt,
             bool assistX, bool assistZ, bool assistW, float pilotFrameAngle = 0f)
         {
             SpacePose pose = obj.pose;
@@ -783,7 +772,7 @@ namespace DeltaV
 
         private static readonly Dictionary<Map, CachedReport> Cache = new Dictionary<Map, CachedReport>();
 
-        public static MassReport GetReport(Map map)
+        internal static MassReport GetReport(Map map, Thruster[] virtualThrusters)
         {
             if (map == null || map.Disposed)
             {
@@ -797,7 +786,7 @@ namespace DeltaV
             int now = Find.TickManager.TicksGame;
             if (cached.report == null || SubstructureOwnership.CacheNeedsRefresh(cached.structureVersion, cached.measuredAtTick))
             {
-                MassReport fresh = Measure(map);
+                MassReport fresh = Measure(map, virtualThrusters);
                 fresh.version = (cached.report?.version ?? 0) + 1;
                 if (DeltaVLog.Enabled(DeltaVLogModule.Physics)
                     && cached.report != null && MassModelChanged(cached.report, fresh))
@@ -814,18 +803,6 @@ namespace DeltaV
             return cached.report;
         }
 
-        public static float AvailableThrust(Map map)
-        {
-            MassReport report = GetReport(map);
-            if (report == null) return 0f;
-            float total = 0f;
-            foreach (Thruster thruster in report.thrusters)
-                if ((thruster.thing == null && thruster.operational)
-                    || (thruster.thing != null && ThrusterPower.IsOperational(thruster.thing)))
-                    total += thruster.thrust;
-            return total;
-        }
-
         private static bool MassModelChanged(MassReport oldReport, MassReport newReport)
         {
             return Mathf.Abs(oldReport.mass - newReport.mass) > 0.01f
@@ -839,7 +816,7 @@ namespace DeltaV
         /// 供绕过积分器直接改位姿的出口（自动驾驶到达/取消等）立即熄焰；
         /// 常规停火由下一次 Allocate 的全零解自然覆盖，无需调用。
         /// </summary>
-        public static void ClearThrottles(Map map)
+        internal static void ClearThrottles(Map map)
         {
             if (map == null || !Cache.TryGetValue(map, out CachedReport cached) || cached.report == null)
             {
@@ -849,7 +826,7 @@ namespace DeltaV
             {
                 cached.report.thrusters[i].throttle = 0f;
             }
-            cached.report.throttlesWrittenAt = Time.time;
+            cached.report.throttlesWrittenAt = 0f;
         }
 
         /// <summary>读档 / 场景重置时清空（与 ShellRenderer 的缓存自愈纪律一致）。</summary>
@@ -862,17 +839,7 @@ namespace DeltaV
         {
             if (map == null) return;
             Cache.Remove(map);
-            VirtualThrustersByMap.Remove(map);
         }
 
-        /// <summary>
-        /// 换档/dev 重建时清除全部可重建物理缓存。普通 ClearCache 不能清虚拟推进器：
-        /// 它也用于同一局游戏内的跨图搬运，清掉会让仍在飞的 shuttle 失去动力。
-        /// </summary>
-        public static void ClearRuntimeCaches()
-        {
-            Cache.Clear();
-            VirtualThrustersByMap.Clear();
-        }
     }
 }

@@ -49,12 +49,12 @@ namespace DeltaV
             if (map == null || universe == null || universe.FrameOf(map) == null) return;
 
             // 推进器矢量：MassReport.thrusters（真实 + 虚拟同一清单）。
-            ShipPhysics.MassReport report = ShipPhysics.GetReport(map);
+            DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map)?.MotionInfo;
             if (report != null)
             {
                 Vector2 origin = SpaceTransform.ShipLocalOrigin(map);
                 float lineLayer = Altitudes.AltInc * 60f;
-                foreach (ShipPhysics.Thruster thruster in report.thrusters)
+                foreach (ThrusterInfo thruster in report.thrusters)
                 {
                     // 箭头 = 推力方向：尾部在喷口外侧、头部落在推进器中心（喷口向外喷、
                     // 推力指向船内——尾部即喷射侧，2026-09-26 用户定案）。

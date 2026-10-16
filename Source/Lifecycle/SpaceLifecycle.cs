@@ -95,9 +95,7 @@ namespace DeltaV
             Map map = container.map;
             if (map == null)
             {
-                if (!container.archivedMapData.NullOrEmpty()
-                    && MinPlayerDistance(container) <= activeRadius)
-                    QueueRestore(container);
+                CheckArchivedProximity(container);
                 return;
             }
             if (IsUniverseHost(map)) return;
@@ -267,7 +265,7 @@ namespace DeltaV
         private void MaterializeMarker(PoiState marker, Map map)
         {
             int containerId = universe.AllocateOwnerId();
-            var container = new SpaceObject(containerId, map, marker.pose)
+            var container = new MapSpaceObject(containerId, map, marker.pose)
             {
                 faction = marker.faction,
                 ambientLabel = marker.envLabel,
@@ -320,14 +318,7 @@ namespace DeltaV
                 Messages.Message("DeltaV_PoiActivated".Translate(container.label),
                     MessageTypeDefOf.NeutralEvent, false);
             }
-            Ship initialShip = ShipRegistry.ShipsOnMap(map)
-                .FirstOrDefault(s => ShipRegistry.FactionOf(s) != Faction.OfPlayer);
-            if (initialShip.IsValid)
-            {
-                container.npcInitialThrust = ShipPhysics.AvailableThrust(map);
-                container.npcInitialFirepower = universe.Weapons.EstimateFirepower(initialShip, 50f, 20f);
-                container.npcInitialMainConsoleId = initialShip.console.parent.thingIDNumber;
-            }
+            universe.NotifyObjectMaterialized(marker, container);
             universe.UnregisterObject(marker);
             dormancy.Wake(map, "generation complete");
             DeltaVLog.Message(DeltaVLogModule.Lifecycle,
@@ -421,9 +412,11 @@ namespace DeltaV
         /// </summary>
         internal void ArchiveContainer(SpaceObject container, Map map, bool force = false)
         {
+            int objectId = container.objectId, version = container.RepresentationVersion;
             universe.QueueFrameAction(delegate
             {
-                if (container.map != map) return; // 已被替换/改变 → 丢弃本任务
+                container = universe.ObjectById(objectId);
+                if (container?.RepresentationVersion != version || container.map != map) return; // 已被替换/改变 → 丢弃本任务
                 if (map.Disposed || !Find.Maps.Contains(map))
                 {
                     universe.UnregisterObject(container);
@@ -443,28 +436,10 @@ namespace DeltaV
                 }
                 if (!ArchivedMapStore.TryCapture(map, out string data)) return;
                 string carriedLabel = container.label;
-                float cruise = 0f;
-                if (container.npcRetreating)
-                {
-                    ShipPhysics.MassReport report = ShipPhysics.GetReport(map);
-                    float thrust = ShipPhysics.AvailableThrust(map);
-                    float acceleration = thrust / Mathf.Max(1f, report?.mass ?? 1f);
-                    cruise = Mathf.Max(container.pose.velocity.magnitude,
-                        Mathf.Sqrt(2f * acceleration * 100f)) / 60f;
-                    SpaceObject home = universe.ObjectById(container.npcHomeObjectId);
-                    container.archivedCruiseDestination = home?.pose.position ??
-                        OrbitSphere.Move(container.npcRetreatOrigin,
-                            container.pose.velocity.sqrMagnitude > 1e-6f
-                                ? container.pose.velocity.normalized * OrbitSphere.CellsPerTile
-                                : Vector2.right * OrbitSphere.CellsPerTile);
-                }
+                var archive = ((MapSpaceObject)container).CaptureArchive(data);
+                universe.NpcShips.PrepareForArchive(container, archive);
                 if (!ArchivedMapStore.TryUnload(map)) return;
-                container.ambientLabel = carriedLabel;
-                container.archivedMapId = map.uniqueID;
-                container.archivedParent = map.Parent as PocketMapParent;
-                container.archivedCruiseCellsPerTick = cruise;
-                container.archivedMapData = data;
-                container.map = null;
+                universe.ReplaceRepresentation(container, archive);
                 try { Forget(map); }
                 catch (Exception ex)
                 { Log.Error($"[DeltaV] Archived map runtime cleanup failed ({UniverseManager.MapTag(map)}): {ex}"); }
@@ -474,88 +449,96 @@ namespace DeltaV
                     map.spawnedThings.Clear();
                 }
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                    $"{carriedLabel}: full map #{container.archivedMapId} archived on container #{container.objectId}");
+                    $"{carriedLabel}: full map #{archive.mapId} archived on container #{container.objectId}");
             });
         }
 
         private readonly HashSet<int> restoreQueued = new HashSet<int>();
 
-        private void QueueRestore(SpaceObject container)
+        internal void CheckArchivedProximity(SpaceObject container)
         {
-            if (!restoreQueued.Add(container.objectId)) return;
+            if (container is ArchivedSpaceObject archived
+                && MinPlayerDistance(container) <= DeltaVMod.CurrentSettings.poiActiveRadius)
+                QueueRestore(archived);
+        }
+        private bool TryRestoreContainer(ArchivedSpaceObject archive, out MapSpaceObject current)
+        {
+            current = null;
+            if (!ArchivedMapStore.TryRestore(archive.mapData, archive.mapId, archive.parent, out Map restored)) return false;
+            current = archive.RestoreRepresentation(restored);
+            universe.ReplaceRepresentation(archive, current);
+            // 成功后原快照永远不能再恢复。即使后续清理失败，也只保留恢复图。
+            archive.mapData = null;
+            archive.dynamics = null;
+            return true;
+        }
+        private void ActivateRestoredContainer(SpaceObject container)
+        {
+            dormancy.Wake(container.map, "full map archive restored");
+            universe.Weapons.RegisterMapWeapons(container.map);
+            universe.Controls.RegisterMap(container.map);
+        }
+        private void QueueRestore(ArchivedSpaceObject container)
+        {
+            int id = container.objectId, version = container.RepresentationVersion;
+            if (!restoreQueued.Add(id)) return;
             universe.QueueFrameAction(() =>
             {
-                restoreQueued.Remove(container.objectId);
-                if (universe.ObjectById(container.objectId) != container || container.map != null
-                    || container.archivedMapData.NullOrEmpty()) return;
-                if (!ArchivedMapStore.TryRestore(container.archivedMapData,
-                    container.archivedMapId, container.archivedParent, out Map restored)) return;
-                container.map = restored;
-                dormancy.Wake(restored, "full map archive restored");
-                universe.Weapons.RegisterMapWeapons(restored);
-                universe.Controls.RegisterMap(restored);
-                // 运行时注册全部成功后，归档才不再是唯一可恢复的事实。
-                container.archivedMapData = null;
-                container.archivedMapId = 0;
-                container.archivedParent = null;
+                restoreQueued.Remove(id);
+                if (!(universe.ObjectById(id) is ArchivedSpaceObject archive)
+                    || archive.RepresentationVersion != version) return;
+                if (!TryRestoreContainer(archive, out MapSpaceObject current)) return;
+                ActivateRestoredContainer(current);
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                    $"{container.label}: full map restored ({UniverseManager.MapTag(restored)})");
+                    $"{current.label}: full map restored ({UniverseManager.MapTag(current.map)})");
             });
         }
 
-        public void TickArchivedTravel(int elapsedTicks)
+        /// <summary>
+        /// 按调用方请求移除一个归档容器，复用原图恢复与原版人员交接。
+        /// 本方法不判断请求原因；玩家距离与地图保护仍优先于移除。仅在帧边界调用。
+        /// </summary>
+        internal bool TryRemoveArchivedContainer(ArchivedSpaceObject archive)
         {
-            if (elapsedTicks <= 0) return;
-            foreach (SpaceObject obj in universe.objects.ToList())
+            if (universe.ObjectById(archive.objectId) != archive || archive.mapData.NullOrEmpty()) return false;
+            if (restoreQueued.Contains(archive.objectId)
+                || MinPlayerDistance(archive) <= DeltaVMod.CurrentSettings.poiActiveRadius)
             {
-                if (obj.map != null || obj.archivedMapData.NullOrEmpty()) continue;
-                if (MinPlayerDistance(obj) <= DeltaVMod.CurrentSettings.poiActiveRadius)
-                {
-                    QueueRestore(obj);
-                    continue;
-                }
-                if (!obj.npcRetreating || obj.archivedCruiseCellsPerTick <= 0f)
-                {
-                    if (obj.pose.velocity.sqrMagnitude > 1e-10f
-                        || Mathf.Abs(obj.pose.angularVelocity) > 1e-10f)
-                        ShipPhysics.Integrate(obj, ShipPhysics.PointMassReport,
-                            Vector2.zero, 0f, elapsedTicks / 60f, false, false, false);
-                    if (obj.npcRetreating && obj.npcHomeObjectId == 0
-                        && OrbitSphere.TileFromDirection(obj.pose.position)
-                            != OrbitSphere.TileFromDirection(obj.npcRetreatOrigin))
-                    {
-                        RetireArchivedParent(obj);
-                        universe.UnregisterObject(obj);
-                    }
-                    continue;
-                }
-                SpaceObject home = universe.ObjectById(obj.npcHomeObjectId);
-                Vector3 destination = home?.pose.position ?? obj.archivedCruiseDestination;
-                float remaining = OrbitSphere.ArcCells(obj.pose.position, destination);
-                float travel = obj.archivedCruiseCellsPerTick * elapsedTicks;
-                if (remaining <= Mathf.Max(20f, travel))
-                {
-                    RetireArchivedParent(obj);
-                    universe.UnregisterObject(obj);
-                    continue;
-                }
-                Vector2 offset = OrbitSphere.Offset(obj.pose.position, destination);
-                SpacePose pose = obj.pose;
-                pose.velocity = offset.normalized * (obj.archivedCruiseCellsPerTick * 60f);
-                pose.position = OrbitSphere.Move(pose.position,
-                    offset.normalized * Mathf.Min(remaining, travel));
-                obj.pose = pose;
+                QueueRestore(archive);
+                return false;
             }
-        }
-
-        private static void RetireArchivedParent(SpaceObject obj)
-        {
-            PocketMapParent parent = obj.archivedParent;
-            if (parent == null) return;
+            PocketMapParent parent = archive.parent;
+            if (parent == null || parent.Destroyed) return false;
+            if (!TryRestoreContainer(archive, out MapSpaceObject obj)) return false;
+            Map restored = obj.map;
+            if (SpaceMapGovernance.MustStayActive(restored, universe))
+            {
+                ActivateRestoredContainer(obj);
+                return false;
+            }
+            // PassPawnsToWorld 不摘除容器内 Pawn 的 holdingOwner；后续递归
+            // Notify_MyMapRemoved 会再次处理它。先用原版放出 API 解除容器持有，
+            // 再由同一个 MapDeiniter 完成人员清理和 WorldPawns 交接。
+            foreach (Pawn pawn in restored.mapPawns.AllPawnsUnspawned.ToList())
+            {
+                if (pawn.Spawned) continue;
+                if (pawn.holdingOwner == null || !pawn.holdingOwner.TryDrop(pawn,
+                    pawn.PositionHeld, restored, ThingPlaceMode.Near, out Thing released,
+                    playDropSound: false) || released != pawn || !pawn.Spawned)
+                {
+                    Log.Error($"[DeltaV] Could not release crew {pawn.GetUniqueLoadID()}; "
+                        + $"keeping restored {UniverseManager.MapTag(restored)}");
+                    ActivateRestoredContainer(obj);
+                    return false;
+                }
+            }
+            // 不走 PocketMapUtility 的视图切换副作用：这里始终是后台清理。
+            DeinitMap(restored, notifyPlayer: false);
             Find.World.pocketMaps.Remove(parent);
             if (!parent.Destroyed) parent.Destroy();
-            obj.archivedParent = null;
-            obj.archivedMapData = null;
+            obj.map = null;
+            universe.UnregisterObject(obj);
+            return true;
         }
 
         public void Forget(Map map)
@@ -642,6 +625,7 @@ namespace DeltaV
         {
             dormancy.Reset();
             generationRetryAfterTick.Clear();
+            restoreQueued.Clear();
         }
     }
 }

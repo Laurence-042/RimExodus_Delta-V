@@ -319,7 +319,8 @@ internal readonly struct HeadingPanelAction
     public readonly struct ShipVolleyIntent
     {
         internal readonly Vector3 point;
-        internal readonly SpaceObject target;
+        internal readonly int targetId;
+        internal SpaceObject target => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(targetId);
         internal readonly Thing system;
         internal readonly bool main;
         internal readonly bool secondary;
@@ -329,7 +330,7 @@ internal readonly struct HeadingPanelAction
         internal ShipVolleyIntent(Vector3 point, bool main, bool secondary)
         {
             this.point = point;
-            target = null;
+            targetId = 0;
             system = null;
             this.main = main;
             this.secondary = secondary;
@@ -340,7 +341,7 @@ internal readonly struct HeadingPanelAction
         internal ShipVolleyIntent(SpaceObject target, Thing system, bool predictIntercept)
         {
             point = target.pose.position;
-            this.target = target;
+            this.targetId = target?.objectId ?? 0;
             this.system = system;
             main = secondary = false;
             fireAll = true;
@@ -693,7 +694,7 @@ internal readonly struct HeadingPanelAction
         public ShipControlState GetControlState(PilotTarget target)
         {
             if (!target.IsValid) return ShipControlState.Uncontrolled;
-            if (universe.Autopilot.IsActive(target.ControlKey)) return ShipControlState.Autopilot;
+            if (universe.Autopilot.IsActive(DriveSubject.Of(target))) return ShipControlState.Autopilot;
             return ActiveController != null && ActiveController.target.ControlKey == target.ControlKey
                 ? ShipControlState.Manual
                 : ShipControlState.Uncontrolled;
@@ -799,9 +800,9 @@ internal readonly struct HeadingPanelAction
                 return;
             }
             // 手操打断自动驾驶（不取消对接计划——完成判据是几何的，手飞到位照样对接）。
-            if (universe.Autopilot.IsActive(target.ControlKey))
+            if (universe.Autopilot.IsActive(DriveSubject.Of(target)))
             {
-                universe.Autopilot.Detach(target, "manual input");
+                universe.Autopilot.Detach(DriveSubject.Of(target), "manual input");
                 DeltaVLog.Message(DeltaVLogModule.Core,
                     $"autopilot interrupted by manual input: target key #{target.ControlKey} (pilot mode engaged)");
                 Messages.Message("DeltaV_DockAutopilotStopped".Translate(), MessageTypeDefOf.NeutralEvent, false);
@@ -862,7 +863,7 @@ internal readonly struct HeadingPanelAction
             {
                 foreach (Ship ship in ShipRegistry.ShipsOnMap(focusedMap))
                 {
-                    if (universe.Autopilot.IsActive(ship.ownerId))
+                    if (universe.Autopilot.IsActive(DriveSubject.Of(ship)))
                     {
                         autopilotTarget = PilotTarget.Of(ship);
                         break;
@@ -872,7 +873,7 @@ internal readonly struct HeadingPanelAction
                 if (!autopilotTarget.IsValid)
                 {
                     Building shuttle = universe.Shuttles.InFlightBodyOn(focusedMap);
-                    if (shuttle != null && universe.Autopilot.IsActive(shuttle.thingIDNumber))
+                    if (shuttle != null && universe.Autopilot.IsActive(DriveSubject.Of(PilotTarget.Of(shuttle))))
                         autopilotTarget = PilotTarget.Of(shuttle);
                 }
             }

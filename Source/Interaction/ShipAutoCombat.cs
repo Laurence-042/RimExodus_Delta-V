@@ -12,7 +12,8 @@ namespace DeltaV
         private readonly UniverseManager universe;
         private readonly int ownerId;
         private readonly bool shipsOnly;
-        private SpaceObject target;
+        private int targetId;
+        private SpaceObject target { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(targetId); set => targetId = value?.objectId ?? 0; }
         private Thing preferredSystem;
         private int targetLockedUntil;
         private bool targetObserved;
@@ -105,8 +106,8 @@ namespace DeltaV
                 .Where(w => w.SpaceModeEnabled && w.aimMode == SpaceWeaponAimMode.PointDefense
                     && w.parent.Spawned && !w.parent.Destroyed)
                 .Select(w => w.parent).FirstOrDefault();
-            return pointDefense ?? ShipPhysics.GetReport(victim.map)?.thrusters
-                .FirstOrDefault(t => t.operational && t.thing != null)?.thing;
+            return pointDefense ?? victim.MotionInfo?.thrusters
+                .Where(t => t.operational && t.thing != null).Select(t => t.thing).FirstOrDefault();
         }
     }
 
@@ -119,7 +120,8 @@ namespace DeltaV
         private bool orbitTaskObserved;
         private float lastOrbitRadius;
         private NpcDoctrine lastOrbitDoctrine;
-        private SpaceObject lastOrbitTarget;
+        private int lastOrbitTargetId;
+        private SpaceObject lastOrbitTarget { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(lastOrbitTargetId); set => lastOrbitTargetId = value?.objectId ?? 0; }
         private int lastOrbitLogTick = int.MinValue;
         private int orbitDirection;
 
@@ -142,18 +144,18 @@ namespace DeltaV
             int now = Find.TickManager.TicksGame;
             int interval = 2 * Mathf.Clamp(DeltaVMod.CurrentSettings?.npcDecisionIntervalTicks ?? 60, 1, 600);
             if (lastDoctrineTick >= 0 && now - lastDoctrineTick < interval
-                && universe.Autopilot.IsCombatOrbit(ship.ownerId) && lastOrbitTarget == target) return;
+                && universe.Autopilot.IsCombatOrbit(DriveSubject.Of(ship)) && lastOrbitTarget == target) return;
             lastDoctrineTick = now;
             PickDoctrine(ship, own, target, priorities, allowBoarding, out NpcDoctrine doctrine,
                 out float radius);
-            bool taskActive = universe.Autopilot.IsCombatOrbit(ship.ownerId);
+            bool taskActive = universe.Autopilot.IsCombatOrbit(DriveSubject.Of(ship));
             bool changed = !orbitTaskObserved || lastOrbitTarget != target
                 || lastOrbitDoctrine != doctrine || Mathf.Abs(lastOrbitRadius - radius) > 0.5f
                 || !taskActive;
             if (lastOrbitTarget != target || !taskActive) orbitDirection = 0;
             Doctrine = doctrine;
             lastOrbitRadius = radius;
-            universe.Autopilot.TrackOrbit(ship, target, radius, PlanTrajectory, playerInitiated);
+            universe.Autopilot.TrackOrbit(DriveSubject.Of(ship), target, radius, PlanTrajectory, playerInitiated);
             if (changed && DeltaVLog.Enabled(DeltaVLogModule.Combat)
                 && (lastOrbitLogTick == int.MinValue || now - lastOrbitLogTick >= 60))
             {
@@ -169,19 +171,19 @@ namespace DeltaV
 
         internal void Clear(Ship ship)
         {
-            if (ship.IsValid && universe.Autopilot.IsCombatOrbit(ship.ownerId))
-                universe.Autopilot.Detach(ship, "combat target lost");
+            if (ship.IsValid && universe.Autopilot.IsCombatOrbit(DriveSubject.Of(ship)))
+                universe.Autopilot.Detach(DriveSubject.Of(ship), "combat target lost");
             orbitTaskObserved = false;
             lastOrbitTarget = null;
             orbitDirection = 0;
         }
 
         /// <summary>每个制导微步给共同 MPC 一段实际推进器可达的轨迹；不直接写推力。</summary>
-        private bool PlanTrajectory(Ship ship, SpaceObject own, SpaceObject target,
-            float radius, ShipPhysics.MassReport report, out CombatTrajectoryIntent intent)
+        private bool PlanTrajectory(SpaceObject own, SpaceObject target,
+            float radius, DriveInfo report, out CombatTrajectoryIntent intent)
         {
             intent = default;
-            if (!ship.IsValid || own == null || target == null || report == null
+            if (own == null || target == null || report == null
                 || report.mass <= 0f || report.inertia <= 0f) return false;
             Vector2 toCenter = OrbitSphere.Offset(own.pose.position, target.pose.position);
             float distance = toCenter.magnitude;
@@ -190,7 +192,7 @@ namespace DeltaV
             Vector2 tangent = new Vector2(-outward.y, outward.x);
             Vector2 relativeVelocity = own.pose.velocity
                 - SpaceTransform.TransportVelocity(target.pose, own.pose.position);
-            float frameAngle = PilotTarget.Of(ship).FrameAngle;
+            float frameAngle = report.frameAngle;
             float pathAngle = SpaceTransform.WrapAngle(Mathf.Atan2(toCenter.y, toCenter.x)
                 - frameAngle);
             float desiredMapAngle = pathAngle;
@@ -200,17 +202,17 @@ namespace DeltaV
             if (orbitDirection == 0)
             {
                 Vector2 mapPositive = SpaceTransform.RotateInverse(tangent, desiredMapAngle);
-                float positive = ShipPhysics.PreviewBrakingAcceleration(report, -mapPositive);
-                float negative = ShipPhysics.PreviewBrakingAcceleration(report, mapPositive);
+                float positive = report.PreviewBraking(-mapPositive);
+                float negative = report.PreviewBraking(mapPositive);
                 orbitDirection = positive >= negative ? 1 : -1;
             }
             Vector2 mapSide = SpaceTransform.RotateInverse(tangent * orbitDirection,
                 desiredMapAngle);
             Vector2 mapOutward = SpaceTransform.RotateInverse(outward, desiredMapAngle);
-            float sideAcceleration = ShipPhysics.PreviewBrakingAcceleration(report, -mapSide);
-            float outwardAcceleration = ShipPhysics.PreviewBrakingAcceleration(report, -mapOutward);
-            float inwardAcceleration = ShipPhysics.PreviewBrakingAcceleration(report, mapOutward);
-            float angularAcceleration = ShipPhysics.PreviewAngularAcceleration(report,
+            float sideAcceleration = report.PreviewBraking(-mapSide);
+            float outwardAcceleration = report.PreviewBraking(-mapOutward);
+            float inwardAcceleration = report.PreviewBraking(mapOutward);
+            float angularAcceleration = report.PreviewAngular(
                 orbitDirection);
             float radiusError = radius - distance;
             float radialAcceleration = radiusError >= 0f ? outwardAcceleration : inwardAcceleration;

@@ -177,7 +177,7 @@ namespace DeltaV
             SpacePose shipPose = hasShip ? ShipRegistry.ShipPose(selected) : default;
             if (hasShip)
             {
-                ShipPhysics.MassReport report = ShipPhysics.GetReport(selected.map);
+                DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(selected.map)?.MotionInfo;
                 string controlLabel = controlState == ShipControlState.Autopilot
                     ? "DeltaV_ControlAutopilot".Translate()
                     : controlState == ShipControlState.Manual

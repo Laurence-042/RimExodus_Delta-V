@@ -62,7 +62,7 @@ namespace DeltaV
                     1, Mathf.Max(source.map.Size.z, prefab.size.z + PrefabPoolSizeMargin));
                 map = ShipPocketMapFactory.Generate(size, universe);
                 if (map == null) throw new InvalidOperationException("Replacement map generation returned null.");
-                replacement = new SpaceObject(universe.AllocateOwnerId(), map, source.pose)
+                replacement = new MapSpaceObject(universe.AllocateOwnerId(), map, source.pose)
                 {
                     faction = faction,
                     ambientLabel = prefab.name,

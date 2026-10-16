@@ -3,7 +3,7 @@
 ## 目标与边界
 
 `ShipAutopilot` 只编排固定航点/随动目标任务、回调、到达判定和 60 Hz 游戏 tick
-积分；制导算法经 `IAutopilotGuidance` 隔离。制导按**微步**（6 tick = 0.1 s，
+控制请求；对象负责执行和积分。制导算法经 `IAutopilotGuidance` 隔离。制导按**微步**（6 tick = 0.1 s，
 与 MPC 计划步长一致）节拍：QP 求解周期按运行时阶段选择——巡航每 4 微步
 （2.5 Hz）、制动每 2 微步（5 Hz）、精确对位每微步（10 Hz）。精确对位沿用 9 格
 终段距离；制动依据闭合速度、当前反推能力、阻力与计划回放时间提前开始。多船任务
@@ -13,13 +13,25 @@
 tick 预算 2.78 ms，Balanced 档单次求解 avg ~3 ms）。对接完成仍只由
 `LandingApproachController` 的位姿窗口与保持 tick 判定，MPC 不感知对接。
 
-应用侧微步内去重：指令与质量报告版本（`MassReport.version`，重扫 +1）都未变时
-复用上一次 `ForceToCommand/Allocate` 结果（同输入确定性同输出）；微步边界、重扫
-或指令变化即失效——推进器故障的建模延迟 ≤ 1 微步。
+对象执行层在微步内缓存同一能力版本和期望力／力矩的分配结果；版本、指令或微步变化即重算。真实推进器可用性变化同步更新能力版本。预览不写真实油门或表现时间；终段虚空动力仍由任务给出渐变比例，对象执行层补齐期望与可达出力之差。
 
-所有期望力仍必须经过 `ShipPhysics.ForceToCommand → Allocate → Integrate`。MPC 不写推进器
-油门；`BuildControlModel` 只读采样与真实 `Allocate` 相同的分配核心，只有后者提交油门和
-火焰新鲜度。终段虚空动力保持既有语义，只补齐期望与可达出力之差。
+## 驾驶契约与调用入口
+
+`DriveSubject` 区分容器 ID、船归属 ID 与 shuttle 身份。`SpaceObject.TryGetDrive` 返回只读 `DriveInfo`（位姿、船体帧角、质量、质心、惯量、推进布局和能力版本）；`PreviewModel / Preview / PreviewBraking / PreviewAngular` 共用物理求解核心。`ApplyDrive` 返回执行、等待分离、主体失效或本 tick 已推进；`ClearDrive / AdvanceDrift / SettleDrive` 统一取消、漂移与固定航点终态。
+
+`MapSpaceObject` 从真实图与既有主体适配读取能力，执行 `RequestThrust` 门禁及真实分配。`ArchivedSpaceObject` 使用卸图时记录的推进器位置、方向、有效推力及质量惯量，通过同一求解器积分；不执行图内燃料／电力消耗。归档动力摘要的生命周期见 [太空战架构 §9.1](太空战架构.md#91-远距整图归档与撤退)。
+
+| 调用方 | 当前入口 | 已删除的旧路径 |
+|---|---|---|
+| 自动驾驶 | 主体解析 → TryGetDrive → MPC → ApplyDrive | Map／归档／shuttle 分支、专用重载、摘要捕获、直接分配积分与写位姿 |
+| 手操与 Universe | 输入换算 → ApplyDrive；统一 AdvanceDrift | Universe 内质量查询、分离判据、分配与积分；归档专用推进函数 |
+| AI、战斗轨迹 | DriveInfo 信息与只读预览 | 直接读取地图物理报告、预测写油门 |
+| 取消、分离、对接 | ClearDrive；收敛后 SettleDrive | 分散清油门与自动驾驶终态位姿写回 |
+| 状态、火焰、音效、调试 | MotionInfo 只读视图 | 各表现调用者直接取得可变物理报告 |
+| shuttle 动力布局 | MapSpaceObject 按 XML 重建并持有 | shuttle 服务注入入口、全局虚拟布局注册表 |
+| 弹体 | 既有制导／碰撞策略 → 对象 AdvanceDrift | Universe 绕过对象的点质量积分分支 |
+
+基类和子类均不选择目的地。AI 决定返厂、避战和守位；生命周期只决定地图表示。归档与恢复清掉主体旧任务，目标引用按 objectId 解析，正常 AI 周期重新下令。物理算法仍只有 `ShipPhysics` 一份；旧六响应样本、凸组合预算与专用离线巡航不再存在。
 
 ## 模型
 
@@ -114,7 +126,7 @@ QP 使用状态、终端、输入及相邻输入变化的二次成本。默认�
 
 纯数值自测覆盖初速 20 格/秒与 0.5、1.0、2.2 格/秒²三档制动能力，且各档分
 `K=1`（每微步求解）与 `K=4`（求解 + 计划回放）两种闭环语义验证；执行侧经过
-`ForceToCommand → Allocate`，另覆盖非对称反推/移动目标及不同阻力下的停止距离次序。
+`DriveInfo` 无副作用分配预览，另覆盖非对称反推/移动目标及不同阻力下的停止距离次序。
 游戏内仍需验证
 移动/旋转目标、偏置落点、非对称或故障推进器、暂停/倍速、终段虚空动力与火焰一致性、
 6x 倍速下多船求解的 TPS 表现。
