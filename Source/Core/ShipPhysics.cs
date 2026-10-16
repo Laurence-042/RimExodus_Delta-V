@@ -124,8 +124,8 @@ namespace DeltaV
 
         /// <summary>
         /// 当前推进器布局在零指令附近的局部控制模型。force/torque 列分别是归一化
-        /// fx/fz/torque 指令对真实可达广义力的中心差分；方向上限只用于把 MPC 的
-        /// 首个归一化控制量还原为期望力，再进入 ForceToCommand → Allocate 唯一链。
+        /// fx/fz/torque 指令对真实可达广义力的中心差分。MPC 使用正反向平均能力
+        /// 作为力单位，方向能力决定变量上下界；期望力进入 ForceToCommand → Allocate。
         /// </summary>
         public sealed class ControlModel
         {
@@ -140,14 +140,22 @@ namespace DeltaV
             public float positiveTorque;
             public float negativeTorque;
 
-            public void DesiredWrench(Command command, out Vector2 force, out float torque)
+            // MPC 的变量以正/负向平均能力为同一个力单位。方向差异只进入上下界，
+            // 不能预测时用平均能力、执行时再按符号换一次单位（会高估弱反推）。
+            public void ControlBounds(int axis, out double lower, out double upper)
             {
-                force = new Vector2(
-                    command.fx >= 0f ? command.fx * positiveX : command.fx * negativeX,
-                    command.fz >= 0f ? command.fz * positiveZ : command.fz * negativeZ);
-                torque = command.torque >= 0f
-                    ? command.torque * positiveTorque
-                    : command.torque * negativeTorque;
+                float positive = axis == 0 ? positiveX : axis == 1 ? positiveZ : positiveTorque;
+                float negative = axis == 0 ? negativeX : axis == 1 ? negativeZ : negativeTorque;
+                float scale = (positive + negative) * 0.5f;
+                lower = scale > 1e-6f ? -negative / scale : 0.0;
+                upper = scale > 1e-6f ? positive / scale : 0.0;
+            }
+
+            public void DesiredWrench(Vector3 control, out Vector2 force, out float torque)
+            {
+                force = new Vector2(control.x * (positiveX + negativeX) * 0.5f,
+                    control.y * (positiveZ + negativeZ) * 0.5f);
+                torque = control.z * (positiveTorque + negativeTorque) * 0.5f;
             }
         }
 
@@ -721,6 +729,28 @@ namespace DeltaV
                 ? Mathf.Pow(0.5f, dt * 60f / settings.dragAngularHalfLifeTicks)
                 : 1f;
             return (linear, angular);
+        }
+
+        /// <summary>恒定加速度下组合 60 Hz 半隐式积分的预测系数。
+        /// v' = decay*v + velocityGain*a；p' = p + velocityGain*v + positionGain*a。
+        /// 非整数 tick 的预测段使用同一几何级数的连续延拓。</summary>
+        public static void HeldInputFactors(double seconds, float decayPerTick,
+            out double decay, out double velocityGain, out double positionGain)
+        {
+            const double tick = 1.0 / 60.0;
+            double r = decayPerTick;
+            if (r >= 1.0 - 1e-9)
+            {
+                decay = 1.0;
+                velocityGain = seconds;
+                positionGain = 0.5 * seconds * (seconds + tick);
+                return;
+            }
+            double count = seconds / tick;
+            decay = System.Math.Pow(r, count);
+            double sum = r * (1.0 - decay) / (1.0 - r);
+            velocityGain = tick * sum;
+            positionGain = tick * tick * r / (1.0 - r) * (count - sum);
         }
 
         /// <summary>

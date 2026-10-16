@@ -219,6 +219,8 @@ namespace DeltaV
             list.CheckboxLabeled("DeltaV_SettingsLogLifecycle".Translate(), ref Settings.logLifecycle);
             list.CheckboxLabeled("DeltaV_SettingsLogRender".Translate(), ref Settings.logRender);
             list.CheckboxLabeled("DeltaV_SettingsLogCombat".Translate(), ref Settings.logCombat);
+            list.CheckboxLabeled("DeltaV_SettingsLogDevelopment".Translate(), ref Settings.logDevelopment,
+                "DeltaV_SettingsLogDevelopmentTip".Translate());
             list.End();
         }
 

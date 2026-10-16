@@ -14,6 +14,7 @@ namespace DeltaV
     /// - Render：船壳分层绘制（门控；每秒最多 1 条，热路径节流在调用侧）
     /// - Combat：战斗链用户事件（发射/命中/拦截/跳弹/放行/tag 切换；门控，边沿触发——
     ///   每 tick 碰撞求交热路径不埋点，§2 诊断纪律）
+    /// - Development：通用临时排障（门控）；埋点清理规则见 AGENTS §2。
     ///
     /// 纪律（与 RimExodus 相同，勿回退）：Warn/Error 不受开关控制；
     /// 关键状态迁移（驾驶进入/退出、抑制激活、补丁初始化结果）常开；
@@ -27,7 +28,8 @@ namespace DeltaV
         Harmony,
         Lifecycle,
         Render,
-        Combat
+        Combat,
+        Development
     }
 
     /// <summary>
@@ -52,6 +54,7 @@ namespace DeltaV
                 case DeltaVLogModule.Lifecycle: return s.logLifecycle;
                 case DeltaVLogModule.Render: return s.logRender;
                 case DeltaVLogModule.Combat: return s.logCombat;
+                case DeltaVLogModule.Development: return s.logDevelopment;
                 default: return false;
             }
         }

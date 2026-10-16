@@ -169,8 +169,6 @@ namespace DeltaV
                 onFailed?.Invoke();
                 return;
             }
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"autopilot waypoint engaged: structure #{ship.ownerId} -> ({targetDirection.x:F2},{targetDirection.y:F2},{targetDirection.z:F2}) angle={targetAngle * Mathf.Rad2Deg:F0} deg voidThrust={allowVoidThrust}");
             var flight = new Flight
             {
                 ownerId = ship.ownerId,
@@ -203,8 +201,6 @@ namespace DeltaV
                 onFailed?.Invoke();
                 return;
             }
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"autopilot track engaged: structure #{ship.ownerId} -> '{host.label}' offset=({hostOffset.x:F0},{hostOffset.y:F0}) relAngle={SpaceTransform.WrapAngle(relativeAngle) * Mathf.Rad2Deg:F0} deg voidThrust={allowVoidThrust}");
             var flight = new Flight
             {
                 ownerId = ship.ownerId,
@@ -277,10 +273,6 @@ namespace DeltaV
                 if (!active.ContainsKey(target.ControlKey)) return;
                 active.Remove(target.ControlKey);
                 if (target.Map != null) ShipPhysics.ClearThrottles(target.Map);
-                if (reason != null)
-                {
-                    DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot detached ({reason}): shuttle #{target.ControlKey}");
-                }
                 return;
             }
             Detach(target.ship, reason);
@@ -312,8 +304,6 @@ namespace DeltaV
             flight.profile = profile;
             flight.guidance.Reset(flight.profile);
             active[flight.ownerId] = flight;
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"autopilot track engaged: shuttle #{flight.ownerId} -> '{host.label}' voidThrust={allowVoidThrust}");
         }
 
         /// <summary>
@@ -326,10 +316,6 @@ namespace DeltaV
             if (!ship.IsValid || !active.ContainsKey(ship.ownerId)) return;
             active.Remove(ship.ownerId);
             if (ship.map != null) ShipPhysics.ClearThrottles(ship.map); // 绕过积分器的出口：显式熄火
-            if (reason != null)
-            {
-                DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot detached ({reason}): structure #{ship.ownerId}");
-            }
         }
 
         public bool IsActive(int ownerId)
@@ -400,7 +386,6 @@ namespace DeltaV
                     || flight.shuttleBody.Map.Disposed)
                 {
                     active.Remove(ownerId);
-                    DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot failed (shuttle lost): shuttle #{ownerId}");
                     flight.onFailed?.Invoke();
                     return;
                 }
@@ -410,7 +395,6 @@ namespace DeltaV
             {
                 active.Remove(ownerId);
                 if (ship.IsValid && ship.map != null) ShipPhysics.ClearThrottles(ship.map);
-                DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot failed (ship lost): structure #{ownerId}");
                 flight.onFailed?.Invoke();
                 return;
             }
@@ -423,7 +407,6 @@ namespace DeltaV
             {
                 active.Remove(ownerId);
                 ShipPhysics.ClearThrottles(bodyMap);
-                DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot failed (host lost): structure #{ownerId}");
                 flight.onFailed?.Invoke();
                 return;
             }
@@ -432,7 +415,6 @@ namespace DeltaV
             {
                 active.Remove(ownerId);
                 ShipPhysics.ClearThrottles(bodyMap);
-                DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot failed (container lost): structure #{ownerId}");
                 flight.onFailed?.Invoke();
                 return;
             }
@@ -618,10 +600,6 @@ namespace DeltaV
                 {
                     flight.phase = next;
                     phaseChanged = true;
-                    if (DeltaVLog.Enabled(DeltaVLogModule.Physics))
-                        DeltaVLog.Message(DeltaVLogModule.Physics,
-                            $"autopilot phase: #{ownerId} {next} d={remaining:F1} closing={closing:F2} "
-                            + $"brake={flight.brakingAcceleration:F3} stop={flight.stoppingDistance:F1}");
                 }
             }
             if (!flight.hasCommand)
@@ -774,8 +752,6 @@ namespace DeltaV
             else if (solved && flight.failureLogged)
             {
                 flight.failureLogged = false;
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"MPC solve recovered: structure #{ownerId}");
             }
         }
 
@@ -806,7 +782,6 @@ namespace DeltaV
         {
             active.Remove(flight.ownerId);
             if (ship.IsValid && ship.map != null) ShipPhysics.ClearThrottles(ship.map);
-            DeltaVLog.Message(DeltaVLogModule.Core, $"autopilot failed ({reason}): structure #{flight.ownerId}");
             flight.onFailed?.Invoke();
         }
 

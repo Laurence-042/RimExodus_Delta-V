@@ -245,10 +245,6 @@ namespace DeltaV
                     MessageTypeDefOf.PositiveEvent, false);
                 // 选点期字段随发布清零（计划为权威状态；船流程的 pendingShip 保持
                 // 到 FinishDocking 是历史形态，shuttle 不复制）。
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"shuttle '{pendingShuttle.LabelCap}': landing registered on '{shuttleHost.label}' "
-                    + $"{UniverseManager.MapTag(map)}; cell={landingPos}, rot={landingRot.AsInt}, "
-                    + $"dockedOrigin=({shuttleOrigin.x:F1},{shuttleOrigin.y:F1})");
                 universe.ShipTransitions.DiscardPendingDocking(universe);
                 return true;
             }
@@ -285,30 +281,6 @@ namespace DeltaV
             // 原子发布：全部校验与构造完成之后才切换全局状态，发布前不产生任何可观测副作用。
             plan = newPlan;
             universe.ShipTransitions.pendingSelectionWasManual = false;
-            if (DeltaVLog.Enabled(DeltaVLogModule.Core))
-            {
-                // 只在确认事件复走原版门禁一次，和完成期的同入口复核对照；
-                // 不改变选点结果或计划状态。
-                string acceptance = "not checked (target map not focused)";
-                if (Find.CurrentMap == map)
-                {
-                    try
-                    {
-                        AcceptanceReport check = GravshipInterop.CanDesignateRoot(
-                            new Designator_MoveGravship(map, confirmMarker), landingPos,
-                            gravship.Bounds.Size, landingRot);
-                        acceptance = check.Accepted ? "accepted" : check.Reason;
-                    }
-                    catch (System.Exception e)
-                    {
-                        acceptance = "diagnostic check threw " + e.GetType().Name;
-                    }
-                }
-                IntVec3 designatorInput = GravshipInterop.RootToDesignatorInput(
-                    landingPos, gravship.Bounds.Size, landingRot);
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"docking site selected: {Patch_DesignatorMoveGravship_AdjacentLanding.DescribeFootprint(confirmMarker, map, landingPos)} input={designatorInput} check={acceptance}");
-            }
 
             // 结束原版确认状态；marker 引用保留（原版 BeginLanding 已将其销毁，但
             // 完成期复核需要它构造 Designator_MoveGravship——设计器只读其缓存字段，
@@ -323,17 +295,9 @@ namespace DeltaV
             DockingGhostRenderer.BuildFor(newPlan);
 
             EngageAutopilot(universe);
-            if (Find.TickManager.CurTimeSpeed == TimeSpeed.Paused)
-            {
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    "docking plan engaged while game paused; approach frozen until unpaused (motion is tick-driven)");
-            }
             Messages.Message("DeltaV_DockPlanStarted".Translate(
                     universe.LabelForOwner(ship.ownerId), host.label),
                 MessageTypeDefOf.PositiveEvent, false);
-            Vector2 registeredOrigin = newPlan.dockedOrigin;
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"structure #{ship.ownerId}: landing registered on '{host.label}' (hostMap#{map.uniqueID} {map.Size.x}x{map.Size.z}); cell={landingPos}, rot={landingRot.AsInt}, dockedOrigin=({registeredOrigin.x:F1},{registeredOrigin.y:F1}), offset=({newPlan.hostOffset.x:F1},{newPlan.hostOffset.y:F1}), relAngle={newPlan.relativeAngle * Mathf.Rad2Deg:F1} deg");
             return true;
         }
 
@@ -421,22 +385,13 @@ namespace DeltaV
             if (inWindow)
             {
                 active.holdTicks++;
-                if (active.holdTicks == 1)
-                {
-                    DeltaVLog.Message(DeltaVLogModule.Core,
-                        $"docking window entered: posErr={posErr.magnitude:F3} cells, angleErr={angleErr * Mathf.Rad2Deg:F2} deg");
-                }
             }
             else if (active.holdTicks > 0)
             {
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"docking window lost after {active.holdTicks} ticks (posErr={posErr.magnitude:F3}, angleErr={angleErr * Mathf.Rad2Deg:F2} deg)");
                 active.holdTicks = 0;
             }
             if (active.holdTicks >= Mathf.Max(1, DeltaVMod.CurrentSettings.dockingHoldTicks))
             {
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"docking conditions met: window held {active.holdTicks} ticks; starting completion transfer");
                 CompleteDocking(universe);
             }
         }
@@ -450,8 +405,6 @@ namespace DeltaV
         private void CompleteDocking(UniverseManager universe)
         {
             DockingPlan active = plan;
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"docking completion: {(active.IsShuttlePlan ? $"'{active.shuttleBody.LabelCap}'" : $"structure #{active.ship.ownerId}")} -> host #{active.host.objectId} {UniverseManager.MapTag(active.targetMap)}; currentMap={UniverseManager.MapTag(Find.CurrentMap)}");
             if (active.targetMap == null || active.targetMap.Disposed)
             {
                 CancelSelectionOrPlan(universe, "target map lost");
@@ -590,18 +543,6 @@ namespace DeltaV
                 // 偶数尺寸时两者不恒等，必须经唯一 Gravship 适配入口反编码。
                 AcceptanceReport report = GravshipInterop.CanDesignateRoot(designator,
                     active.landingCell, preview.Bounds.Size, active.landingRotation);
-                if (DeltaVLog.Enabled(DeltaVLogModule.Core))
-                {
-                    IntVec3 designatorInput = GravshipInterop.RootToDesignatorInput(
-                        active.landingCell, preview.Bounds.Size, active.landingRotation);
-                    DeltaVLog.Message(DeltaVLogModule.Core,
-                        $"docking site completion check: {Patch_DesignatorMoveGravship_AdjacentLanding.DescribeFootprint(confirmMarker, active.targetMap, active.landingCell)} input={designatorInput} check={(report.Accepted ? "accepted" : report.Reason)}");
-                }
-                if (!report.Accepted)
-                {
-                    DeltaVLog.Message(DeltaVLogModule.Core,
-                        $"docking site revalidation failed: {report.Reason}");
-                }
                 return report.Accepted;
             }
             catch
@@ -647,8 +588,6 @@ namespace DeltaV
             {
                 Messages.Message("DeltaV_DockPlanCancelled".Translate(), MessageTypeDefOf.NeutralEvent, false);
             }
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"docking {(selectionPhase ? "site selection" : "plan")} cancelled: {reason ?? "user"}");
         }
 
         /// <summary>选点阶段取消的收尾：销毁本流程的 marker、结束原版确认状态。

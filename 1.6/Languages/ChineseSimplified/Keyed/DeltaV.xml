@@ -41,6 +41,8 @@
   <DeltaV_SettingsLogLifecycle>日志：POI 生命周期迁移</DeltaV_SettingsLogLifecycle>
   <DeltaV_SettingsLogRender>日志：渲染（船壳分层／轨道炮状态色）</DeltaV_SettingsLogRender>
   <DeltaV_SettingsLogCombat>日志：战斗事件（发射/命中/拦截/跳弹/放行）</DeltaV_SettingsLogCombat>
+  <DeltaV_SettingsLogDevelopment>日志：开发调试</DeltaV_SettingsLogDevelopment>
+  <DeltaV_SettingsLogDevelopmentTip>通用临时排障日志，记录当前正在调试的问题。可用 [DeltaV:Development] 筛选日志。</DeltaV_SettingsLogDevelopmentTip>
   <DeltaV_SettingsUniverseZoomMax>宇宙视野缩放上限（格）</DeltaV_SettingsUniverseZoomMax>
   <DeltaV_SettingsUniverseZoomMaxTip>聚焦飞船图时相机最多能拉多远。数值越大，一屏能看到的太空范围越大，远处的飞船和空间站外壳会更早进入画面；代价是拉远后地图内容显示得越小。范围 60–5000；默认 400。</DeltaV_SettingsUniverseZoomMaxTip>
   <DeltaV_SettingsPoiActiveRadius>POI 加载距离（格）</DeltaV_SettingsPoiActiveRadius>
