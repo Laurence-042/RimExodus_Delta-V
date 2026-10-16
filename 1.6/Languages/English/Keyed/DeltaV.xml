@@ -100,8 +100,11 @@
   <DeltaV_DockExtendDesc>Extend a sealed docking channel in this port's facing direction, up to the first structure. Fails if nothing stands within range.</DeltaV_DockExtendDesc>
   <DeltaV_DockRetractLabel>Retract docking channel</DeltaV_DockRetractLabel>
   <DeltaV_DockRetractDesc>Fold the docking channel away and restore open space.</DeltaV_DockRetractDesc>
-  <DeltaV_DockNoFace>No structure within docking range in this port's facing direction.</DeltaV_DockNoFace>
+  <DeltaV_DockNoFace>No usable docking face within range, or an existing passage blocks the route. Passages cannot be chained.</DeltaV_DockNoFace>
   <DeltaV_DockChannelLaid>Docking channel extended: {0} cells.</DeltaV_DockChannelLaid>
+  <DeltaV_DockConnected>Sealed passage connected: {0} cells</DeltaV_DockConnected>
+  <DeltaV_DockFolded>Passage retracted; detection range: {0} cells</DeltaV_DockFolded>
+  <DeltaV_DockRetractConfirm>Retracting this passage will leave these people and items in their current cells, exposed to space:\n\n{0}\n\nConsider waiting until the passage is clear. Retract now?</DeltaV_DockRetractConfirm>
   <!-- Unanchored takeoff abandonment (2026-09-19) -->
   <DeltaV_SectorMapAbandonConfirm>Launching will abandon the map of the current sector, "{0}", by the vanilla unanchored-takeoff rule - the map and everything not leaving with the ship will be permanently lost (build a grav anchor on that map to keep it). Proceed?</DeltaV_SectorMapAbandonConfirm>
   <!-- Docking plan (2026-09-21, phase 4) -->

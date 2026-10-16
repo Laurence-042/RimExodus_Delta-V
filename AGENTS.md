@@ -197,6 +197,7 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `ShipFlightTransitionService`：分离、跨图转移、对接发起和源图善后。
 - `DockingCompletion`：对接完成收尾的模板方法基类；shuttle 子类只注入落地冷却与标签，运行时键由容器注销统一清理；公共源图处置/聚焦交接/通知不得分叉。
 - `LandingApproachController`：唯一对接计划、落点注册、复核和完成触发。
+- `Building_DockingPort` / `Building_DockingChannel` / `DockingChannelPreview` / `Patch_DockingPort`：单格对接口、非基架气密通道及限定门房间的真空语义；`TryFindChannel` 共用生成／建造及双方降落预览／事件复核，`RetractChannelsFor` 共用双方脱离清理。建造朝向不受原版门绘制自动转向覆盖；到达通知只作用于本次目标图。完整机制见星区架构 §7。
 - `GravshipInterop`：原版 Gravship 私有逻辑镜像、designator 适配、预览和 `CaptureDomain/StripDomain/PlaceIntoMap`。
 - `SpaceShuttleService`：shuttle 起飞、注册／读档时虚拟推进器注入、侵入指挥与命中落点、事件驱动的口袋清理；侵入导弹的制导/碰撞由 `SpaceProjectileService` 唯一负责，跳帮后效的落地与普通对接共用 Gravship 转移和 `DockingCompletion`。
 - `SpaceWeaponService` / `SpaceWeaponShot`：跨容器开火总装与唯一 Prepare→Launch→Commit 事务；逐发弹药、装弹机基础脉冲、沿物理链逐段预留的加速脉冲、电容放电与末端炮口在此一次性冻结，成功发射后统一扣费；缺电加速段跳过且不增加弹速，后段仍继续检查。附件电容独立储能、限速充电，仅充电需求变化时更新 `CompPowerTrader.PowerOutput`。锁定弧与发射轴分离，全部武器统一以实例 `fireDeviationDeg` 检查目标与实际炮口/固定轴夹角。Traverse 无独立逐 tick 扫描，只按火控或原版图内目标命令转向；载人岗位统一使用原版 `CompMannable + ManTurret`，操作人只读原版 Mannable、位置只读原版交互格；预留人选存武器 comp，补位由统一原版 Job 清理通知及武器/Pawn 事件触发。`SpaceWeaponManning` 仅提供无状态的自瞄开火、成品交互点、实例建造保护和岗位连线适配，不另存操作人或镜像 Mannable getter。Mannable/Traverse/Magazine/Attachment/加速件以正交 Comp/能力接口参与，第三方不得建立家族特判。

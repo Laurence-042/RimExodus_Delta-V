@@ -100,8 +100,11 @@
   <DeltaV_DockExtendDesc>沿本对接口的朝向延伸密封对接通道，直至首个结构。范围内没有结构则失败。</DeltaV_DockExtendDesc>
   <DeltaV_DockRetractLabel>收起对接通道</DeltaV_DockRetractLabel>
   <DeltaV_DockRetractDesc>收回对接通道，还原为开放太空。</DeltaV_DockRetractDesc>
-  <DeltaV_DockNoFace>本对接口朝向的对接范围内没有结构。</DeltaV_DockNoFace>
+  <DeltaV_DockNoFace>本对接口朝向的范围内没有可用对接面，或路线被已有通道阻挡。通道不能串接。</DeltaV_DockNoFace>
   <DeltaV_DockChannelLaid>对接通道已延伸：{0} 格。</DeltaV_DockChannelLaid>
+  <DeltaV_DockConnected>气密通道已连接：{0} 格</DeltaV_DockConnected>
+  <DeltaV_DockFolded>通道已收起；探测范围：{0} 格</DeltaV_DockFolded>
+  <DeltaV_DockRetractConfirm>收回通道后，以下人员和物品会留在当前地图的原格，暴露于太空：\n\n{0}\n\n建议等人员和物品离开通道后再收回。现在收回？</DeltaV_DockRetractConfirm>
   <!-- 无锚起飞弃置（2026-09-19） -->
   <DeltaV_SectorMapAbandonConfirm>发射后将按原版无锚起飞语义弃置当前所在星区的地图「{0}」——地图与其中未随船离开的一切都将永久失去（在该地图上建造逆重锚可使其保留）。确认发射？</DeltaV_SectorMapAbandonConfirm>
   <!-- 对接计划（2026-09-21 阶段4） -->

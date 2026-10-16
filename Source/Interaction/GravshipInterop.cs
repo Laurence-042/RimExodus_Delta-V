@@ -132,8 +132,12 @@ namespace DeltaV
             }
 
             var thrusters = (Dictionary<Thing, PositionData>)ThrustersField?.GetValue(gravship);
+            var previewThings = (Dictionary<Thing, PositionData>)ThingsField.GetValue(gravship);
             foreach (Thing thing in map.listerThings.AllThings)
             {
+                // 对接口与舱体共用原版 PositionData 旋转链，选点显示不得另算门的位置和朝向。
+                if (thing is Building_DockingPort port && port.Spawned && cells.Contains(port.Position))
+                    previewThings[port] = new PositionData(port.Position - origin, port.Rotation);
                 if (thing is Building building && building.Spawned && cells.Contains(building.Position)
                     && building.TryGetComp<CompGravshipThruster>() is CompGravshipThruster thruster
                     && thruster.CanBeActive)

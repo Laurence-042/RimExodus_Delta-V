@@ -29,6 +29,7 @@ namespace DeltaV
 
         // 对接口（2026-09-18 基架归属设计）与其铺设的对接通道地形；解锁科技真空屏障。
         public static ThingDef DeltaV_DockingPort;
+        public static ThingDef DeltaV_DockingPassage;
 
         public static TerrainDef DeltaV_DockingChannel;
 

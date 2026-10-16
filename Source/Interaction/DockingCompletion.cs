@@ -96,7 +96,7 @@ namespace DeltaV
                     "docking source pocket map removed after merge (leftovers disposed per confirmation)");
             }
             HostColonistBarVisibility.NotifyDockingStateChanged();
-            Building_DockingPort.NotifyLandingSettled();
+            Building_DockingPort.NotifyLandingSettled(targetMap);
             Messages.Message("DeltaV_DockSuccess".Translate(label),
                 MessageTypeDefOf.PositiveEvent, false);
             if (!impactLanding) transitions.DiscardPendingDocking(universe);

@@ -7,25 +7,22 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 对接口（2026-09-18 基架归属设计）：门类建筑，常闭密封（ExchangeVacuum=false，
-    /// 开门通行也不透真空——它就是船体与外界之间的气闸边界）。建造朝向决定对接通道
-    /// 的延伸方向。完成停靠后自动沿朝向铺设对接通道（DeltaV_DockingChannel
-    /// 地形 + 建造顶）直至遇到首个障碍（wreck 结构/非 Space 地形/建筑）；范围内无障碍
-    /// 则保持收起。通道是「类基架」地形：可铺在 Space 上供通行，但不属于基架——不进
-    /// 引擎连通域、不参与捕获与剪影。密封由原版房间机制原生承担：通道格有顶且地形
-    /// 不 exposesToVacuum，Space 不可通行构成房间边界，通道自成一个不暴露真空的房间
-    /// （Room.ExposedToSpace = 无顶 ∨ 地形 exposesToVacuum）。对接口被摧毁/移除（含随
-    /// 脱离停靠开始自由飞行）时同步移除通道并还原为 Space。
+    /// 对接口沿玩家指定朝向生成非基架通道；每格由独立气密的常开门单元承接原版
+    /// Region/寻路。密封根入口见 Patch_DockingPort；不铺实体屋顶、不改普通 Space。
     /// </summary>
-    public class Building_DockingPort : Building_Door
+    public class Building_DockingPort : Building_SealedDockingDoor
     {
         /// <summary>本端口铺设的通道格（存档事实：多端口通道可能相邻，不可按地形反推）。</summary>
         private List<IntVec3> channelCells = new List<IntVec3>();
+        private IntVec3 channelFace = IntVec3.Invalid;
+        private bool changingChannel;
 
-        public bool ChannelExtended => channelCells.Count > 0;
+        public bool ChannelExtended => channelFace.IsValid;
 
         public void RebasePrefabLocalState(Map map, IntVec3 sourceMin, IntVec3 root, Rot4 rotation)
         {
+            if (channelFace.IsValid)
+                channelFace = root + PrefabUtility.GetAdjustedLocalPosition(channelFace - sourceMin, rotation);
             channelCells = channelCells
                 .Select(cell => root + PrefabUtility.GetAdjustedLocalPosition(cell - sourceMin, rotation))
                 .Where(cell => cell.InBounds(map)
@@ -35,13 +32,11 @@ namespace DeltaV
 
         private int ChannelRange => def.GetModExtension<DefModExtension_DockingPort>()?.channelRange ?? 8;
 
-        /// <summary>密封门：开门通行仍不与相邻房间交换真空。</summary>
-        public override bool ExchangeVacuum => false;
-
         public override void ExposeData()
         {
             base.ExposeData();
             Scribe_Collections.Look(ref channelCells, "channelCells", LookMode.Value);
+            Scribe_Values.Look(ref channelFace, "channelFace", IntVec3.Invalid);
             if (Scribe.mode == LoadSaveMode.LoadingVars && channelCells == null)
             {
                 channelCells = new List<IntVec3>();
@@ -54,6 +49,7 @@ namespace DeltaV
             {
                 yield return gizmo;
             }
+            if (Faction != Faction.OfPlayer) yield break;
             yield return new Command_Action
             {
                 defaultLabel = ChannelExtended
@@ -66,7 +62,7 @@ namespace DeltaV
                 icon = ContentFinder<Texture2D>.Get(ChannelExtended ? "UI/Designators/Cancel" : "UI/Designators/Claim"),
                 action = delegate
                 {
-                    if (ChannelExtended) RetractChannel();
+                    if (ChannelExtended) RequestRetraction();
                     else TryExtendChannel(silent: false);
                 }
             };
@@ -76,16 +72,14 @@ namespace DeltaV
         /// 放置落定后的自动延伸（战术对接由 DockingCompletion 通知，原版战略到达由补丁通知）。
         /// 静默失败：口袋图/开阔太空上的端口范围内无障碍，保持收起即可。
         /// </summary>
-        public static void NotifyLandingSettled()
+        public static void NotifyLandingSettled(Map map)
         {
-            foreach (Map map in Find.Maps)
+            if (map == null || map.Disposed) return;
+            foreach (Thing thing in map.listerThings.ThingsOfDef(DeltaVDefOf.DeltaV_DockingPort).ToList())
             {
-                foreach (Thing thing in map.listerThings.ThingsOfDef(DeltaVDefOf.DeltaV_DockingPort))
+                if (thing is Building_DockingPort port && !port.ChannelExtended)
                 {
-                    if (thing is Building_DockingPort port && port.ChannelExtended == false)
-                    {
-                        port.TryExtendChannel(silent: true);
-                    }
+                    port.TryExtendChannel(silent: true);
                 }
             }
         }
@@ -102,26 +96,8 @@ namespace DeltaV
                 return false;
             }
             Map map = Map;
-            IntVec3 step = Rotation.FacingCell;
             var cells = new List<IntVec3>();
-            IntVec3 probe = Position + step;
-            bool docked = false;
-            for (int i = 0; i < ChannelRange; i++)
-            {
-                if (!probe.InBounds(map))
-                {
-                    break;
-                }
-                if (map.terrainGrid.TerrainAt(probe) != TerrainDefOf.Space
-                    || probe.GetFirstBuilding(map) != null)
-                {
-                    docked = true;
-                    break;
-                }
-                cells.Add(probe);
-                probe += step;
-            }
-            if (!docked)
+            if (!TryFindChannel(map, Position, Rotation, ChannelRange, cells, out IntVec3 face))
             {
                 if (!silent)
                 {
@@ -129,12 +105,30 @@ namespace DeltaV
                 }
                 return false;
             }
-            foreach (IntVec3 cell in cells)
-            {
-                map.terrainGrid.SetTerrain(cell, DeltaVDefOf.DeltaV_DockingChannel);
-                map.roofGrid.SetRoof(cell, RoofDefOf.RoofConstructed);
-            }
+            changingChannel = true;
             channelCells = cells;
+            channelFace = face;
+            try
+            {
+                foreach (IntVec3 cell in cells)
+                {
+                    map.terrainGrid.SetTerrain(cell, DeltaVDefOf.DeltaV_DockingChannel);
+                    var segment = (Building_DockingChannel)ThingMaker.MakeThing(DeltaVDefOf.DeltaV_DockingPassage);
+                    segment.port = this;
+                    segment.SetFaction(Faction);
+                    GenSpawn.Spawn(segment, cell, map, Rotation);
+                    if (!segment.Spawned)
+                        throw new System.InvalidOperationException($"Docking passage did not spawn at {cell}.");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                changingChannel = false;
+                RetractChannel();
+                Log.Error($"[DeltaV] Docking passage extension failed on {UniverseManager.MapTag(map)}: {ex}");
+                return false;
+            }
+            finally { changingChannel = false; }
             if (!silent && cells.Count > 0)
             {
                 Messages.Message("DeltaV_DockChannelLaid".Translate(cells.Count), this,
@@ -143,27 +137,109 @@ namespace DeltaV
             return true;
         }
 
-        /// <summary>收起通道：还原为 Space 并移除随通道铺设的建造顶。</summary>
+        /// <summary>延伸与建造预览共用的几何入口；cells 即实际待铺设格，face 不铺设。</summary>
+        internal static bool TryFindChannel(Map map, IntVec3 root, Rot4 rotation, int range,
+            List<IntVec3> cells, out IntVec3 face, Building_DockingPort existing = null,
+            ISet<IntVec3> landingStructure = null)
+        {
+            cells.Clear();
+            face = IntVec3.Invalid;
+            IntVec3 step = rotation.FacingCell;
+            IntVec3 probe = root + step;
+            for (int i = 0; i < range && probe.InBounds(map); i++, probe += step)
+            {
+                if (existing != null && map.terrainGrid.TerrainAt(probe) == DeltaVDefOf.DeltaV_DockingChannel
+                    && probe.GetFirstThing<Building_DockingChannel>(map)?.port == existing)
+                {
+                    cells.Add(probe);
+                    continue;
+                }
+                // 临时通道不是对接面；禁止串接，避免收回一段时牵连未确认留置内容的另一段。
+                if (map.terrainGrid.TerrainAt(probe) == DeltaVDefOf.DeltaV_DockingChannel
+                    || probe.GetFirstThing<Building_DockingChannel>(map) != null) return false;
+                // 选点时只叠加尚未落位的结构；其余阻断、长度和接触面规则与实物完全相同。
+                if (landingStructure?.Contains(probe) == true
+                    || map.terrainGrid.TerrainAt(probe) != TerrainDefOf.Space
+                    || probe.GetFirstBuilding(map) != null)
+                {
+                    face = probe;
+                    return true;
+                }
+                cells.Add(probe);
+            }
+            return false;
+        }
+
+        /// <summary>收起通道：只移除本端口生成的单元与地形，内容物原格保留。</summary>
         public void RetractChannel()
         {
+            if (changingChannel) return;
             if (!Spawned)
             {
-                channelCells = new List<IntVec3>();
                 return;
             }
             Map map = Map;
-            foreach (IntVec3 cell in channelCells)
+            changingChannel = true;
+            try
             {
-                if (cell.InBounds(map) && map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.DeltaV_DockingChannel)
+                foreach (IntVec3 cell in channelCells)
                 {
-                    map.terrainGrid.SetTerrain(cell, TerrainDefOf.Space);
+                    if (!cell.InBounds(map)) continue;
+                    var segment = cell.GetFirstThing<Building_DockingChannel>(map);
+                    if (segment?.port == this) segment.Destroy(DestroyMode.Vanish);
+                    if (map.terrainGrid.TerrainAt(cell) == DeltaVDefOf.DeltaV_DockingChannel)
+                        map.terrainGrid.SetTerrain(cell, TerrainDefOf.Space);
                 }
-                if (cell.InBounds(map) && map.roofGrid.RoofAt(cell) == RoofDefOf.RoofConstructed)
-                {
-                    map.roofGrid.SetRoof(cell, null);
-                }
+                channelCells.Clear();
+                channelFace = IntVec3.Invalid;
             }
-            channelCells = new List<IntVec3>();
+            finally { changingChannel = false; }
+        }
+
+        private void RequestRetraction()
+        {
+            List<Thing> contents = ChannelContents().Distinct().ToList();
+            if (contents.Count == 0) { RetractChannel(); return; }
+            string names = string.Join("\n", contents.Select(t => "- " + t.LabelCap));
+            Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
+                "DeltaV_DockRetractConfirm".Translate(names), () => RetractChannel()));
+        }
+
+        private IEnumerable<Thing> ChannelContents()
+        {
+            if (!Spawned) yield break;
+            foreach (IntVec3 cell in channelCells)
+                if (cell.InBounds(Map))
+                    foreach (Thing content in Map.thingGrid.ThingsListAt(cell))
+                        if (content is Pawn || content.def.category == ThingCategory.Item)
+                            yield return content;
+        }
+
+        public override string GetInspectString()
+        {
+            string baseText = base.GetInspectString()?.TrimEnd();
+            string channelText = (ChannelExtended
+                ? "DeltaV_DockConnected".Translate(channelCells.Count)
+                : "DeltaV_DockFolded".Translate(ChannelRange)).ToString();
+            return baseText.NullOrEmpty() ? channelText : baseText + "\n" + channelText;
+        }
+
+        // 结构/地形事件只复核相关端口；没有逐 tick 轮询或第二套通道几何。
+        internal static void NotifyCellChanged(Map map, IntVec3 cell)
+        {
+            if (map == null || map.Disposed) return;
+            List<Thing> ports = map.listerThings.ThingsOfDef(DeltaVDefOf.DeltaV_DockingPort);
+            if (ports.Count == 0) return;
+            foreach (Thing thing in ports.ToList())
+            {
+                if (!(thing is Building_DockingPort port) || !port.Spawned || port.changingChannel
+                    || !port.ChannelExtended || (port.channelFace != cell && !port.channelCells.Contains(cell))) continue;
+                var cells = new List<IntVec3>();
+                bool valid = TryFindChannel(map, port.Position, port.Rotation, port.ChannelRange,
+                    cells, out IntVec3 face, port) && face == port.channelFace
+                    && cells.SequenceEqual(port.channelCells);
+                if (!valid) port.RetractChannel();
+            }
         }
 
         /// <summary>
@@ -179,8 +255,7 @@ namespace DeltaV
         // ---- 脱离事务的通道编排（解耦架构 §9）----
 
         /// <summary>
-        /// 本端口的通道是否与指定脱离域相关：端口在脱离域上，或任一通道格与脱离域
-        /// 四邻接。A、B、C 场景只收回与本次脱离相关的通道，B、C 之间无关通道保留。
+        /// 只按本端口与实际对接面判断脱离关系；路过第三艘船旁边不建立连接关系。
         /// </summary>
         private bool ChannelRelatesTo(HashSet<IntVec3> departingDomain)
         {
@@ -188,17 +263,7 @@ namespace DeltaV
             {
                 return true;
             }
-            foreach (IntVec3 cell in channelCells)
-            {
-                foreach (IntVec3 delta in GenAdj.CardinalDirectionsAround)
-                {
-                    if (departingDomain.Contains(cell + delta))
-                    {
-                        return true;
-                    }
-                }
-            }
-            return false;
+            return channelFace.IsValid && departingDomain.Contains(channelFace);
         }
 
         /// <summary>
@@ -216,18 +281,9 @@ namespace DeltaV
                 {
                     continue;
                 }
-                foreach (IntVec3 cell in port.channelCells)
-                {
-                    foreach (Thing content in map.thingGrid.ThingsListAt(cell))
-                    {
-                        if (content is Pawn || content.def.category == ThingCategory.Item)
-                        {
-                            leftBehind.Add(content);
-                        }
-                    }
-                }
+                leftBehind.AddRange(port.ChannelContents());
             }
-            return leftBehind;
+            return leftBehind.Distinct().ToList();
         }
 
         /// <summary>
@@ -270,21 +326,10 @@ namespace DeltaV
                 return;
             }
             int range = def.GetModExtension<DefModExtension_DockingPort>()?.channelRange ?? 8;
-            IntVec3 step = rot.FacingCell;
-            IntVec3 probe = center + step;
             var cells = new List<IntVec3>();
-            for (int i = 0; i < range && probe.InBounds(map); i++)
+            if (Building_DockingPort.TryFindChannel(map, center, rot, range, cells, out IntVec3 face))
             {
-                if (map.terrainGrid.TerrainAt(probe) != TerrainDefOf.Space
-                    || probe.GetFirstBuilding(map) != null)
-                {
-                    var face = new List<IntVec3> { probe };
-                    GenDraw.DrawFieldEdges(face, new Color(1f, 0.3f, 0.3f, 0.6f));
-                    GenDraw.DrawFieldEdges(cells, new Color(0.3f, 1f, 0.5f, 0.4f));
-                    return;
-                }
-                cells.Add(probe);
-                probe += step;
+                GenDraw.DrawFieldEdges(new List<IntVec3> { face }, new Color(1f, 0.3f, 0.3f, 0.6f));
             }
             GenDraw.DrawFieldEdges(cells, new Color(0.3f, 1f, 0.5f, 0.4f));
         }

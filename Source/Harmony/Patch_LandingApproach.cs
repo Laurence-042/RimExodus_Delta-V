@@ -94,11 +94,16 @@ namespace DeltaV
     [HarmonyPatch(typeof(WorldComponent_GravshipController), "LandingEnded")]
     public static class Patch_GravshipController_LandingEnded
     {
-        public static void Postfix()
+        public static void Prefix(Map ___map, out Map __state)
+        {
+            __state = ___map;
+        }
+
+        public static void Postfix(Map __state)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             universe?.ShipTransitions.ClearLandingCaptureScope();
-            Building_DockingPort.NotifyLandingSettled();
+            Building_DockingPort.NotifyLandingSettled(__state);
         }
     }
 

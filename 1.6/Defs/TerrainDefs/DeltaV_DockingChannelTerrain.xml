@@ -2,15 +2,13 @@
 <Defs>
 
 	<!--
-		对接通道（2026-09-18 基架归属设计）：对接口铺设的类基架地形——可通行、可铺在
-		Space 上，但不 exposesToVacuum 且非 foundation：配合建造顶由原版房间机制原生
-		密封（通道自成一个不暴露真空的房间）。不进引擎连通域/捕获/剪影；无 affordances
-		——基架与其他地形设计器不可覆盖铺设。仅由对接口程序化铺设/收起，玩家不可建造。
+		非基架通道地形只提供可行走地面；气密与方向贴图由独立的通行单元承担。
+		无建筑承载能力，玩家不可直接建造或覆盖。收回时原地恢复 Space。
 	-->
 	<TerrainDef>
 		<defName>DeltaV_DockingChannel</defName>
 		<label>docking channel</label>
-		<texturePath>Terrain/Surfaces/OrbitalPlatform/OrbitalPlatform</texturePath>
+		<dontRender>true</dontRender>
 		<edgeType>Hard</edgeType>
 		<renderPrecedence>250</renderPrecedence>
 		<layerable>false</layerable>

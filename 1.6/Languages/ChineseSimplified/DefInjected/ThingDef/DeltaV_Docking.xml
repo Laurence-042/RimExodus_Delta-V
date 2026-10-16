@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_DockingPort.label>对接口</DeltaV_DockingPort.label>
+  <DeltaV_DockingPort.description>用于船间通行的气密对接口。降落完成后，沿建造朝向探测 8 格内的首个结构，铺设单格宽的甲板与蓝色力场通道。每格通道独立隔绝真空，无需实体屋顶。通道不是基架，不随飞船起飞；任一端离场或通道破损时收回。收回后人员和物品原格留置，并暴露于太空。</DeltaV_DockingPort.description>
+  <DeltaV_DockingPassage.label>气密对接通道</DeltaV_DockingPassage.label>
+  <DeltaV_DockingPassage.description>由对接口铺设的可收回甲板，两侧蓝色力场隔绝真空。它不是飞船基架。</DeltaV_DockingPassage.description>
+</LanguageData>

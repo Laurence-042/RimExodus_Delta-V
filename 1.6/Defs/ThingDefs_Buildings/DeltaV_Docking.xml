@@ -4,13 +4,14 @@
 	<!--
 		对接口（2026-09-18 基架归属设计）：门类建筑（Building_DockingPort : Building_Door），
 		常闭密封（ExchangeVacuum=false）。rotatable——建造朝向决定对接通道延伸方向；
-		需铺在基架上；真空屏障科技解锁。贴图暂用原版门占位。
+		需铺在基架上；真空屏障科技解锁。门叶复用原版滑动绘制，通道为常开气密 Portal。
 	-->
 	<ThingDef ParentName="DoorBase">
 		<defName>DeltaV_DockingPort</defName>
 		<label>docking port</label>
-		<description>A sealed airlock door for deep-space docking. When the ship enters fixed mode, the port automatically extends a docking channel in its facing direction toward the nearest structure. The channel is walkable and vacuum-tight, but is not substructure: it never joins the ship's grav-engine domain. Retract or remove the port to fold the channel away.</description>
+		<description>A sealed docking airlock. After landing, it extends a one-cell-wide force-field passage toward the first structure within 8 cells. Each passage cell is independently vacuum-tight, with no physical roof. The passage is not substructure and retracts when either endpoint departs, the passage breaks, or its docking face disappears. Retraction leaves people and items in place, exposed to space.</description>
 		<thingClass>DeltaV.Building_DockingPort</thingClass>
+		<designationCategory>Odyssey</designationCategory>
 		<rotatable>true</rotatable>
 		<stuffCategories Inherit="False" />
 		<useStuffTerrainAffordance>false</useStuffTerrainAffordance>
@@ -23,13 +24,22 @@
 			<MaxHitPoints>200</MaxHitPoints>
 		</statBases>
 		<graphicData>
-			<texPath>Things/Building/Door/DoorSimple_Mover</texPath>
+			<texPath>Things/Building/Docking/DockingPort_Mover</texPath>
 			<graphicClass>Graphic_Single</graphicClass>
 			<damageData>
 				<enabled>false</enabled>
 			</damageData>
 		</graphicData>
-		<uiIconPath>Things/Building/Door/DoorSimple_MenuIcon</uiIconPath>
+		<uiIconPath>Things/Building/Docking/DockingPort_MenuIcon</uiIconPath>
+		<building>
+			<paintable>false</paintable>
+			<blueprintClass>Blueprint_Build</blueprintClass>
+			<blueprintGraphicData>
+				<texPath>Things/Building/Docking/DockingPort_MenuIcon</texPath>
+				<graphicClass>Graphic_Single</graphicClass>
+			</blueprintGraphicData>
+		</building>
+		<useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
 		<costList>
 			<Steel>40</Steel>
 			<ComponentIndustrial>1</ComponentIndustrial>
@@ -42,6 +52,48 @@
 				<channelRange>8</channelRange>
 			</li>
 		</modExtensions>
+	</ThingDef>
+
+	<!-- 仅由对接口生成；不继承 DoorBase 的建造/拆除/禁用操作。 -->
+	<ThingDef ParentName="BuildingBase">
+		<defName>DeltaV_DockingPassage</defName>
+		<label>sealed docking passage</label>
+		<description>A retractable deck with blue vacuum barriers. It belongs to its docking port, not to the ship's substructure.</description>
+		<thingClass>DeltaV.Building_DockingChannel</thingClass>
+		<category>Building</category>
+		<size>(1,1)</size>
+		<rotatable>true</rotatable>
+		<altitudeLayer>FloorEmplacement</altitudeLayer>
+		<drawerType>RealtimeOnly</drawerType>
+		<tickerType>Normal</tickerType>
+		<selectable>false</selectable>
+		<useHitPoints>true</useHitPoints>
+		<fillPercent>0</fillPercent>
+		<passability>Standable</passability>
+		<surfaceType>Item</surfaceType>
+		<leaveResourcesWhenKilled>false</leaveResourcesWhenKilled>
+		<terrainAffordanceNeeded>Light</terrainAffordanceNeeded>
+		<statBases>
+			<MaxHitPoints>100</MaxHitPoints>
+			<Flammability>0</Flammability>
+			<Beauty>0</Beauty>
+		</statBases>
+		<graphicData>
+			<texPath>Things/Building/Docking/DockingChannel</texPath>
+			<graphicClass>Graphic_Single</graphicClass>
+			<drawSize>(1.19,1.12)</drawSize>
+			<damageData><enabled>false</enabled></damageData>
+		</graphicData>
+		<building>
+			<isEdifice>true</isEdifice>
+			<isInert>true</isInert>
+			<canExchangeVacuum>false</canExchangeVacuum>
+			<!-- 气密由 Building_DockingChannel.IsAirtight/ExchangeVacuum 按有效端口判定。
+			     原版 Def 的 isAirtight 要求 Fillage=Full，不适用于无掩体的力场通道。 -->
+			<deconstructible>false</deconstructible>
+			<ai_chillDestination>false</ai_chillDestination>
+			<paintable>false</paintable>
+		</building>
 	</ThingDef>
 
 </Defs>

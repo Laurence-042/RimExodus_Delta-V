@@ -87,6 +87,7 @@ ID 的**分配**仍复用唯一、单调、不回收的分配入口；ID 的**�
 
 - 允许在已有 SpaceObject 内建造新飞船，包括在已有飞船旁建造新船。
 - 仅在太空图允许逆重基架在逆重引擎覆盖范围外建造；地表保留原版引擎范围限制。
+  建造许可与鼠标提示共用 `Patch_SubstructureBuildRules` 的参考系判定，包含 `Tile.Invalid` 的飞船口袋图；不能额外要求有效轨道 tile。天然岩顶仍拒建并显示原因。
 - 玩家可新铺基架，修改为新结构归属，再建驾驶台使其成为新船。
 - 在已有船或小行星地面上新造、降落的船按相应同图／停放关系进入对接；与无主台残骸合图后仍为自由飞行，状态统一按 §5 判定。
 - 地面新造船受重力门禁约束，只能逆重起飞；飞船不能带动原版小行星。
@@ -236,7 +237,7 @@ ShipController（共同基类，统一驾驶契约）
 
 通道不是基架，不参与飞船控制域，也不建立可联合推进的机械连接。允许基架贴边后，对接口仍承担气密通行功能。
 
-**方案建议**：收通道是脱离事务的一部分，不能只依赖离开一方端口的 `DeSpawn`；另一侧端口仍在原图，也必须通知收回。A、B、C 场景只移除本次脱离相关通道，B、C 之间有效通道保留。通道几何／端口引用仅用于清理，不成为 §5 禁止的飞船对接网络。
+**当前实现**：收通道属于脱离事务，由 `RetractChannelsFor` 统一编排；端口自身 `DeSpawn` 同样收回。按端口格或实际对接面是否落在脱离域判断相关性，不因通道侧面碰到第三艘船而误判。A、B、C 场景只移除本次脱离相关通道，B、C 之间有效通道保留。通道几何／端口引用仅用于清理，不成为 §5 禁止的飞船对接网络。气密实现见星区架构 §7。
 
 **已定**：若离开会留下 Pawn 或物品，必须在操作前用对话框明确列出被留下的内容，提醒玩家若非十万火急，建议等人员上船再离开。不能只提示“有滞留者”而不说明是谁／哪些物品。
 
@@ -326,7 +327,7 @@ ShipController（共同基类，统一驾驶契约）
 | `Interaction/LandingApproachController.cs`、`Harmony/Patch_GravshipLandingAdjacency.cs` | 贴边合法／重叠非法、计划按新船体解析，完成时取消双方主动控制 |
 | `Interaction/PilotController.cs`、`ShipAutopilot.cs`、`Core/ShipPhysics.cs`、现有 MPC 制导／控制模型入口 | 公共拆分在推进器出力前调用，玩家 controller 单独负责确认；每个对象只积分一次；被动阻力不拆船，实际积分与 MPC 预测同口径 |
 | Controller 基类、玩家／NPC 子类与 NPC AI 组件边界（由现有驾驶服务重构，名称施工时确定） | 强制同基类双子类；玩家手操／自动驾驶与 NPC AI 请求共同接入驾驶流程，不以派系分支代替继承关系，不复制制导或物理 |
-| `Buildings/Building_DockingPort.cs` | 当前主要依赖自身 DeSpawn 收通道；补全任一方离场的收回编排与 Pawn／物品留置及提示 |
+| `Buildings/Building_DockingPort.cs` | 双方离场收回与 Pawn／物品留置已接线；气密通道契约见星区架构 §7，游戏内验收见 TODO |
 | `Lifecycle/SpaceLifecycle.cs`、`SpaceMapGovernance.cs`、`Generation/PocketMapHostService.cs` | 容器清理与环境地图边界，空图检查包含滞留实体及附属图引用 |
 | `Rendering/*`、`Interaction/ShellPicking.cs`、`BoardingPodFlight.cs` | 从“船即对象”改为“地图容器承载船”；防重复绘壳，目标／聚焦与船控制选择分开 |
 | Keyed 翻译、README、AGENTS §20、星区架构及相关专题 | 施工落地后同步已实现行为与唯一入口，替换旧规则；当前讨论阶段保持不动 |
