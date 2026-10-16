@@ -81,7 +81,7 @@
 		<graphicData>
 			<texPath>Things/Building/Docking/DockingChannel</texPath>
 			<graphicClass>Graphic_Single</graphicClass>
-			<drawSize>(1.19,1.12)</drawSize>
+			<drawSize>(1.209,1.258)</drawSize>
 			<damageData><enabled>false</enabled></damageData>
 		</graphicData>
 		<building>
