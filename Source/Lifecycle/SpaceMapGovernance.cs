@@ -61,19 +61,14 @@ namespace DeltaV
         {
             if (map == null || map.Disposed) return false;
             if (map == Find.CurrentMap || map.IsPlayerHome || HasPlayerPawn(map)
+                || universe?.ShipTransitions.IsAwaitingDockingCleanup(map) == true
                 || universe?.Generation?.IsGenerating(map) == true)
             {
                 return true;
             }
-            // 图上有玩家船（主台派系 = 玩家）即保护（停靠船保持宿主图活跃）。
-            if (universe != null)
-            {
-                foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
-                {
-                    if (ShipRegistry.FactionOf(ship) == Faction.OfPlayer) return true;
-                }
-            }
-            return false;
+            SpaceObject container = universe?.FrameOf(map);
+            return container?.HasTag(SpaceObjectTag.Ship) == true
+                && container.HasFaction(Faction.OfPlayerSilentFail);
         }
 
         public static IntVec3 GenerationSize(MapParent parent)

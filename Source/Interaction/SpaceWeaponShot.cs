@@ -67,7 +67,7 @@ namespace DeltaV
             Vector2 mapDirection = SpaceTransform.Rotate(Vector2.right, launchMapAngle);
             bool guaranteedMissileHit = false;
             if (target?.map != null && !target.map.Disposed
-                && target.Tag == SpaceObjectTag.Projectile)
+                && target.HasTag(SpaceObjectTag.Projectile) == true)
             {
                 foreach (Thing thing in target.map.listerThings.AllThings)
                 {
@@ -327,8 +327,9 @@ namespace DeltaV
         {
             if (weapon.WeaponProps.topTurret) return true;
             Map map = weapon.parent.Map;
-            int owner = SpaceWeaponGeometry.OwnerIdOf(weapon.parent);
-            if (map == null || owner <= 0) return false;
+            ShipBase ship = weapon.OwnerShip;
+            if (map == null || !ship.IsValid) return false;
+            var hull = new HashSet<IntVec3>(ship.HullCells);
             Vector2 dir = SpaceTransform.Rotate(Vector2.right, launchMapAngle);
             IntVec3 previous = IntVec3.Invalid;
             float max = Mathf.Sqrt(map.Size.x * map.Size.x + map.Size.z * map.Size.z) + 2f;
@@ -340,7 +341,7 @@ namespace DeltaV
                 if (cell == previous) continue;
                 previous = cell;
                 if (weapon.parent.OccupiedRect().Contains(cell)) continue;
-                if (SubstructureOwnership.TryGet(map)?.OwnerAt(cell) != owner) continue;
+                if (!hull.Contains(cell)) continue;
                 SpaceCellKind kind = SpaceStructureRules.ClassifyCell(map, cell, out Thing building);
                 if ((kind == SpaceCellKind.Building || kind == SpaceCellKind.NaturalRock)
                     && SpaceStructureRules.BuildingHitChance(building) > 0f) return false;

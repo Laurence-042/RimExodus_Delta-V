@@ -1,7 +1,8 @@
-param([switch]$Strict)
+param([switch]$Strict, [string]$GameRoot)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
-$managed = (Resolve-Path "$repo/../../RimWorldWin64_Data/Managed").Path
+if (!$GameRoot) { $GameRoot = "$repo/../.." }
+$managed = (Resolve-Path "$GameRoot/RimWorldWin64_Data/Managed").Path
 $sdkRoot = Join-Path $env:ProgramFiles 'dotnet/sdk'
 $sdkVersion = Get-ChildItem $sdkRoot -Directory | Where-Object { $_.Name -match '^8\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
 if (!$sdkVersion) { throw 'Install .NET 8 SDK to run the offline MPC regression.' }

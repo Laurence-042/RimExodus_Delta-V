@@ -201,30 +201,18 @@ namespace DeltaV
         public CompMannable Mannable => parent.TryGetComp<CompMannable>();
 
         /// <summary>
-        /// 本武器所属船（归属 = 武器脚下基架归属；无归属/残骸归属 → Invalid，无组激活）。
+        /// 本武器所属船：船体内置武器归于自身，独立建筑按基架域解析；无船则 Invalid。
         /// </summary>
-        public Ship OwnerShip
-        {
-            get
-            {
-                Map map = parent?.Map;
-                if (map == null) return Ship.Invalid;
-                SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
-                int owner = SpaceWeaponGeometry.OwnerIdOf(parent);
-                if (owner <= 0) return Ship.Invalid;
-                Ship ship = ShipRegistry.ShipByOwner(owner);
-                return ship.IsValid && ship.map == map ? ship : Ship.Invalid;
-            }
-        }
+        public ShipBase OwnerShip => ShipRegistry.ShipOf(parent, requireWholeFootprint: true);
 
-        /// <summary>本武器的组是否激活（激活位存主驾驶台 comp，随捕获搬运）。</summary>
+        /// <summary>本武器的组是否激活（读取所属船的共同火控状态，随身份锚搬运）。</summary>
         public bool GroupActive
         {
             get
             {
-                Ship ship = OwnerShip;
+                ShipBase ship = OwnerShip;
                 if (!ship.IsValid) return false;
-                int mask = ship.console?.WeaponGroupMask(salvoSet) ?? 0;
+                int mask = ship.Combat?.WeaponGroupMask(salvoSet) ?? 0;
                 return (mask & (1 << (groupNumber - 1))) != 0;
             }
         }

@@ -71,7 +71,7 @@ namespace DeltaV
             {
                 return "DeltaV_ReassignPickFirst".Translate();
             }
-            if (!c.InBounds(Map) || Map.terrainGrid.TerrainAt(c)?.IsSubstructure != true)
+            if (!c.InBounds(Map) || !SubstructureOwnership.HasFoundation(Map, c))
             {
                 return false;
             }
@@ -94,7 +94,7 @@ namespace DeltaV
             // 主台脚下格保护（解耦架构 §3.2 已定）：不写入、其余合法格正常修改、
             // 一次汇总提示——不通过强行改主台归属制造多个主台竞争。
             var protectedCells = new HashSet<IntVec3>();
-            foreach (Ship ship in ShipRegistry.ShipsOnMap(Find.CurrentMap))
+            foreach (Ship ship in ShipRegistry.FoundationShipsOnMap(Find.CurrentMap))
             {
                 if (ship.console?.parent != null && ship.console.parent.Spawned)
                 {
@@ -219,7 +219,7 @@ namespace DeltaV
             IntVec3 hover = UI.MouseMapPosition().ToIntVec3();
             SubstructureOwnership ownership = OwnershipOnCurrentMap(universe);
             if (ownership != null && hover.InBounds(Map)
-                && Map.terrainGrid.TerrainAt(hover)?.IsSubstructure == true)
+                && SubstructureOwnership.HasFoundation(Map, hover))
             {
                 int hoverOwner = ownership.OwnerAt(hover);
                 text += "\n" + "DeltaV_ReassignHoverOwner".Translate(

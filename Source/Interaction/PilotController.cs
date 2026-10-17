@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System;
 using RimWorld;
 using UnityEngine;
@@ -24,51 +25,37 @@ internal enum PilotEntryBlockReason : byte
 }
 
 /// <summary>
-/// 驾驶目标（太空战架构 §7.2 泛化）：Ship（主台归属）或在飞/停靠的 shuttle 舱体
-/// 二选一。飞船与 shuttle 不得有两套驾驶实现——本结构是两条链共用的目标句柄；
-/// 容器/帧角/派系/控制键的派生全部收口在此，调用方不得自行分叉。
+/// 驾驶目标句柄：普通船与单建筑船的共同事实只通过 ShipBase 读取。
+/// 具体布局与特殊操作能力由船体提供。
 /// </summary>
 public readonly struct PilotTarget
 {
-    public readonly Ship ship;
-    public readonly Building shuttle;
+    public readonly ShipBase Vessel;
 
-    private PilotTarget(Ship ship, Building shuttle)
-    {
-        this.ship = ship;
-        this.shuttle = shuttle;
-    }
+    private PilotTarget(ShipBase vessel) { Vessel = vessel; }
 
-    public static PilotTarget Of(Ship ship) => new PilotTarget(ship, null);
-    public static PilotTarget Of(Building shuttleBody) => new PilotTarget(Ship.Invalid, shuttleBody);
+    public static PilotTarget Of(ShipBase vessel) => new PilotTarget(vessel);
+    public static PilotTarget Of(Ship ship) => new PilotTarget(ship);
+    public static PilotTarget Of(Building shuttleBody) => new PilotTarget(shuttleBody?.TryGetComp<CompSpaceShuttle>()?.Vessel);
 
-    public bool IsValid => ship.IsValid || (shuttle != null && shuttle.Spawned && !shuttle.Destroyed);
+    public bool IsValid => Vessel?.IsValid == true;
     public static readonly PilotTarget Invalid = default;
 
     /// <summary>目标所在图（shuttle = 舱体所在图，含 MiniShip 口袋图与停靠宿主图）。</summary>
-    public Map Map => ship.IsValid ? ship.map : shuttle?.Map;
-
-    /// <summary>驾驶控制键（身份比较用；船 = 归属 ID，shuttle = thingID）。</summary>
-    public int ControlKey => ship.IsValid ? ship.ownerId : (shuttle?.thingIDNumber ?? 0);
+    public Map Map => Vessel?.Map;
 
     /// <summary>船体帧角 σ（船 = 主台朝向；shuttle = 舱体朝向）。</summary>
-    public float FrameAngle => ship.IsValid
-        ? ShipRegistry.LocalFrameAngle(ship)
-        : (shuttle != null ? ShipOrientation.AngleFromRot4(shuttle.Rotation) : 0f);
+    public float FrameAngle => Vessel?.FrameAngle ?? 0f;
 
     /// <summary>目标船体帧锚（连续 Map 坐标；船 = 控制域包围盒中心，shuttle = 舱体脚印中心）。</summary>
-    public Vector2 HullCenter => ship.IsValid
-        ? ShipRegistry.HullCenter(ship)
-        : (shuttle != null ? SpaceTransform.BoundsCenterOfCells(shuttle.OccupiedRect().Cells) : Vector2.zero);
+    public Vector2 HullCenter => Vessel?.HullCenter ?? Vector2.zero;
 
-    public Faction Faction => ship.IsValid ? ShipRegistry.FactionOf(ship) : shuttle?.Faction;
+    public Faction Faction => Vessel?.Faction;
 
-    public bool IsShuttle => !ship.IsValid;
+    public DriveSubject Identity => Vessel?.Identity ?? default;
 
     /// <summary>流程/诊断标签（船 = 归属名，shuttle = 舱体名；仅显示用）。</summary>
-    public string Label => ship.IsValid
-        ? Current.Game?.GetComponent<UniverseManager>()?.LabelForOwner(ship.ownerId) ?? $"structure #{ship.ownerId}"
-        : shuttle.LabelCap;
+    public string Label => Vessel?.Label ?? "";
 }
 
 internal readonly struct PilotPanelAction
@@ -110,15 +97,15 @@ internal readonly struct HeadingPanelAction
     public abstract class ShipController
     {
         protected readonly UniverseManager universe;
-        public readonly int OwnerId;
-        private Ship cachedShip;
+        public readonly DriveSubject OwnerId;
+        private ShipBase cachedShip = ShipBase.Invalid;
         internal readonly ShipAutoFireControl AutoFire;
         internal readonly ShipAutoManeuverControl AutoManeuver;
 
-        /// <summary>当前驾驶目标（Ship 或 shuttle 舱体，二选一）。无效 = 未驾驶。</summary>
+        /// <summary>当前驾驶目标（任一 ShipBase 实现）。无效 = 未驾驶。</summary>
         internal PilotTarget target = PilotTarget.Invalid;
 
-        protected ShipController(UniverseManager universe, int ownerId, bool shipsOnly)
+        protected ShipController(UniverseManager universe, DriveSubject ownerId, bool shipsOnly)
         {
             this.universe = universe;
             OwnerId = ownerId;
@@ -128,17 +115,21 @@ internal readonly struct HeadingPanelAction
 
         internal abstract bool GunnersEnabled { get; }
         internal abstract bool WantsVolley { get; }
-        internal void BindShip(Ship ship) { cachedShip = ship; }
+        internal void BindShip(ShipBase ship)
+        {
+            cachedShip = ship;
+            // 驾驶会话也按身份跟随；旧主台或旧 Map 的快照可能已经失效。
+            if (target.Identity == OwnerId) target = PilotTarget.Of(ship);
+        }
 
         // The target's controller owns its sidebar operations. Common piloting and
         // docking actions live here; target-specific actions belong to subclasses.
         internal virtual void CollectPanelActions(PilotTarget panelTarget, List<PilotPanelAction> actions)
         {
             if (!panelTarget.IsValid || !HasAuthority(panelTarget)) return;
-            if (panelTarget.IsShuttle
-                && universe.FrameOf(panelTarget.Map)?.projectileRoleOverride == true) return;
+            if (universe.FrameOf(panelTarget.Map)?.projectileRoleOverride == true) return;
             ShipControlState state = universe.Pilot.GetControlState(panelTarget);
-            bool hasPlan = universe.Approach.ActivePlan?.Target.ControlKey == panelTarget.ControlKey;
+            bool hasPlan = universe.Approach.ActivePlan?.Target.Identity.Equals(panelTarget.Identity) == true;
             string pilotLabel = state == ShipControlState.Manual && hasPlan
                 ? "DeltaV_ControlSwitchAutopilot".Translate()
                 : universe.Pilot.IsPlayerInputArmed(panelTarget)
@@ -149,33 +140,27 @@ internal readonly struct HeadingPanelAction
             if (hasPlan)
                 actions.Add(new PilotPanelAction("DeltaV_DockCancelButton".Translate(),
                     () => universe.Approach.CancelSelectionOrPlan(universe, "user")));
-            else if (panelTarget.IsShuttle)
-            {
-                SpaceObject frame = universe.FrameOf(panelTarget.Map);
-                if (frame != null && !frame.projectileRoleOverride)
-                    actions.Add(new PilotPanelAction("DeltaV_BeginDockingButton".Translate(),
-                        () => universe.ShipTransitions.BeginDockingShuttle(panelTarget.shuttle)));
-            }
-            else if (ShipRegistry.StateOf(panelTarget.ship) == ShipDerivedState.FreeFlight)
+            else if (panelTarget.Vessel.State == ShipDerivedState.FreeFlight)
                 actions.Add(new PilotPanelAction("DeltaV_BeginDockingButton".Translate(),
-                    () => universe.ShipTransitions.BeginDocking(panelTarget.ship)));
+                    () => universe.ShipTransitions.BeginDocking(panelTarget)));
+
         }
 
-        internal virtual void CollectCombatPanelActions(Ship ship, bool hasWeapons,
+        internal virtual void CollectCombatPanelActions(ShipBase ship, bool hasWeapons,
             List<PilotPanelAction> beforeGroups, List<PilotPanelAction> afterGroups) { }
-        internal virtual void CollectHeadingPanelActions(Ship ship,
+        internal virtual void CollectHeadingPanelActions(ShipBase ship,
             List<HeadingPanelAction> actions) { }
 
         /// <summary>驾驶与战斗共用船归属，但未驾驶仍可瞄准或自动点防。</summary>
         internal void TickCombat()
         {
-            if (OwnerId <= 0) return; // shuttle 只有驾驶层
+            if (OwnerId.key <= 0) return;
             if (!WantsVolley && !cachedShip.IsValid) return;
             if (!WantsVolley && cachedShip.IsValid
-                && !universe.Weapons.HasPointDefenseWeapons(cachedShip.map)) return;
-            Ship ship = cachedShip.IsValid ? cachedShip : ShipRegistry.ShipByOwner(OwnerId);
-            if (!ship.IsValid || universe.FrameOf(ship.map) is not SpaceObject container
-                || container.Tag != SpaceObjectTag.Ship
+                && !universe.Weapons.HasPointDefenseWeapons(cachedShip.Map)) return;
+            ShipBase ship = cachedShip.IsValid ? cachedShip : ShipRegistry.ShipByIdentity(OwnerId);
+            if (!ship.IsValid || universe.FrameOf(ship.Map) is not SpaceObject container
+                || container.HasTag(SpaceObjectTag.Ship) != true
                 || !HasAuthority(PilotTarget.Of(ship))) return;
             cachedShip = ship;
             if (TryGetVolleyIntent(ship, container, out ShipVolleyIntent intent))
@@ -183,13 +168,13 @@ internal readonly struct HeadingPanelAction
             TickPointDefense(ship, container);
         }
 
-        protected abstract bool TryGetVolleyIntent(Ship ship, SpaceObject container,
+        protected abstract bool TryGetVolleyIntent(ShipBase ship, SpaceObject container,
             out ShipVolleyIntent intent);
 
-        private void TickVolley(Ship ship, SpaceObject container, ShipVolleyIntent intent)
+        private void TickVolley(ShipBase ship, SpaceObject container, ShipVolleyIntent intent)
         {
             int now = Find.TickManager.TicksGame;
-            foreach (CompSpaceWeapon weapon in SpaceWeaponService.WeaponsOn(ship.map, OwnerId))
+            foreach (CompSpaceWeapon weapon in SpaceWeaponService.WeaponsOn(ship))
             {
                 if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.Volley
                     || !weapon.GroupActive) continue;
@@ -214,16 +199,16 @@ internal readonly struct HeadingPanelAction
             }
         }
 
-        private void TickPointDefense(Ship ship, SpaceObject container)
+        private void TickPointDefense(ShipBase ship, SpaceObject container)
         {
-            if (!universe.Weapons.TryGetPointDefenseWeapons(ship.map,
+            if (!universe.Weapons.TryGetPointDefenseWeapons(ship.Map,
                 out HashSet<CompSpaceWeapon> weapons)) return;
             int now = Find.TickManager.TicksGame;
-            foreach (CompSpaceWeapon weapon in weapons)
+            foreach (CompSpaceWeapon weapon in ship.Weapons.Where(weapons.Contains))
             {
-                if (weapon?.parent == null || weapon.parent.Map != ship.map
+                if (weapon?.parent == null || weapon.parent.Map != ship.Map
                     || !weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.PointDefense
-                    || SpaceWeaponGeometry.OwnerIdOf(weapon.parent) != OwnerId
+                    || !weapon.OwnerShip.Identity.Equals(OwnerId)
                     || !weapon.parent.Spawned || weapon.parent.Destroyed || !weapon.GroupActive
                     || now < weapon.cooldownUntilTick || weapon.Container != container) continue;
                 if (now >= weapon.pdRetargetAtTick || !universe.Weapons.PdTargetValid(weapon))
@@ -278,12 +263,12 @@ internal readonly struct HeadingPanelAction
         {
             if (!target.IsValid) return PilotEntryBlockReason.InvalidTarget;
             Map map = target.Map;
-            if (map == null || universe.FrameOf(map) == null)
+            if (map == null || universe.FrameOf(map) == null || !target.Vessel.CanDriveIn(universe.FrameOf(map)))
                 return PilotEntryBlockReason.NoUniverseFrame;
             if (!FreeFlightBootstrap.IsZeroGravity(universe, map))
                 return PilotEntryBlockReason.GravityRestricted;
             if (universe.Approach.AnyActive
-                && universe.Approach.ApproachTarget.ControlKey != target.ControlKey)
+                && !universe.Approach.ApproachTarget.Identity.Equals(target.Identity))
                 return PilotEntryBlockReason.ApproachConflict;
             return HasAuthority(target)
                 ? PilotEntryBlockReason.None : PilotEntryBlockReason.NoAuthority;
@@ -359,15 +344,14 @@ internal readonly struct HeadingPanelAction
         private bool battleStations;
         private bool autoManeuverEnabled;
 
-        internal PlayerShipController(UniverseManager universe, int ownerId) : base(universe, ownerId, true)
+        internal PlayerShipController(UniverseManager universe, DriveSubject ownerId) : base(universe, ownerId, true)
         {
         }
 
         internal override void CollectPanelActions(PilotTarget panelTarget, List<PilotPanelAction> actions)
         {
             base.CollectPanelActions(panelTarget, actions);
-            if (!panelTarget.IsShuttle || !panelTarget.IsValid
-                || panelTarget.shuttle.TryGetComp<CompSpaceShuttle>()?.CanBoard != true
+            if (!panelTarget.IsValid || !panelTarget.Vessel.CanBoard
                 || !HasAuthority(panelTarget)) return;
             SpaceObject frame = universe.FrameOf(panelTarget.Map);
             if (frame == null) return;
@@ -389,7 +373,7 @@ internal readonly struct HeadingPanelAction
                     "DeltaV_ShuttleBoardGizmoTip".Translate()));
         }
 
-        internal override void CollectCombatPanelActions(Ship ship, bool hasWeapons,
+        internal override void CollectCombatPanelActions(ShipBase ship, bool hasWeapons,
             List<PilotPanelAction> beforeGroups, List<PilotPanelAction> afterGroups)
         {
             if (!ship.IsValid || !HasAuthority(PilotTarget.Of(ship))) return;
@@ -407,20 +391,21 @@ internal readonly struct HeadingPanelAction
                 "DeltaV_PanelAutoManeuverTip".Translate()));
             if (!hasWeapons) return;
             afterGroups.Add(new PilotPanelAction("DeltaV_PanelBattleStationsOn".Translate(),
-                () => universe.Controls.EnterBattleStations(ship.map),
+                () => universe.Controls.EnterBattleStations(ship.Map),
                 "DeltaV_PanelBattleStationsOnTip".Translate()));
             afterGroups.Add(new PilotPanelAction("DeltaV_PanelBattleStationsOff".Translate(
-                    universe.Weapons.BattleStationGunnerCount(ship.map)),
-                () => universe.Controls.ExitBattleStations(ship.map),
+                    universe.Weapons.BattleStationGunnerCount(ship.Map)),
+                () => universe.Controls.ExitBattleStations(ship.Map),
                 "DeltaV_PanelBattleStationsOffTip".Translate()));
         }
 
-        internal override void CollectHeadingPanelActions(Ship ship,
+        internal override void CollectHeadingPanelActions(ShipBase ship,
             List<HeadingPanelAction> actions)
         {
             if (!ship.IsValid || !HasAuthority(PilotTarget.Of(ship))
-                || ShipRegistry.StateOf(ship) != ShipDerivedState.FreeFlight
-                || universe.Approach.ActivePlan?.Target.ControlKey == ship.ownerId) return;
+                || ship.State != ShipDerivedState.FreeFlight
+                || universe.Approach.FlowTarget.Identity == ship.Identity
+                || universe.FrameOf(ship.Map)?.projectileRoleOverride == true) return;
             foreach (Rot4 facing in new[] { Rot4.North, Rot4.East, Rot4.South, Rot4.West })
             {
                 Rot4 choice = facing;
@@ -434,22 +419,22 @@ internal readonly struct HeadingPanelAction
             ? universe.Controls.ManualAimOwner(OwnerId) : AutoFire.Target != null;
         internal void SetBattleStations(bool active) { battleStations = active; }
         internal ShipFireControlMode FireControlMode =>
-            ShipRegistry.ShipByOwner(OwnerId).console?.fireControlMode ?? ShipFireControlMode.Automatic;
+            ShipRegistry.ShipByIdentity(OwnerId).Combat?.fireControlMode ?? ShipFireControlMode.Automatic;
         internal bool AutoManeuverEnabled => autoManeuverEnabled;
         internal void SetAutoManeuver(bool enabled)
         {
             autoManeuverEnabled = enabled;
-            if (!enabled) AutoManeuver.Clear(ShipRegistry.ShipByOwner(OwnerId));
+            if (!enabled) AutoManeuver.Clear(ShipRegistry.ShipByIdentity(OwnerId));
         }
 
-        internal void DecideAutoCombat(Ship ship)
+        internal void DecideAutoCombat(ShipBase ship)
         {
-            SpaceObject own = universe.FrameOf(ship.map);
-            if (own == null || universe.Lifecycle.IsFrozen(ship.map)) return;
+            SpaceObject own = universe.FrameOf(ship.Map);
+            if (own == null || universe.Lifecycle.IsFrozen(ship.Map)) return;
             if (FireControlMode == ShipFireControlMode.Automatic || autoManeuverEnabled)
                 AutoFire.Decide(ship, own);
             else AutoFire.Clear();
-            if (autoManeuverEnabled)
+            if (autoManeuverEnabled && ship.CanDriveIn(own) && !own.projectileRoleOverride)
                 AutoManeuver.Decide(ship, own, AutoFire.Target, null,
                     allowBoarding: false, playerInitiated: true);
         }
@@ -472,7 +457,7 @@ internal readonly struct HeadingPanelAction
         internal int EmitAimMarkers(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)
             => aim != null ? aim.EmitMarkers(frame, frameMap, layer, baseSlot) : baseSlot;
 
-        protected override bool TryGetVolleyIntent(Ship ship, SpaceObject container,
+        protected override bool TryGetVolleyIntent(ShipBase ship, SpaceObject container,
             out ShipVolleyIntent intent)
         {
             intent = default;
@@ -528,7 +513,7 @@ internal readonly struct HeadingPanelAction
         /// <summary>内部 AI 组件；默认空实现，NpcShipAiService 为敌舰注入战术实现。</summary>
         public INpcShipAi Ai { get; set; } = new NoopNpcShipAi();
 
-        internal NpcShipController(UniverseManager universe, int ownerId) : base(universe, ownerId, false)
+        internal NpcShipController(UniverseManager universe, DriveSubject ownerId) : base(universe, ownerId, false)
         {
         }
 
@@ -540,15 +525,15 @@ internal readonly struct HeadingPanelAction
             if (!ready)
             {
                 AutoFire.Clear();
-                AutoManeuver.Clear(ShipRegistry.ShipByOwner(OwnerId));
+                AutoManeuver.Clear(ShipRegistry.ShipByIdentity(OwnerId));
             }
             if (combatReady == ready) return;
             combatReady = ready;
             if (ready) universe.Controls.NotifyGunnerAvailabilityChanged(
-                ShipRegistry.ShipByOwner(OwnerId).map);
+                ShipRegistry.ShipByIdentity(OwnerId).Map);
         }
 
-        protected override bool TryGetVolleyIntent(Ship ship, SpaceObject container,
+        protected override bool TryGetVolleyIntent(ShipBase ship, SpaceObject container,
             out ShipVolleyIntent intent)
         {
             intent = default;
@@ -560,15 +545,15 @@ internal readonly struct HeadingPanelAction
         {
             // NPC 控制权由 AI 组件声明；派系仅用于敌我关系与权限，
             // 不替代 controller 类型。
-            return Ai != null && Ai.HasAuthority(target.ship);
+            return target.IsValid && Ai != null && Ai.HasAuthority(target.Vessel);
         }
 
         public override PilotService.PilotCommand ComposeCommand()
         {
             var command = default(PilotService.PilotCommand);
-            if (Ai != null && target.ship.IsValid)
+            if (Ai != null && target.IsValid)
             {
-                Ai.ComposeCommand(target.ship, ref command);
+                Ai.ComposeCommand(target.Vessel, ref command);
             }
             return command;
         }
@@ -589,26 +574,26 @@ internal readonly struct HeadingPanelAction
     public interface INpcShipAi
     {
         /// <summary>该 AI 是否对目标船有控制权。</summary>
-        bool HasAuthority(Ship ship);
+        bool HasAuthority(ShipBase ship);
 
         /// <summary>每 tick 驱动（AI 决定驾驶意图、发起/停止任务）。</summary>
         void Tick(NpcShipController controller);
 
         /// <summary>手操指令合成（NPC 机动请求；经统一分配器执行）。</summary>
-        void ComposeCommand(Ship ship, ref PilotService.PilotCommand command);
+        void ComposeCommand(ShipBase ship, ref PilotService.PilotCommand command);
 
     }
 
     /// <summary>空实现（本轮接入边界；后续敌舰 AI 在此挂接）。</summary>
     public sealed class NoopNpcShipAi : INpcShipAi
     {
-        public bool HasAuthority(Ship ship) => false;
+        public bool HasAuthority(ShipBase ship) => false;
 
         public void Tick(NpcShipController controller)
         {
         }
 
-        public void ComposeCommand(Ship ship, ref PilotService.PilotCommand command)
+        public void ComposeCommand(ShipBase ship, ref PilotService.PilotCommand command)
         {
         }
 
@@ -618,7 +603,7 @@ internal readonly struct HeadingPanelAction
     /// 驾驶路由服务（universe 实例持有）：控制状态派生（Uncontrolled/Manual/Autopilot）、
     /// 玩家按键维护、Harmony 按键抑制与 controller 生命周期。
     ///
-    /// - 驾驶对象 = Ship（主台/归属/图）；驾驶状态为运行时数据不跨档（§16.15：
+    /// - 驾驶对象 = ShipBase（船体身份/图）；驾驶状态为运行时数据不跨档（§16.15：
     ///   临时驾驶不随读档恢复——读档后无人驾驶，船按已保存速度漂移）；
     /// - 进入/退出：TogglePilotMode 键 + 屏幕按钮 + dev action；聚焦离开驾驶船地图
     ///   或地图丢失时自动退出；
@@ -634,11 +619,10 @@ internal readonly struct HeadingPanelAction
         private readonly HashSet<KeyBindingDef> loggedSuppressedDefs = new HashSet<KeyBindingDef>();
 
         /// <summary>自动驾驶输入武装的船（按任意驾驶键直接接管的对象）。</summary>
-        private int autopilotInputOwnerId = -1;
+        private DriveSubject autopilotInputOwnerId;
 
-        /// <summary>玩家当前手操的 controller；普通船取归属注册表，shuttle 使用临时实例。</summary>
+        /// <summary>玩家当前手操的 controller；全部船体均取同一身份注册表。</summary>
         private PlayerShipController activePlayerController;
-        private PlayerShipController shuttleController;
 
         public long SuppressedReads { get; private set; }
 
@@ -660,8 +644,7 @@ internal readonly struct HeadingPanelAction
         internal PlayerShipController ControllerFor(PilotTarget target)
         {
             if (!target.IsValid) return null;
-            if (!target.IsShuttle) return universe.Controls.PlayerFor(target.ship, debugTakeover: true);
-            return shuttleController ?? (shuttleController = new PlayerShipController(universe, 0));
+            return universe.Controls.PlayerFor(target.Vessel, debugTakeover: true);
         }
 
         /// <summary>当前活动 controller（供门禁/确认路由；无玩家驾驶时为 null 语义）。</summary>
@@ -684,46 +667,46 @@ internal readonly struct HeadingPanelAction
                 ? activePlayerController.target : PilotTarget.Invalid;
         }
 
-        /// <summary>旧入口（Ship 口径）：驾驶目标是船时返回之（面板/gizmo 消费）。</summary>
-        public Ship PilotedShip(UniverseManager universe)
+        /// <summary>旧入口（ShipBase 口径）：驾驶目标是船时返回之（面板/gizmo 消费）。</summary>
+        public ShipBase PilotedShip(UniverseManager universe)
         {
             PilotTarget target = PilotedTarget(universe);
-            return target.IsShuttle ? Ship.Invalid : target.ship;
+            return target.Vessel ?? ShipBase.Invalid;
         }
 
         public ShipControlState GetControlState(PilotTarget target)
         {
             if (!target.IsValid) return ShipControlState.Uncontrolled;
             if (universe.Autopilot.IsActive(DriveSubject.Of(target))) return ShipControlState.Autopilot;
-            return ActiveController != null && ActiveController.target.ControlKey == target.ControlKey
+            return ActiveController != null && ActiveController.target.Identity.Equals(target.Identity)
                 ? ShipControlState.Manual
                 : ShipControlState.Uncontrolled;
         }
 
-        public ShipControlState GetControlState(Ship ship) => GetControlState(PilotTarget.Of(ship));
+        public ShipControlState GetControlState(ShipBase ship) => GetControlState(PilotTarget.Of(ship));
 
         public bool IsPlayerInputArmed(PilotTarget target)
         {
             ShipControlState state = GetControlState(target);
             return state == ShipControlState.Manual
-                || state == ShipControlState.Autopilot && autopilotInputOwnerId == target.ControlKey;
+                || state == ShipControlState.Autopilot && autopilotInputOwnerId.Equals(target.Identity);
         }
 
-        public bool IsPlayerInputArmed(Ship ship) => IsPlayerInputArmed(PilotTarget.Of(ship));
+        public bool IsPlayerInputArmed(ShipBase ship) => IsPlayerInputArmed(PilotTarget.Of(ship));
 
         public void ArmAutopilotInput(PilotTarget target)
         {
-            autopilotInputOwnerId = target.IsValid ? target.ControlKey : -1;
+            autopilotInputOwnerId = target.Identity;
         }
 
         public void DisarmAutopilotInput(PilotTarget target = default)
         {
-            if (!target.IsValid || autopilotInputOwnerId == target.ControlKey) autopilotInputOwnerId = -1;
+            if (!target.IsValid || autopilotInputOwnerId.Equals(target.Identity)) autopilotInputOwnerId = default;
         }
 
-        public void ArmAutopilotInput(Ship ship) => ArmAutopilotInput(PilotTarget.Of(ship));
+        public void ArmAutopilotInput(ShipBase ship) => ArmAutopilotInput(PilotTarget.Of(ship));
 
-        public void DisarmAutopilotInput(Ship ship) => DisarmAutopilotInput(PilotTarget.Of(ship));
+        public void DisarmAutopilotInput(ShipBase ship) => DisarmAutopilotInput(PilotTarget.Of(ship));
 
         /// <summary>
         /// 驾驶切换统一入口（面板按钮/驾驶台 gizmo/快捷键共用）：目标船由调用方显式传入
@@ -744,18 +727,18 @@ internal readonly struct HeadingPanelAction
                 else ArmAutopilotInput(target);
             }
             else if (state == ShipControlState.Manual
-                && universe.Approach.ActivePlan?.Target.ControlKey == target.ControlKey)
+                && universe.Approach.ActivePlan?.Target.Identity.Equals(target.Identity) == true)
             {
                 universe.Approach.EngageAutopilot(universe);
             }
             else if (state == ShipControlState.Manual)
             {
-                Exit(universe, "DeltaV_PilotOff".Translate(universe.LabelForOwner(target.ControlKey)));
+                Exit(universe, "DeltaV_PilotOff".Translate(target.Label));
             }
             else if (ControllerFor(target)?.HasAuthority(target) != true)
             {
                 Messages.Message("DeltaV_PilotWrongFaction".Translate(
-                        target.IsShuttle ? target.shuttle.LabelCap : universe.LabelForOwner(target.ControlKey)),
+                        target.Label),
                     MessageTypeDefOf.RejectInput, false);
             }
             else
@@ -764,23 +747,23 @@ internal readonly struct HeadingPanelAction
             }
         }
 
-        public void ToggleControl(UniverseManager universe, Ship ship) => ToggleControl(universe, PilotTarget.Of(ship));
+        public void ToggleControl(UniverseManager universe, ShipBase ship) => ToggleControl(universe, PilotTarget.Of(ship));
 
         /// <summary>多船图的「当前查看/操作的船」（快捷键/dev action 的推导入口）：面板已
-        /// 选择则用之；否则默认船（玩家派系船优先、唯一船直取，DefaultShipOnMap）。</summary>
-        public Ship SelectedShipOnMap(Map map)
+        /// 选择则用之；否则默认船（玩家派系船优先、唯一船直取，DefaultVesselOnMap）。</summary>
+        public ShipBase SelectedShipOnMap(Map map)
         {
-            if (ShipStatusPanel.TryGetSelectedShip(map, out Ship selected) && selected.IsValid)
+            if (ShipStatusPanel.TryGetSelectedShip(map, out ShipBase selected) && selected.IsValid)
             {
                 return selected;
             }
-            return ShipRegistry.DefaultShipOnMap(map);
+            return ShipRegistry.DefaultVesselOnMap(map);
         }
 
         /// <summary>驾驶/模式控制权门禁（玩家侧）：玩家方目标（船/shuttle）；开发者模式放行。</summary>
-        public bool CanPlayerControl(Ship ship)
+        public bool CanPlayerControl(ShipBase ship)
         {
-            return ship.IsValid && (ShipRegistry.FactionOf(ship) == Faction.OfPlayer
+            return ship.IsValid && (ship.Faction == Faction.OfPlayer
                 || DebugSettings.godMode);
         }
 
@@ -804,28 +787,27 @@ internal readonly struct HeadingPanelAction
             {
                 universe.Autopilot.Detach(DriveSubject.Of(target), "manual input");
                 DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"autopilot interrupted by manual input: target key #{target.ControlKey} (pilot mode engaged)");
+                    $"autopilot interrupted by manual input: target key #{target.Identity} (pilot mode engaged)");
                 Messages.Message("DeltaV_DockAutopilotStopped".Translate(), MessageTypeDefOf.NeutralEvent, false);
             }
-            if (!target.IsShuttle)
-                controller.SetAutoManeuver(false);
+            controller.SetAutoManeuver(false);
             DisarmAutopilotInput(target);
             if (activePlayerController != null && activePlayerController != controller)
             {
-                int previousOwner = activePlayerController.OwnerId;
+                DriveSubject previousOwner = activePlayerController.OwnerId;
                 activePlayerController.Exit();
                 activePlayerController = null;
-                if (previousOwner > 0) universe.Controls.ReleaseDebugControl(previousOwner);
+                if (previousOwner.key > 0) universe.Controls.ReleaseDebugControl(previousOwner);
             }
             activePlayerController = controller;
             controller.Enter(target);
             RebuildPilotKeySet();
-            string label = target.IsShuttle ? target.shuttle.LabelCap : universe.LabelForOwner(target.ControlKey);
-            Log.Message($"[DeltaV] Pilot mode engaged: {label} (#{target.ControlKey}). Pilot keys: [{string.Join(", ", PilotKeyBridge.ActiveKeys)}].");
+            string label = target.Label;
+            Log.Message($"[DeltaV] Pilot mode engaged: {label} (#{target.Identity}). Pilot keys: [{string.Join(", ", PilotKeyBridge.ActiveKeys)}].");
             Messages.Message("DeltaV_PilotOn".Translate(label), MessageTypeDefOf.PositiveEvent, false);
         }
 
-        public void Enter(UniverseManager universe, Ship ship) => Enter(universe, PilotTarget.Of(ship));
+        public void Enter(UniverseManager universe, ShipBase ship) => Enter(universe, PilotTarget.Of(ship));
 
         public void Exit(UniverseManager universe, string message = null)
         {
@@ -833,13 +815,12 @@ internal readonly struct HeadingPanelAction
             {
                 return;
             }
-            int ownerId = activePlayerController.OwnerId;
-            string label = ownerId > 0 ? universe.LabelForOwner(ownerId)
-                : activePlayerController.target.shuttle?.LabelCap ?? "shuttle";
+            DriveSubject ownerId = activePlayerController.OwnerId;
+            string label = activePlayerController.target.Label;
             Log.Message($"[DeltaV] Pilot mode disengaged (was '{label}'; suppressed reads: {SuppressedReads}).");
             activePlayerController.Exit();
             activePlayerController = null;
-            if (ownerId > 0) universe.Controls.ReleaseDebugControl(ownerId);
+            if (ownerId.key > 0) universe.Controls.ReleaseDebugControl(ownerId);
             // 瞄准会话留在本船 controller（独立于驾驶与自动驾驶，对接中可用），
             // 退出驾驶不再连带退出瞄准。
             PilotKeyBridge.SuppressVanillaKeys = false;
@@ -861,7 +842,7 @@ internal readonly struct HeadingPanelAction
             PilotTarget autopilotTarget = PilotTarget.Invalid;
             if (focusedMap != null)
             {
-                foreach (Ship ship in ShipRegistry.ShipsOnMap(focusedMap))
+                foreach (ShipBase ship in ShipRegistry.AllShipsOnMap(focusedMap))
                 {
                     if (universe.Autopilot.IsActive(DriveSubject.Of(ship)))
                     {
@@ -869,13 +850,7 @@ internal readonly struct HeadingPanelAction
                         break;
                     }
                 }
-                // 在飞 shuttle 的自动驾驶任务（对接计划随动）同样占用驾驶位。
-                if (!autopilotTarget.IsValid)
-                {
-                    Building shuttle = universe.Shuttles.InFlightBodyOn(focusedMap);
-                    if (shuttle != null && universe.Autopilot.IsActive(DriveSubject.Of(PilotTarget.Of(shuttle))))
-                        autopilotTarget = PilotTarget.Of(shuttle);
-                }
+
             }
             bool focusOnAutopilotShip = autopilotTarget.IsValid && autopilotTarget.Map == focusedMap
                 && IsPlayerInputArmed(autopilotTarget);
@@ -888,7 +863,7 @@ internal readonly struct HeadingPanelAction
                     if (input.fx != 0f || input.fz != 0f || input.torque != 0f)
                     {
                         DeltaVLog.Message(DeltaVLogModule.Core,
-                            $"autopilot interrupted by flight key: target key #{autopilotTarget.ControlKey} (direct takeover)");
+                            $"autopilot interrupted by flight key: target key #{autopilotTarget.Identity} (direct takeover)");
                         Enter(universe, autopilotTarget); // 打断自动驾驶并接管：同帧输入生效
                         piloted = PilotedTarget(universe);
                         focusOnAutopilotShip = false;
@@ -899,7 +874,7 @@ internal readonly struct HeadingPanelAction
             if (!manualPiloting && piloted.IsValid)
             {
                 Exit(universe, "DeltaV_PilotExitAuto".Translate(
-                    piloted.IsShuttle ? piloted.shuttle.LabelCap : universe.LabelForOwner(piloted.ControlKey)));
+                    piloted.Label));
             }
             bool suppress = manualPiloting || focusOnAutopilotShip;
             if (suppress)
@@ -1157,7 +1132,7 @@ internal readonly struct HeadingPanelAction
         /// <summary>tick 循环的驾驶指令入口（controller 路由：手操或 NPC AI）。</summary>
         public PilotCommand ComposeCommand(PilotTarget target)
         {
-            if (ActiveController != null && ActiveController.target.ControlKey == target.ControlKey)
+            if (ActiveController != null && ActiveController.target.Identity.Equals(target.Identity))
             {
                 return ActiveController.ComposeCommand();
             }

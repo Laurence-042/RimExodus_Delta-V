@@ -37,21 +37,9 @@ namespace DeltaV
         {
             Destroy();
             if (plan == null || plan.host == null) return;
-            // 脚印来源按计划类型（§7.4 唯一差异）：船 = 控制域；shuttle = 舱体 def 脚印。
-            Map bodyMap;
-            HashSet<IntVec3> domain;
-            if (plan.IsShuttlePlan)
-            {
-                if (!plan.shuttleBody.Spawned || plan.shuttleBody.Map == null) return;
-                bodyMap = plan.shuttleBody.Map;
-                domain = new HashSet<IntVec3>(plan.shuttleBody.OccupiedRect().Cells);
-            }
-            else
-            {
-                if (!plan.ship.IsValid || plan.ship.map == null) return;
-                bodyMap = plan.ship.map;
-                domain = ShipRegistry.ControlDomain(plan.ship);
-            }
+            if (!plan.Target.IsValid) return;
+            Map bodyMap = plan.Target.Map;
+            HashSet<IntVec3> domain = plan.PlanFootprint();
             if (domain.Count == 0) return;
             // 剪影锚 = 位姿锚（口袋图几何中心）：剪影内容与未来真实脚印逐格重合——
             // 玩家看到的剪影重叠就是对齐判据本身（2026-09-21 修复：旧实现按脚印

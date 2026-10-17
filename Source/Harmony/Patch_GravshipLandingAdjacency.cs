@@ -137,7 +137,7 @@ namespace DeltaV
         /// <summary>该格是否有基架（foundation 层语义；天然地面不是基架，不触发）。</summary>
         private static bool IsSubstructure(IntVec3 cell, Map map)
         {
-            return map.terrainGrid.FoundationAt(cell)?.IsSubstructure == true;
+            return SubstructureOwnership.HasFoundation(map, cell);
         }
     }
 }

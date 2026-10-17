@@ -18,7 +18,7 @@ namespace DeltaV
                 || IsUniverseHost(source.map))
                 reason = "DeltaV_PrefabReplaceRequiresMap".Translate();
             else if (prefabReplacementPending || universe.Generation.IsAnyGenerating
-                || !universe.CanApplyScaleChange() || universe.ShipTransitions.pendingShuttleBody != null)
+                || !universe.CanApplyScaleChange())
                 reason = "DeltaV_PrefabReplaceBusy".Translate();
             return reason == null;
         }

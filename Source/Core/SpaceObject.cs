@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -7,33 +8,34 @@ namespace DeltaV
 {
     /// <summary>
     /// 容器类别 tag（太空战架构 §2/§3.1）：**行为分派维度，不是类型分叉**——
-    /// 「弹体」「飞船」都是抽象角色。存储值只有 Container/Marker/Projectile/Shuttle；
-    /// Ship 是派生值（图上有有效主台的 Container，见 <see cref="SpaceObject.Tag"/>）。
+    /// 「弹体」「飞船」都是可叠加的抽象角色。Ship 从共同船体接口派生；
+    /// 独立 shuttle 由船体贡献 Shuttle 角色；侵入时在原有角色上追加 Projectile。
     /// tag 只驱动单点分派属性（见 SpaceObject 上的分派区），调用方禁止散写 tag 比较；
     /// POI 显示等既有逻辑仍按 PoiState 类型判断，不经 tag。
     /// </summary>
+    [System.Flags]
     public enum SpaceObjectTag : byte
     {
         /// <summary>有图普通容器（船图/残骸/物化 POI/空画布锚）。</summary>
-        Container = 0,
+        Container = 1,
 
         /// <summary>未物化 POI 触发器（PoiState marker，恒无图）。</summary>
-        Marker = 1,
+        Marker = 2,
 
-        /// <summary>弹体（纯弹体是瞬态成员不落盘；侵入飞控的 shuttle 经运行时覆盖派发为本值）。</summary>
-        Projectile = 2,
+        /// <summary>弹体（纯弹体是瞬态成员不落盘；侵入飞控的 shuttle 追加此角色）。</summary>
+        Projectile = 4,
 
-        /// <summary>在飞 shuttle（MiniShip；停靠后回落普通建筑，不再存在本 tag 的对象）。</summary>
-        Shuttle = 3,
+        /// <summary>独立飞行的单建筑船角色，由船体提供；供点防在对象层快速过滤。</summary>
+        Shuttle = 8,
 
-        /// <summary>派生值：承载有效飞船的容器（图上有主台）。永不落盘、不得手写。</summary>
-        Ship = 4
+        /// <summary>派生角色：承载任意 ShipBase 的容器。永不手写。</summary>
+        Ship = 16
     }
 
     /// <summary>
     /// 宇宙刚体身份、唯一位姿和公共元数据。驾驶信息、预览、执行、清理与漂移由本契约统一暴露。
     /// MapSpaceObject 承载真实图；ArchivedSpaceObject 承载整图快照及必要数值摘要。
-    /// 飞船仍由主台和归属域定义；一个容器可含多艘船，驾驶主体身份不等于 objectId。
+    /// 普通船由主台和归属域定义，单建筑船实现同一接口；驾驶主体身份不等于 objectId。
     /// 无主动驾驶能力的基类对象只参与被动物理运动；弹体角色仍由 tag 决定。
     /// </summary>
     public class SpaceObject : IExposable
@@ -42,14 +44,14 @@ namespace DeltaV
 
         public SpacePose pose;
 
-        /// <summary>存储 tag（存档事实；默认 Container，PoiState 构造置 Marker，弹体/shuttle 由服务设置）。</summary>
-        public SpaceObjectTag baseTag;
+        /// <summary>存储 tag（存档事实；默认 Container，PoiState 构造置 Marker，弹体由服务设置）。</summary>
+        public SpaceObjectTag baseTag = SpaceObjectTag.Container;
 
         /// <summary>
-        /// 侵入式对接的运行时角色覆盖（太空战架构 §7.5）：shuttle 进入侵入飞控时置 true，
-        /// <see cref="Tag"/> 随之分派为 Projectile（碰撞主动参与/阻力豁免/可拦截随之生效）。
+        /// 侵入式对接的运行时附加角色（太空战架构 §7.5）：shuttle 进入侵入飞控时置 true，
+        /// <see cref="Tag"/> 随之追加 Projectile（碰撞主动参与/阻力豁免/可拦截随之生效）。
         /// 属性不经 RimWorld 序列化（只序列化公共字段）——读档后侵入计划丢弃、
-        /// shuttle 自动回 shuttle tag 按存档速度漂移（§4.4 口径）。
+        /// 船体恢复普通容器角色，按存档速度漂移（§4.4 口径）。
         /// </summary>
         internal bool projectileRoleOverride { get; set; }
 
@@ -90,45 +92,71 @@ namespace DeltaV
 
         // ---- tag 派生与单点分派（太空战架构 §3.1；调用方禁止散写 tag 判断）----
 
-        /// <summary>读档无 tag 键时的缺省值（PoiState 覆盖为 Marker，兼容旧档）。</summary>
+        /// <summary>读档无 tag 键时的缺省值（PoiState 覆盖为 Marker）。</summary>
         protected virtual SpaceObjectTag DefaultTag => SpaceObjectTag.Container;
 
         /// <summary>
-        /// 有效 tag（派生）：侵入 shuttle → Projectile；有图容器（Container 或带图的原生
-        /// 镜像 Marker）且图上有有效主台 → Ship（敌舰 AI 将来按此寻路/索敌的统一入口；
-        /// 单点派生、不落盘——船身份的唯一事实源是驾驶台，不变量 #22，不得另存一份）。
-        /// 其余 = <see cref="baseTag"/>。
+        /// 有效角色集合：船体成员派生 Ship，侵入驱动追加 Projectile，不抹掉原有船体身份。
         /// </summary>
         public SpaceObjectTag Tag
         {
             get
             {
-                if (baseTag == SpaceObjectTag.Shuttle && projectileRoleOverride) return SpaceObjectTag.Projectile;
-                if (map != null && baseTag != SpaceObjectTag.Projectile
-                    && baseTag != SpaceObjectTag.Shuttle
-                    && ShipRegistry.MapHasMainConsole(map))
-                {
-                    return SpaceObjectTag.Ship;
-                }
-                return baseTag;
+                SpaceObjectTag tags = baseTag | MemberTags;
+                if (projectileRoleOverride) tags |= SpaceObjectTag.Projectile;
+                return tags;
             }
         }
 
-        /// <summary>瞬态成员（纯弹体）：写档剔除、读档无残留（§4.4）。侵入 shuttle 不算（baseTag=Shuttle 照常落盘）。</summary>
+        public bool HasTag(SpaceObjectTag tag) => (Tag & tag) == tag;
+
+        /// <summary>有图表示枚举真实船体；无图表示不伪造实体成员。</summary>
+        public virtual IEnumerable<ShipBase> Ships => Enumerable.Empty<ShipBase>();
+        public IEnumerable<CompSpaceWeapon> Weapons => Ships.SelectMany(ship => ship.Weapons).Distinct();
+        public virtual IEnumerable<ShipPhysics.Thruster> BuildThrusters() => Enumerable.Empty<ShipPhysics.Thruster>();
+        public virtual IEnumerable<SpaceCollisionCell> CollisionCells => Enumerable.Empty<SpaceCollisionCell>();
+        protected virtual SpaceObjectTag MemberTags => ShipFactions.Any() ? SpaceObjectTag.Ship : 0;
+
+        /// <summary>承载船体的派系成员；有图表示读取 ShipBase，无图表示读取卸载时保存的成员事实。</summary>
+        protected virtual IEnumerable<Faction> ShipFactions => Enumerable.Empty<Faction>();
+
+        /// <summary>混合派系容器按成员查询；没有船体时才使用环境派系。</summary>
+        public bool HasFaction(Faction candidate)
+            => candidate != null && Factions.Contains(candidate);
+
+        /// <summary>对象成员派系的共同来源；无船才回退环境归属。</summary>
+        public IEnumerable<Faction> Factions
+        {
+            get
+            {
+                bool hasShips = false;
+                foreach (Faction member in ShipFactions)
+                {
+                    hasShips = true;
+                    yield return member;
+                }
+                if (!hasShips) yield return faction;
+            }
+        }
+
+        public bool HostileTo(Faction other) => other != null
+            && Factions.Any(member => member != null && member.HostileTo(other));
+
+        /// <summary>瞬态成员（纯弹体）：写档剔除、读档无残留（§4.4）。侵入船体不算（baseTag=Container 照常落盘）。</summary>
         public bool IsTransient => baseTag == SpaceObjectTag.Projectile;
 
-        /// <summary>碰撞主动参与（弹体恒为主动方；侵入 shuttle 经 Tag 覆盖同样命中，§3.1）。</summary>
-        public bool IsActiveCollider => Tag == SpaceObjectTag.Projectile;
+        /// <summary>碰撞主动参与（弹体恒为主动方；侵入 shuttle 追加同一角色，§3.1）。</summary>
+        public bool IsActiveCollider => HasTag(SpaceObjectTag.Projectile);
 
         /// <summary>被动阻力适用（弹体豁免——无推进器的飞行体不受阻力减速；shuttle 与船照常）。</summary>
-        public bool AppliesPassiveDrag => Tag != SpaceObjectTag.Projectile;
+        public bool AppliesPassiveDrag => !HasTag(SpaceObjectTag.Projectile);
 
         /// <summary>剪影/星球仪/世界标记/音效/星区记账参与（弹体不进，§3.1；将来弹体上星球仪只改这里）。</summary>
         public bool ParticipatesInOverlays => baseTag != SpaceObjectTag.Projectile;
 
-        /// <summary>点防御可拦截性（结构派生，§3.2：有图 ∧ tag ∈ {projectile, shuttle}；不是 def 标记字段）。</summary>
+        /// <summary>先按缓存的对象角色筛选点防目标，不在索敌时遍历地图查找船体。</summary>
         public bool InterceptionEligible =>
-            map != null && (Tag == SpaceObjectTag.Projectile || baseTag == SpaceObjectTag.Shuttle);
+            map != null && (Tag & (SpaceObjectTag.Projectile | SpaceObjectTag.Shuttle)) != 0;
 
         /// <summary>显示朝向策略：无姿态角的点状弹体按速度方向，其余按位姿角（§3.1）。</summary>
         public bool UsesVelocityHeading => baseTag == SpaceObjectTag.Projectile;

@@ -42,10 +42,10 @@ namespace DeltaV
         /// 船所在图的图帧内（口袋图与停靠宿主图同一条规则——图帧角 = 该图容器角），
         /// 不得叠加船姿态角（形状已含落点朝向，再叠加即重复计入）。
         /// </summary>
-        public static SilhouetteOrientation OrientationForCurrentMap(Ship ship, UniverseManager universe)
+        public static SilhouetteOrientation OrientationForCurrentMap(ShipBase ship, UniverseManager universe)
         {
             SpacePose pose = ShipRegistry.ShipPose(ship);
-            SpaceObject frame = universe?.FrameOf(ship.map);
+            SpaceObject frame = universe?.FrameOf(ship.Map);
             return new SilhouetteOrientation
             {
                 referenceDir = pose.position,
@@ -145,13 +145,7 @@ namespace DeltaV
             {
                 return cells;
             }
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
-            {
-                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true)
-                {
-                    cells.Add(cell);
-                }
-            }
+            cells.AddRange(SubstructureOwnership.CellsOnMap(map));
             return cells;
         }
 

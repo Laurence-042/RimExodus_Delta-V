@@ -1,6 +1,12 @@
+param([string]$GameRoot, [string]$HarmonyPath)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
-$managed = (Resolve-Path "$repo/../../RimWorldWin64_Data/Managed").Path
+if (!$GameRoot) { $GameRoot = "$repo/../.." }
+$managed = (Resolve-Path "$GameRoot/RimWorldWin64_Data/Managed").Path
+if (!$HarmonyPath) {
+    $HarmonyPath = Join-Path $GameRoot '../../workshop/content/294100/2009463077/1.6/Assemblies/0Harmony.dll'
+}
+if (!(Test-Path -LiteralPath $HarmonyPath)) { throw 'Pass -HarmonyPath with the installed RimWorld 1.6 Harmony runtime DLL.' }
 $sdkVersion = Get-ChildItem "$env:ProgramFiles/dotnet/sdk" -Directory | Where-Object { $_.Name -match '^8\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
 $refs = Get-ChildItem "$env:ProgramFiles/dotnet/packs/Microsoft.NETCore.App.Ref" -Directory | Where-Object { $_.Name -match '^8\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
 if (!$sdkVersion -or !$refs) { throw 'Install .NET 8 SDK to run the offline retreat regression.' }
@@ -12,8 +18,9 @@ foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'Assemb
     Copy-Item -LiteralPath "$managed/$name" -Destination $out -Force
 }
 Copy-Item -LiteralPath "$repo/1.6/Assemblies/DeltaV.dll" -Destination $out -Force
+Copy-Item -LiteralPath $HarmonyPath -Destination $out -Force
 foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'DeltaV.dll')) { $lines += '/r:"' + "$out/$name" + '"' }
-$lines += '"' + "$PSScriptRoot/Program.cs" + '"'
+$lines += Get-ChildItem $PSScriptRoot -Filter '*.cs' | ForEach-Object { '"' + $_.FullName + '"' }
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & dotnet "$($sdkVersion.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

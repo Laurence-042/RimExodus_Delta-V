@@ -33,12 +33,8 @@ namespace DeltaV
     {
         public static void Postfix(TerrainGrid __instance, IntVec3 c, TerrainDef newTerr)
         {
-            if (newTerr == null || !newTerr.IsSubstructure) // tag 判据（基架判定唯一口径）：月池等 tag 变体同权；null 防御（原版对 null 早退，不产生归属事实）
-            {
-                return; // 目前唯一基架地形；未来其他 foundation 不自动纳入归属体系
-            }
             Map map = TerrainGridOwnershipAccess.MapOf(__instance);
-            if (map == null)
+            if (newTerr == null || !SubstructureOwnership.HasFoundation(map, c))
             {
                 return;
             }
@@ -147,26 +143,13 @@ namespace DeltaV
             }
             Map map = engine.Map;
             List<Thing> footprintMakers = map.listerThings.ThingsInGroup(ThingRequestGroup.SubstructureFootprint);
-            map.floodFiller.FloodFill(engine.Position, delegate (IntVec3 x)
+            SubstructureOwnership.CollectConnected(map, engine.Position, cells, delegate (IntVec3 x)
             {
-                if (!x.InBounds(map))
-                {
-                    return false;
-                }
-                TerrainDef foundation = map.terrainGrid.FoundationAt(x);
-                if (foundation == null || !foundation.IsSubstructure)
-                {
-                    return false;
-                }
                 if (ownership.OwnerAt(x) != ownerId)
                 {
                     return false;
                 }
                 return !requireInsideFootprint || GravshipUtility.InsideFootprint(x, map, footprintMakers);
-            }, delegate (IntVec3 x)
-            {
-                cells.Add(x);
-                return false;
             }, maxCells);
         }
     }

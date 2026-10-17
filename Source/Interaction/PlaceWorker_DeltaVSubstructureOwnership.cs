@@ -39,7 +39,7 @@ namespace DeltaV
             foreach (IntVec3 delta in GenAdj.CardinalDirectionsAround)
             {
                 IntVec3 cell = center + delta;
-                if (!cell.InBounds(map) || map.terrainGrid.TerrainAt(cell)?.IsSubstructure != true)
+                if (!cell.InBounds(map) || !SubstructureOwnership.HasFoundation(map, cell))
                 {
                     continue;
                 }

@@ -182,7 +182,7 @@ namespace DeltaV
             int now = Find.TickManager.TicksGame;
             if (surface.kinds == null || SubstructureOwnership.CacheNeedsRefresh(surface.structureVersion, surface.measuredAtTick))
             {
-                Rebuild(map, surface, version, now);
+                Rebuild(obj, surface, version, now);
             }
             return surface;
         }
@@ -252,8 +252,9 @@ namespace DeltaV
             }
         }
 
-        private static void Rebuild(Map map, Surface surface, int version, int now)
+        private static void Rebuild(SpaceObject obj, Surface surface, int version, int now)
         {
+            Map map = obj.map;
             int cells = map.cellIndices.NumGridCells;
             if (surface.kinds == null || surface.kinds.Length != cells)
             {
@@ -269,9 +270,11 @@ namespace DeltaV
             bool any = false;
             surface.occupiedCells.Clear();
             int minX = int.MaxValue, minZ = int.MaxValue, maxX = int.MinValue, maxZ = int.MinValue;
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
+            foreach (SpaceCollisionCell geometry in obj.CollisionCells)
             {
-                SpaceCellKind kind = SpaceStructureRules.ClassifyCell(map, cell, out Thing thing);
+                IntVec3 cell = geometry.cell;
+                SpaceCellKind kind = geometry.kind;
+                Thing thing = geometry.building;
                 if (kind == SpaceCellKind.Empty) continue;
                 int index = map.cellIndices.CellToIndex(cell);
                 surface.kinds[index] = (byte)kind;
@@ -793,7 +796,7 @@ namespace DeltaV
                 Thing thing = surface.buildings[index];
                 if (thing != null && passedBuildings?.Contains(thing) == true)
                 {
-                    if (defMap.terrainGrid.FoundationAt(cell)?.IsSubstructure != true) continue;
+                    if (!SubstructureOwnership.HasFoundation(defMap, cell)) continue;
                     kind = SpaceCellKind.Substructure;
                     thing = null;
                 }

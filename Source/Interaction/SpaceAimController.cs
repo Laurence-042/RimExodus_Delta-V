@@ -13,7 +13,7 @@ namespace DeltaV
     /// 收尾——标记管线以会话存在为唯一门槛，会话销毁后自然停发，无注册/反注册
     /// 路径可泄漏（修复：脱离对接后其他船上的预瞄残留）。
     ///
-    /// 身份 = 归属域 ownerId（跨图稳定）：武器由共同 controller 每 tick 经
+    /// 身份 = 带种类的 DriveSubject（跨图稳定）：武器由共同 controller 每 tick 经
     /// <see cref="SpaceWeaponService.WeaponsOn"/> 重查（§21 单实现：不缓存武器清单），
     /// 对接合图/脱离换图后自动跟随——瞄准会话与战斗状态跨地图变更保持。
     /// 会话独立于驾驶（PlayerController）与自动驾驶：进入对接/切换控制态不影响；
@@ -25,10 +25,10 @@ namespace DeltaV
         private readonly UniverseManager universe;
         private bool disposed;
 
-        /// <summary>瞄准的船（归属域 id；跨图稳定的唯一身份）。</summary>
-        public readonly int ownerId;
+        /// <summary>瞄准的船（带种类的跨图稳定身份）。</summary>
+        public readonly DriveSubject ownerId;
 
-        public SpaceAimController(UniverseManager universe, int ownerId)
+        public SpaceAimController(UniverseManager universe, DriveSubject ownerId)
         {
             this.universe = universe;
             this.ownerId = ownerId;
@@ -40,7 +40,7 @@ namespace DeltaV
         public bool FireSecondary { get; private set; }
         public Vector3 AimPoint { get; private set; }
 
-        public Ship Ship => ShipRegistry.ShipByOwner(ownerId);
+        public ShipBase Vessel => ShipRegistry.ShipByIdentity(ownerId);
 
         /// <summary>
         /// 会话是否作用于当前聚焦图（射击、标记绘制与点击让位的共同前提）。
@@ -48,7 +48,7 @@ namespace DeltaV
         /// </summary>
         public bool SessionOnFocusedMap =>
             !disposed && WorldRendererUtility.DrawingMap && Find.CurrentMap != null
-            && Ship.IsValid && Ship.map == Find.CurrentMap;
+            && Vessel.IsValid && Vessel.Map == Find.CurrentMap;
 
         // ---- tick 路径（PlayerShipController 转发）----
 
@@ -58,20 +58,20 @@ namespace DeltaV
             HasInput = false;
             FireMain = FireSecondary = false;
             if (disposed) return;
-            Ship ship = Ship;
+            ShipBase ship = Vessel;
             if (!ship.IsValid)
             {
                 Dispose("aim ship lost");
                 return;
             }
-            if (!WorldRendererUtility.DrawingMap || ship.map != Find.CurrentMap) return;
-            SpaceObject container = universe.FrameOf(ship.map);
+            if (!WorldRendererUtility.DrawingMap || ship.Map != Find.CurrentMap) return;
+            SpaceObject container = universe.FrameOf(ship.Map);
             if (container == null) return;
             // 悬停窗口（面板/原版 UI）不射击；暂停时无 tick，天然不射。
             if (SpaceWeaponService.MouseOverUiWindow()) return;
             FireMain = Input.GetMouseButton(0);
             FireSecondary = Input.GetMouseButton(1);
-            AimPoint = SpaceWeaponService.MouseUniversePoint(container, ship.map);
+            AimPoint = SpaceWeaponService.MouseUniversePoint(container, ship.Map);
             HasInput = true;
         }
 
@@ -88,13 +88,13 @@ namespace DeltaV
         internal int EmitMarkers(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)
         {
             if (disposed) return baseSlot;
-            Ship ship = Ship;
-            if (!ship.IsValid || ship.map != frameMap) return baseSlot;
-            SpaceObject own = universe.FrameOf(ship.map);
+            ShipBase ship = Vessel;
+            if (!ship.IsValid || ship.Map != frameMap) return baseSlot;
+            SpaceObject own = universe.FrameOf(ship.Map);
             if (own == null) return baseSlot;
             speedScratch.Clear();
             bool laserSeen = false;
-            foreach (CompSpaceWeapon weapon in SpaceWeaponService.WeaponsOn(frameMap, ownerId))
+            foreach (CompSpaceWeapon weapon in SpaceWeaponService.WeaponsOn(ship))
             {
                 if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.Volley
                     || !weapon.GroupActive) continue;
@@ -110,7 +110,7 @@ namespace DeltaV
             foreach (SpaceObject target in universe.objects)
             {
                 if (target == own || target.map == null) continue;
-                if (!SpaceWeaponService.HostileTo(target, Faction.OfPlayer)) continue;
+                if (!target.HostileTo(Faction.OfPlayer)) continue;
                 if (laserSeen)
                 {
                     drewAny |= AimMarkersRenderer.EmitMarker(frame, frameMap,

@@ -22,14 +22,10 @@ namespace DeltaV
 
         // ---- 战术对接（移动 → 固定，合图）----
 
-        /// <summary>选点/进场流程中的战术降落船（BeginDocking 置位，完成/取消清除）。</summary>
-        internal Ship pendingShip;
-
-        /// <summary>
-        /// 选点/进场流程中的 shuttle 舱体（BeginDockingShuttle 置位；与 pendingShip
-        /// 互斥——同一时刻最多一个对接流程，§7.4「降落逻辑只有一套」的 shuttle 变体）。
-        /// </summary>
-        internal Building pendingShuttleBody;
+        /// <summary>选点期唯一主体，船型适配只从同一个句柄读取。</summary>
+        internal PilotTarget PendingTarget { get; private set; }
+        internal bool HasPendingDocking => PendingTarget.Identity.key > 0 || pendingSelectionMarker != null;
+        internal bool HasLandedTargetAwaitingCleanup => dockingCleanupMaps.Count > 0;
 
         /// <summary>本流程创建的选点 marker（取消时直接销毁；shuttle 预览无主台，不能靠 PilotConsole 识别）。</summary>
         internal GravshipLandingMarker pendingSelectionMarker;
@@ -38,7 +34,14 @@ namespace DeltaV
         internal bool pendingSelectionWasManual;
 
         /// <summary>已放入目标图、等待收尾（源口袋图删除）的对接完成窗口。</summary>
-        internal Ship landedShipAwaitingCleanup;
+        private readonly HashSet<Map> dockingCleanupMaps = new HashSet<Map>();
+        internal void RegisterDockingCleanup(Map sourceMap) => dockingCleanupMaps.Add(sourceMap);
+        internal void FinishDockingCleanup(Map sourceMap)
+        {
+            if (sourceMap != null) dockingCleanupMaps.Remove(sourceMap);
+        }
+        internal bool IsAwaitingDockingCleanup(Map map) => map != null
+            && dockingCleanupMaps.Contains(map);
 
         // ---- 战略发射（原版管线适配）----
 
@@ -65,11 +68,10 @@ namespace DeltaV
 
         internal void Reset()
         {
-            pendingShip = Ship.Invalid;
-            pendingShuttleBody = null;
+            PendingTarget = PilotTarget.Invalid;
             pendingSelectionMarker = null;
             pendingSelectionWasManual = false;
-            landedShipAwaitingCleanup = Ship.Invalid;
+            dockingCleanupMaps.Clear();
             pendingLeftoverThingIds = null;
             pendingStrategicSourceMap = null;
             pendingStrategicSourceAddress = PlanetTile.Invalid;

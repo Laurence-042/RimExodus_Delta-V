@@ -69,6 +69,7 @@ namespace DeltaV
                 throw new InvalidOperationException("Invalid space object representation replacement");
             current.RepresentationVersion = previous.RepresentationVersion + 1;
             objects[index] = current;
+            if (previous.map != null || current.map != null) SubstructureOwnership.BumpStructureVersion();
             try { Autopilot.Detach(previous); previous.ClearDrive(); }
             catch (Exception ex) { Log.Error($"[DeltaV] Representation #{current.objectId} changed, but old drive cleanup failed: {ex}"); }
         }
@@ -98,7 +99,7 @@ namespace DeltaV
         [NonSerialized] private SpaceShuttleService shuttles;
 
         /// <summary>
-        /// shuttle 服务（太空战架构 §7/§10）：起飞/侵入编排（tag 切换）；停靠直接用
+        /// shuttle 服务（太空战架构 §7/§10）：起飞/侵入编排（弹体角色接管）；停靠直接用
         /// 对接计划服务。实例服务不序列化、读档归零（侵入计划 = 运行时数据读档丢弃）。
         /// </summary>
         public SpaceShuttleService Shuttles => shuttles ?? (shuttles = new SpaceShuttleService(this));
@@ -112,8 +113,6 @@ namespace DeltaV
         public PilotService Pilot => pilot ?? (pilot = new PilotService(this));
 
         internal void ForgetPilotController(ShipController controller) => pilot?.ForgetController(controller);
-        internal bool IsPilotControllingOwner(int ownerId) =>
-            pilot?.ActiveController?.target.ControlKey == ownerId;
 
         [NonSerialized] private ShipFlightTransitionService shipTransitions;
 
@@ -130,34 +129,29 @@ namespace DeltaV
         /// <summary>当前聚焦的承载容器（= 当前聚焦地图的容器；无则 null）。聚焦不再持久化。</summary>
         public SpaceObject Focused => SpaceObjectOnMap(Find.CurrentMap);
 
-        /// <summary>全部玩家船（扫全部已加载图；显示/生命周期参考用，非热路径）。</summary>
-        public List<Ship> PlayerShips()
+        /// <summary>已加载图上的玩家船（显示与交互用，非生命周期参考）。</summary>
+        public List<ShipBase> PlayerShips() => objects.Where(obj => obj.map != null)
+            .SelectMany(obj => obj.Ships)
+            .Where(ship => ship.Faction == Faction.OfPlayer).ToList();
+
+        /// <summary>POI 距离与星区生成共用的对象参考点；不读取船型、驾驶台或驾驶状态。</summary>
+        public List<SpaceObject> PlayerReferenceObjects()
         {
-            var ships = new List<Ship>();
-            foreach (Map map in Find.Maps)
-            {
-                foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
-                {
-                    if (ShipRegistry.FactionOf(ship) == Faction.OfPlayer) ships.Add(ship);
-                }
-            }
-            return ships;
+            Faction player = Faction.OfPlayerSilentFail;
+            return objects.Where(obj => obj.HasTag(SpaceObjectTag.Ship) && obj.HasFaction(player)).ToList();
         }
 
+        internal readonly Dictionary<int, PlanetTile> sectorReferenceTiles = new Dictionary<int, PlanetTile>();
+
         /// <summary>
-        /// 玩家主参考船（背景相机/POI 距离参考的回退锚）：优先聚焦图上的玩家船，
+        /// 玩家主参考船（背景相机的回退锚）：优先聚焦图上的玩家船，
         /// 否则任意一艘活着的玩家船；无则 Invalid。
         /// </summary>
-        public Ship PrimaryPlayerShip()
+        public ShipBase PrimaryPlayerShip()
         {
-            Map focused = Find.CurrentMap;
-            if (focused != null)
-            {
-                Ship onFocused = ShipRegistry.ShipsOnMap(focused)
-                    .FirstOrDefault(s => ShipRegistry.FactionOf(s) == Faction.OfPlayer);
-                if (onFocused.IsValid) return onFocused;
-            }
-            return PlayerShips().FirstOrDefault();
+            List<ShipBase> ships = PlayerShips();
+            return ships.FirstOrDefault(ship => ship.Map == Find.CurrentMap)
+                ?? ships.FirstOrDefault() ?? ShipBase.Invalid;
         }
 
         public SpaceObject ObjectById(int id)
@@ -314,17 +308,18 @@ namespace DeltaV
                 }
             }
             objects.Add(obj);
+            if (obj.map != null) SubstructureOwnership.BumpStructureVersion();
             if (obj.objectId >= nextFreeOwnerId) nextFreeOwnerId = obj.objectId + 1;
-            if (obj.map != null && obj.Tag == SpaceObjectTag.Ship)
+            if (obj.map != null && obj.HasTag(SpaceObjectTag.Ship) == true)
             {
                 Weapons.RegisterMapWeapons(obj.map);
-                foreach (Ship ship in ShipRegistry.ShipsOnMap(obj.map)) Controls.For(ship);
+                foreach (ShipBase ship in obj.Ships) Controls.For(ship);
             }
         }
 
         public void UnregisterObject(SpaceObject obj)
         {
-            if (obj == null) return;
+            if (obj == null || !objects.Contains(obj)) return;
             if (obj.baseTag != SpaceObjectTag.Projectile
                 && DeltaVLog.Enabled(DeltaVLogModule.Lifecycle))
             {
@@ -338,13 +333,10 @@ namespace DeltaV
             }
             objects.Remove(obj);
             Autopilot.Detach(obj);
-            if (obj.baseTag == SpaceObjectTag.Shuttle)
-            {
-                Projectiles.ReleaseShuttle(obj);
-                Shuttles.ForgetContainer(obj);
-            }
-            if (obj.map != null && obj.Tag == SpaceObjectTag.Ship)
-                Weapons.ForgetMap(obj.map);
+            Projectiles.ReleaseShuttle(obj);
+            Shuttles.ForgetContainer(obj);
+            // 最后一艘船消失后 Ship tag 已移除，释放不能再以当前角色为前提。
+            if (obj.map != null) Weapons.ForgetMap(obj.map);
             // 被注销对象的 ID 仍被驾驶台 comp / 图上归属格持有（战略飞行中的船、走距离
             // 生命周期的残骸），推过高水位绝不再发——否则新星区生成物会领走同号，
             // 异主域同号合并（2026-09-20 撞号实测）。
@@ -504,8 +496,8 @@ namespace DeltaV
             if (Scribe.mode == LoadSaveMode.Saving)
             {
                 // 弹体是瞬态成员（太空战架构 §4.4）：写档按 tag 过滤剔除纯弹体
-                //（IsTransient = baseTag==Projectile；侵入 shuttle 的 baseTag 仍是
-                // Shuttle，照常落盘，读档后回 shuttle tag 按存档速度漂移）。已造成的
+                //（IsTransient = baseTag==Projectile；侵入船体的 baseTag 仍是
+                // Container，照常落盘，读档后重建船体角色并按存档速度漂移）。已造成的
                 // 毁伤是图事实已持久；其弹体小图的读档清扫由弹体服务负责。
                 var saveView = new List<SpaceObject>(objects.Count);
                 for (int i = 0; i < objects.Count; i++)
@@ -845,17 +837,17 @@ namespace DeltaV
             // 火控切换键与面板作用于同一选中船；手动瞄准会话独立于驾驶任务。
             if (DeltaVDefOf.DeltaV_AimMode != null && DeltaVDefOf.DeltaV_AimMode.KeyDownEvent)
             {
-                Ship selectedShip = Find.CurrentMap != null
+                ShipBase selectedShip = Find.CurrentMap != null
                     ? Pilot.SelectedShipOnMap(Find.CurrentMap) : Ship.Invalid;
                 Controls.ToggleFireControl(selectedShip);
             }
-            // 选点阶段 ESC 取消（2026-09-25 补齐）：pendingShip 在册且无计划 = 正在选点。
+            // 选点阶段 ESC 取消（2026-09-25 补齐）：PendingTarget 在册且无计划 = 正在选点。
             // 让位条件是「存在会自己消费 ESC 的窗口」（Dialog 层及以上），而非窗口栈非空——
             // Inspect 等主标签窗口常驻 GameUI 层且不吞 ESC，不能因此禁用本处理器。
             // GameComponentOnGUI 先于 DesignatorManager/WindowStack 执行，这里消费后
             // 原版只会 Deselect 设计器而不清流程的路径不会再跑，一次 ESC 退出整个选点。
             if (KeyBindingDefOf.Cancel.KeyDownEvent
-                && (ShipTransitions.pendingShip.IsValid || ShipTransitions.pendingShuttleBody != null))
+                && ShipTransitions.HasPendingDocking)
             {
                 // 事件边沿诊断（用户实测排查用；只在 ESC 按下且选点流程在册时输出一条）。
                 // 只有 closeOnCancel 的窗口（暂停菜单/确认框）会真正消费 ESC——
@@ -863,8 +855,7 @@ namespace DeltaV
                 string blockingWindows = string.Join(",",
                     Find.WindowStack.Windows.Where(w => w.layer > WindowLayer.GameUI && w.closeOnCancel)
                         .Select(w => $"{w.GetType().Name}@{w.layer}"));
-                Log.Message($"[DeltaV] esc during selection: pendingShip={ShipTransitions.pendingShip.IsValid}, "
-                    + $"pendingShuttle={ShipTransitions.pendingShuttleBody != null}, "
+                Log.Message($"[DeltaV] esc during selection: pending={ShipTransitions.HasPendingDocking}, "
                     + $"activePlan={Approach.ActivePlan != null}, blockingWindows=[{blockingWindows}], "
                     + $"eventUsed={Event.current.type == EventType.Used}, "
                     + $"designator={Find.DesignatorManager.SelectedDesignator?.GetType().Name ?? "none"}");
@@ -884,7 +875,7 @@ namespace DeltaV
 
         // ---- 世界视图剪影点选（聚焦切图；与地图外壳点选对称的世界视图通道）----
 
-        private Ship pendingWorldClickShip;
+        private ShipBase pendingWorldClickShipBase = ShipBase.Invalid;
         private Vector2 pendingWorldClickScreen;
 
         /// <summary>
@@ -897,30 +888,30 @@ namespace DeltaV
             if (Find.World?.renderer == null
                 || Find.World.renderer.wantedMode != RimWorld.Planet.WorldRenderMode.Planet)
             {
-                pendingWorldClickShip = Ship.Invalid;
+                pendingWorldClickShipBase = ShipBase.Invalid;
                 return;
             }
             Event ev = Event.current;
             if (ev.type == EventType.MouseDown && ev.button == 0)
             {
-                pendingWorldClickShip = Ship.Invalid;
+                pendingWorldClickShipBase = ShipBase.Invalid;
                 if (Find.WindowStack.GetWindowAt(UI.GUIToScreenPoint(ev.mousePosition)) != null) return;
-                pendingWorldClickShip = PickWorldMarker(ev.mousePosition);
+                pendingWorldClickShipBase = PickWorldMarker(ev.mousePosition);
                 pendingWorldClickScreen = ev.mousePosition;
             }
             else if (ev.type == EventType.MouseDrag)
             {
-                pendingWorldClickShip = Ship.Invalid;
+                pendingWorldClickShipBase = ShipBase.Invalid;
             }
-            else if (ev.type == EventType.MouseUp && ev.button == 0 && pendingWorldClickShip.IsValid)
+            else if (ev.type == EventType.MouseUp && ev.button == 0 && pendingWorldClickShipBase.IsValid)
             {
-                Ship target = pendingWorldClickShip;
-                pendingWorldClickShip = Ship.Invalid;
+                ShipBase target = pendingWorldClickShipBase;
+                pendingWorldClickShipBase = ShipBase.Invalid;
                 bool noDrag = (ev.mousePosition - pendingWorldClickScreen).sqrMagnitude < 100f;
-                if (noDrag && PickWorldMarker(ev.mousePosition).ownerId == target.ownerId)
+                if (noDrag && PickWorldMarker(ev.mousePosition).Identity == target.Identity)
                 {
-                    Map targetMap = target.map;
-                    if (targetMap != null && ShipRegistry.ShipByOwner(target.ownerId).IsValid)
+                    Map targetMap = target.Map;
+                    if (targetMap != null && ShipRegistry.ShipByIdentity(target.Identity).IsValid)
                     {
                         SetFocused(FrameOf(targetMap));
                         CameraJumper.TryJump(targetMap.Center, targetMap, CameraJumper.MovementMode.Cut);
@@ -929,15 +920,14 @@ namespace DeltaV
             }
         }
 
-        private Ship PickWorldMarker(Vector2 mousePos)
+        private ShipBase PickWorldMarker(Vector2 mousePos)
         {
-            if (!OrbitSphere.Valid) return Ship.Invalid;
-            Ship best = Ship.Invalid;
+            if (!OrbitSphere.Valid) return ShipBase.Invalid;
+            ShipBase best = ShipBase.Invalid;
             float bestDistance = float.MaxValue;
-            foreach (Ship ship in PlayerShips())
+            foreach (ShipBase ship in PlayerShips())
             {
-                if (!ShipRegistry.IsFreeFlight(ship) && !universeMarkerAlsoDocked(ship)) continue;
-                if (ShipTransitions.IsDockingFlowShip(ship)) continue;
+                if (Approach.FlowTarget.Identity == ship.Identity) continue;
                 if (!WorldShipMarkerRenderer.TryGetScreenPosition(ship, out Vector2 pos, out float radius)) continue;
                 float distance = (mousePos - pos).magnitude;
                 if (distance <= radius && distance < bestDistance)
@@ -949,8 +939,6 @@ namespace DeltaV
             return best;
         }
 
-        /// <summary>世界标记只画自由飞行船的剪影快照（WorldShipMarkerRenderer 同口径）。</summary>
-        private static bool universeMarkerAlsoDocked(Ship ship) => false;
 
         // ---- 外壳点选（选择层；瞄准兼容契约见 ShellPicking 类注释）----
 
@@ -1105,7 +1093,7 @@ namespace DeltaV
             ThrusterAudio.Reset();
             Lifecycle.Reset();
             Generation?.Reset();
-            SectorContentService.Reset();
+            sectorReferenceTiles.Clear();
             MoonPoolUtility.ClearCache();
             SpaceCollision.ClearCaches();
             SpaceProjectileService.ClearRuntimeCaches();

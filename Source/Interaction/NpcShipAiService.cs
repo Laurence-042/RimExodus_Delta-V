@@ -11,7 +11,7 @@ namespace DeltaV
     {
         Ready,
         NoMap,
-        NoMainConsole,
+        NoShip,
         NoNpcFaction,
         NotShipContainer,
         FrozenMap,
@@ -27,7 +27,7 @@ namespace DeltaV
     public sealed class NpcShipAiService
     {
         private readonly UniverseManager universe;
-        private readonly Dictionary<int, NpcShipAiGate> lastGateByShip = new Dictionary<int, NpcShipAiGate>();
+        private readonly Dictionary<DriveSubject, NpcShipAiGate> lastGateByShip = new Dictionary<DriveSubject, NpcShipAiGate>();
         private readonly HashSet<int> noMainReportedObjects = new HashSet<int>();
         private readonly List<SpaceObject> objectBuffer = new List<SpaceObject>();
         private int lastDecisionTick = -1;
@@ -59,19 +59,18 @@ namespace DeltaV
 
         internal static Faction ShipyardFaction(SpaceObject candidate)
         {
-            if (candidate.map == null) return !candidate.IsArchived
-                ? candidate.faction : candidate.npcFaction;
-            if (candidate.map.Disposed) return null;
-            // 已物化的旧船厂标签不能让被夺取或摧毁的空间站继续成为母港。
-            List<Ship> ships = ShipRegistry.ShipsOnMap(candidate.map);
-            Faction faction = ships.Count > 0 ? ShipRegistry.FactionOf(ships[0]) : null;
-            return ships.All(s => ShipRegistry.FactionOf(s) == faction) ? faction : null;
+            if (candidate == null || candidate.map?.Disposed == true) return null;
+            // marker 可读取环境归属；已物化或归档对象必须仍承载同派系船体。
+            if (candidate.map == null && !candidate.IsArchived) return candidate.faction;
+            if (!candidate.HasTag(SpaceObjectTag.Ship)) return null;
+            List<Faction> members = candidate.Factions.Distinct().ToList();
+            return members.Count == 1 ? members[0] : null;
         }
 
         internal void NotifyMaterialized(SpaceObject marker, SpaceObject container)
         {
-            Ship initial = ShipRegistry.ShipsOnMap(container.map)
-                .FirstOrDefault(s => ShipRegistry.FactionOf(s) != Faction.OfPlayer);
+            ShipBase initial = container.Ships
+                .FirstOrDefault(s => s.Faction != Faction.OfPlayer) ?? ShipBase.Invalid;
             if (initial.IsValid) RecordBaseline(initial, container);
             if (marker.contentTypeId != "Shipyard") return;
             foreach (SpaceObject obj in universe.objects)
@@ -90,21 +89,21 @@ namespace DeltaV
 
         private readonly HashSet<int> retirementQueued = new HashSet<int>();
 
-        private void RecordBaseline(Ship ship, SpaceObject own)
+        private void RecordBaseline(ShipBase ship, SpaceObject own)
         {
             if (own.npcBaselineRecorded || !ship.IsValid) return;
-            own.npcInitialThrust = (universe.FrameOf(ship.map)?.MotionInfo.AvailableThrust ?? 0f);
+            own.npcInitialThrust = (universe.FrameOf(ship.Map)?.MotionInfo.AvailableThrust ?? 0f);
             own.npcInitialFirepower = universe.Weapons.EstimateFirepower(ship, 50f, 20f);
-            own.npcInitialMainConsoleId = ship.console.parent.thingIDNumber;
+            own.npcInitialMainConsoleId = ship.Anchor.thingIDNumber;
             own.npcBaselineRecorded = true;
         }
 
-        internal bool EvaluateRetreat(Ship ship, SpaceObject own, out string reason)
+        internal bool EvaluateRetreat(ShipBase ship, SpaceObject own, out string reason)
         {
             RecordBaseline(ship, own);
-            return EvaluateRetreat(own, (universe.FrameOf(ship.map)?.MotionInfo.AvailableThrust ?? 0f),
+            return EvaluateRetreat(own, (universe.FrameOf(ship.Map)?.MotionInfo.AvailableThrust ?? 0f),
                 universe.Weapons.EstimateFirepower(ship, 50f, 20f),
-                ship.console.parent.thingIDNumber, out reason);
+                ship.Anchor.thingIDNumber, out reason);
         }
 
         private bool EvaluateRetreat(SpaceObject own, float thrust, float firepower,
@@ -132,12 +131,12 @@ namespace DeltaV
         {
             // 只观测，不修改撤退、母港或导航任务。决策留给正常 AI 周期。
             archive.npcFaction = ShipyardFaction(obj);
-            Ship ship = ShipRegistry.ShipsOnMap(obj.map)
-                .FirstOrDefault(s => ShipRegistry.FactionOf(s) != null
-                    && ShipRegistry.FactionOf(s) != Faction.OfPlayer);
-            archive.observedThrust = ship.IsValid ? (universe.FrameOf(ship.map)?.MotionInfo.AvailableThrust ?? 0f) : 0f;
+            ShipBase ship = obj.Ships
+                .FirstOrDefault(s => s.Faction != null
+                    && s.Faction != Faction.OfPlayer) ?? ShipBase.Invalid;
+            archive.observedThrust = ship.IsValid ? (universe.FrameOf(ship.Map)?.MotionInfo.AvailableThrust ?? 0f) : 0f;
             archive.observedFirepower = ship.IsValid ? universe.Weapons.EstimateFirepower(ship, 50f, 20f) : 0f;
-            archive.observedMainConsoleId = ship.IsValid ? ship.console.parent.thingIDNumber : 0;
+            archive.observedMainConsoleId = ship.IsValid ? ship.Anchor.thingIDNumber : 0;
         }
 
         // 上次下令的目标只用于避免反复重建导航任务；无图/恢复/读档均可丢弃。
@@ -228,15 +227,15 @@ namespace DeltaV
                 }
                 if (obj.map.Disposed) continue;
                 navigationHomes.Remove(obj.objectId);
-                if (obj.Tag != SpaceObjectTag.Ship)
+                if (obj.HasTag(SpaceObjectTag.Ship) != true)
                 {
                     LogUnclaimedConsoleEdge(obj);
                     continue;
                 }
                 noMainReportedObjects.Remove(obj.objectId);
-                foreach (Ship ship in ShipRegistry.ShipsOnMap(obj.map))
+                foreach (ShipBase ship in obj.Ships)
                 {
-                    Faction faction = ShipRegistry.FactionOf(ship);
+                    Faction faction = ship.Faction;
                     if (faction == null || faction == Faction.OfPlayer) continue;
                     NpcShipController controller = universe.Controls.NpcFor(ship);
                     NpcShipAiGate gate = GateFor(obj, ship, controller);
@@ -246,7 +245,7 @@ namespace DeltaV
                         controller?.SetCombatReady(false);
                         continue;
                     }
-                    if (!controller.Active || controller.target.ControlKey != ship.ownerId)
+                    if (!controller.Active || controller.target.Identity != ship.Identity)
                         controller.Enter(PilotTarget.Of(ship));
                     controller.Ai.Tick(controller);
                 }
@@ -255,8 +254,8 @@ namespace DeltaV
             if (lastCleanupTick < 0 || now - lastCleanupTick >= 600)
             {
                 lastCleanupTick = now;
-                foreach (int id in lastGateByShip.Keys.ToList())
-                    if (!ShipRegistry.ShipByOwner(id).IsValid)
+                foreach (DriveSubject id in lastGateByShip.Keys.ToList())
+                    if (!ShipRegistry.ShipByIdentity(id).IsValid)
                     {
                         lastGateByShip.Remove(id);
                     }
@@ -275,37 +274,40 @@ namespace DeltaV
             noMainReportedObjects.Add(obj.objectId);
             DeltaVLog.Message(DeltaVLogModule.Combat,
                 $"NPC console without recognized main ship on container #{obj.objectId}; "
-                + $"AI gate {NpcShipAiGate.NoMainConsole}; {UniverseManager.MapTag(obj.map)}");
+                + $"AI gate {NpcShipAiGate.NoShip}; {UniverseManager.MapTag(obj.map)}");
         }
 
         internal bool HasUnclaimedNpcConsole(SpaceObject obj)
         {
-            return obj?.map != null && !obj.map.Disposed && obj.Tag != SpaceObjectTag.Ship
+            return obj?.map != null && !obj.map.Disposed && obj.HasTag(SpaceObjectTag.Ship) != true
                 && obj.map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole)
                     .Any(thing => thing.Faction != null && thing.Faction != Faction.OfPlayer);
         }
 
-        internal NpcShipAiGate GateFor(SpaceObject obj, Ship ship)
+        internal NpcShipAiGate GateFor(SpaceObject obj, ShipBase ship)
         {
             NpcShipController controller = ship.IsValid ? universe.Controls.NpcFor(ship) : null;
             return GateFor(obj, ship, controller);
         }
 
-        private NpcShipAiGate GateFor(SpaceObject obj, Ship ship, NpcShipController controller)
+        private NpcShipAiGate GateFor(SpaceObject obj, ShipBase ship, NpcShipController controller)
         {
             if (obj?.map == null || obj.map.Disposed) return NpcShipAiGate.NoMap;
-            if (!ship.IsValid || ship.map != obj.map) return NpcShipAiGate.NoMainConsole;
-            Faction faction = ShipRegistry.FactionOf(ship);
+            if (!ship.IsValid || ship.Map != obj.map) return NpcShipAiGate.NoShip;
+            Faction faction = ship.Faction;
             if (faction == null || faction == Faction.OfPlayer) return NpcShipAiGate.NoNpcFaction;
             if (controller == null) return NpcShipAiGate.NoControllerAuthority;
-            if (obj.Tag != SpaceObjectTag.Ship) return NpcShipAiGate.NotShipContainer;
+            if (!ship.CanDriveIn(obj)) return NpcShipAiGate.InvalidPilotTarget;
+            if (obj.projectileRoleOverride || universe.Approach.FlowTarget.Identity == ship.Identity)
+                return NpcShipAiGate.ApproachConflict;
+            if (obj.HasTag(SpaceObjectTag.Ship) != true) return NpcShipAiGate.NotShipContainer;
             if (universe.Lifecycle.IsFrozen(obj.map))
                 return NpcShipAiGate.FrozenMap;
             if (universe.Lifecycle.MinPlayerDistance(obj)
                 > DeltaVMod.CurrentSettings.poiActiveRadius)
                 return NpcShipAiGate.OutsideActiveRadius;
             if (controller != null && (!controller.Active
-                    || controller.target.ControlKey != ship.ownerId))
+                    || controller.target.Identity != ship.Identity))
             {
                 PilotEntryBlockReason block = controller.EntryBlockReason(PilotTarget.Of(ship));
                 if (block != PilotEntryBlockReason.None)
@@ -321,16 +323,16 @@ namespace DeltaV
             return NpcShipAiGate.Ready;
         }
 
-        private void LogGateEdge(Ship ship, SpaceObject obj, NpcShipAiGate gate)
+        private void LogGateEdge(ShipBase ship, SpaceObject obj, NpcShipAiGate gate)
         {
             if (!DeltaVLog.Enabled(DeltaVLogModule.Combat)) return;
-            if (lastGateByShip.TryGetValue(ship.ownerId, out NpcShipAiGate previous)
+            if (lastGateByShip.TryGetValue(ship.Identity, out NpcShipAiGate previous)
                 && previous == gate) return;
-            lastGateByShip[ship.ownerId] = gate;
+            lastGateByShip[ship.Identity] = gate;
             DeltaVLog.Message(DeltaVLogModule.Combat,
-                $"NPC ship #{ship.ownerId} {UniverseManager.MapTag(obj.map)} "
-                + $"AI gate {gate}; relation={ShipRegistry.StateOf(ship)} "
-                + $"faction={ShipRegistry.FactionOf(ship)?.Name ?? "none"} "
+                $"NPC ship #{ship.Identity} {UniverseManager.MapTag(obj.map)} "
+                + $"AI gate {gate}; relation={ship.State} "
+                + $"faction={ship.Faction?.Name ?? "none"} "
                 + $"playerDist={universe.Lifecycle.MinPlayerDistance(obj):F0}");
         }
     }
@@ -338,7 +340,7 @@ namespace DeltaV
     internal sealed class NpcCombatAi : INpcShipAi
     {
         private readonly UniverseManager universe;
-        private readonly int ownerId;
+        private readonly DriveSubject ownerId;
         private int nextBoardTick;
         private bool noThrustObserved;
         private bool lastNoThrust;
@@ -349,23 +351,23 @@ namespace DeltaV
         private const float GuardRetargetDistance = 1f;
         private const float GuardRetargetAngle = 5f * Mathf.Deg2Rad;
 
-        public NpcCombatAi(UniverseManager universe, int ownerId)
+        public NpcCombatAi(UniverseManager universe, DriveSubject ownerId)
         {
             this.universe = universe;
             this.ownerId = ownerId;
         }
 
-        public bool HasAuthority(Ship ship) => ship.IsValid && ship.ownerId == ownerId
-            && ShipRegistry.FactionOf(ship) != null
-            && ShipRegistry.FactionOf(ship) != Faction.OfPlayer;
+        public bool HasAuthority(ShipBase ship) => ship.IsValid && ship.Identity == ownerId
+            && ship.Faction != null
+            && ship.Faction != Faction.OfPlayer;
 
-        public void ComposeCommand(Ship ship, ref PilotService.PilotCommand command) { }
+        public void ComposeCommand(ShipBase ship, ref PilotService.PilotCommand command) { }
 
         public void Tick(NpcShipController controller)
         {
-            Ship ship = ShipRegistry.ShipByOwner(ownerId);
+            ShipBase ship = ShipRegistry.ShipByIdentity(ownerId);
             if (!HasAuthority(ship)) return;
-            SpaceObject own = universe.FrameOf(ship.map);
+            SpaceObject own = universe.FrameOf(ship.Map);
             if (own == null) return;
             int now = Find.TickManager.TicksGame;
             controller.AutoFire.Decide(ship, own);
@@ -375,13 +377,13 @@ namespace DeltaV
             {
                 if (!wasRetreating)
                 {
-                    SpaceObject home = universe.NpcShips.ResolveRetreatHome(own, ShipRegistry.FactionOf(ship));
+                    SpaceObject home = universe.NpcShips.ResolveRetreatHome(own, ship.Faction);
                     universe.Autopilot.Detach(DriveSubject.Of(ship), "NPC retreat");
                     if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
                         DeltaVLog.Message(DeltaVLogModule.Combat,
                             $"NPC ship #{ownerId} retreat triggered ({retreatReason}); home="
                             + (home == null ? "evade without home" : $"#{home.objectId} '{home.label}'")
-                            + $"; {UniverseManager.MapTag(ship.map)}");
+                            + $"; {UniverseManager.MapTag(ship.Map)}");
                 }
                 LogThrustEdge(ship);
                 TickRetreat(controller, ship, own, target);
@@ -410,7 +412,7 @@ namespace DeltaV
             }
         }
 
-        internal static int CountEligibleTargets(UniverseManager universe, Ship ship, SpaceObject own)
+        internal static int CountEligibleTargets(UniverseManager universe, ShipBase ship, SpaceObject own)
         {
             int count = 0;
             foreach (SpaceObject candidate in universe.objects)
@@ -419,12 +421,12 @@ namespace DeltaV
         }
 
 
-        private float Thrust(Ship ship)
+        private float Thrust(ShipBase ship)
         {
-            return (universe.FrameOf(ship.map)?.MotionInfo.AvailableThrust ?? 0f);
+            return (universe.FrameOf(ship.Map)?.MotionInfo.AvailableThrust ?? 0f);
         }
 
-        private void LogThrustEdge(Ship ship)
+        private void LogThrustEdge(ShipBase ship)
         {
             if (!DeltaVLog.Enabled(DeltaVLogModule.Combat)) return;
             bool noThrust = Thrust(ship) <= 0f;
@@ -435,16 +437,16 @@ namespace DeltaV
             if (noThrust)
                 DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"NPC ship #{ownerId} has no operational map thrust; "
-                    + $"{UniverseManager.MapTag(ship.map)}");
+                    + $"{UniverseManager.MapTag(ship.Map)}");
             else if (wasObserved)
                 DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"NPC ship #{ownerId} operational map thrust restored; "
-                    + $"{UniverseManager.MapTag(ship.map)}");
+                    + $"{UniverseManager.MapTag(ship.Map)}");
         }
 
-        private void TickRetreat(NpcShipController controller, Ship ship, SpaceObject own, SpaceObject threat)
+        private void TickRetreat(NpcShipController controller, ShipBase ship, SpaceObject own, SpaceObject threat)
         {
-            SpaceObject home = universe.NpcShips.ResolveRetreatHome(own, ShipRegistry.FactionOf(ship));
+            SpaceObject home = universe.NpcShips.ResolveRetreatHome(own, ship.Faction);
             int homeId = home?.objectId ?? 0;
             bool changedHome = retreatHomeId != homeId;
             if (changedHome)
@@ -504,19 +506,11 @@ namespace DeltaV
             }
         }
 
-        private void TryBoard(Ship ship, SpaceObject own, SpaceObject enemy)
+        private void TryBoard(ShipBase ship, SpaceObject own, SpaceObject enemy)
         {
             float range = OrbitSphere.ArcCells(own.pose.position, enemy.pose.position);
             if (range > 100f) return;
-            Building body = ship.map.listerThings.AllThings.OfType<Building>()
-                .FirstOrDefault(b => b.Faction == ShipRegistry.FactionOf(ship)
-                    && b.TryGetComp<CompSpaceShuttle>() is { CanBoard: true } comp
-                    && comp.Launchable != null && comp.Launchable.CanLaunch()
-                    && b.TryGetComp<CompTransporter>()?.innerContainer?.Any(t => t is Pawn) == true);
-            if (body == null) return;
-            universe.Shuttles.Launch(body);
-            if (body.Spawned && universe.FrameOf(body.Map)?.baseTag == SpaceObjectTag.Shuttle)
-                universe.Shuttles.EngageIntrusion(body, enemy, playerInitiated: false);
+            universe.Shuttles.TryBoardFrom(ship, enemy);
         }
     }
 }

@@ -64,15 +64,11 @@ namespace DeltaV
             // 目标甲板之上。
             ForegroundScratch.Clear();
             PilotTarget flowTarget = universe.Approach.FlowTarget;
-            Ship pendingShip = universe.ShipTransitions.PendingDockingShip(universe);
-            Building pendingShuttle = universe.ShipTransitions.pendingShuttleBody;
             foreach (SpaceObject obj in universe.objects)
             {
                 if (obj == frame || !obj.ParticipatesInOverlays) continue;
                 // 进场/选点船的容器壳走前台（聚焦目标图时临时被悬停壳覆盖）。
-                if ((flowTarget.IsValid && universe.FrameOf(flowTarget.Map) == obj)
-                    || (pendingShip.IsValid && universe.FrameOf(pendingShip.map) == obj)
-                    || (pendingShuttle != null && universe.FrameOf(pendingShuttle.Map) == obj))
+                if (flowTarget.IsValid && universe.FrameOf(flowTarget.Map) == obj)
                 {
                     ForegroundScratch.Add(obj);
                 }
@@ -119,14 +115,10 @@ namespace DeltaV
         {
             results.Clear();
             PilotTarget flowTarget = universe.Approach.FlowTarget;
-            Ship pendingShip = universe.ShipTransitions.PendingDockingShip(universe);
-            Building pendingShuttle = universe.ShipTransitions.pendingShuttleBody;
             foreach (SpaceObject obj in universe.objects)
             {
                 if (obj == frame || !obj.ParticipatesInOverlays) continue;
-                if ((flowTarget.IsValid && universe.FrameOf(flowTarget.Map) == obj)
-                    || (pendingShip.IsValid && universe.FrameOf(pendingShip.map) == obj)
-                    || (pendingShuttle != null && universe.FrameOf(pendingShuttle.Map) == obj)) continue;
+                if (flowTarget.IsValid && universe.FrameOf(flowTarget.Map) == obj) continue;
                 results.Add(obj);
             }
             results.Sort(CompareById);

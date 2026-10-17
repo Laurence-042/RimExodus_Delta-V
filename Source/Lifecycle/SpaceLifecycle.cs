@@ -103,8 +103,7 @@ namespace DeltaV
             // 在飞弹体图按 tag 豁免距离休眠/归档（太空战架构 §3.2）：弹体生命周期由
             // 弹体服务（超时/碰撞结算）独占管理，生命周期扫描不得收纳/销毁在飞弹体的图
             //（图池空闲图的豁免同样见弹体服务）。
-            if (container.Tag == SpaceObjectTag.Projectile
-                || container.baseTag == SpaceObjectTag.Shuttle) return;
+            if (container.HasTag(SpaceObjectTag.Projectile) == true) return;
             // 悬死自愈：图被外部销毁 → 容器随图消亡。
             if (map.Disposed || !Find.Maps.Contains(map))
             {
@@ -137,10 +136,10 @@ namespace DeltaV
         public float MinPlayerDistance(SpaceObject obj)
         {
             float best = float.PositiveInfinity;
-            foreach (Ship ship in universe.PlayerShips())
+            foreach (SpaceObject reference in universe.PlayerReferenceObjects())
             {
                 best = Mathf.Min(best,
-                    OrbitSphere.ArcCells(ShipRegistry.ShipPose(ship).position, obj.pose.position));
+                    OrbitSphere.ArcCells(reference.pose.position, obj.pose.position));
             }
             return best;
         }
@@ -425,8 +424,7 @@ namespace DeltaV
                     return;
                 }
                 if (SpaceMapGovernance.MustStayActive(map, universe)
-                    || container.Tag == SpaceObjectTag.Projectile
-                    || container.baseTag == SpaceObjectTag.Shuttle
+                    || container.HasTag(SpaceObjectTag.Projectile) == true
                     || map.Parent is not ShipPocketParent_DeltaV
                     || !ArchivedMapStore.CanUnloadLosslessly(map)
                     || (!force && MinPlayerDistance(container)
@@ -539,6 +537,18 @@ namespace DeltaV
             obj.map = null;
             universe.UnregisterObject(obj);
             return true;
+        }
+
+        /// <summary>外部销图的统一注销；归档已换表示时不得移除同 ID 的新对象。</summary>
+        internal void NotifyMapRemoved(Map map)
+        {
+            SpaceObject container = universe.FrameOf(map);
+            if (container == null || container is PoiState) return; // 原生 POI 镜像由 parent 生命周期维护。
+            universe.QueueFrameAction(() =>
+            {
+                if (universe.objects.Contains(container) && container.map == map)
+                    universe.UnregisterObject(container);
+            });
         }
 
         public void Forget(Map map)

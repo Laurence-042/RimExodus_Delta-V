@@ -14,7 +14,7 @@ using Verse;
 
 // Exercises the built production DLL, with an empty game and cached sphere scale.
 // Does not substitute navigation/retirement logic or run map restoration without Unity.
-internal static class Program
+internal static partial class Program
 {
     const BindingFlags Private = BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic;
     static int checks;
@@ -25,7 +25,7 @@ internal static class Program
             string path = Path.Combine(args[0], name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        try { Run(); Console.WriteLine($"PASS {checks} retreat checks (production DLL)"); return 0; }
+        try { Run(); Console.WriteLine($"PASS {checks} regression checks (production DLL)"); return 0; }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
     }
 
@@ -49,6 +49,7 @@ internal static class Program
     {
         // Vanilla log rendering needs Unity; all assertions and production control paths remain active.
         using var logs = Log.LockMessages();
+        DeepProfiler.enabled = false;
         var mod = (DeltaVMod)Raw(typeof(DeltaVMod));
         typeof(DeltaVMod).GetField("<Settings>k__BackingField", Private)
             .SetValue(mod, new DeltaVSettings());
@@ -77,6 +78,10 @@ internal static class Program
         var universe = new UniverseManager(game);
         game.components = new List<GameComponent> { universe };
         game.tickManager = (TickManager)Raw(typeof(TickManager));
+        CheckObjectReferences(universe, faction, other);
+        CheckShipCapabilities(universe, faction);
+        CheckShuttleLifecycle(universe, faction);
+        CheckFoundationLifecycle(universe, faction, other);
         SpaceObject Make(int id, float distance, string type = null, Faction owner = null)
         {
             var obj = new SpaceObject(id, new SpacePose(
@@ -310,7 +315,7 @@ internal static class Program
         var console = new CompDeltaVPilotConsole { parent = (ThingWithComps)Raw(typeof(ThingWithComps)) };
         typeof(Thing).GetField("mapIndexOrState", Private).SetValue(console.parent, (sbyte)-1);
         console.parent.thingIDNumber = 101;
-        var restoredShip = new Ship(1, null, console);
+        ShipBase restoredShip = new Ship(1, null, console);
         ship.npcBaselineRecorded = true;
         ship.npcInitialThrust = 0f;
         ship.npcInitialFirepower = 0f;

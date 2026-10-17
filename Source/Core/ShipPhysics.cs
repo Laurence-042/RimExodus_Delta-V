@@ -161,8 +161,9 @@ namespace DeltaV
 
         // ---- 质量模型 ----
 
-        internal static MassReport Measure(Map map, Thruster[] virtualThrusters)
+        internal static MassReport Measure(SpaceObject container)
         {
+            Map map = container.map;
             var report = new MassReport();
             Vector2 origin = SpaceTransform.ShipLocalOrigin(map);
 
@@ -171,14 +172,8 @@ namespace DeltaV
             var massPoints = new List<(Vector2 pos, float mass)>(256);
             float intrinsicInertia = 0f;
 
-            TerrainGrid terrain = map.terrainGrid;
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
+            foreach (IntVec3 cell in SubstructureOwnership.CellsOnMap(map))
             {
-                // IsSubstructure（tag 口径）：原版基架与月池（§7）同一计入，勿退回特定 def 比较。
-                if (terrain.TerrainAt(cell)?.IsSubstructure != true)
-                {
-                    continue;
-                }
                 var r = new Vector2(cell.x + 0.5f - origin.x, cell.z + 0.5f - origin.y);
                 totalMass += MassPerDeckCell;
                 moment += r * MassPerDeckCell;
@@ -202,25 +197,6 @@ namespace DeltaV
                 // m(w²+h²)/12；此前 shuttle 独占图只有一个 3x5 建筑，点质量模型把
                 // 惯量夹成 1，任何侧推都产生数百 rad/s² 的虚假角加速度。
                 intrinsicInertia += m * (rect.Width * rect.Width + rect.Height * rect.Height) / 12f;
-                if (ThrusterPower.IsThruster(thing))
-                {
-                    // 出力上限收口（2026-09-27）：滑条 comp 的百分比在此一次性乘入——
-                    // 分配器/权威测量/火焰只读 thruster.thrust，自动跟随。
-                    CompThrusterPowerLimit powerLimit = thing.TryGetComp<CompThrusterPowerLimit>();
-                    float thrust = ThrusterThrust;
-                    if (powerLimit != null)
-                    {
-                        thrust *= Mathf.Clamp(powerLimit.powerPercent, 0f, 100f) * 0.01f;
-                    }
-                    report.thrusters.Add(new Thruster
-                    {
-                        thing = thing,
-                        localPos = r,
-                        dir = ThrustDir(thing.Rotation),
-                        operational = ThrusterPower.IsOperational(thing) && thrust > 0f,
-                        thrust = thrust
-                    });
-                }
             }
 
             if (totalMass < 1f)
@@ -239,14 +215,24 @@ namespace DeltaV
                 inertia += massPoints[i].mass * (massPoints[i].pos - report.comLocal).sqrMagnitude;
             }
             report.inertia = Mathf.Max(inertia, 1f);
-            // 虚拟推进器注入（shuttle MiniShip，太空战架构 §7.3）：XML 逐台配置的
-            // 船体帧位置 + 推力矢量（PassengerShuttle 默认 8 台）——不经图内推进器建筑，
-            // 但与真实推进器走同一分配器/油门/火焰读取链。
-            if (virtualThrusters != null)
-            {
-                report.thrusters.AddRange(virtualThrusters);
-            }
+            report.thrusters.AddRange(container.BuildThrusters());
             return report;
+        }
+
+        /// <summary>实体推进器的唯一数值适配；所属船决定是否纳入布局。</summary>
+        public static Thruster BuildInstalledThruster(Thing thing)
+        {
+            CompThrusterPowerLimit limit = thing.TryGetComp<CompThrusterPowerLimit>();
+            float thrust = ThrusterThrust * (limit == null ? 1f : Mathf.Clamp(limit.powerPercent, 0f, 100f) * 0.01f);
+            return new Thruster
+            {
+                thing = thing,
+                localPos = SpaceTransform.BoundsCenterOfCells(thing.OccupiedRect().Cells)
+                    - SpaceTransform.ShipLocalOrigin(thing.Map),
+                dir = ThrustDir(thing.Rotation),
+                operational = ThrusterPower.IsOperational(thing) && thrust > 0f,
+                thrust = thrust
+            };
         }
 
         /// <summary>
@@ -429,7 +415,7 @@ namespace DeltaV
                 Thruster thruster = report.thrusters[i];
                 if (thruster.thing == null)
                 {
-                    continue; // 虚拟推进器（shuttle MiniShip，§7.3）：无实体，恒可用
+                    continue; // 无实体推进器的可用性由船体提供，不用建筑电力模型覆盖。
                 }
                 bool operational = ThrusterPower.IsOperational(thruster.thing) && thruster.thrust > 0f;
                 if (operational != thruster.operational) { thruster.operational = operational; report.version++; }
@@ -772,8 +758,9 @@ namespace DeltaV
 
         private static readonly Dictionary<Map, CachedReport> Cache = new Dictionary<Map, CachedReport>();
 
-        internal static MassReport GetReport(Map map, Thruster[] virtualThrusters)
+        internal static MassReport GetReport(SpaceObject container)
         {
+            Map map = container.map;
             if (map == null || map.Disposed)
             {
                 return null;
@@ -786,7 +773,7 @@ namespace DeltaV
             int now = Find.TickManager.TicksGame;
             if (cached.report == null || SubstructureOwnership.CacheNeedsRefresh(cached.structureVersion, cached.measuredAtTick))
             {
-                MassReport fresh = Measure(map, virtualThrusters);
+                MassReport fresh = Measure(container);
                 fresh.version = (cached.report?.version ?? 0) + 1;
                 if (DeltaVLog.Enabled(DeltaVLogModule.Physics)
                     && cached.report != null && MassModelChanged(cached.report, fresh))

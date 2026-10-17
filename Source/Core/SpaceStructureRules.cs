@@ -20,12 +20,29 @@ namespace DeltaV
         NaturalRock = 3
     }
 
+    public readonly struct SpaceCollisionCell
+    {
+        public readonly IntVec3 cell;
+        public readonly SpaceCellKind kind;
+        public readonly Thing building;
+        public SpaceCollisionCell(IntVec3 cell, SpaceCellKind kind, Thing building)
+        { this.cell = cell; this.kind = kind; this.building = building; }
+    }
+
     /// <summary>
     /// 建筑碰撞与船壳可见结构的分类入口。碰撞纳入全部建筑，再按掩体效果掷命中；
     /// 外壳只绘实体结构或显式规则，内部炮塔可被击中但不因此画在外壳上。
     /// </summary>
     public static class SpaceStructureRules
     {
+        public static IEnumerable<SpaceCollisionCell> CollisionCells(Map map, IEnumerable<IntVec3> cells)
+        {
+            foreach (IntVec3 cell in cells)
+            {
+                SpaceCellKind kind = ClassifyCell(map, cell, out Thing building);
+                yield return new SpaceCollisionCell(cell, kind, building);
+            }
+        }
         public static float BuildingHitChance(Thing building) => building?.def.IsWall == true
             ? 1f : Mathf.Clamp01(building?.def.fillPercent ?? 0f);
 
@@ -73,7 +90,7 @@ namespace DeltaV
             }
             if (solidThing != null)
                 return solidThing.def.building.isNaturalRock ? SpaceCellKind.NaturalRock : SpaceCellKind.Building;
-            if (map.terrainGrid.FoundationAt(cell)?.IsSubstructure == true) return SpaceCellKind.Substructure;
+            if (SubstructureOwnership.HasFoundation(map, cell)) return SpaceCellKind.Substructure;
             return SpaceCellKind.Empty;
         }
     }

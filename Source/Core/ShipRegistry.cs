@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -6,7 +7,7 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// 一艘飞船的查询句柄（解耦架构 §2）：主驾驶台认领的归属 + 它当前所在地图。
+    /// 基架控制域的查询快照（由 FoundationShip 包装为飞船）（解耦架构 §2）：主驾驶台认领的归属 + 它当前所在地图。
     /// 身份 = 归属 ID（全局唯一、经 AllocateOwnerId 发放、永不回收）——归属格只存在于
     /// 一张图上，故 (ownerId) 即全局定位。本结构是可重建派生查询结果，不是存档事实：
     /// 事实在 CompDeltaVPilotConsole（认领）与 SubstructureOwnership（归属格）。
@@ -32,6 +33,9 @@ namespace DeltaV
             && map != null && !map.Disposed && console.parent.Map == map;
 
         public static readonly Ship Invalid = new Ship(0, null, null);
+
+        public static implicit operator ShipBase(Ship ship) => ship.IsValid ? ship.console.Vessel : new FoundationShip(ship);
+
     }
 
     public enum ShipDerivedState : byte
@@ -44,7 +48,7 @@ namespace DeltaV
     }
 
     /// <summary>
-    /// 飞船查询唯一入口（解耦架构 §2/§3/§8.1）。飞船 = 认领归属的主驾驶台 + 从其脚下
+    /// 飞船查询唯一入口（解耦架构 §2/§3/§8.1）。基架实现的控制域 = 认领归属的主驾驶台 + 从其脚下
     /// 基架起四邻接且归属相同的连续基架（控制域）。全部方法为只读派生查询，不保存事实。
     ///
     /// 两种连通语义严格区分（§8.1，不得混用、不得在调用方另写近似）：
@@ -56,63 +60,61 @@ namespace DeltaV
     /// 与原自由飞行口袋图 East 规范一致）；锚 = 控制域包围盒中心（口袋图居中放置时
     /// 即口袋几何中心，与旧 dockedOrigin 注册语义连续）。
     /// 自由飞行船的控制/物理直接作用于其容器（FrameOf(map).pose）；本类的
-    /// ShipPose/HeadingAngle 只用于显示与交互。
+    /// ShipPose 只用于显示与交互。
     /// </summary>
     public static class ShipRegistry
     {
         // ---- 枚举 ----
 
-        /// <summary>图上全部有效飞船（有主台的归属）。主台即船，一归属至多一船。</summary>
-        public static List<Ship> ShipsOnMap(Map map)
+        /// <summary>图上普通基架船视图（有主台的归属）；结构操作不包含单建筑船。</summary>
+        public static List<Ship> FoundationShipsOnMap(Map map)
+            => AllShipsOnMap(map).OfType<FoundationShip>().Select(ship => ship.Structure).ToList();
+
+        /// <summary>船体枚举唯一入口；基架船及停靠/飞行中的单建筑船均为 ShipBase 的并列实现。</summary>
+        public static IEnumerable<ShipBase> AllShipsOnMap(Map map) =>
+            Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map)?.Ships ?? DiscoverShipsOnMap(map);
+
+        internal static IEnumerable<ShipBase> DiscoverShipsOnMap(Map map)
         {
-            var ships = new List<Ship>();
-            if (map == null || map.Disposed) return ships;
+            if (map == null || map.Disposed) yield break;
             foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
             {
                 CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
                 if (console?.isMain != true || console.shipId <= 0) continue;
-                ships.Add(new Ship(console.shipId, map, console));
+                var ship = new Ship(console.shipId, map, console);
+                if (ship.IsValid) yield return ship;
             }
-            return ships;
+            foreach (Thing thing in map.listerThings.ThingsInGroup(ThingRequestGroup.Transporter))
+            {
+                ShipBase ship = thing.TryGetComp<CompSpaceShuttle>()?.Vessel;
+                if (ship?.IsValid == true) yield return ship;
+            }
         }
 
-        /// <summary>按归属 ID 找船（扫全部已加载图）。找不到返回 <see cref="Ship.Invalid"/>。</summary>
-        public static Ship ShipByOwner(int ownerId)
+        public static ShipBase ShipByIdentity(DriveSubject identity) =>
+            Current.Game?.GetComponent<UniverseManager>()?.Controls.ResolveShip(identity) ?? ShipBase.Invalid;
+
+        public static ShipBase ShipOf(Thing thing, bool requireWholeFootprint = false)
         {
-            if (ownerId <= 0) return Ship.Invalid;
-            foreach (Map map in Find.Maps)
-            {
-                foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
-                {
-                    CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
-                    if (console?.isMain == true && console.shipId == ownerId)
-                    {
-                        return new Ship(ownerId, map, console);
-                    }
-                }
-            }
-            return Ship.Invalid;
+            if (thing?.Map == null) return ShipBase.Invalid;
+            // 单建筑船内置的武器归于自身，而非脚下宿主基架。
+            CompSpaceShuttle hull = thing.TryGetComp<CompSpaceShuttle>();
+            ShipBase ship = hull != null ? hull.Vessel : ShipByThing(thing);
+            if (!ship.IsValid || !requireWholeFootprint) return ship;
+            IEnumerable<IntVec3> cells = ship.HullCells;
+            return thing.OccupiedRect().Cells.All(cells.Contains) ? ship : ShipBase.Invalid;
         }
 
-        /// <summary>
-        /// 图的默认操作船：玩家派系船优先，否则唯一船直取；多船且无玩家船返回 Invalid。
-        /// 面板/快捷键在「无显式选择」时的默认（玩家显式点选恒优先于本默认）。
-        /// </summary>
-        public static Ship DefaultShipOnMap(Map map)
+        public static ShipBase DefaultVesselOnMap(Map map)
         {
-            Ship playerShip = Ship.Invalid;
-            List<Ship> ships = ShipsOnMap(map);
-            foreach (Ship ship in ships)
-            {
-                if (FactionOf(ship) == Faction.OfPlayer)
-                {
-                    playerShip = ship;
-                    break;
-                }
-            }
-            if (playerShip.IsValid) return playerShip;
-            return ships.Count == 1 ? ships[0] : Ship.Invalid;
+            var ships = AllShipsOnMap(map).ToList();
+            return ships.FirstOrDefault(ship => ship.Faction == Faction.OfPlayer) ??
+                (ships.Count == 1 ? ships[0] : ShipBase.Invalid);
         }
+
+        /// <summary>按归属 ID 查询统一身份索引。找不到返回 <see cref="Ship.Invalid"/>。</summary>
+        public static Ship ShipByOwner(int ownerId) =>
+            (ShipByIdentity(new DriveSubject(0, ownerId)) as FoundationShip)?.Structure ?? Ship.Invalid;
 
         /// <summary>
         /// 点击物所在归属域的船：扫描 OccupiedRect 首个能解析为有效船（同图主台）的归属格。
@@ -126,7 +128,8 @@ namespace DeltaV
             if (ownership == null) return Ship.Invalid;
             foreach (IntVec3 cell in thing.OccupiedRect())
             {
-                Ship ship = ShipByOwner(ownership.OwnerAt(cell));
+                Ship ship = (AllShipsOnMap(map).FirstOrDefault(s => s.Identity ==
+                    new DriveSubject(0, ownership.OwnerAt(cell))) as FoundationShip)?.Structure ?? Ship.Invalid;
                 if (ship.IsValid && ship.map == map) return ship;
             }
             return Ship.Invalid;
@@ -140,21 +143,6 @@ namespace DeltaV
             {
                 CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
                 if (console != null && console.shipId == ownerId && console.isMain) return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// 图上是否存在任何有效主台（不分配列表；SpaceObject.Tag 的 Ship 派生唯一判据，
-        /// 不得在别处另写主台扫描来判「这是船图」）。
-        /// </summary>
-        public static bool MapHasMainConsole(Map map)
-        {
-            if (map == null || map.Disposed) return false;
-            foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
-            {
-                CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
-                if (console?.isMain == true && console.shipId > 0) return true;
             }
             return false;
         }
@@ -210,17 +198,11 @@ namespace DeltaV
             SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
             if (ownership == null) return blocks;
             var visited = new HashSet<IntVec3>();
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
+            foreach (IntVec3 cell in SubstructureOwnership.CellsOnMap(map))
             {
                 if (visited.Contains(cell) || exclude.Contains(cell)) continue;
-                TerrainDef foundation = map.terrainGrid.FoundationAt(cell);
-                if (foundation == null || !foundation.IsSubstructure) continue;
                 var block = new HashSet<IntVec3>();
-                map.floodFiller.FloodFill(cell, c => c.InBounds(map)
-                        && map.terrainGrid.FoundationAt(c) != null
-                        && map.terrainGrid.FoundationAt(c).IsSubstructure
-                        && !exclude.Contains(c),
-                    c => { block.Add(c); return false; });
+                SubstructureOwnership.CollectConnected(map, cell, block, c => !exclude.Contains(c));
                 visited.UnionWith(block);
                 blocks.Add(block);
             }
@@ -238,7 +220,7 @@ namespace DeltaV
             {
                 if (thing == null || thing.Destroyed || !thing.Spawned
                     || exclude?.Contains(thing.Position) == true
-                    || map.terrainGrid.FoundationAt(thing.Position)?.IsSubstructure == true) continue;
+                    || SubstructureOwnership.HasFoundation(map, thing.Position)) continue;
                 ThingCategory category = thing.def.category;
                 if (category == ThingCategory.Mote || category == ThingCategory.Projectile
                     || category == ThingCategory.Gas
@@ -248,7 +230,7 @@ namespace DeltaV
             foreach (IntVec3 cell in map.AllCells)
             {
                 if (exclude?.Contains(cell) == true
-                    || map.terrainGrid.FoundationAt(cell)?.IsSubstructure == true) continue;
+                    || SubstructureOwnership.HasFoundation(map, cell)) continue;
                 if (map.roofGrid.RoofAt(cell) != null) return true;
                 TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
                 if (terrain != null && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void)
@@ -261,12 +243,8 @@ namespace DeltaV
             int ownerId, IntVec3 seedCell)
         {
             var cells = new HashSet<IntVec3>();
-            if (!seedCell.InBounds(map)) return cells;
-            map.floodFiller.FloodFill(seedCell, c => c.InBounds(map)
-                    && map.terrainGrid.FoundationAt(c) != null
-                    && map.terrainGrid.FoundationAt(c).IsSubstructure
-                    && ownership.OwnerAt(c) == ownerId,
-                c => { cells.Add(c); return false; });
+            SubstructureOwnership.CollectConnected(map, seedCell, cells,
+                c => ownership.OwnerAt(c) == ownerId);
             return cells;
         }
 
@@ -284,6 +262,7 @@ namespace DeltaV
         public static void ClearCaches()
         {
             domainCache.Clear();
+            SubstructureOwnership.BumpStructureVersion();
         }
 
         public static void Forget(Map map)
@@ -302,8 +281,11 @@ namespace DeltaV
         {
             if (!ship.IsValid) return ShipDerivedState.Docked;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (universe == null || universe.FrameOf(ship.map) == null) return ShipDerivedState.Docked;
-            if (ShipsOnMap(ship.map).Count > 1) return ShipDerivedState.Docked;
+            SpaceObject frame = universe?.FrameOf(ship.map);
+            if (frame == null) return ShipDerivedState.Docked;
+            // 停放在本船上的成员不能直接驾驶宿主；只计算该容器的独立驾驶主体。
+            if (frame.Ships.Any(other => other.Identity != new DriveSubject(0, ship.ownerId)
+                && other.CanDriveIn(frame))) return ShipDerivedState.Docked;
             if (RestsOnNaturalGround(ship)) return ShipDerivedState.Docked;
             return ShipDerivedState.FreeFlight;
         }
@@ -321,8 +303,6 @@ namespace DeltaV
             TerrainGrid terrain = ship.map.terrainGrid;
             foreach (IntVec3 cell in ControlDomain(ship))
             {
-                TerrainDef foundation = terrain.FoundationAt(cell);
-                if (foundation == null || !foundation.IsSubstructure) continue;
                 TerrainDef baseTerrain = terrain.BaseTerrainAt(cell);
                 if (baseTerrain != null && baseTerrain != TerrainDefOf.Space)
                 {
@@ -353,22 +333,14 @@ namespace DeltaV
         /// 自由飞行船 ≈ 其容器位姿（锚 = 口袋中心）；停靠船 = 宿主刚体上的局部点位姿。
         /// 控制、物理与对接判据始终直接消费容器位姿（FrameOf(map).pose），不经本入口。
         /// </summary>
-        public static SpacePose ShipPose(Ship ship)
+        public static SpacePose ShipPose(ShipBase ship)
         {
-            if (!ship.IsValid) return new SpacePose(Vector3.right, 0f);
+            if (ship?.IsValid != true) return new SpacePose(Vector3.right, 0f);
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            SpaceObject frame = universe?.FrameOf(ship.map);
+            SpaceObject frame = universe?.FrameOf(ship.Map);
             if (frame == null) return new SpacePose(Vector3.right, 0f);
             return SpaceTransform.RigidPointPose(frame.pose,
-                SpaceTransform.MapToShipLocal(ship.map, HullCenter(ship)), LocalFrameAngle(ship));
-        }
-
-        /// <summary>船艏方向（宇宙角）：容器角 ⊕ σ。旧 HeadingAngle 的派生等价物。</summary>
-        public static float HeadingAngle(Ship ship)
-        {
-            if (!ship.IsValid) return 0f;
-            SpaceObject frame = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(ship.map);
-            return frame == null ? 0f : SpaceTransform.WrapAngle(frame.pose.angle + LocalFrameAngle(ship));
+                SpaceTransform.MapToShipLocal(ship.Map, ship.HullCenter), ship.FrameAngle);
         }
 
         // ---- 成员 / 派系 / 引擎 ----

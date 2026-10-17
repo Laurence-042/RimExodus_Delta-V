@@ -161,7 +161,12 @@ namespace DeltaV
                 {
                     // FinalizeLoading 可能已生成部分 Thing/Region；复用唯一卸图入口清理索引。
                     if (TryUnload(loaded, preserveExternalEvents: false))
-                        loaded.spawnedThings.Clear();
+                    {
+                        try { Current.Game.GetComponent<UniverseManager>()?.Lifecycle.Forget(loaded); }
+                        catch (Exception cleanupError)
+                        { Log.Error($"[DeltaV] Partial map restore runtime cleanup failed: {cleanupError}"); }
+                        finally { loaded.spawnedThings.Clear(); }
+                    }
                     else
                         Log.Error($"[DeltaV] Failed to remove partially restored map {UniverseManager.MapTag(loaded)}");
                 }

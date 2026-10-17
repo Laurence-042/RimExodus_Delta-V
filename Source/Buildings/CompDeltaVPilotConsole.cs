@@ -49,39 +49,36 @@ namespace DeltaV
         /// <summary>是否为该归属的主驾驶台（认领事实；一归属至多一主台）。</summary>
         public bool isMain;
 
-        // ---- 武器组激活位（太空战架构 §5.5；存档事实，随 comp 捕获搬运）----
-
-        /// <summary>主套激活组位掩码（bit0 = 组1；默认仅组1 激活）。</summary>
-        public int weaponGroupsMain = 1;
-
-        /// <summary>副套激活组位掩码（bit0 = 组1；默认仅组1 激活）。</summary>
-        public int weaponGroupsSecondary = 1;
-
-        /// <summary>玩家火控选择随主驾驶台保存；自动为新船默认值。</summary>
-        public ShipFireControlMode fireControlMode = ShipFireControlMode.Automatic;
-
-        /// <summary>指定套别的激活位掩码（面板两排方块唯一读写入口）。</summary>
-        public int WeaponGroupMask(SpaceWeaponSalvoSet set)
-        {
-            return set == SpaceWeaponSalvoSet.Main ? weaponGroupsMain : weaponGroupsSecondary;
-        }
-
-        public void SetWeaponGroupMask(SpaceWeaponSalvoSet set, int mask)
-        {
-            if (set == SpaceWeaponSalvoSet.Main) weaponGroupsMain = mask;
-            else weaponGroupsSecondary = mask;
-        }
+        public ShipCombatState combat = new ShipCombatState();
+        public ShipFireControlMode fireControlMode { get => combat.fireControlMode; set => combat.fireControlMode = value; }
+        public int WeaponGroupMask(SpaceWeaponSalvoSet set) => combat.WeaponGroupMask(set);
+        public void SetWeaponGroupMask(SpaceWeaponSalvoSet set, int mask) => combat.SetWeaponGroupMask(set, mask);
 
         public Ship Ship => isMain && shipId > 0 && parent.Spawned
             ? new Ship(shipId, parent.Map, this)
             : Ship.Invalid;
+
+        private FoundationShip vessel;
+        public virtual ShipBase Vessel
+        {
+            get
+            {
+                if (vessel == null || vessel.Map != parent.Map || vessel.Identity.key != shipId)
+                    vessel = new FoundationShip(Ship);
+                return vessel;
+            }
+        }
 
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
             base.PostSpawnSetup(respawningAfterLoad);
             ClaimOnSpawn();
             RestampShipDomain();
-            if (isMain) Universe?.Controls.For(Ship);
+            if (isMain)
+            {
+                ShipStructureChanges.Notify(parent.Map);
+                Universe?.Controls.For(Vessel);
+            }
         }
 
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
@@ -283,11 +280,10 @@ namespace DeltaV
         public override void PostExposeData()
         {
             base.PostExposeData();
+            Scribe_Deep.Look(ref combat, "combat");
+            combat ??= new ShipCombatState();
             Scribe_Values.Look(ref shipId, "shipId", -1);
             Scribe_Values.Look(ref isMain, "isMain", false);
-            Scribe_Values.Look(ref weaponGroupsMain, "weaponGroupsMain", 1);
-            Scribe_Values.Look(ref weaponGroupsSecondary, "weaponGroupsSecondary", 1);
-            Scribe_Values.Look(ref fireControlMode, "fireControlMode", ShipFireControlMode.Automatic);
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()

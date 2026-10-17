@@ -29,7 +29,7 @@ namespace DeltaV
             get
             {
                 UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-                Ship primary = universe == null ? Ship.Invalid : universe.PrimaryPlayerShip();
+                ShipBase primary = universe == null ? Ship.Invalid : universe.PrimaryPlayerShip();
                 return primary.IsValid
                     ? OrbitSphere.SpherePoint(ShipRegistry.ShipPose(primary).position)
                     : Vector3.zero;

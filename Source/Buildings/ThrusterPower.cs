@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using RimWorld;
 using Verse;
 
@@ -41,51 +40,6 @@ namespace DeltaV
                 && Model.IsOperational(thruster);
         }
 
-        /// <summary>图上是否存在任一可工作推进器（直扫实时状态，供无动力判定）。</summary>
-        public static bool HasWorkingThruster(Map map)
-        {
-            if (map?.listerThings?.AllThings == null) return false;
-            foreach (Thing thing in map.listerThings.AllThings)
-            {
-                if (IsThruster(thing) && IsOperational(thing)) return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// 指定基架范围内是否存在任一可工作推进器。多船共图（停靠宿主图）时按引擎的
-        /// 相连基架连通域圈定单艘船，不误扫他船/站点结构；范围口径与转换捕获一致。
-        /// </summary>
-        public static bool HasWorkingThruster(Map map, ICollection<IntVec3> scope)
-        {
-            if (map?.listerThings?.AllThings == null || scope == null) return false;
-            foreach (Thing thing in map.listerThings.AllThings)
-            {
-                if (IsThruster(thing) && scope.Contains(thing.Position) && IsOperational(thing))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// 图上是否存在任一存活驾驶台。主台被毁时其他台接任（CompDeltaVPilotConsole），
-        /// 因此"失去驾驶能力"的口径是全部驾驶台被毁。
-        /// </summary>
-        public static bool HasWorkingConsole(Map map)
-        {
-            if (map?.listerThings?.AllThings == null) return false;
-            foreach (Thing thing in map.listerThings.AllThings)
-            {
-                if (thing is Building && thing.Spawned && !thing.Destroyed
-                    && thing.TryGetComp<CompDeltaVPilotConsole>() != null)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
     }
 
     /// <summary>

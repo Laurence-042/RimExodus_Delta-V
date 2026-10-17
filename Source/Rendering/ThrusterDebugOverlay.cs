@@ -77,17 +77,8 @@ namespace DeltaV
             if (domainMaterial != null)
             {
                 float altitude = AltitudeLayer.Item.AltitudeFor() + Altitudes.AltInc * 55f;
-                foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
-                {
-                    DrawCells(ShipRegistry.ControlDomain(ship), altitude);
-                }
-                foreach (SpaceObject obj in universe.objects)
-                {
-                    if (obj.baseTag != SpaceObjectTag.Shuttle || obj.map != map) continue;
-                    Building hull = SpaceShuttleService.HullOf(obj);
-                    if (hull == null) continue;
-                    DrawCells(new HashSet<IntVec3>(hull.OccupiedRect().Cells), altitude);
-                }
+                foreach (ShipBase ship in ShipRegistry.AllShipsOnMap(map))
+                    DrawCells(ship.HullCells, altitude);
             }
 
         }

@@ -33,7 +33,7 @@ namespace DeltaV
         /// wreck 会被误并入飞船形态。冻结集来自 Gravship 自身的 Foundations（捕获时已
         /// 定格），与目标图现场拓扑无关。仅 Delta-V 语境图生效；地表降落完全走原版语义。
         /// 同一冻结集同时登记基架归属盖章（SetPendingStamp）：落点基架的归属 ID 按
-        /// 战术降落船（PendingDockingShip 的结构 ID）→ 引擎当前图归属（同图移动）→
+        /// 引擎当前图归属（同图移动）→
         /// 驾驶台持久身份（战略到达：身份随 comp 飞行）→ 新分配 ID 解析。
         /// </summary>
         private static void FreezeLandingCaptureScope(UniverseManager universe,
@@ -54,18 +54,8 @@ namespace DeltaV
 
         private static int ResolveLandingOwnerId(UniverseManager universe, Gravship gravship)
         {
-            // 战术降落到达时 pendingShip 已被转移消费，改读 landedShipAwaitingCleanup
-            // 窗口（完成 → 收尾）；其结构 ID 即落点归属。
-            Ship pending = universe.ShipTransitions.PendingDockingShip(universe);
-            if (pending.IsValid)
-            {
-                return pending.ownerId;
-            }
-            Ship landed = universe.ShipTransitions.LandedShipAwaitingPocketCleanup(universe);
-            if (landed.IsValid)
-            {
-                return landed.ownerId;
-            }
+            // 战术转移不进入 InitiateLanding；战略到达只读取本次 Gravship 身份，
+            // 不能借用同时进行的其他飞船对接状态。
             if (gravship.Engine.Spawned)
             {
                 SubstructureOwnership ownership = SubstructureOwnership.TryGet(gravship.Engine.Map);
@@ -123,12 +113,11 @@ namespace DeltaV
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe == null) return;
-            // 选点阶段 = pendingShip 已置位但计划尚未发布（发布后 pendingShip 保留到
+            // 选点阶段 = PendingTarget 已置位但计划尚未发布（发布后 PendingTarget 保留到
             // 完成转移，由 AnyActive 区分选点与计划两段）。
-            bool siteSelection = (universe.ShipTransitions.PendingDockingShip(universe).IsValid
-                    || universe.ShipTransitions.pendingShuttleBody != null)
+            bool siteSelection = universe.ShipTransitions.HasPendingDocking
                 && !universe.Approach.AnyActive;
-            bool transferPending = universe.ShipTransitions.LandedShipAwaitingPocketCleanup(universe).IsValid;
+            bool transferPending = universe.ShipTransitions.HasLandedTargetAwaitingCleanup;
             if (siteSelection || transferPending)
             {
                 __result = true;

@@ -25,7 +25,7 @@ namespace DeltaV
         private const float MaxCombatHeight = 165f;
 
         // 每图选中的「当前查看/操作的船」（运行时 UI 状态；按归属 ID 记忆）。
-        private static readonly Dictionary<Map, int> selectedShipByMap = new Dictionary<Map, int>();
+        private static readonly Dictionary<Map, DriveSubject> selectedShipByMap = new Dictionary<Map, DriveSubject>();
 
         // 上一次 Draw 的聚焦图（检测聚焦切图时刻，应用「优先玩家船」的重新默认）。
         private static Map lastDrawnMap;
@@ -49,13 +49,13 @@ namespace DeltaV
         }
 
         /// <summary>面板当前选中的船（驾驶切换键等多船入口共用；无选择返回 false）。</summary>
-        public static bool TryGetSelectedShip(Map map, out Ship ship)
+        public static bool TryGetSelectedShip(Map map, out ShipBase ship)
         {
-            ship = Ship.Invalid;
+            ship = ShipBase.Invalid;
             if (map == null) return false;
-            if (!selectedShipByMap.TryGetValue(map, out int ownerId)) return false;
-            Ship resolved = ShipRegistry.ShipByOwner(ownerId);
-            if (!resolved.IsValid || resolved.map != map)
+            if (!selectedShipByMap.TryGetValue(map, out DriveSubject ownerId)) return false;
+            ShipBase resolved = ShipRegistry.ShipByIdentity(ownerId);
+            if (!resolved.IsValid || resolved.Map != map)
             {
                 selectedShipByMap.Remove(map);
                 return false;
@@ -65,17 +65,17 @@ namespace DeltaV
         }
 
         /// <summary>该图的当前操作船：面板已选择则用之；否则默认船（玩家派系船优先、
-        /// 唯一船直取，DefaultShipOnMap 单一实现）并写入记忆，行高亮保持稳定。</summary>
-        private static Ship SelectedOrOnlyShip(UniverseManager universe, Map map)
+        /// 唯一船直取，DefaultVesselOnMap 单一实现）并写入记忆，行高亮保持稳定。</summary>
+        private static ShipBase SelectedOrOnlyShip(UniverseManager universe, Map map)
         {
-            if (TryGetSelectedShip(map, out Ship selected)) return selected;
-            Ship defaulted = ShipRegistry.DefaultShipOnMap(map);
+            if (TryGetSelectedShip(map, out ShipBase selected)) return selected;
+            ShipBase defaulted = ShipRegistry.DefaultVesselOnMap(map);
             if (defaulted.IsValid)
             {
-                selectedShipByMap[map] = defaulted.ownerId;
+                selectedShipByMap[map] = defaulted.Identity;
                 return defaulted;
             }
-            return Ship.Invalid;
+            return ShipBase.Invalid;
         }
 
         /// <summary>
@@ -86,24 +86,24 @@ namespace DeltaV
         /// </summary>
         private static void ApplyFocusPreference(Map map)
         {
-            if (TryGetSelectedShip(map, out Ship memo) && memo.IsValid
-                && ShipRegistry.FactionOf(memo) == Faction.OfPlayer)
+            if (TryGetSelectedShip(map, out ShipBase memo) && memo.IsValid
+                && memo.Faction == Faction.OfPlayer)
             {
                 return;
             }
-            Ship preferred = ShipRegistry.DefaultShipOnMap(map);
-            if (preferred.IsValid && ShipRegistry.FactionOf(preferred) == Faction.OfPlayer)
+            ShipBase preferred = ShipRegistry.DefaultVesselOnMap(map);
+            if (preferred.IsValid && preferred.Faction == Faction.OfPlayer)
             {
-                selectedShipByMap[map] = preferred.ownerId;
+                selectedShipByMap[map] = preferred.Identity;
             }
         }
 
         /// <summary>外部写入口（点击选中物聚焦归属船，Patch_SelectorShipFocus）：只改面板选中状态。</summary>
-        public static void SelectShip(Ship ship)
+        public static void SelectShip(ShipBase ship)
         {
-            if (ship.IsValid && ship.map != null && !ship.map.Disposed)
+            if (ship.IsValid && ship.Map != null && !ship.Map.Disposed)
             {
-                selectedShipByMap[ship.map] = ship.ownerId;
+                selectedShipByMap[ship.Map] = ship.Identity;
             }
         }
 
@@ -130,10 +130,10 @@ namespace DeltaV
             }
 
             // 图上的船列表（§4：多船同图各自列出，可切换查看/操作）。
-            List<Ship> ships = ShipRegistry.ShipsOnMap(map);
-            Ship selected = SelectedOrOnlyShip(universe, map);
+            List<ShipBase> ships = ShipRegistry.AllShipsOnMap(map).ToList();
+            ShipBase selected = SelectedOrOnlyShip(universe, map);
             LandingApproachController.DockingPlan plan = universe.Approach.ActivePlan;
-            bool dockingPlan = plan != null && plan.ship.ownerId == selected.ownerId;
+            bool dockingPlan = plan != null && plan.Target.Identity == selected.Identity;
             bool hasShip = selected.IsValid;
             bool playerControlled = !hasShip || universe.Pilot.CanPlayerControl(selected);
             // 驾驶/认领入口只服务零重力图（重力图只能逆重战略发射）。
@@ -160,7 +160,7 @@ namespace DeltaV
             string title;
             if (hasShip)
             {
-                title = "DeltaV_ShipPanelTitle".Translate(universe.LabelForOwner(selected.ownerId));
+                title = "DeltaV_ShipPanelTitle".Translate(selected.Label);
             }
             else if (bootstrapEntry || multiConsoleAmbiguous)
             {
@@ -177,14 +177,14 @@ namespace DeltaV
             SpacePose shipPose = hasShip ? ShipRegistry.ShipPose(selected) : default;
             if (hasShip)
             {
-                DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(selected.map)?.MotionInfo;
+                DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(selected.Map)?.MotionInfo;
                 string controlLabel = controlState == ShipControlState.Autopilot
                     ? "DeltaV_ControlAutopilot".Translate()
                     : controlState == ShipControlState.Manual
                         ? "DeltaV_ControlManual".Translate()
                         : "DeltaV_ControlUncontrolled".Translate();
                 statusLines.Add("DeltaV_PanelFlightState".Translate(
-                    ShipRegistry.StateOf(selected) == ShipDerivedState.FreeFlight
+                    selected.State == ShipDerivedState.FreeFlight
                         ? "DeltaV_FlightStateFree".Translate()
                         : "DeltaV_FlightStateDocked".Translate()));
                 statusLines.Add("DeltaV_HudControl".Translate(controlLabel));
@@ -229,10 +229,6 @@ namespace DeltaV
             // + 战斗区块：火控、战斗机动、武器组和战斗位置。
             bool mapHasWeapons = SpaceWeaponService.AllWeaponsOn(map).Any(w =>
                 w.parent.Faction == Faction.OfPlayer);
-            // 在飞 shuttle 列表（§7.2）：聚焦图是 shuttle 口袋图时该行也是「当前查看对象」。
-            List<SpaceObject> shuttles = universe.Shuttles.InFlightContainers();
-            bool shuttleFocused = frame.baseTag == SpaceObjectTag.Shuttle;
-            float shuttleListHeight = shuttles.Count > 0 ? shuttles.Count * ShipRowHeight + 4f : 0f;
             bool combatBlock = hasShip && playerControlled && zeroGravity;
             var combatActionsBefore = new List<PilotPanelAction>();
             var combatActionsAfter = new List<PilotPanelAction>();
@@ -241,8 +237,7 @@ namespace DeltaV
             var headingActions = new List<HeadingPanelAction>();
             if (zeroGravity)
             {
-                PilotTarget panelTarget = hasShip ? PilotTarget.Of(selected)
-                    : shuttleFocused ? PilotTarget.Of(SpaceShuttleService.HullOf(frame)) : PilotTarget.Invalid;
+                PilotTarget panelTarget = PilotTarget.Of(selected);
                 if (panelTarget.IsValid)
                     universe.Pilot.ControllerFor(panelTarget)?.CollectPanelActions(panelTarget, panelActions);
                 if (hasShip)
@@ -269,7 +264,7 @@ namespace DeltaV
                 + (!hasShip && (bootstrapEntry || multiConsoleAmbiguous) && zeroGravity ? 33f : 0f);
             modeButtonsHeight += combatHeight;
             float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + shipListHeight
-                + shuttleListHeight + modeButtonsHeight + 8f;
+                + modeButtonsHeight + 8f;
             const float sliderRowHeight = 30f;
             float headerHeight = GlobeSize + 8f + sliderRowHeight;
             float maxPanelHeight = Mathf.Max(headerHeight + 80f,
@@ -314,21 +309,21 @@ namespace DeltaV
             // ---- 船只列表（多船同图，§4）：当前查看/操作的船可切换 ----
             if (ships.Count > 1)
             {
-                foreach (Ship ship in ships)
+                foreach (ShipBase ship in ships)
                 {
-                    string stateLabel = ShipRegistry.StateOf(ship) == ShipDerivedState.FreeFlight
+                    string stateLabel = ship.State == ShipDerivedState.FreeFlight
                         ? "DeltaV_FlightStateFree".Translate()
                         : "DeltaV_FlightStateDocked".Translate();
-                    string rowLabel = $"{universe.LabelForOwner(ship.ownerId)} · {stateLabel}";
+                    string rowLabel = $"{ship.Label} · {stateLabel}";
                     var rowRect = new Rect(0f, lineY, drawWidth, ShipRowHeight);
-                    bool isSelected = ship.ownerId == selected.ownerId;
+                    bool isSelected = ship.Identity == selected.Identity;
                     if (isSelected)
                     {
                         Widgets.DrawHighlight(rowRect);
                     }
                     if (Widgets.ButtonInvisible(rowRect, false))
                     {
-                        selectedShipByMap[map] = ship.ownerId;
+                        selectedShipByMap[map] = ship.Identity;
                     }
                     Text.Font = GameFont.Tiny;
                     GUI.color = isSelected ? Color.white : new Color(1f, 1f, 1f, 0.75f);
@@ -337,34 +332,7 @@ namespace DeltaV
                     Text.Anchor = TextAnchor.UpperLeft;
                     GUI.color = Color.white;
                     TooltipHandler.TipRegion(rowRect,
-                        "DeltaV_PanelShipRowTip".Translate(universe.LabelForOwner(ship.ownerId)));
-                    lineY += ShipRowHeight;
-                }
-                lineY += 4f;
-            }
-
-            // ---- 在飞 shuttle 列表（§7.2）：点击聚焦其口袋图；操作由对应 controller 提供 ----
-            if (shuttles.Count > 0)
-            {
-                foreach (SpaceObject shuttleContainer in shuttles)
-                {
-                    var rowRect = new Rect(0f, lineY, drawWidth, ShipRowHeight);
-                    bool focused = shuttleContainer == frame;
-                    if (focused)
-                    {
-                        Widgets.DrawHighlight(rowRect);
-                    }
-                    string rowLabel = shuttleContainer.label;
-                    if (Widgets.ButtonInvisible(rowRect, false))
-                    {
-                        universe.SetFocused(shuttleContainer);
-                    }
-                    Text.Font = GameFont.Tiny;
-                    GUI.color = focused ? Color.white : new Color(1f, 1f, 1f, 0.75f);
-                    Text.Anchor = TextAnchor.MiddleLeft;
-                    Widgets.Label(rowRect.ContractedBy(4f), rowLabel);
-                    Text.Anchor = TextAnchor.UpperLeft;
-                    GUI.color = Color.white;
+                        "DeltaV_PanelShipRowTip".Translate(ship.Label));
                     lineY += ShipRowHeight;
                 }
                 lineY += 4f;
@@ -393,7 +361,7 @@ namespace DeltaV
                     const float dirBtnW = 64f;
                     const float dirBtnH = 26f;
                     float centerX = (drawWidth - dirBtnW) * 0.5f;
-                    Rot4 currentFacing = selected.console.parent.Rotation;
+                    Rot4 currentFacing = selected.Anchor.Rotation;
                     void DirButton(Rot4 facing, Rect rect)
                     {
                         if (facing == currentFacing)
@@ -435,7 +403,7 @@ namespace DeltaV
                     {
                         comp.MakeMainConsole();
                     }
-                    Ship claimed = comp.Ship;
+                    ShipBase claimed = comp.Ship;
                     if (claimed.IsValid)
                     {
                         universe.Pilot.Enter(universe, claimed);
@@ -484,7 +452,7 @@ namespace DeltaV
                     if (mapHasWeapons)
                     {
                         // 两排武器组方块（主/副各一排 1–6；点击切换激活——激活位存主驾驶台）。
-                        CompDeltaVPilotConsole consoleComp = selected.console;
+                        ShipCombatState consoleComp = selected.Combat;
                         void GroupRow(SpaceWeaponSalvoSet set, string rowLabel)
                         {
                             var labelRect = new Rect(0f, lineY, 24f, 26f);

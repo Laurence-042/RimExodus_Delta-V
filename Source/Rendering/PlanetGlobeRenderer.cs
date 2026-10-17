@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.Generic;
 using RimWorld;
 using RimWorld.Planet;
@@ -71,7 +72,7 @@ namespace DeltaV
         private static readonly List<Clickable> Clickables = new List<Clickable>(32);
 
         /// <summary>全部已加载图上的船快照（标记层枚举用）。</summary>
-        private static readonly List<Ship> AllShipsScratch = new List<Ship>(16);
+        private static readonly List<ShipBase> AllShipsScratch = new List<ShipBase>(16);
 
         // 剪影覆盖层（GUI 阶段统一旋转绘制；GL/收集阶段只登记）。
         private readonly struct Overlay
@@ -97,10 +98,10 @@ namespace DeltaV
         // ShipSilhouette.ScanSubstructure(map, ownerId)。原版站点地图没有 Substructure →
         // 空 → 继续用原版图标。快照语义：不追踪战损，与世界视图剪影一致；可随时销毁
         // 重建，不序列化。
-        private static readonly Dictionary<Map, Dictionary<int, Texture2D>> SilhouetteCache =
-            new Dictionary<Map, Dictionary<int, Texture2D>>();
-        private static readonly Dictionary<Map, HashSet<int>> SilhouetteEmpty =
-            new Dictionary<Map, HashSet<int>>();
+        private static readonly Dictionary<Map, Dictionary<DriveSubject, Texture2D>> SilhouetteCache =
+            new Dictionary<Map, Dictionary<DriveSubject, Texture2D>>();
+        private static readonly Dictionary<Map, HashSet<DriveSubject>> SilhouetteEmpty =
+            new Dictionary<Map, HashSet<DriveSubject>>();
 
         // 残骸剪影（普通物化容器，图上有基架无船时按**全图基架**扫描，不分归属——
         // 2026-09-25 用户定案：物化容器图标按图内容）。与按归属的船剪影分开缓存。
@@ -132,9 +133,9 @@ namespace DeltaV
             if (universe == null || !OrbitSphere.Valid) return;
             // 参考船（视图锚 = 船体位姿）：聚焦优先、回退任意玩家船；无船时以当前图
             // 帧位置为相机锚点（仍是"飞船（所在处）—球心"语义的合理退化）。
-            Ship referenceShip = universe.PrimaryPlayerShip();
+            ShipBase referenceShip = universe.PrimaryPlayerShip();
             SpaceObject reference = universe.Focused
-                ?? (referenceShip.IsValid ? universe.FrameOf(referenceShip.map) : null)
+                ?? (referenceShip.IsValid ? universe.FrameOf(referenceShip.Map) : null)
                 ?? contextFrame;
             Vector3 referenceDir = referenceShip.IsValid
                 ? ShipRegistry.ShipPose(referenceShip).position
@@ -300,18 +301,19 @@ namespace DeltaV
             // ---- 飞船标记（底边内凹三角）----
             float focusedSize = Mathf.Lerp(9f, 14f, Zoom01);
             float otherSize = Mathf.Lerp(6.5f, 10f, Zoom01);
-            // 全部已加载图上的船（船 = 主台归属；停靠船同样显示——位姿为宿主刚体上
+            // 已纳管容器里的船（停靠船同样显示——位姿为宿主刚体上
             // 的派生点）。选点/进场期间的计划船照常显示。
             AllShipsScratch.Clear();
-            foreach (Map shipMap in Find.Maps)
+            foreach (SpaceObject container in universe.objects)
             {
-                AllShipsScratch.AddRange(ShipRegistry.ShipsOnMap(shipMap));
+                if (container.ParticipatesInOverlays)
+                    AllShipsScratch.AddRange(container.Ships);
             }
-            foreach (Ship ship in AllShipsScratch)
+            foreach (ShipBase ship in AllShipsScratch)
             {
-                bool focused = ship.ownerId == referenceShip.ownerId;
-                Faction shipFaction = ShipRegistry.FactionOf(ship);
-                bool docked = ShipRegistry.StateOf(ship) == ShipDerivedState.Docked;
+                bool focused = ship.Identity == referenceShip.Identity;
+                Faction shipFaction = ship.Faction;
+                bool docked = ship.State == ShipDerivedState.Docked;
                 SpacePose shipPose = ShipRegistry.ShipPose(ship);
                 Vector2 pos = Project(shipPose.position);
                 if (!rect.Contains(pos)) continue;
@@ -347,7 +349,7 @@ namespace DeltaV
                 // 剪影按船自己的归属 ID 过滤：停靠在 wreck 图上时只画本船格子（按 wreck
                 // 地图当前状态绘制），不再与 wreck 剪影共用整图扫描结果。
                 Texture2D silhouette = silhouetteLayer && front
-                    ? GetSilhouette(ship.map, ship.ownerId)
+                    ? GetSilhouette(ship)
                     : null;
                 if (silhouette != null)
                 {
@@ -363,7 +365,7 @@ namespace DeltaV
                         ShipSilhouette.OrientationForCurrentMap(ship, universe);
                     Overlays.Add(new Overlay(silhouetteRect, silhouette,
                         SilhouetteScreenAngle(orientation.referenceDir, orientation.angle, right, up), tint));
-                    SpaceObject shipContainer = universe.FrameOf(ship.map);
+                    SpaceObject shipContainer = universe.FrameOf(ship.Map);
                     if (shipContainer != null)
                     {
                         RegisterClickable(silhouetteRect, universe, shipContainer, referenceDir);
@@ -388,7 +390,7 @@ namespace DeltaV
                 }
                 if (silhouette == null && iconLayer && front)
                 {
-                    SpaceObject shipContainer = universe.FrameOf(ship.map);
+                    SpaceObject shipContainer = universe.FrameOf(ship.Map);
                     if (shipContainer != null)
                     {
                         RegisterClickable(new Rect(pos.x - 9f, pos.y - 9f, 18f, 18f), universe, shipContainer,
@@ -416,7 +418,7 @@ namespace DeltaV
                             continue;
                         }
                         Texture2D silhouette = silhouetteLayer && poi.map != null
-                            ? GetSilhouette(poi.map, poi.objectId)
+                            ? GetStructureSilhouette(poi.map)
                             : null;
                         if (silhouette != null)
                         {
@@ -444,7 +446,7 @@ namespace DeltaV
                     // 普通物化容器：图标按图内容——有船由船剪影段表达（不重复画）；
                     // 有基架无船 = 残骸，画全图基架合并剪影（真实比例，可点击聚焦）。
                     if (!silhouetteLayer || obj.map == null) continue;
-                    if (ShipRegistry.ShipsOnMap(obj.map).Count > 0) continue;
+                    if (obj.HasTag(SpaceObjectTag.Ship)) continue;
                     Texture2D wreck = GetStructureSilhouette(obj.map);
                     if (wreck == null) continue;
                     Vector2 wreckPos = Project(obj.pose.position);
@@ -622,19 +624,21 @@ namespace DeltaV
 
         // ---- 剪影（物化对象；按 Map+归属 ID 扫描，纹理经 ShipSilhouette 唯一入口）----
 
-        private static Texture2D GetSilhouette(Map map, int ownerId)
+        private static Texture2D GetSilhouette(ShipBase ship)
         {
+            Map map = ship.Map;
+            DriveSubject ownerId = ship.Identity;
             if (map == null || map.Disposed) return null;
-            if (SilhouetteCache.TryGetValue(map, out Dictionary<int, Texture2D> byOwner))
+            if (SilhouetteCache.TryGetValue(map, out Dictionary<DriveSubject, Texture2D> byOwner))
             {
                 if (byOwner.TryGetValue(ownerId, out Texture2D cached)) return cached;
             }
-            if (SilhouetteEmpty.TryGetValue(map, out HashSet<int> emptyOwners) && emptyOwners.Contains(ownerId))
+            if (SilhouetteEmpty.TryGetValue(map, out HashSet<DriveSubject> emptyOwners) && emptyOwners.Contains(ownerId))
             {
                 return null;
             }
 
-            List<IntVec3> cells = ShipSilhouette.ScanSubstructure(map, ownerId);
+            List<IntVec3> cells = ship.HullCells.ToList();
             Texture2D texture = cells.Count > 0
                 ? ShipSilhouette.BuildTexture(cells, $"DeltaV_GlobeSilhouette_{map.Index}_{ownerId}")
                 : null;
@@ -643,7 +647,7 @@ namespace DeltaV
                 // 该归属在此图没有基架（原版站点、或对象未物化到本图）：继续用图标。
                 if (!SilhouetteEmpty.TryGetValue(map, out emptyOwners))
                 {
-                    emptyOwners = new HashSet<int>();
+                    emptyOwners = new HashSet<DriveSubject>();
                     SilhouetteEmpty[map] = emptyOwners;
                 }
                 emptyOwners.Add(ownerId);
@@ -651,7 +655,7 @@ namespace DeltaV
             }
             if (!SilhouetteCache.TryGetValue(map, out byOwner))
             {
-                byOwner = new Dictionary<int, Texture2D>();
+                byOwner = new Dictionary<DriveSubject, Texture2D>();
                 SilhouetteCache[map] = byOwner;
             }
             byOwner[ownerId] = texture;
@@ -681,11 +685,11 @@ namespace DeltaV
         }
 
         /// <summary>聚焦船最长边（格）：优先剪影侧长，兜底 FallbackSideCells。缩放最深档与剪影层阈值都以它为单位。</summary>
-        private static float SideCellsOf(Ship reference)
+        private static float SideCellsOf(ShipBase reference)
         {
             if (!reference.IsValid) return FallbackSideCells;
-            Map map = reference.map;
-            Texture2D silhouette = GetSilhouette(map, reference.ownerId);
+            Map map = reference.Map;
+            Texture2D silhouette = GetSilhouette(reference);
             return silhouette != null ? silhouette.width : FallbackSideCells;
         }
 
@@ -732,11 +736,11 @@ namespace DeltaV
             Texture2D silhouette;
             if (obj is PoiState)
             {
-                silhouette = GetSilhouette(map, obj.objectId);
+                silhouette = GetStructureSilhouette(map);
             }
             else
             {
-                if (map == null || ShipRegistry.ShipsOnMap(map).Count > 0) return 0f;
+                if (map == null || obj.HasTag(SpaceObjectTag.Ship)) return 0f;
                 silhouette = GetStructureSilhouette(map);
             }
             if (silhouette == null) return 0f;
@@ -765,7 +769,7 @@ namespace DeltaV
         /// <summary>读档 / 场景重置时释放剪影缓存（按 Map+归属重扫自愈）。</summary>
         public static void ClearRuntimeCaches()
         {
-            foreach (Dictionary<int, Texture2D> byOwner in SilhouetteCache.Values)
+            foreach (Dictionary<DriveSubject, Texture2D> byOwner in SilhouetteCache.Values)
             {
                 foreach (Texture2D texture in byOwner.Values)
                 {
@@ -790,7 +794,7 @@ namespace DeltaV
         public static void InvalidateSilhouette(Map map)
         {
             if (map == null) return;
-            if (SilhouetteCache.TryGetValue(map, out Dictionary<int, Texture2D> byOwner))
+            if (SilhouetteCache.TryGetValue(map, out Dictionary<DriveSubject, Texture2D> byOwner))
             {
                 foreach (Texture2D texture in byOwner.Values)
                 {

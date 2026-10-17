@@ -94,10 +94,39 @@ namespace DeltaV
 
         // ---- 查询 ----
 
-        /// <summary>格子的基架归属；无组件/未指派返回 Unassigned。调用方须自行保证格上有基架。</summary>
+        /// <summary>基架事实唯一入口：只读 foundation 层，地板与临时地形不改变船体结构。</summary>
+        public static TerrainDef FoundationAt(Map map, IntVec3 cell)
+        {
+            if (map == null || !cell.InBounds(map)) return null;
+            TerrainDef foundation = map.terrainGrid.FoundationAt(cell);
+            return foundation?.IsSubstructure == true ? foundation : null;
+        }
+
+        public static bool HasFoundation(Map map, IntVec3 cell) => FoundationAt(map, cell) != null;
+
+        /// <summary>归属、质量、剪影和几何共用的基架集合；不另存结构副本。</summary>
+        public static IEnumerable<IntVec3> CellsOnMap(Map map)
+        {
+            if (map == null || map.Disposed) yield break;
+            foreach (IntVec3 cell in CellRect.WholeMap(map))
+                if (HasFoundation(map, cell)) yield return cell;
+        }
+
+        /// <summary>同一基架集合上的四连通查询；归属、排除域及原版力场限制由调用者提供。</summary>
+        public static void CollectConnected(Map map, IntVec3 start, ICollection<IntVec3> result,
+            System.Predicate<IntVec3> accepts, int maxCells = int.MaxValue)
+        {
+            result.Clear();
+            if (!HasFoundation(map, start)) return;
+            map.floodFiller.FloodFill(start,
+                cell => HasFoundation(map, cell) && (accepts == null || accepts(cell)),
+                cell => { result.Add(cell); return false; }, maxCells);
+        }
+
+        /// <summary>格子的基架归属；无基架或未指派返回 Unassigned。</summary>
         public int OwnerAt(IntVec3 cell)
         {
-            if (ownerGrid == null)
+            if (ownerGrid == null || !HasFoundation(map, cell))
             {
                 return Unassigned;
             }
@@ -111,10 +140,9 @@ namespace DeltaV
             var owners = new HashSet<int>();
             if (ownerGrid != null)
             {
-                foreach (IntVec3 cell in CellRect.WholeMap(map))
+                foreach (IntVec3 cell in CellsOnMap(map))
                 {
-                    if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true
-                        && ownerGrid[map.cellIndices.CellToIndex(cell)] != Unassigned)
+                    if (ownerGrid[map.cellIndices.CellToIndex(cell)] != Unassigned)
                     {
                         owners.Add(ownerGrid[map.cellIndices.CellToIndex(cell)]);
                     }
@@ -133,10 +161,9 @@ namespace DeltaV
             {
                 return cells;
             }
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
+            foreach (IntVec3 cell in CellsOnMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true
-                    && ownerGrid[map.cellIndices.CellToIndex(cell)] == ownerId)
+                if (ownerGrid[map.cellIndices.CellToIndex(cell)] == ownerId)
                 {
                     cells.Add(cell);
                 }
@@ -151,10 +178,9 @@ namespace DeltaV
             {
                 return false;
             }
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
+            foreach (IntVec3 cell in CellsOnMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true
-                    && ownerGrid[map.cellIndices.CellToIndex(cell)] != Unassigned)
+                if (ownerGrid[map.cellIndices.CellToIndex(cell)] != Unassigned)
                 {
                     return true;
                 }
@@ -163,17 +189,7 @@ namespace DeltaV
         }
 
         /// <summary>图上是否存在任何基架格。</summary>
-        public bool HasAnySubstructure()
-        {
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
-            {
-                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
+        public bool HasAnySubstructure() => CellsOnMap(map).Any();
 
         /// <summary>归属 ownerId 的基架格数。</summary>
         public int CountCellsOwnedBy(int ownerId)
@@ -183,10 +199,9 @@ namespace DeltaV
                 return 0;
             }
             int count = 0;
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
+            foreach (IntVec3 cell in CellsOnMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true
-                    && ownerGrid[map.cellIndices.CellToIndex(cell)] == ownerId)
+                if (ownerGrid[map.cellIndices.CellToIndex(cell)] == ownerId)
                 {
                     count++;
                 }
@@ -201,13 +216,10 @@ namespace DeltaV
         public int ClaimAllSubstructure(int ownerId)
         {
             int count = 0;
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
+            foreach (IntVec3 cell in CellsOnMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true)
-                {
-                    Assign(cell, ownerId);
-                    count++;
-                }
+                Assign(cell, ownerId);
+                count++;
             }
             return count;
         }
@@ -218,18 +230,15 @@ namespace DeltaV
             var domains = new Dictionary<int, List<IntVec3>>();
             if (ownerGrid != null)
             {
-                foreach (IntVec3 cell in CellRect.WholeMap(map))
+                foreach (IntVec3 cell in CellsOnMap(map))
                 {
-                    if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true)
+                    int owner = ownerGrid[map.cellIndices.CellToIndex(cell)];
+                    if (!domains.TryGetValue(owner, out List<IntVec3> cells))
                     {
-                        int owner = ownerGrid[map.cellIndices.CellToIndex(cell)];
-                        if (!domains.TryGetValue(owner, out List<IntVec3> cells))
-                        {
-                            cells = new List<IntVec3>();
-                            domains[owner] = cells;
-                        }
-                        cells.Add(cell);
+                        cells = new List<IntVec3>();
+                        domains[owner] = cells;
                     }
+                    cells.Add(cell);
                 }
             }
             return domains.ToList();
@@ -254,7 +263,7 @@ namespace DeltaV
             foreach (IntVec3 neighbor in GenAdj.CardinalDirectionsAround)
             {
                 IntVec3 c = cell + neighbor;
-                if (!c.InBounds(map) || map.terrainGrid.TerrainAt(c)?.IsSubstructure != true)
+                if (!c.InBounds(map) || !SubstructureOwnership.HasFoundation(map, c))
                 {
                     continue;
                 }
@@ -332,17 +341,10 @@ namespace DeltaV
         {
             if (ownerId <= 0 || !start.InBounds(map)) return;
             var cells = new List<IntVec3>();
-            map.floodFiller.FloodFill(start, delegate (IntVec3 cell)
+            CollectConnected(map, start, cells, cell =>
             {
-                if (!cell.InBounds(map)) return false;
-                TerrainDef foundation = map.terrainGrid.FoundationAt(cell);
-                if (foundation == null || !foundation.IsSubstructure) return false;
                 int current = OwnerAt(cell);
                 return current == ownerId || current == Unassigned;
-            }, delegate (IntVec3 cell)
-            {
-                cells.Add(cell);
-                return false;
             });
             SetOwner(cells, ownerId);
         }
@@ -380,7 +382,7 @@ namespace DeltaV
             bool changed = false;
             foreach (IntVec3 cell in cells)
             {
-                if (!cell.InBounds(map) || map.terrainGrid.TerrainAt(cell)?.IsSubstructure != true)
+                if (!cell.InBounds(map) || !SubstructureOwnership.HasFoundation(map, cell))
                 {
                     continue;
                 }
@@ -420,7 +422,8 @@ namespace DeltaV
             {
                 return;
             }
-            if (OwnerAt(cell) == Unassigned)
+            // 原版已移除 foundation，此处必须清持久网格，不能经只读 OwnerAt 的无基架过滤。
+            if (ownerGrid == null || ownerGrid[map.cellIndices.CellToIndex(cell)] == Unassigned)
             {
                 // Even unowned substructure participates in the collision surface.
                 BumpStructureVersion();
@@ -464,34 +467,15 @@ namespace DeltaV
         private List<IntVec3> CollectUnownedRegion(IntVec3 cell, int owner)
         {
             var region = new List<IntVec3>();
-            var queue = new Queue<IntVec3>();
             var seen = new HashSet<IntVec3>();
+            var component = new List<IntVec3>();
             foreach (IntVec3 delta in GenAdj.CardinalDirectionsAround)
             {
                 IntVec3 neighbor = cell + delta;
-                if (neighbor.InBounds(map)
-                    && map.terrainGrid.TerrainAt(neighbor)?.IsSubstructure == true
-                    && OwnerAt(neighbor) == Unassigned
-                    && seen.Add(neighbor))
-                {
-                    queue.Enqueue(neighbor);
-                }
-            }
-            while (queue.Count > 0)
-            {
-                IntVec3 current = queue.Dequeue();
-                region.Add(current);
-                foreach (IntVec3 delta in GenAdj.CardinalDirectionsAround)
-                {
-                    IntVec3 neighbor = current + delta;
-                    if (neighbor.InBounds(map)
-                        && map.terrainGrid.TerrainAt(neighbor)?.IsSubstructure == true
-                        && OwnerAt(neighbor) == Unassigned
-                        && seen.Add(neighbor))
-                    {
-                        queue.Enqueue(neighbor);
-                    }
-                }
+                if (seen.Contains(neighbor)) continue;
+                CollectConnected(map, neighbor, component, c => OwnerAt(c) == Unassigned);
+                seen.UnionWith(component);
+                region.AddRange(component);
             }
             // 争议检查：区域内任一格邻接其他有效归属 → 整片保持未占有。
             foreach (IntVec3 regionCell in region)
@@ -500,7 +484,7 @@ namespace DeltaV
                 {
                     IntVec3 neighbor = regionCell + delta;
                     if (neighbor.InBounds(map)
-                        && map.terrainGrid.TerrainAt(neighbor)?.IsSubstructure == true)
+                        && SubstructureOwnership.HasFoundation(map, neighbor))
                     {
                         int neighborOwner = OwnerAt(neighbor);
                         if (neighborOwner != Unassigned && neighborOwner != owner)
@@ -524,10 +508,9 @@ namespace DeltaV
                 return 0;
             }
             int migrated = 0;
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
+            foreach (IntVec3 cell in CellsOnMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true
-                    && OwnerAt(cell) == Unassigned)
+                if (OwnerAt(cell) == Unassigned)
                 {
                     Assign(cell, defaultOwner);
                     migrated++;
@@ -539,10 +522,9 @@ namespace DeltaV
         /// <summary>是否存在未指派归属的基架格（读档迁移的快速探测）。</summary>
         public bool HasUnassignedSubstructure()
         {
-            foreach (IntVec3 cell in CellRect.WholeMap(map))
+            foreach (IntVec3 cell in CellsOnMap(map))
             {
-                if (map.terrainGrid.TerrainAt(cell)?.IsSubstructure == true
-                    && OwnerAt(cell) == Unassigned)
+                if (OwnerAt(cell) == Unassigned)
                 {
                     return true;
                 }

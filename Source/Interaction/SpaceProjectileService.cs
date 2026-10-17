@@ -355,7 +355,7 @@ namespace DeltaV
         {
             CompProperties_SpaceProjectile props = hull?.def.GetCompProperties<CompProperties_SpaceProjectile>();
             if (props == null || !props.guided || !props.hasMap || shuttle?.map != hull.Map
-                || shuttle.baseTag != SpaceObjectTag.Shuttle || target?.map == null
+                || hull.TryGetComp<CompSpaceShuttle>()?.Vessel.CanDriveIn(shuttle) != true || target?.map == null
                 || target.map.Disposed || projectiles.Any(p => p.container == shuttle)) return false;
             Projectile p = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
             p.container = shuttle;
@@ -427,7 +427,9 @@ namespace DeltaV
                         else DestroyProjectile(p, "timeout");
                         continue;
                     }
-                    if (p.adoptedShuttle && (!TargetAlive(p.target)
+                    if (p.adoptedShuttle && (p.building.Map != p.container.map
+                        || p.building.TryGetComp<CompSpaceShuttle>()?.Vessel.CanDriveIn(p.container) != true
+                        || !TargetAlive(p.target)
                         || p.target.map == null || p.target.map.Disposed))
                     {
                         ReleaseShuttle(p.container);
@@ -580,7 +582,7 @@ namespace DeltaV
                             }, hit)
                             : Vector2.up;
                         ReleaseShuttle(shuttle);
-                        universe.Shuttles.PlaceBoardedShuttle(shuttle, defender, hit, local,
+                        universe.Shuttles.PlaceBoardedShuttle(shuttle, captured.building, defender, hit, local,
                             incidentAtHit, captured.body.resolvedHitCell,
                             captured.body.resolvedHitShield);
                     }) : null;

@@ -20,7 +20,7 @@ namespace DeltaV
             return Current.Game.GetComponent<UniverseManager>();
         }
 
-        private static Ship PlayerShip()
+        private static ShipBase PlayerShip()
         {
             return Um().PrimaryPlayerShip();
         }
@@ -29,13 +29,13 @@ namespace DeltaV
         private static SpaceObject NearestMaterializedContainer()
         {
             UniverseManager um = Um();
-            Ship player = PlayerShip();
+            ShipBase player = PlayerShip();
             if (!player.IsValid) return null;
             SpaceObject best = null;
             float bestDist = float.MaxValue;
             foreach (SpaceObject obj in um.objects)
             {
-                if (obj is PoiState || obj.map == null || obj.map == player.map) continue;
+                if (obj is PoiState || obj.map == null || obj.map == player.Map) continue;
                 float distance = um.Lifecycle.MinPlayerDistance(obj);
                 if (distance < bestDist)
                 {
@@ -103,8 +103,8 @@ namespace DeltaV
             if (currentFaction == null)
             {
                 // Plain ship containers have no environment faction; resolve their ship instead.
-                Ship selected = universe.Pilot.SelectedShipOnMap(source.map);
-                if (selected.IsValid) currentFaction = ShipRegistry.FactionOf(selected);
+                ShipBase selected = universe.Pilot.SelectedShipOnMap(source.map);
+                if (selected.IsValid) currentFaction = selected.Faction;
             }
             string noFaction = "DeltaV_PrefabReplaceNoFaction".Translate();
             var options = new System.Collections.Generic.List<DebugMenuOption>
@@ -149,8 +149,8 @@ namespace DeltaV
             // ② 抑制状态
             sb.AppendLine($"- SuppressVanillaKeys flag: {PilotKeyBridge.SuppressVanillaKeys}; suppressed reads so far: {um.Pilot.SuppressedReads}");
             // ③ 驾驶状态
-            Ship piloted = um.Pilot.PilotedShip(um);
-            sb.AppendLine($"- piloted structure: #{(piloted.IsValid ? piloted.ownerId.ToString() : "none")}, piloted map alive: {piloted.IsValid}, CurrentMap == piloted map: {piloted.IsValid && Find.CurrentMap == piloted.map}");
+            ShipBase piloted = um.Pilot.PilotedShip(um);
+            sb.AppendLine($"- piloted structure: #{(piloted.IsValid ? piloted.Identity.ToString() : "none")}, piloted map alive: {piloted.IsValid}, CurrentMap == piloted map: {piloted.IsValid && Find.CurrentMap == piloted.Map}");
             // ④ 键集合 + 本 mod 绑定
             sb.AppendLine($"- ActivePilotKeys: [{(PilotKeyBridge.ActiveKeys.Count == 0 ? "EMPTY" : string.Join(", ", PilotKeyBridge.ActiveKeys))}]");
             foreach (string defName in new[] { "DeltaV_ThrustForward", "DeltaV_ThrustBackward", "DeltaV_StrafeLeft", "DeltaV_StrafeRight", "DeltaV_RotateLeft", "DeltaV_RotateRight", "DeltaV_TogglePilotMode" })
@@ -320,8 +320,8 @@ namespace DeltaV
         private static void PlayerTeleportEast1500()
         {
             UniverseManager um = Um();
-            Ship player = PlayerShip();
-            SpaceObject frame = player.IsValid ? um.FrameOf(player.map) : um.Focused;
+            ShipBase player = PlayerShip();
+            SpaceObject frame = player.IsValid ? um.FrameOf(player.Map) : um.Focused;
             if (frame != null)
             {
                 frame.pose.position = OrbitSphere.Move(frame.pose.position, new Vector2(1500f, 0f));
@@ -334,7 +334,7 @@ namespace DeltaV
         private static void SectorForceGenerate()
         {
             UniverseManager um = Um();
-            Ship player = PlayerShip();
+            ShipBase player = PlayerShip();
             if (!player.IsValid)
             {
                 Messages.Message("No player ship in universe state.", MessageTypeDefOf.RejectInput, false);
@@ -405,17 +405,17 @@ namespace DeltaV
             {
                 sb.AppendLine($"  {UniverseManager.MapTag(map)}");
                 SpaceObject frame = um.FrameOf(map);
-                var ships = ShipRegistry.ShipsOnMap(map);
+                var ships = ShipRegistry.AllShipsOnMap(map).ToList();
                 if (ships.Count == 0 && um.NpcShips.HasUnclaimedNpcConsole(frame))
                     sb.AppendLine($"    NPC console present without valid main ship; "
                         + $"AI gate={um.NpcShips.GateFor(frame, Ship.Invalid)}");
-                foreach (Ship ship in ships)
+                foreach (ShipBase ship in ships)
                 {
                     int hostileTargets = frame == null ? 0
                         : NpcCombatAi.CountEligibleTargets(um, ship, frame);
-                    sb.AppendLine($"    structure #{ship.ownerId} '{um.LabelForOwner(ship.ownerId)}' " +
-                        $"relation={ShipRegistry.StateOf(ship)} faction={ShipRegistry.FactionOf(ship)?.Name ?? "none"} " +
-                        $"console#{ship.console.parent.thingIDNumber} domain={ShipRegistry.ControlDomain(ship).Count} cells " +
+                    sb.AppendLine($"    ship #{ship.Identity} '{ship.Label}' " +
+                        $"relation={ship.State} faction={ship.Faction?.Name ?? "none"} " +
+                        $"anchor#{ship.Anchor.thingIDNumber} hull={ship.HullCells.Count()} cells " +
                         $"frozen={um.Lifecycle.IsFrozen(map)} zeroG={FreeFlightBootstrap.IsZeroGravity(um, map)} " +
                         $"playerDist={(frame == null ? float.PositiveInfinity : um.Lifecycle.MinPlayerDistance(frame)):F0} " +
                         $"mapThrust={(frame?.MotionInfo.AvailableThrust ?? 0f):F0} hostileTargets={hostileTargets} " +

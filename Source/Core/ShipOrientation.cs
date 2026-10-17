@@ -5,7 +5,7 @@ namespace DeltaV
 {
     /// <summary>
     /// 驾驶台 Rot4 ⇄ Delta-V 平面角的唯一换算入口（纯函数，无状态）。
-    /// 玩家所见「航向」= 容器角 ⊕ 主台朝向（ShipRegistry.HeadingAngle 的派生组成）；
+    /// 玩家所见「航向」= 容器角 ⊕ 主台朝向（ShipRegistry.ShipPose 的派生组成）；
     /// 船帧相对地图帧的角 σ = AngleFromRot4(主台.Rotation)——主台 East ⇔ 船帧对齐
     /// 地图帧（与原自由飞行口袋图 East 规范一致）。没有有效主台时沿用历史 +X 船艏。
     /// </summary>

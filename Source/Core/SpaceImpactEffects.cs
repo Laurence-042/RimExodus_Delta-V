@@ -296,7 +296,7 @@ namespace DeltaV
             DamageDef damType = part.damageDef ?? DamageDefOf.Bullet;
             bool buildingGeometryChanged = false;
 
-            if (evt.defenderIsSubstructure && map.terrainGrid.FoundationAt(cell)?.IsSubstructure == true
+            if (evt.defenderIsSubstructure && SubstructureOwnership.HasFoundation(map, cell)
                 && Rand.Chance(Mathf.Clamp01(amount / part.substructureBreakThreshold)))
             {
                 StripSubstructureAt(map, cell);
@@ -417,7 +417,7 @@ namespace DeltaV
         /// </summary>
         private static void StripSubstructureAt(Map map, IntVec3 cell)
         {
-            if (map.terrainGrid.FoundationAt(cell)?.IsSubstructure == true)
+            if (SubstructureOwnership.HasFoundation(map, cell))
             {
                 map.terrainGrid.RemoveFoundation(cell, doLeavings: false);
             }

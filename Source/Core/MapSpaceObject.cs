@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
@@ -9,76 +10,98 @@ namespace DeltaV
     public class MapSpaceObject : SpaceObject
     {
         private Map interior;
-        private ShipPhysics.Thruster[] virtualThrusters;
-        public override Map map { get => interior; internal set => interior = value; }
+        private SpaceObjectTag memberTags;
+        private IReadOnlyList<ShipBase> members = System.Array.Empty<ShipBase>();
+        private int membersVersion = -1, membersMeasuredAt = -1;
+        private int rolesVersion = -1, rolesMeasuredAt = -1;
+        public override Map map
+        {
+            get => interior;
+            internal set { interior = value; rolesVersion = membersVersion = -1; members = System.Array.Empty<ShipBase>(); }
+        }
         public MapSpaceObject() { }
         public MapSpaceObject(int id, Map map, SpacePose pose) : base(id, pose) { interior = map; }
+        public override IEnumerable<ShipBase> Ships
+        {
+            get
+            {
+                if (interior == null || interior.Disposed) return System.Array.Empty<ShipBase>();
+                if (SubstructureOwnership.CacheNeedsRefresh(membersVersion, membersMeasuredAt))
+                {
+                    members = ShipRegistry.DiscoverShipsOnMap(interior).ToArray();
+                    membersVersion = SubstructureOwnership.GlobalStructureVersion;
+                    membersMeasuredAt = Find.TickManager.TicksGame;
+                }
+                return members;
+            }
+        }
+        internal void ClearMemberCaches()
+        {
+            members = System.Array.Empty<ShipBase>();
+            membersVersion = rolesVersion = -1;
+        }
+        protected override SpaceObjectTag MemberTags
+        {
+            get
+            {
+                if (interior == null || interior.Disposed) return 0;
+                if (SubstructureOwnership.CacheNeedsRefresh(rolesVersion, rolesMeasuredAt))
+                {
+                    memberTags = 0;
+                    foreach (ShipBase ship in Ships) memberTags |= ship.RolesIn(this);
+                    rolesVersion = SubstructureOwnership.GlobalStructureVersion;
+                    rolesMeasuredAt = Find.TickManager.TicksGame;
+                }
+                return memberTags;
+            }
+        }
+        protected override IEnumerable<Faction> ShipFactions => Ships.Select(ship => ship.Faction);
+        public override IEnumerable<ShipPhysics.Thruster> BuildThrusters() =>
+            Ships.Where(ship => ship.CanDriveIn(this)).SelectMany(ship => ship.BuildThrusters());
+        public override IEnumerable<SpaceCollisionCell> CollisionCells
+        {
+            get
+            {
+                if (interior == null || interior.Disposed) yield break;
+                var covered = new HashSet<IntVec3>();
+                foreach (ShipBase ship in Ships)
+                    foreach (SpaceCollisionCell cell in ship.CollisionCells)
+                        if (cell.cell.InBounds(interior) && covered.Add(cell.cell)) yield return cell;
+                // 无主残骸、天然岩石与船体范围外的建筑仍由同一地图分类入口提供。
+                foreach (SpaceCollisionCell cell in SpaceStructureRules.CollisionCells(interior,
+                    CellRect.WholeMap(interior).Where(cell => !covered.Contains(cell)))) yield return cell;
+            }
+        }
         protected override ShipPhysics.MassReport MotionReport
         {
             get
             {
                 if (interior == null || interior.Disposed) return ShipPhysics.PointMassReport;
-                EnsureVirtualLayout();
-                var report = ShipPhysics.GetReport(interior, virtualThrusters);
+                var report = ShipPhysics.GetReport(this);
                 ShipPhysics.RefreshOperational(report);
                 return report;
             }
         }
-        /// <summary>XML 布局在有图对象内重建；运行时缓存不落档，不另设全局虚拟动力表。</summary>
-        private void EnsureVirtualLayout()
-        {
-            if (baseTag != SpaceObjectTag.Shuttle || virtualThrusters != null) return;
-            Building hull = SpaceShuttleService.HullOf(this);
-            CompSpaceShuttle comp = hull?.TryGetComp<CompSpaceShuttle>();
-            if (comp == null) return;
-            Map pocket = interior;
-            Vector2 origin = SpaceTransform.ShipLocalOrigin(pocket);
-            Vector2 hullCenter = SpaceTransform.BoundsCenterOfCells(hull.OccupiedRect().Cells);
-            float frameAngle = ShipOrientation.AngleFromRot4(hull.Rotation);
-            IReadOnlyList<ShuttleThrusterConfig> layout = comp.ThrusterLayout;
-            var thrusters = new List<ShipPhysics.Thruster>(layout?.Count ?? 0);
-            if (layout != null)
-            {
-                for (int i = 0; i < layout.Count; i++)
-                {
-                    ShuttleThrusterConfig configured = layout[i];
-                    if (configured == null || configured.force.sqrMagnitude <= 1e-6f) continue;
-                    Vector2 mapForce = SpaceTransform.Rotate(configured.force, frameAngle);
-                    float thrust = mapForce.magnitude;
-                    thrusters.Add(new ShipPhysics.Thruster
-                    {
-                        thing = null,
-                        localPos = hullCenter - origin
-                            + SpaceTransform.Rotate(configured.position, frameAngle),
-                        dir = mapForce / thrust,
-                        operational = true,
-                        thrust = thrust,
-                    });
-                }
-            }
-            virtualThrusters = thrusters.ToArray();
-            ShipPhysics.Forget(interior);
-        }
-
         private PilotTarget ResolvePilot(DriveSubject subject)
         {
             if (interior == null || interior.Disposed || subject.key <= 0) return default;
-            if (!subject.shuttle)
+            foreach (ShipBase ship in Ships)
             {
-                var ship = ShipRegistry.ShipByOwner(subject.key);
-                return ship.IsValid && ship.map == interior ? PilotTarget.Of(ship) : default;
+                PilotTarget pilot = PilotTarget.Of(ship);
+                if (ship.Identity.Equals(subject)
+                    && ship.CanDriveIn(this)) return pilot;
             }
-            var body = SpaceShuttleService.HullOf(this);
-            return body?.thingIDNumber == subject.key && baseTag == SpaceObjectTag.Shuttle ? PilotTarget.Of(body) : default;
+            return default;
         }
         public override DriveSubject PrimaryDriver
         {
             get
             {
                 if (interior == null || interior.Disposed) return default;
-                var ships = ShipRegistry.ShipsOnMap(interior);
-                return ships.Count == 1 && ShipRegistry.IsFreeFlight(ships[0])
-                    ? new DriveSubject(objectId, ships[0].ownerId) : default;
+                var ships = Ships
+                    .Where(ship => ship.CanDriveIn(this) && ship.State == ShipDerivedState.FreeFlight).ToList();
+                return ships.Count == 1
+                    ? ships[0].Identity.InContainer(objectId) : default;
             }
         }
         public override bool TryGetDrive(DriveSubject subject, out DriveInfo info)
@@ -112,9 +135,10 @@ namespace DeltaV
             archived.ambientLabel = label;
             archived.mapData = data; archived.mapId = interior.uniqueID;
             archived.parent = (PocketMapParent)interior.Parent;
+            archived.memberFactions = ShipFactions.ToList();
             DriveSubject subject = PrimaryDriver;
             DriveInfo info = TryGetDrive(subject, out var drive) ? drive : MotionInfo;
-            archived.dynamics = DriveSnapshot.Capture(info, subject.key);
+            archived.dynamics = DriveSnapshot.Capture(info, subject);
             return archived;
         }
         public override void ExposeData() { base.ExposeData(); Scribe_References.Look(ref interior, "map"); }
@@ -126,10 +150,12 @@ namespace DeltaV
         public int mapId;
         public PocketMapParent parent;
         public DriveSnapshot dynamics;
+        internal List<Faction> memberFactions = new List<Faction>();
+        protected override IEnumerable<Faction> ShipFactions => memberFactions;
         public float observedThrust, observedFirepower;
         public int observedMainConsoleId;
         protected override ShipPhysics.MassReport MotionReport => dynamics?.Report ?? ShipPhysics.PointMassReport;
-        public override DriveSubject PrimaryDriver => new DriveSubject(objectId, dynamics?.ownerId ?? 0);
+        public override DriveSubject PrimaryDriver => dynamics?.Identity.InContainer(objectId) ?? default;
         public override bool TryGetDrive(DriveSubject subject, out DriveInfo info)
         {
             info = dynamics != null && dynamics.ownerId > 0 && subject.Equals(PrimaryDriver)
@@ -153,6 +179,8 @@ namespace DeltaV
             base.ExposeData();
             Scribe_Values.Look(ref mapData, "mapData"); Scribe_Values.Look(ref mapId, "mapId");
             Scribe_References.Look(ref parent, "parent"); Scribe_Deep.Look(ref dynamics, "dynamics");
+            Scribe_Collections.Look(ref memberFactions, "shipFactions", LookMode.Reference);
+            if (memberFactions == null) memberFactions = new List<Faction>();
             Scribe_Values.Look(ref observedThrust, "observedThrust");
             Scribe_Values.Look(ref observedFirepower, "observedFirepower");
             Scribe_Values.Look(ref observedMainConsoleId, "observedMainConsoleId");

@@ -19,7 +19,7 @@ namespace DeltaV
     /// - 密度规则 = 类型树每个叶子「保底 + 分段概率额外量」（Mod 设置「生成」页，
     ///   SectorTypeRule；类型树 SectorContentTypes 提供分类与默认值，分支只是分组）。
     ///   设置是全局的，只影响尚未首次生成的星区；
-    /// - 触发时机（§4）：自由飞行中玩家船 tile 地址变化进入新星区；逆重战略飞行
+    /// - 触发时机（§4）：玩家参考对象 tile 地址变化进入新星区；逆重战略飞行
     ///   到达链在生成降落图之前；开局出生星区在世界生成时预生成（StartedNewGame）。
     ///
     /// 生成内容只有 Delta-V 自建对象（类型树叶子的 SnapshotPocket）；原版 orbit 站点本来就
@@ -39,15 +39,6 @@ namespace DeltaV
 
         /// <summary>落点重试次数上限（间距/留白约束满足不了时放弃精化，不阻塞生成）。</summary>
         private const int PlacementAttempts = 24;
-
-        // 自由飞行星区跟踪的 per-ship tile hint（运行时态，不存档）。
-        private static readonly Dictionary<int, PlanetTile> SectorHintByShip = new Dictionary<int, PlanetTile>();
-
-        /// <summary>读档 / 场景重置时清空运行时跟踪。</summary>
-        public static void Reset()
-        {
-            SectorHintByShip.Clear();
-        }
 
         // ---- 记账 ----
 
@@ -245,34 +236,31 @@ namespace DeltaV
             return best;
         }
 
-        // ---- 触发点：自由飞行星区跟踪 ----
+        // ---- 触发点：玩家参考对象星区跟踪 ----
 
         /// <summary>
-        /// 每 60 tick 由 UniverseManager 调用：自由飞行的玩家船 tile 地址变化进入
-        /// 新星区时触发首次生成。hint 爬坡避免每次全量扫描。
-        /// 必须先快照船列表：EnsureSectorGenerated 会向 universe.objects 添加 marker，
-        /// 惰性枚举边走边 Add 会抛 InvalidOperationException（2026-09-17 实测事故）。
+        /// 玩家参考对象进入新星区时触发首次生成，缓存按 objectId 由 UniverseManager 持有。
+        /// 先快照对象列表，生成期间注册 marker 不影响本轮遍历；同图多船仅有一个参考点。
         /// </summary>
         public static void TickSectorTracking(UniverseManager universe)
         {
             if (universe == null || !OrbitSphere.Valid) return;
-            List<Ship> ships = universe.PlayerShips();
-            var activeIds = new HashSet<int>(ships.Select(ship => ship.ownerId));
-            foreach (int id in SectorHintByShip.Keys.ToList())
-                if (!activeIds.Contains(id)) SectorHintByShip.Remove(id);
-            foreach (Ship ship in ships)
+            List<SpaceObject> references = universe.PlayerReferenceObjects();
+            Dictionary<int, PlanetTile> hints = universe.sectorReferenceTiles;
+            var activeIds = new HashSet<int>(references.Select(obj => obj.objectId));
+            foreach (int id in hints.Keys.ToList())
+                if (!activeIds.Contains(id)) hints.Remove(id);
+            foreach (SpaceObject reference in references)
             {
-                if (!ShipRegistry.IsFreeFlight(ship)
-                    || universe.ShipTransitions.IsDockingFlowShip(ship) || ship.map == null) continue;
-                SpacePose pose = ShipRegistry.ShipPose(ship);
-                SectorHintByShip.TryGetValue(ship.ownerId, out PlanetTile hint);
+                SpacePose pose = reference.pose;
+                if (!hints.TryGetValue(reference.objectId, out PlanetTile hint)) hint = PlanetTile.Invalid;
                 PlanetTile tile = hint.Valid
                     ? OrbitSphere.TileFromDirection(pose.position, hint)
                     : OrbitSphere.TileFromDirection(pose.position);
                 if (!tile.Valid) continue;
                 if (!hint.Valid || tile != hint)
                 {
-                    SectorHintByShip[ship.ownerId] = tile;
+                    hints[reference.objectId] = tile;
                     EnsureSectorGenerated(universe, tile);
                 }
             }

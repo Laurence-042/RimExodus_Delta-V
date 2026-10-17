@@ -13,7 +13,7 @@ namespace DeltaV
     /// 实例服务（universe.Weapons）的武器索引不序列化、读档重建；武器持久配置（组别/PD 模式/
     /// 炮手预留）驻留武器 comp、激活位驻留主驾驶台 comp。
     ///
-    /// 瞄准会话与战斗位置由归属 controller 按 ownerId 记录：对接合图/脱离换图后
+    /// 瞄准会话与战斗位置由归属 controller 按带种类的 DriveSubject 记录：对接合图/脱离换图后
     /// 自动跟随。会话独立于驾驶/自动驾驶——对接中可瞄准。
     ///
     /// 就绪口径（§6.1，单实现）：所在组激活 ∧（MannedNow ∨ 插件（段6））∧ 供电 ∧
@@ -144,12 +144,12 @@ namespace DeltaV
         internal bool HasPointDefenseWeapons(Map map) => map != null && weaponsByMap.ContainsKey(map);
 
         /// <summary>只读火力估计：武器当前可用性、射程、命中散布、冷却与弹体后效同源。</summary>
-        public float EstimateFirepower(Ship ship, float distance, float targetRadius,
+        public float EstimateFirepower(ShipBase ship, float distance, float targetRadius,
             bool missileOnly = false)
         {
             if (!ship.IsValid) return 0f;
             float total = 0f;
-            foreach (CompSpaceWeapon weapon in WeaponsOn(ship.map, ship.ownerId))
+            foreach (CompSpaceWeapon weapon in WeaponsOn(ship))
             {
                 if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
                     || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
@@ -174,11 +174,17 @@ namespace DeltaV
             return total;
         }
 
-        public float EstimatePointDefense(Ship ship)
+        public float EstimateFirepower(SpaceObject container, float distance, float targetRadius) =>
+            container?.Ships.Sum(ship => EstimateFirepower(ship, distance, targetRadius)) ?? 0f;
+
+        public float EstimatePointDefense(SpaceObject container) =>
+            container?.Ships.Sum(EstimatePointDefense) ?? 0f;
+
+        public float EstimatePointDefense(ShipBase ship)
         {
             if (!ship.IsValid) return 0f;
             float total = 0f;
-            foreach (CompSpaceWeapon weapon in WeaponsOn(ship.map, ship.ownerId))
+            foreach (CompSpaceWeapon weapon in WeaponsOn(ship))
             {
                 if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.PointDefense || !weapon.GroupActive
                     || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
@@ -199,7 +205,7 @@ namespace DeltaV
         {
             SpaceObject target = weapon.pdTarget;
             if (target == null || target.map == null || target.map.Disposed
-                || !target.InterceptionEligible || !HostileTo(target, weapon.parent.Faction)) return false;
+                || !target.InterceptionEligible || !target.HostileTo(weapon.parent.Faction)) return false;
             float distance = OrbitSphere.Offset(weapon.MuzzleUniverse, target.pose.position).magnitude
                 - SpaceCollision.BoundsRadiusOf(target);
             return distance >= weapon.WeaponProps.minRange
@@ -222,7 +228,7 @@ namespace DeltaV
             foreach (SpaceObject obj in universe.objects)
             {
                 if (obj == own || !obj.InterceptionEligible) continue;
-                if (!HostileTo(obj, faction)) continue;
+                if (!obj.HostileTo(faction)) continue;
                 Vector2 offset = OrbitSphere.Offset(own.pose.position, obj.pose.position);
                 float distance = OrbitSphere.Offset(muzzle, obj.pose.position).magnitude
                     - SpaceCollision.BoundsRadiusOf(obj);
@@ -320,7 +326,7 @@ namespace DeltaV
             foreach (SpaceObject obj in universe.objects)
             {
                 if (obj == source || obj.map == null) continue;
-                if (!HostileTo(obj, faction)) continue;
+                if (!obj.HostileTo(faction)) continue;
                 Vector2 offset = OrbitSphere.Offset(origin, obj.pose.position);
                 float along = Vector2.Dot(offset, dirTangent);
                 if (along <= 0f) continue;
@@ -333,24 +339,6 @@ namespace DeltaV
                 }
             }
             return best;
-        }
-
-        /// <summary>
-        /// 容器敌对判定（单点）：环境派系 hostile，或图上任何船的派系 hostile
-        ///（多船混合按「有任何敌对船即敌对」——武器射击不逐船区分停泊目标）。
-        /// </summary>
-        public static bool HostileTo(SpaceObject container, Faction faction)
-        {
-            if (faction == null) return false;
-            if (container.faction != null && container.faction.HostileTo(faction)) return true;
-            Map map = container.map;
-            if (map == null) return false;
-            foreach (Ship ship in ShipRegistry.ShipsOnMap(map))
-            {
-                Faction shipFaction = ShipRegistry.FactionOf(ship);
-                if (shipFaction != null && shipFaction.HostileTo(faction)) return true;
-            }
-            return false;
         }
 
         /// <summary>鼠标位置映射的 universe 点（瞄准参考点，§6.1）。</summary>
@@ -367,7 +355,7 @@ namespace DeltaV
         }
 
         /// <summary>图上全部太空武器 comp（扫描 listerThings；每 tick 武器数量级小）。</summary>
-        public static List<CompSpaceWeapon> AllWeaponsOn(Map map)
+        internal static List<CompSpaceWeapon> InstalledWeaponsOn(Map map)
         {
             var result = new List<CompSpaceWeapon>();
             if (map == null) return result;
@@ -382,18 +370,16 @@ namespace DeltaV
             return result;
         }
 
-        /// <summary>指定船（归属域）上的武器。</summary>
-        internal static List<CompSpaceWeapon> WeaponsOn(Map map, int ownerId)
+        /// <summary>地图中的船体武器集合；武器来源由各船实现提供。</summary>
+        public static List<CompSpaceWeapon> AllWeaponsOn(Map map)
         {
-            var result = new List<CompSpaceWeapon>();
-            SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
-            if (ownership == null) return result;
-            foreach (CompSpaceWeapon weapon in AllWeaponsOn(map))
-            {
-                if (SpaceWeaponGeometry.OwnerIdOf(weapon.parent) == ownerId) result.Add(weapon);
-            }
-            return result;
+            SpaceObject container = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map);
+            return container != null ? container.Weapons.ToList()
+                : ShipRegistry.AllShipsOnMap(map).SelectMany(ship => ship.Weapons).Distinct().ToList();
         }
+
+        internal static List<CompSpaceWeapon> WeaponsOn(ShipBase ship) =>
+            ship?.IsValid == true ? ship.Weapons.ToList() : new List<CompSpaceWeapon>();
 
         // ---- 战斗位置（§5.5；本图全部可用玩家武器，激活组仅作人手不足时的优先级）----
 
@@ -408,7 +394,7 @@ namespace DeltaV
             return count;
         }
 
-        internal int EndBattleStationJobs(Map map, Faction faction, HashSet<int> ownerIds)
+        internal int EndBattleStationJobs(Map map, Faction faction, HashSet<DriveSubject> ownerIds)
         {
             int released = 0;
             // EndCurrentJob 会同步刷新 MapPawns 派生列表，必须先快照。
@@ -417,7 +403,7 @@ namespace DeltaV
             {
                 CompSpaceWeapon weapon = SpaceWeaponManning.WeaponFor(pawn.CurJob);
                 if (pawn.Faction != faction || weapon == null
-                    || !ownerIds.Contains(weapon.OwnerShip.ownerId)) continue;
+                    || !ownerIds.Contains(weapon.OwnerShip.Identity)) continue;
                 released++;
                 pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
             }
@@ -428,19 +414,19 @@ namespace DeltaV
         /// 玩家/NPC 共用炮手分配。全部可用武器都参与；激活组优先、同优先级内有可用
         /// 预留炮手者优先，再按 thingId 稳定排序。断电窗口不征用，恢复后事件补分配。
         /// </summary>
-        internal int DispatchGunners(Map map, Faction faction, int ownerId)
+        internal int DispatchGunners(Map map, Faction faction, DriveSubject ownerId)
         {
-            return DispatchGunners(map, faction, new HashSet<int> { ownerId });
+            return DispatchGunners(map, faction, new HashSet<DriveSubject> { ownerId });
         }
 
-        internal int DispatchGunners(Map map, Faction faction, HashSet<int> ownerIds)
+        internal int DispatchGunners(Map map, Faction faction, HashSet<DriveSubject> ownerIds)
         {
             // 任一状态边沿都重走同一判定；先释放失效岗位，再用同一候选集补位。
             foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned.ToList())
             {
                 CompSpaceWeapon assigned = SpaceWeaponManning.WeaponFor(pawn.CurJob);
                 if (pawn.Faction != faction || assigned == null
-                    || !ownerIds.Contains(assigned.OwnerShip.ownerId)) continue;
+                    || !ownerIds.Contains(assigned.OwnerShip.Identity)) continue;
                 if (CanStaff(assigned, map, faction, ownerIds, alreadyAssigned: true)) continue;
                 pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
             }
@@ -466,12 +452,12 @@ namespace DeltaV
         }
 
         private static bool CanStaff(CompSpaceWeapon weapon, Map map, Faction faction,
-            HashSet<int> ownerIds, bool alreadyAssigned)
+            HashSet<DriveSubject> ownerIds, bool alreadyAssigned)
         {
             // 自瞄只阻止征用新炮手，不取消已经下达的岗位（包括玩家右键操作）。
             if (weapon?.parent == null || !weapon.parent.Spawned || weapon.parent.Destroyed
                 || weapon.parent.Map != map || weapon.parent.Faction != faction
-                || !ownerIds.Contains(weapon.OwnerShip.ownerId) || weapon.Mannable == null
+                || !ownerIds.Contains(weapon.OwnerShip.Identity) || weapon.Mannable == null
                 || !alreadyAssigned && weapon.AutoAimEffective) return false;
             return alreadyAssigned && weapon.keepGunnerWhenUnavailable
                 || PowerOn(weapon.parent) && weapon.MagazineAvailable(weapon.SelectMagazine());

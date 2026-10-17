@@ -91,6 +91,10 @@ namespace DeltaV
         /// 扩建会改变它）。mainConsole 可为 null；previewBody 用于 shuttle，把真实舱体
         /// 作为只读 PositionData 放进同一个原版 ThingPlacements 旋转链，禁止调用方另算朝向。
         /// </summary>
+        internal static Gravship BuildPreview(PilotTarget target) => !target.IsValid ? null : BuildPreview(
+            new HashSet<IntVec3>(target.Vessel.HullCells), target.Vessel.Transfer.console,
+            target.Map, target.Vessel.Transfer.body);
+
         internal static Gravship BuildPreview(HashSet<IntVec3> cells, Building mainConsole,
             Map sourceMap = null, Building previewBody = null)
         {

@@ -11,8 +11,8 @@ namespace DeltaV
     /// shuttle comp（太空战架构 §7）：舱体建筑 = 原版 CompTransporter 装货 + 原版
     /// CompLaunchable 发射语义（起飞门禁 = 原版 CanLaunch 结果直取，月池豁免屋顶项
     /// 见 Patch_MoonPool）+ 虚拟推进器 XML 配置（默认 8 台；位置/推力矢量逐台定义）+ 侵入能力
-    ///（per-def canBoard）。停靠时是普通建筑；起飞后 = MiniShip（tag=Shuttle 容器）。
-    /// 与飞船不得有两套逻辑：飞行/驾驶/自动驾驶/受击/普通停靠全部复用同一实现；
+    ///（per-def canBoard）。停靠时是宿主图内的船成员；起飞后持有独立的普通容器。
+    /// 与基架船共用公共能力：飞行/驾驶/自动驾驶/受击/普通停靠全部复用同一实现；
     /// shuttle 特有的只有单建筑域属性、落地冷却与侵入（= 导弹机制）。
     /// </summary>
     public class CompProperties_SpaceShuttle : CompProperties
@@ -34,6 +34,33 @@ namespace DeltaV
 
     public class CompSpaceShuttle : ThingComp
     {
+        public ShipCombatState combat = new ShipCombatState();
+        private ShipBase vessel;
+        public virtual ShipBase Vessel => vessel ??= new ShuttleShip(this);
+        public override void PostSpawnSetup(bool respawningAfterLoad)
+        {
+            base.PostSpawnSetup(respawningAfterLoad);
+            ShipStructureChanges.Notify(parent.Map);
+            Current.Game?.GetComponent<UniverseManager>()?.Controls.For(Vessel);
+            PlanetGlobeRenderer.InvalidateSilhouette(parent.Map);
+        }
+
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
+        {
+            base.PostDeSpawn(map, mode);
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            DriveSubject identity = Vessel.Identity;
+            universe?.QueueFrameAction(() => universe.Controls.ReconcileOwner(identity));
+            PlanetGlobeRenderer.InvalidateSilhouette(map);
+        }
+
+        public override void PostExposeData()
+        {
+            base.PostExposeData();
+            Scribe_Deep.Look(ref combat, "combat");
+            combat ??= new ShipCombatState();
+        }
+
         public CompProperties_SpaceShuttle ShuttleProps => (CompProperties_SpaceShuttle)props;
 
         /// <summary>跳帮档位扩展（可空；真继承 def 把档位放 modExtensions，见 DefModExtension_BoardingProfile）。</summary>
@@ -56,8 +83,13 @@ namespace DeltaV
         public override void PostDestroy(DestroyMode mode, Map previousMap)
         {
             base.PostDestroy(mode, previousMap);
-            Current.Game?.GetComponent<UniverseManager>()?.Shuttles
-                .NotifyHullDestroyed(previousMap);
+            // 原版 transporter 在 lastLaunchTick == 当前 tick 时跳过 DeSpawn 卸货。
+            // 若同 tick 已实际毁艇，复用原版卸货入口，再让帧边界清理检查幸存人员/物资。
+            if (previousMap != null && !previousMap.Disposed)
+                parent.TryGetComp<CompTransporter>()?.innerContainer.TryDropAll(
+                    parent.Position, previousMap, ThingPlaceMode.Near);
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            universe?.ShipTransitions.QueueEmptyDepartedMapCleanup(universe, previousMap);
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
@@ -70,7 +102,7 @@ namespace DeltaV
             }
             // 起飞（停靠中）：门禁 = 原版 CanLaunch 结果直取（含装货/超重/冷却）；
             // 月池屋顶豁免见 Patch_MoonPool。
-            if (Container != null && Launchable != null)
+            if (Container != null && !Vessel.CanDriveIn(Container) && Launchable != null)
             {
                 CompLaunchable launchable = Launchable;
                 var launch = new Command_Action
@@ -95,8 +127,8 @@ namespace DeltaV
     /// <summary>
     /// shuttle 服务（太空战架构 §7/§10，universe.Shuttles 实例服务）：起飞（原版校验
     /// 直取 + 单建筑捕获进口袋）、停靠复用飞船的 Gravship 捕获/剥离/放置链、
-    /// 侵入编排（tag 切换的导弹机制）。
-    /// 与飞船共用：SpaceObject 驾驶契约、ShipAutopilot（普通对接）、
+    /// 侵入编排（弹体角色接管的导弹机制）。
+    /// 与其他飞船实现共用：SpaceObject 驾驶契约、ShipAutopilot（普通对接）、
     /// PilotService（PilotTarget）、SpaceCollision（联合效果）。运行时数据不序列化。
     /// </summary>
     public sealed class SpaceShuttleService
@@ -128,7 +160,8 @@ namespace DeltaV
             CompLaunchable launchable = comp?.Launchable;
             Map sourceMap = shuttleBody?.Map;
             SpaceObject host = sourceMap != null ? universe.FrameOf(sourceMap) : null;
-            if (comp == null || launchable == null || host == null || sourceMap == null)
+            if (comp == null || launchable == null || host == null || sourceMap == null
+                || comp.Vessel.CanDriveIn(host))
             {
                 return;
             }
@@ -155,16 +188,7 @@ namespace DeltaV
                 $"({UniverseManager.MapTag(container.map)})");
             Messages.Message("DeltaV_ShuttleLaunched".Translate(shuttleBody.LabelCap),
                 MessageTypeDefOf.PositiveEvent, false);
-            // 起飞即驾驶：shuttle 靠起飞按钮进入宇宙，玩家方起飞后直接接管（飞船无需
-            // 此机制——本就处于驾驶状态才能出力起飞）。只处理聚焦已随起飞交接进新
-            // 口袋图的情况，否则下一帧聚焦自动退出驾驶，进入无意义；dev 敌对发射与
-            // NPC shuttle 经派系门排除。其余门禁（零重力/流程互斥/派系）由 Enter
-            // 内部 CanEnter 兜底。
-            if (shuttleBody.Faction == Faction.OfPlayer && container.map != null
-                && Find.CurrentMap == container.map)
-            {
-                universe.Pilot.Enter(universe, PilotTarget.Of(shuttleBody));
-            }
+            // 转移、聚焦与玩家驾驶交接已由 ShipTransitions 的共同船体转移入口完成。
         }
 
         /// <summary>原版 CompLaunchable.lastLaunchTick 字段镜像（起飞与停靠回落共用的冷却单点）。</summary>
@@ -181,63 +205,26 @@ namespace DeltaV
 
         // ---- 查询 ----
 
-        /// <summary>当前图上的在飞 shuttle 舱体（UpdateFrameState 的接管查询用）。</summary>
-        public Building InFlightBodyOn(Map map)
+        /// <summary>本船或其控制域内可执行侵入的载员艇；战术选择与执行共用此门禁。</summary>
+        internal CompSpaceShuttle BoardingCraftOf(ShipBase ship)
         {
-            SpaceObject container = universe.FrameOf(map);
-            return container?.baseTag == SpaceObjectTag.Shuttle ? HullOf(container) : null;
+            if (!ship.IsValid) return null;
+            return ShipRegistry.AllShipsOnMap(ship.Map)
+                .Where(vessel => vessel.CanBoard && ship.Contains(vessel.Anchor) && vessel.Faction == ship.Faction)
+                .Select(vessel => vessel.Anchor.TryGetComp<CompSpaceShuttle>())
+                .FirstOrDefault(comp => comp != null
+                    && comp.parent.TryGetComp<CompTransporter>()?.innerContainer?.Any(t => t is Pawn) == true
+                    && (comp.Vessel.CanDriveIn(comp.Container)
+                        || comp.Launchable != null && comp.Launchable.CanLaunch()));
         }
 
-        /// <summary>舱体所在容器（图上首个 shuttle comp 的容器归属；无则 null）。</summary>
-        public static Building HullOf(SpaceObject container)
+        internal void TryBoardFrom(ShipBase ship, SpaceObject enemy)
         {
-            Map map = container?.map;
-            if (map == null) return null;
-            foreach (Thing thing in map.listerThings.AllThings)
-            {
-                if (thing is Building building && building.TryGetComp<CompSpaceShuttle>() != null)
-                {
-                    return building;
-                }
-            }
-            return null;
-        }
-
-        /// <summary>舱体销毁事件：乘员/货物由原版 transporter 处理，容器在帧边界收尾。</summary>
-        internal void NotifyHullDestroyed(Map map)
-        {
-            SpaceObject container = universe.FrameOf(map);
-            if (container?.baseTag != SpaceObjectTag.Shuttle) return;
-            DeltaVLog.Message(DeltaVLogModule.Combat,
-                $"shuttle container #{container.objectId}: hull destroyed in-map; MiniShip torn down");
-            universe.QueueFrameAction(delegate
-            {
-                if (!universe.objects.Contains(container)) return;
-                universe.Lifecycle.DestroyPocketMap(map);
-                universe.UnregisterObject(container);
-            });
-        }
-
-        /// <summary>外部卸图时，注销已失去地图的 shuttle 容器。</summary>
-        internal void NotifyMapRemoved(Map map)
-        {
-            SpaceObject container = universe.FrameOf(map);
-            if (container?.baseTag != SpaceObjectTag.Shuttle) return;
-            universe.QueueFrameAction(delegate
-            {
-                if (universe.objects.Contains(container)) universe.UnregisterObject(container);
-            });
-        }
-
-        /// <summary>全部在飞 shuttle 容器（面板列表）。</summary>
-        public List<SpaceObject> InFlightContainers()
-        {
-            var result = new List<SpaceObject>();
-            foreach (SpaceObject obj in universe.objects)
-            {
-                if (obj.baseTag == SpaceObjectTag.Shuttle) result.Add(obj);
-            }
-            return result;
+            CompSpaceShuttle craft = BoardingCraftOf(ship);
+            if (craft == null) return;
+            if (!craft.Vessel.CanDriveIn(craft.Container)) Launch((Building)craft.parent);
+            if (craft.Vessel.CanDriveIn(craft.Container))
+                EngageIntrusion((Building)craft.parent, enemy, playerInitiated: false);
         }
 
         // ---- 侵入式对接（§7.5 = 导弹接管 + 联合后效 + 共同降落链）----
@@ -259,7 +246,7 @@ namespace DeltaV
         /// <summary>侵入指挥：点击敌舰外壳指定目标容器（Targeter 流程内经 ShellPicking 解析）。</summary>
         public void BeginBoardTargeting(PilotTarget shuttle)
         {
-            Building body = shuttle.shuttle;
+            Building body = shuttle.Vessel?.Anchor as Building;
             if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
                 DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"boarding targeter begin tick={Find.TickManager.TicksGame} hull=#{body?.thingIDNumber} " +
@@ -324,10 +311,10 @@ namespace DeltaV
                     $"target=#{target?.objectId} targetTag={target?.Tag} " +
                     $"targetMap={UniverseManager.MapTag(target?.map)} " +
                     $"ordinaryProjectiles={universe.Projectiles.InFlightCount} player={playerInitiated}");
-            if (container == null || container.baseTag != SpaceObjectTag.Shuttle
+            if (body.TryGetComp<CompSpaceShuttle>()?.Vessel.CanDriveIn(container) != true
                 || container.projectileRoleOverride || target == null || target == container) return;
             universe.Autopilot.Detach(DriveSubject.Of(PilotTarget.Of(body)), "boarding missile launch");
-            if (universe.Pilot.PilotedTarget(universe).ControlKey == body.thingIDNumber)
+            if (universe.Pilot.PilotedTarget(universe).Identity == PilotTarget.Of(body).Identity)
                 universe.Pilot.Exit(universe);
             if (!universe.Projectiles.AdoptShuttle(container, body, target, targetMapPoint)) return;
             DeltaVLog.Message(DeltaVLogModule.Combat,
@@ -336,22 +323,23 @@ namespace DeltaV
                 MessageTypeDefOf.NeutralEvent, false);
         }
 
-        /// <summary>退出侵入（打断/目标失效/读档后）：tag 切回 shuttle（目标默认保留可重入）。</summary>
+        /// <summary>退出侵入（打断/目标失效/读档后）：移除弹体角色（目标默认保留可重入）。</summary>
         public void BreakIntrusion(SpaceObject container, bool dropTarget)
         {
             if (container == null) return;
             universe.Projectiles.ReleaseShuttle(container);
             DeltaVLog.Message(DeltaVLogModule.Combat,
-                $"intrusion broken off: shuttle container #{container.objectId} (tag->shuttle)");
+                $"intrusion broken off: shuttle container #{container.objectId} (projectile role removed)");
         }
 
         /// <summary>导弹命中后效：在帧边界以真正的 Gravship 搬运链降落。</summary>
-        public void PlaceBoardedShuttle(SpaceObject container, SpaceObject defender,
+        public void PlaceBoardedShuttle(SpaceObject container, Building hull, SpaceObject defender,
             Vector3 hitUniverse, Vector2 hitLocal, Vector2 incidentWorld,
             IntVec3 hitCell, bool shieldHit)
         {
             int sourceId = container.objectId, sourceVersion = container.RepresentationVersion;
             int targetId = defender.objectId, targetVersion = defender.RepresentationVersion;
+            DriveSubject identity = PilotTarget.Of(hull).Identity;
             universe.QueueFrameAction(delegate
             {
                 container = universe.ObjectById(sourceId);
@@ -359,8 +347,10 @@ namespace DeltaV
                 if (container?.RepresentationVersion != sourceVersion || defender?.RepresentationVersion != targetVersion) return;
                 Map targetMap = defender?.map;
                 Map sourceMap = container?.map;
-                Building hull = HullOf(container);
-                if (hull == null || sourceMap == null || targetMap == null || targetMap.Disposed
+                ShipBase vessel = ShipRegistry.ShipByIdentity(identity);
+                if (!vessel.IsValid || vessel.Anchor != hull || vessel.Map != sourceMap
+                    || !vessel.CanDriveIn(container) || container.projectileRoleOverride
+                    || sourceMap == null || targetMap == null || targetMap.Disposed
                     || !universe.objects.Contains(defender) || !universe.objects.Contains(container))
                     return;
 
@@ -452,8 +442,8 @@ namespace DeltaV
                     Log.Error("[DeltaV] Boarding breach completed but shared Gravship transfer failed.");
                     return;
                 }
-                var completion = new DockingCompletion.ShuttleDockingCompletion(
-                    universe, hull, targetMap, transferredSource, handoff, impactLanding: true);
+                var completion = new DockingCompletion(
+                    universe, shuttle.Vessel, targetMap, transferredSource, handoff, impactLanding: true);
                 completion.OnTransferedIntoHost();
                 universe.QueueFrameAction(completion.Finish);
             });
