@@ -12,6 +12,10 @@
 
 Scribe 对同一份 prefab 内的引用在整批读取时解析。对外部 Pawn、任务或旧地图 Thing 的引用无法在新副本成立，解析后为空。第三方 Comp 只要按 RimWorld `ExposeData` 持久化且不依赖旧地图或全局注册表，即可一同恢复；无法保存或读取的实例会给出警告并按 Def 默认状态建立。跨地图原始坐标、原始 Thing ID 数值等自定义字段不具有通用语义，具体模组须适配。
 
+身份重分配以本批 Scribe 的 `crossReferencingExposables` 为完整实例清单，在 `FinalizeLoading` 清空清单前取快照，待原 ID 的内部引用与初始化完成后统一执行。所有深度读取的 Thing（包括不属于 `IThingHolder` 的炮塔内部 gun）都重新编号、清理旧任务标签并应用目标派系；随后沿本批 `VerbTracker` 使用原版 `Verb.CalculateUniqueLoadID` 更新动作身份，保留原 Verb 实例、状态与已解析引用。不能只枚举地图顶层或 ThingOwner 内容物，也不能只改枪械 ID 而留下旧 Verb ID。默认状态回退的 `ThingMaker` 已负责新建身份，不再二次编号。
+
+离线回归入口为 `scripts/PrefabRegression/run.ps1 -GameRoot <游戏目录> -HarmonyPath <Lib.Harmony 的 net8.0/0Harmony.dll>`，直接调用构建 DLL 与安装版原版 Scribe，验证同一炮塔模板重复实例化、内部 Thing/Verb 引用、动作状态与普通保存/重载。仅隔离 Unity 日志显示和 Def 构造的素材加载；不代替游戏内放置验收。
+
 建筑存储格中的物品仍是地图上的独立 Item。不可通行的 `Building_Storage`（例如导弹仓）会让原版 `CanSpawnAt` 的行走检查失败；重建只在原版 SlotGroup 已登记且不会擦除储物建筑的格子放宽此检查。储存组本身是旧地图对象，不复制其引用；导出时把该建筑实际生效的筛选和优先级写为自身设置。
 
 隐藏电线和武器槽位挂件也可与不可通行建筑同格。重建只对这两类已保存建筑放宽 `CanSpawnAt` 的行走检查，同时保留地形、槽位及原版擦除规则检查；整批落位后调用原版电网更新，使电线连通和设备供电在地图投入使用前完成。

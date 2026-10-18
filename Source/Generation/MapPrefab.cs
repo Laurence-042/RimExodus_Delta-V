@@ -277,7 +277,7 @@ namespace DeltaV
 
             // 原版负责 terrain；Thing 由 Scribe 读取完整实例后统一落位。
             PrefabUtility.SpawnPrefab(prefabDef, map, position, rotation, faction);
-            List<Thing> loaded = MapPrefabThingState.Instantiate(doc.thingEntries, doc.name);
+            List<Thing> loaded = MapPrefabThingState.Instantiate(doc.thingEntries, doc.name, faction);
             var spawned = new List<Thing>();
             for (int i = 0; i < doc.thingEntries.Count; i++)
             {
@@ -291,8 +291,9 @@ namespace DeltaV
                     if (entry.def.useHitPoints && entry.hitPoints > 0)
                         thing.HitPoints = Math.Min(entry.hitPoints, thing.MaxHitPoints);
                     thing.stackCount = Math.Max(1, entry.stackCount);
+                    // ThingMaker already assigns fresh IDs, including any default nested objects.
+                    if (thing.def.CanHaveFaction) thing.SetFactionDirect(faction);
                 }
-                MapPrefabThingState.Reidentify(thing, faction);
                 thing.spawnedTick = Find.TickManager.TicksGame;
                 thing.despawnedTick = -1;
                 if (thing.TryGetComp<CompDeltaVPilotConsole>() is { } console)

@@ -60,7 +60,7 @@ namespace DeltaV
             return document.DocumentElement.OuterXml;
         }
 
-        internal static List<Thing> Instantiate(IReadOnlyList<MapPrefabThingEntry> entries, string label)
+        internal static List<Thing> Instantiate(IReadOnlyList<MapPrefabThingEntry> entries, string label, Faction faction)
         {
             var result = new List<Thing>();
             if (entries.Count == 0) return result;
@@ -96,7 +96,11 @@ namespace DeltaV
                     Scribe.loader.InitLoading(path);
                     var bundle = new Bundle();
                     bundle.ExposeData();
+                    // Scribe knows every deep-loaded object, including turret guns outside IThingHolder.
+                    // FinalizeLoading clears this registry; keep it until old-ID references are resolved.
+                    IExposable[] loaded = Scribe.loader.crossRefs.crossReferencingExposables.ToArray();
                     Scribe.loader.FinalizeLoading();
+                    Reidentify(loaded, faction);
                     result = bundle.things ?? new List<Thing>();
                 }
                 finally
@@ -126,19 +130,27 @@ namespace DeltaV
             return target;
         }
 
-        internal static void Reidentify(Thing thing, Faction faction)
+        private static void Reidentify(IReadOnlyList<IExposable> loaded, Faction faction)
         {
-            if (thing == null) return;
-            var nested = thing is IThingHolder holder
-                ? ThingOwnerUtility.GetAllThingsRecursively(holder)
-                : new List<Thing>();
-            foreach (Thing item in nested.Concat(new[] { thing }))
+            foreach (Thing item in loaded.OfType<Thing>())
             {
                 item.questTags = null;
                 if (item.def.CanHaveFaction) item.SetFactionDirect(faction);
                 if (!item.def.HasThingIDNumber) continue;
                 item.thingIDNumber = -1;
                 ThingIDMaker.GiveIDTo(item);
+            }
+            // Verb load IDs contain their owner's Thing ID. Keep the resolved Verb instances/state,
+            // but derive their identities again using the same API as vanilla VerbTracker.InitVerbs.
+            foreach (VerbTracker tracker in loaded.OfType<VerbTracker>())
+            {
+                IVerbOwner owner = tracker.directOwner;
+                foreach (Verb verb in tracker.AllVerbs)
+                {
+                    verb.loadID = verb.tool != null
+                        ? Verb.CalculateUniqueLoadID(owner, verb.tool, verb.maneuver)
+                        : Verb.CalculateUniqueLoadID(owner, owner.VerbProperties.IndexOf(verb.verbProps));
+                }
             }
         }
     }
