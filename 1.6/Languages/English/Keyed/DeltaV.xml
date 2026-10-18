@@ -76,7 +76,11 @@
   <DeltaV_PoiPacked>POI {0}: map removed (snapshot saved).</DeltaV_PoiPacked>
   <DeltaV_PoiRestored>POI {0}: map restored from snapshot.</DeltaV_PoiRestored>
   <DeltaV_PanelSectorTitle>Space: {0}</DeltaV_PanelSectorTitle>
-  <DeltaV_PanelPickConsoleTip>Several ships are docked here. Select the target ship's pilot console, claim it with its "Make primary console" gizmo, then enter pilot mode.</DeltaV_PanelPickConsoleTip>
+  <DeltaV_PanelNeedsPrimaryConsole>This structure has no primary pilot console. Build a console or set an existing console as primary to control the ship.</DeltaV_PanelNeedsPrimaryConsole>
+  <DeltaV_MissingPrimaryConsole>Substructure lacks primary console</DeltaV_MissingPrimaryConsole>
+  <DeltaV_MissingPrimaryConsoleDesc>Some substructure domains containing player buildings have no primary pilot console and do not form controllable ships. Build a console or select a player-owned console and set it as primary. A domain with a primary console is protected against reassignment. This alert clears when a primary console is restored.</DeltaV_MissingPrimaryConsoleDesc>
+  <DeltaV_ConsoleNeedsFoundation>The console must stand on substructure in a Delta-V map to become primary.</DeltaV_ConsoleNeedsFoundation>
+  <DeltaV_ConsolePrimaryNotOwned>This domain already has a non-player primary console. Claim that console under the vanilla rules, or destroy it without a backup succeeding, before taking control.</DeltaV_ConsolePrimaryNotOwned>
   <DeltaV_PanelGlobeZoomOut>Planet</DeltaV_PanelGlobeZoomOut>
   <DeltaV_PanelGlobeZoomIn>Sector</DeltaV_PanelGlobeZoomIn>
   <DeltaV_PanelGlobeDistance>{0} cells</DeltaV_PanelGlobeDistance>
@@ -88,7 +92,7 @@
   <DeltaV_LandingBlockedForeignSubstructure>Cannot land here: the footprint would touch substructure belonging to another object. Leave a gap and connect via docking ports.</DeltaV_LandingBlockedForeignSubstructure>
   <!-- Reassign substructure ownership designator -->
   <DeltaV_ReassignSubstructure>Reassign substructure</DeltaV_ReassignSubstructure>
-  <DeltaV_ReassignSubstructureDesc>Change which structure owns substructure cells. Ownership decides what a grav engine counts, what launches take along, and each ship's silhouette. First pick the target owner, then drag over substructure cells.</DeltaV_ReassignSubstructureDesc>
+  <DeltaV_ReassignSubstructureDesc>Pick a target owner, then drag over substructure cells. An entire source domain is protected while it has a primary console. Set that console to backup, or destroy it without a backup succeeding, before reassignment. Domains without a primary console can be assigned to an existing ship or a new owner.</DeltaV_ReassignSubstructureDesc>
   <DeltaV_ReassignNoTarget>No reassignable substructure on this map.</DeltaV_ReassignNoTarget>
   <DeltaV_ReassignPickFirst>Pick a target owner first.</DeltaV_ReassignPickFirst>
   <DeltaV_ReassignTarget>Target owner: {0}</DeltaV_ReassignTarget>
@@ -136,7 +140,7 @@
   <DeltaV_RenameTitle>Rename ship</DeltaV_RenameTitle>
   <DeltaV_ConsoleGizmoRename>Rename ship</DeltaV_ConsoleGizmoRename>
   <DeltaV_ConsoleGizmoMakeBackup>Set as backup console</DeltaV_ConsoleGizmoMakeBackup>
-  <DeltaV_ConsoleGizmoBackupTip>Release the claim on this structure. The structure becomes a wreck until another console claims it (docked ships: separate via thruster fire first).</DeltaV_ConsoleGizmoBackupTip>
+  <DeltaV_ConsoleGizmoBackupTip>Release the primary claim without triggering succession. This domain stops forming a controllable ship and its substructure can be reassigned. Set a console as primary to restore ship operations.</DeltaV_ConsoleGizmoBackupTip>
   <DeltaV_PanelShipRowTip>Select '{0}' as the ship to view and operate.</DeltaV_PanelShipRowTip>
   <DeltaV_PanelHeadingCaption>Console facing (click to rotate ship)</DeltaV_PanelHeadingCaption>
   <DeltaV_PanelHeadingTip>Click a compass direction to rotate the whole ship map to that on-screen facing (buildings rotate into a new pocket map coinciding with the current position). The ship's orbital heading, position and velocity are preserved; free flight only, unavailable during a docking plan.</DeltaV_PanelHeadingTip>
@@ -219,7 +223,8 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_NpcDoctrine_Boarder>Boarder</DeltaV_NpcDoctrine_Boarder>
   <DeltaV_NpcDoctrine_Retreat>Retreat</DeltaV_NpcDoctrine_Retreat>
   <DeltaV_SectorTypeAsteroid>Asteroid</DeltaV_SectorTypeAsteroid>
-<DeltaV_ReassignProtectedMainConsole>Main console foundations cannot be reassigned ({0} cell(s) skipped). Set the console to backup or deconstruct it first.</DeltaV_ReassignProtectedMainConsole>
+  <DeltaV_ReassignProtectedDomain>This substructure domain still has a primary console and cannot be reassigned. Set the console to backup, or destroy it without a backup succeeding, first.</DeltaV_ReassignProtectedDomain>
+  <DeltaV_ReassignProtectedDomainsSkipped>Skipped {0} cell(s) in domains with primary consoles. Release their primary claims first; other eligible cells are reassigned normally.</DeltaV_ReassignProtectedDomainsSkipped>
 
   <!-- Combat controls -->
   <DeltaV_PanelFireControl>Fire control: {0}</DeltaV_PanelFireControl>

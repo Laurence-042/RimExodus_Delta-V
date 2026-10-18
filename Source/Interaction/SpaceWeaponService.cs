@@ -507,7 +507,7 @@ namespace DeltaV
                 && pawn.CanReserveAndReach(weapon.parent, PathEndMode.InteractionCell, Danger.Deadly);
         }
 
-        /// <summary>dev ResetObjects / 图销毁时的流程清零。</summary>
+        /// <summary>场景重建 / 图销毁时的流程清零。</summary>
         public void ResetFlow()
         {
             weaponsByMap.Clear();

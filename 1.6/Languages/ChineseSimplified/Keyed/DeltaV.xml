@@ -76,7 +76,11 @@
   <DeltaV_PoiPacked>POI {0}：已删除地图（快照保存）。</DeltaV_PoiPacked>
   <DeltaV_PoiRestored>POI {0}：已从快照恢复地图。</DeltaV_PoiRestored>
   <DeltaV_PanelSectorTitle>太空：{0}</DeltaV_PanelSectorTitle>
-  <DeltaV_PanelPickConsoleTip>本图停靠了多艘飞船：请选中目标船的驾驶台，用其「设为主驾驶台」认领后再进入驾驶。</DeltaV_PanelPickConsoleTip>
+  <DeltaV_PanelNeedsPrimaryConsole>该结构没有主驾驶台。请建造驾驶台或将现有驾驶台设为主台，才能控制飞船。</DeltaV_PanelNeedsPrimaryConsole>
+  <DeltaV_MissingPrimaryConsole>基架结构缺少主驾驶台</DeltaV_MissingPrimaryConsole>
+  <DeltaV_MissingPrimaryConsoleDesc>部分载有玩家建筑的基架归属没有主驾驶台，因此未形成可控制的飞船。请建造驾驶台，或选中属于玩家的驾驶台并设为主台。已有主台的归属会锁定，不能被改划到其他归属。此警告在主台恢复后自动消失。</DeltaV_MissingPrimaryConsoleDesc>
+  <DeltaV_ConsoleNeedsFoundation>驾驶台必须位于 Delta-V 地图的基架上才能设为主台。</DeltaV_ConsoleNeedsFoundation>
+  <DeltaV_ConsolePrimaryNotOwned>该归属已有非玩家主驾驶台。请先按原版规则占领该主台，或摧毁主台且没有副台继任后再认领。</DeltaV_ConsolePrimaryNotOwned>
   <DeltaV_PanelGlobeZoomOut>星球</DeltaV_PanelGlobeZoomOut>
   <DeltaV_PanelGlobeZoomIn>星区</DeltaV_PanelGlobeZoomIn>
   <DeltaV_PanelGlobeDistance>{0} 格</DeltaV_PanelGlobeDistance>
@@ -88,7 +92,7 @@
   <DeltaV_LandingBlockedForeignSubstructure>不能在此降落：脚印将接触其他对象的基架。请留出间隔，用对接口连接。</DeltaV_LandingBlockedForeignSubstructure>
   <!-- 修改基架归属命令 -->
   <DeltaV_ReassignSubstructure>修改基架归属</DeltaV_ReassignSubstructure>
-  <DeltaV_ReassignSubstructureDesc>改写基架格的归属结构。归属决定逆重引擎的范围与承载、发射带走哪些结构，以及每艘飞船的剪影。先选择目标归属，再拖选基架格。</DeltaV_ReassignSubstructureDesc>
+  <DeltaV_ReassignSubstructureDesc>改写基架格的归属结构。先选择目标归属，再拖选基架格。有主驾驶台的整个来源归属不可改划；请先将主台设为副台，或摧毁主台且没有副台继任。无主台的基架可以划入已有飞船或新归属。</DeltaV_ReassignSubstructureDesc>
   <DeltaV_ReassignNoTarget>本图没有可改写归属的基架。</DeltaV_ReassignNoTarget>
   <DeltaV_ReassignPickFirst>请先选择目标归属。</DeltaV_ReassignPickFirst>
   <DeltaV_ReassignTarget>目标归属：{0}</DeltaV_ReassignTarget>
@@ -136,7 +140,7 @@
   <DeltaV_RenameTitle>重命名飞船</DeltaV_RenameTitle>
   <DeltaV_ConsoleGizmoRename>重命名飞船</DeltaV_ConsoleGizmoRename>
   <DeltaV_ConsoleGizmoMakeBackup>设为备用驾驶台</DeltaV_ConsoleGizmoMakeBackup>
-  <DeltaV_ConsoleGizmoBackupTip>放弃对本结构的认领。结构将保持残骸状态，直到另一台驾驶台认领（已停靠的船请先经推进器出力分离）。</DeltaV_ConsoleGizmoBackupTip>
+  <DeltaV_ConsoleGizmoBackupTip>主动放弃主台认领，不触发副台继任。本归属不再形成可控制的飞船，基架可被改划；重新设为主台后恢复船舶操作。</DeltaV_ConsoleGizmoBackupTip>
   <DeltaV_PanelShipRowTip>将「{0}」设为当前查看/操作的船。</DeltaV_PanelShipRowTip>
   <DeltaV_PanelHeadingCaption>驾驶台朝向（点击旋转飞船）</DeltaV_PanelHeadingCaption>
   <DeltaV_PanelHeadingTip>点击罗盘方向，把飞船整图旋转到该屏上朝向（建筑随之旋转、移入与当前位置重合的新口袋图）。飞船在轨道坐标中的朝向、位置与速度保持不变；仅自由飞行可用，对接计划进行中不可用。</DeltaV_PanelHeadingTip>
@@ -219,7 +223,8 @@
   <DeltaV_NpcDoctrine_Boarder>跳帮</DeltaV_NpcDoctrine_Boarder>
   <DeltaV_NpcDoctrine_Retreat>撤退</DeltaV_NpcDoctrine_Retreat>
   <DeltaV_SectorTypeAsteroid>小行星</DeltaV_SectorTypeAsteroid>
-<DeltaV_ReassignProtectedMainConsole>主驾驶台下方的基架归属不能修改（已跳过 {0} 格）；请先设为备用驾驶台或拆除。</DeltaV_ReassignProtectedMainConsole>
+  <DeltaV_ReassignProtectedDomain>该基架归属仍有主驾驶台，整域不能改划。请先将主台设为副台，或摧毁主台且没有副台继任。</DeltaV_ReassignProtectedDomain>
+  <DeltaV_ReassignProtectedDomainsSkipped>已跳过 {0} 格：其归属仍有主驾驶台。请先解除主台认领；其他合法格照常修改。</DeltaV_ReassignProtectedDomainsSkipped>
 
   <!-- 战斗控制 -->
   <DeltaV_PanelFireControl>火控：{0}</DeltaV_PanelFireControl>

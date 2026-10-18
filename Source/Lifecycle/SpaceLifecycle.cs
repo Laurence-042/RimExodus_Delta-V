@@ -544,6 +544,7 @@ namespace DeltaV
         {
             SpaceObject container = universe.FrameOf(map);
             if (container == null || container is PoiState) return; // 原生 POI 镜像由 parent 生命周期维护。
+            universe.Projectiles.NotifyContainerRemoving(container);
             universe.QueueFrameAction(() =>
             {
                 if (universe.objects.Contains(container) && container.map == map)

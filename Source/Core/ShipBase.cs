@@ -52,6 +52,17 @@ namespace DeltaV
         public abstract ShipTransferSpec Transfer { get; }
         public virtual bool CanBoard => false;
         public virtual void NotifyLanded() { }
+
+        // 船体是面板的共同入口；控制器仍唯一提供权限、驾驶和侵入等操作。
+        private ShipController PanelController => IsValid
+            ? Current.Game?.GetComponent<UniverseManager>()?.Pilot.ControllerFor(PilotTarget.Of(this)) : null;
+        internal void CollectPanelActions(List<PilotPanelAction> actions) =>
+            PanelController?.CollectPanelActions(PilotTarget.Of(this), actions);
+        internal void CollectCombatPanelActions(bool hasWeapons,
+            List<PilotPanelAction> beforeGroups, List<PilotPanelAction> afterGroups) =>
+            PanelController?.CollectCombatPanelActions(this, hasWeapons, beforeGroups, afterGroups);
+        internal void CollectHeadingPanelActions(List<HeadingPanelAction> actions) =>
+            PanelController?.CollectHeadingPanelActions(this, actions);
     }
 
     /// <summary>船体提供的 Gravship 搬运参数；捕获、预览和放置仍使用同一条链。</summary>

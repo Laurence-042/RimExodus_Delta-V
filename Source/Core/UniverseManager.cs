@@ -331,9 +331,10 @@ namespace DeltaV
                     $"map={MapTag(obj.map)} registered={objects.Contains(obj)} " +
                     $"caller={caller?.DeclaringType?.Name}.{caller?.Name}");
             }
+            // Resolve projectile resources while the old identity is still registered.
+            Projectiles.NotifyContainerRemoving(obj);
             objects.Remove(obj);
             Autopilot.Detach(obj);
-            Projectiles.ReleaseShuttle(obj);
             Shuttles.ForgetContainer(obj);
             // 最后一艘船消失后 Ship tag 已移除，释放不能再以当前角色为前提。
             if (obj.map != null) Weapons.ForgetMap(obj.map);
@@ -666,6 +667,8 @@ namespace DeltaV
         /// 不跑字段初始化器，必须按惰性属性模式访问。
         /// </summary>
         private List<Action> frameActions;
+        private Queue<Action> sceneResetSteps;
+        public bool IsResettingScene => sceneResetSteps != null;
 
         private List<Action> FrameActions =>
             frameActions ?? (frameActions = new List<Action>());
@@ -693,14 +696,29 @@ namespace DeltaV
             if (frameActions == null || frameActions.Count == 0) return;
             Action[] batch = frameActions.ToArray();
             frameActions.Clear();
-            foreach (Action action in batch)
+            for (int i = 0; i < batch.Length; i++)
             {
-                action();
+                try { batch[i](); }
+                catch
+                {
+                    // Preserve the unexecuted tail, ahead of work spawned by this batch.
+                    FrameActions.InsertRange(0, batch.Skip(i + 1));
+                    throw;
+                }
             }
         }
 
         public override void GameComponentUpdate()
         {
+            if (IsResettingScene)
+            {
+                Find.TickManager.Pause();
+                // Native map finalization must finish before any queued disposal.
+                if (LongEventHandler.AnyEventNowOrWaiting) return;
+                RunFrameActions();
+                AdvanceSceneReset();
+                return;
+            }
             // 帧上下文动作消费（分离执行、对接完成收尾、源图善后、战略离场善后等
             // 「必须离开 tick 调用栈」的收尾唯一出口），先消费再处理渲染/输入。
             RunFrameActions();
@@ -769,6 +787,7 @@ namespace DeltaV
         /// </summary>
         public override void GameComponentTick()
         {
+            if (IsResettingScene) return;
             // 原版 TickManager 每次只调用一次；速度单位为格/秒，故单次积分步长为 1/60 秒。
             // 倍速增加调用次数而非放大单次 dt，暂停时本方法不被调用。
             const float dt = 1f / 60f;
@@ -827,6 +846,7 @@ namespace DeltaV
 
         public override void GameComponentOnGUI()
         {
+            if (IsResettingScene) return;
             // 驾驶模式切换键（本 mod 分类的绑定不受抑制影响，驾驶中仍可退出）。
             // 作用于「当前查看/操作的船」：面板选择或图上默认（玩家船优先，SelectedShipOnMap）。
             if (DeltaVDefOf.DeltaV_TogglePilotMode != null && DeltaVDefOf.DeltaV_TogglePilotMode.KeyDownEvent)
@@ -1050,32 +1070,67 @@ namespace DeltaV
             Find.CameraDriver.SetRootSize(rootSize);
         }
 
-        public void ResetObjects(List<SpaceObject> newObjects)
+        /// <summary>Drain old frame work before destroying its identities or creating new maps.</summary>
+        internal void BeginSceneReset(Action createScene)
         {
-            ResetRuntimeServices();
-            Pilot.Exit(this);
-            // 同实例上的流程清零（2026-09-22 实例化迁移补洞）：旧 objects 整体替换，
-            // 残留的对接计划/自动驾驶任务/跳帮舱会指向已废弃的容器，必须一并丢弃。
-            Approach.ResetFlow(this);
-            Autopilot.ResetFlow();
-            Projectiles.ResetFlow();
-            Weapons.ResetFlow();
-            Shuttles.ResetFlow();
-            ShipTransitions.Reset();
-            objects = newObjects;
-            Weapons.RebuildWeaponIndex();
-            Controls.Rebuild();
-            unframedMaps?.Clear();
-            SpaceObject focus = objects.FirstOrDefault(o => o.map != null);
-            if (focus != null)
+            if (IsResettingScene) return;
+            Find.TickManager.Pause();
+            sceneResetSteps = new Queue<Action>();
+            sceneResetSteps.Enqueue(() =>
             {
-                SetFocused(focus);
+                // Finish an in-progress native map before cancellation/disposal can
+                // reach it; partially initialized MapDrawer resources cannot be disposed.
+                Generation?.DrainSynchronouslyForExternalGeneration();
+                Generation?.Reset();
+                Pilot.Exit(this);
+                Approach.ResetFlow(this);
+                Autopilot.ResetFlow();
+                Projectiles.ResetFlow();
+                Weapons.ResetFlow();
+                Shuttles.ResetFlow();
+                ShipTransitions.Reset();
+            });
+            sceneResetSteps.Enqueue(DestroySceneObjects);
+            sceneResetSteps.Enqueue(ResetRuntimeServices);
+            sceneResetSteps.Enqueue(() => LongEventHandler.QueueLongEvent(() =>
+            {
+                try { createScene(); }
+                catch (Exception ex)
+                {
+                    // Return normally so vanilla still runs Map.FinalizeInit callbacks.
+                    // Failed new maps can only be removed after those callbacks finish.
+                    Log.Error($"[DeltaV] Failed to create test scene: {ex}");
+                    QueueFrameAction(DestroySceneObjects);
+                }
+            }, "GeneratingMap", false, null));
+        }
+
+        private void AdvanceSceneReset()
+        {
+            if (!IsResettingScene || (frameActions != null && frameActions.Count != 0)) return;
+            if (sceneResetSteps.Count == 0) sceneResetSteps = null;
+            else
+            {
+                sceneResetSteps.Peek()();
+                sceneResetSteps.Dequeue();
             }
+        }
+
+        private void DestroySceneObjects()
+        {
+            foreach (SpaceObject obj in objects.ToList())
+            {
+                if (obj.map != null) Lifecycle.DestroyPocketMap(obj.map);
+                UnregisterObject(obj);
+            }
+            if (UniverseHostMap != null)
+                foreach (Map orphan in UniverseHostMap.ChildPocketMaps.ToList())
+                    Lifecycle.DestroyPocketMap(orphan);
         }
 
         /// <summary>
         /// 清理只在当前游戏实例内有效、且可由持久状态重建的服务与缓存。读档和 dev
-        /// ResetObjects 共用这一入口，避免新增运行时状态时只清掉其中一条路径。
+        /// 场景重建共用这一入口；重建时必须先排空旧流程及其帧动作。
         /// </summary>
         private void ResetRuntimeServices()
         {
@@ -1101,8 +1156,8 @@ namespace DeltaV
             DockingGhostRenderer.Destroy();
             unframedMaps?.Clear();
             PilotKeyBridge.Reset();
-            // 指向旧宇宙的帧上下文动作一并丢弃（读档 / dev ResetObjects）。
-            frameActions?.Clear();
+            // Loading discards old-runtime callbacks; scene reset reaches here only after draining.
+            if (!IsResettingScene) frameActions?.Clear();
         }
     }
 }

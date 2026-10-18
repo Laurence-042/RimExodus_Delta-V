@@ -387,13 +387,18 @@ namespace DeltaV
 
         internal bool ReleaseShuttle(SpaceObject shuttle)
         {
+            if (shuttle == null) return false;
             Projectile p = projectiles.FirstOrDefault(item => item.adoptedShuttle && item.containerId == shuttle.objectId);
             if (p == null) return false;
-            p.dead = true;
-            projectiles.Remove(p);
-            shuttle.projectileRoleOverride = false;
-            universe.QueueFrameAction(() => RecycleProjectile(p));
+            QueueProjectileCleanup(p, destroyContainer: false);
             return true;
+        }
+
+        internal void NotifyContainerRemoving(SpaceObject container)
+        {
+            if (container == null) return;
+            Projectile p = projectiles.FirstOrDefault(item => item.containerId == container.objectId);
+            if (p != null) QueueProjectileCleanup(p, destroyContainer: !p.adoptedShuttle);
         }
 
         // ---- tick（制导/超时；容器积分之前）----
@@ -412,7 +417,7 @@ namespace DeltaV
                 {
                     Projectile p = projectiles[i];
                     if (p.dead) continue;
-                    if (p.container == null) { projectiles.RemoveAt(i); RecycleProjectile(p); continue; }
+                    if (p.container == null) { QueueProjectileCleanup(p, !p.adoptedShuttle); continue; }
                     // 有图弹体被图内结算摧毁（PD/毁伤链经 TakeDamage）→ 销毁收尾。
                     if (p.building != null && p.building.Destroyed)
                     {
@@ -771,31 +776,43 @@ namespace DeltaV
         private void DestroyProjectile(Projectile p, string reason)
         {
             if (p.dead) return;
+            if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
+                DeltaVLog.Message(DeltaVLogModule.Combat,
+                    $"{p.def?.defName} #{p.containerId} destroyed ({reason})");
+            QueueProjectileCleanup(p, destroyContainer: true);
+        }
+
+        // Ordinary destruction, reset and external removal share one retirement path.
+        // Capture the old map before unregistering; a missing ID does not mean its
+        // resources were disposed. Never destroy the replacement representation.
+        private void QueueProjectileCleanup(Projectile p, bool destroyContainer)
+        {
+            if (p.dead) return;
             p.dead = true;
-            DeltaVLog.Message(DeltaVLogModule.Combat, $"{p.def.defName} #{p.container.objectId} destroyed ({reason})");
-            int expectedVersion = p.container.RepresentationVersion;
+            int expectedId = p.containerId;
+            SpaceObject original = p.container;
+            int expectedVersion = original?.RepresentationVersion ?? 0;
+            Map oldMap = original?.map ?? p.building?.Map;
+            if (!destroyContainer)
+            {
+                projectiles.Remove(p);
+                if (original != null) original.projectileRoleOverride = false;
+            }
             universe.QueueFrameAction(delegate
             {
-                if (p.container != null && p.container.RepresentationVersion != expectedVersion) return;
+                // A stale callback must not recycle a pooled record's next occupant.
+                if (!p.dead || p.containerId != expectedId) return;
                 projectiles.Remove(p);
                 SpaceObject container = p.container;
-                if (container == null)
+                if (destroyContainer && (container == null || container.RepresentationVersion == expectedVersion))
                 {
-                    RecycleProjectile(p);
-                    return;
-                }
-                if (p.building != null && !p.building.Destroyed)
-                {
-                    p.building.Destroy(DestroyMode.Vanish);
-                }
-                p.building = null;
-                if (container.map != null)
-                {
-                    ReturnMapToPool(container.map);
-                }
-                if (universe.objects.Contains(container))
-                {
-                    universe.UnregisterObject(container);
+                    if (oldMap == null || !oldMap.Disposed)
+                    {
+                        if (p.building != null && !p.building.Destroyed)
+                            p.building.Destroy(DestroyMode.Vanish);
+                        if (oldMap != null) ReturnMapToPool(oldMap);
+                    }
+                    if (container != null) universe.UnregisterObject(container);
                 }
                 RecycleProjectile(p);
             });
@@ -868,7 +885,7 @@ namespace DeltaV
             if (map.listerThings.AllThings.Count > 0)
             {
                 projectileMaps.Remove(map);
-                universe.Lifecycle.DeinitMap(map, false);
+                universe.Lifecycle.DestroyPocketMap(map);
                 return;
             }
             int key = PoolKey(map.Size.x, map.Size.z);
@@ -876,7 +893,7 @@ namespace DeltaV
             {
                 mapPool[key] = idle = new List<Map>();
             }
-            idle.Add(map);
+            if (!idle.Contains(map)) idle.Add(map);
             projectileMaps.Add(map);
         }
 
@@ -945,14 +962,13 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 流程清零（dev ResetObjects）：销毁全部弹体、清空图池（全部帧边界执行）。
+        /// 场景重建：销毁全部弹体、清空图池（全部帧边界执行，注册表仍须存活）。
         /// </summary>
         public void ResetFlow()
         {
             for (int i = projectiles.Count - 1; i >= 0; i--)
             {
-                if (projectiles[i].adoptedShuttle) ReleaseShuttle(projectiles[i].container);
-                else DestroyProjectile(projectiles[i], "reset");
+                QueueProjectileCleanup(projectiles[i], !projectiles[i].adoptedShuttle);
             }
             beams.Clear();
             trailPuffs.Clear();
@@ -967,12 +983,11 @@ namespace DeltaV
                 {
                     if (map == null) continue;
                     ForgetMap(map);
-                    if (!map.Disposed) universe.Lifecycle.DeinitMap(map, false);
+                    if (!map.Disposed) universe.Lifecycle.DestroyPocketMap(map);
                 }
                 // Leave any maps created after ResetFlow intact.
                 foreach (int key in mapPool.Keys.ToArray())
                     if (mapPool[key].Count == 0) mapPool.Remove(key);
-                HostColonistBarVisibility.NotifyDockingStateChanged();
             });
         }
 

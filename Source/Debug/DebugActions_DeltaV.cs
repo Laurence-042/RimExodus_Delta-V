@@ -49,7 +49,7 @@ namespace DeltaV
         [DebugAction("Delta-V", "Create two-ship test scene", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void CreateTwoShipTestScene()
         {
-            LongEventHandler.QueueLongEvent(ShipTestScene.Create, "GeneratingMap", false, null);
+            ShipTestScene.Create();
         }
 
         // 通用地图 prefab 导出：把当前聚焦图居住区（Home Area 掩码）导出为

@@ -467,7 +467,7 @@ namespace DeltaV
             Messages.Message("DeltaV_ApproachAborted".Translate(), MessageTypeDefOf.RejectInput, false);
         }
 
-        /// <summary>同实例上的流程清零（dev ResetObjects 重建场景用；读档路径 = 组件
+        /// <summary>同实例上的流程清零（双船场景重建用；读档路径 = 组件
         /// 重建，天然无需调用）。静默丢弃计划与选点状态，不弹消息。</summary>
         public void ResetFlow(UniverseManager universe)
         {

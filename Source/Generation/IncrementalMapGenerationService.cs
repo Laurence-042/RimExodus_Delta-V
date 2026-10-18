@@ -219,6 +219,7 @@ namespace DeltaV
 
         public override void GameComponentUpdate()
         {
+            if (Current.Game?.GetComponent<UniverseManager>()?.IsResettingScene == true) return;
             if (Current.ProgramState != ProgramState.Playing || LongEventHandler.AnyEventNowOrWaiting) return;
 
             if (active == null)

@@ -139,32 +139,10 @@ namespace DeltaV
             // 驾驶/认领入口只服务零重力图（重力图只能逆重战略发射）。
             bool zeroGravity = FreeFlightBootstrap.IsZeroGravity(universe, map);
 
-            // 未形成船的原版 Gravship（首次降落/发射到达）：唯一玩家驾驶台可直接
-            // 进入自由飞行；多台须选中具体驾驶台（经其 gizmo）。
-            bool bootstrapEntry = false;
-            bool multiConsoleAmbiguous = false;
-            if (!hasShip)
-            {
-                int playerConsoles = 0;
-                foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
-                {
-                    if (thing.Faction == Faction.OfPlayer && thing.TryGetComp<CompDeltaVPilotConsole>() != null)
-                    {
-                        playerConsoles++;
-                    }
-                }
-                bootstrapEntry = playerConsoles == 1;
-                multiConsoleAmbiguous = playerConsoles > 1;
-            }
-
             string title;
             if (hasShip)
             {
                 title = "DeltaV_ShipPanelTitle".Translate(selected.Label);
-            }
-            else if (bootstrapEntry || multiConsoleAmbiguous)
-            {
-                title = "DeltaV_DockedAreaTitle".Translate();
             }
             else
             {
@@ -202,9 +180,9 @@ namespace DeltaV
                             ? "DeltaV_On".Translate()
                             : "DeltaV_Off".Translate())));
             }
-            else if (bootstrapEntry || multiConsoleAmbiguous)
+            else if (ShipRegistry.MissingPrimaryConsoleTargets(map).Any())
             {
-                statusLines.Add("DeltaV_PanelFlightState".Translate("DeltaV_FlightStateDocked".Translate()));
+                statusLines.Add("DeltaV_PanelNeedsPrimaryConsole".Translate());
             }
             if (dockingPlan)
             {
@@ -237,15 +215,14 @@ namespace DeltaV
             var headingActions = new List<HeadingPanelAction>();
             if (zeroGravity)
             {
-                PilotTarget panelTarget = PilotTarget.Of(selected);
-                if (panelTarget.IsValid)
-                    universe.Pilot.ControllerFor(panelTarget)?.CollectPanelActions(panelTarget, panelActions);
                 if (hasShip)
-                    universe.Pilot.ControllerFor(panelTarget)?.CollectHeadingPanelActions(selected, headingActions);
+                {
+                    selected.CollectPanelActions(panelActions);
+                    selected.CollectHeadingPanelActions(headingActions);
+                }
             }
             if (combatBlock)
-                universe.Pilot.ControllerFor(PilotTarget.Of(selected))?.CollectCombatPanelActions(
-                    selected, mapHasWeapons, combatActionsBefore, combatActionsAfter);
+                selected.CollectCombatPanelActions(mapHasWeapons, combatActionsBefore, combatActionsAfter);
             float combatHeight = 0f;
             if (combatBlock)
             {
@@ -260,8 +237,7 @@ namespace DeltaV
                 }
             }
             float modeButtonsHeight = panelActions.Count * 33f
-                + (headingActions.Count > 0 ? 20f + 26f * 3f + 6f : 0f)
-                + (!hasShip && (bootstrapEntry || multiConsoleAmbiguous) && zeroGravity ? 33f : 0f);
+                + (headingActions.Count > 0 ? 20f + 26f * 3f + 6f : 0f);
             modeButtonsHeight += combatHeight;
             float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + shipListHeight
                 + modeButtonsHeight + 8f;
@@ -381,50 +357,6 @@ namespace DeltaV
                         "DeltaV_PanelHeadingTip".Translate());
                     lineY += dirBtnH * 3f + 6f;
                 }
-            }
-            else if (bootstrapEntry && zeroGravity)
-            {
-                // 首次降落/发射到达：图上唯一的玩家驾驶台——认领并直接进入驾驶
-                //（首次出力触发分离；重力图无驾驶入口，只能逆重战略发射）。
-                Building console = null;
-                foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
-                {
-                    if (thing.Faction == Faction.OfPlayer && thing.TryGetComp<CompDeltaVPilotConsole>() != null)
-                    {
-                        console = thing as Building;
-                        break;
-                    }
-                }
-                if (console != null
-                    && Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f), "DeltaV_PilotButtonEnter".Translate()))
-                {
-                    CompDeltaVPilotConsole comp = console.TryGetComp<CompDeltaVPilotConsole>();
-                    if (!comp.isMain)
-                    {
-                        comp.MakeMainConsole();
-                    }
-                    ShipBase claimed = comp.Ship;
-                    if (claimed.IsValid)
-                    {
-                        universe.Pilot.Enter(universe, claimed);
-                    }
-                }
-                lineY += 27f + 6f;
-            }
-            else if (multiConsoleAmbiguous && zeroGravity)
-            {
-                // 多艘逆重飞船共泊：不能任选一台驾驶台，指引选中具体驾驶台后用
-                // 「设为主驾驶台」gizmo 认领（该 gizmo 是侧边栏未覆盖的保留项）。
-                var pickRect = new Rect(0f, lineY, drawWidth, 27f);
-                Text.Font = GameFont.Small;
-                GUI.color = new Color(1f, 1f, 1f, 0.4f);
-                Text.Anchor = TextAnchor.MiddleCenter;
-                Widgets.Label(pickRect, "DeltaV_PilotButtonEnter".Translate());
-                Text.Anchor = TextAnchor.UpperLeft;
-                GUI.color = Color.white;
-                TooltipHandler.TipRegion(pickRect, "DeltaV_PanelPickConsoleTip".Translate());
-                Text.Font = GameFont.Tiny;
-                lineY += 27f + 6f;
             }
 
             // ---- 战斗区块：火控与机动分别控制，炮手岗位独立 ----

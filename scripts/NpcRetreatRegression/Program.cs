@@ -82,6 +82,7 @@ internal static partial class Program
         CheckShipCapabilities(universe, faction);
         CheckShuttleLifecycle(universe, faction);
         CheckFoundationLifecycle(universe, faction, other);
+        CheckSceneReset(universe);
         SpaceObject Make(int id, float distance, string type = null, Faction owner = null)
         {
             var obj = new SpaceObject(id, new SpacePose(

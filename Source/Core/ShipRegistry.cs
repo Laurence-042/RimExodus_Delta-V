@@ -137,14 +137,38 @@ namespace DeltaV
 
         /// <summary>图上是否存在归属 ownerId 的主台（判定「已有主台的归属」；不要求主台仍 Spawned）。</summary>
         public static bool OwnershipHasMainConsole(Map map, int ownerId)
+            => MainConsoleForOwner(map, ownerId) != null;
+
+        public static CompDeltaVPilotConsole MainConsoleForOwner(Map map, int ownerId)
         {
-            if (map == null || ownerId <= 0) return false;
+            if (map == null || ownerId <= 0) return null;
             foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
             {
                 CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
-                if (console != null && console.shipId == ownerId && console.isMain) return true;
+                if (console != null && console.shipId == ownerId && console.isMain) return console;
             }
-            return false;
+            return null;
+        }
+
+        /// <summary>玩家建筑所在的无主台基架域；Alert 与侧边栏共用，不把 shuttle 当作缺主台的船。</summary>
+        public static IEnumerable<Thing> MissingPrimaryConsoleTargets(Map map)
+        {
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            Faction player = Faction.OfPlayerSilentFail;
+            if (map == null || map.Disposed || player == null || universe?.FrameOf(map) == null
+                || universe.Generation.IsGenerating(map) || universe.ShipTransitions.IsAwaitingDockingCleanup(map))
+                yield break;
+            SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
+            if (ownership == null) yield break;
+            var seen = new HashSet<int>();
+            foreach (Thing thing in map.listerThings.AllThings)
+            {
+                if (thing is not Building || thing.Faction != player || !thing.Spawned || thing.Destroyed
+                    || thing.TryGetComp<CompSpaceShuttle>() != null
+                    || !SubstructureOwnership.HasFoundation(map, thing.Position)) continue;
+                int owner = ownership.OwnerAt(thing.Position);
+                if (seen.Add(owner) && !OwnershipHasMainConsole(map, owner)) yield return thing;
+            }
         }
 
         // ---- 控制域 / 残留块 ----

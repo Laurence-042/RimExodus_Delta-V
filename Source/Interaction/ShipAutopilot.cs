@@ -530,7 +530,7 @@ namespace DeltaV
             flight.onArrived?.Invoke();
         }
 
-        /// <summary>同实例上的流程清零（dev ResetObjects 重建场景用；读档路径 = 组件
+        /// <summary>同实例上的流程清零（双船场景重建用；读档路径 = 组件
         /// 重建，天然无需调用）。静默清空、不回调。</summary>
         public void ResetFlow()
         {

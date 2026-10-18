@@ -40,7 +40,7 @@ namespace DeltaV
             // 无可改写基架（地表图/无归属数据/图上没有基架）直接拒绝，不进入选点。
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SubstructureOwnership ownership = OwnershipOnCurrentMap(universe);
-            if (ownership == null || ownership.OwnersOnMap().Count == 0)
+            if (ownership == null || !System.Linq.Enumerable.Any(SubstructureOwnership.CellsOnMap(Map)))
             {
                 Messages.Message("DeltaV_ReassignNoTarget".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
@@ -71,15 +71,7 @@ namespace DeltaV
             {
                 return "DeltaV_ReassignPickFirst".Translate();
             }
-            if (!c.InBounds(Map) || !SubstructureOwnership.HasFoundation(Map, c))
-            {
-                return false;
-            }
-            if (ownership.OwnerAt(c) == targetOwnerId)
-            {
-                return false; // 已是目标归属：不重复计数
-            }
-            return AcceptanceReport.WasAccepted;
+            return ownership.CanReassign(c, targetOwnerId);
         }
 
         public override void DesignateMultiCell(IEnumerable<IntVec3> cells)
@@ -91,35 +83,22 @@ namespace DeltaV
                 FinalizeDesignationFailed();
                 return;
             }
-            // 主台脚下格保护（解耦架构 §3.2 已定）：不写入、其余合法格正常修改、
-            // 一次汇总提示——不通过强行改主台归属制造多个主台竞争。
-            var protectedCells = new HashSet<IntVec3>();
-            foreach (Ship ship in ShipRegistry.FoundationShipsOnMap(Find.CurrentMap))
-            {
-                if (ship.console?.parent != null && ship.console.parent.Spawned)
-                {
-                    protectedCells.Add(ship.console.parent.Position);
-                }
-            }
             int protectedSkipped = 0;
-            // 批量一次写入：SetOwner 收尾统一做引擎 dirty 与剪影失效，避免逐格通知。
+            // 预览与提交读取相同门禁；混选仅跳过受保护域，批末统一通知。
             var targets = new List<IntVec3>();
             foreach (IntVec3 cell in cells)
             {
-                if (!CanDesignateCell(cell).Accepted)
+                AcceptanceReport report = CanDesignateCell(cell);
+                if (!report.Accepted)
                 {
-                    continue;
-                }
-                if (protectedCells.Contains(cell))
-                {
-                    protectedSkipped++;
+                    if (!report.Reason.NullOrEmpty()) protectedSkipped++;
                     continue;
                 }
                 targets.Add(cell);
             }
             if (protectedSkipped > 0)
             {
-                Messages.Message("DeltaV_ReassignProtectedMainConsole".Translate(protectedSkipped),
+                Messages.Message("DeltaV_ReassignProtectedDomainsSkipped".Translate(protectedSkipped),
                     MessageTypeDefOf.RejectInput, false);
             }
             if (targets.Count == 0)
@@ -127,8 +106,8 @@ namespace DeltaV
                 FinalizeDesignationFailed();
                 return;
             }
-            ownership.SetOwner(targets, targetOwnerId);
-            FinalizeDesignationSucceeded();
+            if (ownership.Reassign(targets, targetOwnerId) > 0) FinalizeDesignationSucceeded();
+            else FinalizeDesignationFailed();
         }
 
         public override void DesignateSingleCell(IntVec3 c)

@@ -322,7 +322,7 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 玩家命令级批写（「修改基架归属」）：通知图上全部引擎重算连通域、失效星球仪
+        /// 内部结构管线批写：通知图上全部引擎重算连通域、失效星球仪
         /// 剪影。SubstructureGrid.MarkDirty 只扫殖民者引擎，wreck 引擎也要失效，这里显式遍历。
         /// </summary>
         public void SetOwner(IEnumerable<IntVec3> cells, int ownerId)
@@ -331,6 +331,25 @@ namespace DeltaV
             {
                 NotifyOwnershipChanged();
             }
+        }
+
+        /// <summary>玩家改划的唯一门禁；保护来源整域，内部搬运/盖章不受此限制。</summary>
+        public AcceptanceReport CanReassign(IntVec3 cell, int targetOwnerId)
+        {
+            if (targetOwnerId <= 0 || !cell.InBounds(map) || !HasFoundation(map, cell)
+                || OwnerAt(cell) == targetOwnerId) return false;
+            if (ShipRegistry.OwnershipHasMainConsole(map, OwnerAt(cell)))
+                return "DeltaV_ReassignProtectedDomain".Translate();
+            return true;
+        }
+
+        public int Reassign(IEnumerable<IntVec3> cells, int targetOwnerId)
+        {
+            var accepted = new List<IntVec3>();
+            foreach (IntVec3 cell in cells)
+                if (CanReassign(cell, targetOwnerId).Accepted) accepted.Add(cell);
+            SetOwner(accepted, targetOwnerId);
+            return accepted.Count;
         }
 
         /// <summary>
@@ -399,6 +418,8 @@ namespace DeltaV
         /// <summary>归属变化的通知收尾：全部引擎 dirty（含非玩家引擎）+ 星球仪剪影失效。</summary>
         private void NotifyOwnershipChanged()
         {
+            foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
+                thing.TryGetComp<CompDeltaVPilotConsole>()?.SyncBackupIdentity();
             foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.GravEngine))
             {
                 if (thing is Building_GravEngine engine)

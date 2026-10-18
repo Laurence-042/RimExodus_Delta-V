@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
 using RimWorld.Planet;
@@ -11,8 +10,8 @@ namespace DeltaV
     /// <summary>
     /// 阶段1 双船测试场景：两张无 tile 口袋图（sourceMap=专用宿主，由
     /// ShipPocketMapFactory 惰性创建）+ 球面宇宙状态 + 聚焦玩家船。
-    /// 经 DebugActions 以 LongEventHandler 调用（同步生成，与原版 gravship 到达一致）。
-    /// 幂等：重复创建时先销毁旧场景。
+    /// 经 UniverseManager 排空旧场景帧动作并销图，再以 LongEventHandler 同步生成。
+    /// 重建保持暂停；原版初始化回调完成后才交接聚焦。
     /// 布局数据源：先试通用地图 prefab（MapPrefab.LoadLatest，玩家导出的居住区/飞船，
     /// 两舰共用一份、仅派系不同）；目录为空、解析失败回退程序生成布局
     /// （ShipProceduralLayout）。落位失败销毁失败测试图并中止，不叠加另一套布局。
@@ -29,25 +28,11 @@ namespace DeltaV
         public static void Create()
         {
             var universe = Current.Game.GetComponent<UniverseManager>();
+            universe.BeginSceneReset(() => Generate(universe));
+        }
 
-            // 幂等：销毁旧场景的全部对象图（含 Packed POI 的轻量状态一并清除）。
-            foreach (SpaceObject obj in universe.objects.ToList())
-            {
-                if (obj.map != null)
-                {
-                    universe.Lifecycle.DestroyPocketMap(obj.map);
-                }
-                universe.UnregisterObject(obj);
-            }
-            // 孤儿口袋图清理：已无宇宙状态引用、但 sourceMap 仍是宿主的口袋图。
-            if (universe.UniverseHostMap != null)
-            {
-                foreach (Map orphan in universe.UniverseHostMap.ChildPocketMaps.ToList())
-                {
-                    universe.Lifecycle.DestroyPocketMap(orphan);
-                }
-            }
-
+        private static void Generate(UniverseManager universe)
+        {
             // 玩家船锚定在一个空闲轨道 tile 的中心方向（仅为背景视角选个合理位置）。
             PlanetLayer orbitLayer = Find.WorldGrid.PlanetLayers.Values
                 .FirstOrDefault(layer => layer.Def == PlanetLayerDefOf.Orbit);
@@ -83,7 +68,11 @@ namespace DeltaV
 
             int enemyOwnerId = universe.AllocateOwnerId();
             Map enemyMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
-            if (enemyMap == null) return;
+            if (enemyMap == null)
+            {
+                QueueFailedSceneCleanup(universe, playerContainer);
+                return;
+            }
             Faction enemyFaction = Faction.OfPirates
                 ?? Find.FactionManager.AllFactionsVisible.FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer));
             var enemyContainer = new MapSpaceObject(universe.AllocateOwnerId(), enemyMap,
@@ -97,14 +86,15 @@ namespace DeltaV
                 return;
             }
 
-            universe.ResetObjects(new List<SpaceObject> { playerContainer, enemyContainer });
-            Ship playerShip = ShipRegistry.ShipByOwner(playerOwnerId);
-            if (playerShip.IsValid)
+            universe.QueueFrameAction(() =>
             {
-                WorldShipMarkerRenderer.RebuildFor(playerShip);
-            }
-            universe.SetFocused(playerContainer);
-            CameraJumper.TryJump(playerMap.Center, playerMap, CameraJumper.MovementMode.Cut);
+                universe.Weapons.RebuildWeaponIndex();
+                universe.Controls.Rebuild();
+                Ship playerShip = ShipRegistry.ShipByOwner(playerOwnerId);
+                if (playerShip.IsValid) WorldShipMarkerRenderer.RebuildFor(playerShip);
+                universe.SetFocused(playerContainer);
+                CameraJumper.TryJump(playerMap.Center, playerMap, CameraJumper.MovementMode.Cut);
+            });
         }
 
         private static void QueueFailedSceneCleanup(UniverseManager universe, params SpaceObject[] containers)

@@ -41,8 +41,8 @@ namespace DeltaV
         // ---- 身份与认领（持久事实）----
 
         /// <summary>
-        /// 本结构的持久身份 ID = 结构归属 ID（解耦架构 §2：与对象 ID 共用计数器但语义
-        /// 分离，不得反查对象）。一经领取永不改变、随 comp 存档。
+        /// 主台认领的结构 ID；副台同步脚下归属（0 = 未占有，-1 = 尚未初始化）。
+        /// 与对象 ID 语义分离，不得反查对象。
         /// </summary>
         public int shipId = -1;
 
@@ -73,7 +73,8 @@ namespace DeltaV
         {
             base.PostSpawnSetup(respawningAfterLoad);
             ClaimOnSpawn();
-            RestampShipDomain();
+            if (isMain) RestampShipDomain();
+            else SyncBackupIdentity();
             if (isMain)
             {
                 ShipStructureChanges.Notify(parent.Map);
@@ -99,7 +100,7 @@ namespace DeltaV
         {
             UniverseManager universe = Universe;
             Map map = parent.Map;
-            if (universe == null || map == null || universe.FrameOf(map) == null || shipId > 0)
+            if (universe == null || map == null || universe.FrameOf(map) == null || shipId >= 0)
             {
                 return;
             }
@@ -171,19 +172,47 @@ namespace DeltaV
 
         private bool PlayerMayManage => parent.Spawned && parent.Faction == Faction.OfPlayer;
 
+        /// <summary>副台没有独立认领；改划、搬运和读档后只同步当前位置，不反向盖章。</summary>
+        internal void SyncBackupIdentity()
+        {
+            if (isMain || !parent.Spawned || Universe?.FrameOf(parent.Map) == null) return;
+            shipId = SubstructureOwnership.TryGet(parent.Map)?.OwnerAt(parent.Position)
+                ?? SubstructureOwnership.Unassigned;
+        }
+
+        public AcceptanceReport CanMakeMainConsole()
+        {
+            if (!PlayerMayManage) return false;
+            Map map = parent.Map;
+            if (Universe?.FrameOf(map) == null || !SubstructureOwnership.HasFoundation(map, parent.Position))
+                return "DeltaV_ConsoleNeedsFoundation".Translate();
+            int owner = SubstructureOwnership.TryGet(map)?.OwnerAt(parent.Position) ?? 0;
+            CompDeltaVPilotConsole primary = ShipRegistry.MainConsoleForOwner(map, owner);
+            if (primary != null && !primary.PlayerMayManage)
+                return "DeltaV_ConsolePrimaryNotOwned".Translate();
+            return true;
+        }
+
         /// <summary>本台设为主驾驶台：认领脚下归属，原主台（若在）降为备用；朝向定义新船头。</summary>
         public void MakeMainConsole()
         {
             UniverseManager universe = Universe;
             Map map = parent.Map;
-            if (universe == null || map == null || !PlayerMayManage) return;
+            AcceptanceReport permission = CanMakeMainConsole();
+            if (!permission.Accepted)
+            {
+                if (!permission.Reason.NullOrEmpty())
+                    Messages.Message(permission.Reason, MessageTypeDefOf.RejectInput, false);
+                return;
+            }
             SubstructureOwnership ownership = SubstructureOwnership.For(map);
-            int target = shipId > 0 ? shipId : ownership.OwnerAt(parent.Position);
+            int target = ownership.OwnerAt(parent.Position);
             if (target <= 0)
             {
                 // 未占有域上直接认领：领新 ID 并认领脚下连通片。
                 target = universe.AllocateOwnerId();
                 shipId = target;
+                isMain = true;
                 ownership.ClaimConnectedDomain(parent.Position, target);
                 universe.NoteStructureName(target, "DeltaV_ShipDefaultName".Translate(target));
             }
@@ -211,8 +240,10 @@ namespace DeltaV
         public void MakeBackupConsole()
         {
             if (!PlayerMayManage || !isMain) return;
+            int previousOwner = shipId;
             isMain = false;
-            Universe?.Controls.ReconcileOwner(shipId);
+            SyncBackupIdentity();
+            Universe?.Controls.ReconcileOwner(previousOwner);
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"structure #{shipId}: main console demoted to backup by player");
         }
@@ -311,9 +342,12 @@ namespace DeltaV
 
             if (!isMain)
             {
-                yield return NewAction("DeltaV_ConsoleGizmoMakePrimary".Translate(), TexCommand.Install,
+                Command_Action primary = NewAction("DeltaV_ConsoleGizmoMakePrimary".Translate(), TexCommand.Install,
                     () => MakeMainConsole(),
                     "DeltaV_ConsoleGizmoPrimaryTip".Translate());
+                AcceptanceReport permission = CanMakeMainConsole();
+                if (!permission.Accepted) primary.Disable(permission.Reason);
+                yield return primary;
             }
         }
 

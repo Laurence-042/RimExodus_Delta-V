@@ -161,6 +161,19 @@ internal static partial class Program
             && Controllers(universe).ContainsKey(hullIdentity)
             && !Controllers(universe)[identity].Active,
             "load-style rebuild restores both typed identities without reusing old controllers or manual sessions");
+        ShipBase beforeDemotion = restored.Vessel;
+        restored.MakeBackupConsole();
+        Check(!restored.isMain && !beforeDemotion.IsValid
+            && !ShipRegistry.AllShipsOnMap(destinationMap).Any()
+            && !Controllers(universe).ContainsKey(identity),
+            "voluntary last-primary demotion removes its valid ship and controller without choosing a successor");
+        var noShipActions = new List<PilotPanelAction>();
+        beforeDemotion.CollectPanelActions(noShipActions);
+        Check(noShipActions.Count == 0,
+            "an invalidated foundation ShipBase delegates no sidebar driving actions");
+        var savedBackup = RoundTripConsole(restored);
+        Check(!savedBackup.isMain && savedBackup.shipId == restored.shipId,
+            "Scribe retains explicit backup state including unassigned identity");
         universe.Controls.Reset();
         universe.objects.Clear();
         Find.Maps.Clear();

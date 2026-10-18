@@ -9,7 +9,7 @@ if (!$sdkVersion) { throw 'Install .NET 8 SDK to run the offline MPC regression.
 $sdk = Join-Path $sdkVersion.FullName 'Roslyn/bincore/csc.dll'
 $refRoot = Join-Path $env:ProgramFiles 'dotnet/packs/Microsoft.NETCore.App.Ref'
 $refs = Get-ChildItem $refRoot -Directory | Where-Object { $_.Name -match '^8\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
-$out = Join-Path $PSScriptRoot 'obj/regression'
+$out = Join-Path $repo 'Source/obj/MpcRegression'
 New-Item -ItemType Directory -Force $out | Out-Null
 $lines = @('/nowarn:0649', '/nostdlib+', '/target:exe', '/optimize+', '/langversion:latest', ('/out:"' + "$out/MpcRegression.dll" + '"'))
 $lines += Get-ChildItem "$($refs.FullName)/ref/net8.0" -Filter '*.dll' | ForEach-Object { '/r:"' + $_.FullName + '"' }
