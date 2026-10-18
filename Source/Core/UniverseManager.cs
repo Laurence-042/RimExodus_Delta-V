@@ -313,6 +313,7 @@ namespace DeltaV
                 }
             }
             objects.Add(obj);
+            if (obj.map != null && Find.UIRoot is UIRoot_Play) Find.ColonistBar?.MarkColonistsDirty();
             if (obj.map != null) SubstructureOwnership.BumpStructureVersion();
             if (obj.objectId >= nextFreeOwnerId) nextFreeOwnerId = obj.objectId + 1;
             if (obj.map != null && obj.HasTag(SpaceObjectTag.Ship) == true)
@@ -339,6 +340,7 @@ namespace DeltaV
             // Resolve projectile resources while the old identity is still registered.
             Projectiles.NotifyContainerRemoving(obj);
             objects.Remove(obj);
+            if (obj.map != null && Find.UIRoot is UIRoot_Play) Find.ColonistBar?.MarkColonistsDirty();
             globeDisplay?.Forget(obj.map);
             PlanetGlobeRenderer.InvalidateSilhouette(obj.map);
             Autopilot.Detach(obj);

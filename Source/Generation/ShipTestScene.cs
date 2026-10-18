@@ -12,9 +12,8 @@ namespace DeltaV
     /// ShipPocketMapFactory 惰性创建）+ 球面宇宙状态 + 聚焦玩家船。
     /// 经 UniverseManager 排空旧场景帧动作并销图，再以 LongEventHandler 同步生成。
     /// 重建保持暂停；原版初始化回调完成后才交接聚焦。
-    /// 布局数据源：先试通用地图 prefab（MapPrefab.LoadLatest，玩家导出的居住区/飞船，
-    /// 两舰共用一份、仅派系不同）；目录为空、解析失败回退程序生成布局
-    /// （ShipProceduralLayout）。落位失败销毁失败测试图并中止，不叠加另一套布局。
+    /// 两舰分别读取设置中的 prefab；自动选择时加载最新导出，加载失败回退程序布局。
+    /// 指定文件加载失败在重建前中止；落位失败销毁失败测试图，不叠加另一套布局。
     /// </summary>
     public static class ShipTestScene
     {
@@ -28,10 +27,15 @@ namespace DeltaV
         public static void Create()
         {
             var universe = Current.Game.GetComponent<UniverseManager>();
-            universe.BeginSceneReset(() => Generate(universe));
+            if (universe.IsResettingScene) return;
+            DeltaVSettings settings = DeltaVMod.CurrentSettings;
+            if (!TryLoadLayout(settings?.testScenePlayerPrefab, out MapPrefabDocument playerPrefab)
+                || !TryLoadLayout(settings?.testSceneEnemyPrefab, out MapPrefabDocument enemyPrefab)) return;
+            universe.BeginSceneReset(() => Generate(universe, playerPrefab, enemyPrefab));
         }
 
-        private static void Generate(UniverseManager universe)
+        private static void Generate(UniverseManager universe, MapPrefabDocument playerPrefab,
+            MapPrefabDocument enemyPrefab)
         {
             // 玩家船锚定在一个空闲轨道 tile 的中心方向（仅为背景视角选个合理位置）。
             PlanetLayer orbitLayer = Find.WorldGrid.PlanetLayers.Values
@@ -53,13 +57,13 @@ namespace DeltaV
             // 容器先注册、结构后铺设：驾驶台 spawn 认领要求 FrameOf 已解析（ClaimOnSpawn
             // 守卫）。归属 ID 与容器对象 ID 解耦（各经 AllocateOwnerId 独立发放）。
             int playerOwnerId = universe.AllocateOwnerId();
-            Map playerMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
+            Map playerMap = ShipPocketMapFactory.Generate(LayoutMapSize(playerPrefab), universe);
             if (playerMap == null) return;
             var playerContainer = new MapSpaceObject(universe.AllocateOwnerId(), playerMap,
                 new SpacePose(playerDir, 0f));
             universe.RegisterObject(playerContainer);
             universe.NoteStructureName(playerOwnerId, "Player ship");
-            if (!SpawnShipLayout(playerMap, Faction.OfPlayer, playerOwnerId, universe,
+            if (!SpawnShipLayout(playerPrefab, playerMap, Faction.OfPlayer, playerOwnerId, universe,
                 () => ShipProceduralLayout.GeneratePlayerShip(playerMap, playerOwnerId)))
             {
                 QueueFailedSceneCleanup(universe, playerContainer);
@@ -67,7 +71,7 @@ namespace DeltaV
             }
 
             int enemyOwnerId = universe.AllocateOwnerId();
-            Map enemyMap = ShipPocketMapFactory.Generate(new IntVec3(MapSize, 1, MapSize), universe);
+            Map enemyMap = ShipPocketMapFactory.Generate(LayoutMapSize(enemyPrefab), universe);
             if (enemyMap == null)
             {
                 QueueFailedSceneCleanup(universe, playerContainer);
@@ -79,7 +83,7 @@ namespace DeltaV
                 new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad));
             universe.RegisterObject(enemyContainer);
             universe.NoteStructureName(enemyOwnerId, "Enemy ship");
-            if (!SpawnShipLayout(enemyMap, enemyFaction, enemyOwnerId, universe,
+            if (!SpawnShipLayout(enemyPrefab, enemyMap, enemyFaction, enemyOwnerId, universe,
                 () => ShipProceduralLayout.GenerateEnemyShip(enemyMap, enemyOwnerId, enemyFaction)))
             {
                 QueueFailedSceneCleanup(universe, enemyContainer, playerContainer);
@@ -112,20 +116,41 @@ namespace DeltaV
             });
         }
 
-        /// <summary>布局数据源统一口径：先试通用地图 prefab（两舰共用最新导出、仅派系
-        /// 不同、结构归属各认各的容器 ownerId）。仅加载失败可在空图回退；落位失败中止。</summary>
-        private static bool SpawnShipLayout(Map map, Faction faction, int ownerId, UniverseManager universe,
-            Action fallbackLayout)
+        private static IntVec3 LayoutMapSize(MapPrefabDocument prefab)
         {
-            MapPrefabDocument prefab;
+            return new IntVec3(Mathf.Max(MapSize, (prefab?.size.x ?? 0) + 10), 1,
+                Mathf.Max(MapSize, (prefab?.size.z ?? 0) + 10));
+        }
+
+        // Resolve before BeginSceneReset so a missing configured file cannot erase the old scene.
+        private static bool TryLoadLayout(string path, out MapPrefabDocument prefab)
+        {
+            prefab = null;
             try
             {
-                prefab = MapPrefab.LoadLatest();
+                prefab = string.IsNullOrEmpty(path) ? MapPrefab.LoadLatest() : MapPrefab.LoadRelative(path);
+                return true;
             }
             catch (Exception ex)
             {
+                if (!string.IsNullOrEmpty(path))
+                {
+                    Log.Error($"[DeltaV] Test scene prefab '{path}' could not be loaded: {ex}");
+                    Messages.Message("DeltaV_TestScenePrefabFailed".Translate(path),
+                        MessageTypeDefOf.RejectInput, false);
+                    return false;
+                }
                 Log.Warning($"[DeltaV] MapPrefab import unavailable ({ex.GetType().Name}: {ex.Message})"
                     + " - falling back to procedural layout.");
+                return true;
+            }
+        }
+
+        private static bool SpawnShipLayout(MapPrefabDocument prefab, Map map, Faction faction,
+            int ownerId, UniverseManager universe, Action fallbackLayout)
+        {
+            if (prefab == null)
+            {
                 fallbackLayout();
                 return true;
             }

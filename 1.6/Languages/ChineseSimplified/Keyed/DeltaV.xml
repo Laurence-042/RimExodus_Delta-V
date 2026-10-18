@@ -28,6 +28,15 @@
   <DeltaV_Off>关</DeltaV_Off>
   <DeltaV_Braking>刹停中</DeltaV_Braking>
   <DeltaV_SettingsFlightAssist>飞行辅助</DeltaV_SettingsFlightAssist>
+  <DeltaV_SettingsHideEmptySpaceMaps>隐藏没有玩家 Pawn 的太空地图分组</DeltaV_SettingsHideEmptySpaceMaps>
+  <DeltaV_SettingsHideEmptySpaceMapsTip>默认开启。殖民者栏隐藏没有存活玩家派系 Pawn 的 SpaceObject 地图分组，避免敌舰与碎片占位。容器内的玩家 Pawn、玩家动物和机械体也计入；地表地图与商队不受影响。切换立即生效。</DeltaV_SettingsHideEmptySpaceMapsTip>
+  <DeltaV_SettingsTestScene>双船测试场景</DeltaV_SettingsTestScene>
+  <DeltaV_SettingsTestSceneTip>分别选择下次创建双船测试场景时使用的 prefab。列表包含 Prefabs/ 的子目录，每次打开重新扫描；配置跨存档保存。明确指定的文件若加载失败，会中止创建并保留旧场景。</DeltaV_SettingsTestSceneTip>
+  <DeltaV_SettingsTestScenePlayer>玩家飞船 prefab</DeltaV_SettingsTestScenePlayer>
+  <DeltaV_SettingsTestSceneEnemy>敌舰 prefab</DeltaV_SettingsTestSceneEnemy>
+  <DeltaV_SettingsTestSceneAutomatic>自动：最新导出（不可用时生成程序船）</DeltaV_SettingsTestSceneAutomatic>
+  <DeltaV_SettingsTestSceneScanFailed>无法扫描 prefab 目录，请查看日志。</DeltaV_SettingsTestSceneScanFailed>
+  <DeltaV_TestScenePrefabFailed>无法加载双船测试场景 prefab：{0}。旧场景已保留，请重新选择文件或查看日志。</DeltaV_TestScenePrefabFailed>
   <DeltaV_SettingsFlightAssistTip>驾驶时，松开按键的方向会由推进器自动反推刹停——刹车力来自推进器真实出力，推进器不够力就刹得慢。关闭后是纯惯性飞行：松开按键后飞船保持当前速度一直漂下去；不过按住 Ctrl（可改键）随时可以临时反推刹停，自由度和易用性可以兼得。默认开启。</DeltaV_SettingsFlightAssistTip>
   <DeltaV_SettingsCellsPerTile>星区尺度（每星区格数）</DeltaV_SettingsCellsPerTile>
   <DeltaV_SettingsCellsPerTileTip>决定宇宙有多空旷：数值越大，相邻星区相隔越远，靠推进器飞越一个星区要花的时间越长；数值越小，星区越紧凑、转场越快。改动即时生效——所有物体的位置按比例缩放到新尺度（速度保持原值）；停靠或起飞进行中不能修改，此时输入会被拒绝并还原。范围 100–100000；默认 20000。</DeltaV_SettingsCellsPerTileTip>

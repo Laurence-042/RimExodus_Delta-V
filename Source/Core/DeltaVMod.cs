@@ -122,11 +122,51 @@ namespace DeltaV
             list.Begin(rect);
             list.CheckboxLabeled("DeltaV_SettingsFlightAssist".Translate(), ref Settings.flightAssist,
                 "DeltaV_SettingsFlightAssistTip".Translate());
+            bool hideEmptyMaps = Settings.hideSpaceMapsWithoutPlayerPawns;
+            list.CheckboxLabeled("DeltaV_SettingsHideEmptySpaceMaps".Translate(),
+                ref Settings.hideSpaceMapsWithoutPlayerPawns, "DeltaV_SettingsHideEmptySpaceMapsTip".Translate());
+            if (hideEmptyMaps != Settings.hideSpaceMapsWithoutPlayerPawns && Find.UIRoot is UIRoot_Play)
+                Find.ColonistBar?.MarkColonistsDirty();
             list.Gap(6f);
             TippedRow(list, rect, "DeltaV_SettingsUniverseZoomMaxTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsUniverseZoomMax".Translate(), ref Settings.universeZoomMax,
                     ref universeZoomMaxBuffer, 60f, 5000f));
+            list.GapLine();
+            list.Label("DeltaV_SettingsTestScene".Translate());
+            list.Label("DeltaV_SettingsTestSceneTip".Translate());
+            DrawTestScenePrefabSelector(list, "DeltaV_SettingsTestScenePlayer", Settings.testScenePlayerPrefab,
+                path => Settings.testScenePlayerPrefab = path);
+            DrawTestScenePrefabSelector(list, "DeltaV_SettingsTestSceneEnemy", Settings.testSceneEnemyPrefab,
+                path => Settings.testSceneEnemyPrefab = path);
             list.End();
+        }
+
+        private static void DrawTestScenePrefabSelector(Listing_Standard list, string labelKey,
+            string selectedPath, Action<string> select)
+        {
+            list.Label(labelKey.Translate());
+            string label = string.IsNullOrEmpty(selectedPath)
+                ? "DeltaV_SettingsTestSceneAutomatic".Translate().ToString() : selectedPath;
+            if (!list.ButtonText(label)) return;
+            var options = new List<FloatMenuOption>
+            {
+                new FloatMenuOption("DeltaV_SettingsTestSceneAutomatic".Translate(), () => select(""))
+            };
+            try
+            {
+                // Rescan on opening so newly exported or renamed files are available immediately.
+                List<string> files = MapPrefab.ListPrefabFiles();
+                foreach (string file in files)
+                    options.Add(new FloatMenuOption(file, () => select(file)));
+                if (files.Count == 0)
+                    options.Add(new FloatMenuOption("DeltaV_PrefabReplaceNoFiles".Translate(), null));
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[DeltaV] Cannot list test scene prefabs: {ex}");
+                options.Add(new FloatMenuOption("DeltaV_SettingsTestSceneScanFailed".Translate(), null));
+            }
+            Find.WindowStack.Add(new FloatMenu(options));
         }
 
         private void DrawDockingTab(Rect rect)

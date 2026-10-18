@@ -13,6 +13,12 @@ namespace DeltaV
         /// <summary>飞行辅助：无输入的轴按推进器真实出力反向减速（不引入魔法衰减）。默认开。</summary>
         public bool flightAssist = true;
 
+        public bool hideSpaceMapsWithoutPlayerPawns = true;
+
+        // Empty paths preserve the test scene's automatic latest-export selection.
+        public string testScenePlayerPrefab = "";
+        public string testSceneEnemyPrefab = "";
+
         /// <summary>
         /// 1 个星区（worldtile）弧长 ≈ 多少宇宙格（星区架构 §8，默认 20000）。
         /// 只影响尺度换算，不影响 tile 划分；改值即时触发位姿重标定（停靠/起飞中禁止）。
@@ -143,6 +149,9 @@ namespace DeltaV
         public override void ExposeData()
         {
             Scribe_Values.Look(ref flightAssist, "flightAssist", true);
+            Scribe_Values.Look(ref hideSpaceMapsWithoutPlayerPawns, "hideSpaceMapsWithoutPlayerPawns", true);
+            Scribe_Values.Look(ref testScenePlayerPrefab, "testScenePlayerPrefab", "");
+            Scribe_Values.Look(ref testSceneEnemyPrefab, "testSceneEnemyPrefab", "");
             Scribe_Values.Look(ref cellsPerTile, "cellsPerTile", (int)OrbitSphere.DefaultCellsPerTile);
             Scribe_Values.Look(ref universeZoomMax, "universeZoomMax", 400f);
             Scribe_Values.Look(ref poiActiveRadius, "poiActiveRadius", 300f);

@@ -28,6 +28,15 @@
   <DeltaV_Off>off</DeltaV_Off>
   <DeltaV_Braking>braking</DeltaV_Braking>
   <DeltaV_SettingsFlightAssist>Flight assist</DeltaV_SettingsFlightAssist>
+  <DeltaV_SettingsHideEmptySpaceMaps>Hide space map groups without player pawns</DeltaV_SettingsHideEmptySpaceMaps>
+  <DeltaV_SettingsHideEmptySpaceMapsTip>On by default. Hide colonist bar groups for SpaceObject maps without living player-faction pawns, reducing enemy ship and debris clutter. Held pawns, player animals and mechs also count. Surface maps and caravans are unaffected. Changes apply immediately.</DeltaV_SettingsHideEmptySpaceMapsTip>
+  <DeltaV_SettingsTestScene>Two-ship test scene</DeltaV_SettingsTestScene>
+  <DeltaV_SettingsTestSceneTip>Choose a prefab for each ship the next time the two-ship test scene is created. The list includes Prefabs/ subfolders and rescans each time it opens. Settings are shared across saves. If an explicitly selected file cannot be loaded, creation stops and the existing scene is preserved.</DeltaV_SettingsTestSceneTip>
+  <DeltaV_SettingsTestScenePlayer>Player ship prefab</DeltaV_SettingsTestScenePlayer>
+  <DeltaV_SettingsTestSceneEnemy>Enemy ship prefab</DeltaV_SettingsTestSceneEnemy>
+  <DeltaV_SettingsTestSceneAutomatic>Automatic: latest export (procedural ship if unavailable)</DeltaV_SettingsTestSceneAutomatic>
+  <DeltaV_SettingsTestSceneScanFailed>Could not scan the prefab directory. See the log.</DeltaV_SettingsTestSceneScanFailed>
+  <DeltaV_TestScenePrefabFailed>Could not load test scene prefab: {0}. The existing scene was preserved. Select another file or check the log.</DeltaV_TestScenePrefabFailed>
   <DeltaV_SettingsFlightAssistTip>While piloting, released directions are automatically counter-thrusted to a stop - braking uses the ship's real thruster output, so weak thrusters stop you slowly. Turn off for pure inertial flight: the ship keeps drifting at its current velocity - but holding Ctrl (rebindable) still brakes you at any time, so you keep both the freedom and the control. On by default.</DeltaV_SettingsFlightAssistTip>
   <DeltaV_SettingsCellsPerTile>Sector scale (cells per sector)</DeltaV_SettingsCellsPerTile>
   <DeltaV_SettingsCellsPerTileTip>How empty space is: larger values place neighboring sectors farther apart, so flying across one sector under thrust takes longer; smaller values make sectors more compact and travel faster. Changes apply immediately - every object's position rescales to the new measure (velocities keep their values). Cannot be changed while docking or launching is in progress; the edit is then rejected and reverted. Range 100-100000; default 20000.</DeltaV_SettingsCellsPerTileTip>

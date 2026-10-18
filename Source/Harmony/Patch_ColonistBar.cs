@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using RimWorld;
@@ -10,7 +9,7 @@ namespace DeltaV
 {
     /// <summary>
     /// 专用宿主口袋图只是 sourceMap 锚点画布（无 pawn），不应作为空 Map 分组占据
-    /// Colonist Bar；防御性过滤。降落/停靠图有真实船员，走原版分组。
+    /// Colonist Bar；弹体图同样隐藏。其他 SpaceObject 图按设置与玩家 Pawn 的实际存在性过滤。
     /// </summary>
     public static class HostColonistBarVisibility
     {
@@ -21,9 +20,16 @@ namespace DeltaV
 
         internal static bool ShouldHide(Map map)
         {
+            if (map == null) return false; // Caravan entries have no map.
             if (SpaceLifecycleService.IsUniverseHost(map)) return true;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            return universe?.Projectiles.IsProjectileMap(map) == true;
+            if (universe?.Projectiles.IsProjectileMap(map) == true) return true;
+            if (DeltaVMod.CurrentSettings?.hideSpaceMapsWithoutPlayerPawns == false
+                || universe?.SpaceObjectOnMap(map) == null) return false;
+            // AllPawns includes held pawns (e.g. shuttle passengers and cryptosleep occupants).
+            foreach (Pawn pawn in map.mapPawns.AllPawns)
+                if (pawn.Faction == Faction.OfPlayer) return false;
+            return true;
         }
     }
 
@@ -45,8 +51,14 @@ namespace DeltaV
         private static readonly FieldInfo DrawLocsFinderField =
             AccessTools.Field(typeof(ColonistBar), "drawLocsFinder");
 
-        public static void Postfix(ColonistBar __instance)
+        public static void Prefix(bool ___entriesDirty, out bool __state)
         {
+            __state = ___entriesDirty;
+        }
+
+        public static void Postfix(ColonistBar __instance, bool __state)
+        {
+            if (!__state) return;
             if (!(CachedEntriesField?.GetValue(__instance) is List<ColonistBar.Entry> entries)
                 || !(CachedDrawLocsField?.GetValue(__instance) is List<Vector2> drawLocs)
                 || !(CachedReorderableGroupsField?.GetValue(__instance) is List<int> groups)
@@ -58,7 +70,18 @@ namespace DeltaV
                 return;
             }
 
-            int removed = entries.RemoveAll(entry => HostColonistBarVisibility.ShouldHide(entry.map));
+            // Entries are contiguous per map; evaluate held pawns only once per map and recache.
+            Map lastMap = null;
+            bool hideMap = false;
+            int removed = entries.RemoveAll(entry =>
+            {
+                if (entry.map != lastMap)
+                {
+                    lastMap = entry.map;
+                    hideMap = HostColonistBarVisibility.ShouldHide(lastMap);
+                }
+                return hideMap;
+            });
             if (removed <= 0) return;
 
             // Entry 的两个拖动回调会捕获构造时的 group，不能只覆写公开 group 字段。
