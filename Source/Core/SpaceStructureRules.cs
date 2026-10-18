@@ -13,7 +13,7 @@ namespace DeltaV
         /// <summary>建筑（含非气密炮塔等；命中概率读取掩体效果）。</summary>
         Building = 1,
 
-        /// <summary>基架格（无建筑覆盖的甲板，或覆盖建筑已被放行；可概率命中）。</summary>
+        /// <summary>基架格（无存活建筑覆盖的甲板；可概率命中）。</summary>
         Substructure = 2,
 
         /// <summary>自然岩石（ asteroid 岩壁，实心）。</summary>

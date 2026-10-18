@@ -413,15 +413,20 @@ namespace DeltaV
         /// <summary>
         /// 摧毁命中格基架。原版 SetFoundation 是「放置」API（null 只红字不动网格），
         /// 移除唯一入口是 RemoveFoundation（doLeavings:false——战斗剥离不掉资源，破片
-        /// 溅射逐格掉落会刷屏）。归属同步由 RemoveFoundation postfix 完成（含版本 bump）。
+        /// 溅射逐格掉落会刷屏）。仅裸露基架可摧毁；地板清理由 RemoveFoundation prefix
+        /// 完成，归属同步由 postfix 完成（含版本 bump）。
         /// </summary>
         private static void StripSubstructureAt(Map map, IntVec3 cell)
         {
-            if (SubstructureOwnership.HasFoundation(map, cell))
+            if (CanDamageSubstructure(map, cell))
             {
                 map.terrainGrid.RemoveFoundation(cell, doLeavings: false);
             }
         }
+
+        /// <summary>直击、破片及原版地形毁伤共用实时建筑保护判定，包含多格建筑的每个占用格。</summary>
+        internal static bool CanDamageSubstructure(Map map, IntVec3 cell) =>
+            SpaceStructureRules.ClassifyCell(map, cell, out _) == SpaceCellKind.Substructure;
 
         private static void EnsureBuilt()
         {

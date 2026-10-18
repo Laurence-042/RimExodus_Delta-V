@@ -71,6 +71,20 @@ namespace DeltaV
     [HarmonyPatch(typeof(TerrainGrid), nameof(TerrainGrid.RemoveFoundation))]
     public static class Patch_TerrainGrid_RemoveFoundation_Ownership
     {
+        public static void Prefix(TerrainGrid __instance, IntVec3 c)
+        {
+            Map map = TerrainGridOwnershipAccess.MapOf(__instance);
+            if (!SubstructureOwnership.HasFoundation(map, c)
+                || Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map) == null) return;
+
+            // RemoveFoundation 本身只移除 foundationGrid。先清临时层，再清地板，
+            // 保留真实底层（Space 或天然地面）；不能在裸基架上调用 RemoveTopLayer，
+            // 否则原版会递归进入 RemoveFoundation。
+            __instance.RemoveTempTerrain(c, doLeavings: false, preventDestroyEffects: true);
+            if (__instance.UnderTerrainAt(c) != null)
+                __instance.RemoveTopLayer(c, doLeavings: false);
+        }
+
         public static void Postfix(TerrainGrid __instance, IntVec3 c)
         {
             Map map = TerrainGridOwnershipAccess.MapOf(__instance);

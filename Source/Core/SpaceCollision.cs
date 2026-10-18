@@ -796,9 +796,8 @@ namespace DeltaV
                 Thing thing = surface.buildings[index];
                 if (thing != null && passedBuildings?.Contains(thing) == true)
                 {
-                    if (!SubstructureOwnership.HasFoundation(defMap, cell)) continue;
-                    kind = SpaceCellKind.Substructure;
-                    thing = null;
+                    // 掩体放行只让弹体穿过建筑，不暴露仍被建筑覆盖的基架。
+                    continue;
                 }
                 if (kind == SpaceCellKind.Substructure
                     && passedSubstructure?.Contains(cell) == true) continue;
