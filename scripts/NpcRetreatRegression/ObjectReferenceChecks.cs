@@ -56,7 +56,7 @@ internal static partial class Program
             && SpaceWeaponService.WeaponsOn(singleBuilding).Contains(weapon)
             && !SpaceWeaponService.WeaponsOn(ordinary).Contains(weapon),
             "intrinsic shuttle weapons belong to the shuttle rather than the host foundation ship");
-        var shot = new SpaceWeaponShot(universe, weapon, container, container.pose.position, null)
+        var shot = new SpaceWeaponShot(universe, weapon, container, new WeaponFireRequest(container.pose.position))
             { muzzleMap = singleBuilding.HullCenter, launchMapAngle = 0f };
         Check((bool)Call(shot, "SafePathClear"),
             "hull safety checks allow a console-free intrinsic weapon without foundation ownership");
@@ -91,16 +91,24 @@ internal static partial class Program
         Set(typeof(Thing), hull.parent, "factionInt", player);
         map.listerThings.AllThings.Remove(console.parent);
         map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole).Remove(console.parent);
+        hull.ShuttleProps.virtualThrusters = new List<ShuttleThrusterConfig>
+        {
+            new ShuttleThrusterConfig { force = new Vector2(10f, 0f) }
+        };
         SubstructureOwnership.BumpStructureVersion();
         Check(singleBuilding.CanDriveIn(container), "launched shuttle can drive its own container");
         Check(container.PrimaryDriver == singleBuilding.Identity,
             "primary driver resolves a console-free ship with its typed identity");
         Set(enemy, "relations", new List<FactionRelation> { new FactionRelation { other = player, kind = FactionRelationKind.Hostile } });
         Set(player, "relations", new List<FactionRelation> { new FactionRelation { other = enemy, kind = FactionRelationKind.Hostile } });
-        var source = new SpaceObject(950, container.pose);
-        ShipBase attacker = AddTestConsole(TestMap(951), enemy, 952).Ship;
-        Check(ShipAutoFireControl.CandidateValid(attacker, source, container, shipsOnly: true),
+        Map attackerMap = TestMap(951);
+        var source = new MapSpaceObject(950, attackerMap, container.pose);
+        universe.objects.Add(source);
+        var attacker = new CombatHull(AddTestConsole(attackerMap, enemy, 952).Ship);
+        attacker.cells.Add(new IntVec3(1, 0, 2));
+        Check(ShipFireControl.Candidates(attacker, source, container).Any(),
             "automatic fire accepts an enemy shuttle as a Ship target");
+        universe.objects.Remove(source);
         Check(!container.HostileTo(player), "stale hostile environment faction cannot override a friendly ship member");
         var numeric = DriveSnapshot.Capture(new DeltaV.DriveInfo(new ShipPhysics.MassReport { mass = 100, inertia = 1000 }),
             singleBuilding.Identity.key, singleBuilding.Identity.shuttle);

@@ -9,7 +9,7 @@ namespace DeltaV
 {
     /// <summary>
     /// 武器服务（太空战架构 §5/§6）：武器索引、同一发射事务、炮手分配算法、
-    /// 敌对判定与沿射线目标锁定；逐 tick 调度由归属 ShipController 执行。
+    /// 只读瞄准能力与实际转向；战术目标和开火请求由每船 ShipFireControl 提供。
     /// 实例服务（universe.Weapons）的武器索引不序列化、读档重建；武器持久配置（组别/PD 模式/
     /// 炮手预留）驻留武器 comp、激活位驻留主驾驶台 comp。
     ///
@@ -51,7 +51,9 @@ namespace DeltaV
 
         public void UnregisterWeapon(CompSpaceWeapon weapon, Map map)
         {
-            if (map == null || weapon == null) return;
+            if (weapon == null) return;
+            universe.Controls.ForgetWeaponTarget(weapon);
+            if (map == null) return;
             if (!weaponsByMap.TryGetValue(map, out HashSet<CompSpaceWeapon> weapons)) return;
             weapons.Remove(weapon);
             if (weapons.Count == 0) weaponsByMap.Remove(map);
@@ -133,14 +135,6 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in AllWeaponsOn(map)) RegisterWeapon(weapon);
         }
 
-        /// <summary>已登记的点防武器，按结构归属交给对应 controller。</summary>
-        internal bool TryGetPointDefenseWeapons(Map map, out HashSet<CompSpaceWeapon> weapons)
-        {
-            if (map != null && weaponsByMap.TryGetValue(map, out weapons)) return true;
-            weapons = null;
-            return false;
-        }
-
         internal bool HasPointDefenseWeapons(Map map) => map != null && weaponsByMap.ContainsKey(map);
 
         /// <summary>只读火力估计：武器当前可用性、射程、命中散布、冷却与弹体后效同源。</summary>
@@ -174,12 +168,6 @@ namespace DeltaV
             return total;
         }
 
-        public float EstimateFirepower(SpaceObject container, float distance, float targetRadius) =>
-            container?.Ships.Sum(ship => EstimateFirepower(ship, distance, targetRadius)) ?? 0f;
-
-        public float EstimatePointDefense(SpaceObject container) =>
-            container?.Ships.Sum(EstimatePointDefense) ?? 0f;
-
         public float EstimatePointDefense(ShipBase ship)
         {
             if (!ship.IsValid) return 0f;
@@ -201,67 +189,27 @@ namespace DeltaV
             return total;
         }
 
-        internal bool PdTargetValid(CompSpaceWeapon weapon)
-        {
-            SpaceObject target = weapon.pdTarget;
-            if (target == null || target.map == null || target.map.Disposed
-                || !target.InterceptionEligible || !target.HostileTo(weapon.parent.Faction)) return false;
-            float distance = OrbitSphere.Offset(weapon.MuzzleUniverse, target.pose.position).magnitude
-                - SpaceCollision.BoundsRadiusOf(target);
-            return distance >= weapon.WeaponProps.minRange
-                && distance <= weapon.WeaponProps.range;
-        }
-
-        /// <summary>
-        /// PD 索敌（§4.2）：射程内敌对的可拦截容器；优先级 =「预计命中己方的最近
-        /// 容器优先」（来袭弹逼近自身容器 → 按预计命中时间升序），兜底最近。
-        /// </summary>
-        internal SpaceObject FindPdTarget(CompSpaceWeapon weapon)
-        {
-            SpaceObject own = weapon.Container;
-            if (own == null) return null;
-            Faction faction = weapon.parent.Faction;
-            float range = weapon.WeaponProps.range;
-            Vector3 muzzle = weapon.MuzzleUniverse;
-            SpaceObject best = null;
-            float bestScore = float.MaxValue;
-            foreach (SpaceObject obj in universe.objects)
-            {
-                if (obj == own || !obj.InterceptionEligible) continue;
-                if (!obj.HostileTo(faction)) continue;
-                Vector2 offset = OrbitSphere.Offset(own.pose.position, obj.pose.position);
-                float distance = OrbitSphere.Offset(muzzle, obj.pose.position).magnitude
-                    - SpaceCollision.BoundsRadiusOf(obj);
-                if (distance < weapon.WeaponProps.minRange || distance > range) continue;
-                // 来袭判定：目标相对速度朝己方逼近 → 预计命中时间（秒）作优先分；
-                // 非来袭（掠过/远离）兜底排在所有来袭之后、按距离。
-                Vector2 targetVel = SpaceTransform.TransportVelocity(obj.pose, own.pose.position)
-                    - own.pose.velocity;
-                float closing = offset.sqrMagnitude > 1e-6f
-                    ? -Vector2.Dot(targetVel, offset.normalized) : 0f;
-                float score = closing > 1f
-                    ? Mathf.Max(0f, distance) / closing
-                    : 10000f + distance;
-                if (score < bestScore)
-                {
-                    bestScore = score;
-                    best = obj;
-                }
-            }
-            return best;
-        }
-
         // ---- 发射（就绪判定单实现）----
 
-        /// <summary>
-        /// 尝试发射：就绪判定（组激活已在调用方）→ 炮手/插件 → 供电 → 冷却 → 射界 →
-        /// 散布（§5.4：基础散射角 × 技能偏差系数，高斯偏移）→ 弹体服务发射。
-        /// aimPoint = 瞄准参考点（鼠标 universe 点或 PD 截击点）；guided 武器无显式
-        /// target 时按瞄准方向最近敌方容器锁定（§6.2）。
-        /// </summary>
-        public bool TryFire(CompSpaceWeapon weapon, SpaceObject container, Vector3 aimPoint, SpaceObject explicitTarget)
+        public bool TryFire(CompSpaceWeapon weapon, SpaceObject container, WeaponFireRequest request)
+            => new SpaceWeaponShot(universe, weapon, container, request).TryExecute();
+
+        public static WeaponAimInfo AimInfo(CompSpaceWeapon weapon, SpaceObject container)
         {
-            return new SpaceWeaponShot(universe, weapon, container, aimPoint, explicitTarget).TryExecute();
+            SpaceWeaponAccelerationSolution acceleration = CompSpaceRailgun.Resolve(weapon);
+            Vector2 muzzle = acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
+            ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
+            return new WeaponAimInfo(SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzle),
+                muzzle, projectile, SpaceWeaponShot.ProjectedSpeed(weapon, acceleration, ProjectileSpeedOf(projectile)), weapon.WeaponProps.minRange, weapon.WeaponProps.range);
+        }
+
+        internal static void AimWeapon(CompSpaceWeapon weapon, SpaceObject container, WeaponAimInfo info, Vector3 aim)
+        {
+            CompSpaceWeaponTraverse traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
+            if (traverse == null) return;
+            Vector2 point = SpaceTransform.UniverseToMapPoint(container, weapon.parent.Map, aim);
+            Vector2 delta = point - info.MuzzleMap;
+            if (delta.sqrMagnitude > 1e-6f) traverse.AimAt(Mathf.Atan2(delta.y, delta.x));
         }
 
         /// <summary>供电判定（原版 comp 状态直读：无供电 comp = 不要求供电，per def）。</summary>
@@ -288,70 +236,6 @@ namespace DeltaV
         {
             var props = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
             return props?.speed ?? 0f;
-        }
-
-        public static float ProjectileSpeedOf(CompSpaceWeapon weapon)
-        {
-            return SpaceWeaponShot.ProjectedSpeed(weapon);
-        }
-
-        /// <summary>
-        /// 截击解算（发射点切平面）：目标匀速外推 + 弹速，最小正根；输出截击 universe 点。
-        /// 预瞄指示器与本方法共用 SpaceTransform.TrySolveInterceptPlanar 同一纯函数。
-        /// </summary>
-        public static bool TrySolveIntercept(CompSpaceWeapon weapon, SpaceObject container,
-            SpaceObject target, float projectileSpeed, out Vector3 interceptUniverse)
-        {
-            interceptUniverse = default;
-            if (container == null || target == null || projectileSpeed <= 0f) return false;
-            Vector3 muzzle = weapon.MuzzleUniverse;
-            Vector2 p = OrbitSphere.Offset(muzzle, target.pose.position);
-            Vector2 targetVel = SpaceTransform.TransportVelocity(target.pose, muzzle);
-            Vector2 muzzleVel = SpaceTransform.TransportVelocity(container.pose, muzzle);
-            if (!SpaceTransform.TrySolveInterceptPlanar(p, targetVel - muzzleVel, projectileSpeed, out float time))
-            {
-                return false;
-            }
-            interceptUniverse = OrbitSphere.Move(target.pose.position,
-                target.pose.velocity * time);
-            return true;
-        }
-
-        /// <summary>沿瞄准方向最近的敌方容器（射线 × 包围域；导弹锁定 §6.2，无命中按直射不自导）。</summary>
-        public static SpaceObject TargetAlongRay(UniverseManager universe, SpaceObject source,
-            Vector3 origin, Vector2 dirTangent, Faction faction)
-        {
-            SpaceObject best = null;
-            float bestAlong = float.MaxValue;
-            foreach (SpaceObject obj in universe.objects)
-            {
-                if (obj == source || obj.map == null) continue;
-                if (!obj.HostileTo(faction)) continue;
-                Vector2 offset = OrbitSphere.Offset(origin, obj.pose.position);
-                float along = Vector2.Dot(offset, dirTangent);
-                if (along <= 0f) continue;
-                float miss = (offset - dirTangent * along).magnitude;
-                if (miss > SpaceCollision.BoundsRadiusOf(obj)) continue;
-                if (along < bestAlong)
-                {
-                    bestAlong = along;
-                    best = obj;
-                }
-            }
-            return best;
-        }
-
-        /// <summary>鼠标位置映射的 universe 点（瞄准参考点，§6.1）。</summary>
-        public static Vector3 MouseUniversePoint(SpaceObject container, Map map)
-        {
-            Vector3 mouse = UI.MouseMapPosition();
-            return SpaceTransform.MapPointToUniverse(container, map, new Vector2(mouse.x, mouse.z));
-        }
-
-        internal static bool MouseOverUiWindow()
-        {
-            // 与 HandleShellClick 同一坐标口径（GUI → screen 后查窗口矩形）。
-            return Find.WindowStack.GetWindowAt(UI.GUIToScreenPoint(UI.MousePositionOnUI)) != null;
         }
 
         /// <summary>图上全部太空武器 comp（扫描 listerThings；每 tick 武器数量级小）。</summary>

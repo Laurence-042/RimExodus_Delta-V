@@ -19,6 +19,7 @@ namespace DeltaV
             public bool combatOrbit;
             public float orbitRadius;
             public CombatTrajectoryPlanner combatPlanner;
+            public CombatTargetSampler combatTarget;
             public CombatTrajectoryIntent combatIntent;
             public int combatIntentMicroStep = -1;
             public int combatIntentTick;
@@ -136,14 +137,13 @@ namespace DeltaV
             flight.profile = profile; flight.guidance.Reset(profile);
             active[flight.subject] = flight;
         }
-        internal void TrackOrbit(DriveSubject subject, SpaceObject host, float radius,
+        internal void TrackOrbit(DriveSubject subject, CombatTargetSampler target, float radius,
             CombatTrajectoryPlanner planner, bool playerInitiated = false)
         {
-            if (host == null || planner == null) return;
-            radius = Mathf.Max(radius, SpaceCollision.BoundsRadiusOf(host) + 8f);
-            if (active.TryGetValue(subject, out Flight existing) && existing.combatOrbit && existing.hostId == host.objectId)
-            { existing.orbitRadius = radius; existing.combatPlanner = planner; return; }
-            Register(new Flight { subject = subject, tracked = true, hostId = host.objectId, combatOrbit = true,
+            if (target == null || planner == null) return;
+            if (active.TryGetValue(subject, out Flight existing) && existing.combatOrbit)
+            { existing.orbitRadius = radius; existing.combatPlanner = planner; existing.combatTarget = target; return; }
+            Register(new Flight { subject = subject, tracked = true, combatTarget = target, combatOrbit = true,
                 orbitRadius = radius, combatPlanner = planner, playerInitiated = playerInitiated });
         }
 
@@ -158,7 +158,7 @@ namespace DeltaV
             {
                 Flight flight = pair.Value;
                 if (!flight.combatOrbit) continue;
-                result.Append($"\n- ship #{pair.Key.key} target=#{flight.host?.objectId ?? 0} "
+                result.Append($"\n- ship #{pair.Key.key} "
                     + $"distance={flight.diagnosticDistance:F1}/{flight.orbitRadius:F1} "
                     + $"horizon={flight.combatIntent.seconds:F1}s phase={flight.combatIntent.phaseAdvance * Mathf.Rad2Deg:F1}° "
                     + $"heading={flight.diagnosticTargetAngle * Mathf.Rad2Deg:F1}° "
@@ -215,8 +215,11 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SpaceObject container = flight.subject.Resolve(universe);
             if (container == null || !container.TryGetDrive(flight.subject, out DriveInfo report)
-                || (flight.tracked && flight.host == null))
+                || (flight.tracked && !flight.combatOrbit && flight.host == null))
             { Fail(container, flight, "subject or target unavailable"); return; }
+            SpacePose combatTarget = default;
+            if (flight.combatOrbit && (flight.combatTarget == null || !flight.combatTarget(out combatTarget)))
+            { Fail(container, flight, "combat reference unavailable"); return; }
             const float dt = 1f / 60f; // 游戏 tick 时间；绝不使用帧时钟（AGENTS §18 #20）
             flight.elapsed += 1;
             int ticksGame = Find.TickManager.TicksGame;
@@ -239,7 +242,7 @@ namespace DeltaV
                         || report.version != flight.previewReportVersion || !ReferenceEquals(report, flight.previewInfo))
                     {
                         if (flight.combatPlanner == null || !flight.combatPlanner(
-                            container, flight.host, flight.orbitRadius, report,
+                            container, combatTarget, flight.orbitRadius, report,
                             out flight.combatIntent))
                         {
                             active.Remove(flight.subject);
@@ -255,11 +258,11 @@ namespace DeltaV
                     intent.Sample(combatReferenceTime, out targetDirection, out hostVelocity,
                         out _, out _);
                     Vector2 toCenter = OrbitSphere.Offset(container.pose.position,
-                        flight.host.pose.position);
+                        combatTarget.position);
                     targetAngle = SpaceTransform.WrapAngle(Mathf.Atan2(toCenter.y,
                         toCenter.x) - report.frameAngle);
                     Vector2 relativeVelocity = container.pose.velocity
-                        - SpaceTransform.TransportVelocity(flight.host.pose,
+                        - SpaceTransform.TransportVelocity(combatTarget,
                             container.pose.position);
                     Vector2 outward = toCenter.sqrMagnitude > 1e-8f
                         ? -toCenter.normalized : Vector2.zero;
@@ -291,7 +294,7 @@ namespace DeltaV
             if (flight.combatOrbit)
             {
                 flight.diagnosticDistance = OrbitSphere.ArcCells(pose.position,
-                    flight.host.pose.position);
+                    combatTarget.position);
                 flight.diagnosticTargetAngle = targetAngle;
                 flight.diagnosticAngleError = angleErr;
                 flight.diagnosticTargetOmega = hostOmega;
@@ -375,7 +378,7 @@ namespace DeltaV
                     next = ApproachPhase.Precision;
                 if (flight.combatOrbit && next == ApproachPhase.Precision
                     && Mathf.Abs(OrbitSphere.ArcCells(pose.position,
-                        flight.host.pose.position) - flight.orbitRadius) < 4f
+                        combatTarget.position) - flight.orbitRadius) < 4f
                     && Mathf.Abs(angleErr) < 0.15f && vel.magnitude < 2f)
                 {
                     // 环绕参考点常在船附近，不能因此让所有稳定环绕船常驻 10 Hz 求解。

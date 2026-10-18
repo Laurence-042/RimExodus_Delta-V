@@ -1,0 +1,377 @@
+using System;
+using System.Collections;
+using System.Linq;
+using DeltaV;
+using RimWorld;
+using UnityEngine;
+using Verse;
+
+internal static partial class Program
+{
+    static void CheckPerShipFireControl(UniverseManager universe, Faction player, Faction enemy)
+    {
+        Map ownMap = TestMap(1960), enemyMap = TestMap(1970);
+        var hull = AddTestHull(ownMap, player, 1961);
+        MoveCombatFixture(hull.parent, new IntVec3(2, 0, 2));
+        var own = new MapSpaceObject(1960, ownMap, new SpacePose(Vector3.forward, 0f));
+        var opponent = new CombatObject(1970, enemyMap,
+            new SpacePose(OrbitSphere.Move(own.pose.position, new Vector2(0f, 60f)), 0f));
+        universe.objects.Add(own); universe.objects.Add(opponent);
+        var first = AddTestConsole(enemyMap, enemy, 1971);
+        var second = AddTestConsole(enemyMap, enemy, 1972);
+        MoveCombatFixture(second.parent, new IntVec3(3, 0, 2));
+        var firstHull = new CombatHull(first.Ship); firstHull.cells.Add(first.parent.Position);
+        var secondHull = new CombatHull(second.Ship); secondHull.cells.Add(second.parent.Position);
+        // Reverse the container order to test identity tie breaking rather than enumeration order.
+        opponent.members.Add(secondHull); opponent.members.Add(firstHull);
+        var engineDef = TestBuildingDef("memberEngine"); engineDef.comps.Add(new CompProperties_GravshipThruster());
+        var engine1 = AddTestBuilding(enemyMap, enemy, 1973, engineDef, new EmptyComp());
+        var engine2 = AddTestBuilding(enemyMap, enemy, 1974, engineDef, new EmptyComp());
+        MoveCombatFixture(engine2, second.parent.Position);
+        Set(typeof(Thing), engine1, "hitPointsInt", 1); Set(typeof(Thing), engine2, "hitPointsInt", 1);
+        Set(typeof(Thing), first.parent, "hitPointsInt", 100); Set(typeof(Thing), second.parent, "hitPointsInt", 100);
+        var projectileDef = TestBuildingDef("memberTestBullet");
+        projectileDef.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, speed = 100f });
+        var weapon = new CompSpaceWeapon { parent = hull.parent,
+            props = new CompProperties_SpaceWeapon { projectileDef = projectileDef, range = 500f, baseSpreadDeg = 0f }, safeFire = false };
+        var traverse = new CompSpaceWeaponTraverse { parent = hull.parent, props = new CompProperties_SpaceWeaponTraverse() };
+        hull.parent.AllComps.Add(weapon); hull.parent.AllComps.Add(traverse);
+        void Refresh()
+        {
+            SubstructureOwnership.BumpStructureVersion();
+            ShipRegistry.ShipByIdentity(hull.Vessel.Identity);
+            universe.Controls.For(firstHull); universe.Controls.For(secondHull);
+        }
+        Refresh();
+        var fire = universe.Controls.For(hull.Vessel).FireControl;
+        Check(NpcCombatAi.CountEligibleTargets(universe, hull.Vessel, own) == 2,
+            "two hostile ships in one container are separate automatic candidates");
+        fire.Decide(hull.Vessel, own);
+        Check(fire.Target.Ship == firstHull.Identity, "equal candidate scores use stable ship identity rather than member order");
+        fire.Clear(); Set(typeof(Thing), first.parent, "hitPointsInt", 500000);
+        fire.Decide(hull.Vessel, own);
+        Check(fire.Target.Ship == secondHull.Identity,
+            "per-member hull durability changes the score instead of using whole-map durability");
+        var debris = AddTestBuilding(enemyMap, enemy, 1975, TestBuildingDef("durableDebris"), new EmptyComp());
+        MoveCombatFixture(debris, new IntVec3(4, 0, 4)); Set(typeof(Thing), debris, "hitPointsInt", 1000000);
+        Refresh(); fire.Clear(); fire.Decide(hull.Vessel, own);
+        Check(fire.Target.Ship == secondHull.Identity, "unowned same-map debris cannot contaminate either ship score");
+        Set(typeof(Thing), first.parent, "hitPointsInt", 1); Set(typeof(Thing), second.parent, "hitPointsInt", 500000);
+        Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 179);
+        Refresh(); fire.Decide(hull.Vessel, own);
+        Check(fire.Target.Ship == secondHull.Identity, "automatic target keeps the 180-tick lock preference");
+        Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
+        Refresh(); fire.Decide(hull.Vessel, own);
+        Check(fire.Target.Ship == firstHull.Identity, "expired target lock permits the higher scoring ship to replace it");
+        Set(typeof(Thing), first.parent, "factionInt", player);
+        Refresh(); fire.Decide(hull.Vessel, own);
+        Check(fire.Target.Ship == secondHull.Identity && fire.LeadPoints(hull.Vessel).Count == 1,
+            "mixed-faction map selects and previews only its eligible hostile member");
+        enemyMap.listerThings.AllThings.Remove(engine2); Refresh();
+        Check(!fire.TryGetIntent(hull.Vessel, own, false, out _) && fire.LeadPoints(hull.Vessel).Count == 0,
+            "propulsion loss immediately stops fire requests and lead markers before the next decision");
+
+        var near = new MapSpaceObject(1980, TestMap(1980),
+            new SpacePose(OrbitSphere.Move(own.pose.position, new Vector2(0f, 30f)), 0f))
+            { baseTag = SpaceObjectTag.Projectile, faction = enemy };
+        var far = new MapSpaceObject(1981, TestMap(1981),
+            new SpacePose(OrbitSphere.Move(own.pose.position, new Vector2(0f, 60f)), 0f))
+            { baseTag = SpaceObjectTag.Projectile, faction = enemy };
+        universe.objects.Add(near); universe.objects.Add(far);
+        weapon.aimMode = SpaceWeaponAimMode.PointDefense;
+        weapon.cooldownUntilTick = Find.TickManager.TicksGame + 1000;
+        universe.Weapons.NotifyWeaponModeChanged(weapon);
+        fire.TickPointDefense(hull.Vessel, own);
+        IDictionary locks = (IDictionary)typeof(ShipFireControl).GetField("pointDefense", Private).GetValue(fire);
+        CombatTarget Locked() => (CombatTarget)locks[weapon.parent.thingIDNumber].GetType()
+            .GetField("target", Private).GetValue(locks[weapon.parent.thingIDNumber]);
+        Check(locks.Count == 1 && Locked().ObjectId == near.objectId && traverse.CurrentAngle > 0f,
+            "point defense owns a per-weapon lock and turns the weapon during cooldown");
+        far.pose.velocity = new Vector2(0f, -30f);
+        Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 29);
+        fire.TickPointDefense(hull.Vessel, own);
+        Check(Locked().ObjectId == near.objectId, "point defense retains a valid lock before its 30-tick reselection");
+        Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
+        fire.TickPointDefense(hull.Vessel, own);
+        Check(Locked().ObjectId == far.objectId, "point defense reselects the approaching target after 30 ticks");
+        weapon.aimMode = SpaceWeaponAimMode.Volley; universe.Weapons.NotifyWeaponModeChanged(weapon);
+        Check(locks.Count == 0, "weapon mode changes immediately discard fire-control point-defense state");
+        weapon.aimMode = SpaceWeaponAimMode.PointDefense; universe.Weapons.NotifyWeaponModeChanged(weapon);
+        fire.TickPointDefense(hull.Vessel, own);
+        fire.ForgetMap(far.map);
+        Check(locks.Count == 0, "target map unloading clears point-defense locks owned by another ship");
+        fire.TickPointDefense(hull.Vessel, own);
+        var archivedPd = new ArchivedSpaceObject { objectId = far.objectId, pose = far.pose };
+        universe.ReplaceRepresentation(far, archivedPd);
+        fire.ForgetMap(far.map);
+        Check(locks.Count == 0, "point-defense cleanup also releases a target whose mapped representation has already been replaced");
+        universe.ReplaceRepresentation(archivedPd, far);
+        fire.TickPointDefense(hull.Vessel, own);
+        universe.Weapons.UnregisterWeapon(weapon, ownMap);
+        Check(locks.Count == 0, "weapon removal clears its point-defense lock through the existing unregister event");
+        fire.TickPointDefense(hull.Vessel, own);
+        // Seed the retained lock of a captured standalone weapon, independent of controller replacement.
+        var capturedWeapon = new CompSpaceWeapon { props = weapon.props };
+        var capturedBuilding = AddTestBuilding(ownMap, player, 1963, TestBuildingDef("capturedWeapon"), capturedWeapon);
+        locks[capturedBuilding.thingIDNumber] = locks[hull.parent.thingIDNumber];
+        Set(typeof(Thing), capturedBuilding, "factionInt", enemy);
+        typeof(Patch_ShipFaction).GetMethod("Postfix", System.Reflection.BindingFlags.Static | Private)
+            .Invoke(null, new object[] { capturedBuilding });
+        Check(!locks.Contains(capturedBuilding.thingIDNumber) && locks.Count == 1,
+            "standalone weapon faction change releases only its lock without replacing the ship controller");
+        hull.parent.thingIDNumber = 1962;
+        SubstructureOwnership.BumpStructureVersion();
+        universe.Controls.NotifyWeaponOwnershipChanged(ownMap);
+        Check(locks.Count == 0, "changing weapon ship identity discards the previous owner's point-defense lock");
+        hull.parent.thingIDNumber = 1961;
+        SubstructureOwnership.BumpStructureVersion();
+        fire.TickPointDefense(hull.Vessel, own);
+        universe.Controls.Reset();
+        Check(locks.Count == 0, "controller disposal and game reset clear all point-defense target state");
+        universe.objects.Clear(); Find.Maps.Clear();
+        ShipRegistry.ClearCaches(); ShipPhysics.ClearCache(); SpaceCollision.ClearCaches();
+    }
+
+    static void CheckTargetContracts(UniverseManager universe, CombatHull attacker, SpaceObject own,
+        CombatObject victim, CompDeltaVPilotConsole console, CombatHull hull, Building engine, Faction player, Faction enemy)
+    {
+        void Refresh()
+        {
+            SubstructureOwnership.BumpStructureVersion();
+            ShipRegistry.ShipByIdentity(attacker.Identity);
+            universe.Controls.For(attacker);
+            foreach (ShipBase member in victim.Ships) universe.Controls.For(member);
+        }
+        Refresh();
+        CombatTarget identity = CombatTarget.ForShip(hull.Identity);
+        var attackerControl = universe.Controls.For(attacker);
+        attackerControl.FireControl.Decide(attacker, own);
+        Check(attackerControl.FireControl.Target == identity, "automatic lock is seeded before target separation");
+        CombatTarget system = CombatTarget.ForShip(hull.Identity, engine.thingIDNumber);
+        Check(system.TryResolve(universe, out var systemPose)
+            && OrbitSphere.Offset(systemPose.Pose.position, SpaceTransform.MapPointToUniverse(victim, victim.map,
+                new Vector2(engine.DrawPos.x, engine.DrawPos.z))).magnitude < 0.001f,
+            "ship system target resolves its current rigid point");
+        CombatTarget lostSystem = CombatTarget.ForShip(hull.Identity, 999999);
+        Check(lostSystem.TryResolve(universe, out var fallback)
+            && OrbitSphere.Offset(fallback.Pose.position, ShipRegistry.ShipPose(hull).position).magnitude < 0.001f,
+            "missing system falls back to the original ship center");
+        var free = CombatTarget.At(own.pose.position);
+        Check(!free.HasLock && free.TryResolve(universe, out var freePose) && freePose.Container == null,
+            "free aim has a position but no implicit guidance lock");
+        Vector2 direction = OrbitSphere.Offset(own.pose.position, ShipRegistry.ShipPose(hull).position).normalized;
+        CombatTarget manual = ShipFireControl.ManualTargetAlongRay(universe, own, own.pose.position, direction, player);
+        Check(manual.Kind == CombatTargetKind.Ship && manual.Ship == hull.Identity,
+            "manual ray lock records the enemy ship inside the nearest intersected container");
+
+        var projectileDef = TestBuildingDef("targetContractMissile");
+        var props = new CompProperties_SpaceProjectile { guided = true, hasMap = false, speed = 100f };
+        projectileDef.comps.Add(props);
+        var weapon = new CompSpaceWeapon { parent = (ThingWithComps)attacker.Anchor,
+            props = new CompProperties_SpaceWeapon { projectileDef = projectileDef, range = 500f, topTurret = true }, safeFire = false };
+        var request = new WeaponFireRequest(systemPose.Pose.position);
+        var shot = new SpaceWeaponShot(universe, weapon, own, request);
+        Check((bool)Call(shot, "Prepare") && !shot.guidanceTarget.HasLock && shot.target == null,
+            "guided shot preparation never acquires a target when request explicitly has no lock");
+        WeaponAimInfo aim = SpaceWeaponService.AimInfo(weapon, own);
+        Check(aim.Guided && !aim.Laser && aim.Projectile == shot.projectileDef && aim.Speed == shot.speed
+            && aim.MuzzleMap == shot.muzzleMap
+            && OrbitSphere.Offset(aim.Muzzle, shot.muzzleUniverse).magnitude < 0.001f,
+            "read-only aim capability agrees with prepared projectile, muzzle and speed");
+        weapon.cooldownUntilTick = Find.TickManager.TicksGame + 100;
+        Check(!(bool)Call(new SpaceWeaponShot(universe, weapon, own, request), "Prepare")
+            && weapon.cooldownUntilTick == Find.TickManager.TicksGame + 100,
+            "failed shot preparation preserves cooldown and does not commit costs");
+        weapon.cooldownUntilTick = 0;
+        Check(!(bool)Call(new SpaceWeaponShot(universe, weapon, victim, request), "Prepare"),
+            "shot rejects a stale container after the weapon has moved to another map");
+
+        // Real launch and tick use the prescribed handle; no Unity map creation is involved.
+        OrbitSphere.Basis(own.pose.position, out var east, out _);
+        Check(universe.Projectiles.Launch(projectileDef, own, own.pose.position, east, player, null, identity),
+            "guided projectile launches with an explicit ship identity");
+        IList flights = (IList)typeof(SpaceProjectileService).GetField("projectiles", Private).GetValue(universe.Projectiles);
+        object flight = flights[flights.Count - 1];
+        int flightId = (int)flight.GetType().GetField("containerId").GetValue(flight);
+        SpaceObject missile = universe.ObjectById(flightId);
+        universe.Projectiles.Tick();
+        Check((int)flight.GetType().GetField("targetContainerId").GetValue(flight) == victim.objectId,
+            "in-flight guidance resolves the original ship container");
+
+        // Disable this member without removing its identity; manual/in-flight policies remain independent.
+        victim.map.listerThings.AllThings.Remove(engine);
+        Refresh();
+        Check(!ShipFireControl.Candidates(attacker, own, victim).Any() && identity.TryResolve(universe, out _)
+            && ShipFireControl.ManualTargetAlongRay(universe, own, own.pose.position, direction, player).Ship == hull.Identity,
+            "powerless ship is excluded from automatic attacks but remains a valid manual and in-flight lock");
+        Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
+        missile.pose.velocity = Vector2.up * props.speed;
+        universe.Projectiles.Tick();
+        Check(missile.pose.velocity.x > 0.01f,
+            "already launched missile still turns toward the ship after all propulsion is lost");
+        victim.map.listerThings.AllThings.Add(engine);
+        Refresh();
+
+        // Rehome the same identity; the old container remains as debris.
+        Map oldMap = victim.map;
+        Map newMap = TestMap(1940);
+        var separated = new CombatObject(1940, newMap,
+            new SpacePose(OrbitSphere.Move(own.pose.position, new Vector2(90f, 40f)), 0f));
+        universe.objects.Add(separated);
+        RemoveConsoleFixture(console, oldMap);
+        PlaceConsoleFixture(console, newMap);
+        oldMap.thingGrid.Deregister(engine);
+        oldMap.listerThings.AllThings.Remove(engine);
+        Set(typeof(Thing), engine, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(newMap));
+        newMap.listerThings.AllThings.Add(engine);
+        newMap.thingGrid.Register(engine);
+        victim.members.Remove(hull);
+        var moved = new CombatHull(console.Ship);
+        moved.cells.UnionWith(hull.cells);
+        separated.members.Add(moved);
+        Refresh(); universe.Controls.For(moved);
+        Check(identity.TryResolve(universe, out var movedTarget) && movedTarget.Container == separated
+            && movedTarget.Ship.Identity == hull.Identity,
+            "ship target follows separation to the new container without acquiring debris");
+        universe.Controls.ForgetMap(oldMap);
+        universe.Projectiles.ForgetMap(oldMap);
+        Check(attackerControl.FireControl.Target == identity
+            && ((CombatTarget)flight.GetType().GetField("target").GetValue(flight)) == identity,
+            "old-map cleanup preserves automatic and in-flight locks on a ship already moved to a new map");
+        Refresh(); universe.Controls.For(moved);
+        var playerLanding = CombatTarget.ForContainer(victim, new Vector2(1f, 2f));
+        Check(playerLanding.TryResolve(universe, out var landing) && landing.Container == victim
+            && OrbitSphere.Offset(landing.Pose.position, SpaceTransform.MapPointToUniverse(victim, oldMap,
+                new Vector2(1f, 2f))).magnitude < 0.001f,
+            "player boarding retains the explicitly chosen container-local landing point");
+        Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
+        universe.Projectiles.Tick();
+        Check((int)flight.GetType().GetField("targetContainerId").GetValue(flight) == separated.objectId,
+            "in-flight missile follows the same ship into its new container");
+        Set(flight, "adoptedShuttle", true);
+        universe.Projectiles.ResolveCollisions();
+        var sweep = (SpaceCollision.SweptBody)flight.GetType().GetField("body").GetValue(flight);
+        Check(sweep.requiredDefender == separated,
+            "boarding collision restriction follows the same resolved container used by guidance");
+        Set(flight, "adoptedShuttle", false);
+        var maneuver = new ShipAutoManeuverControl(universe, attacker.Identity);
+        Set(maneuver, "lastOrbitTarget", identity);
+        object[] sample = { default(SpacePose) };
+        Check((bool)Call(maneuver, "SampleTarget", sample)
+            && OrbitSphere.Offset(((SpacePose)sample[0]).position, movedTarget.Pose.position).magnitude < 0.001f,
+            "maneuver sampler consumes the same current ship pose as guidance and fire control");
+
+        var movedController = universe.Controls.For(moved);
+        movedController.Enter(PilotTarget.Of(moved));
+        var replacement = AddTestConsole(newMap, enemy, 1941);
+        replacement.shipId = console.shipId;
+        console.isMain = false;
+        var successor = new CombatHull(replacement.Ship);
+        successor.cells.UnionWith(moved.cells);
+        separated.members.Clear(); separated.members.Add(successor);
+        Refresh(); universe.Controls.ReconcileOwner(successor.Identity);
+        Check(ReferenceEquals(universe.Controls.For(successor), movedController)
+            && movedController.target.Vessel.Anchor == replacement.parent
+            && attackerControl.FireControl.Target == identity,
+            "primary succession rebinds the existing controller session without dropping an attacker's ship lock");
+        Check(identity.TryResolve(universe, out var afterSuccession) && afterSuccession.Ship.Anchor == replacement.parent,
+            "same-identity main-console succession preserves the combat target");
+        replacement.isMain = false;
+        Refresh();
+        Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
+        Vector2 coasting = missile.pose.velocity;
+        universe.Projectiles.Tick();
+        Check(!identity.TryResolve(universe, out _) && missile.pose.velocity == coasting
+            && !((CombatTarget)flight.GetType().GetField("target").GetValue(flight)).HasLock,
+            "lost ship identity clears guidance and preserves the current flight direction");
+        replacement.isMain = true;
+        Refresh(); universe.Controls.For(successor);
+        Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
+        universe.Projectiles.Tick();
+        Check(missile.pose.velocity == coasting,
+            "a missile never reacquires a ship after its prescribed identity became unavailable");
+        Check(universe.Projectiles.Launch(projectileDef, own, own.pose.position, east, player, null, identity),
+            "second missile launches for map-unload cleanup regression");
+        object unloading = flights[flights.Count - 1];
+        SpaceObject unloadingMissile = universe.ObjectById((int)unloading.GetType().GetField("containerId").GetValue(unloading));
+        Call(universe.Projectiles, "ResolveTarget", unloading);
+        Set(unloading, "adoptedShuttle", true);
+        unloadingMissile.projectileRoleOverride = true;
+        var pendingSweep = (SpaceCollision.SweptBody)unloading.GetType().GetField("body").GetValue(unloading);
+        pendingSweep.requiredDefender = separated;
+        universe.Projectiles.ForgetMap(newMap);
+        Check(!((CombatTarget)unloading.GetType().GetField("target").GetValue(unloading)).HasLock
+            && (int)unloading.GetType().GetField("targetContainerId").GetValue(unloading) == 0,
+            "target map unloading immediately clears the in-flight handle and same-tick resolution cache");
+        Check(pendingSweep.dead && pendingSweep.requiredDefender == null,
+            "target invalidation disables an already submitted boarding sweep instead of allowing it to hit another ship");
+        Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
+        Check(!(bool)Call(universe.Projectiles, "ResolveTarget", unloading),
+            "map-unloaded projectile never reacquires the still-resolvable identity");
+        universe.Projectiles.ResolveCollisions();
+        Check(!flights.Contains(unloading) && !unloadingMissile.projectileRoleOverride,
+            "boarding target loss during collision preparation safely releases the shuttle without mutating a foreach");
+        Call(universe, "RunFrameActions");
+        universe.objects.Remove(unloadingMissile);
+        Check(universe.Projectiles.Launch(projectileDef, own, own.pose.position, east, player, null,
+            CombatTarget.ForContainer(victim)), "container-target missile launches for removal cleanup regression");
+        object removedTarget = flights[flights.Count - 1];
+        SpaceObject removalMissile = universe.ObjectById((int)removedTarget.GetType().GetField("containerId").GetValue(removedTarget));
+        Call(universe.Projectiles, "ResolveTarget", removedTarget);
+        universe.Projectiles.NotifyContainerRemoving(victim);
+        Check(!((CombatTarget)removedTarget.GetType().GetField("target").GetValue(removedTarget)).HasLock
+            && !(bool)Call(universe.Projectiles, "ResolveTarget", removedTarget),
+            "container removal invalidates a cached guidance target in the same tick");
+        flights.Remove(removedTarget); universe.objects.Remove(removalMissile);
+        Check(universe.Projectiles.Launch(projectileDef, own, own.pose.position, east, player, null,
+            CombatTarget.ForContainer(victim)), "wreck-target missile launches for archive cleanup regression");
+        object archiveFlight = flights[flights.Count - 1];
+        SpaceObject archiveMissile = universe.ObjectById((int)archiveFlight.GetType().GetField("containerId").GetValue(archiveFlight));
+        var archivedWreck = new ArchivedSpaceObject { objectId = victim.objectId, pose = victim.pose };
+        universe.ReplaceRepresentation(victim, archivedWreck);
+        universe.Projectiles.ForgetMap(oldMap);
+        Check(!((CombatTarget)archiveFlight.GetType().GetField("target").GetValue(archiveFlight)).HasLock,
+            "manual wreck lock clears even when archive replacement detached the old map before cleanup");
+        universe.ReplaceRepresentation(archivedWreck, victim);
+        flights.Remove(archiveFlight); universe.objects.Remove(archiveMissile);
+        CombatTarget wreck = ShipFireControl.ManualTargetAlongRay(universe, own, own.pose.position, direction, player);
+        Check(wreck.Kind == CombatTargetKind.Container && wreck.ObjectId == victim.objectId,
+            "manual ray locking can still select console-free debris in the nearest container");
+        Check(!ShipFireControl.ManualTargetAlongRay(universe, own, own.pose.position, -direction, player).HasLock,
+            "manual ray miss remains unlocked");
+        Check(typeof(CompSpaceWeapon).GetField("pdTargetId", Private) == null
+            && typeof(SpaceWeaponService).GetMethod("TargetAlongRay") == null,
+            "weapon components and weapon service no longer own tactical target state or selection");
+        // Remove this test's live projectile without invoking map rendering/cleanup.
+        flights.Remove(flight);
+        universe.objects.Remove(missile);
+        CheckPointDefenseTargets(universe, attacker, own, weapon, player, enemy);
+    }
+
+    static void CheckPointDefenseTargets(UniverseManager universe, CombatHull ship, SpaceObject own,
+        CompSpaceWeapon weapon, Faction player, Faction enemy)
+    {
+        var nearest = new MapSpaceObject(1950, TestMap(1950),
+            new SpacePose(OrbitSphere.Move(own.pose.position, new Vector2(20f, 0f)), 0f))
+            { baseTag = SpaceObjectTag.Projectile, faction = enemy };
+        var incoming = new MapSpaceObject(1951, TestMap(1951),
+            new SpacePose(OrbitSphere.Move(own.pose.position, new Vector2(60f, 0f)), 0f))
+            { baseTag = SpaceObjectTag.Projectile, faction = enemy };
+        incoming.pose.velocity = new Vector2(-30f, 0f);
+        universe.objects.Add(nearest); universe.objects.Add(incoming);
+        var fire = new ShipFireControl(universe, ship.Identity);
+        Vector3 muzzle = SpaceWeaponService.AimInfo(weapon, own).Muzzle;
+        Check(fire.FindPdTarget(weapon, muzzle) == incoming,
+            "point defense prioritizes an approaching projectile over a nearer receding candidate");
+        incoming.pose.velocity = Vector2.right * 10f;
+        Check(fire.FindPdTarget(weapon, muzzle) == nearest,
+            "point defense falls back to the nearest target when none is approaching");
+        CombatTarget handle = CombatTarget.ForContainer(nearest);
+        Check(fire.PdTargetValid(weapon, handle, muzzle, out _), "point defense does not require a ship or propulsion");
+        universe.objects.Remove(nearest);
+        Check(!fire.PdTargetValid(weapon, handle, muzzle, out _), "point-defense lock becomes invalid immediately when its object is removed");
+        incoming.faction = player;
+        Check(fire.FindPdTarget(weapon, muzzle) == null, "point defense never selects a friendly projectile");
+        universe.objects.Remove(incoming);
+    }
+}

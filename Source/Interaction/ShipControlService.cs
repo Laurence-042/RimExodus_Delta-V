@@ -98,6 +98,7 @@ namespace DeltaV
         private void Remove(DriveSubject ownerId)
         {
             if (!controllers.TryGetValue(ownerId, out ShipController controller)) return;
+            controller.FireControl.Dispose();
             universe.ForgetPilotController(controller);
             if (controller is PlayerShipController player) player.EndAim("ship lost");
             controller.Exit();
@@ -108,8 +109,23 @@ namespace DeltaV
             if (activeAimOwnerId == ownerId) activeAimOwnerId = default;
         }
 
+        internal void ForgetWeaponTarget(CompSpaceWeapon weapon)
+        {
+            foreach (ShipController controller in controllers.Values) controller.FireControl.ForgetWeapon(weapon);
+        }
+
+        internal void NotifyWeaponOwnershipChanged(Map map)
+        {
+            foreach (ShipController controller in controllers.Values)
+            {
+                ShipBase ship = ShipRegistry.ShipByIdentity(controller.OwnerId);
+                if (!ship.IsValid || ship.Map == map) controller.FireControl.PrunePointDefense(ship);
+            }
+        }
+
         internal void ForgetMap(Map map)
         {
+            foreach (ShipController controller in controllers.Values) controller.FireControl.ForgetMap(map);
             shipsByIdentity.Clear();
             identityVersion = -1;
             (universe.FrameOf(map) as MapSpaceObject)?.ClearMemberCaches();

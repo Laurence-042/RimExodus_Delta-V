@@ -92,7 +92,7 @@
   <DeltaV_LandingBlockedForeignSubstructure>Cannot land here: the footprint would touch substructure belonging to another object. Leave a gap and connect via docking ports.</DeltaV_LandingBlockedForeignSubstructure>
   <!-- Reassign substructure ownership designator -->
   <DeltaV_ReassignSubstructure>Reassign substructure</DeltaV_ReassignSubstructure>
-  <DeltaV_ReassignSubstructureDesc>Pick a target owner, then drag over substructure cells. An entire source domain is protected while it has a primary console. Set that console to backup, or destroy it without a backup succeeding, before reassignment. Domains without a primary console can be assigned to an existing ship or a new owner.</DeltaV_ReassignSubstructureDesc>
+  <DeltaV_ReassignSubstructureDesc>Pick a target owner, then drag over substructure cells. An entire source domain is protected while it has a primary console. Set that console to backup first (note: if there are multiple consoles, another console facing the same direction may automatically take over when the primary is demoted or destroyed; consider dismantling consoles to prevent this). Domains without a primary console can be assigned to an existing ship or a new owner.</DeltaV_ReassignSubstructureDesc>
   <DeltaV_ReassignNoTarget>No reassignable substructure on this map.</DeltaV_ReassignNoTarget>
   <DeltaV_ReassignPickFirst>Pick a target owner first.</DeltaV_ReassignPickFirst>
   <DeltaV_ReassignTarget>Target owner: {0}</DeltaV_ReassignTarget>
@@ -223,7 +223,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_NpcDoctrine_Boarder>Boarder</DeltaV_NpcDoctrine_Boarder>
   <DeltaV_NpcDoctrine_Retreat>Retreat</DeltaV_NpcDoctrine_Retreat>
   <DeltaV_SectorTypeAsteroid>Asteroid</DeltaV_SectorTypeAsteroid>
-  <DeltaV_ReassignProtectedDomain>This substructure domain still has a primary console and cannot be reassigned. Set the console to backup, or destroy it without a backup succeeding, first.</DeltaV_ReassignProtectedDomain>
+  <DeltaV_ReassignProtectedDomain>This substructure domain still has a primary console and cannot be reassigned. Set that console to backup first (note: if there are multiple consoles, another console facing the same direction may automatically take over when the primary is demoted or destroyed; consider dismantling consoles to prevent this).</DeltaV_ReassignProtectedDomain>
   <DeltaV_ReassignProtectedDomainsSkipped>Skipped {0} cell(s) in domains with primary consoles. Release their primary claims first; other eligible cells are reassigned normally.</DeltaV_ReassignProtectedDomainsSkipped>
 
   <!-- Combat controls -->

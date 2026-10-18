@@ -13,6 +13,8 @@ namespace DeltaV
             if (!__instance.Spawned || universe?.FrameOf(__instance.Map) == null) return;
             // 武器派系也参与归属设备过滤；不能只让身份锚改派系使缓存失效。
             ShipStructureChanges.Notify(__instance.Map);
+            CompSpaceWeapon weapon = __instance.TryGetComp<CompSpaceWeapon>();
+            if (weapon != null) universe.Controls.ForgetWeaponTarget(weapon);
             ShipBase ship = ShipRegistry.ShipOf(__instance);
             if (ship.IsValid && ship.Anchor == __instance)
                 universe.Controls.ReconcileOwner(ship.Identity);

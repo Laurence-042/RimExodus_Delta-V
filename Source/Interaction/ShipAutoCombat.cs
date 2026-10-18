@@ -6,109 +6,6 @@ using Verse;
 
 namespace DeltaV
 {
-    /// <summary>玩家和 NPC 共用的自动索敌与齐射意图；驾驶方式由 controller 独立选择。</summary>
-    internal sealed class ShipAutoFireControl
-    {
-        private readonly UniverseManager universe;
-        private readonly DriveSubject ownerId;
-        private readonly bool shipsOnly;
-        private int targetId;
-        private SpaceObject target { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(targetId); set => targetId = value?.objectId ?? 0; }
-        private Thing preferredSystem;
-        private int targetLockedUntil;
-        private bool targetObserved;
-
-        internal SpaceObject Target => target;
-
-        internal ShipAutoFireControl(UniverseManager universe, DriveSubject ownerId, bool shipsOnly)
-        {
-            this.universe = universe;
-            this.ownerId = ownerId;
-            this.shipsOnly = shipsOnly;
-        }
-
-        internal void Decide(ShipBase ship, SpaceObject own)
-        {
-            SpaceObject selected = SelectTarget(ship, own);
-            if (DeltaVLog.Enabled(DeltaVLogModule.Combat) && (!targetObserved || selected != target))
-                DeltaVLog.Message(DeltaVLogModule.Combat,
-                    $"ship #{ownerId} auto-fire target "
-                    + (selected == null ? "none" : $"#{selected.objectId} '{selected.label}'")
-                    + $"; {UniverseManager.MapTag(ship.Map)}");
-            targetObserved = true;
-            target = selected;
-        }
-
-        internal bool TryGetIntent(ShipBase ship, SpaceObject own, bool suppressSystems,
-            out ShipVolleyIntent intent)
-        {
-            intent = default;
-            if (target == null || universe.Lifecycle.IsFrozen(ship.Map)
-                || !CandidateValid(ship, own, target, shipsOnly)) return false;
-            if (suppressSystems && (preferredSystem == null || !preferredSystem.Spawned
-                || preferredSystem.Map != target.map))
-                preferredSystem = SelectSystemTarget(target);
-            intent = new ShipVolleyIntent(target, suppressSystems ? preferredSystem : null,
-                !suppressSystems);
-            return true;
-        }
-
-        internal void Clear()
-        {
-            target = null;
-            preferredSystem = null;
-        }
-
-        internal static bool CandidateValid(ShipBase ship, SpaceObject own, SpaceObject candidate,
-            bool shipsOnly = false)
-        {
-            return ship.IsValid && own != null && candidate != null && candidate != own
-                && candidate.map != null && !candidate.map.Disposed
-                && (!shipsOnly || candidate.HasTag(SpaceObjectTag.Ship) == true)
-                && candidate.baseTag != SpaceObjectTag.Projectile
-                && candidate.HostileTo(ship.Faction)
-                && OrbitSphere.ArcCells(own.pose.position, candidate.pose.position)
-                    <= DeltaVMod.CurrentSettings.poiActiveRadius;
-        }
-
-        private SpaceObject SelectTarget(ShipBase ship, SpaceObject own)
-        {
-            float best = float.NegativeInfinity;
-            SpaceObject selected = null;
-            foreach (SpaceObject candidate in universe.objects)
-            {
-                if (!CandidateValid(ship, own, candidate, shipsOnly)) continue;
-                float distance = OrbitSphere.ArcCells(own.pose.position, candidate.pose.position);
-                float enemyFire = universe.Weapons.EstimateFirepower(candidate, distance,
-                    SpaceCollision.BoundsRadiusOf(own));
-                float survivability = candidate.map.listerThings.AllThings
-                    .OfType<Building>().Where(b => b.Spawned).Sum(b => (float)b.HitPoints);
-                float ownFire = universe.Weapons.EstimateFirepower(ship, distance,
-                    SpaceCollision.BoundsRadiusOf(candidate));
-                float score = enemyFire * 2f + ownFire / (1f + survivability / 1000f)
-                    - distance * 0.1f + (candidate == target ? 10f : 0f);
-                if (candidate == target && Find.TickManager.TicksGame < targetLockedUntil)
-                    score += 100000f;
-                if (score <= best) continue;
-                best = score;
-                selected = candidate;
-            }
-            if (selected != target) targetLockedUntil = Find.TickManager.TicksGame + 180;
-            return selected;
-        }
-
-        private static Thing SelectSystemTarget(SpaceObject victim)
-        {
-            if (victim?.map == null) return null;
-            Thing pointDefense = victim.Weapons
-                .Where(w => w.SpaceModeEnabled && w.aimMode == SpaceWeaponAimMode.PointDefense
-                    && w.parent.Spawned && !w.parent.Destroyed)
-                .Select(w => w.parent).FirstOrDefault();
-            return pointDefense ?? victim.MotionInfo?.thrusters
-                .Where(t => t.operational && t.thing != null).Select(t => t.thing).FirstOrDefault();
-        }
-    }
-
     /// <summary>玩家和 NPC 共用的战斗站位选择；只提交 ShipAutopilot 任务。</summary>
     internal sealed class ShipAutoManeuverControl
     {
@@ -118,8 +15,7 @@ namespace DeltaV
         private bool orbitTaskObserved;
         private float lastOrbitRadius;
         private NpcDoctrine lastOrbitDoctrine;
-        private int lastOrbitTargetId;
-        private SpaceObject lastOrbitTarget { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(lastOrbitTargetId); set => lastOrbitTargetId = value?.objectId ?? 0; }
+        private CombatTarget lastOrbitTarget;
         private int lastOrbitLogTick = int.MinValue;
         private int orbitDirection;
 
@@ -131,10 +27,11 @@ namespace DeltaV
             this.ownerId = ownerId;
         }
 
-        internal void Decide(ShipBase ship, SpaceObject own, SpaceObject target,
+        internal void Decide(ShipBase ship, SpaceObject own, CombatTarget target,
             List<NpcDoctrine> priorities, bool allowBoarding, bool playerInitiated)
         {
-            if (target == null)
+            if (!target.TryResolve(universe, out var resolved)
+                || !ShipFireControl.CandidateValid(ship, own, resolved.Container, resolved.Ship))
             {
                 Clear(ship);
                 return;
@@ -144,7 +41,7 @@ namespace DeltaV
             if (lastDoctrineTick >= 0 && now - lastDoctrineTick < interval
                 && universe.Autopilot.IsCombatOrbit(DriveSubject.Of(ship)) && lastOrbitTarget == target) return;
             lastDoctrineTick = now;
-            PickDoctrine(ship, own, target, priorities, allowBoarding, out NpcDoctrine doctrine,
+            PickDoctrine(ship, own, resolved, priorities, allowBoarding, out NpcDoctrine doctrine,
                 out float radius);
             bool taskActive = universe.Autopilot.IsCombatOrbit(DriveSubject.Of(ship));
             bool changed = !orbitTaskObserved || lastOrbitTarget != target
@@ -153,12 +50,15 @@ namespace DeltaV
             if (lastOrbitTarget != target || !taskActive) orbitDirection = 0;
             Doctrine = doctrine;
             lastOrbitRadius = radius;
-            universe.Autopilot.TrackOrbit(DriveSubject.Of(ship), target, radius, PlanTrajectory, playerInitiated);
+            if (lastOrbitTarget != target && taskActive) universe.Autopilot.Detach(DriveSubject.Of(ship));
+            lastOrbitTarget = target;
+            radius = Mathf.Max(radius, SpaceCollision.BoundsRadiusOf(resolved.Container) + 8f);
+            universe.Autopilot.TrackOrbit(DriveSubject.Of(ship), SampleTarget, radius, PlanTrajectory, playerInitiated);
             if (changed && DeltaVLog.Enabled(DeltaVLogModule.Combat)
                 && (lastOrbitLogTick == int.MinValue || now - lastOrbitLogTick >= 60))
             {
                 DeltaVLog.Message(DeltaVLogModule.Combat,
-                    $"ship #{ownerId} orbit task: target=#{target.objectId} doctrine={doctrine} "
+                    $"ship #{ownerId} orbit task: target=#{target.Ship} doctrine={doctrine} "
                     + $"radius={radius:F1}; {UniverseManager.MapTag(ship.Map)}");
                 lastOrbitLogTick = now;
             }
@@ -172,24 +72,34 @@ namespace DeltaV
             if (ship.IsValid && universe.Autopilot.IsCombatOrbit(DriveSubject.Of(ship)))
                 universe.Autopilot.Detach(DriveSubject.Of(ship), "combat target lost");
             orbitTaskObserved = false;
-            lastOrbitTarget = null;
+            lastOrbitTarget = default;
             orbitDirection = 0;
         }
 
+        private bool SampleTarget(out SpacePose pose)
+        {
+            pose = default;
+            ShipBase ship = ShipRegistry.ShipByIdentity(ownerId);
+            if (!lastOrbitTarget.TryResolve(universe, out var resolved)
+                || !ShipFireControl.CandidateValid(ship, universe.FrameOf(ship.Map), resolved.Container, resolved.Ship)) return false;
+            pose = resolved.Pose;
+            return true;
+        }
+
         /// <summary>每个制导微步给共同 MPC 一段实际推进器可达的轨迹；不直接写推力。</summary>
-        private bool PlanTrajectory(SpaceObject own, SpaceObject target,
+        private bool PlanTrajectory(SpaceObject own, SpacePose target,
             float radius, DriveInfo report, out CombatTrajectoryIntent intent)
         {
             intent = default;
-            if (own == null || target == null || report == null
+            if (own == null || report == null
                 || report.mass <= 0f || report.inertia <= 0f) return false;
-            Vector2 toCenter = OrbitSphere.Offset(own.pose.position, target.pose.position);
+            Vector2 toCenter = OrbitSphere.Offset(own.pose.position, target.position);
             float distance = toCenter.magnitude;
             if (distance < 0.01f) return false;
             Vector2 outward = -toCenter / distance;
             Vector2 tangent = new Vector2(-outward.y, outward.x);
             Vector2 relativeVelocity = own.pose.velocity
-                - SpaceTransform.TransportVelocity(target.pose, own.pose.position);
+                - SpaceTransform.TransportVelocity(target, own.pose.position);
             float frameAngle = report.frameAngle;
             float pathAngle = SpaceTransform.WrapAngle(Mathf.Atan2(toCenter.y, toCenter.x)
                 - frameAngle);
@@ -233,14 +143,14 @@ namespace DeltaV
             float phase = Mathf.Min(Mathf.PI / 3f,
                 sideTravel / Mathf.Max(Mathf.Max(distance, futureRadius), 8f), yawTravel);
 
-            Vector2 currentFromCenter = OrbitSphere.Offset(target.pose.position,
+            Vector2 currentFromCenter = OrbitSphere.Offset(target.position,
                 own.pose.position);
             float currentPhase = Mathf.Atan2(currentFromCenter.y, currentFromCenter.x);
             intent = new CombatTrajectoryIntent
             {
                 seconds = seconds,
-                center = target.pose.position,
-                centerVelocity = target.pose.velocity,
+                center = target.position,
+                centerVelocity = target.velocity,
                 startRadius = distance,
                 radialStep = radialStep,
                 startPhase = currentPhase,
@@ -255,13 +165,14 @@ namespace DeltaV
             return true;
         }
 
-        private void PickDoctrine(ShipBase ship, SpaceObject own, SpaceObject enemy,
+        private void PickDoctrine(ShipBase ship, SpaceObject own, ResolvedCombatTarget enemy,
             List<NpcDoctrine> priorities, bool allowBoarding,
             out NpcDoctrine selected, out float distance)
         {
             if (priorities == null || priorities.Count == 0) priorities = NpcDoctrineDefaults.Create();
             float clearance = SpaceCollision.BoundsRadiusOf(own)
-                + SpaceCollision.BoundsRadiusOf(enemy) + 10f;
+                + SpaceCollision.BoundsRadiusOf(enemy.Container)
+                + OrbitSphere.Offset(enemy.Container.pose.position, enemy.Pose.position).magnitude + 10f;
             float maxRange = SpaceWeaponService.WeaponsOn(ship)
                 .Where(w => w.SpaceModeEnabled && w.aimMode == SpaceWeaponAimMode.Volley)
                 .Select(w => w.WeaponProps.range).DefaultIfEmpty(clearance + 30f).Max();
@@ -278,16 +189,16 @@ namespace DeltaV
                 {
                     float at = samples[i];
                     float ownPower = universe.Weapons.EstimateFirepower(ship, at,
-                        SpaceCollision.BoundsRadiusOf(enemy), option == NpcDoctrine.MissileBoat);
+                        ShipFireControl.HullRadius(enemy.Ship), option == NpcDoctrine.MissileBoat);
                     if (option == NpcDoctrine.MissileBoat && ownPower <= 0f) continue;
                     if (option == NpcDoctrine.MissileBoat)
                     {
-                        float enemyPd = universe.Weapons.EstimatePointDefense(enemy);
+                        float enemyPd = universe.Weapons.EstimatePointDefense(enemy.Ship);
                         ownPower *= ownPower / Mathf.Max(ownPower, ownPower + enemyPd);
                     }
                     if (option == NpcDoctrine.Boarder && universe.Shuttles.BoardingCraftOf(ship) == null) continue;
-                    float enemyPower = universe.Weapons.EstimateFirepower(enemy, at,
-                        SpaceCollision.BoundsRadiusOf(own));
+                    float enemyPower = universe.Weapons.EstimateFirepower(enemy.Ship, at,
+                        ShipFireControl.HullRadius(ship));
                     float preference = (priorities.Count - rank) * 0.1f * Mathf.Max(1f, ownPower);
                     float posture = option switch
                     {

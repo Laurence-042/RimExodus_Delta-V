@@ -98,18 +98,17 @@ internal readonly struct HeadingPanelAction
     {
         protected readonly UniverseManager universe;
         public readonly DriveSubject OwnerId;
-        private ShipBase cachedShip = ShipBase.Invalid;
-        internal readonly ShipAutoFireControl AutoFire;
+        internal readonly ShipFireControl FireControl;
         internal readonly ShipAutoManeuverControl AutoManeuver;
 
         /// <summary>当前驾驶目标（任一 ShipBase 实现）。无效 = 未驾驶。</summary>
         internal PilotTarget target = PilotTarget.Invalid;
 
-        protected ShipController(UniverseManager universe, DriveSubject ownerId, bool shipsOnly)
+        protected ShipController(UniverseManager universe, DriveSubject ownerId)
         {
             this.universe = universe;
             OwnerId = ownerId;
-            AutoFire = new ShipAutoFireControl(universe, ownerId, shipsOnly);
+            FireControl = new ShipFireControl(universe, ownerId);
             AutoManeuver = new ShipAutoManeuverControl(universe, ownerId);
         }
 
@@ -117,7 +116,7 @@ internal readonly struct HeadingPanelAction
         internal abstract bool WantsVolley { get; }
         internal void BindShip(ShipBase ship)
         {
-            cachedShip = ship;
+            FireControl.PrunePointDefense(ship);
             // 驾驶会话也按身份跟随；旧主台或旧 Map 的快照可能已经失效。
             if (target.Identity == OwnerId) target = PilotTarget.Of(ship);
         }
@@ -155,93 +154,18 @@ internal readonly struct HeadingPanelAction
         internal void TickCombat()
         {
             if (OwnerId.key <= 0) return;
-            if (!WantsVolley && !cachedShip.IsValid) return;
-            if (!WantsVolley && cachedShip.IsValid
-                && !universe.Weapons.HasPointDefenseWeapons(cachedShip.Map)) return;
-            ShipBase ship = cachedShip.IsValid ? cachedShip : ShipRegistry.ShipByIdentity(OwnerId);
+            ShipBase ship = ShipRegistry.ShipByIdentity(OwnerId);
             if (!ship.IsValid || universe.FrameOf(ship.Map) is not SpaceObject container
                 || container.HasTag(SpaceObjectTag.Ship) != true
                 || !HasAuthority(PilotTarget.Of(ship))) return;
-            cachedShip = ship;
+            if (!WantsVolley && !universe.Weapons.HasPointDefenseWeapons(ship.Map)) return;
             if (TryGetVolleyIntent(ship, container, out ShipVolleyIntent intent))
-                TickVolley(ship, container, intent);
-            TickPointDefense(ship, container);
+                FireControl.TickVolley(ship, container, intent);
+            FireControl.TickPointDefense(ship, container);
         }
 
         protected abstract bool TryGetVolleyIntent(ShipBase ship, SpaceObject container,
             out ShipVolleyIntent intent);
-
-        private void TickVolley(ShipBase ship, SpaceObject container, ShipVolleyIntent intent)
-        {
-            int now = Find.TickManager.TicksGame;
-            foreach (CompSpaceWeapon weapon in SpaceWeaponService.WeaponsOn(ship))
-            {
-                if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.Volley
-                    || !weapon.GroupActive) continue;
-                Vector3 aim = intent.point;
-                if (intent.target != null)
-                {
-                    if (intent.system != null && intent.system.Spawned
-                        && intent.system.Map == intent.target.map)
-                        aim = SpaceTransform.MapPointToUniverse(intent.target, intent.target.map,
-                            new Vector2(intent.system.DrawPos.x, intent.system.DrawPos.z));
-                    else if (!intent.predictIntercept)
-                        aim = intent.target.pose.position;
-                    else if (!SpaceWeaponService.TrySolveIntercept(weapon, container, intent.target,
-                        SpaceWeaponService.ProjectileSpeedOf(weapon), out aim))
-                        aim = intent.target.pose.position;
-                }
-                AimWeapon(weapon, container, aim);
-                bool fire = intent.fireAll || intent.main && weapon.salvoSet == SpaceWeaponSalvoSet.Main
-                    || intent.secondary && weapon.salvoSet == SpaceWeaponSalvoSet.Secondary;
-                if (fire && now >= weapon.cooldownUntilTick)
-                    universe.Weapons.TryFire(weapon, container, aim, intent.target);
-            }
-        }
-
-        private void TickPointDefense(ShipBase ship, SpaceObject container)
-        {
-            if (!universe.Weapons.TryGetPointDefenseWeapons(ship.Map,
-                out HashSet<CompSpaceWeapon> weapons)) return;
-            int now = Find.TickManager.TicksGame;
-            foreach (CompSpaceWeapon weapon in ship.Weapons.Where(weapons.Contains))
-            {
-                if (weapon?.parent == null || weapon.parent.Map != ship.Map
-                    || !weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.PointDefense
-                    || !weapon.OwnerShip.Identity.Equals(OwnerId)
-                    || !weapon.parent.Spawned || weapon.parent.Destroyed || !weapon.GroupActive
-                    || now < weapon.cooldownUntilTick || weapon.Container != container) continue;
-                if (now >= weapon.pdRetargetAtTick || !universe.Weapons.PdTargetValid(weapon))
-                {
-                    weapon.pdRetargetAtTick = now + 30;
-                    weapon.pdTarget = universe.Weapons.FindPdTarget(weapon);
-                }
-                SpaceObject target = weapon.pdTarget;
-                if (target == null) continue;
-                ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef
-                    ?? weapon.WeaponProps.projectileDef;
-                var props = projectile?.GetCompProperties<CompProperties_SpaceProjectile>();
-                Vector3 aim;
-                if (props != null && props.laserRange > 0f)
-                    aim = target.pose.position;
-                else if (!SpaceWeaponService.TrySolveIntercept(weapon, container, target,
-                    SpaceWeaponService.ProjectileSpeedOf(weapon), out aim))
-                    continue;
-                AimWeapon(weapon, container, aim);
-                universe.Weapons.TryFire(weapon, container, aim, target);
-            }
-        }
-
-        private static void AimWeapon(CompSpaceWeapon weapon, SpaceObject container, Vector3 aim)
-        {
-            CompSpaceWeaponTraverse traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
-            if (traverse == null) return;
-            Vector2 muzzle = SpaceWeaponGeometry.MuzzleMapPoint(weapon);
-            Vector2 point = SpaceTransform.UniverseToMapPoint(container, weapon.parent.Map, aim);
-            Vector2 delta = point - muzzle;
-            if (delta.sqrMagnitude > 1e-6f)
-                traverse.AimAt(Mathf.Atan2(delta.y, delta.x));
-        }
 
         public bool Active => target.IsValid && target.Map != null;
 
@@ -303,35 +227,12 @@ internal readonly struct HeadingPanelAction
 
     public readonly struct ShipVolleyIntent
     {
-        internal readonly Vector3 point;
-        internal readonly int targetId;
-        internal SpaceObject target => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(targetId);
-        internal readonly Thing system;
-        internal readonly bool main;
-        internal readonly bool secondary;
-        internal readonly bool fireAll;
-        internal readonly bool predictIntercept;
-
+        internal readonly CombatTarget target;
+        internal readonly bool main, secondary, fireAll, predictIntercept;
         internal ShipVolleyIntent(Vector3 point, bool main, bool secondary)
-        {
-            this.point = point;
-            targetId = 0;
-            system = null;
-            this.main = main;
-            this.secondary = secondary;
-            fireAll = false;
-            predictIntercept = false;
-        }
-
-        internal ShipVolleyIntent(SpaceObject target, Thing system, bool predictIntercept)
-        {
-            point = target.pose.position;
-            this.targetId = target?.objectId ?? 0;
-            this.system = system;
-            main = secondary = false;
-            fireAll = true;
-            this.predictIntercept = predictIntercept;
-        }
+        { target = CombatTarget.At(point); this.main = main; this.secondary = secondary; fireAll = predictIntercept = false; }
+        internal ShipVolleyIntent(CombatTarget target, bool predictIntercept)
+        { this.target = target; this.predictIntercept = predictIntercept; main = secondary = false; fireAll = true; }
     }
 
     /// <summary>
@@ -344,7 +245,7 @@ internal readonly struct HeadingPanelAction
         private bool battleStations;
         private bool autoManeuverEnabled;
 
-        internal PlayerShipController(UniverseManager universe, DriveSubject ownerId) : base(universe, ownerId, true)
+        internal PlayerShipController(UniverseManager universe, DriveSubject ownerId) : base(universe, ownerId)
         {
         }
 
@@ -416,7 +317,7 @@ internal readonly struct HeadingPanelAction
 
         internal override bool GunnersEnabled => battleStations;
         internal override bool WantsVolley => FireControlMode == ShipFireControlMode.Manual
-            ? universe.Controls.ManualAimOwner(OwnerId) : AutoFire.Target != null;
+            ? universe.Controls.ManualAimOwner(OwnerId) : FireControl.Target.HasLock;
         internal void SetBattleStations(bool active) { battleStations = active; }
         internal ShipFireControlMode FireControlMode =>
             ShipRegistry.ShipByIdentity(OwnerId).Combat?.fireControlMode ?? ShipFireControlMode.Automatic;
@@ -432,10 +333,10 @@ internal readonly struct HeadingPanelAction
             SpaceObject own = universe.FrameOf(ship.Map);
             if (own == null || universe.Lifecycle.IsFrozen(ship.Map)) return;
             if (FireControlMode == ShipFireControlMode.Automatic || autoManeuverEnabled)
-                AutoFire.Decide(ship, own);
-            else AutoFire.Clear();
+                FireControl.Decide(ship, own);
+            else FireControl.Clear();
             if (autoManeuverEnabled && ship.CanDriveIn(own) && !own.projectileRoleOverride)
-                AutoManeuver.Decide(ship, own, AutoFire.Target, null,
+                AutoManeuver.Decide(ship, own, FireControl.Target, null,
                     allowBoarding: false, playerInitiated: true);
         }
         internal bool AimActive => aim?.Active == true;
@@ -443,7 +344,7 @@ internal readonly struct HeadingPanelAction
 
         internal void BeginAim()
         {
-            aim = new SpaceAimController(universe, OwnerId);
+            aim = new SpaceAimController(universe, OwnerId, FireControl);
             if (DeltaVLog.Enabled(DeltaVLogModule.Input))
                 DeltaVLog.Message(DeltaVLogModule.Input, $"aim session engaged (owner #{OwnerId})");
         }
@@ -462,7 +363,7 @@ internal readonly struct HeadingPanelAction
         {
             intent = default;
             if (FireControlMode == ShipFireControlMode.Automatic)
-                return AutoFire.TryGetIntent(ship, container, false, out intent);
+                return FireControl.TryGetIntent(ship, container, false, out intent);
             if (!universe.Controls.ManualAimOwner(OwnerId)) return false;
             if (aim == null) return false;
             if (!aim.Active)
@@ -505,7 +406,7 @@ internal readonly struct HeadingPanelAction
     /// <summary>
     /// NPC controller：内部持有 AI 组件，由该组件自动触发驾驶行为；AI 决定驾驶意图/任务，
     /// 通过共同驾驶契约执行，不直接搬运结构、写推进器油门或积分轨道位姿。
-    /// 敌舰战术与目标选择由 NpcShipAiService 持有，本类保持驾驶边界。
+    /// 敌舰战术由 NpcShipAiService 持有，目标选择由每船 ShipFireControl 持有。
     /// </summary>
     public sealed class NpcShipController : ShipController
     {
@@ -513,18 +414,18 @@ internal readonly struct HeadingPanelAction
         /// <summary>内部 AI 组件；默认空实现，NpcShipAiService 为敌舰注入战术实现。</summary>
         public INpcShipAi Ai { get; set; } = new NoopNpcShipAi();
 
-        internal NpcShipController(UniverseManager universe, DriveSubject ownerId) : base(universe, ownerId, false)
+        internal NpcShipController(UniverseManager universe, DriveSubject ownerId) : base(universe, ownerId)
         {
         }
 
         internal override bool GunnersEnabled => combatReady;
-        internal override bool WantsVolley => combatReady && AutoFire.Target != null;
+        internal override bool WantsVolley => combatReady && FireControl.Target.HasLock;
 
         internal void SetCombatReady(bool ready)
         {
             if (!ready)
             {
-                AutoFire.Clear();
+                FireControl.Clear();
                 AutoManeuver.Clear(ShipRegistry.ShipByIdentity(OwnerId));
             }
             if (combatReady == ready) return;
@@ -537,7 +438,7 @@ internal readonly struct HeadingPanelAction
             out ShipVolleyIntent intent)
         {
             intent = default;
-            return combatReady && AutoFire.TryGetIntent(ship, container,
+            return combatReady && FireControl.TryGetIntent(ship, container,
                 AutoManeuver.Doctrine == NpcDoctrine.Boarder, out intent);
         }
 

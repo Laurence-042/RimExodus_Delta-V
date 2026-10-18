@@ -47,6 +47,8 @@ namespace DeltaV
         }
     }
 
-    internal delegate bool CombatTrajectoryPlanner(SpaceObject own, SpaceObject target,
+    internal delegate bool CombatTargetSampler(out SpacePose pose);
+
+    internal delegate bool CombatTrajectoryPlanner(SpaceObject own, SpacePose target,
         float radius, DriveInfo report, out CombatTrajectoryIntent intent);
 }

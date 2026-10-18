@@ -218,7 +218,7 @@ namespace DeltaV
                         || comp.Launchable != null && comp.Launchable.CanLaunch()));
         }
 
-        internal void TryBoardFrom(ShipBase ship, SpaceObject enemy)
+        internal void TryBoardFrom(ShipBase ship, CombatTarget enemy)
         {
             CompSpaceShuttle craft = BoardingCraftOf(ship);
             if (craft == null) return;
@@ -283,7 +283,7 @@ namespace DeltaV
                 Vector3 hitDirection = SpaceTransform.MapPointToUniverse(frame, frameMap,
                     new Vector2(mouse.x, mouse.z));
                 Vector2 hitMapPoint = SpaceTransform.UniverseToMapPoint(target, target.map, hitDirection);
-                EngageIntrusion(body, target, true, hitMapPoint);
+                EngageIntrusion(body, CombatTarget.ForContainer(target, hitMapPoint), true);
             }, highlightAction: null, targetValidator: localTarget =>
             {
                 // 原版 LocalTargetInfo 仅接受当前 Map 内的格；非聚焦船壳可显示在
@@ -300,9 +300,10 @@ namespace DeltaV
         /// <summary>
         /// 进入侵入：现有艇体交给导弹服务，不创建第二个容器或自动驾驶任务。
         /// </summary>
-        public void EngageIntrusion(Building body, SpaceObject target, bool playerInitiated = true,
-            Vector2? targetMapPoint = null)
+        public void EngageIntrusion(Building body, CombatTarget handle, bool playerInitiated = true)
         {
+            if (!handle.TryResolve(universe, out var resolved)) return;
+            SpaceObject target = resolved.Container;
             SpaceObject container = universe.FrameOf(body.Map);
             if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
                 DeltaVLog.Message(DeltaVLogModule.Combat,
@@ -316,7 +317,7 @@ namespace DeltaV
             universe.Autopilot.Detach(DriveSubject.Of(PilotTarget.Of(body)), "boarding missile launch");
             if (universe.Pilot.PilotedTarget(universe).Identity == PilotTarget.Of(body).Identity)
                 universe.Pilot.Exit(universe);
-            if (!universe.Projectiles.AdoptShuttle(container, body, target, targetMapPoint)) return;
+            if (!universe.Projectiles.AdoptShuttle(container, body, handle)) return;
             DeltaVLog.Message(DeltaVLogModule.Combat,
                 $"intrusion engaged: shuttle container #{container.objectId} -> '{target.label}' (tag->projectile)");
             Messages.Message("DeltaV_ShuttleBoardEngaged".Translate(target.label),

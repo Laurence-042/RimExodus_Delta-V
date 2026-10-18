@@ -166,9 +166,6 @@ namespace DeltaV
         // ---- 运行时（不存档）----
 
         [Unsaved] public int cooldownUntilTick;
-        private int pdTargetId;
-        public SpaceObject pdTarget { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(pdTargetId); set => pdTargetId = value?.objectId ?? 0; }
-        [Unsaved] public int pdRetargetAtTick;
 
         public CompProperties_SpaceWeapon WeaponProps => (CompProperties_SpaceWeapon)props;
 
@@ -182,17 +179,6 @@ namespace DeltaV
 
         /// <summary>武器所在图的承载容器（非太空图为 null = 太空射击不适用）。</summary>
         public SpaceObject Container => parent?.Map != null ? Universe?.FrameOf(parent.Map) : null;
-
-        /// <summary>炮口 universe 位置（武器格中心）。</summary>
-        public Vector3 MuzzleUniverse
-        {
-            get
-            {
-                SpaceObject container = Container;
-                return SpaceTransform.MapPointToUniverse(container, parent.Map,
-                    SpaceWeaponGeometry.MuzzleMapPoint(this));
-            }
-        }
 
         /// <summary>武器挂载朝向的地图帧角（射界基准 = 建筑朝向）。</summary>
         public float FacingAngle => parent.TryGetComp<CompSpaceWeaponTraverse>()?.CurrentAngle
@@ -431,7 +417,6 @@ namespace DeltaV
                     engagementMode = GroundModeEnabled
                         ? SpaceWeaponEngagementMode.Space : SpaceWeaponEngagementMode.Ground;
                     (parent as Building_SpaceTurretGun)?.NotifyEngagementModeChanged();
-                    pdTarget = null;
                     Universe?.Weapons?.NotifyWeaponModeChanged(this);
                 }
             };

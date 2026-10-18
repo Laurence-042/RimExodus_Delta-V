@@ -78,10 +78,10 @@ namespace DeltaV
                     obj.npcHomeObjectId = container.objectId;
         }
 
-        internal static Vector3 RetreatWaypoint(SpaceObject own, SpaceObject threat = null)
+        internal static Vector3 RetreatWaypoint(SpaceObject own, SpacePose? threat = null)
         {
             Vector2 away = threat != null
-                ? -OrbitSphere.Offset(own.pose.position, threat.pose.position).normalized
+                ? -OrbitSphere.Offset(own.pose.position, threat.Value.position).normalized
                 : own.pose.velocity.normalized;
             if (away.sqrMagnitude < 1e-8f) away = Vector2.right;
             return OrbitSphere.Move(own.pose.position, away * 1500f);
@@ -370,8 +370,8 @@ namespace DeltaV
             SpaceObject own = universe.FrameOf(ship.Map);
             if (own == null) return;
             int now = Find.TickManager.TicksGame;
-            controller.AutoFire.Decide(ship, own);
-            SpaceObject target = controller.AutoFire.Target;
+            controller.FireControl.Decide(ship, own);
+            CombatTarget target = controller.FireControl.Target;
             bool wasRetreating = own.npcRetreating;
             if (universe.NpcShips.EvaluateRetreat(ship, own, out string retreatReason))
             {
@@ -386,7 +386,7 @@ namespace DeltaV
                             + $"; {UniverseManager.MapTag(ship.Map)}");
                 }
                 LogThrustEdge(ship);
-                TickRetreat(controller, ship, own, target);
+                TickRetreat(controller, ship, own, target.TryResolve(universe, out var threat) ? threat.Pose : (SpacePose?)null);
                 return;
             }
             if (wasRetreating)
@@ -396,7 +396,7 @@ namespace DeltaV
                 guardOffset = Vector2.zero;
             }
             LogThrustEdge(ship);
-            if (target == null)
+            if (!target.HasLock)
             {
                 controller.SetCombatReady(false);
                 universe.Autopilot.Detach(DriveSubject.Of(ship), "NPC target lost");
@@ -416,7 +416,7 @@ namespace DeltaV
         {
             int count = 0;
             foreach (SpaceObject candidate in universe.objects)
-                if (ShipAutoFireControl.CandidateValid(ship, own, candidate)) count++;
+                count += ShipFireControl.Candidates(ship, own, candidate).Count();
             return count;
         }
 
@@ -444,7 +444,7 @@ namespace DeltaV
                     + $"{UniverseManager.MapTag(ship.Map)}");
         }
 
-        private void TickRetreat(NpcShipController controller, ShipBase ship, SpaceObject own, SpaceObject threat)
+        private void TickRetreat(NpcShipController controller, ShipBase ship, SpaceObject own, SpacePose? threat)
         {
             SpaceObject home = universe.NpcShips.ResolveRetreatHome(own, ship.Faction);
             int homeId = home?.objectId ?? 0;
@@ -474,7 +474,7 @@ namespace DeltaV
                 if (guardOffset.sqrMagnitude < 1e-8f || threat != null)
                 {
                     Vector2 direction = threat != null
-                        ? -SpaceTransform.UniverseToShipLocal(home, threat.pose.position).normalized
+                        ? -SpaceTransform.UniverseToShipLocal(home, threat.Value.position).normalized
                         : SpaceTransform.UniverseToShipLocal(home, own.pose.position).normalized;
                     if (direction.sqrMagnitude < 1e-8f) direction = Vector2.right;
                     desiredOffset = direction * radius;
@@ -483,7 +483,7 @@ namespace DeltaV
                 desiredOffset = desiredOffset.normalized * radius;
                 if (threat != null)
                 {
-                    Vector2 toThreat = OrbitSphere.Offset(own.pose.position, threat.pose.position);
+                    Vector2 toThreat = OrbitSphere.Offset(own.pose.position, threat.Value.position);
                     desiredAngle = SpaceTransform.WrapAngle(Mathf.Atan2(toThreat.y, toThreat.x)
                         - PilotTarget.Of(ship).FrameAngle - home.pose.angle);
                 }
@@ -506,9 +506,10 @@ namespace DeltaV
             }
         }
 
-        private void TryBoard(ShipBase ship, SpaceObject own, SpaceObject enemy)
+        private void TryBoard(ShipBase ship, SpaceObject own, CombatTarget enemy)
         {
-            float range = OrbitSphere.ArcCells(own.pose.position, enemy.pose.position);
+            if (!enemy.TryResolve(universe, out var resolved)) return;
+            float range = OrbitSphere.ArcCells(ShipRegistry.ShipPose(ship).position, resolved.Pose.position);
             if (range > 100f) return;
             universe.Shuttles.TryBoardFrom(ship, enemy);
         }

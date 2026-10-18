@@ -92,7 +92,7 @@
   <DeltaV_LandingBlockedForeignSubstructure>不能在此降落：脚印将接触其他对象的基架。请留出间隔，用对接口连接。</DeltaV_LandingBlockedForeignSubstructure>
   <!-- 修改基架归属命令 -->
   <DeltaV_ReassignSubstructure>修改基架归属</DeltaV_ReassignSubstructure>
-  <DeltaV_ReassignSubstructureDesc>改写基架格的归属结构。先选择目标归属，再拖选基架格。有主驾驶台的整个来源归属不可改划；请先将主台设为副台，或摧毁主台且没有副台继任。无主台的基架可以划入已有飞船或新归属。</DeltaV_ReassignSubstructureDesc>
+  <DeltaV_ReassignSubstructureDesc>改写基架格的归属结构。先选择目标归属，再拖选基架格。有主驾驶台的整个来源归属不可改划；请先将主台设为副台（注意：如果有多个驾驶台，其他同方向驾驶台可能会在主台退为副台或被摧毁时自动接任主台，可以考虑拆除驾驶台以避免这种情况）。无主台的基架可以划入已有飞船或新归属。</DeltaV_ReassignSubstructureDesc>
   <DeltaV_ReassignNoTarget>本图没有可改写归属的基架。</DeltaV_ReassignNoTarget>
   <DeltaV_ReassignPickFirst>请先选择目标归属。</DeltaV_ReassignPickFirst>
   <DeltaV_ReassignTarget>目标归属：{0}</DeltaV_ReassignTarget>
@@ -223,7 +223,7 @@
   <DeltaV_NpcDoctrine_Boarder>跳帮</DeltaV_NpcDoctrine_Boarder>
   <DeltaV_NpcDoctrine_Retreat>撤退</DeltaV_NpcDoctrine_Retreat>
   <DeltaV_SectorTypeAsteroid>小行星</DeltaV_SectorTypeAsteroid>
-  <DeltaV_ReassignProtectedDomain>该基架归属仍有主驾驶台，整域不能改划。请先将主台设为副台，或摧毁主台且没有副台继任。</DeltaV_ReassignProtectedDomain>
+  <DeltaV_ReassignProtectedDomain>该基架归属仍有主驾驶台，整域不能改划。请先将主台设为副台（注意：如果有多个驾驶台，其他同方向驾驶台可能会在主台退为副台或被摧毁时自动接任主台，可以考虑拆除驾驶台以避免这种情况）。</DeltaV_ReassignProtectedDomain>
   <DeltaV_ReassignProtectedDomainsSkipped>已跳过 {0} 格：其归属仍有主驾驶台。请先解除主台认领；其他合法格照常修改。</DeltaV_ReassignProtectedDomainsSkipped>
 
   <!-- 战斗控制 -->

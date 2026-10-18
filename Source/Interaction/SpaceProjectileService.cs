@@ -76,9 +76,10 @@ namespace DeltaV
             private int sourceContainerId;
             public SpaceObject sourceContainer { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(sourceContainerId); set => sourceContainerId = value?.objectId ?? 0; }
             public bool reflectedByShield;
-            private int targetId;
-            public SpaceObject target { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(targetId); set => targetId = value?.objectId ?? 0; }
-            public Vector2? targetLocalPoint;
+            public CombatTarget target;
+            public int targetSampleTick = -1;
+            public int targetContainerId;
+            public SpacePose targetPose;
             public bool adoptedShuttle;
             public int spawnedAtTick;
             public bool dead;
@@ -168,6 +169,9 @@ namespace DeltaV
         public void ForgetMap(Map map)
         {
             if (map == null) return;
+            foreach (Projectile p in projectiles)
+                if (p.target.HasLock && (!p.target.TryResolve(universe, out var resolved)
+                    || resolved.Container?.map == null || resolved.Container.map == map)) ForgetTarget(p);
             projectileMaps.Remove(map);
             foreach (List<Map> maps in mapPool.Values) maps.Remove(map);
         }
@@ -221,7 +225,7 @@ namespace DeltaV
         /// damageScale = 轨道炮等的伤害/穿深倍率（随弹体携带到命中结算）。
         /// </summary>
         public bool Launch(ThingDef def, SpaceObject source, Vector3 muzzle, Vector3 directionWorld,
-            Faction faction, Thing launcher = null, SpaceObject missileTarget = null, float damageScale = 1f)
+            Faction faction, Thing launcher = null, CombatTarget missileTarget = default, float damageScale = 1f)
         {
             CompProperties_SpaceProjectile props = def?.GetCompProperties<CompProperties_SpaceProjectile>();
             if (props == null)
@@ -241,7 +245,7 @@ namespace DeltaV
             Vector2 travel = signedSpeed >= 0f ? direction : -direction;
             Vector3 muzzle = OrbitSphere.Move(hit, travel * 0.06f);
             float speed = Mathf.Abs(signedSpeed);
-            if (!Launch(def, null, muzzle, worldDirection, source?.faction, launcher, null,
+            if (!Launch(def, null, muzzle, worldDirection, source?.faction, launcher, default,
                 new SpaceProjectileLaunchSpec(speed, 0, speed, 1f, 1f))) return;
             Projectile fragment = projectiles[projectiles.Count - 1];
             fragment.sourceContainer = source;
@@ -253,7 +257,7 @@ namespace DeltaV
         }
 
         public bool Launch(ThingDef def, SpaceObject source, Vector3 muzzle, Vector3 directionWorld,
-            Faction faction, Thing launcher, SpaceObject missileTarget, SpaceProjectileLaunchSpec launchSpec)
+            Faction faction, Thing launcher, CombatTarget missileTarget, SpaceProjectileLaunchSpec launchSpec)
         {
             var props = def?.GetCompProperties<CompProperties_SpaceProjectile>();
             if (props == null)
@@ -276,6 +280,7 @@ namespace DeltaV
             projectile.sourceContainer = source;
             projectile.reflectedByShield = false;
             projectile.target = missileTarget;
+            projectile.targetSampleTick = -1;
             projectile.spawnedAtTick = Find.TickManager.TicksGame;
             projectile.laser = props.laserRange > 0f;
             projectile.cruiseSpeed = launchSpec.speed;
@@ -342,7 +347,7 @@ namespace DeltaV
             projectile.damageScale = launchSpec.damageScale;
             projectile.armorPenetrationScale = launchSpec.armorPenetrationScale;
             projectiles.Add(projectile);
-            DeltaVLog.Message(DeltaVLogModule.Combat,
+            if (DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
                 $"{def.defName} launched from '{source?.label ?? "nowhere"}' " +
                 $"(speed {launchSpec.speed:F0}, {(props.hasMap ? "mapped" : "mapless")}" +
                 $"{(projectile.laser ? ", laser" : "")})");
@@ -350,13 +355,12 @@ namespace DeltaV
         }
 
         /// <summary>把已经起飞的 shuttle 作为一枚有图导弹接入同一制导与碰撞工作表。</summary>
-        internal bool AdoptShuttle(SpaceObject shuttle, Building hull, SpaceObject target,
-            Vector2? targetLocalPoint)
+        internal bool AdoptShuttle(SpaceObject shuttle, Building hull, CombatTarget target)
         {
             CompProperties_SpaceProjectile props = hull?.def.GetCompProperties<CompProperties_SpaceProjectile>();
             if (props == null || !props.guided || !props.hasMap || shuttle?.map != hull.Map
-                || hull.TryGetComp<CompSpaceShuttle>()?.Vessel.CanDriveIn(shuttle) != true || target?.map == null
-                || target.map.Disposed || projectiles.Any(p => p.container == shuttle)) return false;
+                || hull.TryGetComp<CompSpaceShuttle>()?.Vessel.CanDriveIn(shuttle) != true
+                || !target.TryResolve(universe, out var resolved) || resolved.Container == null || projectiles.Any(p => p.container == shuttle)) return false;
             Projectile p = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
             p.container = shuttle;
             p.building = hull;
@@ -366,7 +370,7 @@ namespace DeltaV
             p.sourceContainer = null;
             p.reflectedByShield = false;
             p.target = target;
-            p.targetLocalPoint = targetLocalPoint;
+            p.targetSampleTick = -1;
             p.adoptedShuttle = true;
             p.spawnedAtTick = Find.TickManager.TicksGame;
             p.dead = false;
@@ -381,7 +385,7 @@ namespace DeltaV
             projectiles.Add(p);
             if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
                 DeltaVLog.Message(DeltaVLogModule.Combat,
-                    $"boarding missile adopted shuttle #{shuttle.objectId} target #{target.objectId}");
+                    $"boarding missile adopted shuttle #{shuttle.objectId} target #{resolved.Container.objectId}");
             return true;
         }
 
@@ -397,6 +401,11 @@ namespace DeltaV
         internal void NotifyContainerRemoving(SpaceObject container)
         {
             if (container == null) return;
+            foreach (Projectile flight in projectiles)
+                if (flight.target.Kind == CombatTargetKind.Container && flight.target.ObjectId == container.objectId
+                    || flight.target.Kind == CombatTargetKind.Ship
+                        && flight.target.TryResolve(universe, out var resolved) && resolved.Container == container)
+                    ForgetTarget(flight);
             Projectile p = projectiles.FirstOrDefault(item => item.containerId == container.objectId);
             if (p != null) QueueProjectileCleanup(p, destroyContainer: !p.adoptedShuttle);
         }
@@ -432,10 +441,10 @@ namespace DeltaV
                         else DestroyProjectile(p, "timeout");
                         continue;
                     }
+                    bool hasTarget = ResolveTarget(p);
                     if (p.adoptedShuttle && (p.building.Map != p.container.map
                         || p.building.TryGetComp<CompSpaceShuttle>()?.Vessel.CanDriveIn(p.container) != true
-                        || !TargetAlive(p.target)
-                        || p.target.map == null || p.target.map.Disposed))
+                        || !hasTarget))
                     {
                         ReleaseShuttle(p.container);
                         continue;
@@ -450,7 +459,7 @@ namespace DeltaV
                         p.container.pose.angle = Mathf.Atan2(direction.y, direction.x);
                         p.ignited = true;
                     }
-                    if (p.props.guided && !p.laser && p.ignited && TargetAlive(p.target))
+                    if (p.props.guided && !p.laser && p.ignited && hasTarget)
                     {
                         SteerTowards(p);
                     }
@@ -489,9 +498,7 @@ namespace DeltaV
         /// <summary>纯追踪制导：速度方向每 tick 向目标容器当前位姿转向（转向率受限）。</summary>
         private void SteerTowards(Projectile p)
         {
-            Vector3 aimPoint = p.targetLocalPoint.HasValue && p.target.map != null
-                ? SpaceTransform.MapPointToUniverse(p.target, p.target.map, p.targetLocalPoint.Value)
-                : p.target.pose.position;
+            Vector3 aimPoint = p.targetPose.position;
             Vector2 toTarget = OrbitSphere.Offset(p.container.pose.position, aimPoint);
             if (toTarget.sqrMagnitude < 1e-8f) return;
             Vector2 desired = toTarget.normalized;
@@ -509,12 +516,30 @@ namespace DeltaV
                 Mathf.Atan2(newDir.y, newDir.x) - facingOffset);
         }
 
-        /// <summary>
-        /// 导弹目标存活判定：目标仍在 objects 权威列表（销毁即注销；漂移目标照常追踪）。
-        /// </summary>
-        private bool TargetAlive(SpaceObject target)
+        // 同 tick 的制导与限定命中对象消费同一次身份解析；不在碰撞阶段重新选船。
+        private bool ResolveTarget(Projectile p)
         {
-            return target != null && universe.objects.Contains(target);
+            int tick = Find.TickManager.TicksGame;
+            if (p.targetSampleTick != tick)
+            {
+                p.targetSampleTick = tick;
+                p.targetContainerId = 0;
+                if (p.target.TryResolve(universe, out var resolved))
+                { p.targetContainerId = resolved.Container?.objectId ?? 0; p.targetPose = resolved.Pose; }
+                else ForgetTarget(p); // 身份消失后永久停止制导，不等待另一个同号对象。
+            }
+            return p.targetContainerId != 0 && universe.ObjectById(p.targetContainerId) != null;
+        }
+
+        private static void ForgetTarget(Projectile p)
+        {
+            p.target = default;
+            p.targetContainerId = 0;
+            p.targetPose = default;
+            p.targetSampleTick = Find.TickManager.TicksGame;
+            p.body.requiredDefender = null;
+            // 若失效发生在同一批碰撞后效中，不能把已提交的侵入扫掠变成不限定守方。
+            if (p.adoptedShuttle) p.body.dead = true;
         }
 
         // ---- 碰撞调度（容器积分之后）----
@@ -527,15 +552,21 @@ namespace DeltaV
         {
             sweepScratch.Clear();
             bodyScratch.Clear();
-            foreach (Projectile p in projectiles)
+            for (int i = 0; i < projectiles.Count; i++)
             {
+                Projectile p = projectiles[i];
                 if (p.dead) continue;
+                bool hasTarget = ResolveTarget(p);
+                SpaceObject targetContainer = hasTarget ? universe.ObjectById(p.targetContainerId) : null;
+                // 解除接管会立即移出工作表；保留其余弹体的处理顺序，容器已消失也能收尾。
+                if (p.adoptedShuttle && !hasTarget)
+                { QueueProjectileCleanup(p, destroyContainer: false); i--; continue; }
                 SpaceCollision.SweptBody body = p.body;
                 body.attacker = p.container;
                 body.projectileDef = p.def;
                 body.attackerBuilding = p.building;
                 body.excludeContainer = p.reflectedByShield ? null : p.sourceContainer;
-                body.requiredDefender = p.adoptedShuttle ? p.target : null;
+                body.requiredDefender = p.adoptedShuttle ? targetContainer : null;
                 body.ignoreNonHostileProjectiles = !p.reflectedByShield;
                 body.launcher = p.launcher;
                 body.dead = false;
@@ -550,13 +581,12 @@ namespace DeltaV
                 if (p.laser)
                 {
                     // 专用点防束在结算 tick 追踪导弹现位，避免一 tick 位移把必中特性变成擦边。
-                    if (p.props.guaranteedHitMissiles && TargetAlive(p.target)
-                        && p.target.map != null && !p.target.map.Disposed)
+                    if (p.props.guaranteedHitMissiles && targetContainer?.map != null && !targetContainer.map.Disposed)
                     {
-                        foreach (Thing thing in p.target.map.listerThings.AllThings)
+                        foreach (Thing thing in targetContainer.map.listerThings.AllThings)
                         {
                             if (!SpaceImpactEffects.GuaranteedMissileHit(p.def, thing.def)) continue;
-                            p.laserTo = p.target.pose.position;
+                            p.laserTo = targetContainer.pose.position;
                             break;
                         }
                     }
@@ -636,7 +666,7 @@ namespace DeltaV
                         OrbitSphere.Basis(hit, out Vector3 east, out Vector3 north);
                         Vector3 worldDirection = east * direction.x + north * direction.y;
                         Launch(fragment, p.sourceContainer, OrbitSphere.Move(hit, direction * 0.1f),
-                            worldDirection, p.container.faction, p.launcher, null,
+                            worldDirection, p.container.faction, p.launcher, default,
                             new SpaceProjectileLaunchSpec(45f, 0, 45f,
                                 p.damageScale * residual, p.armorPenetrationScale * residual));
                     }
@@ -827,8 +857,10 @@ namespace DeltaV
             p.launcher = null;
             p.sourceContainer = null;
             p.reflectedByShield = false;
-            p.target = null;
-            p.targetLocalPoint = null;
+            p.target = default;
+            p.targetSampleTick = -1;
+            p.targetContainerId = 0;
+            p.targetPose = default;
             p.adoptedShuttle = false;
             p.dead = false;
             p.laser = false;

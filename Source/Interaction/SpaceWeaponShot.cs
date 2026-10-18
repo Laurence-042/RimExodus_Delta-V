@@ -30,7 +30,8 @@ namespace DeltaV
         public readonly CompSpaceWeapon weapon;
         public readonly SpaceObject container;
         public readonly Vector3 aimPoint;
-        public SpaceObject target;
+        public readonly CombatTarget guidanceTarget;
+        public SpaceObject target { get; private set; }
         public ThingDef projectileDef;
         public CompProperties_SpaceProjectile projectileProps;
         public CompSpaceWeaponMagazine magazine;
@@ -51,13 +52,13 @@ namespace DeltaV
         private float activeSpeedBonus;
 
         public SpaceWeaponShot(UniverseManager universe, CompSpaceWeapon weapon,
-            SpaceObject container, Vector3 aimPoint, SpaceObject explicitTarget)
+            SpaceObject container, WeaponFireRequest request)
         {
             this.universe = universe;
             this.weapon = weapon;
             this.container = container;
-            this.aimPoint = aimPoint;
-            target = explicitTarget;
+            aimPoint = request.AimPoint;
+            guidanceTarget = request.GuidanceTarget;
             damageScale = weapon.WeaponProps.impactScale;
         }
 
@@ -91,7 +92,7 @@ namespace DeltaV
             var spec = new SpaceProjectileLaunchSpec(speed, ignitionDelayTicks,
                 coldLaunchSpeed, damageScale, armorPenetrationScale);
             if (!universe.Projectiles.Launch(projectileDef, container, muzzleUniverse,
-                directionWorld, weapon.parent.Faction, weapon.parent, target, spec))
+                directionWorld, weapon.parent.Faction, weapon.parent, guidanceTarget, spec))
             {
                 return false;
             }
@@ -104,9 +105,10 @@ namespace DeltaV
 
         private bool Prepare()
         {
+            target = null;
             if (container == null || weapon?.parent == null || !weapon.parent.Spawned
                 || weapon.parent.Destroyed || weapon.WeaponProps.projectileDef == null
-                || !weapon.SpaceModeEnabled)
+                || !weapon.SpaceModeEnabled || weapon.Container != container)
             {
                 return false;
             }
@@ -168,15 +170,7 @@ namespace DeltaV
             if (!PrepareEnergy(acceleration)) return false;
             speed = projectileProps.speed + activeSpeedBonus;
             coldLaunchSpeed = speed * projectileProps.coldLaunchSpeedFactor;
-            if (target == null && projectileProps.guided)
-            {
-                Vector2 lockDirection = SpaceTransform.MapDirectionToUniverseTangent(container,
-                    weapon.parent.Map, muzzleMap,
-                    SpaceTransform.Rotate(Vector2.right, desiredMapAngle));
-                target = SpaceWeaponService.TargetAlongRay(universe, container, muzzleUniverse,
-                    lockDirection, weapon.parent.Faction);
-            }
-
+            target = guidanceTarget.TryResolve(universe, out var resolved) ? resolved.Container : null;
             foreach (ThingComp comp in CapabilityComps())
             {
                 if (comp is ISpaceWeaponShotModifier modifier) modifier.ModifyShot(this);
@@ -212,7 +206,7 @@ namespace DeltaV
         public static bool HasShotEnergy(CompSpaceWeapon weapon)
         {
             if (weapon?.parent == null || !weapon.parent.Spawned) return false;
-            var probe = new SpaceWeaponShot(null, weapon, null, default, null);
+            var probe = new SpaceWeaponShot(null, weapon, null, default);
             return probe.PrepareEnergy(CompSpaceRailgun.Resolve(weapon));
         }
 
@@ -225,7 +219,7 @@ namespace DeltaV
                 active = null;
                 return false;
             }
-            var probe = new SpaceWeaponShot(null, weapon, null, default, null);
+            var probe = new SpaceWeaponShot(null, weapon, null, default);
             bool ready = probe.PrepareEnergy(acceleration);
             active = probe.activeAccelerators;
             return ready;
@@ -238,9 +232,13 @@ namespace DeltaV
             CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
             ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
             float baseSpeed = projectile?.GetCompProperties<CompProperties_SpaceProjectile>()?.speed ?? 0f;
-            var probe = new SpaceWeaponShot(null, weapon, null, default, null);
-            return probe.PrepareEnergy(CompSpaceRailgun.Resolve(weapon))
-                ? baseSpeed + probe.activeSpeedBonus : baseSpeed;
+            return ProjectedSpeed(weapon, CompSpaceRailgun.Resolve(weapon), baseSpeed);
+        }
+
+        internal static float ProjectedSpeed(CompSpaceWeapon weapon, SpaceWeaponAccelerationSolution acceleration, float baseSpeed)
+        {
+            var probe = new SpaceWeaponShot(null, weapon, null, default);
+            return probe.PrepareEnergy(acceleration) ? baseSpeed + probe.activeSpeedBonus : baseSpeed;
         }
 
         public static bool HasClearFixedPath(CompSpaceWeapon weapon,
@@ -248,7 +246,7 @@ namespace DeltaV
         {
             if (weapon?.parent == null || !weapon.parent.Spawned) return false;
             if (!weapon.safeFire || weapon.WeaponProps.topTurret) return true;
-            var probe = new SpaceWeaponShot(null, weapon, null, default, null);
+            var probe = new SpaceWeaponShot(null, weapon, null, default);
             probe.muzzleMap = acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
             probe.launchMapAngle = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
             return probe.SafePathClear();
