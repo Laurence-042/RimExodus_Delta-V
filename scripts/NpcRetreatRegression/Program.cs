@@ -85,6 +85,7 @@ internal static partial class Program
         CheckCombatTargets(universe, faction, other);
         CheckPerShipFireControl(universe, faction, other);
         CheckSceneReset(universe);
+        CheckGlobeAndInput(universe);
         SpaceObject Make(int id, float distance, string type = null, Faction owner = null)
         {
             var obj = new SpaceObject(id, new SpacePose(

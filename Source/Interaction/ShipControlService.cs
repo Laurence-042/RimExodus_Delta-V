@@ -320,6 +320,12 @@ namespace DeltaV
                 .EmitAimMarkers(frame, frameMap, layer, baseSlot);
         }
 
+        internal void ProcessAimInputEvent()
+        {
+            SyncManualAimSelection();
+            if (AimActive) ((PlayerShipController)controllers[activeAimOwnerId]).ProcessAimInputEvent();
+        }
+
         public bool BattleStationsActive(Map map)
         {
             if (map == null) return false;

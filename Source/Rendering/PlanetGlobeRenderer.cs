@@ -11,12 +11,10 @@ namespace DeltaV
         /// 左侧面板星球仪（星区架构 §11.1；星区地图形态 = 星球仪连续缩放，§12.2 定稿）。
         ///
         /// 拉远是全局态势：南北轴（星区网格淡入时同步渐隐）+ 经纬网格（背面剔除）、
-        /// 玩家船光标三角 + 速度矢量；拉近按视场半宽（格）逐层显示：星区六边形网格
-        /// （真实 tile 顶点，GetTileVertices）→ 对象图标（原版 ExpandingIcon + 派系色，
-        /// Dialog_WorldSearch 同款画法；残骸为菱形标记）→ 名称与距离标注。LOD 阈值以
-        /// CellsPerTile 为单位，随尺度设置联动。放大后物化对象的标记被真实比例剪影
-        /// 替代（2026-09-19 定稿：图例变成剪影），名称与距离标注统一居中于剪影
-        /// （屏幕方位）下方；无剪影对象保持投影点标记 + 右侧标注。
+        /// 玩家船光标三角 + 速度矢量；拉近显示真实 tile 顶点的星区网格。
+        /// 对象按 GlobeDisplayInfo 的实际面积决定出现和名称标注；图标/投影按视图尺度切换。
+        /// 原版 POI 与玩家船常驻，未加载时保留图标，残骸隐藏常规标注。
+        /// 名称与距离统一居中于图例（屏幕方位）下方。
         ///
         /// 图标可悬停（名称/距离/未物化注记）、可点击聚焦（SetFocused + 相机跳转）；
         /// 未物化对象点击提示「尚未进入可视范围」。缩放经 Zoom01（滑条，面板提供）与
@@ -24,7 +22,6 @@ namespace DeltaV
         /// 显示层只是投影，不是宇宙状态的事实源。本交互层与分帧地图生成均计划抽公共库
         ///（doc/TODO.md 长期项）。
         /// </summary>
-    [StaticConstructorOnStartup]
     public static class PlanetGlobeRenderer
     {
         /// <summary>缩放滑条位置 [0,1]：0 = 整球，1 = 最近（会话 UI 态，不持久化）。</summary>
@@ -33,21 +30,16 @@ namespace DeltaV
         /// <summary>最近档视场半宽 = 聚焦船最长边 × 此系数（视场全宽 = 6× 最长边，对接引导档）。</summary>
         private const float MinViewHalfShipSides = 3f;
 
-        /// <summary>剪影层的视场阈值：聚焦船最长边 × 此系数以内时，物化对象按真实比例画剪影。</summary>
-        private const float SilhouetteLodShipSides = 20f;
-
         /// <summary>剪影/最小视场的最长边兜底（无聚焦船或无法测定时）。</summary>
         private const float FallbackSideCells = 100f;
 
         /// <summary>星区网格绘制的 tile 数上限（BFS 防失控）。</summary>
         private const int MaxHexTiles = 400;
 
-        /// <summary>LOD 阈值（× CellsPerTile）：网格 / 图标 / 标注。</summary>
+        /// <summary>星区网格淡入阈值（× CellsPerTile）。</summary>
         private const float HexLodFactor = 6f;
-        private const float IconLodFactor = 2.5f;
-        private const float LabelLodFactor = 1f;
 
-        private static readonly Material lineMaterial;
+        private static Material lineMaterial;
 
         /// <summary>极点退化时的显示 roll fallback：上一次稳定的屏幕基。</summary>
         private static Vector3 stableUp = Vector3.up;
@@ -71,43 +63,24 @@ namespace DeltaV
 
         private static readonly List<Clickable> Clickables = new List<Clickable>(32);
 
-        /// <summary>全部已加载图上的船快照（标记层枚举用）。</summary>
-        private static readonly List<ShipBase> AllShipsScratch = new List<ShipBase>(16);
-
-        // 剪影覆盖层（GUI 阶段统一旋转绘制；GL/收集阶段只登记）。
-        private readonly struct Overlay
+        internal sealed class Legend
         {
-            public readonly Rect rect;
-            public readonly Texture2D texture;
-            public readonly float angleDeg;
-            public readonly Color tint;
-
-            public Overlay(Rect rect, Texture2D texture, float angleDeg, Color tint)
-            {
-                this.rect = rect;
-                this.texture = texture;
-                this.angleDeg = angleDeg;
-                this.tint = tint;
-            }
+            internal GlobeDisplayEntry entry;
+            internal Vector2 position;
+            internal Rect rect;
+            internal Texture2D texture;
+            internal bool projection, focused;
+            internal Color color;
+            internal float angle;
         }
-
-        private static readonly List<Overlay> Overlays = new List<Overlay>(16);
-
-        // 物化对象剪影缓存：按「地图 + 基架归属 ID」双键（2026-09-18 基架归属设计）——
-        // 同一张 wreck 图上停靠船与 wreck 各持独立剪影纹理，互不污染；归属过滤口径见
-        // ShipSilhouette.ScanSubstructure(map, ownerId)。原版站点地图没有 Substructure →
-        // 空 → 继续用原版图标。快照语义：不追踪战损，与世界视图剪影一致；可随时销毁
-        // 重建，不序列化。
-        private static readonly Dictionary<Map, Dictionary<DriveSubject, Texture2D>> SilhouetteCache =
-            new Dictionary<Map, Dictionary<DriveSubject, Texture2D>>();
-        private static readonly Dictionary<Map, HashSet<DriveSubject>> SilhouetteEmpty =
-            new Dictionary<Map, HashSet<DriveSubject>>();
-
-        // 残骸剪影（普通物化容器，图上有基架无船时按**全图基架**扫描，不分归属——
-        // 2026-09-25 用户定案：物化容器图标按图内容）。与按归属的船剪影分开缓存。
-        private static readonly Dictionary<Map, Texture2D> StructureSilhouetteCache =
-            new Dictionary<Map, Texture2D>();
-        private static readonly HashSet<Map> StructureSilhouetteEmpty = new HashSet<Map>();
+        private static readonly List<Legend> Legends = new List<Legend>();
+        private sealed class CachedSilhouette
+        {
+            internal GlobeDisplayEntry source;
+            internal Texture2D texture;
+        }
+        private static readonly Dictionary<Map, Dictionary<DriveSubject, CachedSilhouette>> SilhouetteCache =
+            new Dictionary<Map, Dictionary<DriveSubject, CachedSilhouette>>();
 
         // 六边形网格 BFS / 顶点缓冲（复用，避免每帧分配）。
         private static readonly List<PlanetTile> HexQueue = new List<PlanetTile>(MaxHexTiles);
@@ -115,9 +88,10 @@ namespace DeltaV
         private static readonly List<PlanetTile> HexNeighbors = new List<PlanetTile>(8);
         private static readonly List<Vector3> TileVerts = new List<Vector3>(10);
 
-        static PlanetGlobeRenderer()
+        private static void EnsureMaterial()
         {
-            // 材质必须在主线程创建（StaticConstructorOnStartup 时机 = play data 载入后）。
+            if (lineMaterial != null) return;
+            // Only painting needs Unity resources; cache cleanup also works without a rendered globe.
             lineMaterial = new Material(Shader.Find("Hidden/Internal-Colored"))
             {
                 hideFlags = HideFlags.HideAndDontSave
@@ -146,8 +120,7 @@ namespace DeltaV
             float radius = Mathf.Min(rect.width, rect.height) * 0.5f - 4f;
             HandleWheelZoom(rect);
 
-            // 最近档视场半宽 = 3×参考船最长边（全宽 6×，对接前航向调整用）；剪影层阈值同理
-            // 以最长边为单位，随船体尺度自适应。
+            // 最近档视场半宽 = 3×参考船最长边（全宽 6×，对接前航向调整用）。
             float sideCells = SideCellsOf(referenceShip);
             float minHalfCells = Mathf.Max(MinViewHalfShipSides * sideCells, 120f);
 
@@ -164,9 +137,6 @@ namespace DeltaV
             float cellsPerTile = OrbitSphere.CellsPerTile;
             float hexAlpha = Mathf.Clamp01((HexLodFactor * cellsPerTile - viewHalfCells)
                 / (HexLodFactor * cellsPerTile * 0.5f));
-            bool iconLayer = viewHalfCells < IconLodFactor * cellsPerTile;
-            bool labelLayer = viewHalfCells < LabelLodFactor * cellsPerTile;
-            bool silhouetteLayer = viewHalfCells < SilhouetteLodShipSides * sideCells;
 
             // 视图基：相机位于飞船—球心连线的船侧、指向球心，屏幕向上 = 世界 up 的投影。
             Vector3 shipDir = referenceDir.normalized;
@@ -192,11 +162,14 @@ namespace DeltaV
                 stableRight = right;
             }
 
-            lineMaterial.SetPass(0);
-            GL.PushMatrix();
-            // GUI 空间是左上原点、y 向下；无参 LoadPixelMatrix 是左下原点、y 向上，
-            // 直接用会把整幅 GL 绘制垂直镜像到面板外的镜像位置。显式翻转底/顶对齐 GUI 坐标。
-            GL.LoadPixelMatrix(0f, UI.screenWidth, UI.screenHeight, 0f);
+            bool repaint = Event.current.type == EventType.Repaint;
+            if (repaint)
+            {
+                EnsureMaterial();
+                lineMaterial.SetPass(0);
+                GL.PushMatrix();
+                GL.LoadPixelMatrix(0f, UI.screenWidth, UI.screenHeight, 0f);
+            }
 
             // 世界方向 → GUI 屏幕偏移：垂直分量取负（GUI y 向下，"上"是 -y）。
             Vector2 Project(Vector3 dir)
@@ -204,294 +177,162 @@ namespace DeltaV
                 return center + new Vector2(Vector3.Dot(dir, right), -Vector3.Dot(dir, up)) * pixelsPerRad;
             }
 
-            // ---- 经纬网格（每 30° 一条；背面剔除；随拉近淡出；全部线段裁剪到矩形内）----
-            GL.Begin(GL.LINES);
-            GL.Color(new Color(1f, 1f, 1f, Mathf.Lerp(0.28f, 0.10f, Zoom01)));
-            for (int lat = -60; lat <= 60; lat += 30)
+            if (repaint)
             {
-                Vector3 prev = Spherical(lat, 0f);
-                for (int lon = 6; lon <= 360; lon += 6)
-                {
-                    Vector3 next = Spherical(lat, lon);
-                    if (Vector3.Dot((prev + next).normalized, shipDir) > 0.04f)
-                    {
-                        ClippedLine(Project(prev), Project(next), rect);
-                    }
-                    prev = next;
-                }
-            }
-            for (int lon2 = 0; lon2 < 360; lon2 += 30)
-            {
-                Vector3 prev2 = Spherical(-84f, lon2);
-                for (int lat2 = -78; lat2 <= 84; lat2 += 6)
-                {
-                    Vector3 next = Spherical(lat2, lon2);
-                    if (Vector3.Dot((prev2 + next).normalized, shipDir) > 0.04f)
-                    {
-                        ClippedLine(Project(prev2), Project(next), rect);
-                    }
-                    prev2 = next;
-                }
-            }
-            GL.End();
-
-            // ---- 星区六边形网格（真实 tile 顶点；LOD 淡入）----
-            if (hexAlpha > 0.01f)
-            {
-                float tileRadiusAngle = OrbitSphere.Layer.AverageTileSize * 2.5f / OrbitSphere.Radius;
-                float viewAngleDeg = (viewHalfCells / cellsPerRadian + tileRadiusAngle * 2.5f) * Mathf.Rad2Deg;
-                DrawSectorHexes(shipDir, referenceDir, Project, hexAlpha, viewAngleDeg, rect);
-            }
-
-            // ---- 南北轴：极点向外延长的可见段（裁剪到矩形）；星区网格淡入时同步
-            // 渐隐——星区层级地轴不再提供态势信息（2026-09-18 用户决策），与 N 标签
-            // 同用 hexAlpha 门控，轴用连续渐隐过渡。----
-            if (hexAlpha < 0.999f)
-            {
+                // ---- 经纬网格（每 30° 一条；背面剔除；随拉近淡出；全部线段裁剪到矩形内）----
                 GL.Begin(GL.LINES);
-                GL.Color(new Color(0.7f, 0.9f, 1f, 0.75f * (1f - hexAlpha)));
-                if (Vector3.Dot(Vector3.up, shipDir) > 0.2f)
+                GL.Color(new Color(1f, 1f, 1f, Mathf.Lerp(0.28f, 0.10f, Zoom01)));
+                for (int lat = -60; lat <= 60; lat += 30)
                 {
-                    ClippedLine(center, Project(Vector3.up * (1f + 18f / pixelsPerRad)), rect);
+                    Vector3 prev = Spherical(lat, 0f);
+                    for (int lon = 6; lon <= 360; lon += 6)
+                    {
+                        Vector3 next = Spherical(lat, lon);
+                        if (Vector3.Dot((prev + next).normalized, shipDir) > 0.04f)
+                        {
+                            ClippedLine(Project(prev), Project(next), rect);
+                        }
+                        prev = next;
+                    }
                 }
-                if (Vector3.Dot(-Vector3.up, shipDir) > 0.2f)
+                for (int lon2 = 0; lon2 < 360; lon2 += 30)
                 {
-                    ClippedLine(center, Project(-Vector3.up * (1f + 18f / pixelsPerRad)), rect);
+                    Vector3 prev2 = Spherical(-84f, lon2);
+                    for (int lat2 = -78; lat2 <= 84; lat2 += 6)
+                    {
+                        Vector3 next = Spherical(lat2, lon2);
+                        if (Vector3.Dot((prev2 + next).normalized, shipDir) > 0.04f)
+                        {
+                            ClippedLine(Project(prev2), Project(next), rect);
+                        }
+                        prev2 = next;
+                    }
                 }
                 GL.End();
+
+                // ---- 星区六边形网格（真实 tile 顶点；LOD 淡入）----
+                if (hexAlpha > 0.01f)
+                {
+                    float tileRadiusAngle = OrbitSphere.Layer.AverageTileSize * 2.5f / OrbitSphere.Radius;
+                    float viewAngleDeg = (viewHalfCells / cellsPerRadian + tileRadiusAngle * 2.5f) * Mathf.Rad2Deg;
+                    DrawSectorHexes(shipDir, referenceDir, Project, hexAlpha, viewAngleDeg, rect);
+                }
+
+                // ---- 南北轴：极点向外延长的可见段（裁剪到矩形）；星区网格淡入时同步
+                // 渐隐——星区层级地轴不再提供态势信息（2026-09-18 用户决策），与 N 标签
+                // 同用 hexAlpha 门控，轴用连续渐隐过渡。----
+                if (hexAlpha < 0.999f)
+                {
+                    GL.Begin(GL.LINES);
+                    GL.Color(new Color(0.7f, 0.9f, 1f, 0.75f * (1f - hexAlpha)));
+                    if (Vector3.Dot(Vector3.up, shipDir) > 0.2f)
+                    {
+                        ClippedLine(center, Project(Vector3.up * (1f + 18f / pixelsPerRad)), rect);
+                    }
+                    if (Vector3.Dot(-Vector3.up, shipDir) > 0.2f)
+                    {
+                        ClippedLine(center, Project(-Vector3.up * (1f + 18f / pixelsPerRad)), rect);
+                    }
+                    GL.End();
+                }
+
             }
 
             Clickables.Clear();
-            Overlays.Clear();
-
-            // ---- 对象点（常驻：全对象小点，远距离态势参考；弹体不进星球仪，§3.1）----
+            Legends.Clear();
             foreach (SpaceObject obj in universe.objects)
             {
-                if (!obj.ParticipatesInOverlays) continue;
-                Vector2 pos = Project(obj.pose.position);
-                if (!rect.Contains(pos)) continue;
-                if (Vector3.Dot(obj.pose.position, shipDir) > 0f)
+                foreach (GlobeDisplayEntry entry in universe.GlobeDisplay.Entries(obj))
                 {
-                    DrawDot(pos, 3f, new Color(1f, 1f, 1f, 0.55f));
-                }
-            }
-
-            // ---- marker 菱形（图标层；未物化 PoiState 触发器按设置的类型显示）----
-            // 物化容器（普通 SpaceObject）没有 POI 图标身份（2026-09-25 用户定案）：
-            // 拉近后按图内容画剪影（船剪影/残骸剪影），远档只有常驻小白点 + 拼接名标注。
-            if (iconLayer)
-            {
-                foreach (SpaceObject obj in universe.objects)
-                {
-                    bool marker = obj is PoiState poi && poi.kind == PoiKind.SnapshotPocket
-                        && poi.map == null;
-                    bool archived = obj.IsArchived && obj.map == null;
-                    if ((marker || archived) && Vector3.Dot(obj.pose.position, shipDir) > 0f)
+                    if (!GlobeDisplayRules.Visible(entry.area, pixelsPerCell, entry.AlwaysVisible)) continue;
+                    SpacePose pose = entry.Pose;
+                    if (Vector3.Dot(pose.position, shipDir) <= 0f) continue;
+                    Vector2 pos = Project(pose.position);
+                    bool projection = GlobeDisplayRules.UseProjection(sideCells, pixelsPerCell,
+                        obj.map != null && entry.cells?.Count > 0);
+                    Texture2D texture = projection ? GetSilhouette(entry) : null;
+                    projection = texture != null;
+                    bool focused = entry.ship != null && referenceShip.IsValid
+                        && entry.ship.key == referenceShip.Identity.key
+                        && entry.ship.shuttle == (referenceShip is ShuttleShip);
+                    Color tint = focused ? new Color(1f, 0.95f, 0.4f)
+                        : entry.Faction == Faction.OfPlayerSilentFail ? Color.white
+                        : entry.Faction?.Color ?? new Color(1f, 0.85f, 0.55f);
+                    if (!projection && entry.native && obj is PoiState native)
                     {
-                        Vector2 pos = Project(obj.pose.position);
-                        if (!rect.ExpandedBy(8f).Contains(pos)) continue;
-                        DrawDiamond(pos, 6f, archived
-                            ? new Color(0.65f, 0.82f, 1f, 0.95f)
-                            : new Color(1f, 0.85f, 0.55f, 0.95f));
-                        RegisterClickable(new Rect(pos.x - 9f, pos.y - 9f, 18f, 18f), universe, obj, referenceDir);
+                        texture = native.nativeParent.ExpandingIcon;
+                        tint = native.nativeParent.ExpandingIconColor;
                     }
+                    float size = projection ? texture.width * pixelsPerCell : 18f;
+                    float angle = projection
+                        ? SilhouetteScreenAngle(pose.position, obj.pose.angle, right, up) : 0f;
+                    var legendRect = new Rect(pos.x - size * 0.5f, pos.y - size * 0.5f, size, size);
+                    if (!legendRect.Overlaps(rect)) continue;
+                    var legend = new Legend { entry = entry, position = pos, rect = legendRect,
+                        texture = texture, projection = projection, focused = focused, angle = angle, color = tint };
+                    Legends.Add(legend);
                 }
             }
-
-            // ---- 飞船标记（底边内凹三角）----
-            float focusedSize = Mathf.Lerp(9f, 14f, Zoom01);
-            float otherSize = Mathf.Lerp(6.5f, 10f, Zoom01);
-            // 已纳管容器里的船（停靠船同样显示——位姿为宿主刚体上
-            // 的派生点）。选点/进场期间的计划船照常显示。
-            AllShipsScratch.Clear();
-            foreach (SpaceObject container in universe.objects)
+            RemoveRedundantNativeIcons(Legends);
+            if (repaint)
             {
-                if (container.ParticipatesInOverlays)
-                    AllShipsScratch.AddRange(container.Ships);
-            }
-            foreach (ShipBase ship in AllShipsScratch)
-            {
-                bool focused = ship.Identity == referenceShip.Identity;
-                Faction shipFaction = ship.Faction;
-                bool docked = ship.State == ShipDerivedState.Docked;
-                SpacePose shipPose = ShipRegistry.ShipPose(ship);
-                Vector2 pos = Project(shipPose.position);
-                if (!rect.Contains(pos)) continue;
-                bool front = Vector3.Dot(shipPose.position, shipDir) > 0f;
-                float alpha = front ? 1f : 0.35f;
-                OrbitSphere.Basis(shipPose.position, out Vector3 east, out Vector3 north);
-                Vector2 heading = ScreenDir(east, north, shipPose.angle, right, up);
-                Color color;
-                if (focused)
+                foreach (Legend legend in Legends)
                 {
-                    color = new Color(1f, 0.95f, 0.4f, alpha);
-                }
-                else if (iconLayer)
-                {
-                    // 图标层起全部飞船可见：玩家船白色、其余按派系色（无派系红）。
-                    Color baseColor = shipFaction == Faction.OfPlayer
-                        ? new Color(1f, 1f, 1f, 0.85f)
-                        : (shipFaction != null ? shipFaction.Color : new Color(1f, 0.4f, 0.35f));
-                    color = new Color(baseColor.r, baseColor.g, baseColor.b, alpha * (front ? 1f : 0.6f));
-                }
-                else if (shipFaction == Faction.OfPlayer)
-                {
-                    color = new Color(1f, 1f, 1f, alpha * 0.8f);
-                }
-                else
-                {
-                    continue; // 远档只显示玩家船
-                }
-                // 剪影层：物化飞船按真实比例（格→像素）与位姿角度画剪影，替代三角/
-                // 圆点；点击命中区域也随剪影大小——对接前航向调整的主要依据。
-                // 剪影即标记（2026-09-19 定稿：放大后图例变成剪影），不再另画三角；
-                // 名称与距离标注由标注层统一移到剪影下方（见 SilhouetteExtentOf）。
-                // 剪影按船自己的归属 ID 过滤：停靠在 wreck 图上时只画本船格子（按 wreck
-                // 地图当前状态绘制），不再与 wreck 剪影共用整图扫描结果。
-                Texture2D silhouette = silhouetteLayer && front
-                    ? GetSilhouette(ship)
-                    : null;
-                if (silhouette != null)
-                {
-                    float sizePx = Mathf.Max(silhouette.width * pixelsPerCell, 8f);
-                    var silhouetteRect = new Rect(pos.x - sizePx * 0.5f, pos.y - sizePx * 0.5f, sizePx, sizePx);
-                    Color tint = focused
-                        ? new Color(1f, 0.95f, 0.4f)
-                        : shipFaction == Faction.OfPlayer ? Color.white
-                        : (shipFaction != null ? shipFaction.Color : new Color(1f, 0.4f, 0.35f));
-                    // 朝向配对经 ShipSilhouette 唯一入口：纹理嵌在船所在图的图帧内，
-                    // 旋转输入是该图容器角（口袋图与停靠宿主图同一规则）。
-                    ShipSilhouette.SilhouetteOrientation orientation =
-                        ShipSilhouette.OrientationForCurrentMap(ship, universe);
-                    Overlays.Add(new Overlay(silhouetteRect, silhouette,
-                        SilhouetteScreenAngle(orientation.referenceDir, orientation.angle, right, up), tint));
-                    SpaceObject shipContainer = universe.FrameOf(ship.Map);
-                    if (shipContainer != null)
+                    // A projection replaces the entire symbol, including its vector arrow.
+                    if (legend.projection) continue;
+                    SpacePose pose = legend.entry.Pose;
+                    OrbitSphere.Basis(pose.position, out Vector3 east, out Vector3 north);
+                    Vector2 heading = ScreenDir(east, north, pose.angle, right, up);
+                    if (legend.texture == null)
                     {
-                        RegisterClickable(silhouetteRect, universe, shipContainer, referenceDir);
-                    }
-                }
-                else if (docked)
-                {
-                    DrawDot(pos, 3f, new Color(1f, 0.95f, 0.4f, front ? 0.8f : 0.25f));
-                }
-                else
-                {
-                    DrawCursorTriangle(pos, focused ? focusedSize : otherSize, heading, color);
-                }
-                // 速度矢量：聚焦船常驻；标注层起所有自由飞行船（停靠船随宿主运动，
-                // 不单独标注）。
-                if (!docked && shipPose.velocity.sqrMagnitude > 0.01f && (focused || labelLayer))
-                {
-                    Vector2 velocity = ScreenDir(east, north,
-                        Mathf.Atan2(shipPose.velocity.y, shipPose.velocity.x), right, up);
-                    DrawArrow(pos + heading * (focused ? 12f : 10f), velocity, focused ? 26f : 14f,
-                        new Color(0.5f, 1f, 0.6f, alpha), rect);
-                }
-                if (silhouette == null && iconLayer && front)
-                {
-                    SpaceObject shipContainer = universe.FrameOf(ship.Map);
-                    if (shipContainer != null)
-                    {
-                        RegisterClickable(new Rect(pos.x - 9f, pos.y - 9f, 18f, 18f), universe, shipContainer,
-                            referenceDir);
-                    }
-                }
-            }
-
-            GL.PopMatrix();
-
-            // ---- GUI 层：剪影覆盖、原版图标、标注、北极 N、tooltip 与点击 ----
-            if (iconLayer)
-            {
-                foreach (SpaceObject obj in universe.objects)
-                {
-                    if (!obj.ParticipatesInOverlays) continue;
-                    if (Vector3.Dot(obj.pose.position, shipDir) <= 0f) continue;
-                    if (obj is PoiState poi)
-                    {
-                        // marker（无图触发器）：菱形已在 GL 段画过，无 GUI 内容。
-                        // NativeParent：原版站点镜像——剪影（有基架的原版站点）或原版图标。
-                        if (poi.kind != PoiKind.NativeParent || poi.nativeParent == null
-                            || poi.nativeParent.Destroyed)
+                        if (legend.entry.craft)
                         {
-                            continue;
+                            DrawCursorTriangle(legend.position, legend.focused ? 12f : 9f, heading, legend.color);
                         }
-                        Texture2D silhouette = silhouetteLayer && poi.map != null
-                            ? GetStructureSilhouette(poi.map)
-                            : null;
-                        if (silhouette != null)
+                        else
                         {
-                            Vector2 pos = Project(obj.pose.position);
-                            float sizePx = Mathf.Max(silhouette.width * pixelsPerCell, 8f);
-                            var silhouetteRect = new Rect(pos.x - sizePx * 0.5f, pos.y - sizePx * 0.5f, sizePx, sizePx);
-                            if (!silhouetteRect.Overlaps(rect)) continue;
-                            Overlays.Add(new Overlay(silhouetteRect, silhouette,
-                                SilhouetteScreenAngle(obj.pose.position, poi.pose.angle, right, up),
-                                new Color(1f, 0.85f, 0.55f)));
-                            RegisterClickable(silhouetteRect, universe, poi, referenceDir);
-                            continue;
+                            DrawDiamond(legend.position, 6f, legend.color);
                         }
-                        // 原版站点没有 Substructure → 无剪影（上方分支已 continue），标记即
-                        // 投影点居中 = MarkerBelow 的 extent=0 情形，与其他标记同一套逻辑。
-                        Vector2 iconPos = Project(obj.pose.position);
-                        var iconRect = new Rect(iconPos.x - 9f, iconPos.y - 9f, 18f, 18f);
-                        if (!iconRect.Overlaps(rect)) continue;
-                        GUI.color = poi.nativeParent.ExpandingIconColor;
-                        GUI.DrawTexture(iconRect, poi.nativeParent.ExpandingIcon);
-                        GUI.color = Color.white;
-                        RegisterClickable(iconRect, universe, poi, referenceDir);
-                        continue;
                     }
-                    // 普通物化容器：图标按图内容——有船由船剪影段表达（不重复画）；
-                    // 有基架无船 = 残骸，画全图基架合并剪影（真实比例，可点击聚焦）。
-                    if (!silhouetteLayer || obj.map == null) continue;
-                    if (obj.HasTag(SpaceObjectTag.Ship)) continue;
-                    Texture2D wreck = GetStructureSilhouette(obj.map);
-                    if (wreck == null) continue;
-                    Vector2 wreckPos = Project(obj.pose.position);
-                    float wreckPx = Mathf.Max(wreck.width * pixelsPerCell, 8f);
-                    var wreckRect = new Rect(wreckPos.x - wreckPx * 0.5f, wreckPos.y - wreckPx * 0.5f,
-                        wreckPx, wreckPx);
-                    if (!wreckRect.Overlaps(rect)) continue;
-                    Overlays.Add(new Overlay(wreckRect, wreck,
-                        SilhouetteScreenAngle(obj.pose.position, obj.pose.angle, right, up),
-                        new Color(1f, 0.85f, 0.55f)));
-                    RegisterClickable(wreckRect, universe, obj, referenceDir);
+                    if (legend.entry.ship != null && pose.velocity.sqrMagnitude > 0.01f
+                        && (legend.focused || GlobeDisplayRules.ShowLabel(
+                            legend.entry.area, pixelsPerCell, legend.entry.wreck)))
+                    {
+                        DrawArrow(legend.position + heading * 12f,
+                            ScreenDir(east, north, Mathf.Atan2(pose.velocity.y, pose.velocity.x), right, up),
+                            legend.focused ? 26f : 14f, new Color(0.5f, 1f, 0.6f), rect);
+                    }
                 }
             }
-            foreach (Overlay overlay in Overlays)
+            if (repaint) GL.PopMatrix();
+
+            // GUI events and painting consume exactly the same visible legends.
+            foreach (Legend legend in Legends)
             {
-                // DrawTextureRotated 正角 = 视觉顺时针（GUI y 向下）；角度已按该约定换算。
-                GUI.color = overlay.tint;
-                Widgets.DrawTextureRotated(overlay.rect, overlay.texture, overlay.angleDeg);
-            }
-            GUI.color = Color.white;
-            if (labelLayer)
-            {
-                Text.Font = GameFont.Tiny;
-                foreach (SpaceObject obj in universe.objects)
+                if (legend.texture != null)
                 {
-                    if (!obj.ParticipatesInOverlays) continue;
-                    PilotTarget flowTarget = universe.Approach.FlowTarget;
-                    if (flowTarget.IsValid && universe.FrameOf(flowTarget.Map) == obj) continue;
-                    if (Vector3.Dot(obj.pose.position, shipDir) <= 0f) continue;
-                    Vector2 pos = Project(obj.pose.position);
-                    float distance = OrbitSphere.ArcCells(referenceDir, obj.pose.position);
-                    string text = $"{obj.label} · " + "DeltaV_PanelGlobeDistance".Translate(((int)distance).ToString("N0"));
-                    // 标注统一水平居中于图例（剪影或图标/三角标记）下方（2026-09-19
-                    // 定稿补全）：旧右侧布局在对象靠右时被 Min 夹回、横穿图标——纯
-                    // 太空 home 锚等无剪影 POI 实测与原版图标重合。
-                    float extent = LegendExtentOf(universe, obj, reference, silhouetteLayer, pixelsPerCell, right, up);
-                    Vector2 textSize = Text.CalcSize(text);
-                    float x = Mathf.Clamp(pos.x - textSize.x * 0.5f, rect.xMin + 2f,
-                        Mathf.Max(rect.xMin + 2f, rect.xMax - textSize.x - 2f));
-                    var labelRect = new Rect(x, pos.y + extent + 4f, textSize.x + 2f, textSize.y);
-                    if (!labelRect.Overlaps(rect)) continue;
-                    GUI.color = new Color(1f, 1f, 1f, 0.85f);
-                    Widgets.Label(labelRect, text);
+                    GUI.color = legend.color;
+                    Widgets.DrawTextureRotated(legend.rect, legend.texture, legend.angle);
                     GUI.color = Color.white;
                 }
+                Rect hit = legend.rect;
+                hit.xMin = Mathf.Max(hit.xMin, rect.xMin);
+                hit.xMax = Mathf.Min(hit.xMax, rect.xMax);
+                hit.yMin = Mathf.Max(hit.yMin, rect.yMin);
+                hit.yMax = Mathf.Min(hit.yMax, rect.yMax);
+                RegisterClickable(hit, legend.entry, referenceDir);
+                if (!GlobeDisplayRules.ShowLabel(legend.entry.area, pixelsPerCell, legend.entry.wreck)) continue;
+                Text.Font = GameFont.Tiny;
+                float distance = OrbitSphere.ArcCells(referenceDir, legend.entry.Pose.position);
+                string text = legend.entry.Label + " · "
+                    + "DeltaV_PanelGlobeDistance".Translate(((int)distance).ToString("N0"));
+                Vector2 textSize = Text.CalcSize(text);
+                float extent = legend.projection
+                    ? SilhouetteHalfHeightPx(legend.rect.width, legend.angle) : legend.rect.height * 0.5f;
+                float x = Mathf.Clamp(legend.position.x - textSize.x * 0.5f, rect.xMin + 2f,
+                    Mathf.Max(rect.xMin + 2f, rect.xMax - textSize.x - 2f));
+                var labelRect = new Rect(x, legend.position.y + extent + 4f, textSize.x + 2f, textSize.y);
+                if (labelRect.Overlaps(rect)) Widgets.Label(labelRect, text);
                 Text.Font = GameFont.Small;
             }
             if (Vector3.Dot(Vector3.up, shipDir) > 0.2f && hexAlpha < 1f)
@@ -515,18 +356,20 @@ namespace DeltaV
                 }
             }
 
-            // 层级状态诊断（状态变化沿输出）：缩放/LOD/可点条目一旦异常，日志立刻能定位断点。
-            string state = $"zoom={Zoom01:F1} viewHalf={viewHalfCells:F0} side={sideCells:F0}" +
-                $" icon={iconLayer} sil={silhouetteLayer} label={labelLayer}" +
-                $" hex={hexAlpha:F1} objs={universe.objects.Count} clickable={Clickables.Count}";
-            if (state != lastStateLog)
-            {
-                lastStateLog = state;
-                DeltaVLog.Message(DeltaVLogModule.Core, $"globe: {state}");
-            }
+            Text.Font = GameFont.Small;
+            GUI.color = Color.white;
         }
 
-        private static string lastStateLog;
+        // A native parent icon is the container fallback. Once its geometry is represented
+        // by a visible projection, keep that projection and the independent member markers.
+        internal static void RemoveRedundantNativeIcons(List<Legend> legends)
+        {
+            var projected = new HashSet<SpaceObject>();
+            foreach (Legend legend in legends)
+                if (legend.projection) projected.Add(legend.entry.owner);
+            legends.RemoveAll(legend => legend.entry.native && !legend.projection
+                && projected.Contains(legend.entry.owner));
+        }
 
         // ---- 缩放交互 ----
 
@@ -539,17 +382,12 @@ namespace DeltaV
 
         // ---- 点击聚焦 ----
 
-        private static void RegisterClickable(Rect rect, UniverseManager universe, SpaceObject obj,
-            Vector3 referenceDir)
+        private static void RegisterClickable(Rect rect, GlobeDisplayEntry entry, Vector3 referenceDir)
         {
-            float distance = OrbitSphere.ArcCells(referenceDir, obj.pose.position);
-            Map map = obj.InteriorMap;
-            string tip = $"{obj.label}\n" + "DeltaV_PanelGlobeDistance".Translate(((int)distance).ToString("N0"));
-            if (map == null)
-            {
-                tip += "\n" + "DeltaV_PanelObjectNotLoaded".Translate();
-            }
-            Clickables.Add(new Clickable(rect, obj, tip));
+            float distance = OrbitSphere.ArcCells(referenceDir, entry.Pose.position);
+            string tip = entry.Label + "\n" + "DeltaV_PanelGlobeDistance".Translate(((int)distance).ToString("N0"));
+            if (entry.owner.InteriorMap == null) tip += "\n" + "DeltaV_PanelObjectNotLoaded".Translate();
+            Clickables.Add(new Clickable(rect, entry.owner, tip));
         }
 
         private static void FocusObject(UniverseManager universe, SpaceObject obj)
@@ -624,73 +462,33 @@ namespace DeltaV
 
         // ---- 剪影（物化对象；按 Map+归属 ID 扫描，纹理经 ShipSilhouette 唯一入口）----
 
-        private static Texture2D GetSilhouette(ShipBase ship)
+        private static Texture2D GetSilhouette(GlobeDisplayEntry entry)
         {
-            Map map = ship.Map;
-            DriveSubject ownerId = ship.Identity;
-            if (map == null || map.Disposed) return null;
-            if (SilhouetteCache.TryGetValue(map, out Dictionary<DriveSubject, Texture2D> byOwner))
+            Map map = entry.owner.map;
+            if (map == null || entry.cells == null || entry.cells.Count == 0) return null;
+            DriveSubject key = entry.ship == null ? default
+                : new DriveSubject(0, entry.ship.key, entry.ship.shuttle);
+            if (!SilhouetteCache.TryGetValue(map, out var byShip))
+                SilhouetteCache[map] = byShip = new Dictionary<DriveSubject, CachedSilhouette>();
+            if (byShip.TryGetValue(key, out var previous) && !ReferenceEquals(previous.source, entry)
+                && previous.source.mapAnchor == entry.mapAnchor
+                && previous.source.cells.SequenceEqual(entry.cells)) previous.source = entry;
+            if (!byShip.TryGetValue(key, out var cached) || !ReferenceEquals(cached.source, entry))
             {
-                if (byOwner.TryGetValue(ownerId, out Texture2D cached)) return cached;
+                if (cached?.texture != null) Object.Destroy(cached.texture);
+                cached = new CachedSilhouette { source = entry,
+                    texture = ShipSilhouette.BuildTexture(entry.cells,
+                        $"DeltaV_Globe_{map.uniqueID}_{key}", entry.mapAnchor) };
+                byShip[key] = cached;
             }
-            if (SilhouetteEmpty.TryGetValue(map, out HashSet<DriveSubject> emptyOwners) && emptyOwners.Contains(ownerId))
-            {
-                return null;
-            }
-
-            List<IntVec3> cells = ship.HullCells.ToList();
-            Texture2D texture = cells.Count > 0
-                ? ShipSilhouette.BuildTexture(cells, $"DeltaV_GlobeSilhouette_{map.Index}_{ownerId}")
-                : null;
-            if (texture == null)
-            {
-                // 该归属在此图没有基架（原版站点、或对象未物化到本图）：继续用图标。
-                if (!SilhouetteEmpty.TryGetValue(map, out emptyOwners))
-                {
-                    emptyOwners = new HashSet<DriveSubject>();
-                    SilhouetteEmpty[map] = emptyOwners;
-                }
-                emptyOwners.Add(ownerId);
-                return null;
-            }
-            if (!SilhouetteCache.TryGetValue(map, out byOwner))
-            {
-                byOwner = new Dictionary<DriveSubject, Texture2D>();
-                SilhouetteCache[map] = byOwner;
-            }
-            byOwner[ownerId] = texture;
-            return texture;
+            return cached.texture;
         }
 
-        /// <summary>
-        /// 残骸剪影（普通物化容器）：全图基架扫描（<see cref="ShipSilhouette.ScanSubstructure(Map)"/>
-        /// 整图口径，单实现入口），不分归属。图上无基架（纯环境容器）返回 null → 小点+名。
-        /// </summary>
-        private static Texture2D GetStructureSilhouette(Map map)
-        {
-            if (map == null || map.Disposed) return null;
-            if (StructureSilhouetteCache.TryGetValue(map, out Texture2D cached)) return cached;
-            if (StructureSilhouetteEmpty.Contains(map)) return null;
-            List<IntVec3> cells = ShipSilhouette.ScanSubstructure(map);
-            Texture2D texture = cells.Count > 0
-                ? ShipSilhouette.BuildTexture(cells, $"DeltaV_GlobeWreckSilhouette_{map.Index}")
-                : null;
-            if (texture == null)
-            {
-                StructureSilhouetteEmpty.Add(map);
-                return null;
-            }
-            StructureSilhouetteCache[map] = texture;
-            return texture;
-        }
-
-        /// <summary>聚焦船最长边（格）：优先剪影侧长，兜底 FallbackSideCells。缩放最深档与剪影层阈值都以它为单位。</summary>
         private static float SideCellsOf(ShipBase reference)
         {
             if (!reference.IsValid) return FallbackSideCells;
-            Map map = reference.Map;
-            Texture2D silhouette = GetSilhouette(reference);
-            return silhouette != null ? silhouette.width : FallbackSideCells;
+            CellRect bounds = CellRect.FromCellList(reference.HullCells.ToList());
+            return Mathf.Max(bounds.Width, bounds.Height, 1f);
         }
 
         /// <summary>
@@ -722,93 +520,25 @@ namespace DeltaV
             return sizePx * 0.5f * (Mathf.Abs(Mathf.Cos(rad)) + Mathf.Abs(Mathf.Sin(rad)));
         }
 
-        /// <summary>
-        /// 对象剪影旋转包围盒的半高（像素）；无剪影（未物化/未到剪影层/图上无该归属
-        /// 基架）返回 0。是 <see cref="LegendExtentOf"/> 的剪影分支。容器角即旋转输入
-        ///（剪影纹理嵌在对象内部图的图帧内）。普通容器用全图合并残骸剪影（有船时不
-        /// 画合并剪影——船剪影各自表达，extent 走标记兜底）。
-        /// </summary>
-        private static float SilhouetteExtentOf(UniverseManager universe, SpaceObject obj,
-            bool silhouetteLayer, float pixelsPerCell, Vector3 right, Vector3 up)
-        {
-            if (!silhouetteLayer) return 0f;
-            Map map = obj.map;
-            Texture2D silhouette;
-            if (obj is PoiState)
-            {
-                silhouette = GetStructureSilhouette(map);
-            }
-            else
-            {
-                if (map == null || obj.HasTag(SpaceObjectTag.Ship)) return 0f;
-                silhouette = GetStructureSilhouette(map);
-            }
-            if (silhouette == null) return 0f;
-            float sizePx = Mathf.Max(silhouette.width * pixelsPerCell, 8f);
-            float angleDeg = SilhouetteScreenAngle(obj.pose.position, obj.pose.angle, right, up);
-            return SilhouetteHalfHeightPx(sizePx, angleDeg);
-        }
-
-        /// <summary>
-        /// 对象图例（剪影或标记）在屏幕方位上的半高（像素）：有剪影 = 剪影旋转包围盒
-        /// 半高；无剪影 = 标记自身半高（POI 原版图标 18×18 → 9、残骸菱形 6、聚焦标记
-        /// 按绘制尺寸随缩放插值）。标注层据此把文字统一放在图例下方。
-        /// </summary>
-        private static float LegendExtentOf(UniverseManager universe, SpaceObject obj, SpaceObject reference,
-            bool silhouetteLayer, float pixelsPerCell, Vector3 right, Vector3 up)
-        {
-            float silhouetteExtent = SilhouetteExtentOf(universe, obj, silhouetteLayer, pixelsPerCell, right, up);
-            if (silhouetteExtent > 0f) return silhouetteExtent;
-            if (obj is PoiState poi && poi.kind == PoiKind.SnapshotPocket
-                || obj.IsArchived) return 6f;
-            return ReferenceEquals(obj, reference)
-                ? Mathf.Lerp(9f, 14f, Zoom01)
-                : Mathf.Lerp(6.5f, 10f, Zoom01);
-        }
-
-        /// <summary>读档 / 场景重置时释放剪影缓存（按 Map+归属重扫自愈）。</summary>
         public static void ClearRuntimeCaches()
         {
-            foreach (Dictionary<DriveSubject, Texture2D> byOwner in SilhouetteCache.Values)
-            {
-                foreach (Texture2D texture in byOwner.Values)
-                {
-                    if (texture != null) Object.Destroy(texture);
-                }
-            }
+            foreach (var byShip in SilhouetteCache.Values)
+                foreach (var cached in byShip.Values)
+                    if (cached.texture != null) Object.Destroy(cached.texture);
             SilhouetteCache.Clear();
-            SilhouetteEmpty.Clear();
-            foreach (Texture2D texture in StructureSilhouetteCache.Values)
-            {
-                if (texture != null) Object.Destroy(texture);
-            }
-            StructureSilhouetteCache.Clear();
-            StructureSilhouetteEmpty.Clear();
-            lastStateLog = null;
+            Legends.Clear();
+            Clickables.Clear();
         }
 
-        /// <summary>
-        /// 地图内容变化后失效剪影（快照语义，显式失效点）：降落实置/起飞移除船体、
-        /// 结构扩建、基架归属变更等。同一图上全部归属的剪影一并失效，下次取用重扫。
-        /// </summary>
         public static void InvalidateSilhouette(Map map)
         {
             if (map == null) return;
-            if (SilhouetteCache.TryGetValue(map, out Dictionary<DriveSubject, Texture2D> byOwner))
+            if (SilhouetteCache.TryGetValue(map, out var byShip))
             {
-                foreach (Texture2D texture in byOwner.Values)
-                {
-                    if (texture != null) Object.Destroy(texture);
-                }
+                foreach (var cached in byShip.Values)
+                    if (cached.texture != null) Object.Destroy(cached.texture);
                 SilhouetteCache.Remove(map);
             }
-            SilhouetteEmpty.Remove(map);
-            if (StructureSilhouetteCache.TryGetValue(map, out Texture2D wreck))
-            {
-                if (wreck != null) Object.Destroy(wreck);
-                StructureSilhouetteCache.Remove(map);
-            }
-            StructureSilhouetteEmpty.Remove(map);
         }
 
         // ---- 基础绘制 ----
@@ -904,22 +634,6 @@ namespace DeltaV
             Vertex(c + Vector2.right * size);
             Vertex(c - Vector2.up * size);
             Vertex(c - Vector2.right * size);
-            GL.End();
-        }
-
-        private static void DrawDot(Vector2 c, float radiusPx, Color color)
-        {
-            GL.Begin(GL.TRIANGLES);
-            GL.Color(color);
-            const int segments = 8;
-            for (int i = 0; i < segments; i++)
-            {
-                float a0 = i / (float)segments * Mathf.PI * 2f;
-                float a1 = (i + 1) / (float)segments * Mathf.PI * 2f;
-                Vertex(c);
-                Vertex(c + new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * radiusPx);
-                Vertex(c + new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * radiusPx);
-            }
             GL.End();
         }
 

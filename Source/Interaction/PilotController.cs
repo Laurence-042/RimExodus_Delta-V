@@ -341,6 +341,7 @@ internal readonly struct HeadingPanelAction
         }
         internal bool AimActive => aim?.Active == true;
         internal bool AimSessionOnFocusedMap => aim?.SessionOnFocusedMap == true;
+        internal void ProcessAimInputEvent() => aim?.ProcessInputEvent();
 
         internal void BeginAim()
         {

@@ -1,4 +1,5 @@
 using RimWorld.Planet;
+using RimWorld;
 using UnityEngine;
 using Verse;
 
@@ -21,6 +22,8 @@ namespace DeltaV
         private readonly UniverseManager universe;
         private bool disposed;
         private readonly ShipFireControl fireControl;
+        private readonly AimButtonLatch buttons = new AimButtonLatch();
+        private Map inputMap;
 
         /// <summary>瞄准的船（带种类的跨图稳定身份）。</summary>
         public readonly DriveSubject ownerId;
@@ -30,6 +33,12 @@ namespace DeltaV
             this.universe = universe;
             this.ownerId = ownerId;
             this.fireControl = fireControl;
+            Application.focusChanged += OnFocusChanged;
+        }
+
+        private void OnFocusChanged(bool focused)
+        {
+            if (!focused) buttons.Clear();
         }
 
         public bool Active => !disposed;
@@ -62,13 +71,13 @@ namespace DeltaV
                 Dispose("aim ship lost");
                 return;
             }
-            if (!WorldRendererUtility.DrawingMap || ship.Map != Find.CurrentMap) return;
+            if (!InputAllowed()) { buttons.Clear(); return; }
             SpaceObject container = universe.FrameOf(ship.Map);
             if (container == null) return;
             // 悬停窗口（面板/原版 UI）不射击；暂停时无 tick，天然不射。
-            if (MouseOverUiWindow()) return;
-            FireMain = Input.GetMouseButton(0);
-            FireSecondary = Input.GetMouseButton(1);
+            buttons.Validate(true, Input.GetMouseButton(0), Input.GetMouseButton(1));
+            FireMain = buttons.Main;
+            FireSecondary = buttons.Secondary;
             AimPoint = MouseUniversePoint(container, ship.Map);
             HasInput = true;
         }
@@ -93,8 +102,37 @@ namespace DeltaV
 
         internal static bool MouseOverUiWindow()
         {
-            // 与 HandleShellClick 同一坐标口径（GUI → screen 后查窗口矩形）。
-            return Find.WindowStack.GetWindowAt(UI.GUIToScreenPoint(UI.MousePositionOnUI)) != null;
+            Vector2 point = UI.MousePosUIInvertedUseEventIfCan;
+            return Find.WindowStack.GetWindowAt(point) != null
+                || Find.WindowStack.AnyWindowAbsorbingAllInput
+                || ShipStatusPanel.ContainsScreenPoint(point)
+                || AimUiRegions.Contains(point)
+                || Find.ColonistBar.AnyColonistOrCorpseAt(point)
+                || point.y >= UI.screenHeight - 35f;
+        }
+
+        private bool InputAllowed()
+        {
+            if (inputMap != Find.CurrentMap) { buttons.Clear(); inputMap = Find.CurrentMap; }
+            return SessionOnFocusedMap && Application.isFocused && !MouseOverUiWindow()
+                && !Find.Targeter.IsTargeting && Find.DesignatorManager.SelectedDesignator == null;
+        }
+
+        // Called after vanilla windows/widgets have consumed their events. Only an unclaimed
+        // map MouseDown can authorize a volley; UI drags can never acquire authorization.
+        internal void ProcessInputEvent()
+        {
+            bool allowed = InputAllowed();
+            buttons.Validate(allowed, Input.GetMouseButton(0), Input.GetMouseButton(1));
+            Event ev = Event.current;
+            if (ev != null && ev.type == EventType.Used
+                && (ev.rawType == EventType.MouseDown || ev.rawType == EventType.MouseDrag)) buttons.Clear();
+            if (!allowed || ev == null) return;
+            if (ev.type == EventType.MouseDown && (ev.button == 0 || ev.button == 1))
+            {
+                buttons.Press(ev.button);
+                ev.Use();
+            }
         }
 
         /// <summary>析构收尾：切出瞄准/切换目标/船失效统一走这里（边沿日志）。标记以
@@ -103,7 +141,23 @@ namespace DeltaV
         {
             if (disposed) return;
             disposed = true;
+            Application.focusChanged -= OnFocusChanged;
+            buttons.Clear();
             DeltaVLog.Message(DeltaVLogModule.Input, $"aim session ended ({reason}, owner #{ownerId})");
         }
+    }
+
+    /// <summary>Session-owned mouse authorization; independent of Unity for regression checks.</summary>
+    internal sealed class AimButtonLatch
+    {
+        public bool Main { get; private set; }
+        public bool Secondary { get; private set; }
+        public void Press(int button) { if (button == 0) Main = true; if (button == 1) Secondary = true; }
+        public void Validate(bool allowed, bool mainHeld, bool secondaryHeld)
+        {
+            Main &= allowed && mainHeld;
+            Secondary &= allowed && secondaryHeld;
+        }
+        public void Clear() { Main = Secondary = false; }
     }
 }

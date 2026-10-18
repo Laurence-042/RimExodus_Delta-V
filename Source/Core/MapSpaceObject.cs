@@ -136,6 +136,7 @@ namespace DeltaV
             archived.mapData = data; archived.mapId = interior.uniqueID;
             archived.parent = (PocketMapParent)interior.Parent;
             archived.memberFactions = ShipFactions.ToList();
+            archived.globe = Current.Game.GetComponent<UniverseManager>().GlobeDisplay.Capture(this);
             DriveSubject subject = PrimaryDriver;
             DriveInfo info = TryGetDrive(subject, out var drive) ? drive : MotionInfo;
             archived.dynamics = DriveSnapshot.Capture(info, subject);
@@ -150,6 +151,7 @@ namespace DeltaV
         public int mapId;
         public PocketMapParent parent;
         public DriveSnapshot dynamics;
+        public GlobeDisplaySummary globe;
         internal List<Faction> memberFactions = new List<Faction>();
         protected override IEnumerable<Faction> ShipFactions => memberFactions;
         public float observedThrust, observedFirepower;
@@ -179,6 +181,7 @@ namespace DeltaV
             base.ExposeData();
             Scribe_Values.Look(ref mapData, "mapData"); Scribe_Values.Look(ref mapId, "mapId");
             Scribe_References.Look(ref parent, "parent"); Scribe_Deep.Look(ref dynamics, "dynamics");
+            Scribe_Deep.Look(ref globe, "globe");
             Scribe_Collections.Look(ref memberFactions, "shipFactions", LookMode.Reference);
             if (memberFactions == null) memberFactions = new List<Faction>();
             Scribe_Values.Look(ref observedThrust, "observedThrust");

@@ -43,6 +43,22 @@ namespace DeltaV
 
         public int ThingCount => thingCells.Count;
 
+        [System.NonSerialized] private int? globeArea;
+        [System.NonSerialized] private bool? globeWreck;
+        internal int GlobeArea
+        {
+            get
+            {
+                if (globeArea.HasValue) return globeArea.Value;
+                var entries = new List<(IntVec3, TerrainDef)>();
+                for (int i = 0; i < foundationCells.Count; i++) entries.Add((foundationCells[i], foundationDefs[i]));
+                for (int i = 0; i < topCells.Count; i++) entries.Add((topCells[i], topDefs[i]));
+                globeArea = GlobeDisplayRules.TerrainCells(entries).Count;
+                return globeArea.Value;
+            }
+        }
+        internal bool GlobeWreck => globeWreck ??= GlobeDisplayRules.IsWreck(false, GlobeDisplayRules.HasEquipment(thingDefs));
+
         /// <summary>快照是否有归档价值（有基架或有建筑/物品）；完全空白的图不值得建 marker。</summary>
         public bool HasContent => foundationCells.Count > 0 || thingCells.Count > 0;
 

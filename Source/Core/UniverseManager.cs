@@ -68,6 +68,8 @@ namespace DeltaV
             if (index < 0 || previous.objectId != current.objectId || !previous.pose.Equals(current.pose))
                 throw new InvalidOperationException("Invalid space object representation replacement");
             current.RepresentationVersion = previous.RepresentationVersion + 1;
+            globeDisplay?.Forget(previous.map);
+            PlanetGlobeRenderer.InvalidateSilhouette(previous.map);
             objects[index] = current;
             if (previous.map != null || current.map != null) SubstructureOwnership.BumpStructureVersion();
             try { Autopilot.Detach(previous); previous.ClearDrive(); }
@@ -77,6 +79,9 @@ namespace DeltaV
         [NonSerialized] private ShipControlService controls;
 
         public ShipControlService Controls => controls ?? (controls = new ShipControlService(this));
+
+        [NonSerialized] private GlobeDisplayInfo globeDisplay;
+        internal GlobeDisplayInfo GlobeDisplay => globeDisplay ?? (globeDisplay = new GlobeDisplayInfo());
 
         [NonSerialized] private SpaceProjectileService projectiles;
 
@@ -334,6 +339,8 @@ namespace DeltaV
             // Resolve projectile resources while the old identity is still registered.
             Projectiles.NotifyContainerRemoving(obj);
             objects.Remove(obj);
+            globeDisplay?.Forget(obj.map);
+            PlanetGlobeRenderer.InvalidateSilhouette(obj.map);
             Autopilot.Detach(obj);
             Shuttles.ForgetContainer(obj);
             // 最后一艘船消失后 Ship tag 已移除，释放不能再以当前角色为前提。
@@ -446,6 +453,8 @@ namespace DeltaV
         {
             if (map == null) return;
             unframedMaps?.Remove(map);
+            globeDisplay?.Forget(map);
+            PlanetGlobeRenderer.InvalidateSilhouette(map);
             Projectiles.ForgetMap(map);
         }
 
@@ -1135,10 +1144,13 @@ namespace DeltaV
         private void ResetRuntimeServices()
         {
             npcShips = null;
+            globeDisplay?.Clear();
+            globeDisplay = null;
             controls?.Reset();
             controls = null;
             pilot = null;
             ShipStatusPanel.ClearRuntimeState();
+            AimUiRegions.Clear();
             ShellRenderer.ClearRuntimeCaches();
             WorldShipMarkerRenderer.ClearRuntimeCaches();
             PlanetGlobeRenderer.ClearRuntimeCaches();

@@ -32,12 +32,17 @@ namespace DeltaV
         private static Vector2 contentScroll;
         private static Vector2 combatScroll;
         private static bool combatExpanded = true;
+        private static Rect inputRect;
+        private static Map inputMap;
+        internal static bool ContainsScreenPoint(Vector2 point) => inputMap == Find.CurrentMap
+            && inputMap != null && WorldRendererUtility.DrawingMap && inputRect.Contains(point);
 
         public static void Forget(Map map)
         {
             if (map == null) return;
             selectedShipByMap.Remove(map);
             if (lastDrawnMap == map) lastDrawnMap = null;
+            if (inputMap == map) inputMap = null;
         }
 
         public static void ClearRuntimeState()
@@ -46,6 +51,7 @@ namespace DeltaV
             lastDrawnMap = null;
             contentScroll = Vector2.zero;
             combatScroll = Vector2.zero;
+            inputMap = null;
         }
 
         /// <summary>面板当前选中的船（驾驶切换键等多船入口共用；无选择返回 false）。</summary>
@@ -118,6 +124,7 @@ namespace DeltaV
 
         public static void Draw(UniverseManager universe)
         {
+            inputMap = null;
             Map map = Find.CurrentMap;
             if (universe == null || map == null || !WorldRendererUtility.DrawingMap) return;
             SpaceObject frame = universe.FrameOf(map);
@@ -250,6 +257,8 @@ namespace DeltaV
             float y = Mathf.Clamp(UI.screenHeight * 0.45f - outerHeight * 0.5f, 48f,
                 Mathf.Max(48f, UI.screenHeight - outerHeight - 32f));
             var panelRect = new Rect(8f, y, PanelWidth, outerHeight);
+            inputRect = panelRect;
+            inputMap = map;
             Widgets.DrawMenuSection(panelRect);
             var inner = panelRect.ContractedBy(8f);
 

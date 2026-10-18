@@ -31,8 +31,11 @@ namespace DeltaV
         public static bool IsThruster(Thing thing)
         {
             return thing is Building
-                && thing.def.GetCompProperties<CompProperties_GravshipThruster>() != null;
+                && IsThrusterDef(thing.def);
         }
+
+        internal static bool IsThrusterDef(ThingDef def) =>
+            def?.GetCompProperties<CompProperties_GravshipThruster>() != null;
 
         public static bool IsOperational(Thing thruster)
         {

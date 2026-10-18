@@ -4,6 +4,7 @@ using HarmonyLib;
 using RimWorld;
 using RimWorld.Planet;
 using Verse;
+using UnityEngine;
 
 namespace DeltaV
 {
@@ -18,13 +19,15 @@ namespace DeltaV
     public static class Patch_AimModeClicks
     {
         /// <summary>Prefix 返回 false = 跳过原版点击处理（void 方法，无需 __result）。</summary>
-        public static bool Prefix()
+        public static bool Prefix(MethodBase __originalMethod)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (__originalMethod.Name == nameof(MapInterface.HandleLowPriorityInput))
+                universe?.Controls.ProcessAimInputEvent();
             if (universe == null || !universe.Controls.AimSessionOnFocusedMap) return true;
             if (Find.CurrentMap == null || !WorldRendererUtility.DrawingMap) return true;
             // 悬停窗口（含本 mod 面板）：窗口交互优先，点击交还原版。
-            if (Find.WindowStack.GetWindowAt(Verse.UI.GUIToScreenPoint(Verse.UI.MousePositionOnUI)) != null)
+            if (SpaceAimController.MouseOverUiWindow())
             {
                 return true;
             }
@@ -40,6 +43,32 @@ namespace DeltaV
         {
             yield return AccessTools.Method(typeof(MapInterface), nameof(MapInterface.HandleMapClicks));
             yield return AccessTools.Method(typeof(MapInterface), nameof(MapInterface.HandleLowPriorityInput));
+        }
+    }
+
+    // Vanilla's explicit input-absorbing rectangles also block a held salvo. Keep their
+    // actual transformed geometry rather than duplicating gizmo/time-control layouts.
+    internal static class AimUiRegions
+    {
+        private static readonly List<Rect> regions = new List<Rect>();
+        internal static void Clear() => regions.Clear();
+        internal static void Add(Rect rect) => regions.Add(UI.GUIToScreenRect(rect));
+        internal static bool Contains(Vector2 point) => regions.Exists(rect => rect.Contains(point));
+    }
+
+    [HarmonyPatch(typeof(UIRoot_Play), nameof(UIRoot_Play.UIRootOnGUI))]
+    internal static class Patch_AimUiRegions_Begin
+    {
+        private static void Prefix() => AimUiRegions.Clear();
+    }
+
+    [HarmonyPatch(typeof(GenUI), nameof(GenUI.AbsorbClicksInRect))]
+    internal static class Patch_AimUiRegions_Record
+    {
+        private static void Prefix(Rect r)
+        {
+            if (Current.Game?.GetComponent<UniverseManager>()?.Controls.AimActive == true)
+                AimUiRegions.Add(r);
         }
     }
 }
