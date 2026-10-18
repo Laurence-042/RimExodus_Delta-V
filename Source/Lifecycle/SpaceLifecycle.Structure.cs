@@ -1,0 +1,92 @@
+using System.Collections.Generic;
+using System.Linq;
+using RimWorld;
+using RimWorld.Planet;
+using UnityEngine;
+using Verse;
+
+namespace DeltaV
+{
+    public sealed partial class SpaceLifecycleService
+    {
+        private readonly HashSet<Map> pendingStructureChecks = new HashSet<Map>();
+
+        /// <summary>建筑/地形事件合并到帧边界；复核搬运、生成后的最终内容。</summary>
+        internal void QueueStructureCheck(Map map)
+        {
+            if (map == null || pendingStructureChecks.Contains(map)) return;
+            SpaceObject owner = universe.FrameOf(map);
+            if (!IsOrdinaryStructureMap(owner)) return;
+            pendingStructureChecks.Add(map);
+            int version = owner.RepresentationVersion;
+            universe.QueueFrameAction(() =>
+            {
+                if (!pendingStructureChecks.Contains(map)) return;
+                try
+                {
+                    if (universe.ObjectById(owner.objectId) == owner && owner.RepresentationVersion == version
+                        && owner.map == map) RecycleUnsupportedMap(map);
+                }
+                finally { pendingStructureChecks.Remove(map); }
+            });
+        }
+
+        private static bool IsOrdinaryStructureMap(SpaceObject owner) => owner is MapSpaceObject
+            && owner.map?.Parent is ShipPocketParent_DeltaV
+            && !owner.HasTag(SpaceObjectTag.Projectile);
+
+        /// <summary>污渍、屋顶、散落物及人员都不能单独承载普通地图；shuttle 是独立船体。</summary>
+        internal static bool HasMapSupport(SpaceObject owner)
+        {
+            if (owner?.map == null || owner.map.Disposed) return false;
+            if (owner.HasTag(SpaceObjectTag.Projectile) || owner.Ships.Any(ship => ship.Identity.shuttle)) return true;
+            Map map = owner.map;
+            foreach (IntVec3 cell in map.AllCells)
+            {
+                if (SubstructureOwnership.HasFoundation(map, cell)) return true;
+                TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
+                if (terrain != null && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>只在安全帧上下文调用；当前聚焦、玩家 Pawn 或物品均不阻止无承载图回收。</summary>
+        internal bool RecycleUnsupportedMap(Map map)
+        {
+            SpaceObject owner = universe.FrameOf(map);
+            if (!IsOrdinaryStructureMap(owner) || map.Disposed || !Find.Maps.Contains(map)
+                || universe.IsResettingScene || universe.Generation?.IsGenerating(map) == true
+                || universe.ShipTransitions.IsAwaitingDockingCleanup(map) || HasMapSupport(owner)) return false;
+
+            bool wasFocused = Find.CurrentMap == map;
+            SpaceObject fallback = null;
+            if (wasFocused)
+            {
+                fallback = universe.objects.Where(candidate => candidate != owner
+                        && candidate.map != null && !candidate.map.Disposed && Find.Maps.Contains(candidate.map)
+                        && !IsUniverseHost(candidate.map) && !candidate.HasTag(SpaceObjectTag.Projectile)
+                        && universe.Generation?.IsGenerating(candidate.map) != true
+                        && (!IsOrdinaryStructureMap(candidate) || HasMapSupport(candidate)))
+                    .OrderByDescending(candidate => candidate.HasFaction(Faction.OfPlayerSilentFail))
+                    .ThenBy(candidate => OrbitSphere.ArcCells(owner.pose.position, candidate.pose.position))
+                    .ThenBy(candidate => candidate.objectId).FirstOrDefault();
+                if (fallback != null)
+                {
+                    Vector3 center = Find.CameraDriver.CurrentViewRect.CenterVector3;
+                    Vector3 point = SpaceTransform.MapPointToUniverse(owner, map, new Vector2(center.x, center.z));
+                    universe.SetFocusedWithCamera(fallback,
+                        SpaceTransform.UniverseToMapPoint(fallback, fallback.map, point), Find.CameraDriver.RootSize);
+                }
+                else Current.Game.CurrentMap = null;
+            }
+
+            // 原版销图统一处置剩余 Pawn、物品和外部引用，不转存成残骸或阻止回收。
+            ShipFlightTransitionService.AbandonPawnsOn(map);
+            DestroyPocketMap(map);
+            universe.UnregisterObject(owner);
+            if (wasFocused && fallback == null) Find.World.renderer.wantedMode = WorldRenderMode.Planet;
+            return true;
+        }
+    }
+}

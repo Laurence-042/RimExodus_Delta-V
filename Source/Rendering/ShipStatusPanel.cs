@@ -24,10 +24,10 @@ namespace DeltaV
         private const float MaxPanelHeight = 660f;
         private const float MaxCombatHeight = 165f;
 
-        // 每图选中的「当前查看/操作的船」（运行时 UI 状态；按归属 ID 记忆）。
+        // 每图选中的结构归属或单建筑船；无主台不使结构选择失效。
         private static readonly Dictionary<Map, DriveSubject> selectedShipByMap = new Dictionary<Map, DriveSubject>();
 
-        // 上一次 Draw 的聚焦图（检测聚焦切图时刻，应用「优先玩家船」的重新默认）。
+        // 切图时重置滚动位置；有效的结构选择不会被派系默认覆盖。
         private static Map lastDrawnMap;
         private static Vector2 contentScroll;
         private static Vector2 combatScroll;
@@ -58,50 +58,43 @@ namespace DeltaV
         public static bool TryGetSelectedShip(Map map, out ShipBase ship)
         {
             ship = ShipBase.Invalid;
-            if (map == null) return false;
-            if (!selectedShipByMap.TryGetValue(map, out DriveSubject ownerId)) return false;
+            if (!TryGetSelectedStructure(map, out DriveSubject ownerId)) return false;
             ShipBase resolved = ShipRegistry.ShipByIdentity(ownerId);
-            if (!resolved.IsValid || resolved.Map != map)
-            {
-                selectedShipByMap.Remove(map);
-                return false;
-            }
+            if (!resolved.IsValid || resolved.Map != map) return false;
             ship = resolved;
             return true;
         }
 
-        /// <summary>该图的当前操作船：面板已选择则用之；否则默认船（玩家派系船优先、
-        /// 唯一船直取，DefaultVesselOnMap 单一实现）并写入记忆，行高亮保持稳定。</summary>
-        private static ShipBase SelectedOrOnlyShip(UniverseManager universe, Map map)
+        internal static bool TryGetSelectedStructure(Map map, out DriveSubject identity)
         {
-            if (TryGetSelectedShip(map, out ShipBase selected)) return selected;
-            ShipBase defaulted = ShipRegistry.DefaultVesselOnMap(map);
-            if (defaulted.IsValid)
+            identity = default;
+            if (map == null || map.Disposed) return false;
+            if (selectedShipByMap.TryGetValue(map, out identity) && ShipRegistry.HasStructure(map, identity))
+                return true;
+            selectedShipByMap.Remove(map);
+            ShipBase preferred = ShipRegistry.DefaultVesselOnMap(map);
+            if (preferred.IsValid && ShipRegistry.HasStructure(map, preferred.Identity)) identity = preferred.Identity;
+            else
             {
-                selectedShipByMap[map] = defaulted.Identity;
-                return defaulted;
+                var structures = ShipRegistry.StructuresOnMap(map).ToList();
+                if (structures.Count == 0) return false;
+                identity = structures.OrderByDescending(id => ShipRegistry.StructureCells(map, id).Count())
+                    .ThenBy(id => id.key).First();
             }
-            return ShipBase.Invalid;
+            selectedShipByMap[map] = identity;
+            return true;
         }
 
-        /// <summary>
-        /// 聚焦切到该图时刻的「优先玩家船」（需求 1 完整语义）：当前记忆已是玩家船则不动；
-        /// 否则图上有玩家船就覆盖陈旧的非玩家记忆——典型场景：对接完成切到宿主图时，把
-        /// 选点阶段（当时宿主图唯一船）自动记忆的宿主船换成刚停靠进来的玩家船。玩家显式
-        /// 点选在本图期间始终有效，离开再回来按本规则重新默认；无玩家船则保持现状。
-        /// </summary>
-        private static void ApplyFocusPreference(Map map)
+        internal static void SelectStructure(Map map, DriveSubject identity)
         {
-            if (TryGetSelectedShip(map, out ShipBase memo) && memo.IsValid
-                && memo.Faction == Faction.OfPlayer)
-            {
-                return;
-            }
-            ShipBase preferred = ShipRegistry.DefaultVesselOnMap(map);
-            if (preferred.IsValid && preferred.Faction == Faction.OfPlayer)
-            {
-                selectedShipByMap[map] = preferred.Identity;
-            }
+            if (map != null && ShipRegistry.HasStructure(map, identity))
+                selectedShipByMap[map] = identity;
+        }
+
+        private static string StructureLabel(UniverseManager universe, Map map, DriveSubject identity)
+        {
+            ShipBase ship = ShipRegistry.ShipByIdentity(identity);
+            return ship.IsValid && ship.Map == map ? ship.Label : universe.LabelForOwner(identity.key);
         }
 
         /// <summary>外部写入口（点击选中物聚焦归属船，Patch_SelectorShipFocus）：只改面板选中状态。</summary>
@@ -109,7 +102,7 @@ namespace DeltaV
         {
             if (ship.IsValid && ship.Map != null && !ship.Map.Disposed)
             {
-                selectedShipByMap[ship.Map] = ship.Identity;
+                SelectStructure(ship.Map, ship.Identity);
             }
         }
 
@@ -133,12 +126,12 @@ namespace DeltaV
             {
                 lastDrawnMap = map;
                 contentScroll = Vector2.zero;
-                ApplyFocusPreference(map);
             }
 
-            // 图上的船列表（§4：多船同图各自列出，可切换查看/操作）。
-            List<ShipBase> ships = ShipRegistry.AllShipsOnMap(map).ToList();
-            ShipBase selected = SelectedOrOnlyShip(universe, map);
+            // 结构列表同时包含有主台船、无主台归属与单建筑船。
+            List<DriveSubject> structures = ShipRegistry.StructuresOnMap(map).ToList();
+            bool hasStructure = TryGetSelectedStructure(map, out DriveSubject selectedStructure);
+            TryGetSelectedShip(map, out ShipBase selected);
             LandingApproachController.DockingPlan plan = universe.Approach.ActivePlan;
             bool dockingPlan = plan != null && plan.Target.Identity == selected.Identity;
             bool hasShip = selected.IsValid;
@@ -153,7 +146,8 @@ namespace DeltaV
             }
             else
             {
-                title = "DeltaV_PanelSectorTitle".Translate(frame.label);
+                title = "DeltaV_PanelSectorTitle".Translate(hasStructure
+                    ? StructureLabel(universe, map, selectedStructure) : frame.label);
             }
 
             // ---- 内容行（先备好文本，再按真实高度布局：面板高度随内容变化）----
@@ -187,7 +181,7 @@ namespace DeltaV
                             ? "DeltaV_On".Translate()
                             : "DeltaV_Off".Translate())));
             }
-            else if (ShipRegistry.MissingPrimaryConsoleTargets(map).Any())
+            else if (hasStructure)
             {
                 statusLines.Add("DeltaV_PanelNeedsPrimaryConsole".Translate());
             }
@@ -207,7 +201,7 @@ namespace DeltaV
             {
                 linesHeight += Mathf.Max(20f, Text.CalcHeight(line, contentWidth));
             }
-            float shipListHeight = ships.Count > 1 ? ships.Count * ShipRowHeight + 4f : 0f;
+            float shipListHeight = structures.Count > 1 ? structures.Count * ShipRowHeight + 4f : 0f;
 
             // 内容高度：星球仪 + 缩放滑条 + 标题/状态行 + 船列表
             // + 当前模式的按钮行数（已停靠的船只有驾驶按钮——首次出力即分离）
@@ -291,24 +285,28 @@ namespace DeltaV
             }
             lineY += 8f;
 
-            // ---- 船只列表（多船同图，§4）：当前查看/操作的船可切换 ----
-            if (ships.Count > 1)
+            // ---- 结构列表：查看选择不要求结构具有驾驶能力 ----
+            if (structures.Count > 1)
             {
-                foreach (ShipBase ship in ships)
+                foreach (DriveSubject identity in structures)
                 {
-                    string stateLabel = ship.State == ShipDerivedState.FreeFlight
+                    ShipBase ship = ShipRegistry.ShipByIdentity(identity);
+                    bool validShip = ship.IsValid && ship.Map == map;
+                    string label = StructureLabel(universe, map, identity);
+                    string stateLabel = !validShip ? "DeltaV_StructureNoConsole".Translate()
+                        : ship.State == ShipDerivedState.FreeFlight
                         ? "DeltaV_FlightStateFree".Translate()
                         : "DeltaV_FlightStateDocked".Translate();
-                    string rowLabel = $"{ship.Label} · {stateLabel}";
+                    string rowLabel = $"{label} · {stateLabel}";
                     var rowRect = new Rect(0f, lineY, drawWidth, ShipRowHeight);
-                    bool isSelected = ship.Identity == selected.Identity;
+                    bool isSelected = hasStructure && identity == selectedStructure;
                     if (isSelected)
                     {
                         Widgets.DrawHighlight(rowRect);
                     }
                     if (Widgets.ButtonInvisible(rowRect, false))
                     {
-                        selectedShipByMap[map] = ship.Identity;
+                        SelectStructure(map, identity);
                     }
                     Text.Font = GameFont.Tiny;
                     GUI.color = isSelected ? Color.white : new Color(1f, 1f, 1f, 0.75f);
@@ -317,7 +315,7 @@ namespace DeltaV
                     Text.Anchor = TextAnchor.UpperLeft;
                     GUI.color = Color.white;
                     TooltipHandler.TipRegion(rowRect,
-                        "DeltaV_PanelShipRowTip".Translate(ship.Label));
+                        "DeltaV_PanelShipRowTip".Translate(label));
                     lineY += ShipRowHeight;
                 }
                 lineY += 4f;

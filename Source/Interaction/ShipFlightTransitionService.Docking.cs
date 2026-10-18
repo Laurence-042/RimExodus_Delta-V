@@ -338,11 +338,15 @@ namespace DeltaV
             if (!ship.IsValid) return;
             SpaceObject frame = universe.FrameOf(ship.map);
             if (frame == null) return;
+            SplitFocus focus = SplitFocus.Capture(universe, ship.map);
             foreach (HashSet<IntVec3> block in CollectResidualBlocks(ship))
             {
                 TransferDomainToNewPocket(universe, ship.map, frame, block, null,
-                    wreckOwnership: true, retainedOwnerId: 0, targetConsoleFacing: Rot4.North);
+                    wreckOwnership: true, retainedOwnerId: 0, targetConsoleFacing: Rot4.North,
+                    focus: focus);
             }
+            focus?.Complete(universe);
+            QueueEmptyDepartedMapCleanup(universe, ship.map);
             if (SubstructureOwnership.TryGet(ship.map) != null)
             {
                 // 拆分后重算质量/惯量/控制模型（新 MassReport 重扫自动生效）；
@@ -363,7 +367,8 @@ namespace DeltaV
         private SpaceObject TransferDomainToNewPocket(UniverseManager universe, Map sourceMap,
             SpaceObject sourceFrame, HashSet<IntVec3> cells, Building mainConsole,
             bool wreckOwnership, int retainedOwnerId, Rot4 targetConsoleFacing,
-            Building bodyAnchor = null, IntVec2? pocketSize = null, bool includeTerrain = true)
+            Building bodyAnchor = null, IntVec2? pocketSize = null, bool includeTerrain = true,
+            SplitFocus focus = null)
         {
             Building anchor = mainConsole ?? bodyAnchor;
             Faction faction = anchor?.Faction;
@@ -425,6 +430,7 @@ namespace DeltaV
                 faction = faction,
             };
             universe.RegisterObject(container);
+            focus?.selection.Transferred(cells, pocketMap, ownerId);
             // 源图旧域整清：基架已随捕获剥离，残留归属值全是陈旧数据（按 ID 清不误伤他主域）。
             if (ownerId > 0)
             {
@@ -965,16 +971,25 @@ namespace DeltaV
             private readonly int hostVersion;
             internal readonly Vector2 mapPoint;
             internal readonly float zoom;
+            private readonly DriveSubject selected;
+            private readonly bool hasSelection;
 
-            internal DockingFocusHandoff(SpaceObject host, Vector2 mapPoint, float zoom)
+            internal DockingFocusHandoff(SpaceObject host, Vector2 mapPoint, float zoom,
+                DriveSubject selected, bool hasSelection)
             {
                 this.hostId = host?.objectId ?? 0;
                 hostVersion = host?.RepresentationVersion ?? -1;
                 this.mapPoint = mapPoint;
                 this.zoom = zoom;
+                this.selected = selected;
+                this.hasSelection = hasSelection;
             }
 
             internal bool IsValid => host?.InteriorMap != null && host.RepresentationVersion == hostVersion;
+            internal void SelectTransferredStructure()
+            {
+                if (hasSelection) ShipStatusPanel.SelectStructure(host.map, selected);
+            }
         }
 
         /// <summary>对接完成的聚焦交接单一入口：必须在源图销毁前捕获宇宙视点。</summary>
@@ -992,14 +1007,17 @@ namespace DeltaV
             Vector3 center = Find.CameraDriver.CurrentViewRect.CenterVector3;
             Vector3 direction = SpaceTransform.MapPointToUniverse(source, sourceMap,
                 new Vector2(center.x, center.z));
+            bool hasSelection = ShipStatusPanel.TryGetSelectedStructure(sourceMap, out DriveSubject selected);
             return new DockingFocusHandoff(host,
                 SpaceTransform.UniverseToMapPoint(host, targetMap, direction),
-                Find.CameraDriver.RootSize);
+                Find.CameraDriver.RootSize, selected, hasSelection);
         }
 
         internal void ApplyDockingFocusHandoff(UniverseManager universe, DockingFocusHandoff handoff)
         {
-            if (handoff.IsValid) universe.SetFocusedWithCamera(handoff.host, handoff.mapPoint, handoff.zoom);
+            if (!handoff.IsValid) return;
+            handoff.SelectTransferredStructure();
+            universe.SetFocusedWithCamera(handoff.host, handoff.mapPoint, handoff.zoom);
         }
 
         /// <summary>
@@ -1187,42 +1205,30 @@ namespace DeltaV
         /// <summary>
         /// 本船控制域 → 新口袋图的转移+交接公共编排（脱离/朝向旋转共用，2026-09-25 提取）：
         /// 退出本船驾驶位（句柄随图失效，§21）→ 搬运（主台规范到 targetFacing）→ 句柄
-        /// 重解析 → 世界剪影重建 → 玩家注视源图时相机连续交接（SetFocusedWithCamera
-        /// 单实现，与对接完成同口径；换算需在源容器仍注册时完成，善后排在之后的帧
-        /// 边界）→ 重新进入驾驶 → 帧边界源图善后。返回新容器（失败 null，图不动）。
+        /// 重解析 → 世界剪影重建 → 按侧边栏选中结构交接相机与选择 → 恢复原手操
+        /// （shuttle 起飞沿用自动入驾驶）→ 帧边界源图善后。聚焦不按派系或驾驶状态选边。
+        /// 返回新容器（失败 null，图不动）。
         /// </summary>
         private SpaceObject TransferShipToPocket(UniverseManager universe, ShipBase ship,
             Map sourceMap, SpaceObject sourceFrame, HashSet<IntVec3> domain, Rot4 targetFacing)
         {
             DriveSubject identity = ship.Identity;
             bool wasPiloted = universe.Pilot.PilotedTarget(universe).Identity == identity;
-            bool handoverFocus = Find.CurrentMap == sourceMap && (wasPiloted || ship.Faction == Faction.OfPlayer);
-            Vector3 viewUniverse = default;
-            float zoom = 0f;
-            if (handoverFocus)
-            {
-                Vector3 viewCenter = Find.CameraDriver.CurrentViewRect.CenterVector3;
-                viewUniverse = SpaceTransform.MapPointToUniverse(sourceFrame, sourceMap,
-                    new Vector2(viewCenter.x, viewCenter.z));
-                zoom = Find.CameraDriver.RootSize;
-            }
+            SplitFocus focus = SplitFocus.Capture(universe, sourceMap);
             if (wasPiloted) universe.Pilot.Exit(universe);
             ShipTransferSpec transfer = ship.Transfer;
             SpaceObject container = TransferDomainToNewPocket(universe, sourceMap, sourceFrame,
                 domain, transfer.console, wreckOwnership: false,
                 retainedOwnerId: transfer.ownerId, targetConsoleFacing: targetFacing,
                 bodyAnchor: transfer.body, pocketSize: transfer.pocketSize,
-                includeTerrain: transfer.includeTerrain);
+                includeTerrain: transfer.includeTerrain, focus: focus);
             if (container == null) return null;
             ShipBase resolved = ShipRegistry.ShipByIdentity(identity);
             WorldShipMarkerRenderer.RebuildFor(resolved);
-            if (handoverFocus)
-            {
-                Vector2 mapPoint = SpaceTransform.UniverseToMapPoint(container, container.map, viewUniverse);
-                universe.SetFocusedWithCamera(container, mapPoint, zoom);
-                if (resolved.IsValid && universe.Pilot.CanPlayerControl(resolved))
-                    universe.Pilot.Enter(universe, resolved);
-            }
+            focus?.Complete(universe);
+            if (Find.CurrentMap == container.map && resolved.IsValid && universe.Pilot.CanPlayerControl(resolved)
+                && (wasPiloted || identity.shuttle))
+                universe.Pilot.Enter(universe, resolved);
             QueueEmptyDepartedMapCleanup(universe, sourceMap);
             return container;
         }
@@ -1279,13 +1285,14 @@ namespace DeltaV
         /// <summary>
         /// 脱离与读档清扫的源图善后：**worldtile 图不受影响**——保留，去留交给锚对象
         /// 配置与距离生命周期；非 worldtile 图空白则立刻删除（遗留基架转无主残骸），
-        /// 非空白交给距离生命周期。不按对象身份特判。
+        /// 无承载结构的普通图优先交给生命周期回收；仍有承载时才执行既有残留处置。
         /// </summary>
         internal void HandleDepartedSourceMap(UniverseManager universe, Map sourceMap)
         {
             if (universe == null || sourceMap == null || sourceMap.Disposed
                 || !Find.Maps.Contains(sourceMap)) return;
             if (sourceMap.Tile.Valid) return; // worldtile 图：不受转换影响
+            if (universe.Lifecycle.RecycleUnsupportedMap(sourceMap)) return;
             if (sourceMap == Find.CurrentMap)
             {
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
@@ -1293,7 +1300,7 @@ namespace DeltaV
                 return;
             }
             if (SpaceLifecycleService.IsUniverseHost(sourceMap)) return;
-            // 原版“空降落画布”忽略污渍和屋顶；它们仍是刚才明确留给宿主的真实内容。
+            // 无承载图已先回收；有承载结构的宿主保留其零散内容。
             if (ShipRegistry.HasLooseContents(sourceMap)) return;
             SpaceObject owner = universe.SpaceObjectOnMap(sourceMap);
             if (owner is PoiState poi && SpaceMapGovernance.IsBlankLandingCanvas(sourceMap))

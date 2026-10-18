@@ -150,7 +150,8 @@
   <DeltaV_ConsoleGizmoRename>重命名飞船</DeltaV_ConsoleGizmoRename>
   <DeltaV_ConsoleGizmoMakeBackup>设为备用驾驶台</DeltaV_ConsoleGizmoMakeBackup>
   <DeltaV_ConsoleGizmoBackupTip>主动放弃主台认领，不触发副台继任。本归属不再形成可控制的飞船，基架可被改划；重新设为主台后恢复船舶操作。</DeltaV_ConsoleGizmoBackupTip>
-  <DeltaV_PanelShipRowTip>将「{0}」设为当前查看/操作的船。</DeltaV_PanelShipRowTip>
+  <DeltaV_PanelShipRowTip>将「{0}」设为当前查看的结构。有主驾驶台时可操作飞船。</DeltaV_PanelShipRowTip>
+  <DeltaV_StructureNoConsole>无主驾驶台</DeltaV_StructureNoConsole>
   <DeltaV_PanelHeadingCaption>驾驶台朝向（点击旋转飞船）</DeltaV_PanelHeadingCaption>
   <DeltaV_PanelHeadingTip>点击罗盘方向，把飞船整图旋转到该屏上朝向（建筑随之旋转、移入与当前位置重合的新口袋图）。飞船在轨道坐标中的朝向、位置与速度保持不变；仅自由飞行可用，对接计划进行中不可用。</DeltaV_PanelHeadingTip>
   <DeltaV_ShipRotated>飞船已旋转：主台朝向「{0}」。</DeltaV_ShipRotated>

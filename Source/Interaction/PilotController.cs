@@ -651,15 +651,14 @@ internal readonly struct HeadingPanelAction
 
         public void ToggleControl(UniverseManager universe, ShipBase ship) => ToggleControl(universe, PilotTarget.Of(ship));
 
-        /// <summary>多船图的「当前查看/操作的船」（快捷键/dev action 的推导入口）：面板已
-        /// 选择则用之；否则默认船（玩家派系船优先、唯一船直取，DefaultVesselOnMap）。</summary>
+        /// <summary>快捷键共用面板选择；选中无主台结构时不得回退操作另一艘船。</summary>
         public ShipBase SelectedShipOnMap(Map map)
         {
             if (ShipStatusPanel.TryGetSelectedShip(map, out ShipBase selected) && selected.IsValid)
             {
                 return selected;
             }
-            return ShipRegistry.DefaultVesselOnMap(map);
+            return ShipBase.Invalid;
         }
 
         /// <summary>驾驶/模式控制权门禁（玩家侧）：玩家方目标（船/shuttle）；开发者模式放行。</summary>

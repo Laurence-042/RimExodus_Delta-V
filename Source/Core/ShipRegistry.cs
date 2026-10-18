@@ -112,6 +112,58 @@ namespace DeltaV
                 (ships.Count == 1 ? ships[0] : ShipBase.Invalid);
         }
 
+        /// <summary>侧边栏结构归属（含无主台及未占有基架），与单建筑船共用已有身份类型。</summary>
+        internal static IEnumerable<DriveSubject> StructuresOnMap(Map map)
+        {
+            foreach (int owner in FoundationDomains(map).Keys.OrderBy(id => id))
+                yield return new DriveSubject(0, owner);
+            foreach (ShipBase ship in AllShipsOnMap(map))
+                if (ship.Identity.shuttle) yield return ship.Identity;
+        }
+
+        internal static bool HasStructure(Map map, DriveSubject identity) => identity.shuttle
+            ? AllShipsOnMap(map).Any(ship => ship.Identity == identity)
+            : FoundationDomains(map).ContainsKey(identity.key);
+
+        internal static IEnumerable<IntVec3> StructureCells(Map map, DriveSubject identity)
+        {
+            if (identity.shuttle)
+                return AllShipsOnMap(map).FirstOrDefault(ship => ship.Identity == identity)?.HullCells
+                    ?? Enumerable.Empty<IntVec3>();
+            return FoundationDomains(map).TryGetValue(identity.key, out HashSet<IntVec3> cells)
+                ? cells : Enumerable.Empty<IntVec3>();
+        }
+
+        private sealed class CachedStructures
+        {
+            internal int version, measuredAt;
+            internal readonly Dictionary<int, HashSet<IntVec3>> domains = new Dictionary<int, HashSet<IntVec3>>();
+        }
+
+        private static readonly Dictionary<Map, CachedStructures> structureCache = new Dictionary<Map, CachedStructures>();
+        private static readonly Dictionary<int, HashSet<IntVec3>> noStructures = new Dictionary<int, HashSet<IntVec3>>();
+
+        private static Dictionary<int, HashSet<IntVec3>> FoundationDomains(Map map)
+        {
+            if (map == null || map.Disposed) return noStructures;
+            if (!structureCache.TryGetValue(map, out CachedStructures cached)
+                || SubstructureOwnership.CacheNeedsRefresh(cached.version, cached.measuredAt))
+            {
+                cached = new CachedStructures { version = SubstructureOwnership.GlobalStructureVersion,
+                    measuredAt = Find.TickManager.TicksGame };
+                SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
+                foreach (IntVec3 cell in SubstructureOwnership.CellsOnMap(map))
+                {
+                    int owner = ownership?.OwnerAt(cell) ?? SubstructureOwnership.Unassigned;
+                    if (!cached.domains.TryGetValue(owner, out HashSet<IntVec3> cells))
+                        cached.domains[owner] = cells = new HashSet<IntVec3>();
+                    cells.Add(cell);
+                }
+                structureCache[map] = cached;
+            }
+            return cached.domains;
+        }
+
         /// <summary>按归属 ID 查询统一身份索引。找不到返回 <see cref="Ship.Invalid"/>。</summary>
         public static Ship ShipByOwner(int ownerId) =>
             (ShipByIdentity(new DriveSubject(0, ownerId)) as FoundationShip)?.Structure ?? Ship.Invalid;
@@ -286,12 +338,14 @@ namespace DeltaV
         public static void ClearCaches()
         {
             domainCache.Clear();
+            structureCache.Clear();
             SubstructureOwnership.BumpStructureVersion();
         }
 
         public static void Forget(Map map)
         {
             if (map != null) domainCache.Remove(map);
+            if (map != null) structureCache.Remove(map);
         }
 
         // ---- 状态派生（§5.2）----

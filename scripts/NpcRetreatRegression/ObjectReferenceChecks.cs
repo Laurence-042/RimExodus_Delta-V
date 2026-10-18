@@ -174,6 +174,10 @@ internal static partial class Program
         map.cellIndices = new CellIndices(map);
         map.components = new List<MapComponent>();
         map.terrainGrid = new TerrainGrid(map);
+        // These generic fixtures model supported stations. Structure-loss tests replace this terrain.
+        var ground = (TerrainDef)Raw(typeof(TerrainDef));
+        ground.defName = "regressionGround";
+        map.terrainGrid.topGrid[0] = ground;
         map.thingGrid = new ThingGrid(map);
         map.listerThings = new ListerThings(ListerThingsUse.Global);
         map.floodFiller = new FloodFiller(map);

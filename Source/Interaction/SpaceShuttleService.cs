@@ -432,7 +432,7 @@ namespace DeltaV
                 var handoff = Find.CurrentMap == sourceMap
                     ? new ShipFlightTransitionService.DockingFocusHandoff(defender,
                         new Vector2(entry.x + 0.5f, entry.z + 0.5f),
-                        Find.CameraDriver.RootSize)
+                        Find.CameraDriver.RootSize, shuttle.Identity, hasSelection: true)
                     : default(ShipFlightTransitionService.DockingFocusHandoff);
                 // 破拆在落点确定之后，且只对两排三格的建筑生效；基架不动。
                 SpaceImpactEffects.BreachBoardingCorridor(targetMap, entry, facing, hull);

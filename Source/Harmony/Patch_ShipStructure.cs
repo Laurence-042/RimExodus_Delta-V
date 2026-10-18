@@ -8,8 +8,12 @@ namespace DeltaV
     {
         internal static void Notify(Map map)
         {
-            if (map != null && Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map) != null)
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (map != null && universe?.FrameOf(map) != null)
+            {
                 SubstructureOwnership.BumpStructureVersion();
+                universe.Lifecycle.QueueStructureCheck(map);
+            }
         }
     }
 

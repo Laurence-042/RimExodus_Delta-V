@@ -84,6 +84,7 @@ internal static partial class Program
         CheckFoundationLifecycle(universe, faction, other);
         CheckCombatTargets(universe, faction, other);
         CheckPerShipFireControl(universe, faction, other);
+        CheckStructureSelection(universe, faction, other);
         CheckSceneReset(universe);
         CheckGlobeAndInput(universe);
         SpaceObject Make(int id, float distance, string type = null, Faction owner = null)

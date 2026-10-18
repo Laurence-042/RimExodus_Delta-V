@@ -150,7 +150,8 @@
   <DeltaV_ConsoleGizmoRename>Rename ship</DeltaV_ConsoleGizmoRename>
   <DeltaV_ConsoleGizmoMakeBackup>Set as backup console</DeltaV_ConsoleGizmoMakeBackup>
   <DeltaV_ConsoleGizmoBackupTip>Release the primary claim without triggering succession. This domain stops forming a controllable ship and its substructure can be reassigned. Set a console as primary to restore ship operations.</DeltaV_ConsoleGizmoBackupTip>
-  <DeltaV_PanelShipRowTip>Select '{0}' as the ship to view and operate.</DeltaV_PanelShipRowTip>
+  <DeltaV_PanelShipRowTip>Select '{0}' as the structure to view. Ship controls are available when it has a primary console.</DeltaV_PanelShipRowTip>
+  <DeltaV_StructureNoConsole>No primary console</DeltaV_StructureNoConsole>
   <DeltaV_PanelHeadingCaption>Console facing (click to rotate ship)</DeltaV_PanelHeadingCaption>
   <DeltaV_PanelHeadingTip>Click a compass direction to rotate the whole ship map to that on-screen facing (buildings rotate into a new pocket map coinciding with the current position). The ship's orbital heading, position and velocity are preserved; free flight only, unavailable during a docking plan.</DeltaV_PanelHeadingTip>
   <DeltaV_ShipRotated>Ship rotated: console now faces {0}.</DeltaV_ShipRotated>

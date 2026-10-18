@@ -444,6 +444,7 @@ namespace DeltaV
             {
                 return;
             }
+            Current.Game?.GetComponent<UniverseManager>()?.Lifecycle.QueueStructureCheck(map);
             // 原版已移除 foundation，此处必须清持久网格，不能经只读 OwnerAt 的无基架过滤。
             if (ownerGrid == null || ownerGrid[map.cellIndices.CellToIndex(cell)] == Unassigned)
             {

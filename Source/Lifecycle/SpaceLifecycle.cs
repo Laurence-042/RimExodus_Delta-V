@@ -113,6 +113,11 @@ namespace DeltaV
                     $"{container.label}: container's map was destroyed externally; object removed");
                 return;
             }
+            if (!HasMapSupport(container))
+            {
+                QueueStructureCheck(map);
+                return;
+            }
             if (SpaceMapGovernance.MustStayActive(map, universe))
             {
                 dormancy.Wake(map, "protected map");
@@ -554,6 +559,7 @@ namespace DeltaV
 
         public void Forget(Map map)
         {
+            pendingStructureChecks.Remove(map);
             dormancy.Forget(map);
             universe.ForgetMapRuntimeState(map);
             universe.Weapons.ForgetMap(map);
@@ -634,6 +640,7 @@ namespace DeltaV
         }
         public void Reset()
         {
+            pendingStructureChecks.Clear();
             dormancy.Reset();
             generationRetryAfterTick.Clear();
             restoreQueued.Clear();

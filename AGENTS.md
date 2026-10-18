@@ -84,7 +84,7 @@ RimExodus 可参考多 Map 生命周期、跨图状态、聚焦切换、Projecti
 
 非聚焦对象通过外壳代理显示；不得旋转真实 Map、批量旋转 Thing，或要求原版寻路/房间系统理解任意角坐标。
 
-聚焦切换和 Pawn 移动是独立事件。相机连续性交接统一使用 `UniverseManager.SetFocusedWithCamera`。
+聚焦切换和 Pawn 移动是独立事件。相机连续性交接统一使用 `UniverseManager.SetFocusedWithCamera`。拆分复用侧边栏当前结构归属选择：跟随有效主台侧，无主台则跟随所选结构较大侧，不按派系或驾驶状态；规则详见解耦架构 §8.1。
 
 ## 7. 飞船 Map
 
@@ -191,15 +191,15 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `UniverseManager`：objects、ID 分配、Map→SpaceObject、聚焦、tick/update 总装和帧动作队列。`PlayerReferenceObjects` 是 POI 距离与跨星区生成的唯一玩家参考集合，只筛选含 Ship tag 且 `HasFaction(player)` 的对象；按 objectId 跟踪星区，运行时 hint 由本实例持有。
 - `OrbitSphere`：球面移动、弧距、切空间基和 sphere↔tile。
 - `SpaceTransform`：全部坐标、速度、刚体点和停放锚转换。
-- `ShipRegistry` / `ShipBase` / `FoundationShip` / `ShuttleShip`：船体身份、状态、脚印、锚、朝向、派系与火控的共同契约；`BuildThrusters/Weapons/CollisionCells/CanDriveIn/PrepareThrust/RolesIn/Transfer/NotifyLanded/CanBoard` 提供船体能力与搬运差异，对象层只汇总能力，详见解耦架构 §2。`AllShipsOnMap` 唯一枚举成员，`ShipByIdentity`、`ShipOf` 与 `DefaultVesselOnMap` 统一解析身份、归属及默认选择。`Ship` 仅为基架控制域查询快照，`FoundationShipsOnMap` 仅供结构操作。`PilotTarget` 委托共同事实给基类；停靠 shuttle 仍是船成员，但不能驾驶宿主。
+- `ShipRegistry` / `ShipBase` / `FoundationShip` / `ShuttleShip`：`StructuresOnMap/StructureCells/HasStructure` 为侧边栏含无主台结构的查询入口，按共同结构版本缓存并随 Map/换档释放；船体身份、状态、脚印、锚、朝向、派系与火控的共同契约；`BuildThrusters/Weapons/CollisionCells/CanDriveIn/PrepareThrust/RolesIn/Transfer/NotifyLanded/CanBoard` 提供船体能力与搬运差异，对象层只汇总能力，详见解耦架构 §2。`AllShipsOnMap` 唯一枚举成员，`ShipByIdentity`、`ShipOf` 与 `DefaultVesselOnMap` 统一解析身份、归属及默认选择。`Ship` 仅为基架控制域查询快照，`FoundationShipsOnMap` 仅供结构操作。`PilotTarget` 委托共同事实给基类；停靠 shuttle 仍是船成员，但不能驾驶宿主。
 - `SubstructureOwnership`：基架事实、归属、连通认领和结构版本；`FoundationAt/HasFoundation/CellsOnMap/CollectConnected` 是结构查询的共同入口，只读原版 foundation 层，不以覆盖地板的 `TerrainAt` 判断基架。质量算法仍只在 `ShipPhysics`；归属、质量报告、控制域、剪影与碰撞共用基架事实，船体能力与角色缓存也共用结构版本失效判定及设置页重扫间隔；`Patch_ShipStructure` 汇总纳管地图的建筑生成／移除与地形变化失效事件。基架与归属同步移除（`RemoveFoundation`/`RemoveGravshipTerrainUnsafe` postfix → `NotifyFoundationRemoved`），「归属仅在有基架的格上有意义」恒成立。
-- `CompDeltaVPilotConsole` / `Designator_ReassignSubstructure` / `Alert_MissingPrimaryConsole`：主副台认领、玩家改划及缺主台提示。主台查询共用 `ShipRegistry.MainConsoleForOwner`，玩家整域保护共用 `SubstructureOwnership.CanReassign/Reassign`，内部转移仍走既有写入链；副台在归属通知及 Spawn 后同步脚下身份，不反向盖章。主台替换复核现有主台管理权限；原版占领、同向副台继任保持原规则。警告与面板共用 `ShipRegistry.MissingPrimaryConsoleTargets`，从玩家建筑所在基架域派生，不保存警告状态。规则详见解耦架构 §3.2。
+- `CompDeltaVPilotConsole` / `Designator_ReassignSubstructure` / `Alert_MissingPrimaryConsole`：主副台认领、玩家改划及缺主台提示。主台查询共用 `ShipRegistry.MainConsoleForOwner`，玩家整域保护共用 `SubstructureOwnership.CanReassign/Reassign`，内部转移仍走既有写入链；副台在归属通知及 Spawn 后同步脚下身份，不反向盖章。主台替换复核现有主台管理权限；原版占领、同向副台继任保持原规则。警告通过 `ShipRegistry.MissingPrimaryConsoleTargets` 从玩家建筑所在基架域派生，不保存警告状态；面板无主台提示读取当前选中的结构归属。规则详见解耦架构 §3.2。
 - `SpaceObject` / `MapSpaceObject` / `ArchivedSpaceObject` / `DriveSubject` / `DriveInfo`：统一驾驶身份、只读信息与预览、执行、清理、漂移与收敛；主体按船归属或 shuttle 身份区分。推进器布局由船体子类提供，随共同物理报告重建；对象角色按共同结构版本缓存，点防保留 Projectile／Shuttle tag 快速筛选，基架船不贡献 Shuttle 角色；对象层保证每 tick 单次积分，分离后通过主体重新解析当前容器。
 - `ShipPhysics`：质量/惯量、推进器、分配器、阻力和积分的唯一算法；查询与执行入口仅供对象层使用，`DriveInfo` 提供无副作用能力预览。
 - `PilotTarget` / `PilotService` / `ShipControlService` / `ShipController`：普通船与 shuttle 的统一驾驶层；每个带种类的 `DriveSubject` 身份由实例注册表持有一个玩家或 NPC controller；身份索引、容器成员和船体设备缓存按共同结构版本失效，换图／换表示／注销与换档统一清理，基类调度每船火控与炮手事件；`BindShip` 同步刷新战斗缓存与已开启的驾驶目标，使当前会话跟随换图和主台继任。侧边栏操作由对应 controller 注册，经 `ShipBase.Collect*PanelActions` 委托，公共驾驶／对接操作放控制器基类，跳帮艇侵入操作放玩家子类；面板只负责显示和布局，无主台时不得通过面板自动认领。两类身份锚通过同一 `ShipCombatState` 保存火控模式（默认自动）与武器组，`SpaceAimController` 只在手动集火且为聚焦图所选船时提供输入和预瞄。
 - `ShipFireControl` / `CombatTarget` / `ShipAutoManeuverControl`：每船 controller 持有唯一火控，统一自动敌船选择、设备压制、逐武器点防状态、手动射线锁定与预瞄解算；自动候选按单艘成员评分，统一门禁为 `ShipFireControl.CandidateValid`。`CombatTarget` 只保存船身份／设备 ID、容器 ID／局部点或自由瞄点，统一解析当前位置，不承载攻击策略；武器只接收 `WeaponFireRequest`，不得补选。机动消费同一船目标并向自动驾驶提供位姿采样器，战术距离低频更新，按制导微步用 `DriveInfo` 规划 2–6 秒可达轨迹；玩家机动不触发撤退或跳帮。完整目标及失效契约见太空战架构 §6。
 - `ShipAutopilot`：固定/随动/战斗轨迹共用任务表；不读取 Map、归档字段或具体对象类型，统一读取驾驶信息并提交期望力／力矩；实体与无图主体共用任务表和 Step，只替换主体及能力数据来源，不识别返厂策略；制导经同一 `IAutopilotGuidance`，战斗轨迹不建立独立出力链。姿态参考从本船当前位置到目标中心的视线计算，不能由提前点或目标船自身角速度代替。
-- `ShipFlightTransitionService`：分离、跨图转移、对接发起和源图善后；`TransferShipToPocket` 统一两类船起飞／分离／方向罗盘后的相机与驾驶交接。排队分离同时复核源容器表示版本和当前船的所属 Map，已换图的旧请求丢弃。选点期只持有 `PendingTarget`，发布和复核共用 `DockingPlan` 与 `GravshipInterop.BuildPreview(PilotTarget)`。
+- `ShipFlightTransitionService`：分离、跨图转移、对接发起和源图善后；`SplitSelection` 只在搬运事务中映射侧边栏已有选择，按主台优先／较大侧交接，不保存第二套观察身份；`TransferShipToPocket` 统一两类船起飞／分离／方向罗盘后的相机与驾驶交接。排队分离同时复核源容器表示版本和当前船的所属 Map，已换图的旧请求丢弃。选点期只持有 `PendingTarget`，发布和复核共用 `DockingPlan` 与 `GravshipInterop.BuildPreview(PilotTarget)`。
 - `DockingCompletion`：唯一对接完成收尾，落地差异通过 `ShipBase.NotifyLanded` 注入，标签读取基类；运行时键由容器注销统一清理。选点保存统一 `PilotTarget`；转移后按源图登记待收尾集合，普通对接与并发侵入共用存档、尺度与 prefab 替换门禁，逐图释放且收尾前不归档。
 - `LandingApproachController`：唯一对接计划、落点注册、复核和完成触发。
 - `Building_DockingPort` / `Building_DockingChannel` / `DockingChannelPreview` / `Patch_DockingPort`：单格对接口、非基架气密通道及限定门房间的真空语义；`TryFindChannel` 共用生成／建造及双方降落预览／事件复核，`RetractChannelsFor` 共用双方脱离清理。建造朝向不受原版门绘制自动转向覆盖；到达通知只作用于本次目标图。完整机制见星区架构 §7。
@@ -217,7 +217,7 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `ThrusterEffects` / `ThrusterAudio`：只读真实分配油门的表现。
 - `ThrusterDebugOverlay` / `WeaponArcOverlay` / `CollisionDebugOverlay`：聚焦图上的三个独立会话视图开关。武器射界直接读取武器 Def 的真实射程与安装射界；只绘边界和按游戏 tick 扫动的线，实例颜色由 Thing ID 稳定分配，不影响火控。射界开关关闭时不调用绘制入口，材质和网格只在开启后首次需要时创建，并在关闭时释放。
 - `MoonPoolUtility` / `Patch_MoonPool` / `MoonPoolGraphics` / `SectionLayer_MoonPool`：月池判定、无顶密封和连接视觉；每图月池格缓存首次查询建立，此后随地形变化逐格维护，不按 tick 重扫。
-- `SpaceLifecycleService`：生成、休眠、物化、归档和销图。无快照 marker 首次物化的内容链 = 类型 prefab 池（seed 确定性选取，入队测尺寸与盖章同一解析），**容器先注册、结构后铺设**（驾驶台 `ClaimOnSpawn` 认领要求 FrameOf 已解析；归属名 = marker 生成时决定的完整名，经 envLabel/归档 carriedLabel 传承）。池空在生成期拦截；池失效在入队/物化期报错并取消该 POI（prefab-only，不回退程序生成）。
+- `SpaceLifecycleService`：生成、休眠、物化、归档和销图。普通口袋图无承载时经 `HasMapSupport/QueueStructureCheck/RecycleUnsupportedMap` 在帧边界复核回收，剩余 Pawn/物品不阻止；不受当前聚焦或玩家保护豁免，细则见解耦架构 §8.1。无快照 marker 首次物化的内容链 = 类型 prefab 池（seed 确定性选取，入队测尺寸与盖章同一解析），**容器先注册、结构后铺设**（驾驶台 `ClaimOnSpawn` 认领要求 FrameOf 已解析；归属名 = marker 生成时决定的完整名，经 envLabel/归档 carriedLabel 传承）。池空在生成期拦截；池失效在入队/物化期报错并取消该 POI（prefab-only，不回退程序生成）。
 - `NpcShipAiService` / `NpcShipController`：所有船型使用完整战术 AI，无武器不按船型禁用站位或撤退；NPC 战术资格、当前战损重评、返厂目标、无图导航意图、退场决定及跳帮均在 NPC 层；选敌和站位调用上述共用类。生命周期沿用普通距离规则，只执行通用归档、恢复与销图，不解释撤退意图；归档通知只记录 AI 观测值，数值动力摘要由有图对象捕获，不触发战术决策；恢复后清理摘要与运行时导航任务。已选目标的射击、点防与自动驾驶仍逐 tick，开火走共同 controller 和 `SpaceWeaponShot`。炮手补位由岗位结束、武器状态和 Pawn 可用性事件触发，NPC 不再每 60 tick 重派。AI 资格门禁与 dev 诊断共用同一判定，Combat 日志只输出状态变化。`ArchivedMapStore` 是远距普通口袋容器的原版 `Map.ExposeData` 整图序列化与运行时卸载/恢复入口，归档内容随 `ArchivedSpaceObject` 落档；远距归档与恢复按设置周期全量检查；有图／无图导航共用 ShipAutopilot 任务表、Step、MPC 与 ShipPhysics 分配／积分，无图阶段以逐台数值推进器布局进入同一分配器；推进后复核普通距离恢复，与生命周期扫描周期无关。该路径尚待游戏内存读档和引用完整性验收。
 - `SectorContentService` / `SectorContentTypes`：星区首次生成的幂等记账与按类型生成循环；marker 身份在生成时一次性决定——随机派系（可见非玩家派系，不做类型→派系映射）+ 完整名（`DeltaV_NamerSpacePoi` RulePack 词干 + 类型名 + (派系名) + #ID）烘焙进 envLabel/faction，物化时直接应用。`SectorContentTypes` 是任意深度的分类树（星区架构 §11 分类），分支只分组、生成与设置只遍历叶子；规则读 `DeltaVSettings.sectorRules`（`SectorTypeRule`：保底数/分段额外量/prefab 池；缺条目用注册表默认，读路径不静默改写设置）。
 - `QueueFrameAction`：离开当前 tick/加载调用栈的唯一帧边界延迟机制。双船场景重建经 `UniverseManager.BeginSceneReset` 在该消费点逐阶段排空旧动作后销图、清缓存、生成新图；不得先注销弹体容器或直接丢弃待执行清理。弹体退出共用 `QueueProjectileCleanup`，原版销图仍经 `SpaceLifecycleService`；完整顺序见太空战架构 §4.5。
