@@ -41,15 +41,29 @@ namespace DeltaV
             GlobalStructureVersion++;
         }
 
-        /// <summary>质量、控制域和碰撞面共用的结构缓存失效条件。</summary>
-        public static bool CacheNeedsRefresh(int cachedVersion, int measuredAtTick)
-        {
-            if (cachedVersion != GlobalStructureVersion || measuredAtTick < 0) return true;
-            int interval = Mathf.Clamp(DeltaVMod.CurrentSettings?.shipStructureCacheIntervalTicks ?? 120, 1, 600);
-            return Find.TickManager.TicksGame - measuredAtTick >= interval;
-        }
+        /// <summary>结构缓存失效条件：只认统一触发推进的版本，不再按时间重扫。</summary>
+        public static bool CacheNeedsRefresh(int cachedVersion) => cachedVersion != GlobalStructureVersion;
 
         private int[] ownerGrid;
+
+        [System.NonSerialized] private bool cachedSupport;
+        [System.NonSerialized] private int cachedSupportVersion = -1;
+
+        /// <summary>HasMapSupport 的版本缓存；结构变化后首次查询重建，其余查询 O(1)。</summary>
+        public bool HasSupport
+        {
+            get
+            {
+                if (cachedSupportVersion == GlobalStructureVersion) return cachedSupport;
+                cachedSupport = map.AllCells.Any(cell => HasFoundation(map, cell)
+                    || IsSupportTerrain(map.terrainGrid.TerrainAt(cell)));
+                cachedSupportVersion = GlobalStructureVersion;
+                return cachedSupport;
+            }
+        }
+
+        private static bool IsSupportTerrain(TerrainDef terrain) =>
+            terrain != null && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void;
 
         [System.NonSerialized] private HashSet<IntVec3> pendingStampCells;
         [System.NonSerialized] private int pendingStampOwner;

@@ -26,19 +26,18 @@ namespace DeltaV
         /// <summary>数值布局使用容器 Map 的局部坐标；物理报告重建与出力前能力复核共用。</summary>
         public abstract IEnumerable<ShipPhysics.Thruster> BuildThrusters();
         private Map weaponMap;
-        private int weaponVersion = -1, weaponMeasuredAt = -1;
+        private int weaponVersion = -1;
         private IReadOnlyList<CompSpaceWeapon> weapons = System.Array.Empty<CompSpaceWeapon>();
         public IEnumerable<CompSpaceWeapon> Weapons
         {
             get
             {
                 if (!IsValid) return System.Array.Empty<CompSpaceWeapon>();
-                if (weaponMap != Map || SubstructureOwnership.CacheNeedsRefresh(weaponVersion, weaponMeasuredAt))
+                if (weaponMap != Map || SubstructureOwnership.CacheNeedsRefresh(weaponVersion))
                 {
                     weapons = CollectWeapons().Distinct().ToArray();
                     weaponMap = Map;
                     weaponVersion = SubstructureOwnership.GlobalStructureVersion;
-                    weaponMeasuredAt = Find.TickManager.TicksGame;
                 }
                 return weapons;
             }
@@ -125,7 +124,7 @@ namespace DeltaV
     {
         public readonly CompSpaceShuttle Hull;
         private Map driveMap;
-        private int driveVersion = -1, driveMeasuredAt = -1;
+        private int driveVersion = -1;
         private bool independentHull;
         public ShuttleShip(CompSpaceShuttle hull) { Hull = hull; }
         public override bool IsValid => Hull.parent is Building && Hull.parent.Spawned
@@ -144,11 +143,10 @@ namespace DeltaV
         public override bool CanDriveIn(SpaceObject container)
         {
             if (!IsValid || container?.map != Map || Map.Parent is not ShipPocketParent_DeltaV) return false;
-            if (driveMap != Map || SubstructureOwnership.CacheNeedsRefresh(driveVersion, driveMeasuredAt))
+            if (driveMap != Map || SubstructureOwnership.CacheNeedsRefresh(driveVersion))
             {
                 driveMap = Map;
                 driveVersion = SubstructureOwnership.GlobalStructureVersion;
-                driveMeasuredAt = Find.TickManager.TicksGame;
                 independentHull = !SubstructureOwnership.CellsOnMap(Map).Any()
                     && !Map.listerThings.AllThings.Any(t => t is Building && t != Anchor && !t.Destroyed)
                     && !HullCells.Any(c => Map.terrainGrid.BaseTerrainAt(c) is TerrainDef terrain

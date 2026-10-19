@@ -52,9 +52,9 @@ ID 的**分配**仍复用唯一、单调、不回收的分配入口；ID 的**�
 
 武器枚举与点防调度读取船体 `Weapons`；图内武器扫描只作为基架子类的设备数据适配。
 
-**查询缓存**：`MapSpaceObject.Ships` 缓存成员发现结果，`ShipBase.Weapons` 缓存设备集合，`ShipControlService` 持有带种类的身份索引。三者共用结构版本及设置中的重扫间隔，连续驾驶／火控／AI 查询只枚举缓存成员或查索引，不逐次扫描全部地图。武器工作状态与派系仍读实时事实；建筑／归属／身份事件、容器注册与表示替换触发失效，地图释放和换档清除索引。controller 权限切换不删除仍存在的船身份；注销清理不以当前 Ship tag 为前提。碰撞面通过对象的 `CollisionCells` 汇总船体几何，再补上船体范围外的环境结构；无主残骸、岩石与其他建筑仍可命中，分类继续复用 `SpaceStructureRules`，求交和后效继续走 `SpaceCollision` 与既有联合效果链。
+**查询缓存**：`MapSpaceObject.Ships` 缓存成员发现结果，`ShipBase.Weapons` 缓存设备集合，`ShipControlService` 持有带种类的身份索引。三者共用统一结构版本（无时间重扫），连续驾驶／火控／AI 查询只枚举缓存成员或查索引，不逐次扫描全部地图。武器工作状态与派系仍读实时事实；建筑／归属／身份事件、容器注册与表示替换触发失效，地图释放和换档清除索引。controller 权限切换不删除仍存在的船身份；注销清理不以当前 Ship tag 为前提。碰撞面通过对象的 `CollisionCells` 汇总船体几何，再补上船体范围外的环境结构；无主残骸、岩石与其他建筑仍可命中，分类继续复用 `SpaceStructureRules`，求交和后效继续走 `SpaceCollision` 与既有联合效果链。
 
-**Shuttle tag 是有意保留的点防角色**：`RolesIn` 由船体子类提供，基架船只贡献 Ship，独立 shuttle 贡献 Ship + Shuttle。容器注册时首次解析，之后按共同结构版本及重扫周期缓存；建筑生成／移除、地形变化和船体身份重评令缓存失效。点防先按对象缓存的 Projectile／Shuttle tag 筛选，再进入对应地图的碰撞面，不为每次索敌遍历地图查找 shuttle；基架船不能仅因具有 Ship tag 而成为点防目标。基础容器仍存 `Container`，成员角色从真实地图重建，侵入角色另外叠加，避免存两份船型事实。
+**Shuttle tag 是有意保留的点防角色**：`RolesIn` 由船体子类提供，基架船只贡献 Ship，独立 shuttle 贡献 Ship + Shuttle。容器注册时首次解析，之后按统一结构版本缓存，无时间重扫；建筑生成／移除、地形变化和船体身份重评令缓存失效。点防先按对象缓存的 Projectile／Shuttle tag 筛选，再进入对应地图的碰撞面，不为每次索敌遍历地图查找 shuttle；基架船不能仅因具有 Ship tag 而成为点防目标。基础容器仍存 `Container`，成员角色从真实地图重建，侵入角色另外叠加，避免存两份船型事实。
 
 艇体销毁后的空图处置复用 `QueueEmptyDepartedMapCleanup`；仍有物品、人员或其他结构的图交回共同生命周期。外部销图经 `SpaceLifecycleService.NotifyMapRemoved` 清理对应容器；若归档已替换表示，旧排队动作不会注销新表示。
 

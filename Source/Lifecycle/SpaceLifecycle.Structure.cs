@@ -40,15 +40,7 @@ namespace DeltaV
         {
             if (owner?.map == null || owner.map.Disposed) return false;
             if (owner.HasTag(SpaceObjectTag.Projectile) || owner.Ships.Any(ship => ship.Identity.shuttle)) return true;
-            Map map = owner.map;
-            foreach (IntVec3 cell in map.AllCells)
-            {
-                if (SubstructureOwnership.HasFoundation(map, cell)) return true;
-                TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
-                if (terrain != null && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void)
-                    return true;
-            }
-            return false;
+            return SubstructureOwnership.TryGet(owner.map)?.HasSupport == true;
         }
 
         /// <summary>只在安全帧上下文调用；当前聚焦、玩家 Pawn 或物品均不阻止无承载图回收。</summary>

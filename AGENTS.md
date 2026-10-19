@@ -148,7 +148,7 @@ shuttle 是无基架、无驾驶台的单建筑飞船；降落由船体适配器
 
 ## 15. 缓存、存档与可重建状态
 
-能由持久事实重建的内容不序列化，包括 Mesh、剪影、相对显示变换、空间索引、有图推进器表和临时流程状态。归档期间无法从已卸载 Map 重建的逐台数值动力摘要随归档保存，恢复后丢弃；不保存油门、工作区或导航任务。缓存必须有明确的失效、换档重建和 Map/Object 删除释放入口。
+能由持久事实重建的内容不序列化，包括 Mesh、剪影、相对显示变换、空间索引、有图推进器表和临时流程状态。归档期间无法从已卸载 Map 重建的逐台数值动力摘要随归档保存，恢复后丢弃；不保存油门、工作区或导航任务。缓存必须有明确的失效、换档重建和 Map/Object 删除释放入口。结构派生缓存只按统一结构版本失效；不得按时间重扫或各自维护重扫间隔。
 
 持久事实包括 SpacePose、对象身份、结构归属和无法从 Map 重建的长期状态。不得只保存缓存的 `built` 标志。
 
@@ -192,7 +192,7 @@ RimExodus 负责地表 worldtile 邻接；Delta-V 负责船体局部 ↔ 连续�
 - `OrbitSphere`：球面移动、弧距、切空间基和 sphere↔tile。
 - `SpaceTransform`：全部坐标、速度、刚体点和停放锚转换。
 - `ShipRegistry` / `ShipBase` / `FoundationShip` / `ShuttleShip`：`StructuresOnMap/StructureCells/HasStructure` 为侧边栏含无主台结构的查询入口，按共同结构版本缓存并随 Map/换档释放；船体身份、状态、脚印、锚、朝向、派系与火控的共同契约；`BuildThrusters/Weapons/CollisionCells/CanDriveIn/PrepareThrust/RolesIn/Transfer/NotifyLanded/CanBoard` 提供船体能力与搬运差异，对象层只汇总能力，详见解耦架构 §2。`AllShipsOnMap` 唯一枚举成员，`ShipByIdentity`、`ShipOf` 与 `DefaultVesselOnMap` 统一解析身份、归属及默认选择。`Ship` 仅为基架控制域查询快照，`FoundationShipsOnMap` 仅供结构操作。`PilotTarget` 委托共同事实给基类；停靠 shuttle 仍是船成员，但不能驾驶宿主。
-- `SubstructureOwnership`：基架事实、归属、连通认领和结构版本；`FoundationAt/HasFoundation/CellsOnMap/CollectConnected` 是结构查询的共同入口，只读原版 foundation 层，不以覆盖地板的 `TerrainAt` 判断基架。质量算法仍只在 `ShipPhysics`；归属、质量报告、控制域、剪影与碰撞共用基架事实，船体能力与角色缓存也共用结构版本失效判定及设置页重扫间隔；`Patch_ShipStructure` 汇总纳管地图的建筑生成／移除与地形变化失效事件。基架与归属同步移除（`RemoveFoundation`/`RemoveGravshipTerrainUnsafe` postfix → `NotifyFoundationRemoved`），「归属仅在有基架的格上有意义」恒成立。
+- `SubstructureOwnership`：基架事实、归属、连通认领和结构版本；`FoundationAt/HasFoundation/CellsOnMap/CollectConnected` 是结构查询的共同入口，只读原版 foundation 层，不以覆盖地板的 `TerrainAt` 判断基架。质量算法仍只在 `ShipPhysics`；归属、质量报告、控制域、剪影与碰撞共用基架事实，船体能力与角色缓存也共用结构版本失效判定，无时间重扫；`HasSupport` 按结构版本缓存一次，避免生命周期扫描重复遍历全图；`Patch_ShipStructure` 汇总纳管地图的建筑生成／移除与地形变化失效事件。基架与归属同步移除（`RemoveFoundation`/`RemoveGravshipTerrainUnsafe` postfix → `NotifyFoundationRemoved`），「归属仅在有基架的格上有意义」恒成立。
 - `CompDeltaVPilotConsole` / `Designator_ReassignSubstructure` / `Alert_MissingPrimaryConsole`：主副台认领、玩家改划及缺主台提示。主台查询共用 `ShipRegistry.MainConsoleForOwner`，玩家整域保护共用 `SubstructureOwnership.CanReassign/Reassign`，内部转移仍走既有写入链；副台在归属通知及 Spawn 后同步脚下身份，不反向盖章。主台替换复核现有主台管理权限；原版占领、同向副台继任保持原规则。警告通过 `ShipRegistry.MissingPrimaryConsoleTargets` 从玩家建筑所在基架域派生，不保存警告状态；面板无主台提示读取当前选中的结构归属。规则详见解耦架构 §3.2。
 - `SpaceObject` / `MapSpaceObject` / `ArchivedSpaceObject` / `DriveSubject` / `DriveInfo`：统一驾驶身份、只读信息与预览、执行、清理、漂移与收敛；主体按船归属或 shuttle 身份区分。推进器布局由船体子类提供，随共同物理报告重建；对象角色按共同结构版本缓存，点防保留 Projectile／Shuttle tag 快速筛选，基架船不贡献 Shuttle 角色；对象层保证每 tick 单次积分，分离后通过主体重新解析当前容器。
 - `ShipPhysics`：质量/惯量、推进器、分配器、阻力和积分的唯一算法；查询与执行入口仅供对象层使用，`DriveInfo` 提供无副作用能力预览。

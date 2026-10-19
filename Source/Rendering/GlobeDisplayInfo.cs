@@ -108,7 +108,7 @@ namespace DeltaV
     {
         private sealed class MapInfo
         {
-            internal int version, tick;
+            internal int version;
             internal bool populationDirty, equipment;
             internal GlobeDisplaySummary summary;
             internal List<GlobeDisplayEntry> entries;
@@ -133,7 +133,7 @@ namespace DeltaV
         {
             Map map = obj.map;
             if (maps.TryGetValue(map, out MapInfo cached)
-                && !SubstructureOwnership.CacheNeedsRefresh(cached.version, cached.tick))
+                && !SubstructureOwnership.CacheNeedsRefresh(cached.version))
             {
                 if (cached.populationDirty) RefreshPopulation(map, cached);
                 return cached;
@@ -176,7 +176,7 @@ namespace DeltaV
                     localCenter = summary.environmentCenter,
                     native = native });
             cached = new MapInfo { version = SubstructureOwnership.GlobalStructureVersion,
-                tick = Find.TickManager.TicksGame, summary = summary, entries = entries, equipment = equipment };
+                summary = summary, entries = entries, equipment = equipment };
             RefreshPopulation(map, cached);
             maps[map] = cached;
             return cached;

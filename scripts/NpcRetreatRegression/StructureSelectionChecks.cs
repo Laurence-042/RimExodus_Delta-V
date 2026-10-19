@@ -29,8 +29,7 @@ internal static partial class Program
         Map map = TestMap(2600), smallMap = TestMap(2601), largeMap = TestMap(2602);
         var frame = new MapSpaceObject(2600, map, new SpacePose(Vector3.forward, 0));
         universe.objects.Add(frame);
-        var ownership = new SubstructureOwnership(map);
-        map.components.Add(ownership);
+        var ownership = SubstructureOwnership.TryGet(map);
         var owners = new int[map.cellIndices.NumGridCells];
         Set(ownership, "ownerGrid", owners);
         void Deck(int owner, params IntVec3[] cells)
@@ -99,6 +98,7 @@ internal static partial class Program
             universe.Lifecycle.QueueStructureCheck(map);
             Check(Actions(universe).Count == queued + 1, "structure-loss events coalesce into one frame action");
             map.terrainGrid.topGrid[0] = (TerrainDef)Raw(typeof(TerrainDef));
+            SubstructureOwnership.BumpStructureVersion();
             Check(SpaceLifecycleService.HasMapSupport(frame), "non-space terrain supports a foundation-less map");
             Call(universe, "RunFrameActions");
             Check(universe.ObjectById(frame.objectId) == frame,

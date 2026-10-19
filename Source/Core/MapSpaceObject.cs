@@ -12,8 +12,8 @@ namespace DeltaV
         private Map interior;
         private SpaceObjectTag memberTags;
         private IReadOnlyList<ShipBase> members = System.Array.Empty<ShipBase>();
-        private int membersVersion = -1, membersMeasuredAt = -1;
-        private int rolesVersion = -1, rolesMeasuredAt = -1;
+        private int membersVersion = -1;
+        private int rolesVersion = -1;
         public override Map map
         {
             get => interior;
@@ -26,11 +26,10 @@ namespace DeltaV
             get
             {
                 if (interior == null || interior.Disposed) return System.Array.Empty<ShipBase>();
-                if (SubstructureOwnership.CacheNeedsRefresh(membersVersion, membersMeasuredAt))
+                if (SubstructureOwnership.CacheNeedsRefresh(membersVersion))
                 {
                     members = ShipRegistry.DiscoverShipsOnMap(interior).ToArray();
                     membersVersion = SubstructureOwnership.GlobalStructureVersion;
-                    membersMeasuredAt = Find.TickManager.TicksGame;
                 }
                 return members;
             }
@@ -45,12 +44,11 @@ namespace DeltaV
             get
             {
                 if (interior == null || interior.Disposed) return 0;
-                if (SubstructureOwnership.CacheNeedsRefresh(rolesVersion, rolesMeasuredAt))
+                if (SubstructureOwnership.CacheNeedsRefresh(rolesVersion))
                 {
                     memberTags = 0;
                     foreach (ShipBase ship in Ships) memberTags |= ship.RolesIn(this);
                     rolesVersion = SubstructureOwnership.GlobalStructureVersion;
-                    rolesMeasuredAt = Find.TickManager.TicksGame;
                 }
                 return memberTags;
             }

@@ -136,7 +136,7 @@ namespace DeltaV
 
         private sealed class CachedStructures
         {
-            internal int version, measuredAt;
+            internal int version;
             internal readonly Dictionary<int, HashSet<IntVec3>> domains = new Dictionary<int, HashSet<IntVec3>>();
         }
 
@@ -147,10 +147,9 @@ namespace DeltaV
         {
             if (map == null || map.Disposed) return noStructures;
             if (!structureCache.TryGetValue(map, out CachedStructures cached)
-                || SubstructureOwnership.CacheNeedsRefresh(cached.version, cached.measuredAt))
+                || SubstructureOwnership.CacheNeedsRefresh(cached.version))
             {
-                cached = new CachedStructures { version = SubstructureOwnership.GlobalStructureVersion,
-                    measuredAt = Find.TickManager.TicksGame };
+                cached = new CachedStructures { version = SubstructureOwnership.GlobalStructureVersion };
                 SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
                 foreach (IntVec3 cell in SubstructureOwnership.CellsOnMap(map))
                 {
@@ -247,15 +246,13 @@ namespace DeltaV
                 domainCache[map] = byOwner;
             }
             int version = SubstructureOwnership.GlobalStructureVersion;
-            int now = Find.TickManager.TicksGame;
             CachedDomain cached;
             if (!byOwner.TryGetValue(ownerId, out cached)
-                || SubstructureOwnership.CacheNeedsRefresh(cached.version, cached.cachedAtTick))
+                || SubstructureOwnership.CacheNeedsRefresh(cached.version))
             {
                 cached = new CachedDomain
                 {
                     version = version,
-                    cachedAtTick = now,
                     cells = FloodOwnedDomain(map, ownership, ownerId, seedCell),
                 };
                 byOwner[ownerId] = cached;
@@ -327,7 +324,6 @@ namespace DeltaV
         private sealed class CachedDomain
         {
             public int version;
-            public int cachedAtTick;
             public HashSet<IntVec3> cells;
         }
 

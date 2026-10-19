@@ -15,17 +15,16 @@ namespace DeltaV
         private int lastPlayerDecisionTick = -1;
 
         private readonly Dictionary<DriveSubject, ShipBase> shipsByIdentity = new Dictionary<DriveSubject, ShipBase>();
-        private int identityVersion = -1, identityMeasuredAt = -1;
+        private int identityVersion = -1;
         internal ShipBase ResolveShip(DriveSubject identity)
         {
             if (identity.key <= 0) return ShipBase.Invalid;
-            if (SubstructureOwnership.CacheNeedsRefresh(identityVersion, identityMeasuredAt))
+            if (SubstructureOwnership.CacheNeedsRefresh(identityVersion))
             {
                 shipsByIdentity.Clear();
                 foreach (Map map in Find.Maps)
                     foreach (ShipBase ship in ShipRegistry.AllShipsOnMap(map)) shipsByIdentity[ship.Identity] = ship;
                 identityVersion = SubstructureOwnership.GlobalStructureVersion;
-                identityMeasuredAt = Find.TickManager.TicksGame;
             }
             return shipsByIdentity.TryGetValue(identity, out ShipBase found) && found.IsValid ? found : ShipBase.Invalid;
         }

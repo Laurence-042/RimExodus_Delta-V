@@ -62,8 +62,6 @@
   <DeltaV_SettingsNpcDecisionIntervalTip>How often NPC ships recheck eligibility, targets, doctrine and retreat conditions. Autopilot and firing at the selected target still run each tick. Range 1-600; default 60.</DeltaV_SettingsNpcDecisionIntervalTip>
   <DeltaV_SettingsLifecycleScanInterval>Space object lifecycle scan interval (ticks)</DeltaV_SettingsLifecycleScanInterval>
   <DeltaV_SettingsLifecycleScanIntervalTip>How often distance checks materialize, sleep, archive or restore objects. Movement advances every game tick independently of this interval. Range 1-600; default 60.</DeltaV_SettingsLifecycleScanIntervalTip>
-  <DeltaV_SettingsShipStructureCacheInterval>Ship structure cache refresh interval (ticks)</DeltaV_SettingsShipStructureCacheInterval>
-  <DeltaV_SettingsShipStructureCacheIntervalTip>Maximum age of on-demand mass, control domain and collision surface caches. Foundation or ownership changes invalidate all three immediately. Range 1-600; default 120.</DeltaV_SettingsShipStructureCacheIntervalTip>
   <DeltaV_SettingsMapGenBudget>Map generation budget (ms/frame)</DeltaV_SettingsMapGenBudget>
   <DeltaV_SettingsMapGenBudgetTip>How many milliseconds each frame may spend generating an approaching POI's interior map. Larger values finish the map sooner but make frames choppier during generation; smaller values keep frames smooth but take longer. Range 1-16; default 8.</DeltaV_SettingsMapGenBudgetTip>
   <DeltaV_SaveBlockedGeneratingLabel>Map generation in progress</DeltaV_SaveBlockedGeneratingLabel>

@@ -43,9 +43,6 @@ namespace DeltaV
         /// <summary>POI/普通容器的距离生命周期扫描间隔；宇宙运动仍逐游戏 tick 推进。</summary>
         public int lifecycleScanIntervalTicks = 60;
 
-        /// <summary>质量、控制域和碰撞面缓存的按需重扫间隔；结构变更立即失效。</summary>
-        public int shipStructureCacheIntervalTicks = 120;
-
         /// <summary>分帧地图生成每个渲染帧的主线程预算（毫秒）。</summary>
         public float incrementalMapGenBudgetMs = 8f;
 
@@ -158,7 +155,6 @@ namespace DeltaV
             Scribe_Values.Look(ref poiDeleteRadius, "poiDeleteRadius", 1200f);
             Scribe_Values.Look(ref npcDecisionIntervalTicks, "npcDecisionIntervalTicks", 60);
             Scribe_Values.Look(ref lifecycleScanIntervalTicks, "lifecycleScanIntervalTicks", 60);
-            Scribe_Values.Look(ref shipStructureCacheIntervalTicks, "shipStructureCacheIntervalTicks", 120);
             Scribe_Values.Look(ref incrementalMapGenBudgetMs, "incrementalMapGenBudgetMs", 8f);
             Scribe_Values.Look(ref dockingHoldTicks, "dockingHoldTicks", 60);
             Scribe_Values.Look(ref dockingPositionWindow, "dockingPositionWindow", 0.35f);

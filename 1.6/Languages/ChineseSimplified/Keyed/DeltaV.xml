@@ -62,8 +62,6 @@
   <DeltaV_SettingsNpcDecisionIntervalTip>敌舰重新检查资格、目标、战术和撤退条件的间隔。已选目标的武器射击和自动驾驶仍逐 tick 运行。范围 1–600；默认 60。</DeltaV_SettingsNpcDecisionIntervalTip>
   <DeltaV_SettingsLifecycleScanInterval>宇宙对象生命周期扫描间隔（tick）</DeltaV_SettingsLifecycleScanInterval>
   <DeltaV_SettingsLifecycleScanIntervalTip>按距离检查对象物化、休眠、归档与恢复的间隔；宇宙运动独立按每个游戏 tick 推进。范围 1–600；默认 60。</DeltaV_SettingsLifecycleScanIntervalTip>
-  <DeltaV_SettingsShipStructureCacheInterval>飞船结构缓存重扫间隔（tick）</DeltaV_SettingsShipStructureCacheInterval>
-  <DeltaV_SettingsShipStructureCacheIntervalTip>质量、控制域及碰撞面缓存被访问时允许的最大旧值时间。基架或归属变化会立即使三者失效。范围 1–600；默认 120。</DeltaV_SettingsShipStructureCacheIntervalTip>
   <DeltaV_SettingsMapGenBudget>地图生成预算（毫秒/帧）</DeltaV_SettingsMapGenBudget>
   <DeltaV_SettingsMapGenBudgetTip>接近 POI 生成内部地图时，每帧最多投入多少毫秒做生成。数值越大地图越快生成完，但生成期间帧率越抖；越小帧率越平稳，等待越久。范围 1–16；默认 8。</DeltaV_SettingsMapGenBudgetTip>
   <DeltaV_SaveBlockedGeneratingLabel>地图生成尚未完成</DeltaV_SaveBlockedGeneratingLabel>

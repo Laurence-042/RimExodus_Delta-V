@@ -235,6 +235,19 @@ namespace DeltaV
             };
         }
 
+        /// <summary>货物质量指纹：只遍历 transporter 组，装载/卸载后触发一次重测。</summary>
+        private static float CargoMass(Map map)
+        {
+            float total = 0f;
+            foreach (Thing thing in map.listerThings.ThingsInGroup(ThingRequestGroup.Transporter))
+            {
+                if (thing is not Building || thing.Destroyed) continue;
+                CompTransporter transporter = thing.TryGetComp<CompTransporter>();
+                if (transporter != null) total += Mathf.Max(0f, transporter.MassUsage);
+            }
+            return total;
+        }
+
         /// <summary>
         /// 建筑质量：def 带 Mass stat（如 LargeThruster=30）用 stat 实值，否则用
         /// MassPerBuilding；运输舱的 held 内容按原版 CompTransporter.MassUsage 加入，
@@ -752,8 +765,8 @@ namespace DeltaV
         private sealed class CachedReport
         {
             public MassReport report;
-            public int measuredAtTick = -1;
             public int structureVersion = -1;
+            public float cargoMass = -1f;
         }
 
         private static readonly Dictionary<Map, CachedReport> Cache = new Dictionary<Map, CachedReport>();
@@ -770,8 +783,9 @@ namespace DeltaV
                 cached = new CachedReport();
                 Cache[map] = cached;
             }
-            int now = Find.TickManager.TicksGame;
-            if (cached.report == null || SubstructureOwnership.CacheNeedsRefresh(cached.structureVersion, cached.measuredAtTick))
+            float cargoMass = CargoMass(map);
+            if (cached.report == null || Mathf.Abs(cached.cargoMass - cargoMass) > 0.01f
+                || SubstructureOwnership.CacheNeedsRefresh(cached.structureVersion))
             {
                 MassReport fresh = Measure(container);
                 fresh.version = (cached.report?.version ?? 0) + 1;
@@ -784,7 +798,7 @@ namespace DeltaV
                         $"inertia {cached.report.inertia:F0}->{fresh.inertia:F0}");
                 }
                 cached.report = fresh;
-                cached.measuredAtTick = now;
+                cached.cargoMass = cargoMass;
                 cached.structureVersion = SubstructureOwnership.GlobalStructureVersion;
             }
             return cached.report;

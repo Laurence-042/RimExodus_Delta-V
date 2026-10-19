@@ -143,7 +143,6 @@ namespace DeltaV
             public float boundsRadius;
             public bool anySolid;
             public int structureVersion = -1;
-            public int measuredAtTick = -1;
             public readonly List<IntVec3> occupiedCells = new List<IntVec3>();
             public readonly List<ShieldArc> arcs = new List<ShieldArc>();
             public readonly List<CompSpaceShield> lineShields = new List<CompSpaceShield>();
@@ -179,10 +178,9 @@ namespace DeltaV
                 Caches[map] = surface;
             }
             int version = SubstructureOwnership.GlobalStructureVersion;
-            int now = Find.TickManager.TicksGame;
-            if (surface.kinds == null || SubstructureOwnership.CacheNeedsRefresh(surface.structureVersion, surface.measuredAtTick))
+            if (surface.kinds == null || SubstructureOwnership.CacheNeedsRefresh(surface.structureVersion))
             {
-                Rebuild(obj, surface, version, now);
+                Rebuild(obj, surface, version);
             }
             return surface;
         }
@@ -252,7 +250,7 @@ namespace DeltaV
             }
         }
 
-        private static void Rebuild(SpaceObject obj, Surface surface, int version, int now)
+        private static void Rebuild(SpaceObject obj, Surface surface, int version)
         {
             Map map = obj.map;
             int cells = map.cellIndices.NumGridCells;
@@ -334,7 +332,6 @@ namespace DeltaV
             }
             if (arcBoost > 0f) surface.boundsRadius += arcBoost;
             surface.structureVersion = version;
-            surface.measuredAtTick = now;
         }
 
         // ---- 扫掠与结算 ----

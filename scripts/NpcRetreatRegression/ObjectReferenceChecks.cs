@@ -172,7 +172,7 @@ internal static partial class Program
         map.uniqueID = id;
         map.info = new MapInfo { Size = new IntVec3(5, 1, 5), parent = (ShipPocketParent_DeltaV)Raw(typeof(ShipPocketParent_DeltaV)) };
         map.cellIndices = new CellIndices(map);
-        map.components = new List<MapComponent>();
+        map.components = new List<MapComponent> { new SubstructureOwnership(map) };
         map.terrainGrid = new TerrainGrid(map);
         // These generic fixtures model supported stations. Structure-loss tests replace this terrain.
         var ground = (TerrainDef)Raw(typeof(TerrainDef));
