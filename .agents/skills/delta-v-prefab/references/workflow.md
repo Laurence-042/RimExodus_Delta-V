@@ -134,7 +134,7 @@ right/bottom = left/top + cellPixels
 | `prefab/terrain/<TerrainDef>/color/rects` | 合并后的顶层地形记录；color 可省略 |
 | `foundations/li` 的 pos/def | 基架局部格，不能与顶层地板混为一层 |
 | `thingStates/li` 的 pos/def/stuff/rotation/hitPoints/stackCount | 每个建筑/物品的局部 root 与外层放置元数据 |
-| `thingStates/li/state/saveable` | 原版逐实例 Scribe 状态；与外层 Def、材质及坐标核对一致 |
+| `thingStates/li/state/saveable` | 原版逐实例 Scribe 状态；核对 Def、材质、数量及源地图到局部坐标的对应关系 |
 | `roofs/li` 的 pos/def | 有顶格的局部坐标 |
 
 逐实例状态优先克隆游戏导出原型再按契约修改；新建筑默认状态可以走已有重建器的默认实例路径，不为减少工作随意编造不完整 Scribe 结构。详细列表字段、gun、BillStack 和存储筛选器规则见诊断参考。

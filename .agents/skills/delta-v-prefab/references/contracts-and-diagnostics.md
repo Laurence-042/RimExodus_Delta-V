@@ -10,8 +10,9 @@
 - **缺失列表节点不等于空列表**。`Scribe_Collections.Look` 可以把初始化过的列表改为 null，随后读取类直接遍历它。`ThingFilter` 应有 `allowedDefs` 与 `disallowedSpecialFilters`；没有特殊筛选也写空节点。手写 Pawn 归属 Comp 时核对 `assignedPawns`、`uninstalledAssignedPawns` 等读取契约。
 - 存储筛选器与发射架弹种筛选器都要检查。导弹真正落进弹仓会调用 `ThingFilter.Allows(Thing)`；只验证筛选器 XML 存在或建筑能生成不能覆盖该路径。
 - 核对实际 `turretGunDef`、Verb 状态与 ID、BillStack、容器和 Comp 列表。嵌套枪不能沿用其他炮塔原型的 gun Def。
-- 同 prefab 的内部引用保留，外部地图、旧船 ID、旧 Pawn／任务等源实例引用清除。不要把一份原型的所有引用一律删除，也不要照搬旧图引用。
-- 外层放置元数据与内层 Scribe 状态都可能含 Def、pos、rot、stuff、数量；导出后对账，不能只改一处导致两份描述矛盾。最终落位与身份由现有重建器处理。
+- 同 prefab 的内部引用保留；外部引用清理和旧船身份重分配复用现有重建器。回收完整游戏导出时，不在制作脚本里通过全局字符串替换删除 ID、map 或引用字段；手工克隆新实例时再按引用契约处理身份。
+- 外层放置元数据与内层 Scribe 状态都可能含 Def、pos、rot、stuff、数量；编辑后核对两层实际语义。外层 pos 为局部 root，内层 pos 可以保留源地图绝对坐标；`MapPrefab.Spawn` 使用外层落位，`Building_DockingPort.RebasePrefabLocalState` 使用二者之差换算通道。不能为让文本相等而统一重写内层坐标。
+- 原版默认值可省略序列化字段，例如旋转 North、守卫模式；先查相应 `ExposeData` 默认值再解释，不能把缺失字段当成损坏。未启用 `useHitPoints` 的物品可能导出 `hitPoints=-1`，不要统一要求所有条目的生命值为正。
 
 ## 地形底层与电网
 

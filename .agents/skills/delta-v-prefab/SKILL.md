@@ -13,7 +13,7 @@ description: Design, author, validate, and troubleshoot RimExodus Delta-V map pr
 
 制作或调整布局时先读 [制作流程、文件结构与控制层级](references/workflow.md)。开始写建筑坐标前读 [锚点、奇偶尺寸与旋转](references/geometry.md)。手写实例状态或遇到导入报错时读 [存档契约与诊断](references/contracts-and-diagnostics.md)。贴图工作使用相邻的 `delta-v-art` skill。
 
-调整战舰轮廓、推进器、舱内武器、装甲或护盾时，读 [战舰布局与功能净空](references/ship-layout.md)：区分真实安装约束与外观选择，避免用额外净空把船体无谓撑大。
+设计战舰时，读 [战舰布局与功能净空](references/ship-layout.md)：结合任务安排武器分工、炮手、供能与补给，再组织紧凑轮廓、推进器、装甲和护盾。参考用户修改时，提炼配置之间的取舍，不把样船的设备数量套成固定配方。
 
 ## 按阶段工作
 

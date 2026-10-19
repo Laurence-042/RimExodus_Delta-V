@@ -12,11 +12,31 @@ sx, sy = map(float, passage.findtext("graphicData/drawSize").strip("()").split("
 leaf = Image.open(ART / "DockingPort_Mover.png").convert("RGBA")
 deck = Image.open(ART / "DockingChannel.png").convert("RGBA")
 assert leaf.width == leaf.height and deck.width == deck.height
-assert leaf.getchannel("A").getextrema() == (0, 255)
-assert deck.getchannel("A").getextrema() == (0, 255)
 for im, name in ((leaf, "door"), (deck, "channel")):
+    alpha_min, alpha_max = im.getchannel("A").getextrema()
+    # Cutout treats near-opaque generated alpha (253/254) as solid material.
+    assert alpha_min == 0 and alpha_max >= 250, (name, alpha_min, alpha_max)
     bbox = im.getchannel("A").point(lambda a: 255 if a >= 128 else 0).getbbox()
     print(name, im.size, "visible alpha bbox", bbox)
+
+# Building_Door.DrawMovers uses def.size, not graphicData.drawSize. Vanilla's
+# 64px mover occupies y=10..54 with 3px black horizontal edges; margins belong
+# in the texture. Allow one native pixel for generated/antialiased boundaries.
+door_bounds = leaf.getchannel("A").point(lambda a: 255 if a >= 128 else 0).getbbox()
+normalized = tuple(v * 64 / leaf.width for v in door_bounds)
+assert abs(normalized[1] - 10) <= 1 and abs(normalized[3] - 54) <= 1, normalized
+assert abs(normalized[0]) <= 1 and abs(normalized[2] - 32) <= 1, normalized
+sample_x = round(leaf.width * 10 / 64)
+for edge, step in ((door_bounds[1], 1), (door_bounds[3] - 1, -1)):
+    thickness = 0
+    while 0 <= edge + step * thickness < leaf.height:
+        r, g, b, a = leaf.getpixel((sample_x, edge + step * thickness))
+        if a < 128 or max(r, g, b) >= 24:
+            break
+        thickness += 1
+    native_thickness = thickness * 64 / leaf.height
+    assert 2.5 <= native_thickness <= 3.5, native_thickness
+    print("door black edge at 64px/tile", round(native_thickness, 2))
 
 def render(tile, opened):
     im = Image.new("RGBA", (tile * 7, tile * 7), (21, 26, 33, 255))
