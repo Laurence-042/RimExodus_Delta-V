@@ -54,7 +54,7 @@
 				<turnRateDegPerSec>540</turnRateDegPerSec>
 				<hasMap>true</hasMap>
 				<exhaustTrail>true</exhaustTrail>
-				<exhaustSize>1.8</exhaustSize>
+				<exhaustSize>1.1</exhaustSize>
 				<smokeLifetimeTicks>150</smokeLifetimeTicks>
 			</li>
 		</comps>
@@ -74,19 +74,20 @@
 			<li Class="DeltaV.DefModExtension_BoardingProfile">
 				<canBoard>true</canBoard>
 				<!--
-					完整替换继承 comp 的默认布局，而非覆盖一个全局推力。空载 140 质量，
-					矩形惯量 I=140*(3^2+5^2)/12≈396.7；姿控单台 35 时一对
-					产生 157.5 力矩，角加速度≈0.397 rad/s²。载重会按真实质量继续降低响应。
+					船体帧 +X=舱头、+Y=左侧；按 3x5 正式贴图定位全部喷口。
+					尾部主推拆为左右两台，各 140、合计仍为 280；侵入尾焰读取同一位置。
+					前后姿控作用臂调整为 1.85，物理力矩随真实位置计算。
 				-->
 				<virtualThrusters>
-					<li><position>(-2.25,0)</position><force>(280,0)</force></li>
-					<li><position>(2.25,0)</position><force>(-280,0)</force></li>
-					<li><position>(0,-1.25)</position><force>(0,70)</force></li>
-					<li><position>(0,1.25)</position><force>(0,-70)</force></li>
-					<li><position>(2.25,-1.25)</position><force>(0,35)</force></li>
-					<li><position>(-2.25,1.25)</position><force>(0,-35)</force></li>
-					<li><position>(2.25,1.25)</position><force>(0,-35)</force></li>
-					<li><position>(-2.25,-1.25)</position><force>(0,35)</force></li>
+					<li><position>(-2.2,0.69)</position><force>(140,0)</force></li>
+					<li><position>(-2.2,-0.69)</position><force>(140,0)</force></li>
+					<li><position>(2.02,0)</position><force>(-280,0)</force></li>
+					<li><position>(-0.12,-1.07)</position><force>(0,70)</force></li>
+					<li><position>(-0.12,1.07)</position><force>(0,-70)</force></li>
+					<li><position>(1.85,-0.96)</position><force>(0,35)</force></li>
+					<li><position>(-1.85,1.12)</position><force>(0,-35)</force></li>
+					<li><position>(1.85,0.96)</position><force>(0,-35)</force></li>
+					<li><position>(-1.85,-1.12)</position><force>(0,35)</force></li>
 				</virtualThrusters>
 			</li>
 		</modExtensions>

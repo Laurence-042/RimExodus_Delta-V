@@ -1,4 +1,5 @@
 using System;
+using UnityEngine;
 using Verse;
 
 namespace DeltaV
@@ -27,6 +28,16 @@ namespace DeltaV
 
         /// <summary>冷发射速度相对巡航速度的倍率。</summary>
         public float coldLaunchSpeedFactor = 0.25f;
+
+        /// <summary>离架后强转向阶段的最长 tick 数；对准或失去目标时提前点火，0 跳过。</summary>
+        public int initialTurnTicks;
+        public float initialTurnRateDegPerSec = 1080f;
+
+        /// <summary>主机从离架速度过渡到巡航速度的 tick 数；不改变后续追踪能力。</summary>
+        public int accelerationTicks;
+
+        /// <summary>普通弹体喷口在朝前 +X、左侧 +Y 的弹体帧中定位；shuttle 读取真实推进布局。</summary>
+        public Vector2 exhaustOffset = new Vector2(-0.55f, 0f);
 
         /// <summary>程序允许的锁定弧；360 表示可锁定任意方向目标。</summary>
         public float lockArcDeg = 360f;

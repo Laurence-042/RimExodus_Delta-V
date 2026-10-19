@@ -178,6 +178,10 @@
 				<turnRateDegPerSec>540</turnRateDegPerSec>
 				<coldLaunchTicks>30</coldLaunchTicks>
 				<coldLaunchSpeedFactor>0.25</coldLaunchSpeedFactor>
+				<initialTurnTicks>12</initialTurnTicks>
+				<initialTurnRateDegPerSec>1080</initialTurnRateDegPerSec>
+				<accelerationTicks>6</accelerationTicks>
+				<exhaustOffset>(-0.55,-0.045)</exhaustOffset>
 				<lockArcDeg>360</lockArcDeg>
 				<hasMap>true</hasMap>
 				<exhaustTrail>true</exhaustTrail>

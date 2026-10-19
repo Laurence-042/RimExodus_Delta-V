@@ -34,7 +34,7 @@ namespace DeltaV
             // 真实火焰，与船壳路径对称）。
             Map current = Find.CurrentMap;
             SpaceObject frame = universe.FrameOf(current);
-            if (frame == null || !WorldRendererUtility.DrawingMap)
+            if (frame == null || frame.projectileRoleOverride || !WorldRendererUtility.DrawingMap)
             {
                 ExhaustEmissionRemainder.Clear();
                 return;
@@ -218,6 +218,8 @@ namespace DeltaV
         /// </summary>
         public static void CollectShellFlames(SpaceObject container, Map map, Matrix4x4 matrix, Quaternion rotation)
         {
+            // 侵入接管期间由弹体服务在相同喷口绘制加力尾焰，不能叠上旧油门火焰。
+            if (container.projectileRoleOverride) return;
             DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map)?.MotionInfo;
             if (report == null || Time.time - report.throttlesWrittenAt > ThrottleFreshSeconds)
             {

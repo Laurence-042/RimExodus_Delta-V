@@ -65,6 +65,14 @@ namespace DeltaV
 
         private readonly UniverseManager universe;
 
+        private enum FlightPhase { ColdLaunch, InitialTurn, PoweredFlight }
+
+        private struct ExhaustPort
+        {
+            public Vector2 localPosition;
+            public float localAngle;
+        }
+
         private sealed class Projectile
         {
             public int containerId;
@@ -86,8 +94,13 @@ namespace DeltaV
             public Vector3 prevPosition;
             public bool laser;
             public float cruiseSpeed;
-            public int ignitionTick;
-            public bool ignited;
+            public int coldLaunchEndsTick;
+            public FlightPhase phase;
+            public int motorStartedTick;
+            public float motorStartSpeed;
+            public float rcsTurnSign;
+            // 接管时从船体共同推进布局捕获，普通驾驶与侵入共用相同物理喷口。
+            public readonly List<ExhaustPort> exhaustPorts = new List<ExhaustPort>();
             public Vector3 laserFrom;
             public Vector3 laserTo;
             /// <summary>伤害/穿深倍率（轨道炮 Σ 加速段；随弹体携带到命中结算）。</summary>
@@ -284,8 +297,11 @@ namespace DeltaV
             projectile.spawnedAtTick = Find.TickManager.TicksGame;
             projectile.laser = props.laserRange > 0f;
             projectile.cruiseSpeed = launchSpec.speed;
-            projectile.ignitionTick = Find.TickManager.TicksGame + Mathf.Max(0, launchSpec.coldLaunchTicks);
-            projectile.ignited = launchSpec.coldLaunchTicks <= 0;
+            projectile.coldLaunchEndsTick = Find.TickManager.TicksGame + Mathf.Max(0, launchSpec.coldLaunchTicks);
+            projectile.phase = launchSpec.coldLaunchTicks > 0 || props.initialTurnTicks > 0
+                ? FlightPhase.ColdLaunch : FlightPhase.PoweredFlight;
+            projectile.motorStartedTick = projectile.spawnedAtTick - Mathf.Max(0, props.accelerationTicks) - 1;
+            projectile.motorStartSpeed = launchSpec.speed;
 
             SpaceObject created;
             if (projectile.laser)
@@ -376,8 +392,19 @@ namespace DeltaV
             p.dead = false;
             p.laser = false;
             p.cruiseSpeed = props.speed;
-            p.ignitionTick = p.spawnedAtTick;
-            p.ignited = true;
+            p.coldLaunchEndsTick = p.spawnedAtTick;
+            p.phase = FlightPhase.PoweredFlight;
+            p.motorStartedTick = p.spawnedAtTick;
+            p.motorStartSpeed = p.cruiseSpeed;
+            ShipBase vessel = hull.TryGetComp<CompSpaceShuttle>().Vessel;
+            Vector2 forward = SpaceTransform.Rotate(Vector2.right, vessel.FrameAngle);
+            foreach (ShipPhysics.Thruster thruster in vessel.BuildThrusters())
+                if (Vector2.Dot(thruster.dir, forward) > 0.999f)
+                    p.exhaustPorts.Add(new ExhaustPort
+                    {
+                        localPosition = thruster.localPos,
+                        localAngle = Mathf.Atan2(thruster.dir.y, thruster.dir.x)
+                    });
             p.prevPosition = shuttle.pose.position;
             p.damageScale = p.armorPenetrationScale = 1f;
             shuttle.pose.angularVelocity = 0f;
@@ -450,32 +477,9 @@ namespace DeltaV
                         continue;
                     }
                     p.prevPosition = p.container.pose.position;
-                    if (!p.laser && !p.ignited && now >= p.ignitionTick)
-                    {
-                        Vector2 direction = p.container.pose.velocity.sqrMagnitude > 1e-8f
-                            ? p.container.pose.velocity.normalized
-                            : Vector2.right;
-                        p.container.pose.velocity = direction * p.cruiseSpeed;
-                        p.container.pose.angle = Mathf.Atan2(direction.y, direction.x);
-                        p.ignited = true;
-                    }
-                    if (p.props.guided && !p.laser && p.ignited && hasTarget)
-                    {
-                        SteerTowards(p);
-                    }
-                    if (p.props.exhaustTrail && p.ignited && now % 3 == 0)
-                    {
-                        Vector2 backwards = p.container.pose.velocity.sqrMagnitude > 1e-8f
-                            ? -p.container.pose.velocity.normalized : Vector2.left;
-                        trailPuffs.Add(new TrailPuff
-                        {
-                            pos = OrbitSphere.Move(p.container.pose.position, backwards * 0.55f),
-                            bornTick = now,
-                            lifetimeTicks = Mathf.Max(1, p.props.smokeLifetimeTicks),
-                            size = Mathf.Max(0.1f, p.props.exhaustSize),
-                        });
-                        if (trailPuffs.Count > MaxTrailPuffs) trailPuffs.RemoveAt(0);
-                    }
+                    if (!p.laser) AdvanceFlight(p, hasTarget, now);
+                    if (p.props.exhaustTrail && now % 3 == 0)
+                        EmitTrail(p, now);
                 }
             }
             // 激光线段视觉寿命（纯表现）。
@@ -495,25 +499,96 @@ namespace DeltaV
                     impacts.RemoveAt(i);
         }
 
-        /// <summary>纯追踪制导：速度方向每 tick 向目标容器当前位姿转向（转向率受限）。</summary>
-        private void SteerTowards(Projectile p)
+        /// <summary>阶段只选速度与转向上限；仍共用一次追踪和容器积分，不调用飞船 MPC。</summary>
+        private static void AdvanceFlight(Projectile p, bool hasTarget, int now)
+        {
+            p.rcsTurnSign = 0f;
+            bool startingMotor = false;
+            bool steered = false;
+            if (p.phase == FlightPhase.ColdLaunch)
+            {
+                if (now < p.coldLaunchEndsTick) return;
+                p.phase = p.props.guided && hasTarget && p.props.initialTurnTicks > 0
+                    ? FlightPhase.InitialTurn : FlightPhase.PoweredFlight;
+                p.motorStartedTick = now;
+                p.motorStartSpeed = p.container.pose.velocity.magnitude;
+                startingMotor = p.phase == FlightPhase.PoweredFlight;
+            }
+            if (p.phase == FlightPhase.InitialTurn)
+            {
+                bool aligned = !hasTarget || SteerTowards(p,
+                    Mathf.Max(p.props.turnRateDegPerSec, p.props.initialTurnRateDegPerSec),
+                    p.container.pose.velocity.magnitude);
+                if (!aligned && now - p.coldLaunchEndsTick + 1 < p.props.initialTurnTicks) return;
+                p.phase = FlightPhase.PoweredFlight;
+                p.motorStartedTick = now;
+                p.motorStartSpeed = p.container.pose.velocity.magnitude;
+                startingMotor = true;
+                steered = hasTarget;
+            }
+            float speed = Mathf.Lerp(p.motorStartSpeed, p.cruiseSpeed, MotorProgress(p, now));
+            if (p.props.guided && hasTarget && !steered)
+                SteerTowards(p, p.props.turnRateDegPerSec, speed);
+            else if (startingMotor || now - p.motorStartedTick < p.props.accelerationTicks)
+            {
+                Vector2 direction = p.container.pose.velocity.sqrMagnitude > 1e-8f
+                    ? p.container.pose.velocity.normalized
+                    : SpaceTransform.Rotate(Vector2.right, p.container.pose.angle);
+                p.container.pose.velocity = direction * speed;
+            }
+        }
+
+        private static float MotorProgress(Projectile p, int now) => p.props.accelerationTicks > 0
+            ? Mathf.Clamp01((float)(now - p.motorStartedTick + 1) / p.props.accelerationTicks) : 1f;
+
+        /// <summary>唯一追踪控制：受限转动速度方向；返回是否已对准当前目标。</summary>
+        private static bool SteerTowards(Projectile p, float turnRate, float speed)
         {
             Vector3 aimPoint = p.targetPose.position;
             Vector2 toTarget = OrbitSphere.Offset(p.container.pose.position, aimPoint);
-            if (toTarget.sqrMagnitude < 1e-8f) return;
+            if (toTarget.sqrMagnitude < 1e-8f) return true;
             Vector2 desired = toTarget.normalized;
             Vector2 velocity = p.container.pose.velocity;
             Vector2 current = velocity.sqrMagnitude > 1e-8f ? velocity.normalized : desired;
-            float signed = Mathf.Sign(current.x * desired.y - current.y * desired.x);
-            float angle = Mathf.Acos(Mathf.Clamp(Vector2.Dot(current, desired), -1f, 1f));
-            float maxTurn = p.props.turnRateDegPerSec * Mathf.Deg2Rad * Dt;
-            float turn = Mathf.Min(angle, maxTurn);
-            Vector2 newDir = SpaceTransform.Rotate(current, signed * turn);
-            p.container.pose.velocity = newDir * p.cruiseSpeed;
+            float error = Mathf.Atan2(current.x * desired.y - current.y * desired.x,
+                Vector2.Dot(current, desired));
+            float maxTurn = Mathf.Max(0f, turnRate) * Mathf.Deg2Rad * Dt;
+            float turn = Mathf.Clamp(error, -maxTurn, maxTurn);
+            Vector2 newDir = SpaceTransform.Rotate(current, turn);
+            p.container.pose.velocity = newDir * speed;
+            if (p.phase == FlightPhase.InitialTurn && Mathf.Abs(turn) > 0.001f)
+                p.rcsTurnSign = Mathf.Sign(turn);
             float facingOffset = p.adoptedShuttle
                 ? ShipOrientation.AngleFromRot4(p.building.Rotation) : 0f;
             p.container.pose.angle = SpaceTransform.WrapAngle(
                 Mathf.Atan2(newDir.y, newDir.x) - facingOffset);
+            return Mathf.Abs(error) <= maxTurn + 0.0001f;
+        }
+
+        private static int ExhaustCount(Projectile p) => p.adoptedShuttle ? p.exhaustPorts.Count : 1;
+
+        private static SpacePose ExhaustPose(Projectile p, int index)
+        {
+            ExhaustPort port = p.adoptedShuttle ? p.exhaustPorts[index]
+                : new ExhaustPort { localPosition = p.props.exhaustOffset };
+            return SpaceTransform.RigidPointPose(p.container.pose, port.localPosition, port.localAngle);
+        }
+
+        private void EmitTrail(Projectile p, int now)
+        {
+            bool powered = p.phase == FlightPhase.PoweredFlight;
+            for (int i = 0; i < ExhaustCount(p); i++)
+            {
+                SpacePose nozzle = ExhaustPose(p, i);
+                trailPuffs.Add(new TrailPuff
+                {
+                    pos = nozzle.position,
+                    bornTick = now,
+                    lifetimeTicks = powered ? Mathf.Max(1, p.props.smokeLifetimeTicks) : 24,
+                    size = Mathf.Max(0.1f, p.props.exhaustSize * (powered ? 1f : 0.22f)),
+                });
+                if (trailPuffs.Count > MaxTrailPuffs) trailPuffs.RemoveAt(0);
+            }
         }
 
         // 同 tick 的制导与限定命中对象消费同一次身份解析；不在碰撞阶段重新选船。
@@ -685,7 +760,10 @@ namespace DeltaV
                     p.cruiseSpeed *= speedFactor;
                     p.damageScale *= residual;
                     p.armorPenetrationScale *= residual;
-                    p.ignited = true;
+                    p.phase = FlightPhase.PoweredFlight;
+                    p.motorStartSpeed = p.cruiseSpeed;
+                    p.motorStartedTick = Find.TickManager.TicksGame - Mathf.Max(0, p.props.accelerationTicks) - 1;
+                    p.rcsTurnSign = 0f;
                 }
             }
             // 激光当 tick 消费完毕：视觉线段（命中点或全射程）+ 销毁。
@@ -864,6 +942,10 @@ namespace DeltaV
             p.adoptedShuttle = false;
             p.dead = false;
             p.laser = false;
+            p.phase = FlightPhase.ColdLaunch;
+            p.coldLaunchEndsTick = p.motorStartedTick = 0;
+            p.motorStartSpeed = p.cruiseSpeed = p.rcsTurnSign = 0f;
+            p.exhaustPorts.Clear();
             p.damageScale = 1f;
             p.armorPenetrationScale = 1f;
             p.body.attacker = null;
@@ -1097,26 +1179,24 @@ namespace DeltaV
                         ShellLayer.Slot s = layer.At(slot++);
                         s.layer.Emit(s);
                     }
-                    if (p.props.exhaustTrail && p.ignited)
+                    if (p.props.exhaustTrail && p.phase == FlightPhase.PoweredFlight)
                     {
                         EnsureImpactMaterials();
-                        Vector2 back = p.container.pose.velocity.sqrMagnitude > 1e-8f
-                            ? -p.container.pose.velocity.normalized : Vector2.left;
-                        Vector3 exhaustPos = OrbitSphere.Move(p.container.pose.position,
-                            back * (p.props.exhaustSize * 0.7f));
-                        Vector3 flame = SpaceTransform.FocusedDrawPosition(frame, frameMap,
-                            exhaustPos, altitude + Altitudes.AltInc);
-                        float exhaustHeading = p.adoptedShuttle
-                            ? Mathf.Atan2(p.container.pose.velocity.y, p.container.pose.velocity.x)
-                            : p.container.pose.angle;
-                        Quaternion heading = SpaceTransform.FocusedMeshRotation(frame,
-                            exhaustHeading);
-                        EmitStretchQuad(exhaustFlashMaterials[0], flame, heading,
-                            p.props.exhaustSize * 2.2f, p.props.exhaustSize * 0.85f,
-                            layer, ref slot);
-                        EmitStretchQuad(impactFlashMaterials[0], flame, heading,
-                            p.props.exhaustSize * 1.25f, p.props.exhaustSize * 0.42f,
-                            layer, ref slot);
+                        float ramp = MotorProgress(p, Find.TickManager.TicksGame);
+                        float size = p.props.exhaustSize * Mathf.Lerp(0.4f, 1f, ramp);
+                        for (int i = 0; i < ExhaustCount(p); i++)
+                            EmitEngineFlame(ExhaustPose(p, i), size, frame, frameMap,
+                                altitude, layer, ref slot);
+                    }
+                    if (p.props.exhaustTrail && p.rcsTurnSign != 0f)
+                    {
+                        EnsureImpactMaterials();
+                        // 向左折转时朝右喷气；喷口位于弹体前半段的外侧。
+                        SpacePose nozzle = SpaceTransform.RigidPointPose(p.container.pose,
+                            new Vector2(0.22f, p.props.exhaustOffset.y - p.rcsTurnSign * 0.075f),
+                            p.rcsTurnSign * Mathf.PI * 0.5f);
+                        EmitEngineFlame(nozzle, p.props.exhaustSize * 0.38f,
+                            frame, frameMap, altitude, layer, ref slot);
                     }
                 }
             }
@@ -1254,6 +1334,21 @@ namespace DeltaV
             MapOverlayRenderer.CollectSingleQuad(MeshPool.plane10, matrix, material);
             ShellLayer.Slot s = layer.At(slot++);
             s.layer.Emit(s);
+        }
+
+        private static void EmitEngineFlame(SpacePose nozzle, float size, SpaceObject frame,
+            Map frameMap, float altitude, ShellLayer layer, ref int slot)
+        {
+            float length = size * 2.2f;
+            Vector3 center = SpaceTransform.ShipLocalToUniverse(nozzle, new Vector2(-length * 0.5f, 0f));
+            Vector3 flame = SpaceTransform.FocusedDrawPosition(frame, frameMap, center,
+                altitude + Altitudes.AltInc);
+            Quaternion rotation = SpaceTransform.FocusedMeshRotation(frame, nozzle.angle);
+            EmitStretchQuad(exhaustFlashMaterials[0], flame, rotation, length, size * 0.85f, layer, ref slot);
+            // 白芯也从喷口起始，不能与外焰共用中心而漂在焰尾。
+            center = SpaceTransform.ShipLocalToUniverse(nozzle, new Vector2(-size * 0.625f, 0f));
+            flame = SpaceTransform.FocusedDrawPosition(frame, frameMap, center, altitude + Altitudes.AltInc * 2f);
+            EmitStretchQuad(impactFlashMaterials[0], flame, rotation, size * 1.25f, size * 0.42f, layer, ref slot);
         }
 
         private static void EmitStretchQuad(Material material, Vector3 pos, Quaternion rot,
