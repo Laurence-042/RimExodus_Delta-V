@@ -54,13 +54,12 @@ namespace DeltaV
 
             IntVec3 cell = evt.hitCell;
             if (!evt.defenderIsSubstructure || !cell.IsValid || !cell.InBounds(targetMap)
-                || !CanDamageSubstructure(targetMap, cell)) return;
+                || !SubstructureDamageUtility.CanDamage(targetMap, cell)) return;
             TerrainDef foundation = SubstructureOwnership.FoundationAt(targetMap, cell);
             if (foundation == null) return;
-            // 基架没有耐久；达到共同毁伤阈值才一次移除。上层地板由现有补丁清理。
+            // 基架没有耐久；达到共同毁伤阈值后调用统一毁伤机制，再结算材料。
             if (part.damage * evt.damageScale < part.substructureBreakThreshold) return;
-            targetMap.terrainGrid.RemoveFoundation(cell, doLeavings: false);
-            if (SubstructureOwnership.HasFoundation(targetMap, cell)) return;
+            if (!SubstructureDamageUtility.TryDestroy(targetMap, cell)) return;
             using (new SalvageOutputScope(launcher))
                 GenLeaving.DoLeavingsFor(foundation, output, receiverMap);
         }

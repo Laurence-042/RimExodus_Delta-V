@@ -10,10 +10,23 @@ namespace DeltaV
         internal static bool AllowTerrainDamage(Map map, IntVec3 cell) =>
             Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map) == null
             || !SubstructureOwnership.HasFoundation(map, cell)
-            || SpaceImpactEffects.CanDamageSubstructure(map, cell);
+            || SubstructureDamageUtility.CanDamage(map, cell);
 
-        private static bool Prefix(TerrainGrid __instance, IntVec3 c) =>
-            AllowTerrainDamage(TerrainGridOwnershipAccess.MapOf(__instance), c);
+        private static bool Prefix(TerrainGrid __instance, IntVec3 c, out bool __state)
+        {
+            Map map = TerrainGridOwnershipAccess.MapOf(__instance);
+            __state = false;
+            if (Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map) == null
+                || !SubstructureOwnership.HasFoundation(map, c)) return true;
+            __state = SubstructureDamageUtility.CanDamage(map, c);
+            return __state;
+        }
+
+        private static void Postfix(TerrainGrid __instance, IntVec3 c, bool __state)
+        {
+            if (__state)
+                SubstructureDamageUtility.CompleteDestruction(TerrainGridOwnershipAccess.MapOf(__instance), c);
+        }
     }
 
     [HarmonyPatch(typeof(DamageWorker), "ExplosionDamageTerrain")]
