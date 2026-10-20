@@ -82,6 +82,8 @@ namespace DeltaV
                 Thing thing = things[i];
                 if (thing is not Building building || building.Destroyed || !building.Spawned
                     || !building.OccupiedRect().Contains(cell)) continue;
+                // 电缆铺在结构内，不作为独立碰撞面；隐藏电缆免疫攻击，不能因此让基架无敌。
+                if (building.def.building.isPowerConduit) continue;
                 float chance = BuildingHitChance(thing);
                 if (solidThing != null && (chance < bestChance
                     || chance == bestChance && !thing.def.IsWall)) continue;

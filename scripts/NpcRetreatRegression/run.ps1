@@ -1,4 +1,4 @@
-param([string]$GameRoot, [string]$HarmonyPath, [switch]$AimInputOnly)
+param([string]$GameRoot, [string]$HarmonyPath, [switch]$AimInputOnly, [switch]$SalvageOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 if (!$GameRoot) { $GameRoot = "$repo/../.." }
@@ -27,5 +27,6 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net8.0","framework":{"name":"Microsoft.NETCore.App","version":"8.0.0"}}}' | Set-Content -LiteralPath "$out/NpcRetreatRegression.runtimeconfig.json"
 $regressionArguments = @($managed)
 if ($AimInputOnly) { $regressionArguments += '--aim-input-only' }
+if ($SalvageOnly) { $regressionArguments += '--salvage-only' }
 & dotnet "$out/NpcRetreatRegression.dll" @regressionArguments
 exit $LASTEXITCODE

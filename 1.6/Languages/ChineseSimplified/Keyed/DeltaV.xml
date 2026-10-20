@@ -349,4 +349,5 @@
   <DeltaV_PrefabReplaceBusy>请等待地图生成、替换、起飞或对接流程结束后再替换地图。</DeltaV_PrefabReplaceBusy>
   <DeltaV_PrefabReplaceFailed>Prefab 地图替换失败，详情见错误日志。</DeltaV_PrefabReplaceFailed>
   <DeltaV_PrefabReplaceComplete>已使用 prefab 替换聚焦地图：{0}</DeltaV_PrefabReplaceComplete>
+  <DeltaV_SalvageOutputLost>{0}：部分回收产物无处放置，已损失。请清理设备附近的堆放空间。</DeltaV_SalvageOutputLost>
 </LanguageData>

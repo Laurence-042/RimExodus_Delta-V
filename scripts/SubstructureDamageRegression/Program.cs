@@ -109,6 +109,24 @@ internal static class Program
         }
 
         Layers(space, true, true);
+        var conduitDef = (ThingDef)Raw(typeof(ThingDef));
+        conduitDef.defName = "hidden conduit"; conduitDef.category = ThingCategory.Building;
+        conduitDef.size = new IntVec2(1, 1);
+        conduitDef.building = new BuildingProperties { isPowerConduit = true, canBeDamagedByAttacks = false };
+        var conduit = (Building)Raw(typeof(Building)); conduit.def = conduitDef;
+        Set(conduit, "positionInt", cell); Set(conduit, "mapIndexOrState", (sbyte)0);
+        map.thingGrid.Register(conduit);
+        Check(SpaceStructureRules.ClassifyCell(map, cell, out var solid) == SpaceCellKind.Substructure
+            && solid == null, "hidden conduit is not a collision surface protecting its foundation");
+        Call(typeof(SpaceImpactEffects), "StripSubstructureAt", map, cell);
+        Check(grid.FoundationAt(cell) == null && grid.TerrainAt(cell) == space,
+            "hidden conduit cannot block foundation destruction or layer cleanup");
+        Check(SpaceStructureRules.ClassifyCell(map, cell, out _) == SpaceCellKind.Empty,
+            "remaining conduit cannot create a phantom collision after foundation loss");
+        conduitDef.building.canBeDamagedByAttacks = true;
+        Layers(space, true, true);
+        Check(SpaceStructureRules.ClassifyCell(map, cell, out _) == SpaceCellKind.Substructure,
+            "ordinary power conduits follow the same non-structural collision rule");
         var def = (ThingDef)Raw(typeof(ThingDef));
         def.defName = "wide low-cover building"; def.category = ThingCategory.Building;
         def.size = new IntVec2(2, 2); def.building = new BuildingProperties(); def.fillPercent = 0.1f;

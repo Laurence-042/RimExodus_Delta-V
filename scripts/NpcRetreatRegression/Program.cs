@@ -25,7 +25,7 @@ internal static partial class Program
             string path = Path.Combine(args[0], name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        try { Run(args.Contains("--aim-input-only")); Console.WriteLine($"PASS {checks} regression checks (production DLL)"); return 0; }
+        try { Run(args.Contains("--aim-input-only"), args.Contains("--salvage-only")); Console.WriteLine($"PASS {checks} regression checks (production DLL)"); return 0; }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
     }
 
@@ -45,7 +45,7 @@ internal static partial class Program
     static SpaceObject Home(UniverseManager universe, SpaceObject own, Faction faction) =>
         (SpaceObject)Call(universe.NpcShips, "ResolveRetreatHome", own, faction);
 
-    static void Run(bool aimInputOnly)
+    static void Run(bool aimInputOnly, bool salvageOnly)
     {
         // Vanilla log rendering needs Unity; all assertions and production control paths remain active.
         using var logs = Log.LockMessages();
@@ -78,6 +78,7 @@ internal static partial class Program
         var universe = new UniverseManager(game);
         game.components = new List<GameComponent> { universe };
         game.tickManager = (TickManager)Raw(typeof(TickManager));
+        if (salvageOnly) { CheckSalvageOutput(universe); return; }
         CheckAimUiCoordinates();
         CheckWeaponControlFixes(universe, faction, other);
         if (aimInputOnly) return;

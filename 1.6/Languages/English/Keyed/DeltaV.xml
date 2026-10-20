@@ -349,4 +349,5 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_PrefabReplaceBusy>Wait for map generation, replacement, takeoff or docking to finish before replacing this map.</DeltaV_PrefabReplaceBusy>
   <DeltaV_PrefabReplaceFailed>Prefab map replacement failed. See the error log for details.</DeltaV_PrefabReplaceFailed>
   <DeltaV_PrefabReplaceComplete>Replaced the focused map with prefab: {0}</DeltaV_PrefabReplaceComplete>
+  <DeltaV_SalvageOutputLost>{0}: some recovered materials could not be placed nearby and were lost. Clear space for output.</DeltaV_SalvageOutputLost>
 </LanguageData>

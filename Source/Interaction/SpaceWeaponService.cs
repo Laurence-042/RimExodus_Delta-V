@@ -39,6 +39,13 @@ namespace DeltaV
             this.universe = universe;
         }
 
+        internal void NotifySalvageOutputLost(Thing launcher)
+        {
+            if (launcher?.Faction?.IsPlayer != true) return;
+            Messages.Message("DeltaV_SalvageOutputLost".Translate(launcher.LabelShort),
+                launcher, MessageTypeDefOf.CautionInput, historical: false);
+        }
+
         public void RegisterWeapon(CompSpaceWeapon weapon)
         {
             Map map = weapon?.parent?.Map;
