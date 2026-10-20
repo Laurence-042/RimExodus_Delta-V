@@ -102,7 +102,8 @@ namespace DeltaV
 
         internal static bool MouseOverUiWindow()
         {
-            Vector2 point = UI.MousePosUIInvertedUseEventIfCan;
+            // tick 与 OnGUI 共用实时屏幕鼠标；Event.current 可残留，GUI 变换仅在 OnGUI 内有效。
+            Vector2 point = UI.MousePositionOnUIInverted;
             return Find.WindowStack.GetWindowAt(point) != null
                 || Find.WindowStack.AnyWindowAbsorbingAllInput
                 || ShipStatusPanel.ContainsScreenPoint(point)

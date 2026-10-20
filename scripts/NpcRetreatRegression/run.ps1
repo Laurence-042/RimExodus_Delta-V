@@ -1,4 +1,4 @@
-param([string]$GameRoot, [string]$HarmonyPath)
+param([string]$GameRoot, [string]$HarmonyPath, [switch]$AimInputOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 if (!$GameRoot) { $GameRoot = "$repo/../.." }
@@ -25,5 +25,7 @@ $lines | Set-Content -LiteralPath "$out/build.rsp"
 & dotnet "$($sdkVersion.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net8.0","framework":{"name":"Microsoft.NETCore.App","version":"8.0.0"}}}' | Set-Content -LiteralPath "$out/NpcRetreatRegression.runtimeconfig.json"
-& dotnet "$out/NpcRetreatRegression.dll" $managed
+$regressionArguments = @($managed)
+if ($AimInputOnly) { $regressionArguments += '--aim-input-only' }
+& dotnet "$out/NpcRetreatRegression.dll" @regressionArguments
 exit $LASTEXITCODE
