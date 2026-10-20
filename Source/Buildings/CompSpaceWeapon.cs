@@ -96,6 +96,9 @@ namespace DeltaV
 
         /// <summary>成功发射时的炮口闪光尺寸；0 表示无。</summary>
         public float muzzleFlashSize;
+        /// <summary>Visual top recoil only; the building, muzzle solution and physics remain fixed.</summary>
+        public float recoilDistance;
+        public int recoilTicks = 18;
 
         /// <summary>覆盖挂件槽：同一条目决定建造格及该格上的插件贴图中心和缩放。</summary>
         public List<SpaceWeaponAttachmentSlot> attachmentSlots = new List<SpaceWeaponAttachmentSlot>();
@@ -160,11 +163,35 @@ namespace DeltaV
         private bool alignmentConfigurationInitialized;
         private bool configurationInitialized;
         private int lastMagazineThingId = -1;
+        private int visualShotTick = -10000;
+        private float visualShotAngle;
+
+        public void NotifyVisualShot(float angle)
+        {
+            visualShotTick = Find.TickManager.TicksGame;
+            visualShotAngle = angle;
+        }
+
+        public Vector3 VisualRecoilOffset
+        {
+            get
+            {
+                if (!SpaceModeEnabled || WeaponProps.recoilDistance <= 0f) return Vector3.zero;
+                int age = Find.TickManager.TicksGame - visualShotTick;
+                if (age < 0 || age >= WeaponProps.recoilTicks) return Vector3.zero;
+                float amount = age < 2 ? (age + 1f) / 2f
+                    : Mathf.Pow(1f - (age - 2f) / Mathf.Max(1, WeaponProps.recoilTicks - 2), 2f);
+                Vector2 back = SpaceTransform.Rotate(Vector2.left, visualShotAngle)
+                    * (WeaponProps.recoilDistance * amount);
+                return new Vector3(back.x, 0f, back.y);
+            }
+        }
 
         public void ResetPrefabIdentity()
         {
             lastMagazineThingId = -1;
             cooldownUntilTick = 0;
+            visualShotTick = -10000;
         }
 
         public int cooldownUntilTick;

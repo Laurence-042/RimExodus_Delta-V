@@ -187,7 +187,7 @@
   <DeltaV_SettingsDragAngularHalfLife>角速度半衰期（tick）</DeltaV_SettingsDragAngularHalfLife>
   <DeltaV_SettingsDragAngularHalfLifeTip>开关打开时，自旋速度每过这么多 tick 减半。数值越小停转越快，越大转得越久。范围 1–60000；默认 180（3 秒减半）。</DeltaV_SettingsDragAngularHalfLifeTip>
   <DeltaV_SettingsSpaceImpactSound>超凡智能的听觉</DeltaV_SettingsSpaceImpactSound>
-  <DeltaV_SettingsSpaceImpactSoundTip>太空战命中点播放爆炸、命中与护盾音效。有人说宇宙中没有空气所以不能传声——超凡智能认为这是凡人的思维。默认开启。</DeltaV_SettingsSpaceImpactSoundTip>
+  <DeltaV_SettingsSpaceImpactSoundTip>播放太空战开火、补充命中与护盾音效；原版爆炸音仍由原版控制。有人说宇宙中没有空气所以不能传声——超凡智能认为这是凡人的思维。默认开启。</DeltaV_SettingsSpaceImpactSoundTip>
 
   <!-- 设置：tab 标签 -->
   <DeltaV_SettingsTabGeneral>通用</DeltaV_SettingsTabGeneral>
@@ -284,12 +284,12 @@
   <DeltaV_StatCapFullCharge>从空到满</DeltaV_StatCapFullCharge>
   <DeltaV_StatTicks>tick</DeltaV_StatTicks>
   <DeltaV_RailReadiness>轨道炮状态：{0}</DeltaV_RailReadiness>
-  <DeltaV_RailReady>电量充足（蓝色）</DeltaV_RailReady>
-  <DeltaV_RailCooling>电量充足，冷却中（红色）</DeltaV_RailCooling>
-  <DeltaV_RailUnavailable>断电或脉冲电量不足（灰色）</DeltaV_RailUnavailable>
+  <DeltaV_RailReady>电量充足</DeltaV_RailReady>
+  <DeltaV_RailCooling>电量充足，冷却中</DeltaV_RailCooling>
+  <DeltaV_RailUnavailable>断电或脉冲电量不足</DeltaV_RailUnavailable>
   <DeltaV_RailAcceleratorStatus>本发加速段：{0}</DeltaV_RailAcceleratorStatus>
-  <DeltaV_RailAcceleratorActive>电量充足，本发预计起效（蓝色）</DeltaV_RailAcceleratorActive>
-  <DeltaV_RailAcceleratorSkipped>未连接或脉冲电量不足，本发预计跳过（灰色）</DeltaV_RailAcceleratorSkipped>
+  <DeltaV_RailAcceleratorActive>电量充足，本发预计起效</DeltaV_RailAcceleratorActive>
+  <DeltaV_RailAcceleratorSkipped>未连接或脉冲电量不足，本发预计跳过</DeltaV_RailAcceleratorSkipped>
   <DeltaV_SafeFire>舱壁安全限制</DeltaV_SafeFire>
   <DeltaV_SafeFireTip>固定武器的弹道会穿过本船实心舱壁时拒绝发射；仅建议紧急时关闭。</DeltaV_SafeFireTip>
   <DeltaV_WeaponNeedsSingleOwner>武器的完整占地必须位于同一艘船所属的基架上。</DeltaV_WeaponNeedsSingleOwner>

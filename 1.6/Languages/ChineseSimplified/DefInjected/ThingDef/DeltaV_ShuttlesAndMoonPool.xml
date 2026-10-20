@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <DeltaV_MoonPool.label>月池</DeltaV_MoonPool.label>
-  <DeltaV_MoonPool.description>带蓝色力场密封的特殊基架甲板。其所在格无顶也不流失空气；即使误铺了屋顶也不影响 shuttle 起飞降落（降落不会破坏屋顶）。</DeltaV_MoonPool.description>
+  <DeltaV_MoonPool.description>带力场密封的特殊基架甲板。其所在格无顶也不流失空气；即使误铺了屋顶也不影响 shuttle 起飞降落（降落不会破坏屋顶）。</DeltaV_MoonPool.description>
   <DeltaV_ShuttleBoarding.label>跳帮艇</DeltaV_ShuttleBoarding.label>
   <DeltaV_ShuttleBoarding.description>载人穿梭机的装甲突击变体：座位更少、船体更厚、自由飞行中更敏捷。武装其侵入驱动并点选敌舰外壳后，它会像导弹一样满推撞穿——舱体堵住破口，陆战队一涌而出。</DeltaV_ShuttleBoarding.description>
   <DeltaV_Projectile_Cannon.label>炮弹</DeltaV_Projectile_Cannon.label>

@@ -13,7 +13,7 @@
 	<TerrainDef ParentName="Substructure">
 		<defName>DeltaV_MoonPool</defName>
 		<label>moon pool</label>
-		<description>A gravship substructure deck section sealed by a blue force field. Cells above it hold air without a roof, and shuttles may launch and land through it even if a roof was mistakenly built (landing never breaks the roof).</description>
+		<description>A gravship substructure deck section sealed by a force field. Cells above it hold air without a roof, and shuttles may launch and land through it even if a roof was mistakenly built (landing never breaks the roof).</description>
 		<texturePath>Terrain/MoonPool</texturePath>
 		<uiIconPath>Terrain/MoonPool</uiIconPath>
 		<dontRender>true</dontRender>

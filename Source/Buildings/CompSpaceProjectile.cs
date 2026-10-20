@@ -4,6 +4,8 @@ using Verse;
 
 namespace DeltaV
 {
+    public enum CombatVisualStyle { Kinetic, Heavy, Rail, Energy, Missile }
+
     /// <summary>
     /// 弹体数据 def（太空战架构 §5.1）：挂在弹体 building def 上的唯一参数源。
     /// 弹体 def 同时是联合效果注册表的键与贴图来源（无图型贴图取自 def 图形）；
@@ -11,6 +13,15 @@ namespace DeltaV
     /// </summary>
     public class CompProperties_SpaceProjectile : CompProperties
     {
+        // Presentation only: never used by damage, guidance or collision.
+        public CombatVisualStyle visualStyle;
+        public float tracerLength;
+        public float tracerWidth = 0.12f;
+        public SoundDef fireSoundMap;
+        public SoundDef fireSoundShell;
+        public SoundDef impactSoundMap;
+        public SoundDef impactSoundShell;
+
         /// <summary>巡航速度（格/游戏秒）。</summary>
         public float speed = 60f;
 

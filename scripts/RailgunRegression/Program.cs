@@ -69,6 +69,7 @@ internal static class Program
     static UniverseManager universe;
     static ThingDef rail, fragment, shieldDef;
     static DamageDef bullet;
+    static readonly List<SpaceCollision.VisualContact> contacts = new();
 
     static ThingDef MakeDef(string name)
     {
@@ -98,6 +99,7 @@ internal static class Program
     }
     static void Reset()
     {
+        contacts.Clear();
         SpaceCollision.ClearCaches();
         map = (Map)Raw(typeof(Map));
         map.uniqueID = nextId++; map.info = new MapInfo { Size = new IntVec3(80, 1, 12) };
@@ -116,7 +118,8 @@ internal static class Program
         attacker.pose.velocity = SpaceTransform.MapDirectionToUniverseTangent(hull, map,
             new Vector2(from, 5.5f), Vector2.right) * speed;
         var body = new SpaceCollision.SweptBody { attacker = attacker, projectileDef = def ?? rail,
-            from = start, to = end, damageScale = scale, sweepRadius = 0.01f };
+            from = start, to = end, damageScale = scale, sweepRadius = 0.01f,
+            onVisualContact = contacts.Add };
         SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { body });
         return body;
     }
@@ -138,6 +141,10 @@ internal static class Program
             prefix: new HarmonyMethod(typeof(Program), nameof(NotFlammable)));
         harmony.Patch(AccessTools.Method(typeof(SpaceProjectileService), "RegisterImpactFx"),
             prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
+        harmony.CreateClassProcessor(typeof(Patch_TurretTop_SpaceWeaponRecoil)).Patch();
+        Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(TurretTop), "DrawTurret")).Prefixes
+            .Any(p => p.PatchMethod.DeclaringType == typeof(Patch_TurretTop_SpaceWeaponRecoil)),
+            "visual recoil prefix binds to the real RimWorld turret draw signature");
 
         var game = (Game)Raw(typeof(Game)); Set(game, "maps", new List<Map>()); Current.Game = game;
         var world = (World)Raw(typeof(World)); Set(game, "worldInt", world);
@@ -185,6 +192,9 @@ internal static class Program
         var shot = Fire(24); // 7200 budget, co-located full shields.
         Check(first.currentHitPoints == 0 && second.currentHitPoints == 0 && !shot.dead
             && Math.Abs(shot.damageScale * 300 - 1200) < 2, "coincident full shields subtract 6000 once and retain 1200");
+        Check(contacts.Count == 2 && contacts.All(c => c.shieldMode == SpaceShieldMode.Guard && c.shieldBroken)
+            && contacts[0].damageScale > contacts[1].damageScale,
+            "coincident shield breaks each retain their own visual outcome and incoming budget");
         Reset(); first = Shield(1); second = Shield(3000);
         shot = Fire(12);
         Check(first.currentHitPoints == 0 && second.currentHitPoints == 0 && !shot.dead
@@ -193,6 +203,8 @@ internal static class Program
         shot = Fire(12);
         Check(first.currentHitPoints == 0 && second.currentHitPoints == 2400 && shot.dead,
             "insufficient budget stops at the next shield");
+        Check(contacts.Count == 2 && contacts[0].shieldBroken && !contacts[1].shieldBroken,
+            "shield absorption does not display a false break");
         Reset(); first = Shield(3000); shot = Fire(10);
         Check(first.currentHitPoints == 0 && shot.dead, "exact shield depletion leaves no free residual");
         Reset(); var outer = Add(10, 5, 420); var inner = Add(55, 5, 420); var console = Add(65, 5, 300);
@@ -200,12 +212,21 @@ internal static class Program
         Check(outer.Destroyed && inner.Destroyed && console.Destroyed && !shot.dead
             && Math.Abs(shot.damageScale * 300 - 2460) < 2,
             "empty compartment costs nothing; one shot crosses 45 cells and destroys deep console");
+        Check(contacts.Count == 3 && contacts.All(c => c.destroyed && c.penetrated)
+            && contacts[0].localPoint.x < contacts[1].localPoint.x
+            && contacts[1].localPoint.x < contacts[2].localPoint.x
+            && contacts[0].damageScale > contacts[2].damageScale,
+            "every real penetration retains an ordered independent visual snapshot");
         Reset(); var armor = Add(10, 5, 5000); console = Add(55, 5, 300); shot = Fire(12);
         Check(!armor.Destroyed && armor.HitPoints == 1400 && console.HitPoints == 300 && shot.dead,
             "surviving armor stops the projectile without leaking damage behind it");
+        Check(contacts.Count == 1 && !contacts[0].destroyed && !contacts[0].penetrated,
+            "stopped round has one surface hit and no forward penetration jet");
         Reset(); armor = Add(10, 5, 50); armor.invulnerable = true; console = Add(55, 5, 300); shot = Fire(12);
         Check(armor.HitPoints == 50 && console.HitPoints == 300 && shot.dead,
             "absorbed damage cannot grant penetration");
+        Check(contacts.Count == 1 && !contacts[0].destroyed && !contacts[0].penetrated,
+            "invulnerable armor does not emit destruction or penetration feedback");
         Reset(); first = Shield(3000); console = Add(55, 5, 300); shot = Fire(12);
         Check(first.currentHitPoints == 0 && console.Destroyed && !shot.dead
             && Math.Abs(shot.damageScale * 300 - 300) < 2, "shield and hull share a single remaining fraction");
@@ -265,6 +286,7 @@ internal static class Program
         attack.pose.velocity = tangent * 540;
         shot = new SpaceCollision.SweptBody { attacker = attack, projectileDef = rail, from = start,
             to = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(70, 5.5f)), damageScale = 8,
+            onVisualContact = contacts.Add,
             onShieldShatter = (hit, defender, direction, speed) =>
             {
                 shattered = true;
@@ -274,11 +296,64 @@ internal static class Program
         records = (IList)AccessTools.Field(typeof(SpaceProjectileService), "projectiles").GetValue(service);
         Check(shattered && shot.dead && first.currentHitPoints == 3000 && console.HitPoints == 420
             && Math.Abs(battery.StoredEnergy - 8) < 0.001f, "kinetic line shatters high-budget round for base pulse before inner guard");
+        kinetic.GetSegment(out Vector2 lineStart, out Vector2 lineEnd, out _);
+        Check(contacts.Count == 1 && contacts[0].shieldMode == SpaceShieldMode.Kinetic
+            && (contacts[0].lineStart - lineStart).sqrMagnitude < 0.001f
+            && (contacts[0].lineEnd - lineEnd).sqrMagnitude < 0.001f,
+            "kinetic pulse uses the exact finite collision segment without an inner hull hit");
         Check(records.Count == 4 && records.Cast<object>().All(p =>
             (ThingDef)AccessTools.Field(p.GetType(), "def").GetValue(p) == fragment
             && (float)AccessTools.Field(p.GetType(), "damageScale").GetValue(p) == 1f),
             "real shatter creates four independent fragments without parent damage budget");
+        contacts.Clear();
+        SpaceCollision.ClearCaches();
+        kinetic.mode = SpaceShieldMode.Electromagnetic;
+        kinetic.electromagneticStrengthPercent = 100;
+        var laser = MakeDef("fixtureLaser");
+        laser.comps.Add(new CompProperties_SpaceProjectile { laserRange = 100, shieldLaserTurnEnergy = 1 });
+        var segments = new List<(Vector3 from, Vector3 to)>();
+        shot = new SpaceCollision.SweptBody { attacker = attack, projectileDef = laser, from = start,
+            to = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(70, 5.5f)),
+            onVisualContact = contacts.Add, onShieldRedirect = (a, b) => segments.Add((a, b)) };
+        SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
+        Check(contacts.Count == 1 && contacts[0].shieldMode == SpaceShieldMode.Electromagnetic
+            && segments.Count == 1 && OrbitSphere.Offset(segments[0].to, contacts[0].position).magnitude < 0.01f
+            && !contacts[0].destroyed && !contacts[0].penetrated && first.currentHitPoints == 3000,
+            "electromagnetic response matches the true beam bend without a fake hull impact");
         CheckEnergy();
+        CheckVisualAnchors();
+    }
+
+    static void CheckVisualAnchors()
+    {
+        Reset();
+        var service = new SpaceProjectileService(universe);
+        Vector2 point = new Vector2(20, 5);
+        hull.pose.velocity = new Vector2(5, 2);
+        hull.pose.angularVelocity = 0.4f;
+        Vector3 origin = SpaceTransform.MapPointToUniverse(hull, map, point);
+        object anchor = AccessTools.Method(typeof(SpaceProjectileService), "Anchor")
+            .Invoke(service, new object[] { hull, point, origin });
+        Vector3 Position() => (Vector3)AccessTools.Method(typeof(SpaceProjectileService), "AnchorPosition")
+            .Invoke(service, new[] { anchor });
+        Vector2 velocity = (Vector2)AccessTools.Field(anchor.GetType(), "velocity").GetValue(anchor);
+        Vector2 expectedVelocity = SpaceTransform.VelocityAtLocalPoint(hull.pose,
+            SpaceTransform.MapToShipLocal(map, point), origin);
+        Check((velocity - expectedVelocity).sqrMagnitude < 0.00001f
+            && (velocity - hull.pose.velocity).sqrMagnitude > 0.01f,
+            "detached particles inherit the struck rigid point's angular and linear velocity");
+        hull.pose.position = OrbitSphere.Move(hull.pose.position, new Vector2(30, 12));
+        hull.pose.angle = 1.2f;
+        Check(OrbitSphere.Offset(Position(), SpaceTransform.MapPointToUniverse(hull, map, point)).magnitude < 0.01f,
+            "attached flash follows a translated and rotated hull at the same local point");
+        Vector3 paused = Position();
+        Check(Position() == paused, "repeated render queries at one game tick do not advance effects");
+        universe.objects.Clear();
+        int before = Find.TickManager.TicksGame;
+        Set(Find.TickManager, "ticksGameInt", before + 30);
+        Check(OrbitSphere.Offset(Position(), OrbitSphere.Move(origin, velocity * 0.5f)).magnitude < 0.01f,
+            "removed hull releases visual anchor into captured drift without map access");
+        Set(Find.TickManager, "ticksGameInt", before);
     }
 
     static void CheckEnergy()

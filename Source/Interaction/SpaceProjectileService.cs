@@ -54,13 +54,12 @@ namespace DeltaV
     /// 经 QueueFrameAction 帧边界（禁止在扫掠 foreach 内执行）。
     /// </summary>
     [StaticConstructorOnStartup]
-    public sealed class SpaceProjectileService
+    public sealed partial class SpaceProjectileService
     {
         private const float Dt = 1f / 60f;
 
-        /// <summary>激光线段视觉存留（tick；分档材质近似渐隐）。</summary>
+        /// <summary>激光线段视觉存留（tick）。</summary>
         private const int BeamLifetimeTicks = 15;
-        private const int MuzzleFlashLifetimeTicks = 10;
         private const int MaxTrailPuffs = 480;
 
         private readonly UniverseManager universe;
@@ -116,6 +115,8 @@ namespace DeltaV
             public Vector3 to;
             public int bornTick;
             public float width;
+            public int lifetimeTicks = BeamLifetimeTicks;
+            public CombatVisualStyle style = CombatVisualStyle.Energy;
         }
 
         private sealed class TrailPuff
@@ -125,37 +126,6 @@ namespace DeltaV
             public int lifetimeTicks;
             public float size;
         }
-
-        private sealed class MuzzleFlash
-        {
-            public Vector3 pos;
-            public float angle;
-            public float size;
-            public int bornTick;
-        }
-
-        /// <summary>壳上命中特效种类（守方后效选型，见 RegisterImpactFx）。</summary>
-        private enum ImpactFxKind : byte
-        {
-            Explosion,
-            Kinetic,
-            Energy,
-            Shield,
-        }
-
-        private sealed class ImpactFx
-        {
-            public Vector3 pos;
-            public int bornTick;
-            public ImpactFxKind kind;
-            public bool focused;
-            public float incomingAngle;
-            /// <summary>爆炸半径（非爆炸 = 0；闪光/烟尺寸）。</summary>
-            public float radius;
-        }
-
-        /// <summary>壳上命中特效存留（tick；分档材质近似渐隐，与激光束同口径）。</summary>
-        private const int ImpactLifetimeTicks = 54;
 
         /// <summary>壳路径音效的近/远衰减界（格；镜像 ThrusterAudio 的 30/120）。</summary>
         private const float ImpactHearNear = 30f;
@@ -185,30 +155,22 @@ namespace DeltaV
             foreach (Projectile p in projectiles)
                 if (p.target.HasLock && (!p.target.TryResolve(universe, out var resolved)
                     || resolved.Container?.map == null || resolved.Container.map == map)) ForgetTarget(p);
+            ForgetCombatVisuals(map);
             projectileMaps.Remove(map);
             foreach (List<Map> maps in mapPool.Values) maps.Remove(map);
         }
 
-        // 激光线段材质（静态渲染缓存，ClearRuntimeCaches 换档销毁；三档透明度近似渐隐）。
-        private static Material[] beamMaterials;
+        // 盾线材质（静态渲染缓存，ClearRuntimeCaches 换档销毁）。
         private static Material kineticShieldLineMaterial;
         private static Material electromagneticShieldLineMaterial;
 
-        // 壳上命中特效材质（静态渲染缓存；种类 × 三档透明度。贴图复用原版 mote 素材，
+        // 壳上命中特效材质（静态渲染缓存；种类 × 渐隐档。贴图复用原版 mote 素材，
         // 克隆材质自持以设 renderQueue，ClearRuntimeCaches 只销毁克隆不动共享贴图）。
         private static Material[] impactFlashMaterials;   // 爆炸闪光（BrightFlash 橙）
-        private static Material[] impactSparkMaterials;   // 动能火花（SparkThrown 白黄）
-        private static Material[] impactShieldMaterials;  // 护盾拦截（BrightFlash 蓝）
-        private static Material[] impactSmokeMaterials;   // 爆炸烟（Black 灰）
+        private static Material[] impactSmokeMaterials;   // 爆炸烟（Smoke 灰）
         private static Material[] impactEnergyMaterials;  // 激光熔蚀（BrightFlash 红）
         private static Material[] exhaustFlashMaterials;
         private static Material[] exhaustSmokeMaterials;
-        private static SoundDef impactExplosionShellDef;  // 非聚焦守方（OnCamera + 手工音量）
-        private static SoundDef impactHitShellDef;
-        private static SoundDef shieldHitShellDef;
-        private static SoundDef impactHitMapDef;          // 聚焦守方（InMap 位置化）
-        private static SoundDef shieldHitMapDef;
-
         public SpaceProjectileService(UniverseManager universe)
         {
             this.universe = universe;
@@ -216,18 +178,6 @@ namespace DeltaV
 
         /// <summary>在飞弹体数（诊断/图池状态用）。</summary>
         public int InFlightCount => projectiles.Count;
-
-        /// <summary>成功发射后的表现事件；炮口位置和方向取已冻结的 shot。</summary>
-        public void RegisterMuzzleFlash(Vector3 muzzle, float angle, float size)
-        {
-            muzzleFlashes.Add(new MuzzleFlash
-            {
-                pos = muzzle,
-                angle = angle,
-                size = size,
-                bornTick = Find.TickManager.TicksGame,
-            });
-        }
 
         // ---- 创建 ----
 
@@ -428,6 +378,8 @@ namespace DeltaV
         internal void NotifyContainerRemoving(SpaceObject container)
         {
             if (container == null) return;
+            muzzleFlashes.RemoveAll(f => f.anchor.objectId == container.objectId);
+            impacts.RemoveAll(f => f.anchor.objectId == container.objectId);
             foreach (Projectile flight in projectiles)
                 if (flight.target.Kind == CombatTargetKind.Container && flight.target.ObjectId == container.objectId
                     || flight.target.Kind == CombatTargetKind.Ship
@@ -485,18 +437,13 @@ namespace DeltaV
             // 激光线段视觉寿命（纯表现）。
             for (int i = beams.Count - 1; i >= 0; i--)
             {
-                if (Find.TickManager.TicksGame - beams[i].bornTick >= BeamLifetimeTicks) beams.RemoveAt(i);
+                if (Find.TickManager.TicksGame - beams[i].bornTick >= beams[i].lifetimeTicks) beams.RemoveAt(i);
             }
             int tick = Find.TickManager.TicksGame;
             for (int i = trailPuffs.Count - 1; i >= 0; i--)
                 if (tick - trailPuffs[i].bornTick >= trailPuffs[i].lifetimeTicks)
                     trailPuffs.RemoveAt(i);
-            for (int i = muzzleFlashes.Count - 1; i >= 0; i--)
-                if (tick - muzzleFlashes[i].bornTick >= MuzzleFlashLifetimeTicks)
-                    muzzleFlashes.RemoveAt(i);
-            for (int i = impacts.Count - 1; i >= 0; i--)
-                if (tick - impacts[i].bornTick > ImpactLifetimeTicks)
-                    impacts.RemoveAt(i);
+            TickCombatVisuals(tick);
         }
 
         /// <summary>阶段只选速度与转向上限；仍共用一次追踪和容器积分，不调用飞船 MPC。</summary>
@@ -627,6 +574,7 @@ namespace DeltaV
         {
             sweepScratch.Clear();
             bodyScratch.Clear();
+            visualContacts.Clear();
             for (int i = 0; i < projectiles.Count; i++)
             {
                 Projectile p = projectiles[i];
@@ -646,6 +594,7 @@ namespace DeltaV
                 body.launcher = p.launcher;
                 body.dead = false;
                 body.resolvedHit = false;
+                body.onVisualContact = QueueVisualContact;
                 body.didRedirect = false;
                 body.continued = body.didContinue = false;
                 body.sweepRadius = FootprintRadius(p.def);
@@ -699,9 +648,10 @@ namespace DeltaV
                 body.onShieldRedirect = delegate (Vector3 from, Vector3 hit)
                 {
                     if (captured.laser)
-                        beams.Add(new Beam { from = from, to = hit,
+                        AddBounded(beams, new Beam { from = from, to = hit,
                             bornTick = Find.TickManager.TicksGame,
-                            width = captured.props.laserBeamWidth });
+                            width = captured.props.laserBeamWidth,
+                            lifetimeTicks = captured.props.guaranteedHitMissiles ? 7 : BeamLifetimeTicks }, 256);
                 };
                 body.onShieldShatter = delegate (Vector3 hit, SpaceObject defender,
                     Vector2 direction, float signedSpeed)
@@ -714,7 +664,8 @@ namespace DeltaV
                 bodyScratch.Add(body);
             }
             SpaceCollision.SweepAndResolve(universe, bodyScratch);
-            RegisterImpactFx();
+            foreach (SpaceCollision.VisualContact contact in visualContacts) RegisterImpactFx(contact);
+            visualContacts.Clear();
             foreach (Projectile p in sweepScratch)
             {
                 if (p.dead || p.laser || !p.body.didRedirect) continue;
@@ -736,103 +687,12 @@ namespace DeltaV
             {
                 if (!p.laser) continue;
                 Vector3 end = p.body.resolvedHit ? p.body.resolvedHitUniverse : p.body.to;
-                beams.Add(new Beam { from = p.body.from, to = end,
-                    bornTick = Find.TickManager.TicksGame, width = p.props.laserBeamWidth });
+                AddBounded(beams, new Beam { from = p.body.from, to = end,
+                    bornTick = Find.TickManager.TicksGame, width = p.props.laserBeamWidth,
+                    lifetimeTicks = p.props.guaranteedHitMissiles ? 7 : BeamLifetimeTicks }, 256);
                 if (!p.dead) DestroyProjectile(p, "laser spent");
             }
         }
-
-        // ---- 命中特效（壳上视觉 + 音效，2026-09-27；太空战架构 §命中后效）----
-
-        /// <summary>
-        /// 命中特效登记（tick 路径，结算后一次遍历）。前台层负责持续烟云与碎片；
-        /// 聚焦图主爆炸闪光由原版 GenExplosion 绘制，不重复叠加。非聚焦守方的
-        /// MapOverlayRenderer 排除 Mote/Fleck，因此前台层补全闪光。音效两边都补：
-        /// 聚焦图爆炸命中由 GenExplosion 原生出声（跳过防重音），动能/护盾补 InMap；
-        /// 非聚焦图原版 InMap 声被 CorrectContextNow 硬闸，镜像 ThrusterAudio 壳路径。
-        /// </summary>
-        private void RegisterImpactFx()
-        {
-            if (bodyScratch.Count == 0) return;
-            bool soundEnabled = DeltaVMod.CurrentSettings?.spaceImpactSound != false;
-            int now = Find.TickManager.TicksGame;
-            foreach (SpaceCollision.SweptBody body in bodyScratch)
-            {
-                if (!body.resolvedHit || body.resolvedHitDefender == null) continue;
-                ImpactFxKind kind = body.resolvedHitShield ? ImpactFxKind.Shield
-                    : body.resolvedHitExplosive ? ImpactFxKind.Explosion
-                    : body.projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()?.laserRange > 0f
-                        ? ImpactFxKind.Energy
-                    : ImpactFxKind.Kinetic;
-                bool focused = Find.CurrentMap == body.resolvedHitDefender.map;
-                Vector2 incoming = OrbitSphere.Offset(body.from, body.to);
-                impacts.Add(new ImpactFx
-                {
-                    pos = body.resolvedHitUniverse,
-                    bornTick = now,
-                    kind = kind,
-                    focused = focused,
-                    incomingAngle = incoming.sqrMagnitude > 1e-8f
-                        ? Mathf.Atan2(incoming.y, incoming.x) : 0f,
-                    radius = kind == ImpactFxKind.Kinetic
-                        ? Mathf.Clamp(0.65f + Mathf.Sqrt(Mathf.Max(0f, body.damageScale))
-                            * 0.6f, 0.85f, 3.5f)
-                        : kind == ImpactFxKind.Energy ? 1f
-                        : body.resolvedHitRadius,
-                });
-                if (soundEnabled)
-                {
-                    PlayImpactSound(body, kind, focused);
-                }
-            }
-        }
-
-        /// <summary>命中音效（设置开关默认开——「有人说宇宙中没有空气所以不能传声」）。</summary>
-        private void PlayImpactSound(SpaceCollision.SweptBody body, ImpactFxKind kind, bool focused)
-        {
-            if (focused)
-            {
-                if (kind == ImpactFxKind.Explosion) return; // GenExplosion 原生出声
-                SoundDef def = kind == ImpactFxKind.Shield ? ShieldHitMapDef() : ImpactHitMapDef();
-                var cell = new IntVec3(Mathf.FloorToInt(body.resolvedHitLocal.x), 0,
-                    Mathf.FloorToInt(body.resolvedHitLocal.y)).ClampInsideMap(body.resolvedHitDefender.map);
-                def.PlayOneShot(SoundInfo.InMap(new TargetInfo(cell, body.resolvedHitDefender.map)));
-                return;
-            }
-            SoundDef shellDef = kind switch
-            {
-                ImpactFxKind.Explosion => ImpactExplosionShellDef(),
-                ImpactFxKind.Shield => ShieldHitShellDef(),
-                _ => ImpactHitShellDef(),
-            };
-            // 非聚焦守方：OnCamera one-shot + 手工音量。距离复用船壳绘制同款换算
-            //（镜像 ThrusterAudio：30 格内全响、120 格衰减到零，宇宙视野拉远自然无声）。
-            Map current = Find.CurrentMap;
-            SpaceObject frame = current == null ? null : universe.FrameOf(current);
-            if (frame == null || !WorldRendererUtility.DrawingMap) return;
-            Vector3 drawPos = SpaceTransform.FocusedDrawPosition(frame, current, body.resolvedHitUniverse, 0f);
-            float distance = Vector3.Distance(Find.Camera.transform.position, drawPos);
-            if (distance >= ImpactHearFar) return;
-            float volume = distance <= ImpactHearNear
-                ? 1f
-                : 1f - (distance - ImpactHearNear) / (ImpactHearFar - ImpactHearNear);
-            var info = SoundInfo.OnCamera();
-            info.volumeFactor = volume;
-            shellDef.PlayOneShot(info);
-        }
-
-        // 声 def 惰性解析（1.6/Defs/SoundDefs/DeltaV_SpaceCombatSounds.xml；与 ThrusterAudio
-        // 的 GetNamed 模式一致）。
-        private static SoundDef ImpactExplosionShellDef() =>
-            impactExplosionShellDef ??= DefDatabase<SoundDef>.GetNamed("DeltaV_ImpactExplosionShell");
-        private static SoundDef ImpactHitShellDef() =>
-            impactHitShellDef ??= DefDatabase<SoundDef>.GetNamed("DeltaV_ImpactHitShell");
-        private static SoundDef ShieldHitShellDef() =>
-            shieldHitShellDef ??= DefDatabase<SoundDef>.GetNamed("DeltaV_ShieldHitShell");
-        private static SoundDef ImpactHitMapDef() =>
-            impactHitMapDef ??= DefDatabase<SoundDef>.GetNamed("DeltaV_ImpactHitMap");
-        private static SoundDef ShieldHitMapDef() =>
-            shieldHitMapDef ??= DefDatabase<SoundDef>.GetNamed("DeltaV_ShieldHitMap");
 
         /// <summary>弹体脚印等效半径（1×1 ≈ 0.71、2×1 ≈ 1.12）。</summary>
         internal static float FootprintRadius(ThingDef def)
@@ -964,6 +824,7 @@ namespace DeltaV
             // 保险：图上不应再有内容（弹体 building 已毁）；有残留则不入池直接销毁。
             if (map.listerThings.AllThings.Count > 0)
             {
+                ForgetCombatVisuals(map);
                 projectileMaps.Remove(map);
                 universe.Lifecycle.DestroyPocketMap(map);
                 return;
@@ -1054,6 +915,10 @@ namespace DeltaV
             trailPuffs.Clear();
             muzzleFlashes.Clear();
             impacts.Clear();
+            particles.Clear();
+            soundTicks.Clear();
+            visualSequence = 0;
+            visualContacts.Clear();
             // Capture map identities, not pool list references. The queued projectile
             // teardown above can return active maps to those same lists before this runs.
             Map[] resetMaps = projectileMaps.ToArray();
@@ -1132,11 +997,12 @@ namespace DeltaV
                 {
                     if (p.dead) continue;
                     // 接管的跳帮艇继续由真实 Map 的船壳代理绘制，弹体层只添尾焰。
-                    if (!p.adoptedShuttle)
+                    if (!p.laser && !p.adoptedShuttle)
                     {
                         Graphic graphic = p.def.graphicData?.Graphic;
                         Material material = graphic?.MatAt(Rot4.North);
                         if (material == null) continue;
+                        EmitTracer(p, frame, frameMap, layer, ref slot);
                         Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, frameMap,
                             p.container.pose.position, altitude);
                         Quaternion rot = SpaceTransform.FocusedSpriteRotation(frame, p.container.pose.angle);
@@ -1166,140 +1032,8 @@ namespace DeltaV
                     }
                 }
             }
-            if (muzzleFlashes.Count > 0)
-            {
-                EnsureImpactMaterials();
-                float altitude = AltitudeLayer.Terrain.AltitudeFor() + Altitudes.AltInc * 12f;
-                foreach (MuzzleFlash fx in muzzleFlashes)
-                {
-                    float age = Mathf.Clamp01((float)(Find.TickManager.TicksGame - fx.bornTick)
-                        / MuzzleFlashLifetimeTicks);
-                    Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, frameMap, fx.pos, altitude);
-                    Quaternion heading = SpaceTransform.FocusedMeshRotation(frame, fx.angle);
-                    Material glow = impactFlashMaterials[Mathf.Min((int)(age * impactFlashMaterials.Length),
-                        impactFlashMaterials.Length - 1)];
-                    EmitStretchQuad(glow, pos, heading, fx.size * (1.5f + age),
-                        fx.size * 0.7f, layer, ref slot);
-                    if (age < 0.5f)
-                        EmitStretchQuad(impactSparkMaterials[0], pos, heading,
-                            fx.size * 1.15f, fx.size * 0.28f, layer, ref slot);
-                }
-            }
-            if (beams.Count > 0)
-            {
-                EnsureBeamMaterials();
-                float altitude = AltitudeLayer.Terrain.AltitudeFor() + Altitudes.AltInc * 12f;
-                foreach (Beam beam in beams)
-                {
-                    Vector3 a = SpaceTransform.FocusedDrawPosition(frame, frameMap, beam.from, altitude);
-                    Vector3 b = SpaceTransform.FocusedDrawPosition(frame, frameMap, beam.to, altitude);
-                    Vector3 delta = b - a;
-                    float length = new Vector2(delta.x, delta.z).magnitude;
-                    if (length < 0.1f) continue;
-                    Vector3 mid = (a + b) * 0.5f;
-                    // delta 是显示系（FocusedDrawPosition 输出）向量，atan2 得显示角；
-                    // FocusedMeshRotation 只吃宇宙角，换基后再走唯一入口（聚焦船旋转
-                    // 非零时旧代码会把束方向额外偏掉 pose.angle）。
-                    float angle = Mathf.Atan2(delta.z, delta.x) + frame.pose.angle;
-                    Quaternion rot = SpaceTransform.FocusedMeshRotation(frame, angle);
-                    int age = Find.TickManager.TicksGame - beam.bornTick;
-                    Material material = beamMaterials[Mathf.Clamp(age * beamMaterials.Length
-                        / BeamLifetimeTicks, 0, beamMaterials.Length - 1)];
-                    Matrix4x4 matrix = Matrix4x4.TRS(mid, rot,
-                        new Vector3(length, 1f, beam.width));
-                    MapOverlayRenderer.CollectSingleQuad(MeshPool.plane10, matrix, material);
-                    ShellLayer.Slot s = layer.At(slot++);
-                    s.layer.Emit(s);
-                }
-            }
-            if (impacts.Count > 0)
-            {
-                EnsureImpactMaterials();
-                float altitude = AltitudeLayer.Terrain.AltitudeFor() + Altitudes.AltInc * 11f;
-                int now = Find.TickManager.TicksGame;
-                // 特效四边形与聚焦船同宇宙角（与瞄准标记同语义：从聚焦船看恒水平）。
-                Quaternion levelRot = SpaceTransform.FocusedMeshRotation(frame, frame.pose.angle);
-                foreach (ImpactFx fx in impacts)
-                {
-                    int age = now - fx.bornTick;
-                    if (age < 0 || age > ImpactLifetimeTicks) continue;
-                    float age01 = (float)age / ImpactLifetimeTicks;
-                    Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, frameMap, fx.pos, altitude);
-                    switch (fx.kind)
-                    {
-                        case ImpactFxKind.Explosion:
-                        {
-                            // 聚焦图已有原版 GenExplosion 闪光；额外绘制碎片和持续烟云。
-                            float flashSize = Mathf.Clamp(fx.radius * 2.8f, 3f, 12f)
-                                * (0.6f + 0.8f * age01);
-                            if (!fx.focused && age01 < 0.55f)
-                                EmitImpactQuad(impactFlashMaterials, pos, levelRot,
-                                    flashSize, age01, layer, ref slot);
-                            if (age01 < 0.45f)
-                            {
-                                for (int ray = -1; ray <= 1; ray++)
-                                {
-                                    Quaternion rayRot = SpaceTransform.FocusedMeshRotation(frame,
-                                        fx.incomingAngle + ray * 1.05f);
-                                    EmitStretchQuad(impactSparkMaterials[0], pos, rayRot,
-                                        flashSize * 0.85f, 0.35f, layer, ref slot);
-                                }
-                            }
-                            float smokeSize = Mathf.Clamp(fx.radius * 3f, 3f, 14f)
-                                * (0.65f + age01);
-                            EmitImpactQuad(impactSmokeMaterials, pos + new Vector3(0f, Altitudes.AltInc, 0f),
-                                levelRot, smokeSize, age01, layer, ref slot);
-                            break;
-                        }
-                        case ImpactFxKind.Shield:
-                        {
-                            EmitImpactQuad(impactShieldMaterials, pos, levelRot, 3.2f * (0.8f + 0.5f * age01),
-                                age01, layer, ref slot);
-                            break;
-                        }
-                        case ImpactFxKind.Energy:
-                        {
-                            if (age01 < 0.5f)
-                                EmitImpactQuad(impactEnergyMaterials, pos, levelRot,
-                                    1.6f * (0.7f + age01), age01, layer, ref slot);
-                            break;
-                        }
-                        default:
-                        {
-                            // 穿甲冲击沿入射方向放出碎片；尺寸随武器效果倍率增长。
-                            if (age01 < 0.5f)
-                            {
-                                EmitImpactQuad(impactFlashMaterials, pos, levelRot,
-                                    fx.radius * (0.8f + age01), age01, layer, ref slot);
-                                int rayCount = fx.radius >= 1.5f ? 1 : 0;
-                                for (int ray = -rayCount; ray <= rayCount; ray++)
-                                {
-                                    Quaternion rayRot = SpaceTransform.FocusedMeshRotation(frame,
-                                        fx.incomingAngle + ray * 0.65f);
-                                    EmitStretchQuad(impactSparkMaterials[0], pos, rayRot,
-                                        fx.radius * (1.6f - age01), 0.24f,
-                                        layer, ref slot);
-                                }
-                            }
-                            EmitImpactQuad(impactSmokeMaterials, pos, levelRot,
-                                fx.radius * (0.55f + age01), age01, layer, ref slot);
-                            break;
-                        }
-                    }
-                }
-            }
+            EmitCombatVisuals(frame, frameMap, layer, ref slot);
             return slot;
-        }
-
-        /// <summary>发射一枚命中特效四边形（age01 选渐隐档；仿激光束三档口径）。</summary>
-        private static void EmitImpactQuad(Material[] tiers, Vector3 pos, Quaternion rot, float size,
-            float age01, ShellLayer layer, ref int slot)
-        {
-            Material material = tiers[Mathf.Clamp(Mathf.FloorToInt(age01 * tiers.Length), 0, tiers.Length - 1)];
-            Matrix4x4 matrix = Matrix4x4.TRS(pos, rot, new Vector3(size, 1f, size));
-            MapOverlayRenderer.CollectSingleQuad(MeshPool.plane10, matrix, material);
-            ShellLayer.Slot s = layer.At(slot++);
-            s.layer.Emit(s);
         }
 
         private static void EmitEngineFlame(SpacePose nozzle, float size, SpaceObject frame,
@@ -1327,34 +1061,30 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 命中特效材质（种类 × 三档透明度渐隐）。贴图与 shader 均按原版 mote def 同款
+        /// 命中特效材质（种类 × 透明度档）。贴图与 shader 均按原版 mote def 同款
         /// 配置（发光贴图配 MoteGlow 加法混合——黑底在加法下不可见，配 Transparent 会
         /// 画出黑框；带真实 alpha 的贴图配 MoteBase 默认的 Mote shader）。材质经
         /// MaterialPool.MatFrom（原版材质构造函数）克隆自持以设 renderQueue 3202
-        ///（盖过壳地形 3000 与激光束 3200）。
+        ///（与其余战斗前台效果共用队列）。
         /// </summary>
         private static void EnsureImpactMaterials()
         {
             if (impactFlashMaterials != null) return;
             impactFlashMaterials = BuildImpactTiers("Things/Mote/BrightFlash",
                 ShaderDatabase.MoteGlow, new Color(1f, 0.62f, 0.3f));
-            impactSparkMaterials = BuildImpactTiers("Things/Mote/SparkThrown",
-                ShaderDatabase.Mote, new Color(1f, 0.95f, 0.7f));
-            impactShieldMaterials = BuildImpactTiers("Things/Mote/BrightFlash",
-                ShaderDatabase.MoteGlow, new Color(0.35f, 0.65f, 1f));
             impactSmokeMaterials = BuildImpactTiers("Things/Mote/Smoke",
                 ShaderDatabase.Mote, new Color(0.35f, 0.35f, 0.38f));
             impactEnergyMaterials = BuildImpactTiers("Things/Mote/BrightFlash",
                 ShaderDatabase.MoteGlow, new Color(1f, 0.23f, 0.18f));
             exhaustFlashMaterials = BuildImpactTiers("Things/Mote/BrightFlash",
-                ShaderDatabase.MoteGlow, new Color(1f, 0.35f, 0.08f));
+                ShaderDatabase.MoteGlow, new Color(1f, 0.35f, 0.08f), 3);
             exhaustSmokeMaterials = BuildImpactTiers("Things/Mote/Smoke",
-                ShaderDatabase.Mote, new Color(0.47f, 0.46f, 0.45f));
+                ShaderDatabase.Mote, new Color(0.47f, 0.46f, 0.45f), 3);
         }
 
-        private static Material[] BuildImpactTiers(string texturePath, Shader shader, Color color)
+        private static Material[] BuildImpactTiers(string texturePath, Shader shader, Color color, int count = 12)
         {
-            var tiers = new Material[3];
+            var tiers = new Material[count];
             for (int i = 0; i < tiers.Length; i++)
             {
                 float alpha = 0.85f * (1f - (float)i / tiers.Length);
@@ -1366,29 +1096,6 @@ namespace DeltaV
                 };
             }
             return tiers;
-        }
-
-        private static void EnsureBeamMaterials()
-        {
-            if (beamMaterials != null) return;
-            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            var pixels = new Color32[4];
-            for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32(255, 255, 255, 255);
-            texture.SetPixels32(pixels);
-            texture.Apply(false, true);
-            // 三档透明度近似渐隐（共享材质不逐束调 alpha；表现占位，视觉细节可后调）。
-            beamMaterials = new Material[3];
-            for (int i = 0; i < beamMaterials.Length; i++)
-            {
-                float alpha = 0.9f * (1f - (float)i / beamMaterials.Length);
-                beamMaterials[i] = new Material(ShaderDatabase.Transparent)
-                {
-                    name = $"DeltaV_LaserBeam_{i}",
-                    mainTexture = texture,
-                    color = new Color(1f, 0.35f, 0.3f, alpha),
-                    renderQueue = 3200,
-                };
-            }
         }
 
         private static Material ShieldLineMaterial(SpaceShieldMode mode)
@@ -1420,21 +1127,8 @@ namespace DeltaV
                 Object.Destroy(electromagneticShieldLineMaterial);
                 electromagneticShieldLineMaterial = null;
             }
-            if (beamMaterials != null)
-            {
-                foreach (Material material in beamMaterials)
-                {
-                    if (material != null)
-                    {
-                        if (material.mainTexture != null) Object.Destroy(material.mainTexture);
-                        Object.Destroy(material);
-                    }
-                }
-                beamMaterials = null;
-            }
+            DestroyCombatMaterials();
             DestroyImpactTiers(ref impactFlashMaterials);
-            DestroyImpactTiers(ref impactSparkMaterials);
-            DestroyImpactTiers(ref impactShieldMaterials);
             DestroyImpactTiers(ref impactSmokeMaterials);
             DestroyImpactTiers(ref impactEnergyMaterials);
             DestroyImpactTiers(ref exhaustFlashMaterials);

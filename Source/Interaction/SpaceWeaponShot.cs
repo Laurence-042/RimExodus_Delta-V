@@ -50,6 +50,7 @@ namespace DeltaV
             new Dictionary<CompSpaceWeaponCapacitor, float>();
         private readonly List<CompSpaceRailgun> activeAccelerators = new List<CompSpaceRailgun>();
         private float activeSpeedBonus;
+        public IReadOnlyList<CompSpaceRailgun> ActiveAccelerators => activeAccelerators;
 
         public SpaceWeaponShot(UniverseManager universe, CompSpaceWeapon weapon,
             SpaceObject container, WeaponFireRequest request)
@@ -96,10 +97,8 @@ namespace DeltaV
             {
                 return false;
             }
-            if (weapon.WeaponProps.muzzleFlashSize > 0f)
-                universe.Projectiles.RegisterMuzzleFlash(muzzleUniverse,
-                    Mathf.Atan2(tangent.y, tangent.x), weapon.WeaponProps.muzzleFlashSize);
             Commit();
+            universe.Projectiles.RegisterShotVisuals(this);
             return true;
         }
 

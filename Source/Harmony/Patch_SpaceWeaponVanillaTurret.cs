@@ -1,9 +1,21 @@
 using HarmonyLib;
 using RimWorld;
 using Verse;
+using UnityEngine;
 
 namespace DeltaV
 {
+    // RimWorld 1.6 TurretTop.DrawTurret already accepts a visual recoil offset.
+    [HarmonyPatch(typeof(TurretTop), nameof(TurretTop.DrawTurret))]
+    public static class Patch_TurretTop_SpaceWeaponRecoil
+    {
+        public static void Prefix(Building_Turret ___parentTurret, ref Vector3 recoilDrawOffset)
+        {
+            CompSpaceWeapon weapon = ___parentTurret.TryGetComp<CompSpaceWeapon>();
+            if (weapon?.SpaceModeEnabled == true) recoilDrawOffset = weapon.VisualRecoilOffset;
+        }
+    }
+
     [HarmonyPatch(typeof(TurretTop), nameof(TurretTop.TurretTopTick))]
     public static class Patch_TurretTop_SpaceWeaponTraverse
     {

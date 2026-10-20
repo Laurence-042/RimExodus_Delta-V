@@ -58,7 +58,7 @@
 	<ThingDef ParentName="BuildingBase">
 		<defName>DeltaV_DockingPassage</defName>
 		<label>sealed docking passage</label>
-		<description>A retractable deck with blue vacuum barriers. It belongs to its docking port, not to the ship's substructure.</description>
+		<description>A retractable deck with vacuum barriers. It belongs to its docking port, not to the ship's substructure.</description>
 		<thingClass>DeltaV.Building_DockingChannel</thingClass>
 		<category>Building</category>
 		<size>(1,1)</size>

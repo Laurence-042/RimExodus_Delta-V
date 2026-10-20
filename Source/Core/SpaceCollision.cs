@@ -94,6 +94,23 @@ namespace DeltaV
             public float redirectRemaining;
             public System.Action<Vector3, Vector3> onShieldRedirect;
             public System.Action<Vector3, SpaceObject, Vector2, float> onShieldShatter;
+            // Consumed synchronously after each resolved contact, before the next sweep.
+            public System.Action<VisualContact> onVisualContact;
+        }
+
+        /// <summary>Read-only presentation snapshot; geometry and outcomes come from the resolving contact.</summary>
+        public struct VisualContact
+        {
+            public SpaceObject defender;
+            public ThingDef projectileDef;
+            public Vector3 position, pathFrom;
+            public Vector2 localPoint, localDirection, localNormal;
+            public float damageScale, explosionRadius;
+            public bool explosive, nativeExplosion, destroyed, penetrated, missileDestroyed, shieldBroken;
+            public SpaceShieldMode? shieldMode;
+            public Vector2 shieldCenter;
+            public Vector2 lineStart, lineEnd;
+            public float shieldRadius;
         }
 
         /// <summary>命中事件（几何事实一次性计算；池化复用，调用方不得持有引用）。</summary>
@@ -423,11 +440,12 @@ namespace DeltaV
             CompSpaceShield lineShield = null;
             Vector2 linePoint = default;
             Vector2 lineNormal = default;
+            Vector2 lineStart = default, lineEnd = default;
             float lineAlong = float.MaxValue;
             CompProperties_SpaceProjectile projectileProps = body.projectileDef
                 ?.GetCompProperties<CompProperties_SpaceProjectile>();
             if (TryFindLineHit(surface, fromLocal, dir, length, projectileProps,
-                out lineShield, out linePoint, out lineNormal, out lineAlong))
+                out lineShield, out linePoint, out lineNormal, out lineAlong, out lineStart, out lineEnd))
                 sampleLength = lineAlong;
             ShieldArc shieldArc = null;
             Vector2 shieldPoint = default;
@@ -537,6 +555,20 @@ namespace DeltaV
                         / Mathf.Max(1f, SpaceImpactEffects.MaxHitPointsOf(evt.defenderBuilding)), 0.2f, 2f);
                 }
                 float remaining = SpaceImpactEffects.ApplyToDefender(evt, effect?.defenderEffect, durabilityScale);
+                body.onVisualContact?.Invoke(new VisualContact
+                {
+                    defender = defender, projectileDef = body.projectileDef,
+                    position = evt.hitUniverse, pathFrom = body.from,
+                    localPoint = p, localDirection = dir, localNormal = normal,
+                    damageScale = body.damageScale, explosive = body.resolvedHitExplosive,
+                    nativeExplosion = defenderPart?.explosionRadius > 0f
+                        && !(defenderPart.penetrationLayers?.Count > 0),
+                    explosionRadius = body.resolvedHitRadius, penetrated = remaining > 0f,
+                    destroyed = bestThing?.Destroyed == true
+                        || bestKind == SpaceCellKind.Substructure && !SubstructureOwnership.HasFoundation(defMap, bestCell),
+                    missileDestroyed = bestThing?.Destroyed == true
+                        && bestThing.def.GetCompProperties<CompProperties_SpaceProjectile>()?.guided == true
+                });
                 if (ContinueAfterImpact(body, remaining, evt.hitUniverse)) return true;
                 ApplyAttackerOutcome(body, effect, defender, evt.hitUniverse, evt.hitDefenderLocal);
                 return true;
@@ -564,6 +596,13 @@ namespace DeltaV
                     body.resolvedHitLocal = linePoint;
                     Vector2 worldDirection = SpaceTransform.MapDirectionToUniverseTangent(
                         defender, defMap, linePoint, dir);
+                    body.onVisualContact?.Invoke(new VisualContact
+                    {
+                        defender = defender, projectileDef = body.projectileDef, position = hit, pathFrom = body.from,
+                        localPoint = linePoint, localDirection = dir, localNormal = lineNormal,
+                        damageScale = body.damageScale, shieldMode = SpaceShieldMode.Kinetic,
+                        lineStart = lineStart, lineEnd = lineEnd
+                    });
                     body.onShieldShatter?.Invoke(hit, defender, worldDirection, speed - actualDeltaV);
                     body.dead = true;
                     body.onSelfDestruct?.Invoke();
@@ -574,6 +613,13 @@ namespace DeltaV
                 float cost = projectileProps.shieldLaserTurnEnergy * plan.addedDeg / 180f;
                 float funded = lineShield.ConsumePulseFraction(cost);
                 Vector2 outgoing = plan.Direction(funded);
+                body.onVisualContact?.Invoke(new VisualContact
+                {
+                    defender = defender, projectileDef = body.projectileDef, position = hit, pathFrom = body.from,
+                    localPoint = linePoint, localDirection = dir, localNormal = lineNormal,
+                    damageScale = body.damageScale, shieldMode = SpaceShieldMode.Electromagnetic,
+                    lineStart = lineStart, lineEnd = lineEnd
+                });
                 body.redirected = true;
                 body.redirectPoint = hit;
                 body.redirectDirection = SpaceTransform.MapDirectionToUniverseTangent(defender,
@@ -617,6 +663,17 @@ namespace DeltaV
                     body.resolvedHitExplosive = true;
                     body.resolvedHitRadius = shieldEffect.shieldSurfaceEffect.explosionRadius;
                 }
+                body.onVisualContact?.Invoke(new VisualContact
+                {
+                    defender = defender, projectileDef = body.projectileDef, position = evt.hitUniverse, pathFrom = body.from,
+                    localPoint = shieldPoint, localDirection = dir,
+                    localNormal = (shieldPoint - shieldArc.center).normalized,
+                    damageScale = body.damageScale, explosive = body.resolvedHitExplosive,
+                    nativeExplosion = body.resolvedHitExplosive,
+                    explosionRadius = body.resolvedHitRadius, shieldMode = SpaceShieldMode.Guard,
+                    shieldCenter = shieldArc.center, shieldRadius = shieldArc.radius,
+                    shieldBroken = capacityBefore > 0 && shieldArc.interceptor.currentHitPoints <= 0
+                });
                 if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
                     DeltaVLog.Message(DeltaVLogModule.Combat,
                         $"shield intercept: {body.projectileDef?.defName} on '{defender.label}' " +
@@ -724,11 +781,12 @@ namespace DeltaV
         private static bool TryFindLineHit(Surface surface, Vector2 from, Vector2 dir,
             float length, CompProperties_SpaceProjectile projectileProps,
             out CompSpaceShield hitShield, out Vector2 hitPoint,
-            out Vector2 hitNormal, out float along)
+            out Vector2 hitNormal, out float along, out Vector2 lineStart, out Vector2 lineEnd)
         {
             hitShield = null;
             hitPoint = default;
             hitNormal = default;
+            lineStart = lineEnd = default;
             along = float.MaxValue;
             foreach (CompSpaceShield shield in surface.lineShields)
             {
@@ -749,6 +807,8 @@ namespace DeltaV
                 hitShield = shield;
                 hitPoint = from + dir * t;
                 hitNormal = normal;
+                lineStart = a;
+                lineEnd = b;
             }
             return hitShield != null;
         }

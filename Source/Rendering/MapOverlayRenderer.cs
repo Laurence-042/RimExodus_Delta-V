@@ -296,6 +296,8 @@ namespace DeltaV
             Vector2 offset = thing.def.building.turretTopOffset;
             Vector3 local = thing.DrawPos + Altitudes.AltIncVect
                 + new Vector3(offset.x, config.zIndex * Altitudes.AltInc, offset.y);
+            if (thing is ThingWithComps comps)
+                local += comps.TryGetComp<CompSpaceWeapon>()?.VisualRecoilOffset ?? Vector3.zero;
             float angle = TurretTop.ArtworkRotation + source.ShellTopAngle;
             float size = thing.def.building.turretTopDrawSize;
             collector.Add(new OverlayCommand

@@ -39,6 +39,14 @@
 		</graphicData>
 		<comps>
 			<li Class="DeltaV.CompProperties_SpaceProjectile">
+				<visualStyle>Heavy</visualStyle>
+				<tracerLength>1.5</tracerLength>
+				<tracerWidth>0.14</tracerWidth>
+				<fireSoundMap>DeltaV_FireHeavyMap</fireSoundMap>
+				<fireSoundShell>DeltaV_FireHeavyShell</fireSoundShell>
+				<impactSoundMap>DeltaV_ImpactHeavyMap</impactSoundMap>
+				<impactSoundShell>DeltaV_ImpactHeavyShell</impactSoundShell>
+
 				<speed>45</speed>
 				<timeoutTicks>900</timeoutTicks>
 				<hasMap>false</hasMap>
@@ -63,6 +71,14 @@
 			<drawSize>(1.1,1.1)</drawSize><shaderType>Cutout</shaderType>
 			<damageData><enabled>false</enabled></damageData></graphicData>
 		<comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+			<visualStyle>Kinetic</visualStyle>
+			<tracerLength>1.1</tracerLength>
+			<tracerWidth>0.1</tracerWidth>
+			<fireSoundMap>DeltaV_FireRapidMap</fireSoundMap>
+			<fireSoundShell>DeltaV_FireRapidShell</fireSoundShell>
+			<impactSoundMap>DeltaV_ImpactHitMap</impactSoundMap>
+			<impactSoundShell>DeltaV_ImpactHitShell</impactSoundShell>
+
 			<speed>45</speed><timeoutTicks>900</timeoutTicks><hasMap>false</hasMap>
 			<shieldFragmentDef>DeltaV_Projectile_RapidFragment</shieldFragmentDef>
 			<shieldFragmentCount>1</shieldFragmentCount><shieldStopEnergy>18</shieldStopEnergy>
@@ -99,6 +115,12 @@
 		</graphicData>
 		<comps>
 			<li Class="DeltaV.CompProperties_SpaceProjectile">
+				<visualStyle>Energy</visualStyle>
+				<fireSoundMap>DeltaV_FireLaserMap</fireSoundMap>
+				<fireSoundShell>DeltaV_FireLaserShell</fireSoundShell>
+				<impactSoundMap>DeltaV_ImpactEnergyMap</impactSoundMap>
+				<impactSoundShell>DeltaV_ImpactEnergyShell</impactSoundShell>
+
 				<hasMap>false</hasMap>
 				<laserRange>120</laserRange>
 			</li>
@@ -135,6 +157,12 @@
 		</graphicData>
 		<comps>
 			<li Class="DeltaV.CompProperties_SpaceProjectile">
+				<visualStyle>Energy</visualStyle>
+				<fireSoundMap>DeltaV_FireLaserMap</fireSoundMap>
+				<fireSoundShell>DeltaV_FireLaserShell</fireSoundShell>
+				<impactSoundMap>DeltaV_ImpactEnergyMap</impactSoundMap>
+				<impactSoundShell>DeltaV_ImpactEnergyShell</impactSoundShell>
+
 				<hasMap>false</hasMap>
 				<laserRange>160</laserRange>
 				<shieldLaserTurnEnergy>4</shieldLaserTurnEnergy>
@@ -172,6 +200,8 @@
 		</graphicData>
 		<comps>
 			<li Class="DeltaV.CompProperties_SpaceProjectile">
+				<visualStyle>Missile</visualStyle>
+
 				<speed>32</speed>
 				<timeoutTicks>1800</timeoutTicks>
 				<guided>true</guided>
@@ -206,6 +236,12 @@
 			<drawSize>(0.7,0.7)</drawSize><shaderType>Cutout</shaderType>
 			<damageData><enabled>false</enabled></damageData></graphicData>
 		<comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+			<visualStyle>Kinetic</visualStyle>
+			<tracerLength>0.7</tracerLength>
+			<tracerWidth>0.07</tracerWidth>
+			<impactSoundMap>DeltaV_ImpactHitMap</impactSoundMap>
+			<impactSoundShell>DeltaV_ImpactHitShell</impactSoundShell>
+
 			<speed>45</speed><timeoutTicks>300</timeoutTicks><hasMap>false</hasMap>
 			<shieldFragmentDef>DeltaV_Projectile_ShieldFragment</shieldFragmentDef>
 			<shieldFragmentCount>1</shieldFragmentCount><shieldStopEnergy>18</shieldStopEnergy>
@@ -226,6 +262,12 @@
 			<drawSize>(0.55,0.55)</drawSize><shaderType>Cutout</shaderType>
 			<damageData><enabled>false</enabled></damageData></graphicData>
 		<comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+			<visualStyle>Rail</visualStyle>
+			<tracerLength>1.5</tracerLength>
+			<tracerWidth>0.07</tracerWidth>
+			<impactSoundMap>DeltaV_ImpactHitMap</impactSoundMap>
+			<impactSoundShell>DeltaV_ImpactHitShell</impactSoundShell>
+
 			<speed>80</speed><timeoutTicks>240</timeoutTicks><hasMap>false</hasMap>
 			<shieldFragmentDef>DeltaV_Projectile_RailFragment</shieldFragmentDef>
 			<shieldFragmentCount>1</shieldFragmentCount><shieldStopEnergy>25</shieldStopEnergy>
@@ -246,6 +288,12 @@
 			<drawSize>(0.45,0.45)</drawSize><shaderType>Cutout</shaderType>
 			<damageData><enabled>false</enabled></damageData></graphicData>
 		<comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+			<visualStyle>Kinetic</visualStyle>
+			<tracerLength>0.5</tracerLength>
+			<tracerWidth>0.06</tracerWidth>
+			<impactSoundMap>DeltaV_ImpactHitMap</impactSoundMap>
+			<impactSoundShell>DeltaV_ImpactHitShell</impactSoundShell>
+
 			<speed>45</speed><timeoutTicks>240</timeoutTicks><hasMap>false</hasMap>
 			<shieldFragmentDef>DeltaV_Projectile_RapidFragment</shieldFragmentDef>
 			<shieldFragmentCount>1</shieldFragmentCount><shieldStopEnergy>12</shieldStopEnergy>
@@ -282,6 +330,12 @@
 		</graphicData>
 		<comps>
 			<li Class="DeltaV.CompProperties_SpaceProjectile">
+				<visualStyle>Energy</visualStyle>
+				<fireSoundMap>DeltaV_FirePointDefenseMap</fireSoundMap>
+				<fireSoundShell>DeltaV_FirePointDefenseShell</fireSoundShell>
+				<impactSoundMap>DeltaV_ImpactEnergyMap</impactSoundMap>
+				<impactSoundShell>DeltaV_ImpactEnergyShell</impactSoundShell>
+
 				<hasMap>false</hasMap>
 				<laserRange>50</laserRange>
 				<laserBeamWidth>0.12</laserBeamWidth>
