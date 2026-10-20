@@ -368,11 +368,11 @@ ShipController（共同基类，统一驾驶契约）
 
 ## 13. 实现影响面与复用入口
 
-本节保留 2026-09-24 的历史施工索引，所列旧类型和待改项不代表现行代码入口；当前单实现入口以 AGENTS.md §20 为准。
+本节保留 2026-09-24 的历史施工索引，所列旧类型和待改项不代表现行代码入口；当前单实现入口以 [代码入口索引](代码入口索引.md) 为准。
 
 | 入口 | 当前问题／计划改造 |
 |---|---|
-| `Core/SpaceObject.cs`、`ShipState.cs`、`PoiState.cs` | 当时的 `ShipState` 继承 SpaceObject 并覆盖 InteriorMap；施工目标是消除 map／dockedMap 双解释。现行查询见 AGENTS.md §20 |
+| `Core/SpaceObject.cs`、`ShipState.cs`、`PoiState.cs` | 当时的 `ShipState` 继承 SpaceObject 并覆盖 InteriorMap；施工目标是消除 map／dockedMap 双解释。现行查询见 [代码入口索引](代码入口索引.md) |
 | `Core/UniverseManager.cs` | `ShipOnMap` 单船假设、`Ships` 对象过滤、`FrameOf`、ID／名字解析及 tick 总装需改造；保留唯一注册、聚焦、发号入口 |
 | `Buildings/CompDeltaVPilotConsole.cs` | 主备用认领、同向继任、主动降级、改名；删除“永久 shipId 等于 objectId”的假设；区分搬运重生与新建 |
 | `Core/SubstructureOwnership.cs`、`Harmony/Patch_SubstructureOwnership.cs`、`Interaction/Designator_ReassignSubstructure.cs` | 归属与对象解耦；玩家改划共用 §3.2 整域保护；断片显式领取新归属，不用旧 ClearOwner 清掉仍真实留在源图的归属数据 |
@@ -385,7 +385,7 @@ ShipController（共同基类，统一驾驶契约）
 | `Buildings/Building_DockingPort.cs` | 双方离场收回与 Pawn／物品留置已接线；气密通道契约见星区架构 §7，游戏内验收见 TODO |
 | `Lifecycle/SpaceLifecycle.cs`、`SpaceMapGovernance.cs`、`Generation/PocketMapHostService.cs` | 容器清理与环境地图边界，空图检查包含滞留实体及附属图引用 |
 | `Rendering/*`、`Interaction/ShellPicking.cs`、`BoardingPodFlight.cs` | 从“船即对象”改为“地图容器承载船”；防重复绘壳，目标／聚焦与船控制选择分开 |
-| Keyed 翻译、README、AGENTS §20、星区架构及相关专题 | 施工落地后同步已实现行为与唯一入口，替换旧规则；当前讨论阶段保持不动 |
+| Keyed 翻译、README、[代码入口索引](代码入口索引.md)、星区架构及相关专题 | 施工落地后同步已实现行为与唯一入口，替换旧规则；当前讨论阶段保持不动 |
 
 已核对的原版参考：`Verse/Dialog_MessageBox.cs` 的暂停确认窗口；`RimWorld/PlaceWorker_InSubstructureFootprint.cs` 的范围及天然岩顶检查；`RimWorld/Building_GravEngine.cs` 的 `RenamableLabel`。不据此假定原版 Gravship 已能无引擎捕获任意断片，该能力需专项核查。
 

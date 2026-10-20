@@ -1,6 +1,6 @@
 # 存档契约与导入诊断
 
-制作流程与坐标解释分别见同目录 `workflow.md`、`geometry.md`。运行时重建次序和入口仍以仓库 `doc/Prefab状态重建.md`、`AGENTS.md` §20 及当前代码为准。
+制作流程与坐标解释分别见同目录 `workflow.md`、`geometry.md`。运行时重建次序和入口仍以仓库 `doc/Prefab状态重建.md`、`doc/代码入口索引.md` 及当前代码为准。
 
 ## Def 引用与实例状态
 

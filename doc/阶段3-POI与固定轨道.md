@@ -1,6 +1,6 @@
 # 阶段3：POI 生命周期 + 球面宇宙坐标与宇宙视野 + 驾驶台 + 固定轨道模式
 
-> **历史记录，已退役，不可作为当前实现依据。** 本文保留阶段 3 的 `ShipState/dockedMap`、固定模式与旧起飞流程施工记录；当前实现是一图一个 `SpaceObject`、同图可有多艘由主驾驶台和归属域定义的船，对接合图、实际出力拆图。现行约束见 [AGENTS.md](../AGENTS.md) §8、§11、§12 与 [飞船与 SpaceObject 解耦架构](飞船与SpaceObject解耦架构.md)。下方“实现概览”和验收条目均属当时快照。
+> **历史记录，已退役，不可作为当前实现依据。** 本文保留阶段 3 的 `ShipState/dockedMap`、固定模式与旧起飞流程施工记录；当前实现是一图一个 `SpaceObject`、同图可有多艘由主驾驶台和归属域定义的船，对接合图、实际出力拆图。现行约束见 [AGENTS.md](../AGENTS.md#架构不变量) 与 [飞船与 SpaceObject 解耦架构](飞船与SpaceObject解耦架构.md)。下方“实现概览”和验收条目均属当时快照。
 
 对应 [story.md](story.md)「当前阶段计划 §3」+ 用户决策（2026-09-13）：
 
@@ -15,7 +15,7 @@
 
 | 文件 | 职责 |
 |---|---|
-| `Source/Core/SpaceObject.cs` | 宇宙对象基类：id/label/pose/map（AGENTS §11 Universe State） |
+| `Source/Core/SpaceObject.cs` | 宇宙对象基类：id/label/pose/map（当时的 AGENTS §11 Universe State） |
 | `Source/Core/ShipState.cs` | 飞船状态：+ isPlayerShip、primaryConsole、docked 停靠状态与恢复数据 |
 | `Source/Core/ShipOrientation.cs` | Map 姿态、主驾驶台局部朝向与玩家所见航向的集中换算 |
 | `Source/Core/PoiState.cs` | POI 状态：NativeParent / SnapshotPocket 两类，前者保存 MapParent 引用，后者保存 seed + 快照 |
