@@ -454,40 +454,7 @@ namespace DeltaV
 
             // 武器组指派（主/副两套 × 1–6）：弹出菜单选择，当前项打勾（取代旧循环
             // 步进——12 个组合不该靠单击轮转）。组的激活位在状态面板切换。
-            yield return new Command_Action
-            {
-                defaultLabel = "DeltaV_WeaponGroupGizmo".Translate(
-                    ("DeltaV_WeaponSet" + salvoSet).Translate(), groupNumber.ToString()),
-                defaultDesc = "DeltaV_WeaponGroupGizmoTip".Translate(),
-                icon = TexCommand.Attack,
-                action = delegate
-                {
-                    var options = new List<FloatMenuOption>();
-                    var sets = new[] { SpaceWeaponSalvoSet.Main, SpaceWeaponSalvoSet.Secondary };
-                    foreach (SpaceWeaponSalvoSet set in sets)
-                    {
-                        for (int group = 1; group <= 6; group++)
-                        {
-                            SpaceWeaponSalvoSet capturedSet = set;
-                            int capturedGroup = group;
-                            bool current = set == salvoSet && group == groupNumber;
-                            options.Add(new FloatMenuOption(
-                                "DeltaV_WeaponGroupEntry".Translate(
-                                    ("DeltaV_WeaponSet" + capturedSet).Translate(),
-                                    capturedGroup.ToString()) + (current ? " ✓" : string.Empty),
-                                delegate
-                                {
-                                    // FloatMenu 不暂停：菜单打开期间对象可动/可失效，
-                                    // 点击时按既有契约复核（同炮手预留/对接目标菜单）。
-                                    if (!parent.Spawned || parent.Destroyed) return;
-                                    salvoSet = capturedSet;
-                                    groupNumber = capturedGroup;
-                                }));
-                        }
-                    }
-                    Find.WindowStack.Add(new FloatMenu(options, "DeltaV_WeaponGroupMenuTitle".Translate()));
-                }
-            };
+            yield return new Command_WeaponGroup(this);
 
             // 专用点防武器的模式由 Def 固定；其他武器仍可切换。
             if (!WeaponProps.pointDefenseOnly) yield return new Command_Toggle

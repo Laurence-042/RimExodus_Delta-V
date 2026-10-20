@@ -78,6 +78,7 @@ internal static partial class Program
         var universe = new UniverseManager(game);
         game.components = new List<GameComponent> { universe };
         game.tickManager = (TickManager)Raw(typeof(TickManager));
+        CheckWeaponControlFixes(universe, faction, other);
         CheckObjectReferences(universe, faction, other);
         CheckShipCapabilities(universe, faction);
         CheckShuttleLifecycle(universe, faction);

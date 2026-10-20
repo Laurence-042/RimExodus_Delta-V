@@ -294,11 +294,14 @@ namespace DeltaV
             Vector2 p = OrbitSphere.Offset(muzzle, targetPose.position);
             Vector2 targetVel = SpaceTransform.TransportVelocity(targetPose, muzzle);
             Vector2 muzzleVel = SpaceTransform.TransportVelocity(sourcePose, muzzle);
-            if (!SpaceTransform.TrySolveInterceptPlanar(p, targetVel - muzzleVel, projectileSpeed, out float time))
+            Vector2 relativeVelocity = targetVel - muzzleVel;
+            if (!SpaceTransform.TrySolveInterceptPlanar(p, relativeVelocity, projectileSpeed, out float time))
             {
                 return false;
             }
-            interceptUniverse = OrbitSphere.Move(targetPose.position, targetPose.velocity * time);
+            // Launch adds the source velocity to the projectile. Aim along the relative
+            // intercept vector, otherwise the source drift is counted a second time.
+            interceptUniverse = OrbitSphere.Move(muzzle, p + relativeVelocity * time);
             return true;
         }
 
