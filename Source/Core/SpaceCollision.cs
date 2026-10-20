@@ -74,7 +74,7 @@ namespace DeltaV
             public bool resolvedHitShield;
             /// <summary>守方爆炸后效半径（非爆炸 = 0；特效尺寸与音效选型）。</summary>
             public float resolvedHitRadius;
-            /// <summary>伤害/穿深倍率（轨道炮 Σ 加速段；随事件进入结算）。</summary>
+            /// <summary>发射伤害倍率乘剩余冲击比例；随事件进入结算。</summary>
             public float damageScale = 1f;
             public float armorPenetrationScale = 1f;
             /// <summary>「放置」后效回调（侵入 shuttle §7.5）：shuttle 服务闭包——
@@ -83,9 +83,10 @@ namespace DeltaV
             /// <summary>护盾挡停语义（侵入 shuttle）：活动弧截获时速度清零，
             /// 不按普通弹体生成残余。</summary>
             public bool haltOnShield;
-            /// <summary>护盾未能挡尽后留下的能量比例；弹体服务在本次扫掠后续飞或生成破片。</summary>
-            public float shieldResidualFraction;
-            public Vector3 shieldResidualPoint;
+            /// <summary>本段击破后的续飞；只消耗 damageScale，不重复按速度或穿甲扣预算。</summary>
+            public bool continued;
+            public bool didContinue;
+            public Vector3 continuePoint;
             public bool redirected;
             public bool didRedirect;
             public Vector3 redirectPoint;
@@ -112,7 +113,7 @@ namespace DeltaV
             public Vector2 relativeVelocity;
             public float relativeSpeed;
             public float incidenceAngleRad;
-            /// <summary>伤害/穿深倍率（发射侧携带，如轨道炮 Σ 加速段）。</summary>
+            /// <summary>发射伤害倍率乘剩余冲击比例。</summary>
             public float damageScale = 1f;
             public float armorPenetrationScale = 1f;
         }
@@ -348,7 +349,7 @@ namespace DeltaV
             {
                 SweptBody body = bodies[b];
                 if (body.dead || body.attacker == null) continue;
-                for (int bounce = 0; bounce < 16 && !body.dead; bounce++)
+                for (int bounce = 0; bounce < 128 && !body.dead; bounce++)
                 {
                     bool redirected = false;
                     for (int d = 0; d < objects.Count; d++)
@@ -362,8 +363,18 @@ namespace DeltaV
                         if (defMap == null || defMap.Disposed) continue;
                         if (universe.Generation?.IsGenerating(defMap) == true) continue;
                         body.redirected = false;
+                        body.continued = false;
                         if (!SweepOne(body, defender, defMap)) continue;
                         if (body.dead) break;
+                        if (body.continued)
+                        {
+                            // 不向前跳过距离：同心盾、贴合盾面与紧邻建筑必须逐个结算。
+                            body.from = body.continuePoint;
+                            body.didContinue = true;
+                            if (bounce == 127) body.to = body.from;
+                            redirected = true;
+                            break;
+                        }
                         if (!body.redirected) continue;
                         Vector3 oldFrom = body.from;
                         body.onShieldRedirect?.Invoke(oldFrom, body.redirectPoint);
@@ -373,7 +384,7 @@ namespace DeltaV
                             body.redirectDirection * body.redirectRemaining);
                         body.didRedirect = true;
                         body.excludeContainer = null;
-                        if (bounce == 15) body.to = body.from;
+                        if (bounce == 127) body.to = body.from;
                         redirected = true;
                         break;
                     }
@@ -428,7 +439,7 @@ namespace DeltaV
             {
                 Vector2 radial = (point - arc.center).normalized;
                 float incidence = SpaceTransform.IncidenceAngle(dir, radial);
-                SpaceImpactEffectDef effect = SpaceImpactEffects.Resolve(body.projectileDef, arc.building.def);
+                SpaceImpactEffectDef effect = SpaceImpactEffects.Resolve(body.projectileDef, arc.building.def, shieldSurface: true);
                 if (arc.interceptor.currentHitPoints > 0 && arcAlong < sampleLength)
                 {
                     sampleLength = arcAlong;
@@ -509,7 +520,7 @@ namespace DeltaV
                     ? Mathf.Max(defenderPart.explosionRadius,
                         defenderPart.penetrationLayers?.Count > 0
                             ? defenderPart.penetrationLayers[0].halfWidth : 0f) : 0f;
-                DeltaVLog.Message(DeltaVLogModule.Combat,
+                if (DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"impact: {body.projectileDef?.defName} -> " +
                     (evt.defenderIsSubstructure
                         ? $"substructure {bestCell}"
@@ -525,7 +536,8 @@ namespace DeltaV
                     durabilityScale = Mathf.Clamp(effect.fallbackBaselineHitPoints
                         / Mathf.Max(1f, SpaceImpactEffects.MaxHitPointsOf(evt.defenderBuilding)), 0.2f, 2f);
                 }
-                SpaceImpactEffects.ApplyToDefender(evt, effect?.defenderEffect, durabilityScale);
+                float remaining = SpaceImpactEffects.ApplyToDefender(evt, effect?.defenderEffect, durabilityScale);
+                if (ContinueAfterImpact(body, remaining, evt.hitUniverse)) return true;
                 ApplyAttackerOutcome(body, effect, defender, evt.hitUniverse, evt.hitDefenderLocal);
                 return true;
             }
@@ -598,22 +610,17 @@ namespace DeltaV
                 body.resolvedHitShield = true;
                 body.resolvedHitRadius = 0f;
                 int capacityBefore = shieldArc.interceptor.currentHitPoints;
-                float drain = Mathf.Max(1f, Mathf.RoundToInt(
-                    SpaceImpactEffects.ComputeDamage(shieldEffect?.defenderEffect,
-                        evt.relativeSpeed, shieldIncidence) * evt.damageScale));
-                SpaceImpactEffects.ApplyToDefender(evt, shieldEffect?.defenderEffect);
+                float residual = SpaceImpactEffects.ApplyToDefender(evt, shieldEffect?.defenderEffect);
                 SpaceImpactEffects.ApplyToDefender(evt, shieldEffect?.shieldSurfaceEffect);
                 if (shieldEffect?.shieldSurfaceEffect?.kind == ImpactEffectKind.DamageMap)
                 {
                     body.resolvedHitExplosive = true;
                     body.resolvedHitRadius = shieldEffect.shieldSurfaceEffect.explosionRadius;
                 }
-                bool guard = shieldArc.building.TryGetComp<CompSpaceShield>()?.mode == SpaceShieldMode.Guard;
-                float residual = guard ? 0f : Mathf.Clamp01((drain - capacityBefore) / drain);
                 if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
                     DeltaVLog.Message(DeltaVLogModule.Combat,
                         $"shield intercept: {body.projectileDef?.defName} on '{defender.label}' " +
-                        $"(drain {drain:F0}, hp {capacityBefore}→{shieldArc.interceptor.currentHitPoints}, " +
+                        $"(hp {capacityBefore}→{shieldArc.interceptor.currentHitPoints}, " +
                         $"residual {residual:P0})");
                 if (shieldEffect?.shieldSurfaceEffect != null
                     || shieldEffect?.attackerEffect?.kind == ImpactEffectKind.PlaceBody)
@@ -628,19 +635,22 @@ namespace DeltaV
                     DeltaVLog.Message(DeltaVLogModule.Combat,
                         $"intrusion halted by shield: '{body.projectileDef?.defName}' stopped at '{defender.label}' arc");
                 }
-                else if (residual > 0f)
-                {
-                    body.shieldResidualFraction = residual;
-                    body.shieldResidualPoint = evt.hitUniverse;
-                    body.dead = true; // 本 tick 停在弧上，下 tick 从弧内续飞。
-                }
-                else
+                else if (!ContinueAfterImpact(body, residual, evt.hitUniverse))
                 {
                     ApplyAttackerOutcome(body, shieldEffect, defender, evt.hitUniverse, evt.hitDefenderLocal);
                 }
                 return true;
             }
             return false;
+        }
+
+        private static bool ContinueAfterImpact(SweptBody body, float remaining, Vector3 hit)
+        {
+            if (remaining <= 0f) return false;
+            body.damageScale *= remaining;
+            body.continued = true;
+            body.continuePoint = hit;
+            return true;
         }
 
         /// <summary>攻方后效执行（DestroySelf 经服务回调帧边界销毁；PlaceBody 经放置回调）。</summary>
@@ -689,14 +699,15 @@ namespace DeltaV
             for (int i = 0; i < surface.arcs.Count; i++)
             {
                 ShieldArc arc = surface.arcs[i];
-                if (!arc.interceptor.Active) continue; // 供电/EMP/击破走原版状态机
+                if (arc.interceptor.currentHitPoints <= 0 || !arc.interceptor.Active) continue;
                 Vector2 toCenter = arc.center - from;
                 float proj = Vector2.Dot(toCenter, dir);
                 float distSqr = toCenter.sqrMagnitude - proj * proj;
                 if (distSqr > arc.radius * arc.radius) continue;
                 float offset = Mathf.Sqrt(Mathf.Max(0f, arc.radius * arc.radius - distSqr));
                 float t = proj - offset;
-                if (t < 0f || t > length) continue;
+                if (t < -0.001f || t > length) continue;
+                t = Mathf.Max(0f, t);
                 Vector2 point = from + dir * t;
                 float angle = Mathf.Atan2(point.y - arc.center.y, point.x - arc.center.x);
                 if (Mathf.Abs(SpaceTransform.WrapAngle(angle - arc.facing)) > arc.span * 0.5f) continue;
@@ -791,6 +802,7 @@ namespace DeltaV
                 SpaceCellKind kind = (SpaceCellKind)surface.kinds[index];
                 if (kind == SpaceCellKind.Empty) continue;
                 Thing thing = surface.buildings[index];
+                if (thing != null && thing.Destroyed) continue;
                 if (thing != null && passedBuildings?.Contains(thing) == true)
                 {
                     // 掩体放行只让弹体穿过建筑，不暴露仍被建筑覆盖的基架。

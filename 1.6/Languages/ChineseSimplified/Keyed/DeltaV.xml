@@ -284,12 +284,12 @@
   <DeltaV_StatCapFullCharge>从空到满</DeltaV_StatCapFullCharge>
   <DeltaV_StatTicks>tick</DeltaV_StatTicks>
   <DeltaV_RailReadiness>轨道炮状态：{0}</DeltaV_RailReadiness>
-  <DeltaV_RailReady>可发射</DeltaV_RailReady>
-  <DeltaV_RailCooling>冷却中</DeltaV_RailCooling>
-  <DeltaV_RailUnavailable>暂不可发射（检查弹药、蓄电和炮口通路）</DeltaV_RailUnavailable>
+  <DeltaV_RailReady>电量充足（蓝色）</DeltaV_RailReady>
+  <DeltaV_RailCooling>电量充足，冷却中（红色）</DeltaV_RailCooling>
+  <DeltaV_RailUnavailable>断电或脉冲电量不足（灰色）</DeltaV_RailUnavailable>
   <DeltaV_RailAcceleratorStatus>本发加速段：{0}</DeltaV_RailAcceleratorStatus>
-  <DeltaV_RailAcceleratorActive>本发预计起效</DeltaV_RailAcceleratorActive>
-  <DeltaV_RailAcceleratorSkipped>本发预计跳过</DeltaV_RailAcceleratorSkipped>
+  <DeltaV_RailAcceleratorActive>电量充足，本发预计起效（蓝色）</DeltaV_RailAcceleratorActive>
+  <DeltaV_RailAcceleratorSkipped>未连接或脉冲电量不足，本发预计跳过（灰色）</DeltaV_RailAcceleratorSkipped>
   <DeltaV_SafeFire>舱壁安全限制</DeltaV_SafeFire>
   <DeltaV_SafeFireTip>固定武器的弹道会穿过本船实心舱壁时拒绝发射；仅建议紧急时关闭。</DeltaV_SafeFireTip>
   <DeltaV_WeaponNeedsSingleOwner>武器的完整占地必须位于同一艘船所属的基架上。</DeltaV_WeaponNeedsSingleOwner>

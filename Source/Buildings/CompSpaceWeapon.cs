@@ -161,11 +161,14 @@ namespace DeltaV
         private bool configurationInitialized;
         private int lastMagazineThingId = -1;
 
-        public void ResetPrefabIdentity() => lastMagazineThingId = -1;
+        public void ResetPrefabIdentity()
+        {
+            lastMagazineThingId = -1;
+            cooldownUntilTick = 0;
+        }
 
-        // ---- 运行时（不存档）----
-
-        [Unsaved] public int cooldownUntilTick;
+        public int cooldownUntilTick;
+        public int CooldownTicksLeft => Mathf.Max(0, cooldownUntilTick - Find.TickManager.TicksGame);
 
         public CompProperties_SpaceWeapon WeaponProps => (CompProperties_SpaceWeapon)props;
 
@@ -361,6 +364,7 @@ namespace DeltaV
             Scribe_Values.Look(ref alignmentConfigurationInitialized,
                 "alignmentConfigurationInitialized", true);
             Scribe_Values.Look(ref lastMagazineThingId, "lastMagazineThingId", -1);
+            Scribe_Values.Look(ref cooldownUntilTick, "cooldownUntilTick", 0);
         }
 
         public CompSpaceWeaponMagazine SelectMagazine()

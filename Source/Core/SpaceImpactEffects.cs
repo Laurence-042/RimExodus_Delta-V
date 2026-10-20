@@ -60,6 +60,9 @@ namespace DeltaV
         /// <summary>按顺序列出各深度格的毁伤。空表只命中表层；几何穿透与护甲穿透独立。</summary>
         public List<ImpactPenetrationLayer> penetrationLayers;
 
+        /// <summary>击破后按实际吸收量扣除本弹预算，由统一碰撞链继续扫掠；不展开局部穿层。</summary>
+        public bool penetrates;
+
         /// <summary>爆炸半径（>0 = GenExplosion 波及；0 = 单格直击或逐层结构毁伤）。</summary>
         public float explosionRadius = 0f;
 
@@ -124,6 +127,9 @@ namespace DeltaV
             if (defenderEffect?.kind == ImpactEffectKind.DamageMap
                 && defenderEffect.substructureBreakThreshold <= 0f)
                 yield return $"{defName}: substructureBreakThreshold must be positive";
+            if (defenderEffect?.penetrates == true
+                && (defenderEffect.penetrationLayers?.Count > 0 || defenderEffect.explosionRadius > 0f))
+                yield return $"{defName}: budget penetration cannot also use a local penetration profile or explosion";
             if (attackerEffect == null && defenderEffect == null)
             {
                 yield return $"{defName}: neither attackerEffect nor defenderEffect configured";
@@ -176,18 +182,21 @@ namespace DeltaV
         /// 解析一条 def 对的效果。targetDef = null 表示命中基架格。
         /// 查表链：精确对 → 该弹体 × 基架 → 该弹体 × 任意目标 → 全局兜底（同等耐久
         /// 舱壁规则；兜底条目在 XML 以空 projectileDefs 声明，耐久缩放在应用时进行）。
+        /// ShieldDrain 精确条目只供真实盾面查询，发生器实体使用普通建筑后效。
         /// </summary>
-        public static SpaceImpactEffectDef Resolve(ThingDef projectile, ThingDef targetDef)
+        public static SpaceImpactEffectDef Resolve(ThingDef projectile, ThingDef targetDef, bool shieldSurface = false)
         {
             EnsureBuilt();
             if (projectile != null)
             {
                 if (targetDef != null
                     && byTarget.TryGetValue(projectile, out Dictionary<ThingDef, SpaceImpactEffectDef> targets)
-                    && targets.TryGetValue(targetDef, out SpaceImpactEffectDef exact))
+                    && targets.TryGetValue(targetDef, out SpaceImpactEffectDef exact)
+                    && (exact.defenderEffect?.kind == ImpactEffectKind.ShieldDrain) == shieldSurface)
                 {
                     return exact;
                 }
+                if (shieldSurface) return null;
                 if (targetDef == null && substructureFor.TryGetValue(projectile, out SpaceImpactEffectDef sub))
                 {
                     return sub;
@@ -249,11 +258,12 @@ namespace DeltaV
         ///（× 兜底耐久缩放）。跳弹（高耐久 ∧ 斜入射）= 消灭无伤——由攻方 DestroySelf
         /// 后效完成「消灭」，本方法不施加伤害。基架格由单次伤害决定摧毁概率，
         /// 不累计耐久；爆炸及破片仍可破坏周围基架。护盾容量消耗 = 直写原版 comp。
+        /// 返回可续飞的剩余比例；调用方只乘一次弹体 damageScale。
         /// </summary>
-        public static void ApplyToDefender(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part,
+        public static float ApplyToDefender(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part,
             float durabilityScale = 1f)
         {
-            if (part == null || evt.defender?.map == null) return;
+            if (part == null || evt.defender?.map == null) return 0f;
             Map map = evt.defender.map;
 
             if (part.kind == ImpactEffectKind.ShieldDrain)
@@ -261,14 +271,15 @@ namespace DeltaV
                 // 护盾容量消耗（段5）：写原版 comp 字段；重充/击破语义由原版
                 // CompGravshipShieldGenerator 的充能节拍继续推进。
                 CompProjectileInterceptor interceptor = evt.defenderBuilding?.TryGetComp<CompProjectileInterceptor>();
-                if (interceptor == null) return;
+                if (interceptor == null) return 0f;
                 float drain = ComputeDamage(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale)
                     * evt.damageScale;
+                int capacity = interceptor.currentHitPoints;
                 interceptor.currentHitPoints = Mathf.Max(0,
-                    interceptor.currentHitPoints - Mathf.Max(1, Mathf.RoundToInt(drain)));
-                return;
+                    capacity - Mathf.Max(0, Mathf.RoundToInt(drain)));
+                return part.penetrates ? RemainingFraction(drain, capacity) : 0f;
             }
-            if (part.kind != ImpactEffectKind.DamageMap) return;
+            if (part.kind != ImpactEffectKind.DamageMap) return 0f;
 
             IntVec3 cell = evt.hitCell.IsValid ? evt.hitCell : new IntVec3(
                 Mathf.FloorToInt(evt.hitDefenderLocal.x), 0,
@@ -282,10 +293,10 @@ namespace DeltaV
                 if (maxHitPoints >= part.ricochetMinHitPoints
                     && evt.incidenceAngleRad >= part.ricochetMinIncidenceDeg * Mathf.Deg2Rad)
                 {
-                    DeltaVLog.Message(DeltaVLogModule.Combat,
+                    if (DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
                         $"ricochet: {evt.projectileDef?.defName} off '{evt.defenderBuilding.def.defName}' " +
                         $"(hp {maxHitPoints:F0}, incidence {evt.incidenceAngleRad * Mathf.Rad2Deg:F0}°, v_rel {evt.relativeSpeed:F1})");
-                    return;
+                    return 0f;
                 }
             }
 
@@ -295,14 +306,27 @@ namespace DeltaV
                 * evt.armorPenetrationScale;
             DamageDef damType = part.damageDef ?? DamageDefOf.Bullet;
             bool buildingGeometryChanged = false;
+            float remaining = 0f;
 
             if (evt.defenderIsSubstructure && SubstructureOwnership.HasFoundation(map, cell)
                 && Rand.Chance(Mathf.Clamp01(amount / part.substructureBreakThreshold)))
             {
                 StripSubstructureAt(map, cell);
+                if (part.penetrates)
+                    remaining = RemainingFraction(amount, part.substructureBreakThreshold);
             }
 
-            if (part.penetrationLayers != null && part.penetrationLayers.Count > 0
+            if (part.penetrates && evt.defenderBuilding != null && !evt.defenderBuilding.Destroyed)
+            {
+                // 预算弹使用无建筑倍率的直击 DamageDef。实际耐久消耗由原版 TakeDamage 返回；
+                // 未击毁（包括免伤/吸收）的结构截停，不能凭名义伤害越过。
+                DamageWorker.DamageResult result = evt.defenderBuilding.TakeDamage(
+                    new DamageInfo(damType, amount, ap, -1f, evt.launcher, null, evt.projectileDef));
+                buildingGeometryChanged = evt.defenderBuilding.Destroyed;
+                if (buildingGeometryChanged)
+                    remaining = RemainingFraction(amount, result.totalDamageDealt);
+            }
+            else if (part.penetrationLayers != null && part.penetrationLayers.Count > 0
                 && evt.defenderBuilding != null)
             {
                 buildingGeometryChanged = ApplyDirectionalPenetration(evt, part, map, cell,
@@ -341,7 +365,11 @@ namespace DeltaV
                 SubstructureOwnership.BumpStructureVersion();
                 PlanetGlobeRenderer.InvalidateSilhouette(map);
             }
+            return remaining;
         }
+
+        private static float RemainingFraction(float budget, float absorbed) =>
+            budget > 0f ? Mathf.Clamp01((budget - Mathf.Max(0f, absorbed)) / budget) : 0f;
 
         /// <summary>
         /// 每层先伤中央结构，再伤两侧；中央结构尚存时弹芯在该层停止。

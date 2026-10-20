@@ -284,12 +284,12 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_StatCapFullCharge>Empty to full</DeltaV_StatCapFullCharge>
   <DeltaV_StatTicks>ticks</DeltaV_StatTicks>
   <DeltaV_RailReadiness>Railgun status: {0}</DeltaV_RailReadiness>
-  <DeltaV_RailReady>ready (cyan)</DeltaV_RailReady>
-  <DeltaV_RailCooling>cooling (amber)</DeltaV_RailCooling>
-  <DeltaV_RailUnavailable>resources missing, unpowered or muzzle blocked (red/off)</DeltaV_RailUnavailable>
+  <DeltaV_RailReady>energy available (blue)</DeltaV_RailReady>
+  <DeltaV_RailCooling>energy available, cooling (red)</DeltaV_RailCooling>
+  <DeltaV_RailUnavailable>unpowered or insufficient pulse energy (gray)</DeltaV_RailUnavailable>
   <DeltaV_RailAcceleratorStatus>Next-shot accelerator: {0}</DeltaV_RailAcceleratorStatus>
-  <DeltaV_RailAcceleratorActive>active (cyan)</DeltaV_RailAcceleratorActive>
-  <DeltaV_RailAcceleratorSkipped>skipped (red; off without power)</DeltaV_RailAcceleratorSkipped>
+  <DeltaV_RailAcceleratorActive>energy available, active (blue)</DeltaV_RailAcceleratorActive>
+  <DeltaV_RailAcceleratorSkipped>disconnected or insufficient pulse energy, skipped (gray)</DeltaV_RailAcceleratorSkipped>
   <DeltaV_SafeFire>Hull-safe fire</DeltaV_SafeFire>
   <DeltaV_SafeFireTip>Prevent fixed weapons from firing when their shot path intersects their own solid hull. Disable only for emergencies.</DeltaV_SafeFireTip>
   <DeltaV_WeaponNeedsSingleOwner>The entire weapon footprint must be on substructure owned by one ship.</DeltaV_WeaponNeedsSingleOwner>

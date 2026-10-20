@@ -279,60 +279,39 @@
 		</attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
-	<!-- 轨道炮弹 × 舱壁：高穿深直伤（链倍率随弹体携带，段6）。 -->
+	<!-- 完整轨道弹使用同一剩余冲击比例；实体耗耐久，空舱不耗预算。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_RailgunVsStructure</defName>
-		<projectileDefs>
-			<li>DeltaV_Projectile_RailgunSlug</li>
-		</projectileDefs>
+		<projectileDefs><li>DeltaV_Projectile_RailgunSlug</li></projectileDefs>
 		<defenderEffect>
-			<kind>DamageMap</kind>
-			<damageDef>Bomb</damageDef>
-			<damage>55</damage>
-			<referenceSpeed>120</referenceSpeed>
-			<speedExponent>1</speedExponent>
-			<incidenceMinFactor>0.6</incidenceMinFactor>
-			<armorPenetration>60</armorPenetration>
-			<explosionRadius>0</explosionRadius>
-			<penetrationLayers>
-				<li><damageFactor>2.4</damageFactor></li>
-				<li><damageFactor>2.2</damageFactor></li>
-				<li><damageFactor>2</damageFactor></li>
-				<li><damageFactor>1.6</damageFactor></li>
-				<li><damageFactor>1.2</damageFactor></li>
-				<li><damageFactor>0.8</damageFactor></li>
-			</penetrationLayers>
-			<ricochetMinHitPoints>600</ricochetMinHitPoints>
-			<ricochetMinIncidenceDeg>70</ricochetMinIncidenceDeg>
+			<kind>DamageMap</kind><damageDef>Bullet</damageDef>
+			<damage>300</damage><referenceSpeed>180</referenceSpeed><speedExponent>1</speedExponent>
+			<incidenceMinFactor>0.6</incidenceMinFactor><armorPenetration>60</armorPenetration>
+			<penetrates>true</penetrates>
 		</defenderEffect>
-		<attackerEffect>
-			<kind>DestroySelf</kind>
-		</attackerEffect>
+		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
-
-	<!-- 轨道炮弹 × 基架：低概率拦截，高动能贯穿破片。 -->
 	<DeltaV.SpaceImpactEffectDef>
 		<defName>DeltaV_Impact_RailgunVsSubstructure</defName>
-		<projectileDefs>
-			<li>DeltaV_Projectile_RailgunSlug</li>
-		</projectileDefs>
-		<targetsSubstructure>true</targetsSubstructure>
-		<substructureHitChance>0.03</substructureHitChance>
+		<projectileDefs><li>DeltaV_Projectile_RailgunSlug</li></projectileDefs>
+		<targetsSubstructure>true</targetsSubstructure><substructureHitChance>0.03</substructureHitChance>
 		<defenderEffect>
-			<kind>DamageMap</kind>
-			<damageDef>Bomb</damageDef>
-			<damage>40</damage>
-			<referenceSpeed>120</referenceSpeed>
-			<speedExponent>1</speedExponent>
-			<incidenceMinFactor>0.6</incidenceMinFactor>
-			<armorPenetration>45</armorPenetration>
-			<explosionRadius>1.2</explosionRadius>
-			<stripSubstructureRadius>2</stripSubstructureRadius>
-			<stripSubstructureChance>0.5</stripSubstructureChance>
+			<kind>DamageMap</kind><damageDef>Bullet</damageDef>
+			<damage>300</damage><referenceSpeed>180</referenceSpeed><speedExponent>1</speedExponent>
+			<incidenceMinFactor>0.6</incidenceMinFactor><armorPenetration>60</armorPenetration>
+			<penetrates>true</penetrates>
 		</defenderEffect>
-		<attackerEffect>
-			<kind>DestroySelf</kind>
-		</attackerEffect>
+		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
+	</DeltaV.SpaceImpactEffectDef>
+	<DeltaV.SpaceImpactEffectDef>
+		<defName>DeltaV_Impact_RailgunVsShield</defName>
+		<projectileDefs><li>DeltaV_Projectile_RailgunSlug</li></projectileDefs>
+		<targetThingDefs><li>GravshipShieldGenerator</li><li>DeltaV_ShieldGenerator</li></targetThingDefs>
+		<defenderEffect>
+			<kind>ShieldDrain</kind><damage>300</damage><referenceSpeed>180</referenceSpeed>
+			<speedExponent>1</speedExponent><incidenceMinFactor>1</incidenceMinFactor><penetrates>true</penetrates>
+		</defenderEffect>
+		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
 
 	<!-- 动能弹 × 护盾弧：有容量即截获；不足时留下降速弹体。 -->
@@ -341,7 +320,6 @@
 		<projectileDefs>
 			<li>DeltaV_Projectile_Cannon</li>
 			<li>DeltaV_Projectile_Rapid</li>
-			<li>DeltaV_Projectile_RailgunSlug</li>
 			<li>DeltaV_Projectile_ShieldFragment</li>
 			<li>DeltaV_Projectile_RapidFragment</li>
 			<li>DeltaV_Projectile_RailFragment</li>
@@ -351,7 +329,7 @@
 			<li>DeltaV_ShieldGenerator</li>
 		</targetThingDefs>
 		<defenderEffect>
-			<kind>ShieldDrain</kind>
+			<kind>ShieldDrain</kind><penetrates>true</penetrates>
 			<damage>25</damage>
 			<referenceSpeed>60</referenceSpeed>
 			<speedExponent>1</speedExponent>

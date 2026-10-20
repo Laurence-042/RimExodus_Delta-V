@@ -103,7 +103,7 @@ namespace DeltaV
             public readonly List<ExhaustPort> exhaustPorts = new List<ExhaustPort>();
             public Vector3 laserFrom;
             public Vector3 laserTo;
-            /// <summary>伤害/穿深倍率（轨道炮 Σ 加速段；随弹体携带到命中结算）。</summary>
+            /// <summary>发射伤害倍率乘剩余冲击比例；跨 tick 沿用。</summary>
             public float damageScale = 1f;
             public float armorPenetrationScale = 1f;
             /// <summary>复用的扫掠查询（每 tick 重填字段，热路径零分配）。</summary>
@@ -647,7 +647,7 @@ namespace DeltaV
                 body.dead = false;
                 body.resolvedHit = false;
                 body.didRedirect = false;
-                body.shieldResidualFraction = 0f;
+                body.continued = body.didContinue = false;
                 body.sweepRadius = FootprintRadius(p.def);
                 body.noseHalfWidth = p.adoptedShuttle ? p.def.Size.x * 0.5f : 0f;
                 body.noseForwardOffset = p.adoptedShuttle ? (p.def.Size.z - 1) * 0.5f : 0f;
@@ -726,45 +726,10 @@ namespace DeltaV
             }
             foreach (Projectile p in sweepScratch)
             {
-                float residual = p.body.shieldResidualFraction;
-                if (residual <= 0f || p.dead) continue;
-                Vector3 hit = p.body.shieldResidualPoint;
-                Vector2 travel = OrbitSphere.Offset(p.body.from, p.body.to);
-                if (travel.sqrMagnitude < 1e-8f) continue;
-                Vector2 direction = travel.normalized;
-                if (p.laser)
-                {
-                    // 即时光束不能降速续飞；在弧后生成一枚低能破片，走同一弹体/碰撞链。
-                    ThingDef fragment = DefDatabase<ThingDef>.GetNamedSilentFail("DeltaV_Projectile_ShieldFragment");
-                    if (fragment != null)
-                    {
-                        OrbitSphere.Basis(hit, out Vector3 east, out Vector3 north);
-                        Vector3 worldDirection = east * direction.x + north * direction.y;
-                        Launch(fragment, p.sourceContainer, OrbitSphere.Move(hit, direction * 0.1f),
-                            worldDirection, p.container.faction, p.launcher, default,
-                            new SpaceProjectileLaunchSpec(45f, 0, 45f,
-                                p.damageScale * residual, p.armorPenetrationScale * residual));
-                    }
-                    else
-                    {
-                        Log.ErrorOnce("[DeltaV] Missing shield breach fragment def; residual beam cannot continue.",
-                            0x44565346);
-                    }
-                }
-                else
-                {
-                    // 弹体在弧内侧留下，速度与命中能量下降；导弹巡航速度也同步下降。
-                    float speedFactor = Mathf.Sqrt(residual);
-                    p.container.pose.position = OrbitSphere.Move(hit, direction * 0.1f);
-                    p.container.pose.velocity *= speedFactor;
-                    p.cruiseSpeed *= speedFactor;
-                    p.damageScale *= residual;
-                    p.armorPenetrationScale *= residual;
-                    p.phase = FlightPhase.PoweredFlight;
-                    p.motorStartSpeed = p.cruiseSpeed;
-                    p.motorStartedTick = Find.TickManager.TicksGame - Mathf.Max(0, p.props.accelerationTicks) - 1;
-                    p.rcsTurnSign = 0f;
-                }
+                if (p.dead) continue;
+                // 碰撞链已经扣过一次冲击预算；速度与弹药穿甲系数不再重复衰减。
+                p.damageScale = p.body.damageScale;
+                if (p.body.didContinue) p.container.pose.position = p.body.to;
             }
             // 激光当 tick 消费完毕：视觉线段（命中点或全射程）+ 销毁。
             foreach (Projectile p in sweepScratch)
@@ -962,6 +927,7 @@ namespace DeltaV
             p.body.resolvedHitCell = IntVec3.Invalid;
             p.body.dead = false;
             p.body.resolvedHit = false;
+            p.body.continued = p.body.didContinue = false;
             if (projectilePool.Count < MaxPooledProjectiles) projectilePool.Push(p);
         }
 
