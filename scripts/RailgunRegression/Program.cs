@@ -320,8 +320,114 @@ internal static class Program
             && segments.Count == 1 && OrbitSphere.Offset(segments[0].to, contacts[0].position).magnitude < 0.01f
             && !contacts[0].destroyed && !contacts[0].penetrated && first.currentHitPoints == 3000,
             "electromagnetic response matches the true beam bend without a fake hull impact");
+        var engineering = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_Engineering.xml");
+        XElement couplingNode = engineering.Root.Elements("ThingDef")
+            .Single(x => (string)x.Element("defName") == "DeltaV_Beam_InertiaCoupler").Element("comps").Element("li");
+        var coupler = MakeDef("DeltaV_Beam_InertiaCoupler");
+        coupler.comps.Add(new CompProperties_SpaceProjectile {
+            laserRange = (float)couplingNode.Element("laserRange"), hasMap = false,
+            ignoresShields = (bool)couplingNode.Element("ignoresShields"),
+            continuousBeam = (bool)couplingNode.Element("continuousBeam"),
+            visualStyle = CombatVisualStyle.Coupling });
+        DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef {
+            defName = "fixtureCoupling", projectileDefs = new List<ThingDef> { coupler }, buildingHitChance = 1,
+            defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.CoupleMotion },
+            attackerEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DestroySelf } });
+        SpaceImpactEffects.ResetCache();
+        contacts.Clear();
+        float energyBefore = battery.StoredEnergy;
+        shot = Fire(1, def: coupler);
+        Check(shot.resolvedHit && shot.resolvedHitCell == console.Position && !shot.didRedirect
+            && !shot.resolvedHitShield && first.currentHitPoints == 3000 && battery.StoredEnergy == energyBefore
+            && contacts.Count == 1 && !contacts[0].shieldMode.HasValue && console.HitPoints == 420,
+            "coupling crosses electromagnetic line and guard shield without drain, bending or hull damage");
+        kinetic.mode = SpaceShieldMode.Kinetic;
+        SpaceCollision.ClearCaches(); contacts.Clear();
+        shot = Fire(1, def: coupler);
+        Check(shot.resolvedHitCell == console.Position && !shot.resolvedHitShield
+            && first.currentHitPoints == 3000 && battery.StoredEnergy == energyBefore,
+            "coupling also crosses kinetic line while preserving shields");
+        Reset(); first = Shield(3000);
+        generator = (Target)first.parent;
+        map.thingGrid.Deregister(generator); Set(generator, "positionInt", new IntVec3(40, 0, 5));
+        map.thingGrid.Register(generator);
+        shot = Fire(1, def: coupler);
+        Check(shot.resolvedHitCell == generator.Position && !shot.resolvedHitShield
+            && first.currentHitPoints == 3000, "shield bypass still hits the physical generator");
+        CheckContinuousBeam(coupler, engineering);
         CheckEnergy();
         CheckVisualAnchors();
+    }
+
+    static void CheckContinuousBeam(ThingDef coupler, XDocument defs)
+    {
+        Reset();
+        var service = new SpaceProjectileService(universe);
+        var emitter = Add(5, 5, 500);
+        var beams = (IList)AccessTools.Field(typeof(SpaceProjectileService), "beams").GetValue(service);
+        Vector2 point = new Vector2(5, 5.5f);
+        bool Launch()
+        {
+            Vector3 start = SpaceTransform.MapPointToUniverse(hull, map, point);
+            Vector2 tangent = SpaceTransform.MapDirectionToUniverseTangent(hull, map, point, Vector2.right);
+            OrbitSphere.Basis(start, out var east, out var north);
+            return service.Launch(coupler, hull, start, east * tangent.x + north * tangent.y,
+                null, emitter, default, new SpaceProjectileLaunchSpec(2000, 0, 2000, 1));
+        }
+        int tick = Find.TickManager.TicksGame;
+        Check(Launch(), "continuous beam enters the shared launch path");
+        hull.pose.position = OrbitSphere.Move(hull.pose.position, new Vector2(12, 3));
+        hull.pose.angle = 0.4f;
+        service.ResolveCollisions();
+        object beam = beams[0];
+        bool Visible(int at) => (bool)AccessTools.Method(beam.GetType(), "VisibleAt").Invoke(beam, new object[] { at });
+        Check(OrbitSphere.Offset((Vector3)AccessTools.Field(beam.GetType(), "from").GetValue(beam),
+            SpaceTransform.MapPointToUniverse(hull, map, point)).magnitude < 0.01f,
+            "continuous beam starts at the emitter after same-tick translation and rotation");
+        Check(Visible(tick) && Visible(tick) && !Visible(tick + 1),
+            "continuous beam stays lit while paused and is invisible after one missed tick");
+        Set(Find.TickManager, "ticksGameInt", tick + 1); service.Tick();
+        Check(Launch(), "held fire renews the next tick");
+        service.ResolveCollisions();
+        Check(beams.Count == 1 && ReferenceEquals(beams[0], beam) && Visible(tick + 1),
+            "held fire updates one beam instead of stacking pulse afterimages");
+
+        XElement wpNode = defs.Root.Elements("ThingDef").Single(x => (string)x.Element("defName") == "DeltaV_InertiaCoupler")
+            .Element("comps").Element("li");
+        var wp = new CompProperties_SpaceWeapon { projectileDef = coupler,
+            shotEnergy = (float)wpNode.Element("shotEnergy"), cooldownTicks = (int)wpNode.Element("cooldownTicks") };
+        var battery = new CompPowerBattery(); Set(battery, "storedEnergy", 3f);
+        var net = (PowerNet)Raw(typeof(PowerNet)); net.batteryComps = new List<CompPowerBattery> { battery };
+        var power = new CompPowerTrader { transNet = net }; Set(power, "powerOnInt", true);
+        var weapon = new CompSpaceWeapon { props = wp };
+        Add(6, 5, 500, power, weapon);
+        var transaction = new SpaceWeaponShot(universe, weapon, hull, default) {
+            projectileProps = coupler.GetCompProperties<CompProperties_SpaceProjectile>(), muzzleMap = point,
+            muzzleUniverse = SpaceTransform.MapPointToUniverse(hull, map, point) };
+        var solution = new SpaceWeaponAccelerationSolution(0, null, new List<CompSpaceRailgun>());
+        for (int i = 0; i < 12; i++)
+        {
+            Check((bool)AccessTools.Method(typeof(SpaceWeaponShot), "PrepareEnergy").Invoke(transaction, new object[] { solution }),
+                "continuous energy reservation " + i);
+            AccessTools.Method(typeof(SpaceWeaponShot), "Commit").Invoke(transaction, null);
+        }
+        Check(battery.StoredEnergy == 0f
+            && !(bool)AccessTools.Method(typeof(SpaceWeaponShot), "PrepareEnergy").Invoke(transaction, new object[] { solution }),
+            "twelve ticks consume exactly the old pulse cost and an empty battery refuses the next tick");
+        // Continue the already-lit emitter, avoiding Unity's native first-start audio in this fixture.
+        weapon.parent = emitter;
+        service.RegisterShotVisuals(transaction);
+        Check(((IList)AccessTools.Field(typeof(SpaceProjectileService), "muzzleFlashes").GetValue(service)).Count == 0,
+            "continuous illumination does not emit repeated muzzle flashes");
+        Set(Find.TickManager, "ticksGameInt", tick + 2); service.Tick();
+        Check(!Visible(tick + 2), "release or failed power payment leaves no visible beam");
+        Set(Find.TickManager, "ticksGameInt", tick + 3); service.Tick();
+        Check(beams.Count == 0, "stopped beam cache is retired");
+        Check(Launch(), "continuous illumination can restart");
+        service.ResolveCollisions();
+        AccessTools.Method(typeof(SpaceProjectileService), "NotifyContainerRemoving").Invoke(service, new object[] { hull });
+        Check(beams.Count == 0, "source removal clears continuous beams immediately");
+        Set(Find.TickManager, "ticksGameInt", tick);
     }
 
     static void CheckVisualAnchors()

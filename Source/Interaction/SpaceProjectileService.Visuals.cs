@@ -100,6 +100,15 @@ namespace DeltaV
         {
             CompProperties_SpaceProjectile props = shot.projectileProps;
             CombatVisualStyle style = props.visualStyle;
+            if (props.continuousBeam)
+            {
+                int now = Find.TickManager.TicksGame;
+                if (!beams.Exists(b => b.continuousLauncher == shot.weapon.parent
+                    && b.sourceObjectId == shot.container.objectId && now - b.bornTick <= 1))
+                    PlayCombatSound(props.fireSoundMap, props.fireSoundShell, shot.container,
+                        shot.muzzleMap, shot.muzzleUniverse, 1);
+                return;
+            }
             float size = shot.weapon.WeaponProps.muzzleFlashSize;
             if (props.laserRange > 0f) size = Mathf.Max(size, props.laserBeamWidth * 3.5f);
             if (size > 0f)
@@ -110,7 +119,7 @@ namespace DeltaV
                     anchor = anchor, angle = shot.launchMapAngle, size = size,
                     bornTick = Find.TickManager.TicksGame, style = style
                 }, MaxCombatFlashes);
-                if (style != CombatVisualStyle.Energy)
+                if (props.laserRange <= 0f)
                     SpawnParticles(anchor, shot.container, shot.muzzleMap,
                         SpaceTransform.Rotate(Vector2.right, shot.launchMapAngle),
                         size * 0.35f, style, ParticleKind.Smoke, 3, 1.1f, 2.4f);
@@ -138,6 +147,8 @@ namespace DeltaV
             CompProperties_SpaceProjectile props = contact.projectileDef
                 ?.GetCompProperties<CompProperties_SpaceProjectile>();
             CombatVisualStyle style = props?.visualStyle ?? CombatVisualStyle.Kinetic;
+            // 非破坏性耦合只显示光束；击中盾时仍显示统一盾面反馈。
+            if (style == CombatVisualStyle.Coupling && !contact.shieldMode.HasValue) return;
             VisualAnchor anchor = Anchor(contact.defender, contact.localPoint, contact.position);
             // The interception burst outlives the destroyed missile's disposable map.
             if (contact.missileDestroyed) { anchor.objectId = 0; anchor.mapId = -1; }
@@ -418,13 +429,15 @@ namespace DeltaV
                 if (p.kind != ParticleKind.Smoke) DrawParticle(p, frame, map, altitude, now);
             foreach (Beam beam in beams)
             {
-                float age = (now - beam.bornTick) / (float)beam.lifetimeTicks;
-                if (age < 0f || age >= 1f) continue;
+                if (!beam.VisibleAt(now)) continue;
+                float age = beam.continuousLauncher != null ? 0f
+                    : (now - beam.bornTick) / (float)beam.lifetimeTicks;
                 Vector3 a = SpaceTransform.FocusedDrawPosition(frame, map, beam.from, altitude);
                 Vector3 b = SpaceTransform.FocusedDrawPosition(frame, map, beam.to, altitude);
                 float pulse = 1f - age * age;
                 Material[] glow = beam.style == CombatVisualStyle.Energy ? beamGlowMaterials
-                    : beam.style == CombatVisualStyle.Rail ? beamRailMaterials : beamAmberMaterials;
+                    : beam.style == CombatVisualStyle.Rail || beam.style == CombatVisualStyle.Coupling
+                        ? beamRailMaterials : beamAmberMaterials;
                 FxLine(Fade(glow, age), a, b, beam.width * 3.2f * pulse, frame);
                 FxLine(Fade(beamCoreMaterials, age), a, b, beam.width * 0.65f * pulse, frame);
             }

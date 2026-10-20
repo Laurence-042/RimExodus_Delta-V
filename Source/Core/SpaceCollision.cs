@@ -444,7 +444,8 @@ namespace DeltaV
             float lineAlong = float.MaxValue;
             CompProperties_SpaceProjectile projectileProps = body.projectileDef
                 ?.GetCompProperties<CompProperties_SpaceProjectile>();
-            if (TryFindLineHit(surface, fromLocal, dir, length, projectileProps,
+            bool shieldsApply = projectileProps?.ignoresShields != true;
+            if (shieldsApply && TryFindLineHit(surface, fromLocal, dir, length, projectileProps,
                 out lineShield, out linePoint, out lineNormal, out lineAlong, out lineStart, out lineEnd))
                 sampleLength = lineAlong;
             ShieldArc shieldArc = null;
@@ -452,7 +453,7 @@ namespace DeltaV
             float shieldIncidence = 0f;
             SpaceImpactEffectDef shieldEffect = null;
             float relativeSpeed = SpaceTransform.RelativeVelocity(body.attacker.pose, defender.pose).magnitude;
-            if (surface.arcs.Count > 0
+            if (shieldsApply && surface.arcs.Count > 0
                 && TryFindArcHit(surface, fromLocal, dir, length, out ShieldArc arc, out Vector2 point, out float arcAlong))
             {
                 Vector2 radial = (point - arc.center).normalized;
@@ -509,7 +510,7 @@ namespace DeltaV
                 // 命中判定（二值）：放行 = 弹体穿过、本 tick 后续采样继续（下次碰撞再判定）。
                 if (!SpaceImpactEffects.HitTest(body.projectileDef, bestKind, bestThing, effect))
                 {
-                    if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
+                    if (projectileProps?.continuousBeam != true && DeltaVLog.Enabled(DeltaVLogModule.Combat))
                         DeltaVLog.Message(DeltaVLogModule.Combat,
                             $"pass-through: {body.projectileDef?.defName} past " +
                             (bestThing?.def.defName ?? "substructure") + $" at {bestCell} " +
@@ -538,7 +539,7 @@ namespace DeltaV
                     ? Mathf.Max(defenderPart.explosionRadius,
                         defenderPart.penetrationLayers?.Count > 0
                             ? defenderPart.penetrationLayers[0].halfWidth : 0f) : 0f;
-                if (DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
+                if (projectileProps?.continuousBeam != true && DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"impact: {body.projectileDef?.defName} -> " +
                     (evt.defenderIsSubstructure
                         ? $"substructure {bestCell}"

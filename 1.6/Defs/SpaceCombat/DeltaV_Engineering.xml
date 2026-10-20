@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="DeltaV_SpaceTurret2" Name="DeltaV_EngineeringTurret" Abstract="True">
+    <designationCategory>Misc</designationCategory>
+    <graphicData><texPath>Things/Building/SpaceWeapons/PointDefense_Base</texPath></graphicData>
+    <description>A ship-mounted engineering emitter. Assign a weapon group and operate it in manual fire-control mode.</description>
+    <comps Inherit="False">
+      <li Class="CompProperties_Forbiddable" />
+      <li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>200</basePowerConsumption></li>
+      <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>120</turnRateDegPerSec><fireToleranceDeg>2</fireToleranceDeg></li>
+    </comps>
+    <hasInteractionCell>false</hasInteractionCell>
+    <statBases><WorkToBuild>5000</WorkToBuild><MaxHitPoints>280</MaxHitPoints><Flammability>0.3</Flammability></statBases>
+    <costList><Steel>220</Steel><ComponentIndustrial>8</ComponentIndustrial></costList>
+  </ThingDef>
+
+  <ThingDef ParentName="DeltaV_EngineeringTurret">
+    <defName>DeltaV_InertiaCoupler</defName><label>inertia coupler</label><uiOrder>2100</uiOrder>
+    <description>Exchanges momentum and angular momentum with a structure struck by its beam, reducing relative motion without damaging it. Reaction impulses also move and turn the emitting ship; use your thrusters to brake. Hold manual fire to illuminate continuously, consuming stored electricity while active. Shields neither block nor refract the coupling beam. It does not automatically attack, tow or dock.</description>
+    <uiIconPath>Things/Building/SpaceWeapons/InertiaCoupler_MenuIcon</uiIconPath>
+    <building><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/InertiaCoupler_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(2.6,2.6)</drawSize></blueprintGraphicData></building>
+    <comps>
+      <li Class="DeltaV.CompProperties_SpaceWeapon">
+        <manualOnly>true</manualOnly><projectileDef>DeltaV_Beam_InertiaCoupler</projectileDef>
+        <intrinsicAimSkill>20</intrinsicAimSkill><baseSpreadDeg>0</baseSpreadDeg>
+        <cooldownTicks>1</cooldownTicks><range>80</range><shotEnergy>0.25</shotEnergy>
+        <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>5</defaultGroupNumber>
+        <topTurret>true</topTurret><turretMuzzleDistance>1.02</turretMuzzleDistance>
+        <defaultFireDeviationDeg>2</defaultFireDeviationDeg>
+      </li>
+    </comps>
+    <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/InertiaCoupler_Top</topTexPath></li></modExtensions>
+  </ThingDef>
+
+  <ThingDef ParentName="DeltaV_EngineeringTurret">
+    <defName>DeltaV_MiningBeam</defName><label>mining beam</label><uiOrder>2101</uiOrder>
+    <description>Cuts through rocks, buildings and exposed substructure. Completed cuts deliver minerals or normal dismantling materials to nearby empty deck on this ship. Minerals yield 50% of their base amount; intact equipment, cargo and people are not transported. Keep deck space clear within eight cells. Each pulse needs stored electricity. Assign an active weapon group and use manual fire-control mode.</description>
+    <uiIconPath>Things/Building/SpaceWeapons/MiningBeam_MenuIcon</uiIconPath>
+    <building><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/MiningBeam_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(2.6,2.6)</drawSize></blueprintGraphicData></building>
+    <comps>
+      <li Class="DeltaV.CompProperties_SpaceWeapon">
+        <manualOnly>true</manualOnly><projectileDef>DeltaV_Beam_Mining</projectileDef>
+        <intrinsicAimSkill>20</intrinsicAimSkill><baseSpreadDeg>0</baseSpreadDeg>
+        <cooldownTicks>30</cooldownTicks><range>65</range><shotEnergy>5</shotEnergy>
+        <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>6</defaultGroupNumber>
+        <topTurret>true</topTurret><turretMuzzleDistance>1.13</turretMuzzleDistance>
+        <defaultFireDeviationDeg>2</defaultFireDeviationDeg>
+      </li>
+    </comps>
+    <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/MiningBeam_Top</topTexPath></li></modExtensions>
+  </ThingDef>
+
+  <ThingDef ParentName="BuildingBase" Name="DeltaV_EngineeringBeam" Abstract="True">
+    <thingClass>Verse.Building</thingClass><category>Building</category><size>(1,1)</size>
+    <rotatable>false</rotatable><passability>PassThroughOnly</passability>
+    <designationCategory Inherit="False" /><researchPrerequisites Inherit="False" /><stuffCategories Inherit="False" />
+    <statBases><MaxHitPoints>1</MaxHitPoints><Flammability>0</Flammability></statBases>
+    <graphicData><texPath>Things/Projectile/Bullet_Big</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>Cutout</shaderType></graphicData>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_EngineeringBeam">
+    <defName>DeltaV_Beam_InertiaCoupler</defName><label>inertia coupling beam</label>
+    <comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+      <hasMap>false</hasMap><speed>2000</speed><laserRange>80</laserRange><laserBeamWidth>0.22</laserBeamWidth>
+      <continuousBeam>true</continuousBeam><ignoresShields>true</ignoresShields>
+      <visualStyle>Coupling</visualStyle><fireSoundMap>DeltaV_FireLaserMap</fireSoundMap><fireSoundShell>DeltaV_FireLaserShell</fireSoundShell>
+    </li></comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_EngineeringBeam">
+    <defName>DeltaV_Beam_Mining</defName><label>mining beam</label>
+    <comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+      <hasMap>false</hasMap><speed>2000</speed><laserRange>65</laserRange><laserBeamWidth>0.26</laserBeamWidth>
+      <visualStyle>Mining</visualStyle><fireSoundMap>DeltaV_FireLaserMap</fireSoundMap><fireSoundShell>DeltaV_FireLaserShell</fireSoundShell>
+      <impactSoundMap>DeltaV_ImpactHitMap</impactSoundMap><impactSoundShell>DeltaV_ImpactHitShell</impactSoundShell>
+    </li></comps>
+  </ThingDef>
+
+  <DeltaV.SpaceImpactEffectDef Name="DeltaV_CouplingImpact" Abstract="True">
+    <projectileDefs><li>DeltaV_Beam_InertiaCoupler</li></projectileDefs>
+    <buildingHitChance>1</buildingHitChance>
+    <defenderEffect><kind>CoupleMotion</kind><couplingFraction>0.013451947</couplingFraction><maxCouplingImpulse>33.333333</maxCouplingImpulse><maxCouplingAngularImpulse>333.333333</maxCouplingAngularImpulse></defenderEffect>
+    <attackerEffect><kind>DestroySelf</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_CouplingImpact"><defName>DeltaV_Impact_CouplingStructure</defName></DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_CouplingImpact"><defName>DeltaV_Impact_CouplingFoundation</defName><targetsSubstructure>true</targetsSubstructure><substructureHitChance>1</substructureHitChance></DeltaV.SpaceImpactEffectDef>
+
+  <DeltaV.SpaceImpactEffectDef Name="DeltaV_MiningImpact" Abstract="True">
+    <projectileDefs><li>DeltaV_Beam_Mining</li></projectileDefs><buildingHitChance>1</buildingHitChance>
+    <defenderEffect><kind>Salvage</kind><damage>60</damage><substructureBreakThreshold>60</substructureBreakThreshold><miningYieldFactor>0.5</miningYieldFactor></defenderEffect>
+    <attackerEffect><kind>DestroySelf</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_MiningImpact"><defName>DeltaV_Impact_MiningStructure</defName></DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_MiningImpact"><defName>DeltaV_Impact_MiningFoundation</defName><targetsSubstructure>true</targetsSubstructure><substructureHitChance>1</substructureHitChance></DeltaV.SpaceImpactEffectDef>
+
+  <!-- 采矿束由守卫盾挡停；耦合束在共同碰撞入口跳过所有盾面。 -->
+  <DeltaV.SpaceImpactEffectDef>
+    <defName>DeltaV_Impact_EngineeringShield</defName>
+    <projectileDefs><li>DeltaV_Beam_Mining</li></projectileDefs>
+    <targetThingDefs><li>GravshipShieldGenerator</li><li>DeltaV_ShieldGenerator</li></targetThingDefs>
+    <defenderEffect><kind>ShieldDrain</kind><damage>0</damage></defenderEffect>
+    <attackerEffect><kind>DestroySelf</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_InertiaCoupler</defName><thingDef>DeltaV_InertiaCoupler</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_MiningBeam</defName><thingDef>DeltaV_MiningBeam</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+</Defs>

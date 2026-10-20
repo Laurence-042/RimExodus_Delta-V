@@ -1,0 +1,51 @@
+{
+  "tool": "built-in image_gen",
+  "revision": "moderate structural detail: broad armor joints, grey mounts and emitter insets",
+  "transparent_background": true,
+  "canvas": [
+    1440,
+    1440
+  ],
+  "base": "1.6/Textures/Things/Building/SpaceWeapons/PointDefense_Base.png",
+  "base_draw_size": 2.6,
+  "top_draw_size": 2.4,
+  "assets": [
+    {
+      "name": "InertiaCoupler",
+      "source": "InertiaCoupler_Moderate_Source.png",
+      "uniform_scale_before_alignment": 1.1417910447761195,
+      "source_pivot": [
+        633,
+        627
+      ],
+      "scaled_pivot": [
+        723,
+        716
+      ],
+      "output": "1.6/Textures/Things/Building/SpaceWeapons/InertiaCoupler_Top.png",
+      "menu_icon": "1.6/Textures/Things/Building/SpaceWeapons/InertiaCoupler_MenuIcon.png",
+      "prompt": "Refine image 1 (yellow inertia coupler turret top). Image 2 (cyan rapid gun) and image 3 (red laser gun) are the exact target rendering style and MODERATE structural detail density. Image 1 has become too plain and toy-like. Keep its right-facing open U outline, canvas framing, centered pivot, blue inserts and yellow/black engineering identity. Add a restrained second level of MECHANICAL STRUCTURE: split the broad rear yellow horseshoe into three large fitted armor pieces with two clear seams; introduce two broad neutral-grey shoulder plates where arms meet the rear body; frame each blue inset with a substantial dark-grey recessed socket and one broad crossbar; give each forward arm a distinct dark metal end cap with one short inset slot; use a faceted grey hub cap inside the existing single pivot ring. Around 12 meaningful large components total. Yellow still dominates outer armor, grey parts explain joints and mechanisms. Preserve the single black stripe on each arm. Match the references' dark outlines, broad bevel planes and subtly painted midtones. Keep faces spacious; no tiny bolts, repetitive ribs, small rings, wires or micro paneling, no photoreal metal/gloss. Structural richness should sit between a flat icon and a detailed model. Pure orthographic overhead game sprite, no base, no floor, no labels. Preserve transparent background, right-facing geometry and original sprite scale."
+    },
+    {
+      "name": "MiningBeam",
+      "source": "MiningBeam_Stripes_Source.png",
+      "uniform_scale_before_alignment": 1.1483253588516746,
+      "source_pivot": [
+        627,
+        627
+      ],
+      "scaled_pivot": [
+        720,
+        720
+      ],
+      "output": "1.6/Textures/Things/Building/SpaceWeapons/MiningBeam_Top.png",
+      "menu_icon": "1.6/Textures/Things/Building/SpaceWeapons/MiningBeam_MenuIcon.png",
+      "prompt": "Make ONLY ONE small paint correction to this transparent right-facing mining laser turret sprite. On the broad LOWER-LEFT yellow rear armor plate, add ONE wide charcoal-black diagonal hazard stripe, mirroring the existing stripe on the UPPER-LEFT yellow rear armor plate across the horizontal firing axis through the central pivot. The existing upper stripe slopes / ; the new lower stripe must slope \\ so the pair are mirror-symmetric. Match stripe width, dark paint color, placement and interaction with the broad bevel shading. This is a missing paint-mark correction, NOT a redesign. Preserve every existing armor plate, grey connector, slot, orange muzzle, pivot, contour, shading, proportions, orientation, transparent margin and canvas placement. No new detail, no added rings, no text. Keep actual alpha transparency.",
+      "edit_note": "Mirrored hazard stripe restored on the second rear armor plate; moderate-detail design retained."
+    }
+  ],
+  "style_references": [
+    "1.6/Textures/Things/Building/SpaceWeapons/RapidTurret_Top.png",
+    "1.6/Textures/Things/Building/SpaceWeapons/LaserTurret_Top.png"
+  ]
+}

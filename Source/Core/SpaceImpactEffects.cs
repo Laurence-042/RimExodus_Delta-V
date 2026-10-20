@@ -21,7 +21,10 @@ namespace DeltaV
         ShieldDrain = 3,
 
         /// <summary>放置：侵入 shuttle 的后效——舱体 building 放置在撞击位内侧（段7）。</summary>
-        PlaceBody = 4
+        PlaceBody = 4,
+
+        CoupleMotion = 5,
+        Salvage = 6
     }
 
     /// <summary>从命中格起沿弹道前进一格的结构毁伤；伤害倍率与横向半宽分别配置。</summary>
@@ -80,6 +83,14 @@ namespace DeltaV
 
         /// <summary>跳弹所需最小入射角（度；入射角 ≥ 此值且耐久达标 → 消灭无伤）。</summary>
         public float ricochetMinIncidenceDeg = 60f;
+
+        /// <summary>耦合每脉冲趋同量及冲量上限；不是对宇宙绝对速度施加阻力。</summary>
+        public float couplingFraction = 0.15f;
+        public float maxCouplingImpulse = 400f;
+        public float maxCouplingAngularImpulse = 4000f;
+
+        /// <summary>采矿光束矿物回收率；人造建筑与基架沿用原版拆除产出。</summary>
+        public float miningYieldFactor = 0.5f;
     }
 
     /// <summary>
@@ -100,6 +111,9 @@ namespace DeltaV
 
         /// <summary>弹体遇到无建筑遮盖的基架格时发生碰撞的概率。</summary>
         public float substructureHitChance = DefaultSubstructureHitChance;
+
+        /// <summary>负数沿用建筑掩体；工程束可显式指定结构命中概率。</summary>
+        public float buildingHitChance = -1f;
 
         /// <summary>匹配的守方 building def（空 = 该弹体的任意目标兜底）。</summary>
         public List<ThingDef> targetThingDefs;
@@ -124,6 +138,16 @@ namespace DeltaV
             foreach (string error in base.ConfigErrors()) yield return error;
             if (targetsSubstructure && (substructureHitChance < 0f || substructureHitChance > 1f))
                 yield return $"{defName}: substructureHitChance must be between 0 and 1";
+            if (buildingHitChance != -1f && (buildingHitChance < 0f || buildingHitChance > 1f))
+                yield return $"{defName}: buildingHitChance must be -1 or between 0 and 1";
+            if (defenderEffect?.kind == ImpactEffectKind.CoupleMotion
+                && (defenderEffect.couplingFraction <= 0f || defenderEffect.couplingFraction > 1f
+                    || defenderEffect.maxCouplingImpulse < 0f || defenderEffect.maxCouplingAngularImpulse < 0f))
+                yield return $"{defName}: invalid coupling strength or impulse limits";
+            if (defenderEffect?.kind == ImpactEffectKind.Salvage
+                && (defenderEffect.damage <= 0f || defenderEffect.miningYieldFactor < 0f
+                    || defenderEffect.miningYieldFactor > 1f))
+                yield return $"{defName}: invalid cutting amount or mining yield";
             if (defenderEffect?.kind == ImpactEffectKind.DamageMap
                 && defenderEffect.substructureBreakThreshold <= 0f)
                 yield return $"{defName}: substructureBreakThreshold must be positive";
@@ -143,7 +167,7 @@ namespace DeltaV
     /// 攻方的 DestroySelf / PlaceBody 等后效由碰撞核心经 SweptBody 回调执行
     ///（服务闭包），注册表保持纯函数式。
     /// </summary>
-    public static class SpaceImpactEffects
+    public static partial class SpaceImpactEffects
     {
         /// <summary>跳帮后效的保证破口；只移除两排三格内的建筑，不触及基架。</summary>
         public static void BreachBoardingCorridor(Map map, IntVec3 nose, Rot4 facing, Thing launcher)
@@ -221,6 +245,8 @@ namespace DeltaV
                     ?? SpaceImpactEffectDef.DefaultSubstructureHitChance));
             if (kind != SpaceCellKind.Substructure && building != null)
             {
+                if (effect?.buildingHitChance >= 0f)
+                    return Rand.Chance(effect.buildingHitChance);
                 if (GuaranteedMissileHit(projectileDef, building.def)) return true;
                 if (building.def.IsWall) return true;
                 float chance = SpaceStructureRules.BuildingHitChance(building);
@@ -265,6 +291,21 @@ namespace DeltaV
         {
             if (part == null || evt.defender?.map == null) return 0f;
             Map map = evt.defender.map;
+
+            if (part.kind == ImpactEffectKind.CoupleMotion)
+            {
+                if (evt.damageScale > 0f && evt.launcher?.Spawned == true)
+                    Current.Game?.GetComponent<UniverseManager>()?.FrameOf(evt.launcher.Map)
+                        ?.CoupleMotionWith(evt.defender, evt.hitUniverse, part.couplingFraction,
+                            part.maxCouplingImpulse * evt.damageScale,
+                            part.maxCouplingAngularImpulse * evt.damageScale);
+                return 0f;
+            }
+            if (part.kind == ImpactEffectKind.Salvage)
+            {
+                Salvage(evt, part);
+                return 0f;
+            }
 
             if (part.kind == ImpactEffectKind.ShieldDrain)
             {

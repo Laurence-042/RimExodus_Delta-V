@@ -14,7 +14,7 @@ namespace DeltaV
     /// - 推进器 = LargeThruster（Odyssey 逆重推进器）：占用矩形中心为作用点，Rot4 朝向为推力方向；
 /// - 分配器把每台推进器对 Fx/Fz/力矩的贡献放入同一个盒约束最小二乘问题；
 ///   纯平移优先保持零净力矩，必要时会差动同向推进器或调用正交方向的力偶；
-/// - 所有力源（驾驶输入、自动驾驶、未来舰船 AI）都必须经 ForceToCommand 归一化
+/// - 推进器力源（驾驶输入、自动驾驶、舰船 AI）都必须经 ForceToCommand 归一化
 ///   后走同一分配器求解油门与可达力，禁止绕过分配器直接合成力——机动因此始终
 ///   受推进器布局约束，火焰表现层也只认分配器写出的真实油门；
     /// - 飞行辅助（含按住刹车键临时启用）在 PilotController 合成反向指令，走同一分配器；
@@ -28,7 +28,7 @@ namespace DeltaV
     ///
     /// 质量报告是可重建缓存：按 tick 间隔重扫，读档/场景重置时清空（不变量 #13）。
     /// </summary>
-    public static class ShipPhysics
+    public static partial class ShipPhysics
     {
         // ---- 阶段2 常量（数值调参记录进文档；物理细节按 story「原型完成后再设计」演进）----
 

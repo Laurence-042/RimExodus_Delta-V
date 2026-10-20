@@ -120,11 +120,22 @@ namespace DeltaV
         /// 自动驾驶相对速度/宿主前馈、对接完成的宿主速度继承共用本入口，不得各写一份
         /// 基变换点乘（2026-09-21 去重收口，不变量 #21）。</summary>
         public static Vector2 TransportVelocity(SpacePose pose, Vector3 frameDirection)
+            => TransportTangent(pose.velocity, pose.position, frameDirection);
+
+        /// <summary>速度、冲量等切向量共用同一换基，调用方不得自行重建球面基。</summary>
+        public static Vector2 TransportTangent(Vector2 vector, Vector3 sourceDirection, Vector3 frameDirection)
         {
-            OrbitSphere.Basis(pose.position, out Vector3 east, out Vector3 north);
-            Vector3 world = east * pose.velocity.x + north * pose.velocity.y;
+            OrbitSphere.Basis(sourceDirection, out Vector3 east, out Vector3 north);
+            Vector3 world = east * vector.x + north * vector.y;
             OrbitSphere.Basis(frameDirection, out east, out north);
             return new Vector2(Vector3.Dot(world, east), Vector3.Dot(world, north));
+        }
+
+        /// <summary>从质心到共同作用点的力臂，表达在该作用点的切空间。</summary>
+        public static Vector2 MomentArmAt(SpacePose pose, Vector2 comLocal, Vector3 point)
+        {
+            Vector3 center = ShipLocalToUniverse(pose, comLocal);
+            return -OrbitSphere.Offset(point, center);
         }
 
         /// <summary>

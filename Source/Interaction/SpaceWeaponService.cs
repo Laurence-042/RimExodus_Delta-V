@@ -145,7 +145,8 @@ namespace DeltaV
             float total = 0f;
             foreach (CompSpaceWeapon weapon in WeaponsOn(ship))
             {
-                if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
+                if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
+                    || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
                     || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out int skill)
                     || !SpaceWeaponShot.HasShotEnergy(weapon)) continue;
@@ -174,7 +175,8 @@ namespace DeltaV
             float total = 0f;
             foreach (CompSpaceWeapon weapon in WeaponsOn(ship))
             {
-                if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.PointDefense || !weapon.GroupActive
+                if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
+                    || weapon.aimMode != SpaceWeaponAimMode.PointDefense || !weapon.GroupActive
                     || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out _)
                     || !SpaceWeaponShot.HasShotEnergy(weapon)) continue;

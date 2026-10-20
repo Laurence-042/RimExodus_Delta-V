@@ -48,6 +48,18 @@ internal static partial class Program
             "two hostile ships in one container are separate automatic candidates");
         fire.Decide(hull.Vessel, own);
         Check(fire.Target.Ship == firstHull.Identity, "equal candidate scores use stable ship identity rather than member order");
+        weapon.WeaponProps.manualOnly = true;
+        weapon.cooldownUntilTick = Find.TickManager.TicksGame + 1000;
+        float beforeEngineeringAim = traverse.CurrentAngle;
+        fire.TickVolley(hull.Vessel, own, new ShipVolleyIntent(CombatTarget.ForShip(firstHull.Identity), true));
+        Check(traverse.CurrentAngle == beforeEngineeringAim,
+            "manual engineering emitter ignores automatic combat aiming and firing");
+        fire.TickVolley(hull.Vessel, own, new ShipVolleyIntent(opponent.pose.position, true, false));
+        Check(traverse.CurrentAngle != beforeEngineeringAim,
+            "manual engineering emitter still consumes the existing player volley command");
+        Check(universe.Weapons.EstimateFirepower(hull.Vessel, 60f, 10f) == 0f,
+            "engineering emitter does not count as NPC combat firepower");
+        weapon.WeaponProps.manualOnly = false;
         fire.Clear(); Set(typeof(Thing), first.parent, "hitPointsInt", 500000);
         fire.Decide(hull.Vessel, own);
         Check(fire.Target.Ship == secondHull.Identity,
@@ -81,6 +93,11 @@ internal static partial class Program
         weapon.aimMode = SpaceWeaponAimMode.PointDefense;
         weapon.cooldownUntilTick = Find.TickManager.TicksGame + 1000;
         universe.Weapons.NotifyWeaponModeChanged(weapon);
+        weapon.WeaponProps.manualOnly = true;
+        fire.TickPointDefense(hull.Vessel, own);
+        Check(((IDictionary)typeof(ShipFireControl).GetField("pointDefense", Private).GetValue(fire)).Count == 0,
+            "engineering emitter cannot acquire a point-defense lock");
+        weapon.WeaponProps.manualOnly = false;
         fire.TickPointDefense(hull.Vessel, own);
         IDictionary locks = (IDictionary)typeof(ShipFireControl).GetField("pointDefense", Private).GetValue(fire);
         CombatTarget Locked() => (CombatTarget)locks[weapon.parent.thingIDNumber].GetType()

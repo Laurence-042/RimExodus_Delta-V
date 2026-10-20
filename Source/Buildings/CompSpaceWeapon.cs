@@ -52,6 +52,9 @@ namespace DeltaV
         /// <summary>固定为自动点防御，不提供齐射模式。</summary>
         public bool pointDefenseOnly;
 
+        /// <summary>工程设备只消费玩家手动齐射，不参加自动攻击和点防。</summary>
+        public bool manualOnly;
+
         public SpaceWeaponSalvoSet defaultSalvoSet = SpaceWeaponSalvoSet.Main;
         public int defaultGroupNumber = 1;
 
@@ -125,14 +128,16 @@ namespace DeltaV
 
         public override IEnumerable<StatDrawEntry> SpecialDisplayStats(StatRequest req)
         {
+            bool continuous = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()?.continuousBeam == true;
             if (impactScale != 1f)
                 yield return SpaceCombatStats.Entry("DeltaV_StatImpactScale",
                     impactScale.ToString("0.##") + "×", 5110);
             if (shotEnergy > 0f)
-                yield return SpaceCombatStats.Entry("DeltaV_StatShotEnergy",
-                    SpaceCombatStats.WattDays(shotEnergy), 5100);
-            yield return SpaceCombatStats.Entry("DeltaV_StatCooldown",
-                SpaceCombatStats.Ticks(cooldownTicks), 5090);
+                yield return SpaceCombatStats.Entry(continuous ? "DeltaV_StatBeamEnergy" : "DeltaV_StatShotEnergy",
+                    SpaceCombatStats.WattDays(continuous ? shotEnergy * 60f : shotEnergy), 5100);
+            if (!continuous)
+                yield return SpaceCombatStats.Entry("DeltaV_StatCooldown",
+                    SpaceCombatStats.Ticks(cooldownTicks), 5090);
             yield return SpaceCombatStats.Entry("DeltaV_StatRange", range.ToString("0"), 5080);
             if (minRange > 0f)
                 yield return SpaceCombatStats.Entry("DeltaV_StatMinRange", minRange.ToString("0"), 5079);
@@ -144,6 +149,14 @@ namespace DeltaV
         public CompProperties_SpaceWeapon()
         {
             compClass = typeof(CompSpaceWeapon);
+        }
+
+        public override IEnumerable<string> ConfigErrors(ThingDef parentDef)
+        {
+            foreach (string error in base.ConfigErrors(parentDef)) yield return error;
+            if (projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()?.continuousBeam == true
+                && cooldownTicks != 1)
+                yield return $"{parentDef.defName}: continuous beams require cooldownTicks = 1";
         }
     }
 
@@ -457,7 +470,7 @@ namespace DeltaV
             yield return new Command_WeaponGroup(this);
 
             // 专用点防武器的模式由 Def 固定；其他武器仍可切换。
-            if (!WeaponProps.pointDefenseOnly) yield return new Command_Toggle
+            if (!WeaponProps.pointDefenseOnly && !WeaponProps.manualOnly) yield return new Command_Toggle
             {
                 defaultLabel = "DeltaV_WeaponPdgizmo".Translate(),
                 defaultDesc = "DeltaV_WeaponPdgizmoTip".Translate(),

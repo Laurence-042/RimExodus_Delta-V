@@ -133,6 +133,7 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
                 if (!WeaponBelongsHere(weapon, container) || !weapon.SpaceModeEnabled
+                    || weapon.WeaponProps.manualOnly && intent.fireAll
                     || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive) continue;
                 WeaponAimInfo info = SpaceWeaponService.AimInfo(weapon, container);
                 Vector3 aim = resolved.Pose.position;
@@ -172,6 +173,7 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
                 if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.PointDefense
+                    || weapon.WeaponProps.manualOnly
                     || !WeaponBelongsHere(weapon, container) || !weapon.GroupActive) continue;
                 WeaponAimInfo info = SpaceWeaponService.AimInfo(weapon, container);
                 pointDefense.TryGetValue(weapon.parent.thingIDNumber, out PdLock state);

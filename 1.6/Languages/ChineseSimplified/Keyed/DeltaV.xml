@@ -268,6 +268,7 @@
   <DeltaV_AttachmentEnabledTip>临时启用或停用此武器挂件；支持多选后一并切换。</DeltaV_AttachmentEnabledTip>
   <DeltaV_CapacitorStored>电容储能：{0}/{1} W·d</DeltaV_CapacitorStored>
   <DeltaV_StatShotEnergy>每发蓄电消耗</DeltaV_StatShotEnergy>
+  <DeltaV_StatBeamEnergy>持续照射每秒蓄电消耗</DeltaV_StatBeamEnergy>
   <DeltaV_StatImpactScale>命中效果倍率</DeltaV_StatImpactScale>
   <DeltaV_StatSegmentEnergy>每发加速耗电</DeltaV_StatSegmentEnergy>
   <DeltaV_StatCooldown>射击间隔</DeltaV_StatCooldown>

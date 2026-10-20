@@ -1,10 +1,11 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using Verse;
 
 namespace DeltaV
 {
-    public enum CombatVisualStyle { Kinetic, Heavy, Rail, Energy, Missile }
+    public enum CombatVisualStyle { Kinetic, Heavy, Rail, Energy, Missile, Coupling, Mining }
 
     /// <summary>
     /// 弹体数据 def（太空战架构 §5.1）：挂在弹体 building def 上的唯一参数源。
@@ -62,6 +63,12 @@ namespace DeltaV
         /// <summary>即时激光在前台层的线宽（地图格）。</summary>
         public float laserBeamWidth = 0.3f;
 
+        /// <summary>持续束每游戏 tick 经同一发射链结算；表现保持恒定，只显示当前 tick 的射线。</summary>
+        public bool continuousBeam;
+
+        /// <summary>跳过全部盾面，仍与实体结构碰撞。</summary>
+        public bool ignoresShields;
+
         /// <summary>此专用弹体对有图制导导弹跳过目标掩体命中概率。</summary>
         public bool guaranteedHitMissiles;
 
@@ -83,6 +90,13 @@ namespace DeltaV
         public CompProperties_SpaceProjectile()
         {
             compClass = typeof(CompSpaceProjectile);
+        }
+
+        public override IEnumerable<string> ConfigErrors(ThingDef parentDef)
+        {
+            foreach (string error in base.ConfigErrors(parentDef)) yield return error;
+            if (continuousBeam && (laserRange <= 0f || hasMap))
+                yield return $"{parentDef.defName}: continuous beams require a mapless laser";
         }
     }
 

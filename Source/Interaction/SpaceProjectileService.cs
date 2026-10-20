@@ -101,6 +101,7 @@ namespace DeltaV
             // 接管时从船体共同推进布局捕获，普通驾驶与侵入共用相同物理喷口。
             public readonly List<ExhaustPort> exhaustPorts = new List<ExhaustPort>();
             public Vector3 laserFrom;
+            public Vector2 continuousFromLocal, continuousToLocal;
             public Vector3 laserTo;
             /// <summary>发射伤害倍率乘剩余冲击比例；跨 tick 沿用。</summary>
             public float damageScale = 1f;
@@ -117,6 +118,13 @@ namespace DeltaV
             public float width;
             public int lifetimeTicks = BeamLifetimeTicks;
             public CombatVisualStyle style = CombatVisualStyle.Energy;
+            public Thing continuousLauncher;
+            public int sourceObjectId, sourceMapId;
+
+            public bool VisibleAt(int tick) => continuousLauncher == null
+                ? tick >= bornTick && tick - bornTick < lifetimeTicks
+                : tick == bornTick && continuousLauncher.Spawned && !continuousLauncher.Destroyed
+                    && continuousLauncher.Map.uniqueID == sourceMapId;
         }
 
         private sealed class TrailPuff
@@ -260,6 +268,11 @@ namespace DeltaV
                 // 速度取发射瞬间双方速度的攻方位（相对速度语义，§4.3）。
                 projectile.laserFrom = muzzle;
                 projectile.laserTo = OrbitSphere.Move(muzzle, dirTangent * props.laserRange);
+                if (props.continuousBeam && source?.map != null)
+                {
+                    projectile.continuousFromLocal = SpaceTransform.UniverseToMapPoint(source, source.map, muzzle);
+                    projectile.continuousToLocal = SpaceTransform.UniverseToMapPoint(source, source.map, projectile.laserTo);
+                }
                 created = new SpaceObject(universe.AllocateOwnerId(),
                     new SpacePose(muzzle, Mathf.Atan2(dirTangent.y, dirTangent.x)))
                 {
@@ -313,7 +326,7 @@ namespace DeltaV
             projectile.damageScale = launchSpec.damageScale;
             projectile.armorPenetrationScale = launchSpec.armorPenetrationScale;
             projectiles.Add(projectile);
-            if (DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
+            if (!props.continuousBeam && DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
                 $"{def.defName} launched from '{source?.label ?? "nowhere"}' " +
                 $"(speed {launchSpec.speed:F0}, {(props.hasMap ? "mapped" : "mapless")}" +
                 $"{(projectile.laser ? ", laser" : "")})");
@@ -380,6 +393,7 @@ namespace DeltaV
             if (container == null) return;
             muzzleFlashes.RemoveAll(f => f.anchor.objectId == container.objectId);
             impacts.RemoveAll(f => f.anchor.objectId == container.objectId);
+            beams.RemoveAll(b => b.continuousLauncher != null && b.sourceObjectId == container.objectId);
             foreach (Projectile flight in projectiles)
                 if (flight.target.Kind == CombatTargetKind.Container && flight.target.ObjectId == container.objectId
                     || flight.target.Kind == CombatTargetKind.Ship
@@ -579,6 +593,14 @@ namespace DeltaV
             {
                 Projectile p = projectiles[i];
                 if (p.dead) continue;
+                if (p.props.continuousBeam)
+                {
+                    if (p.launcher?.Spawned != true || p.sourceContainer?.map != p.launcher.Map)
+                    { DestroyProjectile(p, "emitter removed"); continue; }
+                    // 连续束使用积分后的炮口与安装方向，避免快船拖出一 tick 的旧起点。
+                    p.laserFrom = SpaceTransform.MapPointToUniverse(p.sourceContainer, p.launcher.Map, p.continuousFromLocal);
+                    p.laserTo = SpaceTransform.MapPointToUniverse(p.sourceContainer, p.launcher.Map, p.continuousToLocal);
+                }
                 bool hasTarget = ResolveTarget(p);
                 SpaceObject targetContainer = hasTarget ? universe.ObjectById(p.targetContainerId) : null;
                 // 解除接管会立即移出工作表；保留其余弹体的处理顺序，容器已消失也能收尾。
@@ -651,6 +673,7 @@ namespace DeltaV
                         AddBounded(beams, new Beam { from = from, to = hit,
                             bornTick = Find.TickManager.TicksGame,
                             width = captured.props.laserBeamWidth,
+                            style = captured.props.visualStyle,
                             lifetimeTicks = captured.props.guaranteedHitMissiles ? 7 : BeamLifetimeTicks }, 256);
                 };
                 body.onShieldShatter = delegate (Vector3 hit, SpaceObject defender,
@@ -687,11 +710,31 @@ namespace DeltaV
             {
                 if (!p.laser) continue;
                 Vector3 end = p.body.resolvedHit ? p.body.resolvedHitUniverse : p.body.to;
-                AddBounded(beams, new Beam { from = p.body.from, to = end,
-                    bornTick = Find.TickManager.TicksGame, width = p.props.laserBeamWidth,
-                    lifetimeTicks = p.props.guaranteedHitMissiles ? 7 : BeamLifetimeTicks }, 256);
+                RecordBeam(p, end);
                 if (!p.dead) DestroyProjectile(p, "laser spent");
             }
+        }
+
+        private void RecordBeam(Projectile p, Vector3 end)
+        {
+            Beam beam = p.props.continuousBeam
+                ? beams.Find(b => b.continuousLauncher == p.launcher && b.sourceObjectId == p.sourceContainer.objectId)
+                : null;
+            if (beam == null)
+            {
+                beam = new Beam();
+                AddBounded(beams, beam, 256);
+            }
+            beam.from = p.body.from;
+            beam.to = end;
+            beam.bornTick = Find.TickManager.TicksGame;
+            beam.width = p.props.laserBeamWidth;
+            beam.style = p.props.visualStyle;
+            beam.continuousLauncher = p.props.continuousBeam ? p.launcher : null;
+            beam.sourceObjectId = p.sourceContainer?.objectId ?? 0;
+            beam.sourceMapId = p.sourceContainer?.map?.uniqueID ?? -1;
+            // 留到下一 tick 供同一设备复用；VisibleAt 只允许本 tick 的连续束显示。
+            beam.lifetimeTicks = p.props.continuousBeam ? 2 : p.props.guaranteedHitMissiles ? 7 : BeamLifetimeTicks;
         }
 
         /// <summary>弹体脚印等效半径（1×1 ≈ 0.71、2×1 ≈ 1.12）。</summary>
@@ -709,7 +752,7 @@ namespace DeltaV
         private void DestroyProjectile(Projectile p, string reason)
         {
             if (p.dead) return;
-            if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
+            if (!p.props.continuousBeam && DeltaVLog.Enabled(DeltaVLogModule.Combat))
                 DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"{p.def?.defName} #{p.containerId} destroyed ({reason})");
             QueueProjectileCleanup(p, destroyContainer: true);
@@ -767,6 +810,7 @@ namespace DeltaV
             p.adoptedShuttle = false;
             p.dead = false;
             p.laser = false;
+            p.continuousFromLocal = p.continuousToLocal = default;
             p.phase = FlightPhase.ColdLaunch;
             p.coldLaunchEndsTick = p.motorStartedTick = 0;
             p.motorStartSpeed = p.cruiseSpeed = p.rcsTurnSign = 0f;
