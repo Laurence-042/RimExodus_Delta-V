@@ -47,16 +47,13 @@ namespace DeltaV
         public float incrementalMapGenBudgetMs = 8f;
 
         /// <summary>
-        /// 对接完成判据的保持时长（tick，2026-09-21 阶段4）：与预定落点位姿重合持续
-        /// 这么久才完成对接——防高速掠过误触发；自动驾驶收敛后天然满足。
+        /// 漂移同步就绪的保持时长（tick）：线速度、网格角度与角速度
+        /// 持续满足窗口后允许开始作业；不检查位置。
         /// </summary>
         public int dockingHoldTicks = 60;
+        public int worksiteMargin = 24;
 
-        /// <summary>对齐容差-位置（格）：与预定落点距离在此内（且角度在容差内）视为
-        /// 已对齐——幽灵船变色提示，保持 dockingHoldTicks 后完成对接。</summary>
-        public float dockingPositionWindow = 0.35f;
-
-        /// <summary>对齐容差-角度（度）：与预定落点朝向差在此内视为已对齐。</summary>
+        /// <summary>同步容差-角度（度）：与所选网格方向差在此内视为已对齐。</summary>
         public float dockingAngleWindowDeg = 1.15f;
 
         /// <summary>
@@ -157,7 +154,7 @@ namespace DeltaV
             Scribe_Values.Look(ref lifecycleScanIntervalTicks, "lifecycleScanIntervalTicks", 60);
             Scribe_Values.Look(ref incrementalMapGenBudgetMs, "incrementalMapGenBudgetMs", 8f);
             Scribe_Values.Look(ref dockingHoldTicks, "dockingHoldTicks", 60);
-            Scribe_Values.Look(ref dockingPositionWindow, "dockingPositionWindow", 0.35f);
+            Scribe_Values.Look(ref worksiteMargin, "worksiteMargin", 24);
             Scribe_Values.Look(ref dockingAngleWindowDeg, "dockingAngleWindowDeg", 1.15f);
             Scribe_Values.Look(ref dockingCancelDistance, "dockingCancelDistance", 250f);
             Scribe_Values.Look(ref passiveDrag, "passiveDrag", true);

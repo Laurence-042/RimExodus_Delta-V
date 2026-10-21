@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_EnterSoftDock.reportString>正在通过对接口。</DeltaV_EnterSoftDock.reportString>
+  <DeltaV_HaulSoftDock.reportString>正在通过对接口转移TargetA。</DeltaV_HaulSoftDock.reportString>
+  <DeltaV_HackSoftDock.reportString>正在骇入远端对接口。</DeltaV_HackSoftDock.reportString>
+</LanguageData>

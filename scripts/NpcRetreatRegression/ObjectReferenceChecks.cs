@@ -60,14 +60,23 @@ internal static partial class Program
             { muzzleMap = singleBuilding.HullCenter, launchMapAngle = 0f };
         Check((bool)Call(shot, "SafePathClear"),
             "hull safety checks allow a console-free intrinsic weapon without foundation ownership");
-        var landing = new LandingApproachController.DockingPlan(PilotTarget.Of(singleBuilding), container, map,
-            new IntVec3(2, 0, 2), Rot4.North, new Vector2(2, 2), 0.3f);
-        landing.TargetPose(out Vector3 landingDirection, out float landingAngle);
+        var landing = new LandingApproachController.DockingPlan(PilotTarget.Of(singleBuilding), container,
+            new IntVec3(1, 0, 1), new IntVec3(2, 0, 2), Rot4.North);
         Check(landing.Target.Identity == singleBuilding.Identity && landing.structureId == 0
-            && landing.PlanFootprint().SetEquals(singleBuilding.HullCells)
-            && Math.Abs(landingAngle - 0.3f) < 0.0001f
-            && OrbitSphere.ArcCells(landingDirection, SpaceTransform.MapPointToUniverse(container, map, new Vector2(2, 2))) < 0.01f,
-            "common docking plan uses shuttle identity, footprint and the single registered landing pose");
+            && landing.targetMap == map && landing.landingCell == new IntVec3(2, 0, 2),
+            "command-local placement retains shuttle identity and its sole integer landing root");
+        foreach (Rot4 rotation in Rot4.AllRotations)
+        {
+            var rebased = new LandingApproachController.DockingPlan(PilotTarget.Of(singleBuilding), container,
+                landing.sourceRoot, landing.landingCell, rotation);
+            foreach (IntVec3 capturedRoot in new[] { IntVec3.Zero, new IntVec3(-3, 0, 7), new IntVec3(4, 0, -2) })
+            {
+                IntVec3 cell = new IntVec3(8, 0, 9);
+                Check(rebased.landingCell + PrefabUtility.GetAdjustedLocalPosition(cell - rebased.sourceRoot, rotation)
+                    == rebased.PlacementRootFor(capturedRoot) + PrefabUtility.GetAdjustedLocalPosition(cell - capturedRoot, rotation),
+                    "whole-map EVA capture consumes the exact registered landing grid without re-rounding");
+            }
+        }
         singleBuilding.Combat.fireControlMode = ShipFireControlMode.Manual;
         singleBuilding.Combat.SetWeaponGroupMask(SpaceWeaponSalvoSet.Main, 4);
         Check(hull.Vessel.Combat.fireControlMode == ShipFireControlMode.Manual

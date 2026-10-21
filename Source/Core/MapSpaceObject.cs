@@ -61,6 +61,12 @@ namespace DeltaV
             get
             {
                 if (interior == null || interior.Disposed) yield break;
+                if (IsScattered)
+                {
+                    // The container owns this surface, independently of its Pawn/item contents.
+                    yield return new SpaceCollisionCell(IntVec3.Zero, SpaceCellKind.Cargo, null);
+                    yield break;
+                }
                 var covered = new HashSet<IntVec3>();
                 foreach (ShipBase ship in Ships)
                     foreach (SpaceCollisionCell cell in ship.CollisionCells)

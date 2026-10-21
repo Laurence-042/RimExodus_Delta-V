@@ -57,9 +57,7 @@ namespace DeltaV
                 if (source.map == null || source.map.Disposed || source.map != Find.CurrentMap
                     || universe.ObjectById(source.objectId) != source)
                     throw new InvalidOperationException("The source map changed before prefab replacement.");
-                // Keep the canvas size unless the new prefab needs more room.
-                IntVec3 size = new IntVec3(Mathf.Max(source.map.Size.x, prefab.size.x + PrefabPoolSizeMargin),
-                    1, Mathf.Max(source.map.Size.z, prefab.size.z + PrefabPoolSizeMargin));
+                IntVec3 size = ShipPocketMapFactory.CompactSize(MapPrefab.ContentBounds(prefab, Rot4.North).Size);
                 map = ShipPocketMapFactory.Generate(size, universe);
                 if (map == null) throw new InvalidOperationException("Replacement map generation returned null.");
                 replacement = new MapSpaceObject(universe.AllocateOwnerId(), map, source.pose)
@@ -75,7 +73,7 @@ namespace DeltaV
                 universe.RegisterObject(replacement);
                 int ownerId = universe.AllocateOwnerId();
                 universe.NoteStructureName(ownerId, prefab.name);
-                MapPrefab.Spawn(prefab, map, map.Center, faction, ownerId, Rot4.North, universe);
+                MapPrefab.Spawn(prefab, map, MapPrefab.CenteredPosition(prefab, map, Rot4.North), faction, ownerId, Rot4.North, universe, blankSpace: true);
                 ready = true;
             }
             catch (Exception ex)

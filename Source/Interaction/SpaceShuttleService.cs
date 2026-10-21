@@ -438,13 +438,13 @@ namespace DeltaV
                 SpaceImpactEffects.BreachBoardingCorridor(targetMap, entry, facing, hull);
                 if (!universe.ShipTransitions.CompleteTransferIntoHost(universe, shuttle,
                     gravship, capturedCells, includeTerrain, targetMap, landingRoot,
-                    placementRotation, 0, out Map transferredSource, impactLanding: true))
+                    placementRotation, 0, out Map transferredSource))
                 {
                     Log.Error("[DeltaV] Boarding breach completed but shared Gravship transfer failed.");
                     return;
                 }
                 var completion = new DockingCompletion(
-                    universe, shuttle.Vessel, targetMap, transferredSource, handoff, impactLanding: true);
+                    universe, shuttle.Vessel, targetMap, transferredSource, handoff);
                 completion.OnTransferedIntoHost();
                 universe.QueueFrameAction(completion.Finish);
             });

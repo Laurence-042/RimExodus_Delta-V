@@ -241,6 +241,9 @@ namespace DeltaV
     {
         // positionError = target - ship；relativeVelocity = ship - target。
         public Vector2 positionError;
+        // Disable position costs AND approach constraints; a zero position error alone
+        // still makes MPC brake and fly back to its predicted starting point.
+        public bool motionOnly;
         public Vector2 relativeVelocity;
         public float angleError;
         public float relativeAngularVelocity;
@@ -313,11 +316,11 @@ namespace DeltaV
             double desiredAlpha = 0.0;
 
             double distance = Math.Max(0.0, p.magnitude - request.approachReserveDistance);
-            if (safeAccel > 1e-6 && distance > 1e-6)
+            if (safeAccel > 1e-6 && (request.motionOnly || distance > 1e-6))
             {
                 Vector2 toward = -p.normalized;
                 double speedLimit = Math.Sqrt(2.0 * safeAccel * distance);
-                Vector2 targetVelocity = toward * (float)speedLimit;
+                Vector2 targetVelocity = request.motionOnly ? Vector2.zero : toward * (float)speedLimit;
                 Vector2 accel = (targetVelocity - v) / 0.5f;
                 if (accel.magnitude > safeAccel) accel = accel.normalized * (float)safeAccel;
                 desiredX = accel.x;
@@ -515,8 +518,8 @@ namespace DeltaV
             Array.Clear(a, 0, a.Length);
             Array.Clear(sensitivities, 0, sensitivities.Length);
 
-            state[0] = -request.positionError.x;
-            state[1] = -request.positionError.y;
+            state[0] = request.motionOnly ? 0.0 : -request.positionError.x;
+            state[1] = request.motionOnly ? 0.0 : -request.positionError.y;
             state[2] = request.relativeVelocity.x;
             state[3] = request.relativeVelocity.y;
             state[4] = -request.angleError;
@@ -560,6 +563,7 @@ namespace DeltaV
                 double weightScale = intervals[step];
                 for (int s = 0; s < StateCount; s++)
                 {
+                    if (request.motionOnly && s < 2) continue;
                     double target = s switch
                     {
                         0 => desiredPosition.x, 1 => desiredPosition.y,
@@ -573,7 +577,7 @@ namespace DeltaV
                 // v_close²/(2a) <= d 的保守分段线性内近似：凸平方函数在
                 // [vi,vi+1] 上的弦位于曲线上方，所有弦的上包络覆盖 [0,vMax]。
                 // 相比 sqrt 的切线外近似，这组线性约束不会放行刹不住的计划。
-                if (!combatTrajectory && distance > 0.05 && safeAccel > 1e-6)
+                if (!request.motionOnly && !combatTrajectory && distance > 0.05 && safeAccel > 1e-6)
                 {
                     double d0 = nx * state[0] + ny * state[1];
                     double v0 = -nx * state[2] - ny * state[3];
@@ -606,6 +610,7 @@ namespace DeltaV
                     out terminalAngle, out terminalOmega);
             for (int s = 0; s < StateCount; s++)
             {
+                if (request.motionOnly && s < 2) continue;
                 double terminalOffset = s switch
                 {
                     0 => -terminalPosition.x, 1 => -terminalPosition.y,
@@ -681,7 +686,7 @@ namespace DeltaV
                 return;
             }
             double speed = request.relativeVelocity.magnitude;
-            double distance = request.positionError.magnitude;
+            double distance = request.motionOnly ? 0.0 : request.positionError.magnitude;
             // 必须看到弱反推完成制动的时刻；用最强轴（常是侧推）估计会把制动段
             // 截在时域之外，尤其是正/反推不对称的船。
             double brake = Math.Max(0.0, request.brakingAcceleration);

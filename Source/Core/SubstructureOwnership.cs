@@ -65,8 +65,7 @@ namespace DeltaV
         private static bool IsSupportTerrain(TerrainDef terrain) =>
             terrain != null && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void;
 
-        [System.NonSerialized] private HashSet<IntVec3> pendingStampCells;
-        [System.NonSerialized] private int pendingStampOwner;
+        [System.NonSerialized] private Dictionary<IntVec3, int> pendingStamp;
 
         public SubstructureOwnership(Map map) : base(map)
         {
@@ -302,7 +301,7 @@ namespace DeltaV
         }
 
         // ---- 写入（本组件是基架归属的唯一权威类；外部写路径只走 SetPendingStamp /
-        // SetOwner / ResolveBuilt / ClaimAllSubstructure / MigrateUnassigned 这些语义
+        // SetOwner / ResolveBuilt / ClaimAllSubstructure 这些语义
         // 入口，逐格裸写 Assign 收窄为组件内部使用，owner ID 一律经
         // UniverseManager.AllocateOwnerId 单一计数器分配——2026-09-20 收拢） ----
 
@@ -534,41 +533,6 @@ namespace DeltaV
             return region;
         }
 
-        /// <summary>
-        /// 旧档自愈（AGENTS §15）：未指派基架格 → 地图默认归属（宿主 SpaceObject 的 ID；
-        /// 无宿主对象时分配新 ID）。返回迁移格数。
-        /// </summary>
-        public int MigrateUnassigned(int defaultOwner)
-        {
-            if (ownerGrid != null && !HasUnassignedSubstructure())
-            {
-                return 0;
-            }
-            int migrated = 0;
-            foreach (IntVec3 cell in CellsOnMap(map))
-            {
-                if (OwnerAt(cell) == Unassigned)
-                {
-                    Assign(cell, defaultOwner);
-                    migrated++;
-                }
-            }
-            return migrated;
-        }
-
-        /// <summary>是否存在未指派归属的基架格（读档迁移的快速探测）。</summary>
-        public bool HasUnassignedSubstructure()
-        {
-            foreach (IntVec3 cell in CellsOnMap(map))
-            {
-                if (OwnerAt(cell) == Unassigned)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
         // ---- 组件获取 ----
 
         /// <summary>获取或创建归属组件（写路径用）。</summary>
@@ -597,24 +561,21 @@ namespace DeltaV
 
         public void SetPendingStamp(IEnumerable<IntVec3> cells, int ownerId)
         {
-            pendingStampCells = new HashSet<IntVec3>(cells);
-            pendingStampOwner = ownerId;
+            pendingStamp = cells.Distinct().ToDictionary(cell => cell, cell => ownerId);
         }
+
+        internal void SetPendingStamp(Dictionary<IntVec3, int> owners) => pendingStamp = owners;
 
         /// <summary>该格是否命中待盖章（生成/降落管线优先于邻接规则）。</summary>
         public bool TryGetStamp(IntVec3 cell, out int ownerId)
         {
             ownerId = Unassigned;
-            return pendingStampOwner != Unassigned
-                && pendingStampCells != null
-                && pendingStampCells.Contains(cell)
-                && (ownerId = pendingStampOwner) != Unassigned;
+            return pendingStamp != null && pendingStamp.TryGetValue(cell, out ownerId);
         }
 
         public void ClearPendingStamp()
         {
-            pendingStampCells = null;
-            pendingStampOwner = Unassigned;
+            pendingStamp = null;
         }
     }
 }

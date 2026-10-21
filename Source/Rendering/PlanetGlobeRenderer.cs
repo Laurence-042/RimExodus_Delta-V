@@ -263,7 +263,7 @@ namespace DeltaV
                         texture = native.nativeParent.ExpandingIcon;
                         tint = native.nativeParent.ExpandingIconColor;
                     }
-                    float size = projection ? texture.width * pixelsPerCell : 18f;
+                    float size = projection ? texture.width * pixelsPerCell / ShipSilhouette.AnchoredPixelsPerCell : 18f;
                     float angle = projection
                         ? SilhouetteScreenAngle(pose.position, obj.pose.angle, right, up) : 0f;
                     var legendRect = new Rect(pos.x - size * 0.5f, pos.y - size * 0.5f, size, size);

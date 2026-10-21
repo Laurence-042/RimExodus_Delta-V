@@ -70,15 +70,13 @@ namespace DeltaV
         public readonly Building console, body;
         public readonly int ownerId;
         public readonly bool includeTerrain;
-        public readonly IntVec2? pocketSize;
         public ShipTransferSpec(Building console, Building body, int ownerId,
-            bool includeTerrain, IntVec2? pocketSize = null)
+            bool includeTerrain)
         {
             this.console = console;
             this.body = body;
             this.ownerId = ownerId;
             this.includeTerrain = includeTerrain;
-            this.pocketSize = pocketSize;
         }
     }
 
@@ -137,7 +135,8 @@ namespace DeltaV
         public override IEnumerable<IntVec3> HullCells => Anchor.OccupiedRect().Cells;
         public override Faction Faction => Anchor.Faction;
         public override string Label => Anchor.LabelCap;
-        public override ShipDerivedState State => CanDriveIn(Current.Game?.GetComponent<UniverseManager>()?.FrameOf(Map))
+        public override ShipDerivedState State => Current.Game?.GetComponent<UniverseManager>()?.FrameOf(Map)?.IsWorksite != true
+            && CanDriveIn(Current.Game?.GetComponent<UniverseManager>()?.FrameOf(Map))
             ? ShipDerivedState.FreeFlight : ShipDerivedState.Docked;
         public override ShipCombatState Combat => Hull.combat;
         public override bool CanDriveIn(SpaceObject container)
@@ -179,9 +178,9 @@ namespace DeltaV
             SpaceStructureRules.CollisionCells(Map, HullCells);
         public override SpaceObjectTag RolesIn(SpaceObject container) => SpaceObjectTag.Ship
             | (CanDriveIn(container) ? SpaceObjectTag.Shuttle : 0);
-        public override bool PrepareThrust(UniverseManager universe, bool playerInitiated) => true;
-        public override ShipTransferSpec Transfer => new ShipTransferSpec(null, Anchor as Building, 0, false,
-            new IntVec2(Anchor.def.Size.x + 8, Anchor.def.Size.z + 8));
+        public override bool PrepareThrust(UniverseManager universe, bool playerInitiated) =>
+            universe.FrameOf(Map)?.IsWorksite != true || universe.ShipTransitions.RequestShuttleSeparation(this, playerInitiated);
+        public override ShipTransferSpec Transfer => new ShipTransferSpec(null, Anchor as Building, 0, false);
         public override bool CanBoard => Hull.CanBoard;
         public override void NotifyLanded() =>
             SpaceShuttleService.StartLaunchCooldown(Hull.parent.TryGetComp<CompLaunchable>());

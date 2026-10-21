@@ -132,7 +132,7 @@ namespace DeltaV
             List<DriveSubject> structures = ShipRegistry.StructuresOnMap(map).ToList();
             bool hasStructure = TryGetSelectedStructure(map, out DriveSubject selectedStructure);
             TryGetSelectedShip(map, out ShipBase selected);
-            LandingApproachController.DockingPlan plan = universe.Approach.ActivePlan;
+            LandingApproachController.DriftSyncPlan plan = universe.Approach.ActivePlan;
             bool dockingPlan = plan != null && plan.Target.Identity == selected.Identity;
             bool hasShip = selected.IsValid;
             bool playerControlled = !hasShip || universe.Pilot.CanPlayerControl(selected);
@@ -189,6 +189,7 @@ namespace DeltaV
             {
                 statusLines.Add("DeltaV_DockPlanStatus".Translate(
                     plan.host.label, ((int)plan.Distance()).ToString()));
+                if (universe.Approach.Ready) statusLines.Add("DeltaV_SyncReady".Translate());
             }
 
             Text.Font = GameFont.Small;

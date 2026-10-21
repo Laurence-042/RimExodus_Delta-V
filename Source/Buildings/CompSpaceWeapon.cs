@@ -54,6 +54,7 @@ namespace DeltaV
 
         /// <summary>工程设备只消费玩家手动齐射，不参加自动攻击和点防。</summary>
         public bool manualOnly;
+        public bool tractor;
 
         public SpaceWeaponSalvoSet defaultSalvoSet = SpaceWeaponSalvoSet.Main;
         public int defaultGroupNumber = 1;
@@ -470,6 +471,18 @@ namespace DeltaV
             yield return new Command_WeaponGroup(this);
 
             // 专用点防武器的模式由 Def 固定；其他武器仍可切换。
+            if (WeaponProps.tractor) yield return new Command_Toggle
+            {
+                defaultLabel = "DeltaV_TractorAuto".Translate(),
+                defaultDesc = "DeltaV_TractorAutoDesc".Translate(),
+                icon = TexCommand.FireAtWill,
+                isActive = () => aimMode == SpaceWeaponAimMode.PointDefense,
+                toggleAction = () =>
+                {
+                    aimMode = aimMode == SpaceWeaponAimMode.PointDefense ? SpaceWeaponAimMode.Volley : SpaceWeaponAimMode.PointDefense;
+                    Universe.Weapons.NotifyWeaponModeChanged(this);
+                }
+            };
             if (!WeaponProps.pointDefenseOnly && !WeaponProps.manualOnly) yield return new Command_Toggle
             {
                 defaultLabel = "DeltaV_WeaponPdgizmo".Translate(),

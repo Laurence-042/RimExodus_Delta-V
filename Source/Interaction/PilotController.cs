@@ -140,8 +140,11 @@ internal readonly struct HeadingPanelAction
                 actions.Add(new PilotPanelAction("DeltaV_DockCancelButton".Translate(),
                     () => universe.Approach.CancelSelectionOrPlan(universe, "user")));
             else if (panelTarget.Vessel.State == ShipDerivedState.FreeFlight)
-                actions.Add(new PilotPanelAction("DeltaV_BeginDockingButton".Translate(),
-                    () => universe.ShipTransitions.BeginDocking(panelTarget)));
+                actions.Add(new PilotPanelAction("DeltaV_SyncButton".Translate(),
+                    () => universe.Worksites.SelectSyncTarget(panelTarget)));
+            if (panelTarget.Vessel.State == ShipDerivedState.FreeFlight)
+                actions.Add(new PilotPanelAction("DeltaV_StartEVA".Translate(),
+                    () => universe.Worksites.Start(panelTarget)));
 
         }
 

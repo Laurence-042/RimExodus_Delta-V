@@ -6,22 +6,13 @@ using Verse;
 
 namespace DeltaV
 {
-    /// <summary>
-    /// 战术降落接管（星区架构 §7；2026-09-24 解耦重构：完成路径 = 直接放置，不再重放
-    /// 原版 InitiateLanding——到达重放期的 mask/cutscene/pan/curtain 守卫全部退役）。
-    /// InitiateLanding Prefix 把 Delta-V 战术降落接到 LandingApproachController（进场
-    /// 自动驾驶）；原版战略到达仍走原方法，foundation 冻结逻辑在此收口。
-    /// </summary>
+    /// <summary>原版战略到达的基架捕获冻结；战术停靠直接走共同搬运链。</summary>
     [HarmonyPatch(typeof(WorldComponent_GravshipController), nameof(WorldComponent_GravshipController.InitiateLanding))]
     public static class Patch_GravshipController_InitiateLanding_LandingApproach
     {
         public static bool Prefix(Gravship gravship, Map map, IntVec3 landingPos, Rot4 landingRot)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (universe?.Approach.TryConsume(universe, gravship, map, landingPos, landingRot) == true)
-            {
-                return false;
-            }
             FreezeLandingCaptureScope(universe, gravship, map, landingPos);
             return true;
         }
@@ -97,15 +88,7 @@ namespace DeltaV
         }
     }
 
-    /// <summary>
-    /// Delta-V 运行时流程禁存档门禁（2026-09-22 用户决策修订；2026-09-24 解耦重构：
-    /// 到达重放窗口已退役）。仍禁存档的窗口：
-    /// 选点阶段（原版会深序列化 marker.gravship 与控制器 landingMarker——空洞预览
-    /// Gravship 不具备落盘语义）、对接完成→收尾之间的源图处置窗口（转移中状态，
-    /// 毫秒级）。在飞 shuttle 是可序列化 SpaceObject + 原版 CompTransporter，飞行期
-    /// 可正常存档；侵入/对接任务不落盘，读档后按已保存速度漂移。
-    /// 计划飞行阶段可正常存档（计划与自动驾驶任务均为实例运行时数据、不落盘）。
-    /// </summary>
+    /// <summary>仅搬运至源图收尾窗口禁存档；同步任务不落盘，飞行期间允许保存。</summary>
     [HarmonyPatch(typeof(GameDataSaveLoader), nameof(GameDataSaveLoader.SavingIsTemporarilyDisabled), MethodType.Getter)]
     public static class Patch_SavingIsTemporarilyDisabled_DeltaVRuntime
     {
@@ -113,12 +96,7 @@ namespace DeltaV
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe == null) return;
-            // 选点阶段 = PendingTarget 已置位但计划尚未发布（发布后 PendingTarget 保留到
-            // 完成转移，由 AnyActive 区分选点与计划两段）。
-            bool siteSelection = universe.ShipTransitions.HasPendingDocking
-                && !universe.Approach.AnyActive;
-            bool transferPending = universe.ShipTransitions.HasLandedTargetAwaitingCleanup;
-            if (siteSelection || transferPending)
+            if (universe.ShipTransitions.HasLandedTargetAwaitingCleanup)
             {
                 __result = true;
             }

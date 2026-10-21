@@ -128,7 +128,7 @@ namespace DeltaV
             });
         }
 
-        /// <summary>单四边形杂项命令（对接幽灵船提示等，DockingGhostRenderer 调用）：
+        /// <summary>单四边形杂项命令：
         /// 独占整条命令表——不经整壳收集，直接装载一条后由调用方 Emit 到目标层槽位。</summary>
         internal static void CollectSingleQuad(Mesh mesh, Matrix4x4 matrix, Material material)
         {
@@ -332,6 +332,8 @@ namespace DeltaV
         /// </summary>
         private static bool ShouldDrawThing(Thing thing)
         {
+            if (thing?.Spawned == true && !thing.Destroyed && SpaceScatterService.IsCargo(thing)
+                && Current.Game?.GetComponent<UniverseManager>()?.FrameOf(thing.Map)?.IsScattered == true) return true;
             if (thing == null || thing.Destroyed || !thing.Spawned || thing is Pawn || thing is Projectile
                 || thing is Mote || thing.def.category == ThingCategory.Filth
                 || thing.def.category == ThingCategory.Gas || thing.def.category == ThingCategory.Mote) return false;

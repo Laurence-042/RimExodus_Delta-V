@@ -22,12 +22,19 @@ namespace DeltaV
 
         public static Rot4 Rot4FromAngle(float angle)
         {
-            Vector2 dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
-            if (dir.x > 0.5f) return Rot4.East;
-            if (dir.x < -0.5f) return Rot4.West;
-            if (dir.y > 0.5f) return Rot4.North;
-            return Rot4.South;
+            // Same nearest-quarter rule for docking previews and impact placement.
+            // Midpoints use the existing Mathf.Round tie-to-even rule.
+            int quarter = Mathf.RoundToInt(angle / (Mathf.PI * 0.5f));
+            switch ((quarter % 4 + 4) % 4)
+            {
+                case 0: return Rot4.East;
+                case 1: return Rot4.North;
+                case 2: return Rot4.West;
+                default: return Rot4.South;
+            }
         }
+
+        public static float SnapAngle(float angle) => AngleFromRot4(Rot4FromAngle(angle));
 
         /// <summary>
         /// 求原版 Gravship.Rotation，使指定源朝向经原版 PositionData 旋转后成为目标朝向。

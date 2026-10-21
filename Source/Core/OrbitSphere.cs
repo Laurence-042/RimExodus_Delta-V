@@ -30,6 +30,23 @@ namespace DeltaV
     /// </summary>
     public static class OrbitSphere
     {
+        // The sole stored direction of SpacePose. Vector3 is a computed Unity/API view,
+        // never a second position or a residual-displacement accumulator.
+        internal struct Direction
+        {
+            internal double x, y, z;
+            internal Direction(double x, double y, double z) { this.x = x; this.y = y; this.z = z; }
+            internal Direction(Vector3 v) : this(v.x, v.y, v.z) { }
+            internal Vector3 Vector => new Vector3((float)x, (float)y, (float)z);
+            internal double LengthSquared => Dot(this, this);
+            internal Direction Normalized => LengthSquared > 0d ? this * (1d / Math.Sqrt(LengthSquared)) : this;
+            internal static double Dot(Direction a, Direction b) => a.x * b.x + a.y * b.y + a.z * b.z;
+            internal static Direction Cross(Direction a, Direction b)
+                => new Direction(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+            public static Direction operator +(Direction a, Direction b) => new Direction(a.x + b.x, a.y + b.y, a.z + b.z);
+            public static Direction operator -(Direction a, Direction b) => new Direction(a.x - b.x, a.y - b.y, a.z - b.z);
+            public static Direction operator *(Direction a, double scale) => new Direction(a.x * scale, a.y * scale, a.z * scale);
+        }
         /// <summary>CellsPerTile 设置项的默认值（星区架构 §8：跨一个 worldtile 约 2 分钟）。</summary>
         public const float DefaultCellsPerTile = 20000f;
 
@@ -137,37 +154,43 @@ namespace DeltaV
         /// </summary>
         public static void Basis(Vector3 dir, out Vector3 east, out Vector3 north)
         {
-            Vector3 up = dir.normalized;
-            Vector3 northRef = Vector3.up;
-            north = northRef - up * Vector3.Dot(northRef, up);
-            if (north.sqrMagnitude < 1e-6f)
+            Basis(new Direction(dir), out Direction e, out Direction n);
+            east = e.Vector; north = n.Vector;
+        }
+
+        private static void Basis(Direction dir, out Direction east, out Direction north)
+        {
+            Direction up = dir.Normalized;
+            Direction northRef = new Direction(0d, 1d, 0d);
+            north = northRef - up * Direction.Dot(northRef, up);
+            if (north.LengthSquared < 1e-6d)
             {
-                north = Vector3.forward - up * Vector3.Dot(Vector3.forward, up);
+                northRef = new Direction(0d, 0d, 1d);
+                north = northRef - up * Direction.Dot(northRef, up);
             }
-            north.Normalize();
-            east = Vector3.Cross(up, north) * EastSign;
+            north = north.Normalized;
+            east = Direction.Cross(up, north) * EastSign;
         }
 
         /// <summary>
         /// 从 fromDir 沿切空间偏移（格）移动后的新方向（Rodrigues 精确旋转，全程单位长度）。
         /// </summary>
         public static Vector3 Move(Vector3 fromDir, Vector2 tangentCells)
+            => Move(new Direction(fromDir), tangentCells).Vector;
+
+        internal static Direction Move(Direction fromDir, Vector2 tangentCells)
         {
-            if (!Valid || tangentCells.sqrMagnitude < 1e-12f)
+            if (!Valid || tangentCells.x == 0f && tangentCells.y == 0f)
             {
-                return fromDir.normalized;
+                return fromDir.Normalized;
             }
-            Basis(fromDir, out Vector3 east, out Vector3 north);
-            Vector3 tangent = (east * tangentCells.x + north * tangentCells.y) * WorldPerCell;
-            float angle = tangent.magnitude / Radius;
-            Vector3 axis = Vector3.Cross(fromDir, tangent);
-            if (axis.sqrMagnitude < 1e-12f)
-            {
-                return fromDir.normalized;
-            }
-            axis.Normalize();
-            // k·v = 0（axis ⊥ fromDir），Rodrigues 简化式。
-            return (fromDir * Mathf.Cos(angle) + Vector3.Cross(axis, fromDir) * Mathf.Sin(angle)).normalized;
+            Basis(fromDir, out Direction east, out Direction north);
+            double distance = Math.Sqrt((double)tangentCells.x * tangentCells.x + (double)tangentCells.y * tangentCells.y);
+            // Normalize the cell-space direction before scaling. Unity's normalization
+            // epsilon must never turn a short world-space displacement into a speed gate.
+            Direction tangent = east * (tangentCells.x / distance) + north * (tangentCells.y / distance);
+            double angle = distance / CellsPerRadian;
+            return (fromDir.Normalized * Math.Cos(angle) + tangent * Math.Sin(angle)).Normalized;
         }
 
         /// <summary>
@@ -177,32 +200,40 @@ namespace DeltaV
         /// 对跖点没有唯一的最短方向，返回零偏移（调用方不得用它表示跨半球地图点）。
         /// </summary>
         public static Vector2 Offset(Vector3 fromDir, Vector3 toDir)
+            => Offset(new Direction(fromDir), new Direction(toDir));
+
+        internal static Vector2 Offset(Direction fromDir, Direction toDir)
         {
             if (!Valid)
             {
                 return Vector2.zero;
             }
-            Vector3 from = fromDir.normalized;
-            Vector3 to = toDir.normalized;
-            Basis(from, out Vector3 east, out Vector3 north);
-            Vector2 tangent = new Vector2(Vector3.Dot(to, east), Vector3.Dot(to, north));
-            float tangentLength = tangent.magnitude;
-            float radial = Mathf.Clamp(Vector3.Dot(from, to), -1f, 1f);
-            if (tangentLength == 0f || (radial < 0f && tangentLength < 1e-7f))
+            Direction from = fromDir.Normalized, to = toDir.Normalized;
+            Basis(from, out Direction east, out Direction north);
+            double x = Direction.Dot(to - from, east), y = Direction.Dot(to - from, north);
+            double tangentLength = Math.Sqrt(x * x + y * y);
+            double radial = Math.Max(-1d, Math.Min(1d, Direction.Dot(from, to)));
+            if (tangentLength == 0d || (radial < 0d && tangentLength < 1e-12d))
                 return Vector2.zero;
-            float arc = Mathf.Atan2(tangentLength, radial) * CellsPerRadian;
-            return tangent * (arc / tangentLength);
+            double scale = Math.Atan2(tangentLength, radial) * CellsPerRadian / tangentLength;
+            return new Vector2((float)(x * scale), (float)(y * scale));
         }
 
         /// <summary>两方向间的球面弧距（格）。POI 生命周期等距离判定用。</summary>
         public static float ArcCells(Vector3 a, Vector3 b)
+            => ArcCells(new Direction(a), new Direction(b));
+
+        internal static float ArcCells(Direction a, Direction b)
         {
             if (!Valid)
             {
                 return 0f;
             }
-            float dot = Mathf.Clamp(Vector3.Dot(a.normalized, b.normalized), -1f, 1f);
-            return Mathf.Acos(dot) * CellsPerRadian;
+            Direction from = a.Normalized, to = b.Normalized;
+            double dot = Math.Max(-1d, Math.Min(1d, Direction.Dot(from, to)));
+            // acos(dot) loses small angles when the float dot rounds to 1. Use the
+            // sine component as Offset does, retaining sub-cell docking distances.
+            return (float)(Math.Atan2(Math.Sqrt(Direction.Cross(from, to).LengthSquared), dot) * CellsPerRadian);
         }
 
         /// <summary>世界相机球面点（MapParent.WorldCameraPosition 覆写的输出格式）。</summary>

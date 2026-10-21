@@ -22,16 +22,7 @@ namespace DeltaV
 
         // ---- 战术对接（移动 → 固定，合图）----
 
-        /// <summary>选点期唯一主体，船型适配只从同一个句柄读取。</summary>
-        internal PilotTarget PendingTarget { get; private set; }
-        internal bool HasPendingDocking => PendingTarget.Identity.key > 0 || pendingSelectionMarker != null;
         internal bool HasLandedTargetAwaitingCleanup => dockingCleanupMaps.Count > 0;
-
-        /// <summary>本流程创建的选点 marker（取消时直接销毁；shuttle 预览无主台，不能靠 PilotConsole 识别）。</summary>
-        internal GravshipLandingMarker pendingSelectionMarker;
-
-        /// <summary>发起对接时是否处于手操驾驶（取消选点时恢复驾驶位）。</summary>
-        internal bool pendingSelectionWasManual;
 
         /// <summary>已放入目标图、等待收尾（源口袋图删除）的对接完成窗口。</summary>
         private readonly HashSet<Map> dockingCleanupMaps = new HashSet<Map>();
@@ -65,20 +56,18 @@ namespace DeltaV
         /// 退出驾驶并提示，重试 = 重新进入驾驶再按推进键。
         /// </summary>
         internal readonly HashSet<int> pendingSeparationOwnerIds = new HashSet<int>();
+        private readonly HashSet<DriveSubject> pendingShuttleSeparations = new HashSet<DriveSubject>();
 
         internal void Reset()
         {
-            PendingTarget = PilotTarget.Invalid;
-            pendingSelectionMarker = null;
-            pendingSelectionWasManual = false;
             dockingCleanupMaps.Clear();
-            pendingLeftoverThingIds = null;
             pendingStrategicSourceMap = null;
             pendingStrategicSourceAddress = PlanetTile.Invalid;
             pendingStrategicSourcePose = null;
             pendingStrategicOwnPocket = null;
             preLaunchConfirmationChaining = false;
             pendingSeparationOwnerIds.Clear();
+            pendingShuttleSeparations.Clear();
             landingCaptureEngine = null;
             landingCaptureMap = null;
             landingCaptureCells = null;

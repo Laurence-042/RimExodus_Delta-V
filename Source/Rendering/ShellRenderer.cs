@@ -81,15 +81,7 @@ namespace DeltaV
                 anyForeground |= drew;
                 if (logBeat) AppendLayerObj("f" + i + "/" + ForegroundScratch.Count, ForegroundScratch[i], drew);
             }
-            // 对接幽灵船（预定落点提示）：计划期常显，随悬停壳之后走前台层——聚焦
-            // 自己船时提示在空间中可见，聚焦目标图时覆盖在落点上（不被聚焦图吞掉）。
             int nextSlot = ForegroundScratch.Count;
-            if (DockingGhostRenderer.TryEmit(universe, frame, current, foregroundLayer.At(nextSlot)))
-            {
-                anyForeground = true;
-                nextSlot++;
-                if (logBeat) LayerLogBuf.Append(" | ghost");
-            }
             // 在飞弹体 + 激光线段（太空战架构 §4.4：弹体 def 图形投影，同管线）。
             nextSlot = universe.Projectiles.TryEmitProjectiles(frame, current, foregroundLayer, nextSlot);
             // 瞄准标记（§6.3）：解算与「画不画」都在瞄准会话 controller 内，无会话

@@ -54,6 +54,29 @@ namespace DeltaV
         }
 
         private const int TexturePadding = 1;
+        internal const int AnchoredPixelsPerCell = 2;
+
+        // Two pixels per cell preserve half-cell anchors on odd-sized maps, including
+        // mixed odd/even dimensions. Rounding each cell to one pixel collapses neighbours.
+        internal static Color32[] AnchoredPixels(IEnumerable<IntVec3> cells, Vector2 anchor, out int side)
+        {
+            int reach = TexturePadding + 1;
+            foreach (IntVec3 cell in cells)
+                reach = Mathf.Max(reach, Mathf.CeilToInt(Mathf.Max(
+                    Mathf.Abs(cell.x + .5f - anchor.x), Mathf.Abs(cell.z + .5f - anchor.y))) + TexturePadding);
+            side = reach * 2 * AnchoredPixelsPerCell;
+            var pixels = new Color32[side * side];
+            Color32 opaque = new Color32(255, 255, 255, 255);
+            foreach (IntVec3 cell in cells)
+            {
+                int x = Mathf.RoundToInt((cell.x - anchor.x + reach) * AnchoredPixelsPerCell);
+                int y = Mathf.RoundToInt((cell.z - anchor.y + reach) * AnchoredPixelsPerCell);
+                for (int dx = 0; dx < AnchoredPixelsPerCell; dx++)
+                    for (int dy = 0; dy < AnchoredPixelsPerCell; dy++)
+                        pixels[x + dx + (y + dy) * side] = opaque;
+            }
+            return pixels;
+        }
 
         /// <summary>
         /// 按格子集合构建正方形剪影纹理。contentAnchor = null 时内容按包围盒居中
@@ -80,26 +103,7 @@ namespace DeltaV
             }
             if (contentAnchor.HasValue)
             {
-                float ax = contentAnchor.Value.x;
-                float az = contentAnchor.Value.y;
-                int reach = TexturePadding + 1;
-                foreach (IntVec3 cell in cells)
-                {
-                    reach = Mathf.Max(reach, Mathf.CeilToInt(
-                        Mathf.Max(Mathf.Abs(cell.x + 0.5f - ax), Mathf.Abs(cell.z + 0.5f - az))));
-                }
-                int anchoredSide = reach * 2;
-                var anchoredPixels = new Color32[anchoredSide * anchoredSide];
-                Color32 anchoredOpaque = new Color32(255, 255, 255, 255);
-                foreach (IntVec3 cell in cells)
-                {
-                    int x = Mathf.RoundToInt(cell.x - ax) + reach;
-                    int y = Mathf.RoundToInt(cell.z - az) + reach;
-                    if (x >= 0 && x < anchoredSide && y >= 0 && y < anchoredSide)
-                    {
-                        anchoredPixels[x + y * anchoredSide] = anchoredOpaque;
-                    }
-                }
+                Color32[] anchoredPixels = AnchoredPixels(cells, contentAnchor.Value, out int anchoredSide);
                 var anchoredTexture = new Texture2D(anchoredSide, anchoredSide, TextureFormat.RGBA32, false)
                 {
                     name = name,

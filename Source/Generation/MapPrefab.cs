@@ -16,6 +16,34 @@ namespace DeltaV
     /// </summary>
     public static class MapPrefab
     {
+        internal static CellRect ContentBounds(MapPrefabDocument doc, Rot4 rotation)
+        {
+            var cells = new HashSet<IntVec3>();
+            foreach (var entry in doc.foundations) cells.Add(PrefabUtility.GetAdjustedLocalPosition(entry.pos, rotation));
+            foreach (var entry in doc.roofs) cells.Add(PrefabUtility.GetAdjustedLocalPosition(entry.pos, rotation));
+            foreach (var terrain in doc.terrain)
+                if (terrain.def != TerrainDefOf.Space)
+                    foreach (CellRect rect in terrain.rects)
+                        foreach (IntVec3 cell in rect) cells.Add(PrefabUtility.GetAdjustedLocalPosition(cell, rotation));
+            foreach (var entry in doc.thingEntries)
+            {
+                IntVec3 cell = PrefabUtility.GetAdjustedThingLocalPosition(entry.def, rotation, entry.pos);
+                Rot4 facing = entry.def.rotatable
+                    ? rotation.Rotated(Rot4.GetRelativeRotation(Rot4.North, entry.rotation)) : entry.def.defaultPlacingRot;
+                foreach (IntVec3 occupied in GenAdj.OccupiedRect(cell, facing, entry.def.Size)) cells.Add(occupied);
+            }
+            if (cells.Count == 0) throw new InvalidDataException($"Prefab '{doc.name}' has no physical content.");
+            return CellRect.FromCellList(cells.ToList());
+        }
+
+        internal static IntVec3 CenteredPosition(MapPrefabDocument doc, Map map, Rot4 rotation)
+        {
+            CellRect bounds = ContentBounds(doc, rotation);
+            IntVec3 root = new IntVec3((map.Size.x - bounds.Width) / 2 - bounds.minX, 0,
+                (map.Size.z - bounds.Height) / 2 - bounds.minZ);
+            return root - PrefabUtility.GetRoot(IntVec3.Zero, doc.size, rotation);
+        }
+
         /// <summary>与 About.xml 的 packageId 保持一致，用于定位导出目录。</summary>
         private const string ModPackageId = "RimExodus.DeltaV.dev";
 
@@ -246,9 +274,9 @@ namespace DeltaV
         /// 时会自行认领连通域）。返回仍在地图上的 prefab thing（marker 产物不含）。
         /// </summary>
         public static List<Thing> Spawn(MapPrefabDocument doc, Map map, IntVec3 position, Faction faction,
-            int ownerId = 0, Rot4 rot = default, UniverseManager universe = null)
+            int ownerId = 0, Rot4 rot = default, UniverseManager universe = null, bool blankSpace = false)
         {
-            PrefabDef prefabDef = doc.BuildPrefabDef();
+            PrefabDef prefabDef = doc.BuildPrefabDef(omitSpace: blankSpace);
             // foundation/roof 与 SpawnPrefab 内部用同一 root 与旋转变换（显示锚 = 逻辑锚）。
             IntVec3 root = PrefabUtility.GetRoot(prefabDef, position, rot);
             Rot4 rotation = PrefabUtility.ValidateRotation(prefabDef, rot);

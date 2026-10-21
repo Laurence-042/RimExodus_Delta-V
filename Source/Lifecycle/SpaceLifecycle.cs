@@ -42,6 +42,7 @@ namespace DeltaV
 
         public bool IsDormant(Map map) => dormancy.IsDormant(map);
         public bool IsFrozen(Map map) => IsDormant(map) || IsUniverseHost(map)
+            || universe.MapPool.IsIdle(map)
             || universe.Generation?.IsGenerating(map) == true;
         public static bool IsUniverseHost(Map map) => map?.Parent is UniverseHostParent_DeltaV;
         public void Wake(Map map, string reason) => dormancy.Wake(map, reason);
@@ -111,6 +112,15 @@ namespace DeltaV
                 universe.UnregisterObject(container);
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"{container.label}: container's map was destroyed externally; object removed");
+                return;
+            }
+            if (container.IsScattered)
+            {
+                float scatteredDistance = MinPlayerDistance(container);
+                if (float.IsPositiveInfinity(scatteredDistance)) return;
+                if (scatteredDistance > deleteRadius) universe.Scatter.RetireLost(container);
+                else if (scatteredDistance > activeRadius) dormancy.Sleep(map, "distant scattered contents");
+                else dormancy.Wake(map, "nearby scattered contents");
                 return;
             }
             if (!HasMapSupport(container))
@@ -308,7 +318,7 @@ namespace DeltaV
                 {
                     MapPrefabDocument doc = MapPrefab.LoadRelative(poolPath);
                     Rot4 rotation = new Rot4(marker.seed & 3);
-                    MapPrefab.Spawn(doc, map, map.Center, marker.faction, containerId, rotation, universe);
+                    MapPrefab.Spawn(doc, map, MapPrefab.CenteredPosition(doc, map, rotation), marker.faction, containerId, rotation, universe, blankSpace: true);
                     DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                         $"{marker.label}: materialized from prefab pool '{poolPath}' (rot {rotation.AsInt})");
                 }
@@ -344,7 +354,6 @@ namespace DeltaV
         }
 
         /// <summary>无快照 marker 首次物化时的类型 prefab 池目标图边距（格）。</summary>
-        private const int PrefabPoolSizeMargin = 10;
 
         /// <summary>
         /// 无快照 marker 的类型 prefab 池路径（seed 确定性解析；与盖章同一算法，
@@ -369,8 +378,7 @@ namespace DeltaV
             try
             {
                 MapPrefabDocument doc = MapPrefab.LoadRelative(path);
-                size = new IntVec3(Mathf.Max(PoiMapSize, doc.size.x + PrefabPoolSizeMargin), 1,
-                    Mathf.Max(PoiMapSize, doc.size.z + PrefabPoolSizeMargin));
+                size = ShipPocketMapFactory.CompactSize(MapPrefab.ContentBounds(doc, new Rot4(marker.seed & 3)).Size);
                 return true;
             }
             catch (Exception ex)
@@ -416,6 +424,7 @@ namespace DeltaV
         /// </summary>
         internal void ArchiveContainer(SpaceObject container, Map map, bool force = false)
         {
+            if (container.IsScattered) { universe.Scatter.RetireLost(container); return; }
             int objectId = container.objectId, version = container.RepresentationVersion;
             universe.QueueFrameAction(delegate
             {
@@ -611,7 +620,8 @@ namespace DeltaV
                 if (map == excludeMap || IsUniverseHost(map)) continue;
                 // PoiState 走 NativeParent 原版语义；普通物化容器走 ArchiveContainer
                 //（marker 替换；有船/滞留 Pawn/MustStayActive 在帧上下文复核，删不掉的只休眠）。
-                if (obj is PoiState poi) TryPack(poi);
+                if (obj.IsScattered) universe.Scatter.RetireLost(obj, departing: true);
+                else if (obj is PoiState poi) TryPack(poi);
                 else ArchiveContainer(obj, map);
             }
         }

@@ -10,57 +10,18 @@ using Verse;
 
 namespace DeltaV
 {
-    /// <summary>
-    /// 自由飞行 / 停靠转换与结构拆分（解耦架构 §6–§9）。全部可变流程状态收进
-    /// <see cref="ShipFlightTransitionService"/>，由 UniverseManager 以实例持有；
-    /// 「读其他档残留旧流程」不可表示；方法一律经 universe 参数读写。
-    ///
-    /// 搬运链（无引擎，§15.2 核对结论）：GravshipInterop.CaptureDomain（按 cells 捕获）
-    /// → StripDomain（镜像移除段）→ 新口袋图 → PlaceIntoMap（原版放置收尾）。战术对接
-    /// 完成、脱离与断连拆分共用同一条链——不另造搬运算法，不走 InitiateTakeoff/
-    /// InitiateLanding 原版管线（那两条保留给战略发射与原版到达）。
-    ///
-    /// 对接（移动 → 固定，合图 §6）：A 的控制域整体落入目标 b 图；保留 A/B 各自归属、
-    /// 名称与驾驶台身份；源口袋图与源容器删除（非空源图按发起时已确认的残留清单处置，
-    /// 不在捕获中途询问）；完成后 A、B 进入对接状态（派生：同图多船），共享容器继续
-    /// 惯性运动（沿用 b 的运动状态，不新增合并冲量求解）。
-    ///
-    /// 分离（§7 脱离 + §8 拆分统一，2026-09-24 用户定案）：「将要出力的船与其余部分
-    /// 分离」是唯一语义，出力请求（<see cref="RequestThrust"/>）是唯一触发点——
-    /// 「脱离停靠」不再是独立命令/按钮，已停靠的船同样可进入驾驶，首次推进器出力即
-    /// 触发分离。方向按当前内容分派：自由飞行且域外内容均落在基架块上时，残留块
-    /// 逐块独立成残骸容器（船留原图）；已停靠或有无基架残留内容时，本船控制域
-    /// 搬入新口袋容器（宿主图与其余内容不动，
-    /// 位姿/速度 = 宿主刚体上该船体点的位姿，含自旋切向；收通道 = 分离事务的一部分，
-    /// 只收相关通道，通道 Pawn/物品原格留宿主图）。干净分离（无断片无滞留）立即执行
-    /// 不弹窗；有留置内容时玩家 controller 弹 forcePause 汇总确认（NPC 直接执行）；
-    /// 取消 = 撤销自动驾驶任务 + 退出驾驶并提示。执行时序：弹窗确认回调（暂停中）
-    /// 直接执行；立即执行与 NPC 路径排队到帧边界——手操路径的出力 gate 在容器积分
-    /// foreach 内被调用，分离会注册/注销容器对象，禁止循环内执行。
-    /// </summary>
+    /// <summary>唯一 Gravship 搬运链、真实出力前分离、原版战略发射适配与源图善后。</summary>
     internal sealed partial class ShipFlightTransitionService
     {
         private static readonly FieldInfo ControllerMapHasGravAnchor =
             AccessTools.Field(typeof(WorldComponent_GravshipController), "mapHasGravAnchor");
 
-        private static readonly FieldInfo ControllerGravship =
-            AccessTools.Field(typeof(WorldComponent_GravshipController), "gravship");
-
         private static readonly FieldInfo ControllerTakeoffTile =
             AccessTools.Field(typeof(WorldComponent_GravshipController), "takeoffTile");
 
-        /// <summary>
-        /// 原版 controller 的设计器缓存（moveDesignator）。原版只在 LandingEnded 复位它；
-        /// 战术对接不走 LandingEnded 链路，陈旧实例（readonly map 绑定上一张目标图）会跨
-        /// 对接存活——选点入口显式清空，任何后续使用（含原版世界视图降落确认 UI 的
-        /// 「移动飞船」按钮）都重新按当前 marker 绑定。见 §21 MoveDesignator 教训。
-        /// </summary>
-        private static readonly FieldInfo ControllerMoveDesignator =
-            AccessTools.Field(typeof(WorldComponent_GravshipController), "moveDesignator");
-
         public bool FreeFlightTransitionPending()
         {
-            return HasPendingDocking || HasLandedTargetAwaitingCleanup;
+            return HasLandedTargetAwaitingCleanup;
         }
 
         // ---- 原版到达画面/遮罩的冻结捕获范围（Patch_GravshipCaptureScope 消费）----
@@ -103,12 +64,6 @@ namespace DeltaV
             landingCaptureCells = null;
         }
 
-        public float SnapAngle(float angle)
-        {
-            float quarter = Mathf.PI * 0.5f;
-            return SpaceTransform.WrapAngle(Mathf.Round(angle / quarter) * quarter);
-        }
-
         // ---- 出力前分离（§7 脱离 + §8 拆分统一；挂点 = 仅有的两个 Allocate 调用方）----
 
         /// <summary>
@@ -129,8 +84,6 @@ namespace DeltaV
                 Messages.Message("DeltaV_PilotGravityRestricted".Translate(), MessageTypeDefOf.RejectInput, false);
                 return false;
             }
-            if (universe.Approach.FlowTarget.Identity == target.Identity
-                && universe.Approach.ActivePlan?.Target.Identity != target.Identity) return false;
             return target.Vessel.PrepareThrust(universe, playerInitiated);
         }
 
@@ -195,6 +148,40 @@ namespace DeltaV
             PresentSeparationPrompt(universe, ship, "DeltaV_UndockConfirmText",
                 BuildUndockSummary(sourceMap, channelLeftovers, fragments));
             return false; // 本 tick 不施加该次推进器动量；分离后的下一次请求再出力。
+        }
+
+        internal bool RequestShuttleSeparation(ShuttleShip ship, bool playerInitiated)
+        {
+            DriveSubject identity = ship.Identity;
+            if (!pendingShuttleSeparations.Add(identity)) return false;
+            Map source = ship.Map;
+            SpaceObject frame = universe.FrameOf(source);
+            int version = frame.RepresentationVersion;
+            void Execute()
+            {
+                pendingShuttleSeparations.Remove(identity);
+                ShipBase current = ShipRegistry.ShipByIdentity(identity);
+                if (!current.IsValid || current.Map != source || frame.RepresentationVersion != version
+                    || universe.FrameOf(source) != frame) return;
+                TransferShipToPocket(universe, current, source, frame, new HashSet<IntVec3>(current.HullCells), current.Anchor.Rotation);
+            }
+            void Cancel()
+            {
+                pendingShuttleSeparations.Remove(identity);
+                universe.Autopilot.Cancel(identity);
+                if (universe.Pilot.PilotedTarget(universe).Identity == identity) universe.Pilot.Exit(universe);
+            }
+            var hull = new HashSet<IntVec3>(ship.HullCells);
+            var cargo = CollectUnclaimedCargo(source, hull);
+            if (playerInitiated && cargo.Count > 0)
+            {
+                string message = "DeltaV_UndockConfirmText".Translate(BuildLeftBehindSummary(source, cargo));
+                if (universe.Pilot.ActiveController != null)
+                    universe.Pilot.ActiveController.PresentSeparationConfirmation(PilotTarget.Of(ship), message, Execute, Cancel);
+                else Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(message, Execute, Cancel, destructive: true));
+            }
+            else universe.QueueFrameAction(Execute);
+            return false;
         }
 
         /// <summary>
@@ -367,52 +354,27 @@ namespace DeltaV
         private SpaceObject TransferDomainToNewPocket(UniverseManager universe, Map sourceMap,
             SpaceObject sourceFrame, HashSet<IntVec3> cells, Building mainConsole,
             bool wreckOwnership, int retainedOwnerId, Rot4 targetConsoleFacing,
-            Building bodyAnchor = null, IntVec2? pocketSize = null, bool includeTerrain = true,
+            Building bodyAnchor = null, bool includeTerrain = true,
             SplitFocus focus = null)
         {
             Building anchor = mainConsole ?? bodyAnchor;
             Faction faction = anchor?.Faction;
-            Gravship gravship = GravshipInterop.CaptureDomain(sourceMap, cells, mainConsole, faction,
-                includeTerrain);
+            Gravship preview = GravshipInterop.BuildPreview(cells, mainConsole, sourceMap, bodyAnchor);
+            if (preview == null) return null;
+            Rot4 rotation = anchor != null
+                ? ShipOrientation.PlacementRotation(anchor.Rotation, targetConsoleFacing) : Rot4.North;
+            preview.Rotation = rotation;
+            if (!ShipPocketMapFactory.TryGenerateForGravship(preview, universe, out Map pocketMap, out IntVec3 pocketRoot)) return null;
+            // Generation and geometry preflight precede the consuming CaptureDomain call.
+            Gravship gravship = GravshipInterop.CaptureDomain(sourceMap, cells, mainConsole, faction, includeTerrain);
             if (gravship == null)
             {
-                Log.Error("[DeltaV] Domain capture failed; transfer aborted.");
+                universe.Lifecycle.DestroyPocketMap(pocketMap);
                 return null;
             }
-            Vector2 hullCenter = SpaceTransform.BoundsCenterOfCells(cells);
-            float consoleAngle = anchor != null ? ShipOrientation.AngleFromRot4(anchor.Rotation) : 0f;
-            // 位姿/速度继承：宿主刚体上船体中心点的完整位姿（含 v+ω×r 与自旋切向）。
-            SpacePose launchPose = SpaceTransform.RigidPointPose(sourceFrame.pose,
-                SpaceTransform.MapToShipLocal(sourceMap, hullCenter), consoleAngle);
-            // 主台在口袋图规范到 targetConsoleFacing（图帧 = 聚焦图屏上方向）；容器角
-            // 反调 σ−τ：放置后主台朝向 = 容器角 ⊕ τ = θ+σ（源图主台轨道朝向），跨搬运
-            // 不变（τ=East 时与旧行为一致）。残片无主台，保持 North（σ=0 = 地图帧
-            // 对齐，与 launchPose 的 0 角一致）。
-            gravship.Rotation = anchor != null
-                ? ShipOrientation.PlacementRotation(anchor.Rotation, targetConsoleFacing) : Rot4.North;
-            if (anchor != null)
-            {
-                launchPose.angle = SpaceTransform.WrapAngle(launchPose.angle
-                    - ShipOrientation.AngleFromRot4(targetConsoleFacing));
-            }
-            // shuttle（§7.2「与船脱离同一套搬运核心」的舱体参数化）：口袋图按舱体脚印
-            // 小图（不走飞船 80 下限）；不搬基架（includeTerrain=false 已贯穿捕获/剥离）。
-            Map pocketMap;
-            IntVec3 pocketRoot;
-            if (pocketSize.HasValue)
-            {
-                pocketMap = ShipPocketMapFactory.Generate(
-                    new IntVec3(pocketSize.Value.x, 1, pocketSize.Value.z), universe);
-                pocketRoot = new IntVec3((pocketMap.Size.x - gravship.Bounds.Size.x) / 2, 0,
-                    (pocketMap.Size.z - gravship.Bounds.Size.z) / 2);
-            }
-            else if (!ShipPocketMapFactory.TryGenerateForGravship(gravship, universe,
-                out pocketMap, out pocketRoot))
-            {
-                Log.Error("[DeltaV] Failed to generate replacement pocket map; transfer aborted "
-                          + "(source untouched before placement).");
-                return null;
-            }
+            gravship.Rotation = rotation;
+            SpacePose launchPose = SpaceTransform.PoseAfterPlacement(sourceFrame.pose, sourceMap, gravship.originalPosition,
+                pocketMap, pocketRoot, rotation);
             int ownerId;
             if (wreckOwnership)
             {
@@ -456,512 +418,6 @@ namespace DeltaV
             SpaceObject frame = universe.FrameOf(ship.Map);
             return frame == null ? null : TransferShipToPocket(universe, ship, ship.Map, frame,
                 new HashSet<IntVec3>(ship.HullCells), hull.Rotation);
-        }
-
-        // ---- 战术对接（移动 → 固定，合图 §6）----
-
-        public void BeginDocking(Ship ship)
-        {
-            BeginDocking(PilotTarget.Of(ship));
-        }
-
-        /// <summary>shuttle 入口（面板/gizmo 同用；与船同一链，2026-09-27 单链化）。</summary>
-        public void BeginDockingShuttle(Building hull)
-        {
-            BeginDocking(PilotTarget.Of(hull));
-        }
-
-        /// <summary>
-        /// 对接唯一编排（船与 shuttle 同链，2026-09-27 用户定案「双入口同链」）：
-        /// 目标枚举 → 残留确认（shuttle 独占口袋图天然空集、走同一代码）→ 选点。
-        /// 脚印、预览锚与搬运差异均从 ShipBase 读取。
-        /// </summary>
-        public void BeginDocking(PilotTarget target)
-        {
-            if (DockingFlowBlocked(target)) return;
-            List<(SpaceObject target, float distance)> candidates = CollectLandableTargets(universe, target);
-            if (candidates.Count == 0)
-            {
-                // 深空固定被拒绝（星区架构 §7）：不再凭空生成空画布；目标尚未物化时
-                // 继续接近，进入 activation radius 加载后即可正常降落（软限制）。
-                Messages.Message("DeltaV_DockFailNoTarget".Translate(), MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            if (candidates.Count == 1)
-            {
-                BeginDockingTargeted(target, candidates[0].target);
-                return;
-            }
-            // 多目标投影重叠（拥挤环境）时按外壳间距排序交给玩家选择（2026-09-24）。
-            // 构建顺序即距离序：FloatMenu 构造器对同优先级稳定排序，保持插入序。
-            var options = new List<FloatMenuOption>(candidates.Count);
-            foreach ((SpaceObject dockTarget, float distance) in candidates)
-            {
-                int capturedId = dockTarget.objectId;
-                PilotTarget flowTarget = target;
-                string label = distance < float.MaxValue
-                    ? "DeltaV_DockTargetEntry".Translate(dockTarget.label, distance.ToString("0.#"))
-                    : dockTarget.label;
-                options.Add(new FloatMenuOption(label, delegate { BeginDockingTargeted(flowTarget, universe.ObjectById(capturedId)); }));
-            }
-            Find.WindowStack.Add(new FloatMenu(options, "DeltaV_DockTargetMenuTitle".Translate()));
-        }
-
-        /// <summary>菜单选择 / 单候选直入的公共入口：重跑门禁与目标资格后进入残留确认。</summary>
-        private void BeginDockingTargeted(PilotTarget flowTarget, SpaceObject target)
-        {
-            if (DockingFlowBlocked(flowTarget)) return;
-            // FloatMenu 不暂停：菜单打开期间对象可移动/失效，点击时按同一资格口径复核
-            //（自身排除同样用容器引用 + map 身份双条件）。
-            if (target == null || target.map == null || target.map.Disposed
-                || target == universe.FrameOf(flowTarget.Map) || target.map == flowTarget.Map
-                || !IsLandableObject(target)
-                || !ShipCenterInsideProjection(target, universe.FrameOf(flowTarget.Map).pose.position))
-            {
-                Messages.Message("DeltaV_DockFailNoTarget".Translate(), MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            // 源图残留处置的事前确认（§6 方案建议）：口袋图上控制域之外的断连结构 /
-            // Pawn / 物品将随源图处置——先列清单确认，不在消费式捕获中途询问。
-            var flowCells = new HashSet<IntVec3>(flowTarget.Vessel.HullCells);
-            // 残留确认同一段代码（shuttle 独占口袋图 → 天然空集，不弹窗）。
-            List<Thing> leftovers = CollectSourceLeftovers(flowTarget.Map, flowCells);
-            if (leftovers.Count > 0)
-            {
-                string summary = BuildLeftBehindSummary(flowTarget.Map, leftovers);
-                int targetId = target.objectId, version = target.RepresentationVersion;
-                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
-                    "DeltaV_DockSourceLeftoverConfirm".Translate(
-                        flowTarget.Label, summary),
-                    () => {
-                        SpaceObject current = universe.ObjectById(targetId);
-                        if (current?.RepresentationVersion == version)
-                            BeginDockingConfirmed(universe, flowTarget, current, leftovers);
-                    },
-                    null, destructive: true));
-                return;
-            }
-            BeginDockingConfirmed(universe, flowTarget, target, null);
-        }
-
-        /// <summary>
-        /// 对接发起门禁（船与 shuttle 同一门禁，2026-09-27 单链化）：目标有效且在飞、
-        /// 非流程互斥（选点/计划中不可再发起——对船同样生效）、宇宙层可用。
-        /// </summary>
-        private bool DockingFlowBlocked(PilotTarget target)
-        {
-            if (universe == null || !target.IsValid) return true;
-            SpaceObject container = universe.FrameOf(target.Map);
-            if (!target.Vessel.CanDriveIn(container) || target.Vessel.State != ShipDerivedState.FreeFlight
-                || container.projectileRoleOverride) return true;
-            if (universe.Approach.AnyActive
-                || Find.GravshipController == null || Find.GravshipController.LandingAreaConfirmationInProgress
-                || Find.GravshipController.IsGravshipTravelling || Current.Game.Gravship != null
-                || universe.ShipTransitions.HasPendingDocking)
-            {
-                Messages.Message("DeltaV_DockFailBusy".Translate(), MessageTypeDefOf.RejectInput, false);
-                return true;
-            }
-            if (!OrbitSphere.Valid)
-            {
-                Messages.Message("DeltaV_DockFailHostMap".Translate(), MessageTypeDefOf.RejectInput, false);
-                return true;
-            }
-            return false;
-        }
-
-        private void BeginDockingConfirmed(UniverseManager universe, PilotTarget flowTarget, SpaceObject target,
-            List<Thing> confirmedLeftovers)
-        {
-            pendingLeftoverThingIds = confirmedLeftovers?.Select(t => t.thingIDNumber).ToList();
-            pendingSelectionWasManual = universe.Pilot.GetControlState(flowTarget) == ShipControlState.Manual;
-            // 航向吸附（船 = 容器角 ⊕ 主台 σ；shuttle = 容器角 ⊕ 舱体 σ——同一公式经
-            // PilotTarget.FrameAngle）。
-            float snappedHeading = SnapAngle(SpaceTransform.WrapAngle(
-                universe.FrameOf(flowTarget.Map).pose.angle + flowTarget.FrameAngle));
-            // 目标确认日志（Core 模块，低频）：记录选点即将发生的图与承载对象，
-            // 与枚举/物化日志的 map#uniqueID 可直接关联。
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"docking confirmed: {flowTarget.Label} -> target #{target.objectId}({target.label}) {target.GetType().Name} "
-                + $"{UniverseManager.MapTag(target.map)}, holder #{universe.FrameOf(target.map)?.objectId}("
-                + $"{universe.FrameOf(target.map)?.label}), heading={snappedHeading * Mathf.Rad2Deg:F0} deg");
-            BeginOriginalLanding(universe, flowTarget, target, target.map, snappedHeading);
-        }
-
-        /// <summary>
-        /// 可降落目标枚举，按可见船壳距离升序返回（2026-09-24 修订：多目标投影重叠时
-        /// 交给玩家按距离选择；**自身容器显式排除**——旧单选实现漏排时自己恒以凸包
-        /// 包含距离 0 获胜，任何真实目标不可能被选中）。资格门槛：飞船中心在对象内部
-        /// 地图投影内（任何已物化对象——含移动中的有动力飞船；空白空画布不可固定）；
-        /// 距离 = 双方可渲染船壳（凸包）的最近距离，无船壳数据的目标记无穷大排尾。
-        /// </summary>
-        private List<(SpaceObject target, float distance)> CollectLandableTargets(
-            UniverseManager universe, Ship ship) => CollectLandableTargets(universe, PilotTarget.Of(ship));
-
-        private List<(SpaceObject target, float distance)> CollectLandableTargets(
-            UniverseManager universe, PilotTarget target)
-        {
-            var cells = new HashSet<IntVec3>(target.Vessel.HullCells);
-            return CollectLandableTargets(universe, target.Map, cells, target.Label, cells);
-        }
-
-        private List<(SpaceObject target, float distance)> CollectLandableTargets(
-            UniverseManager universe, Map ownMap, HashSet<IntVec3> ownCells, string ownLabel,
-            HashSet<IntVec3> distanceCells)
-        {
-            SpaceObject ownContainer = universe.FrameOf(ownMap);
-            var candidates = new List<(SpaceObject target, float distance)>();
-            // 目标枚举日志（Core 模块，按钮触发的低频事件）：只记录有图对象与排除
-            // 原因；无图 marker 跳过不记。图标识经 MapTag（uniqueID 与物化/性能
-            // 日志可直接关联）。
-            var verdicts = new List<string>();
-            foreach (SpaceObject obj in universe.objects)
-            {
-                if (obj is PoiState markerCheck && markerCheck.map == null) continue;
-                // 自身排除 = 容器引用 + map 身份双条件（2026-09-25 事故加固）：引用
-                // 相等在 FrameOf 取错对象/双持有时会漏（对接目标选成了自己的图）；
-                // map 相等无条件兜底——自己的图永远不可能是自己的降落目标。
-                if (obj == ownContainer || obj.map == ownMap)
-                {
-                    verdicts.Add($"#{obj.objectId}({obj.label}) OWN");
-                    continue;
-                }
-                if (obj.map == null || !IsLandableObject(obj))
-                {
-                    verdicts.Add($"#{obj.objectId}({obj.label}) not-landable");
-                    continue;
-                }
-                if (!ShipCenterInsideProjection(obj, ownContainer.pose.position))
-                {
-                    verdicts.Add($"#{obj.objectId}({obj.label}) {UniverseManager.MapTag(obj.map)} outside-projection");
-                    continue;
-                }
-                float distance = VisibleShellDistance(universe, ownMap, distanceCells, obj);
-                candidates.Add((obj, distance));
-                verdicts.Add($"#{obj.objectId}({obj.label}) {UniverseManager.MapTag(obj.map)} CANDIDATE dist={distance:0.#}");
-            }
-            candidates.Sort((a, b) => a.distance.CompareTo(b.distance));
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"docking target scan (own {ownLabel}, container #{ownContainer?.objectId} {UniverseManager.MapTag(ownMap)}): "
-                + $"{string.Join(" | ", verdicts)} => {candidates.Count} candidate(s)");
-            return candidates;
-        }
-
-        /// <summary>
-        /// 玩家船壳与目标可渲染船壳的最近距离（目标切空间系中计算；数据流与外壳渲染
-        /// 同源——船壳格列表 + 双方位姿，凸包后求距离）。船壳口径 = 各自图上全部基架
-        /// 格（多船图取整图凸包——容器承载全部成员），POI = 统一结构外观可见内容格。
-        /// </summary>
-        private float VisibleShellDistance(UniverseManager universe, Ship ship, SpaceObject target)
-        {
-            return VisibleShellDistance(universe, ship.map, ShipRegistry.ControlDomain(ship), target);
-        }
-
-        /// <summary>参数化版本（船控制域 / shuttle 舱体脚印同一实现，§7.4）。</summary>
-        private float VisibleShellDistance(UniverseManager universe, Map playerMap,
-            HashSet<IntVec3> playerCells, SpaceObject target)
-        {
-            Map targetMap = target.map;
-            if (playerMap == null || targetMap == null || targetMap.Disposed) return float.MaxValue;
-            SpaceObject playerFrame = universe.FrameOf(playerMap);
-            SpaceObject targetFrame = universe.FrameOf(targetMap);
-            if (playerFrame == null || targetFrame == null) return float.MaxValue;
-
-            var targetPoints = new List<Vector2>();
-            SubstructureOwnership targetOwnership = SubstructureOwnership.TryGet(targetMap);
-            if (targetOwnership != null && targetOwnership.HasAnySubstructure())
-            {
-                foreach (IntVec3 cell in SubstructureOwnership.CellsOnMap(targetMap))
-                {
-                    targetPoints.Add(SpaceTransform.MapToShipLocal(targetMap,
-                        new Vector2(cell.x + 0.5f, cell.z + 0.5f)));
-                }
-            }
-            else
-            {
-                foreach (IntVec3 cell in CellRect.WholeMap(targetMap))
-                {
-                    if (MapOverlayRenderer.ContainsVisibleContent(targetMap, cell))
-                    {
-                        targetPoints.Add(SpaceTransform.MapToShipLocal(targetMap,
-                            new Vector2(cell.x + 0.5f, cell.z + 0.5f)));
-                    }
-                }
-            }
-            if (targetPoints.Count == 0) return float.MaxValue;
-
-            var playerPoints = new List<Vector2>();
-            foreach (IntVec3 cell in playerCells)
-            {
-                Vector2 local = SpaceTransform.MapToShipLocal(playerMap,
-                    new Vector2(cell.x + 0.5f, cell.z + 0.5f));
-                playerPoints.Add(SpaceTransform.UniverseToFocused(targetFrame,
-                    SpaceTransform.ShipLocalToUniverse(playerFrame.pose, local)));
-            }
-            return PlanarGeometry.HullDistance(
-                PlanarGeometry.ConvexHull(playerPoints), PlanarGeometry.ConvexHull(targetPoints));
-        }
-
-        /// <summary>
-        /// 可对接目标资格（2026-09-21 阶段4 修订 + §5.2）：任何已物化对象均可——有动力
-        /// 飞船同样可对接；与无主台残骸对象合图后 A 仍自由飞行（残骸不构成对接）。
-        /// 空白空画布保留不可固定。
-        /// </summary>
-        private bool IsLandableObject(SpaceObject obj)
-        {
-            if (obj is PoiState poi && poi.nativeParent != null
-                && SpaceMapGovernance.IsBlankCanvasAnchor(poi.nativeParent)
-                && SpaceMapGovernance.IsBlankLandingCanvas(obj.map))
-            {
-                return false;
-            }
-            return true;
-        }
-
-        /// <summary>飞船中心（位姿锚 = 口袋图几何中心）是否落在对象内部地图投影范围内。</summary>
-        private bool ShipCenterInsideProjection(SpaceObject obj, Vector3 universeDir)
-        {
-            Map map = obj.map;
-            Vector2 p = SpaceTransform.UniverseToMapPoint(obj, map, universeDir);
-            return p.x >= 0f && p.x <= map.Size.x && p.y >= 0f && p.y <= map.Size.z;
-        }
-
-        private void BeginOriginalLanding(UniverseManager universe, Ship ship,
-            SpaceObject target, Map targetMap, float snappedHeading)
-        {
-            BeginOriginalLanding(universe, PilotTarget.Of(ship), target, targetMap, snappedHeading);
-        }
-
-        private void BeginOriginalLanding(UniverseManager universe, Building shuttleBody,
-            SpaceObject target, Map targetMap, float snappedHeading)
-        {
-            BeginOriginalLanding(universe, PilotTarget.Of(shuttleBody), target, targetMap, snappedHeading);
-        }
-
-        private void BeginOriginalLanding(UniverseManager universe, PilotTarget flowTarget,
-            SpaceObject target, Map targetMap, float snappedHeading)
-        {
-            PendingTarget = flowTarget;
-            // 选点零消费（2026-09-21 阶段4 定案）：预览用空洞 Gravship——只读填充原版
-            // 选点/合法性/禁触链路所需字段；真实搬运唯一发生在完成时刻（与移除同一
-            // 调用栈）——对接期间的建造/扩建全部随完成时捕获带走。
-            Gravship gravship = GravshipInterop.BuildPreview(flowTarget);
-            if (gravship == null)
-            {
-                universe.ShipTransitions.DiscardPendingDocking(universe);
-                Log.Error($"[DeltaV] Docking {flowTarget.Label}: preview gravship build failed; aborting.");
-                return;
-            }
-            BeginOriginalLandingCore(universe, flowTarget.Map, gravship,
-                flowTarget.Vessel.Anchor.Rotation,
-                target, targetMap, snappedHeading, flowTarget.Label);
-        }
-
-        private void BeginOriginalLandingCore(UniverseManager universe, Map ownMap, Gravship gravship,
-            Rot4 sourceFacing, SpaceObject target, Map targetMap,
-            float snappedHeading, string flowLabel)
-        {
-            // 选点发生在宿主图坐标系：初始建议朝向按宿主帧角换算（角 0 宿主上不变），
-            // 与玩家当前看到的船壳姿态一致。
-            SpaceObject landingHostFrame = universe.FrameOf(targetMap);
-            Rot4 desiredFacing = ShipOrientation.Rot4FromAngle(SpaceTransform.WrapAngle(
-                snappedHeading - (landingHostFrame != null ? landingHostFrame.pose.angle : 0f)));
-            gravship.Rotation = ShipOrientation.PlacementRotation(sourceFacing, desiredFacing);
-            // 口袋图目标（POI/飞船内部）没有 tile：以船位姿所在星区为地址，保证选点
-            // 期间任何 world 查询落在合法 tile 上。
-            PlanetTile addressTile = targetMap.Tile.Valid
-                ? targetMap.Tile
-                : OrbitSphere.TileFromDirection(universe.FrameOf(ownMap).pose.position);
-            gravship.Tile = addressTile;
-            gravship.destinationTile = addressTile;
-
-            universe.Pilot.Exit(universe);
-
-            // 自持选点流程（原版 ArriveExistingMap 经 WorldObjects tile 查图，口袋图不通）：
-            // 复刻其主体（锁 landingMap、构造 marker、进入确认状态），初始落点放到
-            // 悬停位置在目标对象内部投影上的对应格（星区架构 §7）。设计器显式绑定
-            // targetMap 新建（勿用 controller.MoveDesignator()——终身缓存陈旧 map 字段），
-            // 随后 landingMap 置 null 隐藏原版 Abort——AbortLanding 依赖 landingMap.Tile
-            // 做坠毁改道，口袋图没有可用 tile。
-            // 不变量守卫（边沿触发，Core 模块）：上一次选点未清干净的 landingMap
-            /// 只在异常时可见——正常流程选点结束即置 null。
-            Map prevLandingMap = Find.GravshipController.landingMap;
-            if (prevLandingMap != null)
-            {
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"docking selection: STALE landingMap before set = {UniverseManager.MapTag(prevLandingMap)} "
-                    + $"(about to overwrite with {UniverseManager.MapTag(targetMap)})");
-            }
-            Find.GravshipController.landingMap = targetMap;
-            // 清掉原版的设计器缓存（用的时候实例化，2026-09-25 用户定案）：战术对接不走
-            // LandingEnded，原版自己的复位永不触发；残留实例绑定上一张目标图，世界视图
-            // 降落确认 UI 的「移动飞船」按钮会再次取到它。
-            ControllerMoveDesignator?.SetValue(Find.GravshipController, null);
-            GravshipLandingMarker marker = ThingMaker.MakeThing(ThingDefOf.GravshipLandingMarker) as GravshipLandingMarker;
-            marker.gravship = gravship;
-            marker.CacheCells();
-            universe.ShipTransitions.pendingSelectionMarker = marker; // 取消时直接销毁（shuttle 预览无主台可比）
-            Find.GravshipController.Notify_LandingAreaConfirmationStarted(marker);
-            // 必须每次新建设计器（2026-09-25 修复）：原版 controller.MoveDesignator() 终身
-            // 缓存首个实例，只刷新 marker 字段、不刷新 readonly 的 map 字段——连续对接
-            // 不同目标图时复用陈旧实例，marker 被生成到上一张目标图，其 SpawnSetup 再把
-            // 相机跳过去（实测：选点指示器与相机全落在上一次的敌舰图上）。原版自身
-            // 1:1（控制器↔图）无此问题；显式绑定 targetMap 与本次 marker。
-            var designator = new Designator_MoveGravship(targetMap, marker);
-            IntVec3 initialCell = InitialLandingCell(universe, universe.FrameOf(ownMap).pose.position,
-                target, targetMap, gravship, desiredFacing);
-            // 有意保留 ExecuteWhenFinished（勿改成 QueueFrameAction）：本委托内的
-            // DesignateSingleCell（自动放置）必须先于下面的 landingMap = null 执行——
-            // GUI 上下文（面板按钮触发）下 ExecuteWhenFinished 立即内联，恰好保证了
-            // 这个顺序；帧队列会把它颠倒到 landingMap 清空之后。
-            LongEventHandler.ExecuteWhenFinished(delegate
-            {
-                CameraJumper.TryJump(initialCell.IsValid ? initialCell : targetMap.Center, targetMap,
-                    CameraJumper.MovementMode.Cut);
-                Find.DesignatorManager.Select(designator);
-                // 初始落点只是原版选点的起点。已按脚印 clamp，但图比船小时仍可能
-                // 不合法：只在原版门禁放行时自动放置，否则留给玩家手动选点。
-                IntVec3 cell = initialCell;
-                string autoPlace = "skip (invalid initial cell)";
-                if (cell.IsValid && designator != null)
-                {
-                    if (!designator.CanDesignateCell(cell).Accepted)
-                    {
-                        cell = SpiralSearchValidLandingCell(designator, cell, targetMap);
-                    }
-                    if (cell.IsValid && designator.CanDesignateCell(cell).Accepted)
-                    {
-                        designator.DesignateSingleCell(cell);
-                        autoPlace = $"placed at {cell}";
-                    }
-                    else
-                    {
-                        autoPlace = $"left for manual (initial={initialCell}, probed={cell})";
-                    }
-                }
-                // 选点 UI 落点日志（Core 模块）：相机与自动放置的最终去向。
-                DeltaVLog.Message(DeltaVLogModule.Core,
-                    $"docking selection UI: on {UniverseManager.MapTag(targetMap)}; auto-place: {autoPlace}; "
-                    + $"designator={Find.DesignatorManager.SelectedDesignator?.GetType().Name ?? "none"}, "
-                    + $"markerSpawned={marker?.Spawned == true}, markerCells={marker?.GravshipCells?.Count() ?? -1}");
-            });
-            Find.GravshipController.landingMap = null;
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"docking {flowLabel}: site selection on '{target.label}' (zero-consumption preview); initial cell={initialCell}, heading={snappedHeading * Mathf.Rad2Deg:F0} deg"
-                + $", targetMap={UniverseManager.MapTag(targetMap)}, bounds={gravship.Bounds.Size.x}x{gravship.Bounds.Size.z}, desiredFacing={desiredFacing.AsByte}");
-        }
-
-        /// <summary>
-        /// 悬停位置 → 目标对象内部投影上的初始落点：飞船中心映射为目标图格子，再按
-        /// gravship 尺寸/旋转折算放置 root，再编码成 designator 输入格。
-        /// </summary>
-        private IntVec3 InitialLandingCell(UniverseManager universe, Vector3 hoverPosition, SpaceObject target, Map targetMap,
-            Gravship gravship, Rot4 facing)
-        {
-            Vector2 mapPoint = SpaceTransform.UniverseToMapPoint(target, targetMap, hoverPosition);
-            IntVec2 size = gravship.Bounds.Size;
-            int spanX = facing.IsHorizontal ? size.z : size.x;
-            int spanZ = facing.IsHorizontal ? size.x : size.z;
-            int minX = Mathf.Min(spanX / 2 + 2, targetMap.Size.x / 2);
-            int maxX = Mathf.Max(minX, targetMap.Size.x - spanX / 2 - 3);
-            int minZ = Mathf.Min(spanZ / 2 + 2, targetMap.Size.z / 2);
-            int maxZ = Mathf.Max(minZ, targetMap.Size.z - spanZ / 2 - 3);
-            IntVec3 center = new IntVec3(
-                Mathf.Clamp(Mathf.RoundToInt(mapPoint.x), minX, maxX), 0,
-                Mathf.Clamp(Mathf.RoundToInt(mapPoint.y), minZ, maxZ));
-            return GravshipInterop.CenterToDesignatorInput(center, gravship.Bounds.Size, facing);
-        }
-
-        /// <summary>
-        /// 落点合法性（含 Delta-V 禁触规则）失败时的环形外扩搜索（与旧实现一致，
-        /// 经原版 CanDesignateCell 全门禁）。
-        /// </summary>
-        private IntVec3 SpiralSearchValidLandingCell(Designator_MoveGravship designator,
-            IntVec3 origin, Map map)
-        {
-            for (int radius = 2; radius <= 30; radius += 2)
-            {
-                for (int dx = -radius; dx <= radius; dx += 2)
-                {
-                    for (int dz = -radius; dz <= radius; dz += 2)
-                    {
-                        bool onRing = Mathf.Abs(dx) == radius || Mathf.Abs(dz) == radius;
-                        if (!onRing) continue;
-                        IntVec3 probe = new IntVec3(origin.x + dx, 0, origin.z + dz);
-                        if (probe.InBounds(map) && designator.CanDesignateCell(probe).Accepted)
-                        {
-                            return probe;
-                        }
-                    }
-                }
-            }
-            return IntVec3.Invalid;
-        }
-
-
-
-        /// <summary>
-        /// 对接计划取消时的快照丢弃（LandingApproachController.Cancel/Abort 调用）：
-        /// 清 pending 状态；计划为运行时数据，取消后船继续自由飞行，可重新发起对接。
-        /// </summary>
-        internal void DiscardPendingDocking(UniverseManager universe)
-        {
-            if (universe != null)
-            {
-                universe.ShipTransitions.PendingTarget = PilotTarget.Invalid;
-                universe.ShipTransitions.pendingSelectionMarker = null;
-                universe.ShipTransitions.pendingSelectionWasManual = false;
-                universe.ShipTransitions.pendingLeftoverThingIds = null;
-            }
-        }
-
-
-
-        /// <summary>
-        /// 落点反向映射——**落点注册的唯一计算点**（2026-09-21 用户定案）：只在选点确认
-        /// （LandingApproachController.TryConsume）调用一次，结果存入 DockingPlan；此后
-        /// 幽灵船/对齐判据一律读注册值，**不得二次计算**。
-        /// 角度 = 宿主帧角 ⊕ 落地主台朝向（preview 的 PlacementData）；dockedOrigin =
-        /// 放置 root + 旋转后的「口袋图几何中心 - 域包围盒 min」偏移（船位姿锚的落点）。
-        /// </summary>
-        internal bool ComputeLandingPose(UniverseManager universe, PilotTarget target,
-            Gravship gravship, Map map,
-            IntVec3 landingPos, Rot4 landingRot, out Vector3 direction, out float angle,
-            out Vector2 dockedOrigin)
-        {
-            SpaceObject hostFrame = universe?.FrameOf(map);
-            Map sourceMap = target.Map;
-            Thing placementAnchor = target.Vessel?.Anchor;
-            if (hostFrame == null || !target.IsValid || sourceMap == null || placementAnchor == null)
-            {
-                direction = default(Vector3);
-                angle = 0f;
-                dockedOrigin = default(Vector2);
-                return false;
-            }
-            gravship.Rotation = landingRot;
-            float hostAngle = hostFrame.pose.angle;
-            if (!GravshipInterop.TryPlacedRotation(gravship, placementAnchor, out Rot4 landedFacing))
-            {
-                direction = default(Vector3);
-                angle = 0f;
-                dockedOrigin = default(Vector2);
-                return false;
-            }
-            // 对齐的是承载图刚体帧，不是建筑/驾驶台自身朝向。最终锚建筑朝向减去
-            // 源图中的局部帧角，得到与原版 Gravship 放置完全相同的刚体旋转量。
-            // 飞船与 shuttle 共用本式；因此 shuttle 不再把 landingRot.AsInt 误当角度。
-            angle = SpaceTransform.WrapAngle(hostAngle
-                + ShipOrientation.AngleFromRot4(landedFacing) - target.FrameAngle);
-
-            // 停放锚点唯一入口（SpaceTransform.cs「dockedOrigin 的唯一来源」；2026-09-24
-            // 事故：此处曾手写「中心系恒零 − 地图系原点」的混用偏移，丢口袋图几何中心
-            // 项致幽灵船/判据整体偏约半张口袋图）。pocketRoot = preview 原点（域包围盒
-            // min，GravshipInterop.BuildPreview 同一约定）。
-            dockedOrigin = SpaceTransform.ShipOriginFromPlacementRoot(
-                sourceMap, gravship.originalPosition, landingPos, landingRot);
-            direction = SpaceTransform.MapPointToUniverse(hostFrame, map, dockedOrigin);
-            return true;
         }
 
         internal readonly struct DockingFocusHandoff
@@ -1048,8 +504,7 @@ namespace DeltaV
         /// </summary>
         internal bool CompleteTransferIntoHost(UniverseManager universe, PilotTarget target,
             Gravship gravship, HashSet<IntVec3> domain, bool includeTerrain, Map targetMap,
-            IntVec3 landingRoot, Rot4 landingRot, int structureId, out Map sourceMap,
-            bool impactLanding = false)
+            IntVec3 landingRoot, Rot4 landingRot, int structureId, out Map sourceMap)
         {
             sourceMap = null;
             if (gravship == null || targetMap == null) return false;
@@ -1058,59 +513,11 @@ namespace DeltaV
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"docking transfer: {target.Label} {UniverseManager.MapTag(pocketMap)} -> host "
                 + $"{UniverseManager.MapTag(targetMap)} (root {landingRoot}, rot {landingRot})");
-            // 源图残留复核（§6：确认后新增的残留不静默处置——中止并要求重新发起）。
-            // domain 与完成时刻捕获（CaptureDockingTargetForCompletion）同调用栈、同一查询入口，
-            // 兼作 StripDomain 的剥离格集合（禁止从 Foundations 旋转视图反推，见其注释）。
-            if (!impactLanding)
-            {
-                List<Thing> leftovers = CollectSourceLeftovers(pocketMap, domain);
-                List<int> confirmed = pendingLeftoverThingIds ?? new List<int>();
-                foreach (Thing leftover in leftovers)
-                {
-                    if (!confirmed.Contains(leftover.thingIDNumber))
-                    {
-                        Messages.Message("DeltaV_DockSourceLeftoverChanged".Translate(),
-                            MessageTypeDefOf.RejectInput, false);
-                        DeltaVLog.Message(DeltaVLogModule.Core,
-                            $"docking transfer rejected: unconfirmed leftover #{leftover.thingIDNumber} ({leftover.def?.defName}) on source map");
-                        return false;
-                    }
-                }
-            }
             GravshipInterop.StripDomain(gravship, pocketMap, domain, includeTerrain);
             GravshipInterop.PlaceIntoMap(gravship, landingRoot, targetMap, structureId);
             sourceMap = pocketMap;
             RegisterDockingCleanup(pocketMap);
-            if (!impactLanding)
-            {
-                PendingTarget = PilotTarget.Invalid;
-                pendingLeftoverThingIds = null;
-            }
             return true;
-        }
-
-        internal List<int> pendingLeftoverThingIds;
-
-        /// <summary>
-        /// 源口袋图上控制域之外的滞留内容（§6 残留处置清单）：Pawn、建筑与物品
-        /// （Mote/Filth 等非实体不计）。
-        /// </summary>
-        private static List<Thing> CollectSourceLeftovers(Map map, HashSet<IntVec3> domain)
-        {
-            var leftovers = new List<Thing>();
-            foreach (Thing thing in map.listerThings.AllThings)
-            {
-                if (!thing.Spawned || thing is Mote || thing is Filth || thing is Gas
-                    || domain.Contains(thing.Position))
-                {
-                    continue;
-                }
-                if (thing is Pawn || thing is Building || thing.def.category == ThingCategory.Item)
-                {
-                    leftovers.Add(thing);
-                }
-            }
-            return leftovers;
         }
 
         private static string BuildLeftBehindSummary(Map map, List<Thing> leftovers)
@@ -1135,12 +542,10 @@ namespace DeltaV
             out List<Thing> channelLeftovers, out List<HashSet<IntVec3>> fragments)
         {
             channelLeftovers = Building_DockingPort.CollectChannelLeftBehind(sourceMap, domain);
-            if (ShipRegistry.IsFreeFlight(ship))
+            if (ShipRegistry.IsFreeFlight(ship) || Current.Game?.GetComponent<UniverseManager>()?.FrameOf(sourceMap)?.IsWorksite == true)
             {
                 // 因零散内容而保留宿主时，留置清单不限于对接通道。
-                channelLeftovers = sourceMap.listerThings.AllThings
-                    .Where(t => t.Spawned && !t.Destroyed && !domain.Contains(t.Position)
-                        && (t is Pawn || t.def.category == ThingCategory.Item)).ToList();
+                channelLeftovers = CollectUnclaimedCargo(sourceMap, domain);
             }
             fragments = ShipRegistry.ResidualBlocks(sourceMap, domain)
                 .Where(block =>
@@ -1149,6 +554,18 @@ namespace DeltaV
                     return ownership != null && ownership.OwnerAt(block.First()) == ship.ownerId;
                 })
                 .ToList();
+        }
+
+        private static List<Thing> CollectUnclaimedCargo(Map map, HashSet<IntVec3> departing)
+        {
+            // Crew/cargo aboard another surviving ship are not abandonment risks.
+            var retained = new HashSet<IntVec3>();
+            SpaceObject container = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map);
+            if (container != null)
+                foreach (ShipBase other in container.Ships)
+                    if (other.IsValid && !other.HullCells.Any(departing.Contains)) retained.UnionWith(other.HullCells);
+            return map.listerThings.AllThings.Where(t => t.Spawned && !t.Destroyed && SpaceScatterService.IsCargo(t)
+                && !departing.Contains(t.Position) && !retained.Contains(t.Position)).ToList();
         }
 
         private static string BuildUndockSummary(Map sourceMap, List<Thing> channelLeftovers,
@@ -1220,7 +637,7 @@ namespace DeltaV
             SpaceObject container = TransferDomainToNewPocket(universe, sourceMap, sourceFrame,
                 domain, transfer.console, wreckOwnership: false,
                 retainedOwnerId: transfer.ownerId, targetConsoleFacing: targetFacing,
-                bodyAnchor: transfer.body, pocketSize: transfer.pocketSize,
+                bodyAnchor: transfer.body,
                 includeTerrain: transfer.includeTerrain, focus: focus);
             if (container == null) return null;
             ShipBase resolved = ShipRegistry.ShipByIdentity(identity);
@@ -1292,6 +709,7 @@ namespace DeltaV
             if (universe == null || sourceMap == null || sourceMap.Disposed
                 || !Find.Maps.Contains(sourceMap)) return;
             if (sourceMap.Tile.Valid) return; // worldtile 图：不受转换影响
+            FinishEmptyWorksite(sourceMap);
             if (universe.Lifecycle.RecycleUnsupportedMap(sourceMap)) return;
             if (sourceMap == Find.CurrentMap)
             {
@@ -1325,6 +743,16 @@ namespace DeltaV
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"{owner.label}: emptied pocket interior removed with its object");
             }
+        }
+
+        internal void FinishEmptyWorksite(Map map)
+        {
+            SpaceObject owner = universe.FrameOf(map);
+            if (owner?.IsWorksite != true || owner.Ships.Any(s => s.IsValid)
+                || IsAwaitingDockingCleanup(map) || universe.IsResettingScene) return;
+            foreach (HashSet<IntVec3> block in ShipRegistry.ResidualBlocks(map, new HashSet<IntVec3>()))
+                if (TransferDomainToNewPocket(universe, map, owner, block, null, true, 0, Rot4.North) == null) return;
+            universe.Scatter.ScatterLoose(map);
         }
 
         // ---- 原版战略发射适配（§12：引擎范围例外退役；星区离场标准流程保留）----

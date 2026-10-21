@@ -17,8 +17,6 @@ namespace DeltaV
     /// </summary>
     public static class ShipTestScene
     {
-        public const int MapSize = 150;
-
         // 敌舰初始切空间偏移 60/25（东/北）：换算到聚焦玩家帧的地图坐标约 (135, 100)，
         // 在 150 地图视野内（CameraDriver 会把镜头 clamp 在当前地图内）。
         public static readonly Vector2 EnemyInitialOffset = new Vector2(60f, 25f);
@@ -57,7 +55,7 @@ namespace DeltaV
             // 容器先注册、结构后铺设：驾驶台 spawn 认领要求 FrameOf 已解析（ClaimOnSpawn
             // 守卫）。归属 ID 与容器对象 ID 解耦（各经 AllocateOwnerId 独立发放）。
             int playerOwnerId = universe.AllocateOwnerId();
-            Map playerMap = ShipPocketMapFactory.Generate(LayoutMapSize(playerPrefab), universe);
+            Map playerMap = ShipPocketMapFactory.Generate(LayoutMapSize(playerPrefab, new IntVec2(40, 24)), universe);
             if (playerMap == null) return;
             var playerContainer = new MapSpaceObject(universe.AllocateOwnerId(), playerMap,
                 new SpacePose(playerDir, 0f));
@@ -71,7 +69,7 @@ namespace DeltaV
             }
 
             int enemyOwnerId = universe.AllocateOwnerId();
-            Map enemyMap = ShipPocketMapFactory.Generate(LayoutMapSize(enemyPrefab), universe);
+            Map enemyMap = ShipPocketMapFactory.Generate(LayoutMapSize(enemyPrefab, new IntVec2(24, 14)), universe);
             if (enemyMap == null)
             {
                 QueueFailedSceneCleanup(universe, playerContainer);
@@ -116,10 +114,9 @@ namespace DeltaV
             });
         }
 
-        private static IntVec3 LayoutMapSize(MapPrefabDocument prefab)
+        private static IntVec3 LayoutMapSize(MapPrefabDocument prefab, IntVec2 fallback)
         {
-            return new IntVec3(Mathf.Max(MapSize, (prefab?.size.x ?? 0) + 10), 1,
-                Mathf.Max(MapSize, (prefab?.size.z ?? 0) + 10));
+            return ShipPocketMapFactory.CompactSize(prefab == null ? fallback : MapPrefab.ContentBounds(prefab, Rot4.North).Size);
         }
 
         // Resolve before BeginSceneReset so a missing configured file cannot erase the old scene.
@@ -156,7 +153,7 @@ namespace DeltaV
             }
             try
             {
-                MapPrefab.Spawn(prefab, map, map.Center, faction, ownerId, Rot4.North, universe);
+                MapPrefab.Spawn(prefab, map, MapPrefab.CenteredPosition(prefab, map, Rot4.North), faction, ownerId, Rot4.North, universe, blankSpace: true);
                 return true;
             }
             catch (Exception ex)

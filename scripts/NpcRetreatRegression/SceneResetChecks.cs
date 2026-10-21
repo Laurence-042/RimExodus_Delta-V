@@ -20,9 +20,6 @@ internal static partial class Program
         (IList)typeof(SpaceProjectileService).GetField("projectiles", Private).GetValue(service);
     static int RecycledCount(SpaceProjectileService service) =>
         ((ICollection)typeof(SpaceProjectileService).GetField("projectilePool", Private).GetValue(service)).Count;
-    static HashSet<Map> ProjectileMaps(SpaceProjectileService service) =>
-        (HashSet<Map>)typeof(SpaceProjectileService).GetField("projectileMaps", Private).GetValue(service);
-
     static object AddProjectileRecord(UniverseManager universe, SpaceObject container, bool shuttle = false)
     {
         Type type = typeof(SpaceProjectileService).GetNestedType("Projectile", BindingFlags.NonPublic);
@@ -31,11 +28,16 @@ internal static partial class Program
         var def = (ThingDef)Raw(typeof(ThingDef));
         def.defName = "reset_test";
         Set(record, "def", def);
+        Set(record, "props", new CompProperties_SpaceProjectile());
         Set(record, "adoptedShuttle", shuttle);
         container.projectileRoleOverride = shuttle;
         universe.objects.Add(container);
         ProjectileRecords(universe.Projectiles).Add(record);
-        if (container.map != null) ProjectileMaps(universe.Projectiles).Add(container.map);
+        if (container.map != null)
+        {
+            PreparePoolMap(container.map, SpaceObjectTag.Projectile);
+            Set(record, "mapLease", universe.MapPool.Restore(container.map));
+        }
         return record;
     }
 
@@ -68,6 +70,7 @@ internal static partial class Program
         var nextDef = (ThingDef)Raw(typeof(ThingDef));
         nextDef.defName = "next_projectile";
         Set(reused, "def", nextDef);
+        Set(reused, "props", new CompProperties_SpaceProjectile());
         ProjectileRecords(service).Add(reused);
         Call(service, "DestroyProjectile", reused, "next");
         oldCleanup();
@@ -98,15 +101,14 @@ internal static partial class Program
         Set(mappedRecord, "building", building);
         universe.UnregisterObject(mapped);
         Call(universe, "RunFrameActions");
-        var mapPool = (Dictionary<int, List<Map>>)typeof(SpaceProjectileService).GetField("mapPool", Private).GetValue(service);
-        Check(building.destroyCalls == 1 && mapPool[5 * 4096 + 5].Count == 1,
+        Check(building.destroyCalls == 1 && universe.MapPool.IsIdle(map),
             "mapped external unregister retains the old map, destroys its body and returns it to the real pool");
         // Native rendering/disposal needs Unity; model its completed notification and
         // verify reset forgets the disposed map instead of disposing it a second time.
         Set(map, "<Disposed>k__BackingField", true);
         service.ResetFlow();
         Call(universe, "RunFrameActions");
-        Check(ProjectileMaps(service).Count == 0 && mapPool.Count == 0,
+        Check(universe.MapPool.TrackedCount == 0 && universe.MapPool.IdleCount == 0,
             "reset removes disposed pooled maps and empty pool buckets");
 
         var removedMap = TestMap(1805);

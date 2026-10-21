@@ -50,6 +50,15 @@ namespace DeltaV
         }
 
         // ---------- Map local ⇄ ship local ----------
+
+        /// <summary>漂移同步只匹配容器线速度和网格方向，不建立位置锚，也不附加 ω×offset。</summary>
+        internal static SpacePose MatchingDriftPose(Vector3 position, SpacePose host, float relativeAngle)
+            => new SpacePose(position, WrapAngle(host.angle + relativeAngle))
+            {
+                velocity = TransportVelocity(host, position),
+                angularVelocity = host.angularVelocity
+            };
+
         // 阶段1 约定：ship local 原点 = 地图几何中心 (Size.x/2, Size.z/2)，连续坐标。
 
         public static Vector2 ShipLocalOrigin(Map map)
@@ -93,7 +102,19 @@ namespace DeltaV
         public static Vector2 ShipOriginFromPlacementRoot(Map pocketMap, IntVec3 pocketRoot, IntVec3 root, Rot4 rot)
         {
             Vector2 pocketCenterFromRoot = ShipLocalOrigin(pocketMap) - new Vector2(pocketRoot.x, pocketRoot.z);
-            return new Vector2(root.x, root.z) + RotatePlacementOffset(pocketCenterFromRoot, rot);
+            // Vanilla rotates integer cell anchors; continuous positions rotate about cell centers.
+            Vector2 halfCell = new Vector2(0.5f, 0.5f);
+            return new Vector2(root.x, root.z) + halfCell + RotatePlacementOffset(pocketCenterFromRoot - halfCell, rot);
+        }
+
+        internal static SpacePose PoseAfterPlacement(SpacePose sourcePose, Map sourceMap, IntVec3 sourceRoot,
+            Map targetMap, IntVec3 targetRoot, Rot4 rotation)
+        {
+            Vector2 oldOriginInTarget = ShipOriginFromPlacementRoot(sourceMap, sourceRoot, targetRoot, rotation);
+            Rot4 inverse = new Rot4((4 - rotation.AsInt) % 4);
+            Vector2 newOriginInSource = RotatePlacementOffset(ShipLocalOrigin(targetMap) - oldOriginInTarget, inverse);
+            float angle = -rotation.AsInt * Mathf.PI * 0.5f;
+            return RigidPointPose(sourcePose, newOriginInSource, -angle);
         }
 
         /// <summary>引擎 root 格 → gravship 脚印包围盒中心的连续坐标（原版 engineToCenter
@@ -172,14 +193,33 @@ namespace DeltaV
         public static SpacePose RigidPointPose(SpacePose hostPose, Vector2 hostLocalPoint,
             float localAngle)
         {
-            Vector3 direction = ShipLocalToUniverse(hostPose, hostLocalPoint);
+            OrbitSphere.Direction direction = OrbitSphere.Move(hostPose.direction, Rotate(hostLocalPoint, hostPose.angle));
             return new SpacePose
             {
-                position = direction,
-                velocity = VelocityAtLocalPoint(hostPose, hostLocalPoint, direction),
+                direction = direction,
+                velocity = VelocityAtLocalPoint(hostPose, hostLocalPoint, direction.Vector),
                 angle = WrapAngle(hostPose.angle + localAngle),
                 angularVelocity = hostPose.angularVelocity
             };
+        }
+
+        /// <summary>已知双方局部对齐点与相对方向，反求本船容器帧的唯一目标位姿。</summary>
+        internal static SpacePose AlignLocalPoint(SpacePose host, Vector2 hostPoint, Vector2 ownPoint, float relativeAngle)
+        {
+            SpacePose target = RigidPointPose(host, hostPoint, 0f);
+            SpacePose own = RigidPointPose(host, hostPoint - Rotate(ownPoint, relativeAngle), relativeAngle);
+            // The planar inverse is only a starting estimate: the two origins have
+            // different sphere tangent bases. Correct against the actual displayed point.
+            for (int i = 0; i < 3; i++)
+            {
+                OrbitSphere.Direction point = OrbitSphere.Move(own.direction, Rotate(ownPoint, own.angle));
+                Vector2 error = OrbitSphere.Offset(point, target.direction);
+                if (error.sqrMagnitude < .000001f) break;
+                own.direction = OrbitSphere.Move(own.direction, TransportTangent(error, point.Vector, own.position));
+            }
+            own.velocity = Vector2.zero;
+            own.velocity = TransportVelocity(target, own.position) - VelocityAtLocalPoint(own, ownPoint, own.position);
+            return own;
         }
 
         /// <summary>
@@ -249,7 +289,7 @@ namespace DeltaV
 
         public static Vector3 ShipLocalToUniverse(SpacePose pose, Vector2 shipPoint)
         {
-            return OrbitSphere.Move(pose.position, Rotate(shipPoint, pose.angle));
+            return OrbitSphere.Move(pose.direction, Rotate(shipPoint, pose.angle)).Vector;
         }
 
         /// <summary>所属对象内部图的连续地图点 → 唯一球面轨道位置。</summary>

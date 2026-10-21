@@ -59,7 +59,7 @@ namespace DeltaV
 
         /// <summary>生成 SpawnPrefab 入参。游戏更新若改名 internal 字段（等于改 XML 契约，
         /// 可能性极低），这里抛异常交由调用方回退。</summary>
-        internal PrefabDef BuildPrefabDef()
+        internal PrefabDef BuildPrefabDef(bool omitSpace = false)
         {
             if (PrefabThingsField == null || PrefabTerrainField == null)
             {
@@ -70,7 +70,7 @@ namespace DeltaV
                 size = size,
             };
             PrefabThingsField.SetValue(def, new List<PrefabThingData>());
-            PrefabTerrainField.SetValue(def, terrain);
+            PrefabTerrainField.SetValue(def, omitSpace ? terrain.Where(t => t.def != TerrainDefOf.Space).ToList() : terrain);
             return def;
         }
 

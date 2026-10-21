@@ -29,7 +29,8 @@ namespace DeltaV
         Shuttle = 8,
 
         /// <summary>派生角色：承载任意 ShipBase 的容器。永不手写。</summary>
-        Ship = 16
+        Ship = 16,
+        Scattered = 32
     }
 
     /// <summary>
@@ -109,6 +110,12 @@ namespace DeltaV
         }
 
         public bool HasTag(SpaceObjectTag tag) => (Tag & tag) == tag;
+        public bool IsScattered => HasTag(SpaceObjectTag.Scattered);
+        public bool IsWorksite => map?.GetComponent<DeltaVPocketMapMetadata>()?.worksite == true;
+        public bool HasGravityRegion => map != null && (!(map.Parent is ShipPocketParent_DeltaV)
+            || contentTypeId == "Asteroid");
+        public bool CanRelocateMap => map != null && !HasGravityRegion && !IsScattered
+            && !HasTag(SpaceObjectTag.Projectile);
 
         /// <summary>有图表示枚举真实船体；无图表示不伪造实体成员。</summary>
         public virtual IEnumerable<ShipBase> Ships => Enumerable.Empty<ShipBase>();

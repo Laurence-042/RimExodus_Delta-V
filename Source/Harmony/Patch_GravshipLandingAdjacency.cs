@@ -87,34 +87,6 @@ namespace DeltaV
             __result = result;
         }
 
-        /// <summary>
-        /// 只在确认落点与完成复核两个事件调用。复用实际禁触判定，记录两次检查
-        /// 使用的 root、脚印与第一处基架重叠，避免另造一份近似几何诊断。
-        /// </summary>
-        internal static string DescribeFootprint(GravshipLandingMarker marker, Map map, IntVec3 root)
-        {
-            if (marker?.gravship == null || map == null) return "marker/target map missing";
-            int count = 0;
-            int minX = int.MaxValue, minZ = int.MaxValue;
-            int maxX = int.MinValue, maxZ = int.MinValue;
-            int hash = 0;
-            foreach (IntVec3 cell in marker.GravshipCells)
-            {
-                count++;
-                if (cell.x < minX) minX = cell.x;
-                if (cell.x > maxX) maxX = cell.x;
-                if (cell.z < minZ) minZ = cell.z;
-                if (cell.z > maxZ) maxZ = cell.z;
-                unchecked { hash += cell.x * 73856093 ^ cell.z * 19349663; }
-            }
-            bool touches = OverlapsAnySubstructure(root, marker, map, out IntVec3 footprintCell, out IntVec3 substructureCell);
-            return $"root={root} marker={marker.Position} rot={marker.GravshipRotation.AsInt} "
-                + $"bounds={marker.gravship.Bounds.Size} footprint={count} "
-                + (count == 0 ? "range=empty " : $"range=({minX},{minZ})..({maxX},{maxZ}) ")
-                + $"hash={hash:X8} "
-                + (touches ? $"substructureOverlap={footprintCell}->{substructureCell}" : "substructureOverlap=none");
-        }
-
         /// <summary>脚印任一格与任何归属的既有基架重叠。</summary>
         private static bool OverlapsAnySubstructure(IntVec3 root, GravshipLandingMarker marker,
             Map map, out IntVec3 footprintCell, out IntVec3 substructureCell)

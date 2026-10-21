@@ -32,6 +32,9 @@ namespace DeltaV
             public float diagnosticDistance;
             // 固定航点模式：direction/angle；随动模式：host ⊕ hostOffset（+ 相对转角）。
             public bool tracked;
+            public Func<SpacePose, SpacePose> reference;
+            public Func<bool> referenceValid;
+            public bool motionOnly;
             public Vector3 direction;
             public float angle;
             public int hostId;
@@ -128,6 +131,24 @@ namespace DeltaV
                 hostOffset = hostOffset, relativeAngle = SpaceTransform.WrapAngle(relativeAngle),
                 onFailed = onFailed, allowVoidThrust = allowVoidThrust, playerInitiated = playerInitiated });
         }
+
+        // The owning service supplies the same reference used by its alignment or readiness check.
+        // Do not copy its anchor/angle into another navigation target.
+        internal void FollowReference(DriveSubject subject, Func<SpacePose, SpacePose> reference,
+            bool motionOnly, Func<bool> valid, Action onFailed)
+            => Register(new Flight { subject = subject, tracked = true, reference = reference,
+                referenceValid = valid, motionOnly = motionOnly, onFailed = onFailed,
+                allowVoidThrust = false, playerInitiated = true });
+
+        internal bool IsFollowing(DriveSubject subject, Func<SpacePose, SpacePose> reference)
+            => active.TryGetValue(subject, out Flight flight) && flight.reference == reference;
+
+        internal bool DetachReference(DriveSubject subject, Func<SpacePose, SpacePose> reference)
+        {
+            if (!IsFollowing(subject, reference)) return false;
+            Detach(subject);
+            return true;
+        }
         private void Register(Flight flight)
         {
             var universe = Current.Game?.GetComponent<UniverseManager>();
@@ -215,7 +236,8 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SpaceObject container = flight.subject.Resolve(universe);
             if (container == null || !container.TryGetDrive(flight.subject, out DriveInfo report)
-                || (flight.tracked && !flight.combatOrbit && flight.host == null))
+                || (flight.reference != null ? flight.referenceValid?.Invoke() != true
+                    : flight.tracked && !flight.combatOrbit && flight.host == null))
             { Fail(container, flight, "subject or target unavailable"); return; }
             SpacePose combatTarget = default;
             if (flight.combatOrbit && (flight.combatTarget == null || !flight.combatTarget(out combatTarget)))
@@ -235,7 +257,15 @@ namespace DeltaV
             float combatReferenceTime = 0f;
             if (flight.tracked)
             {
-                if (flight.combatOrbit)
+                if (flight.reference != null)
+                {
+                    SpacePose reference = flight.reference(container.pose);
+                    targetDirection = reference.position;
+                    targetAngle = reference.angle;
+                    hostVelocity = reference.velocity;
+                    hostOmega = reference.angularVelocity;
+                }
+                else if (flight.combatOrbit)
                 {
                     int planMicroStep = ticksGame / GuidanceMicroStepTicks;
                     if (flight.combatIntentMicroStep != planMicroStep
@@ -351,8 +381,9 @@ namespace DeltaV
             {
                 flight.previewReportVersion = report.version;
                 flight.previewInfo = report;
-                Vector2 towardLocal = posErr.sqrMagnitude > 1e-8f
-                    ? SpaceTransform.RotateInverse(posErr.normalized, pose.angle)
+                Vector2 toward = flight.motionOnly ? vel : posErr;
+                Vector2 towardLocal = toward.sqrMagnitude > 1e-8f
+                    ? SpaceTransform.RotateInverse(toward.normalized, pose.angle)
                     : Vector2.zero;
                 flight.brakingAcceleration = report.PreviewBraking(towardLocal);
                 float closing = posErr.sqrMagnitude > 1e-8f
@@ -454,6 +485,7 @@ namespace DeltaV
             var request = new GuidanceRequest
             {
                 positionError = posErr,
+                motionOnly = flight.motionOnly,
                 relativeVelocity = vel,
                 angleError = angleErr,
                 relativeAngularVelocity = omega,

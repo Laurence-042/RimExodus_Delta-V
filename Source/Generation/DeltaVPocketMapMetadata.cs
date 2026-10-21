@@ -3,12 +3,14 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>
-    /// Delta-V 口袋图的持久元数据。弹体图即使处于空闲池、或跨过存读档而失去运行时
-    /// 容器，也必须仍可从普通飞船口袋图区分，以便 UI 隐藏和读档回收。
+    /// 池生成图的持久用途标记。读档只恢复 tag 和真实内容对应的租约；
+    /// 空闲队列由内容重建，不按地图尺寸猜测用途。
     /// </summary>
     public sealed class DeltaVPocketMapMetadata : CustomMapComponent
     {
-        public bool projectileMap;
+        public bool pooledMap;
+        public SpaceObjectTag poolTag;
+        public bool worksite;
 
         public DeltaVPocketMapMetadata(Map map) : base(map)
         {
@@ -17,7 +19,9 @@ namespace DeltaV
         public override void ExposeData()
         {
             base.ExposeData();
-            Scribe_Values.Look(ref projectileMap, "projectileMap", false);
+            Scribe_Values.Look(ref pooledMap, "pooledMap", false);
+            Scribe_Values.Look(ref poolTag, "poolTag", (SpaceObjectTag)0);
+            Scribe_Values.Look(ref worksite, "worksite", false);
         }
     }
 }

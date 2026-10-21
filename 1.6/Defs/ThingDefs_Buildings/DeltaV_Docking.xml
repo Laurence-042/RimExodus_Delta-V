@@ -9,8 +9,15 @@
 	<ThingDef ParentName="DoorBase">
 		<defName>DeltaV_DockingPort</defName>
 		<label>docking port</label>
-		<description>A sealed docking airlock. After landing, it extends a one-cell-wide force-field passage toward the first structure within 8 cells. Each passage cell is independently vacuum-tight, with no physical roof. The passage is not substructure and retracts when either endpoint departs, the passage breaks, or its docking face disappears. Retraction leaves people and items in place, exposed to space.</description>
+		<description>A sealed docking airlock. Enable the soft docking guides and align the diamonds to establish a passage between separate ships. Colonists can enter, transfer cargo or hack a locked remote port from this endpoint. Disabling the guides or losing alignment disconnects it. On a shared map it extends a physical force-field passage toward a nearby structure; retracting that passage leaves its contents in place.</description>
 		<thingClass>DeltaV.Building_DockingPort</thingClass>
+        <comps>
+            <li Class="CompProperties_Hackable">
+                <compClass>DeltaV.CompSoftDockHackable</compClass>
+                <defence>1800</defence>
+                <onlyRemotelyHackable>true</onlyRemotelyHackable>
+            </li>
+        </comps>
 		<designationCategory>Odyssey</designationCategory>
 		<rotatable>true</rotatable>
 		<stuffCategories Inherit="False" />

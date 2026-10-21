@@ -15,7 +15,7 @@ namespace DeltaV
     {
         public static void NotifyDockingStateChanged()
         {
-            Find.ColonistBar?.MarkColonistsDirty();
+            (Find.UIRoot as UIRoot_Play)?.mapUI?.colonistBar?.MarkColonistsDirty();
         }
 
         internal static bool ShouldHide(Map map)
@@ -24,6 +24,7 @@ namespace DeltaV
             if (SpaceLifecycleService.IsUniverseHost(map)) return true;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe?.Projectiles.IsProjectileMap(map) == true) return true;
+            if (universe?.MapPool.IsIdle(map) == true) return true;
             if (DeltaVMod.CurrentSettings?.hideSpaceMapsWithoutPlayerPawns == false
                 || universe?.SpaceObjectOnMap(map) == null) return false;
             // AllPawns includes held pawns (e.g. shuttle passengers and cryptosleep occupants).

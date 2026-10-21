@@ -77,9 +77,8 @@ internal static partial class Program
             && ship.weaponReads == weaponReads,
             "repeated identity and weapon queries reuse member discovery and equipment caches");
         Check(ship.Transfer.console == null && ship.Transfer.body == hull.parent
-            && ship.Transfer.ownerId == 0 && !ship.Transfer.includeTerrain
-            && ship.Transfer.pocketSize.Value.x == hull.parent.def.Size.x + 8,
-            "shuttle transfer provider supplies body, terrain policy and pocket size through ShipBase");
+            && ship.Transfer.ownerId == 0 && !ship.Transfer.includeTerrain,
+            "shuttle supplies its body and terrain policy; compact sizing is shared by all ships");
         var transition = (ShipFlightTransitionService)Raw(typeof(ShipFlightTransitionService));
         Set(typeof(ShipFlightTransitionService), transition, "dockingCleanupMaps",
             new HashSet<Map>());
@@ -149,8 +148,7 @@ internal static partial class Program
             && !foundationObject.HasTag(SpaceObjectTag.Shuttle),
             "foundation ships retain Ship role and are excluded from point-defense targets");
         Check(foundation.Transfer.console == console.parent && foundation.Transfer.body == null
-            && foundation.Transfer.ownerId == console.shipId && foundation.Transfer.includeTerrain
-            && !foundation.Transfer.pocketSize.HasValue,
+            && foundation.Transfer.ownerId == console.shipId && foundation.Transfer.includeTerrain,
             "foundation transfer provider supplies its console and ownership through the same contract");
         ShipBase cachedFoundation = console.Vessel;
         Check(ReferenceEquals(cachedFoundation, console.Vessel)

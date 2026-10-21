@@ -1,4 +1,7 @@
 using RimWorld.Planet;
+using RimWorld;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using Verse;
 
@@ -14,8 +17,10 @@ namespace DeltaV
     /// </summary>
     public static class ShipPocketMapFactory
     {
-        private const int StructureMargin = 15;
-        private const int MinimumDimension = 80;
+        public const int StructureMargin = 12;
+
+        public static IntVec3 CompactSize(IntVec2 contentSize) =>
+            new IntVec3(contentSize.x + StructureMargin * 2, 1, contentSize.z + StructureMargin * 2);
 
         public static Map Generate(IntVec3 size, UniverseManager universe)
         {
@@ -40,7 +45,7 @@ namespace DeltaV
             parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
             Map map = universe.Generation.GenerateSynchronously(new IncrementalMapGenerationRequest
             {
-                key = $"projectileMap_{size.x}x{size.z}",
+                key = $"pooledMap_{size.x}x{size.z}",
                 parent = parent,
                 size = size,
                 generator = DeltaVDefOf.DeltaV_ShipPocket,
@@ -62,42 +67,21 @@ namespace DeltaV
             root = IntVec3.Invalid;
             if (gravship == null || universe == null) return false;
 
-            bool any = false;
-            int minX = int.MaxValue;
-            int minZ = int.MaxValue;
-            int maxX = int.MinValue;
-            int maxZ = int.MinValue;
-            foreach (IntVec3 cell in gravship.Foundations.Keys)
-            {
-                any = true;
-                minX = Mathf.Min(minX, cell.x);
-                minZ = Mathf.Min(minZ, cell.z);
-                maxX = Mathf.Max(maxX, cell.x);
-                maxZ = Mathf.Max(maxZ, cell.z);
-            }
-            if (!any)
-            {
-                Log.Error("[DeltaV] Cannot generate a ship pocket map: Gravship has no foundation cells.");
-                return false;
-            }
-
-            int width = maxX - minX + 1;
-            int height = maxZ - minZ + 1;
-            int mapWidth = DimensionFor(width);
-            int mapHeight = DimensionFor(height);
-            int padX = (mapWidth - width) / 2;
-            int padZ = (mapHeight - height) / 2;
-            root = new IntVec3(padX - minX, 0, padZ - minZ);
-            map = Generate(new IntVec3(mapWidth, 1, mapHeight), universe);
+            CellRect bounds = PlacedBounds(gravship);
+            root = new IntVec3(StructureMargin - bounds.minX, 0, StructureMargin - bounds.minZ);
+            map = Generate(CompactSize(bounds.Size), universe);
             return map != null;
         }
 
-        private static int DimensionFor(int structureSize)
+        internal static CellRect PlacedBounds(Gravship gravship)
         {
-            int size = Mathf.Max(MinimumDimension, structureSize + StructureMargin * 2);
-            // 保持额外空间为偶数，使结构几何中心与 Map 几何中心精确重合。
-            if (((size - structureSize) & 1) != 0) size++;
-            return size;
+            var cells = new List<IntVec3>();
+            foreach (IntVec3 local in gravship.Bounds)
+                cells.Add(PrefabUtility.GetAdjustedLocalPosition(local, gravship.Rotation));
+            foreach (var pair in gravship.ThingPlacements)
+                cells.AddRange(GenAdj.OccupiedRect(pair.Value.local, pair.Value.rotation, pair.Key.def.size));
+            return CellRect.FromCellList(cells);
         }
+
     }
 }

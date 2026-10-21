@@ -79,6 +79,7 @@ namespace DeltaV
             public ThingDef def;
             public CompProperties_SpaceProjectile props;
             public Building building;
+            public SpaceMapLease mapLease;
             public Thing launcher;
             private int sourceContainerId;
             public SpaceObject sourceContainer { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(sourceContainerId); set => sourceContainerId = value?.objectId ?? 0; }
@@ -152,11 +153,6 @@ namespace DeltaV
         private readonly List<SpaceCollision.ShieldVisualSegment> shieldVisualScratch =
             new List<SpaceCollision.ShieldVisualSegment>();
 
-        /// <summary>图池（footprint 哈希 → 空闲小图）。运行时缓存，不序列化。</summary>
-        private readonly Dictionary<int, List<Map>> mapPool = new Dictionary<int, List<Map>>();
-        // 在飞与闲置池共用同一集合：这些图是弹体实现细节，不能在殖民者栏暴露。
-        private readonly HashSet<Map> projectileMaps = new HashSet<Map>();
-
         public void ForgetMap(Map map)
         {
             if (map == null) return;
@@ -164,8 +160,6 @@ namespace DeltaV
                 if (p.target.HasLock && (!p.target.TryResolve(universe, out var resolved)
                     || resolved.Container?.map == null || resolved.Container.map == map)) ForgetTarget(p);
             ForgetCombatVisuals(map);
-            projectileMaps.Remove(map);
-            foreach (List<Map> maps in mapPool.Values) maps.Remove(map);
         }
 
         // 盾线材质（静态渲染缓存，ClearRuntimeCaches 换档销毁）。
@@ -284,12 +278,24 @@ namespace DeltaV
             }
             else if (props.hasMap)
             {
-                Map map = BorrowMap(def.Size);
-                if (map == null)
+                bool populated = universe.MapPool.TryRent(SpaceObjectTag.Projectile, def.Size, map =>
                 {
+                    projectile.building = ThingMaker.MakeThing(def) as Building;
+                    if (projectile.building == null)
+                        throw new System.InvalidOperationException($"Mapped projectile {def.defName} is not a Building.");
+                    // Position is the center anchor, including even footprints; never use the lower-left cell.
+                    CellRect footprint = GenAdj.OccupiedRect(IntVec3.Zero, Rot4.North, def.Size);
+                    GenSpawn.Spawn(projectile.building,
+                        new IntVec3(-footprint.minX, 0, -footprint.minZ), map, Rot4.North);
+                }, out SpaceMapLease lease);
+                if (!populated)
+                {
+                    if (lease != null) ReturnProjectileMap(lease, projectile.building);
                     RecycleProjectile(projectile);
                     return false;
                 }
+                projectile.mapLease = lease;
+                Map map = lease.Map;
                 created = new MapSpaceObject(universe.AllocateOwnerId(), map,
                     new SpacePose(muzzle, Mathf.Atan2(dirTangent.y, dirTangent.x)))
                 {
@@ -299,13 +305,6 @@ namespace DeltaV
                 float initialSpeed = launchSpec.coldLaunchTicks > 0
                     ? launchSpec.coldLaunchSpeed : launchSpec.speed;
                 created.pose.velocity = dirTangent * initialSpeed + launcherVelocity;
-                projectile.building = ThingMaker.MakeThing(def) as Building;
-                if (projectile.building != null)
-                {
-                    GenSpawn.Spawn(projectile.building,
-                        new IntVec3((map.Size.x - def.Size.x) / 2, 0, (map.Size.z - def.Size.z) / 2),
-                        map, Rot4.North);
-                }
                 projectile.prevPosition = muzzle;
             }
             else
@@ -769,6 +768,7 @@ namespace DeltaV
             SpaceObject original = p.container;
             int expectedVersion = original?.RepresentationVersion ?? 0;
             Map oldMap = original?.map ?? p.building?.Map;
+            SpaceMapLease oldLease = p.mapLease;
             if (!destroyContainer)
             {
                 projectiles.Remove(p);
@@ -782,13 +782,14 @@ namespace DeltaV
                 SpaceObject container = p.container;
                 if (destroyContainer && (container == null || container.RepresentationVersion == expectedVersion))
                 {
+                    if (container != null) universe.UnregisterObject(container);
                     if (oldMap == null || !oldMap.Disposed)
                     {
-                        if (p.building != null && !p.building.Destroyed)
+                        if (oldLease != null)
+                            ReturnProjectileMap(oldLease, p.building);
+                        else if (p.building != null && !p.building.Destroyed)
                             p.building.Destroy(DestroyMode.Vanish);
-                        if (oldMap != null) ReturnMapToPool(oldMap);
                     }
-                    if (container != null) universe.UnregisterObject(container);
                 }
                 RecycleProjectile(p);
             });
@@ -800,6 +801,7 @@ namespace DeltaV
             p.def = null;
             p.props = null;
             p.building = null;
+            p.mapLease = null;
             p.launcher = null;
             p.sourceContainer = null;
             p.reflectedByShield = false;
@@ -835,75 +837,30 @@ namespace DeltaV
             if (projectilePool.Count < MaxPooledProjectiles) projectilePool.Push(p);
         }
 
-        private Map BorrowMap(IntVec2 footprint)
-        {
-            // 尺寸下限 2×2（§15.17 定案）：1×1 图 Area=1，GasGrid 构造的
-            // Rand.Range(0, Area/2) 提前返回不消耗 RNG，与原版组件「恰好 1 次」的
-            // 校准不符（MapPreview 等按 Rand.iterations 对账的 mod 会误报）。弹体
-            // building 始终居中放置，不受下限影响。
-            int x = Mathf.Max(2, footprint.x);
-            int z = Mathf.Max(2, footprint.z);
-            int key = PoolKey(x, z);
-            if (mapPool.TryGetValue(key, out List<Map> idle) && idle.Count > 0)
-            {
-                Map map = idle[idle.Count - 1];
-                idle.RemoveAt(idle.Count - 1);
-                projectileMaps.Add(map);
-                return map;
-            }
-            Map generated = ShipPocketMapFactory.GenerateImmediate(new IntVec3(x, 1, z), universe);
-            if (generated != null)
-            {
-                DeltaVPocketMapMetadata metadata = generated.GetComponent<DeltaVPocketMapMetadata>();
-                if (metadata != null) metadata.projectileMap = true;
-                projectileMaps.Add(generated);
-                HostColonistBarVisibility.NotifyDockingStateChanged();
-            }
-            return generated;
-        }
-
-        private void ReturnMapToPool(Map map)
-        {
-            if (map == null || map.Disposed) return;
-            // 保险：图上不应再有内容（弹体 building 已毁）；有残留则不入池直接销毁。
-            if (map.listerThings.AllThings.Count > 0)
-            {
-                ForgetCombatVisuals(map);
-                projectileMaps.Remove(map);
-                universe.Lifecycle.DestroyPocketMap(map);
-                return;
-            }
-            int key = PoolKey(map.Size.x, map.Size.z);
-            if (!mapPool.TryGetValue(key, out List<Map> idle))
-            {
-                mapPool[key] = idle = new List<Map>();
-            }
-            if (!idle.Contains(map)) idle.Add(map);
-            projectileMaps.Add(map);
-        }
-
         /// <summary>殖民者栏等 UI 判断弹体内部图的唯一入口（包含在飞与闲置池）。</summary>
         internal bool IsProjectileMap(Map map)
         {
             if (map == null) return false;
-            if (projectileMaps.Contains(map)) return true;
-            if (map.GetComponent<DeltaVPocketMapMetadata>()?.projectileMap == true) return true;
+            DeltaVPocketMapMetadata metadata = map.GetComponent<DeltaVPocketMapMetadata>();
+            if (metadata?.pooledMap == true && metadata.poolTag == SpaceObjectTag.Projectile) return true;
             SpaceObject obj = universe.SpaceObjectOnMap(map);
             if (obj != null && obj.baseTag == SpaceObjectTag.Projectile) return true;
-            // marker 上线前的存档兼容：普通飞船图最小边长 80，专用宿主为 50；
-            // 只有旧弹体池会留下小于宿主边长的 ShipPocketParent 图。
-            return map.Parent is ShipPocketParent_DeltaV
-                && (map.Size.x < UniverseManager.HostMapEdge || map.Size.z < UniverseManager.HostMapEdge);
+            return false;
         }
 
-        private static int PoolKey(int x, int z) => x * 4096 + z;
+        private void ReturnProjectileMap(SpaceMapLease lease, Building body)
+        {
+            if (!universe.MapPool.TryReturn(lease, _ =>
+                {
+                    if (body != null && !body.Destroyed) body.Destroy(DestroyMode.Vanish);
+                }) && universe.MapPool.IsCurrent(lease))
+                Log.Warning($"[DeltaV] Projectile map {UniverseManager.MapTag(lease.Map)} retained: return rejected; remaining content was not discarded.");
+        }
 
         /// <summary>dev：图池状态摘要。</summary>
         public string PoolStatus()
         {
-            int pooled = 0;
-            foreach (KeyValuePair<int, List<Map>> kv in mapPool) pooled += kv.Value.Count;
-            return $"in-flight={projectiles.Count} beams={beams.Count} pooledIdleMaps={pooled}";
+            return $"in-flight={projectiles.Count} beams={beams.Count} pooledIdleMaps={universe.MapPool.IdleCount}";
         }
 
         /// <summary>
@@ -918,31 +875,28 @@ namespace DeltaV
                 if (!(map.Parent is ShipPocketParent_DeltaV)) continue;
                 if (map == Find.CurrentMap) continue;
                 if (universe.SpaceObjectOnMap(map) != null) continue;
-                if (map.mapPawns.AllPawnsSpawned.Count > 0) continue;
-                bool marked = IsProjectileMap(map);
-                bool any = false;
+                if (map.mapPawns.AllPawns.Count > 0) continue;
+                if (!IsProjectileMap(map)) continue;
                 bool onlyProjectiles = true;
                 foreach (Thing thing in map.listerThings.AllThings)
                 {
                     if (thing is Building building
                         && building.def.GetCompProperties<CompProperties_SpaceProjectile>() != null)
                     {
-                        any = true;
                         continue;
                     }
                     onlyProjectiles = false;
                     break;
                 }
-                // 新存档由持久 marker 识别，空闲池图即使没有 building 也可回收；
-                // marker 上线前的旧档仍以「内容只有弹体 building」兼容识别。
-                if ((!marked && !any) || !onlyProjectiles) continue;
-                foreach (Thing thing in map.listerThings.AllThings.ToList())
-                {
-                    if (!thing.Destroyed) thing.Destroy(DestroyMode.Vanish);
-                }
-                ReturnMapToPool(map);
-                DeltaVLog.Message(DeltaVLogModule.Combat,
-                    $"orphan projectile map {UniverseManager.MapTag(map)} reclaimed into pool after load");
+                if (!onlyProjectiles) continue;
+                SpaceMapLease lease = universe.MapPool.Restore(map);
+                if (universe.MapPool.TryReturn(lease, released =>
+                    {
+                        foreach (Thing thing in released.listerThings.AllThings.ToList())
+                            if (!thing.Destroyed) thing.Destroy(DestroyMode.Vanish);
+                    }) && DeltaVLog.Enabled(DeltaVLogModule.Combat))
+                    DeltaVLog.Message(DeltaVLogModule.Combat,
+                        $"orphan projectile map {UniverseManager.MapTag(map)} reclaimed into pool after load");
             }
         }
 
@@ -963,27 +917,13 @@ namespace DeltaV
             soundTicks.Clear();
             visualSequence = 0;
             visualContacts.Clear();
-            // Capture map identities, not pool list references. The queued projectile
-            // teardown above can return active maps to those same lists before this runs.
-            Map[] resetMaps = projectileMaps.ToArray();
-            universe.QueueFrameAction(delegate
-            {
-                foreach (Map map in resetMaps)
-                {
-                    if (map == null) continue;
-                    ForgetMap(map);
-                    if (!map.Disposed) universe.Lifecycle.DestroyPocketMap(map);
-                }
-                // Leave any maps created after ResetFlow intact.
-                foreach (int key in mapPool.Keys.ToArray())
-                    if (mapPool[key].Count == 0) mapPool.Remove(key);
-            });
+            universe.MapPool.QueueReleaseUnused(SpaceObjectTag.Projectile);
         }
 
         // ---- 渲染（ShellRenderer 前台层；有图/无图弹体同一路径，图形取自 def）----
 
         /// <summary>
-        /// 弹体与激光线段渲染（与幽灵船/跳帮舱标记同管线，聚焦帧投影）。返回消耗后
+        /// 弹体与激光线段渲染（共用外壳前景管线，聚焦帧投影）。返回消耗后
         /// 的下一槽位号。弹体朝向按速度方向（UsesVelocityHeading tag 分派）。
         /// </summary>
         internal int TryEmitProjectiles(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)

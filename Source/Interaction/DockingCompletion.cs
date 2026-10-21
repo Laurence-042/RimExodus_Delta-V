@@ -10,21 +10,20 @@ namespace DeltaV
         private readonly UniverseManager universe;
         private readonly Map targetMap;
         private readonly Map sourceMap;
-        private readonly bool impactLanding;
         private readonly ShipFlightTransitionService.DockingFocusHandoff handoff;
 
         private readonly ShipBase vessel;
         private readonly string label;
 
         internal DockingCompletion(UniverseManager universe, ShipBase vessel, Map targetMap, Map sourceMap,
-            ShipFlightTransitionService.DockingFocusHandoff handoff, bool impactLanding = false)
+            ShipFlightTransitionService.DockingFocusHandoff handoff)
         {
             this.universe = universe;
             this.vessel = vessel;
             label = vessel.Label;
             this.targetMap = targetMap;
             this.sourceMap = sourceMap;
-            this.impactLanding = impactLanding;
+
             this.handoff = handoff;
         }
 
@@ -60,38 +59,16 @@ namespace DeltaV
             }
             else
             {
-                SpaceObject pocketContainer = universe.SpaceObjectOnMap(sourceMap);
-                SpacePose sourcePose = pocketContainer?.pose ?? new SpacePose(Vector3.right, 0f);
-                ShipFlightTransitionService.AbandonPawnsOn(sourceMap);
-                transitions.ConvertLeftoverSubstructureToWreck(universe, sourceMap, sourcePose);
-                MapOverlayRenderer.Release(sourceMap);
-                PlanetGlobeRenderer.InvalidateSilhouette(sourceMap);
-                if (pocketContainer != null)
-                {
-                    universe.UnregisterObject(pocketContainer);
-                }
-                // 先交接再销毁：CurrentMap 已在宿主图上，maps[0] 回退不会触发。
-                if (handoff.IsValid)
-                {
-                    transitions.ApplyDockingFocusHandoff(universe, handoff);
-                    DeltaVLog.Message(DeltaVLogModule.Core,
-                        $"docking finish focus handoff -> {UniverseManager.MapTag(handoff.host.InteriorMap)}; currentMap now {UniverseManager.MapTag(Find.CurrentMap)}");
-                }
-                else
-                {
-                    DeltaVLog.Message(DeltaVLogModule.Core,
-                        $"docking finish destroying source with no handoff; currentMap={UniverseManager.MapTag(Find.CurrentMap)}");
-                }
-                universe.Lifecycle.DestroyPocketMap(sourceMap);
+                transitions.ApplyDockingFocusHandoff(universe, handoff);
+                transitions.FinishDockingCleanup(sourceMap);
+                transitions.HandleDepartedSourceMap(universe, sourceMap);
                 ShipPhysics.ClearCache();
-                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                    "docking source pocket map removed after merge (leftovers disposed per confirmation)");
             }
             HostColonistBarVisibility.NotifyDockingStateChanged();
             Building_DockingPort.NotifyLandingSettled(targetMap);
             Messages.Message("DeltaV_DockSuccess".Translate(label),
                 MessageTypeDefOf.PositiveEvent, false);
-            if (!impactLanding) transitions.DiscardPendingDocking(universe);
+
         }
 
     }

@@ -139,6 +139,8 @@ namespace DeltaV
             var previewThings = (Dictionary<Thing, PositionData>)ThingsField.GetValue(gravship);
             foreach (Thing thing in map.listerThings.AllThings)
             {
+                if (thing.Spawned && cells.Contains(thing.Position) && ShouldBringOnGravship(thing, thing.Position))
+                    previewThings[thing] = new PositionData(thing.Position - origin, thing.Rotation);
                 // 对接口与舱体共用原版 PositionData 旋转链，选点显示不得另算门的位置和朝向。
                 if (thing is Building_DockingPort port && port.Spawned && cells.Contains(port.Position))
                     previewThings[port] = new PositionData(port.Position - origin, port.Rotation);
@@ -173,7 +175,7 @@ namespace DeltaV
         /// 按 cells 集合捕获一个可搬运的 Gravship（镜像 <c>Gravship(engine)</c> 构造器；
         /// origin = 域包围盒 min，局部坐标非负）。mainConsole 决定 PilotConsole；
         /// ownerFaction 用于镜像 CheckAffectedGoodwill（无主台残片传 null 跳过）。
-        /// 捕获**不修改**源图——移除由 <see cref="StripDomain"/> 完成。
+        /// 捕获会消费区域、指令、储存组和携带物；所有可失败的前置检查必须先完成。
         /// </summary>
         internal static Gravship CaptureDomain(Map map, HashSet<IntVec3> cells, Building mainConsole,
             Faction ownerFaction, bool includeTerrain = true)
@@ -244,7 +246,9 @@ namespace DeltaV
                 occupied.Add(local);
                 if (includeTerrain)
                 {
-                    foundations[local] = map.terrainGrid.FoundationAt(cell);
+                    TerrainDef foundation = map.terrainGrid.FoundationAt(cell);
+                    // Vanilla SpawnTerrain dereferences each value; blank cells have no foundation entry.
+                    if (foundation != null) foundations[local] = foundation;
                     terrains[local] = map.terrainGrid.TerrainAt(cell);
                     terrainColors[local] = map.terrainGrid.ColorAt(cell);
                     roofs[local] = map.roofGrid.RoofAt(cell);
@@ -668,11 +672,13 @@ namespace DeltaV
             if (controller != null && ControllerTimeLeft != null) ControllerTimeLeft.SetValue(controller, 0f);
         }
 
-        internal static void PlaceIntoMap(Gravship gravship, IntVec3 root, Map map, int ownerId)
+        internal static void PlaceIntoMap(Gravship gravship, IntVec3 root, Map map, int ownerId,
+            Dictionary<IntVec3, int> placedOwners = null)
         {
             var stampCells = new HashSet<IntVec3>(gravship.Foundations.Count);
             foreach (IntVec3 cell in gravship.Foundations.Keys) stampCells.Add(cell + root);
-            SubstructureOwnership.For(map).SetPendingStamp(stampCells, ownerId);
+            if (placedOwners != null) SubstructureOwnership.For(map).SetPendingStamp(placedOwners);
+            else SubstructureOwnership.For(map).SetPendingStamp(stampCells, ownerId);
             List<Thing> spawned;
             try
             {

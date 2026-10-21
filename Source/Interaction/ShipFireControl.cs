@@ -173,14 +173,23 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
                 if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.PointDefense
-                    || weapon.WeaponProps.manualOnly
+                    || weapon.WeaponProps.manualOnly && !weapon.WeaponProps.tractor
                     || !WeaponBelongsHere(weapon, container) || !weapon.GroupActive) continue;
+                if (weapon.WeaponProps.tractor && !SpaceTractor.CanOperate(weapon)) continue;
                 WeaponAimInfo info = SpaceWeaponService.AimInfo(weapon, container);
                 pointDefense.TryGetValue(weapon.parent.thingIDNumber, out PdLock state);
                 ResolvedCombatTarget victim = default;
                 bool valid = now < state.retargetAt && PdTargetValid(weapon, state.target, info.Muzzle, out victim);
                 if (!valid)
                 {
+                    // A failed lock does not bypass the authorized 30-tick search cadence.
+                    if (weapon.WeaponProps.tractor && now < state.retargetAt) continue;
+                    if (weapon.WeaponProps.tractor && !SpaceWeaponShot.HasShotEnergy(weapon))
+                    {
+                        state.target = default; state.retargetAt = now + 30;
+                        pointDefense[weapon.parent.thingIDNumber] = state;
+                        continue;
+                    }
                     state.target = CombatTarget.ForContainer(FindPdTarget(weapon, info.Muzzle)); state.retargetAt = now + 30;
                     pointDefense[weapon.parent.thingIDNumber] = state;
                     valid = state.target.TryResolve(universe, out victim);
@@ -250,6 +259,12 @@ namespace DeltaV
         private static bool PdCandidateValid(CompSpaceWeapon weapon, SpaceObject target, Vector3 muzzle, out float distance)
         {
             distance = 0f;
+            if (weapon.WeaponProps.tractor)
+            {
+                if (target?.IsScattered != true || target.map == null || target.map.Disposed) return false;
+                distance = OrbitSphere.Offset(muzzle, target.pose.position).magnitude;
+                return distance <= weapon.WeaponProps.range;
+            }
             if (target == null || target == weapon.Container || target.map == null || target.map.Disposed
                 || !target.InterceptionEligible || !target.HostileTo(weapon.parent.Faction)) return false;
             distance = OrbitSphere.Offset(muzzle, target.pose.position).magnitude - SpaceCollision.BoundsRadiusOf(target);
@@ -266,9 +281,15 @@ namespace DeltaV
             if (own == null) return null;
             SpaceObject best = null;
             float bestScore = float.MaxValue;
-            foreach (SpaceObject obj in universe.objects)
+            IEnumerable<SpaceObject> candidates = weapon.WeaponProps.tractor ? universe.Scatter.Candidates : universe.objects;
+            foreach (SpaceObject obj in candidates)
             {
                 if (!PdCandidateValid(weapon, obj, muzzle, out float distance)) continue;
+                if (weapon.WeaponProps.tractor)
+                {
+                    if (distance < bestScore) { bestScore = distance; best = obj; }
+                    continue;
+                }
                 Vector2 offset = OrbitSphere.Offset(own.pose.position, obj.pose.position);
                 // 来袭判定：目标相对速度朝己方逼近 → 预计命中时间（秒）作优先分；
                 // 非来袭（掠过/远离）兜底排在所有来袭之后、按距离。

@@ -15,6 +15,13 @@ namespace DeltaV
         public static void Postfix(WidgetRow row, bool worldView)
         {
             if (worldView) return;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe != null)
+            {
+                bool soft = universe.SoftDock.Enabled;
+                row.ToggleableIcon(ref soft, TexCommand.Install, "DeltaV_SoftDockToggle".Translate(), SoundDefOf.Mouseover_ButtonToggle);
+                universe.SoftDock.SetEnabled(soft);
+            }
             row.ToggleableIcon(ref ThrusterDebugOverlay.Show, TexCommand.SquadAttack,
                 "DeltaV_DebugThrustersToggleButton".Translate(), SoundDefOf.Mouseover_ButtonToggle);
             bool showWeaponArcs = WeaponArcOverlay.Show;

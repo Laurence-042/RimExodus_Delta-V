@@ -71,6 +71,8 @@ namespace DeltaV
             globeDisplay?.Forget(previous.map);
             PlanetGlobeRenderer.InvalidateSilhouette(previous.map);
             objects[index] = current;
+            scatter?.Remove(previous);
+            if (current.IsScattered) Scatter.Register(current);
             if (previous.map != null || current.map != null) SubstructureOwnership.BumpStructureVersion();
             try { Autopilot.Detach(previous); previous.ClearDrive(); }
             catch (Exception ex) { Log.Error($"[DeltaV] Representation #{current.objectId} changed, but old drive cleanup failed: {ex}"); }
@@ -84,6 +86,15 @@ namespace DeltaV
         internal GlobeDisplayInfo GlobeDisplay => globeDisplay ?? (globeDisplay = new GlobeDisplayInfo());
 
         [NonSerialized] private SpaceProjectileService projectiles;
+
+        [NonSerialized] private SpaceMapPool mapPool;
+        public SpaceMapPool MapPool => mapPool ?? (mapPool = new SpaceMapPool(this));
+        [NonSerialized] private SpaceScatterService scatter;
+        public SpaceScatterService Scatter => scatter ?? (scatter = new SpaceScatterService(this));
+        [NonSerialized] private SoftDockService softDock;
+        public SoftDockService SoftDock => softDock ?? (softDock = new SoftDockService(this));
+        [NonSerialized] private OrbitalWorkService worksites;
+        public OrbitalWorkService Worksites => worksites ?? (worksites = new OrbitalWorkService(this));
 
         /// <summary>
         /// 弹体服务（太空战架构 §4.1：取代 BoardingPods 槽位，段7 完成接管）：弹体
@@ -313,6 +324,7 @@ namespace DeltaV
                 }
             }
             objects.Add(obj);
+            if (obj.IsScattered) Scatter.Register(obj);
             if (obj.map != null && Find.UIRoot is UIRoot_Play) Find.ColonistBar?.MarkColonistsDirty();
             if (obj.map != null) SubstructureOwnership.BumpStructureVersion();
             if (obj.objectId >= nextFreeOwnerId) nextFreeOwnerId = obj.objectId + 1;
@@ -340,6 +352,7 @@ namespace DeltaV
             // Resolve projectile resources while the old identity is still registered.
             Projectiles.NotifyContainerRemoving(obj);
             objects.Remove(obj);
+            scatter?.Remove(obj);
             if (obj.map != null && Find.UIRoot is UIRoot_Play) Find.ColonistBar?.MarkColonistsDirty();
             globeDisplay?.Forget(obj.map);
             PlanetGlobeRenderer.InvalidateSilhouette(obj.map);
@@ -347,6 +360,7 @@ namespace DeltaV
             Shuttles.ForgetContainer(obj);
             // 最后一艘船消失后 Ship tag 已移除，释放不能再以当前角色为前提。
             if (obj.map != null) Weapons.ForgetMap(obj.map);
+            if (obj.map != null) { softDock?.Forget(obj.map); scatter?.Forget(obj.map); }
             // 被注销对象的 ID 仍被驾驶台 comp / 图上归属格持有（战略飞行中的船、走距离
             // 生命周期的残骸），推过高水位绝不再发——否则新星区生成物会领走同号，
             // 异主域同号合并（2026-09-20 撞号实测）。
@@ -402,17 +416,17 @@ namespace DeltaV
             float shrink = oldScale / newScale;
             foreach (SpaceObject obj in objects)
             {
-                RescalePoseToSector(ref obj.pose.position, shrink);
+                RescalePoseToSector(ref obj.pose.direction, shrink);
             }
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"cellsPerTile rescaled {oldScale:F0} -> {newScale:F0}; {objects.Count} object poses rebased to sector centers (velocities untouched)");
         }
 
-        private static void RescalePoseToSector(ref Vector3 position, float shrink)
+        private static void RescalePoseToSector(ref OrbitSphere.Direction position, float shrink)
         {
-            PlanetTile tile = OrbitSphere.TileFromDirection(position);
+            PlanetTile tile = OrbitSphere.TileFromDirection(position.Vector);
             if (!tile.Valid) return;
-            Vector3 center = OrbitSphere.TileCenterDirection(tile);
+            var center = new OrbitSphere.Direction(OrbitSphere.TileCenterDirection(tile));
             Vector2 offset = OrbitSphere.Offset(center, position);
             position = OrbitSphere.Move(center, offset * shrink);
         }
@@ -458,6 +472,9 @@ namespace DeltaV
             globeDisplay?.Forget(map);
             PlanetGlobeRenderer.InvalidateSilhouette(map);
             Projectiles.ForgetMap(map);
+            mapPool?.Forget(map);
+            scatter?.Forget(map);
+            softDock?.Forget(map);
         }
 
         // ---- 专用宿主 ----
@@ -561,17 +578,17 @@ namespace DeltaV
             ResetRuntimeServices();
             pocketHostService?.Reset();
             OrbitSphere.ClearCache();
-            // 先对齐 ID 下限再跑归属迁移（迁移会对无组件图兜底分配新 ID）。
+            // 正常存读档仅重建派生索引，不迁移旧开发存档。
             SyncOwnerIdFloor();
             OrbitalPoiRegistry.Synchronize(this);
-            MigrateSubstructureOwnership();
+
             if (pendingScaleRescaleFrom > 0f)
             {
                 float current = DeltaVMod.CurrentSettings?.cellsPerTile ?? (int)OrbitSphere.DefaultCellsPerTile;
                 ApplyCellsPerTileScale(pendingScaleRescaleFrom, current);
                 pendingScaleRescaleFrom = -1f;
             }
-            ClearStalePocketMapTiles();
+
             // 地图被外部移除等异常情况下的收尾：清掉悬空引用；丢失地图的纯容器整体
             // 移除避免悬空状态。PoiState（marker/NativeParent）保留等待物化/同步。
             foreach (SpaceObject obj in objects.ToList())
@@ -607,68 +624,17 @@ namespace DeltaV
             {
                 foreach (Map map in Find.Maps.ToList())
                 {
+                    SpaceMapLease lease = MapPool.Restore(map);
+                    if (lease != null)
+                    {
+                        MapPool.TryReturn(lease);
+                        continue;
+                    }
                     ShipTransitions.HandleDepartedSourceMap(this, map);
                 }
                 // 弹体孤儿图回收（写档剔除了弹体容器，小图随档残留；帧上下文收尾）。
                 Projectiles.SweepOrphanProjectileMaps();
             });
-        }
-
-        /// <summary>
-        /// 基架归属旧档自愈：归属体系上线前的存档没有归属组件——全部基架格按新分配的
-        /// 结构 ID 补齐（不再关联对象 ID，ID 语义分离）。仅 Delta-V 参考系图参与。
-        /// 存档已带归属组件的图不做整图迁移：「未占有（0）」是合法的持久状态
-        /// （孤立建造/争议桥），读档吸收会破坏归属语义。
-        /// </summary>
-        private void MigrateSubstructureOwnership()
-        {
-            foreach (Map map in Find.Maps)
-            {
-                if (FrameOf(map) == null)
-                {
-                    continue;
-                }
-                if (SubstructureOwnership.TryGet(map) == null)
-                {
-                    SubstructureOwnership ownership = SubstructureOwnership.For(map);
-                    if (ownership.HasUnassignedSubstructure())
-                    {
-                        int defaultOwner = AllocateOwnerId();
-                        int migrated = ownership.MigrateUnassigned(defaultOwner);
-                        if (migrated > 0)
-                        {
-                            NoteStructureName(defaultOwner, NewWreckName(defaultOwner));
-                            DeltaVLog.Message(DeltaVLogModule.Core,
-                                $"map {map.Index}: migrated {migrated} substructure cells to structure #{defaultOwner}");
-                        }
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// 旧档口袋图残留的真实 tile 清理：去 tile 化后 Delta-V 口袋图不再持有 tile，
-        /// 残留会让 Game.FindMap(PlanetTile) 误中口袋图（降落 GetOrGenerateMap 语义被破坏）。
-        /// 必须反射直写私有字段——WorldObject.Tile setter 对新 tile 无 Valid 守卫，
-        /// 走 setter 置 Invalid 有 Surface 层 FastTileFinder 越界风险。
-        /// </summary>
-        private static void ClearStalePocketMapTiles()
-        {
-            var tileField = AccessTools.Field(typeof(WorldObject), "tile");
-            if (tileField == null)
-            {
-                Log.ErrorOnce("[DeltaV] WorldObject.tile field not found; stale pocket map tiles not cleared.", 0x44564343);
-                return;
-            }
-            foreach (PocketMapParent parent in Find.World.pocketMaps)
-            {
-                if (parent is ShipPocketParent_DeltaV && parent.Tile.Valid)
-                {
-                    tileField.SetValue(parent, PlanetTile.Invalid);
-                    DeltaVLog.Message(DeltaVLogModule.Core,
-                        $"{parent.Label}: stale orbit tile cleared from legacy pocket map");
-                }
-            }
         }
 
         // ---- 帧上下文动作队列（唯一的「离开当前调用栈」延迟机制）----
@@ -744,6 +710,7 @@ namespace DeltaV
             // 推进器/船体范围调试叠加（右下角 PlaySettings 开关控制）。
             ThrusterDebugOverlay.DrawFocused(this);
             if (WeaponArcOverlay.Show) WeaponArcOverlay.DrawFocused(this);
+            softDock?.Draw();
             CollisionDebugOverlay.DrawFocused(this);
             // 推进器工作音（与火焰同源：只读分配器油门；聚焦图逐推进器 + 船壳整船）。
             ThrusterAudio.Update(this);
@@ -806,6 +773,7 @@ namespace DeltaV
             // 游戏 tick 推进——暂停冻结、倍速加速；先于计划判据与物理积分
             //（IsActive 跳过防双驱动，计划判据看到本 tick 最新位姿）。
             NpcShips.Tick();
+            softDock?.Tick();
             Autopilot.Tick();
             Projectiles.Tick();
             Weapons.TickPendingMissileReloads();
@@ -871,31 +839,6 @@ namespace DeltaV
                 ShipBase selectedShip = Find.CurrentMap != null
                     ? Pilot.SelectedShipOnMap(Find.CurrentMap) : Ship.Invalid;
                 Controls.ToggleFireControl(selectedShip);
-            }
-            // 选点阶段 ESC 取消（2026-09-25 补齐）：PendingTarget 在册且无计划 = 正在选点。
-            // 让位条件是「存在会自己消费 ESC 的窗口」（Dialog 层及以上），而非窗口栈非空——
-            // Inspect 等主标签窗口常驻 GameUI 层且不吞 ESC，不能因此禁用本处理器。
-            // GameComponentOnGUI 先于 DesignatorManager/WindowStack 执行，这里消费后
-            // 原版只会 Deselect 设计器而不清流程的路径不会再跑，一次 ESC 退出整个选点。
-            if (KeyBindingDefOf.Cancel.KeyDownEvent
-                && ShipTransitions.HasPendingDocking)
-            {
-                // 事件边沿诊断（用户实测排查用；只在 ESC 按下且选点流程在册时输出一条）。
-                // 只有 closeOnCancel 的窗口（暂停菜单/确认框）会真正消费 ESC——
-                // 开发者调色板、性能 mod 的 ImmediateWindow 等常驻 Super/Dialog 层但不响应取消键。
-                string blockingWindows = string.Join(",",
-                    Find.WindowStack.Windows.Where(w => w.layer > WindowLayer.GameUI && w.closeOnCancel)
-                        .Select(w => $"{w.GetType().Name}@{w.layer}"));
-                Log.Message($"[DeltaV] esc during selection: pending={ShipTransitions.HasPendingDocking}, "
-                    + $"activePlan={Approach.ActivePlan != null}, blockingWindows=[{blockingWindows}], "
-                    + $"eventUsed={Event.current.type == EventType.Used}, "
-                    + $"designator={Find.DesignatorManager.SelectedDesignator?.GetType().Name ?? "none"}");
-                if (string.IsNullOrEmpty(blockingWindows) && Approach.ActivePlan == null)
-                {
-                    Find.DesignatorManager.Deselect();
-                    Approach.CancelSelectionOrPlan(this, "esc");
-                    Event.current.Use();
-                }
             }
             ShipStatusPanel.Draw(this);
             Designator_ReassignSubstructure.DrawPendingLabels();
@@ -1145,6 +1088,10 @@ namespace DeltaV
         /// </summary>
         private void ResetRuntimeServices()
         {
+            mapPool = null;
+            scatter = null;
+            softDock = null;
+            worksites = null;
             npcShips = null;
             globeDisplay?.Clear();
             globeDisplay = null;
@@ -1167,7 +1114,6 @@ namespace DeltaV
             SpaceCollision.ClearCaches();
             SpaceProjectileService.ClearRuntimeCaches();
             AimMarkersRenderer.ClearRuntimeCaches();
-            DockingGhostRenderer.Destroy();
             unframedMaps?.Clear();
             PilotKeyBridge.Reset();
             // Loading discards old-runtime callbacks; scene reset reaches here only after draining.

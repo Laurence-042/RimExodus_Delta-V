@@ -25,7 +25,11 @@ namespace DeltaV
                 try
                 {
                     if (universe.ObjectById(owner.objectId) == owner && owner.RepresentationVersion == version
-                        && owner.map == map) RecycleUnsupportedMap(map);
+                        && owner.map == map)
+                    {
+                        universe.ShipTransitions.FinishEmptyWorksite(map);
+                        RecycleUnsupportedMap(map);
+                    }
                 }
                 finally { pendingStructureChecks.Remove(map); }
             });
@@ -33,13 +37,13 @@ namespace DeltaV
 
         private static bool IsOrdinaryStructureMap(SpaceObject owner) => owner is MapSpaceObject
             && owner.map?.Parent is ShipPocketParent_DeltaV
-            && !owner.HasTag(SpaceObjectTag.Projectile);
+            && !owner.HasTag(SpaceObjectTag.Projectile) && !owner.IsScattered;
 
         /// <summary>污渍、屋顶、散落物及人员都不能单独承载普通地图；shuttle 是独立船体。</summary>
         internal static bool HasMapSupport(SpaceObject owner)
         {
             if (owner?.map == null || owner.map.Disposed) return false;
-            if (owner.HasTag(SpaceObjectTag.Projectile) || owner.Ships.Any(ship => ship.Identity.shuttle)) return true;
+            if (owner.IsScattered || owner.HasTag(SpaceObjectTag.Projectile) || owner.Ships.Any(ship => ship.Identity.shuttle)) return true;
             return SubstructureOwnership.TryGet(owner.map)?.HasSupport == true;
         }
 
@@ -52,6 +56,7 @@ namespace DeltaV
                 || universe.ShipTransitions.IsAwaitingDockingCleanup(map) || HasMapSupport(owner)) return false;
 
             bool wasFocused = Find.CurrentMap == map;
+            if (!universe.Scatter.ScatterLoose(map)) return false;
             SpaceObject fallback = null;
             if (wasFocused)
             {
@@ -74,7 +79,6 @@ namespace DeltaV
             }
 
             // 原版销图统一处置剩余 Pawn、物品和外部引用，不转存成残骸或阻止回收。
-            ShipFlightTransitionService.AbandonPawnsOn(map);
             DestroyPocketMap(map);
             universe.UnregisterObject(owner);
             if (wasFocused && fallback == null) Find.World.renderer.wantedMode = WorldRenderMode.Planet;

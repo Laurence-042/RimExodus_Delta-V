@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="DeltaV_EngineeringTurret">
+    <defName>DeltaV_TractorBeam</defName><label>tractor beam</label><uiOrder>2102</uiOrder>
+    <description>Pulls drifting people and cargo onto its moonpool. Automatically acquires scattered objects within range; switch to manual mode to aim and fire with normal weapon controls. Requires power and stored electricity. The moonpool must have room to receive its contents.</description>
+    <size>(1,1)</size><passability>Standable</passability>
+    <uiIconPath>Things/Building/SpaceWeapons/InertiaCoupler_MenuIcon</uiIconPath>
+    <graphicData><drawSize>(1.3,1.3)</drawSize></graphicData>
+    <building><turretTopDrawSize>1.2</turretTopDrawSize><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/InertiaCoupler_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(1.3,1.3)</drawSize></blueprintGraphicData></building>
+    <placeWorkers><li>DeltaV.PlaceWorker_SpaceTractor</li></placeWorkers>
+    <comps>
+      <li Class="DeltaV.CompProperties_SpaceWeapon">
+        <manualOnly>true</manualOnly><tractor>true</tractor><aimMode>PointDefense</aimMode>
+        <projectileDef>DeltaV_Beam_Tractor</projectileDef><intrinsicAimSkill>20</intrinsicAimSkill><baseSpreadDeg>0</baseSpreadDeg>
+        <cooldownTicks>1</cooldownTicks><range>60</range><shotEnergy>0.1</shotEnergy>
+        <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>1</defaultGroupNumber>
+        <topTurret>true</topTurret><turretMuzzleDistance>0</turretMuzzleDistance><defaultFireDeviationDeg>2</defaultFireDeviationDeg>
+      </li>
+      <li Class="DeltaV.CompProperties_SpaceTractor"/>
+    </comps>
+    <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/InertiaCoupler_Top</topTexPath></li></modExtensions>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_EngineeringBeam">
+    <defName>DeltaV_Beam_Tractor</defName><label>tractor beam</label>
+    <comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+      <hasMap>false</hasMap><speed>2000</speed><laserRange>60</laserRange><laserBeamWidth>0.18</laserBeamWidth>
+      <continuousBeam>true</continuousBeam><ignoresShields>true</ignoresShields><visualStyle>Coupling</visualStyle>
+      <fireSoundMap>DeltaV_FireLaserMap</fireSoundMap><fireSoundShell>DeltaV_FireLaserShell</fireSoundShell>
+    </li></comps>
+  </ThingDef>
+  <DeltaV.SpaceImpactEffectDef>
+    <defName>DeltaV_Impact_Tractor</defName><projectileDefs><li>DeltaV_Beam_Tractor</li></projectileDefs>
+    <buildingHitChance>1</buildingHitChance><defenderEffect><kind>Tractor</kind></defenderEffect>
+    <attackerEffect><kind>DestroySelf</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_TractorBeam</defName><thingDef>DeltaV_TractorBeam</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+</Defs>

@@ -357,6 +357,7 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SpaceObject frame = universe?.FrameOf(ship.map);
             if (frame == null) return ShipDerivedState.Docked;
+            if (frame.IsWorksite) return ShipDerivedState.Docked;
             // 停放在本船上的成员不能直接驾驶宿主；只计算该容器的独立驾驶主体。
             if (frame.Ships.Any(other => other.Identity != new DriveSubject(0, ship.ownerId)
                 && other.CanDriveIn(frame))) return ShipDerivedState.Docked;

@@ -19,26 +19,24 @@ internal static class Program
         if (!condition) throw new Exception(name);
         checks++;
     }
-    static float Cross(Vector2 a, Vector2 b) => a.x * b.y - a.y * b.x;
-    static void RunCase(float ma, float ia, float mb, float ib, Vector2 ra, Vector2 rb,
+    static void RunCase(float ma, float ia, float mb, float ib,
         Vector2 va, float wa, Vector2 vb, float wb, float fraction, float maxP, float maxL)
     {
         Vector2 momentum = va * ma + vb * mb;
-        float angular = ia * wa + ib * wb - Cross(ra, va * ma) - Cross(rb, vb * mb);
+        float angular = ia * wa + ib * wb;
         float energy = (ma * va.sqrMagnitude + mb * vb.sqrMagnitude + ia * wa * wa + ib * wb * wb) * 0.5f;
-        object[] args = { ma, ia, mb, ib, ra, rb, va, wa, vb, wb, fraction, maxP, maxL };
+        object[] args = { ma, ia, mb, ib, va, wa, vb, wb, fraction, maxP, maxL };
         Couple.Invoke(null, args);
-        Vector2 nextA = (Vector2)args[6], nextB = (Vector2)args[8];
-        float nextWA = (float)args[7], nextWB = (float)args[9];
+        Vector2 nextA = (Vector2)args[4], nextB = (Vector2)args[6];
+        float nextWA = (float)args[5], nextWB = (float)args[7];
         Vector2 nextMomentum = nextA * ma + nextB * mb;
-        float nextAngular = ia * nextWA + ib * nextWB - Cross(ra, nextA * ma) - Cross(rb, nextB * mb);
+        float nextAngular = ia * nextWA + ib * nextWB;
         float nextEnergy = (ma * nextA.sqrMagnitude + mb * nextB.sqrMagnitude
             + ia * nextWA * nextWA + ib * nextWB * nextWB) * 0.5f;
         Check((nextMomentum - momentum).magnitude < 0.003f + (ma * va.magnitude + mb * vb.magnitude) * 0.000003f,
             "linear momentum conservation");
         Check(Math.Abs(nextAngular - angular) < 0.02f + (Math.Abs(angular)
-            + ia * Math.Abs(wa) + ib * Math.Abs(wb) + ra.magnitude * ma * va.magnitude
-            + rb.magnitude * mb * vb.magnitude) * 0.000005f, "total angular momentum conservation");
+            + ia * Math.Abs(wa) + ib * Math.Abs(wb)) * 0.000005f, "spin angular momentum conservation");
         Check(nextEnergy <= energy + Math.Max(0.001f, energy * 0.000003f), "coupling cannot create kinetic energy");
         Check((nextA - va).magnitude * ma <= maxP + 0.003f + ma * va.magnitude * 0.000001f,
             "linear pulse limit");
@@ -153,30 +151,35 @@ internal static class Program
             "impact coupling does not integrate position or angle");
 
         // Known solution: equal masses translate together after a full pulse; angular exchange likewise.
-        object[] known = { 10f, 20f, 10f, 20f, Vector2.zero, Vector2.zero,
+        object[] known = { 10f, 20f, 10f, 20f,
             new Vector2(2, 0), 1f, new Vector2(0, 0), -1f, 1f, 10000f, 10000f };
         Couple.Invoke(null, known);
-        Check((Vector2)known[6] == Vector2.right && (Vector2)known[8] == Vector2.right
-            && (float)known[7] == 0f && (float)known[9] == 0f, "equal masses share momentum, not absolute stop");
+        Check((Vector2)known[4] == Vector2.right && (Vector2)known[6] == Vector2.right
+            && (float)known[5] == 0f && (float)known[7] == 0f, "equal masses share momentum, not absolute stop");
         var random = new System.Random(1827);
         float R(float low, float high) => low + (float)random.NextDouble() * (high - low);
         for (int i = 0; i < 2000; i++)
             RunCase(R(1, 10000), R(1, 100000), R(1, 10000), R(1, 100000),
-                new Vector2(R(-80, 80), R(-80, 80)), new Vector2(R(-20, 20), R(-20, 20)),
                 new Vector2(R(-100, 100), R(-100, 100)), R(-5, 5),
                 new Vector2(R(-100, 100), R(-100, 100)), R(-5, 5),
                 i % 10 == 0 ? 0f : R(0.01f, 1), i % 11 == 0 ? 0f : 400f, i % 11 == 0 ? 0f : 4000f);
 
-        Vector2 ra = new Vector2(30, 20), rb = new Vector2(-10, 8);
         Vector2 translation = new Vector2(4, -6);
         float omega = 0.4f;
-        object[] rigid = { 200f, 1000f, 20f, 100f, ra, rb,
-            translation - omega * new Vector2(-ra.y, ra.x), omega,
-            translation - omega * new Vector2(-rb.y, rb.x), omega, 1f, 1000f, 10000f };
-        Vector2 before = (Vector2)rigid[6];
+        object[] rigid = { 200f, 1000f, 20f, 100f,
+            translation, omega, translation, omega, 1f, 1000f, 10000f };
         Couple.Invoke(null, rigid);
-        Check(((Vector2)rigid[6] - before).magnitude < 0.00001f
-            && Math.Abs((float)rigid[7] - omega) < 0.00001f,
-            "shared rigid motion is not erased by artificial absolute drag");
+        Check((Vector2)rigid[4] == translation && (Vector2)rigid[6] == translation
+            && (float)rigid[5] == omega && (float)rigid[7] == omega,
+            "common linear velocity and spin remain unchanged without absolute drag");
+
+        object[] drifting = { 200f, 1000f, 20f, 100f,
+            new Vector2(10f, -5f), .05f, Vector2.zero, -.1f, .013451947f, 33.333333f, 333.333333f };
+        for (int tick = 0; tick < 2400; tick++) Couple.Invoke(null, drifting);
+        Check(((Vector2)drifting[4] - (Vector2)drifting[6]).magnitude < 1e-6f
+            && Math.Abs((float)drifting[5] - (float)drifting[7]) < 1e-7f,
+            "bounded continuous pulses remove the final linear and spin residual without passive drag");
+        Check(((Vector2)drifting[4] - new Vector2(2000f / 220f, -1000f / 220f)).magnitude < .001f,
+            "residual cleanup preserves shared drift instead of stopping the target absolutely");
     }
 }

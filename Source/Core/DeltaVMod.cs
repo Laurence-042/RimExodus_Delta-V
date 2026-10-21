@@ -173,12 +173,11 @@ namespace DeltaV
         {
             var list = new Listing_Standard();
             list.Begin(rect);
+            list.TextFieldNumericLabeled("DeltaV_SettingsWorksiteMargin".Translate(), ref Settings.worksiteMargin,
+                ref worksiteMarginBuffer, 1, 200);
             TippedRow(list, rect, "DeltaV_SettingsDockingHoldTicksTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingHoldTicks".Translate(), ref Settings.dockingHoldTicks,
                     ref dockingHoldTicksBuffer, 1, 600));
-            TippedRow(list, rect, "DeltaV_SettingsDockingPosWindowTip",
-                () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingPosWindow".Translate(), ref Settings.dockingPositionWindow,
-                    ref dockingPosWindowBuffer, 0.05f, 5f));
             TippedRow(list, rect, "DeltaV_SettingsDockingAngleWindowTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsDockingAngleWindow".Translate(), ref Settings.dockingAngleWindowDeg,
                     ref dockingAngleWindowBuffer, 0.1f, 15f));
@@ -288,8 +287,8 @@ namespace DeltaV
         private string mapGenBudgetBuffer;
 
         private string dockingHoldTicksBuffer;
+        private string worksiteMarginBuffer;
 
-        private string dockingPosWindowBuffer;
 
         private string dockingAngleWindowBuffer;
 

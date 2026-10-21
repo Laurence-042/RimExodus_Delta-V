@@ -10,7 +10,7 @@ namespace DeltaV
     /// 对接口沿玩家指定朝向生成非基架通道；每格由独立气密的常开门单元承接原版
     /// Region/寻路。密封根入口见 Patch_DockingPort；不铺实体屋顶、不改普通 Space。
     /// </summary>
-    public class Building_DockingPort : Building_SealedDockingDoor
+    public partial class Building_DockingPort : Building_SealedDockingDoor, IHackable
     {
         /// <summary>本端口铺设的通道格（存档事实：多端口通道可能相邻，不可按地形反推）。</summary>
         private List<IntVec3> channelCells = new List<IntVec3>();
@@ -50,6 +50,7 @@ namespace DeltaV
                 yield return gizmo;
             }
             if (Faction != Faction.OfPlayer) yield break;
+            foreach (Gizmo gizmo in SoftDockGizmos()) yield return gizmo;
             yield return new Command_Action
             {
                 defaultLabel = ChannelExtended
@@ -218,7 +219,10 @@ namespace DeltaV
         public override string GetInspectString()
         {
             string baseText = base.GetInspectString()?.TrimEnd();
-            string channelText = (ChannelExtended
+            var link = Current.Game?.GetComponent<UniverseManager>()?.SoftDock.Pair(this);
+            string channelText = link != null
+                ? "DeltaV_SoftDockProgress".Translate(link.Other(this).LabelCap, link.progress.ToStringPercent()).ToString()
+                : (ChannelExtended
                 ? "DeltaV_DockConnected".Translate(channelCells.Count)
                 : "DeltaV_DockFolded".Translate(ChannelRange)).ToString();
             return baseText.NullOrEmpty() ? channelText : baseText + "\n" + channelText;
@@ -248,9 +252,19 @@ namespace DeltaV
         /// </summary>
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
         {
+            Current.Game?.GetComponent<UniverseManager>()?.SoftDock.Remove(this);
             RetractChannel();
             base.DeSpawn(mode);
         }
+
+        public override void SpawnSetup(Map map, bool respawningAfterLoad)
+        {
+            base.SpawnSetup(map, respawningAfterLoad);
+            Current.Game?.GetComponent<UniverseManager>()?.SoftDock.Register(this);
+        }
+
+        public void OnHacked(Pawn hacker = null) { SetFaction(hacker?.Faction ?? Faction.OfPlayer); }
+        public void OnLockedOut(Pawn hacker = null) { }
 
         // ---- 脱离事务的通道编排（解耦架构 §9）----
 

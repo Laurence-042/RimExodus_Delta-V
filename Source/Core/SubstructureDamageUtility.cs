@@ -36,6 +36,7 @@ namespace DeltaV
                 if (thing is Building && thing.Spawned && thing.Map == map && !thing.Destroyed)
                     thing.Kill();
             }
+            Current.Game?.GetComponent<UniverseManager>()?.Scatter.NotifyDestroyedCell(map, cell);
         }
     }
 }

@@ -7,7 +7,6 @@
   <DeltaV_PilotExitAuto>已停止手动驾驶（焦点已离开 {0}）。</DeltaV_PilotExitAuto>
   <DeltaV_PilotButtonEnter>驾驶此船</DeltaV_PilotButtonEnter>
   <DeltaV_PilotButtonExit>停止驾驶</DeltaV_PilotButtonExit>
-  <DeltaV_BeginDockingButton>选择对接</DeltaV_BeginDockingButton>
   <DeltaV_PilotGravityRestricted>重力环境下只能使用逆重引擎结合推进器进行近抛物线定点移动；只有在无重力环境下才能自由飞行。</DeltaV_PilotGravityRestricted>
   <DeltaV_ShipPanelTitle>{0}</DeltaV_ShipPanelTitle>
   <DeltaV_DockedAreaTitle>停靠区</DeltaV_DockedAreaTitle>
@@ -69,7 +68,7 @@
   <DeltaV_DockSuccess>{0} 已完成停靠。</DeltaV_DockSuccess>
   <DeltaV_ApproachAborted>对接异常中止。飞船仍在自由飞行，可重新发起对接。</DeltaV_ApproachAborted>
   <DeltaV_DockFailHostMap>无法解析当前位置的降落图。</DeltaV_DockFailHostMap>
-  <DeltaV_DockFailNoTarget>没有可对接目标：飞船下方没有已加载的对象内部。请接近空间站、残骸或其他飞船后重试；移动中的有动力飞船也可对接（自动驾驶会做速度匹配）。</DeltaV_DockFailNoTarget>
+  <DeltaV_DockFailNoTarget>附近没有已加载、可同步漂移的对象。</DeltaV_DockFailNoTarget>
   <DeltaV_DockFailBusy>另一项逆重飞船降落或航行操作正在进行。</DeltaV_DockFailBusy>
   <DeltaV_LaunchFailNoThruster>船上没有可工作的推进器，无法出力分离并开始自由飞行。</DeltaV_LaunchFailNoThruster>
   <DeltaV_FreeFlightSuccess>{0} 已开始自由飞行。</DeltaV_FreeFlightSuccess>
@@ -123,19 +122,16 @@
   <!-- 对接计划（2026-09-21 阶段4） -->
   <DeltaV_DockTargetMenuTitle>选择对接目标</DeltaV_DockTargetMenuTitle>
   <DeltaV_DockTargetEntry>{0}（外壳距离 {1} 格）</DeltaV_DockTargetEntry>
-  <DeltaV_DockPlanStarted>{0} 对接计划已建立：目标 {1}。自动驾驶接近中，也可手动飞入预定位置（半透明幽灵船处）——位姿重合保持足够时间即完成对接。</DeltaV_DockPlanStarted>
-  <DeltaV_DockPlanStatus>对接中：{0}（距离 {1} 格）</DeltaV_DockPlanStatus>
-  <DeltaV_DockCancelButton>取消对接</DeltaV_DockCancelButton>
-  <DeltaV_DockPlanCancelled>对接计划已取消：飞船继续自由飞行。</DeltaV_DockPlanCancelled>
+  <DeltaV_DockPlanStatus>同步漂移：{0}（距离 {1} 格）</DeltaV_DockPlanStatus>
+  <DeltaV_DockCancelButton>取消漂移同步</DeltaV_DockCancelButton>
+  <DeltaV_DockPlanCancelled>漂移同步已取消，飞船继续自由飞行。</DeltaV_DockPlanCancelled>
   <DeltaV_DockAutopilotStopped>自动驾驶已停止（对接计划保留）。</DeltaV_DockAutopilotStopped>
   <DeltaV_DockPlanBlocksDesignator>对接进行中：无法变更船体结构或规划。取消对接后再试。</DeltaV_DockPlanBlocksDesignator>
   <DeltaV_DockPlanBlocksLaunch>对接进行中：无法发起逆重发射。取消对接后再试。</DeltaV_DockPlanBlocksLaunch>
   <DeltaV_PilotWrongFaction>只有玩家方的飞船可以驾驶。</DeltaV_PilotWrongFaction>
   <!-- 设置（阶段4） -->
-  <DeltaV_SettingsDockingHoldTicks>对接保持时长（tick）</DeltaV_SettingsDockingHoldTicks>
-  <DeltaV_SettingsDockingHoldTicksTip>对接判定：与预定落点对准后需要原地保持多久才算完成（防止高速掠过被误判为对接成功）。数值越大越不容易误判，但要求飞得更稳、等得更久；越小完成越快。范围 1–600；默认 60（1 秒）。</DeltaV_SettingsDockingHoldTicksTip>
-  <DeltaV_SettingsDockingPosWindow>对接对齐容差：位置（格）</DeltaV_SettingsDockingPosWindow>
-  <DeltaV_SettingsDockingPosWindowTip>对接判定：与预定落点相距多少格以内算“对准”（进入范围时幽灵船会变绿提示）。数值越大越容易接上，但落点越潦草；越小对接越干净，但需要更精细的飞行。范围 0.05–5；默认 0.35。</DeltaV_SettingsDockingPosWindowTip>
+  <DeltaV_SettingsDockingHoldTicks>同步／格位微调稳定时长（tick）</DeltaV_SettingsDockingHoldTicks>
+  <DeltaV_SettingsDockingHoldTicksTip>漂移同步要求线速度和网格方向稳定；作业格位微调还要求位置稳定。达到后可开始舱外作业，不会自动合图。范围 1–600；默认 60。</DeltaV_SettingsDockingHoldTicksTip>
   <DeltaV_SettingsDockingAngleWindow>对接对齐容差：角度（度）</DeltaV_SettingsDockingAngleWindow>
   <DeltaV_SettingsDockingAngleWindowTip>对接判定：船头朝向与预定朝向偏差多少度以内算“对准”。数值越大越容易接上，但接得越歪；越小要求越严格。范围 0.1–15；默认 1.15。</DeltaV_SettingsDockingAngleWindowTip>
   <DeltaV_SettingsDockingCancelDistance>对接自动取消距离（格）</DeltaV_SettingsDockingCancelDistance>
@@ -170,7 +166,6 @@
 {1}
 
 继续？</DeltaV_DockSourceLeftoverConfirm>
-  <DeltaV_DockSourceLeftoverChanged>进场期间留置内容发生变化，对接已中止。请重新发起对接并确认新清单。</DeltaV_DockSourceLeftoverChanged>
   <DeltaV_UndockFragmentsLine>- 本船 {0} 片断连基架将作为残骸留在本图</DeltaV_UndockFragmentsLine>
   <DeltaV_LeftBehindLine>- 将留在本图的人员/物品清单：
 {0}</DeltaV_LeftBehindLine>
@@ -350,4 +345,26 @@
   <DeltaV_PrefabReplaceFailed>Prefab 地图替换失败，详情见错误日志。</DeltaV_PrefabReplaceFailed>
   <DeltaV_PrefabReplaceComplete>已使用 prefab 替换聚焦地图：{0}</DeltaV_PrefabReplaceComplete>
   <DeltaV_SalvageOutputLost>{0}：部分回收产物无处放置，已损失。请清理设备附近的堆放空间。</DeltaV_SalvageOutputLost>
+  <DeltaV_EVATransferFailed>舱外作业搬运发生异常，地图已保留。详情见日志。</DeltaV_EVATransferFailed>
+  <DeltaV_SyncReady>漂移同步已稳定，可以开始舱外作业。</DeltaV_SyncReady>
+  <DeltaV_SettingsWorksiteMargin>舱外作业每侧扩建余量（格）</DeltaV_SettingsWorksiteMargin>
+  <DeltaV_EVAUnsupportedContent>地图上存在当前无法随飞船搬运的内容，舱外作业未开始。</DeltaV_EVAUnsupportedContent>
+  <DeltaV_EVAGridCorrection>正在微调至舱外作业落点；对齐稳定后，再点击“开始舱外作业”。</DeltaV_EVAGridCorrection>
+  <DeltaV_EVANotSynchronized>尚未稳定同步位置、速度与网格方向。</DeltaV_EVANotSynchronized>
+  <DeltaV_EVAStarted>舱外作业已开始。任意真实推进器出力时，该船将脱离作业地图。</DeltaV_EVAStarted>
+  <DeltaV_StartEVA>开始舱外作业</DeltaV_StartEVA>
+  <DeltaV_SyncButton>同步漂移速度</DeltaV_SyncButton>
+  <DeltaV_EVAOverlap>船体或地图内容相互重叠，请调整位置后重试。</DeltaV_EVAOverlap>
+  <DeltaV_EVAGravity>区域重力效应明显，无法展开舱外作业。请将整艘船停入目标地图的可用区域。</DeltaV_EVAGravity>
+  <DeltaV_SyncStarted>正在与 {0} 同步线速度并对齐网格方向，不要求到达指定位置。同步完成后可开始舱外作业。</DeltaV_SyncStarted>
+  <DeltaV_SoftDockToggle>软对接指示器：开启时捕获并维持连接；关闭立即断开并停止软对接。</DeltaV_SoftDockToggle>
+  <DeltaV_SoftDockView>查看另一端</DeltaV_SoftDockView>
+  <DeltaV_SoftDockEnter>通过软对接通道</DeltaV_SoftDockEnter>
+  <DeltaV_SoftDockHaul>选择物资或倒地人员转移</DeltaV_SoftDockHaul>
+  <DeltaV_SoftDockHack>骇入对面的对接口</DeltaV_SoftDockHack>
+  <DeltaV_SoftDockProgress>软对接：{0}（进度 {1}）</DeltaV_SoftDockProgress>
+  <DeltaV_TractorAuto>自动牵引</DeltaV_TractorAuto>
+  <DeltaV_TractorAutoDesc>自动寻找射程内的散落人员和物品。关闭后使用常规武器组瞄准和开火。</DeltaV_TractorAutoDesc>
+  <DeltaV_TractorNeedsMoonPool>牵引光束只能建在月池上。</DeltaV_TractorNeedsMoonPool>
+  <DeltaV_TractorBlocked>月池无法接收当前内容，请腾出空间。</DeltaV_TractorBlocked>
 </LanguageData>

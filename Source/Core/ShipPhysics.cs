@@ -683,10 +683,10 @@ namespace DeltaV
 
             // 质心球面方向 = Move(锚, Rotate(comLocal, 旧角))；平移后按新角移回锚，
             // 与旧平面版 "position + Rotate(comLocal, angle)" 的不变量一一对应。
-            Vector3 comDir = OrbitSphere.Move(oldDir, SpaceTransform.Rotate(report.comLocal, pose.angle));
-            Vector3 comMoved = OrbitSphere.Move(comDir, velocity * dt);
+            OrbitSphere.Direction comDir = OrbitSphere.Move(pose.direction, SpaceTransform.Rotate(report.comLocal, pose.angle));
+            OrbitSphere.Direction comMoved = OrbitSphere.Move(comDir, velocity * dt);
             pose.angle = SpaceTransform.WrapAngle(pose.angle + angularVelocity * dt);
-            pose.position = OrbitSphere.Move(comMoved, -SpaceTransform.Rotate(report.comLocal, pose.angle));
+            pose.direction = OrbitSphere.Move(comMoved, -SpaceTransform.Rotate(report.comLocal, pose.angle));
 
             // 平行输运：把切空间速度从旧锚点的基重表达到新锚点的基（每步 O(基旋转)，
             // 保证"恒东向速度"沿纬线、恒北向速度沿经线等行星固连语义成立）。
