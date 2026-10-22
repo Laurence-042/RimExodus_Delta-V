@@ -939,7 +939,7 @@ namespace DeltaV
         // ---- 渲染（ShellRenderer 前台层；有图/无图弹体同一路径，图形取自 def）----
 
         /// <summary>
-        /// 弹体与激光线段渲染（共用外壳前景管线，聚焦帧投影）。返回消耗后
+        /// 弹体与激光线段渲染（前景效果管线，聚焦帧投影）。返回消耗后
         /// 的下一槽位号。弹体朝向按速度方向（UsesVelocityHeading tag 分派）。
         /// </summary>
         internal int TryEmitProjectiles(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)

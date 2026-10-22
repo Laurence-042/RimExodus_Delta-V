@@ -32,8 +32,7 @@ namespace DeltaV
             Vector3 universeDir = SpaceTransform.MapPointToUniverse(frame, frameMap,
                 new Vector2(frameMapPoint.x, frameMapPoint.z));
             // 与 ShellRenderer 绘制同一排序倒序遍历：整壳分层后 ID 大者在视觉最上，
-            // 重叠处优先命中玩家看得见的壳。进场/选点船由原版 marker 处理，
-            // 已在 OrderShellsById 中排除。
+            // 重叠处优先命中玩家看得见的壳；任务状态不改变拾取顺序。
             ShellRenderer.OrderShellsById(universe, frame, PickOrderScratch);
             for (int idx = PickOrderScratch.Count - 1; idx >= 0; idx--)
             {

@@ -85,7 +85,7 @@ namespace DeltaV
         }
     }
 
-    /// <summary>背景层：非进场壳按 objectId 升序整组绘制，先于聚焦图渲染
+    /// <summary>背景层：所有非聚焦壳按 objectId 升序整组绘制，先于聚焦图渲染
     /// （BeforeForwardOpaque）——聚焦图自身内容随后无条件覆盖全部背景壳。</summary>
     internal sealed class ShellBackgroundLayer : ShellLayer
     {
@@ -101,12 +101,12 @@ namespace DeltaV
         }
     }
 
-    /// <summary>前台层：对接进场/选点悬停壳在聚焦图画完之后再绘制。</summary>
+    /// <summary>前台层：弹体与瞄准效果在聚焦图画完之后绘制，不承载对象壳。</summary>
     internal sealed class ShellForegroundLayer : ShellLayer
     {
         protected override CameraEvent Event => CameraEvent.AfterForwardAlpha;
 
-        protected override string BufferName => "DeltaV Shell Layering (approach)";
+        protected override string BufferName => "DeltaV Foreground Effects";
 
         /// <summary>防御性收尾：不向前台层之后的其他缓冲遗留本组深度。</summary>
         public override void Finish(bool anyDrawn)
