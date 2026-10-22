@@ -325,6 +325,9 @@ namespace DeltaV
             return UniverseToShipLocal(obj.pose, universeDir);
         }
 
+        internal static Vector2 UniverseToShipLocal(SpacePose pose, OrbitSphere.Direction universeDir)
+            => RotateInverse(OrbitSphere.Offset(pose.direction, universeDir), pose.angle);
+
         public static Vector2 UniverseToShipLocal(SpacePose pose, Vector3 universeDir)
         {
             return RotateInverse(OrbitSphere.Offset(pose.position, universeDir), pose.angle);

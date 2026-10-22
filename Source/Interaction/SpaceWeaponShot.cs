@@ -20,6 +20,11 @@ namespace DeltaV
         void NotifyShotCommitted(SpaceWeaponShot shot);
     }
 
+    public interface ISpaceWeaponLaunch
+    {
+        bool TryLaunch(SpaceWeaponShot shot);
+    }
+
     /// <summary>
     /// 一次跨容器射击事务。Prepare 冻结炮口、弹仓、弹体、速度、程序和目标；Launch
     /// 成功后才 Commit。能力 Comp 只读写本对象，不得建立武器家族分支。
@@ -50,6 +55,7 @@ namespace DeltaV
             new Dictionary<CompSpaceWeaponCapacitor, float>();
         private readonly List<CompSpaceRailgun> activeAccelerators = new List<CompSpaceRailgun>();
         private float activeSpeedBonus;
+        private ISpaceWeaponLaunch emitter;
         public IReadOnlyList<CompSpaceRailgun> ActiveAccelerators => activeAccelerators;
 
         public SpaceWeaponShot(UniverseManager universe, CompSpaceWeapon weapon,
@@ -66,6 +72,13 @@ namespace DeltaV
         public bool TryExecute()
         {
             if (!Prepare()) return false;
+            if (emitter != null)
+            {
+                if (!emitter.TryLaunch(this)) return false;
+                Commit();
+                universe.Projectiles.RegisterShotVisuals(this);
+                return true;
+            }
             Vector2 mapDirection = SpaceTransform.Rotate(Vector2.right, launchMapAngle);
             bool guaranteedMissileHit = false;
             if (target?.map != null && !target.map.Disposed
@@ -105,6 +118,7 @@ namespace DeltaV
         private bool Prepare()
         {
             target = null;
+            emitter = null;
             if (container == null || weapon?.parent == null || !weapon.parent.Spawned
                 || weapon.parent.Destroyed || weapon.WeaponProps.projectileDef == null
                 || !weapon.SpaceModeEnabled || weapon.Container != container)
@@ -177,8 +191,9 @@ namespace DeltaV
             foreach (ThingComp comp in CapabilityComps())
             {
                 if (comp is ISpaceWeaponFireGate gate && !gate.CanFire(this)) return false;
+                if (comp is ISpaceWeaponLaunch launch) emitter = launch;
             }
-            if (weapon.safeFire && !SafePathClear()) return false;
+            if (emitter == null && weapon.safeFire && !SafePathClear()) return false;
             return true;
         }
 

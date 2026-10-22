@@ -805,6 +805,7 @@ namespace DeltaV
             }
             // 碰撞扫掠与结算（太空战架构 §3.3：先动后撞——本 tick 位移段对全部有碰撞面
             // 容器求交，命中经联合效果注册表对称结算；销毁/归池经帧边界回调）。
+            scatter?.Tick();
             Projectiles.ResolveCollisions();
             // 生命周期只按设置周期扫描；归档对象已在上方与其他容器一起逐 tick 推进。
             int now = Find.TickManager.TicksGame;

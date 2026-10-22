@@ -5,7 +5,7 @@ using Verse;
 
 namespace DeltaV
 {
-    public enum CombatVisualStyle { Kinetic, Heavy, Rail, Energy, Missile, Coupling, Mining }
+    public enum CombatVisualStyle { Kinetic, Heavy, Rail, Energy, Missile, Coupling, Mining, Tractor }
 
     /// <summary>
     /// 弹体数据 def（太空战架构 §5.1）：挂在弹体 building def 上的唯一参数源。

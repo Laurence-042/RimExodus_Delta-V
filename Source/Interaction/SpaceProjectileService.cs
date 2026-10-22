@@ -714,6 +714,22 @@ namespace DeltaV
             }
         }
 
+        internal void RecordTractorBeam(Thing launcher, SpaceObject receiver, SpaceObject target)
+        {
+            Beam beam = beams.Find(b => b.continuousLauncher == launcher && b.sourceObjectId == receiver.objectId);
+            if (beam == null) { beam = new Beam(); AddBounded(beams, beam, 256); }
+            var weapon = launcher.TryGetComp<CompSpaceWeapon>();
+            beam.from = SpaceTransform.MapPointToUniverse(receiver, launcher.Map, SpaceWeaponGeometry.MuzzleMapPoint(weapon));
+            beam.to = target.pose.position;
+            beam.bornTick = Find.TickManager.TicksGame;
+            beam.width = weapon.WeaponProps.projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()?.laserBeamWidth ?? .18f;
+            beam.style = CombatVisualStyle.Tractor;
+            beam.continuousLauncher = launcher;
+            beam.sourceObjectId = receiver.objectId;
+            beam.sourceMapId = receiver.map.uniqueID;
+            beam.lifetimeTicks = 2;
+        }
+
         private void RecordBeam(Projectile p, Vector3 end)
         {
             Beam beam = p.props.continuousBeam

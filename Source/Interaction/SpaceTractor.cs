@@ -15,10 +15,12 @@ namespace DeltaV
     {
         public CompProperties_SpaceTractor() { compClass = typeof(CompSpaceTractor); }
     }
-    public class CompSpaceTractor : ThingComp, ISpaceWeaponFireGate
+    public class CompSpaceTractor : ThingComp, ISpaceWeaponFireGate, ISpaceWeaponLaunch
     {
         private int blockedTick = -100;
         public bool CanFire(SpaceWeaponShot shot) => SpaceTractor.CanOperate(shot.weapon);
+        public bool TryLaunch(SpaceWeaponShot shot) =>
+            Current.Game.GetComponent<UniverseManager>().Scatter.TryLaunch(shot);
         internal void NotifyBlocked() { blockedTick = Find.TickManager.TicksGame; }
         public override string CompInspectStringExtra() => Find.TickManager.TicksGame - blockedTick <= 1
             ? "DeltaV_TractorBlocked".Translate().ToString() : null;

@@ -366,14 +366,13 @@ namespace DeltaV
             {
                 SweptBody body = bodies[b];
                 if (body.dead || body.attacker == null) continue;
-                bool tractor = SpaceImpactEffects.Resolve(body.projectileDef, null)?.defenderEffect?.kind == ImpactEffectKind.Tractor;
                 for (int bounce = 0; bounce < 128 && !body.dead; bounce++)
                 {
                     bool redirected = false;
                     for (int d = 0; d < objects.Count; d++)
                     {
                         SpaceObject defender = objects[d];
-                        if (defender.IsScattered && !tractor) continue;
+                        if (defender.IsScattered) continue;
                         if (defender == body.attacker || defender == body.excludeContainer
                             || (body.requiredDefender != null && defender != body.requiredDefender)) continue;
                         if (body.ignoreNonHostileProjectiles && !body.didRedirect && defender.IsActiveCollider

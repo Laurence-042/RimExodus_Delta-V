@@ -24,8 +24,7 @@ namespace DeltaV
         PlaceBody = 4,
 
         CoupleMotion = 5,
-        Salvage = 6,
-        Tractor = 7
+        Salvage = 6
     }
 
     /// <summary>从命中格起沿弹道前进一格的结构毁伤；伤害倍率与横向半宽分别配置。</summary>
@@ -241,7 +240,6 @@ namespace DeltaV
         public static bool HitTest(ThingDef projectileDef,
             SpaceCellKind kind, Thing building, SpaceImpactEffectDef effect)
         {
-            if (kind == SpaceCellKind.Cargo) return effect?.defenderEffect?.kind == ImpactEffectKind.Tractor;
             if (kind == SpaceCellKind.Substructure)
                 return Rand.Chance(Mathf.Clamp01(effect?.substructureHitChance
                     ?? SpaceImpactEffectDef.DefaultSubstructureHitChance));
@@ -293,12 +291,6 @@ namespace DeltaV
         {
             if (part == null || evt.defender?.map == null) return 0f;
             Map map = evt.defender.map;
-
-            if (part.kind == ImpactEffectKind.Tractor)
-            {
-                Current.Game?.GetComponent<UniverseManager>()?.Scatter.Pull(evt.defender, evt.launcher);
-                return 0f;
-            }
 
             if (part.kind == ImpactEffectKind.CoupleMotion)
             {

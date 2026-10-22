@@ -75,7 +75,7 @@ internal static partial class Program
         var moon = (TerrainDef)Raw(typeof(TerrainDef));
         moon.defName = "tractor_test_moonpool";
         AccessTools.Field(typeof(MoonPoolUtility), "moonPoolDef").SetValue(null, moon);
-        var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon { tractor = true } };
+        var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon { tractor = true, range = 60f } };
         Building launcher = AddTestBuilding(destination, Faction.OfPlayer, 49751, TestBuildingDef("tractor"), weapon);
         launcher.def.passability = Traversability.Standable;
         launcher.def.hasInteractionCell = true;
@@ -122,6 +122,59 @@ internal static partial class Program
                     new SpacePose(OrbitSphere.Move(at, new Vector2(1.5f, 0f)), 0f)
                     { velocity = new Vector2(1f, 0f) }) { baseTag = SpaceObjectTag.Scattered };
                 universe.objects.Add(scattered); universe.Scatter.Register(scattered);
+                receiver.pose.velocity = new Vector2(25f, -10f);
+                receiver.pose.angularVelocity = .7f;
+                Vector2 emitterLocal = SpaceTransform.MapToShipLocal(destination, new Vector2(cell.x + .5f, cell.z + .5f));
+                scattered.pose = SpaceTransform.RigidPointPose(receiver.pose, emitterLocal + new Vector2(45f, 15f), .8f);
+                scattered.pose.velocity = new Vector2(-900f, 1600f);
+                scattered.pose.angularVelocity = -5f;
+                Set(Find.TickManager, "ticksGameInt", pawn ? 12490 : 9490);
+                weapon.aimMode = SpaceWeaponAimMode.Volley;
+                var manual = new SpaceWeaponShot(universe, weapon, receiver, new WeaponFireRequest(scattered.pose.position));
+                Check(universe.Scatter.TryLaunch(manual), "manual tractor finds scattered cargo near the cursor without a collision surface");
+                universe.Scatter.Tick();
+                Check(universe.Scatter.TryLaunch(manual), "manual cursor anchor retains a target as it moves toward the receiver");
+                SpacePose beforePowerLoss = scattered.pose;
+                Set(power, "powerOnInt", false);
+                universe.Scatter.Tick();
+                Check(!universe.Scatter.Pull(scattered, launcher)
+                    && scattered.pose.direction.x == beforePowerLoss.direction.x
+                    && scattered.pose.direction.y == beforePowerLoss.direction.y
+                    && scattered.pose.direction.z == beforePowerLoss.direction.z,
+                    "power loss cancels the real pull request without moving or losing cargo");
+                Set(power, "powerOnInt", true);
+                scattered.pose = SpaceTransform.RigidPointPose(receiver.pose, emitterLocal + new Vector2(70f, 0f), .8f);
+                Check(!universe.Scatter.Pull(scattered, launcher), "tractor acquisition rejects targets outside its configured range");
+                scattered.pose = SpaceTransform.RigidPointPose(receiver.pose, emitterLocal + new Vector2(45f, 15f), .8f);
+                scattered.pose.velocity = new Vector2(-900f, 1600f);
+                float previousDistance = 48f;
+                bool monotonic = true, refreshed = true;
+                int startTick = pawn ? 12500 : 9500;
+                for (int step = 0; step < 130; step++)
+                {
+                    Set(Find.TickManager, "ticksGameInt", startTick + step);
+                    refreshed &= universe.Scatter.Pull(scattered, launcher);
+                    ShipPhysics.Integrate(receiver, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
+                    ShipPhysics.Integrate(scattered, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
+                    universe.Scatter.Tick();
+                    var endpoint = SpaceTransform.RigidPointPose(receiver.pose, emitterLocal, 0f);
+                    float distance = OrbitSphere.ArcCells(endpoint.direction, scattered.pose.direction);
+                    monotonic &= distance < previousDistance;
+                    previousDistance = distance;
+                }
+                Check(refreshed && monotonic && previousDistance < SpaceScatterService.CollectionRadius,
+                    "high lateral velocity cannot escape: real tractor converges while receiver translates and rotates");
+                Check(Math.Abs(SpaceTransform.WrapAngle(scattered.pose.angle - receiver.pose.angle) - .8f) < .001f,
+                    "tractor preserves the captured relative angle during receiver rotation");
+                Set(Find.TickManager, "ticksGameInt", startTick + 130);
+                SpacePose released = scattered.pose;
+                universe.Scatter.Tick();
+                Check(scattered.pose.direction.x == released.direction.x && scattered.pose.direction.y == released.direction.y
+                    && scattered.pose.direction.z == released.direction.z, "no refreshed shot means no coordinate correction");
+                var inherited = SpaceTransform.RigidPointPose(receiver.pose,
+                    SpaceTransform.UniverseToShipLocal(receiver.pose, scattered.pose.direction), .8f);
+                Check((inherited.velocity - scattered.pose.velocity).magnitude < .01f,
+                    "release inherits receiving ship rigid-point motion rather than the original runaway speed");
                 // Vanilla Near must find another cell instead of requiring a free device center.
                 var blocker = (Thing)Raw(pawn ? typeof(ReceivingPawn) : typeof(ReceivingItem));
                 blocker.def = TestBuildingDef("occupied_moonpool");
@@ -134,6 +187,7 @@ internal static partial class Program
                 receivingBlocked = false;
                 Set(Find.TickManager, "ticksGameInt", pawn ? 13000 : 10000);
                 universe.Scatter.Pull(scattered, launcher);
+                universe.Scatter.Tick();
                 Call(universe, "RunFrameActions");
                 Check(thing.Map == destination,
                     "tractor collects inside the two-cell radius immediately without waiting for overlap or low relative speed");

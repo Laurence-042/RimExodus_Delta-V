@@ -434,6 +434,26 @@ namespace DeltaV
                     : (now - beam.bornTick) / (float)beam.lifetimeTicks;
                 Vector3 a = SpaceTransform.FocusedDrawPosition(frame, map, beam.from, altitude);
                 Vector3 b = SpaceTransform.FocusedDrawPosition(frame, map, beam.to, altitude);
+                if (beam.style == CombatVisualStyle.Tractor)
+                {
+                    Vector3 axis = b - a;
+                    Vector3 side = new Vector3(-axis.z, 0f, axis.x).normalized;
+                    float opening = Mathf.Min(.65f, axis.magnitude * .12f);
+                    FxLine(Fade(beamRailMaterials, .45f), a, b, beam.width * 2f, frame);
+                    FxLine(Fade(beamAmberMaterials, .3f), a, b + side * opening, beam.width * .4f, frame);
+                    FxLine(Fade(beamAmberMaterials, .3f), a, b - side * opening, beam.width * .4f, frame);
+                    // Tick-only inward chevrons; both endpoints use the actual collection pose.
+                    for (int band = 0; band < 4; band++)
+                    {
+                        float t = Mathf.Repeat(band / 4f - now % 60 / 60f, 1f);
+                        Vector3 tip = Vector3.Lerp(a, b, t);
+                        Vector3 back = Vector3.Lerp(a, b, Mathf.Min(1f, t + .025f));
+                        float width = opening * t;
+                        FxLine(Fade(beamCoreMaterials, .25f), back + side * width, tip, beam.width * .45f, frame);
+                        FxLine(Fade(beamCoreMaterials, .25f), back - side * width, tip, beam.width * .45f, frame);
+                    }
+                    continue;
+                }
                 float pulse = 1f - age * age;
                 Material[] glow = beam.style == CombatVisualStyle.Energy ? beamGlowMaterials
                     : beam.style == CombatVisualStyle.Rail || beam.style == CombatVisualStyle.Coupling

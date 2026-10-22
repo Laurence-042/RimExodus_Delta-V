@@ -32,19 +32,6 @@ internal static partial class Program
         var body = new SpaceObject(49700, new SpacePose(Vector3.forward, .3f)
             { velocity = new Vector2(2f, -1f), angularVelocity = .03f });
         SpacePose original = body.pose;
-        SpacePose destination = new SpacePose(OrbitSphere.Move(original.position, new Vector2(10, 3)), 1f)
-            { velocity = new Vector2(2f, -1f), angularVelocity = .04f };
-        ShipPhysics.AttractPoint(body, Vector2.zero, destination, 2.5f);
-        Check(body.pose.position == original.position && body.pose.angle == original.angle,
-            "tractor force never performs a second position or angle integration");
-        Check((body.pose.velocity - original.velocity).magnitude <= 2.5f / 60f + 1e-6f
-            && body.pose.angularVelocity == original.angularVelocity,
-            "tractor impulse respects its per-game-tick acceleration cap without altering spin");
-        body.pose = original;
-        ShipPhysics.AttractPoint(body, Vector2.zero, original, 2.5f);
-        Check((body.pose.velocity - original.velocity).magnitude < 1e-5f
-            && body.pose.angularVelocity == original.angularVelocity,
-            "matching motion has no attraction impulse or artificial braking");
         CheckSmallScaleMovement();
         CheckSoftDockInterpolation();
 
@@ -56,10 +43,7 @@ internal static partial class Program
         cargo.def = TestBuildingDef("scattered_cargo"); cargo.def.category = ThingCategory.Item;
         map.listerThings.AllThings.Add(cargo);
         var scattered = new MapSpaceObject(49701, map, original) { baseTag = SpaceObjectTag.Scattered };
-        var cell = scattered.CollisionCells.Single();
-        Check(cell.kind == SpaceCellKind.Cargo && cell.building == null && cell.cell == IntVec3.Zero,
-            "scattered map owns its one-cell collision surface independently of item or pawn hulls");
-        Check(!SpaceImpactEffects.HitTest(null, cell.kind, null, null), "ordinary impacts pass through scattered maps");
+        Check(!scattered.CollisionCells.Any(), "scattered cargo has no collision surface");
         universe.objects.Add(scattered);
         universe.Scatter.Register(scattered);
         Check(universe.Scatter.Candidates.Contains(scattered), "scattered registration populates the tractor candidate index");
@@ -126,18 +110,6 @@ internal static partial class Program
                     ShipPhysics.Integrate(body, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
                 Check(OrbitSphere.ArcCells(direction, body.pose.position) > .15f,
                     "sub-one-cell-per-second motion survives small world units in the real integrator");
-                SpacePose destination = new SpacePose(direction, 0f);
-                body.pose = new SpacePose(OrbitSphere.Move(direction, new Vector2(1.1f, 0f)), 0f);
-                bool collectable = false;
-                for (int tick = 0; tick < 1800; tick++)
-                {
-                    ShipPhysics.AttractPoint(body, Vector2.zero, destination, 2.5f);
-                    if (OrbitSphere.ArcCells(body.pose.position, destination.position) <= .4f
-                        && SpaceTransform.RelativeVelocity(body.pose, destination).magnitude <= .5f)
-                    { collectable = true; break; }
-                    ShipPhysics.Integrate(body, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
-                }
-                Check(collectable, "real tractor attraction crosses the collection threshold instead of stalling at low speed");
             }
             radii[layer] = 100f;
             var precise = new SpaceObject(49741, new SpacePose(new Vector3(1, 2, 3).normalized, 0f)
@@ -195,28 +167,12 @@ internal static partial class Program
 
     static void CheckScatteredSweep(UniverseManager universe, SpaceObject scattered)
     {
-        var beam = TestBuildingDef("tractor_test_beam");
-        beam.comps = new List<CompProperties> { new CompProperties_SpaceProjectile { continuousBeam = true, ignoresShields = true } };
-        var effect = new SpaceImpactEffectDef { defName = "tractor_test_effect", projectileDefs = new List<ThingDef> { beam },
-            defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.Tractor },
-            attackerEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DestroySelf } };
-        DefDatabase<SpaceImpactEffectDef>.AllDefsListForReading.Add(effect);
-        SpaceImpactEffects.ResetCache();
-        try
-        {
-            foreach (bool tractor in new[] { true, false })
-            {
-                var sweep = new SpaceCollision.SweptBody { attacker = new SpaceObject(49702, scattered.pose),
-                    projectileDef = tractor ? beam : null, requiredDefender = scattered, sweepRadius = 0f,
-                    from = SpaceTransform.MapPointToUniverse(scattered, scattered.map, new Vector2(-2, .5f)),
-                    to = SpaceTransform.MapPointToUniverse(scattered, scattered.map, new Vector2(3, .5f)) };
-                SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { sweep });
-                Check(sweep.resolvedHit == tractor && (!tractor || sweep.resolvedHitCell == IntVec3.Zero
-                    && sweep.resolvedHitDefender == scattered && sweep.dead),
-                    "production sweep hits the map-owned cargo cell only for the tractor effect");
-            }
-        }
-        finally { DefDatabase<SpaceImpactEffectDef>.AllDefsListForReading.Remove(effect); SpaceImpactEffects.ResetCache(); }
+        var sweep = new SpaceCollision.SweptBody { attacker = new SpaceObject(49702, scattered.pose),
+            requiredDefender = scattered, sweepRadius = 0f,
+            from = SpaceTransform.MapPointToUniverse(scattered, scattered.map, new Vector2(-2, .5f)),
+            to = SpaceTransform.MapPointToUniverse(scattered, scattered.map, new Vector2(3, .5f)) };
+        SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { sweep });
+        Check(!sweep.resolvedHit && !sweep.dead, "production projectile sweep skips scattered cargo entirely");
     }
 
     static void CheckSoftDockReference(UniverseManager universe)

@@ -179,7 +179,8 @@ namespace DeltaV
                 WeaponAimInfo info = SpaceWeaponService.AimInfo(weapon, container);
                 pointDefense.TryGetValue(weapon.parent.thingIDNumber, out PdLock state);
                 ResolvedCombatTarget victim = default;
-                bool valid = now < state.retargetAt && PdTargetValid(weapon, state.target, info.Muzzle, out victim);
+                bool valid = (weapon.WeaponProps.tractor || now < state.retargetAt)
+                    && PdTargetValid(weapon, state.target, info.Muzzle, out victim);
                 if (!valid)
                 {
                     // A failed lock does not bypass the authorized 30-tick search cadence.

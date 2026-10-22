@@ -17,8 +17,7 @@ namespace DeltaV
         Substructure = 2,
 
         /// <summary>自然岩石（ asteroid 岩壁，实心）。</summary>
-        NaturalRock = 3,
-        Cargo = 4
+        NaturalRock = 3
     }
 
     public readonly struct SpaceCollisionCell
