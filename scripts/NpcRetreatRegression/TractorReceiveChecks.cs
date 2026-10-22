@@ -212,16 +212,21 @@ internal static partial class Program
                 Set(typeof(Thing), port, "rotationInt", Rot4.North);
                 return port;
             }
-            var connection = new SoftDockService.Link { a = Port(ownMap), b = Port(destination), connected = true, progress = 1f };
-            var service = universe.SoftDock;
-            var links = (List<SoftDockService.Link>)AccessTools.Field(typeof(SoftDockService), "links").GetValue(service);
-            Set(service, "<Enabled>k__BackingField", true); links.Add(connection);
+            ReceivingPort ownPort = Port(ownMap), otherPort = Port(destination);
+            var dock = new CompSoftDocking { parent = ownPort };
+            var otherDock = new CompSoftDocking { parent = otherPort };
+            Set(typeof(ThingWithComps), ownPort, "comps", new List<ThingComp> { dock });
+            Set(typeof(ThingWithComps), otherPort, "comps", new List<ThingComp> { otherDock });
+            Set(dock, "peer", otherPort); Set(dock, "active", true);
+            Set(dock, "progress", 1f); Set(dock, "connected", true);
+            Set(otherDock, "incomingOwner", dock);
+            universe.SoftDockEnabled = true;
             var portal = (SoftDockPortal)Raw(typeof(SoftDockPortal));
-            portal.port = connection.a; portal.peer = connection.b;
+            portal.port = ownPort; portal.peer = otherPort;
             Check(portal.GetOtherMap() == destination && portal.GetDestinationLocation() == cell - Rot4.North.FacingCell,
                 "native MapPortal adapter exposes the opposite ship and interior cell without foreign-pawn reachability");
             CheckNativePortal(portal, ownMap);
-            links.Remove(connection); Set(service, "<Enabled>k__BackingField", false);
+            universe.SoftDockEnabled = false;
             universe.objects.Remove(own); Find.Maps.Remove(ownMap);
         }
         finally

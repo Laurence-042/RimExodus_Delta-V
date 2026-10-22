@@ -30,33 +30,33 @@ internal static partial class Program
 
     static void CheckDockingSystem(UniverseManager universe)
     {
-        var link = new SoftDockService.Link();
-        for (int i = 0; i < 179; i++) link.Advance(true);
-        Check(!link.connected, "soft docking cannot transmit before extension completes");
-        for (int i = 0; i < 3; i++) link.Advance(true);
-        Check(link.connected && link.progress == 1f, "aligned soft docking completes and clamps extension");
-        for (int i = 0; i < 20; i++) link.Advance(false);
-        Check(link.connected, "brief alignment loss preserves an established portal above release threshold");
-        for (int i = 0; i < 4; i++) link.Advance(false);
-        Check(!link.connected && link.progress > 0f, "portal disconnects before the visual passage fully retracts");
-        link.Advance(true);
-        Check(!link.connected, "recovery above release threshold does not prematurely reopen an incomplete portal");
-        for (int i = 0; i < 200; i++) link.Advance(false);
-        Check(link.progress == 0f, "retraction never produces negative passage length");
+        var dock = new CompSoftDocking();
+        Set(dock, "active", true);
+        for (int i = 0; i < 179; i++) dock.Advance(true);
+        Check(!dock.Connected, "soft docking cannot transmit before extension completes");
+        for (int i = 0; i < 3; i++) dock.Advance(true);
+        Check(dock.Connected && dock.Progress == 1f, "aligned soft docking completes and clamps extension");
+        for (int i = 0; i < 20; i++) dock.Advance(false);
+        Check(dock.Connected, "brief alignment loss preserves an established portal above release threshold");
+        for (int i = 0; i < 4; i++) dock.Advance(false);
+        Check(!dock.Connected && dock.Progress > 0f, "portal disconnects before the visual passage fully retracts");
+        dock.Advance(true);
+        Check(!dock.Connected, "recovery above release threshold does not prematurely reopen an incomplete portal");
+        for (int i = 0; i < 200; i++) dock.Advance(false);
+        Check(dock.Progress == 0f, "retraction never produces negative passage length");
         var service = new SoftDockService(universe);
-        Set(service, "<Enabled>k__BackingField", true);
-        ((List<SoftDockService.Link>)typeof(SoftDockService).GetField("links", Private).GetValue(service)).Add(link);
+        universe.SoftDockEnabled = true;
         service.SetEnabled(false);
-        Check(!service.Enabled && service.Pair(null) == null, "toggle off immediately invalidates every portal without waiting for a tick");
+        Check(!service.Enabled, "toggle off immediately invalidates soft portals without waiting for a tick");
 
         var thrusting = new SoftDockThrustProbe(49698);
         thrusting.Drive(new Vector2(1000f, 0f));
         var coasting = new SoftDockThrustProbe(49699);
         coasting.Drive(Vector2.zero);
         Check(thrusting.PropulsionUsedThisTick && !coasting.PropulsionUsedThisTick
-            && !SoftDockService.CanAssist(thrusting, coasting)
-            && !SoftDockService.CanAssist(coasting, thrusting)
-            && SoftDockService.CanAssist(coasting, new SpaceObject(49697, coasting.pose)),
+            && !CompSoftDocking.CanAssist(thrusting, coasting)
+            && !CompSoftDocking.CanAssist(coasting, thrusting)
+            && CompSoftDocking.CanAssist(coasting, new SpaceObject(49697, coasting.pose)),
             "soft docking disables interpolation when either ship actually uses an engine");
 
         var body = new SpaceObject(49700, new SpacePose(Vector3.forward, .3f)
@@ -64,6 +64,7 @@ internal static partial class Program
         SpacePose original = body.pose;
         CheckSmallScaleMovement();
         CheckSoftDockInterpolation();
+        CheckDockingCompState(universe);
 
         Map map = TestMap(49701);
         map.info.Size = new IntVec3(1, 1, 1);
@@ -220,61 +221,64 @@ internal static partial class Program
             Set(typeof(Thing), port, "positionInt", position);
             return port;
         }
-        var pair = new SoftDockService.Link { a = Port(a, new IntVec3(6, 0, 17)), b = Port(b, new IntVec3(27, 0, 9)) };
-        var service = universe.SoftDock;
+        Building_DockingPort ownPort = Port(a, new IntVec3(6, 0, 17));
+        Building_DockingPort peerPort = Port(b, new IntVec3(27, 0, 9));
+        var dock = new CompSoftDocking { parent = ownPort };
+        Set(dock, "peer", peerPort);
+        Set(dock, "active", true);
         foreach (Rot4 ar in Rot4.AllRotations)
         foreach (Rot4 br in Rot4.AllRotations)
         {
-            Set(typeof(Thing), pair.a, "rotationInt", ar); Set(typeof(Thing), pair.b, "rotationInt", br);
-            own.pose = service.AlignmentReference(pair);
-            Check((float)Call(service, "Error", pair.a, pair.b) < .01f
-                && Math.Abs((float)Call(service, "AngleError", pair.a, pair.b)) < 1e-5f,
+            Set(typeof(Thing), ownPort, "rotationInt", ar); Set(typeof(Thing), peerPort, "rotationInt", br);
+            own.pose = dock.AlignmentReference(universe);
+            Check(dock.Error(universe, peerPort) < .01f
+                && Math.Abs(dock.AngleError(universe, peerPort)) < 1e-5f,
                 "one reference aligns both crossed guides for every port direction");
-            Vector2 ap = SpaceTransform.MapToShipLocal(a, SoftDockService.MapPoint(pair.a, 4f));
-            Vector2 bp = SpaceTransform.MapToShipLocal(b, SoftDockService.MapPoint(pair.b, 4f));
+            Vector2 ap = SpaceTransform.MapToShipLocal(a, CompSoftDocking.MapPoint(ownPort, 4f));
+            Vector2 bp = SpaceTransform.MapToShipLocal(b, CompSoftDocking.MapPoint(peerPort, 4f));
             SpacePose at = SpaceTransform.RigidPointPose(own.pose, ap, 0f), bt = SpaceTransform.RigidPointPose(host.pose, bp, 0f);
             Check(SpaceTransform.RelativeVelocity(at, bt).magnitude < .002f
                 && own.pose.angularVelocity == host.pose.angularVelocity,
                 "soft docking guide reference includes moving-host point velocity and spin");
         }
-        Set(typeof(Thing), pair.a, "rotationInt", Rot4.East);
-        Set(typeof(Thing), pair.b, "rotationInt", Rot4.West);
-        own.pose = SpaceTransform.RigidPointPose(service.AlignmentReference(pair),
+        Set(typeof(Thing), ownPort, "rotationInt", Rot4.East);
+        Set(typeof(Thing), peerPort, "rotationInt", Rot4.West);
+        own.pose = SpaceTransform.RigidPointPose(dock.AlignmentReference(universe),
             new Vector2(.5f, -.25f), .08f);
-        Check((float)Call(service, "Error", pair.a, pair.b) < 1.5f,
+        Check(dock.Error(universe, peerPort) < 1.5f,
             "perturbed soft docking starts inside the capture range");
         for (int tick = 0; tick < 180; tick++)
         {
-            float guideError = (float)Call(service, "Error", pair.a, pair.b);
-            own.pose = SpaceTransform.LerpPose(own.pose, service.AlignmentReference(pair),
-                SoftDockService.AssistFraction(guideError));
+            float guideError = dock.Error(universe, peerPort);
+            own.pose = SpaceTransform.LerpPose(own.pose, dock.AlignmentReference(universe),
+                CompSoftDocking.AssistFraction(guideError));
             ShipPhysics.Integrate(own, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
             ShipPhysics.Integrate(host, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
         }
-        Check((float)Call(service, "Error", pair.a, pair.b) < .3f
-            && Mathf.Abs((float)Call(service, "AngleError", pair.a, pair.b)) < .03f,
+        Check(dock.Error(universe, peerPort) < .3f
+            && Mathf.Abs(dock.AngleError(universe, peerPort)) < .03f,
             "captured soft docking converges while both ships drift and rotate");
-        float far = SoftDockService.AssistFraction(1.2f);
-        float near = SoftDockService.AssistFraction(.6f);
-        Check(SoftDockService.AssistFraction(1.5f) == 0f
+        float far = CompSoftDocking.AssistFraction(1.2f);
+        float near = CompSoftDocking.AssistFraction(.6f);
+        Check(CompSoftDocking.AssistFraction(1.5f) == 0f
             && near > far && Mathf.Abs(near / far - 4f) < .001f,
             "soft docking assist cuts off at capture range and follows inverse-square guide distance");
-        Check(SoftDockService.AssistFraction(.1f) == SoftDockService.AssistFraction(0f)
-            && SoftDockService.AssistFraction(.1f) < 1f,
+        Check(CompSoftDocking.AssistFraction(.1f) == CompSoftDocking.AssistFraction(0f)
+            && CompSoftDocking.AssistFraction(.1f) < 1f,
             "coincident guides keep a finite interpolation strength");
         a.info.Size = new IntVec3(401, 1, 401);
         b.info.Size = new IntVec3(401, 1, 401);
-        Set(typeof(Thing), pair.a, "positionInt", new IntVec3(390, 0, 200));
-        Set(typeof(Thing), pair.b, "positionInt", new IntVec3(10, 0, 200));
-        Vector2 ownGuide = SpaceTransform.MapToShipLocal(a, SoftDockService.MapPoint(pair.a, 4f));
-        Vector2 hostGuide = SpaceTransform.MapToShipLocal(b, SoftDockService.MapPoint(pair.b, 4f));
-        float relative = SpaceTransform.WrapAngle(ShipOrientation.AngleFromRot4(pair.b.Rotation)
-            + Mathf.PI - ShipOrientation.AngleFromRot4(pair.a.Rotation));
+        Set(typeof(Thing), ownPort, "positionInt", new IntVec3(390, 0, 200));
+        Set(typeof(Thing), peerPort, "positionInt", new IntVec3(10, 0, 200));
+        Vector2 ownGuide = SpaceTransform.MapToShipLocal(a, CompSoftDocking.MapPoint(ownPort, 4f));
+        Vector2 hostGuide = SpaceTransform.MapToShipLocal(b, CompSoftDocking.MapPoint(peerPort, 4f));
+        float relative = SpaceTransform.WrapAngle(ShipOrientation.AngleFromRot4(peerPort.Rotation)
+            + Mathf.PI - ShipOrientation.AngleFromRot4(ownPort.Rotation));
         own.pose = SpaceTransform.RigidPointPose(SpaceTransform.AlignLocalPoint(host.pose,
             hostGuide, ownGuide, relative + .18f), new Vector2(1f, 0f), 0f);
-        SpacePose exact = service.AlignmentReference(pair), before = own.pose;
-        float entranceError = (float)Call(service, "Error", pair.a, pair.b);
-        float weighted = SoftDockService.AssistFraction(entranceError);
+        SpacePose exact = dock.AlignmentReference(universe), before = own.pose;
+        float entranceError = dock.Error(universe, peerPort);
+        float weighted = CompSoftDocking.AssistFraction(entranceError);
         SpacePose assisted = SpaceTransform.LerpPose(before, exact, weighted);
         SpacePose oldStep = SpaceTransform.LerpPose(before, exact, 1f - Mathf.Exp(-1f / 30f));
         Check(entranceError > .8f && entranceError < 1.5f
@@ -283,6 +287,97 @@ internal static partial class Program
                 < OrbitSphere.ArcCells(before.position, oldStep.position) * .2f,
             "edge-port capture eases whole-map movement at the outer guide range");
         universe.objects.Remove(own); universe.objects.Remove(host);
+        Find.Maps.Remove(a); Find.Maps.Remove(b);
+    }
+
+    sealed class DockingStateExpose : IExposable
+    {
+        internal CompSoftDocking dock;
+        public void ExposeData() => dock.PostExposeData();
+    }
+
+    static void CheckDockingCompState(UniverseManager universe)
+    {
+        Map a = TestMap(49714), b = TestMap(49715);
+        Building_DockingPort Port(Map map, int id)
+        {
+            var port = (Building_DockingPort)Raw(typeof(Building_DockingPort));
+            port.def = TestBuildingDef("soft_dock_state_" + id);
+            port.thingIDNumber = id;
+            Set(typeof(Thing), port, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
+            Set(typeof(Thing), port, "positionInt", new IntVec3(1, 0, 2));
+            var state = new CompSoftDocking { parent = port };
+            Set(typeof(ThingWithComps), port, "comps", new List<ThingComp> { state });
+            map.listerThings.AllThings.Add(port);
+            return port;
+        }
+        Building_DockingPort source = Port(a, 49716), original = Port(b, 49717), replacement = Port(b, 49718);
+        CompSoftDocking state = source.Docking;
+        Call(state, "Capture", original);
+        for (int i = 0; i < 90; i++) state.Advance(true);
+        Check(state.Peer == original && original.Docking.Peer == source && Mathf.Abs(state.Progress - .5f) < .001f,
+            "initiating comp alone owns progress while the opposite port reads its runtime backlink");
+
+        string path = System.IO.Path.Combine(AppContext.BaseDirectory, "soft-dock-state.xml");
+        CompSoftDocking RoundTrip(CompSoftDocking current)
+        {
+            var restored = new CompSoftDocking { parent = source };
+            var wrapper = new DockingStateExpose { dock = restored };
+            try
+            {
+                Scribe.saver.InitSaving(path, "soft-dock"); current.PostExposeData(); Scribe.saver.FinalizeSaving();
+                Scribe.loader.InitLoading(path);
+                Scribe.loader.curParent = wrapper;
+                restored.PostExposeData();
+                Scribe.loader.crossRefs.RegisterForCrossRefResolve(wrapper);
+                Scribe.loader.crossRefs.RegisterForCrossRefResolve(original);
+                Scribe.loader.initer.RegisterForPostLoadInit(wrapper);
+                Scribe.loader.FinalizeLoading();
+            }
+            finally { Scribe.ForceStop(); }
+            Set(typeof(ThingWithComps), source, "comps", new List<ThingComp> { restored });
+            return restored;
+        }
+        CompSoftDocking loaded = RoundTrip(state);
+        Check(original.Docking.Owner == null && loaded.Peer == null,
+            "load keeps the stored pair inert until soft docking is restored");
+        Call(loaded, "Capture", original);
+        Check(loaded.Peer == original && Mathf.Abs(loaded.Progress - .5f) < .001f && !loaded.Connected,
+            "real Scribe round trip resumes the same peer's extension without a service mirror");
+        for (int i = 0; i < 90; i++) loaded.Advance(true);
+        loaded = RoundTrip(loaded);
+        Call(loaded, "Capture", original);
+        Check(loaded.Connected && loaded.Progress == 1f && original.Docking.Peer == source,
+            "real Scribe round trip preserves an already connected port");
+        Call(loaded, "Capture", replacement);
+        Check(loaded.Progress == 0f && loaded.Peer == replacement && original.Docking.Owner == null,
+            "changing the peer starts a new extension and releases the old backlink");
+        replacement.Docking.Clear();
+        Check(loaded.Peer == null && loaded.Progress == 0f && !loaded.Connected,
+            "removing the opposite port clears the initiating comp");
+        Call(loaded, "Capture", original);
+        var service = new SoftDockService(universe);
+        universe.SoftDockEnabled = true;
+        ((HashSet<Building_DockingPort>)typeof(SoftDockService).GetField("ports", Private).GetValue(service)).Add(source);
+        service.SetEnabled(false);
+        Check(loaded.Peer == null && loaded.Progress == 0f,
+            "explicitly disabling soft docking clears the port comp immediately");
+        var savedManager = new UniverseManager(Current.Game) { SoftDockEnabled = true };
+        var loadedManager = new UniverseManager(Current.Game);
+        string switchPath = System.IO.Path.Combine(AppContext.BaseDirectory, "soft-dock-switch.xml");
+        try
+        {
+            Scribe.saver.InitSaving(switchPath, "soft-dock-switch");
+            savedManager.ExposeData();
+            Scribe.saver.FinalizeSaving();
+            Scribe.loader.InitLoading(switchPath);
+            loadedManager.ExposeData();
+            Scribe.loader.FinalizeLoading();
+        }
+        finally { Scribe.ForceStop(); }
+        Check(loadedManager.SoftDockEnabled && loadedManager.SoftDock.Enabled
+            && !new UniverseManager(Current.Game).SoftDock.Enabled,
+            "game component Scribe round trip restores the soft-dock switch and new games default to off");
         Find.Maps.Remove(a); Find.Maps.Remove(b);
     }
 

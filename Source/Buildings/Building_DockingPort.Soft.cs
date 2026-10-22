@@ -9,6 +9,14 @@ namespace DeltaV
 {
     public class CompSoftDockHackable : CompHackable
     {
+        public override void PostSpawnSetup(bool respawningAfterLoad)
+        {
+            base.PostSpawnSetup(respawningAfterLoad);
+            // Existing map prefabs can contain a docking port saved before it gained
+            // CompHackable. Vanilla skips Def initialization for loaded Things.
+            if (defence <= 0f) defence = Props.defence;
+        }
+
         // This port Def has no timed lockouts. Hack/progress/save/completion stay vanilla;
         // the local pawn job advances work, without polling every idle door for expiry.
         public override void CompTick() { }
@@ -16,8 +24,12 @@ namespace DeltaV
 
     public partial class Building_DockingPort
     {
+        internal CompSoftDocking Docking => GetComp<CompSoftDocking>();
         internal Building_DockingPort SoftPeer(Pawn pawn, bool requireOpen = true)
-            => Current.Game?.GetComponent<UniverseManager>()?.SoftDock.Peer(this, pawn, requireOpen);
+        {
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            return universe == null ? null : Docking?.AccessiblePeer(universe, pawn, requireOpen);
+        }
         internal bool CanRemoteHack(Pawn pawn)
         {
             var peer = SoftPeer(pawn, false);
@@ -28,8 +40,7 @@ namespace DeltaV
         }
         private IEnumerable<Gizmo> SoftDockGizmos()
         {
-            var link = Current.Game?.GetComponent<UniverseManager>()?.SoftDock.Pair(this);
-            if (link?.connected != true) yield break;
+            if (Docking?.Connected != true) yield break;
             SoftDockService service = Current.Game.GetComponent<UniverseManager>().SoftDock;
             var transferCommand = new Command_Action
             {
@@ -42,7 +53,7 @@ namespace DeltaV
                     if (portal?.IsEnterable(out _) == true) Find.WindowStack.Add(new Dialog_EnterPortal(portal));
                 }
             };
-            if (this.HostileTo(Faction.OfPlayer) || link.Other(this).HostileTo(Faction.OfPlayer))
+            if (this.HostileTo(Faction.OfPlayer) || Docking.Peer.HostileTo(Faction.OfPlayer))
                 transferCommand.Disable("DeltaV_SoftDockTransferNoWorker".Translate());
             yield return transferCommand;
             var active = service.ExistingPortal(this);
@@ -56,7 +67,7 @@ namespace DeltaV
             {
                 defaultLabel = "DeltaV_SoftDockView".Translate(),
                 icon = ContentFinder<Texture2D>.Get("UI/Commands/ViewCave"),
-                action = () => { var peer = link.Other(this); if (peer.Spawned) CameraJumper.TryJumpAndSelect(peer); }
+                action = () => { var peer = Docking.Peer; if (peer?.Spawned == true) CameraJumper.TryJumpAndSelect(peer); }
             };
         }
         public override IEnumerable<FloatMenuOption> GetFloatMenuOptions(Pawn pawn)

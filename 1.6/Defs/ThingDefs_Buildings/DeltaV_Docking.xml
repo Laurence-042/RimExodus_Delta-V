@@ -12,9 +12,13 @@
 		<description>A sealed docking airlock. Enable the soft docking guides and align the diamonds to establish a passage between separate ships. Colonists can enter, transfer cargo or hack a locked remote port from this endpoint. Disabling the guides or losing alignment disconnects it. On a shared map it extends a physical force-field passage toward a nearby structure; retracting that passage leaves its contents in place.</description>
 		<thingClass>DeltaV.Building_DockingPort</thingClass>
         <comps>
+            <li Class="CompProperties">
+                <compClass>DeltaV.CompSoftDocking</compClass>
+            </li>
             <li Class="CompProperties_Hackable">
                 <compClass>DeltaV.CompSoftDockHackable</compClass>
                 <defence>1800</defence>
+                <effectHacking>HackingTerminal</effectHacking>
                 <onlyRemotelyHackable>true</onlyRemotelyHackable>
             </li>
         </comps>

@@ -93,6 +93,7 @@ namespace DeltaV
         public SpaceScatterService Scatter => scatter ?? (scatter = new SpaceScatterService(this));
         [NonSerialized] private SoftDockService softDock;
         public SoftDockService SoftDock => softDock ?? (softDock = new SoftDockService(this));
+        internal bool SoftDockEnabled;
         [NonSerialized] private OrbitalWorkService worksites;
         public OrbitalWorkService Worksites => worksites ?? (worksites = new OrbitalWorkService(this));
 
@@ -546,6 +547,7 @@ namespace DeltaV
                 objects = new List<SpaceObject>();
             }
             Scribe_Collections.Look(ref generatedSectorTiles, "generatedSectorTiles", LookMode.Value);
+            Scribe_Values.Look(ref SoftDockEnabled, "softDockEnabled", false);
             if (Scribe.mode == LoadSaveMode.LoadingVars && generatedSectorTiles == null)
             {
                 generatedSectorTiles = new List<string>();
@@ -609,6 +611,7 @@ namespace DeltaV
             SweepEmptyDepartedMaps();
             Weapons.RebuildWeaponIndex();
             Controls.Rebuild();
+            if (SoftDockEnabled) SoftDock.RestoreEnabled();
         }
 
         /// <summary>

@@ -11,11 +11,11 @@ namespace DeltaV
 
         internal SoftDockPortal Portal(Building_DockingPort port)
         {
-            if (Pair(port)?.connected != true) return null;
+            if (!Enabled || port?.Docking?.Connected != true) return null;
             if (portals.TryGetValue(port, out var portal) && portal.Spawned) return portal;
             portal = (SoftDockPortal)ThingMaker.MakeThing(DeltaVDefOf.DeltaV_SoftDockPortal);
             portal.port = port;
-            portal.peer = Pair(port).Other(port);
+            portal.peer = port.Docking.Peer;
             portal.SetFaction(port.Faction);
             GenSpawn.Spawn(portal, port.Position, port.Map);
             portals[port] = portal;
@@ -44,9 +44,10 @@ namespace DeltaV
         public override string EnterString => "DeltaV_SoftDockTransfer".Translate();
         public override bool IsEnterable(out string reason)
         {
-            var service = Current.Game?.GetComponent<UniverseManager>()?.SoftDock;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             bool connected = Spawned && port?.Spawned == true && peer?.Spawned == true
-                && port.Map == Map && service?.Peer(port, null, requireOpen: false) == peer
+                && port.Map == Map && universe?.SoftDock.Enabled == true
+                && port.Docking?.AccessiblePeer(universe, null, requireOpen: false) == peer
                 && !port.HostileTo(Faction.OfPlayer) && !peer.HostileTo(Faction.OfPlayer);
             reason = connected ? "" : "DeltaV_SoftDockTransferDisconnected".Translate().ToString();
             return connected;

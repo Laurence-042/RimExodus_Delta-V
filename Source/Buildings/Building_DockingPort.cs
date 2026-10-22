@@ -219,9 +219,8 @@ namespace DeltaV
         public override string GetInspectString()
         {
             string baseText = base.GetInspectString()?.TrimEnd();
-            var link = Current.Game?.GetComponent<UniverseManager>()?.SoftDock.Pair(this);
-            string channelText = link != null
-                ? "DeltaV_SoftDockProgress".Translate(link.Other(this).LabelCap, link.progress.ToStringPercent()).ToString()
+            string channelText = Docking?.Peer != null
+                ? "DeltaV_SoftDockProgress".Translate(Docking.Peer.LabelCap, Docking.Progress.ToStringPercent()).ToString()
                 : (ChannelExtended
                 ? "DeltaV_DockConnected".Translate(channelCells.Count)
                 : "DeltaV_DockFolded".Translate(ChannelRange)).ToString();
