@@ -27,10 +27,12 @@ namespace DeltaV
             public readonly List<IntVec3> terrainCells = new List<IntVec3>();
             public readonly List<Thing> things = new List<Thing>();
             public readonly List<PrintBatch> printed = new List<PrintBatch>();
+            public SectionLayer_GravshipHull gravshipHull;
 
             public void Dispose()
             {
                 foreach (PrintBatch batch in printed) batch.layer.Dispose();
+                gravshipHull?.Dispose();
             }
         }
 
@@ -249,6 +251,18 @@ namespace DeltaV
                 QuadsDrawnLastPass += submesh.tris.Count / 6;
             }
 
+            // Odyssey draws angled hull pieces in its own section layer, not in
+            // GravshipHull.Print. Reuse that layer's mesh and neighbor rules.
+            if (section.gravshipHull != null)
+            foreach (LayerSubMesh submesh in section.gravshipHull.subMeshes)
+            {
+                if (!submesh.finalized || submesh.disabled) continue;
+                collector.Add(new OverlayCommand { mesh = submesh.mesh, matrix = matrix,
+                    material = submesh.material, surface = ShellSurfaceLayer.Hull,
+                    queue = submesh.material.renderQueue, sequence = nextSequence++ });
+                QuadsDrawnLastPass += submesh.tris.Count / 6;
+            }
+
             for (int i = 0; i < section.things.Count; i++)
             {
                 Thing thing = section.things[i];
@@ -399,6 +413,14 @@ namespace DeltaV
                 }
             }
             foreach (PrintBatch batch in result.printed) batch.Complete();
+            if (ModsConfig.OdysseyActive)
+            {
+                // Corner cells can be empty and are absent from result.things.
+                // Use the source map's section coordinates so vanilla evaluates
+                // the same 17x17 cells as its focused-map layer.
+                result.gravshipHull = new SectionLayer_GravshipHull(map.mapDrawer.SectionAt(rect.Min));
+                result.gravshipHull.Regenerate();
+            }
             return result;
         }
 
@@ -406,7 +428,7 @@ namespace DeltaV
             bool adjacentCells = false, bool adjacentSections = false)
         {
             ulong relevant = (ulong)MapMeshFlagDefOf.Terrain | (ulong)MapMeshFlagDefOf.Things
-                | (ulong)MapMeshFlagDefOf.Buildings;
+                | (ulong)MapMeshFlagDefOf.Buildings | (ulong)MapMeshFlagDefOf.Roofs;
             if (map == null || (flags & relevant) == 0) return;
             MapCache cache = CacheFor(map);
             int sx = cell.x / SectionSize;
