@@ -803,6 +803,7 @@ namespace DeltaV
                     NpcShips.NotifyArchivedMovement((ArchivedSpaceObject)obj);
                 }
             }
+            softDock?.ApplyAlignmentAssist();
             // 碰撞扫掠与结算（太空战架构 §3.3：先动后撞——本 tick 位移段对全部有碰撞面
             // 容器求交，命中经联合效果注册表对称结算；销毁/归池经帧边界回调）。
             scatter?.Tick();

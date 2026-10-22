@@ -273,6 +273,8 @@ namespace DeltaV
             out float allocatedTorque) { allocatedTorque = 0f; return DriveResult.InvalidSubject; }
         public virtual void ClearDrive() { cachedAllocationReport = null; }
         private int lastMotionTick = -1;
+        private int lastThrustTick = -1;
+        internal bool PropulsionUsedThisTick => lastThrustTick == Find.TickManager.TicksGame;
         protected bool BeginMotion(float dt)
         {
             if (dt <= 0f) return false;
@@ -315,6 +317,12 @@ namespace DeltaV
             }
             Vector2 force = cachedForce;
             allocatedTorque = cachedTorque;
+            foreach (ShipPhysics.Thruster thruster in report.thrusters)
+            {
+                if (!thruster.operational || thruster.thrust <= 0f || thruster.throttle < .0001f) continue;
+                lastThrustTick = Find.TickManager.TicksGame;
+                break;
+            }
             ShipPhysics.Integrate(this, report, Vector2.Lerp(force, control.force, control.voidBlend),
                 Mathf.Lerp(allocatedTorque, control.torque, control.voidBlend), dt,
                 control.assistX, control.assistZ, control.assistW, frameAngle);

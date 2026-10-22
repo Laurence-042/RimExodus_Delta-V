@@ -8,6 +8,26 @@ using Verse;
 
 internal static partial class Program
 {
+    sealed class SoftDockThrustProbe : SpaceObject
+    {
+        private readonly ShipPhysics.MassReport report = new ShipPhysics.MassReport { mass = 100f, inertia = 100f };
+        internal SoftDockThrustProbe(int id) : base(id, new SpacePose(Vector3.forward, 0f))
+        {
+            report.thrusters.Add(new ShipPhysics.Thruster
+            { dir = Vector2.right, thrust = 2000f, operational = true });
+        }
+        protected override ShipPhysics.MassReport MotionReport => report;
+        protected override void AllocateDrive(ShipPhysics.MassReport layout, ShipPhysics.Command command,
+            out Vector2 force, out float torque)
+        {
+            layout.thrusters[0].throttle = Mathf.Clamp01(command.fx);
+            force = layout.thrusters[0].dir * (layout.thrusters[0].thrust * layout.thrusters[0].throttle);
+            torque = 0f;
+        }
+        internal void Drive(Vector2 force) => ExecuteDrive(report, 0f, new DriveSubject(objectId, 1),
+            new DriveControl { force = force }, 1f / 60f, out _);
+    }
+
     static void CheckDockingSystem(UniverseManager universe)
     {
         var link = new SoftDockService.Link();
@@ -28,6 +48,16 @@ internal static partial class Program
         ((List<SoftDockService.Link>)typeof(SoftDockService).GetField("links", Private).GetValue(service)).Add(link);
         service.SetEnabled(false);
         Check(!service.Enabled && service.Pair(null) == null, "toggle off immediately invalidates every portal without waiting for a tick");
+
+        var thrusting = new SoftDockThrustProbe(49698);
+        thrusting.Drive(new Vector2(1000f, 0f));
+        var coasting = new SoftDockThrustProbe(49699);
+        coasting.Drive(Vector2.zero);
+        Check(thrusting.PropulsionUsedThisTick && !coasting.PropulsionUsedThisTick
+            && !SoftDockService.CanAssist(thrusting, coasting)
+            && !SoftDockService.CanAssist(coasting, thrusting)
+            && SoftDockService.CanAssist(coasting, new SpaceObject(49697, coasting.pose)),
+            "soft docking disables interpolation when either ship actually uses an engine");
 
         var body = new SpaceObject(49700, new SpacePose(Vector3.forward, .3f)
             { velocity = new Vector2(2f, -1f), angularVelocity = .03f });
@@ -207,6 +237,51 @@ internal static partial class Program
                 && own.pose.angularVelocity == host.pose.angularVelocity,
                 "soft docking guide reference includes moving-host point velocity and spin");
         }
+        Set(typeof(Thing), pair.a, "rotationInt", Rot4.East);
+        Set(typeof(Thing), pair.b, "rotationInt", Rot4.West);
+        own.pose = SpaceTransform.RigidPointPose(service.AlignmentReference(pair),
+            new Vector2(.5f, -.25f), .08f);
+        Check((float)Call(service, "Error", pair.a, pair.b) < 1.5f,
+            "perturbed soft docking starts inside the capture range");
+        for (int tick = 0; tick < 180; tick++)
+        {
+            float guideError = (float)Call(service, "Error", pair.a, pair.b);
+            own.pose = SpaceTransform.LerpPose(own.pose, service.AlignmentReference(pair),
+                SoftDockService.AssistFraction(guideError));
+            ShipPhysics.Integrate(own, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
+            ShipPhysics.Integrate(host, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
+        }
+        Check((float)Call(service, "Error", pair.a, pair.b) < .3f
+            && Mathf.Abs((float)Call(service, "AngleError", pair.a, pair.b)) < .03f,
+            "captured soft docking converges while both ships drift and rotate");
+        float far = SoftDockService.AssistFraction(1.2f);
+        float near = SoftDockService.AssistFraction(.6f);
+        Check(SoftDockService.AssistFraction(1.5f) == 0f
+            && near > far && Mathf.Abs(near / far - 4f) < .001f,
+            "soft docking assist cuts off at capture range and follows inverse-square guide distance");
+        Check(SoftDockService.AssistFraction(.1f) == SoftDockService.AssistFraction(0f)
+            && SoftDockService.AssistFraction(.1f) < 1f,
+            "coincident guides keep a finite interpolation strength");
+        a.info.Size = new IntVec3(401, 1, 401);
+        b.info.Size = new IntVec3(401, 1, 401);
+        Set(typeof(Thing), pair.a, "positionInt", new IntVec3(390, 0, 200));
+        Set(typeof(Thing), pair.b, "positionInt", new IntVec3(10, 0, 200));
+        Vector2 ownGuide = SpaceTransform.MapToShipLocal(a, SoftDockService.MapPoint(pair.a, 4f));
+        Vector2 hostGuide = SpaceTransform.MapToShipLocal(b, SoftDockService.MapPoint(pair.b, 4f));
+        float relative = SpaceTransform.WrapAngle(ShipOrientation.AngleFromRot4(pair.b.Rotation)
+            + Mathf.PI - ShipOrientation.AngleFromRot4(pair.a.Rotation));
+        own.pose = SpaceTransform.RigidPointPose(SpaceTransform.AlignLocalPoint(host.pose,
+            hostGuide, ownGuide, relative + .18f), new Vector2(1f, 0f), 0f);
+        SpacePose exact = service.AlignmentReference(pair), before = own.pose;
+        float entranceError = (float)Call(service, "Error", pair.a, pair.b);
+        float weighted = SoftDockService.AssistFraction(entranceError);
+        SpacePose assisted = SpaceTransform.LerpPose(before, exact, weighted);
+        SpacePose oldStep = SpaceTransform.LerpPose(before, exact, 1f - Mathf.Exp(-1f / 30f));
+        Check(entranceError > .8f && entranceError < 1.5f
+            && OrbitSphere.ArcCells(before.position, exact.position) > 10f
+            && OrbitSphere.ArcCells(before.position, assisted.position)
+                < OrbitSphere.ArcCells(before.position, oldStep.position) * .2f,
+            "edge-port capture eases whole-map movement at the outer guide range");
         universe.objects.Remove(own); universe.objects.Remove(host);
         Find.Maps.Remove(a); Find.Maps.Remove(b);
     }

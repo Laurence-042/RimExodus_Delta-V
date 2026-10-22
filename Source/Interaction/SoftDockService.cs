@@ -10,6 +10,8 @@ namespace DeltaV
     public sealed partial class SoftDockService
     {
         private const float GuideReach = 4f;
+        private const float CaptureRange = 1.5f;
+        private const float AlignedRange = .3f;
         private readonly UniverseManager universe;
         private readonly HashSet<Building_DockingPort> ports = new HashSet<Building_DockingPort>();
         private readonly List<Link> links = new List<Link>();
@@ -98,6 +100,31 @@ namespace DeltaV
                 SpaceTransform.MapToShipLocal(own.map, MapPoint(link.a, GuideReach)), relative);
         }
 
+        internal static float AssistFraction(float guideDistance)
+        {
+            if (guideDistance >= CaptureRange) return 0f;
+            // Keep the inverse-square pull finite once the guides are aligned.
+            float distanceSquared = Mathf.Max(guideDistance * guideDistance,
+                AlignedRange * AlignedRange);
+            return (1f - Mathf.Exp(-1f / 30f)) * AlignedRange * AlignedRange
+                / distanceSquared;
+        }
+
+        internal static bool CanAssist(SpaceObject own, SpaceObject host)
+            => own != null && host != null
+                && !own.PropulsionUsedThisTick && !host.PropulsionUsedThisTick;
+
+        internal void ApplyAlignmentAssist()
+        {
+            if (steering == null || !SteeringValid(steering)) return;
+            SpaceObject own = universe.FrameOf(steering.a.Map);
+            SpaceObject host = universe.FrameOf(steering.b.Map);
+            if (!CanAssist(own, host)) return;
+            float fraction = AssistFraction(Error(steering.a, steering.b));
+            if (fraction <= 0f) return;
+            own.pose = SpaceTransform.LerpPose(own.pose, AlignmentReference(steering), fraction);
+        }
+
         private bool SteeringValid(Link link) => Enabled && links.Contains(link) && Live(link.a) && Live(link.b)
             && link.a.Map != link.b.Map && ShipRegistry.ShipOf(link.a)?.Identity == controlled
             && Error(link.a, link.b) <= 2f && Mathf.Abs(AngleError(link.a, link.b)) <= .25f;
@@ -134,7 +161,6 @@ namespace DeltaV
             var piloted = universe.Pilot.PilotedTarget(universe);
             if (piloted.IsValid && !piloted.Identity.shuttle && piloted.Identity != controlled)
             { CancelAllTransfers(); StopSteering(); controlled = piloted.Identity; links.Clear(); }
-            bool corrected = false;
             for (int i = links.Count - 1; i >= 0; i--)
             {
                 Link link = links[i];
@@ -142,7 +168,7 @@ namespace DeltaV
                     || ShipRegistry.ShipOf(link.a)?.Identity != controlled)
                 { CancelTransfersAt(link.a); if (steering == link) StopSteering(); links.RemoveAt(i); continue; }
                 float error = Error(link.a, link.b), angle = AngleError(link.a, link.b);
-                bool aligned = error < .3f && Mathf.Abs(angle) < .03f;
+                bool aligned = error < AlignedRange && Mathf.Abs(angle) < .03f;
                 link.Advance(aligned);
                 if (!link.connected) CancelTransfersAt(link.a);
                 if (error > 2f || Mathf.Abs(angle) > .25f)
@@ -152,11 +178,6 @@ namespace DeltaV
                     continue;
                 }
                 if (steering == null) StartSteering(link);
-                if (corrected || link != steering) continue;
-                corrected = true;
-                SpaceObject own = universe.FrameOf(link.a.Map);
-                SpacePose reference = AlignmentReference(link);
-                own.pose = SpaceTransform.LerpPose(own.pose, reference, 1f - Mathf.Exp(-1f / 30f));
             }
             int now = Find.TickManager.TicksGame;
             if (now < nextSearch) return;
@@ -166,7 +187,7 @@ namespace DeltaV
             {
                 if (!Live(a) || ShipRegistry.ShipOf(a)?.Identity != controlled || Pair(a) != null) continue;
                 Building_DockingPort best = null;
-                float bestError = 1.5f;
+                float bestError = CaptureRange;
                 foreach (Building_DockingPort b in ports)
                 {
                     if (b == a || b.Map == a.Map || !Live(b) || Pair(b) != null) continue;
