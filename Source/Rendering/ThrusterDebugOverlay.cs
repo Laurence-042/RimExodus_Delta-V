@@ -16,9 +16,6 @@ namespace DeltaV
     [StaticConstructorOnStartup]
     public static class ThrusterDebugOverlay
     {
-        /// <summary>会话级视图开关（调试显示，不落盘；渲染类静态白名单口径）。</summary>
-        public static bool Show;
-
         private static Material domainMaterial;
 
         [StaticConstructorOnStartup]
@@ -44,7 +41,7 @@ namespace DeltaV
         /// <summary>聚焦图叠加绘制（UniverseManager.GameComponentUpdate 调用）。</summary>
         public static void DrawFocused(UniverseManager universe)
         {
-            if (!Show) return;
+            if (universe?.ShowThrusterDebugOverlay != true) return;
             Map map = Find.CurrentMap;
             if (map == null || universe == null || universe.FrameOf(map) == null) return;
 
@@ -97,15 +94,13 @@ namespace DeltaV
     [StaticConstructorOnStartup]
     public static class CollisionDebugOverlay
     {
-        public static bool Show;
-
         private static readonly List<IntVec3> Cells = new List<IntVec3>();
         private static readonly Material CellMaterial = MaterialPool.MatFrom(BaseContent.WhiteTex,
             ShaderDatabase.Transparent, new Color(0.1f, 0.85f, 1f, 0.24f), 3102);
 
         public static void DrawFocused(UniverseManager universe)
         {
-            if (!Show || universe == null) return;
+            if (universe?.ShowCollisionDebugOverlay != true) return;
             Map focusedMap = Find.CurrentMap;
             if (focusedMap == null) return;
             SpaceObject focused = universe.FrameOf(focusedMap);

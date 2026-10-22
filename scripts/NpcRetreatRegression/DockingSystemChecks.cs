@@ -362,7 +362,13 @@ internal static partial class Program
         service.SetEnabled(false);
         Check(loaded.Peer == null && loaded.Progress == 0f,
             "explicitly disabling soft docking clears the port comp immediately");
-        var savedManager = new UniverseManager(Current.Game) { SoftDockEnabled = true };
+        var savedManager = new UniverseManager(Current.Game)
+        {
+            SoftDockEnabled = true,
+            ShowThrusterDebugOverlay = true,
+            ShowWeaponArcOverlay = true,
+            ShowCollisionDebugOverlay = true
+        };
         var loadedManager = new UniverseManager(Current.Game);
         string switchPath = System.IO.Path.Combine(AppContext.BaseDirectory, "soft-dock-switch.xml");
         try
@@ -376,8 +382,13 @@ internal static partial class Program
         }
         finally { Scribe.ForceStop(); }
         Check(loadedManager.SoftDockEnabled && loadedManager.SoftDock.Enabled
-            && !new UniverseManager(Current.Game).SoftDock.Enabled,
-            "game component Scribe round trip restores the soft-dock switch and new games default to off");
+            && loadedManager.ShowThrusterDebugOverlay && loadedManager.ShowWeaponArcOverlay
+            && loadedManager.ShowCollisionDebugOverlay,
+            "game component Scribe round trip restores all four play-settings row switches");
+        var freshManager = new UniverseManager(Current.Game);
+        Check(!freshManager.SoftDock.Enabled && !freshManager.ShowThrusterDebugOverlay
+            && !freshManager.ShowWeaponArcOverlay && !freshManager.ShowCollisionDebugOverlay,
+            "new games default all four play-settings row switches to off");
         Find.Maps.Remove(a); Find.Maps.Remove(b);
     }
 

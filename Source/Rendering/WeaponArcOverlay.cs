@@ -7,18 +7,13 @@ namespace DeltaV
     /// <summary>Independent weapon range/traverse view; never changes targeting.</summary>
     public static class WeaponArcOverlay
     {
-        public static bool Show { get; private set; }
-
         private const int ColorCount = 24;
         private const float ScanRadiansPerTick = 1.4f / 60f;
         private static Material[] colors;
         private static Dictionary<long, Mesh> rangeBoundaries;
 
-        public static void SetEnabled(bool enabled)
+        public static void ClearRuntimeCaches()
         {
-            if (Show == enabled) return;
-            Show = enabled;
-            if (enabled) return;
             if (colors != null)
                 foreach (Material material in colors)
                     if (material != null) Object.Destroy(material);
@@ -31,7 +26,7 @@ namespace DeltaV
 
         public static void DrawFocused(UniverseManager universe)
         {
-            if (!Show || universe == null) return;
+            if (universe?.ShowWeaponArcOverlay != true) return;
             Map map = Find.CurrentMap;
             if (map == null || universe.FrameOf(map) == null) return;
 
