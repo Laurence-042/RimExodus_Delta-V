@@ -367,4 +367,9 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_TractorAutoDesc>Automatically acquires drifting people and cargo within range. Disable to aim and fire through normal weapon groups.</DeltaV_TractorAutoDesc>
   <DeltaV_TractorNeedsMoonPool>A tractor beam must be built on a moonpool.</DeltaV_TractorNeedsMoonPool>
   <DeltaV_TractorBlocked>The moonpool cannot receive these contents. Clear space for recovery.</DeltaV_TractorBlocked>
+  <DeltaV_SoftDockTransfer>Organize transfer</DeltaV_SoftDockTransfer>
+  <DeltaV_SoftDockTransferDesc>Choose people and cargo in the standard portal transfer dialog. Vanilla hauling and group duties organize the transfer. Loading can be edited or canceled; disconnecting cancels the transfer.</DeltaV_SoftDockTransferDesc>
+  <DeltaV_SoftDockTransferCancel>Cancel transfer</DeltaV_SoftDockTransferCancel>
+  <DeltaV_SoftDockTransferDisconnected>The soft docking connection has disconnected.</DeltaV_SoftDockTransferDisconnected>
+  <DeltaV_SoftDockTransferNoWorker>The remote port is hostile. Hack and claim it first.</DeltaV_SoftDockTransferNoWorker>
 </LanguageData>

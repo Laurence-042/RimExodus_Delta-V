@@ -10,6 +10,7 @@ namespace DeltaV
     /// <summary>Content handoff driven by destruction, transfer and despawn events; no scan schedule.</summary>
     public sealed class SpaceScatterService
     {
+        internal const float CollectionRadius = 2f;
         private readonly UniverseManager universe;
         private readonly HashSet<SpaceObject> candidates = new HashSet<SpaceObject>();
         internal IEnumerable<SpaceObject> Candidates => candidates;
@@ -169,8 +170,7 @@ namespace DeltaV
             SpacePose destination = SpaceTransform.RigidPointPose(receiver.pose,
                 SpaceTransform.MapToShipLocal(receiver.map, new Vector2(cell.x + .5f, cell.z + .5f)), 0f);
             ShipPhysics.AttractPoint(target, Vector2.zero, destination, 2.5f);
-            if (OrbitSphere.ArcCells(target.pose.direction, destination.direction) > .4f
-                || (SpaceTransform.TransportVelocity(target.pose, destination.position) - destination.velocity).magnitude > .5f
+            if (OrbitSphere.ArcCells(target.pose.direction, destination.direction) > CollectionRadius
                 || !collecting.Add(target.map)) return;
             Map source = target.map, receivingMap = launcher.Map;
             int sourceVersion = target.RepresentationVersion, receiverVersion = receiver.RepresentationVersion;
@@ -182,40 +182,34 @@ namespace DeltaV
                     || launcher.Map != receivingMap || launcher.Position != cell || !SpaceTractor.CanOperate(weapon)) return;
                 SpacePose at = SpaceTransform.RigidPointPose(receiver.pose,
                     SpaceTransform.MapToShipLocal(receivingMap, new Vector2(cell.x + .5f, cell.z + .5f)), 0f);
-                if (OrbitSphere.ArcCells(target.pose.direction, at.direction) <= .5f && !TryReceive(target, receivingMap, cell))
+                if (OrbitSphere.ArcCells(target.pose.direction, at.direction) <= CollectionRadius && !TryReceive(target, launcher))
                     launcher.TryGetComp<CompSpaceTractor>()?.NotifyBlocked();
             });
         }
 
-        internal bool TryReceive(SpaceObject scattered, Map destination, IntVec3 cell)
+        internal bool TryReceive(SpaceObject scattered, Thing launcher)
         {
+            Map destination = launcher.Map;
+            IntVec3 cell = launcher.Position;
             if (scattered?.IsScattered != true || scattered.map == null || scattered.map.Disposed
-                || !MoonPoolUtility.IsMoonPoolAt(destination, cell) || !cell.Standable(destination)) return false;
+                || destination == null || !MoonPoolUtility.IsMoonPoolAt(destination, cell)) return false;
             Map source = scattered.map;
+            IntVec3 output = launcher.InteractionCell;
             foreach (Thing thing in source.listerThings.AllThings.Where(IsCargo).ToList())
             {
-                if (thing is Pawn)
+                thing.DeSpawn();
+                try
                 {
-                    if (cell.GetThingList(destination).Any(t => t is Pawn)) return false;
-                    thing.DeSpawn();
-                    try { GenSpawn.Spawn(thing, cell, destination, thing.Rotation); thing.PostSwapMap(); }
-                    catch
+                    // CompDeepDrill's output path owns nearby placement and stacking.
+                    if (!GenPlace.TryPlaceThing(thing, output, destination, ThingPlaceMode.Near,
+                        null, p => p != cell && p != output))
                     {
-                        if (thing.Spawned) thing.DeSpawn();
-                        GenSpawn.Spawn(thing, IntVec3.Zero, source);
-                        throw;
+                        if (!thing.Spawned && !thing.Destroyed) GenSpawn.Spawn(thing, IntVec3.Zero, source);
+                        return false;
                     }
+                    thing.PostSwapMap();
                 }
-                else
-                {
-                    thing.DeSpawn();
-                    try
-                    {
-                        if (!GenPlace.TryPlaceThing(thing, cell, destination, ThingPlaceMode.Direct))
-                        { GenSpawn.Spawn(thing, IntVec3.Zero, source); return false; }
-                    }
-                    catch { if (!thing.Spawned && !thing.Destroyed) GenSpawn.Spawn(thing, IntVec3.Zero, source); throw; }
-                }
+                catch { if (!thing.Spawned && !thing.Destroyed) GenSpawn.Spawn(thing, IntVec3.Zero, source); throw; }
             }
             if (Find.CurrentMap == source) universe.SetFocused(universe.FrameOf(destination));
             NotifyContentRemoved(source);

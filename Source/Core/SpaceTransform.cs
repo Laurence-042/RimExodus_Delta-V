@@ -25,6 +25,17 @@ namespace DeltaV
     /// </summary>
     public static class SpaceTransform
     {
+        // Positional capture correction, not another force or velocity integrator.
+        internal static SpacePose LerpPose(SpacePose current, SpacePose target, float fraction)
+        {
+            float t = Mathf.Clamp01(fraction);
+            if (t == 0f) return current;
+            Vector3 from = current.position;
+            current.direction = OrbitSphere.Move(current.direction, OrbitSphere.Offset(current.direction, target.direction) * t);
+            current.velocity = TransportTangent(current.velocity, from, current.position);
+            current.angle = WrapAngle(current.angle + WrapAngle(target.angle - current.angle) * t);
+            return current;
+        }
         // ---------- 2D 核心 ----------
 
         public static Vector2 Rotate(Vector2 v, float angle)

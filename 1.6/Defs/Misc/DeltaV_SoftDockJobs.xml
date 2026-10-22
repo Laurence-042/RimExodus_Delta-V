@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
-  <JobDef><defName>DeltaV_EnterSoftDock</defName><driverClass>DeltaV.JobDriver_EnterSoftDock</driverClass><reportString>entering the docking port.</reportString></JobDef>
-  <JobDef><defName>DeltaV_HaulSoftDock</defName><driverClass>DeltaV.JobDriver_HaulSoftDock</driverClass><reportString>transferring TargetA through the docking port.</reportString></JobDef>
   <JobDef><defName>DeltaV_HackSoftDock</defName><driverClass>DeltaV.JobDriver_HackSoftDock</driverClass><reportString>hacking the remote docking port.</reportString></JobDef>
 </Defs>

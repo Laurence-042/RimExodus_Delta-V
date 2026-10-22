@@ -127,6 +127,29 @@ internal static partial class Program
         Check(usedThrusters && Math.Abs(position) < .1f && Math.Abs(velocity) < .03f,
             "soft docking positional MPC restores guide position with achievable thruster force and no void compensation");
 
+        var reference = new SpacePose(Vector3.forward, 0f);
+        var interpolated = new SpaceObject(49902, new SpacePose(OrbitSphere.Move(reference.position, new Vector2(.8f, 0f)), 0f)
+            { velocity = new Vector2(.1f, 0f) });
+        loop.Reset(AutopilotMpcProfile.Balanced); previous = default;
+        float peakError = .8f;
+        for (int step = 0; step < 200; step++)
+        {
+            request.positionError = OrbitSphere.Offset(interpolated.pose.direction, reference.direction);
+            request.relativeVelocity = interpolated.pose.velocity;
+            request.previousX = previous.normalizedX;
+            loop.Compute(request, out previous);
+            info.Preview(previous.desiredLocalForce, previous.desiredTorque, out Vector2 force, out float torque);
+            for (int tick = 0; tick < 6; tick++)
+            {
+                interpolated.pose = SpaceTransform.LerpPose(interpolated.pose, reference, 1f - Mathf.Exp(-1f / 30f));
+                ShipPhysics.Integrate(interpolated, report, force, torque, 1f / 60f, false, false, false);
+                peakError = Mathf.Max(peakError, OrbitSphere.ArcCells(interpolated.pose.direction, reference.direction));
+            }
+        }
+        Check(peakError <= .81f && OrbitSphere.ArcCells(interpolated.pose.direction, reference.direction) < .1f
+            && interpolated.pose.velocity.magnitude < .03f,
+            "positional interpolation and real MPC thrusters converge together without accumulating divergent motion");
+
         UniverseManager universe = Current.Game.GetComponent<UniverseManager>();
         var driver = new ArchivedSpaceObject { objectId = 49900, pose = new SpacePose(Vector3.forward, 0f),
             dynamics = DriveSnapshot.Capture(info, 49901) };

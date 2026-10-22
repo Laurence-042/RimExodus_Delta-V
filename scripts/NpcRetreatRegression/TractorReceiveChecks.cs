@@ -12,15 +12,14 @@ internal static partial class Program
     // Replace only Unity-dependent grid allocation and spawn/despawn endpoints.
     // Pull, frame validation, vanilla GenPlace, handoff and pool release stay production code.
     static Map receivingFixture;
+    static bool receivingBlocked;
+    static bool ReceiveRoom(Map map, ref Room __result)
+    { if (map != receivingFixture) return true; __result = null; return false; }
+    static bool ReceiveDowned(Pawn __instance, ref bool __result)
+    { if (!(__instance is ReceivingPawn)) return true; __result = false; return false; }
     sealed class ReceivingPort : Building_DockingPort
     {
         public override bool PawnCanOpen(Pawn pawn) => true;
-    }
-    static bool ReceiveReachability(TraverseParms traverseParams, ref bool __result)
-    {
-        Check(traverseParams.pawn == null && traverseParams.mode == TraverseMode.NoPassClosedDoors,
-            "soft destination checks the target map without passing the pawn still spawned on the source map");
-        __result = true; return false;
     }
     static void ProbeRemoveCargo(Thing thing)
     {
@@ -53,7 +52,7 @@ internal static partial class Program
     static bool ReceiveWalkable(IntVec3 c, Map map, ref bool __result)
     {
         if (map != receivingFixture) return true;
-        __result = c.InBounds(map); return false;
+        __result = !receivingBlocked && c.InBounds(map); return false;
     }
     static bool ReceiveStackable(Thing other, ref bool __result)
     {
@@ -79,6 +78,8 @@ internal static partial class Program
         var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon { tractor = true } };
         Building launcher = AddTestBuilding(destination, Faction.OfPlayer, 49751, TestBuildingDef("tractor"), weapon);
         launcher.def.passability = Traversability.Standable;
+        launcher.def.hasInteractionCell = true;
+        launcher.def.interactionCellOffset = new IntVec3(0, 0, 1);
         var power = new CompPowerTrader { parent = launcher };
         Set(power, "powerOnInt", true);
         ((List<ThingComp>)AccessTools.Field(typeof(ThingWithComps), "comps").GetValue(launcher)).Add(power);
@@ -90,11 +91,12 @@ internal static partial class Program
         {
             harness.Patch(AccessTools.Method(typeof(GenGrid), nameof(GenGrid.Walkable), new[] { typeof(IntVec3), typeof(Map) }),
                 prefix: new HarmonyMethod(typeof(Program), nameof(ReceiveWalkable)));
+            harness.Patch(AccessTools.Method(typeof(GridsUtility), nameof(GridsUtility.GetRoom), new[] { typeof(IntVec3), typeof(Map) }),
+                prefix: new HarmonyMethod(typeof(Program), nameof(ReceiveRoom)));
+            harness.Patch(AccessTools.PropertyGetter(typeof(Pawn), nameof(Pawn.Downed)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(ReceiveDowned)));
             harness.Patch(AccessTools.Method(typeof(Thing), nameof(Thing.CanStackWith)),
                 prefix: new HarmonyMethod(typeof(Program), nameof(ReceiveStackable)));
-            harness.Patch(AccessTools.Method(typeof(Reachability), nameof(Reachability.CanReach), new[] {
-                typeof(IntVec3), typeof(LocalTargetInfo), typeof(PathEndMode), typeof(TraverseParms) }),
-                prefix: new HarmonyMethod(typeof(Program), nameof(ReceiveReachability)));
             harness.Patch(AccessTools.Method(typeof(GenSpawn), nameof(GenSpawn.Spawn), new[] {
                 typeof(Thing), typeof(IntVec3), typeof(Map), typeof(Rot4), typeof(WipeMode), typeof(bool), typeof(bool) }),
                 prefix: new HarmonyMethod(typeof(Program), nameof(ReceiveSpawn)));
@@ -117,30 +119,31 @@ internal static partial class Program
                 ProbeSpawnCargo(thing, IntVec3.Zero, source);
                 Vector3 at = SpaceTransform.MapPointToUniverse(receiver, destination, new Vector2(cell.x + .5f, cell.z + .5f));
                 var scattered = new MapSpaceObject(source.uniqueID, source,
-                    new SpacePose(OrbitSphere.Move(at, new Vector2(1.1f, 0f)), 0f)) { baseTag = SpaceObjectTag.Scattered };
+                    new SpacePose(OrbitSphere.Move(at, new Vector2(1.5f, 0f)), 0f)
+                    { velocity = new Vector2(1f, 0f) }) { baseTag = SpaceObjectTag.Scattered };
                 universe.objects.Add(scattered); universe.Scatter.Register(scattered);
-                // Occupied moonpool keeps the real cargo on its source map, including rollback after DeSpawn.
+                // Vanilla Near must find another cell instead of requiring a free device center.
                 var blocker = (Thing)Raw(pawn ? typeof(ReceivingPawn) : typeof(ReceivingItem));
                 blocker.def = TestBuildingDef("occupied_moonpool");
                 blocker.def.category = thing.def.category; blocker.def.passability = Traversability.Standable;
                 blocker.stackCount = 1;
                 ProbeSpawnCargo(blocker, cell, destination);
-                Check(!universe.Scatter.TryReceive(scattered, destination, cell) && thing.Map == source,
-                    "occupied moonpool retains cargo and pawn on the source map");
-                blocker.DeSpawn();
-                for (int tick = 0; tick < 1800 && thing.Map == source; tick++)
-                {
-                    Set(Find.TickManager, "ticksGameInt", 10000 + tick + (pawn ? 2000 : 0));
-                    universe.Scatter.Pull(scattered, launcher);
-                    ShipPhysics.Integrate(scattered, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
-                    Call(universe, "RunFrameActions");
-                }
-                Check(thing.Map == destination && thing.Position == cell && (!(thing is ReceivingPawn p) || p.swapped),
-                    "real pull and deferred handoff place cargo or pawn on the launcher moonpool");
+                receivingBlocked = true;
+                Check(!universe.Scatter.TryReceive(scattered, launcher) && thing.Map == source,
+                    "no vanilla nearby placement retains cargo and pawn on the source map");
+                receivingBlocked = false;
+                Set(Find.TickManager, "ticksGameInt", pawn ? 13000 : 10000);
+                universe.Scatter.Pull(scattered, launcher);
+                Call(universe, "RunFrameActions");
+                Check(thing.Map == destination,
+                    "tractor collects inside the two-cell radius immediately without waiting for overlap or low relative speed");
+                Check(thing.Map == destination && thing.Position != cell && thing.Position != launcher.InteractionCell
+                    && (!(thing is ReceivingPawn p) || p.swapped),
+                    "vanilla deep-drill Near output places cargo and pawn away from the occupied center and interaction cell");
                 Call(universe, "RunFrameActions");
                 Check(universe.ObjectById(scattered.objectId) == null && universe.MapPool.IsIdle(source),
                     "successful tractor handoff unregisters the empty scattered object and returns its map");
-                thing.DeSpawn(); universe.MapPool.Forget(source); Find.Maps.Remove(source);
+                thing.DeSpawn(); blocker.DeSpawn(); universe.MapPool.Forget(source); Find.Maps.Remove(source);
             }
             Map ownMap = TestMap(49754);
             var own = new MapSpaceObject(49754, ownMap, receiver.pose);
@@ -159,11 +162,11 @@ internal static partial class Program
             var service = universe.SoftDock;
             var links = (List<SoftDockService.Link>)AccessTools.Field(typeof(SoftDockService), "links").GetValue(service);
             Set(service, "<Enabled>k__BackingField", true); links.Add(connection);
-            var traveller = (ReceivingPawn)Raw(typeof(ReceivingPawn));
-            Set(typeof(Thing), traveller, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(ownMap));
-            Check(connection.a.TryDestination(traveller, out Map exit, out IntVec3 exitCell) && exit == destination
-                && exitCell == cell - Rot4.North.FacingCell && traveller.Map == ownMap,
-                "soft entry resolves the opposite interior cell before any cross-map pawn transfer");
+            var portal = (SoftDockPortal)Raw(typeof(SoftDockPortal));
+            portal.port = connection.a; portal.peer = connection.b;
+            Check(portal.GetOtherMap() == destination && portal.GetDestinationLocation() == cell - Rot4.North.FacingCell,
+                "native MapPortal adapter exposes the opposite ship and interior cell without foreign-pawn reachability");
+            CheckNativePortal(portal, ownMap);
             links.Remove(connection); Set(service, "<Enabled>k__BackingField", false);
             universe.objects.Remove(own); Find.Maps.Remove(ownMap);
         }
@@ -173,7 +176,7 @@ internal static partial class Program
             AccessTools.Field(typeof(MoonPoolUtility), "moonPoolDef").SetValue(null, previousMoonPool);
             DeltaVMod.CurrentSettings.passiveDrag = drag;
             radii[layer] = radius; scales[layer] = scale;
-            universe.objects.Remove(receiver); Find.Maps.Remove(destination); receivingFixture = null;
+            universe.objects.Remove(receiver); Find.Maps.Remove(destination); receivingFixture = null; receivingBlocked = false;
         }
     }
 }

@@ -169,7 +169,7 @@ namespace DeltaV
         private void CreateWorksite(PilotTarget target, SpaceObject host, LandingApproachController.DockingPlan placement)
         {
             SpaceObject own = universe.FrameOf(target.Map);
-            SpaceObject basis = host ?? own;
+            SpaceObject basis = own;
             var moves = new List<ContentMove>();
             var occupied = new HashSet<IntVec3>();
             try
@@ -183,10 +183,10 @@ namespace DeltaV
                     CellRect bounds = CellRect.FromCellList(cells.ToList());
                     var move = new ContentMove { source = source, cells = cells,
                         origin = new IntVec3(bounds.minX, 0, bounds.minZ),
-                        rotation = source == basis ? Rot4.North : placement.landingRotation,
+                        rotation = source == basis ? Rot4.North : placement.InverseRotation,
                         ships = source.Ships.ToList(), owners = new Dictionary<IntVec3, int>(),
                         sourceOwners = cells.ToDictionary(c => c, c => SubstructureOwnership.TryGet(source.map)?.OwnerAt(c) ?? 0) };
-                    move.root = source == basis ? move.origin : placement.PlacementRootFor(move.origin);
+                    move.root = source == basis ? move.origin : placement.InversePlacementRootFor(move.origin);
                     foreach (IntVec3 cell in cells)
                     {
                         IntVec3 placed = move.root + PrefabUtility.GetAdjustedLocalPosition(cell - move.origin, move.rotation);

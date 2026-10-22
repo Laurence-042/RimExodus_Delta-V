@@ -7,7 +7,7 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>Runtime links, never a map relationship. Index mutations follow port lifetime events.</summary>
-    public sealed class SoftDockService
+    public sealed partial class SoftDockService
     {
         private const float GuideReach = 4f;
         private readonly UniverseManager universe;
@@ -36,6 +36,7 @@ namespace DeltaV
         internal void Register(Building_DockingPort port) { if (Enabled) ports.Add(port); }
         internal void Remove(Building_DockingPort port)
         {
+            CancelTransfersAt(port);
             if (steering?.a == port || steering?.b == port) StopSteering();
             ports.Remove(port); links.RemoveAll(p => p.a == port || p.b == port);
         }
@@ -44,6 +45,7 @@ namespace DeltaV
         public void SetEnabled(bool enabled)
         {
             if (Enabled == enabled) return;
+            CancelAllTransfers();
             StopSteering();
             Enabled = enabled; links.Clear(); ports.Clear(); controlled = default; nextSearch = 0;
             if (!enabled) return;
@@ -106,7 +108,7 @@ namespace DeltaV
             ShipBase ship = ShipRegistry.ShipOf(link.a);
             if (ship?.IsValid != true) return;
             steering = link; steeringShip = ship.Identity;
-            // Capture may add a weak alignment force during manual flight, but must
+            // Capture may add an alignment correction during manual flight, but must
             // not take the controls away to engage a position-holding autopilot.
             if (universe.Pilot.PilotedTarget(universe).Identity == ship.Identity) return;
             var target = PilotTarget.Of(ship);
@@ -131,17 +133,18 @@ namespace DeltaV
             if (!Enabled) return;
             var piloted = universe.Pilot.PilotedTarget(universe);
             if (piloted.IsValid && !piloted.Identity.shuttle && piloted.Identity != controlled)
-            { StopSteering(); controlled = piloted.Identity; links.Clear(); }
-            bool appliedForce = false;
+            { CancelAllTransfers(); StopSteering(); controlled = piloted.Identity; links.Clear(); }
+            bool corrected = false;
             for (int i = links.Count - 1; i >= 0; i--)
             {
                 Link link = links[i];
                 if (!Live(link.a) || !Live(link.b) || link.a.Map == link.b.Map
                     || ShipRegistry.ShipOf(link.a)?.Identity != controlled)
-                { if (steering == link) StopSteering(); links.RemoveAt(i); continue; }
+                { CancelTransfersAt(link.a); if (steering == link) StopSteering(); links.RemoveAt(i); continue; }
                 float error = Error(link.a, link.b), angle = AngleError(link.a, link.b);
                 bool aligned = error < .3f && Mathf.Abs(angle) < .03f;
                 link.Advance(aligned);
+                if (!link.connected) CancelTransfersAt(link.a);
                 if (error > 2f || Mathf.Abs(angle) > .25f)
                 {
                     if (steering == link) StopSteering();
@@ -149,13 +152,11 @@ namespace DeltaV
                     continue;
                 }
                 if (steering == null) StartSteering(link);
-                if (appliedForce || link != steering) continue;
-                appliedForce = true;
+                if (corrected || link != steering) continue;
+                corrected = true;
                 SpaceObject own = universe.FrameOf(link.a.Map);
-                Vector2 point = SpaceTransform.MapToShipLocal(own.map, MapPoint(link.a, GuideReach));
                 SpacePose reference = AlignmentReference(link);
-                ShipPhysics.AttractPoint(own, point, SpaceTransform.RigidPointPose(reference, point, 0f),
-                    .25f, SpaceTransform.WrapAngle(reference.angle - own.pose.angle), .04f, velocityDamping: 0f);
+                own.pose = SpaceTransform.LerpPose(own.pose, reference, 1f - Mathf.Exp(-1f / 30f));
             }
             int now = Find.TickManager.TicksGame;
             if (now < nextSearch) return;

@@ -34,23 +34,19 @@ internal static partial class Program
         SpacePose original = body.pose;
         SpacePose destination = new SpacePose(OrbitSphere.Move(original.position, new Vector2(10, 3)), 1f)
             { velocity = new Vector2(2f, -1f), angularVelocity = .04f };
-        ShipPhysics.AttractPoint(body, Vector2.zero, destination, .25f, .2f, .04f);
+        ShipPhysics.AttractPoint(body, Vector2.zero, destination, 2.5f);
         Check(body.pose.position == original.position && body.pose.angle == original.angle,
-            "external docking force never performs a second position or angle integration");
-        Check((body.pose.velocity - original.velocity).magnitude <= .25f / 60f + 1e-6f
-            && Mathf.Abs(body.pose.angularVelocity - original.angularVelocity) <= .04f / 60f + 1e-6f,
-            "soft docking impulses respect per-game-tick linear and angular acceleration caps");
+            "tractor force never performs a second position or angle integration");
+        Check((body.pose.velocity - original.velocity).magnitude <= 2.5f / 60f + 1e-6f
+            && body.pose.angularVelocity == original.angularVelocity,
+            "tractor impulse respects its per-game-tick acceleration cap without altering spin");
         body.pose = original;
-        ShipPhysics.AttractPoint(body, Vector2.zero, original, .25f, 0f, .04f);
+        ShipPhysics.AttractPoint(body, Vector2.zero, original, 2.5f);
         Check((body.pose.velocity - original.velocity).magnitude < 1e-5f
             && body.pose.angularVelocity == original.angularVelocity,
             "matching motion has no attraction impulse or artificial braking");
-        SpacePose movingAway = original;
-        movingAway.velocity = Vector2.zero; movingAway.angularVelocity = 0f;
-        ShipPhysics.AttractPoint(body, Vector2.zero, movingAway, .25f, 0f, .04f, velocityDamping: 0f);
-        Check(body.pose.velocity == original.velocity && body.pose.angularVelocity == original.angularVelocity,
-            "soft alignment alone does not brake manual translation or spin at coincident guides");
         CheckSmallScaleMovement();
+        CheckSoftDockInterpolation();
 
         Map map = TestMap(49701);
         map.info.Size = new IntVec3(1, 1, 1);
@@ -80,6 +76,35 @@ internal static partial class Program
         CheckSoftDockReference(universe);
         CheckScatteredRetirement(universe);
         CheckTractorReceive(universe);
+        CheckUndockHeading(universe);
+    }
+
+    static void CheckSoftDockInterpolation()
+    {
+        var start = new SpacePose(new Vector3(1, 2, 3).normalized, Mathf.PI - .08f)
+            { velocity = new Vector2(2f, -1f), angularVelocity = .04f };
+        var target = SpaceTransform.RigidPointPose(start, new Vector2(.8f, -.4f), .16f);
+        SpacePose actual = start;
+        float distance = OrbitSphere.ArcCells(actual.direction, target.direction);
+        float angle = Mathf.Abs(SpaceTransform.WrapAngle(target.angle - actual.angle));
+        bool monotonic = true;
+        for (int tick = 0; tick < 240; tick++)
+        {
+            actual = SpaceTransform.LerpPose(actual, target, 1f - Mathf.Exp(-1f / 30f));
+            float nextDistance = OrbitSphere.ArcCells(actual.direction, target.direction);
+            float nextAngle = Mathf.Abs(SpaceTransform.WrapAngle(target.angle - actual.angle));
+            monotonic &= nextDistance <= distance + 1e-5f && nextAngle <= angle + 1e-6f;
+            distance = nextDistance; angle = nextAngle;
+        }
+        Check(monotonic && distance < .001f && angle < .001f,
+            "soft pose interpolation converges without overshoot across the angle wrap");
+        Check(Math.Abs(actual.velocity.magnitude - start.velocity.magnitude) < .001f
+            && actual.angularVelocity == start.angularVelocity,
+            "soft pose interpolation adds no acceleration or spin damping");
+        SpacePose untouched = SpaceTransform.LerpPose(start, target, 0f);
+        Check(untouched.direction.x == start.direction.x && untouched.direction.y == start.direction.y
+            && untouched.direction.z == start.direction.z && untouched.angle == start.angle,
+            "zero interpolation leaves the authoritative pose untouched");
     }
 
     static void CheckSmallScaleMovement()

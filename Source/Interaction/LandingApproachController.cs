@@ -63,6 +63,10 @@ namespace DeltaV
             // grid space; never round a second continuous destination during transfer.
             internal IntVec3 PlacementRootFor(IntVec3 captureRoot)
                 => landingCell + PrefabUtility.GetAdjustedLocalPosition(captureRoot - sourceRoot, landingRotation);
+
+            internal Rot4 InverseRotation => new Rot4((4 - landingRotation.AsInt) % 4);
+            internal IntVec3 InversePlacementRootFor(IntVec3 hostRoot)
+                => sourceRoot + PrefabUtility.GetAdjustedLocalPosition(hostRoot - landingCell, InverseRotation);
         }
 
         private DriftSyncPlan plan;

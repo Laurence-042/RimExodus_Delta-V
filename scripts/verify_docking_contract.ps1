@@ -23,7 +23,8 @@ try {
         @('Verse.Building', 'DeSpawn', 'mode:Verse.DestroyMode'),
         @('Verse.Thing', 'DeSpawn', 'mode:Verse.DestroyMode'),
         @('Verse.Game', 'set_CurrentMap', 'value:Verse.Map'),
-        @('Verse.WorldComponent_GravshipController', 'LandingEnded', '')
+        @('Verse.WorldComponent_GravshipController', 'LandingEnded', ''),
+        @('RimWorld.Dialog_EnterPortal', 'TryAccept', '')
     )
     foreach ($target in $targets) {
         $method = $game.GetType($target[0], $true).GetMethod($target[1], $flags)
@@ -75,6 +76,15 @@ try {
             throw "Invalid soft docking job driver: $($job.driverClass)"
         }
     }
+    [xml]$portal = Get-Content -Raw "$repo/1.6/Defs/Misc/DeltaV_SoftDockPortal.xml"
+    Check-Fields $portal.Defs.ThingDef 'Verse.ThingDef'
+    Check-Fields $portal.Defs.ThingDef.building 'RimWorld.BuildingProperties'
+    if (!$game.GetType('RimWorld.MapPortal').IsAssignableFrom($mod.GetType('DeltaV.SoftDockPortal', $true))) {
+        throw 'Soft docking does not use the native MapPortal contract'
+    }
+    if ($mod.GetType('DeltaV.Dialog_SoftDockTransfer') -or $mod.GetType('DeltaV.JobDriver_EnterSoftDock')) {
+        throw 'Duplicate transfer dialog/job remains in production'
+    }
     [xml]$terrain = Get-Content -Raw "$repo/1.6/Defs/TerrainDefs/DeltaV_DockingChannelTerrain.xml"
     Check-Fields $terrain.Defs.TerrainDef 'Verse.TerrainDef'
     [xml]$en = Get-Content -Raw "$repo/1.6/Languages/English/Keyed/DeltaV.xml"
@@ -82,7 +92,9 @@ try {
     foreach ($key in @('DeltaV_DockConnected', 'DeltaV_DockFolded', 'DeltaV_DockRetractConfirm',
         'DeltaV_SyncButton', 'DeltaV_StartEVA', 'DeltaV_SettingsWorksiteMargin', 'DeltaV_EVAGravity', 'DeltaV_EVAOverlap',
         'DeltaV_SoftDockToggle', 'DeltaV_SoftDockEnter', 'DeltaV_SoftDockHaul', 'DeltaV_SoftDockHack',
-        'DeltaV_SoftDockProgress', 'DeltaV_TractorAuto', 'DeltaV_TractorNeedsMoonPool', 'DeltaV_TractorBlocked')) {
+        'DeltaV_SoftDockProgress', 'DeltaV_TractorAuto', 'DeltaV_TractorNeedsMoonPool', 'DeltaV_TractorBlocked',
+        'DeltaV_SoftDockTransfer', 'DeltaV_SoftDockTransferDesc', 'DeltaV_SoftDockTransferCancel',
+        'DeltaV_SoftDockTransferDisconnected', 'DeltaV_SoftDockTransferNoWorker')) {
         if (!$en.LanguageData.$key -or !$zh.LanguageData.$key) { throw "Missing translation: $key" }
     }
     Write-Output 'PASS XML fields, door inheritance, landing map binding and translations'

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef>
+    <defName>DeltaV_SoftDockPortal</defName>
+    <label>docking transfer</label>
+    <thingClass>DeltaV.SoftDockPortal</thingClass>
+    <category>Building</category>
+    <tickerType>Normal</tickerType>
+    <drawerType>None</drawerType>
+    <selectable>false</selectable>
+    <useHitPoints>false</useHitPoints>
+    <destroyable>true</destroyable>
+    <rotatable>false</rotatable>
+    <bringAlongOnGravship>false</bringAlongOnGravship>
+    <passability>Standable</passability>
+    <building><isEdifice>false</isEdifice></building>
+  </ThingDef>
+</Defs>

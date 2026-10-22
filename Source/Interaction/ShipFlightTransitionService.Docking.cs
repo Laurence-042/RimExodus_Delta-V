@@ -348,7 +348,7 @@ namespace DeltaV
         /// 转移核心（脱离/拆分/朝向旋转共用）：把 sourceMap 上 cells 集合整体搬入一张新
         /// 口袋图，并创建/注册新容器。wreckOwnership = true 时新域领取残骸归属与默认名；
         /// retainedOwnerId &gt; 0 时保留原归属（脱离本船/旋转）。targetConsoleFacing = 主台
-        /// 在新图中的朝向（脱离/拆分恒 East；朝向旋转传目标方向），容器角随之反调 σ−τ
+        /// 在新图中的朝向（普通脱离保留原向；朝向旋转传目标方向），容器角随之反调 σ−τ
         /// 使主台在轨道坐标的朝向跨搬运不变。返回新容器（失败 null，图不动）。
         /// </summary>
         private SpaceObject TransferDomainToNewPocket(UniverseManager universe, Map sourceMap,
@@ -607,7 +607,7 @@ namespace DeltaV
             Building_DockingPort.RetractChannelsFor(sourceMap, domain);
 
             SpaceObject container = TransferShipToPocket(universe, ship, sourceMap, sourceFrame, domain,
-                Rot4.East);
+                ((ShipBase)ship).Anchor.Rotation);
             if (container == null)
             {
                 Messages.Message("DeltaV_DockFailBusy".Translate(), MessageTypeDefOf.RejectInput, false);

@@ -30,6 +30,28 @@ namespace DeltaV
         {
             var link = Current.Game?.GetComponent<UniverseManager>()?.SoftDock.Pair(this);
             if (link?.connected != true) yield break;
+            SoftDockService service = Current.Game.GetComponent<UniverseManager>().SoftDock;
+            var transferCommand = new Command_Action
+            {
+                defaultLabel = "DeltaV_SoftDockTransfer".Translate(),
+                defaultDesc = "DeltaV_SoftDockTransferDesc".Translate(),
+                icon = ContentFinder<Texture2D>.Get("UI/Commands/ViewCave"),
+                action = () =>
+                {
+                    var portal = service.Portal(this);
+                    if (portal?.IsEnterable(out _) == true) Find.WindowStack.Add(new Dialog_EnterPortal(portal));
+                }
+            };
+            if (this.HostileTo(Faction.OfPlayer) || link.Other(this).HostileTo(Faction.OfPlayer))
+                transferCommand.Disable("DeltaV_SoftDockTransferNoWorker".Translate());
+            yield return transferCommand;
+            var active = service.ExistingPortal(this);
+            if (active?.LoadInProgress == true) yield return new Command_Action
+            {
+                defaultLabel = "DeltaV_SoftDockTransferCancel".Translate(),
+                icon = ContentFinder<Texture2D>.Get("UI/Designators/Cancel"),
+                action = active.CancelLoad
+            };
             yield return new Command_Action
             {
                 defaultLabel = "DeltaV_SoftDockView".Translate(),
@@ -44,7 +66,8 @@ namespace DeltaV
             if (SoftPeer(pawn) != null)
             {
                 yield return new FloatMenuOption("DeltaV_SoftDockEnter".Translate(),
-                    () => pawn.jobs.TryTakeOrderedJob(JobMaker.MakeJob(DeltaVDefOf.DeltaV_EnterSoftDock, this), JobTag.Misc));
+                    () => pawn.jobs.TryTakeOrderedJob(JobMaker.MakeJob(JobDefOf.EnterPortal,
+                        Current.Game.GetComponent<UniverseManager>().SoftDock.Portal(this)), JobTag.Misc));
                 yield return new FloatMenuOption("DeltaV_SoftDockHaul".Translate(), () =>
                     Find.Targeter.BeginTargeting(new TargetingParameters
                     {
@@ -53,28 +76,17 @@ namespace DeltaV
                             && (target.Thing.def.category == ThingCategory.Item || target.Thing is Pawn casualty && casualty.Downed)
                     }, target =>
                     {
-                        var job = JobMaker.MakeJob(DeltaVDefOf.DeltaV_HaulSoftDock, target.Thing, this);
-                        job.count = target.Thing.stackCount;
-                        pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
+                        var portal = Current.Game.GetComponent<UniverseManager>().SoftDock.Portal(this);
+                        if (portal == null) return;
+                        var row = new TransferableOneWay();
+                        row.things.Add(target.Thing);
+                        portal.AddToTheToLoadList(row, target.Thing.stackCount);
+                        pawn.jobs.TryTakeOrderedJob(EnterPortalUtility.JobOnPortal(pawn, portal), JobTag.Misc);
                     }));
             }
             else if (CanRemoteHack(pawn))
                 yield return new FloatMenuOption("DeltaV_SoftDockHack".Translate(),
                     () => pawn.jobs.TryTakeOrderedJob(JobMaker.MakeJob(DeltaVDefOf.DeltaV_HackSoftDock, this, SoftPeer(pawn, false)), JobTag.Misc));
-        }
-        internal bool TryDestination(Pawn pawn, out Map map, out IntVec3 cell)
-        {
-            var peer = SoftPeer(pawn);
-            map = peer?.Map; cell = IntVec3.Invalid;
-            if (map == null) return false;
-            // Exit onto the ship-facing side, never into the external visual passage.
-            IntVec3 preferred = peer.Position - peer.Rotation.FacingCell;
-            foreach (IntVec3 candidate in GenRadial.RadialCellsAround(preferred, 3f, true))
-                if (candidate.InBounds(map) && candidate.Standable(map) && SpaceScatterService.Supported(map, candidate)
-                    && map.reachability.CanReach(peer.Position, candidate, PathEndMode.OnCell,
-                        TraverseParms.For(TraverseMode.NoPassClosedDoors, Danger.Deadly)))
-                { cell = candidate; return true; }
-            return false;
         }
     }
 }

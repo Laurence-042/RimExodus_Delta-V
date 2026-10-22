@@ -367,4 +367,9 @@
   <DeltaV_TractorAutoDesc>自动寻找射程内的散落人员和物品。关闭后使用常规武器组瞄准和开火。</DeltaV_TractorAutoDesc>
   <DeltaV_TractorNeedsMoonPool>牵引光束只能建在月池上。</DeltaV_TractorNeedsMoonPool>
   <DeltaV_TractorBlocked>月池无法接收当前内容，请腾出空间。</DeltaV_TractorBlocked>
+  <DeltaV_SoftDockTransfer>组织转移</DeltaV_SoftDockTransfer>
+  <DeltaV_SoftDockTransferDesc>通过原版入口转移界面选择人员和货物，由原版搬运与队伍机制组织转移。可修改或取消装载；断开连接会取消转移。</DeltaV_SoftDockTransferDesc>
+  <DeltaV_SoftDockTransferCancel>取消转移</DeltaV_SoftDockTransferCancel>
+  <DeltaV_SoftDockTransferDisconnected>软对接连接已断开，无法开始转移。</DeltaV_SoftDockTransferDisconnected>
+  <DeltaV_SoftDockTransferNoWorker>对方接口处于敌对控制下，需要先骇入占领。</DeltaV_SoftDockTransferNoWorker>
 </LanguageData>

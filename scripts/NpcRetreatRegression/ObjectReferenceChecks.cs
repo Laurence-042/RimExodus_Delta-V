@@ -75,6 +75,13 @@ internal static partial class Program
                 Check(rebased.landingCell + PrefabUtility.GetAdjustedLocalPosition(cell - rebased.sourceRoot, rotation)
                     == rebased.PlacementRootFor(capturedRoot) + PrefabUtility.GetAdjustedLocalPosition(cell - capturedRoot, rotation),
                     "whole-map EVA capture consumes the exact registered landing grid without re-rounding");
+                IntVec3 hostCell = rebased.PlacementRootFor(cell);
+                Check(rebased.InversePlacementRootFor(hostCell) == cell,
+                    "common worksite inverts the frozen placement exactly in the initiating ship grid");
+                IntVec3 hostOrigin = new IntVec3(-6, 0, 11);
+                Check(rebased.InversePlacementRootFor(hostOrigin)
+                    + PrefabUtility.GetAdjustedLocalPosition(hostCell - hostOrigin, rebased.InverseRotation) == cell,
+                    "reverse whole-map capture keeps initiating ship orientation for all four grid angles");
             }
         }
         singleBuilding.Combat.fireControlMode = ShipFireControlMode.Manual;
