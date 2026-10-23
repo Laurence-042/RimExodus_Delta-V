@@ -246,21 +246,26 @@ namespace DeltaV
         {
             if (ChangeableProjectile != null) yield break;
             if (parent.Faction != Faction.OfPlayer && !DebugSettings.godMode) yield break;
-            yield return new Command_Action
-            {
-                defaultLabel = "DeltaV_MagazinePriority".Translate(priority),
-                defaultDesc = "DeltaV_MagazinePriorityTip".Translate(),
-                icon = TexCommand.Install,
-                action = delegate
+            yield return new Command_BatchSetting<CompSpaceWeaponMagazine>("MagazinePriority", this,
+                magazines =>
                 {
                     var options = new List<FloatMenuOption>();
                     for (int value = -2; value <= 5; value++)
                     {
                         int captured = value;
-                        options.Add(new FloatMenuOption(captured.ToString(), delegate { priority = captured; }));
+                        options.Add(new FloatMenuOption(captured.ToString(), () =>
+                        {
+                            foreach (CompSpaceWeaponMagazine magazine in magazines)
+                                if (magazine.parent.Spawned && !magazine.parent.Destroyed)
+                                    magazine.priority = captured;
+                        }));
                     }
                     Find.WindowStack.Add(new FloatMenu(options));
-                }
+                })
+            {
+                defaultLabel = "DeltaV_MagazinePriority".Translate(priority),
+                defaultDesc = "DeltaV_MagazinePriorityTip".Translate(),
+                icon = TexCommand.Install,
             };
         }
     }
@@ -354,17 +359,16 @@ namespace DeltaV
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
             if (parent.Faction != Faction.OfPlayer && !DebugSettings.godMode) yield break;
-            yield return new Command_Toggle
+            yield return new Command_BatchToggle<CompSpaceWeaponAttachment>("AttachmentEnabled",
+                this, attachment => attachment.enabled, (attachment, active) =>
+                {
+                    attachment.enabled = active;
+                    ShipControlService.NotifyGunnerChange(attachment.parent.Map);
+                })
             {
                 defaultLabel = "DeltaV_AttachmentEnabled".Translate(),
                 defaultDesc = "DeltaV_AttachmentEnabledTip".Translate(),
                 icon = TexCommand.ForbidOff,
-                isActive = () => enabled,
-                toggleAction = delegate
-                {
-                    enabled = !enabled;
-                    ShipControlService.NotifyGunnerChange(parent.Map);
-                }
             };
         }
     }

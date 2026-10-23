@@ -161,7 +161,7 @@
 
   <!-- Airtight wall launchers. -->
   <ThingDef ParentName="DeltaV_SpaceWallWeapon">
-    <defName>DeltaV_Weapon_MissileLauncher</defName><uiOrder>-194</uiOrder><label>missile launcher</label><description>An airtight cold-launch missile rack with autonomous guidance.</description>
+    <defName>DeltaV_Weapon_MissileLauncher</defName><uiOrder>-194</uiOrder><label>missile launcher</label><description>An airtight cold-launch missile rack with one internal ready missile. Haulers load it before filling attached magazines; the ready missile can be ejected manually.</description>
     <size>(1,3)</size><drawerType>MapMeshAndRealTime</drawerType><costList><Steel>420</Steel><ComponentIndustrial>12</ComponentIndustrial></costList>
     <uiIconPath>Things/Building/SpaceWeapons/MissileLauncher_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
@@ -182,18 +182,17 @@
   </ThingDef>
 
   <ThingDef ParentName="Wall">
-    <defName>DeltaV_Building_MissileMagazine</defName><uiOrder>-193</uiOrder><label>missile magazine wall</label><description>A two-cell armored airtight magazine mounted parallel to the inboard side of a missile launcher. Haulers stock guided missiles here for automatic loading.</description>
-    <thingClass>Building_Storage</thingClass><designationCategory>Security</designationCategory><size>(1,2)</size><rotatable>true</rotatable>
+    <defName>DeltaV_Building_MissileMagazine</defName><uiOrder>-193</uiOrder><label>missile magazine wall</label><description>An airtight missile magazine with 20 internal slots shared by all missile types. Haulers insert missiles; linked powered launchers load from its inventory. Set per-type limits or eject stored missiles with its commands.</description>
+    <thingClass>Building</thingClass><designationCategory>Security</designationCategory><size>(1,2)</size><rotatable>true</rotatable><neverMultiSelect>false</neverMultiSelect>
     <graphicData Inherit="False"><texPath>Things/Building/SpaceWeapons/MissileMagazine</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>Cutout</shaderType><drawSize>(1.26,2)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
     <placeWorkers><li>DeltaV.PlaceWorker_MissileMagazine</li></placeWorkers>
     <uiIconPath>Things/Building/SpaceWeapons/MissileMagazine</uiIconPath>
-    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><surfaceType>Item</surfaceType>
+    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
     <useStuffTerrainAffordance>false</useStuffTerrainAffordance><costStuffCount>0</costStuffCount>
     <stuffCategories Inherit="False" /><costList><Steel>180</Steel><ComponentIndustrial>5</ComponentIndustrial></costList>
     <statBases><WorkToBuild>3600</WorkToBuild><MaxHitPoints>450</MaxHitPoints></statBases>
-    <building><isAirtight>true</isAirtight><isEdifice>true</isEdifice><maxItemsInCell>1</maxItemsInCell><preventDeteriorationOnTop>true</preventDeteriorationOnTop><fixedStorageSettings><filter><thingDefs><li>DeltaV_Missile_HE</li></thingDefs></filter></fixedStorageSettings><defaultStorageSettings><priority>Preferred</priority><filter><thingDefs><li>DeltaV_Missile_HE</li></thingDefs></filter></defaultStorageSettings><relatedBuildCommands><li>DeltaV_Weapon_MissileLauncher</li></relatedBuildCommands></building>
-    <inspectorTabs><li>ITab_Storage</li></inspectorTabs>
-    <comps><li Class="CompProperties_Facility"><compClass>DeltaV.CompMissileMagazineFacility</compClass><mustBePlacedAdjacent>true</mustBePlacedAdjacent><requiresLOS>false</requiresLOS><maxSimultaneous>2</maxSimultaneous><showMaxSimultaneous>false</showMaxSimultaneous></li></comps>
+    <building><isAirtight>true</isAirtight><isEdifice>true</isEdifice><relatedBuildCommands><li>DeltaV_Weapon_MissileLauncher</li></relatedBuildCommands></building>
+    <comps><li Class="DeltaV.CompProperties_MissileMagazineFacility"><totalCapacity>20</totalCapacity><mustBePlacedAdjacent>true</mustBePlacedAdjacent><requiresLOS>false</requiresLOS><maxSimultaneous>2</maxSimultaneous><showMaxSimultaneous>false</showMaxSimultaneous></li></comps>
   </ThingDef>
 
   <!-- Complete rail weapons and optional serial accelerators. -->

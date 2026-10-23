@@ -308,44 +308,57 @@ namespace DeltaV
                 { SpaceShieldMode.Guard, SpaceShieldMode.Kinetic, SpaceShieldMode.Electromagnetic })
             {
                 if (next == mode) continue;
-                var command = new Command_Action
+                var command = new Command_BatchSetting<CompSpaceShield>("ShieldMode" + next,
+                    this, shields =>
+                    {
+                        foreach (CompSpaceShield shield in shields)
+                        {
+                            if (!shield.parent.Spawned || shield.parent.Destroyed
+                                || shield.GuardLocked) continue;
+                            shield.mode = next;
+                            if (next == SpaceShieldMode.Guard)
+                                shield.StartGuardInterval(lockSwitching: true);
+                            else shield.guardRecoveryTicksRemaining = 0;
+                            shield.SettingsChanged();
+                        }
+                    })
                 {
                     defaultLabel = (next == SpaceShieldMode.Guard ? "DeltaV_ShieldModeGuard"
                         : next == SpaceShieldMode.Kinetic ? "DeltaV_ShieldModeKinetic"
                         : "DeltaV_ShieldModeElectromagnetic").Translate(),
                     defaultDesc = "DeltaV_ShieldModeDesc".Translate(),
                     icon = parent.def.uiIcon,
-                    action = () =>
-                    {
-                        mode = next;
-                        if (next == SpaceShieldMode.Guard) StartGuardInterval(lockSwitching: true);
-                        else guardRecoveryTicksRemaining = 0;
-                        SettingsChanged();
-                    },
                 };
-                if (GuardLocked) command.Disable("DeltaV_ShieldGuardLocked"
-                    .Translate(GuardTicksRemaining.ToStringTicksToPeriod()));
+                if (GuardLocked)
+                {
+                    command.groupable = false;
+                    command.Disable("DeltaV_ShieldGuardLocked"
+                        .Translate(GuardTicksRemaining.ToStringTicksToPeriod()));
+                }
                 yield return command;
             }
             if (mode == SpaceShieldMode.Guard)
             {
                 yield return Slider("DeltaV_ShieldRadius", ShieldProps.minGroundRadius,
-                    ShieldProps.maxGroundRadius, Mathf.RoundToInt(groundRadius),
-                    value => groundRadius = value);
+                    ShieldProps.maxGroundRadius, s => Mathf.RoundToInt(s.groundRadius),
+                    (s, value) => s.groundRadius = value);
                 yield break;
             }
             yield return Slider("DeltaV_ShieldProjection", ShieldProps.minProjection,
-                ShieldProps.maxProjection, Mathf.RoundToInt(projection), value => projection = value);
+                ShieldProps.maxProjection, s => Mathf.RoundToInt(s.projection),
+                (s, value) => s.projection = value);
             yield return Slider("DeltaV_ShieldLength", ShieldProps.minLength,
-                ShieldProps.maxLength, Mathf.RoundToInt(length), value => length = value);
+                ShieldProps.maxLength, s => Mathf.RoundToInt(s.length),
+                (s, value) => s.length = value);
             yield return Slider("DeltaV_ShieldAngle", -90, 90,
-                Mathf.RoundToInt(angleDeg), value => angleDeg = value);
+                s => Mathf.RoundToInt(s.angleDeg), (s, value) => s.angleDeg = value);
             if (mode == SpaceShieldMode.Kinetic)
                 yield return Slider("DeltaV_ShieldKineticStrength", 0, 100,
-                    kineticStrengthPercent, value => kineticStrengthPercent = value);
+                    s => s.kineticStrengthPercent, (s, value) => s.kineticStrengthPercent = value);
             else
                 yield return Slider("DeltaV_ShieldElectromagneticStrength", 0, 100,
-                    electromagneticStrengthPercent, value => electromagneticStrengthPercent = value);
+                    s => s.electromagneticStrengthPercent,
+                    (s, value) => s.electromagneticStrengthPercent = value);
         }
 
         public override void PostDrawExtraSelectionOverlays()
@@ -363,17 +376,15 @@ namespace DeltaV
             GenDraw.DrawLineBetween(center, front, color, 0.12f);
         }
 
-        private Command_Action Slider(string key, int min, int max, int initial, Action<int> assign)
+        private Command_BatchSetting<CompSpaceShield> Slider(string key, int min, int max,
+            Func<CompSpaceShield, int> current, Action<CompSpaceShield, int> assign)
         {
-            return new Command_Action
+            return new Command_BatchSetting<CompSpaceShield>(key, this, shields =>
+                Find.WindowStack.Add(new Dialog_SpaceShieldSetting(shields, key, min, max,
+                    current, assign)))
             {
-                defaultLabel = key.Translate() + ": " + initial,
-                icon = parent.def.uiIcon,
-                action = delegate
-                {
-                    Find.WindowStack.Add(new Dialog_SpaceShieldSetting(this, key, min, max,
-                        initial, assign));
-                },
+                defaultLabel = key.Translate() + ": " + current(this),
+                icon = TexCommand.Install,
             };
         }
 

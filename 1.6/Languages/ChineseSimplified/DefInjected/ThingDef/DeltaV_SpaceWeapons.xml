@@ -15,9 +15,9 @@
   <DeltaV_Weapon_LaserMainMedium.label>中型激光炮</DeltaV_Weapon_LaserMainMedium.label>
   <DeltaV_Weapon_LaserMainMedium.description>中型旋转激光炮，无需弹药，但每发从电网蓄电池取电。需要炮手；两个槽位可安装火控插件或可回充电容。</DeltaV_Weapon_LaserMainMedium.description>
   <DeltaV_Weapon_MissileLauncher.label>导弹发射架</DeltaV_Weapon_MissileLauncher.label>
-  <DeltaV_Weapon_MissileLauncher.description>1×3 气密冷发射导弹架。前端一格嵌入舱壁，后两格位于船内；自带火控，无须炮手或射击技能。发射后导弹延时点火，可由同向安装在船内侧边的附加导弹仓自动补弹。</DeltaV_Weapon_MissileLauncher.description>
+  <DeltaV_Weapon_MissileLauncher.description>1×3 气密冷发射导弹架，内部可待发一枚导弹。搬运工优先直接装填，也可由同向安装的附加导弹仓自动补弹；可手动退出待发弹。自带火控，无须炮手或射击技能，发射后导弹延时点火。</DeltaV_Weapon_MissileLauncher.description>
   <DeltaV_Building_MissileMagazine.label>附加导弹仓</DeltaV_Building_MissileMagazine.label>
-  <DeltaV_Building_MissileMagazine.description>1×2 气密导弹储存模块。沿导弹架船内两格的左侧或右侧同向建造，不可垂直安装。搬运工将导弹送入仓内；同船且发射架供电时自动向待发位补入一枚。</DeltaV_Building_MissileMagazine.description>
+  <DeltaV_Building_MissileMagazine.description>1×2 气密导弹仓，沿导弹架船内两格的左侧或右侧同向建造。所有弹种共用 20 发容量，可分别设置存储上限。搬运工将导弹装入内部库存；同船发射架通电时自动补弹。用命令手动退出库存导弹。</DeltaV_Building_MissileMagazine.description>
   <DeltaV_Missile_HE.label>高爆舰载导弹</DeltaV_Missile_HE.label>
   <DeltaV_Missile_HE.description>带高爆战斗部的制导舰载导弹。可装入导弹发射架或储存在附加导弹仓中。</DeltaV_Missile_HE.description>
   <DeltaV_Weapon_RailgunLoader.label>小型轨道炮装弹机</DeltaV_Weapon_RailgunLoader.label>

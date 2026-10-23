@@ -16,4 +16,14 @@
     <priorityInType>145</priorityInType>
     <requiredCapacities><li>Manipulation</li></requiredCapacities>
   </WorkGiverDef>
+  <WorkGiverDef>
+    <defName>DeltaV_LoadMissileMagazines</defName>
+    <label>load missile magazines</label>
+    <giverClass>DeltaV.WorkGiver_LoadMissileMagazine</giverClass>
+    <workType>Hauling</workType>
+    <verb>load</verb>
+    <gerund>loading</gerund>
+    <priorityInType>144</priorityInType>
+    <requiredCapacities><li>Manipulation</li></requiredCapacities>
+  </WorkGiverDef>
 </Defs>

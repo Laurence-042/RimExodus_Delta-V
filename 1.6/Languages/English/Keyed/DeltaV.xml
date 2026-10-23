@@ -372,4 +372,13 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SoftDockTransferCancel>Cancel transfer</DeltaV_SoftDockTransferCancel>
   <DeltaV_SoftDockTransferDisconnected>The soft docking connection has disconnected.</DeltaV_SoftDockTransferDisconnected>
   <DeltaV_SoftDockTransferNoWorker>The remote port is hostile. Hack and claim it first.</DeltaV_SoftDockTransferNoWorker>
+  <DeltaV_MissileMagazineLimits>Missile limits</DeltaV_MissileMagazineLimits>
+  <DeltaV_MissileMagazineLimitsDesc>Set each missile type's limit within the shared capacity of {0}.</DeltaV_MissileMagazineLimitsDesc>
+  <DeltaV_MissileMagazineLimitEntry>{0}: limit {1}</DeltaV_MissileMagazineLimitEntry>
+  <DeltaV_MixedSettings>mixed</DeltaV_MixedSettings>
+  <DeltaV_MissileMagazineLimitSlider>{0} limit: {1}</DeltaV_MissileMagazineLimitSlider>
+  <DeltaV_MissileMagazineEject>Eject missiles</DeltaV_MissileMagazineEject>
+  <DeltaV_MissileMagazineEjectEntry>{0}: eject one stack per magazine ({1} stored in total)</DeltaV_MissileMagazineEjectEntry>
+  <DeltaV_MissileMagazineStored>Missiles: {0} / {1}</DeltaV_MissileMagazineStored>
+  <DeltaV_MissileMagazineCountEntry>{0}: {1}</DeltaV_MissileMagazineCountEntry>
 </LanguageData>

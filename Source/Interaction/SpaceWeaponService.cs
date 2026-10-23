@@ -30,9 +30,6 @@ namespace DeltaV
             new Dictionary<Map, HashSet<CompSpaceWeapon>>();
         private readonly HashSet<CompMissileAutoloader> pendingMissileReloads =
             new HashSet<CompMissileAutoloader>();
-        private readonly HashSet<CompMissileAutoloader> reservedMissileReloads =
-            new HashSet<CompMissileAutoloader>();
-        private int nextReservationRetryTick;
 
         public SpaceWeaponService(UniverseManager universe)
         {
@@ -81,21 +78,18 @@ namespace DeltaV
             weaponsByMap.Remove(map);
             // 归档时 Thing 的 Map 索引已清除；源图的 spawnedThings 仍持有废弃实例。
             pendingMissileReloads.RemoveWhere(loader => map.spawnedThings.Contains(loader.parent));
-            reservedMissileReloads.RemoveWhere(loader => map.spawnedThings.Contains(loader.parent));
             universe.Controls.ForgetMap(map);
         }
 
         internal void QueueMissileReload(CompMissileAutoloader loader)
         {
             if (loader == null) return;
-            reservedMissileReloads.Remove(loader);
             pendingMissileReloads.Add(loader);
         }
 
         internal void CancelMissileReload(CompMissileAutoloader loader)
         {
             pendingMissileReloads.Remove(loader);
-            reservedMissileReloads.Remove(loader);
         }
 
         internal void NotifyMissileOwnershipChanged(Map map)
@@ -108,21 +102,12 @@ namespace DeltaV
         /// <summary>事件请求在下一游戏 tick 顺序执行；共享弹仓由实际取弹原子消费。</summary>
         internal void TickPendingMissileReloads()
         {
-            if (pendingMissileReloads.Count == 0 && reservedMissileReloads.Count == 0) return;
-            int now = Find.TickManager.TicksGame;
-            if (reservedMissileReloads.Count > 0 && now >= nextReservationRetryTick)
-            {
-                pendingMissileReloads.UnionWith(reservedMissileReloads);
-                reservedMissileReloads.Clear();
-            }
             if (pendingMissileReloads.Count == 0) return;
             List<CompMissileAutoloader> due = pendingMissileReloads
                 .OrderBy(loader => loader.parent.thingIDNumber).ToList();
             pendingMissileReloads.Clear();
             foreach (CompMissileAutoloader loader in due)
-                if (loader.TryReload()) reservedMissileReloads.Add(loader);
-            if (reservedMissileReloads.Count > 0 && now >= nextReservationRetryTick)
-                nextReservationRetryTick = now + 60;
+                loader.TryReload();
         }
 
         public void RebuildWeaponIndex()
@@ -405,7 +390,6 @@ namespace DeltaV
         {
             weaponsByMap.Clear();
             pendingMissileReloads.Clear();
-            reservedMissileReloads.Clear();
         }
     }
 }

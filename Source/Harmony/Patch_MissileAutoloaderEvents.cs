@@ -5,25 +5,10 @@ using Verse;
 
 namespace DeltaV
 {
-    /// <summary>原版储物格与弹种筛选变化，唤醒已链接发射架的补弹请求。</summary>
+    /// <summary>待发位弹种筛选变化，唤醒已链接发射架的补弹请求。</summary>
     [HarmonyPatch]
     internal static class Patch_MissileAutoloaderEvents
     {
-        [HarmonyPatch(typeof(Building_Storage), nameof(Building_Storage.Notify_ReceivedThing))]
-        [HarmonyPostfix]
-        private static void StockArrived(Building_Storage __instance) =>
-            __instance.TryGetComp<CompMissileMagazineFacility>()?.NotifyStockChanged();
-
-        [HarmonyPatch(typeof(Building_Storage), nameof(Building_Storage.Notify_LostThing))]
-        [HarmonyPostfix]
-        private static void StockLeft(Building_Storage __instance) =>
-            __instance.TryGetComp<CompMissileMagazineFacility>()?.NotifyStockChanged();
-
-        [HarmonyPatch(typeof(Building_Storage), nameof(Building_Storage.Notify_SettingsChanged))]
-        [HarmonyPostfix]
-        private static void MagazineSettingsChanged(Building_Storage __instance) =>
-            __instance.TryGetComp<CompMissileMagazineFacility>()?.NotifyStockChanged();
-
         [HarmonyPatch(typeof(CompChangeableProjectile), nameof(CompChangeableProjectile.Notify_SettingsChanged))]
         [HarmonyPostfix]
         private static void LauncherSettingsChanged(CompChangeableProjectile __instance) =>

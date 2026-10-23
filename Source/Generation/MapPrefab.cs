@@ -311,7 +311,9 @@ namespace DeltaV
             {
                 MapPrefabThingEntry entry = doc.thingEntries[i];
                 Thing thing = i < loaded.Count ? loaded[i] : null;
-                bool restoredState = thing != null && thing.def == entry.def;
+                bool restoredState = thing != null && thing.def == entry.def
+                    && (entry.def != DeltaVDefOf.DeltaV_Building_MissileMagazine
+                        || thing.GetType() == entry.def.thingClass);
                 if (!restoredState)
                 {
                     Log.Warning($"[DeltaV] MapPrefab '{doc.name}' using default state for {entry.def.defName} at {entry.pos}.");
@@ -338,6 +340,30 @@ namespace DeltaV
                 Rot4 thingRot = entry.def.rotatable
                     ? rotation.Rotated(Rot4.GetRelativeRotation(Rot4.North, entry.rotation))
                     : entry.def.defaultPlacingRot;
+                // Prefab 中的实体导弹若位于导弹仓脚印内，按当前仓体契约装入库存。
+                if (thing.def.GetModExtension<DefModExtension_SpaceMissileAmmo>() != null)
+                {
+                    CompMissileMagazineFacility magazine = cell.GetThingList(map)
+                        .Where(t => t.OccupiedRect().Contains(cell))
+                        .Select(t => t.TryGetComp<CompMissileMagazineFacility>())
+                        .FirstOrDefault(comp => comp != null);
+                    if (magazine != null)
+                    {
+                        while (thing.stackCount > 0 && magazine.TryStore(thing.def)) thing.stackCount--;
+                        if (thing.stackCount == 0)
+                        {
+                            thing.Destroy(DestroyMode.Vanish);
+                            continue;
+                        }
+                        if (GenPlace.TryPlaceThing(thing, cell, map, ThingPlaceMode.Near, out Thing overflow))
+                        {
+                            spawned.Add(overflow);
+                            continue;
+                        }
+                        Log.Warning($"[DeltaV] MapPrefab '{doc.name}' could not place excess {entry.def.defName} near {cell}.");
+                        continue;
+                    }
+                }
                 Thing placed;
                 try
                 {

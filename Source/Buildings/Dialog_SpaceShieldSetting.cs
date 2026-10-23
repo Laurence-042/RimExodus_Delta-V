@@ -8,27 +8,28 @@ namespace DeltaV
     /// <summary>Live setting preview; closing without confirmation restores the instance value.</summary>
     public sealed class Dialog_SpaceShieldSetting : Window
     {
-        private readonly CompSpaceShield shield;
+        private readonly CompSpaceShield[] shields;
         private readonly string key;
         private readonly int min;
         private readonly int max;
-        private readonly int original;
-        private readonly Action<int> assign;
+        private readonly int[] originals;
+        private readonly Action<CompSpaceShield, int> assign;
         private int value;
         private bool confirmed;
 
         public override Vector2 InitialSize => new Vector2(430f, 220f);
         protected override float Margin => 12f;
 
-        public Dialog_SpaceShieldSetting(CompSpaceShield shield, string key, int min, int max,
-            int initial, Action<int> assign)
+        public Dialog_SpaceShieldSetting(CompSpaceShield[] shields, string key, int min, int max,
+            Func<CompSpaceShield, int> current, Action<CompSpaceShield, int> assign)
         {
-            this.shield = shield;
+            this.shields = shields;
             this.key = key;
             this.min = min;
             this.max = max;
-            original = initial;
-            value = initial;
+            originals = new int[shields.Length];
+            for (int i = 0; i < shields.Length; i++) originals[i] = current(shields[i]);
+            value = originals[0];
             this.assign = assign;
             forcePause = true;
             closeOnClickedOutside = true;
@@ -44,17 +45,27 @@ namespace DeltaV
             if (next != value)
             {
                 value = next;
-                assign(value);
-                shield.SettingsChanged();
+                for (int i = 0; i < shields.Length; i++)
+                {
+                    if (!shields[i].parent.Spawned || shields[i].parent.Destroyed) continue;
+                    assign(shields[i], value);
+                    shields[i].SettingsChanged();
+                }
             }
             Widgets.Label(new Rect(0f, 76f, rect.width, 70f),
-                SpaceShieldReference.Build(shield));
+                SpaceShieldReference.Build(shields[0]));
             float buttonWidth = (rect.width - 10f) * 0.5f;
             if (Widgets.ButtonText(new Rect(0f, rect.height - 30f, buttonWidth, 30f),
                 "CancelButton".Translate())) Close();
             if (Widgets.ButtonText(new Rect(buttonWidth + 10f, rect.height - 30f,
                 buttonWidth, 30f), "OK".Translate()))
             {
+                for (int i = 0; i < shields.Length; i++)
+                {
+                    if (!shields[i].parent.Spawned || shields[i].parent.Destroyed) continue;
+                    assign(shields[i], value);
+                    shields[i].SettingsChanged();
+                }
                 confirmed = true;
                 Close();
             }
@@ -64,8 +75,12 @@ namespace DeltaV
         {
             base.PostClose();
             if (confirmed) return;
-            assign(original);
-            shield.SettingsChanged();
+            for (int i = 0; i < shields.Length; i++)
+            {
+                if (!shields[i].parent.Spawned || shields[i].parent.Destroyed) continue;
+                assign(shields[i], originals[i]);
+                shields[i].SettingsChanged();
+            }
         }
     }
 

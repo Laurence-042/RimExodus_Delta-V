@@ -20,17 +20,17 @@ namespace DeltaV
             return false;
         }
 
-        public static IEnumerable<Building_Storage> ConnectedMagazines(Thing launcher)
+        public static IEnumerable<CompMissileMagazineFacility> ConnectedMagazines(Thing launcher)
         {
             if (launcher?.Map == null) yield break;
             CompAffectedByFacilities links = launcher.TryGetComp<CompAffectedByFacilities>();
             if (links == null) yield break;
             foreach (Thing facility in links.LinkedFacilitiesListForReading)
             {
-                if (facility is Building_Storage magazine && magazine.Spawned
-                    && magazine.Map == launcher.Map
+                if (facility.TryGetComp<CompMissileMagazineFacility>() is { } magazine && facility.Spawned
+                    && facility.Map == launcher.Map
                     && Fits(launcher.def, launcher.Position, launcher.Rotation,
-                        magazine.def, magazine.Position, magazine.Rotation))
+                        facility.def, facility.Position, facility.Rotation))
                     yield return magazine;
             }
         }

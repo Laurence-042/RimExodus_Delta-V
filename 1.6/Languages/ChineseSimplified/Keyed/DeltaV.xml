@@ -372,4 +372,13 @@
   <DeltaV_SoftDockTransferCancel>取消转移</DeltaV_SoftDockTransferCancel>
   <DeltaV_SoftDockTransferDisconnected>软对接连接已断开，无法开始转移。</DeltaV_SoftDockTransferDisconnected>
   <DeltaV_SoftDockTransferNoWorker>对方接口处于敌对控制下，需要先骇入占领。</DeltaV_SoftDockTransferNoWorker>
+  <DeltaV_MissileMagazineLimits>导弹库存上限</DeltaV_MissileMagazineLimits>
+  <DeltaV_MissileMagazineLimitsDesc>为每种导弹设置上限，所有弹种共用总容量 {0}。</DeltaV_MissileMagazineLimitsDesc>
+  <DeltaV_MissileMagazineLimitEntry>{0}：上限 {1}</DeltaV_MissileMagazineLimitEntry>
+  <DeltaV_MixedSettings>各仓不同</DeltaV_MixedSettings>
+  <DeltaV_MissileMagazineLimitSlider>{0} 上限：{1}</DeltaV_MissileMagazineLimitSlider>
+  <DeltaV_MissileMagazineEject>退出导弹</DeltaV_MissileMagazineEject>
+  <DeltaV_MissileMagazineEjectEntry>{0}：每仓退出一组（共库存 {1}）</DeltaV_MissileMagazineEjectEntry>
+  <DeltaV_MissileMagazineStored>导弹：{0} / {1}</DeltaV_MissileMagazineStored>
+  <DeltaV_MissileMagazineCountEntry>{0}：{1}</DeltaV_MissileMagazineCountEntry>
 </LanguageData>

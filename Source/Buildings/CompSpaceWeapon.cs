@@ -451,19 +451,18 @@ namespace DeltaV
                 yield break;
             }
 
-            if (WeaponProps.groundModeAvailable) yield return new Command_Toggle
+            if (WeaponProps.groundModeAvailable) yield return new Command_BatchToggle<CompSpaceWeapon>(
+                "GroundMode", this, w => w.GroundModeEnabled, (w, active) =>
+                {
+                    w.engagementMode = active
+                        ? SpaceWeaponEngagementMode.Ground : SpaceWeaponEngagementMode.Space;
+                    (w.parent as Building_SpaceTurretGun)?.NotifyEngagementModeChanged();
+                    w.Universe?.Weapons?.NotifyWeaponModeChanged(w);
+                })
             {
                 defaultLabel = "DeltaV_GroundMode".Translate(),
                 defaultDesc = "DeltaV_GroundModeTip".Translate(),
                 icon = TexCommand.FireAtWill,
-                isActive = () => GroundModeEnabled,
-                toggleAction = delegate
-                {
-                    engagementMode = GroundModeEnabled
-                        ? SpaceWeaponEngagementMode.Space : SpaceWeaponEngagementMode.Ground;
-                    (parent as Building_SpaceTurretGun)?.NotifyEngagementModeChanged();
-                    Universe?.Weapons?.NotifyWeaponModeChanged(this);
-                }
             };
 
             // 武器组指派（主/副两套 × 1–6）：弹出菜单选择，当前项打勾（取代旧循环
@@ -471,59 +470,45 @@ namespace DeltaV
             yield return new Command_WeaponGroup(this);
 
             // 专用点防武器的模式由 Def 固定；其他武器仍可切换。
-            if (WeaponProps.tractor) yield return new Command_Toggle
+            if (WeaponProps.tractor) yield return new Command_BatchToggle<CompSpaceWeapon>(
+                "TractorAuto", this, w => w.aimMode == SpaceWeaponAimMode.PointDefense,
+                (w, active) =>
+                {
+                    w.aimMode = active ? SpaceWeaponAimMode.PointDefense : SpaceWeaponAimMode.Volley;
+                    w.Universe?.Weapons?.NotifyWeaponModeChanged(w);
+                })
             {
                 defaultLabel = "DeltaV_TractorAuto".Translate(),
                 defaultDesc = "DeltaV_TractorAutoDesc".Translate(),
                 icon = TexCommand.FireAtWill,
-                isActive = () => aimMode == SpaceWeaponAimMode.PointDefense,
-                toggleAction = () =>
-                {
-                    aimMode = aimMode == SpaceWeaponAimMode.PointDefense ? SpaceWeaponAimMode.Volley : SpaceWeaponAimMode.PointDefense;
-                    Universe.Weapons.NotifyWeaponModeChanged(this);
-                }
             };
-            if (!WeaponProps.pointDefenseOnly && !WeaponProps.manualOnly) yield return new Command_Toggle
+            if (!WeaponProps.pointDefenseOnly && !WeaponProps.manualOnly)
+                yield return new Command_BatchToggle<CompSpaceWeapon>("WeaponPointDefense",
+                    this, w => w.aimMode == SpaceWeaponAimMode.PointDefense, (w, active) =>
+                    {
+                        w.aimMode = active ? SpaceWeaponAimMode.PointDefense : SpaceWeaponAimMode.Volley;
+                        w.Universe?.Weapons?.NotifyWeaponModeChanged(w);
+                    })
             {
                 defaultLabel = "DeltaV_WeaponPdgizmo".Translate(),
                 defaultDesc = "DeltaV_WeaponPdgizmoTip".Translate(),
                 icon = TexCommand.FireAtWill,
-                isActive = () => aimMode == SpaceWeaponAimMode.PointDefense,
-                toggleAction = delegate
-                {
-                    aimMode = aimMode == SpaceWeaponAimMode.PointDefense
-                        ? SpaceWeaponAimMode.Volley
-                        : SpaceWeaponAimMode.PointDefense;
-                    Universe?.Weapons?.NotifyWeaponModeChanged(this);
-                }
             };
 
             // 同一角度配置约束旋转炮塔当前炮口和固定轴武器安装轴。
-            yield return new Command_Action
+            yield return new Command_BatchSetting<CompSpaceWeapon>("WeaponFireDeviation", this,
+                weapons => Find.WindowStack.Add(new Dialog_Slider(
+                    value => "DeltaV_FireDeviation".Translate(value.ToString()),
+                    0, 180, value =>
+                    {
+                        foreach (CompSpaceWeapon weapon in weapons)
+                            if (weapon.parent.Spawned && !weapon.parent.Destroyed)
+                                weapon.fireDeviationDeg = value;
+                    }, Mathf.RoundToInt(fireDeviationDeg))))
             {
                 defaultLabel = "DeltaV_FireDeviation".Translate(fireDeviationDeg.ToString("0")),
                 defaultDesc = "DeltaV_FireDeviationTip".Translate(),
                 icon = TexCommand.FireAtWill,
-                action = delegate
-                {
-                    Find.WindowStack.Add(new Dialog_Slider(
-                        value => "DeltaV_FireDeviation".Translate(value.ToString()),
-                        0, 180, value =>
-                        {
-                            if (!parent.Spawned || parent.Destroyed) return;
-                            fireDeviationDeg = value;
-                            // 原切换钮支持多选；滑条确认同样应用到已选武器。
-                            foreach (object selected in Find.Selector.SelectedObjectsListForReading)
-                            {
-                                if (selected is ThingWithComps other && other != parent
-                                    && other.Spawned && !other.Destroyed)
-                                {
-                                    CompSpaceWeapon selectedWeapon = other.TryGetComp<CompSpaceWeapon>();
-                                    if (selectedWeapon != null) selectedWeapon.fireDeviationDeg = value;
-                                }
-                            }
-                        }, Mathf.RoundToInt(fireDeviationDeg)));
-                }
             };
 
             // 复用原版设施关联按钮语义：选中炮塔时直接给出兼容附件的建造 designator。
@@ -533,30 +518,50 @@ namespace DeltaV
 
             if (Mannable == null) yield break;
 
-            if (WeaponProps.intrinsicAimSkill < 0) yield return new Command_Toggle
+            if (WeaponProps.intrinsicAimSkill < 0)
+                yield return new Command_BatchToggle<CompSpaceWeapon>("KeepGunner", this,
+                    w => w.keepGunnerWhenUnavailable, (w, active) =>
+                    {
+                        w.keepGunnerWhenUnavailable = active;
+                        w.Universe?.Controls?.NotifyGunnerAvailabilityChanged(w.parent.Map);
+                    })
             {
                 defaultLabel = "DeltaV_KeepGunnerWhenUnavailable".Translate(),
                 defaultDesc = "DeltaV_KeepGunnerWhenUnavailableTip".Translate(),
                 icon = TexCommand.Install,
-                isActive = () => keepGunnerWhenUnavailable,
-                toggleAction = delegate
-                {
-                    keepGunnerWhenUnavailable = !keepGunnerWhenUnavailable;
-                    Universe?.Controls?.NotifyGunnerAvailabilityChanged(parent.Map);
-                }
             };
 
-            yield return new Command_Toggle
+            yield return new Command_BatchToggle<CompSpaceWeapon>("SafeFire", this,
+                w => w.safeFire, (w, active) => w.safeFire = active)
             {
                 defaultLabel = "DeltaV_SafeFire".Translate(),
                 defaultDesc = "DeltaV_SafeFireTip".Translate(),
                 icon = TexCommand.FireAtWill,
-                isActive = () => safeFire,
-                toggleAction = delegate { safeFire = !safeFire; }
             };
 
             // 炮手预留（含「不指定」）：浮单列本图殖民者。
-            yield return new Command_Action
+            yield return new Command_BatchSetting<CompSpaceWeapon>(
+                "ReserveGunner:" + parent.Map.GetHashCode(), this, weapons =>
+                {
+                    var options = new List<FloatMenuOption>
+                    {
+                        new FloatMenuOption("DeltaV_WeaponReserveNone".Translate(), () =>
+                        {
+                            foreach (CompSpaceWeapon weapon in weapons) weapon.reservedGunner = null;
+                        })
+                    };
+                    foreach (Pawn pawn in parent.Map.mapPawns.FreeColonistsSpawned)
+                    {
+                        Pawn captured = pawn;
+                        options.Add(new FloatMenuOption(captured.LabelShortCap, () =>
+                        {
+                            foreach (CompSpaceWeapon weapon in weapons)
+                                if (weapon.parent.Spawned && !weapon.parent.Destroyed)
+                                    weapon.reservedGunner = captured;
+                        }));
+                    }
+                    Find.WindowStack.Add(new FloatMenu(options));
+                })
             {
                 defaultLabel = "DeltaV_WeaponReserveGizmo".Translate(
                     reservedGunner == null
@@ -564,25 +569,6 @@ namespace DeltaV
                         : reservedGunner.LabelShort),
                 defaultDesc = "DeltaV_WeaponReserveGizmoTip".Translate(),
                 icon = TexCommand.Install,
-                action = delegate
-                {
-                    var options = new List<FloatMenuOption>
-                    {
-                        new FloatMenuOption("DeltaV_WeaponReserveNone".Translate(), delegate
-                        {
-                            reservedGunner = null;
-                        })
-                    };
-                    foreach (Pawn pawn in parent.Map.mapPawns.FreeColonistsSpawned)
-                    {
-                        Pawn captured = pawn;
-                        options.Add(new FloatMenuOption(captured.LabelShortCap, delegate
-                        {
-                            reservedGunner = captured;
-                        }));
-                    }
-                    Find.WindowStack.Add(new FloatMenu(options));
-                }
             };
         }
 

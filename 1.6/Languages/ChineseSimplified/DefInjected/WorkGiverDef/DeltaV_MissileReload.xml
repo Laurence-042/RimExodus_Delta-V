@@ -3,4 +3,7 @@
   <DeltaV_LoadMissileLaunchers.label>装填导弹发射架</DeltaV_LoadMissileLaunchers.label>
   <DeltaV_LoadMissileLaunchers.verb>装填</DeltaV_LoadMissileLaunchers.verb>
   <DeltaV_LoadMissileLaunchers.gerund>正在装填</DeltaV_LoadMissileLaunchers.gerund>
+  <DeltaV_LoadMissileMagazines.label>装填导弹仓</DeltaV_LoadMissileMagazines.label>
+  <DeltaV_LoadMissileMagazines.verb>装填</DeltaV_LoadMissileMagazines.verb>
+  <DeltaV_LoadMissileMagazines.gerund>正在装填</DeltaV_LoadMissileMagazines.gerund>
 </LanguageData>
