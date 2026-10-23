@@ -28,12 +28,14 @@ namespace DeltaV
             public readonly List<Thing> things = new List<Thing>();
             public readonly List<PrintBatch> printed = new List<PrintBatch>();
             public SectionLayer_GravshipHull gravshipHull;
+            public SectionLayer_SubstructureProps substructureProps;
             public ShellHullVisuals.EdgeMeshes hullEdges;
 
             public void Dispose()
             {
                 foreach (PrintBatch batch in printed) batch.layer.Dispose();
                 gravshipHull?.Dispose();
+                substructureProps?.Dispose();
                 hullEdges?.Dispose();
             }
         }
@@ -74,7 +76,7 @@ namespace DeltaV
         /// 静态网格按三角形数估算，实时图形按绘制命令计数）。</summary>
         internal static int QuadsDrawnLastPass { get; private set; }
 
-        /// <summary>缓冲绘制命令：mesh + 完整 TRS 矩阵 + 材质（props 仅火焰命令非空）；
+        /// <summary>缓冲绘制命令：mesh + 完整 TRS 矩阵 + 材质及可选逐命令属性；
         /// surface/queue/sequence 供壳内排序。</summary>
         internal struct OverlayCommand
         {
@@ -243,12 +245,23 @@ namespace DeltaV
                 QuadsDrawnLastPass++;
             }
 
+            if (section.substructureProps != null)
+            foreach (LayerSubMesh submesh in section.substructureProps.subMeshes)
+            {
+                if (!submesh.finalized || submesh.disabled) continue;
+                collector.Add(new OverlayCommand { mesh = submesh.mesh, matrix = matrix,
+                    material = submesh.material, surface = ShellSurfaceLayer.Hull,
+                    queue = submesh.material.renderQueue, sequence = nextSequence++ });
+                QuadsDrawnLastPass += submesh.tris.Count / 6;
+            }
+
             AddHullEdgeCommands(section.hullEdges?.floor, matrix, localSun, true, collector);
 
             foreach (PrintBatch batch in section.printed)
             foreach (LayerSubMesh submesh in batch.layer.subMeshes)
             {
                 if (!submesh.finalized || submesh.disabled) continue;
+                if (IsSunShadowMaterial(submesh.material)) continue;
                 // CompPower.PostPrintOnto adds the short appliance-to-conduit
                 // wire to the same static layer as the appliance itself.
                 powerConnectorWireTexture ??= ContentFinder<Texture2D>.Get(
@@ -312,14 +325,6 @@ namespace DeltaV
             {
                 Mesh mesh = meshes[side];
                 if (mesh == null) continue;
-                if (floor)
-                {
-                    Material ambient = ShellHullVisuals.AmbientFloorEdge;
-                    collector.Add(new OverlayCommand { mesh = mesh, matrix = matrix,
-                        material = ambient, surface = ShellSurfaceLayer.Hull,
-                        queue = ambient.renderQueue, sequence = nextSequence++ });
-                    QuadsDrawnLastPass += mesh.vertexCount / 4;
-                }
                 float incidence = side switch
                 {
                     0 => localSun.y,
@@ -330,10 +335,10 @@ namespace DeltaV
                 // Floor mesh side points toward the wall. Sun behind that wall
                 // casts shadow into this floor cell; wall bevels use the opposite sign.
                 if (floor) incidence = -incidence;
-                Material material = ShellHullVisuals.EdgeMaterial(incidence, floor);
-                if (material == null) continue;
+                Material material = ShellHullVisuals.EdgeMaterial;
                 collector.Add(new OverlayCommand { mesh = mesh, matrix = matrix,
-                    material = material, surface = ShellSurfaceLayer.Hull,
+                    material = material, props = ShellHullVisuals.EdgeTint(incidence, floor),
+                    surface = ShellSurfaceLayer.Hull,
                     queue = material.renderQueue, sequence = nextSequence++ });
                 QuadsDrawnLastPass += mesh.vertexCount / 4;
             }
@@ -342,11 +347,15 @@ namespace DeltaV
         internal static void AddCapturedDraw(Mesh mesh, Matrix4x4 matrix, Material material,
             int submeshIndex, MaterialPropertyBlock props, ShellSurfaceLayer surface)
         {
+            if (IsSunShadowMaterial(material)) return;
             Commands.Add(new OverlayCommand { mesh = mesh, matrix = matrix, material = material,
                 submeshIndex = submeshIndex, props = props, surface = surface,
                 queue = material.renderQueue, sequence = nextSequence++ });
             QuadsDrawnLastPass++;
         }
+
+        private static bool IsSunShadowMaterial(Material material)
+            => material == MatBases.SunShadow || material == MatBases.SunShadowFade;
 
         private static void CollectTurretTop(Thing thing, ShellRenderConfig config,
             Matrix4x4 matrix, Quaternion rotation, List<OverlayCommand> collector)
@@ -498,6 +507,9 @@ namespace DeltaV
                 // the same 17x17 cells as its focused-map layer.
                 result.gravshipHull = new SectionLayer_GravshipHull(map.mapDrawer.SectionAt(rect.Min));
                 result.gravshipHull.Regenerate();
+                result.substructureProps = new SectionLayer_SubstructureProps(
+                    map.mapDrawer.SectionAt(rect.Min));
+                result.substructureProps.Regenerate();
             }
             return result;
         }

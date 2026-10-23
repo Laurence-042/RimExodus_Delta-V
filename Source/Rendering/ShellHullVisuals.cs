@@ -92,9 +92,11 @@ namespace DeltaV
         }
 
         private static Texture2D edgeGradient;
-        private static Texture2D neutralFloorGradient;
-        private static Material ambientFloorEdge;
-        private static readonly Material[,,] EdgeMaterials = new Material[2, 2, 9];
+        private static Material edgeMaterial;
+        private static readonly int ShaderColor = Shader.PropertyToID("_Color");
+        private static readonly List<MaterialPropertyBlock> EdgeBlocks = new List<MaterialPropertyBlock>();
+        private static int edgeBlockFrame = -1;
+        private static int edgeBlockCursor;
         private static readonly Vector2[] CornerFillUVs = {
             new Vector2(0.5f, 0.6f), new Vector2(0.5f, 0.6f),
             new Vector2(0.5f, 0.6f), new Vector2(0.5f, 0.6f)
@@ -194,7 +196,7 @@ namespace DeltaV
                     int facing = (side + 2) & 3;
                     if (adjacency.TryGetValue(neighbor, out Adjacency wallNeighbor)
                         && (wallNeighbor.floorSides & (1 << facing)) != 0)
-                        floorBuilders[side].Add(cell, side, 0.42f,
+                        floorBuilders[side].Add(cell, side, 0.65f,
                             AltitudeLayer.Terrain.AltitudeFor() + 0.003f);
                 }
             }
@@ -211,65 +213,55 @@ namespace DeltaV
         {
             Vector3 radial = pose.position.normalized;
             Vector3 sun = GenCelestial.CurSunPositionInWorldSpace().normalized;
-            float incidence = Vector3.Dot(radial, sun);
-            if (incidence <= 0.04f) return Vector2.zero;
+            Vector3 tangentSun = sun - radial * Vector3.Dot(radial, sun);
             OrbitSphere.Basis(radial, out Vector3 east, out Vector3 north);
-            Vector2 tangent = new Vector2(Vector3.Dot(sun, east), Vector3.Dot(sun, north));
-            if (tangent.sqrMagnitude < 0.001f) return Vector2.zero;
-            float c = Mathf.Cos(pose.angle), s = Mathf.Sin(pose.angle);
-            return new Vector2(c * tangent.x + s * tangent.y,
-                -s * tangent.x + c * tangent.y) * Mathf.Clamp01(incidence * 2f);
+            Vector2 tangent = new Vector2(Vector3.Dot(tangentSun, east),
+                Vector3.Dot(tangentSun, north));
+            Vector2 local = SpaceTransform.RotateInverse(tangent, pose.angle);
+            const float fallbackStrength = 0.25f;
+            float magnitude = local.magnitude;
+            if (magnitude >= fallbackStrength) return local;
+
+            // Only near the subsolar/antisolar points is the tangent direction
+            // ill-defined. Keep a low-contrast ship-local direction there, and
+            // blend its angle into the real sun direction without a hard flip.
+            const float fallbackAngle = 45f;
+            float blend = Mathf.SmoothStep(0f, 1f, magnitude / fallbackStrength);
+            float realAngle = magnitude > 1e-6f
+                ? Mathf.Atan2(local.y, local.x) * Mathf.Rad2Deg : fallbackAngle;
+            float angle = Mathf.LerpAngle(fallbackAngle, realAngle, blend) * Mathf.Deg2Rad;
+            return new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * fallbackStrength;
         }
 
-        internal static Material EdgeMaterial(float incidence, bool floor)
-        {
-            float strength = Mathf.Abs(incidence);
-            if (strength < 0.04f) return null;
-            int step = Mathf.Clamp(Mathf.CeilToInt(strength * 8f), 1, 8);
-            int sign = incidence >= 0f ? 0 : 1;
-            int kind = floor ? 0 : 1;
-            if (EdgeMaterials[kind, sign, step] != null) return EdgeMaterials[kind, sign, step];
-            EnsureGradient();
-            float alphaScale = floor ? 0.18f + 0.38f * step / 8f
-                : 0.24f * step / 8f;
-            Color color = sign == 0 ? new Color(1f, 1f, 1f, alphaScale)
-                : new Color(0f, 0f, 0f, alphaScale);
-            return EdgeMaterials[kind, sign, step] = MaterialPool.MatFrom(
-                edgeGradient, ShaderDatabase.Transparent, color);
-        }
-
-        internal static Material AmbientFloorEdge
+        internal static Material EdgeMaterial
         {
             get
             {
-                if (ambientFloorEdge == null)
-                {
-                    EnsureNeutralFloorGradient();
-                    ambientFloorEdge = MaterialPool.MatFrom(neutralFloorGradient,
-                        ShaderDatabase.Transparent, Color.white);
-                }
-                return ambientFloorEdge;
+                EnsureGradient();
+                return edgeMaterial ??= MaterialPool.MatFrom(edgeGradient,
+                    ShaderDatabase.Transparent, Color.white);
             }
         }
 
-        private static void EnsureNeutralFloorGradient()
+        internal static MaterialPropertyBlock EdgeTint(float incidence, bool floor)
         {
-            if (neutralFloorGradient != null) return;
-            neutralFloorGradient = new Texture2D(64, 2, TextureFormat.RGBA32, false)
+            // CommandBuffer may read the block after later shells have queued
+            // their edges, so each command keeps its own block until next frame.
+            if (edgeBlockFrame != Time.frameCount)
             {
-                name = "DeltaV_ShellNeutralFloorEdge", wrapMode = TextureWrapMode.Clamp
-            };
-            for (int x = 0; x < 64; x++)
-            for (int y = 0; y < 2; y++)
-            {
-                float distance = x / 63f;
-                Color pixel = distance < 0.18f
-                    ? new Color(1f, 1f, 1f, 0.2f * Mathf.Pow(1f - distance / 0.18f, 2f))
-                    : new Color(0f, 0f, 0f,
-                        0.22f * Mathf.Pow(1f - (distance - 0.18f) / 0.82f, 2f));
-                neutralFloorGradient.SetPixel(x, y, pixel);
+                edgeBlockFrame = Time.frameCount;
+                edgeBlockCursor = 0;
             }
-            neutralFloorGradient.Apply(false, true);
+            while (EdgeBlocks.Count <= edgeBlockCursor)
+                EdgeBlocks.Add(new MaterialPropertyBlock());
+            MaterialPropertyBlock block = EdgeBlocks[edgeBlockCursor++];
+            // The tint changes sign at zero; opacity also reaches zero there,
+            // so the composited seam brightness varies continuously.
+            float brightness = incidence >= 0f ? 1f : 0f;
+            float opacity = (floor ? 0.85f : 0.35f) * Mathf.Clamp01(Mathf.Abs(incidence));
+            block.SetColor(ShaderColor, new Color(brightness, brightness,
+                brightness, opacity));
+            return block;
         }
 
         private static void EnsureGradient()
@@ -282,7 +274,12 @@ namespace DeltaV
             for (int x = 0; x < 64; x++)
             for (int y = 0; y < 2; y++)
             {
-                float alpha = Mathf.Pow(1f - x / 63f, 2f);
+                // Keep the seam visible over at least half a floor cell, then
+                // fade it out in the remaining 0.15 cell.
+                float distance = x / 63f * 0.65f;
+                float alpha = distance <= 0.5f
+                    ? 1f - 0.55f * distance / 0.5f
+                    : 0.45f * (0.65f - distance) / 0.15f;
                 edgeGradient.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
             }
             edgeGradient.Apply(false, true);
@@ -290,14 +287,12 @@ namespace DeltaV
 
         internal static void ClearRuntimeCaches()
         {
-            ambientFloorEdge = null;
-            for (int i = 0; i < 2; i++)
-            for (int j = 0; j < 2; j++)
-            for (int k = 0; k < 9; k++) EdgeMaterials[i, j, k] = null;
+            edgeMaterial = null;
+            EdgeBlocks.Clear();
+            edgeBlockFrame = -1;
+            edgeBlockCursor = 0;
             if (edgeGradient != null) Object.Destroy(edgeGradient);
             edgeGradient = null;
-            if (neutralFloorGradient != null) Object.Destroy(neutralFloorGradient);
-            neutralFloorGradient = null;
         }
     }
 }
