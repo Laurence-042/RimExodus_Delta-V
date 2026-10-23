@@ -345,12 +345,16 @@ namespace DeltaV
                 }
                 catch (Exception ex)
                 {
-                    throw new InvalidDataException($"MapPrefab '{doc.name}' failed placing entry {i} "
-                        + $"({entry.def.defName}) at {cell}, rotation {thingRot}.", ex);
+                    Log.Warning($"[DeltaV] MapPrefab '{doc.name}' skipped entry {i} ({entry.def.defName}) "
+                        + $"at {cell}, rotation {thingRot}; placement threw an exception: {ex}");
+                    continue;
                 }
                 if (placed == null)
-                    throw new InvalidDataException($"MapPrefab '{doc.name}' cannot place entry {i} "
-                        + $"({entry.def.defName}) at {cell}, rotation {thingRot}.");
+                {
+                    Log.Warning($"[DeltaV] MapPrefab '{doc.name}' skipped entry {i} ({entry.def.defName}) "
+                        + $"at {cell}, rotation {thingRot}; the map rejected placement.");
+                    continue;
+                }
                 spawned.Add(placed);
             }
             int placedCount = spawned.Count;
