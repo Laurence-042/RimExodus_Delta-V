@@ -103,7 +103,9 @@ namespace DeltaV
             Vector3 translation = drawPos - rotation * new Vector3(sourceOrigin.x, 0f, sourceOrigin.y);
             Matrix4x4 matrix = Matrix4x4.TRS(translation, rotation, Vector3.one);
             CellRect localView = TransformRectInverse(matrix, Find.CameraDriver.CurrentViewRect).ExpandedBy(4);
-            bool drew = MapOverlayRenderer.CollectShellCommands(map, matrix, rotation, localView, null);
+            Vector2 localSun = ShellHullVisuals.LocalSun(obj.pose);
+            bool drew = MapOverlayRenderer.CollectShellCommands(map, matrix, rotation, localView, null,
+                localSun);
             if (drew)
             {
                 // 火焰与壳内容同表同层：renderQueue 3201 排在本壳地形之上，

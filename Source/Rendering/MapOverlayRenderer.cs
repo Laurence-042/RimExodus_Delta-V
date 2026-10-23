@@ -28,11 +28,13 @@ namespace DeltaV
             public readonly List<Thing> things = new List<Thing>();
             public readonly List<PrintBatch> printed = new List<PrintBatch>();
             public SectionLayer_GravshipHull gravshipHull;
+            public ShellHullVisuals.EdgeMeshes hullEdges;
 
             public void Dispose()
             {
                 foreach (PrintBatch batch in printed) batch.layer.Dispose();
                 gravshipHull?.Dispose();
+                hullEdges?.Dispose();
             }
         }
 
@@ -65,6 +67,7 @@ namespace DeltaV
         private static readonly Dictionary<TerrainDef, Material> TerrainMaterials = new Dictionary<TerrainDef, Material>();
         private static readonly Mesh[] CellMeshes = new Mesh[TexturePeriod * TexturePeriod];
         private static readonly FieldInfo DrawerMapField = AccessTools.Field(typeof(MapDrawer), "map");
+        private static Texture2D powerConnectorWireTexture;
         private static int cachedRuleCount = -1;
 
         /// <summary>最近一次 CollectShellCommands 收集的四边形数（诊断用；
@@ -93,7 +96,7 @@ namespace DeltaV
         /// 调用方随后可经 AddFlameCommand 追加火焰，再交由绘制接收器同步消费。
         /// </summary>
         public static bool CollectShellCommands(Map map, Matrix4x4 matrix, Quaternion rotation,
-            CellRect localView, HashSet<IntVec3> allowedCells = null)
+            CellRect localView, HashSet<IntVec3> allowedCells = null, Vector2 localSun = default)
         {
             QuadsDrawnLastPass = 0;
             Commands.Clear();
@@ -109,7 +112,7 @@ namespace DeltaV
             int maxSz = visible.maxZ / SectionSize;
             for (int sz = minSz; sz <= maxSz; sz++)
             for (int sx = minSx; sx <= maxSx; sx++)
-                CollectSection(map, matrix, rotation, visible, allowedCells, sx, sz, Commands);
+                CollectSection(map, matrix, rotation, visible, allowedCells, sx, sz, localSun, Commands);
             return Commands.Count > 0;
         }
 
@@ -177,7 +180,8 @@ namespace DeltaV
         }
 
         private static void CollectSection(Map map, Matrix4x4 matrix, Quaternion rotation, CellRect visible,
-            HashSet<IntVec3> allowedCells, int sx, int sz, List<OverlayCommand> collector)
+            HashSet<IntVec3> allowedCells, int sx, int sz, Vector2 localSun,
+            List<OverlayCommand> collector)
         {
             int key = sx | (sz << 16);
             MapCache cache = CacheFor(map);
@@ -239,10 +243,18 @@ namespace DeltaV
                 QuadsDrawnLastPass++;
             }
 
+            AddHullEdgeCommands(section.hullEdges?.floor, matrix, localSun, true, collector);
+
             foreach (PrintBatch batch in section.printed)
             foreach (LayerSubMesh submesh in batch.layer.subMeshes)
             {
                 if (!submesh.finalized || submesh.disabled) continue;
+                // CompPower.PostPrintOnto adds the short appliance-to-conduit
+                // wire to the same static layer as the appliance itself.
+                powerConnectorWireTexture ??= ContentFinder<Texture2D>.Get(
+                    "Things/Special/Power/Wire", false);
+                if (powerConnectorWireTexture != null
+                    && submesh.material.mainTexture == powerConnectorWireTexture) continue;
                 Matrix4x4 lift = Matrix4x4.Translate(new Vector3(0f,
                     batch.zIndex * Altitudes.AltInc, 0f));
                 collector.Add(new OverlayCommand { mesh = submesh.mesh, matrix = matrix * lift,
@@ -250,6 +262,8 @@ namespace DeltaV
                     queue = submesh.material.renderQueue, sequence = nextSequence++ });
                 QuadsDrawnLastPass += submesh.tris.Count / 6;
             }
+
+            AddHullEdgeCommands(section.hullEdges?.slopes, matrix, localSun, false, collector);
 
             // Odyssey draws angled hull pieces in its own section layer, not in
             // GravshipHull.Print. Reuse that layer's mesh and neighbor rules.
@@ -287,6 +301,41 @@ namespace DeltaV
                     Log.ErrorOnce($"[DeltaV] Cannot capture shell draw for {thing}: {ex}",
                         thing.thingIDNumber ^ 0x5A31D0);
                 }
+            }
+        }
+
+        private static void AddHullEdgeCommands(Mesh[] meshes, Matrix4x4 matrix, Vector2 localSun,
+            bool floor, List<OverlayCommand> collector)
+        {
+            if (meshes == null) return;
+            for (int side = 0; side < 4; side++)
+            {
+                Mesh mesh = meshes[side];
+                if (mesh == null) continue;
+                if (floor)
+                {
+                    Material ambient = ShellHullVisuals.AmbientFloorEdge;
+                    collector.Add(new OverlayCommand { mesh = mesh, matrix = matrix,
+                        material = ambient, surface = ShellSurfaceLayer.Hull,
+                        queue = ambient.renderQueue, sequence = nextSequence++ });
+                    QuadsDrawnLastPass += mesh.vertexCount / 4;
+                }
+                float incidence = side switch
+                {
+                    0 => localSun.y,
+                    1 => localSun.x,
+                    2 => -localSun.y,
+                    _ => -localSun.x
+                };
+                // Floor mesh side points toward the wall. Sun behind that wall
+                // casts shadow into this floor cell; wall bevels use the opposite sign.
+                if (floor) incidence = -incidence;
+                Material material = ShellHullVisuals.EdgeMaterial(incidence, floor);
+                if (material == null) continue;
+                collector.Add(new OverlayCommand { mesh = mesh, matrix = matrix,
+                    material = material, surface = ShellSurfaceLayer.Hull,
+                    queue = material.renderQueue, sequence = nextSequence++ });
+                QuadsDrawnLastPass += mesh.vertexCount / 4;
             }
         }
 
@@ -371,6 +420,15 @@ namespace DeltaV
             }
             // Only the SectionLayer material/mesh collector is used; no source-map layer is redrawn.
             Section sourceSection = CacheFor(map).PrintContext(map);
+            // One-cell halo lets a floor contact in another section read the same wall
+            // adjacency as the wall's own linked variant.
+            var wallAdjacency = new Dictionary<IntVec3, ShellHullVisuals.Adjacency>();
+            foreach (IntVec3 cell in rect.ExpandedBy(1).ClipInsideMap(map))
+            {
+                Thing wall = cell.GetEdificeSafe(map);
+                if (wall?.def == ThingDefOf.GravshipHull)
+                    wallAdjacency[cell] = ShellHullVisuals.Analyze(map, wall);
+            }
             foreach (Thing thing in result.things)
             {
                 if (!ShouldDrawThing(thing)) continue;
@@ -381,6 +439,25 @@ namespace DeltaV
                     || thing.def.drawerType == DrawerType.None)) continue;
                 ShellSurfaceLayer surface = config?.layer ?? ShellSurfaceLayer.Hull;
                 float zIndex = config?.zIndex ?? 0f;
+                if (thing.def == ThingDefOf.GravshipHull
+                    && wallAdjacency.TryGetValue(thing.Position, out ShellHullVisuals.Adjacency wall))
+                {
+                    Material material = ShellHullVisuals.WallMaterial(thing, wall);
+                    if (material != null)
+                    {
+                        PrintBatch beam = result.printed.Find(candidate => candidate.surface == ShellSurfaceLayer.Hull
+                            && candidate.zIndex == 0f && candidate.shared);
+                        if (beam == null)
+                        {
+                            beam = new PrintBatch { surface = ShellSurfaceLayer.Hull, shared = true,
+                                layer = new SectionLayer_ThingsGeneral(sourceSection) };
+                            result.printed.Add(beam);
+                        }
+                        Printer_Plane.PrintPlane(beam.layer, thing.TrueCenter(), Vector2.one, material);
+                        ShellHullVisuals.PrintCornerFill(beam.layer, thing, wall, material);
+                        continue;
+                    }
+                }
                 if (config?.alternateGraphics != null)
                 {
                     foreach (GraphicData graphic in config.alternateGraphics)
@@ -413,6 +490,7 @@ namespace DeltaV
                 }
             }
             foreach (PrintBatch batch in result.printed) batch.Complete();
+            result.hullEdges = ShellHullVisuals.BuildEdges(map, rect, wallAdjacency);
             if (ModsConfig.OdysseyActive)
             {
                 // Corner cells can be empty and are absent from result.things.
@@ -434,20 +512,20 @@ namespace DeltaV
             int sx = cell.x / SectionSize;
             int sz = cell.z / SectionSize;
             cache.dirty.Add(sx | (sz << 16));
+            // Wall/foundation contact affects adjoining floor meshes; Odyssey's
+            // angled corner pieces also read diagonal cells. Mark the whole ring
+            // even when vanilla did not request adjacent section regeneration.
+            for (int i = 0; i < 8; i++)
+            {
+                IntVec3 neighbor = cell + GenAdj.AdjacentCells[i];
+                if (neighbor.InBounds(map))
+                    cache.dirty.Add(neighbor.x / SectionSize | (neighbor.z / SectionSize << 16));
+            }
             if (adjacentSections)
             {
                 for (int z = sz - 1; z <= sz + 1; z++)
                 for (int x = sx - 1; x <= sx + 1; x++)
                     if (x >= 0 && z >= 0) cache.dirty.Add(x | (z << 16));
-            }
-            else if (adjacentCells)
-            {
-                for (int i = 0; i < 8; i++)
-                {
-                    IntVec3 adjacent = cell + GenAdj.AdjacentCells[i];
-                    if (adjacent.InBounds(map))
-                        cache.dirty.Add(adjacent.x / SectionSize | (adjacent.z / SectionSize << 16));
-                }
             }
         }
 
@@ -467,6 +545,8 @@ namespace DeltaV
             Caches.Clear();
             Rules.Clear();
             TerrainMaterials.Clear();
+            powerConnectorWireTexture = null;
+            ShellHullVisuals.ClearRuntimeCaches();
             cachedRuleCount = -1;
             for (int i = 0; i < CellMeshes.Length; i++)
             {
