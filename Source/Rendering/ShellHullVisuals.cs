@@ -26,6 +26,7 @@ namespace DeltaV
         internal sealed class EdgeMeshes
         {
             public readonly Mesh[] floor = new Mesh[4];
+            public readonly Mesh[] corners = new Mesh[4];
             public readonly Mesh[] slopes = new Mesh[4];
 
             public void Dispose()
@@ -33,6 +34,7 @@ namespace DeltaV
                 for (int i = 0; i < 4; i++)
                 {
                     if (floor[i] != null) Object.Destroy(floor[i]);
+                    if (corners[i] != null) Object.Destroy(corners[i]);
                     if (slopes[i] != null) Object.Destroy(slopes[i]);
                 }
             }
@@ -79,6 +81,29 @@ namespace DeltaV
                 triangles.Add(at); triangles.Add(at + 2); triangles.Add(at + 3);
             }
 
+            public void AddCorner(IntVec3 cell, int corner, float altitude)
+            {
+                int at = vertices.Count;
+                float x = cell.x, z = cell.z;
+                vertices.Add(new Vector3(x, altitude, z));
+                vertices.Add(new Vector3(x, altitude, z + 1f));
+                vertices.Add(new Vector3(x + 1f, altitude, z + 1f));
+                vertices.Add(new Vector3(x + 1f, altitude, z));
+                bool east = corner == 0 || corner == 1;
+                bool north = corner == 0 || corner == 3;
+                for (int i = 0; i < 4; i++)
+                {
+                    Vector3 vertex = vertices[at + i];
+                    // (u,v) grows from the inner floor corner toward the
+                    // east/west and north/south walls of this radius-one arc.
+                    float u = east ? vertex.x - x : x + 1f - vertex.x;
+                    float v = north ? vertex.z - z : z + 1f - vertex.z;
+                    uvs.Add(new Vector2(u, v));
+                }
+                triangles.Add(at); triangles.Add(at + 1); triangles.Add(at + 2);
+                triangles.Add(at); triangles.Add(at + 2); triangles.Add(at + 3);
+            }
+
             public Mesh Finish(string name)
             {
                 if (vertices.Count == 0) return null;
@@ -93,6 +118,8 @@ namespace DeltaV
 
         private static Texture2D edgeGradient;
         private static Material edgeMaterial;
+        private static readonly Texture2D[] CornerGradients = new Texture2D[2];
+        private static readonly Material[] CornerMaterials = new Material[2];
         private static readonly int ShaderColor = Shader.PropertyToID("_Color");
         private static readonly List<MaterialPropertyBlock> EdgeBlocks = new List<MaterialPropertyBlock>();
         private static int edgeBlockFrame = -1;
@@ -172,10 +199,12 @@ namespace DeltaV
         {
             var result = new EdgeMeshes();
             var floorBuilders = new QuadBuilder[4];
+            var cornerBuilders = new QuadBuilder[4];
             var slopeBuilders = new QuadBuilder[4];
             for (int i = 0; i < 4; i++)
             {
                 floorBuilders[i] = new QuadBuilder();
+                cornerBuilders[i] = new QuadBuilder();
                 slopeBuilders[i] = new QuadBuilder();
             }
             foreach (IntVec3 cell in rect)
@@ -190,19 +219,31 @@ namespace DeltaV
                     || cell.GetEdificeSafe(map)?.def == ThingDefOf.GravshipHull) continue;
                 TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
                 if (terrain == null || terrain.dontRender) continue;
+                int contacts = 0;
                 for (int side = 0; side < 4; side++)
                 {
                     IntVec3 neighbor = cell + GenAdj.CardinalDirections[side];
                     int facing = (side + 2) & 3;
                     if (adjacency.TryGetValue(neighbor, out Adjacency wallNeighbor)
                         && (wallNeighbor.floorSides & (1 << facing)) != 0)
-                        floorBuilders[side].Add(cell, side, 0.65f,
-                            AltitudeLayer.Terrain.AltitudeFor() + 0.003f);
+                        contacts |= 1 << side;
                 }
+                // A radius-one fillet needs a whole floor cell. Three or four
+                // contacts cannot fit several such fillets, so keep their
+                // original straight seams.
+                int corner = contacts switch { 3 => 0, 6 => 1, 12 => 2, 9 => 3, _ => -1 };
+                float altitude = AltitudeLayer.Terrain.AltitudeFor() + 0.003f;
+                if (corner >= 0)
+                    cornerBuilders[corner].AddCorner(cell, corner, altitude);
+                else
+                    for (int side = 0; side < 4; side++)
+                        if ((contacts & (1 << side)) != 0)
+                            floorBuilders[side].Add(cell, side, 0.65f, altitude);
             }
             for (int side = 0; side < 4; side++)
             {
                 result.floor[side] = floorBuilders[side].Finish($"DeltaV_ShellFloorEdge_{side}");
+                result.corners[side] = cornerBuilders[side].Finish($"DeltaV_ShellFloorCorner_{side}");
                 result.slopes[side] = slopeBuilders[side].Finish($"DeltaV_ShellBeamSlope_{side}");
             }
             return result;
@@ -243,6 +284,14 @@ namespace DeltaV
             }
         }
 
+        internal static Material CornerMaterial(int axis)
+        {
+            if (CornerMaterials[axis] != null) return CornerMaterials[axis];
+            EnsureCornerGradients();
+            return CornerMaterials[axis] = MaterialPool.MatFrom(CornerGradients[axis],
+                ShaderDatabase.Transparent, Color.white);
+        }
+
         internal static MaterialPropertyBlock EdgeTint(float incidence, bool floor)
         {
             // CommandBuffer may read the block after later shells have queued
@@ -274,15 +323,44 @@ namespace DeltaV
             for (int x = 0; x < 64; x++)
             for (int y = 0; y < 2; y++)
             {
-                // Keep the seam visible over at least half a floor cell, then
-                // fade it out in the remaining 0.15 cell.
                 float distance = x / 63f * 0.65f;
-                float alpha = distance <= 0.5f
-                    ? 1f - 0.55f * distance / 0.5f
-                    : 0.45f * (0.65f - distance) / 0.15f;
-                edgeGradient.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                edgeGradient.SetPixel(x, y, new Color(1f, 1f, 1f, EdgeFade(distance)));
             }
             edgeGradient.Apply(false, true);
+        }
+
+        private static void EnsureCornerGradients()
+        {
+            if (CornerGradients[0] != null) return;
+            for (int axis = 0; axis < 2; axis++)
+            {
+                var texture = new Texture2D(128, 128, TextureFormat.RGBA32, false)
+                {
+                    name = $"DeltaV_ShellCornerGradient_{axis}",
+                    wrapMode = TextureWrapMode.Clamp
+                };
+                for (int x = 0; x < 128; x++)
+                for (int y = 0; y < 128; y++)
+                {
+                    float u = x / 127f, v = y / 127f;
+                    float distance = 1f - Mathf.Sqrt(u * u + v * v);
+                    float weight = (u + v) > 0f
+                        ? (axis == 0 ? u : v) / (u + v) : 0.5f;
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f,
+                        EdgeFade(distance) * weight));
+                }
+                texture.Apply(false, true);
+                CornerGradients[axis] = texture;
+            }
+        }
+
+        private static float EdgeFade(float distance)
+        {
+            if (distance < 0f || distance >= 0.65f) return 0f;
+            // The first half cell remains visible, then the final 0.15 fades.
+            return distance <= 0.5f
+                ? 1f - 0.55f * distance / 0.5f
+                : 0.45f * (0.65f - distance) / 0.15f;
         }
 
         internal static void ClearRuntimeCaches()
@@ -293,6 +371,12 @@ namespace DeltaV
             edgeBlockCursor = 0;
             if (edgeGradient != null) Object.Destroy(edgeGradient);
             edgeGradient = null;
+            for (int axis = 0; axis < 2; axis++)
+            {
+                CornerMaterials[axis] = null;
+                if (CornerGradients[axis] != null) Object.Destroy(CornerGradients[axis]);
+                CornerGradients[axis] = null;
+            }
         }
     }
 }

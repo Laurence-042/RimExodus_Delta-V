@@ -256,6 +256,7 @@ namespace DeltaV
             }
 
             AddHullEdgeCommands(section.hullEdges?.floor, matrix, localSun, true, collector);
+            AddHullCornerCommands(section.hullEdges?.corners, matrix, localSun, collector);
 
             foreach (PrintBatch batch in section.printed)
             foreach (LayerSubMesh submesh in batch.layer.subMeshes)
@@ -325,16 +326,7 @@ namespace DeltaV
             {
                 Mesh mesh = meshes[side];
                 if (mesh == null) continue;
-                float incidence = side switch
-                {
-                    0 => localSun.y,
-                    1 => localSun.x,
-                    2 => -localSun.y,
-                    _ => -localSun.x
-                };
-                // Floor mesh side points toward the wall. Sun behind that wall
-                // casts shadow into this floor cell; wall bevels use the opposite sign.
-                if (floor) incidence = -incidence;
+                float incidence = HullIncidence(localSun, side, floor);
                 Material material = ShellHullVisuals.EdgeMaterial;
                 collector.Add(new OverlayCommand { mesh = mesh, matrix = matrix,
                     material = material, props = ShellHullVisuals.EdgeTint(incidence, floor),
@@ -342,6 +334,45 @@ namespace DeltaV
                     queue = material.renderQueue, sequence = nextSequence++ });
                 QuadsDrawnLastPass += mesh.vertexCount / 4;
             }
+        }
+
+        private static void AddHullCornerCommands(Mesh[] meshes, Matrix4x4 matrix,
+            Vector2 localSun, List<OverlayCommand> collector)
+        {
+            if (meshes == null) return;
+            for (int corner = 0; corner < 4; corner++)
+            {
+                Mesh mesh = meshes[corner];
+                if (mesh == null) continue;
+                // UV axes follow the horizontal and vertical walls bordering
+                // this floor cell. Both use the same signed light as straight seams.
+                int sideA = corner < 2 ? 1 : 3;
+                int sideB = corner == 0 || corner == 3 ? 0 : 2;
+                for (int axis = 0; axis < 2; axis++)
+                {
+                    int side = axis == 0 ? sideA : sideB;
+                    Material material = ShellHullVisuals.CornerMaterial(axis);
+                    collector.Add(new OverlayCommand { mesh = mesh, matrix = matrix,
+                        material = material,
+                        props = ShellHullVisuals.EdgeTint(HullIncidence(localSun, side, true), true),
+                        surface = ShellSurfaceLayer.Hull,
+                        queue = material.renderQueue, sequence = nextSequence++ });
+                    QuadsDrawnLastPass += mesh.vertexCount / 4;
+                }
+            }
+        }
+
+        private static float HullIncidence(Vector2 localSun, int side, bool floor)
+        {
+            float incidence = side switch
+            {
+                0 => localSun.y,
+                1 => localSun.x,
+                2 => -localSun.y,
+                _ => -localSun.x
+            };
+            // A floor edge points toward the wall: light behind it darkens the floor.
+            return floor ? -incidence : incidence;
         }
 
         internal static void AddCapturedDraw(Mesh mesh, Matrix4x4 matrix, Material material,
