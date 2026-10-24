@@ -295,8 +295,8 @@ namespace DeltaV
                 if (WeaponProps.intrinsicAimSkill >= 0) return true;
                 foreach (ThingWithComps attached in AttachedThings())
                 {
-                    CompSpaceAutoAimPlugin plugin = attached.TryGetComp<CompSpaceAutoAimPlugin>();
-                    if (plugin != null && plugin.EffectiveFor(this)) return true;
+                    CompSpaceWeaponAttachment attachment = attached.TryGetComp<CompSpaceWeaponAttachment>();
+                    if (attachment?.AimSkillFor(this) != null) return true;
                 }
                 return false;
             }
@@ -373,11 +373,9 @@ namespace DeltaV
             {
                 foreach (ThingWithComps attached in AttachedThings())
                 {
-                    CompSpaceAutoAimPlugin plugin = attached.TryGetComp<CompSpaceAutoAimPlugin>();
-                    if (plugin != null && plugin.EffectiveFor(this))
-                    {
-                        pluginSkill = Mathf.Max(pluginSkill ?? 0, plugin.SkillLevel);
-                    }
+                    CompSpaceWeaponAttachment attachment = attached.TryGetComp<CompSpaceWeaponAttachment>();
+                    int? aimSkill = attachment?.AimSkillFor(this);
+                    if (aimSkill.HasValue) pluginSkill = Mathf.Max(pluginSkill ?? 0, aimSkill.Value);
                 }
             }
             // Mannable 不存在表示武器自带基础火控；第三方只加核心 Comp 即可工作。

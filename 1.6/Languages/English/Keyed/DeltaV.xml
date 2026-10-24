@@ -262,6 +262,11 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_AttachmentEnabled>Attachment enabled</DeltaV_AttachmentEnabled>
   <DeltaV_AttachmentEnabledTip>Temporarily enables or disables this weapon attachment. This command supports multi-selection.</DeltaV_AttachmentEnabledTip>
   <DeltaV_CapacitorStored>Capacitor energy: {0}/{1} W·d</DeltaV_CapacitorStored>
+  <DeltaV_BatteryStored>Stored energy: {0}/{1} W·d</DeltaV_BatteryStored>
+  <DeltaV_BatteryGridOutput>Supply power grid</DeltaV_BatteryGridOutput>
+  <DeltaV_BatteryGridOutputTip>When enabled, generate grid power from stored energy at the selected rate, even when demand is lower. Turn off to recharge. Weapon attachments can draw energy directly in either mode.</DeltaV_BatteryGridOutputTip>
+  <DeltaV_BatteryOutputWatts>Grid output: {0} W</DeltaV_BatteryOutputWatts>
+  <DeltaV_BatteryOutputWattsTip>Set the maximum power sent to the grid while this battery has stored energy.</DeltaV_BatteryOutputWattsTip>
   <DeltaV_StatShotEnergy>Battery energy per shot</DeltaV_StatShotEnergy>
   <DeltaV_StatBeamEnergy>Battery energy per second of illumination</DeltaV_StatBeamEnergy>
   <DeltaV_StatImpactScale>Impact effect multiplier</DeltaV_StatImpactScale>

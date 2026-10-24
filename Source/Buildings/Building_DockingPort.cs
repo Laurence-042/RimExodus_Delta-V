@@ -220,7 +220,7 @@ namespace DeltaV
         {
             string baseText = base.GetInspectString()?.TrimEnd();
             string channelText = Docking?.Peer != null
-                ? "DeltaV_SoftDockProgress".Translate(Docking.Peer.LabelCap, Docking.Progress.ToStringPercent()).ToString()
+                ? "DeltaV_SoftDockProgress".Translate(Docking.Peer.LabelCap, Docking.Progress.ToStringPercent("F1")).ToString()
                 : (ChannelExtended
                 ? "DeltaV_DockConnected".Translate(channelCells.Count)
                 : "DeltaV_DockFolded".Translate(ChannelRange)).ToString();

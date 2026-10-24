@@ -262,6 +262,11 @@
   <DeltaV_AttachmentEnabled>启用挂件</DeltaV_AttachmentEnabled>
   <DeltaV_AttachmentEnabledTip>临时启用或停用此武器挂件；支持多选后一并切换。</DeltaV_AttachmentEnabledTip>
   <DeltaV_CapacitorStored>电容储能：{0}/{1} W·d</DeltaV_CapacitorStored>
+  <DeltaV_BatteryStored>储能：{0}/{1} W·d</DeltaV_BatteryStored>
+  <DeltaV_BatteryGridOutput>向电网供电</DeltaV_BatteryGridOutput>
+  <DeltaV_BatteryGridOutputTip>开启后按设定功率持续向电网发电，即使电网需求较低也会消耗储能；关闭后恢复充电。武器挂件在两种模式下都可直接取电。</DeltaV_BatteryGridOutputTip>
+  <DeltaV_BatteryOutputWatts>电网输出：{0} W</DeltaV_BatteryOutputWatts>
+  <DeltaV_BatteryOutputWattsTip>调整有储能时向电网输出的最大功率。</DeltaV_BatteryOutputWattsTip>
   <DeltaV_StatShotEnergy>每发蓄电消耗</DeltaV_StatShotEnergy>
   <DeltaV_StatBeamEnergy>持续照射每秒蓄电消耗</DeltaV_StatBeamEnergy>
   <DeltaV_StatImpactScale>命中效果倍率</DeltaV_StatImpactScale>

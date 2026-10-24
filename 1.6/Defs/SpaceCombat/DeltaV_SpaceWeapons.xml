@@ -291,8 +291,8 @@
     <graphicData><texPath>Things/Building/SpaceWeapons/LaserCapacitor</texPath><graphicClass>DeltaV.Graphic_SpaceWeaponAttachment</graphicClass><drawSize>(1,1)</drawSize><drawOffset>(0,-0.712,0)</drawOffset></graphicData><placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers><costList><Steel>30</Steel><ComponentIndustrial>2</ComponentIndustrial></costList><statBases><WorkToBuild>800</WorkToBuild><MaxHitPoints>80</MaxHitPoints></statBases>
     <comps>
       <li Class="CompProperties_Forbiddable" />
-      <li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>0</basePowerConsumption></li>
-      <li Class="DeltaV.CompProperties_SpaceWeaponCapacitor"><capacityWattDays>80</capacityWattDays><chargingWatts>240</chargingWatts><initialEnergyPercent>0</initialEnergyPercent><allowedHostDefs><li>DeltaV_Weapon_LaserTurret</li><li>DeltaV_Weapon_LaserMainMedium</li></allowedHostDefs></li>
+      <li Class="DeltaV.CompProperties_SwitchableBattery"><basePowerConsumption>0</basePowerConsumption><capacityWattDays>80</capacityWattDays><chargingWatts>240</chargingWatts><initialEnergyPercent>0</initialEnergyPercent><maxOutputWatts>240</maxOutputWatts></li>
+      <li Class="DeltaV.CompProperties_SpaceWeaponCapacitor"><allowedHostDefs><li>DeltaV_Weapon_LaserTurret</li><li>DeltaV_Weapon_LaserMainMedium</li></allowedHostDefs></li>
     </comps>
   </ThingDef>
 
@@ -300,12 +300,12 @@
     <defName>DeltaV_Building_RailgunCapacitor</defName><uiOrder>-190</uiOrder><label>rail accelerator capacitor</label><description>An initially empty side capacitor storing 3,600 Wd, enough for three small-segment pulses. It charges at 1,000 W and takes 216,000 ticks from empty to full.</description>
     <thingClass>Building</thingClass><tickerType>Normal</tickerType><passability>Standable</passability><size>(1,1)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Security</designationCategory><altitudeLayer>BuildingOnTop</altitudeLayer><building><isEdifice>false</isEdifice></building>
     <graphicData><texPath>Things/Building/SpaceWeapons/RailgunCapacitor</texPath><graphicClass>DeltaV.Graphic_SpaceWeaponAttachment</graphicClass><drawSize>(1,1)</drawSize><drawOffset>(0,-0.712,0)</drawOffset></graphicData><placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers><costList><Steel>60</Steel><ComponentIndustrial>6</ComponentIndustrial></costList><statBases><WorkToBuild>1800</WorkToBuild><MaxHitPoints>120</MaxHitPoints></statBases>
-    <comps><li Class="CompProperties_Forbiddable" /><li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>0</basePowerConsumption></li><li Class="DeltaV.CompProperties_SpaceWeaponCapacitor"><capacityWattDays>3600</capacityWattDays><initialEnergyPercent>0</initialEnergyPercent><chargingWatts>1000</chargingWatts><allowedHostDefs><li>DeltaV_Weapon_RailgunAccelerator</li></allowedHostDefs></li></comps>
+    <comps><li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_SwitchableBattery"><basePowerConsumption>0</basePowerConsumption><capacityWattDays>3600</capacityWattDays><initialEnergyPercent>0</initialEnergyPercent><chargingWatts>1000</chargingWatts><maxOutputWatts>1000</maxOutputWatts></li><li Class="DeltaV.CompProperties_SpaceWeaponCapacitor"><allowedHostDefs><li>DeltaV_Weapon_RailgunAccelerator</li></allowedHostDefs></li></comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_RailgunCapacitorBase">
     <defName>DeltaV_Building_RailgunCapacitorLarge</defName><uiOrder>-187</uiOrder><label>large rail accelerator capacitor</label><description>An initially empty side capacitor storing 7,200 Wd, enough for three large-segment pulses. It charges at 2,000 W and takes 216,000 ticks from empty to full.</description>
     <costList><Steel>110</Steel><ComponentIndustrial>10</ComponentIndustrial></costList><statBases><WorkToBuild>3000</WorkToBuild><MaxHitPoints>180</MaxHitPoints></statBases>
-    <comps Inherit="False"><li Class="CompProperties_Forbiddable" /><li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>0</basePowerConsumption></li><li Class="DeltaV.CompProperties_SpaceWeaponCapacitor"><capacityWattDays>7200</capacityWattDays><initialEnergyPercent>0</initialEnergyPercent><chargingWatts>2000</chargingWatts><allowedHostDefs><li>DeltaV_Weapon_RailgunAcceleratorLarge</li></allowedHostDefs></li></comps>
+    <comps Inherit="False"><li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_SwitchableBattery"><basePowerConsumption>0</basePowerConsumption><capacityWattDays>7200</capacityWattDays><initialEnergyPercent>0</initialEnergyPercent><chargingWatts>2000</chargingWatts><maxOutputWatts>2000</maxOutputWatts></li><li Class="DeltaV.CompProperties_SpaceWeaponCapacitor"><allowedHostDefs><li>DeltaV_Weapon_RailgunAcceleratorLarge</li></allowedHostDefs></li></comps>
   </ThingDef>
 
   <!-- Rail projectile remains a normal projectile Def; ammunition uses Steel directly. -->

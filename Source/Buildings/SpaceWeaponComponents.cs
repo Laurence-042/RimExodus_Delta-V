@@ -278,11 +278,11 @@ namespace DeltaV
 
         public CompProperties_SpaceWeaponAttachment()
         {
-            compClass = typeof(CompSpaceWeaponAttachment);
+            compClass = typeof(CompSpaceWeaponGenericAttachment);
         }
     }
 
-    public class CompSpaceWeaponAttachment : ThingComp
+    public abstract class CompSpaceWeaponAttachment : ThingComp
     {
         private bool enabled;
         private bool initialized;
@@ -292,6 +292,10 @@ namespace DeltaV
         public bool CompatibleWith(ThingDef hostDef) =>
             AttachmentProps.allowedHostDefs.NullOrEmpty()
             || AttachmentProps.allowedHostDefs.Contains(hostDef);
+        public virtual float AvailableShotEnergy => 0f;
+        public virtual bool CanSupplyShotEnergy(float wattDays) => false;
+        public virtual void ConsumeShotEnergy(float wattDays) { }
+        public virtual int? AimSkillFor(CompSpaceWeapon weapon) => null;
 
         /// <summary>
         /// 覆盖式挂件不是 edifice；同格 EdificeGrid 中留下的建筑就是宿主。
@@ -372,4 +376,6 @@ namespace DeltaV
             };
         }
     }
+
+    public class CompSpaceWeaponGenericAttachment : CompSpaceWeaponAttachment { }
 }

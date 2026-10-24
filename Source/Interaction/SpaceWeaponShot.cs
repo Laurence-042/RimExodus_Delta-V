@@ -52,8 +52,8 @@ namespace DeltaV
         public float armorPenetrationScale = 1f;
         public int skill;
         private readonly Dictionary<PowerNet, float> energyByNet = new Dictionary<PowerNet, float>();
-        private readonly Dictionary<CompSpaceWeaponCapacitor, float> dischargingCapacitors =
-            new Dictionary<CompSpaceWeaponCapacitor, float>();
+        private readonly Dictionary<CompSpaceWeaponAttachment, float> dischargingAttachments =
+            new Dictionary<CompSpaceWeaponAttachment, float>();
         private readonly List<CompSpaceRailgun> activeAccelerators = new List<CompSpaceRailgun>();
         private float activeSpeedBonus;
         private ISpaceWeaponLaunch emitter;
@@ -207,16 +207,16 @@ namespace DeltaV
 
         private bool PrepareEnergy(SpaceWeaponAccelerationSolution acceleration)
         {
-            dischargingCapacitors.Clear();
+            dischargingAttachments.Clear();
             energyByNet.Clear();
             activeAccelerators.Clear();
             activeSpeedBonus = 0f;
-            if (!ReserveCapacitor(weapon.AttachedThings(), weapon.WeaponProps.shotEnergy)
+            if (!ReserveAttachmentEnergy(weapon.AttachedThings(), weapon.WeaponProps.shotEnergy)
                 && !TryReserveGridEnergy(weapon.parent, weapon.WeaponProps.shotEnergy)) return false;
             foreach (CompSpaceRailgun segment in acceleration.segments)
             {
                 if (segment.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }) continue;
-                if (!ReserveCapacitor(segment.AttachedThings(), segment.RailProps.shotEnergy)
+                if (!ReserveAttachmentEnergy(segment.AttachedThings(), segment.RailProps.shotEnergy)
                     && !TryReserveGridEnergy(segment.parent, segment.RailProps.shotEnergy)) continue;
                 activeAccelerators.Add(segment);
                 activeSpeedBonus += segment.RailProps.speedBonus;
@@ -274,21 +274,21 @@ namespace DeltaV
             return probe.SafePathClear();
         }
 
-        private bool ReserveCapacitor(IEnumerable<ThingWithComps> attachments, float wattDays)
+        private bool ReserveAttachmentEnergy(IEnumerable<ThingWithComps> attachments, float wattDays)
         {
             if (wattDays <= 0f) return false;
-            CompSpaceWeaponCapacitor selected = null;
+            CompSpaceWeaponAttachment selected = null;
             foreach (ThingWithComps attached in attachments)
             {
-                CompSpaceWeaponCapacitor capacitor = attached.TryGetComp<CompSpaceWeaponCapacitor>();
-                if (capacitor == null || !capacitor.CanSupply(wattDays)) continue;
-                if (selected == null || capacitor.StoredEnergy > selected.StoredEnergy
-                    || (capacitor.StoredEnergy == selected.StoredEnergy
-                        && capacitor.parent.thingIDNumber < selected.parent.thingIDNumber))
-                    selected = capacitor;
+                CompSpaceWeaponAttachment attachment = attached.TryGetComp<CompSpaceWeaponAttachment>();
+                if (attachment == null || !attachment.CanSupplyShotEnergy(wattDays)) continue;
+                if (selected == null || attachment.AvailableShotEnergy > selected.AvailableShotEnergy
+                    || (attachment.AvailableShotEnergy == selected.AvailableShotEnergy
+                        && attachment.parent.thingIDNumber < selected.parent.thingIDNumber))
+                    selected = attachment;
             }
             if (selected == null) return false;
-            dischargingCapacitors[selected] = wattDays;
+            dischargingAttachments[selected] = wattDays;
             return true;
         }
 
@@ -317,8 +317,8 @@ namespace DeltaV
                     remaining -= drawn;
                 }
             }
-            foreach (var capacitor in dischargingCapacitors)
-                capacitor.Key.Consume(capacitor.Value);
+            foreach (var capacitor in dischargingAttachments)
+                capacitor.Key.ConsumeShotEnergy(capacitor.Value);
             magazine?.ConsumeShot();
             weapon.NotifyMagazineConsumed(magazine);
             weapon.cooldownUntilTick = Find.TickManager.TicksGame + weapon.WeaponProps.cooldownTicks;

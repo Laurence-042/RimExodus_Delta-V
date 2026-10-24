@@ -25,6 +25,8 @@ namespace DeltaV
     public class CompSpaceAutoAimPlugin : CompSpaceWeaponAttachment
     {
         public int SkillLevel => ((CompProperties_SpaceAutoAimPlugin)props).equivalentSkillLevel;
+        public override int? AimSkillFor(CompSpaceWeapon weapon) =>
+            EffectiveFor(weapon) ? SkillLevel : null;
 
         /// <summary>本插件是否对指定武器生效：覆盖声明槽位 ∧ 同归属基架 ∧ 启用/供电。</summary>
         public bool EffectiveFor(CompSpaceWeapon weapon)
