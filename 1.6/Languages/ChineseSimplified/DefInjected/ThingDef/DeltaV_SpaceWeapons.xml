@@ -21,9 +21,9 @@
   <DeltaV_Missile_HE.label>高爆舰载导弹</DeltaV_Missile_HE.label>
   <DeltaV_Missile_HE.description>带高爆战斗部的制导舰载导弹。可装入导弹发射架或储存在附加导弹仓中。</DeltaV_Missile_HE.description>
   <DeltaV_Weapon_RailgunLoader.label>小型轨道炮装弹机</DeltaV_Weapon_RailgunLoader.label>
-  <DeltaV_Weapon_RailgunLoader.description>小型固定轴攻坚轨道炮，自带火控。每发消耗钢材和 1800 W·d 蓄电，射击间隔 30 秒。通电加速段提高弹速、深部贯穿及破盾能力；缺电段跳过。动能线盾会将弹芯碎裂为不具备深穿能力的破片。可安装一个铀制附加弹仓。</DeltaV_Weapon_RailgunLoader.description>
+  <DeltaV_Weapon_RailgunLoader.description>小型固定轴攻坚轨道炮，自带火控。每发消耗钢材和 1800 W·d 蓄电，射击间隔 30 秒。通电加速段提高弹速、深部贯穿及破盾能力；缺电段跳过。动能线盾会将弹芯碎裂为不具备深穿能力的破片。唯一槽位可选装铀制附加弹仓或同尺寸轨道炮电容。电容足额时代付基础脉冲，储能不足时由电网蓄电池支付。</DeltaV_Weapon_RailgunLoader.description>
   <DeltaV_Weapon_RailgunLoaderLarge.label>大型轨道炮装弹机</DeltaV_Weapon_RailgunLoaderLarge.label>
-  <DeltaV_Weapon_RailgunLoaderLarge.description>大型固定轴攻坚轨道炮，自带火控。每发消耗钢材和 3600 W·d 蓄电，射击间隔 40 秒。通电加速段提高弹速、深部贯穿及破盾能力；缺电段跳过。动能线盾会将弹芯碎裂为不具备深穿能力的破片。可安装一个铀制附加弹仓。</DeltaV_Weapon_RailgunLoaderLarge.description>
+  <DeltaV_Weapon_RailgunLoaderLarge.description>大型固定轴攻坚轨道炮，自带火控。每发消耗钢材和 3600 W·d 蓄电，射击间隔 40 秒。通电加速段提高弹速、深部贯穿及破盾能力；缺电段跳过。动能线盾会将弹芯碎裂为不具备深穿能力的破片。唯一槽位可选装铀制附加弹仓或同尺寸轨道炮电容。电容足额时代付基础脉冲，储能不足时由电网蓄电池支付。</DeltaV_Weapon_RailgunLoaderLarge.description>
   <DeltaV_Weapon_RailgunAccelerator.label>小型轨道炮加速段</DeltaV_Weapon_RailgunAccelerator.label>
   <DeltaV_Weapon_RailgunAccelerator.description>串联在小型装弹机前方。本段每发消耗 1200 W·d，增加 120 格/秒弹速，同时提高贯穿及破盾能力；储能不足时跳过。两侧各可安装一个三发脉冲电容。</DeltaV_Weapon_RailgunAccelerator.description>
   <DeltaV_Weapon_RailgunAcceleratorLarge.label>大型轨道炮加速段</DeltaV_Weapon_RailgunAcceleratorLarge.label>
@@ -37,9 +37,9 @@
   <DeltaV_Building_LaserCapacitor.label>激光炮附加电容</DeltaV_Building_LaserCapacitor.label>
   <DeltaV_Building_LaserCapacitor.description>安装在激光炮槽位上的可回充电容，建成时无储能，上限 80 W·d；充电功率 240 W，从空到满需 20000 tick。可代付完整的逐发耗电；储能不足时激光炮仍可从电网蓄电池取电。</DeltaV_Building_LaserCapacitor.description>
   <DeltaV_Building_RailgunCapacitor.label>小型轨道炮附加电容</DeltaV_Building_RailgunCapacitor.label>
-  <DeltaV_Building_RailgunCapacitor.description>小型加速段附加电容，新建为空，储能 3600 W·d，可供本段三次脉冲；以 1000 W 回充，从空到满需 216000 tick。储能不足时本段仍尝试从电网取电。</DeltaV_Building_RailgunCapacitor.description>
+  <DeltaV_Building_RailgunCapacitor.description>适用于小型装弹机或加速段的附加电容，新建为空，储能 3600 W·d，可支付两次装弹机基础脉冲或三次加速段脉冲；以 1000 W 回充，从空到满需 216000 tick。储能不足时，所属部件仍尝试从电网蓄电池支付完整脉冲。</DeltaV_Building_RailgunCapacitor.description>
   <DeltaV_Building_RailgunCapacitorLarge.label>大型轨道炮附加电容</DeltaV_Building_RailgunCapacitorLarge.label>
-  <DeltaV_Building_RailgunCapacitorLarge.description>大型加速段附加电容，新建为空，储能 7200 W·d，可供本段三次脉冲；以 2000 W 回充，从空到满需 216000 tick。储能不足时本段仍尝试从电网取电。</DeltaV_Building_RailgunCapacitorLarge.description>
+  <DeltaV_Building_RailgunCapacitorLarge.description>适用于大型装弹机或加速段的附加电容，新建为空，储能 7200 W·d，可支付两次装弹机基础脉冲或三次加速段脉冲；以 2000 W 回充，从空到满需 216000 tick。储能不足时，所属部件仍尝试从电网蓄电池支付完整脉冲。</DeltaV_Building_RailgunCapacitorLarge.description>
   <DeltaV_Projectile_RailgunSlug.label>轨道炮弹丸</DeltaV_Projectile_RailgunSlug.label>
   <DeltaV_Projectile_RailgunSlug.description>高速贯穿弹芯。护盾及沿途击毁的结构逐次消耗剩余冲击预算，空舱不消耗预算。动能线盾会使其碎裂，破片不保留深穿能力。</DeltaV_Projectile_RailgunSlug.description>
 </LanguageData>
