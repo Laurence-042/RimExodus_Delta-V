@@ -65,6 +65,25 @@ namespace DeltaV
         private static bool IsSupportTerrain(TerrainDef terrain) =>
             terrain != null && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void;
 
+        [System.NonSerialized] private bool cachedNaturalGround;
+        [System.NonSerialized] private int cachedNaturalGroundVersion = -1;
+
+        /// <summary>整图底层天然地面；忽略船上地板、基架及临时通道，按结构版本失效。</summary>
+        internal bool HasNaturalGround
+        {
+            get
+            {
+                if (cachedNaturalGroundVersion == GlobalStructureVersion) return cachedNaturalGround;
+                cachedNaturalGround = map.AllCells.Any(cell =>
+                {
+                    TerrainDef terrain = map.terrainGrid.BaseTerrainAt(cell);
+                    return IsSupportTerrain(terrain) && terrain.natural && !terrain.isFoundation;
+                });
+                cachedNaturalGroundVersion = GlobalStructureVersion;
+                return cachedNaturalGround;
+            }
+        }
+
         [System.NonSerialized] private Dictionary<IntVec3, int> pendingStamp;
 
         public SubstructureOwnership(Map map) : base(map)

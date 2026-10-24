@@ -69,7 +69,7 @@ namespace DeltaV
         /// <summary>
         /// 出力请求 gate（唯一入口；UniverseManager 手操路径与 ShipAutopilot 在施加推进器
         /// 出力之前调用）。「将要出力的船与其余部分分离」：自由飞行船 = 拆分方向（控制域
-        /// 外残留块逐块独立成残骸容器，船留原图）；已有停靠或无基架残留内容时提取本船
+        /// 外残留块逐块独立成残骸容器，船留原图）；工作图、其他独立船或天然地面宿主提取本船
         /// 控制域进入新口袋容器，宿主图与其余内容不动。返回 true = 本次允许出力；false = 本 tick
         /// 中止出力（待确认分离、分离已排队或门禁拒绝）。分离只在这里触发——纯惯性漂移
         /// 与被动阻力不经本入口。
@@ -97,11 +97,15 @@ namespace DeltaV
                 return false;
             }
 
-            if (!MustExtractOwnDomain(ship))
+            if (!ShipRegistry.RequiresOwnPocket(ship))
             {
                 // 拆分方向：控制域外残留块（不分归属）必须离开本容器，否则会随船整体运动。
                 List<HashSet<IntVec3>> blocks = CollectResidualBlocks(ship);
-                if (blocks.Count == 0)
+                List<Thing> cargo = SpaceScatterService.LooseCargo(sourceMap).ToList();
+                if (blocks.Count > 0)
+                    cargo = cargo.Concat(Building_DockingPort.CollectChannelLeftBehind(sourceMap,
+                        ShipRegistry.ControlDomain(ship))).Distinct().ToList();
+                if (blocks.Count == 0 && cargo.Count == 0)
                 {
                     return true;
                 }
@@ -112,7 +116,7 @@ namespace DeltaV
                     return false;
                 }
                 PresentSeparationPrompt(universe, ship, "DeltaV_SplitConfirmText",
-                    BuildSplitSummary(universe, ship, blocks));
+                    BuildSplitSummary(universe, ship, blocks, cargo));
                 return false;
             }
 
@@ -226,7 +230,10 @@ namespace DeltaV
                 Ship currentShip = ShipRegistry.ShipByOwner(ownerId);
                 if (currentSource?.RepresentationVersion != version || !currentShip.IsValid
                     || currentShip.map != currentSource.map)
-                { pendingSeparationOwnerIds.Remove(ownerId); return; }
+                {
+                    pendingSeparationOwnerIds.Remove(ownerId);
+                    return;
+                }
                 ExecuteSeparation(universe, ownerId);
             });
         }
@@ -275,7 +282,7 @@ namespace DeltaV
             {
                 return;
             }
-            if (!MustExtractOwnDomain(ship))
+            if (!ShipRegistry.RequiresOwnPocket(ship))
             {
                 SplitResiduals(universe, ship);
             }
@@ -292,15 +299,8 @@ namespace DeltaV
             return ShipRegistry.ResidualBlocks(ship.map, domain);
         }
 
-        private static bool MustExtractOwnDomain(Ship ship)
-        {
-            // 与无主残骸同图仍可派生为 FreeFlight；该状态不代表 Map 只含本船。
-            // 若宿主有基架块之外的内容，提取本船即可完整保留环境，不猜测漂浮物归属。
-            return !ShipRegistry.IsFreeFlight(ship)
-                || ShipRegistry.HasLooseContents(ship.map, ShipRegistry.ControlDomain(ship));
-        }
-
-        private string BuildSplitSummary(UniverseManager universe, Ship ship, List<HashSet<IntVec3>> blocks)
+        private string BuildSplitSummary(UniverseManager universe, Ship ship, List<HashSet<IntVec3>> blocks,
+            List<Thing> cargo)
         {
             var parts = new List<string>();
             foreach (HashSet<IntVec3> block in blocks)
@@ -312,6 +312,8 @@ namespace DeltaV
                     : universe.LabelForOwner(owner);
                 parts.Add("DeltaV_SplitBlockLine".Translate(ownerLabel, block.Count));
             }
+            if (cargo.Count > 0)
+                parts.Add("DeltaV_SplitCargoLine".Translate(BuildLeftBehindSummary(ship.map, cargo)));
             return string.Join("\n", parts);
         }
 
@@ -327,19 +329,23 @@ namespace DeltaV
             SpaceObject frame = universe.FrameOf(ship.map);
             if (frame == null) return;
             SplitFocus focus = SplitFocus.Capture(universe, ship.map);
-            foreach (HashSet<IntVec3> block in CollectResidualBlocks(ship))
+            try
             {
-                TransferDomainToNewPocket(universe, ship.map, frame, block, null,
-                    wreckOwnership: true, retainedOwnerId: 0, targetConsoleFacing: Rot4.North,
-                    focus: focus);
+                Building_DockingPort.RetractChannelsFor(ship.map, ShipRegistry.ControlDomain(ship));
+                foreach (HashSet<IntVec3> block in CollectResidualBlocks(ship))
+                {
+                    if (TransferDomainToNewPocket(universe, ship.map, frame, block, null,
+                        wreckOwnership: true, retainedOwnerId: 0, targetConsoleFacing: Rot4.North,
+                        focus: focus) == null) return;
+                }
+                if (!universe.Scatter.ScatterLoose(ship.map)) return;
+                QueueEmptyDepartedMapCleanup(universe, ship.map);
             }
-            focus?.Complete(universe);
-            QueueEmptyDepartedMapCleanup(universe, ship.map);
-            if (SubstructureOwnership.TryGet(ship.map) != null)
+            finally
             {
-                // 拆分后重算质量/惯量/控制模型（新 MassReport 重扫自动生效）；
-                // 陈旧油门清零防幽灵火焰。
-                universe.FrameOf(ship.map)?.ClearDrive();
+                // 部分成功也交接已搬走的选择；下次只处理仍在源图的残留，不能提前出力。
+                focus?.Complete(universe);
+                frame.ClearDrive();
             }
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"structure #{ship.ownerId}: residual blocks split off before thrust");

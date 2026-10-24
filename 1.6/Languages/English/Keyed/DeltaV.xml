@@ -21,6 +21,7 @@
   <DeltaV_HudSpeed>Speed: {0} c/s</DeltaV_HudSpeed>
   <DeltaV_HudHeading>Heading: {0}°</DeltaV_HudHeading>
   <DeltaV_HudTurnRate>Turn rate: {0}°/s</DeltaV_HudTurnRate>
+  <DeltaV_PanelRefocus>Refocus on ship</DeltaV_PanelRefocus>
   <DeltaV_HudMass>Mass: {0}</DeltaV_HudMass>
   <DeltaV_HudAssist>Flight assist: {0}</DeltaV_HudAssist>
   <DeltaV_On>on</DeltaV_On>
@@ -154,11 +155,13 @@
   <DeltaV_CompassEast>East</DeltaV_CompassEast>
   <DeltaV_CompassSouth>South</DeltaV_CompassSouth>
   <DeltaV_CompassWest>West</DeltaV_CompassWest>
-  <DeltaV_SplitConfirmText>Thruster fire would tear this formation apart.
+  <DeltaV_SplitConfirmText>Contents outside this ship must separate before its thrusters can fire.
 
 {0}
 
-Separate these structures into independent wrecks and continue?</DeltaV_SplitConfirmText>
+Detached substructure will become independent wrecks. Unsupported people and items will drift independently. Continue?</DeltaV_SplitConfirmText>
+  <DeltaV_SplitCargoLine>- People/items that will drift independently:
+{0}</DeltaV_SplitCargoLine>
   <DeltaV_SplitBlockLine>- {0}: {1} cells</DeltaV_SplitBlockLine>
   <DeltaV_SeparationCancelled>Separation cancelled and pilot mode exited. Re-enter pilot mode and thrust to try again.</DeltaV_SeparationCancelled>
   <DeltaV_DockSourceLeftoverConfirm>Docking '{0}' will dispose of everything left outside its hull on the source map:

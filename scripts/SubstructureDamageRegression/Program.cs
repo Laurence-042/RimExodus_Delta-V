@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
+using System.Xml;
 using DeltaV;
 using HarmonyLib;
 using RimWorld;
@@ -44,6 +45,16 @@ internal static class Program
             if (linked != null && !linked.Destroyed) linked.Kill();
         }
     }
+    sealed class TestFilth : Filth
+    {
+        public override void Destroy(DestroyMode mode = DestroyMode.Vanish)
+        {
+            Map map = Map;
+            map.thingGrid.Deregister(this);
+            map.listerThings.AllThings.Remove(this);
+            Set(this, "mapIndexOrState", (sbyte)-2);
+        }
+    }
     static bool SubstructureWithOdyssey(TerrainDef __instance, ref bool __result)
     { __result = __instance.HasTag("Substructure"); return false; }
     static void Check(bool value, string name)
@@ -59,8 +70,37 @@ internal static class Program
             string path = Path.Combine(args[0], name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        try { Run(); Console.WriteLine($"PASS {checks} substructure checks"); return 0; }
+        try { CheckSpaceFilthInheritance(args[0]); Run(); Console.WriteLine($"PASS {checks} substructure checks"); return 0; }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+    }
+    static void CheckSpaceFilthInheritance(string managed)
+    {
+        using var logs = Log.LockMessages();
+        DeepProfiler.enabled = false;
+        string data = Path.GetFullPath(Path.Combine(managed, "../..", "Data"));
+        var core = new XmlDocument();
+        core.Load(Path.Combine(data, "Core/Defs/TerrainDefs/Terrain_Natural.xml"));
+        var odyssey = new XmlDocument();
+        odyssey.Load(Path.Combine(data, "Odyssey/Defs/TerrainDefs/Terrain_Natural.xml"));
+        XmlNode parent = core.SelectSingleNode("Defs/TerrainDef[@Name='NaturalTerrainBase']");
+        XmlNode child = odyssey.SelectSingleNode("Defs/TerrainDef[defName='Space']");
+        XmlInheritance.Clear();
+        XmlInheritance.TryRegister(parent, null);
+        XmlInheritance.TryRegister(child, null);
+        XmlInheritance.Resolve();
+        XmlNode resolved = XmlInheritance.GetResolvedNodeFor(child);
+        FilthSourceFlags mask = FilthSourceFlags.None;
+        foreach (XmlNode flag in resolved.SelectNodes("filthAcceptanceMask/li"))
+            mask |= (FilthSourceFlags)Enum.Parse(typeof(FilthSourceFlags), flag.InnerText);
+        var space = Terrain("Space");
+        space.exposesToVacuum = true;
+        space.filthAcceptanceMask = mask;
+        var rubble = (ThingDef)Raw(typeof(ThingDef));
+        rubble.filth = new FilthProperties();
+        Console.WriteLine($"EVIDENCE resolved Space filth mask={mask}; rubble placement={rubble.filth.placementMask}");
+        Check(FilthMaker.TerrainAcceptsFilth(space, rubble),
+            "vanilla inherited Space mask accepts rubble despite vacuum blocking new filth");
+        XmlInheritance.Clear();
     }
     static TerrainDef Terrain(string name, bool removable = false)
     {
@@ -112,7 +152,11 @@ internal static class Program
         universe.objects.Add(new MapSpaceObject(501, map, new SpacePose(Vector3.forward, 0)));
         var grid = map.terrainGrid;
         var space = Terrain("space");
+        space.exposesToVacuum = true;
+        space.filthAcceptanceMask = FilthSourceFlags.Unnatural;
+        TerrainDefOf.Space = space;
         var soil = Terrain("soil");
+        soil.filthAcceptanceMask = FilthSourceFlags.Unnatural;
         var deck = Terrain("deck", true); deck.isFoundation = true;
         deck.tags = new List<string> { "Substructure" };
         var floor = Terrain("floor", true);
@@ -124,6 +168,18 @@ internal static class Program
         int index = map.cellIndices.CellToIndex(cell);
         var roof = (RoofDef)Raw(typeof(RoofDef));
         for (int i = 0; i < grid.topGrid.Length; i++) grid.topGrid[i] = space;
+        var rubbleDef = (ThingDef)Raw(typeof(ThingDef));
+        rubbleDef.defName = "Filth_RubbleBuilding";
+        rubbleDef.category = ThingCategory.Filth;
+        rubbleDef.size = new IntVec2(1, 1);
+        rubbleDef.filth = new FilthProperties();
+        TestFilth Rubble()
+        {
+            var filth = (TestFilth)Raw(typeof(TestFilth)); filth.def = rubbleDef;
+            Set(filth, "positionInt", cell); Set(filth, "mapIndexOrState", (sbyte)0);
+            map.thingGrid.Register(filth); map.listerThings.AllThings.Add(filth);
+            return filth;
+        }
         void Layers(TerrainDef ground, bool withFloor, bool withTemp)
         {
             grid.foundationGrid[index] = deck;
@@ -136,6 +192,7 @@ internal static class Program
         foreach (bool withTemp in new[] { false, true })
         {
             Layers(ground, withFloor, withTemp);
+            TestFilth rubble = Rubble();
             map.roofGrid.SetRoof(cell, roof);
             int eventsBefore = breachEvents;
             Check(SubstructureDamageUtility.TryDestroy(map, cell), "explicit destruction succeeds");
@@ -146,7 +203,24 @@ internal static class Program
             Check(!SubstructureDamageUtility.TryDestroy(map, cell),
                 "repeated destruction does not remove underlying terrain");
             Check(breachEvents == eventsBefore + 1, "one breach event per destroyed foundation, none on repeated hit");
+            Check(rubble.Destroyed == (ground == space),
+                $"existing rubble after destruction: ground={ground.defName}, floor={withFloor}, temp={withTemp}");
+            if (!rubble.Destroyed) rubble.Destroy();
         }
+
+        // Reuse the real queued destruction event for effects created after synchronous cleanup.
+        TestFilth lateRubble = Rubble();
+        AccessTools.Method(typeof(SpaceScatterService), "NotifyDestroyedCell").Invoke(universe.Scatter,
+            new object[] { map, cell });
+        AccessTools.Method(typeof(UniverseManager), "RunFrameActions").Invoke(universe, null);
+        Check(lateRubble.Spawned, "frame cleanup preserves rubble on retained natural ground");
+        lateRubble.Destroy();
+        grid.topGrid[index] = space;
+        lateRubble = Rubble();
+        AccessTools.Method(typeof(SpaceScatterService), "NotifyDestroyedCell").Invoke(universe.Scatter,
+            new object[] { map, cell });
+        AccessTools.Method(typeof(UniverseManager), "RunFrameActions").Invoke(universe, null);
+        Check(lateRubble.Destroyed, "frame cleanup removes late rubble on exposed space");
 
         Layers(space, true, true);
         var conduitDef = (ThingDef)Raw(typeof(ThingDef));
@@ -286,6 +360,11 @@ internal static class Program
         Check(host.Spawned && map.roofGrid.RoofAt(cell) == roof,
             "unsafe transfer terrain removal does not invoke destructive cleanup");
         Check(breachEvents == beforeTransfer, "transfer terrain removal emits no breach fragments");
+        TestFilth transferRubble = Rubble();
+        AccessTools.Method(typeof(SubstructureDamageUtility), "CleanInvalidFilth")
+            .Invoke(null, new object[] { map, cell });
+        Check(transferRubble.Destroyed && host.Spawned,
+            "transfer cleanup clears only invalid filth without destructive foundation effects");
 
         // No universe context: vanilla ground-map removal must keep the floor.
         game.components.Clear();

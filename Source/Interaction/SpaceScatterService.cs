@@ -89,7 +89,11 @@ namespace DeltaV
 
         internal static bool IsCargo(Thing thing) => thing is Pawn || thing.def.category == ThingCategory.Item;
         internal static bool Supported(Map map, IntVec3 cell) => SubstructureOwnership.HasFoundation(map, cell)
-            || map.terrainGrid.TerrainAt(cell) != TerrainDefOf.Space;
+            || map.terrainGrid.TerrainAt(cell) is TerrainDef terrain
+                && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void;
+
+        internal static IEnumerable<Thing> LooseCargo(Map map) => map.listerThings.AllThings
+            .Where(t => t.Spawned && !t.Destroyed && IsCargo(t) && !Supported(map, t.Position));
 
         internal void NotifyDestroyedCell(Map map, IntVec3 cell)
         {
@@ -104,8 +108,11 @@ namespace DeltaV
                     damaged.Remove(map);
                     if (map.Disposed || universe.FrameOf(map) == null) return;
                     foreach (IntVec3 lost in current)
+                    {
+                        SubstructureDamageUtility.CleanInvalidFilth(map, lost);
                         if (!Supported(map, lost))
                             foreach (Thing thing in lost.GetThingList(map).Where(IsCargo).ToList()) TryScatter(thing);
+                    }
                 });
             }
             cells.Add(cell);
@@ -113,9 +120,9 @@ namespace DeltaV
 
         internal bool ScatterLoose(Map map)
         {
-            foreach (Thing thing in map.listerThings.AllThings.Where(IsCargo).ToList())
-                if (thing.Spawned && !Supported(map, thing.Position) && !TryScatter(thing)) return false;
-            return !map.listerThings.AllThings.Any(t => IsCargo(t) && !Supported(map, t.Position));
+            foreach (Thing thing in LooseCargo(map).ToList())
+                if (!TryScatter(thing)) return false;
+            return !LooseCargo(map).Any();
         }
 
         internal bool TryScatter(Thing thing)

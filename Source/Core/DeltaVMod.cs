@@ -128,9 +128,12 @@ namespace DeltaV
             if (hideEmptyMaps != Settings.hideSpaceMapsWithoutPlayerPawns && Find.UIRoot is UIRoot_Play)
                 Find.ColonistBar?.MarkColonistsDirty();
             list.Gap(6f);
+            float previousZoomMax = Settings.universeZoomMax;
             TippedRow(list, rect, "DeltaV_SettingsUniverseZoomMaxTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsUniverseZoomMax".Translate(), ref Settings.universeZoomMax,
                     ref universeZoomMaxBuffer, 60f, 5000f));
+            if (Settings.universeZoomMax != previousZoomMax)
+                Current.Game?.GetComponent<UniverseManager>()?.ApplyCameraZoomScope();
             list.GapLine();
             list.Label("DeltaV_SettingsCoordinateGridTransparency".Translate((1f - Settings.coordinateGridOpacity).ToStringPercent()));
             Settings.coordinateGridOpacity = 1f - list.Slider(1f - Settings.coordinateGridOpacity, 0f, 1f);

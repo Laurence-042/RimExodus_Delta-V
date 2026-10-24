@@ -153,7 +153,14 @@ namespace DeltaV
             // ---- 内容行（先备好文本，再按真实高度布局：面板高度随内容变化）----
             var statusLines = new List<string>();
             ShipControlState controlState = universe.Pilot.GetControlState(selected);
-            SpacePose shipPose = hasShip ? ShipRegistry.ShipPose(selected) : default;
+            SpacePose shipPose = hasStructure ? ShipRegistry.StructurePose(map, selectedStructure) : frame.pose;
+            Vector2 focusPoint = hasStructure
+                ? (hasShip ? selected.HullCenter
+                    : SpaceTransform.BoundsCenterOfCells(ShipRegistry.StructureCells(map, selectedStructure)))
+                : SpaceTransform.ShipLocalOrigin(map);
+            Vector3 cameraCenter = Find.CameraDriver.CurrentViewRect.CenterVector3;
+            bool showRefocus = Vector2.Distance(new Vector2(cameraCenter.x, cameraCenter.z), focusPoint)
+                > Mathf.Max(20f, Find.CameraDriver.RootSize * 0.6f);
             if (hasShip)
             {
                 DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(selected.Map)?.MotionInfo;
@@ -184,6 +191,14 @@ namespace DeltaV
             else if (hasStructure)
             {
                 statusLines.Add("DeltaV_PanelNeedsPrimaryConsole".Translate());
+            }
+            if (!hasShip)
+            {
+                statusLines.Add("DeltaV_HudSpeed".Translate(shipPose.velocity.magnitude.ToString("F1")));
+                statusLines.Add("DeltaV_HudHeading".Translate(
+                    (shipPose.angle * Mathf.Rad2Deg).ToString("F0")));
+                statusLines.Add("DeltaV_HudTurnRate".Translate(
+                    (shipPose.angularVelocity * Mathf.Rad2Deg).ToString("F1")));
             }
             if (dockingPlan)
             {
@@ -242,7 +257,7 @@ namespace DeltaV
                 + (headingActions.Count > 0 ? 20f + 26f * 3f + 6f : 0f);
             modeButtonsHeight += combatHeight;
             float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + shipListHeight
-                + modeButtonsHeight + 8f;
+                + modeButtonsHeight + (showRefocus ? 33f : 0f) + 8f;
             const float sliderRowHeight = 30f;
             float headerHeight = GlobeSize + 8f + sliderRowHeight;
             float maxPanelHeight = Mathf.Max(headerHeight + 80f,
@@ -285,6 +300,18 @@ namespace DeltaV
                 lineY += h;
             }
             lineY += 8f;
+
+            if (showRefocus)
+            {
+                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f),
+                    "DeltaV_PanelRefocus".Translate()))
+                {
+                    var cell = new IntVec3(Mathf.FloorToInt(focusPoint.x), 0,
+                        Mathf.FloorToInt(focusPoint.y)).ClampInsideMap(map);
+                    CameraJumper.TryJump(cell, map, CameraJumper.MovementMode.Cut);
+                }
+                lineY += 33f;
+            }
 
             // ---- 结构列表：查看选择不要求结构具有驾驶能力 ----
             if (structures.Count > 1)

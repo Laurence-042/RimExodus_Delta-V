@@ -329,6 +329,7 @@ namespace DeltaV
                 }
             }
             objects.Add(obj);
+            if (obj.map != null && obj.map == Find.CurrentMap) ApplyCameraZoomScope();
             if (obj.IsScattered) Scatter.Register(obj);
             if (obj.map != null && Find.UIRoot is UIRoot_Play) Find.ColonistBar?.MarkColonistsDirty();
             if (obj.map != null) SubstructureOwnership.BumpStructureVersion();
@@ -357,6 +358,7 @@ namespace DeltaV
             // Resolve projectile resources while the old identity is still registered.
             Projectiles.NotifyContainerRemoving(obj);
             objects.Remove(obj);
+            if (obj.map != null && obj.map == Find.CurrentMap) ApplyCameraZoomScope();
             scatter?.Remove(obj);
             if (obj.map != null && Find.UIRoot is UIRoot_Play) Find.ColonistBar?.MarkColonistsDirty();
             globeDisplay?.Forget(obj.map);
@@ -514,6 +516,7 @@ namespace DeltaV
 
         public override void StartedNewGame()
         {
+            ApplyCameraZoomScope();
             OrbitalPoiRegistry.Synchronize(this);
             Weapons.RebuildWeaponIndex();
             Controls.Rebuild();
@@ -620,6 +623,7 @@ namespace DeltaV
             Weapons.RebuildWeaponIndex();
             Controls.Rebuild();
             if (SoftDockEnabled) SoftDock.RestoreEnabled();
+            ApplyCameraZoomScope();
         }
 
         /// <summary>
@@ -710,7 +714,6 @@ namespace DeltaV
             // 帧上下文动作消费（分离执行、对接完成收尾、源图善后、战略离场善后等
             // 「必须离开 tick 调用栈」的收尾唯一出口），先消费再处理渲染/输入。
             RunFrameActions();
-            UpdateUniverseZoom();
             // 驾驶状态维护（自动退出 + Harmony 按键抑制开关）。聚焦跟随由 CurrentMap 天然承载。
             Pilot.UpdateFrameState(this);
             DebugActions_DeltaV.UpdateFrameMeter();
@@ -727,44 +730,55 @@ namespace DeltaV
             ThrusterAudio.Update(this);
         }
 
-        // 相机缩放放宽（宇宙视野）：进入 Delta-V 参考系（对象图/真实空间图）时记录原 max 并放宽，
-        // 离开时恢复。每帧幂等——config 对象可能被原版在切图等时机替换。
-        private float savedVanillaZoomMax = float.NaN;
+        // 缩放设置属于共享 CameraMapConfig；按切图/设置事件在宇宙图覆盖，离图恢复。
+        private CameraMapConfig zoomConfig;
+        private float outsideZoomMax = float.NaN;
 
-        private void UpdateUniverseZoom()
+        internal void ApplyCameraZoomScope()
         {
-            CameraDriver driver = Find.CameraDriver;
-            if (driver?.config == null)
+            CameraMapConfig config = Find.CameraDriver?.config;
+            if (config == null) return;
+            if (zoomConfig != null && zoomConfig != config)
             {
-                return;
+                zoomConfig.sizeRange.max = outsideZoomMax;
+                zoomConfig = null;
+                outsideZoomMax = float.NaN;
             }
-            float target = Mathf.Max(driver.config.sizeRange.min + 1f, DeltaVMod.CurrentSettings.universeZoomMax);
             if (FrameOf(Find.CurrentMap) != null)
             {
-                if (float.IsNaN(savedVanillaZoomMax))
+                if (zoomConfig == null)
                 {
-                    savedVanillaZoomMax = driver.config.sizeRange.max;
+                    zoomConfig = config;
+                    outsideZoomMax = config.sizeRange.max;
                 }
-                if (driver.config.sizeRange.max < target)
-                {
-                    driver.config.sizeRange.max = target;
-                }
+                config.sizeRange.max = Mathf.Max(config.sizeRange.min + 1f,
+                    DeltaVMod.CurrentSettings.universeZoomMax);
             }
-            else if (!float.IsNaN(savedVanillaZoomMax))
+            else if (zoomConfig != null)
             {
-                driver.config.sizeRange.max = savedVanillaZoomMax;
-                savedVanillaZoomMax = float.NaN;
+                config.sizeRange.max = outsideZoomMax;
+                zoomConfig = null;
+                outsideZoomMax = float.NaN;
             }
         }
 
-        /// <summary>
-        /// 当前相机上限是否处于 Delta-V 放宽状态；是则给出放宽前的原版值。
-        /// 供 GravshipCapturer 快照补丁在捕获窗口内临时还原原版缩放包络。
-        /// </summary>
-        internal bool TryGetVanillaZoomMax(out float vanillaMax)
+        // SCS 在设置保存时先写入共享 config；保存该新值，再重施 Delta-V 上限。
+        internal void NotifyExternalCameraZoomMaxWritten(CameraMapConfig config)
         {
-            vanillaMax = savedVanillaZoomMax;
-            return !float.IsNaN(savedVanillaZoomMax);
+            if (config == null || config != Find.CameraDriver?.config) return;
+            if (zoomConfig == config) outsideZoomMax = config.sizeRange.max;
+            ApplyCameraZoomScope();
+        }
+
+        /// <summary>
+        /// 当前相机上限是否处于 Delta-V 覆盖状态；是则给出图外配置值。
+        /// 供 GravshipCapturer 快照补丁在捕获窗口内临时使用图外缩放包络。
+        /// </summary>
+        internal bool TryGetOutsideZoomMax(out float outsideMax)
+        {
+            outsideMax = outsideZoomMax;
+            return zoomConfig != null && zoomConfig == Find.CameraDriver?.config
+                && !float.IsNaN(outsideZoomMax);
         }
 
         /// <summary>

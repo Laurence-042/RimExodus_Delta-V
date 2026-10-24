@@ -1,3 +1,4 @@
+using RimWorld;
 using Verse;
 
 namespace DeltaV
@@ -37,7 +38,18 @@ namespace DeltaV
                 if (thing is Building && thing.Spawned && thing.Map == map && !thing.Destroyed)
                     thing.Kill();
             }
+            CleanInvalidFilth(map, cell);
             Current.Game?.GetComponent<UniverseManager>()?.Scatter.NotifyDestroyedCell(map, cell);
+        }
+
+        /// <summary>仅供毁伤和搬运收尾；Space 的继承掩码可能接受碎石，须同时遵循生成时的真空限制。</summary>
+        internal static void CleanInvalidFilth(Map map, IntVec3 cell)
+        {
+            TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
+            foreach (Thing thing in cell.GetThingList(map).ToArray())
+                if (thing is Filth && (terrain.exposesToVacuum
+                    || !FilthMaker.TerrainAcceptsFilth(terrain, thing.def)))
+                    thing.Destroy(DestroyMode.Vanish);
         }
     }
 }

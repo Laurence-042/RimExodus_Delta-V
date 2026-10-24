@@ -40,10 +40,10 @@ namespace DeltaV
 
     public enum ShipDerivedState : byte
     {
-        /// <summary>所在图上有其他有效船 / 停在天然地面 / 地表图：与承载环境对接，禁止主动出力。</summary>
+        /// <summary>工作图、其他独立船或整图天然地面宿主：主动出力前先提取本船。</summary>
         Docked,
 
-        /// <summary>图上唯一有效船且不在天然地面上：可驾驶、可自动驾驶。</summary>
+        /// <summary>普通飞行图唯一独立船：主动出力前先搬出断片和散落内容。</summary>
         FreeFlight
     }
 
@@ -283,27 +283,24 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 基架块搬运不能覆盖的持久内容。exclude 是本船将带走的控制域；其余无基架格上
-        /// 的实物、屋顶或非真空地形必须留给宿主，不能让该 Map 继续作为本船的运动容器。
+        /// 源图善后的持久内容检查；不参与出力分离方向判定。
         /// </summary>
-        internal static bool HasLooseContents(Map map, HashSet<IntVec3> exclude = null)
+        internal static bool HasLooseContents(Map map)
         {
             if (map == null || map.Disposed) return false;
             foreach (Thing thing in map.listerThings.AllThings)
             {
                 if (thing == null || thing.Destroyed || !thing.Spawned
-                    || exclude?.Contains(thing.Position) == true
                     || SubstructureOwnership.HasFoundation(map, thing.Position)) continue;
                 ThingCategory category = thing.def.category;
-                if (category == ThingCategory.Mote || category == ThingCategory.Projectile
+                if (category == ThingCategory.Filth || category == ThingCategory.Mote || category == ThingCategory.Projectile
                     || category == ThingCategory.Gas
                     || category == ThingCategory.Ethereal && !(thing is Blueprint) && !(thing is Frame)) continue;
                 return true;
             }
             foreach (IntVec3 cell in map.AllCells)
             {
-                if (exclude?.Contains(cell) == true
-                    || SubstructureOwnership.HasFoundation(map, cell)) continue;
+                if (SubstructureOwnership.HasFoundation(map, cell)) continue;
                 if (map.roofGrid.RoofAt(cell) != null) return true;
                 TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
                 if (terrain != null && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void)
@@ -347,45 +344,24 @@ namespace DeltaV
         // ---- 状态派生（§5.2）----
 
         /// <summary>
-        /// 对接状态由同图组成与停放关系判定（§5.2，派生不存档）：图上有其他有效船、
-        /// 停在天然地面（基架下是非 Space 的真实地面 = 小行星）或地表图（无承载容器）
-        /// 均为对接；无主台残骸不构成船，与残骸合图的唯一船仍自由飞行。
+        /// 显示状态与出力分离方向共用宿主判定；残骸和散落内容不构成其他船。
         /// </summary>
-        public static ShipDerivedState StateOf(Ship ship)
+        public static ShipDerivedState StateOf(Ship ship) =>
+            RequiresOwnPocket(ship) ? ShipDerivedState.Docked : ShipDerivedState.FreeFlight;
+
+        internal static bool RequiresOwnPocket(Ship ship)
         {
-            if (!ship.IsValid) return ShipDerivedState.Docked;
+            if (!ship.IsValid) return true;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SpaceObject frame = universe?.FrameOf(ship.map);
-            if (frame == null) return ShipDerivedState.Docked;
-            if (frame.IsWorksite) return ShipDerivedState.Docked;
+            if (frame == null || frame.IsWorksite) return true;
             // 停放在本船上的成员不能直接驾驶宿主；只计算该容器的独立驾驶主体。
             if (frame.Ships.Any(other => other.Identity != new DriveSubject(0, ship.ownerId)
-                && other.CanDriveIn(frame))) return ShipDerivedState.Docked;
-            if (RestsOnNaturalGround(ship)) return ShipDerivedState.Docked;
-            return ShipDerivedState.FreeFlight;
+                && other.IsValid && other.CanDriveIn(frame))) return true;
+            return SubstructureOwnership.For(ship.map).HasNaturalGround;
         }
 
         public static bool IsFreeFlight(Ship ship) => StateOf(ship) == ShipDerivedState.FreeFlight;
-
-        /// <summary>
-        /// 船是否停在天然地面上（小行星停放，§5.2）：控制域任一格的基架之下存在
-        /// 非 Space 的真实地面（TerrainGrid 的 top/under 层，忽略 foundation 层）。
-        /// 口袋图结构外全部是 Space，天然不命中；不能凭 worldtile/POI 类型推定。
-        /// </summary>
-        public static bool RestsOnNaturalGround(Ship ship)
-        {
-            if (!ship.IsValid) return false;
-            TerrainGrid terrain = ship.map.terrainGrid;
-            foreach (IntVec3 cell in ControlDomain(ship))
-            {
-                TerrainDef baseTerrain = terrain.BaseTerrainAt(cell);
-                if (baseTerrain != null && baseTerrain != TerrainDefOf.Space)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
 
         // ---- 位姿派生（§11：船无第二套积分状态）----
 
@@ -400,7 +376,7 @@ namespace DeltaV
         {
             return ship.console != null && ship.console.parent != null
                 ? ShipOrientation.AngleFromRot4(ship.console.parent.Rotation)
-                : 0f;
+                : ShipOrientation.AngleFromRot4(Rot4.North);
         }
 
         /// <summary>
@@ -416,6 +392,20 @@ namespace DeltaV
             if (frame == null) return new SpacePose(Vector3.right, 0f);
             return SpaceTransform.RigidPointPose(frame.pose,
                 SpaceTransform.MapToShipLocal(ship.Map, ship.HullCenter), ship.FrameAngle);
+        }
+
+        /// <summary>无驾驶台结构仍是所在容器上的刚体点；其默认船艏为地图北侧。</summary>
+        internal static SpacePose StructurePose(Map map, DriveSubject identity)
+        {
+            ShipBase ship = ShipByIdentity(identity);
+            if (ship.IsValid && ship.Map == map) return ShipPose(ship);
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            SpaceObject frame = universe?.FrameOf(map);
+            if (frame == null || !HasStructure(map, identity)) return new SpacePose(Vector3.right, 0f);
+            Vector2 center = SpaceTransform.BoundsCenterOfCells(StructureCells(map, identity));
+            return SpaceTransform.RigidPointPose(frame.pose,
+                SpaceTransform.MapToShipLocal(map, center),
+                ShipOrientation.AngleFromRot4(Rot4.North));
         }
 
         // ---- 成员 / 派系 / 引擎 ----

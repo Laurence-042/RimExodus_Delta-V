@@ -86,6 +86,7 @@ internal static partial class Program
         CheckShipCapabilities(universe, faction);
         CheckShuttleLifecycle(universe, faction);
         CheckFoundationLifecycle(universe, faction, other);
+        CheckSeparationRules(universe, faction);
         CheckCombatTargets(universe, faction, other);
         CheckPerShipFireControl(universe, faction, other);
         CheckStructureSelection(universe, faction, other);

@@ -641,6 +641,7 @@ namespace DeltaV
                 if (includeTerrain)
                 {
                     map.terrainGrid.RemoveGravshipTerrainUnsafe(cell, index);
+                    SubstructureDamageUtility.CleanInvalidFilth(map, cell);
                     map.roofGrid.RemoveRoofUnsafe(index);
                     map.areaManager.BuildRoof[index] = false;
                     map.areaManager.NoRoof[index] = false;

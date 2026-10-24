@@ -21,6 +21,7 @@
   <DeltaV_HudSpeed>速度：{0} 格/秒</DeltaV_HudSpeed>
   <DeltaV_HudHeading>航向：{0}°</DeltaV_HudHeading>
   <DeltaV_HudTurnRate>转速：{0}°/秒</DeltaV_HudTurnRate>
+  <DeltaV_PanelRefocus>重新聚焦</DeltaV_PanelRefocus>
   <DeltaV_HudMass>质量：{0}</DeltaV_HudMass>
   <DeltaV_HudAssist>飞行辅助：{0}</DeltaV_HudAssist>
   <DeltaV_On>开</DeltaV_On>
@@ -154,11 +155,13 @@
   <DeltaV_CompassEast>东</DeltaV_CompassEast>
   <DeltaV_CompassSouth>南</DeltaV_CompassSouth>
   <DeltaV_CompassWest>西</DeltaV_CompassWest>
-  <DeltaV_SplitConfirmText>推进器出力会把这组结构撕裂开来。
+  <DeltaV_SplitConfirmText>推进器出力前，需要分离本船之外的残留内容。
 
 {0}
 
-确认将这些结构分离为独立残骸并继续？</DeltaV_SplitConfirmText>
+基架断片将成为独立残骸，无承载的人员和物品将独立漂浮。确认继续？</DeltaV_SplitConfirmText>
+  <DeltaV_SplitCargoLine>- 将独立漂浮的人员/物品：
+{0}</DeltaV_SplitCargoLine>
   <DeltaV_SplitBlockLine>- {0}：{1} 格</DeltaV_SplitBlockLine>
   <DeltaV_SeparationCancelled>已取消分离并退出驾驶。重新进入驾驶并推进即可再次尝试。</DeltaV_SeparationCancelled>
   <DeltaV_DockSourceLeftoverConfirm>对接「{0}」将处置其船体以外、留在源图上的全部内容：
