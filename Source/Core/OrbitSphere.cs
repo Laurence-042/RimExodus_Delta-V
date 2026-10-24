@@ -137,6 +137,19 @@ namespace DeltaV
         /// <summary>1 弧度弧长对应的宇宙格数（球面上量距的换算系数）。</summary>
         public static float CellsPerRadian => CellsPerRadianOf(Layer);
 
+        internal static void GridAngles(Vector3 point, out double latitude, out double longitude)
+        {
+            Direction d = new Direction(point).Normalized;
+            latitude = Math.Asin(Math.Max(-1d, Math.Min(1d, d.y)));
+            longitude = Math.Atan2(d.z, d.x);
+        }
+
+        internal static Vector3 GridPoint(double latitude, double longitude)
+        {
+            double c = Math.Cos(latitude);
+            return new Direction(c * Math.Cos(longitude), Math.Sin(latitude), c * Math.Sin(longitude)).Vector;
+        }
+
         /// <summary>读档 / 新世界 / 尺度设置变化后清空缓存（与 ShellRenderer 缓存自愈纪律一致）。</summary>
         public static void ClearCache()
         {

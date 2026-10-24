@@ -23,6 +23,9 @@ namespace DeltaV
                 universe.SoftDock.SetEnabled(soft);
             }
             if (universe == null) return;
+            if (Find.CurrentMap != null && universe.FrameOf(Find.CurrentMap) != null)
+                row.ToggleableIcon(ref universe.ShowCoordinateGrid, TexButton.ShowTerrainAffordanceOverlay,
+                    "DeltaV_CoordinateGridToggle".Translate(), SoundDefOf.Mouseover_ButtonToggle);
             row.ToggleableIcon(ref universe.ShowThrusterDebugOverlay, TexCommand.SquadAttack,
                 "DeltaV_DebugThrustersToggleButton".Translate(), SoundDefOf.Mouseover_ButtonToggle);
             bool showWeaponArcs = universe.ShowWeaponArcOverlay;

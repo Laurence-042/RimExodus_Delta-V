@@ -95,6 +95,7 @@ namespace DeltaV
         public SoftDockService SoftDock => softDock ?? (softDock = new SoftDockService(this));
         internal bool SoftDockEnabled;
         internal bool ShowThrusterDebugOverlay;
+        internal bool ShowCoordinateGrid = true;
         internal bool ShowWeaponArcOverlay;
         internal bool ShowCollisionDebugOverlay;
         [NonSerialized] private OrbitalWorkService worksites;
@@ -552,6 +553,7 @@ namespace DeltaV
             Scribe_Collections.Look(ref generatedSectorTiles, "generatedSectorTiles", LookMode.Value);
             Scribe_Values.Look(ref SoftDockEnabled, "softDockEnabled", false);
             Scribe_Values.Look(ref ShowThrusterDebugOverlay, "showThrusterDebugOverlay", false);
+            Scribe_Values.Look(ref ShowCoordinateGrid, "showCoordinateGrid", true);
             Scribe_Values.Look(ref ShowWeaponArcOverlay, "showWeaponArcOverlay", false);
             Scribe_Values.Look(ref ShowCollisionDebugOverlay, "showCollisionDebugOverlay", false);
             if (Scribe.mode == LoadSaveMode.LoadingVars && generatedSectorTiles == null)
@@ -817,6 +819,7 @@ namespace DeltaV
             // 容器求交，命中经联合效果注册表对称结算；销毁/归池经帧边界回调）。
             scatter?.Tick();
             Projectiles.ResolveCollisions();
+            Projectiles.TickMotionFeedback();
             // 生命周期只按设置周期扫描；归档对象已在上方与其他容器一起逐 tick 推进。
             int now = Find.TickManager.TicksGame;
             if (lastLifecycleScanTick < 0) lastLifecycleScanTick = now;
@@ -1099,6 +1102,7 @@ namespace DeltaV
         /// </summary>
         private void ResetRuntimeServices()
         {
+            projectiles?.ResetMotionFeedback();
             mapPool = null;
             scatter = null;
             softDock = null;

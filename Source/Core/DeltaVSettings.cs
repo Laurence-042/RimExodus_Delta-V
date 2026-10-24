@@ -30,6 +30,7 @@ namespace DeltaV
         /// 远处飞船/POI 的外壳代理画在世界空间、本不受地图矩形限制，唯一约束就是这个缩放上限。
         /// </summary>
         public float universeZoomMax = 400f;
+        public float coordinateGridOpacity = 0.22f;
 
         /// <summary>POI 进入活跃段的距离（universe 格，阶段3）。</summary>
         public float poiActiveRadius = 300f;
@@ -161,6 +162,7 @@ namespace DeltaV
             Scribe_Values.Look(ref dragLinearHalfLifeTicks, "dragLinearHalfLifeTicks", 480);
             Scribe_Values.Look(ref dragAngularHalfLifeTicks, "dragAngularHalfLifeTicks", 180);
             Scribe_Values.Look(ref spaceImpactSound, "spaceImpactSound", true);
+            Scribe_Values.Look(ref coordinateGridOpacity, "coordinateGridOpacity", 0.22f);
             Scribe_Values.Look(ref logCore, "logCore", false);
             Scribe_Values.Look(ref logInput, "logInput", false);
             Scribe_Values.Look(ref logPhysics, "logPhysics", false);

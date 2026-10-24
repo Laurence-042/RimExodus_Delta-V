@@ -97,6 +97,7 @@ namespace DeltaV
         public bool operational => source.operational;
         public float thrust => source.thrust;
         public float throttle => source.throttle;
+        public ThrusterVisualProfile visuals => thing?.TryGetComp<CompThrusterVisuals>()?.Profile ?? source.visuals;
     }
 
     /// <summary>整图卸载后无法重建的数值布局；不保存 Thing、油门、求解工作区。</summary>

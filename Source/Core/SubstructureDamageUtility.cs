@@ -22,6 +22,7 @@ namespace DeltaV
         internal static void CompleteDestruction(Map map, IntVec3 cell)
         {
             if (SubstructureOwnership.HasFoundation(map, cell)) return;
+            Current.Game?.GetComponent<UniverseManager>()?.Projectiles.NotifyFoundationDestroyed(map, cell);
             // 保留真实底层太空/天然地面；原版毁伤可能只清掉了最上层临时地形。
             map.terrainGrid.RemoveTempTerrain(cell, doLeavings: false, preventDestroyEffects: true);
             if (map.terrainGrid.UnderTerrainAt(cell) != null)

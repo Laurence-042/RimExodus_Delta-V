@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reuses verified Core metal and Odyssey engine grains; no new audio dependency. -->
+<Defs>
+  <SoundDef>
+    <defName>DeltaV_EngineStartMap</defName>
+    <context>MapOnly</context>
+    <maxSimultaneous>2</maxSimultaneous>
+    <subSounds>
+      <li>
+        <onCamera>False</onCamera>
+        <grains>
+          <li Class="AudioGrain_Clip">
+            <clipPath>Gravship/Gravship_Engine_Start</clipPath>
+          </li>
+        </grains>
+        <volumeRange>42</volumeRange>
+        <pitchRange>0.90~1.00</pitchRange>
+        <distRange>12~100</distRange>
+      </li>
+    </subSounds>
+  </SoundDef>
+  <SoundDef>
+    <defName>DeltaV_EngineStartShell</defName>
+    <context>MapOnly</context>
+    <maxSimultaneous>2</maxSimultaneous>
+    <subSounds>
+      <li>
+        <onCamera>True</onCamera>
+        <grains>
+          <li Class="AudioGrain_Clip">
+            <clipPath>Gravship/Gravship_Engine_Start</clipPath>
+          </li>
+        </grains>
+        <volumeRange>42</volumeRange>
+        <pitchRange>0.90~1.00</pitchRange>
+      </li>
+    </subSounds>
+  </SoundDef>
+  <SoundDef>
+    <defName>DeltaV_EngineStopMap</defName>
+    <context>MapOnly</context>
+    <maxSimultaneous>2</maxSimultaneous>
+    <subSounds>
+      <li>
+        <onCamera>False</onCamera>
+        <grains>
+          <li Class="AudioGrain_Clip">
+            <clipPath>Gravship/GravshipEngineStop_B</clipPath>
+          </li>
+        </grains>
+        <volumeRange>30</volumeRange>
+        <pitchRange>0.90~1.00</pitchRange>
+        <distRange>12~100</distRange>
+      </li>
+    </subSounds>
+  </SoundDef>
+  <SoundDef>
+    <defName>DeltaV_EngineStopShell</defName>
+    <context>MapOnly</context>
+    <maxSimultaneous>2</maxSimultaneous>
+    <subSounds>
+      <li>
+        <onCamera>True</onCamera>
+        <grains>
+          <li Class="AudioGrain_Clip">
+            <clipPath>Gravship/GravshipEngineStop_B</clipPath>
+          </li>
+        </grains>
+        <volumeRange>30</volumeRange>
+        <pitchRange>0.90~1.00</pitchRange>
+      </li>
+    </subSounds>
+  </SoundDef>
+  <SoundDef>
+    <defName>DeltaV_HullResonance</defName>
+    <context>MapOnly</context>
+    <maxSimultaneous>1</maxSimultaneous>
+    <subSounds>
+      <li>
+        <onCamera>True</onCamera>
+        <grains>
+          <li Class="AudioGrain_Folder">
+            <clipFolderPath>Impact/BuildingDestroyed/Metal/Big</clipFolderPath>
+          </li>
+        </grains>
+        <volumeRange>32</volumeRange>
+        <pitchRange>0.55~0.65</pitchRange>
+      </li>
+    </subSounds>
+  </SoundDef>
+</Defs>

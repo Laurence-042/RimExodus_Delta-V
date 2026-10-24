@@ -9,7 +9,7 @@ namespace DeltaV
     /// <summary>
     /// 阶段2 推进器表现层。点火状态只读取 ShipPhysics 分配器写出的**真实**逐推进器
     /// 油门（唯一写入者 Allocate，驾驶/自动驾驶/未来舰船 AI 共用；配 0.25s 新鲜期，
-    /// 防止力源停止后的幽灵火焰）；火焰材质、尺寸、偏移与排气 Fleck 参数复用
+    /// 防止力源停止后的幽灵火焰）；火焰材质、尺寸、偏移与排气喷口参数复用
     /// Odyssey Gravship 推进器 Def。两条读取路径：聚焦帧船的真实地图位姿（Draw），
     /// 非聚焦船壳的显示矩阵换算（CollectShellFlames，经 ShellRenderer 调用）。
     /// 表现状态可随时丢弃重建，不反向参与物理或存档。
@@ -26,7 +26,6 @@ namespace DeltaV
 
         private static readonly int ShaderPropertyColor2 = Shader.PropertyToID("_Color2");
         private static readonly MaterialPropertyBlock FlameBlock = new MaterialPropertyBlock();
-        private static readonly Dictionary<Thing, float> ExhaustEmissionRemainder = new Dictionary<Thing, float>();
 
         public static void Draw(UniverseManager universe)
         {
@@ -36,7 +35,6 @@ namespace DeltaV
             SpaceObject frame = universe.FrameOf(current);
             if (frame == null || frame.projectileRoleOverride || !WorldRendererUtility.DrawingMap)
             {
-                ExhaustEmissionRemainder.Clear();
                 return;
             }
 
@@ -51,10 +49,6 @@ namespace DeltaV
                 ThrusterInfo thruster = report.thrusters[i];
                 if (thruster.throttle <= MinVisibleThrottle)
                 {
-                    if (thruster.thing != null)
-                    {
-                        ExhaustEmissionRemainder.Remove(thruster.thing);
-                    }
                     continue;
                 }
                 if (thruster.thing == null)
@@ -64,7 +58,6 @@ namespace DeltaV
                 }
                 if (!thruster.thing.Spawned) continue;
                 DrawFlame(thruster);
-                EmitExhaust(thruster, current);
             }
         }
 
@@ -214,7 +207,7 @@ namespace DeltaV
         /// 来自 ShellRenderer.DrawObjectShell（船局部 → 聚焦帧）；推进器本体仍在源
         /// Map 上，只读它的 Def 参数与朝向，不读其真实地图位姿。mesh/matrix 照抄
         /// GenDraw.DrawQuad（反编译核实：plane10 + TRS(pos, rot, (size,1,size))）。
-        /// 排气 Fleck 属船自身 Map 的 flecks 体系，画不进聚焦帧，不在船壳层发射。
+        /// 脱离排气由宇宙表现管线统一绘制，不在船壳层重复发射。
         /// </summary>
         public static void CollectShellFlames(SpaceObject container, Map map, Matrix4x4 matrix, Quaternion rotation)
         {
@@ -276,69 +269,41 @@ namespace DeltaV
                     new Vector3(flame.flameSize, 1f, flame.flameSize)), flame.material, block);
         }
 
-        private static void EmitExhaust(ThrusterInfo thruster, Map map)
+        // 喷口由同一火焰几何推导，宇宙排气不再进入随船 Map 的 Fleck 系统。
+        internal static bool TryGetExhaustPort(ThrusterInfo thruster, Map map,
+            out Vector2 point, out float size)
         {
-            if (Find.TickManager.Paused)
+            point = default;
+            size = 0f;
+            FlameDraw flame;
+            Vector3 facing;
+            if (thruster.thing != null)
             {
-                return;
+                Thing thing = thruster.thing;
+                if (!thing.Spawned) return false;
+                Quaternion rotation = thing.Rotation.AsQuat;
+                if (!TryBuildFlame(thing, thruster.throttle, rotation,
+                    GenThing.TrueCenter(thing.Position, thing.Rotation, thing.def.size, 0f), out flame)) return false;
+                facing = rotation * Vector3.forward;
             }
-            Thing thing = thruster.thing;
-            CompProperties_GravshipThruster props = thing.TryGetComp<CompGravshipThruster>()?.Props;
-            CompProperties_GravshipThruster.ExhaustSettings settings = props?.exhaustSettings;
-            if (settings == null || !settings.enabled || settings.ExhaustFleckDef == null)
+            else
             {
-                return;
+                Vector2 origin = SpaceTransform.ShipLocalToMap(map, thruster.localPos);
+                facing = new Vector3(thruster.dir.x, 0f, thruster.dir.y);
+                if (!TryBuildVirtualFlame(thruster, Quaternion.LookRotation(facing, Vector3.up),
+                    new Vector3(origin.x, 0f, origin.y), out flame)) return false;
             }
-
-            float throttle = Mathf.Clamp01(thruster.throttle);
-            float visualThrottle = Mathf.Sqrt(throttle);
-            float queued = ExhaustEmissionRemainder.TryGetValue(thing, out float remainder) ? remainder : 0f;
-            queued += Time.deltaTime * settings.emissionsPerSecond * throttle;
-            int count = Mathf.FloorToInt(queued);
-            ExhaustEmissionRemainder[thing] = queued - count;
-            if (count <= 0)
-            {
-                return;
-            }
-
-            float fullSize = thing.def.size.x * props.flameSize;
-            float flameSize = fullSize * Mathf.Lerp(0.08f, 1f, visualThrottle);
-            Vector3 flameOffset = thing.Rotation.AsQuat * props.flameOffsetsPerDirection[thing.Rotation.AsInt];
-            Vector3 position = GenThing.TrueCenter(thing.Position, thing.Rotation, thing.def.size, 0f)
-                - thing.Rotation.AsIntVec3.ToVector3() * (thing.def.size.z * 0.5f + flameSize * 0.5f)
-                + flameOffset;
-            Quaternion rotation = thing.Rotation.AsQuat;
-            for (int i = 0; i < count; i++)
-            {
-                Vector3 radial = Random.insideUnitSphere.WithY(0f);
-                if (radial.sqrMagnitude > 1e-6f)
-                {
-                    radial.Normalize();
-                }
-                map.flecks.CreateFleck(new FleckCreationData
-                {
-                    def = settings.ExhaustFleckDef,
-                    spawnPosition = position + rotation * settings.spawnOffset
-                        + radial * settings.spawnRadiusRange.RandomInRange,
-                    scale = settings.scaleRange.RandomInRange * Mathf.Lerp(0.35f, 1f, visualThrottle),
-                    velocity = rotation * Quaternion.Euler(0f, settings.velocityRotationRange.RandomInRange, 0f)
-                        * (settings.velocity * settings.velocityMultiplierRange.RandomInRange
-                            * Mathf.Lerp(0.35f, 1f, visualThrottle)),
-                    rotationRate = settings.rotationOverTimeRange.RandomInRange,
-                    ageTicksOverride = -1
-                });
-            }
+            Vector3 nozzle = flame.position + facing * flame.flameSize * 0.5f;
+            point = new Vector2(nozzle.x, nozzle.z);
+            size = flame.flameSize;
+            return true;
         }
 
         public static void ClearRuntimeCaches()
         {
-            ExhaustEmissionRemainder.Clear();
-        }
-
-        public static void Forget(Map map)
-        {
-            if (map == null) return;
-            foreach (Thing thing in map.spawnedThings) ExhaustEmissionRemainder.Remove(thing);
+            FlameBlockPool.Clear();
+            flameBlockCursor = 0;
+            flameBlockFrame = -1;
         }
     }
 }

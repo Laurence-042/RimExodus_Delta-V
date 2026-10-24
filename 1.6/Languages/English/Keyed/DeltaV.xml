@@ -381,4 +381,6 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_MissileMagazineEjectEntry>{0}: eject one stack per magazine ({1} stored in total)</DeltaV_MissileMagazineEjectEntry>
   <DeltaV_MissileMagazineStored>Missiles: {0} / {1}</DeltaV_MissileMagazineStored>
   <DeltaV_MissileMagazineCountEntry>{0}: {1}</DeltaV_MissileMagazineCountEntry>
+  <DeltaV_CoordinateGridToggle>Show universe coordinate grid</DeltaV_CoordinateGridToggle>
+  <DeltaV_SettingsCoordinateGridTransparency>Coordinate grid transparency: {0}</DeltaV_SettingsCoordinateGridTransparency>
 </LanguageData>

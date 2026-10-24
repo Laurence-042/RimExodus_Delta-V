@@ -160,6 +160,7 @@ namespace DeltaV
                 if (p.target.HasLock && (!p.target.TryResolve(universe, out var resolved)
                     || resolved.Container?.map == null || resolved.Container.map == map)) ForgetTarget(p);
             ForgetCombatVisuals(map);
+            ForgetMotionFeedback(map);
         }
 
         // 盾线材质（静态渲染缓存，ClearRuntimeCaches 换档销毁）。
@@ -390,6 +391,8 @@ namespace DeltaV
         internal void NotifyContainerRemoving(SpaceObject container)
         {
             if (container == null) return;
+            engineGroups.Remove(container.objectId);
+            if (pendingHullSound.objectId == container.objectId) pendingHullSound = default;
             muzzleFlashes.RemoveAll(f => f.anchor.objectId == container.objectId);
             impacts.RemoveAll(f => f.anchor.objectId == container.objectId);
             beams.RemoveAll(b => b.continuousLauncher != null && b.sourceObjectId == container.objectId);
@@ -536,6 +539,7 @@ namespace DeltaV
 
         private void EmitTrail(Projectile p, int now)
         {
+            if (p.adoptedShuttle) return; // shuttle 使用推进器 Comp 的宇宙烟焰，不复用导弹贴片。
             bool powered = p.phase == FlightPhase.PoweredFlight;
             for (int i = 0; i < ExhaustCount(p); i++)
             {
@@ -930,6 +934,7 @@ namespace DeltaV
             muzzleFlashes.Clear();
             impacts.Clear();
             particles.Clear();
+            ResetMotionFeedback();
             soundTicks.Clear();
             visualSequence = 0;
             visualContacts.Clear();
@@ -1011,7 +1016,7 @@ namespace DeltaV
                         ShellLayer.Slot s = layer.At(slot++);
                         s.layer.Emit(s);
                     }
-                    if (p.props.exhaustTrail && p.phase == FlightPhase.PoweredFlight)
+                    if (!p.adoptedShuttle && p.props.exhaustTrail && p.phase == FlightPhase.PoweredFlight)
                     {
                         EnsureImpactMaterials();
                         float ramp = MotorProgress(p, Find.TickManager.TicksGame);
@@ -1020,7 +1025,7 @@ namespace DeltaV
                             EmitEngineFlame(ExhaustPose(p, i), size, frame, frameMap,
                                 altitude, layer, ref slot);
                     }
-                    if (p.props.exhaustTrail && p.rcsTurnSign != 0f)
+                    if (!p.adoptedShuttle && p.props.exhaustTrail && p.rcsTurnSign != 0f)
                     {
                         EnsureImpactMaterials();
                         // 向左折转时朝右喷气；喷口位于弹体前半段的外侧。
@@ -1128,6 +1133,7 @@ namespace DeltaV
                 electromagneticShieldLineMaterial = null;
             }
             DestroyCombatMaterials();
+            MotionParticleRenderer.ClearRuntimeCaches();
             DestroyImpactTiers(ref impactFlashMaterials);
             DestroyImpactTiers(ref impactSmokeMaterials);
             DestroyImpactTiers(ref impactEnergyMaterials);

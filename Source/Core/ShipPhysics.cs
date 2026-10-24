@@ -70,6 +70,7 @@ namespace DeltaV
         {
             /// <summary>对应的 Map 内推进器；只供运行时表现层读取，不持久化。</summary>
             public Thing thing;
+            public ThrusterVisualProfile visuals;
 
             /// <summary>作用点（ship local，原点 = 地图几何中心）：占用矩形中心。</summary>
             public Vector2 localPos;

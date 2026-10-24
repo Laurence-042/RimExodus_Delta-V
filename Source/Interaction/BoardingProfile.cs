@@ -13,6 +13,7 @@ namespace DeltaV
     {
         public Vector2 position;
         public Vector2 force;
+        public ThrusterVisualProfile visuals;
     }
 
     /// <summary>

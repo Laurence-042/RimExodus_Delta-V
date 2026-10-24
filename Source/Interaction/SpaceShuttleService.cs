@@ -25,6 +25,10 @@ namespace DeltaV
         /// DefModExtension_BoardingProfile.virtualThrusters 非空时整体覆盖本表。
         /// </summary>
         public List<ShuttleThrusterConfig> virtualThrusters;
+        public ThrusterVisualProfile exhaust = new ThrusterVisualProfile();
+        public ThrusterVisualProfile afterburner = new ThrusterVisualProfile
+        { flame = true, flameSize = 1.4f, flameSpeed = 24f, flameLifetime = 20,
+            smokeSize = 1.5f, smokeLifetime = 180, smokeGrowth = 3.5f };
 
         public CompProperties_SpaceShuttle()
         {

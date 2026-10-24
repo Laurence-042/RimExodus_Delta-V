@@ -102,6 +102,7 @@ namespace DeltaV
         public struct VisualContact
         {
             public SpaceObject defender;
+            public DriveSubject defenderSubject;
             public ThingDef projectileDef;
             public Vector3 position, pathFrom;
             public Vector2 localPoint, localDirection, localNormal;
@@ -556,10 +557,15 @@ namespace DeltaV
                     durabilityScale = Mathf.Clamp(effect.fallbackBaselineHitPoints
                         / Mathf.Max(1f, SpaceImpactEffects.MaxHitPointsOf(evt.defenderBuilding)), 0.2f, 2f);
                 }
+                // 毁伤会清掉基架归属，声音所需身份必须在结算前捕获。
+                ShipBase struckShip = bestThing != null ? ShipRegistry.ShipOf(bestThing) : ShipBase.Invalid;
+                DriveSubject struckSubject = struckShip.IsValid ? struckShip.Identity
+                    : new DriveSubject(defender.objectId, defMap.GetComponent<SubstructureOwnership>()?.OwnerAt(bestCell) ?? 0);
                 float remaining = SpaceImpactEffects.ApplyToDefender(evt, effect?.defenderEffect, durabilityScale);
                 body.onVisualContact?.Invoke(new VisualContact
                 {
                     defender = defender, projectileDef = body.projectileDef,
+                    defenderSubject = struckSubject,
                     position = evt.hitUniverse, pathFrom = body.from,
                     localPoint = p, localDirection = dir, localNormal = normal,
                     damageScale = body.damageScale, explosive = body.resolvedHitExplosive,

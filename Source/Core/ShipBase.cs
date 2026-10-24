@@ -167,7 +167,8 @@ namespace DeltaV
                 yield return new ShipPhysics.Thruster
                 {
                     localPos = center + SpaceTransform.Rotate(configured.position, FrameAngle),
-                    dir = force.normalized, thrust = force.magnitude, operational = true
+                    dir = force.normalized, thrust = force.magnitude, operational = true,
+                    visuals = configured.visuals ?? Hull.ShuttleProps.exhaust
                 };
             }
         }

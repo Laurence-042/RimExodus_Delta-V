@@ -132,6 +132,9 @@ namespace DeltaV
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsUniverseZoomMax".Translate(), ref Settings.universeZoomMax,
                     ref universeZoomMaxBuffer, 60f, 5000f));
             list.GapLine();
+            list.Label("DeltaV_SettingsCoordinateGridTransparency".Translate((1f - Settings.coordinateGridOpacity).ToStringPercent()));
+            Settings.coordinateGridOpacity = 1f - list.Slider(1f - Settings.coordinateGridOpacity, 0f, 1f);
+            list.GapLine();
             list.Label("DeltaV_SettingsTestScene".Translate());
             list.Label("DeltaV_SettingsTestSceneTip".Translate());
             DrawTestScenePrefabSelector(list, "DeltaV_SettingsTestScenePlayer", Settings.testScenePlayerPrefab,

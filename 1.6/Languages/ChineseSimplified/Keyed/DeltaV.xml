@@ -381,4 +381,6 @@
   <DeltaV_MissileMagazineEjectEntry>{0}：每仓退出一组（共库存 {1}）</DeltaV_MissileMagazineEjectEntry>
   <DeltaV_MissileMagazineStored>导弹：{0} / {1}</DeltaV_MissileMagazineStored>
   <DeltaV_MissileMagazineCountEntry>{0}：{1}</DeltaV_MissileMagazineCountEntry>
+  <DeltaV_CoordinateGridToggle>显示宇宙坐标网格</DeltaV_CoordinateGridToggle>
+  <DeltaV_SettingsCoordinateGridTransparency>坐标网格透明度：{0}</DeltaV_SettingsCoordinateGridTransparency>
 </LanguageData>

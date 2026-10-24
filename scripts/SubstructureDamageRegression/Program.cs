@@ -17,6 +17,13 @@ using Verse;
 internal static class Program
 {
     static int checks;
+    static int breachEvents;
+    static bool CaptureBreach(Map map, IntVec3 cell)
+    {
+        Check(map.terrainGrid.FoundationAt(cell) == null, "fragment event follows actual foundation removal");
+        breachEvents++;
+        return false;
+    }
     static object Raw(Type type) => RuntimeHelpers.GetUninitializedObject(type);
     static void Set(object obj, string field, object value) => AccessTools.Field(obj.GetType(), field).SetValue(obj, value);
     static object Call(Type type, string name, params object[] args) => AccessTools.Method(type, name).Invoke(null, args);
@@ -67,6 +74,8 @@ internal static class Program
         using var logs = Log.LockMessages();
         DeepProfiler.enabled = false;
         var harmony = new Harmony("DeltaV.SubstructureDamageRegression");
+        harmony.Patch(AccessTools.Method(typeof(SpaceProjectileService), "NotifyFoundationDestroyed"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CaptureBreach)));
         harmony.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
             prefix: new HarmonyMethod(typeof(Program), nameof(SubstructureWithOdyssey)));
         harmony.Patch(AccessTools.Method(typeof(TerrainGrid), "DoTerrainChangedEffects"),
@@ -85,6 +94,9 @@ internal static class Program
         var game = (Game)Raw(typeof(Game));
         Set(game, "maps", new List<Map>());
         Current.Game = game;
+        ThingDefOf.PilotConsole = (ThingDef)Raw(typeof(ThingDef));
+        ThingDefOf.PilotConsole.defName = "PilotConsole";
+        ThingDefOf.PilotConsole.shortHash = 1;
         var universe = new UniverseManager(game);
         game.components = new List<GameComponent> { universe };
         var map = (Map)Raw(typeof(Map));
@@ -94,6 +106,7 @@ internal static class Program
         map.components = new List<MapComponent>();
         map.terrainGrid = new TerrainGrid(map);
         map.thingGrid = new ThingGrid(map);
+        map.listerThings = new ListerThings(ListerThingsUse.Global);
         map.roofGrid = new RoofGrid(map);
         Find.Maps.Add(map);
         universe.objects.Add(new MapSpaceObject(501, map, new SpacePose(Vector3.forward, 0)));
@@ -124,6 +137,7 @@ internal static class Program
         {
             Layers(ground, withFloor, withTemp);
             map.roofGrid.SetRoof(cell, roof);
+            int eventsBefore = breachEvents;
             Check(SubstructureDamageUtility.TryDestroy(map, cell), "explicit destruction succeeds");
             Check(grid.FoundationAt(cell) == null && grid.TerrainAt(cell) == ground
                 && grid.UnderTerrainAt(cell) == null && grid.TempTerrainAt(cell) == null
@@ -131,6 +145,7 @@ internal static class Program
                 $"destroy foundation: {ground.defName}, floor={withFloor}, temp={withTemp}");
             Check(!SubstructureDamageUtility.TryDestroy(map, cell),
                 "repeated destruction does not remove underlying terrain");
+            Check(breachEvents == eventsBefore + 1, "one breach event per destroyed foundation, none on repeated hit");
         }
 
         Layers(space, true, true);
@@ -266,9 +281,11 @@ internal static class Program
         Layers(space, true, false);
         map.roofGrid.SetRoof(cell, roof);
         Set(host, "mapIndexOrState", (sbyte)0); map.thingGrid.Register(host);
+        int beforeTransfer = breachEvents;
         grid.RemoveGravshipTerrainUnsafe(cell, index);
         Check(host.Spawned && map.roofGrid.RoofAt(cell) == roof,
             "unsafe transfer terrain removal does not invoke destructive cleanup");
+        Check(breachEvents == beforeTransfer, "transfer terrain removal emits no breach fragments");
 
         // No universe context: vanilla ground-map removal must keep the floor.
         game.components.Clear();

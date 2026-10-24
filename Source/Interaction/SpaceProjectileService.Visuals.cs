@@ -46,7 +46,7 @@ namespace DeltaV
             public float shieldRadius;
         }
 
-        private enum ParticleKind { Smoke, Spark, Chip, Fireball }
+        private enum ParticleKind { Smoke, Spark, Chip, Fireball, Exhaust }
         private struct CombatParticle
         {
             public Vector3 origin;
@@ -55,13 +55,14 @@ namespace DeltaV
             public int bornTick, lifetime;
             public ParticleKind kind;
             public CombatVisualStyle style;
+            public ThrusterVisualProfile exhaustVisual;
         }
 
         private readonly List<CombatParticle> particles = new List<CombatParticle>();
         private readonly List<SpaceCollision.VisualContact> visualContacts = new List<SpaceCollision.VisualContact>();
         private readonly Dictionary<SoundDef, int> soundTicks = new Dictionary<SoundDef, int>();
         private int visualSequence;
-        private static Material[] coreMaterials, railMaterials, chipMaterials, electromagneticMaterials;
+        private static Material[] coreMaterials, railMaterials, electromagneticMaterials;
         private static Material[] beamCoreMaterials, beamGlowMaterials, beamRailMaterials, beamAmberMaterials;
         private static Texture2D beamStripTexture;
 
@@ -147,6 +148,7 @@ namespace DeltaV
             CompProperties_SpaceProjectile props = contact.projectileDef
                 ?.GetCompProperties<CompProperties_SpaceProjectile>();
             CombatVisualStyle style = props?.visualStyle ?? CombatVisualStyle.Kinetic;
+            QueueHullSound(contact, style);
             // 非破坏性耦合只显示光束；击中盾时仍显示统一盾面反馈。
             if (style == CombatVisualStyle.Coupling && !contact.shieldMode.HasValue) return;
             VisualAnchor anchor = Anchor(contact.defender, contact.localPoint, contact.position);
@@ -186,9 +188,6 @@ namespace DeltaV
             {
                 SpawnParticles(anchor, contact.defender, contact.localPoint, contact.localNormal,
                     size, style, ParticleKind.Spark, count, explosion ? Mathf.PI : 1.15f, 10f);
-                if (contact.destroyed || contact.missileDestroyed || contact.shieldMode == SpaceShieldMode.Kinetic)
-                    SpawnParticles(anchor, contact.defender, contact.localPoint, contact.localNormal,
-                        size, style, ParticleKind.Chip, 5, explosion ? Mathf.PI : 1.3f, 5.5f);
                 if (contact.penetrated)
                     SpawnParticles(anchor, contact.defender, contact.localPoint, contact.localDirection,
                         size, style, ParticleKind.Spark, 7, 0.25f, 19f);
@@ -214,7 +213,8 @@ namespace DeltaV
                 shellSound = DefDatabase<SoundDef>.GetNamed("DeltaV_ImpactExplosionShell");
             }
             PlayCombatSound(mapSound, shellSound, contact.defender, contact.localPoint, contact.position,
-                style == CombatVisualStyle.Kinetic ? 3 : 1);
+                style == CombatVisualStyle.Kinetic ? 3 : 1,
+                shellPitch: contact.shieldMode.HasValue || contact.missileDestroyed ? 0.65f : 0.45f);
         }
 
         // Hash-based variation is local to visuals; it never advances Verse.Rand.
@@ -240,27 +240,61 @@ namespace DeltaV
                     origin = anchor.position, velocity = anchor.velocity
                         + tangent * speed * (0.35f + Variation(seed, i * 5 + 1)) * Mathf.Sqrt(size),
                     angle = Mathf.Atan2(tangent.y, tangent.x),
-                    spin = kind == ParticleKind.Chip ? (v - 0.5f) * 15f : 0f,
+                    spin = 0f,
                     size = kind == ParticleKind.Smoke || kind == ParticleKind.Fireball ? size * (0.65f + v * 0.6f)
-                        : kind == ParticleKind.Chip ? 0.12f + v * size * 0.17f : 0.22f + v * size * 0.25f,
+                        : 0.22f + v * size * 0.25f,
                     bornTick = Find.TickManager.TicksGame,
                     lifetime = kind == ParticleKind.Fireball ? 9 + (int)(v * 9)
                         : kind == ParticleKind.Smoke ? 36 + (int)(v * 24)
-                        : kind == ParticleKind.Chip ? 26 + (int)(v * 23) : 10 + (int)(v * 17),
+                        : 10 + (int)(v * 17),
                     kind = kind, style = style
                 });
             }
         }
 
-        private void PlayCombatSound(SoundDef mapSound, SoundDef shellSound, SpaceObject owner,
-            Vector2 local, Vector3 position, int spacing)
+        internal void NotifyFoundationDestroyed(Map map, IntVec3 cell)
         {
-            if (DeltaVMod.CurrentSettings?.spaceImpactSound == false || !WorldRendererUtility.DrawingMap) return;
+            SpaceObject owner = universe.FrameOf(map);
+            if (owner == null || map.Disposed) return;
+            Vector2 point = new Vector2(cell.x + 0.5f, cell.z + 0.5f);
+            Vector3 origin = SpaceTransform.MapPointToUniverse(owner, map, point);
+            Vector2 inherited = SpaceTransform.VelocityAtLocalPoint(owner.pose,
+                SpaceTransform.MapToShipLocal(map, point), origin);
+            // 毁坏入口给出的格点是唯一来源；不从命中贴图或残留建筑反推破口。
+            int seed = ++visualSequence;
+            for (int i = 0; i < 4 && particles.Count < MaxCombatParticles; i++)
+            {
+                float v = Variation(seed, i * 3), angle = v * Mathf.PI * 2f;
+                Vector2 tangent = SpaceTransform.MapDirectionToUniverseTangent(owner, map, point,
+                    new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)));
+                particles.Add(new CombatParticle
+                {
+                    origin = origin, velocity = inherited + tangent * (2f + Variation(seed, i * 3 + 1) * 6f),
+                    angle = angle, spin = (v > 0.5f ? 1f : -1f) * (3f + v * 7f),
+                    size = 0.25f + v * 0.35f, bornTick = Find.TickManager.TicksGame,
+                    lifetime = 150 + (int)(v * 90f), kind = ParticleKind.Chip
+                });
+            }
+        }
+
+        private void PlayCombatSound(SoundDef mapSound, SoundDef shellSound, SpaceObject owner,
+            Vector2 local, Vector3 position, int spacing, float volume = 1f, bool combatSetting = true, float shellPitch = 1f)
+        {
+            if (combatSetting && DeltaVMod.CurrentSettings?.spaceImpactSound == false || !WorldRendererUtility.DrawingMap)
+            {
+                return;
+            }
             bool focused = Find.CurrentMap == owner.map;
             SoundDef sound = focused ? mapSound : shellSound;
-            if (sound == null) return;
+            if (sound == null)
+            {
+                return;
+            }
             int tick = Find.TickManager.TicksGame;
-            if (soundTicks.TryGetValue(sound, out int previous) && tick - previous < spacing) return;
+            if (soundTicks.TryGetValue(sound, out int previous) && tick - previous < spacing)
+            {
+                return;
+            }
             SoundInfo info;
             if (focused)
             {
@@ -272,16 +306,24 @@ namespace DeltaV
             {
                 Map map = Find.CurrentMap;
                 SpaceObject frame = map == null ? null : universe.FrameOf(map);
-                if (frame == null) return;
+                if (frame == null)
+                {
+                    return;
+                }
                 Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, map, position, 0f);
                 // Planar distance: zooming out must not mute a battle that remains on screen.
                 Vector3 camera = Find.Camera.transform.position;
                 float distance = new Vector2(camera.x - pos.x, camera.z - pos.z).magnitude;
-                if (distance >= ImpactHearFar) return;
+                if (distance >= ImpactHearFar)
+                {
+                    return;
+                }
                 info = SoundInfo.OnCamera();
+                info.pitchFactor = shellPitch;
                 info.volumeFactor = 1f - Mathf.InverseLerp(ImpactHearNear, ImpactHearFar, distance);
             }
             soundTicks[sound] = tick;
+            info.volumeFactor *= volume;
             Rand.PushState();
             try { sound.PlayOneShot(info); }
             finally { Rand.PopState(); }
@@ -319,8 +361,6 @@ namespace DeltaV
                 new Color(0.35f, 0.75f, 1f));
             electromagneticMaterials = BuildImpactTiers("Things/Mote/BrightFlash", ShaderDatabase.MoteGlow,
                 new Color(0.7f, 0.35f, 1f));
-            chipMaterials = BuildImpactTiers("Things/Mote/SparkThrown", ShaderDatabase.Mote,
-                new Color(0.48f, 0.46f, 0.43f));
             // A procedural cross-section preserves full beam length and a soft edge;
             // stretching a round flash over the entire shot would erase its endpoints.
             beamStripTexture = new Texture2D(64, 16, TextureFormat.RGBA32, false);
@@ -387,6 +427,7 @@ namespace DeltaV
             Quaternion level = SpaceTransform.FocusedMeshRotation(frame, frame.pose.angle);
             MapOverlayRenderer.BeginQuadBatch();
             // Smoke first; hot cores and fragments remain readable above it.
+            MotionParticleRenderer.Begin(MotionParticleRenderer.Kind.Metal);
             foreach (CombatParticle p in particles)
                 if (p.kind == ParticleKind.Smoke) DrawParticle(p, frame, map, altitude, now);
             foreach (MuzzleFlash f in muzzleFlashes)
@@ -463,6 +504,7 @@ namespace DeltaV
             }
             ShellLayer.Slot batch = layer.At(slot++);
             batch.layer.Emit(batch);
+            slot = MotionParticleRenderer.Emit(MotionParticleRenderer.Kind.Metal, layer, slot);
         }
 
         private void DrawParticle(CombatParticle p, SpaceObject frame, Map map, float altitude, int now)
@@ -484,7 +526,13 @@ namespace DeltaV
                 FxQuad(Fade(impactFlashMaterials, Mathf.Sqrt(age)), pos, rotation, size, size * 0.8f);
             }
             else if (p.kind == ParticleKind.Chip)
-                FxQuad(Fade(chipMaterials, age), pos, rotation, p.size, p.size * 0.6f);
+            {
+                float tumble = Mathf.Abs(Mathf.Cos(p.spin * seconds));
+                float light = Mathf.Lerp(0.25f, 1f, Mathf.Pow(tumble, 8f));
+                MotionParticleRenderer.Quad(MotionParticleRenderer.Kind.Metal, pos, rotation,
+                    p.size, p.size * (0.08f + tumble * 0.5f),
+                    new Color(light * 0.9f, light * 0.95f, light, Mathf.InverseLerp(1f, 0.7f, age)));
+            }
             else
             {
                 float size = p.size * (1.4f - age);
@@ -558,7 +606,6 @@ namespace DeltaV
         {
             DestroyImpactTiers(ref coreMaterials);
             DestroyImpactTiers(ref railMaterials);
-            DestroyImpactTiers(ref chipMaterials);
             DestroyImpactTiers(ref electromagneticMaterials);
             DestroyImpactTiers(ref beamCoreMaterials);
             DestroyImpactTiers(ref beamGlowMaterials);

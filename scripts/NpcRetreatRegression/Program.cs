@@ -94,6 +94,7 @@ internal static partial class Program
         CheckDockingSystem(universe);
         CheckDriftSync();
         CheckProjectileFlight(universe, faction);
+        CheckMotionFeedback(universe);
         CheckGlobeAndInput(universe);
         SpaceObject Make(int id, float distance, string type = null, Faction owner = null)
         {

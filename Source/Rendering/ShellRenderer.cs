@@ -49,10 +49,12 @@ namespace DeltaV
             // SeamlessTileRenderer 同款。
             // 背景层：所有非聚焦壳 → 聚焦图随后无条件覆盖。
             OrderShellsById(universe, frame, LayerOrderScratch);
-            bool anyBuffered = false;
+            int motionSlots = SpaceCoordinateGrid.Emit(universe, frame, current, backgroundLayer, 0);
+            motionSlots = universe.Projectiles.EmitMotionVisuals(frame, current, backgroundLayer, motionSlots);
+            bool anyBuffered = motionSlots > 0;
             for (int i = 0; i < LayerOrderScratch.Count; i++)
             {
-                bool drew = DrawObjectShell(universe, LayerOrderScratch[i], frame, current, backgroundLayer.At(i));
+                bool drew = DrawObjectShell(universe, LayerOrderScratch[i], frame, current, backgroundLayer.At(i + motionSlots));
                 anyBuffered |= drew;
                 if (logBeat) AppendLayerObj("b" + i + "/" + LayerOrderScratch.Count, LayerOrderScratch[i], drew);
             }
