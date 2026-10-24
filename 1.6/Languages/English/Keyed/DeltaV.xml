@@ -313,6 +313,10 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_DebugCollisionToggleButton>Show actual collision cells and broad-phase bounds for all visible objects</DeltaV_DebugCollisionToggleButton>
   <DeltaV_FireDeviation>Firing deviation: {0}°</DeltaV_FireDeviation>
   <DeltaV_FireDeviationTip>Maximum angle between the current barrel or fixed launch axis and the target. Shots follow the actual launch direction; guided missiles can turn afterward.</DeltaV_FireDeviationTip>
+  <DeltaV_AutoFireDeviation>Automatic firing deviation: {0}°</DeltaV_AutoFireDeviation>
+  <DeltaV_AutoFireDeviationTip>Maximum angle between the barrel or fixed axis and the target for automatic volleys, point defense, and ground mode.</DeltaV_AutoFireDeviationTip>
+  <DeltaV_ManualFireDeviation>Manual firing deviation: {0}°</DeltaV_ManualFireDeviation>
+  <DeltaV_ManualFireDeviationTip>Maximum angle between the barrel or fixed axis and the mouse direction when firing manually. Mouse distance does not limit manual fire; fixed-axis weapons at 180° fire along their axis from any mouse direction.</DeltaV_ManualFireDeviationTip>
 
   <DeltaV_ThrusterPowerTitle>Set thruster power limit</DeltaV_ThrusterPowerTitle>
   <DeltaV_ThrusterPowerEntry>Thruster power: {0}%</DeltaV_ThrusterPowerEntry>

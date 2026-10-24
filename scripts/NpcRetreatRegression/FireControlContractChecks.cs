@@ -195,6 +195,38 @@ internal static partial class Program
             && aim.MuzzleMap == shot.muzzleMap
             && OrbitSphere.Offset(aim.Muzzle, shot.muzzleUniverse).magnitude < 0.001f,
             "read-only aim capability agrees with prepared projectile, muzzle and speed");
+        var directDef = TestBuildingDef("manualAxisContractBullet");
+        directDef.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, speed = 100f });
+        var fixedWeapon = new CompSpaceWeapon { parent = (ThingWithComps)attacker.Anchor,
+            props = new CompProperties_SpaceWeapon { projectileDef = directDef, topTurret = false,
+                fireArcDeg = 0f, lockArcDeg = 360f, minRange = 20f, range = 500f },
+            fireDeviationDeg = 1f, manualFireDeviationDeg = 180f, safeFire = false };
+        Vector2 fixedMuzzle = SpaceWeaponGeometry.MuzzleMapPoint(fixedWeapon);
+        float fixedAxis = ShipOrientation.AngleFromRot4(fixedWeapon.parent.Rotation);
+        Vector2 axisDirection = SpaceTransform.Rotate(Vector2.right, fixedAxis);
+        Vector3 behindCursor = SpaceTransform.MapPointToUniverse(own, own.map,
+            fixedMuzzle - axisDirection * 10f);
+        Vector3 nearCursor = SpaceTransform.MapPointToUniverse(own, own.map,
+            fixedMuzzle + axisDirection * 5f);
+        Vector3 farCursor = SpaceTransform.MapPointToUniverse(own, own.map,
+            fixedMuzzle + axisDirection * 600f);
+        var axisShot = new SpaceWeaponShot(universe, fixedWeapon, own,
+            new WeaponFireRequest(behindCursor, manualFire: true));
+        Check((bool)Call(axisShot, "Prepare")
+            && Mathf.Abs(SpaceTransform.WrapAngle(axisShot.launchMapAngle - fixedAxis)) < 0.0001f,
+            "manual 180-degree fixed-axis fire ignores a cursor behind the weapon and keeps its mounting axis");
+        Check(!(bool)Call(new SpaceWeaponShot(universe, fixedWeapon, own,
+                new WeaponFireRequest(nearCursor)), "Prepare"),
+            "automatic fixed-axis fire still checks target range");
+        fixedWeapon.manualFireDeviationDeg = 1f;
+        Check((bool)Call(new SpaceWeaponShot(universe, fixedWeapon, own,
+                new WeaponFireRequest(nearCursor, manualFire: true)), "Prepare")
+            && (bool)Call(new SpaceWeaponShot(universe, fixedWeapon, own,
+                new WeaponFireRequest(farCursor, manualFire: true)), "Prepare"),
+            "manual fire ignores both minimum and maximum mouse distances at a narrow angle");
+        Check(!(bool)Call(new SpaceWeaponShot(universe, fixedWeapon, own,
+                new WeaponFireRequest(behindCursor, manualFire: true)), "Prepare"),
+            "narrow manual deviation still requires the mouse direction to match the fixed axis");
         weapon.cooldownUntilTick = Find.TickManager.TicksGame + 100;
         Check(!(bool)Call(new SpaceWeaponShot(universe, weapon, own, request), "Prepare")
             && weapon.cooldownUntilTick == Find.TickManager.TicksGame + 100,

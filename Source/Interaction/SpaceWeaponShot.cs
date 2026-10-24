@@ -36,6 +36,7 @@ namespace DeltaV
         public readonly SpaceObject container;
         public readonly Vector3 aimPoint;
         public readonly CombatTarget guidanceTarget;
+        public readonly bool manualFire;
         public SpaceObject target { get; private set; }
         public ThingDef projectileDef;
         public CompProperties_SpaceProjectile projectileProps;
@@ -66,6 +67,7 @@ namespace DeltaV
             this.container = container;
             aimPoint = request.AimPoint;
             guidanceTarget = request.GuidanceTarget;
+            manualFire = request.ManualFire;
             damageScale = weapon.WeaponProps.impactScale;
         }
 
@@ -140,19 +142,25 @@ namespace DeltaV
                 ? weapon.WeaponProps.ignitionDelayTicks
                 : projectileProps.coldLaunchTicks;
             bool coldLaunch = ignitionDelayTicks > 0;
+            CompSpaceWeaponTraverse traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
 
             SpaceWeaponAccelerationSolution acceleration = CompSpaceRailgun.Resolve(weapon);
             muzzleMap = acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
             muzzleUniverse = SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzleMap);
-            float shotDistance = OrbitSphere.Offset(muzzleUniverse, aimPoint).magnitude;
-            if (shotDistance < weapon.WeaponProps.minRange
-                || shotDistance > weapon.WeaponProps.range) return false;
+            float baseAngle = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
+            if (!manualFire)
+            {
+                float shotDistance = OrbitSphere.Offset(muzzleUniverse, aimPoint).magnitude;
+                if (shotDistance < weapon.WeaponProps.minRange
+                    || shotDistance > weapon.WeaponProps.range) return false;
+            }
             Vector2 aimMap = SpaceTransform.UniverseToMapPoint(container, weapon.parent.Map, aimPoint);
             Vector2 delta = aimMap - muzzleMap;
-            if (delta.sqrMagnitude < 1e-6f) return false;
-            desiredMapAngle = Mathf.Atan2(delta.y, delta.x);
+            if (delta.sqrMagnitude < 1e-6f && !manualFire) return false;
+            // 鼠标恰在炮口时没有瞄准方向，手控沿当前炮口／固定轴继续射击。
+            desiredMapAngle = delta.sqrMagnitude < 1e-6f
+                ? traverse?.CurrentAngle ?? baseAngle : Mathf.Atan2(delta.y, delta.x);
 
-            float baseAngle = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
             float launcherLockArc = weapon.WeaponProps.lockArcDeg >= 0f
                 ? weapon.WeaponProps.lockArcDeg
                 : weapon.WeaponProps.fireArcDeg;
@@ -162,7 +170,6 @@ namespace DeltaV
                 : launcherLockArc;
             if (!WithinArc(desiredMapAngle, baseAngle, lockArc)) return false;
 
-            CompSpaceWeaponTraverse traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
             if (traverse != null)
             {
                 traverse.AimAt(desiredMapAngle);
@@ -177,8 +184,9 @@ namespace DeltaV
             {
                 launchMapAngle = baseAngle;
             }
+            float allowedDeviation = manualFire ? weapon.manualFireDeviationDeg : weapon.fireDeviationDeg;
             if (!SpaceWeaponGeometry.WithinFireDeviation(desiredMapAngle, launchMapAngle,
-                    weapon.fireDeviationDeg)) return false;
+                    allowedDeviation)) return false;
 
             if (!PrepareEnergy(acceleration)) return false;
             speed = projectileProps.speed + activeSpeedBonus;

@@ -121,8 +121,13 @@ namespace DeltaV
         /// <summary>默认启用自身结构发射路径预检。</summary>
         public bool safeFireByDefault = true;
 
-        /// <summary>发射方向与目标方向允许的最大夹角（度）。</summary>
+        /// <summary>自动火控发射方向与目标方向允许的最大夹角（度）。</summary>
         public float defaultFireDeviationDeg = 3f;
+
+        /// <summary>手控默认夹角；负数沿用自动默认值。</summary>
+        public float defaultManualFireDeviationDeg = -1f;
+        public float ManualFireDeviationDefault => defaultManualFireDeviationDeg >= 0f
+            ? defaultManualFireDeviationDeg : defaultFireDeviationDeg;
 
         /// <summary>覆盖弹体默认冷发射时长；负数表示使用弹体 Def。</summary>
         public int ignitionDelayTicks = -1;
@@ -173,6 +178,7 @@ namespace DeltaV
         public bool keepGunnerWhenUnavailable = true;
         public Pawn reservedGunner;
         public float fireDeviationDeg;
+        public float manualFireDeviationDeg;
         private bool safeFireInitialized;
         private bool alignmentConfigurationInitialized;
         private bool configurationInitialized;
@@ -333,6 +339,7 @@ namespace DeltaV
             if (!alignmentConfigurationInitialized)
             {
                 fireDeviationDeg = Mathf.Clamp(WeaponProps.defaultFireDeviationDeg, 0f, 180f);
+                manualFireDeviationDeg = Mathf.Clamp(WeaponProps.ManualFireDeviationDefault, 0f, 180f);
                 alignmentConfigurationInitialized = true;
             }
             Universe?.Weapons?.RegisterWeapon(this);
@@ -402,6 +409,8 @@ namespace DeltaV
             Scribe_Values.Look(ref safeFireInitialized, "safeFireInitialized", true);
             Scribe_Values.Look(ref fireDeviationDeg, "fireDeviationDeg",
                 WeaponProps.defaultFireDeviationDeg);
+            Scribe_Values.Look(ref manualFireDeviationDeg, "manualFireDeviationDeg",
+                WeaponProps.ManualFireDeviationDefault);
             Scribe_Values.Look(ref alignmentConfigurationInitialized,
                 "alignmentConfigurationInitialized", true);
             Scribe_Values.Look(ref lastMagazineThingId, "lastMagazineThingId", -1);
@@ -495,10 +504,11 @@ namespace DeltaV
                 icon = TexCommand.FireAtWill,
             };
 
-            // 同一角度配置约束旋转炮塔当前炮口和固定轴武器安装轴。
-            yield return new Command_BatchSetting<CompSpaceWeapon>("WeaponFireDeviation", this,
+            // 太空自动火控、点防和地面原版炮塔共用自动角度；玩家手控独立设置。
+            if (!WeaponProps.manualOnly || WeaponProps.tractor)
+                yield return new Command_BatchSetting<CompSpaceWeapon>("WeaponAutoFireDeviation", this,
                 weapons => Find.WindowStack.Add(new Dialog_Slider(
-                    value => "DeltaV_FireDeviation".Translate(value.ToString()),
+                    value => "DeltaV_AutoFireDeviation".Translate(value.ToString()),
                     0, 180, value =>
                     {
                         foreach (CompSpaceWeapon weapon in weapons)
@@ -506,8 +516,23 @@ namespace DeltaV
                                 weapon.fireDeviationDeg = value;
                     }, Mathf.RoundToInt(fireDeviationDeg))))
             {
-                defaultLabel = "DeltaV_FireDeviation".Translate(fireDeviationDeg.ToString("0")),
-                defaultDesc = "DeltaV_FireDeviationTip".Translate(),
+                defaultLabel = "DeltaV_AutoFireDeviation".Translate(fireDeviationDeg.ToString("0.##")),
+                defaultDesc = "DeltaV_AutoFireDeviationTip".Translate(),
+                icon = TexCommand.FireAtWill,
+            };
+            if (!WeaponProps.pointDefenseOnly)
+                yield return new Command_BatchSetting<CompSpaceWeapon>("WeaponManualFireDeviation", this,
+                weapons => Find.WindowStack.Add(new Dialog_Slider(
+                    value => "DeltaV_ManualFireDeviation".Translate(value.ToString()),
+                    0, 180, value =>
+                    {
+                        foreach (CompSpaceWeapon weapon in weapons)
+                            if (weapon.parent.Spawned && !weapon.parent.Destroyed)
+                                weapon.manualFireDeviationDeg = value;
+                    }, Mathf.RoundToInt(manualFireDeviationDeg))))
+            {
+                defaultLabel = "DeltaV_ManualFireDeviation".Translate(manualFireDeviationDeg.ToString("0.##")),
+                defaultDesc = "DeltaV_ManualFireDeviationTip".Translate(),
                 icon = TexCommand.FireAtWill,
             };
 

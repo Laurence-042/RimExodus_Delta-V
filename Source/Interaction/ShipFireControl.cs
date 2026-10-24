@@ -147,7 +147,8 @@ namespace DeltaV
                 if (!guidance.HasLock && info.Guided)
                     guidance = ManualTargetAlongRay(universe, container, info.Muzzle,
                         OrbitSphere.Offset(info.Muzzle, aim).normalized, ship.Faction);
-                universe.Weapons.TryFire(weapon, container, new WeaponFireRequest(aim, guidance));
+                universe.Weapons.TryFire(weapon, container,
+                    new WeaponFireRequest(aim, guidance, manualFire: !intent.fireAll));
             }
         }
 

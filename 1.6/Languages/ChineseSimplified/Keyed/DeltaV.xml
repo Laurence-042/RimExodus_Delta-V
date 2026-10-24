@@ -313,6 +313,10 @@
   <DeltaV_DebugCollisionToggleButton>显示全部可见对象的实际碰撞占用格与宽相位包围圆</DeltaV_DebugCollisionToggleButton>
   <DeltaV_FireDeviation>开火允许偏离角：{0}°</DeltaV_FireDeviation>
   <DeltaV_FireDeviationTip>炮口当前方向或固定安装轴与目标方向的最大夹角。弹体仍沿实际炮口方向发射；制导弹可在发射后转向。</DeltaV_FireDeviationTip>
+  <DeltaV_AutoFireDeviation>自动开火偏离角：{0}°</DeltaV_AutoFireDeviation>
+  <DeltaV_AutoFireDeviationTip>自动齐射、点防及地面模式开火时，炮口或固定轴与目标方向允许的最大夹角。</DeltaV_AutoFireDeviationTip>
+  <DeltaV_ManualFireDeviation>手控开火偏离角：{0}°</DeltaV_ManualFireDeviation>
+  <DeltaV_ManualFireDeviationTip>玩家手动开火时，炮口或固定轴与鼠标方向允许的最大夹角。手控不检查鼠标距离；固定轴武器设为 180° 时可向任意方向按键，弹体仍沿轴飞行。</DeltaV_ManualFireDeviationTip>
 
   <DeltaV_ThrusterPowerTitle>设置推进器出力上限</DeltaV_ThrusterPowerTitle>
   <DeltaV_ThrusterPowerEntry>推进器出力：{0}%</DeltaV_ThrusterPowerEntry>

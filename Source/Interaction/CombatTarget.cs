@@ -74,8 +74,9 @@ namespace DeltaV
     {
         public readonly Vector3 AimPoint;
         public readonly CombatTarget GuidanceTarget;
-        public WeaponFireRequest(Vector3 aimPoint, CombatTarget guidanceTarget = default)
-        { AimPoint = aimPoint; GuidanceTarget = guidanceTarget; }
+        public readonly bool ManualFire;
+        public WeaponFireRequest(Vector3 aimPoint, CombatTarget guidanceTarget = default, bool manualFire = false)
+        { AimPoint = aimPoint; GuidanceTarget = guidanceTarget; ManualFire = manualFire; }
     }
 
     public readonly struct WeaponAimInfo
