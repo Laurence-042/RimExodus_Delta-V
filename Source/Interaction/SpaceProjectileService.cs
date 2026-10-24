@@ -41,8 +41,8 @@ namespace DeltaV
     /// 图池管理与读档孤儿图回收、ResetFlow。
     ///
     /// 实例服务（UniverseManager.Projectiles）：不序列化、读档归零（弹体是瞬态成员，
-    /// 写档按 tag 剔除，UniverseManager.ExposeData）；积分与被动阻力豁免走主容器
-    /// 循环按 tag 分派（§3.3），本服务只做制导写速度与生命周期。
+    /// 写档按基础类型剔除，UniverseManager.ExposeData）；普通弹体由主循环漂移积分，
+    /// 侵入 shuttle 由共同自动驾驶推进，本服务为两者记录位移段并结算碰撞。
     ///
     /// 图池纪律（§3.2）：借出 = 注册弹体容器（图归其持有，map 单一持有不变量照常）；
     /// 归还 = 注销容器 + 清内容入池（帧边界）。池内空闲图**无承载容器**——生命周期
@@ -66,12 +66,6 @@ namespace DeltaV
 
         private enum FlightPhase { ColdLaunch, InitialTurn, PoweredFlight }
 
-        private struct ExhaustPort
-        {
-            public Vector2 localPosition;
-            public float localAngle;
-        }
-
         private sealed class Projectile
         {
             public int containerId;
@@ -89,6 +83,8 @@ namespace DeltaV
             public int targetContainerId;
             public SpacePose targetPose;
             public bool adoptedShuttle;
+            public DriveSubject boardingDriver;
+            public System.Func<SpacePose, SpacePose> boardingReference;
             public int spawnedAtTick;
             public bool dead;
             public Vector3 prevPosition;
@@ -99,8 +95,6 @@ namespace DeltaV
             public int motorStartedTick;
             public float motorStartSpeed;
             public float rcsTurnSign;
-            // 接管时从船体共同推进布局捕获，普通驾驶与侵入共用相同物理喷口。
-            public readonly List<ExhaustPort> exhaustPorts = new List<ExhaustPort>();
             public Vector3 laserFrom;
             public Vector2 continuousFromLocal, continuousToLocal;
             public Vector3 laserTo;
@@ -333,11 +327,11 @@ namespace DeltaV
             return true;
         }
 
-        /// <summary>把已经起飞的 shuttle 作为一枚有图导弹接入同一制导与碰撞工作表。</summary>
+        /// <summary>为在飞 shuttle 登记共同碰撞工作项；运动仍经真实推进器与截击 MPC。</summary>
         internal bool AdoptShuttle(SpaceObject shuttle, Building hull, CombatTarget target)
         {
             CompProperties_SpaceProjectile props = hull?.def.GetCompProperties<CompProperties_SpaceProjectile>();
-            if (props == null || !props.guided || !props.hasMap || shuttle?.map != hull.Map
+            if (props == null || !props.hasMap || shuttle?.map != hull.Map
                 || hull.TryGetComp<CompSpaceShuttle>()?.Vessel.CanDriveIn(shuttle) != true
                 || !target.TryResolve(universe, out var resolved) || resolved.Container == null || projectiles.Any(p => p.container == shuttle)) return false;
             Projectile p = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
@@ -354,28 +348,29 @@ namespace DeltaV
             p.spawnedAtTick = Find.TickManager.TicksGame;
             p.dead = false;
             p.laser = false;
-            p.cruiseSpeed = props.speed;
-            p.coldLaunchEndsTick = p.spawnedAtTick;
-            p.phase = FlightPhase.PoweredFlight;
-            p.motorStartedTick = p.spawnedAtTick;
-            p.motorStartSpeed = p.cruiseSpeed;
             ShipBase vessel = hull.TryGetComp<CompSpaceShuttle>().Vessel;
-            Vector2 forward = SpaceTransform.Rotate(Vector2.right, vessel.FrameAngle);
-            foreach (ShipPhysics.Thruster thruster in vessel.BuildThrusters())
-                if (Vector2.Dot(thruster.dir, forward) > 0.999f)
-                    p.exhaustPorts.Add(new ExhaustPort
-                    {
-                        localPosition = thruster.localPos,
-                        localAngle = Mathf.Atan2(thruster.dir.y, thruster.dir.x)
-                    });
             p.prevPosition = shuttle.pose.position;
             p.damageScale = p.armorPenetrationScale = 1f;
-            shuttle.pose.angularVelocity = 0f;
             shuttle.projectileRoleOverride = true;
             projectiles.Add(p);
+            p.boardingDriver = DriveSubject.Of(vessel);
+            hull.TryGetComp<CompSpaceShuttle>().intrusionDriveActive = true;
+            p.boardingReference = pose =>
+            {
+                SpacePose reference = p.targetPose;
+                Vector2 offset = OrbitSphere.Offset(pose.position, reference.position);
+                Vector2 relative = SpaceTransform.TransportVelocity(reference, pose.position) - pose.velocity;
+                reference.angle = SpaceTransform.WrapAngle(Mathf.Atan2(offset.y, offset.x) - vessel.FrameAngle);
+                reference.angularVelocity = offset.sqrMagnitude > 0.01f
+                    ? (offset.x * relative.y - offset.y * relative.x) / offset.sqrMagnitude : 0f;
+                return reference;
+            };
+            ResolveTarget(p);
+            universe.Autopilot.Intercept(p.boardingDriver, p.boardingReference,
+                () => !p.dead && ResolveTarget(p), () => ReleaseShuttle(shuttle));
             if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
                 DeltaVLog.Message(DeltaVLogModule.Combat,
-                    $"boarding missile adopted shuttle #{shuttle.objectId} target #{resolved.Container.objectId}");
+                    $"boarding intercept adopted shuttle #{shuttle.objectId} target #{resolved.Container.objectId}");
             return true;
         }
 
@@ -439,13 +434,13 @@ namespace DeltaV
                     bool hasTarget = ResolveTarget(p);
                     if (p.adoptedShuttle && (p.building.Map != p.container.map
                         || p.building.TryGetComp<CompSpaceShuttle>()?.Vessel.CanDriveIn(p.container) != true
-                        || !hasTarget))
+                        || !hasTarget || !universe.Autopilot.IsFollowing(p.boardingDriver, p.boardingReference)))
                     {
                         ReleaseShuttle(p.container);
                         continue;
                     }
                     p.prevPosition = p.container.pose.position;
-                    if (!p.laser) AdvanceFlight(p, hasTarget, now);
+                    if (!p.laser && !p.adoptedShuttle) AdvanceFlight(p, hasTarget, now);
                     if (p.props.exhaustTrail && now % 3 == 0)
                         EmitTrail(p, now);
                 }
@@ -504,55 +499,39 @@ namespace DeltaV
         private static float MotorProgress(Projectile p, int now) => p.props.accelerationTicks > 0
             ? Mathf.Clamp01((float)(now - p.motorStartedTick + 1) / p.props.accelerationTicks) : 1f;
 
-        /// <summary>唯一追踪控制：受限转动速度方向；返回是否已对准当前目标。</summary>
+        /// <summary>普通导弹的速度方向追踪；载人侵入使用共同自动驾驶。</summary>
         private static bool SteerTowards(Projectile p, float turnRate, float speed)
         {
-            Vector3 aimPoint = p.targetPose.position;
-            Vector2 toTarget = OrbitSphere.Offset(p.container.pose.position, aimPoint);
+            Vector2 toTarget = OrbitSphere.Offset(p.container.pose.position, p.targetPose.position);
             if (toTarget.sqrMagnitude < 1e-8f) return true;
             Vector2 desired = toTarget.normalized;
             Vector2 velocity = p.container.pose.velocity;
             Vector2 current = velocity.sqrMagnitude > 1e-8f ? velocity.normalized : desired;
-            float error = Mathf.Atan2(current.x * desired.y - current.y * desired.x,
-                Vector2.Dot(current, desired));
+            float error = Mathf.Atan2(current.x * desired.y - current.y * desired.x, Vector2.Dot(current, desired));
             float maxTurn = Mathf.Max(0f, turnRate) * Mathf.Deg2Rad * Dt;
             float turn = Mathf.Clamp(error, -maxTurn, maxTurn);
             Vector2 newDir = SpaceTransform.Rotate(current, turn);
             p.container.pose.velocity = newDir * speed;
-            if (p.phase == FlightPhase.InitialTurn && Mathf.Abs(turn) > 0.001f)
-                p.rcsTurnSign = Mathf.Sign(turn);
-            float facingOffset = p.adoptedShuttle
-                ? ShipOrientation.AngleFromRot4(p.building.Rotation) : 0f;
-            p.container.pose.angle = SpaceTransform.WrapAngle(
-                Mathf.Atan2(newDir.y, newDir.x) - facingOffset);
+            if (p.phase == FlightPhase.InitialTurn && Mathf.Abs(turn) > 0.001f) p.rcsTurnSign = Mathf.Sign(turn);
+            p.container.pose.angle = Mathf.Atan2(newDir.y, newDir.x);
             return Mathf.Abs(error) <= maxTurn + 0.0001f;
         }
-
-        private static int ExhaustCount(Projectile p) => p.adoptedShuttle ? p.exhaustPorts.Count : 1;
-
-        private static SpacePose ExhaustPose(Projectile p, int index)
-        {
-            ExhaustPort port = p.adoptedShuttle ? p.exhaustPorts[index]
-                : new ExhaustPort { localPosition = p.props.exhaustOffset };
-            return SpaceTransform.RigidPointPose(p.container.pose, port.localPosition, port.localAngle);
-        }
+        private static SpacePose ExhaustPose(Projectile p)
+            => SpaceTransform.RigidPointPose(p.container.pose, p.props.exhaustOffset, 0f);
 
         private void EmitTrail(Projectile p, int now)
         {
             if (p.adoptedShuttle) return; // shuttle 使用推进器 Comp 的宇宙烟焰，不复用导弹贴片。
             bool powered = p.phase == FlightPhase.PoweredFlight;
-            for (int i = 0; i < ExhaustCount(p); i++)
+            SpacePose nozzle = ExhaustPose(p);
+            trailPuffs.Add(new TrailPuff
             {
-                SpacePose nozzle = ExhaustPose(p, i);
-                trailPuffs.Add(new TrailPuff
-                {
-                    pos = nozzle.position,
-                    bornTick = now,
-                    lifetimeTicks = powered ? Mathf.Max(1, p.props.smokeLifetimeTicks) : 24,
-                    size = Mathf.Max(0.1f, p.props.exhaustSize * (powered ? 1f : 0.22f)),
-                });
-                if (trailPuffs.Count > MaxTrailPuffs) trailPuffs.RemoveAt(0);
-            }
+                pos = nozzle.position,
+                bornTick = now,
+                lifetimeTicks = powered ? Mathf.Max(1, p.props.smokeLifetimeTicks) : 24,
+                size = Mathf.Max(0.1f, p.props.exhaustSize * (powered ? 1f : 0.22f)),
+            });
+            if (trailPuffs.Count > MaxTrailPuffs) trailPuffs.RemoveAt(0);
         }
 
         // 同 tick 的制导与限定命中对象消费同一次身份解析；不在碰撞阶段重新选船。
@@ -657,18 +636,13 @@ namespace DeltaV
                     ? (System.Action<SpaceObject, Vector3, Vector2>)((defender, hit, local) =>
                     {
                         SpaceObject shuttle = captured.container;
-                        Vector2 incident = OrbitSphere.Offset(captured.body.from, captured.body.to);
-                        Vector2 incidentAtHit = incident.sqrMagnitude > 1e-8f
-                            ? SpaceTransform.TransportVelocity(new SpacePose
-                            {
-                                position = captured.body.from,
-                                velocity = incident.normalized
-                            }, hit)
-                            : Vector2.up;
+                        Vector2 forwardAtHit = SpaceTransform.TransportTangent(
+                            SpaceTransform.Rotate(Vector2.right, shuttle.pose.angle
+                                + ShipOrientation.AngleFromRot4(captured.building.Rotation)),
+                            shuttle.pose.position, hit);
                         ReleaseShuttle(shuttle);
                         universe.Shuttles.PlaceBoardedShuttle(shuttle, captured.building, defender, hit, local,
-                            incidentAtHit, captured.body.resolvedHitCell,
-                            captured.body.resolvedHitShield);
+                            forwardAtHit, captured.body.resolvedHitCell);
                     }) : null;
                 body.onShieldRedirect = delegate (Vector3 from, Vector3 hit)
                 {
@@ -791,6 +765,12 @@ namespace DeltaV
             SpaceMapLease oldLease = p.mapLease;
             if (!destroyContainer)
             {
+                if (p.adoptedShuttle)
+                {
+                    universe.Autopilot.DetachReference(p.boardingDriver, p.boardingReference);
+                    CompSpaceShuttle shuttle = p.building?.TryGetComp<CompSpaceShuttle>();
+                    if (shuttle != null) shuttle.intrusionDriveActive = false;
+                }
                 projectiles.Remove(p);
                 if (original != null) original.projectileRoleOverride = false;
             }
@@ -830,13 +810,14 @@ namespace DeltaV
             p.targetContainerId = 0;
             p.targetPose = default;
             p.adoptedShuttle = false;
+            p.boardingDriver = default;
+            p.boardingReference = null;
             p.dead = false;
             p.laser = false;
             p.continuousFromLocal = p.continuousToLocal = default;
             p.phase = FlightPhase.ColdLaunch;
             p.coldLaunchEndsTick = p.motorStartedTick = 0;
             p.motorStartSpeed = p.cruiseSpeed = p.rcsTurnSign = 0f;
-            p.exhaustPorts.Clear();
             p.damageScale = 1f;
             p.armorPenetrationScale = 1f;
             p.body.attacker = null;
@@ -1021,9 +1002,8 @@ namespace DeltaV
                         EnsureImpactMaterials();
                         float ramp = MotorProgress(p, Find.TickManager.TicksGame);
                         float size = p.props.exhaustSize * Mathf.Lerp(0.4f, 1f, ramp);
-                        for (int i = 0; i < ExhaustCount(p); i++)
-                            EmitEngineFlame(ExhaustPose(p, i), size, frame, frameMap,
-                                altitude, layer, ref slot);
+                        EmitEngineFlame(ExhaustPose(p), size, frame, frameMap,
+                            altitude, layer, ref slot);
                     }
                     if (!p.adoptedShuttle && p.props.exhaustTrail && p.rcsTurnSign != 0f)
                     {

@@ -20,7 +20,7 @@
 4. **飞船与容器分离。** 一图一个 `SpaceObject`，同图可有多船；`FoundationShip` 与 `ShuttleShip` 是 `ShipBase` 的并列实现，均不保存第二套运动状态。对象 ID 与结构归属 ID 语义分离，不用 ownerId 反查容器。
 5. **模拟只认游戏 tick。** 暂停冻结，每个 SpaceObject 每 tick 只积分一次；帧路径只做输入、渲染和安全延迟动作，不用 `Time.deltaTime` 积分。
 6. **驾驶共用契约。** 玩家／NPC controller 保持同基类双子类，通过对象驾驶接口出力；AI 选目标，自动驾驶算控制，生命周期只管理地图表示。有图／归档主体共用求解与积分；真实出力才触发同图分离，被动阻力和纯漂移不触发。
-7. **跨图转移只有一套 Gravship 链。** 普通对接合图与 shuttle 侵入均复用 `CaptureDomain → StripDomain → PlaceIntoMap`；不开跨图 live 连接，不另做 Pawn 跨图行走。侵入制导和碰撞交给弹体服务，自动驾驶不决定对接完成。
+7. **跨图转移只有一套 Gravship 链。** 普通对接合图与 shuttle 侵入均复用 `CaptureDomain → StripDomain → PlaceIntoMap`；不开跨图 live 连接，不另做 Pawn 跨图行走。侵入飞控复用真实推进器与自动驾驶，碰撞和命中交给弹体服务；自动驾驶不决定对接完成。
 8. **弹道与命中统一。** `SpaceProjectile` 是 universe 弹道权威状态；导弹、侵入 shuttle、点防与护盾共用 `SpaceCollision` 和后效链，命中后转换到目标 Map 交回原版伤害。渲染外壳、宇宙碰撞体和建筑格不能互为事实源，禁止从屏幕或 Mesh 反推命中。
 9. **缓存不是持久事实。** 可重建内容及临时流程不序列化；归档只补存卸载后无法重建的摘要，恢复改读实图。缓存须有失效、换档重建及 Map/Object 删除释放入口；结构派生缓存按统一结构版本失效，不按时间重扫。归档／恢复保留 objectId、位姿与长期事实，延迟动作校验表示版本。
 10. **战略与战术分离。** worldtile 只作星区地址，不参与战术距离、碰撞和落点；不得用 RimExodus 的地表邻接、六边形或接缝带表达太空关系。Delta-V 行为限定在宇宙／口袋图语境，不影响 RimExodus 地面地图。

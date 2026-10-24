@@ -80,9 +80,6 @@ namespace DeltaV
             /// <summary>「放置」后效回调（侵入 shuttle §7.5）：shuttle 服务闭包——
             /// 舱体放置在撞击位内侧偏移 + 容器销毁（帧边界）。</summary>
             public System.Action<SpaceObject, Vector3, Vector2> onPlace;
-            /// <summary>护盾挡停语义（侵入 shuttle）：活动弧截获时速度清零，
-            /// 不按普通弹体生成残余。</summary>
-            public bool haltOnShield;
             /// <summary>本段击破后的续飞；只消耗 damageScale，不重复按速度或穿甲扣预算。</summary>
             public bool continued;
             public bool didContinue;
@@ -472,13 +469,22 @@ namespace DeltaV
             }
 
             // 窄相位：0.5 格步进采样占用集（至多采到弧交点）。
+            Vector2 footprintDirection = dir;
+            if (body.noseHalfWidth > 0f && body.attackerBuilding != null)
+            {
+                Vector2 forward = SpaceTransform.Rotate(Vector2.right,
+                    ShipOrientation.AngleFromRot4(body.attackerBuilding.Rotation));
+                Vector3 nose = SpaceTransform.ShipLocalToUniverse(body.attacker, forward);
+                footprintDirection = (SpaceTransform.UniverseToMapPoint(defender, defMap, nose)
+                    - SpaceTransform.UniverseToMapPoint(defender, defMap, body.attacker.pose.position)).normalized;
+            }
             int steps = Mathf.Max(1, Mathf.CeilToInt(sampleLength / SampleStep));
             HashSet<Thing> passedBuildings = null;
             HashSet<IntVec3> passedSubstructure = null;
             for (int s = 0; s <= steps; s++)
             {
                 Vector2 p = fromLocal + dir * Mathf.Min(sampleLength, SampleStep * s);
-                if (!FindBestCell(body, defMap, surface, fromLocal, p, dir,
+                if (!FindBestCell(body, defMap, surface, fromLocal, p, footprintDirection,
                     passedBuildings, passedSubstructure,
                     out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing))
                 {
@@ -692,14 +698,6 @@ namespace DeltaV
                 {
                     ApplyAttackerOutcome(body, shieldEffect, defender, evt.hitUniverse, evt.hitDefenderLocal);
                 }
-                else if (body.haltOnShield)
-                {
-                    // 侵入 shuttle 的护盾挡停：有容量 → 速度清零、容量照耗、
-                    // 不摧毁；侵入舱独立使用挡停语义。玩家可重入（目标保留）。
-                    evt.attacker.pose.velocity = Vector2.zero;
-                    DeltaVLog.Message(DeltaVLogModule.Combat,
-                        $"intrusion halted by shield: '{body.projectileDef?.defName}' stopped at '{defender.label}' arc");
-                }
                 else if (!ContinueAfterImpact(body, residual, evt.hitUniverse))
                 {
                     ApplyAttackerOutcome(body, shieldEffect, defender, evt.hitUniverse, evt.hitDefenderLocal);
@@ -852,7 +850,7 @@ namespace DeltaV
                 }
                 if (body.noseHalfWidth > 0f)
                 {
-                    // 原先的外接圆会把艇身侧后方的墙算作艇首撞击。
+                    // 侧滑时按真实艇首朝向定位，不能把速度方向当成船首。
                     // 与落位用的 3×5 脚印一致，仅让前端一排 3×1 的矩形触发破拆。
                     Vector2 offset = new Vector2(cell.x + 0.5f, cell.z + 0.5f)
                         - (p + dir * body.noseForwardOffset);

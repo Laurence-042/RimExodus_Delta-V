@@ -78,7 +78,8 @@ namespace DeltaV
         {
             if (!target.IsValid) return false;
             SpaceObject frame = universe.FrameOf(target.Map);
-            if (!target.Vessel.CanDriveIn(frame) || frame.projectileRoleOverride) return false;
+            // 侵入只追加碰撞角色；截击 MPC 仍须经过同一真实推进门禁。
+            if (!target.Vessel.CanDriveIn(frame)) return false;
             if (!FreeFlightBootstrap.IsZeroGravity(universe, target.Map))
             {
                 Messages.Message("DeltaV_PilotGravityRestricted".Translate(), MessageTypeDefOf.RejectInput, false);

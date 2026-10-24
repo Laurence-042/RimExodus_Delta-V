@@ -110,7 +110,7 @@ internal static class Program
         hull = new Hull(map); universe.objects.Clear(); universe.objects.Add(hull);
     }
     static SpaceCollision.SweptBody Fire(float scale, float speed = 180, ThingDef def = null,
-        float from = 5, float to = 70)
+        float from = 5, float to = 70, Action<SpaceCollision.SweptBody> configure = null)
     {
         Vector3 start = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(from, 5.5f));
         Vector3 end = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(to, 5.5f));
@@ -120,6 +120,7 @@ internal static class Program
         var body = new SpaceCollision.SweptBody { attacker = attacker, projectileDef = def ?? rail,
             from = start, to = end, damageScale = scale, sweepRadius = 0.01f,
             onVisualContact = contacts.Add };
+        configure?.Invoke(body);
         SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { body });
         return body;
     }
@@ -347,6 +348,53 @@ internal static class Program
         Check(shot.resolvedHitCell == console.Position && !shot.resolvedHitShield
             && first.currentHitPoints == 3000 && battery.StoredEnergy == energyBefore,
             "coupling also crosses kinetic line while preserving shields");
+        XElement boardingNode = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_ShuttlesAndMoonPool.xml")
+            .Descendants("ThingDef").Single(x => (string)x.Element("defName") == "DeltaV_ShuttleBoarding")
+            .Element("comps").Elements("li").Single(x => (string)x.Attribute("Class") == "DeltaV.CompProperties_SpaceProjectile");
+        var boarding = MakeDef("DeltaV_ShuttleBoarding");
+        boarding.comps.Add(new CompProperties_SpaceProjectile {
+            guided = false,
+            ignoresShields = (bool)boardingNode.Element("ignoresShields") });
+        var boardingEffects = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceImpactEffects.xml")
+            .Root.Elements().Where(x => x.Element("projectileDefs")?.Elements("li")
+                .Any(d => (string)d == boarding.defName) == true).ToList();
+        Check(!boardingEffects.Any(x => (string)x.Element("defenderEffect")?.Element("kind") == "ShieldDrain"),
+            "boarding has no shield-drain or shield-surface landing outcome");
+        XElement boardingStructure = boardingEffects.Single(x => (string)x.Element("defName") == "DeltaV_Impact_BoardingVsStructure");
+        DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef {
+            defName = "fixtureBoarding", projectileDefs = new List<ThingDef> { boarding }, buildingHitChance = 1,
+            attackerEffect = new ImpactOutcomePart { kind = Enum.Parse<ImpactEffectKind>(
+                (string)boardingStructure.Element("attackerEffect").Element("kind")) } });
+        SpaceImpactEffects.ResetCache();
+        foreach (SpaceShieldMode mode in new[] { SpaceShieldMode.Kinetic, SpaceShieldMode.Electromagnetic })
+        {
+            kinetic.mode = mode;
+            SpaceCollision.ClearCaches(); contacts.Clear();
+            shot = Fire(1, speed: 12, def: boarding);
+            Check(shot.dead && shot.resolvedHitCell == console.Position && !shot.resolvedHitShield
+                && !shot.didRedirect && first.currentHitPoints == 3000 && battery.StoredEnergy == energyBefore
+                && contacts.Count == 1 && !contacts[0].shieldMode.HasValue,
+                "boarding crosses " + mode + " and guard shields, reaching the physical hull without shield costs");
+        }
+        for (int rotation = 0; rotation < 4; rotation++)
+        {
+            Reset();
+            Add(55, 4, 420);
+            void Nose(SpaceCollision.SweptBody body)
+            {
+                body.attackerBuilding = new Building { def = boarding, Rotation = new Rot4(rotation) };
+                body.attacker.pose.angle = Mathf.PI * 0.5f - ShipOrientation.AngleFromRot4(new Rot4(rotation));
+                body.sweepRadius = Mathf.Sqrt(34) * 0.5f;
+                body.noseHalfWidth = 1.5f; body.noseForwardOffset = 2;
+            }
+            shot = Fire(1, speed: 12, def: boarding, configure: Nose);
+            Check(!shot.resolvedHit, "side-slipping boarding hull does not ram with its side or rear " + rotation);
+            var noseTarget = Add(55, 7, 420);
+            SpaceCollision.ClearCaches();
+            shot = Fire(1, speed: 12, def: boarding, configure: Nose);
+            Check(shot.dead && shot.resolvedHitCell == noseTarget.Position,
+                "side-slipping boarding nose collision follows real hull heading " + rotation);
+        }
         Reset(); first = Shield(3000);
         generator = (Target)first.parent;
         map.thingGrid.Deregister(generator); Set(generator, "positionInt", new IntVec3(40, 0, 5));

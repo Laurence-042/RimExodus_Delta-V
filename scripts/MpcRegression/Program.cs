@@ -6,6 +6,9 @@ using System.Runtime.CompilerServices;
 using Verse;
 using DeltaV;
 using UnityEngine;
+using System.Linq;
+using System.Globalization;
+using System.Xml.Linq;
 
 // Production guidance/solver sources are linked, and allocation calls the production DLL.
 // No game loop, void thrust, residual assist or substitute controller is used.
@@ -21,7 +24,14 @@ internal static class Program
         var mods = (Dictionary<Type, Mod>)typeof(LoadedModManager)
             .GetField("runningModClasses", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
         mods[typeof(DeltaVMod)] = mod;
-        bool passed = CheckPredictionFactors() & CheckSolver();
+        bool interceptPassed = RunIntercept("boarding", new Vector2(-80, 0), Vector2.zero, 0, true);
+        interceptPassed &= RunIntercept("boarding-turn", new Vector2(-80, -20), new Vector2(0, 4), Mathf.PI, true);
+        interceptPassed &= RunIntercept("boarding-moving-loaded", new Vector2(-180, -25), Vector2.zero, 0,
+            true, 280, new Vector2(2, 1));
+        interceptPassed &= RunIntercept("boarding-unboosted", new Vector2(-80, 0), Vector2.zero, 0, false);
+        interceptPassed &= RunIntercept("boarding-close", new Vector2(-9, 0), new Vector2(15, 0), 0, true);
+        if (Array.IndexOf(args, "--intercept-only") >= 0) return interceptPassed ? 0 : 1;
+        bool passed = interceptPassed & CheckPredictionFactors() & CheckSolver();
         passed &= Run("straight", new Vector2(-58.7f, 0), Vector2.zero, 0f, 0f, strict);
         passed &= Run("turn-55", new Vector2(-58.7f, -0.657f), Vector2.zero, 0f, -55f * Mathf.Deg2Rad, strict);
         passed &= Run("lateral", new Vector2(-20f, -8f), new Vector2(4f, 3f), -55f * Mathf.Deg2Rad, -55f * Mathf.Deg2Rad, strict);
@@ -35,6 +45,92 @@ internal static class Program
         return passed ? 0 : 1;
     }
 
+    static bool RunIntercept(string name, Vector2 position, Vector2 velocity, float angle,
+        bool boost, float mass = 140, Vector2 targetVelocity = default)
+    {
+        DeltaVMod.CurrentSettings.passiveDrag = true;
+        XElement xml = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_ShuttlesAndMoonPool.xml")
+            .Descendants("virtualThrusters").Single();
+        Vector2 Pair(string text)
+        {
+            var p = text.Trim('(', ')').Split(',');
+            return new Vector2(float.Parse(p[0], CultureInfo.InvariantCulture), float.Parse(p[1], CultureInfo.InvariantCulture));
+        }
+        var report = new ShipPhysics.MassReport { mass = mass, inertia = mass * 34 / 12 };
+        var normal = new ShipPhysics.MassReport { mass = mass, inertia = report.inertia };
+        foreach (var entry in xml.Elements("li"))
+        {
+            Vector2 force = Pair((string)entry.Element("force"));
+            Vector2 point = Pair((string)entry.Element("position"));
+            foreach (var r in new[] { report, normal }) r.thrusters.Add(new ShipPhysics.Thruster
+                { localPos = point, dir = force.normalized, thrust = force.magnitude, operational = true });
+        }
+        var guidance = new OnlineMpcGuidance(); guidance.Reset(AutopilotMpcProfile.Balanced);
+        double[] Matrix(ShipPhysics.ControlModel m)
+        {
+            var b = new double[9];
+            for (int axis = 0; axis < 3; axis++)
+            {
+                Vector2 a = SpaceTransform.Rotate(m.forceColumns[axis] / mass, angle);
+                b[axis] = a.x; b[3 + axis] = a.y; b[6 + axis] = m.torqueColumns[axis] / report.inertia;
+            }
+            return b;
+        }
+        int remaining = boost ? 600 : 0, fallback = 0, solves = 0, planStep = 4;
+        float omega = 0, closest = float.MaxValue;
+        GuidanceCommand held = default;
+        var scratch = new float[6];
+        double solveMs = 0;
+        for (int tick = 0; tick < 7200; tick++)
+        {
+            bool boosted = remaining > 0;
+            for (int i = 0; i < 6; i++) report.thrusters[i].thrust = normal.thrusters[i].thrust * (boosted && i < 2 ? 2 : 1);
+            if (tick % 6 == 0 || remaining == 0 && boost)
+            {
+                if (remaining == 0 && boost) planStep = 4; // Real capability version invalidates playback on depletion.
+                var model = ShipPhysics.BuildControlModel(report);
+                var normalModel = ShipPhysics.BuildControlModel(normal);
+                if (planStep < 3 && guidance.TryGetPlannedStep(++planStep, model, out var planned)) held = planned;
+                else
+                {
+                    Vector2 toward = -position;
+                    float targetAngle = Mathf.Atan2(toward.y, toward.x);
+                    float targetOmega = (toward.x * -velocity.y - toward.y * -velocity.x) / Math.Max(0.01f, toward.sqrMagnitude);
+                    bool solved = guidance.Compute(new GuidanceRequest
+                    {
+                        intercept = true, positionError = toward, relativeVelocity = velocity,
+                        referenceVelocity = targetVelocity, angleError = SpaceTransform.WrapAngle(targetAngle - angle),
+                        relativeAngularVelocity = omega - targetOmega, referenceAngularVelocity = targetOmega,
+                        dt = 0.1f, elapsedSteps = 4, controlModel = model, controlAcceleration = Matrix(model),
+                        brakingAcceleration = ShipPhysics.PreviewBrakingAcceleration(report, SpaceTransform.RotateInverse(toward.normalized, angle)),
+                        boostSeconds = remaining / 60f, unboostedModel = boosted ? normalModel : null,
+                        unboostedAcceleration = Matrix(normalModel)
+                    }, out held);
+                    if (!solved || held.usedFallback) fallback++;
+                    solveMs += held.solveMilliseconds; solves++; planStep = 0;
+                }
+                if (remaining == 0) boost = false;
+            }
+            var cmd = ShipPhysics.ForceToCommand(report, held.desiredLocalForce, held.desiredTorque);
+            object[] call = { report, cmd, scratch, Vector2.zero, 0f };
+            Allocate.Invoke(null, call);
+            Vector2 force = (Vector2)call[3]; float torque = (float)call[4];
+            if (remaining > 0 && (scratch[0] > 0.001f || scratch[1] > 0.001f)) remaining--;
+            (float linear, float angular) = ShipPhysics.PassiveDragFactors(1f / 60f);
+            velocity = (velocity + targetVelocity + SpaceTransform.Rotate(force, angle) / mass / 60f) * linear - targetVelocity;
+            omega = (omega + torque / report.inertia / 60f) * angular;
+            position += velocity / 60f; angle = SpaceTransform.WrapAngle(angle + omega / 60f);
+            closest = Math.Min(closest, position.magnitude);
+            if (position.magnitude < 2.5f && Math.Abs(SpaceTransform.WrapAngle(Mathf.Atan2(-position.y, -position.x) - angle)) < 0.5f)
+            {
+                bool passed = fallback == 0 && velocity.magnitude > 2;
+                Console.WriteLine($"{(passed ? "PASS" : "FAIL")} {name} seconds={tick/60f:F2} speed={velocity.magnitude:F2} boostRemaining={remaining} fallback={fallback}/{solves} avgSolve={solveMs/solves:F2}ms");
+                return passed;
+            }
+        }
+        Console.WriteLine($"FAIL {name}: missed; closest={closest:F2} d={position.magnitude:F2} fallback={fallback}/{solves}");
+        return false;
+    }
     static bool CheckPredictionFactors()
     {
         foreach (float decay in new[] { 1f, 0.999f, 0.97f })

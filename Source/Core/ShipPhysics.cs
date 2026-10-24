@@ -71,6 +71,10 @@ namespace DeltaV
             /// <summary>对应的 Map 内推进器；只供运行时表现层读取，不持久化。</summary>
             public Thing thing;
             public ThrusterVisualProfile visuals;
+            internal ThrusterVisualProfile normalVisuals;
+            internal CompSpaceShuttle shuttle;
+            internal float baseThrust;
+            internal bool boostable;
 
             /// <summary>作用点（ship local，原点 = 地图几何中心）：占用矩形中心。</summary>
             public Vector2 localPos;
@@ -427,6 +431,14 @@ namespace DeltaV
             for (int i = 0; i < report.thrusters.Count; i++)
             {
                 Thruster thruster = report.thrusters[i];
+                if (thruster.shuttle != null)
+                {
+                    float multiplier = thruster.boostable ? thruster.shuttle.BoostMultiplier : 1f;
+                    float thrust = thruster.baseThrust * multiplier;
+                    if (thruster.thrust != thrust) { thruster.thrust = thrust; report.version++; }
+                    thruster.visuals = multiplier > 1f ? thruster.shuttle.ShuttleProps.afterburner
+                        : thruster.normalVisuals;
+                }
                 if (thruster.thing == null)
                 {
                     continue; // 无实体推进器的可用性由船体提供，不用建筑电力模型覆盖。

@@ -36,7 +36,7 @@
 	<ThingDef ParentName="PassengerShuttle">
 		<defName>DeltaV_ShuttleBoarding</defName>
 		<label>boarding shuttle</label>
-		<description>An armored assault variant of the passenger shuttle. Fewer seats, far tougher hull, far more agile in free flight. Arm its intrusion drive, pick an enemy hull, and it rams straight through like a missile — the cabin seals the breach and marines pour out.</description>
+		<description>An armored assault variant of the passenger shuttle. Fewer seats, far tougher hull, far more agile in free flight. Arm its intrusion drive and pick an enemy hull. Its thrusters guide it into the hull, with ten seconds of cumulative double-thrust afterburner on the main engines. It passes through shields while remaining vulnerable to point defense. The cabin seals the breach for its marines to disembark.</description>
 		<uiIconPath>Things/Building/Shuttle/BoardingShuttle_MenuIcon</uiIconPath>
 		<graphicData>
 			<graphicClass>Graphic_Single</graphicClass>
@@ -48,14 +48,9 @@
 		<interactionCellOffset>(0,0,3)</interactionCellOffset>
 		<comps>
 			<li Class="DeltaV.CompProperties_SpaceProjectile">
-				<speed>60</speed>
-				<timeoutTicks>1800</timeoutTicks>
-				<guided>true</guided>
-				<turnRateDegPerSec>540</turnRateDegPerSec>
+				<timeoutTicks>7200</timeoutTicks>
+				<ignoresShields>true</ignoresShields>
 				<hasMap>true</hasMap>
-				<exhaustTrail>true</exhaustTrail>
-				<exhaustSize>1.1</exhaustSize>
-				<smokeLifetimeTicks>150</smokeLifetimeTicks>
 			</li>
 		</comps>
 		<statBases>
@@ -75,19 +70,18 @@
 				<canBoard>true</canBoard>
 				<!--
 					船体帧 +X=舱头、+Y=左侧；按 3x5 正式贴图定位全部喷口。
-					尾部主推拆为左右两台，各 140、合计仍为 280；侵入尾焰读取同一位置。
-					前后姿控作用臂调整为 1.85，物理力矩随真实位置计算。
+					尾部两台主推各 280；头部排气斜向前，中部排气斜向后，推力与排气反向。
+					四台斜推兼任纵向、侧向与姿控；力矩按真实位置计算。
 				-->
+				<boostMultiplier>2</boostMultiplier>
+				<boostTicks>600</boostTicks>
 				<virtualThrusters>
-					<li><position>(-2.2,0.69)</position><force>(140,0)</force></li>
-					<li><position>(-2.2,-0.69)</position><force>(140,0)</force></li>
-					<li><position>(2.02,0)</position><force>(-280,0)</force></li>
-					<li><position>(-0.12,-1.07)</position><force>(0,70)</force></li>
-					<li><position>(-0.12,1.07)</position><force>(0,-70)</force></li>
-					<li><position>(1.85,-0.96)</position><force>(0,35)</force></li>
-					<li><position>(-1.85,1.12)</position><force>(0,-35)</force></li>
-					<li><position>(1.85,0.96)</position><force>(0,-35)</force></li>
-					<li><position>(-1.85,-1.12)</position><force>(0,35)</force></li>
+					<li><position>(-2.2,0.69)</position><force>(280,0)</force></li>
+					<li><position>(-2.2,-0.69)</position><force>(280,0)</force></li>
+					<li><position>(2.02,0.85)</position><force>(-140,-210)</force></li>
+					<li><position>(2.02,-0.85)</position><force>(-140,210)</force></li>
+					<li><position>(-0.55,1.1)</position><force>(140,-210)</force></li>
+					<li><position>(-0.55,-1.1)</position><force>(140,210)</force></li>
 				</virtualThrusters>
 			</li>
 		</modExtensions>

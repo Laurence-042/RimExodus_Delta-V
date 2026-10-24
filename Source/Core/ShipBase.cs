@@ -168,7 +168,10 @@ namespace DeltaV
                 {
                     localPos = center + SpaceTransform.Rotate(configured.position, FrameAngle),
                     dir = force.normalized, thrust = force.magnitude, operational = true,
-                    visuals = configured.visuals ?? Hull.ShuttleProps.exhaust
+                    shuttle = Hull, baseThrust = force.magnitude,
+                    boostable = configured.force.x > 0f && Mathf.Abs(configured.force.y) < 0.001f,
+                    visuals = configured.visuals ?? Hull.ShuttleProps.exhaust,
+                    normalVisuals = configured.visuals ?? Hull.ShuttleProps.exhaust
                 };
             }
         }
@@ -183,8 +186,11 @@ namespace DeltaV
             universe.FrameOf(Map)?.IsWorksite != true || universe.ShipTransitions.RequestShuttleSeparation(this, playerInitiated);
         public override ShipTransferSpec Transfer => new ShipTransferSpec(null, Anchor as Building, 0, false);
         public override bool CanBoard => Hull.CanBoard;
-        public override void NotifyLanded() =>
+        public override void NotifyLanded()
+        {
+            Hull.RearmBoost();
             SpaceShuttleService.StartLaunchCooldown(Hull.parent.TryGetComp<CompLaunchable>());
+        }
     }
 
     /// <summary>火控与武器组的唯一持久模型，由船体身份锚保存。</summary>

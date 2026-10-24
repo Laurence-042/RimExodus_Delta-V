@@ -135,7 +135,7 @@ internal static partial class Program
             "archived shuttle dynamics retain typed identity and reject an equal numeric foundation ID");
         container.projectileRoleOverride = true;
         Check(container.HasTag(SpaceObjectTag.Ship | SpaceObjectTag.Projectile)
-            && container.IsActiveCollider && !container.AppliesPassiveDrag && !container.IsTransient
+            && container.IsActiveCollider && container.AppliesPassiveDrag && !container.IsTransient
             && universe.PlayerReferenceObjects().Contains(container),
             "intrusion adds projectile behavior while preserving player ship membership and persistence");
         var target = new SpaceObject(900, new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(100, 0)), 0));

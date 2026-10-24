@@ -72,6 +72,32 @@ namespace DeltaV
         }
         public ShipPhysics.ControlModel PreviewModel(ShipPhysics.ControlModel reuse = null)
             => ShipPhysics.BuildControlModel(report, reuse);
+        private ShipPhysics.MassReport unboostedReport;
+        private int unboostedVersion = -1;
+        internal float BoostSecondsRemaining
+        {
+            get
+            {
+                foreach (var thruster in report.thrusters)
+                    if (thruster.boostable && thruster.shuttle?.BoostMultiplier > 1f)
+                        return thruster.shuttle.BoostTicksRemaining / 60f;
+                return 0f;
+            }
+        }
+        internal ShipPhysics.ControlModel PreviewUnboostedModel(ShipPhysics.ControlModel reuse)
+        {
+            if (unboostedReport == null || unboostedVersion != report.version)
+            {
+                unboostedReport = new ShipPhysics.MassReport
+                    { mass = report.mass, inertia = report.inertia, comLocal = report.comLocal };
+                foreach (var t in report.thrusters)
+                    unboostedReport.thrusters.Add(new ShipPhysics.Thruster
+                    { localPos = t.localPos, dir = t.dir, operational = t.operational,
+                        thrust = t.shuttle != null ? t.baseThrust : t.thrust });
+                unboostedVersion = report.version;
+            }
+            return ShipPhysics.BuildControlModel(unboostedReport, reuse);
+        }
         public float PreviewBraking(Vector2 direction) => ShipPhysics.PreviewBrakingAcceleration(report, direction);
         public float PreviewAngular(int direction) => ShipPhysics.PreviewAngularAcceleration(report, direction);
         public void Preview(ShipPhysics.Command command, out Vector2 force, out float torque)

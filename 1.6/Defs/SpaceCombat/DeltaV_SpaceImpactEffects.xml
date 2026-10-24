@@ -353,15 +353,6 @@
 			<explosionRadius>1.6</explosionRadius></shieldSurfaceEffect>
 		<attackerEffect><kind>DestroySelf</kind></attackerEffect>
 	</DeltaV.SpaceImpactEffectDef>
-	<DeltaV.SpaceImpactEffectDef>
-		<defName>DeltaV_Impact_BoardingVsShield</defName>
-		<projectileDefs><li>DeltaV_ShuttleBoarding</li></projectileDefs>
-		<targetThingDefs><li>GravshipShieldGenerator</li><li>DeltaV_ShieldGenerator</li></targetThingDefs>
-		<defenderEffect><kind>ShieldDrain</kind><damage>25</damage>
-			<referenceSpeed>60</referenceSpeed><speedExponent>1</speedExponent>
-			<incidenceMinFactor>0.5</incidenceMinFactor></defenderEffect>
-		<attackerEffect><kind>PlaceBody</kind></attackerEffect>
-	</DeltaV.SpaceImpactEffectDef>
 
 	<!-- 即时激光没有弹速，护盾消耗不得乘相对速度。中型炮的 impactScale 同时作用于该值。 -->
 	<DeltaV.SpaceImpactEffectDef>

@@ -13,7 +13,7 @@ namespace DeltaV
     /// 见 Patch_MoonPool）+ 虚拟推进器 XML 配置（默认 8 台；位置/推力矢量逐台定义）+ 侵入能力
     ///（per-def canBoard）。停靠时是宿主图内的船成员；起飞后持有独立的普通容器。
     /// 与基架船共用公共能力：飞行/驾驶/自动驾驶/受击/普通停靠全部复用同一实现；
-    /// shuttle 特有的只有单建筑域属性、落地冷却与侵入（= 导弹机制）。
+    /// shuttle 特有的只有单建筑域属性、落地冷却与侵入碰撞编排。
     /// </summary>
     public class CompProperties_SpaceShuttle : CompProperties
     {
@@ -40,6 +40,21 @@ namespace DeltaV
     {
         public ShipCombatState combat = new ShipCombatState();
         private ShipBase vessel;
+        private int boostTicksUsed;
+        internal bool intrusionDriveActive;
+        internal int BoostTicksRemaining => Mathf.Max(0, (BoardingProfile?.boostTicks ?? 0) - boostTicksUsed);
+        internal float BoostMultiplier => intrusionDriveActive && BoostTicksRemaining > 0
+            ? Mathf.Max(1f, BoardingProfile?.boostMultiplier ?? 1f) : 1f;
+        internal void ConsumeBoostTick(DriveInfo drive)
+        {
+            if (BoostMultiplier <= 1f) return;
+            Vector2 forward = SpaceTransform.Rotate(Vector2.right, Vessel.FrameAngle);
+            foreach (ThrusterInfo thruster in drive.thrusters)
+                if (thruster.operational && thruster.throttle > 0.001f
+                    && Vector2.Dot(thruster.dir, forward) > 0.999f)
+                { boostTicksUsed++; return; }
+        }
+        internal void RearmBoost() { boostTicksUsed = 0; intrusionDriveActive = false; }
         public virtual ShipBase Vessel => vessel ??= new ShuttleShip(this);
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
@@ -62,6 +77,7 @@ namespace DeltaV
         {
             base.PostExposeData();
             Scribe_Deep.Look(ref combat, "combat");
+            Scribe_Values.Look(ref boostTicksUsed, "intrusionBoostTicksUsed");
             combat ??= new ShipCombatState();
         }
 
@@ -131,7 +147,7 @@ namespace DeltaV
     /// <summary>
     /// shuttle 服务（太空战架构 §7/§10，universe.Shuttles 实例服务）：起飞（原版校验
     /// 直取 + 单建筑捕获进口袋）、停靠复用飞船的 Gravship 捕获/剥离/放置链、
-    /// 侵入编排（弹体角色接管的导弹机制）。
+    /// 侵入编排（真实推进器截击 + 共同弹体碰撞）。
     /// 与其他飞船实现共用：SpaceObject 驾驶契约、ShipAutopilot（普通对接）、
     /// PilotService（PilotTarget）、SpaceCollision（联合效果）。运行时数据不序列化。
     /// </summary>
@@ -231,7 +247,7 @@ namespace DeltaV
                 EngageIntrusion((Building)craft.parent, enemy, playerInitiated: false);
         }
 
-        // ---- 侵入式对接（§7.5 = 导弹接管 + 联合后效 + 共同降落链）----
+        // ---- 侵入式对接（§7.5 = 截击 MPC + 联合后效 + 共同降落链）----
 
         public bool IntrusionArmed(SpaceObject container)
         {
@@ -302,7 +318,7 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 进入侵入：现有艇体交给导弹服务，不创建第二个容器或自动驾驶任务。
+        /// 进入侵入：弹体服务登记现有艇体并请求截击 MPC，不创建第二个容器。
         /// </summary>
         public void EngageIntrusion(Building body, CombatTarget handle, bool playerInitiated = true)
         {
@@ -337,10 +353,10 @@ namespace DeltaV
                 $"intrusion broken off: shuttle container #{container.objectId} (projectile role removed)");
         }
 
-        /// <summary>导弹命中后效：在帧边界以真正的 Gravship 搬运链降落。</summary>
+        /// <summary>侵入命中后效：在帧边界以真正的 Gravship 搬运链降落。</summary>
         public void PlaceBoardedShuttle(SpaceObject container, Building hull, SpaceObject defender,
-            Vector3 hitUniverse, Vector2 hitLocal, Vector2 incidentWorld,
-            IntVec3 hitCell, bool shieldHit)
+            Vector3 hitUniverse, Vector2 hitLocal, Vector2 forwardWorld,
+            IntVec3 hitCell)
         {
             int sourceId = container.objectId, sourceVersion = container.RepresentationVersion;
             int targetId = defender.objectId, targetVersion = defender.RepresentationVersion;
@@ -359,29 +375,13 @@ namespace DeltaV
                     || !universe.objects.Contains(defender) || !universe.objects.Contains(container))
                     return;
 
-                // 护盾点在舱壁之外：沿本发实际入射方向找第一格船壳。
-                Vector3 ahead = OrbitSphere.Move(hitUniverse, incidentWorld * 0.25f);
+                // 落点只读实际艇首碰撞格；护盾面不触发跳帮。
+                Vector3 ahead = OrbitSphere.Move(hitUniverse, forwardWorld * 0.25f);
                 Vector2 localDirection = SpaceTransform.UniverseToMapPoint(defender, targetMap, ahead)
                     - SpaceTransform.UniverseToMapPoint(defender, targetMap, hitUniverse);
                 if (localDirection.sqrMagnitude < 1e-8f) return;
                 localDirection.Normalize();
                 IntVec3 entry = hitCell;
-                if (shieldHit)
-                {
-                    entry = IntVec3.Invalid;
-                    for (float distance = 0f; distance <= 64f; distance += 0.25f)
-                    {
-                        Vector2 probe = hitLocal + localDirection * distance;
-                        IntVec3 cell = new IntVec3(Mathf.FloorToInt(probe.x), 0,
-                            Mathf.FloorToInt(probe.y));
-                        if (!cell.InBounds(targetMap)) continue;
-                        if (cell.GetThingList(targetMap).Any(t => t is Building b && b.def.IsWall))
-                        {
-                            entry = cell;
-                            break;
-                        }
-                    }
-                }
                 if (!entry.IsValid || !entry.InBounds(targetMap))
                 {
                     DeltaVLog.Message(DeltaVLogModule.Combat,

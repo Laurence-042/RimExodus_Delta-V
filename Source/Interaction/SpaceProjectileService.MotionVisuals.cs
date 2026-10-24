@@ -64,23 +64,9 @@ namespace DeltaV
             Vector3 camera = Find.Camera.transform.position;
             Vector3 center = SpaceTransform.MapPointToUniverse(frame, map, new Vector2(camera.x, camera.z));
             UpdateNearDust(center);
-            foreach (Projectile p in projectiles)
-            {
-                if (!p.adoptedShuttle || p.dead || p.phase != FlightPhase.PoweredFlight) continue;
-                ThrusterVisualProfile profile = p.building?.TryGetComp<CompSpaceShuttle>()?.ShuttleProps.afterburner;
-                if (profile == null || p.container.map == null
-                    || OrbitSphere.Offset(center, p.container.pose.position).sqrMagnitude > 240f * 240f) continue;
-                for (int i = 0; i < p.exhaustPorts.Count; i++)
-                {
-                    ExhaustPort port = p.exhaustPorts[i];
-                    EmitDriveExhaust(p.container, SpaceTransform.ShipLocalToMap(p.container.map, port.localPosition),
-                        new Vector2(Mathf.Cos(port.localAngle), Mathf.Sin(port.localAngle)), 4f, 1f,
-                        profile, p.container.objectId * 31 + i, now);
-                }
-            }
             foreach (SpaceObject obj in universe.objects)
             {
-                if (obj.map == null || obj.map.Disposed || obj.projectileRoleOverride
+                if (obj.map == null || obj.map.Disposed || obj.baseTag == SpaceObjectTag.Projectile
                     || obj != frame && !obj.ParticipatesInOverlays
                     || universe.Generation?.IsGenerating(obj.map) == true) continue;
                 if (OrbitSphere.Offset(center, obj.pose.position).sqrMagnitude > 240f * 240f) continue;

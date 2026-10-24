@@ -785,8 +785,8 @@ namespace DeltaV
             //（IsActive 跳过防双驱动，计划判据看到本 tick 最新位姿）。
             NpcShips.Tick();
             softDock?.Tick();
-            Autopilot.Tick();
             Projectiles.Tick();
+            Autopilot.Tick();
             Weapons.TickPendingMissileReloads();
             // 同一归属 controller 调度瞄准、齐射、点防与炮手事件。
             Controls.Tick();

@@ -11,6 +11,14 @@ using Verse;
 
 internal static partial class Program
 {
+    // Preview uses the same allocation core without writing Unity's render clock.
+    // Budget/throttle consumption is checked separately below; drive gates and integration remain real.
+    sealed class OfflineShuttleSpaceObject : MapSpaceObject
+    {
+        public OfflineShuttleSpaceObject(int id, Map map, SpacePose pose) : base(id, map, pose) { }
+        protected override void AllocateDrive(ShipPhysics.MassReport report, ShipPhysics.Command command,
+            out Vector2 force, out float torque) => ShipPhysics.PreviewAllocation(report, command, out force, out torque);
+    }
     static T FlightField<T>(object flight, string name) =>
         (T)flight.GetType().GetField(name).GetValue(flight);
 
@@ -85,6 +93,13 @@ internal static partial class Program
         // Read the real Def so nozzle checks detect drift between art alignment and physics configuration.
         XElement xml = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_ShuttlesAndMoonPool.xml")
             .Descendants("ThingDef").Single(x => (string)x.Element("defName") == "DeltaV_ShuttleBoarding");
+        XElement flightXml = xml.Element("comps").Elements("li")
+            .Single(x => (string)x.Attribute("Class") == "DeltaV.CompProperties_SpaceProjectile");
+        var boardingProps = new CompProperties_SpaceProjectile
+        {
+            hasMap = true,
+            ignoresShields = (bool)flightXml.Element("ignoresShields")
+        };
         Vector2 Pair(string value)
         {
             string[] parts = value.Trim('(', ')').Split(',');
@@ -92,40 +107,109 @@ internal static partial class Program
         }
         var layout = xml.Descendants("virtualThrusters").Single().Elements("li")
             .Select(x => new ShuttleThrusterConfig { position = Pair((string)x.Element("position")), force = Pair((string)x.Element("force")) }).ToList();
-        Check(layout.Count(x => x.force.x > 0) == 2 && Math.Abs(layout.Sum(x => Math.Max(0, x.force.x)) - 280) < 0.001f
+        Check(layout.Count == 6 && layout.Count(x => x.force.x > 0 && x.force.y == 0) == 2
             && Math.Abs(layout.Where(x => x.force.x > 0).Sum(x => x.position.y * x.force.x)) < 0.001f,
-            "boarding Def has two symmetric main engines preserving total forward thrust and zero net yaw");
+            "boarding Def has six thrusters including two symmetric main engines");
         var targetBody = new SpaceObject(41001, new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(100, 0)), 0));
         universe.objects.Add(targetBody);
+        var savedGrid = Find.World.grid;
+        var fixtureLayer = (RimWorld.Planet.PlanetLayer)Raw(typeof(RimWorld.Planet.PlanetLayer));
+        Set(fixtureLayer, "def", new PlanetLayerDef { isSpace = true });
+        Find.World.grid = (RimWorld.Planet.WorldGrid)Raw(typeof(RimWorld.Planet.WorldGrid));
+        Set(Find.World.grid, "planetLayers", new Dictionary<int, RimWorld.Planet.PlanetLayer> { [0] = fixtureLayer });
         for (int rotation = 0; rotation < 4; rotation++)
         {
             Map map = TestMap(41010 + rotation);
             var hull = AddTestHull(map, player, 41020 + rotation,
                 new CompSpaceShuttle { props = new CompProperties_SpaceShuttle { virtualThrusters = layout } });
             hull.parent.Rotation = new Rot4(rotation);
-            hull.parent.def.comps.Add(new CompProperties_SpaceProjectile { guided = true, hasMap = true });
-            var container = new MapSpaceObject(41030 + rotation, map, new SpacePose(Vector3.forward, 0.71f));
+            hull.parent.def.comps.Add(boardingProps);
+            hull.parent.def.modExtensions = new List<DefModExtension> { new DefModExtension_BoardingProfile
+                { canBoard = true, boostMultiplier = 2f, boostTicks = 600, virtualThrusters = layout } };
+            var container = new OfflineShuttleSpaceObject(41030 + rotation, map, new SpacePose(Vector3.forward, 0.71f));
             universe.objects.Add(container);
             Check(service.AdoptShuttle(container, (Building)hull.parent, CombatTarget.ForContainer(targetBody)),
                 "intrusion adopts the real rotated shuttle " + rotation);
             object adopted = ProjectileRecords(service).Cast<object>().Single();
-            Check((int)Call(service, "ExhaustCount", adopted) == 2, "intrusion uses both main nozzles " + rotation);
-            var actualThrusters = hull.Vessel.BuildThrusters().Take(2).ToArray();
-            for (int i = 0; i < 2; i++)
+            var physical = new ShipPhysics.MassReport { mass = 140f, inertia = 400f };
+            physical.thrusters.AddRange(hull.Vessel.BuildThrusters());
+            var drive = new DriveInfo(physical, hull.Vessel.FrameAngle);
+            ShipPhysics.RefreshOperational(physical);
+            Check(physical.thrusters.Select((t, i) => Math.Abs(t.thrust - layout[i].force.magnitude * (i < 2 ? 2 : 1)) < 0.001f).All(x => x),
+                "only the two physical tail engines double their thrust " + rotation);
+            var baseline = new ShipPhysics.MassReport { mass = physical.mass, inertia = physical.inertia };
+            baseline.thrusters.AddRange(hull.Vessel.BuildThrusters());
+            hull.intrusionDriveActive = false;
+            var expectedModel = ShipPhysics.BuildControlModel(baseline);
+            hull.intrusionDriveActive = true;
+            var futureModel = drive.PreviewUnboostedModel(new ShipPhysics.ControlModel());
+            Check(Math.Abs(futureModel.positiveX - expectedModel.positiveX) < 0.001f
+                && Math.Abs(futureModel.positiveTorque - expectedModel.positiveTorque) < 0.001f
+                && Math.Abs(physical.thrusters[0].thrust - layout[0].force.magnitude * 2) < 0.001f,
+                "post-boost preview matches ordinary allocation without changing live thrust " + rotation);
+            for (int i = 0; i < 6; i++)
+                Check((SpaceTransform.RotateInverse(physical.thrusters[i].dir, hull.Vessel.FrameAngle) - layout[i].force.normalized).magnitude < 0.001f,
+                    "physical thruster follows hull rotation " + rotation + "/" + i);
+            hull.ConsumeBoostTick(drive);
+            physical.thrusters[2].throttle = 1;
+            hull.ConsumeBoostTick(drive);
+            Check(hull.BoostTicksRemaining == 600, "idle and oblique thrusters do not consume boost " + rotation);
+            physical.thrusters[0].throttle = physical.thrusters[1].throttle = 1;
+            hull.ConsumeBoostTick(drive);
+            Check(hull.BoostTicksRemaining == 599, "two firing main engines consume one shared boost tick " + rotation);
+            if (rotation == 0)
             {
-                SpacePose nozzle = (SpacePose)Call(service, "ExhaustPose", adopted, i);
-                Vector2 local = SpaceTransform.UniverseToShipLocal(container, nozzle.position);
-                Check((local - actualThrusters[i].localPos).magnitude < 0.01f
-                    && Math.Abs(SpaceTransform.WrapAngle(nozzle.angle - container.pose.angle - hull.Vessel.FrameAngle)) < 0.001f,
-                    "afterburner shares physical nozzle position and heading for rotation/port " + rotation + "/" + i);
+                var restored = new CompSpaceShuttle { parent = hull.parent, props = hull.props };
+                string path = System.IO.Path.Combine(AppContext.BaseDirectory, "shuttle-boost.xml");
+                try
+                {
+                    Scribe.saver.InitSaving(path, "shuttle"); hull.PostExposeData(); Scribe.saver.FinalizeSaving();
+                    Scribe.loader.InitLoading(path); restored.PostExposeData(); Scribe.loader.FinalizeLoading();
+                }
+                finally { Scribe.ForceStop(); }
+                Check(restored.BoostTicksRemaining == 599 && !restored.intrusionDriveActive,
+                    "real Scribe preserves remaining boost but does not restore the intrusion task");
             }
+            Check(universe.Autopilot.IsActive(container) && container.AppliesPassiveDrag,
+                "intrusion uses real autopilot and ordinary ship drag " + rotation);
+            Vector2 inherited = new Vector2(50, 3);
+            container.pose.velocity = inherited;
+            container.pose.angularVelocity = 0.4f;
+            service.Tick();
+            Check(container.pose.velocity == inherited && container.pose.angularVelocity == 0.4f,
+                "collision service does not steer or integrate the boarding shuttle " + rotation);
             service.ReleaseShuttle(container);
             Call(universe, "RunFrameActions");
-            Check(!container.projectileRoleOverride && FlightField<IList>(adopted, "exhaustPorts").Count == 0,
-                "abort clears afterburner ports and restores ordinary flight " + rotation);
+            Check(!container.projectileRoleOverride && !universe.Autopilot.IsActive(container)
+                && !hull.intrusionDriveActive,
+                "abort detaches intrusion autopilot and turns off boost " + rotation);
+            Check(container.pose.velocity == inherited && container.pose.angularVelocity == 0.4f,
+                "aborting intrusion preserves linear and angular momentum " + rotation);
+            Check(hull.BoostTicksRemaining == 599 && service.AdoptShuttle(container, (Building)hull.parent, CombatTarget.ForContainer(targetBody)),
+                "restarting intrusion preserves its consumed boost " + rotation);
+            for (int tick = 0; tick < 650; tick++) hull.ConsumeBoostTick(drive);
+            ShipPhysics.RefreshOperational(physical);
+            Check(hull.BoostTicksRemaining == 0 && physical.thrusters.Select((t, i) => Math.Abs(t.thrust - layout[i].force.magnitude) < 0.001f).All(x => x),
+                "boost expires at 600 burn ticks and every thruster returns to its ordinary rating " + rotation);
+            // Same runtime order as Universe: capture sweep start, MPC, then drift guard.
+            service.Tick();
+            object resumed = ProjectileRecords(service).Cast<object>().Single();
+            Vector3 start = container.pose.position;
+            universe.Autopilot.Tick();
+            Vector3 end = container.pose.position;
+            container.AdvanceDrift(1f / 60f);
+            Check(OrbitSphere.Offset(start, end).magnitude > 0.01f && container.pose.position == end
+                && FlightField<Vector3>(resumed, "prevPosition") == start,
+                "MPC integrates once and the collision sweep retains the pre-drive start " + rotation
+                + " distance=" + OrbitSphere.Offset(start, end).magnitude);
+            service.ReleaseShuttle(container);
+            hull.Vessel.NotifyLanded();
+            Check(hull.BoostTicksRemaining == 600 && !hull.intrusionDriveActive, "landing rearms boost " + rotation);
+            Call(universe, "RunFrameActions");
             universe.objects.Remove(container);
             Find.Maps.Remove(map);
         }
         universe.objects.Remove(targetBody);
+        Find.World.grid = savedGrid;
     }
 }

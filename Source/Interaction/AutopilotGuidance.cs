@@ -244,6 +244,11 @@ namespace DeltaV
         // Disable position costs AND approach constraints; a zero position error alone
         // still makes MPC brake and fly back to its predicted starting point.
         public bool motionOnly;
+        public bool intercept;
+        public float boostSeconds;
+        public ShipPhysics.ControlModel unboostedModel;
+        public double[] unboostedAcceleration;
+        internal double arrivalSeconds;
         public Vector2 relativeVelocity;
         public float angleError;
         public float relativeAngularVelocity;
@@ -284,6 +289,7 @@ namespace DeltaV
         public double primalResidual;
         public double dualResidual;
         public double solveMilliseconds;
+        public double arrivalSeconds;
     }
 
     internal interface IAutopilotGuidance
@@ -321,6 +327,8 @@ namespace DeltaV
                 Vector2 toward = -p.normalized;
                 double speedLimit = Math.Sqrt(2.0 * safeAccel * distance);
                 Vector2 targetVelocity = request.motionOnly ? Vector2.zero : toward * (float)speedLimit;
+                if (request.intercept)
+                    targetVelocity = v + (request.positionError - v * 2f) * 0.5f;
                 Vector2 accel = (targetVelocity - v) / 0.5f;
                 if (accel.magnitude > safeAccel) accel = accel.normalized * (float)safeAccel;
                 desiredX = accel.x;
@@ -454,6 +462,9 @@ namespace DeltaV
         private bool hasPlannedSolution;
         private double[] previousIntervals;
         private double[] previousSolution;
+        private double[] interceptSolution, interceptIntervals;
+        private double lastInterceptHorizon;
+        private double plannedStepSeconds;
 
         public void Reset(AutopilotMpcProfile selectedProfile)
         {
@@ -483,6 +494,10 @@ namespace DeltaV
             intervals = new double[horizonSteps];
             previousIntervals = new double[horizonSteps];
             previousSolution = new double[variables];
+            interceptSolution = new double[variables];
+            interceptIntervals = new double[horizonSteps];
+            lastInterceptHorizon = 0;
+            plannedStepSeconds = 0;
             hasPlannedSolution = false;
         }
 
@@ -493,6 +508,9 @@ namespace DeltaV
             {
                 return false;
             }
+            // 回放按固定微步消费，不能把短终段或加力切换后的非均匀网格当成 0.1 s。
+            for (int i = 0; i <= stepIndex; i++)
+                if (Math.Abs(intervals[i] - plannedStepSeconds) > 1e-6) return false;
             command.solved = true;
             int input = stepIndex * InputCount;
             BrakingGuidanceFallback.WriteDesired(model,
@@ -501,6 +519,64 @@ namespace DeltaV
         }
 
         public bool Compute(GuidanceRequest request, out GuidanceCommand command)
+        {
+            if (solution == null) Reset(AutopilotMpcProfile.Balanced);
+            if (!request.intercept || !ValidRequest(request)) return ComputePlan(request, out command);
+            // 有界时间搜索：同一 QP 在候选到达时刻求解，允许非零接触速度。
+            // 端点误差决定是否可达；有限视域尚不可达时保留最远时域的接近计划。
+            long started = Stopwatch.GetTimestamp();
+            double acceleration = 0.01;
+            for (int c = 0; c < 3; c++) acceleration = Math.Max(acceleration,
+                Math.Sqrt(request.controlAcceleration[c] * request.controlAcceleration[c]
+                    + request.controlAcceleration[3 + c] * request.controlAcceleration[3 + c]));
+            double candidate = lastInterceptHorizon > 0
+                ? Math.Max(request.dt, lastInterceptHorizon - Math.Max(1, request.elapsedSteps) * request.dt)
+                : Math.Sqrt(2 * request.positionError.magnitude / acceleration) * 1.5 + 1;
+            candidate = Math.Max(request.dt, Math.Min(maxHorizon, candidate));
+            double low = request.dt, high = maxHorizon;
+            bool found = false, havePlan = false;
+            command = default;
+            for (int trial = 0; trial < 4; trial++)
+            {
+                request.arrivalSeconds = candidate;
+                hasPlannedSolution = false;
+                bool solved = ComputePlan(request, out GuidanceCommand attempt);
+                double px = PredictedState(0), py = PredictedState(1);
+                bool reachable = solved && px * px + py * py <= 0.75 * 0.75
+                    && Math.Abs(PredictedState(4)) <= 15 * Math.PI / 180;
+                if (solved && (reachable || !found))
+                {
+                    havePlan = true;
+                    command = attempt;
+                    command.arrivalSeconds = candidate;
+                    Array.Copy(solution, interceptSolution, variables);
+                    Array.Copy(intervals, interceptIntervals, horizonSteps);
+                }
+                if (reachable) { found = true; high = candidate; }
+                else low = candidate;
+                if (high - low < request.dt) break;
+                candidate = found ? (low + high) * 0.5 : Math.Min(maxHorizon, candidate * 1.8);
+            }
+            if (havePlan)
+            {
+                Array.Copy(interceptSolution, solution, variables);
+                Array.Copy(interceptIntervals, intervals, horizonSteps);
+                hasPlannedSolution = true;
+                lastInterceptHorizon = command.arrivalSeconds;
+            }
+            else BrakingGuidanceFallback.Compute(request, out command);
+            command.solveMilliseconds = (Stopwatch.GetTimestamp() - started) * 1000.0 / Stopwatch.Frequency;
+            return havePlan;
+        }
+
+        private double PredictedState(int index)
+        {
+            double value = state[index];
+            for (int i = 0; i < variables; i++) value += Sens(index, i) * solution[i];
+            return value;
+        }
+
+        private bool ComputePlan(GuidanceRequest request, out GuidanceCommand command)
         {
             command = default;
             bool warmStart = hasPlannedSolution;
@@ -524,6 +600,7 @@ namespace DeltaV
             state[3] = request.relativeVelocity.y;
             state[4] = -request.angleError;
             state[5] = request.relativeAngularVelocity;
+            plannedStepSeconds = request.dt;
             Array.Copy(intervals, previousIntervals, horizonSteps);
             BuildIntervals(request);
             if (warmStart) ShiftWarmStart(Math.Max(1, request.elapsedSteps) * request.dt);
@@ -544,8 +621,15 @@ namespace DeltaV
             for (int i = 0; i < inputVariables; i++)
             {
                 a[constraints * variables + i] = 1.0;
-                request.controlModel.ControlBounds(i % InputCount,
+                bool unboosted = UsesUnboosted(request, i / InputCount);
+                (unboosted ? request.unboostedModel : request.controlModel).ControlBounds(i % InputCount,
                     out lower[constraints], out upper[constraints]);
+                if (unboosted)
+                {
+                    double ratio = ControlUnitRatio(request, i % InputCount);
+                    lower[constraints] /= ratio;
+                    upper[constraints] /= ratio;
+                }
                 constraints++;
             }
             for (int step = 0; step < horizonSteps; step++)
@@ -564,6 +648,7 @@ namespace DeltaV
                 for (int s = 0; s < StateCount; s++)
                 {
                     if (request.motionOnly && s < 2) continue;
+                    if (request.intercept && s < 4) continue;
                     double target = s switch
                     {
                         0 => desiredPosition.x, 1 => desiredPosition.y,
@@ -577,7 +662,7 @@ namespace DeltaV
                 // v_close²/(2a) <= d 的保守分段线性内近似：凸平方函数在
                 // [vi,vi+1] 上的弦位于曲线上方，所有弦的上包络覆盖 [0,vMax]。
                 // 相比 sqrt 的切线外近似，这组线性约束不会放行刹不住的计划。
-                if (!request.motionOnly && !combatTrajectory && distance > 0.05 && safeAccel > 1e-6)
+                if (!request.intercept && !request.motionOnly && !combatTrajectory && distance > 0.05 && safeAccel > 1e-6)
                 {
                     double d0 = nx * state[0] + ny * state[1];
                     double v0 = -nx * state[2] - ny * state[3];
@@ -611,6 +696,7 @@ namespace DeltaV
             for (int s = 0; s < StateCount; s++)
             {
                 if (request.motionOnly && s < 2) continue;
+                if (request.intercept && (s == 2 || s == 3)) continue;
                 double terminalOffset = s switch
                 {
                     0 => -terminalPosition.x, 1 => -terminalPosition.y,
@@ -618,7 +704,7 @@ namespace DeltaV
                     4 => -terminalAngle, _ => -terminalOmega
                 };
                 double headingPriority = combatTrajectory && s >= 4 ? 4.0 : 1.0;
-                AddStateCost(s, StateWeight[s] * 20.0 * headingPriority,
+                AddStateCost(s, StateWeight[s] * (request.intercept && s < 2 ? 2500.0 : 20.0) * headingPriority,
                     StateScale[s], terminalOffset);
             }
             AddControlCosts(inputVariables, request.previousX, request.previousZ, request.previousAngular);
@@ -675,6 +761,29 @@ namespace DeltaV
 
         private void BuildIntervals(GuidanceRequest request)
         {
+            if (request.intercept)
+            {
+                double duration = Math.Max(request.dt, Math.Min(maxHorizon, request.arrivalSeconds));
+                int interceptFine = Math.Min(Math.Min(8, horizonSteps - 1),
+                    Math.Max(1, (int)Math.Floor(duration / request.dt)));
+                for (int i = 0; i < interceptFine; i++) intervals[i] = request.dt;
+                for (int i = interceptFine; i < horizonSteps; i++)
+                    intervals[i] = Math.Max(0, duration - interceptFine * request.dt) / (horizonSteps - interceptFine);
+                double time = 0;
+                for (int i = 0; i < horizonSteps - 1; i++)
+                {
+                    if (i >= interceptFine && request.boostSeconds > time + 1e-6
+                        && request.boostSeconds < time + intervals[i] - 1e-6)
+                    {
+                        double tail = time + intervals[i] - request.boostSeconds;
+                        intervals[i] -= tail;
+                        intervals[i + 1] += tail;
+                        break;
+                    }
+                    time += intervals[i];
+                }
+                return;
+            }
             if (request.trajectorySeconds > 0f)
             {
                 double duration = Math.Max(2.0, Math.Min(6.0, request.trajectorySeconds));
@@ -702,7 +811,8 @@ namespace DeltaV
 
         private void AdvanceStateAndSensitivity(int step, double dt, GuidanceRequest request)
         {
-            double[] b = request.controlAcceleration;
+            bool unboosted = UsesUnboosted(request, step);
+            double[] b = unboosted ? request.unboostedAcceleration : request.controlAcceleration;
             int baseControl = step * InputCount;
             (float linear, float angular) = ShipPhysics.PassiveDragFactors(1f / 60f);
             ShipPhysics.HeldInputFactors(dt, linear, out double dl, out double gl, out double hl);
@@ -726,13 +836,33 @@ namespace DeltaV
             for (int c = 0; c < InputCount; c++)
             {
                 int col = baseControl + c;
-                SetSens(0, col, Sens(0, col) + b[c] * hl);
-                SetSens(1, col, Sens(1, col) + b[3 + c] * hl);
-                SetSens(2, col, Sens(2, col) + b[c] * gl);
-                SetSens(3, col, Sens(3, col) + b[3 + c] * gl);
-                SetSens(4, col, Sens(4, col) + b[6 + c] * ha);
-                SetSens(5, col, Sens(5, col) + b[6 + c] * ga);
+                double ratio = unboosted ? ControlUnitRatio(request, c) : 1;
+                SetSens(0, col, Sens(0, col) + b[c] * hl * ratio);
+                SetSens(1, col, Sens(1, col) + b[3 + c] * hl * ratio);
+                SetSens(2, col, Sens(2, col) + b[c] * gl * ratio);
+                SetSens(3, col, Sens(3, col) + b[3 + c] * gl * ratio);
+                SetSens(4, col, Sens(4, col) + b[6 + c] * ha * ratio);
+                SetSens(5, col, Sens(5, col) + b[6 + c] * ga * ratio);
             }
+        }
+
+        private bool UsesUnboosted(GuidanceRequest request, int step)
+        {
+            if (!request.intercept || request.unboostedModel == null) return false;
+            double end = 0;
+            for (int i = 0; i <= step; i++) end += intervals[i];
+            return end > request.boostSeconds + 1e-6;
+        }
+
+        private static double ControlUnitRatio(GuidanceRequest request, int axis)
+        {
+            var current = request.controlModel;
+            var normal = request.unboostedModel;
+            double active = axis == 0 ? current.positiveX + current.negativeX
+                : axis == 1 ? current.positiveZ + current.negativeZ : current.positiveTorque + current.negativeTorque;
+            double baseline = axis == 0 ? normal.positiveX + normal.negativeX
+                : axis == 1 ? normal.positiveZ + normal.negativeZ : normal.positiveTorque + normal.negativeTorque;
+            return baseline > 1e-8 ? Math.Max(1e-8, active / baseline) : 1;
         }
 
         private void AddStateCost(int stateIndex, double weight, double scale,

@@ -35,6 +35,7 @@ namespace DeltaV
             public Func<SpacePose, SpacePose> reference;
             public Func<bool> referenceValid;
             public bool motionOnly;
+            public bool intercept;
             public Vector3 direction;
             public float angle;
             public int hostId;
@@ -48,6 +49,8 @@ namespace DeltaV
             public readonly IAutopilotGuidance guidance = new OnlineMpcGuidance();
             public readonly double[] controlAcceleration = new double[9];
             public readonly ShipPhysics.ControlModel controlModel = new ShipPhysics.ControlModel();
+            public readonly ShipPhysics.ControlModel unboostedModel = new ShipPhysics.ControlModel();
+            public readonly double[] unboostedAcceleration = new double[9];
             public GuidanceCommand heldCommand;
             public bool hasCommand;
             // 计划回放：currentPlanStep = 当前应用的计划步（0 = 求解当步）；
@@ -142,6 +145,11 @@ namespace DeltaV
 
         internal bool IsFollowing(DriveSubject subject, Func<SpacePose, SpacePose> reference)
             => active.TryGetValue(subject, out Flight flight) && flight.reference == reference;
+
+        internal void Intercept(DriveSubject subject, Func<SpacePose, SpacePose> reference,
+            Func<bool> valid, Action onFailed)
+            => Register(new Flight { subject = subject, tracked = true, reference = reference,
+                referenceValid = valid, intercept = true, onFailed = onFailed });
 
         internal bool DetachReference(DriveSubject subject, Func<SpacePose, SpacePose> reference)
         {
@@ -425,6 +433,12 @@ namespace DeltaV
                         next = flight.phase;
                 }
                 else flight.safeFarTicks = 0;
+                if (flight.intercept)
+                {
+                    // 截击不使用停靠制动阶段；碰撞服务决定接触，MPC 从不宣告落地。
+                    next = remaining <= TightSolveDistance ? ApproachPhase.Precision : ApproachPhase.Cruise;
+                    unsafePlan = false;
+                }
                 if (next != flight.phase)
                 {
                     flight.phase = next;
@@ -482,10 +496,20 @@ namespace DeltaV
         {
             ShipPhysics.ControlModel controlModel = report.PreviewModel(flight.controlModel);
             BuildControlAcceleration(pose, controlModel, voidBlend, flight.controlAcceleration);
+            float boostSeconds = flight.intercept ? report.BoostSecondsRemaining : 0f;
+            if (boostSeconds > 0f)
+            {
+                report.PreviewUnboostedModel(flight.unboostedModel);
+                BuildControlAcceleration(pose, flight.unboostedModel, 0f, flight.unboostedAcceleration);
+            }
             var request = new GuidanceRequest
             {
                 positionError = posErr,
                 motionOnly = flight.motionOnly,
+                intercept = flight.intercept,
+                boostSeconds = boostSeconds,
+                unboostedModel = boostSeconds > 0f ? flight.unboostedModel : null,
+                unboostedAcceleration = flight.unboostedAcceleration,
                 relativeVelocity = vel,
                 angleError = angleErr,
                 relativeAngularVelocity = omega,

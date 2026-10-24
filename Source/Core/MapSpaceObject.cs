@@ -114,7 +114,10 @@ namespace DeltaV
             allocatedTorque = 0f;
             var pilot = ResolvePilot(subject);
             if (!pilot.IsValid) { ClearDrive(); return DriveResult.InvalidSubject; }
-            return ExecuteDrive(MotionReport, pilot.FrameAngle, subject, control, dt, out allocatedTorque);
+            DriveResult result = ExecuteDrive(MotionReport, pilot.FrameAngle, subject, control, dt, out allocatedTorque);
+            if (result == DriveResult.Executed && subject.shuttle)
+                pilot.Vessel.Anchor?.TryGetComp<CompSpaceShuttle>()?.ConsumeBoostTick(ReadDriveInfo(pilot.FrameAngle));
+            return result;
         }
         protected override DriveResult AuthorizeDrive(DriveSubject subject, ShipPhysics.Command command, bool playerInitiated)
         {

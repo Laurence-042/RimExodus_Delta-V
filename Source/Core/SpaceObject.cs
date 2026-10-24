@@ -156,7 +156,7 @@ namespace DeltaV
         public bool IsActiveCollider => HasTag(SpaceObjectTag.Projectile);
 
         /// <summary>被动阻力适用（弹体豁免——无推进器的飞行体不受阻力减速；shuttle 与船照常）。</summary>
-        public bool AppliesPassiveDrag => !HasTag(SpaceObjectTag.Projectile);
+        public bool AppliesPassiveDrag => baseTag != SpaceObjectTag.Projectile;
 
         /// <summary>剪影/星球仪/世界标记/音效/星区记账参与（弹体不进，§3.1；将来弹体上星球仪只改这里）。</summary>
         public bool ParticipatesInOverlays => baseTag != SpaceObjectTag.Projectile;
