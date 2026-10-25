@@ -37,32 +37,47 @@ namespace DeltaV
             {
                 double y = i * latStep;
                 if (y < -Math.PI / 2d || y > Math.PI / 2d) continue;
-                Curve(frame, map, y, y, left, right, polar ? 64 : 16, perPixel, opacity, i % 4 == 0);
+                Curve(frame, map, y, y, left, right, polar ? 6 : 4, perPixel, opacity, i % 4 == 0);
             }
             count = 0;
             for (long i = (long)Math.Floor(left / lonStep); i * lonStep <= right && count < 96; i++, count++)
-                Curve(frame, map, bottom, top, i * lonStep, i * lonStep, 16, perPixel, opacity, i % 4 == 0);
+                Curve(frame, map, bottom, top, i * lonStep, i * lonStep, 4, perPixel, opacity, i % 4 == 0);
             return MotionParticleRenderer.Emit(MotionParticleRenderer.Kind.Grid, layer, slot);
         }
 
         private static void Curve(SpaceObject frame, Map map, double latA, double latB, double lonA, double lonB,
-            int segments, float width, float opacity, bool major)
+            int maxDepth, float width, float opacity, bool major)
         {
             float altitude = AltitudeLayer.Terrain.AltitudeFor();
-            Vector3 previous = SpaceTransform.FocusedDrawPosition(frame, map, OrbitSphere.GridPoint(latA, lonA), altitude);
+            Vector3 start = SpaceTransform.FocusedDrawPosition(frame, map, OrbitSphere.GridPoint(latA, lonA), altitude);
+            Vector3 end = SpaceTransform.FocusedDrawPosition(frame, map, OrbitSphere.GridPoint(latB, lonB), altitude);
             Color color = new Color(0.55f, 0.75f, 0.85f, opacity * (major ? 1f : 0.55f));
-            for (int j = 1; j <= segments; j++)
+            EmitCurve(frame, map, latA, latB, lonA, lonB, start, end, altitude,
+                width * 0.75f, width * (major ? 1.3f : 1f), color, 0, maxDepth);
+        }
+
+        private static void EmitCurve(SpaceObject frame, Map map, double latA, double latB, double lonA, double lonB,
+            Vector3 start, Vector3 end, float altitude, float tolerance, float lineWidth, Color color,
+            int depth, int maxDepth)
+        {
+            if (depth < maxDepth)
             {
-                double t = j / (double)segments;
-                Vector3 next = SpaceTransform.FocusedDrawPosition(frame, map,
-                    OrbitSphere.GridPoint(latA + (latB - latA) * t, lonA + (lonB - lonA) * t), altitude);
-                Vector3 delta = next - previous;
-                float length = delta.magnitude;
-                if (length > 0.001f)
-                    MotionParticleRenderer.Quad(MotionParticleRenderer.Kind.Grid, (previous + next) * 0.5f,
-                        Quaternion.LookRotation(delta, Vector3.up), width * (major ? 1.3f : 1f), length, color);
-                previous = next;
+                double latMid = (latA + latB) * 0.5d;
+                double lonMid = (lonA + lonB) * 0.5d;
+                Vector3 midpoint = SpaceTransform.FocusedDrawPosition(frame, map,
+                    OrbitSphere.GridPoint(latMid, lonMid), altitude);
+                // 曲线在屏幕上足够直时只需一段；大角跨度仍拆开，避免跨极区漏掉弯折。
+                if ((midpoint - (start + end) * 0.5f).sqrMagnitude > tolerance * tolerance
+                    || Math.Max(Math.Abs(latB - latA), Math.Abs(lonB - lonA)) > Math.PI / 8d)
+                {
+                    EmitCurve(frame, map, latA, latMid, lonA, lonMid, start, midpoint, altitude,
+                        tolerance, lineWidth, color, depth + 1, maxDepth);
+                    EmitCurve(frame, map, latMid, latB, lonMid, lonB, midpoint, end, altitude,
+                        tolerance, lineWidth, color, depth + 1, maxDepth);
+                    return;
+                }
             }
+            MotionParticleRenderer.Line(MotionParticleRenderer.Kind.Grid, start, end, lineWidth, color);
         }
     }
 }

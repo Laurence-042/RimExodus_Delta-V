@@ -50,6 +50,26 @@ namespace DeltaV
             b.triangles.Add(n); b.triangles.Add(n + 2); b.triangles.Add(n + 3);
         }
 
+        internal static void Line(Kind kind, Vector3 start, Vector3 end, float width, Color color)
+        {
+            if (color.a <= 0f || width <= 0f) return;
+            Vector3 delta = end - start;
+            float length = delta.magnitude;
+            if (length <= 0.001f) return;
+            Batch b = Get(kind);
+            int n = b.vertices.Count;
+            if (n >= 60000) return;
+            float halfWidthOverLength = width * 0.5f / length;
+            Vector3 right = new Vector3(delta.z * halfWidthOverLength, 0f, -delta.x * halfWidthOverLength);
+            b.vertices.Add(start - right); b.vertices.Add(end - right);
+            b.vertices.Add(end + right); b.vertices.Add(start + right);
+            b.uvs.Add(new Vector2(0, 0)); b.uvs.Add(new Vector2(0, 1));
+            b.uvs.Add(new Vector2(1, 1)); b.uvs.Add(new Vector2(1, 0));
+            for (int i = 0; i < 4; i++) b.colors.Add(color);
+            b.triangles.Add(n); b.triangles.Add(n + 1); b.triangles.Add(n + 2);
+            b.triangles.Add(n); b.triangles.Add(n + 2); b.triangles.Add(n + 3);
+        }
+
         internal static int Emit(Kind kind, ShellLayer layer, int slot)
         {
             Batch b = Get(kind);

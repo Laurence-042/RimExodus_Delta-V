@@ -116,7 +116,7 @@ internal readonly struct HeadingPanelAction
         internal abstract bool WantsVolley { get; }
         internal void BindShip(ShipBase ship)
         {
-            FireControl.PrunePointDefense(ship);
+            FireControl.PrunePointDefense(ship, force: true);
             // 驾驶会话也按身份跟随；旧主台或旧 Map 的快照可能已经失效。
             if (target.Identity == OwnerId) target = PilotTarget.Of(ship);
         }
@@ -154,17 +154,33 @@ internal readonly struct HeadingPanelAction
             List<HeadingPanelAction> actions) { }
 
         /// <summary>驾驶与战斗共用船归属，但未驾驶仍可瞄准或自动点防。</summary>
-        internal void TickCombat()
+        internal void TickCombat(ref bool hasInterceptionTargets, bool hasScatterTargets)
         {
             if (OwnerId.key <= 0) return;
+            bool wantsVolley = WantsVolley;
+            if (!wantsVolley && !hasInterceptionTargets && !hasScatterTargets) return;
             ShipBase ship = ShipRegistry.ShipByIdentity(OwnerId);
             if (!ship.IsValid || universe.FrameOf(ship.Map) is not SpaceObject container
                 || container.HasTag(SpaceObjectTag.Ship) != true
                 || !HasAuthority(PilotTarget.Of(ship))) return;
-            if (!WantsVolley && !universe.Weapons.HasPointDefenseWeapons(ship.Map)) return;
-            if (TryGetVolleyIntent(ship, container, out ShipVolleyIntent intent))
+            if (!wantsVolley && !universe.Weapons.HasPointDefenseWeapons(ship.Map,
+                hasInterceptionTargets, hasScatterTargets)) return;
+            long volleyStart = wantsVolley ? universe.Performance.Start() : 0L;
+            if (wantsVolley && TryGetVolleyIntent(ship, container, out ShipVolleyIntent intent))
+            {
                 FireControl.TickVolley(ship, container, intent);
-            FireControl.TickPointDefense(ship, container);
+                // 本船齐射可能刚创建弹体；同 tick 的本船及后续控制器点防立即可见。
+                if (!hasInterceptionTargets && universe.Projectiles.ActiveCount > 0)
+                    hasInterceptionTargets = true;
+            }
+            universe.Performance.Record(PerformanceStage.ControlVolley, volleyStart);
+            if (universe.Weapons.HasPointDefenseWeapons(ship.Map,
+                hasInterceptionTargets, hasScatterTargets))
+            {
+                long pointDefenseStart = universe.Performance.Start();
+                FireControl.TickPointDefense(ship, container, hasInterceptionTargets, hasScatterTargets);
+                universe.Performance.Record(PerformanceStage.PointDefense, pointDefenseStart);
+            }
         }
 
         protected abstract bool TryGetVolleyIntent(ShipBase ship, SpaceObject container,
@@ -231,11 +247,18 @@ internal readonly struct HeadingPanelAction
     public readonly struct ShipVolleyIntent
     {
         internal readonly CombatTarget target;
+        internal readonly ResolvedCombatTarget resolvedTarget;
+        internal readonly bool hasResolvedTarget;
         internal readonly bool main, secondary, fireAll, predictIntercept;
         internal ShipVolleyIntent(Vector3 point, bool main, bool secondary)
-        { target = CombatTarget.At(point); this.main = main; this.secondary = secondary; fireAll = predictIntercept = false; }
+        { target = CombatTarget.At(point); resolvedTarget = default; hasResolvedTarget = false;
+            this.main = main; this.secondary = secondary; fireAll = predictIntercept = false; }
         internal ShipVolleyIntent(CombatTarget target, bool predictIntercept)
-        { this.target = target; this.predictIntercept = predictIntercept; main = secondary = false; fireAll = true; }
+            : this(target, predictIntercept, default, false) { }
+        internal ShipVolleyIntent(CombatTarget target, bool predictIntercept,
+            ResolvedCombatTarget resolvedTarget, bool hasResolvedTarget)
+        { this.target = target; this.resolvedTarget = resolvedTarget; this.hasResolvedTarget = hasResolvedTarget;
+            this.predictIntercept = predictIntercept; main = secondary = false; fireAll = true; }
     }
 
     /// <summary>

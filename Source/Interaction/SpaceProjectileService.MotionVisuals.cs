@@ -209,23 +209,30 @@ namespace DeltaV
 
         internal int EmitMotionVisuals(SpaceObject frame, Map map, ShellLayer layer, int slot)
         {
+            long dustStart = universe.Performance.Start();
             float altitude = AltitudeLayer.Terrain.AltitudeFor();
             Vector3 camera = Find.Camera.transform.position;
             float zoomFade = Mathf.InverseLerp(130f, 65f, Find.CameraDriver.RootSize);
             Vector2 shipCenter = SpaceTransform.ShipLocalToMap(map, Vector2.zero);
             MotionParticleRenderer.Begin(MotionParticleRenderer.Kind.Dust);
+            int dustQuads = 0;
             if (zoomFade > 0f)
                 foreach (Vector3 point in nearDust)
                 {
                     Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, map, point, altitude);
                     float distance = new Vector2(pos.x - camera.x, pos.z - camera.z).magnitude;
+                    if (distance >= DustRadius) continue;
                     NearDustAppearance((new Vector2(pos.x, pos.z) - shipCenter).sqrMagnitude,
                         out float size, out float opacity);
                     opacity *= Mathf.InverseLerp(DustRadius, DustRadius * 0.65f, distance) * zoomFade;
                     MotionParticleRenderer.Quad(MotionParticleRenderer.Kind.Dust, pos, Quaternion.identity,
                         size, size, new Color(0.85f, 0.93f, 1f, opacity));
+                    dustQuads++;
                 }
             slot = MotionParticleRenderer.Emit(MotionParticleRenderer.Kind.Dust, layer, slot);
+            universe.Performance.RecordDustQuads(dustQuads);
+            universe.Performance.Record(PerformanceStage.Dust, dustStart);
+            long exhaustStart = universe.Performance.Start();
             int now = Find.TickManager.TicksGame;
             CellRect view = Find.CameraDriver.CurrentViewRect;
             MotionParticleRenderer.Begin(MotionParticleRenderer.Kind.Smoke);
@@ -233,7 +240,9 @@ namespace DeltaV
             slot = MotionParticleRenderer.Emit(MotionParticleRenderer.Kind.Smoke, layer, slot);
             MotionParticleRenderer.Begin(MotionParticleRenderer.Kind.Flame);
             foreach (CombatParticle particle in driveFlames) DrawDriveParticle(particle, frame, map, altitude, now, true, view);
-            return MotionParticleRenderer.Emit(MotionParticleRenderer.Kind.Flame, layer, slot);
+            slot = MotionParticleRenderer.Emit(MotionParticleRenderer.Kind.Flame, layer, slot);
+            universe.Performance.Record(PerformanceStage.Exhaust, exhaustStart);
+            return slot;
         }
 
         private static void DrawDriveParticle(CombatParticle p, SpaceObject frame, Map map, float altitude, int now, bool hot, CellRect view)

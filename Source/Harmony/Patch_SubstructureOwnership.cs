@@ -89,6 +89,10 @@ namespace DeltaV
             Map map = TerrainGridOwnershipAccess.MapOf(__instance);
             if (map == null) return;
             SubstructureOwnership.TryGet(map)?.NotifyFoundationRemoved(cell);
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe?.FrameOf(map) == null) return;
+            universe.NotifyFoundationChanged(map);
+            universe.NotifySupportChanged(map, cell);
         }
     }
 

@@ -135,6 +135,7 @@ namespace DeltaV
         private const float ImpactHearFar = 120f;
 
         private readonly List<Projectile> projectiles = new List<Projectile>();
+        internal int ActiveCount => projectiles.Count;
         // 只复用短命的弹道工作对象；SpaceObject 身份和 Map 分别由注册表、现有图池管理。
         private const int MaxPooledProjectiles = 256;
         private readonly Stack<Projectile> projectilePool = new Stack<Projectile>();

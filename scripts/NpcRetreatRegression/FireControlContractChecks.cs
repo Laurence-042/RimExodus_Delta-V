@@ -1,13 +1,23 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using DeltaV;
+using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
 
 internal static partial class Program
 {
+    static int accelerationResolveCalls;
+    static bool CountAccelerationResolve(ref SpaceWeaponAccelerationSolution __result)
+    {
+        accelerationResolveCalls++;
+        __result = new SpaceWeaponAccelerationSolution(0f, null, new List<CompSpaceRailgun>());
+        return false;
+    }
+
     static void CheckPerShipFireControl(UniverseManager universe, Faction player, Faction enemy)
     {
         Map ownMap = TestMap(1960), enemyMap = TestMap(1970);
@@ -36,6 +46,25 @@ internal static partial class Program
             props = new CompProperties_SpaceWeapon { projectileDef = projectileDef, range = 500f, baseSpreadDeg = 0f }, safeFire = false };
         var traverse = new CompSpaceWeaponTraverse { parent = hull.parent, props = new CompProperties_SpaceWeaponTraverse() };
         hull.parent.AllComps.Add(weapon); hull.parent.AllComps.Add(traverse);
+        var resolveProbe = new Harmony("DeltaV.Regression.AccelerationTiming");
+        resolveProbe.Patch(AccessTools.Method(typeof(CompSpaceRailgun), nameof(CompSpaceRailgun.Resolve)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CountAccelerationResolve)));
+        weapon.WeaponProps.acceleratorStarts.Add(new IntVec3(1, 0, 0));
+        try
+        {
+            accelerationResolveCalls = 0;
+            SpaceWeaponService.AimInfo(weapon, own);
+            Check(accelerationResolveCalls == 0,
+                "ordinary cooldown aim does not trace the accelerator chain");
+            SpaceWeaponService.AimInfo(weapon, own, precise: true);
+            Check(accelerationResolveCalls == 1,
+                "explicit precision aim traces the accelerator chain once");
+        }
+        finally
+        {
+            weapon.WeaponProps.acceleratorStarts.Clear();
+            resolveProbe.UnpatchAll(resolveProbe.Id);
+        }
         void Refresh()
         {
             SubstructureOwnership.BumpStructureVersion();
@@ -71,13 +100,20 @@ internal static partial class Program
         Set(typeof(Thing), first.parent, "hitPointsInt", 1); Set(typeof(Thing), second.parent, "hitPointsInt", 500000);
         Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 179);
         Refresh(); fire.Decide(hull.Vessel, own);
-        Check(fire.Target.Ship == secondHull.Identity, "automatic target keeps the 180-tick lock preference");
+        Check(fire.Target.Ship == secondHull.Identity, "automatic fire control reuses a valid target");
         Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
         Refresh(); fire.Decide(hull.Vessel, own);
-        Check(fire.Target.Ship == firstHull.Identity, "expired target lock permits the higher scoring ship to replace it");
+        Check(fire.Target.Ship == secondHull.Identity, "elapsed decision intervals do not rescore a valid target");
+        Set(typeof(Thing), second.parent, "factionInt", player);
+        Refresh();
+        Check(fire.TryGetIntent(hull.Vessel, own, false, out _)
+            && fire.Target.Ship == firstHull.Identity,
+            "cached target hostility loss reselects another enemy in the same combat tick");
         Set(typeof(Thing), first.parent, "factionInt", player);
-        Refresh(); fire.Decide(hull.Vessel, own);
-        Check(fire.Target.Ship == secondHull.Identity && fire.LeadPoints(hull.Vessel).Count == 1,
+        Set(typeof(Thing), second.parent, "factionInt", enemy);
+        Refresh();
+        Check(fire.TryGetIntent(hull.Vessel, own, false, out _)
+            && fire.Target.Ship == secondHull.Identity && fire.LeadPoints(hull.Vessel).Count == 1,
             "mixed-faction map selects and previews only its eligible hostile member");
         enemyMap.listerThings.AllThings.Remove(engine2); Refresh();
         Check(!fire.TryGetIntent(hull.Vessel, own, false, out _) && fire.LeadPoints(hull.Vessel).Count == 0,
@@ -94,11 +130,11 @@ internal static partial class Program
         weapon.cooldownUntilTick = Find.TickManager.TicksGame + 1000;
         universe.Weapons.NotifyWeaponModeChanged(weapon);
         weapon.WeaponProps.manualOnly = true;
-        fire.TickPointDefense(hull.Vessel, own);
+        fire.TickPointDefense(hull.Vessel, own, true, false);
         Check(((IDictionary)typeof(ShipFireControl).GetField("pointDefense", Private).GetValue(fire)).Count == 0,
             "engineering emitter cannot acquire a point-defense lock");
         weapon.WeaponProps.manualOnly = false;
-        fire.TickPointDefense(hull.Vessel, own);
+        fire.TickPointDefense(hull.Vessel, own, true, false);
         IDictionary locks = (IDictionary)typeof(ShipFireControl).GetField("pointDefense", Private).GetValue(fire);
         CombatTarget Locked() => (CombatTarget)locks[weapon.parent.thingIDNumber].GetType()
             .GetField("target", Private).GetValue(locks[weapon.parent.thingIDNumber]);
@@ -106,27 +142,27 @@ internal static partial class Program
             "point defense owns a per-weapon lock and turns the weapon during cooldown");
         far.pose.velocity = new Vector2(0f, -30f);
         Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 29);
-        fire.TickPointDefense(hull.Vessel, own);
+        fire.TickPointDefense(hull.Vessel, own, true, false);
         Check(Locked().ObjectId == near.objectId, "point defense retains a valid lock before its 30-tick reselection");
         Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
-        fire.TickPointDefense(hull.Vessel, own);
+        fire.TickPointDefense(hull.Vessel, own, true, false);
         Check(Locked().ObjectId == far.objectId, "point defense reselects the approaching target after 30 ticks");
         weapon.aimMode = SpaceWeaponAimMode.Volley; universe.Weapons.NotifyWeaponModeChanged(weapon);
         Check(locks.Count == 0, "weapon mode changes immediately discard fire-control point-defense state");
         weapon.aimMode = SpaceWeaponAimMode.PointDefense; universe.Weapons.NotifyWeaponModeChanged(weapon);
-        fire.TickPointDefense(hull.Vessel, own);
+        fire.TickPointDefense(hull.Vessel, own, true, false);
         fire.ForgetMap(far.map);
         Check(locks.Count == 0, "target map unloading clears point-defense locks owned by another ship");
-        fire.TickPointDefense(hull.Vessel, own);
+        fire.TickPointDefense(hull.Vessel, own, true, false);
         var archivedPd = new ArchivedSpaceObject { objectId = far.objectId, pose = far.pose };
         universe.ReplaceRepresentation(far, archivedPd);
         fire.ForgetMap(far.map);
         Check(locks.Count == 0, "point-defense cleanup also releases a target whose mapped representation has already been replaced");
         universe.ReplaceRepresentation(archivedPd, far);
-        fire.TickPointDefense(hull.Vessel, own);
+        fire.TickPointDefense(hull.Vessel, own, true, false);
         universe.Weapons.UnregisterWeapon(weapon, ownMap);
         Check(locks.Count == 0, "weapon removal clears its point-defense lock through the existing unregister event");
-        fire.TickPointDefense(hull.Vessel, own);
+        fire.TickPointDefense(hull.Vessel, own, true, false);
         // Seed the retained lock of a captured standalone weapon, independent of controller replacement.
         var capturedWeapon = new CompSpaceWeapon { props = weapon.props };
         var capturedBuilding = AddTestBuilding(ownMap, player, 1963, TestBuildingDef("capturedWeapon"), capturedWeapon);
@@ -142,7 +178,7 @@ internal static partial class Program
         Check(locks.Count == 0, "changing weapon ship identity discards the previous owner's point-defense lock");
         hull.parent.thingIDNumber = 1961;
         SubstructureOwnership.BumpStructureVersion();
-        fire.TickPointDefense(hull.Vessel, own);
+        fire.TickPointDefense(hull.Vessel, own, true, false);
         universe.Controls.Reset();
         Check(locks.Count == 0, "controller disposal and game reset clear all point-defense target state");
         universe.objects.Clear(); Find.Maps.Clear();
@@ -267,6 +303,7 @@ internal static partial class Program
         var separated = new CombatObject(1940, newMap,
             new SpacePose(OrbitSphere.Move(own.pose.position, new Vector2(90f, 40f)), 0f));
         universe.objects.Add(separated);
+        Set(universe, "objectById", null); // The fixture bypasses RegisterObject.
         RemoveConsoleFixture(console, oldMap);
         PlaceConsoleFixture(console, newMap);
         oldMap.thingGrid.Deregister(engine);
@@ -408,6 +445,7 @@ internal static partial class Program
             { baseTag = SpaceObjectTag.Projectile, faction = enemy };
         incoming.pose.velocity = new Vector2(-30f, 0f);
         universe.objects.Add(nearest); universe.objects.Add(incoming);
+        Set(universe, "objectById", null); // Container handle lookup follows the fixture list.
         var fire = new ShipFireControl(universe, ship.Identity);
         Vector3 muzzle = SpaceWeaponService.AimInfo(weapon, own).Muzzle;
         Check(fire.FindPdTarget(weapon, muzzle) == incoming,
@@ -418,9 +456,11 @@ internal static partial class Program
         CombatTarget handle = CombatTarget.ForContainer(nearest);
         Check(fire.PdTargetValid(weapon, handle, muzzle, out _), "point defense does not require a ship or propulsion");
         universe.objects.Remove(nearest);
+        Set(universe, "objectById", null);
         Check(!fire.PdTargetValid(weapon, handle, muzzle, out _), "point-defense lock becomes invalid immediately when its object is removed");
         incoming.faction = player;
         Check(fire.FindPdTarget(weapon, muzzle) == null, "point defense never selects a friendly projectile");
         universe.objects.Remove(incoming);
+        Set(universe, "objectById", null);
     }
 }

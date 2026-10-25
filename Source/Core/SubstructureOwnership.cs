@@ -242,8 +242,7 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 整图基架改归 ownerId，返回格数。读档自愈与 dev 修复动作用：不做引擎/剪影
-        /// 通知（调用点在加载收尾，引擎缓存本就待重建）。
+        /// 整图基架改归 ownerId，返回格数。读档时地图尚未纳管；运行时修复须通知。
         /// </summary>
         public int ClaimAllSubstructure(int ownerId)
         {
@@ -253,6 +252,8 @@ namespace DeltaV
                 Assign(cell, ownerId);
                 count++;
             }
+            if (count > 0 && Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map) != null)
+                NotifyOwnershipChanged();
             return count;
         }
 
@@ -450,6 +451,9 @@ namespace DeltaV
         /// <summary>归属变化的通知收尾：全部引擎 dirty（含非玩家引擎）+ 星球仪剪影失效。</summary>
         private void NotifyOwnershipChanged()
         {
+            Current.Game?.GetComponent<UniverseManager>()?.NotifyFoundationChanged(map);
+            foreach (Thing thing in map.listerThings.AllThings)
+                (thing as ThingWithComps)?.TryGetComp<CompRailgunReadinessAppearance>()?.Rebind();
             foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
                 thing.TryGetComp<CompDeltaVPilotConsole>()?.SyncBackupIdentity();
             foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.GravEngine))

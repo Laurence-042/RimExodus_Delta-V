@@ -57,6 +57,24 @@ namespace DeltaV
         /// </summary>
         internal readonly HashSet<int> pendingSeparationOwnerIds = new HashSet<int>();
         private readonly HashSet<DriveSubject> pendingShuttleSeparations = new HashSet<DriveSubject>();
+        private readonly Dictionary<int, Map> cleanResiduals = new Dictionary<int, Map>();
+
+        internal void NotifyFoundationChanged(Map map)
+        {
+            if (map == null || cleanResiduals.Count == 0) return;
+            List<int> stale = null;
+            foreach (var pair in cleanResiduals)
+                if (pair.Value == map)
+                    (stale ??= new List<int>()).Add(pair.Key);
+            if (stale != null)
+                foreach (int ownerId in stale) cleanResiduals.Remove(ownerId);
+        }
+
+        internal void ForgetMap(Map map)
+        {
+            if (map == null) return;
+            NotifyFoundationChanged(map);
+        }
 
         internal void Reset()
         {
@@ -68,6 +86,7 @@ namespace DeltaV
             preLaunchConfirmationChaining = false;
             pendingSeparationOwnerIds.Clear();
             pendingShuttleSeparations.Clear();
+            cleanResiduals.Clear();
             landingCaptureEngine = null;
             landingCaptureMap = null;
             landingCaptureCells = null;

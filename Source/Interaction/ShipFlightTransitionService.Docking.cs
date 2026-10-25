@@ -100,15 +100,20 @@ namespace DeltaV
             if (!ShipRegistry.RequiresOwnPocket(ship))
             {
                 // 拆分方向：控制域外残留块（不分归属）必须离开本容器，否则会随船整体运动。
-                List<HashSet<IntVec3>> blocks = CollectResidualBlocks(ship);
-                List<Thing> cargo = SpaceScatterService.LooseCargo(sourceMap).ToList();
+                bool knownClean = cleanResiduals.TryGetValue(ship.ownerId, out Map clean)
+                    && clean == sourceMap;
+                List<HashSet<IntVec3>> blocks = knownClean ? null : CollectResidualBlocks(ship);
+                if (blocks != null && blocks.Count == 0)
+                    cleanResiduals[ship.ownerId] = sourceMap;
+                // 常态只检查有无散落货物；分离需要展示清单时才物化列表。
+                if ((blocks == null || blocks.Count == 0)
+                    && !universe.Scatter.LooseCargo(sourceMap).Any()) return true;
+                blocks ??= new List<HashSet<IntVec3>>();
+                List<Thing> cargo = universe.Scatter.LooseCargo(sourceMap).ToList();
                 if (blocks.Count > 0)
                     cargo = cargo.Concat(Building_DockingPort.CollectChannelLeftBehind(sourceMap,
                         ShipRegistry.ControlDomain(ship))).Distinct().ToList();
-                if (blocks.Count == 0 && cargo.Count == 0)
-                {
-                    return true;
-                }
+                if (blocks.Count == 0 && cargo.Count == 0) return true;
                 if (!playerInitiated)
                 {
                     // NPC（或无 controller 上下文）：直接执行同一公共拆分，不弹玩家确认（§8.2）。

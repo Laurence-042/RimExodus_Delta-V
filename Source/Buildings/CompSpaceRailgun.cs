@@ -167,7 +167,7 @@ namespace DeltaV
             ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef
                 ?? weapon.WeaponProps.projectileDef;
             float baseSpeed = SpaceWeaponService.ProjectileSpeedOf(projectile);
-            float activeBonus = SpaceWeaponShot.ProjectedSpeed(weapon) - baseSpeed;
+            float activeBonus = SpaceWeaponShot.ProjectedSpeed(weapon, solution, baseSpeed) - baseSpeed;
             return $"accelerators={solution.segments.Count} active speed+={activeBonus:F1}";
         }
 

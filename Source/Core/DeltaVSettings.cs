@@ -105,6 +105,9 @@ namespace DeltaV
         /// <summary>通用临时排障日志开关，默认关闭；具体埋点随问题清理。</summary>
         public bool logDevelopment;
 
+        /// <summary>每五秒输出帧率、实际 TPS 与 Delta-V 阶段计时；默认关闭。</summary>
+        public bool logPerformance;
+
         // ---- 星区内容生成（「生成」页；全局设置，只影响尚未首次生成的星区）----
 
         /// <summary>按类型的星区生成规则（SectorContentTypes 键；缺条目时读注册表默认）。</summary>
@@ -171,6 +174,7 @@ namespace DeltaV
             Scribe_Values.Look(ref logRender, "logRender", false);
             Scribe_Values.Look(ref logCombat, "logCombat", false);
             Scribe_Values.Look(ref logDevelopment, "logDevelopment", false);
+            Scribe_Values.Look(ref logPerformance, "logPerformance", false);
             Scribe_Collections.Look(ref sectorRules, "sectorRules", LookMode.Deep);
             Scribe_Collections.Look(ref prefabDoctrines, "prefabDoctrines", LookMode.Deep);
             base.ExposeData();

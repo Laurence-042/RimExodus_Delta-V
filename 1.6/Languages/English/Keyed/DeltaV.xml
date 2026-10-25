@@ -52,6 +52,8 @@
   <DeltaV_SettingsLogCombat>Log: combat events (launch/impact/intercept/ricochet/pass-through)</DeltaV_SettingsLogCombat>
   <DeltaV_SettingsLogDevelopment>Log: development debugging</DeltaV_SettingsLogDevelopment>
   <DeltaV_SettingsLogDevelopmentTip>Temporary diagnostics for issues currently being investigated. Filter by [DeltaV:Development].</DeltaV_SettingsLogDevelopmentTip>
+  <DeltaV_SettingsLogPerformance>Performance analysis: report every 5 seconds</DeltaV_SettingsLogPerformance>
+  <DeltaV_SettingsLogPerformanceTip>Log FPS, actual TPS, frame time, ambient dust quads, peak object and projectile counts, structure changes, and average/peak CPU time for Delta-V drawing and combat tick stages. Off by default; CPU timings do not measure GPU time.</DeltaV_SettingsLogPerformanceTip>
   <DeltaV_SettingsUniverseZoomMax>Universe view zoom max (cells)</DeltaV_SettingsUniverseZoomMax>
   <DeltaV_SettingsUniverseZoomMaxTip>How far the camera can zoom out while focused on a ship map. Larger values show more of space on screen at once - distant ship and station shells enter view sooner - at the cost of everything on the map appearing smaller. Range 60-5000; default 400.</DeltaV_SettingsUniverseZoomMaxTip>
   <DeltaV_SettingsPoiActiveRadius>POI load radius (cells)</DeltaV_SettingsPoiActiveRadius>

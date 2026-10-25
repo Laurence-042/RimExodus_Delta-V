@@ -9,7 +9,14 @@ namespace DeltaV
         internal static void Notify(Map map)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (map != null && universe?.FrameOf(map) != null)
+            SpaceObject owner = map == null ? null : universe?.FrameOf(map);
+            if (owner?.baseTag == SpaceObjectTag.Projectile)
+            {
+                // A projectile building may disappear before its container returns to the pool.
+                SpaceCollision.Forget(map);
+                return;
+            }
+            if (owner != null)
             {
                 SubstructureOwnership.BumpStructureVersion();
                 universe.Lifecycle.QueueStructureCheck(map);
@@ -33,7 +40,16 @@ namespace DeltaV
     [HarmonyPatch(typeof(TerrainGrid), "DoTerrainChangedEffects")]
     internal static class Patch_ShipStructure_Terrain
     {
-        private static void Postfix(TerrainGrid __instance) =>
-            ShipStructureChanges.Notify(TerrainGridOwnershipAccess.MapOf(__instance));
+        private static void Postfix(TerrainGrid __instance, IntVec3 c, TerrainDef newTerr,
+            TerrainDef oldFoundation)
+        {
+            Map map = TerrainGridOwnershipAccess.MapOf(__instance);
+            ShipStructureChanges.Notify(map);
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (map == null || universe?.FrameOf(map) == null) return;
+            if (oldFoundation != null || newTerr?.isFoundation == true)
+                universe.NotifyFoundationChanged(map);
+            universe.NotifySupportChanged(map, c);
+        }
     }
 }

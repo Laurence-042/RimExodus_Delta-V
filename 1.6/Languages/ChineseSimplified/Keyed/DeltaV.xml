@@ -52,6 +52,8 @@
   <DeltaV_SettingsLogCombat>日志：战斗事件（发射/命中/拦截/跳弹/放行）</DeltaV_SettingsLogCombat>
   <DeltaV_SettingsLogDevelopment>日志：开发调试</DeltaV_SettingsLogDevelopment>
   <DeltaV_SettingsLogDevelopmentTip>通用临时排障日志，记录当前正在调试的问题。可用 [DeltaV:Development] 筛选日志。</DeltaV_SettingsLogDevelopmentTip>
+  <DeltaV_SettingsLogPerformance>性能分析：每 5 秒输出探针</DeltaV_SettingsLogPerformance>
+  <DeltaV_SettingsLogPerformanceTip>输出 FPS、实际 TPS、帧耗时、环境微粒提交数、对象与弹体峰值、结构变化次数，以及 Delta-V 绘制和战斗 tick 各阶段的 CPU 平均/峰值耗时。默认关闭；用于定位卡顿，不代表 GPU 耗时。</DeltaV_SettingsLogPerformanceTip>
   <DeltaV_SettingsUniverseZoomMax>宇宙视野缩放上限（格）</DeltaV_SettingsUniverseZoomMax>
   <DeltaV_SettingsUniverseZoomMaxTip>聚焦飞船图时相机最多能拉多远。数值越大，一屏能看到的太空范围越大，远处的飞船和空间站外壳会更早进入画面；代价是拉远后地图内容显示得越小。范围 60–5000；默认 400。</DeltaV_SettingsUniverseZoomMaxTip>
   <DeltaV_SettingsPoiActiveRadius>POI 加载距离（格）</DeltaV_SettingsPoiActiveRadius>

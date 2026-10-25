@@ -37,6 +37,7 @@ internal static partial class Program
         var metadata = new DeltaVPocketMapMetadata(map);
         map.components.Add(metadata);
         universe.objects.Add(frame);
+        Set(universe, "objectById", null); // This fixture bypasses RegisterObject.
         var main = AddTestConsole(map, faction, 49901);
         var space = (TerrainDef)Raw(typeof(TerrainDef));
         space.defName = "separationSpace"; space.natural = true; space.exposesToVacuum = true;
@@ -60,6 +61,11 @@ internal static partial class Program
         {
             harmony.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
                 prefix: new HarmonyMethod(typeof(Program), nameof(RegressionSubstructure)));
+            Check(harmony.Patch(AccessTools.Method(typeof(TerrainGrid), "DoTerrainChangedEffects"),
+                    postfix: new HarmonyMethod(typeof(Patch_ShipStructure_Terrain), "Postfix")) != null
+                && harmony.Patch(AccessTools.Method(typeof(TerrainGrid), "RemoveGravshipTerrainUnsafe"),
+                    postfix: new HarmonyMethod(typeof(Patch_TerrainGrid_RemoveGravshipTerrainUnsafe_Ownership), "Postfix")) != null,
+                "foundation and support event postfixes bind to installed RimWorld signatures");
             Foundation(main.parent.Position, main.shipId);
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship), "single clean ship stays in its current container");
             Foundation(IntVec3.Zero, 0);
@@ -121,6 +127,11 @@ internal static partial class Program
             Set(typeof(Thing), cargo, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
             Set(typeof(Thing), cargo, "positionInt", IntVec3.Zero);
             map.listerThings.AllThings.Add(cargo);
+            harmony.Patch(AccessTools.Method(typeof(ThingGrid), "RegisterInCell"),
+                postfix: new HarmonyMethod(typeof(Patch_SpaceScatterCargo_Register), "Postfix"));
+            harmony.Patch(AccessTools.Method(typeof(ThingGrid), "DeregisterInCell"),
+                postfix: new HarmonyMethod(typeof(Patch_SpaceScatterCargo_Deregister), "Postfix"));
+            map.thingGrid.Register(cargo);
             harmony.Patch(AccessTools.Method(typeof(SpaceScatterService), "TryScatter"),
                 prefix: new HarmonyMethod(typeof(Program), nameof(FailScatterFixture)));
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship)
@@ -131,7 +142,28 @@ internal static partial class Program
                 "failed scatter keeps loose cargo from moving with the ship");
             universe.ShipTransitions.pendingSeparationOwnerIds.Remove(main.shipId);
             Actions(universe).Clear();
+            Check(universe.Scatter.LooseCargo(map).Contains(cargo),
+                "cargo registration adds an unsupported item to the per-map index");
+            map.terrainGrid.topGrid[0] = soil;
+            universe.NotifySupportChanged(map, IntVec3.Zero);
+            Check(!universe.Scatter.LooseCargo(map).Any(),
+                "support change removes the indexed loose cargo without a map scan");
+            map.terrainGrid.topGrid[0] = space;
+            universe.NotifySupportChanged(map, IntVec3.Zero);
+            Check(universe.Scatter.LooseCargo(map).Contains(cargo),
+                "losing support restores the loose cargo entry");
+            map.thingGrid.Deregister(cargo);
             map.listerThings.AllThings.Remove(cargo);
+            Check(!universe.Scatter.LooseCargo(map).Any(),
+                "cargo deregistration clears the per-map index");
+
+            Foundation(new IntVec3(4, 0, 4), 999);
+            universe.NotifyFoundationChanged(map);
+            Check(!universe.ShipTransitions.RequestFoundationSeparation(universe, main.Ship, false),
+                "foundation change invalidates the previously clean split conclusion");
+            Call(universe, "RunFrameActions");
+            Check(separationTransfers == 4 && universe.ShipTransitions.RequestFoundationSeparation(universe, main.Ship, false),
+                "new residual is transferred once and the clean result is reused");
         }
         finally
         {
@@ -139,7 +171,8 @@ internal static partial class Program
             Current.Game.currentMapIndex = oldMapIndex;
             TerrainDefOf.Space = oldSpace; DeltaVDefOf.DeltaV_DockingPort = oldPort;
             Actions(universe).Clear(); universe.ShipTransitions.pendingSeparationOwnerIds.Remove(main.shipId);
-            universe.objects.Remove(frame); Find.Maps.Remove(map); ShipRegistry.ClearCaches();
+            universe.objects.Remove(frame); Set(universe, "objectById", null);
+            Find.Maps.Remove(map); ShipRegistry.ClearCaches();
         }
     }
 }

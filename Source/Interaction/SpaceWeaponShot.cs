@@ -224,12 +224,13 @@ namespace DeltaV
             return true;
         }
 
-        /// <summary>武器候选筛选与真实发射共用逐段能量规划。</summary>
-        public static bool HasShotEnergy(CompSpaceWeapon weapon)
+        // Candidate scoring needs only the loader's base pulse; chain power is checked on launch.
+        public static bool HasBaseShotEnergy(CompSpaceWeapon weapon)
         {
             if (weapon?.parent == null || !weapon.parent.Spawned) return false;
             var probe = new SpaceWeaponShot(null, weapon, null, default);
-            return probe.PrepareEnergy(CompSpaceRailgun.Resolve(weapon));
+            return probe.PrepareEnergy(new SpaceWeaponAccelerationSolution(0f, null,
+                new List<CompSpaceRailgun>()));
         }
 
         // 状态显示和真实发射共用 PrepareEnergy 的逐段预留结果。
@@ -248,15 +249,6 @@ namespace DeltaV
         }
 
         /// <summary>预瞄弹速与实际发射共用逐段能量规划。</summary>
-        public static float ProjectedSpeed(CompSpaceWeapon weapon)
-        {
-            if (weapon == null) return 0f;
-            CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
-            ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
-            float baseSpeed = projectile?.GetCompProperties<CompProperties_SpaceProjectile>()?.speed ?? 0f;
-            return ProjectedSpeed(weapon, CompSpaceRailgun.Resolve(weapon), baseSpeed);
-        }
-
         internal static float ProjectedSpeed(CompSpaceWeapon weapon, SpaceWeaponAccelerationSolution acceleration, float baseSpeed)
         {
             var probe = new SpaceWeaponShot(null, weapon, null, default);

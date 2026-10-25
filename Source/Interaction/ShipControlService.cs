@@ -118,7 +118,7 @@ namespace DeltaV
             foreach (ShipController controller in controllers.Values)
             {
                 ShipBase ship = ShipRegistry.ShipByIdentity(controller.OwnerId);
-                if (!ship.IsValid || ship.Map == map) controller.FireControl.PrunePointDefense(ship);
+                if (!ship.IsValid || ship.Map == map) controller.FireControl.PrunePointDefense(ship, force: true);
             }
         }
 
@@ -163,13 +163,16 @@ namespace DeltaV
 
         public void Tick()
         {
+            long stageStart = universe.Performance.Start();
             if (pendingGunnerMaps.Count > 0) ProcessGunnerEvents();
             SyncManualAimSelection();
+            universe.Performance.Record(PerformanceStage.ControlSelection, stageStart);
             tickBuffer.Clear();
             tickBuffer.AddRange(controllers.Values);
             int now = Find.TickManager.TicksGame;
             int interval = UnityEngine.Mathf.Clamp(
                 DeltaVMod.CurrentSettings?.npcDecisionIntervalTicks ?? 60, 1, 600);
+            stageStart = universe.Performance.Start();
             if (lastPlayerDecisionTick < 0 || now - lastPlayerDecisionTick >= interval)
             {
                 lastPlayerDecisionTick = now;
@@ -180,8 +183,20 @@ namespace DeltaV
                         if (ship.IsValid) player.DecideAutoCombat(ship);
                     }
             }
+            universe.Performance.Record(PerformanceStage.ControlDecision, stageStart);
+            stageStart = universe.Performance.Start();
+            bool hasScatterTargets = universe.Scatter.HasCandidates;
+            bool hasInterceptionTargets = false;
+            foreach (SpaceObject obj in universe.objects)
+                if (obj?.InterceptionEligible == true)
+                {
+                    hasInterceptionTargets = true;
+                    break;
+                }
             foreach (ShipController controller in tickBuffer)
-                controller.TickCombat();
+                controller.TickCombat(ref hasInterceptionTargets, hasScatterTargets);
+            universe.Performance.RecordPointDefenseTargets(hasInterceptionTargets, hasScatterTargets);
+            universe.Performance.Record(PerformanceStage.ControlCombat, stageStart);
             tickBuffer.Clear();
         }
 

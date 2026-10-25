@@ -15,6 +15,7 @@ namespace DeltaV
     /// - Combat：战斗链用户事件（发射/命中/拦截/跳弹/放行/tag 切换；门控，边沿触发——
     ///   每 tick 碰撞求交热路径不埋点，§2 诊断纪律）
     /// - Development：通用临时排障（门控）；埋点清理规则见 AGENTS §2。
+    /// - Performance：定期帧率、游戏 tick 与 Delta-V 各渲染阶段 CPU 探针。
     ///
     /// 纪律（与 RimExodus 相同，勿回退）：Warn/Error 不受开关控制；
     /// 关键状态迁移（驾驶进入/退出、抑制激活、补丁初始化结果）常开；
@@ -29,7 +30,8 @@ namespace DeltaV
         Lifecycle,
         Render,
         Combat,
-        Development
+        Development,
+        Performance
     }
 
     /// <summary>
@@ -55,6 +57,7 @@ namespace DeltaV
                 case DeltaVLogModule.Render: return s.logRender;
                 case DeltaVLogModule.Combat: return s.logCombat;
                 case DeltaVLogModule.Development: return s.logDevelopment;
+                case DeltaVLogModule.Performance: return s.logPerformance;
                 default: return false;
             }
         }

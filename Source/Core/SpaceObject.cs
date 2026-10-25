@@ -245,6 +245,7 @@ namespace DeltaV
         }
 
         protected virtual ShipPhysics.MassReport MotionReport => ShipPhysics.PointMassReport;
+        protected virtual ShipPhysics.MassReport DriftReport => MotionReport;
         public virtual DriveSubject PrimaryDriver => default;
         public virtual bool TryGetDrive(DriveSubject subject, out DriveInfo info) { info = null; return false; }
         public DriveInfo MotionInfo => ReadDriveInfo();
@@ -283,12 +284,13 @@ namespace DeltaV
             lastMotionTick = tick;
             return true;
         }
-        public void AdvanceDrift(float dt)
+        public bool AdvanceDrift(float dt)
         {
-            if (!BeginMotion(dt)) return;
+            if (!BeginMotion(dt)) return false;
             ClearDrive();
-            if (pose.velocity.sqrMagnitude < 1e-10f && Mathf.Abs(pose.angularVelocity) < 1e-10f) return;
-            ShipPhysics.Integrate(this, MotionReport, Vector2.zero, 0f, dt, false, false, false);
+            if (pose.velocity.sqrMagnitude < 1e-10f && Mathf.Abs(pose.angularVelocity) < 1e-10f) return false;
+            ShipPhysics.Integrate(this, DriftReport, Vector2.zero, 0f, dt, false, false, false);
+            return true;
         }
         private ShipPhysics.MassReport cachedAllocationReport;
         private int cachedAllocationVersion, cachedAllocationStep;

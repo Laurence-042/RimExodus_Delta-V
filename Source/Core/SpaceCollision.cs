@@ -9,7 +9,7 @@ namespace DeltaV
     /// 统一容器碰撞核心（太空战架构 §3.3，唯一碰撞实现——弹丸/激光/侵入/PD 四消费方
     /// 共用，不得出现第二份求交或第二份己方排除规则）：
     /// - 碰撞面缓存：每容器「建筑/基架占用格集」（SpaceStructureRules 分类）+ 包围域，
-    ///   经 GlobalStructureVersion + 周期重扫失效（ShipPhysics 质量报告同风格），
+    ///   经 GlobalStructureVersion 失效，弹体小图租用时单独释放缓存，
     ///   容器注销/图销毁释放（Forget/ClearCaches）；
     /// - 参与判定（tag）：主动方 = projectile tag 容器（IsActiveCollider）；被动方 =
     ///   任何有碰撞面的容器（有图即可被撞——飞船被弹体命中、PD 弹打导弹都是此路径）；

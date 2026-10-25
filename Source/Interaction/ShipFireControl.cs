@@ -13,16 +13,17 @@ namespace DeltaV
         private readonly DriveSubject ownerId;
         private CombatTarget target;
         private int preferredSystemId;
-        private int targetLockedUntil;
         private bool targetObserved;
         private readonly Dictionary<int, PdLock> pointDefense = new Dictionary<int, PdLock>();
         private readonly List<int> staleWeapons = new List<int>();
+        private readonly HashSet<int> validPointDefenseWeapons = new HashSet<int>();
+        private int pointDefensePrunedVersion = -1;
         private struct PdLock { internal CombatTarget target; internal int retargetAt; }
         internal CombatTarget Target => target;
         internal ShipFireControl(UniverseManager universe, DriveSubject ownerId)
         { this.universe = universe; this.ownerId = ownerId; }
 
-        internal void Clear() { target = default; preferredSystemId = 0; targetLockedUntil = 0; }
+        internal void Clear() { target = default; preferredSystemId = 0; }
         internal void Dispose()
         { Clear(); pointDefense.Clear(); aimCapabilities.Clear(); leadPoints.Clear(); uniqueLeadPoints.Clear(); }
         internal void ForgetWeapon(CompSpaceWeapon weapon) => pointDefense.Remove(weapon.parent.thingIDNumber);
@@ -80,6 +81,7 @@ namespace DeltaV
 
         internal void Decide(ShipBase ship, SpaceObject own)
         {
+            if (target.HasLock && TryResolveAutomatic(ship, own, target, out _)) return;
             float best = float.NegativeInfinity;
             float ownRadius = HullRadius(ship);
             CombatTarget selected = default;
@@ -93,13 +95,11 @@ namespace DeltaV
                     .Where(b => b.Spawned && !b.Destroyed && member.Contains(b)).Sum(b => (float)b.HitPoints);
                 float ownFire = universe.Weapons.EstimateFirepower(ship, distance, HullRadius(member));
                 float score = enemyFire * 2f + ownFire / (1f + survivability / 1000f)
-                    - distance * 0.1f + (candidate == target ? 10f : 0f);
-                if (candidate == target && Find.TickManager.TicksGame < targetLockedUntil) score += 100000f;
+                    - distance * 0.1f;
                 if (score < best || score == best && CompareIdentity(candidate.Ship, selected.Ship) >= 0) continue;
                 best = score; selected = candidate;
             }
-            if (selected != target)
-            { targetLockedUntil = Find.TickManager.TicksGame + 180; preferredSystemId = 0; }
+            if (selected != target) preferredSystemId = 0;
             if (DeltaVLog.Enabled(DeltaVLogModule.Combat) && (!targetObserved || selected != target))
                 DeltaVLog.Message(DeltaVLogModule.Combat, $"ship #{ownerId} fire-control target "
                     + (selected.HasLock ? selected.Ship.ToString() : "none"));
@@ -113,7 +113,14 @@ namespace DeltaV
         internal bool TryGetIntent(ShipBase ship, SpaceObject own, bool suppressSystems, out ShipVolleyIntent intent)
         {
             intent = default;
-            if (universe.Lifecycle.IsFrozen(ship.Map) || !TryResolveAutomatic(ship, own, target, out var victim)) return false;
+            if (universe.Lifecycle.IsFrozen(ship.Map)) return false;
+            if (!TryResolveAutomatic(ship, own, target, out var victim))
+            {
+                if (!target.HasLock) return false;
+                Clear();
+                Decide(ship, own);
+                if (!TryResolveAutomatic(ship, own, target, out victim)) return false;
+            }
             if (suppressSystems && preferredSystemId == 0)
             {
                 Thing system = victim.Ship.Weapons.Where(w => w.SpaceModeEnabled && w.aimMode == SpaceWeaponAimMode.PointDefense
@@ -122,27 +129,36 @@ namespace DeltaV
                         && victim.Ship.Contains(t.thing)).Select(t => t.thing).FirstOrDefault();
                 preferredSystemId = system?.thingIDNumber ?? 0;
             }
-            intent = new ShipVolleyIntent(CombatTarget.ForShip(target.Ship, suppressSystems ? preferredSystemId : 0), !suppressSystems);
+            CombatTarget handle = CombatTarget.ForShip(target.Ship, suppressSystems ? preferredSystemId : 0);
+            // A system lock changes the rigid point; resolve only that variant once here.
+            if (suppressSystems && preferredSystemId != 0
+                && !handle.TryResolve(universe, out victim)) return false;
+            intent = new ShipVolleyIntent(handle, !suppressSystems, victim, true);
             return true;
         }
 
         internal void TickVolley(ShipBase ship, SpaceObject container, ShipVolleyIntent intent)
         {
-            if (!intent.target.TryResolve(universe, out var resolved)) return;
-            if (intent.fireAll && !CandidateValid(ship, container, resolved.Container, resolved.Ship)) return;
+            ResolvedCombatTarget resolved = intent.resolvedTarget;
+            if (!intent.hasResolvedTarget && !intent.target.TryResolve(universe, out resolved)) return;
+            // Automatic intent was qualified by TryGetIntent in this same tick.
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
-                if (!WeaponBelongsHere(weapon, container) || !weapon.SpaceModeEnabled
-                    || weapon.WeaponProps.manualOnly && intent.fireAll
-                    || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive) continue;
-                WeaponAimInfo info = SpaceWeaponService.AimInfo(weapon, container);
+                if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly && intent.fireAll
+                    || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
+                    || !WeaponBelongsHere(weapon, container)) continue;
+                long aimStart = universe.Performance.Start();
+                bool fire = intent.fireAll || intent.main && weapon.salvoSet == SpaceWeaponSalvoSet.Main
+                    || intent.secondary && weapon.salvoSet == SpaceWeaponSalvoSet.Secondary;
+                bool ready = Find.TickManager.TicksGame >= weapon.cooldownUntilTick;
+                if (!ready && weapon.parent.TryGetComp<CompSpaceWeaponTraverse>() == null) continue;
+                WeaponAimInfo info = SpaceWeaponService.AimInfo(weapon, container, fire && ready);
                 Vector3 aim = resolved.Pose.position;
                 if (intent.predictIntercept && !info.Laser && TrySolveIntercept(info.Muzzle, container.pose, resolved.Pose,
                     info.Speed, out Vector3 intercept)) aim = intercept;
                 SpaceWeaponService.AimWeapon(weapon, container, info, aim);
-                bool fire = intent.fireAll || intent.main && weapon.salvoSet == SpaceWeaponSalvoSet.Main
-                    || intent.secondary && weapon.salvoSet == SpaceWeaponSalvoSet.Secondary;
-                if (!fire || Find.TickManager.TicksGame < weapon.cooldownUntilTick) continue;
+                universe.Performance.Record(PerformanceStage.VolleyAim, aimStart);
+                if (!fire || !ready) continue;
                 CombatTarget guidance = intent.target.HasLock ? intent.target : default;
                 if (!guidance.HasLock && info.Guided)
                     guidance = ManualTargetAlongRay(universe, container, info.Muzzle,
@@ -152,33 +168,48 @@ namespace DeltaV
             }
         }
 
-        internal void PrunePointDefense(ShipBase ship)
+        internal void PrunePointDefense(ShipBase ship, bool force = false)
         {
             if (pointDefense.Count == 0) return;
+            int structureVersion = SubstructureOwnership.GlobalStructureVersion;
+            if (!force && pointDefensePrunedVersion == structureVersion) return;
             // 归属、模式与移除事件可能在下一次 tick 前发生；每次消费前仍复核。
+            validPointDefenseWeapons.Clear();
+            if (ship.IsValid)
+                foreach (CompSpaceWeapon weapon in ship.Weapons)
+                    if (weapon.parent.Spawned && !weapon.parent.Destroyed && weapon.SpaceModeEnabled
+                        && weapon.aimMode == SpaceWeaponAimMode.PointDefense && weapon.OwnerShip.Identity == ownerId)
+                        validPointDefenseWeapons.Add(weapon.parent.thingIDNumber);
             staleWeapons.Clear();
             foreach (int id in pointDefense.Keys)
-                if (!ship.IsValid || !ship.Weapons.Any(w => w.parent.thingIDNumber == id && w.parent.Spawned && !w.parent.Destroyed
-                    && w.SpaceModeEnabled && w.aimMode == SpaceWeaponAimMode.PointDefense && w.OwnerShip.Identity == ownerId)) staleWeapons.Add(id);
+                if (!validPointDefenseWeapons.Contains(id)) staleWeapons.Add(id);
             foreach (int id in staleWeapons) pointDefense.Remove(id);
+            pointDefensePrunedVersion = structureVersion;
         }
 
         private bool WeaponBelongsHere(CompSpaceWeapon weapon, SpaceObject container) =>
             weapon.parent.Spawned && !weapon.parent.Destroyed
             && weapon.OwnerShip.Identity == ownerId && weapon.Container == container;
 
-        internal void TickPointDefense(ShipBase ship, SpaceObject container)
+        internal void TickPointDefense(ShipBase ship, SpaceObject container,
+            bool hasInterceptionTargets, bool hasScatterTargets)
         {
+            long pruneStart = universe.Performance.Start();
             PrunePointDefense(ship);
+            universe.Performance.Record(PerformanceStage.PointDefensePrune, pruneStart);
             int now = Find.TickManager.TicksGame;
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
                 if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.PointDefense
                     || weapon.WeaponProps.manualOnly && !weapon.WeaponProps.tractor
+                    || (weapon.WeaponProps.tractor ? !hasScatterTargets : !hasInterceptionTargets)
                     || !WeaponBelongsHere(weapon, container) || !weapon.GroupActive) continue;
-                if (weapon.WeaponProps.tractor && !SpaceTractor.CanOperate(weapon)) continue;
-                WeaponAimInfo info = SpaceWeaponService.AimInfo(weapon, container);
                 pointDefense.TryGetValue(weapon.parent.thingIDNumber, out PdLock state);
+                if (weapon.WeaponProps.tractor && !state.target.HasLock
+                    && now < state.retargetAt) continue;
+                if (weapon.WeaponProps.tractor && !SpaceTractor.CanOperate(weapon)) continue;
+                WeaponAimInfo info = SpaceWeaponService.AimInfo(weapon, container,
+                    now >= weapon.cooldownUntilTick);
                 ResolvedCombatTarget victim = default;
                 bool valid = (weapon.WeaponProps.tractor || now < state.retargetAt)
                     && PdTargetValid(weapon, state.target, info.Muzzle, out victim);
@@ -186,13 +217,15 @@ namespace DeltaV
                 {
                     // A failed lock does not bypass the authorized 30-tick search cadence.
                     if (weapon.WeaponProps.tractor && now < state.retargetAt) continue;
-                    if (weapon.WeaponProps.tractor && !SpaceWeaponShot.HasShotEnergy(weapon))
+                    if (weapon.WeaponProps.tractor && !SpaceWeaponShot.HasBaseShotEnergy(weapon))
                     {
                         state.target = default; state.retargetAt = now + 30;
                         pointDefense[weapon.parent.thingIDNumber] = state;
                         continue;
                     }
+                    long searchStart = universe.Performance.Start();
                     state.target = CombatTarget.ForContainer(FindPdTarget(weapon, info.Muzzle)); state.retargetAt = now + 30;
+                    universe.Performance.Record(PerformanceStage.PointDefenseSearch, searchStart);
                     pointDefense[weapon.parent.thingIDNumber] = state;
                     valid = state.target.TryResolve(universe, out victim);
                 }
@@ -217,7 +250,7 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in ship.Weapons)
                 if (WeaponBelongsHere(weapon, own) && weapon.SpaceModeEnabled
                     && weapon.GroupActive && weapon.aimMode == SpaceWeaponAimMode.Volley)
-                    aimCapabilities.Add(SpaceWeaponService.AimInfo(weapon, own));
+                    aimCapabilities.Add(SpaceWeaponService.AimInfo(weapon, own, precise: true));
             foreach (SpaceObject container in universe.objects)
             foreach (ShipBase member in Candidates(ship, own, container))
             {

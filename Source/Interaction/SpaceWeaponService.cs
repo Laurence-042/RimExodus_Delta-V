@@ -127,7 +127,13 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in AllWeaponsOn(map)) RegisterWeapon(weapon);
         }
 
-        internal bool HasPointDefenseWeapons(Map map) => map != null && weaponsByMap.ContainsKey(map);
+        internal bool HasPointDefenseWeapons(Map map, bool hasInterceptionTargets, bool hasScatterTargets)
+        {
+            if (map == null || !weaponsByMap.TryGetValue(map, out HashSet<CompSpaceWeapon> weapons)) return false;
+            foreach (CompSpaceWeapon weapon in weapons)
+                if (weapon.WeaponProps.tractor ? hasScatterTargets : hasInterceptionTargets) return true;
+            return false;
+        }
 
         /// <summary>只读火力估计：武器当前可用性、射程、命中散布、冷却与弹体后效同源。</summary>
         public float EstimateFirepower(ShipBase ship, float distance, float targetRadius,
@@ -141,7 +147,7 @@ namespace DeltaV
                     || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
                     || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out int skill)
-                    || !SpaceWeaponShot.HasShotEnergy(weapon)) continue;
+                    || !SpaceWeaponShot.HasBaseShotEnergy(weapon)) continue;
                 CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
                 if (!weapon.MagazineAvailable(magazine)) continue;
                 ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
@@ -171,7 +177,7 @@ namespace DeltaV
                     || weapon.aimMode != SpaceWeaponAimMode.PointDefense || !weapon.GroupActive
                     || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out _)
-                    || !SpaceWeaponShot.HasShotEnergy(weapon)) continue;
+                    || !SpaceWeaponShot.HasBaseShotEnergy(weapon)) continue;
                 CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
                 if (!weapon.MagazineAvailable(magazine)) continue;
                 ThingDef projectile = magazine?.SelectedProjectileDef
@@ -188,13 +194,21 @@ namespace DeltaV
         public bool TryFire(CompSpaceWeapon weapon, SpaceObject container, WeaponFireRequest request)
             => new SpaceWeaponShot(universe, weapon, container, request).TryExecute();
 
-        public static WeaponAimInfo AimInfo(CompSpaceWeapon weapon, SpaceObject container)
+        public static WeaponAimInfo AimInfo(CompSpaceWeapon weapon, SpaceObject container,
+            bool precise = false)
         {
-            SpaceWeaponAccelerationSolution acceleration = CompSpaceRailgun.Resolve(weapon);
-            Vector2 muzzle = acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
+            bool needsAccelerator = precise && !weapon.WeaponProps.acceleratorStarts.NullOrEmpty();
+            SpaceWeaponAccelerationSolution acceleration = needsAccelerator
+                ? CompSpaceRailgun.Resolve(weapon) : default;
+            Vector2 muzzle = needsAccelerator && acceleration.muzzleMap.HasValue
+                ? acceleration.muzzleMap.Value : SpaceWeaponGeometry.MuzzleMapPoint(weapon);
             ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
+            float speed = projectile?.GetCompProperties<CompProperties_SpaceProjectile>()?.laserRange > 0f
+                ? 0f : needsAccelerator
+                    ? SpaceWeaponShot.ProjectedSpeed(weapon, acceleration, ProjectileSpeedOf(projectile))
+                    : ProjectileSpeedOf(projectile);
             return new WeaponAimInfo(SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzle),
-                muzzle, projectile, SpaceWeaponShot.ProjectedSpeed(weapon, acceleration, ProjectileSpeedOf(projectile)), weapon.WeaponProps.minRange, weapon.WeaponProps.range);
+                muzzle, projectile, speed, weapon.WeaponProps.minRange, weapon.WeaponProps.range);
         }
 
         internal static void AimWeapon(CompSpaceWeapon weapon, SpaceObject container, WeaponAimInfo info, Vector3 aim)

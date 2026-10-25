@@ -282,30 +282,6 @@ namespace DeltaV
             Log.Message(report.ToString());
         }
 
-        // ---- 帧时间读数（性能测试用，Prefs.DevMode 门控常驻；UniverseManager Update/OnGUI 调用）----
-
-        private static float avgFrameMs = 16.7f;
-
-        public static void UpdateFrameMeter()
-        {
-            avgFrameMs = Mathf.Lerp(avgFrameMs, Time.unscaledDeltaTime * 1000f, 0.05f);
-        }
-
-        public static void DrawFrameMeter()
-        {
-            if (!Prefs.DevMode || Current.ProgramState != ProgramState.Playing)
-            {
-                return;
-            }
-            Text.Font = GameFont.Tiny;
-            GUI.color = new Color(1f, 1f, 0.4f, 0.9f);
-            Widgets.Label(new Rect(UI.screenWidth - 310f, UI.screenHeight - 100f, 300f, 20f),
-                $"DeltaV frame: {avgFrameMs:F1} ms ({1000f / Mathf.Max(avgFrameMs, 0.01f):F0} fps)");
-            Widgets.Label(new Rect(UI.screenWidth - 310f, UI.screenHeight - 80f, 300f, 20f),
-                $"DeltaV key suppression: {(PilotKeyBridge.SuppressVanillaKeys ? "ACTIVE" : "off")} (suppressed reads: {Current.Game?.GetComponent<UniverseManager>()?.Pilot.SuppressedReads ?? 0})");
-            GUI.color = Color.white;
-        }
-
         // ---- POI 生命周期验证工具 ----
 
         [DebugAction("Delta-V", "POI: full archive nearest", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]

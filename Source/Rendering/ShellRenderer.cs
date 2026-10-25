@@ -49,8 +49,11 @@ namespace DeltaV
             // SeamlessTileRenderer 同款。
             // 背景层：所有非聚焦壳 → 聚焦图随后无条件覆盖。
             OrderShellsById(universe, frame, LayerOrderScratch);
+            long gridStart = universe.Performance.Start();
             int motionSlots = SpaceCoordinateGrid.Emit(universe, frame, current, backgroundLayer, 0);
+            universe.Performance.Record(PerformanceStage.Grid, gridStart);
             motionSlots = universe.Projectiles.EmitMotionVisuals(frame, current, backgroundLayer, motionSlots);
+            long shellStart = universe.Performance.Start();
             bool anyBuffered = motionSlots > 0;
             for (int i = 0; i < LayerOrderScratch.Count; i++)
             {
@@ -59,7 +62,9 @@ namespace DeltaV
                 if (logBeat) AppendLayerObj("b" + i + "/" + LayerOrderScratch.Count, LayerOrderScratch[i], drew);
             }
             backgroundLayer.Finish(anyBuffered);
+            universe.Performance.Record(PerformanceStage.Shells, shellStart);
             // 前台层只承载弹体、激光和瞄准标记，不改变对象壳的层级。
+            long foregroundStart = universe.Performance.Start();
             int nextSlot = 0;
             // 在飞弹体 + 激光线段（太空战架构 §4.4：弹体 def 图形投影，同管线）。
             nextSlot = universe.Projectiles.TryEmitProjectiles(frame, current, foregroundLayer, nextSlot);
@@ -67,6 +72,7 @@ namespace DeltaV
             // 即零标记（ShellRenderer 只转发，不持瞄准状态）。
             nextSlot = universe.Controls.EmitAimMarkers(frame, current, foregroundLayer, nextSlot);
             foregroundLayer.Finish(nextSlot > 0);
+            universe.Performance.Record(PerformanceStage.Foreground, foregroundStart);
             if (logBeat) DeltaVLog.Message(DeltaVLogModule.Render, LayerLogBuf.ToString());
         }
 

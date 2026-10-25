@@ -494,6 +494,8 @@ namespace DeltaV
             Vector3 referencePosition, Vector2 referenceVelocity, float referenceAngle,
             float referenceAngularVelocity)
         {
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            long solveStart = universe?.Performance.Start() ?? 0L;
             ShipPhysics.ControlModel controlModel = report.PreviewModel(flight.controlModel);
             BuildControlAcceleration(pose, controlModel, voidBlend, flight.controlAcceleration);
             float boostSeconds = flight.intercept ? report.BoostSecondsRemaining : 0f;
@@ -550,6 +552,7 @@ namespace DeltaV
             {
                 flight.failureLogged = false;
             }
+            universe?.Performance.RecordAutopilotSolve(solveStart);
         }
 
         private static void BuildControlAcceleration(SpacePose pose, ShipPhysics.ControlModel model,

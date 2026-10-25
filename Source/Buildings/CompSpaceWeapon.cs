@@ -185,7 +185,6 @@ namespace DeltaV
         private int lastMagazineThingId = -1;
         private int visualShotTick = -10000;
         private float visualShotAngle;
-
         public void NotifyVisualShot(float angle)
         {
             visualShotTick = Find.TickManager.TicksGame;

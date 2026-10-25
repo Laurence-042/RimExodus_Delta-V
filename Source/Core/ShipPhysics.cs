@@ -117,6 +117,7 @@ namespace DeltaV
             /// （Measure 重扫后的缺省），火焰读取方据此判定油门新鲜，防止力源
             /// 停止后的幽灵火焰。运行时表现层标记，不存档。</summary>
             public float throttlesWrittenAt;
+            internal bool throttlesNeedClearing;
         }
 
         /// <summary>指令各分量 ∈ [-1, 1]；平移分量已经由主驾驶台系换算到 Map 局部 x/z。</summary>
@@ -335,7 +336,11 @@ namespace DeltaV
             SolveAllocation(report, command, report.previewScratch, out force, out torque);
         }
 
-        private static void MarkThrottlesWritten(MassReport report) => report.throttlesWrittenAt = Time.time;
+        private static void MarkThrottlesWritten(MassReport report)
+        {
+            report.throttlesWrittenAt = Time.time;
+            report.throttlesNeedClearing = true;
+        }
 
         /// <summary>
         /// 构造制导器使用的只读局部控制模型。采样调用与 Allocate 完全相同的分配核心，
@@ -836,11 +841,13 @@ namespace DeltaV
             {
                 return;
             }
+            if (!cached.report.throttlesNeedClearing) return;
             for (int i = 0; i < cached.report.thrusters.Count; i++)
             {
                 cached.report.thrusters[i].throttle = 0f;
             }
             cached.report.throttlesWrittenAt = 0f;
+            cached.report.throttlesNeedClearing = false;
         }
 
         /// <summary>读档 / 场景重置时清空（与 ShellRenderer 的缓存自愈纪律一致）。</summary>

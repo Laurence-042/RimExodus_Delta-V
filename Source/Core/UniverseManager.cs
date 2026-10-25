@@ -31,6 +31,9 @@ namespace DeltaV
         /// <summary>权威宇宙对象列表（地图容器 + POI，多态深序列化）。存档事实。</summary>
         public List<SpaceObject> objects = new List<SpaceObject>();
 
+        [NonSerialized] private Dictionary<int, SpaceObject> objectById;
+        [NonSerialized] private Dictionary<Map, SpaceObject> objectByMap;
+
         /// <summary>
         /// 已触发生成的星区（持久事实，星区架构 §4）：元素为 PlanetTile 的 "tileId,layerId"。
         /// 「该星区已触发生成」不能从现存对象推导（对象会被销毁），必须持久化防重复刷对象；
@@ -71,6 +74,12 @@ namespace DeltaV
             globeDisplay?.Forget(previous.map);
             PlanetGlobeRenderer.InvalidateSilhouette(previous.map);
             objects[index] = current;
+            if (objectById != null) objectById[current.objectId] = current;
+            if (objectByMap != null)
+            {
+                if (previous.map != null) objectByMap.Remove(previous.map);
+                if (current.map != null) objectByMap[current.map] = current;
+            }
             scatter?.Remove(previous);
             if (current.IsScattered) Scatter.Register(current);
             if (previous.map != null || current.map != null) SubstructureOwnership.BumpStructureVersion();
@@ -86,6 +95,9 @@ namespace DeltaV
         internal GlobeDisplayInfo GlobeDisplay => globeDisplay ?? (globeDisplay = new GlobeDisplayInfo());
 
         [NonSerialized] private SpaceProjectileService projectiles;
+
+        [NonSerialized] private DeltaVPerformanceProbe performance;
+        internal DeltaVPerformanceProbe Performance => performance ?? (performance = new DeltaVPerformanceProbe());
 
         [NonSerialized] private SpaceMapPool mapPool;
         public SpaceMapPool MapPool => mapPool ?? (mapPool = new SpaceMapPool(this));
@@ -177,7 +189,15 @@ namespace DeltaV
 
         public SpaceObject ObjectById(int id)
         {
-            return id <= 0 ? null : objects.FirstOrDefault(o => o.objectId == id);
+            if (id <= 0) return null;
+            if (objectById == null)
+            {
+                objectById = new Dictionary<int, SpaceObject>(objects.Count);
+                foreach (SpaceObject obj in objects)
+                    if (obj != null && obj.objectId > 0 && !objectById.ContainsKey(obj.objectId))
+                        objectById.Add(obj.objectId, obj);
+            }
+            return objectById.TryGetValue(id, out SpaceObject found) ? found : null;
         }
 
         // ---- 对象/结构 ID（单一计数器；语义分离）----
@@ -329,10 +349,14 @@ namespace DeltaV
                 }
             }
             objects.Add(obj);
+            objectById?.Add(obj.objectId, obj);
+            if (obj.map != null && objectByMap != null) objectByMap[obj.map] = obj;
             if (obj.map != null && obj.map == Find.CurrentMap) ApplyCameraZoomScope();
             if (obj.IsScattered) Scatter.Register(obj);
             if (obj.map != null && Find.UIRoot is UIRoot_Play) Find.ColonistBar?.MarkColonistsDirty();
-            if (obj.map != null) SubstructureOwnership.BumpStructureVersion();
+            // Projectile maps are transient and have their own collision-cache invalidation on rent.
+            if (obj.map != null && obj.baseTag != SpaceObjectTag.Projectile)
+                SubstructureOwnership.BumpStructureVersion();
             if (obj.objectId >= nextFreeOwnerId) nextFreeOwnerId = obj.objectId + 1;
             if (obj.map != null && obj.HasTag(SpaceObjectTag.Ship) == true)
             {
@@ -358,6 +382,10 @@ namespace DeltaV
             // Resolve projectile resources while the old identity is still registered.
             Projectiles.NotifyContainerRemoving(obj);
             objects.Remove(obj);
+            objectById?.Remove(obj.objectId);
+            if (obj.map != null && objectByMap != null
+                && objectByMap.TryGetValue(obj.map, out SpaceObject mapped) && mapped == obj)
+                objectByMap.Remove(obj.map);
             if (obj.map != null && obj.map == Find.CurrentMap) ApplyCameraZoomScope();
             scatter?.Remove(obj);
             if (obj.map != null && Find.UIRoot is UIRoot_Play) Find.ColonistBar?.MarkColonistsDirty();
@@ -365,6 +393,7 @@ namespace DeltaV
             PlanetGlobeRenderer.InvalidateSilhouette(obj.map);
             Autopilot.Detach(obj);
             Shuttles.ForgetContainer(obj);
+            shipTransitions?.ForgetMap(obj.map);
             // 最后一艘船消失后 Ship tag 已移除，释放不能再以当前角色为前提。
             if (obj.map != null) Weapons.ForgetMap(obj.map);
             if (obj.map != null) { softDock?.Forget(obj.map); scatter?.Forget(obj.map); }
@@ -442,9 +471,17 @@ namespace DeltaV
         public SpaceObject SpaceObjectOnMap(Map map)
         {
             if (map == null) return null;
+            if (objectByMap != null && objectByMap.TryGetValue(map, out SpaceObject cached))
+            {
+                if (cached.map == map) return cached;
+                objectByMap.Remove(map);
+            }
             for (int i = 0; i < objects.Count; i++)
             {
-                if (objects[i].map == map) return objects[i];
+                if (objects[i].map != map) continue;
+                if (objectByMap == null) objectByMap = new Dictionary<Map, SpaceObject>();
+                objectByMap[map] = objects[i];
+                return objects[i];
             }
             return null;
         }
@@ -476,6 +513,7 @@ namespace DeltaV
         {
             if (map == null) return;
             unframedMaps?.Remove(map);
+            shipTransitions?.ForgetMap(map);
             globeDisplay?.Forget(map);
             PlanetGlobeRenderer.InvalidateSilhouette(map);
             Projectiles.ForgetMap(map);
@@ -483,6 +521,13 @@ namespace DeltaV
             scatter?.Forget(map);
             softDock?.Forget(map);
         }
+
+        internal void NotifyFoundationChanged(Map map) => shipTransitions?.NotifyFoundationChanged(map);
+        internal void NotifySupportChanged(Map map, IntVec3 cell) => scatter?.NotifySupportChanged(map, cell);
+        internal void NotifyCargoRegistered(Map map, Thing thing, IntVec3 cell) =>
+            scatter?.NotifyCargoRegistered(map, thing, cell);
+        internal void NotifyCargoDeregistered(Map map, Thing thing, IntVec3 cell) =>
+            scatter?.NotifyCargoDeregistered(map, thing, cell);
 
         // ---- 专用宿主 ----
 
@@ -553,6 +598,11 @@ namespace DeltaV
                             "Recreate the test scene via Debug actions.");
                 objects = new List<SpaceObject>();
             }
+            if (Scribe.mode == LoadSaveMode.LoadingVars)
+            {
+                objectById = null;
+                objectByMap = null;
+            }
             Scribe_Collections.Look(ref generatedSectorTiles, "generatedSectorTiles", LookMode.Value);
             Scribe_Values.Look(ref SoftDockEnabled, "softDockEnabled", false);
             Scribe_Values.Look(ref ShowThrusterDebugOverlay, "showThrusterDebugOverlay", false);
@@ -588,6 +638,8 @@ namespace DeltaV
 
         public override void LoadedGame()
         {
+            objectById = null;
+            objectByMap = null;
             ResetRuntimeServices();
             pocketHostService?.Reset();
             OrbitSphere.ClearCache();
@@ -704,6 +756,7 @@ namespace DeltaV
         {
             if (IsResettingScene)
             {
+                Performance.FrameFinished(0L);
                 Find.TickManager.Pause();
                 // Native map finalization must finish before any queued disposal.
                 if (LongEventHandler.AnyEventNowOrWaiting) return;
@@ -711,12 +764,12 @@ namespace DeltaV
                 AdvanceSceneReset();
                 return;
             }
+            long performanceStart = Performance.Start();
             // 帧上下文动作消费（分离执行、对接完成收尾、源图善后、战略离场善后等
             // 「必须离开 tick 调用栈」的收尾唯一出口），先消费再处理渲染/输入。
             RunFrameActions();
             // 驾驶状态维护（自动退出 + Harmony 按键抑制开关）。聚焦跟随由 CurrentMap 天然承载。
             Pilot.UpdateFrameState(this);
-            DebugActions_DeltaV.UpdateFrameMeter();
             ShellRenderer.DrawNonFocusedShells(this);
             WorldShipMarkerRenderer.DrawPlayerShips(this);
             ThrusterEffects.Draw(this);
@@ -728,6 +781,7 @@ namespace DeltaV
             CollisionDebugOverlay.DrawFocused(this);
             // 推进器工作音（与火焰同源：只读分配器油门；聚焦图逐推进器 + 船壳整船）。
             ThrusterAudio.Update(this);
+            Performance.FrameFinished(performanceStart);
         }
 
         // 缩放设置属于共享 CameraMapConfig；按切图/设置事件在宇宙图覆盖，离图恢复。
@@ -791,27 +845,44 @@ namespace DeltaV
         public override void GameComponentTick()
         {
             if (IsResettingScene) return;
+            long performanceStart = Performance.Start();
             // 原版 TickManager 每次只调用一次；速度单位为格/秒，故单次积分步长为 1/60 秒。
             // 倍速增加调用次数而非放大单次 dt，暂停时本方法不被调用。
             const float dt = 1f / 60f;
             // 宇宙运动只属于游戏时钟（AGENTS §18 不变量 #20）：自动驾驶/弹体制导/跳帮舱按
             // 游戏 tick 推进——暂停冻结、倍速加速；先于计划判据与物理积分
             //（IsActive 跳过防双驱动，计划判据看到本 tick 最新位姿）。
+            long stageStart = Performance.Start();
             NpcShips.Tick();
+            Performance.Record(PerformanceStage.Npc, stageStart);
+            stageStart = Performance.Start();
             softDock?.Tick();
+            Performance.Record(PerformanceStage.SoftDock, stageStart);
+            stageStart = Performance.Start();
             Projectiles.Tick();
+            Performance.Record(PerformanceStage.Projectiles, stageStart);
+            stageStart = Performance.Start();
             Autopilot.Tick();
+            Performance.Record(PerformanceStage.Autopilot, stageStart);
+            stageStart = Performance.Start();
             Weapons.TickPendingMissileReloads();
+            Performance.Record(PerformanceStage.Weapons, stageStart);
             // 同一归属 controller 调度瞄准、齐射、点防与炮手事件。
+            stageStart = Performance.Start();
             Controls.Tick();
+            Performance.Record(PerformanceStage.Controls, stageStart);
             // 对接计划（几何完成判据 + 取消守卫；2026-09-21 阶段4）。
             Approach.Tick(this);
             PilotTarget piloted = Pilot.PilotedTarget(this);
             bool piloting = piloted.IsValid && Find.CurrentMap == piloted.Map;
+            stageStart = Performance.Start();
+            long objectDriveTime = 0L, objectDriftTime = 0L, objectArchiveTime = 0L;
+            int thrustingObjects = 0, driftingObjects = 0, archivedObjects = 0;
             foreach (SpaceObject obj in objects)
             {
                 if (piloting && obj.map == piloted.Map && !Autopilot.IsActive(obj))
                 {
+                    long driveStart = Performance.Start();
                     DriveSubject subject = DriveSubject.Of(piloted);
                     if (obj.TryGetDrive(subject, out DriveInfo info))
                     {
@@ -819,21 +890,36 @@ namespace DeltaV
                         obj.ApplyDrive(subject, info.ControlFromInput(command.command,
                             command.assistX, command.assistZ, command.assistW), dt, out _);
                     }
+                    objectDriveTime += Performance.Elapsed(driveStart);
                 }
                 // 对象自身保证每 tick 只积分一次；等待分离、失效任务仍保留真实漂移。
-                obj.AdvanceDrift(dt);
+                long driftStart = Performance.Start();
+                if (obj.AdvanceDrift(dt)) driftingObjects++;
+                objectDriftTime += Performance.Elapsed(driftStart);
+                if (obj.PropulsionUsedThisTick) thrustingObjects++;
                 if (obj.IsArchived)
                 {
+                    long archiveStart = Performance.Start();
+                    archivedObjects++;
                     Lifecycle.CheckArchivedProximity(obj);
                     NpcShips.NotifyArchivedMovement((ArchivedSpaceObject)obj);
+                    objectArchiveTime += Performance.Elapsed(archiveStart);
                 }
             }
+            Performance.RecordElapsed(PerformanceStage.ObjectDrive, objectDriveTime);
+            Performance.RecordElapsed(PerformanceStage.ObjectDrift, objectDriftTime);
+            Performance.RecordElapsed(PerformanceStage.ObjectArchive, objectArchiveTime);
+            Performance.Record(PerformanceStage.Objects, stageStart);
             softDock?.ApplyAlignmentAssist();
             // 碰撞扫掠与结算（太空战架构 §3.3：先动后撞——本 tick 位移段对全部有碰撞面
             // 容器求交，命中经联合效果注册表对称结算；销毁/归池经帧边界回调）。
             scatter?.Tick();
+            stageStart = Performance.Start();
             Projectiles.ResolveCollisions();
+            Performance.Record(PerformanceStage.Collision, stageStart);
+            stageStart = Performance.Start();
             Projectiles.TickMotionFeedback();
+            Performance.Record(PerformanceStage.MotionFeedback, stageStart);
             // 生命周期只按设置周期扫描；归档对象已在上方与其他容器一起逐 tick 推进。
             int now = Find.TickManager.TicksGame;
             if (lastLifecycleScanTick < 0) lastLifecycleScanTick = now;
@@ -842,13 +928,18 @@ namespace DeltaV
             if (now - lastLifecycleScanTick >= lifecycleInterval)
             {
                 lastLifecycleScanTick = now;
+                stageStart = Performance.Start();
                 Lifecycle.Tick();
+                Performance.Record(PerformanceStage.Lifecycle, stageStart);
             }
             // 星区记账仍按原有周期触发（自由飞行跨 tile 首次生成）。
             if (Find.TickManager.TicksGame % 60 == 0)
             {
                 SectorContentService.TickSectorTracking(this);
             }
+            Performance.TickFinished(performanceStart, objects.Count,
+                Projectiles.ActiveCount, SubstructureOwnership.GlobalStructureVersion,
+                thrustingObjects, driftingObjects, archivedObjects);
         }
 
         public override void GameComponentOnGUI()
@@ -870,7 +961,6 @@ namespace DeltaV
             }
             ShipStatusPanel.Draw(this);
             Designator_ReassignSubstructure.DrawPendingLabels();
-            DebugActions_DeltaV.DrawFrameMeter();
             HandleShellClick();
             HandleWorldMarkerClick();
         }

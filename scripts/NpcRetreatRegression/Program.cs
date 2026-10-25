@@ -25,7 +25,8 @@ internal static partial class Program
             string path = Path.Combine(args[0], name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        try { Run(args.Contains("--aim-input-only"), args.Contains("--salvage-only")); Console.WriteLine($"PASS {checks} regression checks (production DLL)"); return 0; }
+        try { Run(args.Contains("--aim-input-only"), args.Contains("--salvage-only"),
+            args.Contains("--drive-performance-only")); Console.WriteLine($"PASS {checks} regression checks (production DLL)"); return 0; }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
     }
 
@@ -45,7 +46,7 @@ internal static partial class Program
     static SpaceObject Home(UniverseManager universe, SpaceObject own, Faction faction) =>
         (SpaceObject)Call(universe.NpcShips, "ResolveRetreatHome", own, faction);
 
-    static void Run(bool aimInputOnly, bool salvageOnly)
+    static void Run(bool aimInputOnly, bool salvageOnly, bool drivePerformanceOnly)
     {
         // Vanilla log rendering needs Unity; all assertions and production control paths remain active.
         using var logs = Log.LockMessages();
@@ -89,6 +90,7 @@ internal static partial class Program
         CheckSeparationRules(universe, faction);
         CheckCombatTargets(universe, faction, other);
         CheckPerShipFireControl(universe, faction, other);
+        if (drivePerformanceOnly) return;
         CheckStructureSelection(universe, faction, other);
         CheckSceneReset(universe);
         CheckMapPool(universe);

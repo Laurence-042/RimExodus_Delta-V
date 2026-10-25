@@ -81,6 +81,9 @@ namespace DeltaV
                 return report;
             }
         }
+        // Pure drift needs mass/COM but does not consume real-time thruster availability.
+        protected override ShipPhysics.MassReport DriftReport =>
+            interior == null || interior.Disposed ? ShipPhysics.PointMassReport : ShipPhysics.GetReport(this);
         private PilotTarget ResolvePilot(DriveSubject subject)
         {
             if (interior == null || interior.Disposed || subject.key <= 0) return default;
@@ -122,13 +125,24 @@ namespace DeltaV
         protected override DriveResult AuthorizeDrive(DriveSubject subject, ShipPhysics.Command command, bool playerInitiated)
         {
             var universe = Current.Game.GetComponent<UniverseManager>();
+            long authorizeStart = universe.Performance.Start();
             if ((Mathf.Abs(command.fx) > 1e-6f || Mathf.Abs(command.fz) > 1e-6f || Mathf.Abs(command.torque) > 1e-6f)
                 && !universe.ShipTransitions.RequestThrust(universe, ResolvePilot(subject), playerInitiated))
+            {
+                universe.Performance.Record(PerformanceStage.DriveAuthorize, authorizeStart);
                 return DriveResult.WaitingForSeparation;
+            }
+            universe.Performance.Record(PerformanceStage.DriveAuthorize, authorizeStart);
             return DriveResult.Executed;
         }
         protected override void AllocateDrive(ShipPhysics.MassReport report, ShipPhysics.Command command,
-            out Vector2 force, out float torque) => ShipPhysics.Allocate(report, command, out force, out torque);
+            out Vector2 force, out float torque)
+        {
+            var performance = Current.Game.GetComponent<UniverseManager>().Performance;
+            long allocateStart = performance.Start();
+            ShipPhysics.Allocate(report, command, out force, out torque);
+            performance.Record(PerformanceStage.DriveAllocate, allocateStart);
+        }
         public override void ClearDrive() { base.ClearDrive(); ShipPhysics.ClearThrottles(interior); }
         internal ArchivedSpaceObject CaptureArchive(string data)
         {

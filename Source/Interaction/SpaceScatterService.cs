@@ -13,7 +13,10 @@ namespace DeltaV
         internal const float CollectionRadius = 2f;
         private readonly UniverseManager universe;
         private readonly HashSet<SpaceObject> candidates = new HashSet<SpaceObject>();
+        private readonly Dictionary<Map, HashSet<Thing>> looseCargoByMap =
+            new Dictionary<Map, HashSet<Thing>>();
         internal IEnumerable<SpaceObject> Candidates => candidates;
+        internal bool HasCandidates => candidates.Count > 0;
         private readonly Dictionary<Map, HashSet<IntVec3>> damaged = new Dictionary<Map, HashSet<IntVec3>>();
         private readonly HashSet<Map> pendingEmpty = new HashSet<Map>();
         private sealed class PullRequest
@@ -45,6 +48,7 @@ namespace DeltaV
         internal void Forget(Map map)
         {
             candidates.RemoveWhere(o => o.map == map);
+            looseCargoByMap.Remove(map);
             damaged.Remove(map); pendingEmpty.Remove(map); collecting.Remove(map); retiring.Remove(map);
             pulls.RemoveAll(p => p.source == map || p.destination == map);
         }
@@ -92,8 +96,47 @@ namespace DeltaV
             || map.terrainGrid.TerrainAt(cell) is TerrainDef terrain
                 && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void;
 
-        internal static IEnumerable<Thing> LooseCargo(Map map) => map.listerThings.AllThings
-            .Where(t => t.Spawned && !t.Destroyed && IsCargo(t) && !Supported(map, t.Position));
+        internal IEnumerable<Thing> LooseCargo(Map map)
+        {
+            if (map == null || map.Disposed) return Array.Empty<Thing>();
+            if (!looseCargoByMap.TryGetValue(map, out HashSet<Thing> loose))
+            {
+                loose = new HashSet<Thing>();
+                foreach (Thing thing in map.listerThings.AllThings)
+                    if (thing.Spawned && !thing.Destroyed && IsCargo(thing)
+                        && !Supported(map, thing.Position)) loose.Add(thing);
+                looseCargoByMap.Add(map, loose);
+            }
+            return loose;
+        }
+
+        internal void NotifyCargoRegistered(Map map, Thing thing, IntVec3 cell)
+        {
+            if (map == null || thing == null || cell != thing.Position
+                || !looseCargoByMap.TryGetValue(map, out HashSet<Thing> loose)
+                || !thing.Spawned || thing.Destroyed || !IsCargo(thing)) return;
+            if (Supported(map, cell)) loose.Remove(thing);
+            else loose.Add(thing);
+        }
+
+        internal void NotifyCargoDeregistered(Map map, Thing thing, IntVec3 cell)
+        {
+            if (map != null && thing != null && cell == thing.Position
+                && looseCargoByMap.TryGetValue(map, out HashSet<Thing> loose)) loose.Remove(thing);
+        }
+
+        internal void NotifySupportChanged(Map map, IntVec3 cell)
+        {
+            if (map == null || !cell.InBounds(map)
+                || !looseCargoByMap.TryGetValue(map, out HashSet<Thing> loose)) return;
+            bool supported = Supported(map, cell);
+            foreach (Thing thing in map.thingGrid.ThingsListAtFast(cell))
+            {
+                if (thing.Position != cell || !thing.Spawned || thing.Destroyed || !IsCargo(thing)) continue;
+                if (supported) loose.Remove(thing);
+                else loose.Add(thing);
+            }
+        }
 
         internal void NotifyDestroyedCell(Map map, IntVec3 cell)
         {
