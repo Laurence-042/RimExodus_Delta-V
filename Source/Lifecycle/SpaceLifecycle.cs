@@ -578,7 +578,6 @@ namespace DeltaV
             ShipRegistry.Forget(map);
             ShipPhysics.Forget(map);
             ThrusterAudio.Forget(map);
-            MoonPoolUtility.Forget(map);
             PlanetGlobeRenderer.ClearRuntimeCaches();
         }
 

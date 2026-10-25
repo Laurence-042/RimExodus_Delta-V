@@ -9,8 +9,8 @@ namespace DeltaV
 {
     /// <summary>
     /// shuttle comp（太空战架构 §7）：舱体建筑 = 原版 CompTransporter 装货 + 原版
-    /// CompLaunchable 发射语义（起飞门禁 = 原版 CanLaunch 结果直取，月池豁免屋顶项
-    /// 见 Patch_MoonPool）+ 虚拟推进器 XML 配置（默认 8 台；位置/推力矢量逐台定义）+ 侵入能力
+    /// CompLaunchable 发射语义（起飞门禁 = 原版 CanLaunch 结果直取，月池屋顶通行
+    /// 见 Patch_MoonPoolRoof）+ 虚拟推进器 XML 配置（默认 8 台；位置/推力矢量逐台定义）+ 侵入能力
     ///（per-def canBoard）。停靠时是宿主图内的船成员；起飞后持有独立的普通容器。
     /// 与基架船共用公共能力：飞行/驾驶/自动驾驶/受击/普通停靠全部复用同一实现；
     /// shuttle 特有的只有单建筑域属性、落地冷却与侵入碰撞编排。
@@ -121,7 +121,7 @@ namespace DeltaV
                 yield break;
             }
             // 起飞（停靠中）：门禁 = 原版 CanLaunch 结果直取（含装货/超重/冷却）；
-            // 月池屋顶豁免见 Patch_MoonPool。
+            // 月池屋顶通行见 Patch_MoonPoolRoof。
             if (Container != null && !Vessel.CanDriveIn(Container) && Launchable != null)
             {
                 CompLaunchable launchable = Launchable;
@@ -168,7 +168,7 @@ namespace DeltaV
 
         /// <summary>
         /// 起飞门禁 = 原版 CompLaunchable.CanLaunch 结果直取（装货/燃料/超重/冷却；
-        /// 月池屋顶豁免在 Patch_MoonPool）。通过即把舱体建筑（含 held 内容）移入新
+        /// 月池屋顶通行在 Patch_MoonPoolRoof）。通过即把舱体建筑（含 held 内容）移入新
         /// 口袋容器：单建筑搬运 = DeSpawn/Spawn（不搬基架、不进控制域——舱体 held 的
         /// 乘员/货物随 CompTransporter 落盘照常）；位姿/速度 = 宿主刚体上舱体锚点
         ///（RigidPointPose，含自旋切向继承）。冷却写原版 lastLaunchTick（字段镜像

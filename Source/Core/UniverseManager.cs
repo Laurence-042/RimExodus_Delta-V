@@ -1236,7 +1236,6 @@ namespace DeltaV
             Lifecycle.Reset();
             Generation?.Reset();
             sectorReferenceTiles.Clear();
-            MoonPoolUtility.ClearCache();
             SpaceCollision.ClearCaches();
             SpaceProjectileService.ClearRuntimeCaches();
             AimMarkersRenderer.ClearRuntimeCaches();

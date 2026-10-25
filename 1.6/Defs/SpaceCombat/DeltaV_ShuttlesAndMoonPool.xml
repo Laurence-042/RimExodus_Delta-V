@@ -5,15 +5,14 @@
 		月池（太空战架构 §7；2026-09-27 修订：真继承）。**ParentName="Substructure"
 		直接继承原版逆重基架**（原版 def 经 Patches/DeltaV_Shuttle.xml 补 Name 特性）：
 		只写差异字段，tags/affordances/placeWorkers/造价/工时/引擎门禁/建造分类等全部
-		继承——游戏更新改基架属性月池自动跟随。特殊行为在代码侧：无顶密封 =
-		Patch_MoonPool（District.ExposedVacuumCount 剔除月池格 + RoofGrid.Roofed 根层
-		豁免——屋顶相关检查对月池格恒视为无顶）；力场视觉 = MoonPoolGraphics 墙壁式
+		继承——游戏更新改基架属性月池自动跟随。专用 RoofDef 提供密封与室内语义；
+		仅照明和穿梭机校验有局部豁免。力场视觉 = MoonPoolGraphics 墙壁式
 		连接图（地形本体 dontRender 透出宇宙）。
 	-->
 	<TerrainDef ParentName="Substructure">
 		<defName>DeltaV_MoonPool</defName>
 		<label>moon pool</label>
-		<description>A gravship substructure deck section sealed by a force field. Cells above it hold air without a roof, and shuttles may launch and land through it even if a roof was mistakenly built (landing never breaks the roof).</description>
+		<description>A gravship substructure deck section sealed by a transparent force-field roof. It holds air and protects the room while admitting daylight. Shuttles can launch and land through it; any ordinary roof built here remains until removed.</description>
 		<texturePath>Terrain/MoonPool</texturePath>
 		<uiIconPath>Terrain/MoonPool</uiIconPath>
 		<dontRender>true</dontRender>
@@ -21,6 +20,12 @@
 		<designationHotKey Inherit="False" />
 		<uiOrder>1001</uiOrder>
 	</TerrainDef>
+
+	<RoofDef>
+		<defName>DeltaV_MoonPoolFieldRoof</defName>
+		<label>moon pool force field</label>
+		<canCollapse>false</canCollapse>
+	</RoofDef>
 
 	<!--
 		跳帮 shuttle（2026-09-27 修订：真继承）。**ParentName="PassengerShuttle"

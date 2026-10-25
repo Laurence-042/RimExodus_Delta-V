@@ -172,8 +172,14 @@ namespace DeltaV
                 var marker = (GravshipLandingMarker)ThingMaker.MakeThing(ThingDefOf.GravshipLandingMarker);
                 marker.gravship = preview;
                 marker.CacheCells();
-                return GravshipInterop.CanDesignateRoot(new Designator_MoveGravship(active.targetMap, marker),
-                    active.landingCell, preview.Bounds.Size, active.landingRotation).Accepted;
+                bool shuttle = active.Target.Vessel is ShuttleShip;
+                if (shuttle) MoonPoolUtility.BeginShuttlePassage();
+                try
+                {
+                    return GravshipInterop.CanDesignateRoot(new Designator_MoveGravship(active.targetMap, marker),
+                        active.landingCell, preview.Bounds.Size, active.landingRotation).Accepted;
+                }
+                finally { if (shuttle) MoonPoolUtility.EndShuttlePassage(); }
             }
             finally { Current.Game.CurrentMap = original; }
         }
