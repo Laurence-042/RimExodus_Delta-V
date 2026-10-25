@@ -1,0 +1,219 @@
+using System.Collections.Generic;
+using RimWorld;
+using UnityEngine;
+using Verse;
+
+namespace DeltaV
+{
+    // Structure-derived connections only. Power, ammo and stored energy are never cached here.
+    internal sealed class SpaceWeaponLayout
+    {
+        internal readonly Map map;
+        private readonly bool cacheable;
+        internal readonly int version, ownerId;
+        internal readonly IntVec3 position;
+        internal readonly Rot4 rotation;
+        internal readonly List<ThingWithComps> attachments;
+        internal readonly List<CompSpaceWeaponMagazine> magazines = new List<CompSpaceWeaponMagazine>();
+        internal readonly SpaceWeaponAccelerationSolution acceleration;
+        internal readonly Dictionary<CompSpaceRailgun, List<ThingWithComps>> segmentAttachments =
+            new Dictionary<CompSpaceRailgun, List<ThingWithComps>>();
+
+        internal SpaceWeaponLayout(CompSpaceWeapon weapon)
+        {
+            // Unregistered generation/ground maps do not receive the universe structure events yet.
+            cacheable = weapon.Container != null;
+            ownerId = SpaceWeaponGeometry.OwnerIdOf(weapon.parent);
+            map = weapon.parent.Map; version = SubstructureOwnership.GlobalStructureVersion;
+            position = weapon.parent.Position; rotation = weapon.parent.Rotation;
+            attachments = new List<ThingWithComps>(weapon.DiscoverAttachedThings());
+            var own = weapon.parent.TryGetComp<CompSpaceWeaponMagazine>();
+            if (own != null) magazines.Add(own);
+            foreach (var thing in attachments)
+            {
+                var magazine = thing.TryGetComp<CompSpaceWeaponMagazine>();
+                if (magazine != null) magazines.Add(magazine);
+            }
+            acceleration = CompSpaceRailgun.TraceConnections(weapon);
+            foreach (var segment in acceleration.segments)
+                segmentAttachments.Add(segment, new List<ThingWithComps>(segment.AttachedThings()));
+        }
+
+        internal bool Matches(CompSpaceWeapon weapon) => cacheable && map == weapon.parent.Map
+            && version == SubstructureOwnership.GlobalStructureVersion
+            && position == weapon.parent.Position && rotation == weapon.parent.Rotation;
+    }
+
+    // A query has its own ledger; no deduction occurs until Commit. A shot owns a separate
+    // ledger so a synchronous status refresh cannot overwrite the in-flight transaction.
+    internal sealed class SpaceWeaponEnergy
+    {
+        private readonly Dictionary<PowerNet, float> available = new Dictionary<PowerNet, float>();
+        private readonly Dictionary<PowerNet, float> reserved = new Dictionary<PowerNet, float>();
+        private readonly Dictionary<CompSpaceWeaponAttachment, float> capacitors =
+            new Dictionary<CompSpaceWeaponAttachment, float>();
+        internal readonly List<CompSpaceRailgun> active = new List<CompSpaceRailgun>();
+        internal float speedBonus;
+        internal bool ready;
+
+        internal void Clear()
+        { available.Clear(); reserved.Clear(); capacitors.Clear(); active.Clear(); speedBonus = 0f; ready = false; }
+
+        internal bool Evaluate(CompSpaceWeapon weapon, bool includeSegments = true)
+        {
+            var perf = weapon.Universe?.Performance;
+            long start = perf?.Start() ?? 0L;
+            try
+            {
+                Clear();
+                SpaceWeaponLayout layout = weapon.Layout;
+                if (!ReserveAttachments(layout.attachments, weapon.WeaponProps.shotEnergy)
+                    && !ReserveGrid(weapon.parent, weapon.WeaponProps.shotEnergy)) return false;
+                ready = true;
+                if (includeSegments)
+                    foreach (var segment in layout.acceleration.segments)
+                    {
+                        if (segment.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }) continue;
+                        if (!ReserveAttachments(layout.segmentAttachments[segment], segment.RailProps.shotEnergy)
+                            && !ReserveGrid(segment.parent, segment.RailProps.shotEnergy)) continue;
+                        active.Add(segment); speedBonus += segment.RailProps.speedBonus;
+                    }
+                return true;
+            }
+            finally { perf?.Record(PerformanceStage.WeaponEnergy, start); }
+        }
+
+        private bool ReserveAttachments(List<ThingWithComps> attachments, float cost)
+        {
+            if (cost <= 0f) return false;
+            CompSpaceWeaponAttachment best = null;
+            float bestAvailable = 0f;
+            foreach (var thing in attachments)
+            {
+                var capacitor = thing.TryGetComp<CompSpaceWeaponAttachment>();
+                if (capacitor == null || !capacitor.CanSupplyShotEnergy(cost)) continue;
+                capacitors.TryGetValue(capacitor, out float held);
+                float remaining = capacitor.AvailableShotEnergy - held;
+                if (remaining + .0001f < cost) continue;
+                if (best == null || remaining > bestAvailable
+                    || remaining == bestAvailable && thing.thingIDNumber < best.parent.thingIDNumber)
+                { best = capacitor; bestAvailable = remaining; }
+            }
+            if (best == null) return false;
+            capacitors.TryGetValue(best, out float prior);
+            capacitors[best] = prior + cost;
+            return true;
+        }
+
+        private bool ReserveGrid(ThingWithComps source, float cost)
+        {
+            if (cost <= 0f) return true;
+            PowerNet net = source.TryGetComp<CompPowerTrader>()?.PowerNet;
+            if (net == null) return false;
+            if (!available.TryGetValue(net, out float stored))
+            { stored = net.CurrentStoredEnergy(); available.Add(net, stored); }
+            reserved.TryGetValue(net, out float held);
+            if (stored + .0001f < held + cost) return false;
+            reserved[net] = held + cost;
+            return true;
+        }
+
+        internal void Commit()
+        {
+            foreach (var pair in reserved)
+            {
+                float remaining = pair.Value;
+                foreach (CompPowerBattery battery in pair.Key.batteryComps)
+                {
+                    if (battery.StunnedByEMP || remaining <= 0f) continue;
+                    float drawn = Mathf.Min(remaining, battery.StoredEnergy);
+                    if (drawn <= 0f) continue;
+                    battery.DrawPower(drawn); remaining -= drawn;
+                }
+            }
+            foreach (var pair in capacitors) pair.Key.ConsumeShotEnergy(pair.Value);
+        }
+    }
+
+    internal readonly struct SpaceWeaponParameters
+    {
+        internal readonly CompSpaceWeaponMagazine magazine;
+        internal readonly WeaponAimInfo aim;
+        internal readonly SpaceWeaponEnergy energy;
+        internal SpaceWeaponParameters(CompSpaceWeaponMagazine magazine, WeaponAimInfo aim, SpaceWeaponEnergy energy)
+        { this.magazine = magazine; this.aim = aim; this.energy = energy; }
+    }
+
+    internal static class SpaceWeaponBallistics
+    {
+        internal static bool HasBaseShotEnergy(CompSpaceWeapon weapon)
+            => weapon?.parent?.Spawned == true && weapon.QueryEnergy.Evaluate(weapon, false);
+
+        internal static bool TryPlanEnergy(CompSpaceWeapon weapon,
+            out List<CompSpaceRailgun> active)
+        {
+            active = null;
+            if (weapon?.parent?.Spawned != true) return false;
+            bool ready = weapon.QueryEnergy.Evaluate(weapon);
+            active = weapon.QueryEnergy.active;
+            return ready;
+        }
+
+        internal static float ProjectedSpeed(CompSpaceWeapon weapon, float baseSpeed)
+            => weapon.QueryEnergy.Evaluate(weapon) ? baseSpeed + weapon.QueryEnergy.speedBonus : baseSpeed;
+
+
+        internal static SpaceWeaponParameters Read(CompSpaceWeapon weapon, SpaceObject container,
+            SpaceWeaponEnergy energy, bool forShot)
+        {
+            var perf = weapon.Universe?.Performance;
+            long start = perf?.Start() ?? 0L;
+            try
+            {
+                CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
+                ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
+                var layout = weapon.Layout;
+                bool accelerated = layout.acceleration.segments.Count > 0;
+                if (forShot || accelerated) energy.Evaluate(weapon);
+                else energy.Clear();
+                Vector2 muzzle = layout.acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
+                float speed = SpaceWeaponService.ProjectileSpeedOf(projectile) + energy.speedBonus;
+                return new SpaceWeaponParameters(magazine,
+                    new WeaponAimInfo(SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzle),
+                        muzzle, projectile, speed, weapon.WeaponProps.minRange, weapon.WeaponProps.range), energy);
+            }
+            finally { perf?.Record(PerformanceStage.WeaponParameters, start); }
+        }
+
+        internal static SpaceWeaponParameters AtCurrentMuzzle(CompSpaceWeapon weapon, SpaceObject container,
+            SpaceWeaponParameters parameters)
+        {
+            if (!weapon.WeaponProps.topTurret || weapon.WeaponProps.turretMuzzleDistance <= 0f
+                || weapon.Layout.acceleration.muzzleMap.HasValue) return parameters;
+            Vector2 muzzle = SpaceWeaponGeometry.MuzzleMapPoint(weapon);
+            WeaponAimInfo info = parameters.aim;
+            return new SpaceWeaponParameters(parameters.magazine,
+                new WeaponAimInfo(SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzle),
+                    muzzle, info.Projectile, info.Speed, info.MinRange, info.Range), parameters.energy);
+        }
+
+        internal static bool TryAim(WeaponAimInfo info, SpacePose source, SpacePose target, out Vector3 point)
+        {
+            point = target.position;
+            return info.Laser || TrySolveIntercept(info.Muzzle, source, target, info.Speed, out point);
+        }
+
+        internal static bool TrySolveIntercept(Vector3 muzzle, SpacePose sourcePose,
+            SpacePose targetPose, float projectileSpeed, out Vector3 interceptUniverse)
+        {
+            interceptUniverse = default;
+            if (projectileSpeed <= 0f) return false;
+            Vector2 p = OrbitSphere.Offset(muzzle, targetPose.position);
+            Vector2 relativeVelocity = SpaceTransform.TransportVelocity(targetPose, muzzle)
+                - SpaceTransform.TransportVelocity(sourcePose, muzzle);
+            if (!SpaceTransform.TrySolveInterceptPlanar(p, relativeVelocity, projectileSpeed, out float time)) return false;
+            interceptUniverse = OrbitSphere.Move(muzzle, p + relativeVelocity * time);
+            return true;
+        }
+    }
+}

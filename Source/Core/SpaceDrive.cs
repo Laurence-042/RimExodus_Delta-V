@@ -42,6 +42,11 @@ namespace DeltaV
         public Vector2 force;
         public float torque, voidBlend;
         public bool playerInitiated, assistX, assistZ, assistW;
+        internal bool hasInput;
+        internal ShipPhysics.Command input;
+        public static DriveControl FromInput(ShipPhysics.Command command, bool assistX, bool assistZ, bool assistW)
+            => new DriveControl { hasInput = true, input = command, playerInitiated = true,
+                assistX = assistX, assistZ = assistZ, assistW = assistW };
     }
 
     /// <summary>只读物理视图；预览只写求解工作区，不写真实油门或表现时间。</summary>
@@ -104,13 +109,6 @@ namespace DeltaV
             => ShipPhysics.PreviewAllocation(report, command, out force, out torque);
         public void Preview(Vector2 desiredForce, float desiredTorque, out Vector2 force, out float torque)
             => Preview(ShipPhysics.ForceToCommand(report, desiredForce, desiredTorque), out force, out torque);
-        public DriveControl ControlFromInput(ShipPhysics.Command command, bool assistX, bool assistZ, bool assistW)
-        {
-            // 输入按各方向真实能力换算期望力，执行仍走同一对象控制入口。
-            ShipPhysics.CommandToForce(report, command, out Vector2 force, out float torque);
-            return new DriveControl { force = force, torque = torque, playerInitiated = true,
-                assistX = assistX, assistZ = assistZ, assistW = assistW };
-        }
     }
 
     public readonly struct ThrusterInfo

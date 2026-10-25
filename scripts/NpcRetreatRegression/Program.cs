@@ -90,7 +90,10 @@ internal static partial class Program
         CheckSeparationRules(universe, faction);
         CheckCombatTargets(universe, faction, other);
         CheckPerShipFireControl(universe, faction, other);
-        if (drivePerformanceOnly) return;
+        CheckSharedPdCandidates(universe, faction, other);
+        CheckDriveExecutionReuse(faction);
+        CheckWeaponExecution(universe, faction);
+        if (drivePerformanceOnly) { CheckMotionFeedback(universe); return; }
         CheckStructureSelection(universe, faction, other);
         CheckSceneReset(universe);
         CheckMapPool(universe);

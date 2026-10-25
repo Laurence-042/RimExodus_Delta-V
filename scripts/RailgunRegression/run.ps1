@@ -1,5 +1,5 @@
 param([Parameter(Mandatory=$true)][string]$GameRoot,
-      [Parameter(Mandatory=$true)][string]$HarmonyPath)
+      [Parameter(Mandatory=$true)][string]$HarmonyPath, [switch]$EnergyOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 $managed = (Resolve-Path "$GameRoot/RimWorldWin64_Data/Managed").Path
@@ -22,5 +22,7 @@ $lines | Set-Content -LiteralPath "$out/build.rsp"
 & dotnet "$($sdkVersion.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net8.0","framework":{"name":"Microsoft.NETCore.App","version":"8.0.0"}}}' | Set-Content -LiteralPath "$out/RailgunRegression.runtimeconfig.json"
-& dotnet "$out/RailgunRegression.dll" $managed
+$regressionArguments = @($managed)
+if ($EnergyOnly) { $regressionArguments += "--energy-only" }
+& dotnet "$out/RailgunRegression.dll" @regressionArguments
 exit $LASTEXITCODE

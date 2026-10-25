@@ -27,7 +27,16 @@ namespace DeltaV
     [HarmonyPatch(typeof(Building), nameof(Building.SpawnSetup))]
     internal static class Patch_ShipStructure_Spawn
     {
-        private static void Postfix(Map map) => ShipStructureChanges.Notify(map);
+        private static void Postfix(Building __instance, Map map)
+        {
+            ShipStructureChanges.Notify(map);
+            // PostSpawnSetup runs before this version bump. Resolve newly connected parts only now.
+            var attachment = __instance.TryGetComp<CompSpaceWeaponAttachment>();
+            var weapon = __instance.TryGetComp<CompSpaceWeapon>() ?? attachment?.HostWeapon;
+            weapon?.parent.TryGetComp<CompRailgunReadinessAppearance>()?.Rebind();
+            var segment = __instance.TryGetComp<CompSpaceRailgun>() ?? attachment?.HostRailgun;
+            segment?.ConnectedWeapon()?.parent.TryGetComp<CompRailgunReadinessAppearance>()?.Rebind();
+        }
     }
 
     [HarmonyPatch(typeof(Building), nameof(Building.DeSpawn))]

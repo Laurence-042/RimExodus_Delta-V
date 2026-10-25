@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using RimWorld.Planet;
 using RimWorld;
 using UnityEngine;
@@ -24,6 +25,9 @@ namespace DeltaV
         private readonly ShipFireControl fireControl;
         private readonly AimButtonLatch buttons = new AimButtonLatch();
         private Map inputMap;
+        private bool sampledAllowed, sampledMain, sampledSecondary;
+        private int previewFrame = -1, previewStructureVersion = -1;
+        private IReadOnlyList<Vector3> previewPoints;
 
         /// <summary>瞄准的船（带种类的跨图稳定身份）。</summary>
         public readonly DriveSubject ownerId;
@@ -38,6 +42,7 @@ namespace DeltaV
 
         private void OnFocusChanged(bool focused)
         {
+            universe.PlayerInput.InvalidateGate();
             if (!focused) buttons.Clear();
         }
 
@@ -45,7 +50,7 @@ namespace DeltaV
         public bool HasInput { get; private set; }
         public bool FireMain { get; private set; }
         public bool FireSecondary { get; private set; }
-        public Vector3 AimPoint { get; private set; }
+        public Vector2 LocalAimPoint { get; private set; }
 
         public ShipBase Vessel => ShipRegistry.ShipByIdentity(ownerId);
 
@@ -71,14 +76,14 @@ namespace DeltaV
                 Dispose("aim ship lost");
                 return;
             }
-            if (!InputAllowed()) { buttons.Clear(); return; }
+            SampleFrame(Time.frameCount);
+            if (!sampledAllowed) { buttons.Clear(); return; }
             SpaceObject container = universe.FrameOf(ship.Map);
             if (container == null) return;
             // 悬停窗口（面板/原版 UI）不射击；暂停时无 tick，天然不射。
-            buttons.Validate(true, Input.GetMouseButton(0), Input.GetMouseButton(1));
+            buttons.Validate(true, sampledMain, sampledSecondary);
             FireMain = buttons.Main;
             FireSecondary = buttons.Secondary;
-            AimPoint = MouseUniversePoint(container, ship.Map);
             HasInput = true;
         }
 
@@ -87,17 +92,31 @@ namespace DeltaV
         internal int EmitMarkers(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)
         {
             if (disposed || !Vessel.IsValid || Vessel.Map != frameMap) return baseSlot;
+            SampleFrame(Time.frameCount);
+            long start = universe.Performance.Start();
             int slot = baseSlot;
-            foreach (Vector3 point in fireControl.LeadPoints(Vessel))
+            if (previewFrame != Time.frameCount || previewStructureVersion != SubstructureOwnership.GlobalStructureVersion)
+            {
+                previewPoints = fireControl.LeadPoints(Vessel);
+                previewFrame = Time.frameCount;
+                previewStructureVersion = SubstructureOwnership.GlobalStructureVersion;
+            }
+            foreach (Vector3 point in previewPoints)
                 AimMarkersRenderer.EmitMarker(frame, frameMap, point, AimMarkerKind.Lead, layer, ref slot);
-            AimMarkersRenderer.EmitMarker(frame, frameMap, MouseUniversePoint(frame, frameMap), AimMarkerKind.Aim, layer, ref slot);
+            AimMarkersRenderer.EmitMarker(frame, frameMap,
+                SpaceTransform.MapPointToUniverse(frame, frameMap, LocalAimPoint), AimMarkerKind.Aim, layer, ref slot);
+            universe.Performance.Record(PerformanceStage.AimPreview, start);
             return slot;
         }
 
-        public static Vector3 MouseUniversePoint(SpaceObject container, Map map)
+        internal void SampleFrame(int frame)
         {
-            Vector3 mouse = UI.MouseMapPosition();
-            return SpaceTransform.MapPointToUniverse(container, map, new Vector2(mouse.x, mouse.z));
+            var input = universe.PlayerInput;
+            input.Sample(frame);
+            sampledAllowed = InputAllowed();
+            sampledMain = input.MainHeld; sampledSecondary = input.SecondaryHeld;
+            LocalAimPoint = input.LocalMouse;
+            if (!sampledAllowed) buttons.Clear();
         }
 
         internal static bool MouseOverUiWindow()
@@ -114,17 +133,20 @@ namespace DeltaV
 
         private bool InputAllowed()
         {
-            if (inputMap != Find.CurrentMap) { buttons.Clear(); inputMap = Find.CurrentMap; }
-            return SessionOnFocusedMap && Application.isFocused && !MouseOverUiWindow()
-                && !Find.Targeter.IsTargeting && Find.DesignatorManager.SelectedDesignator == null;
+            if (inputMap != Find.CurrentMap)
+            { buttons.Clear(); inputMap = Find.CurrentMap; previewFrame = -1; previewPoints = null; }
+            return SessionOnFocusedMap && universe.Controls.ManualAimOwner(ownerId)
+                && universe.PlayerInput.MapAllowed(Time.frameCount);
         }
 
         // Called after vanilla windows/widgets have consumed their events. Only an unclaimed
         // map MouseDown can authorize a volley; UI drags can never acquire authorization.
         internal void ProcessInputEvent()
         {
+            universe.PlayerInput.InvalidateGate(); // GUI authorization/geometry changes must invalidate a prior tick sample.
             bool allowed = InputAllowed();
-            buttons.Validate(allowed, Input.GetMouseButton(0), Input.GetMouseButton(1));
+            universe.PlayerInput.Sample(Time.frameCount);
+            buttons.Validate(allowed, universe.PlayerInput.MainHeld, universe.PlayerInput.SecondaryHeld);
             Event ev = Event.current;
             if (ev != null && ev.type == EventType.Used
                 && (ev.rawType == EventType.MouseDown || ev.rawType == EventType.MouseDrag)) buttons.Clear();
@@ -142,6 +164,8 @@ namespace DeltaV
         {
             if (disposed) return;
             disposed = true;
+            universe.PlayerInput.InvalidateGate(); inputMap = null;
+            previewFrame = -1; previewPoints = null;
             Application.focusChanged -= OnFocusChanged;
             buttons.Clear();
             DeltaVLog.Message(DeltaVLogModule.Input, $"aim session ended ({reason}, owner #{ownerId})");

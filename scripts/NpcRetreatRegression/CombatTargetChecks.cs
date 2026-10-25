@@ -75,7 +75,7 @@ internal static partial class Program
             "lead marker anchor and volley target use the same current hull point");
         victim.pose.angularVelocity = 0.5f;
         pointPose = ShipRegistry.ShipPose(hull);
-        Check(ShipFireControl.TrySolveIntercept(own.pose.position, own.pose, pointPose, 100f, out var intercept)
+        Check(SpaceWeaponBallistics.TrySolveIntercept(own.pose.position, own.pose, pointPose, 100f, out var intercept)
             && OrbitSphere.Offset(pointPose.position, intercept).magnitude > 0.01f,
             "off-center rotating hull contributes rigid point velocity to shared intercept prediction");
 

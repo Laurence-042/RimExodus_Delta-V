@@ -39,7 +39,7 @@ internal static class Program
             string path = Path.Combine(args[0], name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        try { Run(); Console.WriteLine($"PASS {checks} railgun checks"); return 0; }
+        try { Run(args.Contains("--energy-only")); Console.WriteLine($"PASS {checks} railgun checks"); return 0; }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
     }
     sealed class Target : Building
@@ -108,6 +108,7 @@ internal static class Program
         map.listerThings = new ListerThings(ListerThingsUse.Region);
         Find.Maps.Clear(); Find.Maps.Add(map);
         hull = new Hull(map); universe.objects.Clear(); universe.objects.Add(hull);
+        Set(universe, "objectById", null); Set(universe, "objectByMap", null);
     }
     static SpaceCollision.SweptBody Fire(float scale, float speed = 180, ThingDef def = null,
         float from = 5, float to = 70, Action<SpaceCollision.SweptBody> configure = null)
@@ -124,7 +125,7 @@ internal static class Program
         SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { body });
         return body;
     }
-    static void Run()
+    static void Run(bool energyOnly)
     {
         using var logs = Log.LockMessages(); DeepProfiler.enabled = false;
         var harmony = new Harmony("DeltaV.RailgunRegression");
@@ -188,6 +189,7 @@ internal static class Program
             DefDatabase<SpaceImpactEffectDef>.Add(effect);
         }
         SpaceImpactEffects.ResetCache();
+        if (energyOnly) { CheckEnergy(); return; }
 
         Reset(); var first = Shield(3000); var second = Shield(3000);
         var shot = Fire(24); // 7200 budget, co-located full shields.
@@ -220,7 +222,7 @@ internal static class Program
             "every real penetration retains an ordered independent visual snapshot");
         Reset(); var armor = Add(10, 5, 5000); console = Add(55, 5, 300); shot = Fire(12);
         Check(!armor.Destroyed && armor.HitPoints == 1400 && console.HitPoints == 300 && shot.dead,
-            "surviving armor stops the projectile without leaking damage behind it");
+            "surviving armor stops the projectile without leaking damage behind it: armor=" + armor.HitPoints + ", behind=" + console.HitPoints + ", dead=" + shot.dead);
         Check(contacts.Count == 1 && !contacts[0].destroyed && !contacts[0].penetrated,
             "stopped round has one surface hit and no forward penetration jet");
         Reset(); armor = Add(10, 5, 50); armor.invulnerable = true; console = Add(55, 5, 300); shot = Fire(12);
@@ -452,15 +454,15 @@ internal static class Program
         var transaction = new SpaceWeaponShot(universe, weapon, hull, default) {
             projectileProps = coupler.GetCompProperties<CompProperties_SpaceProjectile>(), muzzleMap = point,
             muzzleUniverse = SpaceTransform.MapPointToUniverse(hull, map, point) };
-        var solution = new SpaceWeaponAccelerationSolution(0, null, new List<CompSpaceRailgun>());
+        var energy = new SpaceWeaponEnergy();
         for (int i = 0; i < 12; i++)
         {
-            Check((bool)AccessTools.Method(typeof(SpaceWeaponShot), "PrepareEnergy").Invoke(transaction, new object[] { solution }),
+            Check(energy.Evaluate(weapon),
                 "continuous energy reservation " + i);
-            AccessTools.Method(typeof(SpaceWeaponShot), "Commit").Invoke(transaction, null);
+            energy.Commit();
         }
         Check(battery.StoredEnergy == 0f
-            && !(bool)AccessTools.Method(typeof(SpaceWeaponShot), "PrepareEnergy").Invoke(transaction, new object[] { solution }),
+            && !energy.Evaluate(weapon),
             "twelve ticks consume exactly the old pulse cost and an empty battery refuses the next tick");
         // Continue the already-lit emitter, avoiding Unity's native first-start audio in this fixture.
         weapon.parent = emitter;
@@ -502,13 +504,21 @@ internal static class Program
             "attached flash follows a translated and rotated hull at the same local point");
         Vector3 paused = Position();
         Check(Position() == paused, "repeated render queries at one game tick do not advance effects");
-        universe.objects.Clear();
+        universe.objects.Clear(); Set(universe, "objectById", null); Set(universe, "objectByMap", null);
         int before = Find.TickManager.TicksGame;
         Set(Find.TickManager, "ticksGameInt", before + 30);
         Check(OrbitSphere.Offset(Position(), OrbitSphere.Move(origin, velocity * 0.5f)).magnitude < 0.01f,
             "removed hull releases visual anchor into captured drift without map access");
         Set(Find.TickManager, "ticksGameInt", before);
     }
+
+    sealed class FailedLaunch : ThingComp, ISpaceWeaponLaunch
+    {
+        internal int calls;
+        public bool TryLaunch(SpaceWeaponShot shot) { calls++; return false; }
+    }
+    static int storedEnergyReads;
+    static void CountStoredEnergy() { storedEnergyReads++; }
 
     static void CheckEnergy()
     {
@@ -522,7 +532,7 @@ internal static class Program
             string suffix = large ? "Large" : "";
             XElement loader = Comp("DeltaV_Weapon_RailgunLoader" + suffix, "SpaceWeapon");
             XElement accelerator = Comp("DeltaV_Weapon_RailgunAccelerator" + suffix, "SpaceRailgun");
-            var wp = new CompProperties_SpaceWeapon { shotEnergy = (float)loader.Element("shotEnergy"),
+            var wp = new CompProperties_SpaceWeapon { projectileDef = rail, intrinsicAimSkill = 10, shotEnergy = (float)loader.Element("shotEnergy"),
                 impactScale = (float)loader.Element("impactScale") };
             var rp = new CompProperties_SpaceRailgun { shotEnergy = (float)accelerator.Element("shotEnergy"),
                 speedBonus = (float)accelerator.Element("speedBonus") };
@@ -537,27 +547,63 @@ internal static class Program
                 var sp = new CompPowerTrader { transNet = net }; Set(sp, "powerOnInt", true);
                 Add(6 + i, 5, 500, sp, segment); segments.Add(segment);
             }
-            var solution = new SpaceWeaponAccelerationSolution(3 * rp.speedBonus, null, segments);
-            var transaction = new SpaceWeaponShot(universe, weapon, hull, default);
+            // Energy fixture supplies a known topology; spatial connection discovery is covered separately.
+            weapon.Layout.acceleration.segments.AddRange(segments);
+            foreach (var segment in segments)
+                weapon.Layout.segmentAttachments.Add(segment, new List<ThingWithComps>());
+            var energy = new SpaceWeaponEnergy();
             bool Plan(float available)
             {
                 Set(battery, "storedEnergy", available);
-                return (bool)AccessTools.Method(typeof(SpaceWeaponShot), "PrepareEnergy")
-                    .Invoke(transaction, new object[] { solution });
+                return energy.Evaluate(weapon);
             }
             Check(!Plan(wp.shotEnergy - 1) && battery.StoredEnergy == wp.shotEnergy - 1,
                 suffix + " insufficient loader pulse refuses without spending");
             Check(Plan(wp.shotEnergy + rp.shotEnergy)
-                && (float)AccessTools.Field(typeof(SpaceWeaponShot), "activeSpeedBonus").GetValue(transaction) == rp.speedBonus
+                && energy.speedBonus == rp.speedBonus
                 && battery.StoredEnergy == wp.shotEnergy + rp.shotEnergy,
                 suffix + " shared battery is reserved once and cannot fund three segments with one pulse");
+            float fullCost = wp.shotEnergy + 3 * rp.shotEnergy;
+            var countNet = new Harmony("DeltaV.Regression.WeaponNetQuery");
+            countNet.Patch(AccessTools.Method(typeof(PowerNet), "CurrentStoredEnergy"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(CountStoredEnergy)));
+            try
+            {
+                storedEnergyReads = 0;
+                Check(Plan(fullCost) && energy.active.Count == 3 && storedEnergyReads == 1,
+                    suffix + " full shared-net chain sums stored energy once per query");
+                var targetPose = new SpacePose(OrbitSphere.Move(hull.pose.position, new Vector2(100, 30)), 0)
+                    { velocity = new Vector2(4, -8) };
+                hull.pose.velocity = new Vector2(-2, 3);
+                foreach (float charge in new[] { fullCost, wp.shotEnergy + rp.shotEnergy, wp.shotEnergy - 1 })
+                {
+                    Set(battery, "storedEnergy", charge);
+                    var preview = SpaceWeaponService.AimInfo(weapon, hull);
+                    var firing = SpaceWeaponBallistics.Read(weapon, hull, weapon.ExecutionEnergy, true).aim;
+                    SpaceWeaponBallistics.TryAim(preview, hull.pose, targetPose, out var previewPoint);
+                    SpaceWeaponBallistics.TryAim(firing, hull.pose, targetPose, out var firingPoint);
+                    Check(preview.Speed == firing.Speed && preview.MuzzleMap == firing.MuzzleMap
+                        && previewPoint == firingPoint && battery.StoredEnergy == charge,
+                        suffix + " automatic and preview parameters agree without spending at charge " + charge);
+                }
+                Plan(fullCost); energy.Commit();
+                Check(battery.StoredEnergy == 0f, suffix + " committing a full shared-net plan pays exactly once");
+                Set(battery, "storedEnergy", fullCost);
+                var failed = new FailedLaunch { parent = weapon.parent };
+                weapon.parent.AllComps.Add(failed); weapon.safeFire = false; weapon.manualFireDeviationDeg = 180f;
+                Check(!universe.Weapons.ApplyControl(weapon, hull, new WeaponControlCommand(new Vector2(20, 5), true))
+                    && failed.calls == 1 && battery.StoredEnergy == fullCost && weapon.cooldownUntilTick == 0,
+                    suffix + " actual failed launch consumes no energy and starts no cooldown");
+                weapon.parent.AllComps.Remove(failed);
+            }
+            finally { countNet.UnpatchAll(countNet.Id); }
             // Leave the middle segment unfunded; a later segment on its own net still contributes.
             var separate = (PowerNet)Raw(typeof(PowerNet));
             var extraBattery = new CompPowerBattery(); Set(extraBattery, "storedEnergy", rp.shotEnergy);
             separate.batteryComps = new List<CompPowerBattery> { extraBattery };
             segments[2].parent.GetComp<CompPowerTrader>().transNet = separate;
             Check(Plan(wp.shotEnergy + rp.shotEnergy)
-                && (float)AccessTools.Field(typeof(SpaceWeaponShot), "activeSpeedBonus").GetValue(transaction) == 2 * rp.speedBonus,
+                && energy.speedBonus == 2 * rp.speedBonus,
                 suffix + " unfunded middle segment does not block later funded acceleration");
             int count = large ? 1 : 3;
             float velocity = 180 + count * rp.speedBonus;
@@ -566,7 +612,7 @@ internal static class Program
             Check(Math.Abs(budget - (large ? 4000 : 3600)) < 0.01f
                 && wp.shotEnergy + count * rp.shotEnergy == (large ? 6000 : 5400),
                 suffix + " real Defs meet declared shield-breaking budget and energy threshold");
-            XElement cap = Comp("DeltaV_Building_RailgunCapacitor" + suffix, "SpaceWeaponCapacitor");
+            XElement cap = Comp("DeltaV_Building_RailgunCapacitor" + suffix, "SwitchableBattery");
             Check((float)cap.Element("capacityWattDays") == 3 * rp.shotEnergy
                 && (float)cap.Element("initialEnergyPercent") == 0
                 && Math.Abs((float)cap.Element("capacityWattDays") * 60000 / (float)cap.Element("chargingWatts") - 216000) < 1,

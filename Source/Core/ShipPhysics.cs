@@ -14,8 +14,8 @@ namespace DeltaV
     /// - 推进器 = LargeThruster（Odyssey 逆重推进器）：占用矩形中心为作用点，Rot4 朝向为推力方向；
 /// - 分配器把每台推进器对 Fx/Fz/力矩的贡献放入同一个盒约束最小二乘问题；
 ///   纯平移优先保持零净力矩，必要时会差动同向推进器或调用正交方向的力偶；
-/// - 推进器力源（驾驶输入、自动驾驶、舰船 AI）都必须经 ForceToCommand 归一化
-///   后走同一分配器求解油门与可达力，禁止绕过分配器直接合成力——机动因此始终
+/// - 手动归一化输入与自动驾驶期望力都在对象执行入口汇入同一分配器，
+///   期望力经 ForceToCommand 归一化，禁止绕过分配器直接合成力——机动因此始终
 ///   受推进器布局约束，火焰表现层也只认分配器写出的真实油门；
     /// - 飞行辅助（含按住刹车键临时启用）在 PilotController 合成反向指令，走同一分配器；
     ///   最后的微小残差由 Residual* 常量直接衰减到零（用户决策 2026-09-13：不要求推进器
@@ -26,7 +26,7 @@ namespace DeltaV
     /// "Move(position, Rotate(comLocal, angle)) = 质心球面方向" 每步派生——
     /// 与旧平面版公式形态一致，只是加法换成球面移动。
     ///
-    /// 质量报告是可重建缓存：按 tick 间隔重扫，读档/场景重置时清空（不变量 #13）。
+    /// 质量报告按结构版本和运输舱载重失效，读档/场景重置时清空。
     /// </summary>
     public static partial class ShipPhysics
     {
@@ -83,8 +83,7 @@ namespace DeltaV
             public Vector2 dir;
 
             /// <summary>动力来源判定（ThrusterPower 抽象）：不可用的推进器不参与分配。
-            /// Measure 时先快照；Allocate 每 tick 重读实时状态刷新（故障/排气堵塞即时生效，
-            /// 不受质量报告的 120 tick 重扫间隔拖慢）。</summary>
+            /// 在对象读取驾驶信息或执行出力时刷新；数值求解只消费这一快照。</summary>
             public bool operational;
 
             /// <summary>本台推进器的推力（默认原版常量；shuttle 虚拟推进器按 comp 配置覆盖，§7.3）。</summary>
@@ -103,19 +102,19 @@ namespace DeltaV
             public float inertia;
             public readonly List<Thruster> thrusters = new List<Thruster>();
 
-            /// <summary>质量模型重扫版本号：GetReport 每次用新 Measure 替换时 +1。
-            /// 消费方（ShipAutopilot 的微步内分配去重缓存）据此让「同指令跳过重复
-            /// 分配」在重扫后立即失效。运行时派生计数，不存档。</summary>
+            /// <summary>动力模型版本：结构重测、推进器可用性或加力改变时递增，
+            /// 使对象的分配结果与自动驾驶预览立即失效。不存档。</summary>
             public int version;
 
             // 分配器工作区。真实分配与只读预览共用同一求解核心；数组随质量报告重建，
             // 热路径不产生临时分配。只有 Allocate 会把结果提交到 Thruster.throttle。
             internal float[] allocationScratch;
             internal float[] previewScratch;
+            internal Vector3[] allocationColumns;
+            internal float[] allocationDenominators;
 
-            /// <summary>最近一次 Allocate 求解的时间（Time.time）。0 = 从未求解
-            /// （Measure 重扫后的缺省），火焰读取方据此判定油门新鲜，防止力源
-            /// 停止后的幽灵火焰。运行时表现层标记，不存档。</summary>
+            /// <summary>最近一次执行出力的时间（Time.time）；复用分配结果也刷新。
+            /// 火焰据此判定油门新鲜，初始／清零为 0。不存档。</summary>
             public float throttlesWrittenAt;
             internal bool throttlesNeedClearing;
         }
@@ -320,7 +319,6 @@ namespace DeltaV
                 torque = 0f;
                 return;
             }
-            RefreshOperational(report);
             SolveAllocation(report, command, report.allocationScratch, out force, out torque);
             for (int i = 0; i < report.thrusters.Count; i++)
             {
@@ -332,11 +330,10 @@ namespace DeltaV
         internal static void PreviewAllocation(MassReport report, Command command, out Vector2 force, out float torque)
         {
             EnsureAllocatorScratch(report);
-            RefreshOperational(report);
             SolveAllocation(report, command, report.previewScratch, out force, out torque);
         }
 
-        private static void MarkThrottlesWritten(MassReport report)
+        internal static void MarkThrottlesWritten(MassReport report)
         {
             report.throttlesWrittenAt = Time.time;
             report.throttlesNeedClearing = true;
@@ -365,7 +362,6 @@ namespace DeltaV
             model.mass = report.mass;
             model.inertia = report.inertia;
             EnsureAllocatorScratch(report);
-            RefreshOperational(report);
             MeasureAuthority(report, out model.positiveX, out model.negativeX,
                 out model.positiveZ, out model.negativeZ,
                 out model.positiveTorque, out model.negativeTorque);
@@ -395,7 +391,6 @@ namespace DeltaV
             if (report == null || report.mass <= 0f || towardTargetLocal.sqrMagnitude < 1e-8f)
                 return 0f;
             EnsureAllocatorScratch(report);
-            RefreshOperational(report);
             Vector2 reverse = -towardTargetLocal.normalized;
             var command = new Command { fx = reverse.x, fz = reverse.y };
             SolveAllocation(report, command, report.previewScratch, out Vector2 force, out _);
@@ -407,7 +402,6 @@ namespace DeltaV
         {
             if (report == null || report.inertia <= 0f || direction == 0) return 0f;
             EnsureAllocatorScratch(report);
-            RefreshOperational(report);
             SolveAllocation(report, new Command { torque = direction > 0 ? 1f : -1f },
                 report.previewScratch, out _, out float torque);
             return Mathf.Max(0f, torque * (direction > 0 ? 1f : -1f) / report.inertia);
@@ -428,9 +422,12 @@ namespace DeltaV
             {
                 report.allocationScratch = new float[count];
                 report.previewScratch = new float[count];
+                report.allocationColumns = new Vector3[count];
+                report.allocationDenominators = new float[count];
             }
         }
 
+        // Live state is read at the object boundary. Allocation and preview methods below are numeric only.
         internal static void RefreshOperational(MassReport report)
         {
             for (int i = 0; i < report.thrusters.Count; i++)
@@ -476,6 +473,19 @@ namespace DeltaV
             float weightTorque = Mathf.Abs(command.torque) > 1e-6f
                 ? CommandedTorqueWeight : UncommandedTorqueWeight;
 
+            // Geometry and weights do not change during coordinate descent.
+            for (int i = 0; i < report.thrusters.Count; i++)
+            {
+                Thruster thruster = report.thrusters[i];
+                if (!thruster.operational) continue;
+                Vector2 fullForce = thruster.dir * thruster.thrust;
+                Vector3 axis = new Vector3(fullForce.x / scaleX, fullForce.y / scaleZ,
+                    Cross(thruster.localPos - report.comLocal, fullForce) / scaleTorque);
+                report.allocationColumns[i] = axis;
+                report.allocationDenominators[i] = weightX * axis.x * axis.x
+                    + weightZ * axis.y * axis.y + weightTorque * axis.z * axis.z + AllocationRegularization;
+            }
+
             // residual = A*u-b；u 从零开始，在调用方提供的复用工作区上迭代。
             float residualX = -Mathf.Clamp(command.fx, -1f, 1f);
             float residualZ = -Mathf.Clamp(command.fz, -1f, 1f);
@@ -489,15 +499,9 @@ namespace DeltaV
                     int index = reverse ? report.thrusters.Count - 1 - step : step;
                     Thruster thruster = report.thrusters[index];
                     if (!thruster.operational) continue;
-                    Vector2 fullForce = thruster.dir * thruster.thrust;
-                    float axisX = fullForce.x / scaleX;
-                    float axisZ = fullForce.y / scaleZ;
-                    float axisTorque = (Cross(thruster.localPos - report.comLocal, fullForce)
-                       ) / scaleTorque;
-                    float denominator = weightX * axisX * axisX
-                        + weightZ * axisZ * axisZ
-                        + weightTorque * axisTorque * axisTorque
-                        + AllocationRegularization;
+                    Vector3 axis = report.allocationColumns[index];
+                    float axisX = axis.x, axisZ = axis.y, axisTorque = axis.z;
+                    float denominator = report.allocationDenominators[index];
                     if (denominator <= 1e-12f)
                     {
                         continue;
@@ -580,22 +584,12 @@ namespace DeltaV
         /// 制导（ShipAutopilot）与未来舰船 AI 共用——期望力必须经此换算再进
         /// Allocate，得到的出力与油门才是布局内真实可达值。
         /// </summary>
-        internal static void CommandToForce(MassReport report, Command command, out Vector2 force, out float torque)
-        {
-            RefreshOperational(report);
-            MeasureAuthority(report, out float px, out float nx, out float pz, out float nz, out float pt, out float nt);
-            force = new Vector2(command.fx * DirectionalScale(command.fx, px, nx),
-                command.fz * DirectionalScale(command.fz, pz, nz));
-            torque = command.torque * DirectionalScale(command.torque, pt, nt);
-        }
-
         internal static Command ForceToCommand(MassReport report, Vector2 force, float torque)
         {
             if (report == null || report.thrusters.Count == 0)
             {
                 return default;
             }
-            RefreshOperational(report);
             MeasureAuthority(report, out float positiveX, out float negativeX,
                 out float positiveZ, out float negativeZ, out float positiveTorque, out float negativeTorque);
             return new Command

@@ -18,6 +18,7 @@ namespace DeltaV
         private readonly List<int> staleWeapons = new List<int>();
         private readonly HashSet<int> validPointDefenseWeapons = new HashSet<int>();
         private int pointDefensePrunedVersion = -1;
+        private readonly List<SpaceObject> interceptionCandidates = new List<SpaceObject>();
         private struct PdLock { internal CombatTarget target; internal int retargetAt; }
         internal CombatTarget Target => target;
         internal ShipFireControl(UniverseManager universe, DriveSubject ownerId)
@@ -25,11 +26,12 @@ namespace DeltaV
 
         internal void Clear() { target = default; preferredSystemId = 0; }
         internal void Dispose()
-        { Clear(); pointDefense.Clear(); aimCapabilities.Clear(); leadPoints.Clear(); uniqueLeadPoints.Clear(); }
+        { Clear(); pointDefense.Clear(); interceptionCandidates.Clear(); aimCapabilities.Clear(); leadPoints.Clear(); uniqueLeadPoints.Clear(); }
         internal void ForgetWeapon(CompSpaceWeapon weapon) => pointDefense.Remove(weapon.parent.thingIDNumber);
 
         internal void ForgetMap(Map map)
         {
+            interceptionCandidates.Clear();
             if (!target.TryResolve(universe, out var resolved) || resolved.Container?.map == map) Clear();
             staleWeapons.Clear();
             foreach (var pair in pointDefense)
@@ -140,31 +142,27 @@ namespace DeltaV
         internal void TickVolley(ShipBase ship, SpaceObject container, ShipVolleyIntent intent)
         {
             ResolvedCombatTarget resolved = intent.resolvedTarget;
-            if (!intent.hasResolvedTarget && !intent.target.TryResolve(universe, out resolved)) return;
-            // Automatic intent was qualified by TryGetIntent in this same tick.
+            if (!intent.localPoint.HasValue && !intent.hasResolvedTarget
+                && !intent.target.TryResolve(universe, out resolved)) return;
+            var combat = ship.Combat;
+            int mainMask = combat?.WeaponGroupMask(SpaceWeaponSalvoSet.Main) ?? 0;
+            int secondaryMask = combat?.WeaponGroupMask(SpaceWeaponSalvoSet.Secondary) ?? 0;
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
-                if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly && intent.fireAll
-                    || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
-                    || !WeaponBelongsHere(weapon, container)) continue;
-                long aimStart = universe.Performance.Start();
+                long dispatchStart = universe.Performance.Start();
+                bool included = weapon.SpaceModeEnabled && !(weapon.WeaponProps.manualOnly && intent.fireAll)
+                    && weapon.aimMode == SpaceWeaponAimMode.Volley
+                    && weapon.GroupEnabled(weapon.salvoSet == SpaceWeaponSalvoSet.Main ? mainMask : secondaryMask)
+                    && WeaponBelongsHere(weapon, container);
                 bool fire = intent.fireAll || intent.main && weapon.salvoSet == SpaceWeaponSalvoSet.Main
                     || intent.secondary && weapon.salvoSet == SpaceWeaponSalvoSet.Secondary;
-                bool ready = Find.TickManager.TicksGame >= weapon.cooldownUntilTick;
-                if (!ready && weapon.parent.TryGetComp<CompSpaceWeaponTraverse>() == null) continue;
-                WeaponAimInfo info = SpaceWeaponService.AimInfo(weapon, container, fire && ready);
-                Vector3 aim = resolved.Pose.position;
-                if (intent.predictIntercept && !info.Laser && TrySolveIntercept(info.Muzzle, container.pose, resolved.Pose,
-                    info.Speed, out Vector3 intercept)) aim = intercept;
-                SpaceWeaponService.AimWeapon(weapon, container, info, aim);
-                universe.Performance.Record(PerformanceStage.VolleyAim, aimStart);
-                if (!fire || !ready) continue;
-                CombatTarget guidance = intent.target.HasLock ? intent.target : default;
-                if (!guidance.HasLock && info.Guided)
-                    guidance = ManualTargetAlongRay(universe, container, info.Muzzle,
-                        OrbitSphere.Offset(info.Muzzle, aim).normalized, ship.Faction);
-                universe.Weapons.TryFire(weapon, container,
-                    new WeaponFireRequest(aim, guidance, manualFire: !intent.fireAll));
+                universe.Performance.Record(PerformanceStage.WeaponDispatch, dispatchStart);
+                if (!included) continue;
+                WeaponControlCommand command = intent.localPoint.HasValue
+                    ? new WeaponControlCommand(intent.localPoint.Value, fire)
+                    : new WeaponControlCommand(intent.target, resolved, intent.predictIntercept,
+                        intent.fireAll ? WeaponControlSource.Automatic : WeaponControlSource.Manual, fire);
+                universe.Weapons.ApplyControl(weapon, container, command);
             }
         }
 
@@ -191,50 +189,76 @@ namespace DeltaV
             weapon.parent.Spawned && !weapon.parent.Destroyed
             && weapon.OwnerShip.Identity == ownerId && weapon.Container == container;
 
-        internal void TickPointDefense(ShipBase ship, SpaceObject container,
+        internal IReadOnlyList<SpaceObject> CollectInterceptionCandidates(ShipBase ship, SpaceObject container)
+        {
+            interceptionCandidates.Clear();
+            Faction faction = ship.Faction;
+            if (faction != null)
+                foreach (SpaceObject obj in universe.objects)
+                    if (obj != null && obj != container && obj.map != null && !obj.map.Disposed
+                        && obj.InterceptionEligible && obj.HostileTo(faction))
+                        interceptionCandidates.Add(obj);
+            return interceptionCandidates;
+        }
+
+        internal bool TickPointDefense(ShipBase ship, SpaceObject container, bool hasScatterTargets)
+        {
+            long candidatesStart = universe.Performance.Start();
+            CollectInterceptionCandidates(ship, container);
+            universe.Performance.Record(PerformanceStage.PointDefenseCandidates, candidatesStart);
+            bool hasInterceptionTargets = interceptionCandidates.Count > 0;
+            try
+            {
+                if (hasInterceptionTargets || hasScatterTargets)
+                    TickPointDefenseWeapons(ship, container, hasInterceptionTargets, hasScatterTargets);
+                else pointDefense.Clear();
+                return hasInterceptionTargets;
+            }
+            finally { interceptionCandidates.Clear(); } // No object references or positions survive this combat call.
+        }
+
+        private void TickPointDefenseWeapons(ShipBase ship, SpaceObject container,
             bool hasInterceptionTargets, bool hasScatterTargets)
         {
             long pruneStart = universe.Performance.Start();
             PrunePointDefense(ship);
             universe.Performance.Record(PerformanceStage.PointDefensePrune, pruneStart);
             int now = Find.TickManager.TicksGame;
+            var combat = ship.Combat;
+            int mainMask = combat?.WeaponGroupMask(SpaceWeaponSalvoSet.Main) ?? 0;
+            int secondaryMask = combat?.WeaponGroupMask(SpaceWeaponSalvoSet.Secondary) ?? 0;
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
                 if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.PointDefense
                     || weapon.WeaponProps.manualOnly && !weapon.WeaponProps.tractor
                     || (weapon.WeaponProps.tractor ? !hasScatterTargets : !hasInterceptionTargets)
-                    || !WeaponBelongsHere(weapon, container) || !weapon.GroupActive) continue;
+                    || !weapon.GroupEnabled(weapon.salvoSet == SpaceWeaponSalvoSet.Main ? mainMask : secondaryMask)
+                    || !WeaponBelongsHere(weapon, container)) continue;
                 pointDefense.TryGetValue(weapon.parent.thingIDNumber, out PdLock state);
-                if (weapon.WeaponProps.tractor && !state.target.HasLock
-                    && now < state.retargetAt) continue;
-                if (weapon.WeaponProps.tractor && !SpaceTractor.CanOperate(weapon)) continue;
-                WeaponAimInfo info = SpaceWeaponService.AimInfo(weapon, container,
-                    now >= weapon.cooldownUntilTick);
+                if (!state.target.HasLock && now < state.retargetAt) continue;
+                if (!SpaceWeaponService.CanTrack(weapon)) continue;
+                Vector3 muzzle = SpaceWeaponService.TargetingMuzzle(weapon, container);
                 ResolvedCombatTarget victim = default;
-                bool valid = (weapon.WeaponProps.tractor || now < state.retargetAt)
-                    && PdTargetValid(weapon, state.target, info.Muzzle, out victim);
+                bool valid = PdTargetValid(weapon, state.target, muzzle, out victim);
                 if (!valid)
                 {
-                    // A failed lock does not bypass the authorized 30-tick search cadence.
+                    // Tractor retries keep their existing cadence; an invalid interception lock reselects immediately.
                     if (weapon.WeaponProps.tractor && now < state.retargetAt) continue;
-                    if (weapon.WeaponProps.tractor && !SpaceWeaponShot.HasBaseShotEnergy(weapon))
+                    if (!SpaceWeaponService.CanAcquire(weapon))
                     {
                         state.target = default; state.retargetAt = now + 30;
                         pointDefense[weapon.parent.thingIDNumber] = state;
                         continue;
                     }
                     long searchStart = universe.Performance.Start();
-                    state.target = CombatTarget.ForContainer(FindPdTarget(weapon, info.Muzzle)); state.retargetAt = now + 30;
+                    state.target = CombatTarget.ForContainer(FindPdTarget(weapon, muzzle)); state.retargetAt = now + 30;
                     universe.Performance.Record(PerformanceStage.PointDefenseSearch, searchStart);
                     pointDefense[weapon.parent.thingIDNumber] = state;
                     valid = state.target.TryResolve(universe, out victim);
                 }
                 if (!valid) continue;
-                Vector3 aim = victim.Pose.position;
-                if (!info.Laser && !TrySolveIntercept(info.Muzzle, container.pose, victim.Pose, info.Speed, out aim)) continue;
-                SpaceWeaponService.AimWeapon(weapon, container, info, aim);
-                if (now >= weapon.cooldownUntilTick)
-                    universe.Weapons.TryFire(weapon, container, new WeaponFireRequest(aim, state.target));
+                universe.Weapons.ApplyControl(weapon, container,
+                    new WeaponControlCommand(state.target, victim, true, WeaponControlSource.PointDefense));
             }
         }
 
@@ -250,7 +274,7 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in ship.Weapons)
                 if (WeaponBelongsHere(weapon, own) && weapon.SpaceModeEnabled
                     && weapon.GroupActive && weapon.aimMode == SpaceWeaponAimMode.Volley)
-                    aimCapabilities.Add(SpaceWeaponService.AimInfo(weapon, own, precise: true));
+                    aimCapabilities.Add(SpaceWeaponService.AimInfo(weapon, own));
             foreach (SpaceObject container in universe.objects)
             foreach (ShipBase member in Candidates(ship, own, container))
             {
@@ -258,7 +282,7 @@ namespace DeltaV
                 foreach (WeaponAimInfo info in aimCapabilities)
                 {
                     Vector3 point = resolved.Pose.position;
-                    if (!info.Laser && !TrySolveIntercept(info.Muzzle, own.pose, resolved.Pose, info.Speed, out point)) continue;
+                    if (!SpaceWeaponBallistics.TryAim(info, own.pose, resolved.Pose, out point)) continue;
                     if (uniqueLeadPoints.Add(point)) leadPoints.Add(point);
                 }
             }
@@ -288,6 +312,7 @@ namespace DeltaV
             out ResolvedCombatTarget resolved)
         {
             return handle.TryResolve(universe, out resolved) && weapon.Container != null
+                && (weapon.WeaponProps.tractor || resolved.Container.HostileTo(weapon.parent.Faction))
                 && PdCandidateValid(weapon, resolved.Container, muzzle, out _);
         }
 
@@ -301,7 +326,7 @@ namespace DeltaV
                 return distance <= weapon.WeaponProps.range;
             }
             if (target == null || target == weapon.Container || target.map == null || target.map.Disposed
-                || !target.InterceptionEligible || !target.HostileTo(weapon.parent.Faction)) return false;
+                || !target.InterceptionEligible) return false;
             distance = OrbitSphere.Offset(muzzle, target.pose.position).magnitude - SpaceCollision.BoundsRadiusOf(target);
             return distance >= weapon.WeaponProps.minRange && distance <= weapon.WeaponProps.range;
         }
@@ -316,9 +341,11 @@ namespace DeltaV
             if (own == null) return null;
             SpaceObject best = null;
             float bestScore = float.MaxValue;
-            IEnumerable<SpaceObject> candidates = weapon.WeaponProps.tractor ? universe.Scatter.Candidates : universe.objects;
+            IEnumerable<SpaceObject> candidates = weapon.WeaponProps.tractor
+                ? universe.Scatter.Candidates : interceptionCandidates;
             foreach (SpaceObject obj in candidates)
             {
+                if (universe.ObjectById(obj.objectId) != obj) continue;
                 if (!PdCandidateValid(weapon, obj, muzzle, out float distance)) continue;
                 if (weapon.WeaponProps.tractor)
                 {
@@ -342,25 +369,6 @@ namespace DeltaV
                 }
             }
             return best;
-        }
-
-        internal static bool TrySolveIntercept(Vector3 muzzle, SpacePose sourcePose,
-            SpacePose targetPose, float projectileSpeed, out Vector3 interceptUniverse)
-        {
-            interceptUniverse = default;
-            if (projectileSpeed <= 0f) return false;
-            Vector2 p = OrbitSphere.Offset(muzzle, targetPose.position);
-            Vector2 targetVel = SpaceTransform.TransportVelocity(targetPose, muzzle);
-            Vector2 muzzleVel = SpaceTransform.TransportVelocity(sourcePose, muzzle);
-            Vector2 relativeVelocity = targetVel - muzzleVel;
-            if (!SpaceTransform.TrySolveInterceptPlanar(p, relativeVelocity, projectileSpeed, out float time))
-            {
-                return false;
-            }
-            // Launch adds the source velocity to the projectile. Aim along the relative
-            // intercept vector, otherwise the source drift is counted a second time.
-            interceptUniverse = OrbitSphere.Move(muzzle, p + relativeVelocity * time);
-            return true;
         }
 
         private static SpaceObject TargetAlongRay(UniverseManager universe, SpaceObject source,

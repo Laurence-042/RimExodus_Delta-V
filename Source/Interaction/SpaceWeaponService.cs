@@ -20,7 +20,7 @@ namespace DeltaV
     /// 冷却完毕 ∧ 瞄准方向在射界内 ∧ 处于太空模式 ∧ 非地表图（有宇宙容器）。
     /// 地面模式只由原版炮塔 Verb 负责同图战斗。
     /// </summary>
-    public sealed class SpaceWeaponService
+    public sealed partial class SpaceWeaponService
     {
         private readonly UniverseManager universe;
 
@@ -75,6 +75,8 @@ namespace DeltaV
         public void ForgetMap(Map map)
         {
             if (map == null) return;
+            foreach (Thing thing in map.spawnedThings)
+                thing.TryGetComp<CompSpaceWeapon>()?.ClearRuntimeModel();
             weaponsByMap.Remove(map);
             // 归档时 Thing 的 Map 索引已清除；源图的 spawnedThings 仍持有废弃实例。
             pendingMissileReloads.RemoveWhere(loader => map.spawnedThings.Contains(loader.parent));
@@ -147,7 +149,7 @@ namespace DeltaV
                     || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
                     || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out int skill)
-                    || !SpaceWeaponShot.HasBaseShotEnergy(weapon)) continue;
+                    || !SpaceWeaponBallistics.HasBaseShotEnergy(weapon)) continue;
                 CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
                 if (!weapon.MagazineAvailable(magazine)) continue;
                 ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
@@ -177,7 +179,7 @@ namespace DeltaV
                     || weapon.aimMode != SpaceWeaponAimMode.PointDefense || !weapon.GroupActive
                     || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out _)
-                    || !SpaceWeaponShot.HasBaseShotEnergy(weapon)) continue;
+                    || !SpaceWeaponBallistics.HasBaseShotEnergy(weapon)) continue;
                 CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
                 if (!weapon.MagazineAvailable(magazine)) continue;
                 ThingDef projectile = magazine?.SelectedProjectileDef
@@ -192,33 +194,14 @@ namespace DeltaV
         // ---- 发射（就绪判定单实现）----
 
         public bool TryFire(CompSpaceWeapon weapon, SpaceObject container, WeaponFireRequest request)
-            => new SpaceWeaponShot(universe, weapon, container, request).TryExecute();
-
-        public static WeaponAimInfo AimInfo(CompSpaceWeapon weapon, SpaceObject container,
-            bool precise = false)
         {
-            bool needsAccelerator = precise && !weapon.WeaponProps.acceleratorStarts.NullOrEmpty();
-            SpaceWeaponAccelerationSolution acceleration = needsAccelerator
-                ? CompSpaceRailgun.Resolve(weapon) : default;
-            Vector2 muzzle = needsAccelerator && acceleration.muzzleMap.HasValue
-                ? acceleration.muzzleMap.Value : SpaceWeaponGeometry.MuzzleMapPoint(weapon);
-            ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
-            float speed = projectile?.GetCompProperties<CompProperties_SpaceProjectile>()?.laserRange > 0f
-                ? 0f : needsAccelerator
-                    ? SpaceWeaponShot.ProjectedSpeed(weapon, acceleration, ProjectileSpeedOf(projectile))
-                    : ProjectileSpeedOf(projectile);
-            return new WeaponAimInfo(SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzle),
-                muzzle, projectile, speed, weapon.WeaponProps.minRange, weapon.WeaponProps.range);
+            var resolved = new ResolvedCombatTarget(null, null, new SpacePose(request.AimPoint, 0f));
+            return ApplyControl(weapon, container, new WeaponControlCommand(request.GuidanceTarget, resolved,
+                false, request.ManualFire ? WeaponControlSource.Manual : WeaponControlSource.Automatic));
         }
 
-        internal static void AimWeapon(CompSpaceWeapon weapon, SpaceObject container, WeaponAimInfo info, Vector3 aim)
-        {
-            CompSpaceWeaponTraverse traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
-            if (traverse == null) return;
-            Vector2 point = SpaceTransform.UniverseToMapPoint(container, weapon.parent.Map, aim);
-            Vector2 delta = point - info.MuzzleMap;
-            if (delta.sqrMagnitude > 1e-6f) traverse.AimAt(Mathf.Atan2(delta.y, delta.x));
-        }
+        public static WeaponAimInfo AimInfo(CompSpaceWeapon weapon, SpaceObject container)
+            => SpaceWeaponBallistics.Read(weapon, container, weapon.QueryEnergy, false).aim;
 
         /// <summary>供电判定（原版 comp 状态直读：无供电 comp = 不要求供电，per def）。</summary>
         private static bool PowerOn(ThingWithComps parent)
@@ -402,6 +385,10 @@ namespace DeltaV
         /// <summary>场景重建 / 图销毁时的流程清零。</summary>
         public void ResetFlow()
         {
+            foreach (SpaceObject obj in universe.objects)
+                if (obj.map != null)
+                    foreach (Thing thing in obj.map.spawnedThings)
+                        thing.TryGetComp<CompSpaceWeapon>()?.ClearRuntimeModel();
             weaponsByMap.Clear();
             pendingMissileReloads.Clear();
         }

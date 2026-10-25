@@ -158,27 +158,28 @@ internal readonly struct HeadingPanelAction
         {
             if (OwnerId.key <= 0) return;
             bool wantsVolley = WantsVolley;
-            if (!wantsVolley && !hasInterceptionTargets && !hasScatterTargets) return;
             ShipBase ship = ShipRegistry.ShipByIdentity(OwnerId);
             if (!ship.IsValid || universe.FrameOf(ship.Map) is not SpaceObject container
                 || container.HasTag(SpaceObjectTag.Ship) != true
                 || !HasAuthority(PilotTarget.Of(ship))) return;
             if (!wantsVolley && !universe.Weapons.HasPointDefenseWeapons(ship.Map,
-                hasInterceptionTargets, hasScatterTargets)) return;
+                true, hasScatterTargets)) return;
             long volleyStart = wantsVolley ? universe.Performance.Start() : 0L;
-            if (wantsVolley && TryGetVolleyIntent(ship, container, out ShipVolleyIntent intent))
+            long intentStart = wantsVolley ? universe.Performance.Start() : 0L;
+            ShipVolleyIntent intent = default;
+            bool hasIntent = wantsVolley && TryGetVolleyIntent(ship, container, out intent);
+            universe.Performance.Record(PerformanceStage.VolleyIntent, intentStart);
+            if (hasIntent)
             {
                 FireControl.TickVolley(ship, container, intent);
-                // 本船齐射可能刚创建弹体；同 tick 的本船及后续控制器点防立即可见。
-                if (!hasInterceptionTargets && universe.Projectiles.ActiveCount > 0)
-                    hasInterceptionTargets = true;
             }
             universe.Performance.Record(PerformanceStage.ControlVolley, volleyStart);
             if (universe.Weapons.HasPointDefenseWeapons(ship.Map,
-                hasInterceptionTargets, hasScatterTargets))
+                true, hasScatterTargets))
             {
                 long pointDefenseStart = universe.Performance.Start();
-                FireControl.TickPointDefense(ship, container, hasInterceptionTargets, hasScatterTargets);
+                // Filter after the volley so same-tick launches are visible to this ship and later controllers.
+                hasInterceptionTargets |= FireControl.TickPointDefense(ship, container, hasScatterTargets);
                 universe.Performance.Record(PerformanceStage.PointDefense, pointDefenseStart);
             }
         }
@@ -250,15 +251,19 @@ internal readonly struct HeadingPanelAction
         internal readonly ResolvedCombatTarget resolvedTarget;
         internal readonly bool hasResolvedTarget;
         internal readonly bool main, secondary, fireAll, predictIntercept;
+        internal readonly Vector2? localPoint;
+        internal ShipVolleyIntent(Vector2 point, bool main, bool secondary)
+        { target = default; resolvedTarget = default; hasResolvedTarget = false; localPoint = point;
+            this.main = main; this.secondary = secondary; fireAll = predictIntercept = false; }
         internal ShipVolleyIntent(Vector3 point, bool main, bool secondary)
         { target = CombatTarget.At(point); resolvedTarget = default; hasResolvedTarget = false;
-            this.main = main; this.secondary = secondary; fireAll = predictIntercept = false; }
+            this.main = main; this.secondary = secondary; fireAll = predictIntercept = false; localPoint = null; }
         internal ShipVolleyIntent(CombatTarget target, bool predictIntercept)
             : this(target, predictIntercept, default, false) { }
         internal ShipVolleyIntent(CombatTarget target, bool predictIntercept,
             ResolvedCombatTarget resolvedTarget, bool hasResolvedTarget)
         { this.target = target; this.resolvedTarget = resolvedTarget; this.hasResolvedTarget = hasResolvedTarget;
-            this.predictIntercept = predictIntercept; main = secondary = false; fireAll = true; }
+            this.predictIntercept = predictIntercept; main = secondary = false; fireAll = true; localPoint = null; }
     }
 
     /// <summary>
@@ -405,7 +410,7 @@ internal readonly struct HeadingPanelAction
                 return false;
             }
             if (!aim.HasInput) return false;
-            intent = new ShipVolleyIntent(aim.AimPoint, aim.FireMain, aim.FireSecondary);
+            intent = new ShipVolleyIntent(aim.LocalAimPoint, aim.FireMain, aim.FireSecondary);
             return true;
         }
 
@@ -535,7 +540,7 @@ internal readonly struct HeadingPanelAction
     ///   临时驾驶不随读档恢复——读档后无人驾驶，船按已保存速度漂移）；
     /// - 进入/退出：TogglePilotMode 键 + 屏幕按钮 + dev action；聚焦离开驾驶船地图
     ///   或地图丢失时自动退出；
-    /// - 输入每 tick 采样（KeyBindingDef.IsDown 轮询），与飞行辅助合成为 Command 后
+    /// - 原始输入每帧采样（KeyBindingDef.IsDown 轮询），辅助每 tick 更新，与飞行辅助合成为 Command 后
     ///   交给 ShipPhysics；辅助只在玩家该轴无输入时发反向指令；
     /// - SuppressVanillaKeys / ActivePilotKeys 供 Harmony 按键抑制 Prefix 使用：
     ///   快速通道是静态 bool，每帧由 UniverseManager.GameComponentUpdate 刷新，
@@ -738,6 +743,7 @@ internal readonly struct HeadingPanelAction
 
         public void Exit(UniverseManager universe, string message = null)
         {
+            universe.PlayerInput.Clear();
             if (activePlayerController == null)
             {
                 return;
@@ -845,6 +851,7 @@ internal readonly struct HeadingPanelAction
         /// keyPrefs 缺项（播种异常）时回退 def 默认键，保证集合非空、抑制可用。</summary>
         public void RebuildPilotKeySet()
         {
+            universe.PlayerInput.Clear();
             var set = new HashSet<KeyCode>();
             foreach (KeyBindingDef def in SuppressionKeyDefs())
             {
@@ -944,6 +951,12 @@ internal readonly struct HeadingPanelAction
 
         public PilotInput SampleInput()
         {
+            universe.PlayerInput.Sample(Time.frameCount);
+            return universe.PlayerInput.Drive;
+        }
+
+        internal static PilotInput SampleInputNow()
+        {
             var input = new PilotInput();
             if (DeltaVDefOf.DeltaV_ThrustForward == null)
             {
@@ -1006,7 +1019,7 @@ internal readonly struct HeadingPanelAction
                     $"input: fx={input.fx:+0;-0;0} fz={input.fz:+0;-0;0} torque={input.torque:+0;-0;0} (keys polled via IsDown)");
             }
             // 辅助生效 = 设置开启 或 按住刹车键（临时启用，辅助关闭时也可刹停）。
-            bool brakeHeld = DeltaVDefOf.DeltaV_AssistBrake != null && DeltaVDefOf.DeltaV_AssistBrake.IsDown;
+            bool brakeHeld = universe.PlayerInput.BrakeHeld;
             SpaceObject frame = universe.FrameOf(target.Map);
             SpacePose pose = frame != null ? frame.pose : new SpacePose();
             if (!DeltaVMod.CurrentSettings.flightAssist && !brakeHeld)

@@ -58,7 +58,8 @@ internal static partial class Program
             "intrinsic shuttle weapons belong to the shuttle rather than the host foundation ship");
         var shot = new SpaceWeaponShot(universe, weapon, container, new WeaponFireRequest(container.pose.position))
             { muzzleMap = singleBuilding.HullCenter, launchMapAngle = 0f };
-        Check((bool)Call(shot, "SafePathClear"),
+        Check((bool)HarmonyLib.AccessTools.Method(typeof(SpaceWeaponShot), "HasClearPath").Invoke(null,
+            new object[] { weapon, shot.muzzleMap, shot.launchMapAngle }),
             "hull safety checks allow a console-free intrinsic weapon without foundation ownership");
         var landing = new LandingApproachController.DockingPlan(PilotTarget.Of(singleBuilding), container,
             new IntVec3(1, 0, 1), new IntVec3(2, 0, 2), Rot4.North);
@@ -196,6 +197,7 @@ internal static partial class Program
         map.terrainGrid.topGrid[0] = ground;
         map.thingGrid = new ThingGrid(map);
         map.listerThings = new ListerThings(ListerThingsUse.Global);
+        map.spawnedThings = new ThingOwner<Thing>(map);
         map.floodFiller = new FloodFiller(map);
         Find.Maps.Add(map);
         return map;
@@ -214,6 +216,7 @@ internal static partial class Program
         if (!defs.TryGetValue(def, out var byDef)) defs[def] = byDef = new List<Thing>();
         byDef.Add(body);
         map.listerThings.AllThings.Add(body);
+        ((ThingOwner<Thing>)map.spawnedThings).InnerListForReading.Add(body);
         map.thingGrid.Register(body);
         return body;
     }

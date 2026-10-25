@@ -53,8 +53,9 @@ namespace DeltaV
     internal static class AimUiRegions
     {
         private static readonly List<Rect> regions = new List<Rect>();
-        internal static void Clear() => regions.Clear();
-        internal static void Add(Rect rect) => regions.Add(UI.GUIToScreenRect(rect));
+        internal static int Revision { get; private set; }
+        internal static void Clear() { regions.Clear(); Revision++; }
+        internal static void Add(Rect rect) { regions.Add(UI.GUIToScreenRect(rect)); Revision++; }
         internal static bool Contains(Vector2 point) => regions.Exists(rect => rect.Contains(point));
     }
 

@@ -76,9 +76,7 @@ namespace DeltaV
             get
             {
                 if (interior == null || interior.Disposed) return ShipPhysics.PointMassReport;
-                var report = ShipPhysics.GetReport(this);
-                ShipPhysics.RefreshOperational(report);
-                return report;
+                return ShipPhysics.GetReport(this);
             }
         }
         // Pure drift needs mass/COM but does not consume real-time thruster availability.
@@ -183,8 +181,9 @@ namespace DeltaV
         public override DriveResult ApplyDrive(DriveSubject subject, DriveControl control, float dt, out float allocatedTorque)
         {
             allocatedTorque = 0f;
-            if (!TryGetDrive(subject, out var info)) return DriveResult.InvalidSubject;
-            return ExecuteDrive(MotionReport, info.frameAngle, subject, control, dt, out allocatedTorque);
+            if (dynamics == null || dynamics.ownerId <= 0 || !subject.Equals(PrimaryDriver))
+                return DriveResult.InvalidSubject;
+            return ExecuteDrive(MotionReport, dynamics.frameAngle, subject, control, dt, out allocatedTorque);
         }
         internal MapSpaceObject RestoreRepresentation(Map restored)
         {

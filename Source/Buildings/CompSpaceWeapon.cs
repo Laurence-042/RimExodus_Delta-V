@@ -235,10 +235,38 @@ namespace DeltaV
 
         public CompMannable Mannable => parent.TryGetComp<CompMannable>();
 
+        private ShipBase cachedOwner;
+        private Map ownerMap;
+        private IntVec3 ownerPosition;
+        private Rot4 ownerRotation;
+        private int ownerVersion;
+        private bool ownerCacheValid, ownerWasValid;
+
         /// <summary>
         /// 本武器所属船：船体内置武器归于自身，独立建筑按基架域解析；无船则 Invalid。
         /// </summary>
-        public ShipBase OwnerShip => ShipRegistry.ShipOf(parent, requireWholeFootprint: true);
+        public ShipBase OwnerShip
+        {
+            get
+            {
+                Map map = parent?.Map;
+                if (map == null || map.Disposed || parent.Destroyed) return ShipBase.Invalid;
+                int version = SubstructureOwnership.GlobalStructureVersion;
+                if (!ownerCacheValid || ownerMap != map || ownerVersion != version
+                    || ownerPosition != parent.Position || ownerRotation != parent.Rotation
+                    || ownerWasValid && !cachedOwner.IsValid)
+                {
+                    // 独立于连接布局：纯指向不能因归属查询发现挂件、弹仓或加速链。
+                    cachedOwner = ShipRegistry.ShipOf(parent, requireWholeFootprint: true);
+                    ownerMap = map; ownerVersion = version;
+                    ownerPosition = parent.Position; ownerRotation = parent.Rotation;
+                    ownerWasValid = cachedOwner.IsValid;
+                    // 未注册地图没有完整的结构通知，不能缓存其归属结论。
+                    ownerCacheValid = Container != null;
+                }
+                return cachedOwner;
+            }
+        }
 
         /// <summary>本武器的组是否激活（读取所属船的共同火控状态，随身份锚搬运）。</summary>
         public bool GroupActive
@@ -248,9 +276,11 @@ namespace DeltaV
                 ShipBase ship = OwnerShip;
                 if (!ship.IsValid) return false;
                 int mask = ship.Combat?.WeaponGroupMask(salvoSet) ?? 0;
-                return (mask & (1 << (groupNumber - 1))) != 0;
+                return GroupEnabled(mask);
             }
         }
+
+        internal bool GroupEnabled(int mask) => (mask & (1 << (groupNumber - 1))) != 0;
 
         /// <summary>当前炮手（原版 CompMannable 在册者）。</summary>
         public Pawn CurrentGunner => Mannable?.ManningPawn;
@@ -262,7 +292,32 @@ namespace DeltaV
             return null;
         }
 
-        public IEnumerable<ThingWithComps> AttachedThings()
+        private SpaceWeaponLayout layout;
+        internal readonly SpaceWeaponEnergy QueryEnergy = new SpaceWeaponEnergy();
+        internal readonly SpaceWeaponEnergy ExecutionEnergy = new SpaceWeaponEnergy();
+        internal bool executingControl;
+        internal SpaceWeaponLayout Layout
+        {
+            get
+            {
+                if (layout == null || !layout.Matches(this))
+                {
+                    var perf = Universe?.Performance;
+                    long start = perf?.Start() ?? 0L;
+                    layout = new SpaceWeaponLayout(this);
+                    perf?.Record(PerformanceStage.WeaponLayout, start);
+                }
+                return layout;
+            }
+        }
+        internal void ClearRuntimeModel()
+        {
+            layout = null; cachedOwner = null; ownerMap = null; ownerCacheValid = ownerWasValid = false;
+            QueryEnergy.Clear(); ExecutionEnergy.Clear();
+        }
+        public IEnumerable<ThingWithComps> AttachedThings() => Layout.attachments;
+
+        internal IEnumerable<ThingWithComps> DiscoverAttachedThings()
         {
             if (parent.Map == null || WeaponProps.attachmentSlots.NullOrEmpty()) yield break;
             int owner = SpaceWeaponGeometry.OwnerIdOf(parent);
@@ -322,6 +377,7 @@ namespace DeltaV
         /// </summary>
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
+            ClearRuntimeModel();
             base.PostSpawnSetup(respawningAfterLoad);
             if (!configurationInitialized)
             {
@@ -348,6 +404,7 @@ namespace DeltaV
 
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
         {
+            ClearRuntimeModel();
             base.PostDeSpawn(map, mode);
             Universe?.Weapons?.UnregisterWeapon(this, map);
             Universe?.Controls?.NotifyGunnerAvailabilityChanged(map);
@@ -416,28 +473,27 @@ namespace DeltaV
 
         public CompSpaceWeaponMagazine SelectMagazine()
         {
-            var candidates = new List<CompSpaceWeaponMagazine>();
-            CompSpaceWeaponMagazine own = parent.TryGetComp<CompSpaceWeaponMagazine>();
-            if (own != null && own.HasShot) candidates.Add(own);
-            foreach (ThingWithComps attached in AttachedThings())
+            var perf = Universe?.Performance;
+            long start = perf?.Start() ?? 0L;
+            try
             {
-                CompSpaceWeaponAttachment attachment = attached.TryGetComp<CompSpaceWeaponAttachment>();
-                CompSpaceWeaponMagazine magazine = attached.TryGetComp<CompSpaceWeaponMagazine>();
-                if (magazine != null && magazine.HasShot && (attachment == null || attachment.Enabled))
+                CompSpaceWeaponMagazine first = null, next = null;
+                int priority = int.MinValue;
+                foreach (var magazine in Layout.magazines)
                 {
-                    candidates.Add(magazine);
+                    var attachment = magazine.parent == parent ? null
+                        : magazine.parent.TryGetComp<CompSpaceWeaponAttachment>();
+                    if (!magazine.HasShot || attachment != null && !attachment.Enabled) continue;
+                    if (magazine.Priority < priority) continue;
+                    if (magazine.Priority > priority)
+                    { priority = magazine.Priority; first = next = null; }
+                    int id = magazine.parent.thingIDNumber;
+                    if (first == null || id < first.parent.thingIDNumber) first = magazine;
+                    if (id > lastMagazineThingId && (next == null || id < next.parent.thingIDNumber)) next = magazine;
                 }
+                return next ?? first;
             }
-            if (candidates.Count == 0) return null;
-            int max = int.MinValue;
-            foreach (CompSpaceWeaponMagazine candidate in candidates) max = Mathf.Max(max, candidate.Priority);
-            candidates.RemoveAll(m => m.Priority != max);
-            candidates.Sort((a, b) => a.parent.thingIDNumber.CompareTo(b.parent.thingIDNumber));
-            foreach (CompSpaceWeaponMagazine candidate in candidates)
-            {
-                if (candidate.parent.thingIDNumber > lastMagazineThingId) return candidate;
-            }
-            return candidates[0];
+            finally { perf?.Record(PerformanceStage.WeaponAmmo, start); }
         }
 
         internal bool MagazineAvailable(CompSpaceWeaponMagazine selected) =>

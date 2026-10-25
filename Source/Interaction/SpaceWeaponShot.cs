@@ -51,13 +51,14 @@ namespace DeltaV
         public float damageScale = 1f;
         public float armorPenetrationScale = 1f;
         public int skill;
-        private readonly Dictionary<PowerNet, float> energyByNet = new Dictionary<PowerNet, float>();
-        private readonly Dictionary<CompSpaceWeaponAttachment, float> dischargingAttachments =
-            new Dictionary<CompSpaceWeaponAttachment, float>();
-        private readonly List<CompSpaceRailgun> activeAccelerators = new List<CompSpaceRailgun>();
-        private float activeSpeedBonus;
+        private SpaceWeaponParameters parameters;
+        private bool hasParameters;
+        private Vector2? preparedAimMap;
+        private SpaceObject resolvedTarget;
+        private bool targetResolved;
         private ISpaceWeaponLaunch emitter;
-        public IReadOnlyList<CompSpaceRailgun> ActiveAccelerators => activeAccelerators;
+        public IReadOnlyList<CompSpaceRailgun> ActiveAccelerators => parameters.energy != null
+            ? parameters.energy.active : System.Array.Empty<CompSpaceRailgun>();
 
         public SpaceWeaponShot(UniverseManager universe, CompSpaceWeapon weapon,
             SpaceObject container, WeaponFireRequest request)
@@ -71,12 +72,32 @@ namespace DeltaV
             damageScale = weapon.WeaponProps.impactScale;
         }
 
+        internal SpaceWeaponShot(UniverseManager universe, CompSpaceWeapon weapon, SpaceObject container,
+            WeaponFireRequest request, SpaceWeaponParameters parameters, int skill, Vector2 aimMap, SpaceObject resolvedTarget, bool targetResolved)
+            : this(universe, weapon, container, request)
+        { this.parameters = parameters; this.skill = skill; preparedAimMap = aimMap; hasParameters = true;
+            this.resolvedTarget = resolvedTarget; this.targetResolved = targetResolved; }
+
+        private bool Reject(WeaponReject reason)
+        { universe?.Performance.RecordWeaponResult(reason); return false; }
+
         public bool TryExecute()
         {
-            if (!Prepare()) return false;
+            long prepareStart = universe?.Performance.Start() ?? 0L;
+            bool prepared;
+            try { prepared = Prepare(); }
+            finally { universe?.Performance.Record(PerformanceStage.WeaponPrepare, prepareStart); }
+            if (!prepared) return false;
+            long launchStart = universe?.Performance.Start() ?? 0L;
+            try { return LaunchPrepared(); }
+            finally { universe?.Performance.Record(PerformanceStage.WeaponLaunch, launchStart); }
+        }
+
+        private bool LaunchPrepared()
+        {
             if (emitter != null)
             {
-                if (!emitter.TryLaunch(this)) return false;
+                if (!emitter.TryLaunch(this)) return Reject(WeaponReject.Launch);
                 Commit();
                 universe.Projectiles.RegisterShotVisuals(this);
                 return true;
@@ -102,7 +123,7 @@ namespace DeltaV
             mapDirection = SpaceTransform.Rotate(mapDirection, spread);
             Vector2 tangent = SpaceTransform.MapDirectionToUniverseTangent(container,
                 weapon.parent.Map, muzzleMap, mapDirection);
-            if (tangent.sqrMagnitude < 1e-8f) return false;
+            if (tangent.sqrMagnitude < 1e-8f) return Reject(WeaponReject.Launch);
             OrbitSphere.Basis(muzzleUniverse, out Vector3 east, out Vector3 north);
             Vector3 directionWorld = east * tangent.x + north * tangent.y;
             var spec = new SpaceProjectileLaunchSpec(speed, ignitionDelayTicks,
@@ -110,7 +131,7 @@ namespace DeltaV
             if (!universe.Projectiles.Launch(projectileDef, container, muzzleUniverse,
                 directionWorld, weapon.parent.Faction, weapon.parent, guidanceTarget, spec))
             {
-                return false;
+                return Reject(WeaponReject.Launch);
             }
             Commit();
             universe.Projectiles.RegisterShotVisuals(this);
@@ -125,38 +146,39 @@ namespace DeltaV
                 || weapon.parent.Destroyed || weapon.WeaponProps.projectileDef == null
                 || !weapon.SpaceModeEnabled || weapon.Container != container)
             {
-                return false;
+                return Reject(WeaponReject.Invalid);
             }
-            int now = Find.TickManager.TicksGame;
-            if (now < weapon.cooldownUntilTick || !weapon.TryGetSkillLevel(out skill)) return false;
-            CompPowerTrader power = weapon.parent.TryGetComp<CompPowerTrader>();
-            if (power != null && !power.PowerOn) return false;
-
-            magazine = weapon.SelectMagazine();
-            if (!weapon.MagazineAvailable(magazine)) return false;
-            projectileDef = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
+            if (!hasParameters)
+            {
+                WeaponReject readiness = SpaceWeaponService.CheckReadiness(weapon, out skill);
+                if (readiness != WeaponReject.None) return Reject(readiness);
+                parameters = SpaceWeaponBallistics.Read(weapon, container, new SpaceWeaponEnergy(), true);
+                hasParameters = true;
+            }
+            magazine = parameters.magazine;
+            if (!weapon.MagazineAvailable(magazine)) return Reject(WeaponReject.Ammo);
+            projectileDef = parameters.aim.Projectile;
             armorPenetrationScale = magazine?.MagazineProps.armorPenetrationScale ?? 1f;
             projectileProps = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
-            if (projectileProps == null) return false;
+            if (projectileProps == null) return Reject(WeaponReject.Ammo);
             ignitionDelayTicks = weapon.WeaponProps.ignitionDelayTicks >= 0
                 ? weapon.WeaponProps.ignitionDelayTicks
                 : projectileProps.coldLaunchTicks;
             bool coldLaunch = ignitionDelayTicks > 0;
             CompSpaceWeaponTraverse traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
 
-            SpaceWeaponAccelerationSolution acceleration = CompSpaceRailgun.Resolve(weapon);
-            muzzleMap = acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
-            muzzleUniverse = SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzleMap);
+            muzzleMap = parameters.aim.MuzzleMap;
+            muzzleUniverse = parameters.aim.Muzzle;
             float baseAngle = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
             if (!manualFire)
             {
                 float shotDistance = OrbitSphere.Offset(muzzleUniverse, aimPoint).magnitude;
                 if (shotDistance < weapon.WeaponProps.minRange
-                    || shotDistance > weapon.WeaponProps.range) return false;
+                    || shotDistance > weapon.WeaponProps.range) return Reject(WeaponReject.Range);
             }
-            Vector2 aimMap = SpaceTransform.UniverseToMapPoint(container, weapon.parent.Map, aimPoint);
+            Vector2 aimMap = preparedAimMap ?? SpaceTransform.UniverseToMapPoint(container, weapon.parent.Map, aimPoint);
             Vector2 delta = aimMap - muzzleMap;
-            if (delta.sqrMagnitude < 1e-6f && !manualFire) return false;
+            if (delta.sqrMagnitude < 1e-6f && !manualFire) return Reject(WeaponReject.Alignment);
             // 鼠标恰在炮口时没有瞄准方向，手控沿当前炮口／固定轴继续射击。
             desiredMapAngle = delta.sqrMagnitude < 1e-6f
                 ? traverse?.CurrentAngle ?? baseAngle : Mathf.Atan2(delta.y, delta.x);
@@ -168,11 +190,11 @@ namespace DeltaV
             float lockArc = projectileProps.guided || coldLaunch
                 ? Mathf.Min(launcherLockArc, projectileProps.lockArcDeg)
                 : launcherLockArc;
-            if (!WithinArc(desiredMapAngle, baseAngle, lockArc)) return false;
+            if (!WithinArc(desiredMapAngle, baseAngle, lockArc)) return Reject(WeaponReject.Arc);
 
             if (traverse != null)
             {
-                traverse.AimAt(desiredMapAngle);
+                if (!preparedAimMap.HasValue) traverse.AimAt(desiredMapAngle);
                 launchMapAngle = traverse.CurrentAngle;
             }
             else if (!coldLaunch && weapon.WeaponProps.topTurret)
@@ -186,142 +208,55 @@ namespace DeltaV
             }
             float allowedDeviation = manualFire ? weapon.manualFireDeviationDeg : weapon.fireDeviationDeg;
             if (!SpaceWeaponGeometry.WithinFireDeviation(desiredMapAngle, launchMapAngle,
-                    allowedDeviation)) return false;
+                    allowedDeviation)) return Reject(WeaponReject.Alignment);
 
-            if (!PrepareEnergy(acceleration)) return false;
-            speed = projectileProps.speed + activeSpeedBonus;
+            if (!parameters.energy.ready) return Reject(WeaponReject.Energy);
+            speed = parameters.aim.Speed;
             coldLaunchSpeed = speed * projectileProps.coldLaunchSpeedFactor;
-            target = guidanceTarget.TryResolve(universe, out var resolved) ? resolved.Container : null;
+            target = targetResolved ? resolvedTarget
+                : guidanceTarget.TryResolve(universe, out var resolved) ? resolved.Container : null;
             foreach (ThingComp comp in CapabilityComps())
             {
                 if (comp is ISpaceWeaponShotModifier modifier) modifier.ModifyShot(this);
             }
             foreach (ThingComp comp in CapabilityComps())
             {
-                if (comp is ISpaceWeaponFireGate gate && !gate.CanFire(this)) return false;
+                if (comp is ISpaceWeaponFireGate gate && !gate.CanFire(this)) return Reject(WeaponReject.Gate);
                 if (comp is ISpaceWeaponLaunch launch) emitter = launch;
             }
-            if (emitter == null && weapon.safeFire && !SafePathClear()) return false;
+            if (emitter == null && weapon.safeFire && !HasClearPath(weapon, muzzleMap, launchMapAngle))
+                return Reject(WeaponReject.Safety);
             return true;
         }
 
-        private bool PrepareEnergy(SpaceWeaponAccelerationSolution acceleration)
+        public static bool HasClearFixedPath(CompSpaceWeapon weapon, SpaceWeaponAccelerationSolution acceleration)
         {
-            dischargingAttachments.Clear();
-            energyByNet.Clear();
-            activeAccelerators.Clear();
-            activeSpeedBonus = 0f;
-            if (!ReserveAttachmentEnergy(weapon.AttachedThings(), weapon.WeaponProps.shotEnergy)
-                && !TryReserveGridEnergy(weapon.parent, weapon.WeaponProps.shotEnergy)) return false;
-            foreach (CompSpaceRailgun segment in acceleration.segments)
-            {
-                if (segment.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }) continue;
-                if (!ReserveAttachmentEnergy(segment.AttachedThings(), segment.RailProps.shotEnergy)
-                    && !TryReserveGridEnergy(segment.parent, segment.RailProps.shotEnergy)) continue;
-                activeAccelerators.Add(segment);
-                activeSpeedBonus += segment.RailProps.speedBonus;
-            }
-            return true;
-        }
-
-        // Candidate scoring needs only the loader's base pulse; chain power is checked on launch.
-        public static bool HasBaseShotEnergy(CompSpaceWeapon weapon)
-        {
-            if (weapon?.parent == null || !weapon.parent.Spawned) return false;
-            var probe = new SpaceWeaponShot(null, weapon, null, default);
-            return probe.PrepareEnergy(new SpaceWeaponAccelerationSolution(0f, null,
-                new List<CompSpaceRailgun>()));
-        }
-
-        // 状态显示和真实发射共用 PrepareEnergy 的逐段预留结果。
-        public static bool TryPlanEnergy(CompSpaceWeapon weapon,
-            SpaceWeaponAccelerationSolution acceleration, out List<CompSpaceRailgun> active)
-        {
-            if (weapon?.parent == null || !weapon.parent.Spawned)
-            {
-                active = null;
-                return false;
-            }
-            var probe = new SpaceWeaponShot(null, weapon, null, default);
-            bool ready = probe.PrepareEnergy(acceleration);
-            active = probe.activeAccelerators;
-            return ready;
-        }
-
-        /// <summary>预瞄弹速与实际发射共用逐段能量规划。</summary>
-        internal static float ProjectedSpeed(CompSpaceWeapon weapon, SpaceWeaponAccelerationSolution acceleration, float baseSpeed)
-        {
-            var probe = new SpaceWeaponShot(null, weapon, null, default);
-            return probe.PrepareEnergy(acceleration) ? baseSpeed + probe.activeSpeedBonus : baseSpeed;
-        }
-
-        public static bool HasClearFixedPath(CompSpaceWeapon weapon,
-            SpaceWeaponAccelerationSolution acceleration)
-        {
-            if (weapon?.parent == null || !weapon.parent.Spawned) return false;
-            if (!weapon.safeFire || weapon.WeaponProps.topTurret) return true;
-            var probe = new SpaceWeaponShot(null, weapon, null, default);
-            probe.muzzleMap = acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
-            probe.launchMapAngle = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
-            return probe.SafePathClear();
-        }
-
-        private bool ReserveAttachmentEnergy(IEnumerable<ThingWithComps> attachments, float wattDays)
-        {
-            if (wattDays <= 0f) return false;
-            CompSpaceWeaponAttachment selected = null;
-            foreach (ThingWithComps attached in attachments)
-            {
-                CompSpaceWeaponAttachment attachment = attached.TryGetComp<CompSpaceWeaponAttachment>();
-                if (attachment == null || !attachment.CanSupplyShotEnergy(wattDays)) continue;
-                if (selected == null || attachment.AvailableShotEnergy > selected.AvailableShotEnergy
-                    || (attachment.AvailableShotEnergy == selected.AvailableShotEnergy
-                        && attachment.parent.thingIDNumber < selected.parent.thingIDNumber))
-                    selected = attachment;
-            }
-            if (selected == null) return false;
-            dischargingAttachments[selected] = wattDays;
-            return true;
-        }
-
-        private bool TryReserveGridEnergy(ThingWithComps source, float wattDays)
-        {
-            if (wattDays <= 0f) return true;
-            PowerNet net = source.TryGetComp<CompPowerTrader>()?.PowerNet;
-            if (net == null) return false;
-            energyByNet.TryGetValue(net, out float existing);
-            if (net.CurrentStoredEnergy() + 0.0001f < existing + wattDays) return false;
-            energyByNet[net] = existing + wattDays;
-            return true;
+            if (weapon?.parent?.Spawned != true) return false;
+            return !weapon.safeFire || HasClearPath(weapon,
+                acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon),
+                ShipOrientation.AngleFromRot4(weapon.parent.Rotation));
         }
 
         private void Commit()
         {
-            foreach (var cost in energyByNet)
+            long start = universe?.Performance.Start() ?? 0L;
+            try
             {
-                float remaining = cost.Value;
-                foreach (CompPowerBattery battery in cost.Key.batteryComps)
+                parameters.energy.Commit();
+                universe?.Performance.RecordWeaponResult(WeaponReject.None);
+                magazine?.ConsumeShot();
+                weapon.NotifyMagazineConsumed(magazine);
+                weapon.cooldownUntilTick = Find.TickManager.TicksGame + weapon.WeaponProps.cooldownTicks;
+                foreach (ThingComp comp in CapabilityComps())
                 {
-                    if (battery.StunnedByEMP || remaining <= 0f) continue;
-                    float drawn = Mathf.Min(remaining, battery.StoredEnergy);
-                    if (drawn <= 0f) continue;
-                    battery.DrawPower(drawn);
-                    remaining -= drawn;
+                    if (comp is ISpaceWeaponFireCommit commit) commit.NotifyShotCommitted(this);
+                    if (comp is IFireEffect fireEffect)
+                    {
+                        fireEffect.NotifyFired(weapon, container, muzzleUniverse);
+                    }
                 }
             }
-            foreach (var capacitor in dischargingAttachments)
-                capacitor.Key.ConsumeShotEnergy(capacitor.Value);
-            magazine?.ConsumeShot();
-            weapon.NotifyMagazineConsumed(magazine);
-            weapon.cooldownUntilTick = Find.TickManager.TicksGame + weapon.WeaponProps.cooldownTicks;
-            foreach (ThingComp comp in CapabilityComps())
-            {
-                if (comp is ISpaceWeaponFireCommit commit) commit.NotifyShotCommitted(this);
-                if (comp is IFireEffect fireEffect)
-                {
-                    fireEffect.NotifyFired(weapon, container, muzzleUniverse);
-                }
-            }
+            finally { universe?.Performance.Record(PerformanceStage.WeaponCommit, start); }
         }
 
         private IEnumerable<ThingComp> CapabilityComps()
@@ -335,7 +270,7 @@ namespace DeltaV
             }
         }
 
-        private bool SafePathClear()
+        private static bool HasClearPath(CompSpaceWeapon weapon, Vector2 muzzleMap, float launchMapAngle)
         {
             if (weapon.WeaponProps.topTurret) return true;
             Map map = weapon.parent.Map;

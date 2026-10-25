@@ -7,7 +7,7 @@ namespace DeltaV
     // 程序覆盖率纹理只创建一次；逐粒子颜色/渐隐写入顶点，同类粒子合为一次 DrawMesh。
     internal static class MotionParticleRenderer
     {
-        internal enum Kind { Smoke, Flame, Dust, Metal, Grid }
+        internal enum Kind { Smoke, Flame, Metal, Grid }
         private sealed class Batch
         {
             internal Mesh mesh;
@@ -18,14 +18,7 @@ namespace DeltaV
             internal readonly List<Color> colors = new List<Color>();
             internal readonly List<int> triangles = new List<int>();
         }
-        private static readonly Batch[] batches = new Batch[5];
-
-        internal static float DustCoverage(float radius)
-        {
-            // 从中心就开始衰减，整片柔和过渡，避免实心圆盘外的一圈窄羽化。
-            float t = Mathf.Clamp01(1f - radius * 2f);
-            return t * t * (3f - 2f * t);
-        }
+        private static readonly Batch[] batches = new Batch[4];
 
         internal static void Begin(Kind kind)
         {
@@ -116,8 +109,6 @@ namespace DeltaV
                 }
                 else if (kind == Kind.Flame)
                     alpha = Mathf.Pow(Mathf.Clamp01(1f - r * 2f), 1.25f);
-                else if (kind == Kind.Dust)
-                    alpha = DustCoverage(r);
                 else if (kind == Kind.Metal)
                 {
                     alpha = Mathf.Abs(u) + Mathf.Abs(v * 0.6f) < 0.48f ? 1f : 0f;

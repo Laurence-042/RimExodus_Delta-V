@@ -32,10 +32,9 @@ namespace DeltaV
         public bool EffectiveFor(CompSpaceWeapon weapon)
         {
             if (!parent.Spawned || parent.Destroyed || !Enabled || weapon?.parent == null) return false;
-            if (weapon.parent.Map != parent.Map || HostWeapon != weapon) return false;
-            bool slotted = weapon.AttachmentSlotAt(parent.Position) != null;
-            return slotted && SpaceWeaponGeometry.OwnerIdOf(parent) > 0
-                && SpaceWeaponGeometry.OwnerIdOf(parent) == SpaceWeaponGeometry.OwnerIdOf(weapon.parent);
+            if (weapon.parent.Map != parent.Map) return false;
+            SpaceWeaponLayout layout = weapon.Layout;
+            return layout.ownerId > 0 && layout.attachments.Contains(parent);
         }
     }
 }

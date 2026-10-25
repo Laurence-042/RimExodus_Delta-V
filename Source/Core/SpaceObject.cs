@@ -263,7 +263,11 @@ namespace DeltaV
         private ShipPhysics.MassReport driveViewReport;
         protected DriveInfo ReadDriveInfo(float frameAngle = 0f)
         {
+            var performance = Current.Game?.GetComponent<UniverseManager>()?.Performance;
+            long start = performance?.Start() ?? 0L;
             var report = MotionReport;
+            ShipPhysics.RefreshOperational(report);
+            performance?.Record(PerformanceStage.DriveState, start);
             if (driveViewReport != report) { driveViewReport = report; driveViews.Clear(); }
             if (!driveViews.TryGetValue(frameAngle, out DriveInfo view))
                 driveViews[frameAngle] = view = new DriveInfo(report, frameAngle);
@@ -293,9 +297,10 @@ namespace DeltaV
             return true;
         }
         private ShipPhysics.MassReport cachedAllocationReport;
-        private int cachedAllocationVersion, cachedAllocationStep;
-        private Vector2 cachedForceRequest, cachedForce;
-        private float cachedTorqueRequest, cachedTorque;
+        private int cachedAllocationVersion;
+        private ShipPhysics.Command cachedCommand;
+        private Vector2 cachedForce;
+        private float cachedTorque;
         protected virtual DriveResult AuthorizeDrive(DriveSubject subject, ShipPhysics.Command command, bool playerInitiated)
             => DriveResult.Executed;
         protected virtual void AllocateDrive(ShipPhysics.MassReport report, ShipPhysics.Command command,
@@ -305,18 +310,26 @@ namespace DeltaV
         {
             allocatedTorque = 0f;
             if (dt <= 0f || lastMotionTick == Find.TickManager.TicksGame) return DriveResult.AlreadyAdvanced;
-            var command = ShipPhysics.ForceToCommand(report, control.force, control.torque);
+            // One live-state read at execution; all numeric conversions and allocation consume it.
+            var performance = Current.Game?.GetComponent<UniverseManager>()?.Performance;
+            long stateStart = performance?.Start() ?? 0L;
+            ShipPhysics.RefreshOperational(report);
+            performance?.Record(PerformanceStage.DriveState, stateStart);
+            var command = control.hasInput ? control.input
+                : ShipPhysics.ForceToCommand(report, control.force, control.torque);
+            if (report.thrusters.Count == 0) command = default;
             DriveResult permission = AuthorizeDrive(subject, command, control.playerInitiated);
             if (permission != DriveResult.Executed) { ClearDrive(); return permission; }
             if (!BeginMotion(dt)) return DriveResult.AlreadyAdvanced;
-            int step = Find.TickManager.TicksGame / 6;
             if (cachedAllocationReport != report || cachedAllocationVersion != report.version
-                || cachedAllocationStep != step || cachedForceRequest != control.force || cachedTorqueRequest != control.torque)
+                || cachedCommand.fx != command.fx || cachedCommand.fz != command.fz || cachedCommand.torque != command.torque)
             {
                 AllocateDrive(report, command, out cachedForce, out cachedTorque);
-                cachedAllocationReport = report; cachedAllocationVersion = report.version; cachedAllocationStep = step;
-                cachedForceRequest = control.force; cachedTorqueRequest = control.torque;
+                cachedAllocationReport = report; cachedAllocationVersion = report.version;
+                cachedCommand = command;
             }
+            // Reused allocation is still real output this tick, including its presentation freshness.
+            if (report.throttlesNeedClearing) ShipPhysics.MarkThrottlesWritten(report);
             Vector2 force = cachedForce;
             allocatedTorque = cachedTorque;
             foreach (ShipPhysics.Thruster thruster in report.thrusters)
@@ -325,9 +338,11 @@ namespace DeltaV
                 lastThrustTick = Find.TickManager.TicksGame;
                 break;
             }
+            long integrateStart = performance?.Start() ?? 0L;
             ShipPhysics.Integrate(this, report, Vector2.Lerp(force, control.force, control.voidBlend),
                 Mathf.Lerp(allocatedTorque, control.torque, control.voidBlend), dt,
                 control.assistX, control.assistZ, control.assistW, frameAngle);
+            performance?.Record(PerformanceStage.DriveIntegrate, integrateStart);
             return DriveResult.Executed;
         }
         public void SettleDrive(Vector3 direction, float angle)

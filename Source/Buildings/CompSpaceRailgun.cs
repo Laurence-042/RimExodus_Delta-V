@@ -106,6 +106,9 @@ namespace DeltaV
         }
 
         public static SpaceWeaponAccelerationSolution Resolve(CompSpaceWeapon weapon)
+            => weapon.Layout.acceleration;
+
+        internal static SpaceWeaponAccelerationSolution TraceConnections(CompSpaceWeapon weapon)
         {
             var used = new List<CompSpaceRailgun>();
             if (weapon?.parent?.Map == null || weapon.WeaponProps.acceleratorStarts.NullOrEmpty())
@@ -167,7 +170,7 @@ namespace DeltaV
             ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef
                 ?? weapon.WeaponProps.projectileDef;
             float baseSpeed = SpaceWeaponService.ProjectileSpeedOf(projectile);
-            float activeBonus = SpaceWeaponShot.ProjectedSpeed(weapon, solution, baseSpeed) - baseSpeed;
+            float activeBonus = SpaceWeaponBallistics.ProjectedSpeed(weapon, baseSpeed) - baseSpeed;
             return $"accelerators={solution.segments.Count} active speed+={activeBonus:F1}";
         }
 

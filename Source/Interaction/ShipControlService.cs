@@ -187,12 +187,6 @@ namespace DeltaV
             stageStart = universe.Performance.Start();
             bool hasScatterTargets = universe.Scatter.HasCandidates;
             bool hasInterceptionTargets = false;
-            foreach (SpaceObject obj in universe.objects)
-                if (obj?.InterceptionEligible == true)
-                {
-                    hasInterceptionTargets = true;
-                    break;
-                }
             foreach (ShipController controller in tickBuffer)
                 controller.TickCombat(ref hasInterceptionTargets, hasScatterTargets);
             universe.Performance.RecordPointDefenseTargets(hasInterceptionTargets, hasScatterTargets);

@@ -15,21 +15,6 @@ internal static partial class Program
 
     static void CheckMotionFeedback(UniverseManager universe)
     {
-        float lastSize = float.MaxValue, lastOpacity = float.MaxValue;
-        for (int distance = 0; distance <= 120; distance += 10)
-        {
-            SpaceProjectileService.NearDustAppearance(distance * distance, out float size, out float opacity);
-            Check(size <= lastSize && opacity <= lastOpacity,
-                "dust recedes smoothly with ship distance " + distance);
-            Check(MotionParticleRenderer.DustCoverage(0.125f / size) * opacity >= 0.6f,
-                "soft dust retains a quarter-cell readable core outside edge/zoom fading " + distance);
-            lastSize = size; lastOpacity = opacity;
-        }
-        Check(MotionParticleRenderer.DustCoverage(0.1f) < 0.95f
-            && MotionParticleRenderer.DustCoverage(0.25f) < 0.6f
-            && MotionParticleRenderer.DustCoverage(0.4f) > 0f
-            && MotionParticleRenderer.DustCoverage(0.5f) == 0f,
-            "dust coverage has a broad translucent shoulder instead of a solid disc");
         var service = new SpaceProjectileService(universe);
         var patch = new Harmony("DeltaV.Regression.MotionFeedback");
         var edge = AccessTools.Method(typeof(SpaceProjectileService), "PlayEngineEdge");
@@ -70,18 +55,6 @@ internal static partial class Program
             Check(engineEdges.Count == 3 && !engineEdges[2].start,
                 "rapid restart respects ignition rate limiting after shutdown");
 
-            Vector3 center = Vector3.forward;
-            Call(service, "UpdateNearDust", center);
-            var dust = (List<Vector3>)AccessTools.Field(typeof(SpaceProjectileService), "nearDust").GetValue(service);
-            Vector3[] before = dust.ToArray();
-            Call(service, "UpdateNearDust", center);
-            Check(before.SequenceEqual(dust), "stationary environmental particles do not shimmer or regenerate");
-            Vector3 moved = OrbitSphere.Move(center, new Vector2(25, 0));
-            Call(service, "UpdateNearDust", moved);
-            Check(before.Where(p => OrbitSphere.Offset(moved, p).magnitude <= 110f).All(dust.Contains),
-                "moving the view preserves universe positions of particles still in range");
-            Check(dust.Count == 96 && dust.All(p => OrbitSphere.Offset(moved, p).magnitude <= 110.1f),
-                "environmental particle recycling stays bounded around the view");
             var map = TestMap(9081);
             var ship = new MapSpaceObject(9081, map, new SpacePose(Vector3.forward, 0f));
             universe.objects.Add(ship);
@@ -132,7 +105,7 @@ internal static partial class Program
             }
             finally { universe.objects.Remove(ship); Find.Maps.Remove(map); }
             Call(service, "ResetMotionFeedback");
-            Check(dust.Count == 0 && ((IDictionary)AccessTools.Field(typeof(SpaceProjectileService), "engineGroups")
+            Check(((IDictionary)AccessTools.Field(typeof(SpaceProjectileService), "engineGroups")
                 .GetValue(service)).Count == 0, "runtime reset releases motion feedback caches");
             Check(((IList)AccessTools.Field(typeof(SpaceProjectileService), "driveExhaust").GetValue(service)).Count == 0
                 && ((IList)AccessTools.Field(typeof(SpaceProjectileService), "driveFlames").GetValue(service)).Count == 0,

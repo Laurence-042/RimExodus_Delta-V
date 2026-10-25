@@ -7,12 +7,15 @@ namespace DeltaV
 {
     internal enum PerformanceStage
     {
-        Grid, Dust, Exhaust, Shells, Foreground, Update, Tick,
+        Grid, Exhaust, Shells, Foreground, Update, Tick,
         Npc, SoftDock, Projectiles, Autopilot, AutopilotSolve, Weapons, Controls,
         ControlSelection, ControlDecision, ControlCombat, PointDefense, Objects,
-        PointDefensePrune, PointDefenseSearch, ObjectDrive, ObjectDrift, ObjectArchive,
+        PointDefensePrune, PointDefenseCandidates, PointDefenseSearch, ObjectDrive, ObjectDrift, ObjectArchive,
         ControlVolley, VolleyAim, DriveAuthorize, DriveAllocate,
-        Collision, MotionFeedback, Lifecycle, Count
+        Collision, MotionFeedback, Lifecycle,
+        AimInput, AimInputGate, VolleyIntent, WeaponDispatch, WeaponAim, WeaponPrepare, WeaponLaunch,
+        AimPreview, WeaponLayout, WeaponAmmo, WeaponEnergy, DriveCompose, DriveState, DriveIntegrate,
+        WeaponExecution, WeaponReadiness, WeaponParameters, WeaponGuidance, WeaponCommit, Count
     }
 
     /// <summary>Opt-in, per-game CPU timing and frame/tick cadence; no saved or static state.</summary>
@@ -23,8 +26,6 @@ namespace DeltaV
         private readonly long[] peaks = new long[(int)PerformanceStage.Count];
         private int frames;
         private int ticks;
-        private int dustQuads;
-        private int peakDustQuads;
         private int peakObjects;
         private int peakProjectiles;
         private int peakThrustingObjects;
@@ -38,6 +39,10 @@ namespace DeltaV
         private TimeSpeed observedSpeed;
         private bool hasSpeed;
         private bool mixedSpeed;
+        private int aimOnlyCommands, fireCommands, shots, maxTicksPerFrame, capFrames;
+        private float minMultiplier = float.MaxValue, maxMultiplier;
+        private readonly int[] rejected = new int[(int)WeaponReject.Count];
+        private readonly int[] calls = new int[(int)PerformanceStage.Count];
         private float frameSeconds;
         private float worstFrameSeconds;
         private float windowStart = -1f;
@@ -58,6 +63,7 @@ namespace DeltaV
         {
             if (elapsed == 0L) return;
             int index = (int)stage;
+            calls[index]++;
             totals[index] += elapsed;
             if (elapsed > peaks[index]) peaks[index] = elapsed;
         }
@@ -77,12 +83,10 @@ namespace DeltaV
             lastStructureVersion = structureVersion;
         }
 
-        internal void RecordDustQuads(int count)
-        {
-            if (!Enabled) return;
-            dustQuads += count;
-            if (count > peakDustQuads) peakDustQuads = count;
-        }
+        internal void RecordWeaponCommand(bool fire)
+        { if (!Enabled) return; if (fire) fireCommands++; else aimOnlyCommands++; }
+        internal void RecordWeaponResult(WeaponReject reason)
+        { if (!Enabled) return; if (reason == WeaponReject.None) shots++; else rejected[(int)reason]++; }
 
         internal void RecordAutopilotSolve(long start)
         {
@@ -118,6 +122,11 @@ namespace DeltaV
             if (!hasSpeed) { observedSpeed = speed; hasSpeed = true; }
             else if (observedSpeed != speed) mixedSpeed = true;
             frames++;
+            int frameTicks = Find.TickManager?.TicksThisFrame ?? 0;
+            float multiplier = Find.TickManager?.TickRateMultiplier ?? 0f;
+            maxTicksPerFrame = Mathf.Max(maxTicksPerFrame, frameTicks);
+            minMultiplier = Mathf.Min(minMultiplier, multiplier); maxMultiplier = Mathf.Max(maxMultiplier, multiplier);
+            if (multiplier > 0f && frameTicks >= multiplier * 2f) capFrames++;
             frameSeconds += seconds;
             if (seconds > worstFrameSeconds) worstFrameSeconds = seconds;
             float span = now - windowStart;
@@ -130,9 +139,7 @@ namespace DeltaV
                 .Append("ms ticks=").Append(ticks)
                 .Append(" tps=").Append((ticks / span).ToString("F1"))
                 .Append(" speed=").Append(mixedSpeed ? "Mixed" : observedSpeed.ToString());
-            sb.Append(" dustQuads=").Append((dustQuads / (float)frames).ToString("F1"))
-                .Append('/').Append(peakDustQuads)
-                .Append(" objectsMax=").Append(peakObjects)
+            sb.Append(" objectsMax=").Append(peakObjects)
                 .Append(" thrustingMax=").Append(peakThrustingObjects)
                 .Append(" driftingMax=").Append(peakDriftingObjects)
                 .Append(" archivedMax=").Append(peakArchivedObjects)
@@ -144,7 +151,6 @@ namespace DeltaV
                     : lastStructureVersion - firstStructureVersion);
             AppendStage(sb, PerformanceStage.Update, "update", frames);
             AppendStage(sb, PerformanceStage.Grid, "grid", frames);
-            AppendStage(sb, PerformanceStage.Dust, "dust", frames);
             AppendStage(sb, PerformanceStage.Exhaust, "exhaust", frames);
             AppendStage(sb, PerformanceStage.Shells, "shells", frames);
             AppendStage(sb, PerformanceStage.Foreground, "foreground", frames);
@@ -163,6 +169,7 @@ namespace DeltaV
             AppendStage(sb, PerformanceStage.VolleyAim, "volleyAim", ticks);
             AppendStage(sb, PerformanceStage.PointDefense, "pointDefense", ticks);
             AppendStage(sb, PerformanceStage.PointDefensePrune, "pdPrune", ticks);
+            AppendStage(sb, PerformanceStage.PointDefenseCandidates, "pdCandidates", ticks);
             AppendStage(sb, PerformanceStage.PointDefenseSearch, "pdSearch", ticks);
             AppendStage(sb, PerformanceStage.Objects, "objects", ticks);
             AppendStage(sb, PerformanceStage.ObjectDrive, "objDrive", ticks);
@@ -173,6 +180,22 @@ namespace DeltaV
             AppendStage(sb, PerformanceStage.Collision, "collision", ticks);
             AppendStage(sb, PerformanceStage.MotionFeedback, "motionFx", ticks);
             AppendStage(sb, PerformanceStage.Lifecycle, "lifecycle", ticks);
+            sb.Append(" tickFrameAvg=").Append((ticks / (float)frames).ToString("F2")).Append(" tickFrameMax=").Append(maxTicksPerFrame).Append(" capFrames=").Append(capFrames)
+                .Append(" multiplier=").Append(minMultiplier.ToString("F1")).Append('/').Append(maxMultiplier.ToString("F1"))
+                .Append(" aimOnly=").Append(aimOnlyCommands).Append(" fireRequests=").Append(fireCommands)
+                .Append(" shots=").Append(shots).Append(" reject=");
+            for (int i = 1; i < rejected.Length; i++)
+                if (rejected[i] > 0) sb.Append((WeaponReject)i).Append(':').Append(rejected[i]).Append(',');
+            // Mixed frame/tick callers use per-call timing here, with count and total to preserve attribution.
+            sb.Append(" detail[avgUs/maxUs/calls/totalMs]:");
+            for (int i = (int)PerformanceStage.AimInput; i < (int)PerformanceStage.Count; i++)
+            {
+                double ms = totals[i] * (1000.0 / Stopwatch.Frequency);
+                sb.Append(' ').Append((PerformanceStage)i).Append('=')
+                    .Append((ms * 1000 / Mathf.Max(1, calls[i])).ToString("F1")).Append('/')
+                    .Append((peaks[i] * (1000000.0 / Stopwatch.Frequency)).ToString("F1")).Append('/')
+                    .Append(calls[i]).Append('/').Append(ms.ToString("F2"));
+            }
             DeltaVLog.Message(DeltaVLogModule.Performance, sb.ToString());
             Reset();
             windowStart = now;
@@ -191,8 +214,11 @@ namespace DeltaV
         {
             System.Array.Clear(totals, 0, totals.Length);
             System.Array.Clear(peaks, 0, peaks.Length);
+            System.Array.Clear(calls, 0, calls.Length);
+            System.Array.Clear(rejected, 0, rejected.Length);
+            aimOnlyCommands = fireCommands = shots = maxTicksPerFrame = capFrames = 0;
+            minMultiplier = float.MaxValue; maxMultiplier = 0f;
             frames = ticks = 0;
-            dustQuads = peakDustQuads = 0;
             peakObjects = peakProjectiles = 0;
             peakThrustingObjects = peakDriftingObjects = peakArchivedObjects = 0;
             autopilotSolves = pointDefenseInterceptionTicks = pointDefenseScatterTicks = 0;

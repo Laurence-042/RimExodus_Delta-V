@@ -145,6 +145,9 @@ namespace DeltaV
 
         public PilotService Pilot => pilot ?? (pilot = new PilotService(this));
 
+        [NonSerialized] private PlayerFrameInput playerInput;
+        internal PlayerFrameInput PlayerInput => playerInput ?? (playerInput = new PlayerFrameInput(this));
+
         internal void ForgetPilotController(ShipController controller) => pilot?.ForgetController(controller);
 
         [NonSerialized] private ShipFlightTransitionService shipTransitions;
@@ -394,6 +397,7 @@ namespace DeltaV
             Autopilot.Detach(obj);
             Shuttles.ForgetContainer(obj);
             shipTransitions?.ForgetMap(obj.map);
+            playerInput?.Clear();
             // 最后一艘船消失后 Ship tag 已移除，释放不能再以当前角色为前提。
             if (obj.map != null) Weapons.ForgetMap(obj.map);
             if (obj.map != null) { softDock?.Forget(obj.map); scatter?.Forget(obj.map); }
@@ -513,6 +517,7 @@ namespace DeltaV
         {
             if (map == null) return;
             unframedMaps?.Remove(map);
+            playerInput?.Clear();
             shipTransitions?.ForgetMap(map);
             globeDisplay?.Forget(map);
             PlanetGlobeRenderer.InvalidateSilhouette(map);
@@ -884,12 +889,11 @@ namespace DeltaV
                 {
                     long driveStart = Performance.Start();
                     DriveSubject subject = DriveSubject.Of(piloted);
-                    if (obj.TryGetDrive(subject, out DriveInfo info))
-                    {
-                        var command = Pilot.ComposeCommand(piloted);
-                        obj.ApplyDrive(subject, info.ControlFromInput(command.command,
-                            command.assistX, command.assistZ, command.assistW), dt, out _);
-                    }
+                    long composeStart = Performance.Start();
+                    var command = Pilot.ComposeCommand(piloted);
+                    Performance.Record(PerformanceStage.DriveCompose, composeStart);
+                    obj.ApplyDrive(subject, DriveControl.FromInput(command.command,
+                        command.assistX, command.assistZ, command.assistW), dt, out _);
                     objectDriveTime += Performance.Elapsed(driveStart);
                 }
                 // 对象自身保证每 tick 只积分一次；等待分离、失效任务仍保留真实漂移。
@@ -1217,6 +1221,8 @@ namespace DeltaV
             controls?.Reset();
             controls = null;
             pilot = null;
+            playerInput?.Clear();
+            playerInput = null;
             ShipStatusPanel.ClearRuntimeState();
             AimUiRegions.Clear();
             ShellRenderer.ClearRuntimeCaches();

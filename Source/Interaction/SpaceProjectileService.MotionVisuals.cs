@@ -9,10 +9,7 @@ namespace DeltaV
     {
         private const int MaxDriveExhaust = 768;
         private const int MaxDriveFlames = 384;
-        private const int DustCount = 96;
-        private const float DustRadius = 110f;
         private readonly List<CombatParticle> driveExhaust = new List<CombatParticle>();
-        private readonly List<Vector3> nearDust = new List<Vector3>();
         private readonly Dictionary<int, EngineGroups> engineGroups = new Dictionary<int, EngineGroups>();
         private readonly List<int> staleEngineGroups = new List<int>();
         private readonly List<CombatParticle> driveFlames = new List<CombatParticle>();
@@ -50,7 +47,6 @@ namespace DeltaV
             if (frame == null || !WorldRendererUtility.DrawingMap)
             {
                 engineGroups.Clear();
-                nearDust.Clear();
                 pendingHullSound = default;
                 feedbackMapId = -1;
                 return;
@@ -63,7 +59,6 @@ namespace DeltaV
             }
             Vector3 camera = Find.Camera.transform.position;
             Vector3 center = SpaceTransform.MapPointToUniverse(frame, map, new Vector2(camera.x, camera.z));
-            UpdateNearDust(center);
             foreach (SpaceObject obj in universe.objects)
             {
                 if (obj.map == null || obj.map.Disposed || obj.baseTag == SpaceObjectTag.Projectile
@@ -144,27 +139,6 @@ namespace DeltaV
                 Mathf.Lerp(0.2f, 0.65f, Mathf.Clamp01(power / 400f)), false);
         }
 
-        private void UpdateNearDust(Vector3 center)
-        {
-            // 视觉点保存在真实宇宙位置；相机移出范围后才回收，不随按键或船速滚动。
-            for (int i = nearDust.Count - 1; i >= 0; i--)
-            {
-                Vector2 offset = OrbitSphere.Offset(center, nearDust[i]);
-                if (offset.sqrMagnitude <= DustRadius * DustRadius) continue;
-                if (offset.sqrMagnitude > 4f * DustRadius * DustRadius) nearDust.RemoveAt(i);
-                else
-                    // 离开淡出边缘的点从对侧边缘补入，避免持续移动时不断在视野中心冒点。
-                    nearDust[i] = OrbitSphere.Move(center, -offset.normalized * (DustRadius - 0.1f));
-            }
-            while (nearDust.Count < DustCount)
-            {
-                int seed = ++motionSequence;
-                float angle = Variation(seed, 17) * Mathf.PI * 2f;
-                float radius = DustRadius * Mathf.Sqrt(Variation(seed, 31));
-                nearDust.Add(OrbitSphere.Move(center, new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius));
-            }
-        }
-
         private void EmitDriveExhaust(SpaceObject obj, Vector2 point, Vector2 thrustDirection,
             float nozzleSize, float throttle, ThrusterVisualProfile profile, int seed, int now)
         {
@@ -198,40 +172,9 @@ namespace DeltaV
             });
         }
 
-        internal static void NearDustAppearance(float distanceSquared, out float size, out float opacity)
-        {
-            // 纯显示的接近感，不改变粒子宇宙锚点，不需要深度模拟或每粒子材质。
-            float near = 1f - Mathf.Clamp01(distanceSquared / (60f * 60f));
-            near = near * near * (3f - 2f * near);
-            size = Mathf.Lerp(0.85f, 1.15f, near);
-            opacity = Mathf.Lerp(0.8f, 0.9f, near);
-        }
-
         internal int EmitMotionVisuals(SpaceObject frame, Map map, ShellLayer layer, int slot)
         {
-            long dustStart = universe.Performance.Start();
             float altitude = AltitudeLayer.Terrain.AltitudeFor();
-            Vector3 camera = Find.Camera.transform.position;
-            float zoomFade = Mathf.InverseLerp(130f, 65f, Find.CameraDriver.RootSize);
-            Vector2 shipCenter = SpaceTransform.ShipLocalToMap(map, Vector2.zero);
-            MotionParticleRenderer.Begin(MotionParticleRenderer.Kind.Dust);
-            int dustQuads = 0;
-            if (zoomFade > 0f)
-                foreach (Vector3 point in nearDust)
-                {
-                    Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, map, point, altitude);
-                    float distance = new Vector2(pos.x - camera.x, pos.z - camera.z).magnitude;
-                    if (distance >= DustRadius) continue;
-                    NearDustAppearance((new Vector2(pos.x, pos.z) - shipCenter).sqrMagnitude,
-                        out float size, out float opacity);
-                    opacity *= Mathf.InverseLerp(DustRadius, DustRadius * 0.65f, distance) * zoomFade;
-                    MotionParticleRenderer.Quad(MotionParticleRenderer.Kind.Dust, pos, Quaternion.identity,
-                        size, size, new Color(0.85f, 0.93f, 1f, opacity));
-                    dustQuads++;
-                }
-            slot = MotionParticleRenderer.Emit(MotionParticleRenderer.Kind.Dust, layer, slot);
-            universe.Performance.RecordDustQuads(dustQuads);
-            universe.Performance.Record(PerformanceStage.Dust, dustStart);
             long exhaustStart = universe.Performance.Start();
             int now = Find.TickManager.TicksGame;
             CellRect view = Find.CameraDriver.CurrentViewRect;
@@ -332,7 +275,7 @@ namespace DeltaV
 
         internal void ResetMotionFeedback()
         {
-            driveExhaust.Clear(); driveFlames.Clear(); nearDust.Clear(); engineGroups.Clear(); staleEngineGroups.Clear();
+            driveExhaust.Clear(); driveFlames.Clear(); engineGroups.Clear(); staleEngineGroups.Clear();
             pendingHullSound = default; feedbackMapId = -1; hullSoundAfter = 0; motionSequence = 0;
         }
     }

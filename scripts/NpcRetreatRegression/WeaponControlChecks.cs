@@ -34,7 +34,7 @@ internal static partial class Program
             Vector3 muzzle = OrbitSphere.Move(source.pose.position, muzzleOffset);
             var victim = new SpacePose(OrbitSphere.Move(muzzle, new Vector2(200, 15)), 0)
                 { velocity = velocities.Item2 };
-            Check(ShipFireControl.TrySolveIntercept(muzzle, source.pose, victim, 100f, out var aim),
+            Check(SpaceWeaponBallistics.TrySolveIntercept(muzzle, source.pose, victim, 100f, out var aim),
                 $"intercept exists: source {velocities.Item1}, target {velocities.Item2}, muzzle {muzzleOffset}");
             Vector2 aiming = OrbitSphere.Offset(muzzle, aim);
             OrbitSphere.Basis(muzzle, out var east, out var north);
@@ -48,7 +48,7 @@ internal static partial class Program
             Check(OrbitSphere.Offset(arrival, targetArrival).magnitude < 0.1f,
                 "actual inherited launch velocity meets the moving target within 0.1 cell");
         }
-        Check(!ShipFireControl.TrySolveIntercept(source.pose.position, new SpacePose(source.pose.position, 0),
+        Check(!SpaceWeaponBallistics.TrySolveIntercept(source.pose.position, new SpacePose(source.pose.position, 0),
                 new SpacePose(OrbitSphere.Move(source.pose.position, new Vector2(100, 0)), 0)
                     { velocity = new Vector2(200, 0) }, 100, out _),
             "a receding target faster than the projectile has no intercept");
