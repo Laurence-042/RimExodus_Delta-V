@@ -19,6 +19,7 @@ namespace DeltaV
         private readonly HashSet<int> validPointDefenseWeapons = new HashSet<int>();
         private int pointDefensePrunedVersion = -1;
         private readonly List<SpaceObject> interceptionCandidates = new List<SpaceObject>();
+        private readonly Dictionary<int, float> pdReservedDamage = new Dictionary<int, float>();
         private struct PdLock { internal CombatTarget target; internal int retargetAt; }
         internal CombatTarget Target => target;
         internal ShipFireControl(UniverseManager universe, DriveSubject ownerId)
@@ -26,7 +27,7 @@ namespace DeltaV
 
         internal void Clear() { target = default; preferredSystemId = 0; }
         internal void Dispose()
-        { Clear(); pointDefense.Clear(); interceptionCandidates.Clear(); aimCapabilities.Clear(); leadPoints.Clear(); uniqueLeadPoints.Clear(); }
+        { Clear(); pointDefense.Clear(); interceptionCandidates.Clear(); pdReservedDamage.Clear(); aimCapabilities.Clear(); leadPoints.Clear(); uniqueLeadPoints.Clear(); }
         internal void ForgetWeapon(CompSpaceWeapon weapon) => pointDefense.Remove(weapon.parent.thingIDNumber);
 
         internal void ForgetMap(Map map)
@@ -192,6 +193,7 @@ namespace DeltaV
         internal IReadOnlyList<SpaceObject> CollectInterceptionCandidates(ShipBase ship, SpaceObject container)
         {
             interceptionCandidates.Clear();
+            pdReservedDamage.Clear();
             Faction faction = ship.Faction;
             if (faction != null)
                 foreach (SpaceObject obj in universe.objects)
@@ -240,6 +242,16 @@ namespace DeltaV
                 Vector3 muzzle = SpaceWeaponService.TargetingMuzzle(weapon, container);
                 ResolvedCombatTarget victim = default;
                 bool valid = PdTargetValid(weapon, state.target, muzzle, out victim);
+                if (valid && !weapon.WeaponProps.tractor && PdCoverageFull(victim.Container, pdReservedDamage))
+                {
+                    SpaceObject alternative = FindPdTarget(weapon, muzzle);
+                    if (alternative != null && alternative != victim.Container)
+                    {
+                        state.target = CombatTarget.ForContainer(alternative);
+                        pointDefense[weapon.parent.thingIDNumber] = state;
+                        valid = state.target.TryResolve(universe, out victim);
+                    }
+                }
                 if (!valid)
                 {
                     // Tractor retries keep their existing cadence; an invalid interception lock reselects immediately.
@@ -257,8 +269,18 @@ namespace DeltaV
                     valid = state.target.TryResolve(universe, out victim);
                 }
                 if (!valid) continue;
-                universe.Weapons.ApplyControl(weapon, container,
+                bool fired = universe.Weapons.ApplyControl(weapon, container,
                     new WeaponControlCommand(state.target, victim, true, WeaponControlSource.PointDefense));
+                if (fired && !weapon.WeaponProps.tractor)
+                {
+                    float damage = PdDamageAgainst(weapon, victim.Container);
+                    if (damage > 0f)
+                    {
+                        int id = victim.Container.objectId;
+                        pdReservedDamage.TryGetValue(id, out float reserved);
+                        pdReservedDamage[id] = reserved + damage;
+                    }
+                }
             }
         }
 
@@ -341,6 +363,8 @@ namespace DeltaV
             if (own == null) return null;
             SpaceObject best = null;
             float bestScore = float.MaxValue;
+            SpaceObject fallback = null;
+            float fallbackScore = float.MaxValue;
             IEnumerable<SpaceObject> candidates = weapon.WeaponProps.tractor
                 ? universe.Scatter.Candidates : interceptionCandidates;
             foreach (SpaceObject obj in candidates)
@@ -362,13 +386,37 @@ namespace DeltaV
                 float score = closing > 1f
                     ? Mathf.Max(0f, distance) / closing
                     : 10000f + distance;
+                if (score < fallbackScore) { fallbackScore = score; fallback = obj; }
+                if (PdCoverageFull(obj, pdReservedDamage)) continue;
                 if (score < bestScore)
                 {
                     bestScore = score;
                     best = obj;
                 }
             }
-            return best;
+            return best ?? fallback;
+        }
+
+        private static bool PdCoverageFull(SpaceObject target, Dictionary<int, float> reservedDamage)
+        {
+            if (reservedDamage == null || !reservedDamage.TryGetValue(target.objectId, out float damage)) return false;
+            foreach (Thing thing in target.map.listerThings.AllThings)
+                if (thing is Building building && !building.Destroyed
+                    && thing.def.GetCompProperties<CompProperties_SpaceProjectile>() != null)
+                    return damage >= building.HitPoints;
+            return false;
+        }
+
+        private static float PdDamageAgainst(CompSpaceWeapon weapon, SpaceObject target)
+        {
+            ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
+            if (projectile == null) return 0f;
+            foreach (Thing thing in target.map.listerThings.AllThings)
+                if (thing is Building building && !building.Destroyed
+                    && thing.def.GetCompProperties<CompProperties_SpaceProjectile>() != null)
+                    return (SpaceImpactEffects.Resolve(projectile, thing.def)?.defenderEffect?.damage ?? 0f)
+                        * weapon.WeaponProps.impactScale;
+            return 0f;
         }
 
         private static SpaceObject TargetAlongRay(UniverseManager universe, SpaceObject source,

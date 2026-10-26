@@ -460,6 +460,25 @@ internal static partial class Program
         fire.CollectInterceptionCandidates(ship, own);
         Check(fire.FindPdTarget(weapon, muzzle) == incoming,
             "point defense prioritizes an approaching projectile over a nearer receding candidate");
+        var bodyDef = TestBuildingDef("pdCoverageMissile");
+        bodyDef.comps.Add(new CompProperties_SpaceProjectile { guided = true });
+        var body = AddTestBuilding(incoming.map, enemy, 1952, bodyDef, new EmptyComp());
+        Set(typeof(Thing), body, "hitPointsInt", 25);
+        var reserved = (Dictionary<int, float>)typeof(ShipFireControl)
+            .GetField("pdReservedDamage", Private).GetValue(fire);
+        reserved[incoming.objectId] = 20f;
+        Check(fire.FindPdTarget(weapon, muzzle) == incoming,
+            "two point-defense laser hits do not prematurely abandon a 25 HP missile");
+        reserved[incoming.objectId] = 30f;
+        Check(fire.FindPdTarget(weapon, muzzle) == nearest,
+            "a missile with three assigned laser hits gives another target the next weapon");
+        var candidates = (List<SpaceObject>)typeof(ShipFireControl)
+            .GetField("interceptionCandidates", Private).GetValue(fire);
+        candidates.Remove(nearest);
+        Check(fire.FindPdTarget(weapon, muzzle) == incoming,
+            "when every reachable threat is covered, point defense keeps a fallback target");
+        candidates.Add(nearest);
+        reserved.Clear();
         incoming.pose.velocity = Vector2.right * 10f;
         Check(fire.FindPdTarget(weapon, muzzle) == nearest,
             "point defense falls back to the nearest target when none is approaching");
