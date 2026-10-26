@@ -450,7 +450,8 @@ internal readonly struct HeadingPanelAction
         {
         }
 
-        internal override bool GunnersEnabled => combatReady;
+        // Crew stationing follows ship ownership; tactical readiness only gates firing.
+        internal override bool GunnersEnabled => true;
         internal override bool WantsVolley => combatReady && FireControl.Target.HasLock;
 
         internal void SetCombatReady(bool ready)

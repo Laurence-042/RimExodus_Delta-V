@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using RimWorld;
+using UnityEngine;
 using Verse;
+using Verse.AI;
+using Verse.AI.Group;
 
 namespace DeltaV
 {
@@ -143,8 +146,10 @@ namespace DeltaV
             Reset();
             foreach (SpaceObject obj in universe.objects)
             {
-                if (obj?.map == null || obj.map.Disposed || obj.HasTag(SpaceObjectTag.Ship) != true) continue;
-                foreach (ShipBase ship in obj.Ships) For(ship);
+                if (obj?.map == null || obj.map.Disposed) continue;
+                if (obj.HasTag(SpaceObjectTag.Ship))
+                    foreach (ShipBase ship in obj.Ships) For(ship);
+                NotifyGunnerAvailabilityChanged(obj.map);
             }
         }
 
@@ -196,7 +201,10 @@ namespace DeltaV
 
         internal void NotifyGunnerAvailabilityChanged(Map map)
         {
-            if (map != null && !map.Disposed && universe.FrameOf(map)?.HasTag(SpaceObjectTag.Ship) == true)
+            // A destroyed console removes the Ship tag, but its crew still need
+            // a defense duty and its remaining weapons still produce events.
+            if (map != null && !map.Disposed && map.IsPocketMap
+                && universe.FrameOf(map) is MapSpaceObject)
                 pendingGunnerMaps.Add(map);
         }
 
@@ -221,6 +229,97 @@ namespace DeltaV
                 }
                 if (playerOwners.Count > 0)
                     universe.Weapons.DispatchGunners(map, Faction.OfPlayer, playerOwners);
+                EnsureNpcDefenders(map);
+            }
+        }
+
+        private void EnsureNpcDefenders(Map map)
+        {
+            if (!(universe.FrameOf(map) is MapSpaceObject frame)) return;
+            Faction fallbackFaction = null;
+            bool hasValidShip = false;
+            foreach (ShipBase ship in ShipRegistry.AllShipsOnMap(map))
+            {
+                hasValidShip = true;
+                if (ship.Faction == null || ship.Faction == Faction.OfPlayer) continue;
+                if (fallbackFaction != null && fallbackFaction != ship.Faction)
+                { fallbackFaction = null; break; }
+                fallbackFaction = ship.Faction;
+            }
+            fallbackFaction ??= frame.npcFaction ?? frame.faction;
+            if (fallbackFaction == Faction.OfPlayer) fallbackFaction = null;
+            if (fallbackFaction == null && frame.npcBaselineRecorded)
+            {
+                // Existing wrecks can have lost both their console and recorded
+                // faction. Recover only an unambiguous hostile crew faction.
+                foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
+                {
+                    if (pawn.Faction?.HostileTo(Faction.OfPlayer) != true) continue;
+                    if (fallbackFaction != null && fallbackFaction != pawn.Faction)
+                    { fallbackFaction = null; break; }
+                    fallbackFaction = pawn.Faction;
+                }
+            }
+
+            var groups = new Dictionary<DriveSubject, List<Pawn>>();
+            var points = new Dictionary<DriveSubject, IntVec3>();
+            var radii = new Dictionary<DriveSubject, float>();
+            foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
+            {
+                if (pawn?.Spawned != true || pawn.Downed || !pawn.RaceProps.Humanlike
+                    || pawn.Faction?.HostileTo(Faction.OfPlayer) != true
+                    || pawn.IsPrisonerOfColony || pawn.IsSlaveOfColony
+                    || pawn.GetLord() != null || pawn.mindState?.duty != null
+                    || pawn.CurJob?.playerForced == true || pawn.jobs.jobQueue.AnyPlayerForced
+                    || SpaceWeaponManning.WeaponFor(pawn.CurJob) != null) continue;
+
+                ShipBase ship = ShipRegistry.ShipOf(pawn);
+                DriveSubject group;
+                IntVec3 point;
+                float radius;
+                if (ship.IsValid)
+                {
+                    if (ship.Faction != pawn.Faction) continue;
+                    group = ship.Identity;
+                    point = new IntVec3(Mathf.RoundToInt(ship.HullCenter.x), 0,
+                        Mathf.RoundToInt(ship.HullCenter.y));
+                    radius = 10f;
+                    foreach (IntVec3 cell in ship.HullCells)
+                        radius = Mathf.Max(radius, Mathf.Sqrt(
+                            (cell.x - point.x) * (cell.x - point.x)
+                            + (cell.z - point.z) * (cell.z - point.z)) + 6f);
+                }
+                else
+                {
+                    if (pawn.Faction != fallbackFaction
+                        || hasValidShip && frame.npcFaction != pawn.Faction
+                            && frame.faction != pawn.Faction) continue;
+                    group = default;
+                    point = map.Center;
+                    radius = Mathf.Max(map.Size.x, map.Size.z) * 0.75f;
+                }
+                if (!groups.TryGetValue(group, out List<Pawn> crew))
+                    groups[group] = crew = new List<Pawn>();
+                crew.Add(pawn);
+                points[group] = point;
+                radii[group] = radius;
+            }
+            foreach (var entry in groups)
+            {
+                if (entry.Value.Count == 0) continue;
+                Pawn first = entry.Value[0];
+                Lord existing = first.Faction != null ? map.lordManager.lords.Find(lord =>
+                    lord.faction == first.Faction && lord.LordJob is LordJob_DefendPoint
+                    && lord.CurLordToil?.FlagLoc == points[entry.Key]) : null;
+                if (existing != null) existing.AddPawns(entry.Value);
+                else LordMaker.MakeNewLord(first.Faction,
+                    new LordJob_DefendPoint(points[entry.Key], wanderRadius: 5f,
+                        defendRadius: radii[entry.Key], addFleeToil: false),
+                    map, entry.Value);
+                foreach (Pawn pawn in entry.Value)
+                    if (pawn.CurJob?.def == JobDefOf.EnterPortal
+                        && pawn.CurJob.targetA.Thing is SoftDockPortal)
+                        pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
             }
         }
 

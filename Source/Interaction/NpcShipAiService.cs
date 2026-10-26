@@ -92,6 +92,7 @@ namespace DeltaV
         private void RecordBaseline(ShipBase ship, SpaceObject own)
         {
             if (own.npcBaselineRecorded || !ship.IsValid) return;
+            own.npcFaction = ship.Faction;
             own.npcInitialThrust = (universe.FrameOf(ship.Map)?.MotionInfo.AvailableThrust ?? 0f);
             own.npcInitialFirepower = universe.Weapons.EstimateFirepower(ship, 50f, 20f);
             own.npcInitialMainConsoleId = ship.Anchor.thingIDNumber;

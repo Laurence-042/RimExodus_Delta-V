@@ -78,7 +78,8 @@ namespace DeltaV
             Faction enemyFaction = Faction.OfPirates
                 ?? Find.FactionManager.AllFactionsVisible.FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer));
             var enemyContainer = new MapSpaceObject(universe.AllocateOwnerId(), enemyMap,
-                new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad));
+                new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad))
+            { faction = enemyFaction };
             universe.RegisterObject(enemyContainer);
             universe.NoteStructureName(enemyOwnerId, "Enemy ship");
             if (!SpawnShipLayout(enemyPrefab, enemyMap, enemyFaction, enemyOwnerId, universe,
