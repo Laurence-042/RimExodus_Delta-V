@@ -347,10 +347,14 @@ namespace DeltaV
         }
         public void SettleDrive(Vector3 direction, float angle)
         {
+            SettleDrive(new SpacePose(direction, angle));
+        }
+
+        public void SettleDrive(SpacePose target)
+        {
             ClearDrive();
             if (!BeginMotion(1f / 60f)) return;
-            pose.position = direction; pose.angle = angle;
-            pose.velocity = Vector2.zero; pose.angularVelocity = 0f;
+            pose = target;
         }
         internal void CopyFactsTo(SpaceObject other)
         {

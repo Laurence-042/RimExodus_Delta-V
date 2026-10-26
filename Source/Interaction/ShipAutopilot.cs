@@ -35,6 +35,7 @@ namespace DeltaV
             public Func<SpacePose, SpacePose> reference;
             public Func<bool> referenceValid;
             public bool motionOnly;
+            public bool finishWhenMatched;
             public bool intercept;
             public Vector3 direction;
             public float angle;
@@ -46,6 +47,7 @@ namespace DeltaV
             public bool allowVoidThrust;
             public Action onArrived;
             public Action onFailed;
+            public Action<string> onFailedWithReason;
             public readonly IAutopilotGuidance guidance = new OnlineMpcGuidance();
             public readonly double[] controlAcceleration = new double[9];
             public readonly ShipPhysics.ControlModel controlModel = new ShipPhysics.ControlModel();
@@ -143,6 +145,12 @@ namespace DeltaV
                 referenceValid = valid, motionOnly = motionOnly, onFailed = onFailed,
                 allowVoidThrust = false, playerInitiated = true });
 
+        internal void NavigateToReference(DriveSubject subject, Func<SpacePose, SpacePose> reference,
+            Func<bool> valid, Action onArrived, Action<string> onFailed)
+            => Register(new Flight { subject = subject, tracked = true, reference = reference,
+                referenceValid = valid, finishWhenMatched = true, onArrived = onArrived,
+                onFailedWithReason = onFailed, allowVoidThrust = false, playerInitiated = true });
+
         internal bool IsFollowing(DriveSubject subject, Func<SpacePose, SpacePose> reference)
             => active.TryGetValue(subject, out Flight flight) && flight.reference == reference;
 
@@ -161,7 +169,7 @@ namespace DeltaV
         {
             var universe = Current.Game?.GetComponent<UniverseManager>();
             if (flight.subject.Resolve(universe)?.TryGetDrive(flight.subject, out _) != true)
-            { flight.onFailed?.Invoke(); return; }
+            { flight.onFailed?.Invoke(); flight.onFailedWithReason?.Invoke("DeltaV_NavigationSubjectLost"); return; }
             Detach(flight.subject);
             flight.profile = profile; flight.guidance.Reset(profile);
             active[flight.subject] = flight;
@@ -243,10 +251,11 @@ namespace DeltaV
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SpaceObject container = flight.subject.Resolve(universe);
-            if (container == null || !container.TryGetDrive(flight.subject, out DriveInfo report)
-                || (flight.reference != null ? flight.referenceValid?.Invoke() != true
-                    : flight.tracked && !flight.combatOrbit && flight.host == null))
-            { Fail(container, flight, "subject or target unavailable"); return; }
+            if (container == null || !container.TryGetDrive(flight.subject, out DriveInfo report))
+            { Fail(container, flight, "DeltaV_NavigationSubjectLost"); return; }
+            if (flight.reference != null ? flight.referenceValid?.Invoke() != true
+                : flight.tracked && !flight.combatOrbit && flight.host == null)
+            { Fail(container, flight, "DeltaV_NavigationTargetLost"); return; }
             SpacePose combatTarget = default;
             if (flight.combatOrbit && (flight.combatTarget == null || !flight.combatTarget(out combatTarget)))
             { Fail(container, flight, "combat reference unavailable"); return; }
@@ -263,11 +272,13 @@ namespace DeltaV
             float hostOmega = 0f;
             float combatHorizon = 0f;
             float combatReferenceTime = 0f;
+            SpacePose arrivalReference = default;
             if (flight.tracked)
             {
                 if (flight.reference != null)
                 {
                     SpacePose reference = flight.reference(container.pose);
+                    arrivalReference = reference;
                     targetDirection = reference.position;
                     targetAngle = reference.angle;
                     hostVelocity = reference.velocity;
@@ -323,6 +334,7 @@ namespace DeltaV
             {
                 targetDirection = flight.direction;
                 targetAngle = flight.angle;
+                arrivalReference = new SpacePose(targetDirection, targetAngle);
             }
             SpacePose pose = container.pose;
             Vector2 posErr = -OrbitSphere.Offset(targetDirection, pose.position);
@@ -339,13 +351,24 @@ namespace DeltaV
                 flight.diagnosticActualOmega = pose.angularVelocity;
             }
 
-            if (!flight.tracked
+            if ((!flight.tracked || flight.finishWhenMatched)
                 && posErr.sqrMagnitude < ArrivePositionEpsilon * ArrivePositionEpsilon
                 && vel.sqrMagnitude < ArriveVelocityEpsilon * ArriveVelocityEpsilon
                 && Mathf.Abs(angleErr) < ArriveAngleEpsilon
                 && Mathf.Abs(omega) < ArriveOmegaEpsilon)
             {
-                Arrive(container, flight);
+                Arrive(container, flight, arrivalReference);
+                return;
+            }
+
+            if (flight.finishWhenMatched && report.AvailableThrust <= 0f)
+            {
+                Fail(container, flight, "DeltaV_NavigationNoThrust");
+                return;
+            }
+            if (flight.finishWhenMatched && flight.elapsed > MaxFlightTicks)
+            {
+                Fail(container, flight, "DeltaV_NavigationTimedOut");
                 return;
             }
 
@@ -480,7 +503,8 @@ namespace DeltaV
                 torque = flight.heldCommand.desiredTorque, voidBlend = voidBlend,
                 playerInitiated = flight.playerInitiated };
             DriveResult result = container.ApplyDrive(flight.subject, control, dt, out float torque);
-            if (result == DriveResult.InvalidSubject) Fail(container, flight, "drive unavailable");
+            if (result == DriveResult.InvalidSubject)
+                Fail(container, flight, "DeltaV_NavigationSubjectLost");
             if (flight.combatOrbit)
             { flight.diagnosticRequestedTorque = control.torque; flight.diagnosticAllocatedTorque = torque; }
         }
@@ -583,12 +607,13 @@ namespace DeltaV
             active.Remove(flight.subject);
             container?.ClearDrive();
             flight.onFailed?.Invoke();
+            flight.onFailedWithReason?.Invoke(reason);
         }
 
-        private void Arrive(SpaceObject container, Flight flight)
+        private void Arrive(SpaceObject container, Flight flight, SpacePose reference)
         {
             active.Remove(flight.subject);
-            container.SettleDrive(flight.direction, flight.angle);
+            container.SettleDrive(reference);
             flight.onArrived?.Invoke();
         }
 

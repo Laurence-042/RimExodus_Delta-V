@@ -17,6 +17,7 @@ namespace DeltaV
             public readonly Map targetMap;
             public readonly Map sourceMap;
             public readonly float relativeAngle;
+            internal readonly System.Func<SpacePose, SpacePose> reference;
             public int holdTicks;
 
             internal DriftSyncPlan(PilotTarget target, SpaceObject host, float relativeAngle)
@@ -27,6 +28,7 @@ namespace DeltaV
                 targetMap = host.map;
                 sourceMap = target.Map;
                 this.relativeAngle = SpaceTransform.WrapAngle(relativeAngle);
+                reference = Reference;
             }
 
             public SpacePose Reference(SpacePose own)
@@ -98,7 +100,8 @@ namespace DeltaV
         {
             SpaceObject own = universe.FrameOf(target.Map);
             if (own == null || host?.map == null) return;
-            CancelSelectionOrPlan(universe, silent: true);
+            if (!universe.Controls.SelectPlayerAutoTask(target.Vessel, PlayerAutoTaskKind.Sync,
+                activate: false)) return;
             plan = new DriftSyncPlan(target, host, ShipOrientation.SnapAngle(own.pose.angle - host.pose.angle));
             EngageAutopilot(universe);
             Messages.Message("DeltaV_SyncStarted".Translate(host.label), MessageTypeDefOf.NeutralEvent, false);
@@ -107,11 +110,9 @@ namespace DeltaV
         public void EngageAutopilot(UniverseManager universe)
         {
             if (plan == null) return;
-            if (universe.Pilot.PilotedTarget(universe).Identity == plan.Target.Identity) universe.Pilot.Exit(universe);
             DriftSyncPlan reference = plan;
-            universe.Autopilot.FollowReference(DriveSubject.Of(plan.Target), reference.Reference,
+            universe.Autopilot.FollowReference(DriveSubject.Of(plan.Target), reference.reference,
                 true, () => IsValid(universe, reference), OnNavigationFailed);
-            universe.Pilot.ArmAutopilotInput(plan.Target);
         }
 
         public bool AutopilotEngaged(UniverseManager universe) => plan != null && universe.Autopilot.IsActive(DriveSubject.Of(plan.Target));
@@ -119,8 +120,7 @@ namespace DeltaV
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe?.Approach.plan == null) return;
-            universe.Pilot.DisarmAutopilotInput(universe.Approach.plan.Target);
-            Messages.Message("DeltaV_DockAutopilotStopped".Translate(), MessageTypeDefOf.NeutralEvent, false);
+            universe.Approach.CancelSelectionOrPlan(universe, "sync navigation failed");
         }
 
         internal static bool MatchesMotion(SpacePose own, SpacePose host)
@@ -187,11 +187,12 @@ namespace DeltaV
         public void CancelSelectionOrPlan(UniverseManager universe, string reason = null, bool silent = false)
         {
             PilotTarget target = ApproachTarget;
+            DriftSyncPlan previous = plan;
             plan = null;
             if (target.IsValid)
             {
-                universe?.Autopilot.Detach(DriveSubject.Of(target), "sync cancelled");
-                universe?.Pilot.DisarmAutopilotInput(target);
+                universe?.Autopilot.DetachReference(DriveSubject.Of(target), previous.reference);
+                universe?.Controls.PlayerFor(target.Vessel)?.ClearAutoTask(PlayerAutoTaskKind.Sync);
             }
             if (!silent) Messages.Message("DeltaV_DockPlanCancelled".Translate(), MessageTypeDefOf.NeutralEvent, false);
         }

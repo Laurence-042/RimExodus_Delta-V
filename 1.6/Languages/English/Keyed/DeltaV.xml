@@ -18,6 +18,26 @@
   <DeltaV_ControlManual>manual control</DeltaV_ControlManual>
   <DeltaV_ControlAutopilot>autopilot</DeltaV_ControlAutopilot>
   <DeltaV_ControlSwitchAutopilot>Switch to autopilot</DeltaV_ControlSwitchAutopilot>
+  <DeltaV_AutoTaskMenu>Automatic task: {0}</DeltaV_AutoTaskMenu>
+  <DeltaV_AutoDrift>Free drift</DeltaV_AutoDrift>
+  <DeltaV_AutoSync>Match drift</DeltaV_AutoSync>
+  <DeltaV_AutoCombat>Combat maneuver</DeltaV_AutoCombat>
+  <DeltaV_AutoNavigate>Go to pose</DeltaV_AutoNavigate>
+  <DeltaV_AutoSoftDock>Soft docking</DeltaV_AutoSoftDock>
+  <DeltaV_AutoPaused>Paused</DeltaV_AutoPaused>
+  <DeltaV_AutoReady>Stable</DeltaV_AutoReady>
+  <DeltaV_AutoSearching>Seeking target</DeltaV_AutoSearching>
+  <DeltaV_AutoRunning>In progress</DeltaV_AutoRunning>
+  <DeltaV_AutoStabilizing>Stabilizing {0}/{1} ticks</DeltaV_AutoStabilizing>
+  <DeltaV_AutoDistance>{0} cells to target</DeltaV_AutoDistance>
+  <DeltaV_AutoTaskLost>Automatic task target lost; switched to free drift.</DeltaV_AutoTaskLost>
+  <DeltaV_NavigationArrived>Target pose reached; autopilot stopped.</DeltaV_NavigationArrived>
+  <DeltaV_NavigationNoReference>No usable reference object is visible.</DeltaV_NavigationNoReference>
+  <DeltaV_NavigationTargetLost>Navigation target lost; switched to free drift.</DeltaV_NavigationTargetLost>
+  <DeltaV_NavigationSubjectLost>Ship can no longer be driven; navigation ended.</DeltaV_NavigationSubjectLost>
+  <DeltaV_NavigationNoThrust>No usable thrust remains; navigation ended.</DeltaV_NavigationNoThrust>
+  <DeltaV_NavigationTimedOut>Navigation timed out; switched to free drift.</DeltaV_NavigationTimedOut>
+  <DeltaV_NavigationDragHint>Drag out the desired bow heading; hold the reference modifier on release for a moving reference.</DeltaV_NavigationDragHint>
   <DeltaV_HudSpeed>Speed: {0} c/s</DeltaV_HudSpeed>
   <DeltaV_HudHeading>Heading: {0}°</DeltaV_HudHeading>
   <DeltaV_HudTurnRate>Turn rate: {0}°/s</DeltaV_HudTurnRate>

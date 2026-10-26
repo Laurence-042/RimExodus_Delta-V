@@ -776,6 +776,7 @@ namespace DeltaV
             // 驾驶状态维护（自动退出 + Harmony 按键抑制开关）。聚焦跟随由 CurrentMap 天然承载。
             Pilot.UpdateFrameState(this);
             ShellRenderer.DrawNonFocusedShells(this);
+            Pilot.DrawNavigationPreview();
             WorldShipMarkerRenderer.DrawPlayerShips(this);
             ThrusterEffects.Draw(this);
             // 月池力场（墙壁式连接图；聚焦图每帧绘制，外壳路径在 MapOverlayRenderer）。
@@ -964,6 +965,7 @@ namespace DeltaV
                 Controls.ToggleFireControl(selectedShip);
             }
             ShipStatusPanel.Draw(this);
+            Pilot.DrawNavigationHint();
             Designator_ReassignSubstructure.DrawPendingLabels();
             HandleShellClick();
             HandleWorldMarkerClick();

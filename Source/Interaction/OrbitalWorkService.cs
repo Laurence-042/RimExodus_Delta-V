@@ -115,9 +115,8 @@ namespace DeltaV
             universe.Approach.CancelSelectionOrPlan(universe, silent: true);
             foreach (ShipBase ship in ships)
             {
-                universe.Controls.PlayerFor(ship)?.SetAutoManeuver(false);
+                universe.Controls.PlayerFor(ship)?.ReplaceAutoTask(PlayerAutoTaskKind.Drift);
                 universe.Autopilot.Detach(ship.Identity, "EVA started");
-                universe.Pilot.DisarmAutopilotInput(PilotTarget.Of(ship));
             }
             universe.Pilot.Exit(universe);
         }

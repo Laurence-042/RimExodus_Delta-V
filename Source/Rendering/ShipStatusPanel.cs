@@ -164,11 +164,10 @@ namespace DeltaV
             if (hasShip)
             {
                 DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(selected.Map)?.MotionInfo;
-                string controlLabel = controlState == ShipControlState.Autopilot
-                    ? "DeltaV_ControlAutopilot".Translate()
-                    : controlState == ShipControlState.Manual
-                        ? "DeltaV_ControlManual".Translate()
-                        : "DeltaV_ControlUncontrolled".Translate();
+                string controlLabel = universe.Controls.PlayerFor(selected)?.FlightStatusLabel
+                    ?? (controlState == ShipControlState.Autopilot
+                        ? "DeltaV_ControlAutopilot".Translate()
+                        : "DeltaV_ControlUncontrolled".Translate());
                 statusLines.Add("DeltaV_PanelFlightState".Translate(
                     selected.State == ShipDerivedState.FreeFlight
                         ? "DeltaV_FlightStateFree".Translate()

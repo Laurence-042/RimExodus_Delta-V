@@ -392,31 +392,16 @@ namespace DeltaV
                 player.DecideAutoCombat(ship);
         }
 
-        public bool AutoManeuverActiveFor(ShipBase ship) => ship.IsValid
-            && controllers.TryGetValue(ship.Identity, out ShipController controller)
-            && controller is PlayerShipController player && player.AutoManeuverEnabled;
-
-        public void ToggleAutoManeuver(ShipBase ship)
+        internal bool SelectPlayerAutoTask(ShipBase ship, PlayerAutoTaskKind task,
+            PlayerNavigationTarget navigation = default, bool activate = true)
         {
-            if (!ship.IsValid) return;
+            if (!ship.IsValid) return false;
             PlayerShipController player = PlayerFor(ship);
-            if (player == null) return;
-            bool enable = !player.AutoManeuverEnabled;
-            if (enable)
-            {
-                if (universe.FrameOf(ship.Map)?.projectileRoleOverride == true) return;
-                if (universe.Pilot.PilotedShip(universe).Identity == ship.Identity)
-                    universe.Pilot.Exit(universe);
-                universe.Autopilot.Detach(DriveSubject.Of(ship), "combat maneuver engaged");
-                player.SetAutoManeuver(true);
-                universe.Pilot.ArmAutopilotInput(ship);
-                player.DecideAutoCombat(ship);
-            }
-            else
-            {
-                player.SetAutoManeuver(false);
-                universe.Pilot.DisarmAutopilotInput(ship);
-            }
+            if (player == null || player.EntryBlockReason(PilotTarget.Of(ship)) != PilotEntryBlockReason.None
+                || universe.FrameOf(ship.Map)?.projectileRoleOverride == true) return false;
+            if (player.ManualControl) universe.Pilot.Exit(universe, resumeAutoTask: false);
+            player.ReplaceAutoTask(task, navigation, activate);
+            return true;
         }
 
         internal int EmitAimMarkers(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)

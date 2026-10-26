@@ -128,20 +128,14 @@ internal readonly struct HeadingPanelAction
             if (!panelTarget.IsValid || !HasAuthority(panelTarget)) return;
             if (universe.FrameOf(panelTarget.Map)?.projectileRoleOverride == true) return;
             ShipControlState state = universe.Pilot.GetControlState(panelTarget);
-            bool hasPlan = universe.Approach.ActivePlan?.Target.Identity.Equals(panelTarget.Identity) == true;
-            string pilotLabel = state == ShipControlState.Manual && hasPlan
+            string pilotLabel = state == ShipControlState.Manual
                 ? "DeltaV_ControlSwitchAutopilot".Translate()
-                : universe.Pilot.IsPlayerInputArmed(panelTarget)
-                    ? "DeltaV_PilotButtonExit".Translate()
-                    : "DeltaV_PilotButtonEnter".Translate();
+                : "DeltaV_PilotButtonEnter".Translate();
             actions.Add(new PilotPanelAction(pilotLabel,
                 () => universe.Pilot.ToggleControl(universe, panelTarget)));
-            if (hasPlan)
-                actions.Add(new PilotPanelAction("DeltaV_DockCancelButton".Translate(),
-                    () => universe.Approach.CancelSelectionOrPlan(universe, "user")));
-            else if (panelTarget.Vessel.State == ShipDerivedState.FreeFlight)
-                actions.Add(new PilotPanelAction("DeltaV_SyncButton".Translate(),
-                    () => universe.Worksites.SelectSyncTarget(panelTarget)));
+            if (this is PlayerShipController player)
+                actions.Add(new PilotPanelAction("DeltaV_AutoTaskMenu".Translate(player.AutoTaskLabel),
+                    () => player.ShowAutoTaskMenu(panelTarget)));
             if (panelTarget.Vessel.State == ShipDerivedState.FreeFlight)
                 actions.Add(new PilotPanelAction("DeltaV_StartEVA".Translate(),
                     () => universe.Worksites.Start(panelTarget)));
@@ -270,11 +264,10 @@ internal readonly struct HeadingPanelAction
     /// 玩家 controller：手操输入与自动驾驶两种驱动来源都在本子类（切入自动驾驶不把
     /// 玩家 controller 换成 NPC controller），并承担按键接管、拆船及留置确认等交互。
     /// </summary>
-    public sealed class PlayerShipController : ShipController
+    public sealed partial class PlayerShipController : ShipController
     {
         private SpaceAimController aim;
         private bool battleStations;
-        private bool autoManeuverEnabled;
 
         internal PlayerShipController(UniverseManager universe, DriveSubject ownerId) : base(universe, ownerId)
         {
@@ -315,12 +308,6 @@ internal readonly struct HeadingPanelAction
                         ? "DeltaV_FireControlAutomatic" : "DeltaV_FireControlManual").Translate()),
                 () => universe.Controls.ToggleFireControl(ship),
                 "DeltaV_PanelFireControlTip".Translate()));
-            beforeGroups.Add(new PilotPanelAction(
-                "DeltaV_PanelAutoManeuver".Translate(
-                    universe.Controls.AutoManeuverActiveFor(ship)
-                        ? "DeltaV_On".Translate() : "DeltaV_Off".Translate()),
-                () => universe.Controls.ToggleAutoManeuver(ship),
-                "DeltaV_PanelAutoManeuverTip".Translate()));
             if (!hasWeapons) return;
             afterGroups.Add(new PilotPanelAction("DeltaV_PanelBattleStationsOn".Translate(),
                 () => universe.Controls.EnterBattleStations(ship.Map),
@@ -352,21 +339,15 @@ internal readonly struct HeadingPanelAction
         internal void SetBattleStations(bool active) { battleStations = active; }
         internal ShipFireControlMode FireControlMode =>
             ShipRegistry.ShipByIdentity(OwnerId).Combat?.fireControlMode ?? ShipFireControlMode.Automatic;
-        internal bool AutoManeuverEnabled => autoManeuverEnabled;
-        internal void SetAutoManeuver(bool enabled)
-        {
-            autoManeuverEnabled = enabled;
-            if (!enabled) AutoManeuver.Clear(ShipRegistry.ShipByIdentity(OwnerId));
-        }
-
         internal void DecideAutoCombat(ShipBase ship)
         {
             SpaceObject own = universe.FrameOf(ship.Map);
             if (own == null || universe.Lifecycle.IsFrozen(ship.Map)) return;
-            if (FireControlMode == ShipFireControlMode.Automatic || autoManeuverEnabled)
+            if (FireControlMode == ShipFireControlMode.Automatic || AutoTask == PlayerAutoTaskKind.Combat)
                 FireControl.Decide(ship, own);
             else FireControl.Clear();
-            if (autoManeuverEnabled && ship.CanDriveIn(own) && !own.projectileRoleOverride)
+            if (AutoTask == PlayerAutoTaskKind.Combat && !ManualControl
+                && ship.CanDriveIn(own) && !own.projectileRoleOverride)
                 AutoManeuver.Decide(ship, own, FireControl.Target, null,
                     allowBoarding: false, playerInitiated: true);
         }
@@ -552,11 +533,9 @@ internal readonly struct HeadingPanelAction
         private readonly UniverseManager universe;
         private readonly HashSet<KeyBindingDef> loggedSuppressedDefs = new HashSet<KeyBindingDef>();
 
-        /// <summary>自动驾驶输入武装的船（按任意驾驶键直接接管的对象）。</summary>
-        private DriveSubject autopilotInputOwnerId;
-
         /// <summary>玩家当前手操的 controller；全部船体均取同一身份注册表。</summary>
         private PlayerShipController activePlayerController;
+        private PlayerNavigationInput navigationInput;
 
         public long SuppressedReads { get; private set; }
 
@@ -587,6 +566,7 @@ internal readonly struct HeadingPanelAction
 
         internal void ForgetController(ShipController controller)
         {
+            if (navigationInput?.OwnerId == controller.OwnerId) navigationInput = null;
             if (activePlayerController != controller) return;
             activePlayerController.Exit();
             activePlayerController = null;
@@ -608,39 +588,33 @@ internal readonly struct HeadingPanelAction
             return target.Vessel ?? ShipBase.Invalid;
         }
 
+        internal bool NavigationTargetingActive => navigationInput != null;
+
+        internal void BeginNavigationTargeting(PilotTarget target)
+        {
+            PlayerShipController controller = ControllerFor(target);
+            if (controller == null || !controller.CanEnter(target) || target.Map != Find.CurrentMap
+                || universe.FrameOf(target.Map)?.projectileRoleOverride == true) return;
+            if (Find.Targeter.IsTargeting || Find.DesignatorManager.SelectedDesignator != null) return;
+            navigationInput = new PlayerNavigationInput(universe, target.Identity);
+        }
+
+        internal void ProcessNavigationInputEvent() => navigationInput?.ProcessEvent();
+        internal void DrawNavigationPreview() => navigationInput?.DrawPreview();
+        internal void DrawNavigationHint() => navigationInput?.DrawHint();
+        internal void EndNavigationTargeting() => navigationInput = null;
+
         public ShipControlState GetControlState(PilotTarget target)
         {
             if (!target.IsValid) return ShipControlState.Uncontrolled;
-            if (universe.Autopilot.IsActive(DriveSubject.Of(target))) return ShipControlState.Autopilot;
-            return ActiveController != null && ActiveController.target.Identity.Equals(target.Identity)
-                ? ShipControlState.Manual
-                : ShipControlState.Uncontrolled;
+            if (ActiveController != null && ActiveController.target.Identity.Equals(target.Identity))
+                return ShipControlState.Manual;
+            if (universe.Controls.PlayerFor(target.Vessel) != null
+                || universe.Autopilot.IsActive(DriveSubject.Of(target))) return ShipControlState.Autopilot;
+            return ShipControlState.Uncontrolled;
         }
 
         public ShipControlState GetControlState(ShipBase ship) => GetControlState(PilotTarget.Of(ship));
-
-        public bool IsPlayerInputArmed(PilotTarget target)
-        {
-            ShipControlState state = GetControlState(target);
-            return state == ShipControlState.Manual
-                || state == ShipControlState.Autopilot && autopilotInputOwnerId.Equals(target.Identity);
-        }
-
-        public bool IsPlayerInputArmed(ShipBase ship) => IsPlayerInputArmed(PilotTarget.Of(ship));
-
-        public void ArmAutopilotInput(PilotTarget target)
-        {
-            autopilotInputOwnerId = target.Identity;
-        }
-
-        public void DisarmAutopilotInput(PilotTarget target = default)
-        {
-            if (!target.IsValid || autopilotInputOwnerId.Equals(target.Identity)) autopilotInputOwnerId = default;
-        }
-
-        public void ArmAutopilotInput(ShipBase ship) => ArmAutopilotInput(PilotTarget.Of(ship));
-
-        public void DisarmAutopilotInput(ShipBase ship) => DisarmAutopilotInput(PilotTarget.Of(ship));
 
         /// <summary>
         /// 驾驶切换统一入口（面板按钮/驾驶台 gizmo/快捷键共用）：目标船由调用方显式传入
@@ -655,17 +629,7 @@ internal readonly struct HeadingPanelAction
                 return;
             }
             ShipControlState state = GetControlState(target);
-            if (state == ShipControlState.Autopilot)
-            {
-                if (IsPlayerInputArmed(target)) DisarmAutopilotInput(target);
-                else ArmAutopilotInput(target);
-            }
-            else if (state == ShipControlState.Manual
-                && universe.Approach.ActivePlan?.Target.Identity.Equals(target.Identity) == true)
-            {
-                universe.Approach.EngageAutopilot(universe);
-            }
-            else if (state == ShipControlState.Manual)
+            if (state == ShipControlState.Manual)
             {
                 Exit(universe, "DeltaV_PilotOff".Translate(target.Label));
             }
@@ -702,6 +666,7 @@ internal readonly struct HeadingPanelAction
 
         public void Enter(UniverseManager universe, PilotTarget target)
         {
+            EndNavigationTargeting();
             PlayerShipController controller = ControllerFor(target);
             if (controller == null || !controller.CanEnter(target))
             {
@@ -715,21 +680,21 @@ internal readonly struct HeadingPanelAction
                 }
                 return;
             }
-            // 手操打断自动驾驶（不取消对接计划——完成判据是几何的，手飞到位照样对接）。
+            // 手操暂停自动任务；同步的几何完成判据仍可在手飞时成立。
             if (universe.Autopilot.IsActive(DriveSubject.Of(target)))
             {
                 universe.Autopilot.Detach(DriveSubject.Of(target), "manual input");
                 DeltaVLog.Message(DeltaVLogModule.Core,
                     $"autopilot interrupted by manual input: target key #{target.Identity} (pilot mode engaged)");
-                Messages.Message("DeltaV_DockAutopilotStopped".Translate(), MessageTypeDefOf.NeutralEvent, false);
             }
-            controller.SetAutoManeuver(false);
-            DisarmAutopilotInput(target);
+            universe.SoftDock.PauseSteeringFor(target.Identity);
             if (activePlayerController != null && activePlayerController != controller)
             {
                 DriveSubject previousOwner = activePlayerController.OwnerId;
-                activePlayerController.Exit();
+                PlayerShipController previous = activePlayerController;
+                previous.Exit();
                 activePlayerController = null;
+                previous.ResumeAutoTask();
                 if (previousOwner.key > 0) universe.Controls.ReleaseDebugControl(previousOwner);
             }
             activePlayerController = controller;
@@ -742,7 +707,8 @@ internal readonly struct HeadingPanelAction
 
         public void Enter(UniverseManager universe, ShipBase ship) => Enter(universe, PilotTarget.Of(ship));
 
-        public void Exit(UniverseManager universe, string message = null)
+        public void Exit(UniverseManager universe, string message = null,
+            bool resumeAutoTask = true)
         {
             universe.PlayerInput.Clear();
             if (activePlayerController == null)
@@ -752,8 +718,10 @@ internal readonly struct HeadingPanelAction
             DriveSubject ownerId = activePlayerController.OwnerId;
             string label = activePlayerController.target.Label;
             Log.Message($"[DeltaV] Pilot mode disengaged (was '{label}'; suppressed reads: {SuppressedReads}).");
-            activePlayerController.Exit();
+            PlayerShipController previous = activePlayerController;
+            previous.Exit();
             activePlayerController = null;
+            if (resumeAutoTask) previous.ResumeAutoTask();
             if (ownerId.key > 0) universe.Controls.ReleaseDebugControl(ownerId);
             // 瞄准会话留在本船 controller（独立于驾驶与自动驾驶，对接中可用），
             // 退出驾驶不再连带退出瞄准。
@@ -764,30 +732,18 @@ internal readonly struct HeadingPanelAction
             }
         }
 
-        /// <summary>每帧由 UniverseManager.GameComponentUpdate 调用：维护自动退出与抑制开关。
-        /// 自动驾驶 = 「驾驶此船」的特殊状态（2026-09-21 用户定案）：计划船被随动自动
-        /// 驾驶且聚焦其图时占用驾驶位——驾驶键抑制生效，且按下任意 W/A/S/D/Q/E 直接
-        /// 打断自动驾驶并接管手操（Enter 内部 Detach；输入为轮询采样，同帧即生效）。
-        /// 抑制从关闭翻转为开启时输出一次性摘要（哪些原版绑定将被抑制）——必要日志，常开。</summary>
+        /// <summary>每帧维护聚焦玩家船的手动/自动交接和原版按键抑制。
+        /// 自动控制下任一飞行键同帧接管手动，暂停当前自动任务；面板与驾驶键
+        /// 同样经 Enter/Exit 交接。抑制启用时仅输出一次绑定摘要。</summary>
         public void UpdateFrameState(UniverseManager universe)
         {
             PilotTarget piloted = PilotedTarget(universe);
             Map focusedMap = Find.CurrentMap;
-            PilotTarget autopilotTarget = PilotTarget.Invalid;
-            if (focusedMap != null)
-            {
-                foreach (ShipBase ship in ShipRegistry.AllShipsOnMap(focusedMap))
-                {
-                    if (universe.Autopilot.IsActive(DriveSubject.Of(ship)))
-                    {
-                        autopilotTarget = PilotTarget.Of(ship);
-                        break;
-                    }
-                }
-
-            }
-            bool focusOnAutopilotShip = autopilotTarget.IsValid && autopilotTarget.Map == focusedMap
-                && IsPlayerInputArmed(autopilotTarget);
+            ShipBase selected = focusedMap != null ? SelectedShipOnMap(focusedMap) : ShipBase.Invalid;
+            PilotTarget autopilotTarget = PilotTarget.Of(selected);
+            bool focusOnAutopilotShip = autopilotTarget.IsValid
+                && universe.Controls.PlayerFor(selected) != null
+                && GetControlState(autopilotTarget) == ShipControlState.Autopilot;
 
             if (!piloted.IsValid)
             {

@@ -73,6 +73,8 @@ namespace DeltaV
 
         public static Verse.KeyBindingDef DeltaV_AssistBrake;
 
+        public static Verse.KeyBindingDef DeltaV_NavigationReferenceModifier;
+
         // 玩家火控模式切换（默认 B；驾驶期抑制其原版功能）。
         public static Verse.KeyBindingDef DeltaV_AimMode;
 

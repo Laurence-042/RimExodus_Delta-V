@@ -13,6 +13,9 @@ namespace DeltaV
         private DriveSubject controlled;
         private int nextSearch;
         private CompSoftDocking steering;
+        private CompSoftDocking suppressedSteering;
+        private readonly HashSet<CompSoftDocking> restoredSuppressed = new HashSet<CompSoftDocking>();
+        private bool suppressRestoredSteering;
         private DriveSubject steeringShip;
         private System.Func<SpacePose, SpacePose> steeringReference;
         public bool Enabled => universe.SoftDockEnabled;
@@ -36,17 +39,21 @@ namespace DeltaV
             if (Enabled == enabled) return;
             CancelAllTransfers();
             StopSteering();
+            suppressedSteering = null;
+            restoredSuppressed.Clear();
             if (!enabled)
                 foreach (Building_DockingPort port in ports) port.Docking?.Clear();
             universe.SoftDockEnabled = enabled;
             ports.Clear(); controlled = default; nextSearch = 0;
             if (!enabled) return;
-            RestoreEnabled();
+            RestoreEnabled(suppressRestored: false);
         }
 
-        internal void RestoreEnabled()
+        internal void RestoreEnabled(bool suppressRestored = true)
         {
             if (!Enabled) return;
+            suppressRestoredSteering = suppressRestored;
+            restoredSuppressed.Clear();
             ports.Clear(); controlled = default; nextSearch = 0;
             // Explicit enable and load restore build the index once; no periodic map scan.
             foreach (Map map in Find.Maps)
@@ -74,7 +81,8 @@ namespace DeltaV
         }
 
         private bool SteeringValid(CompSoftDocking dock)
-            => dock?.CanSteer(universe, this, controlled) == true;
+            => dock != suppressedSteering && !restoredSuppressed.Contains(dock)
+                && dock?.CanSteer(universe, this, controlled) == true;
 
         private void StartSteering(CompSoftDocking dock)
         {
@@ -82,29 +90,55 @@ namespace DeltaV
             ShipBase ship = ShipRegistry.ShipOf(dock.Port);
             if (ship?.IsValid != true) return;
             steering = dock; steeringShip = ship.Identity;
-            // Manual flight retains control; the post-integration assist remains available.
-            if (universe.Pilot.PilotedTarget(universe).Identity == ship.Identity) return;
-            PilotTarget target = PilotTarget.Of(ship);
             if (universe.Approach.ActivePlan?.Target.Identity == ship.Identity)
                 universe.Approach.CancelSelectionOrPlan(universe, silent: true);
-            universe.Controls.PlayerFor(ship)?.SetAutoManeuver(false);
+            universe.Controls.PlayerFor(ship)?.ReplaceAutoTask(PlayerAutoTaskKind.SoftDock,
+                activate: false);
+            // Manual flight retains control; the post-integration assist remains available.
+            if (universe.Pilot.PilotedTarget(universe).Identity == ship.Identity) return;
+            ResumeSteeringFor(ship.Identity);
+        }
+
+        internal bool ResumeSteeringFor(DriveSubject identity)
+        {
+            if (steeringShip != identity || !SteeringValid(steering)) return false;
+            CompSoftDocking dock = steering;
             steeringReference = _ => dock.AlignmentReference(universe);
             universe.Autopilot.FollowReference(steeringShip, steeringReference, false,
-                () => SteeringValid(dock), () => universe.Pilot.DisarmAutopilotInput(target));
-            if (universe.Autopilot.IsFollowing(steeringShip, steeringReference))
-                universe.Pilot.ArmAutopilotInput(target);
+                () => SteeringValid(dock), () => StopSteering());
+            return universe.Autopilot.IsFollowing(steeringShip, steeringReference);
+        }
+
+        internal void PauseSteeringFor(DriveSubject identity)
+        {
+            if (steeringShip != identity || steeringReference == null) return;
+            universe.Autopilot.DetachReference(identity, steeringReference);
+            steeringReference = null;
+        }
+
+        internal void StopSteeringFor(DriveSubject identity)
+        {
+            if (steeringShip != identity) return;
+            suppressedSteering = steering;
+            StopSteering();
         }
 
         private void StopSteering()
         {
-            if (steeringReference != null && universe.Autopilot.DetachReference(steeringShip, steeringReference))
-                universe.Pilot.DisarmAutopilotInput(PilotTarget.Of(ShipRegistry.ShipByIdentity(steeringShip)));
+            DriveSubject oldShip = steeringShip;
+            if (steeringReference != null)
+                universe.Autopilot.DetachReference(oldShip, steeringReference);
             steering = null; steeringReference = null; steeringShip = default;
+            if (oldShip.key > 0)
+                universe.Controls.PlayerFor(ShipRegistry.ShipByIdentity(oldShip))
+                    ?.ClearAutoTask(PlayerAutoTaskKind.SoftDock);
         }
 
         internal void Tick()
         {
             if (!Enabled) return;
+            if (suppressedSteering?.IsActiveOwner != true) suppressedSteering = null;
+            restoredSuppressed.RemoveWhere(dock => dock?.IsActiveOwner != true);
             PilotTarget piloted = universe.Pilot.PilotedTarget(universe);
             if (piloted.IsValid && !piloted.Identity.shuttle && piloted.Identity != controlled)
             {
@@ -129,10 +163,19 @@ namespace DeltaV
             // Existing saved pairs claim their original peer before new candidate searches.
             foreach (Building_DockingPort port in ordered)
                 if (port.Docking?.TryRestore(universe, this, controlled) == true && steering == null)
-                    StartSteering(port.Docking);
+                {
+                    if (suppressRestoredSteering)
+                    {
+                        restoredSuppressed.Add(port.Docking);
+                    }
+                    else StartSteering(port.Docking);
+                }
             foreach (Building_DockingPort port in ordered)
                 if (port.Docking?.TryFindCapture(universe, this, controlled, ordered) == true && steering == null)
+                {
+                    suppressRestoredSteering = false;
                     StartSteering(port.Docking);
+                }
         }
 
         internal void Draw()

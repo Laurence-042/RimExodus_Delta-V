@@ -18,6 +18,26 @@
   <DeltaV_ControlManual>正在手动控制</DeltaV_ControlManual>
   <DeltaV_ControlAutopilot>正在自动驾驶</DeltaV_ControlAutopilot>
   <DeltaV_ControlSwitchAutopilot>切换为自动驾驶</DeltaV_ControlSwitchAutopilot>
+  <DeltaV_AutoTaskMenu>自动任务：{0}</DeltaV_AutoTaskMenu>
+  <DeltaV_AutoDrift>自由漂移</DeltaV_AutoDrift>
+  <DeltaV_AutoSync>速度同步</DeltaV_AutoSync>
+  <DeltaV_AutoCombat>战斗机动</DeltaV_AutoCombat>
+  <DeltaV_AutoNavigate>定点定角</DeltaV_AutoNavigate>
+  <DeltaV_AutoSoftDock>软对接</DeltaV_AutoSoftDock>
+  <DeltaV_AutoPaused>已暂停</DeltaV_AutoPaused>
+  <DeltaV_AutoReady>已稳定</DeltaV_AutoReady>
+  <DeltaV_AutoSearching>寻找目标</DeltaV_AutoSearching>
+  <DeltaV_AutoRunning>进行中</DeltaV_AutoRunning>
+  <DeltaV_AutoStabilizing>同步稳定 {0}/{1} tick</DeltaV_AutoStabilizing>
+  <DeltaV_AutoDistance>距目标 {0} 格</DeltaV_AutoDistance>
+  <DeltaV_AutoTaskLost>自动任务目标失效，已切换为自由漂移。</DeltaV_AutoTaskLost>
+  <DeltaV_NavigationArrived>已到达目标位姿，自动驾驶结束。</DeltaV_NavigationArrived>
+  <DeltaV_NavigationNoReference>当前画面没有可用的参考对象。</DeltaV_NavigationNoReference>
+  <DeltaV_NavigationTargetLost>定点目标已失效，已切换为自由漂移。</DeltaV_NavigationTargetLost>
+  <DeltaV_NavigationSubjectLost>船体无法继续驾驶，定点任务已结束。</DeltaV_NavigationSubjectLost>
+  <DeltaV_NavigationNoThrust>船体没有可用推力，定点任务已结束。</DeltaV_NavigationNoThrust>
+  <DeltaV_NavigationTimedOut>定点任务超时，已切换为自由漂移。</DeltaV_NavigationTimedOut>
+  <DeltaV_NavigationDragHint>拖出目标船首方向；松开时按住参考系修改键选择移动参考系。</DeltaV_NavigationDragHint>
   <DeltaV_HudSpeed>速度：{0} 格/秒</DeltaV_HudSpeed>
   <DeltaV_HudHeading>航向：{0}°</DeltaV_HudHeading>
   <DeltaV_HudTurnRate>转速：{0}°/秒</DeltaV_HudTurnRate>

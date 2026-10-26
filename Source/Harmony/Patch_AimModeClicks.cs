@@ -22,6 +22,12 @@ namespace DeltaV
         public static bool Prefix(MethodBase __originalMethod)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe?.Pilot.NavigationTargetingActive == true)
+            {
+                if (__originalMethod.Name == nameof(MapInterface.HandleMapClicks))
+                    universe.Pilot.ProcessNavigationInputEvent();
+                return false;
+            }
             // Windows/widgets have run here, but the vanilla empty-selection right-click
             // shortcut has not. Sample once: a later sample would reject our own Used event.
             if (__originalMethod.Name == nameof(MapInterface.HandleMapClicks))

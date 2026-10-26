@@ -74,6 +74,14 @@
     <defaultKeyCodeB>RightControl</defaultKeyCodeB>
   </KeyBindingDef>
 
+  <KeyBindingDef>
+    <defName>DeltaV_NavigationReferenceModifier</defName>
+    <label>navigation moving reference (hold while releasing)</label>
+    <category>DeltaV</category>
+    <defaultKeyCodeA>LeftAlt</defaultKeyCodeA>
+    <defaultKeyCodeB>RightAlt</defaultKeyCodeB>
+  </KeyBindingDef>
+
   <!-- 火控模式切换，默认 B；驾驶时抑制 B 的原版用途。 -->
   <KeyBindingDef>
     <defName>DeltaV_AimMode</defName>
