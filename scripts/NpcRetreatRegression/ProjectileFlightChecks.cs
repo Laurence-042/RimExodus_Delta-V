@@ -22,7 +22,7 @@ internal static partial class Program
     static T FlightField<T>(object flight, string name) =>
         (T)flight.GetType().GetField(name).GetValue(flight);
 
-    static void CheckProjectileFlight(UniverseManager universe, Faction player)
+    static void CheckProjectileFlight(UniverseManager universe, Faction player, bool flightOnly = false)
     {
         var service = universe.Projectiles;
         var props = new CompProperties_SpaceProjectile
@@ -35,6 +35,7 @@ internal static partial class Program
         object flight = AddProjectileRecord(universe, body);
         Set(flight, "props", props);
         Set(flight, "cruiseSpeed", props.speed);
+        Set(flight, "motorDeltaVelocityPerTick", 4f);
         Set(flight, "coldLaunchEndsTick", 30);
         body.pose.velocity = new Vector2(8, 0);
         void Aim(float angle) => Set(flight, "targetPose", new SpacePose(
@@ -47,48 +48,113 @@ internal static partial class Program
             "cold launch preserves ejection velocity and cannot turn or accelerate");
         Step(30);
         Check(Phase() == "InitialTurn" && Math.Abs(body.pose.angle * Mathf.Rad2Deg - 18) < 0.01f
-            && Math.Abs(body.pose.velocity.magnitude - 8) < 0.001f && FlightField<float>(flight, "rcsTurnSign") > 0,
-            "initial RCS turn is stronger than cruise with no premature main-engine acceleration");
+            && body.pose.velocity == new Vector2(8, 0) && FlightField<float>(flight, "rcsTurnSign") > 0,
+            "initial RCS turns the nose without rotating inherited translational velocity");
         for (int tick = 31; tick <= 34; tick++) Step(tick);
-        Check(Phase() == "PoweredFlight" && Math.Abs(body.pose.angle - Mathf.PI * 0.5f) < 0.001f,
-            "right-angle departure completes in five ticks and exits the initial turn early");
-        float previous = body.pose.velocity.magnitude;
-        bool monotonic = true;
-        for (int tick = 35; tick <= 41; tick++)
+        Check(Phase() == "PoweredFlight" && body.pose.velocity.x > 7f
+            && body.pose.velocity.y > 0f && (body.pose.velocity - new Vector2(8, 0)).magnitude <= 4.001f,
+            "right-angle departure starts bounded thrust after the initial turn");
+        for (int tick = 35; tick <= 59; tick++)
         {
+            Vector2 before = body.pose.velocity;
             Step(tick);
-            monotonic &= body.pose.velocity.magnitude >= previous - 0.001f && body.pose.velocity.magnitude <= 32.001f;
-            previous = body.pose.velocity.magnitude;
+            Check((body.pose.velocity - before).magnitude <= 4.001f,
+                "powered guidance changes velocity by at most one thrust step " + tick);
         }
-        Check(monotonic && Math.Abs(previous - 32) < 0.001f, "main engine ramps to the unchanged cruise speed without overshoot");
+        Check((body.pose.velocity - new Vector2(0, 32)).magnitude < 4f
+            && Math.Abs(body.pose.angle - Mathf.PI * 0.5f) < 0.1f,
+            "powered guidance approaches cruise without turning the nose away from the target");
         Aim(Mathf.PI);
         float oldHeading = body.pose.angle;
-        Step(42);
-        Check(Math.Abs(SpaceTransform.WrapAngle(body.pose.angle - oldHeading) * Mathf.Rad2Deg - 9) < 0.01f,
-            "cruise retains its original 540 degrees per second tracking authority");
+        Vector2 beforeTurn = body.pose.velocity;
+        Step(60);
+        Check(Math.Abs(SpaceTransform.WrapAngle(body.pose.angle - oldHeading) * Mathf.Rad2Deg) <= 9.01f
+            && (body.pose.velocity - beforeTurn).magnitude <= 4.001f,
+            "cruise turn and thrust stay within their angular and acceleration limits");
         var velocity = body.pose.velocity;
-        Step(43, false);
+        Step(61, false);
         Check((body.pose.velocity - velocity).magnitude < 0.0001f, "lost target coasts without another turn");
 
         // Restart the production phase machine; continuously changing bearing must not trap it in RCS.
         Set(flight, "phase", Enum.Parse(FlightField<object>(flight, "phase").GetType(), "ColdLaunch"));
-        Set(flight, "coldLaunchEndsTick", 50);
+        Set(flight, "coldLaunchEndsTick", 70);
         body.pose.velocity = new Vector2(8, 0); body.pose.angle = 0;
-        for (int tick = 50; tick < 62; tick++) { Aim(body.pose.angle + Mathf.PI); Step(tick); }
-        Check(Phase() == "PoweredFlight" && body.pose.velocity.magnitude > 7.99f,
+        for (int tick = 70; tick < 82; tick++) { Aim(body.pose.angle + Mathf.PI); Step(tick); }
+        Check(Phase() == "PoweredFlight" && body.pose.velocity.magnitude > 0f,
             "opposite-bearing target cannot stall turning or extend RCS beyond its deadline");
-        for (int tick = 62; tick <= 68; tick++) Step(tick, false);
-        Check(Math.Abs(body.pose.velocity.magnitude - 32) < 0.001f,
-            "losing the target during acceleration still finishes the main-engine ramp");
+        Vector2 beforeLostTargetBurn = body.pose.velocity;
+        for (int tick = 82; tick <= 86; tick++) Step(tick, false);
+        Check((body.pose.velocity - beforeLostTargetBurn).magnitude > 0f,
+            "losing the target during ignition finishes the bounded motor burn");
+
+        Set(flight, "phase", Enum.Parse(FlightField<object>(flight, "phase").GetType(), "ColdLaunch"));
+        Set(flight, "coldLaunchEndsTick", 130);
+        body.pose.velocity = new Vector2(1008, 0); body.pose.angle = 0;
+        Set(flight, "targetPose", new SpacePose(
+            OrbitSphere.Move(body.pose.position, new Vector2(100, 0)), 0)
+            { velocity = new Vector2(1000, 0) });
+        for (int tick = 100; tick < 130; tick++) Step(tick);
+        Check(body.pose.velocity == new Vector2(1008, 0),
+            "cold launch preserves a shared 1000 cells per second drift");
+        for (int tick = 130; tick < 136; tick++) Step(tick);
+        Vector2 targetVelocityAtMissile = SpaceTransform.TransportVelocity(
+            FlightField<SpacePose>(flight, "targetPose"), body.pose.position);
+        Check((body.pose.velocity - targetVelocityAtMissile - new Vector2(32, 0)).magnitude < 0.1f
+            && body.pose.velocity.x > 1000f,
+            "guidance accelerates to 32 cells per second relative to a co-drifting target");
+        Step(136);
+        Check((body.pose.velocity - targetVelocityAtMissile - new Vector2(32, 0)).magnitude < 0.1f
+            && !FlightField<bool>(flight, "motorThrusting"),
+            "guidance retains common drift and stops thrust at the desired relative velocity");
+        float separation = OrbitSphere.Offset(body.pose.position,
+            FlightField<SpacePose>(flight, "targetPose").position).magnitude;
+        for (int tick = 137; tick < 350 && separation > 1f; tick++)
+        {
+            Step(tick);
+            Vector3 missileBefore = body.pose.position;
+            body.pose.position = OrbitSphere.Move(missileBefore, body.pose.velocity / 60f);
+            body.pose.velocity = SpaceTransform.TransportTangent(body.pose.velocity,
+                missileBefore, body.pose.position);
+            SpacePose movingTarget = FlightField<SpacePose>(flight, "targetPose");
+            Vector3 targetBefore = movingTarget.position;
+            movingTarget.position = OrbitSphere.Move(targetBefore, movingTarget.velocity / 60f);
+            movingTarget.velocity = SpaceTransform.TransportTangent(movingTarget.velocity,
+                targetBefore, movingTarget.position);
+            Set(flight, "targetPose", movingTarget);
+            separation = OrbitSphere.Offset(body.pose.position, movingTarget.position).magnitude;
+        }
+        Check(separation <= 1f,
+            "missile closes on a target while both retain their shared 1000 cells per second drift");
+
+        // A tiny speed residual must not make the nose chase alternating correction signs.
+        body.pose.position = Vector3.forward;
+        body.pose.angle = 0f;
+        body.pose.velocity = new Vector2(1032.1f, 0f);
+        Vector3 steadyTarget = OrbitSphere.Move(body.pose.position, new Vector2(100, 0));
+        bool stableHeading = true;
+        for (int tick = 350; tick < 380; tick++)
+        {
+            float jitter = tick % 2 == 0 ? 0.1f : -0.1f;
+            Set(flight, "targetPose", new SpacePose(steadyTarget, 0f)
+                { velocity = new Vector2(1000f + jitter, jitter) });
+            Step(tick);
+            stableHeading &= Mathf.Abs(body.pose.angle * Mathf.Rad2Deg) < 1f
+                && !FlightField<bool>(flight, "motorThrusting");
+        }
+        Check(stableHeading, "near-cruise target velocity jitter cannot flip the missile nose");
 
         props.guided = false;
         body.pose.velocity = new Vector2(65, 7);
-        Step(100, false);
+        Step(400, false);
         Check(body.pose.velocity == new Vector2(65, 7), "unguided rounds retain inherited velocity instead of being reset to nominal speed");
         Call(service, "DestroyProjectile", flight, "flight regression");
         Call(universe, "RunFrameActions");
-        Check(FlightField<float>(flight, "rcsTurnSign") == 0 && FlightField<int>(flight, "motorStartedTick") == 0,
+        Check(FlightField<float>(flight, "rcsTurnSign") == 0
+            && FlightField<int>(flight, "motorStartedTick") == 0
+            && FlightField<float>(flight, "motorDeltaVelocityPerTick") == 0
+            && !FlightField<bool>(flight, "motorThrusting"),
             "pooled flight record discards stage and RCS state");
+        if (flightOnly) return;
 
         // Read the real Def so nozzle checks detect drift between art alignment and physics configuration.
         XElement xml = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_ShuttlesAndMoonPool.xml")

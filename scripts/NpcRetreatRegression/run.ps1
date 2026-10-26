@@ -1,5 +1,5 @@
 param([string]$GameRoot, [string]$HarmonyPath, [switch]$AimInputOnly,
-      [switch]$SalvageOnly, [switch]$DrivePerformanceOnly)
+      [switch]$SalvageOnly, [switch]$DrivePerformanceOnly, [switch]$ProjectileOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 if (!$GameRoot) { $GameRoot = "$repo/../.." }
@@ -30,5 +30,6 @@ $regressionArguments = @($managed)
 if ($AimInputOnly) { $regressionArguments += '--aim-input-only' }
 if ($SalvageOnly) { $regressionArguments += '--salvage-only' }
 if ($DrivePerformanceOnly) { $regressionArguments += '--drive-performance-only' }
+if ($ProjectileOnly) { $regressionArguments += '--projectile-only' }
 & dotnet "$out/NpcRetreatRegression.dll" @regressionArguments
 exit $LASTEXITCODE

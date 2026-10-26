@@ -36,7 +36,7 @@ namespace DeltaV
 
     /// <summary>
     /// 弹体服务（太空战架构 §4.1；取代 BoardingPods 槽位，段7 完成接管）：弹体
-    /// 创建/注册（图池借出）、制导（导弹速度转向/直射恒速）、超时自毁、碰撞调度
+    /// 创建/注册（图池借出）、制导（导弹有限加速度/直射弹漂移）、超时自毁、碰撞调度
     /// 对接（SpaceCollision 的主动方来源）、渲染（弹体 def 图形投影 + 激光线段）、
     /// 图池管理与读档孤儿图回收、ResetFlow。
     ///
@@ -57,6 +57,7 @@ namespace DeltaV
     public sealed partial class SpaceProjectileService
     {
         private const float Dt = 1f / 60f;
+        private const float GuidanceVelocityTolerance = 0.25f;
 
         /// <summary>激光线段视觉存留（tick）。</summary>
         private const int BeamLifetimeTicks = 15;
@@ -93,7 +94,8 @@ namespace DeltaV
             public int coldLaunchEndsTick;
             public FlightPhase phase;
             public int motorStartedTick;
-            public float motorStartSpeed;
+            public float motorDeltaVelocityPerTick;
+            public bool motorThrusting;
             public float rcsTurnSign;
             public Vector3 laserFrom;
             public Vector2 continuousFromLocal, continuousToLocal;
@@ -181,7 +183,7 @@ namespace DeltaV
 
         /// <summary>
         /// 发射一枚弹体。muzzle = 炮口 universe 位置；directionWorld = 炮口处切空间
-        /// 单位方向（3D）。初速 = 方向 × 弹速 ⊕ 发射瞬间发射容器速度（弹道继承炮口
+        /// 单位方向（3D）。初速 = 方向 × 离架速度 ⊕ 发射瞬间发射容器速度（弹道继承炮口
         /// 运动；相对速度结算因此对头/追尾天然成立）。导弹传 missileTarget。
         /// damageScale = 轨道炮等的伤害/穿深倍率（随弹体携带到命中结算）。
         /// </summary>
@@ -249,7 +251,12 @@ namespace DeltaV
             projectile.phase = launchSpec.coldLaunchTicks > 0 || props.initialTurnTicks > 0
                 ? FlightPhase.ColdLaunch : FlightPhase.PoweredFlight;
             projectile.motorStartedTick = projectile.spawnedAtTick - Mathf.Max(0, props.accelerationTicks) - 1;
-            projectile.motorStartSpeed = launchSpec.speed;
+            float launchSpeed = launchSpec.coldLaunchTicks > 0
+                ? launchSpec.coldLaunchSpeed : launchSpec.speed;
+            projectile.motorDeltaVelocityPerTick = Mathf.Max(0f,
+                launchSpec.speed - launchSpeed) / Mathf.Max(1, props.accelerationTicks);
+            if (props.guided && projectile.motorDeltaVelocityPerTick <= 0f)
+                projectile.motorDeltaVelocityPerTick = launchSpec.speed / Mathf.Max(1, props.accelerationTicks);
 
             SpaceObject created;
             if (projectile.laser)
@@ -298,9 +305,7 @@ namespace DeltaV
                     baseTag = SpaceObjectTag.Projectile,
                     faction = faction,
                 };
-                float initialSpeed = launchSpec.coldLaunchTicks > 0
-                    ? launchSpec.coldLaunchSpeed : launchSpec.speed;
-                created.pose.velocity = dirTangent * initialSpeed + launcherVelocity;
+                created.pose.velocity = dirTangent * launchSpeed + launcherVelocity;
                 projectile.prevPosition = muzzle;
             }
             else
@@ -311,9 +316,7 @@ namespace DeltaV
                     baseTag = SpaceObjectTag.Projectile,
                     faction = faction,
                 };
-                float initialSpeed = launchSpec.coldLaunchTicks > 0
-                    ? launchSpec.coldLaunchSpeed : launchSpec.speed;
-                created.pose.velocity = dirTangent * initialSpeed + launcherVelocity;
+                created.pose.velocity = dirTangent * launchSpeed + launcherVelocity;
                 projectile.prevPosition = muzzle;
             }
             universe.RegisterObject(created);
@@ -404,8 +407,8 @@ namespace DeltaV
         // ---- tick（制导/超时；容器积分之前）----
 
         /// <summary>
-        /// 弹体制导与超时（GameComponentTick 内、容器积分之前调用：本 tick 写速度
-        /// 方向、积分随即位移，SpaceCollision 在积分后扫掠——先动后撞，§3.3）。
+        /// 弹体制导与超时（GameComponentTick 内、容器积分之前调用：本 tick 施加
+        /// 有限加速度、积分随即位移，SpaceCollision 在积分后扫掠——先动后撞，§3.3）。
         /// prevPosition 在此记录（扫掠段起点 = 积分前位姿）。
         /// </summary>
         public void Tick()
@@ -442,7 +445,8 @@ namespace DeltaV
                     }
                     p.prevPosition = p.container.pose.position;
                     if (!p.laser && !p.adoptedShuttle) AdvanceFlight(p, hasTarget, now);
-                    if (p.props.exhaustTrail && now % 3 == 0)
+                    if (p.props.exhaustTrail && now % 3 == 0
+                        && (p.phase != FlightPhase.PoweredFlight || p.motorThrusting))
                         EmitTrail(p, now);
                 }
             }
@@ -458,61 +462,76 @@ namespace DeltaV
             TickCombatVisuals(tick);
         }
 
-        /// <summary>阶段只选速度与转向上限；仍共用一次追踪和容器积分，不调用飞船 MPC。</summary>
+        /// <summary>制导只施加有限速度增量；位移仍由容器物理积分，不调用飞船 MPC。</summary>
         private static void AdvanceFlight(Projectile p, bool hasTarget, int now)
         {
             p.rcsTurnSign = 0f;
-            bool startingMotor = false;
-            bool steered = false;
+            p.motorThrusting = false;
             if (p.phase == FlightPhase.ColdLaunch)
             {
                 if (now < p.coldLaunchEndsTick) return;
                 p.phase = p.props.guided && hasTarget && p.props.initialTurnTicks > 0
                     ? FlightPhase.InitialTurn : FlightPhase.PoweredFlight;
                 p.motorStartedTick = now;
-                p.motorStartSpeed = p.container.pose.velocity.magnitude;
-                startingMotor = p.phase == FlightPhase.PoweredFlight;
             }
             if (p.phase == FlightPhase.InitialTurn)
             {
-                bool aligned = !hasTarget || SteerTowards(p,
-                    Mathf.Max(p.props.turnRateDegPerSec, p.props.initialTurnRateDegPerSec),
-                    p.container.pose.velocity.magnitude);
+                bool aligned = !hasTarget || TurnTowards(p,
+                    OrbitSphere.Offset(p.container.pose.position, p.targetPose.position),
+                    Mathf.Max(p.props.turnRateDegPerSec, p.props.initialTurnRateDegPerSec));
                 if (!aligned && now - p.coldLaunchEndsTick + 1 < p.props.initialTurnTicks) return;
                 p.phase = FlightPhase.PoweredFlight;
                 p.motorStartedTick = now;
-                p.motorStartSpeed = p.container.pose.velocity.magnitude;
-                startingMotor = true;
-                steered = hasTarget;
             }
-            float speed = Mathf.Lerp(p.motorStartSpeed, p.cruiseSpeed, MotorProgress(p, now));
-            if (p.props.guided && hasTarget && !steered)
-                SteerTowards(p, p.props.turnRateDegPerSec, speed);
-            else if (startingMotor || now - p.motorStartedTick < p.props.accelerationTicks)
+            if (p.props.guided && hasTarget)
             {
-                Vector2 direction = p.container.pose.velocity.sqrMagnitude > 1e-8f
-                    ? p.container.pose.velocity.normalized
-                    : SpaceTransform.Rotate(Vector2.right, p.container.pose.angle);
-                p.container.pose.velocity = direction * speed;
+                Vector2 toTarget = OrbitSphere.Offset(p.container.pose.position, p.targetPose.position);
+                if (toTarget.sqrMagnitude < 1e-8f) return;
+                Vector2 lineOfSight = toTarget.normalized;
+                Vector2 targetVelocity = SpaceTransform.TransportVelocity(p.targetPose,
+                    p.container.pose.position);
+                Vector2 relativeVelocity = p.container.pose.velocity - targetVelocity;
+                Vector2 lateralVelocity = relativeVelocity
+                    - lineOfSight * Vector2.Dot(relativeVelocity, lineOfSight);
+                // 始终以视线为朝向基准，只用横向漂移修正偏角；微小速度残差不能让弹头反向翻转。
+                TurnTowards(p, lineOfSight * p.cruiseSpeed - lateralVelocity,
+                    p.props.turnRateDegPerSec);
+                Vector2 desiredVelocity = targetVelocity + lineOfSight * p.cruiseSpeed;
+                Vector2 correction = desiredVelocity - p.container.pose.velocity;
+                if (correction.sqrMagnitude <= GuidanceVelocityTolerance * GuidanceVelocityTolerance)
+                    return;
+                Vector2 forward = SpaceTransform.Rotate(Vector2.right, p.container.pose.angle);
+                float projectedCorrection = Vector2.Dot(correction, forward);
+                if (projectedCorrection > 0f)
+                {
+                    float deltaVelocity = Mathf.Min(p.motorDeltaVelocityPerTick, projectedCorrection);
+                    p.container.pose.velocity += forward * deltaVelocity;
+                    p.motorThrusting = deltaVelocity > 0f;
+                }
+            }
+            else if (now - p.motorStartedTick < p.props.accelerationTicks)
+            {
+                // 失锁后仅完成已开始的点火段；随后保持当前宇宙速度漂移。
+                p.container.pose.velocity += SpaceTransform.Rotate(Vector2.right, p.container.pose.angle)
+                    * p.motorDeltaVelocityPerTick;
+                p.motorThrusting = p.motorDeltaVelocityPerTick > 0f;
             }
         }
 
         private static float MotorProgress(Projectile p, int now) => p.props.accelerationTicks > 0
             ? Mathf.Clamp01((float)(now - p.motorStartedTick + 1) / p.props.accelerationTicks) : 1f;
 
-        /// <summary>普通导弹的速度方向追踪；载人侵入使用共同自动驾驶。</summary>
-        private static bool SteerTowards(Projectile p, float turnRate, float speed)
+        /// <summary>只转弹体朝向；转向本身不改变平移速度。</summary>
+        private static bool TurnTowards(Projectile p, Vector2 desired, float turnRate)
         {
-            Vector2 toTarget = OrbitSphere.Offset(p.container.pose.position, p.targetPose.position);
-            if (toTarget.sqrMagnitude < 1e-8f) return true;
-            Vector2 desired = toTarget.normalized;
-            Vector2 velocity = p.container.pose.velocity;
-            Vector2 current = velocity.sqrMagnitude > 1e-8f ? velocity.normalized : desired;
-            float error = Mathf.Atan2(current.x * desired.y - current.y * desired.x, Vector2.Dot(current, desired));
+            if (desired.sqrMagnitude < 1e-8f) return true;
+            desired.Normalize();
+            Vector2 current = SpaceTransform.Rotate(Vector2.right, p.container.pose.angle);
+            float error = Mathf.Atan2(current.x * desired.y - current.y * desired.x,
+                Vector2.Dot(current, desired));
             float maxTurn = Mathf.Max(0f, turnRate) * Mathf.Deg2Rad * Dt;
             float turn = Mathf.Clamp(error, -maxTurn, maxTurn);
             Vector2 newDir = SpaceTransform.Rotate(current, turn);
-            p.container.pose.velocity = newDir * speed;
             if (p.phase == FlightPhase.InitialTurn && Mathf.Abs(turn) > 0.001f) p.rcsTurnSign = Mathf.Sign(turn);
             p.container.pose.angle = Mathf.Atan2(newDir.y, newDir.x);
             return Mathf.Abs(error) <= maxTurn + 0.0001f;
@@ -818,7 +837,8 @@ namespace DeltaV
             p.continuousFromLocal = p.continuousToLocal = default;
             p.phase = FlightPhase.ColdLaunch;
             p.coldLaunchEndsTick = p.motorStartedTick = 0;
-            p.motorStartSpeed = p.cruiseSpeed = p.rcsTurnSign = 0f;
+            p.motorDeltaVelocityPerTick = p.cruiseSpeed = p.rcsTurnSign = 0f;
+            p.motorThrusting = false;
             p.damageScale = 1f;
             p.armorPenetrationScale = 1f;
             p.body.attacker = null;
@@ -998,7 +1018,7 @@ namespace DeltaV
                         ShellLayer.Slot s = layer.At(slot++);
                         s.layer.Emit(s);
                     }
-                    if (!p.adoptedShuttle && p.props.exhaustTrail && p.phase == FlightPhase.PoweredFlight)
+                    if (!p.adoptedShuttle && p.props.exhaustTrail && p.motorThrusting)
                     {
                         EnsureImpactMaterials();
                         float ramp = MotorProgress(p, Find.TickManager.TicksGame);

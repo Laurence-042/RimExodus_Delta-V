@@ -23,13 +23,13 @@ namespace DeltaV
         public SoundDef impactSoundMap;
         public SoundDef impactSoundShell;
 
-        /// <summary>巡航速度（格/游戏秒）。</summary>
+        /// <summary>直射弹的离架速度；制导弹相对目标的期望接近速度（格/游戏秒）。</summary>
         public float speed = 60f;
 
         /// <summary>超时自毁（tick，无后效）。</summary>
         public int timeoutTicks = 1800;
 
-        /// <summary>导弹（纯追踪制导：每 tick 速度方向转向目标容器当前位姿）。</summary>
+        /// <summary>导弹：限速转向弹头，并沿朝向施加有限加速度追踪目标。</summary>
         public bool guided;
 
         /// <summary>转向率上限（度/秒；默认近似即时转向）。</summary>
@@ -45,7 +45,7 @@ namespace DeltaV
         public int initialTurnTicks;
         public float initialTurnRateDegPerSec = 1080f;
 
-        /// <summary>主机从离架速度过渡到巡航速度的 tick 数；不改变后续追踪能力。</summary>
+        /// <summary>主机加速度标定时长：离架至期望接近速度的差额均分到这些 tick。</summary>
         public int accelerationTicks;
 
         /// <summary>普通弹体喷口在朝前 +X、左侧 +Y 的弹体帧中定位；shuttle 读取真实推进布局。</summary>
