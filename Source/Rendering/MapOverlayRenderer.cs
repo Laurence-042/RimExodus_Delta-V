@@ -112,9 +112,10 @@ namespace DeltaV
             int maxSx = visible.maxX / SectionSize;
             int minSz = visible.minZ / SectionSize;
             int maxSz = visible.maxZ / SectionSize;
+            var performance = Current.Game?.GetComponent<UniverseManager>()?.Performance;
             for (int sz = minSz; sz <= maxSz; sz++)
             for (int sx = minSx; sx <= maxSx; sx++)
-                CollectSection(map, matrix, rotation, visible, allowedCells, sx, sz, localSun, Commands);
+                CollectSection(map, matrix, rotation, visible, allowedCells, sx, sz, localSun, Commands, performance);
             return Commands.Count > 0;
         }
 
@@ -169,8 +170,12 @@ namespace DeltaV
         internal static void EmitShellCommands(IShellDrawBackend backend)
         {
             if (Commands.Count == 0) return;
-            Commands.Sort(CompareCommands);
-            backend.DrawSorted(Commands);
+            var performance = Current.Game?.GetComponent<UniverseManager>()?.Performance;
+            performance?.RecordOverlayCommands(Commands.Count);
+            using (performance?.Measure(PerformanceStage.OverlaySort) ?? default)
+                Commands.Sort(CompareCommands);
+            using (performance?.Measure(PerformanceStage.OverlaySubmit) ?? default)
+                backend.DrawSorted(Commands);
         }
 
         private static int CompareCommands(OverlayCommand left, OverlayCommand right)
@@ -183,18 +188,22 @@ namespace DeltaV
 
         private static void CollectSection(Map map, Matrix4x4 matrix, Quaternion rotation, CellRect visible,
             HashSet<IntVec3> allowedCells, int sx, int sz, Vector2 localSun,
-            List<OverlayCommand> collector)
+            List<OverlayCommand> collector, DeltaVPerformanceProbe performance)
         {
             int key = sx | (sz << 16);
             MapCache cache = CacheFor(map);
             bool dirty = cache.dirty.Remove(key);
-            if (!cache.sections.TryGetValue(key, out SectionSnapshot section) || dirty)
+            bool rebuild = !cache.sections.TryGetValue(key, out SectionSnapshot section) || dirty;
+            performance?.RecordShellSection(rebuild);
+            if (rebuild)
             {
+                using var rebuildTiming = performance?.Measure(PerformanceStage.ShellRebuild) ?? default;
                 section?.Dispose();
                 section = BuildSection(map, sx, sz);
                 cache.sections[key] = section;
             }
 
+            long staticStart = performance?.Start() ?? 0;
             for (int i = 0; i < section.terrainCells.Count; i++)
             {
                 IntVec3 cell = section.terrainCells[i];
@@ -291,6 +300,8 @@ namespace DeltaV
                 QuadsDrawnLastPass += submesh.tris.Count / 6;
             }
 
+            performance?.Record(PerformanceStage.ShellStatic, staticStart);
+            using var dynamicTiming = performance?.Measure(PerformanceStage.ShellDynamic) ?? default;
             for (int i = 0; i < section.things.Count; i++)
             {
                 Thing thing = section.things[i];

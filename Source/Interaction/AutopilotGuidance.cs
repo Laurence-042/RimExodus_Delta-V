@@ -299,6 +299,10 @@ namespace DeltaV
         public int qpConstraints;
         public QpSolveStatus qpStatus;
         public double relativeOptimalityGap;
+        public int infeasiblePrechecks;
+        public int feasibilityChecks;
+        public int recoverySolves;
+        public int approachRetries;
     }
 
     internal interface IAutopilotGuidance
@@ -743,18 +747,23 @@ namespace DeltaV
             }
             AddControlCosts(inputVariables, request.previousX, request.previousZ, request.previousAngular);
 
-            bool numerical = solver.Solve(variables, constraints, p, q, a, lower, upper,
-                iterations, solution, out double primal, out double dual,
+            bool precheck = !request.motionOnly && !request.intercept && !combatTrajectory;
+            bool infeasible = precheck && BoxProvesInfeasible(variables, constraints, a, lower, upper, constraintTolerances);
+            double primal = double.PositiveInfinity, dual = double.PositiveInfinity;
+            bool numerical = !infeasible && solver.Solve(variables, constraints, p, q, a, lower, upper,
+                iterations, solution, out primal, out dual,
                 OptimalityTolerance(request), constraintTolerances);
             command.solveMilliseconds = (Stopwatch.GetTimestamp() - started) * 1000.0 / Stopwatch.Frequency;
             command.primalResidual = primal;
             command.dualResidual = dual;
-            command.qpCalls = 1;
-            command.qpIterations = solver.IterationsUsed;
-            command.qpIterationLimit = iterations;
+            command.qpCalls = infeasible ? 0 : 1;
+            command.qpIterations = infeasible ? 0 : solver.IterationsUsed;
+            command.qpIterationLimit = infeasible ? 0 : iterations;
             command.qpConstraints = constraints;
-            command.qpStatus = solver.Status;
-            command.relativeOptimalityGap = solver.RelativeGap;
+            command.qpStatus = infeasible ? QpSolveStatus.ProvenInfeasible : solver.Status;
+            command.infeasiblePrechecks = infeasible ? 1 : 0;
+            command.feasibilityChecks = precheck ? 1 : 0;
+            command.relativeOptimalityGap = infeasible ? double.PositiveInfinity : solver.RelativeGap;
             // Every accepted plan is feasible in original units. Far-field plans may
             // terminate on a certified objective gap instead of strict stationarity.
             bool accepted = numerical
@@ -777,6 +786,8 @@ namespace DeltaV
                 fallback.qpConstraints = command.qpConstraints;
                 fallback.qpStatus = command.qpStatus;
                 fallback.relativeOptimalityGap = command.relativeOptimalityGap;
+                fallback.infeasiblePrechecks = command.infeasiblePrechecks;
+                fallback.feasibilityChecks = command.feasibilityChecks;
                 command = fallback;
                 return false;
             }
@@ -786,6 +797,25 @@ namespace DeltaV
                 solution[0], solution[1], solution[2], ref command);
             command.solved = true;
             return true;
+        }
+
+        // The first n rows are the control box. A violated interval bound proves impossibility;
+        // passing this necessary check does not prove joint feasibility of the other rows.
+        internal static bool BoxProvesInfeasible(int n, int m, double[] a,
+            double[] lower, double[] upper, double[] tolerances)
+        {
+            for (int row = n; row < m; row++)
+            {
+                double minimum = 0, maximum = 0;
+                for (int j = 0; j < n; j++)
+                {
+                    double coefficient = a[row * n + j];
+                    minimum += coefficient * (coefficient >= 0 ? lower[j] : upper[j]);
+                    maximum += coefficient * (coefficient >= 0 ? upper[j] : lower[j]);
+                }
+                if (minimum > upper[row] + tolerances[row] || maximum < lower[row] - tolerances[row]) return true;
+            }
+            return false;
         }
 
         internal static double OptimalityTolerance(GuidanceRequest request)

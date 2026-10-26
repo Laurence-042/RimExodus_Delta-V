@@ -27,9 +27,14 @@ namespace DeltaV
         {
             data = null;
             if (map == null || map.Disposed || Scribe.mode != LoadSaveMode.Inactive) return false;
+            using var timing = Current.Game?.GetComponent<UniverseManager>()?.Performance.Measure(PerformanceStage.ArchiveCapture)
+                ?? default;
             string path = Path.GetTempFileName();
             try
             {
+                var things = new List<Thing>();
+                ThingOwnerUtility.GetAllThingsRecursively(map, things);
+                ValidateCaptureIds(things);
                 Scribe.saver.InitSaving(path, "archivedMap");
                 Map current = map;
                 Scribe_Deep.Look(ref current, "map");
@@ -132,17 +137,25 @@ namespace DeltaV
         {
             map = null;
             if (data.NullOrEmpty() || Scribe.mode != LoadSaveMode.Inactive) return false;
+            using var timing = Current.Game?.GetComponent<UniverseManager>()?.Performance.Measure(PerformanceStage.ArchiveRestore)
+                ?? default;
             string path = Path.GetTempFileName();
             Map loaded = null;
             bool added = false;
+            using var loading = new MapLoadingScope(Current.ProgramState);
             try
             {
                 byte[] compressed = Convert.FromBase64String(data);
                 using (var input = new GZipStream(new MemoryStream(compressed), CompressionMode.Decompress))
                 using (var output = File.Create(path)) input.CopyTo(output);
+                var document = new XmlDocument();
+                document.Load(path);
                 Scribe.loader.InitLoading(path);
                 Scribe_Deep.Look(ref loaded, "map");
                 if (loaded == null) throw new InvalidDataException("Archive contains no map.");
+                // Scribe catches nested constructor errors and can return a partial Pawn.
+                // Verify saved needs before publishing the map or discarding its archive.
+                ValidateRestoredPawnNeeds(document, Scribe.loader.crossRefs.crossReferencingExposables.OfType<Pawn>());
                 RegisterExternalReferences(loaded);
                 Current.Game.AddMap(loaded);
                 added = true;
@@ -176,16 +189,61 @@ namespace DeltaV
             finally { File.Delete(path); }
         }
 
+        internal readonly struct MapLoadingScope : IDisposable
+        {
+            private readonly ProgramState previous;
+            // Same loading context as Game.LoadGame; synchronous, never spans frames.
+            internal MapLoadingScope(ProgramState previous)
+            { this.previous = previous; Current.ProgramState = ProgramState.MapInitializing; }
+            public void Dispose() => Current.ProgramState = previous;
+        }
+
+        internal static void ValidateCaptureIds(IEnumerable<Thing> things)
+        {
+            var seen = new Dictionary<int, Thing>();
+            foreach (Thing thing in things)
+            {
+                if (thing == null) continue;
+                if (thing.def == null) throw new InvalidDataException("Archive Thing has no def.");
+                if (!thing.def.isSaveable) continue;
+                if (!thing.def.HasThingIDNumber || thing.thingIDNumber < 0)
+                    throw new InvalidDataException($"Cannot archive persistent {thing.def.defName} with Thing ID {thing.thingIDNumber}.");
+                if (seen.TryGetValue(thing.thingIDNumber, out Thing previous) && !ReferenceEquals(previous, thing))
+                    throw new InvalidDataException($"Cannot archive duplicate Thing ID {thing.thingIDNumber}: {previous.def.defName}, {thing.def.defName}.");
+                seen[thing.thingIDNumber] = thing;
+            }
+        }
+
+        internal static void ValidateRestoredPawnNeeds(XmlDocument document, IEnumerable<Pawn> loadedPawns)
+        {
+            var pawns = new Dictionary<string, Pawn>();
+            foreach (Pawn pawn in loadedPawns) pawns[pawn.ThingID] = pawn;
+            // Pawn.ExposeData writes id + needs/needs; use the existing XML, no extra saved state.
+            foreach (XmlNode node in document.SelectNodes("//*[id and needs/needs]"))
+            {
+                string id = node["id"].InnerText;
+                if (!pawns.TryGetValue(id, out Pawn pawn) || pawn.needs == null)
+                    throw new InvalidDataException($"Archived Pawn {id} or its needs tracker did not load.");
+                foreach (XmlNode need in node.SelectNodes("needs/needs/li[def]"))
+                {
+                    string defName = need["def"].InnerText;
+                    if (!pawn.needs.AllNeeds.Any(n => n?.def?.defName == defName))
+                        throw new InvalidDataException($"Archived Pawn {id} lost saved need {defName} during loading.");
+                }
+            }
+        }
+
         private static void RegisterExternalReferences(Map restoringMap)
         {
             if (LoadedDirectory?.GetValue(Scribe.loader.crossRefs) is not LoadedObjectDirectory directory)
                 throw new MissingFieldException("CrossRefHandler.loadedObjectDirectory");
-            var seen = new HashSet<string>();
+            // Deduplicate the same instance reached through multiple holders. Distinct
+            // persistent objects with colliding IDs must still reach vanilla's diagnostics.
+            var seen = new HashSet<ILoadReferenceable>(ReferenceComparer.Instance);
             void Register(ILoadReferenceable value)
             {
-                if (value == null) return;
-                string id = value.GetUniqueLoadID();
-                if (seen.Add(id)) directory.RegisterLoaded(value);
+                if (!CanRegisterExternalReference(value)) return;
+                if (seen.Add(value)) directory.RegisterLoaded(value);
             }
             foreach (Faction faction in Find.FactionManager.AllFactionsListForReading) Register(faction);
             if (ModsConfig.IdeologyActive && Find.IdeoManager != null)
@@ -202,6 +260,17 @@ namespace DeltaV
                 ThingOwnerUtility.GetAllThingsRecursively(other, things);
                 foreach (Thing thing in things) Register(thing);
             }
+        }
+
+        internal static bool CanRegisterExternalReference(ILoadReferenceable value)
+            => value != null && (!(value is Thing thing)
+                || !(thing is Mote) && thing.def != null && thing.def.HasThingIDNumber && thing.thingIDNumber >= 0);
+
+        private sealed class ReferenceComparer : IEqualityComparer<ILoadReferenceable>
+        {
+            internal static readonly ReferenceComparer Instance = new ReferenceComparer();
+            public bool Equals(ILoadReferenceable x, ILoadReferenceable y) => ReferenceEquals(x, y);
+            public int GetHashCode(ILoadReferenceable value) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(value);
         }
     }
 }

@@ -50,10 +50,10 @@ internal static partial class Program
             "return with cargo is rejected without deleting content or losing recovery lease");
         b.listerThings.AllThings.Remove(body);
         var owner = new MapSpaceObject(48002, b, new SpacePose(Vector3.forward, 0));
-        universe.objects.Add(owner);
+        universe.RegisterObject(owner);
         Check(!pool.TryReturn(rented, _ => calls++) && calls == 1,
             "owning SpaceObject must be removed before cleanup callback may run");
-        universe.objects.Remove(owner);
+        universe.UnregisterObject(owner);
         Check(pool.TryReturn(rented) && !pool.TryReturn(rented) && pool.IdleCount == 2,
             "return is single-use and cannot insert duplicate idle map");
 

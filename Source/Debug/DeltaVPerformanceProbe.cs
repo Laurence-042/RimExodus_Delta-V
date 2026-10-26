@@ -15,7 +15,9 @@ namespace DeltaV
         Collision, MotionFeedback, Lifecycle,
         AimInput, AimInputGate, VolleyIntent, WeaponDispatch, WeaponAim, WeaponPrepare, WeaponLaunch,
         AimPreview, WeaponLayout, WeaponAmmo, WeaponEnergy, DriveCompose, DriveState, DriveIntegrate,
-        WeaponExecution, WeaponReadiness, WeaponParameters, WeaponGuidance, WeaponCommit, Count
+        WeaponExecution, WeaponReadiness, WeaponParameters, WeaponGuidance, WeaponCommit,
+        ShellRebuild, ShellStatic, ShellDynamic, OverlaySort, OverlaySubmit,
+        FrameActions, FrameAction, ArchiveCapture, ArchiveRestore, SyncMapGeneration, Count
     }
 
     /// <summary>Opt-in, per-game CPU timing and frame/tick cadence; no saved or static state.</summary>
@@ -36,6 +38,8 @@ namespace DeltaV
         private int autopilotApproximate;
         private int autopilotQpCalls;
         private int autopilotQpIterations;
+        private int feasibilityChecks, infeasiblePrechecks, recoverySolves, approachRetries;
+        private int visibleSections, rebuiltSections, overlayCommands;
         private int pointDefenseInterceptionTicks;
         private int pointDefenseScatterTicks;
         private int firstStructureVersion = -1;
@@ -54,6 +58,26 @@ namespace DeltaV
         internal bool Enabled => DeltaVLog.Enabled(DeltaVLogModule.Performance);
 
         internal long Start() => Enabled ? Stopwatch.GetTimestamp() : 0L;
+
+        internal Measurement Measure(PerformanceStage stage) => new Measurement(this, stage, Start());
+
+        internal readonly struct Measurement : System.IDisposable
+        {
+            private readonly DeltaVPerformanceProbe owner;
+            private readonly PerformanceStage stage;
+            private readonly long start;
+            internal Measurement(DeltaVPerformanceProbe owner, PerformanceStage stage, long start)
+            { this.owner = owner; this.stage = stage; this.start = start; }
+            public void Dispose() { if (start != 0) owner.Record(stage, start); }
+        }
+
+        internal void RecordShellSection(bool rebuilt)
+        {
+            if (!Enabled) return;
+            visibleSections++;
+            if (rebuilt) rebuiltSections++;
+        }
+        internal void RecordOverlayCommands(int count) { if (Enabled) overlayCommands += count; }
 
         internal void Record(PerformanceStage stage, long start)
         {
@@ -92,15 +116,19 @@ namespace DeltaV
         internal void RecordWeaponResult(WeaponReject reason)
         { if (!Enabled) return; if (reason == WeaponReject.None) shots++; else rejected[(int)reason]++; }
 
-        internal void RecordAutopilotSolve(long start, bool solved, int qpCalls, int qpIterations, bool approximate)
+        internal void RecordAutopilotSolve(long start, bool solved, GuidanceCommand command)
         {
             if (start == 0L) return;
             Record(PerformanceStage.AutopilotSolve, start);
             autopilotSolves++;
             if (!solved) autopilotFallbacks++;
-            if (approximate) autopilotApproximate++;
-            autopilotQpCalls += qpCalls;
-            autopilotQpIterations += qpIterations;
+            if (command.qpStatus == QpSolveStatus.FeasibleApproximate) autopilotApproximate++;
+            autopilotQpCalls += command.qpCalls;
+            autopilotQpIterations += command.qpIterations;
+            infeasiblePrechecks += command.infeasiblePrechecks;
+            feasibilityChecks += command.feasibilityChecks;
+            recoverySolves += command.recoverySolves;
+            approachRetries += command.approachRetries;
         }
 
         internal void RecordPointDefenseTargets(bool hasInterceptionTargets, bool hasScatterTargets)
@@ -157,6 +185,13 @@ namespace DeltaV
                 .Append(" mpcApproximate=").Append(autopilotApproximate)
                 .Append(" mpcQpCalls=").Append(autopilotQpCalls)
                 .Append(" mpcQpIterations=").Append(autopilotQpIterations)
+                .Append(" mpcInfeasible=").Append(infeasiblePrechecks)
+                .Append(" mpcPrechecks=").Append(feasibilityChecks)
+                .Append(" mpcRecoverySolves=").Append(recoverySolves)
+                .Append(" mpcApproachRetries=").Append(approachRetries)
+                .Append(" shellSections=").Append(visibleSections)
+                .Append(" shellRebuilt=").Append(rebuiltSections)
+                .Append(" overlayCommands=").Append(overlayCommands)
                 .Append(" pdInterceptTicks=").Append(pointDefenseInterceptionTicks)
                 .Append(" pdScatterTicks=").Append(pointDefenseScatterTicks)
                 .Append(" structureChanges=").Append(firstStructureVersion < 0 ? 0
@@ -199,7 +234,7 @@ namespace DeltaV
             for (int i = 1; i < rejected.Length; i++)
                 if (rejected[i] > 0) sb.Append((WeaponReject)i).Append(':').Append(rejected[i]).Append(',');
             // Mixed frame/tick callers use per-call timing here, with count and total to preserve attribution.
-            sb.Append(" detail[avgUs/maxUs/calls/totalMs]:");
+            sb.Append(" detail[avgUs/maxUs/calls/totalMs; nested,do-not-sum]:");
             for (int i = (int)PerformanceStage.AimInput; i < (int)PerformanceStage.Count; i++)
             {
                 double ms = totals[i] * (1000.0 / Stopwatch.Frequency);
@@ -234,6 +269,8 @@ namespace DeltaV
             peakObjects = peakProjectiles = 0;
             peakThrustingObjects = peakDriftingObjects = peakArchivedObjects = 0;
             autopilotSolves = autopilotFallbacks = autopilotApproximate = autopilotQpCalls = autopilotQpIterations = 0;
+            feasibilityChecks = infeasiblePrechecks = recoverySolves = approachRetries = 0;
+            visibleSections = rebuiltSections = overlayCommands = 0;
             pointDefenseInterceptionTicks = pointDefenseScatterTicks = 0;
             firstStructureVersion = -1;
             lastStructureVersion = 0;

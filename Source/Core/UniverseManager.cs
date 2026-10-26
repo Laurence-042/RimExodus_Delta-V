@@ -743,10 +743,12 @@ namespace DeltaV
         private void RunFrameActions()
         {
             if (frameActions == null || frameActions.Count == 0) return;
+            using var batchTiming = Performance.Measure(PerformanceStage.FrameActions);
             Action[] batch = frameActions.ToArray();
             frameActions.Clear();
             for (int i = 0; i < batch.Length; i++)
             {
+                using var actionTiming = Performance.Measure(PerformanceStage.FrameAction);
                 try { batch[i](); }
                 catch
                 {

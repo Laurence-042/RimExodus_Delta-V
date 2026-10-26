@@ -2,7 +2,7 @@ using System;
 
 namespace DeltaV
 {
-    internal enum QpSolveStatus { NotRun, Optimal, FeasibleApproximate, IterationLimit, NumericalFailure, InvalidInput }
+    internal enum QpSolveStatus { NotRun, Optimal, FeasibleApproximate, IterationLimit, NumericalFailure, InvalidInput, ProvenInfeasible }
 
     /// <summary>
     /// Strictly convex dense QP: min .5 x'Px + q'x, l &lt;= Ax &lt;= u.

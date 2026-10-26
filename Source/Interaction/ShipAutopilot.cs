@@ -59,10 +59,14 @@ namespace DeltaV
             // planStepsReady = 上一解可回放的微步数（数值回退解为 1，无可回放计划）。
             public int currentPlanStep;
             public int planStepsReady;
+            public int planStartTick;
             public AutopilotMpcProfile profile;
             public float bestError = float.PositiveInfinity;
             public int noProgressTicks;
             public bool failureLogged;
+            public readonly BrakingRecoveryState recovery = new BrakingRecoveryState();
+            public bool recoveryRecheck;
+            public float recoveryBestSpeed = float.PositiveInfinity;
             public ApproachPhase phase;
             public float brakingAcceleration;
             public float stoppingDistance;
@@ -374,10 +378,14 @@ namespace DeltaV
 
             if (!flight.tracked)
             {
-                float progressMetric = posErr.magnitude + Mathf.Abs(angleErr) * 10f;
-                if (progressMetric + 0.05f < flight.bestError)
+                float progressMetric = flight.recovery.Active
+                    ? vel.magnitude + Mathf.Abs(omega) * 5f
+                    : posErr.magnitude + Mathf.Abs(angleErr) * 10f;
+                float best = flight.recovery.Active ? flight.recoveryBestSpeed : flight.bestError;
+                if (progressMetric + (flight.recovery.Active ? 0.01f : 0.05f) < best)
                 {
-                    flight.bestError = progressMetric;
+                    if (flight.recovery.Active) flight.recoveryBestSpeed = progressMetric;
+                    else flight.bestError = progressMetric;
                     flight.noProgressTicks = 0;
                 }
                 else
@@ -391,7 +399,7 @@ namespace DeltaV
                 }
             }
 
-            float voidBlend = flight.allowVoidThrust
+            float voidBlend = flight.allowVoidThrust && !flight.recovery.Active
                 ? 1f - Mathf.Clamp01(posErr.magnitude / VoidRampRadius)
                 : 0f;
             if (flight.profile != profile)
@@ -400,14 +408,17 @@ namespace DeltaV
                 flight.guidance.Reset(flight.profile);
                 flight.hasCommand = false;
                 flight.planStepsReady = 0;
+                flight.recoveryRecheck = true;
             }
             // 制导微步节拍（2026-09-25 定案）：QP 按 K 个微步解一次（K 按距离自适应、
             // ownerId 确定性错峰），中间微步回放上一解的计划控制；计划耗尽或数值回退
             // 时立即重解恢复反馈节奏。微步内指令恒定，应用侧由此可安全去重（见下）。
-            bool microBoundary = ticksGame % GuidanceMicroStepTicks == 0;
+            bool microBoundary = (flight.recovery.Active ? ticksGame - flight.planStartTick : ticksGame)
+                % GuidanceMicroStepTicks == 0;
             bool phaseChanged = false;
             bool unsafePlan = false;
             bool reportChanged = report.version != flight.previewReportVersion || !ReferenceEquals(report, flight.previewInfo);
+            flight.recoveryRecheck |= reportChanged;
             if (!flight.hasCommand || microBoundary || reportChanged)
             {
                 flight.previewReportVersion = report.version;
@@ -468,13 +479,31 @@ namespace DeltaV
                     phaseChanged = true;
                 }
             }
-            if (!flight.hasCommand)
+            if (flight.recovery.Active && (microBoundary || reportChanged || !flight.hasCommand))
+            {
+                if (flight.recovery.ControlDue(ticksGame, flight.recoveryRecheck)
+                    || flight.recovery.Fallback)
+                    Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, 0f,
+                        FarSolvePeriodSteps, combatHorizon, combatReferenceTime,
+                        targetDirection, hostVelocity, targetAngle, hostOmega);
+                else if (flight.currentPlanStep + 1 < flight.planStepsReady
+                    && flight.guidance.TryGetPlannedStep(flight.currentPlanStep + 1, flight.controlModel, out GuidanceCommand planned))
+                {
+                    flight.heldCommand = planned;
+                    flight.currentPlanStep++;
+                }
+                else
+                    Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, 0f,
+                        FarSolvePeriodSteps, combatHorizon, combatReferenceTime,
+                        targetDirection, hostVelocity, targetAngle, hostOmega);
+            }
+            else if (!flight.hasCommand)
             {
                 Solve(ownerId, flight, report, pose, posErr, vel, angleErr, omega, voidBlend,
                     SolvePeriodFor(flight.phase), combatHorizon, combatReferenceTime,
                     targetDirection, hostVelocity, targetAngle, hostOmega);
             }
-            else if (microBoundary || reportChanged)
+            else if (!flight.recovery.Active && (microBoundary || reportChanged))
             {
                 int solvePeriod = SolvePeriodFor(flight.phase);
                 if (reportChanged || phaseChanged || unsafePlan
@@ -500,7 +529,7 @@ namespace DeltaV
             }
 
             DriveControl control = new DriveControl { force = flight.heldCommand.desiredLocalForce,
-                torque = flight.heldCommand.desiredTorque, voidBlend = voidBlend,
+                torque = flight.heldCommand.desiredTorque, voidBlend = flight.recovery.Active ? 0f : voidBlend,
                 playerInitiated = flight.playerInitiated };
             DriveResult result = container.ApplyDrive(flight.subject, control, dt, out float torque);
             if (result == DriveResult.InvalidSubject)
@@ -564,10 +593,34 @@ namespace DeltaV
                         * (solvePeriod - 1) * GuidanceMicroStepTicks / 60f
                     : 0.0
             };
-            bool solved = flight.guidance.Compute(request, out flight.heldCommand);
+            bool wasRecovering = flight.recovery.Active;
+            bool solved = flight.recovery.Compute(flight.guidance, flight.profile, request, report, pose,
+                Find.TickManager.TicksGame, flight.recoveryRecheck,
+                !flight.motionOnly && !flight.intercept && !flight.combatOrbit,
+                out flight.heldCommand, out GuidanceCommand approach);
+            if (wasRecovering != flight.recovery.Active)
+            {
+                flight.noProgressTicks = 0;
+                if (flight.recovery.Active)
+                    flight.recoveryBestSpeed = vel.magnitude + Mathf.Abs(omega) * 5f;
+                else
+                    flight.bestError = posErr.magnitude + Mathf.Abs(angleErr) * 10f;
+            }
+            solvePeriod = flight.recovery.Active ? FarSolvePeriodSteps : SolvePeriodFor(flight.phase);
+            flight.recoveryRecheck = false;
+            if (wasRecovering != flight.recovery.Active)
+            {
+                SpaceObject subject = flight.subject.Resolve(universe);
+                Log.Message($"[DeltaV] MPC braking recovery {(flight.recovery.Active ? "entered" : "exited")}: "
+                    + $"structure=#{ownerId} object=#{subject?.objectId} label='{subject?.label}' "
+                    + $"reason={flight.recovery.Reason} distance={posErr.magnitude:F2} relativeSpeed={vel.magnitude:F2} "
+                    + $"braking={flight.brakingAcceleration:G6} approachStatus="
+                    + (approach.qpCalls == 0 && approach.infeasiblePrechecks == 0 ? "Skipped" : approach.qpStatus.ToString()) + ".");
+            }
             flight.hasCommand = true;
             flight.currentPlanStep = 0;
-            flight.planStepsReady = solved ? solvePeriod : 1; // 数值回退无计划：下一微步重解
+            flight.planStartTick = Find.TickManager.TicksGame;
+            flight.planStepsReady = solved ? solvePeriod : 1; // 回退无计划；恢复中下一微步只更新反馈，QP 受重试节拍约束
             AutopilotMpcDiagnostics.Record(flight.heldCommand, solvePeriod);
             if (!solved && !flight.failureLogged)
             {
@@ -593,12 +646,10 @@ namespace DeltaV
             {
                 flight.failureLogged = false;
             }
-            universe?.Performance.RecordAutopilotSolve(solveStart, solved,
-                flight.heldCommand.qpCalls, flight.heldCommand.qpIterations,
-                flight.heldCommand.qpStatus == QpSolveStatus.FeasibleApproximate);
+            universe?.Performance.RecordAutopilotSolve(solveStart, solved, flight.heldCommand);
         }
 
-        private static void BuildControlAcceleration(SpacePose pose, ShipPhysics.ControlModel model,
+        internal static void BuildControlAcceleration(SpacePose pose, ShipPhysics.ControlModel model,
             float voidBlend, double[] result)
         {
             Array.Clear(result, 0, result.Length);

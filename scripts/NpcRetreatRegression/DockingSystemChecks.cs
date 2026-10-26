@@ -75,14 +75,12 @@ internal static partial class Program
         map.listerThings.AllThings.Add(cargo);
         var scattered = new MapSpaceObject(49701, map, original) { baseTag = SpaceObjectTag.Scattered };
         Check(!scattered.CollisionCells.Any(), "scattered cargo has no collision surface");
-        universe.objects.Add(scattered);
-        universe.Scatter.Register(scattered);
+        universe.RegisterObject(scattered);
         Check(universe.Scatter.Candidates.Contains(scattered), "scattered registration populates the tractor candidate index");
         Check(CombatTarget.ForContainer(scattered).TryResolve(universe, out var resolved) && resolved.Container == scattered,
             "tractor locks resolve scattered object identity through existing fire control");
         CheckScatteredSweep(universe, scattered);
-        universe.objects.Remove(scattered);
-        universe.Scatter.Remove(scattered);
+        universe.UnregisterObject(scattered);
         Check(!universe.Scatter.Candidates.Contains(scattered), "scattered retirement releases the tractor candidate index");
         Check(!CombatTarget.ForContainer(scattered).TryResolve(universe, out _), "retired scattered identity cannot resolve a stale tractor lock");
         map.listerThings.AllThings.Clear();

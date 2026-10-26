@@ -484,12 +484,21 @@ namespace DeltaV
         private bool TryRestoreContainer(ArchivedSpaceObject archive, out MapSpaceObject current)
         {
             current = null;
-            if (!ArchivedMapStore.TryRestore(archive.mapData, archive.mapId, archive.parent, out Map restored)) return false;
+            Log.Message($"[DeltaV] Archive restore begin: object=#{archive.objectId} label='{archive.label}' "
+                + $"archivedMap=#{archive.mapId} {UniverseManager.MapTag(archive.parent?.Map)} parent={archive.parent?.GetUniqueLoadID() ?? "null"}");
+            if (!ArchivedMapStore.TryRestore(archive.mapData, archive.mapId, archive.parent, out Map restored))
+            {
+                Log.Warning($"[DeltaV] Archive restore failed: object=#{archive.objectId} label='{archive.label}' "
+                    + $"archivedMap=#{archive.mapId} {UniverseManager.MapTag(restored)} parent={archive.parent?.GetUniqueLoadID() ?? "null"}");
+                return false;
+            }
             current = archive.RestoreRepresentation(restored);
             universe.ReplaceRepresentation(archive, current);
             // 成功后原快照永远不能再恢复。即使后续清理失败，也只保留恢复图。
             archive.mapData = null;
             archive.dynamics = null;
+            Log.Message($"[DeltaV] Archive restore complete: object=#{current.objectId} label='{current.label}' "
+                + $"{UniverseManager.MapTag(restored)} parent={restored.Parent?.GetUniqueLoadID() ?? "null"}");
             return true;
         }
         private void ActivateRestoredContainer(SpaceObject container)

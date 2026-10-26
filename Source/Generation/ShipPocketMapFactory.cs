@@ -40,6 +40,7 @@ namespace DeltaV
         /// </summary>
         public static Map GenerateImmediate(IntVec3 size, UniverseManager universe)
         {
+            using var timing = universe.Performance.Measure(PerformanceStage.SyncMapGeneration);
             var parent = (PocketMapParent)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
             parent.sourceMap = universe.GetOrCreateHostMap();
             parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;

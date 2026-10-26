@@ -31,7 +31,7 @@ internal static partial class Program
         Set(record, "props", new CompProperties_SpaceProjectile());
         Set(record, "adoptedShuttle", shuttle);
         container.projectileRoleOverride = shuttle;
-        universe.objects.Add(container);
+        universe.RegisterObject(container);
         ProjectileRecords(universe.Projectiles).Add(record);
         if (container.map != null)
         {
@@ -49,6 +49,8 @@ internal static partial class Program
         int before = RecycledCount(service);
         var plain = new SpaceObject(1800, new SpacePose(Vector3.forward, 0)) { baseTag = SpaceObjectTag.Projectile };
         object first = AddProjectileRecord(universe, plain);
+        Check(universe.ObjectById(plain.objectId) == plain && service.InFlightCount == 1,
+            "projectile fixture registers its identity before destruction or reset");
         Call(service, "DestroyProjectile", first, "test");
         Action oldCleanup = Actions(universe)[Actions(universe).Count - 1];
         service.ResetFlow();
@@ -65,7 +67,7 @@ internal static partial class Program
         object pool = typeof(SpaceProjectileService).GetField("projectilePool", Private).GetValue(service);
         object reused = pool.GetType().GetMethod("Pop").Invoke(pool, null);
         var next = new SpaceObject(1801, plain.pose) { baseTag = SpaceObjectTag.Projectile };
-        universe.objects.Add(next);
+        universe.RegisterObject(next);
         Set(reused, "containerId", next.objectId);
         var nextDef = (ThingDef)Raw(typeof(ThingDef));
         nextDef.defName = "next_projectile";
@@ -89,6 +91,9 @@ internal static partial class Program
         var missing = new SpaceObject(1803, plain.pose) { baseTag = SpaceObjectTag.Projectile };
         AddProjectileRecord(universe, missing);
         universe.objects.Remove(missing); // Simulate a pre-existing orphan, bypassing the supported unregister entry.
+        Set(universe, "objectById", null);
+        Check(universe.ObjectById(missing.objectId) == null,
+            "orphan fixture has no registered identity before reset");
         service.ResetFlow();
         Call(universe, "RunFrameActions");
         Check(service.InFlightCount == 0, "reset also retires an already-missing container without dereferencing it");
@@ -136,7 +141,7 @@ internal static partial class Program
         for (int cycle = 0; cycle < 2; cycle++)
         {
             var ordinary = new SpaceObject(1810 + cycle * 2, plain.pose);
-            universe.objects.Add(ordinary);
+            universe.RegisterObject(ordinary);
             var active = new SpaceObject(1811 + cycle * 2, plain.pose) { baseTag = SpaceObjectTag.Projectile };
             AddProjectileRecord(universe, active);
             bool nestedRan = false;
