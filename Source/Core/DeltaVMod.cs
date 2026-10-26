@@ -122,6 +122,7 @@ namespace DeltaV
             list.Begin(rect);
             list.CheckboxLabeled("DeltaV_SettingsFlightAssist".Translate(), ref Settings.flightAssist,
                 "DeltaV_SettingsFlightAssistTip".Translate());
+            list.Label("DeltaV_SettingsKeysHint".Translate());
             bool hideEmptyMaps = Settings.hideSpaceMapsWithoutPlayerPawns;
             list.CheckboxLabeled("DeltaV_SettingsHideEmptySpaceMaps".Translate(),
                 ref Settings.hideSpaceMapsWithoutPlayerPawns, "DeltaV_SettingsHideEmptySpaceMapsTip".Translate());

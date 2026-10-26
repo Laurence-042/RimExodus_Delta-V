@@ -9,5 +9,6 @@
   <DeltaV_RotateRight.label>顺时针旋转</DeltaV_RotateRight.label>
   <DeltaV_TogglePilotMode.label>切换驾驶模式</DeltaV_TogglePilotMode.label>
   <DeltaV_AssistBrake.label>辅助刹停（按住）</DeltaV_AssistBrake.label>
+  <DeltaV_NavigationReferenceModifier.label>移动参考系（按住）</DeltaV_NavigationReferenceModifier.label>
   <DeltaV_AimMode.label>切换火控模式（建议勿绑到暂停等关键功能键）</DeltaV_AimMode.label>
 </LanguageData>

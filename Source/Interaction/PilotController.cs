@@ -526,12 +526,13 @@ internal readonly struct HeadingPanelAction
     ///   交给 ShipPhysics；辅助只在玩家该轴无输入时发反向指令；
     /// - SuppressVanillaKeys / ActivePilotKeys 供 Harmony 按键抑制 Prefix 使用：
     ///   快速通道是静态 bool，每帧由 UniverseManager.GameComponentUpdate 刷新，
-    ///   键集合在进入驾驶时按当前实际绑定重建（支持任意一侧改键）。
+    ///   键集合在进入驾驶及原版改键确认后按当前绑定重建（支持任意一侧改键）。
     /// </summary>
     public sealed class PilotService
     {
         private readonly UniverseManager universe;
         private readonly HashSet<KeyBindingDef> loggedSuppressedDefs = new HashSet<KeyBindingDef>();
+        private KeyPrefsData observedKeyPrefsData;
 
         /// <summary>玩家当前手操的 controller；全部船体均取同一身份注册表。</summary>
         private PlayerShipController activePlayerController;
@@ -737,6 +738,10 @@ internal readonly struct HeadingPanelAction
         /// 同样经 Enter/Exit 交接。抑制启用时仅输出一次绑定摘要。</summary>
         public void UpdateFrameState(UniverseManager universe)
         {
+            if (PilotKeyBridge.ActiveKeys.Count > 0 &&
+                !ReferenceEquals(observedKeyPrefsData, KeyPrefs.KeyPrefsData))
+                RebuildPilotKeySet();
+
             PilotTarget piloted = PilotedTarget(universe);
             Map focusedMap = Find.CurrentMap;
             ShipBase selected = focusedMap != null ? SelectedShipOnMap(focusedMap) : ShipBase.Invalid;
@@ -803,7 +808,7 @@ internal readonly struct HeadingPanelAction
             return overlaps;
         }
 
-        /// <summary>按当前实际绑定重建驾驶键集合（进入驾驶 / 键集合为空时调用）。
+        /// <summary>按当前实际绑定重建驾驶键集合（进入驾驶 / 原版改键确认后调用）。
         /// 含切换键：驾驶中按切换键不应触发与它重叠的原版绑定。
         /// keyPrefs 缺项（播种异常）时回退 def 默认键，保证集合非空、抑制可用。</summary>
         public void RebuildPilotKeySet()
@@ -827,6 +832,7 @@ internal readonly struct HeadingPanelAction
                 }
             }
             PilotKeyBridge.ActiveKeys = set;
+            observedKeyPrefsData = KeyPrefs.KeyPrefsData;
             DeltaVLog.Message(DeltaVLogModule.Harmony, $"pilot key set rebuilt: [{string.Join(", ", set)}]");
         }
 
