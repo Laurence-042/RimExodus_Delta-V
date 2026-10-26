@@ -533,6 +533,9 @@ namespace DeltaV
                 positionError = posErr,
                 motionOnly = flight.motionOnly,
                 intercept = flight.intercept,
+                accuracy = flight.combatOrbit || flight.intercept || flight.motionOnly ? GuidanceAccuracy.Strict
+                    : flight.phase == ApproachPhase.Cruise ? GuidanceAccuracy.Cruise
+                    : flight.phase == ApproachPhase.Braking ? GuidanceAccuracy.Braking : GuidanceAccuracy.Strict,
                 boostSeconds = boostSeconds,
                 unboostedModel = boostSeconds > 0f ? flight.unboostedModel : null,
                 unboostedAcceleration = flight.unboostedAcceleration,
@@ -569,14 +572,30 @@ namespace DeltaV
             if (!solved && !flight.failureLogged)
             {
                 flight.failureLogged = true;
+                SpaceObject failedContainer = flight.subject.Resolve(universe);
+                string task = flight.combatOrbit ? "combat-orbit" : flight.intercept ? "intercept"
+                    : flight.motionOnly ? "velocity-sync" : flight.reference != null ? "reference"
+                    : flight.tracked ? "tracked" : "waypoint";
                 Log.Warning($"[DeltaV] MPC solve degraded; braking fallback active for structure #{ownerId} "
-                    + $"(primal={flight.heldCommand.primalResidual:F3}, dual={flight.heldCommand.dualResidual:F3}).");
+                    + $"object=#{failedContainer?.objectId} label='{failedContainer?.label}' "
+                    + $"task={task} phase={flight.phase} npcRetreating={failedContainer?.npcRetreating} "
+                    + $"host=#{flight.hostId} "
+                    + $"distance={posErr.magnitude:F2} relativeSpeed={vel.magnitude:F2} "
+                    + $"angleError={angleErr * Mathf.Rad2Deg:F1}° braking={flight.brakingAcceleration:F3} "
+                    + $"modelVersion={report.version} solve={flight.heldCommand.solveMilliseconds:F2}ms "
+                    + $"qp={flight.heldCommand.qpCalls} calls/{flight.heldCommand.qpIterations} "
+                    + $"of {flight.heldCommand.qpIterationLimit} iterations "
+                    + $"constraints={flight.heldCommand.qpConstraints} status={flight.heldCommand.qpStatus} "
+                    + $"gap={flight.heldCommand.relativeOptimalityGap:G4} "
+                    + $"primal={flight.heldCommand.primalResidual:F3} dual={flight.heldCommand.dualResidual:F3}.");
             }
             else if (solved && flight.failureLogged)
             {
                 flight.failureLogged = false;
             }
-            universe?.Performance.RecordAutopilotSolve(solveStart);
+            universe?.Performance.RecordAutopilotSolve(solveStart, solved,
+                flight.heldCommand.qpCalls, flight.heldCommand.qpIterations,
+                flight.heldCommand.qpStatus == QpSolveStatus.FeasibleApproximate);
         }
 
         private static void BuildControlAcceleration(SpacePose pose, ShipPhysics.ControlModel model,

@@ -1,4 +1,4 @@
-param([switch]$Strict, [string]$GameRoot)
+param([switch]$Strict, [string]$GameRoot, [ValidateSet('Fast','Balanced','Precise')][string]$Profile = 'Balanced', [switch]$Exact)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 if (!$GameRoot) { $GameRoot = "$repo/../.." }
@@ -18,10 +18,14 @@ foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'Assemb
 }
 Copy-Item -LiteralPath "$repo/1.6/Assemblies/DeltaV.dll" -Destination $out -Force
 foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'DeltaV.dll')) { $lines += '/r:"' + "$out/$name" + '"' }
-$lines += @("$PSScriptRoot/Program.cs") | ForEach-Object { '"' + $_ + '"' }
+$lines += @("$PSScriptRoot/Program.cs", "$PSScriptRoot/SolverChecks.cs") | ForEach-Object { '"' + $_ + '"' }
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & dotnet $sdk /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net8.0","framework":{"name":"Microsoft.NETCore.App","version":"8.0.0"}}}' | Set-Content -LiteralPath "$out/MpcRegression.runtimeconfig.json"
-if ($Strict) { & dotnet "$out/MpcRegression.dll" --strict } else { & dotnet "$out/MpcRegression.dll" }
+$runArgs = @("--profile=$Profile")
+if ($Strict) { $runArgs += '--strict' }
+if ($Exact) { $runArgs += '--exact' }
+Push-Location $repo
+try { & dotnet "$out/MpcRegression.dll" @runArgs } finally { Pop-Location }
 exit $LASTEXITCODE

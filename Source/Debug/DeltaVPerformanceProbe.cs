@@ -32,6 +32,10 @@ namespace DeltaV
         private int peakDriftingObjects;
         private int peakArchivedObjects;
         private int autopilotSolves;
+        private int autopilotFallbacks;
+        private int autopilotApproximate;
+        private int autopilotQpCalls;
+        private int autopilotQpIterations;
         private int pointDefenseInterceptionTicks;
         private int pointDefenseScatterTicks;
         private int firstStructureVersion = -1;
@@ -88,11 +92,15 @@ namespace DeltaV
         internal void RecordWeaponResult(WeaponReject reason)
         { if (!Enabled) return; if (reason == WeaponReject.None) shots++; else rejected[(int)reason]++; }
 
-        internal void RecordAutopilotSolve(long start)
+        internal void RecordAutopilotSolve(long start, bool solved, int qpCalls, int qpIterations, bool approximate)
         {
             if (start == 0L) return;
             Record(PerformanceStage.AutopilotSolve, start);
             autopilotSolves++;
+            if (!solved) autopilotFallbacks++;
+            if (approximate) autopilotApproximate++;
+            autopilotQpCalls += qpCalls;
+            autopilotQpIterations += qpIterations;
         }
 
         internal void RecordPointDefenseTargets(bool hasInterceptionTargets, bool hasScatterTargets)
@@ -145,6 +153,10 @@ namespace DeltaV
                 .Append(" archivedMax=").Append(peakArchivedObjects)
                 .Append(" projectilesMax=").Append(peakProjectiles)
                 .Append(" mpcSolves=").Append(autopilotSolves)
+                .Append(" mpcFallbacks=").Append(autopilotFallbacks)
+                .Append(" mpcApproximate=").Append(autopilotApproximate)
+                .Append(" mpcQpCalls=").Append(autopilotQpCalls)
+                .Append(" mpcQpIterations=").Append(autopilotQpIterations)
                 .Append(" pdInterceptTicks=").Append(pointDefenseInterceptionTicks)
                 .Append(" pdScatterTicks=").Append(pointDefenseScatterTicks)
                 .Append(" structureChanges=").Append(firstStructureVersion < 0 ? 0
@@ -221,7 +233,8 @@ namespace DeltaV
             frames = ticks = 0;
             peakObjects = peakProjectiles = 0;
             peakThrustingObjects = peakDriftingObjects = peakArchivedObjects = 0;
-            autopilotSolves = pointDefenseInterceptionTicks = pointDefenseScatterTicks = 0;
+            autopilotSolves = autopilotFallbacks = autopilotApproximate = autopilotQpCalls = autopilotQpIterations = 0;
+            pointDefenseInterceptionTicks = pointDefenseScatterTicks = 0;
             firstStructureVersion = -1;
             lastStructureVersion = 0;
             hasSpeed = mixedSpeed = false;

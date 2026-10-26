@@ -446,6 +446,14 @@ namespace DeltaV
                 {
                     return;
                 }
+                // Standalone Map saving can emit vanilla cross-reference warnings before
+                // TryCapture returns. Keep the object identity adjacent to those warnings
+                // even when the optional Lifecycle log module is disabled.
+                string shipIds = string.Join(",", container.Ships.Select(ship => ship.Identity.key));
+                Log.Message($"[DeltaV] Archive capture begin: object=#{objectId} label='{container.label}' "
+                    + $"ships=[{shipIds}] tag={container.Tag} {UniverseManager.MapTag(map)} "
+                    + $"parent={map.Parent?.GetUniqueLoadID() ?? "null"} "
+                    + $"distance={MinPlayerDistance(container):F1} force={force}");
                 if (!ArchivedMapStore.TryCapture(map, out string data)) return;
                 string carriedLabel = container.label;
                 var archive = ((MapSpaceObject)container).CaptureArchive(data);

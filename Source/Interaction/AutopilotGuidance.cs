@@ -237,6 +237,8 @@ namespace DeltaV
         }
     }
 
+    internal enum GuidanceAccuracy { Strict, Braking, Cruise }
+
     internal struct GuidanceRequest
     {
         // positionError = target - ship；relativeVelocity = ship - target。
@@ -245,6 +247,7 @@ namespace DeltaV
         // still makes MPC brake and fly back to its predicted starting point.
         public bool motionOnly;
         public bool intercept;
+        public GuidanceAccuracy accuracy;
         public float boostSeconds;
         public ShipPhysics.ControlModel unboostedModel;
         public double[] unboostedAcceleration;
@@ -290,6 +293,12 @@ namespace DeltaV
         public double dualResidual;
         public double solveMilliseconds;
         public double arrivalSeconds;
+        public int qpCalls;
+        public int qpIterations;
+        public int qpIterationLimit;
+        public int qpConstraints;
+        public QpSolveStatus qpStatus;
+        public double relativeOptimalityGap;
     }
 
     internal interface IAutopilotGuidance
@@ -443,7 +452,7 @@ namespace DeltaV
         private static readonly double[] StateScale = { 10, 10, 5, 5, 10 * Math.PI / 180, 10 * Math.PI / 180 };
         private static readonly double[] StateWeight = { 4, 4, 2, 2, 4, 2 };
 
-        private readonly DenseAdmmQpSolver solver = new DenseAdmmQpSolver();
+        private readonly DenseActiveSetQpSolver solver = new DenseActiveSetQpSolver();
         private AutopilotMpcProfile profile;
         private int horizonSteps;
         private int iterations;
@@ -455,6 +464,7 @@ namespace DeltaV
         private double[] a;
         private double[] lower;
         private double[] upper;
+        private double[] constraintTolerances;
         private double[] solution;
         private double[] sensitivities;
         private double[] state;
@@ -488,6 +498,7 @@ namespace DeltaV
             a = new double[maxConstraints * variables];
             lower = new double[maxConstraints];
             upper = new double[maxConstraints];
+            constraintTolerances = new double[maxConstraints];
             solution = new double[variables];
             sensitivities = new double[StateCount * variables];
             state = new double[StateCount];
@@ -535,12 +546,19 @@ namespace DeltaV
             candidate = Math.Max(request.dt, Math.Min(maxHorizon, candidate));
             double low = request.dt, high = maxHorizon;
             bool found = false, havePlan = false;
+            int qpCalls = 0, qpIterations = 0, qpIterationLimit = 0, qpConstraints = 0;
             command = default;
+            GuidanceCommand lastAttempt = default;
             for (int trial = 0; trial < 4; trial++)
             {
                 request.arrivalSeconds = candidate;
                 hasPlannedSolution = false;
                 bool solved = ComputePlan(request, out GuidanceCommand attempt);
+                lastAttempt = attempt;
+                qpCalls += attempt.qpCalls;
+                qpIterations += attempt.qpIterations;
+                qpIterationLimit += attempt.qpIterationLimit;
+                qpConstraints = attempt.qpConstraints;
                 double px = PredictedState(0), py = PredictedState(1);
                 bool reachable = solved && px * px + py * py <= 0.75 * 0.75
                     && Math.Abs(PredictedState(4)) <= 15 * Math.PI / 180;
@@ -564,8 +582,19 @@ namespace DeltaV
                 hasPlannedSolution = true;
                 lastInterceptHorizon = command.arrivalSeconds;
             }
-            else BrakingGuidanceFallback.Compute(request, out command);
+            else
+            {
+                BrakingGuidanceFallback.Compute(request, out command);
+                command.primalResidual = lastAttempt.primalResidual;
+                command.dualResidual = lastAttempt.dualResidual;
+                command.qpStatus = lastAttempt.qpStatus;
+                command.relativeOptimalityGap = lastAttempt.relativeOptimalityGap;
+            }
             command.solveMilliseconds = (Stopwatch.GetTimestamp() - started) * 1000.0 / Stopwatch.Frequency;
+            command.qpCalls = qpCalls;
+            command.qpIterations = qpIterations;
+            command.qpIterationLimit = qpIterationLimit;
+            command.qpConstraints = qpConstraints;
             return havePlan;
         }
 
@@ -585,6 +614,7 @@ namespace DeltaV
             if (!ValidRequest(request))
             {
                 BrakingGuidanceFallback.Compute(request, out command);
+                command.qpStatus = QpSolveStatus.InvalidInput;
                 return false;
             }
 
@@ -621,6 +651,7 @@ namespace DeltaV
             for (int i = 0; i < inputVariables; i++)
             {
                 a[constraints * variables + i] = 1.0;
+                constraintTolerances[constraints] = 1e-5;
                 bool unboosted = UsesUnboosted(request, i / InputCount);
                 (unboosted ? request.unboostedModel : request.controlModel).ControlBounds(i % InputCount,
                     out lower[constraints], out upper[constraints]);
@@ -674,6 +705,9 @@ namespace DeltaV
                         double slope = segment < 4 ? (lowSpeed + highSpeed) / (2.0 * safeAccel) : 0.0;
                         double intercept = segment < 4 ? lowSpeed * highSpeed / (2.0 * safeAccel) : 0.05;
                         int row = constraints++;
+                        // Original QP rows divide by StateScale[0]: enforce 0.001 cells
+                        // for stop/plane constraints, 0.0001 cells/s for the speed ceiling.
+                        constraintTolerances[row] = (segment == 5 ? 1e-4 : 1e-3) / StateScale[0];
                         for (int col = 0; col < inputVariables; col++)
                         {
                             double dp = nx * Sens(0, col) + ny * Sens(1, col);
@@ -710,11 +744,19 @@ namespace DeltaV
             AddControlCosts(inputVariables, request.previousX, request.previousZ, request.previousAngular);
 
             bool numerical = solver.Solve(variables, constraints, p, q, a, lower, upper,
-                iterations, solution, out double primal, out double dual);
+                iterations, solution, out double primal, out double dual,
+                OptimalityTolerance(request), constraintTolerances);
             command.solveMilliseconds = (Stopwatch.GetTimestamp() - started) * 1000.0 / Stopwatch.Frequency;
             command.primalResidual = primal;
             command.dualResidual = dual;
-            // 只执行满足原 QP 可行性与 KKT 平稳性容差的解。
+            command.qpCalls = 1;
+            command.qpIterations = solver.IterationsUsed;
+            command.qpIterationLimit = iterations;
+            command.qpConstraints = constraints;
+            command.qpStatus = solver.Status;
+            command.relativeOptimalityGap = solver.RelativeGap;
+            // Every accepted plan is feasible in original units. Far-field plans may
+            // terminate on a certified objective gap instead of strict stationarity.
             bool accepted = numerical
                 && AllFinite(solution, variables);
             if (!accepted)
@@ -729,6 +771,12 @@ namespace DeltaV
                 fallback.solveMilliseconds = command.solveMilliseconds;
                 fallback.primalResidual = primal;
                 fallback.dualResidual = dual;
+                fallback.qpCalls = command.qpCalls;
+                fallback.qpIterations = command.qpIterations;
+                fallback.qpIterationLimit = command.qpIterationLimit;
+                fallback.qpConstraints = command.qpConstraints;
+                fallback.qpStatus = command.qpStatus;
+                fallback.relativeOptimalityGap = command.relativeOptimalityGap;
                 command = fallback;
                 return false;
             }
@@ -738,6 +786,14 @@ namespace DeltaV
                 solution[0], solution[1], solution[2], ref command);
             command.solved = true;
             return true;
+        }
+
+        internal static double OptimalityTolerance(GuidanceRequest request)
+        {
+            if (request.motionOnly || request.intercept || request.combatTrajectory.seconds > 0f)
+                return 0;
+            return request.accuracy == GuidanceAccuracy.Cruise ? 0.01
+                : request.accuracy == GuidanceAccuracy.Braking ? 0.001 : 0;
         }
 
         private static void CombatReferenceOffsets(GuidanceRequest request, float predictionTime,
