@@ -28,7 +28,7 @@ internal static partial class Program
             new DriveControl { force = force }, 1f / 60f, out _);
     }
 
-    static void CheckDockingSystem(UniverseManager universe)
+    static void CheckDockingSystem(UniverseManager universe, bool dockingOnly = false)
     {
         var dock = new CompSoftDocking();
         Set(dock, "active", true);
@@ -87,6 +87,7 @@ internal static partial class Program
         SpaceCollision.Forget(map);
         Find.Maps.Remove(map);
         CheckSoftDockReference(universe);
+        if (dockingOnly) return;
         CheckScatteredRetirement(universe);
         CheckTractorReceive(universe);
         CheckUndockHeading(universe);

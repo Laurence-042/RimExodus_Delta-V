@@ -76,8 +76,12 @@ namespace DeltaV
 
         internal void ApplyAlignmentAssist()
         {
-            if (steering != null && SteeringValid(steering))
-                steering.ApplyAlignmentAssist(universe, this, controlled);
+            if (!Enabled) return;
+            // Pair alignment remains active after manual takeover, task replacement or load.
+            // Steering is only the optional thruster task, not the docking state owner.
+            foreach (Building_DockingPort port in ports)
+                if (port.Docking?.IsActiveOwner == true)
+                    port.Docking.ApplyAlignmentAssist(universe, this, controlled);
         }
 
         private bool SteeringValid(CompSoftDocking dock)
