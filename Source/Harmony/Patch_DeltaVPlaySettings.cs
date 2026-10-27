@@ -23,6 +23,8 @@ namespace DeltaV
                 universe.SoftDock.SetEnabled(soft);
             }
             if (universe == null) return;
+            row.ToggleableIcon(ref universe.ConfirmSplitWarnings, TexButton.Info,
+                "DeltaV_SplitWarningToggle".Translate(), SoundDefOf.Mouseover_ButtonToggle);
             if (Find.CurrentMap != null && universe.FrameOf(Find.CurrentMap) != null)
                 row.ToggleableIcon(ref universe.ShowCoordinateGrid, TexButton.ShowTerrainAffordanceOverlay,
                     "DeltaV_CoordinateGridToggle".Translate(), SoundDefOf.Mouseover_ButtonToggle);

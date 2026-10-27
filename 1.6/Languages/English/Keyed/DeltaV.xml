@@ -185,6 +185,8 @@ Detached substructure will become independent wrecks. Unsupported people and ite
   <DeltaV_SplitCargoLine>- People/items that will drift independently:
 {0}</DeltaV_SplitCargoLine>
   <DeltaV_SplitBlockLine>- {0}: {1} cells</DeltaV_SplitBlockLine>
+  <DeltaV_SplitWarningToggle>Hull tear warnings: when enabled, pause and ask for confirmation before each split. When disabled, split automatically and show only a top-left message each time. Enabled by default.</DeltaV_SplitWarningToggle>
+  <DeltaV_SplitAutoNotice>{0}: residual contents are separating before thrust.</DeltaV_SplitAutoNotice>
   <DeltaV_SeparationCancelled>Separation cancelled and pilot mode exited. Re-enter pilot mode and thrust to try again.</DeltaV_SeparationCancelled>
   <DeltaV_DockSourceLeftoverConfirm>Docking '{0}' will dispose of everything left outside its hull on the source map:
 

@@ -114,10 +114,11 @@ namespace DeltaV
                     cargo = cargo.Concat(Building_DockingPort.CollectChannelLeftBehind(sourceMap,
                         ShipRegistry.ControlDomain(ship))).Distinct().ToList();
                 if (blocks.Count == 0 && cargo.Count == 0) return true;
-                if (!playerInitiated)
+                if (!playerInitiated || !universe.ConfirmSplitWarnings)
                 {
-                    // NPC（或无 controller 上下文）：直接执行同一公共拆分，不弹玩家确认（§8.2）。
-                    QueueSeparation(universe, ship.ownerId);
+                    // 玩家关闭确认时仍经过同一帧边界拆分，只把提示交给原版消息栏。
+                    QueueSeparation(universe, ship.ownerId,
+                        notifyPlayer: playerInitiated && !universe.ConfirmSplitWarnings);
                     return false;
                 }
                 PresentSeparationPrompt(universe, ship, "DeltaV_SplitConfirmText",
@@ -223,7 +224,7 @@ namespace DeltaV
         /// 在该上下文执行过）；排队期间由 pendingSeparationOwnerIds 占位防重复入队。
         /// 弹窗确认回调（forcePause 暂停中、GUI 上下文）不经此处，直接执行。
         /// </summary>
-        private void QueueSeparation(UniverseManager universe, int ownerId)
+        private void QueueSeparation(UniverseManager universe, int ownerId, bool notifyPlayer = false)
         {
             pendingSeparationOwnerIds.Add(ownerId);
             Ship ship = ShipRegistry.ShipByOwner(ownerId);
@@ -239,6 +240,9 @@ namespace DeltaV
                     pendingSeparationOwnerIds.Remove(ownerId);
                     return;
                 }
+                if (notifyPlayer)
+                    Messages.Message("DeltaV_SplitAutoNotice".Translate(universe.LabelForOwner(ownerId)),
+                        MessageTypeDefOf.ThreatSmall, false);
                 ExecuteSeparation(universe, ownerId);
             });
         }

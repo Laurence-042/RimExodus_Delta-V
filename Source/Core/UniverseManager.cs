@@ -108,6 +108,7 @@ namespace DeltaV
         internal bool SoftDockEnabled;
         internal bool ShowThrusterDebugOverlay;
         internal bool ShowCoordinateGrid = true;
+        internal bool ConfirmSplitWarnings = true;
         internal bool ShowWeaponArcOverlay;
         internal bool ShowCollisionDebugOverlay;
         [NonSerialized] private OrbitalWorkService worksites;
@@ -612,6 +613,7 @@ namespace DeltaV
             Scribe_Values.Look(ref SoftDockEnabled, "softDockEnabled", false);
             Scribe_Values.Look(ref ShowThrusterDebugOverlay, "showThrusterDebugOverlay", false);
             Scribe_Values.Look(ref ShowCoordinateGrid, "showCoordinateGrid", true);
+            Scribe_Values.Look(ref ConfirmSplitWarnings, "confirmSplitWarnings", true);
             Scribe_Values.Look(ref ShowWeaponArcOverlay, "showWeaponArcOverlay", false);
             Scribe_Values.Look(ref ShowCollisionDebugOverlay, "showCollisionDebugOverlay", false);
             if (Scribe.mode == LoadSaveMode.LoadingVars && generatedSectorTiles == null)
