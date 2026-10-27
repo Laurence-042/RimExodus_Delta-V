@@ -19,6 +19,7 @@ namespace DeltaV
         internal bool HasCandidates => candidates.Count > 0;
         private readonly Dictionary<Map, HashSet<IntVec3>> damaged = new Dictionary<Map, HashSet<IntVec3>>();
         private readonly HashSet<Map> pendingEmpty = new HashSet<Map>();
+        private readonly HashSet<Map> awaitingFocusLoss = new HashSet<Map>();
         private sealed class PullRequest
         {
             internal SpaceObject target, receiver;
@@ -43,13 +44,15 @@ namespace DeltaV
         internal void Remove(SpaceObject obj)
         {
             candidates.Remove(obj);
+            if (obj.map != null) awaitingFocusLoss.Remove(obj.map);
             pulls.RemoveAll(p => p.target == obj || p.receiver == obj);
         }
         internal void Forget(Map map)
         {
             candidates.RemoveWhere(o => o.map == map);
             looseCargoByMap.Remove(map);
-            damaged.Remove(map); pendingEmpty.Remove(map); collecting.Remove(map); retiring.Remove(map);
+            damaged.Remove(map); pendingEmpty.Remove(map); awaitingFocusLoss.Remove(map);
+            collecting.Remove(map); retiring.Remove(map);
             pulls.RemoveAll(p => p.source == map || p.destination == map);
         }
 
@@ -216,10 +219,27 @@ namespace DeltaV
                 foreach (Thing residue in map.listerThings.AllThings.Where(t => t is Filth || t is Mote || t is Gas).ToList())
                     residue.Destroy(DestroyMode.Vanish);
                 // Death can spawn a corpse in this same frame. Only genuinely empty maps retire.
-                if (map.listerThings.AllThings.Count != 0 || Find.CurrentMap == map) return;
+                if (map.listerThings.AllThings.Count != 0) return;
+                if (Find.CurrentMap == map)
+                {
+                    awaitingFocusLoss.Add(map);
+                    return;
+                }
+                awaitingFocusLoss.Remove(map);
                 universe.UnregisterObject(owner);
                 universe.MapPool.TryReturn(universe.MapPool.Restore(map));
             });
+        }
+
+        internal void NotifyFocusChanged(Map focused)
+        {
+            if (awaitingFocusLoss.Count == 0) return;
+            foreach (Map map in awaitingFocusLoss.ToList())
+            {
+                if (map == focused) continue;
+                awaitingFocusLoss.Remove(map);
+                if (!map.Disposed) NotifyContentRemoved(map);
+            }
         }
 
         internal bool TryLaunch(SpaceWeaponShot shot)

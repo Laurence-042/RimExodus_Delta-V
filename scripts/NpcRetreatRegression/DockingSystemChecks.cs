@@ -89,6 +89,7 @@ internal static partial class Program
         CheckSoftDockReference(universe);
         if (dockingOnly) return;
         CheckScatteredRetirement(universe);
+        CheckFocusedScatterAndMapSetter(universe);
         CheckTractorReceive(universe);
         CheckUndockHeading(universe);
     }
@@ -434,5 +435,65 @@ internal static partial class Program
             && universe.MapPool.IsIdle(map) && !universe.Scatter.Candidates.Contains(lost) && !Thing.allowDestroyNonDestroyable,
             "even archive requests destroy lost cargo then unregister and pool the map without an archive");
         universe.objects.Remove(home); universe.MapPool.Forget(map); Find.Maps.Remove(map);
+    }
+
+    static void CheckFocusedScatterAndMapSetter(UniverseManager universe)
+    {
+        Game game = Current.Game;
+        Type focusPatch = typeof(UniverseManager).Assembly.GetType("DeltaV.Patch_Game_CurrentMapFocus");
+        var postfix = focusPatch.GetMethod("Postfix", Private);
+        Map map = TestMap(49722);
+        PreparePoolMap(map, SpaceObjectTag.Scattered);
+        var scattered = new MapSpaceObject(49722, map, new SpacePose(Vector3.forward, 0f))
+            { baseTag = SpaceObjectTag.Scattered };
+        universe.objects.Add(scattered);
+        Set(universe, "objectByMap", null);
+        universe.Scatter.Register(scattered);
+        universe.MapPool.Restore(map);
+        game.currentMapIndex = (sbyte)Find.Maps.IndexOf(map);
+        universe.Scatter.NotifyContentRemoved(map);
+        Call(universe, "RunFrameActions");
+        Check(universe.objects.Contains(scattered) && !universe.MapPool.IsIdle(map),
+            "empty focused scatter map waits for focus loss");
+
+        var cargo = (Thing)Raw(typeof(Thing));
+        cargo.def = TestBuildingDef("focus_returned_cargo"); cargo.def.category = ThingCategory.Item;
+        map.listerThings.AllThings.Add(cargo);
+        game.currentMapIndex = -1;
+        postfix.Invoke(null, new object[] { game });
+        Call(universe, "RunFrameActions");
+        Check(universe.objects.Contains(scattered) && !universe.MapPool.IsIdle(map),
+            "cargo returned before focus-loss cleanup cancels retirement");
+
+        map.listerThings.AllThings.Remove(cargo);
+        game.currentMapIndex = (sbyte)Find.Maps.IndexOf(map);
+        universe.Scatter.NotifyContentRemoved(map);
+        Call(universe, "RunFrameActions");
+        game.currentMapIndex = -1;
+        postfix.Invoke(null, new object[] { game });
+        Call(universe, "RunFrameActions");
+        Check(!universe.objects.Contains(scattered) && universe.MapPool.IsIdle(map),
+            "focus loss retires an empty scattered map through the existing frame queue");
+        universe.MapPool.Forget(map); Find.Maps.Remove(map);
+
+        Map target = TestMap(49723);
+        var prefix = focusPatch.GetMethod("Prefix", Private);
+        game.currentMapIndex = (sbyte)Find.Maps.Count;
+        object[] args = { game, target };
+        Check((bool)prefix.Invoke(null, args),
+            "map setter prefix accepts a valid target while old index is out of range");
+        Map invalid = (Map)Raw(typeof(Map));
+        args[1] = invalid;
+        Check((bool)prefix.Invoke(null, args),
+            "invalid target is left to vanilla without reading stale current map");
+        target.info.parent = (UniverseHostParent_DeltaV)Raw(typeof(UniverseHostParent_DeltaV));
+        args[1] = target;
+        Check(!(bool)prefix.Invoke(null, args) && game.currentMapIndex == Find.Maps.Count,
+            "host map is rejected without reading or changing the stale old index");
+        postfix.Invoke(null, new object[] { game });
+        Check(game.currentMapIndex == Find.Maps.Count,
+            "map setter postfix tolerates the out-of-range index without reading CurrentMap");
+        game.currentMapIndex = -1;
+        Find.Maps.Remove(target);
     }
 }

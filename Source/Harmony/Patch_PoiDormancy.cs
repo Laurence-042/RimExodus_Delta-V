@@ -14,9 +14,7 @@ namespace DeltaV
     ///   TickManager/Game.UpdatePlay 直接遍历 Find.Maps 调用，无其他拦截点）。
     ///   跳过即停全部组件模拟/更新；外壳代理渲染（ShellRenderer）是自驱动重放，
     ///   不依赖目标图的 MapUpdate，休眠图照常作为代理显示。
-    /// - Game.CurrentMap setter：进入休眠 POI 图 = 玩家的显式唤醒意图，先唤醒再切图
-    ///   （单点覆盖全部进入路径：殖民者栏分组框、地图按钮、CameraJumper、外壳点击）；
-    ///   宿主口袋图则直接拒绝切入（它是纯 sourceMap 锚点画布，不可游玩）。
+    /// - Game.CurrentMap setter 的唤醒和宿主图门禁由 Patch_Game_CurrentMapFocus 统一处理。
     /// - Storyteller.AllIncidentTargets：剔除全部冻结图，防事件打到冻结图/空宿主上。
     ///
     /// 判定集合只含 Delta-V 自己的地图（SpaceLifecycleService 维护），与 RimExodus 的
@@ -48,40 +46,6 @@ namespace DeltaV
             private static bool Prefix(Map __instance)
             {
                 return Current.Game?.GetComponent<UniverseManager>()?.Lifecycle.IsFrozen(__instance) != true;
-            }
-        }
-
-        [HarmonyPatch(typeof(Game), nameof(Game.CurrentMap), MethodType.Setter)]
-        private static class Patch_Game_CurrentMap_Setter
-        {
-            private static void Prefix(ref Map value)
-            {
-                if (value == null) return;
-                if (SpaceLifecycleService.IsUniverseHost(value))
-                {
-                    // 宿主口袋图不可聚焦：把切换重定向回当前图（幂等 no-op）。
-                    Log.Warning("[DeltaV] Blocked an attempt to focus the universe host pocket map.");
-                    value = Find.CurrentMap;
-                    return;
-                }
-                UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-                bool wasFrozen = universe?.Lifecycle.IsDormant(value) == true;
-                if (wasFrozen)
-                {
-                    // 同步唤醒（轻量，无生成），玩家切进去的图不能是冻结的。
-                    universe.Lifecycle.Wake(value, "entering map (CurrentMap switch)");
-                }
-                if (wasFrozen || universe?.SpaceObjectOnMap(value) != null)
-                {
-                    // 冻结图跳过 MapUpdate：休眠期间累积/未刷新的脏 Section 永不重建，
-                    // 画面空白但数据与悬停正常（2026-09-17 实测：建造一格触发局部
-                    // MeshDirty 后整图恢复）。Delta-V 容器图（含从未休眠的增量生成图，
-                    // 根因未定位前——2026-09-25 起物化 POI 图也是普通容器，条件从
-                    // PoiState 扩为任意容器图）切入时一律全量重建一次，保证玩家看到
-                    // 的是活图（原版读档同款 RegenerateEverythingNow；仅 Delta-V 的
-                    // 图，RimExodus 地表图不受影响）。
-                    value.mapDrawer.RegenerateEverythingNow();
-                }
             }
         }
 

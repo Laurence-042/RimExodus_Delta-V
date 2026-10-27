@@ -6,15 +6,50 @@ using Verse;
 
 namespace DeltaV
 {
-    [HarmonyPatch(typeof(MapInterface), nameof(MapInterface.Notify_SwitchedMap))]
-    internal static class Patch_CameraZoomScope_MapSwitch
+    [HarmonyPatch(typeof(Game), nameof(Game.CurrentMap), MethodType.Setter)]
+    internal static class Patch_Game_CurrentMapFocus
     {
-        // CurrentMap 已切换；原版随后用新图 rememberedCameraPos 设定缩放，须先换上限。
-        private static void Prefix() =>
-            Current.Game?.GetComponent<UniverseManager>()?.ApplyCameraZoomScope();
+        private static Map CurrentMapIfValid(Game game)
+        {
+            int index = game?.currentMapIndex ?? -1;
+            return index >= 0 && index < game.Maps.Count ? game.Maps[index] : null;
+        }
 
-        private static void Postfix() =>
-            Current.Game?.GetComponent<UniverseManager>()?.ApplyCameraZoomScope();
+        private static bool Prefix(Game __instance, Map value)
+        {
+            // 原版删图时先移除旧图，后调用此 setter。旧索引此时可能越界。
+            if (value != null && !__instance.Maps.Contains(value)) return true;
+            if (value != null && SpaceLifecycleService.IsUniverseHost(value))
+            {
+                Log.Warning("[DeltaV] Blocked an attempt to focus the universe host pocket map.");
+                return false;
+            }
+
+            UniverseManager universe = __instance.GetComponent<UniverseManager>();
+            if (value != null)
+            {
+                bool wasFrozen = universe?.Lifecycle.IsDormant(value) == true;
+                if (wasFrozen)
+                    universe.Lifecycle.Wake(value, "entering map (CurrentMap switch)");
+                // 冻结期间的脏 section 不会由 MapUpdate 重建；进入容器图前恢复画面。
+                if (wasFrozen || universe?.SpaceObjectOnMap(value) != null)
+                    value.mapDrawer.RegenerateEverythingNow();
+            }
+            // MapUI 会在 setter 内恢复新图记忆的镜头；先按目标图设置上限。
+            universe?.ApplyCameraZoomScope(value);
+            return true;
+        }
+
+        private static void Postfix(Game __instance)
+        {
+            Map focused = CurrentMapIfValid(__instance);
+            UniverseManager universe = __instance.GetComponent<UniverseManager>();
+            universe?.ApplyCameraZoomScope(focused);
+            CameraDriver driver = Find.CameraDriver;
+            if (driver?.config != null && driver.RootSize > driver.config.sizeRange.max)
+                driver.SetRootSize(driver.config.sizeRange.max);
+            universe?.NotifyScatterFocusChanged(focused);
+        }
     }
 
     // SCS 缺席时 Prepare 跳过；它的设置写入完成后才读取最新 max。

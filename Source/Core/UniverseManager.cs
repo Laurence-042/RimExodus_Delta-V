@@ -103,6 +103,7 @@ namespace DeltaV
         public SpaceMapPool MapPool => mapPool ?? (mapPool = new SpaceMapPool(this));
         [NonSerialized] private SpaceScatterService scatter;
         public SpaceScatterService Scatter => scatter ?? (scatter = new SpaceScatterService(this));
+        internal void NotifyScatterFocusChanged(Map focused) => scatter?.NotifyFocusChanged(focused);
         [NonSerialized] private SoftDockService softDock;
         public SoftDockService SoftDock => softDock ?? (softDock = new SoftDockService(this));
         internal bool SoftDockEnabled;
@@ -798,7 +799,9 @@ namespace DeltaV
         private CameraMapConfig zoomConfig;
         private float outsideZoomMax = float.NaN;
 
-        internal void ApplyCameraZoomScope()
+        internal void ApplyCameraZoomScope() => ApplyCameraZoomScope(Find.CurrentMap);
+
+        internal void ApplyCameraZoomScope(Map targetMap)
         {
             CameraMapConfig config = Find.CameraDriver?.config;
             if (config == null) return;
@@ -808,7 +811,7 @@ namespace DeltaV
                 zoomConfig = null;
                 outsideZoomMax = float.NaN;
             }
-            if (FrameOf(Find.CurrentMap) != null)
+            if (FrameOf(targetMap) != null)
             {
                 if (zoomConfig == null)
                 {
@@ -832,17 +835,6 @@ namespace DeltaV
             if (config == null || config != Find.CameraDriver?.config) return;
             if (zoomConfig == config) outsideZoomMax = config.sizeRange.max;
             ApplyCameraZoomScope();
-        }
-
-        /// <summary>
-        /// 当前相机上限是否处于 Delta-V 覆盖状态；是则给出图外配置值。
-        /// 供 GravshipCapturer 快照补丁在捕获窗口内临时使用图外缩放包络。
-        /// </summary>
-        internal bool TryGetOutsideZoomMax(out float outsideMax)
-        {
-            outsideMax = outsideZoomMax;
-            return zoomConfig != null && zoomConfig == Find.CameraDriver?.config
-                && !float.IsNaN(outsideZoomMax);
         }
 
         /// <summary>
