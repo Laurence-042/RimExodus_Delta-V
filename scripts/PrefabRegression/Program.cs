@@ -109,6 +109,99 @@ internal static class Program
         }
         Check(first.GunCompEq.PrimaryVerb.GetUniqueLoadID() != second.GunCompEq.PrimaryVerb.GetUniqueLoadID(), "cloned Verb IDs differ");
 
+        var strategyDef = (ThingDef)RuntimeHelpers.GetUninitializedObject(typeof(ThingDef));
+        strategyDef.defName = "PrefabRegressionStrategyHolder";
+        strategyDef.category = ThingCategory.Item;
+        strategyDef.thingClass = typeof(ThingWithComps);
+        strategyDef.stackLimit = 1;
+        strategyDef.comps = new List<CompProperties> { new CompProperties_ShipCombatAI() };
+        DefDatabase<ThingDef>.Add(strategyDef);
+        var a = new ThingWithComps { def = strategyDef, thingIDNumber = 2100230 };
+        var b = new ThingWithComps { def = strategyDef, thingIDNumber = 2100231 };
+        a.InitializeComps(); b.InitializeComps();
+        a.GetComp<CompShipCombatAI>().strategy.name = "heavy cruiser";
+        a.GetComp<CompShipCombatAI>().strategy.maneuverRules.Add(
+            new CombatStrategyRule { name = "guard", maneuverCurves = new CombatManeuverCurves
+            {
+                distance = new CombatScoreCurve(true,
+                    new CombatScorePoint(50f, -20f), new CombatScorePoint(120f, 40f))
+            } });
+        b.GetComp<CompShipCombatAI>().strategy.name = "interceptor";
+        b.GetComp<CompShipCombatAI>().strategy.maneuverRules.Add(
+            new CombatStrategyRule { name = "close", maneuverCurves = new CombatManeuverCurves
+            {
+                distance = new CombatScoreCurve(false,
+                    new CombatScorePoint(10f, 30f), new CombatScorePoint(80f, -10f))
+            } });
+        b.GetComp<CompShipCombatAI>().strategy.fireRules.Add(
+            new CombatStrategyRule { name = "finish", finishingWeight = 4f });
+        var twoShipEntries = new List<MapPrefabThingEntry>
+        {
+            new MapPrefabThingEntry { def = strategyDef, stateXml = (string)Call("Capture", a) },
+            new MapPrefabThingEntry { def = strategyDef, stateXml = (string)Call("Capture", b) }
+        };
+        var pairOne = Instantiate(twoShipEntries).Cast<ThingWithComps>().ToList();
+        var pairTwo = Instantiate(twoShipEntries).Cast<ThingWithComps>().ToList();
+        Check(pairOne.Count == 2 && pairTwo.Count == 2
+            && pairOne[0].GetComp<CompShipCombatAI>().strategy.name == "heavy cruiser"
+            && pairOne[1].GetComp<CompShipCombatAI>().strategy.name == "interceptor"
+            && pairTwo[0].GetComp<CompShipCombatAI>().strategy.maneuverRules[0].name == "guard"
+            && pairTwo[0].GetComp<CompShipCombatAI>().strategy.maneuverRules[0]
+                .maneuverCurves.distance.points[1].x == 120f
+            && pairTwo[1].GetComp<CompShipCombatAI>().strategy.maneuverRules[0]
+                .maneuverCurves.distance.points[0].x == 10f
+            && pairTwo[1].GetComp<CompShipCombatAI>().strategy.fireRules[0].name == "finish",
+            "two independent comp strategies survive repeated prefab instantiation");
+        pairOne[0].GetComp<CompShipCombatAI>().strategy.name = "edited instance";
+        pairOne[0].GetComp<CompShipCombatAI>().strategy.maneuverRules[0]
+            .maneuverCurves.distance.points[1].y = 99f;
+        Check(pairTwo[0].GetComp<CompShipCombatAI>().strategy.name == "heavy cruiser"
+            && pairTwo[0].GetComp<CompShipCombatAI>().strategy.maneuverRules[0]
+                .maneuverCurves.distance.points[1].y == 40f
+            && a.GetComp<CompShipCombatAI>().strategy.name == "heavy cruiser",
+            "repeated prefab instances do not share strategy objects");
+        string strategiesPath = Path.Combine(AppContext.BaseDirectory, "prefab-strategies.xml");
+        List<Thing> strategySaved = pairOne.Cast<Thing>().ToList();
+        Scribe.saver.InitSaving(strategiesPath, "fixture");
+        Scribe_Collections.Look(ref strategySaved, "things", LookMode.Deep);
+        Scribe.saver.FinalizeSaving();
+        List<Thing> strategyRestored = null;
+        Scribe.loader.InitLoading(strategiesPath);
+        Scribe_Collections.Look(ref strategyRestored, "things", LookMode.Deep);
+        Scribe.loader.FinalizeLoading();
+        Check(strategyRestored.Count == 2
+            && ((ThingWithComps)strategyRestored[0]).GetComp<CompShipCombatAI>().strategy.name == "edited instance"
+            && ((ThingWithComps)strategyRestored[0]).GetComp<CompShipCombatAI>()
+                .strategy.maneuverRules[0].maneuverCurves.distance.points[1].y == 99f
+            && ((ThingWithComps)strategyRestored[1]).GetComp<CompShipCombatAI>().strategy.name == "interceptor",
+            "ordinary Scribe reload preserves distinct strategies");
+        Type files = typeof(CompShipCombatAI).Assembly.GetType("DeltaV.CombatStrategyFile");
+        MethodInfo import = files.GetMethod("ImportFrom", BindingFlags.Static | BindingFlags.NonPublic);
+        string validFile = Path.Combine(AppContext.BaseDirectory, "combat-strategy-valid.xml");
+        string invalidFile = Path.Combine(AppContext.BaseDirectory, "combat-strategy-invalid.xml");
+        var serializer = new System.Xml.Serialization.XmlSerializer(typeof(CombatStrategy));
+        using (var output = File.Create(validFile)) serializer.Serialize(output,
+            pairTwo[1].GetComp<CompShipCombatAI>().strategy);
+        var imported = (CombatStrategy)import.Invoke(null, new object[] { AppContext.BaseDirectory, validFile });
+        Check(imported.name == "interceptor" && !ReferenceEquals(imported,
+            pairTwo[1].GetComp<CompShipCombatAI>().strategy)
+            && imported.maneuverRules[0].maneuverCurves.distance.points[0].x == 10f,
+            "standalone XML import yields an independent strategy snapshot");
+        File.WriteAllText(invalidFile, "<CombatStrategy><format>999</format></CombatStrategy>");
+        CombatStrategy selectedBefore = pairOne[0].GetComp<CompShipCombatAI>().strategy;
+        bool rejected = false;
+        try { import.Invoke(null, new object[] { AppContext.BaseDirectory, invalidFile }); }
+        catch (TargetInvocationException ex) when (ex.InnerException is InvalidDataException)
+        { rejected = true; }
+        Check(rejected && ReferenceEquals(pairOne[0].GetComp<CompShipCombatAI>().strategy,
+            selectedBefore), "invalid import leaves the selected comp strategy untouched");
+        string[] expectedScribeTypes = { "CombatStrategy", "CombatStrategyRule",
+            "CombatManeuverCurves", "CombatScoreCurve", "CombatScorePoint" };
+        Check(errors.All(e => expectedScribeTypes.Any(type => e.StartsWith(
+            "Could not find class DeltaV." + type + " "))),
+            "standalone Scribe type lookup uses only the expected DeltaV class fallback");
+        errors.Clear();
+
         // Save the source and two prefab clones together; then use ordinary Scribe, no prefab remap.
         string path = Path.Combine(AppContext.BaseDirectory, "prefab-roundtrip.xml");
         var saved = new List<Thing> { turret, first, second };

@@ -91,62 +91,120 @@ namespace DeltaV
 
         private void RecordBaseline(ShipBase ship, SpaceObject own)
         {
-            if (own.npcBaselineRecorded || !ship.IsValid) return;
+            if (!ship.IsValid || ship.CombatAI == null) return;
             own.npcFaction = ship.Faction;
-            own.npcInitialThrust = (universe.FrameOf(ship.Map)?.MotionInfo.AvailableThrust ?? 0f);
-            own.npcInitialFirepower = universe.Weapons.EstimateFirepower(ship, 50f, 20f);
-            own.npcInitialMainConsoleId = ship.Anchor.thingIDNumber;
-            own.npcBaselineRecorded = true;
+            own.npcHadShip = true;
+            float thrust = ShipThrust(ship);
+            float firepower = universe.Weapons.EstimateFirepower(ship, 50f, 20f);
+            List<CompShipCombatAI> consoles = ship.Map.listerThings.AllThings
+                .Where(t => ship.Contains(t) && (t == ship.Anchor
+                    || t.TryGetComp<CompDeltaVPilotConsole>() != null))
+                .OfType<ThingWithComps>()
+                .Select(t => t.TryGetComp<CompShipCombatAI>())
+                .Where(c => c != null).ToList();
+            foreach (CompShipCombatAI comp in consoles) comp.EnsureBaselineFor(ship);
+            CompShipCombatAI established = consoles.FirstOrDefault(c => c.initialMainConsoleId > 0);
+            foreach (CompShipCombatAI comp in consoles)
+            {
+                if (comp.initialMainConsoleId > 0) continue;
+                comp.initialThrust = established?.initialThrust ?? thrust;
+                comp.initialFirepower = established?.initialFirepower ?? firepower;
+                comp.initialMainConsoleId = established?.initialMainConsoleId ?? ship.Anchor.thingIDNumber;
+            }
         }
 
         internal bool EvaluateRetreat(ShipBase ship, SpaceObject own, out string reason)
         {
             RecordBaseline(ship, own);
-            return EvaluateRetreat(own, (universe.FrameOf(ship.Map)?.MotionInfo.AvailableThrust ?? 0f),
+            CompShipCombatAI comp = ship.CombatAI;
+            if (comp == null) { reason = null; return false; }
+            bool result = EvaluateRetreat(comp.initialThrust, comp.initialFirepower,
+                comp.initialMainConsoleId, ShipThrust(ship),
                 universe.Weapons.EstimateFirepower(ship, 50f, 20f),
                 ship.Anchor.thingIDNumber, out reason);
+            if (!result && comp.strategy.npcRetreatConditions.Count > 0)
+            {
+                var facts = new CombatStrategyFacts(universe, ship, own);
+                bool matched = comp.strategy.npcRetreatMatchAny
+                    ? comp.strategy.npcRetreatConditions.Any(c => c?.Matches(facts.Context()) == true)
+                    : comp.strategy.npcRetreatConditions.All(c => c?.Matches(facts.Context()) == true);
+                if (matched)
+                { result = true; reason = "strategy retreat condition"; }
+            }
+            comp.retreating = result;
+            own.npcRetreating = own.Ships.Any(s => s.CombatAI?.retreating == true);
+            if (!own.npcRetreating) own.npcHomeObjectId = 0;
+            return result;
         }
 
-        private bool EvaluateRetreat(SpaceObject own, float thrust, float firepower,
-            int mainConsoleId, out string reason)
+        private static bool EvaluateRetreat(float initialThrust, float initialFirepower,
+            int initialMain, float thrust, float firepower, int main, out string reason)
         {
             reason = null;
-            if (mainConsoleId == 0) { own.npcRetreating = false; own.npcHomeObjectId = 0; return false; }
-            if (own.npcInitialThrust > 0f && thrust < own.npcInitialThrust * 0.3f)
+            if (main == 0) return false;
+            if (initialThrust > 0f && thrust < initialThrust * 0.3f)
                 reason = "thrust below 30% of initial";
-            else if (own.npcInitialFirepower > 0f && firepower < own.npcInitialFirepower * 0.3f)
+            else if (initialFirepower > 0f && firepower < initialFirepower * 0.3f)
                 reason = "firepower below 30% of initial";
-            else if (own.npcInitialMainConsoleId > 0
-                && mainConsoleId != own.npcInitialMainConsoleId)
+            else if (initialMain > 0 && main != initialMain)
                 reason = "backup console succeeded main console";
-            // 有图时始终重新读取真实战损。保存的结果只供无图阶段使用，不是永久撤退锁。
-            own.npcRetreating = reason != null;
-            if (!own.npcRetreating)
+            return reason != null;
+        }
+
+        private static bool EvaluateRetreat(ArchivedSpaceObject own, out string reason)
+        {
+            reason = null;
+            foreach (NpcShipCombatSummary member in own.npcShips)
             {
-                own.npcHomeObjectId = 0;
+                bool floor = EvaluateRetreat(member.initialThrust, member.initialFirepower,
+                    member.initialMainConsoleId, member.observedThrust,
+                    member.observedFirepower, member.mainConsoleId, out string memberReason);
+                member.retreating |= floor;
+                if (floor && reason == null) reason = memberReason;
             }
+            own.npcRetreating = own.npcShips.Any(s => s.retreating);
+            if (!own.npcRetreating) own.npcHomeObjectId = 0;
             return own.npcRetreating;
         }
 
         internal void PrepareForArchive(SpaceObject obj, ArchivedSpaceObject archive)
         {
-            // 只观测，不修改撤退、母港或导航任务。决策留给正常 AI 周期。
             archive.npcFaction = ShipyardFaction(obj);
-            ShipBase ship = obj.Ships
-                .FirstOrDefault(s => s.Faction != null
-                    && s.Faction != Faction.OfPlayer) ?? ShipBase.Invalid;
-            archive.observedThrust = ship.IsValid ? (universe.FrameOf(ship.Map)?.MotionInfo.AvailableThrust ?? 0f) : 0f;
-            archive.observedFirepower = ship.IsValid ? universe.Weapons.EstimateFirepower(ship, 50f, 20f) : 0f;
-            archive.observedMainConsoleId = ship.IsValid ? ship.Anchor.thingIDNumber : 0;
+            archive.npcShips.Clear();
+            foreach (ShipBase ship in obj.Ships.Where(s =>
+                s.Faction != null && s.Faction != Faction.OfPlayer
+                && s.CanDriveIn(obj)))
+            {
+                RecordBaseline(ship, obj);
+                CompShipCombatAI comp = ship.CombatAI;
+                archive.npcShips.Add(new NpcShipCombatSummary
+                {
+                    shipId = ship.Identity.key,
+                    mainConsoleId = ship.Anchor.thingIDNumber,
+                    initialMainConsoleId = comp?.initialMainConsoleId ?? 0,
+                    initialThrust = comp?.initialThrust ?? 0f,
+                    initialFirepower = comp?.initialFirepower ?? 0f,
+                    observedThrust = ShipThrust(ship),
+                    observedFirepower = universe.Weapons.EstimateFirepower(ship, 50f, 20f),
+                    retreating = comp?.retreating ?? false
+                });
+            }
+            NpcShipCombatSummary primary = archive.npcShips.FirstOrDefault(s =>
+                s.shipId == archive.PrimaryDriver.key) ?? archive.npcShips.FirstOrDefault();
+            archive.observedThrust = primary?.observedThrust ?? 0f;
+            archive.observedFirepower = primary?.observedFirepower ?? 0f;
+            archive.observedMainConsoleId = primary?.mainConsoleId ?? 0;
         }
 
         // 上次下令的目标只用于避免反复重建导航任务；无图/恢复/读档均可丢弃。
         private readonly Dictionary<int, int> navigationHomes = new Dictionary<int, int>();
 
+        internal static float ShipThrust(ShipBase ship) => ship.BuildThrusters()
+            .Where(t => t.operational).Sum(t => t.thrust);
+
         private void DecideArchivedRoute(ArchivedSpaceObject obj)
         {
-            if (!EvaluateRetreat(obj, obj.observedThrust, obj.observedFirepower,
-                obj.observedMainConsoleId, out _))
+            if (!EvaluateRetreat(obj, out _))
             {
                 universe.Autopilot.Detach(obj);
                 navigationHomes.Remove(obj.objectId);
@@ -184,8 +242,7 @@ namespace DeltaV
                 {
                     if (obj == null || obj.RepresentationVersion != version || obj.map != null
                         || !obj.npcRetreating || !obj.IsArchived) return;
-                    if (!EvaluateRetreat(obj, obj.observedThrust, obj.observedFirepower,
-                        obj.observedMainConsoleId, out _)) return;
+                    if (!EvaluateRetreat(obj, out _)) return;
                     SpaceObject currentHome = ResolveRetreatHome(obj);
                     if (currentHome == null || OrbitSphere.ArcCells(obj.pose.position, currentHome.pose.position)
                         > ShipyardArrivalRadius) return;
@@ -373,7 +430,7 @@ namespace DeltaV
             int now = Find.TickManager.TicksGame;
             controller.FireControl.Decide(ship, own);
             CombatTarget target = controller.FireControl.Target;
-            bool wasRetreating = own.npcRetreating;
+            bool wasRetreating = ship.CombatAI?.retreating == true;
             if (universe.NpcShips.EvaluateRetreat(ship, own, out string retreatReason))
             {
                 if (!wasRetreating)
@@ -404,9 +461,9 @@ namespace DeltaV
                 return;
             }
             controller.SetCombatReady(true);
-            controller.AutoManeuver.Decide(ship, own, target, own.npcDoctrines,
+            controller.AutoManeuver.Decide(ship, own, target,
                 allowBoarding: true, playerInitiated: false);
-            if (controller.AutoManeuver.Doctrine == NpcDoctrine.Boarder && now >= nextBoardTick)
+            if (controller.AutoManeuver.Boarding && now >= nextBoardTick)
             {
                 nextBoardTick = now + 600;
                 TryBoard(ship, own, target);
@@ -424,7 +481,7 @@ namespace DeltaV
 
         private float Thrust(ShipBase ship)
         {
-            return (universe.FrameOf(ship.Map)?.MotionInfo.AvailableThrust ?? 0f);
+            return NpcShipAiService.ShipThrust(ship);
         }
 
         private void LogThrustEdge(ShipBase ship)

@@ -34,6 +34,10 @@ namespace DeltaV
 
         internal ShipControlService(UniverseManager universe) { this.universe = universe; }
 
+        internal ShipController ExistingFor(ShipBase ship) => ship?.IsValid == true
+            && controllers.TryGetValue(ship.Identity, out ShipController controller)
+                ? controller : null;
+
         public ShipController For(ShipBase ship, bool debugTakeover = false)
         {
             if (!ship.IsValid || universe.FrameOf(ship.Map)?.HasTag(SpaceObjectTag.Ship) != true) return null;
@@ -248,7 +252,7 @@ namespace DeltaV
             }
             fallbackFaction ??= frame.npcFaction ?? frame.faction;
             if (fallbackFaction == Faction.OfPlayer) fallbackFaction = null;
-            if (fallbackFaction == null && frame.npcBaselineRecorded)
+            if (fallbackFaction == null && frame.npcHadShip)
             {
                 // Existing wrecks can have lost both their console and recorded
                 // faction. Recover only an unambiguous hostile crew faction.

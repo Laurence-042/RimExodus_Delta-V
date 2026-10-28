@@ -170,6 +170,7 @@ namespace DeltaV
         protected override IEnumerable<Faction> ShipFactions => memberFactions;
         public float observedThrust, observedFirepower;
         public int observedMainConsoleId;
+        public List<NpcShipCombatSummary> npcShips = new List<NpcShipCombatSummary>();
         protected override ShipPhysics.MassReport MotionReport => dynamics?.Report ?? ShipPhysics.PointMassReport;
         public override DriveSubject PrimaryDriver => dynamics?.Identity.InContainer(objectId) ?? default;
         public override bool TryGetDrive(DriveSubject subject, out DriveInfo info)
@@ -202,6 +203,27 @@ namespace DeltaV
             Scribe_Values.Look(ref observedThrust, "observedThrust");
             Scribe_Values.Look(ref observedFirepower, "observedFirepower");
             Scribe_Values.Look(ref observedMainConsoleId, "observedMainConsoleId");
+            Scribe_Collections.Look(ref npcShips, "npcShipCombatSummaries", LookMode.Deep);
+            npcShips ??= new List<NpcShipCombatSummary>();
+        }
+    }
+
+    public sealed class NpcShipCombatSummary : IExposable
+    {
+        public int shipId, mainConsoleId, initialMainConsoleId;
+        public float initialThrust, initialFirepower, observedThrust, observedFirepower;
+        public bool retreating;
+
+        public void ExposeData()
+        {
+            Scribe_Values.Look(ref shipId, "shipId");
+            Scribe_Values.Look(ref mainConsoleId, "mainConsoleId");
+            Scribe_Values.Look(ref initialMainConsoleId, "initialMainConsoleId");
+            Scribe_Values.Look(ref initialThrust, "initialThrust");
+            Scribe_Values.Look(ref initialFirepower, "initialFirepower");
+            Scribe_Values.Look(ref observedThrust, "observedThrust");
+            Scribe_Values.Look(ref observedFirepower, "observedFirepower");
+            Scribe_Values.Look(ref retreating, "retreating");
         }
     }
 }

@@ -85,6 +85,13 @@ internal static partial class Program
             WeaponAimInfo preview = SpaceWeaponService.AimInfo(weapon, own);
             Check(SpaceWeaponBallistics.TryAim(preview, own.pose, victim, out Vector3 lead),
                 "shared weapon query produces a lead for a moving target");
+            var fleeing = new SpacePose(OrbitSphere.Move(preview.Muzzle, new Vector2(60f, 0f)), 0f)
+                { velocity = new Vector2(95f, 0f) };
+            var shortRange = new WeaponAimInfo(preview.Muzzle, preview.MuzzleMap,
+                bullet, 100f, 0f, 100f);
+            Check(!SpaceWeaponBallistics.TryAim(shortRange, own.pose, fleeing, out Vector3 impossible)
+                && impossible == fleeing.position,
+                "an intercept beyond weapon range falls back to the current enemy position");
             var target = new ResolvedCombatTarget(null, null, victim);
             universe.Weapons.ApplyControl(weapon, own,
                 new WeaponControlCommand(CombatTarget.At(victim.position), target, true, WeaponControlSource.Automatic));

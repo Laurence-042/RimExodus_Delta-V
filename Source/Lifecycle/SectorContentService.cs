@@ -200,8 +200,6 @@ namespace DeltaV
             DeltaVSettings currentSettings = DeltaVMod.CurrentSettings;
             SectorTypeRule currentRule = currentSettings?.EffectiveSectorRule(type);
             poi.sourcePrefabPath = MapPrefab.ResolvePoolPath(currentRule?.prefabPaths, poi.seed);
-            poi.npcDoctrines = currentSettings?.DoctrineForPrefab(poi.sourcePrefabPath)
-                ?? NpcDoctrineDefaults.Create();
             universe.RegisterObject(poi);
         }
 

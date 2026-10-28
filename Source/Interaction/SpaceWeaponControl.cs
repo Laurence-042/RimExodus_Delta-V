@@ -70,6 +70,7 @@ namespace DeltaV
             WeaponAimInfo info = parameters.aim;
             Vector3 aim;
             Vector2 localAim;
+            bool interceptPossible = true;
             if (command.LocalPoint.HasValue)
             {
                 localAim = command.LocalPoint.Value;
@@ -85,6 +86,7 @@ namespace DeltaV
                         RecordAim(perf, command.Source, aimStart);
                         return Reject(WeaponReject.Intercept, command.Trigger);
                     }
+                    interceptPossible = false;
                     aim = command.Resolved.Pose.position;
                 }
                 localAim = SpaceTransform.UniverseToMapPoint(container, weapon.parent.Map, aim);
@@ -92,6 +94,7 @@ namespace DeltaV
             AimLocal(weapon, localAim, info.MuzzleMap);
             RecordAim(perf, command.Source, aimStart);
             if (!canFire) return Reject(readiness, command.Trigger);
+            if (!interceptPossible) return Reject(WeaponReject.Intercept, true);
 
             if (!weapon.MagazineAvailable(parameters.magazine) || info.Projectile == null)
                 return Reject(WeaponReject.Ammo, true);

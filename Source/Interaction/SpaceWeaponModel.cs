@@ -200,7 +200,13 @@ namespace DeltaV
         internal static bool TryAim(WeaponAimInfo info, SpacePose source, SpacePose target, out Vector3 point)
         {
             point = target.position;
-            return info.Laser || TrySolveIntercept(info.Muzzle, source, target, info.Speed, out point);
+            if (info.Laser || info.Guided) return true;
+            if (!TrySolveIntercept(info.Muzzle, source, target, info.Speed, out Vector3 lead))
+                return false;
+            float distance = OrbitSphere.ArcCells(info.Muzzle, lead);
+            if (distance < info.MinRange || distance > info.Range) return false;
+            point = lead;
+            return true;
         }
 
         internal static bool TrySolveIntercept(Vector3 muzzle, SpacePose sourcePose,

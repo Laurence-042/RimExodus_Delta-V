@@ -83,7 +83,7 @@ internal static partial class Program
             "equal numeric foundation and hull IDs cannot alias weapon ownership");
 
         // Queue a real separation intent, then simulate an intervening whole-domain transfer.
-        Call(universe.ShipTransitions, "QueueSeparation", universe, identity.key);
+        Call(universe.ShipTransitions, "QueueSeparation", universe, identity.key, false);
         primary.combat.fireControlMode = ShipFireControlMode.Manual;
         primary.combat.weaponGroupsMain = 16;
         RemoveConsoleFixture(primary, sourceMap);

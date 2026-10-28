@@ -11,6 +11,7 @@
 		<xpath>/Defs/ThingDef[defName="PilotConsole"]/comps</xpath>
 		<value>
 			<li Class="DeltaV.CompProperties_DeltaVPilotConsole" />
+			<li Class="DeltaV.CompProperties_ShipCombatAI" />
 		</value>
 	</Operation>
 

@@ -154,6 +154,7 @@ internal static partial class Program
         var driver = new ArchivedSpaceObject { objectId = 49900, pose = new SpacePose(Vector3.forward, 0f),
             dynamics = DriveSnapshot.Capture(info, 49901) };
         universe.objects.Add(driver);
+        Set(universe, "objectById", null); // Fixture bypasses RegisterObject.
         Func<SpacePose, SpacePose> first = own => own, replacement = own => hostReference(own);
         SpacePose hostReference(SpacePose own) { own.angle += .1f; return own; }
         universe.Autopilot.FollowReference(driver.PrimaryDriver, first, false, () => true, null);

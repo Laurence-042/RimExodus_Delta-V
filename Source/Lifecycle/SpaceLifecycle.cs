@@ -285,7 +285,6 @@ namespace DeltaV
                 ambientLabel = marker.envLabel,
                 contentTypeId = marker.contentTypeId,
                 sourcePrefabPath = marker.sourcePrefabPath,
-                npcDoctrines = marker.npcDoctrines,
             };
             universe.RegisterObject(container);
             if (!marker.envLabel.NullOrEmpty())

@@ -309,19 +309,7 @@ namespace DeltaV
                     combatHorizon = intent.seconds;
                     combatReferenceTime = (ticksGame - flight.combatIntentTick) / 60f;
                     intent.Sample(combatReferenceTime, out targetDirection, out hostVelocity,
-                        out _, out _);
-                    Vector2 toCenter = OrbitSphere.Offset(container.pose.position,
-                        combatTarget.position);
-                    targetAngle = SpaceTransform.WrapAngle(Mathf.Atan2(toCenter.y,
-                        toCenter.x) - report.frameAngle);
-                    Vector2 relativeVelocity = container.pose.velocity
-                        - SpaceTransform.TransportVelocity(combatTarget,
-                            container.pose.position);
-                    Vector2 outward = toCenter.sqrMagnitude > 1e-8f
-                        ? -toCenter.normalized : Vector2.zero;
-                    hostOmega = toCenter.magnitude > 0.01f
-                        ? (outward.x * relativeVelocity.y - outward.y * relativeVelocity.x)
-                            / toCenter.magnitude : 0f;
+                        out targetAngle, out hostOmega);
                 }
                 else
                 {
@@ -450,8 +438,7 @@ namespace DeltaV
                     && remaining <= 2f * TightSolveDistance)
                     next = ApproachPhase.Precision;
                 if (flight.combatOrbit && next == ApproachPhase.Precision
-                    && Mathf.Abs(OrbitSphere.ArcCells(pose.position,
-                        combatTarget.position) - flight.orbitRadius) < 4f
+                    && remaining < 4f
                     && Mathf.Abs(angleErr) < 0.15f && vel.magnitude < 2f)
                 {
                     // 环绕参考点常在船附近，不能因此让所有稳定环绕船常驻 10 Hz 求解。
@@ -535,7 +522,10 @@ namespace DeltaV
             if (result == DriveResult.InvalidSubject)
                 Fail(container, flight, "DeltaV_NavigationSubjectLost");
             if (flight.combatOrbit)
-            { flight.diagnosticRequestedTorque = control.torque; flight.diagnosticAllocatedTorque = torque; }
+            {
+                flight.diagnosticRequestedTorque = control.torque;
+                flight.diagnosticAllocatedTorque = torque;
+            }
         }
 
         /// <summary>执行一次 MPC 求解（微步边界或首次/重解），并把解登记为可回放计划。

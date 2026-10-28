@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Source/Core/CombatStrategy.cs" Link="CombatStrategy.cs" />
+    <Compile Include="../../Source/Core/CombatScoreCurve.cs" Link="CombatScoreCurve.cs" />
+  </ItemGroup>
+</Project>

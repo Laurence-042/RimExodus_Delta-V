@@ -420,4 +420,64 @@
   <DeltaV_MissileMagazineCountEntry>{0}：{1}</DeltaV_MissileMagazineCountEntry>
   <DeltaV_CoordinateGridToggle>显示宇宙坐标网格</DeltaV_CoordinateGridToggle>
   <DeltaV_SettingsCoordinateGridTransparency>坐标网格透明度：{0}</DeltaV_SettingsCoordinateGridTransparency>
+  <DeltaV_CombatAIEdit>编辑战斗策略</DeltaV_CombatAIEdit>
+  <DeltaV_CombatAIEditTip>编辑此驾驶台或艇体的自动战斗规则。</DeltaV_CombatAIEditTip>
+  <DeltaV_CombatAICopyMain>复制主台策略</DeltaV_CombatAICopyMain>
+  <DeltaV_CombatAICopyMainTip>将当前主驾驶台策略复制到此备用台。</DeltaV_CombatAICopyMainTip>
+  <DeltaV_CombatAIImport>导入</DeltaV_CombatAIImport>
+  <DeltaV_CombatAIExport>导出</DeltaV_CombatAIExport>
+  <DeltaV_CombatAIStatus>当前机动：{0}；火控：{1}</DeltaV_CombatAIStatus>
+  <DeltaV_CombatAIManeuver>机动</DeltaV_CombatAIManeuver>
+  <DeltaV_CombatAIFire>火控</DeltaV_CombatAIFire>
+  <DeltaV_CombatAIRetreat>NPC 撤退</DeltaV_CombatAIRetreat>
+  <DeltaV_CombatAIBoard>NPC 跳帮</DeltaV_CombatAIBoard>
+  <DeltaV_CombatAIRuleHelp>规则按顺序匹配，首条生效；末尾始终有内置通用规则。</DeltaV_CombatAIRuleHelp>
+  <DeltaV_CombatAIAddRule>添加规则</DeltaV_CombatAIAddRule>
+  <DeltaV_CombatAICopyRule>复制</DeltaV_CombatAICopyRule>
+  <DeltaV_CombatAIConditionHelp>条件可同时满足或任一满足；数值按左侧指标单位输入。</DeltaV_CombatAIConditionHelp>
+  <DeltaV_CombatAIOutgoing>输出收益</DeltaV_CombatAIOutgoing>
+  <DeltaV_CombatAIIncoming>受击风险</DeltaV_CombatAIIncoming>
+  <DeltaV_CombatAIRange>距离偏好</DeltaV_CombatAIRange>
+  <DeltaV_CombatAIThreat>敌方威胁</DeltaV_CombatAIThreat>
+  <DeltaV_CombatAIFinish>收尾目标</DeltaV_CombatAIFinish>
+  <DeltaV_CombatAIDefaultRule>内置通用规则（始终兜底）</DeltaV_CombatAIDefaultRule>
+  <DeltaV_CombatAIReasonBoth>输出与防护</DeltaV_CombatAIReasonBoth>
+  <DeltaV_CombatAIReasonDefense>避险机动</DeltaV_CombatAIReasonDefense>
+  <DeltaV_CombatAIAddCondition>添加条件</DeltaV_CombatAIAddCondition>
+  <DeltaV_CombatAINoFiles>暂无策略文件</DeltaV_CombatAINoFiles>
+  <DeltaV_CombatAICurves>机动评分曲线</DeltaV_CombatAICurves>
+  <DeltaV_CombatAICurveTitle>{0}：机动评分曲线</DeltaV_CombatAICurveTitle>
+  <DeltaV_CombatAICurve_Distance>距离</DeltaV_CombatAICurve_Distance>
+  <DeltaV_CombatAICurve_Outgoing>输出</DeltaV_CombatAICurve_Outgoing>
+  <DeltaV_CombatAICurve_Incoming>受击</DeltaV_CombatAICurve_Incoming>
+  <DeltaV_CombatAICurve_ProjectileSeconds>来袭弹体</DeltaV_CombatAICurve_ProjectileSeconds>
+  <DeltaV_CombatAICurve_HullOverlap>船体重叠</DeltaV_CombatAICurve_HullOverlap>
+  <DeltaV_CombatAICurve_AlignmentError>固定炮对准</DeltaV_CombatAICurve_AlignmentError>
+  <DeltaV_CombatAICurveUnit_Distance>当前机动目标距离（格）</DeltaV_CombatAICurveUnit_Distance>
+  <DeltaV_CombatAICurveUnit_Outgoing>预计输出（伤害／秒）</DeltaV_CombatAICurveUnit_Outgoing>
+  <DeltaV_CombatAICurveUnit_Incoming>预计受击（伤害／秒）</DeltaV_CombatAICurveUnit_Incoming>
+  <DeltaV_CombatAICurveUnit_ProjectileSeconds>最近来袭时间（秒；无来袭按 8）</DeltaV_CombatAICurveUnit_ProjectileSeconds>
+  <DeltaV_CombatAICurveUnit_HullOverlap>船体包围圆重叠率（0–1）</DeltaV_CombatAICurveUnit_HullOverlap>
+  <DeltaV_CombatAICurveUnit_AlignmentError>固定炮对准误差（度）</DeltaV_CombatAICurveUnit_AlignmentError>
+  <DeltaV_CombatAICurveAxes>横轴：{0}；纵轴：加到机动总分的分值。</DeltaV_CombatAICurveAxes>
+  <DeltaV_CombatAICurveAutomatic>按本船当前武器生成的默认曲线</DeltaV_CombatAICurveAutomatic>
+  <DeltaV_CombatAICurveCustom>此规则的自定义曲线</DeltaV_CombatAICurveCustom>
+  <DeltaV_CombatAICurveCustomize>复制点位并自定义</DeltaV_CombatAICurveCustomize>
+  <DeltaV_CombatAICurveReset>恢复自动曲线</DeltaV_CombatAICurveReset>
+  <DeltaV_CombatAICurveExtend>超出末点后延续最后一段斜率</DeltaV_CombatAICurveExtend>
+  <DeltaV_CombatAICurveAdd>添加点</DeltaV_CombatAICurveAdd>
+  <DeltaV_CombatAICurvePointHeader>点位：横轴数值 / 评分</DeltaV_CombatAICurvePointHeader>
+  <DeltaV_CombatAICurveInvalid>点位无效：至少两个点，横轴须严格递增，数值须在允许范围内。</DeltaV_CombatAICurveInvalid>
+  <DeltaV_CombatAIScoreReason>距离 {0}，输出 {1}，受击 {2}，弹体 {3}，重叠 {4}，对准 {5}，控制 {6}</DeltaV_CombatAIScoreReason>
+  <DeltaV_CombatMetric_OwnHullFraction>本船船体比例</DeltaV_CombatMetric_OwnHullFraction>
+  <DeltaV_CombatMetric_OwnThrustFraction>本船推力比例</DeltaV_CombatMetric_OwnThrustFraction>
+  <DeltaV_CombatMetric_OwnShieldFraction>本船护盾比例</DeltaV_CombatMetric_OwnShieldFraction>
+  <DeltaV_CombatMetric_ReadyWeaponFraction>就绪武器比例</DeltaV_CombatMetric_ReadyWeaponFraction>
+  <DeltaV_CombatMetric_WeaponCooldownSeconds>武器冷却秒数</DeltaV_CombatMetric_WeaponCooldownSeconds>
+  <DeltaV_CombatMetric_WeaponHasAmmo>武器有弹药（1/0）</DeltaV_CombatMetric_WeaponHasAmmo>
+  <DeltaV_CombatMetric_WeaponHasEnergy>武器有供能（1/0）</DeltaV_CombatMetric_WeaponHasEnergy>
+  <DeltaV_CombatMetric_WeaponArcErrorDegrees>武器射界误差（度）</DeltaV_CombatMetric_WeaponArcErrorDegrees>
+  <DeltaV_CombatMetric_EnemyDistance>敌船距离（格）</DeltaV_CombatMetric_EnemyDistance>
+  <DeltaV_CombatMetric_EnemyFirepower>敌方火力</DeltaV_CombatMetric_EnemyFirepower>
+  <DeltaV_CombatMetric_IncomingProjectileSeconds>来袭弹体最近时间（秒）</DeltaV_CombatMetric_IncomingProjectileSeconds>
 </LanguageData>

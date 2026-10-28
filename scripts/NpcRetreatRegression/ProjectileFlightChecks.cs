@@ -178,6 +178,7 @@ internal static partial class Program
             "boarding Def has six thrusters including two symmetric main engines");
         var targetBody = new SpaceObject(41001, new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(100, 0)), 0));
         universe.objects.Add(targetBody);
+        Set(universe, "objectById", null); // Fixture bypasses RegisterObject.
         var savedGrid = Find.World.grid;
         var fixtureLayer = (RimWorld.Planet.PlanetLayer)Raw(typeof(RimWorld.Planet.PlanetLayer));
         Set(fixtureLayer, "def", new PlanetLayerDef { isSpace = true });
@@ -194,6 +195,7 @@ internal static partial class Program
                 { canBoard = true, boostMultiplier = 2f, boostTicks = 600, virtualThrusters = layout } };
             var container = new OfflineShuttleSpaceObject(41030 + rotation, map, new SpacePose(Vector3.forward, 0.71f));
             universe.objects.Add(container);
+            Set(universe, "objectById", null);
             Check(service.AdoptShuttle(container, (Building)hull.parent, CombatTarget.ForContainer(targetBody)),
                 "intrusion adopts the real rotated shuttle " + rotation);
             object adopted = ProjectileRecords(service).Cast<object>().Single();

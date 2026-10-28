@@ -40,6 +40,7 @@
 					<li><position>(-2.25,-1.25)</position><force>(0,32)</force></li>
 				</virtualThrusters>
 			</li>
+			<li Class="DeltaV.CompProperties_ShipCombatAI" />
 		</value>
 	</Operation>
 

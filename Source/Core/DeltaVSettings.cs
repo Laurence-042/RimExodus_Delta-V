@@ -113,16 +113,6 @@ namespace DeltaV
         /// <summary>按类型的星区生成规则（SectorContentTypes 键；缺条目时读注册表默认）。</summary>
         public List<SectorTypeRule> sectorRules = new List<SectorTypeRule>();
 
-        /// <summary>按 prefab 相对路径配置 NPC 战术；生成时复制到对象，不追改已生成对象。</summary>
-        public List<PrefabDoctrineRule> prefabDoctrines = new List<PrefabDoctrineRule>();
-
-        public List<NpcDoctrine> DoctrineForPrefab(string path)
-        {
-            PrefabDoctrineRule rule = prefabDoctrines?.FirstOrDefault(r => r.prefabPath == path);
-            return rule?.priorities != null && rule.priorities.Count > 0
-                ? new List<NpcDoctrine>(rule.priorities) : NpcDoctrineDefaults.Create();
-        }
-
         /// <summary>
         /// 该叶子类型的生效规则：设置有条目用条目，否则用注册表默认（读路径不静默改写设置）。
         /// </summary>
@@ -176,7 +166,6 @@ namespace DeltaV
             Scribe_Values.Look(ref logDevelopment, "logDevelopment", false);
             Scribe_Values.Look(ref logPerformance, "logPerformance", false);
             Scribe_Collections.Look(ref sectorRules, "sectorRules", LookMode.Deep);
-            Scribe_Collections.Look(ref prefabDoctrines, "prefabDoctrines", LookMode.Deep);
             base.ExposeData();
         }
     }

@@ -15,6 +15,11 @@ namespace DeltaV
         private int preferredSystemId;
         private bool targetObserved;
         private readonly Dictionary<int, PdLock> pointDefense = new Dictionary<int, PdLock>();
+        private readonly Dictionary<int, CombatTarget> automaticTargets = new Dictionary<int, CombatTarget>();
+        private readonly Dictionary<int, int> automaticRetryAt = new Dictionary<int, int>();
+        private readonly Dictionary<int, AutomaticAim> automaticAim = new Dictionary<int, AutomaticAim>();
+        private int nextAutomaticAssignmentTick;
+        private struct AutomaticAim { internal CombatTarget target; internal Vector3 point; internal int refreshAt; }
         private readonly List<int> staleWeapons = new List<int>();
         private readonly HashSet<int> validPointDefenseWeapons = new HashSet<int>();
         private int pointDefensePrunedVersion = -1;
@@ -25,14 +30,17 @@ namespace DeltaV
         internal ShipFireControl(UniverseManager universe, DriveSubject ownerId)
         { this.universe = universe; this.ownerId = ownerId; }
 
-        internal void Clear() { target = default; preferredSystemId = 0; }
+        internal void Clear()
+        { target = default; preferredSystemId = 0; automaticTargets.Clear(); automaticRetryAt.Clear(); automaticAim.Clear(); nextAutomaticAssignmentTick = 0; }
         internal void Dispose()
         { Clear(); pointDefense.Clear(); interceptionCandidates.Clear(); pdReservedDamage.Clear(); aimCapabilities.Clear(); leadPoints.Clear(); uniqueLeadPoints.Clear(); }
-        internal void ForgetWeapon(CompSpaceWeapon weapon) => pointDefense.Remove(weapon.parent.thingIDNumber);
+        internal void ForgetWeapon(CompSpaceWeapon weapon)
+        { pointDefense.Remove(weapon.parent.thingIDNumber); automaticTargets.Remove(weapon.parent.thingIDNumber); automaticRetryAt.Remove(weapon.parent.thingIDNumber); automaticAim.Remove(weapon.parent.thingIDNumber); }
 
         internal void ForgetMap(Map map)
         {
             interceptionCandidates.Clear();
+            automaticTargets.Clear(); automaticRetryAt.Clear(); automaticAim.Clear(); nextAutomaticAssignmentTick = 0;
             if (!target.TryResolve(universe, out var resolved) || resolved.Container?.map == map) Clear();
             staleWeapons.Clear();
             foreach (var pair in pointDefense)
@@ -108,6 +116,150 @@ namespace DeltaV
                     + (selected.HasLock ? selected.Ship.ToString() : "none"));
             targetObserved = true;
             target = selected;
+        }
+
+        /// <summary>One target per weapon; locks are runtime-only and the weapon service remains the firing authority.</summary>
+        internal void TickAutoVolley(ShipBase ship, SpaceObject own, bool suppressSystems)
+        {
+            if (universe.Lifecycle.IsFrozen(ship.Map)) return;
+            int now = Find.TickManager.TicksGame;
+            if (now >= nextAutomaticAssignmentTick)
+            {
+                AssignAutomaticTargets(ship, own);
+                nextAutomaticAssignmentTick = now + Mathf.Clamp(
+                    DeltaVMod.CurrentSettings?.npcDecisionIntervalTicks ?? 60, 1, 600);
+            }
+            int mainMask = ship.Combat?.weaponGroupsMain ?? 0;
+            int secondaryMask = ship.Combat?.weaponGroupsSecondary ?? 0;
+            foreach (CompSpaceWeapon weapon in ship.Weapons)
+            {
+                if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
+                    || weapon.aimMode != SpaceWeaponAimMode.Volley
+                    || !weapon.GroupEnabled(weapon.salvoSet == SpaceWeaponSalvoSet.Main
+                        ? mainMask : secondaryMask)
+                    || !WeaponBelongsHere(weapon, own)) continue;
+                int id = weapon.parent.thingIDNumber;
+                bool cooling = weapon.CooldownTicksLeft > 0;
+                if (!automaticTargets.TryGetValue(id, out CombatTarget handle)) continue;
+                if (!TryResolveAutomatic(ship, own, handle, out ResolvedCombatTarget resolved))
+                {
+                    nextAutomaticAssignmentTick = 0;
+                    continue;
+                }
+                if (suppressSystems)
+                {
+                    Thing system = resolved.Ship.Weapons
+                        .Where(w => w.SpaceModeEnabled && w.aimMode == SpaceWeaponAimMode.PointDefense
+                            && w.parent.Spawned && !w.parent.Destroyed)
+                        .Select(w => (Thing)w.parent).FirstOrDefault()
+                        ?? resolved.Container.MotionInfo?.thrusters
+                            .Where(t => t.operational && t.thing != null && resolved.Ship.Contains(t.thing))
+                            .Select(t => t.thing).FirstOrDefault();
+                    if (system != null)
+                    {
+                        handle = CombatTarget.ForShip(handle.Ship, system.thingIDNumber);
+                        if (!handle.TryResolve(universe, out resolved)) continue;
+                    }
+                }
+                if (weapon.parent.TryGetComp<CompSpaceWeaponTraverse>() != null)
+                {
+                    // Refresh the expensive lead occasionally, but advance the mechanical turret every tick.
+                    if (!automaticAim.TryGetValue(id, out AutomaticAim cached)
+                        || cached.target != handle || now >= cached.refreshAt)
+                    {
+                        WeaponAimInfo info = SpaceWeaponService.AimInfo(weapon, own);
+                        Vector3 point = resolved.Pose.position;
+                        if (!info.Guided && SpaceWeaponBallistics.TryAim(info,
+                            own.pose, resolved.Pose, out Vector3 lead)) point = lead;
+                        cached = new AutomaticAim { target = handle, point = point, refreshAt = now + 15 };
+                        automaticAim[id] = cached;
+                    }
+                    SpaceWeaponService.AimLocal(weapon,
+                        SpaceTransform.UniverseToMapPoint(own, weapon.parent.Map, cached.point),
+                        SpaceWeaponGeometry.MuzzleMapPoint(weapon));
+                }
+                if (cooling || automaticRetryAt.TryGetValue(id, out int retryAt)
+                    && now < retryAt) continue;
+                bool fired = universe.Weapons.ApplyControl(weapon, own,
+                    new WeaponControlCommand(handle, resolved, true,
+                        WeaponControlSource.Automatic));
+                if (!fired)
+                {
+                    bool supplied = weapon.MagazineAvailable(weapon.SelectMagazine())
+                        && SpaceWeaponBallistics.HasBaseShotEnergy(weapon);
+                    automaticRetryAt[id] = now + (supplied ? 3 : 30);
+                }
+                else automaticRetryAt.Remove(id);
+            }
+        }
+
+        private void AssignAutomaticTargets(ShipBase ship, SpaceObject own)
+        {
+            automaticTargets.Clear();
+            automaticRetryAt.Clear();
+            automaticAim.Clear();
+            var enemies = new List<ShipBase>();
+            foreach (SpaceObject container in universe.objects)
+                foreach (ShipBase member in Candidates(ship, own, container)) enemies.Add(member);
+            if (enemies.Count == 0) return;
+            var facts = new CombatStrategyFacts(universe, ship, own);
+            var reservedDamage = new Dictionary<DriveSubject, float>();
+            var reasons = new List<string>();
+            var enemyRadius = enemies.ToDictionary(e => e.Identity, HullRadius);
+            var enemyHealth = enemies.ToDictionary(e => e.Identity,
+                e => e.Map.listerThings.AllThings.OfType<Building>()
+                    .Where(b => b.Spawned && !b.Destroyed && e.Contains(b))
+                    .Sum(b => (float)b.HitPoints));
+            foreach (CompSpaceWeapon weapon in ship.Weapons.OrderBy(w => w.parent.thingIDNumber))
+            {
+                if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
+                    || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
+                    || !WeaponBelongsHere(weapon, own)) continue;
+                float best = float.NegativeInfinity;
+                ShipBase selected = null;
+                float damage = SpaceImpactEffects.Resolve(
+                    weapon.SelectMagazine()?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef,
+                    null)?.defenderEffect?.damage ?? 20f;
+                WeaponAimInfo aim = SpaceWeaponService.AimInfo(weapon, own);
+                foreach (ShipBase member in enemies)
+                {
+                    SpacePose enemyPose = ShipRegistry.ShipPose(member);
+                    CombatStrategyContext context = facts.Context(member, weapon);
+                    if (context.distance < weapon.WeaponProps.minRange
+                        || context.distance > weapon.WeaponProps.range
+                        || CombatStrategyFacts.ArcError(weapon, own, own.pose,
+                            enemyPose.position, locking: true) > 0.1f
+                        || !SpaceWeaponBallistics.TryAim(aim, own.pose, enemyPose, out _)) continue;
+                    CombatStrategyRule rule = ship.CombatAI?.strategy?.Fire(context)
+                        ?? new CombatStrategy().Fire(context);
+                    float radius = enemyRadius[member.Identity];
+                    float spread = weapon.WeaponProps.baseSpreadDeg * Mathf.Deg2Rad;
+                    float hit = Mathf.Clamp01(radius /
+                        Mathf.Max(radius, context.distance * Mathf.Tan(spread)));
+                    float rate = damage * weapon.WeaponProps.impactScale * hit
+                        * 60f / Mathf.Max(1, weapon.WeaponProps.cooldownTicks);
+                    float targetHealth = enemyHealth[member.Identity];
+                    reservedDamage.TryGetValue(member.Identity, out float reserved);
+                    float finishing = 1f / (1f + targetHealth / 1000f);
+                    float score = rule.outgoingWeight * rate
+                        + rule.targetThreatWeight * context.enemyFirepower
+                        + rule.finishingWeight * rate * finishing
+                        - reserved / Mathf.Max(1f, targetHealth) * rate;
+                    if (score <= best) continue;
+                    best = score; selected = member;
+                }
+                if (selected == null) continue;
+                automaticTargets[weapon.parent.thingIDNumber] = CombatTarget.ForShip(selected.Identity);
+                reservedDamage.TryGetValue(selected.Identity, out float previous);
+                reservedDamage[selected.Identity] = previous + Mathf.Max(1f,
+                    weapon.WeaponProps.impactScale * 20f);
+                if (ship.CombatAI != null)
+                    reasons.Add(weapon.parent.LabelCap + " → " + selected.Label + " ("
+                        + ship.CombatAI.strategy.Fire(facts.Context(selected, weapon)).name + ")");
+            }
+            if (ship.CombatAI != null)
+                ship.CombatAI.lastFireReason = reasons.Count == 0 ? "-"
+                    : string.Join("; ", reasons);
         }
 
         private static int CompareIdentity(DriveSubject a, DriveSubject b)

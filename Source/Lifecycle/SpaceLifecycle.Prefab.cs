@@ -66,8 +66,6 @@ namespace DeltaV
                     ambientLabel = prefab.name,
                     contentTypeId = source.contentTypeId,
                     sourcePrefabPath = path,
-                    npcDoctrines = source.npcDoctrines == null ? null
-                        : new System.Collections.Generic.List<NpcDoctrine>(source.npcDoctrines)
                 };
                 // ClaimOnSpawn must resolve the new container before any consoles spawn.
                 universe.RegisterObject(replacement);

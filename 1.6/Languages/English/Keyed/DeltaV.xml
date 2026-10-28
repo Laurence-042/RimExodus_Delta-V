@@ -420,4 +420,64 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_MissileMagazineCountEntry>{0}: {1}</DeltaV_MissileMagazineCountEntry>
   <DeltaV_CoordinateGridToggle>Show universe coordinate grid</DeltaV_CoordinateGridToggle>
   <DeltaV_SettingsCoordinateGridTransparency>Coordinate grid transparency: {0}</DeltaV_SettingsCoordinateGridTransparency>
+  <DeltaV_CombatAIEdit>Edit combat strategy</DeltaV_CombatAIEdit>
+  <DeltaV_CombatAIEditTip>Edit this console or shuttle hull's automatic combat rules.</DeltaV_CombatAIEditTip>
+  <DeltaV_CombatAICopyMain>Copy main strategy</DeltaV_CombatAICopyMain>
+  <DeltaV_CombatAICopyMainTip>Copy the current main console strategy to this backup.</DeltaV_CombatAICopyMainTip>
+  <DeltaV_CombatAIImport>Import</DeltaV_CombatAIImport>
+  <DeltaV_CombatAIExport>Export</DeltaV_CombatAIExport>
+  <DeltaV_CombatAIStatus>Maneuver: {0}; fire control: {1}</DeltaV_CombatAIStatus>
+  <DeltaV_CombatAIManeuver>Maneuver</DeltaV_CombatAIManeuver>
+  <DeltaV_CombatAIFire>Fire control</DeltaV_CombatAIFire>
+  <DeltaV_CombatAIRetreat>NPC retreat</DeltaV_CombatAIRetreat>
+  <DeltaV_CombatAIBoard>NPC boarding</DeltaV_CombatAIBoard>
+  <DeltaV_CombatAIRuleHelp>The first matching rule applies. A built-in default always follows.</DeltaV_CombatAIRuleHelp>
+  <DeltaV_CombatAIAddRule>Add rule</DeltaV_CombatAIAddRule>
+  <DeltaV_CombatAICopyRule>Copy</DeltaV_CombatAICopyRule>
+  <DeltaV_CombatAIConditionHelp>Match all or any conditions; enter values in the metric's units.</DeltaV_CombatAIConditionHelp>
+  <DeltaV_CombatAIOutgoing>Outgoing damage</DeltaV_CombatAIOutgoing>
+  <DeltaV_CombatAIIncoming>Incoming risk</DeltaV_CombatAIIncoming>
+  <DeltaV_CombatAIRange>Range preference</DeltaV_CombatAIRange>
+  <DeltaV_CombatAIThreat>Enemy threat</DeltaV_CombatAIThreat>
+  <DeltaV_CombatAIFinish>Finish target</DeltaV_CombatAIFinish>
+  <DeltaV_CombatAIDefaultRule>Built-in default rule</DeltaV_CombatAIDefaultRule>
+  <DeltaV_CombatAIReasonBoth>damage and defense</DeltaV_CombatAIReasonBoth>
+  <DeltaV_CombatAIReasonDefense>defensive maneuver</DeltaV_CombatAIReasonDefense>
+  <DeltaV_CombatAIAddCondition>Add condition</DeltaV_CombatAIAddCondition>
+  <DeltaV_CombatAINoFiles>No strategy files</DeltaV_CombatAINoFiles>
+  <DeltaV_CombatAICurves>Maneuver score curves</DeltaV_CombatAICurves>
+  <DeltaV_CombatAICurveTitle>{0}: maneuver score curves</DeltaV_CombatAICurveTitle>
+  <DeltaV_CombatAICurve_Distance>Distance</DeltaV_CombatAICurve_Distance>
+  <DeltaV_CombatAICurve_Outgoing>Outgoing</DeltaV_CombatAICurve_Outgoing>
+  <DeltaV_CombatAICurve_Incoming>Incoming</DeltaV_CombatAICurve_Incoming>
+  <DeltaV_CombatAICurve_ProjectileSeconds>Projectiles</DeltaV_CombatAICurve_ProjectileSeconds>
+  <DeltaV_CombatAICurve_HullOverlap>Hull overlap</DeltaV_CombatAICurve_HullOverlap>
+  <DeltaV_CombatAICurve_AlignmentError>Fixed gun aim</DeltaV_CombatAICurve_AlignmentError>
+  <DeltaV_CombatAICurveUnit_Distance>Primary maneuver target distance (cells)</DeltaV_CombatAICurveUnit_Distance>
+  <DeltaV_CombatAICurveUnit_Outgoing>Expected output (damage/second)</DeltaV_CombatAICurveUnit_Outgoing>
+  <DeltaV_CombatAICurveUnit_Incoming>Expected incoming damage (damage/second)</DeltaV_CombatAICurveUnit_Incoming>
+  <DeltaV_CombatAICurveUnit_ProjectileSeconds>Nearest incoming projectile (seconds; none = 8)</DeltaV_CombatAICurveUnit_ProjectileSeconds>
+  <DeltaV_CombatAICurveUnit_HullOverlap>Hull bounding circle overlap (0–1)</DeltaV_CombatAICurveUnit_HullOverlap>
+  <DeltaV_CombatAICurveUnit_AlignmentError>Fixed gun alignment error (degrees)</DeltaV_CombatAICurveUnit_AlignmentError>
+  <DeltaV_CombatAICurveAxes>Horizontal: {0}; vertical: points added to the maneuver score.</DeltaV_CombatAICurveAxes>
+  <DeltaV_CombatAICurveAutomatic>Automatic curve from this ship's current weapons</DeltaV_CombatAICurveAutomatic>
+  <DeltaV_CombatAICurveCustom>Custom curve for this rule</DeltaV_CombatAICurveCustom>
+  <DeltaV_CombatAICurveCustomize>Copy points and customize</DeltaV_CombatAICurveCustomize>
+  <DeltaV_CombatAICurveReset>Restore automatic curve</DeltaV_CombatAICurveReset>
+  <DeltaV_CombatAICurveExtend>Extend the last segment beyond its final point</DeltaV_CombatAICurveExtend>
+  <DeltaV_CombatAICurveAdd>Add point</DeltaV_CombatAICurveAdd>
+  <DeltaV_CombatAICurvePointHeader>Points: horizontal value / score</DeltaV_CombatAICurvePointHeader>
+  <DeltaV_CombatAICurveInvalid>Invalid points: use at least two, strictly increasing horizontal values within the allowed range.</DeltaV_CombatAICurveInvalid>
+  <DeltaV_CombatAIScoreReason>distance {0}, output {1}, incoming {2}, projectile {3}, overlap {4}, aim {5}, control {6}</DeltaV_CombatAIScoreReason>
+  <DeltaV_CombatMetric_OwnHullFraction>Own hull fraction</DeltaV_CombatMetric_OwnHullFraction>
+  <DeltaV_CombatMetric_OwnThrustFraction>Own thrust fraction</DeltaV_CombatMetric_OwnThrustFraction>
+  <DeltaV_CombatMetric_OwnShieldFraction>Own shield fraction</DeltaV_CombatMetric_OwnShieldFraction>
+  <DeltaV_CombatMetric_ReadyWeaponFraction>Ready weapon fraction</DeltaV_CombatMetric_ReadyWeaponFraction>
+  <DeltaV_CombatMetric_WeaponCooldownSeconds>Weapon cooldown (seconds)</DeltaV_CombatMetric_WeaponCooldownSeconds>
+  <DeltaV_CombatMetric_WeaponHasAmmo>Weapon has ammo (1/0)</DeltaV_CombatMetric_WeaponHasAmmo>
+  <DeltaV_CombatMetric_WeaponHasEnergy>Weapon has power (1/0)</DeltaV_CombatMetric_WeaponHasEnergy>
+  <DeltaV_CombatMetric_WeaponArcErrorDegrees>Weapon arc error (degrees)</DeltaV_CombatMetric_WeaponArcErrorDegrees>
+  <DeltaV_CombatMetric_EnemyDistance>Enemy distance (cells)</DeltaV_CombatMetric_EnemyDistance>
+  <DeltaV_CombatMetric_EnemyFirepower>Enemy firepower</DeltaV_CombatMetric_EnemyFirepower>
+  <DeltaV_CombatMetric_IncomingProjectileSeconds>Nearest projectile (seconds)</DeltaV_CombatMetric_IncomingProjectileSeconds>
 </LanguageData>

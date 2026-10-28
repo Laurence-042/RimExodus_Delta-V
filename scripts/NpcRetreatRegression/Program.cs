@@ -27,7 +27,7 @@ internal static partial class Program
         };
         try { Run(args.Contains("--aim-input-only"), args.Contains("--player-flight-only"), args.Contains("--salvage-only"),
             args.Contains("--drive-performance-only"), args.Contains("--projectile-only"), args.Contains("--archive-recovery-only"),
-            args.Contains("--docking-only"));
+            args.Contains("--docking-only"), args.Contains("--npc-only"), args.Contains("--projectile-full-only"));
             Console.WriteLine($"PASS {checks} regression checks (production DLL)"); return 0; }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
     }
@@ -49,7 +49,7 @@ internal static partial class Program
         (SpaceObject)Call(universe.NpcShips, "ResolveRetreatHome", own, faction);
 
     static void Run(bool aimInputOnly, bool playerFlightOnly, bool salvageOnly, bool drivePerformanceOnly, bool projectileOnly,
-        bool archiveRecoveryOnly, bool dockingOnly)
+        bool archiveRecoveryOnly, bool dockingOnly, bool npcOnly, bool projectileFullOnly)
     {
         // Vanilla log rendering needs Unity; all assertions and production control paths remain active.
         using var logs = Log.LockMessages();
@@ -82,6 +82,9 @@ internal static partial class Program
         var universe = new UniverseManager(game);
         game.components = new List<GameComponent> { universe };
         game.tickManager = (TickManager)Raw(typeof(TickManager));
+        CheckCombatCurves();
+        if (!npcOnly)
+        {
         if (archiveRecoveryOnly) { CheckArchiveRecovery(universe); return; }
         if (dockingOnly)
         {
@@ -92,6 +95,12 @@ internal static partial class Program
         if (playerFlightOnly) { CheckPlayerFlightOrders(universe); return; }
         if (salvageOnly) { CheckSalvageOutput(universe); return; }
         if (projectileOnly) { CheckProjectileFlight(universe, faction, flightOnly: true); return; }
+        if (projectileFullOnly)
+        {
+            ThingDefOf.PilotConsole = TestBuildingDef("console");
+            CheckProjectileFlight(universe, faction);
+            return;
+        }
         CheckAimUiCoordinates();
         CheckWeaponControlFixes(universe, faction, other);
         if (aimInputOnly) return;
@@ -115,16 +124,19 @@ internal static partial class Program
         CheckProjectileFlight(universe, faction);
         CheckMotionFeedback(universe);
         CheckGlobeAndInput(universe);
+        }
         SpaceObject Make(int id, float distance, string type = null, Faction owner = null)
         {
             var obj = new SpaceObject(id, new SpacePose(
                 OrbitSphere.Move(Vector3.forward, new Vector2(distance, 0)), 0f))
                 { contentTypeId = type, faction = owner };
             universe.objects.Add(obj);
+            Set(universe, "objectById", null); // Fixture bypasses RegisterObject.
             return obj;
         }
         var ship = new ArchivedSpaceObject { objectId = 1, pose = new SpacePose(Vector3.forward, 0f) };
         universe.objects.Add(ship);
+        Set(universe, "objectById", null);
         SpaceObject trade = Make(2, 10, "TradeStation", faction);
         SpaceObject factory = Make(3, 20, "FactoryStation", faction);
         SpaceObject hostile = Make(4, 30, "Shipyard", other);
@@ -138,14 +150,16 @@ internal static partial class Program
         universe.objects.Remove(highId);
         Check(Home(universe, ship, faction) == materialized, "marker replacement preserves home identity");
         universe.objects.Remove(materialized);
+        Set(universe, "objectById", null);
         Check(Home(universe, ship, faction) == null && ship.npcHomeObjectId == 0,
             "missing home does not select trade/factory/hostile station");
 
         ship.npcRetreating = true;
         ship.mapData = "opaque archive must survive navigation";
 
-        ship.npcBaselineRecorded = true;
-        ship.npcInitialMainConsoleId = 101;
+        ship.npcShips.Add(new NpcShipCombatSummary
+            { shipId = 100, initialMainConsoleId = 101, mainConsoleId = 102,
+                observedThrust = 2000f });
         ship.observedMainConsoleId = 102;
         ship.observedThrust = 2000f;
         var report = new ShipPhysics.MassReport { mass = 100f, inertia = 1000f };
@@ -230,6 +244,7 @@ internal static partial class Program
         Check(powerlessBody.pose.velocity == Vector2.zero && powerlessBody.pose.angularVelocity == 0f,
             "zero thrust cannot create propulsion");
         universe.objects.Remove(driver);
+        Set(universe, "objectById", null);
         Set(game.tickManager, "ticksGameInt", 0);
         bool duplicateIntegration = false;
         void Advance(int ticks)
@@ -345,26 +360,19 @@ internal static partial class Program
         Check(!ship.npcRetreating && ship.npcHomeObjectId == 0,
             "only the normal AI decision consumes the new observations");
 
-        var console = new CompDeltaVPilotConsole { parent = (ThingWithComps)Raw(typeof(ThingWithComps)) };
-        typeof(Thing).GetField("mapIndexOrState", Private).SetValue(console.parent, (sbyte)-1);
-        console.parent.thingIDNumber = 101;
-        ShipBase restoredShip = new Ship(1, null, console);
-        ship.npcBaselineRecorded = true;
-        ship.npcInitialThrust = 0f;
-        ship.npcInitialFirepower = 0f;
-        ship.npcInitialMainConsoleId = 101;
-        ship.npcRetreating = true;
-        ship.npcHomeObjectId = 11;
-        object[] evaluation = { restoredShip, ship, null };
-        bool retreat = (bool)Call(universe.NpcShips, "EvaluateRetreat", evaluation);
-        Check(!retreat && !ship.npcRetreating && ship.npcHomeObjectId == 0,
-            "live AI reevaluates current state and clears obsolete retreat intent");
-        console.parent.thingIDNumber = 102;
-        evaluation = new object[] { restoredShip, ship, null };
-        Check((bool)Call(universe.NpcShips, "EvaluateRetreat", evaluation) && ship.npcRetreating,
-            "live AI independently redetects backup-console damage after restoration");
-        Check(ship.npcInitialMainConsoleId == 101 && ship.npcInitialThrust == 0f
-            && ship.npcInitialFirepower == 0f,
-            "baseline remains fixed including initially zero capabilities");
+        object[] evaluation = { 0f, 0f, 101, 2000f, 0f, 101, null };
+        Check(!(bool)Call(universe.NpcShips, "EvaluateRetreat", evaluation),
+            "unchanged main and zero initial capabilities do not trigger retreat");
+        evaluation = new object[] { 0f, 0f, 101, 2000f, 0f, 102, null };
+        Check((bool)Call(universe.NpcShips, "EvaluateRetreat", evaluation),
+            "backup-console succession triggers retreat floor");
+        ship.npcShips.Add(new NpcShipCombatSummary { shipId = 100,
+            initialMainConsoleId = 101, mainConsoleId = 102 });
+        ship.npcShips.Add(new NpcShipCombatSummary { shipId = 200,
+            initialMainConsoleId = 201, mainConsoleId = 201 });
+        evaluation = new object[] { ship, null };
+        Check((bool)Call(universe.NpcShips, "EvaluateRetreat", evaluation)
+            && ship.npcShips[0].retreating && !ship.npcShips[1].retreating,
+            "archived retreat summaries remain independent per ship");
     }
 }

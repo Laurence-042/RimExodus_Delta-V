@@ -114,6 +114,8 @@ internal readonly struct HeadingPanelAction
 
         internal abstract bool GunnersEnabled { get; }
         internal abstract bool WantsVolley { get; }
+        internal virtual bool UsesAutomaticVolley => false;
+        internal virtual bool SuppressAutomaticSystems => false;
         internal void BindShip(ShipBase ship)
         {
             FireControl.PrunePointDefense(ship, force: true);
@@ -161,9 +163,13 @@ internal readonly struct HeadingPanelAction
             long volleyStart = wantsVolley ? universe.Performance.Start() : 0L;
             long intentStart = wantsVolley ? universe.Performance.Start() : 0L;
             ShipVolleyIntent intent = default;
-            bool hasIntent = wantsVolley && TryGetVolleyIntent(ship, container, out intent);
+            bool automatic = wantsVolley && UsesAutomaticVolley;
+            bool hasIntent = wantsVolley && !automatic
+                && TryGetVolleyIntent(ship, container, out intent);
             universe.Performance.Record(PerformanceStage.VolleyIntent, intentStart);
-            if (hasIntent)
+            if (automatic)
+                FireControl.TickAutoVolley(ship, container, SuppressAutomaticSystems);
+            else if (hasIntent)
             {
                 FireControl.TickVolley(ship, container, intent);
             }
@@ -339,6 +345,7 @@ internal readonly struct HeadingPanelAction
         internal void SetBattleStations(bool active) { battleStations = active; }
         internal ShipFireControlMode FireControlMode =>
             ShipRegistry.ShipByIdentity(OwnerId).Combat?.fireControlMode ?? ShipFireControlMode.Automatic;
+        internal override bool UsesAutomaticVolley => FireControlMode == ShipFireControlMode.Automatic;
         internal void DecideAutoCombat(ShipBase ship)
         {
             SpaceObject own = universe.FrameOf(ship.Map);
@@ -346,9 +353,10 @@ internal readonly struct HeadingPanelAction
             if (FireControlMode == ShipFireControlMode.Automatic || AutoTask == PlayerAutoTaskKind.Combat)
                 FireControl.Decide(ship, own);
             else FireControl.Clear();
-            if (AutoTask == PlayerAutoTaskKind.Combat && !ManualControl
-                && ship.CanDriveIn(own) && !own.projectileRoleOverride)
-                AutoManeuver.Decide(ship, own, FireControl.Target, null,
+            bool canManeuver = AutoTask == PlayerAutoTaskKind.Combat && !ManualControl
+                && ship.CanDriveIn(own) && !own.projectileRoleOverride;
+            if (canManeuver)
+                AutoManeuver.Decide(ship, own, FireControl.Target,
                     allowBoarding: false, playerInitiated: true);
         }
         internal bool AimActive => aim?.Active == true;
@@ -434,6 +442,8 @@ internal readonly struct HeadingPanelAction
         // Crew stationing follows ship ownership; tactical readiness only gates firing.
         internal override bool GunnersEnabled => true;
         internal override bool WantsVolley => combatReady && FireControl.Target.HasLock;
+        internal override bool UsesAutomaticVolley => true;
+        internal override bool SuppressAutomaticSystems => AutoManeuver.Boarding;
 
         internal void SetCombatReady(bool ready)
         {
@@ -453,7 +463,7 @@ internal readonly struct HeadingPanelAction
         {
             intent = default;
             return combatReady && FireControl.TryGetIntent(ship, container,
-                AutoManeuver.Doctrine == NpcDoctrine.Boarder, out intent);
+                AutoManeuver.Boarding, out intent);
         }
 
         protected internal override bool HasAuthority(PilotTarget target)

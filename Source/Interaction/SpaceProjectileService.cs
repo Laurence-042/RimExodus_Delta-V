@@ -179,6 +179,25 @@ namespace DeltaV
         /// <summary>在飞弹体数（诊断/图池状态用）。</summary>
         public int InFlightCount => projectiles.Count;
 
+        internal float IncomingSeconds(ShipBase ship, Vector3 position, Vector2 velocity)
+        {
+            float soonest = 100000f;
+            float radius = ShipFireControl.HullRadius(ship);
+            foreach (Projectile shot in projectiles)
+            {
+                if (shot.dead || shot.laser || shot.container == null
+                    || shot.sourceContainer == universe.FrameOf(ship.Map)) continue;
+                Vector2 offset = OrbitSphere.Offset(position, shot.container.pose.position);
+                Vector2 relative = shot.container.pose.velocity - velocity;
+                if (relative.sqrMagnitude < 0.01f) continue;
+                float time = Mathf.Clamp(-Vector2.Dot(offset, relative)
+                    / relative.sqrMagnitude, 0f, 8f);
+                if (time > 0f && (offset + relative * time).magnitude <= radius + 1f)
+                    soonest = Mathf.Min(soonest, time);
+            }
+            return soonest;
+        }
+
         // ---- 创建 ----
 
         /// <summary>

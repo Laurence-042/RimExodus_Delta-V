@@ -77,14 +77,10 @@ namespace DeltaV
         /// <summary>生成时固定的内容类型和 prefab 身份；归档与母港查询沿用。</summary>
         public string contentTypeId;
         public string sourcePrefabPath;
-        public List<NpcDoctrine> npcDoctrines;
 
         /// <summary>NPC 初始能力及最近决策；有图时重新评估战损，无图时使用该摘要。</summary>
-        public bool npcBaselineRecorded;
-        public float npcInitialThrust;
-        public float npcInitialFirepower;
-        public int npcInitialMainConsoleId;
         public bool npcRetreating;
+        public bool npcHadShip;
         public int npcHomeObjectId;
         public Faction npcFaction;
 
@@ -361,11 +357,8 @@ namespace DeltaV
             other.objectId = objectId; other.pose = pose; other.baseTag = baseTag;
             other.faction = faction; other.ambientLabel = ambientLabel;
             other.contentTypeId = contentTypeId; other.sourcePrefabPath = sourcePrefabPath;
-            other.npcDoctrines = npcDoctrines;
-            other.npcBaselineRecorded = npcBaselineRecorded;
-            other.npcInitialThrust = npcInitialThrust; other.npcInitialFirepower = npcInitialFirepower;
-            other.npcInitialMainConsoleId = npcInitialMainConsoleId;
             other.npcRetreating = npcRetreating; other.npcHomeObjectId = npcHomeObjectId;
+            other.npcHadShip = npcHadShip;
             other.npcFaction = npcFaction;
             other.lastMotionTick = lastMotionTick;
         }
@@ -379,12 +372,8 @@ namespace DeltaV
             Scribe_Values.Look(ref ambientLabel, "ambientLabel", null);
             Scribe_Values.Look(ref contentTypeId, "contentTypeId");
             Scribe_Values.Look(ref sourcePrefabPath, "sourcePrefabPath");
-            Scribe_Collections.Look(ref npcDoctrines, "npcDoctrines", LookMode.Value);
-            Scribe_Values.Look(ref npcBaselineRecorded, "npcBaselineRecorded");
-            Scribe_Values.Look(ref npcInitialThrust, "npcInitialThrust");
-            Scribe_Values.Look(ref npcInitialFirepower, "npcInitialFirepower");
-            Scribe_Values.Look(ref npcInitialMainConsoleId, "npcInitialMainConsoleId");
             Scribe_Values.Look(ref npcRetreating, "npcRetreating");
+            Scribe_Values.Look(ref npcHadShip, "npcHadShip");
             Scribe_Values.Look(ref npcHomeObjectId, "npcHomeObjectId");
             Scribe_References.Look(ref npcFaction, "npcFaction");
 

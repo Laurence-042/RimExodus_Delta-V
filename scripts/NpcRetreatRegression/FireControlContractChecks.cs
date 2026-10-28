@@ -11,6 +11,8 @@ using Verse;
 internal static partial class Program
 {
     static int accelerationResolveCalls;
+    static bool TestHullMaxHitPoints(ref int __result)
+    { __result = 100; return false; }
     static bool CountAccelerationResolve(ref SpaceWeaponAccelerationSolution __result)
     {
         accelerationResolveCalls++;
@@ -75,6 +77,31 @@ internal static partial class Program
         var fire = universe.Controls.For(hull.Vessel).FireControl;
         Check(NpcCombatAi.CountEligibleTargets(universe, hull.Vessel, own) == 2,
             "two hostile ships in one container are separate automatic candidates");
+        weapon.WeaponProps.fireArcDeg = 0f;
+        weapon.WeaponProps.lockArcDeg = 360f;
+        weapon.cooldownUntilTick = Find.TickManager.TicksGame + 1000;
+        float coolingAngle = traverse.CurrentAngle;
+        var hullStats = new Harmony("DeltaV.Regression.CombatHullStats");
+        hullStats.Patch(AccessTools.PropertyGetter(typeof(Thing), "MaxHitPoints"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(TestHullMaxHitPoints)));
+        try
+        {
+            for (int i = 0; i < 15; i++)
+            {
+                Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
+                fire.TickAutoVolley(hull.Vessel, own, false);
+            }
+        }
+        finally { hullStats.UnpatchAll(hullStats.Id); }
+        var assigned = (IDictionary)typeof(ShipFireControl)
+            .GetField("automaticTargets", Private).GetValue(fire);
+        Check(assigned.Contains(hull.parent.thingIDNumber),
+            "fixed-axis weapon acquires a target within its lock arc before the hull aligns");
+        Check(Mathf.Abs(SpaceTransform.WrapAngle(traverse.CurrentAngle - coolingAngle)) > 10f * Mathf.Deg2Rad,
+            "automatic cooled turret advances on every tick while its lead is refreshed sparsely");
+        weapon.WeaponProps.fireArcDeg = 360f;
+        weapon.WeaponProps.lockArcDeg = -1f;
+        Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
         fire.Decide(hull.Vessel, own);
         Check(fire.Target.Ship == firstHull.Identity, "equal candidate scores use stable ship identity rather than member order");
         weapon.WeaponProps.manualOnly = true;
@@ -350,7 +377,7 @@ internal static partial class Program
             "boarding collision restriction follows the same resolved container used by guidance");
         Set(flight, "adoptedShuttle", false);
         var maneuver = new ShipAutoManeuverControl(universe, attacker.Identity);
-        Set(maneuver, "lastOrbitTarget", identity);
+        Set(maneuver, "anchorTarget", identity);
         object[] sample = { default(SpacePose) };
         Check((bool)Call(maneuver, "SampleTarget", sample)
             && OrbitSphere.Offset(((SpacePose)sample[0]).position, movedTarget.Pose.position).magnitude < 0.001f,

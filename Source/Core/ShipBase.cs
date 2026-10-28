@@ -21,6 +21,7 @@ namespace DeltaV
         public abstract string Label { get; }
         public abstract ShipDerivedState State { get; }
         public abstract ShipCombatState Combat { get; }
+        public CompShipCombatAI CombatAI => (Anchor as ThingWithComps)?.TryGetComp<CompShipCombatAI>();
         public abstract bool CanDriveIn(SpaceObject container);
         public abstract bool Contains(Thing thing);
         /// <summary>数值布局使用容器 Map 的局部坐标；物理报告重建与出力前能力复核共用。</summary>
