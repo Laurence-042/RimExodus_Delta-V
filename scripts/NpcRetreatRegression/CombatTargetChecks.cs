@@ -56,6 +56,8 @@ internal static partial class Program
         Check(selected?.Identity == console.Vessel.Identity, "intact hostile foundation ship is an automatic target");
         Vector2 intactCenter = selected.HullCenter;
         var fire = new ShipFireControl(universe, attacker.Identity);
+        if (fire.Strategy(attacker).targetRules.Count == 0)
+            fire.Strategy(attacker).targetRules.Add(new CombatStrategyRule { includeDisarmed = true });
         fire.Decide(attacker, own);
         Check(fire.TryGetIntent(attacker, own, false, out var intactIntent), "automatic target produces a volley intent");
 
@@ -92,20 +94,20 @@ internal static partial class Program
         ShipRegistry.ShipByIdentity(attacker.Identity);
         foreach (ShipBase member in victim.Ships) universe.Controls.For(member);
         Check(victim.MotionInfo.AvailableThrust > 0f
-            && !ShipFireControl.Candidates(attacker, own, victim).Any()
-            && !fire.TryGetIntent(attacker, own, false, out _),
-            "friendly member thrust cannot keep a locked powerless enemy in automatic targeting");
+            && ShipFireControl.Candidates(attacker, own, victim).Any()
+            && fire.TryGetIntent(attacker, own, false, out _),
+            "powerless hostile hull remains attackable independently of friendly member thrust");
         fire.Decide(attacker, own);
-        Check(!fire.Target.HasLock && NpcCombatAi.CountEligibleTargets(universe, attacker, own) == 0,
-            "NPC selection and diagnostics drop disabled targets through the shared gate");
+        Check(fire.Target.HasLock && NpcCombatAi.CountEligibleTargets(universe, attacker, own) == 1,
+            "NPC selection and diagnostics retain stationary targets through the shared gate");
 
         // A same-facing replacement still defines a ship; no primary defines only wreckage.
         Set(typeof(Thing), friendlyConsole.parent, "factionInt", enemy);
         SubstructureOwnership.BumpStructureVersion();
         ShipRegistry.ShipByIdentity(attacker.Identity);
         foreach (ShipBase member in victim.Ships) universe.Controls.For(member);
-        Check(ShipFireControl.Candidates(attacker, own, victim).FirstOrDefault()?.Identity == friendlyConsole.Vessel.Identity,
-            "mixed-map selection chooses the hostile member that retains propulsion");
+        Check(ShipFireControl.Candidates(attacker, own, victim).Count() == 2,
+            "mixed-map selection includes both hostile members regardless of propulsion");
         console.isMain = friendlyConsole.isMain = false;
         victim.faction = enemy;
         SubstructureOwnership.BumpStructureVersion();

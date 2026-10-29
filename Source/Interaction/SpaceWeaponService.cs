@@ -155,7 +155,7 @@ namespace DeltaV
                 ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
                 bool missile = IsGuided(projectile);
                 if (missileOnly && !missile) continue;
-                float range = weapon.WeaponProps.range;
+                float range = weapon.EffectiveRange;
                 if (distance < weapon.WeaponProps.minRange || distance > range || range <= 0f) continue;
                 SpaceImpactEffectDef impact = SpaceImpactEffects.Resolve(projectile, null);
                 float damage = impact?.defenderEffect?.damage ?? 20f;

@@ -9,6 +9,8 @@ namespace DeltaV
 {
     public enum ManeuverCurveMetric : byte
     {
+        // ProjectileSeconds keeps the version-2 XML/Scribe key; its input is now
+        // the earliest impact estimated from enemy weapons, never live projectiles.
         Distance, Outgoing, Incoming, ProjectileSeconds, HullOverlap, AlignmentError
     }
 

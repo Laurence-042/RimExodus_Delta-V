@@ -180,7 +180,7 @@ namespace DeltaV
                 float speed = SpaceWeaponService.ProjectileSpeedOf(projectile) + energy.speedBonus;
                 return new SpaceWeaponParameters(magazine,
                     new WeaponAimInfo(SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzle),
-                        muzzle, projectile, speed, weapon.WeaponProps.minRange, weapon.WeaponProps.range), energy);
+                        muzzle, projectile, speed, weapon.WeaponProps.minRange, weapon.EffectiveRange), energy);
             }
             finally { perf?.Record(PerformanceStage.WeaponParameters, start); }
         }

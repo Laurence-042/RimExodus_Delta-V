@@ -7,7 +7,7 @@ using Verse;
 namespace DeltaV
 {
     /// <summary>每船战术目标的唯一所有者；输入、机动和弹体只消费其身份与意图。</summary>
-    internal sealed class ShipFireControl
+    internal sealed partial class ShipFireControl
     {
         private readonly UniverseManager universe;
         private readonly DriveSubject ownerId;
@@ -19,6 +19,8 @@ namespace DeltaV
         private readonly Dictionary<int, int> automaticRetryAt = new Dictionary<int, int>();
         private readonly Dictionary<int, AutomaticAim> automaticAim = new Dictionary<int, AutomaticAim>();
         private int nextAutomaticAssignmentTick;
+        private CombatStrategy assignmentStrategy;
+        private int assignmentVersion = -1;
         private struct AutomaticAim { internal CombatTarget target; internal Vector3 point; internal int refreshAt; }
         private readonly List<int> staleWeapons = new List<int>();
         private readonly HashSet<int> validPointDefenseWeapons = new HashSet<int>();
@@ -30,17 +32,27 @@ namespace DeltaV
         internal ShipFireControl(UniverseManager universe, DriveSubject ownerId)
         { this.universe = universe; this.ownerId = ownerId; }
 
-        internal void Clear()
-        { target = default; preferredSystemId = 0; automaticTargets.Clear(); automaticRetryAt.Clear(); automaticAim.Clear(); nextAutomaticAssignmentTick = 0; }
+        internal void Clear(bool preserveCommands = false)
+        { target = default; preferredSystemId = 0; automaticTargets.Clear(); automaticRetryAt.Clear(); automaticAim.Clear(); nextAutomaticAssignmentTick = 0; ClearStrategyState(!preserveCommands); }
         internal void Dispose()
         { Clear(); pointDefense.Clear(); interceptionCandidates.Clear(); pdReservedDamage.Clear(); aimCapabilities.Clear(); leadPoints.Clear(); uniqueLeadPoints.Clear(); }
         internal void ForgetWeapon(CompSpaceWeapon weapon)
-        { pointDefense.Remove(weapon.parent.thingIDNumber); automaticTargets.Remove(weapon.parent.thingIDNumber); automaticRetryAt.Remove(weapon.parent.thingIDNumber); automaticAim.Remove(weapon.parent.thingIDNumber); }
+        {
+            int id = weapon.parent.thingIDNumber;
+            bool hadLock = automaticTargets.Remove(id);
+            pointDefense.Remove(id); automaticRetryAt.Remove(id); automaticAim.Remove(id);
+            automaticRules.Remove(id); partRefreshTick.Remove(id);
+            foreach (var key in fireRuleState.Keys.Where(k => k.weapon == id).ToList()) fireRuleState.Remove(key);
+            if (hadLock || weapon.OwnerShip?.Identity == ownerId)
+            { observation = null; nextAutomaticAssignmentTick = 0; configurationVersion++; }
+        }
 
         internal void ForgetMap(Map map)
         {
             interceptionCandidates.Clear();
             automaticTargets.Clear(); automaticRetryAt.Clear(); automaticAim.Clear(); nextAutomaticAssignmentTick = 0;
+            observation = null; observedFrame = null; observedShip = null; parts.Clear();
+            threats.Clear(); threatFrame = null; threatTick = -100;
             if (!target.TryResolve(universe, out var resolved) || resolved.Container?.map == map) Clear();
             staleWeapons.Clear();
             foreach (var pair in pointDefense)
@@ -60,11 +72,10 @@ namespace DeltaV
                 || container == own || container.map == null || container.map.Disposed
                 || container.baseTag == SpaceObjectTag.Projectile || !container.HasTag(SpaceObjectTag.Ship)
                 || member?.IsValid != true || member.Map != container.map || member.Faction == null
-                || !member.Faction.HostileTo(attacker.Faction) || !member.CanDriveIn(container)) return false;
+                || !member.Faction.HostileTo(attacker.Faction)) return false;
             distance = OrbitSphere.ArcCells(ShipRegistry.ShipPose(attacker).position, ShipRegistry.ShipPose(member).position);
             if (distance > DeltaVMod.CurrentSettings.poiActiveRadius) return false;
-            return container.MotionInfo?.thrusters.Any(t => t.operational && t.thrust > 0f
-                && (t.thing != null ? member.Contains(t.thing) : member.Identity.shuttle)) == true;
+            return true;
         }
 
         internal static IEnumerable<ShipBase> Candidates(ShipBase ship, SpaceObject own, SpaceObject container)
@@ -92,30 +103,7 @@ namespace DeltaV
 
         internal void Decide(ShipBase ship, SpaceObject own)
         {
-            if (target.HasLock && TryResolveAutomatic(ship, own, target, out _)) return;
-            float best = float.NegativeInfinity;
-            float ownRadius = HullRadius(ship);
-            CombatTarget selected = default;
-            foreach (SpaceObject container in universe.objects)
-            foreach (ShipBase member in container.Ships)
-            {
-                if (!CandidateValid(ship, own, container, member, out float distance)) continue;
-                CombatTarget candidate = CombatTarget.ForShip(member.Identity);
-                float enemyFire = universe.Weapons.EstimateFirepower(member, distance, ownRadius);
-                float survivability = member.Map.listerThings.AllThings.OfType<Building>()
-                    .Where(b => b.Spawned && !b.Destroyed && member.Contains(b)).Sum(b => (float)b.HitPoints);
-                float ownFire = universe.Weapons.EstimateFirepower(ship, distance, HullRadius(member));
-                float score = enemyFire * 2f + ownFire / (1f + survivability / 1000f)
-                    - distance * 0.1f;
-                if (score < best || score == best && CompareIdentity(candidate.Ship, selected.Ship) >= 0) continue;
-                best = score; selected = candidate;
-            }
-            if (selected != target) preferredSystemId = 0;
-            if (DeltaVLog.Enabled(DeltaVLogModule.Combat) && (!targetObserved || selected != target))
-                DeltaVLog.Message(DeltaVLogModule.Combat, $"ship #{ownerId} fire-control target "
-                    + (selected.HasLock ? selected.Ship.ToString() : "none"));
-            targetObserved = true;
-            target = selected;
+            DecideStrategyTarget(ship, own);
         }
 
         /// <summary>One target per weapon; locks are runtime-only and the weapon service remains the firing authority.</summary>
@@ -123,11 +111,14 @@ namespace DeltaV
         {
             if (universe.Lifecycle.IsFrozen(ship.Map)) return;
             int now = Find.TickManager.TicksGame;
-            if (now >= nextAutomaticAssignmentTick)
+            if (now >= nextAutomaticAssignmentTick || assignmentStrategy != Strategy(ship)
+                || SubstructureOwnership.CacheNeedsRefresh(assignmentVersion))
             {
                 AssignAutomaticTargets(ship, own);
-                nextAutomaticAssignmentTick = now + Mathf.Clamp(
-                    DeltaVMod.CurrentSettings?.npcDecisionIntervalTicks ?? 60, 1, 600);
+                assignmentStrategy = Strategy(ship);
+                assignmentVersion = SubstructureOwnership.GlobalStructureVersion;
+                int interval = Mathf.Clamp(DeltaVMod.CurrentSettings?.npcDecisionIntervalTicks ?? 60, 1, 30);
+                nextAutomaticAssignmentTick = now + interval - ((now + ownerId.key % interval) % interval);
             }
             int mainMask = ship.Combat?.weaponGroupsMain ?? 0;
             int secondaryMask = ship.Combat?.weaponGroupsSecondary ?? 0;
@@ -141,10 +132,17 @@ namespace DeltaV
                 int id = weapon.parent.thingIDNumber;
                 bool cooling = weapon.CooldownTicksLeft > 0;
                 if (!automaticTargets.TryGetValue(id, out CombatTarget handle)) continue;
+                // A fixed barrel has no tracking work between assignment and real readiness.
+                if (cooling && weapon.parent.TryGetComp<CompSpaceWeaponTraverse>() == null) continue;
                 if (!TryResolveAutomatic(ship, own, handle, out ResolvedCombatTarget resolved))
                 {
                     nextAutomaticAssignmentTick = 0;
                     continue;
+                }
+                if (TryQueuedPart(ship, own, out var queued) && queued.Ship == handle.Ship)
+                {
+                    handle = queued;
+                    if (!handle.TryResolve(universe, out resolved)) continue;
                 }
                 if (suppressSystems)
                 {
@@ -195,21 +193,28 @@ namespace DeltaV
 
         private void AssignAutomaticTargets(ShipBase ship, SpaceObject own)
         {
+            var previousTargets = new Dictionary<int, CombatTarget>(automaticTargets);
             automaticTargets.Clear();
             automaticRetryAt.Clear();
-            automaticAim.Clear();
             var enemies = new List<ShipBase>();
             foreach (SpaceObject container in universe.objects)
                 foreach (ShipBase member in Candidates(ship, own, container)) enemies.Add(member);
+            enemies = enemies.OrderBy(e => OrbitSphere.ArcCells(own.pose.position, ShipRegistry.ShipPose(e).position)).Take(64).ToList();
+            var enemyIds = new HashSet<DriveSubject>(enemies.Select(e => e.Identity));
+            var weaponIds = new HashSet<int>(ship.Weapons.Select(w => w.parent.thingIDNumber));
+            foreach (var key in fireRuleState.Keys.Where(k => !enemyIds.Contains(k.enemy) || !weaponIds.Contains(k.weapon)).ToList()) fireRuleState.Remove(key);
+            foreach (var key in automaticRules.Keys.Where(k => !weaponIds.Contains(k)).ToList())
+            { automaticRules.Remove(key); automaticAim.Remove(key); partRefreshTick.Remove(key); }
             if (enemies.Count == 0) return;
-            var facts = new CombatStrategyFacts(universe, ship, own);
+            bool hasQueued = TryQueuedPart(ship, own, out var queuedTarget);
+            var facts = Facts(ship, own);
+            enemies.RemoveAll(e => !(hasQueued && queuedTarget.Ship == e.Identity)
+                && !TargetAllowed(ship, e, facts.Context(e)));
             var reservedDamage = new Dictionary<DriveSubject, float>();
             var reasons = new List<string>();
             var enemyRadius = enemies.ToDictionary(e => e.Identity, HullRadius);
             var enemyHealth = enemies.ToDictionary(e => e.Identity,
-                e => e.Map.listerThings.AllThings.OfType<Building>()
-                    .Where(b => b.Spawned && !b.Destroyed && e.Contains(b))
-                    .Sum(b => (float)b.HitPoints));
+                e => Parts(e).Sum(b => (float)b.HitPoints));
             foreach (CompSpaceWeapon weapon in ship.Weapons.OrderBy(w => w.parent.thingIDNumber))
             {
                 if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
@@ -217,6 +222,8 @@ namespace DeltaV
                     || !WeaponBelongsHere(weapon, own)) continue;
                 float best = float.NegativeInfinity;
                 ShipBase selected = null;
+                CombatStrategyRule selectedRule = null;
+                string holdReason = null;
                 float damage = SpaceImpactEffects.Resolve(
                     weapon.SelectMagazine()?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef,
                     null)?.defenderEffect?.damage ?? 20f;
@@ -224,14 +231,19 @@ namespace DeltaV
                 foreach (ShipBase member in enemies)
                 {
                     SpacePose enemyPose = ShipRegistry.ShipPose(member);
+                    if (hasQueued && queuedTarget.Ship == member.Identity && queuedTarget.TryResolve(universe, out var queuedPart))
+                        enemyPose = queuedPart.Pose;
                     CombatStrategyContext context = facts.Context(member, weapon);
-                    if (context.distance < weapon.WeaponProps.minRange
-                        || context.distance > weapon.WeaponProps.range
-                        || CombatStrategyFacts.ArcError(weapon, own, own.pose,
-                            enemyPose.position, locking: true) > 0.1f
-                        || !SpaceWeaponBallistics.TryAim(aim, own.pose, enemyPose, out _)) continue;
-                    CombatStrategyRule rule = ship.CombatAI?.strategy?.Fire(context)
-                        ?? new CombatStrategy().Fire(context);
+                    var ruleKey = (weapon.parent.thingIDNumber, member.Identity);
+                    fireRuleState.TryGetValue(ruleKey, out var lastRule);
+                    CombatStrategyRule rule = Strategy(ship).Fire(context, lastRule);
+                    fireRuleState[ruleKey] = rule;
+                    if (rule.fireAction == CombatFireAction.Hold)
+                    { holdReason = rule.name; continue; }
+                    if (rule.anchorOnly && member.Identity != target.Ship) continue;
+                    if (!SpaceWeaponBallistics.TryAim(aim, own.pose, enemyPose, out var lead)
+                        || !weapon.Covers(own, lead, aim.Muzzle)
+                        || !SpaceWeaponShot.HasClearAimPath(weapon, own, lead)) continue;
                     float radius = enemyRadius[member.Identity];
                     float spread = weapon.WeaponProps.baseSpreadDeg * Mathf.Deg2Rad;
                     float hit = Mathf.Clamp01(radius /
@@ -245,20 +257,35 @@ namespace DeltaV
                         + rule.targetThreatWeight * context.enemyFirepower
                         + rule.finishingWeight * rate * finishing
                         - reserved / Mathf.Max(1f, targetHealth) * rate;
+                    if (hasQueued && queuedTarget.Ship == member.Identity) score += 100000f;
                     if (score <= best) continue;
-                    best = score; selected = member;
+                    best = score; selected = member; selectedRule = rule;
                 }
-                if (selected == null) continue;
-                automaticTargets[weapon.parent.thingIDNumber] = CombatTarget.ForShip(selected.Identity);
+                if (selected == null)
+                {
+                    if (holdReason != null && ship.CombatAI != null)
+                        reasons.Add(weapon.parent.LabelCap + " · " + holdReason + " · " + "DeltaV_CombatFireAction_Hold".Translate());
+                    continue;
+                }
+                int weaponId = weapon.parent.thingIDNumber;
+                bool sameRule = automaticRules.TryGetValue(weaponId, out var oldSelected) && oldSelected == selectedRule;
+                automaticRules[weaponId] = selectedRule;
+                int now = Find.TickManager.TicksGame;
+                bool retainPart = sameRule && previousTargets.TryGetValue(weaponId, out var oldTarget)
+                    && oldTarget.Ship == selected.Identity && oldTarget.TryResolve(universe, out _)
+                    && partRefreshTick.TryGetValue(weaponId, out int refresh) && now < refresh;
+                automaticTargets[weaponId] = retainPart ? previousTargets[weaponId] : SelectPart(ship, own, weapon, selected, selectedRule.part);
+                if (!retainPart) partRefreshTick[weaponId] = now + 120;
+                if (hasQueued && queuedTarget.Ship == selected.Identity) automaticTargets[weaponId] = queuedTarget;
                 reservedDamage.TryGetValue(selected.Identity, out float previous);
                 reservedDamage[selected.Identity] = previous + Mathf.Max(1f,
                     weapon.WeaponProps.impactScale * 20f);
                 if (ship.CombatAI != null)
                     reasons.Add(weapon.parent.LabelCap + " → " + selected.Label + " ("
-                        + ship.CombatAI.strategy.Fire(facts.Context(selected, weapon)).name + ")");
+                        + selectedRule.name + ")");
             }
             if (ship.CombatAI != null)
-                ship.CombatAI.lastFireReason = reasons.Count == 0 ? "-"
+                ship.CombatAI.lastFireReason = reasons.Count == 0 ? "DeltaV_CombatNoFireChoice".Translate().ToString()
                     : string.Join("; ", reasons);
         }
 
@@ -436,7 +463,7 @@ namespace DeltaV
             }
         }
 
-        private readonly List<WeaponAimInfo> aimCapabilities = new List<WeaponAimInfo>();
+        private readonly List<(CompSpaceWeapon weapon, WeaponAimInfo aim)> aimCapabilities = new List<(CompSpaceWeapon, WeaponAimInfo)>();
         private readonly List<Vector3> leadPoints = new List<Vector3>();
         private readonly HashSet<Vector3> uniqueLeadPoints = new HashSet<Vector3>();
 
@@ -448,15 +475,17 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in ship.Weapons)
                 if (WeaponBelongsHere(weapon, own) && weapon.SpaceModeEnabled
                     && weapon.GroupActive && weapon.aimMode == SpaceWeaponAimMode.Volley)
-                    aimCapabilities.Add(SpaceWeaponService.AimInfo(weapon, own));
+                    aimCapabilities.Add((weapon, SpaceWeaponService.AimInfo(weapon, own)));
             foreach (SpaceObject container in universe.objects)
             foreach (ShipBase member in Candidates(ship, own, container))
             {
                 if (!CombatTarget.ForShip(member.Identity).TryResolve(universe, out var resolved)) continue;
-                foreach (WeaponAimInfo info in aimCapabilities)
+                foreach (var capability in aimCapabilities)
                 {
+                    WeaponAimInfo info = capability.aim;
                     Vector3 point = resolved.Pose.position;
                     if (!SpaceWeaponBallistics.TryAim(info, own.pose, resolved.Pose, out point)) continue;
+                    if (!capability.weapon.Covers(own, point, info.Muzzle)) continue;
                     if (uniqueLeadPoints.Add(point)) leadPoints.Add(point);
                 }
             }
@@ -497,12 +526,19 @@ namespace DeltaV
             {
                 if (target?.IsScattered != true || target.map == null || target.map.Disposed) return false;
                 distance = OrbitSphere.Offset(muzzle, target.pose.position).magnitude;
-                return distance <= weapon.WeaponProps.range;
+                return distance <= weapon.EffectiveRange;
             }
             if (target == null || target == weapon.Container || target.map == null || target.map.Disposed
                 || !target.InterceptionEligible) return false;
             distance = OrbitSphere.Offset(muzzle, target.pose.position).magnitude - SpaceCollision.BoundsRadiusOf(target);
-            return distance >= weapon.WeaponProps.minRange && distance <= weapon.WeaponProps.range;
+            if (distance < weapon.WeaponProps.minRange || distance > weapon.EffectiveRange) return false;
+            if (weapon.coverage.fixedDirection || weapon.coverage.arc < 360f || weapon.coverage.direction != 0f)
+            {
+                var info = SpaceWeaponService.AimInfo(weapon, weapon.Container);
+                return SpaceWeaponBallistics.TryAim(info, weapon.Container.pose, target.pose, out var lead)
+                    && weapon.Covers(weapon.Container, lead, info.Muzzle);
+            }
+            return true;
         }
 
         /// <summary>

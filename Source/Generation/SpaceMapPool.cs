@@ -89,7 +89,8 @@ namespace DeltaV
             finally
             {
                 lease.busy = false;
-                HostColonistBarVisibility.NotifyDockingStateChanged();
+                if (tag != SpaceObjectTag.Projectile)
+                    HostColonistBarVisibility.NotifyDockingStateChanged();
             }
         }
 
@@ -126,7 +127,8 @@ namespace DeltaV
                 if (!idle.TryGetValue(key, out List<Map> maps)) idle[key] = maps = new List<Map>();
                 maps.Add(map);
                 idleCount++;
-                HostColonistBarVisibility.NotifyDockingStateChanged();
+                if (lease.Tag != SpaceObjectTag.Projectile)
+                    HostColonistBarVisibility.NotifyDockingStateChanged();
                 return true;
             }
             catch (Exception ex)

@@ -128,8 +128,14 @@ namespace DeltaV
             Vector3 directionWorld = east * tangent.x + north * tangent.y;
             var spec = new SpaceProjectileLaunchSpec(speed, ignitionDelayTicks,
                 coldLaunchSpeed, damageScale, armorPenetrationScale);
+            bool traceCannon = DeltaVLog.Enabled(DeltaVLogModule.Development)
+                && projectileDef.defName == "DeltaV_Projectile_Cannon"
+                && guidanceTarget.Kind == CombatTargetKind.Ship;
             if (!universe.Projectiles.Launch(projectileDef, container, muzzleUniverse,
-                directionWorld, weapon.parent.Faction, weapon.parent, guidanceTarget, spec))
+                directionWorld, weapon.parent.Faction, weapon.parent, guidanceTarget, spec,
+                traceCannon ? aimPoint : (Vector3?)null,
+                SpaceTransform.WrapAngle(launchMapAngle - desiredMapAngle) * Mathf.Rad2Deg,
+                spread * Mathf.Rad2Deg))
             {
                 return Reject(WeaponReject.Launch);
             }
@@ -170,11 +176,11 @@ namespace DeltaV
             muzzleMap = parameters.aim.MuzzleMap;
             muzzleUniverse = parameters.aim.Muzzle;
             float baseAngle = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
-            if (!manualFire)
+            if (!manualFire || weapon.coverage.range > 0f)
             {
                 float shotDistance = OrbitSphere.Offset(muzzleUniverse, aimPoint).magnitude;
                 if (shotDistance < weapon.WeaponProps.minRange
-                    || shotDistance > weapon.WeaponProps.range) return Reject(WeaponReject.Range);
+                    || shotDistance > weapon.EffectiveRange) return Reject(WeaponReject.Range);
             }
             Vector2 aimMap = preparedAimMap ?? SpaceTransform.UniverseToMapPoint(container, weapon.parent.Map, aimPoint);
             Vector2 delta = aimMap - muzzleMap;
@@ -190,7 +196,7 @@ namespace DeltaV
             float lockArc = projectileProps.guided || coldLaunch
                 ? Mathf.Min(launcherLockArc, projectileProps.lockArcDeg)
                 : launcherLockArc;
-            if (!WithinArc(desiredMapAngle, baseAngle, lockArc)) return Reject(WeaponReject.Arc);
+            if (weapon.CoverageError(desiredMapAngle) > 0.05f || !WithinArc(desiredMapAngle, baseAngle, lockArc)) return Reject(WeaponReject.Arc);
 
             if (traverse != null)
             {
@@ -235,6 +241,13 @@ namespace DeltaV
             return !weapon.safeFire || HasClearPath(weapon,
                 acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon),
                 ShipOrientation.AngleFromRot4(weapon.parent.Rotation));
+        }
+
+        internal static bool HasClearAimPath(CompSpaceWeapon weapon, SpaceObject own, Vector3 point)
+        {
+            Vector2 muzzle = weapon.Layout.acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
+            Vector2 delta = SpaceTransform.UniverseToMapPoint(own, weapon.parent.Map, point) - muzzle;
+            return !weapon.safeFire || HasClearPath(weapon, muzzle, Mathf.Atan2(delta.y, delta.x));
         }
 
         private void Commit()

@@ -30,6 +30,7 @@ namespace DeltaV
             public float diagnosticRequestedTorque;
             public float diagnosticAllocatedTorque;
             public float diagnosticDistance;
+            public bool traceNextCombatDrive;
             // 固定航点模式：direction/angle；随动模式：host ⊕ hostOffset（+ 相对转角）。
             public bool tracked;
             public Func<SpacePose, SpacePose> reference;
@@ -191,6 +192,12 @@ namespace DeltaV
         internal bool IsCombatOrbit(DriveSubject subject) => active.TryGetValue(subject, out Flight flight)
             && flight.combatOrbit;
 
+        internal void RequestCombatTrace(DriveSubject subject)
+        {
+            if (active.TryGetValue(subject, out Flight flight) && flight.combatOrbit)
+                flight.traceNextCombatDrive = true;
+        }
+
         /// <summary>开发者按需读取的姿态／力矩快照；热路径只更新标量，不刷日志。</summary>
         internal string CombatDiagnostics()
         {
@@ -303,7 +310,7 @@ namespace DeltaV
                             return;
                         }
                         flight.combatIntentMicroStep = planMicroStep;
-                        flight.combatIntentTick = ticksGame;
+                        flight.combatIntentTick = flight.combatIntent.startTick;
                     }
                     CombatTrajectoryIntent intent = flight.combatIntent;
                     combatHorizon = intent.seconds;
@@ -525,6 +532,26 @@ namespace DeltaV
             {
                 flight.diagnosticRequestedTorque = control.torque;
                 flight.diagnosticAllocatedTorque = torque;
+                if (flight.traceNextCombatDrive)
+                {
+                    flight.traceNextCombatDrive = false;
+                    if (DeltaVLog.Enabled(DeltaVLogModule.Development))
+                    {
+                        ShipBase ship = ShipRegistry.ShipByIdentity(flight.subject);
+                        DeltaVLog.Message(DeltaVLogModule.Development,
+                            $"combat-drive ship={flight.subject} "
+                            + $"{UniverseManager.MapTag(ship?.Map)} result={result} "
+                            + $"phase={flight.phase} recovery={flight.recovery.Active} "
+                            + $"posError={posErr.magnitude:F2} speedError={vel.magnitude:F2} "
+                            + $"angleError={angleErr * Mathf.Rad2Deg:F1}deg "
+                            + $"omega={pose.angularVelocity:F3} targetOmega={hostOmega:F3} "
+                            + $"localForce={control.force} torque={control.torque:F2}/{torque:F2} "
+                            + $"deltaAngle={SpaceTransform.WrapAngle(container.pose.angle - pose.angle) * Mathf.Rad2Deg:F3}deg "
+                            + $"deltaV={container.pose.velocity - pose.velocity} "
+                            + $"mpc={flight.heldCommand.qpStatus} "
+                            + $"steps={flight.currentPlanStep}/{flight.planStepsReady}");
+                    }
+                }
             }
         }
 

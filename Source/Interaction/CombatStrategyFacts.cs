@@ -15,11 +15,11 @@ namespace DeltaV
         private readonly SpaceObject own;
         private readonly Dictionary<CompSpaceWeapon, (float cooldown, float ammo, float energy)> weaponFacts =
             new Dictionary<CompSpaceWeapon, (float, float, float)>();
-        private readonly Dictionary<DriveSubject, (Vector3 position, float distance, float power)> enemyFacts =
-            new Dictionary<DriveSubject, (Vector3, float, float)>();
-        private float ownRadius = -1f;
+        private readonly Dictionary<DriveSubject, (Vector3 position, float distance, float power,
+            float firstImpact)> enemyFacts =
+            new Dictionary<DriveSubject, (Vector3, float, float, float)>();
+        private Vector2? ownHalfExtents;
         internal readonly float hullFraction, thrustFraction, shieldFraction, readyFraction;
-        internal readonly float incomingSeconds;
 
         internal CombatStrategyFacts(UniverseManager universe, ShipBase ship, SpaceObject own)
         {
@@ -77,7 +77,6 @@ namespace DeltaV
                 if (WeaponAvailable(weapon)) ready++;
             }
             readyFraction = weapons > 0 ? (float)ready / weapons : 0f;
-            incomingSeconds = IncomingAt(own.pose.position, own.pose.velocity);
         }
 
         internal static bool WeaponReady(CompSpaceWeapon weapon) =>
@@ -92,7 +91,8 @@ namespace DeltaV
             if (weaponFacts.TryGetValue(weapon, out var observed)) return observed;
             observed = (weapon.CooldownTicksLeft / 60f,
                 weapon.MagazineAvailable(weapon.SelectMagazine()) ? 1f : 0f,
-                SpaceWeaponBallistics.HasBaseShotEnergy(weapon) ? 1f : 0f);
+                SpaceWeaponBallistics.HasBaseShotEnergy(weapon)
+                    && weapon.parent.TryGetComp<CompPowerTrader>() is not { PowerOn: false } ? 1f : 0f);
             weaponFacts.Add(weapon, observed);
             return observed;
         }
@@ -106,52 +106,89 @@ namespace DeltaV
                 && weapon.TryGetSkillLevel(out _);
         }
 
-        internal float IncomingAt(Vector3 position, Vector2 velocity)
-        {
-            return universe.Projectiles.IncomingSeconds(ship, position, velocity);
-        }
-
         internal CombatStrategyContext Context(ShipBase enemy = null,
-            CompSpaceWeapon weapon = null, SpacePose? ownPose = null)
+            CompSpaceWeapon weapon = null, SpacePose? ownPose = null, bool scoped = true)
         {
-            SpacePose source = ownPose ?? own.pose;
+            SpacePose source = ownPose ?? SpaceTransform.RigidPointPose(own.pose,
+                SpaceTransform.MapToShipLocal(ship.Map, ship.HullCenter), 0f);
             Vector3 enemyPosition = default;
-            float distance = 100000f, enemyFire = 0f;
+            float distance = float.NaN, enemyFire = float.NaN, firstImpact = float.NaN;
             if (enemy?.IsValid == true)
             {
                 if (!ownPose.HasValue && enemyFacts.TryGetValue(enemy.Identity, out var cached))
-                    (enemyPosition, distance, enemyFire) = cached;
+                    (enemyPosition, distance, enemyFire, firstImpact) = cached;
                 else
                 {
+                    enemyFire = 0f; firstImpact = 8f;
                     enemyPosition = ShipRegistry.ShipPose(enemy).position;
                     distance = OrbitSphere.ArcCells(source.position, enemyPosition);
-                    if (ownRadius < 0f) ownRadius = ShipFireControl.HullRadius(ship);
-                    enemyFire = universe.Weapons.EstimateFirepower(enemy, distance, ownRadius);
-                    if (!ownPose.HasValue) enemyFacts[enemy.Identity] = (enemyPosition, distance, enemyFire);
+                    var threats = new List<CombatWeaponThreat>();
+                    CombatWeaponThreat.Capture(enemy, universe.FrameOf(enemy.Map), 3f, threats);
+                    ownHalfExtents ??= CombatWeaponThreat.HullHalfExtents(ship);
+                    foreach (CombatWeaponThreat threat in threats)
+                    {
+                        threat.Score(source.position, source.velocity, ownHalfExtents.Value,
+                            source.angle,
+                            Vector2.zero, out float rate, out float time);
+                        enemyFire += rate;
+                        if (rate > 0f) firstImpact = Mathf.Min(firstImpact, time);
+                    }
+                    if (!ownPose.HasValue) enemyFacts[enemy.Identity] =
+                        (enemyPosition, distance, enemyFire, firstImpact);
                 }
             }
-            var observed = weapon != null ? Observe(weapon) : (0f, 1f, 1f);
+            var observed = weapon != null ? Observe(weapon) : (float.NaN, float.NaN, float.NaN);
             float arc = weapon != null && enemy?.IsValid == true
-                ? ArcError(weapon, own, source, enemyPosition) : 0f;
+                ? ArcError(weapon, own, source, enemyPosition) : float.NaN;
             return new CombatStrategyContext(hullFraction, thrustFraction, shieldFraction,
                 readyFraction, observed.Item1, observed.Item2, observed.Item3,
-                arc, distance, enemyFire,
-                ownPose.HasValue ? IncomingAt(source.position, source.velocity) : incomingSeconds);
+                arc, distance, enemyFire, firstImpact,
+                scoped ? (criterion, retaining) => Match(criterion, retaining, enemy, weapon, ownPose) : null);
+        }
+
+        private CombatStrategyFacts enemyObservation;
+        private ShipBase observedEnemy;
+        private bool Match(CombatCriterion criterion, bool retaining, ShipBase enemy,
+            CompSpaceWeapon weapon, SpacePose? pose)
+        {
+            bool equipment = criterion.metric >= CombatMetric.ReadyWeaponFraction
+                && criterion.metric <= CombatMetric.WeaponArcErrorDegrees;
+            if (criterion.scope == CombatScope.EnemyShip && criterion.metric <= CombatMetric.OwnShieldFraction)
+            {
+                if (enemy?.IsValid != true) return false;
+                if (observedEnemy != enemy)
+                { observedEnemy = enemy; enemyObservation = new CombatStrategyFacts(universe, enemy, universe.FrameOf(enemy.Map)); }
+                return criterion.Compare(enemyObservation.Context(scoped: false).Value(criterion.metric), retaining);
+            }
+            if (!equipment) return criterion.Compare(Context(enemy, weapon, pose, false).Value(criterion.metric), retaining);
+            if (criterion.scope == CombatScope.CurrentWeapon || criterion.scope == CombatScope.Metric && weapon != null)
+                return weapon != null && criterion.Compare(criterion.metric == CombatMetric.ReadyWeaponFraction
+                    ? WeaponAvailable(weapon) ? 1f : 0f : Context(enemy, weapon, pose, false).Value(criterion.metric), retaining);
+            int count = 0, ready = 0;
+            bool result = criterion.allWeapons;
+            foreach (var item in ship.Weapons)
+            {
+                if (criterion.weapons?.Includes(item) != true) continue;
+                count++;
+                if (criterion.metric == CombatMetric.ReadyWeaponFraction)
+                { if (WeaponAvailable(item)) ready++; continue; }
+                bool matches = criterion.Compare(Context(enemy, item, pose, false).Value(criterion.metric), retaining);
+                result = criterion.allWeapons ? result && matches : result || matches;
+            }
+            return count > 0 && (criterion.metric == CombatMetric.ReadyWeaponFraction
+                ? criterion.Compare((float)ready / count, retaining) : result);
         }
 
         internal static float ArcError(CompSpaceWeapon weapon, SpaceObject own,
             SpacePose sourcePose, Vector3 target, bool locking = false)
         {
-            Vector2 toTarget = OrbitSphere.Offset(sourcePose.position, target);
+            Vector2 offset = SpaceWeaponGeometry.MuzzleMapPoint(weapon) - weapon.OwnerShip.HullCenter;
+            SpacePose muzzle = SpaceTransform.RigidPointPose(sourcePose, offset, 0f);
+            Vector2 toTarget = OrbitSphere.Offset(muzzle.position, target);
             if (toTarget.sqrMagnitude < 0.001f) return 0f;
             float universeAngle = Mathf.Atan2(toTarget.y, toTarget.x);
             float desiredMapAngle = SpaceTransform.WrapAngle(universeAngle - sourcePose.angle);
-            float baseMapAngle = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
-            float arc = locking && weapon.WeaponProps.lockArcDeg >= 0f
-                ? weapon.WeaponProps.lockArcDeg : weapon.WeaponProps.fireArcDeg;
-            float halfArc = Mathf.Max(0f, arc) * 0.5f * Mathf.Deg2Rad;
-            return Mathf.Max(0f, Mathf.Abs(SpaceTransform.WrapAngle(desiredMapAngle - baseMapAngle))
-                - halfArc) * Mathf.Rad2Deg;
+            return weapon.CoverageError(desiredMapAngle);
         }
     }
 }

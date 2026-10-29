@@ -75,24 +75,18 @@ internal static partial class Program
         }
         Refresh();
         var fire = universe.Controls.For(hull.Vessel).FireControl;
+        fire.Strategy(hull.Vessel).targetRules.Add(new CombatStrategyRule { includeDisarmed = true });
         Check(NpcCombatAi.CountEligibleTargets(universe, hull.Vessel, own) == 2,
             "two hostile ships in one container are separate automatic candidates");
         weapon.WeaponProps.fireArcDeg = 0f;
         weapon.WeaponProps.lockArcDeg = 360f;
         weapon.cooldownUntilTick = Find.TickManager.TicksGame + 1000;
         float coolingAngle = traverse.CurrentAngle;
-        var hullStats = new Harmony("DeltaV.Regression.CombatHullStats");
-        hullStats.Patch(AccessTools.PropertyGetter(typeof(Thing), "MaxHitPoints"),
-            prefix: new HarmonyMethod(typeof(Program), nameof(TestHullMaxHitPoints)));
-        try
+        for (int i = 0; i < 15; i++)
         {
-            for (int i = 0; i < 15; i++)
-            {
-                Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
-                fire.TickAutoVolley(hull.Vessel, own, false);
-            }
+            Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
+            fire.TickAutoVolley(hull.Vessel, own, false);
         }
-        finally { hullStats.UnpatchAll(hullStats.Id); }
         var assigned = (IDictionary)typeof(ShipFireControl)
             .GetField("automaticTargets", Private).GetValue(fire);
         Check(assigned.Contains(hull.parent.thingIDNumber),
@@ -104,6 +98,38 @@ internal static partial class Program
         Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
         fire.Decide(hull.Vessel, own);
         Check(fire.Target.Ship == firstHull.Identity, "equal candidate scores use stable ship identity rather than member order");
+        var cooldownCondition = new CombatCriterion { metric = CombatMetric.WeaponCooldownSeconds,
+            scope = CombatScope.WeaponGroup, comparison = CombatComparison.Greater, value = 0f,
+            weapons = new CombatWeaponFilter { set = CombatWeaponSet.Main, group = weapon.groupNumber } };
+        var liveFacts = new CombatStrategyFacts(universe, hull.Vessel, own);
+        Check(cooldownCondition.Matches(liveFacts.Context(firstHull)), "maneuver weapon-group conditions read the actual cooling gun");
+        cooldownCondition.weapons.weaponDef = "absentWeapon"; cooldownCondition.allWeapons = true;
+        Check(!cooldownCondition.Matches(liveFacts.Context(firstHull)), "an empty weapon group never passes an all-weapons condition");
+        var holdRule = new CombatStrategyRule { name = "hold test", fireAction = CombatFireAction.Hold };
+        fire.Strategy(hull.Vessel).fireRules.Add(holdRule);
+        fire.CommandTarget(CombatTarget.ForShip(firstHull.Identity, first.parent.thingIDNumber));
+        weapon.cooldownUntilTick = 0;
+        fire.TickAutoVolley(hull.Vessel, own, false);
+        Check(assigned.Count == 0 && weapon.CooldownTicksLeft == 0 && fire.QueueCount == 1,
+            "hold fire prevents a ready gun from launching even with a queued part command");
+        fire.Strategy(hull.Vessel).fireRules.Clear(); fire.CancelCommands();
+        weapon.cooldownUntilTick = Find.TickManager.TicksGame + 1000;
+        weapon.coverage.range = 20f; universe.Weapons.NotifyWeaponModeChanged(weapon);
+        fire.TickAutoVolley(hull.Vessel, own, false);
+        Check(assigned.Count == 0 && SpaceWeaponService.AimInfo(weapon, own).Range == 20f,
+            "per-weapon shortened range gates assignment and the shared aiming information");
+        weapon.coverage.range = 10000f;
+        Check(weapon.EffectiveRange == weapon.WeaponProps.range, "custom range cannot expand hardware capability");
+        weapon.coverage.arc = 30f; weapon.coverage.direction = 20f;
+        float mountAngle = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
+        Check(weapon.CoverageError(mountAngle + 20f * Mathf.Deg2Rad) == 0f
+            && weapon.CoverageError(mountAngle + 60f * Mathf.Deg2Rad) > 0f,
+            "custom arc shares the hardware coverage predicate");
+        weapon.coverage.fixedDirection = true;
+        Check(Mathf.Abs(SpaceTransform.WrapAngle(weapon.ClampAim(mountAngle + 2f)
+            - mountAngle - 20f * Mathf.Deg2Rad)) < .001f, "fixed aim direction overrides tracking without widening hardware");
+        weapon.coverage = new CombatWeaponCoverage(); universe.Weapons.NotifyWeaponModeChanged(weapon);
+        fire.CancelCommands(); fire.Clear(); fire.Decide(hull.Vessel, own);
         weapon.WeaponProps.manualOnly = true;
         weapon.cooldownUntilTick = Find.TickManager.TicksGame + 1000;
         float beforeEngineeringAim = traverse.CurrentAngle;
@@ -127,10 +153,10 @@ internal static partial class Program
         Set(typeof(Thing), first.parent, "hitPointsInt", 1); Set(typeof(Thing), second.parent, "hitPointsInt", 500000);
         Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 179);
         Refresh(); fire.Decide(hull.Vessel, own);
-        Check(fire.Target.Ship == secondHull.Identity, "automatic fire control reuses a valid target");
+        Check(fire.Target.Ship == firstHull.Identity, "periodic reassessment switches to a substantially better target");
         Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
         Refresh(); fire.Decide(hull.Vessel, own);
-        Check(fire.Target.Ship == secondHull.Identity, "elapsed decision intervals do not rescore a valid target");
+        Check(fire.Target.Ship == firstHull.Identity, "unchanged scores preserve the newly selected target");
         Set(typeof(Thing), second.parent, "factionInt", player);
         Refresh();
         Check(fire.TryGetIntent(hull.Vessel, own, false, out _)
@@ -143,8 +169,8 @@ internal static partial class Program
             && fire.Target.Ship == secondHull.Identity && fire.LeadPoints(hull.Vessel).Count == 1,
             "mixed-faction map selects and previews only its eligible hostile member");
         enemyMap.listerThings.AllThings.Remove(engine2); Refresh();
-        Check(!fire.TryGetIntent(hull.Vessel, own, false, out _) && fire.LeadPoints(hull.Vessel).Count == 0,
-            "propulsion loss immediately stops fire requests and lead markers before the next decision");
+        Check(fire.TryGetIntent(hull.Vessel, own, false, out _) && fire.LeadPoints(hull.Vessel).Count == 1,
+            "propulsion loss preserves attackable hull and lead markers");
 
         var near = new MapSpaceObject(1980, TestMap(1980),
             new SpacePose(OrbitSphere.Move(own.pose.position, new Vector2(0f, 30f)), 0f))
@@ -234,6 +260,7 @@ internal static partial class Program
         Refresh();
         CombatTarget identity = CombatTarget.ForShip(hull.Identity);
         var attackerControl = universe.Controls.For(attacker);
+        attackerControl.FireControl.Strategy(attacker).targetRules.Add(new CombatStrategyRule { includeDisarmed = true });
         attackerControl.FireControl.Decide(attacker, own);
         Check(attackerControl.FireControl.Target == identity, "automatic lock is seeded before target separation");
         CombatTarget system = CombatTarget.ForShip(hull.Identity, engine.thingIDNumber);
@@ -242,9 +269,8 @@ internal static partial class Program
                 new Vector2(engine.DrawPos.x, engine.DrawPos.z))).magnitude < 0.001f,
             "ship system target resolves its current rigid point");
         CombatTarget lostSystem = CombatTarget.ForShip(hull.Identity, 999999);
-        Check(lostSystem.TryResolve(universe, out var fallback)
-            && OrbitSphere.Offset(fallback.Pose.position, ShipRegistry.ShipPose(hull).position).magnitude < 0.001f,
-            "missing system falls back to the original ship center");
+        Check(!lostSystem.TryResolve(universe, out _),
+            "missing part invalidates its runtime lock so fire control and queues reselect");
         var free = CombatTarget.At(own.pose.position);
         Check(!free.HasLock && free.TryResolve(universe, out var freePose) && freePose.Container == null,
             "free aim has a position but no implicit guidance lock");
@@ -322,9 +348,9 @@ internal static partial class Program
         // Disable this member without removing its identity; manual/in-flight policies remain independent.
         victim.map.listerThings.AllThings.Remove(engine);
         Refresh();
-        Check(!ShipFireControl.Candidates(attacker, own, victim).Any() && identity.TryResolve(universe, out _)
+        Check(ShipFireControl.Candidates(attacker, own, victim).Any() && identity.TryResolve(universe, out _)
             && ShipFireControl.ManualTargetAlongRay(universe, own, own.pose.position, direction, player).Ship == hull.Identity,
-            "powerless ship is excluded from automatic attacks but remains a valid manual and in-flight lock");
+            "powerless ship retains automatic, manual and in-flight target eligibility");
         Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
         missile.pose.velocity = Vector2.up * props.speed;
         universe.Projectiles.Tick();

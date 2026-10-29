@@ -358,7 +358,12 @@ namespace DeltaV
             if (obj.map != null && objectByMap != null) objectByMap[obj.map] = obj;
             if (obj.map != null && obj.map == Find.CurrentMap) ApplyCameraZoomScope();
             if (obj.IsScattered) Scatter.Register(obj);
-            if (obj.map != null && Find.UIRoot is UIRoot_Play) Find.ColonistBar?.MarkColonistsDirty();
+            if (obj.map != null && Find.UIRoot is UIRoot_Play)
+            {
+                if (obj.baseTag == SpaceObjectTag.Projectile)
+                    Find.ColonistBar?.MarkColonistsDirty();
+                else HostColonistBarVisibility.NotifyDockingStateChanged();
+            }
             // Projectile maps are transient and have their own collision-cache invalidation on rent.
             if (obj.map != null && obj.baseTag != SpaceObjectTag.Projectile)
                 SubstructureOwnership.BumpStructureVersion();
@@ -393,7 +398,12 @@ namespace DeltaV
                 objectByMap.Remove(obj.map);
             if (obj.map != null && obj.map == Find.CurrentMap) ApplyCameraZoomScope();
             scatter?.Remove(obj);
-            if (obj.map != null && Find.UIRoot is UIRoot_Play) Find.ColonistBar?.MarkColonistsDirty();
+            if (obj.map != null && Find.UIRoot is UIRoot_Play)
+            {
+                if (obj.baseTag == SpaceObjectTag.Projectile)
+                    Find.ColonistBar?.MarkColonistsDirty();
+                else HostColonistBarVisibility.NotifyDockingStateChanged();
+            }
             globeDisplay?.Forget(obj.map);
             PlanetGlobeRenderer.InvalidateSilhouette(obj.map);
             Autopilot.Detach(obj);

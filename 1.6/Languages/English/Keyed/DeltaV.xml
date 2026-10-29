@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 
 <LanguageData>
   <DeltaV_PilotNeedShipFocus>Focus a ship map first.</DeltaV_PilotNeedShipFocus>
@@ -51,9 +51,17 @@
   <DeltaV_SettingsHideEmptySpaceMaps>Hide space map groups without player pawns</DeltaV_SettingsHideEmptySpaceMaps>
   <DeltaV_SettingsHideEmptySpaceMapsTip>On by default. Hide colonist bar groups for SpaceObject maps without living player-faction pawns, reducing enemy ship and debris clutter. Held pawns, player animals and mechs also count. Surface maps and caravans are unaffected. Changes apply immediately.</DeltaV_SettingsHideEmptySpaceMapsTip>
   <DeltaV_SettingsTestScene>Two-ship test scene</DeltaV_SettingsTestScene>
-  <DeltaV_SettingsTestSceneTip>Choose a prefab for each ship the next time the two-ship test scene is created. The list includes Prefabs/ subfolders and rescans each time it opens. Settings are shared across saves. If an explicitly selected file cannot be loaded, creation stops and the existing scene is preserved.</DeltaV_SettingsTestSceneTip>
+  <DeltaV_SettingsTestSceneTip>Choose the prefabs and starting poses for the next two-ship test scene. Settings are shared across saves. The prefab list includes subfolders and rescans when opened. If a selected file fails to load, the existing scene is preserved.</DeltaV_SettingsTestSceneTip>
   <DeltaV_SettingsTestScenePlayer>Player ship prefab</DeltaV_SettingsTestScenePlayer>
   <DeltaV_SettingsTestSceneEnemy>Enemy ship prefab</DeltaV_SettingsTestSceneEnemy>
+  <DeltaV_SettingsTestSceneDistance>Enemy distance (cells)</DeltaV_SettingsTestSceneDistance>
+  <DeltaV_SettingsTestSceneDistanceTip>Initial spherical distance between the ships' centers, 1–10000 cells; default 65.</DeltaV_SettingsTestSceneDistanceTip>
+  <DeltaV_SettingsTestSceneBearing>Enemy relative bearing (degrees)</DeltaV_SettingsTestSceneBearing>
+  <DeltaV_SettingsTestSceneBearingTip>Initial direction from the player ship to the enemy in the player's universe tangent plane: east is 0°, north is 90°, increasing counterclockwise. This does not rotate with the player ship. Range 0–360°; default about 22.62°.</DeltaV_SettingsTestSceneBearingTip>
+  <DeltaV_SettingsTestScenePlayerAngle>Player starting angle (degrees)</DeltaV_SettingsTestScenePlayerAngle>
+  <DeltaV_SettingsTestScenePlayerAngleTip>Initial rotation of the player ship map relative to universe east, increasing counterclockwise. Range 0–360°; default 0°.</DeltaV_SettingsTestScenePlayerAngleTip>
+  <DeltaV_SettingsTestSceneEnemyAngle>Enemy starting angle (degrees)</DeltaV_SettingsTestSceneEnemyAngle>
+  <DeltaV_SettingsTestSceneEnemyAngleTip>Initial rotation of the enemy ship map relative to universe east, increasing counterclockwise. Range 0–360°; default 35°.</DeltaV_SettingsTestSceneEnemyAngleTip>
   <DeltaV_SettingsTestSceneAutomatic>Automatic: latest export (procedural ship if unavailable)</DeltaV_SettingsTestSceneAutomatic>
   <DeltaV_SettingsTestSceneScanFailed>Could not scan the prefab directory. See the log.</DeltaV_SettingsTestSceneScanFailed>
   <DeltaV_TestScenePrefabFailed>Could not load test scene prefab: {0}. The existing scene was preserved. Select another file or check the log.</DeltaV_TestScenePrefabFailed>
@@ -445,30 +453,30 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_CombatAIReasonDefense>defensive maneuver</DeltaV_CombatAIReasonDefense>
   <DeltaV_CombatAIAddCondition>Add condition</DeltaV_CombatAIAddCondition>
   <DeltaV_CombatAINoFiles>No strategy files</DeltaV_CombatAINoFiles>
-  <DeltaV_CombatAICurves>Maneuver score curves</DeltaV_CombatAICurves>
-  <DeltaV_CombatAICurveTitle>{0}: maneuver score curves</DeltaV_CombatAICurveTitle>
+  <DeltaV_CombatAICurves>Custom firing position preferences</DeltaV_CombatAICurves>
+  <DeltaV_CombatAICurveTitle>{0}: firing position preferences</DeltaV_CombatAICurveTitle>
   <DeltaV_CombatAICurve_Distance>Distance</DeltaV_CombatAICurve_Distance>
   <DeltaV_CombatAICurve_Outgoing>Outgoing</DeltaV_CombatAICurve_Outgoing>
   <DeltaV_CombatAICurve_Incoming>Incoming</DeltaV_CombatAICurve_Incoming>
-  <DeltaV_CombatAICurve_ProjectileSeconds>Projectiles</DeltaV_CombatAICurve_ProjectileSeconds>
+  <DeltaV_CombatAICurve_ProjectileSeconds>Enemy weapon timing</DeltaV_CombatAICurve_ProjectileSeconds>
   <DeltaV_CombatAICurve_HullOverlap>Hull overlap</DeltaV_CombatAICurve_HullOverlap>
   <DeltaV_CombatAICurve_AlignmentError>Fixed gun aim</DeltaV_CombatAICurve_AlignmentError>
   <DeltaV_CombatAICurveUnit_Distance>Primary maneuver target distance (cells)</DeltaV_CombatAICurveUnit_Distance>
   <DeltaV_CombatAICurveUnit_Outgoing>Expected output (damage/second)</DeltaV_CombatAICurveUnit_Outgoing>
   <DeltaV_CombatAICurveUnit_Incoming>Expected incoming damage (damage/second)</DeltaV_CombatAICurveUnit_Incoming>
-  <DeltaV_CombatAICurveUnit_ProjectileSeconds>Nearest incoming projectile (seconds; none = 8)</DeltaV_CombatAICurveUnit_ProjectileSeconds>
+  <DeltaV_CombatAICurveUnit_ProjectileSeconds>Earliest enemy weapon impact (seconds; no threat = 8)</DeltaV_CombatAICurveUnit_ProjectileSeconds>
   <DeltaV_CombatAICurveUnit_HullOverlap>Hull bounding circle overlap (0–1)</DeltaV_CombatAICurveUnit_HullOverlap>
   <DeltaV_CombatAICurveUnit_AlignmentError>Fixed gun alignment error (degrees)</DeltaV_CombatAICurveUnit_AlignmentError>
-  <DeltaV_CombatAICurveAxes>Horizontal: {0}; vertical: points added to the maneuver score.</DeltaV_CombatAICurveAxes>
-  <DeltaV_CombatAICurveAutomatic>Automatic curve from this ship's current weapons</DeltaV_CombatAICurveAutomatic>
+  <DeltaV_CombatAICurveAxes>Horizontal: {0}; vertical: points added to firing position selection.</DeltaV_CombatAICurveAxes>
+  <DeltaV_CombatAICurveAutomatic>Curve disabled; the preview is an editable template</DeltaV_CombatAICurveAutomatic>
   <DeltaV_CombatAICurveCustom>Custom curve for this rule</DeltaV_CombatAICurveCustom>
   <DeltaV_CombatAICurveCustomize>Copy points and customize</DeltaV_CombatAICurveCustomize>
-  <DeltaV_CombatAICurveReset>Restore automatic curve</DeltaV_CombatAICurveReset>
+  <DeltaV_CombatAICurveReset>Disable this preference curve</DeltaV_CombatAICurveReset>
   <DeltaV_CombatAICurveExtend>Extend the last segment beyond its final point</DeltaV_CombatAICurveExtend>
   <DeltaV_CombatAICurveAdd>Add point</DeltaV_CombatAICurveAdd>
   <DeltaV_CombatAICurvePointHeader>Points: horizontal value / score</DeltaV_CombatAICurvePointHeader>
   <DeltaV_CombatAICurveInvalid>Invalid points: use at least two, strictly increasing horizontal values within the allowed range.</DeltaV_CombatAICurveInvalid>
-  <DeltaV_CombatAIScoreReason>distance {0}, output {1}, incoming {2}, projectile {3}, overlap {4}, aim {5}, control {6}</DeltaV_CombatAIScoreReason>
+  <DeltaV_CombatAIScoreReason>distance {0}, output {1}, incoming {2}, weapon timing {3}, overlap {4}, aim {5}, control {6}</DeltaV_CombatAIScoreReason>
   <DeltaV_CombatMetric_OwnHullFraction>Own hull fraction</DeltaV_CombatMetric_OwnHullFraction>
   <DeltaV_CombatMetric_OwnThrustFraction>Own thrust fraction</DeltaV_CombatMetric_OwnThrustFraction>
   <DeltaV_CombatMetric_OwnShieldFraction>Own shield fraction</DeltaV_CombatMetric_OwnShieldFraction>
@@ -479,5 +487,81 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_CombatMetric_WeaponArcErrorDegrees>Weapon arc error (degrees)</DeltaV_CombatMetric_WeaponArcErrorDegrees>
   <DeltaV_CombatMetric_EnemyDistance>Enemy distance (cells)</DeltaV_CombatMetric_EnemyDistance>
   <DeltaV_CombatMetric_EnemyFirepower>Enemy firepower</DeltaV_CombatMetric_EnemyFirepower>
-  <DeltaV_CombatMetric_IncomingProjectileSeconds>Nearest projectile (seconds)</DeltaV_CombatMetric_IncomingProjectileSeconds>
+  <DeltaV_CombatMetric_IncomingProjectileSeconds>Earliest enemy weapon impact (seconds)</DeltaV_CombatMetric_IncomingProjectileSeconds>
+  <DeltaV_CombatFacing_Automatic>Facing: automatic</DeltaV_CombatFacing_Automatic>
+  <DeltaV_CombatFacing_Relative>Facing: relative angle</DeltaV_CombatFacing_Relative>
+  <DeltaV_CombatFacing_Target>Facing: toward target</DeltaV_CombatFacing_Target>
+  <DeltaV_CombatTactic_Automatic>Automatic reposition</DeltaV_CombatTactic_Automatic>
+  <DeltaV_CombatTactic_Circle>Tactic: continuous orbit</DeltaV_CombatTactic_Circle>
+  <DeltaV_CombatTactic_HoldRange>Tactic: hold firing position</DeltaV_CombatTactic_HoldRange>
+  <DeltaV_CombatTacticDistance>Engagement range (cells; 0 = auto)</DeltaV_CombatTacticDistance>
+  <DeltaV_CombatTacticHeading>Relative facing (degrees)</DeltaV_CombatTacticHeading>
+  <DeltaV_CombatTacticHelp>Reposition moves between stable attack positions; hold retains a bearing; circle keeps moving around the target. Real thrust and braking limit movement.</DeltaV_CombatTacticHelp>
+  <DeltaV_CombatTacticMovement>Movement intensity</DeltaV_CombatTacticMovement>
+  <DeltaV_CombatTacticReason>Range {0} cells, relative facing {1}°, {2}; covered firepower {3}/s, curve preference {4}</DeltaV_CombatTacticReason>
+  <DeltaV_CombatTurn_Automatic>Orbit direction: automatic</DeltaV_CombatTurn_Automatic>
+  <DeltaV_CombatTurn_Clockwise>Clockwise</DeltaV_CombatTurn_Clockwise>
+  <DeltaV_CombatTurn_Counterclockwise>Counterclockwise</DeltaV_CombatTurn_Counterclockwise>
+  <DeltaV_CombatAITarget>Target rules</DeltaV_CombatAITarget>
+  <DeltaV_CombatTemplates>Add template</DeltaV_CombatTemplates>
+  <DeltaV_CombatPrimaryWeapons>Primary weapons for positioning (other weapons remain enabled)</DeltaV_CombatPrimaryWeapons>
+  <DeltaV_CombatGroup>Group {0} (0=all)</DeltaV_CombatGroup>
+  <DeltaV_CombatAllWeaponTypes>All weapon types</DeltaV_CombatAllWeaponTypes>
+  <DeltaV_CombatHysteresis>Release threshold</DeltaV_CombatHysteresis>
+  <DeltaV_CombatAllWeapons>All weapons must match (off=any; empty sets never match)</DeltaV_CombatAllWeapons>
+  <DeltaV_CombatConditionMissing>Missing targets/weapons never match; release thresholds widen the holding interval.</DeltaV_CombatConditionMissing>
+  <DeltaV_CombatIncludeDisarmed>Include disarmed ships</DeltaV_CombatIncludeDisarmed>
+  <DeltaV_CombatAnchorOnly>Attack maneuver target only</DeltaV_CombatAnchorOnly>
+  <DeltaV_CombatFlanking>Coordinate flanking with allied automatic combatants</DeltaV_CombatFlanking>
+  <DeltaV_CombatRepositionAngle>Reposition jitter ± degrees</DeltaV_CombatRepositionAngle>
+  <DeltaV_CombatRepositionTime>Reposition interval: min/max game seconds</DeltaV_CombatRepositionTime>
+  <DeltaV_CombatPosePreview>Pose preview / drag to configure</DeltaV_CombatPosePreview>
+  <DeltaV_CombatPoseHelp>Red=enemy, cyan=own ship. Left drag sets distance and bearing; right drag sets own facing. Changes stay in the draft until the strategy is saved.</DeltaV_CombatPoseHelp>
+  <DeltaV_CombatPoseValues>Distance {0} cells
+{1}: {2}°
+{3}: {4}°</DeltaV_CombatPoseValues>
+  <DeltaV_WeaponCoverage>Weapon coverage</DeltaV_WeaponCoverage>
+  <DeltaV_WeaponCoverageHelp>Restrict space range and arc within hardware limits. Direction is relative to the mount; positive angles are counterclockwise.</DeltaV_WeaponCoverageHelp>
+  <DeltaV_WeaponCoverageRange>Maximum range (0=hardware)</DeltaV_WeaponCoverageRange>
+  <DeltaV_WeaponCoverageArc>Allowed arc (degrees)</DeltaV_WeaponCoverageArc>
+  <DeltaV_WeaponCoverageDirection>Arc center relative to mount (degrees)</DeltaV_WeaponCoverageDirection>
+  <DeltaV_WeaponCoverageFixed>Hold a fixed aiming direction</DeltaV_WeaponCoverageFixed>
+  <DeltaV_CombatOrders>Temporary combat orders</DeltaV_CombatOrders>
+  <DeltaV_CombatOrdersHelp>Engage changes the maneuver target; the part queue affects fire control only (up to 16), respecting hold-fire rules. Invalid parts are skipped; an empty queue resumes strategy. These commands do not enable maneuver or fire control.</DeltaV_CombatOrdersHelp>
+  <DeltaV_CombatCancelOrders>Cancel orders / part queue ({0} items)</DeltaV_CombatCancelOrders>
+  <DeltaV_CombatEngage>Engage this ship</DeltaV_CombatEngage>
+  <DeltaV_CombatQueuePart>Queue a part</DeltaV_CombatQueuePart>
+  <DeltaV_CombatTemplate0>Main battery pose</DeltaV_CombatTemplate0>
+  <DeltaV_CombatTemplate1>Broadside reposition</DeltaV_CombatTemplate1>
+  <DeltaV_CombatTemplate2>Coordinated flanking</DeltaV_CombatTemplate2>
+  <DeltaV_CombatTemplate3>Ranged hold</DeltaV_CombatTemplate3>
+  <DeltaV_CombatPoseStatus>Bearing {0}°, next reposition {1}s; coverage {2}, mobility {3}; distance/output/incoming/time/overlap/alignment scores: {4}</DeltaV_CombatPoseStatus>
+  <DeltaV_CombatPoseBlocked>Explicit constraints conflict with hull/weapon capabilities: maintaining the safest feasible pose.</DeltaV_CombatPoseBlocked>
+  <DeltaV_CombatScope_Metric>Scope: metric default</DeltaV_CombatScope_Metric>
+  <DeltaV_CombatScope_OwnShip>Scope: own ship</DeltaV_CombatScope_OwnShip>
+  <DeltaV_CombatScope_EnemyShip>Scope: enemy ship</DeltaV_CombatScope_EnemyShip>
+  <DeltaV_CombatScope_WeaponGroup>Scope: selected weapons</DeltaV_CombatScope_WeaponGroup>
+  <DeltaV_CombatScope_CurrentWeapon>Scope: current weapon</DeltaV_CombatScope_CurrentWeapon>
+  <DeltaV_CombatWeaponSet_All>All enabled volley weapons</DeltaV_CombatWeaponSet_All>
+  <DeltaV_CombatWeaponSet_Main>Main weapons</DeltaV_CombatWeaponSet_Main>
+  <DeltaV_CombatWeaponSet_Secondary>Secondary weapons</DeltaV_CombatWeaponSet_Secondary>
+  <DeltaV_CombatTargetOrder_Balanced>Balanced engagement value</DeltaV_CombatTargetOrder_Balanced>
+  <DeltaV_CombatTargetOrder_Nearest>Nearest</DeltaV_CombatTargetOrder_Nearest>
+  <DeltaV_CombatTargetOrder_Threat>Highest threat</DeltaV_CombatTargetOrder_Threat>
+  <DeltaV_CombatTargetOrder_Finish>Finish targets</DeltaV_CombatTargetOrder_Finish>
+  <DeltaV_CombatTargetOrder_MainWeapons>Primary group output</DeltaV_CombatTargetOrder_MainWeapons>
+  <DeltaV_CombatFireAction_Fire>Allow fire</DeltaV_CombatFireAction_Fire>
+  <DeltaV_CombatFireAction_Hold>Hold fire</DeltaV_CombatFireAction_Hold>
+  <DeltaV_CombatPart_Automatic>Automatic parts</DeltaV_CombatPart_Automatic>
+  <DeltaV_CombatPart_Center>Hull center</DeltaV_CombatPart_Center>
+  <DeltaV_CombatPart_Weapons>Weapons</DeltaV_CombatPart_Weapons>
+  <DeltaV_CombatPart_Propulsion>Propulsion</DeltaV_CombatPart_Propulsion>
+  <DeltaV_CombatPart_Shield>Shields</DeltaV_CombatPart_Shield>
+  <DeltaV_CombatPart_Power>Power</DeltaV_CombatPart_Power>
+  <DeltaV_CombatPart_Console>Console</DeltaV_CombatPart_Console>
+  <DeltaV_CombatBearing_Free>Free attack bearing</DeltaV_CombatBearing_Free>
+  <DeltaV_CombatBearing_Enemy>Enemy-relative bearing</DeltaV_CombatBearing_Enemy>
+  <DeltaV_CombatBearing_World>World-relative bearing</DeltaV_CombatBearing_World>
+  <DeltaV_CombatNoFireChoice>Hold-fire rule active, or no target satisfies range, arc and safety constraints.</DeltaV_CombatNoFireChoice>
+  <DeltaV_CombatAdvanced>Advanced conditions and curves</DeltaV_CombatAdvanced>
 </LanguageData>

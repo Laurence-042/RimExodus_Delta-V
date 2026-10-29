@@ -82,6 +82,8 @@ internal static partial class Program
         var universe = new UniverseManager(game);
         game.components = new List<GameComponent> { universe };
         game.tickManager = (TickManager)Raw(typeof(TickManager));
+        if (Environment.GetCommandLineArgs().Contains("--combat-performance-only"))
+        { CheckCombatPerformance(universe, faction, other); return; }
         CheckCombatCurves();
         if (!npcOnly)
         {
@@ -109,8 +111,11 @@ internal static partial class Program
         CheckShuttleLifecycle(universe, faction);
         CheckFoundationLifecycle(universe, faction, other);
         CheckSeparationRules(universe, faction);
-        CheckCombatTargets(universe, faction, other);
-        CheckPerShipFireControl(universe, faction, other);
+        var combatStats = new HarmonyLib.Harmony("DeltaV.Regression.ExpansionStats");
+        combatStats.Patch(HarmonyLib.AccessTools.PropertyGetter(typeof(Thing), "MaxHitPoints"),
+            prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(TestHullMaxHitPoints)));
+        try { CheckCombatTargets(universe, faction, other); CheckPerShipFireControl(universe, faction, other); }
+        finally { combatStats.UnpatchAll(combatStats.Id); }
         CheckSharedPdCandidates(universe, faction, other);
         CheckDriveExecutionReuse(faction);
         CheckWeaponExecution(universe, faction);

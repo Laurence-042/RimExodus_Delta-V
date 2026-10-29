@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-29",
+  "baseline": "Saved uncommitted working-tree DLL before this implementation; not Git HEAD.",
+  "baselineDllSha256": "77271c69b3e2ae78470d1c1282576ce59d61e5b834aff540d087d4ca43976e0d",
+  "measuredDllSha256": "0720446eb34df79606ef62e7f196867877a774439189bf0fa210de9aec70776b",
+  "finalBuiltDllSha256": "31e8d2112a66c92b1d3c761b60ae58522531b3a86666c48fa934c7d12f07a049",
+  "regressionChecksPassed": 1244,
+  "expansionRows": 153,
+  "independentShots": 18360,
+  "limits": [
+    "No game launched.",
+    "Motion experiment fixes distance and broadside heading; it does not execute full rule selection or actual weapon firing.",
+    "Moving shooter uses the same fighter propulsion model, not a reconstructed destroyer.",
+    "Performance CSV measures fire-control and the pose candidate kernel, not full map tactics plus MPC.",
+    "Performance threshold and fast-cannon evasion acceptance are not passed."
+  ],
+  "afterMeasuredBuild": "Final patch additionally applies custom coverage to lead-marker filtering and point-defense target selection; final full regression passed."
+}

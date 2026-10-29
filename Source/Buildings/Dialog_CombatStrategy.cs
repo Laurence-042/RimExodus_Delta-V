@@ -8,14 +8,17 @@ using Verse;
 
 namespace DeltaV
 {
-    internal sealed class Dialog_CombatStrategy : Window
+    internal sealed partial class Dialog_CombatStrategy : Window
     {
         private readonly CompShipCombatAI owner;
         private CombatStrategy draft;
         private Vector2 scroll;
         private int tab;
+        private bool advanced;
         private readonly Dictionary<CombatCriterion, string> numberBuffers =
             new Dictionary<CombatCriterion, string>();
+        private readonly Dictionary<CombatTacticSettings, string[]> tacticBuffers =
+            new Dictionary<CombatTacticSettings, string[]>();
 
         public override Vector2 InitialSize => new Vector2(820f, 690f);
         protected override float Margin => 12f;
@@ -42,21 +45,22 @@ namespace DeltaV
                 TryFile(() => CombatStrategyFile.Export(draft));
             Rect status = new Rect(0f, 72f, rect.width, 110f);
             string reason = "DeltaV_CombatAIStatus".Translate(
-                owner.lastManeuverReason ?? "-", owner.lastFireReason ?? "-");
+                (owner.lastTargetReason ?? "-") + "\n" + (owner.lastManeuverReason ?? "-"), owner.lastFireReason ?? "-");
             Widgets.Label(status, reason);
             TooltipHandler.TipRegion(status, reason);
-            string[] tabs = { "DeltaV_CombatAIManeuver", "DeltaV_CombatAIFire",
+            string[] tabs = { "DeltaV_CombatAITarget", "DeltaV_CombatAIManeuver", "DeltaV_CombatAIFire",
                 "DeltaV_CombatAIRetreat", "DeltaV_CombatAIBoard" };
+            int[] tabIds = { 4, 0, 1, 2, 3 };
             float tabWidth = rect.width / tabs.Length;
             for (int i = 0; i < tabs.Length; i++)
                 if (Widgets.ButtonText(new Rect(i * tabWidth, 185f, tabWidth - 4f, 28f),
-                    tabs[i].Translate())) { tab = i; scroll = Vector2.zero; }
+                    tabs[i].Translate())) { tab = tabIds[i]; scroll = Vector2.zero; }
             Rect viewport = new Rect(0f, 220f, rect.width, rect.height - 270f);
             float contentHeight = ContentHeight();
             Widgets.BeginScrollView(viewport, ref scroll,
                 new Rect(0f, 0f, viewport.width - 18f, contentHeight));
             float y = 0f;
-            if (tab <= 1) DrawRules(tab == 0 ? draft.maneuverRules : draft.fireRules,
+            if (tab <= 1 || tab == 4) DrawRules(tab == 0 ? draft.maneuverRules : tab == 1 ? draft.fireRules : draft.targetRules,
                 viewport.width - 20f, ref y);
             else
             {
@@ -82,11 +86,11 @@ namespace DeltaV
 
         private float ContentHeight()
         {
-            if (tab >= 2)
-                return Mathf.Max(600f, 85f + 42f * (tab == 2
+            if (tab == 2 || tab == 3)
+                return Mathf.Max(600f, 85f + 180f * (tab == 2
                     ? draft.npcRetreatConditions.Count : draft.npcBoardConditions.Count));
-            List<CombatStrategyRule> rules = tab == 0 ? draft.maneuverRules : draft.fireRules;
-            return Mathf.Max(600f, 90f + rules.Sum(r => 275f + (r.conditions?.Count ?? 0) * 42f));
+            List<CombatStrategyRule> rules = tab == 0 ? draft.maneuverRules : tab == 1 ? draft.fireRules : draft.targetRules;
+            return Mathf.Max(600f, 90f + rules.Sum(r => (tab == 0 ? 740f : 430f) + (r.conditions?.Count ?? 0) * 180f));
         }
 
         private void DrawRules(List<CombatStrategyRule> rules, float width, ref float y)
@@ -95,6 +99,9 @@ namespace DeltaV
             y += 38f;
             if (Widgets.ButtonText(new Rect(0f, y, 150f, 28f), "DeltaV_CombatAIAddRule".Translate()))
                 if (rules.Count < 64) rules.Add(new CombatStrategyRule());
+            if (tab == 0 && Widgets.ButtonText(new Rect(165f, y, 160f, 28f), "DeltaV_CombatTemplates".Translate()))
+                ShowTemplates(rules);
+            Widgets.CheckboxLabeled(new Rect(345f, y, width - 353f, 28f), "DeltaV_CombatAdvanced".Translate(), ref advanced);
             y += 40f;
             for (int i = 0; i < rules.Count; i++)
             {
@@ -120,7 +127,8 @@ namespace DeltaV
                 DrawConditions(rule.conditions, width, ref y);
                 if (tab == 0)
                 {
-                    if (Widgets.ButtonText(new Rect(8f, y, 190f, 28f),
+                    DrawTactic(rule.tactic ??= new CombatTacticSettings(), width, ref y);
+                    if (advanced && Widgets.ButtonText(new Rect(8f, y, 190f, 28f),
                         "DeltaV_CombatAICurves".Translate()))
                     {
                         ShipBase ship = ShipRegistry.ShipOf(owner.parent);
@@ -140,6 +148,7 @@ namespace DeltaV
                 }
                 else
                 {
+                    DrawRuleAction(rule, width, ref y);
                     WeightRow("DeltaV_CombatAIOutgoing", ref rule.outgoingWeight, width, ref y);
                     WeightRow("DeltaV_CombatAIThreat", ref rule.targetThreatWeight, width, ref y);
                     WeightRow("DeltaV_CombatAIFinish", ref rule.finishingWeight, width, ref y);
@@ -149,6 +158,42 @@ namespace DeltaV
                 y += 12f;
             }
             Widgets.Label(new Rect(0f, y, width, 30f), "DeltaV_CombatAIDefaultRule".Translate());
+        }
+
+        private void DrawTactic(CombatTacticSettings settings, float width, ref float y)
+        {
+            float third = width / 3f;
+            if (Widgets.ButtonText(new Rect(8f, y, third - 12f, 28f),
+                ("DeltaV_CombatTactic_" + settings.behavior).Translate()))
+                settings.behavior = (CombatTactic)(((int)settings.behavior + 1) % 3);
+            if (settings.bearing != CombatBearing.Free) settings.behavior = CombatTactic.HoldRange;
+            if (Widgets.ButtonText(new Rect(third, y, third - 4f, 28f),
+                ("DeltaV_CombatFacing_" + settings.facing).Translate()))
+                settings.facing = (CombatFacing)(((int)settings.facing + 1) % 3);
+            if (Widgets.ButtonText(new Rect(2f * third, y, third - 4f, 28f),
+                ("DeltaV_CombatTurn_" + settings.direction).Translate()))
+                settings.direction = (CombatTurn)(((int)settings.direction + 1) % 3);
+            y += 34f;
+            if (!tacticBuffers.TryGetValue(settings, out var buffers))
+                tacticBuffers.Add(settings, buffers = new[] { settings.distance.ToString("0.#"), settings.facingDegrees.ToString("0.#") });
+            Widgets.Label(new Rect(8f, y, width * 0.34f, 28f), "DeltaV_CombatTacticDistance".Translate());
+            Widgets.TextFieldNumeric(new Rect(width * 0.34f, y, 85f, 28f),
+                ref settings.distance, ref buffers[0], 0f, 100000f);
+            if (settings.facing == CombatFacing.Relative)
+            {
+                Widgets.Label(new Rect(width * 0.50f, y, width * 0.33f, 28f), "DeltaV_CombatTacticHeading".Translate());
+                Widgets.TextFieldNumeric(new Rect(width - 85f, y, 80f, 28f),
+                    ref settings.facingDegrees, ref buffers[1], -180f, 180f);
+            }
+            y += 34f;
+            Widgets.Label(new Rect(8f, y, 235f, 24f), "DeltaV_CombatTacticMovement".Translate()
+                + ": " + settings.movement.ToString("P0"));
+            settings.movement = Widgets.HorizontalSlider(new Rect(250f, y, width - 255f, 24f),
+                settings.movement, 0.1f, 1f);
+            y += 30f;
+            Widgets.Label(new Rect(8f, y, width - 16f, 52f), "DeltaV_CombatTacticHelp".Translate());
+            y += 56f;
+            DrawTacticOptions(settings, width, ref y);
         }
 
         private void DrawConditions(List<CombatCriterion> conditions, float width, ref float y)
@@ -165,7 +210,7 @@ namespace DeltaV
                 {
                     var options = Enum.GetValues(typeof(CombatMetric)).Cast<CombatMetric>()
                         .Select(metric => new FloatMenuOption(("DeltaV_CombatMetric_" + metric).Translate(),
-                            () => condition.metric = metric)).ToList();
+                            () => { condition.metric = metric; condition.scope = CombatScope.Metric; })).ToList();
                     Find.WindowStack.Add(new FloatMenu(options));
                 }
                 if (Widgets.ButtonText(new Rect(width * 0.49f, y, 58f, 27f),
@@ -179,6 +224,7 @@ namespace DeltaV
                 if (Widgets.ButtonText(new Rect(width - 76f, y, 72f, 27f), "Delete".Translate()))
                 { conditions.RemoveAt(i); numberBuffers.Remove(condition); break; }
                 y += 40f;
+                if (advanced || tab == 2 || tab == 3) DrawCriterionOptions(condition, width, ref y);
             }
         }
 

@@ -18,6 +18,10 @@ namespace DeltaV
         // Empty paths preserve the test scene's automatic latest-export selection.
         public string testScenePlayerPrefab = "";
         public string testSceneEnemyPrefab = "";
+        public float testSceneDistance = ShipTestScene.DefaultEnemyDistance;
+        public float testSceneBearingDeg = ShipTestScene.DefaultEnemyBearingDeg;
+        public float testScenePlayerAngleDeg;
+        public float testSceneEnemyAngleDeg = ShipTestScene.DefaultEnemyAngleDeg;
 
         /// <summary>
         /// 1 个星区（worldtile）弧长 ≈ 多少宇宙格（星区架构 §8，默认 20000）。
@@ -140,6 +144,10 @@ namespace DeltaV
             Scribe_Values.Look(ref hideSpaceMapsWithoutPlayerPawns, "hideSpaceMapsWithoutPlayerPawns", true);
             Scribe_Values.Look(ref testScenePlayerPrefab, "testScenePlayerPrefab", "");
             Scribe_Values.Look(ref testSceneEnemyPrefab, "testSceneEnemyPrefab", "");
+            Scribe_Values.Look(ref testSceneDistance, "testSceneDistance", ShipTestScene.DefaultEnemyDistance);
+            Scribe_Values.Look(ref testSceneBearingDeg, "testSceneBearingDeg", ShipTestScene.DefaultEnemyBearingDeg);
+            Scribe_Values.Look(ref testScenePlayerAngleDeg, "testScenePlayerAngleDeg", 0f);
+            Scribe_Values.Look(ref testSceneEnemyAngleDeg, "testSceneEnemyAngleDeg", ShipTestScene.DefaultEnemyAngleDeg);
             Scribe_Values.Look(ref cellsPerTile, "cellsPerTile", (int)OrbitSphere.DefaultCellsPerTile);
             Scribe_Values.Look(ref universeZoomMax, "universeZoomMax", 400f);
             Scribe_Values.Look(ref poiActiveRadius, "poiActiveRadius", 300f);

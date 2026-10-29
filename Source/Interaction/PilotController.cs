@@ -308,6 +308,8 @@ internal readonly struct HeadingPanelAction
             List<PilotPanelAction> beforeGroups, List<PilotPanelAction> afterGroups)
         {
             if (!ship.IsValid || !HasAuthority(PilotTarget.Of(ship))) return;
+            beforeGroups.Add(new PilotPanelAction("DeltaV_CombatOrders".Translate(),
+                () => Find.WindowStack.Add(new Dialog_CombatOrders(ship, universe)), "DeltaV_CombatOrdersHelp".Translate()));
             beforeGroups.Add(new PilotPanelAction(
                 "DeltaV_PanelFireControl".Translate(
                     (universe.Controls.FireControlModeFor(ship) == ShipFireControlMode.Automatic
@@ -352,7 +354,7 @@ internal readonly struct HeadingPanelAction
             if (own == null || universe.Lifecycle.IsFrozen(ship.Map)) return;
             if (FireControlMode == ShipFireControlMode.Automatic || AutoTask == PlayerAutoTaskKind.Combat)
                 FireControl.Decide(ship, own);
-            else FireControl.Clear();
+            else FireControl.Clear(preserveCommands: true);
             bool canManeuver = AutoTask == PlayerAutoTaskKind.Combat && !ManualControl
                 && ship.CanDriveIn(own) && !own.projectileRoleOverride;
             if (canManeuver)

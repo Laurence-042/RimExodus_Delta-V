@@ -25,6 +25,60 @@ namespace DeltaV
     /// </summary>
     public static class SpaceCollision
     {
+        internal sealed class HullShape
+        {
+            internal readonly Vector2 center, half;
+            internal readonly HashSet<IntVec3> cells;
+            internal HullShape(ShipBase ship)
+            {
+                center = ship.HullCenter;
+                half = CombatWeaponThreat.HullHalfExtents(ship);
+                cells = new HashSet<IntVec3>(ship.HullCells);
+            }
+        }
+        internal static bool HullsOverlap(HullShape a, Vector3 center, float angle,
+            HullShape b, SpacePose bCenterPose)
+        {
+            Vector2 offset = SpaceTransform.RotateInverse(OrbitSphere.Offset(bCenterPose.position, center), bCenterPose.angle);
+            float relativeAngle = SpaceTransform.WrapAngle(angle - bCenterPose.angle);
+            float c = Mathf.Abs(Mathf.Cos(relativeAngle)), s = Mathf.Abs(Mathf.Sin(relativeAngle));
+            if (Mathf.Abs(offset.x) > b.half.x + c * a.half.x + s * a.half.y + 1f
+                || Mathf.Abs(offset.y) > b.half.y + s * a.half.x + c * a.half.y + 1f) return false;
+            foreach (var cell in a.cells)
+            {
+                var p = b.center + offset + SpaceTransform.Rotate(new Vector2(cell.x + 0.5f, cell.z + 0.5f) - a.center, relativeAngle);
+                // Conservative cell envelope; no cover roll or damage side effect.
+                for (int x = Mathf.FloorToInt(p.x - 0.7f); x <= Mathf.FloorToInt(p.x + 0.7f); x++)
+                for (int z = Mathf.FloorToInt(p.y - 0.7f); z <= Mathf.FloorToInt(p.y + 0.7f); z++)
+                    if (b.cells.Contains(new IntVec3(x, 0, z))) return true;
+            }
+            return false;
+        }
+
+        // Read-only exposure estimate, using the same cell classification as impacts.
+        // This does not roll cover, consume shields, or predict penetration damage.
+        internal static float TargetObstruction(ShipBase ship, Vector2 source, Vector2 end, Thing target)
+        {
+            Vector2 delta = end - source;
+            float length = delta.magnitude;
+            if (length < 0.01f) return 0f;
+            Vector2 direction = delta / length;
+            float depth = 0f;
+            IntVec3 previous = IntVec3.Invalid;
+            float diagonal = Mathf.Sqrt(ship.Map.Size.x * ship.Map.Size.x + ship.Map.Size.z * ship.Map.Size.z);
+            for (float d = Mathf.Max(0f, length - diagonal); d < length; d += 0.5f)
+            {
+                var p = source + direction * d;
+                var cell = new IntVec3(Mathf.FloorToInt(p.x), 0, Mathf.FloorToInt(p.y));
+                if (cell == previous || !cell.InBounds(ship.Map)) continue;
+                previous = cell;
+                var kind = SpaceStructureRules.ClassifyCell(ship.Map, cell, out Thing building);
+                if (building == target) break;
+                if (kind == SpaceCellKind.Building || kind == SpaceCellKind.NaturalRock)
+                    depth += SpaceStructureRules.BuildingHitChance(building);
+            }
+            return depth;
+        }
         /// <summary>扫掠采样步长（格）。</summary>
         private const float SampleStep = 0.5f;
 

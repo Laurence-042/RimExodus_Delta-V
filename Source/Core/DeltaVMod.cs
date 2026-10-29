@@ -127,7 +127,7 @@ namespace DeltaV
             list.CheckboxLabeled("DeltaV_SettingsHideEmptySpaceMaps".Translate(),
                 ref Settings.hideSpaceMapsWithoutPlayerPawns, "DeltaV_SettingsHideEmptySpaceMapsTip".Translate());
             if (hideEmptyMaps != Settings.hideSpaceMapsWithoutPlayerPawns && Find.UIRoot is UIRoot_Play)
-                Find.ColonistBar?.MarkColonistsDirty();
+                HostColonistBarVisibility.NotifyDockingStateChanged();
             list.Gap(6f);
             float previousZoomMax = Settings.universeZoomMax;
             TippedRow(list, rect, "DeltaV_SettingsUniverseZoomMaxTip",
@@ -145,16 +145,27 @@ namespace DeltaV
                 path => Settings.testScenePlayerPrefab = path);
             DrawTestScenePrefabSelector(list, "DeltaV_SettingsTestSceneEnemy", Settings.testSceneEnemyPrefab,
                 path => Settings.testSceneEnemyPrefab = path);
+            TippedRow(list, rect, "DeltaV_SettingsTestSceneDistanceTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsTestSceneDistance".Translate(),
+                    ref Settings.testSceneDistance, ref testSceneDistanceBuffer, 1f, 10000f));
+            TippedRow(list, rect, "DeltaV_SettingsTestSceneBearingTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsTestSceneBearing".Translate(),
+                    ref Settings.testSceneBearingDeg, ref testSceneBearingBuffer, 0f, 360f));
+            TippedRow(list, rect, "DeltaV_SettingsTestScenePlayerAngleTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsTestScenePlayerAngle".Translate(),
+                    ref Settings.testScenePlayerAngleDeg, ref testScenePlayerAngleBuffer, 0f, 360f));
+            TippedRow(list, rect, "DeltaV_SettingsTestSceneEnemyAngleTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsTestSceneEnemyAngle".Translate(),
+                    ref Settings.testSceneEnemyAngleDeg, ref testSceneEnemyAngleBuffer, 0f, 360f));
             list.End();
         }
 
         private static void DrawTestScenePrefabSelector(Listing_Standard list, string labelKey,
             string selectedPath, Action<string> select)
         {
-            list.Label(labelKey.Translate());
             string label = string.IsNullOrEmpty(selectedPath)
                 ? "DeltaV_SettingsTestSceneAutomatic".Translate().ToString() : selectedPath;
-            if (!list.ButtonText(label)) return;
+            if (!list.ButtonTextLabeled(labelKey.Translate(), label, tooltip: label)) return;
             var options = new List<FloatMenuOption>
             {
                 new FloatMenuOption("DeltaV_SettingsTestSceneAutomatic".Translate(), () => select(""))
@@ -286,6 +297,10 @@ namespace DeltaV
         private string cellsPerTileBuffer;
 
         private string universeZoomMaxBuffer;
+        private string testSceneDistanceBuffer;
+        private string testSceneBearingBuffer;
+        private string testScenePlayerAngleBuffer;
+        private string testSceneEnemyAngleBuffer;
 
         private string poiActiveBuffer;
 

@@ -166,7 +166,7 @@ namespace DeltaV
         }
     }
 
-    public class CompSpaceWeapon : ThingComp
+    public partial class CompSpaceWeapon : ThingComp
     {
         // ---- 持久配置（存档事实；gizmo 修改）----
 
@@ -452,6 +452,8 @@ namespace DeltaV
         public override void PostExposeData()
         {
             base.PostExposeData();
+            Scribe_Deep.Look(ref coverage, "combatCoverage");
+            coverage ??= new CombatWeaponCoverage();
             Scribe_Values.Look(ref salvoSet, "salvoSet", WeaponProps.defaultSalvoSet);
             Scribe_Values.Look(ref groupNumber, "groupNumber", WeaponProps.defaultGroupNumber);
             Scribe_Values.Look(ref aimMode, "aimMode", WeaponProps.aimMode);
@@ -512,6 +514,12 @@ namespace DeltaV
             {
                 yield break;
             }
+
+            yield return new Command_Action
+            {
+                defaultLabel = "DeltaV_WeaponCoverage".Translate(), defaultDesc = "DeltaV_WeaponCoverageHelp".Translate(),
+                icon = TexCommand.Attack, action = () => Find.WindowStack.Add(new Dialog_WeaponCoverage(this))
+            };
 
             if (WeaponProps.groundModeAvailable) yield return new Command_BatchToggle<CompSpaceWeapon>(
                 "GroundMode", this, w => w.GroundModeEnabled, (w, active) =>

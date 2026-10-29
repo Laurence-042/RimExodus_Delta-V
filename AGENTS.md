@@ -48,6 +48,7 @@
 | 球面坐标、星区、POI、生命周期与星象仪 | [星区架构](doc/星区架构.md) |
 | 自动驾驶与 MPC | [在线 MPC 自动驾驶](doc/在线MPC自动驾驶.md) |
 | 武器、弹体、火控、工程设备、shuttle 与 NPC | [太空战架构](doc/太空战架构.md) |
+| 重炮规避验证与自动战斗策略对照 | [重炮规避离线验证](scripts/CombatManeuverSimulation/README.md)、[Cosmoteer 策略能力对照](doc/自动战斗策略与Cosmoteer对照.md)；继续调整战斗机动前先查实验条件、实现缺口及适用边界 |
 | 护盾机制／武器数值 | [护盾机制基线](doc/护盾机制基线.md)／[武器伤害与费效比基线](doc/武器伤害与费效比基线.md) |
 | 地图 prefab、布局示意与重建排障 | 加载 [.agents/skills/delta-v-prefab/SKILL.md](.agents/skills/delta-v-prefab/SKILL.md)，运行时契约见 [Prefab 状态重建](doc/Prefab状态重建.md) |
 | 贴图生成、分层、对齐与视觉 QA | 加载 [.agents/skills/delta-v-art/SKILL.md](.agents/skills/delta-v-art/SKILL.md)，资源清单与进度只写 [美术资源施工表](doc/美术资源施工表.md) |

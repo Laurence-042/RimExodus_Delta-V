@@ -45,6 +45,7 @@ namespace DeltaV
                 int systemId = SystemId;
                 Thing system = systemId == 0 ? null : ship.Map.listerThings.AllThings
                     .FirstOrDefault(t => t.thingIDNumber == systemId && t.Spawned && !t.Destroyed && ship.Contains(t));
+                if (systemId != 0 && system == null) return false;
                 if (system != null) point = new Vector2(system.DrawPos.x, system.DrawPos.z);
             }
             SpacePose pose = point.HasValue ? SpaceTransform.RigidPointPose(container.pose,

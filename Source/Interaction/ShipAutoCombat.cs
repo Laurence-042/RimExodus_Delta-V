@@ -24,7 +24,7 @@ namespace DeltaV
             float enemyRadius = anchorTarget.TryResolve(universe, out var resolved)
                 ? ShipFireControl.HullRadius(resolved.Ship) : ownRadius;
             clearance = ownRadius + enemyRadius + 8f;
-            fallbackDistance = scoredAnchorDistance > 0f ? scoredAnchorDistance : 100f;
+            fallbackDistance = hasTactic ? attackPose.distance : anchorDistance > 0f ? anchorDistance : 100f;
         }
 
         internal void Decide(ShipBase ship, SpaceObject own, CombatTarget target,
@@ -34,24 +34,20 @@ namespace DeltaV
             if (!target.TryResolve(universe, out var resolved)
                 || !ShipFireControl.CandidateValid(ship, own, resolved.Container, resolved.Ship))
             {
-                target = default;
-                foreach (SpaceObject container in universe.objects)
-                {
-                    ShipBase candidate = ShipFireControl.Candidates(ship, own, container).FirstOrDefault();
-                    if (candidate == null) continue;
-                    target = CombatTarget.ForShip(candidate.Identity);
-                    break;
-                }
-                if (!target.TryResolve(universe, out resolved)) { Clear(ship); return; }
+                Clear(ship); return;
             }
+
             if (anchorTarget != target)
             {
-                scoredNextGoalTick = 0;
-                scoredAnchorDistance = OrbitSphere.ArcCells(own.pose.position,
+                nextTacticTick = 0;
+                hasTactic = false;
+                reposition.Reset(ownerId.key);
+                turnDirection = 0;
+                anchorDistance = OrbitSphere.ArcCells(ShipRegistry.ShipPose(ship).position,
                     resolved.Pose.position);
             }
             anchorTarget = target;
-            scoredOffenseEnabled = !playerInitiated
+            offenseEnabled = !playerInitiated
                 || ship.Combat?.fireControlMode == ShipFireControlMode.Automatic;
             Boarding = false;
             if (allowBoarding && universe.Shuttles.BoardingCraftOf(ship) != null
@@ -65,7 +61,7 @@ namespace DeltaV
             float clearance = SpaceCollision.BoundsRadiusOf(own)
                 + SpaceCollision.BoundsRadiusOf(resolved.Container) + 8f;
             universe.Autopilot.TrackOrbit(DriveSubject.Of(ship), SampleTarget,
-                clearance, PlanScoredTrajectory, playerInitiated);
+                clearance, PlanTacticTrajectory, playerInitiated);
         }
 
         internal void Clear(ShipBase ship)
@@ -73,9 +69,15 @@ namespace DeltaV
             if (ship?.IsValid == true && universe.Autopilot.IsCombatOrbit(DriveSubject.Of(ship)))
                 universe.Autopilot.Detach(DriveSubject.Of(ship), "combat target lost");
             anchorTarget = default;
-            scoredNextGoalTick = 0;
-            scoredHasGoal = false;
-            scoredAnchorDistance = 0f;
+            nextTacticTick = nextPoseTick = 0;
+            hasTactic = false;
+            routeShapes.Clear(); routeStructureVersion = -1;
+            tacticIntent = default;
+            tacticDriveVersion = tacticStructureVersion = -1;
+            tacticDrive = null;
+            activeRule = null;
+            anchorDistance = 0f;
+            turnDirection = 0;
             Boarding = false;
         }
 

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Xml.Serialization;
 using System.Xml;
+using System.Xml.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -27,6 +28,7 @@ namespace DeltaV
         public bool retreating;
         [Unsaved] public string lastManeuverReason;
         [Unsaved] public string lastFireReason;
+        [Unsaved] public string lastTargetReason;
 
         public override void PostExposeData()
         {
@@ -47,6 +49,7 @@ namespace DeltaV
             strategy = replacement.Copy();
             lastManeuverReason = null;
             lastFireReason = null;
+            lastTargetReason = null;
         }
 
         internal void EnsureBaselineFor(ShipBase ship)
@@ -136,7 +139,11 @@ namespace DeltaV
             using (XmlReader reader = XmlReader.Create(stream, new XmlReaderSettings
                 { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null }))
             {
-                var strategy = (CombatStrategy)Serializer.Deserialize(reader);
+                var document = XDocument.Load(reader);
+                if (document.Root?.Element("format")?.Value != CombatStrategy.CurrentFormat.ToString())
+                    throw new InvalidDataException("Unsupported or missing strategy format; expected " + CombatStrategy.CurrentFormat + ".");
+                using var parsed = document.CreateReader();
+                var strategy = (CombatStrategy)Serializer.Deserialize(parsed);
                 strategy.Validate();
                 return strategy.Copy();
             }

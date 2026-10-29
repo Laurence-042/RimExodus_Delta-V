@@ -136,7 +136,7 @@ namespace DeltaV
             var traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
             if (traverse == null) return;
             Vector2 delta = point - muzzle;
-            if (delta.sqrMagnitude > 1e-6f) traverse.AimAt(Mathf.Atan2(delta.y, delta.x));
+            if (delta.sqrMagnitude > 1e-6f) traverse.AimAt(weapon.ClampAim(Mathf.Atan2(delta.y, delta.x)));
         }
 
         internal static Vector3 TargetingMuzzle(CompSpaceWeapon weapon, SpaceObject container)

@@ -10,6 +10,8 @@ namespace DeltaV
 {
     public enum CombatMetric : byte
     {
+        // IncomingProjectileSeconds retains the serialized enum name; rules read
+        // enemy weapon readiness and flight time rather than projectile instances.
         OwnHullFraction, OwnThrustFraction, OwnShieldFraction,
         ReadyWeaponFraction, WeaponCooldownSeconds, WeaponHasAmmo,
         WeaponHasEnergy, WeaponArcErrorDegrees, EnemyDistance,
@@ -23,27 +25,46 @@ namespace DeltaV
         public CombatMetric metric = CombatMetric.EnemyDistance;
         public CombatComparison comparison = CombatComparison.Less;
         public float value = 100f;
+        public CombatScope scope;
+        public CombatWeaponFilter weapons = new CombatWeaponFilter();
+        public bool allWeapons;
+        public bool hysteresis;
+        public float exitValue = 100f;
 
-        public bool Matches(CombatStrategyContext context)
+        public bool Matches(CombatStrategyContext context, bool retaining = false)
         {
-            float actual = context.Value(metric);
+            if (context.evaluate != null) return context.evaluate(this, retaining);
+            return Compare(context.Value(metric), retaining);
+        }
+
+        public bool Compare(float actual, bool retaining = false)
+        {
+            if (float.IsNaN(actual) || float.IsInfinity(actual)) return false;
+            float threshold = retaining && hysteresis ? exitValue : value;
             return comparison switch
             {
-                CombatComparison.Less => actual < value,
-                CombatComparison.LessOrEqual => actual <= value,
-                CombatComparison.Greater => actual > value,
-                _ => actual >= value
+                CombatComparison.Less => actual < threshold,
+                CombatComparison.LessOrEqual => actual <= threshold,
+                CombatComparison.Greater => actual > threshold,
+                _ => actual >= threshold
             };
         }
 
         public CombatCriterion Copy() => new CombatCriterion
-            { metric = metric, comparison = comparison, value = value };
+            { metric = metric, comparison = comparison, value = value, scope = scope,
+                weapons = weapons?.Copy(), allWeapons = allWeapons,
+                hysteresis = hysteresis, exitValue = exitValue };
 
         public void ExposeData()
         {
             Scribe_Values.Look(ref metric, "metric", CombatMetric.EnemyDistance);
             Scribe_Values.Look(ref comparison, "comparison", CombatComparison.Less);
             Scribe_Values.Look(ref value, "value", 100f);
+            Scribe_Values.Look(ref scope, "scope");
+            Scribe_Deep.Look(ref weapons, "weapons");
+            Scribe_Values.Look(ref allWeapons, "allWeapons");
+            Scribe_Values.Look(ref hysteresis, "hysteresis");
+            Scribe_Values.Look(ref exitValue, "exitValue", 100f);
         }
     }
 
@@ -53,18 +74,24 @@ namespace DeltaV
         public bool enabled = true;
         public bool matchAny;
         public List<CombatCriterion> conditions = new List<CombatCriterion>();
-        // Fire-control weights; maneuver preferences live in maneuverCurves.
+        // Rules select a persistent tactic; curves optionally bias its attack pose.
         public float outgoingWeight = 1f;
         public float targetThreatWeight = 0.5f;
         public float finishingWeight = 0.5f;
         public CombatManeuverCurves maneuverCurves;
+        public CombatTacticSettings tactic = new CombatTacticSettings();
+        public CombatTargetOrder targetOrder;
+        public bool includeDisarmed;
+        public CombatFireAction fireAction;
+        public CombatPart part;
+        public bool anchorOnly;
 
-        public bool Matches(CombatStrategyContext context)
+        public bool Matches(CombatStrategyContext context, bool retaining = false)
         {
             if (!enabled) return false;
             if (conditions == null || conditions.Count == 0) return true;
-            return matchAny ? conditions.Any(c => c != null && c.Matches(context))
-                : conditions.All(c => c != null && c.Matches(context));
+            return matchAny ? conditions.Any(c => c != null && c.Matches(context, retaining))
+                : conditions.All(c => c != null && c.Matches(context, retaining));
         }
 
         public CombatStrategyRule Copy() => new CombatStrategyRule
@@ -73,7 +100,10 @@ namespace DeltaV
             conditions = conditions?.Select(c => c?.Copy()).ToList() ?? new List<CombatCriterion>(),
             outgoingWeight = outgoingWeight, targetThreatWeight = targetThreatWeight,
             finishingWeight = finishingWeight,
-            maneuverCurves = maneuverCurves?.Copy()
+            maneuverCurves = maneuverCurves?.Copy(),
+            tactic = tactic?.Copy() ?? new CombatTacticSettings(),
+            targetOrder = targetOrder, includeDisarmed = includeDisarmed,
+            fireAction = fireAction, part = part, anchorOnly = anchorOnly
         };
 
         public void ExposeData()
@@ -86,38 +116,59 @@ namespace DeltaV
             Scribe_Values.Look(ref targetThreatWeight, "targetThreatWeight", 0.5f);
             Scribe_Values.Look(ref finishingWeight, "finishingWeight", 0.5f);
             Scribe_Deep.Look(ref maneuverCurves, "maneuverCurves");
+            Scribe_Deep.Look(ref tactic, "tactic");
+            Scribe_Values.Look(ref targetOrder, "targetOrder");
+            Scribe_Values.Look(ref includeDisarmed, "includeDisarmed");
+            Scribe_Values.Look(ref fireAction, "fireAction");
+            Scribe_Values.Look(ref part, "part");
+            Scribe_Values.Look(ref anchorOnly, "anchorOnly");
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
                 conditions ??= new List<CombatCriterion>();
+                tactic ??= new CombatTacticSettings();
+            }
         }
     }
 
     public sealed class CombatStrategy : IExposable
     {
-        public const int CurrentFormat = 2;
+        public const int CurrentFormat = 3;
         public int format = CurrentFormat;
         public string name = "Default";
         public List<CombatStrategyRule> maneuverRules = new List<CombatStrategyRule>();
         public List<CombatStrategyRule> fireRules = new List<CombatStrategyRule>();
+        public List<CombatStrategyRule> targetRules = new List<CombatStrategyRule>();
         public List<CombatCriterion> npcRetreatConditions = new List<CombatCriterion>();
         public List<CombatCriterion> npcBoardConditions = new List<CombatCriterion>();
         public bool npcRetreatMatchAny;
         public bool npcBoardMatchAny;
 
-        private static readonly CombatStrategyRule DefaultManeuver = new CombatStrategyRule
+        private readonly CombatStrategyRule DefaultManeuver = new CombatStrategyRule
             { name = "Default" };
-        private static readonly CombatStrategyRule DefaultFire = new CombatStrategyRule
+        private readonly CombatStrategyRule DefaultFire = new CombatStrategyRule
             { name = "Default", outgoingWeight = 1f, targetThreatWeight = 0.5f, finishingWeight = 0.5f };
 
-        public CombatStrategyRule Maneuver(CombatStrategyContext context) =>
-            maneuverRules?.FirstOrDefault(r => r?.Matches(context) == true) ?? DefaultManeuver;
-        public CombatStrategyRule Fire(CombatStrategyContext context) =>
-            fireRules?.FirstOrDefault(r => r?.Matches(context) == true) ?? DefaultFire;
+        public CombatStrategyRule Maneuver(CombatStrategyContext context, CombatStrategyRule previous = null) =>
+            Select(maneuverRules, context, previous) ?? DefaultManeuver;
+        public CombatStrategyRule Fire(CombatStrategyContext context, CombatStrategyRule previous = null) =>
+            Select(fireRules, context, previous) ?? DefaultFire;
+        public CombatStrategyRule Target(CombatStrategyContext context, CombatStrategyRule previous = null) =>
+            Select(targetRules, context, previous) ?? DefaultFire;
+        private static CombatStrategyRule Select(List<CombatStrategyRule> rules,
+            CombatStrategyContext context, CombatStrategyRule previous)
+        {
+            if (rules != null)
+                foreach (var rule in rules)
+                    if (rule?.Matches(context, rule == previous) == true) return rule;
+            return null;
+        }
 
         public CombatStrategy Copy() => new CombatStrategy
         {
             format = format, name = name,
             maneuverRules = maneuverRules?.Select(r => r?.Copy()).ToList() ?? new List<CombatStrategyRule>(),
             fireRules = fireRules?.Select(r => r?.Copy()).ToList() ?? new List<CombatStrategyRule>(),
+            targetRules = targetRules?.Select(r => r?.Copy()).ToList() ?? new List<CombatStrategyRule>(),
             npcRetreatConditions = npcRetreatConditions?.Select(c => c?.Copy()).ToList() ?? new List<CombatCriterion>(),
             npcBoardConditions = npcBoardConditions?.Select(c => c?.Copy()).ToList() ?? new List<CombatCriterion>(),
             npcRetreatMatchAny = npcRetreatMatchAny, npcBoardMatchAny = npcBoardMatchAny
@@ -128,7 +179,13 @@ namespace DeltaV
             if (format != CurrentFormat) throw new InvalidDataException("Unsupported strategy format: " + format);
             if (name == null || name.Length > 100) throw new InvalidDataException("Invalid strategy name.");
             ValidateRules(maneuverRules, true); ValidateRules(fireRules, false);
+            ValidateRules(targetRules, false);
             ValidateConditions(npcRetreatConditions); ValidateConditions(npcBoardConditions);
+            foreach (var rule in maneuverRules.Concat(targetRules))
+                if (rule.conditions.Any(c => c.scope == CombatScope.CurrentWeapon))
+                    throw new InvalidDataException("Current weapon scope requires a fire rule.");
+            if (npcRetreatConditions.Concat(npcBoardConditions).Any(c => c.scope == CombatScope.CurrentWeapon))
+                throw new InvalidDataException("Current weapon scope requires a fire rule.");
         }
 
         private static void ValidateRules(List<CombatStrategyRule> rules, bool maneuver)
@@ -141,7 +198,15 @@ namespace DeltaV
                     || !ValidWeight(rule.finishingWeight))
                     throw new InvalidDataException("Invalid strategy rule.");
                 ValidateConditions(rule.conditions);
+                if (!Enum.IsDefined(typeof(CombatTargetOrder), rule.targetOrder)
+                    || !Enum.IsDefined(typeof(CombatFireAction), rule.fireAction)
+                    || !Enum.IsDefined(typeof(CombatPart), rule.part))
+                    throw new InvalidDataException("Invalid rule action.");
                 if (maneuver) rule.maneuverCurves?.Validate();
+                {
+                    if (rule.tactic == null) throw new InvalidDataException("Missing combat tactic settings.");
+                    rule.tactic.Validate();
+                }
             }
         }
 
@@ -153,11 +218,27 @@ namespace DeltaV
             if (conditions == null || conditions.Count > 16)
                 throw new InvalidDataException("Invalid condition count.");
             foreach (CombatCriterion condition in conditions)
+            {
                 if (condition == null || !Enum.IsDefined(typeof(CombatMetric), condition.metric)
                     || !Enum.IsDefined(typeof(CombatComparison), condition.comparison)
                     || float.IsNaN(condition.value) || float.IsInfinity(condition.value)
                     || Mathf.Abs(condition.value) > 100000f)
                     throw new InvalidDataException("Invalid strategy condition.");
+                if (!Enum.IsDefined(typeof(CombatScope), condition.scope) || condition.weapons == null
+                    || float.IsNaN(condition.exitValue) || float.IsInfinity(condition.exitValue)
+                    || Mathf.Abs(condition.exitValue) > 100000f)
+                    throw new InvalidDataException("Invalid condition scope or exit threshold.");
+                bool weaponMetric = condition.metric >= CombatMetric.ReadyWeaponFraction
+                    && condition.metric <= CombatMetric.WeaponArcErrorDegrees;
+                if ((condition.scope == CombatScope.WeaponGroup || condition.scope == CombatScope.CurrentWeapon) && !weaponMetric
+                    || condition.scope == CombatScope.OwnShip && condition.metric >= CombatMetric.EnemyDistance
+                    || condition.scope == CombatScope.EnemyShip && weaponMetric)
+                    throw new InvalidDataException("Metric does not belong to the selected scope.");
+                if (condition.hysteresis && ((condition.comparison <= CombatComparison.LessOrEqual)
+                    ? condition.exitValue < condition.value : condition.exitValue > condition.value))
+                    throw new InvalidDataException("Exit threshold must widen the matching interval.");
+                condition.weapons.Validate();
+            }
         }
 
         public void ExposeData()
@@ -166,6 +247,7 @@ namespace DeltaV
             Scribe_Values.Look(ref name, "name", "Default");
             Scribe_Collections.Look(ref maneuverRules, "maneuverRules", LookMode.Deep);
             Scribe_Collections.Look(ref fireRules, "fireRules", LookMode.Deep);
+            Scribe_Collections.Look(ref targetRules, "targetRules", LookMode.Deep);
             Scribe_Collections.Look(ref npcRetreatConditions, "npcRetreatConditions", LookMode.Deep);
             Scribe_Collections.Look(ref npcBoardConditions, "npcBoardConditions", LookMode.Deep);
             Scribe_Values.Look(ref npcRetreatMatchAny, "npcRetreatMatchAny");
@@ -174,6 +256,7 @@ namespace DeltaV
             {
                 maneuverRules ??= new List<CombatStrategyRule>();
                 fireRules ??= new List<CombatStrategyRule>();
+                targetRules ??= new List<CombatStrategyRule>();
                 npcRetreatConditions ??= new List<CombatCriterion>();
                 npcBoardConditions ??= new List<CombatCriterion>();
             }
@@ -184,14 +267,16 @@ namespace DeltaV
     {
         public readonly float hull, thrust, shield, readyWeapons, cooldown, ammo, energy;
         public readonly float arcError, distance, enemyFirepower, incomingSeconds;
+        internal readonly Func<CombatCriterion, bool, bool> evaluate;
         public CombatStrategyContext(float hull, float thrust, float shield, float readyWeapons,
             float cooldown, float ammo, float energy, float arcError, float distance,
-            float enemyFirepower, float incomingSeconds)
+            float enemyFirepower, float incomingSeconds, Func<CombatCriterion, bool, bool> evaluate = null)
         {
             this.hull = hull; this.thrust = thrust; this.shield = shield;
             this.readyWeapons = readyWeapons; this.cooldown = cooldown; this.ammo = ammo;
             this.energy = energy; this.arcError = arcError; this.distance = distance;
             this.enemyFirepower = enemyFirepower; this.incomingSeconds = incomingSeconds;
+            this.evaluate = evaluate;
         }
         public float Value(CombatMetric metric) => metric switch
         {

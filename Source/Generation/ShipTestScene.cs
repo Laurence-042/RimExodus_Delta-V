@@ -17,10 +17,10 @@ namespace DeltaV
     /// </summary>
     public static class ShipTestScene
     {
-        // 敌舰初始切空间偏移 60/25（东/北）：换算到聚焦玩家帧的地图坐标约 (135, 100)，
-        // 在 150 地图视野内（CameraDriver 会把镜头 clamp 在当前地图内）。
-        public static readonly Vector2 EnemyInitialOffset = new Vector2(60f, 25f);
-        public const float EnemyInitialAngleDeg = 35f;
+        // 默认敌舰切空间偏移 (60, 25) 格，极坐标方位从东向北逆时针计。
+        public const float DefaultEnemyDistance = 65f;
+        public const float DefaultEnemyBearingDeg = 22.61986495f;
+        public const float DefaultEnemyAngleDeg = 35f;
 
         public static void Create()
         {
@@ -29,11 +29,18 @@ namespace DeltaV
             DeltaVSettings settings = DeltaVMod.CurrentSettings;
             if (!TryLoadLayout(settings?.testScenePlayerPrefab, out MapPrefabDocument playerPrefab)
                 || !TryLoadLayout(settings?.testSceneEnemyPrefab, out MapPrefabDocument enemyPrefab)) return;
-            universe.BeginSceneReset(() => Generate(universe, playerPrefab, enemyPrefab));
+            // Frame action may run after settings change; freeze this scene's requested pose now.
+            float distance = settings?.testSceneDistance ?? DefaultEnemyDistance;
+            float bearingDeg = settings?.testSceneBearingDeg ?? DefaultEnemyBearingDeg;
+            float playerAngleDeg = settings?.testScenePlayerAngleDeg ?? 0f;
+            float enemyAngleDeg = settings?.testSceneEnemyAngleDeg ?? DefaultEnemyAngleDeg;
+            universe.BeginSceneReset(() => Generate(universe, playerPrefab, enemyPrefab,
+                distance, bearingDeg, playerAngleDeg, enemyAngleDeg));
         }
 
         private static void Generate(UniverseManager universe, MapPrefabDocument playerPrefab,
-            MapPrefabDocument enemyPrefab)
+            MapPrefabDocument enemyPrefab, float distance, float bearingDeg,
+            float playerAngleDeg, float enemyAngleDeg)
         {
             // 玩家船锚定在一个空闲轨道 tile 的中心方向（仅为背景视角选个合理位置）。
             PlanetLayer orbitLayer = Find.WorldGrid.PlanetLayers.Values
@@ -58,7 +65,7 @@ namespace DeltaV
             Map playerMap = ShipPocketMapFactory.Generate(LayoutMapSize(playerPrefab, new IntVec2(40, 24)), universe);
             if (playerMap == null) return;
             var playerContainer = new MapSpaceObject(universe.AllocateOwnerId(), playerMap,
-                new SpacePose(playerDir, 0f));
+                new SpacePose(playerDir, playerAngleDeg * Mathf.Deg2Rad));
             universe.RegisterObject(playerContainer);
             universe.NoteStructureName(playerOwnerId, "Player ship");
             if (!SpawnShipLayout(playerPrefab, playerMap, Faction.OfPlayer, playerOwnerId, universe,
@@ -77,8 +84,9 @@ namespace DeltaV
             }
             Faction enemyFaction = Faction.OfPirates
                 ?? Find.FactionManager.AllFactionsVisible.FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer));
+            Vector2 enemyOffset = SpaceTransform.Rotate(Vector2.right * distance, bearingDeg * Mathf.Deg2Rad);
             var enemyContainer = new MapSpaceObject(universe.AllocateOwnerId(), enemyMap,
-                new SpacePose(OrbitSphere.Move(playerDir, EnemyInitialOffset), EnemyInitialAngleDeg * Mathf.Deg2Rad))
+                new SpacePose(OrbitSphere.Move(playerDir, enemyOffset), enemyAngleDeg * Mathf.Deg2Rad))
             { faction = enemyFaction };
             universe.RegisterObject(enemyContainer);
             universe.NoteStructureName(enemyOwnerId, "Enemy ship");

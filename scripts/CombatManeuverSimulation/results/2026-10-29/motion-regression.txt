@@ -1,0 +1,14 @@
+Microsoft(R) Visual C# 编译器 版本 4.11.0-3.24554.2 (bc1c3011)
+版权所有(C) Microsoft Corporation。保留所有权利。
+
+BALLISTIC math drag=False: y@4s=40.167 cells, v=20.000
+BALLISTIC math drag=True: y@4s=35.868 cells, v=16.890
+PASS 19 production intercept/60 Hz integration checks for ballistic math.
+axis probe: (150.0,0.0) then y+10=(0.0,10.0)
+TACTIC automatic turret ship: Automatic desiredRange=118.1 range@20-40s=118.0..118.3 meanRelativeTangent=2.97 headingError=0.1deg posePlanAvg=0.748ms fallback=0/400
+TACTIC fixed-gun hold range: Automatic desiredRange=118.1 range@20-40s=117.4..118.1 meanRelativeTangent=2.90 headingError=0.1deg posePlanAvg=0.335ms fallback=0/400
+TACTIC two ships tracking each other: Automatic desiredRange=118.1 range@20-40s=117.9..118.1 meanRelativeTangent=2.84 headingError=0.0deg posePlanAvg=0.274ms fallback=0/400
+TACTIC two ships tracking each other: Automatic desiredRange=118.1 range@20-40s=117.9..118.1 meanRelativeTangent=2.84 headingError=0.0deg posePlanAvg=0.253ms fallback=0/400
+TACTIC quarter acceleration turret ship: Automatic desiredRange=118.1 range@20-40s=118.1..118.3 meanRelativeTangent=1.06 headingError=0.5deg posePlanAvg=0.265ms fallback=0/400
+Fighter_0 thrusters=10 thrust=20000 calibrated mass=1473.1 inertia=74183
+lateral reserve at 35/70 degrees=3.61/5.11; angular +/−=0.728/0.788

@@ -67,6 +67,19 @@ namespace DeltaV
 
         private enum FlightPhase { ColdLaunch, InitialTurn, PoweredFlight }
 
+        private sealed class CannonShotTrace
+        {
+            public CombatTarget target;
+            public Vector3 targetAtLaunch;
+            public Vector2 targetVelocityAtLaunch;
+            public Vector2 launchDirection;
+            public float targetRadius;
+            public float closestCenter = float.PositiveInfinity;
+            public float targetDrift, lateralDrift;
+            public bool hullContact, shieldContact, reported;
+            public System.Action<SpaceCollision.VisualContact> onContact;
+        }
+
         private sealed class Projectile
         {
             public int containerId;
@@ -103,6 +116,7 @@ namespace DeltaV
             /// <summary>发射伤害倍率乘剩余冲击比例；跨 tick 沿用。</summary>
             public float damageScale = 1f;
             public float armorPenetrationScale = 1f;
+            public CannonShotTrace cannonTrace;
             /// <summary>复用的扫掠查询（每 tick 重填字段，热路径零分配）。</summary>
             public readonly SpaceCollision.SweptBody body = new SpaceCollision.SweptBody();
         }
@@ -179,25 +193,6 @@ namespace DeltaV
         /// <summary>在飞弹体数（诊断/图池状态用）。</summary>
         public int InFlightCount => projectiles.Count;
 
-        internal float IncomingSeconds(ShipBase ship, Vector3 position, Vector2 velocity)
-        {
-            float soonest = 100000f;
-            float radius = ShipFireControl.HullRadius(ship);
-            foreach (Projectile shot in projectiles)
-            {
-                if (shot.dead || shot.laser || shot.container == null
-                    || shot.sourceContainer == universe.FrameOf(ship.Map)) continue;
-                Vector2 offset = OrbitSphere.Offset(position, shot.container.pose.position);
-                Vector2 relative = shot.container.pose.velocity - velocity;
-                if (relative.sqrMagnitude < 0.01f) continue;
-                float time = Mathf.Clamp(-Vector2.Dot(offset, relative)
-                    / relative.sqrMagnitude, 0f, 8f);
-                if (time > 0f && (offset + relative * time).magnitude <= radius + 1f)
-                    soonest = Mathf.Min(soonest, time);
-            }
-            return soonest;
-        }
-
         // ---- 创建 ----
 
         /// <summary>
@@ -239,7 +234,8 @@ namespace DeltaV
         }
 
         public bool Launch(ThingDef def, SpaceObject source, Vector3 muzzle, Vector3 directionWorld,
-            Faction faction, Thing launcher, CombatTarget missileTarget, SpaceProjectileLaunchSpec launchSpec)
+            Faction faction, Thing launcher, CombatTarget missileTarget, SpaceProjectileLaunchSpec launchSpec,
+            Vector3? diagnosticAim = null, float barrelErrorDeg = 0f, float spreadDeg = 0f)
         {
             var props = def?.GetCompProperties<CompProperties_SpaceProjectile>();
             if (props == null)
@@ -262,6 +258,7 @@ namespace DeltaV
             projectile.sourceContainer = source;
             projectile.reflectedByShield = false;
             projectile.target = missileTarget;
+            projectile.cannonTrace = null;
             projectile.targetSampleTick = -1;
             projectile.spawnedAtTick = Find.TickManager.TicksGame;
             projectile.laser = props.laserRange > 0f;
@@ -343,6 +340,37 @@ namespace DeltaV
             projectile.damageScale = launchSpec.damageScale;
             projectile.armorPenetrationScale = launchSpec.armorPenetrationScale;
             projectiles.Add(projectile);
+            if (diagnosticAim.HasValue && missileTarget.Kind == CombatTargetKind.Ship
+                && CombatTarget.ForShip(missileTarget.Ship).TryResolve(universe, out var aimed)
+                && aimed.Ship?.IsValid == true)
+            {
+                var trace = new CannonShotTrace
+                {
+                    target = CombatTarget.ForShip(missileTarget.Ship),
+                    targetAtLaunch = aimed.Pose.position,
+                    targetVelocityAtLaunch = aimed.Pose.velocity,
+                    launchDirection = dirTangent,
+                    targetRadius = ShipFireControl.HullRadius(aimed.Ship)
+                };
+                trace.onContact = contact =>
+                {
+                    if (contact.defenderSubject == trace.target.Ship
+                        && !contact.shieldMode.HasValue) trace.hullContact = true;
+                    if (contact.shieldMode.HasValue && trace.target.TryResolve(universe, out var current)
+                        && contact.defender == current.Container) trace.shieldContact = true;
+                    QueueVisualContact(contact);
+                };
+                projectile.cannonTrace = trace;
+                float launchRange = OrbitSphere.ArcCells(muzzle, aimed.Pose.position);
+                float aimLead = OrbitSphere.ArcCells(aimed.Pose.position, diagnosticAim.Value);
+                DeltaVLog.Message(DeltaVLogModule.Development,
+                    $"cannon-shot launch id={projectile.containerId} weapon={launcher?.def?.defName} "
+                    + $"source={UniverseManager.MapTag(source?.map)} target={missileTarget.Ship} "
+                    + $"targetMap={UniverseManager.MapTag(aimed.Ship.Map)} range={launchRange:F1} "
+                    + $"radius={trace.targetRadius:F1} speed={launchSpec.speed:F1} "
+                    + $"targetVel={trace.targetVelocityAtLaunch} lead={aimLead:F1} "
+                    + $"barrel={barrelErrorDeg:F2}deg spread={spreadDeg:F2}deg");
+            }
             if (!props.continuousBeam && DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
                 $"{def.defName} launched from '{source?.label ?? "nowhere"}' " +
                 $"(speed {launchSpec.speed:F0}, {(props.hasMap ? "mapped" : "mapless")}" +
@@ -610,6 +638,7 @@ namespace DeltaV
             sweepScratch.Clear();
             bodyScratch.Clear();
             visualContacts.Clear();
+            bool traceCannons = false;
             for (int i = 0; i < projectiles.Count; i++)
             {
                 Projectile p = projectiles[i];
@@ -637,7 +666,8 @@ namespace DeltaV
                 body.launcher = p.launcher;
                 body.dead = false;
                 body.resolvedHit = false;
-                body.onVisualContact = QueueVisualContact;
+                body.onVisualContact = p.cannonTrace is { reported: false } trace
+                    ? trace.onContact : QueueVisualContact;
                 body.didRedirect = false;
                 body.continued = body.didContinue = false;
                 body.sweepRadius = FootprintRadius(p.def);
@@ -701,8 +731,13 @@ namespace DeltaV
                 };
                 sweepScratch.Add(p);
                 bodyScratch.Add(body);
+                if (p.cannonTrace is { reported: false }) traceCannons = true;
             }
+            if (traceCannons)
+                foreach (Projectile p in sweepScratch) SampleCannonTrace(p);
             SpaceCollision.SweepAndResolve(universe, bodyScratch);
+            if (traceCannons)
+                foreach (Projectile p in sweepScratch) ResolveCannonTrace(p);
             foreach (SpaceCollision.VisualContact contact in visualContacts) RegisterImpactFx(contact);
             visualContacts.Clear();
             foreach (Projectile p in sweepScratch)
@@ -729,6 +764,68 @@ namespace DeltaV
                 RecordBeam(p, end);
                 if (!p.dead) DestroyProjectile(p, "laser spent");
             }
+        }
+
+        private void SampleCannonTrace(Projectile p)
+        {
+            CannonShotTrace trace = p.cannonTrace;
+            if (trace == null || trace.reported || p.container == null
+                || !trace.target.TryResolve(universe, out var current)) return;
+            Vector2 end = OrbitSphere.Offset(current.Pose.position, p.body.to);
+            Vector2 start = OrbitSphere.Offset(current.Pose.position, p.body.from)
+                + current.Pose.velocity * Dt;
+            Vector2 sweep = end - start;
+            float fraction = sweep.sqrMagnitude < 1e-8f ? 0f
+                : Mathf.Clamp01(-Vector2.Dot(start, sweep) / sweep.sqrMagnitude);
+            trace.closestCenter = Mathf.Min(trace.closestCenter,
+                (start + fraction * sweep).magnitude);
+            float elapsed = (Find.TickManager.TicksGame - p.spawnedAtTick) * Dt;
+            Vector3 expected = OrbitSphere.Move(trace.targetAtLaunch,
+                trace.targetVelocityAtLaunch * elapsed);
+            Vector2 drift = OrbitSphere.Offset(expected, current.Pose.position);
+            trace.targetDrift = drift.magnitude;
+            trace.lateralDrift = Mathf.Abs(Vector2.Dot(drift,
+                new Vector2(-trace.launchDirection.y, trace.launchDirection.x)));
+        }
+
+        private void ResolveCannonTrace(Projectile p)
+        {
+            CannonShotTrace trace = p.cannonTrace;
+            if (trace == null || trace.reported) return;
+            if (trace.hullContact) { ReportCannonTrace(p, "hull-hit"); return; }
+            if (p.dead)
+            {
+                ReportCannonTrace(p, trace.shieldContact ? "shield-intercept"
+                    : p.body.resolvedHit ? "other-impact" : "removed");
+                return;
+            }
+            if (!trace.target.TryResolve(universe, out var current) || p.container == null)
+                return;
+            Vector2 relativeVelocity = SpaceTransform.TransportVelocity(
+                p.container.pose, current.Pose.position) - current.Pose.velocity;
+            if (relativeVelocity.sqrMagnitude < 1e-8f) return;
+            Vector2 relativePosition = OrbitSphere.Offset(current.Pose.position,
+                p.container.pose.position);
+            if (Vector2.Dot(relativePosition, relativeVelocity.normalized)
+                > trace.targetRadius + 2f)
+                ReportCannonTrace(p, "miss");
+        }
+
+        private void ReportCannonTrace(Projectile p, string outcome)
+        {
+            CannonShotTrace trace = p.cannonTrace;
+            if (trace == null || trace.reported) return;
+            trace.reported = true;
+            if (!DeltaVLog.Enabled(DeltaVLogModule.Development)) return;
+            string closest = float.IsInfinity(trace.closestCenter) ? "n/a"
+                : trace.closestCenter.ToString("F1");
+            string clearance = float.IsInfinity(trace.closestCenter) ? "n/a"
+                : (trace.closestCenter - trace.targetRadius).ToString("F1");
+            DeltaVLog.Message(DeltaVLogModule.Development,
+                $"cannon-shot result id={p.containerId} target={trace.target.Ship} "
+                + $"outcome={outcome} flight={(Find.TickManager.TicksGame - p.spawnedAtTick) * Dt:F2}s "
+                + $"closestCenter={closest} circleClearance={clearance} "
+                + $"targetDrift={trace.targetDrift:F1} lateralDrift={trace.lateralDrift:F1}");
         }
 
         internal void RecordTractorBeam(Thing launcher, SpaceObject receiver, SpaceObject target)
@@ -784,6 +881,7 @@ namespace DeltaV
         private void DestroyProjectile(Projectile p, string reason)
         {
             if (p.dead) return;
+            if (reason != "impact") ReportCannonTrace(p, reason);
             if (!p.props.continuousBeam && DeltaVLog.Enabled(DeltaVLogModule.Combat))
                 DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"{p.def?.defName} #{p.containerId} destroyed ({reason})");
@@ -836,6 +934,7 @@ namespace DeltaV
 
         private void RecycleProjectile(Projectile p)
         {
+            ReportCannonTrace(p, "removed");
             p.container = null;
             p.def = null;
             p.props = null;
@@ -860,6 +959,7 @@ namespace DeltaV
             p.motorThrusting = false;
             p.damageScale = 1f;
             p.armorPenetrationScale = 1f;
+            p.cannonTrace = null;
             p.body.attacker = null;
             p.body.projectileDef = null;
             p.body.attackerBuilding = null;
@@ -869,6 +969,7 @@ namespace DeltaV
             p.body.noseForwardOffset = 0f;
             p.body.launcher = null;
             p.body.onSelfDestruct = null;
+            p.body.onVisualContact = null;
             p.body.onPlace = null;
             p.body.resolvedHitDefender = null;
             p.body.resolvedHitCell = IntVec3.Invalid;

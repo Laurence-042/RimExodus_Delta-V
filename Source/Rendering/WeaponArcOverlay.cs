@@ -35,13 +35,12 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in SpaceWeaponService.AllWeaponsOn(map))
             {
                 if (weapon?.parent?.Spawned != true || !weapon.SpaceModeEnabled) continue;
-                float range = weapon.WeaponProps.range;
+                float range = weapon.EffectiveRange;
                 float minRange = Mathf.Clamp(weapon.WeaponProps.minRange, 0f, range);
                 if (range <= 0f) continue;
                 colors ??= MakeColors();
-                float arcDeg = Mathf.Clamp(weapon.WeaponProps.fireArcDeg, 0f, 360f);
+                weapon.CoverageSector(out float center, out float arcDeg);
                 float arc = arcDeg * Mathf.Deg2Rad;
-                float center = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
                 float start = center - arc * 0.5f;
                 Vector2 muzzle = SpaceWeaponGeometry.MuzzleMapPoint(weapon);
                 Vector3 origin = Point(muzzle, 0f, 0f, altitude);

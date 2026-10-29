@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 
 <LanguageData>
   <DeltaV_PilotNeedShipFocus>请先聚焦到一艘飞船的地图。</DeltaV_PilotNeedShipFocus>
@@ -51,9 +51,17 @@
   <DeltaV_SettingsHideEmptySpaceMaps>隐藏没有玩家 Pawn 的太空地图分组</DeltaV_SettingsHideEmptySpaceMaps>
   <DeltaV_SettingsHideEmptySpaceMapsTip>默认开启。殖民者栏隐藏没有存活玩家派系 Pawn 的 SpaceObject 地图分组，避免敌舰与碎片占位。容器内的玩家 Pawn、玩家动物和机械体也计入；地表地图与商队不受影响。切换立即生效。</DeltaV_SettingsHideEmptySpaceMapsTip>
   <DeltaV_SettingsTestScene>双船测试场景</DeltaV_SettingsTestScene>
-  <DeltaV_SettingsTestSceneTip>分别选择下次创建双船测试场景时使用的 prefab。列表包含 Prefabs/ 的子目录，每次打开重新扫描；配置跨存档保存。明确指定的文件若加载失败，会中止创建并保留旧场景。</DeltaV_SettingsTestSceneTip>
+  <DeltaV_SettingsTestSceneTip>配置下次创建双船测试场景时的 prefab 和初始位姿；配置跨存档保存。prefab 列表包含子目录，每次打开重新扫描。指定文件加载失败时保留旧场景。</DeltaV_SettingsTestSceneTip>
   <DeltaV_SettingsTestScenePlayer>玩家飞船 prefab</DeltaV_SettingsTestScenePlayer>
   <DeltaV_SettingsTestSceneEnemy>敌舰 prefab</DeltaV_SettingsTestSceneEnemy>
+  <DeltaV_SettingsTestSceneDistance>敌舰距离（格）</DeltaV_SettingsTestSceneDistance>
+  <DeltaV_SettingsTestSceneDistanceTip>敌舰中心与玩家飞船中心的初始球面距离，范围 1–10000 格；默认 65 格。</DeltaV_SettingsTestSceneDistanceTip>
+  <DeltaV_SettingsTestSceneBearing>敌舰相对方位（度）</DeltaV_SettingsTestSceneBearing>
+  <DeltaV_SettingsTestSceneBearingTip>从玩家飞船中心看敌舰的初始方向，以玩家位置的宇宙切空间东向为 0°，北向为 90°，逆时针增加；不随玩家船首朝向改变。范围 0–360°，默认约 22.62°。</DeltaV_SettingsTestSceneBearingTip>
+  <DeltaV_SettingsTestScenePlayerAngle>玩家飞船初始角度（度）</DeltaV_SettingsTestScenePlayerAngle>
+  <DeltaV_SettingsTestScenePlayerAngleTip>玩家飞船地图相对宇宙东向的初始旋转角，逆时针增加；范围 0–360°，默认 0°。</DeltaV_SettingsTestScenePlayerAngleTip>
+  <DeltaV_SettingsTestSceneEnemyAngle>敌舰初始角度（度）</DeltaV_SettingsTestSceneEnemyAngle>
+  <DeltaV_SettingsTestSceneEnemyAngleTip>敌舰地图相对宇宙东向的初始旋转角，逆时针增加；范围 0–360°，默认 35°。</DeltaV_SettingsTestSceneEnemyAngleTip>
   <DeltaV_SettingsTestSceneAutomatic>自动：最新导出（不可用时生成程序船）</DeltaV_SettingsTestSceneAutomatic>
   <DeltaV_SettingsTestSceneScanFailed>无法扫描 prefab 目录，请查看日志。</DeltaV_SettingsTestSceneScanFailed>
   <DeltaV_TestScenePrefabFailed>无法加载双船测试场景 prefab：{0}。旧场景已保留，请重新选择文件或查看日志。</DeltaV_TestScenePrefabFailed>
@@ -445,30 +453,30 @@
   <DeltaV_CombatAIReasonDefense>避险机动</DeltaV_CombatAIReasonDefense>
   <DeltaV_CombatAIAddCondition>添加条件</DeltaV_CombatAIAddCondition>
   <DeltaV_CombatAINoFiles>暂无策略文件</DeltaV_CombatAINoFiles>
-  <DeltaV_CombatAICurves>机动评分曲线</DeltaV_CombatAICurves>
-  <DeltaV_CombatAICurveTitle>{0}：机动评分曲线</DeltaV_CombatAICurveTitle>
+  <DeltaV_CombatAICurves>自定义射位偏好曲线</DeltaV_CombatAICurves>
+  <DeltaV_CombatAICurveTitle>{0}：射位偏好曲线</DeltaV_CombatAICurveTitle>
   <DeltaV_CombatAICurve_Distance>距离</DeltaV_CombatAICurve_Distance>
   <DeltaV_CombatAICurve_Outgoing>输出</DeltaV_CombatAICurve_Outgoing>
   <DeltaV_CombatAICurve_Incoming>受击</DeltaV_CombatAICurve_Incoming>
-  <DeltaV_CombatAICurve_ProjectileSeconds>来袭弹体</DeltaV_CombatAICurve_ProjectileSeconds>
+  <DeltaV_CombatAICurve_ProjectileSeconds>敌方武器时机</DeltaV_CombatAICurve_ProjectileSeconds>
   <DeltaV_CombatAICurve_HullOverlap>船体重叠</DeltaV_CombatAICurve_HullOverlap>
   <DeltaV_CombatAICurve_AlignmentError>固定炮对准</DeltaV_CombatAICurve_AlignmentError>
   <DeltaV_CombatAICurveUnit_Distance>当前机动目标距离（格）</DeltaV_CombatAICurveUnit_Distance>
   <DeltaV_CombatAICurveUnit_Outgoing>预计输出（伤害／秒）</DeltaV_CombatAICurveUnit_Outgoing>
   <DeltaV_CombatAICurveUnit_Incoming>预计受击（伤害／秒）</DeltaV_CombatAICurveUnit_Incoming>
-  <DeltaV_CombatAICurveUnit_ProjectileSeconds>最近来袭时间（秒；无来袭按 8）</DeltaV_CombatAICurveUnit_ProjectileSeconds>
+  <DeltaV_CombatAICurveUnit_ProjectileSeconds>敌方武器预计可命中时间（秒；无威胁按 8）</DeltaV_CombatAICurveUnit_ProjectileSeconds>
   <DeltaV_CombatAICurveUnit_HullOverlap>船体包围圆重叠率（0–1）</DeltaV_CombatAICurveUnit_HullOverlap>
   <DeltaV_CombatAICurveUnit_AlignmentError>固定炮对准误差（度）</DeltaV_CombatAICurveUnit_AlignmentError>
-  <DeltaV_CombatAICurveAxes>横轴：{0}；纵轴：加到机动总分的分值。</DeltaV_CombatAICurveAxes>
-  <DeltaV_CombatAICurveAutomatic>按本船当前武器生成的默认曲线</DeltaV_CombatAICurveAutomatic>
+  <DeltaV_CombatAICurveAxes>横轴：{0}；纵轴：加到射位选择的分数。</DeltaV_CombatAICurveAxes>
+  <DeltaV_CombatAICurveAutomatic>未启用此曲线；下图为可复制的编辑模板</DeltaV_CombatAICurveAutomatic>
   <DeltaV_CombatAICurveCustom>此规则的自定义曲线</DeltaV_CombatAICurveCustom>
   <DeltaV_CombatAICurveCustomize>复制点位并自定义</DeltaV_CombatAICurveCustomize>
-  <DeltaV_CombatAICurveReset>恢复自动曲线</DeltaV_CombatAICurveReset>
+  <DeltaV_CombatAICurveReset>停用此偏好曲线</DeltaV_CombatAICurveReset>
   <DeltaV_CombatAICurveExtend>超出末点后延续最后一段斜率</DeltaV_CombatAICurveExtend>
   <DeltaV_CombatAICurveAdd>添加点</DeltaV_CombatAICurveAdd>
   <DeltaV_CombatAICurvePointHeader>点位：横轴数值 / 评分</DeltaV_CombatAICurvePointHeader>
   <DeltaV_CombatAICurveInvalid>点位无效：至少两个点，横轴须严格递增，数值须在允许范围内。</DeltaV_CombatAICurveInvalid>
-  <DeltaV_CombatAIScoreReason>距离 {0}，输出 {1}，受击 {2}，弹体 {3}，重叠 {4}，对准 {5}，控制 {6}</DeltaV_CombatAIScoreReason>
+  <DeltaV_CombatAIScoreReason>距离 {0}，输出 {1}，受击 {2}，武器时机 {3}，重叠 {4}，对准 {5}，控制 {6}</DeltaV_CombatAIScoreReason>
   <DeltaV_CombatMetric_OwnHullFraction>本船船体比例</DeltaV_CombatMetric_OwnHullFraction>
   <DeltaV_CombatMetric_OwnThrustFraction>本船推力比例</DeltaV_CombatMetric_OwnThrustFraction>
   <DeltaV_CombatMetric_OwnShieldFraction>本船护盾比例</DeltaV_CombatMetric_OwnShieldFraction>
@@ -479,5 +487,81 @@
   <DeltaV_CombatMetric_WeaponArcErrorDegrees>武器射界误差（度）</DeltaV_CombatMetric_WeaponArcErrorDegrees>
   <DeltaV_CombatMetric_EnemyDistance>敌船距离（格）</DeltaV_CombatMetric_EnemyDistance>
   <DeltaV_CombatMetric_EnemyFirepower>敌方火力</DeltaV_CombatMetric_EnemyFirepower>
-  <DeltaV_CombatMetric_IncomingProjectileSeconds>来袭弹体最近时间（秒）</DeltaV_CombatMetric_IncomingProjectileSeconds>
+  <DeltaV_CombatMetric_IncomingProjectileSeconds>敌方武器预计可命中时间（秒）</DeltaV_CombatMetric_IncomingProjectileSeconds>
+  <DeltaV_CombatFacing_Automatic>朝向：自动</DeltaV_CombatFacing_Automatic>
+  <DeltaV_CombatFacing_Relative>朝向：指定相对角</DeltaV_CombatFacing_Relative>
+  <DeltaV_CombatFacing_Target>朝向：正对目标</DeltaV_CombatFacing_Target>
+  <DeltaV_CombatTactic_Automatic>自动换位</DeltaV_CombatTactic_Automatic>
+  <DeltaV_CombatTactic_Circle>战法：持续绕行</DeltaV_CombatTactic_Circle>
+  <DeltaV_CombatTactic_HoldRange>战法：保持射位</DeltaV_CombatTactic_HoldRange>
+  <DeltaV_CombatTacticDistance>交战距离（格；0 = 自动）</DeltaV_CombatTacticDistance>
+  <DeltaV_CombatTacticHeading>相对目标视线（度）</DeltaV_CombatTacticHeading>
+  <DeltaV_CombatTacticHelp>自动换位在稳定射位之间移动；保持射位守住所选方位；绕行持续转移方位。速度由真实推力与制动限制。</DeltaV_CombatTacticHelp>
+  <DeltaV_CombatTacticMovement>机动强度</DeltaV_CombatTacticMovement>
+  <DeltaV_CombatTacticReason>距离 {0} 格，相对朝向 {1}°，{2}；可覆盖火力 {3}/秒，曲线偏好 {4}</DeltaV_CombatTacticReason>
+  <DeltaV_CombatTurn_Automatic>绕行方向：自动</DeltaV_CombatTurn_Automatic>
+  <DeltaV_CombatTurn_Clockwise>顺时针</DeltaV_CombatTurn_Clockwise>
+  <DeltaV_CombatTurn_Counterclockwise>逆时针</DeltaV_CombatTurn_Counterclockwise>
+  <DeltaV_CombatAITarget>选敌规则</DeltaV_CombatAITarget>
+  <DeltaV_CombatTemplates>添加模板</DeltaV_CombatTemplates>
+  <DeltaV_CombatPrimaryWeapons>射位主要武器（不会禁用其他武器）</DeltaV_CombatPrimaryWeapons>
+  <DeltaV_CombatGroup>组号 {0}（0=全部）</DeltaV_CombatGroup>
+  <DeltaV_CombatAllWeaponTypes>全部武器类型</DeltaV_CombatAllWeaponTypes>
+  <DeltaV_CombatHysteresis>退出阈值</DeltaV_CombatHysteresis>
+  <DeltaV_CombatAllWeapons>全部武器满足（关闭=任意；空组不匹配）</DeltaV_CombatAllWeapons>
+  <DeltaV_CombatConditionMissing>无目标/无武器的条件不匹配；退出阈值须扩大保持区间。</DeltaV_CombatConditionMissing>
+  <DeltaV_CombatIncludeDisarmed>包括无战斗武器的船</DeltaV_CombatIncludeDisarmed>
+  <DeltaV_CombatAnchorOnly>只攻击机动目标</DeltaV_CombatAnchorOnly>
+  <DeltaV_CombatFlanking>允许同阵营同目标自动船协同包抄</DeltaV_CombatFlanking>
+  <DeltaV_CombatRepositionAngle>换位随机幅度 ± 度</DeltaV_CombatRepositionAngle>
+  <DeltaV_CombatRepositionTime>换位间隔：最短/最长游戏秒</DeltaV_CombatRepositionTime>
+  <DeltaV_CombatPosePreview>射位示意 / 拖动配置</DeltaV_CombatPosePreview>
+  <DeltaV_CombatPoseHelp>红箭头=敌舰，青箭头=本船。左键拖动指定距离和攻击方位；右键拖动指定本船朝向。修改保留在策略草稿中，主窗口保存后生效。</DeltaV_CombatPoseHelp>
+  <DeltaV_CombatPoseValues>距离 {0} 格
+{1}：{2}°
+{3}：{4}°</DeltaV_CombatPoseValues>
+  <DeltaV_WeaponCoverage>自定义武器覆盖</DeltaV_WeaponCoverage>
+  <DeltaV_WeaponCoverageHelp>限制太空武器的射程和射界，不能扩大硬件能力。方向相对武器安装朝向；正角为逆时针。</DeltaV_WeaponCoverageHelp>
+  <DeltaV_WeaponCoverageRange>最大射程（0=硬件射程）</DeltaV_WeaponCoverageRange>
+  <DeltaV_WeaponCoverageArc>允许射界（度）</DeltaV_WeaponCoverageArc>
+  <DeltaV_WeaponCoverageDirection>射界中心相对安装角（度）</DeltaV_WeaponCoverageDirection>
+  <DeltaV_WeaponCoverageFixed>保持固定瞄准方向</DeltaV_WeaponCoverageFixed>
+  <DeltaV_CombatOrders>临时交战命令</DeltaV_CombatOrders>
+  <DeltaV_CombatOrdersHelp>指定交战舰会改变自动机动目标；部件队列只影响火控（最多16项），仍遵守停火规则。无效部件自动跳过，队列结束恢复策略。不会开启机动或火控开关。</DeltaV_CombatOrdersHelp>
+  <DeltaV_CombatCancelOrders>取消临时命令 / 部件队列（{0}项）</DeltaV_CombatCancelOrders>
+  <DeltaV_CombatEngage>指定交战舰</DeltaV_CombatEngage>
+  <DeltaV_CombatQueuePart>追加部件目标</DeltaV_CombatQueuePart>
+  <DeltaV_CombatTemplate0>主炮射位</DeltaV_CombatTemplate0>
+  <DeltaV_CombatTemplate1>侧舷换位</DeltaV_CombatTemplate1>
+  <DeltaV_CombatTemplate2>协同夹击</DeltaV_CombatTemplate2>
+  <DeltaV_CombatTemplate3>远程保持</DeltaV_CombatTemplate3>
+  <DeltaV_CombatPoseStatus>方位 {0}°，下次换位 {1}s；覆盖 {2}，机动 {3}；距离/输出/受击/威胁时间/重叠/对准分：{4}</DeltaV_CombatPoseStatus>
+  <DeltaV_CombatPoseBlocked>显式约束与船体/武器能力冲突：正在尽力保持安全姿态。</DeltaV_CombatPoseBlocked>
+  <DeltaV_CombatScope_Metric>作用域：指标默认</DeltaV_CombatScope_Metric>
+  <DeltaV_CombatScope_OwnShip>作用域：本船</DeltaV_CombatScope_OwnShip>
+  <DeltaV_CombatScope_EnemyShip>作用域：敌舰</DeltaV_CombatScope_EnemyShip>
+  <DeltaV_CombatScope_WeaponGroup>作用域：所选武器集合</DeltaV_CombatScope_WeaponGroup>
+  <DeltaV_CombatScope_CurrentWeapon>作用域：当前武器</DeltaV_CombatScope_CurrentWeapon>
+  <DeltaV_CombatWeaponSet_All>全部启用齐射武器</DeltaV_CombatWeaponSet_All>
+  <DeltaV_CombatWeaponSet_Main>主武器</DeltaV_CombatWeaponSet_Main>
+  <DeltaV_CombatWeaponSet_Secondary>副武器</DeltaV_CombatWeaponSet_Secondary>
+  <DeltaV_CombatTargetOrder_Balanced>综合交战价值</DeltaV_CombatTargetOrder_Balanced>
+  <DeltaV_CombatTargetOrder_Nearest>最近</DeltaV_CombatTargetOrder_Nearest>
+  <DeltaV_CombatTargetOrder_Threat>威胁最高</DeltaV_CombatTargetOrder_Threat>
+  <DeltaV_CombatTargetOrder_Finish>优先收尾</DeltaV_CombatTargetOrder_Finish>
+  <DeltaV_CombatTargetOrder_MainWeapons>主要武器组输出</DeltaV_CombatTargetOrder_MainWeapons>
+  <DeltaV_CombatFireAction_Fire>允许射击</DeltaV_CombatFireAction_Fire>
+  <DeltaV_CombatFireAction_Hold>保持停火</DeltaV_CombatFireAction_Hold>
+  <DeltaV_CombatPart_Automatic>自动选择部件</DeltaV_CombatPart_Automatic>
+  <DeltaV_CombatPart_Center>船体中心</DeltaV_CombatPart_Center>
+  <DeltaV_CombatPart_Weapons>武器</DeltaV_CombatPart_Weapons>
+  <DeltaV_CombatPart_Propulsion>推进</DeltaV_CombatPart_Propulsion>
+  <DeltaV_CombatPart_Shield>护盾</DeltaV_CombatPart_Shield>
+  <DeltaV_CombatPart_Power>供能</DeltaV_CombatPart_Power>
+  <DeltaV_CombatPart_Console>驾驶台</DeltaV_CombatPart_Console>
+  <DeltaV_CombatBearing_Free>自由攻击方位</DeltaV_CombatBearing_Free>
+  <DeltaV_CombatBearing_Enemy>敌舰船首参考方位</DeltaV_CombatBearing_Enemy>
+  <DeltaV_CombatBearing_World>世界参考方位</DeltaV_CombatBearing_World>
+  <DeltaV_CombatNoFireChoice>停火规则生效，或没有满足射程/射界/安全条件的目标。</DeltaV_CombatNoFireChoice>
+  <DeltaV_CombatAdvanced>高级条件与曲线</DeltaV_CombatAdvanced>
 </LanguageData>
