@@ -83,7 +83,12 @@ internal static partial class Program
         game.components = new List<GameComponent> { universe };
         game.tickManager = (TickManager)Raw(typeof(TickManager));
         if (Environment.GetCommandLineArgs().Contains("--combat-performance-only"))
-        { CheckCombatPerformance(universe, faction, other); return; }
+        {
+            DeltaVMod.CurrentSettings.logPerformance = Environment.GetCommandLineArgs().Contains("--combat-probe-enabled");
+            CheckCombatPerformance(universe, faction, other); return;
+        }
+        CheckPerformanceProbe(universe);
+        if (Environment.GetCommandLineArgs().Contains("--performance-probe-only")) return;
         CheckCombatCurves();
         if (!npcOnly)
         {

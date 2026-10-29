@@ -17,7 +17,18 @@ namespace DeltaV
         AimPreview, WeaponLayout, WeaponAmmo, WeaponEnergy, DriveCompose, DriveState, DriveIntegrate,
         WeaponExecution, WeaponReadiness, WeaponParameters, WeaponGuidance, WeaponCommit,
         ShellRebuild, ShellStatic, ShellDynamic, OverlaySort, OverlaySubmit,
-        FrameActions, FrameAction, ArchiveCapture, ArchiveRestore, SyncMapGeneration, Count
+        FrameActions, FrameAction, ArchiveCapture, ArchiveRestore, SyncMapGeneration,
+        CombatPlan, CombatRule, CombatPose, CombatPoseSetup, CombatPoseSearch, CombatRisk, CombatOutput,
+        CombatReposition, CombatTrajectory, CombatRoute, CombatRouteShape,
+        DrivePreviewModel, DrivePreviewBraking, DrivePreviewAngular, DrivePreviewAllocation,
+        MpcAssemble, MpcFeasibility, MpcQp, MpcBrakeRecovery, Count
+    }
+
+    [System.Flags]
+    internal enum CombatReplanCause
+    {
+        None = 0, InitialOrTarget = 1, Configuration = 2, Groups = 4, Permission = 8,
+        Drive = 16, Structure = 32, Rule = 64, Periodic = 128
     }
 
     /// <summary>Opt-in, per-game CPU timing and frame/tick cadence; no saved or static state.</summary>
@@ -54,8 +65,19 @@ namespace DeltaV
         private float frameSeconds;
         private float worstFrameSeconds;
         private float windowStart = -1f;
+        private readonly int[] poseCauses = new int[8];
+        private long slowestPose;
+        private DriveSubject slowestPoseShip;
+        private Map slowestPoseMap;
+        private CombatReplanCause slowestPoseCause;
+        private int slowestPoseWeapons, slowestPoseEnemies, slowestPoseThreats, slowestPoseAllies;
 
         internal bool Enabled => DeltaVLog.Enabled(DeltaVLogModule.Performance);
+
+        // Gate before resolving the game component; pure/offline callers may have no game.
+        internal static DeltaVPerformanceProbe Current => DeltaVLog.Enabled(DeltaVLogModule.Performance)
+            ? Verse.Current.Game?.GetComponent<UniverseManager>()?.Performance : null;
+        internal static Measurement MeasureCurrent(PerformanceStage stage) => Current?.Measure(stage) ?? default;
 
         internal long Start() => Enabled ? Stopwatch.GetTimestamp() : 0L;
 
@@ -94,6 +116,32 @@ namespace DeltaV
             calls[index]++;
             totals[index] += elapsed;
             if (elapsed > peaks[index]) peaks[index] = elapsed;
+        }
+
+        internal void RecordCombatPose(long elapsed, DriveSubject ship, Map map, CombatReplanCause cause,
+            int weapons, int enemies, int threats, int allies)
+        {
+            if (!Enabled || elapsed <= 0) return;
+            RecordElapsed(PerformanceStage.CombatPose, elapsed);
+            for (int i = 0; i < poseCauses.Length; i++)
+                if (((int)cause & (1 << i)) != 0) poseCauses[i]++;
+            if (elapsed <= slowestPose) return;
+            slowestPose = elapsed; slowestPoseShip = ship; slowestPoseMap = map; slowestPoseCause = cause;
+            slowestPoseWeapons = weapons; slowestPoseEnemies = enemies;
+            slowestPoseThreats = threats; slowestPoseAllies = allies;
+        }
+
+        private void AppendCombatStats(StringBuilder sb)
+        {
+            sb.Append(" poseReplans=").Append(calls[(int)PerformanceStage.CombatPose]).Append(" poseCauses[overlap]=");
+            for (int i = 0; i < poseCauses.Length; i++)
+                if (poseCauses[i] != 0) sb.Append((CombatReplanCause)(1 << i)).Append(':').Append(poseCauses[i]).Append(',');
+            if (slowestPose <= 0) return;
+            sb.Append(" poseWorst={ship=").Append(slowestPoseShip).Append(' ').Append(UniverseManager.MapTag(slowestPoseMap))
+                .Append(" ms=").Append((slowestPose * (1000.0 / Stopwatch.Frequency)).ToString("F2"))
+                .Append(" cause=").Append(slowestPoseCause).Append(" weapons=").Append(slowestPoseWeapons)
+                .Append(" enemies=").Append(slowestPoseEnemies).Append(" threats=").Append(slowestPoseThreats)
+                .Append(" allies=").Append(slowestPoseAllies).Append('}');
         }
 
         internal void TickFinished(long start, int objectCount, int projectileCount, int structureVersion,
@@ -243,6 +291,7 @@ namespace DeltaV
                     .Append((peaks[i] * (1000000.0 / Stopwatch.Frequency)).ToString("F1")).Append('/')
                     .Append(calls[i]).Append('/').Append(ms.ToString("F2"));
             }
+            AppendCombatStats(sb);
             DeltaVLog.Message(DeltaVLogModule.Performance, sb.ToString());
             Reset();
             windowStart = now;
@@ -263,6 +312,9 @@ namespace DeltaV
             System.Array.Clear(peaks, 0, peaks.Length);
             System.Array.Clear(calls, 0, calls.Length);
             System.Array.Clear(rejected, 0, rejected.Length);
+            System.Array.Clear(poseCauses, 0, poseCauses.Length);
+            slowestPose = 0; slowestPoseShip = default; slowestPoseMap = null; slowestPoseCause = default;
+            slowestPoseWeapons = slowestPoseEnemies = slowestPoseThreats = slowestPoseAllies = 0;
             aimOnlyCommands = fireCommands = shots = maxTicksPerFrame = capFrames = 0;
             minMultiplier = float.MaxValue; maxMultiplier = 0f;
             frames = ticks = 0;

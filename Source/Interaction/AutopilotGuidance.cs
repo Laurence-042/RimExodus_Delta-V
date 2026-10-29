@@ -611,6 +611,8 @@ namespace DeltaV
 
         private bool ComputePlan(GuidanceRequest request, out GuidanceCommand command)
         {
+            var performance = DeltaVPerformanceProbe.Current;
+            long assemblyStart = performance?.Start() ?? 0L;
             command = default;
             bool warmStart = hasPlannedSolution;
             hasPlannedSolution = false;
@@ -746,13 +748,18 @@ namespace DeltaV
                     StateScale[s], terminalOffset);
             }
             AddControlCosts(inputVariables, request.previousX, request.previousZ, request.previousAngular);
+            performance?.Record(PerformanceStage.MpcAssemble, assemblyStart);
 
             bool precheck = !request.motionOnly && !request.intercept && !combatTrajectory;
+            long precheckStart = precheck ? performance?.Start() ?? 0L : 0L;
             bool infeasible = precheck && BoxProvesInfeasible(variables, constraints, a, lower, upper, constraintTolerances);
+            performance?.Record(PerformanceStage.MpcFeasibility, precheckStart);
             double primal = double.PositiveInfinity, dual = double.PositiveInfinity;
+            long qpStart = !infeasible ? performance?.Start() ?? 0L : 0L;
             bool numerical = !infeasible && solver.Solve(variables, constraints, p, q, a, lower, upper,
                 iterations, solution, out primal, out dual,
                 OptimalityTolerance(request), constraintTolerances);
+            performance?.Record(PerformanceStage.MpcQp, qpStart);
             command.solveMilliseconds = (Stopwatch.GetTimestamp() - started) * 1000.0 / Stopwatch.Frequency;
             command.primalResidual = primal;
             command.dualResidual = dual;

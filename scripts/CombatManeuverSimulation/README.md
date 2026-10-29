@@ -167,3 +167,21 @@ powershell -ExecutionPolicy Bypass -File scripts/CombatManeuverSimulation/run_mp
 `pose_probe.py` 依 [Cosmoteer 开发者对经典 AI 的说明](https://oldforum.cosmoteer.net/d/2892-can-someone-fully-explain-how-the-game-s-kiting-algorithm-works) 对本仓库 prefab 做八朝向、整数格距离的武器覆盖扫描，可指定任意 `Prefabs/` 下文件名。输入来自真实 prefab 的武器安装格、旋转和 Def 的射程、射界、冷却、伤害倍率；导弹按实际锁定弧处理。暂不模拟地图射线遮挡、实际炮塔转速、弹药、供能与提前量。Delta-V 当前射击链按炮口至目标中心检查射程，因此这里也按中心算，不能把 Cosmoteer 的目标包围圆规则直接当成现有发射门禁。扫描结果：`Fighter_0` 四门齐射武器均为 360° 炮塔，102 格四门均可用，120 格处是否四门都够射程取决于安装位置与朝向，130 格只剩两门速射；`Demo_0` 的联合射位扫描给出约 128 格的满火力距离，而把每门炮的安装偏移机械地从射程扣掉只剩约 100 格。这说明既不能只用射程中位数，也不能用逐炮保守射程代替联合位置与朝向搜索。仅最大化本船火力不会自然选出战机的侧舷规避朝向，也不会保证躲过敌方重炮；战术评分还须结合敌方武器风险与本船真实推力。
 
 下一步接入应保持现有战略／战术边界：每船驾驶台的规则仍决定偏好；战术层按武器炮口、真实锁定弧与安全射线生成可攻击的距离／朝向候选，并按敌方武器风险及 `ShipPhysics` 可达性评价它们；真实发射仍由 `SpaceWeaponShot` 门禁决定。冷却中的武器可贡献“未来射位”但不能虚增当前预计输出。用户固定距离曲线应仍可明确要求近战或持续拉远。游戏内实际命中率与切换迟滞须后续实测。
+
+## 战斗性能探针验证（2026-10-29）
+
+本轮只为现有机动行为添加永久 Performance 统计。用户决定先提交日志，待 1.7 适配完成后重新测量耗时分布，再继续性能优化。已有优化与增强夹具仍保留为未提交改动；下列行为对照是在包含它们的工作树上完成，不表示这些优化已随日志提交。字段权威定义在[太空战架构](../../doc/太空战架构.md#战斗规划性能统计)，不改变策略或求解节拍。
+
+- Release 编译通过（既有离线 NU1900 警告）。`PerformanceProbeChecks` 专项 10 项通过（含球面夹具初始化）：关闭门禁、实例归属、重算原因重叠、最慢工作量、窗口清零，以及真实控制模型／位置 MPC 的开关日志逐字段一致性；只排除实际测量时间字段。
+- 同一 1／4／12／24 舰夹具，开启与关闭 Performance 的 1968 条火控与完整规划记录，均与加日志前一致。SHA256 均为 `76BD29ED67CEE7F060287755AE5C08830AA323A29674B533137E880D4F69FF3A`。不把这一夹具的计时波动当作优化收益。
+- 四组生产轨迹／MPC／积分的 12000 船 tick 二进制输出与既有 `CombatOptimizationMotionBaseline` 全部逐字节一致，2000 次求解无 fallback。该轨迹检查关闭 Performance；开启状态的等价性由上述完整规划与真实 MPC 专项分别覆盖。
+- **完整回归本次未通过环境检查**：原游戏路径现为 `1.7.4990 rev1069`，已无 `RimWorldWin64_Data/Managed`。以保留的 1.6 主程序集运行，Scribe 类型扫描缺少 `com.rlabrecque.steamworks.net` 等原安装依赖；旧版 DLL／旧驱动同样在 `CheckCombatTactics` 失败。本轮没有做 1.7 适配，也没有用新版本或第三方 stub 替换这些依赖。此前 1252 项是完整 1.6 环境下的结果，不能作为本轮全量复跑通过。
+
+本轮原始日志及开／关记录保留于 `Source/obj/CombatProbeBaseline/`，其中 `Game/RimWorldWin64_Data/Managed` 只含旧测试目录保留的三份原程序集，不是完整游戏环境。已编译离线驱动可运行：
+
+```powershell
+dotnet Source/obj/NpcRetreatRegression/NpcRetreatRegression.dll Source/obj/CombatProbeBaseline/Game/RimWorldWin64_Data/Managed --performance-probe-only
+dotnet Source/obj/NpcRetreatRegression/NpcRetreatRegression.dll Source/obj/CombatProbeBaseline/Game/RimWorldWin64_Data/Managed --combat-performance-only --combat-probe-enabled
+```
+
+完整重编译／回归仍需完整 1.6 Managed 目录，沿用 `run.ps1 -GameRoot ... -HarmonyPath ...`；此处不启动游戏。游戏内复测应开启「日志 → 性能分析」，保留正常速度下的开战、持续交火和明显战损后的五秒窗口，核对机动与 TPS、重算触发及各阶段峰值。新日志的游戏内输出与实际性能由用户验收。

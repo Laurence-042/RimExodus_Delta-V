@@ -69,6 +69,7 @@ namespace DeltaV
             command = approach;
             if (Active)
             {
+                using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.MpcBrakeRecovery);
                 request.motionOnly = true;
                 request.accuracy = GuidanceAccuracy.Strict;
                 request.voidBlend = 0;

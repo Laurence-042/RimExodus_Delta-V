@@ -219,6 +219,7 @@ namespace DeltaV
             CombatAttackPose pose, DriveInfo drive, int turn, float movement, int tick, float? goalPhase = null,
             float referenceOmega = 0f)
         {
+            using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.CombatTrajectory);
             Vector2 outward = OrbitSphere.Offset(target.position, own.position);
             float radius = Mathf.Max(1f, outward.magnitude);
             float inward = Acceleration(drive, Vector2.right, pose.heading);

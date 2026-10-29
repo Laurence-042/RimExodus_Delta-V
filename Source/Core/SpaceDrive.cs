@@ -76,7 +76,10 @@ namespace DeltaV
                 if (thruster.operational) sum += thruster.thrust; return sum; }
         }
         public ShipPhysics.ControlModel PreviewModel(ShipPhysics.ControlModel reuse = null)
-            => ShipPhysics.BuildControlModel(report, reuse);
+        {
+            using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.DrivePreviewModel);
+            return ShipPhysics.BuildControlModel(report, reuse);
+        }
         private ShipPhysics.MassReport unboostedReport;
         private int unboostedVersion = -1;
         internal float BoostSecondsRemaining
@@ -91,6 +94,7 @@ namespace DeltaV
         }
         internal ShipPhysics.ControlModel PreviewUnboostedModel(ShipPhysics.ControlModel reuse)
         {
+            using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.DrivePreviewModel);
             if (unboostedReport == null || unboostedVersion != report.version)
             {
                 unboostedReport = new ShipPhysics.MassReport
@@ -103,10 +107,21 @@ namespace DeltaV
             }
             return ShipPhysics.BuildControlModel(unboostedReport, reuse);
         }
-        public float PreviewBraking(Vector2 direction) => ShipPhysics.PreviewBrakingAcceleration(report, direction);
-        public float PreviewAngular(int direction) => ShipPhysics.PreviewAngularAcceleration(report, direction);
+        public float PreviewBraking(Vector2 direction)
+        {
+            using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.DrivePreviewBraking);
+            return ShipPhysics.PreviewBrakingAcceleration(report, direction);
+        }
+        public float PreviewAngular(int direction)
+        {
+            using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.DrivePreviewAngular);
+            return ShipPhysics.PreviewAngularAcceleration(report, direction);
+        }
         public void Preview(ShipPhysics.Command command, out Vector2 force, out float torque)
-            => ShipPhysics.PreviewAllocation(report, command, out force, out torque);
+        {
+            using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.DrivePreviewAllocation);
+            ShipPhysics.PreviewAllocation(report, command, out force, out torque);
+        }
         public void Preview(Vector2 desiredForce, float desiredTorque, out Vector2 force, out float torque)
             => Preview(ShipPhysics.ForceToCommand(report, desiredForce, desiredTorque), out force, out torque);
     }

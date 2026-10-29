@@ -33,6 +33,8 @@ namespace DeltaV
         private bool PlanTacticTrajectory(SpaceObject own, SpacePose target,
             float clearance, DriveInfo drive, out CombatTrajectoryIntent intent)
         {
+            var performance = universe.Performance;
+            using var planTiming = performance.Measure(PerformanceStage.CombatPlan);
             intent = default;
             ShipBase ship = ShipRegistry.ShipByIdentity(ownerId);
             if (ship?.IsValid != true || drive == null || drive.mass <= 0f || drive.inertia <= 0f
@@ -45,10 +47,24 @@ namespace DeltaV
             bool changed = !hasTactic || tacticConfiguration != (control?.configurationVersion ?? 0) || tacticGroupMask != groupMask || lastOffenseEnabled != offenseEnabled
                 || tacticDrive != drive || tacticDriveVersion != drive.version
                 || SubstructureOwnership.CacheNeedsRefresh(tacticStructureVersion);
+            CombatReplanCause cause = CombatReplanCause.None;
+            if (performance.Enabled)
+            {
+                if (!hasTactic) cause |= CombatReplanCause.InitialOrTarget;
+                if (tacticConfiguration != (control?.configurationVersion ?? 0)) cause |= CombatReplanCause.Configuration;
+                if (tacticGroupMask != groupMask) cause |= CombatReplanCause.Groups;
+                if (lastOffenseEnabled != offenseEnabled) cause |= CombatReplanCause.Permission;
+                if (tacticDrive != drive || tacticDriveVersion != drive.version) cause |= CombatReplanCause.Drive;
+                if (SubstructureOwnership.CacheNeedsRefresh(tacticStructureVersion)) cause |= CombatReplanCause.Structure;
+                if (now >= nextPoseTick) cause |= CombatReplanCause.Periodic;
+            }
             if (changed || now >= nextTacticTick)
             {
+                long ruleStart = performance.Start();
                 var facts = control?.Facts(ship, own) ?? new CombatStrategyFacts(universe, ship, own);
                 var rule = (control?.Strategy(ship) ?? ship.CombatAI.strategy).Maneuver(facts.Context(enemy.Ship), activeRule);
+                performance.Record(PerformanceStage.CombatRule, ruleStart);
+                if (performance.Enabled && activeRule != rule) cause |= CombatReplanCause.Rule;
                 changed |= activeRule != rule;
                 CombatTacticSettings settings = rule.tactic ?? new CombatTacticSettings();
                 Vector2 toward = OrbitSphere.Offset(self.position, target.position);
@@ -59,6 +75,7 @@ namespace DeltaV
                     Vector2.Dot(relative, tangent), ownerId.key);
                 if (changed || now >= nextPoseTick)
                 {
+                    long poseStart = performance.Start();
                     var poseSettings = settings.Copy();
                     if (settings.facing != CombatFacing.Automatic)
                     {
@@ -122,6 +139,7 @@ namespace DeltaV
                     }
                     float Output(CombatAttackPose p)
                     {
+                        using var timing = performance.Measure(PerformanceStage.CombatOutput);
                         PoseAt(p, out Vector3 position, out float heading);
                         Vector2 velocity = SpaceTransform.TransportVelocity(target, position);
                         float output = 0f;
@@ -140,6 +158,7 @@ namespace DeltaV
                     }
                     float Risk(CombatAttackPose p)
                     {
+                        using var timing = performance.Measure(PerformanceStage.CombatRisk);
                         if (!risk) return 0f;
                         float phase = reposition.initialized ? reposition.PhaseAt(target.position)
                             : Mathf.Atan2(-toward.y, -toward.x);
@@ -171,14 +190,19 @@ namespace DeltaV
                         return incomingScore + timeScore + overlapScore;
                     }
                     CombatAttackPose previous = attackPose;
+                    performance.Record(PerformanceStage.CombatPoseSetup, poseStart);
+                    long searchStart = performance.Start();
                     attackPose = CombatAttackPose.Choose(weapons, poseSettings, drive,
                         SpaceTransform.RotateInverse(-relative, bearing), separation,
                         curves?.distance != null ? toward.magnitude : anchorDistance,
                         SpaceTransform.WrapAngle(self.angle - bearing), turnDirection,
                         offenseEnabled, curves, changed ? (CombatAttackPose?)null : attackPose, Risk,
                         offenseEnabled && curves?.outgoing != null ? Output : (System.Func<CombatAttackPose, float>)null);
+                    performance.Record(PerformanceStage.CombatPoseSearch, searchStart);
                     blockedPose = Risk(attackPose) <= -1000000f;
                     attackPose.incomingScore = incomingScore; attackPose.timeScore = timeScore; attackPose.overlapScore = overlapScore;
+                    performance.RecordCombatPose(performance.Elapsed(poseStart), ownerId, ship.Map, cause,
+                        weapons.Count, tacticalEnemies.Count, threats.Count, neighbors.Count);
                     if (DeltaVLog.Enabled(DeltaVLogModule.Development)
                         && (changed || attackPose.behavior != previous.behavior
                             || Mathf.Abs(attackPose.distance - previous.distance) > 10f
@@ -192,8 +216,9 @@ namespace DeltaV
                     nextPoseTick = now + 120 - ((now + ownerId.key % 120) % 120);
                 }
                 if (changed) reposition.Reset(ownerId.key);
-                reposition.Update(self, target, attackPose, settings, drive, now,
-                    settings.coordinateFlanking && settings.bearing == CombatBearing.Free ? FlankingPhase(ship, target) : null);
+                using (performance.Measure(PerformanceStage.CombatReposition))
+                    reposition.Update(self, target, attackPose, settings, drive, now,
+                        settings.coordinateFlanking && settings.bearing == CombatBearing.Free ? FlankingPhase(ship, target) : null);
                 tacticIntent = CombatAttackPose.Trajectory(self, target, attackPose,
                     drive, turnDirection, settings.movement, now, reposition.PhaseAt(target.position),
                     settings.bearing == CombatBearing.Enemy ? target.angularVelocity : 0f);
@@ -249,12 +274,16 @@ namespace DeltaV
 
         private bool RouteClear(ShipBase ship, CombatTrajectoryIntent intent)
         {
+            using var routeTiming = universe.Performance.Measure(PerformanceStage.CombatRoute);
             if (SubstructureOwnership.CacheNeedsRefresh(routeStructureVersion))
             { routeShapes.Clear(); routeStructureVersion = SubstructureOwnership.GlobalStructureVersion; }
             SpaceCollision.HullShape Shape(ShipBase member)
             {
                 if (!routeShapes.TryGetValue(member.Identity, out var shape))
+                {
+                    using var shapeTiming = universe.Performance.Measure(PerformanceStage.CombatRouteShape);
                     routeShapes[member.Identity] = shape = new SpaceCollision.HullShape(member);
+                }
                 return shape;
             }
             var ownShape = Shape(ship);
