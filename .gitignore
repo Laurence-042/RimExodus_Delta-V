@@ -28,3 +28,4 @@ scripts/MpcRegression/obj/
 scripts/MpcRegression/bin/
 scripts/CombatStrategyRegression/obj/
 scripts/CombatStrategyRegression/bin/
+**/__pycache__/

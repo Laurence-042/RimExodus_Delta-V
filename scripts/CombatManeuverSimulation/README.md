@@ -2,6 +2,8 @@
 
 玩家策略自由度、当前实现缺口及各类战斗场景的对照见 [Delta-V 与 Cosmoteer 自动战斗策略对照](../../doc/自动战斗策略与Cosmoteer对照.md)。本文件保留实验条件、数值结果和基础机制证据。
 
+2026-10-31 清理历史实验驱动后，本目录仅保留研究报告与 `results/` 数据。下文的探针名称、测试次数及数值描述均对应当时的实验版本，不是现行 1.7 回归入口；已删除的脚本可从 Git 历史追溯，删除前工作树快照位置见 [脚本索引](../README.md)。持续维护的回归仍在 `NpcRetreatRegression`、`MpcRegression` 等目录。本轮清理没有重跑或改写历史实验结论。
+
 ## 策略扩展验证（2026-10-29）
 
 功能接线与默认行为以[太空战架构 §9](../../doc/太空战架构.md#9-npc-与-dev-验证)为准；[批准方案](../../doc/自动战斗策略扩展方案.md)中的验收门槛没有降低。本次未改弹速、伤害、质量、推力或 prefab，未启动游戏。下列失败结果是交付的一部分。
@@ -24,9 +26,7 @@
 
 ### 实际战机换位对照
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/CombatManeuverSimulation/run_mpc.ps1 -GameRoot 'D:/SteamLibrary/steamapps/common/RimWorld' -Expansion
-```
+历史实验使用 `run_mpc.ps1 -Expansion`；该驱动已退役，以下保留实验条件和结果。
 
 `ExpansionProbe.cs` 使用 `Fighter_0` 实际导出质量 **1448**、惯量 **77059.85**、十台推进器，以及与前述实际战机实验相同的 SHA256 输入。共 153 个条件行、18360 次独立发射相位探测：距离 100／115／140 格，弹速 30／35／45 格/秒，随机换位用种子 17／42／137。每次模拟 96 秒，40～80 秒每 1/3 秒取一次射击相位，共 120 发；无散布，每发按发射时目标位姿、刚体速度及射手速度求预瞄，再与生产 `SpaceCollision.FindBestCell` 所用占格判定检查扫掠。炮弹互不造成伤害，目标不会因中弹改变运动。
 
@@ -75,10 +75,7 @@ dotnet Source/obj/NpcRetreatRegression/NpcRetreatRegression.dll 'D:/SteamLibrary
 
 ## 扩展前实际战机实验（2026-10-28）
 
-```powershell
-dotnet build Source/DeltaV.csproj -c Release --no-restore
-powershell -ExecutionPolicy Bypass -File scripts/CombatManeuverSimulation/run_mpc.ps1 -GameRoot 'D:/SteamLibrary/steamapps/common/RimWorld' -Fighter
-```
+历史实验使用 `run_mpc.ps1 -Fighter`；该驱动已退役，以下保留输入来源和结果。
 
 本轮只增加离线探针，没有修改 AI、武器 Def 或 prefab。`fighter_inputs.py` 复用本地战机设计工具的 Def 继承读取器，从已安装游戏 Data 与当前 Delta-V Def 读取质量、尺寸，再读取 `Prefabs/Fighter_0.xml`。该导出 SHA256 为 `a4f00087cb366dc3bbcbd85bcc7f952082835bd2a448eb8f78d588f00ba4c556`。不加载整套第三方 Mod 的运行时 XML/Harmony 修改，不声称恢复了某一时刻的受损存档。所有推进器假定正常供电、完整且按 prefab 保存的出力上限运行。
 
@@ -148,13 +145,7 @@ powershell -ExecutionPolicy Bypass -File scripts/CombatManeuverSimulation/run_mp
 
 ## 早期校准实验（不代表实际质量）
 
-从仓库根目录运行：
-
-```powershell
-python scripts/CombatManeuverSimulation/simulate.py
-python scripts/CombatManeuverSimulation/pose_probe.py
-powershell -ExecutionPolicy Bypass -File scripts/CombatManeuverSimulation/run_mpc.ps1 -GameRoot 'D:\SteamLibrary\steamapps\common\RimWorld'
-```
+本节记录现已退役的 `simulate.py`、`pose_probe.py` 与 `run_mpc.ps1` 实验；不再提供当前工作树运行入口。
 
 `simulate.py` 是单发弹道的解析近似与时机敏感性检查。`CombatProbe.cs` 读取本地 `Fighter_0.xml` 的十台推进器位置与朝向，调用已编译的生产版 `ShipPhysics` 分配器、`CombatTrajectoryIntent`、`OnlineMpcGuidance`、`SpaceTransform.TrySolveInterceptPlanar`，以每 0.1 秒一个制导微步、两步计划回放、每 0.5 秒重规划和每游戏刻积分。测试只在单发炮弹的目标包围圆上判定命中；没有启动游戏。
 

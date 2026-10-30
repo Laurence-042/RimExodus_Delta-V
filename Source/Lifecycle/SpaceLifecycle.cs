@@ -453,11 +453,20 @@ namespace DeltaV
                     + $"ships=[{shipIds}] tag={container.Tag} {UniverseManager.MapTag(map)} "
                     + $"parent={map.Parent?.GetUniqueLoadID() ?? "null"} "
                     + $"distance={MinPlayerDistance(container):F1} force={force}");
-                if (!ArchivedMapStore.TryCapture(map, out string data)) return;
+                if (!ArchivedMapStore.TryCapture(map, out string data))
+                {
+                    Log.Warning($"[DeltaV] Archive capture aborted: object=#{objectId} {UniverseManager.MapTag(map)}; original map retained.");
+                    return;
+                }
                 string carriedLabel = container.label;
+                string mapTag = UniverseManager.MapTag(map);
                 var archive = ((MapSpaceObject)container).CaptureArchive(data);
                 universe.NpcShips.PrepareForArchive(container, archive);
-                if (!ArchivedMapStore.TryUnload(map)) return;
+                if (!ArchivedMapStore.TryUnload(map))
+                {
+                    Log.Warning($"[DeltaV] Archive unload deferred: object=#{objectId} {UniverseManager.MapTag(map)}; original map retained.");
+                    return;
+                }
                 universe.ReplaceRepresentation(container, archive);
                 try { Forget(map); }
                 catch (Exception ex)
@@ -467,8 +476,8 @@ namespace DeltaV
                     // 快照已独立保存；断开废弃 Thing → spawnedThings → Map 的持有链。
                     map.spawnedThings.Clear();
                 }
-                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                    $"{carriedLabel}: full map #{archive.mapId} archived on container #{container.objectId}");
+                Log.Message($"[DeltaV] Archive capture complete: object=#{archive.objectId} label='{carriedLabel}' "
+                    + $"{mapTag} parent={archive.parent?.GetUniqueLoadID() ?? "null"}; map unloaded.");
             });
         }
 

@@ -195,6 +195,8 @@ Delta-V 现在依赖同级独立 Mod [RimExodus Framework 1.0.0](../RimExodusFra
 
 ## 目录结构
 
+1.7 归档诊断修复：REF 已补齐战斗／交互日志的外部引用登记，Delta-V 增加明确的归档完成／中止日志。实际 Scribe 引用往返已离线验证，完整地图往返仍待实测，详见 [太空战架构 §9.1](doc/太空战架构.md#91-远距整图归档与撤退)。开发脚本用途与版本边界见 [scripts 索引](scripts/README.md)。
+
 ```
 About/            Mod 元数据
 1.6/              版本化内容（Defs / Textures / Languages / Assemblies）
