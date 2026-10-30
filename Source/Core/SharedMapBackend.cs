@@ -1,0 +1,78 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using RimExodus.Maps;
+using RimWorld;
+using Verse;
+using CommonDocument = RimExodus.Maps.MapPrefabDocument;
+
+namespace DeltaV
+{
+    /// <summary>Delta-V policies around REF capture and placement; serialization belongs to REF.</summary>
+    internal static class SharedMapBackend
+    {
+        internal const string Owner = "RimExodus.DeltaV";
+
+        internal static MapPrefabDocument Export(Map map, string name, IEnumerable<IntVec3> cells)
+        {
+            CommonDocument shared = MapPrefabs.Capture(map, new CellSelection(cells), name,
+                order: things => things.OrderBy(t => t.def.building?.isAttachment == true
+                    || t.TryGetComp<CompSpaceWeaponAttachment>() != null ? 1 : 0)
+                    .ThenByDescending(t => t.def.category == ThingCategory.Building)
+                    .ThenByDescending(t => t.TryGetComp<CompDeltaVPilotConsole>()?.isMain == true)
+                    .ThenByDescending(t => t.def.shortHash));
+            string path = Path.Combine(MapPrefab.PrefabDirectory, name + ".xml");
+            shared.Save(path);
+            return shared;
+        }
+
+        internal static List<Thing> Spawn(MapPrefabDocument doc, Map map, IntVec3 position, Faction faction,
+            int ownerId, Rot4 rot, UniverseManager universe, bool blankSpace)
+        {
+            var options = new PrefabPlacement
+            {
+                Faction = faction, OmitSpace = blankSpace,
+                FoundationsPlaced = (target, first) =>
+                {
+                    if (ownerId > 0 && first.IsValid) SubstructureOwnership.For(target).ClaimConnectedDomain(first, ownerId);
+                },
+                BeforeSpawn = (thing, entry, root, rotation) =>
+                {
+                    if (thing.TryGetComp<CompDeltaVPilotConsole>() is { } console)
+                    { console.shipId = -1; console.isMain = false; }
+                    thing.TryGetComp<CompSpaceWeapon>()?.ResetPrefabIdentity();
+                    thing.TryGetComp<CompSpaceWeaponTraverse>()?.RotateForPrefab(rotation);
+                    if (thing is Building_DockingPort port)
+                        port.RebasePrefabLocalState(map, thing.Position - entry.pos, root, rotation);
+                },
+                PlaceThing = (thing, target, cell, facing) =>
+                {
+                    if (thing.def.GetModExtension<DefModExtension_SpaceMissileAmmo>() != null)
+                    {
+                        CompMissileMagazineFacility magazine = cell.GetThingList(target)
+                            .Where(t => t.OccupiedRect().Contains(cell)).Select(t => t.TryGetComp<CompMissileMagazineFacility>())
+                            .FirstOrDefault(c => c != null);
+                        if (magazine != null)
+                        {
+                            while (thing.stackCount > 0 && magazine.TryStore(thing.def)) thing.stackCount--;
+                            if (thing.stackCount == 0) { thing.Destroy(DestroyMode.Vanish); return null; }
+                            return GenPlace.TryPlaceThing(thing, cell, target, ThingPlaceMode.Near, out Thing overflow) ? overflow : null;
+                        }
+                    }
+                    return MapContentSpawner.SpawnExisting(thing, target, cell, facing, true);
+                },
+                Completed = (target, things, root, rotation) =>
+                {
+                    MapContentSpawner.RelinkGravshipComponents(target);
+                    var context = new PrefabSpawnContext(target, faction, ownerId, root, rotation, universe);
+                    foreach (Thing thing in things.ToList()) thing.TryGetComp<CompPrefabMarker>()?.Expand(context);
+                    things.RemoveAll(t => t.Destroyed);
+                }
+            };
+            PrefabPlacementResult result = MapPrefabs.Rebuild(doc, map, position, rot, options);
+            if (!result.Success) throw new InvalidDataException(string.Join("\n", result.Errors));
+            return result.Things;
+        }
+    }
+}

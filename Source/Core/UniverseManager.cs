@@ -46,6 +46,13 @@ namespace DeltaV
         /// 空图无事实价值可随时重建，AGENTS §15）。经 GetOrCreateHostMap 惰性获取。
         /// </summary>
         [NonSerialized] private PocketMapHostService pocketHostService;
+        private void ConfigureMapFramework()
+        {
+            // REF is the only backend. Installation failure must not silently select retired code.
+            RimExodus.Maps.MapModule.Install();
+            RimExodus.Maps.MapRuntime.Current.SetStopPolicy(SharedMapBackend.Owner, map =>
+                SpaceLifecycleService.IsUniverseHost(map) || MapPool.IsIdle(map) || Generation.IsGenerating(map));
+        }
 
         // ---- 流程服务实例（2026-09-22 实例化迁移）----
         // 对接计划/自动驾驶/跳帮舱/模式互转流程状态全部收进实例服务：读档时反序列化器
@@ -578,6 +585,7 @@ namespace DeltaV
 
         public override void StartedNewGame()
         {
+            ConfigureMapFramework();
             ApplyCameraZoomScope();
             OrbitalPoiRegistry.Synchronize(this);
             Weapons.RebuildWeaponIndex();
@@ -656,6 +664,7 @@ namespace DeltaV
 
         public override void LoadedGame()
         {
+            ConfigureMapFramework();
             objectById = null;
             objectByMap = null;
             ResetRuntimeServices();

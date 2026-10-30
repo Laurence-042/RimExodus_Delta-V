@@ -40,18 +40,31 @@
 
 ## 环境要求
 
-- RimWorld 1.6（Odyssey）
+- RimWorld 1.6 / 1.7（Odyssey）
+- RimExodus Framework 1.0.0（独立前置 Mod）
 - [Launch into empty space](https://steamcommunity.com/sharedfiles/filedetails/?id=3532333408)（允许原版逆重飞船选择没有 POI/WorldObject 的 Orbit tile）
 - .NET SDK（编译用；游戏运行不需要）
 - Harmony（游戏自带 0Harmony；About.xml 已声明 brrainz.harmony 依赖）
 
 ## 构建
 
-```
-dotnet build Source/DeltaV.csproj -c Release
+```powershell
+just build       # 默认 1.7
+just build 1.6   # 1.6
+just release     # 同时构建并打包 1.6 与 1.7 正式版
 ```
 
-输出到 `1.6/Assemblies/DeltaV.dll`。RimWorld API 经 NuGet 包 `Krafs.Rimworld.Ref` 引用，Harmony 经 `Lib.Harmony.Ref`（编译期引用，运行时用游戏自带 0Harmony），首次还原需要联网。
+Windows 构建和发布入口使用系统自带的 `powershell.exe`，无需安装 PowerShell 7；发布脚本仅在本次进程中放宽本机的脚本执行策略，不修改系统设置。
+
+开发目录以 `RimExodus: Delta-V (Dev)` 和 `RimExodus.DeltaV.dev` 加载，依赖 `RimExodus.Framework.dev`。`just release` 分别尝试构建 1.6 和 1.7；缺少某版构建环境时复用不早于源码及 REF DLL 的已有产物，过时则警告并中止。成功后两版一起打包到同级 `RimExodus_Delta-V.release`，去掉名称的 `(Dev)` 并把自身 ID、REF 依赖和加载顺序转换为正式版；正式包通过 `LoadFolders.xml` 为两个游戏版本分别加载对应目录，需要启用 REF 正式包。重复运行会替换发布目录，包内不含源码、文档或编译引用。默认游戏目录为 `RimWorld_1.6`（1.6）和 `RimWorld`（1.7），可通过 `RimWorld16Dir`、`RimWorld17Dir` 或 `RimWorldDir` 覆盖。
+
+Delta-V 现在依赖同级独立 Mod [RimExodus Framework 1.0.0](../RimExodusFramework/README.md)，不再提供实验开关或旧地图后端。请启用与开发版／正式版对应的 REF，加载顺序为 Harmony → REF → Delta-V。
+
+`just build` 先执行 REF 的 `just build`，成功后拉取 `RimExodus.Maps.dll` 到 `References/REF/<版本>/`，最后生成 `<版本>/Assemblies/DeltaV.dll`。引用 DLL 不复制到 Delta-V 的运行时 Assemblies，避免与 REF 重复加载。直接执行 `dotnet build Source/DeltaV.csproj` 前须先通过 just 准备对应版本的 REF 引用。
+
+1.7 需要 SDK 10；可设置 `DOTNET_EXE` 指定 SDK，也可使用本项目已有 `.local-tools/dotnet/dotnet.exe`。1.6 使用 net48 编译期 NuGet 引用。游戏和 Harmony 路径见 `build/RimWorldReferences.props`。公共接口、已迁入范围和未完成项见 [REF 地图模块](../RimExodusFramework/doc/地图模块.md)。
+
+1.7 生成图门禁兼容修正和实时上层矩阵修正已经通过离线回归；用户已确认非聚焦船壳上的护盾与导弹架上层正常。2026-10-31 用户确认 REF 修复 Surveillance Shift 强制开启地图边缘裁剪造成的图外黑屏与船壳遮挡后，当前迁移版本可提交；兼容补丁由 REF 提供，Delta-V 不重复安装。其他存读档与生命周期验收仍按各专题清单执行。
 
 ## 测试
 

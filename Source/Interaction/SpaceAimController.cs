@@ -37,7 +37,9 @@ namespace DeltaV
             this.universe = universe;
             this.ownerId = ownerId;
             this.fireControl = fireControl;
+#if !RIMWORLD_1_7
             Application.focusChanged += OnFocusChanged;
+#endif
         }
 
         private void OnFocusChanged(bool focused)
@@ -166,7 +168,9 @@ namespace DeltaV
             disposed = true;
             universe.PlayerInput.InvalidateGate(); inputMap = null;
             previewFrame = -1; previewPoints = null;
+#if !RIMWORLD_1_7
             Application.focusChanged -= OnFocusChanged;
+#endif
             buttons.Clear();
             DeltaVLog.Message(DeltaVLogModule.Input, $"aim session ended ({reason}, owner #{ownerId})");
         }

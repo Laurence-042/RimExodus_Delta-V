@@ -7,7 +7,7 @@
 - 开始工作前完整阅读本文件和 `README.md`；工具输出截断时继续读到末尾。按任务查阅下方专题与代码入口，无需在回复中复述目录。
 - 先检查工作树，保留用户已有改动；禁止为方便而 reset、checkout 或覆盖无关文件。
 - 未经用户实测及当次明确要求，不提交代码；未经当次明确授权，不得 `git commit`、`git push` 或修改版本号。
-- 推荐构建命令：`dotnet build Source/DeltaV.csproj -c Release`。
+- 推荐构建命令：`just build`（1.7）或 `just build 1.6`；先构建同级 RimExodusFramework，再拉取编译引用。公共 DLL 只由独立 REF Mod 加载，不在本项目重新实现或打包。
 - 涉及 RimWorld、Harmony 或其他 Mod 内部行为，先查 `C:\Users\Laure\Documents\workspace\rimworld\_references` 的对应版本源码；核对签名、原版调用者的输入语义及真实流程，不凭记忆猜测，不擅自增加依赖。
 - 实现指定方案时，素材契约不明、原版证据不足或实测与方案不符，先说明具体问题并提问，不自行换方案。
 - 项目尚未发布，测试以新档为准；不为旧开发快照做存档兼容、迁移键或兼容分支，正常的新档存取必须工作。不为未来兼容增加额外抽象。

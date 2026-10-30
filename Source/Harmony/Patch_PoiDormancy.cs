@@ -6,49 +6,9 @@ using RimWorld.Planet;
 
 namespace DeltaV
 {
-    /// <summary>
-    /// 地图软冻结的运行时拦截（阶段3；RimExodus Patches_Dormancy 同款模式）。
-    ///
-    /// 冻结集合 = 休眠 POI 图 + 专用宿主口袋图（UniverseManager.Lifecycle.IsFrozen）：
-    /// - Map.MapPreTick / MapPostTick / MapUpdate：冻结图早退（原版
-    ///   TickManager/Game.UpdatePlay 直接遍历 Find.Maps 调用，无其他拦截点）。
-    ///   跳过即停全部组件模拟/更新；外壳代理渲染（ShellRenderer）是自驱动重放，
-    ///   不依赖目标图的 MapUpdate，休眠图照常作为代理显示。
-    /// - Game.CurrentMap setter 的唤醒和宿主图门禁由 Patch_Game_CurrentMapFocus 统一处理。
-    /// - Storyteller.AllIncidentTargets：剔除全部冻结图，防事件打到冻结图/空宿主上。
-    ///
-    /// 判定集合只含 Delta-V 自己的地图（SpaceLifecycleService 维护），与 RimExodus 的
-    /// 地表休眠体系集合不相交、互不干扰（AGENTS §16/§3）。
-    /// </summary>
+    /// <summary>Delta-V incident, lifecycle and shell invalidation policies. Tick gates belong to REF.</summary>
     public static class Patch_PoiDormancy
     {
-        [HarmonyPatch(typeof(Map), nameof(Map.MapPreTick))]
-        private static class Patch_Map_MapPreTick
-        {
-            private static bool Prefix(Map __instance)
-            {
-                return Current.Game?.GetComponent<UniverseManager>()?.Lifecycle.IsFrozen(__instance) != true;
-            }
-        }
-
-        [HarmonyPatch(typeof(Map), nameof(Map.MapPostTick))]
-        private static class Patch_Map_MapPostTick
-        {
-            private static bool Prefix(Map __instance)
-            {
-                return Current.Game?.GetComponent<UniverseManager>()?.Lifecycle.IsFrozen(__instance) != true;
-            }
-        }
-
-        [HarmonyPatch(typeof(Map), nameof(Map.MapUpdate))]
-        private static class Patch_Map_MapUpdate
-        {
-            private static bool Prefix(Map __instance)
-            {
-                return Current.Game?.GetComponent<UniverseManager>()?.Lifecycle.IsFrozen(__instance) != true;
-            }
-        }
-
         [HarmonyPatch(typeof(Storyteller), nameof(Storyteller.AllIncidentTargets), MethodType.Getter)]
         private static class Patch_Storyteller_AllIncidentTargets
         {

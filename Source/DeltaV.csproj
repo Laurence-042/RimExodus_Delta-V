@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../build/RimWorldReferences.props" />
 
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
     <OutputType>Library</OutputType>
     <RootNamespace>DeltaV</RootNamespace>
     <AssemblyName>DeltaV</AssemblyName>
@@ -13,18 +13,31 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-    <OutputPath>..\1.6\Assemblies\</OutputPath>
+    <OutputPath>..\$(RimWorldVersion)\Assemblies\</OutputPath>
     <DebugType>none</DebugType>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <OutputPath>..\1.6\Assemblies\</OutputPath>
+    <OutputPath>..\$(RimWorldVersion)\Assemblies\</OutputPath>
     <DebugType>none</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.4633" />
-    <PackageReference Include="Lib.Harmony.Ref" Version="2.3.3" />
+    <Reference Include="RimExodus.Maps">
+      <HintPath>../References/REF/$(RimWorldVersion)/RimExodus.Maps.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
+  <Target Name="RequireFramework" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('../References/REF/$(RimWorldVersion)/RimExodus.Maps.dll')"
+           Text="REF reference missing. Run just build $(RimWorldVersion) to build the sibling framework and fetch its DLL first." />
+  </Target>
+
+  <Target Name="CopyExperimental17Content" AfterTargets="Build" Condition="'$(RimWorldVersion)' == '1.7'">
+    <ItemGroup>
+      <VersionedContent Include="../1.6/**/*" Exclude="../1.6/Assemblies/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(VersionedContent)" DestinationFiles="@(VersionedContent->'../1.7/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

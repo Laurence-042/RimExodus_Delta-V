@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using DeltaV;
+using RimExodus.Maps;
 using HarmonyLib;
 using RimWorld;
 using RimWorld.Planet;
@@ -17,7 +18,7 @@ internal static class Program
 {
     static readonly List<string> errors = new List<string>();
     static int checks;
-    static readonly Type state = typeof(MapPrefabThingEntry).Assembly.GetType("DeltaV.MapPrefabThingState");
+    static readonly Type state = typeof(MapPrefabThingEntry).Assembly.GetType("RimExodus.Maps.MapPrefabThingState");
 
     static int Main(string[] args)
     {
@@ -40,9 +41,9 @@ internal static class Program
     static bool CaptureError(string text) { errors.Add(text); Console.WriteLine(text); return false; }
     static void NoErrors(string phase) => Check(errors.Count == 0, phase + ": " + string.Join("\n", errors));
     static object Call(string method, params object[] args) => state.GetMethod(method,
-        BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, args);
+        BindingFlags.Static | BindingFlags.Public).Invoke(null, args);
     static List<Thing> Instantiate(List<MapPrefabThingEntry> entries) =>
-        (List<Thing>)Call("Instantiate", entries, "regression", null);
+        (List<Thing>)Call("Instantiate", entries, "regression", null, true);
 
     static void Run()
     {

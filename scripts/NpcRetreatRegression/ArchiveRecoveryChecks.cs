@@ -59,27 +59,27 @@ internal static partial class Program
         values.AddRange(new[] { mote1, mote2, invalid, building, item });
         var directory = new LoadedObjectDirectory();
         foreach (Thing value in values)
-            if (ArchivedMapStore.CanRegisterExternalReference(value)) directory.RegisterLoaded(value);
+            if (RimExodus.Maps.MapArchive.CanRegisterExternalReference(value)) directory.RegisterLoaded(value);
         var ids = (Dictionary<int, ILoadReferenceable>)typeof(LoadedObjectDirectory).GetField("allThingsByThingID", Private).GetValue(directory);
         Check(ids.Count == 3 && !ids.ContainsKey(-1)
             && ReferenceEquals(directory.ObjectWithLoadID<Thing>(building.GetUniqueLoadID()), building)
             && ReferenceEquals(directory.ObjectWithLoadID<Thing>(item.GetUniqueLoadID()), item)
             && ReferenceEquals(directory.ObjectWithLoadID<Pawn>(pawn.GetUniqueLoadID()), pawn),
             "archive filters duplicate -1 Motes/unassigned Things; building, item and nested Pawn resolve");
-        Type comparerType = typeof(ArchivedMapStore).GetNestedType("ReferenceComparer", BindingFlags.NonPublic);
+        Type comparerType = typeof(RimExodus.Maps.MapArchive).GetNestedType("ReferenceComparer", BindingFlags.NonPublic);
         var comparer = (IEqualityComparer<ILoadReferenceable>)comparerType.GetField("Instance", Private).GetValue(null);
         var seen = new HashSet<ILoadReferenceable>(comparer);
         Thing collision = Make(typeof(Thing), 100, ThingCategory.Building, "Building");
         Check(seen.Add(building) && !seen.Add(building) && seen.Add(collision)
-            && ArchivedMapStore.CanRegisterExternalReference(collision),
+            && RimExodus.Maps.MapArchive.CanRegisterExternalReference(collision),
             "distinct persistent ID collisions reach vanilla registration; only identical instances deduplicate");
-        ArchivedMapStore.ValidateCaptureIds(new[] { mote1, mote2, building, item, pawn, pawn });
+        RimExodus.Maps.MapArchive.ValidateCaptureIds(new[] { mote1, mote2, building, item, pawn, pawn });
         Check(mote1.thingIDNumber == -1 && pawn.thingIDNumber == 102,
             "save preflight accepts nonpersistent Motes and valid nested identities without renumbering");
         bool invalidRejected = false, collisionRejected = false;
-        try { ArchivedMapStore.ValidateCaptureIds(new[] { building, invalid }); }
+        try { RimExodus.Maps.MapArchive.ValidateCaptureIds(new[] { building, invalid }); }
         catch (InvalidDataException) { invalidRejected = true; }
-        try { ArchivedMapStore.ValidateCaptureIds(new[] { building, collision }); }
+        try { RimExodus.Maps.MapArchive.ValidateCaptureIds(new[] { building, collision }); }
         catch (InvalidDataException) { collisionRejected = true; }
         Check(invalidRejected && collisionRejected, "save preflight rejects invalid/duplicate persistent IDs before serializing or unloading");
     }
@@ -110,15 +110,15 @@ internal static partial class Program
             try { float ignored = food.MaxLevel; }
             catch (NullReferenceException ex) { reproduced = ex.StackTrace.Contains("Hediff_Addiction"); }
             Check(reproduced, "vanilla food capacity reproduces addiction/unfinished needs null reference in Playing");
-            using (new ArchivedMapStore.MapLoadingScope(Current.ProgramState))
+            using (new RimExodus.Maps.MapArchive.MapLoadingScope(Current.ProgramState))
             {
                 Check(Current.ProgramState == ProgramState.MapInitializing && food.MaxLevel == 1f && pawn.needs == null,
                     "archive loading uses vanilla initialization food capacity before needs tracker is assigned");
-                using (new ArchivedMapStore.MapLoadingScope(Current.ProgramState)) { }
+                using (new RimExodus.Maps.MapArchive.MapLoadingScope(Current.ProgramState)) { }
                 Check(Current.ProgramState == ProgramState.MapInitializing, "nested loading scope preserves outer initialization");
             }
             Check(Current.ProgramState == ProgramState.Playing, "successful archive scope restores Playing");
-            try { using (new ArchivedMapStore.MapLoadingScope(Current.ProgramState)) throw new InvalidOperationException(); }
+            try { using (new RimExodus.Maps.MapArchive.MapLoadingScope(Current.ProgramState)) throw new InvalidOperationException(); }
             catch (InvalidOperationException) { }
             Check(Current.ProgramState == ProgramState.Playing, "failed archive scope also restores Playing");
 
@@ -126,14 +126,14 @@ internal static partial class Program
             document.LoadXml("<archivedMap><map><things><thing><id>Human321</id><needs><needs><li Class='Need_Food'><def>Food</def><curLevel>0.732800126</curLevel></li></needs></needs></thing></things></map></archivedMap>");
             pawn.needs = (Pawn_NeedsTracker)Raw(typeof(Pawn_NeedsTracker));
             Set(pawn.needs, "needs", new List<Need> { food });
-            ArchivedMapStore.ValidateRestoredPawnNeeds(document, new[] { pawn });
+            RimExodus.Maps.MapArchive.ValidateRestoredPawnNeeds(document, new[] { pawn });
             Check(pawn.needs.AllNeeds.Count == 1, "saved need validation accepts intact loaded Pawn");
             pawn.needs.AllNeeds.Clear(); bool rejected = false;
-            try { ArchivedMapStore.ValidateRestoredPawnNeeds(document, new[] { pawn }); }
+            try { RimExodus.Maps.MapArchive.ValidateRestoredPawnNeeds(document, new[] { pawn }); }
             catch (InvalidDataException) { rejected = true; }
             Check(rejected, "Scribe-swallowed missing Food need rejects restoration before archive is discarded");
             rejected = false;
-            try { ArchivedMapStore.ValidateRestoredPawnNeeds(document, Array.Empty<Pawn>()); }
+            try { RimExodus.Maps.MapArchive.ValidateRestoredPawnNeeds(document, Array.Empty<Pawn>()); }
             catch (InvalidDataException) { rejected = true; }
             Check(rejected, "missing saved Pawn also rejects restoration");
         }

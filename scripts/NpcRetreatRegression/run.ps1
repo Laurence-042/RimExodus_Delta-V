@@ -20,8 +20,9 @@ foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'Assemb
     Copy-Item -LiteralPath "$managed/$name" -Destination $out -Force
 }
 Copy-Item -LiteralPath "$repo/1.6/Assemblies/DeltaV.dll" -Destination $out -Force
+Copy-Item -LiteralPath "$repo/References/REF/1.6/RimExodus.Maps.dll" -Destination $out -Force
 Copy-Item -LiteralPath $HarmonyPath -Destination $out -Force
-foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'DeltaV.dll', '0Harmony.dll')) { $lines += '/r:"' + "$out/$name" + '"' }
+foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'DeltaV.dll', 'RimExodus.Maps.dll', '0Harmony.dll')) { $lines += '/r:"' + "$out/$name" + '"' }
 $lines += Get-ChildItem $PSScriptRoot -Filter '*.cs' | ForEach-Object { '"' + $_.FullName + '"' }
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & dotnet "$($sdkVersion.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"

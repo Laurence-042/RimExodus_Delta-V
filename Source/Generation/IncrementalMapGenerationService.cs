@@ -297,13 +297,14 @@ namespace DeltaV
             {
                 Log.Error($"[DeltaV] Incremental map generation prepare failed ({request.key}): {ex}");
                 request.onFailure?.Invoke(ex);
-                ResetGeneratorStatics();
                 active = null;
             }
         }
 
         private static ActiveJob Prepare(IncrementalMapGenerationRequest request)
         {
+            RimExodus.Maps.MapRuntime.Current.Generation.Acquire(SharedMapBackend.Owner,
+                    () => Current.Game.GetComponent<UniverseManager>().Generation.DrainSynchronouslyForExternalGeneration());
             ProgramState oldState = Current.ProgramState;
             Current.ProgramState = ProgramState.MapInitializing;
             Rand.PushState();
@@ -327,6 +328,7 @@ namespace DeltaV
                 };
                 map.events = new MapEvents(map);
                 MapGenerator.mapBeingGenerated = map;
+                RimExodus.Maps.MapRuntime.Current.Generation.Bind(SharedMapBackend.Owner, map);
                 map.info.Size = request.size;
                 map.info.parent = request.parent;
                 if (ModsConfig.OdysseyActive && request.extraGenSteps != null
@@ -394,6 +396,7 @@ namespace DeltaV
             }
             catch
             {
+                ResetGeneratorStatics();
                 if (map != null && Find.Maps.Contains(map))
                 {
                     try { Current.Game.GetComponent<UniverseManager>().Lifecycle.DeinitMap(map, false); }
@@ -620,6 +623,9 @@ namespace DeltaV
 
         private static void ResetGeneratorStatics()
         {
+            var coordinator = RimExodus.Maps.MapRuntime.Current.Generation;
+            if (!coordinator.IsOwnedBy(SharedMapBackend.Owner)) return;
+            coordinator.Release(SharedMapBackend.Owner);
             try { ClearWorkingDataMethod?.Invoke(null, null); } catch { }
             try { MapGenerator.mapBeingGenerated = null; } catch { }
             try { GravshipField?.SetValue(null, null); } catch { }

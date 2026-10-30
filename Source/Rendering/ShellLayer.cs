@@ -17,7 +17,7 @@ namespace DeltaV
 
         protected abstract string BufferName { get; }
 
-        private IShellDrawBackend Backend => backend ??= new CommandBufferShellDrawBackend(Event, BufferName);
+        private IShellDrawBackend Backend => backend ??= new SharedShellDrawBackend(Event, BufferName);
 
         /// <summary>绘制目的地：哪一层 + 层内槽位（自下而上的整组序号）。
         /// 由层的 At(i) 构造，防止调用方手工拼装。</summary>
@@ -47,6 +47,7 @@ namespace DeltaV
         public void Detach()
         {
             backend?.Detach();
+            backend = null;
             lastEmittedSlot = -1;
         }
 

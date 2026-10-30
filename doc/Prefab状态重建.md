@@ -1,5 +1,7 @@
 # Prefab 状态重建
 
+公共文档、逐实例 Scribe、区域重建及整图归档现由 [REF](../../RimExodusFramework/doc/地图模块.md) 提供。Delta-V `MapPrefab` / `SharedMapBackend` 仅保留路径、飞船归属、设施与标记策略；旧本地序列化实现已删除。
+
 通用地图 prefab 的建筑和物品按实例保存原版 `Thing.ExposeData` 数据。地形继续使用原版 `PrefabUtility` 的布局和旋转语义；基架、屋顶仍在侧车中。导出范围为掩码内锚点属于 Building 或 Item 的实体，容器内容物由宿主的原版存档数据保存。
 
 重建顺序：基架及归属 → 原版地形 → 整批 Scribe 读取与内部引用解析 → 为所有新实体重新分配 Thing ID → 按 prefab 坐标旋转并落位 → 屋顶 → 原版电网注册结算与设施重链 → 标记展开。落位派系与 ownerId 由调用方决定；驾驶台不继承源船 ID，对接口已导出的通道格按新锚与朝向换算。炮塔的地图帧瞄准角随 prefab 旋转。

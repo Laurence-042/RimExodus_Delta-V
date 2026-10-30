@@ -80,6 +80,7 @@ namespace DeltaV
         /// surface/queue/sequence 供壳内排序。</summary>
         internal struct OverlayCommand
         {
+            public RimExodus.Maps.MapDrawCommand? shared;
             public Mesh mesh;
             public Matrix4x4 matrix;
             public Material material;
@@ -386,13 +387,13 @@ namespace DeltaV
             return floor ? -incidence : incidence;
         }
 
-        internal static void AddCapturedDraw(Mesh mesh, Matrix4x4 matrix, Material material,
-            int submeshIndex, MaterialPropertyBlock props, ShellSurfaceLayer surface)
+
+
+        internal static void AddSharedDraw(RimExodus.Maps.MapDrawCommand command, ShellSurfaceLayer surface)
         {
-            if (IsSunShadowMaterial(material)) return;
-            Commands.Add(new OverlayCommand { mesh = mesh, matrix = matrix, material = material,
-                submeshIndex = submeshIndex, props = props, surface = surface,
-                queue = material.renderQueue, sequence = nextSequence++ });
+            if (command.UsesMaterial(MatBases.SunShadow) || command.UsesMaterial(MatBases.SunShadowFade)) return;
+            Commands.Add(new OverlayCommand { shared = command, surface = surface,
+                queue = command.RenderQueue, sequence = nextSequence++ });
             QuadsDrawnLastPass++;
         }
 

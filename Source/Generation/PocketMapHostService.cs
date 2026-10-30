@@ -4,58 +4,22 @@ using Verse;
 
 namespace DeltaV
 {
-    /// <summary>定制口袋地图对公共 sourceMap 宿主的最小依赖面。</summary>
     public interface IPocketMapHostProvider
     {
         Map GetOrCreateHostMap();
     }
 
-    /// <summary>
-    /// 无 tile 公共宿主的可抽取实现。宿主仅承载原版 PocketMap sourceMap 契约，不是坐标锚。
-    /// </summary>
+    /// <summary>Delta-V host contract backed by the framework's non-worldtile host service.</summary>
     public sealed class PocketMapHostService : IPocketMapHostProvider
     {
-        private readonly Func<PocketMapParent, bool> isHost;
-        private readonly Func<PocketMapParent> createHost;
-        private readonly MapGeneratorDef generator;
-        private readonly IntVec3 size;
-        private Map cached;
-
-        public Map Current => cached;
-
+        private readonly RimExodus.Maps.PocketMapHostService shared;
+        public Map Current => shared.Current;
         public PocketMapHostService(Func<PocketMapParent, bool> isHost,
             Func<PocketMapParent> createHost, MapGeneratorDef generator, IntVec3 size)
         {
-            this.isHost = isHost ?? throw new ArgumentNullException(nameof(isHost));
-            this.createHost = createHost ?? throw new ArgumentNullException(nameof(createHost));
-            this.generator = generator ?? throw new ArgumentNullException(nameof(generator));
-            this.size = size;
+            shared = new RimExodus.Maps.PocketMapHostService(isHost, createHost, generator, size);
         }
-
-        public Map GetOrCreateHostMap()
-        {
-            if (cached != null && !cached.Disposed && cached.Parent is PocketMapParent current && isHost(current)
-                && Find.Maps.Contains(cached)) return cached;
-
-            foreach (PocketMapParent parent in Find.World.pocketMaps)
-            {
-                if (isHost(parent) && parent.HasMap)
-                {
-                    cached = parent.Map;
-                    return cached;
-                }
-            }
-
-            PocketMapParent host = createHost();
-            host.mapGenerator = generator;
-            cached = MapGenerator.GenerateMap(size, host, generator, null, null, isPocketMap: true);
-            Find.World.pocketMaps.Add(host);
-            return cached;
-        }
-
-        public void Reset()
-        {
-            cached = null;
-        }
+        public Map GetOrCreateHostMap() => shared.GetOrCreateHostMap();
+        public void Reset() => shared.Reset();
     }
 }

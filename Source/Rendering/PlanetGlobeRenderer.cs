@@ -96,9 +96,10 @@ namespace DeltaV
             {
                 hideFlags = HideFlags.HideAndDontSave
             };
-            lineMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            lineMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            lineMaterial.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
+            // Shader property values are part of the Unity material contract; 1.7 omits the enums.
+            lineMaterial.SetInt("_SrcBlend", 5);
+            lineMaterial.SetInt("_DstBlend", 10);
+            lineMaterial.SetInt("_Cull", 0);
             lineMaterial.SetInt("_ZWrite", 0);
         }
 

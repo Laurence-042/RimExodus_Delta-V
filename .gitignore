@@ -2,6 +2,9 @@
 1.6/Assemblies/
 Source/bin/
 Source/obj/
+1.7/
+.local-tools/
+References/REF/
 
 # 本地反编译/参考源码（只用于开发核对，不属于 Mod）
 references/

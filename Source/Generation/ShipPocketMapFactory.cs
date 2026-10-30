@@ -27,10 +27,7 @@ namespace DeltaV
             var parent = (PocketMapParent)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
             parent.sourceMap = universe.GetOrCreateHostMap();
             parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
-            Map map = MapGenerator.GenerateMap(size, parent, DeltaVDefOf.DeltaV_ShipPocket,
-                null, null, isPocketMap: true);
-            Find.World.pocketMaps.Add(parent);
-            return map;
+            return RimExodus.Maps.PocketMaps.Create(size, parent, parent.mapGenerator, parent.sourceMap);
         }
 
         /// <summary>
@@ -57,7 +54,7 @@ namespace DeltaV
                 if (!parent.Destroyed) parent.Destroy();
                 return null;
             }
-            Find.World.pocketMaps.Add(parent);
+            RimExodus.Maps.PocketMaps.Register(parent, map);
             return map;
         }
 
