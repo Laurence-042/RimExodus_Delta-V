@@ -128,20 +128,34 @@ namespace DeltaV
                     Vector2 halfExtents = risk ? CombatWeaponThreat.HullHalfExtents(ship) : Vector2.zero;
                     float ownRadius = ShipFireControl.HullRadius(ship);
                     float incomingScore = 0f, timeScore = 0f, overlapScore = 0f;
+                    // These are invariant for this synchronous pose search. Keep the distinct
+                    // output/risk angle expressions to preserve their existing float results.
+                    float phase = reposition.initialized ? reposition.PhaseAt(target.position) : Mathf.Atan2(-toward.y, -toward.x);
+                    if (settings.bearing != CombatBearing.Free) phase = (settings.bearing == CombatBearing.Enemy ? target.angle : 0f)
+                        + settings.bearingDegrees * Mathf.Deg2Rad;
+                    Vector2 away = new Vector2(Mathf.Cos(phase), Mathf.Sin(phase));
+                    Vector3 center = OrbitSphere.Move(target.position, target.velocity * 3f);
+                    float riskBearing = Mathf.Atan2(-away.y, -away.x);
+                    var candidatePositions = new Dictionary<float, (Vector3 position, Vector2 velocity)>();
+                    (Vector3 position, Vector2 velocity) PositionAt(float distance)
+                    {
+                        if (!candidatePositions.TryGetValue(distance, out var value))
+                        {
+                            Vector3 position = OrbitSphere.Move(center, away * distance);
+                            candidatePositions[distance] = value = (position, SpaceTransform.TransportVelocity(target, position));
+                        }
+                        return value;
+                    }
                     void PoseAt(CombatAttackPose p, out Vector3 position, out float angle)
                     {
-                        float phase = reposition.initialized ? reposition.PhaseAt(target.position) : Mathf.Atan2(-toward.y, -toward.x);
-                        if (settings.bearing != CombatBearing.Free) phase = (settings.bearing == CombatBearing.Enemy ? target.angle : 0f)
-                            + settings.bearingDegrees * Mathf.Deg2Rad;
-                        Vector2 away = new Vector2(Mathf.Cos(phase), Mathf.Sin(phase));
-                        position = OrbitSphere.Move(OrbitSphere.Move(target.position, target.velocity * 3f), away * p.distance);
+                        position = PositionAt(p.distance).position;
                         angle = SpaceTransform.WrapAngle(phase + Mathf.PI + p.heading);
                     }
                     float Output(CombatAttackPose p)
                     {
                         using var timing = performance.Measure(PerformanceStage.CombatOutput);
                         PoseAt(p, out Vector3 position, out float heading);
-                        Vector2 velocity = SpaceTransform.TransportVelocity(target, position);
+                        Vector2 velocity = PositionAt(p.distance).velocity;
                         float output = 0f;
                         foreach (var entry in outputTargets)
                             foreach (var other in entry.targets)
@@ -160,20 +174,14 @@ namespace DeltaV
                     {
                         using var timing = performance.Measure(PerformanceStage.CombatRisk);
                         if (!risk) return 0f;
-                        float phase = reposition.initialized ? reposition.PhaseAt(target.position)
-                            : Mathf.Atan2(-toward.y, -toward.x);
-                        if (settings.bearing != CombatBearing.Free) phase = (settings.bearing == CombatBearing.Enemy ? target.angle : 0f)
-                            + settings.bearingDegrees * Mathf.Deg2Rad;
-                        Vector2 away = new Vector2(Mathf.Cos(phase), Mathf.Sin(phase));
-                        Vector3 center = OrbitSphere.Move(target.position, target.velocity * 3f);
-                        Vector3 position = OrbitSphere.Move(center, away * p.distance);
-                        float candidateAngle = SpaceTransform.WrapAngle(Mathf.Atan2(-away.y, -away.x) + p.heading);
+                        Vector3 position = PositionAt(p.distance).position;
+                        float candidateAngle = SpaceTransform.WrapAngle(riskBearing + p.heading);
                         if (SpaceCollision.HullsOverlap(ownShape, position, candidateAngle, enemyShape,
                             new SpacePose(center, target.angle - enemy.Ship.FrameAngle))) return -1000000f;
                         foreach (var neighbor in neighbors)
                             if (SpaceCollision.HullsOverlap(ownShape, position, candidateAngle, neighbor.shape, neighbor.pose)) return -1000000f;
                         float rate = 0f, impact = 8f, overlap = 0f;
-                        Vector2 velocity = SpaceTransform.TransportVelocity(target, position);
+                        Vector2 velocity = PositionAt(p.distance).velocity;
                         foreach (var threat in threats)
                         {
                             threat.Score(position, velocity, halfExtents, candidateAngle,
@@ -287,10 +295,11 @@ namespace DeltaV
                 return shape;
             }
             var ownShape = Shape(ship);
+            Vector3 ownPosition = ShipRegistry.ShipPose(ship).position;
             // Four bounded trajectory checkpoints; the real collision chain remains authoritative.
             foreach (var other in universe.objects.SelectMany(frame => frame.Ships)
                 .Where(other => other.IsValid && other.Identity != ownerId && other.Map != ship.Map)
-                .OrderBy(other => OrbitSphere.ArcCells(ShipRegistry.ShipPose(ship).position,
+                .OrderBy(other => OrbitSphere.ArcCells(ownPosition,
                     ShipRegistry.ShipPose(other).position)).Take(64))
             {
                 var otherPose = ShipRegistry.ShipPose(other);

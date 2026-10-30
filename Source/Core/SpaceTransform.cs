@@ -142,7 +142,7 @@ namespace DeltaV
         /// Gravship 数据时的同族锚——连通域包围盒中心）。</summary>
         public static Vector2 BoundsCenterOfCells(IEnumerable<IntVec3> cells)
         {
-            Vector3 center = CellRect.FromCellList(new List<IntVec3>(cells)).CenterVector3;
+            Vector3 center = CellRect.FromCellList(cells).CenterVector3;
             return new Vector2(center.x, center.z);
         }
 

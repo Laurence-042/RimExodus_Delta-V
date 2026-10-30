@@ -1,7 +1,7 @@
 Current revision: generated with actual vanilla RimWorld/Odyssey style references, 2026-10-16.
 Tool: built-in image_gen; transparent_background=true. No CLI fallback.
 
-Reference root: C:/Users/Laure/Documents/workspace/rimworld/_refernces/RimWorldArt/
+Reference root: C:/Users/Laure/Documents/workspace/rimworld/_references/RimWorldArt/
 Viewed: vanilla Autodoor mover/menu PSDs, Odyssey BlastDoor, GravshipHull, Substructure, SmallThruster, AncientArmoredTurret and GravshipShieldGenerator.
 PSD merged previews and the visual reference sheet are inspection-only under ignored references/ArtQA/. Original game assets are not copied into production textures.
 

@@ -322,6 +322,7 @@ namespace DeltaV
         {
             public int version;
             public HashSet<IntVec3> cells;
+            public Vector2? center;
         }
 
         private static readonly Dictionary<Map, Dictionary<int, CachedDomain>> domainCache =
@@ -368,7 +369,12 @@ namespace DeltaV
         /// <summary>控制域包围盒中心（连续 Map 坐标）。口袋图居中放置时即口袋几何中心。</summary>
         public static Vector2 HullCenter(Ship ship)
         {
-            return SpaceTransform.BoundsCenterOfCells(ControlDomain(ship));
+            var cells = ControlDomain(ship);
+            // Same domain entry, version and Map lifetime; never cache a moving universe pose.
+            if (ship.IsValid && domainCache.TryGetValue(ship.map, out var owners)
+                && owners.TryGetValue(ship.ownerId, out var cached) && ReferenceEquals(cells, cached.cells))
+                return cached.center ?? (cached.center = SpaceTransform.BoundsCenterOfCells(cells)).Value;
+            return SpaceTransform.BoundsCenterOfCells(cells);
         }
 
         /// <summary>船帧相对所在地图帧的朝向 σ：主台 East ⇔ 0（主台朝向定义船头，§3.2）。</summary>

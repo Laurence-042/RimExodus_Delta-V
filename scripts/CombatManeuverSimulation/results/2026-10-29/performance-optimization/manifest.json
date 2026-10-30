@@ -1,0 +1,108 @@
+{
+  "baseline_commit": "d2587ae",
+  "baseline_dll_sha256": "31e8d2112a66c92b1d3c761b60ae58522531b3a86666c48fa934c7d12f07a049",
+  "optimized_dll_sha256": "cbe716e0743ff19d4f040a194cb0522d17a4ff618dfcc33786298850b7fef9a6",
+  "runtime": "NET 8; DOTNET_TieredCompilation=0 for final timing; no game launched",
+  "large_hull_fixture": "50x36 connected foundation cells on 60x60 map; production FoundationShip; four cooling fixed guns; 24 windows of 60 ticks, first 4 warm, last structural invalidation; 19 hot windows. Three alternating runs.",
+  "limitations": "Background CPU variability is large. Inclusive child stages must not be summed. These are offline costs, not FPS/TPS or a pass of the historical 1.25x pre-expansion gate. Large fixture does not time MPC, real firing, rendering or damage.",
+  "large_medians": [
+    {
+      "ships": 1,
+      "before_fire_mean_ms_per_second": 10.7718,
+      "before_fire_p95_ms_per_second": 19.8744,
+      "before_rebuild_ms": 15.745,
+      "after_fire_mean_ms_per_second": 1.1394,
+      "after_fire_p95_ms_per_second": 1.7669,
+      "after_rebuild_ms": 2.1749,
+      "mean_reduction_percent": 89.42238066061383
+    },
+    {
+      "ships": 4,
+      "before_fire_mean_ms_per_second": 62.7755,
+      "before_fire_p95_ms_per_second": 96.4401,
+      "before_rebuild_ms": 35.2515,
+      "after_fire_mean_ms_per_second": 5.8037,
+      "after_fire_p95_ms_per_second": 13.5333,
+      "after_rebuild_ms": 8.2763,
+      "mean_reduction_percent": 90.75483269746955
+    },
+    {
+      "ships": 12,
+      "before_fire_mean_ms_per_second": 411.9117,
+      "before_fire_p95_ms_per_second": 635.7383,
+      "before_rebuild_ms": 720.629,
+      "after_fire_mean_ms_per_second": 34.7989,
+      "after_fire_p95_ms_per_second": 50.2457,
+      "after_rebuild_ms": 50.324,
+      "mean_reduction_percent": 91.55185443870616
+    },
+    {
+      "ships": 24,
+      "before_fire_mean_ms_per_second": 1705.2884,
+      "before_fire_p95_ms_per_second": 2237.1288,
+      "before_rebuild_ms": 988.8901,
+      "after_fire_mean_ms_per_second": 138.2906,
+      "after_fire_p95_ms_per_second": 153.6197,
+      "after_rebuild_ms": 197.5276,
+      "mean_reduction_percent": 91.89048609021208
+    }
+  ],
+  "traces": [
+    {
+      "kind": "large-decisions",
+      "before_sha256": "72969e2f482eaf8a1f6fdc62714413d9404ddb3f1971a4cf2f8680536079ef2e",
+      "after_sha256": "72969e2f482eaf8a1f6fdc62714413d9404ddb3f1971a4cf2f8680536079ef2e",
+      "identical": true,
+      "lines": 984
+    },
+    {
+      "kind": "final-decisions",
+      "before_sha256": "76bd29ed67cee7f060287755ae5c08830aa323a29674b533137e880d4f69ff3a",
+      "after_sha256": "76bd29ed67cee7f060287755ae5c08830aa323a29674b533137e880d4f69ff3a",
+      "identical": true,
+      "lines": 1968
+    },
+    {
+      "kind": "trajectory-automatic turret ship.bin",
+      "before_sha256": "59e07cd55094b891e528d00f0f665d198110945c92afe874a28aed16c4bf4916",
+      "after_sha256": "59e07cd55094b891e528d00f0f665d198110945c92afe874a28aed16c4bf4916",
+      "identical": true,
+      "bytes": 134400,
+      "position_encoding": "three double direction components; remaining state floats/int"
+    },
+    {
+      "kind": "trajectory-fixed-gun hold range.bin",
+      "before_sha256": "78bd6694aace3a57be2b60d3ab3c0396ef60dc6f9ceefe3bba9b3fe257bf10e0",
+      "after_sha256": "78bd6694aace3a57be2b60d3ab3c0396ef60dc6f9ceefe3bba9b3fe257bf10e0",
+      "identical": true,
+      "bytes": 134400,
+      "position_encoding": "three double direction components; remaining state floats/int"
+    },
+    {
+      "kind": "trajectory-quarter acceleration turret ship.bin",
+      "before_sha256": "ff0391dd030362410a27f069c55080efae2a4971fc3fa69f39fb68d355bcda82",
+      "after_sha256": "ff0391dd030362410a27f069c55080efae2a4971fc3fa69f39fb68d355bcda82",
+      "identical": true,
+      "bytes": 134400,
+      "position_encoding": "three double direction components; remaining state floats/int"
+    },
+    {
+      "kind": "trajectory-two ships tracking each other.bin",
+      "before_sha256": "a01ac3e12a7958ff53549e0880beaded40286510013855208476d206cd5bfd56",
+      "after_sha256": "a01ac3e12a7958ff53549e0880beaded40286510013855208476d206cd5bfd56",
+      "identical": true,
+      "bytes": 268800,
+      "position_encoding": "three double direction components; remaining state floats/int"
+    }
+  ],
+  "source_sha256": {
+    "Source/Core/ShipRegistry.cs": "cb427332558d14b043b87e84ec541228b09fbb34c7584ad1e172659b34eb360e",
+    "Source/Core/SpaceTransform.cs": "361fb839290ac5d3611fbd9684ff2910db0cd0e45766896cd2f280e54fb82c44",
+    "Source/Interaction/ShipFireControl.cs": "d7d7847975827847eaaec5f203ec4ef42775a5db1a9dcfe99089d298b3de0ebd",
+    "Source/Interaction/ShipAutoCombat.Tactics.cs": "aaf57c16b68219021c338cb87fed3ba0cf2a62f981c8c880b060f4023b393938",
+    "scripts/NpcRetreatRegression/CombatPerformanceChecks.cs": "ca44b18b6a046591a01a521af105beb2442bf3e1a73967ecc3b96e2c1e8ed784",
+    "scripts/CombatManeuverSimulation/TacticProbe.cs": "a2914e33db89290efa8aac9434bec5e9a3117b5a78098b1d24e43a20dfd35e7f"
+  },
+  "motion_baseline_directory": "Source/obj/CombatOptimizationMotionBaseline",
+  "regression_checks": 1252
+}

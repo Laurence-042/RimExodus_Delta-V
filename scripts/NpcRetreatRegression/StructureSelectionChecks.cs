@@ -48,6 +48,21 @@ internal static partial class Program
             var main = new HashSet<IntVec3> { console.parent.Position };
             var debris = new HashSet<IntVec3> { new IntVec3(3, 0, 1), new IntVec3(3, 0, 2), new IntVec3(3, 0, 3) };
             Deck(2610, main.Concat(debris).ToArray());
+            Vector2 centerBefore = console.Vessel.HullCenter;
+            Check(centerBefore == SpaceTransform.BoundsCenterOfCells(ShipRegistry.ControlDomain(console.Ship))
+                && centerBefore == console.Vessel.HullCenter, "hull center warm query uses the current connected domain");
+            var bridge = new IntVec3(2, 0, 2);
+            Deck(2610, bridge);
+            Check(console.Vessel.HullCenter != centerBefore && console.Vessel.HullCenter
+                == SpaceTransform.BoundsCenterOfCells(ShipRegistry.ControlDomain(console.Ship)),
+                "structure-version change refreshes cached center after hull expansion");
+            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(bridge)] = null;
+            SubstructureOwnership.BumpStructureVersion();
+            Check(console.Vessel.HullCenter == centerBefore, "severed foundation immediately restores main-domain center");
+            ShipRegistry.Forget(map);
+            Check(console.Vessel.HullCenter == centerBefore, "map forget rebuilds domain and center together");
+            ShipRegistry.ClearCaches();
+            Check(console.Vessel.HullCenter == centerBefore, "new-game cache reset rebuilds the same center");
             var shipId = new DriveSubject(0, 2610);
             ShipStatusPanel.SelectStructure(map, shipId);
             var followMain = new ShipFlightTransitionService.SplitSelection(map, shipId);

@@ -183,11 +183,11 @@ internal static partial class Program
 
     static ushort testDefHash = 100;
 
-    static Map TestMap(int id)
+    static Map TestMap(int id, int width = 5)
     {
         var map = (Map)Raw(typeof(Map));
         map.uniqueID = id;
-        map.info = new MapInfo { Size = new IntVec3(5, 1, 5), parent = (ShipPocketParent_DeltaV)Raw(typeof(ShipPocketParent_DeltaV)) };
+        map.info = new MapInfo { Size = new IntVec3(width, 1, width), parent = (ShipPocketParent_DeltaV)Raw(typeof(ShipPocketParent_DeltaV)) };
         map.cellIndices = new CellIndices(map);
         map.components = new List<MapComponent> { new SubstructureOwnership(map) };
         map.terrainGrid = new TerrainGrid(map);

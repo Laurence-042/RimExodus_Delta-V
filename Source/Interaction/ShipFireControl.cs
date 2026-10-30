@@ -205,7 +205,10 @@ namespace DeltaV
             var enemies = new List<ShipBase>();
             foreach (SpaceObject container in universe.objects)
                 foreach (ShipBase member in Candidates(ship, own, container)) enemies.Add(member);
-            enemies = enemies.OrderBy(e => OrbitSphere.ArcCells(own.pose.position, ShipRegistry.ShipPose(e).position)).Take(64).ToList();
+            // Assignment only reads the world. Share current poses within this call, never across ticks.
+            var enemyPoses = new Dictionary<DriveSubject, SpacePose>();
+            foreach (var enemy in enemies) enemyPoses[enemy.Identity] = ShipRegistry.ShipPose(enemy);
+            enemies = enemies.OrderBy(e => OrbitSphere.ArcCells(own.pose.position, enemyPoses[e.Identity].position)).Take(64).ToList();
             var enemyIds = new HashSet<DriveSubject>(enemies.Select(e => e.Identity));
             var weaponIds = new HashSet<int>(ship.Weapons.Select(w => w.parent.thingIDNumber));
             foreach (var key in fireRuleState.Keys.Where(k => !enemyIds.Contains(k.enemy) || !weaponIds.Contains(k.weapon)).ToList()) fireRuleState.Remove(key);
@@ -235,7 +238,7 @@ namespace DeltaV
                 WeaponAimInfo aim = SpaceWeaponService.AimInfo(weapon, own);
                 foreach (ShipBase member in enemies)
                 {
-                    SpacePose enemyPose = ShipRegistry.ShipPose(member);
+                    SpacePose enemyPose = enemyPoses[member.Identity];
                     if (hasQueued && queuedTarget.Ship == member.Identity && queuedTarget.TryResolve(universe, out var queuedPart))
                         enemyPose = queuedPart.Pose;
                     CombatStrategyContext context = facts.Context(member, weapon);

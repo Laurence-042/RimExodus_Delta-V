@@ -8,6 +8,13 @@ internal static partial class Program
 {
     static void CheckCombatExpansion()
     {
+        foreach (var cells in new[] { Array.Empty<Verse.IntVec3>(), new[] { new Verse.IntVec3(-7, 0, -3) },
+            new[] { new Verse.IntVec3(-4, 0, -8), new Verse.IntVec3(6, 0, 3), new Verse.IntVec3(1, 0, -4) } })
+        {
+            var expected = Verse.CellRect.FromCellList(new System.Collections.Generic.List<Verse.IntVec3>(cells)).CenterVector3;
+            Check(SpaceTransform.BoundsCenterOfCells(cells) == new Vector2(expected.x, expected.z),
+                "bounds center preserves vanilla empty/negative/mixed coordinate semantics");
+        }
         CombatStrategyContext Shield(float shield) => new CombatStrategyContext(1, 1, shield, 0,
             float.NaN, float.NaN, float.NaN, float.NaN, float.NaN, float.NaN, float.NaN);
         var rule = new CombatStrategyRule { name = "shield hold" };

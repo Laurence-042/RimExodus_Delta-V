@@ -1,0 +1,1256 @@
+Microsoft(R) Visual C# 编译器 版本 4.11.0-3.24554.2 (bc1c3011)
+版权所有(C) Microsoft Corporation。保留所有权利。
+
+PASS real sphere geometry enabled
+PASS bounds center preserves vanilla empty/negative/mixed coordinate semantics
+PASS bounds center preserves vanilla empty/negative/mixed coordinate semantics
+PASS bounds center preserves vanilla empty/negative/mixed coordinate semantics
+PASS shield rule enters at 25%, retains below 50%, then releases
+PASS higher priority rule preempts a hysteresis latch
+PASS missing target and weapon facts cannot masquerade as zero cooldown or distance
+PASS format 3 XML preserves target/fire actions, bearing, selectors and release thresholds
+PASS deserialized selectors are independent per ship
+PASS format 2 import is rejected without replacing configuration
+PASS fixed bearing plus continuous circle is rejected atomically
+PASS enemy-relative bearing follows enemy nose rather than own facing
+PASS world-relative bearing ignores enemy rotation
+PASS trajectory refresh does not resample the 5–10 second timer; zero thrust invents no displacement
+PASS infeasible pose requests a stationary safe reference without changing configuration
+PASS combat reference converts hull center to map origin through the shared rigid-point transform
+PASS cooling fixed gun retains useful range and exact muzzle-offset lead heading
+PASS side-mounted battery selects a broadside attack pose
+PASS turret-only automatic tactic selects repositioning in weapon range
+PASS player tactic overrides automatic range and heading
+PASS maneuver-only mode keeps a useful range without an offensive heading requirement
+PASS explicit rising distance curve continues opening beyond weapon range
+PASS automatic turn direction persists while an explicit direction overrides it
+PASS tactic copies remain per-ship independent
+PASS production XML preserves per-rule tactic parameters
+PASS invalid tactic import preserves current strategy
+PASS real per-building Scribe reload preserves independent tactics, instance 0
+PASS Scribe preserves target rules, hold fire, selectors, hysteresis and weapon coverage, instance 0
+PASS real per-building Scribe reload preserves independent tactics, instance 1
+PASS Scribe preserves target rules, hold fire, selectors, hysteresis and weapon coverage, instance 1
+PASS production default distance curve rewards re-entering combat
+PASS production weapon-impact curve distinguishes near-term fire
+PASS default incoming curve distinguishes heavy volleys beyond ordinary firepower
+PASS custom distance curve can explicitly prefer continued separation
+PASS production curve copies keep each ship's points independent
+PASS invalid imported curve leaves selected console strategy intact
+PASS weapon threat falls only when real lateral displacement clears the target width
+PASS weapon risk follows the reachable firing arc
+PASS main thrust becomes a real dodge axis after rotating the hull
+PASS turning the main engines across the firing line increases real lateral capability
+PASS closed log: doubled stale GUI coordinates cannot classify a live map cursor as bottom bar
+PASS open log: real map cursor retains firing despite stale coordinates over log
+PASS actual mouse entry into log window still cancels firing
+PASS leaving a real UI obstruction does not re-arm a held button
+PASS fresh map press re-arms after leaving log
+PASS map cursor stays clear at UI scale 1
+PASS real bottom bar blocks at UI scale 1
+PASS map cursor stays clear at UI scale 1.5
+PASS real bottom bar blocks at UI scale 1.5
+PASS map cursor stays clear at UI scale 2
+PASS real bottom bar blocks at UI scale 2
+PASS modal input blocking remains effective away from window
+PASS intercept exists: source (0.00, 0.00), target (0.00, 20.00), muzzle (0.00, 0.00)
+PASS production launch accepts corrected intercept direction
+PASS actual inherited launch velocity meets the moving target within 0.1 cell
+PASS intercept exists: source (0.00, 0.00), target (0.00, 20.00), muzzle (15.00, -8.00)
+PASS production launch accepts corrected intercept direction
+PASS actual inherited launch velocity meets the moving target within 0.1 cell
+PASS intercept exists: source (0.00, 30.00), target (0.00, 30.00), muzzle (0.00, 0.00)
+PASS production launch accepts corrected intercept direction
+PASS actual inherited launch velocity meets the moving target within 0.1 cell
+PASS intercept exists: source (0.00, 30.00), target (0.00, 30.00), muzzle (15.00, -8.00)
+PASS production launch accepts corrected intercept direction
+PASS actual inherited launch velocity meets the moving target within 0.1 cell
+PASS intercept exists: source (0.00, 30.00), target (0.00, 0.00), muzzle (0.00, 0.00)
+PASS production launch accepts corrected intercept direction
+PASS actual inherited launch velocity meets the moving target within 0.1 cell
+PASS intercept exists: source (0.00, 30.00), target (0.00, 0.00), muzzle (15.00, -8.00)
+PASS production launch accepts corrected intercept direction
+PASS actual inherited launch velocity meets the moving target within 0.1 cell
+PASS intercept exists: source (0.00, 30.00), target (0.00, -20.00), muzzle (0.00, 0.00)
+PASS production launch accepts corrected intercept direction
+PASS actual inherited launch velocity meets the moving target within 0.1 cell
+PASS intercept exists: source (0.00, 30.00), target (0.00, -20.00), muzzle (15.00, -8.00)
+PASS production launch accepts corrected intercept direction
+PASS actual inherited launch velocity meets the moving target within 0.1 cell
+PASS intercept exists: source (40.00, 0.00), target (-20.00, 10.00), muzzle (0.00, 0.00)
+PASS production launch accepts corrected intercept direction
+PASS actual inherited launch velocity meets the moving target within 0.1 cell
+PASS intercept exists: source (40.00, 0.00), target (-20.00, 10.00), muzzle (15.00, -8.00)
+PASS production launch accepts corrected intercept direction
+PASS actual inherited launch velocity meets the moving target within 0.1 cell
+PASS a receding target faster than the projectile has no intercept
+PASS different existing weapon assignments share one group command
+PASS merged weapons do not open individual float menus
+PASS one Secondary 1 menu choice updates both selected weapons and skips a removed weapon
+PASS the captured menu selection can assign Main 6 to all surviving members
+PASS a weapon captured while the menu is open cannot be reassigned
+PASS installed game's chosen aim input hook follows UI windows and precedes the right-click shortcut
+PASS both aim click Harmony targets resolve against the installed game
+PASS ordinary and single-building ships share ShipBase enumeration
+PASS mixed container exposes both member factions and the Ship role
+PASS multiple members produce one player reference object
+PASS parked shuttle membership cannot drive its host container
+PASS typed registry identities distinguish a hull ID equal to a foundation owner ID
+PASS both ship implementations use the same persistent controller registry without ID aliasing
+PASS default selection and world marker enumeration include the player shuttle
+PASS sidebar selection resolves the typed ship identity
+PASS intrinsic shuttle weapons belong to the shuttle rather than the host foundation ship
+PASS hull safety checks allow a console-free intrinsic weapon without foundation ownership
+PASS command-local placement retains shuttle identity and its sole integer landing root
+PASS whole-map EVA capture consumes the exact registered landing grid without re-rounding
+PASS common worksite inverts the frozen placement exactly in the initiating ship grid
+PASS reverse whole-map capture keeps initiating ship orientation for all four grid angles
+PASS whole-map EVA capture consumes the exact registered landing grid without re-rounding
+PASS common worksite inverts the frozen placement exactly in the initiating ship grid
+PASS reverse whole-map capture keeps initiating ship orientation for all four grid angles
+PASS whole-map EVA capture consumes the exact registered landing grid without re-rounding
+PASS common worksite inverts the frozen placement exactly in the initiating ship grid
+PASS reverse whole-map capture keeps initiating ship orientation for all four grid angles
+PASS whole-map EVA capture consumes the exact registered landing grid without re-rounding
+PASS common worksite inverts the frozen placement exactly in the initiating ship grid
+PASS reverse whole-map capture keeps initiating ship orientation for all four grid angles
+PASS whole-map EVA capture consumes the exact registered landing grid without re-rounding
+PASS common worksite inverts the frozen placement exactly in the initiating ship grid
+PASS reverse whole-map capture keeps initiating ship orientation for all four grid angles
+PASS whole-map EVA capture consumes the exact registered landing grid without re-rounding
+PASS common worksite inverts the frozen placement exactly in the initiating ship grid
+PASS reverse whole-map capture keeps initiating ship orientation for all four grid angles
+PASS whole-map EVA capture consumes the exact registered landing grid without re-rounding
+PASS common worksite inverts the frozen placement exactly in the initiating ship grid
+PASS reverse whole-map capture keeps initiating ship orientation for all four grid angles
+PASS whole-map EVA capture consumes the exact registered landing grid without re-rounding
+PASS common worksite inverts the frozen placement exactly in the initiating ship grid
+PASS reverse whole-map capture keeps initiating ship orientation for all four grid angles
+PASS whole-map EVA capture consumes the exact registered landing grid without re-rounding
+PASS common worksite inverts the frozen placement exactly in the initiating ship grid
+PASS reverse whole-map capture keeps initiating ship orientation for all four grid angles
+PASS whole-map EVA capture consumes the exact registered landing grid without re-rounding
+PASS common worksite inverts the frozen placement exactly in the initiating ship grid
+PASS reverse whole-map capture keeps initiating ship orientation for all four grid angles
+PASS whole-map EVA capture consumes the exact registered landing grid without re-rounding
+PASS common worksite inverts the frozen placement exactly in the initiating ship grid
+PASS reverse whole-map capture keeps initiating ship orientation for all four grid angles
+PASS whole-map EVA capture consumes the exact registered landing grid without re-rounding
+PASS common worksite inverts the frozen placement exactly in the initiating ship grid
+PASS reverse whole-map capture keeps initiating ship orientation for all four grid angles
+PASS common fire control and weapon group state is anchored independently on each ship
+PASS single-building member keeps ship identity without a main console
+PASS captured shuttle receives full NPC tactical AI through the shared controller service
+PASS controller authority replacement does not evict the ship identity index
+PASS losing the player member immediately removes the reference
+PASS stale environment faction cannot override actual ship members
+PASS launched shuttle can drive its own container
+PASS primary driver resolves a console-free ship with its typed identity
+PASS automatic fire accepts an enemy shuttle as a Ship target
+PASS stale hostile environment faction cannot override a friendly ship member
+PASS archived shuttle dynamics retain typed identity and reject an equal numeric foundation ID
+PASS intrusion adds projectile behavior while preserving player ship membership and persistence
+PASS POI distance uses the solo shuttle container position
+PASS ordinary projectiles are excluded and the reference enumeration is a stable snapshot
+PASS archived member affiliation retains ship identity without a live map
+PASS live and archived mixed factions share hostility and cannot masquerade as a single-faction home
+PASS restoration reads actual ship members instead of the archived affiliation summary
+PASS hull interface supplies the cached Shuttle PD role without a special object type
+PASS repeated point-defense filters read object tags without rescanning ships
+PASS default shuttle exposes an empty weapon capability
+PASS repeated identity and weapon queries reuse member discovery and equipment caches
+PASS shuttle supplies its body and terrain policy; compact sizing is shared by all ships
+PASS shuttle transfer holds the common lifecycle gate until source cleanup
+PASS cleared transfer releases the common lifecycle gate
+PASS object physics consumes the hull XML layout with its actual frame and asymmetric forces
+PASS archive captures the same provider layout used by live object physics
+PASS structure invalidation rebuilds provider propulsion instead of retaining a stale virtual array
+PASS mod-added hull weapon reaches both object aggregation and the shared ship fire-control entry
+PASS hull sharing a host cannot drive it or mark the host as a Shuttle PD target
+PASS shared collision surface merges subclass geometry and unowned environmental buildings once
+PASS host removal refreshes driver eligibility and object role and propulsion caches together
+PASS foundation ships retain Ship role and are excluded from point-defense targets
+PASS foundation transfer provider supplies its console and ownership through the same contract
+PASS structural snapshot conversion preserves the common vessel adapter and its caches
+PASS foundation provider exposes only its installed thruster and preserves the real power limit
+PASS cross-map transfer replaces the stale foundation snapshot while preserving its identity
+PASS lifecycle fixture warms empty membership caches before hull spawn
+PASS spawn reconciliation invalidates prewarmed membership before registering the ship controller
+PASS parked ship retains intrinsic weapons and combat state without driving its host
+PASS departure and deferred despawn reconciliation preserve controller and resolve the new container
+PASS departure refreshes source and destination tags and weapon caches immediately
+PASS old-map cleanup cannot evict the controller that already followed its ship
+PASS docking removes the old flight role and rejects driving the destination host
+PASS docking preserves the ship controller, fire-control mode and weapon groups
+PASS source flight-map cleanup preserves the docked ship controller
+PASS concurrent ordinary and intrusion completions retain the gate until every source is cleaned
+PASS last source completion releases the shared transition gate
+PASS destroyed or removed hull releases identity, controller, role and weapon membership
+PASS load-style spawn reconstructs runtime adapters and controllers from the persisted identity
+PASS already flying shuttle neither exposes nor executes another launch
+PASS queued intrusion cannot substitute a restored hull for the original impact body
+PASS runtime reset drops ship controllers
+PASS load rebuild recreates controllers and derived tags from live map members
+PASS foundation lifecycle warms both containers before member changes
+PASS mixed foundation and shuttle members retain typed identities and do not tag their carrier for PD
+PASS two independent foundation ships sharing a map require separation before driving
+PASS foundation transfer uses the existing console, ownership and terrain contract
+PASS equal numeric foundation and hull IDs cannot alias weapon ownership
+PASS foundation transfer invalidates the old Map snapshot and rebuilds the same identity
+PASS active foundation pilot follows the replacement snapshot through the shared binding entry
+PASS queued separation cannot follow a moved ship while its old source container still exists
+PASS carried shuttle does not become a second driver or leave stale source membership
+PASS carried hull controller and weapons follow independently of the foundation owner
+PASS old-map cleanup removes its resident controller while retaining both relocated identities
+PASS docking follows current identities, preserves anchor combat state and clears source roles
+PASS real Scribe roundtrip preserves console identity, main claim and independent combat state
+PASS real main-console destruction and succession retain the controller and refresh its pilot snapshot
+PASS delayed old-console despawn reconciliation cannot remove the successor or equal-ID shuttle
+PASS loss of the last main console cleans only that foundation ship, preserving the carried shuttle
+PASS load-style rebuild restores both typed identities without reusing old controllers or manual sessions
+PASS voluntary last-primary demotion removes its valid ship and controller without choosing a successor
+PASS an invalidated foundation ShipBase delegates no sidebar driving actions
+PASS Scribe retains explicit backup state including unassigned identity
+PASS foundation and support event postfixes bind to installed RimWorld signatures
+PASS single clean ship stays in its current container
+PASS unassigned detached foundation does not force ship extraction
+PASS foreign wreck ownership does not force extraction either
+PASS worksite always extracts the ship to a compact map
+PASS natural ground beside the ship preserves the host
+PASS natural-ground reads reuse the structure-version cache
+PASS terrain structure invalidation refreshes the host decision
+PASS artificial flooring is not asteroid ground
+PASS other valid ship requires extraction even without thrusters
+PASS carried shuttle and backup console do not become independent host ships
+PASS residuals stop this tick's thrust and queue one separation
+PASS repeated requests cannot duplicate a pending separation
+PASS failed second transfer leaves only the unresolved block in the source
+PASS unresolved block continues to block thrust
+PASS retry moves only the remaining block then releases the thrust gate
+PASS residual separation preserves the main ship Map, container and absolute motion
+PASS loose cargo without fragments uses scatter, not extraction or immediate thrust
+PASS failed scatter keeps loose cargo from moving with the ship
+PASS cargo registration adds an unsupported item to the per-map index
+PASS support change removes the indexed loose cargo without a map scan
+PASS losing support restores the loose cargo entry
+PASS cargo deregistration clears the per-map index
+PASS foundation change invalidates the previously clean split conclusion
+PASS new residual is transferred once and the clean result is reused
+PASS intact hostile foundation ship is an automatic target
+PASS automatic target produces a volley intent
+PASS locked volley immediately follows the console-connected hull instead of same-map debris
+PASS lead marker anchor and volley target use the same current hull point
+PASS off-center rotating hull contributes rigid point velocity to shared intercept prediction
+PASS powerless hostile hull remains attackable independently of friendly member thrust
+PASS NPC selection and diagnostics retain stationary targets through the shared gate
+PASS mixed-map selection includes both hostile members regardless of propulsion
+PASS hostile environment affiliation and remaining engines cannot turn console-free debris into a target
+PASS valid replacement primary restores target eligibility
+PASS automatic lock is seeded before target separation
+PASS ship system target resolves its current rigid point
+PASS missing part invalidates its runtime lock so fire control and queues reselect
+PASS free aim has a position but no implicit guidance lock
+PASS manual ray lock records the enemy ship inside the nearest intersected container
+PASS guided shot preparation never acquires a target when request explicitly has no lock
+PASS read-only aim capability agrees with prepared projectile, muzzle and speed
+PASS manual 180-degree fixed-axis fire ignores a cursor behind the weapon and keeps its mounting axis
+PASS automatic fixed-axis fire still checks target range
+PASS manual fire ignores both minimum and maximum mouse distances at a narrow angle
+PASS narrow manual deviation still requires the mouse direction to match the fixed axis
+PASS failed shot preparation preserves cooldown and does not commit costs
+PASS shot rejects a stale container after the weapon has moved to another map
+PASS guided projectile launches with an explicit ship identity
+PASS in-flight guidance resolves the original ship container
+PASS powerless ship retains automatic, manual and in-flight target eligibility
+PASS already launched missile still turns toward the ship after all propulsion is lost
+PASS ship target follows separation to the new container without acquiring debris
+PASS old-map cleanup preserves automatic and in-flight locks on a ship already moved to a new map
+PASS player boarding retains the explicitly chosen container-local landing point
+PASS in-flight missile follows the same ship into its new container
+PASS boarding collision restriction follows the same resolved container used by guidance
+PASS maneuver sampler consumes the same current ship pose as guidance and fire control
+PASS primary succession rebinds the existing controller session without dropping an attacker's ship lock
+PASS same-identity main-console succession preserves the combat target
+PASS lost ship identity clears guidance and preserves the current flight direction
+PASS a missile never reacquires a ship after its prescribed identity became unavailable
+PASS second missile launches for map-unload cleanup regression
+PASS target map unloading immediately clears the in-flight handle and same-tick resolution cache
+PASS target invalidation disables an already submitted boarding sweep instead of allowing it to hit another ship
+PASS map-unloaded projectile never reacquires the still-resolvable identity
+PASS boarding target loss during collision preparation safely releases the shuttle without mutating a foreach
+PASS container-target missile launches for removal cleanup regression
+PASS container removal invalidates a cached guidance target in the same tick
+PASS wreck-target missile launches for archive cleanup regression
+PASS manual wreck lock clears even when archive replacement detached the old map before cleanup
+PASS manual ray locking can still select console-free debris in the nearest container
+PASS manual ray miss remains unlocked
+PASS weapon components and weapon service no longer own tactical target state or selection
+PASS point defense prioritizes an approaching projectile over a nearer receding candidate
+PASS two point-defense laser hits do not prematurely abandon a 25 HP missile
+PASS a missile with three assigned laser hits gives another target the next weapon
+PASS when every reachable threat is covered, point defense keeps a fallback target
+PASS point defense falls back to the nearest target when none is approaching
+PASS point defense does not require a ship or propulsion
+PASS point-defense lock becomes invalid immediately when its object is removed
+PASS point defense never selects a friendly projectile
+PASS first aim query builds the shared connection layout once
+PASS subsequent exact aim queries reuse the same connection layout
+PASS two hostile ships in one container are separate automatic candidates
+PASS fixed-axis weapon acquires a target within its lock arc before the hull aligns
+PASS automatic cooled turret advances on every tick while its lead is refreshed sparsely
+PASS equal candidate scores use stable ship identity rather than member order
+PASS maneuver weapon-group conditions read the actual cooling gun
+PASS an empty weapon group never passes an all-weapons condition
+PASS hold fire prevents a ready gun from launching even with a queued part command
+PASS per-weapon shortened range gates assignment and the shared aiming information
+PASS custom range cannot expand hardware capability
+PASS custom arc shares the hardware coverage predicate
+PASS fixed aim direction overrides tracking without widening hardware
+PASS manual engineering emitter ignores automatic combat aiming and firing
+PASS manual engineering emitter still consumes the existing player volley command
+PASS engineering emitter does not count as NPC combat firepower
+PASS per-member hull durability changes the score instead of using whole-map durability
+PASS unowned same-map debris cannot contaminate either ship score
+PASS periodic reassessment switches to a substantially better target
+PASS unchanged scores preserve the newly selected target
+PASS cached target hostility loss reselects another enemy in the same combat tick
+PASS mixed-faction map selects and previews only its eligible hostile member
+PASS propulsion loss preserves attackable hull and lead markers
+PASS engineering emitter cannot acquire a point-defense lock
+PASS point defense owns a per-weapon lock and turns the weapon during cooldown
+PASS point defense retains a valid lock while turning during cooldown
+PASS point defense retains a valid lock after the old 30-tick reselection deadline
+PASS point defense immediately replaces a lock that becomes friendly in the same tick
+PASS friendly projectiles and friendly shuttle do not keep interception weapons awake
+PASS a new hostile candidate wakes point defense in the same tick
+PASS weapon mode changes immediately discard fire-control point-defense state
+PASS target map unloading clears point-defense locks owned by another ship
+PASS point-defense cleanup also releases a target whose mapped representation has already been replaced
+PASS weapon removal clears its point-defense lock through the existing unregister event
+PASS standalone weapon faction change releases only its lock without replacing the ship controller
+PASS changing weapon ship identity discards the previous owner's point-defense lock
+PASS controller disposal and game reset clear all point-defense target state
+PASS three point-defense weapons share one hostile-object filter when acquiring targets (candidate=True, factions=1, searches=3, aims=3)
+PASS all weapons keep valid targets beyond the old periodic reselection deadline (searches=0, registered=True)
+PASS no hostile candidates returns before per-weapon aiming or searching
+PASS out-of-range weapons record an empty lock from the shared candidates
+PASS empty locks wait for their retry deadline instead of searching every tick
+PASS stable manual input reuses allocation for 120 ticks with one live power read per execution
+PASS reused allocation keeps integrating real thrust and retaining actual throttle
+PASS a second drive in the same tick neither rereads power nor integrates twice
+PASS power loss invalidates a held allocation before this tick's thrust
+PASS execution rechecks a power change even after a drive view was read in the same tick
+PASS changed input immediately replaces the cached allocation
+PASS manual input and equivalent autopilot force share the same command and allocation cache
+PASS numeric previews consume the prepared report without repeating state reads or changing actual output
+PASS cached drive cannot bypass the current separation authorization
+PASS resuming after denied thrust rebuilds its allocation
+PASS a rebuilt rigid-body report invalidates the allocation even with the same numeric version
+PASS drive cancellation invalidates held output before resumption
+PASS zero input stops thrust through the same allocation path
+PASS twelve simulation ticks in one render frame share one input sample
+PASS new render frames sample once even without advancing game ticks
+PASS map changes invalidate input within the same frame
+PASS GUI changes invalidate input within the same frame
+PASS focus loss invalidates input within the same frame
+PASS session disposal clears input sampling state
+PASS 120 manual aim-only commands never query magazines, energy, connections or shot preparation
+PASS aim-only commands still advance the real turret every game tick
+PASS manual fire during cooldown keeps pointing without preparing a shot
+PASS shared weapon query produces a lead for a moving target
+PASS an intercept beyond weapon range falls back to the current enemy position
+PASS automatic cooldown pointing uses exactly the same lead as manual preview
+PASS repeated ballistic queries reuse one structural connection model
+PASS a structural change invalidates weapon topology immediately
+PASS missing ammunition rejects a triggered command without starting a firing transaction or cooldown
+PASS magazine selection chooses priority then the smallest ID
+PASS equal-priority magazines round-robin by ID
+PASS round-robin wraps without choosing lower-priority magazines
+PASS map removal releases the weapon connection model
+PASS real connection tracing builds the ordered two-segment layout
+PASS unchanged structure reuses the same connection layout
+PASS ownership reassignment breaks the chain at the foreign segment
+PASS ownership restoration reconnects the chain
+PASS removing a middle segment disconnects the rest
+PASS rebuilding the missing segment reconnects the original order
+PASS runtime reset reconstructs connections from the current map without saved cache data
+PASS 120 real aim-only volleys validate the full footprint once and dispatch every tick
+PASS cached ownership remains independent of ammo, energy and connection queries
+PASS group disable takes effect without structure changes
+PASS changing salvo set and group immediately uses the new mask without footprint validation
+PASS foreign ownership on the second footprint cell invalidates the whole weapon
+PASS invalid full-footprint conclusions are cached too
+PASS restored ownership re-enables the weapon immediately
+PASS destroyed supporting terrain invalidates full-footprint ownership
+PASS rebuilt support restores ownership
+PASS moving a weapon invalidates its cached footprint
+PASS rotation invalidates its cached footprint
+PASS expired main-console handles cannot keep a cached weapon active
+PASS main-console reconciliation invalidates cached unowned results
+PASS map release drops cached ship and map references
+PASS runtime reset reconstructs current ownership
+PASS hull center warm query uses the current connected domain
+PASS structure-version change refreshes cached center after hull expansion
+PASS severed foundation immediately restores main-domain center
+PASS map forget rebuilds domain and center together
+PASS new-game cache reset rebuilds the same center
+PASS selected enemy follows smaller primary-console side without faction or pilot gating
+PASS another vessel leaving does not steal the station selection
+PASS losing primary console preserves structure selection without redirecting ship shortcuts
+PASS console-less selection follows largest fragment and its newly assigned owner
+PASS equal-size fragments keep the source map
+PASS unassigned foundations can be selected without inventing a persistent owner
+PASS foundation supports an otherwise all-space map
+PASS buildings and filth cannot keep an unsupported map alive
+PASS structure-loss events coalesce into one frame action
+PASS non-space terrain supports a foundation-less map
+PASS deferred recycling rechecks final terrain and preserves restored support
+PASS shuttle remains supported without any terrain or foundation
+PASS projectile role retains its own lifecycle
+PASS projectile fixture registers its identity before destruction or reset
+PASS reset retains projectile identity until its already-pending cleanup runs
+PASS dead projectile plus repeated reset and callback replay recycles exactly once
+PASS stale cleanup cannot touch a reused projectile record with a new identity
+PASS external unregister queues ordinary projectile retirement
+PASS retirement completes even after registry lookup returns null
+PASS orphan fixture has no registered identity before reset
+PASS reset also retires an already-missing container without dereferencing it
+PASS mapped external unregister retains the old map, destroys its body and returns it to the real pool
+PASS reset removes disposed pooled maps and empty pool buckets
+PASS native map-removal notification retires projectile without destroying a body on a disposed map
+PASS reset releases intrusion control and preserves the shuttle for scene-level destruction
+PASS duplicate rebuild request keeps one reset sequence
+PASS reset barrier waits for callbacks queued by earlier callbacks
+PASS nested old-scene cleanup still resolves both identities
+PASS flow shutdown schedules projectile cleanup before deleting old containers
+PASS scene destruction cannot overtake pending projectile cleanup
+PASS old scene destruction follows projectile retirement
+PASS cache reset waits for follow-up disposal callbacks
+PASS old cleanup is exhausted before the rendering-cache reset and native generation stages
+PASS reset gate releases only when steps and frame callbacks are exhausted
+PASS duplicate rebuild request keeps one reset sequence
+PASS reset barrier waits for callbacks queued by earlier callbacks
+PASS nested old-scene cleanup still resolves both identities
+PASS flow shutdown schedules projectile cleanup before deleting old containers
+PASS scene destruction cannot overtake pending projectile cleanup
+PASS old scene destruction follows projectile retirement
+PASS cache reset waits for follow-up disposal callbacks
+PASS old cleanup is exhausted before the rendering-cache reset and native generation stages
+PASS reset gate releases only when steps and frame callbacks are exhausted
+PASS a failed frame action does not discard the remaining cleanup batch
+PASS common pool restores marked maps and accepts empty rentals of different tags
+PASS population cannot return its own busy rental
+PASS tag and size select exact bucket and invoke the new content callback once
+PASS stale lease cannot invoke cleanup on a newly populated map
+PASS return with cargo is rejected without deleting content or losing recovery lease
+PASS owning SpaceObject must be removed before cleanup callback may run
+PASS return is single-use and cannot insert duplicate idle map
+PASS population exception preserves real content and exposes its recovery lease
+PASS failed rental can be recovered explicitly after content handoff
+PASS projectile can reuse idle map after reset snapshot
+PASS old reset callback cannot delete a new rental of the same Map
+PASS later rental can return normally
+PASS lease for terrain protection scenario is available
+PASS return rejects remaining terrain even when no Things remain
+PASS reset applies the same terrain protection as normal return
+PASS return does not mutate the currently viewed map
+PASS return succeeds after terrain is transferred and focus leaves
+PASS map removal releases buckets and invalidates leases
+PASS pool accepts exact single-row map sizes
+PASS pool accepts exact single-row map sizes
+PASS different sizes under the same tag cannot cross rental buckets
+PASS different sizes under the same tag cannot cross rental buckets
+PASS docking and intrusion share nearest-quarter direction for 30 degrees
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS docking and intrusion share nearest-quarter direction for 50 degrees
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS docking and intrusion share nearest-quarter direction for 60 degrees
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS docking and intrusion share nearest-quarter direction for 45 degrees
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS docking and intrusion share nearest-quarter direction for -45 degrees
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS docking and intrusion share nearest-quarter direction for 135 degrees
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS docking and intrusion share nearest-quarter direction for -60 degrees
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS docking and intrusion share nearest-quarter direction for 170 degrees
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS docking and intrusion share nearest-quarter direction for 390 degrees
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS placement retains vanilla rotation handedness
+PASS single-cell compatibility postfix binds to the actual vanilla GasGrid constructor
+PASS native 1x1 gas construction consumes 0 RNG draws, generating=False
+PASS native gas grid can be reset on the exact map footprint
+PASS native 1x1 gas construction consumes 1 RNG draws, generating=True
+PASS native gas grid can be reset on the exact map footprint
+PASS native building anchor fills exact 1x1 footprint without clipping
+PASS native 2x1 gas construction consumes 1 RNG draws, generating=False
+PASS native gas grid can be reset on the exact map footprint
+PASS native 2x1 gas construction consumes 1 RNG draws, generating=True
+PASS native gas grid can be reset on the exact map footprint
+PASS native building anchor fills exact 2x1 footprint without clipping
+PASS native 3x2 gas construction consumes 1 RNG draws, generating=False
+PASS native gas grid can be reset on the exact map footprint
+PASS native 3x2 gas construction consumes 1 RNG draws, generating=True
+PASS native gas grid can be reset on the exact map footprint
+PASS native building anchor fills exact 3x2 footprint without clipping
+PASS compact rotation includes the complete overhanging building and leaves twelve cells on every side
+PASS four-way map relocation preserves actual cell-center positions
+PASS relocation preserves rigid-point velocity and spin
+PASS registered landing origin agrees with vanilla integer placement at cell centers
+PASS four-way map relocation preserves actual cell-center positions
+PASS relocation preserves rigid-point velocity and spin
+PASS registered landing origin agrees with vanilla integer placement at cell centers
+PASS compact rotation includes the complete overhanging building and leaves twelve cells on every side
+PASS four-way map relocation preserves actual cell-center positions
+PASS relocation preserves rigid-point velocity and spin
+PASS registered landing origin agrees with vanilla integer placement at cell centers
+PASS four-way map relocation preserves actual cell-center positions
+PASS relocation preserves rigid-point velocity and spin
+PASS registered landing origin agrees with vanilla integer placement at cell centers
+PASS compact rotation includes the complete overhanging building and leaves twelve cells on every side
+PASS four-way map relocation preserves actual cell-center positions
+PASS relocation preserves rigid-point velocity and spin
+PASS registered landing origin agrees with vanilla integer placement at cell centers
+PASS four-way map relocation preserves actual cell-center positions
+PASS relocation preserves rigid-point velocity and spin
+PASS registered landing origin agrees with vanilla integer placement at cell centers
+PASS compact rotation includes the complete overhanging building and leaves twelve cells on every side
+PASS four-way map relocation preserves actual cell-center positions
+PASS relocation preserves rigid-point velocity and spin
+PASS registered landing origin agrees with vanilla integer placement at cell centers
+PASS four-way map relocation preserves actual cell-center positions
+PASS relocation preserves rigid-point velocity and spin
+PASS registered landing origin agrees with vanilla integer placement at cell centers
+PASS soft docking cannot transmit before extension completes
+PASS aligned soft docking completes and clamps extension
+PASS brief alignment loss preserves an established portal above release threshold
+PASS portal disconnects before the visual passage fully retracts
+PASS recovery above release threshold does not prematurely reopen an incomplete portal
+PASS retraction never produces negative passage length
+PASS toggle off immediately invalidates soft portals without waiting for a tick
+PASS soft docking disables interpolation when either ship actually uses an engine
+PASS sub-one-cell-per-second motion survives small world units in the real integrator
+PASS sub-one-cell-per-second motion survives small world units in the real integrator
+PASS low-speed integration retains displacement at a million cells per radian
+PASS real Scribe round trip preserves the sole double-precision position and motion
+PASS continued low-speed integration agrees before and after save/load without a residual cache
+PASS switching the draw reference keeps the focused map identity
+PASS relative position survives both draw references within float rendering precision
+PASS relative position survives both draw references within float rendering precision
+PASS switching the draw reference keeps the focused map identity
+PASS relative position survives both draw references within float rendering precision
+PASS relative position survives both draw references within float rendering precision
+PASS switching the draw reference keeps the focused map identity
+PASS relative position survives both draw references within float rendering precision
+PASS relative position survives both draw references within float rendering precision
+PASS switching the draw reference keeps the focused map identity
+PASS relative position survives both draw references within float rendering precision
+PASS relative position survives both draw references within float rendering precision
+PASS switching the draw reference keeps the focused map identity
+PASS relative position survives both draw references within float rendering precision
+PASS relative position survives both draw references within float rendering precision
+PASS switching the draw reference keeps the focused map identity
+PASS relative position survives both draw references within float rendering precision
+PASS relative position survives both draw references within float rendering precision
+PASS switching the draw reference keeps the focused map identity
+PASS relative position survives both draw references within float rendering precision
+PASS relative position survives both draw references within float rendering precision
+PASS switching the draw reference keeps the focused map identity
+PASS relative position survives both draw references within float rendering precision
+PASS relative position survives both draw references within float rendering precision
+PASS repeated focus transforms never rewrite absolute positions or relative angles
+PASS soft pose interpolation converges without overshoot across the angle wrap
+PASS soft pose interpolation adds no acceleration or spin damping
+PASS zero interpolation leaves the authoritative pose untouched
+PASS initiating comp alone owns progress while the opposite port reads its runtime backlink
+PASS load keeps the stored pair inert until soft docking is restored
+PASS real Scribe round trip resumes the same peer's extension without a service mirror
+PASS real Scribe round trip preserves an already connected port
+PASS changing the peer starts a new extension and releases the old backlink
+PASS removing the opposite port clears the initiating comp
+PASS explicitly disabling soft docking clears the port comp immediately
+PASS game component Scribe round trip restores all four play-settings row switches
+PASS new games default all four play-settings row switches to off
+PASS scattered cargo has no collision surface
+PASS scattered registration populates the tractor candidate index
+PASS tractor locks resolve scattered object identity through existing fire control
+PASS production projectile sweep skips scattered cargo entirely
+PASS scattered retirement releases the tractor candidate index
+PASS retired scattered identity cannot resolve a stale tractor lock
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS one reference aligns both crossed guides for every port direction
+PASS soft docking guide reference includes moving-host point velocity and spin
+PASS perturbed soft docking starts inside the capture range
+PASS captured soft docking converges while both ships drift and rotate
+PASS soft docking assist cuts off at capture range and follows inverse-square guide distance
+PASS coincident guides keep a finite interpolation strength
+PASS edge-port capture eases whole-map movement at the outer guide range
+PASS distance loss queues content retirement at the frame boundary
+PASS returning within range cancels queued loss
+PASS lost cargo vanishes through vanilla removal even when its Def is indestructible
+PASS even archive requests destroy lost cargo then unregister and pool the map without an archive
+PASS empty focused scatter map waits for focus loss
+PASS cargo returned before focus-loss cleanup cancels retirement
+PASS focus loss retires an empty scattered map through the existing frame queue
+PASS map setter prefix accepts a valid target while old index is out of range
+PASS invalid target is left to vanilla without reading stale current map
+PASS host map is rejected without reading or changing the stale old index
+PASS map setter postfix tolerates the out-of-range index without reading CurrentMap
+PASS real tractor gate accepts a powered moonpool receiver
+PASS manual tractor finds scattered cargo near the cursor without a collision surface
+PASS manual cursor anchor retains a target as it moves toward the receiver
+PASS power loss cancels the real pull request without moving or losing cargo
+PASS tractor acquisition rejects targets outside its configured range
+PASS high lateral velocity cannot escape: real tractor converges while receiver translates and rotates
+PASS tractor preserves the captured relative angle during receiver rotation
+PASS no refreshed shot means no coordinate correction
+PASS release inherits receiving ship rigid-point motion rather than the original runaway speed
+PASS no vanilla nearby placement retains cargo and pawn on the source map
+PASS tractor collects inside the two-cell radius immediately without waiting for overlap or low relative speed
+PASS vanilla deep-drill Near output places cargo and pawn away from the occupied center and interaction cell
+PASS successful tractor handoff unregisters the empty scattered object and returns its map
+PASS manual tractor finds scattered cargo near the cursor without a collision surface
+PASS manual cursor anchor retains a target as it moves toward the receiver
+PASS power loss cancels the real pull request without moving or losing cargo
+PASS tractor acquisition rejects targets outside its configured range
+PASS high lateral velocity cannot escape: real tractor converges while receiver translates and rotates
+PASS tractor preserves the captured relative angle during receiver rotation
+PASS no refreshed shot means no coordinate correction
+PASS release inherits receiving ship rigid-point motion rather than the original runaway speed
+PASS no vanilla nearby placement retains cargo and pawn on the source map
+PASS tractor collects inside the two-cell radius immediately without waiting for overlap or low relative speed
+PASS vanilla deep-drill Near output places cargo and pawn away from the occupied center and interaction cell
+PASS successful tractor handoff unregisters the empty scattered object and returns its map
+PASS native MapPortal adapter exposes the opposite ship and interior cell without foreign-pawn reachability
+PASS stale soft-portal window guard binds to native dialog acceptance
+PASS actual vanilla dialog accepts cargo-only selection through native loading-list and lord utility
+PASS native portal owns partial delivery accounting
+PASS native CancelLoad clears the native loading state
+PASS adapter inherits original portal tick and container mechanics without replacement
+PASS actual undock command preserves current grid heading instead of forcing east
+PASS actual undock command preserves current grid heading instead of forcing east
+PASS actual undock command preserves current grid heading instead of forcing east
+PASS actual undock command preserves current grid heading instead of forcing east
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS sub-cell distance and autopilot displacement agree without acos rounding to zero
+PASS stable distance preserves identical and antipodal positions
+PASS drift readiness accepts arbitrary positions and fractional cell phases in every grid direction
+PASS drift reference matches linear velocity without a rotating-host orbital velocity term
+PASS drift readiness rejects unmatched linear velocity
+PASS drift readiness rejects unmatched grid direction
+PASS drift readiness accepts arbitrary positions and fractional cell phases in every grid direction
+PASS drift reference matches linear velocity without a rotating-host orbital velocity term
+PASS drift readiness rejects unmatched linear velocity
+PASS drift readiness rejects unmatched grid direction
+PASS drift readiness accepts arbitrary positions and fractional cell phases in every grid direction
+PASS drift reference matches linear velocity without a rotating-host orbital velocity term
+PASS drift readiness rejects unmatched linear velocity
+PASS drift readiness rejects unmatched grid direction
+PASS drift readiness accepts arbitrary positions and fractional cell phases in every grid direction
+PASS drift reference matches linear velocity without a rotating-host orbital velocity term
+PASS drift readiness rejects unmatched linear velocity
+PASS drift readiness rejects unmatched grid direction
+PASS drift readiness accepts arbitrary positions and fractional cell phases in every grid direction
+PASS drift reference matches linear velocity without a rotating-host orbital velocity term
+PASS drift readiness rejects unmatched linear velocity
+PASS drift readiness rejects unmatched grid direction
+PASS drift readiness accepts arbitrary positions and fractional cell phases in every grid direction
+PASS drift reference matches linear velocity without a rotating-host orbital velocity term
+PASS drift readiness rejects unmatched linear velocity
+PASS drift readiness rejects unmatched grid direction
+PASS drift readiness accepts arbitrary positions and fractional cell phases in every grid direction
+PASS drift reference matches linear velocity without a rotating-host orbital velocity term
+PASS drift readiness rejects unmatched linear velocity
+PASS drift readiness rejects unmatched grid direction
+PASS drift readiness accepts arbitrary positions and fractional cell phases in every grid direction
+PASS drift reference matches linear velocity without a rotating-host orbital velocity term
+PASS drift readiness rejects unmatched linear velocity
+PASS drift readiness rejects unmatched grid direction
+PASS drift readiness accepts arbitrary positions and fractional cell phases in every grid direction
+PASS drift reference matches linear velocity without a rotating-host orbital velocity term
+PASS drift readiness rejects unmatched linear velocity
+PASS drift readiness rejects unmatched grid direction
+PASS drift readiness accepts arbitrary positions and fractional cell phases in every grid direction
+PASS drift reference matches linear velocity without a rotating-host orbital velocity term
+PASS drift readiness rejects unmatched linear velocity
+PASS drift readiness rejects unmatched grid direction
+PASS drift readiness accepts arbitrary positions and fractional cell phases in every grid direction
+PASS drift reference matches linear velocity without a rotating-host orbital velocity term
+PASS drift readiness rejects unmatched linear velocity
+PASS drift readiness rejects unmatched grid direction
+PASS drift readiness accepts arbitrary positions and fractional cell phases in every grid direction
+PASS drift reference matches linear velocity without a rotating-host orbital velocity term
+PASS drift readiness rejects unmatched linear velocity
+PASS drift readiness rejects unmatched grid direction
+PASS EVA motion readiness never requires a registered position
+PASS motion-only MPC solves the production QP
+PASS neither MPC costs, constraints, horizon nor fallback restore a drift position
+PASS motion-only MPC solves the production QP
+PASS neither MPC costs, constraints, horizon nor fallback restore a drift position
+PASS motion-only MPC solves the production QP
+PASS neither MPC costs, constraints, horizon nor fallback restore a drift position
+PASS motion-only guidance brakes both components of relative velocity
+PASS closed-loop drift matching settles velocity where braking ends without flying back to the command location
+PASS soft docking positional MPC restores guide position with achievable thruster force and no void compensation
+PASS positional interpolation and real MPC thrusters converge together without accumulating divergent motion
+PASS soft reference enters the shared autopilot task table
+PASS ending a soft link cannot cancel a replacement drift or manual navigation task
+PASS owned reference shutdown releases the control task immediately
+PASS odd/even map dimensions preserve every silhouette cell without pixel collapse
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS odd/even map dimensions preserve every silhouette cell without pixel collapse
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS odd/even map dimensions preserve every silhouette cell without pixel collapse
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS odd/even map dimensions preserve every silhouette cell without pixel collapse
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS silhouette pixels stay inside the exact vanilla placed cell for all four rotations
+PASS archive filters duplicate -1 Motes/unassigned Things; building, item and nested Pawn resolve
+PASS distinct persistent ID collisions reach vanilla registration; only identical instances deduplicate
+PASS save preflight accepts nonpersistent Motes and valid nested identities without renumbering
+PASS save preflight rejects invalid/duplicate persistent IDs before serializing or unloading
+PASS vanilla food capacity reproduces addiction/unfinished needs null reference in Playing
+PASS archive loading uses vanilla initialization food capacity before needs tracker is assigned
+PASS nested loading scope preserves outer initialization
+PASS successful archive scope restores Playing
+PASS failed archive scope also restores Playing
+PASS saved need validation accepts intact loaded Pawn
+PASS Scribe-swallowed missing Food need rejects restoration before archive is discarded
+PASS missing saved Pawn also rejects restoration
+PASS disabled new performance scopes do not start timers or allocate beyond existing log gates
+PASS nested queue timings keep separate call counts
+PASS timed frame queue preserves next-frame reentrancy
+PASS timed frame queue reports batches and actual executed action counts
+PASS timing scopes preserve the unexecuted queue tail after exceptions
+PASS new window/game probe statistics reset without persistent state
+PASS ordinary numerical failure enters strict recovery; recovery failure sets 60-tick QP cooldown
+PASS failed plans never replay; six-tick fallback updates feedback without retrying QP
+PASS both failed QPs retry after 60 ticks
+PASS capability version change immediately rechecks both modes
+PASS sync/intercept/combat do not enter docking recovery
+PASS sync/intercept/combat do not enter docking recovery
+PASS sync/intercept/combat do not enter docking recovery
+PASS interval precheck makes no claim of joint feasibility
+PASS weak brake 0.0087 drag=False: proved impossible with zero solver calls and no playback
+PASS weak brake 0.0087 drag=False: strict velocity recovery succeeds
+PASS recovery requests braking, without fictitious reverse thrust
+PASS weak brake 2E-05 drag=False: proved impossible with zero solver calls and no playback
+PASS weak brake 2E-05 drag=False: strict velocity recovery succeeds
+PASS recovery requests braking, without fictitious reverse thrust
+PASS weak brake 0 drag=False: strict velocity recovery succeeds
+PASS recovery requests braking, without fictitious reverse thrust
+PASS zero reverse cannot exit recovery merely because overshoot reverses the position direction
+PASS weak brake 0.0087 drag=True: proved impossible with zero solver calls and no playback
+PASS weak brake 0.0087 drag=True: strict velocity recovery succeeds
+PASS recovery requests braking, without fictitious reverse thrust
+PASS weak brake 2E-05 drag=True: proved impossible with zero solver calls and no playback
+PASS weak brake 2E-05 drag=True: strict velocity recovery succeeds
+PASS recovery requests braking, without fictitious reverse thrust
+PASS weak brake 0 drag=True: strict velocity recovery succeeds
+PASS recovery requests braking, without fictitious reverse thrust
+PASS zero reverse cannot exit recovery merely because overshoot reverses the position direction
+PASS production flight damage/repair drag=False moving=False: entered=True exited=True arrived=True failed=False crossed=True recoverySolves=47 tick=2069 d=0.000 v=0.000
+PASS production flight damage/repair drag=True moving=False: entered=True exited=True arrived=True failed=False crossed=True recoverySolves=41 tick=1515 d=0.000 v=0.000
+PASS production flight damage/repair drag=False moving=True: entered=True exited=True arrived=True failed=False crossed=True recoverySolves=47 tick=2024 d=0.050 v=0.976
+PASS zero brake enters recovery in production Tick
+PASS zero brake with no drag fails after ten seconds without progress
+PASS recovery obeys the original total 120-second timeout
+PASS explicit target replacement discards old recovery/cooldown
+PASS cancel removes recovery flight and plans
+PASS cold launch preserves ejection velocity and cannot turn or accelerate
+PASS initial RCS turns the nose without rotating inherited translational velocity
+PASS right-angle departure starts bounded thrust after the initial turn
+PASS powered guidance changes velocity by at most one thrust step 35
+PASS powered guidance changes velocity by at most one thrust step 36
+PASS powered guidance changes velocity by at most one thrust step 37
+PASS powered guidance changes velocity by at most one thrust step 38
+PASS powered guidance changes velocity by at most one thrust step 39
+PASS powered guidance changes velocity by at most one thrust step 40
+PASS powered guidance changes velocity by at most one thrust step 41
+PASS powered guidance changes velocity by at most one thrust step 42
+PASS powered guidance changes velocity by at most one thrust step 43
+PASS powered guidance changes velocity by at most one thrust step 44
+PASS powered guidance changes velocity by at most one thrust step 45
+PASS powered guidance changes velocity by at most one thrust step 46
+PASS powered guidance changes velocity by at most one thrust step 47
+PASS powered guidance changes velocity by at most one thrust step 48
+PASS powered guidance changes velocity by at most one thrust step 49
+PASS powered guidance changes velocity by at most one thrust step 50
+PASS powered guidance changes velocity by at most one thrust step 51
+PASS powered guidance changes velocity by at most one thrust step 52
+PASS powered guidance changes velocity by at most one thrust step 53
+PASS powered guidance changes velocity by at most one thrust step 54
+PASS powered guidance changes velocity by at most one thrust step 55
+PASS powered guidance changes velocity by at most one thrust step 56
+PASS powered guidance changes velocity by at most one thrust step 57
+PASS powered guidance changes velocity by at most one thrust step 58
+PASS powered guidance changes velocity by at most one thrust step 59
+PASS powered guidance approaches cruise without turning the nose away from the target
+PASS cruise turn and thrust stay within their angular and acceleration limits
+PASS lost target coasts without another turn
+PASS opposite-bearing target cannot stall turning or extend RCS beyond its deadline
+PASS losing the target during ignition finishes the bounded motor burn
+PASS cold launch preserves a shared 1000 cells per second drift
+PASS guidance accelerates to 32 cells per second relative to a co-drifting target
+PASS guidance retains common drift and stops thrust at the desired relative velocity
+PASS missile closes on a target while both retain their shared 1000 cells per second drift
+PASS near-cruise target velocity jitter cannot flip the missile nose
+PASS unguided rounds retain inherited velocity instead of being reset to nominal speed
+PASS pooled flight record discards stage and RCS state
+PASS boarding Def has six thrusters including two symmetric main engines
+PASS intrusion adopts the real rotated shuttle 0
+PASS only the two physical tail engines double their thrust 0
+PASS post-boost preview matches ordinary allocation without changing live thrust 0
+PASS physical thruster follows hull rotation 0/0
+PASS physical thruster follows hull rotation 0/1
+PASS physical thruster follows hull rotation 0/2
+PASS physical thruster follows hull rotation 0/3
+PASS physical thruster follows hull rotation 0/4
+PASS physical thruster follows hull rotation 0/5
+PASS idle and oblique thrusters do not consume boost 0
+PASS two firing main engines consume one shared boost tick 0
+PASS real Scribe preserves remaining boost but does not restore the intrusion task
+PASS intrusion uses real autopilot and ordinary ship drag 0
+PASS collision service does not steer or integrate the boarding shuttle 0
+PASS abort detaches intrusion autopilot and turns off boost 0
+PASS aborting intrusion preserves linear and angular momentum 0
+PASS restarting intrusion preserves its consumed boost 0
+PASS boost expires at 600 burn ticks and every thruster returns to its ordinary rating 0
+PASS MPC integrates once and the collision sweep retains the pre-drive start 0 distance=0.85465246
+PASS landing rearms boost 0
+PASS intrusion adopts the real rotated shuttle 1
+PASS only the two physical tail engines double their thrust 1
+PASS post-boost preview matches ordinary allocation without changing live thrust 1
+PASS physical thruster follows hull rotation 1/0
+PASS physical thruster follows hull rotation 1/1
+PASS physical thruster follows hull rotation 1/2
+PASS physical thruster follows hull rotation 1/3
+PASS physical thruster follows hull rotation 1/4
+PASS physical thruster follows hull rotation 1/5
+PASS idle and oblique thrusters do not consume boost 1
+PASS two firing main engines consume one shared boost tick 1
+PASS intrusion uses real autopilot and ordinary ship drag 1
+PASS collision service does not steer or integrate the boarding shuttle 1
+PASS abort detaches intrusion autopilot and turns off boost 1
+PASS aborting intrusion preserves linear and angular momentum 1
+PASS restarting intrusion preserves its consumed boost 1
+PASS boost expires at 600 burn ticks and every thruster returns to its ordinary rating 1
+PASS MPC integrates once and the collision sweep retains the pre-drive start 1 distance=0.8487222
+PASS landing rearms boost 1
+PASS intrusion adopts the real rotated shuttle 2
+PASS only the two physical tail engines double their thrust 2
+PASS post-boost preview matches ordinary allocation without changing live thrust 2
+PASS physical thruster follows hull rotation 2/0
+PASS physical thruster follows hull rotation 2/1
+PASS physical thruster follows hull rotation 2/2
+PASS physical thruster follows hull rotation 2/3
+PASS physical thruster follows hull rotation 2/4
+PASS physical thruster follows hull rotation 2/5
+PASS idle and oblique thrusters do not consume boost 2
+PASS two firing main engines consume one shared boost tick 2
+PASS intrusion uses real autopilot and ordinary ship drag 2
+PASS collision service does not steer or integrate the boarding shuttle 2
+PASS abort detaches intrusion autopilot and turns off boost 2
+PASS aborting intrusion preserves linear and angular momentum 2
+PASS restarting intrusion preserves its consumed boost 2
+PASS boost expires at 600 burn ticks and every thruster returns to its ordinary rating 2
+PASS MPC integrates once and the collision sweep retains the pre-drive start 2 distance=0.84811085
+PASS landing rearms boost 2
+PASS intrusion adopts the real rotated shuttle 3
+PASS only the two physical tail engines double their thrust 3
+PASS post-boost preview matches ordinary allocation without changing live thrust 3
+PASS physical thruster follows hull rotation 3/0
+PASS physical thruster follows hull rotation 3/1
+PASS physical thruster follows hull rotation 3/2
+PASS physical thruster follows hull rotation 3/3
+PASS physical thruster follows hull rotation 3/4
+PASS physical thruster follows hull rotation 3/5
+PASS idle and oblique thrusters do not consume boost 3
+PASS two firing main engines consume one shared boost tick 3
+PASS intrusion uses real autopilot and ordinary ship drag 3
+PASS collision service does not steer or integrate the boarding shuttle 3
+PASS abort detaches intrusion autopilot and turns off boost 3
+PASS aborting intrusion preserves linear and angular momentum 3
+PASS restarting intrusion preserves its consumed boost 3
+PASS boost expires at 600 burn ticks and every thruster returns to its ordinary rating 3
+PASS MPC integrates once and the collision sweep retains the pre-drive start 3 distance=0.8415033
+PASS landing rearms boost 3
+PASS observing an already-burning engine does not replay ignition
+PASS brief low-throttle gaps do not retrigger grouped audio
+PASS shutdown waits for the quiet interval
+PASS shutdown retains the last powered nozzle-group location
+PASS idle micro-corrections do not trigger ignition
+PASS a sustained new burn starts exactly once
+PASS rapid restart respects ignition rate limiting after shutdown
+PASS hard turn changes newly emitted exhaust without rotating its detached trail
+PASS thruster profile disables smoke independently of flame
+PASS dense exhaust obeys independent smoke and flame budgets
+PASS foundation destruction emits a small set of long-lived metal fragments
+PASS absolute grid coordinates round-trip through the authoritative orbit sphere
+PASS zoom density changes retain nested absolute grid lines
+PASS grid spacing joins exactly at longitude seam and latitude poles
+PASS runtime reset releases motion feedback caches
+PASS runtime reset clears both procedural exhaust pools
+PASS holding UI-origin buttons cannot authorize fire on entering the map
+PASS independent authorized main and secondary salvos can remain held
+PASS UI/focus/targeter invalidation cannot re-arm until a new map press
+PASS release clears authorization even when its GUI event was consumed
+PASS new sessions and map changes cannot inherit a held volley
+PASS prefab area counts natural terrain and deduplicates covered foundations, excluding space and gaps
+PASS map padding and prefab canvas dimensions cannot change visibility area
+PASS station-sized debris appears before small fragments at the same scale
+PASS small fragments appear when zoomed to the area threshold
+PASS native/player markers and unknown asset measurements retain their icons
+PASS projection uses the common view scale and falls back to icons until geometry is available
+PASS near view draws loaded 1-cell terrain at true scale instead of a fixed-size symbol
+PASS near view draws loaded 2-cell terrain at true scale instead of a fixed-size symbol
+PASS near view draws loaded 15-cell terrain at true scale instead of a fixed-size symbol
+PASS near view draws loaded 256-cell terrain at true scale instead of a fixed-size symbol
+PASS near view draws loaded 1683-cell terrain at true scale instead of a fixed-size symbol
+PASS far view uses icons and a shuttle-only reference can still reach projection scale
+PASS native POI projection removes its container icon while preserving independent ships and other POIs
+PASS native POI icon remains until a visible member projection replaces it
+PASS wreck names stay hidden even at maximum zoom
+PASS people or remaining installed capabilities prevent wreck classification
+PASS classification uses installed definitions, not power/ammo/primary-console availability
+PASS loaded maps share terrain de-duplication and actual wreck classification
+PASS unchanged map display reads reuse the measured entry
+PASS structural damage invalidates actual footprint and projection source together
+PASS archive capture retains damaged area rather than initial prefab or map size
+PASS a living pawn inside a map holder prevents wreck classification
+PASS removing the last contained pawn refreshes wreck status without a terrain rescan
+PASS a backup console alone prevents a loaded map from being labelled a wreck
+PASS map deletion/representation cleanup discards display caches
+PASS unloaded native POIs remain visible icons without generating a map
+PASS archived member keeps its arrow and actual area separately from remaining terrain
+PASS archived marker position uses the same rigid-point transform as loaded ships
+PASS archive display facts round-trip through real Scribe without textures or map-size substitution
+PASS Patch_GlobePopulation Harmony target signatures resolve against the installed game
+PASS Patch_GlobeContainedPopulation Harmony target signatures resolve against the installed game
+PASS Harmony map-field and UI rectangle parameter bindings match vanilla
+PASS only same-faction shipyard; ties use ID
+PASS captured home retargets
+PASS marker replacement preserves home identity
+PASS missing home does not select trade/factory/hostile station
+PASS capture preserves complete numeric layout without commanding thrust
+PASS summary preserves missing reverse, lateral and turning authority
+PASS numeric layout allocation matches real layout including asymmetric COM
+PASS all preview operations leave throttles and presentation timestamp untouched
+PASS numeric layout allocation matches real layout including asymmetric COM
+PASS all preview operations leave throttles and presentation timestamp untouched
+PASS numeric layout allocation matches real layout including asymmetric COM
+PASS all preview operations leave throttles and presentation timestamp untouched
+PASS numeric layout allocation matches real layout including asymmetric COM
+PASS all preview operations leave throttles and presentation timestamp untouched
+PASS numeric layout allocation matches real layout including asymmetric COM
+PASS all preview operations leave throttles and presentation timestamp untouched
+PASS numeric layout allocation matches real layout including asymmetric COM
+PASS all preview operations leave throttles and presentation timestamp untouched
+PASS subject identity separates owner IDs and shuttle IDs
+PASS object executes drive request through shared allocator
+PASS drive plus drift plus another driver cannot integrate the container twice
+PASS archive execution never commits real throttle or presentation state
+PASS capability version change invalidates cached allocation inside a microstep
+PASS clearing control preserves passive momentum
+PASS zero thrust cannot create propulsion
+PASS zero elapsed ticks freeze navigation
+PASS lifecycle scan interval does not change archived movement
+PASS autopilot-controlled archive is not integrated twice
+PASS long no-home voyage and repeated fallback arrivals never retire
+PASS retreat survives travel beyond one sector scale
+PASS travel does not retire ahead of arrival
+PASS mapless ship uses the shared autopilot task table
+PASS shared MPC follows moved shipyard and brakes at destination
+PASS arrival queues one retirement and keeps archive until frame boundary
+PASS frame-boundary ownership recheck cancels retirement
+PASS lost home renews flight instead of retiring at obsolete coordinates
+PASS no-thrust archive drifts and is retained
+PASS normal AI decision reconstructs navigation task
+PASS lost runtime task is rebuilt from observations by AI
+PASS retirement action exists before representation transition
+PASS same-ID representation replacement preserves pose and removes stale task
+PASS old retirement closure cannot retire a newer representation with the same ID
+PASS representation versions invalidate old queued work
+PASS archive observation does not evaluate retreat or select a route
+PASS only the normal AI decision consumes the new observations
+PASS unchanged main and zero initial capabilities do not trigger retreat
+PASS backup-console succession triggers retreat floor
+PASS archived retreat summaries remain independent per ship
+PASS 1252 regression checks (production DLL)
