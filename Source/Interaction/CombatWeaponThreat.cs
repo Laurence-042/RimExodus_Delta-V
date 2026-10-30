@@ -48,8 +48,8 @@ namespace DeltaV
             spreadSigmaRad = 0.4f * weapon.WeaponProps.baseSpreadDeg
                 * SpaceWeaponService.SpreadFactorForSkill(skill) * Mathf.Deg2Rad;
             cooldownSeconds = weapon.CooldownTicksLeft / 60f;
-            damagePerSecond = damage * weapon.WeaponProps.impactScale * 60f
-                / Mathf.Max(1, weapon.WeaponProps.cooldownTicks);
+            damagePerSecond = damage * 60f
+                / Mathf.Max(1, weapon.ShotInterval);
         }
 
         internal static void Capture(ShipBase enemy, SpaceObject frame, float horizon,
@@ -87,8 +87,7 @@ namespace DeltaV
                 float projectileSpeed = SpaceWeaponBallistics.ProjectedSpeed(weapon,
                     SpaceWeaponService.ProjectileSpeedOf(projectile));
                 if (!weapon.QueryEnergy.ready) continue;
-                float damage = SpaceImpactEffects.Resolve(projectile, null)
-                    ?.defenderEffect?.damage ?? 20f;
+                float damage = SpaceWeaponBallistics.ExpectedDamage(weapon, projectile);
                 if (damage <= 0f || weapon.WeaponProps.range <= 0f) continue;
                 SpacePose muzzlePose = SpaceTransform.RigidPointPose(frame.pose,
                     SpaceTransform.MapToShipLocal(enemy.Map, SpaceWeaponGeometry.MuzzleMapPoint(weapon)), 0f);

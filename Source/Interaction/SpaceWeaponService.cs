@@ -158,13 +158,13 @@ namespace DeltaV
                 float range = weapon.EffectiveRange;
                 if (distance < weapon.WeaponProps.minRange || distance > range || range <= 0f) continue;
                 SpaceImpactEffectDef impact = SpaceImpactEffects.Resolve(projectile, null);
-                float damage = impact?.defenderEffect?.damage ?? 20f;
+                float damage = SpaceWeaponBallistics.ExpectedDamage(weapon, projectile);
                 float spread = weapon.WeaponProps.baseSpreadDeg
                     * SpreadFactorForSkill(skill) * Mathf.Deg2Rad;
                 float hitChance = Mathf.Clamp01(targetRadius
                     / Mathf.Max(targetRadius, distance * Mathf.Tan(spread)));
-                total += damage * weapon.WeaponProps.impactScale * hitChance
-                    * (60f / Mathf.Max(1, weapon.WeaponProps.cooldownTicks));
+                total += damage * hitChance
+                    * (60f / Mathf.Max(1, weapon.ShotInterval));
             }
             return total;
         }
@@ -185,8 +185,8 @@ namespace DeltaV
                 ThingDef projectile = magazine?.SelectedProjectileDef
                     ?? weapon.WeaponProps.projectileDef;
                 SpaceImpactEffectDef impact = SpaceImpactEffects.Resolve(projectile, null);
-                total += (impact?.defenderEffect?.damage ?? 20f)
-                    * (60f / Mathf.Max(1, weapon.WeaponProps.cooldownTicks));
+                total += SpaceWeaponBallistics.ExpectedDamage(weapon, projectile)
+                    * (60f / Mathf.Max(1, weapon.ShotInterval));
             }
             return total;
         }

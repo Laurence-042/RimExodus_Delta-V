@@ -12,14 +12,9 @@ namespace DeltaV
         public static bool IsLaser(CompProperties_SpaceProjectile props) =>
             props != null && props.laserRange > 0f;
 
-        public static float KineticCost(CompProperties_SpaceProjectile props,
-            float requestedDeltaV, float incomingSpeed) =>
-            props.shieldFragmentCost + props.shieldStopEnergy
-                * requestedDeltaV / Mathf.Max(1f, incomingSpeed);
-
         public static void SpawnFragments(SpaceProjectileService service, ThingDef sourceDef,
             SpaceObject source, SpaceObject defender, Thing launcher, Vector3 hit,
-            Vector2 direction, float signedSpeed)
+            Vector2 direction, float signedSpeed, float mass, float armorPenetrationScale)
         {
             var props = sourceDef.GetCompProperties<CompProperties_SpaceProjectile>();
             if (!IsKinetic(props)) return;
@@ -33,7 +28,7 @@ namespace DeltaV
                     * props.shieldFragmentScatterDeg;
                 Vector2 fragmentDirection = SpaceTransform.Rotate(direction, span * Mathf.Deg2Rad);
                 service.LaunchShieldFragment(fragmentDef, source, defender, launcher,
-                    hit, fragmentDirection, signedSpeed);
+                    hit, fragmentDirection, signedSpeed, mass / count, armorPenetrationScale);
             }
         }
     }

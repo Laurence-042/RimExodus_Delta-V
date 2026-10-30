@@ -93,9 +93,8 @@ namespace DeltaV
                     shield.ShieldProps.guardRecoveryTicks.ToStringTicksToPeriod());
             if (shield.mode == SpaceShieldMode.Kinetic)
             {
-                float delta = shield.ShieldProps.kineticMaxDeltaV
-                    * shield.kineticStrengthPercent / 100f;
-                return "DeltaV_ShieldKineticReference".Translate(delta.ToString("F0"));
+                float energy = SpaceKinetics.ReverseEnergy(shield.kineticStrengthPercent);
+                return "DeltaV_ShieldKineticEnergyReference".Translate(energy.ToString("F0"));
             }
             Vector2 incoming = new Vector2(0.5f, -0.8660254f);
             SpaceShieldRefraction.Plan plan = SpaceShieldRefraction.Calculate(incoming, Vector2.up,

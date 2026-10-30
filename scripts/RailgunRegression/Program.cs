@@ -110,7 +110,7 @@ internal static class Program
         hull = new Hull(map); universe.objects.Clear(); universe.objects.Add(hull);
         Set(universe, "objectById", null); Set(universe, "objectByMap", null);
     }
-    static SpaceCollision.SweptBody Fire(float scale, float speed = 180, ThingDef def = null,
+    static SpaceCollision.SweptBody Fire(float budget, float speed = 180, ThingDef def = null,
         float from = 5, float to = 70, Action<SpaceCollision.SweptBody> configure = null)
     {
         Vector3 start = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(from, 5.5f));
@@ -119,12 +119,17 @@ internal static class Program
         attacker.pose.velocity = SpaceTransform.MapDirectionToUniverseTangent(hull, map,
             new Vector2(from, 5.5f), Vector2.right) * speed;
         var body = new SpaceCollision.SweptBody { attacker = attacker, projectileDef = def ?? rail,
-            from = start, to = end, damageScale = scale, sweepRadius = 0.01f,
+            from = start, to = end, damageScale = 1f,
+            mass = budget / Math.Max(.001f, SpaceImpactEffects.ComputeDamage(SpaceImpactEffects.Resolve(def ?? rail, null).defenderEffect, speed, 0)),
+            sweepRadius = 0.01f,
             onVisualContact = contacts.Add };
         configure?.Invoke(body);
         SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { body });
         return body;
     }
+    static float RemainingBudget(SpaceCollision.SweptBody shot) =>
+        SpaceImpactEffects.ComputeDamage(SpaceImpactEffects.Resolve(shot.projectileDef, null).defenderEffect,
+            shot.attacker.pose.velocity.magnitude, 0f, 1f, shot.mass) * shot.damageScale;
     static void Run(bool energyOnly)
     {
         using var logs = Log.LockMessages(); DeepProfiler.enabled = false;
@@ -192,48 +197,48 @@ internal static class Program
         if (energyOnly) { CheckEnergy(); return; }
 
         Reset(); var first = Shield(3000); var second = Shield(3000);
-        var shot = Fire(24); // 7200 budget, co-located full shields.
+        var shot = Fire(7200); // 7200 budget, co-located full shields.
         Check(first.currentHitPoints == 0 && second.currentHitPoints == 0 && !shot.dead
-            && Math.Abs(shot.damageScale * 300 - 1200) < 2, "coincident full shields subtract 6000 once and retain 1200");
+            && Math.Abs(RemainingBudget(shot) - 1200) < 2, "coincident full shields subtract 6000 once and retain 1200");
         Check(contacts.Count == 2 && contacts.All(c => c.shieldMode == SpaceShieldMode.Guard && c.shieldBroken)
             && contacts[0].damageScale > contacts[1].damageScale,
             "coincident shield breaks each retain their own visual outcome and incoming budget");
         Reset(); first = Shield(1); second = Shield(3000);
-        shot = Fire(12);
+        shot = Fire(3600);
         Check(first.currentHitPoints == 0 && second.currentHitPoints == 0 && !shot.dead
-            && Math.Abs(shot.damageScale * 300 - 599) < 2, "one-point shield cannot erase a 3600-budget round");
+            && Math.Abs(RemainingBudget(shot) - 599) < 2, "one-point shield cannot erase a 3600-budget round");
         Reset(); first = Shield(3000); second = Shield(3000);
-        shot = Fire(12);
+        shot = Fire(3600);
         Check(first.currentHitPoints == 0 && second.currentHitPoints == 2400 && shot.dead,
             "insufficient budget stops at the next shield");
         Check(contacts.Count == 2 && contacts[0].shieldBroken && !contacts[1].shieldBroken,
             "shield absorption does not display a false break");
-        Reset(); first = Shield(3000); shot = Fire(10);
+        Reset(); first = Shield(3000); shot = Fire(3000);
         Check(first.currentHitPoints == 0 && shot.dead, "exact shield depletion leaves no free residual");
         Reset(); var outer = Add(10, 5, 420); var inner = Add(55, 5, 420); var console = Add(65, 5, 300);
-        shot = Fire(12);
+        shot = Fire(3600);
         Check(outer.Destroyed && inner.Destroyed && console.Destroyed && !shot.dead
-            && Math.Abs(shot.damageScale * 300 - 2460) < 2,
+            && Math.Abs(RemainingBudget(shot) - 2460) < 2,
             "empty compartment costs nothing; one shot crosses 45 cells and destroys deep console");
         Check(contacts.Count == 3 && contacts.All(c => c.destroyed && c.penetrated)
             && contacts[0].localPoint.x < contacts[1].localPoint.x
             && contacts[1].localPoint.x < contacts[2].localPoint.x
             && contacts[0].damageScale > contacts[2].damageScale,
             "every real penetration retains an ordered independent visual snapshot");
-        Reset(); var armor = Add(10, 5, 5000); console = Add(55, 5, 300); shot = Fire(12);
+        Reset(); var armor = Add(10, 5, 5000); console = Add(55, 5, 300); shot = Fire(3600);
         Check(!armor.Destroyed && armor.HitPoints == 1400 && console.HitPoints == 300 && shot.dead,
             "surviving armor stops the projectile without leaking damage behind it: armor=" + armor.HitPoints + ", behind=" + console.HitPoints + ", dead=" + shot.dead);
         Check(contacts.Count == 1 && !contacts[0].destroyed && !contacts[0].penetrated,
             "stopped round has one surface hit and no forward penetration jet");
-        Reset(); armor = Add(10, 5, 50); armor.invulnerable = true; console = Add(55, 5, 300); shot = Fire(12);
+        Reset(); armor = Add(10, 5, 50); armor.invulnerable = true; console = Add(55, 5, 300); shot = Fire(3600);
         Check(armor.HitPoints == 50 && console.HitPoints == 300 && shot.dead,
             "absorbed damage cannot grant penetration");
         Check(contacts.Count == 1 && !contacts[0].destroyed && !contacts[0].penetrated,
             "invulnerable armor does not emit destruction or penetration feedback");
-        Reset(); first = Shield(3000); console = Add(55, 5, 300); shot = Fire(12);
+        Reset(); first = Shield(3000); console = Add(55, 5, 300); shot = Fire(3600);
         Check(first.currentHitPoints == 0 && console.Destroyed && !shot.dead
-            && Math.Abs(shot.damageScale * 300 - 300) < 2, "shield and hull share a single remaining fraction");
-        Reset(); outer = Add(10, 5, 1); console = Add(55, 5, 300); shot = Fire(1, 540, fragment);
+            && Math.Abs(RemainingBudget(shot) - 300) < 2, "shield and hull share a single remaining fraction");
+        Reset(); outer = Add(10, 5, 1); console = Add(55, 5, 300); shot = Fire(300, 540, fragment);
         Check(outer.Destroyed && console.HitPoints == 300 && shot.dead,
             "even fast rail fragments stop at their first structure and cannot deep-penetrate");
 
@@ -241,8 +246,8 @@ internal static class Program
         var generator = (Target)first.parent;
         map.thingGrid.Deregister(generator); Set(generator, "positionInt", new IntVec3(40, 0, 5));
         map.thingGrid.Register(generator);
-        shot = Fire(12);
-        Check(generator.Destroyed && !shot.dead && Math.Abs(shot.damageScale * 300 - 3100) < 2,
+        shot = Fire(3600);
+        Check(generator.Destroyed && !shot.dead && Math.Abs(RemainingBudget(shot) - 3100) < 2,
             "empty shield generator takes physical hull damage instead of reusing shield absorption");
 
         // Exercise the production projectile service writeback across separate sweeps.
@@ -252,21 +257,21 @@ internal static class Program
         Vector2 tangent = SpaceTransform.MapDirectionToUniverseTangent(hull, map, new Vector2(5, 5.5f), Vector2.right);
         OrbitSphere.Basis(start, out Vector3 east, out Vector3 north);
         Check(service.Launch(rail, null, start, east * tangent.x + north * tangent.y, null, null, default,
-            new SpaceProjectileLaunchSpec(540, 0, 540, 4)), "real projectile service launches budget round");
+            new SpaceProjectileLaunchSpec(540, 0, 540, mass: 3600f / (24f * 9f))), "real projectile service launches budget round");
         var records = (IList)AccessTools.Field(typeof(SpaceProjectileService), "projectiles").GetValue(service);
         object record = records[0];
         var container = (SpaceObject)AccessTools.Property(record.GetType(), "container").GetValue(record);
         container.pose.position = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(35, 5.5f));
         service.ResolveCollisions();
         float scale = (float)AccessTools.Field(record.GetType(), "damageScale").GetValue(record);
-        Check(first.currentHitPoints == 0 && Math.Abs(scale * 900 - 600) < 2
+        Check(first.currentHitPoints == 0 && Math.Abs(scale * 3600 - 600) < 2
             && Math.Abs(container.pose.velocity.magnitude - 540) < 0.01f,
             "shield loss persists in projectile record without double speed attenuation");
         Set(record, "prevPosition", container.pose.position);
         container.pose.position = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(70, 5.5f));
         service.ResolveCollisions();
         scale = (float)AccessTools.Field(record.GetType(), "damageScale").GetValue(record);
-        Check(console.Destroyed && Math.Abs(scale * 900 - 180) < 2,
+        Check(console.Destroyed && Math.Abs(scale * 3600 - 180) < 2,
             "next tick uses remaining 600 budget rather than restoring original 3600");
 
         // Real line geometry/payment and fragment creation, with zero-strength active defense.
@@ -288,12 +293,12 @@ internal static class Program
         var attack = new SpaceObject(nextId++, new SpacePose(start, 0));
         attack.pose.velocity = tangent * 540;
         shot = new SpaceCollision.SweptBody { attacker = attack, projectileDef = rail, from = start,
-            to = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(70, 5.5f)), damageScale = 8,
+            to = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(70, 5.5f)), damageScale = 1, mass = 40,
             onVisualContact = contacts.Add,
             onShieldShatter = (hit, defender, direction, speed) =>
             {
                 shattered = true;
-                SpaceShieldProjectileBehavior.SpawnFragments(service, rail, null, defender, null, hit, direction, speed);
+                SpaceShieldProjectileBehavior.SpawnFragments(service, rail, null, defender, null, hit, direction, speed, 40f, 1f);
             } };
         SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
         records = (IList)AccessTools.Field(typeof(SpaceProjectileService), "projectiles").GetValue(service);
@@ -306,8 +311,9 @@ internal static class Program
             "kinetic pulse uses the exact finite collision segment without an inner hull hit");
         Check(records.Count == 4 && records.Cast<object>().All(p =>
             (ThingDef)AccessTools.Field(p.GetType(), "def").GetValue(p) == fragment
-            && (float)AccessTools.Field(p.GetType(), "damageScale").GetValue(p) == 1f),
-            "real shatter creates four independent fragments without parent damage budget");
+            && (float)AccessTools.Field(p.GetType(), "damageScale").GetValue(p) == 1f
+            && Math.Abs((float)AccessTools.Field(p.GetType(), "mass").GetValue(p) - 10f) < .001f),
+            "real shatter creates four independent fragments sharing parent mass without copying its budget");
         contacts.Clear();
         SpaceCollision.ClearCaches();
         kinetic.mode = SpaceShieldMode.Electromagnetic;
@@ -339,14 +345,14 @@ internal static class Program
         SpaceImpactEffects.ResetCache();
         contacts.Clear();
         float energyBefore = battery.StoredEnergy;
-        shot = Fire(1, def: coupler);
+        shot = Fire(300, def: coupler);
         Check(shot.resolvedHit && shot.resolvedHitCell == console.Position && !shot.didRedirect
             && !shot.resolvedHitShield && first.currentHitPoints == 3000 && battery.StoredEnergy == energyBefore
             && contacts.Count == 1 && !contacts[0].shieldMode.HasValue && console.HitPoints == 420,
             "coupling crosses electromagnetic line and guard shield without drain, bending or hull damage");
         kinetic.mode = SpaceShieldMode.Kinetic;
         SpaceCollision.ClearCaches(); contacts.Clear();
-        shot = Fire(1, def: coupler);
+        shot = Fire(300, def: coupler);
         Check(shot.resolvedHitCell == console.Position && !shot.resolvedHitShield
             && first.currentHitPoints == 3000 && battery.StoredEnergy == energyBefore,
             "coupling also crosses kinetic line while preserving shields");
@@ -372,7 +378,7 @@ internal static class Program
         {
             kinetic.mode = mode;
             SpaceCollision.ClearCaches(); contacts.Clear();
-            shot = Fire(1, speed: 12, def: boarding);
+            shot = Fire(300, speed: 12, def: boarding);
             Check(shot.dead && shot.resolvedHitCell == console.Position && !shot.resolvedHitShield
                 && !shot.didRedirect && first.currentHitPoints == 3000 && battery.StoredEnergy == energyBefore
                 && contacts.Count == 1 && !contacts[0].shieldMode.HasValue,
@@ -389,11 +395,11 @@ internal static class Program
                 body.sweepRadius = Mathf.Sqrt(34) * 0.5f;
                 body.noseHalfWidth = 1.5f; body.noseForwardOffset = 2;
             }
-            shot = Fire(1, speed: 12, def: boarding, configure: Nose);
+            shot = Fire(300, speed: 12, def: boarding, configure: Nose);
             Check(!shot.resolvedHit, "side-slipping boarding hull does not ram with its side or rear " + rotation);
             var noseTarget = Add(55, 7, 420);
             SpaceCollision.ClearCaches();
-            shot = Fire(1, speed: 12, def: boarding, configure: Nose);
+            shot = Fire(300, speed: 12, def: boarding, configure: Nose);
             Check(shot.dead && shot.resolvedHitCell == noseTarget.Position,
                 "side-slipping boarding nose collision follows real hull heading " + rotation);
         }
@@ -401,7 +407,7 @@ internal static class Program
         generator = (Target)first.parent;
         map.thingGrid.Deregister(generator); Set(generator, "positionInt", new IntVec3(40, 0, 5));
         map.thingGrid.Register(generator);
-        shot = Fire(1, def: coupler);
+        shot = Fire(300, def: coupler);
         Check(shot.resolvedHitCell == generator.Position && !shot.resolvedHitShield
             && first.currentHitPoints == 3000, "shield bypass still hits the physical generator");
         CheckContinuousBeam(coupler, engineering);

@@ -167,8 +167,8 @@ namespace DeltaV
                 if (filter?.Includes(weapon) != true || distance > weapon.EffectiveRange
                     || distance < weapon.WeaponProps.minRange) continue;
                 var projectile = weapon.SelectMagazine()?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
-                result += (SpaceImpactEffects.Resolve(projectile, null)?.defenderEffect?.damage ?? 0f)
-                    * weapon.WeaponProps.impactScale * 60f / Mathf.Max(1, weapon.WeaponProps.cooldownTicks);
+                result += (SpaceWeaponBallistics.ExpectedDamage(weapon, projectile))
+                    * 60f / Mathf.Max(1, weapon.ShotInterval);
             }
             return result;
         }

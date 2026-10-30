@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 
 <LanguageData>
   <DeltaV_PilotNeedShipFocus>Focus a ship map first.</DeltaV_PilotNeedShipFocus>
@@ -378,7 +378,6 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShieldKineticStrength>Kinetic strength</DeltaV_ShieldKineticStrength>
   <DeltaV_ShieldElectromagneticStrength>Electromagnetic strength</DeltaV_ShieldElectromagneticStrength>
   <DeltaV_ShieldGuardReference>Maximum capacity {0}; free refill every {1} of powered operation. Power loss pauses the countdown; radius does not change capacity.</DeltaV_ShieldGuardReference>
-  <DeltaV_ShieldKineticReference>Fragments every solid shot; requested speed reduction {0} cells/s. Pulse cost comes from the projectile type.</DeltaV_ShieldKineticReference>
   <DeltaV_ShieldElectromagneticReference>At 30° incidence, active turning adds {0}° after passive refraction.</DeltaV_ShieldElectromagneticReference>
   <DeltaV_PrefabReplaceSelect>Select a prefab to replace the entire focused map (old contents will be removed)</DeltaV_PrefabReplaceSelect>
   <DeltaV_PrefabReplaceSelectFaction>Select the faction for prefab: {0}</DeltaV_PrefabReplaceSelectFaction>

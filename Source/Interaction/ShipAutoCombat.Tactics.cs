@@ -349,7 +349,7 @@ namespace DeltaV
                 if (props == null) continue;
                 var layout = weapon.Layout;
                 if (!props.guided && !SpaceWeaponShot.HasClearFixedPath(weapon, layout.acceleration)) continue;
-                float damage = SpaceImpactEffects.Resolve(projectile, null)?.defenderEffect?.damage ?? 0f;
+                float damage = SpaceWeaponBallistics.ExpectedDamage(weapon, projectile);
                 if (damage <= 0f) continue;
                 float speed = SpaceWeaponBallistics.ProjectedSpeed(weapon, SpaceWeaponService.ProjectileSpeedOf(projectile));
                 var traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
@@ -362,7 +362,7 @@ namespace DeltaV
                 result.Add(new CombatAttackWeapon(muzzle - ship.HullCenter,
                     mount, arc,
                     weapon.EffectiveRange, weapon.WeaponProps.minRange, speed,
-                    damage * weapon.WeaponProps.impactScale * 60f / Mathf.Max(1, weapon.WeaponProps.cooldownTicks),
+                    damage * 60f / Mathf.Max(1, weapon.ShotInterval),
                     props.laserRange > 0f || props.guided, CombatStrategyFacts.WeaponReady(weapon), weapon));
             }
             return result;

@@ -1,0 +1,153 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Defs>
+  <ThingDef ParentName="ResourceBase">
+    <defName>DeltaV_Propellant</defName>
+    <label>ship propellant</label>
+    <description>Ammunition components for ship guns. Load propellant and projectile heads separately.</description>
+    <graphicData>
+      <texPath>Things/Item/Resource/Steel</texPath>
+      <graphicClass>Graphic_StackCount</graphicClass>
+    </graphicData>
+    <stackLimit>500</stackLimit>
+    <statBases>
+      <Mass>0.025</Mass>
+      <MarketValue>0.1</MarketValue>
+    </statBases>
+    <thingCategories>
+      <li>Manufactured</li>
+    </thingCategories>
+  </ThingDef>
+  <RecipeDef>
+    <defName>DeltaV_MakePropellant</defName>
+    <label>make ship propellant x200</label>
+    <description>Steel is flammable. Everyone knows that.</description>
+    <jobString>Making ship propellant.</jobString>
+    <workAmount>500</workAmount>
+    <workSpeedStat>GeneralLaborSpeed</workSpeedStat>
+    <workSkill>Crafting</workSkill>
+    <ingredients>
+      <li>
+        <filter>
+          <thingDefs>
+            <li>Steel</li>
+          </thingDefs>
+        </filter>
+        <count>10</count>
+      </li>
+    </ingredients>
+    <fixedIngredientFilter>
+      <thingDefs>
+        <li>Steel</li>
+      </thingDefs>
+    </fixedIngredientFilter>
+    <products>
+      <DeltaV_Propellant>200</DeltaV_Propellant>
+    </products>
+    <recipeUsers>
+      <li>TableMachining</li>
+    </recipeUsers>
+    <researchPrerequisite>Machining</researchPrerequisite>
+  </RecipeDef>
+  <ThingDef ParentName="ResourceBase">
+    <defName>DeltaV_SteelHead</defName>
+    <label>steel projectile heads</label>
+    <description>Ammunition components for ship guns. Load propellant and projectile heads separately.</description>
+    <graphicData>
+      <texPath>Things/Item/Resource/Steel</texPath>
+      <graphicClass>Graphic_StackCount</graphicClass>
+    </graphicData>
+    <stackLimit>500</stackLimit>
+    <statBases>
+      <Mass>0.025</Mass>
+      <MarketValue>0.1</MarketValue>
+    </statBases>
+    <thingCategories>
+      <li>Manufactured</li>
+    </thingCategories>
+  </ThingDef>
+  <RecipeDef>
+    <defName>DeltaV_MakeSteelHead</defName>
+    <label>make steel projectile heads x200</label>
+    <description>Produce 200 projectile head units from 10 units of material.</description>
+    <jobString>Making steel projectile heads.</jobString>
+    <workAmount>500</workAmount>
+    <workSpeedStat>GeneralLaborSpeed</workSpeedStat>
+    <workSkill>Crafting</workSkill>
+    <ingredients>
+      <li>
+        <filter>
+          <thingDefs>
+            <li>Steel</li>
+          </thingDefs>
+        </filter>
+        <count>10</count>
+      </li>
+    </ingredients>
+    <fixedIngredientFilter>
+      <thingDefs>
+        <li>Steel</li>
+      </thingDefs>
+    </fixedIngredientFilter>
+    <products>
+      <DeltaV_SteelHead>200</DeltaV_SteelHead>
+    </products>
+    <recipeUsers>
+      <li>TableMachining</li>
+    </recipeUsers>
+    <researchPrerequisite>Machining</researchPrerequisite>
+  </RecipeDef>
+  <ThingDef ParentName="ResourceBase">
+    <defName>DeltaV_UraniumHead</defName>
+    <label>uranium projectile heads</label>
+    <description>Ammunition components for ship guns. Load propellant and projectile heads separately.</description>
+    <graphicData>
+      <texPath>Things/Item/Resource/Uranium</texPath>
+      <graphicClass>Graphic_StackCount</graphicClass>
+    </graphicData>
+    <stackLimit>500</stackLimit>
+    <statBases>
+      <Mass>0.025</Mass>
+      <MarketValue>0.5</MarketValue>
+    </statBases>
+    <thingCategories>
+      <li>Manufactured</li>
+    </thingCategories>
+  </ThingDef>
+  <RecipeDef>
+    <defName>DeltaV_MakeUraniumHead</defName>
+    <label>make uranium projectile heads x200</label>
+    <description>Produce 200 projectile head units from 10 units of material.</description>
+    <jobString>Making uranium projectile heads.</jobString>
+    <workAmount>500</workAmount>
+    <workSpeedStat>GeneralLaborSpeed</workSpeedStat>
+    <workSkill>Crafting</workSkill>
+    <ingredients>
+      <li>
+        <filter>
+          <thingDefs>
+            <li>Uranium</li>
+          </thingDefs>
+        </filter>
+        <count>10</count>
+      </li>
+    </ingredients>
+    <fixedIngredientFilter>
+      <thingDefs>
+        <li>Uranium</li>
+      </thingDefs>
+    </fixedIngredientFilter>
+    <products>
+      <DeltaV_UraniumHead>200</DeltaV_UraniumHead>
+    </products>
+    <recipeUsers>
+      <li>TableMachining</li>
+    </recipeUsers>
+    <researchPrerequisite>Machining</researchPrerequisite>
+  </RecipeDef>
+  <JobDef>
+    <defName>DeltaV_LoadGunSupply</defName>
+    <driverClass>DeltaV.JobDriver_LoadGunSupply</driverClass>
+    <reportString>loading TargetA.</reportString>
+    <suspendable>false</suspendable>
+  </JobDef>
+</Defs>

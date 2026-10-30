@@ -36,6 +36,12 @@ namespace DeltaV
         { target = default; preferredSystemId = 0; automaticTargets.Clear(); automaticRetryAt.Clear(); automaticAim.Clear(); nextAutomaticAssignmentTick = 0; ClearStrategyState(!preserveCommands); }
         internal void Dispose()
         { Clear(); pointDefense.Clear(); interceptionCandidates.Clear(); pdReservedDamage.Clear(); aimCapabilities.Clear(); leadPoints.Clear(); uniqueLeadPoints.Clear(); }
+        internal void WeaponParametersChanged(CompSpaceWeapon weapon)
+        {
+            automaticAim.Remove(weapon.parent.thingIDNumber);
+            automaticRetryAt.Remove(weapon.parent.thingIDNumber);
+            observation = null; nextAutomaticAssignmentTick = 0; configurationVersion++;
+        }
         internal void ForgetWeapon(CompSpaceWeapon weapon)
         {
             int id = weapon.parent.thingIDNumber;
@@ -224,9 +230,8 @@ namespace DeltaV
                 ShipBase selected = null;
                 CombatStrategyRule selectedRule = null;
                 string holdReason = null;
-                float damage = SpaceImpactEffects.Resolve(
-                    weapon.SelectMagazine()?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef,
-                    null)?.defenderEffect?.damage ?? 20f;
+                float damage = SpaceWeaponBallistics.ExpectedDamage(weapon,
+                    weapon.SelectMagazine()?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef);
                 WeaponAimInfo aim = SpaceWeaponService.AimInfo(weapon, own);
                 foreach (ShipBase member in enemies)
                 {
@@ -248,8 +253,8 @@ namespace DeltaV
                     float spread = weapon.WeaponProps.baseSpreadDeg * Mathf.Deg2Rad;
                     float hit = Mathf.Clamp01(radius /
                         Mathf.Max(radius, context.distance * Mathf.Tan(spread)));
-                    float rate = damage * weapon.WeaponProps.impactScale * hit
-                        * 60f / Mathf.Max(1, weapon.WeaponProps.cooldownTicks);
+                    float rate = damage * hit
+                        * 60f / Mathf.Max(1, weapon.ShotInterval);
                     float targetHealth = enemyHealth[member.Identity];
                     reservedDamage.TryGetValue(member.Identity, out float reserved);
                     float finishing = 1f / (1f + targetHealth / 1000f);
@@ -279,7 +284,7 @@ namespace DeltaV
                 if (hasQueued && queuedTarget.Ship == selected.Identity) automaticTargets[weaponId] = queuedTarget;
                 reservedDamage.TryGetValue(selected.Identity, out float previous);
                 reservedDamage[selected.Identity] = previous + Mathf.Max(1f,
-                    weapon.WeaponProps.impactScale * 20f);
+                    damage);
                 if (ship.CombatAI != null)
                     reasons.Add(weapon.parent.LabelCap + " → " + selected.Label + " ("
                         + selectedRule.name + ")");
@@ -602,8 +607,7 @@ namespace DeltaV
             foreach (Thing thing in target.map.listerThings.AllThings)
                 if (thing is Building building && !building.Destroyed
                     && thing.def.GetCompProperties<CompProperties_SpaceProjectile>() != null)
-                    return (SpaceImpactEffects.Resolve(projectile, thing.def)?.defenderEffect?.damage ?? 0f)
-                        * weapon.WeaponProps.impactScale;
+                    return SpaceWeaponBallistics.ExpectedDamage(weapon, projectile, thing.def);
             return 0f;
         }
 

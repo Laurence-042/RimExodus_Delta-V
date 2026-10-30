@@ -166,6 +166,7 @@ namespace DeltaV
     {
         public ThingDef projectileDef;
         public float ammoPerShot = 1f;
+        public float unitMass = 1f;
         public int defaultPriority;
         public bool attachment;
         public float armorPenetrationScale = 1f;
@@ -175,25 +176,32 @@ namespace DeltaV
             compClass = typeof(CompSpaceWeaponMagazine);
         }
 
+        public override IEnumerable<string> ConfigErrors(ThingDef parentDef)
+        {
+            foreach (string error in base.ConfigErrors(parentDef)) yield return error;
+            if (ammoPerShot <= 0f || unitMass <= 0f)
+                yield return $"{parentDef.defName}: invalid ammunition stock configuration";
+        }
+
         public override IEnumerable<StatDrawEntry> SpecialDisplayStats(StatRequest req)
         {
             yield return SpaceCombatStats.Entry("DeltaV_StatAmmoPerShot",
-                ammoPerShot.ToString("0.##"), 5060);
+                (req.Thing?.TryGetComp<CompWeaponTuning>()?.mass ?? ammoPerShot).ToString("0.##"), 5060);
             if (armorPenetrationScale > 1f)
                 yield return SpaceCombatStats.Entry("DeltaV_StatArmorPenetrationScale",
                     armorPenetrationScale.ToString("0.##") + "×", 5050);
         }
     }
 
-    /// <summary>对原版 CompRefuelable 的武器语义适配；搬运和持久计数继续复用原版。</summary>
-    public class CompSpaceWeaponMagazine : ThingComp
+    /// <summary>通过原版 Refuelable 读取弹头/装药；导弹适配原版可换弹组件。</summary>
+    public partial class CompSpaceWeaponMagazine : ThingComp
     {
         private int priority;
         private bool initialized;
 
         public CompProperties_SpaceWeaponMagazine MagazineProps =>
             (CompProperties_SpaceWeaponMagazine)props;
-        public CompRefuelable Refuelable => parent.TryGetComp<CompRefuelable>();
+        public CompRefuelable Refuelable => Supply(GunSupplyKind.Heads) ?? parent.TryGetComp<CompRefuelable>();
         public CompChangeableProjectile ChangeableProjectile => parent.TryGetComp<CompChangeableProjectile>();
         public int Priority => priority;
         public bool HasShot => ChangeableProjectile != null
@@ -224,7 +232,10 @@ namespace DeltaV
         {
             base.ReceiveCompSignal(signal);
             if (signal == "Refueled" || signal == "RanOutOfFuel")
+            {
                 ShipControlService.NotifyGunnerChange(parent.Map);
+                NotifySupplyChanged();
+            }
         }
 
         public void ConsumeShot()
@@ -257,7 +268,7 @@ namespace DeltaV
                         {
                             foreach (CompSpaceWeaponMagazine magazine in magazines)
                                 if (magazine.parent.Spawned && !magazine.parent.Destroyed)
-                                    magazine.priority = captured;
+                                { magazine.priority = captured; magazine.NotifySupplyChanged(); }
                         }));
                     }
                     Find.WindowStack.Add(new FloatMenu(options));
@@ -367,6 +378,7 @@ namespace DeltaV
                 this, attachment => attachment.enabled, (attachment, active) =>
                 {
                     attachment.enabled = active;
+                    attachment.HostWeapon?.NotifyParametersChanged();
                     ShipControlService.NotifyGunnerChange(attachment.parent.Map);
                 })
             {

@@ -53,6 +53,7 @@ namespace DeltaV
         /// <summary>伤害 ∝ (v/v_ref)^exponent（1 = 线性；默认 0 = 不随速度缩放，
         /// 速度缩放是动能弹语义，需在 XML 中显式启用）。</summary>
         public float speedExponent = 0f;
+        public bool kineticMassScaling;
 
         /// <summary>入射角权重：正入射 ×1 → 掠射（90°）×此值。</summary>
         public float incidenceMinFactor = 0.35f;
@@ -269,10 +270,10 @@ namespace DeltaV
         /// DamageMap 的伤害与 ShieldDrain 的容量消耗共用同一缩放口径。
         /// </summary>
         public static float ComputeDamage(ImpactOutcomePart part, float relativeSpeed,
-            float incidenceAngleRad, float durabilityScale = 1f)
+            float incidenceAngleRad, float durabilityScale = 1f, float mass = 1f)
         {
             if (part == null) return 0f;
-            float speedFactor = Mathf.Pow(
+            float speedFactor = part.kineticMassScaling ? SpaceKinetics.ImpactFactor(mass, relativeSpeed) : Mathf.Pow(
                 Mathf.Max(relativeSpeed, 0.01f) / Mathf.Max(1f, part.referenceSpeed), part.speedExponent);
             float incidenceFactor = Mathf.Lerp(1f, part.incidenceMinFactor,
                 Mathf.Clamp01(incidenceAngleRad / (Mathf.PI * 0.5f)));
@@ -313,7 +314,7 @@ namespace DeltaV
                 // CompGravshipShieldGenerator 的充能节拍继续推进。
                 CompProjectileInterceptor interceptor = evt.defenderBuilding?.TryGetComp<CompProjectileInterceptor>();
                 if (interceptor == null) return 0f;
-                float drain = ComputeDamage(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale)
+                float drain = ComputeDamage(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale, evt.mass)
                     * evt.damageScale;
                 int capacity = interceptor.currentHitPoints;
                 interceptor.currentHitPoints = Mathf.Max(0,
@@ -341,7 +342,7 @@ namespace DeltaV
                 }
             }
 
-            float amount = ComputeDamage(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale)
+            float amount = ComputeDamage(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale, evt.mass)
                 * evt.damageScale;
             float ap = part.armorPenetration * (amount / Mathf.Max(1f, part.damage))
                 * evt.armorPenetrationScale;

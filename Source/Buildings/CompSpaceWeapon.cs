@@ -134,16 +134,17 @@ namespace DeltaV
 
         public override IEnumerable<StatDrawEntry> SpecialDisplayStats(StatRequest req)
         {
+            var instance = req.Thing?.TryGetComp<CompSpaceWeapon>();
             bool continuous = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()?.continuousBeam == true;
             if (impactScale != 1f)
                 yield return SpaceCombatStats.Entry("DeltaV_StatImpactScale",
                     impactScale.ToString("0.##") + "×", 5110);
             if (shotEnergy > 0f)
                 yield return SpaceCombatStats.Entry(continuous ? "DeltaV_StatBeamEnergy" : "DeltaV_StatShotEnergy",
-                    SpaceCombatStats.WattDays(continuous ? shotEnergy * 60f : shotEnergy), 5100);
+                    SpaceCombatStats.WattDays(continuous ? shotEnergy * 60f : instance?.ShotEnergy ?? shotEnergy), 5100);
             if (!continuous)
                 yield return SpaceCombatStats.Entry("DeltaV_StatCooldown",
-                    SpaceCombatStats.Ticks(cooldownTicks), 5090);
+                    SpaceCombatStats.Ticks(instance?.ShotInterval ?? cooldownTicks), 5090);
             yield return SpaceCombatStats.Entry("DeltaV_StatRange", range.ToString("0"), 5080);
             if (minRange > 0f)
                 yield return SpaceCombatStats.Entry("DeltaV_StatMinRange", minRange.ToString("0"), 5079);
@@ -214,7 +215,10 @@ namespace DeltaV
         }
 
         public int cooldownUntilTick;
-        public int CooldownTicksLeft => Mathf.Max(0, cooldownUntilTick - Find.TickManager.TicksGame);
+        public CompWeaponTuning Tuning => parent.TryGetComp<CompWeaponTuning>();
+        public int ShotInterval => Tuning?.ShotInterval ?? WeaponProps.cooldownTicks;
+        public float ShotEnergy => WeaponProps.shotEnergy * (Tuning?.power ?? 1);
+        public int CooldownTicksLeft => Tuning?.RemainingTicks ?? Mathf.Max(0, cooldownUntilTick - Find.TickManager.TicksGame);
 
         public CompProperties_SpaceWeapon WeaponProps => (CompProperties_SpaceWeapon)props;
 
@@ -485,7 +489,7 @@ namespace DeltaV
                 {
                     var attachment = magazine.parent == parent ? null
                         : magazine.parent.TryGetComp<CompSpaceWeaponAttachment>();
-                    if (!magazine.HasShot || attachment != null && !attachment.Enabled) continue;
+                    if (!magazine.HasHeads(magazine.RequiredHeads(this)) || attachment != null && !attachment.Enabled) continue;
                     if (magazine.Priority < priority) continue;
                     if (magazine.Priority > priority)
                     { priority = magazine.Priority; first = next = null; }
@@ -499,12 +503,20 @@ namespace DeltaV
         }
 
         internal bool MagazineAvailable(CompSpaceWeaponMagazine selected) =>
-            parent.TryGetComp<CompSpaceWeaponMagazine>() == null || selected != null;
+            (parent.TryGetComp<CompSpaceWeaponMagazine>() == null || selected != null)
+            && (Tuning?.Settings.chemical != true || parent.TryGetComp<CompSpaceWeaponMagazine>()?.HasPropellant(Tuning.charge) == true);
 
         public void NotifyMagazineConsumed(CompSpaceWeaponMagazine magazine)
         {
             if (magazine != null) lastMagazineThingId = magazine.parent.thingIDNumber;
+            var next = SelectMagazine();
+            if (next?.SelectedProjectileDef != magazine?.SelectedProjectileDef
+                || next?.MagazineProps.unitMass != magazine?.MagazineProps.unitMass
+                || next?.MagazineProps.armorPenetrationScale != magazine?.MagazineProps.armorPenetrationScale)
+                NotifyParametersChanged();
         }
+
+        internal void NotifyParametersChanged() => Universe?.Controls.ExistingFor(OwnerShip)?.FireControl.WeaponParametersChanged(this);
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {

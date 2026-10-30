@@ -1,19 +1,19 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <LanguageData>
   <DeltaV_Weapon_PDTurret.label>点防御激光炮</DeltaV_Weapon_PDTurret.label>
   <DeltaV_Weapon_PDTurret.description>内置自瞄的单格激光点防御，只自动拦截来袭导弹及其他可拦截目标。无需炮手和弹药；保持通电，每发消耗 1 W·d 蓄电。不支持插件或手动齐射。</DeltaV_Weapon_PDTurret.description>
   <DeltaV_Weapon_CannonTurret.label>小型重炮</DeltaV_Weapon_CannonTurret.label>
-  <DeltaV_Weapon_CannonTurret.description>小型旋转重炮，单发威力高，适合打击装甲目标。需要炮手，可安装一个火控或弹仓插件。</DeltaV_Weapon_CannonTurret.description>
+  <DeltaV_Weapon_CannonTurret.description>小型旋转重炮，分别装填钢铁制装药与弹头。可独立调节装药量和弹重；加装药提高初速，增弹重提高穿深但降低同装药下的弹速。每发都需长时间装填散热。需要炮手，可安装一个火控或弹仓插件。</DeltaV_Weapon_CannonTurret.description>
   <DeltaV_Weapon_RapidMainSmall.label>小型速射炮</DeltaV_Weapon_RapidMainSmall.label>
-  <DeltaV_Weapon_RapidMainSmall.description>小型旋转速射炮，以持续射击压制目标。需要炮手，可安装一个火控或弹仓插件。</DeltaV_Weapon_RapidMainSmall.description>
+  <DeltaV_Weapon_RapidMainSmall.description>小型旋转速射炮，每发消耗一份装药与一份弹头。可调整射速；高射速更快积热，过热后必须彻底冷却才能继续开火。需要炮手，可安装一个火控或弹仓插件。</DeltaV_Weapon_RapidMainSmall.description>
   <DeltaV_Weapon_LaserTurret.label>小型激光炮</DeltaV_Weapon_LaserTurret.label>
-  <DeltaV_Weapon_LaserTurret.description>小型旋转激光炮，无需弹药，但每发从电网蓄电池取电。需要炮手；可安装火控插件或可回充电容。</DeltaV_Weapon_LaserTurret.description>
+  <DeltaV_Weapon_LaserTurret.description>小型旋转激光炮，无需实体弹药。可提高功率，以更高逐发耗电换取更高毁伤；单束只作用于首个结构，可被电磁护盾折射。需要炮手，可安装火控或可回充电容。</DeltaV_Weapon_LaserTurret.description>
   <DeltaV_Weapon_HeavyMainMedium.label>中型重炮</DeltaV_Weapon_HeavyMainMedium.label>
-  <DeltaV_Weapon_HeavyMainMedium.description>中型旋转重炮，以较高单发威力打击重装甲目标。需要炮手，两个槽位可安装火控或弹仓插件。</DeltaV_Weapon_HeavyMainMedium.description>
+  <DeltaV_Weapon_HeavyMainMedium.description>中型旋转重炮，具有更高的装药量与弹重上限，分别装填装药与弹头。高弹重提供深穿和更重破片，同装药下弹速更低；每发都需长时间装填散热。需要炮手，两个槽位可安装火控或弹仓插件。</DeltaV_Weapon_HeavyMainMedium.description>
   <DeltaV_Weapon_RapidMainMedium.label>中型速射炮</DeltaV_Weapon_RapidMainMedium.label>
-  <DeltaV_Weapon_RapidMainMedium.description>中型旋转速射炮，依靠持续火力压制目标。需要炮手，两个槽位可安装火控或弹仓插件。</DeltaV_Weapon_RapidMainMedium.description>
+  <DeltaV_Weapon_RapidMainMedium.description>中型旋转速射炮，拥有更高的最大射速和更大备弹量。每发消耗一份装药与一份弹头；射速可调，过热后必须彻底冷却。需要炮手，两个槽位可安装火控或弹仓插件。</DeltaV_Weapon_RapidMainMedium.description>
   <DeltaV_Weapon_LaserMainMedium.label>中型激光炮</DeltaV_Weapon_LaserMainMedium.label>
-  <DeltaV_Weapon_LaserMainMedium.description>中型旋转激光炮，无需弹药，但每发从电网蓄电池取电。需要炮手；两个槽位可安装火控插件或可回充电容。</DeltaV_Weapon_LaserMainMedium.description>
+  <DeltaV_Weapon_LaserMainMedium.description>中型旋转激光炮，无需实体弹药。可提高功率与逐发耗电，不增加单束穿深；电磁护盾能折射光束。需要炮手，两个槽位可安装火控或可回充电容。</DeltaV_Weapon_LaserMainMedium.description>
   <DeltaV_Weapon_MissileLauncher.label>导弹发射架</DeltaV_Weapon_MissileLauncher.label>
   <DeltaV_Weapon_MissileLauncher.description>1×3 气密冷发射导弹架，内部可待发一枚导弹。搬运工优先直接装填，也可由同向安装的附加导弹仓自动补弹；可手动退出待发弹。自带火控，无须炮手或射击技能，发射后导弹延时点火。</DeltaV_Weapon_MissileLauncher.description>
   <DeltaV_Building_MissileMagazine.label>附加导弹仓</DeltaV_Building_MissileMagazine.label>
@@ -21,9 +21,9 @@
   <DeltaV_Missile_HE.label>高爆舰载导弹</DeltaV_Missile_HE.label>
   <DeltaV_Missile_HE.description>带高爆战斗部的制导舰载导弹。可装入导弹发射架或储存在附加导弹仓中。</DeltaV_Missile_HE.description>
   <DeltaV_Weapon_RailgunLoader.label>小型轨道炮装弹机</DeltaV_Weapon_RailgunLoader.label>
-  <DeltaV_Weapon_RailgunLoader.description>小型固定轴攻坚轨道炮，自带火控。每发消耗钢材和 1800 W·d 蓄电，射击间隔 30 秒。通电加速段提高弹速、深部贯穿及破盾能力；缺电段跳过。动能线盾会将弹芯碎裂为不具备深穿能力的破片。唯一槽位可选装铀制附加弹仓或同尺寸轨道炮电容。电容足额时代付基础脉冲，储能不足时由电网蓄电池支付。</DeltaV_Weapon_RailgunLoader.description>
+  <DeltaV_Weapon_RailgunLoader.description>小型固定轴攻坚轨道炮，自带火控。每发消耗制成的弹头和 1800 W·d 蓄电，射击间隔 30 秒。通电加速段提高弹速、深部贯穿及破盾能力；缺电段跳过。动能线盾会将弹芯碎裂为不具备深穿能力的破片。唯一槽位可选装铀制附加弹仓或同尺寸轨道炮电容。电容足额时代付基础脉冲，储能不足时由电网蓄电池支付。</DeltaV_Weapon_RailgunLoader.description>
   <DeltaV_Weapon_RailgunLoaderLarge.label>大型轨道炮装弹机</DeltaV_Weapon_RailgunLoaderLarge.label>
-  <DeltaV_Weapon_RailgunLoaderLarge.description>大型固定轴攻坚轨道炮，自带火控。每发消耗钢材和 3600 W·d 蓄电，射击间隔 40 秒。通电加速段提高弹速、深部贯穿及破盾能力；缺电段跳过。动能线盾会将弹芯碎裂为不具备深穿能力的破片。唯一槽位可选装铀制附加弹仓或同尺寸轨道炮电容。电容足额时代付基础脉冲，储能不足时由电网蓄电池支付。</DeltaV_Weapon_RailgunLoaderLarge.description>
+  <DeltaV_Weapon_RailgunLoaderLarge.description>大型固定轴攻坚轨道炮，自带火控。每发消耗制成的弹头和 3600 W·d 蓄电，射击间隔 40 秒。通电加速段提高弹速、深部贯穿及破盾能力；缺电段跳过。动能线盾会将弹芯碎裂为不具备深穿能力的破片。唯一槽位可选装铀制附加弹仓或同尺寸轨道炮电容。电容足额时代付基础脉冲，储能不足时由电网蓄电池支付。</DeltaV_Weapon_RailgunLoaderLarge.description>
   <DeltaV_Weapon_RailgunAccelerator.label>小型轨道炮加速段</DeltaV_Weapon_RailgunAccelerator.label>
   <DeltaV_Weapon_RailgunAccelerator.description>串联在小型装弹机前方。本段每发消耗 1200 W·d，增加 120 格/秒弹速，同时提高贯穿及破盾能力；储能不足时跳过。两侧各可安装一个三发脉冲电容。</DeltaV_Weapon_RailgunAccelerator.description>
   <DeltaV_Weapon_RailgunAcceleratorLarge.label>大型轨道炮加速段</DeltaV_Weapon_RailgunAcceleratorLarge.label>
@@ -33,7 +33,7 @@
   <DeltaV_Building_AutoAimPluginII.label>自动瞄准插件 II</DeltaV_Building_AutoAimPluginII.label>
   <DeltaV_Building_AutoAimPluginII.description>高级火控计算机，等效射击技能 16。</DeltaV_Building_AutoAimPluginII.description>
   <DeltaV_Building_UraniumMagazine.label>铀制附加弹仓</DeltaV_Building_UraniumMagazine.label>
-  <DeltaV_Building_UraniumMagazine.description>覆盖建造在挂件槽中的优先级 1 弹仓，以铀弹替换默认弹药。</DeltaV_Building_UraniumMagazine.description>
+  <DeltaV_Building_UraniumMagazine.description>优先级默认为1的附加弹仓，装填制成的铀弹头，按宿主本发弹重供应完整数量。装药仍由宿主供应；铀弹头质量更大、穿甲更强，同装药下弹速更低。</DeltaV_Building_UraniumMagazine.description>
   <DeltaV_Building_LaserCapacitor.label>激光炮附加电容</DeltaV_Building_LaserCapacitor.label>
   <DeltaV_Building_LaserCapacitor.description>安装在激光炮槽位上的可回充电容，建成时无储能，上限 80 W·d；充电功率 240 W，从空到满需 20000 tick。可代付完整的逐发耗电；储能不足时激光炮仍可从电网蓄电池取电。</DeltaV_Building_LaserCapacitor.description>
   <DeltaV_Building_RailgunCapacitor.label>小型轨道炮附加电容</DeltaV_Building_RailgunCapacitor.label>

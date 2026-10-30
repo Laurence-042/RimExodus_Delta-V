@@ -25,6 +25,7 @@ namespace DeltaV
 
         /// <summary>直射弹的离架速度；制导弹相对目标的期望接近速度（格/游戏秒）。</summary>
         public float speed = 60f;
+        public float mass = 1f;
 
         /// <summary>超时自毁（tick，无后效）。</summary>
         public int timeoutTicks = 1800;
@@ -79,8 +80,6 @@ namespace DeltaV
 
         /// <summary>将实弹碎裂的固定脉冲电费（W·d）。</summary>
         public float shieldFragmentCost = 2f;
-        /// <summary>将该弹体减速到零的脉冲电费（W·d）。</summary>
-        public float shieldStopEnergy = 80f;
         /// <summary>激光主动偏转 180 度的脉冲电费（W·d）。</summary>
         public float shieldLaserTurnEnergy = 2f;
         public ThingDef shieldFragmentDef;

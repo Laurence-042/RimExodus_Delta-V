@@ -37,7 +37,6 @@ namespace DeltaV
         public float spaceLengthPowerWatts = 1.5f;
         public int pulseFailureTicks = 180;
         public int guardRecoveryTicks = 2500;
-        public float kineticMaxDeltaV = 240f;
         public string projectorTexPath = "Things/Building/SpaceWeapons/ShieldProjector";
         public float projectorDrawSize = 2.8f;
 

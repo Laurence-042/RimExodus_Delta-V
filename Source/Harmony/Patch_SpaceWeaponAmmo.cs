@@ -2,21 +2,30 @@ using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using RimWorld;
-using UnityEngine;
 using Verse;
+using Verse.AI;
 
 namespace DeltaV
 {
-    /// <summary>原版同图 Verb 的 1 fuel/shot 映射到同一 Magazine 单发消耗。</summary>
-    [HarmonyPatch(typeof(CompRefuelable), nameof(CompRefuelable.ConsumeFuel))]
-    public static class Patch_CompRefuelable_SpaceWeaponAmmoCost
+    [HarmonyPatch(typeof(RefuelWorkGiverUtility), nameof(RefuelWorkGiverUtility.CanRefuel))]
+    internal static class Patch_GunSupplyCanRefuel
     {
-        public static void Prefix(CompRefuelable __instance, ref float amount)
+        private static bool Prefix(Pawn pawn, Thing t, bool forced, ref bool __result)
         {
-            if (Mathf.Abs(amount - 1f) > 0.0001f) return;
-            CompSpaceWeaponMagazine magazine =
-                __instance.parent?.TryGetComp<CompSpaceWeaponMagazine>();
-            if (magazine != null) amount = magazine.MagazineProps.ammoPerShot;
+            if (t.TryGetComp<CompGunSupply>() == null) return true;
+            __result = GunSupplyUtility.FindSupply(pawn, t, forced) != null;
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(RefuelWorkGiverUtility), nameof(RefuelWorkGiverUtility.RefuelJob))]
+    internal static class Patch_GunSupplyRefuelJob
+    {
+        private static bool Prefix(Pawn pawn, Thing t, bool forced, ref Job __result)
+        {
+            if (t.TryGetComp<CompGunSupply>() == null) return true;
+            __result = GunSupplyUtility.RefuelJob(pawn, t, forced);
+            return false;
         }
     }
 

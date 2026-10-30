@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<LanguageData>
+  <DeltaV_Propellant.label>舰炮装药</DeltaV_Propellant.label>
+  <DeltaV_Propellant.description>供舰炮装填的标准组件。装药与弹头分别供应，重炮可组合多份组件发射。</DeltaV_Propellant.description>
+  <DeltaV_SteelHead.label>钢制弹头</DeltaV_SteelHead.label>
+  <DeltaV_SteelHead.description>供舰炮装填的标准组件。装药与弹头分别供应，重炮可组合多份组件发射。</DeltaV_SteelHead.description>
+  <DeltaV_UraniumHead.label>铀制弹头</DeltaV_UraniumHead.label>
+  <DeltaV_UraniumHead.description>供舰炮装填的标准组件。装药与弹头分别供应，重炮可组合多份组件发射。</DeltaV_UraniumHead.description>
+</LanguageData>

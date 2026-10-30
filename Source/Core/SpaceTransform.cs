@@ -180,6 +180,12 @@ namespace DeltaV
             return VelocityAtMovingLocalPoint(pose, localPoint, Vector2.zero, pointDirection);
         }
 
+        public static Vector2 VelocityAtUniversePoint(SpacePose pose, Vector3 point) =>
+            VelocityAtLocalPoint(pose, UniverseToShipLocal(pose, point), point);
+
+        public static Vector2 RelativeVelocityAtContact(SpacePose projectile, SpacePose defender, Vector3 point) =>
+            TransportVelocity(projectile, point) - VelocityAtUniversePoint(defender, point);
+
         /// <summary>随宿主移动且在宿主局部系内自行运动的目标点速度；战斗环绕与随动制导共用。</summary>
         public static Vector2 VelocityAtMovingLocalPoint(SpacePose pose, Vector2 localPoint,
             Vector2 localVelocity, Vector3 pointDirection)
@@ -323,6 +329,13 @@ namespace DeltaV
         public static Vector2 UniverseToShipLocal(SpaceObject obj, Vector3 universeDir)
         {
             return UniverseToShipLocal(obj.pose, universeDir);
+        }
+
+        public static Vector2 UniverseTangentToMapDirection(SpaceObject owner, Map map, Vector3 point, Vector2 tangent)
+        {
+            if (tangent.sqrMagnitude < 1e-8f) return Vector2.zero;
+            return (UniverseToMapPoint(owner, map, OrbitSphere.Move(point, tangent.normalized))
+                - UniverseToMapPoint(owner, map, point)).normalized;
         }
 
         internal static Vector2 UniverseToShipLocal(SpacePose pose, OrbitSphere.Direction universeDir)

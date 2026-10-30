@@ -125,7 +125,7 @@ namespace DeltaV
         internal static WeaponReject CheckReadiness(CompSpaceWeapon weapon, out int skill)
         {
             skill = 0;
-            if (Find.TickManager.TicksGame < weapon.cooldownUntilTick) return WeaponReject.Cooldown;
+            if (weapon.CooldownTicksLeft > 0) return WeaponReject.Cooldown;
             if (!weapon.TryGetSkillLevel(out skill)) return WeaponReject.Operating;
             if (weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }) return WeaponReject.Power;
             return WeaponReject.None;

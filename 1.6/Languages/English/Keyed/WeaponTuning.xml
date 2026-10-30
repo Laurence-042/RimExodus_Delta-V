@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<LanguageData>
+  <DeltaV_TuneCharge>Charge: {0}</DeltaV_TuneCharge>
+  <DeltaV_TuneChargeTip>More propellant increases muzzle speed, supply use and cooling time.</DeltaV_TuneChargeTip>
+  <DeltaV_TuneMass>Head units: {0}</DeltaV_TuneMass>
+  <DeltaV_TuneMassTip>Heavier projectiles penetrate deeper and produce heavier fragments, but travel slower for the same charge.</DeltaV_TuneMassTip>
+  <DeltaV_TuneRate>Rate: {0} shots/s</DeltaV_TuneRate>
+  <DeltaV_TuneRateTip>Higher rates concentrate fire but overheat sooner. Thermal lock lasts until fully cool.</DeltaV_TuneRateTip>
+  <DeltaV_TunePower>Pulse power: {0}x</DeltaV_TunePower>
+  <DeltaV_TunePowerTip>Increases pulse energy and electricity consumption without adding penetration.</DeltaV_TunePowerTip>
+  <DeltaV_WeaponThermal>Heat: {0}; ready in {1:0.0}s ({2})</DeltaV_WeaponThermal>
+  <DeltaV_ThermalLocked>thermal lock</DeltaV_ThermalLocked>
+  <DeltaV_ThermalReady>below thermal limit</DeltaV_ThermalReady>
+  <DeltaV_ShotLoad>Per shot: {0} charge + {1} heads; mass {2}, speed {3} cells/s; cycle {4}s</DeltaV_ShotLoad>
+  <DeltaV_PulseEnergy>Pulse energy: {0} Wd</DeltaV_PulseEnergy>
+  <DeltaV_ShieldKineticEnergyReference>0% only fragments. Active settings cancel incoming energy then impart reverse energy. Reverse budget: {0}; cost increases with incoming mass and speed.</DeltaV_ShieldKineticEnergyReference>
+  <DeltaV_HeadSupply>Projectile heads</DeltaV_HeadSupply>
+  <DeltaV_PropellantSupply>Propellant</DeltaV_PropellantSupply>
+</LanguageData>

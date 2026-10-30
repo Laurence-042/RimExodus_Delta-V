@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<LanguageData>
+  <DeltaV_TuneCharge>装药量：{0}</DeltaV_TuneCharge>
+  <DeltaV_TuneChargeTip>增加装药提高初速，同时增加弹药消耗和排热负担。</DeltaV_TuneChargeTip>
+  <DeltaV_TuneMass>弹重档：{0}</DeltaV_TuneMass>
+  <DeltaV_TuneMassTip>增加弹重提高穿深和破片质量；相同装药下初速降低。</DeltaV_TuneMassTip>
+  <DeltaV_TuneRate>射速：{0} 发/秒</DeltaV_TuneRate>
+  <DeltaV_TuneRateTip>高射速缩短爆发窗口，但更快过热；过热后必须彻底冷却。</DeltaV_TuneRateTip>
+  <DeltaV_TunePower>功率：{0} 倍</DeltaV_TunePower>
+  <DeltaV_TunePowerTip>提高单束能量和逐发耗电，不增加单发穿深。</DeltaV_TunePowerTip>
+  <DeltaV_WeaponThermal>热量：{0}；就绪剩余 {1:0.0} 秒（{2}）</DeltaV_WeaponThermal>
+  <DeltaV_ThermalLocked>冷却锁定</DeltaV_ThermalLocked>
+  <DeltaV_ThermalReady>未过热</DeltaV_ThermalReady>
+  <DeltaV_ShotLoad>每发：{0} 装药＋{1} 弹头；质量 {2} 单位，初速 {3} 格/秒；周期 {4} 秒</DeltaV_ShotLoad>
+  <DeltaV_PulseEnergy>每束耗电：{0} W·d</DeltaV_PulseEnergy>
+  <DeltaV_ShieldKineticEnergyReference>0% 只碎裂；主动档抵消来弹动能后赋予反向能量。当前反推：{0} 单位；耗电随来弹质量、速度增加。</DeltaV_ShieldKineticEnergyReference>
+  <DeltaV_HeadSupply>弹头储备</DeltaV_HeadSupply>
+  <DeltaV_PropellantSupply>装药储备</DeltaV_PropellantSupply>
+</LanguageData>

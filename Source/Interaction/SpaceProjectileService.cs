@@ -15,22 +15,24 @@ namespace DeltaV
         public readonly float coldLaunchSpeed;
         public readonly float damageScale;
         public readonly float armorPenetrationScale;
+        public readonly float mass, beamEnergyScale;
 
         public SpaceProjectileLaunchSpec(float speed, int coldLaunchTicks, float coldLaunchSpeed,
-            float damageScale = 1f, float armorPenetrationScale = 1f)
+            float damageScale = 1f, float armorPenetrationScale = 1f, float mass = 1f, float beamEnergyScale = 1f)
         {
             this.speed = speed;
             this.coldLaunchTicks = coldLaunchTicks;
             this.coldLaunchSpeed = coldLaunchSpeed;
             this.damageScale = damageScale;
             this.armorPenetrationScale = armorPenetrationScale;
+            this.mass = mass; this.beamEnergyScale = beamEnergyScale;
         }
 
         public static SpaceProjectileLaunchSpec FromDef(CompProperties_SpaceProjectile props,
             float damageScale = 1f)
         {
             return new SpaceProjectileLaunchSpec(props.speed, props.coldLaunchTicks,
-                props.speed * props.coldLaunchSpeedFactor, damageScale);
+                props.speed * props.coldLaunchSpeedFactor, damageScale, 1f, props.mass);
         }
     }
 
@@ -116,6 +118,7 @@ namespace DeltaV
             /// <summary>发射伤害倍率乘剩余冲击比例；跨 tick 沿用。</summary>
             public float damageScale = 1f;
             public float armorPenetrationScale = 1f;
+            public float mass = 1f, beamEnergyScale = 1f;
             public CannonShotTrace cannonTrace;
             /// <summary>复用的扫掠查询（每 tick 重填字段，热路径零分配）。</summary>
             public readonly SpaceCollision.SweptBody body = new SpaceCollision.SweptBody();
@@ -215,7 +218,7 @@ namespace DeltaV
         }
 
         internal void LaunchShieldFragment(ThingDef def, SpaceObject source, SpaceObject defender,
-            Thing launcher, Vector3 hit, Vector2 direction, float signedSpeed)
+            Thing launcher, Vector3 hit, Vector2 direction, float signedSpeed, float mass, float armorPenetrationScale)
         {
             OrbitSphere.Basis(hit, out Vector3 east, out Vector3 north);
             Vector3 worldDirection = east * direction.x + north * direction.y;
@@ -223,12 +226,12 @@ namespace DeltaV
             Vector3 muzzle = OrbitSphere.Move(hit, travel * 0.06f);
             float speed = Mathf.Abs(signedSpeed);
             if (!Launch(def, null, muzzle, worldDirection, source?.faction, launcher, default,
-                new SpaceProjectileLaunchSpec(speed, 0, speed, 1f, 1f))) return;
+                new SpaceProjectileLaunchSpec(speed, 0, speed, 1f, armorPenetrationScale, mass))) return;
             Projectile fragment = projectiles[projectiles.Count - 1];
             fragment.sourceContainer = source;
             fragment.reflectedByShield = signedSpeed < 0f;
             fragment.container.pose.velocity = travel * speed
-                + SpaceTransform.TransportVelocity(defender.pose, muzzle);
+                + SpaceTransform.TransportTangent(SpaceTransform.VelocityAtUniversePoint(defender.pose, hit), hit, muzzle);
             fragment.container.pose.angle = Mathf.Atan2(travel.y, travel.x);
             fragment.cruiseSpeed = speed;
         }
@@ -248,7 +251,7 @@ namespace DeltaV
             if (dirTangent.sqrMagnitude < 1e-8f) dirTangent = Vector2.right;
             dirTangent.Normalize();
             Vector2 launcherVelocity = source != null
-                ? SpaceTransform.TransportVelocity(source.pose, muzzle)
+                ? SpaceTransform.VelocityAtUniversePoint(source.pose, muzzle)
                 : Vector2.zero;
 
             Projectile projectile = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
@@ -339,6 +342,7 @@ namespace DeltaV
             projectile.container = created;
             projectile.damageScale = launchSpec.damageScale;
             projectile.armorPenetrationScale = launchSpec.armorPenetrationScale;
+            projectile.mass = launchSpec.mass; projectile.beamEnergyScale = launchSpec.beamEnergyScale;
             projectiles.Add(projectile);
             if (diagnosticAim.HasValue && missileTarget.Kind == CombatTargetKind.Ship
                 && CombatTarget.ForShip(missileTarget.Ship).TryResolve(universe, out var aimed)
@@ -401,7 +405,7 @@ namespace DeltaV
             p.laser = false;
             ShipBase vessel = hull.TryGetComp<CompSpaceShuttle>().Vessel;
             p.prevPosition = shuttle.pose.position;
-            p.damageScale = p.armorPenetrationScale = 1f;
+            p.damageScale = p.armorPenetrationScale = p.mass = p.beamEnergyScale = 1f;
             shuttle.projectileRoleOverride = true;
             projectiles.Add(p);
             p.boardingDriver = DriveSubject.Of(vessel);
@@ -675,6 +679,7 @@ namespace DeltaV
                 body.noseForwardOffset = p.adoptedShuttle ? (p.def.Size.z - 1) * 0.5f : 0f;
                 body.damageScale = p.damageScale;
                 body.armorPenetrationScale = p.armorPenetrationScale;
+                body.mass = p.mass; body.beamEnergyScale = p.beamEnergyScale;
                 if (p.laser)
                 {
                     // 专用点防束在结算 tick 追踪导弹现位，避免一 tick 位移把必中特性变成擦边。
@@ -727,7 +732,7 @@ namespace DeltaV
                 {
                     SpaceShieldProjectileBehavior.SpawnFragments(this, captured.def,
                         captured.sourceContainer, defender, captured.launcher, hit,
-                        direction, signedSpeed);
+                        direction, signedSpeed, captured.mass * captured.body.damageScale, captured.armorPenetrationScale);
                 };
                 sweepScratch.Add(p);
                 bodyScratch.Add(body);
@@ -958,7 +963,7 @@ namespace DeltaV
             p.motorDeltaVelocityPerTick = p.cruiseSpeed = p.rcsTurnSign = 0f;
             p.motorThrusting = false;
             p.damageScale = 1f;
-            p.armorPenetrationScale = 1f;
+            p.armorPenetrationScale = p.mass = p.beamEnergyScale = 1f;
             p.cannonTrace = null;
             p.body.attacker = null;
             p.body.projectileDef = null;

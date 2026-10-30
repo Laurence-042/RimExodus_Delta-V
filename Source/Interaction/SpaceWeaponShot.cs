@@ -69,7 +69,7 @@ namespace DeltaV
             aimPoint = request.AimPoint;
             guidanceTarget = request.GuidanceTarget;
             manualFire = request.ManualFire;
-            damageScale = weapon.WeaponProps.impactScale;
+            damageScale = weapon.WeaponProps.impactScale * (weapon.Tuning?.power ?? 1);
         }
 
         internal SpaceWeaponShot(UniverseManager universe, CompSpaceWeapon weapon, SpaceObject container,
@@ -127,7 +127,7 @@ namespace DeltaV
             OrbitSphere.Basis(muzzleUniverse, out Vector3 east, out Vector3 north);
             Vector3 directionWorld = east * tangent.x + north * tangent.y;
             var spec = new SpaceProjectileLaunchSpec(speed, ignitionDelayTicks,
-                coldLaunchSpeed, damageScale, armorPenetrationScale);
+                coldLaunchSpeed, damageScale, armorPenetrationScale, parameters.mass, parameters.power);
             bool traceCannon = DeltaVLog.Enabled(DeltaVLogModule.Development)
                 && projectileDef.defName == "DeltaV_Projectile_Cannon"
                 && guidanceTarget.Kind == CombatTargetKind.Ship;
@@ -161,6 +161,7 @@ namespace DeltaV
                 parameters = SpaceWeaponBallistics.Read(weapon, container, new SpaceWeaponEnergy(), true);
                 hasParameters = true;
             }
+            damageScale = weapon.WeaponProps.impactScale * parameters.power;
             magazine = parameters.magazine;
             if (!weapon.MagazineAvailable(magazine)) return Reject(WeaponReject.Ammo);
             projectileDef = parameters.aim.Projectile;
@@ -257,9 +258,11 @@ namespace DeltaV
             {
                 parameters.energy.Commit();
                 universe?.Performance.RecordWeaponResult(WeaponReject.None);
-                magazine?.ConsumeShot();
+                magazine?.ConsumeHeads(parameters.heads);
+                if (parameters.charge > 0) weapon.parent.TryGetComp<CompSpaceWeaponMagazine>().ConsumePropellant(parameters.charge);
                 weapon.NotifyMagazineConsumed(magazine);
-                weapon.cooldownUntilTick = Find.TickManager.TicksGame + weapon.WeaponProps.cooldownTicks;
+                if (weapon.Tuning != null) weapon.Tuning.CommitShot(parameters.shotHeat, parameters.cycleTicks);
+                else weapon.cooldownUntilTick = Find.TickManager.TicksGame + weapon.WeaponProps.cooldownTicks;
                 foreach (ThingComp comp in CapabilityComps())
                 {
                     if (comp is ISpaceWeaponFireCommit commit) commit.NotifyShotCommitted(this);

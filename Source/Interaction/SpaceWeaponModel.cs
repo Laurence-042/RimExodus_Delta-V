@@ -67,8 +67,8 @@ namespace DeltaV
             {
                 Clear();
                 SpaceWeaponLayout layout = weapon.Layout;
-                if (!ReserveAttachments(layout.attachments, weapon.WeaponProps.shotEnergy)
-                    && !ReserveGrid(weapon.parent, weapon.WeaponProps.shotEnergy)) return false;
+                if (!ReserveAttachments(layout.attachments, weapon.ShotEnergy)
+                    && !ReserveGrid(weapon.parent, weapon.ShotEnergy)) return false;
                 ready = true;
                 if (includeSegments)
                     foreach (var segment in layout.acceleration.segments)
@@ -140,12 +140,24 @@ namespace DeltaV
         internal readonly CompSpaceWeaponMagazine magazine;
         internal readonly WeaponAimInfo aim;
         internal readonly SpaceWeaponEnergy energy;
-        internal SpaceWeaponParameters(CompSpaceWeaponMagazine magazine, WeaponAimInfo aim, SpaceWeaponEnergy energy)
-        { this.magazine = magazine; this.aim = aim; this.energy = energy; }
+        internal readonly float mass;
+        internal readonly int heads, charge, power, cycleTicks;
+        internal readonly float shotHeat;
+        internal SpaceWeaponParameters(CompSpaceWeaponMagazine magazine, WeaponAimInfo aim, SpaceWeaponEnergy energy, float mass = 1f, int heads = 0, int charge = 0, int power = 1, float shotHeat = 0f, int cycleTicks = 0)
+        { this.magazine = magazine; this.aim = aim; this.energy = energy; this.mass = mass; this.heads = heads; this.charge = charge; this.power = power; this.shotHeat = shotHeat; this.cycleTicks = cycleTicks; }
     }
 
     internal static class SpaceWeaponBallistics
     {
+        internal static float ExpectedDamage(CompSpaceWeapon weapon, ThingDef projectile, ThingDef target = null)
+        {
+            var part = SpaceImpactEffects.Resolve(projectile, target ?? ThingDefOf.Wall)?.defenderEffect;
+            if (part == null) return 0f;
+            float speed = ProjectedSpeed(weapon, SpaceWeaponService.ProjectileSpeedOf(projectile));
+            return SpaceImpactEffects.ComputeDamage(part, speed, 0f, 1f,
+                ProjectileMass(weapon, weapon.SelectMagazine())) * weapon.WeaponProps.impactScale * (weapon.Tuning?.power ?? 1);
+        }
+
         internal static bool HasBaseShotEnergy(CompSpaceWeapon weapon)
             => weapon?.parent?.Spawned == true && weapon.QueryEnergy.Evaluate(weapon, false);
 
@@ -159,8 +171,19 @@ namespace DeltaV
             return ready;
         }
 
+        internal static float ProjectileMass(CompSpaceWeapon weapon, CompSpaceWeaponMagazine magazine)
+        {
+            var source = magazine ?? weapon.parent.TryGetComp<CompSpaceWeaponMagazine>();
+            return source?.Supply(GunSupplyKind.Heads) != null ? source.RequiredHeads(weapon) * source.MagazineProps.unitMass
+                : weapon.WeaponProps.projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()?.mass ?? 1f;
+        }
+        internal static float BaseSpeed(CompSpaceWeapon weapon, CompSpaceWeaponMagazine magazine, float fallback) =>
+            weapon.Tuning?.Settings.chemical == true ? SpaceKinetics.LaunchSpeed(weapon.Tuning.charge, ProjectileMass(weapon, magazine)) : fallback;
         internal static float ProjectedSpeed(CompSpaceWeapon weapon, float baseSpeed)
-            => weapon.QueryEnergy.Evaluate(weapon) ? baseSpeed + weapon.QueryEnergy.speedBonus : baseSpeed;
+        {
+            baseSpeed = BaseSpeed(weapon, weapon.SelectMagazine(), baseSpeed);
+            return weapon.QueryEnergy.Evaluate(weapon) ? baseSpeed + weapon.QueryEnergy.speedBonus : baseSpeed;
+        }
 
 
         internal static SpaceWeaponParameters Read(CompSpaceWeapon weapon, SpaceObject container,
@@ -177,10 +200,12 @@ namespace DeltaV
                 if (forShot || accelerated) energy.Evaluate(weapon);
                 else energy.Clear();
                 Vector2 muzzle = layout.acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
-                float speed = SpaceWeaponService.ProjectileSpeedOf(projectile) + energy.speedBonus;
+                float speed = BaseSpeed(weapon, magazine, SpaceWeaponService.ProjectileSpeedOf(projectile)) + energy.speedBonus;
                 return new SpaceWeaponParameters(magazine,
                     new WeaponAimInfo(SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzle),
-                        muzzle, projectile, speed, weapon.WeaponProps.minRange, weapon.EffectiveRange), energy);
+                        muzzle, projectile, speed, weapon.WeaponProps.minRange, weapon.EffectiveRange), energy, ProjectileMass(weapon, magazine),
+                    magazine?.RequiredHeads(weapon) ?? 0, weapon.Tuning?.Settings.chemical == true ? weapon.Tuning.charge : 0, weapon.Tuning?.power ?? 1, weapon.Tuning?.ShotHeat ?? 0f,
+                    weapon.Tuning?.CycleTicks ?? weapon.ShotInterval);
             }
             finally { perf?.Record(PerformanceStage.WeaponParameters, start); }
         }
@@ -194,7 +219,7 @@ namespace DeltaV
             WeaponAimInfo info = parameters.aim;
             return new SpaceWeaponParameters(parameters.magazine,
                 new WeaponAimInfo(SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzle),
-                    muzzle, info.Projectile, info.Speed, info.MinRange, info.Range), parameters.energy);
+                    muzzle, info.Projectile, info.Speed, info.MinRange, info.Range), parameters.energy, parameters.mass, parameters.heads, parameters.charge, parameters.power, parameters.shotHeat, parameters.cycleTicks);
         }
 
         internal static bool TryAim(WeaponAimInfo info, SpacePose source, SpacePose target, out Vector3 point)
@@ -216,7 +241,7 @@ namespace DeltaV
             if (projectileSpeed <= 0f) return false;
             Vector2 p = OrbitSphere.Offset(muzzle, targetPose.position);
             Vector2 relativeVelocity = SpaceTransform.TransportVelocity(targetPose, muzzle)
-                - SpaceTransform.TransportVelocity(sourcePose, muzzle);
+                - SpaceTransform.VelocityAtUniversePoint(sourcePose, muzzle);
             if (!SpaceTransform.TrySolveInterceptPlanar(p, relativeVelocity, projectileSpeed, out float time)) return false;
             interceptUniverse = OrbitSphere.Move(muzzle, p + relativeVelocity * time);
             return true;

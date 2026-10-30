@@ -14,6 +14,21 @@ namespace DeltaV
         private readonly List<int> staleEngineGroups = new List<int>();
         private readonly List<CombatParticle> driveFlames = new List<CombatParticle>();
         private int motionSequence;
+        private readonly ThrusterVisualProfile gunSmoke = new ThrusterVisualProfile
+        { flame = false, smokeLifetime = 75, smokeSize = .65f, smokeGrowth = 1.6f,
+            exhaustSpeed = .6f, spread = .35f, smokeOpacity = .5f, smokeColor = new Color(.4f, .4f, .4f) };
+
+        internal void EmitGunCoolingSmoke(CompSpaceWeapon weapon)
+        {
+            var obj = weapon.Container;
+            if (obj?.map == null || driveExhaust.Count >= MaxDriveExhaust) return;
+            Vector2 point = new Vector2(weapon.parent.DrawPos.x, weapon.parent.DrawPos.z);
+            Vector3 position = SpaceTransform.MapPointToUniverse(obj, obj.map, point);
+            Vector2 velocity = SpaceTransform.VelocityAtLocalPoint(obj.pose,
+                SpaceTransform.MapToShipLocal(obj.map, point), position);
+            AddDriveParticle(driveExhaust, position, velocity, Vector2.up, 1f, 1f,
+                gunSmoke, Find.TickManager.TicksGame, false);
+        }
         private int feedbackMapId = -1;
         private int hullSoundAfter;
         private PendingHullSound pendingHullSound;

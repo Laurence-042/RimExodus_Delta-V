@@ -131,6 +131,7 @@ namespace DeltaV
             /// <summary>发射伤害倍率乘剩余冲击比例；随事件进入结算。</summary>
             public float damageScale = 1f;
             public float armorPenetrationScale = 1f;
+            public float mass = 1f, beamEnergyScale = 1f;
             /// <summary>「放置」后效回调（侵入 shuttle §7.5）：shuttle 服务闭包——
             /// 舱体放置在撞击位内侧偏移 + 容器销毁（帧边界）。</summary>
             public System.Action<SpaceObject, Vector3, Vector2> onPlace;
@@ -185,6 +186,7 @@ namespace DeltaV
             /// <summary>发射伤害倍率乘剩余冲击比例。</summary>
             public float damageScale = 1f;
             public float armorPenetrationScale = 1f;
+            public float mass = 1f, beamEnergyScale = 1f;
         }
 
         private static readonly ImpactEvent SharedEvent = new ImpactEvent();
@@ -505,7 +507,6 @@ namespace DeltaV
             Vector2 shieldPoint = default;
             float shieldIncidence = 0f;
             SpaceImpactEffectDef shieldEffect = null;
-            float relativeSpeed = SpaceTransform.RelativeVelocity(body.attacker.pose, defender.pose).magnitude;
             if (shieldsApply && surface.arcs.Count > 0
                 && TryFindArcHit(surface, fromLocal, dir, length, out ShieldArc arc, out Vector2 point, out float arcAlong))
             {
@@ -558,16 +559,19 @@ namespace DeltaV
                 evt.hitCell = bestCell;
                 evt.hitUniverse = SpaceTransform.MapPointToUniverse(defender, defMap, p);
                 evt.incidentDir = dir;
-                evt.relativeVelocity = SpaceTransform.RelativeVelocity(body.attacker.pose, defender.pose);
+                evt.relativeVelocity = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, defender.pose, evt.hitUniverse);
                 evt.relativeSpeed = evt.relativeVelocity.magnitude;
+                if (SpaceShieldProjectileBehavior.IsKinetic(projectileProps) && evt.relativeSpeed > .0001f)
+                    evt.incidentDir = SpaceTransform.UniverseTangentToMapDirection(defender, defMap, evt.hitUniverse, evt.relativeVelocity);
                 evt.damageScale = body.damageScale;
                 evt.armorPenetrationScale = body.armorPenetrationScale;
+                evt.mass = body.mass; evt.beamEnergyScale = body.beamEnergyScale;
 
                 // 入射角：按扫掠进入面推导法线（法线指向来侧；基架格同规则，不设第二套约定）。
-                Vector2 normal = Mathf.Abs(dir.x) >= Mathf.Abs(dir.y)
-                    ? new Vector2(-Mathf.Sign(dir.x), 0f)
-                    : new Vector2(0f, -Mathf.Sign(dir.y));
-                evt.incidenceAngleRad = SpaceTransform.IncidenceAngle(dir, normal);
+                Vector2 normal = Mathf.Abs(evt.incidentDir.x) >= Mathf.Abs(evt.incidentDir.y)
+                    ? new Vector2(-Mathf.Sign(evt.incidentDir.x), 0f)
+                    : new Vector2(0f, -Mathf.Sign(evt.incidentDir.y));
+                evt.incidenceAngleRad = SpaceTransform.IncidenceAngle(evt.incidentDir, normal);
 
                 // 命中判定（二值）：放行 = 弹体穿过、本 tick 后续采样继续（下次碰撞再判定）。
                 if (!SpaceImpactEffects.HitTest(body.projectileDef, bestKind, bestThing, effect))
@@ -647,23 +651,22 @@ namespace DeltaV
                 Vector3 hit = SpaceTransform.MapPointToUniverse(defender, defMap, linePoint);
                 if (lineShield.mode == SpaceShieldMode.Kinetic)
                 {
-                    float speed = relativeSpeed;
-                    float requested = lineShield.ShieldProps.kineticMaxDeltaV
-                        * lineShield.kineticStrengthPercent / 100f;
+                    Vector2 relative = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, defender.pose, hit);
+                    float speed = relative.magnitude;
+                    float effectiveMass = body.mass * body.damageScale;
+                    bool active = lineShield.kineticStrengthPercent > 0;
                     float baseCost = projectileProps.shieldFragmentCost;
-                    float extra = SpaceShieldProjectileBehavior.KineticCost(projectileProps, requested, speed)
-                        - baseCost;
-                    float paid = lineShield.ConsumePulseFraction(baseCost + extra)
-                        * (baseCost + extra);
-                    float actualDeltaV = extra <= 0f ? 0f
-                        : requested * Mathf.Clamp01((paid - baseCost) / extra);
+                    float kineticCost = SpaceKinetics.ShieldCost(effectiveMass, speed,
+                        SpaceKinetics.ReverseEnergy(lineShield.kineticStrengthPercent), baseCost, active);
+                    float paid = lineShield.ConsumePulseFraction(kineticCost) * kineticCost;
+                    float outgoingSpeed = SpaceKinetics.AfterShield(effectiveMass, speed, paid, baseCost, active);
                     body.resolvedHit = true;
                     body.resolvedHitShield = true;
                     body.resolvedHitUniverse = hit;
                     body.resolvedHitDefender = defender;
                     body.resolvedHitLocal = linePoint;
-                    Vector2 worldDirection = SpaceTransform.MapDirectionToUniverseTangent(
-                        defender, defMap, linePoint, dir);
+                    Vector2 worldDirection = speed > .0001f ? relative / speed
+                        : SpaceTransform.MapDirectionToUniverseTangent(defender, defMap, linePoint, dir);
                     body.onVisualContact?.Invoke(new VisualContact
                     {
                         defender = defender, projectileDef = body.projectileDef, position = hit, pathFrom = body.from,
@@ -671,14 +674,14 @@ namespace DeltaV
                         damageScale = body.damageScale, shieldMode = SpaceShieldMode.Kinetic,
                         lineStart = lineStart, lineEnd = lineEnd
                     });
-                    body.onShieldShatter?.Invoke(hit, defender, worldDirection, speed - actualDeltaV);
+                    body.onShieldShatter?.Invoke(hit, defender, worldDirection, outgoingSpeed);
                     body.dead = true;
                     body.onSelfDestruct?.Invoke();
                     return true;
                 }
                 int strength = lineShield.electromagneticStrengthPercent;
                 SpaceShieldRefraction.Plan plan = SpaceShieldRefraction.Calculate(dir, lineNormal, strength);
-                float cost = projectileProps.shieldLaserTurnEnergy * plan.addedDeg / 180f;
+                float cost = projectileProps.shieldLaserTurnEnergy * body.beamEnergyScale * plan.addedDeg / 180f;
                 float funded = lineShield.ConsumePulseFraction(cost);
                 Vector2 outgoing = plan.Direction(funded);
                 body.onVisualContact?.Invoke(new VisualContact
@@ -710,11 +713,15 @@ namespace DeltaV
                 evt.hitCell = IntVec3.Invalid;
                 evt.hitUniverse = SpaceTransform.MapPointToUniverse(defender, defMap, shieldPoint);
                 evt.incidentDir = dir;
-                evt.relativeVelocity = SpaceTransform.RelativeVelocity(body.attacker.pose, defender.pose);
+                evt.relativeVelocity = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, defender.pose, evt.hitUniverse);
                 evt.relativeSpeed = evt.relativeVelocity.magnitude;
-                evt.incidenceAngleRad = shieldIncidence;
+                if (SpaceShieldProjectileBehavior.IsKinetic(projectileProps) && evt.relativeSpeed > .0001f)
+                    evt.incidentDir = SpaceTransform.UniverseTangentToMapDirection(defender, defMap, evt.hitUniverse, evt.relativeVelocity);
+                evt.incidenceAngleRad = SpaceShieldProjectileBehavior.IsKinetic(projectileProps)
+                    ? SpaceTransform.IncidenceAngle(evt.incidentDir, (shieldPoint - shieldArc.center).normalized) : shieldIncidence;
                 evt.damageScale = body.damageScale;
                 evt.armorPenetrationScale = body.armorPenetrationScale;
+                evt.mass = body.mass; evt.beamEnergyScale = body.beamEnergyScale;
                 body.resolvedHit = true;
                 body.resolvedHitUniverse = evt.hitUniverse;
                 body.resolvedHitDefender = defender;

@@ -58,8 +58,11 @@ namespace DeltaV
 
         protected override void BeginBurst()
         {
-            if (GroundFireEnabled) base.BeginBurst();
+            if (GroundFireEnabled && AttackVerb.Available()) base.BeginBurst();
         }
+
+        protected override float BurstCooldownTime() =>
+            (this.TryGetComp<CompSpaceWeapon>()?.ShotInterval ?? 60) / 60f;
 
         public void NotifyEngagementModeChanged()
         {
@@ -67,8 +70,8 @@ namespace DeltaV
             int now = Find.TickManager.TicksGame;
             if (GroundFireEnabled)
             {
-                burstCooldownTicksLeft = Mathf.Max(burstCooldownTicksLeft,
-                    (weapon?.cooldownUntilTick ?? now) - now);
+                burstCooldownTicksLeft = weapon?.Tuning != null ? weapon.CooldownTicksLeft
+                    : Mathf.Max(burstCooldownTicksLeft, weapon?.CooldownTicksLeft ?? 0);
                 return;
             }
             if (AttackVerb.state == VerbState.Bursting)
