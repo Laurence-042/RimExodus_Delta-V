@@ -14,20 +14,6 @@ namespace DeltaV
             CompSpaceWeapon weapon = ___parentTurret.TryGetComp<CompSpaceWeapon>();
             if (weapon?.SpaceModeEnabled == true) recoilDrawOffset = weapon.VisualRecoilOffset;
         }
-
-        public static void Postfix(TurretTop __instance, Building_Turret ___parentTurret,
-            Vector3 drawLoc, Vector3 recoilDrawOffset, float recoilAngleOffset)
-        {
-            var building = ___parentTurret.def.building;
-            Vector3 offset = new Vector3(building.turretTopOffset.x, 0f, building.turretTopOffset.y)
-                .RotatedBy(recoilAngleOffset) + recoilDrawOffset;
-            float angle = ___parentTurret.CurrentEffectiveVerb?.AimAngleOverride ?? __instance.CurRotation;
-            Matrix4x4 matrix = Matrix4x4.TRS(drawLoc + Altitudes.AltIncVect + offset,
-                (TurretTop.ArtworkRotation + angle).ToQuat(), new Vector3(building.turretTopDrawSize, 1f, building.turretTopDrawSize));
-            for (int part = 0; part < 2; part++)
-                if (WeaponHeatVisuals.TryPart(___parentTurret, ___parentTurret.TurretTopMaterial, part, out Mesh mesh, out Material material))
-                    Graphics.DrawMesh(mesh, matrix, material, 0);
-        }
     }
 
     [HarmonyPatch(typeof(TurretTop), nameof(TurretTop.TurretTopTick))]

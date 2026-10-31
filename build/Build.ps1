@@ -2,7 +2,8 @@ param([ValidateSet('1.6','1.7')][string]$Version='1.7')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $framework = [IO.Path]::GetFullPath((Join-Path $root '../RimExodusFramework'))
-if (!(Test-Path -LiteralPath "$framework/justfile")) { throw "Sibling REF project missing: $framework" }
+$frameworkBuild = Join-Path $framework 'build/Build.ps1'
+if (!(Test-Path -LiteralPath $frameworkBuild)) { throw "Sibling REF build script missing: $frameworkBuild" }
 $localSdk = Join-Path $root '.local-tools/dotnet/dotnet.exe'
 if (!$env:DOTNET_EXE -and $Version -eq '1.7' -and (Test-Path -LiteralPath $localSdk)) {
     $env:DOTNET_EXE = $localSdk
@@ -10,7 +11,7 @@ if (!$env:DOTNET_EXE -and $Version -eq '1.7' -and (Test-Path -LiteralPath $local
 $sdk = if ($env:DOTNET_EXE) { $env:DOTNET_EXE } else { 'dotnet' }
 Push-Location $root
 try {
-    & just --justfile "$framework/justfile" build $Version
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $frameworkBuild -Version $Version
     if ($LASTEXITCODE -ne 0) { throw 'REF build failed; Delta-V was not built.' }
     $reference = Join-Path $root "References/REF/$Version"
     New-Item -ItemType Directory -Force -Path $reference | Out-Null

@@ -9,25 +9,32 @@ namespace DeltaV
     {
         private const int MaxDriveExhaust = 768;
         private const int MaxDriveFlames = 384;
+        private const int MaxGunCoolingSmoke = 128;
         private readonly List<CombatParticle> driveExhaust = new List<CombatParticle>();
+        private readonly List<CombatParticle> gunCoolingSmoke = new List<CombatParticle>();
         private readonly Dictionary<int, EngineGroups> engineGroups = new Dictionary<int, EngineGroups>();
         private readonly List<int> staleEngineGroups = new List<int>();
         private readonly List<CombatParticle> driveFlames = new List<CombatParticle>();
         private int motionSequence;
         private readonly ThrusterVisualProfile gunSmoke = new ThrusterVisualProfile
-        { flame = false, smokeLifetime = 75, smokeSize = .65f, smokeGrowth = 1.6f,
-            exhaustSpeed = .6f, spread = .35f, smokeOpacity = .5f, smokeColor = new Color(.4f, .4f, .4f) };
+        { flame = false, smokeLifetime = 75, smokeSize = .85f, smokeGrowth = 1.6f,
+            exhaustSpeed = .6f, spread = .2f, smokeOpacity = .72f, smokeColor = new Color(.62f, .62f, .62f) };
 
         internal void EmitGunCoolingSmoke(CompSpaceWeapon weapon)
         {
             var obj = weapon.Container;
-            if (obj?.map == null || driveExhaust.Count >= MaxDriveExhaust) return;
-            Vector2 point = new Vector2(weapon.parent.DrawPos.x, weapon.parent.DrawPos.z);
-            Vector3 position = SpaceTransform.MapPointToUniverse(obj, obj.map, point);
-            Vector2 velocity = SpaceTransform.VelocityAtLocalPoint(obj.pose,
-                SpaceTransform.MapToShipLocal(obj.map, point), position);
-            AddDriveParticle(driveExhaust, position, velocity, Vector2.up, 1f, 1f,
-                gunSmoke, Find.TickManager.TicksGame, false);
+            if (obj?.map == null || weapon.parent is not Building_SpaceTurretGun turret) return;
+            int count = WeaponHeatVisuals.SmokePortCount(turret.TryGetComp<CompWeaponTuning>());
+            for (int i = 0; i < count && gunCoolingSmoke.Count < MaxGunCoolingSmoke; i++)
+            {
+                WeaponHeatVisuals.SmokePort(turret, i, out Vector2 point, out Vector2 mapDirection);
+                Vector3 position = SpaceTransform.MapPointToUniverse(obj, obj.map, point);
+                Vector2 velocity = SpaceTransform.VelocityAtLocalPoint(obj.pose,
+                    SpaceTransform.MapToShipLocal(obj.map, point), position);
+                Vector2 direction = SpaceTransform.MapDirectionToUniverseTangent(obj, obj.map, point, mapDirection);
+                AddDriveParticle(gunCoolingSmoke, position, velocity, direction, 1f, 1f,
+                    gunSmoke, Find.TickManager.TicksGame, false);
+            }
         }
         private int feedbackMapId = -1;
         private int hullSoundAfter;
@@ -55,6 +62,8 @@ namespace DeltaV
             int now = Find.TickManager.TicksGame;
             for (int i = driveExhaust.Count - 1; i >= 0; i--)
                 if (now - driveExhaust[i].bornTick >= driveExhaust[i].lifetime) driveExhaust.RemoveAt(i);
+            for (int i = gunCoolingSmoke.Count - 1; i >= 0; i--)
+                if (now - gunCoolingSmoke[i].bornTick >= gunCoolingSmoke[i].lifetime) gunCoolingSmoke.RemoveAt(i);
             for (int i = driveFlames.Count - 1; i >= 0; i--)
                 if (now - driveFlames[i].bornTick >= driveFlames[i].lifetime) driveFlames.RemoveAt(i);
             Map map = Find.CurrentMap;
@@ -203,7 +212,19 @@ namespace DeltaV
             return slot;
         }
 
-        private static void DrawDriveParticle(CombatParticle p, SpaceObject frame, Map map, float altitude, int now, bool hot, CellRect view)
+        internal int EmitGunCoolingVisuals(SpaceObject frame, Map map, ShellLayer layer, int slot)
+        {
+            int now = Find.TickManager.TicksGame;
+            CellRect view = Find.CameraDriver.CurrentViewRect;
+            MotionParticleRenderer.Begin(MotionParticleRenderer.Kind.GunSmoke);
+            foreach (CombatParticle particle in gunCoolingSmoke)
+                DrawDriveParticle(particle, frame, map, AltitudeLayer.Terrain.AltitudeFor(),
+                    now, false, view, MotionParticleRenderer.Kind.GunSmoke);
+            return MotionParticleRenderer.Emit(MotionParticleRenderer.Kind.GunSmoke, layer, slot);
+        }
+
+        private static void DrawDriveParticle(CombatParticle p, SpaceObject frame, Map map, float altitude,
+            int now, bool hot, CellRect view, MotionParticleRenderer.Kind smokeKind = MotionParticleRenderer.Kind.Smoke)
         {
             float age = (now - p.bornTick) / (float)p.lifetime;
             if (age < 0f || age >= 1f) return;
@@ -220,7 +241,7 @@ namespace DeltaV
                 float size = p.size * (1f + age * p.exhaustVisual.smokeGrowth);
                 Color color = p.exhaustVisual.smokeColor;
                 color.a = p.exhaustVisual.smokeOpacity * Mathf.Pow(1f - age, 1.25f);
-                MotionParticleRenderer.Quad(MotionParticleRenderer.Kind.Smoke, pos, rotation, size, size, color);
+                MotionParticleRenderer.Quad(smokeKind, pos, rotation, size, size, color);
                 return;
             }
             float width = p.size * (1f + age * 0.6f);
@@ -290,7 +311,7 @@ namespace DeltaV
 
         internal void ResetMotionFeedback()
         {
-            driveExhaust.Clear(); driveFlames.Clear(); engineGroups.Clear(); staleEngineGroups.Clear();
+            driveExhaust.Clear(); gunCoolingSmoke.Clear(); driveFlames.Clear(); engineGroups.Clear(); staleEngineGroups.Clear();
             pendingHullSound = default; feedbackMapId = -1; hullSoundAfter = 0; motionSequence = 0;
         }
     }

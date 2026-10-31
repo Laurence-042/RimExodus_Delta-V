@@ -262,7 +262,6 @@
         <heatPerShot>2</heatPerShot>
         <coolingPerSecond>12</coolingPerSecond>
         <lockEveryShot>true</lockEveryShot>
-        <barrelStart>0.69</barrelStart>
       </li>
     </comps>
     <modExtensions>
@@ -513,7 +512,6 @@
         <heatPerShot>2</heatPerShot>
         <coolingPerSecond>12</coolingPerSecond>
         <lockEveryShot>true</lockEveryShot>
-        <barrelStart>0.69</barrelStart>
       </li>
     </comps>
     <modExtensions>

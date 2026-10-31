@@ -63,9 +63,10 @@ namespace DeltaV
             }
             backgroundLayer.Finish(anyBuffered);
             universe.Performance.Record(PerformanceStage.Shells, shellStart);
-            // 前台层只承载弹体、激光和瞄准标记，不改变对象壳的层级。
+            // 前台层承载冷却烟、弹体、激光和瞄准标记，不改变对象壳的层级。
             long foregroundStart = universe.Performance.Start();
             int nextSlot = 0;
+            nextSlot = universe.Projectiles.EmitGunCoolingVisuals(frame, current, foregroundLayer, nextSlot);
             // 在飞弹体 + 激光线段（太空战架构 §4.4：弹体 def 图形投影，同管线）。
             nextSlot = universe.Projectiles.TryEmitProjectiles(frame, current, foregroundLayer, nextSlot);
             // 瞄准标记（§6.3）：解算与「画不画」都在瞄准会话 controller 内，无会话

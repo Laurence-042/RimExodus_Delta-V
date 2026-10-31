@@ -7,7 +7,7 @@ namespace DeltaV
     // 程序覆盖率纹理只创建一次；逐粒子颜色/渐隐写入顶点，同类粒子合为一次 DrawMesh。
     internal static class MotionParticleRenderer
     {
-        internal enum Kind { Smoke, Flame, Metal, Grid }
+        internal enum Kind { Smoke, Flame, Metal, Grid, GunSmoke }
         private sealed class Batch
         {
             internal Mesh mesh;
@@ -18,7 +18,7 @@ namespace DeltaV
             internal readonly List<Color> colors = new List<Color>();
             internal readonly List<int> triangles = new List<int>();
         }
-        private static readonly Batch[] batches = new Batch[4];
+        private static readonly Batch[] batches = new Batch[5];
 
         internal static void Begin(Kind kind)
         {
@@ -90,7 +90,7 @@ namespace DeltaV
 
         private static Texture2D BuildTexture(Kind kind)
         {
-            int size = kind == Kind.Smoke ? 128 : 32;
+            int size = kind == Kind.Smoke || kind == Kind.GunSmoke ? 128 : 32;
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, true)
             { name = "DeltaV procedural " + kind, wrapMode = TextureWrapMode.Clamp };
             var pixels = new Color[size * size];
@@ -99,7 +99,7 @@ namespace DeltaV
             {
                 float u = (x + 0.5f) / size - 0.5f, v = (y + 0.5f) / size - 0.5f;
                 float r = Mathf.Sqrt(u * u + v * v), alpha = 1f, light = 1f;
-                if (kind == Kind.Smoke)
+                if (kind == Kind.Smoke || kind == Kind.GunSmoke)
                 {
                     float broad = Mathf.PerlinNoise(u * 6f + 13.7f, v * 6f + 21.3f);
                     float fine = Mathf.PerlinNoise(u * 19f + 7.2f, v * 19f + 5.8f);

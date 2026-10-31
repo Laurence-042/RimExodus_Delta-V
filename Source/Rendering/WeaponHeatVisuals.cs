@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using RimWorld;
 using UnityEngine;
 using Verse;
 
@@ -6,51 +6,50 @@ namespace DeltaV
 {
     internal static class WeaponHeatVisuals
     {
-        private static readonly Dictionary<(float, bool), Mesh> meshes = new Dictionary<(float, bool), Mesh>();
-        private static readonly Dictionary<(Material, int), Material> materials = new Dictionary<(Material, int), Material>();
+        internal static int BarrelHeatLevel(CompWeaponTuning heat) =>
+            heat?.Settings.chemical == true ? Mathf.Clamp(Mathf.RoundToInt(32f * heat.HeatFraction), 0, 32) : 0;
 
-        internal static bool TryPart(ThingWithComps thing, Material source, int part, out Mesh mesh, out Material material)
+        internal static int BodyHeatLevel(CompWeaponTuning heat) =>
+            heat?.Settings.chemical == true && heat.overheated ? 32 : 0;
+
+        internal static Color HeatColor(int level) =>
+            Color.Lerp(Color.white, new Color(1f, .16f, .025f), level / 32f);
+
+        // The top artwork faces right. Offsets are fractions of its rotating square draw size.
+        internal static int SmokePortCount(CompWeaponTuning heat) =>
+            heat?.Settings.chemical == true ? heat.Settings.lockEveryShot ? 1 : 2 : 0;
+
+        internal static void SmokePort(Building_SpaceTurretGun turret, int index,
+            out Vector2 point, out Vector2 direction)
         {
-            mesh = null; material = null;
-            var heat = thing?.TryGetComp<CompWeaponTuning>();
-            if (heat?.Settings.chemical != true || source == null || heat.heat <= 0f) return false;
-            bool barrel = part == 0;
-            int level = Mathf.RoundToInt(32f * heat.HeatFraction * (barrel ? 1f : heat.overheated ? .75f : 0f));
-            if (level == 0) return false;
-            var meshKey = (heat.Settings.barrelStart, barrel);
-            if (!meshes.TryGetValue(meshKey, out mesh))
-            {
-                mesh = new Mesh { name = "DeltaV gun heat region" };
-                var vertices = new List<Vector3>(); var uv = new List<Vector2>(); var triangles = new List<int>();
-                void Region(float left, float right, float bottom, float top)
-                {
-                    int start = vertices.Count;
-                    foreach (var point in new[] { new Vector2(left, bottom), new Vector2(left, top),
-                        new Vector2(right, top), new Vector2(right, bottom) })
-                    { vertices.Add(new Vector3(point.x - .5f, .002f, point.y - .5f)); uv.Add(point); }
-                    triangles.AddRange(new[] { start, start + 1, start + 2, start, start + 2, start + 3 });
-                }
-                float split = heat.Settings.barrelStart;
-                // The autocannon's body fins extend alongside its barrel; an X-only split heats those fins too early.
-                if (barrel) Region(split, 1f, .44f, .56f);
-                else { Region(0f, split, 0f, 1f); Region(split, 1f, 0f, .44f); Region(split, 1f, .56f, 1f); }
-                mesh.SetVertices(vertices); mesh.SetUVs(0, uv); mesh.SetTriangles(triangles, 0); mesh.RecalculateBounds();
-                meshes.Add(meshKey, mesh);
-            }
-            var key = (source, level);
-            if (!materials.TryGetValue(key, out material))
-            {
-                material = new Material(source) { color = Color.Lerp(Color.white, new Color(2f, .16f, .025f), level / 32f) };
-                materials.Add(key, material);
-            }
-            return true;
+            bool cannon = turret.TryGetComp<CompWeaponTuning>().Settings.lockEveryShot;
+            float side = index == 0 ? 1f : -1f;
+            Vector3 offset = cannon ? new Vector3(-.06f, 0f, .12f)
+                : new Vector3(-.03f, 0f, .16f * side);
+            Vector3 outward = cannon ? Vector3.forward : new Vector3(0f, 0f, side);
+            float angle = TurretTop.ArtworkRotation + turret.ShellTopAngle;
+            offset = (offset * turret.def.building.turretTopDrawSize).RotatedBy(angle);
+            outward = outward.RotatedBy(angle);
+            Vector3 center = turret.DrawPos +
+                (turret.TryGetComp<CompSpaceWeapon>()?.VisualRecoilOffset ?? Vector3.zero);
+            point = new Vector2(center.x + offset.x, center.z + offset.z);
+            direction = new Vector2(outward.x, outward.z);
         }
 
-        internal static void Clear()
+        internal static void EmitGroundCoolingSmoke(Building_SpaceTurretGun turret)
         {
-            foreach (var mesh in meshes.Values) Object.Destroy(mesh);
-            foreach (var material in materials.Values) Object.Destroy(material);
-            meshes.Clear(); materials.Clear();
+            if (!turret.Spawned) return;
+            int count = SmokePortCount(turret.TryGetComp<CompWeaponTuning>());
+            for (int i = 0; i < count; i++)
+            {
+                SmokePort(turret, i, out Vector2 point, out Vector2 direction);
+                Vector3 position = new Vector3(point.x, turret.DrawPos.y, point.y);
+                if (!position.ShouldSpawnMotesAt(turret.Map)) continue;
+                FleckCreationData smoke = FleckMaker.GetDataStatic(position, turret.Map, FleckDefOf.Smoke, .7f);
+                smoke.velocityAngle = new Vector3(direction.x, 0f, direction.y).AngleFlat();
+                smoke.velocitySpeed = .6f;
+                turret.Map.flecks.CreateFleck(smoke);
+            }
         }
     }
 }

@@ -21,6 +21,8 @@ namespace DeltaV
                 AccessTools.DeclaredMethod(typeof(ThingWithComps), nameof(DrawExtraSelectionOverlays)),
                 virtualCall: false);
         private Material topMaterial;
+        private Material[,] heatMaterials;
+        private Texture2D topTexture, topMask;
 
         private bool GroundFireEnabled => this.TryGetComp<CompSpaceWeapon>()?.GroundModeEnabled == true;
 
@@ -38,8 +40,29 @@ namespace DeltaV
             {
                 string path = def.GetModExtension<DefModExtension_SpaceTurretArt>()?.topTexPath;
                 if (path.NullOrEmpty()) return base.TurretTopMaterial;
-                if (topMaterial == null) topMaterial = MaterialPool.MatFrom(path);
-                return topMaterial;
+                CompWeaponTuning heat = this.TryGetComp<CompWeaponTuning>();
+                if (heat?.Settings.chemical != true)
+                {
+                    if (topMaterial == null) topMaterial = MaterialPool.MatFrom(path);
+                    return topMaterial;
+                }
+                if (topTexture == null) topTexture = ContentFinder<Texture2D>.Get(path);
+                if (topMask == null) topMask = ContentFinder<Texture2D>.Get(path + "_m");
+                int barrelLevel = WeaponHeatVisuals.BarrelHeatLevel(heat);
+                int bodyLevel = WeaponHeatVisuals.BodyHeatLevel(heat);
+                int bodyIndex = bodyLevel == 0 ? 0 : 1;
+                if (heatMaterials == null) heatMaterials = new Material[33, 2];
+                if (heatMaterials[barrelLevel, bodyIndex] == null)
+                {
+                    var request = new MaterialRequest(topTexture, ShaderDatabase.CutoutComplex,
+                        WeaponHeatVisuals.HeatColor(barrelLevel))
+                    {
+                        maskTex = topMask,
+                        colorTwo = WeaponHeatVisuals.HeatColor(bodyLevel)
+                    };
+                    heatMaterials[barrelLevel, bodyIndex] = MaterialPool.MatFrom(request);
+                }
+                return heatMaterials[barrelLevel, bodyIndex];
             }
         }
 

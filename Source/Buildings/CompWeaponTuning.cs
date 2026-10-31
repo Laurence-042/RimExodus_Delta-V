@@ -15,7 +15,6 @@ namespace DeltaV
         public float coolingPerSecond = 10f, heatCapacity = 100f, heatPerShot = 5f;
         public bool lockEveryShot;
         public int maxPower = 1;
-        public float barrelStart = .64f;
         public CompProperties_WeaponTuning() { compClass = typeof(CompWeaponTuning); }
         public override IEnumerable<string> ConfigErrors(ThingDef parentDef)
         {
@@ -23,7 +22,7 @@ namespace DeltaV
             if (defaultCharge < 1 || defaultCharge > maxCharge || defaultMass < 1 || defaultMass > maxMass
                 || minInterval < 1 || defaultInterval < minInterval || defaultInterval > maxInterval
                 || coolingPerSecond <= 0f || heatCapacity <= 0f || heatPerShot < 0f || maxPower < 1
-                || lockEveryShot && mechanicalTicks < 1 || barrelStart <= 0f || barrelStart >= 1f)
+                || lockEveryShot && mechanicalTicks < 1)
                 yield return $"{parentDef.defName}: invalid weapon tuning limits or cooling parameters";
         }
     }
@@ -66,7 +65,7 @@ namespace DeltaV
             {
                 var weapon = parent.TryGetComp<CompSpaceWeapon>();
                 if (weapon?.Container != null) weapon.Universe.Projectiles.EmitGunCoolingSmoke(weapon);
-                else if (parent.Spawned) FleckMaker.ThrowSmoke(parent.DrawPos, parent.Map, .7f);
+                else if (parent is Building_SpaceTurretGun turret) WeaponHeatVisuals.EmitGroundCoolingSmoke(turret);
             }
         }
 

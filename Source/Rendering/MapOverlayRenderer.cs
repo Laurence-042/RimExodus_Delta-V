@@ -426,11 +426,6 @@ namespace DeltaV
                 sequence = nextSequence++
             });
             QuadsDrawnLastPass++;
-            for (int part = 0; part < 2; part++)
-                if (WeaponHeatVisuals.TryPart(thing as ThingWithComps, material, part, out Mesh heatMesh, out Material heatMaterial))
-                    collector.Add(new OverlayCommand { mesh = heatMesh,
-                        matrix = Matrix4x4.TRS(matrix.MultiplyPoint3x4(local), rotation * angle.ToQuat(), new Vector3(size, 1f, size)),
-                        material = heatMaterial, surface = config.layer, queue = heatMaterial.renderQueue, sequence = nextSequence++ });
         }
 
         public static bool ContainsVisibleContent(Map map, IntVec3 cell, HashSet<IntVec3> allowedCells = null)
@@ -604,7 +599,6 @@ namespace DeltaV
                 foreach (SectionSnapshot section in cache.sections.Values) section.Dispose();
             Caches.Clear();
             Rules.Clear();
-            WeaponHeatVisuals.Clear();
             TerrainMaterials.Clear();
             powerConnectorWireTexture = null;
             ShellHullVisuals.ClearRuntimeCaches();
