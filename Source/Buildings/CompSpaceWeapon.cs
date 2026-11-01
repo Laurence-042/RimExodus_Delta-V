@@ -553,16 +553,21 @@ namespace DeltaV
             yield return new Command_WeaponGroup(this);
 
             // 专用点防武器的模式由 Def 固定；其他武器仍可切换。
-            if (WeaponProps.tractor) yield return new Command_BatchToggle<CompSpaceWeapon>(
-                "TractorAuto", this, w => w.aimMode == SpaceWeaponAimMode.PointDefense,
-                (w, active) =>
+            if (WeaponProps.tractor) yield return new Command_BatchSetting<CompSpaceWeapon>(
+                "TractorMode", this, weapons =>
                 {
-                    w.aimMode = active ? SpaceWeaponAimMode.PointDefense : SpaceWeaponAimMode.Volley;
-                    w.Universe?.Weapons?.NotifyWeaponModeChanged(w);
+                    SpaceWeaponAimMode next = aimMode == SpaceWeaponAimMode.PointDefense
+                        ? SpaceWeaponAimMode.Volley : SpaceWeaponAimMode.PointDefense;
+                    foreach (CompSpaceWeapon weapon in weapons)
+                    {
+                        weapon.aimMode = next;
+                        weapon.Universe?.Weapons?.NotifyWeaponModeChanged(weapon);
+                    }
                 })
             {
-                defaultLabel = "DeltaV_TractorAuto".Translate(),
-                defaultDesc = "DeltaV_TractorAutoDesc".Translate(),
+                defaultLabel = (aimMode == SpaceWeaponAimMode.PointDefense
+                    ? "DeltaV_TractorModeCollect" : "DeltaV_TractorModeStructure").Translate(),
+                defaultDesc = "DeltaV_TractorModeDesc".Translate(),
                 icon = TexCommand.FireAtWill,
             };
             if (!WeaponProps.pointDefenseOnly && !WeaponProps.manualOnly)

@@ -95,13 +95,16 @@ namespace DeltaV
 
         private bool LaunchPrepared()
         {
-            if (emitter != null)
-            {
-                if (!emitter.TryLaunch(this)) return Reject(WeaponReject.Launch);
-                Commit();
-                universe.Projectiles.RegisterShotVisuals(this);
-                return true;
-            }
+            if (!(emitter != null ? emitter.TryLaunch(this) : LaunchProjectile()))
+                return Reject(WeaponReject.Launch);
+            Commit();
+            universe.Projectiles.RegisterShotVisuals(this);
+            return true;
+        }
+
+        // Launch capabilities may use the same prepared projectile without committing twice.
+        internal bool LaunchProjectile()
+        {
             Vector2 mapDirection = SpaceTransform.Rotate(Vector2.right, launchMapAngle);
             bool guaranteedMissileHit = false;
             if (target?.map != null && !target.map.Disposed
@@ -123,7 +126,7 @@ namespace DeltaV
             mapDirection = SpaceTransform.Rotate(mapDirection, spread);
             Vector2 tangent = SpaceTransform.MapDirectionToUniverseTangent(container,
                 weapon.parent.Map, muzzleMap, mapDirection);
-            if (tangent.sqrMagnitude < 1e-8f) return Reject(WeaponReject.Launch);
+            if (tangent.sqrMagnitude < 1e-8f) return false;
             OrbitSphere.Basis(muzzleUniverse, out Vector3 east, out Vector3 north);
             Vector3 directionWorld = east * tangent.x + north * tangent.y;
             var spec = new SpaceProjectileLaunchSpec(speed, ignitionDelayTicks,
@@ -137,10 +140,8 @@ namespace DeltaV
                 SpaceTransform.WrapAngle(launchMapAngle - desiredMapAngle) * Mathf.Rad2Deg,
                 spread * Mathf.Rad2Deg))
             {
-                return Reject(WeaponReject.Launch);
+                return false;
             }
-            Commit();
-            universe.Projectiles.RegisterShotVisuals(this);
             return true;
         }
 

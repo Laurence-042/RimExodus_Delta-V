@@ -24,7 +24,8 @@ namespace DeltaV
         PlaceBody = 4,
 
         CoupleMotion = 5,
-        Salvage = 6
+        Salvage = 6,
+        TractorPull = 7
     }
 
     /// <summary>从命中格起沿弹道前进一格的结构毁伤；伤害倍率与横向半宽分别配置。</summary>
@@ -89,6 +90,7 @@ namespace DeltaV
         public float couplingFraction = 0.15f;
         public float maxCouplingImpulse = 400f;
         public float maxCouplingAngularImpulse = 4000f;
+        public float tractorForce = 500f;
 
         /// <summary>采矿光束矿物回收率；人造建筑与基架沿用原版拆除产出。</summary>
         public float miningYieldFactor = 0.5f;
@@ -293,13 +295,9 @@ namespace DeltaV
             if (part == null || evt.defender?.map == null) return 0f;
             Map map = evt.defender.map;
 
-            if (part.kind == ImpactEffectKind.CoupleMotion)
+            if (part.kind == ImpactEffectKind.CoupleMotion || part.kind == ImpactEffectKind.TractorPull)
             {
-                if (evt.damageScale > 0f && evt.launcher?.Spawned == true)
-                    Current.Game?.GetComponent<UniverseManager>()?.FrameOf(evt.launcher.Map)
-                        ?.CoupleMotionWith(evt.defender, evt.hitUniverse, part.couplingFraction,
-                            part.maxCouplingImpulse * evt.damageScale,
-                            part.maxCouplingAngularImpulse * evt.damageScale);
+                ApplyEngineeringForce(evt, part);
                 return 0f;
             }
             if (part.kind == ImpactEffectKind.Salvage)

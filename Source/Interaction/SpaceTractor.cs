@@ -19,8 +19,9 @@ namespace DeltaV
     {
         private int blockedTick = -100;
         public bool CanFire(SpaceWeaponShot shot) => SpaceTractor.CanOperate(shot.weapon);
-        public bool TryLaunch(SpaceWeaponShot shot) =>
-            Current.Game.GetComponent<UniverseManager>().Scatter.TryLaunch(shot);
+        public bool TryLaunch(SpaceWeaponShot shot) => shot.weapon.aimMode == SpaceWeaponAimMode.PointDefense
+            ? Current.Game.GetComponent<UniverseManager>().Scatter.Pull(shot.target, parent)
+            : shot.manualFire && shot.LaunchProjectile();
         internal void NotifyBlocked() { blockedTick = Find.TickManager.TicksGame; }
         public override string CompInspectStringExtra() => Find.TickManager.TicksGame - blockedTick <= 1
             ? "DeltaV_TractorBlocked".Translate().ToString() : null;

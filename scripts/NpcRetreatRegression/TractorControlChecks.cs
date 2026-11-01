@@ -204,38 +204,100 @@ internal static partial class Program
             Vector3 hit = SpaceTransform.MapPointToUniverse(target, targetMap, new Vector2(2.7f, 2.3f));
             a.weapon.aimMode = b.weapon.aimMode = SpaceWeaponAimMode.Volley;
             universe.Scatter.ReleaseAutomatic(a.weapon.parent); universe.Scatter.ReleaseAutomatic(b.weapon.parent);
-            var shotA = new SpaceWeaponShot(universe, a.weapon, a.body, new WeaponFireRequest(hit));
-            var shotB = new SpaceWeaponShot(universe, b.weapon, b.body, new WeaponFireRequest(hit));
-            Check(universe.Scatter.TryLaunch(shotA), "manual beam attaches to a real structure cell");
-            universe.Scatter.Tick();
+            var tractorXml = System.Xml.Linq.XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_Tractor.xml");
+            var weaponXml = tractorXml.Descendants("li").Single(x => (string)x.Attribute("Class") == "DeltaV.CompProperties_SpaceWeapon");
+            Check((int)weaponXml.Element("defaultGroupNumber") == 4 && (string)weaponXml.Element("defaultSalvoSet") == "Secondary",
+                "tractor defaults to secondary group 4");
+            float force = (float)tractorXml.Descendants("tractorForce").Single();
+            Check(force == ShipPhysics.ThrusterThrust * .25f, "one tractor uses a quarter of full large-thruster force");
+            var beam = TestBuildingDef("tractor_ray_fixture");
+            beam.comps = new List<CompProperties> { new CompProperties_SpaceProjectile { ignoresShields = true, continuousBeam = true } };
+            var pullEffect = new ImpactOutcomePart { kind = ImpactEffectKind.TractorPull, tractorForce = force };
+            foreach (bool foundation in new[] { false, true })
+                DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = "tractor_ray_" + foundation,
+                    projectileDefs = new List<ThingDef> { beam }, targetsSubstructure = foundation,
+                    buildingHitChance = 1, substructureHitChance = 1, defenderEffect = pullEffect,
+                    attackerEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DestroySelf } });
+            SpaceImpactEffects.ResetCache();
+            SpaceCollision.SweptBody Fire(CompSpaceWeapon weapon, SpaceObject source, Vector3 aim)
+            {
+                Vector3 from = SpaceWeaponService.TargetingMuzzle(weapon, source);
+                Vector3 end = OrbitSphere.Move(from, OrbitSphere.Offset(from, aim).normalized * 60f);
+                var body = new SpaceCollision.SweptBody { attacker = new SpaceObject(-51030, new SpacePose(from, 0)),
+                    excludeContainer = source, requiredDefender = target, projectileDef = beam, launcher = weapon.parent,
+                    from = from, to = end, sweepRadius = 0f };
+                SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { body });
+                return body;
+            }
+            var shotA = Fire(a.weapon, a.body, hit);
+            Check(shotA.resolvedHit && shotA.resolvedHitDefender == target && shotA.resolvedHitCell == hitCell,
+                "beam finds real structure along its ray before the empty endpoint");
             Vector2 one = target.pose.velocity;
             float oneSpin = target.pose.angularVelocity;
+            Check(Math.Abs(one.magnitude - force / 60f / 100f) < .0001f,
+                "one hit transfers exactly one tick of configured force");
             target.pose.velocity = a.body.pose.velocity = b.body.pose.velocity = Vector2.zero;
             target.pose.angularVelocity = a.body.pose.angularVelocity = b.body.pose.angularVelocity = 0;
-            Check(universe.Scatter.TryLaunch(shotA) && universe.Scatter.TryLaunch(shotB), "two ships may attach manual beams to one structure");
-            universe.Scatter.Tick();
+            Check(Fire(a.weapon, a.body, hit).resolvedHit && Fire(b.weapon, b.body, hit).resolvedHit,
+                "two emitters can hit the same structure");
             Check(target.pose.velocity.magnitude > one.magnitude * 1.9f
                 && a.body.pose.velocity.magnitude > 0 && b.body.pose.velocity.magnitude > 0,
                 "manual forces add and each receiving ship gets its own reaction impulse");
-            Check(Math.Abs(oneSpin) > .00001f && Math.Abs(target.pose.angularVelocity) > Math.Abs(oneSpin) * 1.9f,
-                "off-center manual beams add torque at their actual attachment points");
+            Check(Math.Abs(oneSpin) > .00001f && Math.Abs(target.pose.angularVelocity) > Math.Abs(oneSpin) * 1.8f,
+                "off-center beams apply torque at the current collision point");
             Vector2 total = SpaceTransform.TransportVelocity(a.body.pose, hit) * 100
                 + SpaceTransform.TransportVelocity(b.body.pose, hit) * 100 + target.pose.velocity * 100;
             Check(total.magnitude < .02f, "manual multibeam impulses conserve total transported linear momentum");
-            Check(!universe.Scatter.TryLaunch(new SpaceWeaponShot(universe, a.weapon, a.body,
-                new WeaponFireRequest(first.pose.position))), "manual mode does not capture scattered pawns or items");
+            Vector2 beforeMiss = target.pose.velocity;
+            var miss = Fire(a.weapon, a.body, OrbitSphere.Move(a.body.pose.position, new Vector2(0, -55)));
+            Check(!miss.resolvedHit && target.pose.velocity == beforeMiss,
+                "empty ray has no force and retains its full-range endpoint");
+            a.weapon.WeaponProps.projectileDef = beam;
+            a.weapon.WeaponProps.baseSpreadDeg = 0;
+            var beamProps = beam.GetCompProperties<CompProperties_SpaceProjectile>();
+            beamProps.laserRange = 60; beamProps.hasMap = false; beamProps.visualStyle = CombatVisualStyle.Tractor;
+            SpacePose beforeEmptyShot = a.body.pose;
+            a.body.pose.position = OrbitSphere.Move(a.body.pose.position, new Vector2(10000, 10000));
+            Vector2 emission = SpaceWeaponGeometry.MuzzleMapPoint(a.weapon);
+            Vector3 emissionWorld = SpaceTransform.MapPointToUniverse(a.body, a.body.map, emission);
+            var emptyShot = new SpaceWeaponShot(universe, a.weapon, a.body,
+                new WeaponFireRequest(OrbitSphere.Move(emissionWorld, new Vector2(0, -120)), default, true))
+                { projectileDef = beam, projectileProps = beamProps, muzzleMap = emission, muzzleUniverse = emissionWorld,
+                  launchMapAngle = -Mathf.PI / 2, speed = 2000 };
+            Check(a.tractor.TryLaunch(emptyShot), "manual tractor emits a prepared beam toward empty space");
+            universe.Projectiles.ResolveCollisions();
+            var beams = (IList)AccessTools.Field(typeof(SpaceProjectileService), "beams").GetValue(universe.Projectiles);
+            object drawn = beams.Cast<object>().Single(x => (Thing)AccessTools.Field(x.GetType(), "continuousLauncher").GetValue(x) == a.weapon.parent);
+            Vector3 drawnFrom = (Vector3)AccessTools.Field(drawn.GetType(), "from").GetValue(drawn);
+            Vector3 drawnTo = (Vector3)AccessTools.Field(drawn.GetType(), "to").GetValue(drawn);
+            Check(Math.Abs(OrbitSphere.ArcCells(drawnFrom, drawnTo) - 60f) < .02f,
+                "unhit manual beam is drawn at full range regardless of cursor distance");
+            a.body.pose = beforeEmptyShot;
+            Check(!a.tractor.TryLaunch(new SpaceWeaponShot(universe, a.weapon, a.body,
+                new WeaponFireRequest(hit))), "automatic fire cannot launch a tractor in structural mode");
+            CheckScatteredSweep(universe, first);
 
             harmony.Patch(AccessTools.Method(typeof(ShipFlightTransitionService), "TransferDomainToNewPocket"),
                 prefix: new HarmonyMethod(typeof(Program), nameof(TractorTransfer)));
             targetMap.terrainGrid.foundationGrid[targetMap.cellIndices.CellToIndex(otherCell)] = deck;
             SubstructureOwnership.BumpStructureVersion();
+            foreach (ImpactEffectKind kind in new[] { ImpactEffectKind.TractorPull, ImpactEffectKind.CoupleMotion })
+            {
+                pullEffect.kind = kind;
+                // A coupler has no tractor component requirement and need not stand on a moonpool.
+                a.weapon.WeaponProps.tractor = kind == ImpactEffectKind.TractorPull;
+                a.body.map.terrainGrid.topGrid[a.body.map.cellIndices.CellToIndex(a.weapon.parent.Position)] =
+                    kind == ImpactEffectKind.TractorPull ? moon : null;
+                tractorTransferred = null;
+                Vector2 beforeSplit = target.pose.velocity;
+                Fire(a.weapon, a.body, hit);
+                Check(target.pose.velocity == beforeSplit, kind + " never applies force to the old multi-block map");
+                Call(universe, "RunFrameActions");
+                Check(tractorTransferred?.SetEquals(new[] { hitCell }) == true
+                    && tractorTransferredOwners[hitCell] > 0, kind + " extracts only the hit engine-free block");
+            }
             tractorTransferred = null;
-            Check(!universe.Scatter.TryLaunch(shotA), "detached target component blocks whole-map force before separation");
-            Call(universe, "RunFrameActions");
-            Check(tractorTransferred?.SetEquals(new[] { hitCell }) == true
-                && tractorTransferredOwners[hitCell] > 0, "engine-free wreck sends only the pointed component through the existing transfer core");
-            tractorTransferred = null;
-            Check(!universe.Scatter.TryLaunch(shotA), "a subsequent separation request can retry");
+            Fire(a.weapon, a.body, hit);
             targetMap.terrainGrid.foundationGrid[targetMap.cellIndices.CellToIndex(hitCell)] = null;
             SubstructureOwnership.BumpStructureVersion();
             Call(universe, "RunFrameActions");

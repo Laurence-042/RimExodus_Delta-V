@@ -406,8 +406,9 @@
   <DeltaV_SoftDockHaul>选择物资或倒地人员转移</DeltaV_SoftDockHaul>
   <DeltaV_SoftDockHack>骇入对面的对接口</DeltaV_SoftDockHack>
   <DeltaV_SoftDockProgress>软对接：{0}（进度 {1}）</DeltaV_SoftDockProgress>
-  <DeltaV_TractorAuto>自动牵引</DeltaV_TractorAuto>
-  <DeltaV_TractorAutoDesc>按物品和活体筛选自动回收射程内的散落物，每个目标只分配一台设备。关闭后，用武器组手动牵引结构，多束可叠加出力。</DeltaV_TractorAutoDesc>
+  <DeltaV_TractorModeCollect>当前模式：收集物品</DeltaV_TractorModeCollect>
+  <DeltaV_TractorModeStructure>当前模式：牵引结构</DeltaV_TractorModeStructure>
+  <DeltaV_TractorModeDesc>点击切换收集物品／牵引结构。\n\n收集物品：启用所属武器组后，按物品过滤与活体筛选自动回收散落内容至月池附近；关闭武器组就不收集，无需手动火控。\n\n牵引结构：启用所属武器组并切换手动火控，按住对应开火键向指向方向发射，牵拉命中的结构；自动火控不会控制结构牵引。默认副4，使用右键开火。断开的结构会先分离再受力，本船受到反作用。建议沿穿过目标重心的方向牵引，并配合惯性耦合器减少目标旋转。</DeltaV_TractorModeDesc>
   <DeltaV_TractorNeedsMoonPool>牵引光束只能建在月池上。</DeltaV_TractorNeedsMoonPool>
   <DeltaV_TractorBlocked>月池放不下回收的人员或物品，请先腾出空间。</DeltaV_TractorBlocked>
   <DeltaV_SoftDockTransfer>组织转移</DeltaV_SoftDockTransfer>

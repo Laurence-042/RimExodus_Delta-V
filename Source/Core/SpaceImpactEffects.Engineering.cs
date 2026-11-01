@@ -6,6 +6,29 @@ namespace DeltaV
 {
     public static partial class SpaceImpactEffects
     {
+        private static void ApplyEngineeringForce(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
+        {
+            Thing launcher = evt.launcher;
+            if (evt.damageScale <= 0f || launcher?.Spawned != true || launcher.Destroyed) return;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            SpaceObject receiver = universe?.FrameOf(launcher.Map);
+            if (receiver == null || receiver == evt.defender || !evt.defender.CanRelocateMap) return;
+            ShipBase ship = ShipRegistry.ShipOf(launcher);
+            if (ship?.IsValid == true && !universe.ShipTransitions.RequestThrust(universe, PilotTarget.Of(ship),
+                    playerInitiated: true)) return;
+            if (!universe.ShipTransitions.PrepareExternalForceTarget(evt.defender, evt.hitCell, launcher)) return;
+            if (part.kind == ImpactEffectKind.CoupleMotion)
+                receiver.CoupleMotionWith(evt.defender, evt.hitUniverse, part.couplingFraction,
+                    part.maxCouplingImpulse * evt.damageScale, part.maxCouplingAngularImpulse * evt.damageScale);
+            else
+            {
+                Vector2 muzzle = SpaceWeaponGeometry.MuzzleMapPoint(launcher.TryGetComp<CompSpaceWeapon>());
+                ShipPhysics.ApplyTractorImpulse(receiver, SpaceTransform.MapToShipLocal(receiver.map, muzzle),
+                    evt.defender, SpaceTransform.UniverseToShipLocal(evt.defender.pose, evt.hitUniverse),
+                    Mathf.Max(0f, part.tractorForce) * evt.damageScale / 60f);
+            }
+        }
+
         private static void Salvage(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
         {
             Thing launcher = evt.launcher;

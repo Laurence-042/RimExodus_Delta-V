@@ -151,8 +151,7 @@ internal static partial class Program
                 scattered.pose.angularVelocity = -5f;
                 Set(Find.TickManager, "ticksGameInt", pawn ? 12490 : 9490);
                 weapon.aimMode = SpaceWeaponAimMode.Volley;
-                var manual = new SpaceWeaponShot(universe, weapon, receiver, new WeaponFireRequest(scattered.pose.position));
-                Check(!universe.Scatter.TryLaunch(manual), "manual structure mode ignores scattered cargo");
+                CheckScatteredSweep(universe, scattered);
                 weapon.aimMode = SpaceWeaponAimMode.PointDefense;
                 Check(universe.Scatter.Pull(scattered, launcher), "automatic tractor starts an allowed scattered target");
                 universe.Scatter.Tick();

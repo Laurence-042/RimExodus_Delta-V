@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <DeltaV_InertiaCoupler.label>惯性耦合器</DeltaV_InertiaCoupler.label>
-  <DeltaV_InertiaCoupler.description>让命中的结构逐渐与本船保持相近的移动和转动速度，不造成结构伤害。作用是双向的：目标也会推拉、带动本船旋转，需要配合本船推进器制动。护盾不会阻挡或偏转光束。\n\n将设备分配到武器组并启用该组，在手动集火模式下按住开火。持续照射会消耗蓄电，松开即停止。设备不会自动攻击、拖曳或对接。</DeltaV_InertiaCoupler.description>
+  <DeltaV_InertiaCoupler.description>让命中的结构逐渐与本船保持相近的移动和转动速度，不造成结构伤害。作用是双向的：目标也会推拉、带动本船旋转，需要配合本船推进器制动。护盾不会阻挡或偏转光束。\n\n将设备分配到武器组并启用该组，在手动集火模式下按住开火。持续照射会消耗蓄电，松开即停止。设备不会自动攻击、拖曳或对接。\n\n命中与其他结构同图的断开连通块时，会先将其分离再交换动量，不要求目标有引擎。可配合牵引光束减少目标旋转。</DeltaV_InertiaCoupler.description>
   <DeltaV_MiningBeam.label>采矿光束</DeltaV_MiningBeam.label>
   <DeltaV_MiningBeam.description>切割岩石、建筑和裸露的基架，将矿物或正常拆除可得的材料收回到设备附近；可合堆时会并入已有物品堆。矿物回收量为基础产量的 50%，不能回收完整设备、货物或人员。请提前腾出空间：即使无处堆放，光束仍会切割，放不下的材料会损失。\n\n将设备分配到武器组并启用该组，在手动集火模式下开火。每次切割消耗蓄电。</DeltaV_MiningBeam.description>
   <DeltaV_Beam_InertiaCoupler.label>惯性耦合光束</DeltaV_Beam_InertiaCoupler.label>

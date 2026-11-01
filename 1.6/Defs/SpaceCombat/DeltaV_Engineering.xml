@@ -16,7 +16,7 @@
 
   <ThingDef ParentName="DeltaV_EngineeringTurret">
     <defName>DeltaV_InertiaCoupler</defName><label>inertia coupler</label><uiOrder>2100</uiOrder>
-    <description>Exchanges momentum and angular momentum with a structure struck by its beam, reducing relative motion without damaging it. Reaction impulses also move and turn the emitting ship; use your thrusters to brake. Hold manual fire to illuminate continuously, consuming stored electricity while active. Shields neither block nor refract the coupling beam. It does not automatically attack, tow or dock.</description>
+    <description>Exchanges momentum and angular momentum with a structure struck by its beam, reducing relative motion without damaging it. Reaction impulses also move and turn the emitting ship; use your thrusters to brake. Hold manual fire to illuminate continuously, consuming stored electricity while active. Shields neither block nor refract the coupling beam. It does not automatically attack, tow or dock. Disconnected components sharing a map are separated before momentum is exchanged; no target engine is required. Use alongside a tractor beam to reduce relative rotation.</description>
     <uiIconPath>Things/Building/SpaceWeapons/InertiaCoupler_MenuIcon</uiIconPath>
     <building><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/InertiaCoupler_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(2.6,2.6)</drawSize></blueprintGraphicData></building>
     <comps>

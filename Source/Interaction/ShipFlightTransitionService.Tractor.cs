@@ -7,24 +7,38 @@ namespace DeltaV
 {
     internal sealed partial class ShipFlightTransitionService
     {
-        private readonly HashSet<SpaceObject> pendingTractorSplits = new HashSet<SpaceObject>();
+        private readonly HashSet<SpaceObject> pendingExternalForceSplits = new HashSet<SpaceObject>();
+
+        private static bool ExternalForceEmitterReady(CompSpaceWeapon weapon) => weapon?.parent?.Spawned == true
+            && !weapon.parent.Destroyed && weapon.SpaceModeEnabled && weapon.GroupActive
+            && weapon.aimMode == SpaceWeaponAimMode.Volley
+            && weapon.parent.TryGetComp<CompPowerTrader>()?.PowerOn == true
+            && (!weapon.WeaponProps.tractor || SpaceTractor.CanOperate(weapon));
 
         // External force acts on the physical component under the beam, without a target engine gate.
-        internal bool PrepareTractorTarget(SpaceObject target, IntVec3 cell, Thing launcher)
+        internal bool PrepareExternalForceTarget(SpaceObject target, IntVec3 cell, Thing launcher)
         {
+            var weapon = launcher?.TryGetComp<CompSpaceWeapon>();
+            if (target?.map == null || !target.CanRelocateMap || !ExternalForceEmitterReady(weapon)) return false;
+            Map sourceMap = launcher.Map;
+            SpaceObject source = universe.FrameOf(sourceMap);
+            if (source == null || source == target) return false;
+            int sourceVersion = source.RepresentationVersion;
+            IntVec3 sourceCell = launcher.Position;
             var blocks = universe.FoundationTopology.PhysicalBlocks(target.map);
             if (blocks.Count <= 1) return true;
             HashSet<IntVec3> block = blocks.FirstOrDefault(b => b.Contains(cell));
             if (block == null) return false;
-            if (!pendingTractorSplits.Add(target)) return false;
+            if (!pendingExternalForceSplits.Add(target)) return false;
             Map map = target.map;
             int version = target.RepresentationVersion;
             universe.QueueFrameAction(() =>
             {
-                if (!pendingTractorSplits.Remove(target) || target.map != map || map.Disposed
+                if (!pendingExternalForceSplits.Remove(target) || target.map != map || map.Disposed
                     || target.RepresentationVersion != version || universe.FrameOf(map) != target
-                    || !target.CanRelocateMap || !SpaceTractor.CanOperate(launcher.TryGetComp<CompSpaceWeapon>())
-                    || launcher.TryGetComp<CompSpaceWeapon>().aimMode != SpaceWeaponAimMode.Volley) return;
+                    || !target.CanRelocateMap || !ExternalForceEmitterReady(weapon)
+                    || launcher.Map != sourceMap || launcher.Position != sourceCell
+                    || source.RepresentationVersion != sourceVersion || universe.FrameOf(sourceMap) != source) return;
                 // Revalidate the same physical domain; never transfer a different fragment after damage.
                 var current = universe.FoundationTopology.PhysicalBlocks(map);
                 if (current.Count <= 1 || !current.Any(b => b.SetEquals(block))) return;

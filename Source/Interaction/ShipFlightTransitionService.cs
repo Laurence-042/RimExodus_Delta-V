@@ -68,7 +68,7 @@ namespace DeltaV
             preLaunchConfirmationChaining = false;
             pendingSeparationOwnerIds.Clear();
             pendingShuttleSeparations.Clear();
-            pendingTractorSplits.Clear();
+            pendingExternalForceSplits.Clear();
             landingCaptureEngine = null;
             landingCaptureMap = null;
             landingCaptureCells = null;

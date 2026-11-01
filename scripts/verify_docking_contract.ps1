@@ -92,7 +92,7 @@ try {
     foreach ($key in @('DeltaV_DockConnected', 'DeltaV_DockFolded', 'DeltaV_DockRetractConfirm',
         'DeltaV_SyncButton', 'DeltaV_StartEVA', 'DeltaV_SettingsWorksiteMargin', 'DeltaV_EVAGravity', 'DeltaV_EVAOverlap',
         'DeltaV_SoftDockToggle', 'DeltaV_SoftDockEnter', 'DeltaV_SoftDockHaul', 'DeltaV_SoftDockHack',
-        'DeltaV_SoftDockProgress', 'DeltaV_TractorAuto', 'DeltaV_TractorNeedsMoonPool', 'DeltaV_TractorBlocked',
+        'DeltaV_SoftDockProgress', 'DeltaV_TractorModeCollect', 'DeltaV_TractorModeStructure', 'DeltaV_TractorModeDesc', 'DeltaV_TractorNeedsMoonPool', 'DeltaV_TractorBlocked',
         'DeltaV_SoftDockTransfer', 'DeltaV_SoftDockTransferDesc', 'DeltaV_SoftDockTransferCancel',
         'DeltaV_SoftDockTransferDisconnected', 'DeltaV_SoftDockTransferNoWorker')) {
         if (!$en.LanguageData.$key -or !$zh.LanguageData.$key) { throw "Missing translation: $key" }

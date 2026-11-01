@@ -406,8 +406,9 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SoftDockHaul>Transfer selected cargo or downed pawn</DeltaV_SoftDockHaul>
   <DeltaV_SoftDockHack>Hack remote docking port</DeltaV_SoftDockHack>
   <DeltaV_SoftDockProgress>Soft docking: {0} (progress {1})</DeltaV_SoftDockProgress>
-  <DeltaV_TractorAuto>Automatic towing</DeltaV_TractorAuto>
-  <DeltaV_TractorAutoDesc>Automatically recovers allowed cargo and living pawns, with one tractor per target. Disable to pull structures through weapon groups; multiple manual beams add force.</DeltaV_TractorAutoDesc>
+  <DeltaV_TractorModeCollect>Current mode: Collect items</DeltaV_TractorModeCollect>
+  <DeltaV_TractorModeStructure>Current mode: Pull structures</DeltaV_TractorModeStructure>
+  <DeltaV_TractorModeDesc>Click to switch between collecting items and pulling structures.\n\nCollect items: enabling the weapon group automatically recovers allowed drifting cargo and living pawns near the moonpool. Disabling the group stops collection. Manual fire control is not required.\n\nPull structures: enable the group, select manual fire control, and hold the matching fire button to pull structures hit along the beam. Automatic fire control does not operate structural towing. The default is secondary group 4, fired with the right mouse button. Disconnected components separate before force is applied; your ship receives the reaction. Aim through the target’s center of mass and use an inertia coupler to reduce relative rotation.</DeltaV_TractorModeDesc>
   <DeltaV_TractorNeedsMoonPool>A tractor beam must be built on a moonpool.</DeltaV_TractorNeedsMoonPool>
   <DeltaV_TractorBlocked>The moonpool cannot receive these contents. Clear space for recovery.</DeltaV_TractorBlocked>
   <DeltaV_SoftDockTransfer>Organize transfer</DeltaV_SoftDockTransfer>

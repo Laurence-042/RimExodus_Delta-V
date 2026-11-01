@@ -72,7 +72,7 @@ internal static partial class Program
 
             var a = first.parent.TryGetComp<CompSpaceWeapon>(); var b = second.parent.TryGetComp<CompSpaceWeapon>();
             a.aimMode = SpaceWeaponAimMode.Volley;
-            Group("TractorAuto", a, b).ProcessInput(null);
+            Group("TractorMode", a, b).ProcessInput(null);
             Check(a.aimMode == SpaceWeaponAimMode.PointDefense && b.aimMode == SpaceWeaponAimMode.PointDefense,
                 "mixed auto-mode toggle sets both tractors to automatic");
             Group("WeaponCoverage", a, b).ProcessInput(null);
