@@ -82,6 +82,10 @@ internal static partial class Program
         var universe = new UniverseManager(game);
         game.components = new List<GameComponent> { universe };
         game.tickManager = (TickManager)Raw(typeof(TickManager));
+        if (Environment.GetCommandLineArgs().Contains("--thruster-pause-only"))
+        {
+            CheckDriveExecutionReuse(faction); return;
+        }
         if (Environment.GetCommandLineArgs().Contains("--separation-only"))
         {
             ThingDefOf.PilotConsole = TestBuildingDef("console");
@@ -218,7 +222,7 @@ internal static partial class Program
                 }
                 Check(equal, "numeric layout allocation matches real layout including asymmetric COM");
                 info.PreviewModel(); info.PreviewBraking(Vector2.right); info.PreviewAngular(1);
-                Check(layout.thrusters.All(t => t.throttle == 0f) && layout.throttlesWrittenAt == 0f,
+                Check(layout.thrusters.All(t => t.throttle == 0f) && layout.throttlesWrittenTick == -1,
                     "all preview operations leave throttles and presentation timestamp untouched");
             }
         }
@@ -240,7 +244,7 @@ internal static partial class Program
         Check(driver.pose.Equals(afterControl)
             && driver.ApplyDrive(driver.PrimaryDriver, control, 1f / 60f, out _) == DriveResult.AlreadyAdvanced,
             "drive plus drift plus another driver cannot integrate the container twice");
-        Check(driver.MotionInfo.thrusters.All(t => t.throttle == 0f) && driver.MotionInfo.throttlesWrittenAt == 0f,
+        Check(driver.MotionInfo.thrusters.All(t => t.throttle == 0f) && !driver.MotionInfo.HasFreshThrottles,
             "archive execution never commits real throttle or presentation state");
         foreach (var t in driver.dynamics.Report.thrusters) t.operational = false;
         driver.dynamics.Report.version++;

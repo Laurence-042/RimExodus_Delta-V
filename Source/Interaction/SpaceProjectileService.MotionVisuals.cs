@@ -100,7 +100,7 @@ namespace DeltaV
                 System.Array.Clear(groups.power, 0, 4);
                 System.Array.Clear(groups.level, 0, 4);
                 System.Array.Clear(groups.point, 0, 4);
-                bool fresh = Time.time - info.throttlesWrittenAt <= 0.25f;
+                bool fresh = info.HasFreshThrottles;
                 for (int i = 0; i < info.thrusters.Count; i++)
                 {
                     ThrusterInfo thruster = info.thrusters[i];

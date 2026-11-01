@@ -9,7 +9,7 @@ namespace DeltaV
 {
     /// <summary>
     /// 推进器工作音表现层：与 ThrusterEffects（火焰）同源同判据——只读分配器真实油门
-    /// （SpaceObject.MotionInfo + throttlesWrittenAt 0.25s 新鲜期），火焰在、声音在。
+    /// （SpaceObject.MotionInfo.HasFreshThrottles）；暂停时停止工作音。
     /// 两条路径与火焰对称：聚焦图逐推进器空间化循环（SoundInfo.InMap(建筑)：声源每帧
     /// 跟随建筑、distRange 随摄像机距离自动衰减，音量 = √油门）；非聚焦船壳整船
     /// OnCamera 循环（跨图 InMap 声源会被引擎 context 强制静音，音量 = 总油门 ×
@@ -20,9 +20,6 @@ namespace DeltaV
     [StaticConstructorOnStartup]
     public static class ThrusterAudio
     {
-        /// <summary>油门新鲜期（秒）：与 ThrusterEffects 同值——火焰在、声音在。</summary>
-        private const float ThrottleFreshSeconds = 0.25f;
-
         /// <summary>可闻油门下限：与火焰 MinVisibleThrottle 同值（表现同步，不另设第二档）。</summary>
         private const float MinAudibleThrottle = 0.001f;
 
@@ -60,7 +57,7 @@ namespace DeltaV
             // 图，兼容 RimExodus）或世界视图一律无声。
             Map current = Find.CurrentMap;
             SpaceObject frame = current == null ? null : universe.FrameOf(current);
-            if (frame == null || !WorldRendererUtility.DrawingMap)
+            if (frame == null || !WorldRendererUtility.DrawingMap || Find.TickManager.Paused)
             {
                 EndAll();
                 return;
@@ -76,7 +73,7 @@ namespace DeltaV
         private static void UpdateFocusedLoops(Map current)
         {
             DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(current)?.MotionInfo;
-            bool fresh = report != null && Time.time - report.throttlesWrittenAt <= ThrottleFreshSeconds;
+            bool fresh = report != null && report.HasFreshThrottles;
 
             ActiveMapThrusters.Clear();
             if (fresh)
@@ -157,7 +154,7 @@ namespace DeltaV
                     continue;
                 }
                 DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map)?.MotionInfo;
-                if (report == null || Time.time - report.throttlesWrittenAt > ThrottleFreshSeconds)
+                if (report == null || !report.HasFreshThrottles)
                 {
                     continue;
                 }

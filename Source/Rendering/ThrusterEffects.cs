@@ -8,7 +8,7 @@ namespace DeltaV
 {
     /// <summary>
     /// 阶段2 推进器表现层。点火状态只读取 ShipPhysics 分配器写出的**真实**逐推进器
-    /// 油门（唯一写入者 Allocate，驾驶/自动驾驶/未来舰船 AI 共用；配 0.25s 新鲜期，
+    /// 油门（唯一写入者 Allocate，驾驶/自动驾驶/未来舰船 AI 共用；配游戏 tick 新鲜期，
     /// 防止力源停止后的幽灵火焰）；火焰材质、尺寸、偏移与排气喷口参数复用
     /// Odyssey Gravship 推进器 Def。两条读取路径：聚焦帧船的真实地图位姿（Draw），
     /// 非聚焦船壳的显示矩阵换算（CollectShellFlames，经 ShellRenderer 调用）。
@@ -19,10 +19,6 @@ namespace DeltaV
     {
         private const int FlameRenderQueue = 3201;
         private const float MinVisibleThrottle = 0.001f;
-
-        /// <summary>油门新鲜期（秒）：超过则视为陈旧不画（时间戳由 Allocate 盖章；
-        /// 暂停时 Time.time 冻结、火焰保持，与旧地图路径行为一致）。</summary>
-        private const float ThrottleFreshSeconds = 0.25f;
 
         private static readonly int ShaderPropertyColor2 = Shader.PropertyToID("_Color2");
         private static readonly MaterialPropertyBlock FlameBlock = new MaterialPropertyBlock();
@@ -39,7 +35,7 @@ namespace DeltaV
             }
 
             DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(current)?.MotionInfo;
-            if (report == null || Time.time - report.throttlesWrittenAt > ThrottleFreshSeconds)
+            if (report == null || !report.HasFreshThrottles)
             {
                 return;
             }
@@ -119,7 +115,7 @@ namespace DeltaV
             {
                 renderQueue = FlameRenderQueue
             };
-            float flicker = Mathf.Lerp(0.75f, 1f, Mathf.PerlinNoise(thing.thingIDNumber, Time.time * 10f));
+            float flicker = Mathf.Lerp(0.75f, 1f, Mathf.PerlinNoise(thing.thingIDNumber, Find.TickManager.TicksGame / 6f));
             Color color = Color.white * Mathf.Lerp(0.2f, 1f, visualThrottle) * flicker;
             color.a = Mathf.Lerp(0.12f, 1f, visualThrottle);
             flame = new FlameDraw
@@ -153,7 +149,7 @@ namespace DeltaV
                 renderQueue = FlameRenderQueue
             };
             float seed = thruster.localPos.x * 17.13f + thruster.localPos.y * 31.71f;
-            float flicker = Mathf.Lerp(0.75f, 1f, Mathf.PerlinNoise(seed, Time.time * 10f));
+            float flicker = Mathf.Lerp(0.75f, 1f, Mathf.PerlinNoise(seed, Find.TickManager.TicksGame / 6f));
             Color color = Color.white * Mathf.Lerp(0.2f, 1f, visualThrottle) * flicker;
             color.a = Mathf.Lerp(0.12f, 1f, visualThrottle);
             flame = new FlameDraw
@@ -214,7 +210,7 @@ namespace DeltaV
             // 普通弹体另有尾焰；侵入 shuttle 与正常驾驶均读取真实分配油门。
             if (container.baseTag == SpaceObjectTag.Projectile) return;
             DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map)?.MotionInfo;
-            if (report == null || Time.time - report.throttlesWrittenAt > ThrottleFreshSeconds)
+            if (report == null || !report.HasFreshThrottles)
             {
                 return;
             }

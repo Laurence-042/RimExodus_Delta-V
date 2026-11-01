@@ -32,10 +32,8 @@ internal static partial class Program
             out Vector2 force, out float torque)
         {
             allocations++;
-            // Use the production numeric core, omitting only the Unity presentation timestamp.
-            ShipPhysics.PreviewAllocation(report, command, out force, out torque);
-            for (int i = 0; i < report.thrusters.Count; i++)
-                report.thrusters[i].throttle = report.previewScratch[i];
+            // Exercise production allocation and presentation timestamps without rendering.
+            ShipPhysics.Allocate(report, command, out force, out torque);
             this.force = force; this.torque = torque;
         }
         internal DriveResult Step(DriveControl control) =>
@@ -57,6 +55,8 @@ internal static partial class Program
             layout.thrusters.Add(new ShipPhysics.Thruster
                 { thing = engine, dir = Vector2.right, thrust = 2000f, operational = true });
             var obj = new DriveExecutionProbe(layout);
+            var presentation = new DriveInfo(layout);
+            Check(!presentation.HasFreshThrottles, "new drive reports have no presentation output");
             var input = DriveControl.FromInput(new ShipPhysics.Command { fx = 1f }, false, false, false);
             void Next() => Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
             bool executed = true;
@@ -68,6 +68,28 @@ internal static partial class Program
                 "reused allocation keeps integrating real thrust and retaining actual throttle");
             Check(obj.Step(input) == DriveResult.AlreadyAdvanced && power.reads == 120,
                 "a second drive in the same tick neither rereads power nor integrates twice");
+            Check(layout.throttlesWrittenTick == Find.TickManager.TicksGame && presentation.HasFreshThrottles,
+                "reused allocation refreshes the presentation tick");
+            var previousSpeed = Find.TickManager.CurTimeSpeed;
+            try
+            {
+                Set(Find.TickManager, "curTimeSpeed", TimeSpeed.Paused);
+                int pausedTick = Find.TickManager.TicksGame;
+                SpacePose pausedPose = obj.pose;
+                // Vanilla pause stops ticks; wait beyond the old 0.25s wall-clock expiry.
+                System.Threading.Thread.Sleep(300);
+                Check(Find.TickManager.TicksGame == pausedTick && presentation.HasFreshThrottles
+                    && layout.thrusters[0].throttle > .99f && obj.pose.Equals(pausedPose),
+                    "paused output survives the old wall-clock expiry without advancing the ship");
+            }
+            finally { Set(Find.TickManager, "curTimeSpeed", previousSpeed); }
+            Set(Find.TickManager, "ticksGameInt", layout.throttlesWrittenTick + 15);
+            Check(presentation.HasFreshThrottles, "output stays fresh for 15 game ticks");
+            Next();
+            Check(!presentation.HasFreshThrottles, "abandoned output expires after game ticks resume");
+            obj.Step(input);
+            Check(presentation.HasFreshThrottles && obj.allocations == 1,
+                "resumed execution refreshes flames while reusing allocation");
             power.online = false; Next(); obj.Step(input);
             Check(obj.allocations == 2 && obj.force == Vector2.zero && !obj.PropulsionUsedThisTick,
                 "power loss invalidates a held allocation before this tick's thrust");
@@ -83,9 +105,10 @@ internal static partial class Program
             Check(obj.allocations == 4,
                 "manual input and equivalent autopilot force share the same command and allocation cache");
             int reads = power.reads;
-            float throttle = layout.thrusters[0].throttle, stamp = layout.throttlesWrittenAt;
+            float throttle = layout.thrusters[0].throttle;
+            int stamp = layout.throttlesWrittenTick;
             view.PreviewModel(); view.PreviewBraking(Vector2.left); view.PreviewAngular(1);
-            Check(power.reads == reads && layout.thrusters[0].throttle == throttle && layout.throttlesWrittenAt == stamp,
+            Check(power.reads == reads && layout.thrusters[0].throttle == throttle && layout.throttlesWrittenTick == stamp,
                 "numeric previews consume the prepared report without repeating state reads or changing actual output");
             obj.allowed = false; Next();
             Check(obj.Step(input) == DriveResult.WaitingForSeparation && obj.allocations == 4,

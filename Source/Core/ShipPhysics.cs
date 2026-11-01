@@ -113,9 +113,9 @@ namespace DeltaV
             internal Vector3[] allocationColumns;
             internal float[] allocationDenominators;
 
-            /// <summary>最近一次执行出力的时间（Time.time）；复用分配结果也刷新。
-            /// 火焰据此判定油门新鲜，初始／清零为 0。不存档。</summary>
-            public float throttlesWrittenAt;
+            /// <summary>最近一次执行出力的游戏 tick；复用分配结果也刷新。
+            /// 暂停不会使油门过期，初始／清零为 -1。不存档。</summary>
+            public int throttlesWrittenTick = -1;
             internal bool throttlesNeedClearing;
         }
 
@@ -335,7 +335,7 @@ namespace DeltaV
 
         internal static void MarkThrottlesWritten(MassReport report)
         {
-            report.throttlesWrittenAt = Time.time;
+            report.throttlesWrittenTick = Find.TickManager.TicksGame;
             report.throttlesNeedClearing = true;
         }
 
@@ -840,7 +840,7 @@ namespace DeltaV
             {
                 cached.report.thrusters[i].throttle = 0f;
             }
-            cached.report.throttlesWrittenAt = 0f;
+            cached.report.throttlesWrittenTick = -1;
             cached.report.throttlesNeedClearing = false;
         }
 

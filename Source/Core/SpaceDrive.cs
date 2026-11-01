@@ -61,7 +61,15 @@ namespace DeltaV
         public float inertia => report.inertia;
         public Vector2 comLocal => report.comLocal;
         public int version => report.version;
-        public float throttlesWrittenAt => report.throttlesWrittenAt;
+        /// <summary>火焰、排气与工作音共用 15 游戏 tick 的油门新鲜期（0.25 游戏秒）。</summary>
+        public bool HasFreshThrottles
+        {
+            get
+            {
+                int age = (Find.TickManager?.TicksGame ?? -1) - report.throttlesWrittenTick;
+                return report.throttlesWrittenTick >= 0 && age >= 0 && age <= 15;
+            }
+        }
         public IReadOnlyList<ThrusterInfo> thrusters => views ?? (views = BuildViews());
         private IReadOnlyList<ThrusterInfo> views;
         private IReadOnlyList<ThrusterInfo> BuildViews()

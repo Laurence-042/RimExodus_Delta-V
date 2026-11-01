@@ -31,6 +31,8 @@ internal static partial class Program
 
     static void CheckSeparationRules(UniverseManager universe, Faction faction)
     {
+        ThingDef oldEngine = ThingDefOf.GravEngine;
+        ThingDefOf.GravEngine ??= TestBuildingDef("separationEngine");
         var harmony = new Harmony("DeltaV.Regression.Separation");
         sbyte oldMapIndex = Current.Game.currentMapIndex;
         Current.Game.currentMapIndex = -1;
@@ -201,6 +203,7 @@ internal static partial class Program
         finally
         {
             harmony.UnpatchAll(harmony.Id);
+            ThingDefOf.GravEngine = oldEngine;
             Current.Game.currentMapIndex = oldMapIndex;
             TerrainDefOf.Space = oldSpace; DeltaVDefOf.DeltaV_DockingPort = oldPort;
             DeltaVDefOf.DeltaV_Weapon_MissileLauncher = oldLauncher;
