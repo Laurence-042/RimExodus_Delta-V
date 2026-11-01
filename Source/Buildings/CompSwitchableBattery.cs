@@ -91,8 +91,14 @@ namespace DeltaV
             return usable + PowerNet.CurrentEnergyGainRate() >= -0.0000001f;
         }
 
-        private void RefreshPowerOutput()
+        internal void RefreshPowerOutput()
         {
+            // 插件停用时保留储能及模式，但不向电网申报充电负载或发电功率。
+            if (parent.TryGetComp<CompSpaceWeaponAttachment>()?.Enabled == false)
+            {
+                PowerOutput = 0f;
+                return;
+            }
             if (gridOutputEnabled)
             {
                 if (PowerNet != null && StoredEnergy > 0f && !parent.IsBrokenDown()

@@ -380,6 +380,7 @@ namespace DeltaV
                 this, attachment => attachment.enabled, (attachment, active) =>
                 {
                     attachment.enabled = active;
+                    attachment.parent.TryGetComp<CompSwitchableBattery>()?.RefreshPowerOutput();
                     attachment.HostWeapon?.NotifyParametersChanged();
                     ShipControlService.NotifyGunnerChange(attachment.parent.Map);
                 })
