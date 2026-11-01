@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_TractorCargoTab>Tractor cargo</DeltaV_TractorCargoTab>
+  <DeltaV_TractorBatchCargo>Editing {0} tractors</DeltaV_TractorBatchCargo>
+  <DeltaV_TractorBatchCargoTip>Shows the first selected tractor's cargo filter. Changing it copies the complete displayed filter to all selected tractors. Opening this tab does not change their settings.</DeltaV_TractorBatchCargoTip>
+  <DeltaV_TractorLiving>Collect living pawns</DeltaV_TractorLiving>
+  <DeltaV_TractorLivingDesc>Automatically recover people, animals and mechanoids allowed by the pawn filter. Corpses use the cargo filter independently of this toggle.</DeltaV_TractorLivingDesc>
+  <DeltaV_TractorPawnFilter>Pawn filter</DeltaV_TractorPawnFilter>
+  <DeltaV_TractorPawnFilterDesc>Choose which combinations of faction relationship and pawn type can be automatically recovered. Relationships are relative to this device's faction. Hostile pawns are excluded by default.</DeltaV_TractorPawnFilterDesc>
+  <DeltaV_TractorRelation0>Hostile</DeltaV_TractorRelation0>
+  <DeltaV_TractorRelation1>Neutral</DeltaV_TractorRelation1>
+  <DeltaV_TractorRelation2>Ally</DeltaV_TractorRelation2>
+  <DeltaV_TractorRelation3>Own faction</DeltaV_TractorRelation3>
+  <DeltaV_TractorKind0>Humanlike</DeltaV_TractorKind0>
+  <DeltaV_TractorKind1>Animal</DeltaV_TractorKind1>
+  <DeltaV_TractorKind2>Mechanoid</DeltaV_TractorKind2>
+</LanguageData>

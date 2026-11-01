@@ -60,9 +60,12 @@ internal static partial class Program
         // Fixtures have different Defs; avoid the vanilla DLC/relic lookup requiring Unity.
         __result = false; return false;
     }
-    static void CheckTractorReceive(UniverseManager universe)
+    static void CheckTractorReceive(UniverseManager universe, bool receiveOnly = false)
     {
         var harness = new Harmony("DeltaV.Regression.TractorReceive");
+        var fixedStorageField = AccessTools.Field(typeof(StorageSettings), "cachedEverStorableFixedSettings");
+        object previousStorage = fixedStorageField.GetValue(null);
+        if (previousStorage == null) fixedStorageField.SetValue(null, new StorageSettings());
         TerrainDef previousMoonPool = (TerrainDef)AccessTools.Field(typeof(MoonPoolUtility), "moonPoolDef").GetValue(null);
         bool drag = DeltaVMod.CurrentSettings.passiveDrag;
         var radii = (Dictionary<RimWorld.Planet.PlanetLayer, float>)AccessTools.Field(typeof(OrbitSphere), "RadiusByLayer").GetValue(null);
@@ -75,8 +78,12 @@ internal static partial class Program
         var moon = (TerrainDef)Raw(typeof(TerrainDef));
         moon.defName = "tractor_test_moonpool";
         AccessTools.Field(typeof(MoonPoolUtility), "moonPoolDef").SetValue(null, moon);
-        var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon { tractor = true, range = 60f } };
-        Building launcher = AddTestBuilding(destination, Faction.OfPlayer, 49751, TestBuildingDef("tractor"), weapon);
+        var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon { tractor = true, range = 60f },
+            aimMode = SpaceWeaponAimMode.PointDefense };
+        Building launcher = (Building)AddTestHull(destination, Faction.OfPlayer, 49751).parent;
+        weapon.parent = launcher; launcher.AllComps.Add(weapon);
+        var tractor = new CompSpaceTractor { parent = launcher };
+        launcher.AllComps.Add(tractor);
         launcher.def.passability = Traversability.Standable;
         launcher.def.hasInteractionCell = true;
         launcher.def.interactionCellOffset = new IntVec3(0, 0, 1);
@@ -86,9 +93,11 @@ internal static partial class Program
         IntVec3 cell = launcher.Position;
         destination.terrainGrid.topGrid[destination.cellIndices.CellToIndex(cell)] = moon;
         var receiver = new MapSpaceObject(49750, destination, new SpacePose(new Vector3(1, 2, 3).normalized, 0f));
-        universe.objects.Add(receiver);
+        universe.RegisterObject(receiver);
         try
         {
+            harness.Patch(AccessTools.Method(typeof(ThingFilter), "Allows", new[] { typeof(Thing) }),
+                transpiler: new HarmonyMethod(typeof(Program), nameof(TractorDlcFixture)));
             harness.Patch(AccessTools.Method(typeof(GenGrid), nameof(GenGrid.Walkable), new[] { typeof(IntVec3), typeof(Map) }),
                 prefix: new HarmonyMethod(typeof(Program), nameof(ReceiveWalkable)));
             harness.Patch(AccessTools.Method(typeof(GridsUtility), nameof(GridsUtility.GetRoom), new[] { typeof(IntVec3), typeof(Map) }),
@@ -114,6 +123,18 @@ internal static partial class Program
                 var thing = (Thing)Raw(pawn ? typeof(ReceivingPawn) : typeof(ReceivingItem));
                 thing.def = TestBuildingDef(pawn ? "castaway" : "cargo");
                 thing.def.category = pawn ? ThingCategory.Pawn : ThingCategory.Item;
+                thing.def.virtualDefs = new List<ThingDef>();
+                if (thing is Pawn living)
+                {
+                    thing.def.race = new RaceProperties { intelligence = Intelligence.Humanlike };
+                    living.health = new Pawn_HealthTracker(living);
+                    Set(typeof(Thing), thing, "factionInt", Faction.OfPlayer);
+                }
+                else
+                {
+                    StorageSettings.EverStorableFixedSettings().filter.SetAllow(thing.def, true);
+                    tractor.GetStoreSettings().filter.SetAllow(thing.def, true);
+                }
                 thing.def.passability = Traversability.Standable;
                 thing.def.stackLimit = 75; thing.stackCount = 1;
                 ProbeSpawnCargo(thing, IntVec3.Zero, source);
@@ -121,7 +142,7 @@ internal static partial class Program
                 var scattered = new MapSpaceObject(source.uniqueID, source,
                     new SpacePose(OrbitSphere.Move(at, new Vector2(1.5f, 0f)), 0f)
                     { velocity = new Vector2(1f, 0f) }) { baseTag = SpaceObjectTag.Scattered };
-                universe.objects.Add(scattered); universe.Scatter.Register(scattered);
+                universe.RegisterObject(scattered);
                 receiver.pose.velocity = new Vector2(25f, -10f);
                 receiver.pose.angularVelocity = .7f;
                 Vector2 emitterLocal = SpaceTransform.MapToShipLocal(destination, new Vector2(cell.x + .5f, cell.z + .5f));
@@ -131,9 +152,11 @@ internal static partial class Program
                 Set(Find.TickManager, "ticksGameInt", pawn ? 12490 : 9490);
                 weapon.aimMode = SpaceWeaponAimMode.Volley;
                 var manual = new SpaceWeaponShot(universe, weapon, receiver, new WeaponFireRequest(scattered.pose.position));
-                Check(universe.Scatter.TryLaunch(manual), "manual tractor finds scattered cargo near the cursor without a collision surface");
+                Check(!universe.Scatter.TryLaunch(manual), "manual structure mode ignores scattered cargo");
+                weapon.aimMode = SpaceWeaponAimMode.PointDefense;
+                Check(universe.Scatter.Pull(scattered, launcher), "automatic tractor starts an allowed scattered target");
                 universe.Scatter.Tick();
-                Check(universe.Scatter.TryLaunch(manual), "manual cursor anchor retains a target as it moves toward the receiver");
+                Check(universe.Scatter.Pull(scattered, launcher), "automatic owner retains its target as it moves toward the receiver");
                 SpacePose beforePowerLoss = scattered.pose;
                 Set(power, "powerOnInt", false);
                 universe.Scatter.Tick();
@@ -199,6 +222,7 @@ internal static partial class Program
                     "successful tractor handoff unregisters the empty scattered object and returns its map");
                 thing.DeSpawn(); blocker.DeSpawn(); universe.MapPool.Forget(source); Find.Maps.Remove(source);
             }
+            if (receiveOnly) return;
             Map ownMap = TestMap(49754);
             var own = new MapSpaceObject(49754, ownMap, receiver.pose);
             universe.objects.Add(own);
@@ -232,6 +256,7 @@ internal static partial class Program
         finally
         {
             harness.UnpatchAll(harness.Id);
+            fixedStorageField.SetValue(null, previousStorage);
             AccessTools.Field(typeof(MoonPoolUtility), "moonPoolDef").SetValue(null, previousMoonPool);
             DeltaVMod.CurrentSettings.passiveDrag = drag;
             radii[layer] = radius; scales[layer] = scale;

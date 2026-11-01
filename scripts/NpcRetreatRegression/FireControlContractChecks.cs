@@ -496,7 +496,7 @@ internal static partial class Program
         CheckPointDefenseTargets(universe, attacker, own, weapon, player, enemy);
     }
 
-    static void CheckPointDefenseTargets(UniverseManager universe, CombatHull ship, SpaceObject own,
+    static void CheckPointDefenseTargets(UniverseManager universe, ShipBase ship, SpaceObject own,
         CompSpaceWeapon weapon, Faction player, Faction enemy)
     {
         var nearest = new MapSpaceObject(1950, TestMap(1950),

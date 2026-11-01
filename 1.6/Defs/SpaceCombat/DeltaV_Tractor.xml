@@ -2,12 +2,13 @@
 <Defs>
   <ThingDef ParentName="DeltaV_EngineeringTurret">
     <defName>DeltaV_TractorBeam</defName><label>tractor beam</label><uiOrder>2102</uiOrder>
-    <description>Pulls drifting people and cargo onto its moonpool. Automatically acquires scattered objects within range; switch to manual mode to aim and fire with normal weapon controls. Requires power and stored electricity. The moonpool must have room to receive its contents.</description>
+    <description>Automatically recovers drifting cargo allowed by the cargo filter. Living pawns use a separate toggle and faction/type filter; hostile pawns are excluded by default. Each automatic target is reserved for one tractor. Switch to manual mode and fire through weapon groups to pull structures with reaction force; multiple beams add force, and detached wreck sections separate before towing. Requires power, stored electricity and room near the moonpool to receive cargo.</description>
     <size>(1,1)</size><passability>Standable</passability>
     <uiIconPath>Things/Building/SpaceWeapons/TractorBeam_MenuIcon</uiIconPath>
     <graphicData><drawSize>(1.3,1.3)</drawSize></graphicData>
     <building><turretTopDrawSize>1.2</turretTopDrawSize><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/TractorBeam_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(1.3,1.3)</drawSize></blueprintGraphicData></building>
     <placeWorkers><li>DeltaV.PlaceWorker_SpaceTractor</li></placeWorkers>
+    <inspectorTabs><li>DeltaV.ITab_TractorCargo</li></inspectorTabs>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceWeapon">
         <manualOnly>true</manualOnly><tractor>true</tractor><aimMode>PointDefense</aimMode>

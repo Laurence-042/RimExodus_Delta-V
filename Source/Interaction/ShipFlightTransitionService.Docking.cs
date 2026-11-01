@@ -368,7 +368,7 @@ namespace DeltaV
             SpaceObject sourceFrame, HashSet<IntVec3> cells, Building mainConsole,
             bool wreckOwnership, int retainedOwnerId, Rot4 targetConsoleFacing,
             Building bodyAnchor = null, bool includeTerrain = true,
-            SplitFocus focus = null)
+            SplitFocus focus = null, Dictionary<IntVec3, int> sourceOwners = null)
         {
             Building anchor = mainConsole ?? bodyAnchor;
             Faction faction = anchor?.Faction;
@@ -399,15 +399,18 @@ namespace DeltaV
                 ownerId = retainedOwnerId;
             }
             GravshipInterop.StripDomain(gravship, sourceMap, cells, includeTerrain);
-            GravshipInterop.PlaceIntoMap(gravship, pocketRoot, pocketMap, ownerId);
+            // Tractor component extraction preserves each live ship identity; rotation is unchanged.
+            Dictionary<IntVec3, int> placedOwners = sourceOwners?.ToDictionary(
+                pair => pair.Key - gravship.originalPosition + pocketRoot, pair => pair.Value);
+            GravshipInterop.PlaceIntoMap(gravship, pocketRoot, pocketMap, ownerId, placedOwners);
             var container = new MapSpaceObject(universe.AllocateOwnerId(), pocketMap, launchPose)
             {
-                faction = faction,
+                faction = sourceOwners == null ? faction : faction ?? sourceFrame.faction,
             };
             universe.RegisterObject(container);
             focus?.selection.Transferred(cells, pocketMap, ownerId);
             // 源图旧域整清：基架已随捕获剥离，残留归属值全是陈旧数据（按 ID 清不误伤他主域）。
-            if (ownerId > 0)
+            if (ownerId > 0 && sourceOwners == null)
             {
                 SubstructureOwnership.TryGet(sourceMap)?.ClearOwner(ownerId);
             }

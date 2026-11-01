@@ -527,10 +527,11 @@ namespace DeltaV
                 yield break;
             }
 
-            yield return new Command_Action
+            yield return new Command_BatchSetting<CompSpaceWeapon>("WeaponCoverage", this,
+                weapons => Find.WindowStack.Add(new Dialog_WeaponCoverage(weapons)))
             {
                 defaultLabel = "DeltaV_WeaponCoverage".Translate(), defaultDesc = "DeltaV_WeaponCoverageHelp".Translate(),
-                icon = TexCommand.Attack, action = () => Find.WindowStack.Add(new Dialog_WeaponCoverage(this))
+                icon = TexCommand.Attack
             };
 
             if (WeaponProps.groundModeAvailable) yield return new Command_BatchToggle<CompSpaceWeapon>(

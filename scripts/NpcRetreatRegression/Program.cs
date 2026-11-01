@@ -80,8 +80,10 @@ internal static partial class Program
         var faction = (Faction)Raw(typeof(Faction));
         var other = (Faction)Raw(typeof(Faction));
         var universe = new UniverseManager(game);
-        game.components = new List<GameComponent> { universe };
+        game.components = new List<GameComponent> { universe, new RimExodus.Maps.MapRuntime(game) };
         game.tickManager = (TickManager)Raw(typeof(TickManager));
+        if (Environment.GetCommandLineArgs().Contains("--tractor-only"))
+        { CheckTractorControl(universe, faction, other); CheckPlacementGeometry(); CheckSmallScaleMovement(); return; }
         if (Environment.GetCommandLineArgs().Contains("--thruster-pause-only"))
         {
             CheckDriveExecutionReuse(faction); return;

@@ -441,8 +441,10 @@ namespace DeltaV
                 }
                 if (!valid)
                 {
-                    // Tractor retries keep their existing cadence; an invalid interception lock reselects immediately.
-                    if (weapon.WeaponProps.tractor && now < state.retargetAt) continue;
+                    // Empty searches keep their cadence; lost/contested locks release and reselect immediately.
+                    if (weapon.WeaponProps.tractor && state.target.HasLock)
+                        universe.Scatter.ReleaseAutomatic(weapon.parent);
+                    if (weapon.WeaponProps.tractor && !state.target.HasLock && now < state.retargetAt) continue;
                     if (!SpaceWeaponService.CanAcquire(weapon))
                     {
                         state.target = default; state.retargetAt = now + 30;
@@ -456,8 +458,21 @@ namespace DeltaV
                     valid = state.target.TryResolve(universe, out victim);
                 }
                 if (!valid) continue;
+                if (weapon.WeaponProps.tractor && !universe.Scatter.ClaimAutomatic(victim.Container, weapon))
+                {
+                    state.target = CombatTarget.ForContainer(FindPdTarget(weapon, muzzle));
+                    pointDefense[weapon.parent.thingIDNumber] = state;
+                    if (!state.target.TryResolve(universe, out victim)
+                        || !universe.Scatter.ClaimAutomatic(victim.Container, weapon)) continue;
+                }
                 bool fired = universe.Weapons.ApplyControl(weapon, container,
                     new WeaponControlCommand(state.target, victim, true, WeaponControlSource.PointDefense));
+                if (!fired && weapon.WeaponProps.tractor && !SpaceWeaponService.CanAcquire(weapon))
+                {
+                    universe.Scatter.ReleaseAutomatic(weapon.parent);
+                    state.target = default; state.retargetAt = now + 30;
+                    pointDefense[weapon.parent.thingIDNumber] = state;
+                }
                 if (fired && !weapon.WeaponProps.tractor)
                 {
                     float damage = PdDamageAgainst(weapon, victim.Container);
@@ -527,14 +542,14 @@ namespace DeltaV
                 && PdCandidateValid(weapon, resolved.Container, muzzle, out _);
         }
 
-        private static bool PdCandidateValid(CompSpaceWeapon weapon, SpaceObject target, Vector3 muzzle, out float distance)
+        private bool PdCandidateValid(CompSpaceWeapon weapon, SpaceObject target, Vector3 muzzle, out float distance)
         {
             distance = 0f;
             if (weapon.WeaponProps.tractor)
             {
-                if (target?.IsScattered != true || target.map == null || target.map.Disposed) return false;
+                if (!universe.Scatter.AutoAvailable(target, weapon)) return false;
                 distance = OrbitSphere.Offset(muzzle, target.pose.position).magnitude;
-                return distance <= weapon.EffectiveRange;
+                return distance <= weapon.EffectiveRange && weapon.Covers(weapon.Container, target.pose.position, muzzle);
             }
             if (target == null || target == weapon.Container || target.map == null || target.map.Disposed
                 || !target.InterceptionEligible) return false;

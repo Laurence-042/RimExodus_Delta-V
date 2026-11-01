@@ -407,7 +407,7 @@
   <DeltaV_SoftDockHack>骇入对面的对接口</DeltaV_SoftDockHack>
   <DeltaV_SoftDockProgress>软对接：{0}（进度 {1}）</DeltaV_SoftDockProgress>
   <DeltaV_TractorAuto>自动牵引</DeltaV_TractorAuto>
-  <DeltaV_TractorAutoDesc>自动寻找并回收射程内漂浮的人员和物品。关闭后，用武器组手动瞄准和开火。</DeltaV_TractorAutoDesc>
+  <DeltaV_TractorAutoDesc>按物品和活体筛选自动回收射程内的散落物，每个目标只分配一台设备。关闭后，用武器组手动牵引结构，多束可叠加出力。</DeltaV_TractorAutoDesc>
   <DeltaV_TractorNeedsMoonPool>牵引光束只能建在月池上。</DeltaV_TractorNeedsMoonPool>
   <DeltaV_TractorBlocked>月池放不下回收的人员或物品，请先腾出空间。</DeltaV_TractorBlocked>
   <DeltaV_SoftDockTransfer>组织转移</DeltaV_SoftDockTransfer>

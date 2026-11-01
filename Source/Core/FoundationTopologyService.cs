@@ -12,6 +12,8 @@ namespace DeltaV
             private readonly SubstructureOwnership ownership;
             internal readonly FoundationConnectivity connectivity;
             internal readonly HashSet<int> changed = new HashSet<int>();
+            internal int blocksVersion = -1;
+            internal List<HashSet<IntVec3>> blocks;
 
             internal Entry(Map map, SubstructureOwnership ownership)
             {
@@ -60,6 +62,21 @@ namespace DeltaV
             IntVec3 seed = ship.console.parent.Position;
             return entry.connectivity.HasResidual(ship.ownerId,
                 seed.InBounds(map) ? map.cellIndices.CellToIndex(seed) : -1);
+        }
+
+        internal IReadOnlyList<HashSet<IntVec3>> PhysicalBlocks(Map map)
+        {
+            if (!maps.TryGetValue(map, out Entry entry))
+            {
+                entry = new Entry(map, SubstructureOwnership.For(map));
+                maps.Add(map, entry);
+            }
+            if (entry.blocks == null || entry.blocksVersion != SubstructureOwnership.GlobalStructureVersion)
+            {
+                entry.blocks = ShipRegistry.ResidualBlocks(map, new HashSet<IntVec3>());
+                entry.blocksVersion = SubstructureOwnership.GlobalStructureVersion;
+            }
+            return entry.blocks;
         }
 
         internal void Forget(Map map) { if (map != null) maps.Remove(map); }

@@ -56,6 +56,7 @@ namespace DeltaV
         public void UnregisterWeapon(CompSpaceWeapon weapon, Map map)
         {
             if (weapon == null) return;
+            if (weapon.WeaponProps.tractor) universe.Scatter.ReleaseAutomatic(weapon.parent);
             universe.Controls.ForgetWeaponTarget(weapon);
             if (map == null) return;
             if (!weaponsByMap.TryGetValue(map, out HashSet<CompSpaceWeapon> weapons)) return;

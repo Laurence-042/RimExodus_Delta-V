@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_TractorCargoTab>牵引物品</DeltaV_TractorCargoTab>
+  <DeltaV_TractorBatchCargo>同时设置 {0} 台牵引器</DeltaV_TractorBatchCargo>
+  <DeltaV_TractorBatchCargoTip>显示第一台选中牵引器的物品过滤。修改时，将当前整套物品过滤同步到所有选中的牵引器；仅打开此页不会更改配置。</DeltaV_TractorBatchCargoTip>
+  <DeltaV_TractorLiving>牵引活体</DeltaV_TractorLiving>
+  <DeltaV_TractorLivingDesc>允许自动回收符合活体筛选的人员、动物和机械体。尸体由物品过滤器控制，不受此开关影响。</DeltaV_TractorLivingDesc>
+  <DeltaV_TractorPawnFilter>活体筛选</DeltaV_TractorPawnFilter>
+  <DeltaV_TractorPawnFilterDesc>分别设置每种阵营和类型是否允许自动牵引。阵营以本设备所属派系为准；默认不牵引敌方活体。</DeltaV_TractorPawnFilterDesc>
+  <DeltaV_TractorRelation0>敌人</DeltaV_TractorRelation0>
+  <DeltaV_TractorRelation1>普通</DeltaV_TractorRelation1>
+  <DeltaV_TractorRelation2>盟友</DeltaV_TractorRelation2>
+  <DeltaV_TractorRelation3>自己人</DeltaV_TractorRelation3>
+  <DeltaV_TractorKind0>人</DeltaV_TractorKind0>
+  <DeltaV_TractorKind1>动物</DeltaV_TractorKind1>
+  <DeltaV_TractorKind2>机械体</DeltaV_TractorKind2>
+</LanguageData>

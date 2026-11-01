@@ -8,7 +8,7 @@
 | `FoundationTopologyRegression/run.ps1` | 直接编译生产拓扑／归属计数／地图服务，与独立 BFS 对拍，含 250×250 场景和缓存生命周期；[接入回归说明](FoundationTopologyRegression/README.md) |
 | `WeaponTuningRegression/run.ps1` | 当前 1.7 武器数值／伤害回归，详见其 README |
 | `CombatStrategyRegression/` | 使用最小占位类型的策略、曲线与文件校验；不替代游戏运行时验证 |
-| `NpcRetreatRegression/run.ps1` | 1.6 的战斗、驾驶、结构和生命周期专项；已接 REF，名称不代表只测撤退；`-SeparationOnly` 验证实际 Mod DLL 的归属、增量断裂检查与出力分离门禁 |
+| `NpcRetreatRegression/run.ps1` | 1.6 的战斗、驾驶、结构和生命周期专项；已接 REF，名称不代表只测撤退；`-SeparationOnly` 验证实际 Mod DLL 的归属、增量断裂检查与出力分离门禁；`-TractorOnly` 验证自动跨船独占与过滤、手动叠力、残骸分离请求、点防伤害分配及坐标／存读档 |
 | `MpcRegression`、`EngineeringRegression`、`RailgunRegression` | 1.6 控制器、工程与碰撞链回归；轨道炮数值现状以武器基线及 1.7 回归为准 |
 | `PrefabRegression`、`MoonPoolRoofRegression`、`SubstructureDamageRegression` | 1.6 的 prefab、屋顶及基架破坏检查；公共 prefab 实现已迁入 REF |
 | `verify_docking_contract.ps1` | 1.6 对接原版签名、XML 字段与翻译核对，不适用于 1.7 API |

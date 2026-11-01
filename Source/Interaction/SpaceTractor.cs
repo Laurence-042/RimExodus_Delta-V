@@ -15,7 +15,7 @@ namespace DeltaV
     {
         public CompProperties_SpaceTractor() { compClass = typeof(CompSpaceTractor); }
     }
-    public class CompSpaceTractor : ThingComp, ISpaceWeaponFireGate, ISpaceWeaponLaunch
+    public partial class CompSpaceTractor : ThingComp, ISpaceWeaponFireGate, ISpaceWeaponLaunch, IStoreSettingsParent
     {
         private int blockedTick = -100;
         public bool CanFire(SpaceWeaponShot shot) => SpaceTractor.CanOperate(shot.weapon);
