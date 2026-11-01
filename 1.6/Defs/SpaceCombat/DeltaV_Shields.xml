@@ -21,7 +21,12 @@
     <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
     <statBases><MaxHitPoints>250</MaxHitPoints><Flammability>0.3</Flammability><Mass>80</Mass></statBases>
     <costList><Steel>200</Steel><GravlitePanel>80</GravlitePanel><ComponentSpacer>8</ComponentSpacer></costList>
-    <building><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/ShieldGenerator_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(3,3)</drawSize></blueprintGraphicData></building>
+    <building><turretTopDrawSize>2.8</turretTopDrawSize><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/ShieldGenerator_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(3,3)</drawSize></blueprintGraphicData></building>
+    <modExtensions>
+      <li Class="DeltaV.DefModExtension_SpaceTurretArt">
+        <topTexPath>Things/Building/SpaceWeapons/ShieldProjector</topTexPath>
+      </li>
+    </modExtensions>
     <graphicData>
       <graphicClass>Graphic_Single</graphicClass>
       <texPath>Things/Building/SpaceWeapons/ShieldGenerator</texPath>
@@ -60,10 +65,7 @@
         <rechargeHitPointsIntervalTicks>75</rechargeHitPointsIntervalTicks>
         <activated>false</activated>
       </li>
-      <li Class="DeltaV.CompProperties_SpaceShield">
-        <projectorTexPath>Things/Building/SpaceWeapons/ShieldProjector</projectorTexPath>
-        <projectorDrawSize>2.8</projectorDrawSize>
-      </li>
+      <li Class="DeltaV.CompProperties_SpaceShield" />
     </comps>
   </ThingDef>
 </Defs>

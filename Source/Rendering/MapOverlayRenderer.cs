@@ -313,6 +313,10 @@ namespace DeltaV
                 if (config?.source == ShellGraphicSource.TurretTop)
                 {
                     CollectTurretTop(thing, config, matrix, rotation, collector);
+                    // A projector's dome is a comp effect, separate from its turret top.
+                    CompProjectileInterceptor interceptor = thing.TryGetComp<CompProjectileInterceptor>();
+                    if (interceptor != null)
+                        ShellDrawCapture.Capture(interceptor.PostDraw, matrix, config.layer, config.zIndex);
                     continue;
                 }
                 if (config?.alternateGraphics != null || thing.def.drawerType == DrawerType.MapMeshOnly
@@ -403,23 +407,18 @@ namespace DeltaV
         private static void CollectTurretTop(Thing thing, ShellRenderConfig config,
             Matrix4x4 matrix, Quaternion rotation, List<OverlayCommand> collector)
         {
-            if (thing is not IShellTurretTopSource source || thing.def.building == null) return;
+            IShellTurretTopSource source = SpaceTurretTopRenderer.SourceFor(thing);
+            if (source == null || thing.def.building == null) return;
             Material material = (config.alternateGraphics?.Count == 1
                     ? config.alternateGraphics[0].GraphicColoredFor(thing).MatSingleFor(thing) : null)
                 ?? source.ShellTopMaterial;
             if (material == null) return;
-            Vector2 offset = thing.def.building.turretTopOffset;
-            Vector3 local = thing.DrawPos + Altitudes.AltIncVect
-                + new Vector3(offset.x, config.zIndex * Altitudes.AltInc, offset.y);
-            if (thing is ThingWithComps comps)
-                local += comps.TryGetComp<CompSpaceWeapon>()?.VisualRecoilOffset ?? Vector3.zero;
-            float angle = TurretTop.ArtworkRotation + source.ShellTopAngle;
-            float size = thing.def.building.turretTopDrawSize;
+            Vector3 recoil = thing.TryGetComp<CompSpaceWeapon>()?.VisualRecoilOffset ?? Vector3.zero;
             collector.Add(new OverlayCommand
             {
                 mesh = MeshPool.plane10,
-                matrix = Matrix4x4.TRS(matrix.MultiplyPoint3x4(local), rotation * angle.ToQuat(),
-                    new Vector3(size, 1f, size)),
+                matrix = SpaceTurretTopRenderer.MatrixFor(thing, source, thing.DrawPos,
+                    recoil, 0f, matrix, rotation, config.zIndex),
                 material = material,
                 surface = config.layer,
                 queue = material.renderQueue,

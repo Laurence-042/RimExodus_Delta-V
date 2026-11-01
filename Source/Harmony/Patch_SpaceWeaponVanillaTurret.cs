@@ -9,10 +9,15 @@ namespace DeltaV
     [HarmonyPatch(typeof(TurretTop), nameof(TurretTop.DrawTurret))]
     public static class Patch_TurretTop_SpaceWeaponRecoil
     {
-        public static void Prefix(Building_Turret ___parentTurret, ref Vector3 recoilDrawOffset)
+        public static bool Prefix(Building_Turret ___parentTurret, Vector3 drawLoc,
+            ref Vector3 recoilDrawOffset, float recoilAngleOffset)
         {
             CompSpaceWeapon weapon = ___parentTurret.TryGetComp<CompSpaceWeapon>();
             if (weapon?.SpaceModeEnabled == true) recoilDrawOffset = weapon.VisualRecoilOffset;
+            IShellTurretTopSource source = SpaceTurretTopRenderer.SourceFor(___parentTurret);
+            if (source == null) return true;
+            SpaceTurretTopRenderer.Draw(___parentTurret, source, drawLoc, recoilDrawOffset, recoilAngleOffset);
+            return false;
         }
     }
 

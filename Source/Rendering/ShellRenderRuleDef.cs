@@ -26,9 +26,8 @@ namespace DeltaV
                     if (graphic == null || graphic.graphicClass == null)
                         yield return $"{defName}: each render.alternateGraphics entry requires graphicClass";
             }
-            if (render?.source == ShellGraphicSource.TurretTop && thingDef?.thingClass != null
-                && !typeof(IShellTurretTopSource).IsAssignableFrom(thingDef.thingClass))
-                yield return $"{defName}: TurretTop source requires IShellTurretTopSource";
+            if (render?.source == ShellGraphicSource.TurretTop && !SpaceTurretTopRenderer.Supports(thingDef))
+                yield return $"{defName}: TurretTop source requires IShellTurretTopSource on the thing or a comp";
             if (render?.source == ShellGraphicSource.TurretTop && render.alternateGraphics != null)
             {
                 if (render.alternateGraphics.Count != 1)

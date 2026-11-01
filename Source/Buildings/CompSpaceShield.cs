@@ -37,8 +37,6 @@ namespace DeltaV
         public float spaceLengthPowerWatts = 1.5f;
         public int pulseFailureTicks = 180;
         public int guardRecoveryTicks = 2500;
-        public string projectorTexPath = "Things/Building/SpaceWeapons/ShieldProjector";
-        public float projectorDrawSize = 2.8f;
 
         public CompProperties_SpaceShield()
         {
@@ -65,7 +63,7 @@ namespace DeltaV
     /// Three mutually exclusive modes. The vanilla interceptor stores guard hitpoints;
     /// SpaceCollision consumes the two projected line modes.
     /// </summary>
-    public class CompSpaceShield : ThingComp
+    public class CompSpaceShield : ThingComp, IShellTurretTopSource
     {
         private static readonly MethodInfo CloneMethod = typeof(object).GetMethod("MemberwiseClone",
             BindingFlags.Instance | BindingFlags.NonPublic);
@@ -85,7 +83,19 @@ namespace DeltaV
         private CompProjectileInterceptor interceptor;
         private CompRefuelable silverFuel;
         private CompProperties_ProjectileInterceptor instanceInterceptorProps;
-        private Material projectorMaterial;
+        private Material topMaterial;
+
+        public Material ShellTopMaterial => topMaterial ??= MaterialPool.MatFrom(
+            parent.def.GetModExtension<DefModExtension_SpaceTurretArt>().topTexPath);
+        // Existing shield art faces north; the shared turret convention faces east.
+        public float ShellTopAngle => parent.Rotation.AsAngle
+            - (mode == SpaceShieldMode.Guard ? 0f : angleDeg) - TurretTop.ArtworkRotation;
+
+        public override void PostDraw()
+        {
+            base.PostDraw();
+            SpaceTurretTopRenderer.Draw(parent, this, parent.DrawPos, Vector3.zero, 0f);
+        }
 
         public CompProperties_SpaceShield ShieldProps => (CompProperties_SpaceShield)props;
         public bool GuardLocked => mode == SpaceShieldMode.Guard && !guardUnlocked;
@@ -244,22 +254,6 @@ namespace DeltaV
             UpdateSilverTarget();
             UpdatePowerDraw();
             SpaceCollision.InvalidateShield(parent.Map);
-        }
-
-        public override void PostDraw()
-        {
-            base.PostDraw();
-            projectorMaterial ??= MaterialPool.MatFrom(ShieldProps.projectorTexPath,
-                ShaderDatabase.Cutout);
-            Vector3 center = parent.DrawPos;
-            center.y = parent.def.Altitude + 0.02f;
-            // SpaceTransform.Rotate uses counterclockwise XY angles, while Unity's
-            // positive yaw turns north toward east on the XZ plane.
-            float facing = parent.Rotation.AsAngle - (mode == SpaceShieldMode.Guard ? 0f : angleDeg);
-            Graphics.DrawMesh(MeshPool.plane10,
-                Matrix4x4.TRS(center, Quaternion.Euler(0f, facing, 0f),
-                    new Vector3(ShieldProps.projectorDrawSize, 1f, ShieldProps.projectorDrawSize)),
-                projectorMaterial, 0);
         }
 
         public void GetSegment(out Vector2 start, out Vector2 end, out Vector2 frontNormal)

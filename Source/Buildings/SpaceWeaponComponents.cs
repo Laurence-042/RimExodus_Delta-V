@@ -126,6 +126,8 @@ namespace DeltaV
 
         private void AdvanceToward(float mapAngle)
         {
+            if (parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
+                || parent.TryGetComp<CompFlickable>() is { SwitchIsOn: false }) return;
             int now = Find.TickManager.TicksGame;
             if (rotationTick != now)
             {

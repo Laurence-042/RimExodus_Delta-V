@@ -162,5 +162,73 @@ internal static class Program
         var effects = XDocument.Load(Path.Combine(repo, "1.6/Defs/SpaceCombat/DeltaV_SpaceImpactEffects.xml"));
         Check(effects.Root.Elements().Where(x => x.Element("projectileDefs")?.Elements().Any(y => y.Value == "DeltaV_Projectile_Cannon") == true)
             .All(x => x.Element("projectileDefs").Elements().Any(y => y.Value == "DeltaV_Projectile_Rapid")), "rapid and heavy share every impact definition");
+        CheckTurretPowerAndShieldFacing();
+    }
+
+    static void CheckTurretPowerAndShieldFacing()
+    {
+        Game previous = Current.Game;
+        Current.Game = (Game)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Game));
+        Current.Game.tickManager = (TickManager)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(TickManager));
+        var ticks = typeof(TickManager).GetField("ticksGameInt", BindingFlags.Instance | BindingFlags.NonPublic);
+        var powered = typeof(CompPowerTrader).GetField("powerOnInt", BindingFlags.Instance | BindingFlags.NonPublic);
+        try
+        {
+            var body = new ThingWithComps { def = new ThingDef { comps = new() {
+                new CompProperties_SpaceWeaponTraverse(),
+                new CompProperties_Power { compClass = typeof(CompPowerTrader) }
+            } } };
+            body.InitializeComps();
+            var traverse = body.GetComp<CompSpaceWeaponTraverse>();
+            var power = body.GetComp<CompPowerTrader>();
+            ticks.SetValue(Find.TickManager, 1);
+            traverse.AimAt(1f);
+            ticks.SetValue(Find.TickManager, 2);
+            traverse.AimAtVanilla(1f);
+            Check(traverse.CurrentAngle == 0f, "unpowered manual and vanilla aiming preserve turret heading");
+            powered.SetValue(power, true);
+            traverse.AimAtVanilla(1f);
+            Check(traverse.CurrentAngle > 0f, "power restoration resumes turning without waiting for a new target");
+            float stopped = traverse.CurrentAngle;
+            powered.SetValue(power, false);
+            traverse.AimAt(-1f);
+            Check(traverse.CurrentAngle == stopped, "power loss in the same tick prevents another turn");
+            powered.SetValue(power, true);
+            ticks.SetValue(Find.TickManager, 3);
+            traverse.AimAt(1f);
+            Check(traverse.CurrentAngle > stopped, "powered space aiming still advances the turret");
+
+            var projector = new Building { def = new ThingDef { thingClass = typeof(Building), comps = new() {
+                new CompProperties_SpaceShield()
+            }, size = new IntVec2(3, 3), building = new BuildingProperties { turretTopDrawSize = 2.8f } } };
+            projector.InitializeComps();
+            var shield = projector.GetComp<CompSpaceShield>();
+            Check(ReferenceEquals(SpaceTurretTopRenderer.SourceFor(projector), shield),
+                "ordinary Building restored from prefab resolves its shield component as the top source");
+            Check(SpaceTurretTopRenderer.Supports(projector.def),
+                "shell render rule accepts the ordinary Building plus shield component contract");
+            foreach (Rot4 rotation in new[] { Rot4.North, Rot4.East, Rot4.South, Rot4.West })
+            foreach (float angle in new[] { -90f, -30f, 0f, 60f, 90f })
+            {
+                projector.Rotation = rotation;
+                shield.mode = SpaceShieldMode.Kinetic;
+                shield.angleDeg = angle;
+                shield.GetSegment(out _, out _, out Vector2 normal);
+                Matrix4x4 local = SpaceTurretTopRenderer.MatrixFor(projector, shield, Vector3.zero,
+                    Vector3.zero, 0f, Matrix4x4.identity, Quaternion.identity);
+                Vector3 direction = local.MultiplyVector(Vector3.forward).normalized;
+                var renderedForward = new Vector2(direction.x, direction.z);
+                Check((renderedForward - normal).sqrMagnitude < .00001f,
+                    $"shared turret artwork faces real shield normal: {rotation}, {angle}");
+                Quaternion turn = Quaternion.Euler(0f, 37f, 0f);
+                Matrix4x4 transform = Matrix4x4.TRS(new Vector3(13f, 0f, -8f), turn, Vector3.one);
+                Matrix4x4 shell = SpaceTurretTopRenderer.MatrixFor(projector, shield, Vector3.zero,
+                    Vector3.zero, 0f, transform, turn);
+                Check((shell.MultiplyPoint3x4(Vector3.forward) - transform.MultiplyPoint3x4(
+                    local.MultiplyPoint3x4(Vector3.forward))).sqrMagnitude < .00001f,
+                    $"shell top uses the transformed map draw geometry: {rotation}, {angle}");
+            }
+        }
+        finally { Current.Game = previous; }
     }
 }
