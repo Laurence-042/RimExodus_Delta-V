@@ -319,7 +319,8 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_StatCapCapacity>Capacitor capacity</DeltaV_StatCapCapacity>
   <DeltaV_StatCapChargingPower>Charging power</DeltaV_StatCapChargingPower>
   <DeltaV_StatCapFullCharge>Empty to full</DeltaV_StatCapFullCharge>
-  <DeltaV_StatTicks>ticks</DeltaV_StatTicks>
+  <DeltaV_StatSeconds>{0} seconds</DeltaV_StatSeconds>
+  <DeltaV_StatGameHours>{0} in-game hours</DeltaV_StatGameHours>
   <DeltaV_RailReadiness>Railgun status: {0}</DeltaV_RailReadiness>
   <DeltaV_RailReady>energy available</DeltaV_RailReady>
   <DeltaV_RailCooling>energy available, cooling</DeltaV_RailCooling>
@@ -567,10 +568,10 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShieldSharedRegular>Available shared regular capacity: {0}</DeltaV_ShieldSharedRegular>
   <DeltaV_ShieldRecoveryWait>Regular recovery delay: {0} seconds</DeltaV_ShieldRecoveryWait>
   <DeltaV_ShieldRecovering>Restoring regular capacity (+1000 W).</DeltaV_ShieldRecovering>
-  <DeltaV_ShieldManualEmergency>Manual emergency</DeltaV_ShieldManualEmergency>
-  <DeltaV_ShieldManualEmergencyTip>Leave regular sharing and intercept using local emergency capacity. Rejoin when regular capacity is full. Line mode is never switched back automatically.</DeltaV_ShieldManualEmergencyTip>
-  <DeltaV_ShieldRegularBar>Regular · rejoin {0}%</DeltaV_ShieldRegularBar>
-  <DeltaV_ShieldRegularBarTip>Drag to set automatic emergency rejoin capacity (1–100%). Manual emergency always waits for full regular capacity.</DeltaV_ShieldRegularBarTip>
-  <DeltaV_ShieldEmergencyBar>Local emergency capacity</DeltaV_ShieldEmergencyBar>
+  <DeltaV_ShieldManualEmergency>Use emergency shield</DeltaV_ShieldManualEmergency>
+  <DeltaV_ShieldManualEmergencyTip>Pause a partially depleted regular shield to let it recover. Only this generator's emergency capacity absorbs hits while it recovers; damage is no longer shared. Regular protection reactivates at full capacity, regardless of the slider setting. Line mode remains unchanged.</DeltaV_ShieldManualEmergencyTip>
+  <DeltaV_ShieldRegularBar>Regular: reactivate at {0}%</DeltaV_ShieldRegularBar>
+  <DeltaV_ShieldRegularBarTip>The bar shows this generator's remaining regular capacity.\n\nAfter regular capacity is depleted, emergency protection takes over. Drag the marker to choose how much regular capacity must recover before it reactivates (1–100%) and shares damage with the ship's other active regular shields.\n\nManually switching to emergency protection always waits for full regular capacity. Line mode can restore capacity but never switches back to a dome automatically.</DeltaV_ShieldRegularBarTip>
+  <DeltaV_ShieldEmergencyBar>Emergency shield</DeltaV_ShieldEmergencyBar>
   <DeltaV_ShieldEmergencyBarTip>Only absorbs hits on this dome. Never shared or automatically restored. One silver restores one capacity.</DeltaV_ShieldEmergencyBarTip>
 </LanguageData>

@@ -14,6 +14,9 @@ namespace DeltaV
         public static string EnergyAmount(float amount) => amount.ToString("F2");
         public static string WattDays(float amount) => EnergyAmount(amount) + " W·d";
         public static string Watts(float amount) => amount.ToString("0") + " W";
-        public static string Ticks(int ticks) => ticks.ToString() + " " + "DeltaV_StatTicks".Translate();
+        public static string Seconds(int ticks) =>
+            "DeltaV_StatSeconds".Translate((ticks / (float)GenTicks.TicksPerRealSecond).ToString("0.##"));
+        public static string GameHours(int ticks) =>
+            "DeltaV_StatGameHours".Translate((ticks / (float)GenDate.TicksPerHour).ToString("0.##"));
     }
 }

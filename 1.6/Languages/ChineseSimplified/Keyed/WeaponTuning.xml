@@ -1,19 +1,19 @@
 <?xml version='1.0' encoding='utf-8'?>
 <LanguageData>
   <DeltaV_TuneCharge>装药量：{0}</DeltaV_TuneCharge>
-  <DeltaV_TuneChargeTip>增加装药提高初速，同时增加弹药消耗和排热负担。</DeltaV_TuneChargeTip>
-  <DeltaV_TuneMass>弹重档：{0}</DeltaV_TuneMass>
-  <DeltaV_TuneMassTip>增加弹重提高穿深和破片质量；相同装药下初速降低。</DeltaV_TuneMassTip>
+  <DeltaV_TuneChargeTip>设置每发使用多少份装药。装药越多，弹速越高、发热越多，开火后的冷却等待也越长。</DeltaV_TuneChargeTip>
+  <DeltaV_TuneMass>每发弹头用量：{0}</DeltaV_TuneMass>
+  <DeltaV_TuneMassTip>设置每发使用多少份弹头。用量越多，炮弹越重，穿深和破片质量越高；相同装药下，弹速会降低。</DeltaV_TuneMassTip>
   <DeltaV_TuneRate>射速：{0} 发/秒</DeltaV_TuneRate>
-  <DeltaV_TuneRateTip>高射速缩短爆发窗口，但更快过热；过热后必须彻底冷却。</DeltaV_TuneRateTip>
+  <DeltaV_TuneRateTip>提高射速可在短时间内射出更多炮弹，但会更快过热。过热后必须完全冷却才能继续开火。</DeltaV_TuneRateTip>
   <DeltaV_TunePower>功率：{0} 倍</DeltaV_TunePower>
-  <DeltaV_TunePowerTip>提高单束能量和逐发耗电，不增加单发穿深。</DeltaV_TunePowerTip>
-  <DeltaV_WeaponThermal>热量：{0}；就绪剩余 {1:0.0} 秒（{2}）</DeltaV_WeaponThermal>
-  <DeltaV_ThermalLocked>冷却锁定</DeltaV_ThermalLocked>
+  <DeltaV_TunePowerTip>提高激光伤害和每发耗电，不会让光束贯穿更多结构。</DeltaV_TunePowerTip>
+  <DeltaV_WeaponThermal>热量：{0}；冷却等待：{1:0.0} 秒（{2}）</DeltaV_WeaponThermal>
+  <DeltaV_ThermalLocked>过热停火</DeltaV_ThermalLocked>
   <DeltaV_ThermalReady>未过热</DeltaV_ThermalReady>
-  <DeltaV_ShotLoad>每发：{0} 装药＋{1} 弹头；质量 {2} 单位，初速 {3} 格/秒；周期 {4} 秒</DeltaV_ShotLoad>
+  <DeltaV_ShotLoad>每发用量：{0} 份装药、{1} 份弹头\n弹丸质量：{2} 单位；初速：{3} 格/秒；射击间隔：{4} 秒</DeltaV_ShotLoad>
   <DeltaV_PulseEnergy>每束耗电：{0} W·d</DeltaV_PulseEnergy>
-  <DeltaV_ShieldKineticEnergyReference>0% 只碎裂；主动档抵消来弹动能后赋予反向能量。当前反推：{0} 单位；耗电随来弹质量、速度增加。</DeltaV_ShieldKineticEnergyReference>
+  <DeltaV_ShieldKineticEnergyReference>0% 只击碎实弹。提高强度可减速并反弹碎片；当前反推能量为 {0} 单位。来弹越重、越快，拦截耗电越多。</DeltaV_ShieldKineticEnergyReference>
   <DeltaV_HeadSupply>弹头储备</DeltaV_HeadSupply>
   <DeltaV_PropellantSupply>装药储备</DeltaV_PropellantSupply>
 </LanguageData>

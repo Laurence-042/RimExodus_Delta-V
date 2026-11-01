@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <DeltaV_TractorBeam.label>牵引光束</DeltaV_TractorBeam.label>
-  <DeltaV_TractorBeam.description>将漂浮的人员和物品牵引到设备所在的月池。默认自动选择射程内的散落物，也可切为手动模式，使用常规武器组控制。需要供电和蓄电，月池必须有空间接收内容。</DeltaV_TractorBeam.description>
+  <DeltaV_TractorBeam.description>将漂浮的人员和物品收回设备所在的月池，需要供电和蓄电。默认自动回收射程内的散落物；关闭自动牵引后，可通过武器组手动瞄准和开火。请在月池上留出接收人员和物品的空间。</DeltaV_TractorBeam.description>
   <DeltaV_Beam_Tractor.label>牵引光束</DeltaV_Beam_Tractor.label>
 </LanguageData>

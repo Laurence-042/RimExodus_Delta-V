@@ -144,7 +144,7 @@ namespace DeltaV
                     SpaceCombatStats.WattDays(continuous ? shotEnergy * 60f : instance?.ShotEnergy ?? shotEnergy), 5100);
             if (!continuous)
                 yield return SpaceCombatStats.Entry("DeltaV_StatCooldown",
-                    SpaceCombatStats.Ticks(instance?.ShotInterval ?? cooldownTicks), 5090);
+                    SpaceCombatStats.Seconds(instance?.ShotInterval ?? cooldownTicks), 5090);
             yield return SpaceCombatStats.Entry("DeltaV_StatRange", range.ToString("0"), 5080);
             if (minRange > 0f)
                 yield return SpaceCombatStats.Entry("DeltaV_StatMinRange", minRange.ToString("0"), 5079);

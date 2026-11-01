@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <DeltaV_ShieldGenerator.label>Delta-V 护盾发生器</DeltaV_ShieldGenerator.label>
-  <DeltaV_ShieldGenerator.description>三模式护盾。守卫圆盾有同船共享的 1000 常规容量及本地独立的 2000 应急容量。常规容量 10 秒未被消耗后可通电恢复，一游戏小时充满，回充额外耗电 1000 W；应急容量只用白银补充。可手动转入应急，让常规恢复至满后重新共享；自动应急的返回比例可用滑条设置。动能线盾碎裂实弹，电磁线盾折射激光；两种线盾需要供电，不参与常规共享。</DeltaV_ShieldGenerator.description>
+  <DeltaV_ShieldGenerator.description>可在守卫圆盾、动能线盾和电磁线盾之间切换。\n\n守卫模式有 1000 点常规盾容和 2000 点应急盾容。常规护盾会与同船其他常规护盾分担伤害；常规盾容耗尽后，改用本机应急盾容，只保护自己的圆盾范围。应急盾容不会与其他发生器共享，每 1 白银补充 1 点。\n\n本机常规盾容连续 10 秒未被消耗后，开启设备并供电即可恢复；从空到满需 1 游戏小时，期间额外耗电 1000 W。滑条可设置耗尽后恢复到多少才重新启用。也可手动改用应急护盾，让常规盾容充满后再启用。\n\n动能线盾使实弹碎裂，电磁线盾使激光偏转，两者都需要供电。使用线盾时仍可恢复常规盾容，但不与其他护盾分担伤害，也不启用应急圆盾。</DeltaV_ShieldGenerator.description>
   <DeltaV_ShieldGeneratorSmall.label>Delta-V 小型护盾发生器</DeltaV_ShieldGeneratorSmall.label>
-  <DeltaV_ShieldGeneratorSmall.description>紧凑的三模式护盾。守卫圆盾只有 1000 本地应急容量，只能用白银补充，不能使用同船常规共享池。动能线盾碎裂实弹，电磁线盾折射激光；两者需要供电，投射距离和长度上限均为 16 格。</DeltaV_ShieldGeneratorSmall.description>
+  <DeltaV_ShieldGeneratorSmall.description>适合小船的三模式护盾，可切换守卫圆盾、动能线盾或电磁线盾。\n\n守卫模式只有 1000 点应急盾容，保护自己的圆盾范围。没有可自动恢复的常规盾容，也不能借用其他发生器的盾容；每 1 白银补充 1 点应急盾容。\n\n动能线盾使实弹碎裂，电磁线盾使激光偏转。两者都需要供电，投射距离和长度上限均为 16 格。</DeltaV_ShieldGeneratorSmall.description>
 </LanguageData>

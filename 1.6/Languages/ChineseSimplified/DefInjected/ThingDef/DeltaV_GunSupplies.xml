@@ -1,9 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
 <LanguageData>
   <DeltaV_Propellant.label>舰炮装药</DeltaV_Propellant.label>
-  <DeltaV_Propellant.description>供舰炮装填的标准组件。装药与弹头分别供应，重炮可组合多份组件发射。</DeltaV_Propellant.description>
+  <DeltaV_Propellant.description>由钢铁制成的舰炮装药，与弹头分别装填。重炮可调整每发用量；装药越多，弹速和发热越高。</DeltaV_Propellant.description>
   <DeltaV_SteelHead.label>钢制弹头</DeltaV_SteelHead.label>
-  <DeltaV_SteelHead.description>供舰炮装填的标准组件。装药与弹头分别供应，重炮可组合多份组件发射。</DeltaV_SteelHead.description>
+  <DeltaV_SteelHead.description>钢制的标准舰炮弹头，与装药分别装填。重炮可调整每发用量；增加弹重能提高穿深，但相同装药下弹速更低。</DeltaV_SteelHead.description>
   <DeltaV_UraniumHead.label>铀制弹头</DeltaV_UraniumHead.label>
-  <DeltaV_UraniumHead.description>供舰炮装填的标准组件。装药与弹头分别供应，重炮可组合多份组件发射。</DeltaV_UraniumHead.description>
+  <DeltaV_UraniumHead.description>装入铀制附加弹仓的舰炮弹头。比钢弹头更重、穿甲更强，但相同装药下弹速更低。</DeltaV_UraniumHead.description>
 </LanguageData>

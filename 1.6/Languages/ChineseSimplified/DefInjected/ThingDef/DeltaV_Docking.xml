@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <DeltaV_DockingPort.label>对接口</DeltaV_DockingPort.label>
-  <DeltaV_DockingPort.description>用于船间通行的气密对接口。打开软对接指示器并对齐菱形，可在两张独立地图之间建立通道。选中人员右键本船接口可通行、指定转移物资，或骇入无法开启的远端接口；骇入后自动占领。关闭指示器或失去对齐会断连。同图停靠后仍可向附近结构伸出气密力场通道；收回时人员和物品原格留置。</DeltaV_DockingPort.description>
+  <DeltaV_DockingPort.description>供船员和货物在船间转移的气密接口。\n\n打开软对接指示器，让两端的菱形对齐，即可连接两艘独立飞船。选中人员并右键本船接口，可以通行或搬运物资；对方接口无法开启时，可先骇入占领。关闭指示器或两端错开后，连接会断开。\n\n已在同一地图停靠时，也可向附近结构伸出气密力场通道。收回通道不会带走上面的人员和物品。</DeltaV_DockingPort.description>
   <DeltaV_DockingPassage.label>气密对接通道</DeltaV_DockingPassage.label>
-  <DeltaV_DockingPassage.description>由对接口铺设的可收回甲板，两侧力场隔绝真空。它不是飞船基架。</DeltaV_DockingPassage.description>
+  <DeltaV_DockingPassage.description>由对接口伸出的可收回甲板，两侧力场隔绝真空。它不属于飞船基架。</DeltaV_DockingPassage.description>
 </LanguageData>

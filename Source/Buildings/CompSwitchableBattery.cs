@@ -27,7 +27,7 @@ namespace DeltaV
                 ? Mathf.CeilToInt(capacityWattDays / (chargingWatts * CompPower.WattsToWattDaysPerTick))
                 : 0;
             yield return SpaceCombatStats.Entry("DeltaV_StatCapFullCharge",
-                SpaceCombatStats.Ticks(ticks), 5080);
+                SpaceCombatStats.GameHours(ticks), 5080);
         }
     }
 

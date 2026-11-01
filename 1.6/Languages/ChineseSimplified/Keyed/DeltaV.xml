@@ -104,7 +104,7 @@
   <DeltaV_LaunchFailNoThruster>船上没有可工作的推进器，无法出力分离并开始自由飞行。</DeltaV_LaunchFailNoThruster>
   <DeltaV_FreeFlightSuccess>{0} 已开始自由飞行。</DeltaV_FreeFlightSuccess>
   <DeltaV_ConsoleGizmoMakePrimary>设为主驾驶台</DeltaV_ConsoleGizmoMakePrimary>
-  <DeltaV_ConsoleGizmoPrimaryTip>开始自由飞行时，飞船朝向跟随主驾驶台的朝向。</DeltaV_ConsoleGizmoPrimaryTip>
+  <DeltaV_ConsoleGizmoPrimaryTip>以这座驾驶台控制所属飞船，并以驾驶台的朝向作为船头方向。</DeltaV_ConsoleGizmoPrimaryTip>
   <DeltaV_ConsolePrimarySet>主驾驶台已设置：{0}</DeltaV_ConsolePrimarySet>
   <DeltaV_ConsolePrimary>这是主驾驶台。</DeltaV_ConsolePrimary>
   <DeltaV_PoiCreated>POI 已创建：{0}，距离 {1} 格。</DeltaV_PoiCreated>
@@ -116,8 +116,8 @@
   <DeltaV_PanelNeedsPrimaryConsole>该结构没有主驾驶台。请建造驾驶台或将现有驾驶台设为主台，才能控制飞船。</DeltaV_PanelNeedsPrimaryConsole>
   <DeltaV_MissingPrimaryConsole>基架结构缺少主驾驶台</DeltaV_MissingPrimaryConsole>
   <DeltaV_MissingPrimaryConsoleDesc>部分载有玩家建筑的基架归属没有主驾驶台，因此未形成可控制的飞船。请建造驾驶台，或选中属于玩家的驾驶台并设为主台。已有主台的归属会锁定，不能被改划到其他归属。此警告在主台恢复后自动消失。</DeltaV_MissingPrimaryConsoleDesc>
-  <DeltaV_ConsoleNeedsFoundation>驾驶台必须位于 Delta-V 地图的基架上才能设为主台。</DeltaV_ConsoleNeedsFoundation>
-  <DeltaV_ConsolePrimaryNotOwned>该归属已有非玩家主驾驶台。请先按原版规则占领该主台，或摧毁主台且没有副台继任后再认领。</DeltaV_ConsolePrimaryNotOwned>
+  <DeltaV_ConsoleNeedsFoundation>请把驾驶台建在太空地图的飞船基架上，再设为主驾驶台。</DeltaV_ConsoleNeedsFoundation>
+  <DeltaV_ConsolePrimaryNotOwned>这片基架已有非玩家控制的主驾驶台。请先占领它；或摧毁它及可接任的备用台后，再认领飞船。</DeltaV_ConsolePrimaryNotOwned>
   <DeltaV_PanelGlobeZoomOut>星球</DeltaV_PanelGlobeZoomOut>
   <DeltaV_PanelGlobeZoomIn>星区</DeltaV_PanelGlobeZoomIn>
   <DeltaV_PanelGlobeDistance>{0} 格</DeltaV_PanelGlobeDistance>
@@ -140,9 +140,9 @@
   <DeltaV_ReassignSelected>目标归属已设置：{0}。现在拖选要改写的基架格。</DeltaV_ReassignSelected>
   <!-- 对接口 -->
   <DeltaV_DockExtendLabel>延伸对接通道</DeltaV_DockExtendLabel>
-  <DeltaV_DockExtendDesc>沿本对接口的朝向延伸密封对接通道，直至首个结构。范围内没有结构则失败。</DeltaV_DockExtendDesc>
+  <DeltaV_DockExtendDesc>沿接口朝向伸出气密通道，连接范围内遇到的第一个结构。范围内没有结构时无法伸出。</DeltaV_DockExtendDesc>
   <DeltaV_DockRetractLabel>收起对接通道</DeltaV_DockRetractLabel>
-  <DeltaV_DockRetractDesc>收回对接通道，还原为开放太空。</DeltaV_DockRetractDesc>
+  <DeltaV_DockRetractDesc>收回通道，原位置将暴露于太空。通道上的人员和物品不会随之收回。</DeltaV_DockRetractDesc>
   <DeltaV_DockNoFace>本对接口朝向的范围内没有可用对接面，或路线被已有通道阻挡。通道不能串接。</DeltaV_DockNoFace>
   <DeltaV_DockChannelLaid>对接通道已延伸：{0} 格。</DeltaV_DockChannelLaid>
   <DeltaV_DockConnected>气密通道已连接：{0} 格</DeltaV_DockConnected>
@@ -174,7 +174,7 @@
   <DeltaV_RenameTitle>重命名飞船</DeltaV_RenameTitle>
   <DeltaV_ConsoleGizmoRename>重命名飞船</DeltaV_ConsoleGizmoRename>
   <DeltaV_ConsoleGizmoMakeBackup>设为备用驾驶台</DeltaV_ConsoleGizmoMakeBackup>
-  <DeltaV_ConsoleGizmoBackupTip>主动放弃主台认领，不触发副台继任。本归属不再形成可控制的飞船，基架可被改划；重新设为主台后恢复船舶操作。</DeltaV_ConsoleGizmoBackupTip>
+  <DeltaV_ConsoleGizmoBackupTip>放弃控制这艘船，不会自动让其他备用台接任。之后将无法驾驶，基架也可被重新划分归属；把驾驶台重新设为主台即可恢复控制。</DeltaV_ConsoleGizmoBackupTip>
   <DeltaV_PanelShipRowTip>将「{0}」设为当前查看的结构。有主驾驶台时可操作飞船。</DeltaV_PanelShipRowTip>
   <DeltaV_StructureNoConsole>无主驾驶台</DeltaV_StructureNoConsole>
   <DeltaV_PanelHeadingCaption>驾驶台朝向（点击旋转飞船）</DeltaV_PanelHeadingCaption>
@@ -282,27 +282,27 @@
   <DeltaV_BattleStationsOn>{0} 名炮手已进入战斗位置。</DeltaV_BattleStationsOn>
   <DeltaV_BattleStationsOff>已退出战斗位置，{0} 名炮手返回原工作。</DeltaV_BattleStationsOff>
   <DeltaV_WeaponGroupGizmo>武器组：{0}{1}</DeltaV_WeaponGroupGizmo>
-  <DeltaV_WeaponGroupGizmoTip>弹出菜单指派本武器的套别与组号（主/副 × 1–6）；组激活在状态面板切换。</DeltaV_WeaponGroupGizmoTip>
+  <DeltaV_WeaponGroupGizmoTip>为这件武器选择主武器组或副武器组，以及组号（1–6）。在左侧面板中启用对应组后即可使用。</DeltaV_WeaponGroupGizmoTip>
   <DeltaV_WeaponGroupMenuTitle>武器组指派</DeltaV_WeaponGroupMenuTitle>
   <DeltaV_WeaponGroupEntry>{0} · 第 {1} 组</DeltaV_WeaponGroupEntry>
   <DeltaV_WeaponPdgizmo>点防御</DeltaV_WeaponPdgizmo>
-  <DeltaV_WeaponPdgizmoTip>点防御模式：自动索敌射程内可拦截容器（导弹、有图炮弹、shuttle），不受瞄准模式控制。</DeltaV_WeaponPdgizmoTip>
+  <DeltaV_WeaponPdgizmoTip>自动拦截射程内的来袭导弹、可拦截炮弹和穿梭机，不受手动或自动瞄准模式影响。</DeltaV_WeaponPdgizmoTip>
   <DeltaV_WeaponReserveGizmo>预留炮手：{0}</DeltaV_WeaponReserveGizmo>
   <DeltaV_WeaponReserveNone>不指定</DeltaV_WeaponReserveNone>
-  <DeltaV_WeaponReserveGizmoTip>指定进入战斗位置时优先就位本武器的殖民者（不指定 = 随机选可胜任者）。</DeltaV_WeaponReserveGizmoTip>
+  <DeltaV_WeaponReserveGizmoTip>选择进入战斗位置时优先操作这件武器的殖民者。不指定时，会随机选择能胜任的人员。</DeltaV_WeaponReserveGizmoTip>
   <DeltaV_KeepGunnerWhenUnavailable>武器无法工作时保留炮手</DeltaV_KeepGunnerWhenUnavailable>
-  <DeltaV_KeepGunnerWhenUnavailableTip>默认开启。断电或缺少必需弹药时，已就位炮手继续留在本武器岗位，等待恢复；关闭后会在下一游戏 tick 离岗并尝试操作其他可用武器。失效武器不会征用新炮手。</DeltaV_KeepGunnerWhenUnavailableTip>
+  <DeltaV_KeepGunnerWhenUnavailableTip>默认开启。断电或缺弹时，已就位的炮手会留岗等待；关闭后，炮手会离岗并尝试操作其他可用武器。无法工作的武器不会再安排新炮手。</DeltaV_KeepGunnerWhenUnavailableTip>
 
   <DeltaV_MagazinePriority>弹仓优先级：{0}</DeltaV_MagazinePriority>
-  <DeltaV_MagazinePriorityTip>优先消耗数值更高的弹仓；同优先级按 Thing ID 顺序轮流发射。</DeltaV_MagazinePriorityTip>
-  <DeltaV_AttachmentEnabled>启用挂件</DeltaV_AttachmentEnabled>
-  <DeltaV_AttachmentEnabledTip>临时启用或停用此武器挂件；支持多选后一并切换。</DeltaV_AttachmentEnabledTip>
+  <DeltaV_MagazinePriorityTip>优先使用数值较高的弹仓；优先级相同时轮流供弹。</DeltaV_MagazinePriorityTip>
+  <DeltaV_AttachmentEnabled>启用插件</DeltaV_AttachmentEnabled>
+  <DeltaV_AttachmentEnabledTip>启用或停用这个武器插件。多选插件后可一起切换。</DeltaV_AttachmentEnabledTip>
   <DeltaV_CapacitorStored>电容储能：{0}/{1} W·d</DeltaV_CapacitorStored>
   <DeltaV_BatteryStored>储能：{0}/{1} W·d</DeltaV_BatteryStored>
   <DeltaV_BatteryGridOutput>向电网供电</DeltaV_BatteryGridOutput>
-  <DeltaV_BatteryGridOutputTip>开启后按设定功率持续向电网发电，即使电网需求较低也会消耗储能；关闭后恢复充电。武器挂件在两种模式下都可直接取电。</DeltaV_BatteryGridOutputTip>
+  <DeltaV_BatteryGridOutputTip>开启后以设定功率向电网供电，储能会持续消耗，即使电网暂时用不完这些电力。关闭后恢复充电。两种模式下，所连接的武器都能直接使用电容储能。</DeltaV_BatteryGridOutputTip>
   <DeltaV_BatteryOutputWatts>电网输出：{0} W</DeltaV_BatteryOutputWatts>
-  <DeltaV_BatteryOutputWattsTip>调整有储能时向电网输出的最大功率。</DeltaV_BatteryOutputWattsTip>
+  <DeltaV_BatteryOutputWattsTip>设置向电网供电的功率。储能不足时，实际输出会降低。</DeltaV_BatteryOutputWattsTip>
   <DeltaV_StatShotEnergy>每发蓄电消耗</DeltaV_StatShotEnergy>
   <DeltaV_StatBeamEnergy>持续照射每秒蓄电消耗</DeltaV_StatBeamEnergy>
   <DeltaV_StatImpactScale>命中效果倍率</DeltaV_StatImpactScale>
@@ -311,42 +311,43 @@
   <DeltaV_StatRange>太空射程（格）</DeltaV_StatRange>
   <DeltaV_StatMinRange>太空最小射程（格）</DeltaV_StatMinRange>
   <DeltaV_GroundMode>地面模式</DeltaV_GroundMode>
-  <DeltaV_GroundModeTip>启用时只使用原版炮塔机制攻击同图目标；关闭时只进行太空跨容器射击，点防模式仍可拦截来袭弹体。</DeltaV_GroundModeTip>
+  <DeltaV_GroundModeTip>开启后，只攻击当前地图上的目标；关闭后，攻击太空中的其他飞船。点防武器仍会拦截来袭弹体。</DeltaV_GroundModeTip>
   <DeltaV_StatAttachmentSlots>插件槽位</DeltaV_StatAttachmentSlots>
   <DeltaV_StatAmmoPerShot>每发弹药消耗</DeltaV_StatAmmoPerShot>
   <DeltaV_StatArmorPenetrationScale>护甲穿透倍率</DeltaV_StatArmorPenetrationScale>
-  <DeltaV_StatSpeedBonus>加速增量</DeltaV_StatSpeedBonus>
+  <DeltaV_StatSpeedBonus>弹速提升</DeltaV_StatSpeedBonus>
   <DeltaV_StatCapCapacity>电容储能上限</DeltaV_StatCapCapacity>
   <DeltaV_StatCapChargingPower>充电功率</DeltaV_StatCapChargingPower>
-  <DeltaV_StatCapFullCharge>从空到满</DeltaV_StatCapFullCharge>
-  <DeltaV_StatTicks>tick</DeltaV_StatTicks>
+  <DeltaV_StatCapFullCharge>充满所需时间</DeltaV_StatCapFullCharge>
+  <DeltaV_StatSeconds>{0} 秒</DeltaV_StatSeconds>
+  <DeltaV_StatGameHours>{0} 游戏小时</DeltaV_StatGameHours>
   <DeltaV_RailReadiness>轨道炮状态：{0}</DeltaV_RailReadiness>
   <DeltaV_RailReady>电量充足</DeltaV_RailReady>
   <DeltaV_RailCooling>电量充足，冷却中</DeltaV_RailCooling>
-  <DeltaV_RailUnavailable>断电或脉冲电量不足</DeltaV_RailUnavailable>
+  <DeltaV_RailUnavailable>断电或单发所需电量不足</DeltaV_RailUnavailable>
   <DeltaV_RailAcceleratorStatus>本发加速段：{0}</DeltaV_RailAcceleratorStatus>
-  <DeltaV_RailAcceleratorActive>电量充足，本发预计起效</DeltaV_RailAcceleratorActive>
-  <DeltaV_RailAcceleratorSkipped>未连接或脉冲电量不足，本发预计跳过</DeltaV_RailAcceleratorSkipped>
+  <DeltaV_RailAcceleratorActive>电量充足，本发可加速</DeltaV_RailAcceleratorActive>
+  <DeltaV_RailAcceleratorSkipped>未连接或电量不足，本发不加速</DeltaV_RailAcceleratorSkipped>
   <DeltaV_SafeFire>舱壁安全限制</DeltaV_SafeFire>
   <DeltaV_SafeFireTip>固定武器的弹道会穿过本船实心舱壁时拒绝发射；仅建议紧急时关闭。</DeltaV_SafeFireTip>
   <DeltaV_WeaponNeedsSingleOwner>武器的完整占地必须位于同一艘船所属的基架上。</DeltaV_WeaponNeedsSingleOwner>
-  <DeltaV_AttachmentNeedsSlot>挂件必须覆盖兼容武器声明的挂件槽位。</DeltaV_AttachmentNeedsSlot>
+  <DeltaV_AttachmentNeedsSlot>请将插件建在兼容武器的插件槽上。</DeltaV_AttachmentNeedsSlot>
   <DeltaV_AttachmentSlotOccupied>该武器插件槽位已被占用。</DeltaV_AttachmentSlotOccupied>
   <DeltaV_MissileMagazineNeedsLauncher>导弹仓必须与导弹发射架同向，贴在其船内两格的左侧或右侧。</DeltaV_MissileMagazineNeedsLauncher>
 
   <!-- 阶段5：shuttle 与月池 -->
   <DeltaV_ShuttleLaunchGizmo>起飞</DeltaV_ShuttleLaunchGizmo>
-  <DeltaV_ShuttleLaunchGizmoTip>起飞进入自由飞行（MiniShip）。门禁 = 原版发射检查（装货/燃料/超重/冷却）；月池上屋顶不挡起飞。</DeltaV_ShuttleLaunchGizmoTip>
+  <DeltaV_ShuttleLaunchGizmoTip>让穿梭机起飞进入自由飞行。须完成装载、备足燃料，并满足载重和冷却要求。月池上方的屋顶不会阻挡起飞。</DeltaV_ShuttleLaunchGizmoTip>
   <DeltaV_ShuttleLaunchDenied>无法起飞：{0}</DeltaV_ShuttleLaunchDenied>
   <DeltaV_ShuttleLaunched>{0} 已起飞进入自由飞行。</DeltaV_ShuttleLaunched>
   <DeltaV_ShuttleBoardGizmo>撞击敌壳</DeltaV_ShuttleBoardGizmo>
-  <DeltaV_ShuttleBoardGizmoTip>点选敌方容器外壳：shuttle 化为导弹满推追踪，撞穿破口并以舱体堵孔。</DeltaV_ShuttleBoardGizmoTip>
-  <DeltaV_ShuttleBoardNoTarget>该处没有可撞击的容器外壳。</DeltaV_ShuttleBoardNoTarget>
+  <DeltaV_ShuttleBoardGizmoTip>选择敌舰外壳作为撞击目标。跳帮艇会自行加速追踪，撞入后以艇身堵住破口，船员可下艇作战。</DeltaV_ShuttleBoardGizmoTip>
+  <DeltaV_ShuttleBoardNoTarget>这里没有可撞击的船体。</DeltaV_ShuttleBoardNoTarget>
   <DeltaV_ShuttleBoardEngaged>侵入已发起：正在冲撞 {0}。</DeltaV_ShuttleBoardEngaged>
   <DeltaV_ShuttleBoardCancel>中止侵入</DeltaV_ShuttleBoardCancel>
-  <DeltaV_ShuttleBoardCancelTip>关闭导弹推进模式，保留当前位置与速度并恢复跳帮艇驾驶。</DeltaV_ShuttleBoardCancelTip>
+  <DeltaV_ShuttleBoardCancelTip>停止追踪撞击目标，恢复驾驶跳帮艇。艇身仍会按当前速度继续运动。</DeltaV_ShuttleBoardCancelTip>
   <DeltaV_PanelBoardArm>侵入</DeltaV_PanelBoardArm>
-  <DeltaV_PanelBoardArmTip>武装侵入驱动，再用「撞击敌壳」指定目标。导弹模式下可用「中止侵入」恢复跳帮艇飞行。</DeltaV_PanelBoardArmTip>
+  <DeltaV_PanelBoardArmTip>启用侵入驱动，再用“撞击敌壳”指定目标。追踪期间可用“中止侵入”恢复驾驶。</DeltaV_PanelBoardArmTip>
   <DeltaV_PanelCombatOptions>战斗选项</DeltaV_PanelCombatOptions>
 
   <DeltaV_DebugThrustersToggleButton>显示 Delta-V 推进器矢量与船体范围</DeltaV_DebugThrustersToggleButton>
@@ -361,22 +362,22 @@
 
   <DeltaV_ThrusterPowerTitle>设置推进器出力上限</DeltaV_ThrusterPowerTitle>
   <DeltaV_ThrusterPowerEntry>推进器出力：{0}%</DeltaV_ThrusterPowerEntry>
-  <DeltaV_ShieldModeGuard>切换为守卫模式</DeltaV_ShieldModeGuard>
-  <DeltaV_ShieldModeKinetic>切换为动能模式</DeltaV_ShieldModeKinetic>
-  <DeltaV_ShieldModeElectromagnetic>切换为电磁模式</DeltaV_ShieldModeElectromagnetic>
-  <DeltaV_ShieldModeDesc>守卫使用同船常规容量和本地应急容量；两种线盾需要供电。切换不补充容量，也不重置常规恢复等待。</DeltaV_ShieldModeDesc>
+  <DeltaV_ShieldModeGuard>切换为守卫圆盾</DeltaV_ShieldModeGuard>
+  <DeltaV_ShieldModeKinetic>切换为动能线盾</DeltaV_ShieldModeKinetic>
+  <DeltaV_ShieldModeElectromagnetic>切换为电磁线盾</DeltaV_ShieldModeElectromagnetic>
+  <DeltaV_ShieldModeDesc>守卫圆盾消耗盾容抵挡攻击：先由同船已启用的常规护盾分担，耗尽后使用命中位置的应急护盾；只启用应急护盾时，不能借用其他发生器的盾容。\n\n动能线盾使实弹碎裂，电磁线盾使激光偏转，两者都需要供电。使用线盾时不启用圆盾，但常规盾容仍可恢复。切换模式不会补满盾容，也不会重算恢复前的等待时间。</DeltaV_ShieldModeDesc>
   <DeltaV_ShieldStateGuard>守卫圆盾</DeltaV_ShieldStateGuard>
   <DeltaV_ShieldStateKinetic>动能线盾</DeltaV_ShieldStateKinetic>
   <DeltaV_ShieldStateElectromagnetic>电磁线盾</DeltaV_ShieldStateElectromagnetic>
-  <DeltaV_ShieldGuardRecoveryPaused>常规恢复等待供电及开启开关。</DeltaV_ShieldGuardRecoveryPaused>
+  <DeltaV_ShieldGuardRecoveryPaused>常规盾容未恢复：需要开启设备并供电。</DeltaV_ShieldGuardRecoveryPaused>
   <DeltaV_ShieldRadius>守卫盾半径</DeltaV_ShieldRadius>
   <DeltaV_ShieldProjection>线盾投射距离</DeltaV_ShieldProjection>
   <DeltaV_ShieldLength>线盾长度</DeltaV_ShieldLength>
   <DeltaV_ShieldAngle>线盾相对角度</DeltaV_ShieldAngle>
-  <DeltaV_ShieldKineticStrength>动能强度</DeltaV_ShieldKineticStrength>
-  <DeltaV_ShieldElectromagneticStrength>电磁强度</DeltaV_ShieldElectromagneticStrength>
-  <DeltaV_ShieldGuardReference>本机常规上限 {0}，应急上限 {1}。常规 10 秒未消耗后通电回充，应急只用白银补充。半径不影响容量。</DeltaV_ShieldGuardReference>
-  <DeltaV_ShieldElectromagneticReference>以 30° 入射为例，被动折射后主动额外转向 {0}°。</DeltaV_ShieldElectromagneticReference>
+  <DeltaV_ShieldKineticStrength>实弹反推强度</DeltaV_ShieldKineticStrength>
+  <DeltaV_ShieldElectromagneticStrength>激光偏转强度</DeltaV_ShieldElectromagneticStrength>
+  <DeltaV_ShieldGuardReference>常规盾容上限 {0}，应急上限 {1}。常规盾容 10 秒未消耗后可通电恢复；应急盾容用白银补充。增大半径只扩大保护范围，不增加盾容。</DeltaV_ShieldGuardReference>
+  <DeltaV_ShieldElectromagneticReference>以 30° 入射的激光为例：在基础偏转之外，再偏转 {0}°。</DeltaV_ShieldElectromagneticReference>
   <DeltaV_PrefabReplaceSelect>选择 prefab 替换整个聚焦地图（旧图内容将被移除）</DeltaV_PrefabReplaceSelect>
   <DeltaV_PrefabReplaceSelectFaction>选择 prefab 的派系：{0}</DeltaV_PrefabReplaceSelectFaction>
   <DeltaV_PrefabReplaceKeepFaction>沿用当前地图派系（默认）：{0}</DeltaV_PrefabReplaceKeepFaction>
@@ -399,18 +400,18 @@
   <DeltaV_EVAOverlap>船体或地图内容相互重叠，请调整位置后重试。</DeltaV_EVAOverlap>
   <DeltaV_EVAGravity>区域重力效应明显，无法展开舱外作业。请将整艘船停入目标地图的可用区域。</DeltaV_EVAGravity>
   <DeltaV_SyncStarted>正在与 {0} 同步线速度并对齐网格方向，不要求到达指定位置。同步完成后可开始舱外作业。</DeltaV_SyncStarted>
-  <DeltaV_SoftDockToggle>软对接指示器：开启时捕获并维持连接；关闭立即断开并停止软对接。</DeltaV_SoftDockToggle>
+  <DeltaV_SoftDockToggle>开启软对接指示器后，对齐的接口会连接并保持对接；关闭后立即断开。</DeltaV_SoftDockToggle>
   <DeltaV_SoftDockView>查看另一端</DeltaV_SoftDockView>
   <DeltaV_SoftDockEnter>通过软对接通道</DeltaV_SoftDockEnter>
   <DeltaV_SoftDockHaul>选择物资或倒地人员转移</DeltaV_SoftDockHaul>
   <DeltaV_SoftDockHack>骇入对面的对接口</DeltaV_SoftDockHack>
   <DeltaV_SoftDockProgress>软对接：{0}（进度 {1}）</DeltaV_SoftDockProgress>
   <DeltaV_TractorAuto>自动牵引</DeltaV_TractorAuto>
-  <DeltaV_TractorAutoDesc>自动寻找射程内的散落人员和物品。关闭后使用常规武器组瞄准和开火。</DeltaV_TractorAutoDesc>
+  <DeltaV_TractorAutoDesc>自动寻找并回收射程内漂浮的人员和物品。关闭后，用武器组手动瞄准和开火。</DeltaV_TractorAutoDesc>
   <DeltaV_TractorNeedsMoonPool>牵引光束只能建在月池上。</DeltaV_TractorNeedsMoonPool>
-  <DeltaV_TractorBlocked>月池无法接收当前内容，请腾出空间。</DeltaV_TractorBlocked>
+  <DeltaV_TractorBlocked>月池放不下回收的人员或物品，请先腾出空间。</DeltaV_TractorBlocked>
   <DeltaV_SoftDockTransfer>组织转移</DeltaV_SoftDockTransfer>
-  <DeltaV_SoftDockTransferDesc>通过原版入口转移界面选择人员和货物，由原版搬运与队伍机制组织转移。可修改或取消装载；断开连接会取消转移。</DeltaV_SoftDockTransferDesc>
+  <DeltaV_SoftDockTransferDesc>选择需要通过对接口转移的人员和货物，再安排装载。装载可修改或取消；对接断开后，转移会取消。</DeltaV_SoftDockTransferDesc>
   <DeltaV_SoftDockTransferCancel>取消转移</DeltaV_SoftDockTransferCancel>
   <DeltaV_SoftDockTransferDisconnected>软对接连接已断开，无法开始转移。</DeltaV_SoftDockTransferDisconnected>
   <DeltaV_SoftDockTransferNoWorker>对方接口处于敌对控制下，需要先骇入占领。</DeltaV_SoftDockTransferNoWorker>
@@ -419,8 +420,8 @@
   <DeltaV_MissileMagazineLimitEntry>{0}：上限 {1}</DeltaV_MissileMagazineLimitEntry>
   <DeltaV_MixedSettings>各仓不同</DeltaV_MixedSettings>
   <DeltaV_MissileMagazineLimitSlider>{0} 上限：{1}</DeltaV_MissileMagazineLimitSlider>
-  <DeltaV_MissileMagazineEject>退出导弹</DeltaV_MissileMagazineEject>
-  <DeltaV_MissileMagazineEjectEntry>{0}：每仓退出一组（共库存 {1}）</DeltaV_MissileMagazineEjectEntry>
+  <DeltaV_MissileMagazineEject>取出导弹</DeltaV_MissileMagazineEject>
+  <DeltaV_MissileMagazineEjectEntry>{0}：每个弹仓取出一组（总库存 {1}）</DeltaV_MissileMagazineEjectEntry>
   <DeltaV_MissileMagazineStored>导弹：{0} / {1}</DeltaV_MissileMagazineStored>
   <DeltaV_MissileMagazineCountEntry>{0}：{1}</DeltaV_MissileMagazineCountEntry>
   <DeltaV_CoordinateGridToggle>显示宇宙坐标网格</DeltaV_CoordinateGridToggle>
@@ -517,11 +518,11 @@
   <DeltaV_CombatPoseValues>距离 {0} 格
 {1}：{2}°
 {3}：{4}°</DeltaV_CombatPoseValues>
-  <DeltaV_WeaponCoverage>自定义武器覆盖</DeltaV_WeaponCoverage>
-  <DeltaV_WeaponCoverageHelp>限制太空武器的射程和射界，不能扩大硬件能力。方向相对武器安装朝向；正角为逆时针。</DeltaV_WeaponCoverageHelp>
-  <DeltaV_WeaponCoverageRange>最大射程（0=硬件射程）</DeltaV_WeaponCoverageRange>
+  <DeltaV_WeaponCoverage>设置射程与射界</DeltaV_WeaponCoverage>
+  <DeltaV_WeaponCoverageHelp>限制这件太空武器的射程和可开火方向，不能超出武器本身的上限。方向以武器安装朝向为准，正角表示逆时针。</DeltaV_WeaponCoverageHelp>
+  <DeltaV_WeaponCoverageRange>最大射程（0=使用武器原射程）</DeltaV_WeaponCoverageRange>
   <DeltaV_WeaponCoverageArc>允许射界（度）</DeltaV_WeaponCoverageArc>
-  <DeltaV_WeaponCoverageDirection>射界中心相对安装角（度）</DeltaV_WeaponCoverageDirection>
+  <DeltaV_WeaponCoverageDirection>射界中心偏转角（相对安装朝向，度）</DeltaV_WeaponCoverageDirection>
   <DeltaV_WeaponCoverageFixed>保持固定瞄准方向</DeltaV_WeaponCoverageFixed>
   <DeltaV_CombatOrders>临时交战命令</DeltaV_CombatOrders>
   <DeltaV_CombatOrdersHelp>指定交战舰会改变自动机动目标；部件队列只影响火控（最多16项），仍遵守停火规则。无效部件自动跳过，队列结束恢复策略。不会开启机动或火控开关。</DeltaV_CombatOrdersHelp>
@@ -561,16 +562,16 @@
   <DeltaV_CombatBearing_World>世界参考方位</DeltaV_CombatBearing_World>
   <DeltaV_CombatNoFireChoice>停火规则生效，或没有满足射程/射界/安全条件的目标。</DeltaV_CombatNoFireChoice>
   <DeltaV_CombatAdvanced>高级条件与曲线</DeltaV_CombatAdvanced>
-  <DeltaV_ShieldStateRegular>守卫：常规共享</DeltaV_ShieldStateRegular>
-  <DeltaV_ShieldStateEmergency>守卫：本地应急</DeltaV_ShieldStateEmergency>
-  <DeltaV_ShieldCapacities>常规 {0}/{1}；应急 {2}/{3}</DeltaV_ShieldCapacities>
-  <DeltaV_ShieldSharedRegular>当前共享常规容量：{0}</DeltaV_ShieldSharedRegular>
-  <DeltaV_ShieldRecoveryWait>常规回充等待：{0} 秒</DeltaV_ShieldRecoveryWait>
-  <DeltaV_ShieldRecovering>正在恢复常规容量（额外 1000 W）。</DeltaV_ShieldRecovering>
-  <DeltaV_ShieldManualEmergency>手动应急</DeltaV_ShieldManualEmergency>
-  <DeltaV_ShieldManualEmergencyTip>退出常规共享，只用本机应急容量拦截。常规恢复至满后自动重新共享；切换线盾不会被自动切回守卫。</DeltaV_ShieldManualEmergencyTip>
-  <DeltaV_ShieldRegularBar>常规 · {0}% 自动入池</DeltaV_ShieldRegularBar>
-  <DeltaV_ShieldRegularBarTip>拖动滑条设置自动应急后重新共享的常规容量比例（1–100%）。手动应急始终需要恢复至满。</DeltaV_ShieldRegularBarTip>
-  <DeltaV_ShieldEmergencyBar>本地应急容量</DeltaV_ShieldEmergencyBar>
-  <DeltaV_ShieldEmergencyBarTip>只抵挡命中本机圆盾的攻击，不共享、不自动恢复。每 1 白银补充 1 容量。</DeltaV_ShieldEmergencyBarTip>
+  <DeltaV_ShieldStateRegular>守卫圆盾（常规护盾启用）</DeltaV_ShieldStateRegular>
+  <DeltaV_ShieldStateEmergency>守卫圆盾（仅应急护盾）</DeltaV_ShieldStateEmergency>
+  <DeltaV_ShieldCapacities>本机盾容：常规 {0}/{1}；应急 {2}/{3}</DeltaV_ShieldCapacities>
+  <DeltaV_ShieldSharedRegular>可用常规盾容（含同船护盾）：{0}</DeltaV_ShieldSharedRegular>
+  <DeltaV_ShieldRecoveryWait>常规盾容恢复前还需等待：{0} 秒</DeltaV_ShieldRecoveryWait>
+  <DeltaV_ShieldRecovering>常规盾容恢复中（额外耗电 1000 W）</DeltaV_ShieldRecovering>
+  <DeltaV_ShieldManualEmergency>改用应急护盾</DeltaV_ShieldManualEmergency>
+  <DeltaV_ShieldManualEmergencyTip>暂停使用未充满的常规护盾，让它恢复。这期间只消耗本机应急盾容，不再与其他发生器分担伤害。常规盾容充满后自动启用，不受滑条设定影响。若已切换为线盾，则保持线盾模式。</DeltaV_ShieldManualEmergencyTip>
+  <DeltaV_ShieldRegularBar>常规盾：恢复至 {0}% 后启用</DeltaV_ShieldRegularBar>
+  <DeltaV_ShieldRegularBarTip>下方数值显示本机剩余的常规盾容。\n\n常规盾容耗尽后会暂时停用，改由应急护盾保护。拖动标记可设置常规盾容恢复至多少时自动重新启用（1–100%），再次与同船的常规护盾分担伤害。\n\n手动选择“改用应急护盾”后，始终要等常规盾容充满才启用，不受这里的设置影响。使用线盾时只恢复盾容，不会自动切回圆盾。</DeltaV_ShieldRegularBarTip>
+  <DeltaV_ShieldEmergencyBar>应急护盾</DeltaV_ShieldEmergencyBar>
+  <DeltaV_ShieldEmergencyBarTip>显示本机剩余的应急盾容。只能保护本机圆盾范围，不能替其他发生器分担伤害，也不能自动恢复。每 1 白银补充 1 点盾容。</DeltaV_ShieldEmergencyBarTip>
 </LanguageData>
