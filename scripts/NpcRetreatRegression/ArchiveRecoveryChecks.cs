@@ -110,15 +110,18 @@ internal static partial class Program
             try { float ignored = food.MaxLevel; }
             catch (NullReferenceException ex) { reproduced = ex.StackTrace.Contains("Hediff_Addiction"); }
             Check(reproduced, "vanilla food capacity reproduces addiction/unfinished needs null reference in Playing");
-            using (new RimExodus.Maps.MapArchive.MapLoadingScope(Current.ProgramState))
+            using (new RimExodus.Maps.ScribeOperation(loading: true))
             {
                 Check(Current.ProgramState == ProgramState.MapInitializing && food.MaxLevel == 1f && pawn.needs == null,
                     "archive loading uses vanilla initialization food capacity before needs tracker is assigned");
-                using (new RimExodus.Maps.MapArchive.MapLoadingScope(Current.ProgramState)) { }
-                Check(Current.ProgramState == ProgramState.MapInitializing, "nested loading scope preserves outer initialization");
+                bool nestedRejected = false;
+                try { using (new RimExodus.Maps.ScribeOperation(loading: true)) { } }
+                catch (InvalidOperationException) { nestedRejected = true; }
+                Check(nestedRejected && Current.ProgramState == ProgramState.MapInitializing,
+                    "production Scribe lease rejects nesting without changing outer initialization");
             }
             Check(Current.ProgramState == ProgramState.Playing, "successful archive scope restores Playing");
-            try { using (new RimExodus.Maps.MapArchive.MapLoadingScope(Current.ProgramState)) throw new InvalidOperationException(); }
+            try { using (new RimExodus.Maps.ScribeOperation(loading: true)) throw new InvalidOperationException(); }
             catch (InvalidOperationException) { }
             Check(Current.ProgramState == ProgramState.Playing, "failed archive scope also restores Playing");
 
