@@ -3,15 +3,15 @@
   <DeltaV_Weapon_PDTurret.label>点防御激光炮</DeltaV_Weapon_PDTurret.label>
   <DeltaV_Weapon_PDTurret.description>内置自瞄的单格激光点防御，只自动拦截来袭导弹及其他可拦截目标。无需炮手和弹药；保持通电，每发消耗 1 W·d 蓄电。不支持插件或手动齐射。</DeltaV_Weapon_PDTurret.description>
   <DeltaV_Weapon_CannonTurret.label>小型重炮</DeltaV_Weapon_CannonTurret.label>
-  <DeltaV_Weapon_CannonTurret.description>小型旋转重炮，分别装填钢铁制装药与弹头。可独立调节装药量和弹重；加装药提高初速，增弹重提高穿深但降低同装药下的弹速。每发都需长时间装填散热。需要炮手，可安装一个火控或弹仓插件。</DeltaV_Weapon_CannonTurret.description>
+  <DeltaV_Weapon_CannonTurret.description>小型旋转重炮，分别装填钢铁制装药与弹头。可独立调节装药量和弹重；加装药提高初速，增弹重提高穿深但降低同装药下的弹速。每发热量由装药量决定，完全冷却后即可再次开火。需要炮手，可安装一个火控或弹仓插件。</DeltaV_Weapon_CannonTurret.description>
   <DeltaV_Weapon_RapidMainSmall.label>小型速射炮</DeltaV_Weapon_RapidMainSmall.label>
   <DeltaV_Weapon_RapidMainSmall.description>小型旋转速射炮，每发消耗一份装药与一份弹头。可调整射速；高射速更快积热，过热后必须彻底冷却才能继续开火。需要炮手，可安装一个火控或弹仓插件。</DeltaV_Weapon_RapidMainSmall.description>
   <DeltaV_Weapon_LaserTurret.label>小型激光炮</DeltaV_Weapon_LaserTurret.label>
   <DeltaV_Weapon_LaserTurret.description>小型旋转激光炮，无需实体弹药。可提高功率，以更高逐发耗电换取更高毁伤；单束只作用于首个结构，可被电磁护盾折射。需要炮手，可安装火控或可回充电容。</DeltaV_Weapon_LaserTurret.description>
   <DeltaV_Weapon_HeavyMainMedium.label>中型重炮</DeltaV_Weapon_HeavyMainMedium.label>
-  <DeltaV_Weapon_HeavyMainMedium.description>中型旋转重炮，具有更高的装药量与弹重上限，分别装填装药与弹头。高弹重提供深穿和更重破片，同装药下弹速更低；每发都需长时间装填散热。需要炮手，两个槽位可安装火控或弹仓插件。</DeltaV_Weapon_HeavyMainMedium.description>
+  <DeltaV_Weapon_HeavyMainMedium.description>中型旋转重炮，具有更高的装药量与弹重上限和更快散热，分别装填装药与弹头。高弹重提供深穿和更重破片，同装药下弹速更低；每发热量由装药量决定，完全冷却后即可再次开火。需要炮手，两个槽位可安装火控或弹仓插件。</DeltaV_Weapon_HeavyMainMedium.description>
   <DeltaV_Weapon_RapidMainMedium.label>中型速射炮</DeltaV_Weapon_RapidMainMedium.label>
-  <DeltaV_Weapon_RapidMainMedium.description>中型旋转速射炮，拥有更高的最大射速和更大备弹量。每发消耗一份装药与一份弹头；射速可调，过热后必须彻底冷却。需要炮手，两个槽位可安装火控或弹仓插件。</DeltaV_Weapon_RapidMainMedium.description>
+  <DeltaV_Weapon_RapidMainMedium.description>中型旋转速射炮，拥有更强的散热与蓄热能力。每发消耗四份装药与两份弹头；射速可调，过热后必须彻底冷却。需要炮手，两个槽位可安装火控或弹仓插件。</DeltaV_Weapon_RapidMainMedium.description>
   <DeltaV_Weapon_LaserMainMedium.label>中型激光炮</DeltaV_Weapon_LaserMainMedium.label>
   <DeltaV_Weapon_LaserMainMedium.description>中型旋转激光炮，无需实体弹药。可提高功率与逐发耗电，不增加单束穿深；电磁护盾能折射光束。需要炮手，两个槽位可安装火控或可回充电容。</DeltaV_Weapon_LaserMainMedium.description>
   <DeltaV_Weapon_MissileLauncher.label>导弹发射架</DeltaV_Weapon_MissileLauncher.label>

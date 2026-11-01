@@ -14,7 +14,7 @@ foreach ($path in @("$GameRoot/Assembly-CSharp.dll", "$GameRoot/UnityStubs.dll",
     Copy-Item -LiteralPath $path -Destination $out -Force
     $lines += '/r:"' + $path + '"'
 }
-$lines += '"' + "$PSScriptRoot/Program.cs" + '"'
+$lines += Get-ChildItem $PSScriptRoot -Filter "*.cs" | ForEach-Object { '"' + $_.FullName + '"' }
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & $dotnet "$($sdk.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

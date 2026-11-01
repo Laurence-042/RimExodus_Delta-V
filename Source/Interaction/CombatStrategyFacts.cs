@@ -63,9 +63,9 @@ namespace DeltaV
                 if (!ship.Contains(thing) || thing is not Building building) continue;
                 CompSpaceShield comp = building.TryGetComp<CompSpaceShield>();
                 if (comp == null) continue;
-                shield += comp.mode == SpaceShieldMode.Guard ? comp.GuardHitPoints
+                shield += comp.mode == SpaceShieldMode.Guard ? (float)(comp.RegularCapacity + comp.EmergencyCapacity)
                     : comp.State == SpaceShieldState.LineActive ? 1f : 0f;
-                shieldMax += comp.mode == SpaceShieldMode.Guard ? Mathf.Max(1, comp.GuardHitPointsMax) : 1f;
+                shieldMax += comp.mode == SpaceShieldMode.Guard ? Mathf.Max(1, (comp.ShieldProps.regularCapacity + comp.ShieldProps.emergencyCapacity)) : 1f;
             }
             shieldFraction = shieldMax > 0f ? Mathf.Clamp01(shield / shieldMax) : 0f;
             int weapons = 0, ready = 0;

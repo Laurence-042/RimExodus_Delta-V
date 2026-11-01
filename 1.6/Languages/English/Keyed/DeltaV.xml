@@ -364,20 +364,18 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShieldModeGuard>Switch to guard mode</DeltaV_ShieldModeGuard>
   <DeltaV_ShieldModeKinetic>Switch to kinetic mode</DeltaV_ShieldModeKinetic>
   <DeltaV_ShieldModeElectromagnetic>Switch to electromagnetic mode</DeltaV_ShieldModeElectromagnetic>
-  <DeltaV_ShieldModeDesc>Guard draws 10 W and locks switching after re-entry until one powered hour elapses. Power loss pauses recovery; stored capacity still intercepts. Kinetic fragments solid shots; electromagnetic refracts lasers.</DeltaV_ShieldModeDesc>
-  <DeltaV_ShieldGuardLocked>Guard mode needs {0} more powered time to unlock.</DeltaV_ShieldGuardLocked>
+  <DeltaV_ShieldModeDesc>Guard uses shared regular and local emergency capacity. Both line modes require power. Switching neither refills capacity nor resets recovery delay.</DeltaV_ShieldModeDesc>
   <DeltaV_ShieldStateGuard>Guard dome</DeltaV_ShieldStateGuard>
   <DeltaV_ShieldStateKinetic>Kinetic line</DeltaV_ShieldStateKinetic>
   <DeltaV_ShieldStateElectromagnetic>Electromagnetic line</DeltaV_ShieldStateElectromagnetic>
-  <DeltaV_ShieldGuardStatus>Capacity {0}/{1}; free refill after {2} more powered time. One silver restores one point now.</DeltaV_ShieldGuardStatus>
-  <DeltaV_ShieldGuardRecoveryPaused>Recovery countdown paused: connect power and turn on the switch.</DeltaV_ShieldGuardRecoveryPaused>
+  <DeltaV_ShieldGuardRecoveryPaused>Regular recovery awaits power and an enabled switch.</DeltaV_ShieldGuardRecoveryPaused>
   <DeltaV_ShieldRadius>Guard shield radius</DeltaV_ShieldRadius>
   <DeltaV_ShieldProjection>Shield projection distance</DeltaV_ShieldProjection>
   <DeltaV_ShieldLength>Shield line length</DeltaV_ShieldLength>
   <DeltaV_ShieldAngle>Shield angle from facing</DeltaV_ShieldAngle>
   <DeltaV_ShieldKineticStrength>Kinetic strength</DeltaV_ShieldKineticStrength>
   <DeltaV_ShieldElectromagneticStrength>Electromagnetic strength</DeltaV_ShieldElectromagneticStrength>
-  <DeltaV_ShieldGuardReference>Maximum capacity {0}; free refill every {1} of powered operation. Power loss pauses the countdown; radius does not change capacity.</DeltaV_ShieldGuardReference>
+  <DeltaV_ShieldGuardReference>Local limits: {0} regular, {1} emergency. Powered recovery starts after 10 seconds without regular consumption; only silver restores emergency capacity. Radius does not change capacity.</DeltaV_ShieldGuardReference>
   <DeltaV_ShieldElectromagneticReference>At 30° incidence, active turning adds {0}° after passive refraction.</DeltaV_ShieldElectromagneticReference>
   <DeltaV_PrefabReplaceSelect>Select a prefab to replace the entire focused map (old contents will be removed)</DeltaV_PrefabReplaceSelect>
   <DeltaV_PrefabReplaceSelectFaction>Select the faction for prefab: {0}</DeltaV_PrefabReplaceSelectFaction>
@@ -563,4 +561,16 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_CombatBearing_World>World-relative bearing</DeltaV_CombatBearing_World>
   <DeltaV_CombatNoFireChoice>Hold-fire rule active, or no target satisfies range, arc and safety constraints.</DeltaV_CombatNoFireChoice>
   <DeltaV_CombatAdvanced>Advanced conditions and curves</DeltaV_CombatAdvanced>
+  <DeltaV_ShieldStateRegular>Guard: shared regular</DeltaV_ShieldStateRegular>
+  <DeltaV_ShieldStateEmergency>Guard: local emergency</DeltaV_ShieldStateEmergency>
+  <DeltaV_ShieldCapacities>Regular {0}/{1}; emergency {2}/{3}</DeltaV_ShieldCapacities>
+  <DeltaV_ShieldSharedRegular>Available shared regular capacity: {0}</DeltaV_ShieldSharedRegular>
+  <DeltaV_ShieldRecoveryWait>Regular recovery delay: {0} seconds</DeltaV_ShieldRecoveryWait>
+  <DeltaV_ShieldRecovering>Restoring regular capacity (+1000 W).</DeltaV_ShieldRecovering>
+  <DeltaV_ShieldManualEmergency>Manual emergency</DeltaV_ShieldManualEmergency>
+  <DeltaV_ShieldManualEmergencyTip>Leave regular sharing and intercept using local emergency capacity. Rejoin when regular capacity is full. Line mode is never switched back automatically.</DeltaV_ShieldManualEmergencyTip>
+  <DeltaV_ShieldRegularBar>Regular · rejoin {0}%</DeltaV_ShieldRegularBar>
+  <DeltaV_ShieldRegularBarTip>Drag to set automatic emergency rejoin capacity (1–100%). Manual emergency always waits for full regular capacity.</DeltaV_ShieldRegularBarTip>
+  <DeltaV_ShieldEmergencyBar>Local emergency capacity</DeltaV_ShieldEmergencyBar>
+  <DeltaV_ShieldEmergencyBarTip>Only absorbs hits on this dome. Never shared or automatically restored. One silver restores one capacity.</DeltaV_ShieldEmergencyBarTip>
 </LanguageData>

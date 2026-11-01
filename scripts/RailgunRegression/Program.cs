@@ -26,7 +26,7 @@ internal static class Program
     static bool Skip() => false;
     static bool NotFlammable(ref bool __result) { __result = false; return false; }
     static bool ShieldActive(CompProjectileInterceptor __instance, ref bool __result)
-    { __result = __instance.currentHitPoints > 0; return false; }
+    { __result = __instance.parent.TryGetComp<CompSpaceShield>()?.HasGuardCapacity ?? (__instance.currentHitPoints > 0); return false; }
     static void Check(bool value, string name)
     {
         if (!value) throw new Exception("FAIL " + name);
@@ -58,7 +58,8 @@ internal static class Program
     sealed class Hull : MapSpaceObject
     {
         public Hull(Map map) : base(nextId++, map, new SpacePose(Vector3.forward, 0)) { }
-        public override IEnumerable<ShipBase> Ships => Enumerable.Empty<ShipBase>();
+        public readonly List<ShipBase> members = new();
+        public override IEnumerable<ShipBase> Ships => members;
         public override IEnumerable<SpaceCollisionCell> CollisionCells =>
             map.listerThings.AllThings.Where(t => !t.Destroyed)
                 .SelectMany(t => t.OccupiedRect().Select(c =>
@@ -410,9 +411,119 @@ internal static class Program
         shot = Fire(300, def: coupler);
         Check(shot.resolvedHitCell == generator.Position && !shot.resolvedHitShield
             && first.currentHitPoints == 3000, "shield bypass still hits the physical generator");
+        CheckGuardOwnership();
+        CheckDualGuard(harmony);
         CheckContinuousBeam(coupler, engineering);
         CheckEnergy();
         CheckVisualAnchors();
+    }
+
+    static void CheckGuardOwnership()
+    {
+        Reset();
+        AccessTools.Field(typeof(ModsConfig), "odysseyActive").SetValue(null, true);
+        var foundation = (TerrainDef)Raw(typeof(TerrainDef)); foundation.tags = new List<string> { "Substructure" };
+        var ownership = new SubstructureOwnership(map); map.components.Add(ownership); map.floodFiller = new FloodFiller(map);
+        void Own(int from, int to, int id) {
+            for (int x = from; x <= to; x++) {
+                var cell = new IntVec3(x, 0, 8); map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = foundation;
+                AccessTools.Method(typeof(SubstructureOwnership), "Assign").Invoke(ownership, new object[] { cell, id });
+            }
+        }
+        Own(20, 50, 101); Own(60, 70, 202);
+        var firstConsole = new CompDeltaVPilotConsole { isMain = true, shipId = 101 }; Add(20, 8, 100, firstConsole);
+        var otherConsole = new CompDeltaVPilotConsole { isMain = true, shipId = 202 }; Add(60, 8, 100, otherConsole);
+        hull.members.Add(firstConsole.Vessel); hull.members.Add(otherConsole.Vessel);
+        var a = DualShield(); var b = DualShield(); var other = DualShield();
+        void Move(CompSpaceShield shield, int x) {
+            map.thingGrid.Deregister(shield.parent); Set(shield.parent, "positionInt", new IntVec3(x, 0, 8)); map.thingGrid.Register(shield.parent);
+        }
+        Move(a, 30); Move(other, 65);
+        Set(map.listerThings, "use", ListerThingsUse.Global);
+        var groups = (List<Thing>[])AccessTools.Field(typeof(ListerThings), "listsByGroup").GetValue(map.listerThings);
+        groups[(int)ThingRequestGroup.ProjectileInterceptor] = new List<Thing> { a.parent, b.parent, other.parent };
+        SubstructureOwnership.BumpStructureVersion();
+        Check(firstConsole.Shields.Count == 2 && otherConsole.Shields.Count == 1 && a.SharedRegularCapacity == 2000,
+            $"console cache uses actual owned connected domain, never the entire map: {firstConsole.Shields.Count}/{otherConsole.Shields.Count}, shared={a.SharedRegularCapacity}, owner={ownership.OwnerAt(a.parent.Position)}, valid={firstConsole.Ship.IsValid}, ship={ShipRegistry.ShipOf(a.parent,true).Identity}, domain={firstConsole.Vessel.HullCells.Count()}");
+        a.ConsumeGuard(100);
+        Check(a.RegularCapacity == 950 && b.RegularCapacity == 950 && other.RegularCapacity == 1000,
+            "public hit path queries its own console list and leaves the other ship untouched");
+        map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(new IntVec3(35, 0, 8))] = null;
+        SubstructureOwnership.BumpStructureVersion();
+        Check(firstConsole.Shields.Count == 1 && b.SharedRegularCapacity == 950,
+            "broken foundation disconnects cached member; disconnected shield falls back locally");
+        b.ConsumeGuard(100);
+        Check(b.RegularCapacity == 850 && a.RegularCapacity == 950, "disconnected fragment cannot debit its former ship");
+        Own(35, 35, 101);
+        Check(firstConsole.Shields.Count == 2 && a.SharedRegularCapacity == 1800,
+            "reconnecting foundation refreshes the same console membership cache");
+        Own(35, 70, 202);
+        Check(firstConsole.Shields.Count == 1 && otherConsole.Shields.Count == 2 && b.SharedRegularCapacity == 1850,
+            "ownership transfer updates both cached pools without changing balances");
+        firstConsole.isMain = false; SubstructureOwnership.BumpStructureVersion();
+        Check(firstConsole.Shields.Count == 0 && a.SharedRegularCapacity == 950,
+            "loss of main console clears its cache and preserves local fallback");
+        var successor = new CompDeltaVPilotConsole { isMain = true, shipId = 101 }; Add(21, 8, 100, successor);
+        hull.members[0] = successor.Vessel; SubstructureOwnership.BumpStructureVersion();
+        Check(successor.Shields.Count == 1 && a.SharedRegularCapacity == 950,
+            "replacement main console rebuilds membership from current ownership");
+        Set(other.parent, "mapIndexOrState", (sbyte)-2); SubstructureOwnership.BumpStructureVersion();
+        Check(otherConsole.Shields.Count == 1 && b.SharedRegularCapacity == 850,
+            "destroyed generator disappears from cached membership");
+    }
+
+    sealed class GuardTestProjectile : Projectile
+    {
+        public override int DamageAmount => 125;
+    }
+    static CompSpaceShield DualShield(bool small = false)
+    {
+        var interceptor = (CompProjectileInterceptor)Raw(typeof(CompProjectileInterceptor));
+        interceptor.props = new CompProperties_ProjectileInterceptor { radius = 12, hitPoints = 0,
+            interceptGroundProjectiles = true, interceptAirProjectiles = true, interceptNonHostileProjectiles = true };
+        interceptor.currentHitPoints = -1;
+        var shield = new CompSpaceShield { props = new CompProperties_SpaceShield {
+            groundRadius = 12, regularCapacity = small ? 0 : 1000, emergencyCapacity = small ? 1000 : 2000 } };
+        Add(40, 8, 500, interceptor, shield); shield.PostPostMake(); return shield;
+    }
+    static void CheckDualGuard(Harmony harmony)
+    {
+        Reset(); var shield = DualShield(); var second = DualShield();
+        var shot = Fire(7200);
+        Check(!shot.dead && Math.Abs(RemainingBudget(shot) - 1200) < 2 && shield.EmergencyCapacity == 0
+            && second.EmergencyCapacity == 0 && contacts.Count == 2 && contacts.All(c => c.shieldBroken),
+            "real sweep drains both dual-capacity domes and continues with 1200 budget");
+        Check(shield.parent.GetComp<CompProjectileInterceptor>().currentHitPoints == -1,
+            "dual capacity never writes a mirrored native HP balance");
+        Reset(); shield = DualShield(true); shot = Fire(1440);
+        Check(!shot.dead && Math.Abs(RemainingBudget(shot) - 440) < 2 && shield.EmergencyCapacity == 0,
+            "small emergency dome participates in the real penetrating sweep");
+        Reset(); shield = DualShield(); shot = Fire(3000);
+        Check(shot.dead && shield.RegularCapacity < .02 && shield.EmergencyCapacity < .02,
+            $"near-capacity curved sweep stops with only geometric tolerance remaining: dead={shot.dead}, regular={shield.RegularCapacity}, emergency={shield.EmergencyCapacity}, remaining={RemainingBudget(shot)}");
+        Reset(); shield = DualShield(); shield.ConsumeGuard(2999); shot = Fire(1440);
+        Check(!shot.dead && Math.Abs(RemainingBudget(shot) - 1439) < 2,
+            "one remaining emergency point cannot erase a full rail shot");
+        // Keep native geometry and hostile/outgoing checks, replacing only graphical effects.
+        harmony.Patch(AccessTools.Method(typeof(CompProjectileInterceptor), "TriggerEffecter"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
+        harmony.CreateClassProcessor(typeof(Patch_SpaceShieldMode)).Patch();
+        Reset(); shield = DualShield(); var native = shield.parent.GetComp<CompProjectileInterceptor>();
+        var projectileDef = MakeDef("guardTestProjectile");
+        projectileDef.projectile = new ProjectileProperties { damageDef = bullet, speed = 60 };
+        var projectile = new GuardTestProjectile { def = projectileDef };
+        Check(native.CheckIntercept(projectile, new Vector3(27, 0, 8.5f), new Vector3(30, 0, 8.5f))
+            && shield.RegularCapacity == 875 && shield.EmergencyCapacity == 2000 && native.currentHitPoints == -1,
+            "native CheckIntercept preserves geometry and debits regular capacity exactly once");
+        Check(!native.CheckIntercept(projectile, new Vector3(10, 0, 8.5f), new Vector3(11, 0, 8.5f))
+            && shield.RegularCapacity == 875, "native missed sweep does not debit capacity");
+        shield.ConsumeGuard(875);
+        Check(native.CheckIntercept(projectile, new Vector3(27, 0, 8.5f), new Vector3(30, 0, 8.5f))
+            && shield.EmergencyCapacity == 1875 && shield.RecoveryWaitTicks == 600,
+            "native emergency hit uses local reserve without resetting regular recovery");
+        shield.ConsumeGuard(10000);
+        Check(!native.CheckIntercept(projectile, new Vector3(27, 0, 8.5f), new Vector3(30, 0, 8.5f)),
+            "empty custom dome rejects native interception despite the native unlimited sentinel");
     }
 
     static void CheckContinuousBeam(ThingDef coupler, XDocument defs)
@@ -613,9 +724,11 @@ internal static class Program
                 suffix + " unfunded middle segment does not block later funded acceleration");
             int count = large ? 1 : 3;
             float velocity = 180 + count * rp.speedBonus;
+            XElement magazine = Comp("DeltaV_Weapon_RailgunLoader" + suffix, "SpaceWeaponMagazine");
+            float mass = (float)magazine.Element("ammoPerShot") * ((float?)magazine.Element("unitMass") ?? 1f);
             float budget = SpaceImpactEffects.ComputeDamage(
-                SpaceImpactEffects.Resolve(rail, shieldDef, true).defenderEffect, velocity, 0) * wp.impactScale;
-            Check(Math.Abs(budget - (large ? 4000 : 3600)) < 0.01f
+                SpaceImpactEffects.Resolve(rail, shieldDef, true).defenderEffect, velocity, 0, 1f, mass) * wp.impactScale;
+            Check(Math.Abs(budget - (large ? 4800 : 4320)) < 0.01f
                 && wp.shotEnergy + count * rp.shotEnergy == (large ? 6000 : 5400),
                 suffix + " real Defs meet declared shield-breaking budget and energy threshold");
             XElement cap = Comp("DeltaV_Building_RailgunCapacitor" + suffix, "SwitchableBattery");

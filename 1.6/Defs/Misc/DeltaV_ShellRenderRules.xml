@@ -34,6 +34,7 @@
 
   <!-- 护盾头与炮塔共用顶部入口；守卫圆盾由拦截器的 PostDraw 单独采集。 -->
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_ShieldGenerator</defName><thingDef>DeltaV_ShieldGenerator</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_ShieldGeneratorSmall</defName><thingDef>DeltaV_ShieldGeneratorSmall</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
 
   <!-- 装弹机在船内；加速段的内构与外壳按原版多层绘制进入船壳。 -->
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunLoader</defName><thingDef>DeltaV_Weapon_RailgunLoader</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>

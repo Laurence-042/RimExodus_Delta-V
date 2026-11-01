@@ -9,12 +9,12 @@ using RimWorld;
 using UnityEngine;
 using Verse;
 
-internal static class Program
+internal static partial class Program
 {
     static int checks;
     static void Check(bool value, string name)
     { if (!value) throw new Exception(name); checks++; Console.WriteLine("PASS " + name); }
-    static bool Near(float a, float b) => Math.Abs(a - b) < .001f * Math.Max(1, Math.Abs(b));
+    static bool Near(double a, double b) => Math.Abs(a - b) < .001f * Math.Max(1, Math.Abs(b));
     static readonly MethodInfo Advance = typeof(CompWeaponTuning).GetMethod("AdvanceThermalTick", BindingFlags.Instance | BindingFlags.NonPublic);
     static void Tick(CompWeaponTuning gun, int ticks) { for (int i = 0; i < ticks; i++) Advance.Invoke(gun, null); }
     static int Main(string[] args)
@@ -90,11 +90,11 @@ internal static class Program
         var rapid = Gun(Def("DeltaV_Weapon_RapidMainSmall"));
         var cannon = Gun(Def("DeltaV_Weapon_CannonTurret"));
         cannon.charge = cannon.mass = 1; cannon.CommitShot();
-        Check(cannon.RemainingTicks >= 300 && cannon.overheated, "1/1 heavy shot retains mechanical cycle");
+        Check(cannon.RemainingTicks == 20 && cannon.overheated, "1/1 heavy shot has only 20 ticks of charge-based heat");
         cannon.charge = cannon.mass = 32;
-        Tick(cannon, 299); Check(cannon.RemainingTicks == 1, "retuning cannot lengthen or shorten existing mechanical cycle");
+        Tick(cannon, 19); Check(cannon.RemainingTicks == 1, "retuning cannot change heat already committed");
         Tick(cannon, 1); Check(cannon.RemainingTicks == 0 && !cannon.overheated, "heavy cycle completes normally");
-        cannon.CommitShot(); Check(cannon.RemainingTicks == 640, "high load extends heavy cooling beyond mechanical minimum");
+        cannon.CommitShot(); Check(cannon.RemainingTicks == 640, "32 charge requires 640 cooling ticks without a mechanical floor");
         cannon.charge = cannon.mass = 1;
         Tick(cannon, 300); Check(cannon.overheated && cannon.RemainingTicks > 0, "lowering load cannot bypass thermal lock");
         Tick(cannon, 341); Check(cannon.RemainingTicks == 0 && !cannon.overheated, "heavy heat fully dissipates");
@@ -142,7 +142,7 @@ internal static class Program
         var restoredMagazine = Magazine(Def("DeltaV_Weapon_CannonTurret"));
         Scribe.loader.InitLoading(save); restored.PostExposeData(); ExposeMagazine(restoredMagazine); Scribe.loader.FinalizeLoading();
         Check(restored.charge == 21 && restored.mass == 27 && restored.overheated
-            && Near(restored.heat, cannon.heat) && restored.RemainingTicks == cannon.RemainingTicks, "Scribe round trip preserves tuning, heat and mechanical lock");
+            && Near(restored.heat, cannon.heat) && restored.RemainingTicks == cannon.RemainingTicks, "Scribe round trip preserves tuning, heat and thermal lock");
         Check(restoredMagazine.HeadCount == 37 && restoredMagazine.PropellantCount == 19, "Scribe round trip preserves both stock counts");
         var restoredHeads = restoredMagazine.Supply(GunSupplyKind.Heads);
         var restoredCharge = restoredMagazine.Supply(GunSupplyKind.Propellant);
@@ -162,6 +162,28 @@ internal static class Program
         var effects = XDocument.Load(Path.Combine(repo, "1.6/Defs/SpaceCombat/DeltaV_SpaceImpactEffects.xml"));
         Check(effects.Root.Elements().Where(x => x.Element("projectileDefs")?.Elements().Any(y => y.Value == "DeltaV_Projectile_Cannon") == true)
             .All(x => x.Element("projectileDefs").Elements().Any(y => y.Value == "DeltaV_Projectile_Rapid")), "rapid and heavy share every impact definition");
+        var medium = Gun(Def("DeltaV_Weapon_HeavyMainMedium"));
+        Check(medium.Settings.maxCharge == 96 && medium.Settings.maxMass == 96 && medium.ShotHeat == 192 && medium.ShotInterval == 720,
+            "medium heavy 48/48 uses 16 cooling and 12 seconds");
+        medium.charge = 1; medium.mass = 96;
+        Check(medium.ShotHeat == 4 && medium.ShotInterval == 15 && medium.CycleTicks == 0,
+            "1/96 heavy preserves intended fast, slow-projectile configuration");
+        medium.CommitShot(); Tick(medium, 15);
+        Check(!medium.overheated && medium.RemainingTicks == 0, "medium low charge cools in exactly 15 ticks");
+        medium.charge = medium.mass = 96; medium.CommitShot(); Tick(medium, 1440);
+        Check(!medium.overheated && medium.RemainingTicks == 0, "medium maximum charge cools in exactly 24 seconds");
+        var mediumRapid = Gun(Def("DeltaV_Weapon_RapidMainMedium"));
+        Check(mediumRapid.charge == 4 && mediumRapid.mass == 2 && mediumRapid.ShotHeat == 20
+            && mediumRapid.Settings.heatCapacity == 480 && mediumRapid.Settings.coolingPerSecond == 48,
+            "medium rapid uses fixed 4/2 load and increased thermal hardware");
+        int BurstTicks(CompWeaponTuning gun) {
+            for (int t = 0; t < 10000; t++) { if (gun.RemainingTicks == 0) gun.CommitShot(); if (gun.overheated) return t; Tick(gun, 1); }
+            return -1;
+        }
+        int smallBurst = BurstTicks(Gun(Def("DeltaV_Weapon_RapidMainSmall"))), mediumBurst = BurstTicks(mediumRapid);
+        Check(smallBurst >= 360 && smallBurst <= 420 && mediumBurst >= 360 && mediumBurst <= 420,
+            $"default rapid overheat rhythms remain close: {smallBurst}/{mediumBurst} ticks");
+        CheckShieldCapacity(repo);
         CheckTurretPowerAndShieldFacing();
     }
 

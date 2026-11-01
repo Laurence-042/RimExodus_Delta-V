@@ -28,6 +28,14 @@ def turret_icon(base, top, top_scale, output):
     icon.save(ART / f"{output}.png")
 
 
+def small_shield_icon():
+    icon = layer("PointDefense_Base").resize((SIZE, SIZE), Image.Resampling.LANCZOS)
+    width = round(SIZE * 1.2 / 1.3)
+    # ShieldProjector already faces north, matching CompSpaceShield.ShellTopAngle.
+    centered(icon, layer("ShieldProjector").resize((width, width), Image.Resampling.LANCZOS))
+    icon.save(ART / "ShieldGeneratorSmall_MenuIcon.png")
+
+
 def rail_icon(inner, output):
     icon = Image.new("RGBA", (SIZE, SIZE))
     inner_image = layer(inner).resize((SIZE, SIZE // 2), Image.Resampling.LANCZOS)
@@ -62,6 +70,7 @@ def missile_blueprint():
 
 
 if __name__ == "__main__":
+    small_shield_icon()
     turret_icon("PointDefense_Base", "LaserTurret_Top", 1.2 / 1.3,
                 "PointDefense_MenuIcon")
     for suffix, top in (("Cannon", "CannonTurret_Top"),

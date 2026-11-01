@@ -95,7 +95,7 @@
   <DeltaV.SpaceImpactEffectDef>
     <defName>DeltaV_Impact_EngineeringShield</defName>
     <projectileDefs><li>DeltaV_Beam_Mining</li></projectileDefs>
-    <targetThingDefs><li>GravshipShieldGenerator</li><li>DeltaV_ShieldGenerator</li></targetThingDefs>
+    <targetThingDefs><li>GravshipShieldGenerator</li><li>DeltaV_ShieldGenerator</li><li>DeltaV_ShieldGeneratorSmall</li></targetThingDefs>
     <defenderEffect><kind>ShieldDrain</kind><damage>0</damage></defenderEffect>
     <attackerEffect><kind>DestroySelf</kind></attackerEffect>
   </DeltaV.SpaceImpactEffectDef>

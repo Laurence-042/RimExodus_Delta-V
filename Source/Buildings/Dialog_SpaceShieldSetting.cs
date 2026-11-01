@@ -89,8 +89,7 @@ namespace DeltaV
         public static string Build(CompSpaceShield shield)
         {
             if (shield.mode == SpaceShieldMode.Guard)
-                return "DeltaV_ShieldGuardReference".Translate(shield.GuardHitPointsMax,
-                    shield.ShieldProps.guardRecoveryTicks.ToStringTicksToPeriod());
+                return "DeltaV_ShieldGuardReference".Translate(shield.ShieldProps.regularCapacity, shield.ShieldProps.emergencyCapacity);
             if (shield.mode == SpaceShieldMode.Kinetic)
             {
                 float energy = SpaceKinetics.ReverseEnergy(shield.kineticStrengthPercent);

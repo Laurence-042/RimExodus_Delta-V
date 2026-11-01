@@ -59,6 +59,31 @@ namespace DeltaV
             : Ship.Invalid;
 
         private FoundationShip vessel;
+        private Map shieldMap;
+        private int shieldVersion = -1, shieldOwnerId;
+        private readonly List<CompSpaceShield> shields = new List<CompSpaceShield>();
+        public IReadOnlyList<CompSpaceShield> Shields
+        {
+            get
+            {
+                if (!Ship.IsValid) { shields.Clear(); shieldVersion = -1; return shields; }
+                if (shieldMap != parent.Map || shieldOwnerId != shipId
+                    || SubstructureOwnership.CacheNeedsRefresh(shieldVersion))
+                {
+                    shields.Clear();
+                    foreach (Thing thing in parent.Map.listerThings.ThingsInGroup(ThingRequestGroup.ProjectileInterceptor))
+                    {
+                        var shield = thing.TryGetComp<CompSpaceShield>();
+                        if (shield != null && ShipRegistry.ShipOf(thing, requireWholeFootprint: true).Identity == Vessel.Identity)
+                            shields.Add(shield);
+                    }
+                    shieldMap = parent.Map;
+                    shieldOwnerId = shipId;
+                    shieldVersion = SubstructureOwnership.GlobalStructureVersion;
+                }
+                return shields;
+            }
+        }
         public virtual ShipBase Vessel
         {
             get
@@ -85,6 +110,9 @@ namespace DeltaV
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
         {
             base.PostDeSpawn(map, mode);
+            shields.Clear();
+            shieldMap = null;
+            shieldVersion = -1;
             int ownerId = shipId;
             UniverseManager universe = Universe;
             if (isMain && ownerId > 0 && universe != null)

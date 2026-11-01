@@ -310,12 +310,16 @@ namespace DeltaV
 
             if (part.kind == ImpactEffectKind.ShieldDrain)
             {
-                // 护盾容量消耗（段5）：写原版 comp 字段；重充/击破语义由原版
-                // CompGravshipShieldGenerator 的充能节拍继续推进。
                 CompProjectileInterceptor interceptor = evt.defenderBuilding?.TryGetComp<CompProjectileInterceptor>();
                 if (interceptor == null) return 0f;
                 float drain = ComputeDamage(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale, evt.mass)
                     * evt.damageScale;
+                var shield = evt.defenderBuilding.TryGetComp<CompSpaceShield>();
+                if (shield != null)
+                {
+                    float absorbed = shield.ConsumeGuard(drain);
+                    return part.penetrates ? RemainingFraction(drain, absorbed) : 0f;
+                }
                 int capacity = interceptor.currentHitPoints;
                 interceptor.currentHitPoints = Mathf.Max(0,
                     capacity - Mathf.Max(0, Mathf.RoundToInt(drain)));

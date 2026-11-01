@@ -11,7 +11,6 @@ namespace DeltaV
         public bool chemical;
         public int maxCharge = 1, maxMass = 1, defaultCharge = 1, defaultMass = 1;
         public int minInterval = 12, maxInterval = 12, defaultInterval = 12;
-        public int mechanicalTicks;
         public float coolingPerSecond = 10f, heatCapacity = 100f, heatPerShot = 5f;
         public bool lockEveryShot;
         public int maxPower = 1;
@@ -21,8 +20,7 @@ namespace DeltaV
             foreach (string error in base.ConfigErrors(parentDef)) yield return error;
             if (defaultCharge < 1 || defaultCharge > maxCharge || defaultMass < 1 || defaultMass > maxMass
                 || minInterval < 1 || defaultInterval < minInterval || defaultInterval > maxInterval
-                || coolingPerSecond <= 0f || heatCapacity <= 0f || heatPerShot < 0f || maxPower < 1
-                || lockEveryShot && mechanicalTicks < 1)
+                || coolingPerSecond <= 0f || heatCapacity <= 0f || heatPerShot < 0f || maxPower < 1)
                 yield return $"{parentDef.defName}: invalid weapon tuning limits or cooling parameters";
         }
     }
@@ -31,16 +29,16 @@ namespace DeltaV
     {
         public CompProperties_WeaponTuning Settings => (CompProperties_WeaponTuning)props;
         public int charge = 1, mass = 1, interval = 12, power = 1;
-        public float heat;
+        public double heat;
         public bool overheated;
         private int remainingTicks;
         private bool initialized;
         public int RemainingTicks => Math.Max(remainingTicks, overheated
-            ? Mathf.CeilToInt(heat * 60f / Settings.coolingPerSecond) : 0);
-        public int ShotInterval => Settings.lockEveryShot ? Math.Max(Settings.mechanicalTicks,
-            Mathf.CeilToInt(ShotHeat * 60f / Settings.coolingPerSecond)) : interval;
-        public float ShotHeat => Settings.lockEveryShot ? Settings.heatPerShot * (charge + mass) : Settings.heatPerShot;
-        public float HeatFraction => Mathf.Clamp01(heat / Settings.heatCapacity);
+            ? (int)Math.Ceiling(heat * 60d / Settings.coolingPerSecond - 1e-8) : 0);
+        public int ShotInterval => Settings.lockEveryShot
+            ? Mathf.CeilToInt(ShotHeat * 60f / Settings.coolingPerSecond) : interval;
+        public float ShotHeat => Settings.heatPerShot * (Settings.chemical ? charge : 1);
+        public float HeatFraction => Mathf.Clamp01((float)(heat / Settings.heatCapacity));
 
         public override void Initialize(CompProperties props)
         {
@@ -49,7 +47,7 @@ namespace DeltaV
             { charge = Settings.defaultCharge; mass = Settings.defaultMass; interval = Settings.defaultInterval; initialized = true; }
         }
 
-        public int CycleTicks => Settings.lockEveryShot ? Settings.mechanicalTicks : interval;
+        public int CycleTicks => Settings.lockEveryShot ? 0 : interval;
         public void CommitShot() => CommitShot(ShotHeat, CycleTicks);
         internal void CommitShot(float shotHeat, int cycleTicks)
         {
@@ -73,7 +71,8 @@ namespace DeltaV
         {
             if (remainingTicks > 0) remainingTicks--;
             if (heat <= 0f) return;
-            heat = Mathf.Max(0f, heat - Settings.coolingPerSecond / 60f);
+            heat = Math.Max(0d, heat - Settings.coolingPerSecond / 60d);
+            if (heat < 1e-8) heat = 0d;
             if (heat <= 0f) overheated = false;
         }
 
@@ -85,7 +84,7 @@ namespace DeltaV
             Scribe_Values.Look(ref power, "pulsePower", 1);
             Scribe_Values.Look(ref heat, "weaponHeat");
             Scribe_Values.Look(ref overheated, "thermalLock");
-            Scribe_Values.Look(ref remainingTicks, "mechanicalTicksLeft");
+            Scribe_Values.Look(ref remainingTicks, "firingIntervalTicksLeft");
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
                 charge = Mathf.Clamp(charge, 1, Settings.maxCharge); mass = Mathf.Clamp(mass, 1, Settings.maxMass);
@@ -120,9 +119,9 @@ namespace DeltaV
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
             if (parent.Faction != Faction.OfPlayer && !DebugSettings.godMode) yield break;
-            if (Settings.maxCharge > 1) yield return Setting("DeltaV_TuneCharge", charge, 1, Settings.maxCharge,
+            if (Settings.lockEveryShot && Settings.maxCharge > 1) yield return Setting("DeltaV_TuneCharge", charge, 1, Settings.maxCharge,
                 (x, v) => x.charge = Mathf.Clamp(v, 1, x.Settings.maxCharge));
-            if (Settings.maxMass > 1) yield return Setting("DeltaV_TuneMass", mass, 1, Settings.maxMass,
+            if (Settings.lockEveryShot && Settings.maxMass > 1) yield return Setting("DeltaV_TuneMass", mass, 1, Settings.maxMass,
                 (x, v) => x.mass = Mathf.Clamp(v, 1, x.Settings.maxMass));
             if (Settings.minInterval < Settings.maxInterval) yield return Setting("DeltaV_TuneRate", interval,
                 Settings.minInterval, Settings.maxInterval,

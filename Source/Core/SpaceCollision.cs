@@ -513,7 +513,7 @@ namespace DeltaV
                 Vector2 radial = (point - arc.center).normalized;
                 float incidence = SpaceTransform.IncidenceAngle(dir, radial);
                 SpaceImpactEffectDef effect = SpaceImpactEffects.Resolve(body.projectileDef, arc.building.def, shieldSurface: true);
-                if (arc.interceptor.currentHitPoints > 0 && arcAlong < sampleLength)
+                if (CompSpaceShield.CanAbsorbGuard(arc.interceptor) && arcAlong < sampleLength)
                 {
                     sampleLength = arcAlong;
                     shieldArc = arc;
@@ -730,7 +730,7 @@ namespace DeltaV
                 body.resolvedHitExplosive = false;
                 body.resolvedHitShield = true;
                 body.resolvedHitRadius = 0f;
-                int capacityBefore = shieldArc.interceptor.currentHitPoints;
+                float capacityBefore = CompSpaceShield.AvailableGuardCapacity(shieldArc.interceptor);
                 float residual = SpaceImpactEffects.ApplyToDefender(evt, shieldEffect?.defenderEffect);
                 SpaceImpactEffects.ApplyToDefender(evt, shieldEffect?.shieldSurfaceEffect);
                 if (shieldEffect?.shieldSurfaceEffect?.kind == ImpactEffectKind.DamageMap)
@@ -747,12 +747,12 @@ namespace DeltaV
                     nativeExplosion = body.resolvedHitExplosive,
                     explosionRadius = body.resolvedHitRadius, shieldMode = SpaceShieldMode.Guard,
                     shieldCenter = shieldArc.center, shieldRadius = shieldArc.radius,
-                    shieldBroken = capacityBefore > 0 && shieldArc.interceptor.currentHitPoints <= 0
+                    shieldBroken = capacityBefore > 0 && CompSpaceShield.AvailableGuardCapacity(shieldArc.interceptor) <= 0
                 });
                 if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
                     DeltaVLog.Message(DeltaVLogModule.Combat,
                         $"shield intercept: {body.projectileDef?.defName} on '{defender.label}' " +
-                        $"(hp {capacityBefore}→{shieldArc.interceptor.currentHitPoints}, " +
+                        $"(hp {capacityBefore}→{CompSpaceShield.AvailableGuardCapacity(shieldArc.interceptor)}, " +
                         $"residual {residual:P0})");
                 if (shieldEffect?.shieldSurfaceEffect != null
                     || shieldEffect?.attackerEffect?.kind == ImpactEffectKind.PlaceBody)
@@ -823,7 +823,7 @@ namespace DeltaV
             for (int i = 0; i < surface.arcs.Count; i++)
             {
                 ShieldArc arc = surface.arcs[i];
-                if (arc.interceptor.currentHitPoints <= 0 || !arc.interceptor.Active) continue;
+                if (!CompSpaceShield.CanAbsorbGuard(arc.interceptor) || !arc.interceptor.Active) continue;
                 Vector2 toCenter = arc.center - from;
                 float proj = Vector2.Dot(toCenter, dir);
                 float distSqr = toCenter.sqrMagnitude - proj * proj;

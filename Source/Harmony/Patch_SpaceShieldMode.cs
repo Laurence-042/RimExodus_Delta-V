@@ -23,8 +23,17 @@ namespace DeltaV
         public static void Active(ref bool __result, CompProjectileInterceptor __instance)
         {
             CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
-            if (shield != null && (shield.State != SpaceShieldState.Guard || !shield.FlickedOn))
+            if (shield != null && (!shield.HasGuardCapacity || !shield.FlickedOn))
                 __result = false;
+        }
+
+        // Native hitPoints=0 leaves geometry, hostility, EMP and impact effects intact,
+        // but skips native HP subtraction. Both projectile paths debit the same balances.
+        [HarmonyPatch(typeof(CompProjectileInterceptor), nameof(CompProjectileInterceptor.CheckIntercept))]
+        [HarmonyPostfix]
+        public static void CheckIntercept(CompProjectileInterceptor __instance, Projectile projectile, bool __result)
+        {
+            if (__result) __instance.parent.TryGetComp<CompSpaceShield>()?.ConsumeGuard(projectile.DamageAmount);
         }
 
         [HarmonyPatch(typeof(CompProjectileInterceptor), nameof(CompProjectileInterceptor.PostDraw))]
@@ -49,7 +58,7 @@ namespace DeltaV
             ref IEnumerable<Gizmo> __result)
         {
             CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
-            if (shield == null || shield.State == SpaceShieldState.Guard)
+            if (shield == null)
                 return true;
             __result = System.Array.Empty<Gizmo>();
             return false;
@@ -60,7 +69,7 @@ namespace DeltaV
         public static bool CompInspectStringExtra(CompProjectileInterceptor __instance, ref string __result)
         {
             CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
-            if (shield == null || shield.State == SpaceShieldState.Guard)
+            if (shield == null)
                 return true;
             __result = null;
             return false;

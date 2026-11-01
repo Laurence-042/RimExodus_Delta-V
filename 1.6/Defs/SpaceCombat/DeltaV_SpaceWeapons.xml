@@ -197,7 +197,7 @@
         <drawSize>(2.6,2.6)</drawSize>
       </blueprintGraphicData>
     </building>
-    <description>A crewed heavy cannon. Load steel-made propellant and projectile heads separately. Adjust charge and head mass independently; every shot requires a long loading and cooling cycle. One slot accepts fire control or an auxiliary magazine.</description>
+    <description>A crewed heavy cannon. Load steel-made propellant and projectile heads separately. Adjust charge and head mass independently; each shot heats the cannon according to its propellant charge and firing resumes once it has cooled completely. One slot accepts fire control or an auxiliary magazine.</description>
     <costList>
       <Steel>260</Steel>
       <ComponentIndustrial>7</ComponentIndustrial>
@@ -258,8 +258,7 @@
         <defaultMass>24</defaultMass>
         <maxCharge>32</maxCharge>
         <maxMass>32</maxMass>
-        <mechanicalTicks>300</mechanicalTicks>
-        <heatPerShot>2</heatPerShot>
+        <heatPerShot>4</heatPerShot>
         <coolingPerSecond>12</coolingPerSecond>
         <lockEveryShot>true</lockEveryShot>
       </li>
@@ -346,7 +345,6 @@
         <defaultMass>1</defaultMass>
         <maxCharge>1</maxCharge>
         <maxMass>1</maxMass>
-        <mechanicalTicks>0</mechanicalTicks>
         <heatPerShot>5</heatPerShot>
         <coolingPerSecond>10</coolingPerSecond>
         <lockEveryShot>false</lockEveryShot>
@@ -442,7 +440,7 @@
         <drawSize>(3.6,3.6)</drawSize>
       </blueprintGraphicData>
     </building>
-    <description>A crewed heavy cannon with higher charge and head-mass limits. Load propellant and heads separately. Every shot requires a long loading and cooling cycle. Two slots accept fire control or auxiliary magazines.</description>
+    <description>A crewed heavy cannon with higher charge and head-mass limits and faster cooling. Load propellant and heads separately. Heat depends on charge; firing resumes once it has cooled completely. Two slots accept fire control or auxiliary magazines.</description>
     <costList>
       <Steel>520</Steel>
       <Plasteel>50</Plasteel>
@@ -506,11 +504,10 @@
         <chemical>true</chemical>
         <defaultCharge>48</defaultCharge>
         <defaultMass>48</defaultMass>
-        <maxCharge>64</maxCharge>
-        <maxMass>64</maxMass>
-        <mechanicalTicks>360</mechanicalTicks>
-        <heatPerShot>2</heatPerShot>
-        <coolingPerSecond>12</coolingPerSecond>
+        <maxCharge>96</maxCharge>
+        <maxMass>96</maxMass>
+        <heatPerShot>4</heatPerShot>
+        <coolingPerSecond>16</coolingPerSecond>
         <lockEveryShot>true</lockEveryShot>
       </li>
     </comps>
@@ -535,7 +532,7 @@
         <drawSize>(3.6,3.6)</drawSize>
       </blueprintGraphicData>
     </building>
-    <description>A crewed rapid cannon with a higher maximum firing rate and larger stocks. Each shot uses one propellant and one head. Overheating locks firing until completely cool. Two attachment slots.</description>
+    <description>A crewed rapid cannon with greater heat capacity and cooling. Each shot uses four propellant units and two projectile heads; its firing rate is adjustable. Overheating locks firing until completely cool. Two attachment slots.</description>
     <costList>
       <Steel>480</Steel>
       <ComponentIndustrial>13</ComponentIndustrial>
@@ -597,13 +594,13 @@
       </li>
       <li Class="DeltaV.CompProperties_WeaponTuning">
         <chemical>true</chemical>
-        <defaultCharge>1</defaultCharge>
-        <defaultMass>1</defaultMass>
-        <maxCharge>1</maxCharge>
-        <maxMass>1</maxMass>
-        <mechanicalTicks>0</mechanicalTicks>
+        <defaultCharge>4</defaultCharge>
+        <defaultMass>2</defaultMass>
+        <maxCharge>4</maxCharge>
+        <maxMass>2</maxMass>
         <heatPerShot>5</heatPerShot>
-        <coolingPerSecond>10</coolingPerSecond>
+        <coolingPerSecond>48</coolingPerSecond>
+        <heatCapacity>480</heatCapacity>
         <lockEveryShot>false</lockEveryShot>
         <minInterval>4</minInterval>
         <maxInterval>30</maxInterval>
