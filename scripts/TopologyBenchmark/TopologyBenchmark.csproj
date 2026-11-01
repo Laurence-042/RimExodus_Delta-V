@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <Optimize>true</Optimize>
+    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Compile the supplied implementation verbatim; never edit the reference. -->
+    <Compile Include="../../references/TopologyLab/GridTopology.cs" Link="Reference/GridTopology.cs" />
+  </ItemGroup>
+</Project>

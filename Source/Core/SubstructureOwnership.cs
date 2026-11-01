@@ -109,6 +109,7 @@ namespace DeltaV
             Scribe_Collections.Look(ref sparse, "owners", LookMode.Value, LookMode.Value);
             if (Scribe.mode == LoadSaveMode.LoadingVars)
             {
+                Current.Game?.GetComponent<UniverseManager>()?.ForgetFoundationTopology(map);
                 ownerGrid = new int[map.cellIndices.NumGridCells];
                 if (sparse != null)
                 {
@@ -325,7 +326,7 @@ namespace DeltaV
         // 入口，逐格裸写 Assign 收窄为组件内部使用，owner ID 一律经
         // UniverseManager.AllocateOwnerId 单一计数器分配——2026-09-20 收拢） ----
 
-        /// <summary>写单格归属（不通知；管线批写时逐格调用，由调用方收尾通知）。组件内部使用。</summary>
+        /// <summary>写单格归属并标记拓扑变更；引擎等批量通知仍由调用方收尾。组件内部使用。</summary>
         internal void Assign(IntVec3 cell, int ownerId)
         {
             if (ownerGrid == null)
@@ -333,6 +334,7 @@ namespace DeltaV
                 ownerGrid = new int[map.cellIndices.NumGridCells];
             }
             ownerGrid[map.cellIndices.CellToIndex(cell)] = ownerId;
+            Current.Game?.GetComponent<UniverseManager>()?.NotifyFoundationChanged(map, cell);
             BumpStructureVersion();
         }
 
@@ -418,6 +420,7 @@ namespace DeltaV
                 if (ownerGrid[i] == ownerId)
                 {
                     ownerGrid[i] = Unassigned;
+                    Current.Game?.GetComponent<UniverseManager>()?.NotifyFoundationChanged(map, map.cellIndices.IndexToCell(i));
                     changed = true;
                 }
             }
@@ -451,7 +454,6 @@ namespace DeltaV
         /// <summary>归属变化的通知收尾：全部引擎 dirty（含非玩家引擎）+ 星球仪剪影失效。</summary>
         private void NotifyOwnershipChanged()
         {
-            Current.Game?.GetComponent<UniverseManager>()?.NotifyFoundationChanged(map);
             foreach (Thing thing in map.listerThings.AllThings)
                 (thing as ThingWithComps)?.TryGetComp<CompRailgunReadinessAppearance>()?.Rebind();
             foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
@@ -481,6 +483,7 @@ namespace DeltaV
                 return;
             }
             Current.Game?.GetComponent<UniverseManager>()?.Lifecycle.QueueStructureCheck(map);
+            Current.Game?.GetComponent<UniverseManager>()?.NotifyFoundationChanged(map, cell);
             // 原版已移除 foundation，此处必须清持久网格，不能经只读 OwnerAt 的无基架过滤。
             if (ownerGrid == null || ownerGrid[map.cellIndices.CellToIndex(cell)] == Unassigned)
             {

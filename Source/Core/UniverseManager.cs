@@ -79,6 +79,7 @@ namespace DeltaV
                 throw new InvalidOperationException("Invalid space object representation replacement");
             current.RepresentationVersion = previous.RepresentationVersion + 1;
             globeDisplay?.Forget(previous.map);
+            foundationTopology?.Forget(previous.map);
             PlanetGlobeRenderer.InvalidateSilhouette(previous.map);
             objects[index] = current;
             if (objectById != null) objectById[current.objectId] = current;
@@ -95,6 +96,10 @@ namespace DeltaV
         }
 
         [NonSerialized] private ShipControlService controls;
+
+        [NonSerialized] private FoundationTopologyService foundationTopology;
+        internal FoundationTopologyService FoundationTopology => foundationTopology
+            ?? (foundationTopology = new FoundationTopologyService());
 
         public ShipControlService Controls => controls ?? (controls = new ShipControlService(this));
 
@@ -415,7 +420,7 @@ namespace DeltaV
             PlanetGlobeRenderer.InvalidateSilhouette(obj.map);
             Autopilot.Detach(obj);
             Shuttles.ForgetContainer(obj);
-            shipTransitions?.ForgetMap(obj.map);
+            foundationTopology?.Forget(obj.map);
             playerInput?.Clear();
             // 最后一艘船消失后 Ship tag 已移除，释放不能再以当前角色为前提。
             if (obj.map != null) Weapons.ForgetMap(obj.map);
@@ -537,7 +542,7 @@ namespace DeltaV
             if (map == null) return;
             unframedMaps?.Remove(map);
             playerInput?.Clear();
-            shipTransitions?.ForgetMap(map);
+            foundationTopology?.Forget(map);
             globeDisplay?.Forget(map);
             PlanetGlobeRenderer.InvalidateSilhouette(map);
             Projectiles.ForgetMap(map);
@@ -546,7 +551,8 @@ namespace DeltaV
             softDock?.Forget(map);
         }
 
-        internal void NotifyFoundationChanged(Map map) => shipTransitions?.NotifyFoundationChanged(map);
+        internal void NotifyFoundationChanged(Map map, IntVec3 cell) => foundationTopology?.NotifyChanged(map, cell);
+        internal void ForgetFoundationTopology(Map map) => foundationTopology?.Forget(map);
         internal void NotifySupportChanged(Map map, IntVec3 cell) => scatter?.NotifySupportChanged(map, cell);
         internal void NotifyCargoRegistered(Map map, Thing thing, IntVec3 cell) =>
             scatter?.NotifyCargoRegistered(map, thing, cell);
@@ -1229,6 +1235,7 @@ namespace DeltaV
         {
             projectiles?.ResetMotionFeedback();
             mapPool = null;
+            foundationTopology = null;
             scatter = null;
             softDock = null;
             worksites = null;

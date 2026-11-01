@@ -82,6 +82,12 @@ internal static partial class Program
         var universe = new UniverseManager(game);
         game.components = new List<GameComponent> { universe };
         game.tickManager = (TickManager)Raw(typeof(TickManager));
+        if (Environment.GetCommandLineArgs().Contains("--separation-only"))
+        {
+            ThingDefOf.PilotConsole = TestBuildingDef("console");
+            ThingDefOf.GravEngine = TestBuildingDef("gravEngine");
+            CheckSeparationRules(universe, faction); return;
+        }
         if (Environment.GetCommandLineArgs().Contains("--combat-performance-only"))
         {
             DeltaVMod.CurrentSettings.logPerformance = Environment.GetCommandLineArgs().Contains("--combat-probe-enabled");

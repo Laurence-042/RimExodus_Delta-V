@@ -57,7 +57,7 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (map == null || universe?.FrameOf(map) == null) return;
             if (oldFoundation != null || newTerr?.isFoundation == true)
-                universe.NotifyFoundationChanged(map);
+                universe.NotifyFoundationChanged(map, c);
             universe.NotifySupportChanged(map, c);
         }
     }

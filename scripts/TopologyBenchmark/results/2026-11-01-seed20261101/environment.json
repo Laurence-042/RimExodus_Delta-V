@@ -1,0 +1,128 @@
+{
+  "TimestampUtc": "2026-11-01T10:19:41.9158754Z",
+  "Runtime": ".NET 10.0.14",
+  "OS": "Microsoft Windows 10.0.26200",
+  "Architecture": "X64",
+  "LogicalProcessors": 20,
+  "Cpu": "12th Gen Intel(R) Core(TM) i7-12700H",
+  "StopwatchFrequency": 10000000,
+  "TieredCompilation": "0",
+  "Seed": 20261101,
+  "Repeats": 5,
+  "ReferenceSha256": "038c5d7181c179918612f6bc209a4575d65c1ed54d7b9689195bde8c3bc628ce",
+  "BenchmarkSourceSha256": {
+    "EulerTourForest.cs": "153fbcbd6d1b1bc760e2e181773ea9652461c04df7b8d07192899e4dc690594a",
+    "Grids.cs": "58969fc1aefbac8db07d028343fed89a4469fd692733a074226c67c0cd1f1f05",
+    "HltGrid.cs": "f5bc21a0480b98607b978868f58bccfad46f494c0b86c1b8df51cb157d107c8a",
+    "Program.cs": "f069a6b45a61768e19a3d4b41a9a704235892091f4146ab3b9a0673b692b8e2d",
+    "run.ps1": "24e935e6a3efe684ed5f14c84f5f7320bf25a06830ffbe4e48022fa31a202d07",
+    "TopologyBenchmark.csproj": "3db9f57a085a8da2b1323608e6e8775b255748227468fa52124717c6747908e5",
+    "Validation.cs": "989c41810ff35391417e37f78a10d31d3435ec7288b2f853d2a894ca636de6e5",
+    "Workloads.cs": "4b7fce2badff1231b7b71289c36a9f756bcd18c50aa60f91b10382c21106e1e9"
+  },
+  "AssemblySha256": "8de50d1958406da65ac3746291ce83e0c6d7772724010fa7a8ca41369f679c62",
+  "States": 87483,
+  "Partitions": 87483,
+  "Invariants": 48510,
+  "Workloads": [
+    {
+      "Name": "small_ship",
+      "Description": "40x24 solid foundation, isolated hits and repairs",
+      "Width": 250,
+      "Height": 250,
+      "Seed": 20261101,
+      "InitialCells": 960,
+      "Events": 1200,
+      "ChangedCells": 1200,
+      "TraceSha256": "5d5ae905d1bc55086add810712765ce5570688e5a4ea4414fe7873e1502666e3"
+    },
+    {
+      "Name": "nine_ships",
+      "Description": "Nine separated 40x24 foundations, localized hits and repairs",
+      "Width": 250,
+      "Height": 250,
+      "Seed": 20261102,
+      "InitialCells": 8640,
+      "Events": 1200,
+      "ChangedCells": 1200,
+      "TraceSha256": "ec185a450969e600ef1dbcdfaa718d9374c0ca314a09e6d9418a8e8d9848229a"
+    },
+    {
+      "Name": "dense_plate",
+      "Description": "230x230 solid foundation, isolated hits and repairs (dense stress)",
+      "Width": 250,
+      "Height": 250,
+      "Seed": 20261103,
+      "InitialCells": 52900,
+      "Events": 1200,
+      "ChangedCells": 1200,
+      "TraceSha256": "8ce9faa5e8cda473717426c1952e06bfcb87ec35fa8e5e55c9e8583682d56929"
+    },
+    {
+      "Name": "blast_repair_3",
+      "Description": "120x70 foundation, 3x3 destruction/repair batches",
+      "Width": 250,
+      "Height": 250,
+      "Seed": 20261104,
+      "InitialCells": 8400,
+      "Events": 600,
+      "ChangedCells": 5346,
+      "TraceSha256": "21720b15bebfb4bde473a08069526ec5d0b64371025823e03c47d07919d862f2"
+    },
+    {
+      "Name": "blast_repair_9",
+      "Description": "120x70 foundation, 9x9 destruction/repair batches (large batch stress)",
+      "Width": 250,
+      "Height": 250,
+      "Seed": 20261105,
+      "InitialCells": 8400,
+      "Events": 600,
+      "ChangedCells": 46380,
+      "TraceSha256": "9c92380e0370eeb1de14d618163a518d66a8d2dc73ea7c6b3d0ea2a7ceab7e2a"
+    },
+    {
+      "Name": "battle_erosion",
+      "Description": "120x70 foundation, persistent radius-1..3 blast damage until trace ends",
+      "Width": 250,
+      "Height": 250,
+      "Seed": 20261106,
+      "InitialCells": 8400,
+      "Events": 600,
+      "ChangedCells": 6586,
+      "TraceSha256": "0d5221c96adbb71fbff4ffb2227ff6254d12b9b2f0977941c688c8510af6bc96"
+    },
+    {
+      "Name": "bridge_toggle",
+      "Description": "Two large plates joined by one foundation cell; repeated real splits",
+      "Width": 250,
+      "Height": 250,
+      "Seed": 20261107,
+      "InitialCells": 37621,
+      "Events": 1200,
+      "ChangedCells": 1200,
+      "TraceSha256": "32a91399e22c29a4b2e25cb1c2becc5d9cbdd217e334d1f02fd69f12c15a14bc"
+    },
+    {
+      "Name": "ring_toggle",
+      "Description": "One-cell ring; break/close a large background hole without foreground split",
+      "Width": 250,
+      "Height": 250,
+      "Seed": 20261108,
+      "InitialCells": 916,
+      "Events": 1200,
+      "ChangedCells": 1200,
+      "TraceSha256": "dff07d71f5d7fb67e97d8e4cf1fcc87e0a82cbee4c983cb3d9257f8fc153a7b5"
+    },
+    {
+      "Name": "random59",
+      "Description": "59% iid occupancy, arbitrary toggles; fragmentation stress, not a typical ship",
+      "Width": 250,
+      "Height": 250,
+      "Seed": 20261109,
+      "InitialCells": 36835,
+      "Events": 1200,
+      "ChangedCells": 1200,
+      "TraceSha256": "22be8330f79a3843d15d312752cd7c5d26d75d35f1824c3a48c1c03e401d88e1"
+    }
+  ]
+}

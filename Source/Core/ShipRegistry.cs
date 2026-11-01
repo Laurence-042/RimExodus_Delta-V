@@ -261,6 +261,17 @@ namespace DeltaV
         }
 
         /// <summary>
+        /// 出力前只判断是否需要残片清单；实际清单仍使用 ControlDomain/ResidualBlocks。
+        /// </summary>
+        internal static bool HasResidualBlocks(Ship ship)
+        {
+            if (!ship.IsValid) return false;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            return universe != null ? universe.FoundationTopology.HasResidual(ship)
+                : ResidualBlocks(ship.map, ControlDomain(ship)).Count != 0;
+        }
+
+        /// <summary>
         /// 残留块划分：图上不在 exclude（控制域等保留集）内的全部基架格按**物理四连通**
         /// （不分归属）分块（§8.1 残留块语义，唯一实现）。用于出力前拆分与脱离清单。
         /// </summary>

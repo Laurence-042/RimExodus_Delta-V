@@ -100,11 +100,8 @@ namespace DeltaV
             if (!ShipRegistry.RequiresOwnPocket(ship))
             {
                 // 拆分方向：控制域外残留块（不分归属）必须离开本容器，否则会随船整体运动。
-                bool knownClean = cleanResiduals.TryGetValue(ship.ownerId, out Map clean)
-                    && clean == sourceMap;
-                List<HashSet<IntVec3>> blocks = knownClean ? null : CollectResidualBlocks(ship);
-                if (blocks != null && blocks.Count == 0)
-                    cleanResiduals[ship.ownerId] = sourceMap;
+                List<HashSet<IntVec3>> blocks = ShipRegistry.HasResidualBlocks(ship)
+                    ? CollectResidualBlocks(ship) : null;
                 // 常态只检查有无散落货物；分离需要展示清单时才物化列表。
                 if ((blocks == null || blocks.Count == 0)
                     && !universe.Scatter.LooseCargo(sourceMap).Any()) return true;

@@ -91,7 +91,7 @@ namespace DeltaV
             SubstructureOwnership.TryGet(map)?.NotifyFoundationRemoved(cell);
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe?.FrameOf(map) == null) return;
-            universe.NotifyFoundationChanged(map);
+            universe.NotifyFoundationChanged(map, cell);
             universe.NotifySupportChanged(map, cell);
         }
     }

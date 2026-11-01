@@ -19,7 +19,10 @@ internal static partial class Program
         if (separationTransfers == separationFailOn) { __result = null; return false; }
         // Only replace Unity map generation/transfer; production grouping, gate and retries run.
         foreach (IntVec3 cell in cells)
+        {
             sourceMap.terrainGrid.foundationGrid[sourceMap.cellIndices.CellToIndex(cell)] = null;
+            Current.Game.GetComponent<UniverseManager>().NotifyFoundationChanged(sourceMap, cell);
+        }
         SubstructureOwnership.BumpStructureVersion();
         __result = sourceFrame;
         return false;
@@ -45,6 +48,8 @@ internal static partial class Program
         TerrainDefOf.Space = space;
         ThingDef oldPort = DeltaVDefOf.DeltaV_DockingPort;
         DeltaVDefOf.DeltaV_DockingPort = TestBuildingDef("separationPort");
+        ThingDef oldLauncher = DeltaVDefOf.DeltaV_Weapon_MissileLauncher;
+        DeltaVDefOf.DeltaV_Weapon_MissileLauncher = TestBuildingDef("separationLauncher");
         var deck = (TerrainDef)Raw(typeof(TerrainDef)); deck.isFoundation = true;
         var soil = (TerrainDef)Raw(typeof(TerrainDef)); soil.natural = true;
         var floor = (TerrainDef)Raw(typeof(TerrainDef)); floor.natural = false;
@@ -55,6 +60,7 @@ internal static partial class Program
         {
             int i = map.cellIndices.CellToIndex(c);
             map.terrainGrid.foundationGrid[i] = deck; owners[i] = owner;
+            universe.NotifyFoundationChanged(map, c);
             SubstructureOwnership.BumpStructureVersion();
         }
         try
@@ -68,9 +74,37 @@ internal static partial class Program
                 "foundation and support event postfixes bind to installed RimWorld signatures");
             Foundation(main.parent.Position, main.shipId);
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship), "single clean ship stays in its current container");
+            Check(!ShipRegistry.HasResidualBlocks(main.Ship), "initial topology matches the clean main-console domain");
+            IntVec3 adjacent = main.parent.Position + new IntVec3(1, 0, 0);
+            Foundation(adjacent, main.shipId);
+            Check(!ShipRegistry.HasResidualBlocks(main.Ship), "connected same-owner addition remains clean");
+            SubstructureOwnership.For(map).Assign(adjacent, 999);
+            Check(ShipRegistry.HasResidualBlocks(main.Ship)
+                && !ShipRegistry.ControlDomain(main.Ship).Contains(adjacent),
+                "authoritative Assign invalidates topology; touching foreign cells stay outside the control domain");
+            SubstructureOwnership.For(map).ClearOwner(999);
+            Check(ShipRegistry.HasResidualBlocks(main.Ship), "ClearOwner preserves unassigned foundation as residual");
+            SubstructureOwnership.For(map).Assign(adjacent, main.shipId);
+            Check(!ShipRegistry.HasResidualBlocks(main.Ship), "reassignment restores a clean domain");
+            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(adjacent)] = null;
+            SubstructureOwnership.For(map).NotifyFoundationRemoved(adjacent);
+            Check(!ShipRegistry.HasResidualBlocks(main.Ship)
+                && SubstructureOwnership.For(map).OwnerAt(adjacent) == 0,
+                "foundation removal synchronizes topology and persistent owner without splitting");
+            // Exercise actual postfix bodies after the fixture writes the same final state as TerrainGrid.
+            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(adjacent)] = deck;
+            AccessTools.Method(typeof(Patch_ShipStructure_Terrain), "Postfix").Invoke(null,
+                new object[] { map.terrainGrid, adjacent, deck, null });
+            Check(ShipRegistry.HasResidualBlocks(main.Ship),
+                "terrain callback catches new unassigned foundation without an owner write");
+            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(adjacent)] = null;
+            Patch_TerrainGrid_RemoveGravshipTerrainUnsafe_Ownership.Postfix(map.terrainGrid, adjacent);
+            Check(!ShipRegistry.HasResidualBlocks(main.Ship),
+                "unsafe transfer removal callback clears unassigned foundation from topology");
             Foundation(IntVec3.Zero, 0);
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship), "unassigned detached foundation does not force ship extraction");
             owners[0] = 999;
+            universe.NotifyFoundationChanged(map, IntVec3.Zero);
             SubstructureOwnership.BumpStructureVersion();
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship), "foreign wreck ownership does not force extraction either");
             metadata.worksite = true;
@@ -158,7 +192,6 @@ internal static partial class Program
                 "cargo deregistration clears the per-map index");
 
             Foundation(new IntVec3(4, 0, 4), 999);
-            universe.NotifyFoundationChanged(map);
             Check(!universe.ShipTransitions.RequestFoundationSeparation(universe, main.Ship, false),
                 "foundation change invalidates the previously clean split conclusion");
             Call(universe, "RunFrameActions");
@@ -170,9 +203,11 @@ internal static partial class Program
             harmony.UnpatchAll(harmony.Id);
             Current.Game.currentMapIndex = oldMapIndex;
             TerrainDefOf.Space = oldSpace; DeltaVDefOf.DeltaV_DockingPort = oldPort;
-            Actions(universe).Clear(); universe.ShipTransitions.pendingSeparationOwnerIds.Remove(main.shipId);
+            DeltaVDefOf.DeltaV_Weapon_MissileLauncher = oldLauncher;
+            Actions(universe)?.Clear(); universe.ShipTransitions.pendingSeparationOwnerIds.Remove(main.shipId);
             universe.objects.Remove(frame); Set(universe, "objectById", null);
             Find.Maps.Remove(map); ShipRegistry.ClearCaches();
+            universe.ForgetFoundationTopology(map);
         }
     }
 }
