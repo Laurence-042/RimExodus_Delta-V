@@ -16,8 +16,13 @@ foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'Assemb
 }
 Copy-Item -LiteralPath "$repo/1.6/Assemblies/DeltaV.dll" -Destination $out -Force
 Copy-Item -LiteralPath $HarmonyPath -Destination $out -Force
+foreach ($name in @('AdaptiveStorageFramework', '1ITransformable')) {
+    $path = "D:/SteamLibrary/steamapps/workshop/content/294100/3033901359/1.6/Assemblies/$name.dll"
+    Copy-Item -LiteralPath $path -Destination $out -Force
+    $lines += '/r:"' + $path + '"'
+}
 foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'DeltaV.dll', '0Harmony.dll')) { $lines += '/r:"' + "$out/$name" + '"' }
-$lines += '"' + "$PSScriptRoot/Program.cs" + '"'
+$lines += Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.cs' | ForEach-Object { '"' + $_.FullName + '"' }
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & dotnet "$($sdkVersion.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

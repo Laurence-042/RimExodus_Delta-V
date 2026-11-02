@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_SafetyBattery</defName>
+    <label>safe reserve battery</label>
+    <description>Stores a protected reserve of 3600 Wd. Charges at 3000 W while grid output is disabled. Enable grid output manually to supply 1–6000 W, including power for recharging ordinary batteries. Its reserve cannot be drained directly by weapons or electrical short circuits. Starts empty.</description>
+    <thingClass>Building</thingClass>
+    <tickerType>Normal</tickerType>
+    <size>(3,2)</size><rotatable>true</rotatable>
+    <designationCategory>Power</designationCategory>
+    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
+    <passability>PassThroughOnly</passability><pathCost>50</pathCost><fillPercent>0.5</fillPercent>
+    <statBases><WorkToBuild>6000</WorkToBuild><MaxHitPoints>300</MaxHitPoints><Mass>180</Mass><Flammability>0</Flammability></statBases>
+    <costList><Steel>420</Steel><Plasteel>30</Plasteel><ComponentIndustrial>12</ComponentIndustrial></costList>
+    <graphicData><texPath>Things/Building/Power/SafetyBattery</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(3,2)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
+    <building><isEdifice>true</isEdifice></building>
+    <researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
+    <comps>
+      <li Class="DeltaV.CompProperties_SwitchableBattery">
+        <basePowerConsumption>0</basePowerConsumption><shortCircuitInRain>false</shortCircuitInRain>
+        <capacityWattDays>3600</capacityWattDays><chargingWatts>3000</chargingWatts>
+        <initialEnergyPercent>0</initialEnergyPercent><maxOutputWatts>6000</maxOutputWatts>
+      </li>
+    </comps>
+  </ThingDef>
+</Defs>

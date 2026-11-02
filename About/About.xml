@@ -15,6 +15,11 @@ Phase 3 prototype: POI lifecycle, dynamic anchor, pilot console, fixed orbit. Ea
   </supportedVersions>
   <modDependencies>
     <li>
+      <packageId>adaptive.storage.framework</packageId>
+      <displayName>Adaptive Storage Framework</displayName>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/3033901359</steamWorkshopUrl>
+    </li>
+    <li>
       <packageId>RimExodus.Framework.dev</packageId>
       <displayName>RimExodus Framework (Dev)</displayName>
     </li>
@@ -31,6 +36,7 @@ Phase 3 prototype: POI lifecycle, dynamic anchor, pilot console, fixed orbit. Ea
     </li>
   </modDependencies>
   <loadAfter>
+    <li>adaptive.storage.framework</li>
     <li>RimExodus.Framework.dev</li>
     <li>Exploriters.siiftun1857.LaunchIntoEmptySpace</li>
   </loadAfter>

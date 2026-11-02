@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_CargoOpen>打开货柜</DeltaV_CargoOpen>
+  <DeltaV_CargoHack>骇入货柜</DeltaV_CargoHack>
+  <DeltaV_CargoStorageMode>启用仓储模式</DeltaV_CargoStorageMode>
+  <DeltaV_CargoStorageModeDesc>货柜解锁后可切换。开启时，殖民者会按筛选和优先级存放物品，也能搬出货物或从柜内取材制作。关闭后货物保持封存。</DeltaV_CargoStorageModeDesc>
+  <DeltaV_CargoCapacity>容量：{0}/{1} 堆</DeltaV_CargoCapacity>
+  <DeltaV_CargoTemperature>室外／货物温度：{0}°C／{1}°C</DeltaV_CargoTemperature>
+  <DeltaV_TradeTerminalTrade>与空间站交易</DeltaV_TradeTerminalTrade>
+  <DeltaV_TradeTerminalLink>关联货柜</DeltaV_TradeTerminalLink>
+  <DeltaV_TradeTerminalLinkDesc>选择这座终端使用的货柜。未解锁的货柜存放待售货物，已解锁的货柜接收购入货物。</DeltaV_TradeTerminalLinkDesc>
+  <DeltaV_TradeChanged>交易已取消：对接已断开，或货柜、终端的状态发生变化。请重新打开交易窗口。</DeltaV_TradeChanged>
+  <DeltaV_TradeNoRoom>交易已取消：存放待售货物或接收购入货物的货柜空间不足。请腾出空间后重试。</DeltaV_TradeNoRoom>
+  <DeltaV_DevYes>是</DeltaV_DevYes>
+  <DeltaV_DevNo>否</DeltaV_DevNo>
+  <DeltaV_DevCargoAddSample>DEV：加入样例货物</DeltaV_DevCargoAddSample>
+  <DeltaV_DevCargoInspect>DEV：查看货柜内容</DeltaV_DevCargoInspect>
+  <DeltaV_DevCargoOpen>DEV：瞬间骇入／全部打开</DeltaV_DevCargoOpen>
+  <DeltaV_DevCargoClear>DEV：清空货柜</DeltaV_DevCargoClear>
+  <DeltaV_DevCargoDestroy>DEV：毁坏并损失货物</DeltaV_DevCargoDestroy>
+  <DeltaV_DevCargoReport>堆数：{0}；物品数量：{1}；质量：{2}；已骇入：{3}</DeltaV_DevCargoReport>
+  <DeltaV_DevMoreCargo>……其余堆已省略</DeltaV_DevMoreCargo>
+  <DeltaV_DevTradeAddStock>DEV：加入交易库存</DeltaV_DevTradeAddStock>
+  <DeltaV_DevTradeRelink>DEV：重连附近货柜</DeltaV_DevTradeRelink>
+  <DeltaV_DevTradeInspect>DEV：查看交易关联</DeltaV_DevTradeInspect>
+  <DeltaV_DevTradeReport>已生成库存：{0}；已初始化关联：{1}；交易员类型：{2}；价格种子：{3}；对接船地图：{4}；可交易：{5}</DeltaV_DevTradeReport>
+  <DeltaV_DevTradeCargoLine>货柜 {0}：{1}，有效 {2}，堆数 {3}</DeltaV_DevTradeCargoLine>
+  <DeltaV_DevTradeUnlocked>已解锁／交货</DeltaV_DevTradeUnlocked>
+  <DeltaV_DevTradeLocked>未解锁／库存</DeltaV_DevTradeLocked>
+</LanguageData>

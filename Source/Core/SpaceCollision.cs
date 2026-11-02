@@ -145,7 +145,7 @@ namespace DeltaV
             public Vector2 redirectDirection;
             public float redirectRemaining;
             public System.Action<Vector3, Vector3> onShieldRedirect;
-            public System.Action<Vector3, SpaceObject, Vector2, float> onShieldShatter;
+            public System.Action<Vector3, SpaceObject, Vector2, Vector2, float> onShieldShatter;
             // Consumed synchronously after each resolved contact, before the next sweep.
             public System.Action<VisualContact> onVisualContact;
         }
@@ -159,7 +159,7 @@ namespace DeltaV
             public Vector3 position, pathFrom;
             public Vector2 localPoint, localDirection, localNormal;
             public float damageScale, explosionRadius;
-            public bool explosive, nativeExplosion, destroyed, penetrated, missileDestroyed, shieldBroken;
+            public bool explosive, nativeExplosion, destroyed, penetrated, missileDestroyed, shieldBroken, shieldEmergency;
             public SpaceShieldMode? shieldMode;
             public Vector2 shieldCenter;
             public Vector2 lineStart, lineEnd;
@@ -652,21 +652,17 @@ namespace DeltaV
                 if (lineShield.mode == SpaceShieldMode.Kinetic)
                 {
                     Vector2 relative = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, defender.pose, hit);
-                    float speed = relative.magnitude;
-                    float effectiveMass = body.mass * body.damageScale;
-                    bool active = lineShield.kineticStrengthPercent > 0;
                     float baseCost = projectileProps.shieldFragmentCost;
-                    float kineticCost = SpaceKinetics.ShieldCost(effectiveMass, speed,
-                        SpaceKinetics.ReverseEnergy(lineShield.kineticStrengthPercent), baseCost, active);
+                    float kineticCost = SpaceKinetics.ShieldCost(
+                        SpaceKinetics.ShieldNormalEnergy(lineShield.kineticStrengthPercent), baseCost);
                     float paid = lineShield.ConsumePulseFraction(kineticCost) * kineticCost;
-                    float outgoingSpeed = SpaceKinetics.AfterShield(effectiveMass, speed, paid, baseCost, active);
+                    float normalEnergy = Mathf.Max(0f, paid - baseCost) * SpaceKinetics.EnergyUnitsPerWattDay;
                     body.resolvedHit = true;
                     body.resolvedHitShield = true;
                     body.resolvedHitUniverse = hit;
                     body.resolvedHitDefender = defender;
                     body.resolvedHitLocal = linePoint;
-                    Vector2 worldDirection = speed > .0001f ? relative / speed
-                        : SpaceTransform.MapDirectionToUniverseTangent(defender, defMap, linePoint, dir);
+                    Vector2 worldNormal = SpaceTransform.MapDirectionToUniverseTangent(defender, defMap, linePoint, lineNormal);
                     body.onVisualContact?.Invoke(new VisualContact
                     {
                         defender = defender, projectileDef = body.projectileDef, position = hit, pathFrom = body.from,
@@ -674,7 +670,7 @@ namespace DeltaV
                         damageScale = body.damageScale, shieldMode = SpaceShieldMode.Kinetic,
                         lineStart = lineStart, lineEnd = lineEnd
                     });
-                    body.onShieldShatter?.Invoke(hit, defender, worldDirection, outgoingSpeed);
+                    body.onShieldShatter?.Invoke(hit, defender, relative, worldNormal, normalEnergy);
                     body.dead = true;
                     body.onSelfDestruct?.Invoke();
                     return true;
@@ -731,6 +727,8 @@ namespace DeltaV
                 body.resolvedHitShield = true;
                 body.resolvedHitRadius = 0f;
                 float capacityBefore = CompSpaceShield.AvailableGuardCapacity(shieldArc.interceptor);
+                var guardShield = shieldArc.building.TryGetComp<CompSpaceShield>();
+                bool emergencyBefore = guardShield != null && !guardShield.UsesRegular;
                 float residual = SpaceImpactEffects.ApplyToDefender(evt, shieldEffect?.defenderEffect);
                 SpaceImpactEffects.ApplyToDefender(evt, shieldEffect?.shieldSurfaceEffect);
                 if (shieldEffect?.shieldSurfaceEffect?.kind == ImpactEffectKind.DamageMap)
@@ -747,6 +745,7 @@ namespace DeltaV
                     nativeExplosion = body.resolvedHitExplosive,
                     explosionRadius = body.resolvedHitRadius, shieldMode = SpaceShieldMode.Guard,
                     shieldCenter = shieldArc.center, shieldRadius = shieldArc.radius,
+                    shieldEmergency = emergencyBefore,
                     shieldBroken = capacityBefore > 0 && CompSpaceShield.AvailableGuardCapacity(shieldArc.interceptor) <= 0
                 });
                 if (DeltaVLog.Enabled(DeltaVLogModule.Combat))

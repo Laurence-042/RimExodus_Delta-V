@@ -31,7 +31,7 @@
 			<li>DeltaV_VacuumBarrier</li>
 		</researchPrerequisites>
 		<statBases>
-			<WorkToBuild>1400</WorkToBuild>
+			<WorkToBuild>3000</WorkToBuild>
 			<MaxHitPoints>200</MaxHitPoints>
 		</statBases>
 		<graphicData>
@@ -51,10 +51,7 @@
 			</blueprintGraphicData>
 		</building>
 		<useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
-		<costList>
-			<Steel>40</Steel>
-			<ComponentIndustrial>1</ComponentIndustrial>
-		</costList>
+		<costList Inherit="False"><Steel>80</Steel><Plasteel>10</Plasteel><ComponentIndustrial>2</ComponentIndustrial></costList>
 		<placeWorkers>
 			<li>DeltaV.PlaceWorker_DockingPort</li>
 		</placeWorkers>

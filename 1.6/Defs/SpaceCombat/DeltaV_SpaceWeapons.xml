@@ -141,12 +141,9 @@
         <drawSize>(1.3,1.3)</drawSize>
       </blueprintGraphicData>
     </building>
-    <costList>
-      <Steel>100</Steel>
-      <ComponentIndustrial>4</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>120</Steel><Plasteel>20</Plasteel><ComponentIndustrial>4</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>1800</WorkToBuild>
+      <WorkToBuild>3000</WorkToBuild>
       <MaxHitPoints>120</MaxHitPoints>
       <Flammability>0.3</Flammability>
     </statBases>
@@ -198,12 +195,9 @@
       </blueprintGraphicData>
     </building>
     <description>A crewed heavy cannon. Load steel-made propellant and projectile heads separately. Adjust charge and head mass independently; each shot heats the cannon according to its propellant charge and firing resumes once it has cooled completely. One slot accepts fire control or an auxiliary magazine.</description>
-    <costList>
-      <Steel>260</Steel>
-      <ComponentIndustrial>7</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>300</Steel><Plasteel>25</Plasteel><ComponentIndustrial>6</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>4800</WorkToBuild>
+      <WorkToBuild>10000</WorkToBuild>
       <MaxHitPoints>320</MaxHitPoints>
       <Flammability>0.3</Flammability>
     </statBases>
@@ -285,12 +279,9 @@
       </blueprintGraphicData>
     </building>
     <description>A crewed rapid cannon using one propellant and one head per shot. Adjust firing rate to trade concentrated bursts for heat buildup. Overheating locks firing until completely cool. One attachment slot.</description>
-    <costList>
-      <Steel>240</Steel>
-      <ComponentIndustrial>6</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>250</Steel><ComponentIndustrial>6</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>4200</WorkToBuild>
+      <WorkToBuild>9000</WorkToBuild>
       <MaxHitPoints>290</MaxHitPoints>
     </statBases>
     <comps>
@@ -375,12 +366,9 @@
       </blueprintGraphicData>
     </building>
     <description>A crewed laser turret needing no physical ammunition. Higher power increases damage and stored-energy cost per pulse. A beam affects only its first structure and may be refracted by electromagnetic shields. One slot accepts fire control or a rechargeable capacitor.</description>
-    <costList>
-      <Steel>220</Steel>
-      <ComponentIndustrial>8</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>240</Steel><ComponentIndustrial>8</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>5200</WorkToBuild>
+      <WorkToBuild>8000</WorkToBuild>
       <MaxHitPoints>250</MaxHitPoints>
     </statBases>
     <comps>
@@ -400,7 +388,7 @@
         <cooldownTicks>12</cooldownTicks>
         <minRange>10</minRange>
         <range>120</range>
-        <shotEnergy>2</shotEnergy>
+        <shotEnergy>1</shotEnergy>
         <attachmentSlots>
           <li>
             <cell>(0,0,0)</cell>
@@ -441,13 +429,9 @@
       </blueprintGraphicData>
     </building>
     <description>A crewed heavy cannon with higher charge and head-mass limits and faster cooling. Load propellant and heads separately. Heat depends on charge; firing resumes once it has cooled completely. Two slots accept fire control or auxiliary magazines.</description>
-    <costList>
-      <Steel>520</Steel>
-      <Plasteel>50</Plasteel>
-      <ComponentIndustrial>14</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>550</Steel><Plasteel>75</Plasteel><ComponentIndustrial>12</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>9000</WorkToBuild>
+      <WorkToBuild>20000</WorkToBuild>
       <MaxHitPoints>600</MaxHitPoints>
     </statBases>
     <comps>
@@ -533,12 +517,9 @@
       </blueprintGraphicData>
     </building>
     <description>A crewed rapid cannon with greater heat capacity and cooling. Each shot uses four propellant units and two projectile heads; its firing rate is adjustable. Overheating locks firing until completely cool. Two attachment slots.</description>
-    <costList>
-      <Steel>480</Steel>
-      <ComponentIndustrial>13</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>500</Steel><Plasteel>50</Plasteel><ComponentIndustrial>12</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>8200</WorkToBuild>
+      <WorkToBuild>18000</WorkToBuild>
       <MaxHitPoints>540</MaxHitPoints>
     </statBases>
     <comps>
@@ -629,12 +610,9 @@
       </blueprintGraphicData>
     </building>
     <description>A crewed medium laser turret. Adjustable power raises damage and stored-energy cost without adding single-pulse penetration. Electromagnetic shields can refract the beam. Two slots accept fire control or rechargeable capacitors.</description>
-    <costList>
-      <Steel>440</Steel>
-      <ComponentSpacer>8</ComponentSpacer>
-    </costList>
+    <costList Inherit="False"><Steel>480</Steel><ComponentIndustrial>16</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>10000</WorkToBuild>
+      <WorkToBuild>16000</WorkToBuild>
       <MaxHitPoints>480</MaxHitPoints>
     </statBases>
     <comps>
@@ -654,7 +632,7 @@
         <cooldownTicks>12</cooldownTicks>
         <minRange>15</minRange>
         <range>160</range>
-        <shotEnergy>4</shotEnergy>
+        <shotEnergy>2</shotEnergy>
         <impactScale>2</impactScale>
         <attachmentSlots>
           <li>
@@ -692,10 +670,7 @@
     <description>An airtight cold-launch missile rack with one internal ready missile. Haulers load it before filling attached magazines; the ready missile can be ejected manually.</description>
     <size>(1,3)</size>
     <drawerType>MapMeshAndRealTime</drawerType>
-    <costList>
-      <Steel>420</Steel>
-      <ComponentIndustrial>12</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>300</Steel><Plasteel>40</Plasteel><ComponentIndustrial>8</ComponentIndustrial></costList>
     <uiIconPath>Things/Building/SpaceWeapons/MissileLauncher_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
     <graphicData>
@@ -743,7 +718,7 @@
       </blueprintGraphicData>
     </building>
     <statBases>
-      <WorkToBuild>7000</WorkToBuild>
+      <WorkToBuild>10000</WorkToBuild>
       <MaxHitPoints>620</MaxHitPoints>
     </statBases>
     <comps>
@@ -824,12 +799,9 @@
     <useStuffTerrainAffordance>false</useStuffTerrainAffordance>
     <costStuffCount>0</costStuffCount>
     <stuffCategories Inherit="False" />
-    <costList>
-      <Steel>180</Steel>
-      <ComponentIndustrial>5</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>160</Steel><Plasteel>30</Plasteel><ComponentIndustrial>4</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>3600</WorkToBuild>
+      <WorkToBuild>5000</WorkToBuild>
       <MaxHitPoints>450</MaxHitPoints>
     </statBases>
     <building>
@@ -892,12 +864,9 @@
     <placeWorkers>
       <li>DeltaV.PlaceWorker_RailgunPart</li>
     </placeWorkers>
-    <costList>
-      <Steel>240</Steel>
-      <ComponentIndustrial>8</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>300</Steel><Plasteel>60</Plasteel><ComponentIndustrial>8</ComponentIndustrial><ComponentSpacer>1</ComponentSpacer></costList>
     <statBases>
-      <WorkToBuild>5000</WorkToBuild>
+      <WorkToBuild>15000</WorkToBuild>
       <MaxHitPoints>400</MaxHitPoints>
     </statBases>
     <comps>
@@ -1005,12 +974,9 @@
     <placeWorkers>
       <li>DeltaV.PlaceWorker_RailgunPart</li>
     </placeWorkers>
-    <costList>
-      <Steel>520</Steel>
-      <ComponentIndustrial>16</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>600</Steel><Plasteel>120</Plasteel><ComponentIndustrial>16</ComponentIndustrial><ComponentSpacer>2</ComponentSpacer></costList>
     <statBases>
-      <WorkToBuild>10000</WorkToBuild>
+      <WorkToBuild>30000</WorkToBuild>
       <MaxHitPoints>800</MaxHitPoints>
     </statBases>
     <comps>
@@ -1079,7 +1045,7 @@
     <defName>DeltaV_Weapon_RailgunAccelerator</defName>
     <uiOrder>-191</uiOrder>
     <label>small rail accelerator</label>
-    <description>A serial rail segment requiring 1,200 Wd per shot. Each funded segment adds 120 cells per second, increasing penetration and shield impact. An unfunded segment is skipped. Each side accepts a three-pulse capacitor.</description>
+    <description>A serial rail segment requiring 1,200 Wd per shot. Each funded segment adds 120 cells per second, increasing penetration and shield impact. An unfunded segment is skipped. Each side accepts a capacitor or an energy recovery module. Each recovery module reduces this segment's pulse cost by 25%, up to 50% with two.</description>
     <uiIconPath>Things/Building/SpaceWeapons/RailgunAccelerator_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
     <building>
@@ -1111,12 +1077,9 @@
     <placeWorkers>
       <li>DeltaV.PlaceWorker_RailgunPart</li>
     </placeWorkers>
-    <costList>
-      <Steel>100</Steel>
-      <ComponentIndustrial>3</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>120</Steel><Plasteel>30</Plasteel><ComponentIndustrial>4</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>1600</WorkToBuild>
+      <WorkToBuild>5000</WorkToBuild>
       <MaxHitPoints>180</MaxHitPoints>
     </statBases>
     <comps>
@@ -1149,6 +1112,7 @@
         </attachmentSlots>
         <allowedAttachmentDefs>
           <li>DeltaV_Building_RailgunCapacitor</li>
+          <li>DeltaV_RailgunEnergyRecovery</li>
         </allowedAttachmentDefs>
       </li>
       <li Class="DeltaV.CompProperties_RailgunAcceleratorAppearance" />
@@ -1161,7 +1125,7 @@
     <defName>DeltaV_Weapon_RailgunAcceleratorLarge</defName>
     <uiOrder>-188</uiOrder>
     <label>large rail accelerator</label>
-    <description>A large serial rail segment requiring 2,400 Wd per shot. Each funded segment adds 120 cells per second, increasing penetration and shield impact. An unfunded segment is skipped. Each side accepts a three-pulse capacitor.</description>
+    <description>A large serial rail segment requiring 2,400 Wd per shot. Each funded segment adds 120 cells per second, increasing penetration and shield impact. An unfunded segment is skipped. Each side accepts a capacitor or an energy recovery module. Each recovery module reduces this segment's pulse cost by 25%, up to 50% with two.</description>
     <uiIconPath>Things/Building/SpaceWeapons/RailgunAccelerator_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
     <building>
@@ -1193,12 +1157,9 @@
     <placeWorkers>
       <li>DeltaV.PlaceWorker_RailgunPart</li>
     </placeWorkers>
-    <costList>
-      <Steel>240</Steel>
-      <ComponentIndustrial>7</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>240</Steel><Plasteel>60</Plasteel><ComponentIndustrial>8</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>3600</WorkToBuild>
+      <WorkToBuild>10000</WorkToBuild>
       <MaxHitPoints>360</MaxHitPoints>
     </statBases>
     <comps>
@@ -1231,6 +1192,7 @@
         </attachmentSlots>
         <allowedAttachmentDefs>
           <li>DeltaV_Building_RailgunCapacitorLarge</li>
+          <li>DeltaV_RailgunEnergyRecovery</li>
         </allowedAttachmentDefs>
       </li>
       <li Class="DeltaV.CompProperties_RailgunAcceleratorAppearance" />
@@ -1262,12 +1224,9 @@
     <placeWorkers>
       <li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li>
     </placeWorkers>
-    <costList>
-      <Steel>40</Steel>
-      <ComponentIndustrial>4</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>40</Steel><Plasteel>20</Plasteel><ComponentIndustrial>4</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>1200</WorkToBuild>
+      <WorkToBuild>3000</WorkToBuild>
       <MaxHitPoints>80</MaxHitPoints>
     </statBases>
     <comps>
@@ -1288,12 +1247,9 @@
       <drawSize>(1,1)</drawSize>
       <drawOffset>(0,-0.712,0)</drawOffset>
     </graphicData>
-    <costList>
-      <Steel>40</Steel>
-      <ComponentSpacer>2</ComponentSpacer>
-    </costList>
+    <costList Inherit="False"><Steel>40</Steel><Plasteel>30</Plasteel><ComponentIndustrial>4</ComponentIndustrial><ComponentSpacer>2</ComponentSpacer></costList>
     <statBases>
-      <WorkToBuild>2400</WorkToBuild>
+      <WorkToBuild>6000</WorkToBuild>
     </statBases>
     <comps Inherit="False">
       <li Class="CompProperties_Forbiddable" />
@@ -1325,12 +1281,9 @@
     <placeWorkers>
       <li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li>
     </placeWorkers>
-    <costList>
-      <Steel>50</Steel>
-      <ComponentIndustrial>2</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>60</Steel><Plasteel>20</Plasteel><ComponentIndustrial>2</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>1000</WorkToBuild>
+      <WorkToBuild>2000</WorkToBuild>
       <MaxHitPoints>100</MaxHitPoints>
     </statBases>
     <comps>
@@ -1364,7 +1317,7 @@
     <defName>DeltaV_Building_LaserCapacitor</defName>
     <uiOrder>-182</uiOrder>
     <label>laser capacitor</label>
-    <description>A rechargeable 80 Wd capacitor for laser turrets. It starts empty, draws 240 W while charging and replaces grid energy for a shot whenever it can supply the full pulse. Charging from empty takes 20,000 ticks.</description>
+    <description>A rechargeable 600 Wd capacitor for laser turrets. It starts empty, draws 1800 W while charging and replaces grid energy for a shot whenever it can supply the full pulse. Charging from empty takes 8 game hours.</description>
     <thingClass>Building</thingClass>
     <tickerType>Normal</tickerType>
     <passability>Standable</passability>
@@ -1384,20 +1337,17 @@
     <placeWorkers>
       <li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li>
     </placeWorkers>
-    <costList>
-      <Steel>30</Steel>
-      <ComponentIndustrial>2</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>60</Steel><Plasteel>20</Plasteel><ComponentIndustrial>3</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>800</WorkToBuild>
+      <WorkToBuild>2000</WorkToBuild>
       <MaxHitPoints>80</MaxHitPoints>
     </statBases>
     <comps>
       <li Class="CompProperties_Forbiddable" />
       <li Class="DeltaV.CompProperties_SwitchableBattery">
         <basePowerConsumption>0</basePowerConsumption>
-        <capacityWattDays>80</capacityWattDays>
-        <chargingWatts>240</chargingWatts>
+        <capacityWattDays>600</capacityWattDays>
+        <chargingWatts>1800</chargingWatts>
         <initialEnergyPercent>0</initialEnergyPercent>
         <maxOutputWatts>240</maxOutputWatts>
       </li>
@@ -1433,12 +1383,9 @@
     <placeWorkers>
       <li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li>
     </placeWorkers>
-    <costList>
-      <Steel>60</Steel>
-      <ComponentIndustrial>6</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>420</Steel><Plasteel>60</Plasteel><ComponentIndustrial>12</ComponentIndustrial><ComponentSpacer>2</ComponentSpacer></costList>
     <statBases>
-      <WorkToBuild>1800</WorkToBuild>
+      <WorkToBuild>6000</WorkToBuild>
       <MaxHitPoints>120</MaxHitPoints>
     </statBases>
     <comps>
@@ -1463,12 +1410,9 @@
     <uiOrder>-187</uiOrder>
     <label>large railgun capacitor</label>
     <description>A capacitor for a large railgun loading unit or accelerator. It starts empty and stores 7,200 Wd, enough for two loading-unit base pulses or three accelerator pulses. It charges at 2,000 W and takes 216,000 ticks from empty to full. When insufficiently charged, its host draws the full pulse from grid batteries.</description>
-    <costList>
-      <Steel>110</Steel>
-      <ComponentIndustrial>10</ComponentIndustrial>
-    </costList>
+    <costList Inherit="False"><Steel>840</Steel><Plasteel>120</Plasteel><ComponentIndustrial>24</ComponentIndustrial><ComponentSpacer>4</ComponentSpacer></costList>
     <statBases>
-      <WorkToBuild>3000</WorkToBuild>
+      <WorkToBuild>12000</WorkToBuild>
       <MaxHitPoints>180</MaxHitPoints>
     </statBases>
     <comps Inherit="False">

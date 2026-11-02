@@ -15,7 +15,7 @@ using Verse;
 // and auto-rebuild jobs are suppressed; building death and roof notifications are isolated.
 // DLC availability is supplied by the fixture.
 // This does not replace an in-game explosion test.
-internal static class Program
+internal static partial class Program
 {
     static int checks;
     static int breachEvents;
@@ -374,5 +374,6 @@ internal static class Program
             "unmanaged terrain removal retains vanilla behavior");
         Check(host.Spawned && map.roofGrid.RoofAt(cell) == roof,
             "unmanaged removal preserves buildings and roof");
+        CheckRoofs(game, universe, deck, space, roof);
     }
 }

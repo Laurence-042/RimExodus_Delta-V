@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <AdaptiveStorage.GraphicsDef>
+    <defName>DeltaV_CargoContainerGraphics</defName>
+    <targetDef>DeltaV_CargoContainer</targetDef>
+    <showBaseGraphic>false</showBaseGraphic>
+    <showContainedItems>false</showContainedItems>
+    <graphics>
+      <li>
+        <graphicData Class="DeltaV.StorageGraphicData_CargoState">
+          <texPath>Things/Building/StationTrade/CargoContainer_Locked</texPath>
+          <graphicClass>Graphic_Single</graphicClass><drawSize>(2,3)</drawSize>
+          <damageData><enabled>false</enabled></damageData>
+          <unlockedGraphicData>
+            <texPath>Things/Building/StationTrade/CargoContainer_Unlocked</texPath>
+            <graphicClass>Graphic_Single</graphicClass><drawSize>(2,3)</drawSize>
+            <damageData><enabled>false</enabled></damageData>
+          </unlockedGraphicData>
+        </graphicData>
+      </li>
+    </graphics>
+  </AdaptiveStorage.GraphicsDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_CargoContainer</defName>
+    <label>station cargo container</label>
+    <description>Exterior cargo bay for 48 stacks. Hack a locked bay to access its contents and storage controls. Cargo follows the outdoor temperature without using power. An optional temperature-control module can cool or heat its contents. Destruction ruins most cargo.</description>
+    <thingClass>DeltaV.Building_SpaceCargoContainer</thingClass>
+    <category>Building</category>
+    <size>(2,3)</size>
+    <rotatable>true</rotatable>
+    <designationCategory>Odyssey</designationCategory>
+    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
+    <passability>PassThroughOnly</passability>
+    <fillPercent>0.4</fillPercent>
+    <drawerType>MapMeshAndRealTime</drawerType>
+    <surfaceType>Item</surfaceType>
+    <drawGUIOverlay>true</drawGUIOverlay>
+    <useHitPoints>true</useHitPoints>
+    <statBases><WorkToBuild>3000</WorkToBuild><MaxHitPoints>300</MaxHitPoints><Mass>150</Mass><Flammability>0</Flammability></statBases>
+    <costList Inherit="False"><Steel>200</Steel><ComponentIndustrial>2</ComponentIndustrial></costList>
+    <graphicData><texPath>Things/Building/StationTrade/CargoContainer_Locked</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,3)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
+    <comps>
+      <li Class="CompProperties_Hackable">
+        <defence>1800</defence><effectHacking>HackingTerminal</effectHacking>
+        <showProgressAfterHackCompletion>false</showProgressAfterHackCompletion>
+      </li>
+    </comps>
+    <modExtensions>
+      <li Class="AdaptiveStorage.Extension" />
+      <li Class="DeltaV.DefModExtension_CargoAttachments">
+        <slots><li><cell>(0,0,0)</cell><drawOffset>(0.5,-0.8)</drawOffset><drawScale>0.7</drawScale></li></slots>
+        <allowed><li>DeltaV_CargoTemperatureModule</li></allowed>
+      </li>
+    </modExtensions>
+    <building>
+      <isEdifice>false</isEdifice><canExchangeVacuum>false</canExchangeVacuum><maxItemsInCell>8</maxItemsInCell>
+      <preventDeteriorationOnTop>true</preventDeteriorationOnTop>
+      <defaultStorageSettings><priority>Preferred</priority><filter><categories><li>Root</li></categories></filter></defaultStorageSettings>
+    </building>
+    <inspectorTabs><li>ITab_Storage</li><li>AdaptiveStorage.ContentsITab</li></inspectorTabs>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_TradeTerminal</defName>
+    <label>station trade terminal</label>
+    <description>Connects to cargo containers on this structure. Locked bays supply stock; unlocked bays receive purchases from a soft docked ship.</description>
+    <thingClass>DeltaV.Building_SpaceTradeTerminal</thingClass>
+    <category>Building</category>
+    <size>(1,1)</size>
+    <rotatable>true</rotatable>
+    <designationCategory>Odyssey</designationCategory>
+    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
+    <passability>PassThroughOnly</passability>
+    <pathCost>50</pathCost>
+    <fillPercent>0.5</fillPercent>
+    <useHitPoints>true</useHitPoints>
+    <statBases><WorkToBuild>2200</WorkToBuild><MaxHitPoints>150</MaxHitPoints><Mass>40</Mass><Flammability>0</Flammability></statBases>
+    <costList Inherit="False"><Steel>100</Steel><ComponentIndustrial>4</ComponentIndustrial></costList>
+    <graphicData><texPath>Things/Building/StationTrade/TradeTerminal</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1,1)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
+    <building />
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_CargoTemperatureModule</defName><label>cargo temperature-control module</label>
+    <description>Fits the cargo bay's single module slot. Cools at 200 W or heats at 175 W toward the target temperature, with at most a 100°C change from outdoors. Disable the module to stop power use and return cargo to outdoor temperature.</description>
+    <thingClass>Building</thingClass><tickerType>Normal</tickerType><size>(1,1)</size><passability>Standable</passability>
+    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Odyssey</designationCategory>
+    <altitudeLayer>BuildingOnTop</altitudeLayer><building><isEdifice>false</isEdifice></building>
+    <graphicData><texPath>Things/Building/StationTrade/CargoTemperature</texPath><graphicClass>DeltaV.Graphic_SpaceWeaponAttachment</graphicClass><drawSize>(1,1)</drawSize></graphicData>
+    <placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers>
+    <costList><Steel>140</Steel><ComponentIndustrial>4</ComponentIndustrial></costList>
+    <statBases><WorkToBuild>3000</WorkToBuild><MaxHitPoints>100</MaxHitPoints><Flammability>0</Flammability></statBases>
+    <comps>
+      <li Class="DeltaV.CompProperties_SpaceWeaponAttachment"><allowedHostDefs><li>DeltaV_CargoContainer</li></allowedHostDefs></li>
+      <li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>200</basePowerConsumption></li>
+      <li Class="DeltaV.CompProperties_CargoTemperature"><defaultTargetTemperature>-10</defaultTargetTemperature><coolingWatts>200</coolingWatts><heatingWatts>175</heatingWatts><temperatureOffset>100</temperatureOffset></li>
+    </comps>
+  </ThingDef>
+  <JobDef><defName>DeltaV_OpenCargo</defName><driverClass>DeltaV.JobDriver_OpenSpaceCargo</driverClass><reportString>opening cargo container.</reportString></JobDef>
+  <JobDef><defName>DeltaV_UseTradeTerminal</defName><driverClass>DeltaV.JobDriver_UseSpaceTradeTerminal</driverClass><reportString>trading at terminal.</reportString></JobDef>
+</Defs>

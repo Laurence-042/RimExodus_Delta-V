@@ -314,6 +314,11 @@ ShipController（共同基类，统一驾驶契约）
 
 混合派系组合不能把宿主 SpaceObject 的单一 faction 当作全部船的驾驶授权；逐船从实际主台／派系判定。对象层标记用混合／组合显示，具体样式可在施工时细化。
 
+玩家权限统一经 `PilotService.CanPlayerControl` 读取有效船的当前主驾驶台派系（shuttle 为艇体派系），普通模式仅允许玩家派系；God Mode 保留驾驶及火控接管例外。侧边栏不能用 NPC controller 对本船的 `HasAuthority` 代替玩家权限。仅开启 God Mode 不自动替换 NPC controller，玩家主动接管后按现有驾驶／瞄准会话维持玩家 controller，退出接管或关闭 God Mode 后恢复 NPC controller。主台改派系沿用 `Patch_ShipFaction → ReconcileOwner` 清理旧驾驶／自动驾驶并重建控制器。待新档验收敌舰按钮、快捷键、God Mode、占领与失去归属及同图混合派系。
+
+
+2026-11-01 两版常规构建通过并更新 DLL；驾驶专项 67 项通过，包含普通模式权限、God Mode 主动接管与会话维持、关闭 God Mode 后释放控制，以及主台改派系。
+
 ## 11. 坐标、物理与多层扩展边界
 
 保持的坐标不变量：

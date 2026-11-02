@@ -4,7 +4,7 @@
   <ThingDef ParentName="GravshipComponentBase">
     <defName>DeltaV_ShieldGenerator</defName>
     <label>Delta-V shield generator</label>
-    <description>A three-mode shield. Guard shares 1000 regular capacity with this ship and keeps 2000 emergency capacity for local hits. After 10 seconds without regular consumption, powered recovery fills the regular capacity over one game hour at an additional 1000 W. Emergency capacity requires silver. Kinetic fragments solid shots; electromagnetic refracts lasers. Line modes require power and do not share capacity.</description>
+    <description>A three-mode shield. Guard shares 1000 regular capacity with this ship and keeps 2000 emergency capacity for local hits. After 10 seconds without regular consumption, powered recovery fills the regular capacity over one game hour at an additional 1000 W. Emergency capacity starts empty and each silver restores 5 points; its fuel gizmo sets the replenishment limit and automatic refueling. Kinetic fragments solid shots; electromagnetic refracts lasers. Line modes require power and do not share capacity.</description>
     <designationCategory>Security</designationCategory>
     <uiIconPath>Things/Building/SpaceWeapons/ShieldGenerator_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
@@ -19,8 +19,8 @@
     <pathCost>20</pathCost>
     <canOverlapZones>false</canOverlapZones>
     <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
-    <statBases><MaxHitPoints>250</MaxHitPoints><Flammability>0.3</Flammability><Mass>80</Mass></statBases>
-    <costList><Steel>200</Steel><GravlitePanel>80</GravlitePanel><ComponentSpacer>8</ComponentSpacer></costList>
+    <statBases><WorkToBuild>15000</WorkToBuild><MaxHitPoints>250</MaxHitPoints><Flammability>0.3</Flammability><Mass>80</Mass></statBases>
+    <costList Inherit="False"><Steel>250</Steel><GravlitePanel>80</GravlitePanel><ComponentSpacer>6</ComponentSpacer></costList>
     <building><turretTopDrawSize>2.8</turretTopDrawSize><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/ShieldGenerator_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(3,3)</drawSize></blueprintGraphicData></building>
     <modExtensions>
       <li Class="DeltaV.DefModExtension_SpaceTurretArt">
@@ -38,12 +38,16 @@
         <compClass>CompPowerTrader</compClass><basePowerConsumption>10</basePowerConsumption>
       </li>
       <li Class="CompProperties_Refuelable">
-        <compClass>DeltaV.CompDeltaVShieldSilverFuel</compClass>
-        <fuelCapacity>2000</fuelCapacity><initialFuelPercent>0</initialFuelPercent>
+        <initialConfigurableTargetFuelLevel>2000</initialConfigurableTargetFuelLevel>
+        <fuelMultiplier>5</fuelMultiplier><fuelCapacity>2000</fuelCapacity><initialFuelPercent>0</initialFuelPercent>
         <fuelFilter><thingDefs><li>Silver</li></thingDefs></fuelFilter>
-        <fuelLabel>shield repair silver</fuelLabel>
+        <fuelLabel>emergency shield capacity</fuelLabel>
+        <fuelGizmoLabel>Emergency shield</fuelGizmoLabel>
         <consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed>
-        <autoRefuelPercent>1</autoRefuelPercent><showFuelGizmo>false</showFuelGizmo>
+        <autoRefuelPercent>1</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo>
+        <targetFuelLevelConfigurable>true</targetFuelLevelConfigurable>
+        <showAllowAutoRefuelToggle>true</showAllowAutoRefuelToggle>
+        <hideGizmosIfNotPlayerFaction>true</hideGizmosIfNotPlayerFaction>
         <drawOutOfFuelOverlay>false</drawOutOfFuelOverlay>
       </li>
       <li Class="CompProperties_ProjectileInterceptor">
@@ -71,7 +75,7 @@
   <ThingDef ParentName="GravshipComponentBase">
     <defName>DeltaV_ShieldGeneratorSmall</defName>
     <label>small Delta-V shield generator</label>
-    <description>A compact three-mode shield. Its guard dome has 1000 local emergency capacity, restored only with silver; it cannot use shared regular capacity. Powered kinetic and electromagnetic line modes project up to 16 cells and span up to 16 cells.</description>
+    <description>A compact three-mode shield. Its guard dome has 1000 local emergency capacity, starting empty and restored by 5 points per silver; its fuel gizmo sets the replenishment limit and automatic refueling. It cannot use shared regular capacity. Powered kinetic and electromagnetic line modes project up to 16 cells and span up to 16 cells.</description>
     <designationCategory>Security</designationCategory>
     <uiIconPath>Things/Building/SpaceWeapons/ShieldGeneratorSmall_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
@@ -86,8 +90,8 @@
     <pathCost>20</pathCost>
     <canOverlapZones>false</canOverlapZones>
     <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
-    <statBases><WorkToBuild>1800</WorkToBuild><MaxHitPoints>120</MaxHitPoints><Flammability>0.3</Flammability><Mass>20</Mass></statBases>
-    <costList><Steel>100</Steel><GravlitePanel>30</GravlitePanel><ComponentSpacer>4</ComponentSpacer></costList>
+    <statBases><WorkToBuild>6000</WorkToBuild><MaxHitPoints>120</MaxHitPoints><Flammability>0.3</Flammability><Mass>20</Mass></statBases>
+    <costList Inherit="False"><Steel>125</Steel><GravlitePanel>30</GravlitePanel><ComponentSpacer>3</ComponentSpacer></costList>
     <building><turretTopDrawSize>1.2</turretTopDrawSize><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/ShieldGeneratorSmall_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(1.3,1.3)</drawSize></blueprintGraphicData></building>
     <modExtensions>
       <li Class="DeltaV.DefModExtension_SpaceTurretArt">
@@ -105,12 +109,16 @@
         <compClass>CompPowerTrader</compClass><basePowerConsumption>10</basePowerConsumption>
       </li>
       <li Class="CompProperties_Refuelable">
-        <compClass>DeltaV.CompDeltaVShieldSilverFuel</compClass>
-        <fuelCapacity>1000</fuelCapacity><initialFuelPercent>0</initialFuelPercent>
+        <initialConfigurableTargetFuelLevel>1000</initialConfigurableTargetFuelLevel>
+        <fuelMultiplier>5</fuelMultiplier><fuelCapacity>1000</fuelCapacity><initialFuelPercent>0</initialFuelPercent>
         <fuelFilter><thingDefs><li>Silver</li></thingDefs></fuelFilter>
-        <fuelLabel>shield repair silver</fuelLabel>
+        <fuelLabel>emergency shield capacity</fuelLabel>
+        <fuelGizmoLabel>Emergency shield</fuelGizmoLabel>
         <consumeFuelOnlyWhenUsed>true</consumeFuelOnlyWhenUsed>
-        <autoRefuelPercent>1</autoRefuelPercent><showFuelGizmo>false</showFuelGizmo>
+        <autoRefuelPercent>1</autoRefuelPercent><showFuelGizmo>true</showFuelGizmo>
+        <targetFuelLevelConfigurable>true</targetFuelLevelConfigurable>
+        <showAllowAutoRefuelToggle>true</showAllowAutoRefuelToggle>
+        <hideGizmosIfNotPlayerFaction>true</hideGizmosIfNotPlayerFaction>
         <drawOutOfFuelOverlay>false</drawOutOfFuelOverlay>
       </li>
       <li Class="CompProperties_ProjectileInterceptor">

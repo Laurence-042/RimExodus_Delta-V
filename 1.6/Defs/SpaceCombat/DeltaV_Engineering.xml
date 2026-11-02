@@ -15,7 +15,9 @@
   </ThingDef>
 
   <ThingDef ParentName="DeltaV_EngineeringTurret">
-    <defName>DeltaV_InertiaCoupler</defName><label>inertia coupler</label><uiOrder>2100</uiOrder>
+    <defName>DeltaV_InertiaCoupler</defName>
+    <costList Inherit="False"><Steel>180</Steel><Plasteel>50</Plasteel><ComponentIndustrial>6</ComponentIndustrial><ComponentSpacer>1</ComponentSpacer></costList>
+    <statBases><WorkToBuild>10000</WorkToBuild></statBases><label>inertia coupler</label><uiOrder>2100</uiOrder>
     <description>Exchanges momentum and angular momentum with a structure struck by its beam, reducing relative motion without damaging it. Reaction impulses also move and turn the emitting ship; use your thrusters to brake. Hold manual fire to illuminate continuously, consuming stored electricity while active. Shields neither block nor refract the coupling beam. It does not automatically attack, tow or dock. Disconnected components sharing a map are separated before momentum is exchanged; no target engine is required. Use alongside a tractor beam to reduce relative rotation.</description>
     <uiIconPath>Things/Building/SpaceWeapons/InertiaCoupler_MenuIcon</uiIconPath>
     <building><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/InertiaCoupler_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(2.6,2.6)</drawSize></blueprintGraphicData></building>
@@ -23,7 +25,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeapon">
         <manualOnly>true</manualOnly><projectileDef>DeltaV_Beam_InertiaCoupler</projectileDef>
         <intrinsicAimSkill>20</intrinsicAimSkill><baseSpreadDeg>0</baseSpreadDeg>
-        <cooldownTicks>1</cooldownTicks><range>80</range><shotEnergy>0.25</shotEnergy>
+        <cooldownTicks>1</cooldownTicks><range>80</range><shotEnergy>0.1</shotEnergy>
         <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>5</defaultGroupNumber>
         <topTurret>true</topTurret><turretMuzzleDistance>1.02</turretMuzzleDistance>
         <defaultFireDeviationDeg>2</defaultFireDeviationDeg>
@@ -33,7 +35,9 @@
   </ThingDef>
 
   <ThingDef ParentName="DeltaV_EngineeringTurret">
-    <defName>DeltaV_MiningBeam</defName><label>mining beam</label><uiOrder>2101</uiOrder>
+    <defName>DeltaV_MiningBeam</defName>
+    <costList Inherit="False"><Steel>200</Steel><Plasteel>40</Plasteel><ComponentIndustrial>8</ComponentIndustrial></costList>
+    <statBases><WorkToBuild>12000</WorkToBuild></statBases><label>mining beam</label><uiOrder>2101</uiOrder>
     <description>Cuts through rocks, buildings and exposed substructure. Completed cuts drop minerals or normal dismantling materials near the emitter, merging them into existing stacks where possible. Minerals yield 50% of their base amount; intact equipment, cargo and people are not transported. Keep room nearby for output: cutting continues when space runs out, and materials that cannot be placed are lost. Each pulse needs stored electricity. Assign an active weapon group and use manual fire-control mode.</description>
     <uiIconPath>Things/Building/SpaceWeapons/MiningBeam_MenuIcon</uiIconPath>
     <building><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/MiningBeam_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(2.6,2.6)</drawSize></blueprintGraphicData></building>
@@ -41,7 +45,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeapon">
         <manualOnly>true</manualOnly><projectileDef>DeltaV_Beam_Mining</projectileDef>
         <intrinsicAimSkill>20</intrinsicAimSkill><baseSpreadDeg>0</baseSpreadDeg>
-        <cooldownTicks>30</cooldownTicks><range>65</range><shotEnergy>5</shotEnergy>
+        <cooldownTicks>30</cooldownTicks><range>65</range><shotEnergy>3</shotEnergy>
         <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>6</defaultGroupNumber>
         <topTurret>true</topTurret><turretMuzzleDistance>1.13</turretMuzzleDistance>
         <defaultFireDeviationDeg>2</defaultFireDeviationDeg>

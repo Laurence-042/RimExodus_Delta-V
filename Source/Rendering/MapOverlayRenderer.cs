@@ -13,7 +13,8 @@ namespace DeltaV
     /// （2026-09-18 用户决策：不按对象类型分叉配置），纳入标准 = 结构外观：
     /// 地形走 TerrainAt 实际显示语义（原版回落链让基架顶替太空表面、地板盖住基架，
     /// Space/Void 因 dontRender 天然排除）、墙门、气密结构与自然岩石（推进器/船壳/
-    /// 岩石自动入壳）、ShellRenderRuleDef 显式规则。建筑的静态层由原版 Print
+    /// 岩石自动入壳）、ShellRenderRuleDef 显式规则及无顶基架上的建筑。屋顶面逐格
+    /// 覆盖甲板层，屋顶上的显式部件继续使用 Exposed 层。建筑的静态层由原版 Print
     /// 生成，实时层在限定作用域内采集原版 DrawMesh；连接图与 Comp 附加层共用此路径。
     /// </summary>
     public static class MapOverlayRenderer
@@ -26,10 +27,12 @@ namespace DeltaV
         {
             public readonly List<IntVec3> terrainCells = new List<IntVec3>();
             public readonly List<Thing> things = new List<Thing>();
+            public readonly HashSet<Thing> deckThings = new HashSet<Thing>();
             public readonly List<PrintBatch> printed = new List<PrintBatch>();
             public SectionLayer_GravshipHull gravshipHull;
             public SectionLayer_SubstructureProps substructureProps;
             public ShellHullVisuals.EdgeMeshes hullEdges;
+            public Mesh roofEdges;
 
             public void Dispose()
             {
@@ -37,6 +40,7 @@ namespace DeltaV
                 gravshipHull?.Dispose();
                 substructureProps?.Dispose();
                 hullEdges?.Dispose();
+                if (roofEdges != null) Object.Destroy(roofEdges);
             }
         }
 
@@ -246,13 +250,39 @@ namespace DeltaV
                             QuadsDrawnLastPass++;
                         }
                     }
+                    if (ShellHullVisuals.HasShellRoof(map, cell))
+                    {
+                        Material cover = MaterialFor(ShellHullVisuals.RoofSurfaceTerrain(map, cell));
+                        if (cover != null)
+                        {
+                            Vector3 roofPos = new Vector3(cell.x + 0.5f,
+                                AltitudeLayer.Terrain.AltitudeFor(), cell.z + 0.5f);
+                            collector.Add(new OverlayCommand { mesh = CellMeshFor(cell),
+                                matrix = Matrix4x4.TRS(matrix.MultiplyPoint3x4(roofPos), rotation, Vector3.one),
+                                material = cover, surface = ShellSurfaceLayer.Hull,
+                                queue = cover.renderQueue, sequence = nextSequence++ });
+                            QuadsDrawnLastPass++;
+                        }
+                    }
                     continue;
                 }
                 Material material = MaterialFor(terrain);
                 if (material == null) continue;
                 Vector3 source = new Vector3(cell.x + 0.5f, AltitudeLayer.Terrain.AltitudeFor(), cell.z + 0.5f);
-                collector.Add(new OverlayCommand { mesh = CellMeshFor(cell), matrix = Matrix4x4.TRS(matrix.MultiplyPoint3x4(source), rotation, Vector3.one), material = material, queue = material.renderQueue, sequence = nextSequence++ });
+                Matrix4x4 terrainMatrix = Matrix4x4.TRS(matrix.MultiplyPoint3x4(source), rotation, Vector3.one);
+                collector.Add(new OverlayCommand { mesh = CellMeshFor(cell), matrix = terrainMatrix,
+                    material = material, surface = ShellSurfaceLayer.Deck,
+                    queue = material.renderQueue, sequence = nextSequence++ });
                 QuadsDrawnLastPass++;
+                // A second opaque surface covers only roofed cells, including the
+                // covered portion of a multi-cell building exposed by a breach.
+                if (ShellHullVisuals.HasShellRoof(map, cell))
+                {
+                    collector.Add(new OverlayCommand { mesh = CellMeshFor(cell), matrix = terrainMatrix,
+                        material = material, surface = ShellSurfaceLayer.Hull,
+                        queue = material.renderQueue, sequence = nextSequence++ });
+                    QuadsDrawnLastPass++;
+                }
             }
 
             if (section.substructureProps != null)
@@ -288,6 +318,14 @@ namespace DeltaV
             }
 
             AddHullEdgeCommands(section.hullEdges?.slopes, matrix, localSun, false, collector);
+            if (section.roofEdges != null)
+            {
+                Material material = ShellRoofEdges.Material;
+                collector.Add(new OverlayCommand { mesh = section.roofEdges, matrix = matrix,
+                    material = material, surface = ShellSurfaceLayer.Hull,
+                    queue = material.renderQueue, sequence = nextSequence++ });
+                QuadsDrawnLastPass += section.roofEdges.vertexCount / 4;
+            }
 
             // Odyssey draws angled hull pieces in its own section layer, not in
             // GravshipHull.Print. Reuse that layer's mesh and neighbor rules.
@@ -306,12 +344,17 @@ namespace DeltaV
             for (int i = 0; i < section.things.Count; i++)
             {
                 Thing thing = section.things[i];
-                if (!ShouldDrawThing(thing) || !visible.Contains(thing.Position)
+                bool deck = section.deckThings.Contains(thing);
+                if (!ShouldDrawThing(thing, deck) || !visible.Contains(thing.Position)
                     || allowedCells != null && !allowedCells.Contains(thing.Position)) continue;
                 Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
                 ShellRenderConfig config = rule?.render;
                 if (config?.source == ShellGraphicSource.TurretTop)
                 {
+                    if (deck && thing.def.drawerType != DrawerType.MapMeshOnly
+                        && thing.def.drawerType != DrawerType.None)
+                        ShellDrawCapture.Capture(() => thing.Graphic.Draw(thing.DrawPos, thing.Rotation, thing),
+                            matrix, ShellSurfaceLayer.Deck, 0f);
                     CollectTurretTop(thing, config, matrix, rotation, collector);
                     // A projector's dome is a comp effect, separate from its turret top.
                     CompProjectileInterceptor interceptor = thing.TryGetComp<CompProjectileInterceptor>();
@@ -319,12 +362,14 @@ namespace DeltaV
                         ShellDrawCapture.Capture(interceptor.PostDraw, matrix, config.layer, config.zIndex);
                     continue;
                 }
+                if (deck) config = null;
                 if (config?.alternateGraphics != null || thing.def.drawerType == DrawerType.MapMeshOnly
                     || thing.def.drawerType == DrawerType.None) continue;
                 try
                 {
                     ShellDrawCapture.Capture(() => thing.DrawNowAt(thing.DrawPos), matrix,
-                        config?.layer ?? ShellSurfaceLayer.Hull, config?.zIndex ?? 0f);
+                        deck ? ShellSurfaceLayer.Deck : config?.layer ?? ShellSurfaceLayer.Hull,
+                        config?.zIndex ?? 0f);
                 }
                 catch (System.Exception ex)
                 {
@@ -434,17 +479,18 @@ namespace DeltaV
             TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
             if (terrain != null && !terrain.dontRender) return true;
             List<Thing> things = map.thingGrid.ThingsListAtFast(cell);
-            for (int i = 0; i < things.Count; i++) if (ShouldDrawThing(things[i])) return true;
+            for (int i = 0; i < things.Count; i++)
+                if (ShouldDrawThing(things[i], HasExposedDeck(things[i]))) return true;
             return false;
         }
 
         /// <summary>
         /// 结构外观纳入标准（所有 SpaceObject 统一，2026-09-18 用户决策）：动态物剔除
-        /// → 显式 exclude 最优先 → 实心结构（墙/门/气密建筑/自然岩石，判定收口
+        /// → 开放甲板建筑 → 显式 exclude → 实心结构（墙/门/气密建筑/自然岩石，判定收口
         /// SpaceStructureRules.IsSolidStructure）→ 显式规则。碰撞占用另纳入全部建筑，
-        /// 但物品与非气密建筑（家具、内部设备）不因此进入外壳。
+        /// 物品仍隐藏，非气密建筑（家具、内部设备）只在屋顶缺口处显示。
         /// </summary>
-        private static bool ShouldDrawThing(Thing thing)
+        private static bool ShouldDrawThing(Thing thing, bool exposedDeck = false)
         {
             if (thing?.Spawned == true && !thing.Destroyed && SpaceScatterService.IsCargo(thing)
                 && Current.Game?.GetComponent<UniverseManager>()?.FrameOf(thing.Map)?.IsScattered == true) return true;
@@ -452,9 +498,24 @@ namespace DeltaV
                 || thing is Mote || thing.def.category == ThingCategory.Filth
                 || thing.def.category == ThingCategory.Gas || thing.def.category == ThingCategory.Mote) return false;
             Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
+            if (exposedDeck && thing is Building) return true;
             if (rule?.exclude == true) return false;
             if (SpaceStructureRules.IsSolidStructure(thing)) return true;
             return rule != null;
+        }
+
+        private static bool HasExposedDeck(Thing thing)
+        {
+            if (thing is not Building || !thing.Spawned || thing.Destroyed) return false;
+            Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
+            // Exterior structures keep their existing art. Interior exclusions and
+            // turret bases become visible through roof openings like other equipment.
+            if (rule?.exclude != true && rule?.render?.source != ShellGraphicSource.TurretTop
+                && (SpaceStructureRules.IsSolidStructure(thing) || rule != null)) return false;
+            foreach (IntVec3 cell in thing.OccupiedRect())
+                if (SubstructureOwnership.HasFoundation(thing.Map, cell)
+                    && !ShellHullVisuals.HasShellRoof(thing.Map, cell)) return true;
+            return false;
         }
 
         private static SectionSnapshot BuildSection(Map map, int sx, int sz)
@@ -482,13 +543,17 @@ namespace DeltaV
             }
             foreach (Thing thing in result.things)
             {
-                if (!ShouldDrawThing(thing)) continue;
+                bool deck = HasExposedDeck(thing);
+                if (deck) result.deckThings.Add(thing);
+                if (!ShouldDrawThing(thing, deck)) continue;
                 Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
                 ShellRenderConfig config = rule?.render;
-                if (config?.source == ShellGraphicSource.TurretTop) continue;
+                bool turretBase = config?.source == ShellGraphicSource.TurretTop;
+                if (turretBase && !deck) continue;
+                if (deck) config = null;
                 if (config?.alternateGraphics == null && (thing.def.drawerType == DrawerType.RealtimeOnly
                     || thing.def.drawerType == DrawerType.None)) continue;
-                ShellSurfaceLayer surface = config?.layer ?? ShellSurfaceLayer.Hull;
+                ShellSurfaceLayer surface = deck ? ShellSurfaceLayer.Deck : config?.layer ?? ShellSurfaceLayer.Hull;
                 float zIndex = config?.zIndex ?? 0f;
                 if (thing.def == ThingDefOf.GravshipHull
                     && wallAdjacency.TryGetValue(thing.Position, out ShellHullVisuals.Adjacency wall))
@@ -533,7 +598,11 @@ namespace DeltaV
                         shared = true, layer = new SectionLayer_ThingsGeneral(sourceSection) };
                     result.printed.Add(batch);
                 }
-                try { thing.Print(batch.layer); }
+                try
+                {
+                    if (turretBase) thing.Graphic.Print(batch.layer, thing, 0f);
+                    else thing.Print(batch.layer);
+                }
                 catch (System.Exception ex)
                 {
                     Log.ErrorOnce($"[DeltaV] Cannot print shell graphic for {thing}: {ex}",
@@ -542,6 +611,7 @@ namespace DeltaV
             }
             foreach (PrintBatch batch in result.printed) batch.Complete();
             result.hullEdges = ShellHullVisuals.BuildEdges(map, rect, wallAdjacency);
+            result.roofEdges = ShellRoofEdges.Build(map, rect);
             if (ModsConfig.OdysseyActive)
             {
                 // Corner cells can be empty and are absent from result.things.
@@ -575,6 +645,11 @@ namespace DeltaV
                 if (neighbor.InBounds(map))
                     cache.dirty.Add(neighbor.x / SectionSize | (neighbor.z / SectionSize << 16));
             }
+            // A roof can uncover the far end of a building rooted in another section.
+            if ((flags & (ulong)MapMeshFlagDefOf.Roofs) != 0 && cell.InBounds(map))
+                foreach (Thing thing in map.thingGrid.ThingsListAtFast(cell))
+                    if (thing is Building)
+                        cache.dirty.Add(thing.Position.x / SectionSize | (thing.Position.z / SectionSize << 16));
             if (adjacentSections)
             {
                 for (int z = sz - 1; z <= sz + 1; z++)
@@ -601,6 +676,7 @@ namespace DeltaV
             TerrainMaterials.Clear();
             powerConnectorWireTexture = null;
             ShellHullVisuals.ClearRuntimeCaches();
+            ShellRoofEdges.ClearRuntimeCaches();
             cachedRuleCount = -1;
             for (int i = 0; i < CellMeshes.Length; i++)
             {
@@ -617,7 +693,10 @@ namespace DeltaV
 
         private static Material MaterialFor(TerrainDef terrain)
         {
-            if (terrain?.DrawMatSingle?.mainTexture == null) return null;
+            // dontRender terrains keep vanilla's BadGraphic: never copy that
+            // placeholder into an apparently valid shell material.
+            if (terrain == null || terrain.dontRender || terrain.graphic == BaseContent.BadGraphic
+                || terrain.DrawMatSingle?.mainTexture == null) return null;
             if (!TerrainMaterials.TryGetValue(terrain, out Material material))
             {
                 material = MaterialPool.MatFrom(new MaterialRequest(terrain.DrawMatSingle.mainTexture,

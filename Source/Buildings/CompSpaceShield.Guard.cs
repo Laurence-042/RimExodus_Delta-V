@@ -9,14 +9,15 @@ namespace DeltaV
 
     public partial class CompSpaceShield
     {
-        // These are the only capacity balances. The vanilla interceptor uses its
-        // hitPoints=0 / currentHitPoints=-1 capacity-free interception contract.
-        private double regularCapacity, emergencyCapacity;
+        // Regular capacity lives here; emergency capacity is the native fuel balance.
+        // The interceptor uses hitPoints=0 / currentHitPoints=-1 (no native HP accounting).
+        private double regularCapacity;
         private int recoveryWaitTicks;
         private int autoRejoinPercent = 100;
         private GuardEmergencyReason emergencyReason;
         public double RegularCapacity => regularCapacity;
-        public double EmergencyCapacity => emergencyCapacity;
+        private CompRefuelable EmergencyFuel => silverFuel ??= parent.TryGetComp<CompRefuelable>();
+        public double EmergencyCapacity => EmergencyFuel?.Fuel ?? 0f;
         public GuardEmergencyReason EmergencyReason => emergencyReason;
         public int RecoveryWaitTicks => recoveryWaitTicks;
         public int AutoRejoinPercent
@@ -27,21 +28,19 @@ namespace DeltaV
         public bool UsesRegular => mode == SpaceShieldMode.Guard && ShieldProps.regularCapacity > 0
             && emergencyReason == GuardEmergencyReason.None && regularCapacity > 0;
         private bool ContributesRegular => parent.Spawned && !parent.Destroyed && FlickedOn && UsesRegular;
-        public bool HasGuardCapacity => mode == SpaceShieldMode.Guard && (UsesRegular || emergencyCapacity > 0);
+        public bool HasGuardCapacity => mode == SpaceShieldMode.Guard && (UsesRegular || EmergencyCapacity > 0);
         private bool WantsRegularRecovery => ShieldProps.regularCapacity > 0
             && regularCapacity < ShieldProps.regularCapacity && recoveryWaitTicks == 0 && FlickedOn;
 
         internal void InitializeGuard()
         {
             regularCapacity = ShieldProps.regularCapacity;
-            emergencyCapacity = ShieldProps.emergencyCapacity;
             emergencyReason = ShieldProps.regularCapacity > 0 ? GuardEmergencyReason.None : GuardEmergencyReason.Automatic;
         }
 
         private void ExposeGuardData()
         {
             Scribe_Values.Look(ref regularCapacity, "DeltaV_regularCapacity", (double)ShieldProps.regularCapacity);
-            Scribe_Values.Look(ref emergencyCapacity, "DeltaV_emergencyCapacity", (double)ShieldProps.emergencyCapacity);
             Scribe_Values.Look(ref recoveryWaitTicks, "DeltaV_regularRecoveryWait");
             Scribe_Values.Look(ref emergencyReason, "DeltaV_emergencyReason");
             Scribe_Values.Look(ref autoRejoinPercent, "DeltaV_autoRejoinPercent", 100);
@@ -98,7 +97,7 @@ namespace DeltaV
             var shield = interceptor.parent.TryGetComp<CompSpaceShield>();
             return shield == null ? interceptor.currentHitPoints
                 : shield.mode != SpaceShieldMode.Guard ? 0f
-                : (float)(shield.SharedRegularCapacity + shield.emergencyCapacity);
+                : (float)(shield.SharedRegularCapacity + shield.EmergencyCapacity);
         }
 
         /// <summary>Returns the actual absorbed amount; emergency belongs only to this surface.</summary>
@@ -140,10 +139,9 @@ namespace DeltaV
                     if (remaining <= damage * 1e-14) { remaining = 0; break; }
                 }
             }
-            double local = Math.Min(remaining, emergencyCapacity);
-            emergencyCapacity -= local;
+            double local = Math.Min(remaining, EmergencyCapacity);
+            if (local > 0) EmergencyFuel.ConsumeFuel((float)local);
             remaining -= local;
-            UpdateSilverTarget();
             return damage - remaining;
         }
     }

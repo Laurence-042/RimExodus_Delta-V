@@ -351,7 +351,7 @@
   <DeltaV_PanelCombatOptions>战斗选项</DeltaV_PanelCombatOptions>
 
   <DeltaV_DebugThrustersToggleButton>显示 Delta-V 推进器矢量与船体范围</DeltaV_DebugThrustersToggleButton>
-  <DeltaV_DebugWeaponArcsToggleButton>显示舰炮射界与射程扫描</DeltaV_DebugWeaponArcsToggleButton>
+  <DeltaV_DebugWeaponArcsToggleButton>显示所选舰炮射界与射程扫描</DeltaV_DebugWeaponArcsToggleButton>
   <DeltaV_DebugCollisionToggleButton>显示全部可见对象的实际碰撞占用格与宽相位包围圆</DeltaV_DebugCollisionToggleButton>
   <DeltaV_FireDeviation>开火允许偏离角：{0}°</DeltaV_FireDeviation>
   <DeltaV_FireDeviationTip>炮口当前方向或固定安装轴与目标方向的最大夹角。弹体仍沿实际炮口方向发射；制导弹可在发射后转向。</DeltaV_FireDeviationTip>
@@ -565,7 +565,7 @@
   <DeltaV_CombatAdvanced>高级条件与曲线</DeltaV_CombatAdvanced>
   <DeltaV_ShieldStateRegular>守卫圆盾（常规护盾启用）</DeltaV_ShieldStateRegular>
   <DeltaV_ShieldStateEmergency>守卫圆盾（仅应急护盾）</DeltaV_ShieldStateEmergency>
-  <DeltaV_ShieldCapacities>本机盾容：常规 {0}/{1}；应急 {2}/{3}</DeltaV_ShieldCapacities>
+  <DeltaV_ShieldRegularCapacity>常规盾容：{0} / {1}</DeltaV_ShieldRegularCapacity>
   <DeltaV_ShieldSharedRegular>可用常规盾容（含同船护盾）：{0}</DeltaV_ShieldSharedRegular>
   <DeltaV_ShieldRecoveryWait>常规盾容恢复前还需等待：{0} 秒</DeltaV_ShieldRecoveryWait>
   <DeltaV_ShieldRecovering>常规盾容恢复中（额外耗电 1000 W）</DeltaV_ShieldRecovering>
@@ -573,6 +573,22 @@
   <DeltaV_ShieldManualEmergencyTip>暂停使用未充满的常规护盾，让它恢复。这期间只消耗本机应急盾容，不再与其他发生器分担伤害。常规盾容充满后自动启用，不受滑条设定影响。若已切换为线盾，则保持线盾模式。</DeltaV_ShieldManualEmergencyTip>
   <DeltaV_ShieldRegularBar>常规盾：恢复至 {0}% 后启用</DeltaV_ShieldRegularBar>
   <DeltaV_ShieldRegularBarTip>下方数值显示本机剩余的常规盾容。\n\n常规盾容耗尽后会暂时停用，改由应急护盾保护。拖动标记可设置常规盾容恢复至多少时自动重新启用（1–100%），再次与同船的常规护盾分担伤害。\n\n手动选择“改用应急护盾”后，始终要等常规盾容充满才启用，不受这里的设置影响。使用线盾时只恢复盾容，不会自动切回圆盾。</DeltaV_ShieldRegularBarTip>
-  <DeltaV_ShieldEmergencyBar>应急护盾</DeltaV_ShieldEmergencyBar>
-  <DeltaV_ShieldEmergencyBarTip>显示本机剩余的应急盾容。只能保护本机圆盾范围，不能替其他发生器分担伤害，也不能自动恢复。每 1 白银补充 1 点盾容。</DeltaV_ShieldEmergencyBarTip>
+  <DeltaV_ShieldDevRegularFull>DEV: 常规盾容充满</DeltaV_ShieldDevRegularFull>
+  <DeltaV_ShieldDevRegularFullTip>充满所选发生器的常规盾容，并解除其应急状态。</DeltaV_ShieldDevRegularFullTip>
+  <DeltaV_ShieldDevRegularEmpty>DEV: 常规盾容清空</DeltaV_ShieldDevRegularEmpty>
+  <DeltaV_ShieldDevRegularEmptyTip>清空所选发生器的常规盾容，进入自动应急并开始恢复等待。</DeltaV_ShieldDevRegularEmptyTip>
+  <DeltaV_ShieldDevSkipRecoveryWait>DEV: 跳过恢复等待</DeltaV_ShieldDevSkipRecoveryWait>
+  <DeltaV_ShieldDevSkipRecoveryWaitTip>结束常规盾容的恢复等待；仍需供电才能恢复。</DeltaV_ShieldDevSkipRecoveryWaitTip>
+  <DeltaV_ShieldDevEmergencyFull>DEV: 应急盾容充满</DeltaV_ShieldDevEmergencyFull>
+  <DeltaV_ShieldDevEmergencyFullTip>充满本机应急盾容，不改变补充上限。</DeltaV_ShieldDevEmergencyFullTip>
+  <DeltaV_ShieldDevEmergencyEmpty>DEV: 应急盾容清空</DeltaV_ShieldDevEmergencyEmpty>
+  <DeltaV_ShieldDevEmergencyEmptyTip>清空本机应急盾容，不改变补充上限。</DeltaV_ShieldDevEmergencyEmptyTip>
+  <DeltaV_ShieldDevHit100>DEV: 护盾受击 100</DeltaV_ShieldDevHit100>
+  <DeltaV_ShieldDevHit100Tip>按正常共享及本地应急规则消耗 100 点盾容。多选时逐台受击。</DeltaV_ShieldDevHit100Tip>
+  <DeltaV_ShieldDevHit1000>DEV: 护盾受击 1000</DeltaV_ShieldDevHit1000>
+  <DeltaV_ShieldDevHit1000Tip>按正常共享及本地应急规则消耗 1000 点盾容。多选时逐台受击。</DeltaV_ShieldDevHit1000Tip>
+  <DeltaV_ShieldDevLineFailure>DEV: 线盾暂时失效</DeltaV_ShieldDevLineFailure>
+  <DeltaV_ShieldDevLineFailureTip>触发一次线盾欠压失效时长，不扣电。</DeltaV_ShieldDevLineFailureTip>
+  <DeltaV_ShieldDevLineReset>DEV: 清除线盾失效</DeltaV_ShieldDevLineReset>
+  <DeltaV_ShieldDevLineResetTip>结束线盾欠压失效；仍需开启设备并供电。</DeltaV_ShieldDevLineResetTip>
 </LanguageData>

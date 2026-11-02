@@ -351,7 +351,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_PanelCombatOptions>Combat options</DeltaV_PanelCombatOptions>
 
   <DeltaV_DebugThrustersToggleButton>Show Delta-V thruster vectors and hull extent</DeltaV_DebugThrustersToggleButton>
-  <DeltaV_DebugWeaponArcsToggleButton>Show weapon traverse and range scans</DeltaV_DebugWeaponArcsToggleButton>
+  <DeltaV_DebugWeaponArcsToggleButton>Show selected weapons' firing arcs and range scan</DeltaV_DebugWeaponArcsToggleButton>
   <DeltaV_DebugCollisionToggleButton>Show actual collision cells and broad-phase bounds for all visible objects</DeltaV_DebugCollisionToggleButton>
   <DeltaV_FireDeviation>Firing deviation: {0}°</DeltaV_FireDeviation>
   <DeltaV_FireDeviationTip>Maximum angle between the current barrel or fixed launch axis and the target. Shots follow the actual launch direction; guided missiles can turn afterward.</DeltaV_FireDeviationTip>
@@ -565,7 +565,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_CombatAdvanced>Advanced conditions and curves</DeltaV_CombatAdvanced>
   <DeltaV_ShieldStateRegular>Guard: shared regular</DeltaV_ShieldStateRegular>
   <DeltaV_ShieldStateEmergency>Guard: local emergency</DeltaV_ShieldStateEmergency>
-  <DeltaV_ShieldCapacities>Regular {0}/{1}; emergency {2}/{3}</DeltaV_ShieldCapacities>
+  <DeltaV_ShieldRegularCapacity>Regular shield: {0} / {1}</DeltaV_ShieldRegularCapacity>
   <DeltaV_ShieldSharedRegular>Available shared regular capacity: {0}</DeltaV_ShieldSharedRegular>
   <DeltaV_ShieldRecoveryWait>Regular recovery delay: {0} seconds</DeltaV_ShieldRecoveryWait>
   <DeltaV_ShieldRecovering>Restoring regular capacity (+1000 W).</DeltaV_ShieldRecovering>
@@ -573,6 +573,22 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShieldManualEmergencyTip>Pause a partially depleted regular shield to let it recover. Only this generator's emergency capacity absorbs hits while it recovers; damage is no longer shared. Regular protection reactivates at full capacity, regardless of the slider setting. Line mode remains unchanged.</DeltaV_ShieldManualEmergencyTip>
   <DeltaV_ShieldRegularBar>Regular: reactivate at {0}%</DeltaV_ShieldRegularBar>
   <DeltaV_ShieldRegularBarTip>The bar shows this generator's remaining regular capacity.\n\nAfter regular capacity is depleted, emergency protection takes over. Drag the marker to choose how much regular capacity must recover before it reactivates (1–100%) and shares damage with the ship's other active regular shields.\n\nManually switching to emergency protection always waits for full regular capacity. Line mode can restore capacity but never switches back to a dome automatically.</DeltaV_ShieldRegularBarTip>
-  <DeltaV_ShieldEmergencyBar>Emergency shield</DeltaV_ShieldEmergencyBar>
-  <DeltaV_ShieldEmergencyBarTip>Only absorbs hits on this dome. Never shared or automatically restored. One silver restores one capacity.</DeltaV_ShieldEmergencyBarTip>
+  <DeltaV_ShieldDevRegularFull>DEV: Fill regular capacity</DeltaV_ShieldDevRegularFull>
+  <DeltaV_ShieldDevRegularFullTip>Fill the selected generators' regular capacity and return them from emergency.</DeltaV_ShieldDevRegularFullTip>
+  <DeltaV_ShieldDevRegularEmpty>DEV: Empty regular capacity</DeltaV_ShieldDevRegularEmpty>
+  <DeltaV_ShieldDevRegularEmptyTip>Empty regular capacity, enter automatic emergency and start the recovery wait.</DeltaV_ShieldDevRegularEmptyTip>
+  <DeltaV_ShieldDevSkipRecoveryWait>DEV: Skip recovery wait</DeltaV_ShieldDevSkipRecoveryWait>
+  <DeltaV_ShieldDevSkipRecoveryWaitTip>End the regular recovery wait. Recovery still requires power.</DeltaV_ShieldDevSkipRecoveryWaitTip>
+  <DeltaV_ShieldDevEmergencyFull>DEV: Fill emergency capacity</DeltaV_ShieldDevEmergencyFull>
+  <DeltaV_ShieldDevEmergencyFullTip>Fill local emergency capacity without changing the refueling target.</DeltaV_ShieldDevEmergencyFullTip>
+  <DeltaV_ShieldDevEmergencyEmpty>DEV: Empty emergency capacity</DeltaV_ShieldDevEmergencyEmpty>
+  <DeltaV_ShieldDevEmergencyEmptyTip>Empty local emergency capacity without changing the refueling target.</DeltaV_ShieldDevEmergencyEmptyTip>
+  <DeltaV_ShieldDevHit100>DEV: Shield hit: 100</DeltaV_ShieldDevHit100>
+  <DeltaV_ShieldDevHit100Tip>Consume 100 capacity through normal shared and local emergency rules. Hits each selected shield.</DeltaV_ShieldDevHit100Tip>
+  <DeltaV_ShieldDevHit1000>DEV: Shield hit: 1000</DeltaV_ShieldDevHit1000>
+  <DeltaV_ShieldDevHit1000Tip>Consume 1000 capacity through normal shared and local emergency rules. Hits each selected shield.</DeltaV_ShieldDevHit1000Tip>
+  <DeltaV_ShieldDevLineFailure>DEV: Disable line shield briefly</DeltaV_ShieldDevLineFailure>
+  <DeltaV_ShieldDevLineFailureTip>Trigger the line shield brownout duration without drawing power.</DeltaV_ShieldDevLineFailureTip>
+  <DeltaV_ShieldDevLineReset>DEV: Reset line shield failure</DeltaV_ShieldDevLineReset>
+  <DeltaV_ShieldDevLineResetTip>End the line shield brownout. The generator must still be switched on and powered.</DeltaV_ShieldDevLineResetTip>
 </LanguageData>

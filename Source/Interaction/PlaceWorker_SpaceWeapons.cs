@@ -65,20 +65,24 @@ namespace DeltaV
         {
             CompSpaceWeapon weapon = center.GetEdifice(map)?.TryGetComp<CompSpaceWeapon>();
             CompSpaceRailgun rail = null;
+            Building_SpaceCargoContainer cargo = null;
             if (weapon == null)
             {
                 foreach (Thing candidate in map.thingGrid.ThingsListAtFast(center))
                 {
+                    if (candidate is Building_SpaceCargoContainer bay && bay.AttachmentSlotAt(center) != null)
+                        cargo = bay;
                     rail = (candidate as ThingWithComps)?.TryGetComp<CompSpaceRailgun>();
                     if (rail != null && rail.AttachmentSlotAt(center) != null) break;
                     rail = null;
                 }
             }
-            ThingWithComps host = weapon?.parent ?? rail?.parent;
+            ThingWithComps host = weapon?.parent ?? rail?.parent ?? cargo;
             if (host == null || SpaceWeaponGeometry.OwnerIdOf(host) <= 0)
                 return "DeltaV_AttachmentNeedsSlot".Translate();
             var allowed = weapon != null
-                ? weapon.WeaponProps.allowedAttachmentDefs : rail.RailProps.allowedAttachmentDefs;
+                ? weapon.WeaponProps.allowedAttachmentDefs : rail != null
+                    ? rail.RailProps.allowedAttachmentDefs : cargo.AttachmentProps.allowed;
             if (!allowed.NullOrEmpty()
                 && (def is not ThingDef thingDef || !allowed.Contains(thingDef)))
                 return "DeltaV_AttachmentNeedsSlot".Translate();
@@ -92,7 +96,8 @@ namespace DeltaV
             foreach (IntVec3 occupied in GenAdj.OccupiedRect(center, rot, def.Size))
                 if (!hostRect.Contains(occupied)) return "DeltaV_AttachmentNeedsSlot".Translate();
 
-            if ((weapon?.AttachmentSlotAt(center) ?? rail?.AttachmentSlotAt(center)) == null)
+            if ((weapon?.AttachmentSlotAt(center) ?? rail?.AttachmentSlotAt(center)
+                ?? cargo?.AttachmentSlotAt(center)) == null)
                 return "DeltaV_AttachmentNeedsSlot".Translate();
 
             foreach (IntVec3 occupied in GenAdj.OccupiedRect(center, rot, def.Size))

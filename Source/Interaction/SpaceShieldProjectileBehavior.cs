@@ -14,7 +14,8 @@ namespace DeltaV
 
         public static void SpawnFragments(SpaceProjectileService service, ThingDef sourceDef,
             SpaceObject source, SpaceObject defender, Thing launcher, Vector3 hit,
-            Vector2 direction, float signedSpeed, float mass, float armorPenetrationScale)
+            Vector2 relativeVelocity, Vector2 outwardNormal, float normalEnergy, float mass,
+            float armorPenetrationScale, bool reflectedByShield = false)
         {
             var props = sourceDef.GetCompProperties<CompProperties_SpaceProjectile>();
             if (!IsKinetic(props)) return;
@@ -26,9 +27,11 @@ namespace DeltaV
             {
                 float span = count == 1 ? 0f : (2f * i / (count - 1) - 1f)
                     * props.shieldFragmentScatterDeg;
-                Vector2 fragmentDirection = SpaceTransform.Rotate(direction, span * Mathf.Deg2Rad);
+                Vector2 fragmentVelocity = SpaceTransform.Rotate(relativeVelocity, span * Mathf.Deg2Rad);
+                fragmentVelocity = SpaceKinetics.ApplyShieldNormalEnergy(mass / count,
+                    fragmentVelocity, outwardNormal, normalEnergy / count);
                 service.LaunchShieldFragment(fragmentDef, source, defender, launcher,
-                    hit, fragmentDirection, signedSpeed, mass / count, armorPenetrationScale);
+                    hit, fragmentVelocity, outwardNormal, mass / count, armorPenetrationScale, reflectedByShield);
             }
         }
     }

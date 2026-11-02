@@ -19,10 +19,11 @@ namespace DeltaV
             CompSpaceWeaponAttachment attachmentComp = attachment.TryGetComp<CompSpaceWeaponAttachment>();
             CompSpaceWeapon host = attachmentComp?.HostWeapon;
             CompSpaceRailgun rail = attachmentComp?.HostRailgun;
+            Building_SpaceCargoContainer cargo = attachmentComp?.HostCargo;
             slot = host?.AttachmentSlotAt(thing.Position)
-                ?? rail?.AttachmentSlotAt(thing.Position);
+                ?? rail?.AttachmentSlotAt(thing.Position) ?? cargo?.AttachmentSlotAt(thing.Position);
             if (slot == null) return false;
-            hostRotation = host?.parent.Rotation ?? rail.parent.Rotation;
+            hostRotation = host?.parent.Rotation ?? rail?.parent.Rotation ?? cargo.Rotation;
             return true;
         }
 

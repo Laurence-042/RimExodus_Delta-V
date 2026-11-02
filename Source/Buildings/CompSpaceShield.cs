@@ -53,16 +53,8 @@ namespace DeltaV
         protected override int HitPointsPerInterval => 0;
     }
 
-    /// <summary>Physical silver hauling without displaying an empty fuel tank as shield health.</summary>
-    public sealed class CompDeltaVShieldSilverFuel : CompRefuelable
-    {
-        public override string CompInspectStringExtra() => null;
-        public override IEnumerable<Gizmo> CompGetGizmosExtra() { yield break; }
-        public override IEnumerable<StatDrawEntry> SpecialDisplayStats() { yield break; }
-    }
-
     /// <summary>
-    /// Three mutually exclusive modes. This component owns both guard capacities;
+    /// Three mutually exclusive modes. Emergency capacity uses native CompRefuelable;
     /// SpaceCollision consumes the two projected line modes.
     /// </summary>
     public partial class CompSpaceShield : ThingComp, IShellTurretTopSource
@@ -83,10 +75,31 @@ namespace DeltaV
         private CompProjectileInterceptor interceptor;
         private CompRefuelable silverFuel;
         private CompProperties_ProjectileInterceptor instanceInterceptorProps;
-        private Material topMaterial;
+        private Material[] topMaterials;
+        private Texture2D topTexture, topMask;
 
-        public Material ShellTopMaterial => topMaterial ??= MaterialPool.MatFrom(
-            parent.def.GetModExtension<DefModExtension_SpaceTurretArt>().topTexPath);
+        public Material ShellTopMaterial
+        {
+            get
+            {
+                int index = mode == SpaceShieldMode.Kinetic ? 0
+                    : mode == SpaceShieldMode.Electromagnetic ? 1 : UsesRegular ? 2 : 3;
+                topMaterials ??= new Material[4];
+                if (topMaterials[index] == null)
+                {
+                    string path = parent.def.GetModExtension<DefModExtension_SpaceTurretArt>().topTexPath;
+                    topTexture ??= ContentFinder<Texture2D>.Get(path);
+                    topMask ??= ContentFinder<Texture2D>.Get(path + "_m");
+                    topMaterials[index] = MaterialPool.MatFrom(new MaterialRequest(
+                        topTexture, ShaderDatabase.CutoutComplex, FieldColor)
+                    {
+                        maskTex = topMask,
+                        colorTwo = Color.white,
+                    });
+                }
+                return topMaterials[index];
+            }
+        }
         // Existing shield art faces north; the shared turret convention faces east.
         public float ShellTopAngle => parent.Rotation.AsAngle
             - (mode == SpaceShieldMode.Guard ? 0f : angleDeg) - TurretTop.ArtworkRotation;
@@ -98,6 +111,23 @@ namespace DeltaV
         }
 
         public CompProperties_SpaceShield ShieldProps => (CompProperties_SpaceShield)props;
+        public static Color KineticColor => new Color(0.25f, 0.55f, 1f);
+        public static Color ElectromagneticColor => new Color(0.7f, 0.35f, 1f);
+        public static Color EmergencyColor => new Color(1f, 0.15f, 0.15f);
+        public Color FieldColor => mode == SpaceShieldMode.Kinetic ? KineticColor
+            : mode == SpaceShieldMode.Electromagnetic ? ElectromagneticColor
+            : UsesRegular ? Color.white : EmergencyColor;
+
+        private static string ModeLabel(SpaceShieldMode value) =>
+            (value == SpaceShieldMode.Guard ? "DeltaV_ShieldModeGuard"
+                : value == SpaceShieldMode.Kinetic ? "DeltaV_ShieldModeKinetic"
+                : "DeltaV_ShieldModeElectromagnetic").Translate();
+
+        internal void UpdateFieldColor()
+        {
+            EnsureInstanceInterceptorProps();
+            if (instanceInterceptorProps != null) instanceInterceptorProps.color = FieldColor;
+        }
         public bool GuardRecoveryPowered => parent.Spawned
             && (power ??= parent.TryGetComp<CompPowerTrader>())?.PowerOn == true
             && power.PowerNet != null && FlickedOn;
@@ -130,7 +160,6 @@ namespace DeltaV
             base.PostSpawnSetup(respawningAfterLoad);
             EnsureInstanceInterceptorProps();
 
-            UpdateSilverTarget();
             UpdatePowerDraw();
         }
 
@@ -156,7 +185,6 @@ namespace DeltaV
                 kineticStrengthPercent = Mathf.Clamp(kineticStrengthPercent, 0, 100);
                 electromagneticStrengthPercent = Mathf.Clamp(electromagneticStrengthPercent, 0, 100);
                 EnsureInstanceInterceptorProps();
-                UpdateSilverTarget();
                 UpdatePowerDraw();
             }
         }
@@ -165,36 +193,13 @@ namespace DeltaV
         {
             base.CompTick();
             AdvanceGuardTick(GuardRecoveryPowered);
-            ApplySilverFuel();
-            UpdateSilverTarget();
             UpdatePowerDraw();
         }
 
         public override void ReceiveCompSignal(string signal)
         {
             base.ReceiveCompSignal(signal);
-            if (signal == CompRefuelable.RefueledSignal) ApplySilverFuel();
             UpdatePowerDraw();
-        }
-
-        private void UpdateSilverTarget()
-        {
-            silverFuel ??= parent.TryGetComp<CompRefuelable>();
-            if (silverFuel == null) return;
-            float missing = (float)(ShieldProps.emergencyCapacity - emergencyCapacity);
-            if (Mathf.Abs(silverFuel.TargetFuelLevel - missing) > 0.001f)
-                silverFuel.TargetFuelLevel = missing;
-        }
-
-        private void ApplySilverFuel()
-        {
-            silverFuel ??= parent.TryGetComp<CompRefuelable>();
-            if (silverFuel == null) return;
-            float amount = (float)Math.Min(silverFuel.Fuel, ShieldProps.emergencyCapacity - emergencyCapacity);
-            if (amount <= 0f) return;
-            emergencyCapacity = Math.Min(ShieldProps.emergencyCapacity, emergencyCapacity + amount);
-            silverFuel.ConsumeFuel(amount);
-            UpdateSilverTarget();
         }
 
         private void EnsureInstanceInterceptorProps()
@@ -230,7 +235,6 @@ namespace DeltaV
         internal void SettingsChanged()
         {
             EnsureInstanceInterceptorProps();
-            UpdateSilverTarget();
             UpdatePowerDraw();
             SpaceCollision.InvalidateShield(parent.Map);
         }
@@ -275,7 +279,10 @@ namespace DeltaV
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
-            if (parent.Faction != Faction.OfPlayer || !parent.Spawned) yield break;
+            if (!parent.Spawned) yield break;
+            if (DebugSettings.ShowDevGizmos)
+                foreach (Gizmo gizmo in DevGizmos()) yield return gizmo;
+            if (parent.Faction != Faction.OfPlayer && !DebugSettings.godMode) yield break;
             if (ShieldProps.regularCapacity > 0)
             {
                 yield return new Gizmo_ShieldRegular(this);
@@ -287,13 +294,12 @@ namespace DeltaV
                         defaultDesc = "DeltaV_ShieldManualEmergencyTip".Translate(), icon = parent.def.uiIcon
                     };
             }
-            yield return new Gizmo_ShieldEmergency(this);
-            foreach (SpaceShieldMode next in new[]
-                { SpaceShieldMode.Guard, SpaceShieldMode.Kinetic, SpaceShieldMode.Electromagnetic })
+            yield return new Command_BatchSetting<CompSpaceShield>("ShieldMode", this, shields =>
             {
-                if (next == mode) continue;
-                var command = new Command_BatchSetting<CompSpaceShield>("ShieldMode" + next,
-                    this, shields =>
+                var options = new List<FloatMenuOption>();
+                foreach (SpaceShieldMode next in new[]
+                    { SpaceShieldMode.Guard, SpaceShieldMode.Kinetic, SpaceShieldMode.Electromagnetic })
+                    options.Add(new FloatMenuOption(ModeLabel(next), () =>
                     {
                         foreach (CompSpaceShield shield in shields)
                         {
@@ -302,16 +308,15 @@ namespace DeltaV
                             shield.TryRejoinRegular();
                             shield.SettingsChanged();
                         }
-                    })
-                {
-                    defaultLabel = (next == SpaceShieldMode.Guard ? "DeltaV_ShieldModeGuard"
-                        : next == SpaceShieldMode.Kinetic ? "DeltaV_ShieldModeKinetic"
-                        : "DeltaV_ShieldModeElectromagnetic").Translate(),
-                    defaultDesc = "DeltaV_ShieldModeDesc".Translate(),
-                    icon = parent.def.uiIcon,
-                };
-                yield return command;
-            }
+                    }));
+                Find.WindowStack.Add(new FloatMenu(options));
+            })
+            {
+                defaultLabel = ModeLabel(mode),
+                defaultDesc = "DeltaV_ShieldModeDesc".Translate(),
+                icon = parent.def.uiIcon,
+                defaultIconColor = FieldColor,
+            };
             if (mode == SpaceShieldMode.Guard)
             {
                 yield return Slider("DeltaV_ShieldRadius", ShieldProps.minGroundRadius,
@@ -346,7 +351,7 @@ namespace DeltaV
             Vector3 center = (a + b) * 0.5f;
             Vector3 front = center + new Vector3(normal.x, 0f, normal.y) * 1.5f;
             SimpleColor color = mode == SpaceShieldMode.Electromagnetic
-                ? SimpleColor.Magenta : SimpleColor.Cyan;
+                ? SimpleColor.Magenta : SimpleColor.Blue;
             GenDraw.DrawLineBetween(a, b, color, 0.15f);
             GenDraw.DrawLineBetween(center, front, color, 0.12f);
         }
@@ -368,15 +373,16 @@ namespace DeltaV
             string state = mode == SpaceShieldMode.Guard
                 ? (UsesRegular ? "DeltaV_ShieldStateRegular" : "DeltaV_ShieldStateEmergency").Translate().ToString()
                 : (mode == SpaceShieldMode.Kinetic ? "DeltaV_ShieldStateKinetic" : "DeltaV_ShieldStateElectromagnetic").Translate().ToString();
-            string status = "DeltaV_ShieldCapacities".Translate(RegularCapacity.ToString("0.#"), ShieldProps.regularCapacity,
-                EmergencyCapacity.ToString("0.#"), ShieldProps.emergencyCapacity);
+            string status = state;
+            if (ShieldProps.regularCapacity > 0)
+                status += "\n" + "DeltaV_ShieldRegularCapacity".Translate(RegularCapacity.ToString("0.#"), ShieldProps.regularCapacity);
             if (UsesRegular) status += "\n" + "DeltaV_ShieldSharedRegular".Translate(SharedRegularCapacity.ToString("0.#"));
             if (RegularCapacity < ShieldProps.regularCapacity)
                 status += "\n" + (recoveryWaitTicks > 0
                     ? "DeltaV_ShieldRecoveryWait".Translate((recoveryWaitTicks / 60f).ToString("0.0"))
                     : (GuardRecoveryPowered ? "DeltaV_ShieldRecovering" : "DeltaV_ShieldGuardRecoveryPaused").Translate());
             if (mode != SpaceShieldMode.Guard) status += "\n" + SpaceShieldReference.Build(this);
-            return state + "\n" + status;
+            return status;
         }
     }
 }

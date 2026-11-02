@@ -1,0 +1,17 @@
+{
+  "tool": "built-in image_gen",
+  "prompts": [
+    [
+      "SafetyBattery",
+      "Create a production game sprite for RimExodus Delta-V, matching RimWorld/Odyssey: strict orthographic directly overhead, no perspective or visible vertical front face, matte broad neutral-gray armor planes, thick near-black outline, restrained cel shading, very few large functional parts, no tiny bolts or noisy microdetails, transparent RGBA background, no ground shadow, no letters or labels. Center the complete object on canvas with small even transparent margins. A standalone safe reserve-energy battery building with a rectangular 3 tiles wide by 2 tiles tall footprint, landscape 3:2 canvas. Solid squat rectangular armored base with chamfered corners. Three broad parallel enclosed dark teal energy cells side by side, secured by two substantial gray cross straps, one simple cyan status bar and a broad manual disconnect block on the south edge. Durable sealed industrial energy reserve, distinctive big grouped cells, not a weapon, no barrels. Silhouette nearly fills the 3:2 canvas."
+    ],
+    [
+      "RailgunEnergyRecovery",
+      "Create a production game sprite for RimExodus Delta-V, matching RimWorld/Odyssey: strict orthographic directly overhead, no perspective or visible vertical front face, matte broad neutral-gray armor planes, thick near-black outline, restrained cel shading, very few large functional parts, no tiny bolts or noisy microdetails, transparent RGBA background, no ground shadow, no letters or labels. Center the complete object on canvas with small even transparent margins. A single small railgun energy recovery upgrade module, square 1:1 canvas. Compact square mechanical housing, one large open U-shaped copper return conductor surrounding a dark central rectangular converter with a muted green broad inlay. Two chunky terminal tabs. Strong simple U silhouette distinguishes it from a cylindrical copper capacitor. Must be legible at only 24 pixels wide. No text, no arrows, no dense coil turns."
+    ],
+    [
+      "CargoTemperature",
+      "Create a production game sprite for RimExodus Delta-V, matching RimWorld/Odyssey: strict orthographic directly overhead, no perspective or visible vertical front face, matte broad neutral-gray armor planes, thick near-black outline, restrained cel shading, very few large functional parts, no tiny bolts or noisy microdetails, transparent RGBA background, no ground shadow, no letters or labels. Center the complete object on canvas with small even transparent margins. A single small cargo-bay temperature-control upgrade module, square 1:1 canvas. Squat square gray housing containing one large simple four-bladed fan on the left and two broad vertical heat-exchanger fins on the right. Small blue and warm orange paired indicator rectangles at south edge. Only a handful of broad shapes, strong readable fan silhouette at 32 pixels wide. No text or snowflakes."
+    ]
+  ]
+}

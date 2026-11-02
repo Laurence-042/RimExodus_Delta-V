@@ -39,7 +39,7 @@ namespace DeltaV
             public int bornTick;
             public float size;
             public CombatVisualStyle style;
-            public bool explosive, nativeExplosion, shieldBroken;
+            public bool explosive, nativeExplosion, shieldBroken, shieldEmergency;
             public SpaceShieldMode? shieldMode;
             public Vector2 normal, shieldCenter;
             public Vector2 lineStart, lineEnd;
@@ -62,7 +62,7 @@ namespace DeltaV
         private readonly List<SpaceCollision.VisualContact> visualContacts = new List<SpaceCollision.VisualContact>();
         private readonly Dictionary<SoundDef, int> soundTicks = new Dictionary<SoundDef, int>();
         private int visualSequence;
-        private static Material[] coreMaterials, railMaterials, electromagneticMaterials;
+        private static Material[] coreMaterials, railMaterials, electromagneticMaterials, kineticShieldMaterials, emergencyShieldMaterials;
         private static Material[] beamCoreMaterials, beamGlowMaterials, beamRailMaterials, beamAmberMaterials;
         private static Texture2D beamStripTexture;
 
@@ -174,6 +174,7 @@ namespace DeltaV
                 anchor = anchor, bornTick = Find.TickManager.TicksGame, size = size, style = style,
                 explosive = explosion, nativeExplosion = contact.nativeExplosion,
                 shieldMode = contact.shieldMode, shieldBroken = contact.shieldBroken,
+                shieldEmergency = contact.shieldEmergency,
                 normal = contact.localNormal,
                 shieldCenter = SpaceTransform.MapToShipLocal(contact.defender.map, contact.shieldCenter),
                 lineStart = SpaceTransform.MapToShipLocal(contact.defender.map, contact.lineStart),
@@ -253,6 +254,12 @@ namespace DeltaV
         }
 
         internal void NotifyFoundationDestroyed(Map map, IntVec3 cell)
+            => EmitStructureFragments(map, cell);
+
+        internal void NotifyRoofDestroyed(Map map, IntVec3 cell)
+            => EmitStructureFragments(map, cell);
+
+        private void EmitStructureFragments(Map map, IntVec3 cell)
         {
             SpaceObject owner = universe.FrameOf(map);
             if (owner == null || map.Disposed) return;
@@ -360,7 +367,11 @@ namespace DeltaV
             railMaterials = BuildImpactTiers("Things/Mote/BrightFlash", ShaderDatabase.MoteGlow,
                 new Color(0.35f, 0.75f, 1f));
             electromagneticMaterials = BuildImpactTiers("Things/Mote/BrightFlash", ShaderDatabase.MoteGlow,
-                new Color(0.7f, 0.35f, 1f));
+                CompSpaceShield.ElectromagneticColor);
+            kineticShieldMaterials = BuildImpactTiers("Things/Mote/BrightFlash", ShaderDatabase.MoteGlow,
+                CompSpaceShield.KineticColor);
+            emergencyShieldMaterials = BuildImpactTiers("Things/Mote/BrightFlash", ShaderDatabase.MoteGlow,
+                CompSpaceShield.EmergencyColor);
             // A procedural cross-section preserves full beam length and a soft edge;
             // stretching a round flash over the entire shot would erase its endpoints.
             beamStripTexture = new Texture2D(64, 16, TextureFormat.RGBA32, false);
@@ -547,7 +558,8 @@ namespace DeltaV
             if (fade >= 1f) return;
             SpacePose pose = AnchorPose(f.anchor);
             Material[] color = f.shieldMode == SpaceShieldMode.Electromagnetic
-                ? electromagneticMaterials : railMaterials;
+                ? electromagneticMaterials : f.shieldMode == SpaceShieldMode.Kinetic
+                ? kineticShieldMaterials : f.shieldEmergency ? emergencyShieldMaterials : coreMaterials;
             Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, map, AnchorPosition(f.anchor), altitude);
             Quaternion rotation = SpaceTransform.FocusedMeshRotation(frame, pose.angle
                 + Mathf.Atan2(f.normal.y, f.normal.x) + Mathf.PI * 0.5f);
@@ -607,6 +619,8 @@ namespace DeltaV
             DestroyImpactTiers(ref coreMaterials);
             DestroyImpactTiers(ref railMaterials);
             DestroyImpactTiers(ref electromagneticMaterials);
+            DestroyImpactTiers(ref kineticShieldMaterials);
+            DestroyImpactTiers(ref emergencyShieldMaterials);
             DestroyImpactTiers(ref beamCoreMaterials);
             DestroyImpactTiers(ref beamGlowMaterials);
             DestroyImpactTiers(ref beamRailMaterials);

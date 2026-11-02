@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Xml;
 using RimExodus.Maps;
 using RimWorld;
 using Verse;
@@ -30,6 +31,7 @@ namespace DeltaV
         internal static List<Thing> Spawn(MapPrefabDocument doc, Map map, IntVec3 position, Faction faction,
             int ownerId, Rot4 rot, UniverseManager universe, bool blankSpace)
         {
+            RemoveMissingStorageFilterDefs(doc);
             var options = new PrefabPlacement
             {
                 Faction = faction, OmitSpace = blankSpace,
@@ -73,6 +75,31 @@ namespace DeltaV
             PrefabPlacementResult result = MapPrefabs.Rebuild(doc, map, position, rot, options);
             if (!result.Success) throw new InvalidDataException(string.Join("\n", result.Errors));
             return result.Things;
+        }
+
+        // Exported shelves can retain filter entries from mods no longer loaded.
+        // Those entries have no possible meaning in this game and Scribe otherwise
+        // emits one cross-reference error per entry on every prefab reconstruction.
+        private static void RemoveMissingStorageFilterDefs(MapPrefabDocument doc)
+        {
+            foreach (MapPrefabThingEntry entry in doc.thingEntries)
+            {
+                if (entry.def?.thingClass == null
+                    || !typeof(Building_Storage).IsAssignableFrom(entry.def.thingClass)
+                    || string.IsNullOrEmpty(entry.stateXml)) continue;
+                var xml = new XmlDocument();
+                xml.LoadXml(entry.stateXml);
+                XmlNodeList names = xml.DocumentElement.SelectNodes(
+                    "settings/filter/allowedDefs/li|settings/filter/disallowedDefs/li");
+                bool changed = false;
+                foreach (XmlNode name in names.Cast<XmlNode>().ToList())
+                    if (DefDatabase<ThingDef>.GetNamedSilentFail(name.InnerText) == null)
+                    {
+                        name.ParentNode.RemoveChild(name);
+                        changed = true;
+                    }
+                if (changed) entry.stateXml = xml.DocumentElement.OuterXml;
+            }
         }
     }
 }

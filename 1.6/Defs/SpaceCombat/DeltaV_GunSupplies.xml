@@ -22,7 +22,7 @@
     <label>make ship propellant x200</label>
     <description>Steel is flammable. Everyone knows that.</description>
     <jobString>Making ship propellant.</jobString>
-    <workAmount>500</workAmount>
+    <workAmount>1000</workAmount>
     <workSpeedStat>GeneralLaborSpeed</workSpeedStat>
     <workSkill>Crafting</workSkill>
     <ingredients>
@@ -32,7 +32,7 @@
             <li>Steel</li>
           </thingDefs>
         </filter>
-        <count>10</count>
+        <count>20</count>
       </li>
     </ingredients>
     <fixedIngredientFilter>
@@ -70,7 +70,7 @@
     <label>make steel projectile heads x200</label>
     <description>Produce 200 projectile head units from 10 units of material.</description>
     <jobString>Making steel projectile heads.</jobString>
-    <workAmount>500</workAmount>
+    <workAmount>1000</workAmount>
     <workSpeedStat>GeneralLaborSpeed</workSpeedStat>
     <workSkill>Crafting</workSkill>
     <ingredients>
@@ -80,7 +80,7 @@
             <li>Steel</li>
           </thingDefs>
         </filter>
-        <count>10</count>
+        <count>20</count>
       </li>
     </ingredients>
     <fixedIngredientFilter>
@@ -118,7 +118,7 @@
     <label>make uranium projectile heads x200</label>
     <description>Produce 200 projectile head units from 10 units of material.</description>
     <jobString>Making uranium projectile heads.</jobString>
-    <workAmount>500</workAmount>
+    <workAmount>1500</workAmount>
     <workSpeedStat>GeneralLaborSpeed</workSpeedStat>
     <workSkill>Crafting</workSkill>
     <ingredients>
@@ -128,7 +128,7 @@
             <li>Uranium</li>
           </thingDefs>
         </filter>
-        <count>10</count>
+        <count>20</count>
       </li>
     </ingredients>
     <fixedIngredientFilter>

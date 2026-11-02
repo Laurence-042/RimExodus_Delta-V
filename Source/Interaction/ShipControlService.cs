@@ -353,8 +353,7 @@ namespace DeltaV
         {
             Map map = Find.CurrentMap;
             ShipBase selected = map != null ? universe.Pilot.SelectedShipOnMap(map) : ShipBase.Invalid;
-            DriveSubject wanted = selected.IsValid && (selected.Faction == Faction.OfPlayer
-                || DebugSettings.godMode)
+            DriveSubject wanted = universe.Pilot.CanPlayerControl(selected)
                 && selected.Combat.fireControlMode == ShipFireControlMode.Manual
                 ? selected.Identity : default;
             if (wanted == activeAimOwnerId && (wanted.key == 0 || AimActive)) return;

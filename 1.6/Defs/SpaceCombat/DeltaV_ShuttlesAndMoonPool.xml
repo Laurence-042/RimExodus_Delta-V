@@ -11,6 +11,8 @@
 	-->
 	<TerrainDef ParentName="Substructure">
 		<defName>DeltaV_MoonPool</defName>
+    <costList Inherit="False"><Steel>6</Steel><GravlitePanel>2</GravlitePanel></costList>
+    <statBases><WorkToBuild>900</WorkToBuild></statBases>
 		<label>moon pool</label>
 		<description>A gravship substructure deck section sealed by a transparent force-field roof. It holds air and protects the room while admitting daylight. Shuttles can launch and land through it; any ordinary roof built here remains until removed.</description>
 		<texturePath>Terrain/MoonPool</texturePath>
@@ -61,12 +63,10 @@
 		<statBases>
 			<MaxHitPoints>850</MaxHitPoints>
 			<Flammability>0.3</Flammability>
-			<WorkToBuild>48000</WorkToBuild>
+			<WorkToBuild>60000</WorkToBuild>
 			<Mass>140</Mass>
 		</statBases>
-		<costList>
-			<Plasteel>200</Plasteel>
-		</costList>
+		<costList Inherit="False"><Steel>300</Steel><Plasteel>250</Plasteel><ComponentIndustrial>8</ComponentIndustrial><ComponentSpacer>2</ComponentSpacer><ShuttleEngine>1</ShuttleEngine></costList>
 		<researchPrerequisites>
 			<li>DeltaV_VacuumBarrier</li>
 		</researchPrerequisites>

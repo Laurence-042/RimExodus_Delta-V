@@ -17,6 +17,8 @@ namespace DeltaV
             CompSpaceRailgun rail = __instance.TryGetComp<CompSpaceRailgun>();
             if (rail != null && __instance.Spawned)
                 __state = new List<ThingWithComps>(rail.AttachedThings());
+            if (__instance is Building_SpaceCargoContainer cargo && __instance.Spawned)
+                __state = new List<ThingWithComps>(cargo.AttachedThings());
         }
 
         public static void Postfix(Building __instance, DestroyMode mode, List<ThingWithComps> __state)

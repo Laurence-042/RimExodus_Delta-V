@@ -13,7 +13,7 @@
   <DeltaV_ThermalReady>below thermal limit</DeltaV_ThermalReady>
   <DeltaV_ShotLoad>Per shot: {0} charge + {1} heads; mass {2}, speed {3} cells/s; cycle {4}s</DeltaV_ShotLoad>
   <DeltaV_PulseEnergy>Pulse energy: {0} Wd</DeltaV_PulseEnergy>
-  <DeltaV_ShieldKineticEnergyReference>0% only fragments. Active settings cancel incoming energy then impart reverse energy. Reverse budget: {0}; cost increases with incoming mass and speed.</DeltaV_ShieldKineticEnergyReference>
+  <DeltaV_ShieldKineticEnergyReference>Normal budget: {0}. Brakes inward motion, then pushes outward; tangential speed stays. 0% only fragments. Cost rises with strength; only paid energy applies.</DeltaV_ShieldKineticEnergyReference>
   <DeltaV_HeadSupply>Projectile heads</DeltaV_HeadSupply>
   <DeltaV_PropellantSupply>Propellant</DeltaV_PropellantSupply>
 </LanguageData>

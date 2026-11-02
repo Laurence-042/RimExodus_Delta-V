@@ -1,12 +1,15 @@
 using System;
 using System.Reflection;
 using DeltaV;
+using RimWorld;
 using UnityEngine;
+using Verse;
 
 internal static partial class Program
 {
     static void CheckPlayerFlightOrders(UniverseManager universe)
     {
+        CheckPlayerControlAuthority(universe);
         Type goalType = typeof(ShipAutopilot).Assembly.GetType("DeltaV.PlayerNavigationTarget", true);
         ConstructorInfo constructor = goalType.GetConstructor(Private, null,
             new[] { typeof(Vector3), typeof(float), typeof(int), typeof(Vector2) }, null);
@@ -67,5 +70,69 @@ internal static partial class Program
         Check(current() == "Combat", "replaced navigation cannot clear a newer combat task");
         resume.Invoke(controller, null);
         Check(current() == "Drift", "invalid player ship cannot resume a paused auto task");
+    }
+
+    static void CheckPlayerControlAuthority(UniverseManager universe)
+    {
+        var player = (Faction)Raw(typeof(Faction));
+        var enemy = (Faction)Raw(typeof(Faction));
+        var oldFactions = Find.World.factionManager;
+        bool oldGodMode = DebugSettings.godMode;
+        var oldConsoleDef = ThingDefOf.PilotConsole;
+        Find.World.factionManager = (FactionManager)Raw(typeof(FactionManager));
+        Set(Find.World.factionManager, "ofPlayer", player);
+        ThingDefOf.PilotConsole = TestBuildingDef("AuthorityConsole");
+        var map = TestMap(49980);
+        var frame = new MapSpaceObject(49980, map, new SpacePose(Vector3.forward, 0));
+        universe.objects.Add(frame);
+        try
+        {
+            var own = AddTestConsole(map, player, 49981);
+            var foreign = AddTestConsole(map, enemy, 49982);
+            var shuttle = AddTestHull(map, enemy, 49983);
+            ShipStructureChanges.Notify(map);
+            foreach (bool godMode in new[] { false, true })
+            {
+                DebugSettings.godMode = godMode;
+                Check(universe.Pilot.CanPlayerControl(own.Vessel)
+                    && universe.Pilot.CanPlayerControl(foreign.Vessel) == godMode
+                    && universe.Pilot.CanPlayerControl(shuttle.Vessel) == godMode,
+                    "mixed-map authority permits foreign anchors only in God Mode=" + godMode);
+                Check(universe.Controls.For(own.Vessel) is PlayerShipController
+                    && universe.Controls.For(foreign.Vessel) is NpcShipController,
+                    "God Mode alone leaves foreign ships under NPC control=" + godMode);
+                var takeover = Call(universe.Pilot, "ControllerFor", PilotTarget.Of(foreign.Vessel));
+                Check((takeover is PlayerShipController) == godMode,
+                    "explicit foreign ship takeover requires God Mode=" + godMode);
+                if (takeover is PlayerShipController debugController)
+                {
+                    debugController.Enter(PilotTarget.Of(foreign.Vessel));
+                    Set(universe.Pilot, "activePlayerController", debugController);
+                    Check(ReferenceEquals(universe.Controls.For(foreign.Vessel), debugController),
+                        "active God Mode takeover survives controller lookup");
+                    DebugSettings.godMode = false;
+                    Check(universe.Controls.For(foreign.Vessel) is NpcShipController
+                        && !universe.Pilot.PilotedTarget(universe).IsValid,
+                        "turning off God Mode releases the foreign ship and clears manual control");
+                }
+            }
+            Set(typeof(Thing), foreign.parent, "factionInt", player);
+            universe.Controls.ReconcileOwner(foreign.Vessel.Identity);
+            Check(universe.Controls.For(foreign.Vessel) is PlayerShipController,
+                "claiming the actual main console grants player control");
+            Set(typeof(Thing), foreign.parent, "factionInt", enemy);
+            universe.Controls.ReconcileOwner(foreign.Vessel.Identity);
+            Check(universe.Controls.For(foreign.Vessel) is NpcShipController,
+                "losing the main console revokes ordinary player control");
+        }
+        finally
+        {
+            universe.Controls.Reset();
+            universe.objects.Remove(frame);
+            Find.Maps.Remove(map);
+            Find.World.factionManager = oldFactions;
+            DebugSettings.godMode = oldGodMode;
+            ThingDefOf.PilotConsole = oldConsoleDef;
+        }
     }
 }

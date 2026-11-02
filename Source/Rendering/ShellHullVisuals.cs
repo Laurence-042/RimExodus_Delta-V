@@ -149,10 +149,11 @@ namespace DeltaV
             {
                 IntVec3 neighbor = cell + GenAdj.CardinalDirections[side];
                 int bit = 1 << side;
-                if (!SubstructureOwnership.HasFoundation(map, neighbor)) continue;
+                if (!HasShellRoof(map, neighbor)
+                    && neighbor.GetEdificeSafe(map)?.def != ThingDefOf.GravshipHull) continue;
                 foundationMask |= bit;
-                TerrainDef terrain = map.terrainGrid.TerrainAt(neighbor);
-                if (terrain != null && !terrain.dontRender
+                TerrainDef terrain = RoofSurfaceTerrain(map, neighbor);
+                if (terrain != null
                     && neighbor.GetEdificeSafe(map)?.def != ThingDefOf.GravshipHull)
                     floorMask |= bit;
             }
@@ -161,13 +162,28 @@ namespace DeltaV
             {
                 for (int corner = 0; corner < 4; corner++)
                     if ((foundationMask & CornerCardinalMasks[corner]) == CornerCardinalMasks[corner]
-                        && SubstructureOwnership.HasFoundation(map,
+                        && HasShellRoof(map,
                             cell + GenAdj.DiagonalDirectionsAround[corner]))
                         cornerFill |= 1 << corner;
             }
-            // The shell links a wall to every neighboring foundation cell,
-            // including an interior wall surrounded by four foundations.
+            // Join actual hull walls and roofed foundations. Open decks expose
+            // the wall face instead of completing an imaginary roof surface.
             return new Adjacency(foundationMask, floorMask, cornerFill);
+        }
+
+        internal static bool HasShellRoof(Map map, IntVec3 cell) =>
+            SubstructureOwnership.HasFoundation(map, cell)
+            && map.roofGrid.RoofAt(cell) != null && !MoonPoolUtility.IsFieldRoofAt(map, cell);
+
+        internal static TerrainDef RoofSurfaceTerrain(Map map, IntVec3 cell)
+        {
+            if (!HasShellRoof(map, cell)) return null;
+            TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
+            if (terrain != null && !terrain.dontRender) return terrain;
+            TerrainDef foundation = SubstructureOwnership.FoundationAt(map, cell);
+            // The moon pool is itself a dontRender foundation, so its ordinary
+            // roof needs the standard deck material rather than its BadGraphic.
+            return foundation?.dontRender == false ? foundation : TerrainDefOf.Substructure;
         }
 
         internal static void PrintCornerFill(SectionLayer_ThingsGeneral layer, Thing wall,
@@ -215,10 +231,10 @@ namespace DeltaV
                             slopeBuilders[side].Add(cell, side, 0.16f,
                                 AltitudeLayer.BuildingOnTop.AltitudeFor() + 0.003f);
 
-                if (!SubstructureOwnership.HasFoundation(map, cell)
+                if (!HasShellRoof(map, cell)
                     || cell.GetEdificeSafe(map)?.def == ThingDefOf.GravshipHull) continue;
-                TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
-                if (terrain == null || terrain.dontRender) continue;
+                TerrainDef terrain = RoofSurfaceTerrain(map, cell);
+                if (terrain == null) continue;
                 int contacts = 0;
                 for (int side = 0; side < 4; side++)
                 {
@@ -239,6 +255,9 @@ namespace DeltaV
                     for (int side = 0; side < 4; side++)
                         if ((contacts & (1 << side)) != 0)
                             floorBuilders[side].Add(cell, side, 0.65f, altitude);
+                for (int side = 0; side < 4; side++)
+                    if (ShellRoofEdges.IsOpenEdge(map, cell, side))
+                        floorBuilders[side].Add(cell, side, 0.24f, altitude);
             }
             for (int side = 0; side < 4; side++)
             {

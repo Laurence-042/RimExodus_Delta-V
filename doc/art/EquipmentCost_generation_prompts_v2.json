@@ -1,0 +1,28 @@
+{
+  "tool": "built-in image_gen",
+  "date": "2026-11-02",
+  "status": "replaced; pending in-game visual review",
+  "reference": "doc/art/EquipmentCost_vanilla_style_reference.png",
+  "direction": "Moderate mechanical detail after user rejected both the busy first version and the overly flat second version.",
+  "assets": [
+    {
+      "name": "SafetyBattery",
+      "path": "1.6/Textures/Things/Building/Power/SafetyBattery.png",
+      "source": "exec-0858eba7-f290-46cb-8500-0f2502d060de.png",
+      "prompt": "Redesign the safe reserve battery game sprite in image 1: user finds it TOO crude and flat. Image2 is a style reference board. Aim BETWEEN the very simple vanilla battery and the existing copper capacitor: believable RimWorld industrial equipment with moderate, readable mechanical structure. Keep landscape3:2 canvas, 3x2tile footprint, strict straight-down orthographic view, muted beige storage panels, neutral gray structure and black outlines. Replace the four blank flat rectangles with THREE parallel substantial sealed battery cell housings, warm gray/beige tops, slightly chamfered corners, each with a broad end cap and one clear recessed seam. Two substantial gray retaining cross-straps and a lower control rail with a red manual disconnect lever, one tiny blue indicator and TWO chunky terminal connectors. Four large mounting fasteners total are enough. Shape the brackets and cell contours, add restrained cel-shaded facets and dark recesses so this reads as machinery, NOT a geometric wireframe or four flat panels. Match the right-hand reference capacitor's crisp illustrated metal treatment but use much fewer parts; no luminous glass, no sci-fi teal, no decorative microdetail, dense grilles or stacked bevels. Original sprite, no copying reference. Centered, tiny even transparent margins. Actual transparent background, no haze, ground or cast shadow. No perspective side faces, text or labels."
+    },
+    {
+      "name": "RailgunEnergyRecovery",
+      "path": "1.6/Textures/Things/Building/SpaceWeapons/RailgunEnergyRecovery.png",
+      "source": "exec-3c76d32c-1406-415f-9882-5e45543835a8.png",
+      "prompt": "Redesign image1 (overly crude railgun energy-recovery module sprite) with moderate readable mechanical detail. Image2 is reference board; use rightmost copper capacitor's illustrated gray metal, copper material and crisp black outlines, but fewer parts because this attachment appears at20-40pixels wide. Strict top-down orthographic, square transparent canvas. A recognizable single broad U-shaped copper return conductor around a charcoal central converter block with a muted green rectangular inset. Conductor is a solid thick simple U, not densely wound coils. Two substantial gray terminal clamps at its open ends, a simple chamfered gray mounting cradle, two large fasteners maximum, one short broad blue indicator on an edge. Give each functional part clear contour and restrained cel-shaded facets. More dimensional mechanical identity than blank rectangular plates, less busy than the reference capacitor. Matte subdued colors, strong uncluttered silhouette, no microscopic details, screws everywhere, circuit traces, dense vents, nested frames, glowing tubes, dramatic lighting or polished 3D realism. No labels, text, floor, perspective sides or cast shadow. Transparent background with no haze outside object. Centered, occupies90% canvas."
+    },
+    {
+      "name": "CargoTemperature",
+      "path": "1.6/Textures/Things/Building/StationTrade/CargoTemperature.png",
+      "source": "exec-0fef3d9c-3548-4311-b96d-eb121068f0dc.png",
+      "prompt": "Redesign image1 (overly crude cargo temperature-control module) into a moderate-detail RimWorld machine attachment. Image2 shows reference art. Match the existing capacitor's crisp illustrated metal contours and restrained cel shading, but fewer parts. Strict top-down orthographic square sprite. Compact neutral-gray chamfered housing holding ONE large simple four-bladed dark cooling fan on the left and THREE broad heat-exchanger fins on the right, with a small recessed paired blue/red status indicator on the bottom. A visible fan hub, a single rim, two large retaining clamps and two broad panel seams supply functional mechanical detail. Broad matte metal facets, strong near-black outlines, compact functional industrial appearance. Not a plain rectangular diagram, but not a busy science-fiction prop. Easy to read at30pixels. No tiny grille mesh, screw arrays, tiny fins, numerous bevels, circuitry or decorative greebles. No glowing glass, text, floor, perspective sides, cast shadow, or halo. Original sprite centered filling90% canvas, truly transparent background. Keep this a 1x1 module, do not include the host cargo container."
+    }
+  ],
+  "generationDirectory": "C:/Users/Laure/.codex/generated_images/01a19731-d70c-78a3-a1e2-7247cdaadde1"
+}

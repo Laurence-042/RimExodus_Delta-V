@@ -218,21 +218,23 @@ namespace DeltaV
         }
 
         internal void LaunchShieldFragment(ThingDef def, SpaceObject source, SpaceObject defender,
-            Thing launcher, Vector3 hit, Vector2 direction, float signedSpeed, float mass, float armorPenetrationScale)
+            Thing launcher, Vector3 hit, Vector2 relativeVelocity, Vector2 outwardNormal, float mass,
+            float armorPenetrationScale, bool reflectedByShield)
         {
-            OrbitSphere.Basis(hit, out Vector3 east, out Vector3 north);
-            Vector3 worldDirection = east * direction.x + north * direction.y;
-            Vector2 travel = signedSpeed >= 0f ? direction : -direction;
+            float speed = relativeVelocity.magnitude;
+            Vector2 travel = speed > .0001f ? relativeVelocity / speed : outwardNormal;
             Vector3 muzzle = OrbitSphere.Move(hit, travel * 0.06f);
-            float speed = Mathf.Abs(signedSpeed);
+            Vector2 muzzleDirection = SpaceTransform.TransportTangent(travel, hit, muzzle);
+            OrbitSphere.Basis(muzzle, out Vector3 east, out Vector3 north);
+            Vector3 worldDirection = east * muzzleDirection.x + north * muzzleDirection.y;
             if (!Launch(def, null, muzzle, worldDirection, source?.faction, launcher, default,
                 new SpaceProjectileLaunchSpec(speed, 0, speed, 1f, armorPenetrationScale, mass))) return;
             Projectile fragment = projectiles[projectiles.Count - 1];
             fragment.sourceContainer = source;
-            fragment.reflectedByShield = signedSpeed < 0f;
-            fragment.container.pose.velocity = travel * speed
-                + SpaceTransform.TransportTangent(SpaceTransform.VelocityAtUniversePoint(defender.pose, hit), hit, muzzle);
-            fragment.container.pose.angle = Mathf.Atan2(travel.y, travel.x);
+            fragment.reflectedByShield = reflectedByShield || Vector2.Dot(relativeVelocity, outwardNormal) > 0f;
+            fragment.container.pose.velocity = SpaceTransform.TransportTangent(
+                relativeVelocity + SpaceTransform.VelocityAtUniversePoint(defender.pose, hit), hit, muzzle);
+            fragment.container.pose.angle = Mathf.Atan2(muzzleDirection.y, muzzleDirection.x);
             fragment.cruiseSpeed = speed;
         }
 
@@ -728,11 +730,12 @@ namespace DeltaV
                             lifetimeTicks = captured.props.guaranteedHitMissiles ? 7 : BeamLifetimeTicks }, 256);
                 };
                 body.onShieldShatter = delegate (Vector3 hit, SpaceObject defender,
-                    Vector2 direction, float signedSpeed)
+                    Vector2 relativeVelocity, Vector2 outwardNormal, float normalEnergy)
                 {
                     SpaceShieldProjectileBehavior.SpawnFragments(this, captured.def,
                         captured.sourceContainer, defender, captured.launcher, hit,
-                        direction, signedSpeed, captured.mass * captured.body.damageScale, captured.armorPenetrationScale);
+                        relativeVelocity, outwardNormal, normalEnergy, captured.mass * captured.body.damageScale,
+                        captured.armorPenetrationScale, captured.reflectedByShield);
                 };
                 sweepScratch.Add(p);
                 bodyScratch.Add(body);
@@ -1241,7 +1244,7 @@ namespace DeltaV
                 name = $"DeltaV_ShieldLine_{mode}",
                 color = mode == SpaceShieldMode.Electromagnetic
                     ? new Color(1f, 0.25f, 0.85f, 0.85f)
-                    : new Color(1f, 1f, 1f, 0.72f),
+                    : new Color(1f, 0.55f, 1f, 0.72f),
                 renderQueue = 3201,
             };
         }

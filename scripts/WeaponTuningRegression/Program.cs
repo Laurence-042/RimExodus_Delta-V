@@ -74,19 +74,7 @@ internal static partial class Program
         Check(SpaceKinetics.ImpactFactor(100, 0) == 0, "stationary fragments cause no impact damage");
         var effect = new ImpactOutcomePart { damage = 24, kineticMassScaling = true };
         Check(Near(SpaceImpactEffects.ComputeDamage(effect, heavy, 0, 1, 16), 96), "production damage uses actual mass and speed");
-        foreach (float mass in new[] { 1f, 24f, 48f })
-        {
-            float reverse = SpaceKinetics.ReverseEnergy(50), incoming = SpaceKinetics.Energy(mass, 60);
-            float cost = SpaceKinetics.ShieldCost(mass, 60, reverse, 2, true);
-            float reflected = SpaceKinetics.AfterShield(mass, 60, cost, 2, true);
-            Check(reflected < 0 && Near(SpaceKinetics.Energy(mass, reflected), reverse), "full payment assigns fixed reverse energy " + mass);
-            Check(Near(SpaceKinetics.AfterShield(mass, 60, 2, 2, true), 60), "base-only payment cannot remove kinetic energy " + mass);
-            float stopped = SpaceKinetics.AfterShield(mass, 60, 2 + incoming / SpaceKinetics.EnergyUnitsPerWattDay, 2, true);
-            Check(Math.Abs(stopped) < .01f, "exact stopping payment has no reverse energy " + mass);
-            Check(Near(SpaceKinetics.AfterShield(mass, 60, cost, 2, false), 60), "passive shield preserves fragment speed " + mass);
-            Check(Near(3 * SpaceKinetics.Energy(mass / 3, reflected), reverse), "fragment group shares one reverse budget " + mass);
-        }
-        Check(SpaceKinetics.ShieldCost(16, 60, 0, 2, true) > SpaceKinetics.ShieldCost(1, 60, 0, 2, true), "same speed heavy shot costs more to stop");
+        CheckShieldNormalEnergy();
         var rapid = Gun(Def("DeltaV_Weapon_RapidMainSmall"));
         var cannon = Gun(Def("DeltaV_Weapon_CannonTurret"));
         cannon.charge = cannon.mass = 1; cannon.CommitShot();
@@ -156,8 +144,8 @@ internal static partial class Program
         incomingPose.velocity += SpaceTransform.TransportTangent(common, pose.position, contact); pose.velocity += common;
         Check((SpaceTransform.RelativeVelocityAtContact(incomingPose, pose, contact) - new Vector2(30, 4)).magnitude < .001f, "common drift does not change impact energy");
         var recipes = XDocument.Load(Path.Combine(repo, "1.6/Defs/SpaceCombat/DeltaV_GunSupplies.xml"));
-        Check(recipes.Root.Elements("RecipeDef").All(x => (float)x.Element("ingredients").Element("li").Element("count") == 10
-            && (int)x.Element("products").Elements().Single() == 200), "batch economy: 10 material yields 200 components");
+        Check(recipes.Root.Elements("RecipeDef").All(x => (float)x.Element("ingredients").Element("li").Element("count") == 20
+            && (int)x.Element("products").Elements().Single() == 200), "batch economy: 20 material yields 200 components");
         Check((string)recipes.Root.Elements("RecipeDef").First().Descendants("thingDefs").First().Element("li") == "Steel", "propellant requires steel, not fuel");
         var effects = XDocument.Load(Path.Combine(repo, "1.6/Defs/SpaceCombat/DeltaV_SpaceImpactEffects.xml"));
         Check(effects.Root.Elements().Where(x => x.Element("projectileDefs")?.Elements().Any(y => y.Value == "DeltaV_Projectile_Cannon") == true)

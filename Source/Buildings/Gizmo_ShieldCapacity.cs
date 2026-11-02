@@ -17,6 +17,7 @@ namespace DeltaV
         protected override string BarLabel => shield.RegularCapacity.ToString("0.#") + " / " + shield.ShieldProps.regularCapacity;
         protected override string Title => "DeltaV_ShieldRegularBar".Translate(shield.AutoRejoinPercent);
         protected override float Width => 220f;
+        protected override Color BarColor => Color.white;
         protected override bool IsDraggable => true;
         protected override FloatRange DragRange => new FloatRange(.01f, 1f);
         protected override int Increments => 100;
@@ -24,15 +25,4 @@ namespace DeltaV
         protected override string GetTooltip() => "DeltaV_ShieldRegularBarTip".Translate();
     }
 
-    public sealed class Gizmo_ShieldEmergency : Gizmo_Slider
-    {
-        private readonly CompSpaceShield shield;
-        public Gizmo_ShieldEmergency(CompSpaceShield shield) { this.shield = shield; }
-        protected override float Target { get => 0f; set { } }
-        protected override float ValuePercent => (float)(shield.EmergencyCapacity / shield.ShieldProps.emergencyCapacity);
-        protected override string BarLabel => shield.EmergencyCapacity.ToString("0.#") + " / " + shield.ShieldProps.emergencyCapacity;
-        protected override string Title => "DeltaV_ShieldEmergencyBar".Translate();
-        protected override bool DraggingBar { get => false; set { } }
-        protected override string GetTooltip() => "DeltaV_ShieldEmergencyBarTip".Translate();
-    }
 }

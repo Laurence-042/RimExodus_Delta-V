@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
   <ThingDef ParentName="DeltaV_EngineeringTurret">
-    <defName>DeltaV_TractorBeam</defName><label>tractor beam</label><uiOrder>2102</uiOrder>
+    <defName>DeltaV_TractorBeam</defName>
+    <costList Inherit="False"><Steel>150</Steel><Plasteel>30</Plasteel><ComponentIndustrial>6</ComponentIndustrial></costList>
+    <statBases><WorkToBuild>8000</WorkToBuild></statBases><label>tractor beam</label><uiOrder>2102</uiOrder>
     <description>An engineering device built on a moonpool. Requires power and stored electricity. Assigned to secondary group 4 by default.\n\nCollect items: select “Current mode: Collect items” and enable its weapon group. It automatically recovers drifting items and living pawns near the moonpool according to the cargo and living-pawn filters. Disabling the group stops collection; manual fire control is not required. Living pawns have a separate toggle, with hostiles excluded by default. Each target is reserved for one tractor. Leave room near the moonpool for deliveries.\n\nPull structures: select “Current mode: Pull structures”, enable its group, and hold the corresponding fire button in manual fire control (right mouse button for the default secondary group). The beam fires along the barrel and pulls structures it hits within range; the cursor sets the direction and need not be on the target. Automatic fire control never operates structural towing. Disconnected components separate before force is applied; the target needs no engine. Each beam provides one quarter of a large thruster’s full thrust. Multiple beams add force, and the firing ship receives the reaction force.\n\nFor stable towing, aim the beam’s line of force through the target’s center of mass and use an inertia coupler to reduce relative rotation. Off-center towing turns the target.</description>
     <size>(1,1)</size><passability>Standable</passability>
     <uiIconPath>Things/Building/SpaceWeapons/TractorBeam_MenuIcon</uiIconPath>
@@ -13,7 +15,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeapon">
         <manualOnly>true</manualOnly><tractor>true</tractor><aimMode>PointDefense</aimMode>
         <projectileDef>DeltaV_Beam_Tractor</projectileDef><intrinsicAimSkill>20</intrinsicAimSkill><baseSpreadDeg>0</baseSpreadDeg>
-        <cooldownTicks>1</cooldownTicks><range>60</range><shotEnergy>0.1</shotEnergy>
+        <cooldownTicks>1</cooldownTicks><range>60</range><shotEnergy>0.05</shotEnergy>
         <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>4</defaultGroupNumber>
         <topTurret>true</topTurret><turretMuzzleDistance>0</turretMuzzleDistance><defaultFireDeviationDeg>2</defaultFireDeviationDeg>
       </li>

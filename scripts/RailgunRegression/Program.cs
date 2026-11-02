@@ -17,7 +17,7 @@ using Verse;
 
 // Production collision, damage worker and impact Defs. Only Unity sound/materials,
 // notifications and destruction bookkeeping are replaced by an in-memory map fixture.
-internal static class Program
+internal static partial class Program
 {
     static int checks, nextId = 7000;
     static object Raw(Type type) => RuntimeHelpers.GetUninitializedObject(type);
@@ -195,7 +195,7 @@ internal static class Program
             DefDatabase<SpaceImpactEffectDef>.Add(effect);
         }
         SpaceImpactEffects.ResetCache();
-        if (energyOnly) { CheckEnergy(); return; }
+        if (energyOnly) { CheckEnergy(); CheckCargoTemperature(); CheckEquipmentIntegration(); return; }
 
         Reset(); var first = Shield(3000); var second = Shield(3000);
         var shot = Fire(7200); // 7200 budget, co-located full shields.
@@ -296,10 +296,10 @@ internal static class Program
         shot = new SpaceCollision.SweptBody { attacker = attack, projectileDef = rail, from = start,
             to = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(70, 5.5f)), damageScale = 1, mass = 40,
             onVisualContact = contacts.Add,
-            onShieldShatter = (hit, defender, direction, speed) =>
+            onShieldShatter = (hit, defender, velocity, normal, energy) =>
             {
                 shattered = true;
-                SpaceShieldProjectileBehavior.SpawnFragments(service, rail, null, defender, null, hit, direction, speed, 40f, 1f);
+                SpaceShieldProjectileBehavior.SpawnFragments(service, rail, null, defender, null, hit, velocity, normal, energy, 40f, 1f);
             } };
         SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
         records = (IList)AccessTools.Field(typeof(SpaceProjectileService), "projectiles").GetValue(service);
@@ -315,6 +315,62 @@ internal static class Program
             && (float)AccessTools.Field(p.GetType(), "damageScale").GetValue(p) == 1f
             && Math.Abs((float)AccessTools.Field(p.GetType(), "mass").GetValue(p) - 10f) < .001f),
             "real shatter creates four independent fragments sharing parent mass without copying its budget");
+        // Keep the real payment, collision normal, scatter and launch chain under test.
+        kinetic.angleDeg = 20;
+        kinetic.kineticStrengthPercent = 25;
+        railProps.shieldFragmentScatterDeg = 11;
+        foreach (float incomingMass in new[] { 1f, 48f })
+        foreach (float available in new[] { 1f, 2f, 3f, 100f })
+        {
+            contacts.Clear();
+            SpaceCollision.ClearCaches();
+            Set(kinetic, "disabledUntilTick", 0);
+            Set(battery, "storedEnergy", available);
+            hull.pose.velocity = new Vector2(12, -7);
+            hull.pose.angularVelocity = .1f;
+            attack.pose.velocity = tangent * 60 + SpaceTransform.VelocityAtUniversePoint(hull.pose, start);
+            service = new SpaceProjectileService(universe);
+            Vector3 contactPoint = default;
+            Vector2 incomingVelocity = default, normalAtHit = default;
+            float fundedEnergy = -1;
+            shot = new SpaceCollision.SweptBody { attacker = attack, projectileDef = rail, from = start,
+                to = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(70, 5.5f)), damageScale = 1, mass = incomingMass,
+                onShieldShatter = (hit, defender, velocity, normal, energy) =>
+                {
+                    contactPoint = hit; incomingVelocity = velocity; normalAtHit = normal; fundedEnergy = energy;
+                    SpaceShieldProjectileBehavior.SpawnFragments(service, rail, null, defender, null,
+                        hit, velocity, normal, energy, incomingMass, 1f);
+                } };
+            SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
+            float expectedPaid = Math.Min(available, 6f); // 2 base + 7200 / 1800, independent of incoming mass/speed.
+            Check(shot.dead && Math.Abs(battery.StoredEnergy - (available - expectedPaid)) < .001f
+                && Math.Abs(fundedEnergy - Math.Max(0, expectedPaid - 2) * 1800) < .01f,
+                $"real normal pulse only spends selected/available energy: mass={incomingMass}, available={available}");
+            records = (IList)AccessTools.Field(typeof(SpaceProjectileService), "projectiles").GetValue(service);
+            Check(records.Count == 4, "partial payment still creates the configured fragments");
+            Vector2 side = new Vector2(-normalAtHit.y, normalAtHit.x);
+            for (int j = 0; j < records.Count; j++)
+            {
+                object piece = records[j];
+                var pieceContainer = (SpaceObject)AccessTools.Property(piece.GetType(), "container").GetValue(piece);
+                Vector2 before = SpaceTransform.Rotate(incomingVelocity, (2f * j / 3 - 1) * 11 * Mathf.Deg2Rad);
+                Vector2 after = SpaceTransform.TransportTangent(pieceContainer.pose.velocity, pieceContainer.pose.position, contactPoint)
+                    - SpaceTransform.VelocityAtUniversePoint(hull.pose, contactPoint);
+                float beforeNormal = Vector2.Dot(before, normalAtHit), afterNormal = Vector2.Dot(after, normalAtHit);
+                float energyChange = .5f * incomingMass / 4 * (Math.Sign(afterNormal) * afterNormal * afterNormal
+                    - Math.Sign(beforeNormal) * beforeNormal * beforeNormal);
+                Check(Math.Abs(Vector2.Dot(after - before, side)) < .01f
+                    && Math.Abs(energyChange - fundedEnergy / 4) < .5f,
+                    "launched fragment preserves scattered tangent and receives only its normal energy share");
+                Check((int)AccessTools.Field(piece.GetType(), "spawnedAtTick").GetValue(piece) == Find.TickManager.TicksGame,
+                    "shield fragmentation keeps a fresh projectile lifetime");
+            }
+        }
+        hull.pose.velocity = Vector2.zero; hull.pose.angularVelocity = 0;
+        attack.pose.velocity = tangent * 540;
+        kinetic.angleDeg = 0;
+        Set(kinetic, "disabledUntilTick", 0);
+        Set(battery, "storedEnergy", 8f);
         contacts.Clear();
         SpaceCollision.ClearCaches();
         kinetic.mode = SpaceShieldMode.Electromagnetic;
@@ -484,7 +540,10 @@ internal static class Program
         interceptor.currentHitPoints = -1;
         var shield = new CompSpaceShield { props = new CompProperties_SpaceShield {
             groundRadius = 12, regularCapacity = small ? 0 : 1000, emergencyCapacity = small ? 1000 : 2000 } };
-        Add(40, 8, 500, interceptor, shield); shield.PostPostMake(); return shield;
+        var fuel = new CompRefuelable();
+        fuel.Initialize(new CompProperties_Refuelable { fuelCapacity = small ? 1000 : 2000,
+            initialFuelPercent = 1, consumeFuelOnlyWhenUsed = true });
+        Add(40, 8, 500, interceptor, fuel, shield); shield.PostPostMake(); return shield;
     }
     static void CheckDualGuard(Harmony harmony)
     {
@@ -635,6 +694,53 @@ internal static class Program
         public bool TryLaunch(SpaceWeaponShot shot) { calls++; return false; }
     }
     static int storedEnergyReads;
+    static float cargoOutdoor;
+    static bool CargoOutdoor(ref float __result) { __result = cargoOutdoor; return false; }
+    static void CheckCargoTemperature()
+    {
+        Reset();
+        var patch = new Harmony("DeltaV.Regression.CargoTemperature");
+        patch.Patch(AccessTools.PropertyGetter(typeof(MapTemperature), "OutdoorTemp"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CargoOutdoor)));
+        try
+        {
+            map.mapTemperature = new MapTemperature(map);
+            var moduleDef = MakeDef("temperatureModule");
+            var cargoDef = MakeDef("cargo"); cargoDef.size = new IntVec2(2, 3);
+            cargoDef.modExtensions = new List<DefModExtension> { new DefModExtension_CargoAttachments {
+                slots = new List<SpaceWeaponAttachmentSlot> { new SpaceWeaponAttachmentSlot { cell = IntVec3.Zero } },
+                allowed = new List<ThingDef> { moduleDef } } };
+            var cargo = (Building_SpaceCargoContainer)Raw(typeof(Building_SpaceCargoContainer));
+            cargo.def = cargoDef; cargo.thingIDNumber = nextId++;
+            Set(cargo, "positionInt", new IntVec3(20, 0, 5)); Set(cargo, "mapIndexOrState", (sbyte)0);
+            map.thingGrid.Register(cargo);
+            var attachment = new CompSpaceWeaponGenericAttachment { props = new CompProperties_SpaceWeaponAttachment() };
+            Set(attachment, "enabled", true);
+            var power = new CompPowerTrader { props = new CompProperties_Power() }; Set(power, "powerOnInt", true);
+            var control = new CompCargoTemperature { props = new CompProperties_CargoTemperature(), targetTemperature = -10 };
+            var module = Add(20, 5, 100, attachment, power, control); module.def = moduleDef;
+            cargoOutdoor = 30; control.RefreshPower();
+            Check(power.PowerOutput == -200 && cargo.CargoTemperature == -10,
+                "cargo module uses ASF cooling from outdoor ambient and draws 200 W");
+            cargoOutdoor = -80; control.RefreshPower();
+            Check(power.PowerOutput == -175 && cargo.CargoTemperature == -10,
+                "cargo module heats toward same setpoint at 175 W without simultaneous cooling");
+            cargoOutdoor = -150; control.RefreshPower();
+            Check(cargo.CargoTemperature == -50, "ASF thermal offset bounds extreme-cold heating to 100 degrees");
+            cargoOutdoor = 150; control.RefreshPower();
+            Check(cargo.CargoTemperature == 50, "ASF thermal offset bounds extreme-hot cooling to 100 degrees");
+            cargoOutdoor = -10; control.RefreshPower();
+            Check(power.PowerOutput == 0 && cargo.CargoTemperature == -10, "at target temperature module uses no power");
+            cargoOutdoor = 30; Set(attachment, "enabled", false); control.RefreshPower();
+            Check(power.PowerOutput == 0 && cargo.CargoTemperature == 30,
+                "disabled module restores outdoor temperature and removes its load");
+            Set(attachment, "enabled", true); Set(power, "powerOnInt", false); control.RefreshPower();
+            Check(cargo.CargoTemperature == 30, "power failure immediately removes cargo temperature adjustment");
+            map.thingGrid.Deregister(module); Set(module, "mapIndexOrState", (sbyte)-1);
+            Check(cargo.CargoTemperature == 30, "removing module leaves passive outdoor-temperature cargo");
+        }
+        finally { patch.UnpatchAll(patch.Id); }
+    }
     static void CountStoredEnergy() { storedEnergyReads++; }
 
     static void CheckEnergy()
@@ -736,6 +842,40 @@ internal static class Program
                 && (float)cap.Element("initialEnergyPercent") == 0
                 && Math.Abs((float)cap.Element("capacityWattDays") * 60000 / (float)cap.Element("chargingWatts") - 216000) < 1,
                 suffix + " capacitor stores three paid pulses, starts empty and recharges slowly");
+
+            segments[2].parent.GetComp<CompPowerTrader>().transNet = net;
+            var recovery = new CompRailgunEnergyRecovery { props = new CompProperties_RailgunEnergyRecovery() };
+            var recovery2 = new CompRailgunEnergyRecovery { props = new CompProperties_RailgunEnergyRecovery() };
+            Set(recovery, "enabled", true); Set(recovery2, "enabled", true);
+            var module = Add(10, 5, 100, recovery);
+            var module2 = Add(11, 5, 100, recovery2);
+            var local = weapon.Layout.segmentAttachments[segments[0]];
+            local.Add(module);
+            Check(Plan(wp.shotEnergy + rp.shotEnergy * .75f) && energy.active.Count == 1,
+                suffix + " one recovery makes its segment affordable at exactly 75 percent");
+            energy.Commit();
+            Check(battery.StoredEnergy == 0f, suffix + " recovery discount is committed once with full loader cost");
+            local.Add(module2);
+            Check(Plan(wp.shotEnergy + rp.shotEnergy * .5f) && energy.active.Count == 1,
+                suffix + " two recovery modules stack additively to 50 percent");
+            Check(Plan(wp.shotEnergy + rp.shotEnergy * .5f - 1) && energy.active.Count == 0,
+                suffix + " recovery still requires the whole discounted pulse");
+            Set(recovery2, "enabled", false);
+            Check(Plan(wp.shotEnergy + rp.shotEnergy * .5f) && energy.active.Count == 0,
+                suffix + " disabling recovery updates live affordability without rebuilding layout");
+            local.Remove(module2);
+            var reserve = new CompSwitchableBattery { props = new CompProperties_SwitchableBattery { capacityWattDays = 3600 } };
+            var capAttachment = new CompSpaceWeaponCapacitor { props = new CompProperties_SpaceWeaponCapacitor() };
+            Set(capAttachment, "enabled", true); Set(reserve, "storedEnergy", rp.shotEnergy * .75f);
+            local.Add(Add(12, 5, 100, reserve, capAttachment));
+            Check(Plan(wp.shotEnergy) && energy.active.Count == 1,
+                suffix + " capacitor plus recovery funds the reduced pulse from local reserve");
+            energy.Commit();
+            Check(battery.StoredEnergy == 0f && reserve.StoredEnergy == 0f,
+                suffix + " mixed loadout deducts grid base and discounted capacitor pulse separately");
+            local.Clear();
+            Check(Plan(wp.shotEnergy + rp.shotEnergy * .75f) && energy.active.Count == 0,
+                suffix + " removing recovery restores full segment price");
         }
     }
 }

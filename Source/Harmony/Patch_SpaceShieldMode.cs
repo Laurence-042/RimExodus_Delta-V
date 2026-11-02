@@ -41,6 +41,7 @@ namespace DeltaV
         public static bool PostDraw(CompProjectileInterceptor __instance)
         {
             CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
+            shield?.UpdateFieldColor();
             return shield == null || shield.State == SpaceShieldState.Guard;
         }
 
@@ -53,15 +54,18 @@ namespace DeltaV
         }
 
         [HarmonyPatch(typeof(CompProjectileInterceptor), nameof(CompProjectileInterceptor.CompGetGizmosExtra))]
-        [HarmonyPrefix]
-        public static bool CompGetGizmosExtra(CompProjectileInterceptor __instance,
+        [HarmonyPostfix]
+        public static void CompGetGizmosExtra(CompProjectileInterceptor __instance,
             ref IEnumerable<Gizmo> __result)
         {
             CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
-            if (shield == null)
-                return true;
-            __result = System.Array.Empty<Gizmo>();
-            return false;
+            if (shield != null) __result = WithoutNativeCapacity(__result);
+        }
+
+        private static IEnumerable<Gizmo> WithoutNativeCapacity(IEnumerable<Gizmo> gizmos)
+        {
+            foreach (Gizmo gizmo in gizmos)
+                if (!(gizmo is Gizmo_ProjectileInterceptorHitPoints)) yield return gizmo;
         }
 
         [HarmonyPatch(typeof(CompProjectileInterceptor), nameof(CompProjectileInterceptor.CompInspectStringExtra))]

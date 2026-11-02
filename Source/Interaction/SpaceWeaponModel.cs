@@ -74,8 +74,10 @@ namespace DeltaV
                     foreach (var segment in layout.acceleration.segments)
                     {
                         if (segment.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }) continue;
-                        if (!ReserveAttachments(layout.segmentAttachments[segment], segment.RailProps.shotEnergy)
-                            && !ReserveGrid(segment.parent, segment.RailProps.shotEnergy)) continue;
+                        var attachments = layout.segmentAttachments[segment];
+                        float cost = segment.ShotEnergy(attachments);
+                        if (!ReserveAttachments(attachments, cost)
+                            && !ReserveGrid(segment.parent, cost)) continue;
                         active.Add(segment); speedBonus += segment.RailProps.speedBonus;
                     }
                 return true;

@@ -22,7 +22,19 @@
     <DebugType>none</DebugType>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <AdaptiveStorageDir Condition="'$(AdaptiveStorageDir)' == ''">D:/SteamLibrary/steamapps/workshop/content/294100/3033901359</AdaptiveStorageDir>
+  </PropertyGroup>
+
   <ItemGroup>
+    <Reference Include="AdaptiveStorageFramework">
+      <HintPath>$(AdaptiveStorageDir)/1.6/Assemblies/AdaptiveStorageFramework.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="1ITransformable">
+      <HintPath>$(AdaptiveStorageDir)/1.6/Assemblies/1ITransformable.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="RimExodus.Maps">
       <HintPath>../References/REF/$(RimWorldVersion)/RimExodus.Maps.dll</HintPath>
       <Private>false</Private>
@@ -32,6 +44,12 @@
   <Target Name="RequireFramework" BeforeTargets="ResolveReferences">
     <Error Condition="!Exists('../References/REF/$(RimWorldVersion)/RimExodus.Maps.dll')"
            Text="REF reference missing. Run just build $(RimWorldVersion) to build the sibling framework and fetch its DLL first." />
+  </Target>
+  <Target Name="RequireAdaptiveStorage" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(AdaptiveStorageDir)/1.6/Assemblies/AdaptiveStorageFramework.dll')"
+           Text="ASF reference missing. Set AdaptiveStorageDir to the installed Adaptive Storage Framework mod directory." />
+    <Error Condition="!Exists('$(AdaptiveStorageDir)/1.6/Assemblies/1ITransformable.dll')"
+           Text="ASF ITransformable reference missing. Set AdaptiveStorageDir to the installed Adaptive Storage Framework mod directory." />
   </Target>
 
   <Target Name="CopyExperimental17Content" AfterTargets="Build" Condition="'$(RimWorldVersion)' == '1.7'">

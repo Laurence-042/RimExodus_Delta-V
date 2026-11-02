@@ -11,14 +11,18 @@ namespace DeltaV
         public static float Speed(float mass, float energy) => mass <= 0f ? 0f : Mathf.Sqrt(2f * Mathf.Max(0f, energy) / mass);
         public static float LaunchSpeed(float charge, float mass) => Speed(mass, Energy(charge, UnitSpeed));
         public static float ImpactFactor(float mass, float speed) => Mathf.Max(0f, mass) * Mathf.Max(0f, speed) / UnitSpeed;
-        public static float ReverseEnergy(float strength) => Energy(1f, 240f) * Mathf.Clamp01(strength / 100f);
-        public static float ShieldCost(float mass, float speed, float reverseEnergy, float baseCost, bool active) =>
-            baseCost + (active ? (Energy(mass, speed) + reverseEnergy) / EnergyUnitsPerWattDay : 0f);
-        public static float AfterShield(float mass, float speed, float paid, float baseCost, bool active)
+        public static float ShieldNormalEnergy(float strength) => Energy(1f, 240f) * Mathf.Clamp01(strength / 100f);
+        public static float ShieldCost(float normalEnergy, float baseCost) =>
+            baseCost + Mathf.Max(0f, normalEnergy) / EnergyUnitsPerWattDay;
+        public static Vector2 ApplyShieldNormalEnergy(float mass, Vector2 velocity, Vector2 outwardNormal, float energy)
         {
-            if (!active) return speed;
-            float remaining = Energy(mass, speed) - Mathf.Max(0f, paid - baseCost) * EnergyUnitsPerWattDay;
-            return remaining >= 0f ? Speed(mass, remaining) : -Speed(mass, -remaining);
+            if (mass <= 0f || energy <= 0f) return velocity;
+            Vector2 normal = outwardNormal.normalized;
+            float incoming = Vector2.Dot(velocity, normal);
+            // Negative normal energy travels inward; the pulse first brakes it, then pushes outward.
+            float remaining = Mathf.Sign(incoming) * Energy(mass, incoming) + energy;
+            float outgoing = Mathf.Sign(remaining) * Speed(mass, Mathf.Abs(remaining));
+            return velocity + normal * (outgoing - incoming);
         }
     }
 }

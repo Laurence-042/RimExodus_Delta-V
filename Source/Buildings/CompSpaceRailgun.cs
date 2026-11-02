@@ -32,7 +32,8 @@ namespace DeltaV
         public override IEnumerable<StatDrawEntry> SpecialDisplayStats(StatRequest req)
         {
             yield return SpaceCombatStats.Entry("DeltaV_StatSegmentEnergy",
-                SpaceCombatStats.WattDays(shotEnergy), 5100);
+                SpaceCombatStats.WattDays(req.Thing?.TryGetComp<CompSpaceRailgun>() is { } segment
+                    ? segment.ShotEnergy(segment.AttachedThings()) : shotEnergy), 5100);
             yield return SpaceCombatStats.Entry("DeltaV_StatSpeedBonus",
                 speedBonus.ToString("0.##"), 5090);
             if (!attachmentSlots.NullOrEmpty())
@@ -61,6 +62,15 @@ namespace DeltaV
     {
         public CompProperties_SpaceRailgun RailProps => (CompProperties_SpaceRailgun)props;
         public RailgunPartRole Role => RailProps.role;
+
+        public float ShotEnergy(IEnumerable<ThingWithComps> attachments)
+        {
+            float reduction = 0f;
+            foreach (ThingWithComps thing in attachments)
+                if (thing.TryGetComp<CompSpaceWeaponAttachment>() is { Enabled: true } attachment)
+                    reduction += attachment.SegmentEnergyReduction;
+            return RailProps.shotEnergy * (1f - Mathf.Clamp01(reduction));
+        }
 
         public SpaceWeaponAttachmentSlot AttachmentSlotAt(IntVec3 cell)
         {

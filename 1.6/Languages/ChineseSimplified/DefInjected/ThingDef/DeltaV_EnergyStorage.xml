@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_SafetyBattery.label>安全储备电池</DeltaV_SafetyBattery.label>
+  <DeltaV_SafetyBattery.description>保留战备电力的独立储能设备，容量 3600 W·d。关闭电网输出时以 3000 W 充电；手动开启后，以设定的 1～6000 W 持续供电，也能为普通电池充电。武器不能直接抽取其储备，电网短路也不会清空储能。建成时为空。</DeltaV_SafetyBattery.description>
+  <DeltaV_RailgunEnergyRecovery.label>轨道能量回收插件</DeltaV_RailgunEnergyRecovery.label>
+  <DeltaV_RailgunEnergyRecovery.description>安装在轨道加速段的电容槽中，每件降低本段 25% 脉冲耗电，两件合计降低 50%。装弹机的基础电费不变。插件不储能，没有待机功耗或耗材。</DeltaV_RailgunEnergyRecovery.description>
+  <DeltaV_CargoTemperatureModule.label>货柜温控插件</DeltaV_CargoTemperatureModule.label>
+  <DeltaV_CargoTemperatureModule.description>每个货柜可安装一件。按目标温度自动制冷或制热，分别耗电 200 W 或 175 W，货物温度相对室外最多改变 100°C。停用后不耗电，货物恢复为室外温度。</DeltaV_CargoTemperatureModule.description>
+</LanguageData>

@@ -1,0 +1,43 @@
+Built-in image_gen, transparent_background=true, 2026-10-31.
+
+StorageContainer.png: Production-ready 2x2 RimExodus Delta-V station storage cargo container sprite. Pure 90-degree orthographic overhead, centered square footprint, 8% transparent margin. Chunky armored cabinet; dark outer outline, broad neutral gray steel panels, restrained warm yellow handling stripe, two large sealed lids, robust corners. Readable at 48 pixels per tile. Painted RimWorld Odyssey-inspired style. No perspective, floor, shadow, text, or other objects.
+
+DeliveryContainer.png: Production-ready 2x2 station delivery cargo container sprite in the same family. Pure overhead, centered, transparent. Dark industrial rim and neutral gray frame, broad closed blue-cyan double receiving hatch and restrained cyan indicators. Readable at 48 pixels per tile. Painted RimWorld Odyssey-inspired style. No perspective, floor, shadow, text, or other objects.
+
+TradeTerminal.png: Production-ready 1x1 station trade terminal sprite. Pure overhead, centered, transparent. Compact dark metal rim, neutral gray chassis, large teal-blue glass display facing bottom, a few chunky tactile controls, small yellow accent. Readable at 48 pixels. Painted RimWorld Odyssey-inspired style. No perspective, floor, shadow, text, or other objects.
+
+First drafts (discarded after user feedback that style/detail must match original RimWorld):
+Storage: C:\Users\Laure\.codex\generated_images\01a18e83-cec5-7d00-b9a5-47a60a418282\exec-7bc3fa61-3d78-43bf-b22e-2e3a5e9926b1.png
+Delivery: C:\Users\Laure\.codex\generated_images\01a18e83-cec5-7d00-b9a5-47a60a418282\exec-9b9ee3bf-f934-4260-9559-46ecf393263d.png
+Terminal: C:\Users\Laure\.codex\generated_images\01a18e83-cec5-7d00-b9a5-47a60a418282\exec-a395de55-64bd-4a7a-b9b3-10eca64e4a0a.png
+
+Revisions (copied into 1.6 and 1.7 texture trees):
+Storage: C:\Users\Laure\.codex\generated_images\01a18e83-cec5-7d00-b9a5-47a60a418282\exec-bb7f5bb5-fc09-4889-9f72-8b9a81d0a459.png
+Delivery: C:\Users\Laure\.codex\generated_images\01a18e83-cec5-7d00-b9a5-47a60a418282\exec-da1b0bb2-dc9e-423b-91fb-9cfd2f4b0f7b.png
+Terminal intermediate: C:\Users\Laure\.codex\generated_images\01a18e83-cec5-7d00-b9a5-47a60a418282\exec-db9a974f-0572-4fcd-b072-44c412616f48.png
+Terminal final: C:\Users\Laure\.codex\generated_images\01a18e83-cec5-7d00-b9a5-47a60a418282\exec-f1c575e7-422d-412b-ae13-a2b8af6796fc.png
+
+Edit prompts, summarized:
+- Storage: match the matte broad gray planes, sparse outlines and low detail density of original PilotConsole and ShipCryptosleepCasket references, and the project's MissileMagazine; retain only two major lid panels and one yellow identifier band. Eliminate bevel stacks, micro-screws, scratches and gloss.
+- Delivery: match the revised storage frame and original references; replace lid/band with two broad muted cyan hatch panels, one seam and four simple status marks. Eliminate extra surface detail and gloss.
+- Terminal: match original PilotConsole detail density at 48x48 pixels; keep one muted teal display, one yellow status mark and three large controls. A follow-up edit removed a generated dark smudge from the display while preserving the silhouette.
+
+2026-10-31 cargo bay replacement, built-in image_gen:
+- Storage generation used MissileMagazine.png as a style reference and AncientStorageCylinder_south.png for its broad ancient storage shape. It requested a new 2:3 top-down modular hull bay, matte neutral gray, sparse dark outlines, small yellow latches, and almost flush straight sides. Source: C:/Users/Laure/.codex/generated_images/01a18e83-cec5-7d00-b9a5-47a60a418282/exec-f5a0dc5a-83d7-4c72-9c58-c809e67530e8.png
+- Delivery edit used the new storage bay as its target, preserving the outline and replacing yellow accents with restrained cyan and a split center hatch. Source: C:/Users/Laure/.codex/generated_images/01a18e83-cec5-7d00-b9a5-47a60a418282/exec-e47edae7-83eb-420a-87f0-427ed67dfdd9.png
+- Both generated RGBA images were threshold-cropped to their visible bounds and centered in a 1024x1536 canvas with 8 px horizontal / 12 px vertical margins. Formal texture paths remain 1.6/Textures/Things/Building/StationTrade/{StorageContainer,DeliveryContainer}.png.
+
+2026-10-31 Ancient Hatch silhouette revision, built-in image_gen:
+- Storage reference: the user-provided Odyssey AncientHatch_Closed.png for the single chamfered hatch contour; existing Delta-V MissileMagazine.png for spaceship armor palette; prior StorageContainer.png as the rejected segmented design. Prompt called for one broad double-door hatch, long straight outer edges, tiny yellow status lights, no corner fixtures or stacked sub-panels, and a dark rectangular backplate behind the clipped corners. Source: C:/Users/Laure/.codex/generated_images/01a18e83-cec5-7d00-b9a5-47a60a418282/exec-31a41dd6-ed04-471b-8953-91a195bd1cd0.png
+- Delivery edit preserved the new storage geometry and changed only small status lights to cyan-blue with a receiving mark. Source: C:/Users/Laure/.codex/generated_images/01a18e83-cec5-7d00-b9a5-47a60a418282/exec-f02df379-4070-4608-b81f-577a04ec2ded.png
+- Each image was cropped to its alpha>=128 body bounds, resized to the exact 1024x1536 2:3 canvas, and composited over an opaque dark-gray hull backplate. The flush rectangular alpha footprint fills all four clipped-corner spaces when cargo bays are adjacent; the foreground hatch remains visually chamfered. The formal texture paths were replaced and the six-bay preview regenerated.
+
+2026-10-31 corrected cargo outline, built-in image_gen:
+- The user clarified that "fill the footprint" means the four straight outer edges should reach the construction footprint boundaries, while the four chamfered corners remain transparent. The previous triangular corner plates and opaque rectangular backplate were incorrect.
+- Storage edit target: previous StorageContainer.png; silhouette reference only: Odyssey AncientHatch_Closed.png. Prompt requested a single convex octagonal outer hull, transparent outside each of the four chamfered corners, straight edges at the 2x3 canvas boundaries, and otherwise preserved gray hatch, central seam, and yellow indicators. Source: C:/Users/Laure/.codex/generated_images/01a18e83-cec5-7d00-b9a5-47a60a418282/exec-d903b709-5972-4af5-9916-e9f537289eb2.png
+- Delivery edit target: previous DeliveryContainer.png; geometry reference: corrected storage image. Prompt requested the same transparent chamfered outer hull, preserved cyan indicators and receiving mark. Source: C:/Users/Laure/.codex/generated_images/01a18e83-cec5-7d00-b9a5-47a60a418282/exec-4b1ae358-3449-468e-b9a7-66c001b9fc1e.png
+- Both formal 1024x1536 RGBA textures were replaced with the generated files. The four corner alpha samples are zero; alpha>=128 bounds are within 1.5% of each straight canvas edge. The 48px-per-tile six-bay preview was regenerated.
+
+2026-10-31 state mapping correction:
+- The yellow cargo sprite was renamed to CargoContainer_Locked.png. The cyan cargo sprite was replaced by a built-in image_gen edit of the yellow sprite: change only the two yellow indicator bars to cyan-blue; remove the former delivery arrow; preserve the same 2x3 armored hatch and transparent chamfered outline. Source: C:/Users/Laure/.codex/generated_images/01a18e83-cec5-7d00-b9a5-47a60a418282/exec-ee0ef6ff-dcce-4df3-ae75-bf216e3c2ea4.png
+- The two textures are `CompHackable` states of one `DeltaV_CargoContainer` ThingDef, not two buildable cargo types.

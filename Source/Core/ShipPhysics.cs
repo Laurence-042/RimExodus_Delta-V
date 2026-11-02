@@ -277,6 +277,8 @@ namespace DeltaV
             {
                 mass += Mathf.Max(0f, transporter.MassUsage);
             }
+            if (thing is Building_SpaceCargoContainer cargo)
+                mass += Mathf.Max(0f, cargo.StoredMass);
             return mass;
         }
 
@@ -782,6 +784,12 @@ namespace DeltaV
         }
 
         private static readonly Dictionary<Map, CachedReport> Cache = new Dictionary<Map, CachedReport>();
+
+        internal static void InvalidateMass(Map map)
+        {
+            if (map != null && Cache.TryGetValue(map, out CachedReport cached))
+                cached.report = null;
+        }
 
         internal static MassReport GetReport(SpaceObject container)
         {

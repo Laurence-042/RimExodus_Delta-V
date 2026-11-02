@@ -309,6 +309,19 @@ namespace DeltaV
         public virtual bool CanSupplyShotEnergy(float wattDays) => false;
         public virtual void ConsumeShotEnergy(float wattDays) { }
         public virtual int? AimSkillFor(CompSpaceWeapon weapon) => null;
+        public virtual float SegmentEnergyReduction => 0f;
+
+        public Building_SpaceCargoContainer HostCargo
+        {
+            get
+            {
+                if (!parent.Spawned) return null;
+                foreach (Thing thing in parent.Position.GetThingList(parent.Map))
+                    if (thing is Building_SpaceCargoContainer cargo
+                        && cargo.AttachmentSlotAt(parent.Position) != null) return cargo;
+                return null;
+            }
+        }
 
         /// <summary>
         /// 覆盖式挂件不是 edifice；同格 EdificeGrid 中留下的建筑就是宿主。
@@ -343,7 +356,7 @@ namespace DeltaV
             get
             {
                 if (!AttachmentProps.requiresHostPower) return true;
-                ThingWithComps host = HostWeapon?.parent ?? HostRailgun?.parent;
+                ThingWithComps host = HostWeapon?.parent ?? HostRailgun?.parent ?? HostCargo;
                 if (host == null) return false;
                 return host.TryGetComp<CompPowerTrader>()?.PowerOn ?? true;
             }
@@ -381,6 +394,7 @@ namespace DeltaV
                 {
                     attachment.enabled = active;
                     attachment.parent.TryGetComp<CompSwitchableBattery>()?.RefreshPowerOutput();
+                    attachment.parent.TryGetComp<CompCargoTemperature>()?.RefreshPower();
                     attachment.HostWeapon?.NotifyParametersChanged();
                     ShipControlService.NotifyGunnerChange(attachment.parent.Map);
                 })

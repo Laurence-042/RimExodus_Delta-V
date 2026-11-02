@@ -32,9 +32,11 @@ namespace DeltaV
 
             float altitude = AltitudeLayer.MetaOverlays.AltitudeFor() + Altitudes.AltInc * 3f;
             int tick = Find.TickManager.TicksGame;
-            foreach (CompSpaceWeapon weapon in SpaceWeaponService.AllWeaponsOn(map))
+            foreach (object selected in Find.Selector.SelectedObjectsListForReading)
             {
-                if (weapon?.parent?.Spawned != true || !weapon.SpaceModeEnabled) continue;
+                if (!(selected is ThingWithComps thing) || !thing.Spawned || thing.Map != map) continue;
+                CompSpaceWeapon weapon = thing.TryGetComp<CompSpaceWeapon>();
+                if (weapon == null || !weapon.SpaceModeEnabled) continue;
                 float range = weapon.EffectiveRange;
                 float minRange = Mathf.Clamp(weapon.WeaponProps.minRange, 0f, range);
                 if (range <= 0f) continue;

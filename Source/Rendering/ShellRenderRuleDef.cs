@@ -47,6 +47,7 @@ namespace DeltaV
 
     public enum ShellSurfaceLayer : byte
     {
+        Deck,
         Hull,
         Exposed,
         Effects
@@ -55,7 +56,7 @@ namespace DeltaV
     public class ShellRenderConfig
     {
         public ShellGraphicSource source;
-        public ShellSurfaceLayer layer;
+        public ShellSurfaceLayer layer = ShellSurfaceLayer.Hull;
         public List<GraphicData> alternateGraphics;
         public float zIndex;
     }

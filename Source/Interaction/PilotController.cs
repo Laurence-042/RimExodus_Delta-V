@@ -127,7 +127,7 @@ internal readonly struct HeadingPanelAction
         // docking actions live here; target-specific actions belong to subclasses.
         internal virtual void CollectPanelActions(PilotTarget panelTarget, List<PilotPanelAction> actions)
         {
-            if (!panelTarget.IsValid || !HasAuthority(panelTarget)) return;
+            if (!universe.Pilot.CanPlayerControl(panelTarget.Vessel) || !HasAuthority(panelTarget)) return;
             if (universe.FrameOf(panelTarget.Map)?.projectileRoleOverride == true) return;
             ShipControlState state = universe.Pilot.GetControlState(panelTarget);
             string pilotLabel = state == ShipControlState.Manual
@@ -407,8 +407,7 @@ internal readonly struct HeadingPanelAction
 
         protected internal override bool HasAuthority(PilotTarget target)
         {
-            // 控制权门禁：玩家方目标（船 = 主台派系，shuttle = 舱体派系）；开发者模式放行。
-            return target.Faction == Faction.OfPlayer || DebugSettings.godMode;
+            return universe.Pilot.CanPlayerControl(target.Vessel);
         }
 
         public override PilotService.PilotCommand ComposeCommand()
@@ -670,11 +669,10 @@ internal readonly struct HeadingPanelAction
             return ShipBase.Invalid;
         }
 
-        /// <summary>驾驶/模式控制权门禁（玩家侧）：玩家方目标（船/shuttle）；开发者模式放行。</summary>
+        /// <summary>玩家控制权读取当前主台／shuttle 艇体派系；God Mode 允许接管。</summary>
         public bool CanPlayerControl(ShipBase ship)
         {
-            return ship.IsValid && (ship.Faction == Faction.OfPlayer
-                || DebugSettings.godMode);
+            return ship?.IsValid == true && (ship.Faction == Faction.OfPlayer || DebugSettings.godMode);
         }
 
         public void Enter(UniverseManager universe, PilotTarget target)
