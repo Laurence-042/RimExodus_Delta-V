@@ -211,10 +211,13 @@ namespace DeltaV
             return trader == null || trader.PowerOn;
         }
 
-        /// <summary>技能 → 散布偏差系数（§5.4 单一映射：skill 0–20 线性 1.6→0.4；自动瞄准插件的等价技能同函数）。</summary>
+        /// <summary>技能 → 散布偏差系数；炮手、内置火控与自瞄插件共用，数值见太空战架构 §5.4。</summary>
         public static float SpreadFactorForSkill(int skillLevel)
         {
-            return Mathf.Lerp(1.6f, 0.4f, Mathf.Clamp01(skillLevel / 20f));
+            float skill = Mathf.Clamp(skillLevel, 0, 20);
+            // 低技能的额外散布在 16 级平滑归零，保留高级自瞄与高手原有精度。
+            float inexperience = Mathf.Max(0f, 1f - skill / 16f);
+            return Mathf.Lerp(1.6f, 0.4f, skill / 20f) + 6.4f * inexperience * inexperience;
         }
 
         /// <summary>弹体是否制导（导弹）。</summary>
