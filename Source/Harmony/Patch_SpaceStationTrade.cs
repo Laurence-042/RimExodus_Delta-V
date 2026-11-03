@@ -1,27 +1,12 @@
 using HarmonyLib;
+using System.Collections.Generic;
+using System.Linq;
 using AdaptiveStorage.Utility;
 using RimWorld;
 using Verse;
 
 namespace DeltaV
 {
-    [HarmonyPatch(typeof(TradeDeal), "InSellablePosition")]
-    internal static class Patch_SpaceStationTrade
-    {
-        private static bool Prefix(Thing t, ref string reason, ref bool __result)
-        {
-            if (TradeSession.trader is Building_SpaceTradeTerminal terminal
-                && t?.def.category == ThingCategory.Item
-                && Building_SpaceTradeTerminal.IsStillOnShip(t, terminal.ShipTradeMap))
-            {
-                reason = null;
-                __result = true;
-                return false;
-            }
-            return true;
-        }
-    }
-
     // Exposed hull modules use outdoor ambient, including the optional ASF thermal transform.
     [HarmonyPatch(typeof(Thing), nameof(Thing.AmbientTemperature), MethodType.Getter)]
     internal static class Patch_SpaceCargoOutdoorTemperature
@@ -29,9 +14,10 @@ namespace DeltaV
         [HarmonyPriority(Priority.Last)]
         private static void Postfix(Thing __instance, ref float __result)
         {
-            if (__instance.StoringAdaptiveStorage() is not Building_SpaceCargoContainer cargo
-                || !cargo.Contents.Contains(__instance)) return;
-            __result = cargo.CargoTemperature;
+            ISpaceCargoContainer cargo = __instance.ParentHolder as Building_SealedSpaceCargoContainer
+                ?? __instance.StoringAdaptiveStorage() as ISpaceCargoContainer;
+            if (cargo?.Spawned != true || !cargo.Contents.Contains(__instance)) return;
+            __result = cargo.Thing.GetComp<CompSpaceCargo>().CargoTemperature;
         }
     }
 

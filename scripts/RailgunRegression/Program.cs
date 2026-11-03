@@ -712,6 +712,8 @@ internal static partial class Program
                 allowed = new List<ThingDef> { moduleDef } } };
             var cargo = (Building_SpaceCargoContainer)Raw(typeof(Building_SpaceCargoContainer));
             cargo.def = cargoDef; cargo.thingIDNumber = nextId++;
+            var cargoControl = new CompSpaceCargo { parent = cargo };
+            Set(cargo, "comps", new List<ThingComp> { cargoControl });
             Set(cargo, "positionInt", new IntVec3(20, 0, 5)); Set(cargo, "mapIndexOrState", (sbyte)0);
             map.thingGrid.Register(cargo);
             var attachment = new CompSpaceWeaponGenericAttachment { props = new CompProperties_SpaceWeaponAttachment() };
@@ -720,24 +722,24 @@ internal static partial class Program
             var control = new CompCargoTemperature { props = new CompProperties_CargoTemperature(), targetTemperature = -10 };
             var module = Add(20, 5, 100, attachment, power, control); module.def = moduleDef;
             cargoOutdoor = 30; control.RefreshPower();
-            Check(power.PowerOutput == -200 && cargo.CargoTemperature == -10,
+            Check(power.PowerOutput == -200 && cargoControl.CargoTemperature == -10,
                 "cargo module uses ASF cooling from outdoor ambient and draws 200 W");
             cargoOutdoor = -80; control.RefreshPower();
-            Check(power.PowerOutput == -175 && cargo.CargoTemperature == -10,
+            Check(power.PowerOutput == -175 && cargoControl.CargoTemperature == -10,
                 "cargo module heats toward same setpoint at 175 W without simultaneous cooling");
             cargoOutdoor = -150; control.RefreshPower();
-            Check(cargo.CargoTemperature == -50, "ASF thermal offset bounds extreme-cold heating to 100 degrees");
+            Check(cargoControl.CargoTemperature == -50, "ASF thermal offset bounds extreme-cold heating to 100 degrees");
             cargoOutdoor = 150; control.RefreshPower();
-            Check(cargo.CargoTemperature == 50, "ASF thermal offset bounds extreme-hot cooling to 100 degrees");
+            Check(cargoControl.CargoTemperature == 50, "ASF thermal offset bounds extreme-hot cooling to 100 degrees");
             cargoOutdoor = -10; control.RefreshPower();
-            Check(power.PowerOutput == 0 && cargo.CargoTemperature == -10, "at target temperature module uses no power");
+            Check(power.PowerOutput == 0 && cargoControl.CargoTemperature == -10, "at target temperature module uses no power");
             cargoOutdoor = 30; Set(attachment, "enabled", false); control.RefreshPower();
-            Check(power.PowerOutput == 0 && cargo.CargoTemperature == 30,
+            Check(power.PowerOutput == 0 && cargoControl.CargoTemperature == 30,
                 "disabled module restores outdoor temperature and removes its load");
             Set(attachment, "enabled", true); Set(power, "powerOnInt", false); control.RefreshPower();
-            Check(cargo.CargoTemperature == 30, "power failure immediately removes cargo temperature adjustment");
+            Check(cargoControl.CargoTemperature == 30, "power failure immediately removes cargo temperature adjustment");
             map.thingGrid.Deregister(module); Set(module, "mapIndexOrState", (sbyte)-1);
-            Check(cargo.CargoTemperature == 30, "removing module leaves passive outdoor-temperature cargo");
+            Check(cargoControl.CargoTemperature == 30, "removing module leaves passive outdoor-temperature cargo");
         }
         finally { patch.UnpatchAll(patch.Id); }
     }

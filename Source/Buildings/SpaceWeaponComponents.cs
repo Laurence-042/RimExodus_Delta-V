@@ -311,13 +311,13 @@ namespace DeltaV
         public virtual int? AimSkillFor(CompSpaceWeapon weapon) => null;
         public virtual float SegmentEnergyReduction => 0f;
 
-        public Building_SpaceCargoContainer HostCargo
+        public CompSpaceCargo HostCargo
         {
             get
             {
                 if (!parent.Spawned) return null;
                 foreach (Thing thing in parent.Position.GetThingList(parent.Map))
-                    if (thing is Building_SpaceCargoContainer cargo
+                    if (thing.TryGetComp<CompSpaceCargo>() is { } cargo
                         && cargo.AttachmentSlotAt(parent.Position) != null) return cargo;
                 return null;
             }
@@ -356,7 +356,7 @@ namespace DeltaV
             get
             {
                 if (!AttachmentProps.requiresHostPower) return true;
-                ThingWithComps host = HostWeapon?.parent ?? HostRailgun?.parent ?? HostCargo;
+                ThingWithComps host = HostWeapon?.parent ?? HostRailgun?.parent ?? HostCargo?.parent;
                 if (host == null) return false;
                 return host.TryGetComp<CompPowerTrader>()?.PowerOn ?? true;
             }

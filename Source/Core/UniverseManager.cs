@@ -80,6 +80,7 @@ namespace DeltaV
             current.RepresentationVersion = previous.RepresentationVersion + 1;
             globeDisplay?.Forget(previous.map);
             foundationTopology?.Forget(previous.map);
+            stationTrade?.Forget(previous.map);
             PlanetGlobeRenderer.InvalidateSilhouette(previous.map);
             objects[index] = current;
             if (objectById != null) objectById[current.objectId] = current;
@@ -119,6 +120,8 @@ namespace DeltaV
         [NonSerialized] private SoftDockService softDock;
         public SoftDockService SoftDock => softDock ?? (softDock = new SoftDockService(this));
         internal bool SoftDockEnabled;
+        [NonSerialized] private StationTradeService stationTrade;
+        internal StationTradeService StationTrade => stationTrade ?? (stationTrade = new StationTradeService());
         internal bool ShowThrusterDebugOverlay;
         internal bool ShowCoordinateGrid = true;
         internal bool ConfirmSplitWarnings = true;
@@ -421,6 +424,7 @@ namespace DeltaV
             Autopilot.Detach(obj);
             Shuttles.ForgetContainer(obj);
             foundationTopology?.Forget(obj.map);
+            stationTrade?.Forget(obj.map);
             playerInput?.Clear();
             // 最后一艘船消失后 Ship tag 已移除，释放不能再以当前角色为前提。
             if (obj.map != null) Weapons.ForgetMap(obj.map);
@@ -549,6 +553,7 @@ namespace DeltaV
             mapPool?.Forget(map);
             scatter?.Forget(map);
             softDock?.Forget(map);
+            stationTrade?.Forget(map);
         }
 
         internal void NotifyFoundationChanged(Map map, IntVec3 cell) => foundationTopology?.NotifyChanged(map, cell);
@@ -1238,6 +1243,7 @@ namespace DeltaV
             foundationTopology = null;
             scatter = null;
             softDock = null;
+            stationTrade = null;
             worksites = null;
             npcShips = null;
             globeDisplay?.Clear();

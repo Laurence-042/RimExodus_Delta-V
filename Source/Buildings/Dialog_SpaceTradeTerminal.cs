@@ -29,13 +29,18 @@ namespace DeltaV
                 "DeltaV_TradeKind".Translate(terminal.TraderKind?.LabelCap.ToString() ?? "—"))) terminal.ChooseTraderKind();
             if (Widgets.ButtonText(new Rect(rect.width * .68f, 34, rect.width * .32f, 32),
                 "DeltaV_TradeRestockDays".Translate(terminal.RestockDays))) terminal.ChooseRestockInterval();
-            Widgets.Label(new Rect(0, 74, rect.width, 64), "DeltaV_TradeConfigureHelp".Translate());
+            bool indiscriminate = terminal.IndiscriminateSupply;
+            Rect supplyToggle = new Rect(0, 74, rect.width, 28);
+            Widgets.CheckboxLabeled(supplyToggle, "DeltaV_DevTradeIndiscriminateSupply".Translate(), ref indiscriminate);
+            TooltipHandler.TipRegion(supplyToggle, "DeltaV_DevTradeIndiscriminateSupplyDesc".Translate());
+            if (indiscriminate != terminal.IndiscriminateSupply) terminal.ToggleIndiscriminateSupply();
+            Widgets.Label(new Rect(0, 110, rect.width, 64), "DeltaV_TradeConfigureHelp".Translate());
             AcceptanceReport report = terminal.TradeAvailability();
-            Widgets.Label(new Rect(0, 142, rect.width, 46), report.Accepted
+            Widgets.Label(new Rect(0, 178, rect.width, 46), report.Accepted
                 ? "DeltaV_TradeReady".Translate().ToString() : report.Reason);
-            Widgets.Label(new Rect(0, 188, rect.width, 28), "DeltaV_TradeBindings".Translate());
+            Widgets.Label(new Rect(0, 224, rect.width, 28), "DeltaV_TradeBindings".Translate());
             var cargo = terminal.CargoCandidates().ToList();
-            Rect viewport = new Rect(0, 220, rect.width, rect.height - 310);
+            Rect viewport = new Rect(0, 256, rect.width, rect.height - 346);
             Rect view = new Rect(0, 0, viewport.width - 18, Mathf.Max(viewport.height, cargo.Count * 58));
             Widgets.BeginScrollView(viewport, ref scroll, view);
             for (int i = 0; i < cargo.Count; i++)
@@ -43,7 +48,7 @@ namespace DeltaV
                 var bay = cargo[i];
                 float y = i * 58;
                 string state = (bay.IsUnlocked ? "DeltaV_DevTradeUnlocked" : "DeltaV_DevTradeLocked").Translate();
-                Widgets.Label(new Rect(0, y, view.width - 265, 54), bay.LabelCap + " " + bay.Position
+                Widgets.Label(new Rect(0, y, view.width - 265, 54), bay.Thing.LabelCap + " " + bay.Position
                     + "\n" + state + " · " + "DeltaV_CargoCapacity".Translate(bay.Contents.Count, bay.CurrentSlotLimit));
                 BindingButton(new Rect(view.width - 260, y + 6, 125, 34), bay, false,
                     terminal.SupplyCargo.Contains(bay), "DeltaV_TradeSupply");
@@ -56,7 +61,7 @@ namespace DeltaV
                 "DeltaV_DevTradeRestock".Translate())) terminal.RestockForDebug();
         }
 
-        private void BindingButton(Rect rect, Building_SpaceCargoContainer cargo, bool delivery, bool selected, string key)
+        private void BindingButton(Rect rect, ISpaceCargoContainer cargo, bool delivery, bool selected, string key)
         {
             AcceptanceReport report = selected ? AcceptanceReport.WasAccepted : terminal.BindingReport(cargo, delivery);
             if (!report.Accepted) TooltipHandler.TipRegion(rect, report.Reason);

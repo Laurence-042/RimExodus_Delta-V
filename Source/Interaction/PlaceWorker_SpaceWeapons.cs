@@ -65,19 +65,19 @@ namespace DeltaV
         {
             CompSpaceWeapon weapon = center.GetEdifice(map)?.TryGetComp<CompSpaceWeapon>();
             CompSpaceRailgun rail = null;
-            Building_SpaceCargoContainer cargo = null;
+            CompSpaceCargo cargo = null;
             if (weapon == null)
             {
                 foreach (Thing candidate in map.thingGrid.ThingsListAtFast(center))
                 {
-                    if (candidate is Building_SpaceCargoContainer bay && bay.AttachmentSlotAt(center) != null)
+                    if (candidate.TryGetComp<CompSpaceCargo>() is { } bay && bay.AttachmentSlotAt(center) != null)
                         cargo = bay;
                     rail = (candidate as ThingWithComps)?.TryGetComp<CompSpaceRailgun>();
                     if (rail != null && rail.AttachmentSlotAt(center) != null) break;
                     rail = null;
                 }
             }
-            ThingWithComps host = weapon?.parent ?? rail?.parent ?? cargo;
+            ThingWithComps host = weapon?.parent ?? rail?.parent ?? cargo?.parent;
             if (host == null || SpaceWeaponGeometry.OwnerIdOf(host) <= 0)
                 return "DeltaV_AttachmentNeedsSlot".Translate();
             var allowed = weapon != null

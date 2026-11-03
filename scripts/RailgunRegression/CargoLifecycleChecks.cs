@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AdaptiveStorage;
 using DeltaV;
 using HarmonyLib;
@@ -8,51 +9,49 @@ using Verse;
 
 internal static partial class Program
 {
-    sealed class LifecycleCargo : Building_SpaceCargoContainer
+    sealed class LifecycleCargo : Building_SealedSpaceCargoContainer
     {
-        public readonly List<Thing> ejected = new();
         public override void SetFaction(Faction faction, Pawn recruiter = null) => SetFactionDirect(faction);
-        public override Thing Eject(Thing item, int count = int.MaxValue, bool forbid = true,
-            in IntVec3 dropOffset = default)
-        {
-            Check(!forbid, "hack ejection leaves cargo available for hauling");
-            ejected.Add(item);
-            Set(StoredThings, "_count", StoredThings.Count - 1);
-            return item;
-        }
     }
 
-    // Keep the real HackNow -> ProcessHacked state transition and IHackable callback;
-    // omit vanilla quest/letter/drop graphics after the callback in this headless fixture.
-    static bool CargoHackedCallback(CompHackable __instance)
+    static readonly List<Thing> crateDropped = new();
+    // Replace only final placement/Unity map mesh work. Native Crate.Open,
+    // EjectContents, CompHackable and ThingOwner all execute in this fixture.
+    static bool DropCrateCargo(ThingOwner __instance, ref bool __result)
     {
-        ((IHackable)__instance.parent).OnHacked();
-        return false;
+        if (__instance.Owner is not LifecycleCargo) return true;
+        foreach (Thing item in __instance.ToArray())
+        { crateDropped.Add(item); __instance.Remove(item); }
+        __result = true; return false;
     }
+    static bool CargoHackedCallback(CompHackable __instance)
+    { ((IHackable)__instance.parent).OnHacked(); return false; }
 
     static void CheckCargoLifecycle()
     {
         var patch = new Harmony("DeltaV.Regression.CargoLifecycle");
         var oldFactions = Find.World.factionManager;
+        var oldIds = Current.Game.uniqueIDsManager;
+        Current.Game.uniqueIDsManager = new UniqueIDsManager();
         bool oldGod = DebugSettings.godMode;
-        var player = (Faction)Raw(typeof(Faction));
-        var enemy = (Faction)Raw(typeof(Faction));
+        var player = new Faction { def = new FactionDef { isPlayer = true } };
+        var enemy = new Faction { def = new FactionDef() };
         Find.World.factionManager = (FactionManager)Raw(typeof(FactionManager));
         Set(Find.World.factionManager, "ofPlayer", player);
         var cargoMap = (Map)Raw(typeof(Map));
         Find.Maps.Add(cargoMap);
+        foreach (Map m in Find.Maps) m.designationManager ??= (DesignationManager)Raw(typeof(DesignationManager));
+        crateDropped.Clear();
         try
         {
-            patch.Patch(typeof(ThingCollection).TypeInitializer,
+            patch.Patch(AccessTools.Method(typeof(DesignationManager), "RemoveAllDesignationsOn"),
                 prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
-            foreach (var method in new[] {
-                AccessTools.DeclaredMethod(typeof(ThingClass), "PostMake"),
-                AccessTools.DeclaredMethod(typeof(ThingClass), "OnSpawn"),
-                AccessTools.Method(typeof(Building_SpaceCargoContainer), "ApplyStorageMode"),
-                AccessTools.Method(typeof(Building_SpaceCargoContainer), "RefreshCargoGraphic") })
-                patch.Patch(method, prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
             patch.Patch(AccessTools.Method(typeof(CompHackable), "OnHacked"),
                 prefix: new HarmonyMethod(typeof(Program), nameof(CargoHackedCallback)));
+            patch.Patch(AccessTools.Method(typeof(ThingOwner), "TryDropAll"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(DropCrateCargo)));
+            patch.Patch(AccessTools.Method(typeof(Thing), "DirtyMapMesh"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
 
             LifecycleCargo make(Faction faction, bool fresh)
             {
@@ -60,47 +59,63 @@ internal static partial class Program
                 c.SetFactionDirect(faction);
                 Set(c, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(cargoMap));
                 var hack = new CompHackable { parent = c, props = new CompProperties_Hackable { defence = 1800 }, defence = 1800 };
-                Set(c, "comps", new List<ThingComp> { hack });
-                var stored = (ThingCollection)Raw(typeof(ThingCollection));
-                Set(stored, "_things", Array.Empty<Thing>());
-                Set(c, "_storedThings", stored);
-                if (fresh) c.PostMake();
+                var comp = new CompSpaceCargo { parent = c, props = new CompProperties_SpaceCargo() };
+                Set(c, "comps", new List<ThingComp> { hack, comp });
+                if (fresh) comp.PostPostMake();
+                comp.PostSpawnSetup(!fresh);
                 return c;
             }
             var cargo = make(player, true);
-            cargo.SpawnSetup(cargoMap, false);
-            Check(cargo.IsUnlocked, "fresh player-built cargo is unlocked on first spawn");
+            Check(cargo.IsUnlocked, "fresh player-built crate unlocks on its first spawn");
             var npc = make(enemy, true);
-            npc.SpawnSetup(cargoMap, false);
-            Check(!npc.IsUnlocked && npc.Faction == enemy, "fresh NPC cargo retains its lock and faction");
+            Check(!npc.IsUnlocked && npc.Faction == enemy, "fresh NPC crate keeps its native lock and faction");
             var loaded = make(player, false);
-            loaded.SpawnSetup(cargoMap, true);
-            Check(!loaded.IsUnlocked, "loading player cargo preserves a saved dev lock");
-
-            var lockMethod = AccessTools.Method(typeof(Building_SpaceCargoContainer), "LockForDebug");
-            DebugSettings.godMode = false;
-            lockMethod.Invoke(cargo, null);
-            Check(cargo.IsUnlocked, "normal mode cannot lock player cargo even through the dev action");
-            DebugSettings.godMode = true;
-            lockMethod.Invoke(cargo, null);
+            Check(!loaded.IsUnlocked, "loading player cargo keeps a saved dev lock");
+            var cargoComp = cargo.GetComp<CompSpaceCargo>();
+            var lockMethod = AccessTools.Method(typeof(CompSpaceCargo), "LockForDebug");
+            DebugSettings.godMode = false; lockMethod.Invoke(cargoComp, null);
+            Check(cargo.IsUnlocked, "normal mode cannot lock cargo through the dev action");
+            DebugSettings.godMode = true; lockMethod.Invoke(cargoComp, null);
             Check(!cargo.IsUnlocked && cargo.GetComp<CompHackable>().ProgressPercent == 0,
-                "God Mode locks the original hackable comp and resets hack progress");
-            cargo.SpawnSetup(cargoMap, false);
-            Check(!cargo.IsUnlocked, "respawning or transferring a dev-locked cargo does not unlock it");
+                "God Mode resets the native hackable comp");
+            cargoComp.PostSpawnSetup(false);
+            Check(!cargo.IsUnlocked, "transferring a dev-locked crate does not unlock it");
 
-            var goods = new Thing[] { new Thing { stackCount = 75 }, new Thing { stackCount = 2 } };
-            Set(cargo.StoredThings, "_things", goods); Set(cargo.StoredThings, "_count", goods.Length);
+            var itemDef = MakeDef("NativeCargoItem"); itemDef.category = ThingCategory.Item;
+            itemDef.stackLimit = 75; itemDef.thingClass = typeof(ThingWithComps); itemDef.useHitPoints = true;
+            var goods = new ThingWithComps { def = itemDef, stackCount = 75, HitPoints = 37 };
+            Set(goods, "mapIndexOrState", (sbyte)-1);
+            var forbid = new CompForbiddable { parent = goods };
+            Set(goods, "comps", new List<ThingComp> { forbid });
+            Check(cargo.TryStore(goods) && !goods.Spawned && goods.ParentHolder == cargo,
+                "sealed cargo is held by native ThingOwner and is not a map item");
+            forbid.Forbidden = true; forbid.Forbidden = false;
+            Check(!cargo.CanOpen && !goods.Spawned && goods.ParentHolder == cargo,
+                "unforbidding cannot release locked loot or make it haulable");
+            Check((object)cargo is not IHaulDestination && (object)cargo is not IHaulSource,
+                "sealed crates expose no haul source or storage destination");
+            Check(typeof(ThingClass).IsAssignableFrom(typeof(Building_SpaceCargoContainer)),
+                "storage mode still uses ASF rather than a custom hauling implementation");
             cargo.GetComp<CompHackable>().HackNow();
-            Check(cargo.IsUnlocked && cargo.StoredThings.Count == 0 && cargo.ejected.Count == 2
-                && ReferenceEquals(cargo.ejected[0], goods[0]) && ReferenceEquals(cargo.ejected[1], goods[1]),
-                "native completed hacking ejects every original cargo stack exactly once");
+            Check(cargo.IsUnlocked && cargo.Contents.Count == 0 && crateDropped.Count == 1
+                && ReferenceEquals(crateDropped[0], goods) && goods.stackCount == 75 && goods.HitPoints == 37,
+                "native Hacked signal opens and ejects the original stack once, preserving its state");
             cargo.GetComp<CompHackable>().HackNow();
-            Check(cargo.ejected.Count == 2, "repeated completed hacking does not eject cargo twice");
+            Check(crateDropped.Count == 1, "completed hacking cannot eject a stack twice");
+            Check(cargo.TryStore(goods) && cargo.CanOpen && cargo.OpenTicks == 100,
+                "unlocked sealed cargo uses native crate opening duration and availability");
+            cargo.Open();
+            Check(crateDropped.Count == 2 && cargo.Contents.Count == 0,
+                "ordinary native Open uses the same crate ejection path");
+            Check(AccessTools.TypeByName("DeltaV.JobDriver_OpenSpaceCargo") == null
+                && AccessTools.TypeByName("DeltaV.Patch_SealedCargoTradeBeacon") == null,
+                "custom instant-open job and beacon exclusion patch are removed");
         }
         finally
         {
-            patch.UnpatchAll(patch.Id); Find.Maps.Remove(cargoMap);
+            patch.UnpatchAll(patch.Id); Find.Maps.Remove(cargoMap); crateDropped.Clear();
             Find.World.factionManager = oldFactions; DebugSettings.godMode = oldGod;
+            Current.Game.uniqueIDsManager = oldIds;
         }
     }
 }

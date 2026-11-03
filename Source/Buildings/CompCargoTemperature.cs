@@ -14,31 +14,31 @@ namespace DeltaV
         public List<ThingDef> allowed = new List<ThingDef>();
     }
 
-    public partial class Building_SpaceCargoContainer
+    public partial class CompSpaceCargo
     {
-        public DefModExtension_CargoAttachments AttachmentProps => def.GetModExtension<DefModExtension_CargoAttachments>();
+        public DefModExtension_CargoAttachments AttachmentProps => parent.def.GetModExtension<DefModExtension_CargoAttachments>();
         public SpaceWeaponAttachmentSlot AttachmentSlotAt(IntVec3 cell)
         {
             foreach (var slot in AttachmentProps.slots)
-                if (SpaceWeaponGeometry.RotatedCell(this, slot.cell) == cell) return slot;
+                if (SpaceWeaponGeometry.RotatedCell(parent, slot.cell) == cell) return slot;
             return null;
         }
 
         public IEnumerable<ThingWithComps> AttachedThings()
         {
-            if (!Spawned) yield break;
+            if (!parent.Spawned) yield break;
             foreach (var slot in AttachmentProps.slots)
-                foreach (Thing thing in SpaceWeaponGeometry.RotatedCell(this, slot.cell).GetThingList(Map))
-                    if (thing is ThingWithComps attached && thing != this && !thing.Destroyed
+                foreach (Thing thing in SpaceWeaponGeometry.RotatedCell(parent, slot.cell).GetThingList(parent.Map))
+                    if (thing is ThingWithComps attached && thing != parent && !thing.Destroyed
                         && AttachmentProps.allowed.Contains(thing.def)
                         && attached.TryGetComp<CompSpaceWeaponAttachment>() is { } attachment
-                        && attachment.HostCargo == this && attachment.CompatibleWith(def)) yield return attached;
+                        && attachment.HostCargo == this && attachment.CompatibleWith(parent.def)) yield return attached;
         }
 
-        public override void DrawExtraSelectionOverlays()
+        public override void PostDrawExtraSelectionOverlays()
         {
-            base.DrawExtraSelectionOverlays();
-            SpaceWeaponAttachmentSlots.DrawSelection(this, AttachmentProps.slots, AttachedThings());
+            base.PostDrawExtraSelectionOverlays();
+            SpaceWeaponAttachmentSlots.DrawSelection(parent, AttachmentProps.slots, AttachedThings());
         }
     }
 
@@ -78,7 +78,7 @@ namespace DeltaV
             float watts = 0f;
             if (Attachment?.Enabled == true && cargo != null)
             {
-                float outdoor = cargo.Map.mapTemperature.OutdoorTemp;
+                float outdoor = cargo.parent.Map.mapTemperature.OutdoorTemp;
                 watts = outdoor > TargetTemperature ? Settings.coolingWatts
                     : outdoor < TargetTemperature ? Settings.heatingWatts : 0f;
             }

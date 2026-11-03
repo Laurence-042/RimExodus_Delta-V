@@ -2,8 +2,7 @@
 <LanguageData>
   <DeltaV_CargoOpen>打开货柜</DeltaV_CargoOpen>
   <DeltaV_CargoHack>骇入货柜</DeltaV_CargoHack>
-  <DeltaV_CargoStorageMode>启用仓储模式</DeltaV_CargoStorageMode>
-  <DeltaV_CargoStorageModeDesc>货柜解锁后可切换。开启时，殖民者会按筛选和优先级存放物品，也能搬出货物或从柜内取材制作。关闭后货物保持封存。</DeltaV_CargoStorageModeDesc>
+  <DeltaV_CargoStorageModeDesc>点击切换模式。仓储：按筛选和优先级自动收货，殖民者可搬出货物或从柜内取材，也会将货物移往更高优先级的仓库。封存：停止自动收货，禁止拿取柜内物品，货物不进入轨道交易信标列表。想要取货时，解除封存从中取出部分，或者直接打开将所有物品散落在地。锁定货柜按封存处理，解锁后才能切换模式或打开。</DeltaV_CargoStorageModeDesc>
   <DeltaV_CargoCapacity>容量：{0}/{1} 堆</DeltaV_CargoCapacity>
   <DeltaV_CargoTemperature>室外／货物温度：{0}°C／{1}°C</DeltaV_CargoTemperature>
   <DeltaV_TradeTerminalTrade>与空间站交易</DeltaV_TradeTerminalTrade>
@@ -21,9 +20,9 @@
   <DeltaV_DevMoreCargo>……其余堆已省略</DeltaV_DevMoreCargo>
   <DeltaV_DevTradeUnlocked>已解锁</DeltaV_DevTradeUnlocked>
   <DeltaV_DevTradeLocked>已锁定</DeltaV_DevTradeLocked>
-  <DeltaV_TradeConfigure>配置交易终端</DeltaV_TradeConfigure>
+  <DeltaV_TradeConfigure>DEV：配置交易终端</DeltaV_TradeConfigure>
   <DeltaV_TradeConfigureDesc>选择商人类型、补货周期，分别绑定供货货柜和取货货柜。</DeltaV_TradeConfigureDesc>
-  <DeltaV_TradeConfigureHelp>供货仓必须锁定，取货仓必须解锁；锁定操作仅在 God Mode 的货柜开发命令中提供。非玩家空间站按周期重建供货库存；自建站可用 God Mode 手动补货。取货仓不参与补货刷新。</DeltaV_TradeConfigureHelp>
+  <DeltaV_TradeConfigureHelp>供货仓必须锁定，取货仓必须解锁。仅 God Mode 可配置；玩家设施须开启终端的“无差别供货”调试开关才会补货。取货仓不参与刷新。</DeltaV_TradeConfigureHelp>
   <DeltaV_TradeKind>商人类型：{0}</DeltaV_TradeKind>
   <DeltaV_TradeRestockDays>补货周期：{0} 天</DeltaV_TradeRestockDays>
   <DeltaV_TradeCargoCounts>有效供货仓：{0}；有效取货仓：{1}/1</DeltaV_TradeCargoCounts>
@@ -32,9 +31,9 @@
   <DeltaV_TradeDelivery>取货仓</DeltaV_TradeDelivery>
   <DeltaV_TradeNoFaction>终端未所属任何派系。</DeltaV_TradeNoFaction>
   <DeltaV_TradeNoKind>未配置可用的商人类型。</DeltaV_TradeNoKind>
-  <DeltaV_TradeNoSupply>请绑定至少一个同结构且已锁定的供货仓。</DeltaV_TradeNoSupply>
-  <DeltaV_TradeNoDelivery>请绑定一个同结构且已解锁的取货仓。</DeltaV_TradeNoDelivery>
-  <DeltaV_TradeNoDock>尚未与玩家飞船建立软对接；可先完成终端配置。</DeltaV_TradeNoDock>
+  <DeltaV_TradeNoSupply>终端没有同结构且已锁定的有效供货仓。</DeltaV_TradeNoSupply>
+  <DeltaV_TradeNoDelivery>终端没有同结构且已解锁的有效取货仓。</DeltaV_TradeNoDelivery>
+  <DeltaV_TradeNoDock>没有主驾驶台归属玩家、且软对接或硬对接在此空间站上的飞船。</DeltaV_TradeNoDock>
   <DeltaV_TradeRelationsBlocked>当前派系关系不允许交易。</DeltaV_TradeRelationsBlocked>
   <DeltaV_TradeCargoDisconnected>货柜必须位于终端所在的同一连通基架结构。</DeltaV_TradeCargoDisconnected>
   <DeltaV_TradeDeliveryNeedsUnlock>取货仓需要先解锁。</DeltaV_TradeDeliveryNeedsUnlock>
@@ -44,4 +43,16 @@
   <DeltaV_DevTradeRestock>DEV：重新生成供货库存（替换旧库存）</DeltaV_DevTradeRestock>
   <DeltaV_TradeCloseWindow>请先关闭当前交易窗口，再重新生成库存。</DeltaV_TradeCloseWindow>
   <DeltaV_TradeReady>交易条件已满足。</DeltaV_TradeReady>
+  <DeltaV_TradeShipUnavailable>所选货源地图已失去有效的玩家飞船对接，请重新选择货物来源。</DeltaV_TradeShipUnavailable>
+  <DeltaV_TradeHardDock>硬对接</DeltaV_TradeHardDock>
+  <DeltaV_TradeSoftDock>软对接</DeltaV_TradeSoftDock>
+  <DeltaV_DevTradeIndiscriminateSupply>DEV：无差别供货</DeltaV_DevTradeIndiscriminateSupply>
+  <DeltaV_DevTradeIndiscriminateSupplyDesc>允许向玩家派系设施刷新商人库存，适用于搭建和测试空间站。默认关闭；开启后周期补货与手动补货均可使用，设置随存档保留。</DeltaV_DevTradeIndiscriminateSupplyDesc>
+  <DeltaV_TradePlayerSupplyBlocked>玩家终端或玩家船上的供货仓不接受商人补货。调试时请先开启终端的“无差别供货”。</DeltaV_TradePlayerSupplyBlocked>
+  <DeltaV_TradeDevBuildOnly>交易终端仅可在 God Mode 下放置。</DeltaV_TradeDevBuildOnly>
+  <DeltaV_CargoModeStorage>模式：仓储</DeltaV_CargoModeStorage>
+  <DeltaV_CargoModeSealed>模式：封存</DeltaV_CargoModeSealed>
+  <DeltaV_TradeSourceTitle>选择货物来源</DeltaV_TradeSourceTitle>
+  <DeltaV_TradeSourceHelp>选择飞船所在的地图作为货源；同图飞船合并显示。商品和白银须位于该地图上已通电的玩家交易信标范围内。购入货物送到空间站取货仓，出售货物送入供货仓。</DeltaV_TradeSourceHelp>
+  <DeltaV_CargoModeNoRoom>货柜内没有足够位置容纳这些货物，切换已取消。请先清理货柜脚下的散落物品。</DeltaV_CargoModeNoRoom>
 </LanguageData>

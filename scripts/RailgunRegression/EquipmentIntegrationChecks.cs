@@ -38,6 +38,7 @@ internal static partial class Program
     static void CheckEquipmentIntegration()
     {
         CheckCargoLifecycle();
+        CheckCargoModes();
         CheckStationTrade();
         var patch = new Harmony("DeltaV.Regression.EquipmentIntegration");
         patch.CreateClassProcessor(typeof(Patch_SwitchableBatteryPowerConnection)).Patch();
@@ -101,7 +102,7 @@ internal static partial class Program
             showContainedItems = (bool)graphicsNode.Element("showContainedItems") };
         var fixtureMod = (ModContentPack)Raw(typeof(ModContentPack));
         fixtureMod.assemblies = new ModAssemblyHandler(fixtureMod);
-        fixtureMod.assemblies.loadedAssemblies.Add(typeof(StorageGraphicData_CargoState).Assembly);
+        fixtureMod.assemblies.loadedAssemblies.Add(typeof(CompSpaceCargo).Assembly);
         fixtureMod.assemblies.loadedAssemblies.Add(typeof(StorageGraphic).Assembly);
         LoadedModManager.RunningModsListForReading.Add(fixtureMod);
         try
@@ -122,7 +123,7 @@ internal static partial class Program
         Check(errors.Count == 0 && graphics.graphics.Count == 1,
             "real cargo XML passes installed ASF ConfigErrors and retains its graphics entry: " + string.Join("; ", errors));
         Check(graphics.graphics.Count > 0 && graphics.graphics[0].Worker != null
-            && (string)graphicsNode.Element("targetDef") == "DeltaV_CargoContainer",
+            && (string)graphicsNode.Element("targetDef") == "DeltaV_CargoStorage",
             "cargo has a registered ASF graphics variation and initialized storage worker");
         var cargo = (Building_SpaceCargoContainer)Raw(typeof(Building_SpaceCargoContainer));
         cargo.def = cargoDef; cargo.def.graphicData = new GraphicData();
@@ -130,18 +131,14 @@ internal static partial class Program
         var hackNode = cargoNode.Element("comps").Elements("li")
             .Single(n => (string)n.Attribute("Class") == "CompProperties_Hackable");
         var locked = new RecordingCargoGraphic(); var unlocked = new RecordingCargoGraphic();
-        var stateGraphic = (StorageGraphicData_CargoState)graphics.graphics[0].graphicDatas.Single();
-        Check(stateGraphic.texPath.EndsWith("CargoContainer_Locked")
-            && stateGraphic.unlockedGraphicData.texPath.EndsWith("CargoContainer_Unlocked")
-            && stateGraphic.drawSize == new Vector2(2, 3)
-            && stateGraphic.unlockedGraphicData.drawSize == new Vector2(2, 3),
-            "XML loads both actual cargo textures and sizes through the shared ASF state graphic");
-        Set(stateGraphic, "cachedGraphic", locked); Set(stateGraphic.unlockedGraphicData, "cachedGraphic", unlocked);
-        Check(hackNode.Element("unhackedGraphicData") == null && hackNode.Element("hackedGraphicData") == null,
-            "vanilla hackable has no duplicate graphics to print over ASF");
-        var hack = new CompHackable { parent = cargo, props = new CompProperties_Hackable { defence = 1800 } };
-        Set(hack, "defence", 1800f);
-        Set(cargo, "comps", new List<ThingComp> { hack });
+        var stateGraphic = graphics.graphics[0].graphicDatas.Single();
+        Check(stateGraphic.texPath.EndsWith("CargoContainer_Unlocked")
+            && stateGraphic.drawSize == new Vector2(2, 3),
+            "ASF storage uses the single unlocked cargo graphic");
+        Set(stateGraphic, "cachedGraphic", unlocked);
+        Check(hackNode.Element("hackedGraphicData") != null
+            && (string)cargoNode.Element("thingClass") == "DeltaV.Building_SealedSpaceCargoContainer",
+            "sealed crates use native hackable graphics and the vanilla crate subclass");
         var renderer = (StorageRenderer)Raw(typeof(StorageRenderer));
         Set(renderer, "<Parent>k__BackingField", cargo);
         var printed = new List<PrintData>(); Set(renderer, "_buildingGraphics", printed);
@@ -155,18 +152,13 @@ internal static partial class Program
         {
             update.Invoke(renderer, null);
             Check(!renderer.BuildingGraphicsDirty && !renderer.VisibleBaseGraphic
-                && printed.Count == 1 && printed[0].Graphic == locked,
-                "ASF rebuild selects exactly one locked graphic after config validation");
+                && printed.Count == 1 && printed[0].Graphic == unlocked,
+                "ASF storage rebuild selects exactly one unlocked graphic after config validation");
             renderer.CurrentGraphic.Worker.PrintAt(null, printed[0], new ITransformable.TransformData());
-            Set(hack, "progress", 1800f); Set(hack, "hacked", true);
+            Check(unlocked.prints == 1, "ASF storage draws once without overlapping native crate graphics");
             update.Invoke(renderer, null);
             Check(printed.Count == 1 && printed[0].Graphic == unlocked,
-                "ASF rebuild replaces locked graphic with unlocked graphic from original hack state");
-            renderer.CurrentGraphic.Worker.PrintAt(null, printed[0], new ITransformable.TransformData());
-            Check(locked.prints == 1 && unlocked.prints == 1, "state changes draw once without overlapping cargo graphics");
-            update.Invoke(renderer, null);
-            Check(printed.Count == 1 && printed[0].Graphic == unlocked,
-                "repeated cargo graphic rebuild remains valid after state change");
+                "repeated cargo graphic rebuild remains valid");
         }
         finally { drawing.UnpatchAll(drawing.Id); }
     }

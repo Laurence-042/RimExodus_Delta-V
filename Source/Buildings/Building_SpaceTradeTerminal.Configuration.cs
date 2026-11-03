@@ -7,14 +7,40 @@ namespace DeltaV
 {
     public partial class Building_SpaceTradeTerminal
     {
-        internal bool CanConfigure => Spawned && (Faction == Faction.OfPlayer || DebugSettings.godMode);
+        internal bool CanConfigure => Spawned && DebugSettings.godMode;
         internal int RestockDays => restockDays;
-        internal IReadOnlyList<Building_SpaceCargoContainer> SupplyCargo => supplyCargo;
-        internal Building_SpaceCargoContainer DeliveryCargo => deliveryCargo;
+        internal bool IndiscriminateSupply => indiscriminateSupply;
+        internal IReadOnlyList<ISpaceCargoContainer> SupplyCargo => supplyCargo;
+        internal ISpaceCargoContainer DeliveryCargo => deliveryCargo;
+
+        internal void ReplaceCargoBinding(ISpaceCargoContainer previous, ISpaceCargoContainer replacement)
+        {
+            for (int i = 0; i < supplyCargo.Count; i++)
+                if (supplyCargo[i] == previous) supplyCargo[i] = replacement;
+            if (deliveryCargo == previous) deliveryCargo = replacement;
+        }
 
         private void OpenConfiguration()
         {
             if (CanConfigure) Find.WindowStack.Add(new Dialog_SpaceTradeTerminal(this));
+        }
+
+        internal void ToggleIndiscriminateSupply()
+        {
+            if (CanConfigure) indiscriminateSupply = !indiscriminateSupply;
+        }
+
+        private AcceptanceReport RestockPermissionReport()
+        {
+            if (indiscriminateSupply) return true;
+            // A captured terminal may retain its old faction after being welded to a player ship.
+            // Check each facility's current host, not the mixed map's overall faction.
+            bool playerFacility(Thing facility) => facility.Faction == Faction.OfPlayer
+                || ShipRegistry.AllShipsOnMap(facility.Map).Any(ship => ship.IsValid
+                    && ship.Faction == Faction.OfPlayer && ship.Contains(facility));
+            if (playerFacility(this) || ValidContainers(false).Any(c => playerFacility(c.Thing)))
+                return "DeltaV_TradePlayerSupplyBlocked".Translate();
+            return true;
         }
 
         internal AcceptanceReport StockConfigurationReport()
@@ -30,15 +56,15 @@ namespace DeltaV
         {
             AcceptanceReport report = StockConfigurationReport();
             if (!report.Accepted) return report;
-            if (TradingMap() == null) return "DeltaV_TradeNoDock".Translate();
+            if (!TradeShips().Any()) return "DeltaV_TradeNoDock".Translate();
             return true;
         }
 
-        internal IEnumerable<Building_SpaceCargoContainer> CargoCandidates()
-            => Map.listerThings.AllThings.OfType<Building_SpaceCargoContainer>()
+        internal IEnumerable<ISpaceCargoContainer> CargoCandidates()
+            => Map.listerThings.AllThings.OfType<ISpaceCargoContainer>()
                 .OrderBy(c => c.Position.x).ThenBy(c => c.Position.z);
 
-        internal AcceptanceReport BindingReport(Building_SpaceCargoContainer cargo, bool delivery)
+        internal AcceptanceReport BindingReport(ISpaceCargoContainer cargo, bool delivery)
         {
             if (!Spawned || cargo?.Spawned != true || cargo.Map != Map)
                 return "DeltaV_TradeCargoDisconnected".Translate();
@@ -53,7 +79,7 @@ namespace DeltaV
             return true;
         }
 
-        internal AcceptanceReport SetCargoBinding(Building_SpaceCargoContainer cargo, bool delivery)
+        internal AcceptanceReport SetCargoBinding(ISpaceCargoContainer cargo, bool delivery)
         {
             if (!CanConfigure) return false;
             // Removing a stale or invalid link must remain possible.
@@ -103,6 +129,8 @@ namespace DeltaV
         {
             if (!DebugSettings.godMode || !CanConfigure) return;
             AcceptanceReport report = StockConfigurationReport();
+            if (!report.Accepted) { Messages.Message(report.Reason, MessageTypeDefOf.RejectInput, false); return; }
+            report = RestockPermissionReport();
             if (!report.Accepted) { Messages.Message(report.Reason, MessageTypeDefOf.RejectInput, false); return; }
             if (TradeWindowOpen) { Messages.Message("DeltaV_TradeCloseWindow".Translate(), MessageTypeDefOf.RejectInput, false); return; }
             RegenerateStock();

@@ -2,29 +2,25 @@
 <Defs>
   <AdaptiveStorage.GraphicsDef>
     <defName>DeltaV_CargoContainerGraphics</defName>
-    <targetDef>DeltaV_CargoContainer</targetDef>
+    <targetDef>DeltaV_CargoStorage</targetDef>
     <showBaseGraphic>false</showBaseGraphic>
     <showContainedItems>false</showContainedItems>
     <graphics>
       <li>
-        <graphicData Class="DeltaV.StorageGraphicData_CargoState">
-          <texPath>Things/Building/StationTrade/CargoContainer_Locked</texPath>
+        <graphicData>
+          <texPath>Things/Building/StationTrade/CargoContainer_Unlocked</texPath>
           <graphicClass>Graphic_Single</graphicClass><drawSize>(2,3)</drawSize>
           <damageData><enabled>false</enabled></damageData>
-          <unlockedGraphicData>
-            <texPath>Things/Building/StationTrade/CargoContainer_Unlocked</texPath>
-            <graphicClass>Graphic_Single</graphicClass><drawSize>(2,3)</drawSize>
-            <damageData><enabled>false</enabled></damageData>
-          </unlockedGraphicData>
         </graphicData>
       </li>
     </graphics>
   </AdaptiveStorage.GraphicsDef>
-  <ThingDef ParentName="BuildingBase">
+  <ThingDef ParentName="BuildingBase" Name="DeltaVCargoBase">
     <defName>DeltaV_CargoContainer</defName>
     <label>station cargo container</label>
-    <description>Exterior cargo bay for 48 stacks. Player-built bays are unlocked and ready to use. Hacking a locked bay unlocks it and automatically ejects its cargo. Cargo follows the outdoor temperature without using power. An optional temperature-control module can cool or heat its contents. Destruction ruins most cargo.</description>
-    <thingClass>DeltaV.Building_SpaceCargoContainer</thingClass>
+    <description>Exterior cargo bay for 48 stacks. Player-built bays are unlocked. Storage mode permits normal hauling and ingredient use. Sealed mode holds cargo inside the container, out of reach of hauling and trade beacons. Unseal to take some items, or open to scatter all contents on the ground. Hacking a locked bay unlocks it and automatically ejects its cargo. Cargo follows the outdoor temperature without using power. An optional temperature-control module can cool or heat its contents. Destruction ruins most cargo.</description>
+    <thingClass>DeltaV.Building_SealedSpaceCargoContainer</thingClass>
+    <tickerType>Normal</tickerType>
     <category>Building</category>
     <size>(2,3)</size>
     <rotatable>true</rotatable>
@@ -40,13 +36,14 @@
     <costList Inherit="False"><Steel>200</Steel><ComponentIndustrial>2</ComponentIndustrial></costList>
     <graphicData><texPath>Things/Building/StationTrade/CargoContainer_Locked</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,3)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
     <comps>
+      <li Class="DeltaV.CompProperties_SpaceCargo" />
       <li Class="CompProperties_Hackable">
         <defence>1800</defence><effectHacking>HackingTerminal</effectHacking>
         <showProgressAfterHackCompletion>false</showProgressAfterHackCompletion>
+        <hackedGraphicData><texPath>Things/Building/StationTrade/CargoContainer_Unlocked</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,3)</drawSize><damageData><enabled>false</enabled></damageData></hackedGraphicData>
       </li>
     </comps>
     <modExtensions>
-      <li Class="AdaptiveStorage.Extension" />
       <li Class="DeltaV.DefModExtension_CargoAttachments">
         <slots><li><cell>(0,0,0)</cell><drawOffset>(0.5,-1.0)</drawOffset><drawScale>0.7</drawScale></li></slots>
         <allowed><li>DeltaV_CargoTemperatureModule</li></allowed>
@@ -54,16 +51,28 @@
     </modExtensions>
     <building>
       <isEdifice>true</isEdifice><canExchangeVacuum>false</canExchangeVacuum><maxItemsInCell>8</maxItemsInCell>
+      <openingStartedSound>CrateOpeningStarted</openingStartedSound>
       <preventDeteriorationOnTop>true</preventDeteriorationOnTop>
       <defaultStorageSettings><priority>Preferred</priority><filter><categories><li>Root</li></categories></filter></defaultStorageSettings>
     </building>
+
+  </ThingDef>
+  <ThingDef ParentName="DeltaVCargoBase">
+    <defName>DeltaV_CargoStorage</defName>
+    <thingClass>DeltaV.Building_SpaceCargoContainer</thingClass>
+    <designationCategory IsNull="True" />
+    <comps Inherit="False"><li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_SpaceCargo" /></comps>
+    <modExtensions><li Class="AdaptiveStorage.Extension" /></modExtensions>
     <inspectorTabs><li>ITab_Storage</li><li>AdaptiveStorage.ContentsITab</li></inspectorTabs>
   </ThingDef>
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_TradeTerminal</defName>
     <label>station trade terminal</label>
-    <description>Configure a trader type and restock interval, bind locked supply bays and one unlocked collection bay on this structure. Visitors trade through a soft docked ship. Purchases are delivered to the collection bay.</description>
+    <description>Access the station's goods through its linked supply bays. Choose the map of a soft or hard docked ship with a player-owned primary console, including the ship carrying this terminal. Trade goods and silver through powered player orbital trade beacons on that map. Purchases go to the linked collection bay. Player-owned ships and stations receive no automatic supply.
+
+You may be wondering whether you could cut this off and install it on your own ship. If that is what you are thinking, save yourself the trouble. It is just a terminal.</description>
     <thingClass>DeltaV.Building_SpaceTradeTerminal</thingClass>
+    <placeWorkers><li>DeltaV.PlaceWorker_TradeTerminal</li></placeWorkers>
     <tickerType>Rare</tickerType>
     <category>Building</category>
     <size>(1,1)</size>
@@ -90,11 +99,10 @@
     <costList><Steel>140</Steel><ComponentIndustrial>4</ComponentIndustrial></costList>
     <statBases><WorkToBuild>3000</WorkToBuild><MaxHitPoints>100</MaxHitPoints><Flammability>0</Flammability></statBases>
     <comps>
-      <li Class="DeltaV.CompProperties_SpaceWeaponAttachment"><allowedHostDefs><li>DeltaV_CargoContainer</li></allowedHostDefs></li>
+      <li Class="DeltaV.CompProperties_SpaceWeaponAttachment"><allowedHostDefs><li>DeltaV_CargoContainer</li><li>DeltaV_CargoStorage</li></allowedHostDefs></li>
       <li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>200</basePowerConsumption></li>
       <li Class="DeltaV.CompProperties_CargoTemperature"><defaultTargetTemperature>-10</defaultTargetTemperature><coolingWatts>200</coolingWatts><heatingWatts>175</heatingWatts><temperatureOffset>100</temperatureOffset></li>
     </comps>
   </ThingDef>
-  <JobDef><defName>DeltaV_OpenCargo</defName><driverClass>DeltaV.JobDriver_OpenSpaceCargo</driverClass><reportString>opening cargo container.</reportString></JobDef>
   <JobDef><defName>DeltaV_UseTradeTerminal</defName><driverClass>DeltaV.JobDriver_UseSpaceTradeTerminal</driverClass><reportString>trading at terminal.</reportString></JobDef>
 </Defs>

@@ -9,23 +9,23 @@ namespace DeltaV
 {
     public partial class Building_SpaceTradeTerminal : Building, ITrader
     {
-        private List<Building_SpaceCargoContainer> supplyCargo = new List<Building_SpaceCargoContainer>();
-        private Building_SpaceCargoContainer deliveryCargo;
+        private List<ISpaceCargoContainer> supplyCargo = new List<ISpaceCargoContainer>();
+        private ISpaceCargoContainer deliveryCargo;
         private TraderKindDef traderKind;
         private int restockDays = 15;
         private int lastRestockTick = -1;
         private bool stockGenerated;
+        private bool indiscriminateSupply;
         private int priceSeed;
 
         public TraderKindDef TraderKind => traderKind ?? Faction?.def?.baseTraderKinds?.FirstOrDefault()
             ?? DefDatabase<TraderKindDef>.GetNamedSilentFail("Orbital_BulkGoods");
         public IEnumerable<Thing> Goods => ValidContainers(unlocked: false).SelectMany(c => c.Contents.ToArray());
         public int RandomPriceFactorSeed => priceSeed == 0 ? thingIDNumber : priceSeed;
-        public string TraderName => LabelCap;
+        public string TraderName => LabelCap.ToString();
         public bool CanTradeNow => TradeAvailability().Accepted;
         public float TradePriceImprovementOffsetForPlayer => 0f;
         public TradeCurrency TradeCurrency => TraderKind?.tradeCurrency ?? TradeCurrency.Silver;
-        internal Map ShipTradeMap => TradingMap();
 
         public override void ExposeData()
         {
@@ -36,10 +36,11 @@ namespace DeltaV
             Scribe_Values.Look(ref restockDays, "restockDays", 15);
             Scribe_Values.Look(ref lastRestockTick, "lastRestockTick", -1);
             Scribe_Values.Look(ref stockGenerated, "tradeStockGenerated");
+            Scribe_Values.Look(ref indiscriminateSupply, "indiscriminateSupply");
             Scribe_Values.Look(ref priceSeed, "tradePriceSeed");
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
-                supplyCargo ??= new List<Building_SpaceCargoContainer>();
+                supplyCargo ??= new List<ISpaceCargoContainer>();
                 restockDays = Mathf.Clamp(restockDays, 1, 60);
             }
         }
@@ -55,14 +56,14 @@ namespace DeltaV
         }
 
         // Validate at the interaction boundary. A severed module keeps its own inventory.
-        private IEnumerable<Building_SpaceCargoContainer> ValidContainers(bool unlocked)
+        private IEnumerable<ISpaceCargoContainer> ValidContainers(bool unlocked)
         {
             if (!Spawned) yield break;
             var connected = new HashSet<IntVec3>();
             SubstructureOwnership.CollectConnected(Map, Position, connected, null);
-            IEnumerable<Building_SpaceCargoContainer> candidates = unlocked
+            IEnumerable<ISpaceCargoContainer> candidates = unlocked
                 ? new[] { deliveryCargo } : supplyCargo.Distinct().Where(c => c != deliveryCargo);
-            foreach (Building_SpaceCargoContainer cargo in candidates)
+            foreach (ISpaceCargoContainer cargo in candidates)
                 if (cargo?.Spawned == true && cargo.Map == Map && cargo.IsUnlocked == unlocked
                     && connected.Contains(cargo.Position))
                     yield return cargo;
@@ -78,10 +79,10 @@ namespace DeltaV
 
         private void CheckRestock()
         {
-            // Authoring player stations does not generate free goods during normal play.
-            if (!Spawned || Faction == null || Faction.IsPlayer || TradeWindowOpen) return;
+            if (!Spawned || Faction == null || TradeWindowOpen) return;
             if (stockGenerated && Find.TickManager.TicksGame < lastRestockTick + restockDays * GenDate.TicksPerDay) return;
             if (!StockConfigurationReport().Accepted) return;
+            if (!RestockPermissionReport().Accepted) return;
             if (!stockGenerated && Goods.Any())
             {
                 stockGenerated = true;
@@ -91,39 +92,41 @@ namespace DeltaV
             RegenerateStock();
         }
 
-        private Map TradingMap()
-        {
-            if (!Spawned) return null;
-            var connected = new HashSet<IntVec3>();
-            SubstructureOwnership.CollectConnected(Map, Position, connected, null);
-            foreach (Building_DockingPort port in Map.listerThings.AllThings.OfType<Building_DockingPort>())
-            {
-                Building_DockingPort peer = port.Docking?.Peer;
-                if (connected.Contains(port.Position) && port.Docking?.Connected == true
-                    && peer?.Spawned == true && peer.Faction == Faction.OfPlayer && peer.Map != Map)
-                    return peer.Map;
-            }
-            return null;
-        }
-
         private void RegenerateStock()
         {
-            if (!StockConfigurationReport().Accepted || TradeWindowOpen) return;
-            List<Building_SpaceCargoContainer> cabinets = ValidContainers(unlocked: false).ToList();
+            if (!StockConfigurationReport().Accepted || !RestockPermissionReport().Accepted || TradeWindowOpen) return;
+            List<ISpaceCargoContainer> cabinets = ValidContainers(unlocked: false).ToList();
             ThingSetMakerParams parms = default;
             parms.traderDef = TraderKind;
             parms.tile = Map.Tile;
             parms.makingFaction = Faction;
             // Finish native stock generation before replacing the existing physical stock.
             List<Thing> generated = ThingSetMakerDefOf.TraderStock.root.Generate(parms);
-            foreach (Building_SpaceCargoContainer cargo in cabinets)
+            foreach (ISpaceCargoContainer cargo in cabinets)
                 foreach (Thing thing in cargo.Contents.ToArray()) thing.Destroy();
             foreach (Thing thing in generated)
             {
-                // Cargo holds items, not pawns. Reserve sixteen stacks per supply bay for sales.
-                if (thing.def.category != ThingCategory.Item
-                    || !cabinets.Any(c => c.Contents.Count < c.CurrentSlotLimit - 16 && c.TryStore(thing)))
+                if (thing.def.category != ThingCategory.Item)
+                {
                     thing.Destroy();
+                    continue;
+                }
+                // Trader stock may exceed map stack limits. Split before spawning, and
+                // count real stacks against capacity, reserving sixteen per bay for sales.
+                while (thing.stackCount > 0)
+                {
+                    if (!cabinets.Any(c => c.Contents.Count < c.CurrentSlotLimit - 16))
+                    {
+                        thing.Destroy();
+                        break;
+                    }
+                    Thing stack = thing.stackCount > thing.def.stackLimit
+                        ? thing.SplitOff(thing.def.stackLimit) : thing;
+                    bool stored = cabinets.Any(c => c.Contents.Count < c.CurrentSlotLimit - 16 && c.TryStore(stack));
+                    if (!stored) stack.Destroy();
+                    if (stack == thing) break;
+                    if (!stored) { thing.Destroy(); break; }
+                }
             }
             stockGenerated = true;
             lastRestockTick = Find.TickManager.TicksGame;
@@ -133,17 +136,12 @@ namespace DeltaV
 
         public IEnumerable<Thing> ColonyThingsWillingToBuy(Pawn negotiator)
         {
-            Map shipMap = TradingMap();
-            if (shipMap == null) yield break;
-            foreach (Thing thing in shipMap.listerThings.AllThings)
-                if (thing.def.category == ThingCategory.Item && !thing.Destroyed)
+            Map source = TradeService?.MapFor(this, negotiator);
+            if (source == null) yield break;
+            var merchantGoods = new HashSet<Thing>(Goods);
+            foreach (Thing thing in TradeUtility.AllLaunchableThingsForTrade(source, this))
+                if (!merchantGoods.Contains(thing))
                     yield return thing;
-        }
-
-        internal static bool IsStillOnShip(Thing thing, Map ship)
-        {
-            if (thing == null || thing.Destroyed) return false;
-            return thing.Spawned && thing.Map == ship;
         }
 
         internal bool DealStillValid(TradeDeal deal, out bool noRoom)
@@ -151,14 +149,15 @@ namespace DeltaV
             noRoom = false;
             if (!CanTradeNow || TradeSession.playerNegotiator?.Map != Map) return false;
             var goods = new HashSet<Thing>(Goods);
-            Map ship = TradingMap();
+            if (TradeService?.MapFor(this, TradeSession.playerNegotiator) == null) return false;
+            var colonyGoods = new HashSet<Thing>(ColonyThingsWillingToBuy(TradeSession.playerNegotiator));
             foreach (Tradeable row in deal.AllTradeables)
             {
                 if (row.ActionToDo == TradeAction.PlayerBuys
                     && row.thingsTrader.Where(goods.Contains).Sum(t => t.stackCount)
                         < row.CountToTransferToSource) return false;
                 if (row.ActionToDo == TradeAction.PlayerSells
-                    && row.thingsColony.Where(t => IsStillOnShip(t, ship))
+                    && row.thingsColony.Where(colonyGoods.Contains)
                         .Sum(t => t.stackCount) < row.CountToTransferToDestination) return false;
             }
             int boughtStacks = deal.AllTradeables.Sum(row => row.ActionToDo == TradeAction.PlayerBuys
@@ -200,7 +199,7 @@ namespace DeltaV
 
         public void GiveSoldThingToPlayer(Thing toGive, int countToGive, Pawn negotiator)
         {
-            Building_SpaceCargoContainer source = ValidContainers(unlocked: false).FirstOrDefault(c => c.Contents.Contains(toGive));
+            ISpaceCargoContainer source = ValidContainers(unlocked: false).FirstOrDefault(c => c.Contents.Contains(toGive));
             if (source == null) return;
             Thing transferred = source.Take(toGive, countToGive);
             if (transferred == null) return;
@@ -216,8 +215,6 @@ namespace DeltaV
         {
             foreach (FloatMenuOption option in base.GetFloatMenuOptions(pawn)) yield return option;
             if (!pawn.IsColonistPlayerControlled) yield break;
-            if (CanConfigure)
-                yield return new FloatMenuOption("DeltaV_TradeConfigure".Translate(), OpenConfiguration);
             AcceptanceReport report = NegotiatorReport(pawn);
             string label = "DeltaV_TradeTerminalTrade".Translate();
             if (!report.Accepted)
@@ -242,6 +239,7 @@ namespace DeltaV
 
         internal void OpenTrade(Pawn pawn)
         {
+            if (Find.WindowStack.IsOpen<Dialog_Trade>()) return;
             CheckRestock();
             AcceptanceReport report = NegotiatorReport(pawn);
             if (!report.Accepted)
@@ -249,7 +247,7 @@ namespace DeltaV
                 Messages.Message(report.Reason, MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            Find.WindowStack.Add(new Dialog_Trade(pawn, this));
+            Find.WindowStack.Add(new Dialog_StationTradeSource(this, pawn));
         }
 
         public override IEnumerable<Gizmo> GetGizmos()

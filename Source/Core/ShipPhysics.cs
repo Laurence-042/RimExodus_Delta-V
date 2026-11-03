@@ -277,7 +277,7 @@ namespace DeltaV
             {
                 mass += Mathf.Max(0f, transporter.MassUsage);
             }
-            if (thing is Building_SpaceCargoContainer cargo)
+            if (thing.TryGetComp<CompSpaceCargo>() is { } cargo)
                 mass += Mathf.Max(0f, cargo.StoredMass);
             return mass;
         }
