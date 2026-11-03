@@ -7,10 +7,10 @@
 | `TopologyBenchmark/run.ps1` | 250×250 基架连通性离线对拍与性能比较：原样 TopologyLab、HLT 分层 Euler-tour tree、全量 BFS；[方法与复现](TopologyBenchmark/README.md)、[实测结论](TopologyBenchmark/RESULTS.md)，不代表游戏 TPS |
 | `FoundationTopologyRegression/run.ps1` | 直接编译生产拓扑／归属计数／地图服务，与独立 BFS 对拍，含 250×250 场景和缓存生命周期；[接入回归说明](FoundationTopologyRegression/README.md) |
 | `WeaponTuningRegression/run.ps1` | 当前 1.7 武器数值／伤害回归，详见其 README |
-| `RailgunRegression/run.ps1 -EnergyOnly` | 1.6 真实能量事务与货柜温控专项，加载安装版 ASF；包括双回收／混装电容、折后费用及室外温控，不启动游戏 |
+| `RailgunRegression/run.ps1 -EnergyOnly` | 1.6 真实能量事务与货柜／终端专项，加载安装版 ASF；包括双回收／混装电容、折后费用、室外温控、原版覆盖规则和终端绑定／定期补货，不启动游戏 |
 | `preview_equipment_cost_art.py` | 只读设备 Def 与三张新贴图，输出四向、实际格尺寸及宿主槽位叠画预览，不改正式贴图 |
 | `CombatStrategyRegression/` | 使用最小占位类型的策略、曲线与文件校验；不替代游戏运行时验证 |
-| `NpcRetreatRegression/run.ps1` | 1.6 的战斗、驾驶、结构和生命周期专项；已接 REF，名称不代表只测撤退；`-SeparationOnly` 验证实际 Mod DLL 的归属、增量断裂检查与出力分离门禁；`-TractorOnly` 验证自动跨船独占与过滤、手动叠力、残骸分离请求、点防伤害分配及坐标／存读档 |
+| `NpcRetreatRegression/run.ps1` | 1.6 的战斗、驾驶、结构和生命周期专项；已接 REF，名称不代表只测撤退；`-PlayerFlightOnly` 验证驾驶权限、显式驾驶和原版按键抑制边界、导航参考与任务替换（2026-11-02 共 72 项通过；模拟焦点／按键绑定环境，不启动游戏）；`-SeparationOnly` 验证实际 Mod DLL 的归属、增量断裂检查与出力分离门禁；`-TractorOnly` 验证自动跨船独占与过滤、手动叠力、残骸分离请求、点防伤害分配及坐标／存读档 |
 | `MpcRegression`、`EngineeringRegression`、`RailgunRegression` | 1.6 控制器、工程与碰撞链回归；轨道炮数值现状以武器基线及 1.7 回归为准 |
 | `PrefabRegression`、`MoonPoolRoofRegression`、`SubstructureDamageRegression` | 1.6 的 prefab、屋顶及基架破坏检查；公共 prefab 实现已迁入 REF |
 | `verify_docking_contract.ps1` | 1.6 对接原版签名、XML 字段与翻译核对，不适用于 1.7 API |

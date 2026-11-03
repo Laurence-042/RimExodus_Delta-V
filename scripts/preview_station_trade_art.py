@@ -14,7 +14,8 @@ CELL_PIXELS = 48
 
 
 def main() -> None:
-    defs = ET.parse(DEF_PATH).getroot().findall("ThingDef")
+    root = ET.parse(DEF_PATH).getroot()
+    defs = root.findall("ThingDef")
     entries = []
     for node in defs:
         name = node.findtext("defName")
@@ -25,7 +26,7 @@ def main() -> None:
         assert draw_size == size, (name, size, draw_size)
         variants = [("TradeTerminal", node.findtext("graphicData/texPath"))] if name == "DeltaV_TradeTerminal" else [
             ("LockedCargo", node.findtext("graphicData/texPath")),
-            ("UnlockedCargo", node.findtext("comps/li[@Class='CompProperties_Hackable']/hackedGraphicData/texPath")),
+            ("UnlockedCargo", root.findtext("AdaptiveStorage.GraphicsDef/graphics/li/graphicData/unlockedGraphicData/texPath")),
         ]
         for label, tex_path in variants:
             path = ROOT / "1.6/Textures" / (tex_path + ".png")

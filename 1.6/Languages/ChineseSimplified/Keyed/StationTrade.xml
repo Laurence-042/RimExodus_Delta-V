@@ -7,8 +7,6 @@
   <DeltaV_CargoCapacity>容量：{0}/{1} 堆</DeltaV_CargoCapacity>
   <DeltaV_CargoTemperature>室外／货物温度：{0}°C／{1}°C</DeltaV_CargoTemperature>
   <DeltaV_TradeTerminalTrade>与空间站交易</DeltaV_TradeTerminalTrade>
-  <DeltaV_TradeTerminalLink>关联货柜</DeltaV_TradeTerminalLink>
-  <DeltaV_TradeTerminalLinkDesc>选择这座终端使用的货柜。未解锁的货柜存放待售货物，已解锁的货柜接收购入货物。</DeltaV_TradeTerminalLinkDesc>
   <DeltaV_TradeChanged>交易已取消：对接已断开，或货柜、终端的状态发生变化。请重新打开交易窗口。</DeltaV_TradeChanged>
   <DeltaV_TradeNoRoom>交易已取消：存放待售货物或接收购入货物的货柜空间不足。请腾出空间后重试。</DeltaV_TradeNoRoom>
   <DeltaV_DevYes>是</DeltaV_DevYes>
@@ -16,15 +14,34 @@
   <DeltaV_DevCargoAddSample>DEV：加入样例货物</DeltaV_DevCargoAddSample>
   <DeltaV_DevCargoInspect>DEV：查看货柜内容</DeltaV_DevCargoInspect>
   <DeltaV_DevCargoOpen>DEV：瞬间骇入／全部打开</DeltaV_DevCargoOpen>
+  <DeltaV_DevCargoLock>DEV：锁定货柜（需要骇入）</DeltaV_DevCargoLock>
   <DeltaV_DevCargoClear>DEV：清空货柜</DeltaV_DevCargoClear>
   <DeltaV_DevCargoDestroy>DEV：毁坏并损失货物</DeltaV_DevCargoDestroy>
   <DeltaV_DevCargoReport>堆数：{0}；物品数量：{1}；质量：{2}；已骇入：{3}</DeltaV_DevCargoReport>
   <DeltaV_DevMoreCargo>……其余堆已省略</DeltaV_DevMoreCargo>
-  <DeltaV_DevTradeAddStock>DEV：加入交易库存</DeltaV_DevTradeAddStock>
-  <DeltaV_DevTradeRelink>DEV：重连附近货柜</DeltaV_DevTradeRelink>
-  <DeltaV_DevTradeInspect>DEV：查看交易关联</DeltaV_DevTradeInspect>
-  <DeltaV_DevTradeReport>已生成库存：{0}；已初始化关联：{1}；交易员类型：{2}；价格种子：{3}；对接船地图：{4}；可交易：{5}</DeltaV_DevTradeReport>
-  <DeltaV_DevTradeCargoLine>货柜 {0}：{1}，有效 {2}，堆数 {3}</DeltaV_DevTradeCargoLine>
-  <DeltaV_DevTradeUnlocked>已解锁／交货</DeltaV_DevTradeUnlocked>
-  <DeltaV_DevTradeLocked>未解锁／库存</DeltaV_DevTradeLocked>
+  <DeltaV_DevTradeUnlocked>已解锁</DeltaV_DevTradeUnlocked>
+  <DeltaV_DevTradeLocked>已锁定</DeltaV_DevTradeLocked>
+  <DeltaV_TradeConfigure>配置交易终端</DeltaV_TradeConfigure>
+  <DeltaV_TradeConfigureDesc>选择商人类型、补货周期，分别绑定供货货柜和取货货柜。</DeltaV_TradeConfigureDesc>
+  <DeltaV_TradeConfigureHelp>供货仓必须锁定，取货仓必须解锁；锁定操作仅在 God Mode 的货柜开发命令中提供。非玩家空间站按周期重建供货库存；自建站可用 God Mode 手动补货。取货仓不参与补货刷新。</DeltaV_TradeConfigureHelp>
+  <DeltaV_TradeKind>商人类型：{0}</DeltaV_TradeKind>
+  <DeltaV_TradeRestockDays>补货周期：{0} 天</DeltaV_TradeRestockDays>
+  <DeltaV_TradeCargoCounts>有效供货仓：{0}；有效取货仓：{1}/1</DeltaV_TradeCargoCounts>
+  <DeltaV_TradeBindings>绑定货柜（多个供货仓、一个取货仓）</DeltaV_TradeBindings>
+  <DeltaV_TradeSupply>供货仓</DeltaV_TradeSupply>
+  <DeltaV_TradeDelivery>取货仓</DeltaV_TradeDelivery>
+  <DeltaV_TradeNoFaction>终端未所属任何派系。</DeltaV_TradeNoFaction>
+  <DeltaV_TradeNoKind>未配置可用的商人类型。</DeltaV_TradeNoKind>
+  <DeltaV_TradeNoSupply>请绑定至少一个同结构且已锁定的供货仓。</DeltaV_TradeNoSupply>
+  <DeltaV_TradeNoDelivery>请绑定一个同结构且已解锁的取货仓。</DeltaV_TradeNoDelivery>
+  <DeltaV_TradeNoDock>尚未与玩家飞船建立软对接；可先完成终端配置。</DeltaV_TradeNoDock>
+  <DeltaV_TradeRelationsBlocked>当前派系关系不允许交易。</DeltaV_TradeRelationsBlocked>
+  <DeltaV_TradeCargoDisconnected>货柜必须位于终端所在的同一连通基架结构。</DeltaV_TradeCargoDisconnected>
+  <DeltaV_TradeDeliveryNeedsUnlock>取货仓需要先解锁。</DeltaV_TradeDeliveryNeedsUnlock>
+  <DeltaV_TradeSupplyNeedsLock>供货仓需要先锁定：请在 God Mode 下使用货柜的锁定命令。</DeltaV_TradeSupplyNeedsLock>
+  <DeltaV_TradeCargoAlreadyBound>该货柜已绑定另一座交易终端，请先解除原绑定。</DeltaV_TradeCargoAlreadyBound>
+  <DeltaV_TradeNoCargoOnMap>地图上没有可绑定的货柜。</DeltaV_TradeNoCargoOnMap>
+  <DeltaV_DevTradeRestock>DEV：重新生成供货库存（替换旧库存）</DeltaV_DevTradeRestock>
+  <DeltaV_TradeCloseWindow>请先关闭当前交易窗口，再重新生成库存。</DeltaV_TradeCloseWindow>
+  <DeltaV_TradeReady>交易条件已满足。</DeltaV_TradeReady>
 </LanguageData>

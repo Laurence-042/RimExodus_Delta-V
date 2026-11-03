@@ -1,5 +1,8 @@
 using System;
 using System.Reflection;
+using System.Collections.Generic;
+using System.Linq;
+using HarmonyLib;
 using DeltaV;
 using RimWorld;
 using UnityEngine;
@@ -91,6 +94,7 @@ internal static partial class Program
             var foreign = AddTestConsole(map, enemy, 49982);
             var shuttle = AddTestHull(map, enemy, 49983);
             ShipStructureChanges.Notify(map);
+            CheckFlightKeysDoNotTakeOver(universe, own.Vessel);
             foreach (bool godMode in new[] { false, true })
             {
                 DebugSettings.godMode = godMode;
@@ -133,6 +137,56 @@ internal static partial class Program
             Find.World.factionManager = oldFactions;
             DebugSettings.godMode = oldGodMode;
             ThingDefOf.PilotConsole = oldConsoleDef;
+        }
+    }
+
+    static Map flightInputMap;
+    static ShipBase flightInputShip;
+    static bool FlightMap(ref Map __result) { __result = flightInputMap; return false; }
+    static bool FlightSelection(ref ShipBase __result) { __result = flightInputShip; return false; }
+    static bool NoKeyRebuild() => false;
+
+    static void CheckFlightKeysDoNotTakeOver(UniverseManager universe, ShipBase ship)
+    {
+        var patch = new Harmony("DeltaV.Regression.ExplicitPiloting");
+        Type bridge = typeof(PilotService).Assembly.GetType("DeltaV.PilotKeyBridge", true);
+        var keys = (HashSet<KeyCode>)AccessTools.Field(bridge, "ActiveKeys").GetValue(null);
+        var oldKeys = new HashSet<KeyCode>(keys);
+        var suppress = AccessTools.Field(bridge, "SuppressVanillaKeys");
+        bool oldSuppress = (bool)suppress.GetValue(null);
+        flightInputMap = ship.Map; flightInputShip = ship;
+        try
+        {
+            keys.Clear();
+            patch.Patch(AccessTools.PropertyGetter(typeof(Find), "CurrentMap"), prefix: new HarmonyMethod(typeof(Program), nameof(FlightMap)));
+            patch.Patch(AccessTools.Method(typeof(PilotService), "SelectedShipOnMap"), prefix: new HarmonyMethod(typeof(Program), nameof(FlightSelection)));
+            patch.Patch(AccessTools.Method(typeof(PilotService), "RebuildPilotKeySet"), prefix: new HarmonyMethod(typeof(Program), nameof(NoKeyRebuild)));
+            Check(PatchProcessor.GetOriginalInstructions(AccessTools.Method(typeof(PilotService), "UpdateFrameState"))
+                .All(i => i.operand is not MethodInfo method || method.Name != "SampleInput"),
+                "frame state maintenance never samples flight keys for implicit takeover");
+            var controller = (PlayerShipController)Call(universe.Pilot, "ControllerFor", PilotTarget.Of(ship));
+            Check(universe.Pilot.GetControlState(ship) == ShipControlState.Autopilot,
+                "non-piloted player ship starts in automatic control");
+            suppress.SetValue(null, true);
+            universe.Pilot.UpdateFrameState(universe);
+            Check(!universe.Pilot.PilotedTarget(universe).IsValid
+                && !(bool)suppress.GetValue(null),
+                "automatic control leaves camera/building keys available without entering piloting");
+
+            controller.Enter(PilotTarget.Of(ship));
+            Set(universe.Pilot, "activePlayerController", controller);
+            universe.Pilot.UpdateFrameState(universe);
+            Check(universe.Pilot.PilotedTarget(universe).IsValid && (bool)suppress.GetValue(null),
+                "explicit manual session still suppresses overlapping vanilla keys");
+            controller.Exit(); Set(universe.Pilot, "activePlayerController", null);
+            universe.Pilot.UpdateFrameState(universe);
+            Check(!(bool)suppress.GetValue(null),
+                "leaving piloting restores vanilla keys without implicit takeover");
+        }
+        finally
+        {
+            patch.UnpatchAll(patch.Id); keys.Clear(); keys.UnionWith(oldKeys);
+            suppress.SetValue(null, oldSuppress); flightInputMap = null; flightInputShip = null;
         }
     }
 }

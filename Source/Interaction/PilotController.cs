@@ -743,9 +743,8 @@ internal readonly struct HeadingPanelAction
             }
         }
 
-        /// <summary>每帧维护聚焦玩家船的手动/自动交接和原版按键抑制。
-        /// 自动控制下任一飞行键同帧接管手动，暂停当前自动任务；面板与驾驶键
-        /// 同样经 Enter/Exit 交接。抑制启用时仅输出一次绑定摘要。</summary>
+        /// <summary>每帧维护已进入的驾驶会话和原版按键抑制。
+        /// 进入驾驶只走显式控制入口，普通移动／旋转键不切换模式。</summary>
         public void UpdateFrameState(UniverseManager universe)
         {
             if (PilotKeyBridge.ActiveKeys.Count > 0 &&
@@ -754,34 +753,13 @@ internal readonly struct HeadingPanelAction
 
             PilotTarget piloted = PilotedTarget(universe);
             Map focusedMap = Find.CurrentMap;
-            ShipBase selected = focusedMap != null ? SelectedShipOnMap(focusedMap) : ShipBase.Invalid;
-            PilotTarget autopilotTarget = PilotTarget.Of(selected);
-            bool focusOnAutopilotShip = autopilotTarget.IsValid
-                && universe.Controls.PlayerFor(selected) != null
-                && GetControlState(autopilotTarget) == ShipControlState.Autopilot;
-
-            if (!piloted.IsValid)
-            {
-                if (focusOnAutopilotShip)
-                {
-                    PilotInput input = SampleInput();
-                    if (input.fx != 0f || input.fz != 0f || input.torque != 0f)
-                    {
-                        DeltaVLog.Message(DeltaVLogModule.Core,
-                            $"autopilot interrupted by flight key: target key #{autopilotTarget.Identity} (direct takeover)");
-                        Enter(universe, autopilotTarget); // 打断自动驾驶并接管：同帧输入生效
-                        piloted = PilotedTarget(universe);
-                        focusOnAutopilotShip = false;
-                    }
-                }
-            }
             bool manualPiloting = piloted.IsValid && focusedMap == piloted.Map;
             if (!manualPiloting && piloted.IsValid)
             {
                 Exit(universe, "DeltaV_PilotExitAuto".Translate(
                     piloted.Label));
             }
-            bool suppress = manualPiloting || focusOnAutopilotShip;
+            bool suppress = manualPiloting;
             if (suppress)
             {
                 if (PilotKeyBridge.ActiveKeys.Count == 0)

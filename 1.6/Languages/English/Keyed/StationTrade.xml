@@ -7,8 +7,6 @@
   <DeltaV_CargoCapacity>Capacity: {0}/{1} stacks</DeltaV_CargoCapacity>
   <DeltaV_CargoTemperature>Outdoor / cargo temperature: {0}°C / {1}°C</DeltaV_CargoTemperature>
   <DeltaV_TradeTerminalTrade>Trade with station</DeltaV_TradeTerminalTrade>
-  <DeltaV_TradeTerminalLink>Link cargo containers</DeltaV_TradeTerminalLink>
-  <DeltaV_TradeTerminalLinkDesc>Choose containers linked to this terminal. Locked bays supply stock; unlocked bays receive purchases.</DeltaV_TradeTerminalLinkDesc>
   <DeltaV_TradeChanged>Trade cancelled: the docking link, cargo or terminal changed. Reopen trade to refresh the goods.</DeltaV_TradeChanged>
   <DeltaV_TradeNoRoom>Trade cancelled: stock or unlocked delivery cargo capacity is full. Free space and try again.</DeltaV_TradeNoRoom>
   <DeltaV_DevYes>yes</DeltaV_DevYes>
@@ -16,15 +14,34 @@
   <DeltaV_DevCargoAddSample>DEV: Add sample goods</DeltaV_DevCargoAddSample>
   <DeltaV_DevCargoInspect>DEV: Inspect cargo</DeltaV_DevCargoInspect>
   <DeltaV_DevCargoOpen>DEV: Hack / open all</DeltaV_DevCargoOpen>
+  <DeltaV_DevCargoLock>DEV: Lock cargo (requires hacking)</DeltaV_DevCargoLock>
   <DeltaV_DevCargoClear>DEV: Clear cargo</DeltaV_DevCargoClear>
   <DeltaV_DevCargoDestroy>DEV: Destroy with loot loss</DeltaV_DevCargoDestroy>
   <DeltaV_DevCargoReport>Stacks: {0}; items: {1}; mass: {2}; hacked: {3}</DeltaV_DevCargoReport>
   <DeltaV_DevMoreCargo>… more stacks omitted</DeltaV_DevMoreCargo>
-  <DeltaV_DevTradeAddStock>DEV: Add trader stock</DeltaV_DevTradeAddStock>
-  <DeltaV_DevTradeRelink>DEV: Relink nearby cargo</DeltaV_DevTradeRelink>
-  <DeltaV_DevTradeInspect>DEV: Inspect trade links</DeltaV_DevTradeInspect>
-  <DeltaV_DevTradeReport>Stock generated: {0}; links initialized: {1}; trader kind: {2}; price seed: {3}; docked ship map: {4}; can trade: {5}</DeltaV_DevTradeReport>
-  <DeltaV_DevTradeCargoLine>Cargo at {0}: {1}, valid {2}, stacks {3}</DeltaV_DevTradeCargoLine>
-  <DeltaV_DevTradeUnlocked>unlocked / delivery</DeltaV_DevTradeUnlocked>
-  <DeltaV_DevTradeLocked>locked / stock</DeltaV_DevTradeLocked>
+  <DeltaV_DevTradeUnlocked>Unlocked</DeltaV_DevTradeUnlocked>
+  <DeltaV_DevTradeLocked>Locked</DeltaV_DevTradeLocked>
+  <DeltaV_TradeConfigure>Configure trade terminal</DeltaV_TradeConfigure>
+  <DeltaV_TradeConfigureDesc>Choose a trader type and restock interval, and bind supply and collection cargo bays.</DeltaV_TradeConfigureDesc>
+  <DeltaV_TradeConfigureHelp>Supply bays must be locked; the collection bay must be unlocked. Lock bays with their God Mode command. Non-player stations restock periodically; use God Mode for manual restocking while building a station. Collection cargo is never refreshed.</DeltaV_TradeConfigureHelp>
+  <DeltaV_TradeKind>Trader type: {0}</DeltaV_TradeKind>
+  <DeltaV_TradeRestockDays>Restock every {0} days</DeltaV_TradeRestockDays>
+  <DeltaV_TradeCargoCounts>Valid supply bays: {0}; collection bay: {1}/1</DeltaV_TradeCargoCounts>
+  <DeltaV_TradeBindings>Cargo bindings (multiple supply bays, one collection bay)</DeltaV_TradeBindings>
+  <DeltaV_TradeSupply>Supply bay</DeltaV_TradeSupply>
+  <DeltaV_TradeDelivery>Collection bay</DeltaV_TradeDelivery>
+  <DeltaV_TradeNoFaction>The terminal has no faction.</DeltaV_TradeNoFaction>
+  <DeltaV_TradeNoKind>No valid trader type is configured.</DeltaV_TradeNoKind>
+  <DeltaV_TradeNoSupply>Bind at least one locked supply bay on this structure.</DeltaV_TradeNoSupply>
+  <DeltaV_TradeNoDelivery>Bind one unlocked collection bay on this structure.</DeltaV_TradeNoDelivery>
+  <DeltaV_TradeNoDock>No soft docking connection to a player ship. Terminal configuration is still available.</DeltaV_TradeNoDock>
+  <DeltaV_TradeRelationsBlocked>Faction relations prevent trading.</DeltaV_TradeRelationsBlocked>
+  <DeltaV_TradeCargoDisconnected>The cargo bay must be on the terminal's connected substructure.</DeltaV_TradeCargoDisconnected>
+  <DeltaV_TradeDeliveryNeedsUnlock>Unlock this bay before assigning it for collection.</DeltaV_TradeDeliveryNeedsUnlock>
+  <DeltaV_TradeSupplyNeedsLock>Lock this bay with its God Mode command before assigning it for supply.</DeltaV_TradeSupplyNeedsLock>
+  <DeltaV_TradeCargoAlreadyBound>This bay belongs to another terminal. Remove its previous binding first.</DeltaV_TradeCargoAlreadyBound>
+  <DeltaV_TradeNoCargoOnMap>There are no cargo bays on this map.</DeltaV_TradeNoCargoOnMap>
+  <DeltaV_DevTradeRestock>DEV: Regenerate supply stock (replaces old stock)</DeltaV_DevTradeRestock>
+  <DeltaV_TradeCloseWindow>Close the trade window before regenerating stock.</DeltaV_TradeCloseWindow>
+  <DeltaV_TradeReady>Ready to trade.</DeltaV_TradeReady>
 </LanguageData>

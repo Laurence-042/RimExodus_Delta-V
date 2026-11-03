@@ -37,6 +37,8 @@ internal static partial class Program
 
     static void CheckEquipmentIntegration()
     {
+        CheckCargoLifecycle();
+        CheckStationTrade();
         var patch = new Harmony("DeltaV.Regression.EquipmentIntegration");
         patch.CreateClassProcessor(typeof(Patch_SwitchableBatteryPowerConnection)).Patch();
         try
@@ -74,6 +76,24 @@ internal static partial class Program
         var graphicsNode = xml.Root.Element("AdaptiveStorage.GraphicsDef");
         var cargoDef = MakeDef("DeltaV_CargoContainer");
         cargoDef.thingClass = typeof(Building_SpaceCargoContainer);
+        cargoDef.destroyable = true;
+        cargoDef.building.isEdifice = (bool)cargoNode.Element("building").Element("isEdifice");
+        cargoDef.passability = Traversability.PassThroughOnly;
+        cargoDef.surfaceType = SurfaceType.Item;
+        var moduleNode = xml.Root.Elements("ThingDef").Single(n => (string)n.Element("defName") == "DeltaV_CargoTemperatureModule");
+        var moduleDef = MakeDef("DeltaV_CargoTemperatureModule");
+        moduleDef.destroyable = true;
+        moduleDef.building.isEdifice = (bool)moduleNode.Element("building").Element("isEdifice");
+        var wallDef = MakeDef("ordinaryWall"); wallDef.destroyable = true;
+        var itemDef = MakeDef("cargoItem"); itemDef.category = ThingCategory.Item; itemDef.destroyable = true;
+        Check(GenSpawn.SpawningWipes(cargoDef, cargoDef),
+            "real vanilla spawn rule replaces the previous cargo rather than overlapping slot groups");
+        Check(GenSpawn.SpawningWipes(cargoDef, wallDef) && GenSpawn.SpawningWipes(wallDef, cargoDef),
+            "cargo and ordinary edifices use the same mutually exclusive building rule");
+        Check(!GenSpawn.SpawningWipes(moduleDef, cargoDef) && !GenSpawn.SpawningWipes(cargoDef, moduleDef),
+            "only the non-edifice overlay module can coexist with cargo");
+        Check(!GenSpawn.SpawningWipes(cargoDef, itemDef),
+            "cargo replacement does not wipe physical stored items");
         var graphics = new GraphicsDef {
             defName = (string)graphicsNode.Element("defName"),
             targetDefs = new List<ThingDef> { cargoDef },

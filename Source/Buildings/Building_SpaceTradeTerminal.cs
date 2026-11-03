@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -8,20 +7,22 @@ using Verse.AI;
 
 namespace DeltaV
 {
-    public class Building_SpaceTradeTerminal : Building, ITrader
+    public partial class Building_SpaceTradeTerminal : Building, ITrader
     {
-        private List<Building_SpaceCargoContainer> linkedCargo = new List<Building_SpaceCargoContainer>();
+        private List<Building_SpaceCargoContainer> supplyCargo = new List<Building_SpaceCargoContainer>();
+        private Building_SpaceCargoContainer deliveryCargo;
+        private TraderKindDef traderKind;
+        private int restockDays = 15;
+        private int lastRestockTick = -1;
         private bool stockGenerated;
-        private bool linksInitialized;
         private int priceSeed;
 
-        public TraderKindDef TraderKind => Faction?.def?.baseTraderKinds?.FirstOrDefault()
+        public TraderKindDef TraderKind => traderKind ?? Faction?.def?.baseTraderKinds?.FirstOrDefault()
             ?? DefDatabase<TraderKindDef>.GetNamedSilentFail("Orbital_BulkGoods");
         public IEnumerable<Thing> Goods => ValidContainers(unlocked: false).SelectMany(c => c.Contents.ToArray());
         public int RandomPriceFactorSeed => priceSeed == 0 ? thingIDNumber : priceSeed;
         public string TraderName => LabelCap;
-        public bool CanTradeNow => Spawned && Faction != null && TraderKind != null && TradingMap() != null
-            && ValidContainers(unlocked: false).Any() && ValidContainers(unlocked: true).Any();
+        public bool CanTradeNow => TradeAvailability().Accepted;
         public float TradePriceImprovementOffsetForPlayer => 0f;
         public TradeCurrency TradeCurrency => TraderKind?.tradeCurrency ?? TradeCurrency.Silver;
         internal Map ShipTradeMap => TradingMap();
@@ -29,13 +30,17 @@ namespace DeltaV
         public override void ExposeData()
         {
             base.ExposeData();
-            Scribe_Collections.Look(ref linkedCargo, "tradeCargo", LookMode.Reference);
+            Scribe_Collections.Look(ref supplyCargo, "supplyCargo", LookMode.Reference);
+            Scribe_References.Look(ref deliveryCargo, "deliveryCargo");
+            Scribe_Defs.Look(ref traderKind, "traderKind");
+            Scribe_Values.Look(ref restockDays, "restockDays", 15);
+            Scribe_Values.Look(ref lastRestockTick, "lastRestockTick", -1);
             Scribe_Values.Look(ref stockGenerated, "tradeStockGenerated");
-            Scribe_Values.Look(ref linksInitialized, "tradeLinksInitialized");
             Scribe_Values.Look(ref priceSeed, "tradePriceSeed");
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
-                linkedCargo ??= new List<Building_SpaceCargoContainer>();
+                supplyCargo ??= new List<Building_SpaceCargoContainer>();
+                restockDays = Mathf.Clamp(restockDays, 1, 60);
             }
         }
 
@@ -44,9 +49,8 @@ namespace DeltaV
             base.SpawnSetup(map, respawningAfterLoad);
             Current.Game?.GetComponent<UniverseManager>()?.QueueFrameAction(() =>
             {
-                if (!Spawned || Map != map || map.Disposed || stockGenerated) return;
-                AutoLinkIfEmpty();
-                GenerateStock();
+                if (!Spawned || Map != map || map.Disposed) return;
+                CheckRestock();
             });
         }
 
@@ -56,32 +60,35 @@ namespace DeltaV
             if (!Spawned) yield break;
             var connected = new HashSet<IntVec3>();
             SubstructureOwnership.CollectConnected(Map, Position, connected, null);
-            foreach (Building_SpaceCargoContainer cargo in linkedCargo.Distinct())
+            IEnumerable<Building_SpaceCargoContainer> candidates = unlocked
+                ? new[] { deliveryCargo } : supplyCargo.Distinct().Where(c => c != deliveryCargo);
+            foreach (Building_SpaceCargoContainer cargo in candidates)
                 if (cargo?.Spawned == true && cargo.Map == Map && cargo.IsUnlocked == unlocked
                     && connected.Contains(cargo.Position))
                     yield return cargo;
         }
 
-        private void AutoLinkIfEmpty()
+        public override void TickRare()
         {
-            if (linksInitialized || !Spawned) return;
-            linkedCargo.Clear();
-            var connected = new HashSet<IntVec3>();
-            SubstructureOwnership.CollectConnected(Map, Position, connected, null);
-            linkedCargo.AddRange(Map.listerThings.AllThings.OfType<Building_SpaceCargoContainer>()
-                .Where(c => connected.Contains(c.Position))
-                .OrderBy(c => c.Position.x).ThenBy(c => c.Position.z));
-            // A station provides one already-unlocked receiving bay. All other
-            // bays remain locked stock until a pawn hacks them.
-            if (Faction != Faction.OfPlayer)
+            base.TickRare();
+            CheckRestock();
+        }
+
+        private bool TradeWindowOpen => TradeSession.trader == this && Find.WindowStack.IsOpen<Dialog_Trade>();
+
+        private void CheckRestock()
+        {
+            // Authoring player stations does not generate free goods during normal play.
+            if (!Spawned || Faction == null || Faction.IsPlayer || TradeWindowOpen) return;
+            if (stockGenerated && Find.TickManager.TicksGame < lastRestockTick + restockDays * GenDate.TicksPerDay) return;
+            if (!StockConfigurationReport().Accepted) return;
+            if (!stockGenerated && Goods.Any())
             {
-                if (linkedCargo.Count >= 2 && linkedCargo.All(c => !c.IsUnlocked))
-                    linkedCargo[0].GetComp<CompHackable>()?.HackNow();
-                foreach (Building_SpaceCargoContainer cargo in linkedCargo.Where(c => c.IsUnlocked))
-                    if (cargo.Faction != Faction.OfPlayer) cargo.SetFaction(Faction.OfPlayer);
+                stockGenerated = true;
+                lastRestockTick = Find.TickManager.TicksGame;
+                return;
             }
-            linksInitialized = linkedCargo.Any(c => c.IsUnlocked)
-                && linkedCargo.Any(c => !c.IsUnlocked);
+            RegenerateStock();
         }
 
         private Map TradingMap()
@@ -99,38 +106,29 @@ namespace DeltaV
             return null;
         }
 
-        private void GenerateStock(bool force = false)
+        private void RegenerateStock()
         {
-            if ((!force && (stockGenerated || Faction == null || Faction == Faction.OfPlayer))
-                || TraderKind == null) return;
-            var connected = new HashSet<IntVec3>();
-            SubstructureOwnership.CollectConnected(Map, Position, connected, null);
+            if (!StockConfigurationReport().Accepted || TradeWindowOpen) return;
             List<Building_SpaceCargoContainer> cabinets = ValidContainers(unlocked: false).ToList();
-            if (cabinets.Count == 0) return;
-            // Authored prefab stock is already physical stock; never add random goods on top.
-            bool authoredStock = cabinets.Any(c => c.Contents.Count > 0);
             ThingSetMakerParams parms = default;
             parms.traderDef = TraderKind;
             parms.tile = Map.Tile;
             parms.makingFaction = Faction;
-            if (force || !authoredStock)
+            // Finish native stock generation before replacing the existing physical stock.
+            List<Thing> generated = ThingSetMakerDefOf.TraderStock.root.Generate(parms);
+            foreach (Building_SpaceCargoContainer cargo in cabinets)
+                foreach (Thing thing in cargo.Contents.ToArray()) thing.Destroy();
+            foreach (Thing thing in generated)
             {
-                List<Thing> generated = ThingSetMakerDefOf.TraderStock.root.Generate(parms);
-                foreach (Thing thing in generated)
-                {
-                    // Keep sixteen slots per bay free for goods sold to the station.
-                    if (thing.def.category != ThingCategory.Item
-                        || !cabinets.Any(c => c.Contents.Count < c.CurrentSlotLimit - 16 && c.TryStore(thing)))
-                        thing.Destroy();
-                }
+                // Cargo holds items, not pawns. Reserve sixteen stacks per supply bay for sales.
+                if (thing.def.category != ThingCategory.Item
+                    || !cabinets.Any(c => c.Contents.Count < c.CurrentSlotLimit - 16 && c.TryStore(thing)))
+                    thing.Destroy();
             }
-            int seed = Rand.RangeInclusive(1, 10000000);
-            foreach (Building_SpaceTradeTerminal terminal in Map.listerThings.AllThings.OfType<Building_SpaceTradeTerminal>())
-                if (connected.Contains(terminal.Position))
-                {
-                    terminal.stockGenerated = true;
-                    terminal.priceSeed = seed;
-                }
+            stockGenerated = true;
+            lastRestockTick = Find.TickManager.TicksGame;
+            priceSeed = Rand.RangeInclusive(1, 10000000);
+            ShipPhysics.InvalidateMass(Map);
         }
 
         public IEnumerable<Thing> ColonyThingsWillingToBuy(Pawn negotiator)
@@ -217,90 +215,56 @@ namespace DeltaV
         public override IEnumerable<FloatMenuOption> GetFloatMenuOptions(Pawn pawn)
         {
             foreach (FloatMenuOption option in base.GetFloatMenuOptions(pawn)) yield return option;
-            if (!pawn.IsColonistPlayerControlled || !pawn.CanReach(this, PathEndMode.Touch, Danger.Deadly))
+            if (!pawn.IsColonistPlayerControlled) yield break;
+            if (CanConfigure)
+                yield return new FloatMenuOption("DeltaV_TradeConfigure".Translate(), OpenConfiguration);
+            AcceptanceReport report = NegotiatorReport(pawn);
+            string label = "DeltaV_TradeTerminalTrade".Translate();
+            if (!report.Accepted)
+            {
+                yield return new FloatMenuOption(label + ": " + report.Reason, null);
                 yield break;
-            AutoLinkIfEmpty();
-            if (CanTradeNow && pawn.CanTradeWith(Faction, TraderKind).Accepted)
-                yield return new FloatMenuOption("DeltaV_TradeTerminalTrade".Translate(), () =>
-                    pawn.jobs.TryTakeOrderedJob(JobMaker.MakeJob(DeltaVDefOf.DeltaV_UseTradeTerminal, this), JobTag.Misc));
+            }
+            yield return new FloatMenuOption(label, () =>
+                pawn.jobs.TryTakeOrderedJob(JobMaker.MakeJob(DeltaVDefOf.DeltaV_UseTradeTerminal, this), JobTag.Misc));
+        }
+
+        private AcceptanceReport NegotiatorReport(Pawn pawn)
+        {
+            if (pawn == null || pawn.Map != Map || !pawn.CanReach(this, PathEndMode.Touch, Danger.Deadly))
+                return "NoPath".Translate();
+            AcceptanceReport report = TradeAvailability();
+            if (!report.Accepted) return report;
+            report = pawn.CanTradeWith(Faction, TraderKind);
+            return report.Accepted ? report : new AcceptanceReport(report.Reason.NullOrEmpty()
+                ? "DeltaV_TradeRelationsBlocked".Translate().ToString() : report.Reason);
         }
 
         internal void OpenTrade(Pawn pawn)
         {
-            AutoLinkIfEmpty();
-            if (!CanTradeNow || !pawn.CanTradeWith(Faction, TraderKind).Accepted) return;
-            GenerateStock();
+            CheckRestock();
+            AcceptanceReport report = NegotiatorReport(pawn);
+            if (!report.Accepted)
+            {
+                Messages.Message(report.Reason, MessageTypeDefOf.RejectInput, false);
+                return;
+            }
             Find.WindowStack.Add(new Dialog_Trade(pawn, this));
         }
 
         public override IEnumerable<Gizmo> GetGizmos()
         {
             foreach (Gizmo gizmo in base.GetGizmos()) yield return gizmo;
-            if (!Spawned) yield break;
-            if (DebugSettings.godMode)
-            {
-                yield return new Command_Action
-                {
-                    defaultLabel = "DeltaV_DevTradeAddStock".Translate(),
-                    action = () => { AutoLinkIfEmpty(); GenerateStock(force: true); }
-                };
-                yield return new Command_Action
-                {
-                    defaultLabel = "DeltaV_DevTradeRelink".Translate(),
-                    action = () => { linksInitialized = false; AutoLinkIfEmpty(); }
-                };
-                yield return new Command_Action
-                {
-                    defaultLabel = "DeltaV_DevTradeInspect".Translate(),
-                    action = InspectDebugState
-                };
-            }
-            if (Faction?.IsPlayer != true && !DebugSettings.godMode) yield break;
+            if (!CanConfigure) yield break;
             yield return new Command_Action
             {
-                defaultLabel = "DeltaV_TradeTerminalLink".Translate(),
-                defaultDesc = "DeltaV_TradeTerminalLinkDesc".Translate(),
+                defaultLabel = "DeltaV_TradeConfigure".Translate(),
+                defaultDesc = "DeltaV_TradeConfigureDesc".Translate(),
                 icon = TexCommand.Install,
-                action = () =>
-                {
-                    var options = new List<FloatMenuOption>();
-                    foreach (Building_SpaceCargoContainer cargo in Map.listerThings.AllThings.OfType<Building_SpaceCargoContainer>())
-                    {
-                        Building_SpaceCargoContainer selected = cargo;
-                        string label = (linkedCargo.Contains(cargo) ? "✓ " : "") + cargo.LabelCap + " (" + cargo.Position + ")";
-                        options.Add(new FloatMenuOption(label, () =>
-                        {
-                            linksInitialized = true;
-                            if (!linkedCargo.Remove(selected)) linkedCargo.Add(selected);
-                        }));
-                    }
-                    if (options.Count > 0) Find.WindowStack.Add(new FloatMenu(options));
-                }
+                action = OpenConfiguration
             };
         }
-
-        private void InspectDebugState()
-        {
-            var validStorage = new HashSet<Building_SpaceCargoContainer>(ValidContainers(unlocked: false));
-            var validDelivery = new HashSet<Building_SpaceCargoContainer>(ValidContainers(unlocked: true));
-            Map ship = TradingMap();
-            var report = new StringBuilder("DeltaV_DevTradeReport".Translate(
-                stockGenerated ? "DeltaV_DevYes".Translate() : "DeltaV_DevNo".Translate(),
-                linksInitialized ? "DeltaV_DevYes".Translate() : "DeltaV_DevNo".Translate(),
-                TraderKind?.defName ?? "—", priceSeed,
-                ship == null ? "—" : UniverseManager.MapTag(ship),
-                CanTradeNow ? "DeltaV_DevYes".Translate() : "DeltaV_DevNo".Translate()));
-            foreach (Building_SpaceCargoContainer cargo in linkedCargo.Distinct())
-                report.Append('\n').Append("DeltaV_DevTradeCargoLine".Translate(
-                    cargo?.Position.ToString() ?? "—",
-                    cargo?.IsUnlocked == true ? "DeltaV_DevTradeUnlocked".Translate() : "DeltaV_DevTradeLocked".Translate(),
-                    validStorage.Contains(cargo) || validDelivery.Contains(cargo)
-                        ? "DeltaV_DevYes".Translate() : "DeltaV_DevNo".Translate(),
-                    cargo?.Contents.Count ?? 0));
-            Find.WindowStack.Add(new Dialog_MessageBox(report.ToString()));
-        }
     }
-
     public class JobDriver_UseSpaceTradeTerminal : JobDriver
     {
         public override bool TryMakePreToilReservations(bool errorOnFailed)

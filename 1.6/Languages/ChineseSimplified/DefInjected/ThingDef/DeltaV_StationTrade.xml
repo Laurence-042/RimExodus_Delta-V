@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <DeltaV_CargoContainer.label>空间站货柜</DeltaV_CargoContainer.label>
-  <DeltaV_CargoContainer.description>外挂货柜，可容纳 48 堆货物。骇入后解锁内容页、开箱与仓储模式。货柜本身不耗电，货物温度始终跟随室外环境；可安装一件温控插件进行制冷或制热。被摧毁时大部分货物会损失。</DeltaV_CargoContainer.description>
+  <DeltaV_CargoContainer.description>外挂货柜，可容纳 48 堆货物。自行建造的货柜无需骇入，可直接使用内容页、开箱与仓储模式。锁定的货柜在骇入后自动弹出货物。货柜本身不耗电，货物随室外温度变化；可安装一件温控插件进行制冷或制热。被摧毁时大部分货物会损失。</DeltaV_CargoContainer.description>
   <DeltaV_TradeTerminal.label>空间站交易终端</DeltaV_TradeTerminal.label>
-  <DeltaV_TradeTerminal.description>与空间站软对接后，可在此终端进行交易。终端使用同一结构上的货柜：未解锁的货柜存放待售货物，已解锁的货柜接收购入货物。</DeltaV_TradeTerminal.description>
+  <DeltaV_TradeTerminal.description>可选择商人类型和补货周期，绑定同一结构上的多个锁定供货仓与一个解锁取货仓。访客与空间站软对接后，在终端进行交易，购入货物送入取货仓。</DeltaV_TradeTerminal.description>
 </LanguageData>

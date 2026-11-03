@@ -1,0 +1,33 @@
+{
+  "tool": "built-in image_gen",
+  "date": "2026-11-02",
+  "unlocked": {
+    "source": "C:/Users/Laure/.codex/generated_images/01a19731-d70c-78a3-a1e2-7247cdaadde1/exec-3cb8a373-4357-4b06-a60c-c8ffaffd7557.png",
+    "output": "1.6/Textures/Things/Building/StationTrade/CargoContainer_Unlocked.png",
+    "prompt": "Use case: precise-object-edit. Production transparent top-down RimWorld spaceship cargo hatch sprite. Image 1 is EDIT TARGET current 2x3 cargo hatch; image 2 is REFERENCE of the separate temperature module that will be drawn by game, DO NOT paint that module in the hatch; image 3 is STYLE reference board. Redesign image 1 to accommodate a real removable module: retain a flat grey convex rectangular octagonal outer silhouette, all four long straight outer sides almost touch canvas boundaries, four clipped transparent corners, 2:3 portrait canvas (1024x1536 preferred). Pure orthographic overhead. Main double hatch doors occupy upper two-thirds, with wide clean grey panels, central seam and small cyan blue unlocked indicator. Lower third is a separate stationary service plinth, mechanically joined to perimeter frame rather than door, containing ONE EMPTY square dark grey mounting pad precisely centered at normalized canvas (50%,76.67%), square physical proportions, pad exterior width 38% canvas width =25.33% canvas height, suitable for a 0.7 by 0.7 tile addon on a 2x3 tile building. Pad is a blank flush plate, narrow rim and two chunky socket tabs only, no fan, no radiator, no built-in module, no bolts grid. This pad will be fully covered by separate module when installed; leave free space to both sides with one short visible duct/channel connecting into hatch frame, not dense decorative greebles. All status lights beside pad rather than underneath it. Match moderate detail of reference board: dark black outlines, mostly broad neutral grey flat surfaces, one narrow highlight and shadow bevel, a few purposeful medium-size mechanical forms. Not photorealistic, not shiny, not gradients or micro-detail, not an overly plain rectangle. No text, no labels, no drop shadow outside silhouette. One centered complete asset, genuine alpha background, no board, no installed plugin."
+  },
+  "locked": {
+    "source": "C:/Users/Laure/.codex/generated_images/01a19731-d70c-78a3-a1e2-7247cdaadde1/exec-80630c33-1c8f-4eb0-9f92-b0c4acc3b1a7.png",
+    "initialSource": "C:/Users/Laure/.codex/generated_images/01a19731-d70c-78a3-a1e2-7247cdaadde1/exec-e2078ca6-e840-4008-96c7-5b2036bf3863.png",
+    "correctionPrompt": "Use case: precise-object-edit. Make exactly one tiny color correction to the provided transparent 1024x1536 cargo hatch game sprite. The small HORIZONTAL AMBER indicator near the BOTTOM LEFT at approximately x=174,y=1269 must be CYAN BLUE (same bright cyan as the unlocked asset), because it is a fixed service-interface light, not a lock indicator. Change ONLY that lower-left horizontal light's colored interior. Keep the VERTICAL AMBER YELLOW lock indicator at x=487,y=566 unchanged. Keep the lower-right RED light unchanged. Preserve entire grey hatch, empty module mounting pad, outlines, geometry, canvas size, all other colors, and existing transparency exactly. No new elements, no background. The result is the locked cargo hatch with one yellow central lock light, one blue lower-left interface light and one red lower-right interface light.",
+    "output": "1.6/Textures/Things/Building/StationTrade/CargoContainer_Locked.png",
+    "prompt": "Use case: precise-object-edit. Edit only the TWO CYAN BLUE status light interiors on this cargo hatch into AMBER YELLOW for its locked-state game sprite. One vertical blue light at central hatch seam, one horizontal blue light left of the empty lower module mounting pad. Keep the small red light to the right unchanged. Preserve all other pixels, composition, flat grey colors, texture, outlines, dimensions, alpha silhouette, empty installation pad, panel seams and overall geometry exactly. No new details, no letters, no module, no background. Preserve transparent background. This is paired with input as unlocked state and must not visually jump when switching."
+  },
+  "geometry": {
+    "size": [
+      2,
+      3
+    ],
+    "cell": [
+      0,
+      0,
+      0
+    ],
+    "drawOffset": [
+      0.5,
+      -1
+    ],
+    "drawScale": 0.7
+  },
+  "qa": "RGBA 1024x1536; transparent corners; alpha>=128 bounds unlocked (5,5,1020,1531), locked (5,5,1019,1530); binary silhouette agreement 99.8576%; four orientations at 48px/tile, empty and installed module. Lower-left interface light stays blue in both states; only central lock light changes. Production files copied unchanged; Python only generates QA composites."
+}

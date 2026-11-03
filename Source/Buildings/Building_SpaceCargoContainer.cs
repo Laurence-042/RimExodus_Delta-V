@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using AdaptiveStorage;
+using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -9,11 +10,14 @@ using Verse.AI;
 
 namespace DeltaV
 {
-    // ASF owns the map-spawned inventory. Hacking unlocks access without moving it.
+    // ASF owns the map-spawned inventory; completed hacking ejects those same items.
     public partial class Building_SpaceCargoContainer : ThingClass, IHackable, IHaulDestination
     {
         private bool storageMode;
         private StoragePriority activePriority = StoragePriority.Preferred;
+        // Only a freshly made building needs faction-based initialization. Loaded
+        // or transferred cargo keeps the original CompHackable state, including dev locks.
+        private bool initializeOnFirstSpawn;
 
         public bool IsUnlocked => GetComp<CompHackable>()?.IsHacked == true;
         public ThingCollection Contents => StoredThings;
@@ -33,6 +37,12 @@ namespace DeltaV
             }
         }
 
+        public override void PostMake()
+        {
+            base.PostMake();
+            initializeOnFirstSpawn = true;
+        }
+
         protected override void OnSpawn(Map map, SpawnMode spawnMode)
         {
             base.OnSpawn(map, spawnMode);
@@ -42,6 +52,11 @@ namespace DeltaV
             ReceivedThing += OnCargoChanged;
             LostThing += OnCargoChanged;
             ItemStackChanged += OnCargoChanged;
+            if (initializeOnFirstSpawn)
+            {
+                initializeOnFirstSpawn = false;
+                if (Faction == Faction.OfPlayer) GetComp<CompHackable>()?.HackNow();
+            }
             ApplyStorageMode();
         }
 
@@ -113,11 +128,37 @@ namespace DeltaV
         {
             SetFaction(pawn?.Faction ?? Faction.OfPlayer);
             ApplyStorageMode();
+            RefreshCargoGraphic();
+            OpenContents();
+        }
+
+        private void RefreshCargoGraphic()
+        {
             if (Renderer != null)
             {
                 Renderer.BuildingGraphicsDirty = true;
                 Renderer.TryDirtyParentMapMesh();
             }
+        }
+
+        private void LockForDebug()
+        {
+            if (!DebugSettings.godMode || !Spawned) return;
+            CompHackable hack = GetComp<CompHackable>();
+            if (hack == null) return;
+            // Vanilla provides HackNow but no reset API. Reset its own fields for
+            // this dev-only action; do not introduce a second lock/progress state.
+            AccessTools.Field(typeof(CompHackable), "hacked").SetValue(hack, false);
+            AccessTools.Field(typeof(CompHackable), "progress").SetValue(hack, 0f);
+            AccessTools.Field(typeof(CompHackable), "progressLastLockout").SetValue(hack, 0f);
+            AccessTools.Field(typeof(CompHackable), "lockedOutUntilTick").SetValue(hack, -1);
+            AccessTools.Field(typeof(CompHackable), "lockedOutPermanently").SetValue(hack, false);
+            AccessTools.Field(typeof(CompHackable), "autohack").SetValue(hack, false);
+            hack.defence = hack.Props.defence;
+            if (storageMode && settings.Priority != StoragePriority.Unstored)
+                activePriority = settings.Priority;
+            ApplyStorageMode();
+            RefreshCargoGraphic();
         }
 
         public void OpenContents()
@@ -160,6 +201,12 @@ namespace DeltaV
                     toggleAction = () => SetStorageMode(!StorageMode)
                 };
             if (!Spawned || !DebugSettings.godMode) yield break;
+            if (IsUnlocked)
+                yield return new Command_Action
+                {
+                    defaultLabel = "DeltaV_DevCargoLock".Translate(),
+                    action = LockForDebug
+                };
             yield return new Command_Action { defaultLabel = "DeltaV_DevCargoAddSample".Translate(), action = AddDebugSample };
             yield return new Command_Action { defaultLabel = "DeltaV_DevCargoInspect".Translate(), action = InspectDebugContents };
             yield return new Command_Action
