@@ -40,6 +40,7 @@ internal static partial class Program
         CheckCargoLifecycle();
         CheckCargoModes();
         CheckStationTrade();
+        CheckCargoVisualGeometry();
         var patch = new Harmony("DeltaV.Regression.EquipmentIntegration");
         patch.CreateClassProcessor(typeof(Patch_SwitchableBatteryPowerConnection)).Patch();
         try
@@ -85,6 +86,29 @@ internal static partial class Program
         var moduleDef = MakeDef("DeltaV_CargoTemperatureModule");
         moduleDef.destroyable = true;
         moduleDef.building.isEdifice = (bool)moduleNode.Element("building").Element("isEdifice");
+        var slotDocument = new XmlDocument();
+        slotDocument.LoadXml(cargoNode.Element("modExtensions").Elements("li")
+            .Single(n => (string)n.Attribute("Class") == "DeltaV.DefModExtension_CargoAttachments")
+            .Element("slots").Element("li").ToString());
+        var cargoSlot = DirectXmlToObject.ObjectFromXml<SpaceWeaponAttachmentSlot>(slotDocument.DocumentElement, true);
+        cargoDef.size = ParseHelper.FromString<IntVec2>((string)cargoNode.Element("size"));
+        var slotHost = new Building { def = cargoDef };
+        Set(slotHost, "positionInt", new IntVec3(20, 0, 20));
+        var moduleGraphic = new Graphic_SpaceWeaponAttachment();
+        var visualCenter = AccessTools.Method(typeof(Graphic_SpaceWeaponAttachment), "VisualCenter");
+        for (int rotation = 0; rotation < 4; rotation++)
+        {
+            var facing = new Rot4(rotation); Set(slotHost, "rotationInt", facing);
+            IntVec3 cell = SpaceWeaponGeometry.RotatedCell(slotHost, cargoSlot.cell);
+            Vector3 shown = (Vector3)visualCenter.Invoke(moduleGraphic,
+                new object[] { cell.ToVector3Shifted(), facing, facing, cargoSlot });
+            Vector3 center = slotHost.TrueCenter();
+            Vector2 corner = SpaceTransform.RotatePlacementOffset(new Vector2(.5f, 1f), facing);
+            Check(slotHost.OccupiedRect().Contains(cell) && cargoSlot.drawOffset == Vector2.zero
+                && Math.Abs(shown.x - cell.x - .5f) < .0001f && Math.Abs(shown.z - cell.z - .5f) < .0001f
+                && Math.Abs(shown.x - center.x - corner.x) < .0001f && Math.Abs(shown.z - center.z - corner.y) < .0001f,
+                "cargo module build cell and rendered center coincide at the service-row socket: " + facing);
+        }
         var wallDef = MakeDef("ordinaryWall"); wallDef.destroyable = true;
         var itemDef = MakeDef("cargoItem"); itemDef.category = ThingCategory.Item; itemDef.destroyable = true;
         Check(GenSpawn.SpawningWipes(cargoDef, cargoDef),
@@ -132,13 +156,13 @@ internal static partial class Program
             .Single(n => (string)n.Attribute("Class") == "CompProperties_Hackable");
         var locked = new RecordingCargoGraphic(); var unlocked = new RecordingCargoGraphic();
         var stateGraphic = graphics.graphics[0].graphicDatas.Single();
-        Check(stateGraphic.texPath.EndsWith("CargoContainer_Unlocked")
-            && stateGraphic.drawSize == new Vector2(2, 3),
-            "ASF storage uses the single unlocked cargo graphic");
+        Check(stateGraphic.texPath.EndsWith("CargoPort") && stateGraphic.graphicClass == typeof(Graphic_SpaceCargo)
+            && stateGraphic.drawSize == ParseHelper.FromString<Vector2>((string)cargoNode.Element("graphicData").Element("drawSize")),
+            "ASF storage uses the shared port graphic with independent state and paint channels");
         Set(stateGraphic, "cachedGraphic", unlocked);
-        Check(hackNode.Element("hackedGraphicData") != null
+        Check(hackNode.Element("hackedGraphicData") == null
             && (string)cargoNode.Element("thingClass") == "DeltaV.Building_SealedSpaceCargoContainer",
-            "sealed crates use native hackable graphics and the vanilla crate subclass");
+            "native crate keeps hack/open behaviour without an overlapping replacement graphic");
         var renderer = (StorageRenderer)Raw(typeof(StorageRenderer));
         Set(renderer, "<Parent>k__BackingField", cargo);
         var printed = new List<PrintData>(); Set(renderer, "_buildingGraphics", printed);

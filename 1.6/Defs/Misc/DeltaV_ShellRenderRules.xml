@@ -41,4 +41,18 @@
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunLoaderLarge</defName><thingDef>DeltaV_Weapon_RailgunLoaderLarge</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_RailgunAccelerator</defName><thingDef>DeltaV_Weapon_RailgunAccelerator</thingDef><render><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_RailgunAcceleratorLarge</defName><thingDef>DeltaV_Weapon_RailgunAcceleratorLarge</thingDef><render><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+
+  <!-- Interior port / exterior raised cargo box share one inventory and footprint. -->
+  <DeltaV.ShellRenderRuleDef Name="DeltaVCargoShell" Abstract="True">
+    <render>
+      <layer>Exposed</layer><shadowHeight>1.1</shadowHeight>
+      <alternateGraphics><li>
+        <texPath>Things/Building/StationTrade/CargoExterior</texPath>
+        <graphicClass>DeltaV.Graphic_SpaceCargo</graphicClass><shaderType>CutoutComplex</shaderType>
+        <drawSize>(2.2730,3.0316)</drawSize><damageData><enabled>false</enabled></damageData>
+      </li></alternateGraphics>
+    </render>
+  </DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef ParentName="DeltaVCargoShell"><defName>DeltaV_Shell_CargoSealed</defName><thingDef>DeltaV_CargoContainer</thingDef></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef ParentName="DeltaVCargoShell"><defName>DeltaV_Shell_CargoStorage</defName><thingDef>DeltaV_CargoStorage</thingDef></DeltaV.ShellRenderRuleDef>
 </Defs>

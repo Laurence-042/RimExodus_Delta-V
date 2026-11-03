@@ -28,6 +28,13 @@ namespace DeltaV
         public bool IsUnlocked => true;
         public IReadOnlyList<Thing> Contents => StoredThings.ToArray();
 
+        public override void Notify_ColorChanged()
+        {
+            base.Notify_ColorChanged();
+            // ASF retains its own printed materials beyond vanilla's Graphic cache.
+            if (Spawned) Renderer?.SetAllPrintDatasDirty();
+        }
+
         protected override void OnSpawn(Map map, SpawnMode spawnMode)
         {
             base.OnSpawn(map, spawnMode);

@@ -11,6 +11,8 @@ namespace DeltaV
 {
     public class CompProperties_SpaceCargo : CompProperties
     {
+        public Vector2 capacityBarOffset = new Vector2(0f, -1.26f);
+        public Vector2 capacityBarSize = new Vector2(1.02f, .18f);
         public CompProperties_SpaceCargo() => compClass = typeof(CompSpaceCargo);
     }
 
@@ -90,6 +92,7 @@ namespace DeltaV
             next.savedSlotLimit = Cargo.CurrentSlotLimit;
             next.savedLabel = previous is Building_SpaceCargoContainer named ? named.label : savedLabel;
             replacement.SetFactionDirect(previous.Faction);
+            ((Building)replacement).ChangePaint(((Building)previous).PaintColorDef);
             replacement.HitPoints = previous.HitPoints;
             replacement.SetForbidden(previous.IsForbidden(Faction.OfPlayer), false);
             bool selected = Find.Selector.IsSelected(previous);
@@ -186,6 +189,7 @@ namespace DeltaV
                 {
                     defaultLabel = (StorageMode ? "DeltaV_CargoModeStorage" : "DeltaV_CargoModeSealed").Translate(),
                     defaultDesc = "DeltaV_CargoStorageModeDesc".Translate(),
+                    icon = ContentFinder<Texture2D>.Get(StorageMode ? "UI/Commands/CargoStorage" : "UI/Commands/CargoSealed"),
                     action = () => SetStorageMode(!StorageMode)
                 };
             if (!parent.Spawned || !DebugSettings.godMode) yield break;

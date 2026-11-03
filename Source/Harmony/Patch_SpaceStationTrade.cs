@@ -7,6 +7,19 @@ using Verse;
 
 namespace DeltaV
 {
+    // The native Hack job uses InteractionCell, but faces the centre of the
+    // entire footprint. This bay's console is one cell ahead of its operator.
+    [HarmonyPatch(typeof(Pawn_RotationTracker), nameof(Pawn_RotationTracker.FaceTarget))]
+    internal static class Patch_SpaceCargoHackFacing
+    {
+        private static void Prefix(Pawn ___pawn, ref LocalTargetInfo target)
+        {
+            if (target.Thing is not Building_SealedSpaceCargoContainer cargo
+                || ___pawn.CurJobDef != JobDefOf.Hack || ___pawn.CurJob.targetA.Thing != cargo) return;
+            target = SpaceWeaponGeometry.RotatedCell(cargo, new IntVec3(0, 0, 1));
+        }
+    }
+
     // Exposed hull modules use outdoor ambient, including the optional ASF thermal transform.
     [HarmonyPatch(typeof(Thing), nameof(Thing.AmbientTemperature), MethodType.Getter)]
     internal static class Patch_SpaceCargoOutdoorTemperature

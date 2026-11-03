@@ -8,8 +8,8 @@
     <graphics>
       <li>
         <graphicData>
-          <texPath>Things/Building/StationTrade/CargoContainer_Unlocked</texPath>
-          <graphicClass>Graphic_Single</graphicClass><drawSize>(2,3)</drawSize>
+          <texPath>Things/Building/StationTrade/CargoPort</texPath>
+          <graphicClass>DeltaV.Graphic_SpaceCargo</graphicClass><shaderType>CutoutComplex</shaderType><drawSize>(2.1135,3.4517)</drawSize>
           <damageData><enabled>false</enabled></damageData>
         </graphicData>
       </li>
@@ -18,12 +18,14 @@
   <ThingDef ParentName="BuildingBase" Name="DeltaVCargoBase">
     <defName>DeltaV_CargoContainer</defName>
     <label>station cargo container</label>
-    <description>Exterior cargo bay for 48 stacks. Player-built bays are unlocked. Storage mode permits normal hauling and ingredient use. Sealed mode holds cargo inside the container, out of reach of hauling and trade beacons. Unseal to take some items, or open to scatter all contents on the ground. Hacking a locked bay unlocks it and automatically ejects its cargo. Cargo follows the outdoor temperature without using power. An optional temperature-control module can cool or heat its contents. Destruction ruins most cargo.</description>
+    <description>A loading port whose elevator carries goods to an elevated exterior cargo bay. Holds 48 stacks. Player-built bays are unlocked. Storage mode permits normal hauling and ingredient use. Sealed mode holds cargo inside the container, out of reach of hauling and trade beacons. Unseal to take some items, or open to scatter all contents on the ground. Hacking a locked bay unlocks it and automatically ejects its cargo. Cargo follows the outdoor temperature without using power. An optional temperature-control module can cool or heat its contents. Destruction ruins most cargo.</description>
     <thingClass>DeltaV.Building_SealedSpaceCargoContainer</thingClass>
     <tickerType>Normal</tickerType>
     <category>Building</category>
     <size>(2,3)</size>
     <rotatable>true</rotatable>
+    <hasInteractionCell>true</hasInteractionCell>
+    <interactionCellOffset>(0,0,0)</interactionCellOffset>
     <designationCategory>Odyssey</designationCategory>
     <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
     <passability>PassThroughOnly</passability>
@@ -34,24 +36,24 @@
     <useHitPoints>true</useHitPoints>
     <statBases><WorkToBuild>3000</WorkToBuild><MaxHitPoints>300</MaxHitPoints><Mass>150</Mass><Flammability>0</Flammability></statBases>
     <costList Inherit="False"><Steel>200</Steel><ComponentIndustrial>2</ComponentIndustrial></costList>
-    <graphicData><texPath>Things/Building/StationTrade/CargoContainer_Locked</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,3)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
+    <graphicData><texPath>Things/Building/StationTrade/CargoPort</texPath><graphicClass>DeltaV.Graphic_SpaceCargo</graphicClass><shaderType>CutoutComplex</shaderType><drawSize>(2.1135,3.4517)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceCargo" />
       <li Class="CompProperties_Hackable">
         <defence>1800</defence><effectHacking>HackingTerminal</effectHacking>
         <showProgressAfterHackCompletion>false</showProgressAfterHackCompletion>
-        <hackedGraphicData><texPath>Things/Building/StationTrade/CargoContainer_Unlocked</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,3)</drawSize><damageData><enabled>false</enabled></damageData></hackedGraphicData>
       </li>
     </comps>
     <modExtensions>
       <li Class="DeltaV.DefModExtension_CargoAttachments">
-        <slots><li><cell>(0,0,0)</cell><drawOffset>(0.5,-1.0)</drawOffset><drawScale>0.7</drawScale></li></slots>
+        <slots><li><cell>(1,0,1)</cell><drawOffset>(0,0)</drawOffset><drawScale>0.6</drawScale></li></slots>
         <allowed><li>DeltaV_CargoTemperatureModule</li></allowed>
       </li>
     </modExtensions>
     <building>
       <isEdifice>true</isEdifice><canExchangeVacuum>false</canExchangeVacuum><maxItemsInCell>8</maxItemsInCell>
       <openingStartedSound>CrateOpeningStarted</openingStartedSound>
+      <paintable>true</paintable>
       <preventDeteriorationOnTop>true</preventDeteriorationOnTop>
       <defaultStorageSettings><priority>Preferred</priority><filter><categories><li>Root</li></categories></filter></defaultStorageSettings>
     </building>
@@ -75,7 +77,7 @@ You may be wondering whether you could cut this off and install it on your own s
     <placeWorkers><li>DeltaV.PlaceWorker_TradeTerminal</li></placeWorkers>
     <tickerType>Rare</tickerType>
     <category>Building</category>
-    <size>(1,1)</size>
+    <size>(2,2)</size>
     <rotatable>true</rotatable>
     <designationCategory>Odyssey</designationCategory>
     <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
@@ -85,7 +87,7 @@ You may be wondering whether you could cut this off and install it on your own s
     <useHitPoints>true</useHitPoints>
     <statBases><WorkToBuild>2200</WorkToBuild><MaxHitPoints>150</MaxHitPoints><Mass>40</Mass><Flammability>0</Flammability></statBases>
     <costList Inherit="False"><Steel>100</Steel><ComponentIndustrial>4</ComponentIndustrial></costList>
-    <graphicData><texPath>Things/Building/StationTrade/TradeTerminal</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1,1)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
+    <graphicData><texPath>Things/Building/StationTrade/TradeTerminal</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,2)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
     <building />
   </ThingDef>
   <ThingDef ParentName="BuildingBase">

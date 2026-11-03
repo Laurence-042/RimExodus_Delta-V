@@ -49,6 +49,7 @@ namespace DeltaV
     {
         Deck,
         Hull,
+        ExteriorShadow,
         Exposed,
         Effects
     }
@@ -59,6 +60,8 @@ namespace DeltaV
         public ShellSurfaceLayer layer = ShellSurfaceLayer.Hull;
         public List<GraphicData> alternateGraphics;
         public float zIndex;
+        // Height above the hull, in cells. Uses the same local sun as hull edges.
+        public float shadowHeight;
     }
 
     /// <summary>把原版旋转炮身状态提供给船壳；其他炮塔可按需实现此接口。</summary>

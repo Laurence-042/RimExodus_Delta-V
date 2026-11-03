@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <DeltaV_CargoStorage.label>空间站货柜</DeltaV_CargoStorage.label>
-  <DeltaV_CargoStorage.description>外挂货柜，可容纳 48 堆货物。自行建造的货柜无需骇入。仓储模式可自动收货、搬运和取材；封存模式将货物收进箱内，无法搬取，也不进入轨道交易信标列表。想要取货时，解除封存从中取出部分，或者直接打开将所有物品散落在地。锁定的货柜在骇入后自动弹出货物。货柜本身不耗电，货物随室外温度变化；可安装一件温控插件进行制冷或制热。被摧毁时大部分货物会损失。</DeltaV_CargoStorage.description>
+  <DeltaV_CargoStorage.description>通往船壳上层货仓的装运口，通过升降梯收发货物，可容纳 48 堆。自行建造的货柜无需骇入。仓储模式可自动收货、搬运和取材；封存模式将货物收进箱内，无法搬取，也不进入轨道交易信标列表。想要取货时，解除封存从中取出部分，或者直接打开将所有物品散落在地。锁定的货柜在骇入后自动弹出货物。货柜本身不耗电，货物随室外温度变化；可安装一件温控插件进行制冷或制热。被摧毁时大部分货物会损失。</DeltaV_CargoStorage.description>
   <DeltaV_CargoContainer.label>空间站货柜</DeltaV_CargoContainer.label>
-  <DeltaV_CargoContainer.description>外挂货柜，可容纳 48 堆货物。自行建造的货柜无需骇入。仓储模式可自动收货、搬运和取材；封存模式将货物收进箱内，无法搬取，也不进入轨道交易信标列表。想要取货时，解除封存从中取出部分，或者直接打开将所有物品散落在地。锁定的货柜在骇入后自动弹出货物。货柜本身不耗电，货物随室外温度变化；可安装一件温控插件进行制冷或制热。被摧毁时大部分货物会损失。</DeltaV_CargoContainer.description>
+  <DeltaV_CargoContainer.description>通往船壳上层货仓的装运口，通过升降梯收发货物，可容纳 48 堆。自行建造的货柜无需骇入。仓储模式可自动收货、搬运和取材；封存模式将货物收进箱内，无法搬取，也不进入轨道交易信标列表。想要取货时，解除封存从中取出部分，或者直接打开将所有物品散落在地。锁定的货柜在骇入后自动弹出货物。货柜本身不耗电，货物随室外温度变化；可安装一件温控插件进行制冷或制热。被摧毁时大部分货物会损失。</DeltaV_CargoContainer.description>
   <DeltaV_TradeTerminal.label>空间站交易终端</DeltaV_TradeTerminal.label>
   <DeltaV_TradeTerminal.description>通过关联供货仓访问空间站的商品。交易时选择一艘主驾驶台归属玩家、且与空间站软对接或硬对接的飞船所在地图作为货源；终端所在的玩家船也可选择。商品与白银由该地图已通电的玩家交易信标提供，购入货物送入关联取货仓。玩家派系的飞船和空间站不会自动获得供货。
 

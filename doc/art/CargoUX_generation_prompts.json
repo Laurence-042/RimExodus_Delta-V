@@ -1,0 +1,28 @@
+{
+  "tool": "image_gen (built-in)",
+  "date": "2026-11-03",
+  "size": [
+    1024,
+    1536
+  ],
+  "variants": [
+    {
+      "state": "sealed",
+      "prompt": "Use case: precise-object-edit. Asset: transparent RimWorld-style orthographic top-down building sprite, 2 tiles wide by 3 tiles tall, same 1024x1536 portrait canvas as image 1.\nInput image 1 is the EDIT TARGET: existing grey cargo container, preserve its upper two-thirds, big central cyan-blue status panel, double hatch seam, outer chamfered rectangle silhouette, canvas scale and medium detail style.\nInput image 2 is STYLE REFERENCE ONLY: original game pilot console; do not copy it literally.\nPrimary change: REPLACE THE ENTIRE BOTTOM THIRD (y=1024..1536) with a two-cell service row. Left cell x=0..512: one integrated small control console centered at x=256,y=1280, clearly recognizable top-down dark screen with muted cyan screen and a few chunky switches, not detailed microtext. Right cell x=512..1024: one EMPTY square plugin socket centered EXACTLY x=768,y=1280, about 430x430 pixels including thin grey rim, dark plain recess, no device installed, no central crossbar through it, no side-reaching pipes. A thin central divider separates the two bottom cells. Do NOT retain the old middle socket and old paired side indicator pods. The bottom-left console and bottom-right empty socket must each fit fully inside their own square cell. The user will overlay a separate square temperature module over the right socket.\nKeep the upper big status panel cyan-blue, fully visible and large. Neutral grey alloy body, broad flat grey planes, clean black outline and narrow simple bevel highlights, neither hyper-detailed 3D nor crude blank box. Match the original target style and line weight. Pure orthographic overhead, no perspective or cast shadow, no labels/text/letters/grid, real transparent background outside the chamfered outline. Straight outer sides should remain near the canvas edges as in image1; do not shrink sprite or add margins. Do not alter the upper body design. Return ONE sprite, not a presentation sheet.",
+      "source": "C:/Users/Laure/.codex/generated_images/01a19731-d70c-78a3-a1e2-7247cdaadde1/exec-c26ee7d8-f0ab-4e3e-b90b-c71e0904bed8.png",
+      "output": "1.6/Textures/Things/Building/StationTrade/CargoContainer_Unlocked.png"
+    },
+    {
+      "state": "locked",
+      "prompt": "Use case: precise-object-edit. Make the LOCKED / NEEDS HACKING state of this exact top-down game cargo-container sprite. Change ONLY the large bright cyan-blue central status panel on the upper double doors (around x=345..677,y=480..636) into a warm amber-orange panel (#efab35 range), preserving its dark border and shading. Leave the small bottom-left console screen cyan, its keys and all other parts unchanged. Preserve the new bottom-left console and bottom-right EMPTY square module socket, all outlines, every position, entire silhouette, 1024x1536 portrait canvas and transparency. Do not alter the body, rearrange anything, change detail density or add text. Exactly the same building in another state. One transparent sprite.",
+      "source": "C:/Users/Laure/.codex/generated_images/01a19731-d70c-78a3-a1e2-7247cdaadde1/exec-1cf3565f-19e3-4f82-9b15-3102d1aa74ce.png",
+      "output": "1.6/Textures/Things/Building/StationTrade/CargoContainer_Locked.png"
+    },
+    {
+      "state": "storage",
+      "prompt": "Use case: precise-object-edit. Make the ACTIVE STORAGE state of this exact top-down game cargo-container sprite. Change ONLY the large bright cyan-blue central status panel on the upper double doors (around x=345..677,y=480..636) to a clear vivid leaf-green panel (roughly #4bcb68, visibly green, NOT cyan or teal), preserving its border, shape and simple shading. Keep the bottom-left console screen muted cyan and all its small buttons unchanged. Preserve every other pixel appearance, exact layout, grey body, bottom-left control console and bottom-right empty square module socket, their positions, whole silhouette, 1024x1536 portrait canvas and transparent corners. Do not change detail density, redraw the body, move anything, add text or install a module. This is the same building with only its large state indicator green. Return one transparent sprite.",
+      "source": "C:/Users/Laure/.codex/generated_images/01a19731-d70c-78a3-a1e2-7247cdaadde1/exec-85ecc3f9-663d-4ca9-bffd-054fc1f1c5f3.png",
+      "output": "1.6/Textures/Things/Building/StationTrade/CargoContainer_Storage.png"
+    }
+  ]
+}

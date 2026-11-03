@@ -110,6 +110,8 @@ internal static partial class Program
             patch.Patch(AccessTools.Method(typeof(Messages), "Message", new[] { typeof(string), typeof(MessageTypeDef), typeof(bool) }),
                 prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
             var crate = (ModeCrate)ThingMaker.MakeThing(defs[1]);
+            var paint = new ColorDef { defName = "CargoPaint", color = new UnityEngine.Color(.6f, .3f, .8f) };
+            Set(crate, "paintColorDef", paint);
             GenSpawn.Spawn(crate, new IntVec3(10, 0, 10), modeMap, Rot4.East);
             crate.GetComp<CompHackable>().HackNow();
             var defItem = MakeDef("ModeCargoItem"); defItem.category = ThingCategory.Item; defItem.stackLimit = 75; defItem.virtualDefs = new List<ThingDef>();
@@ -121,6 +123,14 @@ internal static partial class Program
             CompSpaceCargo switchTo(ThingWithComps thing, bool storage)
                 => (CompSpaceCargo)change.Invoke(thing.GetComp<CompSpaceCargo>(), new object[] { storage });
             var asf = (ModeStorage)switchTo(crate, true).parent;
+            var fill = AccessTools.PropertyGetter(typeof(CompSpaceCargo), "CapacityFraction");
+            Check(asf.PaintColorDef == paint
+                && Math.Abs((float)fill.Invoke(asf.GetComp<CompSpaceCargo>(), null) - 1f / 48f) < .0001f,
+                "unsealing preserves native paint and reads the actual ASF capacity fraction");
+            Set(asf, "_currentSlotLimit", 0);
+            Check((float)fill.Invoke(asf.GetComp<CompSpaceCargo>(), null) == 1f && asf.Contents.Count == 1,
+                "lowering the limit below existing cargo shows full capacity without losing cargo");
+            Set(asf, "_currentSlotLimit", 48);
             Check(item.Spawned && item.ParentHolder == null && ReferenceEquals(asf.Contents.Single(), item)
                 && item.stackCount == 37 && item.HitPoints == 23 && crate.Destroyed,
                 "unsealing transfers the same native-held stack to ASF without opening or copying it");
@@ -129,6 +139,9 @@ internal static partial class Program
             asf.settings.Priority = StoragePriority.Critical; asf.settings.filter.SetAllow(defItem, true);
             Set(asf, "_currentSlotLimit", 24); asf.label = "Configured bay";
             var sealedAgain = (ModeCrate)switchTo(asf, false).parent;
+            Check(sealedAgain.PaintColorDef == paint
+                && Math.Abs((float)fill.Invoke(sealedAgain.GetComp<CompSpaceCargo>(), null) - 1f / 24f) < .0001f,
+                "sealing preserves native paint and reads held stacks against the configured slot limit");
             Check(!item.Spawned && item.ParentHolder == sealedAgain && sealedAgain.IsUnlocked && sealedAgain.Contents.Count == 1,
                 "sealing removes ASF map items and puts the same stack in the native crate");
             Check(sealedAgain.CurrentSlotLimit == 24 && sealedAgain.Position == new IntVec3(10, 0, 10)

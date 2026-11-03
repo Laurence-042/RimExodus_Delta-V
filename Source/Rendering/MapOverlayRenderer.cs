@@ -349,6 +349,8 @@ namespace DeltaV
                     || allowedCells != null && !allowedCells.Contains(thing.Position)) continue;
                 Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
                 ShellRenderConfig config = rule?.render;
+                if (config?.shadowHeight > 0f)
+                    CollectExteriorShadow(thing, config.shadowHeight, matrix, localSun, collector);
                 if (config?.source == ShellGraphicSource.TurretTop)
                 {
                     if (deck && thing.def.drawerType != DrawerType.MapMeshOnly
@@ -448,6 +450,22 @@ namespace DeltaV
 
         private static bool IsSunShadowMaterial(Material material)
             => material == MatBases.SunShadow || material == MatBases.SunShadowFade;
+
+        private static void CollectExteriorShadow(Thing thing, float height, Matrix4x4 matrix,
+            Vector2 localSun, List<OverlayCommand> collector)
+        {
+            Material material = MaterialPool.MatFrom(BaseContent.WhiteTex, ShaderDatabase.Transparent,
+                new Color(0f, 0f, 0f, .35f));
+            for (int side = 0; side < 2; side++)
+            {
+                if (!ShellExteriorShadow.TryMatrix(thing.OccupiedRect(), height, localSun, side,
+                    out Matrix4x4 local)) continue;
+                collector.Add(new OverlayCommand { mesh = MeshPool.plane10, matrix = matrix * local,
+                    material = material, surface = ShellSurfaceLayer.ExteriorShadow,
+                    queue = material.renderQueue, sequence = nextSequence++ });
+                QuadsDrawnLastPass++;
+            }
+        }
 
         private static void CollectTurretTop(Thing thing, ShellRenderConfig config,
             Matrix4x4 matrix, Quaternion rotation, List<OverlayCommand> collector)

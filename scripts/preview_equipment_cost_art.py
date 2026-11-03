@@ -10,9 +10,11 @@ defs = {d.findtext('defName'): d for p in (ROOT/'1.6/Defs').rglob('*.xml') for d
 def nums(s): return tuple(float(n) for n in re.findall(r'-?\d+(?:\.\d+)?', s))
 def graphic(path, size): return Image.open(TEXTURES/(path+'.png')).convert('RGBA').resize(tuple(round(x) for x in size),Image.Resampling.LANCZOS)
 def draw_host(name, tile):
+    if name=='DeltaV_CargoContainer':
+        from cargo_art_preview import port
+        return port(1,True,tile=tile).crop((tile,tile,tile*3,tile*4))
     d=defs[name]; w,h=nums(d.findtext('size')); canvas=Image.new('RGBA',(round(w*tile),round(h*tile)))
     path=d.findtext('graphicData/texPath')
-    if name=='DeltaV_CargoContainer': path=path.replace('_Locked','_Unlocked')
     canvas.alpha_composite(graphic(path,(w*tile,h*tile)))
     config=d.find("modExtensions/li[@Class='DeltaV.DefModExtension_CargoAttachments']")
     if config is None:config=d.find("comps/li[@Class='DeltaV.CompProperties_SpaceRailgun']")

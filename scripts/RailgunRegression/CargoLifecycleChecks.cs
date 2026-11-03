@@ -72,12 +72,17 @@ internal static partial class Program
             var loaded = make(player, false);
             Check(!loaded.IsUnlocked, "loading player cargo keeps a saved dev lock");
             var cargoComp = cargo.GetComp<CompSpaceCargo>();
+            var tint = AccessTools.PropertyGetter(typeof(CompSpaceCargo), "TerminalColor");
+            var sealedColor = (UnityEngine.Color)tint.Invoke(cargoComp, null);
             var lockMethod = AccessTools.Method(typeof(CompSpaceCargo), "LockForDebug");
             DebugSettings.godMode = false; lockMethod.Invoke(cargoComp, null);
             Check(cargo.IsUnlocked, "normal mode cannot lock cargo through the dev action");
             DebugSettings.godMode = true; lockMethod.Invoke(cargoComp, null);
             Check(!cargo.IsUnlocked && cargo.GetComp<CompHackable>().ProgressPercent == 0,
                 "God Mode resets the native hackable comp");
+            var lockedColor = (UnityEngine.Color)tint.Invoke(cargoComp, null);
+            Check(lockedColor.r > lockedColor.b && sealedColor.b > sealedColor.r,
+                "terminal state color follows the native lock state rather than paint or a saved visual flag");
             cargoComp.PostSpawnSetup(false);
             Check(!cargo.IsUnlocked, "transferring a dev-locked crate does not unlock it");
 

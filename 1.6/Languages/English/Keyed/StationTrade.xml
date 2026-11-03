@@ -50,8 +50,8 @@
   <DeltaV_DevTradeIndiscriminateSupplyDesc>Allow merchant stock to refresh in player facilities for station authoring and testing. Off by default. Applies to both periodic and manual restocking, and is saved with this terminal.</DeltaV_DevTradeIndiscriminateSupplyDesc>
   <DeltaV_TradePlayerSupplyBlocked>Player terminals and supply bays on player ships cannot receive merchant stock. Enable Indiscriminate supply on the terminal for testing.</DeltaV_TradePlayerSupplyBlocked>
   <DeltaV_TradeDevBuildOnly>Trade terminals can only be placed in God Mode.</DeltaV_TradeDevBuildOnly>
-  <DeltaV_CargoModeStorage>Mode: Storage</DeltaV_CargoModeStorage>
-  <DeltaV_CargoModeSealed>Mode: Sealed</DeltaV_CargoModeSealed>
+  <DeltaV_CargoModeStorage>Current mode: Storage</DeltaV_CargoModeStorage>
+  <DeltaV_CargoModeSealed>Current mode: Sealed</DeltaV_CargoModeSealed>
   <DeltaV_TradeSourceTitle>Choose cargo source</DeltaV_TradeSourceTitle>
   <DeltaV_TradeSourceHelp>Choose a ship's map as the cargo source. Ships sharing a map are grouped together. Goods and silver must be covered by powered player orbital trade beacons on that map. Purchases go to the station's collection bay; sales go to its supply bays.</DeltaV_TradeSourceHelp>
   <DeltaV_CargoModeNoRoom>There is not enough room for the cargo. The mode change was cancelled. Clear loose items from the bay footprint first.</DeltaV_CargoModeNoRoom>

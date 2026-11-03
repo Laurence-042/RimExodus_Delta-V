@@ -50,8 +50,8 @@
   <DeltaV_DevTradeIndiscriminateSupplyDesc>允许向玩家派系设施刷新商人库存，适用于搭建和测试空间站。默认关闭；开启后周期补货与手动补货均可使用，设置随存档保留。</DeltaV_DevTradeIndiscriminateSupplyDesc>
   <DeltaV_TradePlayerSupplyBlocked>玩家终端或玩家船上的供货仓不接受商人补货。调试时请先开启终端的“无差别供货”。</DeltaV_TradePlayerSupplyBlocked>
   <DeltaV_TradeDevBuildOnly>交易终端仅可在 God Mode 下放置。</DeltaV_TradeDevBuildOnly>
-  <DeltaV_CargoModeStorage>模式：仓储</DeltaV_CargoModeStorage>
-  <DeltaV_CargoModeSealed>模式：封存</DeltaV_CargoModeSealed>
+  <DeltaV_CargoModeStorage>当前模式：仓储</DeltaV_CargoModeStorage>
+  <DeltaV_CargoModeSealed>当前模式：封存</DeltaV_CargoModeSealed>
   <DeltaV_TradeSourceTitle>选择货物来源</DeltaV_TradeSourceTitle>
   <DeltaV_TradeSourceHelp>选择飞船所在的地图作为货源；同图飞船合并显示。商品和白银须位于该地图上已通电的玩家交易信标范围内。购入货物送到空间站取货仓，出售货物送入供货仓。</DeltaV_TradeSourceHelp>
   <DeltaV_CargoModeNoRoom>货柜内没有足够位置容纳这些货物，切换已取消。请先清理货柜脚下的散落物品。</DeltaV_CargoModeNoRoom>
