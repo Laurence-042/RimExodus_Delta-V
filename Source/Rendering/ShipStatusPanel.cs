@@ -221,8 +221,7 @@ namespace DeltaV
             // 内容高度：星球仪 + 缩放滑条 + 标题/状态行 + 船列表
             // + 当前模式的按钮行数（已停靠的船只有驾驶按钮——首次出力即分离）
             // + 战斗区块：火控、战斗机动、武器组和战斗位置。
-            bool mapHasWeapons = SpaceWeaponService.AllWeaponsOn(map).Any(w =>
-                w.parent.Faction == Faction.OfPlayer);
+            bool shipHasWeapons = hasShip && selected.Weapons.Any();
             bool combatBlock = hasShip && playerControlled && zeroGravity;
             var combatActionsBefore = new List<PilotPanelAction>();
             var combatActionsAfter = new List<PilotPanelAction>();
@@ -238,7 +237,7 @@ namespace DeltaV
                 }
             }
             if (combatBlock)
-                selected.CollectCombatPanelActions(mapHasWeapons, combatActionsBefore, combatActionsAfter);
+                selected.CollectCombatPanelActions(shipHasWeapons, combatActionsBefore, combatActionsAfter);
             float combatHeight = 0f;
             if (combatBlock)
             {
@@ -246,7 +245,7 @@ namespace DeltaV
                 if (combatExpanded)
                 {
                     combatBodyHeight = combatActionsBefore.Count * 33f;
-                    if (mapHasWeapons)
+                    if (shipHasWeapons)
                         combatBodyHeight += 26f * 2f + 4f;
                     combatBodyHeight += combatActionsAfter.Count * 33f;
                     combatHeight += Mathf.Min(combatBodyHeight, MaxCombatHeight);
@@ -415,7 +414,7 @@ namespace DeltaV
                         if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
                         lineY += 33f;
                     }
-                    if (mapHasWeapons)
+                    if (shipHasWeapons)
                     {
                         // 两排武器组方块（主/副各一排 1–6；点击切换激活——激活位存主驾驶台）。
                         ShipCombatState consoleComp = selected.Combat;

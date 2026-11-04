@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Xml;
+using System.Text.Json;
 using DeltaV;
 using HarmonyLib;
 using RimWorld;
@@ -14,6 +15,18 @@ internal static partial class Program
     // Only the native static UI icons/materials require a Unity renderer.
     static bool SkipFuelGraphics() => false;
     static bool RangeOwner(ref int __result) { __result=1; return false; }
+    static void RangePowerNet(List<Building> transmitters, string path)
+    {
+        using var json=JsonDocument.Parse(File.ReadAllText(path));
+        var isolated=json.RootElement.EnumerateArray().Where(r=>r.GetProperty("name").GetString()=="Battery"
+            && r.GetProperty("stateOverrides").TryGetProperty("storedPower",out var power) && power.GetString()=="0")
+            .Select(r=>new IntVec3(r.GetProperty("root")[0].GetInt32()+20,0,r.GetProperty("root")[1].GetInt32()+20)).ToHashSet();
+        Check(isolated.Count==5,"five empty penetration targets");
+        foreach(var b in transmitters.Where(b=>isolated.Contains(b.Position)))
+            Check(PowerNetMaker.NewPowerNetStartingFrom(b).transmitters.Count==1,"test battery cannot recharge from live grid");
+        var live=PowerNetMaker.NewPowerNetStartingFrom(transmitters.First(b=>!isolated.Contains(b.Position)));
+        Check(live.transmitters.Count==transmitters.Count-isolated.Count,"native target working grid remains connected");
+    }
     static void RangeLayout(List<Building> buildings, string recordsPath)
     {
         string repo=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(recordsPath),"../../.."));
@@ -78,6 +91,72 @@ internal static partial class Program
         public void ExposeData() => terminal.PostExposeData();
     }
 
+    sealed class RangeEntranceSave : IExposable
+    {
+        internal Building_HackableDoor door;
+        internal ThingWithComps terminal;
+        public void ExposeData()
+        {
+            Scribe_Deep.Look(ref door,"door");
+            Scribe_Deep.Look(ref terminal,"terminal");
+        }
+    }
+
+    static void RangeEntrance(XmlDocument platform, Harmony harmony, string directory)
+    {
+        var content=AccessTools.Method(typeof(ContentFinder<Texture2D>),"Get");
+        harmony.Patch(content,prefix:new HarmonyMethod(typeof(Program),nameof(SkipFuelGraphics)));
+        try
+        {
+            var definitions=new XmlDocument(); definitions.Load(Path.Combine(directory,"../Defs/Tutorial/DeltaV_TutorialRange.xml"));
+            var doorConfig=definitions.SelectSingleNode("/Defs/ThingDef[defName='DeltaV_RangeBlastDoor']");
+            Check(doorConfig.SelectSingleNode("comps/li[@Class='CompProperties_Hackable']/onlyRemotelyHackable").InnerText=="true",
+                "safety door cannot be hacked locally to skip the briefing");
+            var entries=new List<RimExodus.Maps.MapPrefabThingEntry>();
+            foreach(string name in new[]{"DeltaV_RangeBlastDoor","DeltaV_RangeTerminal_Introduction"})
+            {
+                var def=Raw<ThingDef>(); def.defName=name; def.category=ThingCategory.Building;
+                def.size=IntVec2.One;def.building=new BuildingProperties();def.comps=new List<CompProperties>();
+                if(name=="DeltaV_RangeBlastDoor")
+                {
+                    def.thingClass=typeof(Building_HackableDoor);
+                    def.comps.Add(new CompProperties_Hackable { defence=1800,onlyRemotelyHackable=true });
+                }
+                else {def.thingClass=typeof(Building);def.comps.Add(new CompProperties_TutorialRangeBriefing());}
+                DefDatabase<ThingDef>.Add(def);
+                entries.Add(new RimExodus.Maps.MapPrefabThingEntry {def=def,
+                    stateXml=platform.SelectSingleNode("/MapPrefab/thingStates/li[def='"+name+"']/state/saveable").OuterXml});
+            }
+            var things=RimExodus.Maps.MapPrefabThingState.Instantiate(entries,"range entrance",null);
+            var door=(Building_HackableDoor)things[0]; var terminal=(ThingWithComps)things[1];
+            var ally=new Faction {def=new FactionDef(),loadID=937};Set(door,"factionInt",ally);
+            Find.FactionManager.AllFactionsListForReading.Add(ally);
+            terminal.GetComp<CompTutorialRangeBriefing>().entranceDoor=door;
+            Check(door.Locked && !door.PawnCanOpen(null),"native blast door starts locked");
+            Check(!door.Hackable.CanHackNow(null).Accepted,"native remote-only hack gate rejects local hacking");
+            foreach(bool unlocked in new[]{false,true})
+            {
+                if(unlocked) CompTutorialRangeBriefing.UnlockEntrance(door);
+                Check(door.Locked!=unlocked && door.Faction==ally,"native remote unlock preserves allied owner");
+                var document=new XmlDocument();document.LoadXml(Scribe.saver.DebugOutputFor(new RangeEntranceSave {door=door,terminal=terminal}));
+                string path=Path.GetTempFileName();
+                try
+                {
+                    File.WriteAllText(path,"<root><entrance>"+document.DocumentElement.InnerXml+"</entrance></root>");
+                    Scribe.loader.InitLoading(path);RangeEntranceSave restored=null;Scribe_Deep.Look(ref restored,"entrance");
+                    ((LoadedObjectDirectory)AccessTools.Field(typeof(CrossRefHandler),"loadedObjectDirectory").GetValue(Scribe.loader.crossRefs)).RegisterLoaded(ally);
+                    Scribe.loader.FinalizeLoading();
+                    Check(restored.door.Locked!=unlocked,"native door lock survives Scribe: "+unlocked);
+                    Check(restored.door.Faction==ally,"native door owner survives Scribe");
+                    Check(restored.terminal.GetComp<CompTutorialRangeBriefing>().entranceDoor==restored.door,
+                        "briefing binds restored door rather than old instance");
+                }
+                finally {Scribe.ForceStop();File.Delete(path);}
+            }
+        }
+        finally {harmony.Unpatch(content,HarmonyPatchType.Prefix,harmony.Id);}
+    }
+
     static void RangeChecks(Game game, Harmony harmony, string directory)
     {
         LoadedModManager.RunningModsListForReading[0].assemblies.loadedAssemblies.Add(typeof(Program).Assembly);
@@ -86,6 +165,7 @@ internal static partial class Program
         Set(game.World.factionManager,"ofPlayer",new Faction { def=new FactionDef { isPlayer=true } });
         var platform = new XmlDocument(); platform.Load(Path.Combine(directory,"WeaponRange.xml"));
         var target = new XmlDocument(); target.Load(Path.Combine(directory,"ShieldTarget.xml"));
+        RangeEntrance(platform,harmony,directory);
         var weaponNames = new[] { "DeltaV_Weapon_RapidMainMedium", "DeltaV_Weapon_HeavyMainMedium",
             "DeltaV_Weapon_LaserMainMedium", "DeltaV_Weapon_RailgunLoader" };
         int group=0;

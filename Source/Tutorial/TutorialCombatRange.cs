@@ -20,6 +20,8 @@ namespace DeltaV
             console.fireControlMode = ShipFireControlMode.Manual;
             console.SetWeaponGroupMask(SpaceWeaponSalvoSet.Main, 1);
             universe.Controls.ReconcileOwner(console.shipId);
+            facilities.Single(t => t.TryGetComp<CompTutorialRangeBriefing>() != null)
+                .TryGetComp<CompTutorialRangeBriefing>().entranceDoor = facilities.OfType<Building_HackableDoor>().Single();
             // The firing line points away from the colony. Target and platform remain separate rigid bodies.
             SpaceObject frame = universe.FrameOf(rangeMap);
             SpacePose targetPose = SpaceTransform.RigidPointPose(frame.pose, new Vector2(120f, 0f), 0f);

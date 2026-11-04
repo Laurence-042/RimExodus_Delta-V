@@ -204,8 +204,12 @@ internal static partial class Program
         Check(transmitters.All(b => b.OccupiedRect().All(c => powerCells.Add(c))), "no overlapping power transmitters");
         if (transmitters.Count != 0)
         {
-            PowerNet net = PowerNetMaker.NewPowerNetStartingFrom(transmitters[0]);
-            Check(net.transmitters.Count == transmitters.Count, "native single connected power net");
+            if (Path.GetFileName(path) == "ShieldTarget.records.json") RangePowerNet(transmitters, path);
+            else
+            {
+                PowerNet net = PowerNetMaker.NewPowerNetStartingFrom(transmitters[0]);
+                Check(net.transmitters.Count == transmitters.Count, "native single connected power net");
+            }
         }
         var thrusters = buildings.Where(b => b.def.defName == "SmallThruster" || b.def.defName == "LargeThruster").ToList();
         if (Path.GetFileName(path) == "WeaponRange.records.json") RangeLayout(buildings, path);

@@ -133,4 +133,14 @@
     <def>DeltaV_RangeTerminal_Guard</def>
     <health>200</health>
   </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_Introduction</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building_HackableDoor">
+    <def>DeltaV_RangeBlastDoor</def>
+    <health>6000</health>
+    <defence>1800</defence>
+    <hacked>False</hacked>
+  </saveable>
 </prototypes>

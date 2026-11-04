@@ -17,7 +17,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
     <defName>DeltaV_RangeTerminal_Unshielded</defName>
-    <label>unshielded reference terminal</label>
+    <label>1. unshielded reference terminal</label>
     <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's unshielded reference preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
@@ -27,7 +27,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
     <defName>DeltaV_RangeTerminal_Kinetic</defName>
-    <label>kinetic shield terminal</label>
+    <label>2. kinetic shield terminal</label>
     <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's kinetic shield preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
@@ -37,7 +37,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
     <defName>DeltaV_RangeTerminal_Deflection</defName>
-    <label>electromagnetic deflection terminal</label>
+    <label>3. electromagnetic deflection terminal</label>
     <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's electromagnetic deflection preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
@@ -47,7 +47,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
     <defName>DeltaV_RangeTerminal_Reflection</defName>
-    <label>electromagnetic reflection terminal</label>
+    <label>4. electromagnetic reflection terminal</label>
     <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's electromagnetic reflection preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
@@ -57,7 +57,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
     <defName>DeltaV_RangeTerminal_GuardSingle</defName>
-    <label>single guard shield terminal</label>
+    <label>5. single guard shield terminal</label>
     <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's single guard shield preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
@@ -67,11 +67,79 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
     <defName>DeltaV_RangeTerminal_Guard</defName>
-    <label>cooperative guard shields terminal</label>
+    <label>6. cooperative guard shields terminal</label>
     <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's cooperative guard shields preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
         <preset>Guard</preset>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RangeTerminalBase">
+    <defName>DeltaV_RangeTerminal_Introduction</defName>
+    <label>0. range instructions terminal</label>
+    <description>Read the operating and safety instructions, then acknowledge them to unlock the allied blast door. You can return to read the instructions again.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_TutorialRangeBriefing" />
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DoorBase">
+    <defName>DeltaV_RangeBlastDoor</defName>
+    <label>range safety blast door</label>
+    <description>An allied blast door protecting the test platform entrance. Read and acknowledge the instructions on the entrance terminal to unlock it.</description>
+    <thingClass>Building_HackableDoor</thingClass>
+    <designationCategory IsNull="True" />
+    <graphicData>
+      <texPath>Things/Building/Ancient/BlastDoor/AncientBlastDoor_Mover</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <ignoreThingDrawColor>true</ignoreThingDrawColor>
+      <damageData>
+        <enabled>false</enabled>
+      </damageData>
+    </graphicData>
+    <uiIconPath>Things/Building/Ancient/BlastDoor/AncientBlastDoor_MenuIcon_south</uiIconPath>
+    <statBases>
+      <MaxHitPoints>6000</MaxHitPoints>
+      <Flammability>0</Flammability>
+    </statBases>
+    <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
+    <rotatable>true</rotatable>
+    <building>
+      <paintable>false</paintable>
+      <deconstructible>false</deconstructible>
+      <neverBuildable>true</neverBuildable>
+      <unpoweredDoorOpenSpeedFactor>1.2</unpoweredDoorOpenSpeedFactor>
+      <isAirtight>true</isAirtight>
+      <draftAttackNonDeconstructable>false</draftAttackNonDeconstructable>
+      <isSupportDoor>true</isSupportDoor>
+      <doorTopGraphic>
+        <texPath>Things/Building/Ancient/BlastDoor/AncientBlastDoor_Top</texPath>
+        <graphicClass>Graphic_Multi</graphicClass>
+        <drawSize>(2,2.2)</drawSize>
+      </doorTopGraphic>
+      <doorTopHorizontalOffset>(0,0,0.05)</doorTopHorizontalOffset>
+      <expandHomeArea>false</expandHomeArea>
+    </building>
+    <stuffCategories Inherit="False" />
+    <costStuffCount>0</costStuffCount>
+    <useStuffTerrainAffordance>false</useStuffTerrainAffordance>
+    <comps Inherit="False">
+      <li Class="CompProperties_Forbiddable" />
+      <li Class="CompProperties_Hackable">
+        <defence>1800</defence>
+        <effectHacking>HackingTerminal</effectHacking>
+        <lockoutDurationHoursRange>2~3</lockoutDurationHoursRange>
+        <notHackedInspectString>Read the entrance terminal instructions to unlock.</notHackedInspectString>
+        <hackedInspectString>Safety instructions acknowledged. Unlocked.</hackedInspectString>
+        <hackedMessage>{HACKER_labelShort} has finished hacking {SUBJECT_labelNoParenthesisDef}.</hackedMessage>
+        <showProgressAfterHackCompletion>false</showProgressAfterHackCompletion>
+        <unhackedGraphicData>
+          <texPath>Things/Building/Ancient/BlastDoor/AncientBlastDoor_HackingTerminal</texPath>
+          <graphicClass>Graphic_Multi</graphicClass>
+        </unhackedGraphicData>
+        <unhackedGraphicOffset>(0,0.05,0)</unhackedGraphicOffset>
+        <graphicDrawerType>RealtimeOnly</graphicDrawerType>
+        <onlyRemotelyHackable>true</onlyRemotelyHackable>
       </li>
     </comps>
   </ThingDef>
