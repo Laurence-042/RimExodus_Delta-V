@@ -12,9 +12,29 @@ import re
 import xml.etree.ElementTree as ET
 from collections import deque
 from PIL import Image, ImageDraw
+import shipyard_layout
+import combat_range_layout
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
+
+
+def validate_identities(document):
+    ids = {}
+    for state in document.findall('thingStates/li/state/saveable'):
+        for node in state.iter():
+            if node.find('def') is None or node.find('id') is None:
+                continue
+            load_id = node.findtext('id')
+            number = int(re.search(r'\d+$', load_id).group())
+            if number in ids:
+                raise ValueError(f'Duplicate numeric Thing ID {number}: {ids[number]} / {load_id}')
+            ids[number] = load_id
+        for gun in state.findall('.//gun'):
+            for index, verb in enumerate(gun.findall('verbTracker/verbs/li')):
+                expected = f'CompEquippable_{gun.findtext("id")}_{index}'
+                if verb.findtext('loadID') != expected:
+                    raise ValueError(f'Gun/Verb identity mismatch: {gun.findtext("id")}')
 
 
 def build(data, name="ArrivalStation"):
@@ -41,6 +61,21 @@ def build(data, name="ArrivalStation"):
     def pair(value):
         return list(map(int, re.findall(r'-?\d+', value)))
 
+    def comp_values(name, field):
+        # Fields also occur on derived CompProperties (notably Battery). Respect
+        # replacement comp lists instead of reviving a removed ancestor's comp.
+        node = defs[name]
+        while node is not None:
+            comps = node.find('comps')
+            if comps is not None:
+                for comp in comps:
+                    value = comp.findtext(field)
+                    if value is not None:
+                        yield value
+                if comps.get('Inherit', 'true').lower() == 'false':
+                    break
+            node = parents.get(node.get('ParentName'))
+
     def affordances(name):
         node = terrains[name]
         result = []
@@ -53,7 +88,11 @@ def build(data, name="ArrivalStation"):
             node = terrain_parents.get(node.get('ParentName'))
         return list(dict.fromkeys(result))
 
-    width, height = {"ArrivalStation": (31,41), "TrainingShip": (21,15), "Salvage": (7,7), "Shipyard": (21,21), "PrototypeShip": (21,21)}[name]
+    range_layout = name in ('WeaponRange', 'ShieldTarget')
+    detailed = range_layout or name in ('Shipyard', 'PrototypeShip')
+    layout = combat_range_layout if range_layout else shipyard_layout
+    plan = layout.shape(name) if detailed else None
+    width, height = plan['size'] if detailed else {"ArrivalStation": (31,41), "TrainingShip": (21,15), "Salvage": (7,7)}[name]
     foundation = {(x, z) for x in range(width) for z in range(height)}
     if name == "ArrivalStation":
         # Intact forward cabins over a torn platform; the south end is the severed stern.
@@ -64,8 +103,11 @@ def build(data, name="ArrivalStation"):
     roofs = set(foundation) if name != "Salvage" else set()
     if name == "TrainingShip": roofs = {c for c in roofs if c[0] >= 5}
     if name == "ArrivalStation": roofs = {c for c in foundation if c[1] >= 20}
+    if detailed:
+        foundation = set(plan['cells'])
+        roofs = set(foundation)
     records, occupied = [], {}
-    def place(name, x, z, rot=0, stuff=None, layer='body'):
+    def place(name, x, z, rot=0, stuff=None, layer='body', state=None):
         size = pair(prop(name, 'size', '(1,1)'))
         w, h = size if rot % 2 == 0 else size[::-1]
         dx, dz = [(0, 0), (0, -1), (-1, -1), (-1, 0)][rot]
@@ -80,12 +122,20 @@ def build(data, name="ArrivalStation"):
         record = dict(name=name, root=root, size=size, origin=[x, z], rotation=rot,
                       stuff=stuff, layer=layer, cells=sorted(cells),
                       passability=prop(name, 'passability', 'Standable'),
-                      rotatable=prop(name, 'rotatable', 'true') == 'true',
+                      rotatable=prop(name, 'rotatable', 'true').lower() == 'true',
                       interaction=pair(prop(name, 'interactionCellOffset', '(0,0,0)')),
-                      hasInteraction=prop(name, 'hasInteractionCell', 'false') == 'true',
+                      hasInteraction=prop(name, 'hasInteractionCell', 'false').lower() == 'true',
                       category=prop(name, 'category', 'Undefined'),
                       terrainAffordance=prop(name, 'terrainAffordanceNeeded'),
                       supportAffordances=affordances('OrbitalPlatform' if build_name == 'ArrivalStation' else 'Substructure'))
+        record['stateOverrides'] = state or {}
+        record['transmitsPower'] = any(v.lower() == 'true' for v in comp_values(name, 'transmitsPower'))
+        record['powerWatts'] = sum(float(v) for v in comp_values(name, 'basePowerConsumption'))
+        record['mass'] = float(prop(name, 'statBases/Mass', '4'))
+        if stuff and prop(name, 'statBases/Mass') is not None:
+            record['mass'] = record['mass'] * float(prop(stuff,'stuffProps/statFactors/Mass','1')) + float(prop(stuff,'stuffProps/statOffsets/Mass','0'))
+        record['holdsRoof'] = prop(name, 'holdsRoof', 'false').lower() == 'true'
+        record['airtight'] = prop(name, 'building/isAirtight', 'false').lower() == 'true' or name in ('GravshipHull', 'Wall', 'Door', 'DeltaV_DockingPort')
         exclusion = prop(name, "comps/li[@Class='CompProperties_GravshipThruster']/exclusionAreaSize")
         if exclusion:
             record['exclusionSize'] = pair(exclusion)
@@ -96,7 +146,9 @@ def build(data, name="ArrivalStation"):
         return record
 
     build_name = name
-    if name == "ArrivalStation":
+    if detailed:
+        walls, start = layout.furnish(name, plan, place, prop, foundation, roofs, records, occupied)
+    elif name == "ArrivalStation":
         walls = {(x,z) for x,z in foundation if z >= 20 and (x in (2,12,22,28) or z in (20,40))}
         doors = {(12,27),(22,27),(28,27),(17,20)}
         for x,z in sorted(walls - doors): place('Wall',x,z)
@@ -201,7 +253,8 @@ def build(data, name="ArrivalStation"):
             p = (r['root'][0]+dx, r['root'][1]+dz)
             assert p in reachable, (r['name'], 'inaccessible interaction', p)
         if r['name'] == 'OxygenPump':
-            assert (r['root'][0], r['root'][1]+1) in walls, 'pump must face its mounting wall'
+            dx,dz = [(0,1),(1,0),(0,-1),(-1,0)][r['rotation']]
+            assert (r['root'][0]+dx, r['root'][1]+dz) in walls, 'pump must face its mounting wall'
         if 'exclusionSize' in r:
             sx,_,sz = r['exclusionSize']
             ox,_,oz = r['exclusionOffset']
@@ -215,14 +268,21 @@ def build(data, name="ArrivalStation"):
             r['exclusionCells'] = exhaust
 
     prototypes = {n.findtext('def'): n for n in ET.parse(HERE / 'prototypes.states').getroot()}
+    if name in ('Shipyard','PrototypeShip'):
+        prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'shipyard.states').getroot()})
+    if range_layout:
+        prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'range.states').getroot()})
     document = ET.Element('MapPrefab', formatVersion='2')
     ET.SubElement(document, 'name').text = name
     prefab = ET.SubElement(document, 'prefab')
     ET.SubElement(prefab, 'defName').text = 'MapPrefab_' + name
     ET.SubElement(prefab, 'size').text = f'({width}, {height})'
-    terrain = ET.SubElement(ET.SubElement(prefab, 'terrain'), 'OrbitalPlatform' if name == 'ArrivalStation' else 'MetalTile')
-    rects = ET.SubElement(terrain, 'rects')
-    for x,z in sorted(foundation): ET.SubElement(rects, 'li').text = f'({x},{z},{x},{z})'
+    terrain = ET.SubElement(prefab, 'terrain')
+    terrain_rects = {}
+    for x,z in sorted(foundation):
+        terrain_name = plan.get('surfaceDefs',{}).get((x,z),'MetalTile') if detailed else 'OrbitalPlatform' if name == 'ArrivalStation' else 'MetalTile'
+        if terrain_name not in terrain_rects:terrain_rects[terrain_name]=ET.SubElement(ET.SubElement(terrain,terrain_name),'rects')
+        ET.SubElement(terrain_rects[terrain_name], 'li').text = f'({x},{z},{x},{z})'
     things = ET.SubElement(document, 'thingStates')
     def field(node, key, value):
         found = node.find(key)
@@ -236,6 +296,28 @@ def build(data, name="ArrivalStation"):
         field(state, 'id', r['name'] + str(810000+index))
         field(state, 'pos', pos)
         field(state, 'rot', r['rotation'])
+        # Cloned turret internals also need distinct source identities before Scribe resolves them.
+        renames = {}
+        for child_index, node in enumerate(state.findall('.//id')):
+            if node is state.find('id'): continue
+            old = node.text
+            renames[old] = re.sub(r'\d+$', '', old) + str(910000 + index*10 + child_index)
+        for node in state.iter():
+            if node.text:
+                for old,new in renames.items(): node.text = node.text.replace(old,new)
+        for key,value in r['stateOverrides'].items():
+            if key == 'allowedDefs':
+                settings = state.find('settings')
+                if settings is not None: state.remove(settings)
+                settings = ET.SubElement(state,'settings')
+                field(settings,'priority','Preferred')
+                filt = ET.SubElement(settings,'filter')
+                ET.SubElement(filt,'disallowedSpecialFilters')
+                allowed = ET.SubElement(filt,'allowedDefs')
+                for item in value: ET.SubElement(allowed,'li').text=item
+            else: field(state,key,value)
+        if range_layout: combat_range_layout.prepare_state(r, state, field, prop)
+        elif detailed: shipyard_layout.prepare_state(r, state, field, prop)
         if name == 'ArrivalStation' and r['name'] in ('Wall','Ship_Beam') and r['root'][1] < 20:
             field(state, 'health', 90)
         entry = ET.SubElement(things, 'li')
@@ -251,14 +333,18 @@ def build(data, name="ArrivalStation"):
         for x, z in sorted(roofs if tag == 'roofs' else set() if name == 'ArrivalStation' else foundation):
             node = ET.SubElement(nodes, 'li')
             field(node, 'pos', f'({x}, 0, {z})')
-            field(node, 'def', surface_def)
-    destination = ROOT / '1.6/TutorialPrefabs'
-    destination.mkdir(exist_ok=True)
-    ET.indent(document)
-    ET.ElementTree(document).write(destination / (name + '.xml'), encoding='utf-8', xml_declaration=True)
+            field(node, 'def', plan.get('foundationDefs',{}).get((x,z),surface_def) if detailed and tag=='foundations' else surface_def)
+    # Validate the final states after layout-specific edits, before replacing any outputs.
+    validate_identities(document)
     generated = ROOT / 'Source/obj/TutorialContent'
     generated.mkdir(parents=True, exist_ok=True)
     (generated / (name + '.records.json')).write_text(json.dumps(records, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
+    if detailed:
+        layout.validate_and_draw(name, plan, records, foundation, roofs, reachable, HERE, generated)
+    destination = ROOT / '1.6/Prefabs'
+    destination.mkdir(exist_ok=True)
+    ET.indent(document)
+    ET.ElementTree(document).write(destination / (name + '.xml'), encoding='utf-8', xml_declaration=True)
     # Diagram reads these same resolved records; no second placement calculation.
     scale, pad = 25, 35
     image = Image.new('RGB', (width*scale+2*pad, height*scale+2*pad+90), '#101822')
@@ -285,7 +371,7 @@ def build(data, name="ArrivalStation"):
     draw.text((pad, height*scale+pad+35), 'Resolved footprints; roofs use the same source.', fill='white')
     counts = {name: sum(r['name'] == name for r in records) for name in ('Ship_CryptosleepCasket' if name == 'ArrivalStation' else 'CryptosleepCasket', 'Bed', 'OxygenPump', 'GravcorePowerCell')}
     draw.text((pad, height*scale+pad+55), f'{len(records)} instances | {counts.get("Ship_CryptosleepCasket", counts.get("CryptosleepCasket", 0))} casket | {counts["Bed"]} beds | {counts["OxygenPump"]} oxygen pumps | {counts["GravcorePowerCell"]} gravcore cell', fill='white')
-    image.save(HERE / (name + '.png'))
+    if not detailed: image.save(HERE / (name + '.png'))
     # Re-read the output and verify no entity went missing during export.
     saved = ET.parse(destination / (name + '.xml')).getroot()
     assert len(saved.findall('thingStates/li')) == len(records)
@@ -296,5 +382,6 @@ def build(data, name="ArrivalStation"):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=Path, default=Path('D:/SteamLibrary/steamapps/common/RimWorld/Data'))
+    parser.add_argument('--only', nargs='+', choices=['ArrivalStation','TrainingShip','Salvage','Shipyard','PrototypeShip','WeaponRange','ShieldTarget'])
     args = parser.parse_args()
-    for name in ('ArrivalStation','TrainingShip','Salvage','Shipyard','PrototypeShip'): build(args.data, name)
+    for name in args.only or ('ArrivalStation','TrainingShip','Salvage','Shipyard','PrototypeShip','WeaponRange','ShieldTarget'): build(args.data, name)

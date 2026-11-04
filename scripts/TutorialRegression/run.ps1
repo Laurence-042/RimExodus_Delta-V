@@ -1,6 +1,7 @@
 param(
     [string]$GameRoot = 'D:/SteamLibrary/steamapps/common/RimWorld_1.6',
-    [Parameter(Mandatory=$true)][string]$HarmonyPath
+    [Parameter(Mandatory=$true)][string]$HarmonyPath,
+    [switch]$RangeOnly
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
@@ -25,9 +26,13 @@ foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'DeltaV
     $lines += '/r:"' + "$out/$name" + '"'
 }
 $lines += '"' + "$PSScriptRoot/Program.cs" + '"'
+$lines += '"' + "$PSScriptRoot/ShipyardChecks.cs" + '"'
+$lines += '"' + "$PSScriptRoot/PrefabContentChecks.cs" + '"'
+$lines += '"' + "$PSScriptRoot/RangeChecks.cs" + '"'
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & dotnet "$($sdkVersion.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net8.0","framework":{"name":"Microsoft.NETCore.App","version":"8.0.0"}}}' | Set-Content -LiteralPath "$out/TutorialRegression.runtimeconfig.json"
-& dotnet "$out/TutorialRegression.dll" $managed "$repo/Source/obj/TutorialContent/ArrivalStation.records.json" "$repo/1.6/TutorialPrefabs/ArrivalStation.xml"
+[string[]]$extra = if ($RangeOnly) { @('range') } else { @() }
+& dotnet "$out/TutorialRegression.dll" $managed "$repo/Source/obj/TutorialContent/ArrivalStation.records.json" "$repo/1.6/Prefabs/ArrivalStation.xml" @extra
 exit $LASTEXITCODE

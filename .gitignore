@@ -22,6 +22,8 @@ doc/tmp/*.rws
 
 # 通用地图 prefab 导出文件（MapPrefab.Export 的本地输出）
 Prefabs/
+!1.6/Prefabs/
+!1.6/Prefabs/**
 CombatStrategies/
 
 scripts/MpcRegression/obj/

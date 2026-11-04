@@ -1,0 +1,136 @@
+<?xml version='1.0' encoding='utf-8'?>
+<prototypes>
+  <saveable Class="Building">
+    <def>DeltaV_Weapon_RailgunLoader</def>
+    <health>400</health>
+    <questTags IsNull="True" />
+    <beenRevealed>True</beenRevealed>
+    <fuel>60</fuel>
+    <allowAutoRefuel>True</allowAutoRefuel>
+  </saveable>
+  <saveable Class="DeltaV.Building_SpaceTurretGun">
+    <def>DeltaV_Weapon_LaserMainMedium</def>
+    <health>480</health>
+    <questTags IsNull="True" />
+    <gun Class="ThingWithComps">
+      <def>Gun_MiniTurret</def>
+      <id>Gun_MiniTurret36154</id>
+      <questTags IsNull="True" />
+      <despawnedTick>-1</despawnedTick>
+      <verbTracker>
+        <verbs>
+          <li Class="Verb_Shoot">
+            <loadID>CompEquippable_Gun_MiniTurret36154_0</loadID>
+            <currentTarget>(0, 0, 0)</currentTarget>
+            <currentDestination>(0, 0, 0)</currentDestination>
+            <lastShotTick>-999999</lastShotTick>
+            <canHitNonTargetPawnsNow>True</canHitNonTargetPawnsNow>
+          </li>
+        </verbs>
+      </verbTracker>
+      <sourcePrecept>null</sourcePrecept>
+    </gun>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_Weapon_RailgunAccelerator</def>
+    <health>180</health>
+    <questTags IsNull="True" />
+  </saveable>
+  <saveable Class="DeltaV.Building_SpaceTurretGun">
+    <def>DeltaV_Weapon_HeavyMainMedium</def>
+    <health>600</health>
+    <questTags IsNull="True" />
+    <fuel>120</fuel>
+    <allowAutoRefuel>True</allowAutoRefuel>
+    <gun Class="ThingWithComps">
+      <def>Gun_MiniTurret</def>
+      <id>Gun_MiniTurret36150</id>
+      <questTags IsNull="True" />
+      <despawnedTick>-1</despawnedTick>
+      <verbTracker>
+        <verbs>
+          <li Class="Verb_Shoot">
+            <loadID>CompEquippable_Gun_MiniTurret36150_0</loadID>
+            <currentTarget>(0, 0, 0)</currentTarget>
+            <currentDestination>(0, 0, 0)</currentDestination>
+            <lastShotTick>-999999</lastShotTick>
+            <canHitNonTargetPawnsNow>True</canHitNonTargetPawnsNow>
+          </li>
+        </verbs>
+      </verbTracker>
+      <sourcePrecept>null</sourcePrecept>
+    </gun>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_ShieldGenerator</def>
+    <health>250</health>
+    <questTags IsNull="True" />
+    <configuredTargetFuelLevel>0</configuredTargetFuelLevel>
+    <allowAutoRefuel>True</allowAutoRefuel>
+    <stunner>
+      <showStunMote>True</showStunMote>
+      <adaptationTicksLeft>
+        <keys />
+        <values />
+      </adaptationTicksLeft>
+    </stunner>
+    <currentHitPoints>3000</currentHitPoints>
+    <DeltaV_shieldMode>Kinetic</DeltaV_shieldMode>
+    <DeltaV_guardRecoveryTicksRemaining>0</DeltaV_guardRecoveryTicksRemaining>
+    <DeltaV_guardUnlocked>True</DeltaV_guardUnlocked>
+  </saveable>
+  <saveable Class="DeltaV.Building_SpaceTurretGun">
+    <def>DeltaV_Weapon_RapidMainMedium</def>
+    <health>540</health>
+    <questTags IsNull="True" />
+    <fuel>91</fuel>
+    <allowAutoRefuel>True</allowAutoRefuel>
+    <gun Class="ThingWithComps">
+      <def>Gun_MiniTurret</def>
+      <id>Gun_MiniTurret36152</id>
+      <questTags IsNull="True" />
+      <despawnedTick>-1</despawnedTick>
+      <verbTracker>
+        <verbs>
+          <li Class="Verb_Shoot">
+            <loadID>CompEquippable_Gun_MiniTurret36152_0</loadID>
+            <currentTarget>(0, 0, 0)</currentTarget>
+            <currentDestination>(0, 0, 0)</currentDestination>
+            <lastShotTick>-999999</lastShotTick>
+            <canHitNonTargetPawnsNow>True</canHitNonTargetPawnsNow>
+          </li>
+        </verbs>
+      </verbTracker>
+      <sourcePrecept>null</sourcePrecept>
+    </gun>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_Building_AutoAimPluginII</def>
+    <health>80</health>
+    <questTags IsNull="True" />
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_Unshielded</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_Kinetic</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_Deflection</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_Reflection</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_GuardSingle</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_Guard</def>
+    <health>200</health>
+  </saveable>
+</prototypes>

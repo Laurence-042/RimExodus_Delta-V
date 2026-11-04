@@ -15,7 +15,7 @@ using RimWorld.Planet;
 using Verse;
 using UnityEngine;
 
-internal static class Program
+internal static partial class Program
 {
     static int checks;
     static readonly List<string> errors = new List<string>();
@@ -54,6 +54,21 @@ internal static class Program
             pack.assemblies = new ModAssemblyHandler(pack);
             pack.assemblies.loadedAssemblies.Add(typeof(TutorialRunState).Assembly);
             LoadedModManager.RunningModsListForReading.Add(pack);
+            ReadSourceDefs(Path.GetFullPath(Path.Combine(args[0], "../../Data")),
+                Path.GetFullPath(Path.Combine(Path.GetDirectoryName(args[2]), "../Defs")));
+            PrefabIdentities(Path.GetDirectoryName(args[2]));
+            PrefabTurretGraphs(Path.GetDirectoryName(args[2]));
+            if (args.Length > 3 && args[3] == "range")
+            {
+                foreach (string layout in new[] { "WeaponRange", "ShieldTarget" })
+                    Geometry(Path.Combine(Path.GetDirectoryName(args[1]), layout + ".records.json"), game);
+                State(game);
+                Theory(game, harmony);
+                RangeChecks(game, harmony, Path.GetDirectoryName(args[2]));
+                Check(errors.Count == 0, "Unexpected range native logs: " + string.Join("\n", errors));
+                Console.WriteLine($"PASS {checks} optional range checks: geometry, power, native Scribe, presets, firing sectors, native use-job signatures and optional progress. No game launched.");
+                return 0;
+            }
             foreach (string layout in new[] { "ArrivalStation", "TrainingShip", "Salvage", "Shipyard", "PrototypeShip" })
                 Geometry(Path.Combine(Path.GetDirectoryName(args[1]), layout + ".records.json"), game);
             State(game);
@@ -67,6 +82,8 @@ internal static class Program
             Berths(Path.GetDirectoryName(args[2]), Path.GetDirectoryName(args[1]));
             CourseClearance(game);
             Paths();
+            CatalogPaths();
+            ShipyardStates(Path.GetDirectoryName(args[2]), harmony);
             Check(errors.Count == 0, "Unexpected native logs: " + string.Join("\n", errors));
             Console.WriteLine($"PASS {checks} tutorial checks: native geometry/interaction/power, Scribe, phase guards, public access/storage/goodwill, focus thread, paths. No game launched.");
             return 0;
@@ -79,10 +96,15 @@ internal static class Program
     {
         using var json = JsonDocument.Parse(File.ReadAllText(path));
         var map = Raw<Map>();
-        map.info = new MapInfo { Size = new IntVec3(70, 1, 70) };
+        int maxCell = json.RootElement.EnumerateArray().SelectMany(r => r.GetProperty("cells").EnumerateArray())
+            .Max(c => Math.Max(c[0].GetInt32(), c[1].GetInt32()));
+        map.info = new MapInfo { Size = new IntVec3(maxCell + 42, 1, maxCell + 42) };
         map.cellIndices = new CellIndices(map);
         map.thingGrid = new ThingGrid(map);
         map.terrainGrid = new TerrainGrid(map);
+        map.edificeGrid = new EdificeGrid(map);
+        map.roofGrid = new RoofGrid(map);
+        map.floodFiller = new FloodFiller(map);
         Set(game, "maps", new List<Map> { map });
         var buildings = new List<Building>();
         var affordances = new Dictionary<string, TerrainAffordanceDef>();
@@ -95,12 +117,14 @@ internal static class Program
         foreach (var row in json.RootElement.EnumerateArray())
         {
             string name = row.GetProperty("name").GetString();
+            VerifySourceDef(row);
             var def = Raw<ThingDef>();
             def.defName = name;
             def.size = new IntVec2(row.GetProperty("size")[0].GetInt32(), row.GetProperty("size")[1].GetInt32());
             def.rotatable = row.GetProperty("rotatable").GetBoolean();
             def.category = Enum.Parse<ThingCategory>(row.GetProperty("category").GetString());
             def.building = new BuildingProperties();
+            def.holdsRoof = row.GetProperty("holdsRoof").GetBoolean();
             string needed = row.GetProperty("terrainAffordance").GetString();
             def.terrainAffordanceNeeded = string.IsNullOrEmpty(needed) ? null : Affordance(needed);
             def.passability = Enum.Parse<Traversability>(row.GetProperty("passability").GetString());
@@ -148,10 +172,11 @@ internal static class Program
             Set(b, "mapIndexOrState", (sbyte)0);
             Set(b, "positionInt", pos + new IntVec3(20, 0, 20));
             Set(b, "rotationInt", rot);
-            bool transmits = name == "HiddenConduit" || name == "Battery" || name == "GravcorePowerCell" || name == "Ship_Beam" || name == "Ship_Reactor" || name == "Ship_CryptosleepCasket";
+            bool transmits = row.GetProperty("transmitsPower").GetBoolean();
             Set(b, "comps", transmits ? new List<ThingComp> { new CompPowerTrader
                 { parent = b, props = new CompProperties_Power { transmitsPower = true } } } : null);
             map.thingGrid.Register(b);
+            if (def.holdsRoof) map.edificeGrid.Register(b);
             buildings.Add(b);
         }
         foreach (Building b in buildings)
@@ -163,6 +188,18 @@ internal static class Program
                 b.def.defName + " does not block another interaction");
         }
         var transmitters = buildings.Where(b => b.TransmitsPowerNow).ToList();
+        string roofPath = path.Replace(".records.json", ".layout.json");
+        if (File.Exists(roofPath))
+        {
+            using var layout = JsonDocument.Parse(File.ReadAllText(roofPath));
+            var roof = Raw<RoofDef>();
+            var grid = (RoofDef[])AccessTools.Field(typeof(RoofGrid), "roofGrid").GetValue(map.roofGrid);
+            var cells = layout.RootElement.GetProperty("roofs").EnumerateArray()
+                .Select(c => new IntVec3(c[0].GetInt32()+20, 0, c[1].GetInt32()+20)).ToList();
+            foreach (var cell in cells) grid[map.cellIndices.CellToIndex(cell)] = roof;
+            foreach (var cell in cells)
+                Check(RoofCollapseUtility.WithinRangeOfRoofHolder(cell, map), Path.GetFileName(path) + " supported roof " + cell);
+        }
         var powerCells = new HashSet<IntVec3>();
         Check(transmitters.All(b => b.OccupiedRect().All(c => powerCells.Add(c))), "no overlapping power transmitters");
         if (transmitters.Count != 0)
@@ -171,6 +208,7 @@ internal static class Program
             Check(net.transmitters.Count == transmitters.Count, "native single connected power net");
         }
         var thrusters = buildings.Where(b => b.def.defName == "SmallThruster" || b.def.defName == "LargeThruster").ToList();
+        if (Path.GetFileName(path) == "WeaponRange.records.json") RangeLayout(buildings, path);
         if (thrusters.Count != 0)
         {
             var report = new ShipPhysics.MassReport { mass = 1000f, inertia = 30000f,
@@ -191,6 +229,7 @@ internal static class Program
                     "training layout has real allocator authority in all six directions");
             }
             if (Path.GetFileName(path) == "TrainingShip.records.json") TrainerStrafe(report, thrusters);
+            if (Path.GetFileName(path) == "PrototypeShip.records.json") FreighterLoads(path, report);
         }
     }
 
@@ -304,7 +343,8 @@ internal static class Program
             var stationary = hostHull.Select(c => c + offset).ToHashSet();
             Check(!placed.Overlaps(stationary), pair + " berth hulls do not overlap");
             Check(!placed.Any(c => GenAdj.CardinalDirections.Any(d => stationary.Contains(c + d))), pair + " no adjacent foundations between ships");
-            var map = Raw<Map>(); map.info = new MapInfo { Size = new IntVec3(100, 1, 70) };
+            var map = Raw<Map>(); map.info = new MapInfo { Size = new IntVec3(placed.Concat(stationary).Max(c => c.x) + 15, 1,
+                placed.Concat(stationary).Max(c => c.z) + 15) };
             map.cellIndices = new CellIndices(map); map.thingGrid = new ThingGrid(map); map.terrainGrid = new TerrainGrid(map);
             Array.Fill(map.terrainGrid.topGrid, TerrainDefOf.Space);
             var foundation = Raw<TerrainDef>(); foundation.isFoundation = true;
@@ -338,7 +378,10 @@ internal static class Program
                 Check(!DeltaVTutorialService.BerthConnected(port, door), "retracted trainer passage is not a usable arrival berth");
                 Current.Game.Maps.Remove(map);
             }
-            var clearance = ShipPocketMapFactory.CompactSize(new IntVec2(45, 21));
+            var hostSize = IntVec2.FromString(host.SelectSingleNode("/MapPrefab/prefab/size").InnerText);
+            var shipSize = IntVec2.FromString(ship.SelectSingleNode("/MapPrefab/prefab/size").InnerText);
+            var clearance = ShipPocketMapFactory.CompactSize(new IntVec2(hostSize.x + DeltaVTutorialService.BerthGap + shipSize.x,
+                Math.Max(hostSize.z, shipSize.z)));
             if (pair.Item1 == "Shipyard") Check(placed.All(c => c.x < clearance.x && c.z < clearance.z), "gift berth fits the real shipyard map");
         }
     }
@@ -516,7 +559,8 @@ internal static class Program
         foreach (TutorialStage stage in Enum.GetValues<TutorialStage>())
         {
             var saved = new TutorialRunState { stage = stage, quest = quest, trainingShipId = 400,
-                forwardTicks = 17, lateralTicks = 30, turnTicks = 4, recoveryDocked = true, comms = comms, berthDoor = berth };
+                forwardTicks = 17, lateralTicks = 30, turnTicks = 4, recoveryDocked = true, comms = comms, berthDoor = berth,
+                rangeConsole = comms, rangeTarget = berth };
             string xml = Scribe.saver.DebugOutputFor(saved);
             string tmp = Path.GetTempFileName();
             try
@@ -537,6 +581,7 @@ internal static class Program
                 Check(loaded.stage == stage && loaded.quest == quest, "native Scribe stage + quest ref " + stage);
                 Check(loaded.colonists != null && loaded.caskets != null, "empty collections survive Scribe " + stage);
                 Check(loaded.comms == comms && loaded.berthDoor == berth, "native Scribe resolves exact comms and berth roles " + stage);
+                Check(loaded.rangeConsole == comms && loaded.rangeTarget == berth, "native Scribe resolves range roles " + stage);
                 Check(loaded.trainingShipId == 400 && loaded.forwardTicks == 17 && loaded.lateralTicks == 30
                     && loaded.turnTicks == 4 && loaded.recoveryDocked, "flight and docking evidence survives Scribe " + stage);
             }

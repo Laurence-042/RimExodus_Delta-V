@@ -90,33 +90,28 @@ namespace DeltaV
             return MapPrefabDocument.Load(ResolveRelativePath(relativePath));
         }
 
-        /// <summary>Shipped tutorial content follows vanilla version-folder priority, using the same document and spawn pipeline.</summary>
-        internal static MapPrefabDocument LoadTutorial(string relativePath)
-        {
-            foreach (string folder in Content.foldersToLoadDescendingOrder)
-            {
-                string path = ResolveWithin(Path.Combine(folder, "TutorialPrefabs"), relativePath);
-                if (File.Exists(path)) return MapPrefabDocument.Load(path);
-            }
-            throw new FileNotFoundException($"Tutorial prefab '{relativePath}' is missing from the loaded content folders.");
-        }
+        // Local exports override shipped content; shipped roots follow vanilla version priority.
+        private static IEnumerable<string> CatalogDirectories => new[] { PrefabDirectory }
+            .Concat(Content.foldersToLoadDescendingOrder.Select(folder => Path.Combine(folder, "Prefabs")))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>递归枚举 Prefabs/ 下全部 prefab 的相对路径（正斜杠分隔，稳定排序）。</summary>
         public static List<string> ListPrefabFiles()
+            => ListPrefabFiles(CatalogDirectories);
+
+        internal static List<string> ListPrefabFiles(IEnumerable<string> directories)
         {
-            string dir = PrefabDirectory;
-            var result = new List<string>();
-            DirectoryInfo info = new DirectoryInfo(dir);
-            if (!info.Exists) return result;
-            string root = Path.GetFullPath(dir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                + Path.DirectorySeparatorChar;
-            foreach (FileInfo file in info.GetFiles("*.xml", SearchOption.AllDirectories))
+            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string dir in directories)
             {
-                string relative = file.FullName.Substring(root.Length);
-                result.Add(relative.Replace(Path.AltDirectorySeparatorChar, '/'));
+                DirectoryInfo info = new DirectoryInfo(dir);
+                if (!info.Exists) continue;
+                string root = info.FullName.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    + Path.DirectorySeparatorChar;
+                foreach (FileInfo file in info.GetFiles("*.xml", SearchOption.AllDirectories))
+                    result.Add(file.FullName.Substring(root.Length).Replace('\\', '/'));
             }
-            result.Sort(StringComparer.Ordinal);
-            return result;
+            return result.OrderBy(path => path, StringComparer.Ordinal).ToList();
         }
 
         /// <summary>
@@ -150,7 +145,17 @@ namespace DeltaV
 
         /// <summary>相对路径 → Prefabs/ 内的绝对路径，带越界防护。</summary>
         private static string ResolveRelativePath(string relativePath)
-            => ResolveWithin(PrefabDirectory, relativePath);
+            => ResolveRelativePath(CatalogDirectories, relativePath);
+
+        internal static string ResolveRelativePath(IEnumerable<string> directories, string relativePath)
+        {
+            foreach (string directory in directories)
+            {
+                string path = ResolveWithin(directory, relativePath);
+                if (File.Exists(path)) return path;
+            }
+            throw new FileNotFoundException($"Map prefab '{relativePath}' is missing from the prefab catalog.");
+        }
 
         internal static string ResolveWithin(string directory, string relativePath)
         {

@@ -1,8 +1,8 @@
 # 教程布局制作源
 
-`build.py` 是唯一布局编辑入口，读取安装版与项目 Def 的尺寸和继承链，解析占地／操作格后由同一份记录输出：
+`build.py` 是生成入口；环形船厂与小货船编辑 `shipyard_layout.py`，武器平台与靶舰编辑 `combat_range_layout.py`。生成器读取安装版与项目 Def 的尺寸和继承链，解析占地／操作格后由同一份记录输出：
 
-- `1.6/TutorialPrefabs/{ArrivalStation,TrainingShip,Salvage,Shipyard,PrototypeShip}.xml`：五份正式可打包 prefab。
+- `1.6/Prefabs/{ArrivalStation,TrainingShip,Salvage,Shipyard,PrototypeShip,WeaponRange,ShieldTarget}.xml`：七份正式可打包 prefab，教程、调试导入与星区池共用同一目录；运行时不调用布局脚本。
 - 同名 `.png`：与 XML 对应的布局图。
 - `Source/obj/TutorialContent/*.records.json`：原版离线检查输入，不入库。
 
@@ -17,6 +17,10 @@ just build
 
 可用 `--data` 指定其他安装目录的 Data。构建依赖 Python Pillow；它只用于制作期示意图，不是 Mod 运行前置。
 
+`--only Shipyard PrototypeShip` 仅重建本轮两份内容。`shipyard.states` 保存其状态原型：原有设施从本地导出摘取并清除外部引用；水培、工作台、ASF 仓储和 EVA 按各自 ExposeData 补齐。每次生成重编号炮塔内部枪与 Verb 引用，最终写出前检查整份资源所有顶层／嵌套 Thing 的数字 ID 唯一及枪械／Verb 一致；不同 Def 前缀不能复用同一数字 ID。弹头／装药分别写入当前库存节点。布局图和 `.layout.json` 同样来自最终记录；月池在地表与基架两层一致，留给现有力场屋顶逻辑处理。
+
+环形船厂与赠船的配置、归属及验收边界见[环形船厂与小型货船](../../doc/教程开局实施计划.md#环形船厂与小型货船2026-11-04)。原版回归从安装版 Def 独立核对交互格布尔值及派生供电组件，并检查实体屋顶支撑、工作台／水培／EVA 容器与虚拟工具 Scribe 和双库存状态。小货船额外以 Def 质量、生产物理常量和货柜内容估算交付／满载钢铁两种质量分布，调用生产分配器验证六方向；假定推进器健康满功率，不执行完整运行时质量扫描或燃料消耗。
+
 布局朝北，编辑位置使用旋转后占地西南格，生成器反求原版 root。Def 继承后的地形承载检查及原版四向／操作格／电网检查使用 `TutorialRegression` 的 1.6 程序集夹具；不运行 Unity 或启动游戏。当前包含移民船前段和阶段 B 操作课程首版；训练船派系／公共属性在生成角色绑定时设置，赠船独立归属。货架含完整筛选存档，回收钢铁为真实 75 件。完整课程继续按[计划](../../doc/教程开局实施计划.md)施工。
 
 教程回归同时覆盖六方向实际推力分配（假设质量 1000、惯量 30000、推进器均可用）、课程阶段及操作事实存档、真实主台公共属性存取、公共船控制／建造／占领权限、原版货架候选搜索和外交通知。地图格可用性、特殊物品筛选与外交消息边界使用夹具；不执行完整 SpawnSetup 或游戏内寻路。具体状态见教程计划。
@@ -27,3 +31,5 @@ just build
 
 
 2026-11-04 教练机改为四台纵向 `LargeThruster` 加两台尾部侧向 `SmallThruster`，氧气泵让开主推脚印；示意图箭头表示推力方向。具体位置与理论课契约见[计划第 12 节](../../doc/教程开局实施计划.md#12-理论课与教练机布局2026-11-04)。推进器排气净空从 Def 读取并与原版 `GetExclusionZone` 对账。新增侧移回归在局部质心 x=12.5～13.5、z=7～8 的九点范围内用真实分配器验证前后主推抵消尾部 RCS 力矩；保持上述质量、惯量和健康设备假设，不替代完整运行时质量测量与飞行手感验收。
+
+试验场使用 `range.states` 的导出原型，由 `combat_range_layout.py` 校正当前枪体、弹仓与护盾状态。单独生成用 `python scripts/TutorialContent/build.py --only WeaponRange ShieldTarget`，离线检查给上述 `TutorialRegression/run.ps1` 添加 `-RangeOnly`。配置、机制与验收边界只维护在[试验场计划](../../doc/教程开局实施计划.md#13-可选武器与护盾试验场2026-11-04)。

@@ -1,0 +1,78 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Defs>
+  <ThingDef Name="DeltaV_RangeTerminalBase" ParentName="AncientTerminalBase" Abstract="True">
+    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
+    <comps>
+      <li Class="CompProperties_Power">
+        <compClass>CompPowerTrader</compClass>
+        <basePowerConsumption>20</basePowerConsumption>
+      </li>
+      <li Class="CompProperties_Usable">
+        <useJob>UseItem</useJob>
+        <useDuration>90</useDuration>
+        <useLabel>Operate shield test terminal</useLabel>
+        <compClass>DeltaV.CompUsable_TutorialShieldTerminal</compClass>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RangeTerminalBase">
+    <defName>DeltaV_RangeTerminal_Unshielded</defName>
+    <label>unshielded reference terminal</label>
+    <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's unshielded reference preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
+        <preset>Unshielded</preset>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RangeTerminalBase">
+    <defName>DeltaV_RangeTerminal_Kinetic</defName>
+    <label>kinetic shield terminal</label>
+    <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's kinetic shield preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
+        <preset>Kinetic</preset>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RangeTerminalBase">
+    <defName>DeltaV_RangeTerminal_Deflection</defName>
+    <label>electromagnetic deflection terminal</label>
+    <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's electromagnetic deflection preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
+        <preset>Deflection</preset>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RangeTerminalBase">
+    <defName>DeltaV_RangeTerminal_Reflection</defName>
+    <label>electromagnetic reflection terminal</label>
+    <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's electromagnetic reflection preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
+        <preset>Reflection</preset>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RangeTerminalBase">
+    <defName>DeltaV_RangeTerminal_GuardSingle</defName>
+    <label>single guard shield terminal</label>
+    <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's single guard shield preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
+        <preset>GuardSingle</preset>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RangeTerminalBase">
+    <defName>DeltaV_RangeTerminal_Guard</defName>
+    <label>cooperative guard shields terminal</label>
+    <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's cooperative guard shields preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
+        <preset>Guard</preset>
+      </li>
+    </comps>
+  </ThingDef>
+</Defs>

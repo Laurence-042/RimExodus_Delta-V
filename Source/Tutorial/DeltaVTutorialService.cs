@@ -128,6 +128,7 @@ namespace DeltaV
             Run.mentors = null;
             Run.berthDoor = null;
             Run.trainingConsole = Run.giftConsole = null;
+            Run.rangeConsole = Run.rangeTarget = null;
             Run.cargoShelf = Run.salvageShelf = null;
             Run.trainingPort = Run.yardPort = null;
             Run.giftEngine = null;

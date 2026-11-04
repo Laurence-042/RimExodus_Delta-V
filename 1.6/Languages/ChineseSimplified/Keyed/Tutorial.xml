@@ -37,8 +37,8 @@
   <DeltaV_Tutorial_FlightSetupFailed>训练场地生成失败，太空生存指导已结束。请查看日志；不要重复生成同一批船。</DeltaV_Tutorial_FlightSetupFailed>
   <DeltaV_Tutorial_TrainingShip>姿态驾驶训练船</DeltaV_Tutorial_TrainingShip>
   <DeltaV_Tutorial_SalvageTarget>教学回收平台</DeltaV_Tutorial_SalvageTarget>
-  <DeltaV_Tutorial_Shipyard>教学船厂</DeltaV_Tutorial_Shipyard>
-  <DeltaV_Tutorial_PrototypeShip>逆重原型船</DeltaV_Tutorial_PrototypeShip>
+  <DeltaV_Tutorial_Shipyard>星界边境环形船厂</DeltaV_Tutorial_Shipyard>
+  <DeltaV_Tutorial_PrototypeShip>小型货运飞船</DeltaV_Tutorial_PrototypeShip>
   <DeltaV_Tutorial_CargoShelf>训练船回收货架</DeltaV_Tutorial_CargoShelf>
   <DeltaV_Tutorial_TrainingAccessLost>公共训练船已无法使用，驾驶指导结束。已生成的人物、设施与物资仍然保留。</DeltaV_Tutorial_TrainingAccessLost>
   <DeltaV_Tutorial_BerthUnavailable>泊口对接通道未能建立，太空生存指导已结束。请查看日志。</DeltaV_Tutorial_BerthUnavailable>

@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<LanguageData>
+  <DeltaV_RangeTerminal_Unshielded.label>无盾参照试验终端</DeltaV_RangeTerminal_Unshielded.label>
+  <DeltaV_RangeTerminal_Unshielded.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为无盾参照预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_Unshielded.description>
+  <DeltaV_RangeTerminal_Kinetic.label>动能护盾试验终端</DeltaV_RangeTerminal_Kinetic.label>
+  <DeltaV_RangeTerminal_Kinetic.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为动能护盾预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_Kinetic.description>
+  <DeltaV_RangeTerminal_Deflection.label>电磁偏转试验终端</DeltaV_RangeTerminal_Deflection.label>
+  <DeltaV_RangeTerminal_Deflection.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为电磁偏转预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_Deflection.description>
+  <DeltaV_RangeTerminal_Reflection.label>电磁反射试验终端</DeltaV_RangeTerminal_Reflection.label>
+  <DeltaV_RangeTerminal_Reflection.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为电磁反射预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_Reflection.description>
+  <DeltaV_RangeTerminal_GuardSingle.label>单台守卫试验终端</DeltaV_RangeTerminal_GuardSingle.label>
+  <DeltaV_RangeTerminal_GuardSingle.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为单台守卫预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_GuardSingle.description>
+  <DeltaV_RangeTerminal_Guard.label>协同守卫试验终端</DeltaV_RangeTerminal_Guard.label>
+  <DeltaV_RangeTerminal_Guard.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为协同守卫预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_Guard.description>
+</LanguageData>

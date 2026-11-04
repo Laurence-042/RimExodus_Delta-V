@@ -4,7 +4,7 @@ using Verse;
 
 namespace DeltaV
 {
-    internal enum TutorialStage { AwaitingWake, Welcome, Contact, Inquiry, Briefing, PreparingFlight, Design, Flight, Salvage, SoftDock, Visit, Ended }
+    internal enum TutorialStage { AwaitingWake, Welcome, Contact, Inquiry, Briefing, PreparingFlight, Design, Flight, Range, Salvage, SoftDock, Visit, Ended }
 
     // One persistent course record; QuestPart holds only vanilla quest activation state.
     internal sealed class TutorialRunState : IExposable
@@ -19,6 +19,7 @@ namespace DeltaV
         internal Faction mentors;
         internal Building_Door berthDoor;
         internal Thing trainingConsole, giftConsole;
+        internal Thing rangeConsole, rangeTarget;
         internal Building_Storage cargoShelf, salvageShelf;
         internal Building_DockingPort trainingPort, yardPort;
         internal Building_GravEngine giftEngine;
@@ -39,6 +40,8 @@ namespace DeltaV
             Scribe_References.Look(ref berthDoor, "berthDoor");
             Scribe_References.Look(ref trainingConsole, "trainingConsole");
             Scribe_References.Look(ref giftConsole, "giftConsole");
+            Scribe_References.Look(ref rangeConsole, "rangeConsole");
+            Scribe_References.Look(ref rangeTarget, "rangeTarget");
             Scribe_References.Look(ref cargoShelf, "cargoShelf");
             Scribe_References.Look(ref salvageShelf, "salvageShelf");
             Scribe_References.Look(ref trainingPort, "trainingPort");

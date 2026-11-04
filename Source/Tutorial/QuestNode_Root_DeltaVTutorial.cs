@@ -24,6 +24,7 @@ namespace DeltaV
             AddDialog(quest, TutorialStage.Briefing, "StartFlight", "DeltaV_Tutorial_StartFlight");
             AddDialog(quest, TutorialStage.Design, "StartPractice", "DeltaV_Tutorial_StartPractice");
             AddDialog(quest, TutorialStage.Flight, "CheckFlight", "DeltaV_Tutorial_CheckFlight");
+            AddDialog(quest, TutorialStage.Range, "ContinueAfterRange", "DeltaV_Range_Continue");
             AddDialog(quest, TutorialStage.Salvage, "CheckSalvage", "DeltaV_Tutorial_CheckSalvage");
             AddDialog(quest, TutorialStage.SoftDock, "CheckSoftDock", "DeltaV_Tutorial_CheckSoftDock");
             AddDialog(quest, TutorialStage.Visit, "AcceptShip", "DeltaV_Tutorial_AcceptShip");

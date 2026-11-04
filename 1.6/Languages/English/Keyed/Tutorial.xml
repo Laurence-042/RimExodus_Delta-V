@@ -37,8 +37,8 @@
   <DeltaV_Tutorial_FlightSetupFailed>The training course could not be prepared. Space survival guidance has ended. Check the log; do not generate duplicate ships.</DeltaV_Tutorial_FlightSetupFailed>
   <DeltaV_Tutorial_TrainingShip>Attitude training ship</DeltaV_Tutorial_TrainingShip>
   <DeltaV_Tutorial_SalvageTarget>Training recovery platform</DeltaV_Tutorial_SalvageTarget>
-  <DeltaV_Tutorial_Shipyard>Training shipyard</DeltaV_Tutorial_Shipyard>
-  <DeltaV_Tutorial_PrototypeShip>Gravship prototype</DeltaV_Tutorial_PrototypeShip>
+  <DeltaV_Tutorial_Shipyard>Astral Frontier ring shipyard</DeltaV_Tutorial_Shipyard>
+  <DeltaV_Tutorial_PrototypeShip>Small cargo gravship</DeltaV_Tutorial_PrototypeShip>
   <DeltaV_Tutorial_CargoShelf>Training ship recovery shelf</DeltaV_Tutorial_CargoShelf>
   <DeltaV_Tutorial_TrainingAccessLost>The public training ship is no longer available to you. Flight instruction has ended. Existing people, facilities and supplies remain.</DeltaV_Tutorial_TrainingAccessLost>
   <DeltaV_Tutorial_BerthUnavailable>The berth docking passage could not be established. Space survival guidance has ended; check the log.</DeltaV_Tutorial_BerthUnavailable>

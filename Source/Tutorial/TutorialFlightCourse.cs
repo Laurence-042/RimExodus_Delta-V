@@ -5,6 +5,7 @@ using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
 using Verse;
+using Verse.AI.Group;
 
 namespace DeltaV
 {
@@ -24,6 +25,8 @@ namespace DeltaV
             yield return Run.yardPort;
             yield return Run.giftConsole;
             yield return Run.giftEngine;
+            yield return Run.rangeConsole;
+            yield return Run.rangeTarget;
         }
 
         private bool CheckFlightAssets()
@@ -69,7 +72,12 @@ namespace DeltaV
                     || !ColonistAboard(ship))
                     Messages.Message("DeltaV_Tutorial_FlightProgress".Translate(Run.forwardTicks, Run.lateralTicks, Run.turnTicks),
                         Run.trainingConsole, MessageTypeDefOf.RejectInput, false);
-                else AdvanceFlight(TutorialStage.Salvage);
+                else AdvanceFlight(TutorialStage.Range);
+                return true;
+            }
+            if (Run.stage == TutorialStage.Range && tag == Signal(Run.quest, "ContinueAfterRange"))
+            {
+                AdvanceFlight(TutorialStage.Salvage);
                 return true;
             }
             if (Run.stage == TutorialStage.Salvage && tag == Signal(Run.quest, "CheckSalvage"))
@@ -146,7 +154,7 @@ namespace DeltaV
         {
             try
             {
-                var training = MapPrefab.LoadTutorial("TrainingShip.xml");
+                var training = MapPrefab.LoadRelative("TrainingShip.xml");
                 if (Run.berthDoor?.Spawned != true || Run.berthDoor.Map != Run.station)
                     throw new InvalidOperationException("Tutorial boarding berth is missing.");
                 SpaceObject station = universe.FrameOf(Run.station);
@@ -178,9 +186,9 @@ namespace DeltaV
             try
             {
                 // Resolve every required document before mutating the player's station.
-                var salvage = MapPrefab.LoadTutorial("Salvage.xml");
-                var yard = MapPrefab.LoadTutorial("Shipyard.xml");
-                var gift = MapPrefab.LoadTutorial("PrototypeShip.xml");
+                var salvage = MapPrefab.LoadRelative("Salvage.xml");
+                var yard = MapPrefab.LoadRelative("Shipyard.xml");
+                var gift = MapPrefab.LoadRelative("PrototypeShip.xml");
                 SpaceObject station = universe.FrameOf(Run.station);
                 Map salvageMap = CreateRemoteCourseMap(ShipPocketMapFactory.CompactSize(salvage.size), station, 0f);
                 var salvageThings = SpawnCoursePrefab(salvage, salvageMap, new IntVec3(12, 0, 12), "DeltaV_Tutorial_SalvageTarget");
@@ -188,14 +196,22 @@ namespace DeltaV
                 ConfigureCargo(Run.salvageShelf, StoragePriority.Low);
                 Map yardMap = CreateRemoteCourseMap(ShipPocketMapFactory.CompactSize(new IntVec2(yard.size.x + BerthGap + gift.size.x, Math.Max(yard.size.z, gift.size.z))), station, 180f);
                 SpacePose yardPose = universe.FrameOf(yardMap).pose;
-                var yardThings = SpawnCoursePrefab(yard, yardMap, new IntVec3(12, 0, 12), "DeltaV_Tutorial_Shipyard");
+                var yardThings = SpawnCoursePrefab(yard, yardMap, new IntVec3(12, 0, 12), "DeltaV_Tutorial_Shipyard", Run.mentors);
+                var crew = yardMap.mapPawns.SpawnedPawnsInFaction(Run.mentors).ToList();
+                int expectedCrew = yard.thingEntries.Count(e => e.def.HasComp(typeof(CompPrefabPawnSpawner)));
+                if (crew.Count != expectedCrew || expectedCrew == 0)
+                    throw new InvalidOperationException($"Tutorial shipyard crew incomplete: {crew.Count}/{expectedCrew}.");
+                // Persistent native duty allows food and rest without a visitor departure timer.
+                LordMaker.MakeNewLord(Run.mentors, new LordJob_DefendPoint(new IntVec3(12 + yard.size.x / 2, 0, 12 + yard.size.z / 2),
+                    wanderRadius: 50f, defendRadius: 60f, addFleeToil: false), yardMap, crew);
                 Run.yardPort = yardThings.OfType<Building_DockingPort>().Single(p => p.Rotation == Rot4.West);
                 Building_DockingPort giftBerth = yardThings.OfType<Building_DockingPort>().Single(p => p.Rotation == Rot4.East);
                 Map giftMap = CreateCourseMap(ShipPocketMapFactory.CompactSize(gift.size), yardPose);
                 var giftThings = SpawnCoursePrefab(gift, giftMap, new IntVec3(12, 0, 12), "DeltaV_Tutorial_PrototypeShip");
                 Run.giftConsole = giftThings.Single(t => t.TryGetComp<CompDeltaVPilotConsole>() != null);
                 Run.giftEngine = giftThings.OfType<Building_GravEngine>().Single();
-                Building_DockingPort giftPort = giftThings.OfType<Building_DockingPort>().Single();
+                CreateCombatRange(station);
+                Building_DockingPort giftPort = giftThings.OfType<Building_DockingPort>().Single(p => p.Rotation == Rot4.West);
                 HardDockForCourse(giftPort, giftBerth);
                 // Vanilla GravEngine has no power switch: no launch is ordered; normal player control remains available.
                 ShipBase giftShip = ShipRegistry.ShipOf(Run.giftConsole), yardShip = ShipRegistry.ShipOf(Run.yardPort);
@@ -286,7 +302,10 @@ namespace DeltaV
             int ownerId = universe.AllocateOwnerId();
             var things = MapPrefab.Spawn(doc, map, root - PrefabUtility.GetRoot(IntVec3.Zero, doc.size, Rot4.North),
                 faction ?? Faction.OfPlayer, ownerId, Rot4.North, universe);
-            if (things.Count != doc.thingEntries.Count) throw new InvalidOperationException("Incomplete tutorial prefab: " + doc.name);
+            // Successful markers replace themselves with pawns outside the returned Thing list.
+            int persistentCount = doc.thingEntries.Count(e => !e.def.comps.Any(c => typeof(CompPrefabMarker).IsAssignableFrom(c.compClass)));
+            if (things.Count != persistentCount || things.Any(t => t.TryGetComp<CompPrefabMarker>() != null))
+                throw new InvalidOperationException("Incomplete tutorial prefab: " + doc.name);
             foreach (Thing thing in things)
                 if (thing.TryGetComp<CompDeltaVPilotConsole>() is CompDeltaVPilotConsole console
                     && (console.shipId != ownerId || !console.isMain))
@@ -302,7 +321,7 @@ namespace DeltaV
             foreach (var foundation in doc.foundations)
             {
                 IntVec3 cell = root + foundation.pos;
-                map.areaManager.Home[cell] = true;
+                if ((faction ?? Faction.OfPlayer) == Faction.OfPlayer) map.areaManager.Home[cell] = true;
                 map.fogGrid.Unfog(cell);
             }
             foreach (Thing console in things.Where(t => t.TryGetComp<CompDeltaVPilotConsole>() != null))
