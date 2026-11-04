@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_Tutorial_Title>轨道殖民者入站培训</DeltaV_Tutorial_Title>
+  <DeltaV_Tutorial_Description>你已经抵达目标星球。先来的殖民者在轨道上建好了空间站，并派人迎接你。接下来要学会在太空生活、维护设备和驾驶飞船。选中殖民者或站内设施，点击“入站指导”可重新打开当前讲解。</DeltaV_Tutorial_Description>
+  <DeltaV_Tutorial_Stage_AwaitingWake>准备打开休眠舱。</DeltaV_Tutorial_Stage_AwaitingWake>
+  <DeltaV_Tutorial_Stage_Welcome>听取前辈的欢迎说明。</DeltaV_Tutorial_Stage_Welcome>
+  <DeltaV_Tutorial_Stage_Briefing>让醒来的殖民者到中央餐桌附近，打开“入站指导”向前辈报到。</DeltaV_Tutorial_Stage_Briefing>
+  <DeltaV_Tutorial_Stage_ReadyForTraining>入站报到已完成。生活区和补给可供使用；殖民者可以先安排休息、饮食和工作。后续课程尚未开始。</DeltaV_Tutorial_Stage_ReadyForTraining>
+  <DeltaV_Tutorial_Stage_Ended>入站指导已结束。</DeltaV_Tutorial_Stage_Ended>
+  <DeltaV_Tutorial_Dialog_Welcome>醒了？先别急着站起来，冷冻休眠后的恶心是正常的。\n\n没走错。这里就是你出发时选定的星球，我们比你早到了一些，空间站也已经建好了。\n\n地表可不适合安家：虫族、机械体、见人就打的猪人，还有 Horax 邪教和那些暗黑超凡智能。我们试过了，还是住在太空里舒服。你不妨也留下来。</DeltaV_Tutorial_Dialog_Welcome>
+  <DeltaV_Tutorial_Dialog_Briefing>床铺、氧气和第一批口粮都准备好了。先照顾好身体，缓过来了就到中间的餐桌旁报到。\n\n你是来殖民的，大家也都得劳动。以后开船、修船、设计自己的船，都得会一点。训练从基架和推进器开始，接着认识武器与护盾，再去回收物资。\n\n想再听一遍，选中你的人或站里的设施，打开“入站指导”就行。</DeltaV_Tutorial_Dialog_Briefing>
+  <DeltaV_Tutorial_Dialog_ReadyForTraining>报到记下了。\n\n你住的这片区域已经交给你使用，补给也放在桌边。先安排吃饭、休息和工作；刚醒来的人不需要立刻上岗。</DeltaV_Tutorial_Dialog_ReadyForTraining>
+  <DeltaV_Tutorial_AcceptWelcome>先看看住处。</DeltaV_Tutorial_AcceptWelcome>
+  <DeltaV_Tutorial_Report>我来报到了。</DeltaV_Tutorial_Report>
+  <DeltaV_Tutorial_Leave>结束入站指导，自己安排。</DeltaV_Tutorial_Leave>
+  <DeltaV_Tutorial_Open>入站指导</DeltaV_Tutorial_Open>
+  <DeltaV_Tutorial_OpenDesc>听取或重听当前讲解，查看下一步要求。</DeltaV_Tutorial_OpenDesc>
+  <DeltaV_Tutorial_Targets>查看报到地点和殖民者</DeltaV_Tutorial_Targets>
+  <DeltaV_Tutorial_ComeToBriefing>先让一名可以行动的殖民者来到中央餐桌附近。</DeltaV_Tutorial_ComeToBriefing>
+  <DeltaV_Tutorial_MissingArrival>休眠区或起始殖民者数据缺失，入站指导无法继续。</DeltaV_Tutorial_MissingArrival>
+  <DeltaV_Tutorial_WakeFailed>殖民者未能正常离开休眠舱，入站指导已中止。请检查休眠区。</DeltaV_Tutorial_WakeFailed>
+  <DeltaV_Tutorial_BriefingLost>报到地点已被移除，入站指导无法继续。</DeltaV_Tutorial_BriefingLost>
+</LanguageData>

@@ -31,8 +31,9 @@ namespace DeltaV
                 bool wasFrozen = universe?.Lifecycle.IsDormant(value) == true;
                 if (wasFrozen)
                     universe.Lifecycle.Wake(value, "entering map (CurrentMap switch)");
-                // 冻结期间的脏 section 不会由 MapUpdate 重建；进入容器图前恢复画面。
-                if (wasFrozen || universe?.SpaceObjectOnMap(value) != null)
+                // 新档/读档的 setter 可在后台线程运行；Map.FinalizeInit 已安排主线程初次重建。
+                // 运行时切图仍立即恢复冻结期间的脏 section，不能在后台创建材质和网格。
+                if (UnityData.IsInMainThread && (wasFrozen || universe?.SpaceObjectOnMap(value) != null))
                     value.mapDrawer.RegenerateEverythingNow();
             }
             // MapUI 会在 setter 内恢复新图记忆的镜头；先按目标图设置上限。

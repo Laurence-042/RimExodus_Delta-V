@@ -1,0 +1,100 @@
+<?xml version='1.0' encoding='utf-8'?>
+<prototypes>
+  <saveable Class="Building">
+    <def>GravshipHull</def>
+    <health>420</health>
+    <stuff>Steel</stuff>
+    <beenRevealed>True</beenRevealed>
+  </saveable>
+  <saveable Class="Building_Door">
+    <def>Door</def>
+    <health>160</health>
+    <stuff>Steel</stuff>
+    <beenRevealed>True</beenRevealed>
+    <lastFriendlyTouchTick>-9999</lastFriendlyTouchTick>
+    <approachingPawn>null</approachingPawn>
+  </saveable>
+  <saveable Class="Building_CryptosleepCasket">
+    <def>CryptosleepCasket</def>
+    <health>250</health>
+    <innerContainer Class="Verse.ThingOwner`1[Verse.Thing]">
+      <innerList />
+    </innerContainer>
+  </saveable>
+  <saveable Class="Building_Bed">
+    <def>Bed</def>
+    <health>140</health>
+    <stuff>Steel</stuff>
+    <beenRevealed>True</beenRevealed>
+    <assignedPawns />
+    <uninstalledAssignedPawns />
+    <quality>Good</quality>
+    <taleRef IsNull="True" />
+    <alreadySetDefaultMed>True</alreadySetDefaultMed>
+  </saveable>
+  <saveable Class="Building">
+    <def>PilotConsole</def>
+    <health>150</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>Table2x2c</def>
+    <health>100</health>
+    <stuff>Steel</stuff>
+    <beenRevealed>True</beenRevealed>
+    <quality>Good</quality>
+    <sourcePrecept>null</sourcePrecept>
+  </saveable>
+  <saveable Class="Building">
+    <def>DiningChair</def>
+    <health>100</health>
+    <stuff>Steel</stuff>
+    <beenRevealed>True</beenRevealed>
+    <quality>Good</quality>
+    <taleRef IsNull="True" />
+    <sourcePrecept>null</sourcePrecept>
+  </saveable>
+  <saveable Class="Building">
+    <def>GravcorePowerCell</def>
+    <health>200</health>
+    <parentThing>null</parentThing>
+    <onSubstructure>True</onSubstructure>
+  </saveable>
+  <saveable Class="Building_Battery">
+    <def>Battery</def>
+    <health>100</health>
+    <parentThing>null</parentThing>
+    <storedPower>600</storedPower>
+    <stunHandler>
+      <showStunMote>True</showStunMote>
+      <adaptationTicksLeft>
+        <keys />
+        <values />
+      </adaptationTicksLeft>
+    </stunHandler>
+  </saveable>
+  <saveable Class="Building">
+    <def>OxygenPump</def>
+    <health>80</health>
+    <parentThing>null</parentThing>
+  </saveable>
+  <saveable Class="Building_Heater">
+    <def>Heater</def>
+    <health>100</health>
+    <parentThing>null</parentThing>
+    <targetTemperature>21</targetTemperature>
+    <glowOn>True</glowOn>
+  </saveable>
+  <saveable Class="Building">
+    <def>StandingLamp</def>
+    <health>50</health>
+    <beenRevealed>True</beenRevealed>
+    <parentThing>null</parentThing>
+    <sourcePrecept>null</sourcePrecept>
+    <glowOn>True</glowOn>
+  </saveable>
+  <saveable Class="Building">
+    <def>HiddenConduit</def>
+    <health>100</health>
+    <parentThing>null</parentThing>
+  </saveable>
+</prototypes>

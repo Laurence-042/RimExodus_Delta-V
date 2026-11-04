@@ -3,3 +3,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("NpcRetreatRegression")]
 
 [assembly: InternalsVisibleTo("RailgunRegression")]
+[assembly: InternalsVisibleTo("TutorialRegression")]

@@ -1,5 +1,7 @@
 # 开发脚本索引
 
+教程内容由 [`TutorialContent/build.py`](TutorialContent/README.md) 生成正式 prefab 与同源布局图；`TutorialRegression/run.ps1` 使用 1.6 实际程序集验证占地／四向、操作格、电网、课程存档与信号边界、空休眠舱实例化及资源路径，不替代新档游戏内验收。
+
 这些脚本不随游戏执行，也不影响游戏性能。标准构建入口是根目录的 `just build`（1.7）及 `just build 1.6`；共同地图能力的 1.7 回归走 `just test-ref`。保留 1.6 支持期间，不能仅因脚本引用 Unity 或 `Assembly-CSharp.dll` 就认定无用。
 
 | 入口 | 用途与边界 |

@@ -10,6 +10,13 @@
 
 我方跳帮艇撞入敌舰后再起飞，似乎会被视为敌对单位被我方导弹追着打？
 
+## 教程开局
+
+实施顺序与完成状态见[计划](教程开局实施计划.md)。
+
+- [ ] 欢迎／报到／报到完成分别存读档；人物和补给不重复生成，任务状态与目标保留；结束指导保留人物、空间站和盟友。进入开发测试场景后旧教程正常结束。
+- [ ] 按计划继续阶段 B～D：RCS 训练船、硬对接回收、静止船厂与软对接、参观赠船，以及武器／护盾、维护设计课和前辈带路。当前入口只覆盖阶段 A，不算完整教程。
+
 ## 星区模型（见 [星区架构.md](星区架构.md)）
 
 实测完成
@@ -39,7 +46,6 @@
 - **抽公共库**：点击聚焦交互层（星球仪图标 + 世界视图剪影 + 悬停信息）后续抽公共库；随 RimExodus 拾取结论一并沉淀——原版 GenWorldUI 四段拾取、`ScreenPointToRay`+`WorldLayerMask` 射线、`HiddenBehindTerrainNow` 地平线剔除、`CurrentMap` setter 缩放同步；与 RimExodus「useDynamicDrawer 真对象」路线的取舍（不进原版世界选择面板）见 `WorldShipMarkerRenderer.TryGetScreenPosition` 注释。
 - 外壳代理不重放 LightingOverlay/雾/动态物件（夜间全亮、看不到敌舰船内 Pawn）。
 - 普通飞船 Pawn/散装货物质量计入质量模型（shuttle 的 CompTransporter 载重已计入）。
-- 非测试场景的正式玩法入口。
 
 
 ## 空间站交易（实现与实测见 [空间站交易与货柜](空间站交易与货柜.md)）

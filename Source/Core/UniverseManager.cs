@@ -104,6 +104,10 @@ namespace DeltaV
 
         public ShipControlService Controls => controls ?? (controls = new ShipControlService(this));
 
+        internal TutorialRunState tutorialRun;
+        [NonSerialized] private DeltaVTutorialService tutorial;
+        internal DeltaVTutorialService Tutorial => tutorial ?? (tutorial = new DeltaVTutorialService(this));
+
         [NonSerialized] private GlobeDisplayInfo globeDisplay;
         internal GlobeDisplayInfo GlobeDisplay => globeDisplay ?? (globeDisplay = new GlobeDisplayInfo());
 
@@ -607,6 +611,7 @@ namespace DeltaV
             {
                 SectorContentService.EnsureSectorGenerated(this, current.Tile);
             }
+            if (tutorialRun != null) Tutorial.Resume();
         }
 
         public override void ExposeData()
@@ -640,6 +645,7 @@ namespace DeltaV
                 objectByMap = null;
             }
             Scribe_Collections.Look(ref generatedSectorTiles, "generatedSectorTiles", LookMode.Value);
+            Scribe_Deep.Look(ref tutorialRun, "tutorial");
             Scribe_Values.Look(ref SoftDockEnabled, "softDockEnabled", false);
             Scribe_Values.Look(ref ShowThrusterDebugOverlay, "showThrusterDebugOverlay", false);
             Scribe_Values.Look(ref ShowCoordinateGrid, "showCoordinateGrid", true);
@@ -714,6 +720,7 @@ namespace DeltaV
             Controls.Rebuild();
             if (SoftDockEnabled) SoftDock.RestoreEnabled();
             ApplyCameraZoomScope();
+            if (tutorialRun != null) Tutorial.Resume();
         }
 
         /// <summary>
@@ -1179,6 +1186,7 @@ namespace DeltaV
         {
             if (IsResettingScene) return;
             Find.TickManager.Pause();
+            if (tutorialRun != null) Tutorial.EndForSceneReset();
             sceneResetSteps = new Queue<Action>();
             sceneResetSteps.Enqueue(() =>
             {
@@ -1245,6 +1253,7 @@ namespace DeltaV
             softDock = null;
             stationTrade = null;
             worksites = null;
+            tutorial = null;
             npcShips = null;
             globeDisplay?.Clear();
             globeDisplay = null;

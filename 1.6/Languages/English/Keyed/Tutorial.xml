@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_Tutorial_Title>Orbital colonist induction</DeltaV_Tutorial_Title>
+  <DeltaV_Tutorial_Description>You have reached your destination. Earlier colonists built this orbital station and sent a representative to welcome you. Your next task is learning to live, maintain equipment and pilot ships in space. Select a colonist or station building and use “Induction” to reopen the current briefing.</DeltaV_Tutorial_Description>
+  <DeltaV_Tutorial_Stage_AwaitingWake>Preparing to open the cryptosleep casket.</DeltaV_Tutorial_Stage_AwaitingWake>
+  <DeltaV_Tutorial_Stage_Welcome>Listen to your predecessor's welcome.</DeltaV_Tutorial_Stage_Welcome>
+  <DeltaV_Tutorial_Stage_Briefing>Bring your awakened colonist to the central dining table, then open “Induction” to report in.</DeltaV_Tutorial_Stage_Briefing>
+  <DeltaV_Tutorial_Stage_ReadyForTraining>Arrival registration is complete. The living quarters and supplies are available. Arrange rest, meals and work for your colonist. Further lessons have not begun.</DeltaV_Tutorial_Stage_ReadyForTraining>
+  <DeltaV_Tutorial_Stage_Ended>Induction has ended.</DeltaV_Tutorial_Stage_Ended>
+  <DeltaV_Tutorial_Dialog_Welcome>Awake? Take your time getting up. Nausea after cryptosleep is normal.\n\nYes, this is the planet you set out for. We arrived a little earlier and have already built the station.\n\nThe surface is a dreadful place to settle: insects, mechanoids, aggressive pig people, Horax cultists and those dark archotechs. We tried it. Life in orbit suits us better. You are welcome to stay.</DeltaV_Tutorial_Dialog_Welcome>
+  <DeltaV_Tutorial_Dialog_Briefing>A bed, oxygen and your first rations are ready. Take care of yourself, then come to the central table to report in.\n\nYou came here as a colonist, and everyone contributes. Flying, maintaining and designing ships will all be part of life here. Training will cover foundations and thrusters, weapons and shields, then salvage.\n\nSelect your colonist or a station building and open “Induction” whenever you need to hear the briefing again.</DeltaV_Tutorial_Dialog_Briefing>
+  <DeltaV_Tutorial_Dialog_ReadyForTraining>You are registered.\n\nThese quarters and the supplies beside the table are yours to use. Arrange meals, rest and work first. Nobody needs to start a shift immediately after waking from cryptosleep.</DeltaV_Tutorial_Dialog_ReadyForTraining>
+  <DeltaV_Tutorial_AcceptWelcome>Let me see my quarters.</DeltaV_Tutorial_AcceptWelcome>
+  <DeltaV_Tutorial_Report>I'm here to report in.</DeltaV_Tutorial_Report>
+  <DeltaV_Tutorial_Leave>End induction and make my own arrangements.</DeltaV_Tutorial_Leave>
+  <DeltaV_Tutorial_Open>Induction</DeltaV_Tutorial_Open>
+  <DeltaV_Tutorial_OpenDesc>Hear the current briefing again and review the next step.</DeltaV_Tutorial_OpenDesc>
+  <DeltaV_Tutorial_Targets>View the briefing point and colonist</DeltaV_Tutorial_Targets>
+  <DeltaV_Tutorial_ComeToBriefing>Bring a colonist who can move to the central dining table first.</DeltaV_Tutorial_ComeToBriefing>
+  <DeltaV_Tutorial_MissingArrival>The cryosleep area or starting-colonist data is missing. Induction cannot continue.</DeltaV_Tutorial_MissingArrival>
+  <DeltaV_Tutorial_WakeFailed>Your colonist could not leave the casket. Induction has stopped; check the cryosleep area.</DeltaV_Tutorial_WakeFailed>
+  <DeltaV_Tutorial_BriefingLost>The briefing point has been removed. Induction cannot continue.</DeltaV_Tutorial_BriefingLost>
+</LanguageData>

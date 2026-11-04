@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ScenPartDef>
+    <defName>DeltaV_TutorialArrival</defName>
+    <label>awaken at the orbital colony</label>
+    <category>Fixed</category>
+    <scenPartClass>DeltaV.ScenPart_DeltaVTutorialArrival</scenPartClass>
+    <canBeRandomlyAdded>false</canBeRandomlyAdded>
+    <canBePlayerAddedRemoved>false</canBePlayerAddedRemoved>
+    <maxUses>1</maxUses>
+  </ScenPartDef>
+  <MapGeneratorDef ParentName="SpaceMapGenerator">
+    <defName>DeltaV_TutorialStation</defName>
+    <label>orbital arrival station</label>
+    <genSteps Inherit="False">
+      <li>Space</li>
+      <li>DeltaV_TutorialStation</li>
+      <li>ScenParts</li>
+      <li>FogSpace</li>
+    </genSteps>
+  </MapGeneratorDef>
+  <GenStepDef>
+    <defName>DeltaV_TutorialStation</defName>
+    <order>200</order>
+    <genStep Class="DeltaV.GenStep_DeltaVTutorialStation" />
+  </GenStepDef>
+  <QuestScriptDef>
+    <defName>DeltaV_ColonistTraining</defName>
+    <label>an orbital beginning</label>
+    <root Class="DeltaV.QuestNode_Root_DeltaVTutorial" />
+    <autoAccept>true</autoAccept>
+    <randomlySelectable>false</randomlySelectable>
+    <sendAvailableLetter>false</sendAvailableLetter>
+    <endOnColonyMove>false</endOnColonyMove>
+    <everAcceptableInSpace>true</everAcceptableInSpace>
+  </QuestScriptDef>
+  <!-- Created by this scenario only; do not add a faction to ordinary worlds. -->
+  <FactionDef ParentName="OutlanderFactionBase">
+    <defName>DeltaV_OrbitalPioneers</defName>
+    <label>orbital pioneers</label>
+    <description>Earlier colonists who built a life in orbit. They welcome new arrivals, and expect everyone to contribute.</description>
+    <requiredCountAtGameStart>0</requiredCountAtGameStart>
+    <maxConfigurableAtWorldCreation>0</maxConfigurableAtWorldCreation>
+    <settlementGenerationWeight>0</settlementGenerationWeight>
+    <basicMemberKind>Villager</basicMemberKind>
+    <layerWhitelist><li>Orbit</li></layerWhitelist>
+  </FactionDef>
+  <ScenarioDef ParentName="ScenarioBase">
+    <defName>DeltaV_OrbitalColonists</defName>
+    <label>Orbital colonists</label>
+    <description>You have reached the right planet. Earlier colonists have built a station and are waiting to welcome you out of cryptosleep. The surface is dangerous; your new home is in orbit, and everyone must learn to pull their weight.</description>
+    <scenario>
+      <summary>One colonist awakens at an established orbital station.</summary>
+      <playerFaction><factionDef>GravshipCrew</factionDef></playerFaction>
+      <parts Inherit="False">
+        <li Class="ScenPart_PlanetLayer">
+          <def>PlanetLayerFixed</def><tag>Orbit</tag><layer>Orbit</layer><settingsDef>Orbit</settingsDef><hide>true</hide>
+          <connections><Surface><zoomMode>ZoomIn</zoomMode></Surface></connections>
+        </li>
+        <li Class="ScenPart_ConfigPage_ConfigureStartingPawns">
+          <def>ConfigPage_ConfigureStartingPawns</def><pawnCount>1</pawnCount><pawnChoiceCount>8</pawnChoiceCount>
+          <allowedDevelopmentalStages>Adult</allowedDevelopmentalStages>
+        </li>
+        <li Class="ScenPart_ForcedMap">
+          <def>ForcedMap</def><mapGenerator>DeltaV_TutorialStation</mapGenerator><layerDef>Orbit</layerDef>
+        </li>
+        <li Class="DeltaV.ScenPart_DeltaVTutorialArrival"><def>DeltaV_TutorialArrival</def></li>
+        <li Class="ScenPart_CreateQuest"><def>CreateQuest</def><questDef>DeltaV_ColonistTraining</questDef></li>
+        <li Class="ScenPart_StartingResearch"><def>StartingResearch</def><project>BasicGravtech</project></li>
+        <li Class="ScenPart_StartingResearch"><def>StartingResearch</def><project>OrbitalTech</project></li>
+        <li Class="ScenPart_StartingThing_Defined"><def>StartingThing_Defined</def><thingDef>MealSurvivalPack</thingDef><count>30</count></li>
+        <li Class="ScenPart_StartingThing_Defined"><def>StartingThing_Defined</def><thingDef>MedicineIndustrial</thingDef><count>10</count></li>
+        <li Class="ScenPart_StartingThing_Defined"><def>StartingThing_Defined</def><thingDef>Steel</thingDef><count>300</count></li>
+        <li Class="ScenPart_StartingThing_Defined"><def>StartingThing_Defined</def><thingDef>ComponentIndustrial</thingDef><count>30</count></li>
+        <li Class="ScenPart_StartingThing_Defined"><def>StartingThing_Defined</def><thingDef>Apparel_Vacsuit</thingDef><count>1</count></li>
+        <li Class="ScenPart_StartingThing_Defined"><def>StartingThing_Defined</def><thingDef>Apparel_VacsuitHelmet</thingDef><count>1</count></li>
+      </parts>
+    </scenario>
+  </ScenarioDef>
+</Defs>

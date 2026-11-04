@@ -44,21 +44,15 @@ namespace DeltaV
             return root - PrefabUtility.GetRoot(IntVec3.Zero, doc.size, rotation);
         }
 
-        /// <summary>与 About.xml 的 packageId 保持一致，用于定位导出目录。</summary>
-        private const string ModPackageId = "RimExodus.DeltaV.dev";
+        private static ModContentPack Content => LoadedModManager.GetMod<DeltaVMod>()?.Content
+            ?? throw new InvalidOperationException("Delta-V content pack is not loaded.");
 
         /// <summary>导出目录：mod 根下 Prefabs/（gitignore；运行时经原版 XML 管线加载，不进 Defs）。</summary>
         public static string PrefabDirectory
         {
             get
             {
-                ModContentPack pack = LoadedModManager.RunningMods.FirstOrDefault(p =>
-                    string.Equals(p.PackageId, ModPackageId, StringComparison.OrdinalIgnoreCase));
-                if (pack == null)
-                {
-                    throw new InvalidOperationException($"Mod content pack '{ModPackageId}' not found.");
-                }
-                return Path.Combine(pack.RootDir, "Prefabs");
+                return Path.Combine(Content.RootDir, "Prefabs");
             }
         }
 
@@ -94,6 +88,17 @@ namespace DeltaV
         public static MapPrefabDocument LoadRelative(string relativePath)
         {
             return MapPrefabDocument.Load(ResolveRelativePath(relativePath));
+        }
+
+        /// <summary>Shipped tutorial content follows vanilla version-folder priority, using the same document and spawn pipeline.</summary>
+        internal static MapPrefabDocument LoadTutorial(string relativePath)
+        {
+            foreach (string folder in Content.foldersToLoadDescendingOrder)
+            {
+                string path = ResolveWithin(Path.Combine(folder, "TutorialPrefabs"), relativePath);
+                if (File.Exists(path)) return MapPrefabDocument.Load(path);
+            }
+            throw new FileNotFoundException($"Tutorial prefab '{relativePath}' is missing from the loaded content folders.");
         }
 
         /// <summary>递归枚举 Prefabs/ 下全部 prefab 的相对路径（正斜杠分隔，稳定排序）。</summary>
@@ -145,12 +150,15 @@ namespace DeltaV
 
         /// <summary>相对路径 → Prefabs/ 内的绝对路径，带越界防护。</summary>
         private static string ResolveRelativePath(string relativePath)
+            => ResolveWithin(PrefabDirectory, relativePath);
+
+        internal static string ResolveWithin(string directory, string relativePath)
         {
-            if (string.IsNullOrWhiteSpace(relativePath))
+            if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath))
             {
                 throw new ArgumentException("MapPrefab relative path is empty.");
             }
-            string root = Path.GetFullPath(PrefabDirectory)
+            string root = Path.GetFullPath(directory)
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                 + Path.DirectorySeparatorChar;
             string full = Path.GetFullPath(Path.Combine(root, relativePath));
