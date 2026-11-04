@@ -24,6 +24,77 @@ namespace DeltaV
             return HasLandedTargetAwaitingCleanup;
         }
 
+        internal AcceptanceReport CanDepart(ShipBase ship)
+        {
+            if (ship?.IsValid != true || universe.FrameOf(ship.Map) is not SpaceObject frame)
+                return "DeltaV_DockFailHostMap".Translate();
+            if (!FreeFlightBootstrap.IsZeroGravity(universe, ship.Map))
+                return "DeltaV_PilotGravityRestricted".Translate();
+            if (frame.projectileRoleOverride || FreeFlightTransitionPending()
+                || universe.Approach.AnyActive || !ship.Identity.shuttle && pendingSeparationOwnerIds.Contains(ship.Identity.key)
+                || pendingShuttleSeparations.Contains(ship.Identity)
+                || Find.GravshipController == null || Find.GravshipController.LandingAreaConfirmationInProgress
+                || Find.GravshipController.IsGravshipTravelling || Current.Game.Gravship != null)
+                return "DeltaV_DockFailBusy".Translate();
+            return ship.CheckDeparture();
+        }
+
+        internal void RequestPilotDeparture(PilotTarget target)
+        {
+            ShipBase ship = target.Vessel;
+            AcceptanceReport report = CanDepart(ship);
+            if (!report)
+            {
+                Messages.Message("DeltaV_ShuttleLaunchDenied".Translate(report.Reason), MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            DriveSubject identity = ship.Identity;
+            Map source = ship.Map;
+            SpaceObject frame = universe.FrameOf(source);
+            int version = frame.RepresentationVersion;
+            string text = "DeltaV_PilotDepartConfirm".Translate(ship.Label);
+            if (ship is FoundationShip foundation)
+            {
+                CollectUndockLeftBehinds(source, foundation.Structure, new HashSet<IntVec3>(ship.HullCells),
+                    out List<Thing> leftovers, out List<HashSet<IntVec3>> fragments);
+                string summary = BuildUndockSummary(source, leftovers, fragments);
+                if (!summary.NullOrEmpty()) text += "\n\n" + summary;
+            }
+            if (identity.shuttle) pendingShuttleSeparations.Add(identity);
+            else pendingSeparationOwnerIds.Add(identity.key);
+            void ClearPending()
+            {
+                if (identity.shuttle) pendingShuttleSeparations.Remove(identity);
+                else pendingSeparationOwnerIds.Remove(identity.key);
+            }
+            void Confirm() => universe.QueueFrameAction(() =>
+            {
+                ClearPending();
+                ShipBase current = ShipRegistry.ShipByIdentity(identity);
+                if (!current.IsValid || current.Map != source || universe.FrameOf(source) != frame
+                    || frame.RepresentationVersion != version || !universe.Pilot.CanPlayerControl(current)) return;
+                AcceptanceReport gate = CanDepart(current);
+                if (!gate)
+                {
+                    Messages.Message("DeltaV_ShuttleLaunchDenied".Translate(gate.Reason), MessageTypeDefOf.RejectInput, false);
+                    return;
+                }
+                if (current is ShuttleShip shuttle && !current.CanDriveIn(frame))
+                    universe.Shuttles.Launch((Building)shuttle.Anchor);
+                else
+                {
+                    var domain = new HashSet<IntVec3>(current.HullCells);
+                    Building_DockingPort.RetractChannelsFor(source, domain);
+                    TransferShipToPocket(universe, current, source, frame, domain, current.Anchor.Rotation);
+                }
+                ShipBase departed = ShipRegistry.ShipByIdentity(identity);
+                if (departed.IsValid && departed.Map != source && Find.CurrentMap == departed.Map
+                    && universe.Pilot.GetControlState(departed) != ShipControlState.Manual)
+                    universe.Pilot.Enter(universe, departed);
+            });
+            Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(text, Confirm, ClearPending));
+        }
+
         // ---- 原版到达画面/遮罩的冻结捕获范围（Patch_GravshipCaptureScope 消费）----
         // 战略到达放置后原版会读取 engine.ValidSubstructure 制作降落画面/遮罩；读现场
         // 集合会把邻接且处于力场内的 wreck 误并入飞船形态。冻结集来自 Gravship 自身的
@@ -369,18 +440,19 @@ namespace DeltaV
             bool wreckOwnership, int retainedOwnerId, Rot4 targetConsoleFacing,
             Building bodyAnchor = null, bool includeTerrain = true,
             SplitFocus focus = null, Dictionary<IntVec3, int> sourceOwners = null,
-            int mapMargin = ShipPocketMapFactory.StructureMargin, bool reserveRotations = false)
+            int mapMargin = ShipPocketMapFactory.StructureMargin, bool reserveRotations = false,
+            bool includeItems = true)
         {
             Building anchor = mainConsole ?? bodyAnchor;
             Faction faction = anchor?.Faction;
-            Gravship preview = GravshipInterop.BuildPreview(cells, mainConsole, sourceMap, bodyAnchor);
+            Gravship preview = GravshipInterop.BuildPreview(cells, mainConsole, sourceMap, bodyAnchor, includeItems);
             if (preview == null) return null;
             Rot4 rotation = anchor != null
                 ? ShipOrientation.PlacementRotation(anchor.Rotation, targetConsoleFacing) : Rot4.North;
             preview.Rotation = rotation;
             if (!ShipPocketMapFactory.TryGenerateForGravship(preview, universe, out Map pocketMap, out IntVec3 pocketRoot, mapMargin, reserveRotations)) return null;
             // Generation and geometry preflight precede the consuming CaptureDomain call.
-            Gravship gravship = GravshipInterop.CaptureDomain(sourceMap, cells, mainConsole, faction, includeTerrain);
+            Gravship gravship = GravshipInterop.CaptureDomain(sourceMap, cells, mainConsole, faction, includeTerrain, includeItems);
             if (gravship == null)
             {
                 universe.Lifecycle.DestroyPocketMap(pocketMap);
@@ -510,7 +582,7 @@ namespace DeltaV
             includeTerrain = transfer.includeTerrain;
             if (domain.Count == 0) return null;
             return GravshipInterop.CaptureDomain(target.Map, domain, transfer.console,
-                target.Faction, includeTerrain);
+                target.Faction, includeTerrain, ship.MoveColocatedItems);
         }
 
         /// <summary>
@@ -656,7 +728,8 @@ namespace DeltaV
                 retainedOwnerId: transfer.ownerId, targetConsoleFacing: targetFacing,
                 bodyAnchor: transfer.body,
                 includeTerrain: transfer.includeTerrain, focus: focus,
-                mapMargin: ship.FlightMapMargin, reserveRotations: ship.ReserveRotationBounds);
+                mapMargin: ship.FlightMapMargin, reserveRotations: ship.ReserveRotationBounds,
+                includeItems: ship.MoveColocatedItems);
             if (container == null) return null;
             ShipBase resolved = ShipRegistry.ShipByIdentity(identity);
             if (!resolved.AllowsAngularMotion) container.pose.angularVelocity = 0f;

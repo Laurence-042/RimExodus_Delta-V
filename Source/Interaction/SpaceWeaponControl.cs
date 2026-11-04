@@ -59,6 +59,8 @@ namespace DeltaV
             int skill = 0;
             long readinessStart = perf.Start();
             WeaponReject readiness = command.Trigger ? CheckReadiness(weapon, out skill) : WeaponReject.None;
+            if (command.Trigger && (readiness == WeaponReject.None || readiness == WeaponReject.Cooldown))
+                weapon.lastBeamTriggerTick = Find.TickManager.TicksGame;
             perf.Record(PerformanceStage.WeaponReadiness, readinessStart);
             bool canFire = command.Trigger && readiness == WeaponReject.None;
             if (command.LocalPoint.HasValue && !canFire)

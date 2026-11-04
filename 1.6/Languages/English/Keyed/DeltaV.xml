@@ -19,7 +19,7 @@
   <DeltaV_ControlAutopilot>autopilot</DeltaV_ControlAutopilot>
   <DeltaV_ControlSwitchAutopilot>Switch to autopilot</DeltaV_ControlSwitchAutopilot>
   <DeltaV_AutoTaskMenu>Automatic task: {0}</DeltaV_AutoTaskMenu>
-  <DeltaV_AutoDrift>Free drift</DeltaV_AutoDrift>
+  <DeltaV_AutoDrift>None</DeltaV_AutoDrift>
   <DeltaV_AutoSync>Match drift</DeltaV_AutoSync>
   <DeltaV_AutoCombat>Combat maneuver</DeltaV_AutoCombat>
   <DeltaV_AutoNavigate>Go to pose</DeltaV_AutoNavigate>
@@ -591,4 +591,5 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShieldDevLineFailureTip>Trigger the line shield brownout duration without drawing power.</DeltaV_ShieldDevLineFailureTip>
   <DeltaV_ShieldDevLineReset>DEV: Reset line shield failure</DeltaV_ShieldDevLineReset>
   <DeltaV_ShieldDevLineResetTip>End the line shield brownout. The generator must still be switched on and powered.</DeltaV_ShieldDevLineResetTip>
+  <DeltaV_PilotDepartConfirm>{0} is docked on the current work map. Take off directly and take manual control?</DeltaV_PilotDepartConfirm>
 </LanguageData>

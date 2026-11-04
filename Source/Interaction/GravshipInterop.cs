@@ -93,10 +93,10 @@ namespace DeltaV
         /// </summary>
         internal static Gravship BuildPreview(PilotTarget target) => !target.IsValid ? null : BuildPreview(
             new HashSet<IntVec3>(target.Vessel.HullCells), target.Vessel.Transfer.console,
-            target.Map, target.Vessel.Transfer.body);
+            target.Map, target.Vessel.Transfer.body, target.Vessel.MoveColocatedItems);
 
         internal static Gravship BuildPreview(HashSet<IntVec3> cells, Building mainConsole,
-            Map sourceMap = null, Building previewBody = null)
+            Map sourceMap = null, Building previewBody = null, bool includeItems = true)
         {
             if (EmptyCtor == null || cells == null || cells.Count == 0) return null;
             Map map = sourceMap ?? mainConsole?.Map;
@@ -139,7 +139,7 @@ namespace DeltaV
             var previewThings = (Dictionary<Thing, PositionData>)ThingsField.GetValue(gravship);
             foreach (Thing thing in map.listerThings.AllThings)
             {
-                if (thing.Spawned && cells.Contains(thing.Position) && ShouldBringOnGravship(thing, thing.Position))
+                if (thing.Spawned && cells.Contains(thing.Position) && ShouldBringOnGravship(thing, thing.Position, includeItems))
                     previewThings[thing] = new PositionData(thing.Position - origin, thing.Rotation);
                 // 对接口与舱体共用原版 PositionData 旋转链，选点显示不得另算门的位置和朝向。
                 if (thing is Building_DockingPort port && port.Spawned && cells.Contains(port.Position))
@@ -178,7 +178,7 @@ namespace DeltaV
         /// 捕获会消费区域、指令、储存组和携带物；所有可失败的前置检查必须先完成。
         /// </summary>
         internal static Gravship CaptureDomain(Map map, HashSet<IntVec3> cells, Building mainConsole,
-            Faction ownerFaction, bool includeTerrain = true)
+            Faction ownerFaction, bool includeTerrain = true, bool includeItems = true)
         {
             if (EmptyCtor == null || map == null || cells == null || cells.Count == 0) return null;
             var hollow = (Gravship)EmptyCtor.Invoke(null);
@@ -231,7 +231,7 @@ namespace DeltaV
                 for (int i = list.Count - 1; i >= 0; i--)
                 {
                     Thing thing = list[i];
-                    if (ShouldBringOnGravship(thing, cell)
+                    if (ShouldBringOnGravship(thing, cell, includeItems)
                         && (!(thing is Building building) || !building.def.building.isAttachment))
                     {
                         foreach (Thing attached in GenConstruct.GetAttachedBuildings(thing))
@@ -286,8 +286,9 @@ namespace DeltaV
         }
 
         /// <summary>镜像 Gravship.ShouldBringOnGravship（静态谓词）。</summary>
-        private static bool ShouldBringOnGravship(Thing thing, IntVec3 cell)
+        private static bool ShouldBringOnGravship(Thing thing, IntVec3 cell, bool includeItems)
         {
+            if (!includeItems && thing.def.category == ThingCategory.Item) return false;
             if (thing is Mote) return false;
             if (thing is Skyfaller) return false;
             if (!thing.def.bringAlongOnGravship) return false;

@@ -79,7 +79,7 @@
     <defenderEffect><kind>CutStructure</kind><damage>120</damage></defenderEffect><attackerEffect><kind>DestroySelf</kind></attackerEffect>
   </DeltaV.SpaceImpactEffectDef>
   <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_EvaCutImpact"><defName>DeltaV_Impact_EvaCutBuilding</defName></DeltaV.SpaceImpactEffectDef>
-  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_EvaCutImpact"><defName>DeltaV_Impact_EvaCutFoundation</defName><targetsSubstructure>true</targetsSubstructure></DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_EvaCutImpact"><defName>DeltaV_Impact_EvaCutFoundation</defName><targetsSubstructure>true</targetsSubstructure><substructureHitChance>1</substructureHitChance></DeltaV.SpaceImpactEffectDef>
   <DeltaV.SpaceImpactEffectDef Name="DeltaV_EvaWeldImpact" Abstract="True">
     <projectileDefs><li>DeltaV_Beam_EvaWelder</li></projectileDefs>
     <defenderEffect><kind>Weld</kind><damage>10</damage></defenderEffect><attackerEffect><kind>DestroySelf</kind></attackerEffect>

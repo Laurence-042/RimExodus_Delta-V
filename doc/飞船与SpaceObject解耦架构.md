@@ -214,6 +214,10 @@ ShipController（共同基类，统一驾驶契约）
 
 ## 7. 脱离：地图拆分流程
 
+2026-11-04 玩家显式驾驶入口更新：停靠／作业状态点击“驾驶此船”先经 `ShipFlightTransitionService.CanDepart` 检查，再提示是否直接起飞。确认后统一排队到帧边界，核对船身份、源 Map／容器表示版本和控制权，并重跑同一门禁；取消保持原状态。基架船要求可用推进器且无天然岩顶，shuttle／EVA 另由 `ShipBase.CheckDeparture` 的覆盖实现读取原版 `CompLaunchable.CanLaunch`，并补全多格艇脚印的屋顶检查（月池沿用通行规则）。通过后复用既有船体搬运与相机交接并进入手动驾驶。原有真实出力拆分入口继续服务自动驾驶和已处于驾驶中的船。
+
+`ShipBase.MoveColocatedItems` 是地面物品随船转移的唯一差异接口：基架船默认 true，`ShuttleShip` 及其子类默认 false。Gravship 预览、起飞、方向旋转和停靠捕获均消费同一值，已装入建筑内部库存的货物／乘员不受地面物品过滤影响。
+
 以 A、B 共处 b，A 主动分离为例：
 
 0. **触发 = A 在驾驶中将要产生推进器出力**（`RequestThrust` 统一分离门禁；2026-09-24

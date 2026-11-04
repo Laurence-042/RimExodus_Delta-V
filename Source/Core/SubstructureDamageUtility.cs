@@ -10,17 +10,17 @@ namespace DeltaV
         public static bool CanDamage(Map map, IntVec3 cell) =>
             SpaceStructureRules.ClassifyCell(map, cell, out _) == SpaceCellKind.Substructure;
 
-        public static bool TryDestroy(Map map, IntVec3 cell)
+        public static bool TryDestroy(Map map, IntVec3 cell, bool scatterNearbyRoofs = true)
         {
             if (!CanDamage(map, cell)) return false;
             map.terrainGrid.RemoveFoundation(cell, doLeavings: false);
             if (SubstructureOwnership.HasFoundation(map, cell)) return false;
-            CompleteDestruction(map, cell);
+            CompleteDestruction(map, cell, scatterNearbyRoofs);
             return true;
         }
 
         /// <summary>仅在明确的毁伤流程已移除基架后调用，原版毁伤适配共用。</summary>
-        internal static void CompleteDestruction(Map map, IntVec3 cell)
+        internal static void CompleteDestruction(Map map, IntVec3 cell, bool scatterNearbyRoofs = true)
         {
             if (SubstructureOwnership.HasFoundation(map, cell)) return;
             Current.Game?.GetComponent<UniverseManager>()?.Projectiles.NotifyFoundationDestroyed(map, cell);
@@ -29,7 +29,7 @@ namespace DeltaV
             if (map.terrainGrid.UnderTerrainAt(cell) != null)
                 map.terrainGrid.RemoveTopLayer(cell, doLeavings: false);
             map.roofGrid.SetRoof(cell, null);
-            BlowOffNearbyRoofs(map, cell);
+            if (scatterNearbyRoofs) BlowOffNearbyRoofs(map, cell);
 
             // 基架已移除，建筑爆炸等后效不能重复毁伤同一基架。
             // 快照覆盖同格电缆/插件；宿主回调可能提前销毁或移走其他建筑。

@@ -108,8 +108,10 @@ internal static class Program
         {
             XmlNode resolved = XmlInheritance.GetResolvedNodeFor(node);
             CheckFields(resolved, typeof(SpaceImpactEffectDef));
-            Check(resolved["buildingHitChance"] == null && resolved["substructureHitChance"] == null,
-                "EVA tools retain common random building/foundation hit probabilities");
+            bool cutterFoundation = resolved["defName"].InnerText == "DeltaV_Impact_EvaCutFoundation";
+            Check(resolved["buildingHitChance"] == null && (cutterFoundation
+                    ? resolved["substructureHitChance"]?.InnerText == "1" : resolved["substructureHitChance"] == null),
+                "EVA cutter always hits bare foundations; other tool probabilities remain unchanged");
         }
         foreach (string name in new[] { "DeltaV_InertiaCoupler", "DeltaV_MiningBeam" })
         {

@@ -380,7 +380,7 @@ internal static partial class Program
         var segments = new List<(Vector3 from, Vector3 to)>();
         shot = new SpaceCollision.SweptBody { attacker = attack, projectileDef = laser, from = start,
             to = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(70, 5.5f)),
-            onVisualContact = contacts.Add, onShieldRedirect = (a, b) => segments.Add((a, b)) };
+            onVisualContact = contacts.Add, onShieldRedirect = (a, b, defender) => segments.Add((a, b)) };
         SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
         Check(contacts.Count == 1 && contacts[0].shieldMode == SpaceShieldMode.Electromagnetic
             && segments.Count == 1 && OrbitSphere.Offset(segments[0].to, contacts[0].position).magnitude < 0.01f
@@ -622,7 +622,7 @@ internal static partial class Program
             .Element("comps").Element("li");
         var wp = new CompProperties_SpaceWeapon { projectileDef = coupler,
             shotEnergy = (float)wpNode.Element("shotEnergy"), cooldownTicks = (int)wpNode.Element("cooldownTicks") };
-        var battery = new CompPowerBattery(); Set(battery, "storedEnergy", 3f);
+        var battery = new CompPowerBattery(); Set(battery, "storedEnergy", wp.shotEnergy * 12f);
         var net = (PowerNet)Raw(typeof(PowerNet)); net.batteryComps = new List<CompPowerBattery> { battery };
         var power = new CompPowerTrader { transNet = net }; Set(power, "powerOnInt", true);
         var weapon = new CompSpaceWeapon { props = wp };
@@ -637,9 +637,9 @@ internal static partial class Program
                 "continuous energy reservation " + i);
             energy.Commit();
         }
-        Check(battery.StoredEnergy == 0f
+        Check(battery.StoredEnergy < 0.00001f
             && !energy.Evaluate(weapon),
-            "twelve ticks consume exactly the old pulse cost and an empty battery refuses the next tick");
+            "twelve ticks consume the configured energy and the remaining charge cannot fund another tick");
         // Continue the already-lit emitter, avoiding Unity's native first-start audio in this fixture.
         weapon.parent = emitter;
         service.RegisterShotVisuals(transaction);

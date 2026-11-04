@@ -132,7 +132,7 @@ namespace DeltaV
                     icon = TexCommand.Attack,
                     action = delegate { universe.Shuttles.Launch((Building)parent); }
                 };
-                AcceptanceReport gate = launchable.CanLaunch();
+                AcceptanceReport gate = universe.ShipTransitions.CanDepart(Vessel);
                 if (!gate)
                 {
                     launch.Disable(gate.Reason);
@@ -185,7 +185,7 @@ namespace DeltaV
             {
                 return;
             }
-            AcceptanceReport gate = launchable.CanLaunch();
+            AcceptanceReport gate = universe.ShipTransitions.CanDepart(comp.Vessel);
             if (!gate)
             {
                 Messages.Message("DeltaV_ShuttleLaunchDenied".Translate(gate.Reason),
@@ -193,8 +193,8 @@ namespace DeltaV
                 return;
             }
             // 统一起飞核心（§7.2「与船脱离同一套」）：TransferDomainToNewPocket 的舱体
-            // 参数化调用——舱内站立的乘员/货物随捕获清单进入新口袋（修复「乘客留在
-            // 起飞点」）；不搬基架（宿主甲板/屋顶原样保留）；聚焦交接在核心内完成
+            // 参数化调用——已装入的乘员/货物随舱体进入新口袋，地面物品按船体能力过滤；
+            // 不搬基架（宿主甲板/屋顶原样保留）；聚焦交接在核心内完成
             //（与船脱离同一段 SetFocusedWithCamera 代码）。
             SpaceObject container = universe.ShipTransitions.LaunchShuttleToPocket(universe, shuttleBody);
             if (container == null)

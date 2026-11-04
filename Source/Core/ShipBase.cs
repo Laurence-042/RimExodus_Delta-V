@@ -50,6 +50,16 @@ namespace DeltaV
         public abstract SpaceObjectTag RolesIn(SpaceObject container);
         public abstract bool PrepareThrust(UniverseManager universe, bool playerInitiated);
         public abstract ShipTransferSpec Transfer { get; }
+        /// <summary>是否随船搬运脚印内的地面物品；内部货舱始终随所属建筑。</summary>
+        public virtual bool MoveColocatedItems => true;
+        public virtual AcceptanceReport CheckDeparture()
+        {
+            if (!IsValid || !BuildThrusters().Any(t => t.operational && t.thrust > 0f))
+                return "DeltaV_LaunchFailNoThruster".Translate();
+            if (HullCells.Any(c => Map.roofGrid.RoofAt(c)?.isNatural == true))
+                return "CommandLaunchGroupFailUnderRoof".Translate();
+            return true;
+        }
         public virtual bool CanBoard => false;
         public virtual bool RequiresHeadingAlignment => true;
         public virtual bool RequiresAngularVelocityMatch => true;
@@ -199,6 +209,18 @@ namespace DeltaV
         public override bool PrepareThrust(UniverseManager universe, bool playerInitiated) =>
             universe.FrameOf(Map)?.IsWorksite != true || universe.ShipTransitions.RequestShuttleSeparation(this, playerInitiated);
         public override ShipTransferSpec Transfer => new ShipTransferSpec(null, Anchor as Building, 0, false);
+        public override bool MoveColocatedItems => false;
+        public override AcceptanceReport CheckDeparture()
+        {
+            AcceptanceReport report = base.CheckDeparture();
+            if (!report) return report;
+            report = Hull.Launchable?.CanLaunch() ?? AcceptanceReport.WasRejected;
+            if (!report) return report;
+            // 原版只检查根格；多格艇的整片脚印也必须可穿过屋顶。
+            if (HullCells.Any(c => Map.roofGrid.Roofed(c) && !MoonPoolUtility.IsMoonPoolAt(Map, c)))
+                return "CommandLaunchGroupFailUnderRoof".Translate();
+            return true;
+        }
         public override bool CanBoard => Hull.CanBoard;
         public override void NotifyLanded()
         {

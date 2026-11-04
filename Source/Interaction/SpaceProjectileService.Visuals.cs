@@ -96,6 +96,15 @@ namespace DeltaV
                 : OrbitSphere.Move(anchor.position, anchor.velocity * ((Find.TickManager.TicksGame - anchor.bornTick) / 60f));
         }
 
+        private void BeamEndpoints(Beam beam, out Vector3 from, out Vector3 to)
+        {
+            from = beam.followsMuzzle && beam.continuousWeapon?.Container != null
+                ? SpaceTransform.MapPointToUniverse(beam.continuousWeapon.Container,
+                    beam.continuousWeapon.parent.Map, SpaceWeaponGeometry.MuzzleMapPoint(beam.continuousWeapon))
+                : beam.fromAnchor.HasValue ? AnchorPosition(beam.fromAnchor.Value) : beam.from;
+            to = beam.toAnchor.HasValue ? AnchorPosition(beam.toAnchor.Value) : beam.to;
+        }
+
         /// <summary>Only the successful shot supplies muzzle, ammunition and paid accelerator stages.</summary>
         public void RegisterShotVisuals(SpaceWeaponShot shot)
         {
@@ -482,10 +491,11 @@ namespace DeltaV
             foreach (Beam beam in beams)
             {
                 if (!beam.VisibleAt(now)) continue;
-                float age = beam.continuousLauncher != null ? 0f
-                    : (now - beam.bornTick) / (float)beam.lifetimeTicks;
-                Vector3 a = SpaceTransform.FocusedDrawPosition(frame, map, beam.from, altitude);
-                Vector3 b = SpaceTransform.FocusedDrawPosition(frame, map, beam.to, altitude);
+                float age = beam.FadeAge(now);
+                if (age >= 1f) continue;
+                BeamEndpoints(beam, out Vector3 from, out Vector3 to);
+                Vector3 a = SpaceTransform.FocusedDrawPosition(frame, map, from, altitude);
+                Vector3 b = SpaceTransform.FocusedDrawPosition(frame, map, to, altitude);
                 if (beam.style == CombatVisualStyle.Tractor)
                 {
                     Vector3 axis = b - a;

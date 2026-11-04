@@ -85,6 +85,21 @@ internal static partial class Program
             "roof shock exposes surviving equipment without damaging it or its foundation");
         Check(true, "roof shock respects walls, closed corners, rock, force fields and one-cell radius");
 
+        foreach (IntVec3 c in CellRect.CenteredOn(origin, 2)) map.roofGrid.SetRoof(c, roof);
+        map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(origin)] = deck;
+        Call(typeof(SpaceImpactEffects), "ClearCuttingRoofs", map, origin);
+        Check(map.roofGrid.RoofAt(origin) == null
+            && map.roofGrid.RoofAt(origin + IntVec3.West) == null
+            && map.roofGrid.RoofAt(origin + IntVec3.South) == null,
+            "engineering cut clears the exposed center and cardinal ceilings without a probability roll");
+        Check(map.roofGrid.RoofAt(origin + IntVec3.North) == roof
+            && map.roofGrid.RoofAt(origin + IntVec3.East) == roof
+            && map.roofGrid.RoofAt(furniture.Position) == roof,
+            "engineering cut preserves building-covered ceilings and diagonal roofs");
+        SubstructureDamageUtility.TryDestroy(map, origin, scatterNearbyRoofs: false);
+        Check(map.roofGrid.RoofAt(furniture.Position) == roof,
+            "engineering foundation destruction does not add explosive diagonal roof damage");
+
         Type hull = typeof(MapOverlayRenderer).Assembly.GetType("DeltaV.ShellHullVisuals");
         Type edges = typeof(MapOverlayRenderer).Assembly.GetType("DeltaV.ShellRoofEdges");
         var edgeCell = origin + IntVec3.West;

@@ -116,6 +116,8 @@ namespace DeltaV
             public Vector3 laserFrom;
             public Vector2 continuousFromLocal, continuousToLocal;
             public Vector3 laserTo;
+            public VisualAnchor? beamStart;
+            public int beamSegment;
             /// <summary>发射伤害倍率乘剩余冲击比例；跨 tick 沿用。</summary>
             public float damageScale = 1f;
             public float armorPenetrationScale = 1f;
@@ -137,12 +139,24 @@ namespace DeltaV
             public long weaponIdentity;
             public CompSpaceWeapon continuousWeapon;
             public int sourceObjectId, sourceMapId;
+            public VisualAnchor? fromAnchor, toAnchor;
+            public int segment, holdTicks;
+            public bool followsMuzzle;
 
-            public bool VisibleAt(int tick) => continuousLauncher == null
+            public float FadeAge(int tick) => continuousLauncher != null ? 0f
+                : Mathf.Clamp01(Mathf.Max(tick - bornTick - holdTicks,
+                    holdTicks > 0 ? tick - (continuousWeapon?.lastBeamTriggerTick ?? bornTick) : 0)
+                    / (float)(lifetimeTicks - holdTicks));
+
+            public bool VisibleAt(int tick) => (continuousWeapon == null
+                || continuousWeapon.parent.Spawned && !continuousWeapon.parent.Destroyed
+                    && continuousWeapon.parent.Map.uniqueID == sourceMapId
+                    && continuousWeapon.OwnerShip.EffectiveFireControlMode != ShipFireControlMode.Disabled)
+                && (continuousLauncher == null
                 ? tick >= bornTick && tick - bornTick < lifetimeTicks
                 : tick == bornTick && continuousLauncher.Spawned && !continuousLauncher.Destroyed
                     && continuousLauncher.Map.uniqueID == sourceMapId
-                    && continuousWeapon?.OwnerShip.EffectiveFireControlMode != ShipFireControlMode.Disabled;
+                    && continuousWeapon?.OwnerShip.EffectiveFireControlMode != ShipFireControlMode.Disabled);
         }
 
         private sealed class TrailPuff
@@ -452,7 +466,8 @@ namespace DeltaV
             if (pendingHullSound.objectId == container.objectId) pendingHullSound = default;
             muzzleFlashes.RemoveAll(f => f.anchor.objectId == container.objectId);
             impacts.RemoveAll(f => f.anchor.objectId == container.objectId);
-            beams.RemoveAll(b => b.continuousLauncher != null && b.sourceObjectId == container.objectId);
+            beams.RemoveAll(b => b.sourceObjectId == container.objectId
+                || b.fromAnchor?.objectId == container.objectId || b.toAnchor?.objectId == container.objectId);
             foreach (Projectile flight in projectiles)
                 if (flight.target.Kind == CombatTargetKind.Container && flight.target.ObjectId == container.objectId
                     || flight.target.Kind == CombatTargetKind.Ship
@@ -709,6 +724,8 @@ namespace DeltaV
                     body.to = p.container.pose.position;
                 }
                 Projectile captured = p;
+                p.beamSegment = 0;
+                p.beamStart = p.laser ? BeamAnchor(p.sourceContainer, body.from) : null;
                 body.onSelfDestruct = delegate
                 {
                     if (captured.adoptedShuttle) ReleaseShuttle(captured.container);
@@ -726,14 +743,14 @@ namespace DeltaV
                         universe.Shuttles.PlaceBoardedShuttle(shuttle, captured.building, defender, hit, local,
                             forwardAtHit, captured.body.resolvedHitCell);
                     }) : null;
-                body.onShieldRedirect = delegate (Vector3 from, Vector3 hit)
+                body.onShieldRedirect = delegate (Vector3 from, Vector3 hit, SpaceObject defender)
                 {
                     if (captured.laser)
-                        AddBounded(beams, new Beam { from = from, to = hit,
-                            bornTick = Find.TickManager.TicksGame,
-                            width = captured.props.laserBeamWidth,
-                            style = captured.props.visualStyle,
-                            lifetimeTicks = captured.props.guaranteedHitMissiles ? 7 : BeamLifetimeTicks }, 256);
+                    {
+                        VisualAnchor? shield = BeamAnchor(defender, hit);
+                        RecordBeamSegment(captured, from, hit, captured.beamStart, shield, captured.beamSegment++);
+                        captured.beamStart = shield;
+                    }
                 };
                 body.onShieldShatter = delegate (Vector3 hit, SpaceObject defender,
                     Vector2 relativeVelocity, Vector2 outwardNormal, float normalEnergy)
@@ -775,7 +792,10 @@ namespace DeltaV
             {
                 if (!p.laser) continue;
                 Vector3 end = p.body.resolvedHit ? p.body.resolvedHitUniverse : p.body.to;
-                RecordBeam(p, end);
+                RecordBeamSegment(p, p.body.from, end, p.beamStart,
+                    BeamAnchor(p.body.resolvedHit ? p.body.resolvedHitDefender : p.sourceContainer, end), p.beamSegment);
+                beams.RemoveAll(b => b.weaponIdentity == (p.weapon?.Identity ?? 0)
+                    && b.sourceObjectId == (p.sourceContainer?.objectId ?? 0) && b.segment > p.beamSegment);
                 if (!p.dead) DestroyProjectile(p, "laser spent");
             }
         }
@@ -852,6 +872,10 @@ namespace DeltaV
             beam.continuousWeapon = weapon;
             beam.from = SpaceTransform.MapPointToUniverse(receiver, launcher.Map, SpaceWeaponGeometry.MuzzleMapPoint(weapon));
             beam.to = targetPoint ?? target.pose.position;
+            beam.fromAnchor = BeamAnchor(receiver, beam.from);
+            beam.toAnchor = BeamAnchor(target, beam.to);
+            beam.followsMuzzle = true;
+            beam.segment = beam.holdTicks = 0;
             beam.bornTick = Find.TickManager.TicksGame;
             beam.width = weapon.WeaponProps.projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()?.laserBeamWidth ?? .18f;
             beam.style = CombatVisualStyle.Tractor;
@@ -861,10 +885,16 @@ namespace DeltaV
             beam.lifetimeTicks = 2;
         }
 
-        private void RecordBeam(Projectile p, Vector3 end)
+        private VisualAnchor? BeamAnchor(SpaceObject obj, Vector3 position) => obj?.map != null && !obj.map.Disposed
+            ? Anchor(obj, SpaceTransform.UniverseToMapPoint(obj, obj.map, position), position) : (VisualAnchor?)null;
+
+        private void RecordBeamSegment(Projectile p, Vector3 from, Vector3 end,
+            VisualAnchor? startAnchor, VisualAnchor? endAnchor, int segment)
         {
-            Beam beam = p.props.continuousBeam
-                ? beams.Find(b => b.continuousLauncher == p.launcher && b.weaponIdentity == (p.weapon?.Identity ?? 0) && b.sourceObjectId == p.sourceContainer.objectId)
+            Beam beam = p.weapon != null || p.props.continuousBeam
+                ? beams.Find(b => b.weaponIdentity == (p.weapon?.Identity ?? 0)
+                    && b.sourceObjectId == p.sourceContainer.objectId && b.segment == segment
+                    && (p.weapon != null || b.continuousLauncher == p.launcher))
                 : null;
             if (beam == null)
             {
@@ -873,8 +903,13 @@ namespace DeltaV
             }
             beam.weaponIdentity = p.weapon?.Identity ?? 0;
             beam.continuousWeapon = p.weapon;
-            beam.from = p.body.from;
+            if (p.weapon != null) p.weapon.lastBeamTriggerTick = Find.TickManager.TicksGame;
+            beam.from = from;
             beam.to = end;
+            beam.fromAnchor = startAnchor;
+            beam.toAnchor = endAnchor;
+            beam.segment = segment;
+            beam.followsMuzzle = segment == 0;
             beam.bornTick = Find.TickManager.TicksGame;
             beam.width = p.props.laserBeamWidth;
             beam.style = p.props.visualStyle;
@@ -882,7 +917,9 @@ namespace DeltaV
             beam.sourceObjectId = p.sourceContainer?.objectId ?? 0;
             beam.sourceMapId = p.sourceContainer?.map?.uniqueID ?? -1;
             // 留到下一 tick 供同一设备复用；VisibleAt 只允许本 tick 的连续束显示。
-            beam.lifetimeTicks = p.props.continuousBeam ? 2 : p.props.guaranteedHitMissiles ? 7 : BeamLifetimeTicks;
+            beam.holdTicks = !p.props.continuousBeam && !p.props.guaranteedHitMissiles
+                ? Mathf.Max(0, p.weapon?.ShotInterval ?? 0) : 0;
+            beam.lifetimeTicks = p.props.continuousBeam ? 2 : p.props.guaranteedHitMissiles ? 7 : beam.holdTicks + BeamLifetimeTicks;
         }
 
         /// <summary>弹体脚印等效半径（1×1 ≈ 0.71、2×1 ≈ 1.12）。</summary>
@@ -973,6 +1010,8 @@ namespace DeltaV
             p.dead = false;
             p.laser = false;
             p.continuousFromLocal = p.continuousToLocal = default;
+            p.beamStart = null;
+            p.beamSegment = 0;
             p.phase = FlightPhase.ColdLaunch;
             p.coldLaunchEndsTick = p.motorStartedTick = 0;
             p.motorDeltaVelocityPerTick = p.cruiseSpeed = p.rcsTurnSign = 0f;

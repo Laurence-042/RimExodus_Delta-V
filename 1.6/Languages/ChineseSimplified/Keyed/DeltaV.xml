@@ -19,7 +19,7 @@
   <DeltaV_ControlAutopilot>正在自动驾驶</DeltaV_ControlAutopilot>
   <DeltaV_ControlSwitchAutopilot>切换为自动驾驶</DeltaV_ControlSwitchAutopilot>
   <DeltaV_AutoTaskMenu>自动任务：{0}</DeltaV_AutoTaskMenu>
-  <DeltaV_AutoDrift>自由漂移</DeltaV_AutoDrift>
+  <DeltaV_AutoDrift>无</DeltaV_AutoDrift>
   <DeltaV_AutoSync>速度同步</DeltaV_AutoSync>
   <DeltaV_AutoCombat>战斗机动</DeltaV_AutoCombat>
   <DeltaV_AutoNavigate>定点定角</DeltaV_AutoNavigate>
@@ -591,4 +591,5 @@
   <DeltaV_ShieldDevLineFailureTip>触发一次线盾欠压失效时长，不扣电。</DeltaV_ShieldDevLineFailureTip>
   <DeltaV_ShieldDevLineReset>DEV: 清除线盾失效</DeltaV_ShieldDevLineReset>
   <DeltaV_ShieldDevLineResetTip>结束线盾欠压失效；仍需开启设备并供电。</DeltaV_ShieldDevLineResetTip>
+  <DeltaV_PilotDepartConfirm>{0} 当前停靠在作业地图上。是否直接脱离当前地图起飞并进入驾驶？</DeltaV_PilotDepartConfirm>
 </LanguageData>

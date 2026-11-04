@@ -125,6 +125,7 @@ internal static partial class Program
         CheckEvaGeometry(ship, body);
         CheckEvaEffects(universe);
         CheckEvaCargo(universe, eva, weapons[2]);
+        CheckDepartureAndBeamFixes(universe, eva, weapons[0]);
     }
 
     static void CheckEvaGeometry(ShipBase ship, SpaceObject body)

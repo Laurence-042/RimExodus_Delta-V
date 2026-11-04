@@ -26,3 +26,7 @@
 ### EVA 回归
 
 `NpcRetreatRegression/run.ps1 -EvaOnly -GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>` 使用构建后的生产 DLL，覆盖虚拟挂载身份／Scribe／分组隔离、两态火控限制、旋转相机投影、零角速度与接触点速度、0/1/12 外延和多格旋转边界、原版拆除材料链、焊接后效、货舱部分接收／拒收回滚／帧边界取消。仅替代 Unity 场景端点，接收、容量、请求生命周期及后效使用生产实现。`-TractorOnly` 保留月池与点防专项；`EngineeringRegression` 增加 EVA 实际 XML 字段、枚举和继承验证。完整游戏起降、归档恢复及手感由新档验收覆盖。
+
+2026-11-04 历史问题专项：`NpcRetreatRegression -EvaOnly` 增加起飞能力／原版门禁转接、同格钢铁捕获差异、激光脉冲复用／相对端点／反射段／重复聚焦／停火和销图清理；`SubstructureDamageRegression` 增加切割十字清顶及建筑保护；`EngineeringRegression` 校验切割器基架必中。`RailgunRegression` 的持续束耗能夹具改用当前 XML 逐 tick 费用，避免沿用旧数值。用户本轮确认历史问题修复效果正常并授权提交。
+
+本轮检查结果：1.6／1.7 构建均零警告、零错误；EVA 77、玩家驾驶 72、牵引 165、对接 142、基架／屋顶 149、弹道／光束 200、工程 8560 项离线检查通过。本轮修改文件的 whitespace 检查和两种语言新增键检查通过；未启动或操作游戏。

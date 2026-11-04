@@ -215,6 +215,7 @@ namespace DeltaV
         }
 
         public int cooldownUntilTick;
+        internal int lastBeamTriggerTick = -1;
         public CompWeaponTuning Tuning => Component<CompWeaponTuning>();
         public int ShotInterval => Tuning?.ShotInterval ?? WeaponProps.cooldownTicks;
         public float ShotEnergy => WeaponProps.shotEnergy * (Tuning?.power ?? 1);

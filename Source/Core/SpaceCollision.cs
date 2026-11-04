@@ -145,7 +145,7 @@ namespace DeltaV
             public Vector3 redirectPoint;
             public Vector2 redirectDirection;
             public float redirectRemaining;
-            public System.Action<Vector3, Vector3> onShieldRedirect;
+            public System.Action<Vector3, Vector3, SpaceObject> onShieldRedirect;
             public System.Action<Vector3, SpaceObject, Vector2, Vector2, float> onShieldShatter;
             // Consumed synchronously after each resolved contact, before the next sweep.
             public System.Action<VisualContact> onVisualContact;
@@ -451,7 +451,7 @@ namespace DeltaV
                         }
                         if (!body.redirected) continue;
                         Vector3 oldFrom = body.from;
-                        body.onShieldRedirect?.Invoke(oldFrom, body.redirectPoint);
+                        body.onShieldRedirect?.Invoke(oldFrom, body.redirectPoint, defender);
                         body.from = OrbitSphere.Move(body.redirectPoint,
                             body.redirectDirection * 0.03f);
                         body.to = OrbitSphere.Move(body.from,

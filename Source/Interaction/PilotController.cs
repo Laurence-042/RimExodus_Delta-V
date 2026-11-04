@@ -653,7 +653,9 @@ internal readonly struct HeadingPanelAction
             }
             else
             {
-                Enter(universe, target);
+                if (target.Vessel.State == ShipDerivedState.Docked)
+                    universe.ShipTransitions.RequestPilotDeparture(target);
+                else Enter(universe, target);
             }
         }
 

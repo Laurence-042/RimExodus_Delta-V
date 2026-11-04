@@ -36,7 +36,8 @@ namespace DeltaV
                 && part.damage * evt.damageScale >= part.substructureBreakThreshold)
             {
                 TerrainDef foundation = SubstructureOwnership.FoundationAt(map, evt.hitCell);
-                if (foundation != null && SubstructureDamageUtility.TryDestroy(map, evt.hitCell))
+                ClearCuttingRoofs(map, evt.hitCell);
+                if (foundation != null && SubstructureDamageUtility.TryDestroy(map, evt.hitCell, scatterNearbyRoofs: false))
                     GenLeaving.DoLeavingsFor(foundation, evt.hitCell, map);
             }
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
@@ -126,9 +127,22 @@ namespace DeltaV
             if (foundation == null) return;
             // 基架没有耐久；达到共同毁伤阈值后调用统一毁伤机制，再结算材料。
             if (part.damage * evt.damageScale < part.substructureBreakThreshold) return;
-            if (!SubstructureDamageUtility.TryDestroy(targetMap, cell)) return;
+            ClearCuttingRoofs(targetMap, cell);
+            if (!SubstructureDamageUtility.TryDestroy(targetMap, cell, scatterNearbyRoofs: false)) return;
             using (new SalvageOutputScope(launcher))
                 GenLeaving.DoLeavingsFor(foundation, output, receiverMap);
+        }
+
+        private static void ClearCuttingRoofs(Map map, IntVec3 origin)
+        {
+            foreach (IntVec3 offset in GenAdj.CardinalDirections.Concat(new[] { IntVec3.Zero }))
+            {
+                IntVec3 cell = origin + offset;
+                if (!cell.InBounds(map) || cell.GetThingList(map).Any(t => t is Building && !t.Destroyed)
+                    || MoonPoolUtility.IsFieldRoofAt(map, cell) || map.roofGrid.RoofAt(cell) == null) continue;
+                map.roofGrid.SetRoof(cell, null);
+                Current.Game?.GetComponent<UniverseManager>()?.Projectiles.NotifyRoofDestroyed(map, cell);
+            }
         }
     }
 }
