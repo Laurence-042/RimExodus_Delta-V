@@ -86,6 +86,10 @@ def build(data, name="ArrivalStation"):
                       category=prop(name, 'category', 'Undefined'),
                       terrainAffordance=prop(name, 'terrainAffordanceNeeded'),
                       supportAffordances=affordances('OrbitalPlatform' if build_name == 'ArrivalStation' else 'Substructure'))
+        exclusion = prop(name, "comps/li[@Class='CompProperties_GravshipThruster']/exclusionAreaSize")
+        if exclusion:
+            record['exclusionSize'] = pair(exclusion)
+            record['exclusionOffset'] = pair(prop(name, "comps/li[@Class='CompProperties_GravshipThruster']/exclusionAreaOffset"))
         records.append(record)
         if layer == 'body':
             occupied.update((c, record) for c in cells)
@@ -131,7 +135,12 @@ def build(data, name="ArrivalStation"):
         openings.add((12,7) if name == 'TrainingShip' else (10,10))
         if name == 'Shipyard': openings.add((20,10))
         engines = []
-        if name != 'Shipyard':
+        if name == 'TrainingShip':
+            # Short transverse arms on the main engines; only the stern has lateral RCS.
+            for x in (10,14):
+                engines += [place('LargeThruster', x, 0), place('LargeThruster', x, height-2, 2)]
+            engines += [place('SmallThruster', left, 3, 1), place('SmallThruster', width-2, 3, 3)]
+        elif name != 'Shipyard':
             for x in (left+3, width-4):
                 engines += [place('SmallThruster', x, 0), place('SmallThruster', x, height-2, 2)]
             for z in (3,height-5):
@@ -149,8 +158,8 @@ def build(data, name="ArrivalStation"):
             place('Bed',8,6)
             place('GravcorePowerCell',16,11)
             place('Battery',17,11)
-            place('OxygenPump',10,13)
-            place('OxygenPump',15,13)
+            place('OxygenPump',9,13)
+            place('OxygenPump',17,13)
             place('Heater',10,4)
             place('StandingLamp',14,7)
             start=(12,7)
@@ -193,10 +202,17 @@ def build(data, name="ArrivalStation"):
             assert p in reachable, (r['name'], 'inaccessible interaction', p)
         if r['name'] == 'OxygenPump':
             assert (r['root'][0], r['root'][1]+1) in walls, 'pump must face its mounting wall'
-        if r['name'] == 'SmallThruster':
-            dx,dz = [(0,-1),(-1,0),(0,1),(1,0)][r['rotation']]
-            edge = [tuple(c) for c in r['cells'] if (c[0]+dx,c[1]+dz) not in {tuple(k) for k in r['cells']}]
-            assert all((x+dx*n,z+dz*n) not in foundation for x,z in edge for n in range(1,6)), 'blocked exhaust'
+        if 'exclusionSize' in r:
+            sx,_,sz = r['exclusionSize']
+            ox,_,oz = r['exclusionOffset']
+            exhaust = []
+            for x in range(sx):
+                for z in range(sz):
+                    x0,z0 = x+ox,z+oz
+                    dx,dz = [(x0,z0),(z0,-x0),(-x0,-z0),(-z0,x0)][r['rotation']]
+                    exhaust.append((r['root'][0]+dx,r['root'][1]+dz))
+            assert not foundation.intersection(exhaust), (r['name'], 'blocked exhaust')
+            r['exclusionCells'] = exhaust
 
     prototypes = {n.findtext('def'): n for n in ET.parse(HERE / 'prototypes.states').getroot()}
     document = ET.Element('MapPrefab', formatVersion='2')
@@ -258,6 +274,13 @@ def build(data, name="ArrivalStation"):
         draw.rectangle(box, fill=colors.get(r['name'], '#abb6bb'))
         if r['name'] != 'GravshipHull':
             draw.text((box[0]+2, box[1]+2), r['name'][:2], fill='#101822')
+        if name == 'TrainingShip' and 'exclusionSize' in r:
+            # Arrow indicates force, opposite to the cleared exhaust zone.
+            cx,cy = (box[0]+box[2])/2, (box[1]+box[3])/2
+            dx,dy = [(0,-1),(1,0),(0,1),(-1,0)][r['rotation']]
+            tip = (cx+dx*8,cy+dy*8)
+            draw.line((cx-dx*7,cy-dy*7,*tip), fill='#122b3c', width=2)
+            draw.polygon([tip,(cx+dx*3-dy*4,cy+dy*3+dx*4),(cx+dx*3+dy*4,cy+dy*3-dx*4)],fill='#122b3c')
     draw.text((pad, height*scale+pad+15), f'{name} | {width} x {height} | North up | BUILT', fill='white')
     draw.text((pad, height*scale+pad+35), 'Resolved footprints; roofs use the same source.', fill='white')
     counts = {name: sum(r['name'] == name for r in records) for name in ('Ship_CryptosleepCasket' if name == 'ArrivalStation' else 'CryptosleepCasket', 'Bed', 'OxygenPump', 'GravcorePowerCell')}

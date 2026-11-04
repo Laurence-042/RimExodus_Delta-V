@@ -28,7 +28,7 @@ namespace DeltaV
 
         private bool CheckFlightAssets()
         {
-            if (Run.stage < TutorialStage.Flight || Run.stage > TutorialStage.Visit) return true;
+            if (Run.stage < TutorialStage.Design || Run.stage > TutorialStage.Visit) return true;
             if (Run.trainingConsole?.Spawned != true || Run.cargoShelf?.Spawned != true
                 || Run.trainingPort?.Spawned != true || Run.yardPort?.Spawned != true
                 || Run.giftConsole?.Spawned != true || Run.giftEngine?.Spawned != true
@@ -53,8 +53,13 @@ namespace DeltaV
                 Resume();
                 return true;
             }
-            if (Run.stage < TutorialStage.Flight || Run.stage > TutorialStage.Visit) return false;
+            if (Run.stage < TutorialStage.Design || Run.stage > TutorialStage.Visit) return false;
             if (!CheckFlightAssets()) return true;
+            if (Run.stage == TutorialStage.Design && tag == Signal(Run.quest, "StartPractice"))
+            {
+                AdvanceFlight(TutorialStage.Flight);
+                return true;
+            }
             if (Run.stage == TutorialStage.Flight && tag == Signal(Run.quest, "CheckFlight"))
             {
                 ShipBase ship = TrainingShip;
@@ -203,7 +208,7 @@ namespace DeltaV
                     if (!Active || Run != expected || Run.stage != TutorialStage.PreparingFlight) return;
                     if (!BerthConnected(giftPort, giftBerth))
                     { Fail("DeltaV_Tutorial_BerthUnavailable"); return; }
-                    AdvanceFlight(TutorialStage.Flight);
+                    AdvanceFlight(TutorialStage.Design);
                 });
             }
             catch (Exception ex)

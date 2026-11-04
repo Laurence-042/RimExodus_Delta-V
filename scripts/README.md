@@ -1,6 +1,6 @@
 # 开发脚本索引
 
-教程内容由 [`TutorialContent/build.py`](TutorialContent/README.md) 生成正式 prefab 与同源布局图；`TutorialRegression/run.ps1` 使用 1.6 实际程序集验证占地／四向、地形承载、单侧气闸通道、操作格、电网、课程存档与信号边界、八座船用休眠舱／货架实例化、原版通讯接线、出生图重力范围与位姿存取、推力证据、公共设施权限／原版搬运选址／关系扣减及资源路径，不替代新档游戏内验收。
+教程内容由 [`TutorialContent/build.py`](TutorialContent/README.md) 生成正式 prefab 与同源布局图；`TutorialRegression/run.ps1` 使用 1.6 实际程序集验证占地／四向、地形承载、单侧气闸通道、操作格、电网、课程存档与信号边界、八座船用休眠舱／货架实例化、原版通讯接线、出生图重力范围与位姿存取、六推进器侧移力矩补偿／原版排气区、理论课阶段与推力证据、公共设施权限／原版搬运选址／关系扣减及资源路径，不替代新档游戏内验收。
 
 这些脚本不随游戏执行，也不影响游戏性能。标准构建入口是根目录的 `just build`（1.7）及 `just build 1.6`；共同地图能力的 1.7 回归走 `just test-ref`。保留 1.6 支持期间，不能仅因脚本引用 Unity 或 `Assembly-CSharp.dll` 就认定无用。
 

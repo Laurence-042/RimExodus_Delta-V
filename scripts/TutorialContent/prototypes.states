@@ -107,6 +107,11 @@
     <pawnsToLeave />
   </saveable>
   <saveable Class="Building">
+    <def>LargeThruster</def>
+    <health>500</health>
+    <beenRevealed>True</beenRevealed>
+  </saveable>
+  <saveable Class="Building">
     <def>SmallThruster</def>
     <health>250</health>
   </saveable>

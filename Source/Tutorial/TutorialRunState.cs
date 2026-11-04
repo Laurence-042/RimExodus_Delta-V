@@ -4,7 +4,7 @@ using Verse;
 
 namespace DeltaV
 {
-    internal enum TutorialStage { AwaitingWake, Welcome, Contact, Inquiry, Briefing, PreparingFlight, Flight, Salvage, SoftDock, Visit, Ended }
+    internal enum TutorialStage { AwaitingWake, Welcome, Contact, Inquiry, Briefing, PreparingFlight, Design, Flight, Salvage, SoftDock, Visit, Ended }
 
     // One persistent course record; QuestPart holds only vanilla quest activation state.
     internal sealed class TutorialRunState : IExposable

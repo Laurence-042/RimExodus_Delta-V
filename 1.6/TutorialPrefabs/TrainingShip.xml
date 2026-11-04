@@ -253,65 +253,69 @@
   </prefab>
   <thingStates>
     <li>
-      <pos>(8, 0, 0)</pos>
-      <def>SmallThruster</def>
+      <pos>(10, 0, 0)</pos>
+      <def>LargeThruster</def>
       <rotation>0</rotation>
-      <hitPoints>250</hitPoints>
+      <hitPoints>500</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Building">
-          <def>SmallThruster</def>
-          <health>250</health>
-          <id>SmallThruster810000</id>
-          <pos>(8, 0, 0)</pos>
+          <def>LargeThruster</def>
+          <health>500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>LargeThruster810000</id>
+          <pos>(10, 0, 0)</pos>
           <rot>0</rot>
         </saveable>
       </state>
     </li>
     <li>
-      <pos>(8, 0, 14)</pos>
-      <def>SmallThruster</def>
+      <pos>(11, 0, 14)</pos>
+      <def>LargeThruster</def>
       <rotation>2</rotation>
-      <hitPoints>250</hitPoints>
+      <hitPoints>500</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Building">
-          <def>SmallThruster</def>
-          <health>250</health>
-          <id>SmallThruster810001</id>
-          <pos>(8, 0, 14)</pos>
+          <def>LargeThruster</def>
+          <health>500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>LargeThruster810001</id>
+          <pos>(11, 0, 14)</pos>
           <rot>2</rot>
         </saveable>
       </state>
     </li>
     <li>
-      <pos>(17, 0, 0)</pos>
-      <def>SmallThruster</def>
+      <pos>(14, 0, 0)</pos>
+      <def>LargeThruster</def>
       <rotation>0</rotation>
-      <hitPoints>250</hitPoints>
+      <hitPoints>500</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Building">
-          <def>SmallThruster</def>
-          <health>250</health>
-          <id>SmallThruster810002</id>
-          <pos>(17, 0, 0)</pos>
+          <def>LargeThruster</def>
+          <health>500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>LargeThruster810002</id>
+          <pos>(14, 0, 0)</pos>
           <rot>0</rot>
         </saveable>
       </state>
     </li>
     <li>
-      <pos>(17, 0, 14)</pos>
-      <def>SmallThruster</def>
+      <pos>(15, 0, 14)</pos>
+      <def>LargeThruster</def>
       <rotation>2</rotation>
-      <hitPoints>250</hitPoints>
+      <hitPoints>500</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Building">
-          <def>SmallThruster</def>
-          <health>250</health>
-          <id>SmallThruster810003</id>
-          <pos>(17, 0, 14)</pos>
+          <def>LargeThruster</def>
+          <health>500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>LargeThruster810003</id>
+          <pos>(15, 0, 14)</pos>
           <rot>2</rot>
         </saveable>
       </state>
@@ -349,38 +353,6 @@
       </state>
     </li>
     <li>
-      <pos>(5, 0, 10)</pos>
-      <def>SmallThruster</def>
-      <rotation>1</rotation>
-      <hitPoints>250</hitPoints>
-      <stackCount>1</stackCount>
-      <state>
-        <saveable Class="Building">
-          <def>SmallThruster</def>
-          <health>250</health>
-          <id>SmallThruster810006</id>
-          <pos>(5, 0, 10)</pos>
-          <rot>1</rot>
-        </saveable>
-      </state>
-    </li>
-    <li>
-      <pos>(20, 0, 10)</pos>
-      <def>SmallThruster</def>
-      <rotation>3</rotation>
-      <hitPoints>250</hitPoints>
-      <stackCount>1</stackCount>
-      <state>
-        <saveable Class="Building">
-          <def>SmallThruster</def>
-          <health>250</health>
-          <id>SmallThruster810007</id>
-          <pos>(20, 0, 10)</pos>
-          <rot>3</rot>
-        </saveable>
-      </state>
-    </li>
-    <li>
       <pos>(5, 0, 0)</pos>
       <def>GravshipHull</def>
       <rotation>0</rotation>
@@ -393,7 +365,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810008</id>
+          <id>GravshipHull810006</id>
           <pos>(5, 0, 0)</pos>
           <rot>0</rot>
         </saveable>
@@ -412,7 +384,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810009</id>
+          <id>GravshipHull810007</id>
           <pos>(5, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -431,7 +403,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810010</id>
+          <id>GravshipHull810008</id>
           <pos>(5, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -450,7 +422,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810011</id>
+          <id>GravshipHull810009</id>
           <pos>(5, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -469,7 +441,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810012</id>
+          <id>GravshipHull810010</id>
           <pos>(5, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -488,7 +460,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810013</id>
+          <id>GravshipHull810011</id>
           <pos>(5, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -507,7 +479,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810014</id>
+          <id>GravshipHull810012</id>
           <pos>(5, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -526,8 +498,27 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810015</id>
+          <id>GravshipHull810013</id>
           <pos>(5, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 10)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810014</id>
+          <pos>(5, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
       </state>
@@ -545,7 +536,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810016</id>
+          <id>GravshipHull810015</id>
           <pos>(5, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -564,7 +555,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810017</id>
+          <id>GravshipHull810016</id>
           <pos>(5, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -583,7 +574,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810018</id>
+          <id>GravshipHull810017</id>
           <pos>(5, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -602,7 +593,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810019</id>
+          <id>GravshipHull810018</id>
           <pos>(5, 0, 14)</pos>
           <rot>0</rot>
         </saveable>
@@ -621,7 +612,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810020</id>
+          <id>GravshipHull810019</id>
           <pos>(6, 0, 0)</pos>
           <rot>0</rot>
         </saveable>
@@ -640,7 +631,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810021</id>
+          <id>GravshipHull810020</id>
           <pos>(6, 0, 14)</pos>
           <rot>0</rot>
         </saveable>
@@ -659,7 +650,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810022</id>
+          <id>GravshipHull810021</id>
           <pos>(7, 0, 0)</pos>
           <rot>0</rot>
         </saveable>
@@ -678,8 +669,46 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810023</id>
+          <id>GravshipHull810022</id>
           <pos>(7, 0, 14)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810023</id>
+          <pos>(8, 0, 0)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 14)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810024</id>
+          <pos>(8, 0, 14)</pos>
           <rot>0</rot>
         </saveable>
       </state>
@@ -697,7 +726,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810024</id>
+          <id>GravshipHull810025</id>
           <pos>(9, 0, 0)</pos>
           <rot>0</rot>
         </saveable>
@@ -716,84 +745,8 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810025</id>
-          <pos>(9, 0, 14)</pos>
-          <rot>0</rot>
-        </saveable>
-      </state>
-    </li>
-    <li>
-      <pos>(10, 0, 0)</pos>
-      <def>GravshipHull</def>
-      <rotation>0</rotation>
-      <hitPoints>420</hitPoints>
-      <stackCount>1</stackCount>
-      <stuff>Steel</stuff>
-      <state>
-        <saveable Class="Building">
-          <def>GravshipHull</def>
-          <health>420</health>
-          <stuff>Steel</stuff>
-          <beenRevealed>True</beenRevealed>
           <id>GravshipHull810026</id>
-          <pos>(10, 0, 0)</pos>
-          <rot>0</rot>
-        </saveable>
-      </state>
-    </li>
-    <li>
-      <pos>(10, 0, 14)</pos>
-      <def>GravshipHull</def>
-      <rotation>0</rotation>
-      <hitPoints>420</hitPoints>
-      <stackCount>1</stackCount>
-      <stuff>Steel</stuff>
-      <state>
-        <saveable Class="Building">
-          <def>GravshipHull</def>
-          <health>420</health>
-          <stuff>Steel</stuff>
-          <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810027</id>
-          <pos>(10, 0, 14)</pos>
-          <rot>0</rot>
-        </saveable>
-      </state>
-    </li>
-    <li>
-      <pos>(11, 0, 0)</pos>
-      <def>GravshipHull</def>
-      <rotation>0</rotation>
-      <hitPoints>420</hitPoints>
-      <stackCount>1</stackCount>
-      <stuff>Steel</stuff>
-      <state>
-        <saveable Class="Building">
-          <def>GravshipHull</def>
-          <health>420</health>
-          <stuff>Steel</stuff>
-          <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810028</id>
-          <pos>(11, 0, 0)</pos>
-          <rot>0</rot>
-        </saveable>
-      </state>
-    </li>
-    <li>
-      <pos>(11, 0, 14)</pos>
-      <def>GravshipHull</def>
-      <rotation>0</rotation>
-      <hitPoints>420</hitPoints>
-      <stackCount>1</stackCount>
-      <stuff>Steel</stuff>
-      <state>
-        <saveable Class="Building">
-          <def>GravshipHull</def>
-          <health>420</health>
-          <stuff>Steel</stuff>
-          <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810029</id>
-          <pos>(11, 0, 14)</pos>
+          <pos>(9, 0, 14)</pos>
           <rot>0</rot>
         </saveable>
       </state>
@@ -811,7 +764,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810030</id>
+          <id>GravshipHull810027</id>
           <pos>(12, 0, 0)</pos>
           <rot>0</rot>
         </saveable>
@@ -830,7 +783,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810031</id>
+          <id>GravshipHull810028</id>
           <pos>(12, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -849,7 +802,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810032</id>
+          <id>GravshipHull810029</id>
           <pos>(12, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -868,7 +821,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810033</id>
+          <id>GravshipHull810030</id>
           <pos>(12, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -887,7 +840,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810034</id>
+          <id>GravshipHull810031</id>
           <pos>(12, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -906,7 +859,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810035</id>
+          <id>GravshipHull810032</id>
           <pos>(12, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -925,7 +878,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810036</id>
+          <id>GravshipHull810033</id>
           <pos>(12, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -944,7 +897,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810037</id>
+          <id>GravshipHull810034</id>
           <pos>(12, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -963,7 +916,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810038</id>
+          <id>GravshipHull810035</id>
           <pos>(12, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -982,7 +935,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810039</id>
+          <id>GravshipHull810036</id>
           <pos>(12, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -1001,7 +954,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810040</id>
+          <id>GravshipHull810037</id>
           <pos>(12, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -1020,7 +973,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810041</id>
+          <id>GravshipHull810038</id>
           <pos>(12, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -1039,7 +992,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810042</id>
+          <id>GravshipHull810039</id>
           <pos>(12, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -1058,7 +1011,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810043</id>
+          <id>GravshipHull810040</id>
           <pos>(12, 0, 14)</pos>
           <rot>0</rot>
         </saveable>
@@ -1077,7 +1030,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810044</id>
+          <id>GravshipHull810041</id>
           <pos>(13, 0, 0)</pos>
           <rot>0</rot>
         </saveable>
@@ -1096,84 +1049,8 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810045</id>
+          <id>GravshipHull810042</id>
           <pos>(13, 0, 14)</pos>
-          <rot>0</rot>
-        </saveable>
-      </state>
-    </li>
-    <li>
-      <pos>(14, 0, 0)</pos>
-      <def>GravshipHull</def>
-      <rotation>0</rotation>
-      <hitPoints>420</hitPoints>
-      <stackCount>1</stackCount>
-      <stuff>Steel</stuff>
-      <state>
-        <saveable Class="Building">
-          <def>GravshipHull</def>
-          <health>420</health>
-          <stuff>Steel</stuff>
-          <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810046</id>
-          <pos>(14, 0, 0)</pos>
-          <rot>0</rot>
-        </saveable>
-      </state>
-    </li>
-    <li>
-      <pos>(14, 0, 14)</pos>
-      <def>GravshipHull</def>
-      <rotation>0</rotation>
-      <hitPoints>420</hitPoints>
-      <stackCount>1</stackCount>
-      <stuff>Steel</stuff>
-      <state>
-        <saveable Class="Building">
-          <def>GravshipHull</def>
-          <health>420</health>
-          <stuff>Steel</stuff>
-          <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810047</id>
-          <pos>(14, 0, 14)</pos>
-          <rot>0</rot>
-        </saveable>
-      </state>
-    </li>
-    <li>
-      <pos>(15, 0, 0)</pos>
-      <def>GravshipHull</def>
-      <rotation>0</rotation>
-      <hitPoints>420</hitPoints>
-      <stackCount>1</stackCount>
-      <stuff>Steel</stuff>
-      <state>
-        <saveable Class="Building">
-          <def>GravshipHull</def>
-          <health>420</health>
-          <stuff>Steel</stuff>
-          <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810048</id>
-          <pos>(15, 0, 0)</pos>
-          <rot>0</rot>
-        </saveable>
-      </state>
-    </li>
-    <li>
-      <pos>(15, 0, 14)</pos>
-      <def>GravshipHull</def>
-      <rotation>0</rotation>
-      <hitPoints>420</hitPoints>
-      <stackCount>1</stackCount>
-      <stuff>Steel</stuff>
-      <state>
-        <saveable Class="Building">
-          <def>GravshipHull</def>
-          <health>420</health>
-          <stuff>Steel</stuff>
-          <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810049</id>
-          <pos>(15, 0, 14)</pos>
           <rot>0</rot>
         </saveable>
       </state>
@@ -1191,7 +1068,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810050</id>
+          <id>GravshipHull810043</id>
           <pos>(16, 0, 0)</pos>
           <rot>0</rot>
         </saveable>
@@ -1210,8 +1087,46 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810051</id>
+          <id>GravshipHull810044</id>
           <pos>(16, 0, 14)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(17, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810045</id>
+          <pos>(17, 0, 0)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(17, 0, 14)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810046</id>
+          <pos>(17, 0, 14)</pos>
           <rot>0</rot>
         </saveable>
       </state>
@@ -1229,7 +1144,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810052</id>
+          <id>GravshipHull810047</id>
           <pos>(18, 0, 0)</pos>
           <rot>0</rot>
         </saveable>
@@ -1248,7 +1163,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810053</id>
+          <id>GravshipHull810048</id>
           <pos>(18, 0, 14)</pos>
           <rot>0</rot>
         </saveable>
@@ -1267,7 +1182,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810054</id>
+          <id>GravshipHull810049</id>
           <pos>(19, 0, 0)</pos>
           <rot>0</rot>
         </saveable>
@@ -1286,7 +1201,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810055</id>
+          <id>GravshipHull810050</id>
           <pos>(19, 0, 14)</pos>
           <rot>0</rot>
         </saveable>
@@ -1305,7 +1220,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810056</id>
+          <id>GravshipHull810051</id>
           <pos>(20, 0, 0)</pos>
           <rot>0</rot>
         </saveable>
@@ -1324,7 +1239,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810057</id>
+          <id>GravshipHull810052</id>
           <pos>(20, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -1343,7 +1258,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810058</id>
+          <id>GravshipHull810053</id>
           <pos>(20, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -1362,7 +1277,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810059</id>
+          <id>GravshipHull810054</id>
           <pos>(20, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -1381,7 +1296,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810060</id>
+          <id>GravshipHull810055</id>
           <pos>(20, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -1400,7 +1315,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810061</id>
+          <id>GravshipHull810056</id>
           <pos>(20, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -1419,7 +1334,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810062</id>
+          <id>GravshipHull810057</id>
           <pos>(20, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -1438,7 +1353,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810063</id>
+          <id>GravshipHull810058</id>
           <pos>(20, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -1457,8 +1372,27 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810064</id>
+          <id>GravshipHull810059</id>
           <pos>(20, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(20, 0, 10)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810060</id>
+          <pos>(20, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
       </state>
@@ -1476,7 +1410,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810065</id>
+          <id>GravshipHull810061</id>
           <pos>(20, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -1495,7 +1429,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810066</id>
+          <id>GravshipHull810062</id>
           <pos>(20, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -1514,7 +1448,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810067</id>
+          <id>GravshipHull810063</id>
           <pos>(20, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -1533,7 +1467,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810068</id>
+          <id>GravshipHull810064</id>
           <pos>(20, 0, 14)</pos>
           <rot>0</rot>
         </saveable>
@@ -1553,7 +1487,7 @@
           <defence>1800</defence>
           <lasterUser>null</lasterUser>
           <approachingPawn>null</approachingPawn>
-          <id>DeltaV_DockingPort810069</id>
+          <id>DeltaV_DockingPort810065</id>
           <pos>(5, 0, 7)</pos>
           <rot>3</rot>
         </saveable>
@@ -1574,7 +1508,7 @@
           <beenRevealed>True</beenRevealed>
           <lastFriendlyTouchTick>-9999</lastFriendlyTouchTick>
           <approachingPawn>null</approachingPawn>
-          <id>Door810070</id>
+          <id>Door810066</id>
           <pos>(12, 0, 7)</pos>
           <rot>3</rot>
         </saveable>
@@ -1590,7 +1524,7 @@
         <saveable Class="Building">
           <def>PilotConsole</def>
           <health>150</health>
-          <id>PilotConsole810071</id>
+          <id>PilotConsole810067</id>
           <pos>(8, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -1619,7 +1553,7 @@
               <allowedQualityLevels>Awful~Legendary</allowedQualityLevels>
             </filter>
           </settings>
-          <id>ShelfSmall810072</id>
+          <id>ShelfSmall810068</id>
           <pos>(16, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -1635,7 +1569,7 @@
         <saveable Class="Building_CommsConsole">
           <def>CommsConsole</def>
           <health>250</health>
-          <id>CommsConsole810073</id>
+          <id>CommsConsole810069</id>
           <pos>(8, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -1659,7 +1593,7 @@
           <quality>Good</quality>
           <taleRef IsNull="True" />
           <alreadySetDefaultMed>True</alreadySetDefaultMed>
-          <id>Bed810074</id>
+          <id>Bed810070</id>
           <pos>(8, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -1677,7 +1611,7 @@
           <health>200</health>
           <parentThing>null</parentThing>
           <onSubstructure>True</onSubstructure>
-          <id>GravcorePowerCell810075</id>
+          <id>GravcorePowerCell810071</id>
           <pos>(16, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -1702,14 +1636,14 @@
               <values />
             </adaptationTicksLeft>
           </stunHandler>
-          <id>Battery810076</id>
+          <id>Battery810072</id>
           <pos>(17, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
       </state>
     </li>
     <li>
-      <pos>(10, 0, 13)</pos>
+      <pos>(9, 0, 13)</pos>
       <def>OxygenPump</def>
       <rotation>0</rotation>
       <hitPoints>80</hitPoints>
@@ -1719,14 +1653,14 @@
           <def>OxygenPump</def>
           <health>80</health>
           <parentThing>null</parentThing>
-          <id>OxygenPump810077</id>
-          <pos>(10, 0, 13)</pos>
+          <id>OxygenPump810073</id>
+          <pos>(9, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
       </state>
     </li>
     <li>
-      <pos>(15, 0, 13)</pos>
+      <pos>(17, 0, 13)</pos>
       <def>OxygenPump</def>
       <rotation>0</rotation>
       <hitPoints>80</hitPoints>
@@ -1736,8 +1670,8 @@
           <def>OxygenPump</def>
           <health>80</health>
           <parentThing>null</parentThing>
-          <id>OxygenPump810078</id>
-          <pos>(15, 0, 13)</pos>
+          <id>OxygenPump810074</id>
+          <pos>(17, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
       </state>
@@ -1755,7 +1689,7 @@
           <parentThing>null</parentThing>
           <targetTemperature>21</targetTemperature>
           <glowOn>True</glowOn>
-          <id>Heater810079</id>
+          <id>Heater810075</id>
           <pos>(10, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -1775,7 +1709,7 @@
           <parentThing>null</parentThing>
           <sourcePrecept>null</sourcePrecept>
           <glowOn>True</glowOn>
-          <id>StandingLamp810080</id>
+          <id>StandingLamp810076</id>
           <pos>(14, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -1792,7 +1726,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810081</id>
+          <id>HiddenConduit810077</id>
           <pos>(6, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -1809,7 +1743,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810082</id>
+          <id>HiddenConduit810078</id>
           <pos>(6, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -1826,7 +1760,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810083</id>
+          <id>HiddenConduit810079</id>
           <pos>(6, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -1843,7 +1777,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810084</id>
+          <id>HiddenConduit810080</id>
           <pos>(6, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -1860,7 +1794,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810085</id>
+          <id>HiddenConduit810081</id>
           <pos>(6, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -1877,7 +1811,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810086</id>
+          <id>HiddenConduit810082</id>
           <pos>(6, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -1894,7 +1828,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810087</id>
+          <id>HiddenConduit810083</id>
           <pos>(6, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -1911,7 +1845,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810088</id>
+          <id>HiddenConduit810084</id>
           <pos>(6, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -1928,7 +1862,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810089</id>
+          <id>HiddenConduit810085</id>
           <pos>(6, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -1945,7 +1879,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810090</id>
+          <id>HiddenConduit810086</id>
           <pos>(6, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -1962,7 +1896,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810091</id>
+          <id>HiddenConduit810087</id>
           <pos>(6, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -1979,7 +1913,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810092</id>
+          <id>HiddenConduit810088</id>
           <pos>(6, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -1996,7 +1930,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810093</id>
+          <id>HiddenConduit810089</id>
           <pos>(6, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -2013,7 +1947,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810094</id>
+          <id>HiddenConduit810090</id>
           <pos>(7, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -2030,7 +1964,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810095</id>
+          <id>HiddenConduit810091</id>
           <pos>(7, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -2047,7 +1981,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810096</id>
+          <id>HiddenConduit810092</id>
           <pos>(7, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -2064,7 +1998,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810097</id>
+          <id>HiddenConduit810093</id>
           <pos>(7, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -2081,7 +2015,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810098</id>
+          <id>HiddenConduit810094</id>
           <pos>(7, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -2098,7 +2032,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810099</id>
+          <id>HiddenConduit810095</id>
           <pos>(7, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -2115,7 +2049,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810100</id>
+          <id>HiddenConduit810096</id>
           <pos>(7, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -2132,7 +2066,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810101</id>
+          <id>HiddenConduit810097</id>
           <pos>(7, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -2149,7 +2083,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810102</id>
+          <id>HiddenConduit810098</id>
           <pos>(7, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -2166,7 +2100,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810103</id>
+          <id>HiddenConduit810099</id>
           <pos>(7, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -2183,7 +2117,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810104</id>
+          <id>HiddenConduit810100</id>
           <pos>(7, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -2200,7 +2134,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810105</id>
+          <id>HiddenConduit810101</id>
           <pos>(7, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -2217,7 +2151,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810106</id>
+          <id>HiddenConduit810102</id>
           <pos>(7, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -2234,7 +2168,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810107</id>
+          <id>HiddenConduit810103</id>
           <pos>(8, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -2251,7 +2185,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810108</id>
+          <id>HiddenConduit810104</id>
           <pos>(8, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -2268,7 +2202,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810109</id>
+          <id>HiddenConduit810105</id>
           <pos>(8, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -2285,7 +2219,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810110</id>
+          <id>HiddenConduit810106</id>
           <pos>(8, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -2302,7 +2236,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810111</id>
+          <id>HiddenConduit810107</id>
           <pos>(8, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -2319,7 +2253,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810112</id>
+          <id>HiddenConduit810108</id>
           <pos>(8, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -2336,7 +2270,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810113</id>
+          <id>HiddenConduit810109</id>
           <pos>(8, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -2353,7 +2287,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810114</id>
+          <id>HiddenConduit810110</id>
           <pos>(8, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -2370,7 +2304,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810115</id>
+          <id>HiddenConduit810111</id>
           <pos>(8, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -2387,7 +2321,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810116</id>
+          <id>HiddenConduit810112</id>
           <pos>(8, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -2404,7 +2338,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810117</id>
+          <id>HiddenConduit810113</id>
           <pos>(8, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -2421,7 +2355,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810118</id>
+          <id>HiddenConduit810114</id>
           <pos>(8, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -2438,7 +2372,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810119</id>
+          <id>HiddenConduit810115</id>
           <pos>(8, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -2455,7 +2389,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810120</id>
+          <id>HiddenConduit810116</id>
           <pos>(9, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -2472,7 +2406,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810121</id>
+          <id>HiddenConduit810117</id>
           <pos>(9, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -2489,7 +2423,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810122</id>
+          <id>HiddenConduit810118</id>
           <pos>(9, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -2506,7 +2440,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810123</id>
+          <id>HiddenConduit810119</id>
           <pos>(9, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -2523,7 +2457,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810124</id>
+          <id>HiddenConduit810120</id>
           <pos>(9, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -2540,7 +2474,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810125</id>
+          <id>HiddenConduit810121</id>
           <pos>(9, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -2557,7 +2491,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810126</id>
+          <id>HiddenConduit810122</id>
           <pos>(9, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -2574,7 +2508,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810127</id>
+          <id>HiddenConduit810123</id>
           <pos>(9, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -2591,7 +2525,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810128</id>
+          <id>HiddenConduit810124</id>
           <pos>(9, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -2608,7 +2542,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810129</id>
+          <id>HiddenConduit810125</id>
           <pos>(9, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -2625,7 +2559,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810130</id>
+          <id>HiddenConduit810126</id>
           <pos>(9, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -2642,7 +2576,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810131</id>
+          <id>HiddenConduit810127</id>
           <pos>(9, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -2659,7 +2593,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810132</id>
+          <id>HiddenConduit810128</id>
           <pos>(9, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -2676,7 +2610,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810133</id>
+          <id>HiddenConduit810129</id>
           <pos>(10, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -2693,7 +2627,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810134</id>
+          <id>HiddenConduit810130</id>
           <pos>(10, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -2710,7 +2644,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810135</id>
+          <id>HiddenConduit810131</id>
           <pos>(10, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -2727,7 +2661,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810136</id>
+          <id>HiddenConduit810132</id>
           <pos>(10, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -2744,7 +2678,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810137</id>
+          <id>HiddenConduit810133</id>
           <pos>(10, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -2761,7 +2695,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810138</id>
+          <id>HiddenConduit810134</id>
           <pos>(10, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -2778,7 +2712,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810139</id>
+          <id>HiddenConduit810135</id>
           <pos>(10, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -2795,7 +2729,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810140</id>
+          <id>HiddenConduit810136</id>
           <pos>(10, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -2812,7 +2746,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810141</id>
+          <id>HiddenConduit810137</id>
           <pos>(10, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -2829,7 +2763,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810142</id>
+          <id>HiddenConduit810138</id>
           <pos>(10, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -2846,7 +2780,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810143</id>
+          <id>HiddenConduit810139</id>
           <pos>(10, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -2863,7 +2797,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810144</id>
+          <id>HiddenConduit810140</id>
           <pos>(10, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -2880,7 +2814,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810145</id>
+          <id>HiddenConduit810141</id>
           <pos>(10, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -2897,7 +2831,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810146</id>
+          <id>HiddenConduit810142</id>
           <pos>(11, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -2914,7 +2848,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810147</id>
+          <id>HiddenConduit810143</id>
           <pos>(11, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -2931,7 +2865,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810148</id>
+          <id>HiddenConduit810144</id>
           <pos>(11, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -2948,7 +2882,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810149</id>
+          <id>HiddenConduit810145</id>
           <pos>(11, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -2965,7 +2899,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810150</id>
+          <id>HiddenConduit810146</id>
           <pos>(11, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -2982,7 +2916,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810151</id>
+          <id>HiddenConduit810147</id>
           <pos>(11, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -2999,7 +2933,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810152</id>
+          <id>HiddenConduit810148</id>
           <pos>(11, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -3016,7 +2950,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810153</id>
+          <id>HiddenConduit810149</id>
           <pos>(11, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -3033,7 +2967,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810154</id>
+          <id>HiddenConduit810150</id>
           <pos>(11, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -3050,7 +2984,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810155</id>
+          <id>HiddenConduit810151</id>
           <pos>(11, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -3067,7 +3001,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810156</id>
+          <id>HiddenConduit810152</id>
           <pos>(11, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -3084,7 +3018,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810157</id>
+          <id>HiddenConduit810153</id>
           <pos>(11, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -3101,7 +3035,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810158</id>
+          <id>HiddenConduit810154</id>
           <pos>(11, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -3118,7 +3052,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810159</id>
+          <id>HiddenConduit810155</id>
           <pos>(12, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -3135,7 +3069,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810160</id>
+          <id>HiddenConduit810156</id>
           <pos>(12, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -3152,7 +3086,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810161</id>
+          <id>HiddenConduit810157</id>
           <pos>(12, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -3169,7 +3103,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810162</id>
+          <id>HiddenConduit810158</id>
           <pos>(12, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -3186,7 +3120,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810163</id>
+          <id>HiddenConduit810159</id>
           <pos>(12, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -3203,7 +3137,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810164</id>
+          <id>HiddenConduit810160</id>
           <pos>(12, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -3220,7 +3154,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810165</id>
+          <id>HiddenConduit810161</id>
           <pos>(12, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -3237,7 +3171,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810166</id>
+          <id>HiddenConduit810162</id>
           <pos>(12, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -3254,7 +3188,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810167</id>
+          <id>HiddenConduit810163</id>
           <pos>(12, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -3271,7 +3205,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810168</id>
+          <id>HiddenConduit810164</id>
           <pos>(12, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -3288,7 +3222,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810169</id>
+          <id>HiddenConduit810165</id>
           <pos>(12, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -3305,7 +3239,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810170</id>
+          <id>HiddenConduit810166</id>
           <pos>(12, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -3322,7 +3256,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810171</id>
+          <id>HiddenConduit810167</id>
           <pos>(12, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -3339,7 +3273,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810172</id>
+          <id>HiddenConduit810168</id>
           <pos>(13, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -3356,7 +3290,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810173</id>
+          <id>HiddenConduit810169</id>
           <pos>(13, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -3373,7 +3307,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810174</id>
+          <id>HiddenConduit810170</id>
           <pos>(13, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -3390,7 +3324,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810175</id>
+          <id>HiddenConduit810171</id>
           <pos>(13, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -3407,7 +3341,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810176</id>
+          <id>HiddenConduit810172</id>
           <pos>(13, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -3424,7 +3358,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810177</id>
+          <id>HiddenConduit810173</id>
           <pos>(13, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -3441,7 +3375,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810178</id>
+          <id>HiddenConduit810174</id>
           <pos>(13, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -3458,7 +3392,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810179</id>
+          <id>HiddenConduit810175</id>
           <pos>(13, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -3475,7 +3409,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810180</id>
+          <id>HiddenConduit810176</id>
           <pos>(13, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -3492,7 +3426,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810181</id>
+          <id>HiddenConduit810177</id>
           <pos>(13, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -3509,7 +3443,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810182</id>
+          <id>HiddenConduit810178</id>
           <pos>(13, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -3526,7 +3460,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810183</id>
+          <id>HiddenConduit810179</id>
           <pos>(13, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -3543,7 +3477,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810184</id>
+          <id>HiddenConduit810180</id>
           <pos>(13, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -3560,7 +3494,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810185</id>
+          <id>HiddenConduit810181</id>
           <pos>(14, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -3577,7 +3511,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810186</id>
+          <id>HiddenConduit810182</id>
           <pos>(14, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -3594,7 +3528,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810187</id>
+          <id>HiddenConduit810183</id>
           <pos>(14, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -3611,7 +3545,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810188</id>
+          <id>HiddenConduit810184</id>
           <pos>(14, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -3628,7 +3562,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810189</id>
+          <id>HiddenConduit810185</id>
           <pos>(14, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -3645,7 +3579,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810190</id>
+          <id>HiddenConduit810186</id>
           <pos>(14, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -3662,7 +3596,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810191</id>
+          <id>HiddenConduit810187</id>
           <pos>(14, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -3679,7 +3613,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810192</id>
+          <id>HiddenConduit810188</id>
           <pos>(14, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -3696,7 +3630,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810193</id>
+          <id>HiddenConduit810189</id>
           <pos>(14, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -3713,7 +3647,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810194</id>
+          <id>HiddenConduit810190</id>
           <pos>(14, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -3730,7 +3664,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810195</id>
+          <id>HiddenConduit810191</id>
           <pos>(14, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -3747,7 +3681,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810196</id>
+          <id>HiddenConduit810192</id>
           <pos>(14, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -3764,7 +3698,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810197</id>
+          <id>HiddenConduit810193</id>
           <pos>(14, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -3781,7 +3715,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810198</id>
+          <id>HiddenConduit810194</id>
           <pos>(15, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -3798,7 +3732,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810199</id>
+          <id>HiddenConduit810195</id>
           <pos>(15, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -3815,7 +3749,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810200</id>
+          <id>HiddenConduit810196</id>
           <pos>(15, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -3832,7 +3766,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810201</id>
+          <id>HiddenConduit810197</id>
           <pos>(15, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -3849,7 +3783,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810202</id>
+          <id>HiddenConduit810198</id>
           <pos>(15, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -3866,7 +3800,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810203</id>
+          <id>HiddenConduit810199</id>
           <pos>(15, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -3883,7 +3817,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810204</id>
+          <id>HiddenConduit810200</id>
           <pos>(15, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -3900,7 +3834,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810205</id>
+          <id>HiddenConduit810201</id>
           <pos>(15, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -3917,7 +3851,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810206</id>
+          <id>HiddenConduit810202</id>
           <pos>(15, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -3934,7 +3868,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810207</id>
+          <id>HiddenConduit810203</id>
           <pos>(15, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -3951,7 +3885,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810208</id>
+          <id>HiddenConduit810204</id>
           <pos>(15, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -3968,7 +3902,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810209</id>
+          <id>HiddenConduit810205</id>
           <pos>(15, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -3985,7 +3919,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810210</id>
+          <id>HiddenConduit810206</id>
           <pos>(15, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -4002,7 +3936,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810211</id>
+          <id>HiddenConduit810207</id>
           <pos>(16, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -4019,7 +3953,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810212</id>
+          <id>HiddenConduit810208</id>
           <pos>(16, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -4036,7 +3970,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810213</id>
+          <id>HiddenConduit810209</id>
           <pos>(16, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -4053,7 +3987,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810214</id>
+          <id>HiddenConduit810210</id>
           <pos>(16, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -4070,7 +4004,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810215</id>
+          <id>HiddenConduit810211</id>
           <pos>(16, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -4087,7 +4021,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810216</id>
+          <id>HiddenConduit810212</id>
           <pos>(16, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -4104,7 +4038,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810217</id>
+          <id>HiddenConduit810213</id>
           <pos>(16, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -4121,7 +4055,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810218</id>
+          <id>HiddenConduit810214</id>
           <pos>(16, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -4138,7 +4072,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810219</id>
+          <id>HiddenConduit810215</id>
           <pos>(16, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -4155,7 +4089,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810220</id>
+          <id>HiddenConduit810216</id>
           <pos>(16, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -4172,7 +4106,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810221</id>
+          <id>HiddenConduit810217</id>
           <pos>(16, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -4189,7 +4123,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810222</id>
+          <id>HiddenConduit810218</id>
           <pos>(16, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -4206,7 +4140,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810223</id>
+          <id>HiddenConduit810219</id>
           <pos>(17, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -4223,7 +4157,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810224</id>
+          <id>HiddenConduit810220</id>
           <pos>(17, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -4240,7 +4174,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810225</id>
+          <id>HiddenConduit810221</id>
           <pos>(17, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -4257,7 +4191,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810226</id>
+          <id>HiddenConduit810222</id>
           <pos>(17, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -4274,7 +4208,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810227</id>
+          <id>HiddenConduit810223</id>
           <pos>(17, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -4291,7 +4225,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810228</id>
+          <id>HiddenConduit810224</id>
           <pos>(17, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -4308,7 +4242,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810229</id>
+          <id>HiddenConduit810225</id>
           <pos>(17, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -4325,7 +4259,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810230</id>
+          <id>HiddenConduit810226</id>
           <pos>(17, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -4342,7 +4276,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810231</id>
+          <id>HiddenConduit810227</id>
           <pos>(17, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -4359,7 +4293,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810232</id>
+          <id>HiddenConduit810228</id>
           <pos>(17, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -4376,7 +4310,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810233</id>
+          <id>HiddenConduit810229</id>
           <pos>(17, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -4393,7 +4327,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810234</id>
+          <id>HiddenConduit810230</id>
           <pos>(18, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -4410,7 +4344,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810235</id>
+          <id>HiddenConduit810231</id>
           <pos>(18, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -4427,7 +4361,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810236</id>
+          <id>HiddenConduit810232</id>
           <pos>(18, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -4444,7 +4378,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810237</id>
+          <id>HiddenConduit810233</id>
           <pos>(18, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -4461,7 +4395,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810238</id>
+          <id>HiddenConduit810234</id>
           <pos>(18, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -4478,7 +4412,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810239</id>
+          <id>HiddenConduit810235</id>
           <pos>(18, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -4495,7 +4429,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810240</id>
+          <id>HiddenConduit810236</id>
           <pos>(18, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -4512,7 +4446,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810241</id>
+          <id>HiddenConduit810237</id>
           <pos>(18, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -4529,7 +4463,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810242</id>
+          <id>HiddenConduit810238</id>
           <pos>(18, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -4546,7 +4480,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810243</id>
+          <id>HiddenConduit810239</id>
           <pos>(18, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -4563,7 +4497,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810244</id>
+          <id>HiddenConduit810240</id>
           <pos>(18, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -4580,7 +4514,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810245</id>
+          <id>HiddenConduit810241</id>
           <pos>(18, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -4597,7 +4531,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810246</id>
+          <id>HiddenConduit810242</id>
           <pos>(18, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -4614,7 +4548,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810247</id>
+          <id>HiddenConduit810243</id>
           <pos>(19, 0, 1)</pos>
           <rot>0</rot>
         </saveable>
@@ -4631,7 +4565,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810248</id>
+          <id>HiddenConduit810244</id>
           <pos>(19, 0, 2)</pos>
           <rot>0</rot>
         </saveable>
@@ -4648,7 +4582,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810249</id>
+          <id>HiddenConduit810245</id>
           <pos>(19, 0, 3)</pos>
           <rot>0</rot>
         </saveable>
@@ -4665,7 +4599,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810250</id>
+          <id>HiddenConduit810246</id>
           <pos>(19, 0, 4)</pos>
           <rot>0</rot>
         </saveable>
@@ -4682,7 +4616,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810251</id>
+          <id>HiddenConduit810247</id>
           <pos>(19, 0, 5)</pos>
           <rot>0</rot>
         </saveable>
@@ -4699,7 +4633,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810252</id>
+          <id>HiddenConduit810248</id>
           <pos>(19, 0, 6)</pos>
           <rot>0</rot>
         </saveable>
@@ -4716,7 +4650,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810253</id>
+          <id>HiddenConduit810249</id>
           <pos>(19, 0, 7)</pos>
           <rot>0</rot>
         </saveable>
@@ -4733,7 +4667,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810254</id>
+          <id>HiddenConduit810250</id>
           <pos>(19, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -4750,7 +4684,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810255</id>
+          <id>HiddenConduit810251</id>
           <pos>(19, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -4767,7 +4701,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810256</id>
+          <id>HiddenConduit810252</id>
           <pos>(19, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -4784,7 +4718,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810257</id>
+          <id>HiddenConduit810253</id>
           <pos>(19, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -4801,7 +4735,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810258</id>
+          <id>HiddenConduit810254</id>
           <pos>(19, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -4818,7 +4752,7 @@
           <def>HiddenConduit</def>
           <health>100</health>
           <parentThing>null</parentThing>
-          <id>HiddenConduit810259</id>
+          <id>HiddenConduit810255</id>
           <pos>(19, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -5825,6 +5759,10 @@
       <def>RoofConstructed</def>
     </li>
     <li>
+      <pos>(5, 0, 10)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
       <pos>(5, 0, 11)</pos>
       <def>RoofConstructed</def>
     </li>
@@ -5874,6 +5812,10 @@
     </li>
     <li>
       <pos>(6, 0, 9)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 10)</pos>
       <def>RoofConstructed</def>
     </li>
     <li>
@@ -5953,6 +5895,14 @@
       <def>RoofConstructed</def>
     </li>
     <li>
+      <pos>(8, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(8, 0, 1)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
       <pos>(8, 0, 2)</pos>
       <def>RoofConstructed</def>
     </li>
@@ -5994,6 +5944,14 @@
     </li>
     <li>
       <pos>(8, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(8, 0, 13)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(8, 0, 14)</pos>
       <def>RoofConstructed</def>
     </li>
     <li>
@@ -6057,14 +6015,6 @@
       <def>RoofConstructed</def>
     </li>
     <li>
-      <pos>(10, 0, 0)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
-      <pos>(10, 0, 1)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
       <pos>(10, 0, 2)</pos>
       <def>RoofConstructed</def>
     </li>
@@ -6109,22 +6059,6 @@
       <def>RoofConstructed</def>
     </li>
     <li>
-      <pos>(10, 0, 13)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
-      <pos>(10, 0, 14)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
-      <pos>(11, 0, 0)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
-      <pos>(11, 0, 1)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
       <pos>(11, 0, 2)</pos>
       <def>RoofConstructed</def>
     </li>
@@ -6166,14 +6100,6 @@
     </li>
     <li>
       <pos>(11, 0, 12)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
-      <pos>(11, 0, 13)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
-      <pos>(11, 0, 14)</pos>
       <def>RoofConstructed</def>
     </li>
     <li>
@@ -6297,14 +6223,6 @@
       <def>RoofConstructed</def>
     </li>
     <li>
-      <pos>(14, 0, 0)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
-      <pos>(14, 0, 1)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
       <pos>(14, 0, 2)</pos>
       <def>RoofConstructed</def>
     </li>
@@ -6349,22 +6267,6 @@
       <def>RoofConstructed</def>
     </li>
     <li>
-      <pos>(14, 0, 13)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
-      <pos>(14, 0, 14)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
-      <pos>(15, 0, 0)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
-      <pos>(15, 0, 1)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
       <pos>(15, 0, 2)</pos>
       <def>RoofConstructed</def>
     </li>
@@ -6406,14 +6308,6 @@
     </li>
     <li>
       <pos>(15, 0, 12)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
-      <pos>(15, 0, 13)</pos>
-      <def>RoofConstructed</def>
-    </li>
-    <li>
-      <pos>(15, 0, 14)</pos>
       <def>RoofConstructed</def>
     </li>
     <li>
@@ -6477,6 +6371,14 @@
       <def>RoofConstructed</def>
     </li>
     <li>
+      <pos>(17, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(17, 0, 1)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
       <pos>(17, 0, 2)</pos>
       <def>RoofConstructed</def>
     </li>
@@ -6518,6 +6420,14 @@
     </li>
     <li>
       <pos>(17, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(17, 0, 13)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(17, 0, 14)</pos>
       <def>RoofConstructed</def>
     </li>
     <li>
@@ -6617,6 +6527,10 @@
       <def>RoofConstructed</def>
     </li>
     <li>
+      <pos>(19, 0, 10)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
       <pos>(19, 0, 11)</pos>
       <def>RoofConstructed</def>
     </li>
@@ -6666,6 +6580,10 @@
     </li>
     <li>
       <pos>(20, 0, 9)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(20, 0, 10)</pos>
       <def>RoofConstructed</def>
     </li>
     <li>

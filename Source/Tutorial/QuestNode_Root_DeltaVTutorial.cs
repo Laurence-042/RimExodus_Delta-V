@@ -22,6 +22,7 @@ namespace DeltaV
             AddDialog(quest, TutorialStage.Contact, "Acknowledged", "DeltaV_Tutorial_FindComms");
             AddDialog(quest, TutorialStage.Inquiry, "AskPurpose", "DeltaV_Tutorial_AskPurpose");
             AddDialog(quest, TutorialStage.Briefing, "StartFlight", "DeltaV_Tutorial_StartFlight");
+            AddDialog(quest, TutorialStage.Design, "StartPractice", "DeltaV_Tutorial_StartPractice");
             AddDialog(quest, TutorialStage.Flight, "CheckFlight", "DeltaV_Tutorial_CheckFlight");
             AddDialog(quest, TutorialStage.Salvage, "CheckSalvage", "DeltaV_Tutorial_CheckSalvage");
             AddDialog(quest, TutorialStage.SoftDock, "CheckSoftDock", "DeltaV_Tutorial_CheckSoftDock");

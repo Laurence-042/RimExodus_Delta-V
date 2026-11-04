@@ -57,6 +57,7 @@ internal static class Program
             foreach (string layout in new[] { "ArrivalStation", "TrainingShip", "Salvage", "Shipyard", "PrototypeShip" })
                 Geometry(Path.Combine(Path.GetDirectoryName(args[1]), layout + ".records.json"), game);
             State(game);
+            Theory(game, harmony);
             FlightEvidence();
             FocusThread(game, harmony);
             Caskets(args[2]);
@@ -122,6 +123,18 @@ internal static class Program
                 Check(!GenConstruct.CanBuildOnTerrain(portDef, pos, map, rot), "old substructure-only port rejected on arrival platform");
             }
             Check(expected.SetEquals(GenAdj.OccupiedRect(pos, rot, def.size)), name + " native occupied rectangle");
+            if (row.TryGetProperty("exclusionSize", out var exclusion))
+            {
+                var offset = row.GetProperty("exclusionOffset");
+                var props = new CompProperties_GravshipThruster {
+                    exclusionAreaSize = new IntVec3(exclusion[0].GetInt32(), 0, exclusion[2].GetInt32()),
+                    exclusionAreaOffset = new IntVec3(offset[0].GetInt32(), 0, offset[2].GetInt32()) };
+                List<IntVec3> cells = null;
+                props.GetExclusionZone(pos, rot, ref cells);
+                var authored = row.GetProperty("exclusionCells").EnumerateArray()
+                    .Select(c => new IntVec3(c[0].GetInt32(), 0, c[1].GetInt32())).ToHashSet();
+                Check(authored.SetEquals(cells), name + " native exclusion zone matches authored clearance");
+            }
             for (int n = 0; n < 4; n++)
             {
                 var turn = new Rot4(n);
@@ -157,7 +170,7 @@ internal static class Program
             PowerNet net = PowerNetMaker.NewPowerNetStartingFrom(transmitters[0]);
             Check(net.transmitters.Count == transmitters.Count, "native single connected power net");
         }
-        var thrusters = buildings.Where(b => b.def.defName == "SmallThruster").ToList();
+        var thrusters = buildings.Where(b => b.def.defName == "SmallThruster" || b.def.defName == "LargeThruster").ToList();
         if (thrusters.Count != 0)
         {
             var report = new ShipPhysics.MassReport { mass = 1000f, inertia = 30000f,
@@ -177,7 +190,76 @@ internal static class Program
                     : Vector2.Dot(force, new Vector2(command.fx,command.fz)) > 1f,
                     "training layout has real allocator authority in all six directions");
             }
+            if (Path.GetFileName(path) == "TrainingShip.records.json") TrainerStrafe(report, thrusters);
         }
+    }
+
+    static void TrainerStrafe(ShipPhysics.MassReport report, List<Building> buildings)
+    {
+        Check(buildings.Count == 6 && buildings.Count(b => b.def.defName == "LargeThruster") == 4,
+            "trainer has exactly four main engines and two lateral RCS");
+        Check(buildings.Count(b => b.Rotation == Rot4.North) == 2 && buildings.Count(b => b.Rotation == Rot4.South) == 2
+            && buildings.Count(b => b.Rotation == Rot4.East) == 1 && buildings.Count(b => b.Rotation == Rot4.West) == 1,
+            "trainer has two forward, two reverse and one RCS for each lateral direction");
+        // Healthy engines at their production thrust. Sweep a declared COM envelope rather than
+        // presenting this offline fixture as a full in-game mass/SpawnSetup calculation.
+        foreach (float x in new[] { 32.5f, 33f, 33.5f })
+        foreach (float z in new[] { 27f, 27.5f, 28f })
+        foreach (int direction in new[] { -1, 1 })
+        {
+            report.comLocal = new Vector2(x, z);
+            var lateral = report.thrusters.Where(t => t.dir.x != 0).ToList();
+            Check(lateral.All(t => t.localPos.y < z), "both lateral RCS are aft of COM");
+            Check(report.thrusters.Where(t => t.dir.y != 0).All(t => Mathf.Abs(t.localPos.x-x)
+                < lateral.Min(r => z-r.localPos.y)), "main engines have shorter torque arms than stern RCS");
+            ShipPhysics.PreviewAllocation(report, new ShipPhysics.Command { fx=direction }, out var force, out float torque);
+            float mainTorque = 0, rcsTorque = 0, forward = 0, reverse = 0;
+            for (int i=0; i<report.thrusters.Count; i++)
+            {
+                var t = report.thrusters[i];
+                Vector2 f = t.dir * (t.thrust * report.previewScratch[i]);
+                Vector2 arm = t.localPos - report.comLocal;
+                float moment = arm.x*f.y-arm.y*f.x;
+                if (t.dir.x != 0) rcsTorque += moment;
+                else { mainTorque += moment; if (f.y > 0) forward += f.y; else reverse -= f.y; }
+            }
+            Check(force.x*direction > 100f && Mathf.Abs(force.y) < Mathf.Abs(force.x)*.1f,
+                "lateral command produces sideways motion with little fore/aft drift");
+            Check(forward > 100f && reverse > 100f && mainTorque*rcsTorque < 0f,
+                "both forward and reverse main engines counter stern RCS torque");
+            Check(Mathf.Abs(torque) < Mathf.Abs(rcsTorque)*.15f,
+                "main engines cancel at least 85 percent of stern RCS turning moment");
+        }
+        Console.WriteLine("Trainer: both strafe directions recruit forward/reverse engines across COM x=12.5..13.5, z=7..8; healthy engines, mass=1000, inertia=30000.");
+    }
+
+    static bool AssetsPresent(ref bool __result) { __result = true; return false; }
+
+    static void Theory(Game game, Harmony harmony)
+    {
+        var universe = game.GetComponent<UniverseManager>();
+        var quest = new Quest { id = 82, acceptanceTick = 0 };
+        var run = new TutorialRunState { stage = TutorialStage.Design, quest = quest };
+        universe.tutorialRun = run;
+        var assetCheck = AccessTools.Method(typeof(DeltaVTutorialService), "CheckFlightAssets");
+        // Isolate facility existence; exercise the actual quest signal/phase/queue logic.
+        harmony.Patch(assetCheck, prefix: new HarmonyMethod(typeof(Program), nameof(AssetsPresent)));
+        try
+        {
+            var actions = (List<Action>)AccessTools.Field(typeof(UniverseManager), "frameActions").GetValue(universe);
+            actions.Clear();
+            universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "CheckFlight"));
+            Check(run.stage == TutorialStage.Design && actions.Count == 0, "flight answer cannot skip theory");
+            universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "StartPractice"));
+            Check(run.stage == TutorialStage.Flight && actions.Count == 1, "theory acknowledgement opens flight without construction");
+            universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "StartPractice"));
+            universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "LeaveDesign"));
+            Check(run.stage == TutorialStage.Flight && actions.Count == 1, "stale theory replies cannot replay or quit flight");
+            Check(run.forwardTicks == 0 && run.lateralTicks == 0 && run.turnTicks == 0, "theory grants no practical flight credit");
+            actions.Clear();
+            universe.Tutorial.Ended(quest);
+        }
+        finally { harmony.Unpatch(assetCheck, HarmonyPatchType.Prefix, harmony.Id); }
     }
 
     static void Berths(string directory, string records)
