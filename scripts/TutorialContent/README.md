@@ -8,6 +8,8 @@
 
 `prototypes.states` 是从本地 Demo／Demo_0 导出中摘取并清除源图、派系、控制台身份、电网引用后的实例状态。空休眠舱按原版 `Building_Casket`／`ThingOwner` 存档契约补齐，并经真实 Scribe 加载验证。不要删掉内部容器的具体 Class 或空列表，也不要把完整 Scribe 替换成普通 PrefabThingData。
 
+`build.py` 同时输出 REF `environment` 层，将有顶格及月池力场顶设为 21°C、真空度 0，包含不可通行设备下方的空气格；无室内区域的模板输出空列表。运行时教程不再重设数值，机制与验收见 [Prefab 状态重建](../../doc/Prefab状态重建.md)。
+
 ```powershell
 python scripts/TutorialContent/build.py
 just build 1.6

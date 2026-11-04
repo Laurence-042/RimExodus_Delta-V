@@ -13,9 +13,37 @@ internal static partial class Program
 {
     static void PrefabIdentities(string directory)
     {
+        var xmlHarness = new HarmonyLib.Harmony("DeltaV.TutorialRegression.EnvironmentXml");
+        xmlHarness.Patch(HarmonyLib.AccessTools.PropertyGetter(typeof(Prefs), nameof(Prefs.LogVerbose)),
+            prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(EnvironmentQuietLog)));
+        bool profiling = DeepProfiler.enabled;
+        try { CheckPrefabContent(directory); }
+        finally { DeepProfiler.enabled = profiling; xmlHarness.UnpatchAll(xmlHarness.Id); }
+    }
+
+    static bool EnvironmentQuietLog(ref bool __result) { __result = false; return false; }
+
+    static void CheckPrefabContent(string directory)
+    {
         foreach (string path in Directory.GetFiles(directory, "*.xml").OrderBy(p => p))
         {
             var xml = new XmlDocument(); xml.Load(path);
+            // Parse the authored environment with REF's production reader, isolating
+            // unrelated Thing/terrain Def loading from this content-layer check.
+            var environmentXml = (XmlDocument)xml.CloneNode(true);
+            foreach (string xpath in new[] { "/MapPrefab/prefab/terrain", "/MapPrefab/foundations", "/MapPrefab/roofs" })
+            {
+                XmlNode node = environmentXml.SelectSingleNode(xpath);
+                node?.ParentNode.RemoveChild(node);
+            }
+            environmentXml.SelectSingleNode("/MapPrefab/thingStates").RemoveAll();
+            var environment = MapPrefabDocument.FromXml(environmentXml.OuterXml);
+            var sampled = environment.environment.SelectMany(e => e.cells).ToHashSet();
+            var covered = xml.SelectNodes("/MapPrefab/roofs/li/pos|/MapPrefab/foundations/li[def='DeltaV_MoonPool']/pos")
+                .Cast<XmlNode>().Select(n => IntVec3.FromString(n.InnerText)).ToHashSet();
+            Check(sampled.SetEquals(covered), Path.GetFileName(path) + " environment covers all roof/equipment/moonpool cells");
+            Check(environment.environment.All(e => e.temperature == 21f && e.vacuum == 0f),
+                Path.GetFileName(path) + " authored cabin temperature/vacuum");
             var registry = new LoadedObjectDirectory();
             int before = errors.Count;
             foreach (XmlNode node in xml.SelectNodes("/MapPrefab/thingStates/li/state/saveable/descendant-or-self::*[def and id]"))

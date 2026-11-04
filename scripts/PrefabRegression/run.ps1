@@ -17,6 +17,9 @@ foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'Assemb
 Copy-Item -LiteralPath "$repo/1.6/Assemblies/DeltaV.dll" -Destination $out -Force
 Copy-Item -LiteralPath "$repo/References/REF/1.6/RimExodus.Maps.dll" -Destination $out -Force
 Copy-Item -LiteralPath $HarmonyPath -Destination $out -Force
+foreach ($name in @('AdaptiveStorageFramework', '1ITransformable')) {
+    Copy-Item -LiteralPath "D:/SteamLibrary/steamapps/workshop/content/294100/3033901359/1.6/Assemblies/$name.dll" -Destination $out -Force
+}
 foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'DeltaV.dll', 'RimExodus.Maps.dll', '0Harmony.dll')) { $lines += '/r:"' + "$out/$name" + '"' }
 $lines += '"' + "$PSScriptRoot/Program.cs" + '"'
 $lines | Set-Content -LiteralPath "$out/build.rsp"

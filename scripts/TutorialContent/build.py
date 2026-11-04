@@ -334,6 +334,19 @@ def build(data, name="ArrivalStation"):
             node = ET.SubElement(nodes, 'li')
             field(node, 'pos', f'({x}, 0, {z})')
             field(node, 'def', plan.get('foundationDefs',{}).get((x,z),surface_def) if detailed and tag=='foundations' else surface_def)
+    # Authored initial environment travels with the prefab, including imports outside the tutorial.
+    # Include covered equipment cells too: impassable free-air regions share room state.
+    # Solid wall samples are harmless; REF ignores cells with no target Room.
+    environment = ET.SubElement(document, 'environment')
+    covered = roofs | {c for c, d in (plan or {}).get('foundationDefs', {}).items() if d == 'DeltaV_MoonPool'}
+    environment_cells = sorted(covered)
+    if environment_cells:
+        entry = ET.SubElement(environment, 'li')
+        field(entry, 'temperature', 21)
+        field(entry, 'vacuum', 0)
+        cells = ET.SubElement(entry, 'cells')
+        for x, z in environment_cells:
+            ET.SubElement(cells, 'li').text = f'({x}, 0, {z})'
     # Validate the final states after layout-specific edits, before replacing any outputs.
     validate_identities(document)
     generated = ROOT / 'Source/obj/TutorialContent'
@@ -376,6 +389,7 @@ def build(data, name="ArrivalStation"):
     saved = ET.parse(destination / (name + '.xml')).getroot()
     assert len(saved.findall('thingStates/li')) == len(records)
     assert all(n.find('state/saveable') is not None for n in saved.findall('thingStates/li'))
+    assert len(saved.findall('environment/li/cells/li')) == len(environment_cells)
     print(f'PASS: {len(records)} instances, {len(foundation)} support cells, {len(roofs)} roof cells; Def-derived geometry, routes and output counts.')
 
 

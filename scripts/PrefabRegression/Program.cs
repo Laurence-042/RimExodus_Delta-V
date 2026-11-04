@@ -43,7 +43,7 @@ internal static class Program
     static object Call(string method, params object[] args) => state.GetMethod(method,
         BindingFlags.Static | BindingFlags.Public).Invoke(null, args);
     static List<Thing> Instantiate(List<MapPrefabThingEntry> entries) =>
-        (List<Thing>)Call("Instantiate", entries, "regression", null, true);
+        MapPrefabThingState.Instantiate(entries, "regression", null, true);
 
     static void Run()
     {
@@ -60,6 +60,10 @@ internal static class Program
         world.factionManager = new FactionManager();
         AccessTools.Field(typeof(Game), "worldInt").SetValue(game, world);
         Current.Game = game;
+        var pack = (ModContentPack)RuntimeHelpers.GetUninitializedObject(typeof(ModContentPack));
+        pack.assemblies = new ModAssemblyHandler(pack);
+        pack.assemblies.loadedAssemblies.Add(typeof(CompShipCombatAI).Assembly);
+        LoadedModManager.RunningModsListForReading.Add(pack);
 
         // Def constructors preload shaders; only those rendering defaults are bypassed here.
         var gunDef = (ThingDef)RuntimeHelpers.GetUninitializedObject(typeof(ThingDef));
@@ -196,12 +200,7 @@ internal static class Program
         { rejected = true; }
         Check(rejected && ReferenceEquals(pairOne[0].GetComp<CompShipCombatAI>().strategy,
             selectedBefore), "invalid import leaves the selected comp strategy untouched");
-        string[] expectedScribeTypes = { "CombatStrategy", "CombatStrategyRule",
-            "CombatManeuverCurves", "CombatScoreCurve", "CombatScorePoint" };
-        Check(errors.All(e => expectedScribeTypes.Any(type => e.StartsWith(
-            "Could not find class DeltaV." + type + " "))),
-            "standalone Scribe type lookup uses only the expected DeltaV class fallback");
-        errors.Clear();
+        NoErrors("strategy Scribe resolves the loaded Mod assembly");
 
         // Save the source and two prefab clones together; then use ordinary Scribe, no prefab remap.
         string path = Path.Combine(AppContext.BaseDirectory, "prefab-roundtrip.xml");

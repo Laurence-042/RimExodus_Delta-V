@@ -29,19 +29,14 @@ namespace DeltaV
                 throw new InvalidOperationException("Tutorial prefab was only partially spawned; check the preceding prefab errors.");
             var caskets = things.OfType<Building_CryptosleepCasket>().OrderBy(t => t.Position.x).ToList();
             Thing table = things.Single(t => t.def.defName == "Table2x2c");
-            map.regionAndRoomUpdater.RebuildAllRegionsAndRooms();
+            map.regionAndRoomUpdater.TryRebuildDirtyRegionsAndRooms();
             foreach (var casket in caskets)
             {
                 Room room = casket.InteractionCell.GetRoom(map);
                 if (room == null || room.ExposedToSpace || room.UsesOutdoorTemperature || room.OpenRoofCount != 0
                     || !casket.InteractionCell.Standable(map))
                     throw new InvalidOperationException("Tutorial cryosleep exit is not inside a sealed, roofed, accessible room.");
-                room.Temperature = 21f;
-                room.Vacuum = 0f;
             }
-            foreach (Room room in map.regionGrid.AllRooms)
-                if (!room.UsesOutdoorTemperature && !room.ExposedToSpace)
-                { room.Temperature = 21f; room.Vacuum = 0f; }
             foreach (var cell in things.SelectMany(t => t.OccupiedRect()).Distinct())
                 map.areaManager.Home[cell] = true;
             foreach (var cell in map.AllCells)

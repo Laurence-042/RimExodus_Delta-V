@@ -306,4 +306,5 @@
     </li>
   </foundations>
   <roofs />
+  <environment />
 </MapPrefab>

@@ -310,13 +310,11 @@ namespace DeltaV
                 if (thing.TryGetComp<CompDeltaVPilotConsole>() is CompDeltaVPilotConsole console
                     && (console.shipId != ownerId || !console.isMain))
                     throw new InvalidOperationException($"Tutorial prefab {doc.name}: expected primary owner {ownerId}, got {console.shipId}, main={console.isMain}.");
-            map.regionAndRoomUpdater.RebuildAllRegionsAndRooms();
+            map.regionAndRoomUpdater.TryRebuildDirtyRegionsAndRooms();
             foreach (Room room in things.Where(t => t.def.defName == "OxygenPump").Select(t => t.GetRoom()).Distinct())
             {
                 if (room == null || room.ExposedToSpace || room.OpenRoofCount != 0)
                     throw new InvalidOperationException("Unsealed tutorial cabin: " + doc.name);
-                room.Temperature = 21f;
-                room.Vacuum = 0f;
             }
             foreach (var foundation in doc.foundations)
             {
