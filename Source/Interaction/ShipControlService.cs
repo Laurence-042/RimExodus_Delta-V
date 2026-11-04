@@ -44,7 +44,7 @@ namespace DeltaV
             shipsByIdentity[ship.Identity] = ship;
             Faction faction = ship.Faction;
             if (faction == null) return null;
-            bool playerAuthority = faction == Faction.OfPlayer
+            bool playerAuthority = ship.PlayerMayOperate
                 || DebugSettings.godMode && (debugTakeover
                     || controllers.TryGetValue(ship.Identity, out ShipController current)
                     && current is PlayerShipController

@@ -97,4 +97,80 @@
     <health>100</health>
     <parentThing>null</parentThing>
   </saveable>
+  <saveable Class="Building_GravEngine">
+    <def>GravEngine</def>
+    <health>800</health>
+    <glowOn>True</glowOn>
+    <gravshipName>逆重飞船</gravshipName>
+    <launchInfo IsNull="True" />
+    <pawnsToBoard />
+    <pawnsToLeave />
+  </saveable>
+  <saveable Class="Building">
+    <def>SmallThruster</def>
+    <health>250</health>
+  </saveable>
+  <saveable Class="DeltaV.Building_DockingPort">
+    <def>DeltaV_DockingPort</def>
+    <health>200</health>
+    <beenRevealed>True</beenRevealed>
+    <defence>1800</defence>
+    <lasterUser>null</lasterUser>
+    <approachingPawn>null</approachingPawn>
+  </saveable>
+  <saveable Class="Building">
+    <def>ChemfuelTank</def>
+    <health>200</health>
+    <beenRevealed>True</beenRevealed>
+    <instigator>null</instigator>
+    <thingsIgnoredByExplosion />
+    <fuel>100</fuel>
+    <configuredTargetFuelLevel>250</configuredTargetFuelLevel>
+    <allowAutoRefuel>True</allowAutoRefuel>
+  </saveable>
+  <saveable Class="Building_Storage">
+    <def>ShelfSmall</def>
+    <health>100</health>
+    <stuff>Steel</stuff>
+    <settings>
+      <priority>Normal</priority>
+      <filter>
+        <allowedDefs>
+          <li>Steel</li>
+        </allowedDefs>
+        <disallowedSpecialFilters />
+        <allowedHitPointsPercents>0~1</allowedHitPointsPercents>
+        <allowedQualityLevels>Awful~Legendary</allowedQualityLevels>
+      </filter>
+    </settings>
+  </saveable>
+  <saveable Class="Thing">
+    <def>Steel</def>
+    <stackCount>75</stackCount>
+  </saveable>
+  <saveable Class="Building">
+    <def>Wall</def>
+    <health>300</health>
+    <stuff>Steel</stuff>
+  </saveable>
+  <saveable Class="Building">
+    <def>Ship_Beam</def>
+    <health>400</health>
+  </saveable>
+  <saveable Class="Building_ShipReactor">
+    <def>Ship_Reactor</def>
+    <health>500</health>
+    <hibernateState>Running</hibernateState>
+  </saveable>
+  <saveable Class="Building_CommsConsole">
+    <def>CommsConsole</def>
+    <health>250</health>
+  </saveable>
+  <saveable Class="Building_CryptosleepCasket">
+    <def>Ship_CryptosleepCasket</def>
+    <health>200</health>
+    <innerContainer Class="Verse.ThingOwner`1[Verse.Thing]">
+      <innerList />
+    </innerContainer>
+  </saveable>
 </prototypes>

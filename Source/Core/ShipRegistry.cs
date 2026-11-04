@@ -108,7 +108,7 @@ namespace DeltaV
         public static ShipBase DefaultVesselOnMap(Map map)
         {
             var ships = AllShipsOnMap(map).ToList();
-            return ships.FirstOrDefault(ship => ship.Faction == Faction.OfPlayer) ??
+            return ships.FirstOrDefault(ship => ship.PlayerMayOperate) ??
                 (ships.Count == 1 ? ships[0] : ShipBase.Invalid);
         }
 

@@ -28,6 +28,7 @@ namespace DeltaV
             {
                 if (!building.def.destroyable || !building.def.building.canBeDamagedByAttacks || building is Frame) return;
                 int cut = Mathf.Max(1, Mathf.RoundToInt(part.damage * evt.damageScale));
+                PublicFacility.NotifyCut(building, evt.launcher, cut);
                 if (building.def.useHitPoints && building.HitPoints > cut) { building.HitPoints -= cut; return; }
                 // Deconstruct is the sole drop producer; no kill drops and no receiver inventory.
                 building.Destroy(DestroyMode.Deconstruct);
@@ -37,7 +38,7 @@ namespace DeltaV
             {
                 TerrainDef foundation = SubstructureOwnership.FoundationAt(map, evt.hitCell);
                 ClearCuttingRoofs(map, evt.hitCell);
-                if (foundation != null && SubstructureDamageUtility.TryDestroy(map, evt.hitCell, scatterNearbyRoofs: false))
+                if (foundation != null && SubstructureDamageUtility.TryDestroy(map, evt.hitCell, scatterNearbyRoofs: false, instigator: evt.launcher))
                     GenLeaving.DoLeavingsFor(foundation, evt.hitCell, map);
             }
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
@@ -92,6 +93,7 @@ namespace DeltaV
                 if (!building.def.destroyable || !building.def.building.canBeDamagedByAttacks
                     || building is Frame) return;
                 int cut = Mathf.Max(1, Mathf.RoundToInt(part.damage * evt.damageScale));
+                PublicFacility.NotifyCut(building, evt.launcher, cut);
                 if (building.def.useHitPoints && building.HitPoints > cut)
                 {
                     // 切割进度复用真实耐久，不新增可丢失或重复兑现的材料账本。
@@ -128,7 +130,7 @@ namespace DeltaV
             // 基架没有耐久；达到共同毁伤阈值后调用统一毁伤机制，再结算材料。
             if (part.damage * evt.damageScale < part.substructureBreakThreshold) return;
             ClearCuttingRoofs(targetMap, cell);
-            if (!SubstructureDamageUtility.TryDestroy(targetMap, cell, scatterNearbyRoofs: false)) return;
+            if (!SubstructureDamageUtility.TryDestroy(targetMap, cell, scatterNearbyRoofs: false, instigator: evt.launcher)) return;
             using (new SalvageOutputScope(launcher))
                 GenLeaving.DoLeavingsFor(foundation, output, receiverMap);
         }

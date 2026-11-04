@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using RimWorld;
 using Verse;
-using Verse.AI.Group;
 
 namespace DeltaV
 {
@@ -17,7 +16,7 @@ namespace DeltaV
             var universe = Current.Game.GetComponent<UniverseManager>();
             if (universe.tutorialRun != null) throw new InvalidOperationException("Tutorial station was already initialized.");
             MapPrefabDocument prefab = MapPrefab.LoadTutorial("ArrivalStation.xml");
-            if (prefab.thingEntries.Count(e => e.def.defName == "CryptosleepCasket") < Find.GameInitData.startingAndOptionalPawns.Count)
+            if (prefab.thingEntries.Count(e => e.def.defName == "Ship_CryptosleepCasket") < Find.GameInitData.startingAndOptionalPawns.Count + universe.Tutorial.UnselectedCrew.Count)
                 throw new InvalidOperationException("Tutorial station does not have enough cryptosleep caskets for the selected colonists.");
             if (OrbitalPoiRegistry.EnsureForMap(universe, map)?.map != map)
                 throw new InvalidOperationException("Tutorial initial map was not registered as an orbital POI before content generation.");
@@ -54,14 +53,11 @@ namespace DeltaV
             mentors.hidden = false;
             Find.FactionManager.Add(mentors);
             mentors.TryAffectGoodwillWith(Faction.OfPlayer, 100 - mentors.GoodwillWith(Faction.OfPlayer), false, false);
-            Pawn mentor = PawnGenerator.GeneratePawn(new PawnGenerationRequest(PawnKindDefOf.Villager, mentors));
-            SpacePawnEquipment.EnsureVacuumSuit(mentor);
-            IntVec3 mentorCell = GenAdj.CellsAdjacentCardinal(table).First(c => c.Standable(map));
-            GenSpawn.Spawn(mentor, mentorCell, map);
-            LordMaker.MakeNewLord(mentors, new LordJob_DefendPoint(mentorCell, 5f, 10f), map, new[] { mentor });
+            mentors.Name = "DeltaV_Tutorial_Mentors".Translate();
             universe.tutorialRun = new TutorialRunState
             {
-                station = map, caskets = caskets, briefingTable = table, mentor = mentor, mentors = mentors
+                station = map, caskets = caskets, suppliesTable = table, mentors = mentors,
+                berthDoor = things.OfType<Building_Door>().OrderByDescending(d => d.Position.x).First()
             };
             MapGenerator.PlayerStartSpot = caskets[0].InteractionCell;
             MapGenerator.rootsToUnfog.AddRange(caskets.Select(c => c.InteractionCell));
@@ -79,20 +75,29 @@ namespace DeltaV
             var run = Current.Game.GetComponent<UniverseManager>().tutorialRun;
             if (run == null || run.station != map) throw new InvalidOperationException("Tutorial arrival requires the initial station generation step.");
             if (run.colonists.Count != 0) throw new InvalidOperationException("Tutorial starting pawns were already placed.");
-            var pawns = Find.GameInitData.startingAndOptionalPawns;
+            var selected = Find.GameInitData.startingAndOptionalPawns;
+            if (selected.Count != 1) throw new InvalidOperationException("Tutorial arrival requires one selected captain.");
+            var service = Current.Game.GetComponent<UniverseManager>().Tutorial;
+            var pawns = selected.Concat(service.UnselectedCrew).ToList();
             if (run.caskets.Count < pawns.Count || run.caskets.Any(c => c.HasAnyContents))
                 throw new InvalidOperationException("Tutorial cryosleep caskets are missing or already occupied.");
             for (int i = 0; i < pawns.Count; i++)
             {
                 Pawn pawn = pawns[i];
+                if (Find.WorldPawns.Contains(pawn)) Find.WorldPawns.RemovePawn(pawn);
+                pawn.wasLeftBehindStartingPawn = false;
+                pawn.SetFactionDirect(Faction.OfPlayer);
+                PawnComponentsUtility.AddAndRemoveDynamicComponents(pawn);
+                pawn.workSettings?.EnableAndInitializeIfNotAlreadyInitialized();
                 if (!run.caskets[i].TryAcceptThing(pawn, allowSpecialEffects: false)
                     || !run.caskets[i].GetDirectlyHeldThings().Contains(pawn))
                     throw new InvalidOperationException($"Could not place starting pawn {pawn} into tutorial cryosleep.");
-                run.colonists.Add(pawn);
+                if (i == 0) run.colonists.Add(pawn);
             }
+            service.UnselectedCrew.Clear();
             // Match vanilla arrival enumeration, including scenario animals and personal possessions.
             var things = Find.Scenario.AllParts.SelectMany(p => p.PlayerStartingThings()).ToList();
-            foreach (Pawn pawn in pawns)
+            foreach (Pawn pawn in selected)
                 foreach (ThingDefCount item in Find.GameInitData.startingPossessions[pawn])
                     things.Add(StartingPawnUtility.GenerateStartingPossession(item));
             foreach (Thing thing in things)
@@ -103,7 +108,7 @@ namespace DeltaV
                 {
                     Thing stack = thing.SplitOff(Math.Min(thing.def.stackLimit, originalCount));
                     originalCount -= stack.stackCount;
-                    if (!GenPlace.TryPlaceThing(stack, run.briefingTable.Position + IntVec3.South * 3, map, ThingPlaceMode.Near))
+                    if (!GenPlace.TryPlaceThing(stack, run.suppliesTable.Position + IntVec3.South * 3, map, ThingPlaceMode.Near))
                         throw new InvalidOperationException($"No room for tutorial starting possession {stack.def.defName}.");
                 }
             }

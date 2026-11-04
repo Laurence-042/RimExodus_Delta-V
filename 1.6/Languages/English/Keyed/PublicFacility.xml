@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_PublicFacility_Inspect>Public facility: allies may pilot and use shelves. Construction and claiming are prohibited. Dismantling or damage reduces goodwill.</DeltaV_PublicFacility_Inspect>
+  <DeltaV_PublicFacility_NoConstruction>You cannot build on an allied public ship.</DeltaV_PublicFacility_NoConstruction>
+  <DeltaV_PublicFacility_NoClaim>This public facility belongs to your ally and cannot be claimed.</DeltaV_PublicFacility_NoClaim>
+</LanguageData>

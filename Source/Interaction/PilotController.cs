@@ -674,7 +674,7 @@ internal readonly struct HeadingPanelAction
         /// <summary>玩家控制权读取当前主台／shuttle 艇体派系；God Mode 允许接管。</summary>
         public bool CanPlayerControl(ShipBase ship)
         {
-            return ship?.IsValid == true && (ship.Faction == Faction.OfPlayer || DebugSettings.godMode);
+            return ship?.IsValid == true && (ship.PlayerMayOperate || DebugSettings.godMode);
         }
 
         public void Enter(UniverseManager universe, PilotTarget target)

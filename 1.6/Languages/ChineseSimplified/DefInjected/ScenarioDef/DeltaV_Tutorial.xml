@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <LanguageData>
   <DeltaV_OrbitalColonists.label>轨道殖民者</DeltaV_OrbitalColonists.label>
-  <DeltaV_OrbitalColonists.description>你正确抵达了目标星球。先来的殖民者已经建好空间站，正等着迎接你从冷冻休眠中醒来。地表危机四伏，新生活将在轨道上展开，每个人都要学会贡献自己的力量。</DeltaV_OrbitalColonists.description>
-  <DeltaV_OrbitalColonists.scenario.summary>一名殖民者在已经建好的轨道空间站醒来。</DeltaV_OrbitalColonists.scenario.summary>
+  <DeltaV_OrbitalColonists.description>移民船已经抵达目的地，却在袭击中失去了后半段和计算机核心。你独自醒来，其他队员仍在休眠。气闸外的教练机里有一台通讯台；联系自称“星界边境”的组织，问清发生了什么，再学习在太空生存。</DeltaV_OrbitalColonists.description>
+  <DeltaV_OrbitalColonists.scenario.summary>队长独自从被洗劫的移民船里醒来，七名队员仍在休眠。</DeltaV_OrbitalColonists.scenario.summary>
 </LanguageData>

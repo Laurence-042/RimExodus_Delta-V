@@ -362,7 +362,7 @@ namespace DeltaV
             if (evt.defenderIsSubstructure && SubstructureOwnership.HasFoundation(map, cell)
                 && Rand.Chance(Mathf.Clamp01(amount / part.substructureBreakThreshold)))
             {
-                if (SubstructureDamageUtility.TryDestroy(map, cell) && part.penetrates)
+                if (SubstructureDamageUtility.TryDestroy(map, cell, instigator: evt.launcher) && part.penetrates)
                     remaining = RemainingFraction(amount, part.substructureBreakThreshold);
             }
 
@@ -406,7 +406,7 @@ namespace DeltaV
                     float falloff = 1f - (nearby - cell).LengthHorizontal / part.stripSubstructureRadius;
                     if (Rand.Chance(part.stripSubstructureChance * falloff))
                     {
-                        SubstructureDamageUtility.TryDestroy(map, nearby);
+                        SubstructureDamageUtility.TryDestroy(map, nearby, instigator: evt.launcher);
                     }
                 }
             }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_PublicFacility_Inspect>公共设施：盟友可驾驶和使用货架；禁止建造和占领。拆除、破坏会降低关系。</DeltaV_PublicFacility_Inspect>
+  <DeltaV_PublicFacility_NoConstruction>不能在盟友的公共飞船上建造。</DeltaV_PublicFacility_NoConstruction>
+  <DeltaV_PublicFacility_NoClaim>公共设施仍归盟友所有，不能占领。</DeltaV_PublicFacility_NoClaim>
+</LanguageData>

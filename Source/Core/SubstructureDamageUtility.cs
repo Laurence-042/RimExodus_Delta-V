@@ -1,4 +1,5 @@
 using RimWorld;
+using RimWorld.Planet;
 using Verse;
 
 namespace DeltaV
@@ -10,12 +11,14 @@ namespace DeltaV
         public static bool CanDamage(Map map, IntVec3 cell) =>
             SpaceStructureRules.ClassifyCell(map, cell, out _) == SpaceCellKind.Substructure;
 
-        public static bool TryDestroy(Map map, IntVec3 cell, bool scatterNearbyRoofs = true)
+        public static bool TryDestroy(Map map, IntVec3 cell, bool scatterNearbyRoofs = true, Thing instigator = null)
         {
             if (!CanDamage(map, cell)) return false;
+            Faction owner = PublicFacility.ConsoleAt(map, cell)?.parent.Faction;
             map.terrainGrid.RemoveFoundation(cell, doLeavings: false);
             if (SubstructureOwnership.HasFoundation(map, cell)) return false;
             CompleteDestruction(map, cell, scatterNearbyRoofs);
+            PublicFacility.Penalize(owner, instigator, new GlobalTargetInfo(cell, map));
             return true;
         }
 

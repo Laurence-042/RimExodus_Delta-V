@@ -94,20 +94,20 @@ namespace DeltaV
         private bool IntersectsGravity(PilotTarget target, SpaceObject gravity)
             => IntersectsGravity(universe.FrameOf(target.Map), target.Vessel.HullCells, gravity);
 
-        private static bool IntersectsGravity(SpaceObject own, IEnumerable<IntVec3> footprint, SpaceObject gravity)
+        internal static bool IntersectsGravity(SpaceObject own, IEnumerable<IntVec3> footprint, SpaceObject gravity)
+            => footprint.Any(cell => IntersectsGravity(own, new CellRect(cell.x, cell.z, 1, 1), gravity));
+
+        // The same rectangle test serves live worksite gates and authored course clearance.
+        internal static bool IntersectsGravity(SpaceObject own, CellRect footprint, SpaceObject gravity)
         {
             var rectangle = new List<Vector2> { Vector2.zero, new Vector2(gravity.map.Size.x, 0),
                 new Vector2(gravity.map.Size.x, gravity.map.Size.z), new Vector2(0, gravity.map.Size.z) };
-            foreach (IntVec3 cell in footprint)
-            {
-                var corners = new List<Vector2>(4);
-                foreach (Vector2 corner in new[] { new Vector2(cell.x, cell.z), new Vector2(cell.x + 1, cell.z),
-                    new Vector2(cell.x + 1, cell.z + 1), new Vector2(cell.x, cell.z + 1) })
-                    corners.Add(SpaceTransform.UniverseToMapPoint(gravity, gravity.map,
-                        SpaceTransform.MapPointToUniverse(own, own.map, corner)));
-                if (PlanarGeometry.HullDistance(PlanarGeometry.ConvexHull(corners), rectangle) <= 0.001f) return true;
-            }
-            return false;
+            var corners = new List<Vector2>(4);
+            foreach (Vector2 corner in new[] { new Vector2(footprint.minX, footprint.minZ), new Vector2(footprint.maxX + 1, footprint.minZ),
+                new Vector2(footprint.maxX + 1, footprint.maxZ + 1), new Vector2(footprint.minX, footprint.maxZ + 1) })
+                corners.Add(SpaceTransform.UniverseToMapPoint(gravity, gravity.map,
+                    SpaceTransform.MapPointToUniverse(own, own.map, corner)));
+            return PlanarGeometry.HullDistance(PlanarGeometry.ConvexHull(corners), rectangle) <= 0.001f;
         }
 
         private void StopControls(IEnumerable<ShipBase> ships)
@@ -121,18 +121,25 @@ namespace DeltaV
             universe.Pilot.Exit(universe);
         }
 
-        private void Dock(PilotTarget target, LandingApproachController.DockingPlan placement)
+        // The caller validates the frozen placement with LandingSiteStillValid before entering this transfer.
+        internal bool Dock(PilotTarget target, LandingApproachController.DockingPlan placement)
         {
+            Thing tutorialWitness = universe.tutorialRun == null ? null : universe.Tutorial.RecoveryWitness(target.Identity, placement.targetMap);
             StopControls(new[] { target.Vessel });
             var handoff = universe.ShipTransitions.CaptureDockingFocusHandoff(universe, target.Map, placement.targetMap);
             Gravship captured = universe.ShipTransitions.CaptureDockingTargetForCompletion(target, out var cells, out bool terrain);
-            if (captured == null) return;
+            if (captured == null) return false;
             captured.Rotation = placement.landingRotation;
             if (!universe.ShipTransitions.CompleteTransferIntoHost(universe, target, captured, cells, terrain,
-                placement.targetMap, placement.landingCell, placement.landingRotation, placement.structureId, out Map source)) return;
+                placement.targetMap, placement.landingCell, placement.landingRotation, placement.structureId, out Map source)) return false;
             var completion = new DockingCompletion(universe, target.Vessel, placement.targetMap, source, handoff);
             completion.OnTransferedIntoHost();
-            universe.QueueFrameAction(completion.Finish);
+            universe.QueueFrameAction(() =>
+            {
+                completion.Finish();
+                if (tutorialWitness != null) universe.Tutorial.ConfirmRecoveryDock(target.Identity, tutorialWitness);
+            });
+            return true;
         }
 
         private sealed class ContentMove
@@ -167,6 +174,7 @@ namespace DeltaV
 
         private void CreateWorksite(PilotTarget target, SpaceObject host, LandingApproachController.DockingPlan placement)
         {
+            Thing tutorialWitness = universe.tutorialRun == null ? null : universe.Tutorial.RecoveryWitness(target.Identity, host?.map);
             SpaceObject own = universe.FrameOf(target.Map);
             SpaceObject basis = own;
             var moves = new List<ContentMove>();
@@ -255,6 +263,7 @@ namespace DeltaV
             foreach (ContentMove move in moves)
                 universe.ShipTransitions.HandleDepartedSourceMap(universe, move.source.map);
             Building_DockingPort.NotifyLandingSettled(workmap);
+            if (tutorialWitness != null) universe.Tutorial.ConfirmRecoveryDock(target.Identity, tutorialWitness);
             ShipPhysics.ClearCache();
             HostColonistBarVisibility.NotifyDockingStateChanged();
             Messages.Message("DeltaV_EVAStarted".Translate(), MessageTypeDefOf.PositiveEvent, false);

@@ -18,6 +18,9 @@ namespace DeltaV
         public abstract Vector2 HullCenter { get; }
         public abstract IEnumerable<IntVec3> HullCells { get; }
         public abstract Faction Faction { get; }
+        public virtual bool IsPublicFacility => false;
+        public bool PlayerMayOperate => IsValid && (Faction == RimWorld.Faction.OfPlayer
+            || IsPublicFacility && Faction?.RelationKindWith(RimWorld.Faction.OfPlayer) == FactionRelationKind.Ally);
         public abstract string Label { get; }
         public abstract ShipDerivedState State { get; }
         public abstract ShipCombatState Combat { get; }
@@ -117,6 +120,7 @@ namespace DeltaV
         public override Vector2 HullCenter => ShipRegistry.HullCenter(Structure);
         public override IEnumerable<IntVec3> HullCells => ShipRegistry.ControlDomain(Structure);
         public override Faction Faction => ShipRegistry.FactionOf(Structure);
+        public override bool IsPublicFacility => Structure.console?.isPublicFacility == true;
         public override string Label => Current.Game?.GetComponent<UniverseManager>()?.LabelForOwner(Identity.key) ?? "";
         public override ShipDerivedState State => ShipRegistry.StateOf(Structure);
         public override ShipCombatState Combat => Structure.console?.combat;

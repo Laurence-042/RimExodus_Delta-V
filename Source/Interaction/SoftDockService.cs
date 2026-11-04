@@ -66,7 +66,7 @@ namespace DeltaV
         private void SelectControl()
         {
             ShipBase ship = universe.Pilot.SelectedShipOnMap(Find.CurrentMap);
-            if (ship?.IsValid == true && !ship.Identity.shuttle && ship.Faction == Faction.OfPlayer)
+            if (ship?.IsValid == true && !ship.Identity.shuttle && ship.PlayerMayOperate)
                 controlled = ship.Identity;
         }
 

@@ -36,6 +36,7 @@ namespace DeltaV
 
     public class CompDeltaVPilotConsole : ThingComp
     {
+        public bool isPublicFacility;
         private UniverseManager Universe => Current.Game?.GetComponent<UniverseManager>();
 
         // ---- 身份与认领（持久事实）----
@@ -166,6 +167,7 @@ namespace DeltaV
                 if (successor != null)
                 {
                     successor.isMain = true;
+                    successor.isPublicFacility = isPublicFacility;
                     DeltaVLog.Message(DeltaVLogModule.Core,
                         $"structure #{shipId}: main console destroyed; succeeded by same-facing console {successor.parent.thingIDNumber}");
                 }
@@ -343,6 +345,7 @@ namespace DeltaV
             combat ??= new ShipCombatState();
             Scribe_Values.Look(ref shipId, "shipId", -1);
             Scribe_Values.Look(ref isMain, "isMain", false);
+            Scribe_Values.Look(ref isPublicFacility, "isPublicFacility", false);
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
@@ -378,6 +381,9 @@ namespace DeltaV
                 yield return primary;
             }
         }
+
+        public override string CompInspectStringExtra() => isPublicFacility
+            ? "DeltaV_PublicFacility_Inspect".Translate().ToString() : null;
 
         private static Command_Action NewAction(string label, Texture2D icon, System.Action action, string tip = null)
         {

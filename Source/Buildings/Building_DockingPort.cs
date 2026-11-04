@@ -49,7 +49,7 @@ namespace DeltaV
             {
                 yield return gizmo;
             }
-            if (Faction != Faction.OfPlayer) yield break;
+            if (Faction != Faction.OfPlayer && !PublicFacility.PlayerMayUse(this)) yield break;
             foreach (Gizmo gizmo in SoftDockGizmos()) yield return gizmo;
             yield return new Command_Action
             {

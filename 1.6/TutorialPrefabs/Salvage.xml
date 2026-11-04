@@ -1,0 +1,309 @@
+<?xml version='1.0' encoding='utf-8'?>
+<MapPrefab formatVersion="2">
+  <name>Salvage</name>
+  <prefab>
+    <defName>MapPrefab_Salvage</defName>
+    <size>(7, 7)</size>
+    <terrain>
+      <MetalTile>
+        <rects>
+          <li>(0,0,0,0)</li>
+          <li>(0,1,0,1)</li>
+          <li>(0,2,0,2)</li>
+          <li>(0,3,0,3)</li>
+          <li>(0,4,0,4)</li>
+          <li>(0,5,0,5)</li>
+          <li>(0,6,0,6)</li>
+          <li>(1,0,1,0)</li>
+          <li>(1,1,1,1)</li>
+          <li>(1,2,1,2)</li>
+          <li>(1,3,1,3)</li>
+          <li>(1,4,1,4)</li>
+          <li>(1,5,1,5)</li>
+          <li>(1,6,1,6)</li>
+          <li>(2,0,2,0)</li>
+          <li>(2,1,2,1)</li>
+          <li>(2,2,2,2)</li>
+          <li>(2,3,2,3)</li>
+          <li>(2,4,2,4)</li>
+          <li>(2,5,2,5)</li>
+          <li>(2,6,2,6)</li>
+          <li>(3,0,3,0)</li>
+          <li>(3,1,3,1)</li>
+          <li>(3,2,3,2)</li>
+          <li>(3,3,3,3)</li>
+          <li>(3,4,3,4)</li>
+          <li>(3,5,3,5)</li>
+          <li>(3,6,3,6)</li>
+          <li>(4,0,4,0)</li>
+          <li>(4,1,4,1)</li>
+          <li>(4,2,4,2)</li>
+          <li>(4,3,4,3)</li>
+          <li>(4,4,4,4)</li>
+          <li>(4,5,4,5)</li>
+          <li>(4,6,4,6)</li>
+          <li>(5,0,5,0)</li>
+          <li>(5,1,5,1)</li>
+          <li>(5,2,5,2)</li>
+          <li>(5,3,5,3)</li>
+          <li>(5,4,5,4)</li>
+          <li>(5,5,5,5)</li>
+          <li>(5,6,5,6)</li>
+          <li>(6,0,6,0)</li>
+          <li>(6,1,6,1)</li>
+          <li>(6,2,6,2)</li>
+          <li>(6,3,6,3)</li>
+          <li>(6,4,6,4)</li>
+          <li>(6,5,6,5)</li>
+          <li>(6,6,6,6)</li>
+        </rects>
+      </MetalTile>
+    </terrain>
+  </prefab>
+  <thingStates>
+    <li>
+      <pos>(3, 0, 3)</pos>
+      <def>ShelfSmall</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building_Storage">
+          <def>ShelfSmall</def>
+          <health>100</health>
+          <stuff>Steel</stuff>
+          <settings>
+            <priority>Normal</priority>
+            <filter>
+              <allowedDefs>
+                <li>Steel</li>
+              </allowedDefs>
+              <disallowedSpecialFilters />
+              <allowedHitPointsPercents>0~1</allowedHitPointsPercents>
+              <allowedQualityLevels>Awful~Legendary</allowedQualityLevels>
+            </filter>
+          </settings>
+          <id>ShelfSmall810000</id>
+          <pos>(3, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 3)</pos>
+      <def>Steel</def>
+      <rotation>0</rotation>
+      <hitPoints>-1</hitPoints>
+      <stackCount>75</stackCount>
+      <state>
+        <saveable Class="Thing">
+          <def>Steel</def>
+          <stackCount>75</stackCount>
+          <id>Steel810001</id>
+          <pos>(3, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+  </thingStates>
+  <foundations>
+    <li>
+      <pos>(0, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+  </foundations>
+  <roofs />
+</MapPrefab>

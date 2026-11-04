@@ -189,13 +189,14 @@ namespace DeltaV
         /// <summary>已加载图上的玩家船（显示与交互用，非生命周期参考）。</summary>
         public List<ShipBase> PlayerShips() => objects.Where(obj => obj.map != null)
             .SelectMany(obj => obj.Ships)
-            .Where(ship => ship.Faction == Faction.OfPlayer).ToList();
+            .Where(ship => ship.PlayerMayOperate).ToList();
 
         /// <summary>POI 距离与星区生成共用的对象参考点；不读取船型、驾驶台或驾驶状态。</summary>
         public List<SpaceObject> PlayerReferenceObjects()
         {
             Faction player = Faction.OfPlayerSilentFail;
-            return objects.Where(obj => obj.HasTag(SpaceObjectTag.Ship) && obj.HasFaction(player)).ToList();
+            return objects.Where(obj => obj.HasTag(SpaceObjectTag.Ship)
+                && (obj.HasFaction(player) || obj.Ships.Any(ship => ship.PlayerMayOperate))).ToList();
         }
 
         internal readonly Dictionary<int, PlanetTile> sectorReferenceTiles = new Dictionary<int, PlanetTile>();

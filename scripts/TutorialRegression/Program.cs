@@ -13,6 +13,7 @@ using RimExodus.Maps;
 using RimWorld;
 using RimWorld.Planet;
 using Verse;
+using UnityEngine;
 
 internal static class Program
 {
@@ -53,13 +54,20 @@ internal static class Program
             pack.assemblies = new ModAssemblyHandler(pack);
             pack.assemblies.loadedAssemblies.Add(typeof(TutorialRunState).Assembly);
             LoadedModManager.RunningModsListForReading.Add(pack);
-            Geometry(args[1], game);
+            foreach (string layout in new[] { "ArrivalStation", "TrainingShip", "Salvage", "Shipyard", "PrototypeShip" })
+                Geometry(Path.Combine(Path.GetDirectoryName(args[1]), layout + ".records.json"), game);
             State(game);
+            FlightEvidence();
             FocusThread(game, harmony);
             Caskets(args[2]);
+            Shelves(Path.Combine(Path.GetDirectoryName(args[2]), "Salvage.xml"));
+            PublicFacilities(game, harmony);
+            Comms(game, harmony);
+            Berths(Path.GetDirectoryName(args[2]), Path.GetDirectoryName(args[1]));
+            CourseClearance(game);
             Paths();
             Check(errors.Count == 0, "Unexpected native logs: " + string.Join("\n", errors));
-            Console.WriteLine($"PASS {checks} tutorial checks: native geometry/interaction/power, Scribe, phase guards, focus thread, paths. No game launched.");
+            Console.WriteLine($"PASS {checks} tutorial checks: native geometry/interaction/power, Scribe, phase guards, public access/storage/goodwill, focus thread, paths. No game launched.");
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); Console.Error.WriteLine(string.Join("\n", errors)); return 1; }
@@ -73,8 +81,16 @@ internal static class Program
         map.info = new MapInfo { Size = new IntVec3(70, 1, 70) };
         map.cellIndices = new CellIndices(map);
         map.thingGrid = new ThingGrid(map);
+        map.terrainGrid = new TerrainGrid(map);
         Set(game, "maps", new List<Map> { map });
         var buildings = new List<Building>();
+        var affordances = new Dictionary<string, TerrainAffordanceDef>();
+        TerrainAffordanceDef Affordance(string name)
+        {
+            if (!affordances.TryGetValue(name, out var value))
+                affordances[name] = value = new TerrainAffordanceDef { defName = name };
+            return value;
+        }
         foreach (var row in json.RootElement.EnumerateArray())
         {
             string name = row.GetProperty("name").GetString();
@@ -82,6 +98,10 @@ internal static class Program
             def.defName = name;
             def.size = new IntVec2(row.GetProperty("size")[0].GetInt32(), row.GetProperty("size")[1].GetInt32());
             def.rotatable = row.GetProperty("rotatable").GetBoolean();
+            def.category = Enum.Parse<ThingCategory>(row.GetProperty("category").GetString());
+            def.building = new BuildingProperties();
+            string needed = row.GetProperty("terrainAffordance").GetString();
+            def.terrainAffordanceNeeded = string.IsNullOrEmpty(needed) ? null : Affordance(needed);
             def.passability = Enum.Parse<Traversability>(row.GetProperty("passability").GetString());
             def.hasInteractionCell = row.GetProperty("hasInteraction").GetBoolean();
             def.interactionCellOffset = new IntVec3(row.GetProperty("interaction")[0].GetInt32(), 0,
@@ -89,6 +109,18 @@ internal static class Program
             var pos = new IntVec3(row.GetProperty("root")[0].GetInt32(), 0, row.GetProperty("root")[1].GetInt32());
             var rot = new Rot4(row.GetProperty("rotation").GetInt32());
             var expected = row.GetProperty("cells").EnumerateArray().Select(c => new IntVec3(c[0].GetInt32(), 0, c[1].GetInt32())).ToHashSet();
+            var support = Raw<TerrainDef>();
+            support.affordances = row.GetProperty("supportAffordances").EnumerateArray()
+                .Select(v => Affordance(v.GetString())).ToList();
+            foreach (var c in expected) map.terrainGrid.topGrid[map.cellIndices.CellToIndex(c)] = support;
+            if (def.category == ThingCategory.Building)
+                Check(GenConstruct.CanBuildOnTerrain(def, pos, map, rot), name + " native prefab terrain support");
+            if (name == "Door" && Path.GetFileName(path) == "ArrivalStation.records.json")
+            {
+                var portDef = Raw<ThingDef>(); portDef.size = IntVec2.One;
+                portDef.building = new BuildingProperties(); portDef.terrainAffordanceNeeded = Affordance("Substructure");
+                Check(!GenConstruct.CanBuildOnTerrain(portDef, pos, map, rot), "old substructure-only port rejected on arrival platform");
+            }
             Check(expected.SetEquals(GenAdj.OccupiedRect(pos, rot, def.size)), name + " native occupied rectangle");
             for (int n = 0; n < 4; n++)
             {
@@ -103,7 +135,7 @@ internal static class Program
             Set(b, "mapIndexOrState", (sbyte)0);
             Set(b, "positionInt", pos + new IntVec3(20, 0, 20));
             Set(b, "rotationInt", rot);
-            bool transmits = name == "HiddenConduit" || name == "Battery" || name == "GravcorePowerCell";
+            bool transmits = name == "HiddenConduit" || name == "Battery" || name == "GravcorePowerCell" || name == "Ship_Beam" || name == "Ship_Reactor" || name == "Ship_CryptosleepCasket";
             Set(b, "comps", transmits ? new List<ThingComp> { new CompPowerTrader
                 { parent = b, props = new CompProperties_Power { transmitsPower = true } } } : null);
             map.thingGrid.Register(b);
@@ -120,8 +152,257 @@ internal static class Program
         var transmitters = buildings.Where(b => b.TransmitsPowerNow).ToList();
         var powerCells = new HashSet<IntVec3>();
         Check(transmitters.All(b => b.OccupiedRect().All(c => powerCells.Add(c))), "no overlapping power transmitters");
-        PowerNet net = PowerNetMaker.NewPowerNetStartingFrom(transmitters[0]);
-        Check(net.transmitters.Count == transmitters.Count, "native single connected power net");
+        if (transmitters.Count != 0)
+        {
+            PowerNet net = PowerNetMaker.NewPowerNetStartingFrom(transmitters[0]);
+            Check(net.transmitters.Count == transmitters.Count, "native single connected power net");
+        }
+        var thrusters = buildings.Where(b => b.def.defName == "SmallThruster").ToList();
+        if (thrusters.Count != 0)
+        {
+            var report = new ShipPhysics.MassReport { mass = 1000f, inertia = 30000f,
+                comLocal = new Vector2((float)buildings.Average(b => b.DrawPos.x), (float)buildings.Average(b => b.DrawPos.z)) };
+            foreach (Building b in thrusters)
+            {
+                var rect = b.OccupiedRect();
+                report.thrusters.Add(new ShipPhysics.Thruster { localPos = new Vector2(rect.minX + rect.Width*.5f, rect.minZ + rect.Height*.5f),
+                    dir = ShipPhysics.ThrustDir(b.Rotation), thrust = ShipPhysics.ThrusterThrust, operational = true });
+            }
+            foreach (var command in new[] { new ShipPhysics.Command { fx=1 }, new ShipPhysics.Command { fx=-1 },
+                new ShipPhysics.Command { fz=1 }, new ShipPhysics.Command { fz=-1 },
+                new ShipPhysics.Command { torque=1 }, new ShipPhysics.Command { torque=-1 } })
+            {
+                ShipPhysics.PreviewAllocation(report, command, out var force, out float torque);
+                Check(command.torque != 0 ? torque * command.torque > 1f
+                    : Vector2.Dot(force, new Vector2(command.fx,command.fz)) > 1f,
+                    "training layout has real allocator authority in all six directions");
+            }
+        }
+    }
+
+    static void Berths(string directory, string records)
+    {
+        AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, true);
+        try { TerrainDefOf.Space = Raw<TerrainDef>(); }
+        finally { AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, false); }
+        foreach (var pair in new[] { ("ArrivalStation", "TrainingShip"), ("Shipyard", "PrototypeShip") })
+        {
+            var host = new XmlDocument(); host.Load(Path.Combine(directory, pair.Item1 + ".xml"));
+            var ship = new XmlDocument(); ship.Load(Path.Combine(directory, pair.Item2 + ".xml"));
+            HashSet<IntVec3> Hull(XmlDocument doc) => doc.SelectNodes("/MapPrefab/foundations/li/pos")
+                .Cast<XmlNode>().Select(n => IntVec3.FromString(n.InnerText)).ToHashSet();
+            var hostHull = Hull(host); var shipHull = Hull(ship);
+            if (pair.Item1 == "ArrivalStation")
+            {
+                Check(hostHull.Count == 0, "colony wreck has orbital platform rather than gravship substructure");
+                foreach (XmlNode row in host.SelectNodes("/MapPrefab/prefab/terrain/OrbitalPlatform/rects/li"))
+                {
+                    var numbers = row.InnerText.Trim('(', ')').Split(',').Select(int.Parse).ToArray();
+                    foreach (var c in new CellRect(numbers[0], numbers[1], numbers[2]-numbers[0]+1, numbers[3]-numbers[1]+1)) hostHull.Add(c);
+                }
+                Check(hostHull.Count != 0, "colony wreck has an actual platform footprint");
+                var names = host.SelectNodes("/MapPrefab/thingStates/li/def").Cast<XmlNode>().Select(n => n.InnerText).ToHashSet();
+                Check(names.Contains("Ship_Beam") && names.Contains("Ship_Reactor") && names.Contains("Wall") && !names.Contains("DeltaV_DockingPort")
+                    && !names.Contains("PilotConsole") && !names.Contains("SmallThruster") && !names.Contains("Ship_Engine")
+                    && !names.Contains("Ship_ComputerCore") && !names.Contains("Ship_SensorCluster"), "looted interstellar ship equipment contract");
+            }
+            // Use the generated instance records; runtime binds these exact port roles by facing.
+            (IntVec3, Rot4) Port(string name, Rot4 facing)
+            {
+                using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(records, name + ".records.json")));
+                var port = json.RootElement.EnumerateArray().Single(r => r.GetProperty("name").GetString() == (name == "ArrivalStation" ? "Door" : "DeltaV_DockingPort")
+                    && r.GetProperty("rotation").GetInt32() == facing.AsInt);
+                return (new IntVec3(port.GetProperty("root")[0].GetInt32(), 0, port.GetProperty("root")[1].GetInt32()), facing);
+            }
+            var hostPort = Port(pair.Item1, Rot4.East); var shipPort = Port(pair.Item2, Rot4.West);
+            var offset = new IntVec3(12, 0, 12);
+            var sourceRoot = new IntVec3(shipHull.Min(c => c.x), 0, shipHull.Min(c => c.z));
+            var landing = DeltaVTutorialService.BerthLandingRoot(sourceRoot, shipPort.Item1, hostPort.Item1 + offset, hostPort.Item2);
+            var placed = shipHull.Select(c => c - sourceRoot + landing).ToHashSet();
+            var stationary = hostHull.Select(c => c + offset).ToHashSet();
+            Check(!placed.Overlaps(stationary), pair + " berth hulls do not overlap");
+            Check(!placed.Any(c => GenAdj.CardinalDirections.Any(d => stationary.Contains(c + d))), pair + " no adjacent foundations between ships");
+            var map = Raw<Map>(); map.info = new MapInfo { Size = new IntVec3(100, 1, 70) };
+            map.cellIndices = new CellIndices(map); map.thingGrid = new ThingGrid(map); map.terrainGrid = new TerrainGrid(map);
+            Array.Fill(map.terrainGrid.topGrid, TerrainDefOf.Space);
+            var foundation = Raw<TerrainDef>(); foundation.isFoundation = true;
+            foreach (var cell in placed) map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = foundation;
+            foreach (var cell in stationary)
+                if (pair.Item1 == "ArrivalStation") map.terrainGrid.topGrid[map.cellIndices.CellToIndex(cell)] = Raw<TerrainDef>();
+                else map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = foundation;
+            var channel = new List<IntVec3>();
+            var placedPort = shipPort.Item1 - sourceRoot + landing;
+            if (pair.Item1 == "Shipyard")
+                Check(Building_DockingPort.TryFindChannel(map, hostPort.Item1 + offset, hostPort.Item2, 8, channel, out var yardFace)
+                    && yardFace == placedPort && channel.Count == 3, pair + " yard port reaches opposing ship port");
+            Check(Building_DockingPort.TryFindChannel(map, placedPort, shipPort.Item2, 8, channel, out var face)
+                && face == hostPort.Item1 + offset && channel.Count == 3, pair + " ship port reaches host door across three vacuum cells");
+            Check(channel.All(c => map.terrainGrid.FoundationAt(c) == null), pair + " passage contains no foundation");
+            if (pair.Item1 == "ArrivalStation")
+            {
+                Current.Game.Maps.Add(map);
+                var port = Raw<Building_DockingPort>(); var door = Raw<Building_Door>();
+                Set(port, "mapIndexOrState", (sbyte)(Current.Game.Maps.Count - 1));
+                Set(door, "mapIndexOrState", (sbyte)(Current.Game.Maps.Count - 1));
+                Set(port, "positionInt", placedPort); Set(port, "rotationInt", shipPort.Item2);
+                Set(door, "positionInt", hostPort.Item1 + offset);
+                Set(port, "channelFace", face);
+                for (int n = 0; n < 4; n++)
+                {
+                    Set(door, "rotationInt", new Rot4(n));
+                    Check(DeltaVTutorialService.BerthConnected(port, door), "ordinary door visual rotation cannot break boarding berth");
+                }
+                Set(port, "channelFace", IntVec3.Invalid);
+                Check(!DeltaVTutorialService.BerthConnected(port, door), "retracted trainer passage is not a usable arrival berth");
+                Current.Game.Maps.Remove(map);
+            }
+            var clearance = ShipPocketMapFactory.CompactSize(new IntVec2(45, 21));
+            if (pair.Item1 == "Shipyard") Check(placed.All(c => c.x < clearance.x && c.z < clearance.z), "gift berth fits the real shipyard map");
+        }
+    }
+
+    static int shownBriefings;
+    static bool CountBriefing() { shownBriefings++; return false; }
+
+    static void Comms(Game game, Harmony harmony)
+    {
+        harmony.CreateClassProcessor(typeof(Patch_TutorialComms)).Patch();
+        harmony.CreateClassProcessor(typeof(Patch_TutorialCandidateCrew)).Patch();
+        Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(GameInitData), nameof(GameInitData.PrepForMapGen))).Prefixes
+            .Any(p => p.PatchMethod.DeclaringType == typeof(Patch_TutorialCandidateCrew)), "candidate capture binds before native optional-pawn removal");
+        var universe = game.GetComponent<UniverseManager>();
+        var previous = universe.tutorialRun;
+        var map = Raw<Map>(); map.info = new MapInfo { Size = new IntVec3(20, 1, 20) };
+        map.gameConditionManager = new GameConditionManager(map); game.Maps.Add(map);
+        var console = Raw<Building_CommsConsole>();
+        console.def = Raw<ThingDef>(); console.def.size = new IntVec2(3, 2);
+        console.def.hasInteractionCell = true; console.def.interactionCellOffset = IntVec3.South;
+        Set(console, "mapIndexOrState", (sbyte)(game.Maps.Count - 1)); Set(console, "positionInt", new IntVec3(5, 0, 5));
+        Set(console, "rotationInt", Rot4.North);
+        var power = new CompPowerTrader { parent = console }; Set(console, "powerComp", power); Set(power, "powerOnInt", true);
+        var captain = Raw<Pawn>(); Set(captain, "positionInt", console.InteractionCell);
+        captain.def = Raw<ThingDef>(); captain.def.defName = "Human"; captain.thingIDNumber = 9701;
+        AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, true);
+        try { JobDefOf.UseCommsConsole = new JobDef(); }
+        finally { AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, false); }
+        captain.jobs = new Verse.AI.Pawn_JobTracker(captain);
+        captain.jobs.curJob = new Verse.AI.Job(JobDefOf.UseCommsConsole, console);
+        var faction = new Faction();
+        var run = new TutorialRunState { quest = new Quest(), stage = TutorialStage.Contact, mentors = faction, comms = console };
+        run.colonists.Add(captain); universe.tutorialRun = run;
+        var display = AccessTools.Method(typeof(DeltaVTutorialService), "ShowBriefing");
+        harmony.Patch(display, prefix: new HarmonyMethod(typeof(Program), nameof(CountBriefing)));
+        try
+        {
+            shownBriefings = 0;
+            Check(!universe.Tutorial.ReceiveComms(new Faction(), captain) && run.stage == TutorialStage.Contact, "unrelated faction call cannot advance the course");
+            Set(power, "powerOnInt", false);
+            Check(!universe.Tutorial.ReceiveComms(faction, captain), "unpowered actual console rejects first contact");
+            Set(power, "powerOnInt", true);
+            Set(captain, "positionInt", new IntVec3(1, 0, 1));
+            Check(!universe.Tutorial.ReceiveComms(faction, captain), "captain must reach the actual console interaction cell");
+            Set(captain, "positionInt", console.InteractionCell);
+            faction.TryOpenComms(captain);
+            Check(run.stage == TutorialStage.Inquiry && shownBriefings == 1, "native faction call routes to the tutorial inquiry");
+            universe.Tutorial.Receive(run.quest, DeltaVTutorialService.Signal(run.quest, "AskPurpose"));
+            Check(run.stage == TutorialStage.Briefing, "asking purpose opens the promised explanation");
+            Check(!universe.Tutorial.ReceiveComms(faction, Raw<Pawn>()), "another pawn cannot impersonate the captain");
+            run.stage = TutorialStage.Flight;
+            Check(!universe.Tutorial.ReceiveComms(faction, captain), "later faction calls return to ordinary diplomacy");
+        }
+        finally
+        {
+            harmony.Unpatch(display, HarmonyPatchType.Prefix, harmony.Id);
+            universe.tutorialRun = previous; game.Maps.Remove(map);
+        }
+    }
+
+    sealed class SavedPose : IExposable
+    {
+        internal SpacePose pose;
+        public void ExposeData() => pose.ExposeData();
+    }
+
+    static void CourseClearance(Game game)
+    {
+        var layer = Raw<PlanetLayer>();
+        var tiles = AccessTools.Field(typeof(PlanetLayer), "tileIDToNeighbors_offsets");
+        object array = Activator.CreateInstance(tiles.FieldType); Set(array, "m_Length", 1); tiles.SetValue(layer, array);
+        AccessTools.Field(typeof(OrbitSphere), "cachedWorld").SetValue(null, game.World);
+        AccessTools.Field(typeof(OrbitSphere), "cachedLayer").SetValue(null, layer);
+        ((Dictionary<PlanetLayer, float>)AccessTools.Field(typeof(OrbitSphere), "RadiusByLayer").GetValue(null))[layer] = 100000;
+        ((Dictionary<PlanetLayer, float>)AccessTools.Field(typeof(OrbitSphere), "WorldPerCellByLayer").GetValue(null))[layer] = 1;
+        foreach (int edge in new[] { 150, 250, 400, 600 })
+        foreach (float angle in new[] { 0f, 1.17f, -2.4f })
+        foreach (int clearance in new[] { 100, 286, 500 })
+        {
+            var homeMap = Raw<Map>(); homeMap.info = new MapInfo { Size = new IntVec3(edge, 1, edge + 50) };
+            var home = new MapSpaceObject(1001, homeMap, new SpacePose(Vector3.forward, angle));
+            var map = Raw<Map>(); map.info = new MapInfo { Size = new IntVec3(69, 1, 45) };
+            var frame = new MapSpaceObject(1002, map, home.pose);
+            var area = CellRect.WholeMap(map).ExpandedBy(clearance);
+            Check(OrbitalWorkService.IntersectsGravity(frame, CellRect.WholeMap(map), home), "coincident course reproduces gravity rejection");
+            frame.pose = DeltaVTutorialService.CoursePose(home.pose, homeMap.Size, map.Size, clearance, 180f, 0);
+            Check(!OrbitalWorkService.IntersectsGravity(frame, area, home), "course and approach margin outside actual colony rectangle");
+            Check(!OrbitalWorkService.IntersectsGravity(frame, CellRect.WholeMap(map).ToList(), home), "production per-cell worksite gate also accepts remote course");
+            var saved = frame.pose;
+            Vector3 point = SpaceTransform.MapPointToUniverse(frame, map, new Vector2(20, 25));
+            foreach (SpaceObject focus in new SpaceObject[] { home, frame, home, frame })
+            {
+                Vector2 display = SpaceTransform.UniverseToFocused(focus, point);
+                Check(OrbitSphere.ArcCells(point, SpaceTransform.FocusedToUniverse(focus, display)) < .04f,
+                    "focus switch only changes display coordinates");
+                Check(SpaceTransform.UniverseToFocused(focus, focus.pose.position).magnitude < .01f
+                    && Mathf.Abs(SpaceTransform.UniverseAngleToFocused(focus, focus.pose.angle)) < .001f,
+                    "focused origin and angle remain identity");
+            }
+            Check(frame.pose.direction.Equals(saved.direction) && frame.pose.angle == saved.angle
+                && frame.pose.velocity == Vector2.zero, "display queries preserve absolute stationary course pose");
+            var wrapper = new SavedPose { pose = saved };
+            var xml = new XmlDocument(); xml.LoadXml(Scribe.saver.DebugOutputFor(wrapper));
+            string path = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(path, "<root><pose>" + xml.DocumentElement.InnerXml + "</pose></root>");
+                Scribe.loader.InitLoading(path); Scribe.EnterNode("pose");
+                var loaded = new SavedPose(); loaded.ExposeData(); Scribe.ExitNode(); Scribe.loader.FinalizeLoading();
+                frame.pose = loaded.pose;
+                Check(frame.pose.direction.Equals(saved.direction) && !OrbitalWorkService.IntersectsGravity(frame, area, home),
+                    "native Scribe retains location and colony clearance");
+            }
+            finally { Scribe.ForceStop(); File.Delete(path); }
+        }
+    }
+
+    static void FlightEvidence()
+    {
+        var run = new TutorialRunState();
+        var all = new ShipPhysics.Command { fx=1, fz=1, torque=1 };
+        DeltaVTutorialService.RecordFlightInput(run, all, Vector2.zero, 0f);
+        Check(run.forwardTicks == 0 && run.lateralTicks == 0 && run.turnTicks == 0, "input without real propulsion earns no flight evidence");
+        DeltaVTutorialService.RecordFlightInput(run, default, Vector2.one, 100f);
+        Check(run.forwardTicks == 0 && run.lateralTicks == 0 && run.turnTicks == 0, "passive effects without player commands earn no evidence");
+        for (int i=0;i<45;i++) DeltaVTutorialService.RecordFlightInput(run, all, Vector2.one, 100f);
+        Check(run.forwardTicks == 30 && run.lateralTicks == 30 && run.turnTicks == 30, "real observations saturate at required game ticks");
+    }
+
+    static void Shelves(string path)
+    {
+        var steel = Raw<ThingDef>(); steel.defName = "Steel"; steel.category = ThingCategory.Item; steel.thingClass = typeof(Thing);
+        steel.stackLimit = 75; steel.comps = new List<CompProperties>();
+        DefDatabase<ThingDef>.Add(steel);
+        var shelf = Raw<ThingDef>(); shelf.defName = "ShelfSmall"; shelf.category = ThingCategory.Building;
+        shelf.thingClass = typeof(Building_Storage); shelf.comps = new List<CompProperties>();
+        shelf.building = new BuildingProperties { fixedStorageSettings = new StorageSettings() };
+        DefDatabase<ThingDef>.Add(shelf);
+        var xml = new XmlDocument(); xml.Load(path);
+        var entries = xml.SelectNodes("/MapPrefab/thingStates/li").Cast<XmlNode>()
+            .Select(n => new MapPrefabThingEntry { def = n["def"].InnerText == "Steel" ? steel : shelf,
+                stateXml = n["state"]["saveable"].OuterXml }).ToList();
+        var things = MapPrefabThingState.Instantiate(entries, "salvage shelf and cargo", null);
+        Building_Storage storage = things.OfType<Building_Storage>().Single();
+        Check(storage.settings?.filter != null && storage.settings.filter.Allows(steel), "native shelf Scribe retains valid steel filter");
+        Check(things.Single(t => t.def == steel).stackCount == 75, "real salvage stock survives Scribe with the requested quantity");
     }
 
     static void State(Game game)
@@ -138,19 +419,22 @@ internal static class Program
         Check(rejected, "reject duplicate registration");
         universe.Tutorial.Receive(new Quest { id = 81 }, DeltaVTutorialService.Signal(quest, "AcceptWelcome"));
         Check(run.stage == TutorialStage.Welcome, "reject same-id wrong quest instance");
-        universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "ReportForTraining"));
+        universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "StartFlight"));
         Check(run.stage == TutorialStage.Welcome, "reject future-phase answer");
         universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "AcceptWelcome"));
-        Check(run.stage == TutorialStage.Briefing, "advance accepted welcome");
+        Check(run.stage == TutorialStage.Contact, "advance accepted welcome");
         int actions = ((List<Action>)AccessTools.Field(typeof(UniverseManager), "frameActions").GetValue(universe)).Count;
         universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "AcceptWelcome"));
         universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "LeaveWelcome"));
-        Check(run.stage == TutorialStage.Briefing, "reject stale answer and stale quit option");
+        Check(run.stage == TutorialStage.Contact, "reject stale answer and stale quit option");
         Check(((List<Action>)AccessTools.Field(typeof(UniverseManager), "frameActions").GetValue(universe)).Count == actions,
             "duplicate answer does not enqueue another dialog");
+        var comms = Raw<Building_CommsConsole>(); comms.def = Raw<ThingDef>(); comms.def.defName = "CommsFixture"; comms.thingIDNumber = 9401;
+        var berth = Raw<Building_Door>(); berth.def = Raw<ThingDef>(); berth.def.defName = "PortFixture"; berth.thingIDNumber = 9402;
         foreach (TutorialStage stage in Enum.GetValues<TutorialStage>())
         {
-            var saved = new TutorialRunState { stage = stage, quest = quest };
+            var saved = new TutorialRunState { stage = stage, quest = quest, trainingShipId = 400,
+                forwardTicks = 17, lateralTicks = 30, turnTicks = 4, recoveryDocked = true, comms = comms, berthDoor = berth };
             string xml = Scribe.saver.DebugOutputFor(saved);
             string tmp = Path.GetTempFileName();
             try
@@ -163,14 +447,21 @@ internal static class Program
                 Scribe_Deep.Look(ref loaded, "run");
                 ((LoadedObjectDirectory)AccessTools.Field(typeof(CrossRefHandler), "loadedObjectDirectory")
                     .GetValue(Scribe.loader.crossRefs)).RegisterLoaded(quest);
+                ((LoadedObjectDirectory)AccessTools.Field(typeof(CrossRefHandler), "loadedObjectDirectory")
+                    .GetValue(Scribe.loader.crossRefs)).RegisterLoaded(comms);
+                ((LoadedObjectDirectory)AccessTools.Field(typeof(CrossRefHandler), "loadedObjectDirectory")
+                    .GetValue(Scribe.loader.crossRefs)).RegisterLoaded(berth);
                 Scribe.loader.FinalizeLoading();
                 Check(loaded.stage == stage && loaded.quest == quest, "native Scribe stage + quest ref " + stage);
                 Check(loaded.colonists != null && loaded.caskets != null, "empty collections survive Scribe " + stage);
+                Check(loaded.comms == comms && loaded.berthDoor == berth, "native Scribe resolves exact comms and berth roles " + stage);
+                Check(loaded.trainingShipId == 400 && loaded.forwardTicks == 17 && loaded.lateralTicks == 30
+                    && loaded.turnTicks == 4 && loaded.recoveryDocked, "flight and docking evidence survives Scribe " + stage);
             }
             finally { Scribe.ForceStop(); File.Delete(tmp); }
         }
         universe.Tutorial.Ended(new Quest { id = 81 });
-        Check(run.stage == TutorialStage.Briefing, "unrelated quest cleanup cannot end tutorial");
+        Check(run.stage == TutorialStage.Contact, "unrelated quest cleanup cannot end tutorial");
         Current.Game = Raw<Game>();
         Current.Game.components = new List<GameComponent>();
         Check(!universe.Tutorial.Active, "previous game's tutorial is inactive after changing games");
@@ -234,7 +525,7 @@ internal static class Program
     static void Caskets(string prefabPath)
     {
         var def = Raw<ThingDef>();
-        def.defName = "CryptosleepCasket";
+        def.defName = "Ship_CryptosleepCasket";
         def.category = ThingCategory.Building;
         def.thingClass = typeof(Building_CryptosleepCasket);
         def.stackLimit = 1;
@@ -242,14 +533,14 @@ internal static class Program
         DefDatabase<ThingDef>.Add(def);
         var xml = new XmlDocument();
         xml.Load(prefabPath);
-        var entries = xml.SelectNodes("/MapPrefab/thingStates/li[def='CryptosleepCasket']").Cast<XmlNode>()
+        var entries = xml.SelectNodes("/MapPrefab/thingStates/li[def='Ship_CryptosleepCasket']").Cast<XmlNode>()
             .Select(n => new MapPrefabThingEntry { def = def, stateXml = n["state"]["saveable"].OuterXml }).ToList();
         var first = MapPrefabThingState.Instantiate(entries, "tutorial caskets", null);
         var second = MapPrefabThingState.Instantiate(entries, "tutorial caskets repeated", null);
-        Check(first.Count == 1 && second.Count == 1, "single-colonist casket survives native batch Scribe");
+        Check(first.Count == 8 && second.Count == 8, "eight crew caskets survive native batch Scribe");
         Check(first.Concat(second).OfType<Building_CryptosleepCasket>().All(c => c.GetDirectlyHeldThings() != null && !c.HasAnyContents),
             "all native casket ThingOwners are initialized and empty");
-        Check(first.Concat(second).Select(c => c.ThingID).Distinct().Count() == 2, "repeated prefab caskets have distinct IDs");
+        Check(first.Concat(second).Select(c => c.ThingID).Distinct().Count() == 16, "repeated prefab caskets have distinct IDs");
     }
 
     static void Paths()
@@ -263,4 +554,159 @@ internal static class Program
             Check(rejected, "reject invalid content path " + bad);
         }
     }
+
+    static int goodwillEvents, goodwillDelta;
+    static bool CaptureGoodwill(int goodwillChange)
+    { goodwillEvents++; goodwillDelta += goodwillChange; return false; }
+    static bool FixtureFoundation(TerrainDef __instance, ref bool __result)
+    { __result = __instance.isFoundation; return false; }
+    static bool storageCellUsable = true;
+    static bool FixtureStoreCell(ref bool __result) { __result = storageCellUsable; return false; }
+    sealed class SteelFilter : ThingFilter
+    {
+        // The fixture contains only plain steel, with no quality, HP or DLC-specific book filters.
+        public override bool Allows(Thing t) => Allows(t.def);
+    }
+
+    sealed class ConsoleSave : IExposable
+    {
+        internal CompDeltaVPilotConsole console = new CompDeltaVPilotConsole();
+        public void ExposeData() => console.PostExposeData();
+    }
+
+    static void PublicFacilities(Game game, Harmony harmony)
+    {
+        AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, true);
+        var language = Raw<LoadedLanguage>(); Set(language, "dataIsLoaded", true);
+        language.keyedReplacements = new Dictionary<string, LoadedLanguage.KeyedReplacement>();
+        foreach (string key in new[] { "DeltaV_PublicFacility_NoClaim", "DeltaV_PublicFacility_NoConstruction" })
+            language.keyedReplacements[key] = new LoadedLanguage.KeyedReplacement { key = key, value = key };
+        LanguageDatabase.activeLanguage = language;
+        var dlcGate = AccessTools.PropertyGetter(typeof(TerrainDef), nameof(TerrainDef.IsSubstructure));
+        harmony.Patch(dlcGate, prefix: new HarmonyMethod(typeof(Program), nameof(FixtureFoundation)));
+        foreach (Type type in typeof(PublicFacility).Assembly.GetTypes()
+            .Where(t => t.Name.StartsWith("Patch_PublicFacility", StringComparison.Ordinal)))
+        { harmony.CreateClassProcessor(type).Patch(); checks++; }
+        var player = new Faction { def = new FactionDef { isPlayer = true } };
+        var ally = new Faction { def = new FactionDef() };
+        var relation = new FactionRelation { other = player, kind = FactionRelationKind.Ally, baseGoodwill = 100 };
+        Set(ally, "relations", new List<FactionRelation> { relation });
+        Set(player, "relations", new List<FactionRelation> { new FactionRelation { other = ally,
+            kind = FactionRelationKind.Ally, baseGoodwill = 100 } });
+        Set(game.World.factionManager, "ofPlayer", player);
+        var map = Raw<Map>(); map.info = new MapInfo { Size = new IntVec3(10, 1, 10) };
+        game.Maps.Add(map);
+        map.cellIndices = new CellIndices(map);
+        map.terrainGrid = new TerrainGrid(map);
+        map.listerThings = new ListerThings(ListerThingsUse.Global);
+        map.components = new List<MapComponent>();
+        var ownership = new SubstructureOwnership(map); map.components.Add(ownership);
+        var owners = new int[100]; owners[22] = 401; owners[23] = 401;
+        Set(ownership, "ownerGrid", owners);
+        var foundation = Raw<TerrainDef>(); foundation.isFoundation = true;
+        map.terrainGrid.foundationGrid[22] = map.terrainGrid.foundationGrid[23] = foundation;
+        var def = Raw<ThingDef>(); def.defName = "PublicConsoleFixture"; def.category = ThingCategory.Building;
+        def.building = new BuildingProperties(); def.size = IntVec2.One; def.comps = new List<CompProperties>();
+        ThingDefOf.PilotConsole = def;
+        var building = Raw<Building>(); building.def = def;
+        Set(building, "mapIndexOrState", (sbyte)(game.Maps.Count - 1));
+        Set(building, "positionInt", new IntVec3(2, 0, 2)); Set(building, "factionInt", ally);
+        var console = new CompDeltaVPilotConsole { parent = building, shipId = 401, isMain = true, isPublicFacility = true };
+        Set(building, "comps", new List<ThingComp> { console });
+        Set(map.listerThings, "listsByDef", new Dictionary<ThingDef, List<Thing>> { [def] = new List<Thing> { building } });
+        var universe = game.GetComponent<UniverseManager>();
+        var frame = new MapSpaceObject(950, map, default); universe.objects.Add(frame);
+        SubstructureOwnership.BumpStructureVersion();
+        var ship = console.Vessel;
+        Check(ship.PlayerMayOperate && PublicFacility.PlayerMayUse(building), "allied public ship grants use without changing ownership");
+        Check(building.Faction == ally && PublicFacility.ConsoleAt(map, new IntVec3(3, 0, 2)) == console,
+            "public rules protect the whole stamped domain");
+        Check(!building.ClaimableBy(player), "native claim path rejects public facilities");
+        Check(building.DeconstructibleBy(player), "native deconstruction remains available with goodwill cost");
+        console.isPublicFacility = false;
+        Check(!ship.PlayerMayOperate && PublicFacility.ConsoleAt(map, building.Position) == null, "ordinary ally grants no public access");
+        console.isPublicFacility = true;
+        relation.kind = FactionRelationKind.Neutral;
+        Check(!ship.PlayerMayOperate, "loss of alliance revokes public control");
+        relation.kind = FactionRelationKind.Hostile;
+        Check(!ship.PlayerMayOperate, "hostile public flag grants no control");
+        relation.kind = FactionRelationKind.Ally;
+        var placement = AccessTools.Method(typeof(Patch_PublicFacilityConstruction), "Postfix");
+        def.size = new IntVec2(2, 1);
+        object[] placementArgs = { def, new IntVec3(1, 0, 2), Rot4.North, map, false, (AcceptanceReport)true };
+        placement.Invoke(null, placementArgs);
+        Check(!((AcceptanceReport)placementArgs[5]).Accepted, "multi-cell blueprint cannot overlap public domain from outside");
+        placementArgs[4] = true; placementArgs[5] = (AcceptanceReport)true; placement.Invoke(null, placementArgs);
+        Check(((AcceptanceReport)placementArgs[5]).Accepted, "explicit god mode keeps construction override");
+        placementArgs[1] = new IntVec3(6, 0, 6); placementArgs[4] = false; placementArgs[5] = (AcceptanceReport)true;
+        placement.Invoke(null, placementArgs);
+        Check(((AcceptanceReport)placementArgs[5]).Accepted, "unclaimed construction remains available");
+        def.size = IntVec2.One;
+
+        var shelf = Raw<Building_Storage>(); shelf.def = DefDatabase<ThingDef>.GetNamed("ShelfSmall");
+        shelf.def.size = IntVec2.One;
+        Set(shelf, "mapIndexOrState", (sbyte)(game.Maps.Count - 1));
+        Set(shelf, "positionInt", new IntVec3(3, 0, 2)); Set(shelf, "factionInt", ally);
+        shelf.settings = new StorageSettings(); shelf.settings.Priority = StoragePriority.Critical;
+        shelf.settings.filter = new SteelFilter();
+        var steel = Raw<Thing>(); steel.def = DefDatabase<ThingDef>.GetNamed("Steel"); steel.stackCount = 75;
+        steel.def.virtualDefs = new List<ThingDef>();
+        Set(steel, "mapIndexOrState", (sbyte)(game.Maps.Count - 1)); Set(steel, "positionInt", shelf.Position);
+        shelf.settings.filter.SetAllow(steel.def, true); shelf.slotGroup = new SlotGroup(shelf);
+        map.haulDestinationManager = new HaulDestinationManager(map);
+        map.haulDestinationManager.AllGroupsListForReading.Add(shelf.slotGroup);
+        map.haulDestinationManager.AllHaulDestinationsListForReading.Add(shelf);
+        ((SlotGroup[,,])AccessTools.Field(typeof(HaulDestinationManager), "groupGrid").GetValue(map.haulDestinationManager))[3,0,2] = shelf.slotGroup;
+        var storeBoundary = AccessTools.Method(typeof(StoreUtility), nameof(StoreUtility.IsGoodStoreCell));
+        harmony.Patch(storeBoundary, prefix: new HarmonyMethod(typeof(Program), nameof(FixtureStoreCell)));
+        try
+        {
+            Check(StoreUtility.TryFindBestBetterStoreCellFor(steel, null, map, StoragePriority.Low, player, out var found)
+                && found == shelf.Position, "native storage search can select allied public shelf");
+            Check(StoreUtility.CurrentStoragePriorityOf(steel, forced: true) == StoragePriority.Critical
+                && StoreUtility.IsInValidBestStorage(steel), "public storage stays valid for forced hauling and job completion");
+            storageCellUsable = false;
+            Check(!StoreUtility.TryFindBestBetterStoreCellFor(steel, null, map, StoragePriority.Low, player, out _),
+                "public storage retains native cell viability rejection");
+            storageCellUsable = true; console.isPublicFacility = false;
+            Check(!StoreUtility.TryFindBestBetterStoreCellFor(steel, null, map, StoragePriority.Low, player, out _),
+                "ordinary allied shelf remains outside player storage search");
+            console.isPublicFacility = true;
+        }
+        finally { harmony.Unpatch(storeBoundary, HarmonyPatchType.Prefix, harmony.Id); }
+        var actor = Raw<Pawn>(); Set(actor, "factionInt", player);
+        var goodwillMethod = AccessTools.Method(typeof(Faction), nameof(Faction.TryAffectGoodwillWith));
+        harmony.Patch(goodwillMethod, prefix: new HarmonyMethod(typeof(Program), nameof(CaptureGoodwill)));
+        try
+        {
+            goodwillEvents = goodwillDelta = 0;
+            ally.Notify_BuildingRemoved(building, actor);
+            Check(goodwillEvents == 1 && goodwillDelta == -10, "native removal notification charges public demolition once");
+            ally.Notify_BuildingRemoved(building, null);
+            PublicFacility.Penalize(ally, null, building);
+            Check(goodwillEvents == 1, "unattributed removal cannot blame the player");
+            var cut = new DamageDef(); Set(cut, "externalViolence", true); DamageDefOf.Cut = cut;
+            PublicFacility.NotifyCut(building, actor, 4);
+            Check(goodwillEvents == 2 && goodwillDelta == -14, "engineering tools reuse native damage goodwill");
+            ally.Notify_BuildingTookDamage(building, new DamageInfo(cut, 3, instigator: actor));
+            Check(goodwillEvents == 3 && goodwillDelta == -17, "ordinary damage keeps exactly one native penalty");
+        }
+        finally { harmony.Unpatch(goodwillMethod, HarmonyPatchType.Prefix, harmony.Id); }
+        var saved = new ConsoleSave(); saved.console.isPublicFacility = true; saved.console.shipId = 401;
+        string xml = Scribe.saver.DebugOutputFor(saved), path = Path.GetTempFileName();
+        try
+        {
+            var document = new XmlDocument(); document.LoadXml(xml);
+            File.WriteAllText(path, "<root><run>" + document.DocumentElement.InnerXml + "</run></root>");
+            Scribe.loader.InitLoading(path);
+            var loaded = new ConsoleSave(); Scribe.EnterNode("run"); loaded.ExposeData(); Scribe.ExitNode();
+            Scribe.loader.FinalizeLoading();
+            Check(loaded.console.isPublicFacility && loaded.console.shipId == 401, "native console Scribe retains public access and ship identity");
+        }
+        finally { Scribe.ForceStop(); File.Delete(path); }
+        universe.objects.Remove(frame); game.Maps.Remove(map);
+        harmony.Unpatch(dlcGate, HarmonyPatchType.Prefix, harmony.Id);
+        AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, false);
+    }
+
 }

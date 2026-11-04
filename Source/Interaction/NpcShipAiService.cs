@@ -417,7 +417,7 @@ namespace DeltaV
 
         public bool HasAuthority(ShipBase ship) => ship.IsValid && ship.Identity == ownerId
             && ship.Faction != null
-            && ship.Faction != Faction.OfPlayer;
+            && !ship.PlayerMayOperate;
 
         public void ComposeCommand(ShipBase ship, ref PilotService.PilotCommand command) { }
 
