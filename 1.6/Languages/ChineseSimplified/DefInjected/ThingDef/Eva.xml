@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_EvaSuit.label>EVA 工程套装</DeltaV_EvaSuit.label>
+  <DeltaV_EvaSuit.description>用于舱外工程作业的单人载具。装入一名驾驶员与最多 20 kg 货物后，可从太空露天甲板或月池起飞。WASD 按摄像机画面方向推进，不受 Q/E 转向影响。手动火控下，左键切割结构，右键使用选中的副工具：副组 1 焊接建筑或清理命中的甲板污渍，副组 2 牵引散落物到货舱。切割拆除材料留在目标位置。不能自动开火、跨世界地图发射或侵入撞击。</DeltaV_EvaSuit.description>
+  <DeltaV_Beam_EvaCutter.label>切割光束</DeltaV_Beam_EvaCutter.label>
+  <DeltaV_Beam_EvaWelder.label>焊接光束</DeltaV_Beam_EvaWelder.label>
+  <DeltaV_Beam_EvaTractor.label>货物牵引光束</DeltaV_Beam_EvaTractor.label>
+</LanguageData>

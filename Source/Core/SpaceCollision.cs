@@ -110,6 +110,7 @@ namespace DeltaV
             public float noseForwardOffset;
             /// <summary>伤害归因（TakeDamage/GenExplosion 的 instigator；敌意与战斗日志走原版链路）。</summary>
             public Thing launcher;
+            public CompSpaceWeapon weapon;
             /// <summary>「自毁」后效执行回调（弹体服务闭包：标记死亡 + 帧边界销毁/归池）。</summary>
             public System.Action onSelfDestruct;
             /// <summary>结算死亡标记：跳过本弹体的后续事件（§3.5）。</summary>
@@ -172,6 +173,7 @@ namespace DeltaV
             public SpaceObject attacker;
             public ThingDef projectileDef;
             public Thing launcher;
+            public CompSpaceWeapon weapon;
             public SpaceObject defender;
             public Thing defenderBuilding;
             public bool defenderIsSubstructure;
@@ -552,6 +554,7 @@ namespace DeltaV
                 evt.attacker = body.attacker;
                 evt.projectileDef = body.projectileDef;
                 evt.launcher = body.launcher;
+                evt.weapon = body.weapon;
                 evt.defender = defender;
                 evt.defenderBuilding = bestThing;
                 evt.defenderIsSubstructure = bestKind == SpaceCellKind.Substructure;
@@ -702,6 +705,7 @@ namespace DeltaV
                 evt.attacker = body.attacker;
                 evt.projectileDef = body.projectileDef;
                 evt.launcher = body.launcher;
+                evt.weapon = body.weapon;
                 evt.defender = defender;
                 evt.defenderBuilding = shieldArc.building;
                 evt.defenderIsSubstructure = false;

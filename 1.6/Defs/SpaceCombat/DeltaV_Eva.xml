@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <!-- Development appearance and construction economy; dedicated EVA art is a separate task. -->
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_EvaSuit</defName><label>EVA engineering suit</label>
+    <description>A single-person craft for work outside a ship. Load one pilot and up to 20 kg of cargo, then launch from an open deck or moon pool. Movement follows the camera. Its manual tools cut structures, weld damage and clean exposed decks, or pull loose cargo into its pack. It cannot launch to a world-map destination.</description>
+    <thingClass>Building</thingClass><size>(1,1)</size><rotatable>true</rotatable>
+    <graphicData><graphicClass>Graphic_Single</graphicClass><texPath>Things/Building/Shuttle/BoardingShuttle</texPath><shaderType>CutoutComplex</shaderType><drawSize>(1,1)</drawSize></graphicData>
+    <altitudeLayer>Building</altitudeLayer><drawerType>RealtimeOnly</drawerType>
+    <passability>PassThroughOnly</passability><fillPercent>0.5</fillPercent><pathCost>30</pathCost>
+    <tickerType>Normal</tickerType><selectable>true</selectable><useHitPoints>true</useHitPoints>
+    <hasInteractionCell>true</hasInteractionCell><interactionCellOffset>(0,0,-1)</interactionCellOffset>
+    <terrainAffordanceNeeded>Light</terrainAffordanceNeeded><preventDroppingThingsOn>true</preventDroppingThingsOn>
+    <designationCategory>Odyssey</designationCategory><uiOrder>2602</uiOrder>
+    <statBases><MaxHitPoints>150</MaxHitPoints><Mass>20</Mass><Flammability>0.3</Flammability><WorkToBuild>12000</WorkToBuild></statBases>
+    <costList><Steel>80</Steel><Plasteel>30</Plasteel><ComponentIndustrial>3</ComponentIndustrial></costList>
+    <researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
+    <building><isInert>true</isInert><claimable>true</claimable><paintable>true</paintable></building>
+    <inspectorTabs><li>ITab_ContentsTransporter</li></inspectorTabs>
+    <placeWorkers><li>PlaceWorker_NotUnderRoof</li></placeWorkers>
+    <comps>
+      <li Class="DeltaV.CompProperties_LocalShuttle" />
+      <li Class="DeltaV.CompProperties_LocalLaunchable"><minFuelCost>0</minFuelCost><fuelPerTile>0</fuelPerTile><cooldownTicks>0</cooldownTicks></li>
+      <li Class="CompProperties_Transporter"><massCapacity>20</massCapacity><max1PerGroup>true</max1PerGroup><canChangeAssignedThingsAfterStarting>true</canChangeAssignedThingsAfterStarting><showMassInInspectString>false</showMassInInspectString></li>
+      <li Class="DeltaV.CompProperties_VehicleCargo"><cargoCapacity>20</cargoCapacity><crewCount>1</crewCount></li>
+      <li Class="DeltaV.CompProperties_EvaSuit">
+        <virtualThrusters>
+          <li><position>(-0.3,0)</position><force>(300,0)</force></li>
+          <li><position>(0.3,0)</position><force>(-300,0)</force></li>
+          <li><position>(0,-0.3)</position><force>(0,300)</force></li>
+          <li><position>(0,0.3)</position><force>(0,-300)</force></li>
+        </virtualThrusters>
+      </li>
+      <li Class="DeltaV.CompProperties_VirtualWeapons"><mounts>
+        <li><weapon>DeltaV_EvaCutter</weapon></li>
+        <li><weapon>DeltaV_EvaWelder</weapon></li>
+        <li><weapon>DeltaV_EvaTractor</weapon></li>
+      </mounts></li>
+    </comps>
+  </ThingDef>
+  <DeltaV.VirtualWeaponDef>
+    <defName>DeltaV_EvaCutter</defName><label>cutting beam</label>
+    <comps><li Class="DeltaV.CompProperties_SpaceWeapon">
+      <projectileDef>DeltaV_Beam_EvaCutter</projectileDef><manualOnly>true</manualOnly>
+      <defaultSalvoSet>Main</defaultSalvoSet><defaultGroupNumber>1</defaultGroupNumber>
+      <range>6</range><cooldownTicks>30</cooldownTicks><baseSpreadDeg>0</baseSpreadDeg><safeFireByDefault>false</safeFireByDefault>
+    </li></comps>
+  </DeltaV.VirtualWeaponDef>
+  <DeltaV.VirtualWeaponDef>
+    <defName>DeltaV_EvaWelder</defName><label>welding torch</label>
+    <comps><li Class="DeltaV.CompProperties_SpaceWeapon">
+      <projectileDef>DeltaV_Beam_EvaWelder</projectileDef><manualOnly>true</manualOnly>
+      <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>1</defaultGroupNumber>
+      <range>3</range><cooldownTicks>10</cooldownTicks><baseSpreadDeg>0</baseSpreadDeg><safeFireByDefault>false</safeFireByDefault>
+    </li></comps>
+  </DeltaV.VirtualWeaponDef>
+  <DeltaV.VirtualWeaponDef>
+    <defName>DeltaV_EvaTractor</defName><label>cargo tractor beam</label>
+    <comps><li Class="DeltaV.CompProperties_SpaceWeapon">
+      <projectileDef>DeltaV_Beam_EvaTractor</projectileDef><manualOnly>true</manualOnly><tractor>true</tractor>
+      <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>2</defaultGroupNumber>
+      <range>8</range><cooldownTicks>1</cooldownTicks><baseSpreadDeg>0</baseSpreadDeg>
+    </li><li Class="DeltaV.CompProperties_CargoTractor"><collectionRadius>0.5</collectionRadius></li></comps>
+  </DeltaV.VirtualWeaponDef>
+  <ThingDef ParentName="DeltaV_EngineeringBeam">
+    <defName>DeltaV_Beam_EvaCutter</defName><label>cutting beam</label>
+    <comps><li Class="DeltaV.CompProperties_SpaceProjectile"><hasMap>false</hasMap><speed>2000</speed><laserRange>6</laserRange><laserBeamWidth>0.12</laserBeamWidth><visualStyle>Mining</visualStyle></li></comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_EngineeringBeam">
+    <defName>DeltaV_Beam_EvaWelder</defName><label>welding beam</label>
+    <comps><li Class="DeltaV.CompProperties_SpaceProjectile"><hasMap>false</hasMap><speed>2000</speed><laserRange>3</laserRange><laserBeamWidth>0.1</laserBeamWidth><visualStyle>Coupling</visualStyle></li></comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_EngineeringBeam">
+    <defName>DeltaV_Beam_EvaTractor</defName><label>cargo tractor beam</label>
+    <comps><li Class="DeltaV.CompProperties_SpaceProjectile"><hasMap>false</hasMap><speed>2000</speed><laserRange>8</laserRange><laserBeamWidth>0.12</laserBeamWidth><visualStyle>Tractor</visualStyle><continuousBeam>true</continuousBeam></li></comps>
+  </ThingDef>
+  <DeltaV.SpaceImpactEffectDef Name="DeltaV_EvaCutImpact" Abstract="True">
+    <projectileDefs><li>DeltaV_Beam_EvaCutter</li></projectileDefs>
+    <defenderEffect><kind>CutStructure</kind><damage>120</damage></defenderEffect><attackerEffect><kind>DestroySelf</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_EvaCutImpact"><defName>DeltaV_Impact_EvaCutBuilding</defName></DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_EvaCutImpact"><defName>DeltaV_Impact_EvaCutFoundation</defName><targetsSubstructure>true</targetsSubstructure></DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef Name="DeltaV_EvaWeldImpact" Abstract="True">
+    <projectileDefs><li>DeltaV_Beam_EvaWelder</li></projectileDefs>
+    <defenderEffect><kind>Weld</kind><damage>10</damage></defenderEffect><attackerEffect><kind>DestroySelf</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_EvaWeldImpact"><defName>DeltaV_Impact_EvaWeldBuilding</defName></DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_EvaWeldImpact"><defName>DeltaV_Impact_EvaWeldFoundation</defName><targetsSubstructure>true</targetsSubstructure></DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef>
+    <defName>DeltaV_Impact_EvaToolShield</defName><projectileDefs><li>DeltaV_Beam_EvaCutter</li><li>DeltaV_Beam_EvaWelder</li></projectileDefs>
+    <targetThingDefs><li>GravshipShieldGenerator</li><li>DeltaV_ShieldGenerator</li><li>DeltaV_ShieldGeneratorSmall</li></targetThingDefs>
+    <defenderEffect><kind>ShieldDrain</kind><damage>0</damage></defenderEffect><attackerEffect><kind>DestroySelf</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_Eva</defName><thingDef>DeltaV_EvaSuit</thingDef><render><source>Thing</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+</Defs>

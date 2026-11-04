@@ -15,7 +15,8 @@ namespace DeltaV
 
         internal Command_BatchSetting(string setting, T target, Action<T[]> apply)
         {
-            this.setting = setting;
+            this.setting = setting + (CompSpaceWeapon.ForComponent(target)?.Mount is VirtualWeaponMount mount
+                ? ":" + mount.SettingsKey : "");
             this.apply = apply;
             targets.Add(target);
         }
@@ -48,7 +49,8 @@ namespace DeltaV
         internal Command_BatchToggle(string setting, T target, Func<T, bool> active,
             Action<T, bool> set)
         {
-            this.setting = setting;
+            this.setting = setting + (CompSpaceWeapon.ForComponent(target)?.Mount is VirtualWeaponMount mount
+                ? ":" + mount.SettingsKey : "");
             targets.Add(target);
             isActive = () => active(target);
             toggleAction = () =>

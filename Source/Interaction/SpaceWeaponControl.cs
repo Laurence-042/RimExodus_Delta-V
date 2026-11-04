@@ -43,10 +43,15 @@ namespace DeltaV
                 || weapon.Container != container || !weapon.SpaceModeEnabled)
                 return Reject(WeaponReject.Invalid, command.Trigger);
 
+            if (weapon.OwnerShip.IsValid && weapon.OwnerShip.EffectiveFireControlMode == ShipFireControlMode.Disabled)
+                return Reject(WeaponReject.Gate, command.Trigger);
+            if (command.Source == WeaponControlSource.Automatic && weapon.WeaponProps.manualOnly
+                || command.Source == WeaponControlSource.PointDefense && !weapon.AllowsPointDefense)
+                return Reject(WeaponReject.Gate, command.Trigger);
             long aimStart = perf.Start();
             if (command.LocalPoint.HasValue && !command.Trigger)
             {
-                if (weapon.parent.TryGetComp<CompSpaceWeaponTraverse>() != null)
+                if (weapon.Component<CompSpaceWeaponTraverse>() != null)
                     AimLocal(weapon, command.LocalPoint.Value, SpaceWeaponGeometry.MuzzleMapPoint(weapon));
                 RecordAim(perf, command.Source, aimStart);
                 return false;
@@ -58,7 +63,7 @@ namespace DeltaV
             bool canFire = command.Trigger && readiness == WeaponReject.None;
             if (command.LocalPoint.HasValue && !canFire)
             {
-                if (weapon.parent.TryGetComp<CompSpaceWeaponTraverse>() != null)
+                if (weapon.Component<CompSpaceWeaponTraverse>() != null)
                     AimLocal(weapon, command.LocalPoint.Value, SpaceWeaponGeometry.MuzzleMapPoint(weapon));
                 RecordAim(perf, command.Source, aimStart);
                 return Reject(readiness, command.Trigger);
@@ -127,13 +132,13 @@ namespace DeltaV
             skill = 0;
             if (weapon.CooldownTicksLeft > 0) return WeaponReject.Cooldown;
             if (!weapon.TryGetSkillLevel(out skill)) return WeaponReject.Operating;
-            if (weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }) return WeaponReject.Power;
+            if (weapon.Component<CompPowerTrader>() is { PowerOn: false }) return WeaponReject.Power;
             return WeaponReject.None;
         }
 
         internal static void AimLocal(CompSpaceWeapon weapon, Vector2 point, Vector2 muzzle)
         {
-            var traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
+            var traverse = weapon.Component<CompSpaceWeaponTraverse>();
             if (traverse == null) return;
             Vector2 delta = point - muzzle;
             if (delta.sqrMagnitude > 1e-6f) traverse.AimAt(weapon.ClampAim(Mathf.Atan2(delta.y, delta.x)));

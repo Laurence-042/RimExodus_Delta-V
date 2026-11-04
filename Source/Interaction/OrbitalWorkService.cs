@@ -48,7 +48,7 @@ namespace DeltaV
         }
 
         private bool MatchesMotion(PilotTarget target, SpaceObject host)
-            => LandingApproachController.MatchesMotion(universe.FrameOf(target.Map).pose, host.pose);
+            => LandingApproachController.MatchesMotion(universe.FrameOf(target.Map).pose, host.pose, target.Vessel);
 
         public void Start(PilotTarget target)
         {

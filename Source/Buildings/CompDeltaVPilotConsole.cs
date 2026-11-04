@@ -7,7 +7,7 @@ using Verse;
 
 namespace DeltaV
 {
-    public enum ShipFireControlMode : byte { Automatic, Manual }
+    public enum ShipFireControlMode : byte { Automatic, Manual, Disabled }
 
     /// <summary>
     /// Delta-V 驾驶台（解耦架构 §3）：飞船身份与认领的锚点。

@@ -32,7 +32,7 @@ namespace DeltaV
             }
 
             public SpacePose Reference(SpacePose own)
-                => SpaceTransform.MatchingDriftPose(own.position, host.pose, relativeAngle);
+                => MatchingReference(own, host.pose, relativeAngle, Target.Vessel);
 
             public float Distance() => OrbitSphere.ArcCells(shipContainerPose().position, host.pose.position);
 
@@ -123,20 +123,30 @@ namespace DeltaV
             universe.Approach.CancelSelectionOrPlan(universe, "sync navigation failed");
         }
 
-        internal static bool MatchesMotion(SpacePose own, SpacePose host)
-            => InWindow(own, SpaceTransform.MatchingDriftPose(own.position, host,
-                ShipOrientation.SnapAngle(own.angle - host.angle)));
+        internal static bool MatchesMotion(SpacePose own, SpacePose host, ShipBase ship = null)
+            => InWindow(own, MatchingReference(own, host,
+                ShipOrientation.SnapAngle(own.angle - host.angle), ship), ship);
 
-        internal static bool InWindow(SpacePose own, SpacePose desired)
-            => Mathf.Abs(SpaceTransform.WrapAngle(own.angle - desired.angle)) <= HoldAngleWindow
+        internal static SpacePose MatchingReference(SpacePose own, SpacePose host, float relativeAngle, ShipBase ship)
+        {
+            SpacePose desired = ship?.MatchDockingPointVelocity == true
+                ? SpaceTransform.RigidPointPose(host, SpaceTransform.UniverseToShipLocal(host, own.position), relativeAngle)
+                : SpaceTransform.MatchingDriftPose(own.position, host, relativeAngle);
+            if (ship?.RequiresHeadingAlignment == false) desired.angle = own.angle;
+            if (ship?.RequiresAngularVelocityMatch == false) desired.angularVelocity = 0f;
+            return desired;
+        }
+
+        internal static bool InWindow(SpacePose own, SpacePose desired, ShipBase ship = null)
+            => (ship?.RequiresHeadingAlignment == false || Mathf.Abs(SpaceTransform.WrapAngle(own.angle - desired.angle)) <= HoldAngleWindow)
                 && SpaceTransform.RelativeVelocity(own, desired).magnitude <= VelocityWindow
-                && Mathf.Abs(own.angularVelocity - desired.angularVelocity) <= AngularVelocityWindow;
+                && (ship?.RequiresAngularVelocityMatch == false || Mathf.Abs(own.angularVelocity - desired.angularVelocity) <= AngularVelocityWindow);
 
         internal static bool InSyncWindow(DriftSyncPlan active)
         {
             if (active?.host == null || !active.Target.IsValid) return false;
             SpacePose own = active.shipContainerPose();
-            return InWindow(own, active.Reference(own));
+            return InWindow(own, active.Reference(own), active.Target.Vessel);
         }
 
         internal static bool IsValid(UniverseManager universe, DriftSyncPlan active)

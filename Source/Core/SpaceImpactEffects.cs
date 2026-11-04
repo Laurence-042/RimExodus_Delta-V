@@ -25,7 +25,9 @@ namespace DeltaV
 
         CoupleMotion = 5,
         Salvage = 6,
-        TractorPull = 7
+        TractorPull = 7,
+        CutStructure = 8,
+        Weld = 9
     }
 
     /// <summary>从命中格起沿弹道前进一格的结构毁伤；伤害倍率与横向半宽分别配置。</summary>
@@ -305,6 +307,11 @@ namespace DeltaV
                 Salvage(evt, part);
                 return 0f;
             }
+
+            if (part.kind == ImpactEffectKind.CutStructure)
+            { CutStructure(evt, part); return 0f; }
+            if (part.kind == ImpactEffectKind.Weld)
+            { Weld(evt, part); return 0f; }
 
             if (part.kind == ImpactEffectKind.ShieldDrain)
             {

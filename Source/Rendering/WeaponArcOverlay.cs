@@ -35,7 +35,8 @@ namespace DeltaV
             foreach (object selected in Find.Selector.SelectedObjectsListForReading)
             {
                 if (!(selected is ThingWithComps thing) || !thing.Spawned || thing.Map != map) continue;
-                CompSpaceWeapon weapon = thing.TryGetComp<CompSpaceWeapon>();
+                foreach (CompSpaceWeapon weapon in CompSpaceWeapon.On(thing))
+                {
                 if (weapon == null || !weapon.SpaceModeEnabled) continue;
                 float range = weapon.EffectiveRange;
                 float minRange = Mathf.Clamp(weapon.WeaponProps.minRange, 0f, range);
@@ -46,7 +47,7 @@ namespace DeltaV
                 float start = center - arc * 0.5f;
                 Vector2 muzzle = SpaceWeaponGeometry.MuzzleMapPoint(weapon);
                 Vector3 origin = Point(muzzle, 0f, 0f, altitude);
-                uint hash = unchecked((uint)(weapon.parent.thingIDNumber * 1664525 + 1013904223));
+                uint hash = unchecked((uint)((weapon.Identity ^ (weapon.Identity >> 32)) * 1664525 + 1013904223));
                 Material color = colors[hash % ColorCount];
 
                 if (arcDeg <= 0.001f)
@@ -86,6 +87,7 @@ namespace DeltaV
                 GenDraw.DrawLineBetween(Point(muzzle, minRange, scan, altitude),
                     Point(muzzle, range, scan, altitude),
                     color, 0.20f);
+                }
             }
         }
 

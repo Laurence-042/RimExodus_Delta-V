@@ -20,7 +20,8 @@ namespace DeltaV
             icon = TexCommand.Attack;
         }
 
-        public override bool GroupsWith(Gizmo other) => other is Command_WeaponGroup;
+        public override bool GroupsWith(Gizmo other) => other is Command_WeaponGroup command
+            && command.weapons[0].SettingsKey == weapons[0].SettingsKey;
 
         public override bool InheritInteractionsFrom(Gizmo other)
         {

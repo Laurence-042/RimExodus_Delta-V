@@ -153,20 +153,20 @@ internal static partial class Program
                 weapon.aimMode = SpaceWeaponAimMode.Volley;
                 CheckScatteredSweep(universe, scattered);
                 weapon.aimMode = SpaceWeaponAimMode.PointDefense;
-                Check(universe.Scatter.Pull(scattered, launcher), "automatic tractor starts an allowed scattered target");
+                Check(universe.Scatter.Pull(scattered, weapon), "automatic tractor starts an allowed scattered target");
                 universe.Scatter.Tick();
-                Check(universe.Scatter.Pull(scattered, launcher), "automatic owner retains its target as it moves toward the receiver");
+                Check(universe.Scatter.Pull(scattered, weapon), "automatic owner retains its target as it moves toward the receiver");
                 SpacePose beforePowerLoss = scattered.pose;
                 Set(power, "powerOnInt", false);
                 universe.Scatter.Tick();
-                Check(!universe.Scatter.Pull(scattered, launcher)
+                Check(!universe.Scatter.Pull(scattered, weapon)
                     && scattered.pose.direction.x == beforePowerLoss.direction.x
                     && scattered.pose.direction.y == beforePowerLoss.direction.y
                     && scattered.pose.direction.z == beforePowerLoss.direction.z,
                     "power loss cancels the real pull request without moving or losing cargo");
                 Set(power, "powerOnInt", true);
                 scattered.pose = SpaceTransform.RigidPointPose(receiver.pose, emitterLocal + new Vector2(70f, 0f), .8f);
-                Check(!universe.Scatter.Pull(scattered, launcher), "tractor acquisition rejects targets outside its configured range");
+                Check(!universe.Scatter.Pull(scattered, weapon), "tractor acquisition rejects targets outside its configured range");
                 scattered.pose = SpaceTransform.RigidPointPose(receiver.pose, emitterLocal + new Vector2(45f, 15f), .8f);
                 scattered.pose.velocity = new Vector2(-900f, 1600f);
                 float previousDistance = 48f;
@@ -175,7 +175,7 @@ internal static partial class Program
                 for (int step = 0; step < 130; step++)
                 {
                     Set(Find.TickManager, "ticksGameInt", startTick + step);
-                    refreshed &= universe.Scatter.Pull(scattered, launcher);
+                    refreshed &= universe.Scatter.Pull(scattered, weapon);
                     ShipPhysics.Integrate(receiver, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
                     ShipPhysics.Integrate(scattered, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
                     universe.Scatter.Tick();
@@ -184,7 +184,7 @@ internal static partial class Program
                     monotonic &= distance < previousDistance;
                     previousDistance = distance;
                 }
-                Check(refreshed && monotonic && previousDistance < SpaceScatterService.CollectionRadius,
+                Check(refreshed && monotonic && previousDistance < CompSpaceTractor.CollectionRadius,
                     "high lateral velocity cannot escape: real tractor converges while receiver translates and rotates");
                 Check(Math.Abs(SpaceTransform.WrapAngle(scattered.pose.angle - receiver.pose.angle) - .8f) < .001f,
                     "tractor preserves the captured relative angle during receiver rotation");
@@ -204,11 +204,11 @@ internal static partial class Program
                 blocker.stackCount = 1;
                 ProbeSpawnCargo(blocker, cell, destination);
                 receivingBlocked = true;
-                Check(!universe.Scatter.TryReceive(scattered, launcher) && thing.Map == source,
+                Check(tractor.TryReceive(new TractorReceiveContext(universe, weapon, scattered, receiver)) == TractorReceiveResult.Rejected && thing.Map == source,
                     "no vanilla nearby placement retains cargo and pawn on the source map");
                 receivingBlocked = false;
                 Set(Find.TickManager, "ticksGameInt", pawn ? 13000 : 10000);
-                universe.Scatter.Pull(scattered, launcher);
+                universe.Scatter.Pull(scattered, weapon);
                 universe.Scatter.Tick();
                 Call(universe, "RunFrameActions");
                 Check(thing.Map == destination,

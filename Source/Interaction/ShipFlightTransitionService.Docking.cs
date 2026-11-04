@@ -368,7 +368,8 @@ namespace DeltaV
             SpaceObject sourceFrame, HashSet<IntVec3> cells, Building mainConsole,
             bool wreckOwnership, int retainedOwnerId, Rot4 targetConsoleFacing,
             Building bodyAnchor = null, bool includeTerrain = true,
-            SplitFocus focus = null, Dictionary<IntVec3, int> sourceOwners = null)
+            SplitFocus focus = null, Dictionary<IntVec3, int> sourceOwners = null,
+            int mapMargin = ShipPocketMapFactory.StructureMargin, bool reserveRotations = false)
         {
             Building anchor = mainConsole ?? bodyAnchor;
             Faction faction = anchor?.Faction;
@@ -377,7 +378,7 @@ namespace DeltaV
             Rot4 rotation = anchor != null
                 ? ShipOrientation.PlacementRotation(anchor.Rotation, targetConsoleFacing) : Rot4.North;
             preview.Rotation = rotation;
-            if (!ShipPocketMapFactory.TryGenerateForGravship(preview, universe, out Map pocketMap, out IntVec3 pocketRoot)) return null;
+            if (!ShipPocketMapFactory.TryGenerateForGravship(preview, universe, out Map pocketMap, out IntVec3 pocketRoot, mapMargin, reserveRotations)) return null;
             // Generation and geometry preflight precede the consuming CaptureDomain call.
             Gravship gravship = GravshipInterop.CaptureDomain(sourceMap, cells, mainConsole, faction, includeTerrain);
             if (gravship == null)
@@ -654,9 +655,11 @@ namespace DeltaV
                 domain, transfer.console, wreckOwnership: false,
                 retainedOwnerId: transfer.ownerId, targetConsoleFacing: targetFacing,
                 bodyAnchor: transfer.body,
-                includeTerrain: transfer.includeTerrain, focus: focus);
+                includeTerrain: transfer.includeTerrain, focus: focus,
+                mapMargin: ship.FlightMapMargin, reserveRotations: ship.ReserveRotationBounds);
             if (container == null) return null;
             ShipBase resolved = ShipRegistry.ShipByIdentity(identity);
+            if (!resolved.AllowsAngularMotion) container.pose.angularVelocity = 0f;
             WorldShipMarkerRenderer.RebuildFor(resolved);
             focus?.Complete(universe);
             if (Find.CurrentMap == container.map && resolved.IsValid && universe.Pilot.CanPlayerControl(resolved)

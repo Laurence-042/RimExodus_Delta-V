@@ -56,7 +56,7 @@ namespace DeltaV
         public void UnregisterWeapon(CompSpaceWeapon weapon, Map map)
         {
             if (weapon == null) return;
-            if (weapon.WeaponProps.tractor) universe.Scatter.ReleaseAutomatic(weapon.parent);
+            if (weapon.WeaponProps.tractor) universe.Scatter.ReleaseAutomatic(weapon);
             universe.Controls.ForgetWeaponTarget(weapon);
             if (map == null) return;
             if (!weaponsByMap.TryGetValue(map, out HashSet<CompSpaceWeapon> weapons)) return;
@@ -77,7 +77,7 @@ namespace DeltaV
         {
             if (map == null) return;
             foreach (Thing thing in map.spawnedThings)
-                thing.TryGetComp<CompSpaceWeapon>()?.ClearRuntimeModel();
+                foreach (var weapon in CompSpaceWeapon.On(thing as ThingWithComps)) weapon.ClearRuntimeModel();
             weaponsByMap.Remove(map);
             // 归档时 Thing 的 Map 索引已清除；源图的 spawnedThings 仍持有废弃实例。
             pendingMissileReloads.RemoveWhere(loader => map.spawnedThings.Contains(loader.parent));
@@ -148,7 +148,7 @@ namespace DeltaV
             {
                 if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
                     || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
-                    || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
+                    || weapon.Component<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out int skill)
                     || !SpaceWeaponBallistics.HasBaseShotEnergy(weapon)) continue;
                 CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
@@ -178,7 +178,7 @@ namespace DeltaV
             {
                 if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
                     || weapon.aimMode != SpaceWeaponAimMode.PointDefense || !weapon.GroupActive
-                    || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
+                    || weapon.Component<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out _)
                     || !SpaceWeaponBallistics.HasBaseShotEnergy(weapon)) continue;
                 CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
@@ -242,8 +242,7 @@ namespace DeltaV
             {
                 if (thing is Building building && !building.Destroyed)
                 {
-                    CompSpaceWeapon weapon = building.TryGetComp<CompSpaceWeapon>();
-                    if (weapon != null) result.Add(weapon);
+                    result.AddRange(CompSpaceWeapon.On(building));
                 }
             }
             return result;
@@ -392,7 +391,7 @@ namespace DeltaV
             foreach (SpaceObject obj in universe.objects)
                 if (obj.map != null)
                     foreach (Thing thing in obj.map.spawnedThings)
-                        thing.TryGetComp<CompSpaceWeapon>()?.ClearRuntimeModel();
+                        foreach (var weapon in CompSpaceWeapon.On(thing as ThingWithComps)) weapon.ClearRuntimeModel();
             weaponsByMap.Clear();
             pendingMissileReloads.Clear();
         }

@@ -19,8 +19,11 @@ namespace DeltaV
     {
         public const int StructureMargin = 12;
 
-        public static IntVec3 CompactSize(IntVec2 contentSize) =>
-            new IntVec3(contentSize.x + StructureMargin * 2, 1, contentSize.z + StructureMargin * 2);
+        public static IntVec3 CompactSize(IntVec2 contentSize, int margin = StructureMargin)
+        {
+            if (margin < 0) throw new System.ArgumentOutOfRangeException(nameof(margin));
+            return new IntVec3(contentSize.x + margin * 2, 1, contentSize.z + margin * 2);
+        }
 
         public static Map Generate(IntVec3 size, UniverseManager universe)
         {
@@ -59,25 +62,31 @@ namespace DeltaV
         }
 
         public static bool TryGenerateForGravship(Gravship gravship, UniverseManager universe,
-            out Map map, out IntVec3 root)
+            out Map map, out IntVec3 root, int margin = StructureMargin, bool reserveRotations = false)
         {
             map = null;
             root = IntVec3.Invalid;
             if (gravship == null || universe == null) return false;
 
-            CellRect bounds = PlacedBounds(gravship);
-            root = new IntVec3(StructureMargin - bounds.minX, 0, StructureMargin - bounds.minZ);
-            map = Generate(CompactSize(bounds.Size), universe);
+            if (margin < 0) throw new System.ArgumentOutOfRangeException(nameof(margin));
+            CellRect bounds = PlacedBounds(gravship, reserveRotations);
+            root = new IntVec3(margin - bounds.minX, 0, margin - bounds.minZ);
+            map = Generate(CompactSize(bounds.Size, margin), universe);
             return map != null;
         }
 
-        internal static CellRect PlacedBounds(Gravship gravship)
+        internal static CellRect PlacedBounds(Gravship gravship, bool reserveRotations = false)
         {
             var cells = new List<IntVec3>();
             foreach (IntVec3 local in gravship.Bounds)
                 cells.Add(PrefabUtility.GetAdjustedLocalPosition(local, gravship.Rotation));
             foreach (var pair in gravship.ThingPlacements)
+            {
                 cells.AddRange(GenAdj.OccupiedRect(pair.Value.local, pair.Value.rotation, pair.Key.def.size));
+                if (reserveRotations)
+                    foreach (Rot4 rotation in Rot4.AllRotations)
+                        cells.AddRange(GenAdj.OccupiedRect(pair.Value.local, rotation, pair.Key.def.size));
+            }
             return CellRect.FromCellList(cells);
         }
 

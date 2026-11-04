@@ -11,14 +11,15 @@ namespace DeltaV
 
         private static bool ExternalForceEmitterReady(CompSpaceWeapon weapon) => weapon?.parent?.Spawned == true
             && !weapon.parent.Destroyed && weapon.SpaceModeEnabled && weapon.GroupActive
+            && weapon.OwnerShip.EffectiveFireControlMode != ShipFireControlMode.Disabled
             && weapon.aimMode == SpaceWeaponAimMode.Volley
-            && weapon.parent.TryGetComp<CompPowerTrader>()?.PowerOn == true
+            && weapon.Component<CompPowerTrader>()?.PowerOn == true
             && (!weapon.WeaponProps.tractor || SpaceTractor.CanOperate(weapon));
 
         // External force acts on the physical component under the beam, without a target engine gate.
-        internal bool PrepareExternalForceTarget(SpaceObject target, IntVec3 cell, Thing launcher)
+        internal bool PrepareExternalForceTarget(SpaceObject target, IntVec3 cell, CompSpaceWeapon weapon)
         {
-            var weapon = launcher?.TryGetComp<CompSpaceWeapon>();
+            Thing launcher = weapon?.parent;
             if (target?.map == null || !target.CanRelocateMap || !ExternalForceEmitterReady(weapon)) return false;
             Map sourceMap = launcher.Map;
             SpaceObject source = universe.FrameOf(sourceMap);

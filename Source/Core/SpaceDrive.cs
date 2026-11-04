@@ -36,16 +36,33 @@ namespace DeltaV
         public override string ToString() => (shuttle ? "thing:" : "structure:") + key;
     }
 
+    /// <summary>Map-plane input axes, including cameras whose projected axes are not perpendicular.</summary>
+    public readonly struct DriveInputBasis
+    {
+        public readonly Vector2 Forward, Left;
+        public DriveInputBasis(Vector2 forward, Vector2 left) { Forward = forward.normalized; Left = left.normalized; }
+        public static DriveInputBasis ForAngle(float angle) => new DriveInputBasis(
+            SpaceTransform.Rotate(Vector2.right, angle), SpaceTransform.Rotate(Vector2.up, angle));
+        public Vector2 ToMap(Vector2 input) => Forward * input.x + Left * input.y;
+        public Vector2 FromMap(Vector2 map)
+        {
+            float determinant = Forward.x * Left.y - Forward.y * Left.x;
+            return new Vector2(map.x * Left.y - map.y * Left.x,
+                Forward.x * map.y - Forward.y * map.x) / determinant;
+        }
+    }
+
     public enum DriveResult { Executed, WaitingForSeparation, InvalidSubject, AlreadyAdvanced }
     public struct DriveControl
     {
         public Vector2 force;
         public float torque, voidBlend;
         public bool playerInitiated, assistX, assistZ, assistW;
+        public DriveInputBasis? inputBasis;
         internal bool hasInput;
         internal ShipPhysics.Command input;
-        public static DriveControl FromInput(ShipPhysics.Command command, bool assistX, bool assistZ, bool assistW)
-            => new DriveControl { hasInput = true, input = command, playerInitiated = true,
+        public static DriveControl FromInput(ShipPhysics.Command command, bool assistX, bool assistZ, bool assistW, DriveInputBasis? inputBasis = null)
+            => new DriveControl { hasInput = true, input = command, playerInitiated = true, inputBasis = inputBasis,
                 assistX = assistX, assistZ = assistZ, assistW = assistW };
     }
 
@@ -57,6 +74,7 @@ namespace DeltaV
         public SpacePose pose { get; internal set; }
         internal DriveInfo(ShipPhysics.MassReport report, float frameAngle = 0f)
         { this.report = report; this.frameAngle = frameAngle; }
+        public bool AllowsAngularMotion => report.allowsAngularMotion;
         public float mass => report.mass;
         public float inertia => report.inertia;
         public Vector2 comLocal => report.comLocal;
@@ -154,6 +172,7 @@ namespace DeltaV
         public Vector2 comLocal;
         public int ownerId;
         public bool shuttle;
+        public bool allowsAngularMotion = true;
         public List<Vector2> positions = new List<Vector2>(), directions = new List<Vector2>();
         public List<float> forces = new List<float>();
         private ShipPhysics.MassReport report;
@@ -162,7 +181,7 @@ namespace DeltaV
             get
             {
                 if (report != null) return report;
-                report = new ShipPhysics.MassReport { mass = mass, inertia = inertia, comLocal = comLocal };
+                report = new ShipPhysics.MassReport { mass = mass, inertia = inertia, comLocal = comLocal, allowsAngularMotion = allowsAngularMotion };
                 for (int i = 0; i < forces.Count; i++) report.thrusters.Add(new ShipPhysics.Thruster
                 { localPos = positions[i], dir = directions[i], thrust = forces[i], operational = forces[i] > 0f });
                 return report;
@@ -173,7 +192,7 @@ namespace DeltaV
             Capture(info, subject.key, subject.shuttle);
         internal static DriveSnapshot Capture(DriveInfo info, int ownerId, bool shuttle = false)
         {
-            var result = new DriveSnapshot { mass = info.mass, inertia = info.inertia,
+            var result = new DriveSnapshot { mass = info.mass, inertia = info.inertia, allowsAngularMotion = info.AllowsAngularMotion,
                 comLocal = info.comLocal, frameAngle = info.frameAngle, ownerId = ownerId, shuttle = shuttle };
             foreach (var t in info.thrusters)
             { result.positions.Add(t.localPos); result.directions.Add(t.dir); result.forces.Add(t.operational ? t.thrust : 0f); }
@@ -185,6 +204,7 @@ namespace DeltaV
             Scribe_Values.Look(ref frameAngle, "frameAngle"); Scribe_Values.Look(ref comLocal, "comLocal");
             Scribe_Values.Look(ref ownerId, "ownerId");
             Scribe_Values.Look(ref shuttle, "shuttle");
+            Scribe_Values.Look(ref allowsAngularMotion, "allowsAngularMotion", true);
             Scribe_Collections.Look(ref positions, "positions", LookMode.Value);
             Scribe_Collections.Look(ref directions, "directions", LookMode.Value);
             Scribe_Collections.Look(ref forces, "forces", LookMode.Value);

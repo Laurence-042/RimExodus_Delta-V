@@ -43,8 +43,11 @@ namespace DeltaV
                 {
                     if (thing.TryGetComp<CompDeltaVPilotConsole>() is { } console)
                     { console.shipId = -1; console.isMain = false; }
-                    thing.TryGetComp<CompSpaceWeapon>()?.ResetPrefabIdentity();
-                    thing.TryGetComp<CompSpaceWeaponTraverse>()?.RotateForPrefab(rotation);
+                    foreach (CompSpaceWeapon weapon in CompSpaceWeapon.On(thing as ThingWithComps))
+                    {
+                        weapon.ResetPrefabIdentity();
+                        weapon.Component<CompSpaceWeaponTraverse>()?.RotateForPrefab(rotation);
+                    }
                     if (thing is Building_DockingPort port)
                         port.RebasePrefabLocalState(map, thing.Position - entry.pos, root, rotation);
                 },

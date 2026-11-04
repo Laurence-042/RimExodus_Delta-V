@@ -91,6 +91,7 @@ namespace DeltaV
             public Building building;
             public SpaceMapLease mapLease;
             public Thing launcher;
+            public CompSpaceWeapon weapon;
             private int sourceContainerId;
             public SpaceObject sourceContainer { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(sourceContainerId); set => sourceContainerId = value?.objectId ?? 0; }
             public bool reflectedByShield;
@@ -133,12 +134,15 @@ namespace DeltaV
             public int lifetimeTicks = BeamLifetimeTicks;
             public CombatVisualStyle style = CombatVisualStyle.Energy;
             public Thing continuousLauncher;
+            public long weaponIdentity;
+            public CompSpaceWeapon continuousWeapon;
             public int sourceObjectId, sourceMapId;
 
             public bool VisibleAt(int tick) => continuousLauncher == null
                 ? tick >= bornTick && tick - bornTick < lifetimeTicks
                 : tick == bornTick && continuousLauncher.Spawned && !continuousLauncher.Destroyed
-                    && continuousLauncher.Map.uniqueID == sourceMapId;
+                    && continuousLauncher.Map.uniqueID == sourceMapId
+                    && continuousWeapon?.OwnerShip.EffectiveFireControlMode != ShipFireControlMode.Disabled;
         }
 
         private sealed class TrailPuff
@@ -240,7 +244,7 @@ namespace DeltaV
 
         public bool Launch(ThingDef def, SpaceObject source, Vector3 muzzle, Vector3 directionWorld,
             Faction faction, Thing launcher, CombatTarget missileTarget, SpaceProjectileLaunchSpec launchSpec,
-            Vector3? diagnosticAim = null, float barrelErrorDeg = 0f, float spreadDeg = 0f)
+            Vector3? diagnosticAim = null, float barrelErrorDeg = 0f, float spreadDeg = 0f, CompSpaceWeapon weapon = null)
         {
             var props = def?.GetCompProperties<CompProperties_SpaceProjectile>();
             if (props == null)
@@ -260,6 +264,7 @@ namespace DeltaV
             projectile.def = def;
             projectile.props = props;
             projectile.launcher = launcher;
+            projectile.weapon = weapon;
             projectile.sourceContainer = source;
             projectile.reflectedByShield = false;
             projectile.target = missileTarget;
@@ -670,6 +675,7 @@ namespace DeltaV
                 body.requiredDefender = p.adoptedShuttle ? targetContainer : null;
                 body.ignoreNonHostileProjectiles = !p.reflectedByShield;
                 body.launcher = p.launcher;
+                body.weapon = p.weapon;
                 body.dead = false;
                 body.resolvedHit = false;
                 body.onVisualContact = p.cannonTrace is { reported: false } trace
@@ -836,12 +842,14 @@ namespace DeltaV
                 + $"targetDrift={trace.targetDrift:F1} lateralDrift={trace.lateralDrift:F1}");
         }
 
-        internal void RecordTractorBeam(Thing launcher, SpaceObject receiver, SpaceObject target,
+        internal void RecordTractorBeam(CompSpaceWeapon weapon, SpaceObject receiver, SpaceObject target,
             Vector3? targetPoint = null)
         {
-            Beam beam = beams.Find(b => b.continuousLauncher == launcher && b.sourceObjectId == receiver.objectId);
+            Thing launcher = weapon.parent;
+            Beam beam = beams.Find(b => b.weaponIdentity == weapon.Identity && b.sourceObjectId == receiver.objectId);
             if (beam == null) { beam = new Beam(); AddBounded(beams, beam, 256); }
-            var weapon = launcher.TryGetComp<CompSpaceWeapon>();
+            beam.weaponIdentity = weapon.Identity;
+            beam.continuousWeapon = weapon;
             beam.from = SpaceTransform.MapPointToUniverse(receiver, launcher.Map, SpaceWeaponGeometry.MuzzleMapPoint(weapon));
             beam.to = targetPoint ?? target.pose.position;
             beam.bornTick = Find.TickManager.TicksGame;
@@ -856,13 +864,15 @@ namespace DeltaV
         private void RecordBeam(Projectile p, Vector3 end)
         {
             Beam beam = p.props.continuousBeam
-                ? beams.Find(b => b.continuousLauncher == p.launcher && b.sourceObjectId == p.sourceContainer.objectId)
+                ? beams.Find(b => b.continuousLauncher == p.launcher && b.weaponIdentity == (p.weapon?.Identity ?? 0) && b.sourceObjectId == p.sourceContainer.objectId)
                 : null;
             if (beam == null)
             {
                 beam = new Beam();
                 AddBounded(beams, beam, 256);
             }
+            beam.weaponIdentity = p.weapon?.Identity ?? 0;
+            beam.continuousWeapon = p.weapon;
             beam.from = p.body.from;
             beam.to = end;
             beam.bornTick = Find.TickManager.TicksGame;
@@ -950,6 +960,7 @@ namespace DeltaV
             p.building = null;
             p.mapLease = null;
             p.launcher = null;
+            p.weapon = null;
             p.sourceContainer = null;
             p.reflectedByShield = false;
             p.target = default;
@@ -977,6 +988,7 @@ namespace DeltaV
             p.body.noseHalfWidth = 0f;
             p.body.noseForwardOffset = 0f;
             p.body.launcher = null;
+            p.body.weapon = null;
             p.body.onSelfDestruct = null;
             p.body.onVisualContact = null;
             p.body.onPlace = null;

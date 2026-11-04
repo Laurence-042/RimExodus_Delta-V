@@ -61,7 +61,7 @@ namespace DeltaV
             AdvanceThermalTick();
             if (overheated && Settings.chemical && parent.IsHashIntervalTick(15))
             {
-                var weapon = parent.TryGetComp<CompSpaceWeapon>();
+                var weapon = CompSpaceWeapon.ForComponent(this);
                 if (weapon?.Container != null) weapon.Universe.Projectiles.EmitGunCoolingSmoke(weapon);
                 else if (parent is Building_SpaceTurretGun turret) WeaponHeatVisuals.EmitGroundCoolingSmoke(turret);
             }
@@ -95,7 +95,7 @@ namespace DeltaV
 
         private void Changed()
         {
-            var w = parent.TryGetComp<CompSpaceWeapon>();
+            var w = CompSpaceWeapon.ForComponent(this);
             w?.NotifyParametersChanged();
             ShipControlService.NotifyGunnerChange(parent.Map);
         }
@@ -132,7 +132,7 @@ namespace DeltaV
 
         public override string CompInspectStringExtra()
         {
-            var weapon = parent.TryGetComp<CompSpaceWeapon>();
+            var weapon = CompSpaceWeapon.ForComponent(this);
             string state = Settings.chemical ? "DeltaV_WeaponThermal".Translate(heat.ToString("0.0"),
                 RemainingTicks / 60f, overheated ? "DeltaV_ThermalLocked".Translate() : "DeltaV_ThermalReady".Translate()).ToString() : "";
             if (Settings.chemical)

@@ -10,7 +10,6 @@ namespace DeltaV
     /// <summary>Content handoff driven by destruction, transfer and despawn events; no scan schedule.</summary>
     public sealed class SpaceScatterService
     {
-        internal const float CollectionRadius = 2f;
         private readonly UniverseManager universe;
         private readonly HashSet<SpaceObject> candidates = new HashSet<SpaceObject>();
         private readonly Dictionary<Map, HashSet<Thing>> looseCargoByMap =
@@ -23,7 +22,8 @@ namespace DeltaV
         private sealed class PullRequest
         {
             internal SpaceObject target, receiver;
-            internal Thing launcher;
+            internal CompSpaceWeapon weapon;
+            internal Thing launcher => weapon.parent;
             internal Map source, destination;
             internal int targetVersion, receiverVersion, tick, paidTick = -1;
             internal IntVec3 cell;
@@ -33,7 +33,7 @@ namespace DeltaV
         }
         private readonly List<PullRequest> pulls = new List<PullRequest>();
         internal const float PullFraction = 0.025f;
-        private readonly HashSet<Map> collecting = new HashSet<Map>();
+        private readonly HashSet<PullRequest> collecting = new HashSet<PullRequest>();
         private readonly HashSet<Map> retiring = new HashSet<Map>();
         public SpaceScatterService(UniverseManager universe)
         {
@@ -52,7 +52,7 @@ namespace DeltaV
             candidates.RemoveWhere(o => o.map == map);
             looseCargoByMap.Remove(map);
             damaged.Remove(map); pendingEmpty.Remove(map); awaitingFocusLoss.Remove(map);
-            collecting.Remove(map); retiring.Remove(map);
+            collecting.RemoveWhere(p => p.source == map || p.destination == map); retiring.Remove(map);
             pulls.RemoveAll(p => p.source == map || p.destination == map);
         }
 
@@ -243,11 +243,17 @@ namespace DeltaV
         }
 
         internal void ReleaseAutomatic(Thing launcher) => pulls.RemoveAll(p => p.launcher == launcher);
+        internal void ReleaseAutomatic(CompSpaceWeapon weapon) => pulls.RemoveAll(p => p.weapon == weapon);
 
-        private static bool AllowedCargo(SpaceObject target, Thing launcher)
+        internal void ReleaseManual(DriveSubject owner, bool main, bool secondary)
+            => pulls.RemoveAll(p => p.weapon.Component<CompSpaceTractor>()?.ManualCargo == true
+                && p.weapon.OwnerShip.Identity == owner
+                && !(p.weapon.salvoSet == SpaceWeaponSalvoSet.Main ? main : secondary));
+
+        private static bool AllowedCargo(SpaceObject target, CompSpaceWeapon weapon)
         {
             if (target?.IsScattered != true || target.map == null || target.map.Disposed) return false;
-            CompSpaceTractor tractor = launcher.TryGetComp<CompSpaceTractor>();
+            CompSpaceTractor tractor = weapon.Component<CompSpaceTractor>();
             if (tractor == null) return false;
             bool any = false;
             foreach (Thing thing in target.map.listerThings.AllThings)
@@ -261,28 +267,31 @@ namespace DeltaV
 
         internal bool AutoAvailable(SpaceObject target, CompSpaceWeapon weapon)
         {
-            if (!AllowedCargo(target, weapon.parent)) return false;
+            if (!AllowedCargo(target, weapon)) return false;
             int now = Find.TickManager.TicksGame;
-            return !pulls.Exists(p => p.target == target && p.launcher != weapon.parent
+            return !pulls.Exists(p => p.target == target && p.weapon != weapon
                 && p.tick >= now - 1 && Valid(p));
         }
 
         internal bool ClaimAutomatic(SpaceObject target, CompSpaceWeapon weapon)
+            => weapon.aimMode == SpaceWeaponAimMode.PointDefense && Claim(target, weapon);
+
+        private bool Claim(SpaceObject target, CompSpaceWeapon weapon)
         {
-            if (!SpaceTractor.CanOperate(weapon) || weapon.aimMode != SpaceWeaponAimMode.PointDefense
+            if (!SpaceTractor.CanOperate(weapon)
                 || !weapon.GroupActive || !AutoAvailable(target, weapon)) return false;
             Thing launcher = weapon.parent;
             SpaceObject receiver = universe.FrameOf(launcher.Map);
             if (receiver == null) return false;
             int now = Find.TickManager.TicksGame;
-            PullRequest request = pulls.Find(p => p.target == target && p.launcher == launcher
+            PullRequest request = pulls.Find(p => p.target == target && p.weapon == weapon
                 && p.tick >= now - 1 && Valid(p));
             if (request == null)
             {
-                pulls.RemoveAll(p => p.target == target || p.launcher == launcher);
+                pulls.RemoveAll(p => p.target == target || p.weapon == weapon);
                 request = new PullRequest
                 {
-                    target = target, receiver = receiver, launcher = launcher,
+                    target = target, receiver = receiver, weapon = weapon,
                     source = target.map, destination = launcher.Map, cell = launcher.Position,
                     targetVersion = target.RepresentationVersion, receiverVersion = receiver.RepresentationVersion
                 };
@@ -292,19 +301,19 @@ namespace DeltaV
             return true;
         }
 
-        internal bool Pull(SpaceObject target, Thing launcher)
+        internal bool Pull(SpaceObject target, CompSpaceWeapon weapon)
         {
-            var weapon = launcher?.TryGetComp<CompSpaceWeapon>();
+            Thing launcher = weapon?.parent;
             SpaceObject receiver = universe.FrameOf(launcher?.Map);
             if (target?.IsScattered != true || target.map == null || target.map.Disposed
                 || receiver == null || !SpaceTractor.CanOperate(weapon)) return false;
             Vector2 receiverLocal = SpaceTransform.MapToShipLocal(receiver.map,
-                new Vector2(launcher.Position.x + .5f, launcher.Position.z + .5f));
+                SpaceWeaponGeometry.MuzzleMapPoint(weapon));
             SpacePose emitter = SpaceTransform.RigidPointPose(receiver.pose, receiverLocal, 0f);
             if (OrbitSphere.ArcCells(emitter.direction, target.pose.direction) > weapon.WeaponProps.range) return false;
             int now = Find.TickManager.TicksGame;
-            if (!ClaimAutomatic(target, weapon)) return false;
-            PullRequest request = pulls.Find(p => p.target == target && p.launcher == launcher);
+            if (!Claim(target, weapon)) return false;
+            PullRequest request = pulls.Find(p => p.target == target && p.weapon == weapon);
             if (!request.started)
             {
                 request.local = SpaceTransform.UniverseToShipLocal(receiver.pose, target.pose.direction);
@@ -320,10 +329,10 @@ namespace DeltaV
             && universe.FrameOf(p.source) == p.target && p.target.RepresentationVersion == p.targetVersion
             && p.receiver.map == p.destination && universe.FrameOf(p.destination) == p.receiver
             && p.receiver.RepresentationVersion == p.receiverVersion && p.launcher.Map == p.destination
-            && p.launcher.Position == p.cell && SpaceTractor.CanOperate(p.launcher.TryGetComp<CompSpaceWeapon>())
-            && p.launcher.TryGetComp<CompSpaceWeapon>().GroupActive
-            && AllowedCargo(p.target, p.launcher)
-            && p.launcher.TryGetComp<CompSpaceWeapon>().aimMode == SpaceWeaponAimMode.PointDefense;
+            && p.launcher.Position == p.cell && SpaceTractor.CanOperate(p.weapon)
+            && p.weapon.GroupActive
+            && AllowedCargo(p.target, p.weapon)
+            && (p.weapon.aimMode == SpaceWeaponAimMode.PointDefense || p.weapon.Component<CompSpaceTractor>().ManualCargo);
 
         // Run after every receiver has drifted. Only refreshed, paid requests move; no candidate scan.
         internal void Tick()
@@ -335,67 +344,53 @@ namespace DeltaV
                 if (p.tick != now || !Valid(p)) { pulls.RemoveAt(i); continue; }
                 if (p.paidTick != now) continue; // Aiming claims exclude competitors but never move unpaid cargo.
                 Vector2 destination = SpaceTransform.MapToShipLocal(p.destination,
-                    new Vector2(p.cell.x + .5f, p.cell.z + .5f));
+                    SpaceWeaponGeometry.MuzzleMapPoint(p.weapon));
                 p.local = Vector2.Lerp(p.local, destination, PullFraction);
                 // Release inherits the receiver's rigid-point motion, never the old runaway velocity.
                 p.target.pose = SpaceTransform.RigidPointPose(p.receiver.pose, p.local, p.angle);
-                universe.Projectiles.RecordTractorBeam(p.launcher, p.receiver, p.target);
-                QueueCollection(p.target, p.launcher, p.receiver);
+                universe.Projectiles.RecordTractorBeam(p.weapon, p.receiver, p.target);
+                QueueCollection(p);
             }
         }
 
-        private void QueueCollection(SpaceObject target, Thing launcher, SpaceObject receiver)
+        private void QueueCollection(PullRequest request)
         {
-            var weapon = launcher.TryGetComp<CompSpaceWeapon>();
-            IntVec3 cell = launcher.Position;
-            SpacePose destination = SpaceTransform.RigidPointPose(receiver.pose,
-                SpaceTransform.MapToShipLocal(receiver.map, new Vector2(cell.x + .5f, cell.z + .5f)), 0f);
-            if (OrbitSphere.ArcCells(target.pose.direction, destination.direction) > CollectionRadius
-                || !collecting.Add(target.map)) return;
-            Map source = target.map, receivingMap = launcher.Map;
-            int sourceVersion = target.RepresentationVersion, receiverVersion = receiver.RepresentationVersion;
+            CompSpaceTractor tractor = request.weapon.Component<CompSpaceTractor>();
+            var context = new TractorReceiveContext(universe, request.weapon, request.target, request.receiver);
+            if (!tractor.HasReachedReceiver(context) || !collecting.Add(request)) return;
+            Map source = request.source;
             universe.QueueFrameAction(() =>
             {
-                collecting.Remove(source);
-                if (target.map != source || universe.FrameOf(source) != target || target.RepresentationVersion != sourceVersion
-                    || receiver.map != receivingMap || receiver.RepresentationVersion != receiverVersion
-                    || launcher.Map != receivingMap || launcher.Position != cell || !SpaceTractor.CanOperate(weapon)
-                    || !pulls.Exists(p => p.target == target && p.launcher == launcher
-                        && p.paidTick == Find.TickManager.TicksGame && Valid(p))) return;
-                SpacePose at = SpaceTransform.RigidPointPose(receiver.pose,
-                    SpaceTransform.MapToShipLocal(receivingMap, new Vector2(cell.x + .5f, cell.z + .5f)), 0f);
-                if (OrbitSphere.ArcCells(target.pose.direction, at.direction) <= CollectionRadius && !TryReceive(target, launcher))
-                    launcher.TryGetComp<CompSpaceTractor>()?.NotifyBlocked();
+                collecting.Remove(request);
+                if (!pulls.Contains(request) || !Valid(request)
+                    || request.paidTick != Find.TickManager.TicksGame || !tractor.HasReachedReceiver(context)) return;
+                TractorReceiveResult result = tractor.TryReceive(context);
+                if (result == TractorReceiveResult.Complete)
+                {
+                    pulls.Remove(request);
+                    if (Find.CurrentMap == source) universe.SetFocused(request.receiver);
+                    NotifyContentRemoved(source);
+                }
+                else if (result == TractorReceiveResult.Rejected) tractor.NotifyBlocked();
             });
         }
 
-        internal bool TryReceive(SpaceObject scattered, Thing launcher)
+        internal SpaceObject ManualTarget(SpaceWeaponShot shot)
         {
-            Map destination = launcher.Map;
-            IntVec3 cell = launcher.Position;
-            if (scattered?.IsScattered != true || scattered.map == null || scattered.map.Disposed
-                || destination == null || !MoonPoolUtility.IsMoonPoolAt(destination, cell)) return false;
-            Map source = scattered.map;
-            IntVec3 output = launcher.InteractionCell;
-            foreach (Thing thing in source.listerThings.AllThings.Where(IsCargo).ToList())
+            SpaceObject best = null;
+            float nearest = float.MaxValue;
+            Vector2 ray = SpaceTransform.Rotate(Vector2.right, shot.launchMapAngle);
+            foreach (SpaceObject candidate in candidates)
             {
-                thing.DeSpawn();
-                try
-                {
-                    // CompDeepDrill's output path owns nearby placement and stacking.
-                    if (!GenPlace.TryPlaceThing(thing, output, destination, ThingPlaceMode.Near,
-                        null, p => p != cell && p != output))
-                    {
-                        if (!thing.Spawned && !thing.Destroyed) GenSpawn.Spawn(thing, IntVec3.Zero, source);
-                        return false;
-                    }
-                    thing.PostSwapMap();
-                }
-                catch { if (!thing.Spawned && !thing.Destroyed) GenSpawn.Spawn(thing, IntVec3.Zero, source); throw; }
+                if (!AutoAvailable(candidate, shot.weapon)) continue;
+                Vector2 point = SpaceTransform.UniverseToMapPoint(shot.container, shot.weapon.parent.Map, candidate.pose.position);
+                Vector2 offset = point - shot.muzzleMap;
+                float along = Vector2.Dot(offset, ray);
+                if (along < 0f || along > shot.weapon.EffectiveRange || along >= nearest
+                    || (offset - ray * along).sqrMagnitude > .5f) continue;
+                nearest = along; best = candidate;
             }
-            if (Find.CurrentMap == source) universe.SetFocused(universe.FrameOf(destination));
-            NotifyContentRemoved(source);
-            return true;
+            return best;
         }
     }
 }

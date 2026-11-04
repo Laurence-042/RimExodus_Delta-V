@@ -27,7 +27,7 @@ namespace DeltaV
             map = weapon.parent.Map; version = SubstructureOwnership.GlobalStructureVersion;
             position = weapon.parent.Position; rotation = weapon.parent.Rotation;
             attachments = new List<ThingWithComps>(weapon.DiscoverAttachedThings());
-            var own = weapon.parent.TryGetComp<CompSpaceWeaponMagazine>();
+            var own = weapon.Component<CompSpaceWeaponMagazine>();
             if (own != null) magazines.Add(own);
             foreach (var thing in attachments)
             {
@@ -175,7 +175,7 @@ namespace DeltaV
 
         internal static float ProjectileMass(CompSpaceWeapon weapon, CompSpaceWeaponMagazine magazine)
         {
-            var source = magazine ?? weapon.parent.TryGetComp<CompSpaceWeaponMagazine>();
+            var source = magazine ?? weapon.Component<CompSpaceWeaponMagazine>();
             return source?.Supply(GunSupplyKind.Heads) != null ? source.RequiredHeads(weapon) * source.MagazineProps.unitMass
                 : weapon.WeaponProps.projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()?.mass ?? 1f;
         }

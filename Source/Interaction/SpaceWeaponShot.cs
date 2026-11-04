@@ -138,7 +138,7 @@ namespace DeltaV
                 directionWorld, weapon.parent.Faction, weapon.parent, guidanceTarget, spec,
                 traceCannon ? aimPoint : (Vector3?)null,
                 SpaceTransform.WrapAngle(launchMapAngle - desiredMapAngle) * Mathf.Rad2Deg,
-                spread * Mathf.Rad2Deg))
+                spread * Mathf.Rad2Deg, weapon))
             {
                 return false;
             }
@@ -155,6 +155,9 @@ namespace DeltaV
             {
                 return Reject(WeaponReject.Invalid);
             }
+            if (weapon.OwnerShip.EffectiveFireControlMode == ShipFireControlMode.Disabled
+                || !manualFire && weapon.WeaponProps.manualOnly
+                    && (weapon.aimMode != SpaceWeaponAimMode.PointDefense || !weapon.AllowsPointDefense)) return Reject(WeaponReject.Gate);
             if (!hasParameters)
             {
                 WeaponReject readiness = SpaceWeaponService.CheckReadiness(weapon, out skill);
@@ -173,7 +176,7 @@ namespace DeltaV
                 ? weapon.WeaponProps.ignitionDelayTicks
                 : projectileProps.coldLaunchTicks;
             bool coldLaunch = ignitionDelayTicks > 0;
-            CompSpaceWeaponTraverse traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
+            CompSpaceWeaponTraverse traverse = weapon.Component<CompSpaceWeaponTraverse>();
 
             muzzleMap = parameters.aim.MuzzleMap;
             muzzleUniverse = parameters.aim.Muzzle;
@@ -260,7 +263,7 @@ namespace DeltaV
                 parameters.energy.Commit();
                 universe?.Performance.RecordWeaponResult(WeaponReject.None);
                 magazine?.ConsumeHeads(parameters.heads);
-                if (parameters.charge > 0) weapon.parent.TryGetComp<CompSpaceWeaponMagazine>().ConsumePropellant(parameters.charge);
+                if (parameters.charge > 0) weapon.Component<CompSpaceWeaponMagazine>().ConsumePropellant(parameters.charge);
                 weapon.NotifyMagazineConsumed(magazine);
                 if (weapon.Tuning != null) weapon.Tuning.CommitShot(parameters.shotHeat, parameters.cycleTicks);
                 else weapon.cooldownUntilTick = Find.TickManager.TicksGame + weapon.WeaponProps.cooldownTicks;
@@ -278,7 +281,7 @@ namespace DeltaV
 
         private IEnumerable<ThingComp> CapabilityComps()
         {
-            foreach (ThingComp comp in weapon.parent.AllComps) yield return comp;
+            foreach (ThingComp comp in weapon.Mount.Components) yield return comp;
             foreach (ThingWithComps attached in weapon.AttachedThings())
             {
                 CompSpaceWeaponAttachment attachment = attached.TryGetComp<CompSpaceWeaponAttachment>();

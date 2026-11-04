@@ -44,6 +44,10 @@ internal static partial class Program
         Set(typeof(Thing), first.parent, "hitPointsInt", 100); Set(typeof(Thing), second.parent, "hitPointsInt", 100);
         var projectileDef = TestBuildingDef("memberTestBullet");
         projectileDef.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, speed = 100f });
+        DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = "memberTestImpact",
+            projectileDefs = new List<ThingDef> { projectileDef },
+            defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damage = 100 } });
+        SpaceImpactEffects.ResetCache();
         var weapon = new CompSpaceWeapon { parent = hull.parent,
             props = new CompProperties_SpaceWeapon { projectileDef = projectileDef, range = 500f, baseSpreadDeg = 0f }, safeFire = false };
         var traverse = new CompSpaceWeaponTraverse { parent = hull.parent, props = new CompProperties_SpaceWeaponTraverse() };
@@ -89,7 +93,7 @@ internal static partial class Program
         }
         var assigned = (IDictionary)typeof(ShipFireControl)
             .GetField("automaticTargets", Private).GetValue(fire);
-        Check(assigned.Contains(hull.parent.thingIDNumber),
+        Check(assigned.Contains(weapon.Identity),
             "fixed-axis weapon acquires a target within its lock arc before the hull aligns");
         Check(Mathf.Abs(SpaceTransform.WrapAngle(traverse.CurrentAngle - coolingAngle)) > 10f * Mathf.Deg2Rad,
             "automatic cooled turret advances on every tick while its lead is refreshed sparsely");
@@ -189,8 +193,8 @@ internal static partial class Program
         weapon.WeaponProps.manualOnly = false;
         fire.TickPointDefense(hull.Vessel, own, false);
         IDictionary locks = (IDictionary)typeof(ShipFireControl).GetField("pointDefense", Private).GetValue(fire);
-        CombatTarget Locked() => (CombatTarget)locks[weapon.parent.thingIDNumber].GetType()
-            .GetField("target", Private).GetValue(locks[weapon.parent.thingIDNumber]);
+        CombatTarget Locked() => (CombatTarget)locks[weapon.Identity].GetType()
+            .GetField("target", Private).GetValue(locks[weapon.Identity]);
         Check(locks.Count == 1 && Locked().ObjectId == near.objectId && traverse.CurrentAngle > 0f,
             "point defense owns a per-weapon lock and turns the weapon during cooldown");
         far.pose.velocity = new Vector2(0f, -30f);
@@ -228,11 +232,11 @@ internal static partial class Program
         // Seed the retained lock of a captured standalone weapon, independent of controller replacement.
         var capturedWeapon = new CompSpaceWeapon { props = weapon.props };
         var capturedBuilding = AddTestBuilding(ownMap, player, 1963, TestBuildingDef("capturedWeapon"), capturedWeapon);
-        locks[capturedBuilding.thingIDNumber] = locks[hull.parent.thingIDNumber];
+        locks[capturedWeapon.Identity] = locks[weapon.Identity];
         Set(typeof(Thing), capturedBuilding, "factionInt", enemy);
         typeof(Patch_ShipFaction).GetMethod("Postfix", System.Reflection.BindingFlags.Static | Private)
             .Invoke(null, new object[] { capturedBuilding });
-        Check(!locks.Contains(capturedBuilding.thingIDNumber) && locks.Count == 1,
+        Check(!locks.Contains(capturedWeapon.Identity) && locks.Count == 1,
             "standalone weapon faction change releases only its lock without replacing the ship controller");
         hull.parent.thingIDNumber = 1962;
         SubstructureOwnership.BumpStructureVersion();

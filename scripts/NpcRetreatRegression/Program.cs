@@ -32,6 +32,7 @@ internal static partial class Program
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
     }
 
+    static bool ReadSceneColonists(ref ColonistBar __result) { __result = aimColonists; return false; }
     static object Raw(Type type) => RuntimeHelpers.GetUninitializedObject(type);
     static void Set(object owner, string name, object value) => owner.GetType()
         .GetField(name, Private | BindingFlags.Public).SetValue(owner, value);
@@ -82,6 +83,13 @@ internal static partial class Program
         var universe = new UniverseManager(game);
         game.components = new List<GameComponent> { universe, new RimExodus.Maps.MapRuntime(game) };
         game.tickManager = (TickManager)Raw(typeof(TickManager));
+        // Scene-free lifecycle fixtures still emit ordinary colonist-bar dirtiness notifications.
+        aimColonists = (ColonistBar)Raw(typeof(ColonistBar));
+        new HarmonyLib.Harmony("DeltaV.Regression.SceneUi").Patch(
+            HarmonyLib.AccessTools.PropertyGetter(typeof(Find), nameof(Find.ColonistBar)),
+            prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(ReadSceneColonists)));
+        if (Environment.GetCommandLineArgs().Contains("--eva-only"))
+        { CheckEva(universe, faction); return; }
         if (Environment.GetCommandLineArgs().Contains("--tractor-only"))
         { CheckTractorControl(universe, faction, other); CheckPlacementGeometry(); CheckSmallScaleMovement(); return; }
         if (Environment.GetCommandLineArgs().Contains("--thruster-pause-only"))

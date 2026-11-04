@@ -23,6 +23,7 @@ namespace DeltaV
         private readonly UniverseManager universe;
         private bool disposed;
         private readonly ShipFireControl fireControl;
+        private readonly ShipAimHandler aimHandler;
         private readonly AimButtonLatch buttons = new AimButtonLatch();
         private Map inputMap;
         private bool sampledAllowed, sampledMain, sampledSecondary;
@@ -37,6 +38,7 @@ namespace DeltaV
             this.universe = universe;
             this.ownerId = ownerId;
             this.fireControl = fireControl;
+            aimHandler = Vessel.CreateAimHandler(universe);
 #if !RIMWORLD_1_7
             Application.focusChanged += OnFocusChanged;
 #endif
@@ -45,7 +47,7 @@ namespace DeltaV
         private void OnFocusChanged(bool focused)
         {
             universe.PlayerInput.InvalidateGate();
-            if (!focused) buttons.Clear();
+            if (!focused) { buttons.Clear(); universe.Scatter.ReleaseManual(ownerId, false, false); }
         }
 
         public bool Active => !disposed;
@@ -87,6 +89,7 @@ namespace DeltaV
             FireMain = buttons.Main;
             FireSecondary = buttons.Secondary;
             HasInput = true;
+            aimHandler.Aim(LocalAimPoint);
         }
 
         // ---- 帧路径（ShellRenderer 经 Controls.EmitAimMarkers 转发）----
@@ -119,6 +122,8 @@ namespace DeltaV
             sampledMain = input.MainHeld; sampledSecondary = input.SecondaryHeld;
             LocalAimPoint = input.LocalMouse;
             if (!sampledAllowed) buttons.Clear();
+            universe.Scatter.ReleaseManual(ownerId, sampledAllowed && sampledMain && buttons.Main,
+                sampledAllowed && sampledSecondary && buttons.Secondary);
         }
 
         internal static bool MouseOverUiWindow()
@@ -152,6 +157,7 @@ namespace DeltaV
             Event ev = Event.current;
             if (ev != null && ev.type == EventType.Used
                 && (ev.rawType == EventType.MouseDown || ev.rawType == EventType.MouseDrag)) buttons.Clear();
+            universe.Scatter.ReleaseManual(ownerId, buttons.Main, buttons.Secondary);
             if (!allowed || ev == null) return;
             if (ev.type == EventType.MouseDown && (ev.button == 0 || ev.button == 1))
             {
@@ -172,6 +178,7 @@ namespace DeltaV
             Application.focusChanged -= OnFocusChanged;
 #endif
             buttons.Clear();
+            universe.Scatter.ReleaseManual(ownerId, false, false);
             DeltaVLog.Message(DeltaVLogModule.Input, $"aim session ended ({reason}, owner #{ownerId})");
         }
     }

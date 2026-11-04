@@ -97,6 +97,7 @@ namespace DeltaV
 
         public sealed class MassReport
         {
+            public bool allowsAngularMotion = true;
             public float mass;
             public Vector2 comLocal;
             public float inertia;
@@ -170,6 +171,8 @@ namespace DeltaV
         {
             Map map = container.map;
             var report = new MassReport();
+            foreach (ShipBase ship in container.Ships)
+                if (ship.CanDriveIn(container) && !ship.AllowsAngularMotion) report.allowsAngularMotion = false;
             Vector2 origin = SpaceTransform.ShipLocalOrigin(map);
 
             float totalMass = 0f;
@@ -640,7 +643,7 @@ namespace DeltaV
         /// 切空间速度随后平行输运到新锚点的基。
         /// </summary>
         internal static void Integrate(SpaceObject obj, MassReport report, Vector2 force, float torque, float dt,
-            bool assistX, bool assistZ, bool assistW, float pilotFrameAngle = 0f)
+            bool assistX, bool assistZ, bool assistW, float pilotFrameAngle = 0f, DriveInputBasis? inputBasis = null)
         {
             SpacePose pose = obj.pose;
             Vector3 oldDir = pose.position;
@@ -649,7 +652,7 @@ namespace DeltaV
             float alpha = torque / report.inertia;
 
             Vector2 velocity = pose.velocity + accel * dt;
-            float angularVelocity = pose.angularVelocity + alpha * dt;
+            float angularVelocity = report.allowsAngularMotion ? pose.angularVelocity + alpha * dt : 0f;
 
             // 被动阻力：v ← v · 2^(−dt/halfLife)（精确的每 tick 半衰期指数衰减）。
             // 开关/参数变化即时生效；与 MPC 预测（OnlineMpcGuidance）同一定义。
@@ -662,9 +665,9 @@ namespace DeltaV
             angularVelocity *= angularDecay;
 
             // 辅助轴与 W/S、A/D 一样定义在主驾驶台参考系，不能按切空间 x/y 直接截断。
-            float pilotAngle = pose.angle + pilotFrameAngle;
-            Vector2 previousPilotVelocity = SpaceTransform.RotateInverse(pose.velocity, pilotAngle);
-            Vector2 pilotVelocity = SpaceTransform.RotateInverse(velocity, pilotAngle);
+            DriveInputBasis basis = inputBasis ?? DriveInputBasis.ForAngle(pilotFrameAngle);
+            Vector2 previousPilotVelocity = basis.FromMap(SpaceTransform.RotateInverse(pose.velocity, pose.angle));
+            Vector2 pilotVelocity = basis.FromMap(SpaceTransform.RotateInverse(velocity, pose.angle));
             if (assistX && previousPilotVelocity.x != 0f
                 && pilotVelocity.x * previousPilotVelocity.x < 0f)
             {
@@ -693,7 +696,7 @@ namespace DeltaV
             {
                 angularVelocity = Mathf.MoveTowards(angularVelocity, 0f, ResidualAlphaDecel * dt);
             }
-            velocity = SpaceTransform.Rotate(pilotVelocity, pilotAngle);
+            velocity = SpaceTransform.Rotate(basis.ToMap(pilotVelocity), pose.angle);
 
             // 质心球面方向 = Move(锚, Rotate(comLocal, 旧角))；平移后按新角移回锚，
             // 与旧平面版 "position + Rotate(comLocal, angle)" 的不变量一一对应。

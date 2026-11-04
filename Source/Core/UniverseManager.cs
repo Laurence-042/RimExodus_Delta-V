@@ -927,7 +927,7 @@ namespace DeltaV
                     var command = Pilot.ComposeCommand(piloted);
                     Performance.Record(PerformanceStage.DriveCompose, composeStart);
                     obj.ApplyDrive(subject, DriveControl.FromInput(command.command,
-                        command.assistX, command.assistZ, command.assistW), dt, out _);
+                        command.assistX, command.assistZ, command.assistW, command.inputBasis), dt, out _);
                     objectDriveTime += Performance.Elapsed(driveStart);
                 }
                 // 对象自身保证每 tick 只积分一次；等待分离、失效任务仍保留真实漂移。

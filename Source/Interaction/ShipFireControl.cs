@@ -14,16 +14,16 @@ namespace DeltaV
         private CombatTarget target;
         private int preferredSystemId;
         private bool targetObserved;
-        private readonly Dictionary<int, PdLock> pointDefense = new Dictionary<int, PdLock>();
-        private readonly Dictionary<int, CombatTarget> automaticTargets = new Dictionary<int, CombatTarget>();
-        private readonly Dictionary<int, int> automaticRetryAt = new Dictionary<int, int>();
-        private readonly Dictionary<int, AutomaticAim> automaticAim = new Dictionary<int, AutomaticAim>();
+        private readonly Dictionary<long, PdLock> pointDefense = new Dictionary<long, PdLock>();
+        private readonly Dictionary<long, CombatTarget> automaticTargets = new Dictionary<long, CombatTarget>();
+        private readonly Dictionary<long, int> automaticRetryAt = new Dictionary<long, int>();
+        private readonly Dictionary<long, AutomaticAim> automaticAim = new Dictionary<long, AutomaticAim>();
         private int nextAutomaticAssignmentTick;
         private CombatStrategy assignmentStrategy;
         private int assignmentVersion = -1;
         private struct AutomaticAim { internal CombatTarget target; internal Vector3 point; internal int refreshAt; }
-        private readonly List<int> staleWeapons = new List<int>();
-        private readonly HashSet<int> validPointDefenseWeapons = new HashSet<int>();
+        private readonly List<long> staleWeapons = new List<long>();
+        private readonly HashSet<long> validPointDefenseWeapons = new HashSet<long>();
         private int pointDefensePrunedVersion = -1;
         private readonly List<SpaceObject> interceptionCandidates = new List<SpaceObject>();
         private readonly Dictionary<int, float> pdReservedDamage = new Dictionary<int, float>();
@@ -38,13 +38,13 @@ namespace DeltaV
         { Clear(); pointDefense.Clear(); interceptionCandidates.Clear(); pdReservedDamage.Clear(); aimCapabilities.Clear(); leadPoints.Clear(); uniqueLeadPoints.Clear(); }
         internal void WeaponParametersChanged(CompSpaceWeapon weapon)
         {
-            automaticAim.Remove(weapon.parent.thingIDNumber);
-            automaticRetryAt.Remove(weapon.parent.thingIDNumber);
+            automaticAim.Remove(weapon.Identity);
+            automaticRetryAt.Remove(weapon.Identity);
             observation = null; nextAutomaticAssignmentTick = 0; configurationVersion++;
         }
         internal void ForgetWeapon(CompSpaceWeapon weapon)
         {
-            int id = weapon.parent.thingIDNumber;
+            long id = weapon.Identity;
             bool hadLock = automaticTargets.Remove(id);
             pointDefense.Remove(id); automaticRetryAt.Remove(id); automaticAim.Remove(id);
             automaticRules.Remove(id); partRefreshTick.Remove(id);
@@ -64,7 +64,7 @@ namespace DeltaV
             foreach (var pair in pointDefense)
                 if (!pair.Value.target.TryResolve(universe, out var pd)
                     || pd.Container?.map == null || pd.Container.map == map) staleWeapons.Add(pair.Key);
-            foreach (int id in staleWeapons) pointDefense.Remove(id);
+            foreach (long id in staleWeapons) pointDefense.Remove(id);
         }
 
         internal static bool CandidateValid(ShipBase attacker, SpaceObject own, SpaceObject container, ShipBase member)
@@ -135,11 +135,11 @@ namespace DeltaV
                     || !weapon.GroupEnabled(weapon.salvoSet == SpaceWeaponSalvoSet.Main
                         ? mainMask : secondaryMask)
                     || !WeaponBelongsHere(weapon, own)) continue;
-                int id = weapon.parent.thingIDNumber;
+                long id = weapon.Identity;
                 bool cooling = weapon.CooldownTicksLeft > 0;
                 if (!automaticTargets.TryGetValue(id, out CombatTarget handle)) continue;
                 // A fixed barrel has no tracking work between assignment and real readiness.
-                if (cooling && weapon.parent.TryGetComp<CompSpaceWeaponTraverse>() == null) continue;
+                if (cooling && weapon.Component<CompSpaceWeaponTraverse>() == null) continue;
                 if (!TryResolveAutomatic(ship, own, handle, out ResolvedCombatTarget resolved))
                 {
                     nextAutomaticAssignmentTick = 0;
@@ -165,7 +165,7 @@ namespace DeltaV
                         if (!handle.TryResolve(universe, out resolved)) continue;
                     }
                 }
-                if (weapon.parent.TryGetComp<CompSpaceWeaponTraverse>() != null)
+                if (weapon.Component<CompSpaceWeaponTraverse>() != null)
                 {
                     // Refresh the expensive lead occasionally, but advance the mechanical turret every tick.
                     if (!automaticAim.TryGetValue(id, out AutomaticAim cached)
@@ -199,7 +199,7 @@ namespace DeltaV
 
         private void AssignAutomaticTargets(ShipBase ship, SpaceObject own)
         {
-            var previousTargets = new Dictionary<int, CombatTarget>(automaticTargets);
+            var previousTargets = new Dictionary<long, CombatTarget>(automaticTargets);
             automaticTargets.Clear();
             automaticRetryAt.Clear();
             var enemies = new List<ShipBase>();
@@ -210,7 +210,7 @@ namespace DeltaV
             foreach (var enemy in enemies) enemyPoses[enemy.Identity] = ShipRegistry.ShipPose(enemy);
             enemies = enemies.OrderBy(e => OrbitSphere.ArcCells(own.pose.position, enemyPoses[e.Identity].position)).Take(64).ToList();
             var enemyIds = new HashSet<DriveSubject>(enemies.Select(e => e.Identity));
-            var weaponIds = new HashSet<int>(ship.Weapons.Select(w => w.parent.thingIDNumber));
+            var weaponIds = new HashSet<long>(ship.Weapons.Select(w => w.Identity));
             foreach (var key in fireRuleState.Keys.Where(k => !enemyIds.Contains(k.enemy) || !weaponIds.Contains(k.weapon)).ToList()) fireRuleState.Remove(key);
             foreach (var key in automaticRules.Keys.Where(k => !weaponIds.Contains(k)).ToList())
             { automaticRules.Remove(key); automaticAim.Remove(key); partRefreshTick.Remove(key); }
@@ -224,7 +224,7 @@ namespace DeltaV
             var enemyRadius = enemies.ToDictionary(e => e.Identity, HullRadius);
             var enemyHealth = enemies.ToDictionary(e => e.Identity,
                 e => Parts(e).Sum(b => (float)b.HitPoints));
-            foreach (CompSpaceWeapon weapon in ship.Weapons.OrderBy(w => w.parent.thingIDNumber))
+            foreach (CompSpaceWeapon weapon in ship.Weapons.OrderBy(w => w.Identity))
             {
                 if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
                     || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
@@ -242,7 +242,7 @@ namespace DeltaV
                     if (hasQueued && queuedTarget.Ship == member.Identity && queuedTarget.TryResolve(universe, out var queuedPart))
                         enemyPose = queuedPart.Pose;
                     CombatStrategyContext context = facts.Context(member, weapon);
-                    var ruleKey = (weapon.parent.thingIDNumber, member.Identity);
+                    var ruleKey = (weapon.Identity, member.Identity);
                     fireRuleState.TryGetValue(ruleKey, out var lastRule);
                     CombatStrategyRule rule = Strategy(ship).Fire(context, lastRule);
                     fireRuleState[ruleKey] = rule;
@@ -275,7 +275,7 @@ namespace DeltaV
                         reasons.Add(weapon.parent.LabelCap + " · " + holdReason + " · " + "DeltaV_CombatFireAction_Hold".Translate());
                     continue;
                 }
-                int weaponId = weapon.parent.thingIDNumber;
+                long weaponId = weapon.Identity;
                 bool sameRule = automaticRules.TryGetValue(weaponId, out var oldSelected) && oldSelected == selectedRule;
                 automaticRules[weaponId] = selectedRule;
                 int now = Find.TickManager.TicksGame;
@@ -365,11 +365,11 @@ namespace DeltaV
                 foreach (CompSpaceWeapon weapon in ship.Weapons)
                     if (weapon.parent.Spawned && !weapon.parent.Destroyed && weapon.SpaceModeEnabled
                         && weapon.aimMode == SpaceWeaponAimMode.PointDefense && weapon.OwnerShip.Identity == ownerId)
-                        validPointDefenseWeapons.Add(weapon.parent.thingIDNumber);
+                        validPointDefenseWeapons.Add(weapon.Identity);
             staleWeapons.Clear();
-            foreach (int id in pointDefense.Keys)
+            foreach (long id in pointDefense.Keys)
                 if (!validPointDefenseWeapons.Contains(id)) staleWeapons.Add(id);
-            foreach (int id in staleWeapons) pointDefense.Remove(id);
+            foreach (long id in staleWeapons) pointDefense.Remove(id);
             pointDefensePrunedVersion = structureVersion;
         }
 
@@ -392,6 +392,12 @@ namespace DeltaV
 
         internal bool TickPointDefense(ShipBase ship, SpaceObject container, bool hasScatterTargets)
         {
+            if (ship.EffectiveFireControlMode == ShipFireControlMode.Disabled)
+            {
+                pointDefense.Clear();
+                foreach (CompSpaceWeapon weapon in ship.Weapons) universe.Scatter.ReleaseAutomatic(weapon);
+                return false;
+            }
             long candidatesStart = universe.Performance.Start();
             CollectInterceptionCandidates(ship, container);
             universe.Performance.Record(PerformanceStage.PointDefenseCandidates, candidatesStart);
@@ -419,11 +425,11 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
                 if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.PointDefense
-                    || weapon.WeaponProps.manualOnly && !weapon.WeaponProps.tractor
+                    || !weapon.AllowsPointDefense
                     || (weapon.WeaponProps.tractor ? !hasScatterTargets : !hasInterceptionTargets)
                     || !weapon.GroupEnabled(weapon.salvoSet == SpaceWeaponSalvoSet.Main ? mainMask : secondaryMask)
                     || !WeaponBelongsHere(weapon, container)) continue;
-                pointDefense.TryGetValue(weapon.parent.thingIDNumber, out PdLock state);
+                pointDefense.TryGetValue(weapon.Identity, out PdLock state);
                 if (!state.target.HasLock && now < state.retargetAt) continue;
                 if (!SpaceWeaponService.CanTrack(weapon)) continue;
                 Vector3 muzzle = SpaceWeaponService.TargetingMuzzle(weapon, container);
@@ -435,7 +441,7 @@ namespace DeltaV
                     if (alternative != null && alternative != victim.Container)
                     {
                         state.target = CombatTarget.ForContainer(alternative);
-                        pointDefense[weapon.parent.thingIDNumber] = state;
+                        pointDefense[weapon.Identity] = state;
                         valid = state.target.TryResolve(universe, out victim);
                     }
                 }
@@ -443,25 +449,25 @@ namespace DeltaV
                 {
                     // Empty searches keep their cadence; lost/contested locks release and reselect immediately.
                     if (weapon.WeaponProps.tractor && state.target.HasLock)
-                        universe.Scatter.ReleaseAutomatic(weapon.parent);
+                        universe.Scatter.ReleaseAutomatic(weapon);
                     if (weapon.WeaponProps.tractor && !state.target.HasLock && now < state.retargetAt) continue;
                     if (!SpaceWeaponService.CanAcquire(weapon))
                     {
                         state.target = default; state.retargetAt = now + 30;
-                        pointDefense[weapon.parent.thingIDNumber] = state;
+                        pointDefense[weapon.Identity] = state;
                         continue;
                     }
                     long searchStart = universe.Performance.Start();
                     state.target = CombatTarget.ForContainer(FindPdTarget(weapon, muzzle)); state.retargetAt = now + 30;
                     universe.Performance.Record(PerformanceStage.PointDefenseSearch, searchStart);
-                    pointDefense[weapon.parent.thingIDNumber] = state;
+                    pointDefense[weapon.Identity] = state;
                     valid = state.target.TryResolve(universe, out victim);
                 }
                 if (!valid) continue;
                 if (weapon.WeaponProps.tractor && !universe.Scatter.ClaimAutomatic(victim.Container, weapon))
                 {
                     state.target = CombatTarget.ForContainer(FindPdTarget(weapon, muzzle));
-                    pointDefense[weapon.parent.thingIDNumber] = state;
+                    pointDefense[weapon.Identity] = state;
                     if (!state.target.TryResolve(universe, out victim)
                         || !universe.Scatter.ClaimAutomatic(victim.Container, weapon)) continue;
                 }
@@ -469,9 +475,9 @@ namespace DeltaV
                     new WeaponControlCommand(state.target, victim, true, WeaponControlSource.PointDefense));
                 if (!fired && weapon.WeaponProps.tractor && !SpaceWeaponService.CanAcquire(weapon))
                 {
-                    universe.Scatter.ReleaseAutomatic(weapon.parent);
+                    universe.Scatter.ReleaseAutomatic(weapon);
                     state.target = default; state.retargetAt = now + 30;
-                    pointDefense[weapon.parent.thingIDNumber] = state;
+                    pointDefense[weapon.Identity] = state;
                 }
                 if (fired && !weapon.WeaponProps.tractor)
                 {

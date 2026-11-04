@@ -269,7 +269,7 @@
   <DeltaV_PanelFireControl>火控：{0}</DeltaV_PanelFireControl>
   <DeltaV_FireControlAutomatic>自动</DeltaV_FireControlAutomatic>
   <DeltaV_FireControlManual>手动集火</DeltaV_FireControlManual>
-  <DeltaV_PanelFireControlTip>本按钮或 B 键切换。自动火控攻击敌对飞船；手动集火时，对当前选中的船按住左键射击主套激活组、右键射击副套激活组。点防与炮手战斗位置独立运行。</DeltaV_PanelFireControlTip>
+  <DeltaV_PanelFireControlTip>本按钮或 B 键循环切换允许的模式：自动、手动、禁用。手动时左键射击主套激活组，右键射击副套激活组。禁用停止所有武器，包括点防和持续工具；保留驾驶任务与武器组设置。EVA 仅支持手动与禁用。</DeltaV_PanelFireControlTip>
   <DeltaV_PanelAutoManeuver>自动战斗机动：{0}</DeltaV_PanelAutoManeuver>
   <DeltaV_PanelAutoManeuverTip>自动围绕敌对飞船选择战斗站位。开启时替换现有自动驾驶任务（包括对接或航点制导），但保留对接计划；驾驶键可接管手操。读档后此开关复位。</DeltaV_PanelAutoManeuverTip>
   <DeltaV_PanelWeaponGroupTip>{0}套 第 {1} 组。点击切换该组是否激活；只有激活组会被射击，人手不足时也会优先分配炮手。</DeltaV_PanelWeaponGroupTip>

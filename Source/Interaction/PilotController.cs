@@ -158,6 +158,7 @@ internal readonly struct HeadingPanelAction
             if (!ship.IsValid || universe.FrameOf(ship.Map) is not SpaceObject container
                 || container.HasTag(SpaceObjectTag.Ship) != true
                 || !HasAuthority(PilotTarget.Of(ship))) return;
+            if (ship.EffectiveFireControlMode == ShipFireControlMode.Disabled) return;
             if (!wantsVolley && !universe.Weapons.HasPointDefenseWeapons(ship.Map,
                 true, hasScatterTargets)) return;
             long volleyStart = wantsVolley ? universe.Performance.Start() : 0L;
@@ -312,11 +313,10 @@ internal readonly struct HeadingPanelAction
                 () => Find.WindowStack.Add(new Dialog_CombatOrders(ship, universe)), "DeltaV_CombatOrdersHelp".Translate()));
             beforeGroups.Add(new PilotPanelAction(
                 "DeltaV_PanelFireControl".Translate(
-                    (universe.Controls.FireControlModeFor(ship) == ShipFireControlMode.Automatic
-                        ? "DeltaV_FireControlAutomatic" : "DeltaV_FireControlManual").Translate()),
+                    ("DeltaV_FireControl" + universe.Controls.FireControlModeFor(ship)).Translate()),
                 () => universe.Controls.ToggleFireControl(ship),
                 "DeltaV_PanelFireControlTip".Translate()));
-            if (!hasWeapons) return;
+            if (!hasWeapons || !ship.HasGunnerStations) return;
             afterGroups.Add(new PilotPanelAction("DeltaV_PanelBattleStationsOn".Translate(),
                 () => universe.Controls.EnterBattleStations(ship.Map),
                 "DeltaV_PanelBattleStationsOnTip".Translate()));
@@ -346,7 +346,7 @@ internal readonly struct HeadingPanelAction
             ? universe.Controls.ManualAimOwner(OwnerId) : FireControl.Target.HasLock;
         internal void SetBattleStations(bool active) { battleStations = active; }
         internal ShipFireControlMode FireControlMode =>
-            ShipRegistry.ShipByIdentity(OwnerId).Combat?.fireControlMode ?? ShipFireControlMode.Automatic;
+            ShipRegistry.ShipByIdentity(OwnerId).EffectiveFireControlMode;
         internal override bool UsesAutomaticVolley => FireControlMode == ShipFireControlMode.Automatic;
         internal void DecideAutoCombat(ShipBase ship)
         {
@@ -947,6 +947,7 @@ internal readonly struct HeadingPanelAction
             public bool assistX;
             public bool assistZ;
             public bool assistW;
+            public DriveInputBasis? inputBasis;
         }
 
         /// <summary>玩家手操指令合成（PlayerShipController.ComposeCommand 的实现体；
@@ -961,7 +962,9 @@ internal readonly struct HeadingPanelAction
             PilotInput input = SampleInput();
             // W/S 与 A/D 定义在驾驶目标参考系（船 = 主台朝向；shuttle = 舱体朝向）；
             // 推进器分配器使用 Map 局部系，在此集中旋转一次。
-            float consoleAngle = target.FrameAngle;
+            DriveInputBasis basis = target.Vessel.UsesCameraInput ? CameraFlightBasis.Read() : DriveInputBasis.ForAngle(target.FrameAngle);
+            if (!target.Vessel.AllowsAngularMotion) input.torque = 0f;
+            result.inputBasis = basis;
             Vector2 pilotTranslation = new Vector2(input.fx, input.fz);
             result.command.torque = input.torque;
             if (DeltaVLog.Enabled(DeltaVLogModule.Input) && HasInputChanged(input))
@@ -975,7 +978,7 @@ internal readonly struct HeadingPanelAction
             SpacePose pose = frame != null ? frame.pose : new SpacePose();
             if (!DeltaVMod.CurrentSettings.flightAssist && !brakeHeld)
             {
-                Vector2 mapTranslation = SpaceTransform.Rotate(pilotTranslation, consoleAngle);
+                Vector2 mapTranslation = basis.ToMap(pilotTranslation);
                 result.command.fx = mapTranslation.x;
                 result.command.fz = mapTranslation.y;
                 return result;
@@ -984,7 +987,7 @@ internal readonly struct HeadingPanelAction
             // 任意高于 AssistEpsilon 的漂移都置 assist* 标志（残差交给 ShipPhysics.Integrate
             // 直接衰减到零）；推进器反推指令只在漂移超过 MinAssistSpeed 时下发。
             Vector2 mapVelocity = SpaceTransform.RotateInverse(pose.velocity, pose.angle);
-            Vector2 bodyVelocity = SpaceTransform.RotateInverse(mapVelocity, consoleAngle);
+            Vector2 bodyVelocity = basis.FromMap(mapVelocity);
             if (input.fx == 0f && Mathf.Abs(bodyVelocity.x) > AssistEpsilon)
             {
                 result.assistX = true;
@@ -1001,7 +1004,7 @@ internal readonly struct HeadingPanelAction
                     pilotTranslation.y = -Mathf.Sign(bodyVelocity.y);
                 }
             }
-            if (input.torque == 0f && Mathf.Abs(pose.angularVelocity) > AssistOmegaEpsilon)
+            if (target.Vessel.AllowsAngularMotion && input.torque == 0f && Mathf.Abs(pose.angularVelocity) > AssistOmegaEpsilon)
             {
                 result.assistW = true;
                 if (Mathf.Abs(pose.angularVelocity) > MinAssistOmega)
@@ -1009,7 +1012,7 @@ internal readonly struct HeadingPanelAction
                     result.command.torque = -Mathf.Sign(pose.angularVelocity);
                 }
             }
-            Vector2 assistedMapTranslation = SpaceTransform.Rotate(pilotTranslation, consoleAngle);
+            Vector2 assistedMapTranslation = basis.ToMap(pilotTranslation);
             result.command.fx = assistedMapTranslation.x;
             result.command.fz = assistedMapTranslation.y;
             if (DeltaVLog.Enabled(DeltaVLogModule.Input) && HasAssistChanged(result))

@@ -111,23 +111,23 @@ namespace DeltaV
     {
         public CompGunSupply Supply(GunSupplyKind kind)
         {
-            foreach (ThingComp comp in parent.AllComps)
+            foreach (ThingComp comp in CompSpaceWeapon.ForComponent(this)?.Mount.Components ?? parent.AllComps)
                 if (comp is CompGunSupply supply && supply.Kind == kind) return supply;
             return null;
         }
         public CompGunSupply SupplyFor(ThingDef def)
         {
-            foreach (ThingComp comp in parent.AllComps)
+            foreach (ThingComp comp in CompSpaceWeapon.ForComponent(this)?.Mount.Components ?? parent.AllComps)
                 if (comp is CompGunSupply supply && supply.Props.fuelFilter.Allows(def)) return supply;
             return null;
         }
         public int HeadCount => Mathf.FloorToInt(Supply(GunSupplyKind.Heads)?.Fuel ?? 0f);
         public int PropellantCount => Mathf.FloorToInt(Supply(GunSupplyKind.Propellant)?.Fuel ?? 0f);
         public int RequiredHeads(CompSpaceWeapon weapon) => weapon?.Tuning?.mass
-            ?? Mathf.CeilToInt(weapon?.parent.TryGetComp<CompSpaceWeaponMagazine>()?.MagazineProps.ammoPerShot ?? MagazineProps.ammoPerShot);
+            ?? Mathf.CeilToInt(weapon?.Component<CompSpaceWeaponMagazine>()?.MagazineProps.ammoPerShot ?? MagazineProps.ammoPerShot);
         public bool HasHeads(int count) => Supply(GunSupplyKind.Heads) != null ? HeadCount >= count : HasShot;
         public bool HasPropellant(int count) => count <= 0 || PropellantCount >= count;
-        internal void NotifySupplyChanged() => (parent.TryGetComp<CompSpaceWeapon>()
+        internal void NotifySupplyChanged() => (CompSpaceWeapon.ForComponent(this)
             ?? parent.TryGetComp<CompSpaceWeaponAttachment>()?.HostWeapon)?.NotifyParametersChanged();
         public void ConsumeHeads(int count)
         {

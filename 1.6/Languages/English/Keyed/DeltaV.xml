@@ -269,7 +269,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_PanelFireControl>Fire control: {0}</DeltaV_PanelFireControl>
   <DeltaV_FireControlAutomatic>Automatic</DeltaV_FireControlAutomatic>
   <DeltaV_FireControlManual>Manual focus fire</DeltaV_FireControlManual>
-  <DeltaV_PanelFireControlTip>Toggle with this button or B. Automatic fire control engages hostile ships; manual focus fire uses LMB for active main-set weapons and RMB for active secondary-set weapons on the selected ship. Point defense and battle stations are independent.</DeltaV_PanelFireControlTip>
+  <DeltaV_PanelFireControlTip>Cycle the allowed modes with this button or B: automatic, manual, disabled. Manual uses LMB for active main groups and RMB for active secondary groups. Disabled stops all weapons, including point defense and continuous tools; it leaves flight orders and weapon groups unchanged. EVA supports manual and disabled only.</DeltaV_PanelFireControlTip>
   <DeltaV_PanelAutoManeuver>Auto combat maneuver: {0}</DeltaV_PanelAutoManeuver>
   <DeltaV_PanelAutoManeuverTip>Orbit a hostile ship using automatic combat positioning. Enabling replaces the current autopilot task, including docking or waypoint guidance, but keeps the docking plan. A flight key takes manual control. This setting resets after loading.</DeltaV_PanelAutoManeuverTip>
   <DeltaV_PanelWeaponGroupTip>{0} set, group {1}. Click to toggle whether this group is active. Only active groups fire, and they receive gunner priority when crew is short.</DeltaV_PanelWeaponGroupTip>

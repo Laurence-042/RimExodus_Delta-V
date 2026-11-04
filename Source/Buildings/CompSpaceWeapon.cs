@@ -38,7 +38,7 @@ namespace DeltaV
     /// 太空模式走本 comp + 弹体服务；两种模式互斥。弹道类型由
     /// projectileDef 引用的弹体 building def 决定（直射/激光/导弹，§5.1 单一事实源）。
     /// 组别（套别+组号）、PD 模式与安全限制是本 comp 的存档事实；炮手预留同存本 comp，
-    /// 弹仓优先级属于 Magazine；冷却与本 tick 发射为运行时。
+    /// 弹仓优先级属于 Magazine；冷却持久化，本 tick 发射为运行时。
     /// 武器必须位于基架格上（含墙下基架）——归属随基架、随控制域捕获搬运。
     /// </summary>
     public class CompProperties_SpaceWeapon : CompProperties
@@ -215,7 +215,7 @@ namespace DeltaV
         }
 
         public int cooldownUntilTick;
-        public CompWeaponTuning Tuning => parent.TryGetComp<CompWeaponTuning>();
+        public CompWeaponTuning Tuning => Component<CompWeaponTuning>();
         public int ShotInterval => Tuning?.ShotInterval ?? WeaponProps.cooldownTicks;
         public float ShotEnergy => WeaponProps.shotEnergy * (Tuning?.power ?? 1);
         public int CooldownTicksLeft => Tuning?.RemainingTicks ?? Mathf.Max(0, cooldownUntilTick - Find.TickManager.TicksGame);
@@ -234,10 +234,10 @@ namespace DeltaV
         public SpaceObject Container => parent?.Map != null ? Universe?.FrameOf(parent.Map) : null;
 
         /// <summary>武器挂载朝向的地图帧角（射界基准 = 建筑朝向）。</summary>
-        public float FacingAngle => parent.TryGetComp<CompSpaceWeaponTraverse>()?.CurrentAngle
+        public float FacingAngle => Component<CompSpaceWeaponTraverse>()?.CurrentAngle
             ?? ShipOrientation.AngleFromRot4(parent.Rotation);
 
-        public CompMannable Mannable => parent.TryGetComp<CompMannable>();
+        public CompMannable Mannable => Component<CompMannable>();
 
         private ShipBase cachedOwner;
         private Map ownerMap;
@@ -503,8 +503,8 @@ namespace DeltaV
         }
 
         internal bool MagazineAvailable(CompSpaceWeaponMagazine selected) =>
-            (parent.TryGetComp<CompSpaceWeaponMagazine>() == null || selected != null)
-            && (Tuning?.Settings.chemical != true || parent.TryGetComp<CompSpaceWeaponMagazine>()?.HasPropellant(Tuning.charge) == true);
+            (Component<CompSpaceWeaponMagazine>() == null || selected != null)
+            && (Tuning?.Settings.chemical != true || Component<CompSpaceWeaponMagazine>()?.HasPropellant(Tuning.charge) == true);
 
         public void NotifyMagazineConsumed(CompSpaceWeaponMagazine magazine)
         {
@@ -553,7 +553,7 @@ namespace DeltaV
             yield return new Command_WeaponGroup(this);
 
             // 专用点防武器的模式由 Def 固定；其他武器仍可切换。
-            if (WeaponProps.tractor) yield return new Command_BatchSetting<CompSpaceWeapon>(
+            if (WeaponProps.tractor && AllowsPointDefense) yield return new Command_BatchSetting<CompSpaceWeapon>(
                 "TractorMode", this, weapons =>
                 {
                     SpaceWeaponAimMode next = aimMode == SpaceWeaponAimMode.PointDefense
@@ -584,7 +584,7 @@ namespace DeltaV
             };
 
             // 太空自动火控、点防和地面原版炮塔共用自动角度；玩家手控独立设置。
-            if (!WeaponProps.manualOnly || WeaponProps.tractor)
+            if (!WeaponProps.manualOnly || AllowsPointDefense)
                 yield return new Command_BatchSetting<CompSpaceWeapon>("WeaponAutoFireDeviation", this,
                 weapons => Find.WindowStack.Add(new Dialog_Slider(
                     value => "DeltaV_AutoFireDeviation".Translate(value.ToString()),

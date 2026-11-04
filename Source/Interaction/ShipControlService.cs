@@ -337,7 +337,7 @@ namespace DeltaV
         internal bool ManualAimOwner(DriveSubject ownerId) => activeAimOwnerId == ownerId && AimActive;
 
         public ShipFireControlMode FireControlModeFor(ShipBase ship) => ship.IsValid
-            ? ship.Combat.fireControlMode : ShipFireControlMode.Automatic;
+            ? ship.EffectiveFireControlMode : ShipFireControlMode.Automatic;
 
         public bool AimSessionOnFocusedMap
         {
@@ -354,7 +354,7 @@ namespace DeltaV
             Map map = Find.CurrentMap;
             ShipBase selected = map != null ? universe.Pilot.SelectedShipOnMap(map) : ShipBase.Invalid;
             DriveSubject wanted = universe.Pilot.CanPlayerControl(selected)
-                && selected.Combat.fireControlMode == ShipFireControlMode.Manual
+                && selected.EffectiveFireControlMode == ShipFireControlMode.Manual
                 ? selected.Identity : default;
             if (wanted == activeAimOwnerId && (wanted.key == 0 || AimActive)) return;
             DriveSubject oldOwnerId = activeAimOwnerId;
@@ -388,8 +388,18 @@ namespace DeltaV
             }
             PlayerShipController player = PlayerFor(ship, debugTakeover: true);
             if (player == null) return;
-            ship.Combat.fireControlMode = ship.Combat.fireControlMode == ShipFireControlMode.Automatic
-                ? ShipFireControlMode.Manual : ShipFireControlMode.Automatic;
+            int next = (int)ship.EffectiveFireControlMode;
+            do { next = (next + 1) % 3; } while (!ship.SupportsFireControlMode((ShipFireControlMode)next));
+            ship.Combat.fireControlMode = (ShipFireControlMode)next;
+            if (ship.Combat.fireControlMode == ShipFireControlMode.Disabled)
+            {
+                player.EndAim("fire control disabled");
+                foreach (var weapon in ship.Weapons)
+                {
+                    ForgetWeaponTarget(weapon);
+                    universe.Scatter.ReleaseAutomatic(weapon);
+                }
+            }
             SyncManualAimSelection();
             if (ship.Combat.fireControlMode == ShipFireControlMode.Automatic)
                 player.DecideAutoCombat(ship);

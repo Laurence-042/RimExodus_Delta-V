@@ -1,11 +1,54 @@
 using RimWorld;
 using UnityEngine;
 using Verse;
+using System.Linq;
 
 namespace DeltaV
 {
     public static partial class SpaceImpactEffects
     {
+        private static void Weld(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
+        {
+            if (evt.damageScale <= 0f || evt.defender?.map == null) return;
+            if (evt.defenderBuilding is Building building && building.Spawned && !building.Destroyed)
+            {
+                if (building.def.useHitPoints)
+                    building.HitPoints = Mathf.Min(building.MaxHitPoints, building.HitPoints + Mathf.Max(0, Mathf.RoundToInt(part.damage * evt.damageScale)));
+            }
+            else if (evt.defenderIsSubstructure && evt.hitCell.InBounds(evt.defender.map))
+                foreach (Filth filth in evt.hitCell.GetThingList(evt.defender.map).OfType<Filth>().ToList())
+                    filth.ThinFilth();
+        }
+
+        private static void CutStructure(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
+        {
+            if (evt.damageScale <= 0f || evt.defender?.map == null) return;
+            Map map = evt.defender.map;
+            if (evt.defenderBuilding is Building building && building.Spawned && !building.Destroyed)
+            {
+                if (!building.def.destroyable || !building.def.building.canBeDamagedByAttacks || building is Frame) return;
+                int cut = Mathf.Max(1, Mathf.RoundToInt(part.damage * evt.damageScale));
+                if (building.def.useHitPoints && building.HitPoints > cut) { building.HitPoints -= cut; return; }
+                // Deconstruct is the sole drop producer; no kill drops and no receiver inventory.
+                building.Destroy(DestroyMode.Deconstruct);
+            }
+            else if (evt.defenderIsSubstructure && SubstructureDamageUtility.CanDamage(map, evt.hitCell)
+                && part.damage * evt.damageScale >= part.substructureBreakThreshold)
+            {
+                TerrainDef foundation = SubstructureOwnership.FoundationAt(map, evt.hitCell);
+                if (foundation != null && SubstructureDamageUtility.TryDestroy(map, evt.hitCell))
+                    GenLeaving.DoLeavingsFor(foundation, evt.hitCell, map);
+            }
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            SpaceObject owner = evt.defender;
+            int version = owner.RepresentationVersion;
+            universe?.QueueFrameAction(() =>
+            {
+                if (!map.Disposed && universe.FrameOf(map) == owner && owner.RepresentationVersion == version)
+                    universe.Scatter.ScatterLoose(map);
+            });
+        }
+
         private static void ApplyEngineeringForce(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
         {
             Thing launcher = evt.launcher;
@@ -16,13 +59,14 @@ namespace DeltaV
             ShipBase ship = ShipRegistry.ShipOf(launcher);
             if (ship?.IsValid == true && !universe.ShipTransitions.RequestThrust(universe, PilotTarget.Of(ship),
                     playerInitiated: true)) return;
-            if (!universe.ShipTransitions.PrepareExternalForceTarget(evt.defender, evt.hitCell, launcher)) return;
+            CompSpaceWeapon weapon = evt.weapon ?? launcher.TryGetComp<CompSpaceWeapon>();
+            if (!universe.ShipTransitions.PrepareExternalForceTarget(evt.defender, evt.hitCell, weapon)) return;
             if (part.kind == ImpactEffectKind.CoupleMotion)
                 receiver.CoupleMotionWith(evt.defender, evt.hitUniverse, part.couplingFraction,
                     part.maxCouplingImpulse * evt.damageScale, part.maxCouplingAngularImpulse * evt.damageScale);
             else
             {
-                Vector2 muzzle = SpaceWeaponGeometry.MuzzleMapPoint(launcher.TryGetComp<CompSpaceWeapon>());
+                Vector2 muzzle = SpaceWeaponGeometry.MuzzleMapPoint(weapon);
                 ShipPhysics.ApplyTractorImpulse(receiver, SpaceTransform.MapToShipLocal(receiver.map, muzzle),
                     evt.defender, SpaceTransform.UniverseToShipLocal(evt.defender.pose, evt.hitUniverse),
                     Mathf.Max(0f, part.tractorForce) * evt.damageScale / 60f);

@@ -29,6 +29,7 @@ namespace DeltaV
                 SpaceTransform.TransportTangent(tangentImpulse, point, pose.position), pose.angle);
             Vector2 arm = localPoint - report.comLocal;
             pose.angularVelocity += (arm.x * localImpulse.y - arm.y * localImpulse.x) / report.inertia;
+            if (!report.allowsAngularMotion) pose.angularVelocity = 0f;
             body.pose = pose;
         }
 
@@ -48,8 +49,8 @@ namespace DeltaV
             // 只换回速度增量，避免来回切平面投影凭空衰减原有速度。
             a.pose.velocity += SpaceTransform.TransportTangent(va - beforeA, point, a.pose.position);
             b.pose.velocity += SpaceTransform.TransportTangent(vb - beforeB, point, b.pose.position);
-            a.pose.angularVelocity = wa;
-            b.pose.angularVelocity = wb;
+            a.pose.angularVelocity = ma.allowsAngularMotion ? wa : 0f;
+            b.pose.angularVelocity = mb.allowsAngularMotion ? wb : 0f;
         }
 
         // 纯数值解算供真实对象与离线守恒回归共用。

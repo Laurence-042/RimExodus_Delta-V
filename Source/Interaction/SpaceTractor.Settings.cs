@@ -42,7 +42,7 @@ namespace DeltaV
             if (receiver != null && pawn.Faction?.HostileTo(receiver) == true) return 0;
             return receiver != null && pawn.Faction?.RelationKindWith(receiver) == FactionRelationKind.Ally ? 2 : 1;
         }
-        internal bool Allows(Thing thing)
+        internal virtual bool Allows(Thing thing)
         {
             if (thing is Pawn pawn)
             {
@@ -56,8 +56,8 @@ namespace DeltaV
         public void Notify_SettingsChanged()
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            universe?.Scatter.ReleaseAutomatic(parent);
-            var weapon = parent.TryGetComp<CompSpaceWeapon>();
+            universe?.Scatter.ReleaseAutomatic(CompSpaceWeapon.ForComponent(this));
+            var weapon = CompSpaceWeapon.ForComponent(this);
             if (weapon != null) universe?.Controls.ForgetWeaponTarget(weapon);
         }
 

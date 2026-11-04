@@ -9,9 +9,9 @@ namespace DeltaV
     internal sealed partial class ShipFireControl
     {
         private readonly CombatStrategy fallbackStrategy = new CombatStrategy();
-        private readonly Dictionary<int, CombatStrategyRule> automaticRules = new Dictionary<int, CombatStrategyRule>();
-        private readonly Dictionary<(int weapon, DriveSubject enemy), CombatStrategyRule> fireRuleState = new Dictionary<(int, DriveSubject), CombatStrategyRule>();
-        private readonly Dictionary<int, int> partRefreshTick = new Dictionary<int, int>();
+        private readonly Dictionary<long, CombatStrategyRule> automaticRules = new Dictionary<long, CombatStrategyRule>();
+        private readonly Dictionary<(long weapon, DriveSubject enemy), CombatStrategyRule> fireRuleState = new Dictionary<(long, DriveSubject), CombatStrategyRule>();
+        private readonly Dictionary<long, int> partRefreshTick = new Dictionary<long, int>();
         private readonly Dictionary<DriveSubject, CombatStrategyRule> targetRules = new Dictionary<DriveSubject, CombatStrategyRule>();
         private readonly Queue<CombatTarget> partQueue = new Queue<CombatTarget>();
         private CombatTarget commandedTarget;

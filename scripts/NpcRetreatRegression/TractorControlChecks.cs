@@ -106,25 +106,25 @@ internal static partial class Program
             SpacePose untouched = first.pose;
             universe.Scatter.Tick();
             Check(first.pose.direction.Equals(untouched.direction), "unpaid aiming claim never moves cargo");
-            Check(!universe.Scatter.ClaimAutomatic(first, b.weapon) && !universe.Scatter.Pull(first, b.weapon.parent),
+            Check(!universe.Scatter.ClaimAutomatic(first, b.weapon) && !universe.Scatter.Pull(first, b.weapon),
                 "another ship cannot steal or pull an active aiming claim");
             Check(fire.FindPdTarget(b.weapon, muzzle) == second, "another ship immediately selects a free alternative");
             b.weapon.cooldownUntilTick = 46000;
             fire.TickPointDefense(b.weapon.OwnerShip, b.body, true);
             var locks = (IDictionary)AccessTools.Field(typeof(ShipFireControl), "pointDefense").GetValue(fire);
-            object savedLock = locks[b.weapon.parent.thingIDNumber];
+            object savedLock = locks[b.weapon.Identity];
             Check(((CombatTarget)AccessTools.Field(savedLock.GetType(), "target").GetValue(savedLock)).ObjectId == second.objectId,
                 "real controller assigns a free target during cooldown instead of sharing another ship's lock");
             Set(savedLock, "target", CombatTarget.ForContainer(first));
             Set(savedLock, "retargetAt", 46000);
-            locks[b.weapon.parent.thingIDNumber] = savedLock;
+            locks[b.weapon.Identity] = savedLock;
             fire.TickPointDefense(b.weapon.OwnerShip, b.body, true);
-            savedLock = locks[b.weapon.parent.thingIDNumber];
+            savedLock = locks[b.weapon.Identity];
             Check(((CombatTarget)AccessTools.Field(savedLock.GetType(), "target").GetValue(savedLock)).ObjectId == second.objectId,
                 "contested cached lock reselects a free target immediately, before its retry deadline");
             Check(!fire.PdTargetValid(b.weapon, CombatTarget.ForContainer(first), muzzle, out _),
                 "an already cached lock is invalid when another tractor owns its target");
-            Check(universe.Scatter.Pull(first, a.weapon.parent), "claim owner can pay and start pulling");
+            Check(universe.Scatter.Pull(first, a.weapon), "claim owner can pay and start pulling");
             universe.Scatter.Tick();
             Check(!first.pose.direction.Equals(untouched.direction), "paid automatic request moves its cargo");
             a.tractor.GetStoreSettings().filter.SetAllow(itemDef, false);

@@ -337,7 +337,7 @@ namespace DeltaV
             long integrateStart = performance?.Start() ?? 0L;
             ShipPhysics.Integrate(this, report, Vector2.Lerp(force, control.force, control.voidBlend),
                 Mathf.Lerp(allocatedTorque, control.torque, control.voidBlend), dt,
-                control.assistX, control.assistZ, control.assistW, frameAngle);
+                control.assistX, control.assistZ, control.assistW, frameAngle, control.inputBasis);
             performance?.Record(PerformanceStage.DriveIntegrate, integrateStart);
             return DriveResult.Executed;
         }

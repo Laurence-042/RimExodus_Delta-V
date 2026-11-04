@@ -85,7 +85,32 @@ internal static class Program
         var engineering = new XmlDocument(); engineering.Load("1.6/Defs/SpaceCombat/DeltaV_Engineering.xml");
         foreach (XmlNode node in engineering.DocumentElement.ChildNodes)
             if (node.NodeType == XmlNodeType.Element) XmlInheritance.TryRegister(node, null);
+        var eva = new XmlDocument(); eva.Load("1.6/Defs/SpaceCombat/DeltaV_Eva.xml");
+        foreach (XmlNode node in eva.DocumentElement.ChildNodes)
+            if (node.NodeType == XmlNodeType.Element) XmlInheritance.TryRegister(node, null);
         XmlInheritance.Resolve();
+        foreach (XmlNode node in eva.SelectNodes("//*[@Class]"))
+        {
+            string name = node.Attributes["Class"].Value;
+            Type type = XmlType(name);
+            Check(type != null, "EVA component type exists: " + name);
+            CheckFields(node, type);
+        }
+        foreach (XmlNode node in eva.SelectNodes("/Defs/DeltaV.VirtualWeaponDef")) CheckFields(node, typeof(VirtualWeaponDef));
+        foreach (XmlNode node in eva.SelectNodes("/Defs/DeltaV.ShellRenderRuleDef")) CheckFields(node, typeof(ShellRenderRuleDef));
+        foreach (XmlNode node in eva.SelectNodes("/Defs/ThingDef[starts-with(defName,'DeltaV_Beam_')]"))
+        {
+            XmlNode resolved = XmlInheritance.GetResolvedNodeFor(node);
+            Check(resolved.SelectNodes("comps/li[@Class='DeltaV.CompProperties_SpaceProjectile']").Count == 1
+                && resolved["category"].InnerText == "Building", "EVA beam inherits the common engineering projectile contract");
+        }
+        foreach (XmlNode node in eva.SelectNodes("/Defs/DeltaV.SpaceImpactEffectDef[@ParentName]"))
+        {
+            XmlNode resolved = XmlInheritance.GetResolvedNodeFor(node);
+            CheckFields(resolved, typeof(SpaceImpactEffectDef));
+            Check(resolved["buildingHitChance"] == null && resolved["substructureHitChance"] == null,
+                "EVA tools retain common random building/foundation hit probabilities");
+        }
         foreach (string name in new[] { "DeltaV_InertiaCoupler", "DeltaV_MiningBeam" })
         {
             XmlNode original = engineering.SelectSingleNode($"/Defs/ThingDef[defName='{name}']");
@@ -120,8 +145,8 @@ internal static class Program
         Check(coupler["cooldownTicks"].InnerText == "1" && beam["continuousBeam"].InnerText == "true"
             && beam["ignoresShields"].InnerText == "true", "coupler ticks continuously and bypasses shields");
         float Number(XmlNode n) => float.Parse(n.InnerText, System.Globalization.CultureInfo.InvariantCulture);
-        Check(Math.Abs(Number(coupler["shotEnergy"]) * 12 - 3) < 0.0001f,
-            "continuous per-second energy equals the former pulse budget");
+        Check(Math.Abs(Number(coupler["shotEnergy"]) * 60 - 6) < 0.0001f,
+            "continuous coupling consumes the configured 6 Wd per second");
         XmlNode coupling = engineering.SelectSingleNode("/Defs/DeltaV.SpaceImpactEffectDef[@Name='DeltaV_CouplingImpact']/defenderEffect");
         Check(Math.Abs(Math.Pow(1 - Number(coupling["couplingFraction"]), 12) - 0.85) < 0.00001
             && Math.Abs(Number(coupling["maxCouplingImpulse"]) * 12 - 400) < 0.001
@@ -130,6 +155,31 @@ internal static class Program
         Check(engineering.SelectNodes("/Defs/DeltaV.SpaceImpactEffectDef[defenderEffect/kind='ShieldDrain']/projectileDefs/li[text()='DeltaV_Beam_InertiaCoupler']").Count == 0,
             "no shield-drain outcome remains assigned to the coupler");
         XmlInheritance.Clear();
+    }
+    static Type XmlType(string name) => new[] { typeof(Thing).Assembly, typeof(ShipBase).Assembly }
+        .SelectMany(a => new[] { name, "RimWorld." + name, "Verse." + name }.Select(n => a.GetType(n)))
+        .FirstOrDefault(t => t != null);
+
+    static void CheckFields(XmlNode node, Type type)
+    {
+        if (node.Attributes?["Class"] is XmlAttribute attribute)
+            type = XmlType(attribute.Value);
+        foreach (XmlNode child in node.ChildNodes)
+        {
+            if (child.NodeType != XmlNodeType.Element) continue;
+            var field = type.GetField(child.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            Check(field != null, "EVA XML field exists: " + type.Name + "." + child.Name);
+            Type value = field.FieldType;
+            if (value.IsEnum) Check(Enum.IsDefined(value, Enum.Parse(value, child.InnerText)), "EVA XML enum resolves");
+            if (value.IsGenericType && value.GetGenericTypeDefinition() == typeof(List<>))
+            {
+                Type entry = value.GetGenericArguments()[0];
+                if (entry == typeof(CompProperties) || entry == typeof(VirtualWeaponSlot))
+                    foreach (XmlNode item in child.ChildNodes)
+                        if (item.NodeType == XmlNodeType.Element) CheckFields(item, entry);
+            }
+            else if (value == typeof(ShellRenderConfig) || value == typeof(ImpactOutcomePart)) CheckFields(child, value);
+        }
     }
     static void Run()
     {

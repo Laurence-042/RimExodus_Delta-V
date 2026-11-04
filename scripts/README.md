@@ -22,3 +22,7 @@
 2026-10-31 按用户选定范围删除 `CombatManeuverSimulation` 的 10 个历史实验文件（5 个 C# 探针、4 个 Python 实验／输入脚本及 `run_mpc.ps1`），保留该目录的 README 和全部结果。它们仅在旧实验驱动内部相互依赖，构建及上述有效回归不引用这些文件。删除前已将当前文件（含 `TacticProbe.cs` 未提交的轨迹记录改动）备份至本地忽略目录 `Source/obj/ScriptCleanup-20261031-042309/historical-experiments.zip`，旁附 SHA256 清单并逐项核验；已提交版本亦可从 Git 历史找回。Python 缓存已清理并忽略。1.6 驱动未在本轮逐个重跑，保留不代表已通过 1.7 运行时验证。
 
 `build_shield_prism_mask.py`：按固定原图生成护盾北侧与中央棱镜灰度图、红通道 `_m` 遮罩与两种尺寸的四色预览；只修改棱镜像素，验证 alpha 与遮罩外像素不变。素材记录见[美术资源施工表](../doc/美术资源施工表.md#护盾棱镜状态色2026-11-01)。
+
+### EVA 回归
+
+`NpcRetreatRegression/run.ps1 -EvaOnly -GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>` 使用构建后的生产 DLL，覆盖虚拟挂载身份／Scribe／分组隔离、两态火控限制、旋转相机投影、零角速度与接触点速度、0/1/12 外延和多格旋转边界、原版拆除材料链、焊接后效、货舱部分接收／拒收回滚／帧边界取消。仅替代 Unity 场景端点，接收、容量、请求生命周期及后效使用生产实现。`-TractorOnly` 保留月池与点防专项；`EngineeringRegression` 增加 EVA 实际 XML 字段、枚举和继承验证。完整游戏起降、归档恢复及手感由新档验收覆盖。

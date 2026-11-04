@@ -51,6 +51,19 @@ namespace DeltaV
         public abstract bool PrepareThrust(UniverseManager universe, bool playerInitiated);
         public abstract ShipTransferSpec Transfer { get; }
         public virtual bool CanBoard => false;
+        public virtual bool RequiresHeadingAlignment => true;
+        public virtual bool RequiresAngularVelocityMatch => true;
+        public virtual bool MatchDockingPointVelocity => false;
+        public virtual bool AllowsAngularMotion => true;
+        public virtual bool UsesCameraInput => false;
+        public virtual int FlightMapMargin => ShipPocketMapFactory.StructureMargin;
+        public virtual bool ReserveRotationBounds => false;
+        public virtual bool HasGunnerStations => true;
+        public virtual ShipFireControlMode DefaultFireControlMode => ShipFireControlMode.Automatic;
+        public virtual bool SupportsFireControlMode(ShipFireControlMode mode) => true;
+        public ShipFireControlMode EffectiveFireControlMode => Combat != null && SupportsFireControlMode(Combat.fireControlMode)
+            ? Combat.fireControlMode : DefaultFireControlMode;
+        public virtual ShipAimHandler CreateAimHandler(UniverseManager universe) => new ShipAimHandler(universe, this);
         public virtual void NotifyLanded() { }
 
         // 船体是面板的共同入口；控制器仍唯一提供权限、驾驶和侵入等操作。
@@ -178,7 +191,7 @@ namespace DeltaV
         }
         // 默认 Def 没有武器；追加 Comp 的扩展仍进入同一武器事务。
         protected override IEnumerable<CompSpaceWeapon> CollectWeapons() => IsValid
-            ? Hull.parent.AllComps.OfType<CompSpaceWeapon>() : Enumerable.Empty<CompSpaceWeapon>();
+            ? CompSpaceWeapon.On(Hull.parent) : Enumerable.Empty<CompSpaceWeapon>();
         public override IEnumerable<SpaceCollisionCell> CollisionCells =>
             SpaceStructureRules.CollisionCells(Map, HullCells);
         public override SpaceObjectTag RolesIn(SpaceObject container) => SpaceObjectTag.Ship

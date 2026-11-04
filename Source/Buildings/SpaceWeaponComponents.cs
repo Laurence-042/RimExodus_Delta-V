@@ -29,9 +29,9 @@ namespace DeltaV
 
         public static Vector2 MuzzleMapPoint(CompSpaceWeapon weapon)
         {
-            Vector2 center = FootprintCenter(weapon.parent);
+            Vector2 center = FootprintCenter(weapon.parent) + SpaceTransform.RotatePlacementOffset(weapon.Mount.Offset, weapon.parent.Rotation);
             if (weapon.WeaponProps.topTurret && weapon.WeaponProps.turretMuzzleDistance > 0f
-                && weapon.parent.TryGetComp<CompSpaceWeaponTraverse>() != null)
+                && weapon.Component<CompSpaceWeaponTraverse>() != null)
                 return center + SpaceTransform.Rotate(Vector2.right, weapon.FacingAngle)
                     * weapon.WeaponProps.turretMuzzleDistance;
             Vector2 local = weapon.WeaponProps.muzzleOffset;
