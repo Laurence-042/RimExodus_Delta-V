@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
-  <!-- Development appearance and construction economy; dedicated EVA art is a separate task. -->
+  <!-- Construction economy remains provisional. -->
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_EvaSuit</defName><label>EVA engineering suit</label>
     <description>A single-person craft for work outside a ship. Load one pilot and up to 20 kg of cargo, then launch from an open deck or moon pool. Movement follows the camera. Its manual tools cut structures, weld damage and clean exposed decks, or pull loose cargo into its pack. It cannot launch to a world-map destination.</description>
     <thingClass>Building</thingClass><size>(1,1)</size><rotatable>true</rotatable>
-    <graphicData><graphicClass>Graphic_Single</graphicClass><texPath>Things/Building/Shuttle/BoardingShuttle</texPath><shaderType>CutoutComplex</shaderType><drawSize>(1,1)</drawSize></graphicData>
+    <!-- Native south-only Graphic_Multi supplies the 180-degree artwork correction. -->
+    <graphicData>
+      <graphicClass>Graphic_Multi</graphicClass><texPath>Things/Building/Eva/EvaSuit</texPath>
+      <shaderType>CutoutComplex</shaderType><drawSize>(1.25,1.25)</drawSize>
+      <drawRotated>true</drawRotated><allowFlip>false</allowFlip>
+    </graphicData>
+    <uiIconPath>Things/Building/Eva/EvaSuit_south</uiIconPath>
     <altitudeLayer>Building</altitudeLayer><drawerType>RealtimeOnly</drawerType>
     <passability>PassThroughOnly</passability><fillPercent>0.5</fillPercent><pathCost>30</pathCost>
     <tickerType>Normal</tickerType><selectable>true</selectable><useHitPoints>true</useHitPoints>
@@ -25,10 +31,11 @@
       <li Class="DeltaV.CompProperties_VehicleCargo"><cargoCapacity>20</cargoCapacity><crewCount>1</crewCount></li>
       <li Class="DeltaV.CompProperties_EvaSuit">
         <virtualThrusters>
-          <li><position>(-0.3,0)</position><force>(300,0)</force></li>
-          <li><position>(0.3,0)</position><force>(-300,0)</force></li>
-          <li><position>(0,-0.3)</position><force>(0,300)</force></li>
-          <li><position>(0,0.3)</position><force>(0,-300)</force></li>
+          <!-- Diagonal exhaust points outward; each axial pair supplies 300 total thrust. -->
+          <li><position>(-0.3,-0.3)</position><force>(150,150)</force></li>
+          <li><position>(-0.3,0.3)</position><force>(150,-150)</force></li>
+          <li><position>(0.3,-0.3)</position><force>(-150,150)</force></li>
+          <li><position>(0.3,0.3)</position><force>(-150,-150)</force></li>
         </virtualThrusters>
       </li>
       <li Class="DeltaV.CompProperties_VirtualWeapons"><mounts>

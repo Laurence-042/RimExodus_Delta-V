@@ -33,13 +33,24 @@ internal static partial class Program
         Set(factions, "ofPlayer", faction); Set(Find.World, "factionManager", factions);
         Current.Game.currentMapIndex = -1;
         var map = TestMap(58001);
-        var eva = new CompEvaSuit { props = new CompProperties_EvaSuit() };
+        Vector2 ReadPair(XElement node)
+        {
+            string[] parts = node.Value.Trim('(', ')').Split(',');
+            return new Vector2(float.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture),
+                float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
+        }
+        var eva = new CompEvaSuit { props = new CompProperties_EvaSuit {
+            virtualThrusters = suit.Descendants("virtualThrusters").Elements("li")
+                .Select(x => new ShuttleThrusterConfig {
+                    position = ReadPair(x.Element("position")), force = ReadPair(x.Element("force")) }).ToList()
+        } };
         AddTestHull(map, faction, 58002, eva);
         var body = new MapSpaceObject(58001, map, new SpacePose(Vector3.forward, .31f));
         universe.RegisterObject(body);
         eva.combat.fireControlMode = ShipFireControlMode.Manual;
         eva.combat.weaponGroupsSecondary = 3;
         ShipBase ship = eva.Vessel;
+        CheckEvaThrusters(ship);
         Check(ship.CanDriveIn(body) && !ship.AllowsAngularMotion && !ship.CanBoard
             && !ship.RequiresHeadingAlignment && !ship.RequiresAngularVelocityMatch,
             "EVA capabilities relax docking orientation and forbid angular motion / intrusion");
@@ -126,6 +137,45 @@ internal static partial class Program
         CheckEvaEffects(universe);
         CheckEvaCargo(universe, eva, weapons[2]);
         CheckDepartureAndBeamFixes(universe, eva, weapons[0]);
+    }
+
+    static void CheckEvaThrusters(ShipBase ship)
+    {
+        Rot4 original = ship.Anchor.Rotation;
+        try
+        {
+            foreach (Rot4 rotation in Rot4.AllRotations)
+            {
+                ship.Anchor.Rotation = rotation;
+                var report = new ShipPhysics.MassReport { mass = 100, inertia = 30,
+                    comLocal = ship.HullCenter - SpaceTransform.ShipLocalOrigin(ship.Map),
+                    allowsAngularMotion = ship.AllowsAngularMotion };
+                report.thrusters.AddRange(ship.BuildThrusters());
+                Check(report.thrusters.All(t => {
+                    Vector2 offset = t.localPos - report.comLocal;
+                    return Math.Abs(offset.x) > .2f && Math.Abs(offset.y) > .2f
+                        && Vector2.Dot(offset.normalized, t.dir) < -.999f;
+                }), "EVA X exhaust points outward from all four corners: " + rotation);
+                foreach (Vector2 direction in new[] { Vector2.right, Vector2.left, Vector2.up, Vector2.down,
+                    new Vector2(1, 1), new Vector2(1, -1), new Vector2(-1, 1), new Vector2(-1, -1) })
+                {
+                    bool diagonal = direction.x != 0 && direction.y != 0;
+                    Vector2 expected = direction * (diagonal ? 150f : 300f);
+                    ShipPhysics.Allocate(report, new ShipPhysics.Command { fx = direction.x, fz = direction.y },
+                        out Vector2 force, out float torque);
+                    Check((force - expected).magnitude < .2f && Math.Abs(torque) < .001f
+                        && report.thrusters.Count(t => t.throttle > .01f) == (diagonal ? 1 : 2),
+                        "EVA X allocation supplies balanced axial / diagonal force: " + rotation + " / " + direction);
+                    float braking = ShipPhysics.PreviewBrakingAcceleration(report, direction);
+                    Check(Math.Abs(braking - expected.magnitude / report.mass) < .01f,
+                        "EVA X braking matches opposite-direction authority: " + rotation + " / " + direction);
+                }
+                ShipPhysics.Allocate(report, new ShipPhysics.Command(), out Vector2 idleForce, out float idleTorque);
+                Check(idleForce.sqrMagnitude == 0 && idleTorque == 0 && report.thrusters.All(t => t.throttle == 0),
+                    "EVA X idle clears every exhaust throttle: " + rotation);
+            }
+        }
+        finally { ship.Anchor.Rotation = original; }
     }
 
     static void CheckEvaGeometry(ShipBase ship, SpaceObject body)
