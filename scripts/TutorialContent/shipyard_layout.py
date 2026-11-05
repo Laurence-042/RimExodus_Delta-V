@@ -219,7 +219,7 @@ def furnish(name,plan,place,prop,foundation,roofs,records,occupied):
         for key in sorted(k for k in areas if k.startswith('defense-')):
             a=areas[key]
             auto('DeltaV_ShieldGenerator',a,state={'DeltaV_shieldMode':'Guard','DeltaV_shieldGroundRadius':40,
-                 'DeltaV_regularCapacity':1000,'fuel':2000,'configuredTargetFuelLevel':2000})
+                 'DeltaV_regularCapacity':750,'DeltaV_autoRejoinPercent':10,'fuel':750,'configuredTargetFuelLevel':750})
             auto('DeltaV_Weapon_RapidMainSmall',a)
             for _ in range(2):auto('DeltaV_Weapon_PDTurret',a)
         moon=area('node-2')

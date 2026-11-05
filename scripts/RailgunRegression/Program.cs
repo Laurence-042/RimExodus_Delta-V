@@ -39,7 +39,9 @@ internal static partial class Program
             string path = Path.Combine(args[0], name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        try { Run(args.Contains("--energy-only")); Console.WriteLine($"PASS {checks} railgun checks"); return 0; }
+        try { Run(args.Contains("--energy-only")); Console.WriteLine($"PASS {checks} railgun checks");
+            if(args.Contains("--energy-impulse-audit")) RunEnergyImpulsePenetrationAudit();
+            else if(args.Contains("--role-penetration-audit")) RunRolePenetrationAudit(); return 0; }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
     }
     sealed class Target : Building
@@ -98,12 +100,12 @@ internal static partial class Program
         comp.currentHitPoints = hp; Add(40, 8, 500, comp);
         return comp;
     }
-    static void Reset()
+    static void Reset(int height = 12)
     {
         contacts.Clear();
         SpaceCollision.ClearCaches();
         map = (Map)Raw(typeof(Map));
-        map.uniqueID = nextId++; map.info = new MapInfo { Size = new IntVec3(80, 1, 12) };
+        map.uniqueID = nextId++; map.info = new MapInfo { Size = new IntVec3(80, 1, height) };
         map.damageWatcher = (DamageWatcher)Raw(typeof(DamageWatcher)); map.cellIndices = new CellIndices(map); map.components = new List<MapComponent>();
         map.thingGrid = new ThingGrid(map); map.terrainGrid = new TerrainGrid(map);
         map.listerThings = new ListerThings(ListerThingsUse.Region);
@@ -112,13 +114,13 @@ internal static partial class Program
         Set(universe, "objectById", null); Set(universe, "objectByMap", null);
     }
     static SpaceCollision.SweptBody Fire(float budget, float speed = 180, ThingDef def = null,
-        float from = 5, float to = 70, Action<SpaceCollision.SweptBody> configure = null)
+        float from = 5, float to = 70, Action<SpaceCollision.SweptBody> configure = null, float lane = 5.5f)
     {
-        Vector3 start = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(from, 5.5f));
-        Vector3 end = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(to, 5.5f));
+        Vector3 start = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(from, lane));
+        Vector3 end = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(to, lane));
         var attacker = new SpaceObject(nextId++, new SpacePose(start, 0));
         attacker.pose.velocity = SpaceTransform.MapDirectionToUniverseTangent(hull, map,
-            new Vector2(from, 5.5f), Vector2.right) * speed;
+            new Vector2(from, lane), Vector2.right) * speed;
         var body = new SpaceCollision.SweptBody { attacker = attacker, projectileDef = def ?? rail,
             from = start, to = end, damageScale = 1f,
             mass = budget / Math.Max(.001f, SpaceImpactEffects.ComputeDamage(SpaceImpactEffects.Resolve(def ?? rail, null).defenderEffect, speed, 0)),
@@ -258,7 +260,7 @@ internal static partial class Program
         Vector2 tangent = SpaceTransform.MapDirectionToUniverseTangent(hull, map, new Vector2(5, 5.5f), Vector2.right);
         OrbitSphere.Basis(start, out Vector3 east, out Vector3 north);
         Check(service.Launch(rail, null, start, east * tangent.x + north * tangent.y, null, null, default,
-            new SpaceProjectileLaunchSpec(540, 0, 540, mass: 3600f / (24f * 9f))), "real projectile service launches budget round");
+            new SpaceProjectileLaunchSpec(540, 0, 540, mass: 3600f / (8f * 81f))), "real projectile service launches budget round");
         var records = (IList)AccessTools.Field(typeof(SpaceProjectileService), "projectiles").GetValue(service);
         object record = records[0];
         var container = (SpaceObject)AccessTools.Property(record.GetType(), "container").GetValue(record);
@@ -275,13 +277,13 @@ internal static partial class Program
         Check(console.Destroyed && Math.Abs(scale * 3600 - 180) < 2,
             "next tick uses remaining 600 budget rather than restoring original 3600");
 
-        // Real line geometry/payment and fragment creation, with zero-strength active defense.
+        // Real line geometry/payment and long-rod fracture under a weak funded impulse.
         Reset();
         var battery = new CompPowerBattery(); Set(battery, "storedEnergy", 10f);
         var net = (PowerNet)Raw(typeof(PowerNet)); net.batteryComps = new List<CompPowerBattery> { battery };
         var power = new CompPowerTrader(); Set(power, "powerOnInt", true); power.transNet = net;
         var kinetic = new CompSpaceShield { props = new CompProperties_SpaceShield(),
-            mode = SpaceShieldMode.Kinetic, projection = 10, length = 20 };
+            mode = SpaceShieldMode.Kinetic, kineticStrengthPercent = 10, projection = 10, length = 20 };
         var intercept = (CompProjectileInterceptor)Raw(typeof(CompProjectileInterceptor));
         intercept.props = new CompProperties_ProjectileInterceptor { radius = 12 };
         var emitter = Add(40, 8, 500, intercept, kinetic, power);
@@ -290,7 +292,7 @@ internal static partial class Program
         bool shattered = false;
         service = new SpaceProjectileService(universe);
         var railProps = rail.GetCompProperties<CompProperties_SpaceProjectile>();
-        railProps.shieldFragmentDef = fragment; railProps.shieldFragmentCount = 4;
+        railProps.shieldFragmentDef = fragment; railProps.shieldFragmentCount = 4; railProps.shieldBreakDeltaV = .5f;
         var attack = new SpaceObject(nextId++, new SpacePose(start, 0));
         attack.pose.velocity = tangent * 540;
         shot = new SpaceCollision.SweptBody { attacker = attack, projectileDef = rail, from = start,
@@ -304,7 +306,7 @@ internal static partial class Program
         SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
         records = (IList)AccessTools.Field(typeof(SpaceProjectileService), "projectiles").GetValue(service);
         Check(shattered && shot.dead && first.currentHitPoints == 3000 && console.HitPoints == 420
-            && Math.Abs(battery.StoredEnergy - 8) < 0.001f, "kinetic line shatters high-budget round for base pulse before inner guard");
+            && Math.Abs(battery.StoredEnergy - 6.4f) < 0.001f, "kinetic line shatters high-budget round with paid impulse before inner guard");
         kinetic.GetSegment(out Vector2 lineStart, out Vector2 lineEnd, out _);
         Check(contacts.Count == 1 && contacts[0].shieldMode == SpaceShieldMode.Kinetic
             && (contacts[0].lineStart - lineStart).sqrMagnitude < 0.001f
@@ -319,51 +321,53 @@ internal static partial class Program
         kinetic.angleDeg = 20;
         kinetic.kineticStrengthPercent = 25;
         railProps.shieldFragmentScatterDeg = 11;
-        foreach (float incomingMass in new[] { 1f, 48f })
+        foreach (float incomingMass in new[] { 1f, 48f, 96f })
         foreach (float available in new[] { 1f, 2f, 3f, 100f })
         {
-            contacts.Clear();
-            SpaceCollision.ClearCaches();
-            Set(kinetic, "disabledUntilTick", 0);
-            Set(battery, "storedEnergy", available);
-            hull.pose.velocity = new Vector2(12, -7);
-            hull.pose.angularVelocity = .1f;
+            contacts.Clear(); SpaceCollision.ClearCaches();
+            Set(kinetic, "disabledUntilTick", 0); Set(battery, "storedEnergy", available);
+            first.currentHitPoints = 3000;
+            hull.pose.velocity = new Vector2(12, -7); hull.pose.angularVelocity = .1f;
             attack.pose.velocity = tangent * 60 + SpaceTransform.VelocityAtUniversePoint(hull.pose, start);
             service = new SpaceProjectileService(universe);
             Vector3 contactPoint = default;
             Vector2 incomingVelocity = default, normalAtHit = default;
-            float fundedEnergy = -1;
+            float fundedImpulse = -1;
             shot = new SpaceCollision.SweptBody { attacker = attack, projectileDef = rail, from = start,
-                to = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(70, 5.5f)), damageScale = 1, mass = incomingMass,
-                onShieldShatter = (hit, defender, velocity, normal, energy) =>
-                {
-                    contactPoint = hit; incomingVelocity = velocity; normalAtHit = normal; fundedEnergy = energy;
+                to = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(70, 5.5f)), damageScale = .7f, mass = incomingMass,
+                onVisualContact = contact => {
+                    if (contact.shieldMode != SpaceShieldMode.Kinetic) return;
+                    contactPoint = contact.position;
+                    incomingVelocity = SpaceTransform.RelativeVelocityAtContact(attack.pose, hull.pose, contactPoint);
+                    normalAtHit = SpaceTransform.MapDirectionToUniverseTangent(hull, map, contact.localPoint, contact.localNormal);
+                },
+                onShieldShatter = (hit, defender, velocity, normal, impulse) => {
+                    fundedImpulse = impulse;
                     SpaceShieldProjectileBehavior.SpawnFragments(service, rail, null, defender, null,
-                        hit, velocity, normal, energy, incomingMass, 1f);
+                        hit, velocity, normal, impulse, incomingMass, 1f, damageScale: .7f);
                 } };
             SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
-            float expectedPaid = Math.Min(available, 6f); // 2 base + 7200 / 1800, independent of incoming mass/speed.
-            Check(shot.dead && Math.Abs(battery.StoredEnergy - (available - expectedPaid)) < .001f
-                && Math.Abs(fundedEnergy - Math.Max(0, expectedPaid - 2) * 1800) < .01f,
-                $"real normal pulse only spends selected/available energy: mass={incomingMass}, available={available}");
+            var expected = EnergyImpulseModel.Apply(incomingMass, Vector2.Dot(incomingVelocity, normalAtHit),
+                Vector2.Dot(incomingVelocity, new Vector2(-normalAtHit.y, normalAtHit.x)), true, 25, available);
+            Check(Math.Abs(battery.StoredEnergy - (available - expected.Cost)) < .001f,
+                $"production pulse matches independently calculated funded cost: mass={incomingMass}, available={available}");
             records = (IList)AccessTools.Field(typeof(SpaceProjectileService), "projectiles").GetValue(service);
-            Check(records.Count == 4, "partial payment still creates the configured fragments");
-            Vector2 side = new Vector2(-normalAtHit.y, normalAtHit.x);
+            Check(records.Count == (expected.Broken ? 4 : 0) && (fundedImpulse >= 0) == expected.Broken,
+                "only funded impulse reaching the long-rod threshold produces fragments");
             for (int j = 0; j < records.Count; j++)
             {
                 object piece = records[j];
                 var pieceContainer = (SpaceObject)AccessTools.Property(piece.GetType(), "container").GetValue(piece);
-                Vector2 before = SpaceTransform.Rotate(incomingVelocity, (2f * j / 3 - 1) * 11 * Mathf.Deg2Rad);
                 Vector2 after = SpaceTransform.TransportTangent(pieceContainer.pose.velocity, pieceContainer.pose.position, contactPoint)
                     - SpaceTransform.VelocityAtUniversePoint(hull.pose, contactPoint);
-                float beforeNormal = Vector2.Dot(before, normalAtHit), afterNormal = Vector2.Dot(after, normalAtHit);
-                float energyChange = .5f * incomingMass / 4 * (Math.Sign(afterNormal) * afterNormal * afterNormal
-                    - Math.Sign(beforeNormal) * beforeNormal * beforeNormal);
-                Check(Math.Abs(Vector2.Dot(after - before, side)) < .01f
-                    && Math.Abs(energyChange - fundedEnergy / 4) < .5f,
-                    "launched fragment preserves scattered tangent and receives only its normal energy share");
+                Vector2 wanted = SpaceTransform.Rotate(incomingVelocity + normalAtHit * (fundedImpulse / incomingMass),
+                    (2f * j / 3 - 1) * 11 * Mathf.Deg2Rad);
+                Check((after - wanted).magnitude < .01f, "fragment scatter follows paid parent impulse and inherits rotating shield point velocity");
+                Check(Math.Abs((float)AccessTools.Field(piece.GetType(), "mass").GetValue(piece) - incomingMass / 4) < .001f
+                    && Math.Abs((float)AccessTools.Field(piece.GetType(), "damageScale").GetValue(piece) - .7f) < .001f,
+                    "fragment mass and remaining impact budget are separate and not duplicated");
                 Check((int)AccessTools.Field(piece.GetType(), "spawnedAtTick").GetValue(piece) == Find.TickManager.TicksGame,
-                    "shield fragmentation keeps a fresh projectile lifetime");
+                    "newly fractured projectiles receive their fragment lifetime");
             }
         }
         hull.pose.velocity = Vector2.zero; hull.pose.angularVelocity = 0;
@@ -471,6 +475,7 @@ internal static partial class Program
         CheckDualGuard(harmony);
         CheckContinuousBeam(coupler, engineering);
         CheckEnergy();
+        CheckImpulseSurvival();
         CheckVisualAnchors();
     }
 
@@ -539,7 +544,7 @@ internal static partial class Program
             interceptGroundProjectiles = true, interceptAirProjectiles = true, interceptNonHostileProjectiles = true };
         interceptor.currentHitPoints = -1;
         var shield = new CompSpaceShield { props = new CompProperties_SpaceShield {
-            groundRadius = 12, regularCapacity = small ? 0 : 1000, emergencyCapacity = small ? 1000 : 2000 } };
+            groundRadius = 12, recoveryDelayTicks = 600, guardRecoveryTicks = 2500, regularCapacity = small ? 0 : 1000, emergencyCapacity = small ? 1000 : 2000 } };
         var fuel = new CompRefuelable();
         fuel.Initialize(new CompProperties_Refuelable { fuelCapacity = small ? 1000 : 2000,
             initialFuelPercent = 1, consumeFuelOnlyWhenUsed = true });
@@ -755,12 +760,13 @@ internal static partial class Program
         {
             Reset();
             string suffix = large ? "Large" : "";
+            rail.GetCompProperties<CompProperties_SpaceProjectile>().mass = large ? 40 : 20;
             XElement loader = Comp("DeltaV_Weapon_RailgunLoader" + suffix, "SpaceWeapon");
             XElement accelerator = Comp("DeltaV_Weapon_RailgunAccelerator" + suffix, "SpaceRailgun");
             var wp = new CompProperties_SpaceWeapon { projectileDef = rail, intrinsicAimSkill = 10, shotEnergy = (float)loader.Element("shotEnergy"),
-                impactScale = (float)loader.Element("impactScale") };
+                launchKineticEnergy = (float)loader.Element("launchKineticEnergy"), impactScale = (float)loader.Element("impactScale") };
             var rp = new CompProperties_SpaceRailgun { shotEnergy = (float)accelerator.Element("shotEnergy"),
-                speedBonus = (float)accelerator.Element("speedBonus") };
+                kineticEnergyBonus = (float)accelerator.Element("kineticEnergyBonus") };
             var battery = new CompPowerBattery();
             var net = (PowerNet)Raw(typeof(PowerNet)); net.batteryComps = new List<CompPowerBattery> { battery };
             var power = new CompPowerTrader { transNet = net }; Set(power, "powerOnInt", true);
@@ -785,7 +791,7 @@ internal static partial class Program
             Check(!Plan(wp.shotEnergy - 1) && battery.StoredEnergy == wp.shotEnergy - 1,
                 suffix + " insufficient loader pulse refuses without spending");
             Check(Plan(wp.shotEnergy + rp.shotEnergy)
-                && energy.speedBonus == rp.speedBonus
+                && energy.kineticEnergyBonus == rp.kineticEnergyBonus
                 && battery.StoredEnergy == wp.shotEnergy + rp.shotEnergy,
                 suffix + " shared battery is reserved once and cannot fund three segments with one pulse");
             float fullCost = wp.shotEnergy + 3 * rp.shotEnergy;
@@ -807,6 +813,16 @@ internal static partial class Program
                     var firing = SpaceWeaponBallistics.Read(weapon, hull, weapon.ExecutionEnergy, true).aim;
                     SpaceWeaponBallistics.TryAim(preview, hull.pose, targetPose, out var previewPoint);
                     SpaceWeaponBallistics.TryAim(firing, hull.pose, targetPose, out var firingPoint);
+                    float massForPreview = large ? 40 : 20;
+                    int expectedStages = charge >= fullCost ? 3 : charge >= wp.shotEnergy + rp.shotEnergy ? 1 : 0;
+                    float expectedSpeed = (float)Math.Sqrt(2 * (wp.launchKineticEnergy + expectedStages * rp.kineticEnergyBonus) / massForPreview);
+                    Check(Math.Abs(preview.Speed - expectedSpeed) < .001f,
+                        suffix + " production preview adds only paid stage kinetic energy");
+                    rail.GetCompProperties<CompProperties_SpaceProjectile>().mass = massForPreview * 1.5f;
+                    var uraniumPreview = SpaceWeaponService.AimInfo(weapon, hull);
+                    Check(Math.Abs(uraniumPreview.Speed - preview.Speed / Math.Sqrt(1.5)) < .001f,
+                        suffix + " heavier rail projectile gets the same energy and a lower speed");
+                    rail.GetCompProperties<CompProperties_SpaceProjectile>().mass = massForPreview;
                     Check(preview.Speed == firing.Speed && preview.MuzzleMap == firing.MuzzleMap
                         && previewPoint == firingPoint && battery.StoredEnergy == charge,
                         suffix + " automatic and preview parameters agree without spending at charge " + charge);
@@ -828,22 +844,23 @@ internal static partial class Program
             separate.batteryComps = new List<CompPowerBattery> { extraBattery };
             segments[2].parent.GetComp<CompPowerTrader>().transNet = separate;
             Check(Plan(wp.shotEnergy + rp.shotEnergy)
-                && energy.speedBonus == 2 * rp.speedBonus,
+                && energy.kineticEnergyBonus == 2 * rp.kineticEnergyBonus,
                 suffix + " unfunded middle segment does not block later funded acceleration");
             int count = large ? 1 : 3;
-            float velocity = 180 + count * rp.speedBonus;
+            float velocity;
             XElement magazine = Comp("DeltaV_Weapon_RailgunLoader" + suffix, "SpaceWeaponMagazine");
             float mass = (float)magazine.Element("ammoPerShot") * ((float?)magazine.Element("unitMass") ?? 1f);
+            velocity = SpaceKinetics.Speed(mass, (float)loader.Element("launchKineticEnergy") + count * rp.kineticEnergyBonus);
             float budget = SpaceImpactEffects.ComputeDamage(
                 SpaceImpactEffects.Resolve(rail, shieldDef, true).defenderEffect, velocity, 0, 1f, mass) * wp.impactScale;
             Check(Math.Abs(budget - (large ? 4800 : 4320)) < 0.01f
-                && wp.shotEnergy + count * rp.shotEnergy == (large ? 6000 : 5400),
+                && wp.shotEnergy + count * rp.shotEnergy == (large ? 7200 : 7200),
                 suffix + " real Defs meet declared shield-breaking budget and energy threshold");
             XElement cap = Comp("DeltaV_Building_RailgunCapacitor" + suffix, "SwitchableBattery");
-            Check((float)cap.Element("capacityWattDays") == 3 * rp.shotEnergy
+            Check((float)cap.Element("capacityWattDays") == rp.shotEnergy
                 && (float)cap.Element("initialEnergyPercent") == 0
-                && Math.Abs((float)cap.Element("capacityWattDays") * 60000 / (float)cap.Element("chargingWatts") - 216000) < 1,
-                suffix + " capacitor stores three paid pulses, starts empty and recharges slowly");
+                && Math.Abs((float)cap.Element("capacityWattDays") * 60000 / (float)cap.Element("chargingWatts") - 108000) < 1,
+                suffix + " capacitor stores one paid pulse, starts empty and recharges slowly");
 
             segments[2].parent.GetComp<CompPowerTrader>().transNet = net;
             var recovery = new CompRailgunEnergyRecovery { props = new CompProperties_RailgunEnergyRecovery() };

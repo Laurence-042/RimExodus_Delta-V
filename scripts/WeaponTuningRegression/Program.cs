@@ -23,7 +23,15 @@ internal static partial class Program
             string path = Path.Combine(args[0], name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        try { Run(args[1]); Console.WriteLine($"PASS {checks} weapon checks"); return 0; }
+        try {
+            Run(args[1]); Console.WriteLine($"PASS {checks} weapon checks");
+            if (args.Contains("--energy-impulse-audit")) RunEnergyImpulseAudit(args[1], RunOutputAudit(args[1]));
+            else if (args.Contains("--role-balance-audit")) RunRoleBalanceAudit(args[1], RunOutputAudit(args[1]));
+            else if (args.Contains("--thermal-balance-audit")) RunThermalBalanceAudit(args[1], RunOutputAudit(args[1]));
+            else if (args.Contains("--shield-duration-audit")) RunShieldDurationAudit(args[1], RunOutputAudit(args[1]));
+            else if (args.Contains("--output-audit")) RunOutputAudit(args[1]);
+            return 0;
+        }
         catch (Exception e) { Console.Error.WriteLine(e); return 1; }
     }
     static CompWeaponTuning Gun(XElement def)
@@ -68,21 +76,21 @@ internal static partial class Program
         XElement Def(string name) => defs.Root.Elements().Single(x => (string)x.Element("defName") == name);
         float v = SpaceKinetics.LaunchSpeed(1, 1), heavy = SpaceKinetics.LaunchSpeed(1, 16);
         Check(Near(v, 60) && Near(heavy, 15), "fixed charge: mass slows the projectile");
-        Check(SpaceKinetics.ImpactFactor(16, heavy) > SpaceKinetics.ImpactFactor(1, v), "heavy shot gains penetration budget at equal charge");
+        Check(Near(SpaceKinetics.ImpactFactor(16, heavy), SpaceKinetics.ImpactFactor(1, v)), "fixed charge preserves penetration budget at every mass");
         Check(Near(SpaceKinetics.Energy(16, heavy), SpaceKinetics.Energy(1, v)), "launch energy depends on charge, not head mass");
         Check(Near(SpaceKinetics.LaunchSpeed(4, 1), 120), "more charge increases speed");
         Check(SpaceKinetics.ImpactFactor(100, 0) == 0, "stationary fragments cause no impact damage");
         var effect = new ImpactOutcomePart { damage = 24, kineticMassScaling = true };
-        Check(Near(SpaceImpactEffects.ComputeDamage(effect, heavy, 0, 1, 16), 96), "production damage uses actual mass and speed");
+        Check(Near(SpaceImpactEffects.ComputeDamage(effect, heavy, 0, 1, 16), 24), "production damage uses actual mass and speed");
         CheckShieldNormalEnergy();
         var rapid = Gun(Def("DeltaV_Weapon_RapidMainSmall"));
         var cannon = Gun(Def("DeltaV_Weapon_CannonTurret"));
         cannon.charge = cannon.mass = 1; cannon.CommitShot();
-        Check(cannon.RemainingTicks == 20 && cannon.overheated, "1/1 heavy shot has only 20 ticks of charge-based heat");
+        Check(cannon.RemainingTicks == 15 && cannon.overheated, "1/1 heavy shot has only 15 ticks of charge-based heat");
         cannon.charge = cannon.mass = 32;
-        Tick(cannon, 19); Check(cannon.RemainingTicks == 1, "retuning cannot change heat already committed");
+        Tick(cannon, 14); Check(cannon.RemainingTicks == 1, "retuning cannot change heat already committed");
         Tick(cannon, 1); Check(cannon.RemainingTicks == 0 && !cannon.overheated, "heavy cycle completes normally");
-        cannon.CommitShot(); Check(cannon.RemainingTicks == 640, "32 charge requires 640 cooling ticks without a mechanical floor");
+        cannon.CommitShot(); Check(cannon.RemainingTicks == 480, "32 charge requires 480 cooling ticks without a mechanical floor");
         cannon.charge = cannon.mass = 1;
         Tick(cannon, 300); Check(cannon.overheated && cannon.RemainingTicks > 0, "lowering load cannot bypass thermal lock");
         Tick(cannon, 341); Check(cannon.RemainingTicks == 0 && !cannon.overheated, "heavy heat fully dissipates");
@@ -151,26 +159,26 @@ internal static partial class Program
         Check(effects.Root.Elements().Where(x => x.Element("projectileDefs")?.Elements().Any(y => y.Value == "DeltaV_Projectile_Cannon") == true)
             .All(x => x.Element("projectileDefs").Elements().Any(y => y.Value == "DeltaV_Projectile_Rapid")), "rapid and heavy share every impact definition");
         var medium = Gun(Def("DeltaV_Weapon_HeavyMainMedium"));
-        Check(medium.Settings.maxCharge == 96 && medium.Settings.maxMass == 96 && medium.ShotHeat == 192 && medium.ShotInterval == 720,
-            "medium heavy 48/48 uses 16 cooling and 12 seconds");
+        Check(medium.Settings.maxCharge == 96 && medium.Settings.maxMass == 96 && medium.ShotHeat == 192 && medium.ShotInterval == 480,
+            "medium heavy 48/48 uses 24 cooling and 8 seconds");
         medium.charge = 1; medium.mass = 96;
-        Check(medium.ShotHeat == 4 && medium.ShotInterval == 15 && medium.CycleTicks == 0,
+        Check(medium.ShotHeat == 4 && medium.ShotInterval == 10 && medium.CycleTicks == 0,
             "1/96 heavy preserves intended fast, slow-projectile configuration");
-        medium.CommitShot(); Tick(medium, 15);
-        Check(!medium.overheated && medium.RemainingTicks == 0, "medium low charge cools in exactly 15 ticks");
-        medium.charge = medium.mass = 96; medium.CommitShot(); Tick(medium, 1440);
-        Check(!medium.overheated && medium.RemainingTicks == 0, "medium maximum charge cools in exactly 24 seconds");
+        medium.CommitShot(); Tick(medium, 10);
+        Check(!medium.overheated && medium.RemainingTicks == 0, "medium low charge cools in exactly 10 ticks");
+        medium.charge = medium.mass = 96; medium.CommitShot(); Tick(medium, 960);
+        Check(!medium.overheated && medium.RemainingTicks == 0, "medium maximum charge cools in exactly 16 seconds");
         var mediumRapid = Gun(Def("DeltaV_Weapon_RapidMainMedium"));
         Check(mediumRapid.charge == 4 && mediumRapid.mass == 2 && mediumRapid.ShotHeat == 20
-            && mediumRapid.Settings.heatCapacity == 480 && mediumRapid.Settings.coolingPerSecond == 48,
+            && mediumRapid.Settings.heatCapacity == 340 && mediumRapid.Settings.coolingPerSecond == 85,
             "medium rapid uses fixed 4/2 load and increased thermal hardware");
         int BurstTicks(CompWeaponTuning gun) {
             for (int t = 0; t < 10000; t++) { if (gun.RemainingTicks == 0) gun.CommitShot(); if (gun.overheated) return t; Tick(gun, 1); }
             return -1;
         }
         int smallBurst = BurstTicks(Gun(Def("DeltaV_Weapon_RapidMainSmall"))), mediumBurst = BurstTicks(mediumRapid);
-        Check(smallBurst >= 360 && smallBurst <= 420 && mediumBurst >= 360 && mediumBurst <= 420,
-            $"default rapid overheat rhythms remain close: {smallBurst}/{mediumBurst} ticks");
+        Check(smallBurst == -1 && mediumBurst == 550,
+            $"default rapid burst durations match their thermal hardware: {smallBurst}/{mediumBurst} ticks");
         CheckShieldCapacity(repo);
         CheckTurretPowerAndShieldFacing();
     }

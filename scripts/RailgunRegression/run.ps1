@@ -1,5 +1,5 @@
 param([Parameter(Mandatory=$true)][string]$GameRoot,
-      [Parameter(Mandatory=$true)][string]$HarmonyPath, [switch]$EnergyOnly)
+      [Parameter(Mandatory=$true)][string]$HarmonyPath, [switch]$EnergyOnly, [switch]$RolePenetrationAudit, [switch]$EnergyImpulseAudit)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 $managed = (Resolve-Path "$GameRoot/RimWorldWin64_Data/Managed").Path
@@ -23,11 +23,14 @@ foreach ($name in @('AdaptiveStorageFramework', '1ITransformable')) {
 }
 foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'DeltaV.dll', '0Harmony.dll')) { $lines += '/r:"' + "$out/$name" + '"' }
 $lines += Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.cs' | ForEach-Object { '"' + $_.FullName + '"' }
+$lines += '"' + "$repo/scripts/WeaponTuningRegression/EnergyImpulseModel.cs" + '"'
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & dotnet "$($sdkVersion.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net8.0","framework":{"name":"Microsoft.NETCore.App","version":"8.0.0"}}}' | Set-Content -LiteralPath "$out/RailgunRegression.runtimeconfig.json"
 $regressionArguments = @($managed)
 if ($EnergyOnly) { $regressionArguments += "--energy-only" }
+if ($RolePenetrationAudit) { $regressionArguments += "--role-penetration-audit" }
+if ($EnergyImpulseAudit) { $regressionArguments += "--energy-impulse-audit" }
 & dotnet "$out/RailgunRegression.dll" @regressionArguments
 exit $LASTEXITCODE

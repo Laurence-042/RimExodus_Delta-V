@@ -3,7 +3,7 @@ using Verse;
 
 namespace DeltaV
 {
-    /// <summary>Projectile Def owns fragment composition and pulse energy; shield owns velocity change.</summary>
+    /// <summary>Projectile Def owns fragment composition; paid shield impulse changes velocity once.</summary>
     public static class SpaceShieldProjectileBehavior
     {
         public static bool IsKinetic(CompProperties_SpaceProjectile props) =>
@@ -14,8 +14,8 @@ namespace DeltaV
 
         public static void SpawnFragments(SpaceProjectileService service, ThingDef sourceDef,
             SpaceObject source, SpaceObject defender, Thing launcher, Vector3 hit,
-            Vector2 relativeVelocity, Vector2 outwardNormal, float normalEnergy, float mass,
-            float armorPenetrationScale, bool reflectedByShield = false)
+            Vector2 relativeVelocity, Vector2 outwardNormal, float impulse, float mass,
+            float armorPenetrationScale, bool reflectedByShield = false, float damageScale = 1f)
         {
             var props = sourceDef.GetCompProperties<CompProperties_SpaceProjectile>();
             if (!IsKinetic(props)) return;
@@ -23,15 +23,14 @@ namespace DeltaV
                 ?? DefDatabase<ThingDef>.GetNamedSilentFail("DeltaV_Projectile_ShieldFragment");
             if (fragmentDef == null) return;
             int count = Mathf.Clamp(props.shieldFragmentCount, 1, 12);
+            Vector2 outgoing = SpaceKinetics.ApplyShieldImpulse(mass, relativeVelocity, outwardNormal, impulse);
             for (int i = 0; i < count; i++)
             {
                 float span = count == 1 ? 0f : (2f * i / (count - 1) - 1f)
                     * props.shieldFragmentScatterDeg;
-                Vector2 fragmentVelocity = SpaceTransform.Rotate(relativeVelocity, span * Mathf.Deg2Rad);
-                fragmentVelocity = SpaceKinetics.ApplyShieldNormalEnergy(mass / count,
-                    fragmentVelocity, outwardNormal, normalEnergy / count);
+                Vector2 fragmentVelocity = SpaceTransform.Rotate(outgoing, span * Mathf.Deg2Rad);
                 service.LaunchShieldFragment(fragmentDef, source, defender, launcher,
-                    hit, fragmentVelocity, outwardNormal, mass / count, armorPenetrationScale, reflectedByShield);
+                    hit, fragmentVelocity, outwardNormal, mass / count, armorPenetrationScale, reflectedByShield, damageScale);
             }
         }
     }

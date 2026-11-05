@@ -4,7 +4,7 @@
   <ThingDef ParentName="GravshipComponentBase">
     <defName>DeltaV_ShieldGenerator</defName>
     <label>Delta-V shield generator</label>
-    <description>A three-mode shield. Guard shares 1000 regular capacity with this ship and keeps 2000 emergency capacity for local hits. After 10 seconds without regular consumption, powered recovery fills the regular capacity over one game hour at an additional 1000 W. Emergency capacity starts empty and each silver restores 5 points; its fuel gizmo sets the replenishment limit and automatic refueling. Kinetic fragments solid shots; electromagnetic refracts lasers. Line modes require power and do not share capacity.</description>
+    <description>A three-mode shield. Guard shares 750 regular capacity with this ship and keeps 750 emergency capacity locally. After 3 seconds without regular consumption it recovers 6 points per second using an additional 1,000 W; automatic reactivation defaults to 10%. Emergency capacity starts empty and each silver restores 5 points. Kinetic impulses slow, fragment or reflect solid shots depending on mass and strength; electromagnetic mode redirects lasers. Line modes require power.</description>
     <designationCategory>Security</designationCategory>
     <uiIconPath>Things/Building/SpaceWeapons/ShieldGenerator_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
@@ -38,8 +38,8 @@
         <compClass>CompPowerTrader</compClass><basePowerConsumption>10</basePowerConsumption>
       </li>
       <li Class="CompProperties_Refuelable">
-        <initialConfigurableTargetFuelLevel>2000</initialConfigurableTargetFuelLevel>
-        <fuelMultiplier>5</fuelMultiplier><fuelCapacity>2000</fuelCapacity><initialFuelPercent>0</initialFuelPercent>
+        <initialConfigurableTargetFuelLevel>750</initialConfigurableTargetFuelLevel>
+        <fuelMultiplier>5</fuelMultiplier><fuelCapacity>750</fuelCapacity><initialFuelPercent>0</initialFuelPercent>
         <fuelFilter><thingDefs><li>Silver</li></thingDefs></fuelFilter>
         <fuelLabel>emergency shield capacity</fuelLabel>
         <fuelGizmoLabel>Emergency shield</fuelGizmoLabel>

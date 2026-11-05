@@ -16,7 +16,7 @@ namespace DeltaV
     public class CompProperties_SpaceRailgun : CompProperties
     {
         public RailgunPartRole role = RailgunPartRole.Accelerator;
-        public float speedBonus = 20f;
+        public float kineticEnergyBonus = 216000f;
         public bool movesMuzzle = true;
         public IntVec3 outputOffset = IntVec3.Zero;
         public IntVec3 nextRootOffset = new IntVec3(0, 0, 1);
@@ -34,8 +34,8 @@ namespace DeltaV
             yield return SpaceCombatStats.Entry("DeltaV_StatSegmentEnergy",
                 SpaceCombatStats.WattDays(req.Thing?.TryGetComp<CompSpaceRailgun>() is { } segment
                     ? segment.ShotEnergy(segment.AttachedThings()) : shotEnergy), 5100);
-            yield return SpaceCombatStats.Entry("DeltaV_StatSpeedBonus",
-                speedBonus.ToString("0.##"), 5090);
+            yield return SpaceCombatStats.Entry("DeltaV_StatKineticEnergyBonus",
+                kineticEnergyBonus.ToString("0.##"), 5090);
             if (!attachmentSlots.NullOrEmpty())
                 yield return SpaceCombatStats.Entry("DeltaV_StatAttachmentSlots",
                     attachmentSlots.Count.ToString(), 5080);
@@ -44,20 +44,20 @@ namespace DeltaV
 
     public readonly struct SpaceWeaponAccelerationSolution
     {
-        public readonly float speedBonus;
+        public readonly float kineticEnergyBonus;
         public readonly Vector2? muzzleMap;
         public readonly List<CompSpaceRailgun> segments;
 
-        public SpaceWeaponAccelerationSolution(float speedBonus, Vector2? muzzleMap,
+        public SpaceWeaponAccelerationSolution(float kineticEnergyBonus, Vector2? muzzleMap,
             List<CompSpaceRailgun> segments)
         {
-            this.speedBonus = speedBonus;
+            this.kineticEnergyBonus = kineticEnergyBonus;
             this.muzzleMap = muzzleMap;
             this.segments = segments;
         }
     }
 
-    /// <summary>通用串联加速件；只修改速度和可选出膛位置。</summary>
+    /// <summary>通用串联加速件；按固定动能增量修改速度及可选出膛位置。</summary>
     public class CompSpaceRailgun : ThingComp
     {
         public CompProperties_SpaceRailgun RailProps => (CompProperties_SpaceRailgun)props;
@@ -142,7 +142,7 @@ namespace DeltaV
                         && !weapon.WeaponProps.allowedAcceleratorDefs.Contains(segment.parent.def)) break;
                     if (owner <= 0 || SpaceWeaponGeometry.OwnerIdOf(segment.parent) != owner) break;
                     used.Add(segment);
-                    bonus += segment.RailProps.speedBonus;
+                    bonus += segment.RailProps.kineticEnergyBonus;
                     if (segment.RailProps.movesMuzzle)
                     {
                         // 出膛点 = 段脚印中心 + 输出偏移（outputOffset 与 muzzleOffset 同为

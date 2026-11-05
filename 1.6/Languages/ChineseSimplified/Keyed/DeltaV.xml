@@ -315,7 +315,7 @@
   <DeltaV_StatAttachmentSlots>插件槽位</DeltaV_StatAttachmentSlots>
   <DeltaV_StatAmmoPerShot>每发弹药消耗</DeltaV_StatAmmoPerShot>
   <DeltaV_StatArmorPenetrationScale>护甲穿透倍率</DeltaV_StatArmorPenetrationScale>
-  <DeltaV_StatSpeedBonus>弹速提升</DeltaV_StatSpeedBonus>
+  <DeltaV_StatKineticEnergyBonus>加速动能</DeltaV_StatKineticEnergyBonus>
   <DeltaV_StatCapCapacity>电容储能上限</DeltaV_StatCapCapacity>
   <DeltaV_StatCapChargingPower>充电功率</DeltaV_StatCapChargingPower>
   <DeltaV_StatCapFullCharge>充满所需时间</DeltaV_StatCapFullCharge>

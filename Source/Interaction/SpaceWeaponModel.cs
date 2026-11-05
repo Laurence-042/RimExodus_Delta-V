@@ -53,11 +53,11 @@ namespace DeltaV
         private readonly Dictionary<CompSpaceWeaponAttachment, float> capacitors =
             new Dictionary<CompSpaceWeaponAttachment, float>();
         internal readonly List<CompSpaceRailgun> active = new List<CompSpaceRailgun>();
-        internal float speedBonus;
+        internal float kineticEnergyBonus;
         internal bool ready;
 
         internal void Clear()
-        { available.Clear(); reserved.Clear(); capacitors.Clear(); active.Clear(); speedBonus = 0f; ready = false; }
+        { available.Clear(); reserved.Clear(); capacitors.Clear(); active.Clear(); kineticEnergyBonus = 0f; ready = false; }
 
         internal bool Evaluate(CompSpaceWeapon weapon, bool includeSegments = true)
         {
@@ -78,7 +78,7 @@ namespace DeltaV
                         float cost = segment.ShotEnergy(attachments);
                         if (!ReserveAttachments(attachments, cost)
                             && !ReserveGrid(segment.parent, cost)) continue;
-                        active.Add(segment); speedBonus += segment.RailProps.speedBonus;
+                        active.Add(segment); kineticEnergyBonus += segment.RailProps.kineticEnergyBonus;
                     }
                 return true;
             }
@@ -180,11 +180,15 @@ namespace DeltaV
                 : weapon.WeaponProps.projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()?.mass ?? 1f;
         }
         internal static float BaseSpeed(CompSpaceWeapon weapon, CompSpaceWeaponMagazine magazine, float fallback) =>
-            weapon.Tuning?.Settings.chemical == true ? SpaceKinetics.LaunchSpeed(weapon.Tuning.charge, ProjectileMass(weapon, magazine)) : fallback;
+            weapon.Tuning?.Settings.chemical == true ? SpaceKinetics.LaunchSpeed(weapon.Tuning.charge, ProjectileMass(weapon, magazine))
+                : weapon.WeaponProps.launchKineticEnergy > 0f ? SpaceKinetics.Speed(ProjectileMass(weapon, magazine), weapon.WeaponProps.launchKineticEnergy) : fallback;
+        internal static float AcceleratedSpeed(float baseSpeed, float mass, float energy)
+            => energy > 0f ? SpaceKinetics.Speed(mass, SpaceKinetics.Energy(mass, baseSpeed) + energy) : baseSpeed;
         internal static float ProjectedSpeed(CompSpaceWeapon weapon, float baseSpeed)
         {
             baseSpeed = BaseSpeed(weapon, weapon.SelectMagazine(), baseSpeed);
-            return weapon.QueryEnergy.Evaluate(weapon) ? baseSpeed + weapon.QueryEnergy.speedBonus : baseSpeed;
+            return weapon.QueryEnergy.Evaluate(weapon) ? AcceleratedSpeed(baseSpeed,
+                ProjectileMass(weapon, weapon.SelectMagazine()), weapon.QueryEnergy.kineticEnergyBonus) : baseSpeed;
         }
 
 
@@ -202,7 +206,8 @@ namespace DeltaV
                 if (forShot || accelerated) energy.Evaluate(weapon);
                 else energy.Clear();
                 Vector2 muzzle = layout.acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
-                float speed = BaseSpeed(weapon, magazine, SpaceWeaponService.ProjectileSpeedOf(projectile)) + energy.speedBonus;
+                float speed = AcceleratedSpeed(BaseSpeed(weapon, magazine, SpaceWeaponService.ProjectileSpeedOf(projectile)),
+                    ProjectileMass(weapon, magazine), energy.kineticEnergyBonus);
                 return new SpaceWeaponParameters(magazine,
                     new WeaponAimInfo(SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzle),
                         muzzle, projectile, speed, weapon.WeaponProps.minRange, weapon.EffectiveRange), energy, ProjectileMass(weapon, magazine),

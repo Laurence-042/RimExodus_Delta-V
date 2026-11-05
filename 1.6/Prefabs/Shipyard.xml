@@ -44207,7 +44207,7 @@
           <tickDelta>3</tickDelta>
           <health>250</health>
           <parentThing>null</parentThing>
-          <configuredTargetFuelLevel>2000</configuredTargetFuelLevel>
+          <configuredTargetFuelLevel>750</configuredTargetFuelLevel>
           <allowAutoRefuel>True</allowAutoRefuel>
           <stunner>
             <showStunMote>True</showStunMote>
@@ -44222,8 +44222,9 @@
           <pos>(21, 0, 21)</pos>
           <rot>0</rot>
           <DeltaV_shieldGroundRadius>40</DeltaV_shieldGroundRadius>
-          <DeltaV_regularCapacity>1000</DeltaV_regularCapacity>
-          <fuel>2000</fuel>
+          <DeltaV_regularCapacity>750</DeltaV_regularCapacity>
+          <DeltaV_autoRejoinPercent>10</DeltaV_autoRejoinPercent>
+          <fuel>750</fuel>
         </saveable>
       </state>
     </li>
@@ -44361,7 +44362,7 @@
           <tickDelta>3</tickDelta>
           <health>250</health>
           <parentThing>null</parentThing>
-          <configuredTargetFuelLevel>2000</configuredTargetFuelLevel>
+          <configuredTargetFuelLevel>750</configuredTargetFuelLevel>
           <allowAutoRefuel>True</allowAutoRefuel>
           <stunner>
             <showStunMote>True</showStunMote>
@@ -44376,8 +44377,9 @@
           <pos>(21, 0, 92)</pos>
           <rot>0</rot>
           <DeltaV_shieldGroundRadius>40</DeltaV_shieldGroundRadius>
-          <DeltaV_regularCapacity>1000</DeltaV_regularCapacity>
-          <fuel>2000</fuel>
+          <DeltaV_regularCapacity>750</DeltaV_regularCapacity>
+          <DeltaV_autoRejoinPercent>10</DeltaV_autoRejoinPercent>
+          <fuel>750</fuel>
         </saveable>
       </state>
     </li>
@@ -44515,7 +44517,7 @@
           <tickDelta>3</tickDelta>
           <health>250</health>
           <parentThing>null</parentThing>
-          <configuredTargetFuelLevel>2000</configuredTargetFuelLevel>
+          <configuredTargetFuelLevel>750</configuredTargetFuelLevel>
           <allowAutoRefuel>True</allowAutoRefuel>
           <stunner>
             <showStunMote>True</showStunMote>
@@ -44530,8 +44532,9 @@
           <pos>(92, 0, 21)</pos>
           <rot>0</rot>
           <DeltaV_shieldGroundRadius>40</DeltaV_shieldGroundRadius>
-          <DeltaV_regularCapacity>1000</DeltaV_regularCapacity>
-          <fuel>2000</fuel>
+          <DeltaV_regularCapacity>750</DeltaV_regularCapacity>
+          <DeltaV_autoRejoinPercent>10</DeltaV_autoRejoinPercent>
+          <fuel>750</fuel>
         </saveable>
       </state>
     </li>
@@ -44669,7 +44672,7 @@
           <tickDelta>3</tickDelta>
           <health>250</health>
           <parentThing>null</parentThing>
-          <configuredTargetFuelLevel>2000</configuredTargetFuelLevel>
+          <configuredTargetFuelLevel>750</configuredTargetFuelLevel>
           <allowAutoRefuel>True</allowAutoRefuel>
           <stunner>
             <showStunMote>True</showStunMote>
@@ -44684,8 +44687,9 @@
           <pos>(92, 0, 92)</pos>
           <rot>0</rot>
           <DeltaV_shieldGroundRadius>40</DeltaV_shieldGroundRadius>
-          <DeltaV_regularCapacity>1000</DeltaV_regularCapacity>
-          <fuel>2000</fuel>
+          <DeltaV_regularCapacity>750</DeltaV_regularCapacity>
+          <DeltaV_autoRejoinPercent>10</DeltaV_autoRejoinPercent>
+          <fuel>750</fuel>
         </saveable>
       </state>
     </li>

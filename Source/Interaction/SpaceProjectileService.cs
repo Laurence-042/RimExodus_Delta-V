@@ -237,7 +237,7 @@ namespace DeltaV
 
         internal void LaunchShieldFragment(ThingDef def, SpaceObject source, SpaceObject defender,
             Thing launcher, Vector3 hit, Vector2 relativeVelocity, Vector2 outwardNormal, float mass,
-            float armorPenetrationScale, bool reflectedByShield)
+            float armorPenetrationScale, bool reflectedByShield, float damageScale = 1f)
         {
             float speed = relativeVelocity.magnitude;
             Vector2 travel = speed > .0001f ? relativeVelocity / speed : outwardNormal;
@@ -246,7 +246,7 @@ namespace DeltaV
             OrbitSphere.Basis(muzzle, out Vector3 east, out Vector3 north);
             Vector3 worldDirection = east * muzzleDirection.x + north * muzzleDirection.y;
             if (!Launch(def, null, muzzle, worldDirection, source?.faction, launcher, default,
-                new SpaceProjectileLaunchSpec(speed, 0, speed, 1f, armorPenetrationScale, mass))) return;
+                new SpaceProjectileLaunchSpec(speed, 0, speed, damageScale, armorPenetrationScale, mass))) return;
             Projectile fragment = projectiles[projectiles.Count - 1];
             fragment.sourceContainer = source;
             fragment.reflectedByShield = reflectedByShield || Vector2.Dot(relativeVelocity, outwardNormal) > 0f;
@@ -696,6 +696,7 @@ namespace DeltaV
                 body.onVisualContact = p.cannonTrace is { reported: false } trace
                     ? trace.onContact : QueueVisualContact;
                 body.didRedirect = false;
+                body.reflectedByShield = false;
                 body.continued = body.didContinue = false;
                 body.sweepRadius = FootprintRadius(p.def);
                 body.noseHalfWidth = p.adoptedShuttle ? p.def.Size.x * 0.5f : 0f;
@@ -753,12 +754,12 @@ namespace DeltaV
                     }
                 };
                 body.onShieldShatter = delegate (Vector3 hit, SpaceObject defender,
-                    Vector2 relativeVelocity, Vector2 outwardNormal, float normalEnergy)
+                    Vector2 relativeVelocity, Vector2 outwardNormal, float impulse)
                 {
                     SpaceShieldProjectileBehavior.SpawnFragments(this, captured.def,
                         captured.sourceContainer, defender, captured.launcher, hit,
-                        relativeVelocity, outwardNormal, normalEnergy, captured.mass * captured.body.damageScale,
-                        captured.armorPenetrationScale, captured.reflectedByShield);
+                        relativeVelocity, outwardNormal, impulse, captured.mass,
+                        captured.armorPenetrationScale, captured.reflectedByShield, captured.body.damageScale);
                 };
                 sweepScratch.Add(p);
                 bodyScratch.Add(body);
@@ -774,11 +775,12 @@ namespace DeltaV
             foreach (Projectile p in sweepScratch)
             {
                 if (p.dead || p.laser || !p.body.didRedirect) continue;
+                p.container.pose.velocity = SpaceTransform.TransportTangent(p.container.pose.velocity,
+                    p.container.pose.position, p.body.to);
                 p.container.pose.position = p.body.to;
-                Vector2 direction = p.body.redirectDirection;
-                float speed = p.container.pose.velocity.magnitude;
-                p.container.pose.velocity = direction * speed;
+                Vector2 direction = p.container.pose.velocity.normalized;
                 p.container.pose.angle = Mathf.Atan2(direction.y, direction.x);
+                p.reflectedByShield |= p.body.reflectedByShield;
             }
             foreach (Projectile p in sweepScratch)
             {

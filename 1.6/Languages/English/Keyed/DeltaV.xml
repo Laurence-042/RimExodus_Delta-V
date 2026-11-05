@@ -315,7 +315,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_StatAttachmentSlots>Attachment slots</DeltaV_StatAttachmentSlots>
   <DeltaV_StatAmmoPerShot>Ammunition per shot</DeltaV_StatAmmoPerShot>
   <DeltaV_StatArmorPenetrationScale>Armor penetration multiplier</DeltaV_StatArmorPenetrationScale>
-  <DeltaV_StatSpeedBonus>Speed bonus</DeltaV_StatSpeedBonus>
+  <DeltaV_StatKineticEnergyBonus>Acceleration energy</DeltaV_StatKineticEnergyBonus>
   <DeltaV_StatCapCapacity>Capacitor capacity</DeltaV_StatCapCapacity>
   <DeltaV_StatCapChargingPower>Charging power</DeltaV_StatCapChargingPower>
   <DeltaV_StatCapFullCharge>Empty to full</DeltaV_StatCapFullCharge>

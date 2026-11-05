@@ -158,7 +158,7 @@ internal static partial class Program
         var segments = new List<CompSpaceRailgun>();
         for (int i = 0; i < 2; i++)
         {
-            var segment = new CompSpaceRailgun { props = new CompProperties_SpaceRailgun { speedBonus = 120f } };
+            var segment = new CompSpaceRailgun { props = new CompProperties_SpaceRailgun { kineticEnergyBonus = 216000f } };
             var part = AddTestBuilding(map, faction, 19971 + i, TestBuildingDef("layoutSegment" + i), segment);
             MoveCombatFixture(part, new IntVec3(1, 0, 2 + i)); segments.Add(segment);
         }

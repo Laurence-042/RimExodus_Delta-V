@@ -6502,7 +6502,7 @@
           <def>DeltaV_ShieldGenerator</def>
           <health>250</health>
           <questTags IsNull="True" />
-          <configuredTargetFuelLevel>2000</configuredTargetFuelLevel>
+          <configuredTargetFuelLevel>750</configuredTargetFuelLevel>
           <allowAutoRefuel>True</allowAutoRefuel>
           <stunner>
             <showStunMote>True</showStunMote>
@@ -6517,8 +6517,9 @@
           <pos>(9, 0, 30)</pos>
           <rot>0</rot>
           <DeltaV_shieldGroundRadius>40</DeltaV_shieldGroundRadius>
-          <DeltaV_regularCapacity>1000</DeltaV_regularCapacity>
-          <fuel>2000</fuel>
+          <DeltaV_regularCapacity>750</DeltaV_regularCapacity>
+          <DeltaV_autoRejoinPercent>10</DeltaV_autoRejoinPercent>
+          <fuel>750</fuel>
           <DeltaV_shieldProjection>32</DeltaV_shieldProjection>
           <DeltaV_shieldLength>32</DeltaV_shieldLength>
         </saveable>

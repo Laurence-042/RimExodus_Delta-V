@@ -253,7 +253,7 @@
         <maxCharge>32</maxCharge>
         <maxMass>32</maxMass>
         <heatPerShot>4</heatPerShot>
-        <coolingPerSecond>12</coolingPerSecond>
+        <coolingPerSecond>16</coolingPerSecond>
         <lockEveryShot>true</lockEveryShot>
       </li>
     </comps>
@@ -337,7 +337,8 @@
         <maxCharge>1</maxCharge>
         <maxMass>1</maxMass>
         <heatPerShot>5</heatPerShot>
-        <coolingPerSecond>10</coolingPerSecond>
+        <coolingPerSecond>40</coolingPerSecond>
+        <heatCapacity>160</heatCapacity>
         <lockEveryShot>false</lockEveryShot>
         <minInterval>6</minInterval>
         <maxInterval>30</maxInterval>
@@ -491,7 +492,7 @@
         <maxCharge>96</maxCharge>
         <maxMass>96</maxMass>
         <heatPerShot>4</heatPerShot>
-        <coolingPerSecond>16</coolingPerSecond>
+        <coolingPerSecond>24</coolingPerSecond>
         <lockEveryShot>true</lockEveryShot>
       </li>
     </comps>
@@ -580,8 +581,8 @@
         <maxCharge>4</maxCharge>
         <maxMass>2</maxMass>
         <heatPerShot>5</heatPerShot>
-        <coolingPerSecond>48</coolingPerSecond>
-        <heatCapacity>480</heatCapacity>
+        <coolingPerSecond>85</coolingPerSecond>
+        <heatCapacity>340</heatCapacity>
         <lockEveryShot>false</lockEveryShot>
         <minInterval>4</minInterval>
         <maxInterval>30</maxInterval>
@@ -903,6 +904,7 @@
         <cooldownTicks>1800</cooldownTicks>
         <minRange>20</minRange>
         <range>420</range>
+        <launchKineticEnergy>324000</launchKineticEnergy>
         <shotEnergy>1800</shotEnergy>
         <impactScale>1</impactScale>
         <muzzleFlashSize>2.6</muzzleFlashSize>
@@ -1013,6 +1015,7 @@
         <cooldownTicks>2400</cooldownTicks>
         <minRange>30</minRange>
         <range>600</range>
+        <launchKineticEnergy>648000</launchKineticEnergy>
         <shotEnergy>3600</shotEnergy>
         <impactScale>1</impactScale>
         <muzzleFlashSize>3.6</muzzleFlashSize>
@@ -1045,7 +1048,7 @@
     <defName>DeltaV_Weapon_RailgunAccelerator</defName>
     <uiOrder>-191</uiOrder>
     <label>small rail accelerator</label>
-    <description>A serial rail segment requiring 1,200 Wd per shot. Each funded segment adds 120 cells per second, increasing penetration and shield impact. An unfunded segment is skipped. Each side accepts a capacitor or an energy recovery module. Each recovery module reduces this segment's pulse cost by 25%, up to 50% with two.</description>
+    <description>An accelerator for a small railgun. Each paid pulse costs 1,800 Wd and adds a fixed amount of kinetic energy, improving penetration. Unfunded segments are skipped. Each side accepts a capacitor or an energy recovery module. Two full capacitors supply two local pulses; two recovery modules halve this segment's grid cost.</description>
     <uiIconPath>Things/Building/SpaceWeapons/RailgunAccelerator_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
     <building>
@@ -1093,8 +1096,8 @@
       </li>
       <li Class="DeltaV.CompProperties_SpaceRailgun">
         <role>Accelerator</role>
-        <speedBonus>120</speedBonus>
-        <shotEnergy>1200</shotEnergy>
+        <kineticEnergyBonus>216000</kineticEnergyBonus>
+        <shotEnergy>1800</shotEnergy>
         <movesMuzzle>true</movesMuzzle>
         <outputOffset>(0,0,1)</outputOffset>
         <nextRootOffset>(0,0,1)</nextRootOffset>
@@ -1125,7 +1128,7 @@
     <defName>DeltaV_Weapon_RailgunAcceleratorLarge</defName>
     <uiOrder>-188</uiOrder>
     <label>large rail accelerator</label>
-    <description>A large serial rail segment requiring 2,400 Wd per shot. Each funded segment adds 120 cells per second, increasing penetration and shield impact. An unfunded segment is skipped. Each side accepts a capacitor or an energy recovery module. Each recovery module reduces this segment's pulse cost by 25%, up to 50% with two.</description>
+    <description>An accelerator for a large railgun. Each paid pulse costs 3,600 Wd and adds a fixed amount of kinetic energy. Unfunded segments are skipped. Two full capacitors supply two local pulses; two energy recovery modules halve this segment's grid cost.</description>
     <uiIconPath>Things/Building/SpaceWeapons/RailgunAccelerator_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
     <building>
@@ -1173,8 +1176,8 @@
       </li>
       <li Class="DeltaV.CompProperties_SpaceRailgun">
         <role>Accelerator</role>
-        <speedBonus>120</speedBonus>
-        <shotEnergy>2400</shotEnergy>
+        <kineticEnergyBonus>432000</kineticEnergyBonus>
+        <shotEnergy>3600</shotEnergy>
         <movesMuzzle>true</movesMuzzle>
         <outputOffset>(0,0,1)</outputOffset>
         <nextRootOffset>(0,0,2)</nextRootOffset>
@@ -1363,7 +1366,7 @@
     <defName>DeltaV_Building_RailgunCapacitor</defName>
     <uiOrder>-190</uiOrder>
     <label>small railgun capacitor</label>
-    <description>A capacitor for a small railgun loading unit or accelerator. It starts empty and stores 3,600 Wd, enough for two loading-unit base pulses or three accelerator pulses. It charges at 1,000 W and takes 216,000 ticks from empty to full. When insufficiently charged, its host draws the full pulse from grid batteries.</description>
+    <description>Stores 1,800 Wd for a small railgun loading unit or accelerator, enough for one local pulse. Starts empty; charging at 1,000 W takes 43.2 game hours. Insufficient local charge makes the host draw the whole pulse from grid batteries.</description>
     <thingClass>Building</thingClass>
     <tickerType>Normal</tickerType>
     <passability>Standable</passability>
@@ -1392,7 +1395,7 @@
       <li Class="CompProperties_Forbiddable" />
       <li Class="DeltaV.CompProperties_SwitchableBattery">
         <basePowerConsumption>0</basePowerConsumption>
-        <capacityWattDays>3600</capacityWattDays>
+        <capacityWattDays>1800</capacityWattDays>
         <initialEnergyPercent>0</initialEnergyPercent>
         <chargingWatts>1000</chargingWatts>
         <maxOutputWatts>1000</maxOutputWatts>
@@ -1409,7 +1412,7 @@
     <defName>DeltaV_Building_RailgunCapacitorLarge</defName>
     <uiOrder>-187</uiOrder>
     <label>large railgun capacitor</label>
-    <description>A capacitor for a large railgun loading unit or accelerator. It starts empty and stores 7,200 Wd, enough for two loading-unit base pulses or three accelerator pulses. It charges at 2,000 W and takes 216,000 ticks from empty to full. When insufficiently charged, its host draws the full pulse from grid batteries.</description>
+    <description>Stores 3,600 Wd for a large railgun loading unit or accelerator, enough for one local pulse. Starts empty; charging at 2,000 W takes 43.2 game hours. Insufficient local charge makes the host draw the whole pulse from grid batteries.</description>
     <costList Inherit="False"><Steel>840</Steel><Plasteel>120</Plasteel><ComponentIndustrial>24</ComponentIndustrial><ComponentSpacer>4</ComponentSpacer></costList>
     <statBases>
       <WorkToBuild>12000</WorkToBuild>
@@ -1419,7 +1422,7 @@
       <li Class="CompProperties_Forbiddable" />
       <li Class="DeltaV.CompProperties_SwitchableBattery">
         <basePowerConsumption>0</basePowerConsumption>
-        <capacityWattDays>7200</capacityWattDays>
+        <capacityWattDays>3600</capacityWattDays>
         <initialEnergyPercent>0</initialEnergyPercent>
         <chargingWatts>2000</chargingWatts>
         <maxOutputWatts>2000</maxOutputWatts>
@@ -1473,6 +1476,7 @@
         <shieldFragmentCost>2</shieldFragmentCost>
         <shieldFragmentDef>DeltaV_Projectile_RailFragment</shieldFragmentDef>
         <shieldFragmentCount>4</shieldFragmentCount>
+        <shieldBreakDeltaV>0.5</shieldBreakDeltaV>
         <shieldFragmentScatterDeg>8</shieldFragmentScatterDeg>
       </li>
     </comps>

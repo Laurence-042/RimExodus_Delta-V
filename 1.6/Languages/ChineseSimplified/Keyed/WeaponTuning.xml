@@ -13,7 +13,7 @@
   <DeltaV_ThermalReady>未过热</DeltaV_ThermalReady>
   <DeltaV_ShotLoad>每发用量：{0} 份装药、{1} 份弹头\n弹丸质量：{2} 单位；初速：{3} 格/秒；射击间隔：{4} 秒</DeltaV_ShotLoad>
   <DeltaV_PulseEnergy>每束耗电：{0} W·d</DeltaV_PulseEnergy>
-  <DeltaV_ShieldKineticEnergyReference>法向预算：{0} 单位。0% 只碎裂；提高强度仅减慢朝内运动，有余量才外推，沿盾面速度保留。耗电随强度增加，欠费按已付部分生效。</DeltaV_ShieldKineticEnergyReference>
+  <DeltaV_ShieldKineticImpulseReference>法向冲量：{0}。重弹更难减速和碎裂，细长轨道弹芯更易折断；高出力可反射轻弹。零强度无作用，欠费只施加付得起的冲量。</DeltaV_ShieldKineticImpulseReference>
   <DeltaV_HeadSupply>弹头储备</DeltaV_HeadSupply>
   <DeltaV_PropellantSupply>装药储备</DeltaV_PropellantSupply>
 </LanguageData>

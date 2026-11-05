@@ -13,7 +13,7 @@ namespace DeltaV
         // The interceptor uses hitPoints=0 / currentHitPoints=-1 (no native HP accounting).
         private double regularCapacity;
         private int recoveryWaitTicks;
-        private int autoRejoinPercent = 100;
+        private int autoRejoinPercent = 10;
         private GuardEmergencyReason emergencyReason;
         public double RegularCapacity => regularCapacity;
         private CompRefuelable EmergencyFuel => silverFuel ??= parent.TryGetComp<CompRefuelable>();
@@ -43,7 +43,7 @@ namespace DeltaV
             Scribe_Values.Look(ref regularCapacity, "DeltaV_regularCapacity", (double)ShieldProps.regularCapacity);
             Scribe_Values.Look(ref recoveryWaitTicks, "DeltaV_regularRecoveryWait");
             Scribe_Values.Look(ref emergencyReason, "DeltaV_emergencyReason");
-            Scribe_Values.Look(ref autoRejoinPercent, "DeltaV_autoRejoinPercent", 100);
+            Scribe_Values.Look(ref autoRejoinPercent, "DeltaV_autoRejoinPercent", 10);
         }
 
         internal void AdvanceGuardTick(bool powered)

@@ -26,7 +26,7 @@ internal static partial class Program
             new CompProperties_Refuelable { fuelCapacity = small ? 1000 : 2000, initialFuelPercent = 1,
                 consumeFuelOnlyWhenUsed = true, targetFuelLevelConfigurable = true,
                 initialConfigurableTargetFuelLevel = small ? 1000 : 2000, showAllowAutoRefuelToggle = true },
-            new CompProperties_SpaceShield { regularCapacity = small ? 0 : 1000, emergencyCapacity = small ? 1000 : 2000 }
+            new CompProperties_SpaceShield { recoveryDelayTicks = 600, guardRecoveryTicks = 2500, regularCapacity = small ? 0 : 1000, emergencyCapacity = small ? 1000 : 2000 }
         } } };
         body.InitializeComps();
         typeof(CompProperties_Refuelable).GetField("fuelMultiplier", PrivateInstance)
@@ -41,6 +41,16 @@ internal static partial class Program
         typeof(Game).GetField("maps", PrivateInstance).SetValue(Current.Game, new List<Map> { null });
         try
         {
+            var standard = Shield();
+            standard.props = new CompProperties_SpaceShield(); standard.PostPostMake();
+            standard.parent.GetComp<CompRefuelable>().ConsumeFuel(1250);
+            Check(standard.RegularCapacity == 750 && standard.EmergencyCapacity == 750 && standard.AutoRejoinPercent == 10,
+                "current standard starts with 750 regular and defaults to 10 percent rejoin");
+            Check(Hit(standard, 1500) == 1500 && !standard.HasGuardCapacity, "750 plus 750 absorbs exactly 1500");
+            ShieldTicks(standard, 929);
+            Check(!standard.UsesRegular && Math.Abs(standard.RegularCapacity - 74.9) < .001, "standard waits three seconds then restores six points per second");
+            ShieldTicks(standard, 1);
+            Check(standard.UsesRegular && Math.Abs(standard.RegularCapacity - 75) < .001, "standard rejoins after 15.5 seconds without free emergency refill");
             foreach (int count in new[] { 1, 4, 8 })
             {
                 var pool = Enumerable.Range(0, count).Select(_ => Shield()).ToArray();
@@ -180,7 +190,7 @@ internal static partial class Program
                 var body = new Building { def = new ThingDef { comps = new() { props } } };
                 body.InitializeComps(); var stock = body.GetComp<CompRefuelable>(); stock.PostPostMake();
                 Check(stock.Fuel == 0 && stock.GetFuelCountToFullyRefuel() == props.fuelCapacity / 5,
-                    "real shield Def starts empty and requests 400 or 200 silver");
+                    "real shield Def starts empty and requests 150 or 200 silver");
             }
             Check(xml.Descendants("hitPoints").All(x => x.Value == "0"),
                 "both Delta-V defs disable native HP accounting while retaining native interception");

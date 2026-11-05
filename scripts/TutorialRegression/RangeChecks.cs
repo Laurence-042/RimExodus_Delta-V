@@ -49,7 +49,7 @@ internal static partial class Program
             var segment=new CompSpaceRailgun { parent=b,props=new CompProperties_SpaceRailgun {
                 nextRootOffset=IntVec3.FromString(segmentNode["nextRootOffset"].InnerText),
                 outputOffset=IntVec3.FromString(segmentNode["outputOffset"].InnerText),
-                speedBonus=float.Parse(segmentNode["speedBonus"].InnerText,System.Globalization.CultureInfo.InvariantCulture) } };
+                kineticEnergyBonus=float.Parse(segmentNode["kineticEnergyBonus"].InnerText,System.Globalization.CultureInfo.InvariantCulture) } };
             Set(b,"comps",new List<ThingComp> {segment});
         }
         var starts=Def(loader.def.defName).SelectNodes("comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']/acceleratorStarts/li");
@@ -63,7 +63,7 @@ internal static partial class Program
         try
         {
             var chain=CompSpaceRailgun.TraceConnections(weapon);
-            Check(chain.segments.Count==3 && chain.speedBonus==360f,"production trace reaches all three accelerators");
+            Check(chain.segments.Count==3 && chain.kineticEnergyBonus==648000f,"production trace reaches all three accelerators");
             var last=chain.segments.Last().parent.OccupiedRect();
             var muzzleCell=new IntVec3(Mathf.FloorToInt(chain.muzzleMap.Value.x),0,Mathf.FloorToInt(chain.muzzleMap.Value.y));
             Check(chain.muzzleMap.HasValue && chain.muzzleMap.Value.x>last.maxX+1

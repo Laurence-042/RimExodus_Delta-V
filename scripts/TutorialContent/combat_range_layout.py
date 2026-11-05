@@ -119,9 +119,10 @@ def prepare_state(r, state, field, prop):
             if node is not None: state.remove(node)
         field(state,'currentHitPoints','-1')
         field(state,'DeltaV_shieldMode','Guard')
-        field(state,'DeltaV_regularCapacity','1000')
-        field(state,'fuel','2000')
-        field(state,'configuredTargetFuelLevel','2000')
+        field(state,'DeltaV_regularCapacity','750')
+        field(state,'DeltaV_autoRejoinPercent','10')
+        field(state,'fuel','750')
+        field(state,'configuredTargetFuelLevel','750')
         field(state,'DeltaV_shieldProjection','32')
         field(state,'DeltaV_shieldLength','32')
 

@@ -1,4 +1,4 @@
-param([string]$GameRoot = 'D:/SteamLibrary/steamapps/common/RimWorld', [string]$DeltaVAssembly)
+param([string]$GameRoot = 'D:/SteamLibrary/steamapps/common/RimWorld', [string]$DeltaVAssembly, [switch]$OutputAudit, [switch]$ShieldDurationAudit, [switch]$ThermalBalanceAudit, [switch]$RoleBalanceAudit, [switch]$EnergyImpulseAudit)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 if (!$DeltaVAssembly) { $DeltaVAssembly = "$repo/1.7/Assemblies/DeltaV.dll" }
@@ -19,5 +19,17 @@ $lines | Set-Content -LiteralPath "$out/build.rsp"
 & $dotnet "$($sdk.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net10.0","framework":{"name":"Microsoft.NETCore.App","version":"10.0.0"}}}' | Set-Content -LiteralPath "$out/WeaponTuningRegression.runtimeconfig.json"
-& $dotnet "$out/WeaponTuningRegression.dll" $GameRoot $repo
+if ($EnergyImpulseAudit) {
+    & $dotnet "$out/WeaponTuningRegression.dll" $GameRoot $repo --energy-impulse-audit
+} elseif ($RoleBalanceAudit) {
+    & $dotnet "$out/WeaponTuningRegression.dll" $GameRoot $repo --role-balance-audit
+} elseif ($ThermalBalanceAudit) {
+    & $dotnet "$out/WeaponTuningRegression.dll" $GameRoot $repo --thermal-balance-audit
+} elseif ($ShieldDurationAudit) {
+    & $dotnet "$out/WeaponTuningRegression.dll" $GameRoot $repo --shield-duration-audit
+} elseif ($OutputAudit) {
+    & $dotnet "$out/WeaponTuningRegression.dll" $GameRoot $repo --output-audit
+} else {
+    & $dotnet "$out/WeaponTuningRegression.dll" $GameRoot $repo
+}
 exit $LASTEXITCODE

@@ -10,7 +10,7 @@
 | --- | --- |
 | `TopologyBenchmark/run.ps1` | 250×250 基架连通性离线对拍与性能比较：原样 TopologyLab、HLT 分层 Euler-tour tree、全量 BFS；[方法与复现](TopologyBenchmark/README.md)、[实测结论](TopologyBenchmark/RESULTS.md)，不代表游戏 TPS |
 | `FoundationTopologyRegression/run.ps1` | 直接编译生产拓扑／归属计数／地图服务，与独立 BFS 对拍，含 250×250 场景和缓存生命周期；[接入回归说明](FoundationTopologyRegression/README.md) |
-| `WeaponTuningRegression/run.ps1` | 当前 1.7 武器数值／伤害回归，详见其 README |
+| `WeaponTuningRegression/run.ps1` | 当前 1.7 武器数值／伤害回归；`-OutputAudit` 扫描全部调校组合及现行盾；`-ShieldDurationAudit` 追加候选盾容／恢复、多炮齐射与间歇交火时长对照，均调用生产组件、不改游戏数值，详见其 README |
 | `RailgunRegression/run.ps1 -EnergyOnly` | 1.6 真实能量事务与货柜／终端专项，加载安装版 ASF；包括双回收／混装电容、折后费用、室外温控、原版覆盖规则和终端 God Mode 建造与配置／补货派系及调试开关／地图货源／原版交易信标与成交复核，以及原版战利品箱封存／骇入开箱、两种形态的库存与配置往返及失败回滚，不启动游戏 |
 | `preview_equipment_cost_art.py` | 只读设备 Def 与三张新贴图，输出四向、实际格尺寸及宿主槽位叠画预览，不改正式贴图 |
 | `CombatStrategyRegression/` | 使用最小占位类型的策略、曲线与文件校验；不替代游戏运行时验证 |

@@ -142,6 +142,7 @@ namespace DeltaV
             public Vector3 continuePoint;
             public bool redirected;
             public bool didRedirect;
+            public bool reflectedByShield;
             public Vector3 redirectPoint;
             public Vector2 redirectDirection;
             public float redirectRemaining;
@@ -655,17 +656,20 @@ namespace DeltaV
                 if (lineShield.mode == SpaceShieldMode.Kinetic)
                 {
                     Vector2 relative = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, defender.pose, hit);
-                    float baseCost = projectileProps.shieldFragmentCost;
-                    float kineticCost = SpaceKinetics.ShieldCost(
-                        SpaceKinetics.ShieldNormalEnergy(lineShield.kineticStrengthPercent), baseCost);
-                    float paid = lineShield.ConsumePulseFraction(kineticCost) * kineticCost;
-                    float normalEnergy = Mathf.Max(0f, paid - baseCost) * SpaceKinetics.EnergyUnitsPerWattDay;
+                    Vector2 worldNormal = SpaceTransform.MapDirectionToUniverseTangent(defender, defMap, linePoint, lineNormal);
+                    float impulse = lineShield.ConsumeKineticImpulse(body.mass, Vector2.Dot(relative, worldNormal),
+                        SpaceKinetics.ShieldImpulse(lineShield.kineticStrengthPercent), projectileProps.shieldFragmentCost);
+                    if (impulse <= 0f)
+                    {
+                        body.continued = true;
+                        body.continuePoint = hit;
+                        return true;
+                    }
                     body.resolvedHit = true;
                     body.resolvedHitShield = true;
                     body.resolvedHitUniverse = hit;
                     body.resolvedHitDefender = defender;
                     body.resolvedHitLocal = linePoint;
-                    Vector2 worldNormal = SpaceTransform.MapDirectionToUniverseTangent(defender, defMap, linePoint, lineNormal);
                     body.onVisualContact?.Invoke(new VisualContact
                     {
                         defender = defender, projectileDef = body.projectileDef, position = hit, pathFrom = body.from,
@@ -673,9 +677,23 @@ namespace DeltaV
                         damageScale = body.damageScale, shieldMode = SpaceShieldMode.Kinetic,
                         lineStart = lineStart, lineEnd = lineEnd
                     });
-                    body.onShieldShatter?.Invoke(hit, defender, relative, worldNormal, normalEnergy);
-                    body.dead = true;
-                    body.onSelfDestruct?.Invoke();
+                    if (SpaceKinetics.Shatters(body.mass, impulse, projectileProps))
+                    {
+                        body.onShieldShatter?.Invoke(hit, defender, relative, worldNormal, impulse);
+                        body.dead = true;
+                        body.onSelfDestruct?.Invoke();
+                        return true;
+                    }
+                    // Surviving rounds retain their identity, lifetime, mass and remaining damage scale.
+                    Vector2 outgoingRelative = SpaceKinetics.ApplyShieldImpulse(body.mass, relative, worldNormal, impulse);
+                    body.reflectedByShield |= Vector2.Dot(outgoingRelative, worldNormal) > 0f;
+                    Vector2 outgoingWorld = outgoingRelative + SpaceTransform.VelocityAtUniversePoint(defender.pose, hit);
+                    float beforeSpeed = body.attacker.pose.velocity.magnitude;
+                    body.attacker.pose.velocity = SpaceTransform.TransportTangent(outgoingWorld, hit, body.attacker.pose.position);
+                    body.redirected = true;
+                    body.redirectPoint = hit;
+                    body.redirectDirection = outgoingWorld.sqrMagnitude > 1e-8f ? outgoingWorld.normalized : worldNormal;
+                    body.redirectRemaining = beforeSpeed > .0001f ? (length - lineAlong) * outgoingWorld.magnitude / beforeSpeed : 0f;
                     return true;
                 }
                 int strength = lineShield.electromagneticStrengthPercent;

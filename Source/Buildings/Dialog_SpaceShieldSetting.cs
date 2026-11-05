@@ -92,8 +92,8 @@ namespace DeltaV
                 return "DeltaV_ShieldGuardReference".Translate(shield.ShieldProps.regularCapacity, shield.ShieldProps.emergencyCapacity);
             if (shield.mode == SpaceShieldMode.Kinetic)
             {
-                float energy = SpaceKinetics.ShieldNormalEnergy(shield.kineticStrengthPercent);
-                return "DeltaV_ShieldKineticEnergyReference".Translate(energy.ToString("F0"));
+                float impulse = SpaceKinetics.ShieldImpulse(shield.kineticStrengthPercent);
+                return "DeltaV_ShieldKineticImpulseReference".Translate(impulse.ToString("F0"));
             }
             Vector2 incoming = new Vector2(0.5f, -0.8660254f);
             SpaceShieldRefraction.Plan plan = SpaceShieldRefraction.Calculate(incoming, Vector2.up,

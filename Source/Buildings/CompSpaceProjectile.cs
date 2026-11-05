@@ -78,8 +78,9 @@ namespace DeltaV
         public float exhaustSize = 1f;
         public int smokeLifetimeTicks = 120;
 
-        /// <summary>将实弹碎裂的固定脉冲电费（W·d）。</summary>
+        /// <summary>实弹盾响应的触发电费（W·d）；零冲量不收费。</summary>
         public float shieldFragmentCost = 2f;
+        public float shieldBreakDeltaV = 4.5f;
         /// <summary>激光主动偏转 180 度的脉冲电费（W·d）。</summary>
         public float shieldLaserTurnEnergy = 2f;
         public ThingDef shieldFragmentDef;

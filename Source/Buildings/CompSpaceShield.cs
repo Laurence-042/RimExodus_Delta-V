@@ -35,9 +35,9 @@ namespace DeltaV
         public float spaceProjectionPowerWatts = 1f;
         public float spaceLengthPowerWatts = 1.5f;
         public int pulseFailureTicks = 180;
-        public int guardRecoveryTicks = 2500;
-        public int regularCapacity = 1000, emergencyCapacity = 2000;
-        public int recoveryDelayTicks = 600;
+        public int guardRecoveryTicks = 7500;
+        public int regularCapacity = 750, emergencyCapacity = 750;
+        public int recoveryDelayTicks = 180;
         public float recoveryPowerWatts = 1000f;
 
         public CompProperties_SpaceShield()
@@ -251,16 +251,34 @@ namespace DeltaV
             end = center + tangent * (length * 0.5f);
         }
 
+        private float AvailablePulseEnergy()
+        {
+            float available = 0f;
+            if (power?.PowerNet != null)
+                foreach (CompPowerBattery battery in power.PowerNet.batteryComps)
+                    if (!battery.StunnedByEMP) available += Mathf.Max(0f, battery.StoredEnergy);
+            return available;
+        }
+
+        public float ConsumeKineticImpulse(float mass, float normalSpeed, float requested, float baseCost)
+        {
+            if (State != SpaceShieldState.LineActive) return 0f;
+            float desired = SpaceKinetics.ShieldCost(mass, normalSpeed, requested, baseCost);
+            float available = AvailablePulseEnergy();
+            float impulse = SpaceKinetics.FundedShieldImpulse(mass, normalSpeed, requested, baseCost, available);
+            ConsumePulseFraction(SpaceKinetics.ShieldCost(mass, normalSpeed, impulse, baseCost));
+            if (available < desired)
+                disabledUntilTick = Find.TickManager.TicksGame + ShieldProps.pulseFailureTicks;
+            return impulse;
+        }
+
         /// <summary>Pay once from the shared net and return the actually funded fraction.</summary>
         public float ConsumePulseFraction(float wattDays)
         {
             if (State != SpaceShieldState.LineActive) return 0f;
             if (wattDays <= 0f) return 1f;
             PowerNet net = power?.PowerNet;
-            float available = 0f;
-            if (net != null)
-                foreach (CompPowerBattery battery in net.batteryComps)
-                    if (!battery.StunnedByEMP) available += Mathf.Max(0f, battery.StoredEnergy);
+            float available = AvailablePulseEnergy();
             float paid = Mathf.Min(available, wattDays);
             float remaining = paid;
             if (net != null)

@@ -85,6 +85,7 @@ namespace DeltaV
 
         /// <summary>逐发从本武器所在电网蓄电池提取的能量（W·d）；持续功耗仍由 CompPowerTrader 负责。</summary>
         public float shotEnergy;
+        public float launchKineticEnergy;
 
         /// <summary>本武器对联合命中效果的倍率；弹体 Def 仍是效果注册表键。</summary>
         public float impactScale = 1f;
