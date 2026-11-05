@@ -19,15 +19,12 @@ namespace DeltaV
             QuestGen.slate.Set("resolvedQuestDescription", "DeltaV_Tutorial_Description".Translate().ToString());
             quest.AddPart(new QuestPart_DeltaVTutorial { inSignalEnable = quest.InitiateSignal });
             AddDialog(quest, TutorialStage.Welcome, "AcceptWelcome", "DeltaV_Tutorial_AcceptWelcome");
-            AddDialog(quest, TutorialStage.Contact, "Acknowledged", "DeltaV_Tutorial_FindComms");
             AddDialog(quest, TutorialStage.Inquiry, "AskPurpose", "DeltaV_Tutorial_AskPurpose");
             AddDialog(quest, TutorialStage.Briefing, "StartFlight", "DeltaV_Tutorial_StartFlight");
             AddDialog(quest, TutorialStage.Design, "StartPractice", "DeltaV_Tutorial_StartPractice");
             AddDialog(quest, TutorialStage.Flight, "CheckFlight", "DeltaV_Tutorial_CheckFlight");
             AddDialog(quest, TutorialStage.Salvage, "CheckSalvage", "DeltaV_Tutorial_CheckSalvage");
-            AddDialog(quest, TutorialStage.Range, "VisitRange", "DeltaV_Range_Visit");
-            AddDialog(quest, TutorialStage.SoftDock, "CheckSoftDock", "DeltaV_Tutorial_CheckSoftDock");
-            AddDialog(quest, TutorialStage.RangePractice, "FinishRange", "DeltaV_Range_Finish");
+            AddDialog(quest, TutorialStage.Range, "GoToShipyard", "DeltaV_Range_Visit");
             AddDialog(quest, TutorialStage.Visit, "AcceptShip", "DeltaV_Tutorial_AcceptShip");
             quest.AddPart(new QuestPart_QuestEnd
             { inSignal = DeltaVTutorialService.Signal(quest, "Completed"), outcome = QuestEndOutcome.Success, sendLetter = true });

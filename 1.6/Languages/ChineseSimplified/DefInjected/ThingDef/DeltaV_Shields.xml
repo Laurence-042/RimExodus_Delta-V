@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <DeltaV_ShieldGenerator.label>Delta-V 护盾发生器</DeltaV_ShieldGenerator.label>
-  <DeltaV_ShieldGenerator.description>三模式护盾。守卫模式提供同船共享的 750 常规容量与本地 750 应急容量；常规停止消耗 3 秒后，以额外 1000 W 每秒恢复 6 点，默认恢复至 10% 自动重新启用。应急容量建成时为空，每银补充 5 点。动能模式减速或反推正入射实弹；斜入射按侧向冲量与弹重翻滚或撕裂；电磁模式偏转激光。两种线盾需要供电。</DeltaV_ShieldGenerator.description>
+  <DeltaV_ShieldGenerator.description>三模式护盾。守卫模式提供同船共享的 750 常规容量与本地 750 应急容量；常规停止消耗 3 秒后，以额外 1000 W 每秒恢复 6 点，默认恢复至 10% 自动重新启用。应急容量建成时为空，每银补充 3 点。动能模式减速或反推正入射实弹；斜入射按侧向冲量与弹重翻滚或撕裂；电磁模式偏转激光。两种线盾需要供电。</DeltaV_ShieldGenerator.description>
   <DeltaV_ShieldGeneratorSmall.label>Delta-V 小型护盾发生器</DeltaV_ShieldGeneratorSmall.label>
-  <DeltaV_ShieldGeneratorSmall.description>适合小船的三模式护盾，可切换守卫圆盾、动能线盾或电磁线盾。\n\n守卫模式只有 1000 点应急盾容，保护自己的圆盾范围。没有可自动恢复的常规盾容，也不能借用其他发生器的盾容；新建应急储量为空，每 1 白银补充 5 点应急盾容，可通过应急护盾控件设置补充上限及自动补给。\n\n动能线盾减速实弹，并使斜入射弹翻滚或撕裂，电磁线盾使激光偏转。两者都需要供电，投射距离和长度上限均为 16 格。</DeltaV_ShieldGeneratorSmall.description>
+  <DeltaV_ShieldGeneratorSmall.description>适合小船的三模式护盾，可切换守卫圆盾、动能线盾或电磁线盾。\n\n守卫模式只有 1000 点应急盾容，保护自己的圆盾范围。没有可自动恢复的常规盾容，也不能借用其他发生器的盾容；新建应急储量为空，每 1 白银补充 3 点应急盾容，可通过应急护盾控件设置补充上限及自动补给。\n\n动能线盾减速实弹，并使斜入射弹翻滚或撕裂，电磁线盾使激光偏转。两者都需要供电，投射距离和长度上限均为 16 格。</DeltaV_ShieldGeneratorSmall.description>
   <DeltaV_ShieldGenerator.comps.CompRefuelable.fuelLabel>应急盾容</DeltaV_ShieldGenerator.comps.CompRefuelable.fuelLabel>
   <DeltaV_ShieldGenerator.comps.CompRefuelable.fuelGizmoLabel>应急护盾</DeltaV_ShieldGenerator.comps.CompRefuelable.fuelGizmoLabel>
   <DeltaV_ShieldGeneratorSmall.comps.CompRefuelable.fuelLabel>应急盾容</DeltaV_ShieldGeneratorSmall.comps.CompRefuelable.fuelLabel>

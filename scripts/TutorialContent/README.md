@@ -35,3 +35,5 @@ just build
 2026-11-04 教练机改为四台纵向 `LargeThruster` 加两台尾部侧向 `SmallThruster`，氧气泵让开主推脚印；示意图箭头表示推力方向。具体位置与理论课契约见[计划第 12 节](../../doc/教程开局实施计划.md#12-理论课与教练机布局2026-11-04)。推进器排气净空从 Def 读取并与原版 `GetExclusionZone` 对账。新增侧移回归在局部质心 x=12.5～13.5、z=7～8 的九点范围内用真实分配器验证前后主推抵消尾部 RCS 力矩；保持上述质量、惯量和健康设备假设，不替代完整运行时质量测量与飞行手感验收。
 
 试验场使用 `range.states` 的导出原型，由 `combat_range_layout.py` 校正当前枪体、弹仓与护盾状态。单独生成用 `python scripts/TutorialContent/build.py --only WeaponRange ShieldTarget`，离线检查给上述 `TutorialRegression/run.ps1` 添加 `-RangeOnly`。配置、机制与验收边界只维护在[试验场计划](../../doc/教程开局实施计划.md#13-可选武器与护盾试验场2026-11-04)。
+
+2026-11-06 赠船新增船尾月池温室和水培，靶舰改为六层钢墙；现行布局与验证边界见[本批记录](../../doc/教程开局实施计划.md#135-文案回填与月池温室2026-11-06)。

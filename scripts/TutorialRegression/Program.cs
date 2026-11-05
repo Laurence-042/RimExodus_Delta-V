@@ -289,6 +289,7 @@ internal static partial class Program
         harmony.Patch(assetCheck, prefix: new HarmonyMethod(typeof(Program), nameof(AssetsPresent)));
         try
         {
+            universe.QueueFrameAction(() => { });
             var actions = (List<Action>)AccessTools.Field(typeof(UniverseManager), "frameActions").GetValue(universe);
             actions.Clear();
             universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "CheckFlight"));
@@ -417,14 +418,14 @@ internal static partial class Program
         captain.jobs = new Verse.AI.Pawn_JobTracker(captain);
         captain.jobs.curJob = new Verse.AI.Job(JobDefOf.UseCommsConsole, console);
         var faction = new Faction();
-        var run = new TutorialRunState { quest = new Quest(), stage = TutorialStage.Contact, mentors = faction, comms = console };
+        var run = new TutorialRunState { quest = new Quest(), stage = TutorialStage.Welcome, mentors = faction, comms = console };
         run.colonists.Add(captain); universe.tutorialRun = run;
         var display = AccessTools.Method(typeof(DeltaVTutorialService), "ShowBriefing");
         harmony.Patch(display, prefix: new HarmonyMethod(typeof(Program), nameof(CountBriefing)));
         try
         {
             shownBriefings = 0;
-            Check(!universe.Tutorial.ReceiveComms(new Faction(), captain) && run.stage == TutorialStage.Contact, "unrelated faction call cannot advance the course");
+            Check(!universe.Tutorial.ReceiveComms(new Faction(), captain) && run.stage == TutorialStage.Welcome, "unrelated faction call cannot advance the course");
             Set(power, "powerOnInt", false);
             Check(!universe.Tutorial.ReceiveComms(faction, captain), "unpowered actual console rejects first contact");
             Set(power, "powerOnInt", true);
@@ -551,14 +552,14 @@ internal static partial class Program
         universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "StartFlight"));
         Check(run.stage == TutorialStage.Welcome, "reject future-phase answer");
         universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "AcceptWelcome"));
-        Check(run.stage == TutorialStage.Contact, "advance accepted welcome");
-        int actions = ((List<Action>)AccessTools.Field(typeof(UniverseManager), "frameActions").GetValue(universe)).Count;
+        Check(run.stage == TutorialStage.Welcome, "welcome acknowledgement waits for actual communication");
+        int actions = ((List<Action>)AccessTools.Field(typeof(UniverseManager), "frameActions").GetValue(universe))?.Count ?? 0;
         universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "AcceptWelcome"));
         universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "DeferWelcome"));
-        Check(run.stage == TutorialStage.Contact, "reject stale answer and stale defer option");
-        universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "DeferContact"));
-        Check(run.stage == TutorialStage.Contact && universe.Tutorial.Active, "postponing contact keeps tutorial active");
-        Check(((List<Action>)AccessTools.Field(typeof(UniverseManager), "frameActions").GetValue(universe)).Count == actions,
+        Check(run.stage == TutorialStage.Welcome, "repeated acknowledgement and defer keep arrival open");
+        universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "DeferWelcome"));
+        Check(run.stage == TutorialStage.Welcome && universe.Tutorial.Active, "postponing contact keeps tutorial active");
+        Check((((List<Action>)AccessTools.Field(typeof(UniverseManager), "frameActions").GetValue(universe))?.Count ?? 0) == actions,
             "duplicate answer does not enqueue another dialog");
         var comms = Raw<Building_CommsConsole>(); comms.def = Raw<ThingDef>(); comms.def.defName = "CommsFixture"; comms.thingIDNumber = 9401;
         var berth = Raw<Building_Door>(); berth.def = Raw<ThingDef>(); berth.def.defName = "PortFixture"; berth.thingIDNumber = 9402;
@@ -597,7 +598,7 @@ internal static partial class Program
             finally { Scribe.ForceStop(); File.Delete(tmp); }
         }
         universe.Tutorial.Ended(new Quest { id = 81 });
-        Check(run.stage == TutorialStage.Contact, "unrelated quest cleanup cannot end tutorial");
+        Check(run.stage == TutorialStage.Welcome, "unrelated quest cleanup cannot end tutorial");
         Current.Game = Raw<Game>();
         Current.Game.components = new List<GameComponent>();
         Check(!universe.Tutorial.Active, "previous game's tutorial is inactive after changing games");

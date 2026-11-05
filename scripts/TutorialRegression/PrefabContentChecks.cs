@@ -44,6 +44,28 @@ internal static partial class Program
             Check(sampled.SetEquals(covered), Path.GetFileName(path) + " environment covers all roof/equipment/moonpool cells");
             Check(environment.environment.All(e => e.temperature == 21f && e.vacuum == 0f),
                 Path.GetFileName(path) + " authored cabin temperature/vacuum");
+            if (Path.GetFileNameWithoutExtension(path) == "PrototypeShip")
+            {
+                var moon = xml.SelectNodes("/MapPrefab/foundations/li[def='DeltaV_MoonPool']/pos")
+                    .Cast<XmlNode>().Select(n => IntVec3.FromString(n.InnerText)).ToHashSet();
+                var roofs = xml.SelectNodes("/MapPrefab/roofs/li/pos").Cast<XmlNode>()
+                    .Select(n => IntVec3.FromString(n.InnerText)).ToHashSet();
+                var basins = xml.SelectNodes("/MapPrefab/thingStates/li[def='HydroponicsBasin']").Cast<XmlNode>().ToList();
+                Check(basins.Count == 6, "gift has six hydroponic basins");
+                var growing = new HashSet<IntVec3>();
+                foreach (var basin in basins)
+                {
+                    foreach (IntVec3 cell in GenAdj.OccupiedRect(IntVec3.FromString(basin["pos"].InnerText),
+                        new Rot4(int.Parse(basin["rotation"].InnerText)), new IntVec2(1, 4))) growing.Add(cell);
+                    Check(basin.SelectSingleNode("state/saveable/plantDefToGrow").InnerText == "Plant_Rice", "gift retains rice sowing selection");
+                }
+                var rice = xml.SelectNodes("/MapPrefab/thingStates/li[def='Plant_Rice']/pos").Cast<XmlNode>()
+                    .Select(n => IntVec3.FromString(n.InnerText)).ToHashSet();
+                Check(growing.Count == 24 && growing.SetEquals(rice) && growing.IsSubsetOf(moon)
+                    && !growing.Overlaps(roofs), "all gift crops occupy sunlit moon-pool cells without opaque roofs");
+                Check(xml.SelectNodes("/MapPrefab/thingStates/li[def='SunLamp']").Count == 0,
+                    "gift greenhouse uses daylight without a sun lamp");
+            }
             var registry = new LoadedObjectDirectory();
             int before = errors.Count;
             foreach (XmlNode node in xml.SelectNodes("/MapPrefab/thingStates/li/state/saveable/descendant-or-self::*[def and id]"))

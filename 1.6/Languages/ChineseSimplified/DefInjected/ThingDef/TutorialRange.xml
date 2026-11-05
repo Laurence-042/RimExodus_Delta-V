@@ -1,27 +1,27 @@
 <?xml version='1.0' encoding='utf-8'?>
 <LanguageData>
   <DeltaV_RangeTerminal_Unshielded.label>1．无盾参照试验终端</DeltaV_RangeTerminal_Unshielded.label>
-  <DeltaV_RangeTerminal_Unshielded.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为无盾参照预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_Unshielded.description>
+  <DeltaV_RangeTerminal_Unshielded.description>由远古安保终端改装的试验设备，用于修改靶舰为无盾参照预设。</DeltaV_RangeTerminal_Unshielded.description>
   <DeltaV_RangeTerminal_GuardSingle.label>4A．单台守卫试验终端</DeltaV_RangeTerminal_GuardSingle.label>
-  <DeltaV_RangeTerminal_GuardSingle.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为单台守卫预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_GuardSingle.description>
+  <DeltaV_RangeTerminal_GuardSingle.description>由远古安保终端改装的试验设备，用于修改靶舰为启用单台守卫护盾模式。</DeltaV_RangeTerminal_GuardSingle.description>
   <DeltaV_RangeTerminal_Guard.label>4B．协同守卫试验终端</DeltaV_RangeTerminal_Guard.label>
-  <DeltaV_RangeTerminal_Guard.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为协同守卫预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_Guard.description>
+  <DeltaV_RangeTerminal_Guard.description>由远古安保终端改装的试验设备，用于修改靶舰为启用多台守卫护盾模式。</DeltaV_RangeTerminal_Guard.description>
   <DeltaV_RangeTerminal_Introduction.label>0．入场使用说明终端</DeltaV_RangeTerminal_Introduction.label>
-  <DeltaV_RangeTerminal_Introduction.description>阅读武器平台的操作与安全说明，确认后解锁盟友防爆门。之后仍可再次阅读。</DeltaV_RangeTerminal_Introduction.description>
+  <DeltaV_RangeTerminal_Introduction.description>阅读武器平台的操作与安全说明，确认后解锁武器平台防爆门。</DeltaV_RangeTerminal_Introduction.description>
   <DeltaV_RangeBlastDoor.label>试验场安全防爆门</DeltaV_RangeBlastDoor.label>
-  <DeltaV_RangeBlastDoor.description>保护试验平台入口的盟友防爆门。请先操作入口说明终端，阅读并确认使用说明后解锁。</DeltaV_RangeBlastDoor.description>
+  <DeltaV_RangeBlastDoor.description>上面贴着一行字：请测试员先操作入口说明终端，阅读并确认使用说明后解锁，以防误操作设备产生不必要的损失。</DeltaV_RangeBlastDoor.description>
   <DeltaV_RangeBlastDoor.comps.CompHackable.notHackedInspectString>阅读并确认入口终端说明后解锁。</DeltaV_RangeBlastDoor.comps.CompHackable.notHackedInspectString>
   <DeltaV_RangeBlastDoor.comps.CompHackable.hackedInspectString>使用说明已确认。门已解锁。</DeltaV_RangeBlastDoor.comps.CompHackable.hackedInspectString>
-  <DeltaV_RangeTerminal_KineticPassive.label>2A．动能护盾 0% 试验终端</DeltaV_RangeTerminal_KineticPassive.label>
-  <DeltaV_RangeTerminal_KineticPassive.description>将靶舰的三道线盾切换为 0% 强度的动能模式。中央盾面正对火线，两侧反向倾斜；可对比不同入射角。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_KineticPassive.description>
-  <DeltaV_RangeTerminal_KineticLow.label>2B．动能护盾 20% 试验终端</DeltaV_RangeTerminal_KineticLow.label>
-  <DeltaV_RangeTerminal_KineticLow.description>将靶舰的三道线盾切换为 20% 强度的动能模式。中央盾面正对火线，两侧反向倾斜；可对比不同入射角。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_KineticLow.description>
-  <DeltaV_RangeTerminal_KineticFull.label>2C．动能护盾 100% 试验终端</DeltaV_RangeTerminal_KineticFull.label>
-  <DeltaV_RangeTerminal_KineticFull.description>将靶舰的三道线盾切换为 100% 强度的动能模式。中央盾面正对火线，两侧反向倾斜；可对比不同入射角。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_KineticFull.description>
-  <DeltaV_RangeTerminal_ElectromagneticPassive.label>3A．电磁护盾 0% 试验终端</DeltaV_RangeTerminal_ElectromagneticPassive.label>
-  <DeltaV_RangeTerminal_ElectromagneticPassive.description>将靶舰的三道线盾切换为 0% 强度的电磁模式。中央盾面正对火线，两侧反向倾斜；可对比不同入射角。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_ElectromagneticPassive.description>
-  <DeltaV_RangeTerminal_ElectromagneticHalf.label>3B．电磁护盾 50% 试验终端</DeltaV_RangeTerminal_ElectromagneticHalf.label>
-  <DeltaV_RangeTerminal_ElectromagneticHalf.description>将靶舰的三道线盾切换为 50% 强度的电磁模式。中央盾面正对火线，两侧反向倾斜；可对比不同入射角。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_ElectromagneticHalf.description>
-  <DeltaV_RangeTerminal_ElectromagneticFull.label>3C．电磁护盾 100% 试验终端</DeltaV_RangeTerminal_ElectromagneticFull.label>
-  <DeltaV_RangeTerminal_ElectromagneticFull.description>将靶舰的三道线盾切换为 100% 强度的电磁模式。中央盾面正对火线，两侧反向倾斜；可对比不同入射角。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_ElectromagneticFull.description>
+  <DeltaV_RangeTerminal_KineticPassive.label>动能护盾 0% 试验终端</DeltaV_RangeTerminal_KineticPassive.label>
+  <DeltaV_RangeTerminal_KineticPassive.description>由远古安保终端改装的试验设备，用于修改靶舰为三道 0% 强度动能线盾模式，以测试不同武器在不同入射角下的表现。</DeltaV_RangeTerminal_KineticPassive.description>
+  <DeltaV_RangeTerminal_KineticLow.label>动能护盾 20% 试验终端</DeltaV_RangeTerminal_KineticLow.label>
+  <DeltaV_RangeTerminal_KineticLow.description>由远古安保终端改装的试验设备，用于修改靶舰为三道 20% 强度动能线盾模式，以测试不同武器在不同入射角下的表现。</DeltaV_RangeTerminal_KineticLow.description>
+  <DeltaV_RangeTerminal_KineticFull.label>动能护盾 100% 试验终端</DeltaV_RangeTerminal_KineticFull.label>
+  <DeltaV_RangeTerminal_KineticFull.description>由远古安保终端改装的试验设备，用于修改靶舰为三道 100% 强度动能线盾模式，以测试不同武器在不同入射角下的表现。</DeltaV_RangeTerminal_KineticFull.description>
+  <DeltaV_RangeTerminal_ElectromagneticPassive.label>电磁护盾 0% 试验终端</DeltaV_RangeTerminal_ElectromagneticPassive.label>
+  <DeltaV_RangeTerminal_ElectromagneticPassive.description>由远古安保终端改装的试验设备，用于修改靶舰为三道 0% 强度电磁线盾模式，以测试不同武器在不同入射角下的表现。</DeltaV_RangeTerminal_ElectromagneticPassive.description>
+  <DeltaV_RangeTerminal_ElectromagneticHalf.label>电磁护盾 50% 试验终端</DeltaV_RangeTerminal_ElectromagneticHalf.label>
+  <DeltaV_RangeTerminal_ElectromagneticHalf.description>由远古安保终端改装的试验设备，用于修改靶舰为三道 50% 强度电磁线盾模式，以测试不同武器在不同入射角下的表现。</DeltaV_RangeTerminal_ElectromagneticHalf.description>
+  <DeltaV_RangeTerminal_ElectromagneticFull.label>电磁护盾 100% 试验终端</DeltaV_RangeTerminal_ElectromagneticFull.label>
+  <DeltaV_RangeTerminal_ElectromagneticFull.description>由远古安保终端改装的试验设备，用于修改靶舰为三道 100% 强度电磁线盾模式，以测试不同武器在不同入射角下的表现。</DeltaV_RangeTerminal_ElectromagneticFull.description>
 </LanguageData>

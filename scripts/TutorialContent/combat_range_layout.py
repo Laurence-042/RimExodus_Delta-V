@@ -65,9 +65,9 @@ def furnish(name, plan, place, prop, foundation, roofs, records, occupied):
         start=(1,39)
     else:
         roofs.clear()
-        # Three continuous armour layers precede internal bulkheads and expendable equipment.
-        walls={(x,z) for x in range(3) for z in range(43)}
-        for x,z in sorted(walls): place('Wall',x,z,stuff='Plasteel')
+        # Six steel layers expose the different penetration budgets before the test equipment.
+        walls={(x,z) for x in range(6) for z in range(43)}
+        for x,z in sorted(walls): place('Wall',x,z,stuff='Steel')
         for x in (11,15):
             for z in range(2,41): place('Wall',x,z,stuff='Steel')
         # Only the forward dome covers the armour; rear domes supply the common regular pool.

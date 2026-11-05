@@ -77,7 +77,7 @@ namespace DeltaV
         internal void ShowBriefing()
         {
             if (!Active || Run.stage == TutorialStage.AwaitingWake) return;
-            if ((Run.stage == TutorialStage.Contact || Run.stage == TutorialStage.Inquiry) && Run.comms?.Spawned != true)
+            if ((Run.stage == TutorialStage.Welcome || Run.stage == TutorialStage.Inquiry) && Run.comms?.Spawned != true)
             { Fail("DeltaV_Tutorial_CommsLost"); return; }
             if (!CheckFlightAssets()) return;
             // Vanilla Dialog closes and emits a fresh signal; phase-specific replies reject stale windows.
@@ -88,18 +88,11 @@ namespace DeltaV
         internal void Receive(Quest quest, string tag)
         {
             if (!Active || Run.quest != quest) return;
-            // Closing a lesson preserves progress; the optional range trip can be left for later.
-            if (tag == Signal(quest, "Defer" + Run.stage))
-            {
-                if (Run.stage == TutorialStage.Range || Run.stage == TutorialStage.SoftDock)
-                    AdvanceFlight(TutorialStage.Visit);
-                return;
-            }
+            // Acknowledgement leaves the captain free to act; only real communication advances arrival.
+            if (tag == Signal(quest, "Defer" + Run.stage)) return;
             if (tag == Signal(quest, "AcceptWelcome") && Run.stage == TutorialStage.Welcome)
             {
-                Run.stage = TutorialStage.Contact;
-                // Opening a new dialog inside the old option's close callback would stack windows.
-                universe.QueueFrameAction(ShowBriefing);
+                return;
             }
             else if (Run.stage == TutorialStage.Inquiry && tag == Signal(quest, "AskPurpose"))
             {
@@ -115,8 +108,8 @@ namespace DeltaV
                 || negotiator?.CurJobDef != JobDefOf.UseCommsConsole
                 || negotiator.CurJob.targetA.Thing != Run.comms || !Run.colonists.Contains(negotiator)
                 || !Run.comms.CanUseCommsNow || negotiator.Position != Run.comms.InteractionCell
-                || (Run.stage != TutorialStage.Contact && Run.stage != TutorialStage.Inquiry && Run.stage != TutorialStage.Briefing)) return false;
-            if (Run.stage == TutorialStage.Contact) Run.stage = TutorialStage.Inquiry;
+                || (Run.stage != TutorialStage.Welcome && Run.stage != TutorialStage.Inquiry && Run.stage != TutorialStage.Briefing)) return false;
+            if (Run.stage == TutorialStage.Welcome) Run.stage = TutorialStage.Inquiry;
             ShowBriefing();
             return true;
         }

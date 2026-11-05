@@ -24,10 +24,11 @@ def components(cells):
 
 def shape(name):
     if name=='PrototypeShip':
-        cells={(x,z) for x in range(17) for z in range(25)
+        cells={(x,z+4) for x in range(17) for z in range(25)
                if not(z>=23 and (x<3 or x>13)) and not(21<=z<=22 and (x<1 or x>15))
                and not(z<=2 and (x<2 or x>14))}
-        return dict(size=(17,25),cells=cells,zones={c:2 for c in cells},foundationDefs={})
+        cells|={(x,z) for x in range(2,15) for z in range(4)}
+        return dict(size=(17,29),cells=cells,zones={c:2 for c in cells},foundationDefs={})
     cells={};zones={}
     for x in range(-50,51):
         for z in range(-50,51):
@@ -91,38 +92,47 @@ def furnish(name,plan,place,prop,foundation,roofs,records,occupied):
     if name=='PrototypeShip':
         engines=[]
         for x in (4,11):engines.append(put('LargeThruster',x,0))
-        for x in (1,14):engines.append(put('LargeThruster',x,21,2))
-        for z in (5,18):
+        for x in (1,14):engines.append(put('LargeThruster',x,25,2))
+        for z in (9,22):
             engines.extend((put('SmallThruster',0,z,1),put('SmallThruster',15,z,3)))
         engine_cells={tuple(c) for r in engines for c in r['cells']};roofs-=engine_cells
         walls={c for c in foundation if any(n not in foundation for n in adj(c))}-engine_cells
-        walls|={(x,z) for z in (9,15,20) for x in range(1,16) if x not in (7,8,9)}
-        walls|={(x,z) for x in (7,9) for z in range(15,20)}
-        ports={(0,14):3,(16,14):1}
-        doors={(7,18),(9,18),(4,15),(12,15),(4,9),(12,9)}
+        walls|={(x,z) for z in (13,19,24) for x in range(1,16) if x not in (7,8,9)}
+        walls|={(x,z) for x in (7,9) for z in range(19,24)}
+        ports={(0,18):3,(16,18):1}
+        doors={(7,22),(9,22),(4,19),(12,19),(4,13),(12,13)}
         walls-=doors|ports.keys()
         for x,z in sorted(walls):put('GravshipHull',x,z)
         for x,z in sorted(doors):put('Door',x,z)
         for (x,z),rot in ports.items():put('DeltaV_DockingPort',x,z,rot)
-        start=(8,14)
-        put('PilotConsole',7,22)
-        put('Bed',2,16);put('Bed',5,16)
-        put('Table2x2c',11,16)
-        put('DiningChair',10,16,1);put('DiningChair',13,17,3)
+        start=(8,18)
+        put('PilotConsole',7,26)
+        put('Bed',2,20);put('Bed',5,20)
+        put('Table2x2c',11,20)
+        put('DiningChair',10,20,1);put('DiningChair',13,21,3)
         for x in (2,5,10,13):
-            r=put('DeltaV_CargoStorage',x,10,state={'allowedDefs':['Steel','ComponentIndustrial','ComponentSpacer','Chemfuel','MealSurvivalPack','MedicineIndustrial','Silver','RawRice']})
+            r=put('DeltaV_CargoStorage',x,14,state={'allowedDefs':['Steel','ComponentIndustrial','ComponentSpacer','Chemfuel','MealSurvivalPack','MealSimple','MedicineIndustrial','Silver','RawRice']})
             if x==13:put('DeltaV_CargoTemperatureModule',r['root'][0]+1,r['root'][1]+1,layer='overlay')
-        put('GravEngine',7,5)
-        put('ChemfuelTank',12,4,state={'fuel':150,'configuredTargetFuelLevel':150})
-        put('ChemfuelPoweredGenerator',2,4,state={'fuel':30,'configuredTargetFuelLevel':30})
-        put('ChemfuelPoweredGenerator',2,7,state={'fuel':30,'configuredTargetFuelLevel':30})
-        put('Battery',11,7);put('Battery',13,7)
-        put('OrbitalTradeBeacon',10,13)
+        put('GravEngine',7,9)
+        put('ChemfuelTank',12,8,state={'fuel':150,'configuredTargetFuelLevel':150})
+        put('ChemfuelPoweredGenerator',2,8,state={'fuel':30,'configuredTargetFuelLevel':30})
+        put('ChemfuelPoweredGenerator',2,11,state={'fuel':30,'configuredTargetFuelLevel':30})
+        put('ChemfuelPoweredGenerator',11,11,state={'fuel':30,'configuredTargetFuelLevel':30})
+        put('Battery',6,11);put('Battery',13,11)
+        put('OrbitalTradeBeacon',10,17)
+        # Transparent sealed field roof supplies daylight; no ordinary roof or grow lamp.
+        moon={(x,z) for x in range(3,14) for z in range(2,8)}
+        plan['surfaceDefs']={c:'DeltaV_MoonPool' for c in moon}
+        for c in moon:plan['foundationDefs'][c]='DeltaV_MoonPool';roofs.discard(c)
+        for x in (3,5,7,9,11,13):
+            basin=put('HydroponicsBasin',x,3,state={'plantDefToGrow':'Plant_Rice'})
+            for c in basin['cells']:put('Plant_Rice',*c,layer='plants',state={'growth':0.65})
+        put('ElectricStove',5,8,1)
         # Supplies use ordinary on-map stacks in the actual ASF storage cells.
         for n,x,z,count in [('Steel',2,10,75),('ComponentIndustrial',2,11,12),('Chemfuel',5,10,150),
                             ('MealSurvivalPack',13,10,10),('MealSurvivalPack',14,10,10),('MealSurvivalPack',14,11,10),
                             ('MedicineIndustrial',13,11,10),('Silver',10,10,100)]:
-            put(n,x,z,layer='items',state={'stackCount':count})
+            put(n,x,z+4,layer='items',state={'stackCount':count})
         habitable=foundation-walls-engine_cells-set(ports)-doors
     else:
         groups=plan['groups']
@@ -302,6 +312,9 @@ def validate_and_draw(name,plan,records,foundation,roofs,reachable,here,generate
         engine=next(r for r in records if r['name']=='GravEngine')
         assert len(foundation)<=500 and all(math.dist(c,engine['root'])<=18.9 for c in foundation)
         assert counts['SmallThruster']<=4 and counts['LargeThruster']<=6
+        assert counts['HydroponicsBasin']==6 and counts['Plant_Rice']==24 and counts['SunLamp']==0
+        assert all(tuple(c) in plan['surfaceDefs'] and tuple(c) not in roofs
+                   for r in records if r['name']=='HydroponicsBasin' for c in r['cells'])
     generated_power=-sum(min(0,r['powerWatts']) for r in records)
     load=sum(max(0,r['powerWatts']) for r in records)
     report={'counts':dict(sorted(counts.items())),'foundationCells':len(foundation),'roofCells':len(roofs),

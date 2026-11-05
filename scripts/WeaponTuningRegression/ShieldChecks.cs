@@ -30,7 +30,7 @@ internal static partial class Program
         } } };
         body.InitializeComps();
         typeof(CompProperties_Refuelable).GetField("fuelMultiplier", PrivateInstance)
-            .SetValue(body.GetComp<CompRefuelable>().Props, 5f);
+            .SetValue(body.GetComp<CompRefuelable>().Props, 3f);
         var shield = body.GetComp<CompSpaceShield>(); shield.PostPostMake(); SetSpawned(body, true); return shield;
     }
     static double Total(IEnumerable<CompSpaceShield> shields) => shields.Sum(s => s.RegularCapacity + s.EmergencyCapacity);
@@ -155,8 +155,8 @@ internal static partial class Program
             a = Shield(); Hit(a, 1100.25);
             var silver = a.parent.GetComp<CompRefuelable>();
             silver.Refuel(10);
-            Check(a.RegularCapacity == 0 && a.EmergencyCapacity == 1949.75 && silver.Fuel == 1949.75,
-                "native silver refueling restores only emergency at five points per silver");
+            Check(a.RegularCapacity == 0 && a.EmergencyCapacity == 1929.75 && silver.Fuel == 1929.75,
+                "native silver refueling restores only emergency at three points per silver");
             silver.Refuel(100);
             Check(a.EmergencyCapacity == 2000 && silver.Fuel == 2000 && silver.TargetFuelLevel == 2000,
                 "native fuel is the sole emergency balance and caps at full");
@@ -164,7 +164,7 @@ internal static partial class Program
             Check(a.EmergencyCapacity == 2000 && silver.IsFull,
                 "lowering emergency replenishment target does not discard existing capacity");
             Hit(a, 1500);
-            Check(silver.GetFuelCountToFullyRefuel() == 50 && !silver.IsFull,
+            Check(silver.GetFuelCountToFullyRefuel() == 84 && !silver.IsFull,
                 "native refuel job requests only the deficit to the player target");
             silver.TargetFuelLevel = 0;
             Check(silver.IsFull && !silver.ShouldAutoRefuelNow, "zero target prevents emergency refueling");
@@ -189,8 +189,8 @@ internal static partial class Program
                     .SetValue(props, (float)fuelDef.Element("fuelMultiplier"));
                 var body = new Building { def = new ThingDef { comps = new() { props } } };
                 body.InitializeComps(); var stock = body.GetComp<CompRefuelable>(); stock.PostPostMake();
-                Check(stock.Fuel == 0 && stock.GetFuelCountToFullyRefuel() == props.fuelCapacity / 5,
-                    "real shield Def starts empty and requests 150 or 200 silver");
+                Check(stock.Fuel == 0 && stock.GetFuelCountToFullyRefuel() == Math.Ceiling(props.fuelCapacity / 3),
+                    "real shield Def starts empty and requests 250 or 334 silver");
             }
             Check(xml.Descendants("hitPoints").All(x => x.Value == "0"),
                 "both Delta-V defs disable native HP accounting while retaining native interception");

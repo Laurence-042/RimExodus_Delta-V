@@ -76,12 +76,7 @@ namespace DeltaV
                 else AdvanceFlight(TutorialStage.Salvage);
                 return true;
             }
-            if (Run.stage == TutorialStage.Range && tag == Signal(Run.quest, "VisitRange"))
-            {
-                AdvanceFlight(TutorialStage.SoftDock);
-                return true;
-            }
-            if (Run.stage == TutorialStage.RangePractice && tag == Signal(Run.quest, "FinishRange"))
+            if (Run.stage == TutorialStage.Range && tag == Signal(Run.quest, "GoToShipyard"))
             {
                 AdvanceFlight(TutorialStage.Visit);
                 return true;
@@ -95,19 +90,6 @@ namespace DeltaV
                 if (!Run.recoveryDocked || steel < SalvageSteel || !ColonistAboard(ship))
                     Messages.Message("DeltaV_Tutorial_SalvageProgress".Translate(steel), Run.cargoShelf, MessageTypeDefOf.RejectInput, false);
                 else AdvanceFlight(TutorialStage.Range);
-                return true;
-            }
-            if (Run.stage == TutorialStage.SoftDock && tag == Signal(Run.quest, "CheckSoftDock"))
-            {
-                ShipBase ship = TrainingShip;
-                bool connected = Run.rangePort?.Spawned == true && ship.IsValid && ship.Map != null
-                    && ship.Map.listerThings.AllThings.OfType<Building_DockingPort>().Any(p =>
-                        ShipRegistry.ShipOf(p).Identity == ship.Identity
-                        && p.GetComp<CompSoftDocking>() is CompSoftDocking port
-                        && port.Connected && port.Peer == Run.rangePort);
-                if (!connected)
-                    Messages.Message("DeltaV_Tutorial_NeedSoftDock".Translate(), Run.rangePort, MessageTypeDefOf.RejectInput, false);
-                else AdvanceFlight(TutorialStage.RangePractice);
                 return true;
             }
             if (Run.stage == TutorialStage.Visit && tag == Signal(Run.quest, "AcceptShip"))
@@ -332,8 +314,8 @@ namespace DeltaV
                 if ((faction ?? Faction.OfPlayer) == Faction.OfPlayer) map.areaManager.Home[cell] = true;
                 map.fogGrid.Unfog(cell);
             }
-            foreach (Thing console in things.Where(t => t.TryGetComp<CompDeltaVPilotConsole>() != null))
-                universe.NoteStructureName(console.TryGetComp<CompDeltaVPilotConsole>().shipId, label.Translate());
+            // Owner names also identify unpiloted salvage after a shared-work merge.
+            universe.NoteStructureName(ownerId, label.Translate());
             if (!things.Any(t => t.TryGetComp<CompDeltaVPilotConsole>() != null))
                 universe.FrameOf(map).ambientLabel = label.Translate();
             return things;

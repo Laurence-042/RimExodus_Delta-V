@@ -260,10 +260,10 @@ internal static partial class Program
         Check(platform.SelectSingleNode("/MapPrefab/thingStates/li[def='PilotConsole']/state/saveable/combat/fireControlMode").InnerText=="Disabled",
             "platform stores disabled fire control in the native combat record");
         Check(new ShipCombatState().fireControlMode==ShipFireControlMode.Automatic,"new player ships still default to automatic fire control");
-        var armour=target.SelectNodes("/MapPrefab/thingStates/li[def='Wall' and stuff='Plasteel']/pos").Cast<XmlNode>()
-            .Select(n=>IntVec3.FromString(n.InnerText)).ToList();
-        Check(armour.Count==129 && Enumerable.Range(0,43).All(z=>Enumerable.Range(0,3).All(x=>armour.Contains(new IntVec3(x,0,z)))),
-            "three uninterrupted front armour layers including the rail lane");
+        var armour=target.SelectNodes("/MapPrefab/thingStates/li[def='Wall' and stuff='Steel']/pos").Cast<XmlNode>()
+            .Select(n=>IntVec3.FromString(n.InnerText)).Where(c=>c.x<6).ToList();
+        Check(armour.Count==258 && Enumerable.Range(0,43).All(z=>Enumerable.Range(0,6).All(x=>armour.Contains(new IntVec3(x,0,z)))),
+            "six uninterrupted steel armour layers including the rail lane");
         Check(platform.SelectNodes("/MapPrefab/thingStates/li[def='Battery']").Count==60,"platform has a finite 36000 Wd bank");
         Check(target.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_ShieldGenerator']").Count==3,"target has three same-ship shield generators");
         var shields = new List<CompSpaceShield>();
@@ -355,22 +355,13 @@ internal static partial class Program
         harmony.Patch(assetCheck,prefix:new HarmonyMethod(typeof(Program),nameof(AssetsPresent)));
         try
         {
-            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"VisitRange"));
-            Check(run.stage==TutorialStage.SoftDock,"range invitation leads to soft docking after salvage");
             universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"DeferRange"));
-            Check(run.stage==TutorialStage.SoftDock,"stale invitation cannot skip accepted soft docking");
-            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"DeferSoftDock"));
-            Check(run.stage==TutorialStage.Visit && universe.Tutorial.Active,"range trip can be postponed even if its port is lost");
-            run.stage=TutorialStage.RangePractice;
-            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"DeferRangePractice"));
-            Check(run.stage==TutorialStage.RangePractice,"experiments can be prolonged without ending the quest");
-            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"FinishRange"));
-            Check(run.stage==TutorialStage.Visit,"zero shots and zero terminal uses still allow station visit");
-            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"FinishRange"));
-            Check(run.stage==TutorialStage.Visit,"duplicate range answer cannot complete the station handover");
-            run.stage=TutorialStage.Range;
+            Check(run.stage==TutorialStage.Range && universe.Tutorial.Active,"visiting the range voluntarily keeps guidance available");
+            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"GoToShipyard"));
+            Check(run.stage==TutorialStage.Visit,"zero shots, terminal uses and soft docks still permit ship handover");
             universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"DeferRange"));
-            Check(run.stage==TutorialStage.Visit,"optional range visit can be left for later without ending the quest");
+            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"GoToShipyard"));
+            Check(run.stage==TutorialStage.Visit && universe.Tutorial.Active,"stale range answers cannot complete handover");
             ((List<Action>)AccessTools.Field(typeof(UniverseManager),"frameActions").GetValue(universe)).Clear();
             universe.Tutorial.Ended(quest);
         }

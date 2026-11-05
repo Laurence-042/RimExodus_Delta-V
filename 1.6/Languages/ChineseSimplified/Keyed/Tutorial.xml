@@ -1,66 +1,56 @@
 <?xml version='1.0' encoding='utf-8'?>
 <LanguageData>
   <DeltaV_Tutorial_Title>漂流者与星界边境</DeltaV_Tutorial_Title>
-  <DeltaV_Tutorial_Description>移民船已经抵达目的地，却在袭击中失去了后半段和计算机核心。你独自醒来，其他队员仍在休眠。气闸外的教练机里有一台通讯台；联系自称“星界边境”的组织，问清发生了什么，再学习在太空生存。</DeltaV_Tutorial_Description>
+  <DeltaV_Tutorial_Description>星际移民船已经抵达目的地。你独自醒来，却发现移民船后半段不翼而飞，气闸外还接着一个疑似太空飞船的东西。它里面有个看着像是通讯台的设备，而且上面还显示了来自“星界边境”组织的通讯。其他队员仍在休眠，在唤醒他们前，最好先去问问“星界边境”现在是什么情况。</DeltaV_Tutorial_Description>
   <DeltaV_Tutorial_Stage_AwaitingWake>正在准备气闸外的教练机，队长即将离开休眠舱。</DeltaV_Tutorial_Stage_AwaitingWake>
-  <DeltaV_Tutorial_Stage_Welcome>你独自醒在受损移民船前段。阅读开场提示，然后查看教练机里的通讯台。</DeltaV_Tutorial_Stage_Welcome>
+  <DeltaV_Tutorial_Stage_Welcome>查看气闸外的疑似飞船结构里的通讯台。</DeltaV_Tutorial_Stage_Welcome>
   <DeltaV_Tutorial_Stage_Briefing>听取星界边境的说明，决定开始驾驶训练。</DeltaV_Tutorial_Stage_Briefing>
   <DeltaV_Tutorial_Stage_Ended>太空生存指导已结束。</DeltaV_Tutorial_Stage_Ended>
-  <DeltaV_Tutorial_Dialog_Welcome>你被弹出了休眠舱。看起来，你们的移民飞船已经到达目的地。\n\n但是周遭像是经过了一场洗劫：除了你们的休眠舱、飞船主梁、反应堆、维生设备和几套桌椅外，毛都没剩下——是的，包括最重要的、搭载着飞船 AI 的飞船计算机核心。更糟糕的是，飞船尾部那一节不翼而飞了，气闸外面还停着个奇怪的、也许是飞船的铁盒子。\n\n你穿好真空服套装前往铁盒子里，注意到一个看起来是通讯台的设备显示，曾经有个自称“星界边境”的组织联系过这里。也许他们对此知道些什么。\n\n没有急着在一切未知的情况下唤醒你的移民队员，你先吃了一顿保质期写着“无限”的包装生存食品，然后开始思考现在能干什么——显然，除了联系通讯者外没有更好的选择了。</DeltaV_Tutorial_Dialog_Welcome>
-  <DeltaV_Tutorial_Dialog_Briefing>啊，你终于醒了？\n\n你们可是给我们惹了很多麻烦，所以这个飞船计算机核心就当是给我们的补偿了。而且当时我们拆之前可是敲过你的休眠舱，征求过你的同意的，你也默认了。\n\n好了不开玩笑了，根据你们飞船 AI 里的相关记录，看起来你就是你们这批殖民者的队长？欢迎来到边缘世界，祝贺！你们正确到达目的地了，这里就是你出发时选定的星球！但恐怕你们原本的计划泡汤了，星际旅行的这段时间里这个星球发生了太多的事：虫族、机械体、见人就打的猪人，还有霍拉克斯邪教以及其背后的暗黑超凡智能……\n\n要我说，你们这些在飞船前段的家伙也算是不幸中的万幸了。你们飞船刚飞到附近就被机械体盯上炸成了两节，后面那节似乎有仨倒霉蛋坐着逃生舱掉到地表上了。啧啧啧，就像我刚说的，那可不是啥好去处。而你们所在的前段就这么飞到了我们空间站附近，还领着一堆追击的机械体飞船。我们可是花了好大劲才避免你们成为太空垃圾，还帮你们向机械体报了仇，拆点你们用不到的设备抵债不过分吧？\n\n不过在太空营生确实也没那么简单。看在你们计算机核心的份上，我们会教你怎么在太空活下来，这个教练机就是给你熟悉用的。等确认你会正确开船了，到时候我们还会送你个带着我们最先进技术的科研船补差价。怎么样，够意思吧？</DeltaV_Tutorial_Dialog_Briefing>
-  <DeltaV_Tutorial_AcceptWelcome>去看看通讯台。</DeltaV_Tutorial_AcceptWelcome>
+  <DeltaV_Tutorial_Dialog_Welcome>你被弹出了休眠舱。看起来，你们的移民飞船已经到达目的地。\n\n但是周遭像是经过了一场洗劫：除了你们的休眠舱、飞船主梁、反应堆、维生设备和几套桌椅外，毛都没剩下——是的，包括最重要的、搭载着飞船 AI 的飞船计算机核心。更糟糕的是，飞船尾部那一节不翼而飞了，农业、工业、科研、动力设备……一切应该协助移民者度过第一个月的东西全不见了。哦对，那里还有几个飞船出发前一天才被临时塞进去的休眠舱，但那不是你的移民小队的正式成员，你也说不准谁更幸运——毕竟飞船的前段没有任何生产食物的条件。\n\n要说唯一让你不是那么绝望的事，那就是气闸外面停着个奇怪的、也许是飞船的铁盒子。\n\n你穿好真空服套装前往铁盒子里，注意到其中空无一人，但有一个看起来是通讯台的设备。其显示曾经有个自称“星界边境”的组织联系过这里。也许他们对此知道些什么。\n\n没有急着在一切未知的情况下唤醒你的移民队员，你先吃了一顿保质期写着“无限”的包装生存食品，然后开始思考现在能干什么——显然，除了联系通讯者外没有更好的选择了。</DeltaV_Tutorial_Dialog_Welcome>
+  <DeltaV_Tutorial_Dialog_Briefing>啊，你终于醒了？别急，饭得一口口吃，问题得一个个问。\n\n你们可是给我们惹了很多麻烦，所以这个飞船计算机核心以及一些杂七杂八的闪耀世界小玩意就当是给我们的补偿了。而且当时我们拆之前可是敲过你的休眠舱，征求过你的同意的，你也默认了。\n\n好了不开玩笑了，根据你们飞船 AI 里的相关记录，看起来你就是你们这批殖民者的队长？欢迎来到边缘世界，祝贺！你们正确到达目的地了，这里就是你出发时选定的星球！但恐怕你们原本的计划泡汤了，星际旅行的这段时间里这个星球发生了太多的事：虫族、机械体、见人就打的猪人，还有霍拉克斯邪教以及其背后的暗黑超凡智能……\n\n要我说，你们这些在飞船前段的家伙也算是不幸中的万幸了。你们飞船刚飞到附近就被机械体盯上炸成了两节，后面那节似乎有仨倒霉蛋坐着逃生舱掉到地表上了。啧啧啧，就像我刚说的，那可不是啥好去处。而你们所在的前段就这么飞到了我们空间站附近，还领着一堆追击的机械体飞船。我们可是花了好大劲才避免你们成为太空垃圾，还帮你们向机械体报了仇，拆点你们用不到的设备抵债不过分吧？\n\n不过我也确实理解你们现在的处境，看在你们计算机核心的份上，我们会教你怎么在太空活下来，这个教练机就是给你熟悉用的。等确认你会正确开船了，到时候我们会送你个带着我们最先进技术的科研船补差价。当然，船尾的月池温室里有可以养活你的水培设备，用透光力场顶引入自然光，气压和温度照样维持在舱内水平。怎么样，够意思吧？</DeltaV_Tutorial_Dialog_Briefing>
+  <DeltaV_Tutorial_AcceptWelcome>我应该做什么来着？对……去看看通讯台，呼叫“星界边境”。</DeltaV_Tutorial_AcceptWelcome>
   <DeltaV_Tutorial_Open>太空生存指导</DeltaV_Tutorial_Open>
-  <DeltaV_Tutorial_OpenDesc>听取或重听当前讲解，查看下一步要求。暂时离开对话不会结束指导。</DeltaV_Tutorial_OpenDesc>
-  <DeltaV_Tutorial_Targets>查看通讯台、队长和训练目标</DeltaV_Tutorial_Targets>
-  <DeltaV_Tutorial_MissingArrival>移民船休眠区或队长数据缺失，指导无法继续。</DeltaV_Tutorial_MissingArrival>
-  <DeltaV_Tutorial_WakeFailed>队长未能正常离开休眠舱，指导已中止。请检查休眠区。</DeltaV_Tutorial_WakeFailed>
-  <DeltaV_Tutorial_Stage_PreparingFlight>正在准备训练船与回收场地。</DeltaV_Tutorial_Stage_PreparingFlight>
+  <DeltaV_Tutorial_OpenDesc>确认当前目标以及相关说明</DeltaV_Tutorial_OpenDesc>
+  <DeltaV_Tutorial_Targets>定位任务目标</DeltaV_Tutorial_Targets>
+  <DeltaV_Tutorial_MissingArrival>移民船休眠区或队长数据缺失，教程无法继续。请联系开发者报告错误并附上相关日志。</DeltaV_Tutorial_MissingArrival>
+  <DeltaV_Tutorial_WakeFailed>队长未能正常离开休眠舱，指导已中止。请检查休眠区。请联系开发者报告错误并附上相关日志。</DeltaV_Tutorial_WakeFailed>
+  <DeltaV_Tutorial_Stage_PreparingFlight>正在准备教练机与回收场地。</DeltaV_Tutorial_Stage_PreparingFlight>
   <DeltaV_Tutorial_Stage_Flight>留在教练机内，驾驶离开移民船。练习前后、侧移和旋转各至少半秒，再减速停稳，打开指导检查。训练场设在殖民地范围之外。</DeltaV_Tutorial_Stage_Flight>
-  <DeltaV_Tutorial_Stage_Salvage>与回收平台同步速度，开始舱外作业完成硬对接。将 75 钢铁搬到训练船上的小货架，回到船上后检查回收结果。</DeltaV_Tutorial_Stage_Salvage>
-  <DeltaV_Tutorial_Stage_SoftDock>驾驶教练机前往武器平台西北角西侧的对接口。开启软对接指示，用本船任意一侧接口与其相向对齐，建立连接后检查。</DeltaV_Tutorial_Stage_SoftDock>
+  <DeltaV_Tutorial_Stage_Salvage>与回收平台同步速度，开始舱外作业完成硬对接。将 75 钢铁搬到教练机上的小货架，回到船上后检查回收结果。</DeltaV_Tutorial_Stage_Salvage>
   <DeltaV_Tutorial_Stage_Visit>前往星界边境环形船厂，自选软对接或硬对接登站，再沿东侧通道进入原型船，走到逆重引擎旁接受赠船。无需启动逆重起飞。</DeltaV_Tutorial_Stage_Visit>
-  <DeltaV_Tutorial_Dialog_Flight>这艘公共训练船属于星界边境，盟友期间借你驾驶和使用货架。不能在船上建造或占领设施；拆除或攻击会降低关系，失去盟友关系也会失去使用权。它有两台前推、两台反推和两台尾部侧向 RCS，没有逆重引擎。\n\n先穿上真空服和头盔，从移民船东侧气闸，沿已接好的通道登船。选中训练船，使用驾驶按钮并确认离港，W/S 前后、A/D 侧移、Q/E 旋转。离港会收回对接通道；确认前先让人物进入船内。\n\n这船难开是有原因的：前部 RCS 被借走了。侧移时留意前后主推也在补偿力矩；自己造通用船时记得给船头、船尾都留侧推。\n\n每类动作至少持续半秒，然后松开按键，让飞行辅助减速，也可以使用刹车。停稳后再来检查。进入驾驶或只按一个键不会直接通过。</DeltaV_Tutorial_Dialog_Flight>
-  <DeltaV_Tutorial_Dialog_Salvage>接下来回收平台上的钢铁。通过任务目标可以找到远离殖民地范围的回收平台，先飞出出生图范围再作业。靠近后选择“同步漂移速度”，同步就绪再“开始舱外作业”。这会让两个结构进入同一张工作地图。\n\n需要通路时，使用训练船对接口的延伸通道；也可以在工作图的无主区域铺设基架，但不能改建公共训练船。保持真空装备穿戴，把平台上的 75 钢铁搬到训练船标记的小货架。货架已设为优先收钢铁。\n\n回到训练船再检查。通过后钢铁仍归你，不会被教程扣除。</DeltaV_Tutorial_Dialog_Salvage>
-  <DeltaV_Tutorial_Dialog_SoftDock>回收时你已经学会把结构并到同一张工作图里。去武器平台这趟，试试软对接：保留两张地图，只连接接口。\n\n把人和钢铁带上教练机再离开回收现场。通过任务目标找到武器平台，开启右下角软对接指示，靠近它西北角西侧的接口。教练机左右两侧都有接口，选方便的一侧，调整船向让双方接口相向、菱形重合。减速并保持对齐，等待接口真正连通，再来报到。\n\n连通后停止手动驾驶，通过接口组织人物转移。登台后先沿金色地板箭头阅读入口终端，确认说明才会解锁防爆门。</DeltaV_Tutorial_Dialog_SoftDock>
-  <DeltaV_Tutorial_Dialog_Visit>最后去我们的环形空间站，也就是教学船厂。现在怎么靠站由你决定：可以软对接后通过接口组织人物转移，也可以同步漂移速度、硬对接后沿通道登站。把人物带回教练机再离开当前地点，别把队长落下。\n\n进入空间站后，沿东侧已经接好的通道去泊口里的原型船，走到逆重引擎旁。那艘船送你了。引擎还是原型机，根本没人敢坐。你要是不敢，就放着别启动；日常在太空移动只靠推进器就行。\n\n回收的材料留给你，公共训练船仍属于星界边境。来到引擎旁确认后，这轮训练就结束了。武器试验场仍可以自行使用。</DeltaV_Tutorial_Dialog_Visit>
-  <DeltaV_Tutorial_StartFlight>开始驾驶训练。</DeltaV_Tutorial_StartFlight>
+  <DeltaV_Tutorial_Dialog_Flight>我们之前应该已经在你的PDA上装了飞船控制程序，你应该能看到一个驾驶面板。点击“驾驶此船”并确认离港后，推进时对接通道会收起，飞船随之离开。随后你应该能用WASD控制四个方向的平移推进、用QE控制旋转、用Ctrl进行减速。\n\n当然，你之后可以自行在设置里的 控制-按键设置 调整键位。\n\n关于自动任务、战斗选项之类的你可以先不管，我们之后再说它。\n\n这艘公共教练机属于星界边境，盟友期间借你驾驶和使用货架。不能在船上建造或占领设施；拆除或攻击会降低关系，失去盟友关系也会失去使用权。它有两台前推、两台反推和两台尾部侧向 RCS，没有逆重引擎。\n\n先穿上真空服和头盔，从移民船东侧气闸，沿已接好的通道登船。选中教练机，使用驾驶按钮并确认离港，W/S 前后、A/D 侧移、Q/E 旋转。离港会收回对接通道；确认前先让人物进入船内。\n\n这船难开是有原因的：前部 RCS 被拆去测试新船了。侧移时留意前后主推也在补偿力矩；自己造通用船时记得给船头、船尾都留侧推。\n\n每类动作至少持续半秒，然后松开按键，让飞行辅助减速，也可以使用刹车。停稳后再来检查。进入驾驶或只按一个键不会直接通过。</DeltaV_Tutorial_Dialog_Flight>
+  <DeltaV_Tutorial_Dialog_Salvage>对于一个初学者来说很不错了。\n\n这个边缘世界经常出现一些十分离奇的现象，有时候宇宙里飞行也有阻力，而有时候却又没有。除此之外，你应该已经注意到了，你们的移民船残骸直接悬停在了星球上空却不会掉下去，这个似乎是因为你们飞船结构里也有逆重板的材料。在这个边缘世界，逆重板的材料会呈现出明显的相对星球锚定位置的现象，而且总是会锚定在同一个高度。这也影响了我们的飞船设计……\n\n啊，扯远了，接下来进行舱外活动训练吧。\n\n你应该能通过PDA上的“定位任务”看到东侧的一个残骸，它上面有一些钢铁，你需要将它们回收到教练机的物品架上。\n\n首先，你需要飞到它附近，然后使用PDA给飞船指派“速度同步”的自动任务，让飞船能和残骸速度同步，这样你出舱才不会变成太空垃圾。\n\n当速度同步完成后，你就可以指示飞船“开始舱外作业”。飞船的逆重材料会与附近的结构建立关联，来维持彼此的相对位置——简单来说，这时候飞船对接口伸出的通道就能安全连接在附近结构上（如果距离足够近），然后你就可以沿着通道可以安全地走过去走回来。\n\n不过需要注意的是，这里很多结构混有另一种逆重材料，在特定距离下它会干扰逆重板材料的工作，导致无法舱外作业。其具体规律还不明确，但我们的一个研究员声称自己请超凡智能上身后，超凡智能说“地图是有边界的，通常两艘飞船速度同步后共同舱外作业，会把两个飞船一起搬到一个更大的地图里来实现地图合并；但是飞船之外的结构为了兼容性考虑，需要避免搬运结构以及销毁旧地图。所以如果飞船要与非飞船地图合并，必须要让飞船完整停进去。如果当前飞船和对应地图的重叠区域不足以让飞船停靠，那么就会拒绝进行舱外作业。”\n\n我是完全无法理解他在说什么……\n\n不管怎么说，你把钢铁搬回来就行了。\n\n顺便一提，硬对接后你能在PDA的飞船控制面板上看到当前逆重材料关联的结构列表。如果你以后有多个飞船，可以通过点击列表里的结构名称来切换想要控制的飞船。</DeltaV_Tutorial_Dialog_Salvage>
+  <DeltaV_Tutorial_Dialog_Visit>好嘞，现在你可以来我们空间站领你的飞船了，就在残骸的北偏东方向，你应该很容易能看到。你可以对接到它西侧的空闲对接口上，然后通过东侧对接口进入你的飞船。\n\n对接时软对接或者硬对接都行，但是我个人建议用软对接。软对接的时候飞船会启动自动对齐双方对接口的辅助驾驶功能，至少我自己搞硬对接的话经常对接歪……（背景中传来其他人的笑声）\n\n进入空间站后，沿东侧已经接好的通道就能登上泊口里的原型船了。去检查下逆重引擎，拿手戳它两下，那艘船送你了。\n\n放心，研究员跟我说完全安全，上次的逆重引擎原型机坠落是机械体袭击带来的意外，完全不是因为有只老鼠用门牙啃了逆重核心。而闹鬼更是无稽之谈，当前没人去那个船上也只是因为大家都有自己的事需要忙。</DeltaV_Tutorial_Dialog_Visit>
+  <DeltaV_Tutorial_StartFlight>那我还得谢谢你嘞。</DeltaV_Tutorial_StartFlight>
   <DeltaV_Tutorial_CheckFlight>船稳住了，看看我的驾驶怎么样。</DeltaV_Tutorial_CheckFlight>
-  <DeltaV_Tutorial_CheckSalvage>钢铁收好了，带我去下一站吧。</DeltaV_Tutorial_CheckSalvage>
-  <DeltaV_Tutorial_CheckSoftDock>接口连通了，我去登台看看。</DeltaV_Tutorial_CheckSoftDock>
-  <DeltaV_Tutorial_AcceptShip>接受赠船，完成训练。</DeltaV_Tutorial_AcceptShip>
+  <DeltaV_Tutorial_CheckSalvage>钢铁收好了，接下来是什么？</DeltaV_Tutorial_CheckSalvage>
+  <DeltaV_Tutorial_AcceptShip>……我戳完了，那我把它开走了哈。</DeltaV_Tutorial_AcceptShip>
   <DeltaV_Tutorial_FlightProgress>驾驶练习：前后推进 {0}/30、侧移 {1}/30、旋转 {2}/30 游戏刻。完成后让人物留在船上，并把线速度和转速降到接近零。</DeltaV_Tutorial_FlightProgress>
-  <DeltaV_Tutorial_SalvageProgress>训练船货架当前有 {0}/75 钢铁。还需与指定回收平台完成硬对接，并让殖民者回到训练船。</DeltaV_Tutorial_SalvageProgress>
-  <DeltaV_Tutorial_NeedSoftDock>教练机尚未与武器平台的指定接口真正连通。左右任一接口均可；请保持菱形对齐，等待连接完成。</DeltaV_Tutorial_NeedSoftDock>
+  <DeltaV_Tutorial_SalvageProgress>教练机货架当前有 {0}/75 钢铁。还需与指定回收平台完成硬对接，并让殖民者回到教练机。</DeltaV_Tutorial_SalvageProgress>
   <DeltaV_Tutorial_NeedVisit>先让殖民者到原型船的逆重引擎旁，确认船和引擎仍归玩家同一艘船所有。</DeltaV_Tutorial_NeedVisit>
-  <DeltaV_Tutorial_FlightAssetLost>必要的训练设施已被移除，课程无法继续；引导已结束，现有人物、船和物资保留。</DeltaV_Tutorial_FlightAssetLost>
-  <DeltaV_Tutorial_FlightSetupFailed>训练场地生成失败，太空生存指导已结束。请查看日志；不要重复生成同一批船。</DeltaV_Tutorial_FlightSetupFailed>
-  <DeltaV_Tutorial_TrainingShip>姿态驾驶训练船</DeltaV_Tutorial_TrainingShip>
-  <DeltaV_Tutorial_SalvageTarget>教学回收平台</DeltaV_Tutorial_SalvageTarget>
-  <DeltaV_Tutorial_Shipyard>星界边境环形船厂</DeltaV_Tutorial_Shipyard>
-  <DeltaV_Tutorial_PrototypeShip>小型货运飞船</DeltaV_Tutorial_PrototypeShip>
-  <DeltaV_Tutorial_CargoShelf>训练船回收货架</DeltaV_Tutorial_CargoShelf>
-  <DeltaV_Tutorial_TrainingAccessLost>公共训练船已无法使用，驾驶指导结束。已生成的人物、设施与物资仍然保留。</DeltaV_Tutorial_TrainingAccessLost>
-  <DeltaV_Tutorial_BerthUnavailable>泊口对接通道未能建立，太空生存指导已结束。请查看日志。</DeltaV_Tutorial_BerthUnavailable>
-  <DeltaV_Tutorial_Stage_Contact>穿好真空服和头盔，经气闸登上铁盒子。选中队长，右键教练机的通讯台，呼叫“星界边境”。其他队员仍留在休眠舱内。</DeltaV_Tutorial_Stage_Contact>
+  <DeltaV_Tutorial_FlightAssetLost>必要的训练设施已被移除，课程无法继续；引导已结束，现有人物、船和物资保留。若设施并未被拆除或摧毁，请联系开发者报告错误并附上相关日志。</DeltaV_Tutorial_FlightAssetLost>
+  <DeltaV_Tutorial_FlightSetupFailed>训练场地生成失败，太空生存指导已结束。不要重复生成同一批船。请联系开发者报告错误并附上相关日志。</DeltaV_Tutorial_FlightSetupFailed>
+  <DeltaV_Tutorial_TrainingShip>教练机</DeltaV_Tutorial_TrainingShip>
+  <DeltaV_Tutorial_SalvageTarget>残骸</DeltaV_Tutorial_SalvageTarget>
+  <DeltaV_Tutorial_Shipyard>星界边境-船厂</DeltaV_Tutorial_Shipyard>
+  <DeltaV_Tutorial_PrototypeShip>原型机</DeltaV_Tutorial_PrototypeShip>
+  <DeltaV_Tutorial_CargoShelf>教练机回收货架</DeltaV_Tutorial_CargoShelf>
+  <DeltaV_Tutorial_TrainingAccessLost>公共教练机已无法使用，驾驶指导结束。已生成的人物、设施与物资仍然保留。若仍与星界边境结盟且设施完好，请联系开发者报告错误并附上相关日志。</DeltaV_Tutorial_TrainingAccessLost>
+  <DeltaV_Tutorial_BerthUnavailable>泊口对接通道未能建立，太空生存指导已结束。请联系开发者报告错误并附上相关日志。</DeltaV_Tutorial_BerthUnavailable>
   <DeltaV_Tutorial_Stage_Inquiry>通讯已接通，询问星界边境的目的，以及移民船遭遇了什么。</DeltaV_Tutorial_Stage_Inquiry>
-  <DeltaV_Tutorial_Dialog_Contact>先穿好真空服和头盔，通过东侧气闸和对接通道进入那个铁盒子。\n\n选中队长，右键里面的通讯台，选择呼叫“星界边境”。必须让队长走到通讯台并接通通讯；在任务窗口里查看提示不会代替呼叫。通讯台需要供电。\n\n其他候选殖民者仍在移民船的船用休眠舱里。暂时让他们继续睡吧。</DeltaV_Tutorial_Dialog_Contact>
-  <DeltaV_Tutorial_Dialog_Inquiry>通讯台传来回应：“这里是星界边境。哦，移民船那边终于有动静了？”</DeltaV_Tutorial_Dialog_Inquiry>
-  <DeltaV_Tutorial_AskPurpose>你们是什么人？拿走我们的计算机核心、留下这艘船，到底想干什么？</DeltaV_Tutorial_AskPurpose>
-  <DeltaV_Tutorial_FindComms>先接通通讯。</DeltaV_Tutorial_FindComms>
+  <DeltaV_Tutorial_Dialog_Inquiry>通讯台传来回应：“这里是星界边境。（似乎在回应身边的人）对，移民船那边的通讯，我都跟你说我设好了定时唤醒……”</DeltaV_Tutorial_Dialog_Inquiry>
+  <DeltaV_Tutorial_AskPurpose>你们是什么人？这里到底发生了什么？移民船计算机核心呢？还有后半截呢？</DeltaV_Tutorial_AskPurpose>
   <DeltaV_Tutorial_Mentors>星界边境</DeltaV_Tutorial_Mentors>
-  <DeltaV_Tutorial_CommsLost>教练机通讯台已损失，无法完成首次联系，指导已结束。</DeltaV_Tutorial_CommsLost>
-  <DeltaV_Tutorial_Stage_Design>听取维护与推进器布局的理论讲解，再进入驾驶练习。无需修理或建造设备。</DeltaV_Tutorial_Stage_Design>
-  <DeltaV_Tutorial_StartPractice>明白了，先试着开这艘船。</DeltaV_Tutorial_StartPractice>
-  <DeltaV_Tutorial_Dialog_Design>开船前先说两句维护。出发前看看舱壁和气闸是否完整、维生与电网是否正常，再检查推进器有没有故障、喷口外有没有障碍。维修与设计这次只讲原理，不用你动手修东西，更不用现在就造一艘船。\n\n再说这艘教练机——它挺难开的，别怀疑自己。两台向前推、两台向后推的大型推进器都还在，但侧向 RCS 只剩船尾左右各一台。船头那两台前段时间被拆去测试新船了，还没装回来。\n\n没有特殊需求的话，一定要在船头船尾都装侧向推进器来提供平移能力。否则就会像这艘船一样：尾部的小型推进器离重心远，一侧推就带来旋转力矩；左右平移时，短力臂的前后大型推进器也得一起出力，才能补偿它。等会儿留意一下，明明只想侧移，前后主推却也在忙——这就是布局让你付出的代价。\n\n当然，设计得看用途。你们的移民船原本就没有反推，因为它有充足的时间把船体旋转 180 度，再用主推进器减速。有些前端顶着乌龟壳的战舰也基本不装前部 RCS：它们不太需要左右平移，只需要转动船体，让最硬的一面对准敌人。\n\n所以别把教练机照抄成通用船。先想清楚要怎么飞，再决定哪些方向的推进器和力臂可以舍弃。</DeltaV_Tutorial_Dialog_Design>
+  <DeltaV_Tutorial_CommsLost>教练机通讯台已损失，无法完成首次联系，指导已结束。若设施并未被拆除或摧毁，请联系开发者报告错误并附上相关日志。</DeltaV_Tutorial_CommsLost>
+  <DeltaV_Tutorial_Stage_Design>听取这个边缘世界使用的飞船技术说明，然后进行驾驶练习。</DeltaV_Tutorial_Stage_Design>
+  <DeltaV_Tutorial_StartPractice>那我应该怎么开它呢？</DeltaV_Tutorial_StartPractice>
+  <DeltaV_Tutorial_Dialog_Design>开船不规范，亲人两行泪。出发前先确认舱壁和气闸是否完整、维生与电网是否正常，再检查推进器有没有故障、喷口外有没有障碍，这之后再检查储能和武器弹药是不是都充分——哦，这个教练机上没有武器。最后检查没有该一起走的人被落在外面，或者不该一起走的混进了飞船。\n\n这艘是星界边境的公共教练机，不要在船上建造或占领设施，也不要损毁上面的设施——即便你被它反人类的操控性能惹毛了也不要拿设备撒气。实际上，除了现在这两台向前推、两台向后推的大型推进器以及尾部左右各一台转向推进器外，其实本该在船头两侧也各有一台转向推进器的。只是船头那俩前段时间被拆去测试新船还被测炸了，备件生产还延期了，所以现在只是临时封上了漏洞，将就用吧。\n\n不过也因为缺少了这俩推进器，这个教练机的侧向推进能力十分捉急。这不只是少了一个推进器的推力，还会导致飞船前后的侧推力矩不平衡。\n\n比如，当你向右平移时，左侧尾部的推进器会推着飞船逆时针转动，需要前后的大型推进器进行补偿。而且因为小推进器离重心远，即使推力小也能带来巨大的旋转力矩，而前后的大型推进器虽然推力大，但离重心过近以至于能补偿的旋转力矩并不大，有时候甚至还会因为出力不足而产生不可避免的旋转。\n\n所以我建议你尽量避免用这个玩意左右平移。你可以先将它转向你想要移动的方向，然后用前后的大推力推进器来得到更高的加速度。\n\n如果你以后要造自己的船，没有特殊需求的话，我十分建议你在船头船尾都装侧向推进器来提供对称的推力来得到更好的操控性能。不过当然，也得看设计用途。比如你们的移民船就没有反推，因为它有充足的时间把船体旋转 180 度，再用主推进器减速。我们这边有些前端顶着乌龟壳的战舰也基本不装前部 RCS：它们不太需要左右平移，只需要转动船体，让最硬的一面对准敌人。</DeltaV_Tutorial_Dialog_Design>
   <DeltaV_Tutorial_Defer_Welcome>先让我缓缓，理清眼前的状况。</DeltaV_Tutorial_Defer_Welcome>
-  <DeltaV_Tutorial_Defer_Contact>我先检查一下装备，等会儿再联系。</DeltaV_Tutorial_Defer_Contact>
-  <DeltaV_Tutorial_Defer_Inquiry>等一下，我还有些事要确认。</DeltaV_Tutorial_Defer_Inquiry>
-  <DeltaV_Tutorial_Defer_Briefing>我先整理一下，再来听课。</DeltaV_Tutorial_Defer_Briefing>
-  <DeltaV_Tutorial_Defer_Design>让我先消化一下这些原理。</DeltaV_Tutorial_Defer_Design>
-  <DeltaV_Tutorial_Defer_Flight>我还想多练几次。</DeltaV_Tutorial_Defer_Flight>
-  <DeltaV_Tutorial_Defer_Salvage>我再检查一下货物和通道。</DeltaV_Tutorial_Defer_Salvage>
-  <DeltaV_Tutorial_Defer_Range>我之后会自己试的。</DeltaV_Tutorial_Defer_Range>
-  <DeltaV_Tutorial_Defer_SoftDock>我之后再来试对接，先去空间站。</DeltaV_Tutorial_Defer_SoftDock>
-  <DeltaV_Tutorial_Defer_RangePractice>我再试几轮，晚点去空间站。</DeltaV_Tutorial_Defer_RangePractice>
+  <DeltaV_Tutorial_Defer_Inquiry>稍等一下，我需要先去吐一下，还有些事要确认。</DeltaV_Tutorial_Defer_Inquiry>
+  <DeltaV_Tutorial_Defer_Briefing>让我缓缓，低温症还在……咕……哕。</DeltaV_Tutorial_Defer_Briefing>
+  <DeltaV_Tutorial_Defer_Design>我现在肚子好像又开始……哕。</DeltaV_Tutorial_Defer_Design>
+  <DeltaV_Tutorial_Defer_Flight>懂了，我去试试。</DeltaV_Tutorial_Defer_Flight>
+  <DeltaV_Tutorial_Defer_Salvage>我这就去。</DeltaV_Tutorial_Defer_Salvage>
+  <DeltaV_Tutorial_Defer_Range>那我这就去看看。</DeltaV_Tutorial_Defer_Range>
   <DeltaV_Tutorial_Defer_Visit>我再逛逛，稍后再办交接。</DeltaV_Tutorial_Defer_Visit>
 </LanguageData>
