@@ -1,22 +1,23 @@
 # 舰炮调校离线回归
 
-2026-11-05 第四版已固化并接入生产：标准守卫 750＋750、动能穿深、已付冲量／抗碎阈值、幸存弹续飞、轨道固定动能与电容数值。当前使用本脚本 `-OutputAudit` 扫描 20,592 个生产配置，并运行 `RailgunRegression` 的真实碰撞／能源／跨 tick 续飞检查；`verify_energy_impulse_runtime.py` 校验全部化学炮预算及关键配置，保存当前验证快照。多炮集火和持续削甲是用户确认的预期。游戏内验收未执行，见[当前标准](../../doc/动能穿深与冲量护盾数值方案.md)。
+现行定位、参数和护盾机制统一见[舰炮与护盾基线](../../doc/舰炮与护盾基线.md)。本目录直接调用 1.7 生产 DLL、真实 Def 与原版组件；碰撞／轨道能源的 1.6 对照入口为 `../RailgunRegression/run.ps1`。
 
-历史候选命令仍保留作分析工具，但新 DLL 已改变其生产输入；复核旧结论请读对应日期的 JSON 快照，不重新生成覆盖旧证据。
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/WeaponTuningRegression/run.ps1
+powershell -ExecutionPolicy Bypass -File scripts/WeaponTuningRegression/run.ps1 -OutputAudit
+```
 
-2026-11-05 实施前第四版 `-EnergyImpulseAudit`：750＋750 守卫、按动能计算候选穿深、已付法向冲量／抗碎阈值、轨道易碎长杆。先运行本目录同名开关，再运行 `RailgunRegression -EnergyImpulseAudit`（参数同其原脚本），最后 `python scripts/WeaponTuningRegression/summarize_energy_impulse.py`。原有 218＋200 项检查通过；新增 20,592 配置、430,080 冲量网格、410 守卫场景、216 欠费边界、2 破片转换检查、228 单发结构场景、666 持续结构场景及 36 轨道能源事务。种子 170519，结构／能源结果重跑哈希一致。共享 `EnergyImpulseModel.cs` **只编译进离线程序**；新公式不冒充生产盾行为，生产碰撞接收候选预算。撤回第三版装药下限建议，保留其常用配置长期 DPS；这是实施前实验记录，用户现已认可其全部现象并授权落地；旧快照不等于当前生产验证。完整参数、命令与限制见[第四版报告](../../doc/动能穿深与冲量护盾数值方案.md)，快照含输入哈希，原始全表在 `Source/obj/WeaponTuningRegression`。
+当前普通回归通过 1,754 项检查；侧向冲量矩阵包含 8 种质量、7 个入射角、6 档强度、普通／长杆阈值及共同旋转。检查实际失稳弹 Def 的结构、基架和守卫后效。RailgunRegression 通过 284 项检查，覆盖真实碰撞、能源、跨 tick 续飞、翻滚后二次撕裂及质量／剩余寿命。
 
-2026-11-05 `-RoleBalanceAudit` 使用现有质量／穿深模型和无热锁激光，生成第三版候选的 20,592 个配置、382 个守卫场景及线盾方向／费用对照。随后运行 `RailgunRegression -RolePenetrationAudit`，从前一步读取真实热循环时序，执行生产碰撞／建筑伤害的 76 个单发、389 个持续结构靶场景和 12 个轨道能源事务场景；两个模式均先跑原有回归。`summarize_role_balance.py` 保存可审阅的 JSON 结果快照与输入哈希。具体参数、命令、限制见[候选数值与穿深对照](../../doc/舰炮定位数值方案与穿深对照.md)。未修改游戏数值，整舰 120～240 秒目标尚未通过；结构靶终点不冒充舰船败北。
+`-OutputAudit` 扫描 20,592 个生产武器配置与 352 个守卫场景，输出 `Source/obj/WeaponTuningRegression/output-audit.json`。它运行生产热循环、毁伤和守卫扣容／回充，不模拟真实瞄准、双向机动、补给工作或完整电网。冷炮、初始库存、应急、供能和终点均在输出中声明。
 
-第二版实施推荐已在用户复核后撤回：`-ThermalBalanceAudit` 保留为长冷却／新增激光热锁假设下的历史实验，不代表当前游戏机制或获准方案；其时长不能直接套用到保留现有激光机制的下一版。
+## 历史分析工具与快照
 
-2026-11-05 新增 `-ThermalBalanceAudit`：以新建夹具参数对照共同毁伤缩放、低速因子、三类热循环、四组守卫参数和多炮同步／错峰。当前 896 个舰炮场景＋8 个原版电荷扫射场景，主对照无限弹药／电力，不人为关闭射界；新增全炮热锁且当 tick 无发射的窗口及完成热循环计数。毁伤新公式为显式分析提案，热锁和护盾运行生产方法；输出 `Source/obj/WeaponTuningRegression/thermal-balance-audit.json`，设计与限制见[第二版平衡方案](../../doc/舰炮与护盾第二版平衡方案.md)。不修改运行时数值。
+`-ShieldDurationAudit`、`-ThermalBalanceAudit`、`-RoleBalanceAudit`、`-EnergyImpulseAudit` 及配套 `summarize_*.py` 是旧提案分析入口；`EnergyImpulseModel.cs` 不进入游戏。它们的候选参数和总冲量碎裂判据不是现行侧向失稳规则。当前 DLL 改变了输入，重新运行不能复原原实验；复核应检出当时提交并核对快照哈希，不能覆盖旧证据。
 
-2026-11-05 地表尺度复核撤回了 30k 护盾实施推荐，旧时长扫描只保留为反例。`python scripts/WeaponTuningRegression/audit_vanilla_scale.py` 读取原版电荷冲击炮 XML 与既有生产输出审计，按全命中、无回充估算容量承伤时间，并提取真实热循环。可用 `--game-data` 指定原版 Data；结果为 `Source/obj/WeaponTuningRegression/vanilla-scale-audit.json`。热循环以补给充足为前提，有限弹仓不定义交火轮次；不热锁的武器不虚构热循环。
+`verify_energy_impulse_runtime.py` 专门核验并写入提交 `240ca40` 所对应的生产快照，含该轮检查数和输入哈希；不能当作本轮通用验证命令。历史 JSON 及图片保留在 `results/`；[基线的历史证据](../../doc/舰炮与护盾基线.md#history)列出适用范围。`audit_vanilla_scale.py` 为原版电荷扫射容量估算工具；绘图脚本只是可视化输入结果，不为旧结论赋予当前有效性。
 
-2026-11-05 `-ShieldDurationAudit` 在现行输出审计后，用仅存在于夹具中的护盾候选参数测试多炮同步／错峰、等比扩舰与超额集火、连续／间歇射界、有限初始库存、供能上界、断电和无应急。当前 1646 个场景，含逐场景容量守恒与真实恢复边界；结果 `Source/obj/WeaponTuningRegression/shield-duration-audit.json`，报告见[护盾战斗时长参数方案](../../doc/护盾战斗时长参数方案.md)，图由 `render_shield_duration.py` 生成。首次破盾不等于击毁舰船，给定的无射界窗口不等于已实现的机动效果；不改游戏数值。
-
-2026-11-05 新增可选 `-OutputAudit`：先跑原有回归，再使用生产组件测量完整热循环、共同毁伤、守卫扣容与恢复。当前扫描 20,592 个武器配置及 352 个盾场景，输出 `Source/obj/WeaponTuningRegression/output-audit.json`；完整口径、结果与结论见[武器输出审计](../../doc/武器输出审计.md)。`render_output_audit.py` 用 matplotlib 重建报告图。只提供理想发射／命中事件，不模拟瞄准、地图碰撞、真实补给或电网，不改运行时数值。
+## 其他回归历史
 
 2026-11-03 货仓装运口专项：在原 160 项基础上检查四向原版交互格、真实 Pawn_RotationTracker 的 Hack 朝向及普通目标不受影响；检查 ASF／原版箱库存的占用率、容量下调、喷漆跨模式保留、锁定状态色，以及外箱投影在各光向的几何边界。真实 XML／ASF 图层改为双色共用装运口。绘制夹具不代替游戏内 Shader、寻路、存读档和聚焦切换验收；结果见本轮美术记录。
 

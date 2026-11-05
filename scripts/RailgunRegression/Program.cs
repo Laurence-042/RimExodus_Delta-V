@@ -283,7 +283,7 @@ internal static partial class Program
         var net = (PowerNet)Raw(typeof(PowerNet)); net.batteryComps = new List<CompPowerBattery> { battery };
         var power = new CompPowerTrader(); Set(power, "powerOnInt", true); power.transNet = net;
         var kinetic = new CompSpaceShield { props = new CompProperties_SpaceShield(),
-            mode = SpaceShieldMode.Kinetic, kineticStrengthPercent = 10, projection = 10, length = 20 };
+            mode = SpaceShieldMode.Kinetic, kineticStrengthPercent = 10, projection = 10, length = 20, angleDeg = 45 };
         var intercept = (CompProjectileInterceptor)Raw(typeof(CompProjectileInterceptor));
         intercept.props = new CompProperties_ProjectileInterceptor { radius = 12 };
         var emitter = Add(40, 8, 500, intercept, kinetic, power);
@@ -292,16 +292,17 @@ internal static partial class Program
         bool shattered = false;
         service = new SpaceProjectileService(universe);
         var railProps = rail.GetCompProperties<CompProperties_SpaceProjectile>();
-        railProps.shieldFragmentDef = fragment; railProps.shieldFragmentCount = 4; railProps.shieldBreakDeltaV = .5f;
+        railProps.shieldFragmentDef = fragment; railProps.shieldFragmentCount = 4; railProps.shieldTumbleDef = fragment;
+        railProps.shieldTumbleDeltaV = .15f; railProps.shieldBreakDeltaV = .5f;
         var attack = new SpaceObject(nextId++, new SpacePose(start, 0));
         attack.pose.velocity = tangent * 540;
         shot = new SpaceCollision.SweptBody { attacker = attack, projectileDef = rail, from = start,
             to = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(70, 5.5f)), damageScale = 1, mass = 40,
             onVisualContact = contacts.Add,
-            onShieldShatter = (hit, defender, velocity, normal, energy) =>
+            onShieldShatter = (hit, defender, velocity, normal, energy, count) =>
             {
                 shattered = true;
-                SpaceShieldProjectileBehavior.SpawnFragments(service, rail, null, defender, null, hit, velocity, normal, energy, 40f, 1f);
+                SpaceShieldProjectileBehavior.SpawnFragments(service, rail, null, defender, null, hit, velocity, normal, energy, 40f, 1f, fragmentCount: count);
             } };
         SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
         records = (IList)AccessTools.Field(typeof(SpaceProjectileService), "projectiles").GetValue(service);
@@ -341,10 +342,10 @@ internal static partial class Program
                     incomingVelocity = SpaceTransform.RelativeVelocityAtContact(attack.pose, hull.pose, contactPoint);
                     normalAtHit = SpaceTransform.MapDirectionToUniverseTangent(hull, map, contact.localPoint, contact.localNormal);
                 },
-                onShieldShatter = (hit, defender, velocity, normal, impulse) => {
+                onShieldShatter = (hit, defender, velocity, normal, impulse, count) => {
                     fundedImpulse = impulse;
                     SpaceShieldProjectileBehavior.SpawnFragments(service, rail, null, defender, null,
-                        hit, velocity, normal, impulse, incomingMass, 1f, damageScale: .7f);
+                        hit, velocity, normal, impulse, incomingMass, 1f, damageScale: .7f, fragmentCount: count);
                 } };
             SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
             var expected = EnergyImpulseModel.Apply(incomingMass, Vector2.Dot(incomingVelocity, normalAtHit),
@@ -352,7 +353,10 @@ internal static partial class Program
             Check(Math.Abs(battery.StoredEnergy - (available - expected.Cost)) < .001f,
                 $"production pulse matches independently calculated funded cost: mass={incomingMass}, available={available}");
             records = (IList)AccessTools.Field(typeof(SpaceProjectileService), "projectiles").GetValue(service);
-            Check(records.Count == (expected.Broken ? 4 : 0) && (fundedImpulse >= 0) == expected.Broken,
+            double lateral = expected.Impulse * Math.Abs(incomingVelocity.normalized.x*normalAtHit.y
+                - incomingVelocity.normalized.y*normalAtHit.x) / incomingMass;
+            int expectedCount = lateral > .5 ? 4 : lateral > .15 ? 1 : 0;
+            Check(records.Count == expectedCount && (fundedImpulse >= 0) == (expectedCount > 0),
                 "only funded impulse reaching the long-rod threshold produces fragments");
             for (int j = 0; j < records.Count; j++)
             {
@@ -361,9 +365,9 @@ internal static partial class Program
                 Vector2 after = SpaceTransform.TransportTangent(pieceContainer.pose.velocity, pieceContainer.pose.position, contactPoint)
                     - SpaceTransform.VelocityAtUniversePoint(hull.pose, contactPoint);
                 Vector2 wanted = SpaceTransform.Rotate(incomingVelocity + normalAtHit * (fundedImpulse / incomingMass),
-                    (2f * j / 3 - 1) * 11 * Mathf.Deg2Rad);
+                    (records.Count == 1 ? 0 : 2f * j / (records.Count - 1) - 1) * 11 * Mathf.Deg2Rad);
                 Check((after - wanted).magnitude < .01f, "fragment scatter follows paid parent impulse and inherits rotating shield point velocity");
-                Check(Math.Abs((float)AccessTools.Field(piece.GetType(), "mass").GetValue(piece) - incomingMass / 4) < .001f
+                Check(Math.Abs((float)AccessTools.Field(piece.GetType(), "mass").GetValue(piece) - incomingMass / records.Count) < .001f
                     && Math.Abs((float)AccessTools.Field(piece.GetType(), "damageScale").GetValue(piece) - .7f) < .001f,
                     "fragment mass and remaining impact budget are separate and not duplicated");
                 Check((int)AccessTools.Field(piece.GetType(), "spawnedAtTick").GetValue(piece) == Find.TickManager.TicksGame,
@@ -476,6 +480,7 @@ internal static partial class Program
         CheckContinuousBeam(coupler, engineering);
         CheckEnergy();
         CheckImpulseSurvival();
+        CheckLateralTransform();
         CheckVisualAnchors();
     }
 

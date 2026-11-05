@@ -237,7 +237,7 @@ namespace DeltaV
 
         internal void LaunchShieldFragment(ThingDef def, SpaceObject source, SpaceObject defender,
             Thing launcher, Vector3 hit, Vector2 relativeVelocity, Vector2 outwardNormal, float mass,
-            float armorPenetrationScale, bool reflectedByShield, float damageScale = 1f)
+            float armorPenetrationScale, bool reflectedByShield, float damageScale = 1f, int remainingLifetimeTicks = -1)
         {
             float speed = relativeVelocity.magnitude;
             Vector2 travel = speed > .0001f ? relativeVelocity / speed : outwardNormal;
@@ -248,6 +248,9 @@ namespace DeltaV
             if (!Launch(def, null, muzzle, worldDirection, source?.faction, launcher, default,
                 new SpaceProjectileLaunchSpec(speed, 0, speed, damageScale, armorPenetrationScale, mass))) return;
             Projectile fragment = projectiles[projectiles.Count - 1];
+            if (remainingLifetimeTicks >= 0)
+                fragment.spawnedAtTick = Find.TickManager.TicksGame
+                    + Mathf.Min(fragment.props.timeoutTicks, remainingLifetimeTicks) - fragment.props.timeoutTicks;
             fragment.sourceContainer = source;
             fragment.reflectedByShield = reflectedByShield || Vector2.Dot(relativeVelocity, outwardNormal) > 0f;
             fragment.container.pose.velocity = SpaceTransform.TransportTangent(
@@ -754,12 +757,14 @@ namespace DeltaV
                     }
                 };
                 body.onShieldShatter = delegate (Vector3 hit, SpaceObject defender,
-                    Vector2 relativeVelocity, Vector2 outwardNormal, float impulse)
+                    Vector2 relativeVelocity, Vector2 outwardNormal, float impulse, int fragmentCount)
                 {
                     SpaceShieldProjectileBehavior.SpawnFragments(this, captured.def,
                         captured.sourceContainer, defender, captured.launcher, hit,
                         relativeVelocity, outwardNormal, impulse, captured.mass,
-                        captured.armorPenetrationScale, captured.reflectedByShield, captured.body.damageScale);
+                        captured.armorPenetrationScale, captured.reflectedByShield, captured.body.damageScale,
+                        fragmentCount, Mathf.Max(0, captured.props.timeoutTicks
+                            - (Find.TickManager.TicksGame - captured.spawnedAtTick)));
                 };
                 sweepScratch.Add(p);
                 bodyScratch.Add(body);

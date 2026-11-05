@@ -35,8 +35,22 @@ namespace DeltaV
         }
         public static Vector2 ApplyShieldImpulse(float mass, Vector2 velocity, Vector2 outwardNormal, float impulse)
             => mass <= 0f || impulse <= 0f ? velocity : velocity + outwardNormal.normalized * (impulse / mass);
-        public static bool Shatters(float mass, float impulse, CompProperties_SpaceProjectile props)
-            => mass > 0f && impulse > 0f && props.shieldFragmentCount > 1
-                && impulse / mass >= props.shieldBreakDeltaV;
+        public static float LateralImpulse(Vector2 incoming, Vector2 normal, float impulse)
+        {
+            if (incoming.sqrMagnitude < 1e-8f || impulse <= 0f) return 0f;
+            Vector2 direction = incoming.normalized;
+            normal.Normalize();
+            return impulse * Mathf.Abs(direction.x * normal.y - direction.y * normal.x);
+        }
+
+        // 0: intact continuation; 1: one full-mass tumbling body; N: torn fragments.
+        public static int ShieldFragmentCount(float mass, Vector2 incoming, Vector2 normal,
+            float impulse, CompProperties_SpaceProjectile props)
+        {
+            if (mass <= 0f || props.shieldFragmentCount <= 1) return 0;
+            float lateralDeltaV = LateralImpulse(incoming, normal, impulse) / mass;
+            if (lateralDeltaV > props.shieldBreakDeltaV + 1e-5f) return Mathf.Clamp(props.shieldFragmentCount, 2, 12);
+            return !props.shieldTumbling && lateralDeltaV > props.shieldTumbleDeltaV + 1e-5f ? 1 : 0;
+        }
     }
 }

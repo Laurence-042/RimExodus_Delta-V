@@ -83,6 +83,7 @@ internal static partial class Program
         var effect = new ImpactOutcomePart { damage = 24, kineticMassScaling = true };
         Check(Near(SpaceImpactEffects.ComputeDamage(effect, heavy, 0, 1, 16), 24), "production damage uses actual mass and speed");
         CheckShieldNormalEnergy();
+        CheckLateralDefinitions(repo);
         var rapid = Gun(Def("DeltaV_Weapon_RapidMainSmall"));
         var cannon = Gun(Def("DeltaV_Weapon_CannonTurret"));
         cannon.charge = cannon.mass = 1; cannon.CommitShot();

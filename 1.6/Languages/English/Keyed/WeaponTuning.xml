@@ -13,7 +13,7 @@
   <DeltaV_ThermalReady>below thermal limit</DeltaV_ThermalReady>
   <DeltaV_ShotLoad>Per shot: {0} charge + {1} heads; mass {2}, speed {3} cells/s; cycle {4}s</DeltaV_ShotLoad>
   <DeltaV_PulseEnergy>Pulse energy: {0} Wd</DeltaV_PulseEnergy>
-  <DeltaV_ShieldKineticImpulseReference>Normal impulse: {0}. Heavy rounds resist slowing and fragmentation; fragile long rods break more easily. Strong pulses can reflect light rounds. Zero strength has no effect; unfunded impulse is not applied.</DeltaV_ShieldKineticImpulseReference>
+  <DeltaV_ShieldKineticImpulseReference>Normal impulse: {0}. Head-on rounds only slow or reverse. Oblique rounds may tumble or tear under transverse impulse; heavy rounds resist and railgun rods are fragile. Only funded impulse applies.</DeltaV_ShieldKineticImpulseReference>
   <DeltaV_HeadSupply>Projectile heads</DeltaV_HeadSupply>
   <DeltaV_PropellantSupply>Propellant</DeltaV_PropellantSupply>
 </LanguageData>

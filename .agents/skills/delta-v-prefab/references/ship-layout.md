@@ -49,7 +49,7 @@
 
 ## 守卫护盾的实例与覆盖
 
-护盾机制与参数的权威说明是仓库 `doc/护盾机制基线.md`；制作时读当前 `1.6/Defs/SpaceCombat/DeltaV_Shields.xml` 和 `Source/Buildings/CompSpaceShield.cs`，不要另存固定性能表。
+护盾机制与参数的权威说明是仓库 `doc/舰炮与护盾基线.md#geometry`；制作时读当前 `1.6/Defs/SpaceCombat/DeltaV_Shields.xml` 和 `Source/Buildings/CompSpaceShield.cs`，不要另存固定性能表。
 
 - 使用同 Def 的完整 Scribe 原型，显式检查目标模式。其他船的原型可能保存为动能或电磁，放在中部不等于已经是守卫模式。
 - 结合当前 `PostExposeData` / `PostSpawnSetup` 核对 `DeltaV_shieldMode`、`DeltaV_shieldGroundRadius`、原版 `currentHitPoints`、`DeltaV_guardUnlocked`、`DeltaV_guardRecoveryTicksRemaining` 和停用状态。新设计克隆他船原型时，按目标初始状态处理损耗与计时；回收用户自己的更新设计时保留其实际状态。两者都保留必要的完整 Comp 状态，不修改共享 Def 来达到实例效果。

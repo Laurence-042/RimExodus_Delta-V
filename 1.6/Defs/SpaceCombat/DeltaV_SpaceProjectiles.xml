@@ -41,6 +41,7 @@
         <hasMap>false</hasMap>
         <shieldFragmentCost>2</shieldFragmentCost>
         <shieldFragmentDef>DeltaV_Projectile_ShieldFragment</shieldFragmentDef>
+        <shieldTumbleDef>DeltaV_Projectile_ShellTumbling</shieldTumbleDef>
         <shieldFragmentCount>3</shieldFragmentCount>
         <shieldFragmentScatterDeg>11</shieldFragmentScatterDeg>
       </li>
@@ -86,6 +87,7 @@
         <timeoutTicks>900</timeoutTicks>
         <hasMap>false</hasMap>
         <shieldFragmentDef>DeltaV_Projectile_ShieldFragment</shieldFragmentDef>
+        <shieldTumbleDef>DeltaV_Projectile_ShellTumbling</shieldTumbleDef>
         <shieldFragmentCount>3</shieldFragmentCount>
         <shieldFragmentScatterDeg>11</shieldFragmentScatterDeg>
         <shieldFragmentCost>2</shieldFragmentCost>
@@ -385,6 +387,98 @@
         <laserBeamWidth>0.12</laserBeamWidth>
         <shieldLaserTurnEnergy>1</shieldLaserTurnEnergy>
         <guaranteedHitMissiles>true</guaranteedHitMissiles>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_Projectile_ShellTumbling</defName>
+    <label>tumbling shell projectile</label>
+    <description>A full-mass projectile destabilized by a transverse shield impulse. It has lost deep penetration and may tear under a stronger transverse impulse.</description>
+    <thingClass>Verse.Building</thingClass>
+    <category>Building</category>
+    <rotatable>false</rotatable>
+    <passability>Impassable</passability>
+    <fillPercent>0.2</fillPercent>
+    <size>(1,1)</size>
+    <designationCategory Inherit="False" />
+    <researchPrerequisites Inherit="False" />
+    <stuffCategories Inherit="False" />
+    <statBases>
+      <WorkToBuild>1</WorkToBuild>
+      <MaxHitPoints>10</MaxHitPoints>
+      <Flammability>0</Flammability>
+    </statBases>
+    <graphicData>
+      <texPath>Things/Projectile/Bullet_Small</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>(0.7,0.7)</drawSize>
+      <shaderType>Cutout</shaderType>
+      <damageData>
+        <enabled>false</enabled>
+      </damageData>
+    </graphicData>
+    <comps>
+      <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <visualStyle>Kinetic</visualStyle>
+        <tracerLength>0.7</tracerLength>
+        <tracerWidth>0.07</tracerWidth>
+        <impactSoundMap>DeltaV_ImpactHitMap</impactSoundMap>
+        <impactSoundShell>DeltaV_ImpactHitShell</impactSoundShell>
+        <speed>45</speed>
+        <timeoutTicks>300</timeoutTicks>
+        <hasMap>false</hasMap>
+        <shieldFragmentDef>DeltaV_Projectile_ShieldFragment</shieldFragmentDef>
+        <shieldFragmentCount>3</shieldFragmentCount>
+        <shieldTumbling>true</shieldTumbling>
+        <shieldTumbleDeltaV>1.5</shieldTumbleDeltaV>
+        <shieldBreakDeltaV>18</shieldBreakDeltaV>
+        <shieldFragmentScatterDeg>11</shieldFragmentScatterDeg>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_Projectile_RailTumbling</defName>
+    <label>tumbling rail projectile</label>
+    <description>A full-mass projectile destabilized by a transverse shield impulse. It has lost deep penetration and may tear under a stronger transverse impulse.</description>
+    <thingClass>Verse.Building</thingClass>
+    <category>Building</category>
+    <rotatable>false</rotatable>
+    <passability>Impassable</passability>
+    <fillPercent>0.2</fillPercent>
+    <size>(1,1)</size>
+    <designationCategory Inherit="False" />
+    <researchPrerequisites Inherit="False" />
+    <stuffCategories Inherit="False" />
+    <statBases>
+      <WorkToBuild>1</WorkToBuild>
+      <MaxHitPoints>10</MaxHitPoints>
+      <Flammability>0</Flammability>
+    </statBases>
+    <graphicData>
+      <texPath>Things/Projectile/Bullet_Big</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>(0.55,0.55)</drawSize>
+      <shaderType>Cutout</shaderType>
+      <damageData>
+        <enabled>false</enabled>
+      </damageData>
+    </graphicData>
+    <comps>
+      <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <visualStyle>Rail</visualStyle>
+        <tracerLength>1.5</tracerLength>
+        <tracerWidth>0.07</tracerWidth>
+        <impactSoundMap>DeltaV_ImpactHitMap</impactSoundMap>
+        <impactSoundShell>DeltaV_ImpactHitShell</impactSoundShell>
+        <speed>80</speed>
+        <timeoutTicks>240</timeoutTicks>
+        <hasMap>false</hasMap>
+        <shieldFragmentDef>DeltaV_Projectile_RailFragment</shieldFragmentDef>
+        <shieldFragmentCount>4</shieldFragmentCount>
+        <shieldTumbling>true</shieldTumbling>
+        <shieldTumbleDeltaV>0.15</shieldTumbleDeltaV>
+        <shieldBreakDeltaV>0.5</shieldBreakDeltaV>
+        <shieldFragmentScatterDeg>8</shieldFragmentScatterDeg>
       </li>
     </comps>
   </ThingDef>

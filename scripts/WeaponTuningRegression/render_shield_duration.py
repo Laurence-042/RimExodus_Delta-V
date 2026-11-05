@@ -91,7 +91,7 @@ ax.set_title("混合火力：2重炮＋1速射＋1档激光")
 ax.set(xlabel="从首发命中起（秒）", ylabel="剩余容量（千点）", ylim=(0, 64))
 ax.legend(fontsize=9, loc="upper right"); ax.grid(alpha=.15)
 
-out = ROOT / "doc/images/护盾时长方案-2026-11-05.png"
+out = ROOT / "scripts/WeaponTuningRegression/results/history/护盾时长方案-2026-11-05.png"
 out.parent.mkdir(parents=True, exist_ok=True)
 fig.savefig(out, dpi=150); plt.close(fig)
 print(out)

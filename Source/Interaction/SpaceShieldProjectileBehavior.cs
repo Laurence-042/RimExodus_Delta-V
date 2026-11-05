@@ -15,14 +15,17 @@ namespace DeltaV
         public static void SpawnFragments(SpaceProjectileService service, ThingDef sourceDef,
             SpaceObject source, SpaceObject defender, Thing launcher, Vector3 hit,
             Vector2 relativeVelocity, Vector2 outwardNormal, float impulse, float mass,
-            float armorPenetrationScale, bool reflectedByShield = false, float damageScale = 1f)
+            float armorPenetrationScale, bool reflectedByShield = false, float damageScale = 1f,
+            int fragmentCount = -1, int remainingLifetimeTicks = -1)
         {
             var props = sourceDef.GetCompProperties<CompProperties_SpaceProjectile>();
             if (!IsKinetic(props)) return;
-            ThingDef fragmentDef = props.shieldFragmentDef
+            int count = fragmentCount < 0
+                ? SpaceKinetics.ShieldFragmentCount(mass, relativeVelocity, outwardNormal, impulse, props) : fragmentCount;
+            if (count <= 0) return;
+            ThingDef fragmentDef = (count == 1 ? props.shieldTumbleDef : props.shieldFragmentDef)
                 ?? DefDatabase<ThingDef>.GetNamedSilentFail("DeltaV_Projectile_ShieldFragment");
             if (fragmentDef == null) return;
-            int count = Mathf.Clamp(props.shieldFragmentCount, 1, 12);
             Vector2 outgoing = SpaceKinetics.ApplyShieldImpulse(mass, relativeVelocity, outwardNormal, impulse);
             for (int i = 0; i < count; i++)
             {
@@ -30,7 +33,7 @@ namespace DeltaV
                     * props.shieldFragmentScatterDeg;
                 Vector2 fragmentVelocity = SpaceTransform.Rotate(outgoing, span * Mathf.Deg2Rad);
                 service.LaunchShieldFragment(fragmentDef, source, defender, launcher,
-                    hit, fragmentVelocity, outwardNormal, mass / count, armorPenetrationScale, reflectedByShield, damageScale);
+                    hit, fragmentVelocity, outwardNormal, mass / count, armorPenetrationScale, reflectedByShield, damageScale, remainingLifetimeTicks);
             }
         }
     }

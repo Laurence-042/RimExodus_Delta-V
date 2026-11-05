@@ -147,7 +147,7 @@ namespace DeltaV
             public Vector2 redirectDirection;
             public float redirectRemaining;
             public System.Action<Vector3, Vector3, SpaceObject> onShieldRedirect;
-            public System.Action<Vector3, SpaceObject, Vector2, Vector2, float> onShieldShatter;
+            public System.Action<Vector3, SpaceObject, Vector2, Vector2, float, int> onShieldShatter;
             // Consumed synchronously after each resolved contact, before the next sweep.
             public System.Action<VisualContact> onVisualContact;
         }
@@ -677,9 +677,10 @@ namespace DeltaV
                         damageScale = body.damageScale, shieldMode = SpaceShieldMode.Kinetic,
                         lineStart = lineStart, lineEnd = lineEnd
                     });
-                    if (SpaceKinetics.Shatters(body.mass, impulse, projectileProps))
+                    int fragmentCount = SpaceKinetics.ShieldFragmentCount(body.mass, relative, worldNormal, impulse, projectileProps);
+                    if (fragmentCount > 0)
                     {
-                        body.onShieldShatter?.Invoke(hit, defender, relative, worldNormal, impulse);
+                        body.onShieldShatter?.Invoke(hit, defender, relative, worldNormal, impulse, fragmentCount);
                         body.dead = true;
                         body.onSelfDestruct?.Invoke();
                         return true;

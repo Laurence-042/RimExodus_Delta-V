@@ -68,7 +68,7 @@ ax.set_xticks(pos, [f'{r["Charge"]}/96' for r in group])
 ax.set(title="重弹高输出需要补给；整仓只有12发", xlabel="中型重炮装药 / 弹头", ylabel="60秒平均输出预算 / 秒")
 ax.legend(); ax.grid(axis="y", alpha=.2)
 fig.supxlabel("2026-11-05｜60 tick = 1秒；冷炮首发在t=0，统计[0,T)；持续值含热锁，尚未扣除飞行时间、脱靶及目标承伤限制。", fontsize=11)
-output = ROOT / "doc/images/武器输出审计-2026-11-05.png"
+output = ROOT / "scripts/WeaponTuningRegression/results/history/武器输出审计-2026-11-05.png"
 output.parent.mkdir(parents=True, exist_ok=True)
 fig.savefig(output, dpi=150)
 plt.close(fig)

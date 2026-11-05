@@ -21,9 +21,9 @@
   <DeltaV_Missile_HE.label>高爆舰载导弹</DeltaV_Missile_HE.label>
   <DeltaV_Missile_HE.description>带高爆战斗部的制导舰载导弹。可装入导弹发射架或储存在附加导弹仓中。</DeltaV_Missile_HE.description>
   <DeltaV_Weapon_RailgunLoader.label>小型轨道炮装弹机</DeltaV_Weapon_RailgunLoader.label>
-  <DeltaV_Weapon_RailgunLoader.description>沿固定炮口方向发射的小型轨道炮，自带火控。每发消耗弹头和 1800 W·d 蓄电，射击间隔 30 秒。前方串联的加速段可提高弹速、穿深和破盾能力，电量不足的段会跳过。动能线盾会将弹芯击碎，碎片失去深层贯穿能力。唯一的插件槽可安装铀制附加弹仓或同尺寸的轨道炮电容。电容足够一发时优先供电，否则从电网蓄电池取电；加速段耗电另计。</DeltaV_Weapon_RailgunLoader.description>
+  <DeltaV_Weapon_RailgunLoader.description>沿固定炮口方向发射的小型轨道炮，自带火控。每发消耗弹头和 1800 W·d 蓄电，射击间隔 30 秒。前方串联的加速段可提高弹速、穿深和破盾能力，电量不足的段会跳过。斜入射动能线盾易使长杆弹芯翻滚或碎裂，碎片失去深层贯穿能力。唯一的插件槽可安装铀制附加弹仓或同尺寸的轨道炮电容。电容足够一发时优先供电，否则从电网蓄电池取电；加速段耗电另计。</DeltaV_Weapon_RailgunLoader.description>
   <DeltaV_Weapon_RailgunLoaderLarge.label>大型轨道炮装弹机</DeltaV_Weapon_RailgunLoaderLarge.label>
-  <DeltaV_Weapon_RailgunLoaderLarge.description>沿固定炮口方向发射的大型轨道炮，自带火控。每发消耗弹头和 3600 W·d 蓄电，射击间隔 40 秒。前方串联的加速段可提高弹速、穿深和破盾能力，电量不足的段会跳过。动能线盾会将弹芯击碎，碎片失去深层贯穿能力。唯一的插件槽可安装铀制附加弹仓或同尺寸的轨道炮电容。电容足够一发时优先供电，否则从电网蓄电池取电；加速段耗电另计。</DeltaV_Weapon_RailgunLoaderLarge.description>
+  <DeltaV_Weapon_RailgunLoaderLarge.description>沿固定炮口方向发射的大型轨道炮，自带火控。每发消耗弹头和 3600 W·d 蓄电，射击间隔 40 秒。前方串联的加速段可提高弹速、穿深和破盾能力，电量不足的段会跳过。斜入射动能线盾易使长杆弹芯翻滚或碎裂，碎片失去深层贯穿能力。唯一的插件槽可安装铀制附加弹仓或同尺寸的轨道炮电容。电容足够一发时优先供电，否则从电网蓄电池取电；加速段耗电另计。</DeltaV_Weapon_RailgunLoaderLarge.description>
   <DeltaV_Weapon_RailgunAccelerator.label>小型轨道炮加速段</DeltaV_Weapon_RailgunAccelerator.label>
   <DeltaV_Weapon_RailgunAccelerator.description>串联在小型轨道炮前方，每发消耗 1800 W·d 并注入固定动能，提高弹速与穿深；欠费段会跳过。两侧可安装电容或能量回收插件。双满电电容可支付两次本段加速；双回收插件使本段耗能减半。</DeltaV_Weapon_RailgunAccelerator.description>
   <DeltaV_Weapon_RailgunAcceleratorLarge.label>大型轨道炮加速段</DeltaV_Weapon_RailgunAcceleratorLarge.label>

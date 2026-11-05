@@ -156,6 +156,7 @@
     <defName>DeltaV_Impact_ShieldFragmentVsStructure</defName>
     <projectileDefs>
       <li>DeltaV_Projectile_ShieldFragment</li>
+      <li>DeltaV_Projectile_ShellTumbling</li>
       <li>DeltaV_Projectile_RapidFragment</li>
     </projectileDefs>
     <defenderEffect>
@@ -174,7 +175,7 @@
   </DeltaV.SpaceImpactEffectDef>
   <DeltaV.SpaceImpactEffectDef>
     <defName>DeltaV_Impact_RailShieldFragmentVsStructure</defName>
-    <projectileDefs><li>DeltaV_Projectile_RailFragment</li></projectileDefs>
+    <projectileDefs><li>DeltaV_Projectile_RailFragment</li><li>DeltaV_Projectile_RailTumbling</li></projectileDefs>
     <defenderEffect>
       <kind>DamageMap</kind>
       <damageDef>Bullet</damageDef>
@@ -193,6 +194,7 @@
     <defName>DeltaV_Impact_ShieldFragmentVsSubstructure</defName>
     <projectileDefs>
       <li>DeltaV_Projectile_ShieldFragment</li>
+      <li>DeltaV_Projectile_ShellTumbling</li>
       <li>DeltaV_Projectile_RapidFragment</li>
     </projectileDefs>
     <targetsSubstructure>true</targetsSubstructure>
@@ -212,7 +214,7 @@
   </DeltaV.SpaceImpactEffectDef>
   <DeltaV.SpaceImpactEffectDef>
     <defName>DeltaV_Impact_RailShieldFragmentVsSubstructure</defName>
-    <projectileDefs><li>DeltaV_Projectile_RailFragment</li></projectileDefs>
+    <projectileDefs><li>DeltaV_Projectile_RailFragment</li><li>DeltaV_Projectile_RailTumbling</li></projectileDefs>
     <targetsSubstructure>true</targetsSubstructure>
     <substructureHitChance>0.01</substructureHitChance>
     <defenderEffect>
@@ -355,6 +357,7 @@
     <defName>DeltaV_Impact_FragmentVsShield</defName>
     <projectileDefs>
       <li>DeltaV_Projectile_ShieldFragment</li>
+      <li>DeltaV_Projectile_ShellTumbling</li>
       <li>DeltaV_Projectile_RapidFragment</li>
     </projectileDefs>
     <targetThingDefs>
@@ -376,7 +379,7 @@
   </DeltaV.SpaceImpactEffectDef>
   <DeltaV.SpaceImpactEffectDef>
     <defName>DeltaV_Impact_RailFragmentVsShield</defName>
-    <projectileDefs><li>DeltaV_Projectile_RailFragment</li></projectileDefs>
+    <projectileDefs><li>DeltaV_Projectile_RailFragment</li><li>DeltaV_Projectile_RailTumbling</li></projectileDefs>
     <targetThingDefs>
       <li>GravshipShieldGenerator</li>
       <li>DeltaV_ShieldGenerator</li><li>DeltaV_ShieldGeneratorSmall</li>

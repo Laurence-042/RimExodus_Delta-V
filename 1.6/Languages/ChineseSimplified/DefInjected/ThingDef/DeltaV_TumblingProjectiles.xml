@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_Projectile_ShellTumbling.label>翻滚炮弹</DeltaV_Projectile_ShellTumbling.label>
+  <DeltaV_Projectile_ShellTumbling.description>受侧向冲量影响而失稳的全质量炮弹，已失去深层贯穿能力；更强的侧向冲量仍能将其撕裂。</DeltaV_Projectile_ShellTumbling.description>
+  <DeltaV_Projectile_RailTumbling.label>翻滚轨道弹芯</DeltaV_Projectile_RailTumbling.label>
+  <DeltaV_Projectile_RailTumbling.description>受侧向冲量影响而失稳的全质量长杆弹芯，已失去深层贯穿能力，继续承受侧推时容易断裂。</DeltaV_Projectile_RailTumbling.description>
+</LanguageData>

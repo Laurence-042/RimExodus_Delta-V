@@ -828,7 +828,7 @@
     <defName>DeltaV_Weapon_RailgunLoader</defName>
     <uiOrder>-192</uiOrder>
     <label>small railgun loading unit</label>
-    <description>A fixed-axis siege railgun with built-in fire control. Each shot requires manufactured projectile heads and 1,800 Wd, with a 30-second firing interval. Powered serial accelerators increase velocity, deep penetration and shield-breaking power. Kinetic line shields shatter the penetrator into non-penetrating fragments. Its single slot accepts either a uranium magazine or a matching railgun capacitor. The capacitor supplies the base firing pulse when sufficiently charged; otherwise the pulse is drawn from grid batteries.</description>
+    <description>A fixed-axis siege railgun with built-in fire control. Each shot requires manufactured projectile heads and 1,800 Wd, with a 30-second firing interval. Powered serial accelerators increase velocity, deep penetration and shield-breaking power. Oblique impacts on kinetic line shields readily destabilize or tear the long rod, removing its deep penetration. Its single slot accepts either a uranium magazine or a matching railgun capacitor. The capacitor supplies the base firing pulse when sufficiently charged; otherwise the pulse is drawn from grid batteries.</description>
     <uiIconPath>Things/Building/SpaceWeapons/RailgunLoader_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
     <thingClass>Building</thingClass>
@@ -939,7 +939,7 @@
     <defName>DeltaV_Weapon_RailgunLoaderLarge</defName>
     <uiOrder>-189</uiOrder>
     <label>large railgun loading unit</label>
-    <description>A large fixed-axis siege railgun with built-in fire control. Each shot requires manufactured projectile heads and 3,600 Wd, with a 40-second firing interval. Powered serial accelerators increase velocity, deep penetration and shield-breaking power. Kinetic line shields shatter the penetrator into non-penetrating fragments. Its single slot accepts either a uranium magazine or a matching railgun capacitor. The capacitor supplies the base firing pulse when sufficiently charged; otherwise the pulse is drawn from grid batteries.</description>
+    <description>A large fixed-axis siege railgun with built-in fire control. Each shot requires manufactured projectile heads and 3,600 Wd, with a 40-second firing interval. Powered serial accelerators increase velocity, deep penetration and shield-breaking power. Oblique impacts on kinetic line shields readily destabilize or tear the long rod, removing its deep penetration. Its single slot accepts either a uranium magazine or a matching railgun capacitor. The capacitor supplies the base firing pulse when sufficiently charged; otherwise the pulse is drawn from grid batteries.</description>
     <uiIconPath>Things/Building/SpaceWeapons/RailgunLoader_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
     <thingClass>Building</thingClass>
@@ -1476,6 +1476,8 @@
         <shieldFragmentCost>2</shieldFragmentCost>
         <shieldFragmentDef>DeltaV_Projectile_RailFragment</shieldFragmentDef>
         <shieldFragmentCount>4</shieldFragmentCount>
+        <shieldTumbleDef>DeltaV_Projectile_RailTumbling</shieldTumbleDef>
+        <shieldTumbleDeltaV>0.15</shieldTumbleDeltaV>
         <shieldBreakDeltaV>0.5</shieldBreakDeltaV>
         <shieldFragmentScatterDeg>8</shieldFragmentScatterDeg>
       </li>
