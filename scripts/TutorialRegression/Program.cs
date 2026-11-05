@@ -296,7 +296,7 @@ internal static partial class Program
             universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "StartPractice"));
             Check(run.stage == TutorialStage.Flight && actions.Count == 1, "theory acknowledgement opens flight without construction");
             universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "StartPractice"));
-            universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "LeaveDesign"));
+            universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "DeferDesign"));
             Check(run.stage == TutorialStage.Flight && actions.Count == 1, "stale theory replies cannot replay or quit flight");
             Check(run.forwardTicks == 0 && run.lateralTicks == 0 && run.turnTicks == 0, "theory grants no practical flight credit");
             actions.Clear();
@@ -554,17 +554,20 @@ internal static partial class Program
         Check(run.stage == TutorialStage.Contact, "advance accepted welcome");
         int actions = ((List<Action>)AccessTools.Field(typeof(UniverseManager), "frameActions").GetValue(universe)).Count;
         universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "AcceptWelcome"));
-        universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "LeaveWelcome"));
-        Check(run.stage == TutorialStage.Contact, "reject stale answer and stale quit option");
+        universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "DeferWelcome"));
+        Check(run.stage == TutorialStage.Contact, "reject stale answer and stale defer option");
+        universe.Tutorial.Receive(quest, DeltaVTutorialService.Signal(quest, "DeferContact"));
+        Check(run.stage == TutorialStage.Contact && universe.Tutorial.Active, "postponing contact keeps tutorial active");
         Check(((List<Action>)AccessTools.Field(typeof(UniverseManager), "frameActions").GetValue(universe)).Count == actions,
             "duplicate answer does not enqueue another dialog");
         var comms = Raw<Building_CommsConsole>(); comms.def = Raw<ThingDef>(); comms.def.defName = "CommsFixture"; comms.thingIDNumber = 9401;
         var berth = Raw<Building_Door>(); berth.def = Raw<ThingDef>(); berth.def.defName = "PortFixture"; berth.thingIDNumber = 9402;
+        var rangePort = Raw<Building_DockingPort>(); rangePort.def = Raw<ThingDef>(); rangePort.def.defName = "RangePortFixture"; rangePort.thingIDNumber = 9403;
         foreach (TutorialStage stage in Enum.GetValues<TutorialStage>())
         {
             var saved = new TutorialRunState { stage = stage, quest = quest, trainingShipId = 400,
                 forwardTicks = 17, lateralTicks = 30, turnTicks = 4, recoveryDocked = true, comms = comms, berthDoor = berth,
-                rangeConsole = comms, rangeTarget = berth };
+                rangeConsole = comms, rangeTarget = berth, rangePort = rangePort };
             string xml = Scribe.saver.DebugOutputFor(saved);
             string tmp = Path.GetTempFileName();
             try
@@ -581,11 +584,13 @@ internal static partial class Program
                     .GetValue(Scribe.loader.crossRefs)).RegisterLoaded(comms);
                 ((LoadedObjectDirectory)AccessTools.Field(typeof(CrossRefHandler), "loadedObjectDirectory")
                     .GetValue(Scribe.loader.crossRefs)).RegisterLoaded(berth);
+                ((LoadedObjectDirectory)AccessTools.Field(typeof(CrossRefHandler), "loadedObjectDirectory")
+                    .GetValue(Scribe.loader.crossRefs)).RegisterLoaded(rangePort);
                 Scribe.loader.FinalizeLoading();
                 Check(loaded.stage == stage && loaded.quest == quest, "native Scribe stage + quest ref " + stage);
                 Check(loaded.colonists != null && loaded.caskets != null, "empty collections survive Scribe " + stage);
                 Check(loaded.comms == comms && loaded.berthDoor == berth, "native Scribe resolves exact comms and berth roles " + stage);
-                Check(loaded.rangeConsole == comms && loaded.rangeTarget == berth, "native Scribe resolves range roles " + stage);
+                Check(loaded.rangeConsole == comms && loaded.rangeTarget == berth && loaded.rangePort == rangePort, "native Scribe resolves range roles " + stage);
                 Check(loaded.trainingShipId == 400 && loaded.forwardTicks == 17 && loaded.lateralTicks == 30
                     && loaded.turnTicks == 4 && loaded.recoveryDocked, "flight and docking evidence survives Scribe " + stage);
             }

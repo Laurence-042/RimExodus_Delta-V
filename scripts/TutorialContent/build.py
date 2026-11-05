@@ -108,6 +108,8 @@ def build(data, name="ArrivalStation"):
         roofs = set(foundation)
     records, occupied = [], {}
     def place(name, x, z, rot=0, stuff=None, layer='body', state=None):
+        # ThingDef.ConfigErrors rejects numeric suffixes; Thing IDs append a number to the Def name.
+        assert name and not name[-1].isnumeric(), (name, 'ThingDef name must not end in a number')
         size = pair(prop(name, 'size', '(1,1)'))
         w, h = size if rot % 2 == 0 else size[::-1]
         dx, dz = [(0, 0), (0, -1), (-1, -1), (-1, 0)][rot]
@@ -185,6 +187,7 @@ def build(data, name="ArrivalStation"):
         walls |= {(12 if name == 'TrainingShip' else 10,z) for z in range(height)}
         openings = {(left, 7 if name == 'TrainingShip' else 10)}
         openings.add((12,7) if name == 'TrainingShip' else (10,10))
+        if name == 'TrainingShip': openings.add((20,7))
         if name == 'Shipyard': openings.add((20,10))
         engines = []
         if name == 'TrainingShip':
@@ -201,7 +204,7 @@ def build(data, name="ArrivalStation"):
         roofs -= engine_cells
         for x,z in sorted(walls - openings - engine_cells):place('GravshipHull',x,z)
         for x,z in sorted(openings):
-            port = x == left or (name == 'Shipyard' and x == 20)
+            port = x == left or (name in ('Shipyard','TrainingShip') and x == 20)
             place('DeltaV_DockingPort' if port else 'Door',x,z,1 if x == 20 else 3)
         if name == 'TrainingShip':
             place('PilotConsole',7,10)

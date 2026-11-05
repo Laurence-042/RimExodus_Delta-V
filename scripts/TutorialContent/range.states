@@ -114,18 +114,6 @@
     <health>200</health>
   </saveable>
   <saveable Class="Building">
-    <def>DeltaV_RangeTerminal_Kinetic</def>
-    <health>200</health>
-  </saveable>
-  <saveable Class="Building">
-    <def>DeltaV_RangeTerminal_Deflection</def>
-    <health>200</health>
-  </saveable>
-  <saveable Class="Building">
-    <def>DeltaV_RangeTerminal_Reflection</def>
-    <health>200</health>
-  </saveable>
-  <saveable Class="Building">
     <def>DeltaV_RangeTerminal_GuardSingle</def>
     <health>200</health>
   </saveable>
@@ -142,5 +130,29 @@
     <health>6000</health>
     <defence>1800</defence>
     <hacked>False</hacked>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_KineticPassive</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_KineticLow</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_KineticFull</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_ElectromagneticPassive</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_ElectromagneticHalf</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_ElectromagneticFull</def>
+    <health>200</health>
   </saveable>
 </prototypes>

@@ -15,10 +15,12 @@ namespace DeltaV
             Map rangeMap = CreateRemoteCourseMap(ShipPocketMapFactory.CompactSize(platform.size), home, -260f);
             var facilities = SpawnCoursePrefab(platform, rangeMap, new IntVec3(12, 0, 12), "DeltaV_Range_Platform", Run.mentors);
             Run.rangeConsole = facilities.Single(t => t.TryGetComp<CompDeltaVPilotConsole>() != null);
+            Run.rangePort = facilities.OfType<Building_DockingPort>().Single();
             var console = Run.rangeConsole.TryGetComp<CompDeltaVPilotConsole>();
             console.isPublicFacility = true;
-            console.fireControlMode = ShipFireControlMode.Manual;
+            console.fireControlMode = ShipFireControlMode.Disabled;
             console.SetWeaponGroupMask(SpaceWeaponSalvoSet.Main, 1);
+            console.SetWeaponGroupMask(SpaceWeaponSalvoSet.Secondary, 1);
             universe.Controls.ReconcileOwner(console.shipId);
             facilities.Single(t => t.TryGetComp<CompTutorialRangeBriefing>() != null)
                 .TryGetComp<CompTutorialRangeBriefing>().entranceDoor = facilities.OfType<Building_HackableDoor>().Single();

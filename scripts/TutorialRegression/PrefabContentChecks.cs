@@ -116,7 +116,14 @@ internal static partial class Program
             var xml = new XmlDocument(); xml.Load(file);
             foreach (XmlNode node in xml.SelectNodes("/Defs/ThingDef"))
             {
-                if (node["defName"] != null) sourceDefs[node["defName"].InnerText] = node;
+                if (node["defName"] != null)
+                {
+                    string name = node["defName"].InnerText;
+                    if (file.StartsWith(modDefs, StringComparison.OrdinalIgnoreCase))
+                        Check(!string.IsNullOrEmpty(name) && !char.IsNumber(name[name.Length - 1]),
+                            "ThingDef.ConfigErrors naming rule: " + name);
+                    sourceDefs[name] = node;
+                }
                 if (node.Attributes["Name"] != null) sourceParents[node.Attributes["Name"].Value] = node;
             }
         }

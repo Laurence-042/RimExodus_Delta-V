@@ -26,38 +26,74 @@
     </comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
-    <defName>DeltaV_RangeTerminal_Kinetic</defName>
-    <label>2. kinetic shield terminal</label>
-    <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's kinetic shield preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
+    <defName>DeltaV_RangeTerminal_KineticPassive</defName>
+    <label>2A. kinetic shield 0% terminal</label>
+    <description>Set all three target line shields to kinetic mode at 0% strength. The central segment faces the firing line; the flanks tilt in opposite directions. Switching does not repair damage or replenish energy or shield capacity.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
         <preset>Kinetic</preset>
+        <strengthPercent>0</strengthPercent>
       </li>
     </comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
-    <defName>DeltaV_RangeTerminal_Deflection</defName>
-    <label>3. electromagnetic deflection terminal</label>
-    <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's electromagnetic deflection preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
+    <defName>DeltaV_RangeTerminal_KineticLow</defName>
+    <label>2B. kinetic shield 20% terminal</label>
+    <description>Set all three target line shields to kinetic mode at 20% strength. The central segment faces the firing line; the flanks tilt in opposite directions. Switching does not repair damage or replenish energy or shield capacity.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
-        <preset>Deflection</preset>
+        <preset>Kinetic</preset>
+        <strengthPercent>20</strengthPercent>
       </li>
     </comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
-    <defName>DeltaV_RangeTerminal_Reflection</defName>
-    <label>4. electromagnetic reflection terminal</label>
-    <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's electromagnetic reflection preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
+    <defName>DeltaV_RangeTerminal_KineticFull</defName>
+    <label>2C. kinetic shield 100% terminal</label>
+    <description>Set all three target line shields to kinetic mode at 100% strength. The central segment faces the firing line; the flanks tilt in opposite directions. Switching does not repair damage or replenish energy or shield capacity.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
-        <preset>Reflection</preset>
+        <preset>Kinetic</preset>
+        <strengthPercent>100</strengthPercent>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RangeTerminalBase">
+    <defName>DeltaV_RangeTerminal_ElectromagneticPassive</defName>
+    <label>3A. electromagnetic shield 0% terminal</label>
+    <description>Set all three target line shields to electromagnetic mode at 0% strength. The central segment faces the firing line; the flanks tilt in opposite directions. Switching does not repair damage or replenish energy or shield capacity.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
+        <preset>Electromagnetic</preset>
+        <strengthPercent>0</strengthPercent>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RangeTerminalBase">
+    <defName>DeltaV_RangeTerminal_ElectromagneticHalf</defName>
+    <label>3B. electromagnetic shield 50% terminal</label>
+    <description>Set all three target line shields to electromagnetic mode at 50% strength. The central segment faces the firing line; the flanks tilt in opposite directions. Switching does not repair damage or replenish energy or shield capacity.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
+        <preset>Electromagnetic</preset>
+        <strengthPercent>50</strengthPercent>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RangeTerminalBase">
+    <defName>DeltaV_RangeTerminal_ElectromagneticFull</defName>
+    <label>3C. electromagnetic shield 100% terminal</label>
+    <description>Set all three target line shields to electromagnetic mode at 100% strength. The central segment faces the firing line; the flanks tilt in opposite directions. Switching does not repair damage or replenish energy or shield capacity.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
+        <preset>Electromagnetic</preset>
+        <strengthPercent>100</strengthPercent>
       </li>
     </comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
     <defName>DeltaV_RangeTerminal_GuardSingle</defName>
-    <label>5. single guard shield terminal</label>
+    <label>4A. single guard shield terminal</label>
     <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's single guard shield preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
@@ -67,7 +103,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
     <defName>DeltaV_RangeTerminal_Guard</defName>
-    <label>6. cooperative guard shields terminal</label>
+    <label>4B. cooperative guard shields terminal</label>
     <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's cooperative guard shields preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">

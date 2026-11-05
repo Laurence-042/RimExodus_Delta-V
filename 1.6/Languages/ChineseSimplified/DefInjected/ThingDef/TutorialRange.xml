@@ -2,15 +2,9 @@
 <LanguageData>
   <DeltaV_RangeTerminal_Unshielded.label>1．无盾参照试验终端</DeltaV_RangeTerminal_Unshielded.label>
   <DeltaV_RangeTerminal_Unshielded.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为无盾参照预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_Unshielded.description>
-  <DeltaV_RangeTerminal_Kinetic.label>2．动能护盾试验终端</DeltaV_RangeTerminal_Kinetic.label>
-  <DeltaV_RangeTerminal_Kinetic.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为动能护盾预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_Kinetic.description>
-  <DeltaV_RangeTerminal_Deflection.label>3．电磁偏转试验终端</DeltaV_RangeTerminal_Deflection.label>
-  <DeltaV_RangeTerminal_Deflection.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为电磁偏转预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_Deflection.description>
-  <DeltaV_RangeTerminal_Reflection.label>4．电磁反射试验终端</DeltaV_RangeTerminal_Reflection.label>
-  <DeltaV_RangeTerminal_Reflection.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为电磁反射预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_Reflection.description>
-  <DeltaV_RangeTerminal_GuardSingle.label>5．单台守卫试验终端</DeltaV_RangeTerminal_GuardSingle.label>
+  <DeltaV_RangeTerminal_GuardSingle.label>4A．单台守卫试验终端</DeltaV_RangeTerminal_GuardSingle.label>
   <DeltaV_RangeTerminal_GuardSingle.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为单台守卫预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_GuardSingle.description>
-  <DeltaV_RangeTerminal_Guard.label>6．协同守卫试验终端</DeltaV_RangeTerminal_Guard.label>
+  <DeltaV_RangeTerminal_Guard.label>4B．协同守卫试验终端</DeltaV_RangeTerminal_Guard.label>
   <DeltaV_RangeTerminal_Guard.description>由远古安保终端改装的试验设备。让殖民者操作，可将靶舰切换为协同守卫预设，并听取教官说明。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_Guard.description>
   <DeltaV_RangeTerminal_Introduction.label>0．入场使用说明终端</DeltaV_RangeTerminal_Introduction.label>
   <DeltaV_RangeTerminal_Introduction.description>阅读武器平台的操作与安全说明，确认后解锁盟友防爆门。之后仍可再次阅读。</DeltaV_RangeTerminal_Introduction.description>
@@ -18,4 +12,16 @@
   <DeltaV_RangeBlastDoor.description>保护试验平台入口的盟友防爆门。请先操作入口说明终端，阅读并确认使用说明后解锁。</DeltaV_RangeBlastDoor.description>
   <DeltaV_RangeBlastDoor.comps.CompHackable.notHackedInspectString>阅读并确认入口终端说明后解锁。</DeltaV_RangeBlastDoor.comps.CompHackable.notHackedInspectString>
   <DeltaV_RangeBlastDoor.comps.CompHackable.hackedInspectString>使用说明已确认。门已解锁。</DeltaV_RangeBlastDoor.comps.CompHackable.hackedInspectString>
+  <DeltaV_RangeTerminal_KineticPassive.label>2A．动能护盾 0% 试验终端</DeltaV_RangeTerminal_KineticPassive.label>
+  <DeltaV_RangeTerminal_KineticPassive.description>将靶舰的三道线盾切换为 0% 强度的动能模式。中央盾面正对火线，两侧反向倾斜；可对比不同入射角。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_KineticPassive.description>
+  <DeltaV_RangeTerminal_KineticLow.label>2B．动能护盾 20% 试验终端</DeltaV_RangeTerminal_KineticLow.label>
+  <DeltaV_RangeTerminal_KineticLow.description>将靶舰的三道线盾切换为 20% 强度的动能模式。中央盾面正对火线，两侧反向倾斜；可对比不同入射角。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_KineticLow.description>
+  <DeltaV_RangeTerminal_KineticFull.label>2C．动能护盾 100% 试验终端</DeltaV_RangeTerminal_KineticFull.label>
+  <DeltaV_RangeTerminal_KineticFull.description>将靶舰的三道线盾切换为 100% 强度的动能模式。中央盾面正对火线，两侧反向倾斜；可对比不同入射角。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_KineticFull.description>
+  <DeltaV_RangeTerminal_ElectromagneticPassive.label>3A．电磁护盾 0% 试验终端</DeltaV_RangeTerminal_ElectromagneticPassive.label>
+  <DeltaV_RangeTerminal_ElectromagneticPassive.description>将靶舰的三道线盾切换为 0% 强度的电磁模式。中央盾面正对火线，两侧反向倾斜；可对比不同入射角。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_ElectromagneticPassive.description>
+  <DeltaV_RangeTerminal_ElectromagneticHalf.label>3B．电磁护盾 50% 试验终端</DeltaV_RangeTerminal_ElectromagneticHalf.label>
+  <DeltaV_RangeTerminal_ElectromagneticHalf.description>将靶舰的三道线盾切换为 50% 强度的电磁模式。中央盾面正对火线，两侧反向倾斜；可对比不同入射角。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_ElectromagneticHalf.description>
+  <DeltaV_RangeTerminal_ElectromagneticFull.label>3C．电磁护盾 100% 试验终端</DeltaV_RangeTerminal_ElectromagneticFull.label>
+  <DeltaV_RangeTerminal_ElectromagneticFull.description>将靶舰的三道线盾切换为 100% 强度的电磁模式。中央盾面正对火线，两侧反向倾斜；可对比不同入射角。切换不会修复靶舰，也不会补充电量、弹药或盾容。</DeltaV_RangeTerminal_ElectromagneticFull.description>
 </LanguageData>

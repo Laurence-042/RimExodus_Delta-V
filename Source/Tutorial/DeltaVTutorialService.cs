@@ -88,6 +88,13 @@ namespace DeltaV
         internal void Receive(Quest quest, string tag)
         {
             if (!Active || Run.quest != quest) return;
+            // Closing a lesson preserves progress; the optional range trip can be left for later.
+            if (tag == Signal(quest, "Defer" + Run.stage))
+            {
+                if (Run.stage == TutorialStage.Range || Run.stage == TutorialStage.SoftDock)
+                    AdvanceFlight(TutorialStage.Visit);
+                return;
+            }
             if (tag == Signal(quest, "AcceptWelcome") && Run.stage == TutorialStage.Welcome)
             {
                 Run.stage = TutorialStage.Contact;
@@ -100,8 +107,6 @@ namespace DeltaV
                 universe.QueueFrameAction(ShowBriefing);
             }
             else if (ReceiveFlight(tag)) { }
-            else if (tag == Signal(quest, "Leave" + Run.stage))
-                Find.SignalManager.SendSignal(new Signal(Signal(quest, "Ended")));
         }
 
         internal bool ReceiveComms(Faction faction, Pawn negotiator)
@@ -130,7 +135,7 @@ namespace DeltaV
             Run.trainingConsole = Run.giftConsole = null;
             Run.rangeConsole = Run.rangeTarget = null;
             Run.cargoShelf = Run.salvageShelf = null;
-            Run.trainingPort = Run.yardPort = null;
+            Run.trainingPort = Run.yardPort = Run.rangePort = null;
             Run.giftEngine = null;
         }
 

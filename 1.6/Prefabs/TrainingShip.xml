@@ -1322,25 +1322,6 @@
       </state>
     </li>
     <li>
-      <pos>(20, 0, 7)</pos>
-      <def>GravshipHull</def>
-      <rotation>0</rotation>
-      <hitPoints>420</hitPoints>
-      <stackCount>1</stackCount>
-      <stuff>Steel</stuff>
-      <state>
-        <saveable Class="Building">
-          <def>GravshipHull</def>
-          <health>420</health>
-          <stuff>Steel</stuff>
-          <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810057</id>
-          <pos>(20, 0, 7)</pos>
-          <rot>0</rot>
-        </saveable>
-      </state>
-    </li>
-    <li>
       <pos>(20, 0, 8)</pos>
       <def>GravshipHull</def>
       <rotation>0</rotation>
@@ -1353,7 +1334,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810058</id>
+          <id>GravshipHull810057</id>
           <pos>(20, 0, 8)</pos>
           <rot>0</rot>
         </saveable>
@@ -1372,7 +1353,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810059</id>
+          <id>GravshipHull810058</id>
           <pos>(20, 0, 9)</pos>
           <rot>0</rot>
         </saveable>
@@ -1391,7 +1372,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810060</id>
+          <id>GravshipHull810059</id>
           <pos>(20, 0, 10)</pos>
           <rot>0</rot>
         </saveable>
@@ -1410,7 +1391,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810061</id>
+          <id>GravshipHull810060</id>
           <pos>(20, 0, 11)</pos>
           <rot>0</rot>
         </saveable>
@@ -1429,7 +1410,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810062</id>
+          <id>GravshipHull810061</id>
           <pos>(20, 0, 12)</pos>
           <rot>0</rot>
         </saveable>
@@ -1448,7 +1429,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810063</id>
+          <id>GravshipHull810062</id>
           <pos>(20, 0, 13)</pos>
           <rot>0</rot>
         </saveable>
@@ -1467,7 +1448,7 @@
           <health>420</health>
           <stuff>Steel</stuff>
           <beenRevealed>True</beenRevealed>
-          <id>GravshipHull810064</id>
+          <id>GravshipHull810063</id>
           <pos>(20, 0, 14)</pos>
           <rot>0</rot>
         </saveable>
@@ -1487,7 +1468,7 @@
           <defence>1800</defence>
           <lasterUser>null</lasterUser>
           <approachingPawn>null</approachingPawn>
-          <id>DeltaV_DockingPort810065</id>
+          <id>DeltaV_DockingPort810064</id>
           <pos>(5, 0, 7)</pos>
           <rot>3</rot>
         </saveable>
@@ -1508,9 +1489,29 @@
           <beenRevealed>True</beenRevealed>
           <lastFriendlyTouchTick>-9999</lastFriendlyTouchTick>
           <approachingPawn>null</approachingPawn>
-          <id>Door810066</id>
+          <id>Door810065</id>
           <pos>(12, 0, 7)</pos>
           <rot>3</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(20, 0, 7)</pos>
+      <def>DeltaV_DockingPort</def>
+      <rotation>1</rotation>
+      <hitPoints>200</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="DeltaV.Building_DockingPort">
+          <def>DeltaV_DockingPort</def>
+          <health>200</health>
+          <beenRevealed>True</beenRevealed>
+          <defence>1800</defence>
+          <lasterUser>null</lasterUser>
+          <approachingPawn>null</approachingPawn>
+          <id>DeltaV_DockingPort810066</id>
+          <pos>(20, 0, 7)</pos>
+          <rot>1</rot>
         </saveable>
       </state>
     </li>

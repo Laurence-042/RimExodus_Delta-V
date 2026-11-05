@@ -24,9 +24,10 @@ namespace DeltaV
             AddDialog(quest, TutorialStage.Briefing, "StartFlight", "DeltaV_Tutorial_StartFlight");
             AddDialog(quest, TutorialStage.Design, "StartPractice", "DeltaV_Tutorial_StartPractice");
             AddDialog(quest, TutorialStage.Flight, "CheckFlight", "DeltaV_Tutorial_CheckFlight");
-            AddDialog(quest, TutorialStage.Range, "ContinueAfterRange", "DeltaV_Range_Continue");
             AddDialog(quest, TutorialStage.Salvage, "CheckSalvage", "DeltaV_Tutorial_CheckSalvage");
+            AddDialog(quest, TutorialStage.Range, "VisitRange", "DeltaV_Range_Visit");
             AddDialog(quest, TutorialStage.SoftDock, "CheckSoftDock", "DeltaV_Tutorial_CheckSoftDock");
+            AddDialog(quest, TutorialStage.RangePractice, "FinishRange", "DeltaV_Range_Finish");
             AddDialog(quest, TutorialStage.Visit, "AcceptShip", "DeltaV_Tutorial_AcceptShip");
             quest.AddPart(new QuestPart_QuestEnd
             { inSignal = DeltaVTutorialService.Signal(quest, "Completed"), outcome = QuestEndOutcome.Success, sendLetter = true });
@@ -49,8 +50,8 @@ namespace DeltaV
                 {
                     new QuestPart_Dialog.Option { text = replyKey.Translate(),
                         outSignal = DeltaVTutorialService.Signal(quest, reply ?? "Acknowledged") },
-                    new QuestPart_Dialog.Option { text = "DeltaV_Tutorial_Leave".Translate(),
-                        outSignal = DeltaVTutorialService.Signal(quest, "Leave" + stage) }
+                    new QuestPart_Dialog.Option { text = ("DeltaV_Tutorial_Defer_" + stage).Translate(),
+                        outSignal = DeltaVTutorialService.Signal(quest, "Defer" + stage) }
                 }
             };
             quest.AddPart(part);

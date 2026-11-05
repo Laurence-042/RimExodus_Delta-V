@@ -27,6 +27,7 @@ namespace DeltaV
             yield return Run.giftEngine;
             yield return Run.rangeConsole;
             yield return Run.rangeTarget;
+            yield return Run.rangePort;
         }
 
         private bool CheckFlightAssets()
@@ -72,12 +73,17 @@ namespace DeltaV
                     || !ColonistAboard(ship))
                     Messages.Message("DeltaV_Tutorial_FlightProgress".Translate(Run.forwardTicks, Run.lateralTicks, Run.turnTicks),
                         Run.trainingConsole, MessageTypeDefOf.RejectInput, false);
-                else AdvanceFlight(TutorialStage.Range);
+                else AdvanceFlight(TutorialStage.Salvage);
                 return true;
             }
-            if (Run.stage == TutorialStage.Range && tag == Signal(Run.quest, "ContinueAfterRange"))
+            if (Run.stage == TutorialStage.Range && tag == Signal(Run.quest, "VisitRange"))
             {
-                AdvanceFlight(TutorialStage.Salvage);
+                AdvanceFlight(TutorialStage.SoftDock);
+                return true;
+            }
+            if (Run.stage == TutorialStage.RangePractice && tag == Signal(Run.quest, "FinishRange"))
+            {
+                AdvanceFlight(TutorialStage.Visit);
                 return true;
             }
             if (Run.stage == TutorialStage.Salvage && tag == Signal(Run.quest, "CheckSalvage"))
@@ -88,16 +94,20 @@ namespace DeltaV
                     .SelectMany(c => c.GetThingList(Run.cargoShelf.Map)).Where(t => t.def == ThingDefOf.Steel).Sum(t => t.stackCount) : 0;
                 if (!Run.recoveryDocked || steel < SalvageSteel || !ColonistAboard(ship))
                     Messages.Message("DeltaV_Tutorial_SalvageProgress".Translate(steel), Run.cargoShelf, MessageTypeDefOf.RejectInput, false);
-                else AdvanceFlight(TutorialStage.SoftDock);
+                else AdvanceFlight(TutorialStage.Range);
                 return true;
             }
             if (Run.stage == TutorialStage.SoftDock && tag == Signal(Run.quest, "CheckSoftDock"))
             {
-                CompSoftDocking port = Run.trainingPort.GetComp<CompSoftDocking>();
-                if (port?.Connected != true || port.Peer != Run.yardPort
-                    || ShipRegistry.ShipOf(Run.trainingPort).Identity != new DriveSubject(0, Run.trainingShipId))
-                    Messages.Message("DeltaV_Tutorial_NeedSoftDock".Translate(), Run.yardPort, MessageTypeDefOf.RejectInput, false);
-                else AdvanceFlight(TutorialStage.Visit);
+                ShipBase ship = TrainingShip;
+                bool connected = Run.rangePort?.Spawned == true && ship.IsValid && ship.Map != null
+                    && ship.Map.listerThings.AllThings.OfType<Building_DockingPort>().Any(p =>
+                        ShipRegistry.ShipOf(p).Identity == ship.Identity
+                        && p.GetComp<CompSoftDocking>() is CompSoftDocking port
+                        && port.Connected && port.Peer == Run.rangePort);
+                if (!connected)
+                    Messages.Message("DeltaV_Tutorial_NeedSoftDock".Translate(), Run.rangePort, MessageTypeDefOf.RejectInput, false);
+                else AdvanceFlight(TutorialStage.RangePractice);
                 return true;
             }
             if (Run.stage == TutorialStage.Visit && tag == Signal(Run.quest, "AcceptShip"))
@@ -164,7 +174,7 @@ namespace DeltaV
                 Run.trainingConsole.TryGetComp<CompDeltaVPilotConsole>().isPublicFacility = true;
                 Run.trainingShipId = Run.trainingConsole.TryGetComp<CompDeltaVPilotConsole>().shipId;
                 universe.Controls.ReconcileOwner(Run.trainingShipId);
-                Run.trainingPort = trainThings.OfType<Building_DockingPort>().Single();
+                Run.trainingPort = trainThings.OfType<Building_DockingPort>().Single(p => p.Rotation == Rot4.West);
                 Run.cargoShelf = trainThings.OfType<Building_Storage>().Single();
                 Run.cargoShelf.label = "DeltaV_Tutorial_CargoShelf".Translate();
                 ConfigureCargo(Run.cargoShelf, StoragePriority.Critical);

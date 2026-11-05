@@ -7,6 +7,7 @@ using System.Text.Json;
 using DeltaV;
 using HarmonyLib;
 using RimWorld;
+using RimWorld.Planet;
 using Verse;
 using UnityEngine;
 
@@ -63,7 +64,7 @@ internal static partial class Program
         try
         {
             var chain=CompSpaceRailgun.TraceConnections(weapon);
-            Check(chain.segments.Count==3 && chain.kineticEnergyBonus==648000f,"production trace reaches all three accelerators");
+            Check(chain.segments.Count==5 && chain.kineticEnergyBonus==1080000f,"production trace reaches all five accelerators");
             var last=chain.segments.Last().parent.OccupiedRect();
             var muzzleCell=new IntVec3(Mathf.FloorToInt(chain.muzzleMap.Value.x),0,Mathf.FloorToInt(chain.muzzleMap.Value.y));
             Check(chain.muzzleMap.HasValue && chain.muzzleMap.Value.x>last.maxX+1
@@ -89,6 +90,56 @@ internal static partial class Program
     {
         internal CompTutorialShieldTerminal terminal = new CompTutorialShieldTerminal();
         public void ExposeData() => terminal.PostExposeData();
+    }
+
+    sealed class RangeShieldSave : IExposable
+    {
+        internal CompSpaceShield shield;
+        public RangeShieldSave(Building parent) { shield=new CompSpaceShield {parent=parent,props=new CompProperties_SpaceShield()}; }
+        public void ExposeData() => shield.PostExposeData();
+    }
+
+    static void RangeLaserSightlines(Game game, XmlDocument platform, XmlDocument target, List<CompSpaceShield> shields)
+    {
+        var layer=Raw<PlanetLayer>();
+        var tiles=AccessTools.Field(typeof(PlanetLayer),"tileIDToNeighbors_offsets");
+        object array=Activator.CreateInstance(tiles.FieldType);Set(array,"m_Length",1);tiles.SetValue(layer,array);
+        AccessTools.Field(typeof(OrbitSphere),"cachedWorld").SetValue(null,game.World);
+        AccessTools.Field(typeof(OrbitSphere),"cachedLayer").SetValue(null,layer);
+        ((Dictionary<PlanetLayer,float>)AccessTools.Field(typeof(OrbitSphere),"RadiusByLayer").GetValue(null))[layer]=100000;
+        ((Dictionary<PlanetLayer,float>)AccessTools.Field(typeof(OrbitSphere),"WorldPerCellByLayer").GetValue(null))[layer]=1;
+        Map MapFor(XmlDocument doc)
+        {
+            var map=Raw<Map>();map.info=new MapInfo {Size=ShipPocketMapFactory.CompactSize(IntVec2.FromString(doc.SelectSingleNode("/MapPrefab/prefab/size").InnerText))};return map;
+        }
+        var source=new MapSpaceObject(8001,MapFor(platform),new SpacePose(Vector3.forward,0));
+        var destination=new MapSpaceObject(8002,MapFor(target),SpaceTransform.RigidPointPose(source.pose,new Vector2(120,0),0));
+        foreach(string name in new[]{"DeltaV_Weapon_RapidMainMedium","DeltaV_Weapon_HeavyMainMedium","DeltaV_Weapon_LaserMainMedium"})
+        foreach(XmlNode entry in platform.SelectNodes("/MapPrefab/thingStates/li[def='"+name+"']"))
+        {
+        var body=Raw<Building>();body.def=Raw<ThingDef>();body.def.size=IntVec2.FromString(SourceChain(name).Select(n=>n["size"]).First(n=>n!=null).InnerText);
+        Set(body,"positionInt",IntVec3.FromString(entry["pos"].InnerText)+new IntVec3(12,0,12));Set(body,"rotationInt",Rot4.East);
+        var weaponProperties=sourceDefs[name].SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']");
+        var weapon=new CompSpaceWeapon {parent=body,props=new CompProperties_SpaceWeapon {
+            turretMuzzleDistance=float.Parse(weaponProperties["turretMuzzleDistance"].InnerText,System.Globalization.CultureInfo.InvariantCulture)}};
+        weapon.coverage.arc=float.Parse(entry.SelectSingleNode("state/saveable/combatCoverage/arc").InnerText,System.Globalization.CultureInfo.InvariantCulture);
+        var traverse=new CompSpaceWeaponTraverse {parent=body,props=new CompProperties_SpaceWeaponTraverse()};
+        Set(body,"comps",new List<ThingComp> {weapon,traverse});
+        foreach(var shield in shields)
+        {
+            shield.GetSegment(out var a,out var b,out _);
+            foreach(float fraction in new[]{0.05f,0.5f,0.95f})
+            {
+            Vector2 point=Vector2.Lerp(a,b,fraction)+new Vector2(12,12);
+            Vector2 aim=SpaceTransform.UniverseToMapPoint(source,source.map,SpaceTransform.MapPointToUniverse(destination,destination.map,point));
+            Vector2 direction=aim-SpaceWeaponGeometry.FootprintCenter(body);
+            Set(traverse,"currentAngle",Mathf.Atan2(direction.y,direction.x));
+            Vector2 muzzle=SpaceWeaponGeometry.MuzzleMapPoint(weapon);direction=aim-muzzle;
+            Check(weapon.CoverageError(Mathf.Atan2(direction.y,direction.x))==0 && direction.magnitude<150,
+                "both turret banks can reach shield centres and ends within restricted firing sector");
+            }
+        }
+        }
     }
 
     sealed class RangeEntranceSave : IExposable
@@ -171,8 +222,10 @@ internal static partial class Program
         int group=0;
         foreach (string name in weaponNames)
         {
-            var state=platform.SelectSingleNode("/MapPrefab/thingStates/li[def='"+name+"']/state/saveable");
-            Check(state != null && state["groupNumber"].InnerText == (++group).ToString(), "four distinct fire-control groups");
+            group++;
+            foreach(XmlNode state in platform.SelectNodes("/MapPrefab/thingStates/li[def='"+name+"']/state/saveable"))
+            {
+            Check(state != null && state["groupNumber"].InnerText == group.ToString(), "four distinct fire-control groups");
             var building=Raw<Building>(); building.def=Raw<ThingDef>(); building.def.defName=name;
             Set(building,"factionInt",new Faction {def=new FactionDef()});
             Set(building,"rotationInt",Rot4.East);
@@ -185,10 +238,11 @@ internal static partial class Program
                 Scribe.loader.InitLoading(file); Scribe_Deep.Look(ref savedWeapon,"weapon",building);
                 Scribe.loader.FinalizeLoading();
                 var weapon=savedWeapon.weapon;
-                Check(weapon.groupNumber==group && weapon.coverage.arc==24f && weapon.EffectiveRange==150f,
+                Check(weapon.groupNumber==group && weapon.coverage.arc==90f && weapon.EffectiveRange==150f,
                     "native weapon Scribe preserves group and limited firing sector");
+                Check(weapon.salvoSet==Enum.Parse<SpaceWeaponSalvoSet>(state["salvoSet"]?.InnerText ?? "Main"),"native Scribe preserves main/secondary bank");
                 Check(weapon.CoverageError(0f)==0f && weapon.CoverageError(Mathf.PI)>100f
-                    && weapon.CoverageError(13f*Mathf.Deg2Rad)>0f,"station behind platform and off-sector aim rejected");
+                    && weapon.CoverageError(46f*Mathf.Deg2Rad)>0f,"station behind platform and off-sector aim rejected");
                 Check(!weapon.CompGetGizmosExtra().Any(),"allied weapon has no player settings gizmos");
                 if (group!=3)
                 {
@@ -201,29 +255,83 @@ internal static partial class Program
             }
             finally { Scribe.ForceStop(); File.Delete(file); }
         }
-        Check(platform.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_Weapon_RailgunAccelerator']").Count==3,"railgun has three real accelerators");
+        }
+        Check(platform.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_Weapon_RailgunAccelerator']").Count==5,"railgun has five real accelerators");
+        Check(platform.SelectSingleNode("/MapPrefab/thingStates/li[def='PilotConsole']/state/saveable/combat/fireControlMode").InnerText=="Disabled",
+            "platform stores disabled fire control in the native combat record");
+        Check(new ShipCombatState().fireControlMode==ShipFireControlMode.Automatic,"new player ships still default to automatic fire control");
+        var armour=target.SelectNodes("/MapPrefab/thingStates/li[def='Wall' and stuff='Plasteel']/pos").Cast<XmlNode>()
+            .Select(n=>IntVec3.FromString(n.InnerText)).ToList();
+        Check(armour.Count==129 && Enumerable.Range(0,43).All(z=>Enumerable.Range(0,3).All(x=>armour.Contains(new IntVec3(x,0,z)))),
+            "three uninterrupted front armour layers including the rail lane");
         Check(platform.SelectNodes("/MapPrefab/thingStates/li[def='Battery']").Count==60,"platform has a finite 36000 Wd bank");
         Check(target.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_ShieldGenerator']").Count==3,"target has three same-ship shield generators");
         var shields = new List<CompSpaceShield>();
-        for(int i=0;i<3;i++)
+        foreach(XmlNode entry in target.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_ShieldGenerator']"))
         {
             var b=Raw<Building>(); b.def=Raw<ThingDef>(); Set(b,"mapIndexOrState",(sbyte)-1);
-            var s=new CompSpaceShield { parent=b,props=new CompProperties_SpaceShield() };
+            b.def.size=new IntVec2(3,3);
+            Set(b,"positionInt",IntVec3.FromString(entry["pos"].InnerText));
+            Set(b,"rotationInt",new Rot4(int.Parse(entry["rotation"].InnerText)));
+            string path=Path.GetTempFileName(); RangeShieldSave savedShield=null;
+            try
+            {
+                File.WriteAllText(path,"<root><shield>"+entry.SelectSingleNode("state/saveable").InnerXml+"</shield></root>");
+                Scribe.loader.InitLoading(path);Scribe_Deep.Look(ref savedShield,"shield",b);Scribe.loader.FinalizeLoading();
+            }
+            finally {Scribe.ForceStop();File.Delete(path);}
+            var s=savedShield.shield;
             var flick=new CompFlickable { parent=b,props=new CompProperties_Flickable() };
             var fuel=new CompRefuelable { parent=b,props=new CompProperties_Refuelable { fuelCapacity=2000 } };
             Set(fuel,"fuel",777f); Set(s,"regularCapacity",123d); Set(s,"recoveryWaitTicks",200);
             Set(b,"comps",new List<ThingComp> { s,flick,fuel }); shields.Add(s);
         }
-        foreach(TutorialShieldPreset preset in Enum.GetValues<TutorialShieldPreset>())
+        shields=shields.OrderByDescending(s=>s.groundRadius).ToList();
+        Check(shields.Select(s=>s.angleDeg).OrderBy(a=>a).SequenceEqual(new[]{-30f,0f,30f}),"stored straight and opposite tilted shields");
+        foreach(var s in shields)
         {
-            CompTutorialShieldTerminal.ApplyPreset(shields,preset);
+            s.GetSegment(out var a,out var b,out var n);
+            Check(a.x<0 && b.x<0 && n.x<0,"whole native shield segment sits ahead of front armour");
+            Check(Math.Abs((b-a).magnitude-10f)<.001f,"native shield length survives prefab Scribe");
+            Check(Math.Abs(SpaceTransform.IncidenceAngle(Vector2.right,n)*Mathf.Rad2Deg-Math.Abs(s.angleDeg))<.01f,
+                "native shield normal exposes distinct incidence angles");
+        }
+        shields[0].GetSegment(out var centralA,out var centralB,out _);
+        Check(centralA.y<22.5f && centralB.y>22.5f,"fixed rail axis crosses the central shield");
+        RangeLaserSightlines(game,platform,target,shields);
+        var definitions=new XmlDocument();definitions.Load(Path.Combine(directory,"../Defs/Tutorial/DeltaV_TutorialRange.xml"));
+        var presets=definitions.SelectNodes("/Defs/ThingDef/comps/li[@Class='DeltaV.CompProperties_TutorialShieldTerminal']").Cast<XmlNode>().ToList();
+        Check(presets.Count==9,"nine distinct test presets plus entry briefing");
+        foreach(string mode in new[]{"Kinetic","Electromagnetic"})
+            Check(presets.Where(n=>n["preset"].InnerText==mode).Select(n=>int.Parse(n["strengthPercent"].InnerText))
+                .OrderBy(n=>n).SequenceEqual(mode=="Kinetic" ? new[]{0,20,100} : new[]{0,50,100}),"three real strength settings: "+mode);
+        foreach(var setting in presets)
+        {
+            var preset=Enum.Parse<TutorialShieldPreset>(setting["preset"].InnerText);
+            int strength=int.Parse(setting["strengthPercent"]?.InnerText ?? "0");
+            bool line=preset==TutorialShieldPreset.Kinetic || preset==TutorialShieldPreset.Electromagnetic;
+            CompTutorialShieldTerminal.ApplyPreset(shields,preset,strength);
             Check(shields.All(s=>s.RegularCapacity==123d && s.EmergencyCapacity==777d && s.RecoveryWaitTicks==200),
                 "preset does not refill or reset recovery: "+preset);
             Check(shields[0].FlickedOn==(preset!=TutorialShieldPreset.Unshielded)
-                && shields.Skip(1).All(s=>s.FlickedOn==(preset==TutorialShieldPreset.Guard)),"preset participation: "+preset);
-            Check(shields[0].mode==(preset==TutorialShieldPreset.Kinetic ? SpaceShieldMode.Kinetic
-                : preset==TutorialShieldPreset.Deflection || preset==TutorialShieldPreset.Reflection ? SpaceShieldMode.Electromagnetic
-                : SpaceShieldMode.Guard),"preset selects real shield mode: "+preset);
+                && shields.Skip(1).All(s=>s.FlickedOn==(line || preset==TutorialShieldPreset.Guard)),"preset participation: "+preset);
+            Check(shields.All(s=>s.mode==(preset==TutorialShieldPreset.Kinetic ? SpaceShieldMode.Kinetic
+                : preset==TutorialShieldPreset.Electromagnetic ? SpaceShieldMode.Electromagnetic
+                : SpaceShieldMode.Guard)),"preset selects real shield mode on all three generators: "+preset);
+            Check(shields.All(s=>s.kineticStrengthPercent==strength && s.electromagneticStrengthPercent==strength),
+                "terminal strength reaches all generators: "+preset+strength);
+            Check(shields.Select(s=>s.angleDeg).OrderBy(a=>a).SequenceEqual(new[]{-30f,0f,30f}),"switching preserves authored shield angles");
+            if(line)
+                foreach(var s in shields)
+                {
+                    s.GetSegment(out _,out _,out var n);
+                    var ray=SpaceShieldRefraction.Calculate(Vector2.right,n,strength).Direction(1f);
+                    if(strength==100) Check(ray.x<-.999f,"full funded EM returns beam from straight and tilted segments");
+                    if(strength==0) Check(s.angleDeg==0 ? ray.x>.999f : Math.Abs(ray.y)>.1f,"passive EM distinguishes normal and oblique incidence");
+                    Vector2 v=new Vector2(180,0), tangent=new Vector2(n.y,-n.x);
+                    var result=SpaceKinetics.ApplyShieldImpulse(1,v,n,SpaceKinetics.ShieldImpulse(strength));
+                    Check(Math.Abs(Vector2.Dot(result-v,tangent))<.001f,"kinetic pulse preserves tangent on authored segment");
+                }
         }
         Vector2 deflected=SpaceShieldRefraction.Calculate(Vector2.right,Vector2.left,50).Direction(1f);
         Vector2 reflected=SpaceShieldRefraction.Calculate(Vector2.right,Vector2.left,100).Direction(1f);
@@ -247,10 +355,22 @@ internal static partial class Program
         harmony.Patch(assetCheck,prefix:new HarmonyMethod(typeof(Program),nameof(AssetsPresent)));
         try
         {
-            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"ContinueAfterRange"));
-            Check(run.stage==TutorialStage.Salvage,"zero visits, zero shots, zero terminal uses still allow continuation");
-            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"ContinueAfterRange"));
-            Check(run.stage==TutorialStage.Salvage,"duplicate optional-range answer cannot skip salvage");
+            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"VisitRange"));
+            Check(run.stage==TutorialStage.SoftDock,"range invitation leads to soft docking after salvage");
+            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"DeferRange"));
+            Check(run.stage==TutorialStage.SoftDock,"stale invitation cannot skip accepted soft docking");
+            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"DeferSoftDock"));
+            Check(run.stage==TutorialStage.Visit && universe.Tutorial.Active,"range trip can be postponed even if its port is lost");
+            run.stage=TutorialStage.RangePractice;
+            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"DeferRangePractice"));
+            Check(run.stage==TutorialStage.RangePractice,"experiments can be prolonged without ending the quest");
+            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"FinishRange"));
+            Check(run.stage==TutorialStage.Visit,"zero shots and zero terminal uses still allow station visit");
+            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"FinishRange"));
+            Check(run.stage==TutorialStage.Visit,"duplicate range answer cannot complete the station handover");
+            run.stage=TutorialStage.Range;
+            universe.Tutorial.Receive(quest,DeltaVTutorialService.Signal(quest,"DeferRange"));
+            Check(run.stage==TutorialStage.Visit,"optional range visit can be left for later without ending the quest");
             ((List<Action>)AccessTools.Field(typeof(UniverseManager),"frameActions").GetValue(universe)).Clear();
             universe.Tutorial.Ended(quest);
         }
