@@ -155,6 +155,7 @@ namespace DeltaV
 
         public override void PostDestroy(DestroyMode mode, Map previousMap)
         {
+            bool removedMain = isMain;
             // 主台损毁 → 同归属同方向备用台按稳定 Thing ID 继任（§3.2）；无同向则结构
             // 成为残骸（可手动认领恢复）。原版搬运走 DeSpawn（WillReplace），不进本路径。
             UniverseManager universe = Universe;
@@ -179,6 +180,7 @@ namespace DeltaV
             }
             base.PostDestroy(mode, previousMap);
             universe?.Controls.ReconcileOwner(shipId);
+            if (removedMain) universe?.Missions.ShipChanged(new DriveSubject(0, shipId), consoleDestroyed: true);
         }
 
         /// <summary>同归属、同方向、非主台的候选中 Thing ID 最小者（确定性，不受遍历顺序影响）。</summary>

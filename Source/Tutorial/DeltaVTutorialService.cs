@@ -11,9 +11,26 @@ namespace DeltaV
     {
         private readonly UniverseManager universe;
         private bool resumeQueued;
+        private bool subscribed;
         // Only spans native new-game preparation and initial casket placement.
         internal List<Pawn> UnselectedCrew { get; } = new List<Pawn>();
-        internal DeltaVTutorialService(UniverseManager universe) { this.universe = universe; }
+        internal DeltaVTutorialService(UniverseManager universe)
+        {
+            this.universe = universe;
+            if (Run?.quest != null && !Run.quest.Historical && Run.stage != TutorialStage.Ended) Subscribe();
+        }
+        private void Subscribe()
+        {
+            if (subscribed) return;
+            subscribed = true;
+            universe.Missions.FlightObserved += ObserveFlight;
+            universe.Missions.DockPreparing += PrepareDockWitness;
+        }
+        private Action PrepareDockWitness(DriveSubject subject, Map map)
+        {
+            Thing witness = RecoveryWitness(subject, map);
+            return witness == null ? null : new Action(() => ConfirmRecoveryDock(subject, witness));
+        }
         internal TutorialRunState Run => universe.tutorialRun;
         internal bool Active => Current.Game?.GetComponent<UniverseManager>() == universe
             && Run != null && Run.stage != TutorialStage.Ended && Run.quest != null && !Run.quest.Historical;
@@ -23,6 +40,7 @@ namespace DeltaV
         {
             if (Run == null || Run.quest != null) throw new InvalidOperationException("Tutorial quest requires one initialized arrival and cannot be duplicated.");
             Run.quest = quest;
+            Subscribe();
         }
 
         internal void Resume()
@@ -62,8 +80,11 @@ namespace DeltaV
 
         internal void LocateNavigationTarget()
         {
+            Thing role = NavigationRole;
+            if (role?.Spawned != true) return;
+            universe.GlobeNavigation.MissionSelection = MissionTarget.Of(universe, role).Navigation;
             universe.GlobeNavigation.Refresh(universe);
-            GlobeNavigationPanel.Open(universe, GlobeTarget.Of(universe.GlobeNavigation.CourseTarget));
+            GlobeNavigationPanel.Open(universe, universe.GlobeNavigation.MissionSelection);
         }
 
         internal IEnumerable<GlobalTargetInfo> Targets
@@ -129,6 +150,9 @@ namespace DeltaV
         internal void Ended(Quest quest)
         {
             if (Run?.quest != quest) return;
+            universe.Missions.FlightObserved -= ObserveFlight;
+            universe.Missions.DockPreparing -= PrepareDockWitness;
+            subscribed = false;
             Run.stage = TutorialStage.Ended;
             Run.caskets?.Clear();
             Run.colonists?.Clear();

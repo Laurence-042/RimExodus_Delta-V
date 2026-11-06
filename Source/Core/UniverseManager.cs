@@ -105,7 +105,10 @@ namespace DeltaV
 
         public ShipControlService Controls => controls ?? (controls = new ShipControlService(this));
 
-        internal TutorialRunState tutorialRun;
+        internal SpaceMissionState missionState = new SpaceMissionState();
+        [NonSerialized] private SpaceMissionService missions;
+        internal SpaceMissionService Missions => missions ?? (missions = new SpaceMissionService(this));
+        internal TutorialRunState tutorialRun { get => missionState.tutorial; set => missionState.tutorial = value; }
         [NonSerialized] private DeltaVTutorialService tutorial;
         internal DeltaVTutorialService Tutorial => tutorial ?? (tutorial = new DeltaVTutorialService(this));
 
@@ -656,7 +659,8 @@ namespace DeltaV
                 objectByMap = null;
             }
             Scribe_Collections.Look(ref generatedSectorTiles, "generatedSectorTiles", LookMode.Value);
-            Scribe_Deep.Look(ref tutorialRun, "tutorial");
+            Scribe_Deep.Look(ref missionState, "missions");
+            missionState ??= new SpaceMissionState();
             Scribe_Collections.Look(ref globeBookmarks, "globeBookmarks", LookMode.Deep);
             Scribe_Values.Look(ref SoftDockEnabled, "softDockEnabled", false);
             Scribe_Values.Look(ref ShowThrusterDebugOverlay, "showThrusterDebugOverlay", false);
@@ -732,6 +736,7 @@ namespace DeltaV
             Controls.Rebuild();
             if (SoftDockEnabled) SoftDock.RestoreEnabled();
             ApplyCameraZoomScope();
+            Missions.Resume();
             if (tutorialRun != null) Tutorial.Resume();
         }
 
@@ -1199,6 +1204,12 @@ namespace DeltaV
             if (IsResettingScene) return;
             Find.TickManager.Pause();
             if (tutorialRun != null) Tutorial.EndForSceneReset();
+            foreach (var mission in Missions.Active.ToList())
+            {
+                mission.settled = true;
+                mission.quest.End(QuestEndOutcome.Unknown, sendLetter: false, playSound: false);
+            }
+            missionState.boards.Clear();
             sceneResetSteps = new Queue<Action>();
             sceneResetSteps.Enqueue(() =>
             {
@@ -1266,6 +1277,7 @@ namespace DeltaV
             stationTrade = null;
             worksites = null;
             tutorial = null;
+            missions = null;
             npcShips = null;
             globeDisplay?.Clear();
             globeDisplay = null;

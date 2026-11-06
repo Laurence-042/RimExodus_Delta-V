@@ -29,6 +29,7 @@ $lines += '"' + "$PSScriptRoot/Program.cs" + '"'
 $lines += '"' + "$PSScriptRoot/ShipyardChecks.cs" + '"'
 $lines += '"' + "$PSScriptRoot/PrefabContentChecks.cs" + '"'
 $lines += '"' + "$PSScriptRoot/ArrivalChecks.cs" + '"'
+$lines += '"' + "$PSScriptRoot/MissionChecks.cs" + '"'
 $lines += '"' + "$PSScriptRoot/RangeChecks.cs" + '"'
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & dotnet "$($sdkVersion.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"

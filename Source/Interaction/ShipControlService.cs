@@ -95,6 +95,7 @@ namespace DeltaV
         internal void ReconcileOwner(DriveSubject ownerId)
         {
             if (ownerId.key <= 0) return;
+            universe.Missions.ShipChanged(ownerId);
             SubstructureOwnership.BumpStructureVersion();
             ShipBase ship = ShipRegistry.ShipByIdentity(ownerId);
             if (ship.IsValid && ship.Faction != null) For(ship);

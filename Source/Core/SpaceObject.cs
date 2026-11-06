@@ -339,9 +339,8 @@ namespace DeltaV
                 Mathf.Lerp(allocatedTorque, control.torque, control.voidBlend), dt,
                 control.assistX, control.assistZ, control.assistW, frameAngle, control.inputBasis);
             performance?.Record(PerformanceStage.DriveIntegrate, integrateStart);
-            if (control.playerInitiated && Current.Game?.GetComponent<UniverseManager>() is UniverseManager universe
-                && universe.tutorialRun != null)
-                universe.Tutorial.ObserveFlight(subject, command, force, allocatedTorque, frameAngle,
+            if (control.playerInitiated && Current.Game?.GetComponent<UniverseManager>() is UniverseManager universe)
+                universe.Missions.ObserveFlight(subject, command, force, allocatedTorque, frameAngle,
                     control.assistX, control.assistZ, control.assistW);
             return DriveResult.Executed;
         }

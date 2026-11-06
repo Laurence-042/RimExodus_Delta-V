@@ -49,7 +49,7 @@ namespace DeltaV
             bool hasCourse = state.CourseTarget != null;
             if (Widgets.ButtonText(new Rect(rect.x + half + 4f, y, half, 24f), "DeltaV_NavCourse".Translate(),
                 active: hasCourse))
-                PlanetGlobeRenderer.FitTarget(universe, context, mapRect, GlobeTarget.Of(state.CourseTarget));
+                universe.Missions.ChooseNavigation();
             y += 28f;
             var target = state.SelectedEntry ?? state.CourseTarget;
             string title = target == null ? (state.SelectionLost || state.CourseUnavailable

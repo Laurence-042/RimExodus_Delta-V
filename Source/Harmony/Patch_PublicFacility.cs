@@ -149,7 +149,7 @@ namespace DeltaV
             foreach (SlotGroup group in map.haulDestinationManager.AllGroupsListInPriorityOrder)
             {
                 if (group.Settings.Priority < priority || group.Settings.Priority <= currentPriority) break;
-                if (!(group.parent is Building_Storage shelf) || !PublicFacility.PlayerMayUse(shelf)
+                if (!(group.parent is Building_Storage shelf) || !MayStore(shelf, t)
                     || !shelf.HaulDestinationEnabled) continue;
                 // Native worker retains forbidden, reservation, fire, blocker and reachability checks.
                 if (!StoreUtility.TryFindBestBetterStoreCellForIn(t, carrier, map, currentPriority, faction,
@@ -162,6 +162,8 @@ namespace DeltaV
                 __result = true;
             }
         }
+        internal static bool MayStore(Thing shelf, Thing item) => PublicFacility.PlayerMayUse(shelf)
+            || Current.Game?.GetComponent<UniverseManager>()?.Missions.MayStore(shelf, item) == true;
     }
 
     [HarmonyPatch(typeof(StoreUtility), nameof(StoreUtility.StoragePriorityAtFor),
@@ -170,7 +172,7 @@ namespace DeltaV
     {
         private static void Postfix(IHaulDestination at, Thing t, bool forced, ref StoragePriority __result)
         {
-            if (forced && at is Building_Storage shelf && PublicFacility.PlayerMayUse(shelf) && at.Accepts(t))
+            if (forced && at is Building_Storage shelf && Patch_PublicFacilityStorage.MayStore(shelf, t) && at.Accepts(t))
                 __result = at.GetStoreSettings().Priority;
         }
     }
@@ -181,7 +183,7 @@ namespace DeltaV
         private static void Postfix(Thing t, ref bool __result)
         {
             if (!__result && StoreUtility.CurrentHaulDestinationOf(t) is Building_Storage shelf
-                && PublicFacility.PlayerMayUse(shelf) && shelf.Accepts(t))
+                && Patch_PublicFacilityStorage.MayStore(shelf, t) && shelf.Accepts(t))
                 __result = !StoreUtility.TryFindBestBetterStorageFor(t, null, t.MapHeld, shelf.GetStoreSettings().Priority,
                     Faction.OfPlayer, out _, out _, needAccurateResult: false);
         }

@@ -52,6 +52,8 @@ namespace DeltaV
         private bool dragged;
         internal readonly List<GlobeDisplayEntry> Entries = new List<GlobeDisplayEntry>();
         internal GlobeDisplayEntry CourseTarget, SelectedEntry;
+        internal GlobeTarget MissionSelection;
+        private readonly HashSet<GlobeDisplayEntry> missionEntries = new HashSet<GlobeDisplayEntry>();
         internal bool CourseUnavailable;
         internal readonly List<GlobeTarget> Bookmarks;
         internal GlobeNavigation(List<GlobeTarget> bookmarks) { Bookmarks = bookmarks; }
@@ -93,9 +95,17 @@ namespace DeltaV
             foreach (SpaceObject obj in universe.objects) Entries.AddRange(universe.GlobeDisplay.Entries(obj));
             SelectedEntry = Resolve(Selected);
             if (Selected != null) SelectionLost = SelectedEntry == null;
-            Thing role = universe.Tutorial.NavigationRole;
-            CourseTarget = ResolveRole(universe, role);
-            CourseUnavailable = universe.Tutorial.HasNavigationStage && CourseTarget == null;
+            missionEntries.Clear();
+            var targets = universe.Missions.NavigationTargets().ToList();
+            foreach (var target in targets)
+            {
+                var entry = Resolve(target.target);
+                if (entry != null) missionEntries.Add(entry);
+            }
+            if (MissionSelection == null || !targets.Any(t => t.target.Equals(MissionSelection)))
+                MissionSelection = targets.FirstOrDefault().target;
+            CourseTarget = Resolve(MissionSelection);
+            CourseUnavailable = targets.Count > 0 && CourseTarget == null;
         }
 
         internal GlobeDisplayEntry Resolve(GlobeTarget target)
@@ -121,7 +131,7 @@ namespace DeltaV
         internal void Select(GlobeDisplayEntry entry)
         { Selected = GlobeTarget.Of(entry); SelectedEntry = entry; SelectionLost = false; }
         internal bool IsSelected(GlobeDisplayEntry entry) => SelectedEntry != null && ReferenceEquals(SelectedEntry, entry);
-        internal bool IsCourse(GlobeDisplayEntry entry) => CourseTarget != null && ReferenceEquals(CourseTarget, entry);
+        internal bool IsCourse(GlobeDisplayEntry entry) => entry != null && missionEntries.Contains(entry);
         internal bool IsBookmarked(GlobeDisplayEntry entry) => Bookmarks.Any(b => b.shipKey != 0 ? b.Matches(entry)
             : b.objectId == entry.owner.objectId && ReferenceEquals(Resolve(b), entry));
         internal bool Important(GlobeDisplayEntry entry) => IsSelected(entry) || IsCourse(entry) || IsBookmarked(entry);
@@ -135,9 +145,9 @@ namespace DeltaV
             // Member identities may already have moved into another map during transfer.
             if (Selected?.objectId == objectId) { Selected = null; SelectedEntry = null; SelectionLost = true; }
             Bookmarks.RemoveAll(b => b.objectId == objectId);
-            Entries.Clear(); CourseTarget = null; SelectedEntry = null;
+            Entries.Clear(); missionEntries.Clear(); CourseTarget = null; SelectedEntry = null;
         }
-        internal void InvalidateEntries() { Entries.Clear(); CourseTarget = null; SelectedEntry = null; }
+        internal void InvalidateEntries() { Entries.Clear(); missionEntries.Clear(); CourseTarget = null; SelectedEntry = null; }
 
         internal static float Zoom(float width, float steps, float maximum) =>
             Mathf.Clamp(width * (float)Math.Pow(1.25, steps), Mathf.Min(MinimumWidth, maximum), maximum);

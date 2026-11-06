@@ -148,8 +148,6 @@ internal static partial class Program
         Check(state.Resolve(state.Selected) == moved && state.IsBookmarked(moved), "ship selection and bookmark follow identity into a new container");
         state.Filter = GlobeFilter.Stations;
         Check(state.Listed(Vector3.forward).Single() == station, "station listing includes a distant place outside the current view");
-        state.Filter = GlobeFilter.Mission;
-        Check(state.Listed(Vector3.forward).Single() == station, "mission filter uses current course target rather than all quest references");
         state.Filter = GlobeFilter.All; state.Search = "cour";
         Check(state.Listed(Vector3.forward).Single() == moved, "place search matches names without case sensitivity");
         state.Search = "";
@@ -174,6 +172,26 @@ internal static partial class Program
             globe = new GlobeDisplaySummary { ships = new List<GlobeShipSummary> {
                 new GlobeShipSummary { key = 501, area = 50, label = "Packed station", station = true } } } };
         universe.objects.Add(archive);
+        var secondArchive = new ArchivedSpaceObject { objectId = 510, pose = archive.pose,
+            globe = new GlobeDisplaySummary { ships = new List<GlobeShipSummary> {
+                new GlobeShipSummary { key = 511, area = 40, label = "Second destination", station = true } } } };
+        universe.objects.Add(secondArchive);
+        var firstMission = new SpaceMission { id = 601, quest = new Quest { id = 601, acceptanceTick = 0 },
+            destination = new MissionTarget { shipId = 501, objectId = 500 } };
+        var secondMission = new SpaceMission { id = 602, quest = new Quest { id = 602, acceptanceTick = 0 },
+            destination = new MissionTarget { shipId = 511, objectId = 510 } };
+        universe.missionState.missions.AddRange(new[] { firstMission, secondMission });
+        universe.GlobeNavigation.Refresh(universe);
+        universe.GlobeNavigation.Filter = GlobeFilter.Mission;
+        Check(universe.GlobeNavigation.Listed(Vector3.forward).Count() == 2,
+            "mission filter includes both independently active commissions");
+        universe.GlobeNavigation.MissionSelection = secondMission.destination.Navigation;
+        universe.GlobeNavigation.Refresh(universe);
+        Check(universe.GlobeNavigation.CourseTarget.owner == secondArchive
+            && universe.GlobeNavigation.Listed(Vector3.forward).Count() == 2,
+            "selecting a commission preserves the other mission marker");
+        universe.missionState.missions.Remove(firstMission); universe.missionState.missions.Remove(secondMission);
+        universe.objects.Remove(secondArchive); universe.GlobeNavigation.Filter = GlobeFilter.All;
         universe.GlobeNavigation.Refresh(universe);
         var archivedEntry = universe.GlobeNavigation.Entries.Single(e => e.owner == archive);
         universe.GlobeNavigation.Select(archivedEntry);

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_MissionCargo.label>物资箱</DeltaV_MissionCargo.label>
+  <DeltaV_MissionCargo.description>封装的托运物资。送达接收站可领取奖励并按期退还押金；也可以自行拆封取得内容物，但拆封后不能交付，押金不退。贸易商不收购物资箱。</DeltaV_MissionCargo.description>
+</LanguageData>

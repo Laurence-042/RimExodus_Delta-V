@@ -215,6 +215,9 @@ namespace DeltaV
         {
             foreach (FloatMenuOption option in base.GetFloatMenuOptions(pawn)) yield return option;
             if (!pawn.IsColonistPlayerControlled) yield break;
+            if (MissionIssuer || Current.Game.GetComponent<UniverseManager>().Missions.Active.Any(m => m.faction == Faction))
+                yield return new FloatMenuOption("DeltaV_Mission_Board".Translate(), () =>
+                    pawn.jobs.TryTakeOrderedJob(JobMaker.MakeJob(DefDatabase<JobDef>.GetNamed("DeltaV_UseMissionTerminal"), this), JobTag.Misc));
             AcceptanceReport report = NegotiatorReport(pawn);
             string label = "DeltaV_TradeTerminalTrade".Translate();
             if (!report.Accepted)

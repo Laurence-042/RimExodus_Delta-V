@@ -124,7 +124,7 @@ namespace DeltaV
         // The caller validates the frozen placement with LandingSiteStillValid before entering this transfer.
         internal bool Dock(PilotTarget target, LandingApproachController.DockingPlan placement)
         {
-            Thing tutorialWitness = universe.tutorialRun == null ? null : universe.Tutorial.RecoveryWitness(target.Identity, placement.targetMap);
+            Action dockCommitted = universe.Missions.BeginDock(target.Identity, placement.targetMap);
             StopControls(new[] { target.Vessel });
             var handoff = universe.ShipTransitions.CaptureDockingFocusHandoff(universe, target.Map, placement.targetMap);
             Gravship captured = universe.ShipTransitions.CaptureDockingTargetForCompletion(target, out var cells, out bool terrain);
@@ -137,7 +137,7 @@ namespace DeltaV
             universe.QueueFrameAction(() =>
             {
                 completion.Finish();
-                if (tutorialWitness != null) universe.Tutorial.ConfirmRecoveryDock(target.Identity, tutorialWitness);
+                dockCommitted?.Invoke();
             });
             return true;
         }
@@ -174,7 +174,7 @@ namespace DeltaV
 
         private void CreateWorksite(PilotTarget target, SpaceObject host, LandingApproachController.DockingPlan placement)
         {
-            Thing tutorialWitness = universe.tutorialRun == null ? null : universe.Tutorial.RecoveryWitness(target.Identity, host?.map);
+            Action dockCommitted = universe.Missions.BeginDock(target.Identity, host?.map);
             SpaceObject own = universe.FrameOf(target.Map);
             SpaceObject basis = own;
             var moves = new List<ContentMove>();
@@ -263,7 +263,7 @@ namespace DeltaV
             foreach (ContentMove move in moves)
                 universe.ShipTransitions.HandleDepartedSourceMap(universe, move.source.map);
             Building_DockingPort.NotifyLandingSettled(workmap);
-            if (tutorialWitness != null) universe.Tutorial.ConfirmRecoveryDock(target.Identity, tutorialWitness);
+            dockCommitted?.Invoke();
             ShipPhysics.ClearCache();
             HostColonistBarVisibility.NotifyDockingStateChanged();
             Messages.Message("DeltaV_EVAStarted".Translate(), MessageTypeDefOf.PositiveEvent, false);

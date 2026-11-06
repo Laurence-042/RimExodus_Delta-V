@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_Mission_Rules_Freight>Deliver within {0} days, followed by {1} days of grace. Pay the full deposit on acceptance, collect the crates from this station's pickup bay, and physically haul them into the receiving bay. Deliver at least one crate to close the contract. Undelivered deposits are forfeited. Opening a crate keeps its contents but disqualifies it from delivery, without a goodwill penalty. Success: +{2} goodwill; abandonment or expiry: {3}.</DeltaV_Mission_Rules_Freight>
+  <DeltaV_Mission_Rules_Passengers>Deliver within {0} days, followed by {1} days of grace at full reward. No deposit. Passengers are controllable and draftable but do no daily work. Bring them into the receiving station before handover; one delivery is enough to close the contract. Death, confirmed loss, harmful surgery, arrest or enslavement disqualifies only that passenger and costs {4} goodwill. The others continue travelling. Success: +{2} goodwill; abandonment or expiry: {3}.</DeltaV_Mission_Rules_Passengers>
+  <DeltaV_Mission_Rules_Combat>Return here for payment once the specified ship no longer has a main console belonging to the enemy. A succeeding backup console still counts. No deadline; wrecks, captured ships and crew remain. Success: +{2} goodwill; abandonment: {3}.</DeltaV_Mission_Rules_Combat>
+  <DeltaV_Mission_Settlement>Settlement: {0} delivered, {1} silver paid, including {2} refunded deposit.</DeltaV_Mission_Settlement>
+  <DeltaV_Mission_Board>Station commissions</DeltaV_Mission_Board>
+  <DeltaV_Mission_Freight>Freight commission</DeltaV_Mission_Freight>
+  <DeltaV_Mission_Passengers>Passenger transport</DeltaV_Mission_Passengers>
+  <DeltaV_Mission_Combat>Ship elimination</DeltaV_Mission_Combat>
+  <DeltaV_Mission_Description>{0} offers a space commission. Quantity: {1}; reward per unit: {2} silver.</DeltaV_Mission_Description>
+  <DeltaV_Mission_Details>Tier: {0}    Quantity: {1}\nReward per unit: {2} silver    Total deposit: {3} silver\nDelivery / collection: {4}</DeltaV_Mission_Details>
+  <DeltaV_Mission_Time>On-time delivery remaining: {0}; final deadline: {1}. Late freight forfeits the deposit; rewards remain unchanged during the grace period.</DeltaV_Mission_Time>
+  <DeltaV_Mission_Accept>Accept commission</DeltaV_Mission_Accept>
+  <DeltaV_Mission_Accepted>Accepted: {0}</DeltaV_Mission_Accepted>
+  <DeltaV_Mission_Deliver>Deliver and settle / collect</DeltaV_Mission_Deliver>
+  <DeltaV_Mission_Abandon>Abandon commission</DeltaV_Mission_Abandon>
+  <DeltaV_Mission_AbandonConfirm>Abandoning forfeits the deposit and reduces goodwill. Abandon this commission?</DeltaV_Mission_AbandonConfirm>
+  <DeltaV_Mission_ConfirmDelivery>Deliver {0}/{1} and receive {2} silver (including refundable deposits), with +{3} goodwill. This closes the commission; undelivered units earn no reward or refund.</DeltaV_Mission_ConfirmDelivery>
+  <DeltaV_Mission_Empty>No commissions available here. Transport requires a receiving station of the same faction; combat requires a suitable hostile faction and a configured ship prefab pool.</DeltaV_Mission_Empty>
+  <DeltaV_Mission_Unavailable>The commission's conditions have changed; it cannot be accepted now.</DeltaV_Mission_Unavailable>
+  <DeltaV_Mission_LevelChanged>Your current wealth or goodwill is below this commission's tier.</DeltaV_Mission_LevelChanged>
+  <DeltaV_Mission_SetupFailed>Commission preparation failed. Please contact the developer with the log.</DeltaV_Mission_SetupFailed>
+  <DeltaV_Mission_NoSilver>Not enough available silver for the deposit.</DeltaV_Mission_NoSilver>
+  <DeltaV_Mission_NoRoom>The terminal's delivery bay has insufficient space; the commission has not been settled.</DeltaV_Mission_NoRoom>
+  <DeltaV_Mission_NothingToDeliver>No eligible delivery is present, or the objective is not yet complete.</DeltaV_Mission_NothingToDeliver>
+  <DeltaV_Mission_Changed>The delivery manifest or refund has changed. Please confirm again.</DeltaV_Mission_Changed>
+  <DeltaV_Mission_CombatComplete>The target no longer has an enemy main console. Return to the issuing station to collect your reward.</DeltaV_Mission_CombatComplete>
+  <DeltaV_Mission_CrateInfo>Issuer: {0}\nCommission #{1}    Crate #{2}</DeltaV_Mission_CrateInfo>
+  <DeltaV_Mission_OpenCrate>Open consignment (cannot be delivered afterwards)</DeltaV_Mission_OpenCrate>
+  <DeltaV_Mission_Passenger_Travelling>In transit</DeltaV_Mission_Passenger_Travelling>
+  <DeltaV_Mission_Passenger_Delivered>Delivered</DeltaV_Mission_Passenger_Delivered>
+  <DeltaV_Mission_Passenger_Failed>Failed</DeltaV_Mission_Passenger_Failed>
+  <DeltaV_Mission_Reason_Destroyed>Died</DeltaV_Mission_Reason_Destroyed>
+  <DeltaV_Mission_Reason_Kidnapped>Kidnapped</DeltaV_Mission_Reason_Kidnapped>
+  <DeltaV_Mission_Reason_Banished>Banished</DeltaV_Mission_Reason_Banished>
+  <DeltaV_Mission_Reason_LeftBehind>Missing or abandoned</DeltaV_Mission_Reason_LeftBehind>
+  <DeltaV_Mission_Reason_SurgeryViolation>Harmful surgery</DeltaV_Mission_Reason_SurgeryViolation>
+  <DeltaV_Mission_Reason_Arrested>Arrested or imprisoned</DeltaV_Mission_Reason_Arrested>
+  <DeltaV_Mission_Reason_Enslaved>Enslaved</DeltaV_Mission_Reason_Enslaved>
+</LanguageData>

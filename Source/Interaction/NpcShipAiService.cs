@@ -247,7 +247,7 @@ namespace DeltaV
                     if (currentHome == null || OrbitSphere.ArcCells(obj.pose.position, currentHome.pose.position)
                         > ShipyardArrivalRadius) return;
                     // AI 决定返厂退役；生命周期仅执行通用移除，恢复请求与玩家保护优先。
-                    if (universe.Lifecycle.TryRemoveArchivedContainer(obj)
+                    if (!universe.Missions.Protects(obj) && universe.Lifecycle.TryRemoveArchivedContainer(obj)
                         && DeltaVLog.Enabled(DeltaVLogModule.Combat))
                         DeltaVLog.Message(DeltaVLogModule.Combat,
                             $"NPC container #{obj.objectId} retired at shipyard #{currentHome.objectId}; crew passed to world");

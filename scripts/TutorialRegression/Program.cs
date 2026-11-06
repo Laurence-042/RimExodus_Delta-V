@@ -88,6 +88,7 @@ internal static partial class Program
             Paths();
             CatalogPaths();
             ShipyardStates(Path.GetDirectoryName(args[2]), harmony);
+            MissionChecks(game, harmony, Path.GetDirectoryName(args[2]));
             Check(errors.Count == 0, "Unexpected native logs: " + string.Join("\n", errors));
             Console.WriteLine($"PASS {checks} tutorial checks: native geometry/interaction/power, Scribe, phase guards, public access/storage/goodwill, focus thread, paths. No game launched.");
             return 0;

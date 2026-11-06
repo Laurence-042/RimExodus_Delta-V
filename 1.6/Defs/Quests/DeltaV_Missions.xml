@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <DeltaV.SpaceMissionDef>
+    <defName>DeltaV_Missions</defName>
+    <refreshDays>5</refreshDays><deadlineDays>5</deadlineDays><graceDays>2</graceDays>
+    <freightReward>100</freightReward><passengerReward>200</passengerReward><cargoValueLimit>300</cargoValueLimit>
+    <successGoodwill>3</successGoodwill><failureGoodwill>-5</failureGoodwill><passengerGoodwill>-5</passengerGoodwill>
+    <tiers>
+      <li><wealth>0</wealth><goodwill>-100</goodwill><boxes>4</boxes><passengers>3</passengers><craft>1</craft></li>
+      <li><wealth>50000</wealth><goodwill>20</goodwill><boxes>8</boxes><passengers>6</passengers><craft>2</craft></li>
+      <li><wealth>150000</wealth><goodwill>50</goodwill><boxes>16</boxes><passengers>12</passengers><craft>3</craft></li>
+      <li><wealth>350000</wealth><goodwill>80</goodwill><boxes>32</boxes><passengers>24</passengers><craft>4</craft></li>
+    </tiers>
+    <cargo><li>Steel</li><li>ComponentIndustrial</li><li>MedicineIndustrial</li></cargo>
+    <craftTypes><li>Fighter</li><li>Gunboat</li><li>Frigate</li><li>Destroyer</li><li>Cruiser</li></craftTypes>
+    <combatRewards><li>400</li><li>600</li><li>900</li><li>1400</li><li>2000</li></combatRewards>
+  </DeltaV.SpaceMissionDef>
+  <QuestScriptDef>
+    <defName>DeltaV_SpaceMission</defName>
+    <label>space commission</label>
+    <root Class="DeltaV.QuestNode_Root_SpaceMission" />
+    <autoAccept>false</autoAccept><randomlySelectable>false</randomlySelectable>
+    <sendAvailableLetter>false</sendAvailableLetter><endOnColonyMove>false</endOnColonyMove>
+    <everAcceptableInSpace>true</everAcceptableInSpace>
+  </QuestScriptDef>
+  <JobDef><defName>DeltaV_UseMissionTerminal</defName><driverClass>DeltaV.JobDriver_UseMissionTerminal</driverClass><reportString>checking station commissions.</reportString></JobDef>
+  <ThingDef ParentName="ResourceBase">
+    <defName>DeltaV_MissionCargo</defName><label>consignment crate</label>
+    <description>A sealed consignment. Deliver it to recover its deposit, or open it to keep the contents and forfeit the deposit.</description>
+    <thingClass>DeltaV.MissionCargo</thingClass><stackLimit>1</stackLimit><tradeability>None</tradeability>
+    <thingCategories><li>Manufactured</li></thingCategories>
+    <graphicData><texPath>Things/Building/Ruins/CrateSmall</texPath><graphicClass>Graphic_Single</graphicClass></graphicData>
+    <statBases><MarketValue>0</MarketValue><Mass>5</Mass><MaxHitPoints>100</MaxHitPoints><Flammability>0.6</Flammability></statBases>
+    <comps>
+      <li Class="CompProperties_Usable"><compClass>DeltaV.CompUsable_MissionCargo</compClass><useJob>UseItem</useJob><useLabel>open consignment</useLabel><useDuration>120</useDuration></li>
+      <li Class="CompProperties_UseEffect"><compClass>DeltaV.CompUseEffect_OpenMissionCargo</compClass></li>
+    </comps>
+  </ThingDef>
+</Defs>
