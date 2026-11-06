@@ -1,22 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
 
-	<!--
-		真空屏障（2026-09-18 基架归属设计）：对接口的解锁科技。研究后可建造对接口，
-		在深空对接时以密封对接通道连接船体与外部结构。
-	-->
+	<ResearchTabDef>
+		<defName>DeltaV</defName>
+		<label>Delta-V</label>
+		<generalTitle>Ship engineering</generalTitle>
+		<generalDescription>Research sealed docking systems, ship weapons and shields. Basic cargo, EVA and support equipment use technologies on the main research tab. Research unlocks construction and manufacture; recovered equipment can already be used.</generalDescription>
+	</ResearchTabDef>
 	<ResearchProjectDef>
 		<defName>DeltaV_VacuumBarrier</defName>
 		<label>vacuum barrier</label>
-		<description>Build sealed docking ports that keep a ship's atmosphere separate from vacuum and from derelicts it docks onto, connected by walkable, air-tight docking channels.</description>
+		<description>Build sealed docking ports and moon pool decks. Docking ports provide air-tight access between ships. Moon pools hold atmosphere behind a transparent force field while allowing shuttles to launch and land.</description>
 		<baseCost>900</baseCost>
 		<techLevel>Industrial</techLevel>
 		<requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
 		<prerequisites>
 			<li>BasicGravtech</li>
+			<li>OrbitalTech</li>
 		</prerequisites>
-		<researchViewX>10.00</researchViewX>
-		<researchViewY>4.80</researchViewY>
+		<tab>DeltaV</tab>
+		<researchViewX>0</researchViewX>
+		<researchViewY>0</researchViewY>
 	</ResearchProjectDef>
+
+  <ResearchProjectDef>
+    <defName>DeltaV_ShipArtillery</defName>
+    <label>ship artillery</label>
+    <description>Build small and medium heavy cannons and rapid cannons, missile launchers and their ammunition magazines. Manufacture ship propellant, steel and uranium projectile heads, and high-explosive guided missiles at a machining table.</description>
+    <baseCost>1600</baseCost>
+    <techLevel>Industrial</techLevel>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <prerequisites><li>OrbitalTech</li><li>Machining</li></prerequisites>
+    <tab>DeltaV</tab>
+    <researchViewX>0</researchViewX>
+    <researchViewY>1</researchViewY>
+  </ResearchProjectDef>
+
+  <ResearchProjectDef>
+    <defName>DeltaV_ShipLasers</defName>
+    <label>ship lasers</label>
+    <description>Build small and medium laser cannons, point-defense lasers and auxiliary laser capacitors. The same beam technology also enables ship-mounted mining beams for cutting structures and recovering minerals.</description>
+    <baseCost>2000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <prerequisites><li>OrbitalTech</li><li>Batteries</li></prerequisites>
+    <tab>DeltaV</tab>
+    <researchViewX>0</researchViewX>
+    <researchViewY>2</researchViewY>
+  </ResearchProjectDef>
+
+  <ResearchProjectDef>
+    <defName>DeltaV_ShipShields</defName>
+    <label>ship shields</label>
+    <description>Build small and standard ship shield generators. Each generator can switch between a guard shield, a kinetic barrier that redirects physical projectiles, and an electromagnetic barrier that refracts laser beams.</description>
+    <baseCost>2400</baseCost>
+    <techLevel>Spacer</techLevel>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <prerequisites><li>BasicGravtech</li><li>OrbitalTech</li><li>Batteries</li></prerequisites>
+    <tab>DeltaV</tab>
+    <researchViewX>0</researchViewX>
+    <researchViewY>3</researchViewY>
+  </ResearchProjectDef>
+
+  <ResearchProjectDef>
+    <defName>DeltaV_Railguns</defName>
+    <label>electromagnetic railguns</label>
+    <description>Build small and large railgun loading units, matching accelerator segments and capacitors. These weapons consume powerful electrical pulses to penetrate ship defenses and internal compartments. With fabrication technology, energy recovery modules can reduce accelerator power consumption.</description>
+    <baseCost>3500</baseCost>
+    <techLevel>Spacer</techLevel>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <requiredResearchFacilities><li>MultiAnalyzer</li></requiredResearchFacilities>
+    <prerequisites><li>DeltaV_ShipArtillery</li><li>Batteries</li><li>MultiAnalyzer</li></prerequisites>
+    <tab>DeltaV</tab>
+    <researchViewX>2</researchViewX>
+    <researchViewY>1</researchViewY>
+  </ResearchProjectDef>
 
 </Defs>

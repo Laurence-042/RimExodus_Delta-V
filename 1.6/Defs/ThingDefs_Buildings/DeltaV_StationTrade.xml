@@ -17,6 +17,7 @@
   </AdaptiveStorage.GraphicsDef>
   <ThingDef ParentName="BuildingBase" Name="DeltaVCargoBase">
     <defName>DeltaV_CargoContainer</defName>
+    <researchPrerequisites Inherit="False"><li>Machining</li></researchPrerequisites>
     <label>station cargo container</label>
     <description>A loading port whose elevator carries goods to an elevated exterior cargo bay. Holds 48 stacks. Player-built bays are unlocked. Storage mode permits normal hauling and ingredient use. Sealed mode holds cargo inside the container, out of reach of hauling and trade beacons. Unseal to take some items, or open to scatter all contents on the ground. Hacking a locked bay unlocks it and automatically ejects its cargo. Cargo follows the outdoor temperature without using power. An optional temperature-control module can cool or heat its contents. Destruction ruins most cargo.</description>
     <thingClass>DeltaV.Building_SealedSpaceCargoContainer</thingClass>
@@ -91,7 +92,8 @@ You may be wondering whether you could cut this off and install it on your own s
     <building />
   </ThingDef>
   <ThingDef ParentName="BuildingBase">
-    <defName>DeltaV_CargoTemperatureModule</defName><label>cargo temperature-control module</label>
+    <defName>DeltaV_CargoTemperatureModule</defName>
+    <researchPrerequisites Inherit="False"><li>Machining</li></researchPrerequisites><label>cargo temperature-control module</label>
     <description>Fits the cargo bay's single module slot. Cools at 200 W or heats at 175 W toward the target temperature, with at most a 100°C change from outdoors. Disable the module to stop power use and return cargo to outdoor temperature.</description>
     <thingClass>Building</thingClass><tickerType>Normal</tickerType><size>(1,1)</size><passability>Standable</passability>
     <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Odyssey</designationCategory>

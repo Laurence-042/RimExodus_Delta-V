@@ -2,6 +2,7 @@
 <Defs>
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_RailgunEnergyRecovery</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li><li>Fabrication</li></researchPrerequisites>
     <label>railgun energy recovery module</label>
     <description>Occupies a capacitor slot on a railgun accelerator. Reduces this segment's pulse cost by 25%; two modules reduce it by 50%. Does not reduce the loading unit's base pulse. Has no stored energy or idle power cost.</description>
     <thingClass>Building</thingClass><passability>Standable</passability><size>(1,1)</size>

@@ -94,6 +94,10 @@
           <def>StartingResearch</def>
           <project>OrbitalTech</project>
         </li>
+        <li Class="ScenPart_StartingResearch">
+          <def>StartingResearch</def>
+          <project>Machining</project>
+        </li>
       </parts>
     </scenario>
   </ScenarioDef>

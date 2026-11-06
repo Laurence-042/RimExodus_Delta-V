@@ -11,6 +11,7 @@
 	-->
 	<TerrainDef ParentName="Substructure">
 		<defName>DeltaV_MoonPool</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
     <costList Inherit="False"><Steel>6</Steel><GravlitePanel>2</GravlitePanel></costList>
     <statBases><WorkToBuild>900</WorkToBuild></statBases>
 		<label>moon pool</label>
@@ -67,9 +68,7 @@
 			<Mass>140</Mass>
 		</statBases>
 		<costList Inherit="False"><Steel>300</Steel><Plasteel>250</Plasteel><ComponentIndustrial>8</ComponentIndustrial><ComponentSpacer>2</ComponentSpacer><ShuttleEngine>1</ShuttleEngine></costList>
-		<researchPrerequisites>
-			<li>DeltaV_VacuumBarrier</li>
-		</researchPrerequisites>
+		<researchPrerequisites Inherit="False"><li>Shuttles</li><li>OrbitalTech</li></researchPrerequisites>
 		<modExtensions>
 			<li Class="DeltaV.DefModExtension_BoardingProfile">
 				<canBoard>true</canBoard>

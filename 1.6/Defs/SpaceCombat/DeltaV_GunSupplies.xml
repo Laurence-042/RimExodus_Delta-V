@@ -46,7 +46,7 @@
     <recipeUsers>
       <li>TableMachining</li>
     </recipeUsers>
-    <researchPrerequisite>Machining</researchPrerequisite>
+    <researchPrerequisite>DeltaV_ShipArtillery</researchPrerequisite>
   </RecipeDef>
   <ThingDef ParentName="ResourceBase">
     <defName>DeltaV_SteelHead</defName>
@@ -94,7 +94,7 @@
     <recipeUsers>
       <li>TableMachining</li>
     </recipeUsers>
-    <researchPrerequisite>Machining</researchPrerequisite>
+    <researchPrerequisite>DeltaV_ShipArtillery</researchPrerequisite>
   </RecipeDef>
   <ThingDef ParentName="ResourceBase">
     <defName>DeltaV_UraniumHead</defName>
@@ -142,7 +142,7 @@
     <recipeUsers>
       <li>TableMachining</li>
     </recipeUsers>
-    <researchPrerequisite>Machining</researchPrerequisite>
+    <researchPrerequisite>DeltaV_ShipArtillery</researchPrerequisite>
   </RecipeDef>
   <JobDef>
     <defName>DeltaV_LoadGunSupply</defName>

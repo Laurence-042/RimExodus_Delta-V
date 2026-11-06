@@ -3,6 +3,7 @@
   <!-- Independent Delta-V shield: the Odyssey generator remains unchanged. -->
   <ThingDef ParentName="GravshipComponentBase">
     <defName>DeltaV_ShieldGenerator</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipShields</li></researchPrerequisites>
     <label>Delta-V shield generator</label>
     <description>A three-mode shield. Guard shares 750 regular capacity with this ship and keeps 750 emergency capacity locally. After 3 seconds without regular consumption it recovers 6 points per second using an additional 1,000 W; automatic reactivation defaults to 10%. Emergency capacity starts empty and each silver restores 3 points. Kinetic impulses slow or reverse head-on shots; transverse impulses can make oblique shots tumble or tear, depending on mass and strength; electromagnetic mode redirects lasers. Line modes require power.</description>
     <designationCategory>Security</designationCategory>
@@ -74,6 +75,7 @@
   </ThingDef>
   <ThingDef ParentName="GravshipComponentBase">
     <defName>DeltaV_ShieldGeneratorSmall</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipShields</li></researchPrerequisites>
     <label>small Delta-V shield generator</label>
     <description>A compact three-mode shield. Its guard dome has 1000 local emergency capacity, starting empty and restored by 3 points per silver; its fuel gizmo sets the replenishment limit and automatic refueling. It cannot use shared regular capacity. Powered kinetic and electromagnetic line modes project up to 16 cells and span up to 16 cells.</description>
     <designationCategory>Security</designationCategory>

@@ -37,9 +37,6 @@
         <basePowerConsumption>60</basePowerConsumption>
       </li>
     </comps>
-    <researchPrerequisites>
-      <li>DeltaV_VacuumBarrier</li>
-    </researchPrerequisites>
   </ThingDef>
   <ThingDef ParentName="DeltaV_SpaceTurret1" Name="DeltaV_SpaceTurret2" Abstract="True">
     <size>(2,2)</size>
@@ -113,13 +110,11 @@
         <basePowerConsumption>70</basePowerConsumption>
       </li>
     </comps>
-    <researchPrerequisites>
-      <li>DeltaV_VacuumBarrier</li>
-    </researchPrerequisites>
   </ThingDef>
   <ThingDef ParentName="DeltaV_SpaceTurret1">
     <hasInteractionCell>false</hasInteractionCell>
     <defName>DeltaV_Weapon_PDTurret</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
     <uiOrder>-186</uiOrder>
     <label>point-defense laser turret</label>
     <uiIconPath>Things/Building/SpaceWeapons/PointDefense_MenuIcon</uiIconPath>
@@ -181,6 +176,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_SpaceTurret2">
     <defName>DeltaV_Weapon_CannonTurret</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipArtillery</li></researchPrerequisites>
     <uiOrder>-200</uiOrder>
     <label>small heavy turret</label>
     <uiIconPath>Things/Building/SpaceWeapons/Turret2_Cannon_MenuIcon</uiIconPath>
@@ -265,6 +261,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_SpaceTurret2">
     <defName>DeltaV_Weapon_RapidMainSmall</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipArtillery</li></researchPrerequisites>
     <uiOrder>-198</uiOrder>
     <label>small rapid turret</label>
     <uiIconPath>Things/Building/SpaceWeapons/Turret2_Rapid_MenuIcon</uiIconPath>
@@ -353,6 +350,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_SpaceTurret2">
     <defName>DeltaV_Weapon_LaserTurret</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
     <uiOrder>-196</uiOrder>
     <label>small laser turret</label>
     <uiIconPath>Things/Building/SpaceWeapons/Turret2_Laser_MenuIcon</uiIconPath>
@@ -416,6 +414,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_SpaceTurret3">
     <defName>DeltaV_Weapon_HeavyMainMedium</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipArtillery</li></researchPrerequisites>
     <uiOrder>-199</uiOrder>
     <label>medium heavy turret</label>
     <uiIconPath>Things/Building/SpaceWeapons/Turret3_Cannon_MenuIcon</uiIconPath>
@@ -504,6 +503,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_SpaceTurret3">
     <defName>DeltaV_Weapon_RapidMainMedium</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipArtillery</li></researchPrerequisites>
     <uiOrder>-197</uiOrder>
     <label>medium rapid turret</label>
     <uiIconPath>Things/Building/SpaceWeapons/Turret3_Rapid_MenuIcon</uiIconPath>
@@ -597,6 +597,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_SpaceTurret3">
     <defName>DeltaV_Weapon_LaserMainMedium</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
     <uiOrder>-195</uiOrder>
     <label>medium laser turret</label>
     <uiIconPath>Things/Building/SpaceWeapons/Turret3_Laser_MenuIcon</uiIconPath>
@@ -666,6 +667,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_SpaceWallWeapon">
     <defName>DeltaV_Weapon_MissileLauncher</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipArtillery</li></researchPrerequisites>
     <uiOrder>-194</uiOrder>
     <label>missile launcher</label>
     <description>An airtight cold-launch missile rack with one internal ready missile. Haulers load it before filling attached magazines; the ready missile can be ejected manually.</description>
@@ -775,6 +777,7 @@
   </ThingDef>
   <ThingDef ParentName="Wall">
     <defName>DeltaV_Building_MissileMagazine</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipArtillery</li></researchPrerequisites>
     <uiOrder>-193</uiOrder>
     <label>missile magazine wall</label>
     <description>An airtight missile magazine with 20 internal slots shared by all missile types. Haulers insert missiles; linked powered launchers load from its inventory. Set per-type limits or eject stored missiles with its commands.</description>
@@ -929,9 +932,7 @@
       </li>
       <li Class="DeltaV.CompProperties_RailgunReadinessAppearance" />
     </comps>
-    <researchPrerequisites>
-      <li>DeltaV_VacuumBarrier</li>
-    </researchPrerequisites>
+    <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li></researchPrerequisites>
   </ThingDef>
   <ThingDef ParentName="BuildingBase">
     <hasInteractionCell>true</hasInteractionCell>
@@ -1040,9 +1041,7 @@
       </li>
       <li Class="DeltaV.CompProperties_RailgunReadinessAppearance" />
     </comps>
-    <researchPrerequisites>
-      <li>DeltaV_VacuumBarrier</li>
-    </researchPrerequisites>
+    <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li></researchPrerequisites>
   </ThingDef>
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Weapon_RailgunAccelerator</defName>
@@ -1120,9 +1119,7 @@
       </li>
       <li Class="DeltaV.CompProperties_RailgunAcceleratorAppearance" />
     </comps>
-    <researchPrerequisites>
-      <li>DeltaV_VacuumBarrier</li>
-    </researchPrerequisites>
+    <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li></researchPrerequisites>
   </ThingDef>
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Weapon_RailgunAcceleratorLarge</defName>
@@ -1200,12 +1197,11 @@
       </li>
       <li Class="DeltaV.CompProperties_RailgunAcceleratorAppearance" />
     </comps>
-    <researchPrerequisites>
-      <li>DeltaV_VacuumBarrier</li>
-    </researchPrerequisites>
+    <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li></researchPrerequisites>
   </ThingDef>
   <ThingDef ParentName="BuildingBase" Name="DeltaV_AutoAimPluginBase">
     <defName>DeltaV_Building_AutoAimPluginI</defName>
+    <researchPrerequisites Inherit="False"><li>MicroelectronicsBasics</li><li>Machining</li></researchPrerequisites>
     <uiOrder>-185</uiOrder>
     <label>auto-aim plugin I</label>
     <description>A slot-mounted targeting computer equivalent to Shooting 10.</description>
@@ -1241,6 +1237,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_AutoAimPluginBase">
     <defName>DeltaV_Building_AutoAimPluginII</defName>
+    <researchPrerequisites Inherit="False"><li>Fabrication</li></researchPrerequisites>
     <uiOrder>-184</uiOrder>
     <label>auto-aim plugin II</label>
     <description>An advanced targeting computer equivalent to Shooting 16.</description>
@@ -1263,6 +1260,7 @@
   </ThingDef>
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Building_UraniumMagazine</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipArtillery</li></researchPrerequisites>
     <uiOrder>-183</uiOrder>
     <label>uranium auxiliary magazine</label>
     <description>A priority-1 magazine loaded with manufactured uranium heads. Supplies the host gun's full requested head count; propellant remains in the host. Uranium heads are heavier and penetrate better.</description>
@@ -1318,6 +1316,7 @@
   </ThingDef>
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Building_LaserCapacitor</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
     <uiOrder>-182</uiOrder>
     <label>laser capacitor</label>
     <description>A rechargeable 600 Wd capacitor for laser turrets. It starts empty, draws 1800 W while charging and replaces grid energy for a shot whenever it can supply the full pulse. Charging from empty takes 8 game hours.</description>
@@ -1364,6 +1363,7 @@
   </ThingDef>
   <ThingDef ParentName="BuildingBase" Name="DeltaV_RailgunCapacitorBase">
     <defName>DeltaV_Building_RailgunCapacitor</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li></researchPrerequisites>
     <uiOrder>-190</uiOrder>
     <label>small railgun capacitor</label>
     <description>Stores 1,800 Wd for a small railgun loading unit or accelerator, enough for one local pulse. Starts empty; charging at 1,000 W takes 43.2 game hours. Insufficient local charge makes the host draw the whole pulse from grid batteries.</description>

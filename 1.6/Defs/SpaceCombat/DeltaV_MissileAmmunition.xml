@@ -12,6 +12,6 @@
     <stackLimit>10</stackLimit>
     <statBases><MarketValue>70</MarketValue><Mass>2</Mass></statBases>
     <costList Inherit="False"><Steel>20</Steel><Chemfuel>10</Chemfuel><ComponentIndustrial>1</ComponentIndustrial></costList>
-    <recipeMaker><workAmount>1600</workAmount><targetCountAdjustment>1</targetCountAdjustment></recipeMaker>
+    <recipeMaker><researchPrerequisite>DeltaV_ShipArtillery</researchPrerequisite><workAmount>1600</workAmount><targetCountAdjustment>1</targetCountAdjustment></recipeMaker>
   </ThingDef>
 </Defs>
