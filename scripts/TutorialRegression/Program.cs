@@ -56,6 +56,7 @@ internal static partial class Program
             LoadedModManager.RunningModsListForReading.Add(pack);
             ReadSourceDefs(Path.GetFullPath(Path.Combine(args[0], "../../Data")),
                 Path.GetFullPath(Path.Combine(Path.GetDirectoryName(args[2]), "../Defs")));
+            ScenarioTranslation(Path.GetDirectoryName(args[2]));
             PrefabIdentities(Path.GetDirectoryName(args[2]));
             PrefabTurretGraphs(Path.GetDirectoryName(args[2]));
             if (args.Length > 3 && args[3] == "range")

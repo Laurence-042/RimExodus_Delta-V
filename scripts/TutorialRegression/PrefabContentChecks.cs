@@ -11,6 +11,30 @@ using Verse;
 
 internal static partial class Program
 {
+    static void ScenarioTranslation(string prefabDirectory)
+    {
+        string version = Path.GetDirectoryName(prefabDirectory);
+        var xml = new XmlDocument(); xml.Load(Path.Combine(version, "Defs/Tutorial/DeltaV_Tutorial.xml"));
+        var node = xml.SelectSingleNode("/Defs/ScenarioDef[defName='DeltaV_OrbitalColonists']");
+        var def = new ScenarioDef { defName = node["defName"].InnerText, label = node["label"].InnerText,
+            description = node["description"].InnerText, scenario = new Scenario() };
+        def.PostLoad();
+        Check(def.scenario.name == def.label, "native scenario PostLoad copies the untranslated name before language injection");
+        DefDatabase<ScenarioDef>.Add(def);
+        xml.Load(Path.Combine(version, "Languages/ChineseSimplified/DefInjected/ScenarioDef/DeltaV_Tutorial.xml"));
+        var package = new DefInjectionPackage(typeof(ScenarioDef));
+        foreach (XmlNode entry in xml.DocumentElement.ChildNodes)
+            if (entry is XmlElement)
+                package.injections.Add(entry.Name, new DefInjectionPackage.DefInjection {
+                    path = entry.Name, injection = entry.InnerText, fileSource = "DeltaV_Tutorial.xml" });
+        package.InjectIntoDefs(true);
+        Check(package.loadErrors.Count == 0 && package.injections.Values.All(i => i.injected),
+            "all tutorial scenario translations use valid native field paths");
+        Check(def.scenario.name == "轨道殖民者", "scenario selection reads the translated nested name");
+        Check(def.scenario.description == xml.DocumentElement["DeltaV_OrbitalColonists.scenario.description"].InnerText,
+            "scenario details read the translated nested description");
+    }
+
     static void PrefabIdentities(string directory)
     {
         var xmlHarness = new HarmonyLib.Harmony("DeltaV.TutorialRegression.EnvironmentXml");

@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <LanguageData>
-  <DeltaV_OrbitalColonists.label>轨道殖民者</DeltaV_OrbitalColonists.label>
-  <DeltaV_OrbitalColonists.description>星际移民船已经抵达目的地。你独自醒来，却发现移民船后半段不翼而飞，气闸外还接着一个疑似太空飞船的东西。它里面有个看着像是通讯台的设备，而且上面还显示了来自“星界边境”组织的通讯。其他队员仍在休眠，在唤醒他们前，最好先去问问“星界边境”现在是什么情况。</DeltaV_OrbitalColonists.description>
+  <DeltaV_OrbitalColonists.scenario.name>轨道殖民者</DeltaV_OrbitalColonists.scenario.name>
+  <DeltaV_OrbitalColonists.scenario.description>星际移民船已经抵达目的地。你独自醒来，却发现移民船后半段不翼而飞，气闸外还接着一个疑似太空飞船的东西。它里面有个看着像是通讯台的设备，而且上面还显示了来自“星界边境”组织的通讯。其他队员仍在休眠，在唤醒他们前，最好先去问问“星界边境”现在是什么情况。</DeltaV_OrbitalColonists.scenario.description>
   <DeltaV_OrbitalColonists.scenario.summary>星际移民船已经抵达目的地，但并非完好无损。</DeltaV_OrbitalColonists.scenario.summary>
 </LanguageData>
