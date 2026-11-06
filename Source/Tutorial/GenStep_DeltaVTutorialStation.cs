@@ -5,6 +5,17 @@ using Verse;
 
 namespace DeltaV
 {
+    public sealed class ScenPart_ConfigPage_TutorialColonists : ScenPart_ConfigPage_ConfigureStartingPawns
+    {
+        public override void PostIdeoChosen()
+        {
+            // GravshipCrew's default CrewMember kind requires a vacsuit. Use the
+            // vanilla civilian wardrobe for every initial candidate and reroll.
+            Find.GameInitData.startingPawnKind = PawnKindDefOf.Colonist;
+            base.PostIdeoChosen();
+        }
+    }
+
     public sealed class GenStep_DeltaVTutorialStation : GenStep
     {
         public override int SeedPart => 238495711;
@@ -20,23 +31,11 @@ namespace DeltaV
                 throw new InvalidOperationException("Tutorial station does not have enough cryptosleep caskets for the selected colonists.");
             if (OrbitalPoiRegistry.EnsureForMap(universe, map)?.map != map)
                 throw new InvalidOperationException("Tutorial initial map was not registered as an orbital POI before content generation.");
-            // GenStep_Space disables regions. Oxygen pumps query their room in PostSpawnSetup,
-            // so region queries must already work while the prefab places its facilities.
-            map.regionAndRoomUpdater.Enabled = true;
             var things = MapPrefab.Spawn(prefab, map, MapPrefab.CenteredPosition(prefab, map, Rot4.North),
                 Faction.OfPlayer, universe.AllocateOwnerId(), Rot4.North, universe);
             if (things.Count != prefab.thingEntries.Count)
                 throw new InvalidOperationException("Tutorial prefab was only partially spawned; check the preceding prefab errors.");
-            var caskets = things.OfType<Building_CryptosleepCasket>().OrderBy(t => t.Position.x).ToList();
-            Thing table = things.Single(t => t.def.defName == "Table2x2c");
-            map.regionAndRoomUpdater.TryRebuildDirtyRegionsAndRooms();
-            foreach (var casket in caskets)
-            {
-                Room room = casket.InteractionCell.GetRoom(map);
-                if (room == null || room.ExposedToSpace || room.UsesOutdoorTemperature || room.OpenRoofCount != 0
-                    || !casket.InteractionCell.Standable(map))
-                    throw new InvalidOperationException("Tutorial cryosleep exit is not inside a sealed, roofed, accessible room.");
-            }
+            var caskets = BindArrivalCaskets(things);
             foreach (var cell in things.SelectMany(t => t.OccupiedRect()).Distinct())
                 map.areaManager.Home[cell] = true;
             foreach (var cell in map.AllCells)
@@ -51,11 +50,27 @@ namespace DeltaV
             mentors.Name = "DeltaV_Tutorial_Mentors".Translate();
             universe.tutorialRun = new TutorialRunState
             {
-                station = map, caskets = caskets, suppliesTable = table, mentors = mentors,
+                station = map, caskets = caskets, mentors = mentors,
                 berthDoor = things.OfType<Building_Door>().OrderByDescending(d => d.Position.x).First()
             };
             MapGenerator.PlayerStartSpot = caskets[0].InteractionCell;
             MapGenerator.rootsToUnfog.AddRange(caskets.Select(c => c.InteractionCell));
+        }
+
+        internal static System.Collections.Generic.List<Building_CryptosleepCasket> BindArrivalCaskets(
+            System.Collections.Generic.List<Thing> things)
+        {
+            // The sole oxygen pump identifies the aid compartment from the placed prefab.
+            // Only its captain wakes; the other crew stay in their original ship caskets.
+            Room cargo = things.Single(t => t.def.defName == "OxygenPump").GetRoom();
+            if (cargo == null || cargo.ExposedToSpace || cargo.UsesOutdoorTemperature || cargo.OpenRoofCount != 0)
+                throw new InvalidOperationException("Tutorial cargo aid compartment is not sealed and roofed.");
+            var caskets = things.OfType<Building_CryptosleepCasket>().ToList();
+            var captain = caskets.Single(c => c.InteractionCell.GetRoom(c.Map) == cargo);
+            if (caskets.Any(c => !c.InteractionCell.Standable(c.Map)))
+                throw new InvalidOperationException("Tutorial cryosleep exit is not accessible.");
+            return new[] { captain }.Concat(caskets.Where(c => c != captain)
+                .OrderBy(c => c.Position.x).ThenBy(c => c.Position.z)).ToList();
         }
     }
 
@@ -103,7 +118,7 @@ namespace DeltaV
                 {
                     Thing stack = thing.SplitOff(Math.Min(thing.def.stackLimit, originalCount));
                     originalCount -= stack.stackCount;
-                    if (!GenPlace.TryPlaceThing(stack, run.suppliesTable.Position + IntVec3.South * 3, map, ThingPlaceMode.Near))
+                    if (!GenPlace.TryPlaceThing(stack, run.caskets[0].InteractionCell, map, ThingPlaceMode.Near))
                         throw new InvalidOperationException($"No room for tutorial starting possession {stack.def.defName}.");
                 }
             }

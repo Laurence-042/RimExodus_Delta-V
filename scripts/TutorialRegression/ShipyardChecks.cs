@@ -69,13 +69,13 @@ internal static partial class Program
         // Real Scribe for new stateful vanilla facilities and EVA containers.
         // Map registration, ASF renderer initialization and pawn generation require the game.
         var states = new List<XmlNode>();
-        foreach (string name in new[] { "Shipyard", "PrototypeShip" })
+        foreach (string name in new[] { "ArrivalStation", "Shipyard", "PrototypeShip" })
         {
             var xml = new XmlDocument(); xml.Load(Path.Combine(directory, name + ".xml"));
             states.AddRange(xml.SelectNodes("/MapPrefab/thingStates/li/state/saveable").Cast<XmlNode>());
         }
         string[] wanted = { "HydroponicsBasin", "PlantPot", "HospitalBed", "Bed", "ElectricStove", "TableMachining",
-            "ElectricTailoringBench", "FabricationBench", "ElectricSmithy", "DeltaV_EvaSuit" };
+            "ElectricTailoringBench", "FabricationBench", "ElectricSmithy", "DeltaV_EvaSuit", "Cooler" };
         var selected = states.Where(n => wanted.Contains(n["def"].InnerText)).ToList();
         foreach (string name in selected.Select(n => n["def"].InnerText).Concat(new[] { "Steel", "Plant_Rice", "Plant_Daylily" }).Distinct())
         {
@@ -85,6 +85,10 @@ internal static partial class Program
             def.comps = new List<CompProperties>(); def.building = new BuildingProperties();
             var sample = selected.FirstOrDefault(n => n["def"].InnerText == name);
             def.thingClass = sample == null ? typeof(ThingWithComps) : GenTypes.GetTypeInAnyAssembly(sample.Attributes["Class"].Value);
+            if (name == "Cooler")
+                def.comps.AddRange(new CompProperties[] { new CompProperties_TempControl(),
+                    new CompProperties_Power { compClass = typeof(CompPowerTrader) },
+                    new CompProperties_Flickable(), new CompProperties_Breakdownable() });
             if (name == "Bed" || name == "HospitalBed")
                 def.comps.Add(new CompProperties_AssignableToPawn { compClass = typeof(CompAssignableToPawn_Bed), maxAssignedPawnsCount = 1 });
             if (name == "DeltaV_EvaSuit")
@@ -113,6 +117,9 @@ internal static partial class Program
             Check(plant.GetPlantDefToGrow() != null, "greenhouse retains selected crop");
         foreach (var table in first.OfType<Building_WorkTable>())
             Check(table.BillStack != null && table.BillStack.Bills.Count == 0, "workshop has initialized empty bill stack");
+        foreach (var cooler in first.OfType<Building_Cooler>())
+            Check(cooler.GetComp<CompTempControl>().TargetTemperature == 15,
+                "wreck cooler restores authored setpoint with native components");
         foreach (var suit in first.Where(t => t.def.defName == "DeltaV_EvaSuit"))
         {
             Check(suit.TryGetComp<CompTransporter>().innerContainer != null

@@ -133,7 +133,6 @@ namespace DeltaV
             Run.caskets?.Clear();
             Run.colonists?.Clear();
             Run.station = null;
-            Run.suppliesTable = null;
             Run.comms = null;
             Run.mentors = null;
             Run.berthDoor = null;

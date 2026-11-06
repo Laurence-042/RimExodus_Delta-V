@@ -14,6 +14,7 @@ from collections import deque
 from PIL import Image, ImageDraw
 import shipyard_layout
 import combat_range_layout
+import arrival_layout
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
@@ -38,9 +39,14 @@ def validate_identities(document):
 
 
 def build(data, name="ArrivalStation"):
+    if name == "ArrivalStation":
+        return arrival_layout.build(data)
     defs, parents, terrains, terrain_parents = {}, {}, {}, {}
+    colors, biomes = {}, {}
     for path in [*data.glob('*/Defs/**/*.xml'), *(ROOT / '1.6/Defs').glob('**/*.xml')]:
         for node in ET.parse(path).getroot():
+            if node.tag == 'ColorDef': colors[node.findtext('defName')] = node
+            if node.tag == 'BiomeDef': biomes[node.findtext('defName')] = node
             if node.tag not in ('ThingDef', 'TerrainDef'):
                 continue
             definition_table, parent_table = (defs, parents) if node.tag == 'ThingDef' else (terrains, terrain_parents)
@@ -92,17 +98,11 @@ def build(data, name="ArrivalStation"):
     detailed = range_layout or name in ('Shipyard', 'PrototypeShip')
     layout = combat_range_layout if range_layout else shipyard_layout
     plan = layout.shape(name) if detailed else None
-    width, height = plan['size'] if detailed else {"ArrivalStation": (31,41), "TrainingShip": (21,15), "Salvage": (7,7)}[name]
+    width, height = plan['size'] if detailed else {"TrainingShip": (21,15), "Salvage": (7,7)}[name]
     foundation = {(x, z) for x in range(width) for z in range(height)}
-    if name == "ArrivalStation":
-        # Intact forward cabins over a torn platform; the south end is the severed stern.
-        foundation = {(x,z) for x in range(2,29) for z in range(20,41)}
-        foundation |= {(x,z) for x in range(2,29) for z in range(7,20) if z >= (7,11,9,14,8)[x%5] or 12 <= x <= 20}
-        foundation |= {(x,z) for x in range(12,22) for z in range(7) if z >= (3,1,4,0,0,2,5,3,6,4)[x-12] or 15 <= x <= 16}
     if name == "TrainingShip": foundation = {c for c in foundation if c[0] >= 5}
     roofs = set(foundation) if name != "Salvage" else set()
     if name == "TrainingShip": roofs = {c for c in roofs if c[0] >= 5}
-    if name == "ArrivalStation": roofs = {c for c in foundation if c[1] >= 20}
     if detailed:
         foundation = set(plan['cells'])
         roofs = set(foundation)
@@ -142,6 +142,9 @@ def build(data, name="ArrivalStation"):
         if exclusion:
             record['exclusionSize'] = pair(exclusion)
             record['exclusionOffset'] = pair(prop(name, "comps/li[@Class='CompProperties_GravshipThruster']/exclusionAreaOffset"))
+        if layer == 'reservation':
+            plan.setdefault('reservations', []).append(record)
+            return record
         records.append(record)
         if layer == 'body':
             occupied.update((c, record) for c in cells)
@@ -150,33 +153,6 @@ def build(data, name="ArrivalStation"):
     build_name = name
     if detailed:
         walls, start = layout.furnish(name, plan, place, prop, foundation, roofs, records, occupied)
-    elif name == "ArrivalStation":
-        walls = {(x,z) for x,z in foundation if z >= 20 and (x in (2,12,22,28) or z in (20,40))}
-        doors = {(12,27),(22,27),(28,27),(17,20)}
-        for x,z in sorted(walls - doors): place('Wall',x,z)
-        for x,z in sorted(doors): place('Door',x,z,1 if x==28 else 0)
-        for x in (4,8):
-            for z in (24,28,32,36): place('Ship_CryptosleepCasket',x,z)
-        place('Ship_Reactor',12,7)
-        place('Ship_Beam',15,14)
-        place('Ship_Beam',15,1)
-        # Torn wall remnants, outside the sealed habitable forward section.
-        for x,z in ((2,18),(2,17),(3,16),(28,18),(27,16),(27,15)):
-            if (x,z) in foundation: place('Wall',x,z)
-        place('Table2x2c',16,31)
-        for x,z,r in ((15,31,1),(18,32,3),(16,30,0),(17,33,2)): place('DiningChair',x,z,r)
-        for x in (6,17,25):
-            place('OxygenPump',x,39)
-            place('Heater',x,23)
-            place('StandingLamp',x,34)
-        transmitting = {tuple(c) for r in records if r['name'] in ('Ship_Beam','Ship_Reactor','Ship_CryptosleepCasket') for c in r['cells']}
-        conductors = {(x,22) for x in range(3,28)} | {(17,z) for z in range(14,40)}
-        conductors |= {(x,z) for x in (6,25) for z in range(22,40)}
-        conductors |= {(x,z) for z in (24,28,32,36) for x in range(4,10)}
-        # Join both rows of conducting caskets to the trunk.
-        conductors |= {(9,z) for z in range(22,38)}
-        for x,z in sorted(conductors - transmitting): place('HiddenConduit',x,z,layer='conduit')
-
     elif name == "Salvage":
         walls = set()
         place('ShelfSmall', 3, 3)
@@ -239,7 +215,7 @@ def build(data, name="ArrivalStation"):
 
     # Validate the real Def-derived interaction cells and routes, before either output.
     walkable = foundation - {p for p, r in occupied.items() if r['passability'] == 'Impassable' and r['name'] not in ('Door','DeltaV_DockingPort')}
-    start = (6,27) if name == 'ArrivalStation' else (3,2) if name == 'Salvage' else start
+    start = (3,2) if name == 'Salvage' else start
     reachable, queue = {start}, deque([start])
     while queue:
         x, z = queue.popleft()
@@ -271,7 +247,7 @@ def build(data, name="ArrivalStation"):
             r['exclusionCells'] = exhaust
 
     prototypes = {n.findtext('def'): n for n in ET.parse(HERE / 'prototypes.states').getroot()}
-    if name in ('Shipyard','PrototypeShip'):
+    if name in ('ArrivalStation','Shipyard','PrototypeShip'):
         prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'shipyard.states').getroot()})
     if range_layout:
         prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'range.states').getroot()})
@@ -284,8 +260,15 @@ def build(data, name="ArrivalStation"):
     terrain_rects = {}
     for x,z in sorted(foundation):
         terrain_name = plan.get('surfaceDefs',{}).get((x,z),'MetalTile') if detailed else 'OrbitalPlatform' if name == 'ArrivalStation' else 'MetalTile'
-        if terrain_name not in terrain_rects:terrain_rects[terrain_name]=ET.SubElement(ET.SubElement(terrain,terrain_name),'rects')
-        ET.SubElement(terrain_rects[terrain_name], 'li').text = f'({x},{z},{x},{z})'
+        color = next((r['color'] for r in (plan or {}).get('rooms', []) if (x,z) in r['cells']), None)
+        key = (terrain_name, color)
+        if key not in terrain_rects:
+            node = ET.SubElement(terrain, terrain_name)
+            if color:
+                assert color in colors, ('missing floor color', color)
+                ET.SubElement(node, 'color').text = color
+            terrain_rects[key] = ET.SubElement(node, 'rects')
+        ET.SubElement(terrain_rects[key], 'li').text = f'({x},{z},{x},{z})'
     things = ET.SubElement(document, 'thingStates')
     def field(node, key, value):
         found = node.find(key)
@@ -320,9 +303,7 @@ def build(data, name="ArrivalStation"):
                 for item in value: ET.SubElement(allowed,'li').text=item
             else: field(state,key,value)
         if range_layout: combat_range_layout.prepare_state(r, state, field, prop)
-        elif detailed: shipyard_layout.prepare_state(r, state, field, prop)
-        if name == 'ArrivalStation' and r['name'] in ('Wall','Ship_Beam') and r['root'][1] < 20:
-            field(state, 'health', 90)
+        elif detailed: layout.prepare_state(r, state, field, prop)
         entry = ET.SubElement(things, 'li')
         for key, value in [('pos', pos), ('def', r['name']), ('rotation', r['rotation']),
                            ('hitPoints', state.findtext('health', '-1')), ('stackCount', state.findtext('stackCount', '1'))]:
@@ -341,14 +322,22 @@ def build(data, name="ArrivalStation"):
     # Include covered equipment cells too: impassable free-air regions share room state.
     # Solid wall samples are harmless; REF ignores cells with no target Room.
     environment = ET.SubElement(document, 'environment')
+    if (plan or {}).get('reservations'):
+        no_roof = ET.SubElement(document, 'noRoof')
+        for x,z in sorted({tuple(c) for r in plan['reservations'] for c in r['cells']}):
+            ET.SubElement(no_roof, 'li').text = f'({x}, 0, {z})'
     covered = roofs | {c for c, d in (plan or {}).get('foundationDefs', {}).items() if d == 'DeltaV_MoonPool'}
     environment_cells = sorted(covered)
-    if environment_cells:
+    environment_groups = {}
+    for c in environment_cells:
+        values = (plan or {}).get('environment', {}).get(c, (21, 0))
+        environment_groups.setdefault(values, []).append(c)
+    for (temperature, vacuum), samples in sorted(environment_groups.items()):
         entry = ET.SubElement(environment, 'li')
-        field(entry, 'temperature', 21)
-        field(entry, 'vacuum', 0)
+        field(entry, 'temperature', temperature)
+        field(entry, 'vacuum', vacuum)
         cells = ET.SubElement(entry, 'cells')
-        for x, z in environment_cells:
+        for x, z in samples:
             ET.SubElement(cells, 'li').text = f'({x}, 0, {z})'
     # Validate the final states after layout-specific edits, before replacing any outputs.
     validate_identities(document)

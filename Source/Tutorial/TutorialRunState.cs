@@ -14,7 +14,6 @@ namespace DeltaV
         internal Map station;
         internal List<Pawn> colonists = new List<Pawn>();
         internal List<Building_CryptosleepCasket> caskets = new List<Building_CryptosleepCasket>();
-        internal Thing suppliesTable;
         internal Building_CommsConsole comms;
         internal Faction mentors;
         internal Building_Door berthDoor;
@@ -34,7 +33,6 @@ namespace DeltaV
             Scribe_References.Look(ref station, "station");
             Scribe_Collections.Look(ref colonists, "colonists", LookMode.Reference);
             Scribe_Collections.Look(ref caskets, "caskets", LookMode.Reference);
-            Scribe_References.Look(ref suppliesTable, "suppliesTable");
             Scribe_References.Look(ref comms, "comms");
             Scribe_References.Look(ref mentors, "mentors");
             Scribe_References.Look(ref berthDoor, "berthDoor");

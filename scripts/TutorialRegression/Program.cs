@@ -70,11 +70,14 @@ internal static partial class Program
                 Console.WriteLine($"PASS {checks} optional range checks: geometry, power, native Scribe, presets, firing sectors, native use-job signatures and optional progress. No game launched.");
                 return 0;
             }
-            foreach (string layout in new[] { "ArrivalStation", "TrainingShip", "Salvage", "Shipyard", "PrototypeShip" })
+            foreach (string layout in new[] { "TrainingShip", "Salvage", "Shipyard", "PrototypeShip" })
                 Geometry(Path.Combine(Path.GetDirectoryName(args[1]), layout + ".records.json"), game);
+            ArrivalWreck(args[1], args[2], game);
+            ArrivalClothing(game, Path.GetFullPath(Path.Combine(args[0], "../../Data")));
             State(game);
             Theory(game, harmony);
             FlightEvidence();
+            ArrivalLifeSupport(Path.GetDirectoryName(args[1]), game);
             FocusThread(game, harmony);
             Caskets(args[2]);
             Shelves(Path.Combine(Path.GetDirectoryName(args[2]), "Salvage.xml"));
@@ -337,8 +340,10 @@ internal static partial class Program
             (IntVec3, Rot4) Port(string name, Rot4 facing)
             {
                 using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(records, name + ".records.json")));
-                var port = json.RootElement.EnumerateArray().Single(r => r.GetProperty("name").GetString() == (name == "ArrivalStation" ? "Door" : "DeltaV_DockingPort")
-                    && r.GetProperty("rotation").GetInt32() == facing.AsInt);
+                var rows = json.RootElement.EnumerateArray();
+                var port = name == "ArrivalStation"
+                    ? rows.Where(r => r.GetProperty("name").GetString() == "Door").OrderByDescending(r => r.GetProperty("root")[0].GetInt32()).First()
+                    : rows.Single(r => r.GetProperty("name").GetString() == "DeltaV_DockingPort" && r.GetProperty("rotation").GetInt32() == facing.AsInt);
                 return (new IntVec3(port.GetProperty("root")[0].GetInt32(), 0, port.GetProperty("root")[1].GetInt32()), facing);
             }
             var hostPort = Port(pair.Item1, Rot4.East); var shipPort = Port(pair.Item2, Rot4.West);
@@ -684,10 +689,10 @@ internal static partial class Program
             .Select(n => new MapPrefabThingEntry { def = def, stateXml = n["state"]["saveable"].OuterXml }).ToList();
         var first = MapPrefabThingState.Instantiate(entries, "tutorial caskets", null);
         var second = MapPrefabThingState.Instantiate(entries, "tutorial caskets repeated", null);
-        Check(first.Count == 8 && second.Count == 8, "eight crew caskets survive native batch Scribe");
+        Check(first.Count == 6 && second.Count == 6, "all six original crew caskets survive native batch Scribe");
         Check(first.Concat(second).OfType<Building_CryptosleepCasket>().All(c => c.GetDirectlyHeldThings() != null && !c.HasAnyContents),
             "all native casket ThingOwners are initialized and empty");
-        Check(first.Concat(second).Select(c => c.ThingID).Distinct().Count() == 16, "repeated prefab caskets have distinct IDs");
+        Check(first.Concat(second).Select(c => c.ThingID).Distinct().Count() == 12, "repeated prefab caskets have distinct IDs");
     }
 
     static void Paths()

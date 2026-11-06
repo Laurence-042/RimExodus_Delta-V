@@ -16,6 +16,8 @@ internal static partial class Program
         string version = Path.GetDirectoryName(prefabDirectory);
         var xml = new XmlDocument(); xml.Load(Path.Combine(version, "Defs/Tutorial/DeltaV_Tutorial.xml"));
         var node = xml.SelectSingleNode("/Defs/ScenarioDef[defName='DeltaV_OrbitalColonists']");
+        Check(node.SelectSingleNode("scenario/parts/li[@Class='DeltaV.ScenPart_ConfigPage_TutorialColonists']/pawnChoiceCount").InnerText == "6",
+            "shipped tutorial uses civilian clothing configuration for all six candidates");
         var def = new ScenarioDef { defName = node["defName"].InnerText, label = node["label"].InnerText,
             description = node["description"].InnerText, scenario = new Scenario() };
         def.PostLoad();
@@ -66,8 +68,35 @@ internal static partial class Program
             var covered = xml.SelectNodes("/MapPrefab/roofs/li/pos|/MapPrefab/foundations/li[def='DeltaV_MoonPool']/pos")
                 .Cast<XmlNode>().Select(n => IntVec3.FromString(n.InnerText)).ToHashSet();
             Check(sampled.SetEquals(covered), Path.GetFileName(path) + " environment covers all roof/equipment/moonpool cells");
-            Check(environment.environment.All(e => e.temperature == 21f && e.vacuum == 0f),
+            bool arrival = Path.GetFileNameWithoutExtension(path) == "ArrivalStation";
+            Check(environment.environment.All(e => arrival ? e.temperature == 12f && e.vacuum == 0f || e.temperature == -75f && e.vacuum == 1f
+                : e.temperature == 21f && e.vacuum == 0f),
                 Path.GetFileName(path) + " authored cabin temperature/vacuum");
+            if (arrival)
+            {
+                Check(environment.environment.Single(e => e.temperature == 12f).cells.Count == 114,
+                    "only the original cargo compartment receives warm breathable air");
+                Check(xml.SelectNodes("/MapPrefab/thingStates/li[def='Ship_Reactor']/state/saveable[hibernateState='Running']").Count == 1,
+                    "one running reactor remains");
+                Check(xml.SelectNodes("/MapPrefab/thingStates/li[def='Heater']").Count == 2
+                    && xml.SelectNodes("/MapPrefab/thingStates/li[def='OxygenPump']").Count == 1,
+                    "only minimum cargo life support remains");
+                Check(xml.SelectNodes("/MapPrefab/thingStates/li[def='Battery' or def='UnstablePowerCell' or def='WallLamp' or def='VitalsMonitor']").Count == 0,
+                    "lights, extra power and medical monitors are looted");
+                Check(xml.SelectNodes("/MapPrefab/thingStates/li[def='HospitalBed']").Count == 6
+                    && xml.SelectNodes("/MapPrefab/thingStates/li[def='Bed' or def='DoubleBed']").Count == 6
+                    && xml.SelectNodes("/MapPrefab/thingStates/li[def='Building_OutfitStand']").Count == 10
+                    && xml.SelectNodes("/MapPrefab/thingStates/li[def='DiningChair']").Count == 14,
+                    "all original beds, outfit stands and chairs remain");
+                Check(xml.SelectNodes("/MapPrefab/thingStates/li[def='ElectricStove' or def='NutrientPasteDispenser' or def='Hopper']").Count == 5,
+                    "original kitchen facilities remain");
+                Check(xml.SelectNodes("/MapPrefab//innerList/li[def='Apparel_Vacsuit']").Count == 1
+                    && xml.SelectNodes("/MapPrefab//innerList/li[def='Apparel_VacsuitHelmet']").Count == 1,
+                    "exactly one vacuum suit and helmet remain in the captain's cargo outfit stand");
+                Check(xml.SelectSingleNode("/MapPrefab/thingStates/li[def='MealSurvivalPack']/stackCount").InnerText == "10"
+                    && xml.SelectSingleNode("/MapPrefab/thingStates/li[def='MedicineIndustrial']/stackCount").InnerText == "5",
+                    "limited aid is authored in the prefab");
+            }
             if (Path.GetFileNameWithoutExtension(path) == "PrototypeShip")
             {
                 var moon = xml.SelectNodes("/MapPrefab/foundations/li[def='DeltaV_MoonPool']/pos")

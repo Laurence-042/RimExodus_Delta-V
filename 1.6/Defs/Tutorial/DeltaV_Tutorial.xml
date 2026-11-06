@@ -51,7 +51,7 @@
     <label>Orbital colonists</label>
     <description>Your colony ship reached its destination, but lost its stern and computer core in an attack. You alone are awake. Contact Starbound from the trainer outside the airlock, learn what happened, and prepare for life in space.</description>
     <scenario>
-      <summary>One captain awakens in a looted colony ship. Seven fellow colonists remain in cryptosleep.</summary>
+      <summary>One captain awakens in the cargo compartment of a looted colony ship. Five fellow colonists remain in cryptosleep.</summary>
       <playerFaction>
         <factionDef>GravshipCrew</factionDef>
       </playerFaction>
@@ -68,10 +68,10 @@
             </Surface>
           </connections>
         </li>
-        <li Class="ScenPart_ConfigPage_ConfigureStartingPawns">
+        <li Class="DeltaV.ScenPart_ConfigPage_TutorialColonists">
           <def>ConfigPage_ConfigureStartingPawns</def>
           <pawnCount>1</pawnCount>
-          <pawnChoiceCount>8</pawnChoiceCount>
+          <pawnChoiceCount>6</pawnChoiceCount>
           <allowedDevelopmentalStages>Adult</allowedDevelopmentalStages>
         </li>
         <li Class="ScenPart_ForcedMap">
@@ -93,21 +93,6 @@
         <li Class="ScenPart_StartingResearch">
           <def>StartingResearch</def>
           <project>OrbitalTech</project>
-        </li>
-        <li Class="ScenPart_StartingThing_Defined">
-          <def>StartingThing_Defined</def>
-          <thingDef>MealSurvivalPack</thingDef>
-          <count>30</count>
-        </li>
-        <li Class="ScenPart_StartingThing_Defined">
-          <def>StartingThing_Defined</def>
-          <thingDef>Apparel_Vacsuit</thingDef>
-          <count>1</count>
-        </li>
-        <li Class="ScenPart_StartingThing_Defined">
-          <def>StartingThing_Defined</def>
-          <thingDef>Apparel_VacsuitHelmet</thingDef>
-          <count>1</count>
         </li>
       </parts>
     </scenario>

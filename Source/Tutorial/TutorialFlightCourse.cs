@@ -295,7 +295,6 @@ namespace DeltaV
 
         private List<Thing> SpawnCoursePrefab(MapPrefabDocument doc, Map map, IntVec3 root, string label, Faction faction = null)
         {
-            map.regionAndRoomUpdater.Enabled = true;
             int ownerId = universe.AllocateOwnerId();
             var things = MapPrefab.Spawn(doc, map, root - PrefabUtility.GetRoot(IntVec3.Zero, doc.size, Rot4.North),
                 faction ?? Faction.OfPlayer, ownerId, Rot4.North, universe);
@@ -307,7 +306,6 @@ namespace DeltaV
                 if (thing.TryGetComp<CompDeltaVPilotConsole>() is CompDeltaVPilotConsole console
                     && (console.shipId != ownerId || !console.isMain))
                     throw new InvalidOperationException($"Tutorial prefab {doc.name}: expected primary owner {ownerId}, got {console.shipId}, main={console.isMain}.");
-            map.regionAndRoomUpdater.TryRebuildDirtyRegionsAndRooms();
             foreach (Room room in things.Where(t => t.def.defName == "OxygenPump").Select(t => t.GetRoom()).Distinct())
             {
                 if (room == null || room.ExposedToSpace || room.OpenRoofCount != 0)
