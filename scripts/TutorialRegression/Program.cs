@@ -466,6 +466,7 @@ internal static partial class Program
         foreach (int edge in new[] { 150, 250, 400, 600 })
         foreach (float angle in new[] { 0f, 1.17f, -2.4f })
         foreach (int clearance in new[] { 100, 286, 500 })
+        foreach (float archiveRadius in new[] { 300f, 1200f, 2400f })
         {
             var homeMap = Raw<Map>(); homeMap.info = new MapInfo { Size = new IntVec3(edge, 1, edge + 50) };
             var home = new MapSpaceObject(1001, homeMap, new SpacePose(Vector3.forward, angle));
@@ -473,9 +474,17 @@ internal static partial class Program
             var frame = new MapSpaceObject(1002, map, home.pose);
             var area = CellRect.WholeMap(map).ExpandedBy(clearance);
             Check(OrbitalWorkService.IntersectsGravity(frame, CellRect.WholeMap(map), home), "coincident course reproduces gravity rejection");
-            frame.pose = DeltaVTutorialService.CoursePose(home.pose, homeMap.Size, map.Size, clearance, 180f, 0);
+            frame.pose = DeltaVTutorialService.CoursePose(home.pose, homeMap.Size, map.Size, clearance, archiveRadius, 180f, 0);
             Check(!OrbitalWorkService.IntersectsGravity(frame, area, home), "course and approach margin outside actual colony rectangle");
             Check(!OrbitalWorkService.IntersectsGravity(frame, CellRect.WholeMap(map).ToList(), home), "production per-cell worksite gate also accepts remote course");
+            float parkingRadius = new Vector2(homeMap.Size.x, homeMap.Size.z).magnitude * .5f + clearance;
+            for (int bearing = 0; bearing < 8; bearing++)
+            {
+                var parked = SpaceTransform.RigidPointPose(home.pose,
+                    SpaceTransform.Rotate(new Vector2(parkingRadius, 0f), bearing * Mathf.PI / 4f), 0f);
+                Check(OrbitSphere.ArcCells(parked.position, frame.pose.position) > archiveRadius,
+                    "large ship parked anywhere around home leaves tutorial beyond archive radius");
+            }
             var saved = frame.pose;
             Vector3 point = SpaceTransform.MapPointToUniverse(frame, map, new Vector2(20, 25));
             foreach (SpaceObject focus in new SpaceObject[] { home, frame, home, frame })
@@ -734,6 +743,8 @@ internal static partial class Program
         Set(game.World.factionManager, "ofPlayer", player);
         var map = Raw<Map>(); map.info = new MapInfo { Size = new IntVec3(10, 1, 10) };
         game.Maps.Add(map);
+        map.mapPawns = new MapPawns(map);
+        map.passingShipManager = new PassingShipManager(map);
         map.cellIndices = new CellIndices(map);
         map.terrainGrid = new TerrainGrid(map);
         map.listerThings = new ListerThings(ListerThingsUse.Global);
@@ -757,6 +768,21 @@ internal static partial class Program
         SubstructureOwnership.BumpStructureVersion();
         var ship = console.Vessel;
         Check(ship.PlayerMayOperate && PublicFacility.PlayerMayUse(building), "allied public ship grants use without changing ownership");
+        Check(!universe.PlayerReferenceObjects().Contains(frame), "empty public facility cannot keep itself or nearby maps loaded");
+        var visitor = Raw<Pawn>(); Set(visitor, "factionInt", player);
+        var spawned = (List<Pawn>)AccessTools.Field(typeof(MapPawns), "pawnsSpawned").GetValue(map.mapPawns);
+        spawned.Add(visitor);
+        Check(universe.PlayerReferenceObjects().Contains(frame), "occupied public training ship remains an exploration reference");
+        spawned.Clear();
+        Check(!universe.PlayerReferenceObjects().Contains(frame), "leaving public facility releases its distance reference");
+        sbyte previousMapIndex = game.currentMapIndex;
+        try
+        {
+            game.currentMapIndex = (sbyte)game.Maps.IndexOf(map);
+            Check(universe.PlayerReferenceObjects().Contains(frame), "focused public ship supports remote piloting and nearby loading");
+        }
+        finally { game.currentMapIndex = previousMapIndex; }
+        Check(!universe.PlayerReferenceObjects().Contains(frame), "switching away releases empty public facility");
         Check(building.Faction == ally && PublicFacility.ConsoleAt(map, new IntVec3(3, 0, 2)) == console,
             "public rules protect the whole stamped domain");
         Check(!building.ClaimableBy(player), "native claim path rejects public facilities");

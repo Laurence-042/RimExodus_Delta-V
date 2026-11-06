@@ -261,10 +261,12 @@ namespace DeltaV
             int clearance = Mathf.CeilToInt(DeltaVMod.CurrentSettings.dockingCancelDistance)
                 + DeltaVMod.CurrentSettings.worksiteMargin + ShipPocketMapFactory.StructureMargin;
             var footprint = CellRect.WholeMap(map).ExpandedBy(clearance);
-            // Home's real map bounds, plus room for approach and a shared worksite. No home flag is changed.
+            float archiveRadius = Mathf.Max(DeltaVMod.CurrentSettings.poiDeleteRadius,
+                DeltaVMod.CurrentSettings.poiActiveRadius + 1f);
+            // Reserve parking around home, then a full archive radius outside both map footprints.
             for (int attempt = 0; attempt < 128; attempt++)
             {
-                frame.pose = CoursePose(home.pose, home.map.Size, size, clearance, lateralOffset, attempt);
+                frame.pose = CoursePose(home.pose, home.map.Size, size, clearance, archiveRadius, lateralOffset, attempt);
                 if (!universe.objects.Any(g => g != frame && g.HasGravityRegion
                     && OrbitalWorkService.IntersectsGravity(frame, footprint, g))) return map;
             }
@@ -272,10 +274,12 @@ namespace DeltaV
         }
 
         internal static SpacePose CoursePose(SpacePose home, IntVec3 homeSize, IntVec3 size,
-            int clearance, float lateralOffset, int attempt)
+            int clearance, float archiveRadius, float lateralOffset, int attempt)
         {
+            float homeRadius = new Vector2(homeSize.x, homeSize.z).magnitude * .5f;
+            float courseRadius = new Vector2(size.x, size.z).magnitude * .5f;
             var pose = SpaceTransform.RigidPointPose(home,
-                new Vector2(homeSize.x * .5f + size.x * .5f + clearance + 64f + attempt * 128f, lateralOffset), 0f);
+                new Vector2(homeRadius + clearance + archiveRadius + courseRadius + 64f + attempt * 128f, lateralOffset), 0f);
             pose.velocity = Vector2.zero;
             pose.angularVelocity = 0f;
             return pose;

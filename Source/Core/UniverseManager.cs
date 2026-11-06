@@ -201,7 +201,9 @@ namespace DeltaV
         {
             Faction player = Faction.OfPlayerSilentFail;
             return objects.Where(obj => obj.HasTag(SpaceObjectTag.Ship)
-                && (obj.HasFaction(player) || obj.Ships.Any(ship => ship.PlayerMayOperate))).ToList();
+                && (obj.HasFaction(player) || obj.map != null
+                    && obj.Ships.Any(ship => ship.PlayerMayOperate)
+                    && (obj.map == Find.CurrentMap || SpaceMapGovernance.HasPlayerPawn(obj.map)))).ToList();
         }
 
         internal readonly Dictionary<int, PlanetTile> sectorReferenceTiles = new Dictionary<int, PlanetTile>();
