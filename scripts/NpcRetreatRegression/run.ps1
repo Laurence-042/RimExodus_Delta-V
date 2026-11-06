@@ -1,7 +1,7 @@
 param([string]$GameRoot, [string]$HarmonyPath, [switch]$AimInputOnly, [switch]$PlayerFlightOnly,
       [switch]$SalvageOnly, [switch]$DrivePerformanceOnly, [switch]$ProjectileOnly, [switch]$ArchiveRecoveryOnly,
       [switch]$DockingOnly, [switch]$NpcOnly, [switch]$ProjectileFullOnly, [switch]$SeparationOnly,
-      [switch]$ThrusterPauseOnly, [switch]$TractorOnly, [switch]$EvaOnly)
+      [switch]$ThrusterPauseOnly, [switch]$TractorOnly, [switch]$EvaOnly, [switch]$GlobeOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 if (!$GameRoot) { $GameRoot = "$repo/../.." }
@@ -30,6 +30,7 @@ $lines | Set-Content -LiteralPath "$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net8.0","framework":{"name":"Microsoft.NETCore.App","version":"8.0.0"}}}' | Set-Content -LiteralPath "$out/NpcRetreatRegression.runtimeconfig.json"
 $regressionArguments = @($managed)
+if ($GlobeOnly) { $regressionArguments += '--globe-only' }
 if ($AimInputOnly) { $regressionArguments += '--aim-input-only' }
 if ($PlayerFlightOnly) { $regressionArguments += '--player-flight-only' }
 if ($SalvageOnly) { $regressionArguments += '--salvage-only' }

@@ -28,7 +28,7 @@ namespace DeltaV
     public sealed class GlobeShipSummary : IExposable
     {
         public int key;
-        public bool shuttle;
+        public bool shuttle, station;
         public string label;
         public Faction faction;
         public Vector2 localCenter;
@@ -37,6 +37,7 @@ namespace DeltaV
         {
             Scribe_Values.Look(ref key, "key");
             Scribe_Values.Look(ref shuttle, "shuttle");
+            Scribe_Values.Look(ref station, "station");
             Scribe_Values.Look(ref label, "label");
             Scribe_References.Look(ref faction, "faction");
             Scribe_Values.Look(ref localCenter, "localCenter");
@@ -53,8 +54,8 @@ namespace DeltaV
         internal List<IntVec3> cells;
         internal Vector2 mapAnchor;
         internal Vector2 localCenter;
-        internal float area;
-        internal bool wreck, native, craft;
+        internal float area, projectionSide;
+        internal bool wreck, native, craft, station;
         internal string Label => ship?.label ?? owner.label;
         internal Faction Faction => ship?.faction ?? owner.faction;
         internal bool AlwaysVisible => native || (ship != null && ship.faction == Faction.OfPlayerSilentFail);
@@ -160,7 +161,8 @@ namespace DeltaV
                 };
                 summary.ships.Add(member);
                 entries.Add(new GlobeDisplayEntry { owner = obj, ship = member, area = member.area,
-                    cells = cells, mapAnchor = ship.HullCenter, craft = true });
+                    cells = cells, mapAnchor = ship.HullCenter, craft = true,
+                    projectionSide = ShipSilhouette.AnchoredSide(cells, ship.HullCenter) / (float)ShipSilhouette.AnchoredPixelsPerCell });
             }
             if (summary.area == 0f) summary.area = summary.ships.Sum(s => s.area);
             summary.environmentArea = environment.Count;
@@ -174,9 +176,23 @@ namespace DeltaV
                 entries.Add(new GlobeDisplayEntry { owner = obj, area = environment.Count,
                     cells = environment.ToList(), mapAnchor = environmentAnchor,
                     localCenter = summary.environmentCenter,
-                    native = native });
+                    native = native, projectionSide = ShipSilhouette.AnchoredSide(environment, environmentAnchor)
+                        / (float)ShipSilhouette.AnchoredPixelsPerCell });
             cached = new MapInfo { version = SubstructureOwnership.GlobalStructureVersion,
                 summary = summary, entries = entries, equipment = equipment };
+            if (IsStationType(obj.contentTypeId))
+            {
+                // The station's principal structure represents the location; visiting ships
+                // remain separate entries in All and never duplicate the station in Stations.
+                var principal = entries.OrderByDescending(e => e.area).FirstOrDefault();
+                if (principal != null)
+                {
+                    principal.station = true;
+                    if (principal.ship != null) principal.ship.station = true;
+                }
+            }
+            if (native && obj is PoiState nativePoi && nativePoi.nativeParent?.def?.defName == "SpaceSettlement")
+                entries.First(e => e.native).station = true;
             RefreshPopulation(map, cached);
             maps[map] = cached;
             return cached;
@@ -199,31 +215,34 @@ namespace DeltaV
             if (obj is ArchivedSpaceObject archived && archived.globe != null)
             {
                 foreach (var ship in archived.globe.ships)
-                    yield return new GlobeDisplayEntry { owner = obj, ship = ship, area = ship.area, craft = true };
+                    yield return new GlobeDisplayEntry { owner = obj, ship = ship, area = ship.area, craft = true, station = ship.station };
                 if (archived.globe.environmentArea > 0 || archived.globe.ships.Count == 0)
                     yield return new GlobeDisplayEntry { owner = obj, area = archived.globe.environmentArea,
                         localCenter = archived.globe.environmentCenter,
-                        wreck = archived.globe.wreck };
+                        wreck = archived.globe.wreck, station = IsStationType(obj.contentTypeId) && !archived.globe.ships.Any(s => s.station) };
                 yield break;
             }
             if (obj is PoiState poiState && poiState.kind == PoiKind.NativeParent)
             {
                 if (poiState.nativeParent != null && !poiState.nativeParent.Destroyed)
-                    yield return new GlobeDisplayEntry { owner = obj, native = true, area = -1f };
+                    yield return new GlobeDisplayEntry { owner = obj, native = true, area = -1f,
+                        station = poiState.nativeParent.def?.defName == "SpaceSettlement" };
                 yield break;
             }
             if (obj is PoiState snapshot && snapshot.snapshot != null)
             {
                 yield return new GlobeDisplayEntry { owner = obj, area = snapshot.snapshot.GlobeArea,
-                    wreck = snapshot.snapshot.GlobeWreck };
+                    wreck = snapshot.snapshot.GlobeWreck, station = IsStationType(obj.contentTypeId) };
                 yield break;
             }
             float area = PrefabGlobeMeasurements.AverageArea(obj.contentTypeId);
             SectorContentType type = SectorContentTypes.ById(obj.contentTypeId);
             bool craft = type != null && IsUnder(SectorContentTypes.ById("Craft"), type);
-            yield return new GlobeDisplayEntry { owner = obj, area = area, craft = craft };
+            yield return new GlobeDisplayEntry { owner = obj, area = area, craft = craft, station = IsStationType(obj.contentTypeId) };
         }
 
+        internal static bool IsStationType(string typeId) => typeId != "Asteroid"
+            && IsUnder(SectorContentTypes.ById("Station"), SectorContentTypes.ById(typeId));
         private static bool IsUnder(SectorContentType root, SectorContentType type) => root != null
             && (root == type || root.children.Any(child => IsUnder(child, type)));
     }

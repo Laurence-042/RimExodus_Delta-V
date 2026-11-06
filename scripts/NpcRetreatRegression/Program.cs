@@ -128,6 +128,14 @@ internal static partial class Program
             CheckProjectileFlight(universe, faction);
             return;
         }
+        if (Environment.GetCommandLineArgs().Contains("--globe-only"))
+        {
+            ThingDefOf.PilotConsole = TestBuildingDef("console");
+            Find.World.factionManager = (FactionManager)Raw(typeof(FactionManager));
+            Set(Find.World.factionManager, "ofPlayer", faction);
+            CheckGlobeAndInput(universe); CheckGlobeNavigation(universe);
+            CheckSmallScaleMovement(); CheckAimUiCoordinates(); return;
+        }
         CheckAimUiCoordinates();
         CheckWeaponControlFixes(universe, faction, other);
         if (aimInputOnly) return;
@@ -154,6 +162,7 @@ internal static partial class Program
         CheckProjectileFlight(universe, faction);
         CheckMotionFeedback(universe);
         CheckGlobeAndInput(universe);
+        CheckGlobeNavigation(universe);
         }
         SpaceObject Make(int id, float distance, string type = null, Faction owner = null)
         {

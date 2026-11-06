@@ -54,6 +54,18 @@ namespace DeltaV
 
         internal string Description => Run == null ? null : ("DeltaV_Tutorial_Stage_" + Run.stage).Translate();
 
+        internal bool HasNavigationStage => Active && (Run.stage == TutorialStage.Salvage
+            || Run.stage == TutorialStage.Range || Run.stage == TutorialStage.Visit);
+        internal Thing NavigationRole => !HasNavigationStage ? null
+            : Run.stage == TutorialStage.Salvage ? Run.salvageShelf
+            : Run.stage == TutorialStage.Visit ? Run.yardPort : Run.rangePort;
+
+        internal void LocateNavigationTarget()
+        {
+            universe.GlobeNavigation.Refresh(universe);
+            GlobeNavigationPanel.Open(universe, GlobeTarget.Of(universe.GlobeNavigation.CourseTarget));
+        }
+
         internal IEnumerable<GlobalTargetInfo> Targets
         {
             get

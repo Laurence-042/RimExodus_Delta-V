@@ -85,6 +85,13 @@ internal static partial class Program
             log.absorbInputAroundWindow = true;
             windows.Add(log);
             Check(SpaceAimController.MouseOverUiWindow(), "modal input blocking remains effective away from window");
+            windows.Clear();
+            var navigation = new Window_SectorNavigation(Current.Game.GetComponent<UniverseManager>());
+            navigation.windowRect = new Rect(100, 100, 900, 700);
+            windows.Add(navigation);
+            Check(navigation.absorbInputAroundWindow && navigation.preventCameraMotion && !navigation.forcePause,
+                "expanded sector map blocks map input and camera motion without changing pause state");
+            Check(SpaceAimController.MouseOverUiWindow(), "expanded sector map cancels held fire even outside its content");
         }
         finally
         {

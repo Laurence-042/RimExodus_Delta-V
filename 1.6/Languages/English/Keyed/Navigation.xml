@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_NavWhole>Whole globe</DeltaV_NavWhole>
+  <DeltaV_NavWidth>Span: {0} cells</DeltaV_NavWidth>
+  <DeltaV_NavFitShip>Fit reference ship</DeltaV_NavFitShip>
+  <DeltaV_NavFitSector>Fit current sector</DeltaV_NavFitSector>
+  <DeltaV_NavExpand>Detailed map</DeltaV_NavExpand>
+  <DeltaV_NavTitle>Detailed map</DeltaV_NavTitle>
+  <DeltaV_NavRecenter>Back to ship</DeltaV_NavRecenter>
+  <DeltaV_NavDragTip>Hold the left mouse button to pan; use the wheel to zoom. Click "Back to ship" to resume following. Closing the detailed map also restores ship following in the minimap.</DeltaV_NavDragTip>
+  <DeltaV_NavClear>Clear</DeltaV_NavClear>
+  <DeltaV_NavCourse>Locate mission</DeltaV_NavCourse>
+  <DeltaV_NavNoTarget>Select a marker or place</DeltaV_NavNoTarget>
+  <DeltaV_NavNoCourse>No current navigation objective</DeltaV_NavNoCourse>
+  <DeltaV_NavCourseName>Mission: {0}</DeltaV_NavCourseName>
+  <DeltaV_NavUnavailable>Target lost or unavailable</DeltaV_NavUnavailable>
+  <DeltaV_NavFit>Fit both</DeltaV_NavFit>
+  <DeltaV_NavInspect>Inspect</DeltaV_NavInspect>
+  <DeltaV_NavPin>Pin</DeltaV_NavPin>
+  <DeltaV_NavUnpin>Unpin</DeltaV_NavUnpin>
+  <DeltaV_NavFilterAll>All</DeltaV_NavFilterAll>
+  <DeltaV_NavFilterMission>Mission</DeltaV_NavFilterMission>
+  <DeltaV_NavFilterStations>Stations</DeltaV_NavFilterStations>
+  <DeltaV_NavFilterBookmarks>Pins</DeltaV_NavFilterBookmarks>
+  <DeltaV_NavSearch>Search known places by name or faction. The list is independent of map zoom.</DeltaV_NavSearch>
+  <DeltaV_NavNoFaction>No faction</DeltaV_NavNoFaction>
+  <DeltaV_NavUnloaded>Not loaded</DeltaV_NavUnloaded>
+  <DeltaV_NavLocate>Locate</DeltaV_NavLocate>
+  <DeltaV_NavEmptyList>No matching known places</DeltaV_NavEmptyList>
+  <DeltaV_NavBehind>The target is on the far side of the current view. Pan the detailed map to look around, or use its direction and distance.</DeltaV_NavBehind>
+  <DeltaV_NavBehindShort>Far side</DeltaV_NavBehindShort>
+  <DeltaV_NavFitLimit>Zoomed out to the whole globe. The target bounds cannot fit completely in this view.</DeltaV_NavFitLimit>
+  <DeltaV_NavScaleTip>Scale at the center of the view. Target distances follow the surface of the sphere.</DeltaV_NavScaleTip>
+  <DeltaV_NavCourseDesc>Locate the current lesson objective on the sector map without changing the piloting task.</DeltaV_NavCourseDesc>
+</LanguageData>

@@ -16,23 +16,14 @@ namespace DeltaV
         /// 原版 POI 与玩家船常驻，未加载时保留图标，残骸隐藏常规标注。
         /// 名称与距离统一居中于图例（屏幕方位）下方。
         ///
-        /// 图标可悬停（名称/距离/未物化注记）、可点击聚焦（SetFocused + 相机跳转）；
-        /// 未物化对象点击提示「尚未进入可视范围」。缩放经 Zoom01（滑条，面板提供）与
-        /// 星球仪区域内滚轮调整；数据同源 SpacePose / OrbitSphere.Basis，不引入第二套坐标。
+        /// 图标可悬停与选择；查看内部地图由独立按钮显式触发。
+        /// 距离缩放与导航状态归 UniverseManager；小图和展开地图复用同一绘制与选择入口。
+        /// 数据同源 SpacePose / OrbitSphere.Basis，不引入第二套坐标。
         /// 显示层只是投影，不是宇宙状态的事实源。本交互层与分帧地图生成均计划抽公共库
         ///（doc/TODO.md 长期项）。
         /// </summary>
-    public static class PlanetGlobeRenderer
+    public static partial class PlanetGlobeRenderer
     {
-        /// <summary>缩放滑条位置 [0,1]：0 = 整球，1 = 最近（会话 UI 态，不持久化）。</summary>
-        public static float Zoom01;
-
-        /// <summary>最近档视场半宽 = 聚焦船最长边 × 此系数（视场全宽 = 6× 最长边，对接引导档）。</summary>
-        private const float MinViewHalfShipSides = 3f;
-
-        /// <summary>剪影/最小视场的最长边兜底（无聚焦船或无法测定时）。</summary>
-        private const float FallbackSideCells = 100f;
-
         /// <summary>星区网格绘制的 tile 数上限（BFS 防失控）。</summary>
         private const int MaxHexTiles = 400;
 
@@ -41,35 +32,14 @@ namespace DeltaV
 
         private static Material lineMaterial;
 
-        /// <summary>极点退化时的显示 roll fallback：上一次稳定的屏幕基。</summary>
-        private static Vector3 stableUp = Vector3.up;
-
-        private static Vector3 stableRight = Vector3.right;
-
-        // 可点击条目（每帧重建；图标/三角绘制时登记，GUI 阶段统一挂 tooltip 与按钮）。
-        private readonly struct Clickable
-        {
-            public readonly Rect rect;
-            public readonly SpaceObject obj;
-            public readonly string tip;
-
-            public Clickable(Rect rect, SpaceObject obj, string tip)
-            {
-                this.rect = rect;
-                this.obj = obj;
-                this.tip = tip;
-            }
-        }
-
-        private static readonly List<Clickable> Clickables = new List<Clickable>(32);
-
         internal sealed class Legend
         {
             internal GlobeDisplayEntry entry;
             internal Vector2 position;
             internal Rect rect;
-            internal Texture2D texture;
-            internal bool projection, focused;
+            internal bool projection, focused, important, edge, behind;
+            internal Rect hitRect, labelRect;
+            internal readonly List<Legend> members = new List<Legend>();
             internal Color color;
             internal float angle;
         }
@@ -103,86 +73,57 @@ namespace DeltaV
             lineMaterial.SetInt("_ZWrite", 0);
         }
 
-        public static void Draw(Rect rect, UniverseManager universe, SpaceObject contextFrame)
+        public static void Draw(Rect rect, UniverseManager universe, SpaceObject contextFrame, bool draggable = false)
         {
             if (universe == null || !OrbitSphere.Valid) return;
-            // 参考船（视图锚 = 船体位姿）：聚焦优先、回退任意玩家船；无船时以当前图
-            // 帧位置为相机锚点（仍是"飞船（所在处）—球心"语义的合理退化）。
-            ShipBase referenceShip = universe.PrimaryPlayerShip();
-            SpaceObject reference = universe.Focused
-                ?? (referenceShip.IsValid ? universe.FrameOf(referenceShip.Map) : null)
-                ?? contextFrame;
-            Vector3 referenceDir = referenceShip.IsValid
-                ? ShipRegistry.ShipPose(referenceShip).position
-                : reference?.pose.position ?? Vector3.up;
-            if (referenceDir.sqrMagnitude < 1e-6f) return;
-
+            var state = universe.GlobeNavigation;
+            state.Refresh(universe);
+            GlobeView view = GlobeView.Create(rect, universe, contextFrame);
+            Vector2? click = draggable ? state.HandleMapInput(view) : null;
+            if (draggable) view = GlobeView.Create(rect, universe, contextFrame);
+            if (Event.current.type == EventType.ScrollWheel && Mouse.IsOver(rect))
+            {
+                state.Width = GlobeNavigation.Zoom(view.Width, Event.current.delta.y, view.MaximumWidth);
+                view = view.WithWidth(state.Width);
+                Event.current.Use();
+            }
+            state.Width = view.Width;
             Vector2 center = rect.center;
-            float radius = Mathf.Min(rect.width, rect.height) * 0.5f - 4f;
-            HandleWheelZoom(rect);
-
-            // 最近档视场半宽 = 3×参考船最长边（全宽 6×，对接前航向调整用）。
-            float sideCells = SideCellsOf(referenceShip);
-            float minHalfCells = Mathf.Max(MinViewHalfShipSides * sideCells, 120f);
-
-            // 缩放映射（对数）：Zoom01=0 时 pixelsPerRad == radius（整球），1 时视场半宽
-            // 收窄到 minHalfCells。阈值以格为单位，尺度设置变化时自动联动。
-            float cellsPerRadian = OrbitSphere.CellsPerRadian;
-            float halfWidthPx = rect.width * 0.5f;
-            float maxHalfCells = cellsPerRadian * halfWidthPx / radius;
-            float viewHalfCells = maxHalfCells > minHalfCells
-                ? Mathf.Exp(Mathf.Lerp(Mathf.Log(maxHalfCells), Mathf.Log(minHalfCells), Zoom01))
-                : maxHalfCells;
-            float pixelsPerRad = halfWidthPx * cellsPerRadian / viewHalfCells;
-            float pixelsPerCell = pixelsPerRad / cellsPerRadian;
+            Vector3 referenceDir = view.Center, shipDir = view.Center;
+            Vector3 up = view.Up, right = view.Right;
+            float pixelsPerRad = view.PixelsPerRad;
+            float viewHalfCells = view.Width * .5f;
+            float cellsPerRadian = view.CellsPerRadian;
             float cellsPerTile = OrbitSphere.CellsPerTile;
             float hexAlpha = Mathf.Clamp01((HexLodFactor * cellsPerTile - viewHalfCells)
-                / (HexLodFactor * cellsPerTile * 0.5f));
-
-            // 视图基：相机位于飞船—球心连线的船侧、指向球心，屏幕向上 = 世界 up 的投影。
-            Vector3 shipDir = referenceDir.normalized;
-            Vector3 forward = -shipDir;
-            Vector3 up = Vector3.up - forward * Vector3.Dot(Vector3.up, forward);
-            if (up.sqrMagnitude < 1e-4f)
-            {
-                up = stableUp; // 极点：roll 不适定，保持上次稳定 roll
-            }
-            else
-            {
-                up.Normalize();
-                stableUp = up;
-            }
-            Vector3 right = Vector3.Cross(up, forward);
-            if (right.sqrMagnitude < 1e-4f)
-            {
-                right = stableRight;
-            }
-            else
-            {
-                right.Normalize();
-                stableRight = right;
-            }
-
+                / (HexLodFactor * cellsPerTile * .5f));
+            float zoomFade = Mathf.Clamp01(1f - view.Width / view.MaximumWidth);
             bool repaint = Event.current.type == EventType.Repaint;
             if (repaint)
             {
                 EnsureMaterial();
                 lineMaterial.SetPass(0);
                 GL.PushMatrix();
-                GL.LoadPixelMatrix(0f, UI.screenWidth, UI.screenHeight, 0f);
+#if !RIMWORLD_1_7
+                // GL uses absolute UI units; a Window's GUI origin is returned in physical pixels.
+                Vector2 origin = GUIUtility.GUIToScreenPoint(Vector2.zero) / Prefs.UIScale;
+                GL.LoadPixelMatrix(-origin.x, UI.screenWidth - origin.x, UI.screenHeight - origin.y, -origin.y);
+#endif
+                // Waylith's relative GL path already applies the same group and UI
+                // transform as labels/textures. Loading a pixel matrix bypasses it.
             }
 
             // 世界方向 → GUI 屏幕偏移：垂直分量取负（GUI y 向下，"上"是 -y）。
             Vector2 Project(Vector3 dir)
             {
-                return center + new Vector2(Vector3.Dot(dir, right), -Vector3.Dot(dir, up)) * pixelsPerRad;
+                return view.Project(dir);
             }
 
             if (repaint)
             {
                 // ---- 经纬网格（每 30° 一条；背面剔除；随拉近淡出；全部线段裁剪到矩形内）----
                 GL.Begin(GL.LINES);
-                GL.Color(new Color(1f, 1f, 1f, Mathf.Lerp(0.28f, 0.10f, Zoom01)));
+                GL.Color(new Color(1f, 1f, 1f, Mathf.Lerp(0.28f, 0.10f, zoomFade)));
                 for (int lat = -60; lat <= 60; lat += 30)
                 {
                     Vector3 prev = Spherical(lat, 0f);
@@ -239,124 +180,48 @@ namespace DeltaV
 
             }
 
-            Clickables.Clear();
             Legends.Clear();
-            foreach (SpaceObject obj in universe.objects)
+            foreach (GlobeDisplayEntry entry in state.Entries)
             {
-                foreach (GlobeDisplayEntry entry in universe.GlobeDisplay.Entries(obj))
-                {
-                    if (!GlobeDisplayRules.Visible(entry.area, pixelsPerCell, entry.AlwaysVisible)) continue;
-                    SpacePose pose = entry.Pose;
-                    if (Vector3.Dot(pose.position, shipDir) <= 0f) continue;
-                    Vector2 pos = Project(pose.position);
-                    bool projection = GlobeDisplayRules.UseProjection(sideCells, pixelsPerCell,
-                        obj.map != null && entry.cells?.Count > 0);
-                    Texture2D texture = projection ? GetSilhouette(entry) : null;
-                    projection = texture != null;
-                    bool focused = entry.ship != null && referenceShip.IsValid
-                        && entry.ship.key == referenceShip.Identity.key
-                        && entry.ship.shuttle == (referenceShip is ShuttleShip);
-                    Color tint = focused ? new Color(1f, 0.95f, 0.4f)
-                        : entry.Faction == Faction.OfPlayerSilentFail ? Color.white
-                        : entry.Faction?.Color ?? new Color(1f, 0.85f, 0.55f);
-                    if (!projection && entry.native && obj is PoiState native)
-                    {
-                        texture = native.nativeParent.ExpandingIcon;
-                        tint = native.nativeParent.ExpandingIconColor;
-                    }
-                    float size = projection ? texture.width * pixelsPerCell / ShipSilhouette.AnchoredPixelsPerCell : 18f;
-                    float angle = projection
-                        ? SilhouetteScreenAngle(pose.position, obj.pose.angle, right, up) : 0f;
-                    var legendRect = new Rect(pos.x - size * 0.5f, pos.y - size * 0.5f, size, size);
-                    if (!legendRect.Overlaps(rect)) continue;
-                    var legend = new Legend { entry = entry, position = pos, rect = legendRect,
-                        texture = texture, projection = projection, focused = focused, angle = angle, color = tint };
-                    Legends.Add(legend);
-                }
+                bool important = state.Important(entry);
+                bool station = entry.station && view.Width <= cellsPerTile * 6f;
+                bool reference = entry.ship != null && view.ReferenceShip?.IsValid == true
+                    && entry.ship.key == view.ReferenceShip.Identity.key && entry.ship.shuttle == (view.ReferenceShip is ShuttleShip);
+                if (!important && !station && !reference && !GlobeDisplayRules.Visible(entry.area, view.PixelsPerCell, entry.AlwaysVisible)) continue;
+                Legend legend = LayoutLegend(view, entry, important);
+                if (legend == null) continue;
+                Legends.Add(legend);
             }
             RemoveRedundantNativeIcons(Legends);
+            Aggregate(Legends);
             if (repaint)
             {
                 foreach (Legend legend in Legends)
                 {
-                    // A projection replaces the entire symbol, including its vector arrow.
-                    if (legend.projection) continue;
+                    if (legend.projection || legend.members.Count > 0) continue;
                     SpacePose pose = legend.entry.Pose;
                     OrbitSphere.Basis(pose.position, out Vector3 east, out Vector3 north);
                     Vector2 heading = ScreenDir(east, north, pose.angle, right, up);
-                    if (legend.texture == null)
+                    if (legend.edge)
                     {
-                        if (legend.entry.craft)
-                        {
-                            DrawCursorTriangle(legend.position, legend.focused ? 12f : 9f, heading, legend.color);
-                        }
-                        else
-                        {
-                            DrawDiamond(legend.position, 6f, legend.color);
-                        }
+                        Vector2 direction = view.Direction(pose.position);
+                        if (direction.sqrMagnitude > 1e-12f)
+                            DrawArrow(legend.position - direction.normalized * 10f, direction, 15f, legend.color, rect);
+                        else DrawDiamond(legend.position, 5f, legend.color);
                     }
-                    if (legend.entry.ship != null && pose.velocity.sqrMagnitude > 0.01f
-                        && (legend.focused || GlobeDisplayRules.ShowLabel(
-                            legend.entry.area, pixelsPerCell, legend.entry.wreck)))
-                    {
+                    else if (legend.entry.native) { }
+                    else if (legend.entry.craft && !legend.entry.station) DrawCursorTriangle(legend.position, 8f, heading, legend.color);
+                    else DrawDiamond(legend.position, 6f, legend.color);
+                    if (!legend.edge && legend.entry.ship != null && pose.velocity.sqrMagnitude > .01f
+                        && (legend.focused || GlobeDisplayRules.ShowLabel(legend.entry.area, view.PixelsPerCell, legend.entry.wreck)))
                         DrawArrow(legend.position + heading * 12f,
                             ScreenDir(east, north, Mathf.Atan2(pose.velocity.y, pose.velocity.x), right, up),
-                            legend.focused ? 26f : 14f, new Color(0.5f, 1f, 0.6f), rect);
-                    }
+                            legend.focused ? 26f : 14f, new Color(.5f, 1f, .6f), rect);
                 }
+                GL.PopMatrix();
             }
-            if (repaint) GL.PopMatrix();
-
-            // GUI events and painting consume exactly the same visible legends.
-            foreach (Legend legend in Legends)
-            {
-                if (legend.texture != null)
-                {
-                    GUI.color = legend.color;
-                    Widgets.DrawTextureRotated(legend.rect, legend.texture, legend.angle);
-                    GUI.color = Color.white;
-                }
-                Rect hit = legend.rect;
-                hit.xMin = Mathf.Max(hit.xMin, rect.xMin);
-                hit.xMax = Mathf.Min(hit.xMax, rect.xMax);
-                hit.yMin = Mathf.Max(hit.yMin, rect.yMin);
-                hit.yMax = Mathf.Min(hit.yMax, rect.yMax);
-                RegisterClickable(hit, legend.entry, referenceDir);
-                if (!GlobeDisplayRules.ShowLabel(legend.entry.area, pixelsPerCell, legend.entry.wreck)) continue;
-                Text.Font = GameFont.Tiny;
-                float distance = OrbitSphere.ArcCells(referenceDir, legend.entry.Pose.position);
-                string text = legend.entry.Label + " · "
-                    + "DeltaV_PanelGlobeDistance".Translate(((int)distance).ToString("N0"));
-                Vector2 textSize = Text.CalcSize(text);
-                float extent = legend.projection
-                    ? SilhouetteHalfHeightPx(legend.rect.width, legend.angle) : legend.rect.height * 0.5f;
-                float x = Mathf.Clamp(legend.position.x - textSize.x * 0.5f, rect.xMin + 2f,
-                    Mathf.Max(rect.xMin + 2f, rect.xMax - textSize.x - 2f));
-                var labelRect = new Rect(x, legend.position.y + extent + 4f, textSize.x + 2f, textSize.y);
-                if (labelRect.Overlaps(rect)) Widgets.Label(labelRect, text);
-                Text.Font = GameFont.Small;
-            }
-            if (Vector3.Dot(Vector3.up, shipDir) > 0.2f && hexAlpha < 1f)
-            {
-                Vector2 n = Project(Vector3.up * (1f + 24f / pixelsPerRad));
-                if (rect.ExpandedBy(20f).Contains(n))
-                {
-                    Text.Font = GameFont.Tiny;
-                    GUI.color = new Color(0.7f, 0.9f, 1f, 0.9f);
-                    Widgets.Label(new Rect(n.x - 10f, n.y - 8f, 20f, 16f), "N");
-                    GUI.color = Color.white;
-                }
-            }
-
-            foreach (Clickable clickable in Clickables)
-            {
-                TooltipHandler.TipRegion(clickable.rect, clickable.tip);
-                if (Widgets.ButtonInvisible(clickable.rect, false))
-                {
-                    FocusObject(universe, clickable.obj);
-                }
-            }
-
+            DrawLegends(view, state, universe, draggable, click);
+            DrawScale(view);
             Text.Font = GameFont.Small;
             GUI.color = Color.white;
         }
@@ -368,43 +233,8 @@ namespace DeltaV
             var projected = new HashSet<SpaceObject>();
             foreach (Legend legend in legends)
                 if (legend.projection) projected.Add(legend.entry.owner);
-            legends.RemoveAll(legend => legend.entry.native && !legend.projection
+            legends.RemoveAll(legend => legend.entry.native && !legend.projection && !legend.important
                 && projected.Contains(legend.entry.owner));
-        }
-
-        // ---- 缩放交互 ----
-
-        private static void HandleWheelZoom(Rect rect)
-        {
-            if (Event.current.type != EventType.ScrollWheel || !Mouse.IsOver(rect)) return;
-            Zoom01 = Mathf.Clamp01(Zoom01 - Event.current.delta.y * 0.05f);
-            Event.current.Use();
-        }
-
-        // ---- 点击聚焦 ----
-
-        private static void RegisterClickable(Rect rect, GlobeDisplayEntry entry, Vector3 referenceDir)
-        {
-            float distance = OrbitSphere.ArcCells(referenceDir, entry.Pose.position);
-            string tip = entry.Label + "\n" + "DeltaV_PanelGlobeDistance".Translate(((int)distance).ToString("N0"));
-            if (entry.owner.InteriorMap == null) tip += "\n" + "DeltaV_PanelObjectNotLoaded".Translate();
-            Clickables.Add(new Clickable(rect, entry.owner, tip));
-        }
-
-        private static void FocusObject(UniverseManager universe, SpaceObject obj)
-        {
-            Map map = obj.InteriorMap;
-            if (map == null)
-            {
-                // 未物化对象无法聚焦（内部尚未加载）——星区架构：接近后物化即可。
-                Messages.Message("DeltaV_PanelObjectNotLoaded".Translate(), MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            universe.SetFocused(obj);
-            CameraJumper.TryJump(map.Center, map, CameraJumper.MovementMode.Cut);
-            DeltaVLog.Message(DeltaVLogModule.Core,
-                $"globe focus '{obj.label}': map={map.Parent?.Label ?? map.ToString()} size={map.Size.x}x{map.Size.z}" +
-                $" frozen={universe.Lifecycle.IsFrozen(map)} rootSize={Find.CameraDriver?.RootSize:F0}");
         }
 
         // ---- 星区六边形网格 ----
@@ -485,13 +315,6 @@ namespace DeltaV
             return cached.texture;
         }
 
-        private static float SideCellsOf(ShipBase reference)
-        {
-            if (!reference.IsValid) return FallbackSideCells;
-            CellRect bounds = CellRect.FromCellList(reference.HullCells.ToList());
-            return Mathf.Max(bounds.Width, bounds.Height, 1f);
-        }
-
         /// <summary>
         /// 剪影旋转角（度）：forward 世界方向经 SpaceTransform.MarkerForwardWorld 导出
         /// （与世界视图剪影同一条旋转链，两处显示不分叉）；RotateAroundPivot 在 GUI
@@ -528,12 +351,12 @@ namespace DeltaV
                     if (cached.texture != null) Object.Destroy(cached.texture);
             SilhouetteCache.Clear();
             Legends.Clear();
-            Clickables.Clear();
         }
 
         public static void InvalidateSilhouette(Map map)
         {
             if (map == null) return;
+            Legends.Clear();
             if (SilhouetteCache.TryGetValue(map, out var byShip))
             {
                 foreach (var cached in byShip.Values)

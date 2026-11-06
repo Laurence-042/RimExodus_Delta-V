@@ -60,11 +60,8 @@ namespace DeltaV
         // mixed odd/even dimensions. Rounding each cell to one pixel collapses neighbours.
         internal static Color32[] AnchoredPixels(IEnumerable<IntVec3> cells, Vector2 anchor, out int side)
         {
-            int reach = TexturePadding + 1;
-            foreach (IntVec3 cell in cells)
-                reach = Mathf.Max(reach, Mathf.CeilToInt(Mathf.Max(
-                    Mathf.Abs(cell.x + .5f - anchor.x), Mathf.Abs(cell.z + .5f - anchor.y))) + TexturePadding);
-            side = reach * 2 * AnchoredPixelsPerCell;
+            side = AnchoredSide(cells, anchor);
+            int reach = side / (2 * AnchoredPixelsPerCell);
             var pixels = new Color32[side * side];
             Color32 opaque = new Color32(255, 255, 255, 255);
             foreach (IntVec3 cell in cells)
@@ -76,6 +73,15 @@ namespace DeltaV
                         pixels[x + dx + (y + dy) * side] = opaque;
             }
             return pixels;
+        }
+
+        internal static int AnchoredSide(IEnumerable<IntVec3> cells, Vector2 anchor)
+        {
+            int reach = TexturePadding + 1;
+            foreach (IntVec3 cell in cells)
+                reach = Mathf.Max(reach, Mathf.CeilToInt(Mathf.Max(
+                    Mathf.Abs(cell.x + .5f - anchor.x), Mathf.Abs(cell.z + .5f - anchor.y))) + TexturePadding);
+            return reach * 2 * AnchoredPixelsPerCell;
         }
 
         /// <summary>

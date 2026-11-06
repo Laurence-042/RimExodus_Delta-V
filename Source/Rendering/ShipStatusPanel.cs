@@ -11,8 +11,8 @@ namespace DeltaV
     /// 左侧信息面板（星区架构 §11.1；解耦重构 §4：多船同图显示船只列表，可切换当前
     /// 查看/操作的船）：承载对象与成员、飞行状态、控制状态与操作收口的单一面板，
     /// 内容按可用屏幕高度滚动；内嵌**可缩放星球仪**（PlanetGlobeRenderer）——
-    /// 星区地图即星球仪连续缩放（§12.2 定稿）：滑条/滚轮拉近逐层显示星区网格、对象
-    /// 图标与距离标注，图标可悬停/点击聚焦。显示条件：聚焦图属 Delta-V 语境
+    /// 星区地图即星球仪连续缩放（§12.2 定稿）：距离预设/滚轮拉近逐层显示星区网格、对象
+    /// 图标与距离标注，图标可悬停/选择导航目标，展开地图提供地点列表。显示条件：聚焦图属 Delta-V 语境
     /// （FrameOf != null：口袋容器图 / 停靠宿主图 / 轨道图 / POI 内部）；
     /// 世界视图不叠加（剪影是其自己的显示通道，且可点击聚焦）。
     /// </summary>
@@ -118,6 +118,7 @@ namespace DeltaV
         public static void Draw(UniverseManager universe)
         {
             inputMap = null;
+            if (Find.WindowStack.IsOpen<Window_SectorNavigation>()) return;
             Map map = Find.CurrentMap;
             if (universe == null || map == null || !WorldRendererUtility.DrawingMap) return;
             SpaceObject frame = universe.FrameOf(map);
@@ -218,7 +219,7 @@ namespace DeltaV
             }
             float shipListHeight = structures.Count > 1 ? structures.Count * ShipRowHeight + 4f : 0f;
 
-            // 内容高度：星球仪 + 缩放滑条 + 标题/状态行 + 船列表
+            // 内容高度：星球仪 + 范围/导航控件 + 标题/状态行 + 船列表
             // + 当前模式的按钮行数（已停靠的船只有驾驶按钮——首次出力即分离）
             // + 战斗区块：火控、战斗机动、武器组和战斗位置。
             bool shipHasWeapons = hasShip && selected.Weapons.Any();
@@ -256,8 +257,9 @@ namespace DeltaV
             modeButtonsHeight += combatHeight;
             float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + shipListHeight
                 + modeButtonsHeight + (showRefocus ? 33f : 0f) + 8f;
-            const float sliderRowHeight = 30f;
-            float headerHeight = GlobeSize + 8f + sliderRowHeight;
+            const float sliderRowHeight = GlobeNavigationPanel.Height;
+            float globeHeight = Mathf.Min(GlobeSize, Mathf.Max(64f, UI.screenHeight - GlobeNavigationPanel.Height - 184f));
+            float headerHeight = globeHeight + 8f + sliderRowHeight;
             float maxPanelHeight = Mathf.Max(headerHeight + 80f,
                 Mathf.Min(MaxPanelHeight, UI.screenHeight - 80f));
             float visibleContentHeight = Mathf.Min(contentHeight, maxPanelHeight - headerHeight);
@@ -270,15 +272,10 @@ namespace DeltaV
             Widgets.DrawMenuSection(panelRect);
             var inner = panelRect.ContractedBy(8f);
 
-            // 星球仪固定在面板顶部（GL 绘制使用绝对 GUI 屏幕坐标）；
-            // 无任何飞船时（首次到达、尚未认领）以当前图帧位置为相机锚点。
-            PlanetGlobeRenderer.Draw(new Rect(inner.x, inner.y, inner.width, GlobeSize), universe, frame);
-
-            // 星球仪缩放滑条：拉远 = 整球态势，拉近 = 星区地图（§12.2 定稿）。
-            PlanetGlobeRenderer.Zoom01 = Widgets.HorizontalSlider(
-                new Rect(inner.x, inner.y + GlobeSize + 8f, inner.width, 22f),
-                PlanetGlobeRenderer.Zoom01, 0f, 1f, false, null,
-                "DeltaV_PanelGlobeZoomOut".Translate(), "DeltaV_PanelGlobeZoomIn".Translate());
+            var globeRect = new Rect(inner.x, inner.y, inner.width, globeHeight);
+            PlanetGlobeRenderer.Draw(globeRect, universe, frame);
+            GlobeNavigationPanel.Draw(new Rect(inner.x, inner.y + globeHeight + 8f,
+                inner.width, GlobeNavigationPanel.Height), globeRect, universe, frame, false);
 
             // 文本与按钮区（相对坐标）。
             var contentRect = new Rect(inner.x, inner.y + headerHeight, inner.width, visibleContentHeight);

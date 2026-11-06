@@ -26,6 +26,7 @@ namespace DeltaV
                 .TryGetComp<CompTutorialRangeBriefing>().entranceDoor = facilities.OfType<Building_HackableDoor>().Single();
             // The firing line points away from the colony. Target and platform remain separate rigid bodies.
             SpaceObject frame = universe.FrameOf(rangeMap);
+            frame.contentTypeId = "WeaponPlatform";
             SpacePose targetPose = SpaceTransform.RigidPointPose(frame.pose, new Vector2(120f, 0f), 0f);
             Map targetMap = CreateCourseMap(ShipPocketMapFactory.CompactSize(target.size), targetPose);
             SpaceObject targetFrame = universe.FrameOf(targetMap);

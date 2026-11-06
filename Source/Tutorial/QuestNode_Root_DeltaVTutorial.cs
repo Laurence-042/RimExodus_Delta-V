@@ -76,6 +76,14 @@ namespace DeltaV
                 icon = TexCommand.OpenLinkedQuestTex,
                 action = Service.ShowBriefing
             };
+            if (Service.HasNavigationStage)
+                yield return new Command_Action
+                {
+                    defaultLabel = "DeltaV_NavCourse".Translate(),
+                    defaultDesc = "DeltaV_NavCourseDesc".Translate(),
+                    icon = TexCommand.OpenLinkedQuestTex,
+                    action = Service.LocateNavigationTarget
+                };
         }
     }
 }

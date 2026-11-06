@@ -83,6 +83,7 @@ namespace DeltaV
             stationTrade?.Forget(previous.map);
             PlanetGlobeRenderer.InvalidateSilhouette(previous.map);
             objects[index] = current;
+            globeNavigation?.InvalidateEntries();
             if (objectById != null) objectById[current.objectId] = current;
             if (objectByMap != null)
             {
@@ -110,6 +111,10 @@ namespace DeltaV
 
         [NonSerialized] private GlobeDisplayInfo globeDisplay;
         internal GlobeDisplayInfo GlobeDisplay => globeDisplay ?? (globeDisplay = new GlobeDisplayInfo());
+        private List<GlobeTarget> globeBookmarks = new List<GlobeTarget>();
+        [NonSerialized] private GlobeNavigation globeNavigation;
+        internal GlobeNavigation GlobeNavigation => globeNavigation ?? (globeNavigation =
+            new GlobeNavigation(globeBookmarks ?? (globeBookmarks = new List<GlobeTarget>())));
 
         [NonSerialized] private SpaceProjectileService projectiles;
 
@@ -412,6 +417,8 @@ namespace DeltaV
             // Resolve projectile resources while the old identity is still registered.
             Projectiles.NotifyContainerRemoving(obj);
             objects.Remove(obj);
+            globeNavigation?.ForgetObject(obj.objectId);
+            if (globeNavigation == null) globeBookmarks?.RemoveAll(b => b.objectId == obj.objectId);
             objectById?.Remove(obj.objectId);
             if (obj.map != null && objectByMap != null
                 && objectByMap.TryGetValue(obj.map, out SpaceObject mapped) && mapped == obj)
@@ -553,6 +560,7 @@ namespace DeltaV
             playerInput?.Clear();
             foundationTopology?.Forget(map);
             globeDisplay?.Forget(map);
+            globeNavigation?.InvalidateEntries();
             PlanetGlobeRenderer.InvalidateSilhouette(map);
             Projectiles.ForgetMap(map);
             mapPool?.Forget(map);
@@ -647,6 +655,7 @@ namespace DeltaV
             }
             Scribe_Collections.Look(ref generatedSectorTiles, "generatedSectorTiles", LookMode.Value);
             Scribe_Deep.Look(ref tutorialRun, "tutorial");
+            Scribe_Collections.Look(ref globeBookmarks, "globeBookmarks", LookMode.Deep);
             Scribe_Values.Look(ref SoftDockEnabled, "softDockEnabled", false);
             Scribe_Values.Look(ref ShowThrusterDebugOverlay, "showThrusterDebugOverlay", false);
             Scribe_Values.Look(ref ShowCoordinateGrid, "showCoordinateGrid", true);
@@ -1258,6 +1267,7 @@ namespace DeltaV
             npcShips = null;
             globeDisplay?.Clear();
             globeDisplay = null;
+            globeNavigation = null;
             controls?.Reset();
             controls = null;
             pilot = null;

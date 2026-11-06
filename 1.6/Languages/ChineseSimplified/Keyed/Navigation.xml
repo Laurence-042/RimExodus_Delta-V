@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_NavWhole>整球</DeltaV_NavWhole>
+  <DeltaV_NavWidth>范围 {0} 格</DeltaV_NavWidth>
+  <DeltaV_NavFitShip>适配本船</DeltaV_NavFitShip>
+  <DeltaV_NavFitSector>适配当前星区</DeltaV_NavFitSector>
+  <DeltaV_NavExpand>详细地图</DeltaV_NavExpand>
+  <DeltaV_NavTitle>详细地图</DeltaV_NavTitle>
+  <DeltaV_NavRecenter>回到本船</DeltaV_NavRecenter>
+  <DeltaV_NavDragTip>按住鼠标左键拖动地图，滚轮缩放。点击“回到本船”恢复跟随；关闭详细地图后，小地图也会恢复跟随本船。</DeltaV_NavDragTip>
+  <DeltaV_NavClear>清除</DeltaV_NavClear>
+  <DeltaV_NavCourse>定位任务</DeltaV_NavCourse>
+  <DeltaV_NavNoTarget>选择地图标记或地点</DeltaV_NavNoTarget>
+  <DeltaV_NavNoCourse>当前没有导航任务</DeltaV_NavNoCourse>
+  <DeltaV_NavCourseName>任务：{0}</DeltaV_NavCourseName>
+  <DeltaV_NavUnavailable>目标已失效或暂不可用</DeltaV_NavUnavailable>
+  <DeltaV_NavFit>同屏</DeltaV_NavFit>
+  <DeltaV_NavInspect>查看</DeltaV_NavInspect>
+  <DeltaV_NavPin>收藏</DeltaV_NavPin>
+  <DeltaV_NavUnpin>取消</DeltaV_NavUnpin>
+  <DeltaV_NavFilterAll>全部</DeltaV_NavFilterAll>
+  <DeltaV_NavFilterMission>任务</DeltaV_NavFilterMission>
+  <DeltaV_NavFilterStations>空间站</DeltaV_NavFilterStations>
+  <DeltaV_NavFilterBookmarks>书签</DeltaV_NavFilterBookmarks>
+  <DeltaV_NavSearch>按名称或派系搜索已知地点；列表不受地图缩放影响。</DeltaV_NavSearch>
+  <DeltaV_NavNoFaction>无派系</DeltaV_NavNoFaction>
+  <DeltaV_NavUnloaded>未加载</DeltaV_NavUnloaded>
+  <DeltaV_NavLocate>定位</DeltaV_NavLocate>
+  <DeltaV_NavEmptyList>没有符合条件的已知地点</DeltaV_NavEmptyList>
+  <DeltaV_NavBehind>目标位于当前视角的球背；可拖动详细地图查看，或参考边缘方向及距离。</DeltaV_NavBehind>
+  <DeltaV_NavBehindShort>球背</DeltaV_NavBehindShort>
+  <DeltaV_NavFitLimit>已拉远到整球范围；目标范围过大，无法完整放入当前视图。</DeltaV_NavFitLimit>
+  <DeltaV_NavScaleTip>中心比例尺。目标距离使用球面弧长。</DeltaV_NavScaleTip>
+  <DeltaV_NavCourseDesc>在星区地图中定位当前课程目标，不改变驾驶任务。</DeltaV_NavCourseDesc>
+</LanguageData>
