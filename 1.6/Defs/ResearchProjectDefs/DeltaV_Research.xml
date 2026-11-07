@@ -5,7 +5,7 @@
 		<defName>DeltaV</defName>
 		<label>Delta-V</label>
 		<generalTitle>Ship engineering</generalTitle>
-		<generalDescription>Research sealed docking systems, ship weapons and shields. Basic cargo, EVA and support equipment use technologies on the main research tab. Research unlocks construction and manufacture; recovered equipment can already be used.</generalDescription>
+		<generalDescription>Research sealed docking systems, ship weapons, shields and nuclear power. Basic cargo, EVA and support equipment use technologies on the main research tab. Research unlocks construction and manufacture; recovered equipment can already be used.</generalDescription>
 	</ResearchTabDef>
 	<ResearchProjectDef>
 		<defName>DeltaV_VacuumBarrier</defName>
@@ -76,4 +76,17 @@
     <researchViewY>1</researchViewY>
   </ResearchProjectDef>
 
+  <ResearchProjectDef>
+    <defName>DeltaV_ShipNuclearPower</defName>
+    <label>shipboard nuclear power</label>
+    <description>Build compact uranium-fueled fission reactors to supply sustained power for shipboard life support, industry and weapons.</description>
+    <baseCost>3000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <requiredResearchFacilities><li>MultiAnalyzer</li></requiredResearchFacilities>
+    <prerequisites><li>OrbitalTech</li><li>Fabrication</li></prerequisites>
+    <tab>DeltaV</tab>
+    <researchViewX>2</researchViewX>
+    <researchViewY>3</researchViewY>
+  </ResearchProjectDef>
 </Defs>

@@ -299,6 +299,7 @@ namespace DeltaV
     {
         private bool enabled;
         private bool initialized;
+        internal bool SwitchedOn => initialized ? enabled : AttachmentProps.enabledByDefault;
         public bool Enabled => enabled && Powered;
         public CompProperties_SpaceWeaponAttachment AttachmentProps =>
             (CompProperties_SpaceWeaponAttachment)props;
@@ -306,6 +307,7 @@ namespace DeltaV
             AttachmentProps.allowedHostDefs.NullOrEmpty()
             || AttachmentProps.allowedHostDefs.Contains(hostDef);
         public virtual float AvailableShotEnergy => 0f;
+        public virtual CompPowerBattery ShotEnergyBattery => null;
         public virtual bool CanSupplyShotEnergy(float wattDays) => false;
         public virtual void ConsumeShotEnergy(float wattDays) { }
         public virtual int? AimSkillFor(CompSpaceWeapon weapon) => null;
@@ -370,6 +372,7 @@ namespace DeltaV
                 enabled = AttachmentProps.enabledByDefault;
                 initialized = true;
             }
+            parent.TryGetComp<CompSwitchableBattery>()?.RefreshConnection();
             if (!respawningAfterLoad) ShipControlService.NotifyGunnerChange(parent.Map);
         }
 
@@ -393,7 +396,7 @@ namespace DeltaV
                 this, attachment => attachment.enabled, (attachment, active) =>
                 {
                     attachment.enabled = active;
-                    attachment.parent.TryGetComp<CompSwitchableBattery>()?.RefreshPowerOutput();
+                    attachment.parent.TryGetComp<CompSwitchableBattery>()?.RefreshConnection();
                     attachment.parent.TryGetComp<CompCargoTemperature>()?.RefreshPower();
                     attachment.HostWeapon?.NotifyParametersChanged();
                     ShipControlService.NotifyGunnerChange(attachment.parent.Map);

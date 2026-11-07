@@ -31,9 +31,9 @@
   <DeltaV_Building_UraniumMagazine.label>铀制附加弹仓</DeltaV_Building_UraniumMagazine.label>
   <DeltaV_Building_UraniumMagazine.description>为所连接的武器供应铀制弹头，默认供弹优先级为 1。每发必须备齐该武器所需数量的弹头，装药仍从武器自身取用。铀弹头比钢弹头更重、穿甲更强，但相同装药下弹速更低。</DeltaV_Building_UraniumMagazine.description>
   <DeltaV_Building_LaserCapacitor.label>激光炮附加电容</DeltaV_Building_LaserCapacitor.label>
-  <DeltaV_Building_LaserCapacitor.description>为激光炮储备开火所需的电能。建成时为空，最多储存 600 W·d，以 1800 W 充电，从空到满需 8 游戏小时。储能足够一发时，整发从电容取电；不足一发时，改从电网蓄电池取电。</DeltaV_Building_LaserCapacitor.description>
+  <DeltaV_Building_LaserCapacitor.description>为激光炮储存 600 W·d 电能，充电效率为 100%。建成时为空且默认接网，使用电网余电充电，也为公共负载供电。本设备不会短路，电网短路也不会抽走储能。脱网后停止电网充电，电量专供所属武器。储能足够一发时，整发从电容取电；不足一发时，改从电网蓄电池取电。自放电为 5 W。</DeltaV_Building_LaserCapacitor.description>
   <DeltaV_Building_RailgunCapacitor.label>轨道炮附加电容</DeltaV_Building_RailgunCapacitor.label>
-  <DeltaV_Building_RailgunCapacitor.description>为轨道炮装弹机或加速段储备 675 W·d，足够支付一次本地脉冲。建成时为空，以 375 W 充电，充满需 43.2 游戏小时。不足一次消耗时，宿主改从电网蓄电池支付完整脉冲。</DeltaV_Building_RailgunCapacitor.description>
+  <DeltaV_Building_RailgunCapacitor.description>为轨道炮装弹机或加速段储备 675 W·d，足够支付一次本地脉冲，充电效率为 100%。建成时为空且默认接网，使用电网余电充电，也为公共负载供电。本设备不会短路，电网短路也不会抽走储能。脱网后停止电网充电，电量专供所属设备。不足一次消耗时，宿主改从电网蓄电池支付完整脉冲。自放电为 5 W。</DeltaV_Building_RailgunCapacitor.description>
   <DeltaV_Projectile_RailgunSlug.label>轨道炮弹丸</DeltaV_Projectile_RailgunSlug.label>
   <DeltaV_Projectile_RailgunSlug.description>能连续贯穿护盾和船体结构的高速弹芯。击破护盾或结构后会损失部分威力；如果未能击破，就会被截停。穿过空舱不损失威力。动能线盾会将其击碎，碎片不能继续深层贯穿。</DeltaV_Projectile_RailgunSlug.description>
 </LanguageData>

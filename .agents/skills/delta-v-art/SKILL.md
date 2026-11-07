@@ -23,6 +23,8 @@ description: Create and align RimExodus Delta-V top-down building and projectile
 - 插件的建造格与视觉位置分开校对：武器 Def 的 `attachmentSlots` 每项用 `cell` 指定建造格，用朝北格心相对的 `drawOffset` 与 `drawScale` 指定完成品贴图。插件自身贴图按完整 1×1 画布制作，不把宿主槽位偏移烘焙进像素；四向显示由 `Graphic_SpaceWeaponAttachment` 随宿主旋转这些参数。绘制比例和逻辑占地不得混用。
 - 设计先看原尺寸，再缩到实际地图显示尺寸检视。细线、微螺栓、密集排气孔若缩小后只成噪声，应删去；炮口、炮身和底座边界仍须可辨。
 
+货仓与安全电池的状态配色、语义及精确乘色参数统一遵循 [美术资源施工表：正式规则](../../../doc/美术资源施工表.md#货仓与电池统一状态色2026-11-07正式规则)。扩展同类资源时复用该表，不另立红绿接网色或封存色；常态与锁定色分工、蒙版通道和取色方法以该专题为准。
+
 ## 对齐与原版绘制契约
 
 - `Building_TurretGun.DrawAt` 分别绘制顶部和建筑底座。顶部材质来自 `building.turretGunDef.graphicData.texPath`（`BuildingProperties` 初始化），更换底座的 `graphicData.texPath` 不会更换炮身。

@@ -6,8 +6,9 @@ namespace DeltaV
 {
     public partial class CompSpaceCargo
     {
-        internal Color TerminalColor => !Cargo.IsUnlocked ? new Color(1f, .62f, .16f)
-            : StorageMode ? new Color(.25f, .85f, .38f) : new Color(.2f, .65f, 1f);
+        internal Color TerminalColor => !Cargo.IsUnlocked
+            ? (parent.Faction.HostileTo(Faction.OfPlayer) ? StorageStateColors.HostileLocked : StorageStateColors.Locked)
+            : StorageMode ? StorageStateColors.Active : StorageStateColors.Reserved;
         // Read the actual native inventory, without materialising Contents each frame.
         internal float CapacityFraction
         {

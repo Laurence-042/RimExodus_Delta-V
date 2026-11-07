@@ -176,7 +176,7 @@ internal static partial class Program
                 }
                 else if(loadout=="TwoCapacitors")
                 {
-                    var reserve=new CompSwitchableBattery{props=new CompProperties_SwitchableBattery{capacityWattDays=pulse}};
+                    var reserve=new CompSwitchableBattery{props=new CompProperties_SwitchableBattery{storedEnergyMax=pulse}};
                     Set(reserve,"storedEnergy",pulse);reserves.Add(reserve);
                     var cap=new CompSpaceWeaponCapacitor{props=new CompProperties_SpaceWeaponCapacitor()};Set(cap,"enabled",true);
                     attachments.Add(Add(10+i,5,100,reserve,cap));

@@ -1,0 +1,24 @@
+{
+  "tool": "image_gen.imagegen",
+  "prompts": [
+    [
+      "CargoSealed",
+      "Recolor ONLY the BLUE lid of this exact closed cargo box UI icon to neutral medium-light steel gray, matching RimWorld heavy cannon neutral gray metal. Lid main plane RGB approximately 166,164,164, lighter bevels and darker side planes. Preserve the EXACT closed box silhouette, composition, linework, dark outlines, box body color, 3D angle, scale and transparent canvas. No blue, purple, green remaining on the lid. No new objects, text, locks or marks. Transparent background."
+    ],
+    [
+      "CargoStorage",
+      "Recolor ONLY the GREEN lid and green hinges of this exact open cargo box UI icon to low-saturation CYAN GRAY metal, matching a RimWorld rapid-fire cannon armor. Lid main plane RGB approximately 146,185,193, highlights a little lighter, side planes darker. Muted pale blue-green, NOT vivid green, saturated blue or glowing cyan. Preserve the EXACT open box silhouette, composition, beige contents, linework, dark outlines, gray box body, 3D angle, scale and transparent canvas. No new objects, text or marks. Transparent background."
+    ]
+  ],
+  "outputs": [
+    {
+      "file": "1.6/Textures/UI/Commands/CargoSealed.png",
+      "source": "exec-2c9261a5-b703-4a48-9b3f-9b5935f5d872.png"
+    },
+    {
+      "file": "1.6/Textures/UI/Commands/CargoStorage.png",
+      "source": "exec-8dbe7026-025d-4863-99b6-f96a9aca1d28.png"
+    }
+  ],
+  "transparent_background": true
+}

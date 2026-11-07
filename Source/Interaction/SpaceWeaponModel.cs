@@ -50,6 +50,7 @@ namespace DeltaV
     {
         private readonly Dictionary<PowerNet, float> available = new Dictionary<PowerNet, float>();
         private readonly Dictionary<PowerNet, float> reserved = new Dictionary<PowerNet, float>();
+        private readonly Dictionary<PowerNet, float> localReserved = new Dictionary<PowerNet, float>();
         private readonly Dictionary<CompSpaceWeaponAttachment, float> capacitors =
             new Dictionary<CompSpaceWeaponAttachment, float>();
         internal readonly List<CompSpaceRailgun> active = new List<CompSpaceRailgun>();
@@ -57,7 +58,7 @@ namespace DeltaV
         internal bool ready;
 
         internal void Clear()
-        { available.Clear(); reserved.Clear(); capacitors.Clear(); active.Clear(); kineticEnergyBonus = 0f; ready = false; }
+        { available.Clear(); reserved.Clear(); localReserved.Clear(); capacitors.Clear(); active.Clear(); kineticEnergyBonus = 0f; ready = false; }
 
         internal bool Evaluate(CompSpaceWeapon weapon, bool includeSegments = true)
         {
@@ -96,6 +97,8 @@ namespace DeltaV
                 if (capacitor == null || !capacitor.CanSupplyShotEnergy(cost)) continue;
                 capacitors.TryGetValue(capacitor, out float held);
                 float remaining = capacitor.AvailableShotEnergy - held;
+                PowerNet net = capacitor.ShotEnergyBattery?.PowerNet;
+                if (net != null) remaining = Mathf.Min(remaining, RemainingGridEnergy(net));
                 if (remaining + .0001f < cost) continue;
                 if (best == null || remaining > bestAvailable
                     || remaining == bestAvailable && thing.thingIDNumber < best.parent.thingIDNumber)
@@ -104,7 +107,22 @@ namespace DeltaV
             if (best == null) return false;
             capacitors.TryGetValue(best, out float prior);
             capacitors[best] = prior + cost;
+            PowerNet sharedNet = best.ShotEnergyBattery?.PowerNet;
+            if (sharedNet != null)
+            {
+                localReserved.TryGetValue(sharedNet, out float local);
+                localReserved[sharedNet] = local + cost;
+            }
             return true;
+        }
+
+        private float RemainingGridEnergy(PowerNet net)
+        {
+            if (!available.TryGetValue(net, out float stored))
+            { stored = net.CurrentStoredEnergy(); available.Add(net, stored); }
+            reserved.TryGetValue(net, out float grid);
+            localReserved.TryGetValue(net, out float local);
+            return stored - grid - local;
         }
 
         private bool ReserveGrid(ThingWithComps source, float cost)
@@ -112,16 +130,16 @@ namespace DeltaV
             if (cost <= 0f) return true;
             PowerNet net = source.TryGetComp<CompPowerTrader>()?.PowerNet;
             if (net == null) return false;
-            if (!available.TryGetValue(net, out float stored))
-            { stored = net.CurrentStoredEnergy(); available.Add(net, stored); }
             reserved.TryGetValue(net, out float held);
-            if (stored + .0001f < held + cost) return false;
+            if (RemainingGridEnergy(net) + .0001f < cost) return false;
             reserved[net] = held + cost;
             return true;
         }
 
         internal void Commit()
         {
+            // Pay earmarked local pulses first, so the grid cannot drain their batteries twice.
+            foreach (var pair in capacitors) pair.Key.ConsumeShotEnergy(pair.Value);
             foreach (var pair in reserved)
             {
                 float remaining = pair.Value;
@@ -133,7 +151,6 @@ namespace DeltaV
                     battery.DrawPower(drawn); remaining -= drawn;
                 }
             }
-            foreach (var pair in capacitors) pair.Key.ConsumeShotEnergy(pair.Value);
         }
     }
 

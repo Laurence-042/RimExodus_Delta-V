@@ -214,7 +214,7 @@ internal static partial class Program
                     {var recovery=new CompRailgunEnergyRecovery{props=new CompProperties_RailgunEnergyRecovery()};Set(recovery,"enabled",true);attachments.Add(Add(12+s*2+i,5,100,recovery));}
                     if(loadout=="TwoCapacitorsPerStage")
                     {
-                        var reserve=new CompSwitchableBattery{props=new CompProperties_SwitchableBattery{capacityWattDays=pulse}};Set(reserve,"storedEnergy",pulse);reserves.Add(reserve);
+                        var reserve=new CompSwitchableBattery{props=new CompProperties_SwitchableBattery{storedEnergyMax=pulse}};Set(reserve,"storedEnergy",pulse);reserves.Add(reserve);
                         var cap=new CompSpaceWeaponCapacitor{props=new CompProperties_SpaceWeaponCapacitor()};Set(cap,"enabled",true);attachments.Add(Add(12+s*2+i,5,100,reserve,cap));
                     }
                 }

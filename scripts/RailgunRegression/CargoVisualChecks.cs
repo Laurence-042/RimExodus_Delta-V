@@ -15,6 +15,8 @@ internal static partial class Program
         var node = XDocument.Load("1.6/Defs/ThingDefs_Buildings/DeltaV_StationTrade.xml").Root
             .Elements("ThingDef").Single(n => (string)n.Element("defName") == "DeltaV_CargoContainer");
         var def = MakeDef("cargoGeometry");
+        Check((string)node.Element("drawerType") == "RealtimeOnly",
+            "hackable cargo uses realtime rendering so faction changes do not leave a stale static material");
         def.size = ParseHelper.FromString<IntVec2>((string)node.Element("size"));
         def.hasInteractionCell = (bool)node.Element("hasInteractionCell");
         def.interactionCellOffset = ParseHelper.FromString<IntVec3>((string)node.Element("interactionCellOffset"));

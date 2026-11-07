@@ -1,17 +1,11 @@
 using System.Collections.Generic;
 using RimWorld;
-using UnityEngine;
 using Verse;
 
 namespace DeltaV
 {
-    public class CompProperties_SwitchableBattery : CompProperties_Power
+    public class CompProperties_SwitchableBattery : CompProperties_Battery
     {
-        public float capacityWattDays;
-        public float chargingWatts;
-        public float initialEnergyPercent;
-        public float maxOutputWatts;
-
         public CompProperties_SwitchableBattery()
         {
             compClass = typeof(CompSwitchableBattery);
@@ -19,160 +13,69 @@ namespace DeltaV
 
         public override IEnumerable<StatDrawEntry> SpecialDisplayStats(StatRequest req)
         {
+            foreach (var entry in base.SpecialDisplayStats(req)) yield return entry;
             yield return SpaceCombatStats.Entry("DeltaV_StatCapCapacity",
-                SpaceCombatStats.WattDays(capacityWattDays), 5100);
-            yield return SpaceCombatStats.Entry("DeltaV_StatCapChargingPower",
-                SpaceCombatStats.Watts(chargingWatts), 5090);
-            int ticks = chargingWatts > 0f
-                ? Mathf.CeilToInt(capacityWattDays / (chargingWatts * CompPower.WattsToWattDaysPerTick))
-                : 0;
-            yield return SpaceCombatStats.Entry("DeltaV_StatCapFullCharge",
-                SpaceCombatStats.GameHours(ticks), 5080);
+                SpaceCombatStats.WattDays(storedEnergyMax), 5100);
         }
     }
 
-    /// <summary>局部储能通过正负 PowerOutput 在充电和向电网发电之间切换。</summary>
-    public class CompSwitchableBattery : CompPowerTrader
+    /// <summary>储能与结算沿用原版电池；隔离只改变公共电网连接，专属设备仍可直取。</summary>
+    public class CompSwitchableBattery : CompPowerBattery
     {
-        private float storedEnergy = -1f;
-        private bool gridOutputEnabled;
-        private int outputWatts;
+        private bool gridConnected = true;
 
-        public new CompProperties_SwitchableBattery Props => (CompProperties_SwitchableBattery)props;
-        public float StoredEnergy => storedEnergy < 0f
-            ? Props.capacityWattDays * Mathf.Clamp01(Props.initialEnergyPercent) : storedEnergy;
+        public bool GridConnected => gridConnected;
+        internal bool WantsGridConnection => gridConnected
+            && (parent.TryGetComp<CompSpaceWeaponAttachment>()?.SwitchedOn ?? true);
 
-        public bool CanSupply(float wattDays) => wattDays > 0f
-            && StoredEnergy + 0.0001f >= wattDays;
+        public bool CanSupply(float wattDays) => wattDays > 0f && !StunnedByEMP
+            && !parent.IsBrokenDown() && StoredEnergy + 0.0001f >= wattDays;
 
-        public void SetStoredEnergyPct(float pct)
+        public void Consume(float wattDays) => DrawPower(UnityEngine.Mathf.Min(wattDays, StoredEnergy));
+
+        public void SetGridConnected(bool connected)
         {
-            storedEnergy = Props.capacityWattDays * Mathf.Clamp01(pct);
-            RefreshPowerOutput();
+            gridConnected = connected;
+            RefreshConnection();
         }
 
-        public void Consume(float wattDays)
+        internal void RefreshConnection()
         {
-            storedEnergy = Mathf.Max(0f, StoredEnergy - wattDays);
-            RefreshPowerOutput();
+            if (!parent.Spawned) return;
+            if (!WantsGridConnection)
+                PowerConnectionMaker.DisconnectFromPowerNet(this);
+            else if (connectParent == null)
+                parent.Map.powerNetManager.Notify_ConnectorWantsConnect(this);
+            parent.Map.powerNetManager.NotifyDrawersForWireUpdate(parent.Position);
         }
 
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
             base.PostSpawnSetup(respawningAfterLoad);
-            if (storedEnergy < 0f)
-                storedEnergy = Props.capacityWattDays * Mathf.Clamp01(Props.initialEnergyPercent);
-            if (outputWatts <= 0) outputWatts = Mathf.RoundToInt(Props.maxOutputWatts);
-            outputWatts = Mathf.Clamp(outputWatts, 1,
-                Mathf.Max(1, Mathf.RoundToInt(Props.maxOutputWatts)));
-            RefreshPowerOutput();
-        }
-
-        public override void CompTick()
-        {
-            base.CompTick();
-            RefreshPowerOutput();
-            if (!PowerOn || PowerNet == null
-                || parent.Map.gameConditionManager.ElectricityDisabled(parent.Map)) return;
-            if (PowerOutput > 0f)
-                storedEnergy = Mathf.Max(0f, StoredEnergy
-                    - PowerOutput * CompPower.WattsToWattDaysPerTick);
-            else if (PowerOutput < 0f && GridCanPayForCharge())
-                storedEnergy = Mathf.Min(Props.capacityWattDays, StoredEnergy
-                    - PowerOutput * CompPower.WattsToWattDaysPerTick);
-            // PowerNetTick runs after CompTick and uses this tick's advertised output.
-        }
-
-        private bool GridCanPayForCharge()
-        {
-            float stored = PowerNet.CurrentStoredEnergy();
-            float usable = PowerNet.batteryComps.Count == 0 || stored < 0.1f
-                ? stored : stored - 5f;
-            return usable + PowerNet.CurrentEnergyGainRate() >= -0.0000001f;
-        }
-
-        internal void RefreshPowerOutput()
-        {
-            // 插件停用时保留储能及模式，但不向电网申报充电负载或发电功率。
-            if (parent.TryGetComp<CompSpaceWeaponAttachment>()?.Enabled == false)
-            {
-                PowerOutput = 0f;
-                return;
-            }
-            if (gridOutputEnabled)
-            {
-                if (PowerNet != null && StoredEnergy > 0f && !parent.IsBrokenDown()
-                    && FlickUtility.WantsToBeOn(parent)) PowerOn = true;
-                PowerOutput = PowerNet == null ? 0f : Mathf.Min(outputWatts,
-                    StoredEnergy / CompPower.WattsToWattDaysPerTick);
-            }
-            else
-            {
-                PowerOutput = StoredEnergy + 0.0001f < Props.capacityWattDays
-                    ? -Props.chargingWatts : 0f;
-            }
+            RefreshConnection();
         }
 
         public override void PostExposeData()
         {
+            // Read the switch before CompPower restores its connection in PostLoadInit.
+            Scribe_Values.Look(ref gridConnected, "gridConnected", true);
             base.PostExposeData();
-            Scribe_Values.Look(ref storedEnergy, "storedEnergy", -1f);
-            Scribe_Values.Look(ref gridOutputEnabled, "gridOutputEnabled", false);
-            Scribe_Values.Look(ref outputWatts, "gridOutputWatts", 0);
         }
 
-        public override string CompInspectStringExtra()
-        {
-            string stored = "DeltaV_BatteryStored".Translate(
-                SpaceCombatStats.EnergyAmount(StoredEnergy),
-                SpaceCombatStats.EnergyAmount(Props.capacityWattDays));
-            string power = base.CompInspectStringExtra();
-            return power.NullOrEmpty() ? stored : stored + "\n" + power;
-        }
+        public override string CompInspectStringExtra() => base.CompInspectStringExtra()
+            + "\n" + (WantsGridConnection ? "DeltaV_BatteryGridConnected" : "DeltaV_BatteryGridIsolated").Translate()
+            + "\n" + "DeltaV_BatteryShortCircuitSafe".Translate();
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
             foreach (Gizmo gizmo in base.CompGetGizmosExtra()) yield return gizmo;
-            if (DebugSettings.ShowDevGizmos)
-            {
-                yield return new Command_Action
-                {
-                    defaultLabel = "DEV: Fill",
-                    action = () => SetStoredEnergyPct(1f),
-                };
-                yield return new Command_Action
-                {
-                    defaultLabel = "DEV: Empty",
-                    action = () => SetStoredEnergyPct(0f),
-                };
-            }
             if (parent.Faction != Faction.OfPlayer && !DebugSettings.godMode) yield break;
-            yield return new Command_Toggle
+            yield return new Command_BatchToggle<CompSwitchableBattery>("BatteryGridConnected",
+                this, battery => battery.GridConnected, (battery, connected) => battery.SetGridConnected(connected))
             {
-                defaultLabel = "DeltaV_BatteryGridOutput".Translate(),
-                defaultDesc = "DeltaV_BatteryGridOutputTip".Translate(),
+                defaultLabel = "DeltaV_BatteryGridConnection".Translate(),
+                defaultDesc = "DeltaV_BatteryGridConnectionTip".Translate(),
                 icon = TexCommand.Install,
-                isActive = () => gridOutputEnabled,
-                toggleAction = () =>
-                {
-                    gridOutputEnabled = !gridOutputEnabled;
-                    RefreshPowerOutput();
-                },
-            };
-            if (!gridOutputEnabled) yield break;
-            yield return new Command_Action
-            {
-                defaultLabel = "DeltaV_BatteryOutputWatts".Translate(outputWatts),
-                defaultDesc = "DeltaV_BatteryOutputWattsTip".Translate(),
-                icon = TexCommand.Install,
-                action = () => Find.WindowStack.Add(new Dialog_Slider(
-                    value => "DeltaV_BatteryOutputWatts".Translate(value),
-                    1, Mathf.Max(1, Mathf.RoundToInt(Props.maxOutputWatts)),
-                    value =>
-                    {
-                        outputWatts = value;
-                        RefreshPowerOutput();
-                    }, outputWatts)),
             };
         }
     }

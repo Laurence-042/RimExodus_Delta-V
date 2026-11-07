@@ -299,10 +299,11 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_AttachmentEnabledTip>Temporarily enables or disables this weapon attachment. This command supports multi-selection.</DeltaV_AttachmentEnabledTip>
   <DeltaV_CapacitorStored>Capacitor energy: {0}/{1} W·d</DeltaV_CapacitorStored>
   <DeltaV_BatteryStored>Stored energy: {0}/{1} W·d</DeltaV_BatteryStored>
-  <DeltaV_BatteryGridOutput>Supply power grid</DeltaV_BatteryGridOutput>
-  <DeltaV_BatteryGridOutputTip>When enabled, generate grid power from stored energy at the selected rate, even when demand is lower. Turn off to recharge. Weapon attachments can draw energy directly in either mode.</DeltaV_BatteryGridOutputTip>
-  <DeltaV_BatteryOutputWatts>Grid output: {0} W</DeltaV_BatteryOutputWatts>
-  <DeltaV_BatteryOutputWattsTip>Set the maximum power sent to the grid while this battery has stored energy.</DeltaV_BatteryOutputWattsTip>
+  <DeltaV_BatteryGridConnection>Connect to grid</DeltaV_BatteryGridConnection>
+  <DeltaV_BatteryGridConnectionTip>When enabled, charge from surplus grid power and discharge to meet grid demand. When disabled, stop grid charging and discharging, protecting the reserve from other consumers. Short-circuit protection works in both modes. Attached weapons can still draw directly. Disabling the attachment disconnects it; enabling it restores this setting.</DeltaV_BatteryGridConnectionTip>
+  <DeltaV_BatteryGridConnected>Grid mode: connected</DeltaV_BatteryGridConnected>
+  <DeltaV_BatteryGridIsolated>Grid mode: isolated</DeltaV_BatteryGridIsolated>
+  <DeltaV_BatteryShortCircuitSafe>Short-circuit protection: cannot short circuit; grid shorts cannot drain its reserve</DeltaV_BatteryShortCircuitSafe>
   <DeltaV_StatShotEnergy>Battery energy per shot</DeltaV_StatShotEnergy>
   <DeltaV_StatBeamEnergy>Battery energy per second of illumination</DeltaV_StatBeamEnergy>
   <DeltaV_StatImpactScale>Impact effect multiplier</DeltaV_StatImpactScale>
@@ -317,8 +318,6 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_StatArmorPenetrationScale>Armor penetration multiplier</DeltaV_StatArmorPenetrationScale>
   <DeltaV_StatKineticEnergyBonus>Acceleration energy</DeltaV_StatKineticEnergyBonus>
   <DeltaV_StatCapCapacity>Capacitor capacity</DeltaV_StatCapCapacity>
-  <DeltaV_StatCapChargingPower>Charging power</DeltaV_StatCapChargingPower>
-  <DeltaV_StatCapFullCharge>Empty to full</DeltaV_StatCapFullCharge>
   <DeltaV_StatSeconds>{0} seconds</DeltaV_StatSeconds>
   <DeltaV_StatGameHours>{0} in-game hours</DeltaV_StatGameHours>
   <DeltaV_RailReadiness>Railgun status: {0}</DeltaV_RailReadiness>

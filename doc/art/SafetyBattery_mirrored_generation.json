@@ -1,0 +1,10 @@
+{
+  "tool": "image_gen.imagegen",
+  "prompt": "Edit this exact RimWorld battery sprite, preserving its 1536x1024 canvas, footprint, framing, central horizontal empty dark charge-bar recess, three columns of six metal caps, outer frame, grayscale palette and transparent background. CORRECT ONE GEOMETRIC ERROR: the lower row must be the VERTICAL MIRROR of the upper row about the central horizontal recess. Upper row stays unchanged: each light central trapezoidal face has its WIDE edge toward the TOP outer edge and its NARROW edge toward the center recess. In the LOWER row REVERSE the trapezoid: each light central face must have its NARROW edge at its TOP facing the center recess, and its WIDE edge at its BOTTOM facing the bottom outer frame. Thus ALL SIX central trapezoids have wide edges OUTWARD and narrow edges INWARD. Lower-row diagonal side-face boundaries must slope opposite to upper row. Mirror the lower cap chamfers too. This is essential, do not duplicate the same downward taper into both rows. Match corresponding cap outlines and partitions under vertical reflection, maintaining left light side planes and right darker side planes. Matte faceted metal covers with three visible planes, no flat glowing light panels. Neutral grayscale tintable material, no blue or bronze painted into source, no red/green, no symbols, text or buttons. Pure orthographic top-down, bold dark outlines, simple broad shading, no perspective or new detail. Transparent outside the building.",
+  "input": "doc/art/SafetyBattery_faceted_concept.png",
+  "generated_source": "C:/Users/Laure/.codex/generated_images/01a1b4c9-fb1d-79f1-8085-49c7492d3094/exec-f01fdb8f-528a-43ad-b0a8-ab2d13b88ecb.png",
+  "output": "doc/art/SafetyBattery_mirrored_concept.png",
+  "transparent_background": true,
+  "status": "integrated_2026-11-07",
+  "palette": "Source/Rendering/StorageStateColors.cs"
+}

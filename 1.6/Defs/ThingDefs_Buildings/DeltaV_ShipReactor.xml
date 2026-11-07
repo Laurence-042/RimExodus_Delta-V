@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_ShipReactor</defName>
+    <label>shipboard fission reactor</label>
+    <description>A sustained power source for large ships. Generates 24000 W while fueled and switched on, consuming 4 uranium per day. Holds 120 uranium, enough for 30 days. Starts empty; haulers supply uranium up to the configured target. Switching it off stops fuel consumption. Its sealed core and integrated cooling allow operation under a roof and in vacuum without separate coolant or waste handling. Requires substructure and ordinary component repairs when it breaks down.</description>
+    <thingClass>Building</thingClass>
+    <drawerType>MapMeshAndRealTime</drawerType>
+    <tickerType>Normal</tickerType>
+    <size>(4,4)</size>
+    <rotatable>true</rotatable>
+    <designationCategory>Power</designationCategory>
+    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
+    <passability>Impassable</passability>
+    <fillPercent>1</fillPercent>
+    <castEdgeShadows>true</castEdgeShadows>
+    <constructionSkillPrerequisite>10</constructionSkillPrerequisite>
+    <statBases>
+      <WorkToBuild>40000</WorkToBuild>
+      <MaxHitPoints>800</MaxHitPoints>
+      <Mass>1200</Mass>
+      <Flammability>0</Flammability>
+    </statBases>
+    <costList>
+      <Steel>800</Steel><Plasteel>200</Plasteel><ComponentIndustrial>20</ComponentIndustrial>
+      <ComponentSpacer>8</ComponentSpacer><Uranium>80</Uranium>
+    </costList>
+    <graphicData>
+      <texPath>Things/Building/Power/ShipReactor</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>(4.70,4.73)</drawSize>
+      <damageData><enabled>false</enabled></damageData>
+    </graphicData>
+    <building><isEdifice>true</isEdifice></building>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipNuclearPower</li></researchPrerequisites>
+    <comps>
+      <li Class="CompProperties_Power">
+        <compClass>CompPowerPlant</compClass>
+        <basePowerConsumption>-24000</basePowerConsumption>
+        <transmitsPower>true</transmitsPower>
+        <shortCircuitInRain>false</shortCircuitInRain>
+      </li>
+      <li Class="CompProperties_Refuelable">
+        <fuelConsumptionRate>4</fuelConsumptionRate>
+        <fuelCapacity>120</fuelCapacity>
+        <initialFuelPercent>0</initialFuelPercent>
+        <fuelFilter><thingDefs><li>Uranium</li></thingDefs></fuelFilter>
+        <consumeFuelOnlyWhenPowered>true</consumeFuelOnlyWhenPowered>
+        <showFuelGizmo>true</showFuelGizmo>
+        <showAllowAutoRefuelToggle>true</showAllowAutoRefuelToggle>
+        <targetFuelLevelConfigurable>true</targetFuelLevelConfigurable>
+        <initialConfigurableTargetFuelLevel>120</initialConfigurableTargetFuelLevel>
+        <functionsInVacuum>true</functionsInVacuum>
+      </li>
+      <li Class="CompProperties_Flickable" />
+      <li Class="CompProperties_Breakdownable" />
+    </comps>
+  </ThingDef>
+</Defs>

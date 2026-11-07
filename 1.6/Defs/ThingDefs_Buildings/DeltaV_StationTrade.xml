@@ -31,7 +31,7 @@
     <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
     <passability>PassThroughOnly</passability>
     <fillPercent>0.4</fillPercent>
-    <drawerType>MapMeshAndRealTime</drawerType>
+    <drawerType>RealtimeOnly</drawerType>
     <surfaceType>Item</surfaceType>
     <drawGUIOverlay>true</drawGUIOverlay>
     <useHitPoints>true</useHitPoints>
@@ -63,6 +63,7 @@
   <ThingDef ParentName="DeltaVCargoBase">
     <defName>DeltaV_CargoStorage</defName>
     <thingClass>DeltaV.Building_SpaceCargoContainer</thingClass>
+    <drawerType>MapMeshAndRealTime</drawerType>
     <designationCategory IsNull="True" />
     <comps Inherit="False"><li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_SpaceCargo" /></comps>
     <modExtensions><li Class="AdaptiveStorage.Extension" /></modExtensions>

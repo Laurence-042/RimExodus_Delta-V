@@ -10,4 +10,6 @@
   <DeltaV_ShipShields.description>建造小型与标准舰载护盾发生器。每台发生器均可切换为守卫护盾、改变实体弹道的动能屏障，或折射激光的电磁屏障。</DeltaV_ShipShields.description>
   <DeltaV_Railguns.label>电磁轨道炮</DeltaV_Railguns.label>
   <DeltaV_Railguns.description>建造小型与大型轨道炮装弹机、配套加速段和电容。轨道炮消耗高能电脉冲，贯穿舰船防御并打击内部舱室。掌握精密装配后，还可建造能量回收插件，降低加速段耗能。</DeltaV_Railguns.description>
+  <DeltaV_ShipNuclearPower.label>舰载核能</DeltaV_ShipNuclearPower.label>
+  <DeltaV_ShipNuclearPower.description>建造以铀为燃料的紧凑型裂变反应堆，为舰上维生、工业与武器提供持续电力。</DeltaV_ShipNuclearPower.description>
 </LanguageData>

@@ -36,6 +36,8 @@ internal static partial class Program
         bool oldGod = DebugSettings.godMode;
         var player = new Faction { def = new FactionDef { isPlayer = true } };
         var enemy = new Faction { def = new FactionDef() };
+        var relation = new FactionRelation { other = player, kind = FactionRelationKind.Hostile };
+        Set(enemy, "relations", new List<FactionRelation> { relation });
         Find.World.factionManager = (FactionManager)Raw(typeof(FactionManager));
         Set(Find.World.factionManager, "ofPlayer", player);
         var cargoMap = (Map)Raw(typeof(Map));
@@ -81,8 +83,28 @@ internal static partial class Program
             Check(!cargo.IsUnlocked && cargo.GetComp<CompHackable>().ProgressPercent == 0,
                 "God Mode resets the native hackable comp");
             var lockedColor = (UnityEngine.Color)tint.Invoke(cargoComp, null);
-            Check(lockedColor.r > lockedColor.b && sealedColor.b > sealedColor.r,
+            Check(lockedColor.g > lockedColor.r && lockedColor.g > lockedColor.b
+                && sealedColor.r == sealedColor.g && sealedColor.g == sealedColor.b,
                 "terminal state color follows the native lock state rather than paint or a saved visual flag");
+            UnityEngine.Color NpcTint() => (UnityEngine.Color)tint.Invoke(npc.GetComp<CompSpaceCargo>(), null);
+            Check(NpcTint().r > NpcTint().g && NpcTint().r > NpcTint().b,
+                "locked hostile cargo uses enemy-terminal red");
+            relation.kind = FactionRelationKind.Neutral;
+            Check(NpcTint() == lockedColor && !npc.IsUnlocked,
+                "diplomacy changes locked cargo to ancient-terminal green without unlocking it");
+            relation.kind = FactionRelationKind.Hostile;
+            npc.SetFactionDirect(null);
+            Check(NpcTint() == lockedColor, "unowned locked cargo uses ancient-terminal green");
+            npc.SetFactionDirect(enemy);
+            Set(npc.GetComp<CompHackable>(), "hacked", true);
+            Check(NpcTint() == sealedColor, "unlocked sealed cargo stays gray even when its owner is hostile");
+            var active = new Building_SpaceCargoContainer { def = MakeDef("activePalette") };
+            var activeComp = new CompSpaceCargo { parent = active, props = new CompProperties_SpaceCargo() };
+            var activeColor = (UnityEngine.Color)tint.Invoke(activeComp, null);
+            var palette = typeof(CompSpaceCargo).Assembly.GetType("DeltaV.StorageStateColors");
+            Check(activeColor == (UnityEngine.Color)AccessTools.Field(palette, "Active").GetValue(null)
+                && sealedColor == (UnityEngine.Color)AccessTools.Field(palette, "Reserved").GetValue(null),
+                "cargo reads the same active/reserved palette as the battery");
             cargoComp.PostSpawnSetup(false);
             Check(!cargo.IsUnlocked, "transferring a dev-locked crate does not unlock it");
 

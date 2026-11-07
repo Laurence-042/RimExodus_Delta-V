@@ -197,7 +197,7 @@ internal static partial class Program
             DefDatabase<SpaceImpactEffectDef>.Add(effect);
         }
         SpaceImpactEffects.ResetCache();
-        if (energyOnly) { CheckEnergy(); CheckCargoTemperature(); CheckEquipmentIntegration(); return; }
+        if (energyOnly) { CheckEnergy(); CheckBatteryIsolation(); CheckShipReactor(); CheckCargoTemperature(); CheckEquipmentIntegration(); return; }
 
         CheckGuardCenters();
 
@@ -481,6 +481,8 @@ internal static partial class Program
         CheckDualGuard(harmony);
         CheckContinuousBeam(coupler, engineering);
         CheckEnergy();
+        CheckBatteryIsolation();
+        CheckShipReactor();
         CheckRailgunLengthBaseline();
         CheckImpulseSurvival();
         CheckLateralTransform();
@@ -918,10 +920,10 @@ internal static partial class Program
                 && wp.shotEnergy + count * rp.shotEnergy == 6750,
                 suffix + " real Defs meet declared shield-breaking budget and energy threshold");
             XElement cap = Comp("DeltaV_Building_RailgunCapacitor" + suffix, "SwitchableBattery");
-            Check((float)cap.Element("capacityWattDays") == rp.shotEnergy
-                && (float)cap.Element("initialEnergyPercent") == 0
-                && Math.Abs((float)cap.Element("capacityWattDays") * 60000 / (float)cap.Element("chargingWatts") - 108000) < 1,
-                suffix + " capacitor stores one paid pulse, starts empty and recharges slowly");
+            Check((float)cap.Element("storedEnergyMax") == rp.shotEnergy
+                && (float)cap.Element("efficiency") == 1
+                && cap.Element("chargingWatts") == null && cap.Element("maxOutputWatts") == null,
+                suffix + " capacitor stores one paid pulse and uses vanilla surplus charging at full efficiency");
 
             segments[2].parent.GetComp<CompPowerTrader>().transNet = net;
             var recovery = new CompRailgunEnergyRecovery { props = new CompProperties_RailgunEnergyRecovery() };
@@ -944,7 +946,7 @@ internal static partial class Program
             Check(Plan(wp.shotEnergy + rp.shotEnergy * .5f) && energy.active.Count == 0,
                 suffix + " disabling recovery updates live affordability without rebuilding layout");
             local.Remove(module2);
-            var reserve = new CompSwitchableBattery { props = new CompProperties_SwitchableBattery { capacityWattDays = 3600 } };
+            var reserve = new CompSwitchableBattery { props = new CompProperties_SwitchableBattery { storedEnergyMax = 3600 } };
             var capAttachment = new CompSpaceWeaponCapacitor { props = new CompProperties_SpaceWeaponCapacitor() };
             Set(capAttachment, "enabled", true); Set(reserve, "storedEnergy", rp.shotEnergy * .75f);
             local.Add(Add(12, 5, 100, reserve, capAttachment));
@@ -953,6 +955,30 @@ internal static partial class Program
             energy.Commit();
             Check(battery.StoredEnergy == 0f && reserve.StoredEnergy == 0f,
                 suffix + " mixed loadout deducts grid base and discounted capacitor pulse separately");
+            // The same capacitor is now both a dedicated local source and a public grid battery.
+            reserve.transNet = net; net.batteryComps.Insert(0, reserve);
+            float localCost = rp.shotEnergy * .75f;
+            Set(reserve, "storedEnergy", localCost);
+            Check(Plan(wp.shotEnergy) && energy.active.Count == 1,
+                "grid-first reservation cannot reuse the connected local capacitor for later segments");
+            energy.Commit();
+            Check(battery.StoredEnergy == 0 && reserve.StoredEnergy == 0,
+                "connected capacitor pays its reserved local pulse before public grid withdrawal");
+            Set(reserve, "storedEnergy", wp.shotEnergy);
+            Check(Plan(0) && energy.active.Count == 0,
+                "loader spending the entire connected capacitor leaves no phantom local pulse");
+            energy.Commit();
+            Check(reserve.StoredEnergy == 0, "grid-only draw consumes connected capacitor exactly once");
+            local.Remove(reserve.parent);
+            weapon.Layout.attachments.Add(reserve.parent);
+            Set(reserve, "storedEnergy", wp.shotEnergy);
+            Check(Plan(localCost) && energy.active.Count == 1,
+                "local-first reservation subtracts from the shared net before downstream grid planning");
+            energy.Commit();
+            Check(battery.StoredEnergy == 0 && reserve.StoredEnergy == 0,
+                "local-first mixed payment conserves both battery balances");
+            weapon.Layout.attachments.Clear();
+            net.batteryComps.Remove(reserve); reserve.transNet = null;
             local.Clear();
             Check(Plan(wp.shotEnergy + rp.shotEnergy * .75f) && energy.active.Count == 0,
                 suffix + " removing recovery restores full segment price");

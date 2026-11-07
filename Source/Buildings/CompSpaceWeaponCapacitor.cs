@@ -17,6 +17,7 @@ namespace DeltaV
         private CompSwitchableBattery Battery => parent.TryGetComp<CompSwitchableBattery>();
 
         public override float AvailableShotEnergy => Battery?.StoredEnergy ?? 0f;
+        public override CompPowerBattery ShotEnergyBattery => Battery;
 
         public override bool CanSupplyShotEnergy(float wattDays) => Enabled && wattDays > 0f
             && Battery?.CanSupply(wattDays) == true;

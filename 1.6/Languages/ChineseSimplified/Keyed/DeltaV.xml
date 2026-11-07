@@ -299,10 +299,11 @@
   <DeltaV_AttachmentEnabledTip>启用或停用这个武器插件。多选插件后可一起切换。</DeltaV_AttachmentEnabledTip>
   <DeltaV_CapacitorStored>电容储能：{0}/{1} W·d</DeltaV_CapacitorStored>
   <DeltaV_BatteryStored>储能：{0}/{1} W·d</DeltaV_BatteryStored>
-  <DeltaV_BatteryGridOutput>向电网供电</DeltaV_BatteryGridOutput>
-  <DeltaV_BatteryGridOutputTip>开启后以设定功率向电网供电，储能会持续消耗，即使电网暂时用不完这些电力。关闭后恢复充电。两种模式下，所连接的武器都能直接使用电容储能。</DeltaV_BatteryGridOutputTip>
-  <DeltaV_BatteryOutputWatts>电网输出：{0} W</DeltaV_BatteryOutputWatts>
-  <DeltaV_BatteryOutputWattsTip>设置向电网供电的功率。储能不足时，实际输出会降低。</DeltaV_BatteryOutputWattsTip>
+  <DeltaV_BatteryGridConnection>接入电网</DeltaV_BatteryGridConnection>
+  <DeltaV_BatteryGridConnectionTip>开启后使用电网余电充电，并按需向公共电网放电。关闭后停止公共充放电，隔离其他设备取电；接网与脱网均有短路保护。所属武器仍可直接使用电容储能。插件禁用时保持脱网，重新启用后恢复此设置。</DeltaV_BatteryGridConnectionTip>
+  <DeltaV_BatteryGridConnected>电网模式：接网</DeltaV_BatteryGridConnected>
+  <DeltaV_BatteryGridIsolated>电网模式：隔离</DeltaV_BatteryGridIsolated>
+  <DeltaV_BatteryShortCircuitSafe>短路保护：不会短路，电网短路不会抽走储能</DeltaV_BatteryShortCircuitSafe>
   <DeltaV_StatShotEnergy>每发蓄电消耗</DeltaV_StatShotEnergy>
   <DeltaV_StatBeamEnergy>持续照射每秒蓄电消耗</DeltaV_StatBeamEnergy>
   <DeltaV_StatImpactScale>命中效果倍率</DeltaV_StatImpactScale>
@@ -317,8 +318,6 @@
   <DeltaV_StatArmorPenetrationScale>护甲穿透倍率</DeltaV_StatArmorPenetrationScale>
   <DeltaV_StatKineticEnergyBonus>加速动能</DeltaV_StatKineticEnergyBonus>
   <DeltaV_StatCapCapacity>电容储能上限</DeltaV_StatCapCapacity>
-  <DeltaV_StatCapChargingPower>充电功率</DeltaV_StatCapChargingPower>
-  <DeltaV_StatCapFullCharge>充满所需时间</DeltaV_StatCapFullCharge>
   <DeltaV_StatSeconds>{0} 秒</DeltaV_StatSeconds>
   <DeltaV_StatGameHours>{0} 游戏小时</DeltaV_StatGameHours>
   <DeltaV_RailReadiness>轨道炮状态：{0}</DeltaV_RailReadiness>

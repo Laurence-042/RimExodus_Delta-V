@@ -3,12 +3,14 @@ from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
 from PIL import Image, ImageChops, ImageDraw
+from storage_state_palette import production_colors
 
 ROOT = Path(__file__).resolve().parents[1]
 ART = ROOT / '1.6/Textures/Things/Building/StationTrade'
 XML = ET.parse(ROOT / '1.6/Defs/ThingDefs_Buildings/DeltaV_StationTrade.xml').getroot()
 CARGO = next(d for d in XML.findall('ThingDef') if d.findtext('defName') == 'DeltaV_CargoContainer')
-COLORS = [(255,158,41),(51,166,255),(64,217,97)] # CompSpaceCargo.TerminalColor
+PALETTE = production_colors()
+COLORS = [PALETTE[n] for n in ('Locked','Reserved','Active','HostileLocked')]
 
 def nums(text): return tuple(float(n) for n in re.findall(r'-?(?:\d*\.\d+|\d+)', text))
 

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_ShipReactor.label>舰载裂变反应堆</DeltaV_ShipReactor.label>
+  <DeltaV_ShipReactor.description>为大型飞船提供持续电力。有燃料且开启时输出24000W，每天消耗4单位铀；最多储存120单位，可连续运行30天。建成时为空，搬运工按设定的目标燃料量补充铀，关闭后停止耗料。密封堆芯与一体化冷却允许其在屋顶下和真空中运行，无需另外补充冷却剂或处理废料。必须建在基架上，故障时需要用零部件维修。</DeltaV_ShipReactor.description>
+</LanguageData>
