@@ -38,9 +38,7 @@
 
   <!-- 装弹机在船内；加速段的内构与外壳按原版多层绘制进入船壳。 -->
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunLoader</defName><thingDef>DeltaV_Weapon_RailgunLoader</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
-  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_HideRailgunLoaderLarge</defName><thingDef>DeltaV_Weapon_RailgunLoaderLarge</thingDef><exclude>true</exclude></DeltaV.ShellRenderRuleDef>
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_RailgunAccelerator</defName><thingDef>DeltaV_Weapon_RailgunAccelerator</thingDef><render><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
-  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_RailgunAcceleratorLarge</defName><thingDef>DeltaV_Weapon_RailgunAcceleratorLarge</thingDef><render><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
 
   <!-- Interior port / exterior raised cargo box share one inventory and footprint. -->
   <DeltaV.ShellRenderRuleDef Name="DeltaVCargoShell" Abstract="True">

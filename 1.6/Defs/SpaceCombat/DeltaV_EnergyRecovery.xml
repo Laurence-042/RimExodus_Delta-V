@@ -13,7 +13,10 @@
     <costList><Steel>80</Steel><Plasteel>30</Plasteel><ComponentIndustrial>4</ComponentIndustrial><ComponentSpacer>1</ComponentSpacer></costList>
     <statBases><WorkToBuild>4000</WorkToBuild><MaxHitPoints>100</MaxHitPoints></statBases>
     <comps><li Class="CompProperties_Forbiddable" /><li Class="DeltaV.CompProperties_RailgunEnergyRecovery">
-      <reduction>0.25</reduction><allowedHostDefs><li>DeltaV_Weapon_RailgunAccelerator</li><li>DeltaV_Weapon_RailgunAcceleratorLarge</li></allowedHostDefs>
+      <reduction>0.25</reduction>
+      <allowedHostDefs>
+        <li>DeltaV_Weapon_RailgunAccelerator</li>
+      </allowedHostDefs>
     </li></comps>
   </ThingDef>
 </Defs>

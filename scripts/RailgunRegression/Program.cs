@@ -762,15 +762,14 @@ internal static partial class Program
         XElement Comp(string name, string type) => xml.Root.Elements("ThingDef")
             .Single(x => (string)x.Element("defName") == name).Element("comps").Elements("li")
             .Single(x => (string)x.Attribute("Class") == "DeltaV.CompProperties_" + type);
-        foreach (bool large in new[] { false, true })
         foreach (int guardCount in new[] { 3, 4 })
         {
             Reset();
-            string suffix = large ? "Large" : "";
+            string suffix = "";
             var loader = Comp("DeltaV_Weapon_RailgunLoader" + suffix, "SpaceWeapon");
             var segment = Comp("DeltaV_Weapon_RailgunAccelerator" + suffix, "SpaceRailgun");
-            int count = large ? 4 : 14;
-            float mass = large ? 40 : 20;
+            int count = 9;
+            float mass = 30;
             float speed = SpaceKinetics.Speed(mass, (float)loader.Element("launchKineticEnergy")
                 + count * (float)segment.Element("kineticEnergyBonus"));
             float budget = SpaceImpactEffects.ComputeDamage(
@@ -801,14 +800,26 @@ internal static partial class Program
     static void CheckEnergy()
     {
         var xml = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml");
+        var hosts = xml.Root.Elements("ThingDef").Where(d => d.Element("comps")?.Elements("li").Any(c =>
+            (string)c.Attribute("Class") is "DeltaV.CompProperties_SpaceWeapon" or "DeltaV.CompProperties_SpaceRailgun") == true)
+            .ToDictionary(d => (string)d.Element("defName"), d => MakeDef((string)d.Element("defName")));
+        var recoveryXml = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_EnergyRecovery.xml").Root
+            .Elements("ThingDef").Single(d => (string)d.Element("defName") == "DeltaV_RailgunEnergyRecovery")
+            .Element("comps").Elements("li").Single(c => (string)c.Attribute("Class") == "DeltaV.CompProperties_RailgunEnergyRecovery");
+        var recoveryProps = new CompProperties_RailgunEnergyRecovery {
+            allowedHostDefs = recoveryXml.Element("allowedHostDefs")?.Elements("li").Select(n => hosts[n.Value]).ToList()
+                ?? new List<ThingDef>() };
+        var recoveryAttachment = new CompRailgunEnergyRecovery { props = recoveryProps };
+        foreach (var host in hosts)
+            Check(recoveryAttachment.CompatibleWith(host.Value) == (host.Key == "DeltaV_Weapon_RailgunAccelerator"),
+                "production recovery whitelist accepts only rail accelerators: " + host.Key);
         XElement Comp(string name, string type) => xml.Root.Elements("ThingDef")
             .Single(x => (string)x.Element("defName") == name).Element("comps").Elements("li")
             .Single(x => (string)x.Attribute("Class") == "DeltaV.CompProperties_" + type);
-        foreach (bool large in new[] { false, true })
         {
             Reset();
-            string suffix = large ? "Large" : "";
-            rail.GetCompProperties<CompProperties_SpaceProjectile>().mass = large ? 40 : 20;
+            string suffix = "";
+            rail.GetCompProperties<CompProperties_SpaceProjectile>().mass = 30;
             XElement loader = Comp("DeltaV_Weapon_RailgunLoader" + suffix, "SpaceWeapon");
             XElement accelerator = Comp("DeltaV_Weapon_RailgunAccelerator" + suffix, "SpaceRailgun");
             var wp = new CompProperties_SpaceWeapon { projectileDef = rail, intrinsicAimSkill = 10, shotEnergy = (float)loader.Element("shotEnergy"),
@@ -861,7 +872,7 @@ internal static partial class Program
                     var firing = SpaceWeaponBallistics.Read(weapon, hull, weapon.ExecutionEnergy, true).aim;
                     SpaceWeaponBallistics.TryAim(preview, hull.pose, targetPose, out var previewPoint);
                     SpaceWeaponBallistics.TryAim(firing, hull.pose, targetPose, out var firingPoint);
-                    float massForPreview = large ? 40 : 20;
+                    float massForPreview = 30;
                     int expectedStages = charge >= fullCost ? 3 : charge >= wp.shotEnergy + rp.shotEnergy ? 1 : 0;
                     float expectedSpeed = (float)Math.Sqrt(2 * (wp.launchKineticEnergy + expectedStages * rp.kineticEnergyBonus) / massForPreview);
                     Check(Math.Abs(preview.Speed - expectedSpeed) < .001f,
@@ -894,7 +905,7 @@ internal static partial class Program
             Check(Plan(wp.shotEnergy + rp.shotEnergy)
                 && energy.kineticEnergyBonus == 2 * rp.kineticEnergyBonus,
                 suffix + " unfunded middle segment does not block later funded acceleration");
-            int count = large ? 4 : 14;
+            int count = 9;
             float velocity;
             XElement magazine = Comp("DeltaV_Weapon_RailgunLoader" + suffix, "SpaceWeaponMagazine");
             float mass = (float)magazine.Element("ammoPerShot") * ((float?)magazine.Element("unitMass") ?? 1f);

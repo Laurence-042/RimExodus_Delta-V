@@ -31,7 +31,7 @@ def draw_host(name, tile):
         canvas.alpha_composite(shell,(0,-round(h*tile/2)))
     return canvas
 
-names=['DeltaV_SafetyBattery','DeltaV_Weapon_RailgunAccelerator','DeltaV_Weapon_RailgunAcceleratorLarge','DeltaV_CargoContainer']
+names=['DeltaV_SafetyBattery','DeltaV_Weapon_RailgunAccelerator','DeltaV_CargoContainer']
 for name in ['DeltaV_SafetyBattery','DeltaV_RailgunEnergyRecovery','DeltaV_CargoTemperatureModule']:
     path=TEXTURES/(defs[name].findtext('graphicData/texPath')+'.png');im=Image.open(path)
     assert im.mode=='RGBA' and im.getchannel('A').getextrema()[0]==0 and im.getchannel('A').getextrema()[1]>=250,path

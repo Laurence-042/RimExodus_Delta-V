@@ -16,7 +16,7 @@ namespace DeltaV
     public class CompProperties_SpaceRailgun : CompProperties
     {
         public RailgunPartRole role = RailgunPartRole.Accelerator;
-        public float kineticEnergyBonus = 75000f;
+        public float kineticEnergyBonus = 112500f;
         public bool movesMuzzle = true;
         public IntVec3 outputOffset = IntVec3.Zero;
         public IntVec3 nextRootOffset = new IntVec3(0, 0, 1);

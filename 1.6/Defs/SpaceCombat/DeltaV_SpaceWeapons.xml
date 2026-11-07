@@ -827,11 +827,11 @@
   </ThingDef>
   <ThingDef ParentName="BuildingBase">
     <hasInteractionCell>true</hasInteractionCell>
-    <interactionCellOffset>(0,0,-1)</interactionCellOffset>
+    <interactionCellOffset>(-1,0,-1)</interactionCellOffset>
     <defName>DeltaV_Weapon_RailgunLoader</defName>
     <uiOrder>-192</uiOrder>
-    <label>small railgun loading unit</label>
-    <description>A fixed-axis siege railgun with built-in fire control. Each shot requires manufactured projectile heads and 450 Wd, with a 30-second firing interval. Powered serial accelerators increase velocity, deep penetration and shield-breaking power. Oblique impacts on kinetic line shields readily destabilize or tear the long rod, removing its deep penetration. Its single slot accepts either a uranium magazine or a matching railgun capacitor. The capacitor supplies the base firing pulse when sufficiently charged; otherwise the pulse is drawn from grid batteries.</description>
+    <label>railgun loading unit</label>
+    <description>A fixed-axis siege railgun with built-in fire control. Each shot requires manufactured projectile heads and 675 Wd, with a 35-second firing interval. Powered serial accelerators increase velocity, deep penetration and shield-breaking power. Oblique impacts on kinetic line shields readily destabilize or tear the long rod, removing its deep penetration. Its single slot accepts either a uranium magazine or a railgun capacitor. The capacitor supplies the base firing pulse when sufficiently charged; otherwise the pulse is drawn from grid batteries.</description>
     <uiIconPath>Things/Building/SpaceWeapons/RailgunLoader_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
     <thingClass>Building</thingClass>
@@ -839,7 +839,7 @@
     <rotatable>true</rotatable>
     <tickerType>Normal</tickerType>
     <passability>Impassable</passability>
-    <size>(2,1)</size>
+    <size>(3,1)</size>
     <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
     <designationCategory>Security</designationCategory>
     <fillPercent>1</fillPercent>
@@ -853,14 +853,14 @@
         <texPath>Things/Building/SpaceWeapons/RailgunLoader_MenuIcon</texPath>
         <graphicClass>Graphic_Single</graphicClass>
         <shaderType>EdgeDetect</shaderType>
-        <drawSize>(2,2)</drawSize>
+        <drawSize>(3,2)</drawSize>
       </blueprintGraphicData>
     </building>
     <graphicData>
       <texPath>Things/Building/SpaceWeapons/RailgunLoader_Inner</texPath>
       <graphicClass>Graphic_Single</graphicClass>
       <shaderType>CutoutComplex</shaderType>
-      <drawSize>(2,1)</drawSize>
+      <drawSize>(3,1)</drawSize>
       <damageData>
         <enabled>false</enabled>
       </damageData>
@@ -868,10 +868,10 @@
     <placeWorkers>
       <li>DeltaV.PlaceWorker_RailgunPart</li>
     </placeWorkers>
-    <costList Inherit="False"><Steel>300</Steel><Plasteel>60</Plasteel><ComponentIndustrial>8</ComponentIndustrial><ComponentSpacer>1</ComponentSpacer></costList>
+    <costList Inherit="False"><Steel>450</Steel><Plasteel>90</Plasteel><ComponentIndustrial>12</ComponentIndustrial><ComponentSpacer>2</ComponentSpacer></costList>
     <statBases>
-      <WorkToBuild>15000</WorkToBuild>
-      <MaxHitPoints>400</MaxHitPoints>
+      <WorkToBuild>22500</WorkToBuild>
+      <MaxHitPoints>600</MaxHitPoints>
     </statBases>
     <comps>
       <li Class="DeltaV.CompProperties_RailgunShell">
@@ -880,7 +880,7 @@
       <li Class="CompProperties_Forbiddable" />
       <li Class="CompProperties_Power">
         <compClass>CompPowerTrader</compClass>
-        <basePowerConsumption>140</basePowerConsumption>
+        <basePowerConsumption>220</basePowerConsumption>
       </li>
       <li Class="CompProperties_Mannable">
         <manWorkType>Violent</manWorkType>
@@ -892,7 +892,7 @@
         <fuelFilter><thingDefs><li>DeltaV_SteelHead</li></thingDefs></fuelFilter>
       </li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine">
-        <ammoPerShot>20</ammoPerShot>
+        <ammoPerShot>30</ammoPerShot>
         <unitMass>1</unitMass>
       </li>
       <li Class="DeltaV.CompProperties_SpaceWeapon">
@@ -903,20 +903,20 @@
         <defaultFireDeviationDeg>1</defaultFireDeviationDeg>
         <defaultManualFireDeviationDeg>180</defaultManualFireDeviationDeg>
         <intrinsicAimSkill>10</intrinsicAimSkill>
-        <baseSpreadDeg>0.15</baseSpreadDeg>
-        <cooldownTicks>1800</cooldownTicks>
-        <minRange>20</minRange>
-        <range>420</range>
-        <launchKineticEnergy>75000</launchKineticEnergy>
-        <shotEnergy>450</shotEnergy>
+        <baseSpreadDeg>0.125</baseSpreadDeg>
+        <cooldownTicks>2100</cooldownTicks>
+        <minRange>25</minRange>
+        <range>510</range>
+        <launchKineticEnergy>112500</launchKineticEnergy>
+        <shotEnergy>675</shotEnergy>
         <impactScale>1</impactScale>
         <muzzleFlashSize>2.6</muzzleFlashSize>
         <muzzleOffset>(0,0.6)</muzzleOffset>
         <attachmentSlots>
           <li>
             <cell>(1,0,0)</cell>
-            <drawOffset>(0.18,0)</drawOffset>
-            <drawScale>0.50</drawScale>
+            <drawOffset>(0.02,0)</drawOffset>
+            <drawScale>0.65</drawScale>
           </li>
         </attachmentSlots>
         <allowedAttachmentDefs>
@@ -935,119 +935,10 @@
     <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li></researchPrerequisites>
   </ThingDef>
   <ThingDef ParentName="BuildingBase">
-    <hasInteractionCell>true</hasInteractionCell>
-    <interactionCellOffset>(0,0,-1)</interactionCellOffset>
-    <defName>DeltaV_Weapon_RailgunLoaderLarge</defName>
-    <uiOrder>-189</uiOrder>
-    <label>large railgun loading unit</label>
-    <description>A large fixed-axis siege railgun with built-in fire control. Each shot requires manufactured projectile heads and 1,350 Wd, with a 40-second firing interval. Powered serial accelerators increase velocity, deep penetration and shield-breaking power. Oblique impacts on kinetic line shields readily destabilize or tear the long rod, removing its deep penetration. Its single slot accepts either a uranium magazine or a matching railgun capacitor. The capacitor supplies the base firing pulse when sufficiently charged; otherwise the pulse is drawn from grid batteries.</description>
-    <uiIconPath>Things/Building/SpaceWeapons/RailgunLoader_MenuIcon</uiIconPath>
-    <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
-    <thingClass>Building</thingClass>
-    <drawerType>MapMeshAndRealTime</drawerType>
-    <rotatable>true</rotatable>
-    <tickerType>Normal</tickerType>
-    <passability>Impassable</passability>
-    <size>(4,2)</size>
-    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
-    <designationCategory>Security</designationCategory>
-    <fillPercent>1</fillPercent>
-    <holdsRoof>true</holdsRoof>
-    <blockLight>true</blockLight>
-    <blockWind>true</blockWind>
-    <building>
-      <isAirtight>true</isAirtight>
-      <isEdifice>true</isEdifice>
-      <blueprintGraphicData>
-        <texPath>Things/Building/SpaceWeapons/RailgunLoader_MenuIcon</texPath>
-        <graphicClass>Graphic_Single</graphicClass>
-        <shaderType>EdgeDetect</shaderType>
-        <drawSize>(4,4)</drawSize>
-      </blueprintGraphicData>
-    </building>
-    <graphicData>
-      <texPath>Things/Building/SpaceWeapons/RailgunLoader_Inner</texPath>
-      <graphicClass>Graphic_Single</graphicClass>
-      <shaderType>CutoutComplex</shaderType>
-      <drawSize>(4,2)</drawSize>
-      <damageData>
-        <enabled>false</enabled>
-      </damageData>
-    </graphicData>
-    <placeWorkers>
-      <li>DeltaV.PlaceWorker_RailgunPart</li>
-    </placeWorkers>
-    <costList Inherit="False"><Steel>600</Steel><Plasteel>120</Plasteel><ComponentIndustrial>16</ComponentIndustrial><ComponentSpacer>2</ComponentSpacer></costList>
-    <statBases>
-      <WorkToBuild>30000</WorkToBuild>
-      <MaxHitPoints>800</MaxHitPoints>
-    </statBases>
-    <comps>
-      <li Class="DeltaV.CompProperties_RailgunShell">
-        <texPath>Things/Building/SpaceWeapons/RailgunShell</texPath>
-      </li>
-      <li Class="CompProperties_Forbiddable" />
-      <li Class="CompProperties_Power">
-        <compClass>CompPowerTrader</compClass>
-        <basePowerConsumption>300</basePowerConsumption>
-      </li>
-      <li Class="CompProperties_Mannable">
-        <manWorkType>Violent</manWorkType>
-      </li>
-      <li Class="DeltaV.CompProperties_GunSupply">
-        <kind>Heads</kind>
-        <fuelCapacity>600</fuelCapacity>
-        <initialConfigurableTargetFuelLevel>600</initialConfigurableTargetFuelLevel>
-        <fuelFilter><thingDefs><li>DeltaV_SteelHead</li></thingDefs></fuelFilter>
-      </li>
-      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine">
-        <ammoPerShot>40</ammoPerShot>
-        <unitMass>1</unitMass>
-      </li>
-      <li Class="DeltaV.CompProperties_SpaceWeapon">
-        <projectileDef>DeltaV_Projectile_RailgunSlug</projectileDef>
-        <topTurret>false</topTurret>
-        <fireArcDeg>0</fireArcDeg>
-        <lockArcDeg>360</lockArcDeg>
-        <defaultFireDeviationDeg>1</defaultFireDeviationDeg>
-        <defaultManualFireDeviationDeg>180</defaultManualFireDeviationDeg>
-        <intrinsicAimSkill>10</intrinsicAimSkill>
-        <baseSpreadDeg>0.1</baseSpreadDeg>
-        <cooldownTicks>2400</cooldownTicks>
-        <minRange>30</minRange>
-        <range>600</range>
-        <launchKineticEnergy>225000</launchKineticEnergy>
-        <shotEnergy>1350</shotEnergy>
-        <impactScale>1</impactScale>
-        <muzzleFlashSize>3.6</muzzleFlashSize>
-        <muzzleOffset>(0,1.1)</muzzleOffset>
-        <attachmentSlots>
-          <li>
-            <cell>(1,0,0)</cell>
-            <drawOffset>(0.86,0.5)</drawOffset>
-            <drawScale>1</drawScale>
-          </li>
-        </attachmentSlots>
-        <allowedAttachmentDefs>
-          <li>DeltaV_Building_UraniumMagazine</li>
-          <li>DeltaV_Building_RailgunCapacitorLarge</li>
-        </allowedAttachmentDefs>
-        <acceleratorStarts>
-          <li>(0,0,2)</li>
-        </acceleratorStarts>
-        <allowedAcceleratorDefs>
-          <li>DeltaV_Weapon_RailgunAcceleratorLarge</li>
-        </allowedAcceleratorDefs>
-      </li>
-      <li Class="DeltaV.CompProperties_RailgunReadinessAppearance" />
-    </comps>
-    <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li></researchPrerequisites>
-  </ThingDef>
-  <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Weapon_RailgunAccelerator</defName>
     <uiOrder>-191</uiOrder>
-    <label>small rail accelerator</label>
-    <description>An accelerator for a small railgun. Each paid pulse costs 450 Wd and adds a fixed amount of kinetic energy, improving penetration. Unfunded segments are skipped. Each side accepts a capacitor or an energy recovery module. Two full capacitors supply two local pulses; two recovery modules halve this segment's grid cost.</description>
+    <label>rail accelerator</label>
+    <description>An accelerator for a railgun. Each paid pulse costs 675 Wd and adds a fixed amount of kinetic energy, improving penetration. Unfunded segments are skipped. Each side accepts a capacitor or an energy recovery module. Two full capacitors supply two local pulses; two recovery modules halve this segment's grid cost.</description>
     <uiIconPath>Things/Building/SpaceWeapons/RailgunAccelerator_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
     <building>
@@ -1055,7 +946,7 @@
         <texPath>Things/Building/SpaceWeapons/RailgunAccelerator_MenuIcon</texPath>
         <graphicClass>Graphic_Single</graphicClass>
         <shaderType>EdgeDetect</shaderType>
-        <drawSize>(2,2)</drawSize>
+        <drawSize>(3,2)</drawSize>
       </blueprintGraphicData>
     </building>
     <thingClass>Building</thingClass>
@@ -1064,14 +955,14 @@
     <tickerType>Normal</tickerType>
     <passability>PassThroughOnly</passability>
     <fillPercent>0.6</fillPercent>
-    <size>(2,1)</size>
+    <size>(3,1)</size>
     <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
     <designationCategory>Security</designationCategory>
     <graphicData>
       <texPath>Things/Building/SpaceWeapons/RailgunAccelerator_Inner</texPath>
       <graphicClass>Graphic_Single</graphicClass>
       <shaderType>CutoutComplex</shaderType>
-      <drawSize>(2,1)</drawSize>
+      <drawSize>(3,1)</drawSize>
       <damageData>
         <enabled>false</enabled>
       </damageData>
@@ -1079,119 +970,41 @@
     <placeWorkers>
       <li>DeltaV.PlaceWorker_RailgunPart</li>
     </placeWorkers>
-    <costList Inherit="False"><Steel>120</Steel><Plasteel>30</Plasteel><ComponentIndustrial>4</ComponentIndustrial></costList>
+    <costList Inherit="False"><Steel>180</Steel><Plasteel>45</Plasteel><ComponentIndustrial>6</ComponentIndustrial></costList>
     <statBases>
-      <WorkToBuild>5000</WorkToBuild>
-      <MaxHitPoints>180</MaxHitPoints>
+      <WorkToBuild>7500</WorkToBuild>
+      <MaxHitPoints>270</MaxHitPoints>
     </statBases>
     <comps>
       <li Class="CompProperties_Forbiddable" />
       <li Class="CompProperties_Power">
         <compClass>CompPowerTrader</compClass>
-        <basePowerConsumption>20</basePowerConsumption>
+        <basePowerConsumption>30</basePowerConsumption>
       </li>
       <li Class="DeltaV.CompProperties_RailgunShell">
         <texPath>Things/Building/SpaceWeapons/RailgunShell</texPath>
       </li>
       <li Class="DeltaV.CompProperties_SpaceRailgun">
         <role>Accelerator</role>
-        <kineticEnergyBonus>75000</kineticEnergyBonus>
-        <shotEnergy>450</shotEnergy>
+        <kineticEnergyBonus>112500</kineticEnergyBonus>
+        <shotEnergy>675</shotEnergy>
         <movesMuzzle>true</movesMuzzle>
         <outputOffset>(0,0,1)</outputOffset>
         <nextRootOffset>(0,0,1)</nextRootOffset>
         <attachmentSlots>
           <li>
-            <cell>(0,0,0)</cell>
-            <drawOffset>(-0.16,0)</drawOffset>
-            <drawScale>0.46</drawScale>
+            <cell>(-1,0,0)</cell>
+            <drawOffset>(-0.02,0)</drawOffset>
+            <drawScale>0.65</drawScale>
           </li>
           <li>
             <cell>(1,0,0)</cell>
-            <drawOffset>(0.16,0)</drawOffset>
-            <drawScale>0.46</drawScale>
+            <drawOffset>(0.02,0)</drawOffset>
+            <drawScale>0.65</drawScale>
           </li>
         </attachmentSlots>
         <allowedAttachmentDefs>
           <li>DeltaV_Building_RailgunCapacitor</li>
-          <li>DeltaV_RailgunEnergyRecovery</li>
-        </allowedAttachmentDefs>
-      </li>
-      <li Class="DeltaV.CompProperties_RailgunAcceleratorAppearance" />
-    </comps>
-    <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li></researchPrerequisites>
-  </ThingDef>
-  <ThingDef ParentName="BuildingBase">
-    <defName>DeltaV_Weapon_RailgunAcceleratorLarge</defName>
-    <uiOrder>-188</uiOrder>
-    <label>large rail accelerator</label>
-    <description>An accelerator for a large railgun. Each paid pulse costs 1,350 Wd and adds a fixed amount of kinetic energy. Unfunded segments are skipped. Two full capacitors supply two local pulses; two energy recovery modules halve this segment's grid cost.</description>
-    <uiIconPath>Things/Building/SpaceWeapons/RailgunAccelerator_MenuIcon</uiIconPath>
-    <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
-    <building>
-      <blueprintGraphicData>
-        <texPath>Things/Building/SpaceWeapons/RailgunAccelerator_MenuIcon</texPath>
-        <graphicClass>Graphic_Single</graphicClass>
-        <shaderType>EdgeDetect</shaderType>
-        <drawSize>(4,4)</drawSize>
-      </blueprintGraphicData>
-    </building>
-    <thingClass>Building</thingClass>
-    <drawerType>MapMeshAndRealTime</drawerType>
-    <rotatable>true</rotatable>
-    <tickerType>Normal</tickerType>
-    <passability>PassThroughOnly</passability>
-    <fillPercent>0.6</fillPercent>
-    <size>(4,2)</size>
-    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
-    <designationCategory>Security</designationCategory>
-    <graphicData>
-      <texPath>Things/Building/SpaceWeapons/RailgunAccelerator_Inner</texPath>
-      <graphicClass>Graphic_Single</graphicClass>
-      <shaderType>CutoutComplex</shaderType>
-      <drawSize>(4,2)</drawSize>
-      <damageData>
-        <enabled>false</enabled>
-      </damageData>
-    </graphicData>
-    <placeWorkers>
-      <li>DeltaV.PlaceWorker_RailgunPart</li>
-    </placeWorkers>
-    <costList Inherit="False"><Steel>240</Steel><Plasteel>60</Plasteel><ComponentIndustrial>8</ComponentIndustrial></costList>
-    <statBases>
-      <WorkToBuild>10000</WorkToBuild>
-      <MaxHitPoints>360</MaxHitPoints>
-    </statBases>
-    <comps>
-      <li Class="CompProperties_Forbiddable" />
-      <li Class="CompProperties_Power">
-        <compClass>CompPowerTrader</compClass>
-        <basePowerConsumption>40</basePowerConsumption>
-      </li>
-      <li Class="DeltaV.CompProperties_RailgunShell">
-        <texPath>Things/Building/SpaceWeapons/RailgunShell</texPath>
-      </li>
-      <li Class="DeltaV.CompProperties_SpaceRailgun">
-        <role>Accelerator</role>
-        <kineticEnergyBonus>225000</kineticEnergyBonus>
-        <shotEnergy>1350</shotEnergy>
-        <movesMuzzle>true</movesMuzzle>
-        <outputOffset>(0,0,1)</outputOffset>
-        <nextRootOffset>(0,0,2)</nextRootOffset>
-        <attachmentSlots>
-          <li>
-            <cell>(-1,0,0)</cell>
-            <drawOffset>(-0.18,0.5)</drawOffset>
-            <drawScale>0.8</drawScale>
-          </li>
-          <li>
-            <cell>(2,0,0)</cell>
-            <drawOffset>(0.18,0.5)</drawOffset>
-            <drawScale>0.8</drawScale>
-          </li>
-        </attachmentSlots>
-        <allowedAttachmentDefs>
-          <li>DeltaV_Building_RailgunCapacitorLarge</li>
           <li>DeltaV_RailgunEnergyRecovery</li>
         </allowedAttachmentDefs>
       </li>
@@ -1296,7 +1109,6 @@
           <li>DeltaV_Weapon_HeavyMainMedium</li>
           <li>DeltaV_Weapon_RapidMainMedium</li>
           <li>DeltaV_Weapon_RailgunLoader</li>
-          <li>DeltaV_Weapon_RailgunLoaderLarge</li>
         </allowedHostDefs>
       </li>
       <li Class="DeltaV.CompProperties_GunSupply">
@@ -1361,12 +1173,12 @@
       </li>
     </comps>
   </ThingDef>
-  <ThingDef ParentName="BuildingBase" Name="DeltaV_RailgunCapacitorBase">
+  <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Building_RailgunCapacitor</defName>
     <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li></researchPrerequisites>
     <uiOrder>-190</uiOrder>
-    <label>small railgun capacitor</label>
-    <description>Stores 450 Wd for a small railgun loading unit or accelerator, enough for one local pulse. Starts empty; charging at 250 W takes 43.2 game hours. Insufficient local charge makes the host draw the whole pulse from grid batteries.</description>
+    <label>railgun capacitor</label>
+    <description>Stores 675 Wd for a railgun loading unit or accelerator, enough for one local pulse. Starts empty; charging at 375 W takes 43.2 game hours. Insufficient local charge makes the host draw the whole pulse from grid batteries.</description>
     <thingClass>Building</thingClass>
     <tickerType>Normal</tickerType>
     <passability>Standable</passability>
@@ -1386,51 +1198,24 @@
     <placeWorkers>
       <li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li>
     </placeWorkers>
-    <costList Inherit="False"><Steel>420</Steel><Plasteel>60</Plasteel><ComponentIndustrial>12</ComponentIndustrial><ComponentSpacer>2</ComponentSpacer></costList>
+    <costList Inherit="False"><Steel>630</Steel><Plasteel>90</Plasteel><ComponentIndustrial>18</ComponentIndustrial><ComponentSpacer>3</ComponentSpacer></costList>
     <statBases>
-      <WorkToBuild>6000</WorkToBuild>
-      <MaxHitPoints>120</MaxHitPoints>
+      <WorkToBuild>9000</WorkToBuild>
+      <MaxHitPoints>150</MaxHitPoints>
     </statBases>
     <comps>
       <li Class="CompProperties_Forbiddable" />
       <li Class="DeltaV.CompProperties_SwitchableBattery">
         <basePowerConsumption>0</basePowerConsumption>
-        <capacityWattDays>450</capacityWattDays>
+        <capacityWattDays>675</capacityWattDays>
         <initialEnergyPercent>0</initialEnergyPercent>
-        <chargingWatts>250</chargingWatts>
-        <maxOutputWatts>250</maxOutputWatts>
+        <chargingWatts>375</chargingWatts>
+        <maxOutputWatts>375</maxOutputWatts>
       </li>
       <li Class="DeltaV.CompProperties_SpaceWeaponCapacitor">
         <allowedHostDefs>
           <li>DeltaV_Weapon_RailgunAccelerator</li>
           <li>DeltaV_Weapon_RailgunLoader</li>
-        </allowedHostDefs>
-      </li>
-    </comps>
-  </ThingDef>
-  <ThingDef ParentName="DeltaV_RailgunCapacitorBase">
-    <defName>DeltaV_Building_RailgunCapacitorLarge</defName>
-    <uiOrder>-187</uiOrder>
-    <label>large railgun capacitor</label>
-    <description>Stores 1,350 Wd for a large railgun loading unit or accelerator, enough for one local pulse. Starts empty; charging at 750 W takes 43.2 game hours. Insufficient local charge makes the host draw the whole pulse from grid batteries.</description>
-    <costList Inherit="False"><Steel>840</Steel><Plasteel>120</Plasteel><ComponentIndustrial>24</ComponentIndustrial><ComponentSpacer>4</ComponentSpacer></costList>
-    <statBases>
-      <WorkToBuild>12000</WorkToBuild>
-      <MaxHitPoints>180</MaxHitPoints>
-    </statBases>
-    <comps Inherit="False">
-      <li Class="CompProperties_Forbiddable" />
-      <li Class="DeltaV.CompProperties_SwitchableBattery">
-        <basePowerConsumption>0</basePowerConsumption>
-        <capacityWattDays>1350</capacityWattDays>
-        <initialEnergyPercent>0</initialEnergyPercent>
-        <chargingWatts>750</chargingWatts>
-        <maxOutputWatts>750</maxOutputWatts>
-      </li>
-      <li Class="DeltaV.CompProperties_SpaceWeaponCapacitor">
-        <allowedHostDefs>
-          <li>DeltaV_Weapon_RailgunAcceleratorLarge</li>
-          <li>DeltaV_Weapon_RailgunLoaderLarge</li>
         </allowedHostDefs>
       </li>
     </comps>

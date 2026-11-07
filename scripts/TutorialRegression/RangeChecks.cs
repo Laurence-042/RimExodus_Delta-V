@@ -40,8 +40,25 @@ internal static partial class Program
             Check(attachments.Count(a=>a.Position==SpaceWeaponGeometry.RotatedCell(turret,slot)
                 && a.Rotation==turret.Rotation)==1,"native rotated attachment slot contains exactly one advanced auto-aim");
         }
-        var loader=buildings.Single(b=>b.def.defName=="DeltaV_Weapon_RailgunLoaderLarge");
-        var segments=buildings.Where(b=>b.def.defName=="DeltaV_Weapon_RailgunAcceleratorLarge").ToList();
+        var loader=buildings.Single(b=>b.def.defName=="DeltaV_Weapon_RailgunLoader");
+        var segments=buildings.Where(b=>b.def.defName=="DeltaV_Weapon_RailgunAccelerator").ToList();
+        foreach(var definition in new[] {loader.def,segments[0].def})
+        for(int rotation=0;rotation<4;rotation++)
+        {
+            var part=Raw<Building>(); part.def=definition;
+            Set(part,"mapIndexOrState",(sbyte)-1);
+            Set(part,"positionInt",new IntVec3(50,0,50)); Set(part,"rotationInt",new Rot4(rotation));
+            var footprint=part.OccupiedRect();
+            Check(footprint.Count()==3 && SpaceWeaponGeometry.FootprintCenter(part)==new Vector2(50.5f,50.5f),
+                "three-cell rail stays centered in every native rotation");
+            foreach(XmlNode slot in Def(definition.defName).SelectNodes("comps/li/attachmentSlots/li/cell"))
+                Check(footprint.Contains(SpaceWeaponGeometry.RotatedCell(part,IntVec3.FromString(slot.InnerText))),
+                    "rotated rail attachment stays inside its host");
+            if(definition==loader.def)
+                Check(!footprint.Contains(part.InteractionCell)
+                    && part.InteractionCell==SpaceWeaponGeometry.RotatedCell(part,new IntVec3(-1,0,-1)),
+                    "native operator cell follows the left terminal behind the loader");
+        }
         var segmentNode=Def(segments[0].def.defName).SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceRailgun']");
         int id=900;
         foreach(var b in segments)
@@ -64,10 +81,10 @@ internal static partial class Program
         try
         {
             var chain=CompSpaceRailgun.TraceConnections(weapon);
-            Check(chain.segments.Count==4 && chain.kineticEnergyBonus==900000f,"production trace reaches four large accelerators");
+            Check(chain.segments.Count==9 && chain.kineticEnergyBonus==1012500f,"production trace reaches nine accelerators");
             var cells=segments.Append(loader).SelectMany(b=>b.OccupiedRect()).Distinct().ToList();
-            Check(cells.Count==40 && cells.Max(c=>c.x)-cells.Min(c=>c.x)+1==10
-                && cells.Max(c=>c.z)-cells.Min(c=>c.z)+1==4,"native rail footprint is ten cells long and four wide");
+            Check(cells.Count==30 && cells.Max(c=>c.x)-cells.Min(c=>c.x)+1==10
+                && cells.Max(c=>c.z)-cells.Min(c=>c.z)+1==3,"native rail footprint is ten cells long and three wide");
             var last=chain.segments.Last().parent.OccupiedRect();
             var muzzleCell=new IntVec3(Mathf.FloorToInt(chain.muzzleMap.Value.x),0,Mathf.FloorToInt(chain.muzzleMap.Value.y));
             Check(chain.muzzleMap.HasValue && chain.muzzleMap.Value.x>=last.maxX+1
@@ -221,7 +238,7 @@ internal static partial class Program
         var target = new XmlDocument(); target.Load(Path.Combine(directory,"ShieldTarget.xml"));
         RangeEntrance(platform,harmony,directory);
         var weaponNames = new[] { "DeltaV_Weapon_RapidMainMedium", "DeltaV_Weapon_HeavyMainMedium",
-            "DeltaV_Weapon_LaserMainMedium", "DeltaV_Weapon_RailgunLoaderLarge" };
+            "DeltaV_Weapon_LaserMainMedium", "DeltaV_Weapon_RailgunLoader" };
         int group=0;
         foreach (string name in weaponNames)
         {
@@ -259,7 +276,7 @@ internal static partial class Program
             finally { Scribe.ForceStop(); File.Delete(file); }
         }
         }
-        Check(platform.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_Weapon_RailgunAcceleratorLarge']").Count==4,"railgun has four real large accelerators");
+        Check(platform.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_Weapon_RailgunAccelerator']").Count==9,"railgun has nine real accelerators");
         Check(platform.SelectSingleNode("/MapPrefab/thingStates/li[def='PilotConsole']/state/saveable/combat/fireControlMode").InnerText=="Disabled",
             "platform stores disabled fire control in the native combat record");
         Check(new ShipCombatState().fireControlMode==ShipFireControlMode.Automatic,"new player ships still default to automatic fire control");
@@ -294,7 +311,7 @@ internal static partial class Program
         foreach(var s in shields)
         {
             Vector2 center=SpaceWeaponGeometry.FootprintCenter(s.parent);
-            float laneOffset=22f-center.y;
+            float laneOffset=22.5f-center.y;
             Check(Math.Abs(laneOffset)<s.groundRadius
                 && center.x-Math.Sqrt(s.groundRadius*s.groundRadius-laneOffset*laneOffset)<0,
                 "each guard dome crosses the rail axis before the six armour layers");
