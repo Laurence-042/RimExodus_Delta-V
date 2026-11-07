@@ -100,7 +100,11 @@ namespace DeltaV
         private void DecideStrategyTarget(ShipBase ship, SpaceObject own)
         {
             if (commandedTarget.HasLock && TryResolveAutomatic(ship, own, commandedTarget, out _))
-            { target = commandedTarget; return; }
+            {
+                target = commandedTarget;
+                if (ship.CombatAI != null) ship.CombatAI.lastTargetReason = "DeltaV_CombatDecisionOrderedTarget".Translate();
+                return;
+            }
             commandedTarget = default;
             var facts = Facts(ship, own);
             var strategy = Strategy(ship);
@@ -112,6 +116,7 @@ namespace DeltaV
             float best = float.NegativeInfinity, currentScore = float.NegativeInfinity;
             CombatTarget selected = default;
             string reason = "-";
+            string currentReason = null;
             foreach (var member in candidates)
             {
                 var context = facts.Context(member);
@@ -131,19 +136,31 @@ namespace DeltaV
                     _ => rule.targetThreatWeight * context.enemyFirepower * 2f
                         + rule.outgoingWeight * ownFire + rule.finishingWeight * ownFire * finish - context.distance * 0.1f
                 };
-                if (member.Identity == target.Ship) currentScore = score;
+                if (member.Identity == target.Ship)
+                {
+                    currentScore = score;
+                    currentReason = CombatDecisionText.Selection(strategy.targetRules, rule, oldRule);
+                }
                 if (score <= best) continue;
-                best = score; selected = CombatTarget.ForShip(member.Identity); reason = rule.name;
+                best = score; selected = CombatTarget.ForShip(member.Identity);
+                reason = CombatDecisionText.Selection(strategy.targetRules, rule, oldRule);
             }
             int now = Find.TickManager.TicksGame;
             if (selected != target && !float.IsNegativeInfinity(currentScore)
-                && (now < targetSwitchTick || best < currentScore + Mathf.Max(1f, Mathf.Abs(currentScore) * 0.2f))) return;
+                && (now < targetSwitchTick || best < currentScore + Mathf.Max(1f, Mathf.Abs(currentScore) * 0.2f)))
+            {
+                if (ship.CombatAI != null) ship.CombatAI.lastTargetReason = currentReason + "\n"
+                    + "DeltaV_CombatDecisionKeepTarget".Translate(currentScore.ToString("0.0"), best.ToString("0.0"),
+                        (Mathf.Max(0, targetSwitchTick - now) / 60f).ToString("0.0"));
+                return;
+            }
             if (selected != target) { preferredSystemId = 0; targetSwitchTick = now + 120; }
             if (DeltaVLog.Enabled(DeltaVLogModule.Combat) && (!targetObserved || selected != target))
                 DeltaVLog.Message(DeltaVLogModule.Combat, $"ship #{ownerId} fire-control target {selected.Ship} rule={reason}");
             targetObserved = true; target = selected;
-            if (ship.CombatAI != null) ship.CombatAI.lastTargetReason = reason + " → "
-                + (selected.TryResolve(universe, out var chosen) ? chosen.Ship.Label : "-");
+            if (ship.CombatAI != null) ship.CombatAI.lastTargetReason = selected.TryResolve(universe, out var chosen)
+                ? reason + " → " + chosen.Ship.Label + " · " + "DeltaV_CombatDecisionScore".Translate(best.ToString("0.0"))
+                : "DeltaV_CombatDecisionNoCandidate".Translate(candidates.Count).ToString();
         }
 
         private List<Thing> Parts(ShipBase member)

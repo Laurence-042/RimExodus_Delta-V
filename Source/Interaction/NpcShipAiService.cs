@@ -344,7 +344,7 @@ namespace DeltaV
 
         internal NpcShipAiGate GateFor(SpaceObject obj, ShipBase ship)
         {
-            NpcShipController controller = ship.IsValid ? universe.Controls.NpcFor(ship) : null;
+            NpcShipController controller = universe.Controls.ExistingFor(ship) as NpcShipController;
             return GateFor(obj, ship, controller);
         }
 
@@ -433,6 +433,7 @@ namespace DeltaV
             bool wasRetreating = ship.CombatAI?.retreating == true;
             if (universe.NpcShips.EvaluateRetreat(ship, own, out string retreatReason))
             {
+                RecordDecision(ship, CombatDecisionText.Retreat(retreatReason));
                 if (!wasRetreating)
                 {
                     SpaceObject home = universe.NpcShips.ResolveRetreatHome(own, ship.Faction);
@@ -456,11 +457,13 @@ namespace DeltaV
             LogThrustEdge(ship);
             if (!target.HasLock)
             {
+                RecordDecision(ship, "DeltaV_CombatDecisionNoTarget".Translate());
                 controller.SetCombatReady(false);
                 universe.Autopilot.Detach(DriveSubject.Of(ship), "NPC target lost");
                 return;
             }
             controller.SetCombatReady(true);
+            RecordDecision(ship, "DeltaV_CombatDecisionEngage".Translate());
             controller.AutoManeuver.Decide(ship, own, target,
                 allowBoarding: true, playerInitiated: false);
             if (controller.AutoManeuver.Boarding && now >= nextBoardTick)
@@ -476,6 +479,13 @@ namespace DeltaV
             foreach (SpaceObject candidate in universe.objects)
                 count += ShipFireControl.Candidates(ship, own, candidate).Count();
             return count;
+        }
+
+        private static void RecordDecision(ShipBase ship, string reason)
+        {
+            if (ship.CombatAI == null) return;
+            ship.CombatAI.lastNpcReason = reason;
+            ship.CombatAI.lastNpcDecisionTick = Find.TickManager.TicksGame;
         }
 
 
@@ -517,6 +527,10 @@ namespace DeltaV
                 + SpaceCollision.OriginBoundsRadiusOf(own) + NpcShipAiService.ShipyardArrivalRadius;
             bool defending = home?.map != null
                 && OrbitSphere.ArcCells(own.pose.position, home.pose.position) <= radius + 20f;
+            if (ship.CombatAI != null)
+                ship.CombatAI.lastNpcReason += "\n" + (home == null
+                    ? "DeltaV_CombatDecisionEvade".Translate()
+                    : (defending ? "DeltaV_CombatDecisionGuard" : "DeltaV_CombatDecisionReturn").Translate(home.label));
             // 火控不以推进能力为门禁；保守站位从不进入环绕追击或跳帮。
             controller.AutoManeuver.Clear(ship);
             controller.SetCombatReady(defending && threat != null);

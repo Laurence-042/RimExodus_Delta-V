@@ -214,7 +214,11 @@ namespace DeltaV
             foreach (var key in fireRuleState.Keys.Where(k => !enemyIds.Contains(k.enemy) || !weaponIds.Contains(k.weapon)).ToList()) fireRuleState.Remove(key);
             foreach (var key in automaticRules.Keys.Where(k => !weaponIds.Contains(k)).ToList())
             { automaticRules.Remove(key); automaticAim.Remove(key); partRefreshTick.Remove(key); }
-            if (enemies.Count == 0) return;
+            if (enemies.Count == 0)
+            {
+                if (ship.CombatAI != null) ship.CombatAI.lastFireReason = "DeltaV_CombatDecisionNoTarget".Translate();
+                return;
+            }
             bool hasQueued = TryQueuedPart(ship, own, out var queuedTarget);
             var facts = Facts(ship, own);
             enemies.RemoveAll(e => !(hasQueued && queuedTarget.Ship == e.Identity)
@@ -232,6 +236,7 @@ namespace DeltaV
                 float best = float.NegativeInfinity;
                 ShipBase selected = null;
                 CombatStrategyRule selectedRule = null;
+                CombatStrategyRule selectedPrevious = null;
                 string holdReason = null;
                 float damage = SpaceWeaponBallistics.ExpectedDamage(weapon,
                     weapon.SelectMagazine()?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef);
@@ -247,7 +252,7 @@ namespace DeltaV
                     CombatStrategyRule rule = Strategy(ship).Fire(context, lastRule);
                     fireRuleState[ruleKey] = rule;
                     if (rule.fireAction == CombatFireAction.Hold)
-                    { holdReason = rule.name; continue; }
+                    { holdReason = CombatDecisionText.Selection(Strategy(ship).fireRules, rule, lastRule); continue; }
                     if (rule.anchorOnly && member.Identity != target.Ship) continue;
                     if (!SpaceWeaponBallistics.TryAim(aim, own.pose, enemyPose, out var lead)
                         || !weapon.Covers(own, lead, aim.Muzzle)
@@ -267,7 +272,7 @@ namespace DeltaV
                         - reserved / Mathf.Max(1f, targetHealth) * rate;
                     if (hasQueued && queuedTarget.Ship == member.Identity) score += 100000f;
                     if (score <= best) continue;
-                    best = score; selected = member; selectedRule = rule;
+                    best = score; selected = member; selectedRule = rule; selectedPrevious = lastRule;
                 }
                 if (selected == null)
                 {
@@ -290,7 +295,7 @@ namespace DeltaV
                     damage);
                 if (ship.CombatAI != null)
                     reasons.Add(weapon.parent.LabelCap + " → " + selected.Label + " ("
-                        + selectedRule.name + ")");
+                        + CombatDecisionText.Selection(Strategy(ship).fireRules, selectedRule, selectedPrevious) + ")");
             }
             if (ship.CombatAI != null)
                 ship.CombatAI.lastFireReason = reasons.Count == 0 ? "DeltaV_CombatNoFireChoice".Translate().ToString()

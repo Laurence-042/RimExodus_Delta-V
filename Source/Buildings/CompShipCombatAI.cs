@@ -29,6 +29,9 @@ namespace DeltaV
         [Unsaved] public string lastManeuverReason;
         [Unsaved] public string lastFireReason;
         [Unsaved] public string lastTargetReason;
+        [Unsaved] internal CombatSelectionTrace lastManeuverSelection;
+        [Unsaved] internal string lastNpcReason;
+        [Unsaved] internal int lastNpcDecisionTick = -1;
 
         public override void PostExposeData()
         {
@@ -50,6 +53,9 @@ namespace DeltaV
             lastManeuverReason = null;
             lastFireReason = null;
             lastTargetReason = null;
+            lastManeuverSelection = null;
+            lastNpcReason = null;
+            lastNpcDecisionTick = -1;
         }
 
         internal void EnsureBaselineFor(ShipBase ship)
@@ -66,7 +72,7 @@ namespace DeltaV
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
-            if (parent?.Spawned != true || parent.Faction != Faction.OfPlayer) yield break;
+            if (!CanEdit) yield break;
             if (parent.TryGetComp<CompDeltaVPilotConsole>() == null
                 && parent.TryGetComp<CompSpaceShuttle>() == null) yield break;
             yield return new Command_BatchSetting<CompShipCombatAI>("CombatStrategy", this,
@@ -80,7 +86,7 @@ namespace DeltaV
             if (console?.isMain == false && console.shipId > 0)
             {
                 CompDeltaVPilotConsole main = ShipRegistry.MainConsoleForOwner(parent.Map, console.shipId);
-                if (main != null && main != console && main.parent.Faction == Faction.OfPlayer)
+                if (main != null && main != console && (DebugSettings.godMode || main.parent.Faction == Faction.OfPlayer))
                     yield return new Command_Action
                     {
                         defaultLabel = "DeltaV_CombatAICopyMain".Translate(),
@@ -89,11 +95,14 @@ namespace DeltaV
                         action = () =>
                         {
                             CompShipCombatAI source = main.parent.TryGetComp<CompShipCombatAI>();
-                            if (source != null) Replace(source.strategy);
+                            if (CanEdit && source != null) Replace(source.strategy);
                         }
                     };
             }
         }
+
+        internal bool CanEdit => parent?.Spawned == true && !parent.Destroyed
+            && (DebugSettings.godMode || parent.Faction == Faction.OfPlayer);
     }
 
     internal static class CombatStrategyFile

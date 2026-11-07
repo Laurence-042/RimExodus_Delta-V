@@ -231,6 +231,21 @@ namespace DeltaV
             foreach (var subject in removed) Detach(subject);
         }
         public bool IsActive(DriveSubject subject) => subject.key > 0 && active.ContainsKey(subject);
+        internal string DecisionStatus(DriveSubject subject)
+        {
+            if (!active.TryGetValue(subject, out Flight flight))
+                return "DeltaV_CombatDecisionNoFlight".Translate();
+            if (flight.combatOrbit && flight.combatIntent.holdCurrent)
+                return "DeltaV_CombatPoseBlocked".Translate();
+            if (flight.recovery.Active) return "DeltaV_CombatDecisionBraking".Translate();
+            string state = (flight.combatOrbit ? "DeltaV_CombatDecisionFlightCombat"
+                : "DeltaV_CombatDecisionFlightNavigation").Translate();
+            return state + "\n" + (flight.hasCommand
+                ? "DeltaV_CombatDecisionCommand".Translate(flight.heldCommand.desiredLocalForce.magnitude.ToString("0.##"),
+                    flight.heldCommand.desiredTorque.ToString("0.##"),
+                    ("DeltaV_CombatSolver_" + flight.heldCommand.qpStatus).Translate()).ToString()
+                : "DeltaV_CombatDecisionWaitingCommand".Translate().ToString());
+        }
         public bool IsActive(SpaceObject container)
         {
             var universe = Current.Game?.GetComponent<UniverseManager>();

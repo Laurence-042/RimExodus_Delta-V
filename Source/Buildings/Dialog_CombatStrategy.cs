@@ -14,7 +14,8 @@ namespace DeltaV
         private readonly CompShipCombatAI[] owners;
         private CombatStrategy draft;
         private Vector2 scroll;
-        private int tab;
+        private int tab = 5;
+        private string decisionText;
         private bool advanced;
         private readonly Dictionary<CombatCriterion, string> numberBuffers =
             new Dictionary<CombatCriterion, string>();
@@ -36,6 +37,7 @@ namespace DeltaV
 
         public override void DoWindowContents(Rect rect)
         {
+            decisionText ??= string.Join("\n\n", owners.Select(CombatDecisionText.Status));
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(0f, 0f, rect.width, 32f), owners.Length > 1
                 ? "DeltaV_CombatAIEditMany".Translate(owners.Length) : "DeltaV_CombatAIEdit".Translate());
@@ -46,27 +48,30 @@ namespace DeltaV
                 ShowImportMenu();
             if (Widgets.ButtonText(new Rect(rect.width - 80f, 36f, 75f, 28f), "DeltaV_CombatAIExport".Translate()))
                 TryFile(() => CombatStrategyFile.Export(draft));
-            Rect status = new Rect(0f, 72f, rect.width, 110f);
-            string reason = "DeltaV_CombatAIStatus".Translate(
-                (owner.lastTargetReason ?? "-") + "\n" + (owner.lastManeuverReason ?? "-"), owner.lastFireReason ?? "-");
-            Widgets.Label(status, reason);
-            TooltipHandler.TipRegion(status, reason);
-            string[] tabs = { "DeltaV_CombatAITarget", "DeltaV_CombatAIManeuver", "DeltaV_CombatAIFire",
+            string help = "DeltaV_CombatDecisionHelp".Translate();
+            float tabsY = 80f + Text.CalcHeight(help, rect.width);
+            Widgets.Label(new Rect(0f, 72f, rect.width, tabsY - 80f), help);
+            string[] tabs = { "DeltaV_CombatDecision", "DeltaV_CombatAITarget", "DeltaV_CombatAIManeuver", "DeltaV_CombatAIFire",
                 "DeltaV_CombatAIRetreat", "DeltaV_CombatAIBoard" };
-            int[] tabIds = { 4, 0, 1, 2, 3 };
+            int[] tabIds = { 5, 4, 0, 1, 2, 3 };
             float tabWidth = rect.width / tabs.Length;
             for (int i = 0; i < tabs.Length; i++)
-                if (Widgets.ButtonText(new Rect(i * tabWidth, 185f, tabWidth - 4f, 28f),
+                if (Widgets.ButtonText(new Rect(i * tabWidth, tabsY, tabWidth - 4f, 28f),
                     tabs[i].Translate())) { tab = tabIds[i]; scroll = Vector2.zero; }
-            Rect viewport = new Rect(0f, 220f, rect.width, rect.height - 270f);
-            float contentHeight = ContentHeight();
+            Rect viewport = new Rect(0f, tabsY + 38f, rect.width, rect.height - tabsY - 88f);
+            float contentHeight = tab == 5 ? Text.CalcHeight(decisionText, viewport.width - 24f) + 16f : ContentHeight();
             Widgets.BeginScrollView(viewport, ref scroll,
                 new Rect(0f, 0f, viewport.width - 18f, contentHeight));
             float y = 0f;
-            if (tab <= 1 || tab == 4) DrawRules(tab == 0 ? draft.maneuverRules : tab == 1 ? draft.fireRules : draft.targetRules,
+            if (tab == 5) Widgets.Label(new Rect(0f, 0f, viewport.width - 24f, contentHeight), decisionText);
+            else if (tab <= 1 || tab == 4) DrawRules(tab == 0 ? draft.maneuverRules : tab == 1 ? draft.fireRules : draft.targetRules,
                 viewport.width - 20f, ref y);
             else
             {
+                string builtIn = (tab == 2 ? "DeltaV_CombatBuiltInRetreat" : "DeltaV_CombatBuiltInBoard").Translate();
+                float helpHeight = Text.CalcHeight(builtIn, viewport.width - 20f) + 12f;
+                Widgets.Label(new Rect(0f, y, viewport.width - 20f, helpHeight), builtIn);
+                y += helpHeight;
                 bool any = tab == 2 ? draft.npcRetreatMatchAny : draft.npcBoardMatchAny;
                 if (Widgets.ButtonText(new Rect(0f, y, 150f, 26f), any ? "ANY" : "ALL"))
                 {
@@ -90,18 +95,17 @@ namespace DeltaV
         internal void Apply()
         {
             foreach (CompShipCombatAI target in owners)
-                if (target.parent?.Spawned == true && !target.parent.Destroyed
-                    && (DebugSettings.godMode || target.parent.Faction == Faction.OfPlayer))
+                if (target.CanEdit)
                     target.Replace(draft);
         }
 
         private float ContentHeight()
         {
             if (tab == 2 || tab == 3)
-                return Mathf.Max(600f, 85f + 180f * (tab == 2
+                return Mathf.Max(600f, 240f + 180f * (tab == 2
                     ? draft.npcRetreatConditions.Count : draft.npcBoardConditions.Count));
             List<CombatStrategyRule> rules = tab == 0 ? draft.maneuverRules : tab == 1 ? draft.fireRules : draft.targetRules;
-            return Mathf.Max(600f, 90f + rules.Sum(r => (tab == 0 ? 740f : 430f) + (r.conditions?.Count ?? 0) * 180f));
+            return Mathf.Max(600f, (tab == 0 ? 900f : 480f) + rules.Sum(r => (tab == 0 ? 740f : 430f) + (r.conditions?.Count ?? 0) * 180f));
         }
 
         private void DrawRules(List<CombatStrategyRule> rules, float width, ref float y)
@@ -168,7 +172,27 @@ namespace DeltaV
                 Widgets.DrawLineHorizontal(0f, y, width);
                 y += 12f;
             }
-            Widgets.Label(new Rect(0f, y, width, 30f), "DeltaV_CombatAIDefaultRule".Translate());
+            DrawBuiltIn(rules, width, ref y);
+        }
+
+        private void DrawBuiltIn(List<CombatStrategyRule> rules, float width, ref float y)
+        {
+            var builtIn = tab == 0 ? draft.BuiltInManeuver : draft.BuiltInFire;
+            string help = "DeltaV_CombatBuiltInHelp".Translate();
+            float helpHeight = Text.CalcHeight(help, width);
+            Widgets.Label(new Rect(0f, y, width, helpHeight), help);
+            y += helpHeight + 8f;
+            if (rules.Count < 64 && Widgets.ButtonText(new Rect(0f, y, 260f, 28f),
+                "DeltaV_CombatBuiltInCopy".Translate()))
+            {
+                builtIn.name = "DeltaV_CombatBuiltInName".Translate();
+                rules.Add(builtIn.Copy());
+            }
+            y += 36f;
+            string details = CombatDecisionText.BuiltIn(builtIn, tab);
+            float height = Text.CalcHeight(details, width);
+            Widgets.Label(new Rect(0f, y, width, height), details);
+            y += height;
         }
 
         private void DrawTactic(CombatTacticSettings settings, float width, ref float y)

@@ -597,4 +597,72 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShieldUseRegularTip>Use recovered regular capacity and rejoin ship-wide sharing immediately, without waiting for the automatic threshold. Requires local regular capacity. Depletion still enters automatic emergency; switching adds no capacity.</DeltaV_ShieldUseRegularTip>
   <DeltaV_ShieldNoEmergency>No local emergency capacity remains.</DeltaV_ShieldNoEmergency>
   <DeltaV_ShieldNoRegular>No local regular capacity has recovered yet.</DeltaV_ShieldNoRegular>
+  <DeltaV_CombatDecision>Current decision</DeltaV_CombatDecision>
+  <DeltaV_CombatDecisionHelp>Current decision shows the applied strategy's latest decisions and current flight state. This editor pauses the game. Draft changes take effect only after confirmation; cancelling preserves the originals. Each selected ship is listed separately.</DeltaV_CombatDecisionHelp>
+  <DeltaV_CombatBuiltInName>General rule copy</DeltaV_CombatBuiltInName>
+  <DeltaV_CombatBuiltInHelp>Built-in fallback: used only when no custom rule above matches. The actual default settings are shown below; copy them into an editable rule at the end of the list.</DeltaV_CombatBuiltInHelp>
+  <DeltaV_CombatBuiltInCopy>Copy built-in rule for editing</DeltaV_CombatBuiltInCopy>
+  <DeltaV_CombatBuiltInRetreat>Built-in survival limits: retreat below 30% of initial thrust or firepower, or after a backup replaces the initial main console. A capability initially at zero is excluded from its comparison. These limits always apply; custom conditions below can also trigger retreat. NPC retreat rules do not apply to player control.</DeltaV_CombatBuiltInRetreat>
+  <DeltaV_CombatBuiltInBoard>Built-in limits: boarding requires configured, matching conditions and an available boarding craft. The target must be within 100 cells; attempts are at least 600 game ticks apart. Launch and intrusion still use their normal requirements. Player control never boards automatically.</DeltaV_CombatBuiltInBoard>
+  <DeltaV_CombatDecisionFallback>Built-in fallback: no custom rule matched</DeltaV_CombatDecisionFallback>
+  <DeltaV_CombatDecisionUnconditional>unconditional match</DeltaV_CombatDecisionUnconditional>
+  <DeltaV_CombatDecisionAny>ANY condition matched</DeltaV_CombatDecisionAny>
+  <DeltaV_CombatDecisionAll>ALL conditions matched</DeltaV_CombatDecisionAll>
+  <DeltaV_CombatDecisionRetaining>retaining current rule using exit thresholds</DeltaV_CombatDecisionRetaining>
+  <DeltaV_CombatDecisionSelected>Rule {0} "{1}": {2} (first match in priority order)</DeltaV_CombatDecisionSelected>
+  <DeltaV_CombatDecisionRetreatThrust>Retreat: operational thrust below 30% of its initial value.</DeltaV_CombatDecisionRetreatThrust>
+  <DeltaV_CombatDecisionRetreatFirepower>Retreat: firepower below 30% of its initial value.</DeltaV_CombatDecisionRetreatFirepower>
+  <DeltaV_CombatDecisionRetreatConsole>Retreat: a backup has replaced the initial main console.</DeltaV_CombatDecisionRetreatConsole>
+  <DeltaV_CombatDecisionRetreatRule>Retreat: custom retreat conditions matched.</DeltaV_CombatDecisionRetreatRule>
+  <DeltaV_CombatDecisionOwner>{0} · Applied strategy: {1}</DeltaV_CombatDecisionOwner>
+  <DeltaV_CombatDecisionNoShip>This device does not belong to a valid ship; its strategy is not being used.</DeltaV_CombatDecisionNoShip>
+  <DeltaV_CombatDecisionBackup>This is a backup device. Its own strategy can be edited here, but the main console's strategy controls current decisions. Select the main console to inspect them.</DeltaV_CombatDecisionBackup>
+  <DeltaV_CombatDecisionPlayer>Player controller: {0}. NPC decisions are not in control.</DeltaV_CombatDecisionPlayer>
+  <DeltaV_CombatDecisionPending>No decision recorded yet; resume the game and wait for the next decision.</DeltaV_CombatDecisionPending>
+  <DeltaV_CombatDecisionNpc>Latest NPC decision (tick {0}): {1}</DeltaV_CombatDecisionNpc>
+  <DeltaV_CombatDecisionThrust>Current operational thrust: {0}</DeltaV_CombatDecisionThrust>
+  <DeltaV_CombatDecisionNoThrust>No operational thrusters; powered maneuvering is unavailable. Check power, breakdowns, fuel and exhaust blockage.</DeltaV_CombatDecisionNoThrust>
+  <DeltaV_CombatDecisionHistory>Latest actual decisions follow. Current gates, retreat or player control may have suspended this maneuver.</DeltaV_CombatDecisionHistory>
+  <DeltaV_CombatDecisionTrace>Maneuver condition checks (recorded during actual selection; stops at the first matching rule):</DeltaV_CombatDecisionTrace>
+  <DeltaV_CombatDecisionDisabled>disabled</DeltaV_CombatDecisionDisabled>
+  <DeltaV_CombatDecisionMatched>matched</DeltaV_CombatDecisionMatched>
+  <DeltaV_CombatDecisionUnmatched>did not match</DeltaV_CombatDecisionUnmatched>
+  <DeltaV_CombatDecisionExit>exit threshold</DeltaV_CombatDecisionExit>
+  <DeltaV_CombatDecisionNotChecked>not evaluated (disabled or an earlier condition decided the result)</DeltaV_CombatDecisionNotChecked>
+  <DeltaV_CombatDecisionNoTarget>No eligible engagement target; combat maneuvering stopped.</DeltaV_CombatDecisionNoTarget>
+  <DeltaV_CombatDecisionEngage>An engagement target is available; maneuver rules choose the tactic.</DeltaV_CombatDecisionEngage>
+  <DeltaV_CombatDecisionEvade>No eligible same-faction shipyard; retreat along an evasion waypoint.</DeltaV_CombatDecisionEvade>
+  <DeltaV_CombatDecisionGuard>Near "{0}"; hold position and return fire without pursuit.</DeltaV_CombatDecisionGuard>
+  <DeltaV_CombatDecisionReturn>Returning to "{0}".</DeltaV_CombatDecisionReturn>
+  <DeltaV_CombatDecisionNoFlight>No active autopilot task.</DeltaV_CombatDecisionNoFlight>
+  <DeltaV_CombatDecisionBraking>Autopilot is recovering by braking; approach to the original target is deferred.</DeltaV_CombatDecisionBraking>
+  <DeltaV_CombatDecisionFlightCombat>Autopilot is executing a combat trajectory.</DeltaV_CombatDecisionFlightCombat>
+  <DeltaV_CombatDecisionFlightNavigation>Autopilot is executing a navigation / return task.</DeltaV_CombatDecisionFlightNavigation>
+  <DeltaV_CombatDecisionCommand>Latest control request: force {0}, torque {1}; solver: {2}. A zero request means no propulsion was requested for this step.</DeltaV_CombatDecisionCommand>
+  <DeltaV_CombatDecisionWaitingCommand>Task registered; waiting for its first control request.</DeltaV_CombatDecisionWaitingCommand>
+  <DeltaV_CombatDecisionOrderedTarget>Using the explicitly ordered engagement target ahead of automatic target scoring.</DeltaV_CombatDecisionOrderedTarget>
+  <DeltaV_CombatDecisionKeepTarget>Keeping current target: current score {0}, best candidate {1}, switch cooldown {2}s. Switching requires the cooldown to expire and an improvement of at least 20% (minimum 1 point).</DeltaV_CombatDecisionKeepTarget>
+  <DeltaV_CombatDecisionScore>score {0}</DeltaV_CombatDecisionScore>
+  <DeltaV_CombatDecisionNoCandidate>No target passed target rules ({0} base candidates; check whether rules exclude unarmed ships).</DeltaV_CombatDecisionNoCandidate>
+  <DeltaV_CombatGate_Ready>NPC eligibility: ready.</DeltaV_CombatGate_Ready>
+  <DeltaV_CombatGate_NoMap>NPC stopped: map unavailable.</DeltaV_CombatGate_NoMap>
+  <DeltaV_CombatGate_NoShip>NPC stopped: no valid ship identity.</DeltaV_CombatGate_NoShip>
+  <DeltaV_CombatGate_NoNpcFaction>NPC stopped: no NPC faction.</DeltaV_CombatGate_NoNpcFaction>
+  <DeltaV_CombatGate_NotShipContainer>NPC stopped: container has no valid ship.</DeltaV_CombatGate_NotShipContainer>
+  <DeltaV_CombatGate_FrozenMap>NPC stopped: map frozen by distance lifecycle.</DeltaV_CombatGate_FrozenMap>
+  <DeltaV_CombatGate_OutsideActiveRadius>NPC stopped: outside the tactical active radius around the player.</DeltaV_CombatGate_OutsideActiveRadius>
+  <DeltaV_CombatGate_InvalidPilotTarget>NPC stopped: ship cannot drive in its current container.</DeltaV_CombatGate_InvalidPilotTarget>
+  <DeltaV_CombatGate_NoUniverseFrame>NPC stopped: map has no universe frame.</DeltaV_CombatGate_NoUniverseFrame>
+  <DeltaV_CombatGate_GravityRestricted>NPC stopped: gravity or launch restrictions.</DeltaV_CombatGate_GravityRestricted>
+  <DeltaV_CombatGate_ApproachConflict>NPC stopped: docking or intrusion controls flight.</DeltaV_CombatGate_ApproachConflict>
+  <DeltaV_CombatGate_NoControllerAuthority>NPC has no controller authority (not initialized or taken over).</DeltaV_CombatGate_NoControllerAuthority>
+  <DeltaV_CombatSolver_NotRun>not run</DeltaV_CombatSolver_NotRun>
+  <DeltaV_CombatSolver_Optimal>optimal</DeltaV_CombatSolver_Optimal>
+  <DeltaV_CombatSolver_FeasibleApproximate>feasible approximation</DeltaV_CombatSolver_FeasibleApproximate>
+  <DeltaV_CombatSolver_IterationLimit>iteration limit</DeltaV_CombatSolver_IterationLimit>
+  <DeltaV_CombatSolver_NumericalFailure>numerical failure</DeltaV_CombatSolver_NumericalFailure>
+  <DeltaV_CombatSolver_InvalidInput>invalid input</DeltaV_CombatSolver_InvalidInput>
+  <DeltaV_CombatSolver_ProvenInfeasible>constraints infeasible</DeltaV_CombatSolver_ProvenInfeasible>
+  <DeltaV_CombatBuiltInDistance>A distance of 0 selects attack range from actual weapon reach and hull separation.</DeltaV_CombatBuiltInDistance>
+  <DeltaV_CombatBuiltInCurves>No custom scoring curves; uses the general attack-pose evaluation.</DeltaV_CombatBuiltInCurves>
 </LanguageData>

@@ -86,12 +86,19 @@ namespace DeltaV
         public CombatPart part;
         public bool anchorOnly;
 
-        public bool Matches(CombatStrategyContext context, bool retaining = false)
+        public bool Matches(CombatStrategyContext context, bool retaining = false,
+            CombatRuleEvaluation evaluation = null)
         {
             if (!enabled) return false;
             if (conditions == null || conditions.Count == 0) return true;
-            return matchAny ? conditions.Any(c => c != null && c.Matches(context, retaining))
-                : conditions.All(c => c != null && c.Matches(context, retaining));
+            foreach (var condition in conditions)
+            {
+                bool matched = condition != null && condition.Matches(context, retaining);
+                evaluation?.conditions.Add(matched);
+                if (matchAny && matched) return true;
+                if (!matchAny && !matched) return false;
+            }
+            return !matchAny;
         }
 
         public CombatStrategyRule Copy() => new CombatStrategyRule
@@ -148,18 +155,29 @@ namespace DeltaV
         private readonly CombatStrategyRule DefaultFire = new CombatStrategyRule
             { name = "Default", outgoingWeight = 1f, targetThreatWeight = 0.5f, finishingWeight = 0.5f };
 
-        public CombatStrategyRule Maneuver(CombatStrategyContext context, CombatStrategyRule previous = null) =>
-            Select(maneuverRules, context, previous) ?? DefaultManeuver;
+        // The editor reads copies of the exact fallback used by selection.
+        internal CombatStrategyRule BuiltInManeuver => DefaultManeuver.Copy();
+        internal CombatStrategyRule BuiltInFire => DefaultFire.Copy();
+
+        public CombatStrategyRule Maneuver(CombatStrategyContext context, CombatStrategyRule previous = null,
+            CombatSelectionTrace trace = null) =>
+            Select(maneuverRules, context, previous, trace) ?? DefaultManeuver;
         public CombatStrategyRule Fire(CombatStrategyContext context, CombatStrategyRule previous = null) =>
             Select(fireRules, context, previous) ?? DefaultFire;
         public CombatStrategyRule Target(CombatStrategyContext context, CombatStrategyRule previous = null) =>
             Select(targetRules, context, previous) ?? DefaultFire;
         private static CombatStrategyRule Select(List<CombatStrategyRule> rules,
-            CombatStrategyContext context, CombatStrategyRule previous)
+            CombatStrategyContext context, CombatStrategyRule previous, CombatSelectionTrace trace = null)
         {
+            trace?.rules.Clear();
             if (rules != null)
                 foreach (var rule in rules)
-                    if (rule?.Matches(context, rule == previous) == true) return rule;
+                {
+                    var evaluation = trace != null ? new CombatRuleEvaluation(rule, rule == previous) : null;
+                    bool matched = rule?.Matches(context, rule == previous, evaluation) == true;
+                    if (evaluation != null) { evaluation.matched = matched; trace.rules.Add(evaluation); }
+                    if (matched) return rule;
+                }
             return null;
         }
 
@@ -261,6 +279,22 @@ namespace DeltaV
                 npcBoardConditions ??= new List<CombatCriterion>();
             }
         }
+    }
+
+    // Observations from the actual selector; never serialized or evaluated from a UI repaint.
+    public sealed class CombatSelectionTrace
+    {
+        public readonly List<CombatRuleEvaluation> rules = new List<CombatRuleEvaluation>();
+    }
+
+    public sealed class CombatRuleEvaluation
+    {
+        public readonly CombatStrategyRule rule;
+        public readonly bool retaining;
+        public bool matched;
+        public readonly List<bool> conditions = new List<bool>();
+        public CombatRuleEvaluation(CombatStrategyRule rule, bool retaining)
+        { this.rule = rule; this.retaining = retaining; }
     }
 
     public readonly struct CombatStrategyContext

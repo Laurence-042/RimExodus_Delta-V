@@ -8,6 +8,7 @@ internal static partial class Program
 {
     static void CheckCombatExpansion()
     {
+        CheckCombatDecisionTrace();
         foreach (var cells in new[] { Array.Empty<Verse.IntVec3>(), new[] { new Verse.IntVec3(-7, 0, -3) },
             new[] { new Verse.IntVec3(-4, 0, -8), new Verse.IntVec3(6, 0, 3), new Verse.IntVec3(1, 0, -4) } })
         {

@@ -62,7 +62,11 @@ namespace DeltaV
             {
                 long ruleStart = performance.Start();
                 var facts = control?.Facts(ship, own) ?? new CombatStrategyFacts(universe, ship, own);
-                var rule = (control?.Strategy(ship) ?? ship.CombatAI.strategy).Maneuver(facts.Context(enemy.Ship), activeRule);
+                var selection = new CombatSelectionTrace();
+                var strategy = control?.Strategy(ship) ?? ship.CombatAI.strategy;
+                var previousRule = activeRule;
+                var rule = strategy.Maneuver(facts.Context(enemy.Ship), activeRule, selection);
+                if (ship.CombatAI != null) ship.CombatAI.lastManeuverSelection = selection;
                 performance.Record(PerformanceStage.CombatRule, ruleStart);
                 if (performance.Enabled && activeRule != rule) cause |= CombatReplanCause.Rule;
                 changed |= activeRule != rule;
@@ -260,7 +264,7 @@ namespace DeltaV
                 tacticDriveVersion = drive.version;
                 tacticStructureVersion = SubstructureOwnership.GlobalStructureVersion;
                 if (ship.CombatAI != null)
-                    ship.CombatAI.lastManeuverReason = rule.name + " · "
+                    ship.CombatAI.lastManeuverReason = CombatDecisionText.Selection(strategy.maneuverRules, rule, previousRule) + " · "
                         + ("DeltaV_CombatTactic_" + attackPose.behavior).Translate() + "\n"
                         + "DeltaV_CombatTacticReason".Translate(attackPose.distance.ToString("0.0"),
                             (SpaceTransform.WrapAngle(attackPose.heading + ship.FrameAngle) * Mathf.Rad2Deg).ToString("0"),

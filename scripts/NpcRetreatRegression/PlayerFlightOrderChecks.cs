@@ -77,6 +77,9 @@ internal static partial class Program
 
     static void CheckPlayerControlAuthority(UniverseManager universe)
     {
+        var language = new Harmony("DeltaV.Regression.StrategyPanelLanguage");
+        language.Patch(AccessTools.PropertyGetter(typeof(Find), "ActiveLanguageWorker"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(WeaponMenuLanguage)));
         var player = (Faction)Raw(typeof(Faction));
         var enemy = (Faction)Raw(typeof(Faction));
         var oldFactions = Find.World.factionManager;
@@ -93,6 +96,8 @@ internal static partial class Program
             var own = AddTestConsole(map, player, 49981);
             var foreign = AddTestConsole(map, enemy, 49982);
             var shuttle = AddTestHull(map, enemy, 49983);
+            var foreignAi = new CompShipCombatAI { parent = foreign.parent };
+            foreign.parent.AllComps.Add(foreignAi);
             ShipStructureChanges.Notify(map);
             CheckFlightKeysDoNotTakeOver(universe, own.Vessel);
             foreach (bool godMode in new[] { false, true })
@@ -105,6 +110,26 @@ internal static partial class Program
                 Check(universe.Controls.For(own.Vessel) is PlayerShipController
                     && universe.Controls.For(foreign.Vessel) is NpcShipController,
                     "God Mode alone leaves foreign ships under NPC control=" + godMode);
+                var npc = universe.Controls.ExistingFor(foreign.Vessel);
+                var panel = typeof(ShipBase).GetProperty("PanelController", Private).GetValue(foreign.Vessel);
+                var before = new List<PilotPanelAction>(); var after = new List<PilotPanelAction>();
+                foreign.Vessel.CollectCombatPanelActions(false, before, after);
+                Check(ReferenceEquals(panel, npc) && ReferenceEquals(universe.Controls.ExistingFor(foreign.Vessel), npc),
+                    "reading sidebar actions preserves NPC controller and decisions, God Mode=" + godMode);
+                Check(foreignAi.CanEdit == godMode && (before.Count > 0) == godMode,
+                    "enemy strategy edit and sidebar actions require God Mode=" + godMode);
+                if (godMode)
+                {
+                    var original = foreignAi.strategy;
+                    var editor = new Dialog_CombatStrategy(foreignAi);
+                    Check(ReferenceEquals(foreignAi.strategy, original)
+                        && ReferenceEquals(universe.Controls.ExistingFor(foreign.Vessel), npc),
+                        "opening enemy strategy editor neither applies a draft nor takes over NPC control");
+                    DebugSettings.godMode = false;
+                    editor.Apply();
+                    Check(ReferenceEquals(foreignAi.strategy, original), "revoking God Mode before confirmation prevents enemy strategy writes");
+                    DebugSettings.godMode = true;
+                }
                 var takeover = Call(universe.Pilot, "ControllerFor", PilotTarget.Of(foreign.Vessel));
                 Check((takeover is PlayerShipController) == godMode,
                     "explicit foreign ship takeover requires God Mode=" + godMode);
@@ -131,6 +156,7 @@ internal static partial class Program
         }
         finally
         {
+            language.UnpatchAll(language.Id);
             universe.Controls.Reset();
             universe.objects.Remove(frame);
             Find.Maps.Remove(map);

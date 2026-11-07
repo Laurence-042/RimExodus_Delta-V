@@ -81,7 +81,7 @@ namespace DeltaV
 
         // 船体是面板的共同入口；控制器仍唯一提供权限、驾驶和侵入等操作。
         private ShipController PanelController => IsValid
-            ? Current.Game?.GetComponent<UniverseManager>()?.Pilot.ControllerFor(PilotTarget.Of(this)) : null;
+            ? Current.Game?.GetComponent<UniverseManager>()?.Controls.For(this) : null;
         internal void CollectPanelActions(List<PilotPanelAction> actions) =>
             PanelController?.CollectPanelActions(PilotTarget.Of(this), actions);
         internal void CollectCombatPanelActions(bool hasWeapons,

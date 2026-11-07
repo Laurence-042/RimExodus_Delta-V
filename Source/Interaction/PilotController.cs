@@ -145,7 +145,22 @@ internal readonly struct HeadingPanelAction
         }
 
         internal virtual void CollectCombatPanelActions(ShipBase ship, bool hasWeapons,
-            List<PilotPanelAction> beforeGroups, List<PilotPanelAction> afterGroups) { }
+            List<PilotPanelAction> beforeGroups, List<PilotPanelAction> afterGroups)
+        {
+            if (ship?.CombatAI?.CanEdit == true)
+                beforeGroups.Add(new PilotPanelAction("DeltaV_CombatAIEdit".Translate(),
+                    () => Find.WindowStack.Add(new Dialog_CombatStrategy(ship.CombatAI)),
+                    "DeltaV_CombatAIEditTip".Translate()));
+            if (ship?.IsValid != true || !universe.Pilot.CanPlayerControl(ship)
+                || !HasAuthority(PilotTarget.Of(ship))) return;
+            beforeGroups.Add(new PilotPanelAction("DeltaV_CombatOrders".Translate(),
+                () => Find.WindowStack.Add(new Dialog_CombatOrders(ship, universe)), "DeltaV_CombatOrdersHelp".Translate()));
+            beforeGroups.Add(new PilotPanelAction(
+                "DeltaV_PanelFireControl".Translate(
+                    ("DeltaV_FireControl" + universe.Controls.FireControlModeFor(ship)).Translate()),
+                () => universe.Controls.ToggleFireControl(ship),
+                "DeltaV_PanelFireControlTip".Translate()));
+        }
         internal virtual void CollectHeadingPanelActions(ShipBase ship,
             List<HeadingPanelAction> actions) { }
 
@@ -308,14 +323,8 @@ internal readonly struct HeadingPanelAction
         internal override void CollectCombatPanelActions(ShipBase ship, bool hasWeapons,
             List<PilotPanelAction> beforeGroups, List<PilotPanelAction> afterGroups)
         {
+            base.CollectCombatPanelActions(ship, hasWeapons, beforeGroups, afterGroups);
             if (!ship.IsValid || !HasAuthority(PilotTarget.Of(ship))) return;
-            beforeGroups.Add(new PilotPanelAction("DeltaV_CombatOrders".Translate(),
-                () => Find.WindowStack.Add(new Dialog_CombatOrders(ship, universe)), "DeltaV_CombatOrdersHelp".Translate()));
-            beforeGroups.Add(new PilotPanelAction(
-                "DeltaV_PanelFireControl".Translate(
-                    ("DeltaV_FireControl" + universe.Controls.FireControlModeFor(ship)).Translate()),
-                () => universe.Controls.ToggleFireControl(ship),
-                "DeltaV_PanelFireControlTip".Translate()));
             if (!hasWeapons || !ship.HasGunnerStations) return;
             afterGroups.Add(new PilotPanelAction("DeltaV_PanelBattleStationsOn".Translate(),
                 () => universe.Controls.EnterBattleStations(ship.Map),
