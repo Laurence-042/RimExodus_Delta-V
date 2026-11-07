@@ -199,6 +199,8 @@ internal static partial class Program
         SpaceImpactEffects.ResetCache();
         if (energyOnly) { CheckEnergy(); CheckCargoTemperature(); CheckEquipmentIntegration(); return; }
 
+        CheckGuardCenters();
+
         Reset(); var first = Shield(3000); var second = Shield(3000);
         var shot = Fire(7200); // 7200 budget, co-located full shields.
         Check(first.currentHitPoints == 0 && second.currentHitPoints == 0 && !shot.dead

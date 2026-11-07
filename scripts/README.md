@@ -1,5 +1,7 @@
 # 开发脚本索引
 
+`GuardShieldRegression/GuardShieldRegression.csproj` 直接编译生产护盾贴图裁剪算法，对拍随机覆盖、UV 范围与退化几何，并输出离线预览数据及重建耗时；运行和验证边界见[守卫盾裁剪检查](GuardShieldRegression/README.md)。
+
 `TutorialRegression/run.ps1` 现含 `MissionChecks.cs`：分级条件、货运押金／期限、逐人结果、原版宾客身份／财富过滤、手术真实信号与直接外交去重、合同 Scribe、敌舰主台／归档及 Harmony 签名。`NpcRetreatRegression -GlobeOnly` 增加多委托目标隔离。离线运行需传 `-HarmonyPath <Lib.Harmony/lib/net8.0/0Harmony.dll>`，不能使用游戏 Mono 版；复现命令与游戏内清单见[太空任务系统](../doc/太空任务系统.md#验证与复现)。
 
 `TutorialRegression/run.ps1 -RangeOnly` 检查武器试验平台／靶舰的原版占地、操作格、电网和屋顶支撑、三段轨道链与自瞄槽位、真实武器／终端 Scribe、全部内置 prefab 的原版数字 ID 注册、船厂／试验平台炮塔与嵌套枪械／Verb 的完整重复加载、六种护盾预设不补库存、射界／设置门禁与可直接跳过的课程阶段。仅隔离 Unity 图形静态初始化及夹具的归属登记／设施存在边界；不代替游戏交互和实弹验收。布局编辑 `TutorialContent/combat_range_layout.py`，通过共用 `build.py --only WeaponRange ShieldTarget` 生成。

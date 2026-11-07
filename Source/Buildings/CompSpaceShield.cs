@@ -46,7 +46,7 @@ namespace DeltaV
         }
     }
 
-    /// <summary>Vanilla intersection, EMP and visuals; capacities belong to CompSpaceShield.</summary>
+    /// <summary>Vanilla intersection and EMP; Delta-V owns capacity and guard outline rendering.</summary>
     public sealed class CompDeltaVShieldInterceptor : CompProjectileInterceptor
     {
         protected override int NumInactiveDots => 0;
@@ -111,6 +111,15 @@ namespace DeltaV
         }
 
         public CompProperties_SpaceShield ShieldProps => (CompProperties_SpaceShield)props;
+        // Match vanilla CompProjectileInterceptor.CheckIntercept, independent of the footprint size.
+        internal Vector2 GuardCenter
+        {
+            get
+            {
+                Vector3 center = parent.Position.ToVector3Shifted();
+                return new Vector2(center.x, center.z);
+            }
+        }
         public static Color KineticColor => new Color(0.25f, 0.55f, 1f);
         public static Color ElectromagneticColor => new Color(0.7f, 0.35f, 1f);
         public static Color EmergencyColor => new Color(1f, 0.15f, 0.15f);
@@ -161,6 +170,12 @@ namespace DeltaV
             EnsureInstanceInterceptorProps();
 
             UpdatePowerDraw();
+        }
+
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
+        {
+            GuardShieldRenderer.Release(this);
+            base.PostDeSpawn(map, mode);
         }
 
         public override void PostExposeData()
@@ -305,12 +320,27 @@ namespace DeltaV
             {
                 yield return new Gizmo_ShieldRegular(this);
                 if (mode == SpaceShieldMode.Guard && emergencyReason != GuardEmergencyReason.Manual)
-                    yield return new Command_BatchSetting<CompSpaceShield>("ShieldManualEmergency", this,
+                {
+                    var emergency = new Command_BatchSetting<CompSpaceShield>("ShieldManualEmergency", this,
                         shields => { foreach (var shield in shields) shield.EnterManualEmergency(); })
                     {
                         defaultLabel = "DeltaV_ShieldManualEmergency".Translate(),
                         defaultDesc = "DeltaV_ShieldManualEmergencyTip".Translate(), icon = parent.def.uiIcon
                     };
+                    if (EmergencyCapacity <= 0) emergency.Disable("DeltaV_ShieldNoEmergency".Translate());
+                    yield return emergency;
+                }
+                if (mode == SpaceShieldMode.Guard && emergencyReason != GuardEmergencyReason.None)
+                {
+                    var regular = new Command_BatchSetting<CompSpaceShield>("ShieldUseRegular", this,
+                        shields => { foreach (var shield in shields) shield.UseRegularGuard(); })
+                    {
+                        defaultLabel = "DeltaV_ShieldUseRegular".Translate(),
+                        defaultDesc = "DeltaV_ShieldUseRegularTip".Translate(), icon = parent.def.uiIcon
+                    };
+                    if (RegularCapacity <= 0) regular.Disable("DeltaV_ShieldNoRegular".Translate());
+                    yield return regular;
+                }
             }
             yield return new Command_BatchSetting<CompSpaceShield>("ShieldMode", this, shields =>
             {

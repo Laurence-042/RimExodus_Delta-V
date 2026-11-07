@@ -110,7 +110,17 @@ namespace DeltaV
             nextSequence = 0;
             if (map == null || map.Disposed
                 || Current.Game?.GetComponent<UniverseManager>()?.Generation?.IsGenerating(map) == true) return false;
-            if (!localView.Overlaps(CellRect.WholeMap(map))) return false;
+            // Fields extend beyond their projector's section and even beyond the map bounds.
+            // Read the native interceptor registry once, rather than culling by the building root.
+            foreach (Thing thing in map.listerThings.ThingsInGroup(ThingRequestGroup.ProjectileInterceptor))
+            {
+                if (thing.TryGetComp<CompSpaceShield>() == null
+                    || allowedCells != null && !allowedCells.Contains(thing.Position)) continue;
+                CompProjectileInterceptor field = thing.TryGetComp<CompProjectileInterceptor>();
+                if (field != null)
+                    ShellDrawCapture.Capture(field.PostDraw, matrix, ShellSurfaceLayer.Exposed, 0f);
+            }
+            if (!localView.Overlaps(CellRect.WholeMap(map))) return Commands.Count > 0;
             EnsureRules();
             CellRect visible = localView.ClipInsideMap(map);
             int minSx = visible.minX / SectionSize;
@@ -360,7 +370,7 @@ namespace DeltaV
                     CollectTurretTop(thing, config, matrix, rotation, collector);
                     // A projector's dome is a comp effect, separate from its turret top.
                     CompProjectileInterceptor interceptor = thing.TryGetComp<CompProjectileInterceptor>();
-                    if (interceptor != null)
+                    if (interceptor != null && thing.TryGetComp<CompSpaceShield>() == null)
                         ShellDrawCapture.Capture(interceptor.PostDraw, matrix, config.layer, config.zIndex);
                     continue;
                 }
@@ -680,6 +690,7 @@ namespace DeltaV
 
         public static void Release(Map map)
         {
+            GuardShieldRenderer.Release(map);
             if (map == null || !Caches.TryGetValue(map, out MapCache cache)) return;
             foreach (SectionSnapshot section in cache.sections.Values) section.Dispose();
             Caches.Remove(map);
@@ -687,6 +698,7 @@ namespace DeltaV
 
         public static void ClearRuntimeCaches()
         {
+            GuardShieldRenderer.Clear();
             foreach (MapCache cache in Caches.Values)
                 foreach (SectionSnapshot section in cache.sections.Values) section.Dispose();
             Caches.Clear();

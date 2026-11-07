@@ -570,9 +570,9 @@
   <DeltaV_ShieldRecoveryWait>常规盾容恢复前还需等待：{0} 秒</DeltaV_ShieldRecoveryWait>
   <DeltaV_ShieldRecovering>常规盾容恢复中（额外耗电 1000 W）</DeltaV_ShieldRecovering>
   <DeltaV_ShieldManualEmergency>改用应急护盾</DeltaV_ShieldManualEmergency>
-  <DeltaV_ShieldManualEmergencyTip>暂停使用未充满的常规护盾，让它恢复。这期间只消耗本机应急盾容，不再与其他发生器分担伤害。常规盾容充满后自动启用，不受滑条设定影响。若已切换为线盾，则保持线盾模式。</DeltaV_ShieldManualEmergencyTip>
-  <DeltaV_ShieldRegularBar>常规盾：恢复至 {0}% 后启用</DeltaV_ShieldRegularBar>
-  <DeltaV_ShieldRegularBarTip>下方数值显示本机剩余的常规盾容。\n\n常规盾容耗尽后会暂时停用，改由应急护盾保护。拖动标记可设置常规盾容恢复至多少时自动重新启用（1–100%），再次与同船的常规护盾分担伤害。\n\n手动选择“改用应急护盾”后，始终要等常规盾容充满才启用，不受这里的设置影响。使用线盾时只恢复盾容，不会自动切回圆盾。</DeltaV_ShieldRegularBarTip>
+  <DeltaV_ShieldManualEmergencyTip>手动改用本机应急盾容，退出常规共享。即使常规盾容充满也保持应急，直到手动选择“改用常规护盾”。需要本机仍有应急盾容；切换不补充容量。</DeltaV_ShieldManualEmergencyTip>
+  <DeltaV_ShieldRegularBar>常规盾：自动恢复阈值 {0}%</DeltaV_ShieldRegularBar>
+  <DeltaV_ShieldRegularBarTip>下方数值显示本机剩余的常规盾容。\n\n常规耗尽后进入自动应急。拖动标记设置恢复至多少时自动重新启用（1–100%），再次与同船常规护盾分担伤害。\n\n手动改用应急后不会自动切回，可在本机常规盾容恢复后手动选择“改用常规护盾”。线盾模式只恢复盾容，不会自动切回圆盾。</DeltaV_ShieldRegularBarTip>
   <DeltaV_ShieldDevRegularFull>DEV: 常规盾容充满</DeltaV_ShieldDevRegularFull>
   <DeltaV_ShieldDevRegularFullTip>充满所选发生器的常规盾容，并解除其应急状态。</DeltaV_ShieldDevRegularFullTip>
   <DeltaV_ShieldDevRegularEmpty>DEV: 常规盾容清空</DeltaV_ShieldDevRegularEmpty>
@@ -592,4 +592,8 @@
   <DeltaV_ShieldDevLineReset>DEV: 清除线盾失效</DeltaV_ShieldDevLineReset>
   <DeltaV_ShieldDevLineResetTip>结束线盾欠压失效；仍需开启设备并供电。</DeltaV_ShieldDevLineResetTip>
   <DeltaV_PilotDepartConfirm>{0} 当前停靠在作业地图上。是否直接脱离当前地图起飞并进入驾驶？</DeltaV_PilotDepartConfirm>
+  <DeltaV_ShieldUseRegular>改用常规护盾</DeltaV_ShieldUseRegular>
+  <DeltaV_ShieldUseRegularTip>立即使用本机已恢复的常规盾容并重新加入同船共享，不必等到自动恢复阈值。需要本机仍有常规盾容。常规耗尽后仍会进入自动应急；切换不补充容量。</DeltaV_ShieldUseRegularTip>
+  <DeltaV_ShieldNoEmergency>本机没有应急盾容。</DeltaV_ShieldNoEmergency>
+  <DeltaV_ShieldNoRegular>本机常规盾容尚未恢复。</DeltaV_ShieldNoRegular>
 </LanguageData>

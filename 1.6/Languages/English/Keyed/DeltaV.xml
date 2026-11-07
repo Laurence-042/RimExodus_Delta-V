@@ -570,9 +570,9 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShieldRecoveryWait>Regular recovery delay: {0} seconds</DeltaV_ShieldRecoveryWait>
   <DeltaV_ShieldRecovering>Restoring regular capacity (+1000 W).</DeltaV_ShieldRecovering>
   <DeltaV_ShieldManualEmergency>Use emergency shield</DeltaV_ShieldManualEmergency>
-  <DeltaV_ShieldManualEmergencyTip>Pause a partially depleted regular shield to let it recover. Only this generator's emergency capacity absorbs hits while it recovers; damage is no longer shared. Regular protection reactivates at full capacity, regardless of the slider setting. Line mode remains unchanged.</DeltaV_ShieldManualEmergencyTip>
-  <DeltaV_ShieldRegularBar>Regular: reactivate at {0}%</DeltaV_ShieldRegularBar>
-  <DeltaV_ShieldRegularBarTip>The bar shows this generator's remaining regular capacity.\n\nAfter regular capacity is depleted, emergency protection takes over. Drag the marker to choose how much regular capacity must recover before it reactivates (1–100%) and shares damage with the ship's other active regular shields.\n\nManually switching to emergency protection always waits for full regular capacity. Line mode can restore capacity but never switches back to a dome automatically.</DeltaV_ShieldRegularBarTip>
+  <DeltaV_ShieldManualEmergencyTip>Use this generator's local emergency reserve and leave regular sharing. This manual choice remains in effect even when regular capacity is full, until you choose Use regular shield. Requires emergency capacity; switching adds no capacity.</DeltaV_ShieldManualEmergencyTip>
+  <DeltaV_ShieldRegularBar>Regular: auto rejoin at {0}%</DeltaV_ShieldRegularBar>
+  <DeltaV_ShieldRegularBarTip>The bar shows this generator's remaining regular capacity.\n\nDepletion enters automatic emergency. Drag the marker to choose how much regular capacity must recover before automatically rejoining shared protection (1–100%).\n\nManual emergency never switches back automatically. Once some local regular capacity has recovered, choose Use regular shield to return. Line mode restores capacity without switching back to a dome.</DeltaV_ShieldRegularBarTip>
   <DeltaV_ShieldDevRegularFull>DEV: Fill regular capacity</DeltaV_ShieldDevRegularFull>
   <DeltaV_ShieldDevRegularFullTip>Fill the selected generators' regular capacity and return them from emergency.</DeltaV_ShieldDevRegularFullTip>
   <DeltaV_ShieldDevRegularEmpty>DEV: Empty regular capacity</DeltaV_ShieldDevRegularEmpty>
@@ -592,4 +592,8 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShieldDevLineReset>DEV: Reset line shield failure</DeltaV_ShieldDevLineReset>
   <DeltaV_ShieldDevLineResetTip>End the line shield brownout. The generator must still be switched on and powered.</DeltaV_ShieldDevLineResetTip>
   <DeltaV_PilotDepartConfirm>{0} is docked on the current work map. Take off directly and take manual control?</DeltaV_PilotDepartConfirm>
+  <DeltaV_ShieldUseRegular>Use regular shield</DeltaV_ShieldUseRegular>
+  <DeltaV_ShieldUseRegularTip>Use recovered regular capacity and rejoin ship-wide sharing immediately, without waiting for the automatic threshold. Requires local regular capacity. Depletion still enters automatic emergency; switching adds no capacity.</DeltaV_ShieldUseRegularTip>
+  <DeltaV_ShieldNoEmergency>No local emergency capacity remains.</DeltaV_ShieldNoEmergency>
+  <DeltaV_ShieldNoRegular>No local regular capacity has recovered yet.</DeltaV_ShieldNoRegular>
 </LanguageData>

@@ -5,7 +5,7 @@ using Verse;
 
 namespace DeltaV
 {
-    /// <summary>仅目标发生器的太空模式关闭原版圆形同图拦截与圆顶绘制。</summary>
+    /// <summary>Delta-V 容量门禁与盾模式适配；守卫绘制走联合轮廓，原版发生器保持不变。</summary>
     [HarmonyPatch]
     public static class Patch_SpaceShieldMode
     {
@@ -42,7 +42,9 @@ namespace DeltaV
         {
             CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
             shield?.UpdateFieldColor();
-            return shield == null || shield.State == SpaceShieldState.Guard;
+            if (shield == null) return true;
+            GuardShieldRenderer.Draw(shield, __instance);
+            return false;
         }
 
         [HarmonyPatch(typeof(CompProjectileInterceptor), nameof(CompProjectileInterceptor.PostDrawExtraSelectionOverlays))]

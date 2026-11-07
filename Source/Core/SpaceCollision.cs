@@ -393,7 +393,7 @@ namespace DeltaV
                 }
                 var arc = new ShieldArc
                 {
-                    center = new Vector2(building.Position.x + building.def.Size.x * 0.5f,
+                    center = shield?.GuardCenter ?? new Vector2(building.Position.x + building.def.Size.x * 0.5f,
                         building.Position.z + building.def.Size.z * 0.5f),
                     radius = interceptor.Props.radius,
                     facing = 0f,

@@ -60,20 +60,24 @@ namespace DeltaV
 
         internal void TryRejoinRegular()
         {
-            if (ShieldProps.regularCapacity <= 0) return;
-            double threshold = ShieldProps.regularCapacity *
-                (emergencyReason == GuardEmergencyReason.Manual ? 1d : autoRejoinPercent / 100d);
+            if (ShieldProps.regularCapacity <= 0 || emergencyReason != GuardEmergencyReason.Automatic) return;
+            double threshold = ShieldProps.regularCapacity * autoRejoinPercent / 100d;
             if (regularCapacity >= threshold - 1e-8) emergencyReason = GuardEmergencyReason.None;
         }
 
         public void EnterManualEmergency()
         {
-            if (ShieldProps.regularCapacity <= 0) return;
+            if (mode != SpaceShieldMode.Guard || ShieldProps.regularCapacity <= 0 || EmergencyCapacity <= 0) return;
             emergencyReason = GuardEmergencyReason.Manual;
-            TryRejoinRegular();
         }
 
-        private IReadOnlyList<CompSpaceShield> OwnedShields =>
+        public void UseRegularGuard()
+        {
+            if (mode != SpaceShieldMode.Guard || ShieldProps.regularCapacity <= 0 || regularCapacity <= 0) return;
+            emergencyReason = GuardEmergencyReason.None;
+        }
+
+        internal IReadOnlyList<CompSpaceShield> OwnedShields =>
             (ShipRegistry.ShipOf(parent, requireWholeFootprint: true) as FoundationShip)?.Structure.console?.Shields;
 
         public double SharedRegularCapacity

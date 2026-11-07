@@ -123,10 +123,33 @@ internal static partial class Program
             a.EnterManualEmergency(); a.AutoRejoinPercent = 1; ShieldTicks(a, 1000);
             Check(!a.UsesRegular && a.EmergencyReason == GuardEmergencyReason.Manual, "manual emergency ignores the auto threshold");
             ShieldTicks(a, 250);
-            Check(a.UsesRegular && a.RegularCapacity == 1000, "manual emergency rejoins only at full regular capacity");
+            Check(!a.UsesRegular && a.RegularCapacity == 1000 && a.EmergencyReason == GuardEmergencyReason.Manual,
+                "manual emergency remains selected at full regular capacity");
+            a.UseRegularGuard();
+            Check(a.UsesRegular, "manual return to regular is available after recovery");
             a.EnterManualEmergency();
-            Check(a.UsesRegular, "full regular capacity cannot be permanently locked by repeated manual emergency");
-            Hit(a, 1000); a.mode = SpaceShieldMode.Electromagnetic;
+            Check(!a.UsesRegular && a.EmergencyReason == GuardEmergencyReason.Manual,
+                "full regular capacity can deliberately switch to manual emergency");
+            a.UseRegularGuard();
+            Hit(a, 750); a.EnterManualEmergency();
+            double beforeRegular = a.RegularCapacity, beforeEmergency = a.EmergencyCapacity;
+            a.UseRegularGuard();
+            Check(a.UsesRegular && a.RegularCapacity == beforeRegular && a.EmergencyCapacity == beforeEmergency,
+                "return below automatic threshold does not grant capacity or wait for full recovery");
+            a.parent.GetComp<CompRefuelable>().ConsumeFuel(10000);
+            a.EnterManualEmergency();
+            Check(a.UsesRegular && a.EmergencyReason == GuardEmergencyReason.None,
+                "empty emergency reserve cannot disable usable regular protection");
+            Hit(a, 250); a.UseRegularGuard();
+            Check(!a.UsesRegular && a.EmergencyReason == GuardEmergencyReason.Automatic,
+                "empty regular capacity cannot be manually activated");
+            a = Shield(); a.EnterManualEmergency();
+            Hit(a, 2000); ShieldTicks(a, 3000);
+            Check(!a.HasGuardCapacity && a.RegularCapacity == 1000 && a.EmergencyReason == GuardEmergencyReason.Manual,
+                "depleted manual emergency stays selected instead of silently changing the player's choice");
+            a.UseRegularGuard();
+            Check(a.HasGuardCapacity && a.UsesRegular, "manual return restores available regular protection after emergency depletion");
+            a = Shield(); Hit(a, 1000); a.mode = SpaceShieldMode.Electromagnetic;
             ShieldTicks(a, 600);
             Check(a.WantedPowerWatts == 1041, "line-mode recovery adds 1000 W to line geometry load");
             Check(Hit(a, 10) == 0 && a.EmergencyCapacity == 2000, "line mode never uses its emergency dome");
@@ -149,6 +172,11 @@ internal static partial class Program
             Check(restored.parent.GetComp<CompRefuelable>().TargetFuelLevel == 1234
                 && !restored.parent.GetComp<CompRefuelable>().allowAutoRefuel,
                 "Scribe preserves native emergency refueling target and toggle");
+            restored.mode = SpaceShieldMode.Guard; ShieldTicks(restored, 4000);
+            Check(restored.EmergencyReason == GuardEmergencyReason.Manual && !restored.UsesRegular,
+                "saved manual emergency remains selected after reload and full recovery");
+            restored.UseRegularGuard();
+            Check(restored.UsesRegular, "saved manual emergency can explicitly return to regular");
             a = Shield(); SetSpawned(a.parent, false);
             Check(a.ConsumeGuard(1100) == 1100 && a.RegularCapacity == 0 && a.EmergencyCapacity == 1900,
                 "no console list falls back to local regular then emergency");
