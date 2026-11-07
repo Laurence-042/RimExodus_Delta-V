@@ -20,13 +20,15 @@ def shape(name):
 def furnish(name, plan, place, prop, foundation, roofs, records, occupied):
     if name == 'WeaponRange':
         walls = {(x,z) for x in range(24) for z in range(43) if x in (0,23) or z in (0,42)}
-        doors = {(0,39),(7,39),(23,21)}
+        doors = {(0,39),(7,39),(23,25)}
+        # The airtight large loader replaces four hull cells on the east wall.
+        walls -= {(23,z) for z in range(20,24)}
         walls |= {(x,z) for x in (11,21) for z in (10,20,30)}
         walls |= {(7,z) for z in range(35,42)} | {(x,35) for x in range(8)}
         for x,z in sorted(walls-doors): place('GravshipHull',x,z)
         place('DeltaV_DockingPort',0,39,3)
         place('DeltaV_RangeBlastDoor',7,39,1)
-        place('Door',23,21,1)
+        place('Door',23,25,1)
         roofs.intersection_update({(x,z) for x in range(24) for z in range(43)})
         place('PilotConsole',3,27,1)
         place('DeltaV_RangeTerminal_Introduction',4,41,2)
@@ -58,8 +60,8 @@ def furnish(name, plan, place, prop, foundation, roofs, records, occupied):
                 slot=list(map(int,re.findall(r'-?\d+',prop(weapon,"comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']/attachmentSlots/li/cell"))))
                 x0,z0=gun['root'][0]+slot[2],gun['root'][1]-slot[0]
                 place('DeltaV_Building_AutoAimPluginII',x0,z0,1,layer='attachment')
-        loader=place('DeltaV_Weapon_RailgunLoader',27,21,1,state={'groupNumber':'4'})
-        for x in range(28,33): place('DeltaV_Weapon_RailgunAccelerator',x,21,1)
+        loader=place('DeltaV_Weapon_RailgunLoaderLarge',23,20,1,state={'groupNumber':'4'})
+        for x in range(25,33,2): place('DeltaV_Weapon_RailgunAcceleratorLarge',x,20,1)
         # The rail lane exits east with no hull, roof or building in front of the final segment.
         assert loader['root'][1] == 22
         start=(1,39)
@@ -70,12 +72,13 @@ def furnish(name, plan, place, prop, foundation, roofs, records, occupied):
         for x,z in sorted(walls): place('Wall',x,z,stuff='Steel')
         for x in (11,15):
             for z in range(2,41): place('Wall',x,z,stuff='Steel')
-        # Only the forward dome covers the armour; rear domes supply the common regular pool.
+        # All three domes cross the rail lane before the armour: shared regular
+        # capacity plus each struck dome's local emergency reserve can be observed.
         place('DeltaV_ShieldGenerator',25,17,3,state={'DeltaV_shieldGroundRadius':'40',
             'DeltaV_shieldProjection':'32','DeltaV_shieldLength':'10','DeltaV_shieldAngle':'0'})
         # Opposite inclinations place separate upper/lower segments ahead of the armour.
         for z,angle in ((11,-30),(23,30)):
-            place('DeltaV_ShieldGenerator',21,z,3,state={'DeltaV_shieldGroundRadius':'8',
+            place('DeltaV_ShieldGenerator',21,z,3,state={'DeltaV_shieldGroundRadius':'38',
                 'DeltaV_shieldProjection':'32','DeltaV_shieldLength':'10','DeltaV_shieldAngle':str(angle)})
         place('PilotConsole',25,39)
         place('Battery',28,13)
@@ -192,7 +195,9 @@ def validate_and_draw(name, plan, records, foundation, roofs, reachable, here, g
     if name=='WeaponRange':
         assert sum(r['name']=='Battery' for r in records)==60
         assert sum(r['name'].startswith('DeltaV_RangeTerminal_') for r in records)==10
-        assert sum(r['name']=='DeltaV_Weapon_RailgunAccelerator' for r in records)==5
+        rail=[r for r in records if r['name'] in ('DeltaV_Weapon_RailgunLoaderLarge','DeltaV_Weapon_RailgunAcceleratorLarge')]
+        assert len(rail)==5
+        assert {tuple(c) for r in rail for c in r['cells']}=={(x,z) for x in range(23,33) for z in range(20,24)}
         # The berth reaches only the instructions until the single interior blast door unlocks.
         blocked={tuple(c) for r in records if r['name']=='DeltaV_RangeBlastDoor' or
                  (r['passability']=='Impassable' and r['name'] not in ('Door','DeltaV_DockingPort')) for c in r['cells']}

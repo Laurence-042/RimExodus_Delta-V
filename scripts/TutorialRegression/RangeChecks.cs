@@ -40,8 +40,8 @@ internal static partial class Program
             Check(attachments.Count(a=>a.Position==SpaceWeaponGeometry.RotatedCell(turret,slot)
                 && a.Rotation==turret.Rotation)==1,"native rotated attachment slot contains exactly one advanced auto-aim");
         }
-        var loader=buildings.Single(b=>b.def.defName=="DeltaV_Weapon_RailgunLoader");
-        var segments=buildings.Where(b=>b.def.defName=="DeltaV_Weapon_RailgunAccelerator").ToList();
+        var loader=buildings.Single(b=>b.def.defName=="DeltaV_Weapon_RailgunLoaderLarge");
+        var segments=buildings.Where(b=>b.def.defName=="DeltaV_Weapon_RailgunAcceleratorLarge").ToList();
         var segmentNode=Def(segments[0].def.defName).SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceRailgun']");
         int id=900;
         foreach(var b in segments)
@@ -64,10 +64,13 @@ internal static partial class Program
         try
         {
             var chain=CompSpaceRailgun.TraceConnections(weapon);
-            Check(chain.segments.Count==5 && chain.kineticEnergyBonus==1080000f,"production trace reaches all five accelerators");
+            Check(chain.segments.Count==4 && chain.kineticEnergyBonus==900000f,"production trace reaches four large accelerators");
+            var cells=segments.Append(loader).SelectMany(b=>b.OccupiedRect()).Distinct().ToList();
+            Check(cells.Count==40 && cells.Max(c=>c.x)-cells.Min(c=>c.x)+1==10
+                && cells.Max(c=>c.z)-cells.Min(c=>c.z)+1==4,"native rail footprint is ten cells long and four wide");
             var last=chain.segments.Last().parent.OccupiedRect();
             var muzzleCell=new IntVec3(Mathf.FloorToInt(chain.muzzleMap.Value.x),0,Mathf.FloorToInt(chain.muzzleMap.Value.y));
-            Check(chain.muzzleMap.HasValue && chain.muzzleMap.Value.x>last.maxX+1
+            Check(chain.muzzleMap.HasValue && chain.muzzleMap.Value.x>=last.maxX+1
                 && !buildings.Any(b=>b.def.passability==Traversability.Impassable
                     && b.OccupiedRect().Contains(muzzleCell)),
                 "production rail muzzle exits unobstructed beyond the final segment");
@@ -218,7 +221,7 @@ internal static partial class Program
         var target = new XmlDocument(); target.Load(Path.Combine(directory,"ShieldTarget.xml"));
         RangeEntrance(platform,harmony,directory);
         var weaponNames = new[] { "DeltaV_Weapon_RapidMainMedium", "DeltaV_Weapon_HeavyMainMedium",
-            "DeltaV_Weapon_LaserMainMedium", "DeltaV_Weapon_RailgunLoader" };
+            "DeltaV_Weapon_LaserMainMedium", "DeltaV_Weapon_RailgunLoaderLarge" };
         int group=0;
         foreach (string name in weaponNames)
         {
@@ -256,7 +259,7 @@ internal static partial class Program
             finally { Scribe.ForceStop(); File.Delete(file); }
         }
         }
-        Check(platform.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_Weapon_RailgunAccelerator']").Count==5,"railgun has five real accelerators");
+        Check(platform.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_Weapon_RailgunAcceleratorLarge']").Count==4,"railgun has four real large accelerators");
         Check(platform.SelectSingleNode("/MapPrefab/thingStates/li[def='PilotConsole']/state/saveable/combat/fireControlMode").InnerText=="Disabled",
             "platform stores disabled fire control in the native combat record");
         Check(new ShipCombatState().fireControlMode==ShipFireControlMode.Automatic,"new player ships still default to automatic fire control");
@@ -290,6 +293,11 @@ internal static partial class Program
         Check(shields.Select(s=>s.angleDeg).OrderBy(a=>a).SequenceEqual(new[]{-30f,0f,30f}),"stored straight and opposite tilted shields");
         foreach(var s in shields)
         {
+            Vector2 center=SpaceWeaponGeometry.FootprintCenter(s.parent);
+            float laneOffset=22f-center.y;
+            Check(Math.Abs(laneOffset)<s.groundRadius
+                && center.x-Math.Sqrt(s.groundRadius*s.groundRadius-laneOffset*laneOffset)<0,
+                "each guard dome crosses the rail axis before the six armour layers");
             s.GetSegment(out var a,out var b,out var n);
             Check(a.x<0 && b.x<0 && n.x<0,"whole native shield segment sits ahead of front armour");
             Check(Math.Abs((b-a).magnitude-10f)<.001f,"native shield length survives prefab Scribe");

@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <prototypes>
   <saveable Class="Building">
-    <def>DeltaV_Weapon_RailgunLoader</def>
-    <health>400</health>
+    <def>DeltaV_Weapon_RailgunLoaderLarge</def>
+    <health>800</health>
     <questTags IsNull="True" />
     <beenRevealed>True</beenRevealed>
     <fuel>60</fuel>
@@ -32,8 +32,8 @@
     </gun>
   </saveable>
   <saveable Class="Building">
-    <def>DeltaV_Weapon_RailgunAccelerator</def>
-    <health>180</health>
+    <def>DeltaV_Weapon_RailgunAcceleratorLarge</def>
+    <health>360</health>
     <questTags IsNull="True" />
   </saveable>
   <saveable Class="DeltaV.Building_SpaceTurretGun">

@@ -7453,7 +7453,7 @@
           <id>DeltaV_ShieldGenerator810337</id>
           <pos>(22, 0, 12)</pos>
           <rot>3</rot>
-          <DeltaV_shieldGroundRadius>8</DeltaV_shieldGroundRadius>
+          <DeltaV_shieldGroundRadius>38</DeltaV_shieldGroundRadius>
           <DeltaV_shieldProjection>32</DeltaV_shieldProjection>
           <DeltaV_shieldLength>10</DeltaV_shieldLength>
           <DeltaV_shieldAngle>-30</DeltaV_shieldAngle>
@@ -7488,7 +7488,7 @@
           <id>DeltaV_ShieldGenerator810338</id>
           <pos>(22, 0, 24)</pos>
           <rot>3</rot>
-          <DeltaV_shieldGroundRadius>8</DeltaV_shieldGroundRadius>
+          <DeltaV_shieldGroundRadius>38</DeltaV_shieldGroundRadius>
           <DeltaV_shieldProjection>32</DeltaV_shieldProjection>
           <DeltaV_shieldLength>10</DeltaV_shieldLength>
           <DeltaV_shieldAngle>30</DeltaV_shieldAngle>

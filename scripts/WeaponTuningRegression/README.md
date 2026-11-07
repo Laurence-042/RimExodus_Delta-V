@@ -7,7 +7,7 @@ powershell -ExecutionPolicy Bypass -File scripts/WeaponTuningRegression/run.ps1
 powershell -ExecutionPolicy Bypass -File scripts/WeaponTuningRegression/run.ps1 -OutputAudit
 ```
 
-当前普通回归通过 1,754 项检查；侧向冲量矩阵包含 8 种质量、7 个入射角、6 档强度、普通／长杆阈值及共同旋转。检查实际失稳弹 Def 的结构、基架和守卫后效。RailgunRegression 通过 284 项检查，覆盖真实碰撞、能源、跨 tick 续飞、翻滚后二次撕裂及质量／剩余寿命。
+当前普通回归通过 1,754 项检查；侧向冲量矩阵包含 8 种质量、7 个入射角、6 档强度、普通／长杆阈值及共同旋转。检查实际失稳弹 Def 的结构、基架和守卫后效。RailgunRegression 通过 288 项检查，覆盖真实碰撞、能源、跨 tick 续飞、翻滚后二次撕裂及质量／剩余寿命，并验证长炮 5000 预算经过三台满守卫后的装甲余量及第四台截停。
 
 `-OutputAudit` 扫描 20,592 个生产武器配置与 352 个守卫场景，输出 `Source/obj/WeaponTuningRegression/output-audit.json`。它运行生产热循环、毁伤和守卫扣容／回充，不模拟真实瞄准、双向机动、补给工作或完整电网。冷炮、初始库存、应急、供能和终点均在输出中声明。
 

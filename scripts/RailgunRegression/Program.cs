@@ -479,6 +479,7 @@ internal static partial class Program
         CheckDualGuard(harmony);
         CheckContinuousBeam(coupler, engineering);
         CheckEnergy();
+        CheckRailgunLengthBaseline();
         CheckImpulseSurvival();
         CheckLateralTransform();
         CheckVisualAnchors();
@@ -755,6 +756,48 @@ internal static partial class Program
     }
     static void CountStoredEnergy() { storedEnergyReads++; }
 
+    static void CheckRailgunLengthBaseline()
+    {
+        var xml = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml");
+        XElement Comp(string name, string type) => xml.Root.Elements("ThingDef")
+            .Single(x => (string)x.Element("defName") == name).Element("comps").Elements("li")
+            .Single(x => (string)x.Attribute("Class") == "DeltaV.CompProperties_" + type);
+        foreach (bool large in new[] { false, true })
+        foreach (int guardCount in new[] { 3, 4 })
+        {
+            Reset();
+            string suffix = large ? "Large" : "";
+            var loader = Comp("DeltaV_Weapon_RailgunLoader" + suffix, "SpaceWeapon");
+            var segment = Comp("DeltaV_Weapon_RailgunAccelerator" + suffix, "SpaceRailgun");
+            int count = large ? 4 : 14;
+            float mass = large ? 40 : 20;
+            float speed = SpaceKinetics.Speed(mass, (float)loader.Element("launchKineticEnergy")
+                + count * (float)segment.Element("kineticEnergyBonus"));
+            float budget = SpaceImpactEffects.ComputeDamage(
+                SpaceImpactEffects.Resolve(rail, shieldDef, true).defenderEffect, speed, 0, 1f, mass);
+            var shields = new List<CompSpaceShield>();
+            for (int i = 0; i < guardCount; i++)
+            {
+                var shield = DualShield();
+                shield.props = new CompProperties_SpaceShield { groundRadius = 12 };
+                shield.PostPostMake();
+                Set(shield, "regularCapacity", 750d);
+                shield.parent.GetComp<CompRefuelable>().Initialize(new CompProperties_Refuelable {
+                    fuelCapacity = 750, initialFuelPercent = 1, consumeFuelOnlyWhenUsed = true });
+                shields.Add(shield);
+            }
+            var armour = Add(60, 5, 700);
+            var shot = Fire(budget, speed);
+            if (guardCount == 3)
+                Check(shot.dead && !armour.Destroyed && Math.Abs(armour.HitPoints - 200) <= 2
+                    && shields.All(s => s.RegularCapacity < .02 && s.EmergencyCapacity < .02),
+                    suffix + " 5000-budget production round drains three 750+750 domes but remaining armour stops it");
+            else
+                Check(shot.dead && armour.HitPoints == 700 && shields.Sum(s => s.RegularCapacity + s.EmergencyCapacity) > 999,
+                    suffix + " fourth standard guard stops the same round before armour");
+        }
+    }
+
     static void CheckEnergy()
     {
         var xml = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml");
@@ -851,15 +894,15 @@ internal static partial class Program
             Check(Plan(wp.shotEnergy + rp.shotEnergy)
                 && energy.kineticEnergyBonus == 2 * rp.kineticEnergyBonus,
                 suffix + " unfunded middle segment does not block later funded acceleration");
-            int count = large ? 1 : 3;
+            int count = large ? 4 : 14;
             float velocity;
             XElement magazine = Comp("DeltaV_Weapon_RailgunLoader" + suffix, "SpaceWeaponMagazine");
             float mass = (float)magazine.Element("ammoPerShot") * ((float?)magazine.Element("unitMass") ?? 1f);
             velocity = SpaceKinetics.Speed(mass, (float)loader.Element("launchKineticEnergy") + count * rp.kineticEnergyBonus);
             float budget = SpaceImpactEffects.ComputeDamage(
                 SpaceImpactEffects.Resolve(rail, shieldDef, true).defenderEffect, velocity, 0, 1f, mass) * wp.impactScale;
-            Check(Math.Abs(budget - (large ? 4800 : 4320)) < 0.01f
-                && wp.shotEnergy + count * rp.shotEnergy == (large ? 7200 : 7200),
+            Check(Math.Abs(budget - 5000) < 0.01f
+                && wp.shotEnergy + count * rp.shotEnergy == 6750,
                 suffix + " real Defs meet declared shield-breaking budget and energy threshold");
             XElement cap = Comp("DeltaV_Building_RailgunCapacitor" + suffix, "SwitchableBattery");
             Check((float)cap.Element("capacityWattDays") == rp.shotEnergy
