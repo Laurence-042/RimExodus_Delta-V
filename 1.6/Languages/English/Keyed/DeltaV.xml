@@ -428,7 +428,8 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_CoordinateGridToggle>Show universe coordinate grid</DeltaV_CoordinateGridToggle>
   <DeltaV_SettingsCoordinateGridTransparency>Coordinate grid transparency: {0}</DeltaV_SettingsCoordinateGridTransparency>
   <DeltaV_CombatAIEdit>Edit combat strategy</DeltaV_CombatAIEdit>
-  <DeltaV_CombatAIEditTip>Edit this console or shuttle hull's automatic combat rules.</DeltaV_CombatAIEditTip>
+  <DeltaV_CombatAIEditTip>Edit automatic combat rules for consoles or shuttle hulls. With multiple selected, start from the first strategy and apply the complete draft to all selected devices on confirmation. Cancel leaves them unchanged.</DeltaV_CombatAIEditTip>
+  <DeltaV_CombatAIEditMany>Edit combat strategy — apply to {0} devices</DeltaV_CombatAIEditMany>
   <DeltaV_CombatAICopyMain>Copy main strategy</DeltaV_CombatAICopyMain>
   <DeltaV_CombatAICopyMainTip>Copy the current main console strategy to this backup.</DeltaV_CombatAICopyMainTip>
   <DeltaV_CombatAIImport>Import</DeltaV_CombatAIImport>
@@ -572,7 +573,8 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShieldManualEmergency>Use emergency shield</DeltaV_ShieldManualEmergency>
   <DeltaV_ShieldManualEmergencyTip>Use this generator's local emergency reserve and leave regular sharing. This manual choice remains in effect even when regular capacity is full, until you choose Use regular shield. Requires emergency capacity; switching adds no capacity.</DeltaV_ShieldManualEmergencyTip>
   <DeltaV_ShieldRegularBar>Regular: auto rejoin at {0}%</DeltaV_ShieldRegularBar>
-  <DeltaV_ShieldRegularBarTip>The bar shows this generator's remaining regular capacity.\n\nDepletion enters automatic emergency. Drag the marker to choose how much regular capacity must recover before automatically rejoining shared protection (1–100%).\n\nManual emergency never switches back automatically. Once some local regular capacity has recovered, choose Use regular shield to return. Line mode restores capacity without switching back to a dome.</DeltaV_ShieldRegularBarTip>
+  <DeltaV_ShieldRegularBarMixed>Regular: mixed auto thresholds</DeltaV_ShieldRegularBarMixed>
+  <DeltaV_ShieldRegularBarTip>The bar totals regular capacity across the selected generators. Dragging sets the same recovery threshold for all of them; selection alone preserves their settings.\n\nDepletion enters automatic emergency. Drag the marker to choose how much regular capacity must recover before automatically rejoining shared protection (1–100%).\n\nManual emergency never switches back automatically. Once some local regular capacity has recovered, choose Use regular shield to return. Line mode restores capacity without switching back to a dome.</DeltaV_ShieldRegularBarTip>
   <DeltaV_ShieldDevRegularFull>DEV: Fill regular capacity</DeltaV_ShieldDevRegularFull>
   <DeltaV_ShieldDevRegularFullTip>Fill the selected generators' regular capacity and return them from emergency.</DeltaV_ShieldDevRegularFullTip>
   <DeltaV_ShieldDevRegularEmpty>DEV: Empty regular capacity</DeltaV_ShieldDevRegularEmpty>

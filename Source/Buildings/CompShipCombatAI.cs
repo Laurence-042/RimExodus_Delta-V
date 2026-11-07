@@ -69,12 +69,12 @@ namespace DeltaV
             if (parent?.Spawned != true || parent.Faction != Faction.OfPlayer) yield break;
             if (parent.TryGetComp<CompDeltaVPilotConsole>() == null
                 && parent.TryGetComp<CompSpaceShuttle>() == null) yield break;
-            yield return new Command_Action
+            yield return new Command_BatchSetting<CompShipCombatAI>("CombatStrategy", this,
+                selected => Find.WindowStack.Add(new Dialog_CombatStrategy(selected)))
             {
                 defaultLabel = "DeltaV_CombatAIEdit".Translate(),
                 defaultDesc = "DeltaV_CombatAIEditTip".Translate(),
-                icon = TexCommand.Install,
-                action = () => Find.WindowStack.Add(new Dialog_CombatStrategy(this))
+                icon = TexCommand.Install
             };
             CompDeltaVPilotConsole console = parent.TryGetComp<CompDeltaVPilotConsole>();
             if (console?.isMain == false && console.shipId > 0)

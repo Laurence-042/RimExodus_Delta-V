@@ -11,6 +11,7 @@ namespace DeltaV
     internal sealed partial class Dialog_CombatStrategy : Window
     {
         private readonly CompShipCombatAI owner;
+        private readonly CompShipCombatAI[] owners;
         private CombatStrategy draft;
         private Vector2 scroll;
         private int tab;
@@ -23,9 +24,10 @@ namespace DeltaV
         public override Vector2 InitialSize => new Vector2(820f, 690f);
         protected override float Margin => 12f;
 
-        internal Dialog_CombatStrategy(CompShipCombatAI owner)
+        internal Dialog_CombatStrategy(params CompShipCombatAI[] owners)
         {
-            this.owner = owner;
+            this.owners = owners.Distinct().ToArray();
+            owner = this.owners[0];
             draft = owner.strategy.Copy();
             forcePause = true;
             doCloseX = true;
@@ -35,7 +37,8 @@ namespace DeltaV
         public override void DoWindowContents(Rect rect)
         {
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, 0f, rect.width, 32f), "DeltaV_CombatAIEdit".Translate());
+            Widgets.Label(new Rect(0f, 0f, rect.width, 32f), owners.Length > 1
+                ? "DeltaV_CombatAIEditMany".Translate(owners.Length) : "DeltaV_CombatAIEdit".Translate());
             Text.Font = GameFont.Small;
             draft.name = Widgets.TextField(new Rect(0f, 36f, rect.width - 170f, 28f), draft.name);
             if (draft.name.Length > 100) draft.name = draft.name.Substring(0, 100);
@@ -79,9 +82,17 @@ namespace DeltaV
                 Close();
             if (Widgets.ButtonText(new Rect(rect.width - 116f, rect.height - 36f, 110f, 32f), "OK".Translate()))
             {
-                try { owner.Replace(draft); Close(); }
+                try { Apply(); Close(); }
                 catch (Exception ex) { Messages.Message(ex.Message, MessageTypeDefOf.RejectInput, false); }
             }
+        }
+
+        internal void Apply()
+        {
+            foreach (CompShipCombatAI target in owners)
+                if (target.parent?.Spawned == true && !target.parent.Destroyed
+                    && (DebugSettings.godMode || target.parent.Faction == Faction.OfPlayer))
+                    target.Replace(draft);
         }
 
         private float ContentHeight()

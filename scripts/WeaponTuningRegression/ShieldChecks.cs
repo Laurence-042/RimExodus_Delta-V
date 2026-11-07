@@ -41,6 +41,7 @@ internal static partial class Program
         typeof(Game).GetField("maps", PrivateInstance).SetValue(Current.Game, new List<Map> { null });
         try
         {
+            CheckBatchGizmos();
             var standard = Shield();
             standard.props = new CompProperties_SpaceShield(); standard.PostPostMake();
             standard.parent.GetComp<CompRefuelable>().ConsumeFuel(1250);

@@ -428,7 +428,8 @@
   <DeltaV_CoordinateGridToggle>显示宇宙坐标网格</DeltaV_CoordinateGridToggle>
   <DeltaV_SettingsCoordinateGridTransparency>坐标网格透明度：{0}</DeltaV_SettingsCoordinateGridTransparency>
   <DeltaV_CombatAIEdit>编辑战斗策略</DeltaV_CombatAIEdit>
-  <DeltaV_CombatAIEditTip>编辑此驾驶台或艇体的自动战斗规则。</DeltaV_CombatAIEditTip>
+  <DeltaV_CombatAIEditTip>编辑驾驶台或艇体的自动战斗规则。多选时以首台策略为草稿，确认后将整套策略应用到所选设备；取消不修改。</DeltaV_CombatAIEditTip>
+  <DeltaV_CombatAIEditMany>编辑战斗策略 — 应用到 {0} 台设备</DeltaV_CombatAIEditMany>
   <DeltaV_CombatAICopyMain>复制主台策略</DeltaV_CombatAICopyMain>
   <DeltaV_CombatAICopyMainTip>将当前主驾驶台策略复制到此备用台。</DeltaV_CombatAICopyMainTip>
   <DeltaV_CombatAIImport>导入</DeltaV_CombatAIImport>
@@ -572,7 +573,8 @@
   <DeltaV_ShieldManualEmergency>改用应急护盾</DeltaV_ShieldManualEmergency>
   <DeltaV_ShieldManualEmergencyTip>手动改用本机应急盾容，退出常规共享。即使常规盾容充满也保持应急，直到手动选择“改用常规护盾”。需要本机仍有应急盾容；切换不补充容量。</DeltaV_ShieldManualEmergencyTip>
   <DeltaV_ShieldRegularBar>常规盾：自动恢复阈值 {0}%</DeltaV_ShieldRegularBar>
-  <DeltaV_ShieldRegularBarTip>下方数值显示本机剩余的常规盾容。\n\n常规耗尽后进入自动应急。拖动标记设置恢复至多少时自动重新启用（1–100%），再次与同船常规护盾分担伤害。\n\n手动改用应急后不会自动切回，可在本机常规盾容恢复后手动选择“改用常规护盾”。线盾模式只恢复盾容，不会自动切回圆盾。</DeltaV_ShieldRegularBarTip>
+  <DeltaV_ShieldRegularBarMixed>常规盾：自动阈值不同</DeltaV_ShieldRegularBarMixed>
+  <DeltaV_ShieldRegularBarTip>下方数值显示所选发生器的常规盾容合计。多选时拖动标记会统一设置恢复阈值，仅选中不会改变原设置。\n\n常规耗尽后进入自动应急。拖动标记设置恢复至多少时自动重新启用（1–100%），再次与同船常规护盾分担伤害。\n\n手动改用应急后不会自动切回，可在本机常规盾容恢复后手动选择“改用常规护盾”。线盾模式只恢复盾容，不会自动切回圆盾。</DeltaV_ShieldRegularBarTip>
   <DeltaV_ShieldDevRegularFull>DEV: 常规盾容充满</DeltaV_ShieldDevRegularFull>
   <DeltaV_ShieldDevRegularFullTip>充满所选发生器的常规盾容，并解除其应急状态。</DeltaV_ShieldDevRegularFullTip>
   <DeltaV_ShieldDevRegularEmpty>DEV: 常规盾容清空</DeltaV_ShieldDevRegularEmpty>

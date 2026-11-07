@@ -15,6 +15,7 @@ namespace DeltaV
         private int recoveryWaitTicks;
         private int autoRejoinPercent = 10;
         private GuardEmergencyReason emergencyReason;
+        internal bool draggingRegularBar;
         public double RegularCapacity => regularCapacity;
         private CompRefuelable EmergencyFuel => silverFuel ??= parent.TryGetComp<CompRefuelable>();
         public double EmergencyCapacity => EmergencyFuel?.Fuel ?? 0f;
