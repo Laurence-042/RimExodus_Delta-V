@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -32,6 +32,7 @@ internal static partial class Program
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
     }
 
+    static bool ReadSceneLanguage(ref LanguageWorker __result) { __result = new LanguageWorker_English(); return false; }
     static bool ReadSceneColonists(ref ColonistBar __result) { __result = aimColonists; return false; }
     static object Raw(Type type) => RuntimeHelpers.GetUninitializedObject(type);
     static void Set(object owner, string name, object value) => owner.GetType()
@@ -88,6 +89,11 @@ internal static partial class Program
         new HarmonyLib.Harmony("DeltaV.Regression.SceneUi").Patch(
             HarmonyLib.AccessTools.PropertyGetter(typeof(Find), nameof(Find.ColonistBar)),
             prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(ReadSceneColonists)));
+        // The full suite outlives individual menu patches; production decision text also
+        // formats translations. Supply the scene-free language boundary for the whole run.
+        new HarmonyLib.Harmony("DeltaV.Regression.SceneLanguage").Patch(
+            HarmonyLib.AccessTools.PropertyGetter(typeof(Find), nameof(Find.ActiveLanguageWorker)),
+            prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(ReadSceneLanguage)));
         if (Environment.GetCommandLineArgs().Contains("--eva-only"))
         { CheckEva(universe, faction); return; }
         if (Environment.GetCommandLineArgs().Contains("--tractor-only"))
@@ -109,6 +115,8 @@ internal static partial class Program
         }
         CheckPerformanceProbe(universe);
         if (Environment.GetCommandLineArgs().Contains("--performance-probe-only")) return;
+        if (Environment.GetCommandLineArgs().Contains("--combat-maneuver-only"))
+        { CheckCombatManeuverMotion(universe, faction, other); return; }
         CheckCombatCurves();
         if (!npcOnly)
         {

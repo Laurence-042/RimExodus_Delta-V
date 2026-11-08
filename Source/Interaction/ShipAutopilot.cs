@@ -31,6 +31,11 @@ namespace DeltaV
             public float diagnosticAllocatedTorque;
             public float diagnosticDistance;
             public bool traceNextCombatDrive;
+            public bool traceNextAiDrive;
+            public bool aiDriveObserved, lastAiRecovery;
+            public DriveResult lastAiResult;
+            public QpSolveStatus lastAiSolver;
+            public QpSolveStatus lastSolvedStatus;
             // 固定航点模式：direction/angle；随动模式：host ⊕ hostOffset（+ 相对转角）。
             public bool tracked;
             public Func<SpacePose, SpacePose> reference;
@@ -198,6 +203,12 @@ namespace DeltaV
                 flight.traceNextCombatDrive = true;
         }
 
+        internal void RequestAiTrace(DriveSubject subject)
+        {
+            if (active.TryGetValue(subject, out Flight flight) && flight.combatOrbit)
+                flight.traceNextAiDrive = true;
+        }
+
         /// <summary>开发者按需读取的姿态／力矩快照；热路径只更新标量，不刷日志。</summary>
         internal string CombatDiagnostics()
         {
@@ -219,6 +230,8 @@ namespace DeltaV
 
         public void Detach(DriveSubject subject, string reason = null)
         {
+            if (DeltaVLog.Enabled(DeltaVLogModule.AI) && active.TryGetValue(subject, out var flight) && flight.combatOrbit)
+                DeltaVLog.Message(DeltaVLogModule.AI, $"drive-detach tick={Find.TickManager.TicksGame} ship={subject} reason='{reason ?? "cancel/replace"}'");
             if (!active.Remove(subject)) return;
             subject.Resolve(Current.Game?.GetComponent<UniverseManager>())?.ClearDrive();
         }
@@ -435,7 +448,8 @@ namespace DeltaV
                 flight.previewInfo = report;
                 Vector2 toward = flight.motionOnly ? vel : posErr;
                 Vector2 towardLocal = toward.sqrMagnitude > 1e-8f
-                    ? SpaceTransform.RotateInverse(toward.normalized, pose.angle)
+                    ? SpaceTransform.RotateInverse(SpaceTransform.TransportTangent(toward.normalized,
+                        targetDirection, pose.position), pose.angle)
                     : Vector2.zero;
                 flight.brakingAcceleration = report.PreviewBraking(towardLocal);
                 float closing = posErr.sqrMagnitude > 1e-8f
@@ -547,6 +561,30 @@ namespace DeltaV
             {
                 flight.diagnosticRequestedTorque = control.torque;
                 flight.diagnosticAllocatedTorque = torque;
+                if (DeltaVLog.Enabled(DeltaVLogModule.AI))
+                {
+                    if (flight.traceNextAiDrive || !flight.aiDriveObserved || result != flight.lastAiResult
+                        || flight.recovery.Active != flight.lastAiRecovery
+                        || flight.lastSolvedStatus != flight.lastAiSolver)
+                    {
+                        flight.aiDriveObserved = true; flight.lastAiResult = result;
+                        flight.lastAiRecovery = flight.recovery.Active; flight.lastAiSolver = flight.lastSolvedStatus;
+                        ShipBase ship = ShipRegistry.ShipByIdentity(flight.subject);
+                        Vector2 deltaVelocity = SpaceTransform.TransportVelocity(container.pose, pose.position) - pose.velocity;
+                        DeltaVLog.Message(DeltaVLogModule.AI,
+                            $"drive tick={ticksGame} planTick={flight.combatIntentTick} ship={flight.subject} object={container.objectId} "
+                            + $"{UniverseManager.MapTag(ship?.Map)} result={result} phase={flight.phase} "
+                            + $"recovery={flight.recovery.Active} blocked={flight.combatIntent.holdCurrent} "
+                            + $"positionError=({posErr.x:F3},{posErr.y:F3}) velocityError=({vel.x:F3},{vel.y:F3}) "
+                            + $"angleErrorDeg={angleErr * Mathf.Rad2Deg:F2} omega={pose.angularVelocity:F4}->{hostOmega:F4} "
+                            + $"localForce=({control.force.x:F2},{control.force.y:F2}) torque={control.torque:F2}/{torque:F2} "
+                            + $"deltaV=({deltaVelocity.x:F5},{deltaVelocity.y:F5}) "
+                            + $"deltaAngleDeg={SpaceTransform.WrapAngle(container.pose.angle - pose.angle) * Mathf.Rad2Deg:F4} "
+                            + $"mpc={flight.lastSolvedStatus} steps={flight.currentPlanStep}/{flight.planStepsReady}");
+                    }
+                }
+                else flight.aiDriveObserved = false;
+                flight.traceNextAiDrive = false;
                 if (flight.traceNextCombatDrive)
                 {
                     flight.traceNextCombatDrive = false;
@@ -581,13 +619,25 @@ namespace DeltaV
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             long solveStart = universe?.Performance.Start() ?? 0L;
+            // The force model accelerates the COM. Task references remain map-origin poses;
+            // convert both actual and desired states at the shared transform boundary.
+            if (report.comLocal != Vector2.zero)
+            {
+                SpacePose center = SpaceTransform.RigidPointPose(pose, report.comLocal, 0f);
+                SpacePose desiredCenter = SpaceTransform.RigidPointPose(new SpacePose(referencePosition, referenceAngle)
+                    { velocity = referenceVelocity, angularVelocity = referenceAngularVelocity }, report.comLocal, 0f);
+                referencePosition = desiredCenter.position;
+                referenceVelocity = desiredCenter.velocity;
+                posErr = -OrbitSphere.Offset(referencePosition, center.position);
+                vel = SpaceTransform.TransportVelocity(center, referencePosition) - referenceVelocity;
+            }
             ShipPhysics.ControlModel controlModel = report.PreviewModel(flight.controlModel);
-            BuildControlAcceleration(pose, controlModel, voidBlend, flight.controlAcceleration);
+            BuildControlAcceleration(pose, controlModel, voidBlend, flight.controlAcceleration, referencePosition);
             float boostSeconds = flight.intercept ? report.BoostSecondsRemaining : 0f;
             if (boostSeconds > 0f)
             {
                 report.PreviewUnboostedModel(flight.unboostedModel);
-                BuildControlAcceleration(pose, flight.unboostedModel, 0f, flight.unboostedAcceleration);
+                BuildControlAcceleration(pose, flight.unboostedModel, 0f, flight.unboostedAcceleration, referencePosition);
             }
             var request = new GuidanceRequest
             {
@@ -619,6 +669,7 @@ namespace DeltaV
                 referenceVelocity = referenceVelocity,
                 referenceAngle = referenceAngle,
                 referenceAngularVelocity = referenceAngularVelocity,
+                referenceLocalPoint = report.comLocal,
                 approachReserveDistance = flight.phase == ApproachPhase.Braking
                     && posErr.sqrMagnitude > 1e-8f
                     ? Mathf.Max(0f, Vector2.Dot(vel, posErr.normalized))
@@ -630,6 +681,7 @@ namespace DeltaV
                 Find.TickManager.TicksGame, flight.recoveryRecheck,
                 !flight.motionOnly && !flight.intercept && !flight.combatOrbit,
                 out flight.heldCommand, out GuidanceCommand approach);
+            flight.lastSolvedStatus = flight.heldCommand.qpStatus;
             if (wasRecovering != flight.recovery.Active)
             {
                 flight.noProgressTicks = 0;
@@ -682,7 +734,7 @@ namespace DeltaV
         }
 
         internal static void BuildControlAcceleration(SpacePose pose, ShipPhysics.ControlModel model,
-            float voidBlend, double[] result)
+            float voidBlend, double[] result, Vector3? frameDirection = null)
         {
             Array.Clear(result, 0, result.Length);
             if (model == null || model.mass <= 1e-6f || model.inertia <= 1e-6f) return;
@@ -698,6 +750,9 @@ namespace DeltaV
                 Vector2 appliedForce = Vector2.Lerp(model.forceColumns[axis], desiredForce, voidBlend);
                 float appliedTorque = Mathf.Lerp(model.torqueColumns[axis], desiredTorque, voidBlend);
                 Vector2 targetFrameAcceleration = SpaceTransform.Rotate(appliedForce / model.mass, pose.angle);
+                if (frameDirection.HasValue && frameDirection.Value.sqrMagnitude > 0f)
+                    targetFrameAcceleration = SpaceTransform.TransportTangent(targetFrameAcceleration,
+                        pose.position, frameDirection.Value);
                 result[axis] = targetFrameAcceleration.x;
                 result[3 + axis] = targetFrameAcceleration.y;
                 result[6 + axis] = appliedTorque / model.inertia;
@@ -706,6 +761,8 @@ namespace DeltaV
 
         private void Fail(SpaceObject container, Flight flight, string reason)
         {
+            if (DeltaVLog.Enabled(DeltaVLogModule.AI) && flight.combatOrbit)
+                DeltaVLog.Message(DeltaVLogModule.AI, $"drive-failed tick={Find.TickManager.TicksGame} ship={flight.subject} reason='{reason}'");
             active.Remove(flight.subject);
             container?.ClearDrive();
             flight.onFailed?.Invoke();

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -58,6 +58,28 @@ namespace DeltaV
         internal float distance, heading, firepower, readyOutput, alignment, mobility, preference;
         internal float distanceScore, outgoingScore, incomingScore, timeScore, overlapScore, alignmentScore;
         internal CombatTactic behavior;
+        internal bool freeThrustFacing;
+
+        internal void EvaluateFire(IReadOnlyList<CombatAttackWeapon> weapons, Vector2 relativeVelocity,
+            bool offense, CombatManeuverCurves curves, float? output = null)
+        {
+            firepower = readyOutput = alignment = outgoingScore = alignmentScore = 0f;
+            float weightedError = 0f, constrained = 0f;
+            foreach (var w in weapons)
+            {
+                bool covers = w.Aim(distance, heading, relativeVelocity, out float error);
+                if (covers) { firepower += w.damageRate; if (w.ready) readyOutput += w.damageRate; }
+                if (w.arc < 120f) { weightedError += error * w.damageRate; constrained += w.damageRate; }
+            }
+            alignment = constrained > 0f ? weightedError / constrained : 0f;
+            if (!offense) return;
+            if (output.HasValue) readyOutput = output.Value;
+            outgoingScore = curves?.outgoing?.Evaluate(readyOutput) ?? 0f;
+            alignmentScore = constrained > 0f ? curves?.alignmentError?.Evaluate(alignment) ?? 0f : 0f;
+        }
+
+        internal float CoverageScore(float totalFirepower, bool offense) =>
+            offense && totalFirepower > 0f ? 100f * firepower / totalFirepower : 0f;
 
         internal static int Turn(CombatTurn setting, int previous, float tangentSpeed, int seed)
         {
@@ -80,20 +102,49 @@ namespace DeltaV
             float clearance, float fallback, float currentHeading, int turn, bool offense,
             CombatManeuverCurves curves, CombatAttackPose? previous,
             Func<CombatAttackPose, float> riskPreference = null,
-            Func<CombatAttackPose, float> readyOutput = null)
+            Func<CombatAttackPose, float> readyOutput = null, Vector2? motionVelocity = null, float? motionDistance = null)
         {
             CombatTactic behavior = Behavior(settings.behavior, weapons, offense);
+            bool freeThrustFacing = settings.facing == CombatFacing.Automatic;
             var anchors = new List<CombatAttackWeapon>(weapons);
             anchors.Sort((a, b) => b.damageRate.CompareTo(a.damageRate));
             if (anchors.Count > 12) anchors.RemoveRange(12, anchors.Count - 12);
+            float strongest = 0f;
+            foreach (Vector2 axis in new[] { Vector2.right, Vector2.left, Vector2.up, Vector2.down })
+                strongest = Mathf.Max(strongest, Acceleration(drive, axis, 0f));
+            float motionRadius = Mathf.Max(1f, settings.distance > 0f ? settings.distance : fallback);
+            float cruise = Mathf.Min(strongest * 6f, Mathf.Sqrt(strongest * motionRadius * .35f)) * settings.movement;
+            // In the line-of-sight basis relativeVelocity is target minus self.
+            // Turning to thrust is useful while accelerating; at cruise the needed force is inward.
+            Vector2 actualRelative = motionVelocity ?? relativeVelocity;
+            Vector2 accelerationDirection = new Vector2(actualRelative.y * actualRelative.y / motionRadius + actualRelative.x * .7f
+                + ((motionDistance ?? motionRadius) - motionRadius) * .2f,
+                -(turn * cruise - actualRelative.y) * .5f);
+            if (accelerationDirection.sqrMagnitude < .0001f) accelerationDirection = Vector2.right;
+            accelerationDirection.Normalize();
             var headings = new List<float>();
             if (settings.facing != CombatFacing.Automatic)
                 headings.Add(settings.facing == CombatFacing.Target ? 0f : settings.facingDegrees * Mathf.Deg2Rad);
             else
             {
                 for (int i = 0; i < 8; i++) headings.Add(i * Mathf.PI / 4f);
-                headings.Add(currentHeading);
-                if (previous.HasValue) headings.Add(previous.Value.heading);
+                float thrustAngle = Mathf.Atan2(accelerationDirection.y, accelerationDirection.x);
+                // Keep the same eight-slot search budget. Replace the nearest coarse slots
+                // with exact thrust-aligned headings; gun lead candidates remain independent.
+                for (int i = 0; i < 4; i++)
+                {
+                    float aligned = SpaceTransform.WrapAngle(thrustAngle + i * Mathf.PI / 2f);
+                    int slot = (Mathf.RoundToInt(aligned * 4f / Mathf.PI) % 8 + 8) % 8;
+                    headings[slot] = aligned;
+                }
+                void AddHeading(float angle)
+                {
+                    foreach (float existing in headings)
+                        if (Mathf.Abs(SpaceTransform.WrapAngle(existing - angle)) < .00001f) return;
+                    headings.Add(angle);
+                }
+                AddHeading(currentHeading);
+                if (previous.HasValue) AddHeading(previous.Value.heading);
             }
             var distances = new List<float> { Mathf.Max(clearance, fallback) };
             if (settings.distance > 0f) distances = new List<float> { settings.distance };
@@ -124,52 +175,47 @@ namespace DeltaV
                     clearance, fallback, currentHeading, turn, true, null, null).distance;
                 distances = new List<float> { usefulRange };
             }
-            var mobility = new Dictionary<int, float>();
+            var mobility = new Dictionary<float, float>();
             CombatAttackPose best = default;
             float bestScore = float.NegativeInfinity;
             CombatAttackPose Evaluate(float distance, float heading)
             {
                 var p = new CombatAttackPose { distance = distance,
-                    heading = SpaceTransform.WrapAngle(heading), behavior = behavior };
-                float weightedError = 0f, constrained = 0f;
-                foreach (var w in weapons)
+                    heading = SpaceTransform.WrapAngle(heading), behavior = behavior, freeThrustFacing = freeThrustFacing };
+                p.EvaluateFire(weapons, relativeVelocity, offense, curves,
+                    offense && readyOutput != null ? readyOutput(p) : (float?)null);
+                // Lead headings may vary per range; quantize only the capability cache.
+                // Sixteen bins plus the four exact thrust-aligned headings bound allocator queries.
+                float a = SpaceTransform.WrapAngle(Mathf.Round(heading * 8f / Mathf.PI) * Mathf.PI / 8f);
+                float thrustAngle = Mathf.Atan2(accelerationDirection.y, accelerationDirection.x);
+                int alignedAxis = (Mathf.RoundToInt((heading - thrustAngle) * 2f / Mathf.PI) % 4 + 4) % 4;
+                float aligned = SpaceTransform.WrapAngle(thrustAngle + alignedAxis * Mathf.PI / 2f);
+                if (Mathf.Abs(SpaceTransform.WrapAngle(p.heading - aligned)) < .00005f) a = aligned;
+                if (!mobility.TryGetValue(a, out p.mobility))
                 {
-                    bool covers = w.Aim(distance, heading, relativeVelocity, out float error);
-                    if (covers) { p.firepower += w.damageRate; if (w.ready) p.readyOutput += w.damageRate; }
-                    if (w.arc < 120f) { weightedError += error * w.damageRate; constrained += w.damageRate; }
-                }
-                p.alignment = constrained > 0f ? weightedError / constrained : 0f;
-                // QP capability queries are bounded to eight headings per pose search.
-                int bin = (Mathf.RoundToInt(heading * 4f / Mathf.PI) % 8 + 8) % 8;
-                if (!mobility.TryGetValue(bin, out p.mobility))
-                {
-                    float a = bin * Mathf.PI / 4f;
-                    float tangent = Mathf.Min(Acceleration(drive, Vector2.up, a), Acceleration(drive, Vector2.down, a));
-                    float inward = Acceleration(drive, Vector2.right, a);
-                    p.mobility = behavior == CombatTactic.Circle ? Mathf.Sqrt(Mathf.Max(0f, tangent * inward)) : tangent;
-                    mobility.Add(bin, p.mobility);
+                    p.mobility = Acceleration(drive, accelerationDirection, a);
+                    mobility.Add(a, p.mobility);
                 }
                 p.distanceScore = curves?.distance?.Evaluate(distance) ?? 0f;
                 p.preference = p.distanceScore;
                 if (offense)
                 {
-                    if (readyOutput != null) p.readyOutput = readyOutput(p);
-                    p.outgoingScore = curves?.outgoing?.Evaluate(p.readyOutput) ?? 0f;
-                    p.alignmentScore = constrained > 0f ? curves?.alignmentError?.Evaluate(p.alignment) ?? 0f : 0f;
                     p.preference += p.outgoingScore + p.alignmentScore;
                 }
                 p.preference += riskPreference?.Invoke(p) ?? 0f;
                 return p;
             }
+            float angularCapability = drive == null ? 0f : Mathf.Min(drive.PreviewAngular(1), drive.PreviewAngular(-1));
             float Score(CombatAttackPose p)
             {
                 // Stable potential coverage establishes a useful firing pose even during cooldown.
-                float coverage = offense && totalFirepower > 0f ? 100f * p.firepower / totalFirepower : 0f;
+                float coverage = p.CoverageScore(totalFirepower, offense);
                 float motion = behavior != CombatTactic.HoldRange ? 8f * p.mobility / (1f + p.mobility) : 0f;
                 float range = totalFirepower > 0f ? Mathf.Min(p.distance, 100000f) * 0.0001f
                     : -0.001f * Mathf.Abs(p.distance - fallback);
                 return coverage + motion + p.preference + range
-                    - 0.01f * Mathf.Abs(SpaceTransform.WrapAngle(p.heading - currentHeading));
+                    - .25f * Mathf.Sqrt(4f * Mathf.Abs(SpaceTransform.WrapAngle(p.heading - currentHeading))
+                        / Mathf.Max(.001f, angularCapability));
             }
             void Consider(float distance, float heading)
             {
@@ -215,43 +261,5 @@ namespace DeltaV
         internal static float Acceleration(DriveInfo drive, Vector2 direction, float heading) =>
             drive == null ? 0f : drive.PreviewBraking(-SpaceTransform.RotateInverse(direction, heading));
 
-        internal static CombatTrajectoryIntent Trajectory(SpacePose own, SpacePose target,
-            CombatAttackPose pose, DriveInfo drive, int turn, float movement, int tick, float? goalPhase = null,
-            float referenceOmega = 0f)
-        {
-            using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.CombatTrajectory);
-            Vector2 outward = OrbitSphere.Offset(target.position, own.position);
-            float radius = Mathf.Max(1f, outward.magnitude);
-            float inward = Acceleration(drive, Vector2.right, pose.heading);
-            float outwardAcceleration = Acceleration(drive, Vector2.left, pose.heading);
-            float tangent = Acceleration(drive, new Vector2(0f, -turn), pose.heading);
-            float radialError = pose.distance - radius;
-            float braking = radialError > 0f ? inward : outwardAcceleration;
-            float radial = Mathf.Sign(radialError) * Mathf.Min(Mathf.Abs(radialError) * 0.35f,
-                Mathf.Sqrt(2f * braking * Mathf.Abs(radialError))) * movement;
-            float speed = pose.behavior == CombatTactic.Circle
-                ? Mathf.Min(Mathf.Sqrt(Mathf.Max(0f, inward * radius * 0.45f)), tangent * 6f) * movement : 0f;
-            // Translation and turn rate both come from the same real drive capabilities.
-            float angular = drive == null ? 0f : Mathf.Min(drive.PreviewAngular(1), drive.PreviewAngular(-1));
-            speed = Mathf.Min(speed, radius * Mathf.Sqrt(Mathf.Max(0f, angular * 0.5f)));
-            float phaseAdvance = turn * speed / radius * 4f;
-            if (pose.behavior != CombatTactic.Circle && goalPhase.HasValue)
-            {
-                float phaseError = SpaceTransform.WrapAngle(goalPhase.Value - Mathf.Atan2(outward.y, outward.x));
-                float acceleration = Mathf.Min(Acceleration(drive, Vector2.up, pose.heading),
-                    Acceleration(drive, Vector2.down, pose.heading));
-                float maximum = Mathf.Min(Mathf.Sqrt(2f * acceleration * Mathf.Abs(phaseError) * radius), acceleration * 6f) * movement;
-                maximum = Mathf.Min(maximum, radius * Mathf.Sqrt(Mathf.Max(0f, angular * 0.5f)));
-                phaseAdvance = Mathf.Clamp(phaseError, -maximum / radius * 4f, maximum / radius * 4f) + referenceOmega * 4f;
-            }
-            return new CombatTrajectoryIntent
-            {
-                startTick = tick, seconds = 4f,
-                center = target.position, centerVelocity = target.velocity,
-                startRadius = radius, radialStep = Mathf.Clamp(radial * 4f, -radius + 1f, 100000f),
-                startPhase = Mathf.Atan2(outward.y, outward.x),
-                frameAngle = -pose.heading, phaseAdvance = phaseAdvance
-            };
-        }
     }
 }

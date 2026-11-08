@@ -106,6 +106,8 @@ namespace DeltaV
         /// <summary>战斗链诊断（发射/命中/拦截/跳弹/放行/tag 切换等用户事件级，边沿触发）。</summary>
         public bool logCombat;
 
+        public bool logAI;
+
         /// <summary>通用临时排障日志开关，默认关闭；具体埋点随问题清理。</summary>
         public bool logDevelopment;
 
@@ -171,6 +173,7 @@ namespace DeltaV
             Scribe_Values.Look(ref logLifecycle, "logLifecycle", false);
             Scribe_Values.Look(ref logRender, "logRender", false);
             Scribe_Values.Look(ref logCombat, "logCombat", false);
+            Scribe_Values.Look(ref logAI, "logAI", false);
             Scribe_Values.Look(ref logDevelopment, "logDevelopment", false);
             Scribe_Values.Look(ref logPerformance, "logPerformance", false);
             Scribe_Collections.Look(ref sectorRules, "sectorRules", LookMode.Deep);

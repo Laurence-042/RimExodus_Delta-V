@@ -148,7 +148,7 @@ namespace DeltaV
 
         // ---------- 速度换基（唯一入口） ----------
 
-        /// <summary>速度从一个位姿的锚点基平行输运到目标锚点基（x=东、y=北）。
+        /// <summary>速度从一个位姿的锚点基投影到目标锚点基（x=东、y=北）。
         /// 自动驾驶相对速度/宿主前馈、对接完成的宿主速度继承共用本入口，不得各写一份
         /// 基变换点乘（2026-09-21 去重收口，不变量 #21）。</summary>
         public static Vector2 TransportVelocity(SpacePose pose, Vector3 frameDirection)
@@ -171,9 +171,8 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 刚体上 ship-local 点在该点球面切基中的速度。先在对象锚点切基中合成锚点
-        /// 平移与 ω×r，再统一平行输运到目标点；随动对接和未来硬点制导只能走本入口，
-        /// 不得各自遗漏旋转目标偏置点的切向速度。
+        /// 刚体上 ship-local 点的真实位置导数。对同一 OrbitSphere.Move 求导，包含
+        /// 锚点平移、角运动及移动切基变化；随动对接、船心与硬点制导共用。
         /// </summary>
         public static Vector2 VelocityAtLocalPoint(SpacePose pose, Vector2 localPoint, Vector3 pointDirection)
         {
@@ -190,22 +189,39 @@ namespace DeltaV
         public static Vector2 VelocityAtMovingLocalPoint(SpacePose pose, Vector2 localPoint,
             Vector2 localVelocity, Vector3 pointDirection)
         {
+            if (pose.velocity.x == 0f && pose.velocity.y == 0f && pose.angularVelocity == 0f
+                && localVelocity.x == 0f && localVelocity.y == 0f)
+                return Vector2.zero;
+            if (localPoint == Vector2.zero)
+                return TransportTangent(pose.velocity + Rotate(localVelocity, pose.angle), pose.position, pointDirection);
             Vector2 rotatedOffset = Rotate(localPoint, pose.angle);
-            Vector2 anchorVelocity = pose.velocity + pose.angularVelocity
+            Vector2 offsetRate = pose.angularVelocity
                 * new Vector2(-rotatedOffset.y, rotatedOffset.x) + Rotate(localVelocity, pose.angle);
-            var pointPose = new SpacePose
-            {
-                position = pose.position,
-                velocity = anchorVelocity,
-                angle = pose.angle,
-                angularVelocity = pose.angularVelocity
-            };
-            return TransportVelocity(pointPose, pointDirection);
+            return OrbitSphere.MoveVelocity(pose.direction, pose.velocity, rotatedOffset, offsetRate, pointDirection);
+        }
+
+        /// <summary>反求锚点速度，使指定刚体点具有给定速度；不改位置或角速度。</summary>
+        internal static Vector2 OriginVelocityForPoint(SpacePose pose, Vector2 localPoint,
+            Vector3 pointDirection, Vector2 pointVelocity)
+        {
+            if (pointVelocity.x == 0f && pointVelocity.y == 0f && pose.angularVelocity == 0f) return Vector2.zero;
+            if (localPoint == Vector2.zero && pointDirection == pose.position) return pointVelocity;
+            pose.velocity = Vector2.zero;
+            Vector2 spin = VelocityAtLocalPoint(pose, localPoint, pointDirection);
+            pose.angularVelocity = 0f;
+            pose.velocity = Vector2.right;
+            Vector2 x = VelocityAtLocalPoint(pose, localPoint, pointDirection);
+            pose.velocity = Vector2.up;
+            Vector2 y = VelocityAtLocalPoint(pose, localPoint, pointDirection);
+            Vector2 v = pointVelocity - spin;
+            double determinant = (double)x.x * y.y - (double)x.y * y.x;
+            return new Vector2((float)((v.x * (double)y.y - v.y * (double)y.x) / determinant),
+                (float)((x.x * (double)v.y - x.y * (double)v.x) / determinant));
         }
 
         /// <summary>
         /// 宿主刚体上一个局部点的完整位姿。已停靠船同步、脱离停靠与未来硬点载具
-        /// 只允许经此入口合成位置、v+ω×r、朝向和角速度。
+        /// 只允许经此入口合成位置、位置导数、朝向和角速度。
         /// </summary>
         public static SpacePose RigidPointPose(SpacePose hostPose, Vector2 hostLocalPoint,
             float localAngle)
@@ -223,26 +239,29 @@ namespace DeltaV
         /// <summary>已知双方局部对齐点与相对方向，反求本船容器帧的唯一目标位姿。</summary>
         internal static SpacePose AlignLocalPoint(SpacePose host, Vector2 hostPoint, Vector2 ownPoint, float relativeAngle)
         {
+            if (ownPoint == Vector2.zero) return RigidPointPose(host, hostPoint, relativeAngle);
             SpacePose target = RigidPointPose(host, hostPoint, 0f);
             SpacePose own = RigidPointPose(host, hostPoint - Rotate(ownPoint, relativeAngle), relativeAngle);
             // The planar inverse is only a starting estimate: the two origins have
             // different sphere tangent bases. Correct against the actual displayed point.
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 8; i++)
             {
                 OrbitSphere.Direction point = OrbitSphere.Move(own.direction, Rotate(ownPoint, own.angle));
                 Vector2 error = OrbitSphere.Offset(point, target.direction);
                 if (error.sqrMagnitude < .000001f) break;
-                own.direction = OrbitSphere.Move(own.direction, TransportTangent(error, point.Vector, own.position));
+                SpacePose translation = own;
+                translation.angularVelocity = 0f;
+                own.direction = OrbitSphere.Move(own.direction,
+                    OriginVelocityForPoint(translation, ownPoint, point.Vector, error));
             }
-            own.velocity = Vector2.zero;
-            own.velocity = TransportVelocity(target, own.position) - VelocityAtLocalPoint(own, ownPoint, own.position);
+            own.velocity = OriginVelocityForPoint(own, ownPoint, target.position, target.velocity);
             return own;
         }
 
         /// <summary>
         /// 两容器的相对速度（太空战架构 §3.3：v_攻 − v_守，表达在守方位置切空间基；
         /// 碰撞事件的相对速度标量/矢量唯一入口，调用方禁止自行做基变换点乘）。
-        /// 内部复用 TransportVelocity 的平行输运。
+        /// 内部复用 TransportVelocity 的共同切基投影。
         /// </summary>
         public static Vector2 RelativeVelocity(SpacePose attackerPose, SpacePose defenderPose)
         {

@@ -15,6 +15,7 @@ namespace DeltaV
         {
             this.universe = universe;
             this.ownerId = ownerId;
+            reposition = new CombatReposition(ownerId.key);
         }
 
         internal void DefaultCurveReference(ShipBase ship, out float clearance,
@@ -41,7 +42,7 @@ namespace DeltaV
             {
                 nextTacticTick = 0;
                 hasTactic = false;
-                reposition.Reset(ownerId.key);
+                reposition.Reset();
                 turnDirection = 0;
                 anchorDistance = OrbitSphere.ArcCells(ShipRegistry.ShipPose(ship).position,
                     resolved.Pose.position);
@@ -66,6 +67,10 @@ namespace DeltaV
 
         internal void Clear(ShipBase ship)
         {
+            if (DeltaVLog.Enabled(DeltaVLogModule.AI) && hasTactic)
+                DeltaVLog.Message(DeltaVLogModule.AI, $"maneuver-clear tick={Find.TickManager.TicksGame} ship={ownerId} "
+                    + $"target={anchorTarget.Ship} {UniverseManager.MapTag(ship?.Map)}");
+            lastAiDecisionState = null;
             if (ship?.IsValid == true && universe.Autopilot.IsCombatOrbit(DriveSubject.Of(ship)))
                 universe.Autopilot.Detach(DriveSubject.Of(ship), "combat target lost");
             anchorTarget = default;

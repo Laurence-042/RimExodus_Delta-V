@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Xml.Serialization;
 using DeltaV;
@@ -57,14 +57,14 @@ internal static partial class Program
         var settings = new CombatTacticSettings { behavior = CombatTactic.HoldRange,
             bearing = CombatBearing.Enemy, bearingDegrees = 90f };
         var pose = new CombatAttackPose { behavior = CombatTactic.HoldRange, distance = 100 };
-        var state = new CombatReposition(); state.Reset(17);
+        var state = new CombatReposition(17);
         state.Update(own, target, pose, settings, null, 100);
         Check(Mathf.Abs(SpaceTransform.WrapAngle(state.phase - target.angle - Mathf.PI / 2f)) < .001f,
             "enemy-relative bearing follows enemy nose rather than own facing");
         settings.bearing = CombatBearing.World; state.Update(own, target, pose, settings, null, 110);
         target.angle = 1.5f; state.Update(own, target, pose, settings, null, 120);
         Check(Mathf.Abs(state.phase - Mathf.PI / 2f) < .001f, "world-relative bearing ignores enemy rotation");
-        settings = new CombatTacticSettings(); pose.behavior = CombatTactic.Automatic; state.Reset(17);
+        settings = new CombatTacticSettings(); pose.behavior = CombatTactic.Automatic; state.Reset();
         state.Update(own, target, pose, settings, null, 200); int next = state.nextTick; float phase = state.phase;
         state.Update(own, target, pose, settings, null, 230);
         Check(state.nextTick == next && state.phase == phase && next >= 500 && next <= 800,
@@ -74,7 +74,7 @@ internal static partial class Program
         Check(OrbitSphere.ArcCells(pos, own.position) < .001f && velocity == Vector2.zero
             && angle == .7f && omega == 0f, "infeasible pose requests a stationary safe reference without changing configuration");
         var trajectory = new CombatTrajectoryIntent { seconds = 4, center = target.position,
-            centerVelocity = new Vector2(2, 1), startRadius = 100, phaseAdvance = .2f, frameAngle = .4f };
+            centerVelocity = new Vector2(2, 1), startRadius = 100, targetRadius = 100, initialPhaseRate = .05f, targetPhaseRate = .05f, speedDecay = 1f, frameAngle = .4f };
         trajectory.Sample(2, out var hullPosition, out var hullVelocity, out var hullAngle, out var hullOmega);
         trajectory.localAnchor = new Vector2(7, -4);
         trajectory.Sample(2, out pos, out velocity, out angle, out omega);

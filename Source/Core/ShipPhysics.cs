@@ -638,20 +638,21 @@ namespace DeltaV
         /// 被动阻力（解耦架构 §11.1，默认开启）：按半衰期对速度/角速度指数衰减，
         /// 与飞行辅助的主动反推并存；不是推进器指令——不消耗分配器油门、不生成火焰、
         /// 不触发拆船；漂移积分（零力）同样生效（纯漂移也因此会停下）。
-        /// 速度/力都在船位置处的切空间基下表达；位置沿球面推进（OrbitSphere.Move），
-        /// 质心不变量换成球面三步走：锚→质心（旧角）→平移→回锚（新角），
-        /// 切空间速度随后平行输运到新锚点的基。
+        /// 从锚点真实速度派生质心速度，力转到质心切基后积分；再由同一刚体点
+        /// 逆变换恢复地图原点的位置与速度。质心不另存，不能把其速度写成锚点速度。
         /// </summary>
         internal static void Integrate(SpaceObject obj, MassReport report, Vector2 force, float torque, float dt,
             bool assistX, bool assistZ, bool assistW, float pilotFrameAngle = 0f, DriveInputBasis? inputBasis = null)
         {
             SpacePose pose = obj.pose;
-            Vector3 oldDir = pose.position;
+            SpacePose center = SpaceTransform.RigidPointPose(pose, report.comLocal, 0f);
+            Vector3 oldDir = center.position;
             // 分配器与推进器几何都在稳定 Map 局部系；只有积分入切空间速度时旋转一次。
-            Vector2 accel = SpaceTransform.Rotate(force, pose.angle) / report.mass;
+            Vector2 accel = SpaceTransform.TransportTangent(SpaceTransform.Rotate(force, pose.angle),
+                pose.position, center.position) / report.mass;
             float alpha = torque / report.inertia;
 
-            Vector2 velocity = pose.velocity + accel * dt;
+            Vector2 velocity = center.velocity + accel * dt;
             float angularVelocity = report.allowsAngularMotion ? pose.angularVelocity + alpha * dt : 0f;
 
             // 被动阻力：v ← v · 2^(−dt/halfLife)（精确的每 tick 半衰期指数衰减）。
@@ -666,8 +667,11 @@ namespace DeltaV
 
             // 辅助轴与 W/S、A/D 一样定义在主驾驶台参考系，不能按切空间 x/y 直接截断。
             DriveInputBasis basis = inputBasis ?? DriveInputBasis.ForAngle(pilotFrameAngle);
-            Vector2 previousPilotVelocity = basis.FromMap(SpaceTransform.RotateInverse(pose.velocity, pose.angle));
-            Vector2 pilotVelocity = basis.FromMap(SpaceTransform.RotateInverse(velocity, pose.angle));
+            Vector2 previousPilotVelocity = basis.FromMap(SpaceTransform.RotateInverse(
+                SpaceTransform.TransportVelocity(center, pose.position), pose.angle));
+            Vector2 pilotVelocity = basis.FromMap(SpaceTransform.RotateInverse(
+                SpaceTransform.TransportTangent(velocity, center.position, pose.position), pose.angle));
+            Vector2 unassistedPilotVelocity = pilotVelocity;
             if (assistX && previousPilotVelocity.x != 0f
                 && pilotVelocity.x * previousPilotVelocity.x < 0f)
             {
@@ -696,23 +700,16 @@ namespace DeltaV
             {
                 angularVelocity = Mathf.MoveTowards(angularVelocity, 0f, ResidualAlphaDecel * dt);
             }
-            velocity = SpaceTransform.Rotate(basis.ToMap(pilotVelocity), pose.angle);
+            velocity += SpaceTransform.TransportTangent(SpaceTransform.Rotate(
+                basis.ToMap(pilotVelocity - unassistedPilotVelocity), pose.angle), pose.position, center.position);
 
-            // 质心球面方向 = Move(锚, Rotate(comLocal, 旧角))；平移后按新角移回锚，
-            // 与旧平面版 "position + Rotate(comLocal, angle)" 的不变量一一对应。
-            OrbitSphere.Direction comDir = OrbitSphere.Move(pose.direction, SpaceTransform.Rotate(report.comLocal, pose.angle));
-            OrbitSphere.Direction comMoved = OrbitSphere.Move(comDir, velocity * dt);
-            pose.angle = SpaceTransform.WrapAngle(pose.angle + angularVelocity * dt);
-            pose.direction = OrbitSphere.Move(comMoved, -SpaceTransform.Rotate(report.comLocal, pose.angle));
-
-            // 平行输运：把切空间速度从旧锚点的基重表达到新锚点的基（每步 O(基旋转)，
-            // 保证"恒东向速度"沿纬线、恒北向速度沿经线等行星固连语义成立）。
-            OrbitSphere.Basis(oldDir, out Vector3 east, out Vector3 north);
-            Vector3 velocityWorld = east * velocity.x + north * velocity.y;
-            OrbitSphere.Basis(pose.position, out east, out north);
-            pose.velocity = new Vector2(Vector3.Dot(velocityWorld, east), Vector3.Dot(velocityWorld, north));
-            pose.angularVelocity = angularVelocity;
-            obj.pose = pose;
+            // Integrate the physical center, then invert the actual shared map-point transform.
+            center.direction = OrbitSphere.Move(center.direction, velocity * dt);
+            center.angle = SpaceTransform.WrapAngle(pose.angle + angularVelocity * dt);
+            center.velocity = SpaceTransform.TransportTangent(velocity, oldDir, center.position);
+            center.angularVelocity = angularVelocity;
+            obj.pose = report.comLocal == Vector2.zero ? center
+                : SpaceTransform.AlignLocalPoint(center, Vector2.zero, report.comLocal, 0f);
         }
 
         /// <summary>

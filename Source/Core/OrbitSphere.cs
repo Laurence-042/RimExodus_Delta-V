@@ -206,6 +206,45 @@ namespace DeltaV
             return (fromDir.Normalized * Math.Cos(angle) + tangent * Math.Sin(angle)).Normalized;
         }
 
+        // Differential of Move, including the changing east/north basis of its origin.
+        // offsetRate is the derivative of offset's coordinates, not a transported world velocity.
+        internal static Vector2 MoveVelocity(Direction origin, Vector2 originVelocity,
+            Vector2 offset, Vector2 offsetRate, Vector3 frameDirection)
+        {
+            Direction up = origin.Normalized;
+            Basis(up, out Direction east, out Direction north);
+            double radius = CellsPerRadian;
+            Direction upRate = (east * originVelocity.x + north * originVelocity.y) * (1d / radius);
+            Direction reference = new Direction(0d, 1d, 0d);
+            Direction projected = reference - up * Direction.Dot(reference, up);
+            if (projected.LengthSquared < 1e-6d)
+            {
+                reference = new Direction(0d, 0d, 1d);
+                projected = reference - up * Direction.Dot(reference, up);
+            }
+            Direction projectedRate = upRate * -Direction.Dot(reference, up)
+                - up * Direction.Dot(reference, upRate);
+            Direction northRate = (projectedRate - north * Direction.Dot(north, projectedRate))
+                * (1d / Math.Sqrt(projected.LengthSquared));
+            Direction eastRate = (Direction.Cross(upRate, north) + Direction.Cross(up, northRate)) * EastSign;
+            double distance = Math.Sqrt((double)offset.x * offset.x + (double)offset.y * offset.y);
+            Direction velocity;
+            if (distance < 1e-10d)
+                velocity = upRate * radius + east * offsetRate.x + north * offsetRate.y;
+            else
+            {
+                double distanceRate = ((double)offset.x * offsetRate.x + (double)offset.y * offsetRate.y) / distance;
+                Direction tangent = (east * offset.x + north * offset.y) * (1d / distance);
+                Direction tangentRate = (eastRate * offset.x + northRate * offset.y
+                    + east * offsetRate.x + north * offsetRate.y - tangent * distanceRate) * (1d / distance);
+                double sin = Math.Sin(distance / radius), cos = Math.Cos(distance / radius);
+                velocity = upRate * (radius * cos) - up * (sin * distanceRate)
+                    + tangentRate * (radius * sin) + tangent * (cos * distanceRate);
+            }
+            Basis(new Direction(frameDirection), out east, out north);
+            return new Vector2((float)Direction.Dot(velocity, east), (float)Direction.Dot(velocity, north));
+        }
+
         /// <summary>
         /// Move 的局部逆变换：两方向间的球面弧偏移（格，观察者切基下）。
         /// 切向投影的长度是 sin(angle)，必须用 atan2 还原弧角；直接乘

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -100,7 +100,7 @@ internal static partial class Program
                     // Observe outside the timed region; no production branch is replaced.
                     foreach (var item in ships.Take(count))
                     {
-                        var locks = (Dictionary<int, CombatTarget>)typeof(ShipFireControl)
+                        var locks = (Dictionary<long, CombatTarget>)typeof(ShipFireControl)
                             .GetField("automaticTargets", Private).GetValue(item.fire);
                         var anchor = (CombatTarget)typeof(ShipFireControl).GetField("target", Private).GetValue(item.fire);
                         decisions.Add($"{count}/{window}/{item.ship.Identity}:{anchor.Ship}:"
@@ -115,7 +115,7 @@ internal static partial class Program
                 var weaponValue = constructor.Invoke(arguments.Take(constructor.GetParameters().Length).ToArray());
                 var weapons = Array.CreateInstance(typeof(CombatAttackWeapon), 1); weapons.SetValue(weaponValue, 0);
                 var choose = typeof(CombatAttackPose).GetMethod("Choose", BindingFlags.Static | BindingFlags.NonPublic);
-                var values = new object[] { weapons, new CombatTacticSettings(), null, Vector2.zero, 30f, 115f, 0f, 1, true, null, null, null, null };
+                var values = new object[] { weapons, new CombatTacticSettings(), null, Vector2.zero, 30f, 115f, 0f, 1, true, null, null, null, null, null, null };
                 var poseTimes = new List<double>();
                 for (int run = 0; run < 100; run++)
                 {

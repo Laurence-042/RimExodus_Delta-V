@@ -24,12 +24,14 @@ namespace DeltaV
             Vector3 point, Vector2 tangentImpulse)
         {
             SpacePose pose = body.pose;
-            pose.velocity += SpaceTransform.TransportTangent(tangentImpulse, point, pose.position) / report.mass;
+            SpacePose center = SpaceTransform.RigidPointPose(pose, report.comLocal, 0f);
+            center.velocity += SpaceTransform.TransportTangent(tangentImpulse, point, center.position) / report.mass;
             Vector2 localImpulse = SpaceTransform.RotateInverse(
                 SpaceTransform.TransportTangent(tangentImpulse, point, pose.position), pose.angle);
             Vector2 arm = localPoint - report.comLocal;
             pose.angularVelocity += (arm.x * localImpulse.y - arm.y * localImpulse.x) / report.inertia;
             if (!report.allowsAngularMotion) pose.angularVelocity = 0f;
+            pose.velocity = SpaceTransform.OriginVelocityForPoint(pose, report.comLocal, center.position, center.velocity);
             body.pose = pose;
         }
 
@@ -40,17 +42,21 @@ namespace DeltaV
         internal static void CoupleMotion(SpaceObject a, MassReport ma, SpaceObject b, MassReport mb,
             Vector3 point, float fraction, float maxImpulse, float maxAngularImpulse)
         {
-            Vector2 va = SpaceTransform.TransportVelocity(a.pose, point);
-            Vector2 vb = SpaceTransform.TransportVelocity(b.pose, point);
+            SpacePose centerA = SpaceTransform.RigidPointPose(a.pose, ma.comLocal, 0f);
+            SpacePose centerB = SpaceTransform.RigidPointPose(b.pose, mb.comLocal, 0f);
+            Vector2 va = SpaceTransform.TransportVelocity(centerA, point);
+            Vector2 vb = SpaceTransform.TransportVelocity(centerB, point);
             Vector2 beforeA = va, beforeB = vb;
             float wa = a.pose.angularVelocity, wb = b.pose.angularVelocity;
             CoupleVelocities(ma.mass, ma.inertia, mb.mass, mb.inertia,
                 ref va, ref wa, ref vb, ref wb, fraction, maxImpulse, maxAngularImpulse);
             // 只换回速度增量，避免来回切平面投影凭空衰减原有速度。
-            a.pose.velocity += SpaceTransform.TransportTangent(va - beforeA, point, a.pose.position);
-            b.pose.velocity += SpaceTransform.TransportTangent(vb - beforeB, point, b.pose.position);
+            centerA.velocity += SpaceTransform.TransportTangent(va - beforeA, point, centerA.position);
+            centerB.velocity += SpaceTransform.TransportTangent(vb - beforeB, point, centerB.position);
             a.pose.angularVelocity = ma.allowsAngularMotion ? wa : 0f;
             b.pose.angularVelocity = mb.allowsAngularMotion ? wb : 0f;
+            a.pose.velocity = SpaceTransform.OriginVelocityForPoint(a.pose, ma.comLocal, centerA.position, centerA.velocity);
+            b.pose.velocity = SpaceTransform.OriginVelocityForPoint(b.pose, mb.comLocal, centerB.position, centerB.velocity);
         }
 
         // 纯数值解算供真实对象与离线守恒回归共用。

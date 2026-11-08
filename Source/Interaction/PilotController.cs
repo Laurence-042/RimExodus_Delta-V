@@ -997,7 +997,10 @@ internal readonly struct HeadingPanelAction
             // 辅助在船体参考系里抵消速度（推进器固连船体）；与玩家指令共轴时不参与。
             // 任意高于 AssistEpsilon 的漂移都置 assist* 标志（残差交给 ShipPhysics.Integrate
             // 直接衰减到零）；推进器反推指令只在漂移超过 MinAssistSpeed 时下发。
-            Vector2 mapVelocity = SpaceTransform.RotateInverse(pose.velocity, pose.angle);
+            Vector2 linearVelocity = pose.velocity;
+            if (frame != null)
+                linearVelocity = SpaceTransform.VelocityAtLocalPoint(pose, frame.MotionInfo.comLocal, pose.position);
+            Vector2 mapVelocity = SpaceTransform.RotateInverse(linearVelocity, pose.angle);
             Vector2 bodyVelocity = basis.FromMap(mapVelocity);
             if (input.fx == 0f && Mathf.Abs(bodyVelocity.x) > AssistEpsilon)
             {

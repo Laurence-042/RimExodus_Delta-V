@@ -10,8 +10,9 @@ namespace DeltaV
     /// 宇宙坐标是球面绝对坐标（轨道层球面）：
     /// - position：球面上的单位方向向量（双精度保存，Vector3 只作即时视图）；tile 投影由 OrbitSphere
     ///   纯函数完成，不存在任何需要对齐的持久锚；
-    /// - velocity：position 处切空间速度（x = 东向、y = 北向，cells/s）；
-    /// - angle：船体局部系到该处切空间基的旋转（弧度，0 = 东向，见 SpaceTransform）。
+    /// - velocity：position 锚点的位置导数（x = 东向、y = 北向，cells/s），不是偏心质心速度；
+    /// - angle：船体局部系到该处切空间基的旋转（弧度，0 = 东向，见 SpaceTransform）；
+    ///   angularVelocity 是这个角度的时间导数。质心状态由共同刚体点变换派生，不另存。
     ///
     /// </summary>
     public struct SpacePose : IExposable

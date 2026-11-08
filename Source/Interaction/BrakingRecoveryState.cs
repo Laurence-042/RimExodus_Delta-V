@@ -41,6 +41,10 @@ namespace DeltaV
             bool eligible, out GuidanceCommand command, out GuidanceCommand approach)
         {
             bool retry = ApproachDue(tick, changed);
+            var localVelocity = request.referencePosition.sqrMagnitude > 0f
+                ? SpaceTransform.TransportTangent(request.relativeVelocity, request.referencePosition, pose.position)
+                : request.relativeVelocity;
+            localVelocity = SpaceTransform.RotateInverse(localVelocity, pose.angle);
             bool solved = false;
             approach = default;
             if (!Active || retry)
@@ -50,7 +54,7 @@ namespace DeltaV
                 // Do not mistake thrust towards the old travel direction for braking authority.
                 bool noBraking = eligible && (request.brakingAcceleration * BrakingGuidanceFallback.SafetyFactor <= 1e-6
                     || request.relativeVelocity.sqrMagnitude > 1e-8f
-                    && report.PreviewBraking(SpaceTransform.RotateInverse(request.relativeVelocity.normalized, pose.angle))
+                    && report.PreviewBraking(localVelocity.normalized)
                         * BrakingGuidanceFallback.SafetyFactor <= 1e-6);
                 if (!noBraking) solved = guidance.Compute(request, out approach);
                 bool stillReceding = UnityEngine.Vector2.Dot(request.relativeVelocity, request.positionError) < 0
@@ -74,9 +78,9 @@ namespace DeltaV
                 request.accuracy = GuidanceAccuracy.Strict;
                 request.voidBlend = 0;
                 request.approachReserveDistance = 0;
-                request.brakingAcceleration = report.PreviewBraking(request.relativeVelocity.sqrMagnitude > 1e-8f
-                    ? SpaceTransform.RotateInverse(request.relativeVelocity.normalized, pose.angle) : UnityEngine.Vector2.zero);
-                ShipAutopilot.BuildControlAcceleration(pose, request.controlModel, 0f, request.controlAcceleration);
+                request.brakingAcceleration = report.PreviewBraking(localVelocity.sqrMagnitude > 1e-8f
+                    ? localVelocity.normalized : UnityEngine.Vector2.zero);
+                ShipAutopilot.BuildControlAcceleration(pose, request.controlModel, 0f, request.controlAcceleration, request.referencePosition);
                 if (!Fallback || ControlDue(tick, changed))
                 {
                     solved = guidance.Compute(request, out command);

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 
 <LanguageData>
   <DeltaV_PilotNeedShipFocus>Focus a ship map first.</DeltaV_PilotNeedShipFocus>
@@ -78,6 +78,8 @@
   <DeltaV_SettingsLogLifecycle>Log: POI lifecycle transitions</DeltaV_SettingsLogLifecycle>
   <DeltaV_SettingsLogRender>Log: shell layering (max 1/s)</DeltaV_SettingsLogRender>
   <DeltaV_SettingsLogCombat>Log: combat events (launch/impact/intercept/ricochet/pass-through)</DeltaV_SettingsLogCombat>
+  <DeltaV_SettingsLogAI>Log: AI decisions and maneuvers</DeltaV_SettingsLogAI>
+  <DeltaV_SettingsLogAITip>Records automatic combat targets, rules, repositioning progress, blocked routes, and flight control changes. This switch alone is sufficient for maneuver diagnostics. Filter by [DeltaV:AI].</DeltaV_SettingsLogAITip>
   <DeltaV_SettingsLogDevelopment>Log: development debugging</DeltaV_SettingsLogDevelopment>
   <DeltaV_SettingsLogDevelopmentTip>Temporary diagnostics for issues currently being investigated. Filter by [DeltaV:Development].</DeltaV_SettingsLogDevelopmentTip>
   <DeltaV_SettingsLogPerformance>Performance analysis: report every 5 seconds</DeltaV_SettingsLogPerformance>
@@ -495,7 +497,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_CombatTactic_HoldRange>Tactic: hold firing position</DeltaV_CombatTactic_HoldRange>
   <DeltaV_CombatTacticDistance>Engagement range (cells; 0 = auto)</DeltaV_CombatTacticDistance>
   <DeltaV_CombatTacticHeading>Relative facing (degrees)</DeltaV_CombatTacticHeading>
-  <DeltaV_CombatTacticHelp>Reposition moves between stable attack positions; hold retains a bearing; circle keeps moving around the target. Real thrust and braking limit movement.</DeltaV_CombatTacticHelp>
+  <DeltaV_CombatTacticHelp>Automatic maneuver periodically reevaluates sustained motion; hold range maintains the selected bearing; circle keeps moving in the selected direction. Facing, speed and turning depend on actual propulsion and weapon coverage.</DeltaV_CombatTacticHelp>
   <DeltaV_CombatTacticMovement>Movement intensity</DeltaV_CombatTacticMovement>
   <DeltaV_CombatTacticReason>Range {0} cells, relative facing {1}°, {2}; covered firepower {3}/s, curve preference {4}</DeltaV_CombatTacticReason>
   <DeltaV_CombatTurn_Automatic>Orbit direction: automatic</DeltaV_CombatTurn_Automatic>
@@ -512,8 +514,8 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_CombatIncludeDisarmed>Include disarmed ships</DeltaV_CombatIncludeDisarmed>
   <DeltaV_CombatAnchorOnly>Attack maneuver target only</DeltaV_CombatAnchorOnly>
   <DeltaV_CombatFlanking>Coordinate flanking with allied automatic combatants</DeltaV_CombatFlanking>
-  <DeltaV_CombatRepositionAngle>Reposition jitter ± degrees</DeltaV_CombatRepositionAngle>
-  <DeltaV_CombatRepositionTime>Reposition interval: min/max game seconds</DeltaV_CombatRepositionTime>
+  <DeltaV_CombatRepositionAngle>Maximum candidate bearing lookahead</DeltaV_CombatRepositionAngle>
+  <DeltaV_CombatRepositionTime>Decision interval: minimum/maximum game seconds</DeltaV_CombatRepositionTime>
   <DeltaV_CombatPosePreview>Pose preview / drag to configure</DeltaV_CombatPosePreview>
   <DeltaV_CombatPoseHelp>Red=enemy, cyan=own ship. Left drag sets distance and bearing; right drag sets own facing. Changes stay in the draft until the strategy is saved.</DeltaV_CombatPoseHelp>
   <DeltaV_CombatPoseValues>Distance {0} cells
@@ -534,7 +536,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_CombatTemplate1>Broadside reposition</DeltaV_CombatTemplate1>
   <DeltaV_CombatTemplate2>Coordinated flanking</DeltaV_CombatTemplate2>
   <DeltaV_CombatTemplate3>Ranged hold</DeltaV_CombatTemplate3>
-  <DeltaV_CombatPoseStatus>Bearing {0}°, next reposition {1}s; coverage {2}, mobility {3}; distance/output/incoming/time/overlap/alignment scores: {4}</DeltaV_CombatPoseStatus>
+  <DeltaV_CombatPoseStatus>Preview bearing {0}°, next decision in {1}s; coverage {2}, mobility {3}; range/output/incoming/impact time/overlap/alignment scores: {4}</DeltaV_CombatPoseStatus>
   <DeltaV_CombatPoseBlocked>Explicit constraints conflict with hull/weapon capabilities: maintaining the safest feasible pose.</DeltaV_CombatPoseBlocked>
   <DeltaV_CombatScope_Metric>Scope: metric default</DeltaV_CombatScope_Metric>
   <DeltaV_CombatScope_OwnShip>Scope: own ship</DeltaV_CombatScope_OwnShip>

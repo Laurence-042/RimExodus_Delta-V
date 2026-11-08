@@ -40,11 +40,11 @@ namespace DeltaV
             return threats;
         }
         internal CombatStrategy Strategy(ShipBase ship) => ship.CombatAI?.strategy ?? fallbackStrategy;
-        internal CombatStrategyFacts Facts(ShipBase ship, SpaceObject own)
+        internal CombatStrategyFacts Facts(ShipBase ship, SpaceObject own, bool refresh = false)
         {
             int now = Find.TickManager.TicksGame;
             var strategy = Strategy(ship);
-            if (observation == null || now - observationTick >= 30 || observedShip != ship
+            if (refresh || observation == null || now - observationTick >= 30 || observedShip != ship
                 || observedFrame != own || observedStrategy != strategy
                 || SubstructureOwnership.CacheNeedsRefresh(observationVersion))
             {
@@ -155,8 +155,9 @@ namespace DeltaV
                 return;
             }
             if (selected != target) { preferredSystemId = 0; targetSwitchTick = now + 120; }
-            if (DeltaVLog.Enabled(DeltaVLogModule.Combat) && (!targetObserved || selected != target))
-                DeltaVLog.Message(DeltaVLogModule.Combat, $"ship #{ownerId} fire-control target {selected.Ship} rule={reason}");
+            if (DeltaVLog.Enabled(DeltaVLogModule.AI) && (!targetObserved || selected != target))
+                DeltaVLog.Message(DeltaVLogModule.AI, $"target tick={Find.TickManager.TicksGame} ship={ownerId} "
+                    + $"{UniverseManager.MapTag(ship.Map)} previous={target.Ship} selected={selected.Ship} rule='{reason}' score={best:F3}");
             targetObserved = true; target = selected;
             if (ship.CombatAI != null) ship.CombatAI.lastTargetReason = selected.TryResolve(universe, out var chosen)
                 ? reason + " → " + chosen.Ship.Label + " · " + "DeltaV_CombatDecisionScore".Translate(best.ToString("0.0"))

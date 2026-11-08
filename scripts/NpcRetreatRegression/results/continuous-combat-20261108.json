@@ -1,0 +1,243 @@
+{
+  "date": "2026-11-08",
+  "game_build_validation": [
+    "1.6",
+    "1.7"
+  ],
+  "game_runtime_validation": {
+    "continuous_orbit": "user confirmed 2026-11-08",
+    "weak_side_positioning": "not achieved; user reports continued circling instead of holding advantageous range at the weak stern",
+    "other_scenarios": "not accepted by this confirmation"
+  },
+  "conditions": {
+    "ticks_per_scene": 10800,
+    "warmup_ticks": 1200,
+    "mass": 1000,
+    "base_inertia": 10000,
+    "sphere_radius_cells": 10000,
+    "linear_drag_half_life_ticks": 480,
+    "angular_drag_half_life_ticks": 180,
+    "layouts": {
+      "0": "8 symmetric thrusters, 2000 each",
+      "1": "strong axis 2000, weak axis 100, automatic facing",
+      "2": "same strong axis, explicit target facing",
+      "3": "same strong axis, 1000x inertia",
+      "4": "symmetric, thrust reduced to 25% at tick 3600",
+      "5": "symmetric layout translated with COM (7,-4), task anchor unchanged"
+    }
+  },
+  "sha256": {
+    "baseline": "62d38999fbbbbae644405152a812e5add19f0e795e05b17915bddd8b82c7af56",
+    "current16": "ccaff7494a5606eb6fbe08f748ecd1a35004d81a3fdfed9cc94ec1a387cc7cea",
+    "current17": "5dd1444e5fe29ccf09a8f86fe7e6fefea85b8bc1ed1f2b51cf7df10c63aa1ead"
+  },
+  "motion": [
+    {
+      "metrics": "MANEUVER layout=0 logging=False hold=False closing=0 events=27 reversals=0 traveledDeg=956.5 transverseMax=9.465 range=99.99..100.00 logs=0",
+      "continuity": "CONTINUITY slowLegEnds=0/24 slowWithinLeg=0/24 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=0 logging=False hold=False closing=4 events=27 reversals=0 traveledDeg=876.1 transverseMax=8.666 range=97.33..100.01 logs=0",
+      "continuity": "CONTINUITY slowLegEnds=0/24 slowWithinLeg=0/24 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=0 logging=False hold=False closing=12 events=27 reversals=0 traveledDeg=747.5 transverseMax=7.417 range=79.56..100.08 logs=0",
+      "continuity": "CONTINUITY slowLegEnds=0/24 slowWithinLeg=0/24 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=0 logging=False hold=False closing=20 events=27 reversals=0 traveledDeg=640.9 transverseMax=6.488 range=40.83..100.17 logs=0",
+      "continuity": "CONTINUITY slowLegEnds=0/24 slowWithinLeg=0/24 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=0 logging=False hold=True closing=0 events=0 reversals=0 traveledDeg=0.0 transverseMax=0.000 range=100.00..100.00 logs=0",
+      "continuity": "CONTINUITY slowLegEnds=0/0 slowWithinLeg=0/0 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=1 logging=False hold=False closing=0 events=26 reversals=0 traveledDeg=812.3 transverseMax=10.174 range=92.79..109.67 logs=0",
+      "continuity": "CONTINUITY slowLegEnds=0/23 slowWithinLeg=0/23 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=2 logging=False hold=False closing=0 events=27 reversals=0 traveledDeg=209.2 transverseMax=2.093 range=99.86..100.48 logs=0",
+      "continuity": "CONTINUITY slowLegEnds=0/24 slowWithinLeg=0/24 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=3 logging=False hold=False closing=0 events=27 reversals=0 traveledDeg=151.1 transverseMax=1.976 range=99.81..100.30 logs=0",
+      "continuity": "CONTINUITY slowLegEnds=0/21 slowWithinLeg=0/21 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=4 logging=False hold=False closing=0 events=27 reversals=0 traveledDeg=646.1 transverseMax=9.465 range=99.96..100.06 logs=0",
+      "continuity": "CONTINUITY slowLegEnds=0/15 slowWithinLeg=0/15 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=5 logging=False hold=False closing=0 events=27 reversals=0 traveledDeg=956.5 transverseMax=9.466 range=99.99..100.00 logs=0",
+      "continuity": "CONTINUITY slowLegEnds=0/24 slowWithinLeg=0/24 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=0 logging=True hold=False closing=0 events=27 reversals=0 traveledDeg=956.5 transverseMax=9.465 range=99.99..100.00 logs=736",
+      "continuity": "CONTINUITY slowLegEnds=0/24 slowWithinLeg=0/24 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=0 logging=True hold=False closing=4 events=27 reversals=0 traveledDeg=876.1 transverseMax=8.666 range=97.33..100.01 logs=736",
+      "continuity": "CONTINUITY slowLegEnds=0/24 slowWithinLeg=0/24 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=0 logging=True hold=False closing=12 events=27 reversals=0 traveledDeg=747.5 transverseMax=7.417 range=79.56..100.08 logs=738",
+      "continuity": "CONTINUITY slowLegEnds=0/24 slowWithinLeg=0/24 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=0 logging=True hold=False closing=20 events=27 reversals=0 traveledDeg=640.9 transverseMax=6.488 range=40.83..100.17 logs=694",
+      "continuity": "CONTINUITY slowLegEnds=0/24 slowWithinLeg=0/24 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=0 logging=True hold=True closing=0 events=0 reversals=0 traveledDeg=0.0 transverseMax=0.000 range=100.00..100.00 logs=4",
+      "continuity": "CONTINUITY slowLegEnds=0/0 slowWithinLeg=0/0 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=1 logging=True hold=False closing=0 events=26 reversals=0 traveledDeg=812.3 transverseMax=10.174 range=92.79..109.67 logs=714",
+      "continuity": "CONTINUITY slowLegEnds=0/23 slowWithinLeg=0/23 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=2 logging=True hold=False closing=0 events=27 reversals=0 traveledDeg=209.2 transverseMax=2.093 range=99.86..100.48 logs=294",
+      "continuity": "CONTINUITY slowLegEnds=0/24 slowWithinLeg=0/24 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=3 logging=True hold=False closing=0 events=27 reversals=0 traveledDeg=151.1 transverseMax=1.976 range=99.81..100.30 logs=280",
+      "continuity": "CONTINUITY slowLegEnds=0/21 slowWithinLeg=0/21 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=4 logging=True hold=False closing=0 events=27 reversals=0 traveledDeg=646.1 transverseMax=9.465 range=99.96..100.06 logs=610",
+      "continuity": "CONTINUITY slowLegEnds=0/15 slowWithinLeg=0/15 endToPeakMinimum=0.6 warmupTicks=1200"
+    },
+    {
+      "metrics": "MANEUVER layout=5 logging=True hold=False closing=0 events=27 reversals=0 traveledDeg=956.5 transverseMax=9.466 range=99.99..100.00 logs=736",
+      "continuity": "CONTINUITY slowLegEnds=0/24 slowWithinLeg=0/24 endToPeakMinimum=0.6 warmupTicks=1200"
+    }
+  ],
+  "model_checks": [
+    "ROTATING_MODEL axial=False offsetCenter=False positionError=0.002337 velocityError=0.002779",
+    "ROTATING_MODEL axial=True offsetCenter=False positionError=0.002081 velocityError=0.001983",
+    "ROTATING_MODEL axial=True offsetCenter=True positionError=0.002076 velocityError=0.001977"
+  ],
+  "planning_performance": [
+    {
+      "ships": 1,
+      "calls": 24,
+      "baseline_ms": [
+        33.92,
+        32.986,
+        33.679
+      ],
+      "current_ms": [
+        39.703,
+        43.49,
+        41.699
+      ],
+      "median_ratio": 1.2381305858249947,
+      "limit": 1.25
+    },
+    {
+      "ships": 4,
+      "calls": 96,
+      "baseline_ms": [
+        78.602,
+        74.9,
+        77.371
+      ],
+      "current_ms": [
+        87.4,
+        89.053,
+        90.76
+      ],
+      "median_ratio": 1.1509868038412325,
+      "limit": 1.25
+    },
+    {
+      "ships": 12,
+      "calls": 288,
+      "baseline_ms": [
+        281.87,
+        310.546,
+        343.544
+      ],
+      "current_ms": [
+        321.931,
+        342.08,
+        293.977
+      ],
+      "median_ratio": 1.0366612353725373,
+      "limit": 1.25
+    },
+    {
+      "ships": 24,
+      "calls": 576,
+      "baseline_ms": [
+        561.845,
+        492.961,
+        646.42
+      ],
+      "current_ms": [
+        471.056,
+        741.931,
+        470.542
+      ],
+      "median_ratio": 0.8384091697888207,
+      "limit": 1.25
+    }
+  ],
+  "existing_suite_passed": 1511,
+  "remaining_failure": null,
+  "motion_performance_baseline": [
+    "MOTION_PERF logging=False closing=0 hold=False pilotMs=1485.500 planMs=212.287 qpMs=1129.144 qpCalls=1080",
+    "MOTION_PERF logging=False closing=4 hold=False pilotMs=944.559 planMs=105.519 qpMs=759.135 qpCalls=1080",
+    "MOTION_PERF logging=False closing=12 hold=False pilotMs=901.238 planMs=93.230 qpMs=735.893 qpCalls=1100",
+    "MOTION_PERF logging=False closing=20 hold=False pilotMs=1017.370 planMs=96.955 qpMs=840.525 qpCalls=1134",
+    "MOTION_PERF logging=False closing=0 hold=True pilotMs=584.201 planMs=54.239 qpMs=477.794 qpCalls=901",
+    "MOTION_PERF logging=True closing=0 hold=False pilotMs=853.248 planMs=101.473 qpMs=678.273 qpCalls=1080",
+    "MOTION_PERF logging=True closing=4 hold=False pilotMs=769.278 planMs=87.225 qpMs=617.178 qpCalls=1080",
+    "MOTION_PERF logging=True closing=12 hold=False pilotMs=906.043 planMs=103.875 qpMs=726.491 qpCalls=1100",
+    "MOTION_PERF logging=True closing=20 hold=False pilotMs=894.334 planMs=90.868 qpMs=734.194 qpCalls=1134",
+    "MOTION_PERF logging=True closing=0 hold=True pilotMs=544.714 planMs=52.288 qpMs=442.696 qpCalls=901"
+  ],
+  "motion_performance_current": [
+    "MOTION_PERF logging=False closing=0 hold=False pilotMs=1147.518 planMs=214.261 qpMs=780.094 qpCalls=901",
+    "MOTION_PERF logging=False closing=4 hold=False pilotMs=801.124 planMs=149.419 qpMs=546.254 qpCalls=901",
+    "MOTION_PERF logging=False closing=12 hold=False pilotMs=649.821 planMs=83.578 qpMs=495.003 qpCalls=901",
+    "MOTION_PERF logging=False closing=20 hold=False pilotMs=666.141 planMs=92.254 qpMs=503.010 qpCalls=901",
+    "MOTION_PERF logging=False closing=0 hold=True pilotMs=535.144 planMs=47.124 qpMs=431.589 qpCalls=901",
+    "MOTION_PERF logging=False closing=0 hold=False pilotMs=1260.265 planMs=121.044 qpMs=1022.343 qpCalls=1209",
+    "MOTION_PERF logging=False closing=0 hold=False pilotMs=718.814 planMs=52.112 qpMs=501.829 qpCalls=915",
+    "MOTION_PERF logging=False closing=0 hold=False pilotMs=752.753 planMs=117.691 qpMs=485.193 qpCalls=901",
+    "MOTION_PERF logging=False closing=0 hold=False pilotMs=649.861 planMs=91.849 qpMs=489.821 qpCalls=902",
+    "MOTION_PERF logging=False closing=0 hold=False pilotMs=671.815 planMs=90.151 qpMs=494.034 qpCalls=901",
+    "MOTION_PERF logging=True closing=0 hold=False pilotMs=661.526 planMs=102.972 qpMs=486.158 qpCalls=901",
+    "MOTION_PERF logging=True closing=4 hold=False pilotMs=652.229 planMs=92.225 qpMs=486.548 qpCalls=901",
+    "MOTION_PERF logging=True closing=12 hold=False pilotMs=722.257 planMs=101.799 qpMs=540.892 qpCalls=901",
+    "MOTION_PERF logging=True closing=20 hold=False pilotMs=732.787 planMs=109.369 qpMs=543.368 qpCalls=901",
+    "MOTION_PERF logging=True closing=0 hold=True pilotMs=581.619 planMs=52.166 qpMs=466.698 qpCalls=901",
+    "MOTION_PERF logging=True closing=0 hold=False pilotMs=1378.367 planMs=140.949 qpMs=1106.667 qpCalls=1209",
+    "MOTION_PERF logging=True closing=0 hold=False pilotMs=785.279 planMs=63.429 qpMs=539.599 qpCalls=915",
+    "MOTION_PERF logging=True closing=0 hold=False pilotMs=824.929 planMs=133.377 qpMs=527.320 qpCalls=901",
+    "MOTION_PERF logging=True closing=0 hold=False pilotMs=719.389 planMs=108.693 qpMs=530.831 qpCalls=902",
+    "MOTION_PERF logging=True closing=0 hold=False pilotMs=705.767 planMs=105.664 qpMs=509.341 qpCalls=901"
+  ],
+  "motion_suite_passed": 196,
+  "shared_contract_checks": [
+    "RIGID_MOTION pointDerivative=0.000210 inverseDerivative=0.000341 spinCenterDrift=0.000491",
+    "REFERENCE derivativeVelocityMax=0.004326 derivativeOmegaMax=0.000456"
+  ],
+  "known_boundary": "Existing geographic tangent-basis seam near the polar fallback cap remains discontinuous; forward/inverse derivatives are validated within each smooth chart, not across that seam.",
+  "validation_note": "Final DLL also changes manual-assist access to the existing MotionInfo interface; full suite rerun after that access-only change. Combat motion, MPC, and performance measurements use identical combat/control/physics code.",
+  "commit_snapshot": {
+    "scope": "staged combat changes only; unrelated globe changes excluded",
+    "builds": [
+      "1.6",
+      "1.7"
+    ],
+    "full_regression_passed": 1477,
+    "sha256": {
+      "1.6": "19bd78d35809466290fedefaf69ae294e38465da8f7259bb730d2082b1bcf4f3",
+      "1.7": "075d037f056c0b6ad8efaea0ed90866edb4738eada63d844026d7a3d433bd402"
+    },
+    "motion_regression_passed": 196
+  }
+}

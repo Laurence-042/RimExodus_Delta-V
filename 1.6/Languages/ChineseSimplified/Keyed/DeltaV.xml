@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 
 <LanguageData>
   <DeltaV_PilotNeedShipFocus>请先聚焦到一艘飞船的地图。</DeltaV_PilotNeedShipFocus>
@@ -78,6 +78,8 @@
   <DeltaV_SettingsLogLifecycle>日志：POI 生命周期迁移</DeltaV_SettingsLogLifecycle>
   <DeltaV_SettingsLogRender>日志：渲染（船壳分层／轨道炮状态色）</DeltaV_SettingsLogRender>
   <DeltaV_SettingsLogCombat>日志：战斗事件（发射/命中/拦截/跳弹/放行）</DeltaV_SettingsLogCombat>
+  <DeltaV_SettingsLogAI>日志：AI 决策与机动</DeltaV_SettingsLogAI>
+  <DeltaV_SettingsLogAITip>记录自动战斗的目标、规则、换位进度、路线阻挡和飞控执行变化。排查机动只需开启此项，可用 [DeltaV:AI] 筛选。</DeltaV_SettingsLogAITip>
   <DeltaV_SettingsLogDevelopment>日志：开发调试</DeltaV_SettingsLogDevelopment>
   <DeltaV_SettingsLogDevelopmentTip>通用临时排障日志，记录当前正在调试的问题。可用 [DeltaV:Development] 筛选日志。</DeltaV_SettingsLogDevelopmentTip>
   <DeltaV_SettingsLogPerformance>性能分析：每 5 秒输出探针</DeltaV_SettingsLogPerformance>
@@ -495,7 +497,7 @@
   <DeltaV_CombatTactic_HoldRange>战法：保持射位</DeltaV_CombatTactic_HoldRange>
   <DeltaV_CombatTacticDistance>交战距离（格；0 = 自动）</DeltaV_CombatTacticDistance>
   <DeltaV_CombatTacticHeading>相对目标视线（度）</DeltaV_CombatTacticHeading>
-  <DeltaV_CombatTacticHelp>自动换位在稳定射位之间移动；保持射位守住所选方位；绕行持续转移方位。速度由真实推力与制动限制。</DeltaV_CombatTacticHelp>
+  <DeltaV_CombatTacticHelp>自动换位定期重评持续机动；保持射位守住所选方位；绕行按指定方向持续移动。朝向、速度与转向过程受真实动力和射界约束。</DeltaV_CombatTacticHelp>
   <DeltaV_CombatTacticMovement>机动强度</DeltaV_CombatTacticMovement>
   <DeltaV_CombatTacticReason>距离 {0} 格，相对朝向 {1}°，{2}；可覆盖火力 {3}/秒，曲线偏好 {4}</DeltaV_CombatTacticReason>
   <DeltaV_CombatTurn_Automatic>绕行方向：自动</DeltaV_CombatTurn_Automatic>
@@ -512,8 +514,8 @@
   <DeltaV_CombatIncludeDisarmed>包括无战斗武器的船</DeltaV_CombatIncludeDisarmed>
   <DeltaV_CombatAnchorOnly>只攻击机动目标</DeltaV_CombatAnchorOnly>
   <DeltaV_CombatFlanking>允许同阵营同目标自动船协同包抄</DeltaV_CombatFlanking>
-  <DeltaV_CombatRepositionAngle>换位随机幅度 ± 度</DeltaV_CombatRepositionAngle>
-  <DeltaV_CombatRepositionTime>换位间隔：最短/最长游戏秒</DeltaV_CombatRepositionTime>
+  <DeltaV_CombatRepositionAngle>候选方位前瞻角度上限</DeltaV_CombatRepositionAngle>
+  <DeltaV_CombatRepositionTime>决策间隔：最短/最长游戏秒</DeltaV_CombatRepositionTime>
   <DeltaV_CombatPosePreview>射位示意 / 拖动配置</DeltaV_CombatPosePreview>
   <DeltaV_CombatPoseHelp>红箭头=敌舰，青箭头=本船。左键拖动指定距离和攻击方位；右键拖动指定本船朝向。修改保留在策略草稿中，主窗口保存后生效。</DeltaV_CombatPoseHelp>
   <DeltaV_CombatPoseValues>距离 {0} 格
@@ -534,7 +536,7 @@
   <DeltaV_CombatTemplate1>侧舷换位</DeltaV_CombatTemplate1>
   <DeltaV_CombatTemplate2>协同夹击</DeltaV_CombatTemplate2>
   <DeltaV_CombatTemplate3>远程保持</DeltaV_CombatTemplate3>
-  <DeltaV_CombatPoseStatus>方位 {0}°，下次换位 {1}s；覆盖 {2}，机动 {3}；距离/输出/受击/威胁时间/重叠/对准分：{4}</DeltaV_CombatPoseStatus>
+  <DeltaV_CombatPoseStatus>预测方位 {0}°，下次决策 {1}s；覆盖 {2}，机动 {3}；距离/输出/受击/威胁时间/重叠/对准分：{4}</DeltaV_CombatPoseStatus>
   <DeltaV_CombatPoseBlocked>显式约束与船体/武器能力冲突：正在尽力保持安全姿态。</DeltaV_CombatPoseBlocked>
   <DeltaV_CombatScope_Metric>作用域：指标默认</DeltaV_CombatScope_Metric>
   <DeltaV_CombatScope_OwnShip>作用域：本船</DeltaV_CombatScope_OwnShip>

@@ -248,8 +248,8 @@ namespace DeltaV
                         > ShipyardArrivalRadius) return;
                     // AI 决定返厂退役；生命周期仅执行通用移除，恢复请求与玩家保护优先。
                     if (!universe.Missions.Protects(obj) && universe.Lifecycle.TryRemoveArchivedContainer(obj)
-                        && DeltaVLog.Enabled(DeltaVLogModule.Combat))
-                        DeltaVLog.Message(DeltaVLogModule.Combat,
+                        && DeltaVLog.Enabled(DeltaVLogModule.AI))
+                        DeltaVLog.Message(DeltaVLogModule.AI,
                             $"NPC container #{obj.objectId} retired at shipyard #{currentHome.objectId}; crew passed to world");
                 }
                 catch (Exception ex)
@@ -325,12 +325,12 @@ namespace DeltaV
 
         private void LogUnclaimedConsoleEdge(SpaceObject obj)
         {
-            if (!DeltaVLog.Enabled(DeltaVLogModule.Combat)
+            if (!DeltaVLog.Enabled(DeltaVLogModule.AI)
                 || universe.Lifecycle.IsFrozen(obj.map)
                 || noMainReportedObjects.Contains(obj.objectId)) return;
             if (!HasUnclaimedNpcConsole(obj)) return;
             noMainReportedObjects.Add(obj.objectId);
-            DeltaVLog.Message(DeltaVLogModule.Combat,
+            DeltaVLog.Message(DeltaVLogModule.AI,
                 $"NPC console without recognized main ship on container #{obj.objectId}; "
                 + $"AI gate {NpcShipAiGate.NoShip}; {UniverseManager.MapTag(obj.map)}");
         }
@@ -383,11 +383,11 @@ namespace DeltaV
 
         private void LogGateEdge(ShipBase ship, SpaceObject obj, NpcShipAiGate gate)
         {
-            if (!DeltaVLog.Enabled(DeltaVLogModule.Combat)) return;
+            if (!DeltaVLog.Enabled(DeltaVLogModule.AI)) return;
             if (lastGateByShip.TryGetValue(ship.Identity, out NpcShipAiGate previous)
                 && previous == gate) return;
             lastGateByShip[ship.Identity] = gate;
-            DeltaVLog.Message(DeltaVLogModule.Combat,
+            DeltaVLog.Message(DeltaVLogModule.AI,
                 $"NPC ship #{ship.Identity} {UniverseManager.MapTag(obj.map)} "
                 + $"AI gate {gate}; relation={ship.State} "
                 + $"faction={ship.Faction?.Name ?? "none"} "
@@ -438,8 +438,8 @@ namespace DeltaV
                 {
                     SpaceObject home = universe.NpcShips.ResolveRetreatHome(own, ship.Faction);
                     universe.Autopilot.Detach(DriveSubject.Of(ship), "NPC retreat");
-                    if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
-                        DeltaVLog.Message(DeltaVLogModule.Combat,
+                    if (DeltaVLog.Enabled(DeltaVLogModule.AI))
+                        DeltaVLog.Message(DeltaVLogModule.AI,
                             $"NPC ship #{ownerId} retreat triggered ({retreatReason}); home="
                             + (home == null ? "evade without home" : $"#{home.objectId} '{home.label}'")
                             + $"; {UniverseManager.MapTag(ship.Map)}");
@@ -484,6 +484,9 @@ namespace DeltaV
         private static void RecordDecision(ShipBase ship, string reason)
         {
             if (ship.CombatAI == null) return;
+            if (DeltaVLog.Enabled(DeltaVLogModule.AI) && ship.CombatAI.lastNpcReason != reason)
+                DeltaVLog.Message(DeltaVLogModule.AI, $"npc-decision tick={Find.TickManager.TicksGame} ship={ship.Identity} "
+                    + $"{UniverseManager.MapTag(ship.Map)} reason='{reason}'");
             ship.CombatAI.lastNpcReason = reason;
             ship.CombatAI.lastNpcDecisionTick = Find.TickManager.TicksGame;
         }
@@ -496,18 +499,18 @@ namespace DeltaV
 
         private void LogThrustEdge(ShipBase ship)
         {
-            if (!DeltaVLog.Enabled(DeltaVLogModule.Combat)) return;
+            if (!DeltaVLog.Enabled(DeltaVLogModule.AI)) return;
             bool noThrust = Thrust(ship) <= 0f;
             if (noThrustObserved && noThrust == lastNoThrust) return;
             bool wasObserved = noThrustObserved;
             noThrustObserved = true;
             lastNoThrust = noThrust;
             if (noThrust)
-                DeltaVLog.Message(DeltaVLogModule.Combat,
+                DeltaVLog.Message(DeltaVLogModule.AI,
                     $"NPC ship #{ownerId} has no operational map thrust; "
                     + $"{UniverseManager.MapTag(ship.Map)}");
             else if (wasObserved)
-                DeltaVLog.Message(DeltaVLogModule.Combat,
+                DeltaVLog.Message(DeltaVLogModule.AI,
                     $"NPC ship #{ownerId} operational map thrust restored; "
                     + $"{UniverseManager.MapTag(ship.Map)}");
         }

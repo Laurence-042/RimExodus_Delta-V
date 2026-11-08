@@ -1,5 +1,7 @@
 # 开发脚本索引
 
+`NpcRetreatRegression/run.ps1 -CombatManeuverOnly -GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>`：生产持续意图／飞行参考／MPC／真实分配与积分的三分钟闭环，覆盖周期刹车、无收益反向、强轴／弱转向、显式朝向、途中动力下降、极区参考导数、旋转预测模型，以及 AI 日志逐 tick 对拍和设置 Scribe。`MOTION_PERF` 输出规划、QP 和驾驶总耗时；旧 DLL 基线与最新结果集中在[持续机动重构记录](../doc/持续战斗机动重构计划.md)。无武器闭环和独立火力约束检查不能替代实弹交火验收。
+
 `GuardShieldRegression/GuardShieldRegression.csproj` 直接编译生产护盾贴图裁剪算法，对拍随机覆盖、UV 范围与退化几何，并输出离线预览数据及重建耗时；运行和验证边界见[守卫盾裁剪检查](GuardShieldRegression/README.md)。
 
 `TutorialRegression/run.ps1` 现含 `MissionChecks.cs`：分级条件、货运押金／期限、逐人结果、原版宾客身份／财富过滤、手术真实信号与直接外交去重、合同 Scribe、敌舰主台／归档及 Harmony 签名。`NpcRetreatRegression -GlobeOnly` 增加多委托目标隔离。离线运行需传 `-HarmonyPath <Lib.Harmony/lib/net8.0/0Harmony.dll>`，不能使用游戏 Mono 版；复现命令与游戏内清单见[太空任务系统](../doc/太空任务系统.md#验证与复现)。

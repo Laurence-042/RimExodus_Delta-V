@@ -63,6 +63,7 @@ internal static partial class Program
             { velocity = new Vector2(2f, -1f), angularVelocity = .03f });
         SpacePose original = body.pose;
         CheckSmallScaleMovement();
+        CheckRigidMotion();
         CheckSoftDockInterpolation();
         CheckDockingCompState(universe);
 

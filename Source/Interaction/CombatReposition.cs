@@ -1,17 +1,26 @@
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace DeltaV
 {
+    internal enum CombatRepositionStatus { FixedBearing, Holding, Circling, WaitingTimer, Selected }
     // Logical-tick state owned by each controller. No projectile or fire-event input.
     internal sealed class CombatReposition
     {
         internal bool initialized;
         internal int nextTick;
         internal float phase;
+        internal float tangentSpeed;
         internal Vector3 basis;
+        internal float selectedScore, continuationScore, selectedVelocityCost, selectedReversalCost;
+        internal int candidateCount;
         private uint random;
-        internal void Reset(int seed)
-        { initialized = false; nextTick = 0; random = unchecked((uint)seed * 747796405u + 2891336453u); }
+        internal CombatReposition(int seed)
+        { random = unchecked((uint)seed * 747796405u + 2891336453u); }
+        // A new target/rule invalidates intent, but the controller's random stream continues.
+        internal void Reset()
+        { initialized = false; nextTick = 0; }
         private float Unit()
         { random ^= random << 13; random ^= random >> 17; random ^= random << 5; return (random & 0xffffff) / 16777216f; }
         internal float PhaseAt(Vector3 center)
@@ -21,8 +30,9 @@ namespace DeltaV
             Vector2 transported = SpaceTransform.TransportVelocity(old, center);
             return Mathf.Atan2(transported.y, transported.x);
         }
-        internal void Update(SpacePose own, SpacePose target, CombatAttackPose pose,
-            CombatTacticSettings settings, DriveInfo drive, int tick, float? alliedOpposite = null)
+        internal CombatRepositionStatus Update(SpacePose own, SpacePose target, CombatAttackPose pose,
+            CombatTacticSettings settings, DriveInfo drive, int tick, float? alliedOpposite = null,
+            Func<float, float, float> preference = null)
         {
             Vector2 offset = OrbitSphere.Offset(target.position, own.position);
             float current = Mathf.Atan2(offset.y, offset.x);
@@ -33,24 +43,89 @@ namespace DeltaV
             {
                 phase = SpaceTransform.WrapAngle((settings.bearing == CombatBearing.Enemy ? target.angle : 0f)
                     + settings.bearingDegrees * Mathf.Deg2Rad);
-                return;
+                return CombatRepositionStatus.FixedBearing;
             }
-            if (pose.behavior != CombatTactic.Automatic) return;
-            Vector2 tangent = new Vector2(-Mathf.Sin(current), Mathf.Cos(current));
-            float speed = Vector2.Dot(SpaceTransform.TransportVelocity(own, target.position) - target.velocity, tangent);
-            float remaining = SpaceTransform.WrapAngle(phase - current) * Mathf.Max(1f, offset.magnitude);
-            // Keep an unfinished leg. A timed decision never forces a premature reversal.
-            if (!fresh && (tick < nextTick || Mathf.Abs(remaining) > 3f || Mathf.Abs(speed) > 1.5f)) return;
+            if (pose.behavior != CombatTactic.Automatic) return pose.behavior == CombatTactic.Circle
+                ? CombatRepositionStatus.Circling : CombatRepositionStatus.Holding;
+            // The deadline starts a fresh decision from the actual position. Guidance handles
+            // any braking or reversal using the current velocity; arrival never gates a decision.
+            if (!fresh && tick < nextTick) return CombatRepositionStatus.WaitingTimer;
             float interval = Mathf.Lerp(settings.intervalMin, settings.intervalMax, Unit());
             float a = Mathf.Min(CombatAttackPose.Acceleration(drive, Vector2.up, pose.heading),
                 CombatAttackPose.Acceleration(drive, Vector2.down, pose.heading));
             float angular = drive == null ? 0f : Mathf.Min(drive.PreviewAngular(1), drive.PreviewAngular(-1));
             float feasible = Mathf.Min(a * interval * interval * 0.25f * settings.movement / Mathf.Max(1f, pose.distance),
                 Mathf.Sqrt(Mathf.Max(0f, angular)) * interval * 0.25f);
-            float jitter = (Unit() * 2f - 1f) * settings.repositionDegrees * Mathf.Deg2Rad;
-            float desired = alliedOpposite.HasValue ? SpaceTransform.WrapAngle(alliedOpposite.Value + jitter - current) : jitter;
-            phase = SpaceTransform.WrapAngle(current + Mathf.Clamp(desired, -feasible, feasible));
+            float limit = Mathf.Min(feasible, settings.repositionDegrees * Mathf.Deg2Rad);
+            float radius = Mathf.Max(1f, offset.magnitude);
+            float speed = Vector2.Dot(SpaceTransform.TransportVelocity(own, target.position) - target.velocity,
+                new Vector2(-Mathf.Sin(current), Mathf.Cos(current)));
+            var tangentPose = new SpacePose(target.position, 0f)
+                { velocity = new Vector2(-Mathf.Sin(current), Mathf.Cos(current)) * Mathf.Sign(speed) };
+            // Braking starts in the real current attitude, before a candidate's desired heading is reached.
+            float braking = drive?.PreviewBraking(SpaceTransform.RotateInverse(
+                SpaceTransform.TransportVelocity(tangentPose, own.position), own.angle)) ?? 0f;
+            var offsets = new List<float> { 0f };
+            void Add(float value)
+            {
+                value = Mathf.Clamp(value, -limit, limit);
+                foreach (float existing in offsets) if (Mathf.Abs(existing - value) < .00001f) return;
+                offsets.Add(value);
+            }
+            Add(-limit); Add(-limit * .5f); Add(limit * .5f); Add(limit);
+            Add(speed * 4f / radius);
+            if (alliedOpposite.HasValue) Add(SpaceTransform.WrapAngle(alliedOpposite.Value - current));
+            float forwardCruise = CombatFlightPlanner.CruiseSpeed(drive, pose.heading, radius, 1, settings.movement, pose.freeThrustFacing);
+            float reverseCruise = pose.freeThrustFacing ? forwardCruise
+                : CombatFlightPlanner.CruiseSpeed(drive, pose.heading, radius, -1, settings.movement);
+            var candidates = new List<(float phase, float speed, float score, float velocityCost, float reversalCost)>();
+            float best = float.NegativeInfinity, bestForward = float.NegativeInfinity;
+            foreach (float delta in offsets)
+            {
+                if (settings.direction == CombatTurn.Clockwise && delta > 0f
+                    || settings.direction == CombatTurn.Counterclockwise && delta < 0f) continue;
+                float candidate = SpaceTransform.WrapAngle(current + delta);
+                float cruise = delta >= 0f ? forwardCruise : reverseCruise;
+                // A sustained action may accelerate over several decisions. A weak drive must
+                // be allowed to choose a useful incremental speed instead of rejecting all motion.
+                cruise = Mathf.Min(cruise, Mathf.Abs(speed) + a * interval * .25f);
+                float requested = limit > .00001f ? delta / limit * cruise : 0f;
+                float benefit = preference?.Invoke(candidate, requested) ?? 0f;
+                if (float.IsNaN(benefit) || float.IsNegativeInfinity(benefit)) continue;
+                // Two points reward making an automatic reposition; coverage remains on its 0..100 scale.
+                float progress = limit > .00001f ? 2f * Mathf.Abs(delta) / limit : 0f;
+                float velocityCost = 4f * Mathf.Abs(requested - speed) / Mathf.Max(.1f, a * interval);
+                bool reverse = requested * speed < 0f && Mathf.Abs(speed) > .01f;
+                // Reversal must repay both a fixed change-of-direction cost and the real stopping time.
+                float reversalCost = reverse ? 2f + 4f * Mathf.Abs(speed) / Mathf.Max(.1f, braking * interval) : 0f;
+                float flank = alliedOpposite.HasValue ? 2f * (Mathf.Abs(SpaceTransform.WrapAngle(alliedOpposite.Value - current))
+                    - Mathf.Abs(SpaceTransform.WrapAngle(alliedOpposite.Value - candidate))) / Mathf.PI : 0f;
+                float score = benefit + progress + flank - velocityCost - reversalCost;
+                candidates.Add((candidate, requested, score, velocityCost, reversalCost));
+                best = Mathf.Max(best, score);
+                if (!reverse) bestForward = Mathf.Max(bestForward, score);
+            }
+            // Randomness only breaks near ties against the global best, never a chain of local ties.
+            const float equivalent = .05f;
+            candidateCount = candidates.Count;
+            continuationScore = bestForward;
+            var choices = new List<int>();
+            for (int i = 0; i < candidates.Count; i++)
+                if (candidates[i].score >= best - equivalent
+                    && (candidates[i].reversalCost == 0f || candidates[i].score > bestForward + equivalent)) choices.Add(i);
+            if (choices.Count == 0)
+                for (int i = 0; i < candidates.Count; i++)
+                    if (candidates[i].reversalCost == 0f && candidates[i].score >= bestForward - equivalent) choices.Add(i);
+            phase = current; tangentSpeed = 0f;
+            selectedScore = float.NegativeInfinity; selectedVelocityCost = selectedReversalCost = 0f;
+            if (choices.Count > 0)
+            {
+                var chosen = candidates[choices[choices.Count == 1 ? 0 : Mathf.Min(choices.Count - 1, (int)(Unit() * choices.Count))]];
+                phase = chosen.phase; tangentSpeed = chosen.speed; selectedScore = chosen.score;
+                selectedVelocityCost = chosen.velocityCost; selectedReversalCost = chosen.reversalCost;
+            }
             nextTick = tick + Mathf.RoundToInt(interval * 60f);
+            return CombatRepositionStatus.Selected;
         }
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using UnityEngine;
 
@@ -276,6 +276,7 @@ namespace DeltaV
         public Vector2 referenceVelocity;
         public float referenceAngle;
         public float referenceAngularVelocity;
+        public Vector2 referenceLocalPoint;
         // 制动阶段在下一次反馈前可能消耗的闭合距离，直接从速度与求解周期派生。
         public double approachReserveDistance;
     }
@@ -472,7 +473,7 @@ namespace DeltaV
         private double[] solution;
         private double[] sensitivities;
         private double[] state;
-        private double[] intervals;
+        private double[] intervals, nominalAngles, nominalEndAngles;
         private bool hasPlannedSolution;
         private double[] previousIntervals;
         private double[] previousSolution;
@@ -507,6 +508,8 @@ namespace DeltaV
             sensitivities = new double[StateCount * variables];
             state = new double[StateCount];
             intervals = new double[horizonSteps];
+            nominalAngles = new double[horizonSteps];
+            nominalEndAngles = new double[horizonSteps];
             previousIntervals = new double[horizonSteps];
             previousSolution = new double[variables];
             interceptSolution = new double[variables];
@@ -536,6 +539,18 @@ namespace DeltaV
         public bool Compute(GuidanceRequest request, out GuidanceCommand command)
         {
             if (solution == null) Reset(AutopilotMpcProfile.Balanced);
+            if (request.combatTrajectory.seconds > 0f && ValidRequest(request))
+            {
+                bool solved = ComputePlan(request, out var first);
+                bool turning = false;
+                for (int i = 0; i < horizonSteps; i++) turning |= Math.Abs(nominalEndAngles[i]) > .5;
+                if (!solved || !turning) { command = first; return solved; }
+                solved = ComputePlan(request, out command, true);
+                command.solveMilliseconds += first.solveMilliseconds;
+                command.qpCalls += first.qpCalls; command.qpIterations += first.qpIterations;
+                command.qpIterationLimit += first.qpIterationLimit;
+                return solved;
+            }
             if (!request.intercept || !ValidRequest(request)) return ComputePlan(request, out command);
             // 有界时间搜索：同一 QP 在候选到达时刻求解，允许非零接触速度。
             // 端点误差决定是否可达；有限视域尚不可达时保留最远时域的接近计划。
@@ -609,7 +624,7 @@ namespace DeltaV
             return value;
         }
 
-        private bool ComputePlan(GuidanceRequest request, out GuidanceCommand command)
+        private bool ComputePlan(GuidanceRequest request, out GuidanceCommand command, bool refine = false)
         {
             var performance = DeltaVPerformanceProbe.Current;
             long assemblyStart = performance?.Start() ?? 0L;
@@ -639,8 +654,12 @@ namespace DeltaV
             plannedStepSeconds = request.dt;
             Array.Copy(intervals, previousIntervals, horizonSteps);
             BuildIntervals(request);
-            if (warmStart) ShiftWarmStart(Math.Max(1, request.elapsedSteps) * request.dt);
-            else Array.Clear(solution, 0, solution.Length);
+            if (!refine)
+            {
+                if (warmStart) ShiftWarmStart(Math.Max(1, request.elapsedSteps) * request.dt);
+                else Array.Clear(solution, 0, solution.Length);
+            }
+            BuildNominalAttitudes(request);
 
             double distance = Math.Sqrt(state[0] * state[0] + state[1] * state[1]);
             double nx = distance > 1e-6 ? state[0] / distance : 1.0;
@@ -671,7 +690,7 @@ namespace DeltaV
             }
             for (int step = 0; step < horizonSteps; step++)
             {
-                AdvanceStateAndSensitivity(step, intervals[step], request);
+                AdvanceStateAndSensitivity(step, intervals[step], request, predictionTime);
                 predictionTime += intervals[step];
                 Vector2 desiredPosition = Vector2.zero;
                 Vector2 desiredVelocity = Vector2.zero;
@@ -693,8 +712,19 @@ namespace DeltaV
                         4 => desiredAngle, _ => desiredOmega
                     };
                     double headingPriority = combatTrajectory && s >= 4 ? 4.0 : 1.0;
-                    AddStateCost(s, StateWeight[s] * weightScale * headingPriority,
+                    AddStateCost(s, StateWeight[s] * weightScale * headingPriority * (combatTrajectory && (s == 2 || s == 3) ? 4.0 : 1.0),
                         StateScale[s], -target);
+                }
+                if (combatTrajectory)
+                {
+                    // Keep the optimized attitude close to the nominal used for force directions.
+                    // Otherwise a convex solve could borrow thrust from a different future heading.
+                    int row = constraints++;
+                    for (int col = 0; col < inputVariables; col++) a[row * variables + col] = Sens(4, col);
+                    double center = nominalEndAngles[step] - state[4] - request.angleError
+                        - request.referenceAngularVelocity * predictionTime;
+                    lower[row] = center - .2; upper[row] = center + .2;
+                    constraintTolerances[row] = 1e-4;
                 }
                 // v_close²/(2a) <= d 的保守分段线性内近似：凸平方函数在
                 // [vi,vi+1] 上的弦位于曲线上方，所有弦的上包络覆盖 [0,vMax]。
@@ -744,7 +774,7 @@ namespace DeltaV
                     4 => -terminalAngle, _ => -terminalOmega
                 };
                 double headingPriority = combatTrajectory && s >= 4 ? 4.0 : 1.0;
-                AddStateCost(s, StateWeight[s] * (request.intercept && s < 2 ? 2500.0 : 20.0) * headingPriority,
+                AddStateCost(s, StateWeight[s] * (request.intercept && s < 2 ? 2500.0 : combatTrajectory ? 2.0 : 20.0) * headingPriority,
                     StateScale[s], terminalOffset);
             }
             AddControlCosts(inputVariables, request.previousX, request.previousZ, request.previousAngular);
@@ -839,6 +869,12 @@ namespace DeltaV
             float sampleTime = request.referenceStartSeconds + predictionTime;
             request.combatTrajectory.Sample(sampleTime, out Vector3 desiredPosition,
                 out Vector2 desiredVelocity, out float desiredAngle, out float desiredOmega);
+            if (request.referenceLocalPoint != Vector2.zero)
+            {
+                SpacePose center = SpaceTransform.RigidPointPose(new SpacePose(desiredPosition, desiredAngle)
+                    { velocity = desiredVelocity, angularVelocity = desiredOmega }, request.referenceLocalPoint, 0f);
+                desiredPosition = center.position; desiredVelocity = center.velocity;
+            }
             Vector3 baselinePosition = OrbitSphere.Move(request.referencePosition,
                 request.referenceVelocity * predictionTime);
             Vector2 displacement = OrbitSphere.Offset(baselinePosition, desiredPosition);
@@ -902,14 +938,53 @@ namespace DeltaV
             for (int i = fine; i < horizonSteps; i++) intervals[i] = coarse;
         }
 
-        private void AdvanceStateAndSensitivity(int step, double dt, GuidanceRequest request)
+        private void BuildNominalAttitudes(GuidanceRequest request)
+        {
+            if (request.combatTrajectory.seconds <= 0f) return;
+            double angle = 0, omega = request.referenceAngularVelocity + request.relativeAngularVelocity;
+            (_, float drag) = ShipPhysics.PassiveDragFactors(1f / 60f);
+            for (int step = 0; step < horizonSteps; step++)
+            {
+                double alpha = 0;
+                for (int c = 0; c < InputCount; c++)
+                {
+                    request.controlModel.ControlBounds(c, out double lo, out double hi);
+                    alpha += request.controlAcceleration[6 + c] * Math.Max(lo, Math.Min(hi, solution[step * InputCount + c]));
+                }
+                // Roll the shifted previous solution through the common held-input physics.
+                // Desired attitude is a cost, never an assumption that the hull can turn instantly.
+                ShipPhysics.HeldInputFactors(intervals[step] * .5, drag, out _, out double gm, out double hm);
+                nominalAngles[step] = angle + omega * gm + alpha * hm;
+                ShipPhysics.HeldInputFactors(intervals[step], drag, out double d, out double g, out double h);
+                angle += omega * g + alpha * h;
+                nominalEndAngles[step] = angle;
+                omega = omega * d + alpha * g;
+            }
+        }
+
+        private void AdvanceStateAndSensitivity(int step, double dt, GuidanceRequest request, double elapsed = 0)
         {
             bool unboosted = UsesUnboosted(request, step);
             double[] b = unboosted ? request.unboostedAcceleration : request.controlAcceleration;
+            double delta = request.combatTrajectory.seconds > 0f ? nominalAngles[step] : 0;
+            double cosine = Math.Cos(delta), sine = Math.Sin(delta);
             int baseControl = step * InputCount;
             (float linear, float angular) = ShipPhysics.PassiveDragFactors(1f / 60f);
             ShipPhysics.HeldInputFactors(dt, linear, out double dl, out double gl, out double hl);
             ShipPhysics.HeldInputFactors(dt, angular, out double da, out double ga, out double ha);
+            ShipPhysics.HeldInputFactors(dt * .5, angular, out _, out double gm, out double hm);
+            double jx = 0, jy = 0;
+            if (request.combatTrajectory.seconds > 0f)
+                for (int c = 0; c < InputCount; c++)
+                {
+                    double u = solution[baseControl + c];
+                    jx -= (sine * b[c] + cosine * b[3 + c]) * u;
+                    jy += (cosine * b[c] - sine * b[3 + c]) * u;
+                }
+            double angleOffset = state[4] + request.angleError + request.referenceAngularVelocity * elapsed
+                + (state[5] + request.referenceAngularVelocity) * gm - delta;
+            // Linearize force direction with respect to predicted attitude as well as input.
+            // The affine term makes this exactly the nominal dynamics at the warm-start controls.
             // 阻力作用于本船绝对速度，不能直接衰减相对目标的速度。
             state[0] += state[2] * gl + request.referenceVelocity.x * (gl - dt);
             state[1] += state[3] * gl + request.referenceVelocity.y * (gl - dt);
@@ -917,23 +992,28 @@ namespace DeltaV
             state[2] = state[2] * dl + request.referenceVelocity.x * (dl - 1.0);
             state[3] = state[3] * dl + request.referenceVelocity.y * (dl - 1.0);
             state[5] = state[5] * da + request.referenceAngularVelocity * (da - 1.0);
+            state[0] += jx * angleOffset * hl; state[1] += jy * angleOffset * hl;
+            state[2] += jx * angleOffset * gl; state[3] += jy * angleOffset * gl;
             for (int col = 0; col < variables; col++)
             {
-                SetSens(0, col, Sens(0, col) + Sens(2, col) * gl);
-                SetSens(1, col, Sens(1, col) + Sens(3, col) * gl);
+                double headingSensitivity = Sens(4, col) + Sens(5, col) * gm;
+                SetSens(0, col, Sens(0, col) + Sens(2, col) * gl + jx * headingSensitivity * hl);
+                SetSens(1, col, Sens(1, col) + Sens(3, col) * gl + jy * headingSensitivity * hl);
                 SetSens(4, col, Sens(4, col) + Sens(5, col) * ga);
-                SetSens(2, col, Sens(2, col) * dl);
-                SetSens(3, col, Sens(3, col) * dl);
+                SetSens(2, col, Sens(2, col) * dl + jx * headingSensitivity * gl);
+                SetSens(3, col, Sens(3, col) * dl + jy * headingSensitivity * gl);
                 SetSens(5, col, Sens(5, col) * da);
             }
             for (int c = 0; c < InputCount; c++)
             {
                 int col = baseControl + c;
                 double ratio = unboosted ? ControlUnitRatio(request, c) : 1;
-                SetSens(0, col, Sens(0, col) + b[c] * hl * ratio);
-                SetSens(1, col, Sens(1, col) + b[3 + c] * hl * ratio);
-                SetSens(2, col, Sens(2, col) + b[c] * gl * ratio);
-                SetSens(3, col, Sens(3, col) + b[3 + c] * gl * ratio);
+                double ax = cosine * b[c] - sine * b[3 + c] + jx * b[6 + c] * hm;
+                double ay = sine * b[c] + cosine * b[3 + c] + jy * b[6 + c] * hm;
+                SetSens(0, col, Sens(0, col) + ax * hl * ratio);
+                SetSens(1, col, Sens(1, col) + ay * hl * ratio);
+                SetSens(2, col, Sens(2, col) + ax * gl * ratio);
+                SetSens(3, col, Sens(3, col) + ay * gl * ratio);
                 SetSens(4, col, Sens(4, col) + b[6 + c] * ha * ratio);
                 SetSens(5, col, Sens(5, col) + b[6 + c] * ga * ratio);
             }
