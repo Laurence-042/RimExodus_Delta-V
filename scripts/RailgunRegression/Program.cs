@@ -114,13 +114,14 @@ internal static partial class Program
         Set(universe, "objectById", null); Set(universe, "objectByMap", null);
     }
     static SpaceCollision.SweptBody Fire(float budget, float speed = 180, ThingDef def = null,
-        float from = 5, float to = 70, Action<SpaceCollision.SweptBody> configure = null, float lane = 5.5f)
+        float from = 5, float to = 70, Action<SpaceCollision.SweptBody> configure = null, float lane = 5.5f,
+        float? endLane = null)
     {
         Vector3 start = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(from, lane));
-        Vector3 end = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(to, lane));
+        Vector3 end = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(to, endLane ?? lane));
         var attacker = new SpaceObject(nextId++, new SpacePose(start, 0));
         attacker.pose.velocity = SpaceTransform.MapDirectionToUniverseTangent(hull, map,
-            new Vector2(from, lane), Vector2.right) * speed;
+            new Vector2(from, lane), new Vector2(to - from, (endLane ?? lane) - lane).normalized) * speed;
         var body = new SpaceCollision.SweptBody { attacker = attacker, projectileDef = def ?? rail,
             from = start, to = end, damageScale = 1f,
             mass = budget / Math.Max(.001f, SpaceImpactEffects.ComputeDamage(SpaceImpactEffects.Resolve(def ?? rail, null).defenderEffect, speed, 0)),
@@ -197,6 +198,9 @@ internal static partial class Program
             DefDatabase<SpaceImpactEffectDef>.Add(effect);
         }
         SpaceImpactEffects.ResetCache();
+        if (Environment.GetCommandLineArgs().Contains("--engagement-baseline")
+            || Environment.GetCommandLineArgs().Contains("--engagement-forecast"))
+        { CheckEngagementProtectionBaseline(); return; }
         if (energyOnly) { CheckEnergy(); CheckBatteryIsolation(); CheckShipReactor(); CheckCargoTemperature(); CheckEquipmentIntegration(); return; }
 
         CheckGuardCenters();

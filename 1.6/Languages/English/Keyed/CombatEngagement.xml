@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_EngagementTitle>Engagement value and risk</DeltaV_EngagementTitle>
+  <DeltaV_EngagementWindow>Engagement window (seconds)</DeltaV_EngagementWindow>
+  <DeltaV_EngagementBurst>Burst damage window (seconds)</DeltaV_EngagementBurst>
+  <DeltaV_EngagementSwitch>Score gain required to change position</DeltaV_EngagementSwitch>
+  <DeltaV_EngagementWeight>Score multiplier</DeltaV_EngagementWeight>
+  <DeltaV_EngagementHelp>Each term aggregates its weapon filter, applies its curve, then its multiplier. Removed or zero-weight terms contribute nothing. An empty list retains physical feasibility and explicit constraints.</DeltaV_EngagementHelp>
+  <DeltaV_EngagementAdd>Add engagement score term</DeltaV_EngagementAdd>
+  <DeltaV_EngagementSide_Outgoing>Outgoing fire</DeltaV_EngagementSide_Outgoing>
+  <DeltaV_EngagementSide_Incoming>Incoming fire</DeltaV_EngagementSide_Incoming>
+  <DeltaV_EngagementMetric_StructureDamage>Effective structural damage</DeltaV_EngagementMetric_StructureDamage>
+  <DeltaV_EngagementUnit_StructureDamage>HP</DeltaV_EngagementUnit_StructureDamage>
+  <DeltaV_EngagementMetric_GuardDrain>Guard capacity drained</DeltaV_EngagementMetric_GuardDrain>
+  <DeltaV_EngagementUnit_GuardDrain>Shield capacity</DeltaV_EngagementUnit_GuardDrain>
+  <DeltaV_EngagementMetric_CapabilityLoss>Critical equipment loss</DeltaV_EngagementMetric_CapabilityLoss>
+  <DeltaV_EngagementUnit_CapabilityLoss>Fraction (0–1)</DeltaV_EngagementUnit_CapabilityLoss>
+  <DeltaV_EngagementMetric_BurstFraction>Burst damage / remaining health</DeltaV_EngagementMetric_BurstFraction>
+  <DeltaV_EngagementUnit_BurstFraction>Fraction</DeltaV_EngagementUnit_BurstFraction>
+  <DeltaV_EngagementMetric_TravelSeconds>Travel time</DeltaV_EngagementMetric_TravelSeconds>
+  <DeltaV_EngagementUnit_TravelSeconds>Seconds</DeltaV_EngagementUnit_TravelSeconds>
+  <DeltaV_EngagementMetric_VelocitySeconds>Velocity change time</DeltaV_EngagementMetric_VelocitySeconds>
+  <DeltaV_EngagementUnit_VelocitySeconds>Seconds</DeltaV_EngagementUnit_VelocitySeconds>
+  <DeltaV_EngagementMetric_ReverseSeconds>Reversal braking time</DeltaV_EngagementMetric_ReverseSeconds>
+  <DeltaV_EngagementUnit_ReverseSeconds>Seconds</DeltaV_EngagementUnit_ReverseSeconds>
+  <DeltaV_EngagementMetric_Flanking>Coordinated bearing value</DeltaV_EngagementMetric_Flanking>
+  <DeltaV_EngagementUnit_Flanking>Fraction (0–1)</DeltaV_EngagementUnit_Flanking>
+  <DeltaV_EngagementMetric_Uncertainty>Uncertain damage potential</DeltaV_EngagementMetric_Uncertainty>
+  <DeltaV_EngagementUnit_Uncertainty>HP</DeltaV_EngagementUnit_Uncertainty>
+  <DeltaV_CombatWeaponFamily_All>All projectile families</DeltaV_CombatWeaponFamily_All>
+  <DeltaV_CombatWeaponFamily_Laser>Laser</DeltaV_CombatWeaponFamily_Laser>
+  <DeltaV_CombatWeaponFamily_Kinetic>Kinetic</DeltaV_CombatWeaponFamily_Kinetic>
+  <DeltaV_CombatWeaponFamily_Rail>Rail-accelerated</DeltaV_CombatWeaponFamily_Rail>
+  <DeltaV_CombatWeaponFamily_Guided>Guided</DeltaV_CombatWeaponFamily_Guided>
+  <DeltaV_EngagementMetric_CriticalDamage>Critical equipment damage</DeltaV_EngagementMetric_CriticalDamage>
+  <DeltaV_EngagementUnit_CriticalDamage>Role-weighted damage fraction (0–1; not a disable probability)</DeltaV_EngagementUnit_CriticalDamage>
+  <DeltaV_EngagementDecision>Expected structural output / damage over {0} seconds: {1} / {2} HP. Arrival: {3}s; velocity change / reversal braking: {4} / {5}s.</DeltaV_EngagementDecision>
+  <DeltaV_EngagementUncertain>Includes sampled or uncertain effects. Risk retains conservative estimates; these values do not guarantee hits or destruction.</DeltaV_EngagementUncertain>
+  <DeltaV_EngagementHolding>Holding the current firing position; candidates are still reconsidered each decision period.</DeltaV_EngagementHolding>
+  <DeltaV_EngagementTransfer>Transferring to the selected firing position.</DeltaV_EngagementTransfer>
+  <DeltaV_EngagementMargin>Selected score {0}; best other refined candidate {1}; margin {2}; required gain to reposition {3}.</DeltaV_EngagementMargin>
+  <DeltaV_EngagementTermValue>{0} ({1}): {2} {3} → curve {4} × weight {5} = {6}</DeltaV_EngagementTermValue>
+</LanguageData>

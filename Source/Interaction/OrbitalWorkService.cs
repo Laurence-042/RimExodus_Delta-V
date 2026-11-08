@@ -264,7 +264,8 @@ namespace DeltaV
                 universe.ShipTransitions.HandleDepartedSourceMap(universe, move.source.map);
             Building_DockingPort.NotifyLandingSettled(workmap);
             dockCommitted?.Invoke();
-            ShipPhysics.ClearCache();
+            ShipPhysics.Forget(workmap);
+            foreach (ContentMove move in moves) ShipPhysics.Forget(move.source.map);
             HostColonistBarVisibility.NotifyDockingStateChanged();
             Messages.Message("DeltaV_EVAStarted".Translate(), MessageTypeDefOf.PositiveEvent, false);
         }

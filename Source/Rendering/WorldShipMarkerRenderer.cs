@@ -119,7 +119,7 @@ namespace DeltaV
         private static MarkerCache MarkerFor(ShipBase ship)
         {
             if (Cache.TryGetValue(ship.Identity, out MarkerCache marker) && marker.initialized
-                && marker.version == SubstructureOwnership.GlobalStructureVersion
+                && marker.version == SubstructureOwnership.StructureVersion(ship.Map)
                 && marker.map == ship.Map && marker.rotation == ship.Anchor.Rotation)
             {
                 return marker;
@@ -149,7 +149,7 @@ namespace DeltaV
             }
             Release(marker);
             marker.initialized = true;
-            marker.version = SubstructureOwnership.GlobalStructureVersion;
+            marker.version = SubstructureOwnership.StructureVersion(ship.Map);
             marker.map = ship.Map;
             marker.rotation = ship.Anchor.Rotation;
 

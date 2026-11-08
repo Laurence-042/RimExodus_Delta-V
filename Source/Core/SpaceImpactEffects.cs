@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
@@ -197,7 +198,7 @@ namespace DeltaV
                 if (!building.Destroyed) building.Destroy(DestroyMode.KillFinalize);
             }
             if (buildings.Count == 0) return;
-            SubstructureOwnership.BumpStructureVersion();
+            SubstructureOwnership.BumpStructureVersion(map);
             PlanetGlobeRenderer.InvalidateSilhouette(map);
         }
 
@@ -246,12 +247,11 @@ namespace DeltaV
             SpaceCellKind kind, Thing building, SpaceImpactEffectDef effect)
         {
             if (kind == SpaceCellKind.Substructure)
-                return Rand.Chance(Mathf.Clamp01(effect?.substructureHitChance
-                    ?? SpaceImpactEffectDef.DefaultSubstructureHitChance));
+                return Rand.Chance(HitChance(projectileDef, kind, building, effect));
             if (kind != SpaceCellKind.Substructure && building != null)
             {
                 if (effect?.buildingHitChance >= 0f)
-                    return Rand.Chance(effect.buildingHitChance);
+                    return Rand.Chance(HitChance(projectileDef, kind, building, effect));
                 if (GuaranteedMissileHit(projectileDef, building.def)) return true;
                 if (building.def.IsWall) return true;
                 float chance = SpaceStructureRules.BuildingHitChance(building);
@@ -338,17 +338,13 @@ namespace DeltaV
 
             // 跳弹（当前默认实现 = 消灭无伤；可反弹类型留扩展位，太空战架构 §3.4）：
             // 守方耐久达门槛 ∧ 入射角够歪 → 不施加伤害（弹体的 DestroySelf 照常执行）。
-            if (part.ricochetMinHitPoints > 0f && evt.defenderBuilding != null && !evt.defenderBuilding.Destroyed)
+            if (Ricochets(part, evt.defenderBuilding, evt.incidenceAngleRad))
             {
                 float maxHitPoints = MaxHitPointsOf(evt.defenderBuilding);
-                if (maxHitPoints >= part.ricochetMinHitPoints
-                    && evt.incidenceAngleRad >= part.ricochetMinIncidenceDeg * Mathf.Deg2Rad)
-                {
-                    if (DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
-                        $"ricochet: {evt.projectileDef?.defName} off '{evt.defenderBuilding.def.defName}' " +
-                        $"(hp {maxHitPoints:F0}, incidence {evt.incidenceAngleRad * Mathf.Rad2Deg:F0}°, v_rel {evt.relativeSpeed:F1})");
-                    return 0f;
-                }
+                if (DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
+                    $"ricochet: {evt.projectileDef?.defName} off '{evt.defenderBuilding.def.defName}' " +
+                    $"(hp {maxHitPoints:F0}, incidence {evt.incidenceAngleRad * Mathf.Rad2Deg:F0}°, v_rel {evt.relativeSpeed:F1})");
+                return 0f;
             }
 
             float amount = ComputeDamage(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale, evt.mass)
@@ -412,7 +408,7 @@ namespace DeltaV
             }
             if (buildingGeometryChanged)
             {
-                SubstructureOwnership.BumpStructureVersion();
+                SubstructureOwnership.BumpStructureVersion(map);
                 PlanetGlobeRenderer.InvalidateSilhouette(map);
             }
             return remaining;
@@ -429,7 +425,20 @@ namespace DeltaV
             ImpactOutcomePart part, Map map, IntVec3 entry, float amount, float ap, DamageDef damType)
         {
             bool destroyedBuilding = false;
-            Vector2 dir = evt.incidentDir.normalized;
+            WalkPenetration(part, map, entry, evt.incidentDir, c => SolidAt(map, c),
+                (target, factor) =>
+                {
+                    target.TakeDamage(new DamageInfo(damType, amount * factor,
+                        ap, -1f, evt.launcher, null, evt.projectileDef));
+                    destroyedBuilding |= target.Destroyed;
+                }, target => !target.Destroyed);
+            return destroyedBuilding;
+        }
+
+        internal static void WalkPenetration(ImpactOutcomePart part, Map map, IntVec3 entry,
+            Vector2 direction, Func<IntVec3, Thing> solidAt, Action<Thing, float> damage, Func<Thing, bool> survives)
+        {
+            Vector2 dir = direction.normalized;
             if (dir.sqrMagnitude < 0.001f) dir = Vector2.up;
             Vector2 side = new Vector2(-dir.y, dir.x);
             Vector2 origin = new Vector2(entry.x + 0.5f, entry.z + 0.5f);
@@ -453,26 +462,23 @@ namespace DeltaV
                 }
                 if (!center.InBounds(map)) break;
                 Vector2 centerPoint = new Vector2(center.x + 0.5f, center.z + 0.5f);
-                Thing centerThing = SolidAt(map, center);
+                Thing centerThing = solidAt(center);
                 bool centerStopped = false;
                 for (int lane = 0; lane <= Mathf.Max(0, layer.halfWidth) * 2; lane++)
                 {
                     int offset = lane == 0 ? 0 : (lane + 1) / 2 * (lane % 2 == 1 ? -1 : 1);
                     IntVec3 targetCell = offset == 0 ? center : CellAt(centerPoint + side * offset);
                     if (!targetCell.InBounds(map)) continue;
-                    Thing target = offset == 0 ? centerThing : SolidAt(map, targetCell);
+                    Thing target = offset == 0 ? centerThing : solidAt(targetCell);
                     if (target == null) continue;
                     if (hitCells.Add(targetCell) && hitThings.Add(target))
                     {
-                        target.TakeDamage(new DamageInfo(damType, amount * layer.damageFactor,
-                            ap, -1f, evt.launcher, null, evt.projectileDef));
-                        destroyedBuilding |= target.Destroyed;
+                        damage(target, layer.damageFactor);
                     }
-                    if (offset == 0 && !target.Destroyed) centerStopped = true;
+                    if (offset == 0 && survives(target)) centerStopped = true;
                 }
                 if (centerStopped) break;
             }
-            return destroyedBuilding;
         }
 
         private static IntVec3 CellAt(Vector2 point) => new IntVec3(

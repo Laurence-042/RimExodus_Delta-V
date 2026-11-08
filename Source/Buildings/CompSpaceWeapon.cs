@@ -257,7 +257,7 @@ namespace DeltaV
             {
                 Map map = parent?.Map;
                 if (map == null || map.Disposed || parent.Destroyed) return ShipBase.Invalid;
-                int version = SubstructureOwnership.GlobalStructureVersion;
+                int version = SubstructureOwnership.StructureVersion(map);
                 if (!ownerCacheValid || ownerMap != map || ownerVersion != version
                     || ownerPosition != parent.Position || ownerRotation != parent.Rotation
                     || ownerWasValid && !cachedOwner.IsValid)
@@ -479,7 +479,10 @@ namespace DeltaV
             Scribe_Values.Look(ref cooldownUntilTick, "cooldownUntilTick", 0);
         }
 
-        public CompSpaceWeaponMagazine SelectMagazine()
+        public CompSpaceWeaponMagazine SelectMagazine() => SelectMagazine(null, lastMagazineThingId);
+
+        internal int LastMagazineThingId => lastMagazineThingId;
+        internal CompSpaceWeaponMagazine SelectMagazine(System.Func<CompSpaceWeaponMagazine, bool> available, int previous)
         {
             var perf = Universe?.Performance;
             long start = perf?.Start() ?? 0L;
@@ -491,13 +494,13 @@ namespace DeltaV
                 {
                     var attachment = magazine.parent == parent ? null
                         : magazine.parent.TryGetComp<CompSpaceWeaponAttachment>();
-                    if (!magazine.HasHeads(magazine.RequiredHeads(this)) || attachment != null && !attachment.Enabled) continue;
+                    if (!(available?.Invoke(magazine) ?? magazine.HasHeads(magazine.RequiredHeads(this))) || attachment != null && !attachment.Enabled) continue;
                     if (magazine.Priority < priority) continue;
                     if (magazine.Priority > priority)
                     { priority = magazine.Priority; first = next = null; }
                     int id = magazine.parent.thingIDNumber;
                     if (first == null || id < first.parent.thingIDNumber) first = magazine;
-                    if (id > lastMagazineThingId && (next == null || id < next.parent.thingIDNumber)) next = magazine;
+                    if (id > previous && (next == null || id < next.parent.thingIDNumber)) next = magazine;
                 }
                 return next ?? first;
             }

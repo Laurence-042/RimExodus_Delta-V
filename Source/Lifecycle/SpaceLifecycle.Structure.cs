@@ -16,7 +16,10 @@ namespace DeltaV
         {
             if (map == null || pendingStructureChecks.Contains(map)) return;
             SpaceObject owner = universe.FrameOf(map);
-            if (!IsOrdinaryStructureMap(owner)) return;
+            // Do not discover members/roles while publishing a structural mutation.
+            // The full eligibility query belongs at the coalesced frame boundary.
+            if (owner is not MapSpaceObject || map.Parent is not ShipPocketParent_DeltaV
+                || (owner.baseTag & (SpaceObjectTag.Projectile | SpaceObjectTag.Scattered)) != 0) return;
             pendingStructureChecks.Add(map);
             int version = owner.RepresentationVersion;
             universe.QueueFrameAction(() =>
@@ -25,7 +28,7 @@ namespace DeltaV
                 try
                 {
                     if (universe.ObjectById(owner.objectId) == owner && owner.RepresentationVersion == version
-                        && owner.map == map)
+                        && owner.map == map && IsOrdinaryStructureMap(owner))
                     {
                         universe.ShipTransitions.FinishEmptyWorksite(map);
                         RecycleUnsupportedMap(map);

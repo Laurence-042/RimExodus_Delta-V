@@ -21,21 +21,19 @@ namespace DeltaV
         private CombatStrategy observedStrategy;
         private ShipBase observedShip;
         private SpaceObject observedFrame;
-        private int observationTick = -1, observationVersion = -1, targetSwitchTick;
-        private readonly Dictionary<DriveSubject, List<Thing>> parts = new Dictionary<DriveSubject, List<Thing>>();
-        private int partsVersion = -1;
+        private int observationTick = -1, targetSwitchTick;
+        private readonly Dictionary<DriveSubject, (int version, List<Thing> items)> parts =
+            new Dictionary<DriveSubject, (int, List<Thing>)>();
         private readonly List<CombatWeaponThreat> threats = new List<CombatWeaponThreat>();
-        private int threatTick = -100, threatVersion = -1, threatConfiguration = -1;
+        private int threatTick = -100, threatConfiguration = -1;
         private SpaceObject threatFrame;
         internal IReadOnlyList<CombatWeaponThreat> Threats(ShipBase ship, SpaceObject frame)
         {
             int now = Find.TickManager.TicksGame;
-            if (now - threatTick >= 30 || frame != threatFrame || threatConfiguration != configurationVersion
-                || SubstructureOwnership.CacheNeedsRefresh(threatVersion))
+            if (now - threatTick >= 30 || frame != threatFrame || threatConfiguration != configurationVersion)
             {
                 threats.Clear(); CombatWeaponThreat.CaptureRaw(ship, frame, 3f, threats);
                 threatTick = now; threatFrame = frame; threatConfiguration = configurationVersion;
-                threatVersion = SubstructureOwnership.GlobalStructureVersion;
             }
             return threats;
         }
@@ -45,12 +43,10 @@ namespace DeltaV
             int now = Find.TickManager.TicksGame;
             var strategy = Strategy(ship);
             if (refresh || observation == null || now - observationTick >= 30 || observedShip != ship
-                || observedFrame != own || observedStrategy != strategy
-                || SubstructureOwnership.CacheNeedsRefresh(observationVersion))
+                || observedFrame != own || observedStrategy != strategy)
             {
                 observation = new CombatStrategyFacts(universe, ship, own);
                 observationTick = now; observedShip = ship; observedFrame = own; observedStrategy = strategy;
-                observationVersion = SubstructureOwnership.GlobalStructureVersion;
             }
             return observation;
         }
@@ -59,7 +55,7 @@ namespace DeltaV
         {
             observation = null; observedShip = null; observedFrame = null; observedStrategy = null;
             threats.Clear(); threatFrame = null; threatTick = -100;
-            automaticRules.Clear(); fireRuleState.Clear(); partRefreshTick.Clear(); targetRules.Clear(); parts.Clear(); partsVersion = -1;
+            automaticRules.Clear(); fireRuleState.Clear(); partRefreshTick.Clear(); targetRules.Clear(); parts.Clear();
             if (commands) { partQueue.Clear(); commandedTarget = default; }
             targetSwitchTick = 0;
         }
@@ -166,15 +162,15 @@ namespace DeltaV
 
         private List<Thing> Parts(ShipBase member)
         {
-            if (SubstructureOwnership.CacheNeedsRefresh(partsVersion))
-            { parts.Clear(); partsVersion = SubstructureOwnership.GlobalStructureVersion; }
-            if (!parts.TryGetValue(member.Identity, out var result))
+            int version = SubstructureOwnership.StructureVersion(member.Map);
+            if (!parts.TryGetValue(member.Identity, out var cached) || cached.version != version)
             {
-                result = member.Map.listerThings.AllThings.Where(t => t is Building && t.Spawned
+                var result = member.Map.listerThings.AllThings.Where(t => t is Building && t.Spawned
                     && !t.Destroyed && member.Contains(t)).OrderBy(t => t.thingIDNumber).ToList();
-                parts[member.Identity] = result;
+                if (parts.Count >= 128) parts.Clear();
+                parts[member.Identity] = cached = (version, result);
             }
-            return result;
+            return cached.items;
         }
 
         private float PrimaryFirepower(ShipBase ship, ShipBase enemy, float distance, CombatWeaponFilter filter)
@@ -198,29 +194,51 @@ namespace DeltaV
             if (preference == CombatPart.Center) return center;
             WeaponAimInfo aim = SpaceWeaponService.AimInfo(weapon, own);
             SpaceObject frame = universe.FrameOf(enemy.Map);
-            var candidates = Parts(enemy).Select(t => (thing: t, value: PartValue(t, preference)))
+            var candidates = PartCandidates(Parts(enemy), preference);
+            Vector2 source = SpaceTransform.UniverseToMapPoint(frame, enemy.Map, aim.Muzzle);
+            Thing selected = ChoosePart(candidates, enemy, source, (candidate, point) =>
+            {
+                var handle = CombatTarget.ForShip(enemy.Identity, candidate.thingIDNumber);
+                return handle.TryResolve(universe, out var resolved)
+                    && SpaceWeaponBallistics.TryAim(aim, own.pose, resolved.Pose, out var lead)
+                    && weapon.Covers(own, lead, aim.Muzzle)
+                    && SpaceWeaponShot.HasClearAimPath(weapon, own, lead);
+            });
+            return selected == null ? center : CombatTarget.ForShip(enemy.Identity, selected.thingIDNumber);
+        }
+
+        internal static List<(Thing thing, float value, Vector2 point)> PartCandidates(IEnumerable<Thing> parts, CombatPart preference) =>
+            parts.Select(t => (thing: t, value: preference == CombatPart.Center ? 0 : PartValue(t, preference), point: new Vector2(t.DrawPos.x, t.DrawPos.z)))
                 .Where(p => p.value > 0f).OrderByDescending(p => p.value)
-                .ThenBy(p => p.thing.thingIDNumber).Take(12);
+                .ThenBy(p => p.thing.thingIDNumber).Take(12).ToList();
+
+        // Actual fire control and readonly forecasts share the bounded part ranking.
+        // Callers supply their current/predicted reachability and private destroyed set.
+        internal static Thing ChoosePart(IReadOnlyList<(Thing thing, float value, Vector2 point)> candidates, ShipBase enemy,
+            Vector2 source, System.Func<Thing, Vector2, bool> reachable, ISet<Thing> removed = null,
+            SpaceCollision.RayQuery query = null)
+        {
+            using var partTiming = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.CombatPartSelection);
             float best = float.NegativeInfinity;
-            CombatTarget result = center;
+            Thing result = null;
             foreach (var candidate in candidates)
             {
-                var handle = CombatTarget.ForShip(enemy.Identity, candidate.thing.thingIDNumber);
-                if (!handle.TryResolve(universe, out var resolved)
-                    || !SpaceWeaponBallistics.TryAim(aim, own.pose, resolved.Pose, out var lead)
-                    || !weapon.Covers(own, lead, aim.Muzzle)
-                    || !SpaceWeaponShot.HasClearAimPath(weapon, own, lead)) continue;
-                Vector2 source = SpaceTransform.UniverseToMapPoint(frame, enemy.Map, aim.Muzzle);
-                Vector2 end = new Vector2(candidate.thing.DrawPos.x, candidate.thing.DrawPos.z);
-                float obstruction = SpaceCollision.TargetObstruction(enemy, source, end, candidate.thing);
-                float score = candidate.value / (1f + obstruction) - 0.001f * (end - source).magnitude;
+                if (removed?.Contains(candidate.thing) == true) continue;
+                Vector2 end = candidate.point;
+                float distanceCost = 0.001f * (end - source).magnitude;
+                // Obstruction is nonnegative, so this upper bound cannot beat the
+                // current winner. Keep the original candidate order for exact ties.
+                if (candidate.value - distanceCost <= best || reachable != null && !reachable(candidate.thing, end)) continue;
+                float obstruction = query?.Obstruction(source, end, candidate.thing, removed)
+                    ?? SpaceCollision.TargetObstruction(enemy, source, end, candidate.thing, removed);
+                float score = candidate.value / (1f + obstruction) - distanceCost;
                 if (score <= best) continue;
-                best = score; result = handle;
+                best = score; result = candidate.thing;
             }
             return result;
         }
 
-        private static float PartValue(Thing thing, CombatPart preference)
+        internal static float PartValue(Thing thing, CombatPart preference)
         {
             if (thing.TryGetComp<CompSpaceWeapon>() is { } w && !w.WeaponProps.manualOnly)
                 return preference == CombatPart.Weapons || preference == CombatPart.Automatic ? 5f : 0f;

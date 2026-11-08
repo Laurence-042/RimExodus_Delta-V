@@ -51,6 +51,35 @@ internal static partial class Program
         loaded.Validate();
         Check(loaded.Maneuver(Context(30)).tactic.distance == 77 && !writer.ToString().Contains("CombatSelectionTrace"),
             "editable built-in copy roundtrips through strategy XML without serializing diagnostic observations");
+        Check(loaded.maneuverRules[0].engagement.terms.Count == runtime.engagement.terms.Count
+            && loaded.maneuverRules[0].engagement.terms.Zip(runtime.engagement.terms, (a, b) =>
+                a.metric == b.metric && a.side == b.side && a.weight == b.weight
+                && a.curve.Evaluate(.3f) == b.curve.Evaluate(.3f)).All(equal => equal),
+            "default engagement terms and nonlinear curves use the same editable XML representation");
+        var rebuilt = new CombatStrategyRule { name = "independent player rule" };
+        rebuilt.engagement.windowSeconds = runtime.engagement.windowSeconds;
+        rebuilt.engagement.burstSeconds = runtime.engagement.burstSeconds;
+        rebuilt.engagement.switchThreshold = runtime.engagement.switchThreshold;
+        foreach (var term in runtime.engagement.terms)
+            rebuilt.engagement.terms.Add(new CombatEngagementTerm { metric = term.metric, side = term.side,
+                weapons = new CombatWeaponFilter { set = term.weapons.set, family = term.weapons.family,
+                    group = term.weapons.group, weaponDef = term.weapons.weaponDef }, weight = term.weight,
+                curve = new CombatScoreCurve(term.curve.extendRight,
+                    term.curve.points.Select(p => new CombatScorePoint(p.x, p.y)).ToArray()) });
+        var costs = new CombatEngagementEvaluation.Result { travel = 12, velocity = 3, reverse = 2, flank = .5f };
+        Check(costs.Score(rebuilt.engagement) == costs.Score(runtime.engagement),
+            "rebuilding engagement data from a blank rule needs no preset identity or hidden score");
+        foreach (var term in rebuilt.engagement.terms) term.weight = 0;
+        Check(costs.Score(rebuilt.engagement) == 0 && costs.Score(new CombatEngagementSettings()) == 0,
+            "zeroed weights and empty term lists remove all engagement soft scores");
+        var draftEngagement = loaded.maneuverRules[0].engagement.Copy();
+        draftEngagement.terms[0].curve.points[1].y = 999;
+        Check(runtime.engagement.terms[0].curve.points[1].y != 999 && loaded.maneuverRules[0].engagement.terms[0].curve.points[1].y != 999,
+            "curve edits stay inside the strategy draft until apply");
+        bool badEngagement = false;
+        draftEngagement.windowSeconds = float.NaN;
+        try { draftEngagement.Validate(); } catch (InvalidDataException) { badEngagement = true; }
+        Check(badEngagement, "nonfinite engagement windows are rejected at the shared validation boundary");
         var comp = new CompShipCombatAI { lastManeuverSelection = trace, lastNpcDecisionTick = 10, lastNpcReason = "old" };
         comp.Replace(fallback);
         Check(comp.lastManeuverSelection == null && comp.lastNpcDecisionTick == -1 && comp.lastNpcReason == null,

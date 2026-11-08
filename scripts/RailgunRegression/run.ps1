@@ -1,5 +1,5 @@
 param([Parameter(Mandatory=$true)][string]$GameRoot,
-      [Parameter(Mandatory=$true)][string]$HarmonyPath, [switch]$EnergyOnly, [switch]$RolePenetrationAudit, [switch]$EnergyImpulseAudit)
+      [Parameter(Mandatory=$true)][string]$HarmonyPath, [switch]$EnergyOnly, [switch]$RolePenetrationAudit, [switch]$EnergyImpulseAudit, [switch]$EngagementBaseline, [switch]$EngagementForecast)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 $managed = (Resolve-Path "$GameRoot/RimWorldWin64_Data/Managed").Path
@@ -30,6 +30,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net8.0","framework":{"name":"Microsoft.NETCore.App","version":"8.0.0"}}}' | Set-Content -LiteralPath "$out/RailgunRegression.runtimeconfig.json"
 $regressionArguments = @($managed)
 if ($EnergyOnly) { $regressionArguments += "--energy-only" }
+if ($EngagementBaseline) { $regressionArguments += "--engagement-baseline" }
+if ($EngagementForecast) { $regressionArguments += "--engagement-forecast" }
 if ($RolePenetrationAudit) { $regressionArguments += "--role-penetration-audit" }
 if ($EnergyImpulseAudit) { $regressionArguments += "--energy-impulse-audit" }
 & dotnet "$out/RailgunRegression.dll" @regressionArguments

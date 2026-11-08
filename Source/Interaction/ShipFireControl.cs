@@ -9,6 +9,7 @@ namespace DeltaV
     /// <summary>每船战术目标的唯一所有者；输入、机动和弹体只消费其身份与意图。</summary>
     internal sealed partial class ShipFireControl
     {
+        internal const int AutomaticAimRefreshTicks = 15;
         private readonly UniverseManager universe;
         private readonly DriveSubject ownerId;
         private CombatTarget target;
@@ -20,7 +21,6 @@ namespace DeltaV
         private readonly Dictionary<long, AutomaticAim> automaticAim = new Dictionary<long, AutomaticAim>();
         private int nextAutomaticAssignmentTick;
         private CombatStrategy assignmentStrategy;
-        private int assignmentVersion = -1;
         private struct AutomaticAim { internal CombatTarget target; internal Vector3 point; internal int refreshAt; }
         private readonly List<long> staleWeapons = new List<long>();
         private readonly HashSet<long> validPointDefenseWeapons = new HashSet<long>();
@@ -117,12 +117,10 @@ namespace DeltaV
         {
             if (universe.Lifecycle.IsFrozen(ship.Map)) return;
             int now = Find.TickManager.TicksGame;
-            if (now >= nextAutomaticAssignmentTick || assignmentStrategy != Strategy(ship)
-                || SubstructureOwnership.CacheNeedsRefresh(assignmentVersion))
+            if (now >= nextAutomaticAssignmentTick || assignmentStrategy != Strategy(ship))
             {
                 AssignAutomaticTargets(ship, own);
                 assignmentStrategy = Strategy(ship);
-                assignmentVersion = SubstructureOwnership.GlobalStructureVersion;
                 int interval = Mathf.Clamp(DeltaVMod.CurrentSettings?.npcDecisionIntervalTicks ?? 60, 1, 30);
                 nextAutomaticAssignmentTick = now + interval - ((now + ownerId.key % interval) % interval);
             }
@@ -142,7 +140,7 @@ namespace DeltaV
                 if (cooling && weapon.Component<CompSpaceWeaponTraverse>() == null) continue;
                 if (!TryResolveAutomatic(ship, own, handle, out ResolvedCombatTarget resolved))
                 {
-                    nextAutomaticAssignmentTick = 0;
+                    // Invalid handles stop firing immediately; reassign on the existing decision clock.
                     continue;
                 }
                 if (TryQueuedPart(ship, own, out var queued) && queued.Ship == handle.Ship)
@@ -175,7 +173,7 @@ namespace DeltaV
                         Vector3 point = resolved.Pose.position;
                         if (!info.Guided && SpaceWeaponBallistics.TryAim(info,
                             own.pose, resolved.Pose, out Vector3 lead)) point = lead;
-                        cached = new AutomaticAim { target = handle, point = point, refreshAt = now + 15 };
+                        cached = new AutomaticAim { target = handle, point = point, refreshAt = now + AutomaticAimRefreshTicks };
                         automaticAim[id] = cached;
                     }
                     SpaceWeaponService.AimLocal(weapon,
@@ -362,8 +360,8 @@ namespace DeltaV
         internal void PrunePointDefense(ShipBase ship, bool force = false)
         {
             if (pointDefense.Count == 0) return;
-            int structureVersion = SubstructureOwnership.GlobalStructureVersion;
-            if (!force && pointDefensePrunedVersion == structureVersion) return;
+            int structureVersion = SubstructureOwnership.StructureVersion(ship.Map);
+            if (!force && ship.IsValid && pointDefensePrunedVersion == structureVersion) return;
             // 归属、模式与移除事件可能在下一次 tick 前发生；每次消费前仍复核。
             validPointDefenseWeapons.Clear();
             if (ship.IsValid)

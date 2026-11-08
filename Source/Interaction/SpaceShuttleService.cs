@@ -69,7 +69,7 @@ namespace DeltaV
             base.PostDeSpawn(map, mode);
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             DriveSubject identity = Vessel.Identity;
-            universe?.QueueFrameAction(() => universe.Controls.ReconcileOwner(identity));
+            universe?.QueueFrameAction(() => universe.Controls.ReconcileOwner(identity, map));
             PlanetGlobeRenderer.InvalidateSilhouette(map);
         }
 

@@ -43,6 +43,7 @@ namespace DeltaV
                 nextTacticTick = 0;
                 hasTactic = false;
                 reposition.Reset();
+                engagementResult = null;
                 turnDirection = 0;
                 anchorDistance = OrbitSphere.ArcCells(ShipRegistry.ShipPose(ship).position,
                     resolved.Pose.position);
@@ -76,11 +77,12 @@ namespace DeltaV
             anchorTarget = default;
             nextTacticTick = nextPoseTick = 0;
             hasTactic = false;
-            routeShapes.Clear(); routeStructureVersion = -1;
+            routeShapes.Clear();
             tacticIntent = default;
             tacticDriveVersion = tacticStructureVersion = -1;
             tacticDrive = null;
             activeRule = null;
+            engagementResult = null;
             anchorDistance = 0f;
             turnDirection = 0;
             Boarding = false;

@@ -26,10 +26,10 @@ namespace DeltaV
             get
             {
                 if (interior == null || interior.Disposed) return System.Array.Empty<ShipBase>();
-                if (SubstructureOwnership.CacheNeedsRefresh(membersVersion))
+                if (SubstructureOwnership.CacheNeedsRefresh(membersVersion, interior))
                 {
                     members = ShipRegistry.DiscoverShipsOnMap(interior).ToArray();
-                    membersVersion = SubstructureOwnership.GlobalStructureVersion;
+                    membersVersion = SubstructureOwnership.StructureVersion(interior);
                 }
                 return members;
             }
@@ -44,11 +44,11 @@ namespace DeltaV
             get
             {
                 if (interior == null || interior.Disposed) return 0;
-                if (SubstructureOwnership.CacheNeedsRefresh(rolesVersion))
+                if (SubstructureOwnership.CacheNeedsRefresh(rolesVersion, interior))
                 {
                     memberTags = 0;
                     foreach (ShipBase ship in Ships) memberTags |= ship.RolesIn(this);
-                    rolesVersion = SubstructureOwnership.GlobalStructureVersion;
+                    rolesVersion = SubstructureOwnership.StructureVersion(interior);
                 }
                 return memberTags;
             }

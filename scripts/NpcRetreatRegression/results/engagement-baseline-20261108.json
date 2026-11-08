@@ -1,0 +1,280 @@
+{
+  "baseline_commit": "c81b2eb3b74fe89c9d8d814ca5ce9a1161e73f95",
+  "dll_sha256": "19bd78d35809466290fedefaf69ae294e38465da8f7259bb730d2082b1bcf4f3",
+  "source_sha256": "81da7d2b0d406428769246e98ece0da022f73b63d1753e2314312bdd4d3b5023",
+  "protection": {
+    "baseline": "c81b2eb",
+    "scope": "Production collision and damage; fixed lanes, full pulse reserve, no AI, return-fire, thermal schedule or shield recovery. Not a complete ship battle.",
+    "results": [
+      {
+        "weapon": "Laser",
+        "protection": "Kinetic",
+        "deviceDamage": 256,
+        "armorDamage": 48,
+        "pulseSpent": 0,
+        "guardRemaining": null
+      },
+      {
+        "weapon": "Laser",
+        "protection": "Armor",
+        "deviceDamage": 0,
+        "armorDamage": 308,
+        "pulseSpent": 0,
+        "guardRemaining": null
+      },
+      {
+        "weapon": "Cannon",
+        "protection": "Kinetic",
+        "deviceDamage": 0,
+        "armorDamage": 0,
+        "pulseSpent": 18,
+        "guardRemaining": null
+      },
+      {
+        "weapon": "Cannon",
+        "protection": "Armor",
+        "deviceDamage": 228,
+        "armorDamage": 540,
+        "pulseSpent": 0,
+        "guardRemaining": null
+      },
+      {
+        "weapon": "Laser",
+        "protection": "Electromagnetic",
+        "deviceDamage": 0,
+        "armorDamage": 0,
+        "pulseSpent": 7.96875,
+        "guardRemaining": null
+      },
+      {
+        "weapon": "Cannon",
+        "protection": "Electromagnetic",
+        "deviceDamage": 300,
+        "armorDamage": 48,
+        "pulseSpent": 0,
+        "guardRemaining": null
+      },
+      {
+        "weapon": "Laser",
+        "protection": "Guard",
+        "deviceDamage": 0,
+        "armorDamage": 0,
+        "pulseSpent": 0,
+        "guardRemaining": 710
+      },
+      {
+        "weapon": "Cannon",
+        "protection": "Guard",
+        "deviceDamage": 0,
+        "armorDamage": 0,
+        "pulseSpent": 0,
+        "guardRemaining": 662
+      }
+    ]
+  },
+  "position": {
+    "baseline": "c81b2eb",
+    "ticks": 10800,
+    "scope": "Real structure and weapon observations, production tactical planner/MPC/physics; fixed structure, no firing or damage during flight. Damage oracle is the separate production collision fixture.",
+    "weakSectorDegrees": 30,
+    "range": [
+      90,
+      110
+    ],
+    "steadyTicks": 3600,
+    "sectorFraction": 0.18444444,
+    "rangeFraction": 1,
+    "jointFraction": 0.18444444,
+    "requiredJointFraction": 0.8,
+    "traveledDegrees": 959.1528,
+    "maximumCoverage": 5.3333335,
+    "rearThreatRate": 320,
+    "sideThreatRate": 0
+  },
+  "original_motion_checks": 196,
+  "phase": "P0 complete; P1 in progress",
+  "implemented_new_tactics": false,
+  "fleet_runs": [
+    {
+      "scope": "Simultaneous real tactics, weapon/threat queries, MPC, thruster allocation and integration. Four guns per ship; no projectile launch, damage, render or UI. Thirty seconds per workload.",
+      "rows": [
+        {
+          "ships": 1,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 0.25894693333333335,
+          "p95TickMs": 2.5822,
+          "p99TickMs": 2.9342,
+          "maxTickMs": 4.6758,
+          "coldMs": 62.1221,
+          "invalidationSixTicksMs": 1.5655000000000003
+        },
+        {
+          "ships": 4,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 1.046395266666667,
+          "p95TickMs": 10.4811,
+          "p99TickMs": 12.4855,
+          "maxTickMs": 14.5771,
+          "coldMs": 27.6507,
+          "invalidationSixTicksMs": 7.744900000000001
+        },
+        {
+          "ships": 12,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 3.428247866666666,
+          "p95TickMs": 33.1553,
+          "p99TickMs": 38.8293,
+          "maxTickMs": 52.1757,
+          "coldMs": 115.3799,
+          "invalidationSixTicksMs": 31.9832
+        },
+        {
+          "ships": 24,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 7.295113199999999,
+          "p95TickMs": 70.0833,
+          "p99TickMs": 82.2253,
+          "maxTickMs": 121.408,
+          "coldMs": 280.8523,
+          "invalidationSixTicksMs": 106.85790000000001
+        }
+      ]
+    },
+    {
+      "scope": "Simultaneous real tactics, weapon/threat queries, MPC, thruster allocation and integration. Four guns per ship; no projectile launch, damage, render or UI. Thirty seconds per workload.",
+      "rows": [
+        {
+          "ships": 1,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 0.24065873333333343,
+          "p95TickMs": 2.431,
+          "p99TickMs": 2.6509,
+          "maxTickMs": 4.2907,
+          "coldMs": 59.1205,
+          "invalidationSixTicksMs": 1.4476
+        },
+        {
+          "ships": 4,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 1.0036525333333335,
+          "p95TickMs": 10.1513,
+          "p99TickMs": 11.8904,
+          "maxTickMs": 14.258,
+          "coldMs": 24.5923,
+          "invalidationSixTicksMs": 7.2769
+        },
+        {
+          "ships": 12,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 3.2774018,
+          "p95TickMs": 31.8613,
+          "p99TickMs": 37.1944,
+          "maxTickMs": 46.2261,
+          "coldMs": 96.5595,
+          "invalidationSixTicksMs": 31.593900000000005
+        },
+        {
+          "ships": 24,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 7.203546866666667,
+          "p95TickMs": 68.4569,
+          "p99TickMs": 80.8586,
+          "maxTickMs": 114.4793,
+          "coldMs": 270.1695,
+          "invalidationSixTicksMs": 116.1298
+        }
+      ]
+    },
+    {
+      "scope": "Simultaneous real tactics, weapon/threat queries, MPC, thruster allocation and integration. Four guns per ship; no projectile launch, damage, render or UI. Thirty seconds per workload.",
+      "rows": [
+        {
+          "ships": 1,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 0.2512854,
+          "p95TickMs": 2.5421,
+          "p99TickMs": 2.7947,
+          "maxTickMs": 5.4439,
+          "coldMs": 62.9587,
+          "invalidationSixTicksMs": 1.7095999999999998
+        },
+        {
+          "ships": 4,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 1.004231533333334,
+          "p95TickMs": 10.1524,
+          "p99TickMs": 11.5978,
+          "maxTickMs": 14.4262,
+          "coldMs": 25.5088,
+          "invalidationSixTicksMs": 7.1957
+        },
+        {
+          "ships": 12,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 3.300173133333336,
+          "p95TickMs": 31.7837,
+          "p99TickMs": 37.5743,
+          "maxTickMs": 47.4282,
+          "coldMs": 99.1988,
+          "invalidationSixTicksMs": 31.8241
+        },
+        {
+          "ships": 24,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 7.103062533333335,
+          "p95TickMs": 68.2419,
+          "p99TickMs": 79.2046,
+          "maxTickMs": 104.3695,
+          "coldMs": 268.4975,
+          "invalidationSixTicksMs": 105.7722
+        }
+      ]
+    }
+  ],
+  "fleet_limits": [
+    {
+      "ships": 1,
+      "meanTickMs": 0.2512854,
+      "p95TickMs": 2.5421,
+      "p99TickMs": 2.7947,
+      "meanLimitMs": 0.31410675,
+      "p99LimitMs": 3.4933750000000003
+    },
+    {
+      "ships": 4,
+      "meanTickMs": 1.004231533333334,
+      "p95TickMs": 10.1524,
+      "p99TickMs": 11.8904,
+      "meanLimitMs": 1.2552894166666675,
+      "p99LimitMs": 14.863
+    },
+    {
+      "ships": 12,
+      "meanTickMs": 3.300173133333336,
+      "p95TickMs": 31.8613,
+      "p99TickMs": 37.5743,
+      "meanLimitMs": 4.12521641666667,
+      "p99LimitMs": 46.967875
+    },
+    {
+      "ships": 24,
+      "meanTickMs": 7.203546866666667,
+      "p95TickMs": 68.4569,
+      "p99TickMs": 80.8586,
+      "meanLimitMs": 9.004433583333334,
+      "p99LimitMs": 101.07325
+    }
+  ]
+}

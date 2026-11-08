@@ -69,7 +69,7 @@ namespace DeltaV
             {
                 if (!Ship.IsValid) { shields.Clear(); shieldVersion = -1; return shields; }
                 if (shieldMap != parent.Map || shieldOwnerId != shipId
-                    || SubstructureOwnership.CacheNeedsRefresh(shieldVersion))
+                    || SubstructureOwnership.CacheNeedsRefresh(shieldVersion, parent.Map))
                 {
                     shields.Clear();
                     foreach (Thing thing in parent.Map.listerThings.ThingsInGroup(ThingRequestGroup.ProjectileInterceptor))
@@ -80,7 +80,7 @@ namespace DeltaV
                     }
                     shieldMap = parent.Map;
                     shieldOwnerId = shipId;
-                    shieldVersion = SubstructureOwnership.GlobalStructureVersion;
+                    shieldVersion = SubstructureOwnership.StructureVersion(parent.Map);
                 }
                 return shields;
             }
@@ -117,7 +117,7 @@ namespace DeltaV
             int ownerId = shipId;
             UniverseManager universe = Universe;
             if (isMain && ownerId > 0 && universe != null)
-                universe.QueueFrameAction(() => universe.Controls.ReconcileOwner(ownerId));
+                universe.QueueFrameAction(() => universe.Controls.ReconcileOwner(ownerId, map));
         }
 
         /// <summary>
@@ -179,7 +179,7 @@ namespace DeltaV
                 }
             }
             base.PostDestroy(mode, previousMap);
-            universe?.Controls.ReconcileOwner(shipId);
+            universe?.Controls.ReconcileOwner(shipId, previousMap);
             if (removedMain) universe?.Missions.ShipChanged(new DriveSubject(0, shipId), consoleDestroyed: true);
         }
 
@@ -261,7 +261,7 @@ namespace DeltaV
                 }
             }
             isMain = true;
-            universe.Controls.ReconcileOwner(shipId);
+            universe.Controls.ReconcileOwner(shipId, parent.Map);
             Messages.Message("DeltaV_ConsolePrimarySet".Translate(parent.LabelCap),
                 MessageTypeDefOf.NeutralEvent, false);
             DeltaVLog.Message(DeltaVLogModule.Core,
@@ -275,7 +275,7 @@ namespace DeltaV
             int previousOwner = shipId;
             isMain = false;
             SyncBackupIdentity();
-            Universe?.Controls.ReconcileOwner(previousOwner);
+            Universe?.Controls.ReconcileOwner(previousOwner, parent.Map);
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"structure #{shipId}: main console demoted to backup by player");
         }

@@ -32,7 +32,8 @@ namespace DeltaV
         }
         internal CombatRepositionStatus Update(SpacePose own, SpacePose target, CombatAttackPose pose,
             CombatTacticSettings settings, DriveInfo drive, int tick, float? alliedOpposite = null,
-            Func<float, float, float> preference = null)
+            Func<float, float, float> preference = null, IReadOnlyList<float> engagementPhases = null,
+            float switchThreshold = 0)
         {
             Vector2 offset = OrbitSphere.Offset(target.position, own.position);
             float current = Mathf.Atan2(offset.y, offset.x);
@@ -75,11 +76,17 @@ namespace DeltaV
             Add(-limit); Add(-limit * .5f); Add(limit * .5f); Add(limit);
             Add(speed * 4f / radius);
             if (alliedOpposite.HasValue) Add(SpaceTransform.WrapAngle(alliedOpposite.Value - current));
+            if (engagementPhases != null)
+            {
+                offsets.Clear();
+                foreach (float value in engagementPhases) offsets.Add(SpaceTransform.WrapAngle(value - current));
+            }
             float forwardCruise = CombatFlightPlanner.CruiseSpeed(drive, pose.heading, radius, 1, settings.movement, pose.freeThrustFacing);
             float reverseCruise = pose.freeThrustFacing ? forwardCruise
                 : CombatFlightPlanner.CruiseSpeed(drive, pose.heading, radius, -1, settings.movement);
             var candidates = new List<(float phase, float speed, float score, float velocityCost, float reversalCost)>();
             float best = float.NegativeInfinity, bestForward = float.NegativeInfinity;
+            var fallbackScores = engagementPhases == null ? CombatEngagementSettings.Default() : null;
             foreach (float delta in offsets)
             {
                 if (settings.direction == CombatTurn.Clockwise && delta > 0f
@@ -89,24 +96,29 @@ namespace DeltaV
                 // A sustained action may accelerate over several decisions. A weak drive must
                 // be allowed to choose a useful incremental speed instead of rejecting all motion.
                 cruise = Mathf.Min(cruise, Mathf.Abs(speed) + a * interval * .25f);
-                float requested = limit > .00001f ? delta / limit * cruise : 0f;
+                float requested = limit > .00001f ? Mathf.Clamp(delta / limit, -1, 1) * cruise : 0f;
                 float benefit = preference?.Invoke(candidate, requested) ?? 0f;
                 if (float.IsNaN(benefit) || float.IsNegativeInfinity(benefit)) continue;
-                // Two points reward making an automatic reposition; coverage remains on its 0..100 scale.
-                float progress = limit > .00001f ? 2f * Mathf.Abs(delta) / limit : 0f;
-                float velocityCost = 4f * Mathf.Abs(requested - speed) / Mathf.Max(.1f, a * interval);
+                float velocityCost = -(fallbackScores?.Score(CombatEngagementMetric.VelocitySeconds,
+                    Mathf.Abs(requested - speed) / Mathf.Max(.001f, a)) ?? 0);
                 bool reverse = requested * speed < 0f && Mathf.Abs(speed) > .01f;
-                // Reversal must repay both a fixed change-of-direction cost and the real stopping time.
-                float reversalCost = reverse ? 2f + 4f * Mathf.Abs(speed) / Mathf.Max(.1f, braking * interval) : 0f;
-                float flank = alliedOpposite.HasValue ? 2f * (Mathf.Abs(SpaceTransform.WrapAngle(alliedOpposite.Value - current))
-                    - Mathf.Abs(SpaceTransform.WrapAngle(alliedOpposite.Value - candidate))) / Mathf.PI : 0f;
-                float score = benefit + progress + flank - velocityCost - reversalCost;
+                float reversalCost = reverse ? -(fallbackScores?.Score(CombatEngagementMetric.ReverseSeconds,
+                    Mathf.Abs(speed) / Mathf.Max(.001f, braking)) ?? 0) : 0;
+                float flank = alliedOpposite.HasValue ? fallbackScores?.Score(CombatEngagementMetric.Flanking,
+                    1 - Mathf.Abs(SpaceTransform.WrapAngle(alliedOpposite.Value - candidate)) / Mathf.PI) ?? 0 : 0;
+                float score = benefit + flank - velocityCost - reversalCost;
                 candidates.Add((candidate, requested, score, velocityCost, reversalCost));
                 best = Mathf.Max(best, score);
                 if (!reverse) bestForward = Mathf.Max(bestForward, score);
             }
             // Randomness only breaks near ties against the global best, never a chain of local ties.
             const float equivalent = .05f;
+            if (candidates.Count > 0 && Mathf.Abs(SpaceTransform.WrapAngle(candidates[0].phase - current)) < .001f)
+            {
+                var currentChoice = candidates[0];
+                if (best <= currentChoice.score + Mathf.Max(equivalent, switchThreshold))
+                { candidates.Clear(); candidates.Add(currentChoice); best = currentChoice.score; }
+            }
             candidateCount = candidates.Count;
             continuationScore = bestForward;
             var choices = new List<int>();

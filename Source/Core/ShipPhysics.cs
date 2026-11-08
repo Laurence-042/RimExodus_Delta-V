@@ -805,7 +805,7 @@ namespace DeltaV
             }
             float cargoMass = CargoMass(map);
             if (cached.report == null || Mathf.Abs(cached.cargoMass - cargoMass) > 0.01f
-                || SubstructureOwnership.CacheNeedsRefresh(cached.structureVersion))
+                || SubstructureOwnership.CacheNeedsRefresh(cached.structureVersion, map))
             {
                 MassReport fresh = Measure(container);
                 fresh.version = (cached.report?.version ?? 0) + 1;
@@ -819,7 +819,7 @@ namespace DeltaV
                 }
                 cached.report = fresh;
                 cached.cargoMass = cargoMass;
-                cached.structureVersion = SubstructureOwnership.GlobalStructureVersion;
+                cached.structureVersion = SubstructureOwnership.StructureVersion(map);
             }
             return cached.report;
         }

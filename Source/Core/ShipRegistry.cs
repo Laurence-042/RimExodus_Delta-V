@@ -147,9 +147,9 @@ namespace DeltaV
         {
             if (map == null || map.Disposed) return noStructures;
             if (!structureCache.TryGetValue(map, out CachedStructures cached)
-                || SubstructureOwnership.CacheNeedsRefresh(cached.version))
+                || SubstructureOwnership.CacheNeedsRefresh(cached.version, map))
             {
-                cached = new CachedStructures { version = SubstructureOwnership.GlobalStructureVersion };
+                cached = new CachedStructures { version = SubstructureOwnership.StructureVersion(map) };
                 SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
                 foreach (IntVec3 cell in SubstructureOwnership.CellsOnMap(map))
                 {
@@ -226,7 +226,7 @@ namespace DeltaV
 
         /// <summary>
         /// 船的控制域：从主台脚下起、四邻接且归属相同的全部基架格（§3.1，唯一实现）。
-        /// 结果按 (图, 归属) 缓存，经 <see cref="SubstructureOwnership.GlobalStructureVersion"/>
+        /// 结果按 (图, 归属) 缓存，经 <see cref="SubstructureOwnership.StructureVersion(Map)"/>
         /// 失效；只读，调用方不得修改。
         /// </summary>
         public static HashSet<IntVec3> ControlDomain(Ship ship)
@@ -245,10 +245,10 @@ namespace DeltaV
                 byOwner = new Dictionary<int, CachedDomain>();
                 domainCache[map] = byOwner;
             }
-            int version = SubstructureOwnership.GlobalStructureVersion;
+            int version = SubstructureOwnership.StructureVersion(map);
             CachedDomain cached;
             if (!byOwner.TryGetValue(ownerId, out cached)
-                || SubstructureOwnership.CacheNeedsRefresh(cached.version))
+                || SubstructureOwnership.CacheNeedsRefresh(cached.version, map))
             {
                 cached = new CachedDomain
                 {

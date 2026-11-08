@@ -27,7 +27,7 @@ internal static partial class Program
         bool largeHulls = Environment.GetCommandLineArgs().Contains("--combat-large-hulls");
         if (largeHulls) patch.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
             prefix: new HarmonyMethod(typeof(Program), nameof(StructureFoundationWithOdyssey)));
-        var output = new List<string> { "ships,fire_mean_ms_per_second,fire_p95_ms_per_second,fire_max_ms_per_second,rebuild_ms,pose_mean_ms,pose_p95_ms,target_mean_ms" };
+        var output = new List<string> { "ships,fire_mean_ms_per_second,fire_p95_ms_per_second,fire_max_ms_per_second,rebuild_ms,target_mean_ms" };
         var decisions = new List<string>();
         try
         {
@@ -109,22 +109,8 @@ internal static partial class Program
                     if (window == 23) rebuild = watch.Elapsed.TotalMilliseconds;
                     else if (window >= 4) { times.Add(watch.Elapsed.TotalMilliseconds); targetTimes.Add(targetTime); }
                 }
-                // Reflection permits the identical probe binary to run against the saved pre-change DLL.
-                var constructor = typeof(CombatAttackWeapon).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic).Single();
-                var arguments = new object[] { Vector2.zero, 0f, 360f, 120f, 0f, 45f, 100f, false, true, null };
-                var weaponValue = constructor.Invoke(arguments.Take(constructor.GetParameters().Length).ToArray());
-                var weapons = Array.CreateInstance(typeof(CombatAttackWeapon), 1); weapons.SetValue(weaponValue, 0);
-                var choose = typeof(CombatAttackPose).GetMethod("Choose", BindingFlags.Static | BindingFlags.NonPublic);
-                var values = new object[] { weapons, new CombatTacticSettings(), null, Vector2.zero, 30f, 115f, 0f, 1, true, null, null, null, null, null, null };
-                var poseTimes = new List<double>();
-                for (int run = 0; run < 100; run++)
-                {
-                    var watch = Stopwatch.StartNew();
-                    for (int i = 0; i < count; i++) choose.Invoke(null, values.Take(choose.GetParameters().Length).ToArray());
-                    if (run >= 10) poseTimes.Add(watch.Elapsed.TotalMilliseconds);
-                }
                 double Percentile(List<double> values) => values.OrderBy(v => v).ElementAt((int)(values.Count * .95));
-                string row = $"{count},{times.Average():F4},{Percentile(times):F4},{times.Max():F4},{rebuild:F4},{poseTimes.Average():F4},{Percentile(poseTimes):F4},{targetTimes.Average():F4}";
+                string row = $"{count},{times.Average():F4},{Percentile(times):F4},{times.Max():F4},{rebuild:F4},{targetTimes.Average():F4}";
                 Console.WriteLine("COMBAT_PERF " + row); output.Add(row);
                 if (!largeHulls) SampleCombatPlans(universe, ships.Take(count).ToList(), decisions);
                 universe.Controls.Reset(); universe.objects.Clear(); Find.Maps.Clear(); ShipRegistry.ClearCaches(); ShipPhysics.ClearCache(); SpaceCollision.ClearCaches();

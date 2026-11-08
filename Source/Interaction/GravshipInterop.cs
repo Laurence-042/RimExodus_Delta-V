@@ -665,7 +665,7 @@ namespace DeltaV
             }
             map.roofGrid.Drawer.SetDirty();
             // 基架已随剥离移除：失效域名缓存与星球仪剪影，避免读取者拿到已剥空的状态。
-            SubstructureOwnership.BumpStructureVersion();
+            SubstructureOwnership.BumpStructureVersion(map);
             PlanetGlobeRenderer.InvalidateSilhouette(map);
         }
 

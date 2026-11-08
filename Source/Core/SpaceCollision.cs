@@ -9,7 +9,7 @@ namespace DeltaV
     /// 统一容器碰撞核心（太空战架构 §3.3，唯一碰撞实现——弹丸/激光/侵入/PD 四消费方
     /// 共用，不得出现第二份求交或第二份己方排除规则）：
     /// - 碰撞面缓存：每容器「建筑/基架占用格集」（SpaceStructureRules 分类）+ 包围域，
-    ///   经 GlobalStructureVersion 失效，弹体小图租用时单独释放缓存，
+    ///   经地图结构版本失效，弹体小图租用时单独释放缓存，
     ///   容器注销/图销毁释放（Forget/ClearCaches）；
     /// - 参与判定（tag）：主动方 = projectile tag 容器（IsActiveCollider）；被动方 =
     ///   任何有碰撞面的容器（有图即可被撞——飞船被弹体命中、PD 弹打导弹都是此路径）；
@@ -23,7 +23,7 @@ namespace DeltaV
     /// - tick 驱动、零事件分配（事件为复用实例）；己方排除（顶部炮塔）收口在
     ///   SweptBody.excludeContainer 单参数。
     /// </summary>
-    public static class SpaceCollision
+    public static partial class SpaceCollision
     {
         internal sealed class HullShape
         {
@@ -57,7 +57,12 @@ namespace DeltaV
 
         // Read-only exposure estimate, using the same cell classification as impacts.
         // This does not roll cover, consume shields, or predict penetration damage.
-        internal static float TargetObstruction(ShipBase ship, Vector2 source, Vector2 end, Thing target)
+        internal static float TargetObstruction(ShipBase ship, Vector2 source, Vector2 end, Thing target,
+            ISet<Thing> removed = null)
+            => TargetObstruction(ship.Map, source, end, target, removed, null);
+
+        private static float TargetObstruction(Map map, Vector2 source, Vector2 end, Thing target,
+            ISet<Thing> removed, Surface surface)
         {
             Vector2 delta = end - source;
             float length = delta.magnitude;
@@ -65,14 +70,22 @@ namespace DeltaV
             Vector2 direction = delta / length;
             float depth = 0f;
             IntVec3 previous = IntVec3.Invalid;
-            float diagonal = Mathf.Sqrt(ship.Map.Size.x * ship.Map.Size.x + ship.Map.Size.z * ship.Map.Size.z);
+            float diagonal = Mathf.Sqrt(map.Size.x * map.Size.x + map.Size.z * map.Size.z);
             for (float d = Mathf.Max(0f, length - diagonal); d < length; d += 0.5f)
             {
                 var p = source + direction * d;
                 var cell = new IntVec3(Mathf.FloorToInt(p.x), 0, Mathf.FloorToInt(p.y));
-                if (cell == previous || !cell.InBounds(ship.Map)) continue;
+                if (cell == previous || !cell.InBounds(map)) continue;
                 previous = cell;
-                var kind = SpaceStructureRules.ClassifyCell(ship.Map, cell, out Thing building);
+                Thing building;
+                SpaceCellKind kind;
+                if (surface == null) kind = SpaceStructureRules.ClassifyCell(map, cell, out building);
+                else
+                {
+                    int index = map.cellIndices.CellToIndex(cell);
+                    kind = (SpaceCellKind)surface.kinds[index]; building = surface.buildings[index];
+                }
+                if (building != null && removed?.Contains(building) == true) continue;
                 if (building == target) break;
                 if (kind == SpaceCellKind.Building || kind == SpaceCellKind.NaturalRock)
                     depth += SpaceStructureRules.BuildingHitChance(building);
@@ -252,8 +265,8 @@ namespace DeltaV
                 surface = new Surface();
                 Caches[map] = surface;
             }
-            int version = SubstructureOwnership.GlobalStructureVersion;
-            if (surface.kinds == null || SubstructureOwnership.CacheNeedsRefresh(surface.structureVersion))
+            int version = SubstructureOwnership.StructureVersion(map);
+            if (surface.kinds == null || SubstructureOwnership.CacheNeedsRefresh(surface.structureVersion, map))
             {
                 Rebuild(obj, surface, version);
             }
@@ -616,15 +629,7 @@ namespace DeltaV
                         : $"'{evt.defenderBuilding?.def.defName ?? "rock"}' @{bestCell}") +
                     $" on '{defender.label}' (v_rel {evt.relativeSpeed:F1}, incidence " +
                     $"{evt.incidenceAngleRad * Mathf.Rad2Deg:F0}°)");
-                float durabilityScale = 1f;
-                if (evt.defenderBuilding != null && effect != null
-                    && effect.projectileDefs.NullOrEmpty() && effect.targetThingDefs.NullOrEmpty()
-                    && !effect.targetsSubstructure)
-                {
-                    // 全局兜底条目（同等耐久舱壁规则）：耐久只换参数——基准耐久 / 守方耐久。
-                    durabilityScale = Mathf.Clamp(effect.fallbackBaselineHitPoints
-                        / Mathf.Max(1f, SpaceImpactEffects.MaxHitPointsOf(evt.defenderBuilding)), 0.2f, 2f);
-                }
+                float durabilityScale = SpaceImpactEffects.DurabilityScale(effect, evt.defenderBuilding);
                 // 毁伤会清掉基架归属，声音所需身份必须在结算前捕获。
                 ShipBase struckShip = bestThing != null ? ShipRegistry.ShipOf(bestThing) : ShipBase.Invalid;
                 DriveSubject struckSubject = struckShip.IsValid ? struckShip.Identity
@@ -837,7 +842,8 @@ namespace DeltaV
         /// 取 from 起最近进入交点；命中点须落在弧跨内。段外/弧内出发不算。
         /// </summary>
         private static bool TryFindArcHit(Surface surface, Vector2 from, Vector2 dir, float length,
-            out ShieldArc hitArc, out Vector2 hitPoint, out float along)
+            out ShieldArc hitArc, out Vector2 hitPoint, out float along,
+            System.Predicate<ShieldArc> include = null)
         {
             hitArc = null;
             hitPoint = default;
@@ -845,7 +851,8 @@ namespace DeltaV
             for (int i = 0; i < surface.arcs.Count; i++)
             {
                 ShieldArc arc = surface.arcs[i];
-                if (!CompSpaceShield.CanAbsorbGuard(arc.interceptor) || !arc.interceptor.Active) continue;
+                if (include != null ? !include(arc)
+                    : !CompSpaceShield.CanAbsorbGuard(arc.interceptor) || !arc.interceptor.Active) continue;
                 Vector2 toCenter = arc.center - from;
                 float proj = Vector2.Dot(toCenter, dir);
                 float distSqr = toCenter.sqrMagnitude - proj * proj;
@@ -870,7 +877,8 @@ namespace DeltaV
         private static bool TryFindLineHit(Surface surface, Vector2 from, Vector2 dir,
             float length, CompProperties_SpaceProjectile projectileProps,
             out CompSpaceShield hitShield, out Vector2 hitPoint,
-            out Vector2 hitNormal, out float along, out Vector2 lineStart, out Vector2 lineEnd)
+            out Vector2 hitNormal, out float along, out Vector2 lineStart, out Vector2 lineEnd,
+            System.Predicate<CompSpaceShield> include = null)
         {
             hitShield = null;
             hitPoint = default;
@@ -879,7 +887,7 @@ namespace DeltaV
             along = float.MaxValue;
             foreach (CompSpaceShield shield in surface.lineShields)
             {
-                if (shield.State != SpaceShieldState.LineActive) continue;
+                if (include != null ? !include(shield) : shield.State != SpaceShieldState.LineActive) continue;
                 if (shield.mode == SpaceShieldMode.Kinetic
                     ? !SpaceShieldProjectileBehavior.IsKinetic(projectileProps)
                     : !SpaceShieldProjectileBehavior.IsLaser(projectileProps)) continue;
@@ -908,7 +916,8 @@ namespace DeltaV
         /// </summary>
         private static bool FindBestCell(SweptBody body, Map defMap, Surface surface, Vector2 fromLocal,
             Vector2 p, Vector2 dir, HashSet<Thing> passedBuildings, HashSet<IntVec3> passedSubstructure,
-            out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing)
+            out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing,
+            System.Predicate<IntVec3> include = null)
         {
             bestCell = IntVec3.Invalid;
             bestKind = SpaceCellKind.Empty;
@@ -923,6 +932,7 @@ namespace DeltaV
             {
                 var cell = new IntVec3(cx + ox, 0, cz + oz);
                 if (!cell.InBounds(defMap)) continue;
+                if (include != null && !include(cell)) continue;
                 // 格矩形到采样点的最近点距离 ≤ 扫掠半径才算被脚印覆盖。
                 float nearestX = Mathf.Clamp(p.x, cell.x, cell.x + 1f);
                 float nearestZ = Mathf.Clamp(p.y, cell.z, cell.z + 1f);

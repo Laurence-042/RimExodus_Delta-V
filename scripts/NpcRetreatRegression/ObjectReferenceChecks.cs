@@ -203,9 +203,9 @@ internal static partial class Program
         return map;
     }
 
-    static Building AddTestBuilding(Map map, Faction faction, int id, ThingDef def, ThingComp comp)
+    static Building AddTestBuilding(Map map, Faction faction, int id, ThingDef def, ThingComp comp, Building body = null)
     {
-        var body = (Building)Raw(typeof(Building));
+        body ??= (Building)Raw(typeof(Building));
         body.def = def; body.thingIDNumber = id;
         Set(typeof(Thing), body, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
         Set(typeof(Thing), body, "positionInt", new IntVec3(1, 0, 2));

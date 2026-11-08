@@ -18,7 +18,7 @@ namespace DeltaV
             }
             if (owner != null)
             {
-                SubstructureOwnership.BumpStructureVersion();
+                SubstructureOwnership.BumpStructureVersion(map);
                 universe.Lifecycle.QueueStructureCheck(map);
             }
         }

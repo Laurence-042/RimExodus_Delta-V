@@ -105,7 +105,8 @@ namespace DeltaV
                 return Mathf.Max(600f, 240f + 180f * (tab == 2
                     ? draft.npcRetreatConditions.Count : draft.npcBoardConditions.Count));
             List<CombatStrategyRule> rules = tab == 0 ? draft.maneuverRules : tab == 1 ? draft.fireRules : draft.targetRules;
-            return Mathf.Max(600f, (tab == 0 ? 900f : 480f) + rules.Sum(r => (tab == 0 ? 740f : 430f) + (r.conditions?.Count ?? 0) * 180f));
+            return Mathf.Max(600f, (tab == 0 ? 900f : 480f) + rules.Sum(r => (tab == 0
+                ? 1000f + (r.engagement?.terms?.Count ?? 0) * 136f : 470f) + (r.conditions?.Count ?? 0) * 212f));
         }
 
         private void DrawRules(List<CombatStrategyRule> rules, float width, ref float y)
@@ -160,6 +161,7 @@ namespace DeltaV
                         Find.WindowStack.Add(new Dialog_CombatScoreCurves(rule, defaults));
                     }
                     y += 32f;
+                    DrawEngagement(rule.engagement, width, ref y);
                 }
                 else
                 {

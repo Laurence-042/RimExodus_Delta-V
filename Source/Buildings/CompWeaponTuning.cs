@@ -39,6 +39,11 @@ namespace DeltaV
             ? Mathf.CeilToInt(ShotHeat * 60f / Settings.coolingPerSecond) : interval;
         public float ShotHeat => Settings.heatPerShot * (Settings.chemical ? charge : 1);
         public float HeatFraction => Mathf.Clamp01((float)(heat / Settings.heatCapacity));
+        internal CompWeaponTuning ForecastCopy() => new CompWeaponTuning
+        {
+            props = props, charge = charge, mass = mass, interval = interval, power = power,
+            heat = heat, overheated = overheated, remainingTicks = remainingTicks, initialized = true
+        };
 
         public override void Initialize(CompProperties props)
         {

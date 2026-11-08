@@ -1,7 +1,7 @@
 param([string]$GameRoot, [string]$HarmonyPath, [switch]$AimInputOnly, [switch]$PlayerFlightOnly,
       [switch]$SalvageOnly, [switch]$DrivePerformanceOnly, [switch]$ProjectileOnly, [switch]$ArchiveRecoveryOnly,
       [switch]$DockingOnly, [switch]$NpcOnly, [switch]$ProjectileFullOnly, [switch]$SeparationOnly,
-      [switch]$ThrusterPauseOnly, [switch]$TractorOnly, [switch]$EvaOnly, [switch]$GlobeOnly, [switch]$CombatManeuverOnly)
+      [switch]$ThrusterPauseOnly, [switch]$TractorOnly, [switch]$EvaOnly, [switch]$GlobeOnly, [switch]$CombatManeuverOnly, [switch]$EngagementBaseline, [switch]$EngagementRegression, [switch]$EngagementBattle)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 if (!$GameRoot) { $GameRoot = "$repo/../.." }
@@ -31,6 +31,9 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net8.0","framework":{"name":"Microsoft.NETCore.App","version":"8.0.0"}}}' | Set-Content -LiteralPath "$out/NpcRetreatRegression.runtimeconfig.json"
 $regressionArguments = @($managed)
 if ($CombatManeuverOnly) { $regressionArguments += '--combat-maneuver-only' }
+if ($EngagementBaseline) { $regressionArguments += '--engagement-baseline' }
+if ($EngagementRegression) { $regressionArguments += '--engagement-regression' }
+if ($EngagementBattle) { $regressionArguments += '--engagement-battle' }
 if ($GlobeOnly) { $regressionArguments += '--globe-only' }
 if ($AimInputOnly) { $regressionArguments += '--aim-input-only' }
 if ($PlayerFlightOnly) { $regressionArguments += '--player-flight-only' }

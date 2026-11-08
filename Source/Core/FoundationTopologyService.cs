@@ -71,10 +71,10 @@ namespace DeltaV
                 entry = new Entry(map, SubstructureOwnership.For(map));
                 maps.Add(map, entry);
             }
-            if (entry.blocks == null || entry.blocksVersion != SubstructureOwnership.GlobalStructureVersion)
+            if (entry.blocks == null || entry.blocksVersion != SubstructureOwnership.StructureVersion(map))
             {
                 entry.blocks = ShipRegistry.ResidualBlocks(map, new HashSet<IntVec3>());
-                entry.blocksVersion = SubstructureOwnership.GlobalStructureVersion;
+                entry.blocksVersion = SubstructureOwnership.StructureVersion(map);
             }
             return entry.blocks;
         }

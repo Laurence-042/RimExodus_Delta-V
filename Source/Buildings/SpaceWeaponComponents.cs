@@ -134,11 +134,33 @@ namespace DeltaV
                 rotationTick = now;
                 angleAtTickStart = currentAngle;
             }
-            float desiredAngle = ClampToMechanicalArc(mapAngle);
-            float delta = SpaceTransform.WrapAngle(desiredAngle - angleAtTickStart);
-            float max = TraverseProps.turnRateDegPerSec * Mathf.Deg2Rad / 60f;
-            currentAngle = angleAtTickStart + Mathf.Clamp(delta, -max, max);
+            currentAngle = AngleAfter(angleAtTickStart, mapAngle, 1f / 60f);
             ApplyToVanillaTop();
+        }
+
+        internal float AngleAfter(float start, float desired, float seconds)
+        {
+            float delta = SpaceTransform.WrapAngle(ClampToMechanicalArc(desired) - start);
+            float max = TraverseProps.turnRateDegPerSec * Mathf.Deg2Rad * Mathf.Max(0, seconds);
+            return start + Mathf.Clamp(delta, -max, max);
+        }
+
+        // Private prediction state uses the same mechanical step and same-tick
+        // replacement semantics as AdvanceToward, without changing the live turret.
+        internal sealed class Forecast
+        {
+            private readonly CompSpaceWeaponTraverse source;
+            private float start;
+            private int previousTick = -1;
+            internal float Angle { get; private set; }
+            internal Forecast(CompSpaceWeaponTraverse source)
+            { this.source = source; Angle = source.CurrentAngle; }
+            internal void AimAt(float desired, int tick, bool powered)
+            {
+                if (!powered || source.parent.TryGetComp<CompFlickable>() is { SwitchIsOn: false }) return;
+                if (tick != previousTick) { previousTick = tick; start = Angle; }
+                Angle = source.AngleAfter(start, desired, 1f / 60f);
+            }
         }
 
         private float ClampToMechanicalArc(float angle)

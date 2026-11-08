@@ -21,7 +21,9 @@ namespace DeltaV
         CombatPlan, CombatRule, CombatPose, CombatPoseSetup, CombatPoseSearch, CombatRisk, CombatOutput,
         CombatReposition, CombatTrajectory, CombatRoute, CombatRouteShape,
         DrivePreviewModel, DrivePreviewBraking, DrivePreviewAngular, DrivePreviewAllocation,
-        MpcAssemble, MpcFeasibility, MpcQp, MpcBrakeRecovery, Count
+        MpcAssemble, MpcFeasibility, MpcQp, MpcBrakeRecovery,
+        EngagementObservation, EngagementCoarse, EngagementRefine, EngagementDamage,
+        EngagementAim, CombatPartSelection, Count
     }
 
     [System.Flags]
@@ -34,6 +36,10 @@ namespace DeltaV
     /// <summary>Opt-in, per-game CPU timing and frame/tick cadence; no saved or static state.</summary>
     internal sealed class DeltaVPerformanceProbe
     {
+        // Cumulative work, independent of logging windows. Scheduling changes must not
+        // appear faster merely by completing fewer candidate evaluations.
+        internal long engagementStarted, engagementCompleted, engagementCoarse, engagementFine;
+        internal long engagementElapsed;
         private const float ReportSeconds = 5f;
         private readonly long[] totals = new long[(int)PerformanceStage.Count];
         private readonly long[] peaks = new long[(int)PerformanceStage.Count];

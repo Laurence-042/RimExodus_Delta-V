@@ -37,11 +37,11 @@ namespace DeltaV
             get
             {
                 if (!IsValid) return System.Array.Empty<CompSpaceWeapon>();
-                if (weaponMap != Map || SubstructureOwnership.CacheNeedsRefresh(weaponVersion))
+                if (weaponMap != Map || SubstructureOwnership.CacheNeedsRefresh(weaponVersion, Map))
                 {
                     weapons = CollectWeapons().Distinct().ToArray();
                     weaponMap = Map;
-                    weaponVersion = SubstructureOwnership.GlobalStructureVersion;
+                    weaponVersion = SubstructureOwnership.StructureVersion(Map);
                 }
                 return weapons;
             }
@@ -170,10 +170,10 @@ namespace DeltaV
         public override bool CanDriveIn(SpaceObject container)
         {
             if (!IsValid || container?.map != Map || Map.Parent is not ShipPocketParent_DeltaV) return false;
-            if (driveMap != Map || SubstructureOwnership.CacheNeedsRefresh(driveVersion))
+            if (driveMap != Map || SubstructureOwnership.CacheNeedsRefresh(driveVersion, Map))
             {
                 driveMap = Map;
-                driveVersion = SubstructureOwnership.GlobalStructureVersion;
+                driveVersion = SubstructureOwnership.StructureVersion(Map);
                 independentHull = !SubstructureOwnership.CellsOnMap(Map).Any()
                     && !Map.listerThings.AllThings.Any(t => t is Building && t != Anchor && !t.Destroyed)
                     && !HullCells.Any(c => Map.terrainGrid.BaseTerrainAt(c) is TerrainDef terrain

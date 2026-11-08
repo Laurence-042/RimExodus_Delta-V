@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_EngagementTitle>交战收益与风险</DeltaV_EngagementTitle>
+  <DeltaV_EngagementWindow>交战观察窗（秒）</DeltaV_EngagementWindow>
+  <DeltaV_EngagementBurst>短时承伤窗口（秒）</DeltaV_EngagementBurst>
+  <DeltaV_EngagementSwitch>改变射位所需分差</DeltaV_EngagementSwitch>
+  <DeltaV_EngagementWeight>分值倍率</DeltaV_EngagementWeight>
+  <DeltaV_EngagementHelp>每项先按武器筛选汇总，再经过曲线、乘以倍率。删除或设为零的项不参与评分；空列表只保留物理可行性和显式约束。</DeltaV_EngagementHelp>
+  <DeltaV_EngagementAdd>添加交战评分项</DeltaV_EngagementAdd>
+  <DeltaV_EngagementSide_Outgoing>我方输出</DeltaV_EngagementSide_Outgoing>
+  <DeltaV_EngagementSide_Incoming>敌方来袭</DeltaV_EngagementSide_Incoming>
+  <DeltaV_EngagementMetric_StructureDamage>结构有效损伤</DeltaV_EngagementMetric_StructureDamage>
+  <DeltaV_EngagementUnit_StructureDamage>HP</DeltaV_EngagementUnit_StructureDamage>
+  <DeltaV_EngagementMetric_GuardDrain>守卫盾扣容</DeltaV_EngagementMetric_GuardDrain>
+  <DeltaV_EngagementUnit_GuardDrain>盾容量</DeltaV_EngagementUnit_GuardDrain>
+  <DeltaV_EngagementMetric_CapabilityLoss>关键设备失能比例</DeltaV_EngagementMetric_CapabilityLoss>
+  <DeltaV_EngagementUnit_CapabilityLoss>比例（0–1）</DeltaV_EngagementUnit_CapabilityLoss>
+  <DeltaV_EngagementMetric_BurstFraction>短时损伤／剩余耐久</DeltaV_EngagementMetric_BurstFraction>
+  <DeltaV_EngagementUnit_BurstFraction>比例</DeltaV_EngagementUnit_BurstFraction>
+  <DeltaV_EngagementMetric_TravelSeconds>到达时间</DeltaV_EngagementMetric_TravelSeconds>
+  <DeltaV_EngagementUnit_TravelSeconds>秒</DeltaV_EngagementUnit_TravelSeconds>
+  <DeltaV_EngagementMetric_VelocitySeconds>调整速度时间</DeltaV_EngagementMetric_VelocitySeconds>
+  <DeltaV_EngagementUnit_VelocitySeconds>秒</DeltaV_EngagementUnit_VelocitySeconds>
+  <DeltaV_EngagementMetric_ReverseSeconds>反向制动时间</DeltaV_EngagementMetric_ReverseSeconds>
+  <DeltaV_EngagementUnit_ReverseSeconds>秒</DeltaV_EngagementUnit_ReverseSeconds>
+  <DeltaV_EngagementMetric_Flanking>协同方位收益</DeltaV_EngagementMetric_Flanking>
+  <DeltaV_EngagementUnit_Flanking>比例（0–1）</DeltaV_EngagementUnit_Flanking>
+  <DeltaV_EngagementMetric_Uncertainty>未确定伤害风险量</DeltaV_EngagementMetric_Uncertainty>
+  <DeltaV_EngagementUnit_Uncertainty>HP</DeltaV_EngagementUnit_Uncertainty>
+  <DeltaV_CombatWeaponFamily_All>所有弹道类别</DeltaV_CombatWeaponFamily_All>
+  <DeltaV_CombatWeaponFamily_Laser>激光</DeltaV_CombatWeaponFamily_Laser>
+  <DeltaV_CombatWeaponFamily_Kinetic>普通实弹</DeltaV_CombatWeaponFamily_Kinetic>
+  <DeltaV_CombatWeaponFamily_Rail>轨道加速实弹</DeltaV_CombatWeaponFamily_Rail>
+  <DeltaV_CombatWeaponFamily_Guided>制导</DeltaV_CombatWeaponFamily_Guided>
+  <DeltaV_EngagementMetric_CriticalDamage>关键设备损伤比例</DeltaV_EngagementMetric_CriticalDamage>
+  <DeltaV_EngagementUnit_CriticalDamage>按设备作用加权的损伤比例（0–1；不是失能概率）</DeltaV_EngagementUnit_CriticalDamage>
+  <DeltaV_EngagementDecision>{0} 秒预计结构输出／承伤：{1}／{2} HP；到达：{3} 秒；调整速度／反向制动：{4}／{5} 秒。</DeltaV_EngagementDecision>
+  <DeltaV_EngagementUncertain>含采样或未确定后效；风险评分保留保守估计，数值不等于命中或毁舰保证。</DeltaV_EngagementUncertain>
+  <DeltaV_EngagementHolding>保持当前有利射位；候选比较仍按周期重新进行。</DeltaV_EngagementHolding>
+  <DeltaV_EngagementTransfer>正在转移到所选射位。</DeltaV_EngagementTransfer>
+  <DeltaV_EngagementMargin>选择得分 {0}，其他精评候选最高 {1}，差额 {2}；换位收益门槛 {3}。</DeltaV_EngagementMargin>
+  <DeltaV_EngagementTermValue>{0}（{1}）：{2} {3} → 曲线 {4} × 权重 {5} = {6}</DeltaV_EngagementTermValue>
+</LanguageData>

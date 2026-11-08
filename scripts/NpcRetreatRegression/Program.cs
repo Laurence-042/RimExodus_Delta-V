@@ -114,6 +114,15 @@ internal static partial class Program
             CheckCombatPerformance(universe, faction, other); return;
         }
         CheckPerformanceProbe(universe);
+        if (Environment.GetCommandLineArgs().Contains("--engagement-battle"))
+        { CheckEngagementBattle(universe, faction, other); return; }
+        if (Environment.GetCommandLineArgs().Contains("--engagement-fleet-baseline")
+            || Environment.GetCommandLineArgs().Contains("--engagement-fleet-regression"))
+        { CheckEngagementFleetBaseline(universe, faction, other); return; }
+        if (Environment.GetCommandLineArgs().Contains("--engagement-regression"))
+        { for (int scenario = 0; scenario < 3; scenario++) CheckEngagementBaseline(universe, faction, other, scenario); return; }
+        if (Environment.GetCommandLineArgs().Contains("--engagement-baseline"))
+        { CheckEngagementBaseline(universe, faction, other); return; }
         if (Environment.GetCommandLineArgs().Contains("--performance-probe-only")) return;
         if (Environment.GetCommandLineArgs().Contains("--combat-maneuver-only"))
         { CheckCombatManeuverMotion(universe, faction, other); return; }
@@ -149,6 +158,7 @@ internal static partial class Program
         if (aimInputOnly) return;
         CheckObjectReferences(universe, faction, other);
         CheckShipCapabilities(universe, faction);
+        CheckStructureVersions(universe, faction);
         CheckShuttleLifecycle(universe, faction);
         CheckFoundationLifecycle(universe, faction, other);
         CheckSeparationRules(universe, faction);

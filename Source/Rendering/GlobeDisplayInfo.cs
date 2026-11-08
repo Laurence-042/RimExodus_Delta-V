@@ -134,7 +134,7 @@ namespace DeltaV
         {
             Map map = obj.map;
             if (maps.TryGetValue(map, out MapInfo cached)
-                && !SubstructureOwnership.CacheNeedsRefresh(cached.version))
+                && !SubstructureOwnership.CacheNeedsRefresh(cached.version, map))
             {
                 if (cached.populationDirty) RefreshPopulation(map, cached);
                 return cached;
@@ -178,7 +178,7 @@ namespace DeltaV
                     localCenter = summary.environmentCenter,
                     native = native, projectionSide = ShipSilhouette.AnchoredSide(environment, environmentAnchor)
                         / (float)ShipSilhouette.AnchoredPixelsPerCell });
-            cached = new MapInfo { version = SubstructureOwnership.GlobalStructureVersion,
+            cached = new MapInfo { version = SubstructureOwnership.StructureVersion(map),
                 summary = summary, entries = entries, equipment = equipment };
             if (IsStationType(obj.contentTypeId))
             {

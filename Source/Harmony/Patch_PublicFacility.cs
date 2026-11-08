@@ -132,7 +132,7 @@ namespace DeltaV
             foreach (Map map in Find.Maps)
                 foreach (ShipBase ship in ShipRegistry.AllShipsOnMap(map))
                     if (ship.IsPublicFacility && (ship.Faction == __instance || ship.Faction == other))
-                        universe.Controls.ReconcileOwner(ship.Identity);
+                        universe.Controls.ReconcileOwner(ship.Identity, map);
         }
     }
 

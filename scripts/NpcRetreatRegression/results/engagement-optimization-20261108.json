@@ -1,0 +1,220 @@
+{
+  "status": "diagnostic_only_not_accepted",
+  "baseline": "engagement-baseline-20261108.json",
+  "thresholdMultiplier": 1.25,
+  "scope": "Simultaneous real tactics, weapon/threat queries, MPC, thruster allocation and integration. Four guns per ship; no projectile launch, damage, render or UI. Thirty seconds per workload.",
+  "notes": [
+    "Two sequential development checkpoint measurements, not three median acceptance runs. The second adds the drive-model-change search gate; this fixed numeric-drive workload completes identical search/candidate counts in both.",
+    "Both measurements retained. Wall time varies substantially; no stable speedup claimed.",
+    "Explicit global invalidation at tick 1500 retained. Event-driven extra tactical searches no longer preempt the scheduled clock.",
+    "Search elapsed includes nested prediction work; do not sum it with parent tick timings. GC pause is independently measured by .NET 8 GC.GetTotalPauseDuration; collection counts are not pause durations."
+  ],
+  "runs": [
+    {
+      "checkpoint": "map_local_versions",
+      "rows": [
+        {
+          "ships": 1,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 0.47692726666666674,
+          "p99TickMs": 1.8489,
+          "maxTickMs": 138.0423,
+          "coldMs": 211.0736,
+          "invalidationSixTicksMs": 0.3964999999999999,
+          "allocationBytes": 52322840,
+          "gcPauseMs": 3.408,
+          "searchesStarted": 5,
+          "searchesCompleted": 5,
+          "coarseCandidates": 340,
+          "fineCandidates": 25,
+          "searchElapsedMs": 648.9708,
+          "structureEvents": 1,
+          "structurePublications": 3,
+          "collections": [
+            4,
+            1,
+            0
+          ]
+        },
+        {
+          "ships": 4,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 0.6476307999999997,
+          "p99TickMs": 7.168,
+          "maxTickMs": 59.0883,
+          "coldMs": 682.8246,
+          "invalidationSixTicksMs": 0.5974999999999999,
+          "allocationBytes": 211325840,
+          "gcPauseMs": 11.567,
+          "searchesStarted": 19,
+          "searchesCompleted": 19,
+          "coarseCandidates": 1227,
+          "fineCandidates": 88,
+          "searchElapsedMs": 1225.3904,
+          "structureEvents": 1,
+          "structurePublications": 4,
+          "collections": [
+            17,
+            1,
+            1
+          ]
+        },
+        {
+          "ships": 12,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 2.510057733333334,
+          "p99TickMs": 74.9236,
+          "maxTickMs": 119.2818,
+          "coldMs": 1168.0981,
+          "invalidationSixTicksMs": 1.3241999999999998,
+          "allocationBytes": 972883280,
+          "gcPauseMs": 49.37,
+          "searchesStarted": 54,
+          "searchesCompleted": 54,
+          "coarseCandidates": 3713,
+          "fineCandidates": 277,
+          "searchElapsedMs": 3509.5935,
+          "structureEvents": 1,
+          "structurePublications": 12,
+          "collections": [
+            80,
+            36,
+            3
+          ]
+        },
+        {
+          "ships": 24,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 7.424822199999999,
+          "p99TickMs": 138.0459,
+          "maxTickMs": 312.3428,
+          "coldMs": 2944.7124,
+          "invalidationSixTicksMs": 2.7803,
+          "allocationBytes": 2835375648,
+          "gcPauseMs": 123.506,
+          "searchesStarted": 104,
+          "searchesCompleted": 104,
+          "coarseCandidates": 7934,
+          "fineCandidates": 537,
+          "searchElapsedMs": 9784.4898,
+          "structureEvents": 1,
+          "structurePublications": 24,
+          "collections": [
+            230,
+            30,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "checkpoint": "map_local_versions_and_drive_search_clock",
+      "rows": [
+        {
+          "ships": 1,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 0.8564430666666667,
+          "p95TickMs": 2.7093,
+          "p99TickMs": 3.4178,
+          "maxTickMs": 267.4695,
+          "coldMs": 431.9055,
+          "invalidationSixTicksMs": 0.6862000000000001,
+          "allocationBytes": 52328648,
+          "gcPauseMs": 5.863,
+          "searchesStarted": 5,
+          "searchesCompleted": 5,
+          "coarseCandidates": 340,
+          "fineCandidates": 25,
+          "searchElapsedMs": 1214.2797,
+          "structureEvents": 1,
+          "structurePublications": 3,
+          "collections": [
+            4,
+            1,
+            0
+          ]
+        },
+        {
+          "ships": 4,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 1.1319045333333333,
+          "p95TickMs": 4.172,
+          "p99TickMs": 7.7319,
+          "maxTickMs": 113.654,
+          "coldMs": 718.2395,
+          "invalidationSixTicksMs": 2.9059,
+          "allocationBytes": 211275816,
+          "gcPauseMs": 14.55,
+          "searchesStarted": 19,
+          "searchesCompleted": 19,
+          "coarseCandidates": 1227,
+          "fineCandidates": 88,
+          "searchElapsedMs": 1771.4476,
+          "structureEvents": 1,
+          "structurePublications": 4,
+          "collections": [
+            17,
+            1,
+            1
+          ]
+        },
+        {
+          "ships": 12,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 5.4155296,
+          "p95TickMs": 20.7313,
+          "p99TickMs": 164.5619,
+          "maxTickMs": 289.942,
+          "coldMs": 2559.1469,
+          "invalidationSixTicksMs": 2.8417,
+          "allocationBytes": 972878232,
+          "gcPauseMs": 80.16,
+          "searchesStarted": 54,
+          "searchesCompleted": 54,
+          "coarseCandidates": 3713,
+          "fineCandidates": 277,
+          "searchElapsedMs": 7897.1624,
+          "structureEvents": 1,
+          "structurePublications": 12,
+          "collections": [
+            78,
+            34,
+            2
+          ]
+        },
+        {
+          "ships": 24,
+          "ticks": 1800,
+          "warmup": 300,
+          "meanTickMs": 15.0974106,
+          "p95TickMs": 85.8092,
+          "p99TickMs": 286.5978,
+          "maxTickMs": 649.4298,
+          "coldMs": 5987.477,
+          "invalidationSixTicksMs": 3.4917000000000002,
+          "allocationBytes": 2835382216,
+          "gcPauseMs": 183.776,
+          "searchesStarted": 104,
+          "searchesCompleted": 104,
+          "coarseCandidates": 7934,
+          "fineCandidates": 537,
+          "searchElapsedMs": 20416.2891,
+          "structureEvents": 1,
+          "structurePublications": 24,
+          "collections": [
+            230,
+            30,
+            5
+          ]
+        }
+      ]
+    }
+  ]
+}

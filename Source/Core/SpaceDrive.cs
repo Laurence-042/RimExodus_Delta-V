@@ -72,6 +72,20 @@ namespace DeltaV
         private readonly ShipPhysics.MassReport report;
         public readonly float frameAngle;
         public SpacePose pose { get; internal set; }
+        private PreviewMemo previewMemo;
+        // Exact-input memoization is limited to a synchronous read-only planning call.
+        // It cannot survive a tick, a power change, or a new structural observation.
+        internal IDisposable ReusePreviews() => new PreviewMemo(this);
+        private sealed class PreviewMemo : IDisposable
+        {
+            private readonly DriveInfo owner;
+            private readonly PreviewMemo previous;
+            internal readonly Dictionary<Vector2, float> braking = new Dictionary<Vector2, float>();
+            internal readonly Dictionary<int, float> angular = new Dictionary<int, float>();
+            internal PreviewMemo(DriveInfo owner)
+            { this.owner = owner; previous = owner.previewMemo; owner.previewMemo = this; }
+            public void Dispose() { owner.previewMemo = previous; }
+        }
         internal DriveInfo(ShipPhysics.MassReport report, float frameAngle = 0f)
         { this.report = report; this.frameAngle = frameAngle; }
         public bool AllowsAngularMotion => report.allowsAngularMotion;
@@ -136,12 +150,18 @@ namespace DeltaV
         public float PreviewBraking(Vector2 direction)
         {
             using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.DrivePreviewBraking);
-            return ShipPhysics.PreviewBrakingAcceleration(report, direction);
+            if (previewMemo != null && previewMemo.braking.TryGetValue(direction, out float cached)) return cached;
+            float result = ShipPhysics.PreviewBrakingAcceleration(report, direction);
+            if (previewMemo != null && previewMemo.braking.Count < 2048) previewMemo.braking[direction] = result;
+            return result;
         }
         public float PreviewAngular(int direction)
         {
             using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.DrivePreviewAngular);
-            return ShipPhysics.PreviewAngularAcceleration(report, direction);
+            if (previewMemo != null && previewMemo.angular.TryGetValue(direction, out float cached)) return cached;
+            float result = ShipPhysics.PreviewAngularAcceleration(report, direction);
+            if (previewMemo != null) previewMemo.angular[direction] = result;
+            return result;
         }
         public void Preview(ShipPhysics.Command command, out Vector2 force, out float torque)
         {

@@ -17,7 +17,7 @@ namespace DeltaV
                 universe.Controls.ForgetWeaponTarget(weapon);
             ShipBase ship = ShipRegistry.ShipOf(__instance);
             if (ship.IsValid && ship.Anchor == __instance)
-                universe.Controls.ReconcileOwner(ship.Identity);
+                universe.Controls.ReconcileOwner(ship.Identity, __instance.Map);
             ShipControlService.NotifyGunnerChange(__instance.Map);
         }
     }

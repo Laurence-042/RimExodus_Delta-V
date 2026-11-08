@@ -102,10 +102,12 @@ internal static partial class Program
                 var planner = new ShipAutoManeuverControl(universe, own.member.Identity);
                 Set(planner, "anchorTarget", CombatTarget.ForShip(target.member.Identity));
                 Set(planner, "anchorDistance", 100f);
-                if (hold) universe.Controls.For(own.member).FireControl.Strategy(own.member).maneuverRules
-                    .Add(new CombatStrategyRule { tactic = new CombatTacticSettings { behavior = CombatTactic.HoldRange } });
-                if (scenario.Item3 == 2) universe.Controls.For(own.member).FireControl.Strategy(own.member).maneuverRules
-                    .Add(new CombatStrategyRule { tactic = new CombatTacticSettings { facing = CombatFacing.Target } });
+                // Sustained orbit is now an explicit action. Automatic engagement has
+                // a separate reach-and-hold regression and must not orbit without value.
+                universe.Controls.For(own.member).FireControl.Strategy(own.member).maneuverRules.Insert(0,
+                    new CombatStrategyRule { tactic = new CombatTacticSettings { distance = 100,
+                        behavior = hold ? CombatTactic.HoldRange : CombatTactic.Circle,
+                        facing = scenario.Item3 == 2 ? CombatFacing.Target : CombatFacing.Automatic } });
                 var plan = typeof(ShipAutoManeuverControl).GetMethod("PlanTacticTrajectory", Private);
                 var state = (CombatReposition)typeof(ShipAutoManeuverControl).GetField("reposition", Private).GetValue(planner);
                 bool planningPreservesMotion = true;
@@ -154,8 +156,10 @@ internal static partial class Program
                     continuousExecution &= ReferenceEquals(flight, RecoveryFlight(pilot, subject))
                         && (own.pose.velocity - SpaceTransform.TransportVelocity(before, own.pose.position)).magnitude < .28f;
                     // The shared pilot samples tactics every six ticks; completion must not delay a due decision.
-                    if (!hold) deadlinesHonored &= tick < state.nextTick + 6;
-                    if (state.nextTick != lastNext)
+                    if (!hold) deadlinesHonored &= tick < (int)typeof(ShipAutoManeuverControl)
+                        .GetField("nextTacticTick", Private).GetValue(planner) + 6;
+                    int measurementInterval = hold ? state.nextTick : tick / 360 + 1;
+                    if (measurementInterval != lastNext)
                     {
                         Vector2 offsetBefore = OrbitSphere.Offset(target.pose.position, before.position);
                         float endSpeed = Mathf.Abs(Vector2.Dot(new Vector2(-offsetBefore.y, offsetBefore.x).normalized,
@@ -163,10 +167,11 @@ internal static partial class Program
                         if (tick > (scenario.Item3 == 4 ? 4800 : 1200) && legPeak > 1f)
                         { measuredLegs++; if (endSpeed < legPeak * .6f) slowLegEnds++; if (legDropped) slowWithinLeg++; }
                         legPeak = 0f; legDropped = false;
-                        events++; lastNext = state.nextTick;
+                        events++; lastNext = measurementInterval;
                         Vector2 start = OrbitSphere.Offset(target.pose.position, before.position);
                         float step = SpaceTransform.WrapAngle(state.PhaseAt(target.pose.position) - Mathf.Atan2(start.y, start.x));
-                        int direction = Mathf.Abs(step) > .001f ? Math.Sign(step) : 0;
+                        var action = (CombatManeuverIntent)typeof(ShipAutoManeuverControl).GetField("maneuverIntent", Private).GetValue(planner);
+                        int direction = Math.Sign(action.tangentSpeed);
                         if (lastDirection != 0 && direction != 0 && direction != lastDirection) reversals++;
                         if (direction != 0) lastDirection = direction;
                     }
@@ -202,7 +207,7 @@ internal static partial class Program
                 Check(planningPreservesMotion && continuousExecution,
                     "replanning preserves physical state and the live MPC flight; velocity changes stay within thrust bounds");
                 Check(hold || reversals == 0 && events >= 18 && Mathf.Abs(traveledPhase) > (scenario.Item3 == 3 ? .5f : Mathf.PI),
-                    "symmetric production combat makes sustained progress without unrewarded direction reversals over three minutes");
+                    "explicit production circling makes sustained progress without direction reversals over three minutes");
                 if (logging)
                 {
                     Check(trace.SequenceEqual(baselines[(closingSpeed, hold, scenario.Item3)]), "AI log switch preserves every motion tick and reposition event exactly");
@@ -238,6 +243,11 @@ internal static partial class Program
             own.velocity = Vector2.zero;
             var fromRest = new CombatReposition(seed);
             fromRest.Update(own, target, pose, settings, drive, 0);
+            Check(Mathf.Abs(fromRest.phase) < .00001f && fromRest.tangentSpeed == 0,
+                "no positional benefit invents no automatic movement at seed " + seed);
+            fromRest.Reset();
+            fromRest.Update(own, target, pose, settings, drive, 0,
+                preference: (phase, speed) => Mathf.Abs(phase) > .001f ? 10 : 0);
             initialDirections.Add(Math.Sign(fromRest.phase));
             foreach (int direction in new[] { -1, 1 })
             {
@@ -281,7 +291,7 @@ internal static partial class Program
             {
                 var candidate = pose;
                 candidate.EvaluateFire(weapons, new Vector2(0f, speed), offense, null);
-                return candidate.CoverageScore(100f, offense);
+                return offense ? candidate.firepower : 0;
             });
             return state;
         }

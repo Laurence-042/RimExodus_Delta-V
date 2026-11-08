@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using Verse;
+using System.Linq;
 
 namespace DeltaV
 {
@@ -7,6 +8,9 @@ namespace DeltaV
     {
         // Observation only. Cleared with the controller; never participates in a decision or save.
         private string lastAiDecisionState;
+
+        internal string EngagementDecisionDetails() => engagementResult == null || activeRule == null ? ""
+            : CombatDecisionText.Engagement(engagementResult, activeRule.engagement, reposition.selectedScore);
 
         private void TraceAiDecision(ShipBase ship, SpaceObject own, SpacePose self, SpacePose target,
             CombatStrategyRule rule, CombatTacticSettings settings, CombatReplanCause cause, bool reset,
@@ -40,6 +44,18 @@ namespace DeltaV
                 + $"reposition={status} nextTick={oldNextTick}->{reposition.nextTick} waitTicks={Mathf.Max(0, reposition.nextTick - now)} "
                 + $"candidates={reposition.candidateCount} choiceScore={reposition.selectedScore:F3} continuationScore={reposition.continuationScore:F3} "
                 + $"velocityCost={reposition.selectedVelocityCost:F3} reversalCost={reposition.selectedReversalCost:F3} "
+                + (engagementResult == null ? "" : $"engagementWindow={rule.engagement.windowSeconds:F1} "
+                    + $"effectiveOut={engagementResult.outgoing:F2} effectiveIn={engagementResult.incoming:F2} "
+                    + $"arrivalSeconds={engagementResult.travel:F2} velocitySeconds={engagementResult.velocity:F2} "
+                    + $"reverseSeconds={engagementResult.reverse:F2} uncertain={engagementResult.uncertain} "
+                    + $"arrivalLowerBound={engagementResult.arrivalLowerBound} hold={engagementResult.holding} "
+                    + $"alternativeScore={engagementResult.alternativeScore:F3} terms=["
+                    + string.Join(";", rule.engagement.terms.Select(t =>
+                    {
+                        float raw = engagementResult.Raw(t, rule.engagement.burstSeconds);
+                        float curve = t.curve.Evaluate(raw);
+                        return $"{t.side}/{t.metric}/{t.weapons.family}:raw={raw:F3},curve={curve:F3},weight={t.weight:F3},score={curve * t.weight:F3}";
+                    })) + "] ")
                 + $"headingDeg={attackPose.heading * Mathf.Rad2Deg:F2} mobility={attackPose.mobility:F3} movement={settings.movement:F2} "
                 + $"coverage={attackPose.firepower:F2} ready={attackPose.readyOutput:F2} preference={attackPose.preference:F3} "
                 + $"scores={attackPose.distanceScore:F2}/{attackPose.outgoingScore:F2}/{attackPose.incomingScore:F2}/"

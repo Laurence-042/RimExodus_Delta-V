@@ -147,12 +147,13 @@ namespace DeltaV
             get
             {
                 if (mode == SpaceShieldMode.Guard) return SpaceShieldState.Guard;
-                if (!parent.Spawned || Find.TickManager.TicksGame < disabledUntilTick
-                    || (power ??= parent.TryGetComp<CompPowerTrader>())?.PowerOn != true
-                    || !FlickedOn) return SpaceShieldState.LineInactive;
+                if (!LineAvailableAt(Find.TickManager.TicksGame)) return SpaceShieldState.LineInactive;
                 return SpaceShieldState.LineActive;
             }
         }
+
+        internal bool LineAvailableAt(int tick) => parent.Spawned && tick >= disabledUntilTick
+            && (power ??= parent.TryGetComp<CompPowerTrader>())?.PowerOn == true && FlickedOn;
 
         public override void PostPostMake()
         {

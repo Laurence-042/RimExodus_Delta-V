@@ -38,6 +38,8 @@ namespace DeltaV
                 Find.WindowStack.Add(new FloatMenu(options));
             }
             y += 32f;
+            Choice(new Rect(8f, y, width - 16f, 26f), filter.family, "DeltaV_CombatWeaponFamily_", v => filter.family = v);
+            y += 32f;
         }
         private void DrawCriterionOptions(CombatCriterion c, float width, ref float y)
         {

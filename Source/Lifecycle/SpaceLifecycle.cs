@@ -604,6 +604,7 @@ namespace DeltaV
             ShipPhysics.Forget(map);
             ThrusterAudio.Forget(map);
             PlanetGlobeRenderer.ClearRuntimeCaches();
+            universe.Structures.Forget(map);
         }
 
         public void DestroyPocketMap(Map map)

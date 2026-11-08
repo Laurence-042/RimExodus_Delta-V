@@ -92,14 +92,17 @@ namespace DeltaV
             }
             scatter?.Remove(previous);
             if (current.IsScattered) Scatter.Register(current);
-            if (previous.map != null || current.map != null) SubstructureOwnership.BumpStructureVersion();
+            SubstructureOwnership.BumpStructureVersion(current.map);
             try { Autopilot.Detach(previous); previous.ClearDrive(); }
             catch (Exception ex) { Log.Error($"[DeltaV] Representation #{current.objectId} changed, but old drive cleanup failed: {ex}"); }
+            finally { if (previous.map != current.map) structures?.Forget(previous.map); }
         }
 
         [NonSerialized] private ShipControlService controls;
 
         [NonSerialized] private FoundationTopologyService foundationTopology;
+        [NonSerialized] private StructureVersions structures;
+        internal StructureVersions Structures => structures ?? (structures = new StructureVersions());
         internal FoundationTopologyService FoundationTopology => foundationTopology
             ?? (foundationTopology = new FoundationTopologyService());
 
@@ -396,7 +399,7 @@ namespace DeltaV
             }
             // Projectile maps are transient and have their own collision-cache invalidation on rent.
             if (obj.map != null && obj.baseTag != SpaceObjectTag.Projectile)
-                SubstructureOwnership.BumpStructureVersion();
+                SubstructureOwnership.BumpStructureVersion(obj.map);
             if (obj.objectId >= nextFreeOwnerId) nextFreeOwnerId = obj.objectId + 1;
             if (obj.map != null && obj.HasTag(SpaceObjectTag.Ship) == true)
             {
@@ -459,6 +462,7 @@ namespace DeltaV
             {
                 Lifecycle.NotifyUnregistered(poi);
             }
+            structures?.Forget(obj.map);
         }
 
         // ---- 尺度重标定（星区架构 §8）----
@@ -572,6 +576,7 @@ namespace DeltaV
             scatter?.Forget(map);
             softDock?.Forget(map);
             stationTrade?.Forget(map);
+            structures?.Forget(map);
         }
 
         internal void NotifyFoundationChanged(Map map, IntVec3 cell) => foundationTopology?.NotifyChanged(map, cell);
@@ -1305,6 +1310,7 @@ namespace DeltaV
             AimMarkersRenderer.ClearRuntimeCaches();
             unframedMaps?.Clear();
             PilotKeyBridge.Reset();
+            structures?.Clear();
             // Loading discards old-runtime callbacks; scene reset reaches here only after draining.
             if (!IsResettingScene) frameActions?.Clear();
         }

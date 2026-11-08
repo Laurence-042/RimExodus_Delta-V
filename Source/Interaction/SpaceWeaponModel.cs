@@ -24,7 +24,7 @@ namespace DeltaV
             // Unregistered generation/ground maps do not receive the universe structure events yet.
             cacheable = weapon.Container != null;
             ownerId = SpaceWeaponGeometry.OwnerIdOf(weapon.parent);
-            map = weapon.parent.Map; version = SubstructureOwnership.GlobalStructureVersion;
+            map = weapon.parent.Map; version = SubstructureOwnership.StructureVersion(map);
             position = weapon.parent.Position; rotation = weapon.parent.Rotation;
             attachments = new List<ThingWithComps>(weapon.DiscoverAttachedThings());
             var own = weapon.Component<CompSpaceWeaponMagazine>();
@@ -40,7 +40,7 @@ namespace DeltaV
         }
 
         internal bool Matches(CompSpaceWeapon weapon) => cacheable && map == weapon.parent.Map
-            && version == SubstructureOwnership.GlobalStructureVersion
+            && version == SubstructureOwnership.StructureVersion(map)
             && position == weapon.parent.Position && rotation == weapon.parent.Rotation;
     }
 
@@ -48,6 +48,8 @@ namespace DeltaV
     // ledger so a synchronous status refresh cannot overwrite the in-flight transaction.
     internal sealed class SpaceWeaponEnergy
     {
+        private readonly CombatResourceLedger forecast;
+        internal SpaceWeaponEnergy(CombatResourceLedger forecast = null) { this.forecast = forecast; }
         private readonly Dictionary<PowerNet, float> available = new Dictionary<PowerNet, float>();
         private readonly Dictionary<PowerNet, float> reserved = new Dictionary<PowerNet, float>();
         private readonly Dictionary<PowerNet, float> localReserved = new Dictionary<PowerNet, float>();
@@ -94,9 +96,9 @@ namespace DeltaV
             foreach (var thing in attachments)
             {
                 var capacitor = thing.TryGetComp<CompSpaceWeaponAttachment>();
-                if (capacitor == null || !capacitor.CanSupplyShotEnergy(cost)) continue;
+                if (capacitor == null || !(forecast?.CanSupply(capacitor, cost) ?? capacitor.CanSupplyShotEnergy(cost))) continue;
                 capacitors.TryGetValue(capacitor, out float held);
-                float remaining = capacitor.AvailableShotEnergy - held;
+                float remaining = (forecast?.Capacitor(capacitor) ?? capacitor.AvailableShotEnergy) - held;
                 PowerNet net = capacitor.ShotEnergyBattery?.PowerNet;
                 if (net != null) remaining = Mathf.Min(remaining, RemainingGridEnergy(net));
                 if (remaining + .0001f < cost) continue;
@@ -119,7 +121,7 @@ namespace DeltaV
         private float RemainingGridEnergy(PowerNet net)
         {
             if (!available.TryGetValue(net, out float stored))
-            { stored = net.CurrentStoredEnergy(); available.Add(net, stored); }
+            { stored = forecast?.Grid(net) ?? net.CurrentStoredEnergy(); available.Add(net, stored); }
             reserved.TryGetValue(net, out float grid);
             localReserved.TryGetValue(net, out float local);
             return stored - grid - local;
@@ -138,6 +140,12 @@ namespace DeltaV
 
         internal void Commit()
         {
+            if (forecast != null)
+            {
+                foreach (var pair in capacitors) forecast.Draw(pair.Key, pair.Value);
+                foreach (var pair in reserved) forecast.Draw(pair.Key, pair.Value);
+                return;
+            }
             // Pay earmarked local pulses first, so the grid cannot drain their batteries twice.
             foreach (var pair in capacitors) pair.Key.ConsumeShotEnergy(pair.Value);
             foreach (var pair in reserved)
@@ -210,13 +218,14 @@ namespace DeltaV
 
 
         internal static SpaceWeaponParameters Read(CompSpaceWeapon weapon, SpaceObject container,
-            SpaceWeaponEnergy energy, bool forShot)
+            SpaceWeaponEnergy energy, bool forShot, CombatResourceLedger resources = null, int previousMagazine = 0)
         {
             var perf = weapon.Universe?.Performance;
             long start = perf?.Start() ?? 0L;
             try
             {
-                CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
+                CompSpaceWeaponMagazine magazine = resources == null ? weapon.SelectMagazine()
+                    : weapon.SelectMagazine(m => resources.HasHeads(m, weapon), previousMagazine);
                 ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
                 var layout = weapon.Layout;
                 bool accelerated = layout.acceleration.segments.Count > 0;

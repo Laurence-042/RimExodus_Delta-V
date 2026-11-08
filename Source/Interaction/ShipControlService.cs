@@ -90,13 +90,16 @@ namespace DeltaV
             NotifyGunnerAvailabilityChanged(map);
         }
 
-        internal void ReconcileOwner(int ownerId) => ReconcileOwner(new DriveSubject(0, ownerId));
+        internal void ReconcileOwner(int ownerId, Map changedMap = null) => ReconcileOwner(new DriveSubject(0, ownerId), changedMap);
 
-        internal void ReconcileOwner(DriveSubject ownerId)
+        internal void ReconcileOwner(DriveSubject ownerId, Map changedMap = null)
         {
             if (ownerId.key <= 0) return;
             universe.Missions.ShipChanged(ownerId);
-            SubstructureOwnership.BumpStructureVersion();
+            changedMap ??= shipsByIdentity.TryGetValue(ownerId, out var previous) ? previous.Map
+                : ShipRegistry.ShipByIdentity(ownerId).Map;
+            SubstructureOwnership.BumpStructureVersion(changedMap);
+            identityVersion = -1;
             ShipBase ship = ShipRegistry.ShipByIdentity(ownerId);
             if (ship.IsValid && ship.Faction != null) For(ship);
             else Remove(ownerId);

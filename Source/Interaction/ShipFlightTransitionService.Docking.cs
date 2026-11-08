@@ -489,7 +489,8 @@ namespace DeltaV
             }
             PlanetGlobeRenderer.InvalidateSilhouette(sourceMap);
             HostColonistBarVisibility.NotifyDockingStateChanged();
-            ShipPhysics.ClearCache();
+            ShipPhysics.Forget(sourceMap);
+            ShipPhysics.Forget(pocketMap);
             return container;
         }
 
@@ -969,7 +970,7 @@ namespace DeltaV
                     PlanetGlobeRenderer.InvalidateSilhouette(sourceMap);
                     universe.Lifecycle.DestroyPocketMap(sourceMap);
                     universe.UnregisterObject(ownPocket);
-                    ShipPhysics.ClearCache();
+                    ShipPhysics.Forget(sourceMap);
                     DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                         "flight pocket map removed after strategic takeoff (leftovers converted)");
                 }
@@ -1054,7 +1055,7 @@ namespace DeltaV
             ConvertLeftoverSubstructureToWreck(universe, map,
                 new SpacePose(OrbitSphere.TileCenterDirection(map.Tile), 0f));
             GravshipUtility.AbandonMap(map);
-            ShipPhysics.ClearCache();
+            ShipPhysics.Forget(map);
             PlanetGlobeRenderer.InvalidateSilhouette(map);
             DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                 $"{mapLabel}: unanchored sector map abandoned after strategic takeoff");

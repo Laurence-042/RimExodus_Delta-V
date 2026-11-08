@@ -8,6 +8,24 @@ namespace DeltaV
 {
     internal static class CombatDecisionText
     {
+        internal static string Engagement(CombatEngagementEvaluation.Result result, CombatEngagementSettings settings, float score)
+        {
+            var text = new StringBuilder();
+            text.AppendLine((result.holding ? "DeltaV_EngagementHolding" : "DeltaV_EngagementTransfer").Translate());
+            if (!float.IsInfinity(result.alternativeScore))
+                text.AppendLine("DeltaV_EngagementMargin".Translate(score.ToString("0.##"), result.alternativeScore.ToString("0.##"),
+                    (score - result.alternativeScore).ToString("+0.##;-0.##;0"), settings.switchThreshold.ToString("0.##")));
+            foreach (var term in settings.terms)
+            {
+                float raw = result.Raw(term, settings.burstSeconds), curve = term.curve.Evaluate(raw);
+                text.AppendLine("DeltaV_EngagementTermValue".Translate(
+                    ("DeltaV_EngagementSide_" + term.side).Translate() + " / " + ("DeltaV_EngagementMetric_" + term.metric).Translate(),
+                    ("DeltaV_CombatWeaponFamily_" + term.weapons.family).Translate(), raw.ToString("0.###"),
+                    ("DeltaV_EngagementUnit_" + term.metric).Translate(), curve.ToString("0.###"),
+                    term.weight.ToString("0.###"), (curve * term.weight).ToString("+0.###;-0.###;0")));
+            }
+            return text.ToString();
+        }
         internal static string BuiltIn(CombatStrategyRule rule, int tab)
         {
             string Value(string key, object value) => key.Translate() + ": " + value;
@@ -33,7 +51,12 @@ namespace DeltaV
                 + "\n" + Value("DeltaV_CombatRepositionTime", $"{tactic.intervalMin:0.#}–{tactic.intervalMax:0.#}")
                 + "\n" + Value("DeltaV_CombatFlanking", Flag(tactic.coordinateFlanking))
                 + "\n" + Value("DeltaV_CombatPrimaryWeapons", ("DeltaV_CombatWeaponSet_" + tactic.primaryWeapons.set).Translate())
-                + "\n" + "DeltaV_CombatBuiltInCurves".Translate();
+                + "\n" + "DeltaV_CombatBuiltInCurves".Translate()
+                + "\n" + Value("DeltaV_EngagementWindow", rule.engagement.windowSeconds.ToString("0.#"))
+                + "\n" + string.Join("\n", rule.engagement.terms.Select(t =>
+                    ("DeltaV_EngagementMetric_" + t.metric).Translate() + " / "
+                    + ("DeltaV_EngagementSide_" + t.side).Translate() + " × " + t.weight.ToString("0.##")
+                    + ": " + string.Join("; ", t.curve.points.Select(p => $"({p.x:0.##}, {p.y:0.##})"))));
         }
 
         internal static string Selection(List<CombatStrategyRule> rules, CombatStrategyRule rule,
@@ -88,6 +111,7 @@ namespace DeltaV
             text.AppendLine("DeltaV_CombatDecisionHistory".Translate());
             text.AppendLine("DeltaV_CombatAITarget".Translate() + ": " + (comp.lastTargetReason ?? "DeltaV_CombatDecisionPending".Translate().ToString()));
             text.AppendLine("DeltaV_CombatAIManeuver".Translate() + ": " + (comp.lastManeuverReason ?? "DeltaV_CombatDecisionPending".Translate().ToString()));
+            text.AppendLine(controller?.AutoManeuver?.EngagementDecisionDetails() ?? "");
             AppendTrace(text, comp.lastManeuverSelection);
             text.AppendLine("\n" + "DeltaV_CombatAIFire".Translate() + ": " + (comp.lastFireReason ?? "DeltaV_CombatDecisionPending".Translate().ToString()));
             return text.ToString();

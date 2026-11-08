@@ -2,6 +2,15 @@
 
 `NpcRetreatRegression/run.ps1 -CombatManeuverOnly -GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>`：生产持续意图／飞行参考／MPC／真实分配与积分的三分钟闭环，覆盖周期刹车、无收益反向、强轴／弱转向、显式朝向、途中动力下降、极区参考导数、旋转预测模型，以及 AI 日志逐 tick 对拍和设置 Scribe。`MOTION_PERF` 输出规划、QP 和驾驶总耗时；旧 DLL 基线与最新结果集中在[持续机动重构记录](../doc/持续战斗机动重构计划.md)。无武器闭环和独立火力约束检查不能替代实弹交火验收。
 
+有利射位重构使用独立专项，统一传 `-GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>`：
+
+- `NpcRetreatRegression/run.ps1 -EngagementRegression`：冻结几何的三分钟占位、共用策略配置、风险曲线、动能弹延迟、冷却期间炮塔跟踪，以及真实混装武器／防护改变评分与规划方位。该运动专项不发射实弹。
+- `NpcRetreatRegression/run.ps1 -EngagementBattle`：实际火控、发射、激光碰撞和原版建筑／基架毁伤下，固定方位与自动策略的成对比较；另含 2048 次原生基架拦截／破坏对照。固定目标与给定驱动，不含拓扑拆图、船员或完整电网 tick。
+- `RailgunRegression/run.ps1 -EngagementForecast`：只读毁伤对照生产碰撞与原版扣血，覆盖不同防护、供能、热量、多格脚印及 2048 发分层掩体统计。
+- 编译 NPC 驱动后，直接运行 `dotnet Source/obj/NpcRetreatRegression/NpcRetreatRegression.dll <1.6 Managed目录> --engagement-fleet-regression`，串行测 1／4／12／24 舰的完整驾驶决策；可追加 `--engagement-profile-window` 获取四舰阶段剖析。有限值检查不代表性能通过，门槛比较仍需三轮串行中位数。
+
+新结果写到忽略目录 `Source/obj/EngagementForecast`。原 `-EngagementBaseline` 与 `--engagement-fleet-baseline` 只用于保存的旧 DLL，不能拿新实现覆盖基线；冻结参数、已通过与未过关项目统一记录在[实施计划](../doc/有利射位与交战收益规划.md#工作树实施检查点2026-11-08尚未交付)。
+
 `GuardShieldRegression/GuardShieldRegression.csproj` 直接编译生产护盾贴图裁剪算法，对拍随机覆盖、UV 范围与退化几何，并输出离线预览数据及重建耗时；运行和验证边界见[守卫盾裁剪检查](GuardShieldRegression/README.md)。
 
 `TutorialRegression/run.ps1` 现含 `MissionChecks.cs`：分级条件、货运押金／期限、逐人结果、原版宾客身份／财富过滤、手术真实信号与直接外交去重、合同 Scribe、敌舰主台／归档及 Harmony 签名。`NpcRetreatRegression -GlobeOnly` 增加多委托目标隔离。离线运行需传 `-HarmonyPath <Lib.Harmony/lib/net8.0/0Harmony.dll>`，不能使用游戏 Mono 版；复现命令与游戏内清单见[太空任务系统](../doc/太空任务系统.md#验证与复现)。
@@ -44,3 +53,5 @@
 
 
 星区地图专项：`NpcRetreatRegression/run.ps1 -GlobeOnly -GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>` 验证构建后的生产投影、固定距离缩放、同屏与标签边界、球背／极点、真实剪影尺寸、聚合、独立于缩放的列表、跨容器目标与归档摘要、课程导航角色、书签 Scribe、聚焦坐标不变量及原版窗口输入阻挡。Unity 原生旋转在离线剪影夹具中由固定 45° 渲染姿态替代，投影和范围求解仍走生产代码；真实 GL 偏移、字体、窗口裁剪及交互手感由游戏内验收覆盖。
+
+2026-11-08 结构失效优化专项：`NpcRetreatRegression/StructureVersionChecks.cs` 随全套回归验证 Map 隔离、事件合并、转图／池复用；选位专项额外检查连续结构／动力通知不提前搜索、不延后期限和不消耗随机流。多舰夹具增加完成工作量、版本发布、分配量与实际 GC 暂停数据，原全局失效时点及性能门槛保留。阶段范围和未完成项以[优化实施检查点](../doc/有利射位与交战收益规划.md#优化实施检查点map-级失效与事件抢占2026-11-08)为准。

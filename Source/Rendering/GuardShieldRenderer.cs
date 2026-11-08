@@ -54,7 +54,7 @@ namespace DeltaV
                         if (field?.Active == true) Scratch.Add(CircleOf(other, field));
                     }
             }
-            bool changed = !self.Equals(cache.self) || cache.version != SubstructureOwnership.GlobalStructureVersion
+            bool changed = !self.Equals(cache.self) || cache.version != SubstructureOwnership.StructureVersion(shield.parent.Map)
                 || Scratch.Count != cache.neighbors.Count;
             if (!changed)
                 for (int i = 0; i < Scratch.Count; i++)
@@ -62,7 +62,7 @@ namespace DeltaV
             if (changed)
             {
                 cache.self = self;
-                cache.version = SubstructureOwnership.GlobalStructureVersion;
+                cache.version = SubstructureOwnership.StructureVersion(shield.parent.Map);
                 cache.neighbors.Clear(); cache.neighbors.AddRange(Scratch);
                 Destroy(ref cache.outline);
                 cache.outline = Build(self.radius, GuardShieldOutline.Clip(self, cache.neighbors));

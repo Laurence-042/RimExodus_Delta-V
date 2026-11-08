@@ -10,6 +10,8 @@ namespace DeltaV
     {
         private readonly CombatStrategyRule rule;
         private readonly CombatManeuverCurves defaults;
+        private readonly CombatScoreCurve directCurve;
+        private readonly string directTitle, directUnit;
         private readonly Dictionary<CombatScorePoint, string> xBuffers =
             new Dictionary<CombatScorePoint, string>();
         private readonly Dictionary<CombatScorePoint, string> yBuffers =
@@ -19,6 +21,9 @@ namespace DeltaV
 
         public override Vector2 InitialSize => new Vector2(760f, 700f);
         protected override float Margin => 12f;
+        internal Dialog_CombatScoreCurves(CombatScoreCurve curve, string title, string unit)
+            : this(null, null)
+        { directCurve = curve; directTitle = title; directUnit = unit; }
 
         internal Dialog_CombatScoreCurves(CombatStrategyRule rule,
             CombatManeuverCurves defaults)
@@ -34,10 +39,10 @@ namespace DeltaV
         {
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(0f, 0f, rect.width, 32f),
-                "DeltaV_CombatAICurveTitle".Translate(rule.name));
+                "DeltaV_CombatAICurveTitle".Translate(directTitle ?? rule.name));
             Text.Font = GameFont.Small;
             float tabWidth = rect.width / 6f;
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; directCurve == null && i < 6; i++)
             {
                 ManeuverCurveMetric candidate = (ManeuverCurveMetric)i;
                 if (!Widgets.ButtonText(new Rect(i * tabWidth, 38f, tabWidth - 4f, 30f),
@@ -47,8 +52,8 @@ namespace DeltaV
             }
             Widgets.Label(new Rect(0f, 74f, rect.width, 26f),
                 "DeltaV_CombatAICurveAxes".Translate(
-                    ("DeltaV_CombatAICurveUnit_" + metric).Translate()));
-            CombatScoreCurve custom = rule.maneuverCurves?.Get(metric);
+                    directUnit ?? ("DeltaV_CombatAICurveUnit_" + metric).Translate().ToString()));
+            CombatScoreCurve custom = directCurve ?? rule.maneuverCurves?.Get(metric);
             CombatScoreCurve curve = custom ?? defaults.Get(metric);
             float minX = 0f;
             float maxX = metric == ManeuverCurveMetric.HullOverlap ? 1f
@@ -64,7 +69,7 @@ namespace DeltaV
                         DrawBackground = true, DrawMeasures = true,
                         DrawPoints = true, UseAntiAliasedLines = true,
                         DrawCurveMousePoint = true,
-                        LabelX = ("DeltaV_CombatAICurveUnit_" + metric).Translate()
+                        LabelX = directUnit ?? ("DeltaV_CombatAICurveUnit_" + metric).Translate().ToString()
                     });
             else
             {
@@ -83,7 +88,7 @@ namespace DeltaV
                     rule.maneuverCurves.Set(metric, curve.Copy());
                 }
             }
-            else if (Widgets.ButtonText(new Rect(rect.width - 206f, 347f, 204f, 28f),
+            else if (directCurve == null && Widgets.ButtonText(new Rect(rect.width - 206f, 347f, 204f, 28f),
                 "DeltaV_CombatAICurveReset".Translate()))
             {
                 rule.maneuverCurves.Set(metric, null);

@@ -21,6 +21,20 @@ namespace DeltaV
         public double EmergencyCapacity => EmergencyFuel?.Fuel ?? 0f;
         public GuardEmergencyReason EmergencyReason => emergencyReason;
         public int RecoveryWaitTicks => recoveryWaitTicks;
+        internal CompSpaceShield ForecastGuardCopy() => new CompSpaceShield
+        {
+            props = props, parent = parent, mode = mode, projection = projection, length = length, regularCapacity = regularCapacity,
+            recoveryWaitTicks = recoveryWaitTicks, autoRejoinPercent = autoRejoinPercent,
+            emergencyReason = emergencyReason
+        };
+        internal double DebitRegular(double amount)
+        {
+            double debit = Math.Min(Math.Max(0, amount), regularCapacity);
+            regularCapacity -= debit;
+            if (debit > 0) recoveryWaitTicks = ShieldProps.recoveryDelayTicks;
+            if (regularCapacity <= 0) emergencyReason = GuardEmergencyReason.Automatic;
+            return debit;
+        }
         public int AutoRejoinPercent
         {
             get => autoRejoinPercent;
@@ -127,13 +141,10 @@ namespace DeltaV
                     for (int i = members.Count - 1; i >= 0; i--)
                     {
                         var shield = members[i];
-                        double debit = Math.Min(share, shield.regularCapacity);
-                        shield.regularCapacity -= debit;
+                        double debit = shield.DebitRegular(share);
                         paid += debit;
-                        if (debit > 0) shield.recoveryWaitTicks = shield.ShieldProps.recoveryDelayTicks;
                         if (shield.regularCapacity <= 0)
                         {
-                            shield.emergencyReason = GuardEmergencyReason.Automatic;
                             members.RemoveAt(i);
                         }
                         shield.UpdatePowerDraw();

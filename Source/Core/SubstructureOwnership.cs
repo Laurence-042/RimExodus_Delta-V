@@ -31,15 +31,20 @@ namespace DeltaV
         public const int Unassigned = 0;
 
         /// <summary>
-        /// 全局结构版本（单调递增）：任何归属/基架写入后 +1。ShipRegistry 控制域缓存与
-        /// SpaceObject 拼接名缓存据此失效——只读派生查询不重复扫描事实源。
+        /// 全局枚举的变化通知；单图派生数据必须使用 StructureVersion(map)。
         /// </summary>
-        public static int GlobalStructureVersion { get; private set; }
+        public static int GlobalStructureVersion => Versions?.GlobalVersion ?? 0;
+
+        private static StructureVersions Versions => Current.Game?.GetComponent<UniverseManager>()?.Structures;
 
         public static void BumpStructureVersion()
         {
-            GlobalStructureVersion++;
+            Versions?.InvalidateAll();
         }
+
+        public static void BumpStructureVersion(Map map) => Versions?.Changed(map);
+        public static int StructureVersion(Map map) => Versions?.For(map) ?? 0;
+        public static bool CacheNeedsRefresh(int cachedVersion, Map map) => cachedVersion != StructureVersion(map);
 
         /// <summary>结构缓存失效条件：只认统一触发推进的版本，不再按时间重扫。</summary>
         public static bool CacheNeedsRefresh(int cachedVersion) => cachedVersion != GlobalStructureVersion;
@@ -54,10 +59,10 @@ namespace DeltaV
         {
             get
             {
-                if (cachedSupportVersion == GlobalStructureVersion) return cachedSupport;
+                if (cachedSupportVersion == StructureVersion(map)) return cachedSupport;
                 cachedSupport = map.AllCells.Any(cell => HasFoundation(map, cell)
                     || IsSupportTerrain(map.terrainGrid.TerrainAt(cell)));
-                cachedSupportVersion = GlobalStructureVersion;
+                cachedSupportVersion = StructureVersion(map);
                 return cachedSupport;
             }
         }
@@ -73,13 +78,13 @@ namespace DeltaV
         {
             get
             {
-                if (cachedNaturalGroundVersion == GlobalStructureVersion) return cachedNaturalGround;
+                if (cachedNaturalGroundVersion == StructureVersion(map)) return cachedNaturalGround;
                 cachedNaturalGround = map.AllCells.Any(cell =>
                 {
                     TerrainDef terrain = map.terrainGrid.BaseTerrainAt(cell);
                     return IsSupportTerrain(terrain) && terrain.natural && !terrain.isFoundation;
                 });
-                cachedNaturalGroundVersion = GlobalStructureVersion;
+                cachedNaturalGroundVersion = StructureVersion(map);
                 return cachedNaturalGround;
             }
         }
@@ -121,7 +126,7 @@ namespace DeltaV
                         }
                     }
                 }
-                BumpStructureVersion();
+                BumpStructureVersion(map);
             }
         }
 
@@ -335,7 +340,7 @@ namespace DeltaV
             }
             ownerGrid[map.cellIndices.CellToIndex(cell)] = ownerId;
             Current.Game?.GetComponent<UniverseManager>()?.NotifyFoundationChanged(map, cell);
-            BumpStructureVersion();
+            BumpStructureVersion(map);
         }
 
         /// <summary>图中已盖出的最大归属 ID（读档 ID 下限对齐用；无数据返回 0）。</summary>
@@ -426,7 +431,7 @@ namespace DeltaV
             }
             if (changed)
             {
-                BumpStructureVersion();
+                BumpStructureVersion(map);
                 NotifyOwnershipChanged();
             }
         }
@@ -488,7 +493,7 @@ namespace DeltaV
             if (ownerGrid == null || ownerGrid[map.cellIndices.CellToIndex(cell)] == Unassigned)
             {
                 // Even unowned substructure participates in the collision surface.
-                BumpStructureVersion();
+                BumpStructureVersion(map);
                 PlanetGlobeRenderer.InvalidateSilhouette(map);
                 return;
             }

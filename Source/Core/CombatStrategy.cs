@@ -79,6 +79,7 @@ namespace DeltaV
         public float targetThreatWeight = 0.5f;
         public float finishingWeight = 0.5f;
         public CombatManeuverCurves maneuverCurves;
+        public CombatEngagementSettings engagement = new CombatEngagementSettings();
         public CombatTacticSettings tactic = new CombatTacticSettings();
         public CombatTargetOrder targetOrder;
         public bool includeDisarmed;
@@ -108,6 +109,7 @@ namespace DeltaV
             outgoingWeight = outgoingWeight, targetThreatWeight = targetThreatWeight,
             finishingWeight = finishingWeight,
             maneuverCurves = maneuverCurves?.Copy(),
+            engagement = engagement?.Copy(),
             tactic = tactic?.Copy() ?? new CombatTacticSettings(),
             targetOrder = targetOrder, includeDisarmed = includeDisarmed,
             fireAction = fireAction, part = part, anchorOnly = anchorOnly
@@ -123,6 +125,7 @@ namespace DeltaV
             Scribe_Values.Look(ref targetThreatWeight, "targetThreatWeight", 0.5f);
             Scribe_Values.Look(ref finishingWeight, "finishingWeight", 0.5f);
             Scribe_Deep.Look(ref maneuverCurves, "maneuverCurves");
+            Scribe_Deep.Look(ref engagement, "engagement");
             Scribe_Deep.Look(ref tactic, "tactic");
             Scribe_Values.Look(ref targetOrder, "targetOrder");
             Scribe_Values.Look(ref includeDisarmed, "includeDisarmed");
@@ -151,7 +154,7 @@ namespace DeltaV
         public bool npcBoardMatchAny;
 
         private readonly CombatStrategyRule DefaultManeuver = new CombatStrategyRule
-            { name = "Default" };
+            { name = "Default", engagement = CombatEngagementSettings.Default() };
         private readonly CombatStrategyRule DefaultFire = new CombatStrategyRule
             { name = "Default", outgoingWeight = 1f, targetThreatWeight = 0.5f, finishingWeight = 0.5f };
 
@@ -220,7 +223,12 @@ namespace DeltaV
                     || !Enum.IsDefined(typeof(CombatFireAction), rule.fireAction)
                     || !Enum.IsDefined(typeof(CombatPart), rule.part))
                     throw new InvalidDataException("Invalid rule action.");
-                if (maneuver) rule.maneuverCurves?.Validate();
+                if (maneuver)
+                {
+                    rule.maneuverCurves?.Validate();
+                    if (rule.engagement == null) throw new InvalidDataException("Missing engagement settings.");
+                    rule.engagement.Validate();
+                }
                 {
                     if (rule.tactic == null) throw new InvalidDataException("Missing combat tactic settings.");
                     rule.tactic.Validate();

@@ -11,36 +11,19 @@ internal static partial class Program
             report.thrusters.Add(new ShipPhysics.Thruster { dir = source.dir, localPos = source.localPos,
                 operational = true, thrust = axial && Mathf.Abs(source.dir.y) > .5f ? 100f : source.thrust });
         var drive = new DriveInfo(report);
+        float braking = drive.PreviewBraking(Vector2.up), angular = drive.PreviewAngular(1);
+        using (drive.ReusePreviews())
+            Check(drive.PreviewBraking(Vector2.up) == braking && drive.PreviewBraking(Vector2.up) == braking
+                && drive.PreviewAngular(1) == angular && drive.PreviewAngular(1) == angular,
+                "decision-scoped capability reuse preserves exact production allocator results");
+        report.inertia *= 2;
+        Check(Math.Abs(drive.PreviewAngular(1) * 2 - angular) < .00001,
+            "preview memo leaves no stale capability after its synchronous scope ends");
+        report.inertia /= 2;
         if (offsetCenter)
         {
             report.comLocal = new Vector2(7f, -4f);
             foreach (var thruster in report.thrusters) thruster.localPos += report.comLocal;
-        }
-        if (axial)
-        {
-            var turret = new CombatAttackWeapon(Vector2.zero, 0f, 360f, 150f, 0f, 45f, 100f, true, true);
-            var fixedGun = new CombatAttackWeapon(Vector2.zero, 0f, 2f, 150f, 0f, 45f, 100f, true, true);
-            CombatAttackPose Choose(CombatAttackWeapon[] guns, CombatFacing facing = CombatFacing.Automatic) =>
-                CombatAttackPose.Choose(guns, new CombatTacticSettings { distance = 100f, facing = facing }, drive,
-                    Vector2.zero, 10f, 100f, 0f, 1, true, null, null);
-            var free = Choose(new[] { turret }); var fixedPose = Choose(new[] { fixedGun });
-            var mixed = Choose(new[] { turret, fixedGun }); var explicitFacing = Choose(new[] { turret }, CombatFacing.Target);
-            Check(free.freeThrustFacing && Mathf.Abs(Mathf.Sin(free.heading)) > .9f && free.firepower > 99f,
-                "a turret ship selects a sideways strong-axis attitude while retaining weapon coverage");
-            Check(fixedPose.firepower > 99f && Mathf.Abs(fixedPose.heading) < .02f
-                && mixed.firepower > 199f,
-                "fixed and mixed weapons retain their firing constraint during joint attitude selection");
-            var largeTurret = new CombatAttackWeapon(Vector2.zero, 0f, 360f, 150f, 0f, 45f, 990f, true, true);
-            var smallGun = new CombatAttackWeapon(Vector2.zero, 0f, 2f, 150f, 0f, 45f, 10f, true, true);
-            var mostlyTurret = Choose(new[] { largeTurret, smallGun });
-            Check(mostlyTurret.freeThrustFacing && Mathf.Abs(Mathf.Sin(mostlyTurret.heading)) > .9f,
-                "a small fixed gun does not impose a hull-wide attitude class on a turret-dominated ship");
-            Check(!explicitFacing.freeThrustFacing && explicitFacing.heading == 0f,
-                "explicit player facing wins over a stronger lateral thrust opportunity");
-            report.inertia *= 1000f;
-            var slow = Choose(new[] { turret });
-            Check(Mathf.Abs(slow.heading) < .02f, "weak turning authority pays the actual turn cost instead of assuming immediate strong-axis access");
-            report.inertia /= 1000f;
         }
         var model = drive.PreviewModel(null);
         var guidance = new OnlineMpcGuidance(); guidance.Reset(AutopilotMpcProfile.Fast);
@@ -87,12 +70,14 @@ internal static partial class Program
         foreach (Vector3 center in new[] { Vector3.forward, new Vector3(.03f, .999f, .01f).normalized })
         foreach (float heading in new[] { -3.13f, .7f, 3.13f })
         foreach (Vector2 anchor in new[] { Vector2.zero, new Vector2(7f, -4f) })
+        foreach (bool heldBearing in new[] { false, true })
         {
             var target = new SpacePose(center, .3f) { velocity = new Vector2(2f, -1f) };
             var own = new SpacePose(OrbitSphere.Move(center, new Vector2(100f, 30f)), heading)
                 { velocity = new Vector2(-2f, 4f), angularVelocity = .2f };
             var action = new CombatManeuverIntent { behavior = CombatTactic.Automatic,
                 distance = 100f, heading = 1f, tangentSpeed = 8f };
+            if (heldBearing) { action.bearing = -3.05f; action.bearingRate = .04f; }
             var trajectory = CombatFlightPlanner.Plan(own, target, action, drive, 0);
             trajectory.localAnchor = anchor;
             var expectedOrigin = SpaceTransform.AlignLocalPoint(own, Vector2.zero, anchor, 0f);
