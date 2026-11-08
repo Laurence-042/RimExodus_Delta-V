@@ -48,6 +48,11 @@ internal static partial class Program
         var traverse = new CompSpaceWeaponTraverse { props = new CompProperties_SpaceWeaponTraverse() };
         var building = AddTestBuilding(map, faction, 19950, TestBuildingDef("executionGun"), weapon);
         traverse.parent = building; building.AllComps.Add(traverse);
+        var console = AddTestConsole(map, faction, 19951);
+        var weaponOwner = new CombatHull(console.Ship);
+        weaponOwner.cells.Add(building.Position);
+        weaponOwner.Combat.weaponsArmed = true;
+        BindWeaponOwnerFixture(weapon, weaponOwner);
         var own = new MapSpaceObject(1995, map, new SpacePose(Vector3.forward, 0f));
         universe.objects.Add(own); Set(universe, "objectById", null); Set(universe, "objectByMap", null);
         var harness = new Harmony("DeltaV.Regression.WeaponExecution");
@@ -198,6 +203,7 @@ internal static partial class Program
         var frame = new MapSpaceObject(1998, map, new SpacePose(Vector3.forward, 0f));
         universe.objects.Add(frame); Set(universe, "objectByMap", null); Set(universe, "objectById", null);
         var console = AddTestConsole(map, faction, 19980);
+        console.combat.weaponsArmed = true;
         var deck = (TerrainDef)Raw(typeof(TerrainDef)); deck.isFoundation = true;
         var ownership = SubstructureOwnership.For(map);
         for (int z = 0; z < 5; z++) for (int x = 0; x < 5; x++)

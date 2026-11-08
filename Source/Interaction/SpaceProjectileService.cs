@@ -104,6 +104,7 @@ namespace DeltaV
             public System.Func<SpacePose, SpacePose> boardingReference;
             public int spawnedAtTick;
             public bool dead;
+            public GlobeDisplayEntry globeEntry;
             public Vector3 prevPosition;
             public bool laser;
             public float cruiseSpeed;
@@ -172,6 +173,26 @@ namespace DeltaV
         private const float ImpactHearFar = 120f;
 
         private readonly List<Projectile> projectiles = new List<Projectile>();
+        private readonly Dictionary<ThingDef, GlobeProjectileVisual> globeVisuals = new Dictionary<ThingDef, GlobeProjectileVisual>();
+
+        internal void CollectGlobeEntries(List<GlobeDisplayEntry> entries)
+        {
+            foreach (Projectile p in projectiles)
+            {
+                if (p.dead || p.laser || p.adoptedShuttle || p.container == null) continue;
+                if (p.globeEntry == null)
+                {
+                    GlobeProjectileVisual visual;
+                    if (p.mapLease != null) visual = universe.MapPool.GlobeVisual(p.mapLease, p.def);
+                    else if (!globeVisuals.TryGetValue(p.def, out visual))
+                        globeVisuals[p.def] = visual = new GlobeProjectileVisual(p.def);
+                    if (visual == null) continue;
+                    p.globeEntry = new GlobeDisplayEntry { owner = p.container, projectile = visual,
+                        area = visual.Size.x * visual.Size.y, armament = GlobeArmament.Unknown };
+                }
+                entries.Add(p.globeEntry);
+            }
+        }
         internal int ActiveCount => projectiles.Count;
         // 只复用短命的弹道工作对象；SpaceObject 身份和 Map 分别由注册表、现有图池管理。
         private const int MaxPooledProjectiles = 256;
@@ -1002,6 +1023,7 @@ namespace DeltaV
             p.def = null;
             p.props = null;
             p.building = null;
+            p.globeEntry = null;
             p.mapLease = null;
             p.launcher = null;
             p.weapon = null;
@@ -1114,6 +1136,7 @@ namespace DeltaV
         /// </summary>
         public void ResetFlow()
         {
+            globeVisuals.Clear();
             for (int i = projectiles.Count - 1; i >= 0; i--)
             {
                 QueueProjectileCleanup(projectiles[i], !projectiles[i].adoptedShuttle);

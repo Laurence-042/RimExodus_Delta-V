@@ -24,7 +24,15 @@ namespace DeltaV
         private Material[,] heatMaterials;
         private Texture2D topTexture, topMask;
 
-        private bool GroundFireEnabled => this.TryGetComp<CompSpaceWeapon>()?.GroundModeEnabled == true;
+        private bool GroundFireEnabled
+        {
+            get
+            {
+                CompSpaceWeapon weapon = this.TryGetComp<CompSpaceWeapon>();
+                return weapon?.GroundModeEnabled == true && weapon.Operational
+                    && weapon.OwnerShip.EffectiveFireControlMode != ShipFireControlMode.Disabled;
+            }
+        }
 
         protected override bool CanSetForcedTarget => GroundFireEnabled && base.CanSetForcedTarget;
 

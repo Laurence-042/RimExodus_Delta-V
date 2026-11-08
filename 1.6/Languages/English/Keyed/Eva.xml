@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-  <DeltaV_FireControlDisabled>Disabled</DeltaV_FireControlDisabled>
+  <DeltaV_FireControlDisabled>Hold fire</DeltaV_FireControlDisabled>
   <DeltaV_EvaCrewRequired>Requires exactly {0} healthy pilot(s).</DeltaV_EvaCrewRequired>
   <DeltaV_EvaCargo>Cargo: {0} / {1} kg (pilot and equipment excluded)</DeltaV_EvaCargo>
 </LanguageData>

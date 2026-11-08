@@ -71,7 +71,7 @@ namespace DeltaV
             int weapons = 0, ready = 0;
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
-                if (!weapon.SpaceModeEnabled || !weapon.GroupActive
+                if (!weapon.Armed || !weapon.SpaceModeEnabled || !weapon.GroupActive
                     || weapon.aimMode != SpaceWeaponAimMode.Volley) continue;
                 weapons++;
                 if (WeaponAvailable(weapon)) ready++;
@@ -80,9 +80,9 @@ namespace DeltaV
         }
 
         internal static bool WeaponReady(CompSpaceWeapon weapon) =>
-            weapon.CooldownTicksLeft == 0 && weapon.SpaceModeEnabled && weapon.GroupActive
+            weapon.CooldownTicksLeft == 0 && weapon.Armed && weapon.SpaceModeEnabled && weapon.GroupActive
             && weapon.MagazineAvailable(weapon.SelectMagazine())
-            && weapon.parent.TryGetComp<CompPowerTrader>() is not { PowerOn: false }
+            && weapon.Operational
             && weapon.TryGetSkillLevel(out _)
             && SpaceWeaponBallistics.HasBaseShotEnergy(weapon);
 
@@ -91,18 +91,17 @@ namespace DeltaV
             if (weaponFacts.TryGetValue(weapon, out var observed)) return observed;
             observed = (weapon.CooldownTicksLeft / 60f,
                 weapon.MagazineAvailable(weapon.SelectMagazine()) ? 1f : 0f,
-                SpaceWeaponBallistics.HasBaseShotEnergy(weapon)
-                    && weapon.parent.TryGetComp<CompPowerTrader>() is not { PowerOn: false } ? 1f : 0f);
+                SpaceWeaponBallistics.HasBaseShotEnergy(weapon) && weapon.Operational ? 1f : 0f);
             weaponFacts.Add(weapon, observed);
             return observed;
         }
 
         private bool WeaponAvailable(CompSpaceWeapon weapon)
         {
-            if (weapon.CooldownTicksLeft > 0) return false;
+            if (weapon.CooldownTicksLeft > 0 || !weapon.Armed) return false;
             var observed = Observe(weapon);
             return observed.ammo > 0f && observed.energy > 0f
-                && weapon.parent.TryGetComp<CompPowerTrader>() is not { PowerOn: false }
+                && weapon.Operational
                 && weapon.TryGetSkillLevel(out _);
         }
 

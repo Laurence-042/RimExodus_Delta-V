@@ -74,10 +74,10 @@ namespace DeltaV
             float turnRate = Mathf.Abs(frame.pose.angularVelocity) + angular * horizon * 0.5f;
             foreach (CompSpaceWeapon weapon in enemy.Weapons)
             {
-                if (weapon?.parent?.Spawned != true || !weapon.SpaceModeEnabled
+                if (weapon?.parent?.Spawned != true || !weapon.Armed || !weapon.SpaceModeEnabled
                     || weapon.WeaponProps.manualOnly || !weapon.GroupActive
                     || weapon.aimMode != SpaceWeaponAimMode.Volley
-                    || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
+                    || !weapon.Operational
                     || !weapon.TryGetSkillLevel(out int skill)) continue;
                 CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
                 ThingDef projectile = magazine?.SelectedProjectileDef

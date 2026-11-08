@@ -10,7 +10,7 @@ namespace DeltaV
         /// <summary>
         /// 左侧面板星球仪（星区架构 §11.1；星区地图形态 = 星球仪连续缩放，§12.2 定稿）。
         ///
-        /// 拉远是全局态势：南北轴（星区网格淡入时同步渐隐）+ 经纬网格（背面剔除）、
+        /// 拉远是全局态势：南北轴（星区网格淡入时同步渐隐）+ 自适应单位经纬网格（背面剔除）、
         /// 玩家船光标三角 + 速度矢量；拉近显示真实 tile 顶点的星区网格。
         /// 对象按 GlobeDisplayInfo 的实际面积决定出现和名称标注；图标/投影按视图尺度切换。
         /// 原版 POI 与玩家船常驻，未加载时保留图标，残骸隐藏常规标注。
@@ -97,7 +97,6 @@ namespace DeltaV
             float cellsPerTile = OrbitSphere.CellsPerTile;
             float hexAlpha = Mathf.Clamp01((HexLodFactor * cellsPerTile - viewHalfCells)
                 / (HexLodFactor * cellsPerTile * .5f));
-            float zoomFade = Mathf.Clamp01(1f - view.Width / view.MaximumWidth);
             bool repaint = Event.current.type == EventType.Repaint;
             if (repaint)
             {
@@ -121,36 +120,10 @@ namespace DeltaV
 
             if (repaint)
             {
-                // ---- 经纬网格（每 30° 一条；背面剔除；随拉近淡出；全部线段裁剪到矩形内）----
-                GL.Begin(GL.LINES);
-                GL.Color(new Color(1f, 1f, 1f, Mathf.Lerp(0.28f, 0.10f, zoomFade)));
-                for (int lat = -60; lat <= 60; lat += 30)
-                {
-                    Vector3 prev = Spherical(lat, 0f);
-                    for (int lon = 6; lon <= 360; lon += 6)
-                    {
-                        Vector3 next = Spherical(lat, lon);
-                        if (Vector3.Dot((prev + next).normalized, shipDir) > 0.04f)
-                        {
-                            ClippedLine(Project(prev), Project(next), rect);
-                        }
-                        prev = next;
-                    }
-                }
-                for (int lon2 = 0; lon2 < 360; lon2 += 30)
-                {
-                    Vector3 prev2 = Spherical(-84f, lon2);
-                    for (int lat2 = -78; lat2 <= 84; lat2 += 6)
-                    {
-                        Vector3 next = Spherical(lat2, lon2);
-                        if (Vector3.Dot((prev2 + next).normalized, shipDir) > 0.04f)
-                        {
-                            ClippedLine(Project(prev2), Project(next), rect);
-                        }
-                        prev2 = next;
-                    }
-                }
-                GL.End();
+                // ---- 自适应单位经纬网格：任何缩放都保持约 50px 间距，局部视图不再因
+                // 固定 30° 间距而呈现为空白；只绘当前视域附近的球面经纬线。----
+                if (universe.GlobeFilters.showCoordinateGrid)
+                    DrawCoordinateGrid(view, shipDir, Project, rect);
 
                 // ---- 星区六边形网格（真实 tile 顶点；LOD 淡入）----
                 if (hexAlpha > 0.01f)
@@ -183,11 +156,12 @@ namespace DeltaV
             Legends.Clear();
             foreach (GlobeDisplayEntry entry in state.Entries)
             {
+                if (!state.IsDisplayed(entry)) continue;
                 bool important = state.Important(entry);
                 bool station = entry.station && view.Width <= cellsPerTile * 6f;
                 bool reference = entry.ship != null && view.ReferenceShip?.IsValid == true
                     && entry.ship.key == view.ReferenceShip.Identity.key && entry.ship.shuttle == (view.ReferenceShip is ShuttleShip);
-                if (!important && !station && !reference && !GlobeDisplayRules.Visible(entry.area, view.PixelsPerCell, entry.AlwaysVisible)) continue;
+                if (!entry.Minimal && !important && !station && !reference && !GlobeDisplayRules.Visible(entry.area, view.PixelsPerCell, entry.AlwaysVisible)) continue;
                 Legend legend = LayoutLegend(view, entry, important);
                 if (legend == null) continue;
                 Legends.Add(legend);
@@ -198,6 +172,11 @@ namespace DeltaV
             {
                 foreach (Legend legend in Legends)
                 {
+                    if (legend.entry.Minimal)
+                    {
+                        if (legend.entry.projectile == null) DrawDiamond(legend.position, 1.5f, legend.color);
+                        continue;
+                    }
                     if (legend.projection || legend.members.Count > 0) continue;
                     SpacePose pose = legend.entry.Pose;
                     OrbitSphere.Basis(pose.position, out Vector3 east, out Vector3 north);
@@ -221,7 +200,7 @@ namespace DeltaV
                 GL.PopMatrix();
             }
             DrawLegends(view, state, universe, draggable, click);
-            DrawScale(view);
+            DrawScale(view, draggable);
             Text.Font = GameFont.Small;
             GUI.color = Color.white;
         }
@@ -421,6 +400,70 @@ namespace DeltaV
             float lat = latDeg * Mathf.Deg2Rad;
             float lon = lonDeg * Mathf.Deg2Rad;
             return new Vector3(Mathf.Cos(lat) * Mathf.Cos(lon), Mathf.Sin(lat), Mathf.Cos(lat) * Mathf.Sin(lon));
+        }
+
+        private static readonly float[] CoordinateGridSteps =
+            { .1f, .25f, .5f, 1f, 2f, 5f, 10f, 15f, 30f, 45f, 90f };
+
+        internal static float CoordinateGridStepDegrees(GlobeView view)
+        {
+            float desired = 52f / Mathf.Max(1f, view.PixelsPerRad) * Mathf.Rad2Deg;
+            foreach (float step in CoordinateGridSteps)
+                if (step >= desired) return step;
+            return 90f;
+        }
+
+        private static void DrawCoordinateGrid(GlobeView view, Vector3 shipDir,
+            System.Func<Vector3, Vector2> project, Rect clip)
+        {
+            float step = CoordinateGridStepDegrees(view);
+            float centerLat = Mathf.Asin(Mathf.Clamp(view.Center.y, -1f, 1f)) * Mathf.Rad2Deg;
+            float centerLon = Mathf.Atan2(view.Center.z, view.Center.x) * Mathf.Rad2Deg;
+            float horizontal = Mathf.Min(Mathf.PI, view.Width * .62f / view.CellsPerRadian);
+            float vertical = horizontal * clip.height / Mathf.Max(1f, clip.width);
+            float range = Mathf.Min(180f, Mathf.Max(horizontal, vertical) * Mathf.Rad2Deg * 1.45f + step * 2f);
+            float latMin = Mathf.Max(-89.9f, centerLat - range);
+            float latMax = Mathf.Min(89.9f, centerLat + range);
+            float lonRange = Mathf.Min(180f, range / Mathf.Max(.18f,
+                Mathf.Abs(Mathf.Cos(centerLat * Mathf.Deg2Rad))));
+            float lonMin = centerLon - lonRange, lonMax = centerLon + lonRange;
+            float lonStep = step;
+            while ((lonMax - lonMin) / lonStep > 30f) lonStep *= 2f;
+            float sample = Mathf.Clamp(step * .25f, .2f, 5f);
+            Color ordinary = new Color(.34f, .62f, .72f, .24f);
+            Color axis = new Color(.48f, .82f, .92f, .4f);
+
+            GL.Begin(GL.LINES);
+            int firstLat = Mathf.CeilToInt(latMin / step), lastLat = Mathf.FloorToInt(latMax / step);
+            for (int index = firstLat; index <= lastLat; index++)
+            {
+                float lat = index * step;
+                GL.Color(Mathf.Abs(lat) < step * .25f ? axis : ordinary);
+                Vector3 previous = Spherical(lat, lonMin);
+                for (float lon = lonMin + sample; lon <= lonMax + .001f; lon += sample)
+                {
+                    Vector3 next = Spherical(lat, Mathf.Min(lon, lonMax));
+                    if (Vector3.Dot((previous + next).normalized, shipDir) > .02f)
+                        ClippedLine(project(previous), project(next), clip);
+                    previous = next;
+                }
+            }
+            int firstLon = Mathf.CeilToInt(lonMin / lonStep), lastLon = Mathf.FloorToInt(lonMax / lonStep);
+            for (int index = firstLon; index <= lastLon; index++)
+            {
+                float lon = index * lonStep;
+                float wrapped = Mathf.Repeat(lon + 180f, 360f) - 180f;
+                GL.Color(Mathf.Abs(wrapped) < lonStep * .25f ? axis : ordinary);
+                Vector3 previous = Spherical(latMin, lon);
+                for (float lat = latMin + sample; lat <= latMax + .001f; lat += sample)
+                {
+                    Vector3 next = Spherical(Mathf.Min(lat, latMax), lon);
+                    if (Vector3.Dot((previous + next).normalized, shipDir) > .02f)
+                        ClippedLine(project(previous), project(next), clip);
+                    previous = next;
+                }
+            }
+            GL.End();
         }
 
         private static void Vertex(Vector2 p)

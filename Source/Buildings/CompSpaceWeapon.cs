@@ -291,6 +291,28 @@ namespace DeltaV
         /// <summary>当前炮手（原版 CompMannable 在册者）。</summary>
         public Pawn CurrentGunner => Mannable?.ManningPawn;
 
+        /// <summary>所属船的武装总开关；跟随船体身份锚，不绑定当前 Map。</summary>
+        public bool Armed => OwnerShip.IsValid && OwnerShip.Combat?.weaponsArmed == true;
+
+        /// <summary>炮手、自瞄或内置火控中的任一真实来源。</summary>
+        public bool HasFireControl => Mannable == null || CurrentGunner != null || AutoAimEffective;
+
+        /// <summary>待机耗电意图不把 PowerOn 当输入，避免“先有电还是先申请负载”的循环。</summary>
+        public bool WantsStandbyPower => Armed && HasFireControl
+            && parent.TryGetComp<CompFlickable>() is not { SwitchIsOn: false };
+
+        /// <summary>转向和射击共用的硬件启用口径；弹药、冷却、射界与武器组另行判定。</summary>
+        public bool Operational => WantsStandbyPower
+            && parent.TryGetComp<CompPowerTrader>() is not { PowerOn: false };
+
+        internal void SyncStandbyPower()
+        {
+            CompPowerTrader power = parent.TryGetComp<CompPowerTrader>();
+            if (power == null) return;
+            float output = WantsStandbyPower ? -power.Props.PowerConsumption : 0f;
+            if (Mathf.Abs(power.PowerOutput - output) > 0.01f) power.PowerOutput = output;
+        }
+
         public SpaceWeaponAttachmentSlot AttachmentSlotAt(IntVec3 cell)
         {
             foreach (SpaceWeaponAttachmentSlot slot in WeaponProps.attachmentSlots)
@@ -379,7 +401,7 @@ namespace DeltaV
         /// <summary>
         /// 重放置完成（起飞/对接搬运 StripDomain → PlaceIntoMap 的 GenSpawn 收尾；
         /// DeSpawn 已使 FailOnDespawnedNullOrForbidden 丢掉炮手 job，原版无召回）。
-        /// 读档重建不触发（battleStations 运行时已清零，事件空转）。
+        /// 读档重建不主动派遣；持久武装状态由 controller 重建后的状态事件接回。
         /// </summary>
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
@@ -404,8 +426,15 @@ namespace DeltaV
                 alignmentConfigurationInitialized = true;
             }
             Universe?.Weapons?.RegisterWeapon(this);
+            SyncStandbyPower();
             if (respawningAfterLoad) return;
             Universe?.Controls?.NotifyGunnerAvailabilityChanged(parent.Map);
+        }
+
+        public override void CompTick()
+        {
+            base.CompTick();
+            SyncStandbyPower();
         }
 
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)

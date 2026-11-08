@@ -16,9 +16,18 @@ internal static partial class Program
     { __result = new Quaternion(0, 0, .38268343f, .92387953f); return false; }
     static void CheckGlobeNavigation(UniverseManager universe)
     {
+        CheckGlobeFilters(universe);
         CheckGlobeTextureTransform();
         var state = new GlobeNavigation(new List<GlobeTarget>());
         var rect = new Rect(8, 40, 232, 212);
+        var compactRect = new Rect(8, 40, 288, 210);
+        List<Rect> compactReserved = GlobeNavigationPanel.CompactReservedRects(compactRect);
+        Check(compactReserved.Count == 5 && compactReserved.All(r => PlanetGlobeRenderer.Contains(compactRect, r)),
+            "compact globe exposes bounded avoidance geometry for four controls and the scale");
+        Check(!compactReserved.SelectMany((a, i) => compactReserved.Skip(i + 1).Select(b => a.Overlaps(b))).Any(v => v),
+            "compact control and scale avoidance rectangles leave separate label-safe regions");
+        Check(GlobeNavigationPanel.CompactScaleRect(compactRect).width < compactRect.width * .55f,
+            "compact scale no longer blankets the map width");
         GlobeDisplayEntry Entry(int id, float x, float y, float radius = 10000f)
         {
             float angle = (float)Math.Sqrt(x * x + y * y) / radius;
@@ -146,9 +155,9 @@ internal static partial class Program
         var moved = Entry(302, 60, 0); moved.ship = ship.ship;
         state.Entries.Remove(ship); state.Entries.Add(moved);
         Check(state.Resolve(state.Selected) == moved && state.IsBookmarked(moved), "ship selection and bookmark follow identity into a new container");
-        state.Filter = GlobeFilter.Stations;
+        state.Filters.hiddenTypes.Add("FoundationShip");
         Check(state.Listed(Vector3.forward).Single() == station, "station listing includes a distant place outside the current view");
-        state.Filter = GlobeFilter.All; state.Search = "cour";
+        state.Filters = GlobeFilters.Everything(); state.Filters.keepTracked = false; state.Search = "cour";
         Check(state.Listed(Vector3.forward).Single() == moved, "place search matches names without case sensitivity");
         state.Search = "";
         state.ForgetObject(301);
@@ -182,7 +191,7 @@ internal static partial class Program
             destination = new MissionTarget { shipId = 511, objectId = 510 } };
         universe.missionState.missions.AddRange(new[] { firstMission, secondMission });
         universe.GlobeNavigation.Refresh(universe);
-        universe.GlobeNavigation.Filter = GlobeFilter.Mission;
+        universe.GlobeFilters.missions = GlobeMission.Tracked | GlobeMission.Active;
         Check(universe.GlobeNavigation.Listed(Vector3.forward).Count() == 2,
             "mission filter includes both independently active commissions");
         universe.GlobeNavigation.MissionSelection = secondMission.destination.Navigation;
@@ -191,7 +200,7 @@ internal static partial class Program
             && universe.GlobeNavigation.Listed(Vector3.forward).Count() == 2,
             "selecting a commission preserves the other mission marker");
         universe.missionState.missions.Remove(firstMission); universe.missionState.missions.Remove(secondMission);
-        universe.objects.Remove(secondArchive); universe.GlobeNavigation.Filter = GlobeFilter.All;
+        universe.objects.Remove(secondArchive); universe.GlobeFilters.missions = GlobeMission.All;
         universe.GlobeNavigation.Refresh(universe);
         var archivedEntry = universe.GlobeNavigation.Entries.Single(e => e.owner == archive);
         universe.GlobeNavigation.Select(archivedEntry);

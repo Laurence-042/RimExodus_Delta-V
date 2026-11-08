@@ -18,11 +18,9 @@ namespace DeltaV
     /// </summary>
     public static class ShipStatusPanel
     {
-        private const float PanelWidth = 248f;
-        private const float GlobeSize = 212f;
-        private const float ShipRowHeight = 24f;
+        private const float PanelWidth = 304f;
+        private const float GlobeSize = 210f;
         private const float MaxPanelHeight = 660f;
-        private const float MaxCombatHeight = 165f;
 
         // 每图选中的结构归属或单建筑船；无主台不使结构选择失效。
         private static readonly Dictionary<Map, DriveSubject> selectedShipByMap = new Dictionary<Map, DriveSubject>();
@@ -30,8 +28,8 @@ namespace DeltaV
         // 切图时重置滚动位置；有效的结构选择不会被派系默认覆盖。
         private static Map lastDrawnMap;
         private static Vector2 contentScroll;
-        private static Vector2 combatScroll;
-        private static bool combatExpanded = true;
+        private static bool advancedFlightExpanded;
+        private static bool advancedCombatExpanded;
         private static Rect inputRect;
         private static Map inputMap;
         internal static bool ContainsScreenPoint(Vector2 point) => inputMap == Find.CurrentMap
@@ -50,7 +48,8 @@ namespace DeltaV
             selectedShipByMap.Clear();
             lastDrawnMap = null;
             contentScroll = Vector2.zero;
-            combatScroll = Vector2.zero;
+            advancedFlightExpanded = false;
+            advancedCombatExpanded = false;
             inputMap = null;
         }
 
@@ -150,9 +149,12 @@ namespace DeltaV
                 title = "DeltaV_PanelSectorTitle".Translate(hasStructure
                     ? StructureLabel(universe, map, selectedStructure) : frame.label);
             }
+            string titleTip = title;
 
             // ---- 内容行（先备好文本，再按真实高度布局：面板高度随内容变化）----
             var statusLines = new List<string>();
+            var compactStats = new List<KeyValuePair<string, string>>();
+            string compactState = null;
             ShipControlState controlState = universe.Pilot.GetControlState(selected);
             SpacePose shipPose = hasStructure ? ShipRegistry.StructurePose(map, selectedStructure) : frame.pose;
             Vector2 focusPoint = hasStructure
@@ -165,28 +167,30 @@ namespace DeltaV
             if (hasShip)
             {
                 DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(selected.Map)?.MotionInfo;
-                string controlLabel = universe.Controls.PlayerFor(selected)?.FlightStatusLabel
+                string flightState = (selected.State == ShipDerivedState.FreeFlight
+                    ? "DeltaV_FlightStateFree" : "DeltaV_FlightStateDocked").Translate();
+                string compactControl = controlState == ShipControlState.Manual
+                    ? "DeltaV_ControlCompactManual".Translate()
+                    : controlState == ShipControlState.Autopilot
+                        ? "DeltaV_ControlCompactAutopilot".Translate()
+                        : "DeltaV_ControlCompactUncontrolled".Translate();
+                compactState = flightState + " · " + compactControl;
+                bool brakeHeld = DeltaVDefOf.DeltaV_AssistBrake != null && DeltaVDefOf.DeltaV_AssistBrake.IsDown;
+                string assist = brakeHeld ? "DeltaV_Braking".Translate()
+                    : (DeltaVMod.CurrentSettings.flightAssist ? "DeltaV_On" : "DeltaV_Off").Translate();
+                compactStats.Add(new KeyValuePair<string, string>("DeltaV_PanelStatSpeed".Translate(),
+                    "DeltaV_PanelStatSpeedValue".Translate(shipPose.velocity.magnitude.ToString("F1"))));
+                compactStats.Add(new KeyValuePair<string, string>("DeltaV_PanelStatHeading".Translate(),
+                    "DeltaV_PanelStatHeadingValue".Translate((shipPose.angle * Mathf.Rad2Deg).ToString("F0"))));
+                compactStats.Add(new KeyValuePair<string, string>("DeltaV_PanelStatTurnRate".Translate(),
+                    "DeltaV_PanelStatTurnRateValue".Translate((shipPose.angularVelocity * Mathf.Rad2Deg).ToString("F1"))));
+                compactStats.Add(new KeyValuePair<string, string>("DeltaV_PanelStatAssist".Translate(), assist));
+                string detailedControl = universe.Controls.PlayerFor(selected)?.FlightStatusLabel
                     ?? (controlState == ShipControlState.Autopilot
                         ? "DeltaV_ControlAutopilot".Translate()
                         : "DeltaV_ControlUncontrolled".Translate());
-                statusLines.Add("DeltaV_PanelFlightState".Translate(
-                    selected.State == ShipDerivedState.FreeFlight
-                        ? "DeltaV_FlightStateFree".Translate()
-                        : "DeltaV_FlightStateDocked".Translate()));
-                statusLines.Add("DeltaV_HudControl".Translate(controlLabel));
-                statusLines.Add("DeltaV_HudSpeed".Translate(shipPose.velocity.magnitude.ToString("F1")));
-                statusLines.Add("DeltaV_HudHeading".Translate(
-                    (shipPose.angle * Mathf.Rad2Deg).ToString("F0")));
-                statusLines.Add("DeltaV_HudTurnRate".Translate(
-                    (shipPose.angularVelocity * Mathf.Rad2Deg).ToString("F1")));
-                statusLines.Add("DeltaV_HudMass".Translate(report == null ? "?" : ((int)report.mass).ToString()));
-                bool brakeHeld = DeltaVDefOf.DeltaV_AssistBrake != null && DeltaVDefOf.DeltaV_AssistBrake.IsDown;
-                statusLines.Add("DeltaV_HudAssist".Translate(
-                    brakeHeld
-                        ? "DeltaV_Braking".Translate()
-                        : (DeltaVMod.CurrentSettings.flightAssist
-                            ? "DeltaV_On".Translate()
-                            : "DeltaV_Off".Translate())));
+                titleTip += "\n" + flightState + " · " + detailedControl
+                    + "\n" + "DeltaV_HudMass".Translate(report == null ? "?" : ((int)report.mass).ToString());
             }
             else if (hasStructure)
             {
@@ -194,11 +198,9 @@ namespace DeltaV
             }
             if (!hasShip)
             {
-                statusLines.Add("DeltaV_HudSpeed".Translate(shipPose.velocity.magnitude.ToString("F1")));
-                statusLines.Add("DeltaV_HudHeading".Translate(
-                    (shipPose.angle * Mathf.Rad2Deg).ToString("F0")));
-                statusLines.Add("DeltaV_HudTurnRate".Translate(
-                    (shipPose.angularVelocity * Mathf.Rad2Deg).ToString("F1")));
+                statusLines.Add($"{"DeltaV_HudSpeed".Translate(shipPose.velocity.magnitude.ToString("F1"))} · "
+                    + $"{"DeltaV_HudHeading".Translate((shipPose.angle * Mathf.Rad2Deg).ToString("F0"))} · "
+                    + "DeltaV_HudTurnRate".Translate((shipPose.angularVelocity * Mathf.Rad2Deg).ToString("F1")));
             }
             if (dockingPlan)
             {
@@ -210,18 +212,21 @@ namespace DeltaV
             Text.Font = GameFont.Small;
             // 留出滚动条宽度；有无滚动时文字换行和武器组位置保持一致。
             float contentWidth = PanelWidth - 36f;
-            float titleHeight = Mathf.Max(24f, Text.CalcHeight(title, contentWidth));
+            const float titleHeight = 27f;
+            const float statRowHeight = 36f;
+            int statRows = (compactStats.Count + 2) / 3;
+            float statsHeight = statRows > 0 ? statRows * statRowHeight + 7f : 0f;
             Text.Font = GameFont.Tiny;
             float linesHeight = 0f;
             foreach (string line in statusLines)
             {
                 linesHeight += Mathf.Max(20f, Text.CalcHeight(line, contentWidth));
             }
-            float shipListHeight = structures.Count > 1 ? structures.Count * ShipRowHeight + 4f : 0f;
+            const float shipListHeight = 0f;
 
             // 内容高度：星球仪 + 范围/导航控件 + 标题/状态行 + 船列表
             // + 当前模式的按钮行数（已停靠的船只有驾驶按钮——首次出力即分离）
-            // + 战斗区块：火控、战斗机动、武器组和战斗位置。
+            // + 战斗区块：武装、火控、战斗机动、武器组和 shuttle 侵入。
             bool shipHasWeapons = hasShip && selected.Weapons.Any();
             bool combatBlock = hasShip && playerControlled && zeroGravity;
             var combatActionsBefore = new List<PilotPanelAction>();
@@ -242,24 +247,31 @@ namespace DeltaV
             float combatHeight = 0f;
             if (combatBlock)
             {
-                combatHeight = 29f;
-                if (combatExpanded)
+                // Common combat controls stay visible. Only strategy editing and temporary
+                // engagement orders live in the bottom advanced foldout.
+                combatBodyHeight = combatActionsBefore.Count * 33f;
+                if (shipHasWeapons)
                 {
-                    combatBodyHeight = combatActionsBefore.Count * 33f;
-                    if (shipHasWeapons)
-                        combatBodyHeight += 26f * 2f + 4f;
-                    combatBodyHeight += combatActionsAfter.Count * 33f;
-                    combatHeight += Mathf.Min(combatBodyHeight, MaxCombatHeight);
+                    combatBodyHeight += universe.Controls.WeaponsArmed(selected) ? 33f * 2f : 33f;
+                    combatBodyHeight += 26f * 2f + 4f;
                 }
+                if (combatActionsAfter.Count > 0)
+                    combatBodyHeight += 29f + (advancedCombatExpanded ? combatActionsAfter.Count * 33f : 0f);
+                combatHeight = 29f + combatBodyHeight;
             }
-            float modeButtonsHeight = panelActions.Count * 33f
+            bool hasAdvancedFlight = showRefocus || headingActions.Count > 0;
+            float advancedFlightBodyHeight = (showRefocus ? 33f : 0f)
                 + (headingActions.Count > 0 ? 20f + 26f * 3f + 6f : 0f);
+            int panelRows = panelActions.Count == 0 ? 0 : 1 + Mathf.Max(0, panelActions.Count - 2);
+            float modeButtonsHeight = panelRows * 33f
+                + (hasAdvancedFlight ? 29f + (advancedFlightExpanded ? advancedFlightBodyHeight : 0f) : 0f);
             modeButtonsHeight += combatHeight;
-            float contentHeight = 8f + titleHeight + 4f + linesHeight + 8f + shipListHeight
-                + modeButtonsHeight + (showRefocus ? 33f : 0f) + 8f;
-            const float sliderRowHeight = GlobeNavigationPanel.Height;
-            float globeHeight = Mathf.Min(GlobeSize, Mathf.Max(64f, UI.screenHeight - GlobeNavigationPanel.Height - 184f));
-            float headerHeight = globeHeight + 8f + sliderRowHeight;
+            float contentHeight = 8f + titleHeight + 4f + statsHeight + linesHeight + 8f + shipListHeight
+                + modeButtonsHeight + 16f;
+            const float sliderRowHeight = GlobeNavigationPanel.CompactHeight;
+            float globeHeight = Mathf.Min(GlobeSize, Mathf.Max(120f,
+                UI.screenHeight - GlobeNavigationPanel.CompactHeight - 184f));
+            float headerHeight = globeHeight + sliderRowHeight;
             float maxPanelHeight = Mathf.Max(headerHeight + 80f,
                 Mathf.Min(MaxPanelHeight, UI.screenHeight - 80f));
             float visibleContentHeight = Mathf.Min(contentHeight, maxPanelHeight - headerHeight);
@@ -269,24 +281,93 @@ namespace DeltaV
             var panelRect = new Rect(8f, y, PanelWidth, outerHeight);
             inputRect = panelRect;
             inputMap = map;
-            Widgets.DrawMenuSection(panelRect);
+            DeltaVPanelStyle.DrawPanel(panelRect);
             var inner = panelRect.ContractedBy(8f);
 
             var globeRect = new Rect(inner.x, inner.y, inner.width, globeHeight);
             PlanetGlobeRenderer.Draw(globeRect, universe, frame);
-            GlobeNavigationPanel.Draw(new Rect(inner.x, inner.y + globeHeight + 8f,
-                inner.width, GlobeNavigationPanel.Height), globeRect, universe, frame, false);
+            GlobeNavigationPanel.Draw(new Rect(inner.x, inner.y + globeHeight,
+                inner.width, GlobeNavigationPanel.CompactHeight), globeRect, universe, frame, false);
 
             // 文本与按钮区（相对坐标）。
             var contentRect = new Rect(inner.x, inner.y + headerHeight, inner.width, visibleContentHeight);
             Widgets.BeginScrollView(contentRect, ref contentScroll,
                 new Rect(0f, 0f, contentWidth, contentHeight));
-            float lineY = 0f;
+            float lineY = 8f;
             float drawWidth = contentWidth;
 
+            float badgeWidth = 0f;
+            DeltaVPanelStyle.DrawSurface(new Rect(0f, lineY, drawWidth, titleHeight), raised: true);
+            if (!compactState.NullOrEmpty())
+            {
+                Text.Font = GameFont.Tiny;
+                badgeWidth = Mathf.Min(drawWidth * .48f, Text.CalcSize(compactState).x + 12f);
+                var badgeRect = new Rect(drawWidth - badgeWidth, lineY, badgeWidth, titleHeight);
+                Text.Anchor = TextAnchor.MiddleRight;
+                GUI.color = DeltaVPanelStyle.Muted;
+                Widgets.Label(badgeRect.ContractedBy(4f),
+                    PlanetGlobeRenderer.ShortText(compactState, badgeRect.width - 8f));
+                GUI.color = Color.white;
+                Text.Anchor = TextAnchor.UpperLeft;
+                TooltipHandler.TipRegion(badgeRect, titleTip);
+            }
+            float titleWidth = drawWidth - (badgeWidth > 0f ? badgeWidth + 8f : 0f);
             Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(0f, lineY, drawWidth, titleHeight), title);
+            float desiredTitleWidth = Text.CalcSize(title + (structures.Count > 1 ? "  ▾" : "")).x + 20f;
+            float compactTitleWidth = Mathf.Min(titleWidth, Mathf.Max(88f,
+                Mathf.Min(drawWidth * .52f, desiredTitleWidth)));
+            var titleRect = new Rect(0f, lineY, compactTitleWidth, titleHeight);
+            if (structures.Count > 1)
+            {
+                if (DeltaVPanelStyle.Button(titleRect, title + "  ▾", DeltaVButtonTone.Quiet,
+                    font: GameFont.Small))
+                {
+                    var options = new List<FloatMenuOption>();
+                    foreach (DriveSubject identity in structures)
+                    {
+                        DriveSubject choice = identity;
+                        ShipBase ship = ShipRegistry.ShipByIdentity(identity);
+                        bool validShip = ship.IsValid && ship.Map == map;
+                        string stateLabel = !validShip ? "DeltaV_StructureNoConsole".Translate()
+                            : ship.State == ShipDerivedState.FreeFlight
+                            ? "DeltaV_FlightStateFree".Translate()
+                            : "DeltaV_FlightStateDocked".Translate();
+                        options.Add(new FloatMenuOption($"{StructureLabel(universe, map, identity)} · {stateLabel}",
+                            () => SelectStructure(map, choice)));
+                    }
+                    Find.WindowStack.Add(new FloatMenu(options));
+                }
+            }
+            else
+            {
+                Text.Anchor = TextAnchor.MiddleLeft;
+                Widgets.Label(titleRect, title);
+                Text.Anchor = TextAnchor.UpperLeft;
+            }
+            TooltipHandler.TipRegion(titleRect, titleTip);
             lineY += titleHeight + 4f;
+
+            if (compactStats.Count > 0)
+            {
+                DeltaVPanelStyle.DrawSurface(new Rect(0f, lineY - 1f, drawWidth,
+                    statRows * statRowHeight + 2f));
+                float statWidth = (drawWidth - 8f) / 3f;
+                for (int i = 0; i < compactStats.Count; i++)
+                {
+                    int row = i / 3, column = i % 3;
+                    float statX = column * (statWidth + 4f);
+                    float statY = lineY + row * statRowHeight;
+                    Text.Font = GameFont.Tiny;
+                    GUI.color = DeltaVPanelStyle.Muted;
+                    Widgets.Label(new Rect(statX, statY, statWidth, 15f), compactStats[i].Key);
+                    GUI.color = Color.white;
+                    Text.Font = GameFont.Small;
+                    Widgets.Label(new Rect(statX, statY + 14f, statWidth, 20f), compactStats[i].Value);
+                }
+                lineY += statRows * statRowHeight;
+                Widgets.DrawLineHorizontal(0f, lineY + 1f, drawWidth);
+                lineY += 7f;
+            }
             Text.Font = GameFont.Tiny;
             foreach (string line in statusLines)
             {
@@ -296,66 +377,57 @@ namespace DeltaV
             }
             lineY += 8f;
 
-            if (showRefocus)
-            {
-                if (Widgets.ButtonText(new Rect(0f, lineY, drawWidth, 27f),
-                    "DeltaV_PanelRefocus".Translate()))
-                {
-                    var cell = new IntVec3(Mathf.FloorToInt(focusPoint.x), 0,
-                        Mathf.FloorToInt(focusPoint.y)).ClampInsideMap(map);
-                    CameraJumper.TryJump(cell, map, CameraJumper.MovementMode.Cut);
-                }
-                lineY += 33f;
-            }
-
-            // ---- 结构列表：查看选择不要求结构具有驾驶能力 ----
-            if (structures.Count > 1)
-            {
-                foreach (DriveSubject identity in structures)
-                {
-                    ShipBase ship = ShipRegistry.ShipByIdentity(identity);
-                    bool validShip = ship.IsValid && ship.Map == map;
-                    string label = StructureLabel(universe, map, identity);
-                    string stateLabel = !validShip ? "DeltaV_StructureNoConsole".Translate()
-                        : ship.State == ShipDerivedState.FreeFlight
-                        ? "DeltaV_FlightStateFree".Translate()
-                        : "DeltaV_FlightStateDocked".Translate();
-                    string rowLabel = $"{label} · {stateLabel}";
-                    var rowRect = new Rect(0f, lineY, drawWidth, ShipRowHeight);
-                    bool isSelected = hasStructure && identity == selectedStructure;
-                    if (isSelected)
-                    {
-                        Widgets.DrawHighlight(rowRect);
-                    }
-                    if (Widgets.ButtonInvisible(rowRect, false))
-                    {
-                        SelectStructure(map, identity);
-                    }
-                    Text.Font = GameFont.Tiny;
-                    GUI.color = isSelected ? Color.white : new Color(1f, 1f, 1f, 0.75f);
-                    Text.Anchor = TextAnchor.MiddleLeft;
-                    Widgets.Label(rowRect.ContractedBy(4f), rowLabel);
-                    Text.Anchor = TextAnchor.UpperLeft;
-                    GUI.color = Color.white;
-                    TooltipHandler.TipRegion(rowRect,
-                        "DeltaV_PanelShipRowTip".Translate(label));
-                    lineY += ShipRowHeight;
-                }
-                lineY += 4f;
-            }
-
             // 模式按钮全部收进面板（不再分开放）。已停靠的船同样提供驾驶（2026-09-24
             // 统一分离定案）：首次推进器出力即触发分离，「脱离停靠」不再是独立按钮。
-            foreach (PilotPanelAction action in panelActions)
+            if (panelActions.Count > 0)
             {
-                var actionRect = new Rect(0f, lineY, drawWidth, 27f);
-                if (Widgets.ButtonText(actionRect, action.Label)) action.Execute();
-                if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
+                int paired = Mathf.Min(2, panelActions.Count);
+                float buttonWidth = paired == 1 ? drawWidth : (drawWidth - 4f) * .5f;
+                for (int i = 0; i < paired; i++)
+                {
+                    PilotPanelAction action = panelActions[i];
+                    var actionRect = new Rect(i * (buttonWidth + 4f), lineY, buttonWidth, 27f);
+                    if (DeltaVPanelStyle.Button(actionRect, action.Label,
+                        i == 0 ? DeltaVButtonTone.Primary : DeltaVButtonTone.Neutral,
+                        font: GameFont.Small)) action.Execute();
+                    if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
+                }
                 lineY += 33f;
+                // EVA is a common flight operation and stays directly accessible. Only camera
+                // refocus and the large heading compass are folded below it.
+                for (int i = 2; i < panelActions.Count; i++)
+                {
+                    PilotPanelAction action = panelActions[i];
+                    var actionRect = new Rect(0f, lineY, drawWidth, 27f);
+                    if (DeltaVPanelStyle.Button(actionRect, action.Label, font: GameFont.Small))
+                        action.Execute();
+                    if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
+                    lineY += 33f;
+                }
             }
-            if (hasShip)
+            if (hasAdvancedFlight)
             {
-                if (headingActions.Count > 0)
+                var advancedFlightHeader = new Rect(0f, lineY + 2f, drawWidth, 25f);
+                if (DeltaVPanelStyle.Button(advancedFlightHeader,
+                    (advancedFlightExpanded ? "▼ " : "▶ ")
+                        + "DeltaV_PanelAdvancedFlightOptions".Translate(), DeltaVButtonTone.Quiet))
+                    advancedFlightExpanded = !advancedFlightExpanded;
+                lineY += 29f;
+            }
+            if (hasAdvancedFlight && advancedFlightExpanded)
+            {
+                if (showRefocus)
+                {
+                    if (DeltaVPanelStyle.Button(new Rect(0f, lineY, drawWidth, 27f),
+                        "DeltaV_PanelRefocus".Translate()))
+                    {
+                        var cell = new IntVec3(Mathf.FloorToInt(focusPoint.x), 0,
+                            Mathf.FloorToInt(focusPoint.y)).ClampInsideMap(map);
+                        CameraJumper.TryJump(cell, map, CameraJumper.MovementMode.Cut);
+                    }
+                    lineY += 33f;
+                }
+                if (hasShip && headingActions.Count > 0)
                 {
                     // 自由飞行专属：驾驶台朝向罗盘（十字排布四向，一次点击指定主台屏上
                     // 朝向）——整图搬入与当前位置重合的新口袋图并旋转建筑，容器角反调
@@ -370,14 +442,9 @@ namespace DeltaV
                     Rot4 currentFacing = selected.Anchor.Rotation;
                     void DirButton(Rot4 facing, Rect rect)
                     {
-                        if (facing == currentFacing)
-                        {
-                            Widgets.DrawHighlight(rect);
-                        }
-                        if (Widgets.ButtonText(rect, CompassLabel(facing)))
-                        {
+                        if (DeltaVPanelStyle.Button(rect, CompassLabel(facing),
+                            selected: facing == currentFacing))
                             headingActions.Find(action => action.Facing == facing).Execute?.Invoke();
-                        }
                     }
                     DirButton(Rot4.North, new Rect(centerX, lineY, dirBtnW, dirBtnH));
                     DirButton(Rot4.West, new Rect(4f, lineY + dirBtnH, dirBtnW, dirBtnH));
@@ -389,83 +456,132 @@ namespace DeltaV
                 }
             }
 
-            // ---- 战斗区块：火控与机动分别控制，炮手岗位独立 ----
+            // ---- 战斗区块：常用控制常驻，策略与临时命令收进底部高级选项 ----
             if (combatBlock)
             {
-                var combatHeader = new Rect(0f, lineY + 2f, drawWidth, 25f);
-                if (Widgets.ButtonText(combatHeader,
-                    (combatExpanded ? "▼ " : "▶ ") + "DeltaV_PanelCombatOptions".Translate()))
-                    combatExpanded = !combatExpanded;
-                lineY += 29f;
-                if (combatExpanded)
+                Widgets.DrawLineHorizontal(0f, lineY + 1f, drawWidth);
+                DeltaVPanelStyle.DrawSurface(new Rect(0f, lineY + 3f, drawWidth, 24f));
+                var combatTitle = new Rect(2f, lineY + 4f, drawWidth * .5f, 22f);
+                Text.Font = GameFont.Small;
+                Text.Anchor = TextAnchor.MiddleLeft;
+                Widgets.Label(combatTitle, "DeltaV_PanelCombat".Translate());
+                if (shipHasWeapons)
                 {
-                    float combatOuterY = lineY;
-                    float combatVisibleHeight = Mathf.Min(combatBodyHeight, MaxCombatHeight);
-                    Widgets.BeginScrollView(new Rect(0f, lineY, drawWidth, combatVisibleHeight),
-                        ref combatScroll, new Rect(0f, 0f, drawWidth - 16f, combatBodyHeight));
-                    lineY = 0f;
-                    foreach (PilotPanelAction action in combatActionsBefore)
+                    bool weaponsArmed = universe.Controls.WeaponsArmed(selected);
+                    string armedState = weaponsArmed
+                        ? "DeltaV_PanelWeaponsArmedState".Translate()
+                        : "DeltaV_PanelWeaponsDisarmedState".Translate();
+                    var stateRect = new Rect(drawWidth * .5f, lineY + 4f, drawWidth * .5f - 2f, 22f);
+                    Text.Font = GameFont.Tiny;
+                    Text.Anchor = TextAnchor.MiddleRight;
+                    GUI.color = weaponsArmed ? DeltaVPanelStyle.AccentBorder : DeltaVPanelStyle.Muted;
+                    Widgets.Label(stateRect, armedState);
+                    GUI.color = Color.white;
+                }
+                Text.Anchor = TextAnchor.UpperLeft;
+                lineY += 29f;
+                if (shipHasWeapons)
+                {
+                    bool armed = universe.Controls.WeaponsArmed(selected);
+                    if (!armed)
                     {
-                        var actionRect = new Rect(0f, lineY, drawWidth - 16f, 27f);
-                        if (Widgets.ButtonText(actionRect, action.Label)) action.Execute();
-                        if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
+                        var armRect = new Rect(0f, lineY, drawWidth, 27f);
+                        if (DeltaVPanelStyle.Button(armRect, "DeltaV_PanelWeaponsArm".Translate(),
+                            DeltaVButtonTone.Primary, font: GameFont.Small))
+                            universe.Controls.ArmWeapons(selected);
+                        TooltipHandler.TipRegion(armRect, "DeltaV_PanelWeaponsArmTip".Translate());
                         lineY += 33f;
                     }
-                    if (shipHasWeapons)
+                    else
                     {
-                        // 两排武器组方块（主/副各一排 1–6；点击切换激活——激活位存主驾驶台）。
-                        ShipCombatState consoleComp = selected.Combat;
-                        void GroupRow(SpaceWeaponSalvoSet set, string rowLabel)
+                        float half = (drawWidth - 4f) * .5f;
+                        var reassignRect = new Rect(0f, lineY, half, 27f);
+                        bool canReassign = selected.HasGunnerStations;
+                        if (DeltaVPanelStyle.Button(reassignRect, "DeltaV_PanelGunnersReassign".Translate(),
+                            enabled: canReassign, font: GameFont.Small))
+                            universe.Controls.ReassignGunners(selected);
+                        TooltipHandler.TipRegion(reassignRect, "DeltaV_PanelGunnersReassignTip".Translate());
+                        var disarmRect = new Rect(half + 4f, lineY, half, 27f);
+                        if (DeltaVPanelStyle.Button(disarmRect, "DeltaV_PanelWeaponsDisarm".Translate(),
+                            DeltaVButtonTone.Danger, font: GameFont.Small))
+                            universe.Controls.DisarmWeapons(selected);
+                        TooltipHandler.TipRegion(disarmRect, "DeltaV_PanelWeaponsDisarmTip".Translate());
+                        lineY += 33f;
+
+                        ShipFireControlMode currentMode = universe.Controls.FireControlModeFor(selected);
+                        ShipFireControlMode[] modes = { ShipFireControlMode.Automatic,
+                            ShipFireControlMode.Manual, ShipFireControlMode.Disabled };
+                        float modeWidth = (drawWidth - 8f) / 3f;
+                        for (int i = 0; i < modes.Length; i++)
                         {
-                            var labelRect = new Rect(0f, lineY, 24f, 26f);
-                            Text.Font = GameFont.Tiny;
-                            GUI.color = new Color(1f, 1f, 1f, 0.7f);
-                            Text.Anchor = TextAnchor.MiddleCenter;
-                            Widgets.Label(labelRect, rowLabel);
-                            Text.Anchor = TextAnchor.UpperLeft;
-                            GUI.color = Color.white;
-                            int mask = consoleComp.WeaponGroupMask(set);
-                            const float square = 27f;
-                            for (int group = 1; group <= 6; group++)
-                            {
-                                var rect = new Rect(26f + (group - 1) * square, lineY, square - 2f, 26f);
-                                bool active = (mask & (1 << (group - 1))) != 0;
-                                if (active)
-                                {
-                                    Widgets.DrawHighlight(rect);
-                                }
-                                else
-                                {
-                                    Widgets.DrawBoxSolid(rect, new Color(1f, 1f, 1f, 0.08f));
-                                }
-                                Text.Font = GameFont.Tiny;
-                                Text.Anchor = TextAnchor.MiddleCenter;
-                                GUI.color = active ? Color.white : new Color(1f, 1f, 1f, 0.55f);
-                                Widgets.Label(rect, group.ToString());
-                                Text.Anchor = TextAnchor.UpperLeft;
-                                GUI.color = Color.white;
-                                if (Widgets.ButtonInvisible(rect, false))
-                                {
-                                    consoleComp.SetWeaponGroupMask(set, active ? mask & ~(1 << (group - 1)) : mask | (1 << (group - 1)));
-                                }
-                                TooltipHandler.TipRegion(rect, "DeltaV_PanelWeaponGroupTip".Translate(
-                                    ("DeltaV_WeaponSet" + set).Translate(), group.ToString()));
-                            }
-                            lineY += 26f + 2f;
+                            ShipFireControlMode mode = modes[i];
+                            var modeRect = new Rect(i * (modeWidth + 4f), lineY, modeWidth, 27f);
+                            bool supported = selected.SupportsFireControlMode(mode);
+                            if (DeltaVPanelStyle.Button(modeRect, ("DeltaV_FireControl" + mode).Translate(),
+                                selected: mode == currentMode, enabled: supported, font: GameFont.Small))
+                                universe.Controls.SetFireControlMode(selected, mode);
+                            TooltipHandler.TipRegion(modeRect, "DeltaV_PanelFireControlTip".Translate());
                         }
-                        GroupRow(SpaceWeaponSalvoSet.Main, "DeltaV_WeaponSetMain".Translate());
-                        GroupRow(SpaceWeaponSalvoSet.Secondary, "DeltaV_WeaponSetSecondary".Translate());
-                        lineY += 2f;
-                    }
-                    foreach (PilotPanelAction action in combatActionsAfter)
-                    {
-                        var actionRect = new Rect(0f, lineY, drawWidth - 16f, 27f);
-                        if (Widgets.ButtonText(actionRect, action.Label)) action.Execute();
-                        if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
                         lineY += 33f;
                     }
-                    Widgets.EndScrollView();
-                    lineY = combatOuterY + combatVisibleHeight;
+                }
+                if (shipHasWeapons)
+                {
+                    // 两排武器组方块（主/副各一排 1–6；点击切换激活——激活位存主驾驶台）。
+                    ShipCombatState consoleComp = selected.Combat;
+                    void GroupRow(SpaceWeaponSalvoSet set, string rowLabel)
+                    {
+                        var labelRect = new Rect(0f, lineY, 24f, 26f);
+                        Text.Font = GameFont.Tiny;
+                        GUI.color = new Color(1f, 1f, 1f, 0.7f);
+                        Text.Anchor = TextAnchor.MiddleCenter;
+                        Widgets.Label(labelRect, rowLabel);
+                        Text.Anchor = TextAnchor.UpperLeft;
+                        GUI.color = Color.white;
+                        int mask = consoleComp.WeaponGroupMask(set);
+                        float square = (drawWidth - 26f) / 6f;
+                        for (int group = 1; group <= 6; group++)
+                        {
+                            var rect = new Rect(26f + (group - 1) * square, lineY, square - 2f, 26f);
+                            bool active = (mask & (1 << (group - 1))) != 0;
+                            if (DeltaVPanelStyle.Button(rect, group.ToString(), selected: active))
+                                consoleComp.SetWeaponGroupMask(set,
+                                    active ? mask & ~(1 << (group - 1)) : mask | (1 << (group - 1)));
+                            TooltipHandler.TipRegion(rect, "DeltaV_PanelWeaponGroupTip".Translate(
+                                ("DeltaV_WeaponSet" + set).Translate(), group.ToString()));
+                        }
+                        lineY += 28f;
+                    }
+                    GroupRow(SpaceWeaponSalvoSet.Main, "DeltaV_WeaponSetMain".Translate());
+                    GroupRow(SpaceWeaponSalvoSet.Secondary, "DeltaV_WeaponSetSecondary".Translate());
+                    lineY += 2f;
+                }
+                foreach (PilotPanelAction action in combatActionsBefore)
+                {
+                    var actionRect = new Rect(0f, lineY, drawWidth, 27f);
+                    if (DeltaVPanelStyle.Button(actionRect, action.Label, font: GameFont.Small)) action.Execute();
+                    if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
+                    lineY += 33f;
+                }
+                if (combatActionsAfter.Count > 0)
+                {
+                    var advancedHeader = new Rect(0f, lineY + 2f, drawWidth, 25f);
+                    if (DeltaVPanelStyle.Button(advancedHeader,
+                        (advancedCombatExpanded ? "▼ " : "▶ ")
+                            + "DeltaV_PanelAdvancedCombatOptions".Translate(), DeltaVButtonTone.Quiet))
+                        advancedCombatExpanded = !advancedCombatExpanded;
+                    lineY += 29f;
+                    if (advancedCombatExpanded)
+                    {
+                        foreach (PilotPanelAction action in combatActionsAfter)
+                        {
+                            var actionRect = new Rect(0f, lineY, drawWidth, 27f);
+                            if (DeltaVPanelStyle.Button(actionRect, action.Label, font: GameFont.Small))
+                                action.Execute();
+                            if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
+                            lineY += 33f;
+                        }
+                    }
                 }
             }
 

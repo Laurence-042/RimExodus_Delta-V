@@ -148,18 +148,13 @@ internal readonly struct HeadingPanelAction
             List<PilotPanelAction> beforeGroups, List<PilotPanelAction> afterGroups)
         {
             if (ship?.CombatAI?.CanEdit == true)
-                beforeGroups.Add(new PilotPanelAction("DeltaV_CombatAIEdit".Translate(),
+                afterGroups.Add(new PilotPanelAction("DeltaV_CombatAIEdit".Translate(),
                     () => Find.WindowStack.Add(new Dialog_CombatStrategy(ship.CombatAI)),
                     "DeltaV_CombatAIEditTip".Translate()));
             if (ship?.IsValid != true || !universe.Pilot.CanPlayerControl(ship)
                 || !HasAuthority(PilotTarget.Of(ship))) return;
-            beforeGroups.Add(new PilotPanelAction("DeltaV_CombatOrders".Translate(),
+            afterGroups.Add(new PilotPanelAction("DeltaV_CombatOrders".Translate(),
                 () => Find.WindowStack.Add(new Dialog_CombatOrders(ship, universe)), "DeltaV_CombatOrdersHelp".Translate()));
-            beforeGroups.Add(new PilotPanelAction(
-                "DeltaV_PanelFireControl".Translate(
-                    ("DeltaV_FireControl" + universe.Controls.FireControlModeFor(ship)).Translate()),
-                () => universe.Controls.ToggleFireControl(ship),
-                "DeltaV_PanelFireControlTip".Translate()));
         }
         internal virtual void CollectHeadingPanelActions(ShipBase ship,
             List<HeadingPanelAction> actions) { }
@@ -173,6 +168,7 @@ internal readonly struct HeadingPanelAction
             if (!ship.IsValid || universe.FrameOf(ship.Map) is not SpaceObject container
                 || container.HasTag(SpaceObjectTag.Ship) != true
                 || !HasAuthority(PilotTarget.Of(ship))) return;
+            if (ship.Combat?.weaponsArmed != true) return;
             if (ship.EffectiveFireControlMode == ShipFireControlMode.Disabled) return;
             if (!wantsVolley && !universe.Weapons.HasPointDefenseWeapons(ship.Map,
                 true, hasScatterTargets)) return;
@@ -289,7 +285,6 @@ internal readonly struct HeadingPanelAction
     public sealed partial class PlayerShipController : ShipController
     {
         private SpaceAimController aim;
-        private bool battleStations;
 
         internal PlayerShipController(UniverseManager universe, DriveSubject ownerId) : base(universe, ownerId)
         {
@@ -298,26 +293,6 @@ internal readonly struct HeadingPanelAction
         internal override void CollectPanelActions(PilotTarget panelTarget, List<PilotPanelAction> actions)
         {
             base.CollectPanelActions(panelTarget, actions);
-            if (!panelTarget.IsValid || !panelTarget.Vessel.CanBoard
-                || !HasAuthority(panelTarget)) return;
-            SpaceObject frame = universe.FrameOf(panelTarget.Map);
-            if (frame == null) return;
-            if (frame.projectileRoleOverride)
-            {
-                actions.Add(new PilotPanelAction("DeltaV_ShuttleBoardCancel".Translate(),
-                    () => universe.Shuttles.BreakIntrusion(frame, dropTarget: true),
-                    "DeltaV_ShuttleBoardCancelTip".Translate()));
-                return;
-            }
-            actions.Add(new PilotPanelAction(
-                "DeltaV_PanelBoardArm".Translate() + ": "
-                    + (universe.Shuttles.IntrusionArmed(frame) ? "DeltaV_On" : "DeltaV_Off").Translate(),
-                () => universe.Shuttles.ToggleIntrusionArmed(frame),
-                "DeltaV_PanelBoardArmTip".Translate()));
-            if (universe.Shuttles.IntrusionArmed(frame))
-                actions.Add(new PilotPanelAction("DeltaV_ShuttleBoardGizmo".Translate(),
-                    () => universe.Shuttles.BeginBoardTargeting(panelTarget),
-                    "DeltaV_ShuttleBoardGizmoTip".Translate()));
         }
 
         internal override void CollectCombatPanelActions(ShipBase ship, bool hasWeapons,
@@ -325,14 +300,26 @@ internal readonly struct HeadingPanelAction
         {
             base.CollectCombatPanelActions(ship, hasWeapons, beforeGroups, afterGroups);
             if (!ship.IsValid || !HasAuthority(PilotTarget.Of(ship))) return;
-            if (!hasWeapons || !ship.HasGunnerStations) return;
-            afterGroups.Add(new PilotPanelAction("DeltaV_PanelBattleStationsOn".Translate(),
-                () => universe.Controls.EnterBattleStations(ship.Map),
-                "DeltaV_PanelBattleStationsOnTip".Translate()));
-            afterGroups.Add(new PilotPanelAction("DeltaV_PanelBattleStationsOff".Translate(
-                    universe.Weapons.BattleStationGunnerCount(ship.Map)),
-                () => universe.Controls.ExitBattleStations(ship.Map),
-                "DeltaV_PanelBattleStationsOffTip".Translate()));
+            if (!ship.CanBoard) return;
+            SpaceObject frame = universe.FrameOf(ship.Map);
+            if (frame == null) return;
+            PilotTarget target = PilotTarget.Of(ship);
+            if (frame.projectileRoleOverride)
+            {
+                beforeGroups.Add(new PilotPanelAction("DeltaV_ShuttleBoardCancel".Translate(),
+                    () => universe.Shuttles.BreakIntrusion(frame, dropTarget: true),
+                    "DeltaV_ShuttleBoardCancelTip".Translate()));
+                return;
+            }
+            beforeGroups.Add(new PilotPanelAction(
+                "DeltaV_PanelBoardArm".Translate() + ": "
+                    + (universe.Shuttles.IntrusionArmed(frame) ? "DeltaV_On" : "DeltaV_Off").Translate(),
+                () => universe.Shuttles.ToggleIntrusionArmed(frame),
+                "DeltaV_PanelBoardArmTip".Translate()));
+            if (universe.Shuttles.IntrusionArmed(frame))
+                beforeGroups.Add(new PilotPanelAction("DeltaV_ShuttleBoardGizmo".Translate(),
+                    () => universe.Shuttles.BeginBoardTargeting(target),
+                    "DeltaV_ShuttleBoardGizmoTip".Translate()));
         }
 
         internal override void CollectHeadingPanelActions(ShipBase ship,
@@ -350,10 +337,10 @@ internal readonly struct HeadingPanelAction
             }
         }
 
-        internal override bool GunnersEnabled => battleStations;
+        internal override bool GunnersEnabled =>
+            ShipRegistry.ShipByIdentity(OwnerId).Combat?.weaponsArmed == true;
         internal override bool WantsVolley => FireControlMode == ShipFireControlMode.Manual
             ? universe.Controls.ManualAimOwner(OwnerId) : FireControl.Target.HasLock;
-        internal void SetBattleStations(bool active) { battleStations = active; }
         internal ShipFireControlMode FireControlMode =>
             ShipRegistry.ShipByIdentity(OwnerId).EffectiveFireControlMode;
         internal override bool UsesAutomaticVolley => FireControlMode == ShipFireControlMode.Automatic;
@@ -449,23 +436,32 @@ internal readonly struct HeadingPanelAction
         {
         }
 
-        // Crew stationing follows ship ownership; tactical readiness only gates firing.
-        internal override bool GunnersEnabled => true;
+        internal override bool GunnersEnabled =>
+            ShipRegistry.ShipByIdentity(OwnerId).Combat?.weaponsArmed == true;
         internal override bool WantsVolley => combatReady && FireControl.Target.HasLock;
         internal override bool UsesAutomaticVolley => true;
         internal override bool SuppressAutomaticSystems => AutoManeuver.Boarding;
 
         internal void SetCombatReady(bool ready)
         {
+            ShipBase ship = ShipRegistry.ShipByIdentity(OwnerId);
+            bool armedChanged = false;
+            if (ship.IsValid && ship.Combat != null && ship.Combat.weaponsArmed != ready)
+            {
+                ship.Combat.weaponsArmed = ready;
+                armedChanged = true;
+                universe.Weapons.SyncStandbyPower(ship);
+                universe.Controls.NotifyGunnerAvailabilityChanged(ship.Map);
+            }
             if (!ready)
             {
                 FireControl.Clear();
-                AutoManeuver.Clear(ShipRegistry.ShipByIdentity(OwnerId));
+                AutoManeuver.Clear(ship);
             }
             if (combatReady == ready) return;
             combatReady = ready;
-            if (ready) universe.Controls.NotifyGunnerAvailabilityChanged(
-                ShipRegistry.ShipByIdentity(OwnerId).Map);
+            if (ready && ship.IsValid && !armedChanged)
+                universe.Controls.NotifyGunnerAvailabilityChanged(ship.Map);
         }
 
         protected override bool TryGetVolleyIntent(ShipBase ship, SpaceObject container,

@@ -85,9 +85,12 @@ internal static partial class Program
                     "reverse whole-map capture keeps initiating ship orientation for all four grid angles");
             }
         }
+        singleBuilding.Combat.weaponsArmed = true;
         singleBuilding.Combat.fireControlMode = ShipFireControlMode.Manual;
         singleBuilding.Combat.SetWeaponGroupMask(SpaceWeaponSalvoSet.Main, 4);
-        Check(hull.Vessel.Combat.fireControlMode == ShipFireControlMode.Manual
+        Check(singleBuilding.Combat.weaponsArmed && hull.Vessel.Combat.weaponsArmed
+            && !ordinary.Combat.weaponsArmed
+            && hull.Vessel.Combat.fireControlMode == ShipFireControlMode.Manual
             && hull.Vessel.Combat.WeaponGroupMask(SpaceWeaponSalvoSet.Main) == 4
             && ordinary.Combat.fireControlMode == ShipFireControlMode.Automatic,
             "common fire control and weapon group state is anchored independently on each ship");

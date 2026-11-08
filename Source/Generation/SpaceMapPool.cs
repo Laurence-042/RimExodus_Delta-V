@@ -33,6 +33,15 @@ namespace DeltaV
         private readonly Dictionary<(SpaceObjectTag tag, int x, int z), List<Map>> idle =
             new Dictionary<(SpaceObjectTag, int, int), List<Map>>();
         private int idleCount;
+        private readonly Dictionary<Map, GlobeProjectileVisual> globeVisuals = new Dictionary<Map, GlobeProjectileVisual>();
+
+        internal GlobeProjectileVisual GlobeVisual(SpaceMapLease lease, ThingDef def)
+        {
+            if (!IsCurrent(lease) || lease.idle) return null;
+            if (!globeVisuals.TryGetValue(lease.Map, out var visual) || visual.Def != def)
+                globeVisuals[lease.Map] = visual = new GlobeProjectileVisual(def);
+            return visual;
+        }
 
         public SpaceMapPool(UniverseManager universe) { this.universe = universe; }
 
@@ -172,6 +181,7 @@ namespace DeltaV
 
         public void Forget(Map map)
         {
+            if (map != null) globeVisuals.Remove(map);
             if (map == null || !leases.TryGetValue(map, out SpaceMapLease lease)) return;
             leases.Remove(map);
             if (!lease.idle) return;

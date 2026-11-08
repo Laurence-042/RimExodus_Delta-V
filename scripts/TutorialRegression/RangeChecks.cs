@@ -279,7 +279,9 @@ internal static partial class Program
         Check(platform.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_Weapon_RailgunAccelerator']").Count==9,"railgun has nine real accelerators");
         Check(platform.SelectSingleNode("/MapPrefab/thingStates/li[def='PilotConsole']/state/saveable/combat/fireControlMode").InnerText=="Disabled",
             "platform stores disabled fire control in the native combat record");
-        Check(new ShipCombatState().fireControlMode==ShipFireControlMode.Automatic,"new player ships still default to automatic fire control");
+        Check(!new ShipCombatState().weaponsArmed
+            && new ShipCombatState().fireControlMode==ShipFireControlMode.Automatic,
+            "new player ships default to disarmed with automatic fire control preselected");
         var armour=target.SelectNodes("/MapPrefab/thingStates/li[def='Wall' and stuff='Steel']/pos").Cast<XmlNode>()
             .Select(n=>IntVec3.FromString(n.InnerText)).Where(c=>c.x<6).ToList();
         Check(armour.Count==258 && Enumerable.Range(0,43).All(z=>Enumerable.Range(0,6).All(x=>armour.Contains(new IntVec3(x,0,z)))),

@@ -13,15 +13,13 @@
   <DeltaV_NavNoTarget>Select a marker or place</DeltaV_NavNoTarget>
   <DeltaV_NavNoCourse>No current navigation objective</DeltaV_NavNoCourse>
   <DeltaV_NavCourseName>Mission: {0}</DeltaV_NavCourseName>
+  <DeltaV_NavCourseSelected>Navigation target</DeltaV_NavCourseSelected>
+  <DeltaV_NavDistanceSummary>{0} cells away</DeltaV_NavDistanceSummary>
   <DeltaV_NavUnavailable>Target lost or unavailable</DeltaV_NavUnavailable>
   <DeltaV_NavFit>Fit both</DeltaV_NavFit>
   <DeltaV_NavInspect>Inspect</DeltaV_NavInspect>
   <DeltaV_NavPin>Pin</DeltaV_NavPin>
   <DeltaV_NavUnpin>Unpin</DeltaV_NavUnpin>
-  <DeltaV_NavFilterAll>All</DeltaV_NavFilterAll>
-  <DeltaV_NavFilterMission>Mission</DeltaV_NavFilterMission>
-  <DeltaV_NavFilterStations>Stations</DeltaV_NavFilterStations>
-  <DeltaV_NavFilterBookmarks>Pins</DeltaV_NavFilterBookmarks>
   <DeltaV_NavSearch>Search known places by name or faction. The list is independent of map zoom.</DeltaV_NavSearch>
   <DeltaV_NavNoFaction>No faction</DeltaV_NavNoFaction>
   <DeltaV_NavUnloaded>Not loaded</DeltaV_NavUnloaded>
@@ -32,4 +30,44 @@
   <DeltaV_NavFitLimit>Zoomed out to the whole globe. The target bounds cannot fit completely in this view.</DeltaV_NavFitLimit>
   <DeltaV_NavScaleTip>Scale at the center of the view. Target distances follow the surface of the sphere.</DeltaV_NavScaleTip>
   <DeltaV_NavCourseDesc>Locate the current lesson objective on the sector map without changing the piloting task.</DeltaV_NavCourseDesc>
+  <DeltaV_NavFilters>Sector map filters</DeltaV_NavFilters>
+  <DeltaV_NavFilterDisplay>Map display</DeltaV_NavFilterDisplay>
+  <DeltaV_NavCoordinateGrid>Always show unit latitude/longitude grid</DeltaV_NavCoordinateGrid>
+  <DeltaV_NavFiltersTip>Match any option within a group and every group together. Search and filters apply to both map and list. Class applies to ships; unconfirmed facts remain unknown.</DeltaV_NavFiltersTip>
+  <DeltaV_NavFilterTypes>Object types</DeltaV_NavFilterTypes>
+  <DeltaV_NavTypeShips>Ships</DeltaV_NavTypeShips>
+  <DeltaV_NavTypeFoundationShip>Foundation ships</DeltaV_NavTypeFoundationShip>
+  <DeltaV_NavTypeIntegratedShip>Integrated craft</DeltaV_NavTypeIntegratedShip>
+  <DeltaV_NavTypeStations>Stations</DeltaV_NavTypeStations>
+  <DeltaV_NavTypeOtherStation>Other stations</DeltaV_NavTypeOtherStation>
+  <DeltaV_NavTypeWreck>Wrecks</DeltaV_NavTypeWreck>
+  <DeltaV_NavTypeNatural>Asteroids and natural bodies</DeltaV_NavTypeNatural>
+  <DeltaV_NavTypeProjectile>Projectiles</DeltaV_NavTypeProjectile>
+  <DeltaV_NavTypeScattered>Scattered objects</DeltaV_NavTypeScattered>
+  <DeltaV_NavTypeOther>Other / unknown</DeltaV_NavTypeOther>
+  <DeltaV_NavFilterClasses>Ship class</DeltaV_NavFilterClasses>
+  <DeltaV_NavFilterAllClasses>All ship classes</DeltaV_NavFilterAllClasses>
+  <DeltaV_NavUnclassified>Unclassified</DeltaV_NavUnclassified>
+  <DeltaV_NavFilterArmament>Armament</DeltaV_NavFilterArmament>
+  <DeltaV_NavGlobeArmamentArmed>Armed</DeltaV_NavGlobeArmamentArmed>
+  <DeltaV_NavGlobeArmamentUnarmed>Unarmed</DeltaV_NavGlobeArmamentUnarmed>
+  <DeltaV_NavGlobeArmamentUnknown>Unknown</DeltaV_NavGlobeArmamentUnknown>
+  <DeltaV_NavFilterRelations>Relation to player</DeltaV_NavFilterRelations>
+  <DeltaV_NavGlobeRelationPlayer>Player</DeltaV_NavGlobeRelationPlayer>
+  <DeltaV_NavGlobeRelationAlly>Allied</DeltaV_NavGlobeRelationAlly>
+  <DeltaV_NavGlobeRelationNeutral>Neutral</DeltaV_NavGlobeRelationNeutral>
+  <DeltaV_NavGlobeRelationHostile>Hostile</DeltaV_NavGlobeRelationHostile>
+  <DeltaV_NavGlobeRelationNone>No faction</DeltaV_NavGlobeRelationNone>
+  <DeltaV_NavGlobeRelationUnknown>Unknown</DeltaV_NavGlobeRelationUnknown>
+  <DeltaV_NavFilterMissions>Mission association</DeltaV_NavFilterMissions>
+  <DeltaV_NavGlobeMissionTracked>Tracked mission</DeltaV_NavGlobeMissionTracked>
+  <DeltaV_NavGlobeMissionActive>Other active missions</DeltaV_NavGlobeMissionActive>
+  <DeltaV_NavGlobeMissionNone>No mission association</DeltaV_NavGlobeMissionNone>
+  <DeltaV_NavBookmarksOnly>Bookmarks only</DeltaV_NavBookmarksOnly>
+  <DeltaV_NavKeepTracked>Always show tracked target</DeltaV_NavKeepTracked>
+  <DeltaV_NavFilterDefault>Restore defaults</DeltaV_NavFilterDefault>
+  <DeltaV_NavFilterEverything>Show all</DeltaV_NavFilterEverything>
+  <DeltaV_NavFilterApply>Apply</DeltaV_NavFilterApply>
+  <DeltaV_NavFilterCount>Showing {0} / {1}</DeltaV_NavFilterCount>
+  <DeltaV_NavFilteredTarget>This target is hidden by your filters. Adjust them in the detailed map filter window.</DeltaV_NavFilteredTarget>
 </LanguageData>

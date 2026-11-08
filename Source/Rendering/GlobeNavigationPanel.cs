@@ -10,10 +10,43 @@ namespace DeltaV
     internal static class GlobeNavigationPanel
     {
         internal const float Height = 150f;
+        internal const float CompactHeight = 44f;
+
+        private static void CompactControlRects(Rect mapRect, out Rect range, out Rect expand,
+            out Rect course, out Rect filter)
+        {
+            range = new Rect(mapRect.x + 5f, mapRect.y + 5f,
+                Mathf.Min(94f, mapRect.width * .42f), 24f);
+            expand = new Rect(mapRect.xMax - 89f, mapRect.y + 5f, 84f, 24f);
+            course = new Rect(mapRect.x + 5f, mapRect.yMax - 29f,
+                Mathf.Min(104f, mapRect.width * .48f), 24f);
+            filter = new Rect(mapRect.xMax - 31f, mapRect.yMax - 29f, 26f, 24f);
+        }
+
+        internal static Rect CompactScaleRect(Rect mapRect)
+        {
+            float width = Mathf.Min(104f, mapRect.width * .48f);
+            return new Rect(mapRect.x + 5f, mapRect.yMax - 54f, width, 18f);
+        }
+
+        internal static List<Rect> CompactReservedRects(Rect mapRect)
+        {
+            CompactControlRects(mapRect, out Rect range, out Rect expand, out Rect course, out Rect filter);
+            return new List<Rect>
+            {
+                range.ExpandedBy(3f), expand.ExpandedBy(3f), course.ExpandedBy(3f),
+                filter.ExpandedBy(3f), CompactScaleRect(mapRect).ExpandedBy(3f)
+            };
+        }
 
         internal static void Draw(Rect rect, Rect mapRect, UniverseManager universe, SpaceObject context, bool expanded)
         {
             if (context == null || !OrbitSphere.Valid) return;
+            if (!expanded)
+            {
+                DrawCompact(rect, mapRect, universe, context);
+                return;
+            }
             var state = universe.GlobeNavigation;
             GlobeView view = GlobeView.Create(mapRect, universe, context);
             Text.Font = GameFont.Tiny;
@@ -25,21 +58,7 @@ namespace DeltaV
             string range = view.Whole ? "DeltaV_NavWhole".Translate().ToString()
                 : "DeltaV_NavWidth".Translate(view.Width.ToString("N0")).ToString();
             if (Widgets.ButtonText(new Rect(rect.x + 32f, y, rect.width - 64f, 24f), range))
-            {
-                var options = new List<FloatMenuOption>();
-                foreach (float preset in GlobeNavigation.Presets)
-                {
-                    float width = preset;
-                    options.Add(new FloatMenuOption("DeltaV_NavWidth".Translate(width.ToString("N0")),
-                        () => state.Width = Mathf.Min(width, view.MaximumWidth)));
-                }
-                options.Add(new FloatMenuOption("DeltaV_NavFitShip".Translate(),
-                    () => { state.Recenter(); state.Width = Mathf.Min(Mathf.Max(250f, view.ReferenceSide * 6f), view.MaximumWidth); }));
-                options.Add(new FloatMenuOption("DeltaV_NavFitSector".Translate(),
-                    () => FitSector(universe, context, mapRect)));
-                options.Add(new FloatMenuOption("DeltaV_NavWhole".Translate(), () => state.Width = view.MaximumWidth));
-                Find.WindowStack.Add(new FloatMenu(options));
-            }
+                ShowRangeMenu(mapRect, universe, context, view);
             y += 28f;
             float half = (rect.width - 4f) * .5f;
             if (!expanded && Widgets.ButtonText(new Rect(rect.x, y, half, 24f), "DeltaV_NavExpand".Translate()))
@@ -64,10 +83,10 @@ namespace DeltaV
             float third = (rect.width - 8f) / 3f;
             if (Widgets.ButtonText(new Rect(rect.x, y, third, 24f), "DeltaV_NavFit".Translate(), active: target != null))
                 PlanetGlobeRenderer.FitTarget(universe, context, mapRect, GlobeTarget.Of(target));
-            if (Widgets.ButtonText(new Rect(rect.x + third + 4f, y, third, 24f), "DeltaV_NavInspect".Translate(), active: target != null))
+            if (Widgets.ButtonText(new Rect(rect.x + third + 4f, y, third, 24f), "DeltaV_NavInspect".Translate(), active: target != null && !target.owner.IsTransient))
                 Inspect(universe, GlobeTarget.Of(target));
             if (Widgets.ButtonText(new Rect(rect.x + 2f * (third + 4f), y, third, 24f),
-                (target != null && state.IsBookmarked(target) ? "DeltaV_NavUnpin" : "DeltaV_NavPin").Translate(), active: target != null))
+                (target != null && state.IsBookmarked(target) ? "DeltaV_NavUnpin" : "DeltaV_NavPin").Translate(), active: target != null && !target.owner.IsTransient))
                 state.ToggleBookmark(target);
             y += 28f;
             string course = state.CourseTarget != null ? "DeltaV_NavCourseName".Translate(state.CourseTarget.Label).ToString()
@@ -78,6 +97,90 @@ namespace DeltaV
             if (Widgets.ButtonText(new Rect(rect.xMax - 36f, y, 36f, 20f), "DeltaV_NavClear".Translate()))
                 state.Select(null);
             Text.Font = GameFont.Small;
+        }
+
+        private static void DrawCompact(Rect rect, Rect mapRect, UniverseManager universe, SpaceObject context)
+        {
+            GlobeNavigation state = universe.GlobeNavigation;
+            GlobeView view = GlobeView.Create(mapRect, universe, context);
+            Text.Font = GameFont.Tiny;
+            string range = view.Whole ? "DeltaV_NavWhole".Translate().ToString()
+                : "DeltaV_NavWidth".Translate(view.Width.ToString("N0")).ToString();
+            CompactControlRects(mapRect, out Rect rangeRect, out Rect expandRect,
+                out Rect courseRect, out Rect filterRect);
+            if (DeltaVPanelStyle.Button(rangeRect, range, DeltaVButtonTone.Quiet))
+                ShowRangeMenu(mapRect, universe, context, view);
+            if (DeltaVPanelStyle.Button(expandRect, "DeltaV_NavExpand".Translate(), DeltaVButtonTone.Quiet))
+                Open(universe);
+            if (DeltaVPanelStyle.Button(courseRect, "DeltaV_NavCourse".Translate(),
+                selected: state.CourseTarget != null))
+                universe.Missions.ChooseNavigation();
+            DrawFilterButton(filterRect, universe);
+
+            GlobeDisplayEntry target = state.SelectedEntry ?? state.CourseTarget;
+            string title;
+            string details = null;
+            if (target == null)
+            {
+                title = (state.SelectionLost || state.CourseUnavailable
+                    ? "DeltaV_NavUnavailable" : "DeltaV_NavNoTarget").Translate();
+            }
+            else
+            {
+                details = "DeltaV_NavDistanceSummary".Translate(
+                    OrbitSphere.ArcCells(view.Reference, target.Pose.position).ToString("N0"));
+                if (state.CourseTarget == target)
+                    details += " · " + "DeltaV_NavCourseSelected".Translate();
+                title = target.Label + "\n" + details;
+            }
+            DeltaVPanelStyle.DrawSurface(rect);
+            Widgets.DrawLineHorizontal(rect.x, rect.yMax - 1f, rect.width, DeltaVPanelStyle.Border);
+            Rect textRect = new Rect(rect.x + 4f, rect.y + 2f, rect.width - 42f, rect.height - 4f);
+            Text.Anchor = TextAnchor.MiddleLeft;
+            Widgets.Label(textRect, target == null ? title
+                : PlanetGlobeRenderer.ShortText(target.Label, textRect.width) + "\n"
+                    + PlanetGlobeRenderer.ShortText(details, textRect.width));
+            Text.Anchor = TextAnchor.UpperLeft;
+            TooltipHandler.TipRegion(textRect, title);
+            var menuRect = new Rect(rect.xMax - 32f, rect.y + (rect.height - 28f) * .5f, 30f, 28f);
+            if (DeltaVPanelStyle.Button(menuRect, "•••", DeltaVButtonTone.Quiet) && target != null)
+            {
+                var options = new List<FloatMenuOption>
+                {
+                    new FloatMenuOption("DeltaV_NavFit".Translate(),
+                        () => PlanetGlobeRenderer.FitTarget(universe, context, mapRect, GlobeTarget.Of(target)))
+                };
+                if (!target.owner.IsTransient)
+                {
+                    options.Add(new FloatMenuOption("DeltaV_NavInspect".Translate(),
+                        () => Inspect(universe, GlobeTarget.Of(target))));
+                    options.Add(new FloatMenuOption((state.IsBookmarked(target)
+                            ? "DeltaV_NavUnpin" : "DeltaV_NavPin").Translate(),
+                        () => state.ToggleBookmark(target)));
+                }
+                options.Add(new FloatMenuOption("DeltaV_NavClear".Translate(), () => state.Select(null)));
+                Find.WindowStack.Add(new FloatMenu(options));
+            }
+            Text.Font = GameFont.Small;
+        }
+
+        private static void ShowRangeMenu(Rect mapRect, UniverseManager universe,
+            SpaceObject context, GlobeView view)
+        {
+            GlobeNavigation state = universe.GlobeNavigation;
+            var options = new List<FloatMenuOption>();
+            foreach (float preset in GlobeNavigation.Presets)
+            {
+                float width = preset;
+                options.Add(new FloatMenuOption("DeltaV_NavWidth".Translate(width.ToString("N0")),
+                    () => state.Width = Mathf.Min(width, view.MaximumWidth)));
+            }
+            options.Add(new FloatMenuOption("DeltaV_NavFitShip".Translate(),
+                () => { state.Recenter(); state.Width = Mathf.Min(Mathf.Max(250f, view.ReferenceSide * 6f), view.MaximumWidth); }));
+            options.Add(new FloatMenuOption("DeltaV_NavFitSector".Translate(),
+                () => FitSector(universe, context, mapRect)));
+            options.Add(new FloatMenuOption("DeltaV_NavWhole".Translate(), () => state.Width = view.MaximumWidth));
+            Find.WindowStack.Add(new FloatMenu(options));
         }
 
         internal static void Open(UniverseManager universe, GlobeTarget target = null)
@@ -112,7 +215,7 @@ namespace DeltaV
             var state = universe.GlobeNavigation;
             state.Refresh(universe);
             var entry = state.Resolve(key);
-            if (entry?.owner.InteriorMap == null)
+            if (entry?.owner.InteriorMap == null || entry.owner.IsTransient)
             { Messages.Message("DeltaV_PanelObjectNotLoaded".Translate(), MessageTypeDefOf.RejectInput, false); return; }
             int objectId = entry.owner.objectId, version = entry.owner.RepresentationVersion;
             // Window and panel callbacks use the same safe frame boundary as other view transitions.
@@ -121,7 +224,7 @@ namespace DeltaV
                 state.Refresh(universe);
                 var current = state.Resolve(key);
                 if (current?.owner.objectId != objectId || current.owner.RepresentationVersion != version
-                    || current.owner.InteriorMap == null) return;
+                    || current.owner.InteriorMap == null || current.owner.IsTransient) return;
                 if (Current.Game?.GetComponent<UniverseManager>() != universe) return;
                 Map map = current.owner.InteriorMap;
                 Vector2 point = current.ship != null ? SpaceTransform.ShipLocalToMap(map, current.ship.localCenter)
@@ -135,24 +238,19 @@ namespace DeltaV
         {
             var state = universe.GlobeNavigation;
             Text.Font = GameFont.Tiny;
-            float button = (rect.width - 9f) / 4f;
-            for (int i = 0; i < 4; i++)
-            {
-                var filter = (GlobeFilter)i;
-                Rect tab = new Rect(rect.x + i * (button + 3f), rect.y, button, 26f);
-                if (Widgets.ButtonText(tab, ("DeltaV_NavFilter" + filter).Translate()))
-                { state.Filter = filter; state.ListScroll = Vector2.zero; }
-                if (state.Filter == filter) Widgets.DrawBox(tab, 2);
-            }
-            Rect search = new Rect(rect.x, rect.y + 32f, rect.width, 26f);
+            Rect filterButton = new Rect(rect.x, rect.y, 28f, 26f);
+            DrawFilterButton(filterButton, universe);
+            Rect search = new Rect(rect.x + 34f, rect.y, rect.width - 34f, 26f);
             string previousSearch = state.Search;
             state.Search = Widgets.TextField(search, state.Search);
             if (previousSearch != state.Search) state.ListScroll = Vector2.zero;
             TooltipHandler.TipRegion(search, "DeltaV_NavSearch".Translate());
             GlobeView view = GlobeView.Create(mapRect, universe, context);
             List<GlobeDisplayEntry> rows = state.Listed(view.Reference).ToList();
-            Rect outer = new Rect(rect.x, rect.y + 64f, rect.width, rect.height - 64f);
-            var missing = state.Filter == GlobeFilter.Bookmarks ? state.Bookmarks.Where(b => state.Resolve(b) == null).ToList()
+            Widgets.Label(new Rect(rect.x, rect.y + 30f, rect.width, 22f),
+                "DeltaV_NavFilterCount".Translate(rows.Count, state.Entries.Count));
+            Rect outer = new Rect(rect.x, rect.y + 56f, rect.width, rect.height - 56f);
+            var missing = state.Filters.bookmarksOnly ? state.Bookmarks.Where(b => state.Resolve(b) == null).ToList()
                 : new List<GlobeTarget>();
             Rect content = new Rect(0, 0, outer.width - 18f, Mathf.Max(outer.height, (rows.Count + missing.Count) * 58f + 25f));
             Widgets.BeginScrollView(outer, ref state.ListScroll, content);
@@ -167,7 +265,7 @@ namespace DeltaV
                     OrbitSphere.ArcCells(view.Reference, entry.Pose.position).ToString("N0"));
                 Widgets.Label(text, PlanetGlobeRenderer.ShortText(entry.Label, text.width) + "\n"
                     + PlanetGlobeRenderer.ShortText(details, text.width)
-                    + (entry.owner.InteriorMap == null ? "\n" + "DeltaV_NavUnloaded".Translate() : ""));
+                    + (entry.owner.InteriorMap == null && !entry.owner.IsTransient ? "\n" + "DeltaV_NavUnloaded".Translate() : ""));
                 TooltipHandler.TipRegion(text, entry.Label + "\n" + details);
                 if (Widgets.ButtonInvisible(text)) state.Select(entry);
                 if (Widgets.ButtonText(new Rect(content.width - 52f, y + 12f, 50f, 26f), "DeltaV_NavLocate".Translate()))
@@ -185,6 +283,23 @@ namespace DeltaV
                 Widgets.Label(new Rect(4f, 4f, content.width - 8f, 44f), "DeltaV_NavEmptyList".Translate());
             Widgets.EndScrollView();
             Text.Font = GameFont.Small;
+        }
+
+        private static void DrawFilterButton(Rect rect, UniverseManager universe)
+        {
+            bool restricted = universe.GlobeFilters.Restricted;
+            bool clicked = DeltaVPanelStyle.Button(rect, "", DeltaVButtonTone.Quiet, selected: restricted);
+            Color color = restricted ? DeltaVPanelStyle.AccentBorder : DeltaVPanelStyle.Muted;
+            // Vector funnel remains sharp at every UI scale and needs no new texture asset.
+            Vector2 a = new Vector2(rect.x + 5f, rect.y + 5f), b = new Vector2(rect.xMax - 5f, rect.y + 5f);
+            Vector2 c = new Vector2(rect.center.x + 2f, rect.y + 13f), d = new Vector2(rect.center.x - 2f, rect.y + 13f);
+            Widgets.DrawLine(a, b, color, 2f); Widgets.DrawLine(b, c, color, 2f);
+            Widgets.DrawLine(c, new Vector2(c.x, rect.yMax - 5f), color, 2f);
+            Widgets.DrawLine(new Vector2(c.x, rect.yMax - 5f), new Vector2(d.x, rect.yMax - 3f), color, 2f);
+            Widgets.DrawLine(new Vector2(d.x, rect.yMax - 3f), d, color, 2f); Widgets.DrawLine(d, a, color, 2f);
+            TooltipHandler.TipRegion(rect, "DeltaV_NavFilters".Translate());
+            if (clicked && Find.WindowStack.WindowOfType<Dialog_GlobeFilters>() == null)
+                Find.WindowStack.Add(new Dialog_GlobeFilters(universe));
         }
     }
 

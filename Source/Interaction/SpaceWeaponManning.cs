@@ -16,8 +16,10 @@ namespace DeltaV
         // 仅替换炮塔 Tick 的开火门禁；不能让 MannedNow 假报有人而 ManningPawn 仍为空。
         internal static bool CanFire(CompMannable mannable)
         {
-            return mannable.MannedNow
-                || mannable.parent.TryGetComp<CompSpaceWeapon>()?.AutoAimEffective == true;
+            CompSpaceWeapon weapon = mannable.parent.TryGetComp<CompSpaceWeapon>();
+            if (weapon == null) return mannable.MannedNow;
+            return weapon.Operational
+                && weapon.OwnerShip.EffectiveFireControlMode != ShipFireControlMode.Disabled;
         }
 
         internal static void DrawInteractionCells(ThingDef def, IntVec3 center, Rot4 rotation, Thing thing)

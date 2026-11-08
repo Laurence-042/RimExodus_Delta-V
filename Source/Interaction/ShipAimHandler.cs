@@ -13,7 +13,7 @@ namespace DeltaV
         {
             SpaceObject container = universe.FrameOf(ship.Map);
             foreach (CompSpaceWeapon weapon in ship.Weapons)
-                if (weapon.SpaceModeEnabled && weapon.GroupActive)
+                if (weapon.Armed && weapon.SpaceModeEnabled && weapon.GroupActive)
                     universe.Weapons.ApplyControl(weapon, container, new WeaponControlCommand(mapPoint, false));
         }
     }

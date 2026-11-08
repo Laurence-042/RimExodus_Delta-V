@@ -358,6 +358,7 @@ namespace DeltaV
             Map map = Find.CurrentMap;
             ShipBase selected = map != null ? universe.Pilot.SelectedShipOnMap(map) : ShipBase.Invalid;
             DriveSubject wanted = universe.Pilot.CanPlayerControl(selected)
+                && selected.Combat?.weaponsArmed == true
                 && selected.EffectiveFireControlMode == ShipFireControlMode.Manual
                 ? selected.Identity : default;
             if (wanted == activeAimOwnerId && (wanted.key == 0 || AimActive)) return;
@@ -383,7 +384,7 @@ namespace DeltaV
             activeAimOwnerId = wanted;
         }
 
-        public void ToggleFireControl(ShipBase ship)
+        public void SetFireControlMode(ShipBase ship, ShipFireControlMode mode)
         {
             if (!ship.IsValid)
             {
@@ -391,10 +392,8 @@ namespace DeltaV
                 return;
             }
             PlayerShipController player = PlayerFor(ship, debugTakeover: true);
-            if (player == null) return;
-            int next = (int)ship.EffectiveFireControlMode;
-            do { next = (next + 1) % 3; } while (!ship.SupportsFireControlMode((ShipFireControlMode)next));
-            ship.Combat.fireControlMode = (ShipFireControlMode)next;
+            if (player == null || !WeaponsArmed(ship) || !ship.SupportsFireControlMode(mode)) return;
+            ship.Combat.fireControlMode = mode;
             if (ship.Combat.fireControlMode == ShipFireControlMode.Disabled)
             {
                 player.EndAim("fire control disabled");
@@ -407,6 +406,15 @@ namespace DeltaV
             SyncManualAimSelection();
             if (ship.Combat.fireControlMode == ShipFireControlMode.Automatic)
                 player.DecideAutoCombat(ship);
+        }
+
+        public void ToggleFireControl(ShipBase ship)
+        {
+            if (!WeaponsArmed(ship)) return;
+            int next = (int)ship.EffectiveFireControlMode;
+            do { next = (next + 1) % 3; }
+            while (!ship.SupportsFireControlMode((ShipFireControlMode)next));
+            SetFireControlMode(ship, (ShipFireControlMode)next);
         }
 
         internal bool SelectPlayerAutoTask(ShipBase ship, PlayerAutoTaskKind task,
@@ -435,45 +443,46 @@ namespace DeltaV
             if (AimActive) ((PlayerShipController)controllers[activeAimOwnerId]).ProcessAimInputEvent();
         }
 
-        public bool BattleStationsActive(Map map)
+        public bool WeaponsArmed(ShipBase ship) => ship.IsValid
+            && ship.Combat?.weaponsArmed == true;
+
+        public void ArmWeapons(ShipBase ship)
         {
-            if (map == null) return false;
-            foreach (ShipBase ship in ShipRegistry.AllShipsOnMap(map))
-                if (controllers.TryGetValue(ship.Identity, out ShipController controller)
-                    && controller is PlayerShipController player && player.GunnersEnabled) return true;
-            return false;
+            if (!ship.IsValid || PlayerFor(ship, debugTakeover: true) is not PlayerShipController player) return;
+            ship.Combat.weaponsArmed = true;
+            universe.Weapons.SyncStandbyPower(ship);
+            int manned = universe.Weapons.DispatchGunners(ship.Map, Faction.OfPlayer, ship.Identity);
+            SyncManualAimSelection();
+            if (ship.EffectiveFireControlMode == ShipFireControlMode.Automatic)
+                player.DecideAutoCombat(ship);
+            Messages.Message("DeltaV_WeaponsArmed".Translate(manned), MessageTypeDefOf.NeutralEvent, false);
         }
 
-        public void EnterBattleStations(Map map)
+        public void ReassignGunners(ShipBase ship)
         {
-            if (map == null) return;
-            var owners = new HashSet<DriveSubject>();
-            foreach (ShipBase ship in ShipRegistry.AllShipsOnMap(map))
+            if (!WeaponsArmed(ship) || PlayerFor(ship) == null) return;
+            var owner = new HashSet<DriveSubject> { ship.Identity };
+            universe.Weapons.EndBattleStationJobs(ship.Map, Faction.OfPlayer, owner);
+            int manned = universe.Weapons.DispatchGunners(ship.Map, Faction.OfPlayer, owner);
+            Messages.Message("DeltaV_GunnersReassigned".Translate(manned), MessageTypeDefOf.NeutralEvent, false);
+        }
+
+        public void DisarmWeapons(ShipBase ship)
+        {
+            if (!ship.IsValid || PlayerFor(ship) is not PlayerShipController player) return;
+            ship.Combat.weaponsArmed = false;
+            player.EndAim("weapons disarmed");
+            player.FireControl.Clear();
+            foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
-                PlayerShipController player = PlayerFor(ship);
-                if (player == null) continue;
-                player.SetBattleStations(true);
-                owners.Add(ship.Identity);
+                ForgetWeaponTarget(weapon);
+                universe.Scatter.ReleaseAutomatic(weapon);
+                weapon.SyncStandbyPower();
             }
-            universe.Weapons.EndBattleStationJobs(map, Faction.OfPlayer, owners);
-            int manned = owners.Count > 0
-                ? universe.Weapons.DispatchGunners(map, Faction.OfPlayer, owners) : 0;
-            Messages.Message("DeltaV_BattleStationsOn".Translate(manned), MessageTypeDefOf.NeutralEvent, false);
-        }
-
-        public void ExitBattleStations(Map map)
-        {
-            if (map == null) return;
-            var owners = new HashSet<DriveSubject>();
-            foreach (ShipBase ship in ShipRegistry.AllShipsOnMap(map))
-                if (controllers.TryGetValue(ship.Identity, out ShipController controller)
-                    && controller is PlayerShipController player)
-                {
-                    player.SetBattleStations(false);
-                    owners.Add(ship.Identity);
-                }
-            int released = universe.Weapons.EndBattleStationJobs(map, Faction.OfPlayer, owners);
-            Messages.Message("DeltaV_BattleStationsOff".Translate(released), MessageTypeDefOf.NeutralEvent, false);
+            int released = universe.Weapons.EndBattleStationJobs(ship.Map, Faction.OfPlayer,
+                new HashSet<DriveSubject> { ship.Identity });
+            SyncManualAimSelection();
+            Messages.Message("DeltaV_WeaponsDisarmed".Translate(released), MessageTypeDefOf.NeutralEvent, false);
         }
 
     }

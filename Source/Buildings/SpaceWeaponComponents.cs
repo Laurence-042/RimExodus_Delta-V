@@ -126,8 +126,10 @@ namespace DeltaV
 
         private void AdvanceToward(float mapAngle)
         {
-            if (parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
-                || parent.TryGetComp<CompFlickable>() is { SwitchIsOn: false }) return;
+            CompSpaceWeapon weapon = parent.TryGetComp<CompSpaceWeapon>();
+            if (weapon != null ? !weapon.Operational
+                : parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
+                    || parent.TryGetComp<CompFlickable>() is { SwitchIsOn: false }) return;
             int now = Find.TickManager.TicksGame;
             if (rotationTick != now)
             {
@@ -157,7 +159,13 @@ namespace DeltaV
             { this.source = source; Angle = source.CurrentAngle; }
             internal void AimAt(float desired, int tick, bool powered)
             {
-                if (!powered || source.parent.TryGetComp<CompFlickable>() is { SwitchIsOn: false }) return;
+                CompSpaceWeapon weapon = source.parent.TryGetComp<CompSpaceWeapon>();
+                if (!powered) return;
+                if (weapon != null)
+                {
+                    if (!weapon.Armed || !weapon.HasFireControl) return;
+                }
+                else if (source.parent.TryGetComp<CompFlickable>() is { SwitchIsOn: false }) return;
                 if (tick != previousTick) { previousTick = tick; start = Angle; }
                 Angle = source.AngleAfter(start, desired, 1f / 60f);
             }

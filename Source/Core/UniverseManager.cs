@@ -118,6 +118,7 @@ namespace DeltaV
         [NonSerialized] private GlobeDisplayInfo globeDisplay;
         internal GlobeDisplayInfo GlobeDisplay => globeDisplay ?? (globeDisplay = new GlobeDisplayInfo());
         private List<GlobeTarget> globeBookmarks = new List<GlobeTarget>();
+        internal GlobeFilters GlobeFilters = new GlobeFilters();
         [NonSerialized] private GlobeNavigation globeNavigation;
         internal GlobeNavigation GlobeNavigation => globeNavigation ?? (globeNavigation =
             new GlobeNavigation(globeBookmarks ?? (globeBookmarks = new List<GlobeTarget>())));
@@ -667,6 +668,8 @@ namespace DeltaV
             Scribe_Deep.Look(ref missionState, "missions");
             missionState ??= new SpaceMissionState();
             Scribe_Collections.Look(ref globeBookmarks, "globeBookmarks", LookMode.Deep);
+            Scribe_Deep.Look(ref GlobeFilters, "globeFilters");
+            GlobeFilters ??= new GlobeFilters();
             Scribe_Values.Look(ref SoftDockEnabled, "softDockEnabled", false);
             Scribe_Values.Look(ref ShowThrusterDebugOverlay, "showThrusterDebugOverlay", false);
             Scribe_Values.Look(ref ShowCoordinateGrid, "showCoordinateGrid", true);

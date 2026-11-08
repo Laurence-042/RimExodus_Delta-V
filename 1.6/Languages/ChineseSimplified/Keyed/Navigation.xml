@@ -13,15 +13,13 @@
   <DeltaV_NavNoTarget>选择地图标记或地点</DeltaV_NavNoTarget>
   <DeltaV_NavNoCourse>当前没有导航任务</DeltaV_NavNoCourse>
   <DeltaV_NavCourseName>任务：{0}</DeltaV_NavCourseName>
+  <DeltaV_NavCourseSelected>已设为航线目标</DeltaV_NavCourseSelected>
+  <DeltaV_NavDistanceSummary>距离 {0} 格</DeltaV_NavDistanceSummary>
   <DeltaV_NavUnavailable>目标已失效或暂不可用</DeltaV_NavUnavailable>
   <DeltaV_NavFit>同屏</DeltaV_NavFit>
   <DeltaV_NavInspect>查看</DeltaV_NavInspect>
   <DeltaV_NavPin>收藏</DeltaV_NavPin>
   <DeltaV_NavUnpin>取消</DeltaV_NavUnpin>
-  <DeltaV_NavFilterAll>全部</DeltaV_NavFilterAll>
-  <DeltaV_NavFilterMission>任务</DeltaV_NavFilterMission>
-  <DeltaV_NavFilterStations>空间站</DeltaV_NavFilterStations>
-  <DeltaV_NavFilterBookmarks>书签</DeltaV_NavFilterBookmarks>
   <DeltaV_NavSearch>按名称或派系搜索已知地点；列表不受地图缩放影响。</DeltaV_NavSearch>
   <DeltaV_NavNoFaction>无派系</DeltaV_NavNoFaction>
   <DeltaV_NavUnloaded>未加载</DeltaV_NavUnloaded>
@@ -32,4 +30,44 @@
   <DeltaV_NavFitLimit>已拉远到整球范围；目标范围过大，无法完整放入当前视图。</DeltaV_NavFitLimit>
   <DeltaV_NavScaleTip>中心比例尺。目标距离使用球面弧长。</DeltaV_NavScaleTip>
   <DeltaV_NavCourseDesc>在星区地图中定位当前课程目标，不改变驾驶任务。</DeltaV_NavCourseDesc>
+  <DeltaV_NavFilters>星图筛选</DeltaV_NavFilters>
+  <DeltaV_NavFilterDisplay>地图显示</DeltaV_NavFilterDisplay>
+  <DeltaV_NavCoordinateGrid>持续显示单位经纬网格</DeltaV_NavCoordinateGrid>
+  <DeltaV_NavFiltersTip>同组条件满足任意一项，不同组同时满足；搜索与筛选同时作用于地图和列表。舰级只筛选飞船，未确认的信息保留为未知。</DeltaV_NavFiltersTip>
+  <DeltaV_NavFilterTypes>对象类型</DeltaV_NavFilterTypes>
+  <DeltaV_NavTypeShips>飞船</DeltaV_NavTypeShips>
+  <DeltaV_NavTypeFoundationShip>基架飞船</DeltaV_NavTypeFoundationShip>
+  <DeltaV_NavTypeIntegratedShip>一体式飞船</DeltaV_NavTypeIntegratedShip>
+  <DeltaV_NavTypeStations>空间站</DeltaV_NavTypeStations>
+  <DeltaV_NavTypeOtherStation>其他空间站</DeltaV_NavTypeOtherStation>
+  <DeltaV_NavTypeWreck>残骸</DeltaV_NavTypeWreck>
+  <DeltaV_NavTypeNatural>小行星与自然天体</DeltaV_NavTypeNatural>
+  <DeltaV_NavTypeProjectile>弹体</DeltaV_NavTypeProjectile>
+  <DeltaV_NavTypeScattered>散落物</DeltaV_NavTypeScattered>
+  <DeltaV_NavTypeOther>其他／未知</DeltaV_NavTypeOther>
+  <DeltaV_NavFilterClasses>舰级</DeltaV_NavFilterClasses>
+  <DeltaV_NavFilterAllClasses>所有舰级</DeltaV_NavFilterAllClasses>
+  <DeltaV_NavUnclassified>未分类</DeltaV_NavUnclassified>
+  <DeltaV_NavFilterArmament>武装状态</DeltaV_NavFilterArmament>
+  <DeltaV_NavGlobeArmamentArmed>有武装</DeltaV_NavGlobeArmamentArmed>
+  <DeltaV_NavGlobeArmamentUnarmed>无武装</DeltaV_NavGlobeArmamentUnarmed>
+  <DeltaV_NavGlobeArmamentUnknown>未知</DeltaV_NavGlobeArmamentUnknown>
+  <DeltaV_NavFilterRelations>与玩家的关系</DeltaV_NavFilterRelations>
+  <DeltaV_NavGlobeRelationPlayer>己方</DeltaV_NavGlobeRelationPlayer>
+  <DeltaV_NavGlobeRelationAlly>盟友</DeltaV_NavGlobeRelationAlly>
+  <DeltaV_NavGlobeRelationNeutral>中立</DeltaV_NavGlobeRelationNeutral>
+  <DeltaV_NavGlobeRelationHostile>敌对</DeltaV_NavGlobeRelationHostile>
+  <DeltaV_NavGlobeRelationNone>无派系</DeltaV_NavGlobeRelationNone>
+  <DeltaV_NavGlobeRelationUnknown>未知</DeltaV_NavGlobeRelationUnknown>
+  <DeltaV_NavFilterMissions>任务关联</DeltaV_NavFilterMissions>
+  <DeltaV_NavGlobeMissionTracked>当前跟踪任务</DeltaV_NavGlobeMissionTracked>
+  <DeltaV_NavGlobeMissionActive>其他进行中任务</DeltaV_NavGlobeMissionActive>
+  <DeltaV_NavGlobeMissionNone>无任务关联</DeltaV_NavGlobeMissionNone>
+  <DeltaV_NavBookmarksOnly>仅显示书签</DeltaV_NavBookmarksOnly>
+  <DeltaV_NavKeepTracked>始终显示当前跟踪目标</DeltaV_NavKeepTracked>
+  <DeltaV_NavFilterDefault>恢复默认</DeltaV_NavFilterDefault>
+  <DeltaV_NavFilterEverything>显示全部</DeltaV_NavFilterEverything>
+  <DeltaV_NavFilterApply>应用</DeltaV_NavFilterApply>
+  <DeltaV_NavFilterCount>显示 {0} / {1}</DeltaV_NavFilterCount>
+  <DeltaV_NavFilteredTarget>目标被当前筛选隐藏。请在详细地图的筛选窗口中调整条件。</DeltaV_NavFilteredTarget>
 </LanguageData>

@@ -294,9 +294,9 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
                 if (filter != null && !filter.Includes(weapon)) continue;
-                if (weapon.aimMode != SpaceWeaponAimMode.Volley || weapon.WeaponProps.manualOnly
+                if (!weapon.Armed || weapon.aimMode != SpaceWeaponAimMode.Volley || weapon.WeaponProps.manualOnly
                     || !weapon.SpaceModeEnabled || !weapon.GroupActive
-                    || weapon.parent.TryGetComp<CompPowerTrader>() is { PowerOn: false }
+                    || !weapon.Operational
                     || !weapon.TryGetSkillLevel(out _)) continue;
                 var magazine = weapon.SelectMagazine();
                 if (!weapon.MagazineAvailable(magazine) || !sustained && !SpaceWeaponBallistics.HasBaseShotEnergy(weapon)) continue;

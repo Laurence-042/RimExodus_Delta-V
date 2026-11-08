@@ -59,6 +59,7 @@ internal static partial class Program
         Check(host.HasTag(SpaceObjectTag.Ship) && Controllers(universe).ContainsKey(identity),
             "spawn reconciliation invalidates prewarmed membership before registering the ship controller");
         ShipController controller = Controllers(universe)[identity];
+        hull.combat.weaponsArmed = true;
         hull.combat.fireControlMode = ShipFireControlMode.Manual;
         hull.combat.weaponGroupsMain = 8;
         var gun = new CompSpaceWeapon { parent = hull.parent, props = new CompProperties_SpaceWeapon() };
@@ -88,7 +89,8 @@ internal static partial class Program
             && ShipRegistry.ShipByIdentity(identity).Map == hostMap && subject.Resolve(universe) == null,
             "docking removes the old flight role and rejects driving the destination host");
         Check(ReferenceEquals(Controllers(universe)[identity], controller)
-            && hull.combat.fireControlMode == ShipFireControlMode.Manual && hull.combat.weaponGroupsMain == 8,
+            && hull.combat.weaponsArmed && hull.combat.fireControlMode == ShipFireControlMode.Manual
+            && hull.combat.weaponGroupsMain == 8,
             "docking preserves the ship controller, fire-control mode and weapon groups");
         universe.Controls.ForgetMap(flightMap);
         Check(Controllers(universe).ContainsKey(identity), "source flight-map cleanup preserves the docked ship controller");

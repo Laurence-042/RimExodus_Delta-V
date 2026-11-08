@@ -84,6 +84,7 @@ internal static partial class Program
 
         // Queue a real separation intent, then simulate an intervening whole-domain transfer.
         Call(universe.ShipTransitions, "QueueSeparation", universe, identity.key, false);
+        primary.combat.weaponsArmed = true;
         primary.combat.fireControlMode = ShipFireControlMode.Manual;
         primary.combat.weaponGroupsMain = 16;
         RemoveConsoleFixture(primary, sourceMap);
@@ -120,6 +121,7 @@ internal static partial class Program
         Call(universe, "RunFrameActions");
         universe.Controls.ForgetMap(destinationMap);
         Check(controller.Active && controller.target.Map == sourceMap
+            && primary.combat.weaponsArmed
             && primary.combat.fireControlMode == ShipFireControlMode.Manual
             && primary.combat.weaponGroupsMain == 16 && source.Weapons.Single() == weapon
             && !destination.HasTag(SpaceObjectTag.Ship),
@@ -127,6 +129,7 @@ internal static partial class Program
 
         var savedConsole = RoundTripConsole(primary);
         Check(savedConsole.shipId == identity.key && savedConsole.isMain
+            && savedConsole.combat.weaponsArmed
             && savedConsole.combat.fireControlMode == ShipFireControlMode.Manual
             && savedConsole.combat.weaponGroupsMain == 16
             && !ReferenceEquals(savedConsole.combat, primary.combat),

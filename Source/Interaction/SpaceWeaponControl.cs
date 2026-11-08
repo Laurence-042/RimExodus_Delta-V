@@ -45,6 +45,7 @@ namespace DeltaV
 
             if (weapon.OwnerShip.IsValid && weapon.OwnerShip.EffectiveFireControlMode == ShipFireControlMode.Disabled)
                 return Reject(WeaponReject.Gate, command.Trigger);
+            if (!weapon.Armed) return Reject(WeaponReject.Gate, command.Trigger);
             if (command.Source == WeaponControlSource.Automatic && weapon.WeaponProps.manualOnly
                 || command.Source == WeaponControlSource.PointDefense && !weapon.AllowsPointDefense)
                 return Reject(WeaponReject.Gate, command.Trigger);
@@ -132,9 +133,10 @@ namespace DeltaV
         internal static WeaponReject CheckReadiness(CompSpaceWeapon weapon, out int skill)
         {
             skill = 0;
+            if (!weapon.Armed) return WeaponReject.Gate;
             if (weapon.CooldownTicksLeft > 0) return WeaponReject.Cooldown;
             if (!weapon.TryGetSkillLevel(out skill)) return WeaponReject.Operating;
-            if (weapon.Component<CompPowerTrader>() is { PowerOn: false }) return WeaponReject.Power;
+            if (!weapon.Operational) return WeaponReject.Power;
             return WeaponReject.None;
         }
 

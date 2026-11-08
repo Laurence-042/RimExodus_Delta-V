@@ -20,10 +20,22 @@ internal static partial class Program
         return false;
     }
 
+    static void BindWeaponOwnerFixture(CompSpaceWeapon fixture, ShipBase owner)
+    {
+        Set(typeof(CompSpaceWeapon), fixture, "cachedOwner", owner);
+        Set(typeof(CompSpaceWeapon), fixture, "ownerMap", owner.Map);
+        Set(typeof(CompSpaceWeapon), fixture, "ownerPosition", fixture.parent.Position);
+        Set(typeof(CompSpaceWeapon), fixture, "ownerRotation", fixture.parent.Rotation);
+        Set(typeof(CompSpaceWeapon), fixture, "ownerVersion", SubstructureOwnership.StructureVersion(owner.Map));
+        Set(typeof(CompSpaceWeapon), fixture, "ownerCacheValid", true);
+        Set(typeof(CompSpaceWeapon), fixture, "ownerWasValid", true);
+    }
+
     static void CheckPerShipFireControl(UniverseManager universe, Faction player, Faction enemy)
     {
         Map ownMap = TestMap(1960), enemyMap = TestMap(1970);
         var hull = AddTestHull(ownMap, player, 1961);
+        hull.combat.weaponsArmed = true;
         MoveCombatFixture(hull.parent, new IntVec3(2, 0, 2));
         var own = new MapSpaceObject(1960, ownMap, new SpacePose(Vector3.forward, 0f));
         var opponent = new CombatObject(1970, enemyMap,
@@ -254,6 +266,7 @@ internal static partial class Program
     static void CheckTargetContracts(UniverseManager universe, CombatHull attacker, SpaceObject own,
         CombatObject victim, CompDeltaVPilotConsole console, CombatHull hull, Building engine, Faction player, Faction enemy)
     {
+        attacker.Combat.weaponsArmed = true;
         void Refresh()
         {
             SubstructureOwnership.BumpStructureVersion();
@@ -287,7 +300,11 @@ internal static partial class Program
         var props = new CompProperties_SpaceProjectile { guided = true, hasMap = false, speed = 100f };
         projectileDef.comps.Add(props);
         var weapon = new CompSpaceWeapon { parent = (ThingWithComps)attacker.Anchor,
-            props = new CompProperties_SpaceWeapon { projectileDef = projectileDef, range = 500f, topTurret = true }, safeFire = false };
+            props = new CompProperties_SpaceWeapon { projectileDef = projectileDef, range = 500f,
+                topTurret = true, intrinsicAimSkill = 10 }, safeFire = false };
+        BindWeaponOwnerFixture(weapon, attacker);
+        Check(weapon.OwnerShip.IsValid && weapon.Armed && weapon.HasFireControl,
+            "guided-shot fixture has an armed ship and an intrinsic fire-control source");
         var request = new WeaponFireRequest(systemPose.Pose.position);
         var shot = new SpaceWeaponShot(universe, weapon, own, request);
         Check((bool)Call(shot, "Prepare") && !shot.guidanceTarget.HasLock && shot.target == null,
@@ -301,8 +318,10 @@ internal static partial class Program
         directDef.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, speed = 100f });
         var fixedWeapon = new CompSpaceWeapon { parent = (ThingWithComps)attacker.Anchor,
             props = new CompProperties_SpaceWeapon { projectileDef = directDef, topTurret = false,
-                fireArcDeg = 0f, lockArcDeg = 360f, minRange = 20f, range = 500f },
+                fireArcDeg = 0f, lockArcDeg = 360f, minRange = 20f, range = 500f,
+                intrinsicAimSkill = 10 },
             fireDeviationDeg = 1f, manualFireDeviationDeg = 180f, safeFire = false };
+        BindWeaponOwnerFixture(fixedWeapon, attacker);
         Vector2 fixedMuzzle = SpaceWeaponGeometry.MuzzleMapPoint(fixedWeapon);
         float fixedAxis = ShipOrientation.AngleFromRot4(fixedWeapon.parent.Rotation);
         Vector2 axisDirection = SpaceTransform.Rotate(Vector2.right, fixedAxis);

@@ -9,7 +9,9 @@ namespace DeltaV
         {
             return caster is Building_SpaceTurretGun turret
                 && turret.TryGetComp<CompSpaceWeapon>() is CompSpaceWeapon weapon
-                && weapon.GroundModeEnabled && weapon.CooldownTicksLeft == 0
+                && weapon.GroundModeEnabled && weapon.Operational
+                && weapon.OwnerShip.EffectiveFireControlMode != ShipFireControlMode.Disabled
+                && weapon.CooldownTicksLeft == 0
                 && weapon.MagazineAvailable(weapon.SelectMagazine())
                 && SpaceWeaponBallistics.HasBaseShotEnergy(weapon)
                 && base.Available();

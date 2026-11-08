@@ -9,6 +9,7 @@ namespace DeltaV
     {
         internal static bool CanOperate(CompSpaceWeapon weapon) => weapon?.WeaponProps.tractor == true
             && weapon.parent.Spawned && !weapon.parent.Destroyed && weapon.SpaceModeEnabled
+            && weapon.Operational
             && weapon.OwnerShip.EffectiveFireControlMode != ShipFireControlMode.Disabled
             && weapon.Component<CompSpaceTractor>()?.CanOperate(weapon) == true;
     }

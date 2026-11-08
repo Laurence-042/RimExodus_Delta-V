@@ -17,6 +17,9 @@
   <DeltaV_ControlUncontrolled>uncontrolled</DeltaV_ControlUncontrolled>
   <DeltaV_ControlManual>manual control</DeltaV_ControlManual>
   <DeltaV_ControlAutopilot>autopilot</DeltaV_ControlAutopilot>
+  <DeltaV_ControlCompactUncontrolled>Uncontrolled</DeltaV_ControlCompactUncontrolled>
+  <DeltaV_ControlCompactManual>Manual</DeltaV_ControlCompactManual>
+  <DeltaV_ControlCompactAutopilot>Auto</DeltaV_ControlCompactAutopilot>
   <DeltaV_ControlSwitchAutopilot>Switch to autopilot</DeltaV_ControlSwitchAutopilot>
   <DeltaV_AutoTaskMenu>Automatic task: {0}</DeltaV_AutoTaskMenu>
   <DeltaV_AutoDrift>None</DeltaV_AutoDrift>
@@ -41,7 +44,15 @@
   <DeltaV_HudSpeed>Speed: {0} c/s</DeltaV_HudSpeed>
   <DeltaV_HudHeading>Heading: {0}°</DeltaV_HudHeading>
   <DeltaV_HudTurnRate>Turn rate: {0}°/s</DeltaV_HudTurnRate>
+  <DeltaV_PanelStatSpeed>Speed</DeltaV_PanelStatSpeed>
+  <DeltaV_PanelStatSpeedValue>{0} c/s</DeltaV_PanelStatSpeedValue>
+  <DeltaV_PanelStatHeading>Heading</DeltaV_PanelStatHeading>
+  <DeltaV_PanelStatHeadingValue>{0}°</DeltaV_PanelStatHeadingValue>
+  <DeltaV_PanelStatTurnRate>Turn rate</DeltaV_PanelStatTurnRate>
+  <DeltaV_PanelStatTurnRateValue>{0}°/s</DeltaV_PanelStatTurnRateValue>
+  <DeltaV_PanelStatAssist>Flight assist</DeltaV_PanelStatAssist>
   <DeltaV_PanelRefocus>Refocus on ship</DeltaV_PanelRefocus>
+  <DeltaV_PanelAdvancedFlightOptions>More flight controls</DeltaV_PanelAdvancedFlightOptions>
   <DeltaV_HudMass>Mass: {0}</DeltaV_HudMass>
   <DeltaV_HudAssist>Flight assist: {0}</DeltaV_HudAssist>
   <DeltaV_On>on</DeltaV_On>
@@ -271,12 +282,25 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_PanelFireControl>Fire control: {0}</DeltaV_PanelFireControl>
   <DeltaV_FireControlAutomatic>Automatic</DeltaV_FireControlAutomatic>
   <DeltaV_FireControlManual>Manual focus fire</DeltaV_FireControlManual>
-  <DeltaV_PanelFireControlTip>Cycle the allowed modes with this button or B: automatic, manual, disabled. Manual uses LMB for active main groups and RMB for active secondary groups. Disabled stops all weapons, including point defense and continuous tools; it leaves flight orders and weapon groups unchanged. EVA supports manual and disabled only.</DeltaV_PanelFireControlTip>
+  <DeltaV_PanelFireControlTip>Once weapons are armed, choose automatic, manual focus fire, or hold fire. Manual uses LMB for active main groups and RMB for active secondary groups. Hold fire keeps weapons armed, powered, and staffed but stops all weapons, including point defense and continuous tools. Weapon groups stay unchanged. EVA supports manual and hold fire only.</DeltaV_PanelFireControlTip>
   <DeltaV_PanelAutoManeuver>Auto combat maneuver: {0}</DeltaV_PanelAutoManeuver>
   <DeltaV_PanelAutoManeuverTip>Orbit a hostile ship using automatic combat positioning. Enabling replaces the current autopilot task, including docking or waypoint guidance, but keeps the docking plan. A flight key takes manual control. This setting resets after loading.</DeltaV_PanelAutoManeuverTip>
   <DeltaV_PanelWeaponGroupTip>{0} set, group {1}. Click to toggle whether this group is active. Only active groups fire, and they receive gunner priority when crew is short.</DeltaV_PanelWeaponGroupTip>
   <DeltaV_WeaponSetMain>Main</DeltaV_WeaponSetMain>
   <DeltaV_WeaponSetSecondary>Secondary</DeltaV_WeaponSetSecondary>
+  <DeltaV_PanelCombat>Combat</DeltaV_PanelCombat>
+  <DeltaV_PanelWeaponsArmedState>Armed</DeltaV_PanelWeaponsArmedState>
+  <DeltaV_PanelWeaponsDisarmedState>Disarmed</DeltaV_PanelWeaponsDisarmedState>
+  <DeltaV_PanelAdvancedCombatOptions>Advanced combat options</DeltaV_PanelAdvancedCombatOptions>
+  <DeltaV_PanelWeaponsArm>Arm weapons</DeltaV_PanelWeaponsArm>
+  <DeltaV_PanelWeaponsArmTip>Arms this ship and automatically assigns gunners by reservation and active-group priority. Only an armed, powered weapon with a gunner or auto-aim fire control draws standby power, traverses, and fires.</DeltaV_PanelWeaponsArmTip>
+  <DeltaV_PanelGunnersReassign>Reassign gunners</DeltaV_PanelGunnersReassign>
+  <DeltaV_PanelGunnersReassignTip>Releases and reassigns this ship's gunner posts; active weapon groups receive priority when crew is short.</DeltaV_PanelGunnersReassignTip>
+  <DeltaV_PanelWeaponsDisarm>Disarm</DeltaV_PanelWeaponsDisarm>
+  <DeltaV_PanelWeaponsDisarmTip>Stops this ship's weapons, removes their standby load, and releases gunners. Fire-control mode and weapon groups are preserved.</DeltaV_PanelWeaponsDisarmTip>
+  <DeltaV_WeaponsArmed>Weapons armed; {0} gunner(s) assigned.</DeltaV_WeaponsArmed>
+  <DeltaV_GunnersReassigned>Gunners reassigned; {0} post(s) manned.</DeltaV_GunnersReassigned>
+  <DeltaV_WeaponsDisarmed>Weapons disarmed; {0} gunner(s) returned to normal work.</DeltaV_WeaponsDisarmed>
   <DeltaV_PanelBattleStationsOn>Man / recoordinate battle stations</DeltaV_PanelBattleStationsOn>
   <DeltaV_PanelBattleStationsOff>Leave battle stations ({0})</DeltaV_PanelBattleStationsOff>
   <DeltaV_PanelBattleStationsOnTip>Fully reassigns all usable player weapons on this map using the latest gunner reservations; active groups take priority when crew is short.</DeltaV_PanelBattleStationsOnTip>
@@ -291,9 +315,9 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_WeaponPdgizmoTip>Point defense mode: automatically engages interceptable containers (missiles, mapped shots, shuttles) in range. Not controlled by the aim mode.</DeltaV_WeaponPdgizmoTip>
   <DeltaV_WeaponReserveGizmo>Reserve gunner: {0}</DeltaV_WeaponReserveGizmo>
   <DeltaV_WeaponReserveNone>any</DeltaV_WeaponReserveNone>
-  <DeltaV_WeaponReserveGizmoTip>Chooses which colonist mans this weapon when battle stations are called (any = random able colonist).</DeltaV_WeaponReserveGizmoTip>
+  <DeltaV_WeaponReserveGizmoTip>Chooses which colonist is preferred for this weapon when weapons are armed (any = random able colonist).</DeltaV_WeaponReserveGizmoTip>
   <DeltaV_KeepGunnerWhenUnavailable>Keep gunner at unavailable weapon</DeltaV_KeepGunnerWhenUnavailable>
-  <DeltaV_KeepGunnerWhenUnavailableTip>On by default. An assigned gunner stays at this weapon when power or required ammunition is unavailable. Turn off to release them on the next game tick for other usable weapons. Unavailable weapons do not recruit new gunners.</DeltaV_KeepGunnerWhenUnavailableTip>
+  <DeltaV_KeepGunnerWhenUnavailableTip>On by default. An assigned gunner stays at this weapon when required ammunition is unavailable. Turn it off to release them for another usable weapon. A new gunner may take a post before power is established so that the weapon can begin drawing standby power.</DeltaV_KeepGunnerWhenUnavailableTip>
 
   <DeltaV_MagazinePriority>Magazine priority: {0}</DeltaV_MagazinePriority>
   <DeltaV_MagazinePriorityTip>Higher-priority magazines are consumed first. Equal-priority magazines alternate in Thing ID order.</DeltaV_MagazinePriorityTip>

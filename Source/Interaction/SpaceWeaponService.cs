@@ -11,12 +11,12 @@ namespace DeltaV
     /// 武器服务（太空战架构 §5/§6）：武器索引、同一发射事务、炮手分配算法、
     /// 只读瞄准能力与实际转向；战术目标和开火请求由每船 ShipFireControl 提供。
     /// 实例服务（universe.Weapons）的武器索引不序列化、读档重建；武器持久配置（组别/PD 模式/
-    /// 炮手预留）驻留武器 comp、激活位驻留主驾驶台 comp。
+    /// 炮手预留）驻留武器 comp，武装总开关、火控模式与激活位驻留船身份锚。
     ///
-    /// 瞄准会话与战斗位置由归属 controller 按带种类的 DriveSubject 记录：对接合图/脱离换图后
-    /// 自动跟随。会话独立于驾驶/自动驾驶——对接中可瞄准。
+    /// 瞄准会话由归属 controller 按带种类的 DriveSubject 记录；武装状态随身份锚自动跟随
+    /// 对接合图/脱离换图。会话独立于驾驶/自动驾驶——对接中可瞄准。
     ///
-    /// 就绪口径（§6.1，单实现）：所在组激活 ∧（MannedNow ∨ 插件（段6））∧ 供电 ∧
+    /// 就绪口径（§6.1，单实现）：已启用武装 ∧ 所在组激活 ∧（炮手 ∨ 插件 ∨ 内置火控）∧ 供电 ∧
     /// 冷却完毕 ∧ 瞄准方向在射界内 ∧ 处于太空模式 ∧ 非地表图（有宇宙容器）。
     /// 地面模式只由原版炮塔 Verb 负责同图战斗。
     /// </summary>
@@ -34,6 +34,12 @@ namespace DeltaV
         public SpaceWeaponService(UniverseManager universe)
         {
             this.universe = universe;
+        }
+
+        internal void SyncStandbyPower(ShipBase ship)
+        {
+            if (!ship.IsValid) return;
+            foreach (CompSpaceWeapon weapon in WeaponsOn(ship)) weapon.SyncStandbyPower();
         }
 
         internal void NotifySalvageOutputLost(Thing launcher)
@@ -146,7 +152,7 @@ namespace DeltaV
             float total = 0f;
             foreach (CompSpaceWeapon weapon in WeaponsOn(ship))
             {
-                if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
+                if (!weapon.Armed || !weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
                     || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
                     || weapon.Component<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out int skill)
@@ -176,7 +182,7 @@ namespace DeltaV
             float total = 0f;
             foreach (CompSpaceWeapon weapon in WeaponsOn(ship))
             {
-                if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
+                if (!weapon.Armed || !weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
                     || weapon.aimMode != SpaceWeaponAimMode.PointDefense || !weapon.GroupActive
                     || weapon.Component<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out _)
@@ -203,13 +209,6 @@ namespace DeltaV
 
         public static WeaponAimInfo AimInfo(CompSpaceWeapon weapon, SpaceObject container)
             => SpaceWeaponBallistics.Read(weapon, container, weapon.QueryEnergy, false).aim;
-
-        /// <summary>供电判定（原版 comp 状态直读：无供电 comp = 不要求供电，per def）。</summary>
-        private static bool PowerOn(ThingWithComps parent)
-        {
-            CompPowerTrader trader = parent.TryGetComp<CompPowerTrader>();
-            return trader == null || trader.PowerOn;
-        }
 
         /// <summary>技能 → 散布偏差系数；炮手、内置火控与自瞄插件共用，数值见太空战架构 §5.4。</summary>
         public static float SpreadFactorForSkill(int skillLevel)
@@ -259,7 +258,7 @@ namespace DeltaV
         internal static List<CompSpaceWeapon> WeaponsOn(ShipBase ship) =>
             ship?.IsValid == true ? ship.Weapons.ToList() : new List<CompSpaceWeapon>();
 
-        // ---- 战斗位置（§5.5；本图全部可用玩家武器，激活组仅作人手不足时的优先级）----
+        // ---- 武装炮手岗位（§5.5；按船归属，激活组仅作人手不足时的优先级）----
 
         public int BattleStationGunnerCount(Map map)
         {
@@ -336,9 +335,9 @@ namespace DeltaV
             if (weapon?.parent == null || !weapon.parent.Spawned || weapon.parent.Destroyed
                 || weapon.parent.Map != map || weapon.parent.Faction != faction
                 || !ownerIds.Contains(weapon.OwnerShip.Identity) || weapon.Mannable == null
-                || !alreadyAssigned && weapon.AutoAimEffective) return false;
+                || !weapon.Armed || !alreadyAssigned && weapon.AutoAimEffective) return false;
             return alreadyAssigned && weapon.keepGunnerWhenUnavailable
-                || PowerOn(weapon.parent) && weapon.MagazineAvailable(weapon.SelectMagazine());
+                || weapon.MagazineAvailable(weapon.SelectMagazine());
         }
 
         private static bool WeaponHasAssignedJob(Map map, CompSpaceWeapon weapon)

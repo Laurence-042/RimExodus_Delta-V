@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-  <DeltaV_FireControlDisabled>禁用</DeltaV_FireControlDisabled>
+  <DeltaV_FireControlDisabled>停火</DeltaV_FireControlDisabled>
   <DeltaV_EvaCrewRequired>需要恰好 {0} 名健康驾驶员。</DeltaV_EvaCrewRequired>
   <DeltaV_EvaCargo>货物：{0} / {1} kg（不含驾驶员及其装备）</DeltaV_EvaCargo>
 </LanguageData>

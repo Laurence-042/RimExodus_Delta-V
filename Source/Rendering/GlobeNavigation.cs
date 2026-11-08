@@ -32,8 +32,6 @@ namespace DeltaV
         }
     }
 
-    internal enum GlobeFilter { All, Mission, Stations, Bookmarks }
-
     internal sealed class GlobeNavigation
     {
         internal const float DefaultWidth = 1000f;
@@ -42,7 +40,7 @@ namespace DeltaV
         internal float Width = DefaultWidth;
         internal GlobeTarget Selected;
         internal bool SelectionLost;
-        internal GlobeFilter Filter;
+        internal GlobeFilters Filters = new GlobeFilters();
         internal string Search = "";
         internal Vector2 ListScroll;
         internal Vector3 StableUp = Vector3.up;
@@ -91,8 +89,10 @@ namespace DeltaV
 
         internal void Refresh(UniverseManager universe)
         {
+            Filters = universe.GlobeFilters;
             Entries.Clear();
             foreach (SpaceObject obj in universe.objects) Entries.AddRange(universe.GlobeDisplay.Entries(obj));
+            universe.Projectiles.CollectGlobeEntries(Entries);
             SelectedEntry = Resolve(Selected);
             if (Selected != null) SelectionLost = SelectedEntry == null;
             missionEntries.Clear();
@@ -137,6 +137,7 @@ namespace DeltaV
         internal bool Important(GlobeDisplayEntry entry) => IsSelected(entry) || IsCourse(entry) || IsBookmarked(entry);
         internal void ToggleBookmark(GlobeDisplayEntry entry)
         {
+            if (entry == null || entry.owner.IsTransient) return;
             GlobeTarget existing = Bookmarks.FirstOrDefault(b => ReferenceEquals(Resolve(b), entry));
             if (existing != null) Bookmarks.Remove(existing); else Bookmarks.Add(GlobeTarget.Of(entry));
         }
@@ -154,17 +155,28 @@ namespace DeltaV
 
         internal IEnumerable<GlobeDisplayEntry> Listed(Vector3 reference)
         {
-            return Entries.Where(e => MatchesFilter(e) && (Search.NullOrEmpty()
-                || (e.Label ?? "").IndexOf(Search, StringComparison.OrdinalIgnoreCase) >= 0
-                || (e.Faction?.Name ?? "").IndexOf(Search, StringComparison.OrdinalIgnoreCase) >= 0))
+            return Entries.Where(IsDisplayed)
                 .OrderByDescending(IsCourse).ThenBy(e => OrbitSphere.ArcCells(reference, e.Pose.position))
                 .ThenBy(e => e.owner.objectId).ThenBy(e => e.ship?.key ?? 0);
         }
 
-        internal bool MatchesFilter(GlobeDisplayEntry e) => Filter == GlobeFilter.All
-            || (Filter == GlobeFilter.Mission && IsCourse(e))
-            || (Filter == GlobeFilter.Stations && e.station)
-            || (Filter == GlobeFilter.Bookmarks && IsBookmarked(e));
+        internal bool IsDisplayed(GlobeDisplayEntry entry)
+        {
+            if (entry == null) return false;
+            bool tracked = entry != null && ReferenceEquals(entry, CourseTarget);
+            return Filters.Matches(entry, tracked, IsCourse(entry), IsBookmarked(entry))
+                && (Filters.keepTracked && tracked || Search.NullOrEmpty()
+                    || (entry.Label ?? "").IndexOf(Search, StringComparison.OrdinalIgnoreCase) >= 0
+                    || (entry.Faction?.Name ?? "").IndexOf(Search, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        internal void ApplyFilters(UniverseManager universe, GlobeFilters filters)
+        {
+            universe.GlobeFilters = filters.Copy();
+            Filters = universe.GlobeFilters;
+            ListScroll = Vector2.zero;
+            if (SelectedEntry != null && !IsDisplayed(SelectedEntry)) Select(null);
+        }
     }
 
     // The same projection and legend layout are used by painting, hit testing and fit.

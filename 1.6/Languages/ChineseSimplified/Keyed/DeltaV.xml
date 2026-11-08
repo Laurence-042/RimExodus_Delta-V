@@ -17,6 +17,9 @@
   <DeltaV_ControlUncontrolled>未控制</DeltaV_ControlUncontrolled>
   <DeltaV_ControlManual>正在手动控制</DeltaV_ControlManual>
   <DeltaV_ControlAutopilot>正在自动驾驶</DeltaV_ControlAutopilot>
+  <DeltaV_ControlCompactUncontrolled>未控制</DeltaV_ControlCompactUncontrolled>
+  <DeltaV_ControlCompactManual>手动</DeltaV_ControlCompactManual>
+  <DeltaV_ControlCompactAutopilot>自动</DeltaV_ControlCompactAutopilot>
   <DeltaV_ControlSwitchAutopilot>切换为自动驾驶</DeltaV_ControlSwitchAutopilot>
   <DeltaV_AutoTaskMenu>自动任务：{0}</DeltaV_AutoTaskMenu>
   <DeltaV_AutoDrift>无</DeltaV_AutoDrift>
@@ -41,7 +44,15 @@
   <DeltaV_HudSpeed>速度：{0} 格/秒</DeltaV_HudSpeed>
   <DeltaV_HudHeading>航向：{0}°</DeltaV_HudHeading>
   <DeltaV_HudTurnRate>转速：{0}°/秒</DeltaV_HudTurnRate>
+  <DeltaV_PanelStatSpeed>速度</DeltaV_PanelStatSpeed>
+  <DeltaV_PanelStatSpeedValue>{0} 格/秒</DeltaV_PanelStatSpeedValue>
+  <DeltaV_PanelStatHeading>航向</DeltaV_PanelStatHeading>
+  <DeltaV_PanelStatHeadingValue>{0}°</DeltaV_PanelStatHeadingValue>
+  <DeltaV_PanelStatTurnRate>转速</DeltaV_PanelStatTurnRate>
+  <DeltaV_PanelStatTurnRateValue>{0}°/秒</DeltaV_PanelStatTurnRateValue>
+  <DeltaV_PanelStatAssist>飞行辅助</DeltaV_PanelStatAssist>
   <DeltaV_PanelRefocus>重新聚焦</DeltaV_PanelRefocus>
+  <DeltaV_PanelAdvancedFlightOptions>更多飞行操作</DeltaV_PanelAdvancedFlightOptions>
   <DeltaV_HudMass>质量：{0}</DeltaV_HudMass>
   <DeltaV_HudAssist>飞行辅助：{0}</DeltaV_HudAssist>
   <DeltaV_On>开</DeltaV_On>
@@ -271,12 +282,25 @@
   <DeltaV_PanelFireControl>火控：{0}</DeltaV_PanelFireControl>
   <DeltaV_FireControlAutomatic>自动</DeltaV_FireControlAutomatic>
   <DeltaV_FireControlManual>手动集火</DeltaV_FireControlManual>
-  <DeltaV_PanelFireControlTip>本按钮或 B 键循环切换允许的模式：自动、手动、禁用。手动时左键射击主套激活组，右键射击副套激活组。禁用停止所有武器，包括点防和持续工具；保留驾驶任务与武器组设置。EVA 仅支持手动与禁用。</DeltaV_PanelFireControlTip>
+  <DeltaV_PanelFireControlTip>武装启用后选择自动、手动集火或停火。手动时左键射击主套激活组，右键射击副套激活组。停火仍保持武装、供电和炮手岗位，但停止所有武器，包括点防和持续工具；武器组设置不变。EVA 仅支持手动与停火。</DeltaV_PanelFireControlTip>
   <DeltaV_PanelAutoManeuver>自动战斗机动：{0}</DeltaV_PanelAutoManeuver>
   <DeltaV_PanelAutoManeuverTip>自动围绕敌对飞船选择战斗站位。开启时替换现有自动驾驶任务（包括对接或航点制导），但保留对接计划；驾驶键可接管手操。读档后此开关复位。</DeltaV_PanelAutoManeuverTip>
   <DeltaV_PanelWeaponGroupTip>{0}套 第 {1} 组。点击切换该组是否激活；只有激活组会被射击，人手不足时也会优先分配炮手。</DeltaV_PanelWeaponGroupTip>
   <DeltaV_WeaponSetMain>主</DeltaV_WeaponSetMain>
   <DeltaV_WeaponSetSecondary>副</DeltaV_WeaponSetSecondary>
+  <DeltaV_PanelCombat>战斗</DeltaV_PanelCombat>
+  <DeltaV_PanelWeaponsArmedState>已武装</DeltaV_PanelWeaponsArmedState>
+  <DeltaV_PanelWeaponsDisarmedState>已解除武装</DeltaV_PanelWeaponsDisarmedState>
+  <DeltaV_PanelAdvancedCombatOptions>高级战斗选项</DeltaV_PanelAdvancedCombatOptions>
+  <DeltaV_PanelWeaponsArm>启用武装</DeltaV_PanelWeaponsArm>
+  <DeltaV_PanelWeaponsArmTip>启用本船武装并按预留与激活组自动分配炮手。只有已启用武装、有供电且具备炮手或自瞄火控的武器才会待机耗电、转动和射击。</DeltaV_PanelWeaponsArmTip>
+  <DeltaV_PanelGunnersReassign>重新分配炮手</DeltaV_PanelGunnersReassign>
+  <DeltaV_PanelGunnersReassignTip>解除并重新分配本船炮手岗位；人手不足时优先激活武器组。</DeltaV_PanelGunnersReassignTip>
+  <DeltaV_PanelWeaponsDisarm>解除武装</DeltaV_PanelWeaponsDisarm>
+  <DeltaV_PanelWeaponsDisarmTip>停止本船武器、切断待机耗电并释放炮手；保留火控模式与武器组设置。</DeltaV_PanelWeaponsDisarmTip>
+  <DeltaV_WeaponsArmed>武装已启用，{0} 名炮手就位。</DeltaV_WeaponsArmed>
+  <DeltaV_GunnersReassigned>已重新分配炮手，{0} 人就位。</DeltaV_GunnersReassigned>
+  <DeltaV_WeaponsDisarmed>武装已解除，{0} 名炮手返回正常工作。</DeltaV_WeaponsDisarmed>
   <DeltaV_PanelBattleStationsOn>进入 / 重新协调战斗位置</DeltaV_PanelBattleStationsOn>
   <DeltaV_PanelBattleStationsOff>退出战斗位置（{0} 人）</DeltaV_PanelBattleStationsOff>
   <DeltaV_PanelBattleStationsOnTip>按最新预留炮手完整重排本图全部可用玩家武器；人手不足时优先激活武器组。</DeltaV_PanelBattleStationsOnTip>
@@ -291,9 +315,9 @@
   <DeltaV_WeaponPdgizmoTip>自动拦截射程内的来袭导弹、可拦截炮弹和穿梭机，不受手动或自动瞄准模式影响。</DeltaV_WeaponPdgizmoTip>
   <DeltaV_WeaponReserveGizmo>预留炮手：{0}</DeltaV_WeaponReserveGizmo>
   <DeltaV_WeaponReserveNone>不指定</DeltaV_WeaponReserveNone>
-  <DeltaV_WeaponReserveGizmoTip>选择进入战斗位置时优先操作这件武器的殖民者。不指定时，会随机选择能胜任的人员。</DeltaV_WeaponReserveGizmoTip>
+  <DeltaV_WeaponReserveGizmoTip>选择启用武装时优先操作这件武器的殖民者。不指定时，会随机选择能胜任的人员。</DeltaV_WeaponReserveGizmoTip>
   <DeltaV_KeepGunnerWhenUnavailable>武器无法工作时保留炮手</DeltaV_KeepGunnerWhenUnavailable>
-  <DeltaV_KeepGunnerWhenUnavailableTip>默认开启。断电或缺弹时，已就位的炮手会留岗等待；关闭后，炮手会离岗并尝试操作其他可用武器。无法工作的武器不会再安排新炮手。</DeltaV_KeepGunnerWhenUnavailableTip>
+  <DeltaV_KeepGunnerWhenUnavailableTip>默认开启。缺弹时，已就位的炮手会留岗等待；关闭后，炮手会离岗并尝试操作其他可用武器。新炮手可在武器尚未通电时就位，以便建立待机用电。</DeltaV_KeepGunnerWhenUnavailableTip>
 
   <DeltaV_MagazinePriority>弹仓优先级：{0}</DeltaV_MagazinePriority>
   <DeltaV_MagazinePriorityTip>优先使用数值较高的弹仓；优先级相同时轮流供弹。</DeltaV_MagazinePriorityTip>

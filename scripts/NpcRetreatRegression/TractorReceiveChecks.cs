@@ -80,7 +80,9 @@ internal static partial class Program
         AccessTools.Field(typeof(MoonPoolUtility), "moonPoolDef").SetValue(null, moon);
         var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon { tractor = true, range = 60f },
             aimMode = SpaceWeaponAimMode.PointDefense };
-        Building launcher = (Building)AddTestHull(destination, Faction.OfPlayer, 49751).parent;
+        var launcherHull = AddTestHull(destination, Faction.OfPlayer, 49751);
+        launcherHull.combat.weaponsArmed = true;
+        Building launcher = (Building)launcherHull.parent;
         weapon.parent = launcher; launcher.AllComps.Add(weapon);
         var tractor = new CompSpaceTractor { parent = launcher };
         launcher.AllComps.Add(tractor);

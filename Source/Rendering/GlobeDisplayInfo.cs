@@ -13,6 +13,8 @@ namespace DeltaV
         public float area = -1f, environmentArea;
         public Vector2 environmentCenter;
         public bool wreck;
+        public bool natural;
+        public GlobeArmament armament = GlobeArmament.Unknown;
         public List<GlobeShipSummary> ships = new List<GlobeShipSummary>();
         public void ExposeData()
         {
@@ -20,6 +22,8 @@ namespace DeltaV
             Scribe_Values.Look(ref environmentArea, "environmentArea");
             Scribe_Values.Look(ref environmentCenter, "environmentCenter");
             Scribe_Values.Look(ref wreck, "wreck");
+            Scribe_Values.Look(ref natural, "natural");
+            Scribe_Values.Look(ref armament, "armament", GlobeArmament.Unknown);
             Scribe_Collections.Look(ref ships, "ships", LookMode.Deep);
             ships ??= new List<GlobeShipSummary>();
         }
@@ -29,6 +33,8 @@ namespace DeltaV
     {
         public int key;
         public bool shuttle, station;
+        public string contentType;
+        public GlobeArmament armament = GlobeArmament.Unknown;
         public string label;
         public Faction faction;
         public Vector2 localCenter;
@@ -38,6 +44,8 @@ namespace DeltaV
             Scribe_Values.Look(ref key, "key");
             Scribe_Values.Look(ref shuttle, "shuttle");
             Scribe_Values.Look(ref station, "station");
+            Scribe_Values.Look(ref contentType, "contentType");
+            Scribe_Values.Look(ref armament, "armament", GlobeArmament.Unknown);
             Scribe_Values.Look(ref label, "label");
             Scribe_References.Look(ref faction, "faction");
             Scribe_Values.Look(ref localCenter, "localCenter");
@@ -56,8 +64,15 @@ namespace DeltaV
         internal Vector2 localCenter;
         internal float area, projectionSide;
         internal bool wreck, native, craft, station;
-        internal string Label => ship?.label ?? owner.label;
-        internal Faction Faction => ship?.faction ?? owner.faction;
+        internal bool natural;
+        internal GlobeArmament armament = GlobeArmament.Unknown;
+        internal string contentType;
+        internal GlobeProjectileVisual projectile;
+        internal bool Minimal => projectile != null || owner.IsScattered;
+        internal string ContentType => ship != null ? ship.contentType : contentType ?? owner.contentTypeId;
+        internal GlobeArmament Armament => ship?.armament ?? armament;
+        internal string Label => projectile?.Def.label ?? ship?.label ?? owner.label;
+        internal Faction Faction => ship != null ? ship.faction : owner.faction;
         internal bool AlwaysVisible => native || (ship != null && ship.faction == Faction.OfPlayerSilentFail);
         internal SpacePose Pose => ship != null
             ? SpaceTransform.RigidPointPose(owner.pose, ship.localCenter, ship.localAngle)
@@ -157,7 +172,10 @@ namespace DeltaV
                     key = ship.Identity.key, shuttle = ship is ShuttleShip,
                     label = ship.Label, faction = ship.Faction,
                     localCenter = SpaceTransform.MapToShipLocal(map, ship.HullCenter),
-                    localAngle = ship.FrameAngle, area = cells.Count
+                    localAngle = ship.FrameAngle, area = cells.Count,
+                    armament = ship.Weapons.Any(w => !w.WeaponProps.manualOnly && !w.WeaponProps.tractor)
+                        || map.listerThings.AllThings.OfType<Building_Turret>().Any(b => ship.Contains(b))
+                        ? GlobeArmament.Armed : GlobeArmament.Unarmed
                 };
                 summary.ships.Add(member);
                 entries.Add(new GlobeDisplayEntry { owner = obj, ship = member, area = member.area,
@@ -166,6 +184,12 @@ namespace DeltaV
             }
             if (summary.area == 0f) summary.area = summary.ships.Sum(s => s.area);
             summary.environmentArea = environment.Count;
+            summary.natural = environment.Any(c => map.terrainGrid.TerrainAt(c)?.natural == true);
+            summary.armament = map.listerThings.AllThings.OfType<Building>().Any(b =>
+                environment.Contains(b.Position) && (b is Building_Turret
+                    || b.TryGetComp<CompSpaceWeapon>() is CompSpaceWeapon w
+                        && !w.WeaponProps.manualOnly && !w.WeaponProps.tractor))
+                ? GlobeArmament.Armed : GlobeArmament.Unarmed;
             Vector2 environmentAnchor = environment.Count > 0
                 ? SpaceTransform.BoundsCenterOfCells(environment) : SpaceTransform.ShipLocalOrigin(map);
             summary.environmentCenter = SpaceTransform.MapToShipLocal(map, environmentAnchor);
@@ -176,10 +200,14 @@ namespace DeltaV
                 entries.Add(new GlobeDisplayEntry { owner = obj, area = environment.Count,
                     cells = environment.ToList(), mapAnchor = environmentAnchor,
                     localCenter = summary.environmentCenter,
+                    natural = summary.natural, armament = summary.armament,
                     native = native, projectionSide = ShipSilhouette.AnchoredSide(environment, environmentAnchor)
                         / (float)ShipSilhouette.AnchoredPixelsPerCell });
             cached = new MapInfo { version = SubstructureOwnership.StructureVersion(map),
                 summary = summary, entries = entries, equipment = equipment };
+            // Generated class belongs to the principal structure, never every visiting member.
+            var principalEntry = entries.OrderByDescending(e => e.area).FirstOrDefault();
+            if (principalEntry?.ship != null) principalEntry.ship.contentType = obj.contentTypeId;
             if (IsStationType(obj.contentTypeId))
             {
                 // The station's principal structure represents the location; visiting ships
@@ -219,7 +247,8 @@ namespace DeltaV
                 if (archived.globe.environmentArea > 0 || archived.globe.ships.Count == 0)
                     yield return new GlobeDisplayEntry { owner = obj, area = archived.globe.environmentArea,
                         localCenter = archived.globe.environmentCenter,
-                        wreck = archived.globe.wreck, station = IsStationType(obj.contentTypeId) && !archived.globe.ships.Any(s => s.station) };
+                        wreck = archived.globe.wreck, natural = archived.globe.natural, armament = archived.globe.armament,
+                        station = IsStationType(obj.contentTypeId) && !archived.globe.ships.Any(s => s.station) };
                 yield break;
             }
             if (obj is PoiState poiState && poiState.kind == PoiKind.NativeParent)
@@ -232,7 +261,8 @@ namespace DeltaV
             if (obj is PoiState snapshot && snapshot.snapshot != null)
             {
                 yield return new GlobeDisplayEntry { owner = obj, area = snapshot.snapshot.GlobeArea,
-                    wreck = snapshot.snapshot.GlobeWreck, station = IsStationType(obj.contentTypeId) };
+                    wreck = snapshot.snapshot.GlobeWreck, station = IsStationType(obj.contentTypeId),
+                    craft = GlobeFilters.IsCraftType(obj.contentTypeId) };
                 yield break;
             }
             float area = PrefabGlobeMeasurements.AverageArea(obj.contentTypeId);

@@ -10,11 +10,29 @@ namespace DeltaV
 {
     public static partial class PlanetGlobeRenderer
     {
+        private static float SpriteScreenAngle(SpacePose pose, GlobeView view) =>
+            SilhouetteScreenAngle(pose.position, SpaceTransform.SpriteMeshAngle(pose.angle), view.Right, view.Up);
+
         internal static Legend LayoutLegend(GlobeView view, GlobeDisplayEntry entry, bool important)
         {
             SpacePose pose = entry.Pose;
             bool behind = !view.Front(pose.position);
             Vector2 pos = view.Project(pose.position);
+            if (entry.Minimal)
+            {
+                if (behind || !view.Rect.Contains(pos)) return null;
+                Vector2 dimensions = entry.projectile != null ? entry.projectile.Size * view.PixelsPerCell : new Vector2(3f, 3f);
+                // Projectile sprites share the +Z texture-forward convention with the world renderer.
+                float rotation = entry.projectile != null ? SpriteScreenAngle(pose, view) : 0f;
+                float radians = rotation * Mathf.Deg2Rad;
+                float cos = Mathf.Abs(Mathf.Cos(radians)), sin = Mathf.Abs(Mathf.Sin(radians));
+                Vector2 hitSizeMinimal = new Vector2(Mathf.Max(12f, dimensions.x * cos + dimensions.y * sin),
+                    Mathf.Max(12f, dimensions.x * sin + dimensions.y * cos));
+                return new Legend { entry = entry, position = pos, projection = entry.projectile != null,
+                    rect = new Rect(pos - dimensions * .5f, dimensions), angle = rotation,
+                    hitRect = new Rect(pos - hitSizeMinimal * .5f, hitSizeMinimal),
+                    color = entry.Faction?.Color ?? Color.white };
+            }
             bool projection = GlobeDisplayRules.UseProjection(view.ReferenceSide, view.PixelsPerCell,
                 entry.owner.map != null && entry.cells?.Count > 0);
             float size = projection ? entry.projectionSide * view.PixelsPerCell : 18f;
@@ -56,11 +74,11 @@ namespace DeltaV
             for (int i = 0; i < legends.Count; i++)
             {
                 Legend root = legends[i];
-                if (root.important || root.focused || root.projection) continue;
+                if (root.entry.Minimal || root.important || root.focused || root.projection) continue;
                 for (int j = legends.Count - 1; j > i; j--)
                 {
                     Legend other = legends[j];
-                    if (other.important || other.focused || other.projection
+                    if (other.entry.Minimal || other.important || other.focused || other.projection
                         || !root.hitRect.ExpandedBy(4f).Overlaps(other.hitRect)) continue;
                     if (root.members.Count == 0) root.members.Add(root);
                     root.members.Add(other);
@@ -82,7 +100,8 @@ namespace DeltaV
                 foreach (GlobeDisplayEntry entry in targets)
                 {
                     Legend legend = LayoutLegend(trial, entry, true);
-                    if (legend.edge || !Contains(safe, legend.hitRect) || !Contains(safe, legend.labelRect))
+                    if (legend == null || legend.edge || !Contains(safe, legend.hitRect)
+                        || !entry.Minimal && !Contains(safe, legend.labelRect))
                     { fits = false; break; }
                 }
                 if (fits) { width = trial.Width; return true; }
@@ -101,6 +120,7 @@ namespace DeltaV
             state.Refresh(universe);
             var target = state.Resolve(key);
             if (target == null) { Reject("DeltaV_NavUnavailable"); return; }
+            if (!state.IsDisplayed(target)) { Reject("DeltaV_NavFilteredTarget"); return; }
             state.Select(target);
             state.Recenter();
             GlobeView view = GlobeView.Create(mapRect, universe, context);
@@ -172,11 +192,27 @@ namespace DeltaV
             bool draggable, Vector2? click)
         {
             Text.Font = GameFont.Tiny;
-            var occupied = new List<Rect>();
+            var occupied = draggable ? new List<Rect>() : GlobeNavigationPanel.CompactReservedRects(view.Rect);
             foreach (Legend legend in Legends.OrderByDescending(l => state.IsSelected(l.entry))
                 .ThenByDescending(l => state.IsCourse(l.entry)).ThenByDescending(l => l.important).ThenByDescending(l => l.focused))
             {
                 var entry = legend.entry;
+                if (entry.Minimal)
+                {
+                    if (entry.projectile?.Texture is Texture sprite)
+                    {
+                        GUI.BeginGroup(view.Rect);
+                        Rect local = legend.rect; local.position -= view.Rect.position;
+                        GUI.color = Color.white;
+                        DrawLegendTexture(local, sprite, legend.angle);
+                        GUI.EndGroup();
+                    }
+                    // No labels, target frames, direction arrows or clusters on transient detail.
+                    Rect minimalHit = Clip(legend.hitRect, view.Rect);
+                    TooltipHandler.TipRegion(minimalHit, entry.Label + "\n" + Distance(view, entry));
+                    if (LegendClicked(minimalHit, draggable, ref click)) state.Select(entry);
+                    continue;
+                }
                 if (!legend.edge && legend.members.Count == 0)
                 {
                     Texture2D texture = legend.projection ? GetSilhouette(entry)
@@ -234,30 +270,43 @@ namespace DeltaV
                 {
                     label.y = Mathf.Clamp(legend.hitRect.yMin - 35f, view.Rect.yMin + 4f, view.Rect.yMax - 54f);
                     if (occupied.Any(r => r.Overlaps(label)) && !legend.important) continue;
-                    // Two protected labels at the same location get separate fixed rows.
-                    for (int i = 0; i < 6 && occupied.Any(r => r.Overlaps(label)); i++)
-                        label.y = view.Rect.yMin + 4f + i * 33f;
-                    if (label.yMax > view.Rect.yMax - 20f) continue;
+                    // Protected labels may move through fixed rows, but never cover navigation
+                    // controls or the scale. The icon and tooltip remain available if no row fits.
+                    for (int i = 0; i < 8 && occupied.Any(r => r.Overlaps(label)); i++)
+                        label.y = view.Rect.yMin + 34f + i * 33f;
+                    if (label.yMax > view.Rect.yMax - 31f || occupied.Any(r => r.Overlaps(label))) continue;
                 }
                 occupied.Add(label);
                 Vector2 attachment = new Vector2(Mathf.Clamp(legend.position.x, label.xMin, label.xMax),
                     Mathf.Clamp(legend.position.y, label.yMin, label.yMax));
                 Vector2 lineStart = new Vector2(Mathf.Clamp(legend.position.x, view.Rect.xMin + 2f, view.Rect.xMax - 2f),
                     Mathf.Clamp(legend.position.y, view.Rect.yMin + 2f, view.Rect.yMax - 2f));
-                Widgets.DrawLine(lineStart, attachment, new Color(legend.color.r, legend.color.g, legend.color.b, .5f), 1f);
-                Widgets.DrawBoxSolid(label, new Color(.04f, .06f, .08f, .88f));
+                Widgets.DrawLine(lineStart, attachment,
+                    new Color(legend.color.r, legend.color.g, legend.color.b, .9f), 2f);
+                Widgets.DrawBoxSolid(label, new Color(.12f, .155f, .185f, .97f));
+                GUI.color = new Color(legend.color.r, legend.color.g, legend.color.b, .78f);
+                Widgets.DrawBox(label);
+                GUI.color = Color.white;
                 string prefix = legend.behind ? "DeltaV_NavBehindShort".Translate().ToString() + " · " : "";
-                Widgets.Label(label, ShortText(prefix + entry.Label, label.width) + "\n" + Distance(view, entry));
+                Rect labelText = new Rect(label.x + 4f, label.y + 1f, label.width - 8f, label.height - 2f);
+                Widgets.Label(labelText, ShortText(prefix + entry.Label, labelText.width) + "\n" + Distance(view, entry));
                 TooltipHandler.TipRegion(label, tip);
                 if (LegendClicked(label, draggable, ref click)) state.Select(entry);
             }
             Text.Font = GameFont.Small;
         }
 
-        private static void DrawScale(GlobeView view)
+        private static void DrawScale(GlobeView view, bool expanded)
         {
+            // There is no safe middle strip once the compact globe has collapsed this far.
+            // Hiding the auxiliary scale is preferable to covering either navigation row.
+            if (!expanded && view.Rect.height < 88f) return;
+
             Text.Font = GameFont.Tiny;
-            Rect text = new Rect(view.Rect.x + 6f, view.Rect.yMax - 20f, view.Rect.width - 12f, 18f);
+            // Compact mode uses a short centered scale, leaving both the map and nearby labels usable.
+            Rect text = expanded
+                ? new Rect(view.Rect.x + 6f, view.Rect.yMax - 20f, view.Rect.width - 12f, 18f)
+                : GlobeNavigationPanel.CompactScaleRect(view.Rect);
             Widgets.DrawBoxSolid(text, new Color(.04f, .06f, .08f, .85f));
             if (view.Whole) Widgets.Label(text, "DeltaV_NavWhole".Translate());
             else

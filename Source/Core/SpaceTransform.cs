@@ -419,8 +419,10 @@ namespace DeltaV
         /// </summary>
         public static Quaternion FocusedSpriteRotation(SpaceObject focused, float universeAngle)
         {
-            return FocusedMeshRotation(focused, universeAngle - Mathf.PI / 2f);
+            return FocusedMeshRotation(focused, SpriteMeshAngle(universeAngle));
         }
+
+        internal static float SpriteMeshAngle(float universeAngle) => universeAngle - Mathf.PI / 2f;
 
         /// <summary>
         /// 宇宙绝对姿态 → 星球视图球面切平面旋转。局部 X/Z 分别对齐当前位置的
