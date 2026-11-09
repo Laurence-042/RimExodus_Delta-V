@@ -78,6 +78,12 @@ namespace DeltaV
         public string contentTypeId;
         public string sourcePrefabPath;
 
+        /// <summary>
+        /// 本对象来自批量 prefab 标记或其后代。该持久来源标记只阻止后续批量标记再次
+        /// 展开，避免 cluster 递归；不改变对象身份、运动、碰撞或普通精确标记。
+        /// </summary>
+        public bool clusterChild;
+
         /// <summary>NPC 初始能力及最近决策；有图时重新评估战损，无图时使用该摘要。</summary>
         public bool npcRetreating;
         public bool npcHadShip;
@@ -360,6 +366,7 @@ namespace DeltaV
             other.objectId = objectId; other.pose = pose; other.baseTag = baseTag;
             other.faction = faction; other.ambientLabel = ambientLabel;
             other.contentTypeId = contentTypeId; other.sourcePrefabPath = sourcePrefabPath;
+            other.clusterChild = clusterChild;
             other.npcRetreating = npcRetreating; other.npcHomeObjectId = npcHomeObjectId;
             other.npcHadShip = npcHadShip;
             other.npcFaction = npcFaction;
@@ -375,6 +382,7 @@ namespace DeltaV
             Scribe_Values.Look(ref ambientLabel, "ambientLabel", null);
             Scribe_Values.Look(ref contentTypeId, "contentTypeId");
             Scribe_Values.Look(ref sourcePrefabPath, "sourcePrefabPath");
+            Scribe_Values.Look(ref clusterChild, "clusterChild");
             Scribe_Values.Look(ref npcRetreating, "npcRetreating");
             Scribe_Values.Look(ref npcHadShip, "npcHadShip");
             Scribe_Values.Look(ref npcHomeObjectId, "npcHomeObjectId");

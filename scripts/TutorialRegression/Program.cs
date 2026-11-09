@@ -58,6 +58,7 @@ internal static partial class Program
                 Path.GetFullPath(Path.Combine(Path.GetDirectoryName(args[2]), "../Defs")));
             ScenarioTranslation(Path.GetDirectoryName(args[2]));
             PrefabIdentities(Path.GetDirectoryName(args[2]));
+            SectorContentDefaults(Path.GetDirectoryName(args[2]));
             PrefabTurretGraphs(Path.GetDirectoryName(args[2]));
             if (args.Length > 3 && args[3] == "range")
             {

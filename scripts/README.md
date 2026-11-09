@@ -13,7 +13,7 @@
 
 `GuardShieldRegression/GuardShieldRegression.csproj` 直接编译生产护盾贴图裁剪算法，对拍随机覆盖、UV 范围与退化几何，并输出离线预览数据及重建耗时；运行和验证边界见[守卫盾裁剪检查](GuardShieldRegression/README.md)。
 
-`TutorialRegression/run.ps1` 现含 `MissionChecks.cs`：分级条件、货运押金／期限、逐人结果、原版宾客身份／财富过滤、手术真实信号与直接外交去重、合同 Scribe、敌舰主台／归档及 Harmony 签名。`NpcRetreatRegression -GlobeOnly` 增加多委托目标隔离。离线运行需传 `-HarmonyPath <Lib.Harmony/lib/net8.0/0Harmony.dll>`，不能使用游戏 Mono 版；复现命令与游戏内清单见[太空任务系统](../doc/太空任务系统.md#验证与复现)。
+`TutorialRegression/run.ps1` 现含 `MissionChecks.cs`：分级条件、货运押金／期限、逐人结果、原版宾客身份／财富过滤、手术真实信号与直接外交去重、合同 Scribe、敌舰主台／归档及 Harmony 签名。它还扫描全部 12 个星区叶子的默认 prefab，核对文件覆盖、format-2 内容、cluster 标记缺失、默认池播种不覆盖自定义值，以及贸易终端对锁定供货仓／解锁取货仓的 Scribe 引用。`NpcRetreatRegression -GlobeOnly` 增加多委托目标隔离。离线运行需传 `-HarmonyPath <Lib.Harmony/lib/net8.0/0Harmony.dll>`，不能使用游戏 Mono 版；复现命令与游戏内清单见[太空任务系统](../doc/太空任务系统.md#验证与复现)。
 
 `TutorialRegression/run.ps1 -RangeOnly` 检查武器试验平台／靶舰的原版占地、操作格、电网和屋顶支撑、三段轨道链与自瞄槽位、真实武器／终端 Scribe、全部内置 prefab 的原版数字 ID 注册、船厂／试验平台炮塔与嵌套枪械／Verb 的完整重复加载、六种护盾预设不补库存、射界／设置门禁与可直接跳过的课程阶段。仅隔离 Unity 图形静态初始化及夹具的归属登记／设施存在边界；不代替游戏交互和实弹验收。布局编辑 `TutorialContent/combat_range_layout.py`，通过共用 `build.py --only WeaponRange ShieldTarget` 生成。
 
@@ -35,6 +35,7 @@
 | `NpcRetreatRegression/run.ps1` | 1.6 的战斗、驾驶、结构和生命周期专项；已接 REF，名称不代表只测撤退；`-PlayerFlightOnly` 验证驾驶权限、显式驾驶和原版按键抑制边界、导航参考与任务替换（2026-11-02 共 72 项通过；模拟焦点／按键绑定环境，不启动游戏）；`-SeparationOnly` 验证实际 Mod DLL 的归属、增量断裂检查与出力分离门禁；`-TractorOnly` 验证自动跨船独占与过滤、手动叠力、残骸分离请求、点防伤害分配及坐标／存读档 |
 | `MpcRegression`、`EngineeringRegression`、`RailgunRegression` | 1.6 控制器、工程与碰撞链回归；轨道炮数值现状以武器基线及 1.7 回归为准 |
 | `PrefabRegression`、`MoonPoolRoofRegression`、`SubstructureDamageRegression` | 1.6 的 prefab、屋顶及基架破坏检查；公共 prefab 实现已迁入 REF |
+| `PrefabMarkerRegression/run.ps1` | 直接引用生产 DLL，验证精确／批量 SpaceObject 标记的密度、配置上限、`clusterChild` 产生与后代继承、确定性、带权分布、面积均匀环带、最小间距、重掷种子及单一朝向来源；不启动游戏，也不替代实际 prefab 导出、半透明预览、懒物化和归档恢复验收 |
 | `verify_docking_contract.ps1` | 1.6 对接原版签名、XML 字段与翻译核对，不适用于 1.7 API |
 | `CombatManeuverSimulation/` | 仅保留历史研究报告与结果；实验驱动已退役，不能把旧数值当成现行武器标定 |
 | `align_turret_layer.py`、`build_*.py`、`preview_*.py` | 贴图对齐、图标生成与布局复现；部分预览脚本会调用图标生成器并写入正式图标，使用前先阅读脚本 |

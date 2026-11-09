@@ -1,8 +1,9 @@
 # 教程布局制作源
 
-`build.py` 是生成入口；移民船残骸以用户原始导出的逐字节副本 `arrival_intact.prefab` 为基准，删改逻辑编辑 `arrival_layout.py`，环形船厂与小货船编辑 `shipyard_layout.py`，武器平台与靶舰编辑 `combat_range_layout.py`。生成器读取安装版与项目 Def 的尺寸和继承链，解析占地／操作格后由同一份记录输出：
+`build.py` 是生成入口；移民船残骸以用户原始导出的逐字节副本 `arrival_intact.prefab` 为基准，删改逻辑编辑 `arrival_layout.py`，环形船厂与小货船编辑 `shipyard_layout.py`，武器平台与靶舰编辑 `combat_range_layout.py`，12 个星区叶子的内置内容编辑 `sector_layout.py`。生成器读取安装版与项目 Def 的尺寸和继承链，解析占地／操作格后由同一份记录输出：
 
 - `1.6/Prefabs/{ArrivalStation,TrainingShip,Salvage,Shipyard,PrototypeShip,WeaponRange,ShieldTarget}.xml`：七份正式可打包 prefab，教程、调试导入与星区池共用同一目录；运行时不调用布局脚本。
+- `1.6/Prefabs/Sector*.xml`：五档舰船与七类空间内容的默认生成池；所有叶子模板均不含批量标记。
 - 同名 `.png`：与 XML 对应的布局图。
 - `Source/obj/TutorialContent/*.records.json`：原版离线检查输入，不入库。
 
@@ -18,6 +19,8 @@ just build
 ```
 
 可用 `--data` 指定其他安装目录的 Data。构建依赖 Python Pillow；它只用于制作期示意图，不是 Mod 运行前置。
+
+`python scripts/TutorialContent/build.py --only SectorFighter ... SectorAsteroid` 可单独重建星区内容。舰船与站体均包含真实驾驶台、电网、维生和用途设备；贸易站状态显式绑定三个锁定供货仓与一个解锁取货仓，小行星使用原版 Mineable 状态。`TutorialRegression` 检查 12 个注册叶子的默认路径、format-2 文件、无 cluster 标记、Scribe 数字身份及贸易引用；完整 SpawnSetup、人员活动、战斗和交易补货仍由新档验收。
 
 残骸保留用户原船的舱室与原版飞船连接关系，在原导出上添加后部爆炸断口、拆除搜刮设备并保留原床铺／家具／厨房，把队长舱与保留唯一一套真空服的服装架移入货仓。正式资源与本地 `ArrivalStationWreck.xml` 使用同一生成结果；不存在另一份八舱布局。回归覆盖六舱存取、货仓队长绑定、唯一电网、教练机泊口与货仓温控。
 

@@ -126,17 +126,34 @@ namespace DeltaV
         {
             SectorTypeRule existing = sectorRules?.FirstOrDefault(r => r.typeId == leaf.id);
             if (existing != null) return existing;
-            return new SectorTypeRule { typeId = leaf.id, minCount = leaf.defaultMin };
+            return DefaultSectorRule(leaf);
         }
 
-        /// <summary>为注册表中的每个叶子类型补齐缺失的设置条目（只补缺，不覆盖已有值）。</summary>
+        private static SectorTypeRule DefaultSectorRule(SectorContentType leaf)
+        {
+            var rule = new SectorTypeRule { typeId = leaf.id, minCount = leaf.defaultMin };
+            if (!leaf.defaultPrefabPath.NullOrEmpty()) rule.prefabPaths.Add(leaf.defaultPrefabPath);
+            return rule;
+        }
+
+        /// <summary>
+        /// 为每个叶子补齐设置及至少一份可用内置 prefab。自定义非空池保持原值；
+        /// 禁用类型应把数量设为 0，而不是依赖空物化池。
+        /// </summary>
         public void EnsureSectorRulesSeeded()
         {
             if (sectorRules == null) sectorRules = new List<SectorTypeRule>();
             foreach (SectorContentType leaf in SectorContentTypes.AllLeaves())
             {
-                if (sectorRules.Any(r => r.typeId == leaf.id)) continue;
-                sectorRules.Add(new SectorTypeRule { typeId = leaf.id, minCount = leaf.defaultMin });
+                SectorTypeRule existing = sectorRules.FirstOrDefault(r => r.typeId == leaf.id);
+                if (existing == null)
+                {
+                    sectorRules.Add(DefaultSectorRule(leaf));
+                    continue;
+                }
+                if (existing.prefabPaths == null) existing.prefabPaths = new List<string>();
+                if (existing.prefabPaths.Count == 0 && !leaf.defaultPrefabPath.NullOrEmpty())
+                    existing.prefabPaths.Add(leaf.defaultPrefabPath);
             }
         }
 

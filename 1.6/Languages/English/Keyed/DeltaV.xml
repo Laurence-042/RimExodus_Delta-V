@@ -301,6 +301,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_WeaponsArmed>Weapons armed; {0} gunner(s) assigned.</DeltaV_WeaponsArmed>
   <DeltaV_GunnersReassigned>Gunners reassigned; {0} post(s) manned.</DeltaV_GunnersReassigned>
   <DeltaV_WeaponsDisarmed>Weapons disarmed; {0} gunner(s) returned to normal work.</DeltaV_WeaponsDisarmed>
+  <DeltaV_WeaponInteractionCellBlocked>This construction blocks the gunner position of {0} Delta-V turret(s). Those turrets need effective auto-aim while the position remains blocked.</DeltaV_WeaponInteractionCellBlocked>
   <DeltaV_PanelBattleStationsOn>Man / recoordinate battle stations</DeltaV_PanelBattleStationsOn>
   <DeltaV_PanelBattleStationsOff>Leave battle stations ({0})</DeltaV_PanelBattleStationsOff>
   <DeltaV_PanelBattleStationsOnTip>Fully reassigns all usable player weapons on this map using the latest gunner reservations; active groups take priority when crew is short.</DeltaV_PanelBattleStationsOnTip>
@@ -691,4 +692,32 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_CombatSolver_ProvenInfeasible>constraints infeasible</DeltaV_CombatSolver_ProvenInfeasible>
   <DeltaV_CombatBuiltInDistance>A distance of 0 selects attack range from actual weapon reach and hull separation.</DeltaV_CombatBuiltInDistance>
   <DeltaV_CombatBuiltInCurves>No custom scoring curves; uses the general attack-pose evaluation.</DeltaV_CombatBuiltInCurves>
+  <DeltaV_PrefabMarkerConfigure>Configure prefab marker</DeltaV_PrefabMarkerConfigure>
+  <DeltaV_PrefabMarkerConfigureDesc>Choose the child prefab and its exact universe-space placement. Selecting this marker shows a translucent silhouette preview.</DeltaV_PrefabMarkerConfigureDesc>
+  <DeltaV_PrefabClusterConfigureDesc>Choose a weighted prefab pool and annular distribution. Selecting this marker previews the deterministic cluster.</DeltaV_PrefabClusterConfigureDesc>
+  <DeltaV_PrefabExactInspect>Prefab: {0}\nDistance: {1}; bearing: {2}°; relative facing: {3}°</DeltaV_PrefabExactInspect>
+  <DeltaV_PrefabClusterInspect>Prefab pool: {0} entries\nTarget objects: {1}; radius: {2}–{3}</DeltaV_PrefabClusterInspect>
+  <DeltaV_PrefabMarkerNoPrefabs>No prefab files are available.</DeltaV_PrefabMarkerNoPrefabs>
+  <DeltaV_PrefabMarkerNoType>No content classification</DeltaV_PrefabMarkerNoType>
+  <DeltaV_PrefabExactTitle>Exact prefab object marker</DeltaV_PrefabExactTitle>
+  <DeltaV_PrefabExactHelp>The bearing and relative facing use the parent SpaceObject's frame: 0° points along its local +X direction. Distance is measured in universe cells. The generated object inherits the parent's instantaneous rigid-point velocity and angular velocity.</DeltaV_PrefabExactHelp>
+  <DeltaV_PrefabMarkerPrefab>Prefab: {0}</DeltaV_PrefabMarkerPrefab>
+  <DeltaV_PrefabMarkerContentType>Content classification: {0}</DeltaV_PrefabMarkerContentType>
+  <DeltaV_PrefabMarkerDistance>Relative distance (cells)</DeltaV_PrefabMarkerDistance>
+  <DeltaV_PrefabMarkerBearing>Relative bearing (degrees)</DeltaV_PrefabMarkerBearing>
+  <DeltaV_PrefabMarkerFacing>Relative facing (degrees)</DeltaV_PrefabMarkerFacing>
+  <DeltaV_PrefabMarkerInheritFaction>Inherit the parent prefab's faction</DeltaV_PrefabMarkerInheritFaction>
+  <DeltaV_PrefabMarkerPreviewHelp>The preview is derived from the selected prefab's actual foundation footprint and is not a collision or spawn fact.</DeltaV_PrefabMarkerPreviewHelp>
+  <DeltaV_PrefabClusterTitle>Prefab object cluster marker</DeltaV_PrefabClusterTitle>
+  <DeltaV_PrefabClusterHelp>Objects are distributed uniformly by area in the annulus. Prefab weights are relative. Density is the expected number of objects per 10,000 square universe cells; the marker stores a stable seed so export and reconstruction produce the same cluster.</DeltaV_PrefabClusterHelp>
+  <DeltaV_PrefabClusterInner>Inner radius</DeltaV_PrefabClusterInner>
+  <DeltaV_PrefabClusterOuter>Outer radius</DeltaV_PrefabClusterOuter>
+  <DeltaV_PrefabClusterDensity>Objects / 10,000 cells²</DeltaV_PrefabClusterDensity>
+  <DeltaV_PrefabClusterSpacing>Minimum spacing</DeltaV_PrefabClusterSpacing>
+  <DeltaV_PrefabClusterSeed>Distribution seed</DeltaV_PrefabClusterSeed>
+  <DeltaV_PrefabClusterReroll>Reroll distribution</DeltaV_PrefabClusterReroll>
+  <DeltaV_PrefabClusterCount>Density target: {0} objects (maximum 128; spacing may reduce the result).</DeltaV_PrefabClusterCount>
+  <DeltaV_PrefabClusterPool>Weighted prefab pool</DeltaV_PrefabClusterPool>
+  <DeltaV_PrefabClusterAdd>Add prefab</DeltaV_PrefabClusterAdd>
+  <DeltaV_PrefabClusterWeight>Weight</DeltaV_PrefabClusterWeight>
 </LanguageData>

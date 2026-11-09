@@ -49,6 +49,57 @@ internal static partial class Program
 
     static bool EnvironmentQuietLog(ref bool __result) { __result = false; return false; }
 
+    static void SectorContentDefaults(string directory)
+    {
+        var leaves = SectorContentTypes.AllLeaves().ToList();
+        Check(leaves.Count == 12, "sector content registry has twelve generation leaves");
+        Check(leaves.All(leaf => !leaf.defaultPrefabPath.NullOrEmpty()),
+            "every sector generation leaf has a shipped default prefab");
+        Check(leaves.Select(leaf => leaf.defaultPrefabPath).Distinct().Count() == leaves.Count,
+            "sector generation leaves use distinct authored defaults");
+        foreach (SectorContentType leaf in leaves)
+        {
+            string path = Path.Combine(directory, leaf.defaultPrefabPath);
+            Check(File.Exists(path), leaf.id + " default prefab is shipped");
+            var document = new XmlDocument(); document.Load(path);
+            Check(document.DocumentElement?.GetAttribute("formatVersion") == "2"
+                && document.SelectNodes("/MapPrefab/thingStates/li").Count > 0,
+                leaf.id + " default is a non-empty format-2 prefab");
+            Check(document.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_PrefabClusterMarker']").Count == 0,
+                leaf.id + " default cannot recursively expand a cluster marker");
+        }
+        var settings = new DeltaVSettings();
+        settings.EnsureSectorRulesSeeded();
+        Check(settings.sectorRules.Count == leaves.Count
+            && leaves.All(leaf => settings.EffectiveSectorRule(leaf).prefabPaths
+                .SequenceEqual(new[] { leaf.defaultPrefabPath })),
+            "fresh sector settings seed every shipped default pool");
+
+        var custom = new DeltaVSettings();
+        custom.sectorRules.Add(new SectorTypeRule {
+            typeId = leaves[0].id, prefabPaths = new List<string> { "Custom.xml" } });
+        custom.EnsureSectorRulesSeeded();
+        Check(custom.EffectiveSectorRule(leaves[0]).prefabPaths.SequenceEqual(new[] { "Custom.xml" }),
+            "default seeding preserves an existing custom pool");
+        custom.sectorRules[0].prefabPaths.Clear();
+        custom.EnsureSectorRulesSeeded();
+        Check(custom.EffectiveSectorRule(leaves[0]).prefabPaths.SequenceEqual(new[] { leaves[0].defaultPrefabPath }),
+            "empty sector pool regains its shipped usable default");
+
+        string trade = Path.Combine(directory, "SectorTradeStation.xml");
+        var xml = new XmlDocument(); xml.Load(trade);
+        XmlNode terminal = xml.SelectSingleNode("/MapPrefab/thingStates/li[def='DeltaV_TradeTerminal']/state/saveable");
+        var ids = xml.SelectNodes("/MapPrefab/thingStates/li/state/saveable")
+            .Cast<XmlNode>().ToDictionary(node => node["id"].InnerText, node => node["def"].InnerText);
+        Check(terminal.SelectNodes("supplyCargo/li").Cast<XmlNode>()
+                .All(node => ids.TryGetValue(node.InnerText, out string def) && def == "DeltaV_CargoContainer")
+            && terminal.SelectNodes("supplyCargo/li").Count == 3,
+            "trade station terminal references three sealed supply bays");
+        Check(ids.TryGetValue(terminal["deliveryCargo"].InnerText, out string delivery)
+            && delivery == "DeltaV_CargoStorage",
+            "trade station terminal references one unlocked delivery bay");
+    }
+
     static void CheckPrefabContent(string directory)
     {
         foreach (string path in Directory.GetFiles(directory, "*.xml").OrderBy(p => p))

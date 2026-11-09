@@ -88,6 +88,85 @@ namespace DeltaV
         }
     }
 
+    internal readonly struct SpaceWeaponInteractionWarningState
+    {
+        internal readonly Map map;
+        internal readonly IntVec3 cell;
+        internal readonly Rot4 rotation;
+        internal readonly BuildableDef def;
+        internal readonly int turretCount;
+
+        internal SpaceWeaponInteractionWarningState(Map map, IntVec3 cell, Rot4 rotation,
+            BuildableDef def, int turretCount)
+        {
+            this.map = map;
+            this.cell = cell;
+            this.rotation = rotation;
+            this.def = def;
+            this.turretCount = turretCount;
+        }
+    }
+
+    internal static class SpaceWeaponInteractionWarning
+    {
+        private static readonly AccessTools.FieldRef<Designator_Place, Rot4> PlacingRotation =
+            AccessTools.FieldRefAccess<Designator_Place, Rot4>("placingRot");
+
+        internal static SpaceWeaponInteractionWarningState BeforePlacement(Designator_Place designator,
+            IntVec3 cell, Thing thingToIgnore = null)
+        {
+            Map map = Find.CurrentMap;
+            BuildableDef def = designator?.PlacingDef;
+            Rot4 rotation = designator == null ? Rot4.North : PlacingRotation(designator);
+            int count = SpaceWeaponManning.CountTurretsBlockedBy(def, cell, rotation, map, thingToIgnore);
+            return new SpaceWeaponInteractionWarningState(map, cell, rotation, def, count);
+        }
+
+        internal static void AfterPlacement(SpaceWeaponInteractionWarningState state)
+        {
+            if (state.turretCount <= 0 || state.map == null || state.def == null
+                || !state.cell.InBounds(state.map)) return;
+            List<Thing> things = state.cell.GetThingList(state.map);
+            for (int i = 0; i < things.Count; i++)
+            {
+                Thing placed = things[i];
+                if (placed.Position != state.cell || placed.Rotation != state.rotation
+                    || placed.def != state.def && placed.def.entityDefToBuild != state.def) continue;
+                Messages.Message("DeltaV_WeaponInteractionCellBlocked".Translate(state.turretCount),
+                    new TargetInfo(state.cell, state.map), MessageTypeDefOf.CautionInput, historical: false);
+                return;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(Designator_Build), nameof(Designator_Build.DesignateSingleCell))]
+    internal static class Patch_SpaceWeaponManningBuildWarning
+    {
+        private static void Prefix(Designator_Build __instance, IntVec3 c,
+            out SpaceWeaponInteractionWarningState __state)
+            => __state = SpaceWeaponInteractionWarning.BeforePlacement(__instance, c);
+
+        private static void Postfix(SpaceWeaponInteractionWarningState __state)
+            => SpaceWeaponInteractionWarning.AfterPlacement(__state);
+    }
+
+    [HarmonyPatch(typeof(Designator_Install), nameof(Designator_Install.DesignateSingleCell))]
+    internal static class Patch_SpaceWeaponManningInstallWarning
+    {
+        private static readonly MethodInfo ThingToInstallGetter = AccessTools.PropertyGetter(
+            typeof(Designator_Install), "ThingToInstall");
+
+        private static void Prefix(Designator_Install __instance, IntVec3 c,
+            out SpaceWeaponInteractionWarningState __state)
+        {
+            Thing ignored = ThingToInstallGetter?.Invoke(__instance, null) as Thing;
+            __state = SpaceWeaponInteractionWarning.BeforePlacement(__instance, c, ignored);
+        }
+
+        private static void Postfix(SpaceWeaponInteractionWarningState __state)
+            => SpaceWeaponInteractionWarning.AfterPlacement(__state);
+    }
+
     [HarmonyPatch(typeof(JobDriver), nameof(JobDriver.Cleanup))]
     internal static class Patch_SpaceWeaponManningJobEnded
     {

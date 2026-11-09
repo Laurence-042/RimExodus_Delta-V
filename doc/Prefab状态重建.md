@@ -4,6 +4,8 @@
 
 内置资源放在受版本控制的 `1.6/Prefabs/`，构建同步到 `1.7/Prefabs/`；根目录 `Prefabs/` 仍用于本地导出。`MapPrefab.LoadRelative`、`ListPrefabFiles` 和 `ResolvePoolPath` 共用资源目录：本地导出优先，其后按原版版本文件夹优先级查找，同名只列一次，相对路径不得越界。教程同样从该目录加载 `Shipyard.xml`、`PrototypeShip.xml` 等资源，布局脚本只在制作期运行；通用调试导入和星区池可直接复用。派系、主台归属和教程角色由调用方绑定，不固化进模板。`LoadLatest` 保留只选本地最新导出文件的测试语义。
 
+星区内容的 12 个叶子类型各自绑定一份 `Sector*.xml` 内置默认资源。`SectorContentType.defaultPrefabPath` 是设置初始化来源；`EnsureSectorRulesSeeded` 为缺失条目或空池补入默认文件，不覆盖已有非空自定义池。类型停用使用数量 0，不依赖空物化池。制作源为 `scripts/TutorialContent/sector_layout.py`，由共用 `build.py` 从安装版与当前 Mod Def 解析占地、旋转、操作格、承载与电力数据，再从同一批 resolved records 写出 XML、布局报告和 PNG。五档舰船包含推进器、驾驶台、武器、维生、电源及人员标记；空间站类型按用途配置。贸易站的 Scribe 图显式引用三个锁定 `DeltaV_CargoContainer` 和一个解锁 `DeltaV_CargoStorage`；小行星包含原版可开采钢、工业零部件和塑钢。全部叶子模板禁止放置 `DeltaV_PrefabClusterMarker`，因此既可作为普通生成池，也可安全作为 cluster 子对象。
+
 通用地图 prefab 的建筑和物品按实例保存原版 `Thing.ExposeData` 数据。地形继续使用原版 `PrefabUtility` 的布局和旋转语义；基架、屋顶仍在侧车中。导出范围为掩码内锚点属于 Building 或 Item 的实体，容器内容物由宿主的原版存档数据保存。
 
 重建顺序：基架及归属 → 原版地形 → 整批 Scribe 读取与内部引用解析 → 为所有新实体重新分配 Thing ID → 按 prefab 坐标旋转并落位 → 屋顶 → 原版房间更新及环境恢复 → 原版电网注册结算与设施重链 → 标记展开。落位派系与 ownerId 由调用方决定；驾驶台不继承源船 ID，对接口已导出的通道格按新锚与朝向换算。炮塔的地图帧瞄准角随 prefab 旋转。
@@ -13,6 +15,8 @@
 教程布局源为七份内置 prefab 写出环境层，默认有顶格（含设备脚印及月池力场顶）为 21°C、真空度 0；移民船按同源房间记录仅为货仓保留基础环境，其余有顶区域处于低温真空，当前配置见[残骸制作记录](教程开局实施计划.md#111-残骸布局与维生重设计2026-11-06)。露天残骸和靶舰没有室内环境数据。固体墙格没有 Room，恢复时忽略。`GenStep_DeltaVTutorialStation` 与 `TutorialFlightCourse` 没有独立环境写回，教程只保留气密／可达性检查。生成期间导入的环境在原版全量房间重建前由 REF 捕获实际值、重建后经同一环境层恢复；登记与清理见 [REF 环境层](../../RimExodusFramework/doc/地图模块.md#prefab-环境层2026-11-05)。作者应修改 `scripts/TutorialContent/build.py` 及对应布局源后重新生成资源。1.6 教程回归读取全部正式资源，经 REF XML 解析核对分区环境与屋顶／设备／月池覆盖。2026-11-05 用户确认的是此前普通 prefab 温度／真空度保存恢复；2026-11-06 新档生成收尾修正与新残骸仍待实机验收。
 
 基架写入后复核 `FoundationAt`；单个建筑或物品无法落位时收集 Def、位置及异常（如有），继续尝试剩余条目，最后由 `SharedMapBackend` 汇总抛出错误。有错误时不执行设施重链和标记展开，已修改的目标图由调用方处置。双船测试场景在重建前解析两船 prefab；仅自动选择加载失败时允许回退程序布局，明确配置的文件加载失败则保留旧场景并中止（设置用法见 README「测试」）。
+
+`Placement rejected` 仍表示原版 `GenSpawn.CanSpawnAt`／建造兼容性拒绝当前实体，并不等于 XML 或 Scribe 损坏。Delta-V 顶置炮塔的炮手交互格是可选岗位：已完成的 `Building_SpaceTurretGun` 实例不再阻止货架等建筑落位，因此这类合法布局可直接重建；炮塔蓝图／框架、轨道炮装填机和其他设施仍保留原版交互格保护。玩家手动覆盖炮手格时由建造 designator 给出警告，prefab 重建不发送 UI 消息。
 
 失败测试图的销毁与容器注销经 `UniverseManager.QueueFrameAction` 延后到帧边界，等待原版 `Map.FinalizeInit` 已排队的电网与地图绘制初始化结束；不能在生成长事件内同步销图，否则原版 `MapDrawer.Dispose` 会遇到尚未初始化的 sections，后续绘制回调还会访问已释放的网格。
 
@@ -31,3 +35,13 @@ Scribe 对同一份 prefab 内的引用在整批读取时解析。对外部 Pawn
 隐藏电线和武器槽位挂件也可与不可通行建筑同格。重建只对这两类已保存建筑放宽 `CanSpawnAt` 的行走检查，同时保留地形、槽位及原版擦除规则检查；整批落位后调用原版电网更新，使电线连通和设备供电在地图投入使用前完成。
 
 文件格式为 `MapPrefab` formatVersion 2；旧导出文件须重新导出。这个版本号仅属于 prefab 文件，不修改 Mod 版本。正常游戏存读档与远距离 POI 快照恢复不调用 prefab 标记展开。
+
+## SpaceObject 生成标记（2026-11-09）
+
+`DeltaV_PrefabObjectMarker` 是精确生成入口。配置窗口冻结 prefab 相对路径、可选内容类型、相对距离、宿主局部方位、对象相对朝向及是否继承宿主派系。方位以宿主局部 `+X` 为零，角度随宿主一起旋转；展开时只用 `SpaceTransform.RigidPointPose` 求子对象的绝对位置、朝向、线速度和角速度，不另建 host-map 锚或战术坐标。标记不立即同步生成第二张 Map，而是登记带 `sourcePrefabPath` 的 `PoiState`；接近后仍由 `SpaceLifecycle` 的既有队列物化，归档和恢复也走同一链。prefab 局部布局固定 North，最终宇宙朝向只认标记配置的 `SpacePose`，避免重复旋转。
+
+`DeltaV_PrefabClusterMarker` 是批量生成入口。每项保存 prefab 相对路径和非负权重；公共参数保存可选内容类型、环带内外半径、每 10000 格对象密度、最小中心间距、对象上限、派系继承和确定性种子。数量按环带面积乘密度取整并受上限约束；半径按面积均匀分布，角度均匀分布，带权抽样只使用正权重项。最小间距采用有限次拒绝采样，区域过密时可能少于理论数量，不把预览或屏幕坐标回写为生成事实。重新掷种子会改变整组布局；同一配置与种子在重建、存读档间保持一致。
+
+两种标记都在宿主 prefab 全部落位、设施重链完成后展开。精确标记仅在目标 prefab 解析并成功登记后销毁；cluster 先解析所有唯一 prefab，再原子登记整批子对象，任一步失败会回滚本批登记并保留标记供作者修正。批量登记的子 `PoiState` 写入 `clusterChild`，物化、归档、恢复及后续精确标记生成的后代都传递该来源事实；`CompPrefabClusterSpawner` 发现宿主带此标记时不执行分布，直接销毁自身。因此 cluster prefab 可以保留普通内容和精确子对象，但无论经过多少层精确引用都不能再次展开 cluster。普通读档、归档恢复和 `PoiSnapshot.ApplyTo` 不展开标记，因此不会因加载同一地图重复生成。
+
+选中标记或打开配置窗口时，`PrefabMarkerPreviewCache` 从 prefab 基架脚印生成半透明剪影；没有基架时回退到非真空地形与占格 Thing。剪影按同一相对位姿绘制，可用于调整距离、方位、朝向、环带和随机种子，但它是可丢弃渲染缓存，不参与碰撞、落点、数量、生命周期或存档。换档时由 `UniverseManager.ResetRuntimeServices` 清空。算法专项入口为 `scripts/PrefabMarkerRegression/run.ps1`；它直接引用生产 DLL，覆盖密度换算、`clusterChild` 产生／继承、配置上限、确定性、带权抽样、面积均匀、环带、间距、种子和单一朝向来源，不代替游戏内的导出、预览、物化及归档恢复验收。

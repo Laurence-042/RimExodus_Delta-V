@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw
 import shipyard_layout
 import combat_range_layout
 import arrival_layout
+import sector_layout
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
@@ -95,8 +96,9 @@ def build(data, name="ArrivalStation"):
         return list(dict.fromkeys(result))
 
     range_layout = name in ('WeaponRange', 'ShieldTarget')
-    detailed = range_layout or name in ('Shipyard', 'PrototypeShip')
-    layout = combat_range_layout if range_layout else shipyard_layout
+    sector_content = name in sector_layout.NAMES
+    detailed = range_layout or sector_content or name in ('Shipyard', 'PrototypeShip')
+    layout = sector_layout if sector_content else combat_range_layout if range_layout else shipyard_layout
     plan = layout.shape(name) if detailed else None
     width, height = plan['size'] if detailed else {"TrainingShip": (21,15), "Salvage": (7,7)}[name]
     foundation = {(x, z) for x in range(width) for z in range(height)}
@@ -247,9 +249,9 @@ def build(data, name="ArrivalStation"):
             r['exclusionCells'] = exhaust
 
     prototypes = {n.findtext('def'): n for n in ET.parse(HERE / 'prototypes.states').getroot()}
-    if name in ('ArrivalStation','Shipyard','PrototypeShip'):
+    if name in ('ArrivalStation','Shipyard','PrototypeShip') or sector_content:
         prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'shipyard.states').getroot()})
-    if range_layout:
+    if range_layout or sector_content:
         prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'range.states').getroot()})
     document = ET.Element('MapPrefab', formatVersion='2')
     ET.SubElement(document, 'name').text = name
@@ -277,9 +279,11 @@ def build(data, name="ArrivalStation"):
         found.attrib.clear()
         found.text = str(value)
     for index, r in enumerate(records):
+        r['_loadId'] = r['name'] + str(810000 + index)
+    for index, r in enumerate(records):
         state = copy.deepcopy(prototypes[r['name']])
         pos = f'({r["root"][0]}, 0, {r["root"][1]})'
-        field(state, 'id', r['name'] + str(810000+index))
+        field(state, 'id', r['_loadId'])
         field(state, 'pos', pos)
         field(state, 'rot', r['rotation'])
         # Cloned turret internals also need distinct source identities before Scribe resolves them.
@@ -292,6 +296,8 @@ def build(data, name="ArrivalStation"):
             if node.text:
                 for old,new in renames.items(): node.text = node.text.replace(old,new)
         for key,value in r['stateOverrides'].items():
+            if key.startswith('_'):
+                continue
             if key == 'allowedDefs':
                 settings = state.find('settings')
                 if settings is not None: state.remove(settings)
@@ -388,6 +394,6 @@ def build(data, name="ArrivalStation"):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=Path, default=Path('D:/SteamLibrary/steamapps/common/RimWorld/Data'))
-    parser.add_argument('--only', nargs='+', choices=['ArrivalStation','TrainingShip','Salvage','Shipyard','PrototypeShip','WeaponRange','ShieldTarget'])
+    parser.add_argument('--only', nargs='+', choices=['ArrivalStation','TrainingShip','Salvage','Shipyard','PrototypeShip','WeaponRange','ShieldTarget', *sector_layout.NAMES])
     args = parser.parse_args()
     for name in args.only or ('ArrivalStation','TrainingShip','Salvage','Shipyard','PrototypeShip','WeaponRange','ShieldTarget'): build(args.data, name)

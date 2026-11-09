@@ -285,6 +285,7 @@ namespace DeltaV
                 ambientLabel = marker.envLabel,
                 contentTypeId = marker.contentTypeId,
                 sourcePrefabPath = marker.sourcePrefabPath,
+                clusterChild = marker.clusterChild,
             };
             universe.RegisterObject(container);
             if (!marker.envLabel.NullOrEmpty())
@@ -360,12 +361,15 @@ namespace DeltaV
         /// </summary>
         private static string ResolvePoolPrefabPath(PoiState marker)
         {
+            // Prefab object markers carry an explicit path and do not need to belong to a
+            // global sector-generation leaf. Sector POIs continue to resolve their pool by
+            // content type when no explicit path was frozen at creation time.
+            if (!marker.sourcePrefabPath.NullOrEmpty()) return marker.sourcePrefabPath;
             SectorContentType type = SectorContentTypes.ById(marker.contentTypeId);
             if (type == null) return null;
             DeltaVSettings settings = DeltaVMod.CurrentSettings;
             if (settings == null) return null;
-            return marker.sourcePrefabPath
-                ?? MapPrefab.ResolvePoolPath(settings.EffectiveSectorRule(type).prefabPaths, marker.seed);
+            return MapPrefab.ResolvePoolPath(settings.EffectiveSectorRule(type).prefabPaths, marker.seed);
         }
 
         /// <summary>池可用时按选定 prefab 尺寸 + 边距决定目标图尺寸（下限 PoiMapSize）。</summary>

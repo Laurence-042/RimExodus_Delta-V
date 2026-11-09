@@ -2,4 +2,8 @@
 <LanguageData>
   <DeltaV_PrefabPawnMarker.label>Delta-V 预制图角色标记</DeltaV_PrefabPawnMarker.label>
   <DeltaV_PrefabPawnMarker.description>在预制图中放置此标记。重建时优先在该格生成一名目标派系成员；派系没有可用角色类型时使用殖民者类型。人形船员会穿真空服和头盔。原格不可站立时寻找附近格；成功生成后标记消失。</DeltaV_PrefabPawnMarker.description>
+  <DeltaV_PrefabObjectMarker.label>Delta-V 精确预制对象标记</DeltaV_PrefabObjectMarker.label>
+  <DeltaV_PrefabObjectMarker.description>配置一个相对于当前预制图宇宙对象具有精确方位、距离和相对朝向的预制对象。选中标记时以半透明剪影预览子对象；成功展开后标记消失。</DeltaV_PrefabObjectMarker.description>
+  <DeltaV_PrefabClusterMarker.label>Delta-V 批量预制对象标记</DeltaV_PrefabClusterMarker.label>
+  <DeltaV_PrefabClusterMarker.description>配置带比例权重的预制图池与环带分布，用于生成小行星带、残骸带等对象集群。选中标记时最多预览64个半透明剪影；成功展开后标记消失。</DeltaV_PrefabClusterMarker.description>
 </LanguageData>

@@ -4,3 +4,4 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("RailgunRegression")]
 [assembly: InternalsVisibleTo("TutorialRegression")]
+[assembly: InternalsVisibleTo("PrefabMarkerRegression")]

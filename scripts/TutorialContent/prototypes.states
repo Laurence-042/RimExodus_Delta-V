@@ -178,4 +178,54 @@
       <innerList />
     </innerContainer>
   </saveable>
+  <saveable Class="Mineable">
+    <def>MineableSteel</def>
+    <health>500</health>
+    <beenRevealed>True</beenRevealed>
+  </saveable>
+  <saveable Class="Mineable">
+    <def>MineableComponentsIndustrial</def>
+    <health>500</health>
+    <beenRevealed>True</beenRevealed>
+  </saveable>
+  <saveable Class="Mineable">
+    <def>MineablePlasteel</def>
+    <health>500</health>
+    <beenRevealed>True</beenRevealed>
+  </saveable>
+  <saveable Class="DeltaV.Building_SealedSpaceCargoContainer">
+    <def>DeltaV_CargoContainer</def>
+    <health>300</health>
+    <innerContainer Class="Verse.ThingOwner`1[Verse.Thing]">
+      <innerList />
+    </innerContainer>
+    <contentsKnown>True</contentsKnown>
+    <cargoStorageSettings>
+      <priority>Preferred</priority>
+      <filter>
+        <categories><li>Root</li></categories>
+        <disallowedSpecialFilters />
+      </filter>
+    </cargoStorageSettings>
+    <cargoSlotLimit>48</cargoSlotLimit>
+    <progress>0</progress>
+    <lastUserSpeed>0</lastUserSpeed>
+    <lastHackTick>0</lastHackTick>
+    <defence>1800</defence>
+    <lasterUser>null</lasterUser>
+    <lockedOutUntilTick>-1</lockedOutUntilTick>
+    <hacked>False</hacked>
+  </saveable>
+  <saveable Class="DeltaV.Building_SpaceTradeTerminal">
+    <def>DeltaV_TradeTerminal</def>
+    <health>150</health>
+    <supplyCargo />
+    <deliveryCargo>null</deliveryCargo>
+    <traderKind>Orbital_BulkGoods</traderKind>
+    <restockDays>15</restockDays>
+    <lastRestockTick>-1</lastRestockTick>
+    <tradeStockGenerated>False</tradeStockGenerated>
+    <indiscriminateSupply>True</indiscriminateSupply>
+    <tradePriceSeed>7319</tradePriceSeed>
+  </saveable>
 </prototypes>

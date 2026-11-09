@@ -26,6 +26,9 @@ namespace DeltaV
         /// <summary>每星区保底数量的默认值（仅叶子使用；设置里无该类型条目时生效）。</summary>
         public readonly int defaultMin;
 
+        /// <summary>随 Mod 提供的叶子默认 prefab；只用于补建缺失的全局设置条目。</summary>
+        public readonly string defaultPrefabPath;
+
         /// <summary>子类型（空 = 叶子）。</summary>
         public readonly List<SectorContentType> children = new List<SectorContentType>();
 
@@ -39,6 +42,12 @@ namespace DeltaV
             {
                 children.AddRange(childNodes);
             }
+        }
+
+        public SectorContentType(string id, string labelKey, string defaultPrefabPath)
+            : this(id, labelKey)
+        {
+            this.defaultPrefabPath = defaultPrefabPath;
         }
 
         public bool IsLeaf => children.Count == 0;
@@ -58,20 +67,20 @@ namespace DeltaV
         public static readonly List<SectorContentType> All = new List<SectorContentType>
         {
             new SectorContentType("Craft", "DeltaV_SectorTypeCraft", 0,
-                new SectorContentType("Fighter", "DeltaV_SectorTypeFighter"),
-                new SectorContentType("Gunboat", "DeltaV_SectorTypeGunboat"),
-                new SectorContentType("Frigate", "DeltaV_SectorTypeFrigate"),
-                new SectorContentType("Destroyer", "DeltaV_SectorTypeDestroyer"),
-                new SectorContentType("Cruiser", "DeltaV_SectorTypeCruiser")),
+                new SectorContentType("Fighter", "DeltaV_SectorTypeFighter", "SectorFighter.xml"),
+                new SectorContentType("Gunboat", "DeltaV_SectorTypeGunboat", "SectorGunboat.xml"),
+                new SectorContentType("Frigate", "DeltaV_SectorTypeFrigate", "SectorFrigate.xml"),
+                new SectorContentType("Destroyer", "DeltaV_SectorTypeDestroyer", "SectorDestroyer.xml"),
+                new SectorContentType("Cruiser", "DeltaV_SectorTypeCruiser", "SectorCruiser.xml")),
             new SectorContentType("Station", "DeltaV_SectorTypeStation", 0,
                 new SectorContentType("Satellite", "DeltaV_SectorTypeSatellite", 0,
-                    new SectorContentType("WeaponUnlockSatellite", "DeltaV_SectorTypeWeaponUnlockSatellite"),
-                    new SectorContentType("AbandonedSatellite", "DeltaV_SectorTypeAbandonedSatellite")),
-                new SectorContentType("WeaponPlatform", "DeltaV_SectorTypeWeaponPlatform"),
-                new SectorContentType("TradeStation", "DeltaV_SectorTypeTradeStation"),
-                new SectorContentType("Shipyard", "DeltaV_SectorTypeShipyard"),
-                new SectorContentType("FactoryStation", "DeltaV_SectorTypeFactoryStation"),
-                new SectorContentType("Asteroid", "DeltaV_SectorTypeAsteroid")),
+                    new SectorContentType("WeaponUnlockSatellite", "DeltaV_SectorTypeWeaponUnlockSatellite", "SectorWeaponRelay.xml"),
+                    new SectorContentType("AbandonedSatellite", "DeltaV_SectorTypeAbandonedSatellite", "SectorAbandonedSatellite.xml")),
+                new SectorContentType("WeaponPlatform", "DeltaV_SectorTypeWeaponPlatform", "SectorWeaponPlatform.xml"),
+                new SectorContentType("TradeStation", "DeltaV_SectorTypeTradeStation", "SectorTradeStation.xml"),
+                new SectorContentType("Shipyard", "DeltaV_SectorTypeShipyard", "SectorShipyard.xml"),
+                new SectorContentType("FactoryStation", "DeltaV_SectorTypeFactoryStation", "SectorFactoryStation.xml"),
+                new SectorContentType("Asteroid", "DeltaV_SectorTypeAsteroid", "SectorAsteroid.xml")),
         };
 
         /// <summary>深度优先遍历全部节点（含分支）。</summary>

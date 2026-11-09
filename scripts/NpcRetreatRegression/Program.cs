@@ -170,6 +170,7 @@ internal static partial class Program
         CheckSharedPdCandidates(universe, faction, other);
         CheckDriveExecutionReuse(faction);
         CheckWeaponExecution(universe, faction);
+        CheckSpaceTurretPlacement(faction);
         if (drivePerformanceOnly) { CheckMotionFeedback(universe); return; }
         CheckStructureSelection(universe, faction, other);
         CheckSceneReset(universe);

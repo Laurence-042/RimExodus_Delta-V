@@ -31,4 +31,68 @@
 		</comps>
 	</ThingDef>
 
+	<!-- Registers one child POI marker after its containing prefab has finished rebuilding.
+		The child materializes through the normal prefab/lifecycle pipeline when approached. -->
+	<ThingDef ParentName="BuildingBase">
+		<defName>DeltaV_PrefabObjectMarker</defName>
+		<label>Delta-V exact prefab object marker</label>
+		<description>Configures one prefab-based space object at an exact bearing, distance, and relative facing from this prefab's SpaceObject. Selecting the marker previews the child prefab as a translucent silhouette. The marker disappears after successful expansion.</description>
+		<thingClass>Building</thingClass>
+		<designationCategory>Floors</designationCategory>
+		<rotatable>false</rotatable>
+		<passability>Standable</passability>
+		<fillPercent>0.1</fillPercent>
+		<uiIconPath>Things/Building/Prefab/PawnMarker</uiIconPath>
+		<statBases>
+			<WorkToBuild>100</WorkToBuild>
+			<MaxHitPoints>50</MaxHitPoints>
+		</statBases>
+		<graphicData>
+			<texPath>Things/Building/Prefab/PawnMarker</texPath>
+			<graphicClass>Graphic_Single</graphicClass>
+			<drawSize>(1, 1)</drawSize>
+			<color>(64, 220, 255)</color>
+		</graphicData>
+		<comps>
+			<li Class="DeltaV.CompProperties_PrefabObjectSpawner">
+				<distance>100</distance>
+				<inheritFaction>true</inheritFaction>
+			</li>
+		</comps>
+	</ThingDef>
+
+	<!-- Expands to a deterministic weighted annular cluster of child POI markers. Density is
+		objects per 10,000 square universe cells; materialization remains distance-driven. -->
+	<ThingDef ParentName="BuildingBase">
+		<defName>DeltaV_PrefabClusterMarker</defName>
+		<label>Delta-V prefab cluster marker</label>
+		<description>Configures a weighted prefab pool and an annular distribution to generate asteroid belts, debris fields, or similar clusters. Selecting the marker previews up to 64 generated silhouettes. The marker disappears after successful expansion.</description>
+		<thingClass>Building</thingClass>
+		<designationCategory>Floors</designationCategory>
+		<rotatable>false</rotatable>
+		<passability>Standable</passability>
+		<fillPercent>0.1</fillPercent>
+		<uiIconPath>Things/Building/Prefab/PawnMarker</uiIconPath>
+		<statBases>
+			<WorkToBuild>100</WorkToBuild>
+			<MaxHitPoints>50</MaxHitPoints>
+		</statBases>
+		<graphicData>
+			<texPath>Things/Building/Prefab/PawnMarker</texPath>
+			<graphicClass>Graphic_Single</graphicClass>
+			<drawSize>(1, 1)</drawSize>
+			<color>(255, 184, 51)</color>
+		</graphicData>
+		<comps>
+			<li Class="DeltaV.CompProperties_PrefabClusterSpawner">
+				<contentTypeId>Asteroid</contentTypeId>
+				<innerRadius>80</innerRadius>
+				<outerRadius>300</outerRadius>
+				<densityPerTenThousand>0.35</densityPerTenThousand>
+				<minimumSpacing>20</minimumSpacing>
+				<maxObjects>128</maxObjects>
+			</li>
+		</comps>
+	</ThingDef>
+
 </Defs>

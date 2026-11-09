@@ -301,6 +301,7 @@
   <DeltaV_WeaponsArmed>武装已启用，{0} 名炮手就位。</DeltaV_WeaponsArmed>
   <DeltaV_GunnersReassigned>已重新分配炮手，{0} 人就位。</DeltaV_GunnersReassigned>
   <DeltaV_WeaponsDisarmed>武装已解除，{0} 名炮手返回正常工作。</DeltaV_WeaponsDisarmed>
+  <DeltaV_WeaponInteractionCellBlocked>此建造占用了 {0} 门 Delta-V 炮塔的炮手位置。该位置被阻挡期间，这些炮塔必须依赖生效的自瞄才能工作。</DeltaV_WeaponInteractionCellBlocked>
   <DeltaV_PanelBattleStationsOn>进入 / 重新协调战斗位置</DeltaV_PanelBattleStationsOn>
   <DeltaV_PanelBattleStationsOff>退出战斗位置（{0} 人）</DeltaV_PanelBattleStationsOff>
   <DeltaV_PanelBattleStationsOnTip>按最新预留炮手完整重排本图全部可用玩家武器；人手不足时优先激活武器组。</DeltaV_PanelBattleStationsOnTip>
@@ -691,4 +692,32 @@
   <DeltaV_CombatSolver_ProvenInfeasible>当前约束不可行</DeltaV_CombatSolver_ProvenInfeasible>
   <DeltaV_CombatBuiltInDistance>距离为0时，根据真实武器射程与船体间距自动选择射位距离。</DeltaV_CombatBuiltInDistance>
   <DeltaV_CombatBuiltInCurves>未配置自定义评分曲线，使用通用射位评价。</DeltaV_CombatBuiltInCurves>
+  <DeltaV_PrefabMarkerConfigure>配置预制对象标记</DeltaV_PrefabMarkerConfigure>
+  <DeltaV_PrefabMarkerConfigureDesc>选择子预制图及其精确宇宙落位。选中标记时显示半透明剪影预览。</DeltaV_PrefabMarkerConfigureDesc>
+  <DeltaV_PrefabClusterConfigureDesc>选择带权重的预制图池与环带分布。选中标记时预览确定性的对象集群。</DeltaV_PrefabClusterConfigureDesc>
+  <DeltaV_PrefabExactInspect>预制图：{0}\n距离：{1}；方位：{2}°；相对朝向：{3}°</DeltaV_PrefabExactInspect>
+  <DeltaV_PrefabClusterInspect>预制图池：{0}项\n目标对象：{1}；半径：{2}–{3}</DeltaV_PrefabClusterInspect>
+  <DeltaV_PrefabMarkerNoPrefabs>当前没有可用的预制图文件。</DeltaV_PrefabMarkerNoPrefabs>
+  <DeltaV_PrefabMarkerNoType>不指定内容分类</DeltaV_PrefabMarkerNoType>
+  <DeltaV_PrefabExactTitle>精确预制对象标记</DeltaV_PrefabExactTitle>
+  <DeltaV_PrefabExactHelp>方位与相对朝向使用母 SpaceObject 的局部系：0°沿母对象局部 +X。距离单位为宇宙格。生成对象继承母对象对应刚体点的瞬时线速度与角速度。</DeltaV_PrefabExactHelp>
+  <DeltaV_PrefabMarkerPrefab>预制图：{0}</DeltaV_PrefabMarkerPrefab>
+  <DeltaV_PrefabMarkerContentType>内容分类：{0}</DeltaV_PrefabMarkerContentType>
+  <DeltaV_PrefabMarkerDistance>相对距离（格）</DeltaV_PrefabMarkerDistance>
+  <DeltaV_PrefabMarkerBearing>相对方位（度）</DeltaV_PrefabMarkerBearing>
+  <DeltaV_PrefabMarkerFacing>相对朝向（度）</DeltaV_PrefabMarkerFacing>
+  <DeltaV_PrefabMarkerInheritFaction>继承母预制图的派系</DeltaV_PrefabMarkerInheritFaction>
+  <DeltaV_PrefabMarkerPreviewHelp>预览读取所选预制图的真实基架脚印，仅用于配置辅助，不作为碰撞或生成事实。</DeltaV_PrefabMarkerPreviewHelp>
+  <DeltaV_PrefabClusterTitle>批量预制对象标记</DeltaV_PrefabClusterTitle>
+  <DeltaV_PrefabClusterHelp>对象按面积均匀分布在环带内；预制图权重为相对比例。密度表示每10000平方宇宙格的期望对象数；标记保存稳定种子，使导出与重建得到相同集群。</DeltaV_PrefabClusterHelp>
+  <DeltaV_PrefabClusterInner>内半径</DeltaV_PrefabClusterInner>
+  <DeltaV_PrefabClusterOuter>外半径</DeltaV_PrefabClusterOuter>
+  <DeltaV_PrefabClusterDensity>每10000平方格数量</DeltaV_PrefabClusterDensity>
+  <DeltaV_PrefabClusterSpacing>最小间距</DeltaV_PrefabClusterSpacing>
+  <DeltaV_PrefabClusterSeed>分布种子</DeltaV_PrefabClusterSeed>
+  <DeltaV_PrefabClusterReroll>重新随机分布</DeltaV_PrefabClusterReroll>
+  <DeltaV_PrefabClusterCount>密度目标为{0}个对象（上限128；最小间距可能减少实际数量）。</DeltaV_PrefabClusterCount>
+  <DeltaV_PrefabClusterPool>带权重的预制图池</DeltaV_PrefabClusterPool>
+  <DeltaV_PrefabClusterAdd>添加预制图</DeltaV_PrefabClusterAdd>
+  <DeltaV_PrefabClusterWeight>权重</DeltaV_PrefabClusterWeight>
 </LanguageData>

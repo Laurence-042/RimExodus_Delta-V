@@ -1311,6 +1311,7 @@ namespace DeltaV
             SpaceCollision.ClearCaches();
             SpaceProjectileService.ClearRuntimeCaches();
             AimMarkersRenderer.ClearRuntimeCaches();
+            PrefabMarkerPreviewCache.ClearRuntimeCaches();
             unframedMaps?.Clear();
             PilotKeyBridge.Reset();
             structures?.Clear();
