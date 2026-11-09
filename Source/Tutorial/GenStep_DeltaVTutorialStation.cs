@@ -26,7 +26,7 @@ namespace DeltaV
                 throw new InvalidOperationException("Tutorial station generator is only valid for the tutorial new-game scenario.");
             var universe = Current.Game.GetComponent<UniverseManager>();
             if (universe.tutorialRun != null) throw new InvalidOperationException("Tutorial station was already initialized.");
-            MapPrefabDocument prefab = MapPrefab.LoadRelative("ArrivalStation.xml");
+            MapPrefabDocument prefab = MapPrefab.LoadRelative("Tutorial/ArrivalStation.xml");
             if (prefab.thingEntries.Count(e => e.def.defName == "Ship_CryptosleepCasket") < Find.GameInitData.startingAndOptionalPawns.Count + universe.Tutorial.UnselectedCrew.Count)
                 throw new InvalidOperationException("Tutorial station does not have enough cryptosleep caskets for the selected colonists.");
             if (OrbitalPoiRegistry.EnsureForMap(universe, map)?.map != map)

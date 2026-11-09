@@ -146,7 +146,7 @@ namespace DeltaV
         {
             try
             {
-                var training = MapPrefab.LoadRelative("TrainingShip.xml");
+                var training = MapPrefab.LoadRelative("Tutorial/TrainingShip.xml");
                 if (Run.berthDoor?.Spawned != true || Run.berthDoor.Map != Run.station)
                     throw new InvalidOperationException("Tutorial boarding berth is missing.");
                 SpaceObject station = universe.FrameOf(Run.station);
@@ -178,9 +178,9 @@ namespace DeltaV
             try
             {
                 // Resolve every required document before mutating the player's station.
-                var salvage = MapPrefab.LoadRelative("Salvage.xml");
-                var yard = MapPrefab.LoadRelative("Shipyard.xml");
-                var gift = MapPrefab.LoadRelative("PrototypeShip.xml");
+                var salvage = MapPrefab.LoadRelative("Tutorial/Salvage.xml");
+                var yard = MapPrefab.LoadRelative("Tutorial/Shipyard.xml");
+                var gift = MapPrefab.LoadRelative("Tutorial/PrototypeShip.xml");
                 SpaceObject station = universe.FrameOf(Run.station);
                 Map salvageMap = CreateRemoteCourseMap(ShipPocketMapFactory.CompactSize(salvage.size), station, 0f);
                 var salvageThings = SpawnCoursePrefab(salvage, salvageMap, new IntVec3(12, 0, 12), "DeltaV_Tutorial_SalvageTarget");

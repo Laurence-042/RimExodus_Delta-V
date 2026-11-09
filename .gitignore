@@ -20,10 +20,8 @@ references/
 # 本地测试存档（布局提取脚本可入库，原始存档不可入库）
 doc/tmp/*.rws
 
-# 通用地图 prefab 导出文件（MapPrefab.Export 的本地输出）
-Prefabs/
-!1.6/Prefabs/
-!1.6/Prefabs/**
+# 旧版仓库内通用地图 prefab 导出目录；新导出位于 RimWorld SaveData/DeltaV/Prefabs。
+/Prefabs/
 CombatStrategies/
 
 scripts/MpcRegression/obj/

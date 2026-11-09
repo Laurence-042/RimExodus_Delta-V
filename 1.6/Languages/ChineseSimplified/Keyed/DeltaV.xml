@@ -250,9 +250,13 @@
   <DeltaV_SettingsSectorAddSegment>添加段</DeltaV_SettingsSectorAddSegment>
   <DeltaV_SettingsSectorRemoveSegment>删除</DeltaV_SettingsSectorRemoveSegment>
   <DeltaV_SettingsSectorSegmentTip>分段：以概率（%）追加 1 到上限个该类型额外物体。</DeltaV_SettingsSectorSegmentTip>
-  <DeltaV_SettingsSectorPrefabPool>prefab 池（已选 {0} / 共 {1}）</DeltaV_SettingsSectorPrefabPool>
-  <DeltaV_SettingsSectorPrefabPoolTip>该类型物体首次物化时使用的地图 prefab（由各自 seed 确定性选取，旋转随机）。路径相对 mod 的 Prefabs 目录。池为空时该类型不生成；文件失效时取消物化。</DeltaV_SettingsSectorPrefabPoolTip>
-  <DeltaV_SettingsSectorPrefabRefresh>重新扫描</DeltaV_SettingsSectorPrefabRefresh>
+  <DeltaV_SettingsSectorPrefabPoolTip>该类型物体首次物化时使用的地图 prefab（由各自 seed 确定性选取，旋转随机）。路径相对用户与内置资源合并后的 prefab 目录。池为空时该类型不生成；文件失效时取消物化。</DeltaV_SettingsSectorPrefabPoolTip>
+  <DeltaV_SettingsSelectGenerationPrefabs>选择用于生成的 prefab</DeltaV_SettingsSelectGenerationPrefabs>
+  <DeltaV_SettingsPrefabTreeTitle>{0}：用于生成的 prefab</DeltaV_SettingsPrefabTreeTitle>
+  <DeltaV_SettingsPrefabTreeCurrentCount>已选 {0} 个</DeltaV_SettingsPrefabTreeCurrentCount>
+  <DeltaV_SettingsPrefabTreeNoFiles>用户目录和内置目录中都没有 prefab XML。</DeltaV_SettingsPrefabTreeNoFiles>
+  <DeltaV_SettingsPrefabTreeScanFailed>无法扫描 prefab 目录：{0}</DeltaV_SettingsPrefabTreeScanFailed>
+  <DeltaV_SettingsPrefabTreeMissingPath>{0}（已失效）</DeltaV_SettingsPrefabTreeMissingPath>
   <DeltaV_SectorTypeCraft>飞行器</DeltaV_SectorTypeCraft>
   <DeltaV_SectorTypeFighter>战机</DeltaV_SectorTypeFighter>
   <DeltaV_SectorTypeGunboat>炮艇</DeltaV_SectorTypeGunboat>
@@ -274,7 +278,7 @@
   <DeltaV_NpcDoctrine_MissileBoat>导弹艇</DeltaV_NpcDoctrine_MissileBoat>
   <DeltaV_NpcDoctrine_Boarder>跳帮</DeltaV_NpcDoctrine_Boarder>
   <DeltaV_NpcDoctrine_Retreat>撤退</DeltaV_NpcDoctrine_Retreat>
-  <DeltaV_SectorTypeAsteroid>小行星</DeltaV_SectorTypeAsteroid>
+  <DeltaV_SectorTypeAsteroid>小行星带</DeltaV_SectorTypeAsteroid>
   <DeltaV_ReassignProtectedDomain>该基架归属仍有主驾驶台，整域不能改划。请先将主台设为副台（注意：如果有多个驾驶台，其他同方向驾驶台可能会在主台退为副台或被摧毁时自动接任主台，可以考虑拆除驾驶台以避免这种情况）。</DeltaV_ReassignProtectedDomain>
   <DeltaV_ReassignProtectedDomainsSkipped>已跳过 {0} 格：其归属仍有主驾驶台。请先解除主台认领；其他合法格照常修改。</DeltaV_ReassignProtectedDomainsSkipped>
 
@@ -408,7 +412,7 @@
   <DeltaV_PrefabReplaceSelectFaction>选择 prefab 的派系：{0}</DeltaV_PrefabReplaceSelectFaction>
   <DeltaV_PrefabReplaceKeepFaction>沿用当前地图派系（默认）：{0}</DeltaV_PrefabReplaceKeepFaction>
   <DeltaV_PrefabReplaceNoFaction>无派系</DeltaV_PrefabReplaceNoFaction>
-  <DeltaV_PrefabReplaceNoFiles>Prefabs/ 目录下没有找到 prefab XML 文件。</DeltaV_PrefabReplaceNoFiles>
+  <DeltaV_PrefabReplaceNoFiles>用户与内置 prefab 目录中没有找到 XML 文件。</DeltaV_PrefabReplaceNoFiles>
   <DeltaV_PrefabReplaceRequiresMap>请先聚焦一张已加载的 Delta-V 宇宙地图。</DeltaV_PrefabReplaceRequiresMap>
   <DeltaV_PrefabReplaceBusy>请等待地图生成、替换、起飞或对接流程结束后再替换地图。</DeltaV_PrefabReplaceBusy>
   <DeltaV_PrefabReplaceFailed>Prefab 地图替换失败，详情见错误日志。</DeltaV_PrefabReplaceFailed>

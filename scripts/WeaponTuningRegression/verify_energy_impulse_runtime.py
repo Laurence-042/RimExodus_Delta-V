@@ -86,10 +86,7 @@ def main():
                  for folder in ("Source/Core", "Source/Buildings", "Source/Interaction")
                  for p in (ROOT / folder).glob("*Space*.cs"))
     for name in ("WeaponRange", "ShieldTarget", "Shipyard"):
-        for version in ("1.6", "1.7"):
-            paths.add(f"{version}/Prefabs/{name}.xml")
-        require(digest(ROOT / f"1.6/Prefabs/{name}.xml") == digest(ROOT / f"1.7/Prefabs/{name}.xml"),
-                f"Unsynchronized prefab: {name}")
+        paths.add(f"Common/Prefabs/Tutorial/{name}.xml")
     for filename in list(sources.values())[1:]:
         require(digest(ROOT / filename) == digest(ROOT / filename.replace("1.6/", "1.7/", 1)),
                 f"Unsynchronized Def: {filename}")

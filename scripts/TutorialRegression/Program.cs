@@ -54,19 +54,21 @@ internal static partial class Program
             pack.assemblies = new ModAssemblyHandler(pack);
             pack.assemblies.loadedAssemblies.Add(typeof(TutorialRunState).Assembly);
             LoadedModManager.RunningModsListForReading.Add(pack);
+            string prefabRoot = args[3];
             ReadSourceDefs(Path.GetFullPath(Path.Combine(args[0], "../../Data")),
-                Path.GetFullPath(Path.Combine(Path.GetDirectoryName(args[2]), "../Defs")));
-            ScenarioTranslation(Path.GetDirectoryName(args[2]));
-            PrefabIdentities(Path.GetDirectoryName(args[2]));
-            SectorContentDefaults(Path.GetDirectoryName(args[2]));
-            PrefabTurretGraphs(Path.GetDirectoryName(args[2]));
-            if (args.Length > 3 && args[3] == "range")
+                Path.GetFullPath(Path.Combine(prefabRoot, "../../1.6/Defs")));
+            string tutorialPrefabs = Path.Combine(prefabRoot, "Tutorial");
+            ScenarioTranslation(prefabRoot);
+            PrefabIdentities(prefabRoot);
+            SectorContentDefaults(prefabRoot);
+            PrefabTurretGraphs(tutorialPrefabs);
+            if (args.Length > 4 && args[4] == "range")
             {
                 foreach (string layout in new[] { "WeaponRange", "ShieldTarget" })
                     Geometry(Path.Combine(Path.GetDirectoryName(args[1]), layout + ".records.json"), game);
                 State(game);
                 Theory(game, harmony);
-                RangeChecks(game, harmony, Path.GetDirectoryName(args[2]));
+                RangeChecks(game, harmony, prefabRoot);
                 Check(errors.Count == 0, "Unexpected range native logs: " + string.Join("\n", errors));
                 Console.WriteLine($"PASS {checks} optional range checks: geometry, power, native Scribe, presets, firing sectors, native use-job signatures and optional progress. No game launched.");
                 return 0;
@@ -81,15 +83,15 @@ internal static partial class Program
             ArrivalLifeSupport(Path.GetDirectoryName(args[1]), game);
             FocusThread(game, harmony);
             Caskets(args[2]);
-            Shelves(Path.Combine(Path.GetDirectoryName(args[2]), "Salvage.xml"));
+            Shelves(Path.Combine(tutorialPrefabs, "Salvage.xml"));
             PublicFacilities(game, harmony);
             Comms(game, harmony);
-            Berths(Path.GetDirectoryName(args[2]), Path.GetDirectoryName(args[1]));
+            Berths(tutorialPrefabs, Path.GetDirectoryName(args[1]));
             CourseClearance(game);
             Paths();
             CatalogPaths();
-            ShipyardStates(Path.GetDirectoryName(args[2]), harmony);
-            MissionChecks(game, harmony, Path.GetDirectoryName(args[2]));
+            ShipyardStates(tutorialPrefabs, harmony);
+            MissionChecks(game, harmony, prefabRoot);
             Check(errors.Count == 0, "Unexpected native logs: " + string.Join("\n", errors));
             Console.WriteLine($"PASS {checks} tutorial checks: native geometry/interaction/power, Scribe, phase guards, public access/storage/goodwill, focus thread, paths. No game launched.");
             return 0;

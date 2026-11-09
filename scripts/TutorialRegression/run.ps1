@@ -36,5 +36,5 @@ $lines | Set-Content -LiteralPath "$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net8.0","framework":{"name":"Microsoft.NETCore.App","version":"8.0.0"}}}' | Set-Content -LiteralPath "$out/TutorialRegression.runtimeconfig.json"
 [string[]]$extra = if ($RangeOnly) { @('range') } else { @() }
-& dotnet "$out/TutorialRegression.dll" $managed "$repo/Source/obj/TutorialContent/ArrivalStation.records.json" "$repo/1.6/Prefabs/ArrivalStation.xml" @extra
+& dotnet "$out/TutorialRegression.dll" $managed "$repo/Source/obj/TutorialContent/ArrivalStation.records.json" "$repo/Common/Prefabs/Tutorial/ArrivalStation.xml" "$repo/Common/Prefabs" @extra
 exit $LASTEXITCODE

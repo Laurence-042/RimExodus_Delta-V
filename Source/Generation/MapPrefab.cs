@@ -47,14 +47,20 @@ namespace DeltaV
         private static ModContentPack Content => LoadedModManager.GetMod<DeltaVMod>()?.Content
             ?? throw new InvalidOperationException("Delta-V content pack is not loaded.");
 
-        /// <summary>导出目录：mod 根下 Prefabs/（gitignore；运行时经原版 XML 管线加载，不进 Defs）。</summary>
+        /// <summary>用户导出目录：RimWorld SaveData/DeltaV/Prefabs，不随 Mod 安装或发布包移动。</summary>
         public static string PrefabDirectory
         {
             get
             {
-                return Path.Combine(Content.RootDir, "Prefabs");
+                return Path.Combine(GenFilePaths.SaveDataFolderPath, "DeltaV", "Prefabs");
             }
         }
+
+        /// <summary>随 Mod 发布、两版共用的唯一内置 prefab 目录。</summary>
+        internal static string BundledPrefabDirectory => Path.Combine(Content.RootDir, "Common", "Prefabs");
+
+        // CombatStrategies 等独立本地资源不能再从 PrefabDirectory 的父目录反推 Mod 根。
+        internal static string ModRootDirectory => Content.RootDir;
 
         /// <summary>
         /// 导出当前聚焦图掩码内的内容（PrefabUtility.CreatePrefab 硬编码当前图）。
@@ -71,7 +77,7 @@ namespace DeltaV
         public static MapPrefabDocument LoadLatest()
         {
             string dir = PrefabDirectory;
-            string latest = new DirectoryInfo(dir).GetFiles("*.xml")
+            string latest = new DirectoryInfo(dir).GetFiles("*.xml", SearchOption.AllDirectories)
                 .OrderByDescending(file => file.LastWriteTimeUtc)
                 .FirstOrDefault()?.FullName;
             if (latest == null)
@@ -82,20 +88,22 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 按相对路径加载（相对 Prefabs/，支持子目录，正斜杠或平台分隔符均可）。
-        /// 解析后必须仍位于 Prefabs/ 内（拒绝 .. 逃逸与绝对路径），越界抛异常。
+        /// 按目录内相对路径加载（支持子目录，正斜杠或平台分隔符均可）。
+        /// 解析后必须仍位于当前目录根内（拒绝 .. 逃逸与绝对路径），越界抛异常。
         /// </summary>
         public static MapPrefabDocument LoadRelative(string relativePath)
         {
             return MapPrefabDocument.Load(ResolveRelativePath(relativePath));
         }
 
-        // Local exports override shipped content; shipped roots follow vanilla version priority.
-        private static IEnumerable<string> CatalogDirectories => new[] { PrefabDirectory }
-            .Concat(Content.foldersToLoadDescendingOrder.Select(folder => Path.Combine(folder, "Prefabs")))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
+        // User exports override the single shipped catalog. Version folders do not carry prefab copies.
+        private static IEnumerable<string> CatalogDirectories => new[]
+        {
+            PrefabDirectory,
+            BundledPrefabDirectory
+        };
 
-        /// <summary>递归枚举 Prefabs/ 下全部 prefab 的相对路径（正斜杠分隔，稳定排序）。</summary>
+        /// <summary>递归枚举用户与内置目录下全部 prefab 的相对路径（正斜杠分隔，稳定排序）。</summary>
         public static List<string> ListPrefabFiles()
             => ListPrefabFiles(CatalogDirectories);
 
@@ -143,7 +151,7 @@ namespace DeltaV
             return valid[(seed & int.MaxValue) % valid.Count];
         }
 
-        /// <summary>相对路径 → Prefabs/ 内的绝对路径，带越界防护。</summary>
+        /// <summary>目录内相对路径 → 绝对路径，带越界防护。</summary>
         private static string ResolveRelativePath(string relativePath)
             => ResolveRelativePath(CatalogDirectories, relativePath);
 

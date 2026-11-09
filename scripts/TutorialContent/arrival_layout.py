@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = Path(__file__).with_name('arrival_intact.prefab')
+GENERATED = ROOT / 'Source/obj/TutorialContent'
 DEFS, PARENTS = {}, {}
 
 
@@ -260,19 +261,20 @@ def build_wreck():
     assert len(components(floor))==2, 'the blast must separate two deck sections'
     from build import validate_identities
     validate_identities(doc)
-    destination=ROOT/'Prefabs/ArrivalStationWreck.xml'
+    destination=GENERATED/'ArrivalStationWreck.xml'
+    destination.parent.mkdir(parents=True,exist_ok=True)
     ET.indent(doc);ET.ElementTree(doc).write(destination,encoding='utf-8',xml_declaration=True)
     draw(doc,destination.with_suffix('.png'),'爆炸与搜刮后的残骸 · 货仓援助区 / 北 ↑',cargo)
     report=dict(source=str(SOURCE),sourceSha256=source_hash,counts=dict(counts),removed=dict(removed),
                 cargo=sorted(cargo),roofs=sorted(roof_cells),floor=sorted(floor),temperature=12,
                 captain=next(r['root'] for r in placed if r['name']=='Ship_CryptosleepCasket' and r['root'] in cargo),
                 records=[{k:sorted(v) if isinstance(v,set) else v for k,v in r.items() if k!='entry'} for r in placed])
-    (ROOT/'Prefabs/_design/ArrivalStationWreck.layout.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+    (GENERATED/'ArrivalStationWreck.layout.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     # Inputs to the existing offline thermal fixture, kept outside the XML pool.
     thermal=dict(rooms=[dict(name='cargo',cells=sorted(cargo),temperature=12,heaters=2)],
                  outdoorTemperature=-75,generationW=1000,nameplateLoadW=700)
-    (ROOT/'Prefabs/_design/ArrivalStation.layout.json').write_text(json.dumps(thermal),encoding='utf-8')
-    (ROOT/'Prefabs/_design/ArrivalStation.records.json').write_text(json.dumps(report['records']),encoding='utf-8')
+    (GENERATED/'ArrivalStation.layout.json').write_text(json.dumps(thermal),encoding='utf-8')
+    (GENERATED/'ArrivalStation.records.json').write_text(json.dumps(report['records']),encoding='utf-8')
     assert hashlib.sha256(SOURCE.read_bytes()).hexdigest()==source_hash
     print('WRECK',dict(counts),'cargo',len(cargo),'deck sections',[len(c) for c in components(floor)])
     return doc,report,thermal
@@ -280,11 +282,12 @@ def build_wreck():
 
 def build(data):
     load_defs(data)
-    (ROOT/'Prefabs/_design').mkdir(parents=True,exist_ok=True)
+    GENERATED.mkdir(parents=True,exist_ok=True)
     doc,report,thermal=build_wreck()
     field(doc,'name','ArrivalStation')
     field(doc.find('prefab'),'defName','MapPrefab_ArrivalStation')
-    destination=ROOT/'1.6/Prefabs/ArrivalStation.xml'
+    destination=ROOT/'Common/Prefabs/Tutorial/ArrivalStation.xml'
+    destination.parent.mkdir(parents=True,exist_ok=True)
     ET.indent(doc);ET.ElementTree(doc).write(destination,encoding='utf-8',xml_declaration=True)
     draw(doc,Path(__file__).with_name('ArrivalStation.png'),'用户原船派生 · 教程残骸 / 北 ↑',set(map(tuple,report['cargo'])))
     generated=ROOT/'Source/obj/TutorialContent';generated.mkdir(parents=True,exist_ok=True)

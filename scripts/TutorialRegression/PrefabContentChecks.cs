@@ -13,7 +13,7 @@ internal static partial class Program
 {
     static void ScenarioTranslation(string prefabDirectory)
     {
-        string version = Path.GetDirectoryName(prefabDirectory);
+        string version = Path.GetFullPath(Path.Combine(prefabDirectory, "../../1.6"));
         var xml = new XmlDocument(); xml.Load(Path.Combine(version, "Defs/Tutorial/DeltaV_Tutorial.xml"));
         var node = xml.SelectSingleNode("/Defs/ScenarioDef[defName='DeltaV_OrbitalColonists']");
         Check(node.SelectSingleNode("scenario/parts/li[@Class='DeltaV.ScenPart_ConfigPage_TutorialColonists']/pawnChoiceCount").InnerText == "6",
@@ -57,6 +57,15 @@ internal static partial class Program
             "every sector generation leaf has a shipped default prefab");
         Check(leaves.Select(leaf => leaf.defaultPrefabPath).Distinct().Count() == leaves.Count,
             "sector generation leaves use distinct authored defaults");
+        List<string> shippedPaths = MapPrefab.ListPrefabFiles(new[] { directory });
+        Check(shippedPaths.Count == 25 && shippedPaths.All(path => path.Contains('/')),
+            "all twenty-five shipped prefabs live in purpose directories");
+        Check(shippedPaths.All(path => path.StartsWith("Tutorial/")
+                || path.StartsWith("Sector/Craft/") || path.StartsWith("Sector/Stations/")
+                || path.StartsWith("Sector/Asteroids/") || path.StartsWith("Templates/")),
+            "shipped prefab paths use only the documented purpose categories");
+        Check(leaves.All(leaf => leaf.defaultPrefabPath.StartsWith("Sector/")),
+            "every sector default points into the sector catalog tree");
         foreach (SectorContentType leaf in leaves)
         {
             string path = Path.Combine(directory, leaf.defaultPrefabPath);
@@ -65,8 +74,9 @@ internal static partial class Program
             Check(document.DocumentElement?.GetAttribute("formatVersion") == "2"
                 && document.SelectNodes("/MapPrefab/thingStates/li").Count > 0,
                 leaf.id + " default is a non-empty format-2 prefab");
-            Check(document.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_PrefabClusterMarker']").Count == 0,
-                leaf.id + " default cannot recursively expand a cluster marker");
+            int clusters = document.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_PrefabClusterMarker']").Count;
+            Check(clusters == (leaf.id == "Asteroid" ? 1 : 0),
+                leaf.id + " default has the expected cluster-core role");
         }
         var settings = new DeltaVSettings();
         settings.EnsureSectorRulesSeeded();
@@ -86,7 +96,7 @@ internal static partial class Program
         Check(custom.EffectiveSectorRule(leaves[0]).prefabPaths.SequenceEqual(new[] { leaves[0].defaultPrefabPath }),
             "empty sector pool regains its shipped usable default");
 
-        string trade = Path.Combine(directory, "SectorTradeStation.xml");
+        string trade = Path.Combine(directory, "Sector/Stations/SectorTradeStation.xml");
         var xml = new XmlDocument(); xml.Load(trade);
         XmlNode terminal = xml.SelectSingleNode("/MapPrefab/thingStates/li[def='DeltaV_TradeTerminal']/state/saveable");
         var ids = xml.SelectNodes("/MapPrefab/thingStates/li/state/saveable")
@@ -98,11 +108,70 @@ internal static partial class Program
         Check(ids.TryGetValue(terminal["deliveryCargo"].InnerText, out string delivery)
             && delivery == "DeltaV_CargoStorage",
             "trade station terminal references one unlocked delivery bay");
+
+        string belt = Path.Combine(directory, "Sector/Asteroids/SectorAsteroid.xml");
+        xml.Load(belt);
+        XmlNode cluster = xml.SelectSingleNode(
+            "/MapPrefab/thingStates/li[def='DeltaV_PrefabClusterMarker']/state/saveable");
+        var children = cluster.SelectNodes("prefabs/li").Cast<XmlNode>().ToList();
+        Check(children.Count == 5 && children.All(node => ParseHelper.FromString<float>(node["weight"].InnerText) > 0f),
+            "asteroid belt core has five positive weighted child variants");
+        Check(cluster["contentTypeId"].InnerText == "Asteroid"
+            && cluster["innerRadius"].InnerText == "70"
+            && cluster["outerRadius"].InnerText == "260"
+            && cluster["densityPerTenThousand"].InnerText == "0.6"
+            && cluster["minimumSpacing"].InnerText == "28",
+            "asteroid belt core stores its authored annulus and density");
+        CheckAsteroidPrefab(xml, "asteroid belt core");
+        foreach (XmlNode child in children)
+        {
+            string childPath = Path.Combine(directory, child["prefabPath"].InnerText);
+            Check(File.Exists(childPath), "asteroid child prefab is shipped: " + child["prefabPath"].InnerText);
+            var childXml = new XmlDocument(); childXml.Load(childPath);
+            CheckAsteroidPrefab(childXml, child["prefabPath"].InnerText);
+            Check(childXml.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_PrefabClusterMarker']").Count == 0,
+                child["prefabPath"].InnerText + " cannot recursively generate a belt");
+        }
+
+        var markerDef = Raw<ThingDef>();
+        markerDef.defName = "DeltaV_PrefabClusterMarker";
+        markerDef.thingClass = typeof(Building);
+        markerDef.category = ThingCategory.Building;
+        markerDef.stackLimit = 1;
+        markerDef.comps = new List<CompProperties> { new CompProperties_PrefabClusterSpawner() };
+        DefDatabase<ThingDef>.Add(markerDef);
+        var markerEntry = new MapPrefabThingEntry { def = markerDef, stateXml = cluster.OuterXml };
+        int before = errors.Count;
+        ThingWithComps loadedMarker = (ThingWithComps)MapPrefabThingState.Instantiate(
+            new[] { markerEntry }, "asteroid belt cluster marker", null).Single();
+        var loadedComp = loadedMarker.TryGetComp<CompPrefabClusterSpawner>();
+        var loadedEntries = (List<PrefabClusterEntry>)HarmonyLib.AccessTools.Field(
+            typeof(CompPrefabClusterSpawner), "entries").GetValue(loadedComp);
+        Check(errors.Count == before && loadedEntries.Count == children.Count
+            && loadedEntries.Select(entry => entry.prefabPath).SequenceEqual(
+                children.Select(node => node["prefabPath"].InnerText)),
+            "asteroid belt cluster marker restores its complete production Scribe state");
+    }
+
+    static void CheckAsteroidPrefab(XmlDocument xml, string label)
+    {
+        int minerals = xml.SelectNodes("/MapPrefab/thingStates/li[starts-with(def,'Mineable')]").Count;
+        int vacstone = xml.SelectNodes("/MapPrefab/thingStates/li[def='Vacstone']").Count;
+        int roofs = xml.SelectNodes("/MapPrefab/roofs/li").Count;
+        Check(xml.SelectNodes("/MapPrefab/prefab/terrain/*").Count == 1
+            && xml.SelectSingleNode("/MapPrefab/prefab/terrain/Vacstone_Rough") != null,
+            label + " uses Odyssey's Vacstone_Rough asteroid terrain");
+        Check(xml.SelectNodes("/MapPrefab/foundations/li|/MapPrefab/environment/li").Count == 0,
+            label + " has no gravship foundation or authored atmosphere");
+        Check(roofs > 0 && xml.SelectNodes("/MapPrefab/roofs/li[def='RoofRockThin']").Count == roofs,
+            label + " uses native thin rock roof over its solid body");
+        Check(minerals > 0 && vacstone > 0 && minerals + vacstone == roofs,
+            label + " replaces only part of its Vacstone body with minerals");
     }
 
     static void CheckPrefabContent(string directory)
     {
-        foreach (string path in Directory.GetFiles(directory, "*.xml").OrderBy(p => p))
+        foreach (string path in Directory.GetFiles(directory, "*.xml", SearchOption.AllDirectories).OrderBy(p => p))
         {
             var xml = new XmlDocument(); xml.Load(path);
             // Parse the authored environment with REF's production reader, isolating
@@ -118,7 +187,12 @@ internal static partial class Program
             var sampled = environment.environment.SelectMany(e => e.cells).ToHashSet();
             var covered = xml.SelectNodes("/MapPrefab/roofs/li/pos|/MapPrefab/foundations/li[def='DeltaV_MoonPool']/pos")
                 .Cast<XmlNode>().Select(n => IntVec3.FromString(n.InnerText)).ToHashSet();
-            Check(sampled.SetEquals(covered), Path.GetFileName(path) + " environment covers all roof/equipment/moonpool cells");
+            bool asteroid = Path.GetFileName(path) == "SectorAsteroid.xml"
+                || Path.GetFileName(path).StartsWith("Asteroid");
+            Check(asteroid ? sampled.Count == 0 : sampled.SetEquals(covered),
+                Path.GetFileName(path) + (asteroid
+                    ? " leaves atmosphere to the native vacuum room calculation"
+                    : " environment covers all roof/equipment/moonpool cells"));
             bool arrival = Path.GetFileNameWithoutExtension(path) == "ArrivalStation";
             Check(environment.environment.All(e => arrival ? e.temperature == 12f && e.vacuum == 0f || e.temperature == -75f && e.vacuum == 1f
                 : e.temperature == 21f && e.vacuum == 0f),
@@ -309,6 +383,15 @@ internal static partial class Program
             string[] roots = { local, shipped };
             Check(MapPrefab.ListPrefabFiles(roots).SequenceEqual(new[] { "Ships/Cargo.xml", "Shipyard.xml" }),
                 "catalog merges shipped and local assets once with portable paths");
+            Type treeType = typeof(MapPrefab).Assembly.GetType("DeltaV.PrefabTreeNode");
+            var tree = (TreeNode)HarmonyLib.AccessTools.Method(treeType, "Build",
+                new[] { typeof(IEnumerable<string>), typeof(int) }).Invoke(null,
+                new object[] { MapPrefab.ListPrefabFiles(roots), TreeOpenMasks.Default });
+            TreeNode ships = tree.children.Single(node =>
+                (string)HarmonyLib.AccessTools.Field(treeType, "label").GetValue(node) == "Ships");
+            Check(ships.IsOpen(TreeOpenMasks.Default) && ships.children.Count == 1
+                && !ships.children[0].Openable,
+                "prefab selector builds an initially expanded native TreeNode directory with file leaves");
             Check(MapPrefab.ResolveRelativePath(roots, "Shipyard.xml") == a, "local override precedes shipped prefab");
             File.Delete(a);
             Check(MapPrefab.ResolveRelativePath(roots, "Shipyard.xml") == b, "catalog falls back to shipped prefab");

@@ -1,6 +1,18 @@
 param([ValidateSet('1.6','1.7')][string]$Version='1.7')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+$legacyPrefabs = @(
+    Get-ChildItem -LiteralPath (Join-Path $root '1.6/Prefabs') -Filter '*.xml' -File -Recurse -ErrorAction SilentlyContinue
+    Get-ChildItem -LiteralPath (Join-Path $root '1.7/Prefabs') -Filter '*.xml' -File -Recurse -ErrorAction SilentlyContinue
+)
+if ($legacyPrefabs.Count -gt 0) {
+    throw 'Versioned prefab XML is no longer supported; move shipped resources to Common/Prefabs.'
+}
+$commonPrefabs = Join-Path $root 'Common/Prefabs'
+if (!(Test-Path -LiteralPath $commonPrefabs) -or
+    @(Get-ChildItem -LiteralPath $commonPrefabs -Filter '*.xml' -File -Recurse).Count -eq 0) {
+    throw 'The shared prefab catalog Common/Prefabs is missing or empty.'
+}
 $framework = [IO.Path]::GetFullPath((Join-Path $root '../RimExodusFramework'))
 $frameworkBuild = Join-Path $framework 'build/Build.ps1'
 if (!(Test-Path -LiteralPath $frameworkBuild)) { throw "Sibling REF build script missing: $frameworkBuild" }

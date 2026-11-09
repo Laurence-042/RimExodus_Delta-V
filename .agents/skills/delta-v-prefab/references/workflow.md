@@ -5,23 +5,27 @@
 每艘船保留一份布局源和一个生成入口。下面是新制作项目的推荐结构，不表示仓库已存在这些同名脚本；开始新船时按需求实现，已有船先复用它的脚本。
 
 ```text
-Prefabs/
-├─ Demo.xml                         游戏导出的状态原型，制作时只读
-├─ <name>.xml                       供 MapPrefab 导入的最终文件
-├─ <name>.png                       与当前 XML 同一次解析产生的示意图
+scripts/<project>/
+├─ Demo.prefab                      游戏导出的状态原型副本，制作时只读
 └─ _design/
    └─ <name>/
       ├─ layout.py                 或 layout.json；功能区与实例位置的编辑入口
       ├─ build.py                  读取布局、解析 Def/原型、校验并生成两个输出
       ├─ records.probe             可选，已解析记录供离线原版校验；不用 .xml
       └─ checks.log                可选，记录本次离线校验结果和假设
+Common/Prefabs/
+└─ <category>/
+   └─ <name>.xml                    唯一入库的正式运行时文件
+Source/obj/<project>/
+├─ <name>.png                       与当前 XML 同一次解析产生的示意图或临时预览
+└─ <name>.records.json              可重建的检查记录
 ```
 
 纯数据文件与 Python 布局程序二选一即可；几何依赖较多时 Python 便于定义对称、成组和间距关系。不要在 `layout.py` 导入时写文件。`build.py` 才是产生输出的入口，并明确接受地板或建筑模式，避免一次旧命令把完成建筑版覆盖为地板版。
 
-当前本机的 Demo_0 历史样例是 `Prefabs/_design/demo_0.py`（基础分区与预留）和 `build_demo_0.py`（完成版解析、装配与输出），执行 `python Prefabs/_design/demo_0.py` 会转到完成版生成器。它们属于被忽略的本地输出，不保证其他 checkout 存在，也不是可直接套到任意船型的通用模板。使用前先读文件，不能把其旧图例或预留记录当成当前成品。
+当前本机的 Demo_0 历史样例已迁到 RimWorld 用户数据 `DeltaV/Prefabs/_design/`，属于仓库外的本地资料，不保证其他 checkout 存在，也不是可直接套到任意船型的通用模板。使用前先读文件，不能把其旧图例或预留记录当成当前成品。
 
-`Prefabs/` 整体被 Git 忽略。只有用户明确要求维护可入库的制作源时，才为该项目选定受控位置；生成输出仍按仓库规则处理。`ListPrefabFiles` 会递归收集 `.xml`，所以 Def 摘录、测试输入和状态原型摘录不要另存为该目录里的普通 `.xml` 文件。原型可直接从 `Demo.xml` 读，派生摘录用其他扩展名。
+游戏导出的用户目录不入库；需要维护的制作源放在仓库内对应 `scripts/` 项目，正式生成结果只进入 `Common/Prefabs/`。`ListPrefabFiles` 会递归收集用户目录与内置目录的 `.xml`，所以 Def 摘录、测试输入和状态原型摘录不要作为普通 `.xml` 混入这两层目录。原型副本使用 `.prefab` 等不参与扫描的扩展名。
 
 ## 两种控制层级
 

@@ -79,7 +79,7 @@ dotnet Source/obj/NpcRetreatRegression/NpcRetreatRegression.dll 'D:/SteamLibrary
 
 历史实验使用 `run_mpc.ps1 -Fighter`；该驱动已退役，以下保留输入来源和结果。
 
-本轮只增加离线探针，没有修改 AI、武器 Def 或 prefab。`fighter_inputs.py` 复用本地战机设计工具的 Def 继承读取器，从已安装游戏 Data 与当前 Delta-V Def 读取质量、尺寸，再读取 `Prefabs/Fighter_0.xml`。该导出 SHA256 为 `a4f00087cb366dc3bbcbd85bcc7f952082835bd2a448eb8f78d588f00ba4c556`。不加载整套第三方 Mod 的运行时 XML/Harmony 修改，不声称恢复了某一时刻的受损存档。所有推进器假定正常供电、完整且按 prefab 保存的出力上限运行。
+本轮只增加离线探针，没有修改 AI、武器 Def 或 prefab。`fighter_inputs.py` 复用本地战机设计工具的 Def 继承读取器，从已安装游戏 Data 与当前 Delta-V Def 读取质量、尺寸，再读取用户数据 `DeltaV/Prefabs/Ships/Fighter_0.xml`。该导出 SHA256 为 `a4f00087cb366dc3bbcbd85bcc7f952082835bd2a448eb8f78d588f00ba4c556`。不加载整套第三方 Mod 的运行时 XML/Harmony 修改，不声称恢复了某一时刻的受损存档。所有推进器假定正常供电、完整且按 prefab 保存的出力上限运行。
 
 `FighterEvasionProbe.cs` 调用原版 `GenAdj.OccupiedRect` 取得旋转后的建筑格，按当前 `ShipPhysics.Measure` 的基架、建筑质量及矩形本征惯量口径汇总。普通松散物资和 Pawn 不进入当前游戏的质量算法；生成后消失的 Pawn 标记也排除。完整战机质量 **1448**、惯量 **77059.85**，10 台推进器合计 **20000**；主推 8000、反推 4000、左右各 4000。生产分配器给出的主推加速度约 **5.521**，其余方向约 **2.761** 格/秒²。迎弹投影：船首/船尾朝敌为 **19 格**，侧舷朝敌为 **22 格**；斜向并不必然更窄。包围圆半径约 **13.91 格**，没有当作实心圆盘判定全部命中。
 

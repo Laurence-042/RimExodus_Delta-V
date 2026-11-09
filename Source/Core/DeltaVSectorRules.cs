@@ -24,7 +24,7 @@ namespace DeltaV
     /// 单个星区内容类型的生成规则（Mod 设置「生成」页的数据载体）。
     /// 属于全局 Mod 设置：跨存档共享，只影响尚未首次生成的星区（星区一旦标记
     /// generatedSectorTiles 即定型，后改设置不追溯）。prefabPaths 是相对
-    /// MapPrefab.PrefabDirectory 的路径池；物化内容链 prefab-only——池为空时生成期
+    /// MapPrefab 合并目录的相对路径池；物化内容链 prefab-only——池为空时生成期
     /// 即拦截（报错跳过该类型），配置了但失效时物化期取消该 POI。
     /// </summary>
     public sealed class SectorTypeRule : IExposable
@@ -37,7 +37,7 @@ namespace DeltaV
         /// <summary>保底之外的额外生成分段（各段独立掷骰，可多段可空）。</summary>
         public List<SegmentRule> segments = new List<SegmentRule>();
 
-        /// <summary>物化内容 prefab 池（相对 Prefabs/ 的路径，正斜杠分隔）。</summary>
+        /// <summary>物化内容 prefab 池（相对合并目录的路径，正斜杠分隔）。</summary>
         public List<string> prefabPaths = new List<string>();
 
         public void ExposeData()

@@ -179,7 +179,7 @@ internal static partial class Program
         harmony.Patch(content,prefix:new HarmonyMethod(typeof(Program),nameof(SkipFuelGraphics)));
         try
         {
-            var definitions=new XmlDocument(); definitions.Load(Path.Combine(directory,"../Defs/Tutorial/DeltaV_TutorialRange.xml"));
+            var definitions=new XmlDocument(); definitions.Load(Path.Combine(directory,"../../1.6/Defs/Tutorial/DeltaV_TutorialRange.xml"));
             var doorConfig=definitions.SelectSingleNode("/Defs/ThingDef[defName='DeltaV_RangeBlastDoor']");
             Check(doorConfig.SelectSingleNode("comps/li[@Class='CompProperties_Hackable']/onlyRemotelyHackable").InnerText=="true",
                 "safety door cannot be hacked locally to skip the briefing");
@@ -234,8 +234,8 @@ internal static partial class Program
         harmony.Patch(typeof(CompRefuelable).TypeInitializer,
             prefix:new HarmonyMethod(typeof(Program),nameof(SkipFuelGraphics)));
         Set(game.World.factionManager,"ofPlayer",new Faction { def=new FactionDef { isPlayer=true } });
-        var platform = new XmlDocument(); platform.Load(Path.Combine(directory,"WeaponRange.xml"));
-        var target = new XmlDocument(); target.Load(Path.Combine(directory,"ShieldTarget.xml"));
+        var platform = new XmlDocument(); platform.Load(Path.Combine(directory,"Tutorial/WeaponRange.xml"));
+        var target = new XmlDocument(); target.Load(Path.Combine(directory,"Tutorial/ShieldTarget.xml"));
         RangeEntrance(platform,harmony,directory);
         var weaponNames = new[] { "DeltaV_Weapon_RapidMainMedium", "DeltaV_Weapon_HeavyMainMedium",
             "DeltaV_Weapon_LaserMainMedium", "DeltaV_Weapon_RailgunLoader" };
@@ -326,7 +326,7 @@ internal static partial class Program
         shields[0].GetSegment(out var centralA,out var centralB,out _);
         Check(centralA.y<22.5f && centralB.y>22.5f,"fixed rail axis crosses the central shield");
         RangeLaserSightlines(game,platform,target,shields);
-        var definitions=new XmlDocument();definitions.Load(Path.Combine(directory,"../Defs/Tutorial/DeltaV_TutorialRange.xml"));
+        var definitions=new XmlDocument();definitions.Load(Path.Combine(directory,"../../1.6/Defs/Tutorial/DeltaV_TutorialRange.xml"));
         var presets=definitions.SelectNodes("/Defs/ThingDef/comps/li[@Class='DeltaV.CompProperties_TutorialShieldTerminal']").Cast<XmlNode>().ToList();
         Check(presets.Count==9,"nine distinct test presets plus entry briefing");
         foreach(string mode in new[]{"Kinetic","Electromagnetic"})

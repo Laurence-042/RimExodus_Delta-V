@@ -13,7 +13,7 @@ internal static partial class Program
     static void MissionChecks(Game game, Harmony harmony, string prefabs)
     {
         var xml = new XmlDocument();
-        xml.Load(Path.Combine(prefabs, "../Defs/Quests/DeltaV_Missions.xml"));
+        xml.Load(Path.Combine(prefabs, "../../1.6/Defs/Quests/DeltaV_Missions.xml"));
         var settings = new SpaceMissionDef();
         foreach (XmlNode node in xml.SelectNodes("/Defs/DeltaV.SpaceMissionDef/tiers/li"))
             settings.tiers.Add(new SpaceMissionTier { wealth = float.Parse(node["wealth"].InnerText),

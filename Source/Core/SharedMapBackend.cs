@@ -23,6 +23,7 @@ namespace DeltaV
                     .ThenByDescending(t => t.def.category == ThingCategory.Building)
                     .ThenByDescending(t => t.TryGetComp<CompDeltaVPilotConsole>()?.isMain == true)
                     .ThenByDescending(t => t.def.shortHash));
+            Directory.CreateDirectory(MapPrefab.PrefabDirectory);
             string path = Path.Combine(MapPrefab.PrefabDirectory, name + ".xml");
             shared.Save(path);
             return shared;

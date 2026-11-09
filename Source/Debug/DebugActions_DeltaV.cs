@@ -53,7 +53,7 @@ namespace DeltaV
         }
 
         // 通用地图 prefab 导出：把当前聚焦图居住区（Home Area 掩码）导出为
-        // mod 根 Prefabs/ 下的时间戳文件，供 MapPrefab.Spawn 重建（无需重启）。
+        // RimWorld 用户数据 DeltaV/Prefabs/ 下的时间戳文件，供 MapPrefab.Spawn 重建（无需重启）。
         [DebugAction("Delta-V", "Prefab: export home area as timestamped file", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void ExportHomePrefabTimestamped()
         {

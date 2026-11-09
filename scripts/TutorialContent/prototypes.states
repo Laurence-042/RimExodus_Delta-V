@@ -193,6 +193,11 @@
     <health>500</health>
     <beenRevealed>True</beenRevealed>
   </saveable>
+  <saveable Class="Mineable">
+    <def>Vacstone</def>
+    <health>600</health>
+    <beenRevealed>True</beenRevealed>
+  </saveable>
   <saveable Class="DeltaV.Building_SealedSpaceCargoContainer">
     <def>DeltaV_CargoContainer</def>
     <health>300</health>
@@ -227,5 +232,17 @@
     <tradeStockGenerated>False</tradeStockGenerated>
     <indiscriminateSupply>True</indiscriminateSupply>
     <tradePriceSeed>7319</tradePriceSeed>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_PrefabClusterMarker</def>
+    <health>50</health>
+    <prefabs />
+    <contentTypeId>Asteroid</contentTypeId>
+    <innerRadius>70</innerRadius>
+    <outerRadius>260</outerRadius>
+    <densityPerTenThousand>0.6</densityPerTenThousand>
+    <minimumSpacing>28</minimumSpacing>
+    <inheritFaction>False</inheritFaction>
+    <seed>40771</seed>
   </saveable>
 </prototypes>

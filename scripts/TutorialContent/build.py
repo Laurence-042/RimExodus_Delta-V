@@ -320,10 +320,12 @@ def build(data, name="ArrivalStation"):
         ET.SubElement(entry, 'state').append(state)
     for tag, surface_def in [('foundations', 'Substructure'), ('roofs', 'RoofConstructed')]:
         nodes = ET.SubElement(document, tag)
-        for x, z in sorted(roofs if tag == 'roofs' else set() if name == 'ArrivalStation' else foundation):
+        foundation_output = set() if name == 'ArrivalStation' or (plan or {}).get('omitFoundations') else foundation
+        for x, z in sorted(roofs if tag == 'roofs' else foundation_output):
             node = ET.SubElement(nodes, 'li')
             field(node, 'pos', f'({x}, 0, {z})')
-            field(node, 'def', plan.get('foundationDefs',{}).get((x,z),surface_def) if detailed and tag=='foundations' else surface_def)
+            authored_defs = plan.get('foundationDefs' if tag == 'foundations' else 'roofDefs', {}) if detailed else {}
+            field(node, 'def', authored_defs.get((x, z), surface_def))
     # Authored initial environment travels with the prefab, including imports outside the tutorial.
     # Include covered equipment cells too: impassable free-air regions share room state.
     # Solid wall samples are harmless; REF ignores cells with no target Room.
@@ -333,7 +335,7 @@ def build(data, name="ArrivalStation"):
         for x,z in sorted({tuple(c) for r in plan['reservations'] for c in r['cells']}):
             ET.SubElement(no_roof, 'li').text = f'({x}, 0, {z})'
     covered = roofs | {c for c, d in (plan or {}).get('foundationDefs', {}).items() if d == 'DeltaV_MoonPool'}
-    environment_cells = sorted(covered)
+    environment_cells = [] if (plan or {}).get('omitEnvironment') else sorted(covered)
     environment_groups = {}
     for c in environment_cells:
         values = (plan or {}).get('environment', {}).get(c, (21, 0))
@@ -352,10 +354,22 @@ def build(data, name="ArrivalStation"):
     (generated / (name + '.records.json')).write_text(json.dumps(records, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
     if detailed:
         layout.validate_and_draw(name, plan, records, foundation, roofs, reachable, HERE, generated)
-    destination = ROOT / '1.6/Prefabs'
-    destination.mkdir(exist_ok=True)
+    if name in ('ArrivalStation', 'TrainingShip', 'Salvage', 'Shipyard', 'PrototypeShip', 'WeaponRange', 'ShieldTarget'):
+        relative_destination = Path('Tutorial') / (name + '.xml')
+    elif name in ('SectorFighter', 'SectorGunboat', 'SectorFrigate', 'SectorDestroyer', 'SectorCruiser'):
+        relative_destination = Path('Sector/Craft') / (name + '.xml')
+    elif name in ('SectorWeaponRelay', 'SectorAbandonedSatellite', 'SectorWeaponPlatform',
+                  'SectorTradeStation', 'SectorShipyard', 'SectorFactoryStation'):
+        relative_destination = Path('Sector/Stations') / (name + '.xml')
+    elif name in ('SectorAsteroid', 'AsteroidSteelSmall', 'AsteroidSteelMedium',
+                  'AsteroidComponentsSmall', 'AsteroidMixedMedium', 'AsteroidPlasteelLarge'):
+        relative_destination = Path('Sector/Asteroids') / (name + '.xml')
+    else:
+        raise ValueError(f'No prefab catalog category for {name}')
+    destination = ROOT / 'Common/Prefabs' / relative_destination
+    destination.parent.mkdir(parents=True, exist_ok=True)
     ET.indent(document)
-    ET.ElementTree(document).write(destination / (name + '.xml'), encoding='utf-8', xml_declaration=True)
+    ET.ElementTree(document).write(destination, encoding='utf-8', xml_declaration=True)
     # Diagram reads these same resolved records; no second placement calculation.
     scale, pad = 25, 35
     image = Image.new('RGB', (width*scale+2*pad, height*scale+2*pad+90), '#101822')
@@ -384,11 +398,12 @@ def build(data, name="ArrivalStation"):
     draw.text((pad, height*scale+pad+55), f'{len(records)} instances | {counts.get("Ship_CryptosleepCasket", counts.get("CryptosleepCasket", 0))} casket | {counts["Bed"]} beds | {counts["OxygenPump"]} oxygen pumps | {counts["GravcorePowerCell"]} gravcore cell', fill='white')
     if not detailed: image.save(HERE / (name + '.png'))
     # Re-read the output and verify no entity went missing during export.
-    saved = ET.parse(destination / (name + '.xml')).getroot()
+    saved = ET.parse(destination).getroot()
     assert len(saved.findall('thingStates/li')) == len(records)
     assert all(n.find('state/saveable') is not None for n in saved.findall('thingStates/li'))
     assert len(saved.findall('environment/li/cells/li')) == len(environment_cells)
-    print(f'PASS: {len(records)} instances, {len(foundation)} support cells, {len(roofs)} roof cells; Def-derived geometry, routes and output counts.')
+    support_count = 0 if (plan or {}).get('omitFoundations') or name == 'ArrivalStation' else len(foundation)
+    print(f'PASS: {len(records)} instances, {support_count} support cells, {len(roofs)} roof cells; Def-derived geometry, routes and output counts.')
 
 
 if __name__ == '__main__':

@@ -2,9 +2,10 @@
 
 `build.py` 是生成入口；移民船残骸以用户原始导出的逐字节副本 `arrival_intact.prefab` 为基准，删改逻辑编辑 `arrival_layout.py`，环形船厂与小货船编辑 `shipyard_layout.py`，武器平台与靶舰编辑 `combat_range_layout.py`，12 个星区叶子的内置内容编辑 `sector_layout.py`。生成器读取安装版与项目 Def 的尺寸和继承链，解析占地／操作格后由同一份记录输出：
 
-- `1.6/Prefabs/{ArrivalStation,TrainingShip,Salvage,Shipyard,PrototypeShip,WeaponRange,ShieldTarget}.xml`：七份正式可打包 prefab，教程、调试导入与星区池共用同一目录；运行时不调用布局脚本。
-- `1.6/Prefabs/Sector*.xml`：五档舰船与七类空间内容的默认生成池；所有叶子模板均不含批量标记。
-- 同名 `.png`：与 XML 对应的布局图。
+- `Common/Prefabs/Tutorial/*.xml`：七份正式可打包教程 prefab，运行时不调用布局脚本。
+- `Common/Prefabs/Sector/{Craft,Stations}/*.xml`：星区飞行器与站点默认生成池。
+- `Common/Prefabs/Sector/Asteroids/*.xml`：小行星带核心与五份带权子资源；只有 `SectorAsteroid.xml` 含批量标记。
+- `Source/obj/TutorialContent/*.png`：与 XML 同批记录生成的临时布局图，不入库。
 - `Source/obj/TutorialContent/*.records.json`：原版离线检查输入，不入库。
 
 `prototypes.states` 是从本地 Demo／Demo_0 导出中摘取并清除源图、派系、控制台身份、电网引用后的实例状态。空休眠舱按原版 `Building_Casket`／`ThingOwner` 存档契约补齐，并经真实 Scribe 加载验证。不要删掉内部容器的具体 Class 或空列表，也不要把完整 Scribe 替换成普通 PrefabThingData。
@@ -20,9 +21,9 @@ just build
 
 可用 `--data` 指定其他安装目录的 Data。构建依赖 Python Pillow；它只用于制作期示意图，不是 Mod 运行前置。
 
-`python scripts/TutorialContent/build.py --only SectorFighter ... SectorAsteroid` 可单独重建星区内容。舰船与站体均包含真实驾驶台、电网、维生和用途设备；贸易站状态显式绑定三个锁定供货仓与一个解锁取货仓，小行星使用原版 Mineable 状态。`TutorialRegression` 检查 12 个注册叶子的默认路径、format-2 文件、无 cluster 标记、Scribe 数字身份及贸易引用；完整 SpawnSetup、人员活动、战斗和交易补货仍由新档验收。
+`python scripts/TutorialContent/build.py --only SectorFighter ... SectorAsteroid AsteroidSteelSmall AsteroidSteelMedium AsteroidComponentsSmall AsteroidMixedMedium AsteroidPlasteelLarge` 可单独重建星区内容。舰船与站体均包含真实驾驶台、电网、维生和用途设备；贸易站状态显式绑定三个锁定供货仓与一个解锁取货仓。小行星带核心和五份子体按原生 asteroid 契约写 `Vacstone_Rough`、Vacstone／部分 Mineable 和 `RoofRockThin`，不写 foundation／environment；核心标记保存带权路径、环带、密度、间距和固定种子，子体没有标记。`TutorialRegression` 检查 12 个注册叶子的默认路径、format-2 文件、Scribe 数字身份、贸易引用和小行星带完整契约；完整 SpawnSetup、人员活动、战斗、交易补货和 cluster 物化仍由新档验收。
 
-残骸保留用户原船的舱室与原版飞船连接关系，在原导出上添加后部爆炸断口、拆除搜刮设备并保留原床铺／家具／厨房，把队长舱与保留唯一一套真空服的服装架移入货仓。正式资源与本地 `ArrivalStationWreck.xml` 使用同一生成结果；不存在另一份八舱布局。回归覆盖六舱存取、货仓队长绑定、唯一电网、教练机泊口与货仓温控。
+残骸保留用户原船的舱室与原版飞船连接关系，在原导出上添加后部爆炸断口、拆除搜刮设备并保留原床铺／家具／厨房，把队长舱与保留唯一一套真空服的服装架移入货仓。正式资源与本地已归档到 `DeltaV/PrefabArchive/Tutorial/ArrivalStationWreck.xml` 的历史副本使用同一生成结果；归档目录不参与 prefab 扫描。回归覆盖六舱存取、货仓队长绑定、唯一电网、教练机泊口与货仓温控。
 
 `--only Shipyard PrototypeShip` 仅重建本轮两份内容。`shipyard.states` 保存其状态原型：原有设施从本地导出摘取并清除外部引用；水培、工作台、ASF 仓储和 EVA 按各自 ExposeData 补齐。每次生成重编号炮塔内部枪与 Verb 引用，最终写出前检查整份资源所有顶层／嵌套 Thing 的数字 ID 唯一及枪械／Verb 一致；不同 Def 前缀不能复用同一数字 ID。弹头／装药分别写入当前库存节点。布局图和 `.layout.json` 同样来自最终记录；月池在地表与基架两层一致，留给现有力场屋顶逻辑处理。
 

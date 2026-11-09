@@ -67,20 +67,20 @@ namespace DeltaV
         public static readonly List<SectorContentType> All = new List<SectorContentType>
         {
             new SectorContentType("Craft", "DeltaV_SectorTypeCraft", 0,
-                new SectorContentType("Fighter", "DeltaV_SectorTypeFighter", "SectorFighter.xml"),
-                new SectorContentType("Gunboat", "DeltaV_SectorTypeGunboat", "SectorGunboat.xml"),
-                new SectorContentType("Frigate", "DeltaV_SectorTypeFrigate", "SectorFrigate.xml"),
-                new SectorContentType("Destroyer", "DeltaV_SectorTypeDestroyer", "SectorDestroyer.xml"),
-                new SectorContentType("Cruiser", "DeltaV_SectorTypeCruiser", "SectorCruiser.xml")),
+                new SectorContentType("Fighter", "DeltaV_SectorTypeFighter", "Sector/Craft/SectorFighter.xml"),
+                new SectorContentType("Gunboat", "DeltaV_SectorTypeGunboat", "Sector/Craft/SectorGunboat.xml"),
+                new SectorContentType("Frigate", "DeltaV_SectorTypeFrigate", "Sector/Craft/SectorFrigate.xml"),
+                new SectorContentType("Destroyer", "DeltaV_SectorTypeDestroyer", "Sector/Craft/SectorDestroyer.xml"),
+                new SectorContentType("Cruiser", "DeltaV_SectorTypeCruiser", "Sector/Craft/SectorCruiser.xml")),
             new SectorContentType("Station", "DeltaV_SectorTypeStation", 0,
                 new SectorContentType("Satellite", "DeltaV_SectorTypeSatellite", 0,
-                    new SectorContentType("WeaponUnlockSatellite", "DeltaV_SectorTypeWeaponUnlockSatellite", "SectorWeaponRelay.xml"),
-                    new SectorContentType("AbandonedSatellite", "DeltaV_SectorTypeAbandonedSatellite", "SectorAbandonedSatellite.xml")),
-                new SectorContentType("WeaponPlatform", "DeltaV_SectorTypeWeaponPlatform", "SectorWeaponPlatform.xml"),
-                new SectorContentType("TradeStation", "DeltaV_SectorTypeTradeStation", "SectorTradeStation.xml"),
-                new SectorContentType("Shipyard", "DeltaV_SectorTypeShipyard", "SectorShipyard.xml"),
-                new SectorContentType("FactoryStation", "DeltaV_SectorTypeFactoryStation", "SectorFactoryStation.xml"),
-                new SectorContentType("Asteroid", "DeltaV_SectorTypeAsteroid", "SectorAsteroid.xml")),
+                    new SectorContentType("WeaponUnlockSatellite", "DeltaV_SectorTypeWeaponUnlockSatellite", "Sector/Stations/SectorWeaponRelay.xml"),
+                    new SectorContentType("AbandonedSatellite", "DeltaV_SectorTypeAbandonedSatellite", "Sector/Stations/SectorAbandonedSatellite.xml")),
+                new SectorContentType("WeaponPlatform", "DeltaV_SectorTypeWeaponPlatform", "Sector/Stations/SectorWeaponPlatform.xml"),
+                new SectorContentType("TradeStation", "DeltaV_SectorTypeTradeStation", "Sector/Stations/SectorTradeStation.xml"),
+                new SectorContentType("Shipyard", "DeltaV_SectorTypeShipyard", "Sector/Stations/SectorShipyard.xml"),
+                new SectorContentType("FactoryStation", "DeltaV_SectorTypeFactoryStation", "Sector/Stations/SectorFactoryStation.xml"),
+                new SectorContentType("Asteroid", "DeltaV_SectorTypeAsteroid", "Sector/Asteroids/SectorAsteroid.xml")),
         };
 
         /// <summary>深度优先遍历全部节点（含分支）。</summary>

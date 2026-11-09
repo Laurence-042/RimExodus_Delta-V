@@ -11,41 +11,31 @@ namespace DeltaV
     ///
     /// - 递归绘制（任意深度），每层缩进 IndentPerDepth；行高全部用本类常量（自绘控件
     ///   而非 Listing 的字体相关行高），滚动内容总高可在绘制前精确递归算出；
-    /// - prefab 池 = 目录扫描 + 勾选（MapPrefab.ListPrefabFiles 的正斜杠相对路径）。
-    ///   扫描结果缓存到页头「重新扫描」按钮手动刷新（单个按钮服务整棵树）；勾选状态
-    ///   即 rule.prefabPaths 成员关系；
+    /// - prefab 池在叶子区只显示一个选择按钮。按下时重新扫描合并目录，
+    ///   并交由 Dialog_PrefabPoolTree 用原版 Listing_Tree / TreeNode 展示可折叠勾选树；
     /// - TextFieldNumeric 缓冲按 (leafId, 字段) 键惰性建立；段的增删会使后续段错位，
     ///   增删时清该叶子的全部段缓冲重建（值本身在规则对象上，不丢失）。
     /// </summary>
     internal static class SectorSettingsUI
     {
         private const float RowHeight = 30f;
-        private const float FileRowHeight = 24f;
         private const float SectionGap = 22f;
         private const float IndentPerDepth = 18f;
 
         private static Vector2 scrollPosition;
-        private static List<string> scannedFiles;
-
         private static readonly Dictionary<string, string> Buffers = new Dictionary<string, string>();
 
         public static void Draw(Rect rect, DeltaVSettings settings)
         {
             settings.EnsureSectorRulesSeeded();
-            if (scannedFiles == null) ScanPrefabFiles();
 
-            // 说明 + 全局「重新扫描」画在滚动区外（固定头部，不参与高度计算）。
+            // 说明画在滚动区外；prefab 扫描在选择窗口每次打开时执行。
             Text.Font = GameFont.Tiny;
             GUI.color = new Color(1f, 1f, 1f, 0.6f);
-            Rect introRect = new Rect(rect.x, rect.y, rect.width - 130f, Text.LineHeight * 2f + 4f);
+            Rect introRect = new Rect(rect.x, rect.y, rect.width, Text.LineHeight * 2f + 4f);
             Widgets.Label(introRect, "DeltaV_SettingsSectorIntro".Translate());
             GUI.color = Color.white;
             Text.Font = GameFont.Small;
-            Rect rescanRect = new Rect(rect.xMax - 120f, rect.y, 120f, RowHeight);
-            if (Widgets.ButtonText(rescanRect, "DeltaV_SettingsSectorPrefabRefresh".Translate()))
-            {
-                ScanPrefabFiles();
-            }
 
             var scrollRect = new Rect(rect.x, rect.y + introRect.height, rect.width,
                 rect.height - introRect.height);
@@ -90,8 +80,7 @@ namespace DeltaV
             leafHeight += RowHeight;                                            // 保底数
             leafHeight += RowHeight;                                            // 分段标题 + 添加按钮
             leafHeight += rule.segments.Count * RowHeight;                      // 各段
-            leafHeight += RowHeight;                                            // 池标题（计数）
-            leafHeight += (scannedFiles?.Count ?? 0) * FileRowHeight;           // 池文件勾选行
+            leafHeight += RowHeight;                                            // prefab 选择按钮
             return leafHeight;
         }
 
@@ -173,30 +162,14 @@ namespace DeltaV
                 }
             }
 
-            // 池标题（计数；扫描/刷新按钮在页头，服务整棵树）。
-            Rect poolHeaderRect = list.GetRect(RowHeight);
-            Widgets.Label(Indented(poolHeaderRect, indent).LeftPart(0.85f),
-                "DeltaV_SettingsSectorPrefabPool".Translate(rule.prefabPaths.Count, scannedFiles?.Count ?? 0));
-            TooltipHandler.TipRegion(poolHeaderRect, "DeltaV_SettingsSectorPrefabPoolTip".Translate());
-
-            // 池文件勾选行（目录为空时不画行——页头说明与计数已表达）。
-            if (scannedFiles != null)
+            Rect prefabButtonRect = Indented(list.GetRect(RowHeight), indent);
+            if (Widgets.ButtonText(prefabButtonRect, "DeltaV_SettingsSelectGenerationPrefabs".Translate()))
             {
-                foreach (string file in scannedFiles)
-                {
-                    Rect row = list.GetRect(FileRowHeight);
-                    bool selected = rule.prefabPaths.Contains(file);
-                    bool toggled = selected;
-                    Text.Font = GameFont.Tiny;
-                    Widgets.CheckboxLabeled(Indented(row, indent), file, ref toggled);
-                    Text.Font = GameFont.Small;
-                    if (toggled != selected)
-                    {
-                        if (toggled) rule.prefabPaths.Add(file);
-                        else rule.prefabPaths.Remove(file);
-                    }
-                }
+                Find.WindowStack.Add(new Dialog_PrefabPoolTree(type.Label, rule.prefabPaths));
             }
+            TooltipHandler.TipRegion(prefabButtonRect,
+                "DeltaV_SettingsSectorPrefabPoolTip".Translate() + "\n\n"
+                + "DeltaV_SettingsPrefabTreeCurrentCount".Translate(rule.prefabPaths.Count));
         }
 
 
@@ -225,20 +198,6 @@ namespace DeltaV
         }
 
         // ---- 状态 ----
-
-        private static void ScanPrefabFiles()
-        {
-            try
-            {
-                scannedFiles = MapPrefab.ListPrefabFiles();
-            }
-            catch (System.Exception ex)
-            {
-                // 目录定位失败（mod pack 未就绪等）：留空列表，用户可手动刷新重试。
-                Log.Warning($"[DeltaV] prefab directory scan failed: {ex.Message}");
-                scannedFiles = new List<string>();
-            }
-        }
 
         private static string BufferFor(string key, string seedValue)
         {

@@ -10,8 +10,8 @@ namespace DeltaV
     {
         private void CreateCombatRange(SpaceObject home)
         {
-            var platform = MapPrefab.LoadRelative("WeaponRange.xml");
-            var target = MapPrefab.LoadRelative("ShieldTarget.xml");
+            var platform = MapPrefab.LoadRelative("Tutorial/WeaponRange.xml");
+            var target = MapPrefab.LoadRelative("Tutorial/ShieldTarget.xml");
             Map rangeMap = CreateRemoteCourseMap(ShipPocketMapFactory.CompactSize(platform.size), home, -260f);
             var facilities = SpawnCoursePrefab(platform, rangeMap, new IntVec3(12, 0, 12), "DeltaV_Range_Platform", Run.mentors);
             Run.rangeConsole = facilities.Single(t => t.TryGetComp<CompDeltaVPilotConsole>() != null);

@@ -50,6 +50,7 @@ foreach ($version in @('1.6', '1.7')) {
     $assemblyDir = Join-Path $target "$version/Assemblies"
     Get-ChildItem -LiteralPath $assemblyDir -File | Where-Object { $_.Name -ne 'DeltaV.dll' } | Remove-Item -Force
 }
+Copy-Item -LiteralPath (Join-Path $root 'Common') -Destination (Join-Path $target 'Common') -Recurse
 Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination $target
 Copy-Item -LiteralPath (Join-Path $root 'LoadFolders.xml') -Destination $target
 Write-Output "Packaged RimExodus: Delta-V 1.6 and 1.7 at $target. Install RimExodus Framework separately."

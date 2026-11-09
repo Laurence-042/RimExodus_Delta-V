@@ -18,6 +18,16 @@ NAMES = (
     'SectorFighter', 'SectorGunboat', 'SectorFrigate', 'SectorDestroyer', 'SectorCruiser',
     'SectorWeaponRelay', 'SectorAbandonedSatellite', 'SectorWeaponPlatform',
     'SectorTradeStation', 'SectorShipyard', 'SectorFactoryStation', 'SectorAsteroid',
+    'AsteroidSteelSmall', 'AsteroidSteelMedium', 'AsteroidComponentsSmall',
+    'AsteroidMixedMedium', 'AsteroidPlasteelLarge',
+)
+
+ASTEROID_CHILDREN = (
+    ('Sector/Asteroids/AsteroidSteelSmall.xml', 4.0),
+    ('Sector/Asteroids/AsteroidSteelMedium.xml', 3.0),
+    ('Sector/Asteroids/AsteroidComponentsSmall.xml', 1.5),
+    ('Sector/Asteroids/AsteroidMixedMedium.xml', 2.0),
+    ('Sector/Asteroids/AsteroidPlasteelLarge.xml', 0.75),
 )
 
 SPECS = {
@@ -43,7 +53,19 @@ SPECS = {
     'SectorTradeStation': dict(size=(27, 25), crew=4, trade=True),
     'SectorShipyard': dict(size=(31, 29), crew=6, shipyard=True),
     'SectorFactoryStation': dict(size=(29, 27), crew=6, factory=True),
-    'SectorAsteroid': dict(size=(19, 19), asteroid=True),
+    'SectorAsteroid': dict(size=(19, 19), asteroid=True, clusterCore=True,
+        coverage=.34, seed=41,
+        minerals=('MineableSteel', 'MineableSteel', 'MineableComponentsIndustrial')),
+    'AsteroidSteelSmall': dict(size=(11, 9), asteroid=True, coverage=.24, seed=53,
+        minerals=('MineableSteel',)),
+    'AsteroidSteelMedium': dict(size=(17, 15), asteroid=True, coverage=.31, seed=67,
+        minerals=('MineableSteel', 'MineableSteel', 'MineableComponentsIndustrial')),
+    'AsteroidComponentsSmall': dict(size=(13, 11), asteroid=True, coverage=.27, seed=79,
+        minerals=('MineableSteel', 'MineableComponentsIndustrial', 'MineableComponentsIndustrial')),
+    'AsteroidMixedMedium': dict(size=(19, 17), asteroid=True, coverage=.36, seed=97,
+        minerals=('MineableSteel', 'MineableSteel', 'MineableComponentsIndustrial', 'MineablePlasteel')),
+    'AsteroidPlasteelLarge': dict(size=(25, 21), asteroid=True, coverage=.22, seed=113,
+        minerals=('MineableSteel', 'MineablePlasteel', 'MineablePlasteel')),
 }
 
 DIRS = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -54,13 +76,15 @@ def shape(name):
     w, h = spec['size']
     if spec.get('asteroid'):
         cx, cz = (w - 1) / 2, (h - 1) / 2
+        seed = spec['seed']
         cells = {(x, z) for x in range(w) for z in range(h)
                  if ((x-cx)/(w*.48))**2 + ((z-cz)/(h*.46))**2 <= 1
-                 and not (x < 3 and z > h-5) and not (x > w-4 and z < 3)}
+                 and not ((((x*37 + z*61 + seed) % 19) < 3)
+                          and ((x-cx)/(w*.48))**2 + ((z-cz)/(h*.46))**2 > .72)}
     else:
         cells = {(x, z) for x in range(w) for z in range(h)}
     return dict(size=(w, h), cells=cells, zones={c: 0 for c in cells},
-                foundationDefs={}, surfaceDefs={})
+                foundationDefs={}, surfaceDefs={}, roofDefs={})
 
 
 def furnish(name, plan, place, prop, foundation, roofs, records, occupied):
@@ -109,17 +133,46 @@ def furnish(name, plan, place, prop, foundation, roofs, records, occupied):
         raise ValueError(f'No placement for {thing} in {name}')
 
     if spec.get('asteroid'):
-        plan['surfaceDefs'] = {c: 'RoughGranite' for c in foundation}
+        # Match Odyssey GenStep_Asteroid: the pocket map outside the authored
+        # footprint remains Space, while the asteroid surface is Vacstone's
+        # implied natural terrain rather than a terrestrial stone terrain.
+        plan['surfaceDefs'] = {c: 'Vacstone_Rough' for c in foundation}
+        plan['omitFoundations'] = True
+        plan['omitEnvironment'] = True
         roofs.clear()
-        rich = sorted(foundation, key=lambda c: ((c[0]-w/2)**2+(c[1]-h/2)**2, c))
-        for index, (x, z) in enumerate(rich):
-            if index % 3 == 0:
-                put('MineableSteel', x, z)
-            elif index % 11 == 0:
-                put('MineableComponentsIndustrial', x, z)
-            elif index % 17 == 0:
-                put('MineablePlasteel', x, z)
-        return set(), min(foundation, key=lambda c: math.dist(c, (w/2, h/2)))
+        center = min(foundation, key=lambda c: math.dist(c, (w/2, h/2)))
+        if spec.get('clusterCore'):
+            marker = put('DeltaV_PrefabClusterMarker', *center)
+            marker['stateOverrides'].update({
+                '_clusterEntries': ASTEROID_CHILDREN,
+                '_contentTypeId': 'Asteroid',
+                '_innerRadius': 70,
+                '_outerRadius': 260,
+                '_densityPerTenThousand': .6,
+                '_minimumSpacing': 28,
+                '_inheritFaction': False,
+                '_seed': 40771,
+            })
+        # The native generator uses a lower elevation threshold for rough
+        # surface and a higher one for solid Vacstone plus thin rock roof.
+        # A one-cell erosion gives the authored prefabs the same two-layer
+        # structure while preserving their deterministic jagged silhouettes.
+        rock_cells = {c for c in foundation
+                      if all((c[0]+dx, c[1]+dz) in foundation for dx, dz in DIRS)}
+        rock_cells.difference_update(occupied)
+        roofs.update(rock_cells)
+        plan['roofDefs'] = {c: 'RoofRockThin' for c in rock_cells}
+        candidates = list(rock_cells)
+        candidates.sort(key=lambda c: (((c[0]*73856093) ^ (c[1]*19349663)
+                                        ^ spec['seed']) & 0x7fffffff, c))
+        mineral_count = min(len(candidates) - 1,
+                            max(1, round(len(foundation) * spec['coverage'])))
+        minerals = spec['minerals']
+        mineral_defs = {cell: minerals[index % len(minerals)]
+                        for index, cell in enumerate(candidates[:mineral_count])}
+        for x, z in sorted(rock_cells):
+            put(mineral_defs.get((x, z), 'Vacstone'), x, z)
+        return set(), center
 
     engines = []
     if spec.get('craft'):
@@ -257,15 +310,38 @@ def prepare_state(record, state, field, prop):
         field(state, 'tradeStockGenerated', 'False')
         field(state, 'indiscriminateSupply', 'True')
         field(state, 'tradePriceSeed', '7319')
+    if name == 'DeltaV_PrefabClusterMarker':
+        overrides = record['stateOverrides']
+        prefabs = state.find('prefabs')
+        if prefabs is None:
+            prefabs = ET.SubElement(state, 'prefabs')
+        for child in list(prefabs):
+            prefabs.remove(child)
+        for path, weight in overrides['_clusterEntries']:
+            entry = ET.SubElement(prefabs, 'li', {'Class': 'DeltaV.PrefabClusterEntry'})
+            field(entry, 'prefabPath', path)
+            field(entry, 'weight', weight)
+        field(state, 'contentTypeId', overrides['_contentTypeId'])
+        field(state, 'innerRadius', overrides['_innerRadius'])
+        field(state, 'outerRadius', overrides['_outerRadius'])
+        field(state, 'densityPerTenThousand', overrides['_densityPerTenThousand'])
+        field(state, 'minimumSpacing', overrides['_minimumSpacing'])
+        field(state, 'inheritFaction', overrides['_inheritFaction'])
+        field(state, 'seed', overrides['_seed'])
 
 
 def validate_and_draw(name, plan, records, foundation, roofs, reachable, here, generated):
     counts = Counter(r['name'] for r in records)
     spec = SPECS[name]
     if spec.get('asteroid'):
-        assert counts['MineableSteel'] >= 20
-        assert counts['MineableComponentsIndustrial'] >= 2
-        assert not roofs
+        mineables = sum(count for thing, count in counts.items() if thing.startswith('Mineable'))
+        assert mineables > 0 and counts['Vacstone'] > 0, (name, 'partial mineral coverage')
+        assert mineables + counts['Vacstone'] == len(roofs), (name, 'solid asteroid body')
+        assert set(plan['surfaceDefs'].values()) == {'Vacstone_Rough'}
+        assert set(plan['roofDefs'].values()) == {'RoofRockThin'}
+        assert plan['omitFoundations']
+        assert plan['omitEnvironment']
+        assert counts['DeltaV_PrefabClusterMarker'] == (1 if spec.get('clusterCore') else 0)
     else:
         assert counts['PilotConsole'] == 1
         assert counts['DeltaV_DockingPort'] == 1
@@ -284,7 +360,8 @@ def validate_and_draw(name, plan, records, foundation, roofs, reachable, here, g
         assert terminal['stateOverrides']['_deliveryCargo']['name'] == 'DeltaV_CargoStorage'
 
     report = {'name': name, 'size': list(spec['size']), 'counts': dict(sorted(counts.items())),
-              'foundationCells': len(foundation), 'roofCells': len(roofs),
+              'foundationCells': 0 if plan.get('omitFoundations') else len(foundation),
+              'naturalTerrainCells': len(foundation), 'roofCells': len(roofs),
               'stage': 'offline authored content; game SpawnSetup pending'}
     (generated / (name + '.layout.json')).write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
@@ -305,7 +382,9 @@ def validate_and_draw(name, plan, records, foundation, roofs, reachable, here, g
               'DeltaV_PrefabPawnMarker': '#f1dce8', 'OxygenPump': '#71c6d0',
               'DeltaV_CargoContainer': '#c49058', 'DeltaV_CargoStorage': '#e0b36c',
               'DeltaV_TradeTerminal': '#6fc99c', 'MineableSteel': '#777f88',
-              'MineableComponentsIndustrial': '#b48d62', 'MineablePlasteel': '#819ab4'}
+              'MineableComponentsIndustrial': '#b48d62', 'MineablePlasteel': '#819ab4',
+              'Vacstone': '#5f5750',
+              'DeltaV_PrefabClusterMarker': '#ffb833'}
     for record in records:
         if record['layer'] in ('conduit', 'items'):
             continue
@@ -328,4 +407,4 @@ def validate_and_draw(name, plan, records, foundation, roofs, reachable, here, g
         y += 24
     draw.text((x, image_height-28), 'North up · prefab/diagram same records',
               font=font(15), fill='#95aebc')
-    image.save(here / (name + '.png'))
+    image.save(generated / (name + '.png'))

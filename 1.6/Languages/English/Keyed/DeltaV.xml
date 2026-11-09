@@ -250,9 +250,13 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SettingsSectorAddSegment>Add segment</DeltaV_SettingsSectorAddSegment>
   <DeltaV_SettingsSectorRemoveSegment>Remove</DeltaV_SettingsSectorRemoveSegment>
   <DeltaV_SettingsSectorSegmentTip>Segment: chance (%) to append between 1 and the cap as extra objects of this type.</DeltaV_SettingsSectorSegmentTip>
-  <DeltaV_SettingsSectorPrefabPool>Prefab pool ({0}/{1} selected)</DeltaV_SettingsSectorPrefabPool>
-  <DeltaV_SettingsSectorPrefabPoolTip>Map prefabs used when a point of interest of this type first materializes (chosen deterministically from its seed, random rotation). Paths are relative to the mod's Prefabs folder. An empty pool prevents this type from spawning; an invalid file cancels materialization.</DeltaV_SettingsSectorPrefabPoolTip>
-  <DeltaV_SettingsSectorPrefabRefresh>Rescan</DeltaV_SettingsSectorPrefabRefresh>
+  <DeltaV_SettingsSectorPrefabPoolTip>Map prefabs used when a point of interest of this type first materializes (chosen deterministically from its seed, random rotation). Paths are relative to the combined user and bundled prefab catalog. An empty pool prevents this type from spawning; an invalid file cancels materialization.</DeltaV_SettingsSectorPrefabPoolTip>
+  <DeltaV_SettingsSelectGenerationPrefabs>Select prefabs for generation</DeltaV_SettingsSelectGenerationPrefabs>
+  <DeltaV_SettingsPrefabTreeTitle>Prefabs for {0}</DeltaV_SettingsPrefabTreeTitle>
+  <DeltaV_SettingsPrefabTreeCurrentCount>{0} selected</DeltaV_SettingsPrefabTreeCurrentCount>
+  <DeltaV_SettingsPrefabTreeNoFiles>No prefab XML files were found in the user or bundled catalog.</DeltaV_SettingsPrefabTreeNoFiles>
+  <DeltaV_SettingsPrefabTreeScanFailed>Could not scan the prefab catalog: {0}</DeltaV_SettingsPrefabTreeScanFailed>
+  <DeltaV_SettingsPrefabTreeMissingPath>{0} (missing)</DeltaV_SettingsPrefabTreeMissingPath>
   <DeltaV_SectorTypeCraft>Craft</DeltaV_SectorTypeCraft>
   <DeltaV_SectorTypeFighter>Fighter</DeltaV_SectorTypeFighter>
   <DeltaV_SectorTypeGunboat>Gunboat</DeltaV_SectorTypeGunboat>
@@ -274,7 +278,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_NpcDoctrine_MissileBoat>Missile boat</DeltaV_NpcDoctrine_MissileBoat>
   <DeltaV_NpcDoctrine_Boarder>Boarder</DeltaV_NpcDoctrine_Boarder>
   <DeltaV_NpcDoctrine_Retreat>Retreat</DeltaV_NpcDoctrine_Retreat>
-  <DeltaV_SectorTypeAsteroid>Asteroid</DeltaV_SectorTypeAsteroid>
+  <DeltaV_SectorTypeAsteroid>Asteroid belt</DeltaV_SectorTypeAsteroid>
   <DeltaV_ReassignProtectedDomain>This substructure domain still has a primary console and cannot be reassigned. Set that console to backup first (note: if there are multiple consoles, another console facing the same direction may automatically take over when the primary is demoted or destroyed; consider dismantling consoles to prevent this).</DeltaV_ReassignProtectedDomain>
   <DeltaV_ReassignProtectedDomainsSkipped>Skipped {0} cell(s) in domains with primary consoles. Release their primary claims first; other eligible cells are reassigned normally.</DeltaV_ReassignProtectedDomainsSkipped>
 
@@ -408,7 +412,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_PrefabReplaceSelectFaction>Select the faction for prefab: {0}</DeltaV_PrefabReplaceSelectFaction>
   <DeltaV_PrefabReplaceKeepFaction>Keep current map faction (default): {0}</DeltaV_PrefabReplaceKeepFaction>
   <DeltaV_PrefabReplaceNoFaction>No faction</DeltaV_PrefabReplaceNoFaction>
-  <DeltaV_PrefabReplaceNoFiles>No prefab XML files were found under Prefabs/.</DeltaV_PrefabReplaceNoFiles>
+  <DeltaV_PrefabReplaceNoFiles>No prefab XML files were found in the user or bundled catalog.</DeltaV_PrefabReplaceNoFiles>
   <DeltaV_PrefabReplaceRequiresMap>Focus a loaded Delta-V space map before replacing it.</DeltaV_PrefabReplaceRequiresMap>
   <DeltaV_PrefabReplaceBusy>Wait for map generation, replacement, takeoff or docking to finish before replacing this map.</DeltaV_PrefabReplaceBusy>
   <DeltaV_PrefabReplaceFailed>Prefab map replacement failed. See the error log for details.</DeltaV_PrefabReplaceFailed>

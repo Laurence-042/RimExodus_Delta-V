@@ -1,0 +1,3657 @@
+<?xml version='1.0' encoding='utf-8'?>
+<MapPrefab formatVersion="2">
+  <name>AsteroidMixedMedium</name>
+  <prefab>
+    <defName>MapPrefab_AsteroidMixedMedium</defName>
+    <size>(19, 17)</size>
+    <terrain>
+      <Vacstone_Rough>
+        <rects>
+          <li>(0,7,0,7)</li>
+          <li>(0,8,0,8)</li>
+          <li>(1,6,1,6)</li>
+          <li>(1,7,1,7)</li>
+          <li>(1,8,1,8)</li>
+          <li>(1,9,1,9)</li>
+          <li>(1,10,1,10)</li>
+          <li>(1,11,1,11)</li>
+          <li>(2,3,2,3)</li>
+          <li>(2,4,2,4)</li>
+          <li>(2,6,2,6)</li>
+          <li>(2,7,2,7)</li>
+          <li>(2,8,2,8)</li>
+          <li>(2,9,2,9)</li>
+          <li>(2,10,2,10)</li>
+          <li>(2,11,2,11)</li>
+          <li>(2,12,2,12)</li>
+          <li>(2,13,2,13)</li>
+          <li>(3,3,3,3)</li>
+          <li>(3,4,3,4)</li>
+          <li>(3,5,3,5)</li>
+          <li>(3,6,3,6)</li>
+          <li>(3,7,3,7)</li>
+          <li>(3,8,3,8)</li>
+          <li>(3,9,3,9)</li>
+          <li>(3,10,3,10)</li>
+          <li>(3,11,3,11)</li>
+          <li>(3,12,3,12)</li>
+          <li>(3,13,3,13)</li>
+          <li>(4,2,4,2)</li>
+          <li>(4,3,4,3)</li>
+          <li>(4,4,4,4)</li>
+          <li>(4,5,4,5)</li>
+          <li>(4,6,4,6)</li>
+          <li>(4,7,4,7)</li>
+          <li>(4,8,4,8)</li>
+          <li>(4,9,4,9)</li>
+          <li>(4,10,4,10)</li>
+          <li>(4,11,4,11)</li>
+          <li>(4,12,4,12)</li>
+          <li>(4,13,4,13)</li>
+          <li>(4,14,4,14)</li>
+          <li>(5,2,5,2)</li>
+          <li>(5,3,5,3)</li>
+          <li>(5,4,5,4)</li>
+          <li>(5,5,5,5)</li>
+          <li>(5,6,5,6)</li>
+          <li>(5,7,5,7)</li>
+          <li>(5,8,5,8)</li>
+          <li>(5,9,5,9)</li>
+          <li>(5,10,5,10)</li>
+          <li>(5,11,5,11)</li>
+          <li>(5,12,5,12)</li>
+          <li>(5,13,5,13)</li>
+          <li>(5,14,5,14)</li>
+          <li>(6,2,6,2)</li>
+          <li>(6,3,6,3)</li>
+          <li>(6,4,6,4)</li>
+          <li>(6,5,6,5)</li>
+          <li>(6,6,6,6)</li>
+          <li>(6,7,6,7)</li>
+          <li>(6,8,6,8)</li>
+          <li>(6,9,6,9)</li>
+          <li>(6,10,6,10)</li>
+          <li>(6,11,6,11)</li>
+          <li>(6,12,6,12)</li>
+          <li>(6,13,6,13)</li>
+          <li>(6,14,6,14)</li>
+          <li>(6,15,6,15)</li>
+          <li>(7,1,7,1)</li>
+          <li>(7,2,7,2)</li>
+          <li>(7,3,7,3)</li>
+          <li>(7,4,7,4)</li>
+          <li>(7,5,7,5)</li>
+          <li>(7,6,7,6)</li>
+          <li>(7,7,7,7)</li>
+          <li>(7,8,7,8)</li>
+          <li>(7,9,7,9)</li>
+          <li>(7,10,7,10)</li>
+          <li>(7,11,7,11)</li>
+          <li>(7,12,7,12)</li>
+          <li>(7,13,7,13)</li>
+          <li>(7,14,7,14)</li>
+          <li>(7,15,7,15)</li>
+          <li>(8,1,8,1)</li>
+          <li>(8,2,8,2)</li>
+          <li>(8,3,8,3)</li>
+          <li>(8,4,8,4)</li>
+          <li>(8,5,8,5)</li>
+          <li>(8,6,8,6)</li>
+          <li>(8,7,8,7)</li>
+          <li>(8,8,8,8)</li>
+          <li>(8,9,8,9)</li>
+          <li>(8,10,8,10)</li>
+          <li>(8,11,8,11)</li>
+          <li>(8,12,8,12)</li>
+          <li>(8,13,8,13)</li>
+          <li>(8,14,8,14)</li>
+          <li>(8,15,8,15)</li>
+          <li>(9,1,9,1)</li>
+          <li>(9,2,9,2)</li>
+          <li>(9,3,9,3)</li>
+          <li>(9,4,9,4)</li>
+          <li>(9,5,9,5)</li>
+          <li>(9,6,9,6)</li>
+          <li>(9,7,9,7)</li>
+          <li>(9,8,9,8)</li>
+          <li>(9,9,9,9)</li>
+          <li>(9,10,9,10)</li>
+          <li>(9,11,9,11)</li>
+          <li>(9,12,9,12)</li>
+          <li>(9,13,9,13)</li>
+          <li>(9,14,9,14)</li>
+          <li>(9,15,9,15)</li>
+          <li>(10,1,10,1)</li>
+          <li>(10,2,10,2)</li>
+          <li>(10,3,10,3)</li>
+          <li>(10,4,10,4)</li>
+          <li>(10,5,10,5)</li>
+          <li>(10,6,10,6)</li>
+          <li>(10,7,10,7)</li>
+          <li>(10,8,10,8)</li>
+          <li>(10,9,10,9)</li>
+          <li>(10,10,10,10)</li>
+          <li>(10,11,10,11)</li>
+          <li>(10,12,10,12)</li>
+          <li>(10,13,10,13)</li>
+          <li>(10,14,10,14)</li>
+          <li>(10,15,10,15)</li>
+          <li>(11,1,11,1)</li>
+          <li>(11,2,11,2)</li>
+          <li>(11,3,11,3)</li>
+          <li>(11,4,11,4)</li>
+          <li>(11,5,11,5)</li>
+          <li>(11,6,11,6)</li>
+          <li>(11,7,11,7)</li>
+          <li>(11,8,11,8)</li>
+          <li>(11,9,11,9)</li>
+          <li>(11,10,11,10)</li>
+          <li>(11,11,11,11)</li>
+          <li>(11,12,11,12)</li>
+          <li>(11,13,11,13)</li>
+          <li>(11,14,11,14)</li>
+          <li>(11,15,11,15)</li>
+          <li>(12,1,12,1)</li>
+          <li>(12,2,12,2)</li>
+          <li>(12,3,12,3)</li>
+          <li>(12,4,12,4)</li>
+          <li>(12,5,12,5)</li>
+          <li>(12,6,12,6)</li>
+          <li>(12,7,12,7)</li>
+          <li>(12,8,12,8)</li>
+          <li>(12,9,12,9)</li>
+          <li>(12,10,12,10)</li>
+          <li>(12,11,12,11)</li>
+          <li>(12,12,12,12)</li>
+          <li>(12,13,12,13)</li>
+          <li>(12,14,12,14)</li>
+          <li>(12,15,12,15)</li>
+          <li>(13,1,13,1)</li>
+          <li>(13,2,13,2)</li>
+          <li>(13,3,13,3)</li>
+          <li>(13,4,13,4)</li>
+          <li>(13,5,13,5)</li>
+          <li>(13,6,13,6)</li>
+          <li>(13,7,13,7)</li>
+          <li>(13,8,13,8)</li>
+          <li>(13,9,13,9)</li>
+          <li>(13,10,13,10)</li>
+          <li>(13,11,13,11)</li>
+          <li>(13,12,13,12)</li>
+          <li>(13,13,13,13)</li>
+          <li>(13,14,13,14)</li>
+          <li>(13,15,13,15)</li>
+          <li>(14,2,14,2)</li>
+          <li>(14,3,14,3)</li>
+          <li>(14,4,14,4)</li>
+          <li>(14,5,14,5)</li>
+          <li>(14,6,14,6)</li>
+          <li>(14,7,14,7)</li>
+          <li>(14,8,14,8)</li>
+          <li>(14,9,14,9)</li>
+          <li>(14,10,14,10)</li>
+          <li>(14,11,14,11)</li>
+          <li>(14,12,14,12)</li>
+          <li>(14,13,14,13)</li>
+          <li>(14,14,14,14)</li>
+          <li>(15,3,15,3)</li>
+          <li>(15,4,15,4)</li>
+          <li>(15,5,15,5)</li>
+          <li>(15,6,15,6)</li>
+          <li>(15,7,15,7)</li>
+          <li>(15,8,15,8)</li>
+          <li>(15,9,15,9)</li>
+          <li>(15,10,15,10)</li>
+          <li>(15,11,15,11)</li>
+          <li>(15,12,15,12)</li>
+          <li>(16,3,16,3)</li>
+          <li>(16,5,16,5)</li>
+          <li>(16,6,16,6)</li>
+          <li>(16,7,16,7)</li>
+          <li>(16,8,16,8)</li>
+          <li>(16,9,16,9)</li>
+          <li>(16,10,16,10)</li>
+          <li>(16,11,16,11)</li>
+          <li>(16,12,16,12)</li>
+          <li>(17,5,17,5)</li>
+          <li>(17,6,17,6)</li>
+          <li>(17,7,17,7)</li>
+          <li>(17,8,17,8)</li>
+          <li>(17,10,17,10)</li>
+          <li>(17,11,17,11)</li>
+          <li>(18,7,18,7)</li>
+          <li>(18,8,18,8)</li>
+        </rects>
+      </Vacstone_Rough>
+    </terrain>
+  </prefab>
+  <thingStates>
+    <li>
+      <pos>(1, 0, 7)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810000</id>
+          <pos>(1, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 8)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810001</id>
+          <pos>(1, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 7)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810002</id>
+          <pos>(2, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 8)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810003</id>
+          <pos>(2, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 9)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810004</id>
+          <pos>(2, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 10)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810005</id>
+          <pos>(2, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 11)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810006</id>
+          <pos>(2, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 4)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810007</id>
+          <pos>(3, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 6)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810008</id>
+          <pos>(3, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 7)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810009</id>
+          <pos>(3, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 8)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810010</id>
+          <pos>(3, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 9)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810011</id>
+          <pos>(3, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 10)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810012</id>
+          <pos>(3, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 11)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810013</id>
+          <pos>(3, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 12)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810014</id>
+          <pos>(3, 0, 12)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 3)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810015</id>
+          <pos>(4, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 4)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810016</id>
+          <pos>(4, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 5)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810017</id>
+          <pos>(4, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 6)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810018</id>
+          <pos>(4, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 7)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810019</id>
+          <pos>(4, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 8)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810020</id>
+          <pos>(4, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 9)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810021</id>
+          <pos>(4, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 10)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810022</id>
+          <pos>(4, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 11)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810023</id>
+          <pos>(4, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 12)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810024</id>
+          <pos>(4, 0, 12)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 13)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810025</id>
+          <pos>(4, 0, 13)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 3)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810026</id>
+          <pos>(5, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 4)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810027</id>
+          <pos>(5, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 5)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810028</id>
+          <pos>(5, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 6)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810029</id>
+          <pos>(5, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 7)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810030</id>
+          <pos>(5, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 8)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810031</id>
+          <pos>(5, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 9)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810032</id>
+          <pos>(5, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 10)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810033</id>
+          <pos>(5, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 11)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810034</id>
+          <pos>(5, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 12)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810035</id>
+          <pos>(5, 0, 12)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 13)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810036</id>
+          <pos>(5, 0, 13)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 3)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810037</id>
+          <pos>(6, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 4)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810038</id>
+          <pos>(6, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 5)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810039</id>
+          <pos>(6, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 6)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810040</id>
+          <pos>(6, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 7)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810041</id>
+          <pos>(6, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 8)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810042</id>
+          <pos>(6, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 9)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810043</id>
+          <pos>(6, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 10)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810044</id>
+          <pos>(6, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 11)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810045</id>
+          <pos>(6, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 12)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810046</id>
+          <pos>(6, 0, 12)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 13)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810047</id>
+          <pos>(6, 0, 13)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 14)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810048</id>
+          <pos>(6, 0, 14)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 2)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810049</id>
+          <pos>(7, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 3)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810050</id>
+          <pos>(7, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 4)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810051</id>
+          <pos>(7, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 5)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810052</id>
+          <pos>(7, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 6)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810053</id>
+          <pos>(7, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 7)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810054</id>
+          <pos>(7, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 8)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810055</id>
+          <pos>(7, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 9)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810056</id>
+          <pos>(7, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 10)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810057</id>
+          <pos>(7, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 11)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810058</id>
+          <pos>(7, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 12)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810059</id>
+          <pos>(7, 0, 12)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 13)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810060</id>
+          <pos>(7, 0, 13)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(7, 0, 14)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810061</id>
+          <pos>(7, 0, 14)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 2)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810062</id>
+          <pos>(8, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 3)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810063</id>
+          <pos>(8, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 4)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810064</id>
+          <pos>(8, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 5)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810065</id>
+          <pos>(8, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 6)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810066</id>
+          <pos>(8, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 7)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810067</id>
+          <pos>(8, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 8)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810068</id>
+          <pos>(8, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 9)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810069</id>
+          <pos>(8, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 10)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810070</id>
+          <pos>(8, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 11)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810071</id>
+          <pos>(8, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 12)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810072</id>
+          <pos>(8, 0, 12)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 13)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810073</id>
+          <pos>(8, 0, 13)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(8, 0, 14)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810074</id>
+          <pos>(8, 0, 14)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 2)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810075</id>
+          <pos>(9, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 3)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810076</id>
+          <pos>(9, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 4)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810077</id>
+          <pos>(9, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 5)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810078</id>
+          <pos>(9, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 6)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810079</id>
+          <pos>(9, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 7)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810080</id>
+          <pos>(9, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 8)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810081</id>
+          <pos>(9, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 9)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810082</id>
+          <pos>(9, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 10)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810083</id>
+          <pos>(9, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 11)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810084</id>
+          <pos>(9, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 12)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810085</id>
+          <pos>(9, 0, 12)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 13)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810086</id>
+          <pos>(9, 0, 13)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(9, 0, 14)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810087</id>
+          <pos>(9, 0, 14)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 2)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810088</id>
+          <pos>(10, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 3)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810089</id>
+          <pos>(10, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 4)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810090</id>
+          <pos>(10, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 5)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810091</id>
+          <pos>(10, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 6)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810092</id>
+          <pos>(10, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 7)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810093</id>
+          <pos>(10, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 8)</pos>
+      <def>MineableComponentsIndustrial</def>
+      <rotation>0</rotation>
+      <hitPoints>2000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableComponentsIndustrial</def>
+          <health>2000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableComponentsIndustrial810094</id>
+          <pos>(10, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 9)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810095</id>
+          <pos>(10, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 10)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810096</id>
+          <pos>(10, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 11)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810097</id>
+          <pos>(10, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 12)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810098</id>
+          <pos>(10, 0, 12)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 13)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810099</id>
+          <pos>(10, 0, 13)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(10, 0, 14)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810100</id>
+          <pos>(10, 0, 14)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 2)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810101</id>
+          <pos>(11, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 3)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810102</id>
+          <pos>(11, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 4)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810103</id>
+          <pos>(11, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 5)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810104</id>
+          <pos>(11, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 6)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810105</id>
+          <pos>(11, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 7)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810106</id>
+          <pos>(11, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 8)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810107</id>
+          <pos>(11, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 9)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810108</id>
+          <pos>(11, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 10)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810109</id>
+          <pos>(11, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 11)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810110</id>
+          <pos>(11, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 12)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810111</id>
+          <pos>(11, 0, 12)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 13)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810112</id>
+          <pos>(11, 0, 13)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(11, 0, 14)</pos>
+      <def>MineablePlasteel</def>
+      <rotation>0</rotation>
+      <hitPoints>8000</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineablePlasteel</def>
+          <health>8000</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineablePlasteel810113</id>
+          <pos>(11, 0, 14)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 2)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810114</id>
+          <pos>(12, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 3)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810115</id>
+          <pos>(12, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 4)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810116</id>
+          <pos>(12, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 5)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810117</id>
+          <pos>(12, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 6)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810118</id>
+          <pos>(12, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 7)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810119</id>
+          <pos>(12, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 8)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810120</id>
+          <pos>(12, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 9)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810121</id>
+          <pos>(12, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 10)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810122</id>
+          <pos>(12, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 11)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810123</id>
+          <pos>(12, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 12)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810124</id>
+          <pos>(12, 0, 12)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 13)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810125</id>
+          <pos>(12, 0, 13)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(12, 0, 14)</pos>
+      <def>MineableSteel</def>
+      <rotation>0</rotation>
+      <hitPoints>1500</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>MineableSteel</def>
+          <health>1500</health>
+          <beenRevealed>True</beenRevealed>
+          <id>MineableSteel810126</id>
+          <pos>(12, 0, 14)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 2)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810127</id>
+          <pos>(13, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 3)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810128</id>
+          <pos>(13, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 4)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810129</id>
+          <pos>(13, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 5)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810130</id>
+          <pos>(13, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 6)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810131</id>
+          <pos>(13, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 7)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810132</id>
+          <pos>(13, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 8)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810133</id>
+          <pos>(13, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 9)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810134</id>
+          <pos>(13, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 10)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810135</id>
+          <pos>(13, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 11)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810136</id>
+          <pos>(13, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 12)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810137</id>
+          <pos>(13, 0, 12)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 13)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810138</id>
+          <pos>(13, 0, 13)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(13, 0, 14)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810139</id>
+          <pos>(13, 0, 14)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(14, 0, 3)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810140</id>
+          <pos>(14, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(14, 0, 4)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810141</id>
+          <pos>(14, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(14, 0, 5)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810142</id>
+          <pos>(14, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(14, 0, 6)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810143</id>
+          <pos>(14, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(14, 0, 7)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810144</id>
+          <pos>(14, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(14, 0, 8)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810145</id>
+          <pos>(14, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(14, 0, 9)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810146</id>
+          <pos>(14, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(14, 0, 10)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810147</id>
+          <pos>(14, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(14, 0, 11)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810148</id>
+          <pos>(14, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(14, 0, 12)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810149</id>
+          <pos>(14, 0, 12)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(15, 0, 5)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810150</id>
+          <pos>(15, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(15, 0, 6)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810151</id>
+          <pos>(15, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(15, 0, 7)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810152</id>
+          <pos>(15, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(15, 0, 8)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810153</id>
+          <pos>(15, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(15, 0, 9)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810154</id>
+          <pos>(15, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(15, 0, 10)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810155</id>
+          <pos>(15, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(15, 0, 11)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810156</id>
+          <pos>(15, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(16, 0, 6)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810157</id>
+          <pos>(16, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(16, 0, 7)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810158</id>
+          <pos>(16, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(16, 0, 8)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810159</id>
+          <pos>(16, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(16, 0, 10)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810160</id>
+          <pos>(16, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(16, 0, 11)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810161</id>
+          <pos>(16, 0, 11)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(17, 0, 7)</pos>
+      <def>Vacstone</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Mineable">
+          <def>Vacstone</def>
+          <health>600</health>
+          <beenRevealed>True</beenRevealed>
+          <id>Vacstone810162</id>
+          <pos>(17, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+  </thingStates>
+  <foundations />
+  <roofs>
+    <li>
+      <pos>(1, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(1, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(2, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(2, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(2, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(2, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(2, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(3, 0, 4)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(3, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(3, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(3, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(3, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(3, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(3, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(3, 0, 12)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(4, 0, 3)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(4, 0, 4)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(4, 0, 5)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(4, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(4, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(4, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(4, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(4, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(4, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(4, 0, 12)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(4, 0, 13)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(5, 0, 3)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(5, 0, 4)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(5, 0, 5)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(5, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(5, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(5, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(5, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(5, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(5, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(5, 0, 12)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(5, 0, 13)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(6, 0, 3)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(6, 0, 4)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(6, 0, 5)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(6, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(6, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(6, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(6, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(6, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(6, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(6, 0, 12)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(6, 0, 13)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(6, 0, 14)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 2)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 3)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 4)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 5)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 12)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 13)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(7, 0, 14)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 2)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 3)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 4)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 5)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 12)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 13)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(8, 0, 14)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 2)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 3)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 4)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 5)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 12)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 13)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(9, 0, 14)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 2)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 3)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 4)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 5)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 12)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 13)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(10, 0, 14)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 2)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 3)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 4)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 5)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 12)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 13)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(11, 0, 14)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 2)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 3)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 4)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 5)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 12)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 13)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(12, 0, 14)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 2)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 3)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 4)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 5)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 12)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 13)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(13, 0, 14)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(14, 0, 3)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(14, 0, 4)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(14, 0, 5)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(14, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(14, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(14, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(14, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(14, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(14, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(14, 0, 12)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(15, 0, 5)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(15, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(15, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(15, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(15, 0, 9)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(15, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(15, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(16, 0, 6)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(16, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(16, 0, 8)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(16, 0, 10)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(16, 0, 11)</pos>
+      <def>RoofRockThin</def>
+    </li>
+    <li>
+      <pos>(17, 0, 7)</pos>
+      <def>RoofRockThin</def>
+    </li>
+  </roofs>
+  <environment />
+</MapPrefab>
