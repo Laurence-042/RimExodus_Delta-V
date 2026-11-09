@@ -56,6 +56,43 @@ internal static partial class Program
             new object[] { universe, new DriveSubject(0, 49990) }),
             "removing the reference invalidates the moving player target");
 
+        ConstructorInfo longConstructor = goalType.GetConstructor(Private, null,
+            new[] { typeof(Vector3), typeof(float), typeof(int), typeof(Vector2), typeof(bool) }, null);
+        object longGoal = longConstructor.Invoke(new object[]
+            { selectedPosition, absoluteAngle, host.objectId, confirmedOffset, true });
+        Check((bool)goalType.GetField("LongRange", Private).GetValue(longGoal),
+            "star-map navigation marks only its confirmed target as a long-range route");
+
+        universe.objects.Add(host);
+        Set(universe, "objectById", null);
+        Vector3 referenceOrigin = host.pose.position;
+        Vector2 inertialOffset = new Vector2(42f, -17f);
+        ConstructorInfo perimeterConstructor = goalType.GetConstructor(Private, null,
+            new[] { typeof(Vector3), typeof(float), typeof(int), typeof(Vector2),
+                typeof(bool), typeof(bool) }, null);
+        object perimeterGoal = perimeterConstructor.Invoke(new object[]
+            { referenceOrigin, absoluteAngle, host.objectId, inertialOffset, true, true });
+        Vector3 initialPerimeter = OrbitSphere.Move(referenceOrigin, inertialOffset);
+        host.pose.angle += 1.7f;
+        host.pose.angularVelocity = .8f;
+        SpacePose spinReference = (SpacePose)reference.Invoke(perimeterGoal, new object[] { universe });
+        Check(OrbitSphere.ArcCells(spinReference.position, initialPerimeter) < .001f
+            && spinReference.velocity == SpaceTransform.TransportVelocity(host.pose, initialPerimeter)
+            && spinReference.angularVelocity == 0f,
+            "star-map perimeter ignores target spin and inherits only origin translation");
+        host.pose.position = OrbitSphere.Move(referenceOrigin, new Vector2(90f, 25f));
+        host.pose.velocity = new Vector2(3f, -2f);
+        Vector2 transportedOffset = SpaceTransform.TransportTangent(inertialOffset,
+            referenceOrigin, host.pose.position);
+        Vector3 movedPerimeter = OrbitSphere.Move(host.pose.position, transportedOffset);
+        SpacePose movedReference = (SpacePose)reference.Invoke(perimeterGoal, new object[] { universe });
+        Check(OrbitSphere.ArcCells(movedReference.position, movedPerimeter) < .001f
+            && (movedReference.velocity - SpaceTransform.TransportVelocity(host.pose,
+                movedPerimeter)).sqrMagnitude < 1e-7f,
+            "star-map perimeter follows target translation without becoming a rotating rigid point");
+        universe.objects.Remove(host);
+        Set(universe, "objectById", null);
+
         Type taskType = typeof(ShipAutopilot).Assembly.GetType("DeltaV.PlayerAutoTaskKind", true);
         Type controllerType = typeof(PlayerShipController);
         object controller = controllerType.GetConstructor(Private, null,

@@ -34,6 +34,7 @@ namespace DeltaV
 
     internal sealed class GlobeNavigation
     {
+        private const float NavigationClearance = 8f;
         internal const float DefaultWidth = 1000f;
         internal const float MinimumWidth = 64f;
         internal static readonly float[] Presets = { 250, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000 };
@@ -176,6 +177,54 @@ namespace DeltaV
             Filters = universe.GlobeFilters;
             ListScroll = Vector2.zero;
             if (SelectedEntry != null && !IsDisplayed(SelectedEntry)) Select(null);
+        }
+
+        internal static bool CanAutopilot(UniverseManager universe, ShipBase ship, GlobeDisplayEntry entry)
+        {
+            if (universe == null || !ship.IsValid || !universe.Pilot.CanPlayerControl(ship)
+                || entry?.owner == null || entry.owner.IsTransient || entry.owner.IsScattered)
+                return false;
+            SpaceObject own = universe.FrameOf(ship.Map);
+            return own != null && own.objectId != entry.owner.objectId;
+        }
+
+        internal static Vector3 PerimeterWaypoint(Vector3 target, Vector3 approachFrom,
+            float distance, int tieBreaker)
+        {
+            Vector2 outward = OrbitSphere.Offset(target, approachFrom);
+            if (outward.sqrMagnitude < 1e-8f)
+            {
+                float phase = (tieBreaker * .61803398875f % 1f) * Mathf.PI * 2f;
+                outward = new Vector2(Mathf.Cos(phase), Mathf.Sin(phase));
+            }
+            return OrbitSphere.Move(target, outward.normalized * Mathf.Max(0f, distance));
+        }
+
+        internal static bool StartAutopilot(UniverseManager universe, ShipBase ship,
+            GlobeDisplayEntry entry)
+        {
+            if (!CanAutopilot(universe, ship, entry)) return false;
+            SpaceObject targetOwner = entry.owner;
+            SpacePose targetCenter = entry.Pose;
+            SpacePose ownPose = ShipRegistry.ShipPose(ship);
+            Vector2 targetLocalCenter = entry.ship != null ? entry.ship.localCenter : entry.localCenter;
+            float targetRadius = universe.GlobeDisplay.NavigationRadius(targetOwner)
+                + targetLocalCenter.magnitude;
+            float clearance = targetRadius + ShipFireControl.HullRadius(ship) + NavigationClearance;
+            Vector3 waypoint = PerimeterWaypoint(targetCenter.position, ownPose.position,
+                clearance, targetOwner.objectId ^ ship.Identity.key);
+            Vector3 referenceOrigin = targetOwner.pose.position;
+            Vector2 referenceOffset = OrbitSphere.Offset(referenceOrigin, waypoint);
+            Vector2 faceTarget = OrbitSphere.Offset(waypoint, targetCenter.position);
+            float angle = SpaceTransform.WrapAngle(Mathf.Atan2(faceTarget.y, faceTarget.x)
+                - ship.FrameAngle);
+            var goal = new PlayerNavigationTarget(referenceOrigin, angle,
+                targetOwner.objectId, referenceOffset, true, true);
+            if (!universe.Controls.SelectPlayerAutoTask(ship, PlayerAutoTaskKind.Navigate, goal))
+                return false;
+            Messages.Message("DeltaV_NavAutopilotStarted".Translate(entry.Label),
+                MessageTypeDefOf.NeutralEvent, false);
+            return true;
         }
     }
 

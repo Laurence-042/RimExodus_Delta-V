@@ -80,12 +80,16 @@ namespace DeltaV
                 + "\n" + "DeltaV_PanelGlobeDistance".Translate(OrbitSphere.ArcCells(view.Reference, target.Pose.position).ToString("N0")).ToString());
             TooltipHandler.TipRegion(titleRect, title);
             y += 38f;
-            float third = (rect.width - 8f) / 3f;
-            if (Widgets.ButtonText(new Rect(rect.x, y, third, 24f), "DeltaV_NavFit".Translate(), active: target != null))
+            float quarter = (rect.width - 12f) / 4f;
+            bool canAutopilot = GlobeNavigation.CanAutopilot(universe, view.ReferenceShip, target);
+            if (Widgets.ButtonText(new Rect(rect.x, y, quarter, 24f), "DeltaV_NavAutopilot".Translate(), active: canAutopilot)
+                && !GlobeNavigation.StartAutopilot(universe, view.ReferenceShip, target))
+                Messages.Message("DeltaV_NavCannotAutopilot".Translate(), MessageTypeDefOf.RejectInput, false);
+            if (Widgets.ButtonText(new Rect(rect.x + quarter + 4f, y, quarter, 24f), "DeltaV_NavFit".Translate(), active: target != null))
                 PlanetGlobeRenderer.FitTarget(universe, context, mapRect, GlobeTarget.Of(target));
-            if (Widgets.ButtonText(new Rect(rect.x + third + 4f, y, third, 24f), "DeltaV_NavInspect".Translate(), active: target != null && !target.owner.IsTransient))
+            if (Widgets.ButtonText(new Rect(rect.x + 2f * (quarter + 4f), y, quarter, 24f), "DeltaV_NavInspect".Translate(), active: target != null && !target.owner.IsTransient))
                 Inspect(universe, GlobeTarget.Of(target));
-            if (Widgets.ButtonText(new Rect(rect.x + 2f * (third + 4f), y, third, 24f),
+            if (Widgets.ButtonText(new Rect(rect.x + 3f * (quarter + 4f), y, quarter, 24f),
                 (target != null && state.IsBookmarked(target) ? "DeltaV_NavUnpin" : "DeltaV_NavPin").Translate(), active: target != null && !target.owner.IsTransient))
                 state.ToggleBookmark(target);
             y += 28f;
@@ -150,6 +154,12 @@ namespace DeltaV
                     new FloatMenuOption("DeltaV_NavFit".Translate(),
                         () => PlanetGlobeRenderer.FitTarget(universe, context, mapRect, GlobeTarget.Of(target)))
                 };
+                if (GlobeNavigation.CanAutopilot(universe, view.ReferenceShip, target))
+                    options.Insert(0, new FloatMenuOption("DeltaV_NavAutopilot".Translate(), () =>
+                    {
+                        if (!GlobeNavigation.StartAutopilot(universe, view.ReferenceShip, target))
+                            Messages.Message("DeltaV_NavCannotAutopilot".Translate(), MessageTypeDefOf.RejectInput, false);
+                    }));
                 if (!target.owner.IsTransient)
                 {
                     options.Add(new FloatMenuOption("DeltaV_NavInspect".Translate(),

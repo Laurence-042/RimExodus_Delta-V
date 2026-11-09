@@ -54,6 +54,7 @@ namespace DeltaV
             public Action onArrived;
             public Action onFailed;
             public Action<string> onFailedWithReason;
+            public int maxFlightTicks = MaxFlightTicks;
             public readonly IAutopilotGuidance guidance = new OnlineMpcGuidance();
             public readonly double[] controlAcceleration = new double[9];
             public readonly ShipPhysics.ControlModel controlModel = new ShipPhysics.ControlModel();
@@ -156,10 +157,14 @@ namespace DeltaV
                 allowVoidThrust = false, playerInitiated = true });
 
         internal void NavigateToReference(DriveSubject subject, Func<SpacePose, SpacePose> reference,
-            Func<bool> valid, Action onArrived, Action<string> onFailed)
+            Func<bool> valid, Action onArrived, Action<string> onFailed, bool longRange = false)
             => Register(new Flight { subject = subject, tracked = true, reference = reference,
                 referenceValid = valid, finishWhenMatched = true, onArrived = onArrived,
-                onFailedWithReason = onFailed, allowVoidThrust = false, playerInitiated = true });
+                onFailedWithReason = onFailed, allowVoidThrust = false, playerInitiated = true,
+                // A star-map route can span arbitrary sector scales. Reference/subject/
+                // thrust loss still fail explicitly; an elapsed-time cutoff must not drop
+                // control while the ship is braking and leave it drifting through the goal.
+                maxFlightTicks = longRange ? int.MaxValue : MaxFlightTicks });
 
         internal bool IsFollowing(DriveSubject subject, Func<SpacePose, SpacePose> reference)
             => active.TryGetValue(subject, out Flight flight) && flight.reference == reference;
@@ -393,7 +398,7 @@ namespace DeltaV
                 Fail(container, flight, "DeltaV_NavigationNoThrust");
                 return;
             }
-            if (flight.finishWhenMatched && flight.elapsed > MaxFlightTicks)
+            if (flight.finishWhenMatched && flight.elapsed > flight.maxFlightTicks)
             {
                 Fail(container, flight, "DeltaV_NavigationTimedOut");
                 return;
@@ -415,7 +420,7 @@ namespace DeltaV
                 {
                     flight.noProgressTicks++;
                 }
-                if (flight.elapsed > MaxFlightTicks || flight.noProgressTicks > MaxNoProgressTicks)
+                if (flight.elapsed > flight.maxFlightTicks || flight.noProgressTicks > MaxNoProgressTicks)
                 {
                     Fail(container, flight, "waypoint timeout/no progress");
                     return;

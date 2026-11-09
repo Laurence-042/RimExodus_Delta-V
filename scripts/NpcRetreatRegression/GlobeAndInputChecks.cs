@@ -12,6 +12,8 @@ using Verse;
 
 internal static partial class Program
 {
+    static bool GlobeSubstructure(ref bool __result) { __result = true; return false; }
+
     sealed class GlobePawnHolder : MapComponent, IThingHolder
     {
         internal readonly ThingOwner<Pawn> contents;
@@ -118,8 +120,14 @@ internal static partial class Program
         SubstructureOwnership.BumpStructureVersion();
         var damaged = display.Entries(mapped).Single();
         Check(damaged.area == 1 && !ReferenceEquals(first, damaged), "structural damage invalidates actual footprint and projection source together");
-        var captured = display.Capture(mapped);
-        Check(captured.area == 1 && captured.wreck, "archive capture retains damaged area rather than initial prefab or map size");
+        var collisionHarness = new HarmonyLib.Harmony("DeltaV.Regression.GlobeArchiveCollision");
+        collisionHarness.Patch(HarmonyLib.AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
+            prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(GlobeSubstructure)));
+        GlobeDisplaySummary captured;
+        try { captured = display.Capture(mapped); }
+        finally { collisionHarness.UnpatchAll(collisionHarness.Id); }
+        Check(captured.area == 1 && captured.wreck && captured.navigationRadius > 0f,
+            "archive capture retains damaged display area and the live collision clearance");
         var holder = new GlobePawnHolder(map);
         map.components.Add(holder);
         var pawn = (Pawn)Raw(typeof(Pawn));

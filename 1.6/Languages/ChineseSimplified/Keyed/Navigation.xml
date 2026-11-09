@@ -18,6 +18,9 @@
   <DeltaV_NavUnavailable>目标已失效或暂不可用</DeltaV_NavUnavailable>
   <DeltaV_NavFit>同屏</DeltaV_NavFit>
   <DeltaV_NavInspect>查看</DeltaV_NavInspect>
+  <DeltaV_NavAutopilot>自动导航</DeltaV_NavAutopilot>
+  <DeltaV_NavAutopilotStarted>自动驾驶正前往 {0} 外围。</DeltaV_NavAutopilotStarted>
+  <DeltaV_NavCannotAutopilot>当前所选飞船无法自动导航至该目标。</DeltaV_NavCannotAutopilot>
   <DeltaV_NavPin>收藏</DeltaV_NavPin>
   <DeltaV_NavUnpin>取消</DeltaV_NavUnpin>
   <DeltaV_NavSearch>按名称或派系搜索已知地点；列表不受地图缩放影响。</DeltaV_NavSearch>

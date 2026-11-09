@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using DeltaV;
 using HarmonyLib;
 using RimWorld;
@@ -50,6 +51,14 @@ internal static partial class Program
         }
         var local = new GlobeView(rect, Vector3.forward, 10000, 1000, 32, Vector3.up, Vector3.right);
         var origin = Entry(100, 0, 0);
+        Vector3 approach = OrbitSphere.Move(origin.Pose.position, new Vector2(120f, -40f));
+        Vector3 perimeter = GlobeNavigation.PerimeterWaypoint(origin.Pose.position, approach, 37f, 100);
+        Vector2 approachDirection = OrbitSphere.Offset(origin.Pose.position, approach).normalized;
+        Vector2 perimeterDirection = OrbitSphere.Offset(origin.Pose.position, perimeter).normalized;
+        Check(Math.Abs(OrbitSphere.ArcCells(origin.Pose.position, perimeter) - 37f) < .01f
+            && Vector2.Dot(approachDirection, perimeterDirection) > .999f,
+            "star-map autopilot freezes an exterior waypoint on the ship-facing side of the target");
+        CheckStarMapPerimeterReference(universe);
         foreach (var offset in new[] { new Vector2(600, 0), new Vector2(-600, 0), new Vector2(0, 600),
             new Vector2(0, -600), new Vector2(500, 500), new Vector2(-500, -500), Vector2.zero })
         {
@@ -178,9 +187,11 @@ internal static partial class Program
             "unpinning a materialized member removes its original object pin rather than creating a duplicate");
 
         var archive = new ArchivedSpaceObject { objectId = 500, pose = new SpacePose(Vector3.forward, 0),
-            globe = new GlobeDisplaySummary { ships = new List<GlobeShipSummary> {
+            globe = new GlobeDisplaySummary { navigationRadius = 73f, ships = new List<GlobeShipSummary> {
                 new GlobeShipSummary { key = 501, area = 50, label = "Packed station", station = true } } } };
         universe.objects.Add(archive);
+        Check(Math.Abs(universe.GlobeDisplay.NavigationRadius(archive) - 73f) < .001f,
+            "archived navigation uses the captured collision clearance without restoring its map");
         var secondArchive = new ArchivedSpaceObject { objectId = 510, pose = archive.pose,
             globe = new GlobeDisplaySummary { ships = new List<GlobeShipSummary> {
                 new GlobeShipSummary { key = 511, area = 40, label = "Second destination", station = true } } } };
@@ -239,6 +250,48 @@ internal static partial class Program
         var fresh = new GlobeNavigation(loaded);
         Check(fresh.Width == 1000 && fresh.Selected == null && fresh.Bookmarks.Count == 2,
             "new runtime resets viewport and selection while retaining saved bookmarks");
+    }
+
+    static void CheckStarMapPerimeterReference(UniverseManager universe)
+    {
+        Type goalType = typeof(ShipAutopilot).Assembly.GetType("DeltaV.PlayerNavigationTarget", true);
+        ConstructorInfo constructor = goalType.GetConstructor(Private, null,
+            new[] { typeof(Vector3), typeof(float), typeof(int), typeof(Vector2),
+                typeof(bool), typeof(bool) }, null);
+        MethodInfo reference = goalType.GetMethod("Reference", Private);
+        var host = new SpaceObject(49992, new SpacePose(Vector3.forward, .31f)
+            { velocity = new Vector2(2f, -1f), angularVelocity = .7f });
+        universe.objects.Add(host);
+        Set(universe, "objectById", null);
+        try
+        {
+            Vector3 origin = host.pose.position;
+            Vector2 offset = new Vector2(42f, -17f);
+            object goal = constructor.Invoke(new object[]
+                { origin, .73f, host.objectId, offset, true, true });
+            Vector3 initial = OrbitSphere.Move(origin, offset);
+            host.pose.angle += 1.7f;
+            host.pose.angularVelocity = 1.4f;
+            SpacePose spun = (SpacePose)reference.Invoke(goal, new object[] { universe });
+            Check(OrbitSphere.ArcCells(spun.position, initial) < .001f
+                && (spun.velocity - SpaceTransform.TransportVelocity(host.pose, initial)).sqrMagnitude < 1e-7f
+                && spun.angularVelocity == 0f,
+                "star-map perimeter reference ignores target spin and tangential rigid-point velocity");
+
+            host.pose.position = OrbitSphere.Move(origin, new Vector2(90f, 25f));
+            host.pose.velocity = new Vector2(3f, -2f);
+            Vector2 movedOffset = SpaceTransform.TransportTangent(offset, origin, host.pose.position);
+            Vector3 movedPoint = OrbitSphere.Move(host.pose.position, movedOffset);
+            SpacePose moved = (SpacePose)reference.Invoke(goal, new object[] { universe });
+            Check(OrbitSphere.ArcCells(moved.position, movedPoint) < .001f
+                && (moved.velocity - SpaceTransform.TransportVelocity(host.pose, movedPoint)).sqrMagnitude < 1e-7f,
+                "star-map perimeter reference follows target origin translation and linear velocity");
+        }
+        finally
+        {
+            universe.objects.Remove(host);
+            Set(universe, "objectById", null);
+        }
     }
 
     static void CheckGlobeTextureTransform()

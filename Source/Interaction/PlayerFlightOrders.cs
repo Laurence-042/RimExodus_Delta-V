@@ -21,15 +21,32 @@ namespace DeltaV
         internal readonly float Angle;
         internal readonly int ReferenceObjectId;
         internal readonly Vector2 ReferenceOffset;
+        internal readonly bool LongRange;
+        internal readonly bool TranslationOnly;
         internal bool Moving => ReferenceObjectId > 0;
 
         internal PlayerNavigationTarget(Vector3 position, float angle,
             int referenceObjectId = 0, Vector2 referenceOffset = default)
+            : this(position, angle, referenceObjectId, referenceOffset, false)
+        {
+        }
+
+        internal PlayerNavigationTarget(Vector3 position, float angle,
+            int referenceObjectId, Vector2 referenceOffset, bool longRange)
+            : this(position, angle, referenceObjectId, referenceOffset, longRange, false)
+        {
+        }
+
+        internal PlayerNavigationTarget(Vector3 position, float angle,
+            int referenceObjectId, Vector2 referenceOffset, bool longRange,
+            bool translationOnly)
         {
             Position = position;
             Angle = SpaceTransform.WrapAngle(angle);
             ReferenceObjectId = referenceObjectId;
             ReferenceOffset = referenceOffset;
+            LongRange = longRange;
+            TranslationOnly = translationOnly;
         }
 
         internal bool Valid(UniverseManager universe, DriveSubject owner)
@@ -44,6 +61,22 @@ namespace DeltaV
         {
             if (!Moving) return new SpacePose(Position, Angle);
             SpaceObject host = universe.ObjectById(ReferenceObjectId);
+            if (TranslationOnly)
+            {
+                // Star-map perimeter anchors follow the target origin's translation but
+                // never its spin. A rigid local point would orbit a rotating target and,
+                // after arrival, leave the ship with tangential velocity but no centripetal
+                // control. Position is the target origin at confirmation; the offset is
+                // stored in that tangent frame and transported with the moving origin.
+                Vector2 offset = SpaceTransform.TransportTangent(ReferenceOffset,
+                    Position, host.pose.position);
+                Vector3 point = OrbitSphere.Move(host.pose.position, offset);
+                return new SpacePose(point, Angle)
+                {
+                    velocity = SpaceTransform.TransportVelocity(host.pose, point),
+                    angularVelocity = 0f
+                };
+            }
             SpacePose pose = SpaceTransform.RigidPointPose(host.pose, ReferenceOffset, 0f);
             pose.angle = Angle; // The dragged heading stays absolute as the host rotates.
             pose.angularVelocity = 0f;
@@ -194,7 +227,7 @@ namespace DeltaV
                         {
                             if (taskRevision == revision)
                                 FailAutoTask(PlayerAutoTaskKind.Navigate, reason);
-                        });
+                        }, goal.LongRange);
                     break;
                 case PlayerAutoTaskKind.SoftDock:
                     if (!universe.SoftDock.ResumeSteeringFor(OwnerId))

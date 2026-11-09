@@ -11,6 +11,7 @@ namespace DeltaV
     public sealed class GlobeDisplaySummary : IExposable
     {
         public float area = -1f, environmentArea;
+        public float navigationRadius;
         public Vector2 environmentCenter;
         public bool wreck;
         public bool natural;
@@ -20,6 +21,7 @@ namespace DeltaV
         {
             Scribe_Values.Look(ref area, "area", -1f);
             Scribe_Values.Look(ref environmentArea, "environmentArea");
+            Scribe_Values.Look(ref navigationRadius, "navigationRadius");
             Scribe_Values.Look(ref environmentCenter, "environmentCenter");
             Scribe_Values.Look(ref wreck, "wreck");
             Scribe_Values.Look(ref natural, "natural");
@@ -229,7 +231,9 @@ namespace DeltaV
         internal GlobeDisplaySummary Capture(SpaceObject obj)
         {
             Forget(obj.map); // Capture current facts even when a transfer happened in this tick.
-            return ReadMap(obj).summary;
+            GlobeDisplaySummary summary = ReadMap(obj).summary;
+            summary.navigationRadius = SpaceCollision.OriginBoundsRadiusOf(obj);
+            return summary;
         }
 
         internal IEnumerable<GlobeDisplayEntry> Entries(SpaceObject obj)
@@ -271,6 +275,38 @@ namespace DeltaV
             yield return new GlobeDisplayEntry { owner = obj, area = area, craft = craft, station = IsStationType(obj.contentTypeId) };
         }
 
+        /// <summary>
+        /// Conservative radius around the SpaceObject origin used to freeze an exterior
+        /// navigation anchor. Loaded objects read the collision surface itself; unloaded
+        /// representations use the summary or the exact content source without materializing.
+        /// </summary>
+        internal float NavigationRadius(SpaceObject obj)
+        {
+            if (obj == null) return 0f;
+            if (obj.map != null && !obj.map.Disposed)
+                return SpaceCollision.OriginBoundsRadiusOf(obj);
+            if (obj is ArchivedSpaceObject archived && archived.globe?.navigationRadius > 0f)
+                return archived.globe.navigationRadius;
+            if (obj is PoiState marker)
+            {
+                if (marker.snapshot?.HasSourceSize == true)
+                {
+                    IntVec3 size = marker.snapshot.SourceMapSize;
+                    return new Vector2(size.x, size.z).magnitude * .5f;
+                }
+                if (marker.kind == PoiKind.NativeParent && marker.nativeParent != null)
+                {
+                    IntVec3 size = SpaceMapGovernance.GenerationSize(marker.nativeParent);
+                    return new Vector2(size.x, size.z).magnitude * .5f;
+                }
+            }
+            float prefab = PrefabGlobeMeasurements.NavigationRadius(obj);
+            if (prefab > 0f) return prefab;
+            // Unknown third-party passive objects have no materialized collision surface.
+            // Staying at least one activation radius away is conservative until one exists.
+            return Mathf.Max(32f, DeltaVMod.CurrentSettings?.poiActiveRadius ?? 300f);
+        }
+
         internal static bool IsStationType(string typeId) => typeId != "Asteroid"
             && IsUnder(SectorContentTypes.ById("Station"), SectorContentTypes.ById(typeId));
         private static bool IsUnder(SectorContentType root, SectorContentType type) => root != null
@@ -282,6 +318,7 @@ namespace DeltaV
     internal static class PrefabGlobeMeasurements
     {
         private static readonly Dictionary<string, int> areas = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, float> navigationRadii = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
         static PrefabGlobeMeasurements()
         {
             List<string> paths;
@@ -293,7 +330,13 @@ namespace DeltaV
             }
             foreach (string path in paths)
             {
-                try { areas[path.Replace('\\', '/')] = GlobeDisplayRules.Measure(MapPrefab.LoadRelative(path)); }
+                try
+                {
+                    MapPrefabDocument doc = MapPrefab.LoadRelative(path);
+                    string key = path.Replace('\\', '/');
+                    areas[key] = GlobeDisplayRules.Measure(doc);
+                    navigationRadii[key] = new Vector2(doc.size.x, doc.size.z).magnitude * .5f + .71f;
+                }
                 catch (Exception ex) { Log.Warning($"[DeltaV] Cannot measure prefab '{path}' for globe: {ex.Message}"); }
             }
         }
@@ -311,6 +354,24 @@ namespace DeltaV
                 sum += area;
             }
             return sum / unique.Count;
+        }
+
+        internal static float NavigationRadius(SpaceObject obj)
+        {
+            if (obj == null) return -1f;
+            string exact = obj.sourcePrefabPath?.Replace('\\', '/');
+            if (!exact.NullOrEmpty() && navigationRadii.TryGetValue(exact, out float radius))
+                return radius;
+            SectorContentType type = SectorContentTypes.ById(obj.contentTypeId);
+            var paths = type == null ? null : DeltaVMod.CurrentSettings?.EffectiveSectorRule(type)?.prefabPaths;
+            if (paths == null || paths.Count == 0) return -1f;
+            float maximum = -1f;
+            foreach (string path in paths.Select(p => p?.Replace('\\', '/')).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (path == null || !navigationRadii.TryGetValue(path, out radius)) return -1f;
+                maximum = Mathf.Max(maximum, radius);
+            }
+            return maximum;
         }
     }
 }
