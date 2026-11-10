@@ -257,7 +257,7 @@ namespace DeltaV
                         Find.World.pocketMaps.Remove(parent);
                     }
                     ReportGenerationFailure(marker.label, ex);
-                    if (!(ex is OperationCanceledException))
+                    if (!(ex is OperationCanceledException) && universe.ObjectById(marker.objectId) == marker)
                     {
                         generationRetryAfterTick[marker.objectId] =
                             Find.TickManager.TicksGame + GenerationFailureBackoffTicks;
@@ -267,90 +267,58 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 物化 = 用**普通容器**替换 marker（2026-09-25 用户定案：物化产物没有 POI
-        /// 图标身份——名称 = 图上结构拼接、图标按图内容）。快照或 prefab 池盖进图
-        ///（盖章用容器自身 objectId，自洽）。**容器先注册、结构后铺设**（ShipTestScene
-        /// 同序，2026-09-30 修复）：驾驶台 spawn 认领要求 FrameOf 已解析（ClaimOnSpawn
-        /// 守卫），先盖章后注册会让敌舰/空间站的驾驶台永不认领、整图沦为「独立结构」。
-        /// 归属名 = marker 生成时决定的完整名（envLabel，归档经 carriedLabel 传承），
-        /// 容器显示名（拼接结构名）与 marker 名一致。onComplete 帧上下文执行，objects
-        /// 变异不在任何迭代内。
+        /// Publish the same POI as an ordinary map container before stamping content.
+        /// Pilot console claim and prefab marker expansion both resolve FrameOf(map).
         /// </summary>
         private void MaterializeMarker(PoiState marker, Map map)
         {
-            int containerId = universe.AllocateOwnerId();
-            var container = new MapSpaceObject(containerId, map, marker.pose)
+            var container = new MapSpaceObject(marker.objectId, map, marker.pose);
+            marker.CopyFactsTo(container);
+            container.baseTag = SpaceObjectTag.Container;
+            container.ambientLabel = marker.envLabel;
+            universe.ReplaceRepresentation(marker, container);
+            generationRetryAfterTick.Remove(marker.objectId);
+
+            int ownerId = marker.objectId;
+            string poolPath = null;
+            try
             {
-                faction = marker.faction,
-                ambientLabel = marker.envLabel,
-                contentTypeId = marker.contentTypeId,
-                sourcePrefabPath = marker.sourcePrefabPath,
-                clusterChild = marker.clusterChild,
-            };
-            universe.RegisterObject(container);
-            if (!marker.envLabel.NullOrEmpty())
-            {
-                // 归属名 = 生成时决定的完整名（在内容盖章前注册，下方消息/日志里的
-                // container.label 即显示完整名）；图上结构名注册后不再落「独立结构
-                // #N」兜底。归档→再物化经 envLabel 传承同名（新归属 ID 重登记）。
-                universe.NoteStructureName(containerId, marker.envLabel);
-            }
-            if (marker.snapshot != null)
-            {
-                marker.snapshot.ApplyTo(map, containerId);
-                Messages.Message("DeltaV_PoiRestored".Translate(container.label),
-                    MessageTypeDefOf.NeutralEvent, false);
-            }
-            else
-            {
-                // 首次物化内容链 = 类型 prefab 池（2026-09-30 定案，prefab-only）：
-                // 池空在生成期已拦截（SectorContentService）；此处失效（路径删改/损坏）
-                // 或防御性兜中池空 → 报错并取消该 POI，不回退程序生成、不生成空壳图。
-                string poolPath = ResolvePoolPrefabPath(marker);
-                if (poolPath == null)
+                if (!marker.envLabel.NullOrEmpty())
+                    universe.NoteStructureName(ownerId, marker.envLabel);
+                if (marker.snapshot != null)
                 {
-                    Log.Error($"[DeltaV] {marker.label}: content type '{marker.contentTypeId}' has no " +
-                        "prefab pool; materialization canceled (POI removed).");
-                    CancelMaterialization(marker, container, map);
-                    return;
+                    marker.snapshot.ApplyTo(map, ownerId);
                 }
-                try
+                else
                 {
+                    poolPath = ResolvePoolPrefabPath(marker);
+                    if (poolPath == null)
+                        throw new InvalidOperationException($"Content type '{marker.contentTypeId}' has no usable prefab pool.");
                     MapPrefabDocument doc = MapPrefab.LoadRelative(poolPath);
                     Rot4 rotation = new Rot4(marker.seed & 3);
-                    MapPrefab.Spawn(doc, map, MapPrefab.CenteredPosition(doc, map, rotation), marker.faction, containerId, rotation, universe, blankSpace: true);
-                    DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                        $"{marker.label}: materialized from prefab pool '{poolPath}' (rot {rotation.AsInt})");
+                    MapPrefab.Spawn(doc, map, MapPrefab.CenteredPosition(doc, map, rotation),
+                        marker.faction, ownerId, rotation, universe, blankSpace: true);
                 }
-                catch (Exception ex)
-                {
-                    Log.Error($"[DeltaV] {marker.label}: prefab pool '{poolPath}' failed to load/spawn; " +
-                        $"materialization canceled (POI removed): {ex}");
-                    CancelMaterialization(marker, container, map);
-                    return;
-                }
-                Messages.Message("DeltaV_PoiActivated".Translate(container.label),
-                    MessageTypeDefOf.NeutralEvent, false);
             }
-            universe.NotifyObjectMaterialized(marker, container);
-            universe.UnregisterObject(marker);
-            dormancy.Wake(map, "generation complete");
-            DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                $"{container.label}: marker #{marker.objectId} materialized into plain container "
-                + $"#{container.objectId} (map#{map.uniqueID} {map.Size.x}x{map.Size.z})");
-        }
+            catch (Exception ex)
+            {
+                Log.Error($"[DeltaV] {marker.label} #{container.objectId}: materialization canceled " +
+                    $"({poolPath ?? (marker.snapshot != null ? "snapshot" : "prefab pool")}): {ex}");
+                // FinalizeInit may still have queued drawing setup for this map.
+                universe.QueueFrameAction(() =>
+                {
+                    if (universe.SpaceObjectOnMap(map) == null) DestroyPocketMap(map);
+                });
+                universe.UnregisterObject(container);
+                return;
+            }
 
-        /// <summary>取消一次物化（池空/失效，prefab-only 定案）：销掉刚生成的图、
-        /// 注销容器与 marker——该 POI 不复存在，不回退、不重试。</summary>
-        private void CancelMaterialization(PoiState marker, SpaceObject container, Map map)
-        {
-            string label = marker.label;
-            DestroyPocketMap(map);
-            universe.UnregisterObject(container);
-            universe.UnregisterObject(marker);
+            universe.NotifyObjectMaterialized(container);
+            dormancy.Wake(map, "generation complete");
+            Messages.Message((marker.snapshot != null ? "DeltaV_PoiRestored" : "DeltaV_PoiActivated")
+                .Translate(container.label), MessageTypeDefOf.NeutralEvent, false);
             DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                $"{label}: materialization canceled; marker #{marker.objectId} and container "
-                + $"#{container.objectId} removed");
+                $"{container.label}: POI #{container.objectId} materialized ({UniverseManager.MapTag(map)})");
         }
 
         /// <summary>无快照 marker 首次物化时的类型 prefab 池目标图边距（格）。</summary>

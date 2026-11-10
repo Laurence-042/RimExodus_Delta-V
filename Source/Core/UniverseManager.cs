@@ -68,8 +68,8 @@ namespace DeltaV
         public NpcShipAiService NpcShips => npcShips ?? (npcShips = new NpcShipAiService(this));
 
         // 地图表示变化的服务交接；生命周期不解释各服务保存的业务状态。
-        internal void NotifyObjectMaterialized(SpaceObject previous, SpaceObject current)
-            => NpcShips.NotifyMaterialized(previous, current);
+        internal void NotifyObjectMaterialized(SpaceObject current)
+            => NpcShips.NotifyMaterialized(current);
 
         /// <summary>帧边界表示替换；身份与绝对位姿不变，不触发注销／新生。</summary>
         internal void ReplaceRepresentation(SpaceObject previous, SpaceObject current)

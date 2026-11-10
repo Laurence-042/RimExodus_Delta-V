@@ -203,10 +203,11 @@ internal static partial class Program
         Check(Home(universe, ship, faction) == lowId, "only same-faction shipyard; ties use ID");
         lowId.faction = other;
         Check(Home(universe, ship, faction) == highId, "captured home retargets");
-        SpaceObject materialized = Make(10, 100, "Shipyard", faction);
-        Call(universe.NpcShips, "NotifyMaterialized", highId, materialized);
-        universe.objects.Remove(highId);
-        Check(Home(universe, ship, faction) == materialized, "marker replacement preserves home identity");
+        var materialized = new SpaceObject(highId.objectId, highId.pose)
+            { contentTypeId = highId.contentTypeId, faction = faction };
+        universe.ReplaceRepresentation(highId, materialized);
+        Check(ship.npcHomeObjectId == highId.objectId && Home(universe, ship, faction) == materialized,
+            "marker replacement preserves home identity");
         universe.objects.Remove(materialized);
         Set(universe, "objectById", null);
         Check(Home(universe, ship, faction) == null && ship.npcHomeObjectId == 0,

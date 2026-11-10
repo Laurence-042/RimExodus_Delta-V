@@ -67,15 +67,11 @@ namespace DeltaV
             return members.Count == 1 ? members[0] : null;
         }
 
-        internal void NotifyMaterialized(SpaceObject marker, SpaceObject container)
+        internal void NotifyMaterialized(SpaceObject container)
         {
             ShipBase initial = container.Ships
                 .FirstOrDefault(s => s.Faction != Faction.OfPlayer) ?? ShipBase.Invalid;
             if (initial.IsValid) RecordBaseline(initial, container);
-            if (marker.contentTypeId != "Shipyard") return;
-            foreach (SpaceObject obj in universe.objects)
-                if (obj.npcHomeObjectId == marker.objectId)
-                    obj.npcHomeObjectId = container.objectId;
         }
 
         internal static Vector3 RetreatWaypoint(SpaceObject own, SpacePose? threat = null)

@@ -59,6 +59,7 @@ internal static partial class Program
             && Vector2.Dot(approachDirection, perimeterDirection) > .999f,
             "star-map autopilot freezes an exterior waypoint on the ship-facing side of the target");
         CheckStarMapPerimeterReference(universe);
+        CheckNavigationAcrossMaterialization(universe);
         foreach (var offset in new[] { new Vector2(600, 0), new Vector2(-600, 0), new Vector2(0, 600),
             new Vector2(0, -600), new Vector2(500, 500), new Vector2(-500, -500), Vector2.zero })
         {
@@ -250,6 +251,131 @@ internal static partial class Program
         var fresh = new GlobeNavigation(loaded);
         Check(fresh.Width == 1000 && fresh.Selected == null && fresh.Bookmarks.Count == 2,
             "new runtime resets viewport and selection while retaining saved bookmarks");
+    }
+
+    static bool PlaceMaterializationFixture(Map map, int ownerId)
+    {
+        var universe = Current.Game.GetComponent<UniverseManager>();
+        Check(universe.FrameOf(map) is MapSpaceObject container && container is not PoiState
+            && container.objectId == ownerId && universe.ObjectById(ownerId) == container,
+            "materialization publishes the same POI identity before content placement");
+        if (map.uniqueID == 6181) throw new InvalidOperationException("Fixture placement failure");
+        return false; // Unity-dependent map placement is outside this fixture.
+    }
+
+    static bool IgnoreMaterializationMessage() => false;
+
+    static bool DestroyMaterializationFixture(Map map)
+    {
+        Check(map.uniqueID == 6181 && Find.Maps.Remove(map),
+            "failed POI hands the partial map to pocket-map destruction exactly once");
+        return false; // The original destroys Unity resources unavailable offline.
+    }
+
+    static void CheckNavigationAcrossMaterialization(UniverseManager universe)
+    {
+        var patch = new Harmony("DeltaV.Regression.PoiMaterialization");
+        patch.Patch(AccessTools.Method(typeof(PoiSnapshot), nameof(PoiSnapshot.ApplyTo)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(PlaceMaterializationFixture)));
+        patch.Patch(AccessTools.Method(typeof(Messages), nameof(Messages.Message),
+            new[] { typeof(string), typeof(MessageTypeDef), typeof(bool) }),
+            prefix: new HarmonyMethod(typeof(Program), nameof(IgnoreMaterializationMessage)));
+        patch.Patch(AccessTools.Method(typeof(PocketMapUtility), nameof(PocketMapUtility.DestroyPocketMap)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(DestroyMaterializationFixture)));
+        FieldInfo mainThread = typeof(UnityData).GetField("mainThreadId", Private);
+        object previousThread = mainThread.GetValue(null);
+        mainThread.SetValue(null, System.Threading.Thread.CurrentThread.ManagedThreadId);
+        var driver = new ArchivedSpaceObject { objectId = 6182, pose = new SpacePose(Vector3.forward, 0),
+            dynamics = DriveSnapshot.Capture(new DeltaV.DriveInfo(new ShipPhysics.MassReport { mass = 10, inertia = 10 }), 6183) };
+        universe.RegisterObject(driver);
+        try
+        {
+            foreach (bool succeeds in new[] { true, false })
+            {
+                int id = succeeds ? 6180 : 6181;
+                Map map = TestMap(id);
+                map.mapPawns = new MapPawns(map);
+                map.passingShipManager = new PassingShipManager(map);
+                var marker = new PoiState(id, "Navigation destination",
+                    OrbitSphere.Move(Vector3.forward, new Vector2(200, 0)), .2f, 0)
+                {
+                    snapshot = new PoiSnapshot(), clusterChild = true,
+                    RepresentationVersion = 4
+                };
+                marker.pose.velocity = new Vector2(2, 1);
+                marker.pose.angularVelocity = .5f;
+                universe.RegisterObject(marker);
+                var nav = universe.GlobeNavigation;
+                nav.Refresh(universe);
+                var entry = nav.Entries.Single(e => e.owner == marker);
+                nav.Select(entry);
+                nav.ToggleBookmark(entry);
+                var mission = new MissionTarget { objectId = id };
+                var goal = new PlayerNavigationTarget(marker.pose.position, .2f, id, new Vector2(-40, 0), true, true);
+                SpacePose before = goal.Reference(universe);
+                DriveSubject subject = driver.PrimaryDriver;
+                string failure = null;
+                bool arrived = false;
+                Func<SpacePose, SpacePose> reference = _ => goal.Reference(universe);
+                universe.Autopilot.NavigateToReference(subject, reference, () => goal.Valid(universe, subject),
+                    () => arrived = true, reason => failure = reason, longRange: true);
+                Check(universe.Autopilot.IsFollowing(subject, reference), "navigation is active before POI materialization");
+                int frameActionCount = Actions(universe)?.Count ?? 0;
+                try
+                {
+                    Call(universe.Lifecycle, "MaterializeMarker", marker, map);
+                    nav.Refresh(universe);
+                    SpaceObject current = universe.ObjectById(id);
+                    Check(!universe.objects.Contains(marker), "the old marker representation is retired");
+                    if (succeeds)
+                    {
+                        Check(current is MapSpaceObject loaded && loaded.map == map && loaded.pose.Equals(marker.pose)
+                            && loaded.RepresentationVersion == 5 && loaded.clusterChild,
+                            "materialization preserves POI pose and facts and increments the representation version");
+                        Check(failure == null && universe.Autopilot.IsFollowing(subject, reference)
+                            && goal.Valid(universe, subject) && before.Equals(goal.Reference(universe)),
+                            "the same active navigation task retains its exterior position and velocity across materialization");
+                        Check(nav.SelectedEntry?.owner == current && nav.IsBookmarked(nav.SelectedEntry)
+                            && nav.Resolve(mission.Navigation)?.owner == current,
+                            "selection, bookmark and mission target resolve the materialized POI");
+                        driver.pose = before;
+                        universe.Autopilot.Tick();
+                        Check(arrived && failure == null && driver.pose.Equals(before),
+                            "navigation completes at the original exterior reference after materialization");
+                    }
+                    else
+                    {
+                        Check(current == null && universe.SpaceObjectOnMap(map) == null
+                            && !nav.Bookmarks.Any(b => b.objectId == id)
+                            && !goal.Valid(universe, subject),
+                            "failed placement unregisters the sole POI identity and releases navigation references");
+                        Check(Actions(universe).Count == frameActionCount + 1,
+                            "failed placement queues one partial-map cleanup at the frame boundary");
+                        universe.Autopilot.Tick();
+                        Check(failure == "DeltaV_NavigationTargetLost" && !universe.Autopilot.IsActive(subject),
+                            "genuine POI removal still reports target loss");
+                        Action destroy = Actions(universe)[frameActionCount];
+                        Actions(universe).RemoveAt(frameActionCount);
+                        destroy();
+                    }
+                }
+                finally
+                {
+                    universe.Autopilot.Detach(subject);
+                    if (universe.ObjectById(id) is SpaceObject current) universe.UnregisterObject(current);
+                    var actions = Actions(universe);
+                    if (actions?.Count > frameActionCount)
+                        actions.RemoveRange(frameActionCount, actions.Count - frameActionCount);
+                    Find.Maps.Remove(map);
+                }
+            }
+        }
+        finally
+        {
+            universe.UnregisterObject(driver);
+            mainThread.SetValue(null, previousThread);
+            patch.UnpatchAll(patch.Id);
+        }
     }
 
     static void CheckStarMapPerimeterReference(UniverseManager universe)
