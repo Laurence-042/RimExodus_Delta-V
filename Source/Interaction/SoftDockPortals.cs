@@ -48,7 +48,7 @@ namespace DeltaV
             bool connected = Spawned && port?.Spawned == true && peer?.Spawned == true
                 && port.Map == Map && universe?.SoftDock.Enabled == true
                 && port.Docking?.AccessiblePeer(universe, null, requireOpen: false) == peer
-                && !port.HostileTo(Faction.OfPlayer) && !peer.HostileTo(Faction.OfPlayer);
+                && PlayerAccess.CanInteract(port, peer);
             reason = connected ? "" : "DeltaV_SoftDockTransferDisconnected".Translate().ToString();
             return connected;
         }

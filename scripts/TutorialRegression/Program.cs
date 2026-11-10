@@ -776,7 +776,18 @@ internal static partial class Program
         var frame = new MapSpaceObject(950, map, default); universe.objects.Add(frame);
         SubstructureOwnership.BumpStructureVersion();
         var ship = console.Vessel;
-        Check(ship.PlayerMayOperate && PublicFacility.PlayerMayUse(building), "allied public ship grants use without changing ownership");
+        Check(PlayerAccess.CanOperate(PlayerAccessLevel.Player) && PlayerAccess.CanOperate(PlayerAccessLevel.Public)
+            && !PlayerAccess.CanOperate(PlayerAccessLevel.Neutral) && !PlayerAccess.CanOperate(PlayerAccessLevel.Hostile),
+            "shared access policy limits operation to player and public objects");
+        Check(PlayerAccess.CanInteract(PlayerAccessLevel.Player) && PlayerAccess.CanInteract(PlayerAccessLevel.Public)
+            && PlayerAccess.CanInteract(PlayerAccessLevel.Neutral) && !PlayerAccess.CanInteract(PlayerAccessLevel.Hostile),
+            "shared access policy permits interaction with every non-hostile object");
+        Check(PlayerAccess.CanHack(PlayerAccessLevel.Neutral, PlayerAccessLevel.Hostile)
+            && !PlayerAccess.CanHack(PlayerAccessLevel.Neutral, PlayerAccessLevel.Neutral)
+            && !PlayerAccess.CanHack(PlayerAccessLevel.Hostile, PlayerAccessLevel.Hostile),
+            "shared access policy reserves hacking for a usable source and hostile target");
+        Check(ship.PlayerAccessLevel == PlayerAccessLevel.Public && ship.PlayerMayOperate
+            && PublicFacility.PlayerMayUse(building), "allied public ship grants use without changing ownership");
         Check(!universe.PlayerReferenceObjects().Contains(frame), "empty public facility cannot keep itself or nearby maps loaded");
         var visitor = Raw<Pawn>(); Set(visitor, "factionInt", player);
         var spawned = (List<Pawn>)AccessTools.Field(typeof(MapPawns), "pawnsSpawned").GetValue(map.mapPawns);
@@ -797,12 +808,15 @@ internal static partial class Program
         Check(!building.ClaimableBy(player), "native claim path rejects public facilities");
         Check(building.DeconstructibleBy(player), "native deconstruction remains available with goodwill cost");
         console.isPublicFacility = false;
-        Check(!ship.PlayerMayOperate && PublicFacility.ConsoleAt(map, building.Position) == null, "ordinary ally grants no public access");
+        Check(ship.PlayerAccessLevel == PlayerAccessLevel.Neutral && !ship.PlayerMayOperate
+            && PublicFacility.ConsoleAt(map, building.Position) == null, "ordinary ally remains neutral without a public grant");
         console.isPublicFacility = true;
         relation.kind = FactionRelationKind.Neutral;
-        Check(!ship.PlayerMayOperate, "loss of alliance revokes public control");
+        Check(ship.PlayerAccessLevel == PlayerAccessLevel.Public && ship.PlayerMayOperate
+            && PublicFacility.PlayerMayUse(building), "explicit public access remains valid for a non-hostile neutral faction");
         relation.kind = FactionRelationKind.Hostile;
-        Check(!ship.PlayerMayOperate, "hostile public flag grants no control");
+        Check(ship.PlayerAccessLevel == PlayerAccessLevel.Hostile && !ship.PlayerMayOperate
+            && !PublicFacility.PlayerMayUse(building), "hostility overrides the public flag and revokes control");
         relation.kind = FactionRelationKind.Ally;
         var placement = AccessTools.Method(typeof(Patch_PublicFacilityConstruction), "Postfix");
         def.size = new IntVec2(2, 1);

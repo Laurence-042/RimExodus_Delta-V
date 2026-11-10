@@ -445,7 +445,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SoftDockTransferDesc>Choose people and cargo in the standard portal transfer dialog. Vanilla hauling and group duties organize the transfer. Loading can be edited or canceled; disconnecting cancels the transfer.</DeltaV_SoftDockTransferDesc>
   <DeltaV_SoftDockTransferCancel>Cancel transfer</DeltaV_SoftDockTransferCancel>
   <DeltaV_SoftDockTransferDisconnected>The soft docking connection has disconnected.</DeltaV_SoftDockTransferDisconnected>
-  <DeltaV_SoftDockTransferNoWorker>The remote port is hostile. Hack and claim it first.</DeltaV_SoftDockTransferNoWorker>
+  <DeltaV_SoftDockTransferNoWorker>At least one endpoint is hostile. Hack and claim the hostile port from an accessible endpoint first.</DeltaV_SoftDockTransferNoWorker>
   <DeltaV_MissileMagazineLimits>Missile limits</DeltaV_MissileMagazineLimits>
   <DeltaV_MissileMagazineLimitsDesc>Set each missile type's limit within the shared capacity of {0}.</DeltaV_MissileMagazineLimitsDesc>
   <DeltaV_MissileMagazineLimitEntry>{0}: limit {1}</DeltaV_MissileMagazineLimitEntry>

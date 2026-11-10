@@ -445,7 +445,7 @@
   <DeltaV_SoftDockTransferDesc>选择需要通过对接口转移的人员和货物，再安排装载。装载可修改或取消；对接断开后，转移会取消。</DeltaV_SoftDockTransferDesc>
   <DeltaV_SoftDockTransferCancel>取消转移</DeltaV_SoftDockTransferCancel>
   <DeltaV_SoftDockTransferDisconnected>软对接连接已断开，无法开始转移。</DeltaV_SoftDockTransferDisconnected>
-  <DeltaV_SoftDockTransferNoWorker>对方接口处于敌对控制下，需要先骇入占领。</DeltaV_SoftDockTransferNoWorker>
+  <DeltaV_SoftDockTransferNoWorker>至少一端处于敌对控制下，需要先从可用接口骇入并占领敌对端。</DeltaV_SoftDockTransferNoWorker>
   <DeltaV_MissileMagazineLimits>导弹库存上限</DeltaV_MissileMagazineLimits>
   <DeltaV_MissileMagazineLimitsDesc>为每种导弹设置上限，所有弹种共用总容量 {0}。</DeltaV_MissileMagazineLimitsDesc>
   <DeltaV_MissileMagazineLimitEntry>{0}：上限 {1}</DeltaV_MissileMagazineLimitEntry>

@@ -34,7 +34,8 @@ namespace DeltaV
         {
             var peer = SoftPeer(pawn, false);
             var hack = peer?.GetComp<CompHackable>();
-            return PawnCanOpen(pawn) && peer != null && !peer.PawnCanOpen(pawn)
+            return peer != null && PlayerAccess.CanHack(this, peer)
+                && PawnCanOpen(pawn) && !peer.PawnCanOpen(pawn)
                 && hack != null && !hack.IsHacked && !hack.LockedOut && HackUtility.IsCapableOfHacking(pawn)
                 && pawn.skills.GetSkill(SkillDefOf.Intellectual).Level >= hack.Props.intellectualSkillPrerequisite;
         }
@@ -53,7 +54,7 @@ namespace DeltaV
                     if (portal?.IsEnterable(out _) == true) Find.WindowStack.Add(new Dialog_EnterPortal(portal));
                 }
             };
-            if (this.HostileTo(Faction.OfPlayer) || Docking.Peer.HostileTo(Faction.OfPlayer))
+            if (!PlayerAccess.CanInteract(this, Docking.Peer))
                 transferCommand.Disable("DeltaV_SoftDockTransferNoWorker".Translate());
             yield return transferCommand;
             var active = service.ExistingPortal(this);

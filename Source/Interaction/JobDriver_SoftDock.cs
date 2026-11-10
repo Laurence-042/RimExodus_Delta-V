@@ -16,6 +16,7 @@ namespace DeltaV
         {
             this.FailOnDespawnedOrNull(TargetIndex.A);
             this.FailOn(() => Port?.SoftPeer(pawn, false) != TargetThingB || !Port.PawnCanOpen(pawn)
+                || !PlayerAccess.CanHack(Port, TargetThingB)
                 || Hack == null || Hack.LockedOut || !HackUtility.IsCapableOfHacking(pawn)
                 || pawn.skills.GetSkill(SkillDefOf.Intellectual).Level < Hack.Props.intellectualSkillPrerequisite);
             yield return Toils_Goto.GotoThing(TargetIndex.A, PathEndMode.Touch);

@@ -136,7 +136,8 @@ namespace DeltaV
             Building_DockingPort other = Peer;
             if (!Connected || !universe.SoftDock.Enabled || !universe.SoftDock.Live(Port)
                 || !universe.SoftDock.Live(other)) return null;
-            return !requireOpen || Port.PawnCanOpen(pawn) && other.PawnCanOpen(pawn) ? other : null;
+            return !requireOpen || PlayerAccess.CanInteract(Port, other)
+                && Port.PawnCanOpen(pawn) && other.PawnCanOpen(pawn) ? other : null;
         }
 
         internal bool CanSteer(UniverseManager universe, SoftDockService service, DriveSubject controlled)

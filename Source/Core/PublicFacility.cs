@@ -17,7 +17,7 @@ namespace DeltaV
         }
 
         internal static bool PlayerMayUse(Thing thing) => thing?.Spawned == true
-            && ConsoleAt(thing.Map, thing.Position)?.Vessel.PlayerMayOperate == true;
+            && PlayerAccess.For(thing) == PlayerAccessLevel.Public;
 
         internal static void Penalize(Faction owner, Thing actor, GlobalTargetInfo target)
         {

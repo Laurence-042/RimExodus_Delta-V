@@ -19,8 +19,8 @@ namespace DeltaV
         public abstract IEnumerable<IntVec3> HullCells { get; }
         public abstract Faction Faction { get; }
         public virtual bool IsPublicFacility => false;
-        public bool PlayerMayOperate => IsValid && (Faction == RimWorld.Faction.OfPlayer
-            || IsPublicFacility && Faction?.RelationKindWith(RimWorld.Faction.OfPlayer) == FactionRelationKind.Ally);
+        internal PlayerAccessLevel PlayerAccessLevel => PlayerAccess.For(this);
+        public bool PlayerMayOperate => IsValid && PlayerAccess.CanOperate(PlayerAccessLevel);
         public abstract string Label { get; }
         public abstract ShipDerivedState State { get; }
         public abstract ShipCombatState Combat { get; }

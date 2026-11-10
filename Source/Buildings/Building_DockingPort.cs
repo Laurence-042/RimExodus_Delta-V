@@ -49,8 +49,8 @@ namespace DeltaV
             {
                 yield return gizmo;
             }
-            if (Faction != Faction.OfPlayer && !PublicFacility.PlayerMayUse(this)) yield break;
             foreach (Gizmo gizmo in SoftDockGizmos()) yield return gizmo;
+            if (!PlayerAccess.CanOperate(this)) yield break;
             yield return new Command_Action
             {
                 defaultLabel = ChannelExtended
