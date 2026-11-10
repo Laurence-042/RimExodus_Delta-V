@@ -110,6 +110,11 @@ internal static partial class Program
         Check(current() == "Combat", "replaced navigation cannot clear a newer combat task");
         resume.Invoke(controller, null);
         Check(current() == "Drift", "invalid player ship cannot resume a paused auto task");
+        replace.Invoke(controller, new[] { task("SoftDock"), Activator.CreateInstance(goalType), false });
+        resume.Invoke(controller, null);
+        Check(current() == "SoftDock", "failed soft docking guidance preserves the player's selected task");
+        replace.Invoke(controller, new[] { task("Drift"), Activator.CreateInstance(goalType), false });
+        Check(current() == "Drift", "the player can replace stopped soft docking guidance");
     }
 
     static void CheckPlayerControlAuthority(UniverseManager universe)
@@ -119,6 +124,8 @@ internal static partial class Program
             prefix: new HarmonyMethod(typeof(Program), nameof(WeaponMenuLanguage)));
         var player = (Faction)Raw(typeof(Faction));
         var enemy = (Faction)Raw(typeof(Faction));
+        Set(player, "relations", new List<FactionRelation> { new FactionRelation { other = enemy, kind = FactionRelationKind.Hostile } });
+        Set(enemy, "relations", new List<FactionRelation> { new FactionRelation { other = player, kind = FactionRelationKind.Hostile } });
         var oldFactions = Find.World.factionManager;
         bool oldGodMode = DebugSettings.godMode;
         var oldConsoleDef = ThingDefOf.PilotConsole;
@@ -153,7 +160,7 @@ internal static partial class Program
                 foreign.Vessel.CollectCombatPanelActions(false, before, after);
                 Check(ReferenceEquals(panel, npc) && ReferenceEquals(universe.Controls.ExistingFor(foreign.Vessel), npc),
                     "reading sidebar actions preserves NPC controller and decisions, God Mode=" + godMode);
-                Check(foreignAi.CanEdit == godMode && (before.Count > 0) == godMode,
+                Check(foreignAi.CanEdit == godMode && (after.Count > 0) == godMode,
                     "enemy strategy edit and sidebar actions require God Mode=" + godMode);
                 if (godMode)
                 {

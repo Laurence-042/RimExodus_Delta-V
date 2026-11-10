@@ -25,6 +25,7 @@ namespace DeltaV
         internal float Progress => Owner?.progress ?? 0f;
         internal bool Connected => Owner?.connected == true;
         internal bool IsActiveOwner => active;
+        internal bool IsFree => Owner == null && !Port.ChannelExtended;
 
         public override void PostExposeData()
         {
@@ -71,9 +72,11 @@ namespace DeltaV
             candidate.GetComp<CompSoftDocking>().incomingOwner = this;
         }
 
-        internal bool TryRestore(UniverseManager universe, SoftDockService service, DriveSubject controlled)
+        internal bool TryRestore(UniverseManager universe, SoftDockService service)
         {
-            if (active || peer == null || progress <= 0f || !CanInitiate(service, controlled)
+            if (active || peer == null || progress <= 0f || !IsFree || !service.Live(Port)
+                || service.Reserved(Port) || service.Reserved(peer)
+                || ShipRegistry.ShipOf(Port)?.PlayerMayOperate != true
                 || !CanCapture(universe, service, peer)) return false;
             Capture(peer);
             return true;
@@ -87,9 +90,9 @@ namespace DeltaV
             float bestError = CaptureRange;
             foreach (Building_DockingPort candidate in ports)
             {
-                if (!CanCapture(universe, service, candidate)) continue;
+                if (service.Reserved(candidate) || !CanCapture(universe, service, candidate)) continue;
                 float error = Error(universe, candidate);
-                if (error < bestError || error == bestError && candidate.thingIDNumber < best.thingIDNumber)
+                if (best == null || error < bestError || error == bestError && candidate.thingIDNumber < best.thingIDNumber)
                 { best = candidate; bestError = error; }
             }
             if (best == null) return false;
@@ -98,13 +101,18 @@ namespace DeltaV
         }
 
         private bool CanInitiate(SoftDockService service, DriveSubject controlled)
-            => !active && Owner == null && service.Live(Port)
+            => service.Live(Port) && IsFree && !service.Reserved(Port)
                 && ShipRegistry.ShipOf(Port)?.Identity == controlled;
+
+        internal void TryCaptureOrdered(UniverseManager universe, SoftDockService service, Building_DockingPort target)
+        {
+            if (IsFree && CanCapture(universe, service, target)) Capture(target);
+        }
 
         private bool CanCapture(UniverseManager universe, SoftDockService service, Building_DockingPort candidate)
         {
             if (candidate == Port || candidate?.Map == Port.Map || !service.Live(candidate)
-                || candidate.GetComp<CompSoftDocking>()?.Owner != null) return false;
+                || candidate.Docking?.IsFree != true) return false;
             SpaceObject target = universe.FrameOf(candidate.Map);
             if (OrbitSphere.ArcCells(Point(universe, Port, 0f), target.pose.position)
                 > new Vector2(target.map.Size.x, target.map.Size.z).magnitude * .5f + 10f) return false;
@@ -112,12 +120,13 @@ namespace DeltaV
                 && Error(universe, candidate) < CaptureRange;
         }
 
-        internal void TickConnection(UniverseManager universe, SoftDockService service, DriveSubject controlled)
+        internal void TickConnection(UniverseManager universe, SoftDockService service)
         {
             if (!active) return;
             if (!service.Live(Port) || !service.Live(peer) || Port.Map == peer.Map
+                || Port.ChannelExtended || peer.ChannelExtended
                 || peer.GetComp<CompSoftDocking>()?.incomingOwner != this
-                || ShipRegistry.ShipOf(Port)?.Identity != controlled)
+                || ShipRegistry.ShipOf(Port)?.PlayerMayOperate != true)
             { Clear(); return; }
             float error = Error(universe, peer), angle = AngleError(universe, peer);
             Advance(error < AlignedRange && Mathf.Abs(angle) < .03f);
@@ -140,12 +149,7 @@ namespace DeltaV
                 && Port.PawnCanOpen(pawn) && other.PawnCanOpen(pawn) ? other : null;
         }
 
-        internal bool CanSteer(UniverseManager universe, SoftDockService service, DriveSubject controlled)
-            => active && service.Enabled && service.Live(Port) && service.Live(peer)
-                && Port.Map != peer.Map && ShipRegistry.ShipOf(Port)?.Identity == controlled
-                && Error(universe, peer) <= 2f && Mathf.Abs(AngleError(universe, peer)) <= .25f;
-
-        internal SpacePose AlignmentReference(UniverseManager universe)
+        internal SpacePose AlignmentReference(UniverseManager universe, Building_DockingPort peer)
         {
             SpaceObject own = universe.FrameOf(Port.Map), host = universe.FrameOf(peer.Map);
             float relative = SpaceTransform.WrapAngle(ShipOrientation.AngleFromRot4(peer.Rotation)
@@ -165,13 +169,13 @@ namespace DeltaV
         internal static bool CanAssist(SpaceObject own, SpaceObject host)
             => own != null && host != null && !own.PropulsionUsedThisTick && !host.PropulsionUsedThisTick;
 
-        internal void ApplyAlignmentAssist(UniverseManager universe, SoftDockService service, DriveSubject controlled)
+        internal void ApplyAlignmentAssist(UniverseManager universe)
         {
-            if (!CanSteer(universe, service, controlled)) return;
             SpaceObject own = universe.FrameOf(Port.Map), host = universe.FrameOf(peer.Map);
             if (!CanAssist(own, host)) return;
+            if (Mathf.Abs(AngleError(universe, peer)) > .25f) return;
             float fraction = AssistFraction(Error(universe, peer));
-            if (fraction > 0f) own.pose = SpaceTransform.LerpPose(own.pose, AlignmentReference(universe), fraction);
+            if (fraction > 0f) own.pose = SpaceTransform.LerpPose(own.pose, AlignmentReference(universe, peer), fraction);
         }
 
         internal static Vector2 MapPoint(Building_DockingPort port, float forward, float side = 0f)

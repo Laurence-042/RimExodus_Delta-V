@@ -231,7 +231,7 @@ internal static partial class Program
         foreach (Rot4 br in Rot4.AllRotations)
         {
             Set(typeof(Thing), ownPort, "rotationInt", ar); Set(typeof(Thing), peerPort, "rotationInt", br);
-            own.pose = dock.AlignmentReference(universe);
+            own.pose = dock.AlignmentReference(universe, peerPort);
             Check(dock.Error(universe, peerPort) < .01f
                 && Math.Abs(dock.AngleError(universe, peerPort)) < 1e-5f,
                 "one reference aligns both crossed guides for every port direction");
@@ -244,14 +244,14 @@ internal static partial class Program
         }
         Set(typeof(Thing), ownPort, "rotationInt", Rot4.East);
         Set(typeof(Thing), peerPort, "rotationInt", Rot4.West);
-        own.pose = SpaceTransform.RigidPointPose(dock.AlignmentReference(universe),
+        own.pose = SpaceTransform.RigidPointPose(dock.AlignmentReference(universe, peerPort),
             new Vector2(.5f, -.25f), .08f);
         Check(dock.Error(universe, peerPort) < 1.5f,
             "perturbed soft docking starts inside the capture range");
         for (int tick = 0; tick < 180; tick++)
         {
             float guideError = dock.Error(universe, peerPort);
-            own.pose = SpaceTransform.LerpPose(own.pose, dock.AlignmentReference(universe),
+            own.pose = SpaceTransform.LerpPose(own.pose, dock.AlignmentReference(universe, peerPort),
                 CompSoftDocking.AssistFraction(guideError));
             ShipPhysics.Integrate(own, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
             ShipPhysics.Integrate(host, ShipPhysics.PointMassReport, Vector2.zero, 0f, 1f / 60f, false, false, false);
@@ -277,7 +277,7 @@ internal static partial class Program
             + Mathf.PI - ShipOrientation.AngleFromRot4(ownPort.Rotation));
         own.pose = SpaceTransform.RigidPointPose(SpaceTransform.AlignLocalPoint(host.pose,
             hostGuide, ownGuide, relative + .18f), new Vector2(1f, 0f), 0f);
-        SpacePose exact = dock.AlignmentReference(universe), before = own.pose;
+        SpacePose exact = dock.AlignmentReference(universe, peerPort), before = own.pose;
         float entranceError = dock.Error(universe, peerPort);
         float weighted = CompSoftDocking.AssistFraction(entranceError);
         SpacePose assisted = SpaceTransform.LerpPose(before, exact, weighted);

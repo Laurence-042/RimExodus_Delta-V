@@ -128,6 +128,8 @@ namespace DeltaV
             if (autoTask == PlayerAutoTaskKind.Combat
                 && !universe.Autopilot.IsCombatOrbit(OwnerId))
                 return "DeltaV_AutoSearching".Translate();
+            if (autoTask == PlayerAutoTaskKind.SoftDock)
+                return universe.SoftDock.SteeringStatus(OwnerId);
             if (autoTask == PlayerAutoTaskKind.Navigate && navigationTarget.Valid(universe, OwnerId))
             {
                 ShipBase ship = ShipRegistry.ShipByIdentity(OwnerId);
@@ -154,8 +156,13 @@ namespace DeltaV
                     () => universe.Pilot.BeginNavigationTargeting(panelTarget))
             };
             if (panelTarget.Vessel.State == ShipDerivedState.FreeFlight)
+            {
                 options.Insert(1, new FloatMenuOption(TaskName(PlayerAutoTaskKind.Sync),
                     () => universe.Worksites.SelectSyncTarget(panelTarget)));
+                if (!panelTarget.Identity.shuttle)
+                    options.Insert(2, new FloatMenuOption(TaskName(PlayerAutoTaskKind.SoftDock),
+                        () => universe.SoftDock.SelectTarget(panelTarget)));
+            }
             Find.WindowStack.Add(new FloatMenu(options));
         }
 
@@ -191,7 +198,9 @@ namespace DeltaV
             ShipBase ship = ShipRegistry.ShipByIdentity(OwnerId);
             if (!ship.IsValid || !CanEnter(PilotTarget.Of(ship)))
             {
-                ReplaceAutoTask(PlayerAutoTaskKind.Drift, activate: false);
+                if (autoTask == PlayerAutoTaskKind.SoftDock)
+                    universe.SoftDock.StopSteeringFor(OwnerId);
+                else ReplaceAutoTask(PlayerAutoTaskKind.Drift, activate: false);
                 return;
             }
             switch (autoTask)
@@ -230,8 +239,7 @@ namespace DeltaV
                         }, goal.LongRange);
                     break;
                 case PlayerAutoTaskKind.SoftDock:
-                    if (!universe.SoftDock.ResumeSteeringFor(OwnerId))
-                        FailAutoTask(PlayerAutoTaskKind.SoftDock);
+                    universe.SoftDock.ResumeSteeringFor(OwnerId);
                     break;
             }
         }

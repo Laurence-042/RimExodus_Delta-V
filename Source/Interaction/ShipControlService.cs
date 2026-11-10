@@ -110,6 +110,7 @@ namespace DeltaV
             if (!controllers.TryGetValue(ownerId, out ShipController controller)) return;
             controller.FireControl.Dispose();
             universe.ForgetPilotController(controller);
+            universe.SoftDock.StopSteeringFor(ownerId);
             if (controller is PlayerShipController player) player.EndAim("ship lost");
             controller.Exit();
             universe.Autopilot.Detach(ownerId, "ship controller released");

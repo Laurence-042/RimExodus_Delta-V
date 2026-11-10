@@ -27,6 +27,12 @@
   <DeltaV_AutoCombat>战斗机动</DeltaV_AutoCombat>
   <DeltaV_AutoNavigate>定点定角</DeltaV_AutoNavigate>
   <DeltaV_AutoSoftDock>软对接</DeltaV_AutoSoftDock>
+  <DeltaV_AutoSoftDockChoose>选择软对接目标</DeltaV_AutoSoftDockChoose>
+  <DeltaV_AutoSoftDockEnable>请先开启右下角的软对接指示器。</DeltaV_AutoSoftDockEnable>
+  <DeltaV_AutoSoftDockNoOwnPort>本船没有空闲对接口。</DeltaV_AutoSoftDockNoOwnPort>
+  <DeltaV_AutoSoftDockNoTarget>没有可用的软对接目标或空闲接口。</DeltaV_AutoSoftDockNoTarget>
+  <DeltaV_AutoSoftDockConnected>已连接</DeltaV_AutoSoftDockConnected>
+  <DeltaV_AutoSoftDockInactive>制导已停止</DeltaV_AutoSoftDockInactive>
   <DeltaV_AutoPaused>已暂停</DeltaV_AutoPaused>
   <DeltaV_AutoReady>已稳定</DeltaV_AutoReady>
   <DeltaV_AutoSearching>寻找目标</DeltaV_AutoSearching>

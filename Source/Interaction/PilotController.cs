@@ -705,7 +705,6 @@ internal readonly struct HeadingPanelAction
                 DeltaVLog.Message(DeltaVLogModule.Core,
                     $"autopilot interrupted by manual input: target key #{target.Identity} (pilot mode engaged)");
             }
-            universe.SoftDock.PauseSteeringFor(target.Identity);
             if (activePlayerController != null && activePlayerController != controller)
             {
                 DriveSubject previousOwner = activePlayerController.OwnerId;

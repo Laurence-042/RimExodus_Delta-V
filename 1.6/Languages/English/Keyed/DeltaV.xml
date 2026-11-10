@@ -27,6 +27,12 @@
   <DeltaV_AutoCombat>Combat maneuver</DeltaV_AutoCombat>
   <DeltaV_AutoNavigate>Go to pose</DeltaV_AutoNavigate>
   <DeltaV_AutoSoftDock>Soft docking</DeltaV_AutoSoftDock>
+  <DeltaV_AutoSoftDockChoose>Choose a soft docking target</DeltaV_AutoSoftDockChoose>
+  <DeltaV_AutoSoftDockEnable>Enable the soft docking guides first.</DeltaV_AutoSoftDockEnable>
+  <DeltaV_AutoSoftDockNoOwnPort>This ship has no free docking port.</DeltaV_AutoSoftDockNoOwnPort>
+  <DeltaV_AutoSoftDockNoTarget>No available soft docking target or free port.</DeltaV_AutoSoftDockNoTarget>
+  <DeltaV_AutoSoftDockConnected>Connected</DeltaV_AutoSoftDockConnected>
+  <DeltaV_AutoSoftDockInactive>Guidance stopped</DeltaV_AutoSoftDockInactive>
   <DeltaV_AutoPaused>Paused</DeltaV_AutoPaused>
   <DeltaV_AutoReady>Stable</DeltaV_AutoReady>
   <DeltaV_AutoSearching>Seeking target</DeltaV_AutoSearching>
