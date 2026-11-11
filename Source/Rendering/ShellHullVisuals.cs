@@ -149,12 +149,13 @@ namespace DeltaV
             {
                 IntVec3 neighbor = cell + GenAdj.CardinalDirections[side];
                 int bit = 1 << side;
-                if (!HasShellRoof(map, neighbor)
-                    && neighbor.GetEdificeSafe(map)?.def != ThingDefOf.GravshipHull) continue;
+                Thing neighborBuilding = neighbor.GetEdificeSafe(map);
+                bool wallNeighbor = neighborBuilding?.def == ThingDefOf.GravshipHull
+                    || HullWallInsert.LinksFrom(neighborBuilding, cell);
+                if (!wallNeighbor && !HasShellRoof(map, neighbor)) continue;
                 foundationMask |= bit;
                 TerrainDef terrain = RoofSurfaceTerrain(map, neighbor);
-                if (terrain != null
-                    && neighbor.GetEdificeSafe(map)?.def != ThingDefOf.GravshipHull)
+                if (terrain != null && !wallNeighbor)
                     floorMask |= bit;
             }
             int cornerFill = 0;

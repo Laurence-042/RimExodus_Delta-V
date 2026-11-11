@@ -235,13 +235,13 @@ namespace DeltaV
                 {
                     float chance = SpaceImpactEffects.HitChance(projectile, SpaceCellKind.Building, pair.Key,
                         SpaceImpactEffects.Resolve(projectile, pair.Key.def));
-                    coverage.uncertain |= chance < 1;
+                    coverage.uncertain |= chance > 0 && chance < 1;
                     if (ContactSample(coverSample, pair.Key.Position) >= chance) coverage.things.Add(pair.Key);
                 }
                 float floorChance = SpaceImpactEffects.HitChance(projectile, SpaceCellKind.Substructure, null,
                     SpaceImpactEffects.Resolve(projectile, null));
                 foreach (var cell in query.foundationCells)
-                    if (ContactSample(coverSample, cell) >= floorChance) coverage.cells.Add(cell);
+                    if (ContactSample(coverSample, cell, 2) >= floorChance) coverage.cells.Add(cell);
                 coverage.skipFloor = coverage.cells.Count == query.foundationCells.Count;
                 coverage.uncertain |= floorChance < 1 && query.foundationCells.Count > 0;
                 cover[(projectile, coverSample)] = coverage;
@@ -345,6 +345,19 @@ namespace DeltaV
                     result.uncertain = true;
                     if (ContactSample(coverSample, hit.cell, 1) >= Mathf.Clamp01(amount / part.substructureBreakThreshold)) return;
                     brokenFoundation.Add(hit.cell);
+                    foreach (Thing thing in hit.cell.GetThingList(map))
+                    {
+                        if (thing is not Building || !destroyed.Add(thing)
+                            || !initialHealth.ContainsKey(thing)) continue;
+                        float hp = RemainingHP(thing);
+                        health[thing] = 0f;
+                        result.structure += hp;
+                        if (criticalWeights.TryGetValue(thing, out float weight))
+                        {
+                            criticalDamaged += weight * hp / Mathf.Max(1f, initialHealth[thing]);
+                            criticalLost += weight;
+                        }
+                    }
                     if (!part.penetrates) return;
                     scale *= Mathf.Clamp01((amount - part.substructureBreakThreshold) / Mathf.Max(.00001f, amount));
                     continue;

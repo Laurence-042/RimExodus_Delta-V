@@ -29,12 +29,21 @@ namespace DeltaV
             Vector3 recoilOffset, float recoilAngle, Matrix4x4 transform, Quaternion rotation, float zIndex = 0f)
         {
             var building = thing.def.building;
-            Vector3 offset = new Vector3(building.turretTopOffset.x, 0f, building.turretTopOffset.y)
-                .RotatedBy(recoilAngle) + recoilOffset;
-            Vector3 center = drawLoc + Altitudes.AltIncVect + offset + Vector3.up * (zIndex * Altitudes.AltInc);
+            float size = building.turretTopDrawSize;
+            Vector3 scale = new Vector3(size, 1f, size);
+            Vector3 offset;
+            if (thing is Building_Casemate)
+            {
+                Vector2 pivot = SpaceWeaponGeometry.CasematePivotOffset(thing);
+                offset = new Vector3(pivot.x, 0f, pivot.y);
+                scale.x *= 1.5f;
+                scale.z *= 1.5f;
+            }
+            else
+                offset = new Vector3(building.turretTopOffset.x, 0f, building.turretTopOffset.y).RotatedBy(recoilAngle);
+            Vector3 center = drawLoc + Altitudes.AltIncVect + offset + recoilOffset + Vector3.up * (zIndex * Altitudes.AltInc);
             return Matrix4x4.TRS(transform.MultiplyPoint3x4(center),
-                rotation * (TurretTop.ArtworkRotation + source.ShellTopAngle).ToQuat(),
-                new Vector3(building.turretTopDrawSize, 1f, building.turretTopDrawSize));
+                rotation * (TurretTop.ArtworkRotation + source.ShellTopAngle).ToQuat(), scale);
         }
 
         public static void Draw(Thing thing, IShellTurretTopSource source, Vector3 drawLoc,

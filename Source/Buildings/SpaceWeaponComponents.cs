@@ -28,12 +28,21 @@ namespace DeltaV
         }
 
         public static Vector2 MuzzleMapPoint(CompSpaceWeapon weapon)
+            => MuzzleMapPointAtAngle(weapon, null);
+
+        internal static Vector2 CasematePivotOffset(Thing thing)
+            => SpaceTransform.RotatePlacementOffset(thing.def.building.turretTopOffset, thing.Rotation);
+
+        internal static Vector2 MuzzleMapPointAtAngle(CompSpaceWeapon weapon, float? turretAngle)
         {
             Vector2 center = FootprintCenter(weapon.parent) + SpaceTransform.RotatePlacementOffset(weapon.Mount.Offset, weapon.parent.Rotation);
-            if (weapon.WeaponProps.topTurret && weapon.WeaponProps.turretMuzzleDistance > 0f
+            if ((weapon.WeaponProps.topTurret || weapon.WeaponProps.casemate) && weapon.WeaponProps.turretMuzzleDistance > 0f
                 && weapon.Component<CompSpaceWeaponTraverse>() != null)
-                return center + SpaceTransform.Rotate(Vector2.right, weapon.FacingAngle)
+            {
+                if (weapon.WeaponProps.casemate) center += CasematePivotOffset(weapon.parent);
+                return center + SpaceTransform.Rotate(Vector2.right, turretAngle ?? weapon.FacingAngle)
                     * weapon.WeaponProps.turretMuzzleDistance;
+            }
             Vector2 local = weapon.WeaponProps.muzzleOffset;
             // muzzleOffset 与 IntVec3 槽位同样以朝北 Def 坐标记录；不要混用
             // East=0 的航向角，否则 North 建筑的 +Z 偏移会被错误转到 -X。

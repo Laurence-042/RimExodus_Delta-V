@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_VacuumBarrier</defName>
+    <label>vacuum barrier field</label>
+    <description>A passive pressure seal for an opening in a ship's hull. People and weapons fire can pass through. The field collapses if its supporting substructure is destroyed.</description>
+    <thingClass>DeltaV.Building_VacuumBarrier</thingClass>
+    <size>(1,1)</size>
+    <rotatable>true</rotatable>
+    <drawerType>RealtimeOnly</drawerType>
+    <tickerType>Normal</tickerType>
+    <passability>Standable</passability>
+    <fillPercent>0</fillPercent>
+    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
+    <designationCategory>Structure</designationCategory>
+    <uiIconPath>Things/Building/SpaceWeapons/VacuumBarrier</uiIconPath>
+    <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
+    <graphicData>
+      <texPath>Things/Building/SpaceWeapons/VacuumBarrier_Atlas</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>(1,1)</drawSize>
+      <shaderType>Transparent</shaderType>
+      <allowAtlasing>false</allowAtlasing>
+      <linkFlags>Wall</linkFlags>
+    </graphicData>
+    <building>
+      <isEdifice>true</isEdifice>
+      <isInert>true</isInert>
+      <canExchangeVacuum>false</canExchangeVacuum>
+      <canBeDamagedByAttacks>false</canBeDamagedByAttacks>
+      <blueprintGraphicData>
+        <texPath>Things/Building/SpaceWeapons/VacuumBarrier</texPath>
+        <graphicClass>Graphic_Single</graphicClass>
+        <shaderType>EdgeDetect</shaderType>
+      </blueprintGraphicData>
+    </building>
+    <costList><Steel>20</Steel><ComponentIndustrial>1</ComponentIndustrial></costList>
+    <statBases><WorkToBuild>800</WorkToBuild><MaxHitPoints>80</MaxHitPoints><Flammability>0</Flammability></statBases>
+    <researchPrerequisites><li>DeltaV_VacuumBarrier</li></researchPrerequisites>
+  </ThingDef>
+
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_Weapon_Casemate</defName>
+    <label>casemate close-in cannon</label>
+    <description>A crewed close-in cannon built into a pressure-sealed hull. Fires five pellets every two ticks without a cooling cycle. Each shot consumes one projectile head and one propellant charge. Its short, fixed arc favors sustained fire against nearby targets. Point defense can intercept shuttles and missiles.</description>
+    <thingClass>DeltaV.Building_Casemate</thingClass>
+    <size>(3,2)</size>
+    <rotatable>true</rotatable>
+    <drawerType>RealtimeOnly</drawerType>
+    <tickerType>Normal</tickerType>
+    <passability>Impassable</passability>
+    <fillPercent>1</fillPercent>
+    <holdsRoof>true</holdsRoof>
+    <blockLight>true</blockLight>
+    <blockWind>true</blockWind>
+    <hasInteractionCell>true</hasInteractionCell>
+    <interactionCellOffset>(0,0,-1)</interactionCellOffset>
+    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
+    <designationCategory>Security</designationCategory>
+    <uiIconPath>Things/Building/SpaceWeapons/Casemate_MenuIcon</uiIconPath>
+    <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
+    <graphicData>
+      <texPath>Things/Building/SpaceWeapons/Casemate_Base</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>(3,2)</drawSize>
+      <shaderType>Cutout</shaderType>
+      <linkFlags>Wall</linkFlags>
+    </graphicData>
+    <building>
+      <isAirtight>true</isAirtight>
+      <isEdifice>true</isEdifice>
+      <turretTopDrawSize>2.8</turretTopDrawSize>
+      <turretTopOffset>(0,0.64)</turretTopOffset>
+      <blueprintGraphicData>
+        <texPath>Things/Building/SpaceWeapons/Casemate_MenuIcon</texPath>
+        <graphicClass>Graphic_Single</graphicClass>
+        <shaderType>EdgeDetect</shaderType>
+        <drawSize>(4.125,4.125)</drawSize>
+      </blueprintGraphicData>
+    </building>
+    <placeWorkers><li>DeltaV.PlaceWorker_RailgunPart</li></placeWorkers>
+    <costList><Steel>250</Steel><ComponentIndustrial>6</ComponentIndustrial></costList>
+    <statBases><WorkToBuild>9000</WorkToBuild><MaxHitPoints>290</MaxHitPoints><Flammability>0.3</Flammability></statBases>
+    <comps>
+      <li Class="CompProperties_Forbiddable" />
+      <li Class="CompProperties_Power">
+        <compClass>CompPowerTrader</compClass>
+        <basePowerConsumption>120</basePowerConsumption>
+      </li>
+      <li Class="CompProperties_Mannable"><manWorkType>Violent</manWorkType></li>
+      <li Class="DeltaV.CompProperties_SpaceWeaponTraverse">
+        <mechanicalArcDeg>90</mechanicalArcDeg>
+        <turnRateDegPerSec>360</turnRateDegPerSec>
+        <fireToleranceDeg>2</fireToleranceDeg>
+      </li>
+      <li Class="DeltaV.CompProperties_GunSupply">
+        <kind>Heads</kind><fuelCapacity>600</fuelCapacity><initialConfigurableTargetFuelLevel>600</initialConfigurableTargetFuelLevel>
+        <fuelFilter><thingDefs><li>DeltaV_SteelHead</li></thingDefs></fuelFilter>
+      </li>
+      <li Class="DeltaV.CompProperties_GunSupply">
+        <kind>Propellant</kind><fuelCapacity>600</fuelCapacity><initialConfigurableTargetFuelLevel>600</initialConfigurableTargetFuelLevel>
+        <fuelFilter><thingDefs><li>DeltaV_Propellant</li></thingDefs></fuelFilter>
+      </li>
+      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine">
+        <ammoPerShot>1</ammoPerShot><unitMass>1</unitMass>
+      </li>
+      <li Class="DeltaV.CompProperties_SpaceWeapon">
+        <projectileDef>DeltaV_Projectile_CasematePellet</projectileDef>
+        <topTurret>false</topTurret><casemate>true</casemate><defaultPdTargets>Shuttle</defaultPdTargets>
+        <turretMuzzleDistance>1.365</turretMuzzleDistance><fireArcDeg>90</fireArcDeg>
+        <defaultFireDeviationDeg>2</defaultFireDeviationDeg><defaultManualFireDeviationDeg>2</defaultManualFireDeviationDeg>
+        <baseSpreadDeg>0</baseSpreadDeg><projectilesPerShot>5</projectilesPerShot><projectileFanHalfAngle>3</projectileFanHalfAngle>
+        <range>36</range><cooldownTicks>2</cooldownTicks><muzzleFlashSize>0.58</muzzleFlashSize>
+      </li>
+      <li Class="DeltaV.CompProperties_WeaponTuning">
+        <chemical>true</chemical><maxCharge>1</maxCharge><maxMass>1</maxMass><heatPerShot>0</heatPerShot>
+        <minInterval>2</minInterval><maxInterval>2</maxInterval><defaultInterval>2</defaultInterval>
+      </li>
+    </comps>
+    <researchPrerequisites><li>DeltaV_ShipArtillery</li></researchPrerequisites>
+  </ThingDef>
+
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_Projectile_CasematePellet</defName>
+    <label>close-in cannon pellet</label>
+    <thingClass>Building</thingClass>
+    <graphicData>
+      <texPath>Things/Projectile/Bullet_Small</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(0.35,0.35)</drawSize>
+    </graphicData>
+    <comps>
+      <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <visualStyle>Kinetic</visualStyle><hasMap>false</hasMap><collisionRadius>0</collisionRadius><speed>60</speed><timeoutTicks>36</timeoutTicks>
+        <tracerLength>0.55</tracerLength><tracerWidth>0.05</tracerWidth>
+        <fireSoundMap>DeltaV_FireRapidMap</fireSoundMap><fireSoundShell>DeltaV_FireRapidShell</fireSoundShell>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <DeltaV.SpaceImpactEffectDef Name="DeltaV_CasematePelletImpact">
+    <defName>DeltaV_Impact_CasematePellet</defName>
+    <projectileDefs><li>DeltaV_Projectile_CasematePellet</li></projectileDefs>
+    <defenderEffect>
+      <kind>DamageMap</kind><damageDef>Bullet</damageDef><damage>6</damage>
+      <referenceSpeed>60</referenceSpeed><speedExponent>1</speedExponent><incidenceMinFactor>0.35</incidenceMinFactor>
+    </defenderEffect>
+    <attackerEffect><kind>DestroySelf</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_CasematePelletImpact">
+    <defName>DeltaV_Impact_CasematePelletFoundation</defName>
+    <targetsSubstructure>true</targetsSubstructure><substructureHitChance>0.03</substructureHitChance>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef>
+    <defName>DeltaV_Impact_CasematePelletGuard</defName>
+    <projectileDefs><li>DeltaV_Projectile_CasematePellet</li></projectileDefs>
+    <targetThingDefs>
+      <li>GravshipShieldGenerator</li><li>DeltaV_ShieldGenerator</li><li>DeltaV_ShieldGeneratorSmall</li>
+    </targetThingDefs>
+    <defenderEffect>
+      <kind>ShieldDrain</kind><damage>0.6</damage><referenceSpeed>60</referenceSpeed>
+      <speedExponent>1</speedExponent><incidenceMinFactor>0.5</incidenceMinFactor>
+    </defenderEffect>
+    <attackerEffect><kind>DestroySelf</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+</Defs>

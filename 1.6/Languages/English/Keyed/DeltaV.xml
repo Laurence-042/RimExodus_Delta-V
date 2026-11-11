@@ -365,7 +365,10 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_RailAcceleratorActive>energy available, active</DeltaV_RailAcceleratorActive>
   <DeltaV_RailAcceleratorSkipped>disconnected or insufficient pulse energy, skipped</DeltaV_RailAcceleratorSkipped>
   <DeltaV_SafeFire>Hull-safe fire</DeltaV_SafeFire>
-  <DeltaV_SafeFireTip>Prevent fixed weapons from firing when their shot path intersects their own solid hull. Disable only for emergencies.</DeltaV_SafeFireTip>
+  <DeltaV_SafeFireTip>The low firing lines of casemate guns can be obstructed by your own hull. When disabled, shots can hit your own ship.</DeltaV_SafeFireTip>
+  <DeltaV_PointDefenseTargets>Configure point defense targets</DeltaV_PointDefenseTargets>
+  <DeltaV_PointDefenseProjectiles>Missiles / mapped projectiles</DeltaV_PointDefenseProjectiles>
+  <DeltaV_PointDefenseShuttles>Shuttles</DeltaV_PointDefenseShuttles>
   <DeltaV_WeaponNeedsSingleOwner>The entire weapon footprint must be on substructure owned by one ship.</DeltaV_WeaponNeedsSingleOwner>
   <DeltaV_AttachmentNeedsSlot>This attachment must cover a compatible weapon's declared attachment slot.</DeltaV_AttachmentNeedsSlot>
   <DeltaV_AttachmentSlotOccupied>This weapon attachment slot is already occupied.</DeltaV_AttachmentSlotOccupied>

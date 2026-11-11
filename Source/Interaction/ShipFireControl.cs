@@ -357,6 +357,14 @@ namespace DeltaV
             }
         }
 
+        internal void RefreshPointDefenseFilter(CompSpaceWeapon weapon)
+        {
+            if (pointDefense.TryGetValue(weapon.Identity, out var state)
+                && (!state.target.TryResolve(universe, out var target)
+                    || !weapon.AcceptsPointDefenseTarget(target.Container)))
+                pointDefense.Remove(weapon.Identity);
+        }
+
         internal void PrunePointDefense(ShipBase ship, bool force = false)
         {
             if (pointDefense.Count == 0) return;
@@ -429,7 +437,7 @@ namespace DeltaV
             {
                 if (!weapon.SpaceModeEnabled || weapon.aimMode != SpaceWeaponAimMode.PointDefense
                     || !weapon.AllowsPointDefense
-                    || (weapon.WeaponProps.tractor ? !hasScatterTargets : !hasInterceptionTargets)
+                    || (weapon.WeaponProps.tractor ? !hasScatterTargets : !hasInterceptionTargets || weapon.pdTargets == 0)
                     || !weapon.GroupEnabled(weapon.salvoSet == SpaceWeaponSalvoSet.Main ? mainMask : secondaryMask)
                     || !WeaponBelongsHere(weapon, container)) continue;
                 pointDefense.TryGetValue(weapon.Identity, out PdLock state);
@@ -561,14 +569,16 @@ namespace DeltaV
                 return distance <= weapon.EffectiveRange && weapon.Covers(weapon.Container, target.pose.position, muzzle);
             }
             if (target == null || target == weapon.Container || target.map == null || target.map.Disposed
-                || !target.InterceptionEligible) return false;
+                || !weapon.AcceptsPointDefenseTarget(target)) return false;
             distance = OrbitSphere.Offset(muzzle, target.pose.position).magnitude - SpaceCollision.BoundsRadiusOf(target);
             if (distance < weapon.WeaponProps.minRange || distance > weapon.EffectiveRange) return false;
-            if (weapon.coverage.fixedDirection || weapon.coverage.arc < 360f || weapon.coverage.direction != 0f)
+            if (weapon.WeaponProps.casemate || weapon.coverage.fixedDirection
+                || weapon.coverage.arc < 360f || weapon.coverage.direction != 0f)
             {
                 var info = SpaceWeaponService.AimInfo(weapon, weapon.Container);
                 return SpaceWeaponBallistics.TryAim(info, weapon.Container.pose, target.pose, out var lead)
-                    && weapon.Covers(weapon.Container, lead, info.Muzzle);
+                    && weapon.Covers(weapon.Container, lead, info.Muzzle)
+                    && (!weapon.WeaponProps.casemate || SpaceWeaponShot.HasClearAimPath(weapon, weapon.Container, lead));
             }
             return true;
         }
@@ -622,7 +632,7 @@ namespace DeltaV
             if (reservedDamage == null || !reservedDamage.TryGetValue(target.objectId, out float damage)) return false;
             foreach (Thing thing in target.map.listerThings.AllThings)
                 if (thing is Building building && !building.Destroyed
-                    && thing.def.GetCompProperties<CompProperties_SpaceProjectile>() != null)
+                    && IsInterceptionBody(building))
                     return damage >= building.HitPoints;
             return false;
         }
@@ -632,10 +642,47 @@ namespace DeltaV
             ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
             if (projectile == null) return 0f;
             foreach (Thing thing in target.map.listerThings.AllThings)
-                if (thing is Building building && !building.Destroyed
-                    && thing.def.GetCompProperties<CompProperties_SpaceProjectile>() != null)
-                    return SpaceWeaponBallistics.ExpectedDamage(weapon, projectile, thing.def);
+                if (thing is Building building && !building.Destroyed && IsInterceptionBody(building))
+                    return weapon.WeaponProps.projectilesPerShot > 1 ? EstimateFanHits(weapon, target, projectile)
+                        : SpaceWeaponBallistics.ExpectedDamage(weapon, projectile, thing.def);
             return 0f;
+        }
+
+        private static bool IsInterceptionBody(Building building)
+            => building.def.GetCompProperties<CompProperties_SpaceShuttle>() != null
+                || building.def.GetCompProperties<CompProperties_SpaceProjectile>() != null;
+
+        private static float EstimateFanHits(CompSpaceWeapon weapon, SpaceObject target, ThingDef projectile)
+        {
+            var source = weapon.Container;
+            var aim = SpaceWeaponService.AimInfo(weapon, source);
+            var query = new SpaceCollision.RayQuery(target);
+            var passed = new HashSet<Thing>();
+            Vector2 from = SpaceTransform.UniverseToMapPoint(target, target.map, aim.Muzzle);
+            Vector2 relative = SpaceTransform.VelocityAtUniversePoint(source.pose, aim.Muzzle)
+                - SpaceTransform.VelocityAtUniversePoint(target.pose, aim.Muzzle);
+            var props = projectile.GetCompProperties<CompProperties_SpaceProjectile>();
+            int count = weapon.WeaponProps.projectilesPerShot;
+            float mass = SpaceWeaponBallistics.ProjectileMass(weapon, weapon.SelectMagazine()) / count;
+            float damage = 0;
+            for (int i = 0; i < count; i++)
+            {
+                var mapDirection = SpaceTransform.Rotate(Vector2.right,
+                    weapon.FacingAngle + SpaceWeaponShot.FanOffset(weapon.WeaponProps, i));
+                var velocity = relative + aim.Speed * SpaceTransform.MapDirectionToUniverseTangent(
+                    source, weapon.parent.Map, aim.MuzzleMap, mapDirection);
+                var local = SpaceTransform.UniverseTangentToMapDirection(target, target.map, aim.Muzzle, velocity);
+                if (!query.Next(from, local, velocity.magnitude * props.timeoutTicks / 60f, projectile,
+                    SpaceProjectileService.FootprintRadius(projectile), passed, null,
+                    _ => false, _ => false, out var hit, skipSubstructure: true)) continue;
+                var effect = SpaceImpactEffects.Resolve(projectile, hit.building.def);
+                if (effect?.defenderEffect == null) continue;
+                float amount = SpaceImpactEffects.ComputeDamage(effect.defenderEffect, velocity.magnitude,
+                    SpaceTransform.IncidenceAngle(local, hit.normal), 1f, mass);
+                damage += SpaceImpactEffects.HitChance(projectile, hit.kind, hit.building, effect)
+                    * SpaceImpactEffects.ExpectedBuildingDamage(hit.building, effect?.defenderEffect?.damageDef, amount, out _);
+            }
+            return damage;
         }
 
         private static SpaceObject TargetAlongRay(UniverseManager universe, SpaceObject source,

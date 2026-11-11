@@ -107,6 +107,7 @@ namespace DeltaV
             public Thing attackerBuilding;
             /// <summary>己方容器排除（顶部炮塔语义：弹不撞发射容器；舰中武器传 null 允许自伤）。</summary>
             public SpaceObject excludeContainer;
+            internal DriveSubject selfFire;
             /// <summary>指定撞击对象；侵入式 shuttle 只与已选目标结算，其他弹体为 null。</summary>
             public SpaceObject requiredDefender;
             /// <summary>
@@ -227,6 +228,7 @@ namespace DeltaV
         {
             public byte[] kinds;
             public Thing[] buildings;
+            public bool[] foundations;
             public Vector2 boundsCenter;
             public float boundsRadius;
             public bool anySolid;
@@ -346,12 +348,14 @@ namespace DeltaV
             {
                 surface.kinds = new byte[cells];
                 surface.buildings = new Thing[cells];
+                surface.foundations = new bool[cells];
             }
             else
             {
                 // 重建是完整快照；不清空会让已摧毁建筑永久残留在窄相位占用格中。
                 System.Array.Clear(surface.kinds, 0, surface.kinds.Length);
                 System.Array.Clear(surface.buildings, 0, surface.buildings.Length);
+                System.Array.Clear(surface.foundations, 0, surface.foundations.Length);
             }
             bool any = false;
             surface.occupiedCells.Clear();
@@ -365,6 +369,8 @@ namespace DeltaV
                 int index = map.cellIndices.CellToIndex(cell);
                 surface.kinds[index] = (byte)kind;
                 surface.buildings[index] = thing;
+                surface.foundations[index] = kind == SpaceCellKind.Substructure
+                    || SubstructureOwnership.HasFoundation(map, cell);
                 surface.occupiedCells.Add(cell);
                 any = true;
                 minX = Mathf.Min(minX, cell.x); maxX = Mathf.Max(maxX, cell.x);
@@ -436,14 +442,17 @@ namespace DeltaV
             {
                 SweptBody body = bodies[b];
                 if (body.dead || body.attacker == null) continue;
+                Dictionary<SpaceObject, PassedContacts> passed = null;
                 for (int bounce = 0; bounce < 128 && !body.dead; bounce++)
                 {
                     bool redirected = false;
-                    for (int d = 0; d < objects.Count; d++)
+                    SpaceObject source = body.selfFire.key > 0 ? body.excludeContainer : null;
+                    for (int d = source == null ? 0 : -1; d < objects.Count; d++)
                     {
-                        SpaceObject defender = objects[d];
+                        bool sourceStructure = d < 0;
+                        SpaceObject defender = sourceStructure ? source : objects[d];
                         if (defender.IsScattered) continue;
-                        if (defender == body.attacker || defender == body.excludeContainer
+                        if (defender == body.attacker || !sourceStructure && defender == body.excludeContainer
                             || (body.requiredDefender != null && defender != body.requiredDefender)) continue;
                         if (body.ignoreNonHostileProjectiles && !body.didRedirect && defender.IsActiveCollider
                             && !AreHostile(body.attacker.faction, defender.faction)) continue;
@@ -452,7 +461,7 @@ namespace DeltaV
                         if (universe.Generation?.IsGenerating(defMap) == true) continue;
                         body.redirected = false;
                         body.continued = false;
-                        if (!SweepOne(body, defender, defMap)) continue;
+                        if (!SweepOne(body, defender, defMap, sourceStructure, ref passed)) continue;
                         if (body.dead) break;
                         if (body.continued)
                         {
@@ -472,6 +481,7 @@ namespace DeltaV
                             body.redirectDirection * body.redirectRemaining);
                         body.didRedirect = true;
                         body.excludeContainer = null;
+                        passed?.Clear();
                         if (bounce == 127) body.to = body.from;
                         redirected = true;
                         break;
@@ -487,8 +497,15 @@ namespace DeltaV
             return first.HostileTo(second) || second.HostileTo(first);
         }
 
+        private sealed class PassedContacts
+        {
+            internal HashSet<Thing> buildings;
+            internal HashSet<IntVec3> foundations;
+        }
+
         /// <summary>单个 body 对单个守方的窄相位求交与结算；返回是否产生命中事件。</summary>
-        private static bool SweepOne(SweptBody body, SpaceObject defender, Map defMap)
+        private static bool SweepOne(SweptBody body, SpaceObject defender, Map defMap, bool sourceStructure,
+            ref Dictionary<SpaceObject, PassedContacts> passed)
         {
             Surface surface = SurfaceFor(defender);
             if (!surface.anySolid) return false;
@@ -515,7 +532,7 @@ namespace DeltaV
             float lineAlong = float.MaxValue;
             CompProperties_SpaceProjectile projectileProps = body.projectileDef
                 ?.GetCompProperties<CompProperties_SpaceProjectile>();
-            bool shieldsApply = projectileProps?.ignoresShields != true;
+            bool shieldsApply = !sourceStructure && projectileProps?.ignoresShields != true;
             if (shieldsApply && TryFindLineHit(surface, fromLocal, dir, length, projectileProps,
                 out lineShield, out linePoint, out lineNormal, out lineAlong, out lineStart, out lineEnd))
                 sampleLength = lineAlong;
@@ -549,15 +566,23 @@ namespace DeltaV
                 footprintDirection = (SpaceTransform.UniverseToMapPoint(defender, defMap, nose)
                     - SpaceTransform.UniverseToMapPoint(defender, defMap, body.attacker.pose.position)).normalized;
             }
+            System.Predicate<IntVec3> scope = null;
+            if (sourceStructure)
+            {
+                var ownership = SubstructureOwnership.TryGet(defMap);
+                if (ownership == null || body.selfFire.objectId != defender.objectId) return false;
+                var muzzleFootprint = body.launcher?.Map == defMap ? body.launcher.OccupiedRect() : CellRect.Empty;
+                scope = cell => !muzzleFootprint.Contains(cell) && ownership.OwnerAt(cell) == body.selfFire.key;
+            }
             int steps = Mathf.Max(1, Mathf.CeilToInt(sampleLength / SampleStep));
-            HashSet<Thing> passedBuildings = null;
-            HashSet<IntVec3> passedSubstructure = null;
+            PassedContacts missed = null;
+            passed?.TryGetValue(defender, out missed);
             for (int s = 0; s <= steps; s++)
             {
                 Vector2 p = fromLocal + dir * Mathf.Min(sampleLength, SampleStep * s);
                 if (!FindBestCell(body, defMap, surface, fromLocal, p, footprintDirection,
-                    passedBuildings, passedSubstructure,
-                    out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing))
+                    missed?.buildings, missed?.foundations,
+                    out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing, scope))
                 {
                     continue;
                 }
@@ -598,10 +623,16 @@ namespace DeltaV
                             $"pass-through: {body.projectileDef?.defName} past " +
                             (bestThing?.def.defName ?? "substructure") + $" at {bestCell} " +
                             $"of '{defender.label}' (v_rel {evt.relativeSpeed:F1})");
+                    if (missed == null)
+                    {
+                        missed = new PassedContacts();
+                        (passed ??= new Dictionary<SpaceObject, PassedContacts>())[defender] = missed;
+                    }
                     if (bestThing != null)
-                        (passedBuildings ??= new HashSet<Thing>()).Add(bestThing);
+                        (missed.buildings ??= new HashSet<Thing>()).Add(bestThing);
                     else
-                        (passedSubstructure ??= new HashSet<IntVec3>()).Add(bestCell);
+                        (missed.foundations ??= new HashSet<IntVec3>()).Add(bestCell);
+                    s--;
                     continue;
                 }
 
@@ -917,7 +948,7 @@ namespace DeltaV
         private static bool FindBestCell(SweptBody body, Map defMap, Surface surface, Vector2 fromLocal,
             Vector2 p, Vector2 dir, HashSet<Thing> passedBuildings, HashSet<IntVec3> passedSubstructure,
             out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing,
-            System.Predicate<IntVec3> include = null)
+            System.Predicate<IntVec3> include = null, bool skipSubstructure = false)
         {
             bestCell = IntVec3.Invalid;
             bestKind = SpaceCellKind.Empty;
@@ -959,16 +990,14 @@ namespace DeltaV
                 }
                 int index = defMap.cellIndices.CellToIndex(cell);
                 SpaceCellKind kind = (SpaceCellKind)surface.kinds[index];
-                if (kind == SpaceCellKind.Empty) continue;
                 Thing thing = surface.buildings[index];
-                if (thing != null && thing.Destroyed) continue;
-                if (thing != null && passedBuildings?.Contains(thing) == true)
+                if (thing == null || thing.Destroyed || passedBuildings?.Contains(thing) == true)
                 {
-                    // 掩体放行只让弹体穿过建筑，不暴露仍被建筑覆盖的基架。
-                    continue;
+                    if (skipSubstructure || !surface.foundations[index]
+                        || passedSubstructure?.Contains(cell) == true) continue;
+                    kind = SpaceCellKind.Substructure;
+                    thing = null;
                 }
-                if (kind == SpaceCellKind.Substructure
-                    && passedSubstructure?.Contains(cell) == true) continue;
                 // 建筑高于同一带内的基架；同类再按沿弹道距离排序。
                 float rank = (new Vector2(cell.x + 0.5f, cell.z + 0.5f) - fromLocal).sqrMagnitude;
                 bool buildingWins = bestKind == SpaceCellKind.Substructure

@@ -276,7 +276,7 @@ internal static partial class Program
                 "live multi-cell building protects " + occupied);
             SubstructureDamageUtility.TryDestroy(map, occupied);
             grid.Notify_FoundationDestroyed(occupied);
-            Check(grid.FoundationAt(occupied) == deck, "direct, fragment and native destruction retain protected foundation");
+            Check(grid.FoundationAt(occupied) == deck, "area and native destruction retain protected foundation");
         }
         var worker = new DamageWorker();
         worker.def = (DamageDef)Raw(typeof(DamageDef)); DamageDefOf.Bomb = worker.def;
@@ -290,13 +290,22 @@ internal static partial class Program
         object surface = Raw(surfaceType);
         var kinds = new byte[25]; var buildings = new Thing[25];
         kinds[index] = (byte)SpaceCellKind.Building; buildings[index] = building;
-        Set(surface, "kinds", kinds); Set(surface, "buildings", buildings);
+        var foundations = new bool[25]; foundations[index] = true;
+        Set(surface, "kinds", kinds); Set(surface, "buildings", buildings); Set(surface, "foundations", foundations);
         var body = new SpaceCollision.SweptBody();
         var point = new Vector2(cell.x + 0.5f, cell.z + 0.5f);
         object[] findArgs = { body, map, surface, point, point, Vector2.up,
-            new HashSet<Thing> { building }, null, IntVec3.Invalid, SpaceCellKind.Empty, null };
+            null, null, IntVec3.Invalid, SpaceCellKind.Empty, null, null, false };
+        Check((bool)Call(typeof(SpaceCollision), "FindBestCell", findArgs)
+            && (SpaceCellKind)findArgs[9] == SpaceCellKind.Building && findArgs[10] == building,
+            "same-cell building is the first contact");
+        findArgs[6] = new HashSet<Thing> { building };
+        Check((bool)Call(typeof(SpaceCollision), "FindBestCell", findArgs)
+            && (SpaceCellKind)findArgs[9] == SpaceCellKind.Substructure && findArgs[10] == null,
+            "missed building exposes the same-cell foundation at the same contact");
+        findArgs[7] = new HashSet<IntVec3> { cell };
         Check(!(bool)Call(typeof(SpaceCollision), "FindBestCell", findArgs),
-            "missed building does not expose the foundation to the same sweep");
+            "both layers may miss independently");
 
         var overlapping = (Building)Raw(typeof(Building)); overlapping.def = def;
         Set(overlapping, "positionInt", cell); Set(overlapping, "mapIndexOrState", (sbyte)0);
@@ -311,6 +320,14 @@ internal static partial class Program
         SubstructureDamageUtility.TryDestroy(map, cell);
         Check(grid.FoundationAt(cell) == null && grid.TerrainAt(cell) == space,
             "combat strip removes foundation and both covering layers after building loss");
+
+        Layers(space, true, true);
+        var mounted = (TestBuilding)Raw(typeof(TestBuilding)); mounted.def = def;
+        Set(mounted, "positionInt", cell); Set(mounted, "mapIndexOrState", (sbyte)0);
+        map.thingGrid.Register(mounted);
+        Check((bool)Call(typeof(SubstructureDamageUtility), "TryDestroyHitFoundation", map, cell, false, null)
+            && mounted.killCalls == 1 && grid.FoundationAt(cell) == null,
+            "direct foundation destruction kills the surviving multi-cell building exactly once");
 
         Layers(space, true, true);
         map.roofGrid.SetRoof(cell, roof);

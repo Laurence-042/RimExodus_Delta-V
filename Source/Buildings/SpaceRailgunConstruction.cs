@@ -36,11 +36,43 @@ namespace DeltaV
                 }
             }
 
+            if (TryBarrierCell(host, out _))
+            {
+                ThingDef barrier = DefDatabase<ThingDef>.GetNamed("DeltaV_VacuumBarrier");
+                Designator_Build designator = BuildCopyCommandUtility.FindAllowedDesignator(barrier);
+                if (designator != null) yield return designator;
+            }
+
             foreach (ThingDef def in related)
             {
                 Designator_Build designator = BuildCopyCommandUtility.FindAllowedDesignator(def);
                 if (designator != null) yield return designator;
             }
+        }
+
+        internal static void DrawBarrierCell(ThingWithComps host)
+        {
+            if (TryBarrierCell(host, out IntVec3 cell)
+                && DefDatabase<ResearchProjectDef>.GetNamed("DeltaV_VacuumBarrier").IsFinished)
+                GenDraw.DrawFieldEdges(new List<IntVec3> { cell }, UnityEngine.Color.cyan);
+        }
+
+        private static bool TryBarrierCell(ThingWithComps host, out IntVec3 cell)
+        {
+            cell = IntVec3.Invalid;
+            if (!host.Spawned || host.Faction != Faction.OfPlayer) return false;
+            var weapon = host.TryGetComp<CompSpaceWeapon>();
+            var segment = host.TryGetComp<CompSpaceRailgun>();
+            if (weapon == null || weapon.WeaponProps.acceleratorStarts.NullOrEmpty())
+                weapon = segment?.ConnectedWeapon();
+            if (weapon == null) return false;
+
+            var segments = weapon.Layout.acceleration.segments;
+            var last = segments.Count > 0 ? segments[segments.Count - 1] : null;
+            if (segment != null && last != segment) return false;
+            IntVec3 offset = last?.RailProps.nextRootOffset ?? weapon.WeaponProps.acceleratorStarts[0];
+            cell = SpaceWeaponGeometry.RotatedCell(last?.parent ?? weapon.parent, offset);
+            return cell.InBounds(host.Map) && SubstructureOwnership.HasFoundation(host.Map, cell);
         }
 
         public static IReadOnlyList<ThingDef> LoaderDefsFor(ThingDef accelerator)

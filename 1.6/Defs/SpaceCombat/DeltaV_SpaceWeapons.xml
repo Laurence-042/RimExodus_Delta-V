@@ -730,6 +730,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeapon">
         <projectileDef>DeltaV_Projectile_Missile</projectileDef>
         <topTurret>false</topTurret>
+        <requireHullClearance>true</requireHullClearance>
         <fireArcDeg>0</fireArcDeg>
         <lockArcDeg>360</lockArcDeg>
         <defaultFireDeviationDeg>180</defaultFireDeviationDeg>
@@ -898,6 +899,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeapon">
         <projectileDef>DeltaV_Projectile_RailgunSlug</projectileDef>
         <topTurret>false</topTurret>
+        <requireHullClearance>true</requireHullClearance>
         <fireArcDeg>0</fireArcDeg>
         <lockArcDeg>360</lockArcDeg>
         <defaultFireDeviationDeg>1</defaultFireDeviationDeg>

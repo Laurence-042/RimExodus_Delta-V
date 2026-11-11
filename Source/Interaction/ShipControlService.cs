@@ -125,6 +125,12 @@ namespace DeltaV
             foreach (ShipController controller in controllers.Values) controller.FireControl.ForgetWeapon(weapon);
         }
 
+        internal void RefreshPointDefenseFilter(CompSpaceWeapon weapon)
+        {
+            if (controllers.TryGetValue(weapon.OwnerShip.Identity, out var controller))
+                controller.FireControl.RefreshPointDefenseFilter(weapon);
+        }
+
         internal void NotifyWeaponOwnershipChanged(Map map)
         {
             foreach (ShipController controller in controllers.Values)

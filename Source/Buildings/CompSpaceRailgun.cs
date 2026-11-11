@@ -196,6 +196,7 @@ namespace DeltaV
             GenDraw.DrawFieldEdges(cells,
                 SegmentAtRoot(parent.Map, root, parent.Rotation) != null ? Color.green : Color.yellow);
             GenDraw.DrawLineBetween(parent.TrueCenter(), root.ToVector3Shifted());
+            SpaceRailgunConstruction.DrawBarrierCell(parent);
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()

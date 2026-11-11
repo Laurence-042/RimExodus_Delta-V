@@ -358,7 +358,7 @@ namespace DeltaV
             if (evt.defenderIsSubstructure && SubstructureOwnership.HasFoundation(map, cell)
                 && Rand.Chance(Mathf.Clamp01(amount / part.substructureBreakThreshold)))
             {
-                if (SubstructureDamageUtility.TryDestroy(map, cell, instigator: evt.launcher) && part.penetrates)
+                if (SubstructureDamageUtility.TryDestroyHitFoundation(map, cell, instigator: evt.launcher) && part.penetrates)
                     remaining = RemainingFraction(amount, part.substructureBreakThreshold);
             }
 

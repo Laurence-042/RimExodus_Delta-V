@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_VacuumBarrier.label>真空屏障场</DeltaV_VacuumBarrier.label>
+  <DeltaV_VacuumBarrier.description>维持船舱气密，允许人员与弹道穿过。支撑基架被摧毁时力场消失。</DeltaV_VacuumBarrier.description>
+  <DeltaV_Weapon_Casemate.label>炮廓近防炮</DeltaV_Weapon_Casemate.label>
+  <DeltaV_Weapon_Casemate.description>嵌入舱壁的载人近防炮。每 2 tick 发射五枚破片，持续射击无需冷却。每组消耗一份弹头和一份装药。射程和射界较窄，适合集中打击近距离目标。可切换近防模式拦截穿梭机和导弹。</DeltaV_Weapon_Casemate.description>
+  <DeltaV_Projectile_CasematePellet.label>近防炮破片</DeltaV_Projectile_CasematePellet.label>
+</LanguageData>

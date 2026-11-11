@@ -183,7 +183,7 @@ namespace DeltaV
             foreach (CompSpaceWeapon weapon in WeaponsOn(ship))
             {
                 if (!weapon.Armed || !weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
-                    || weapon.aimMode != SpaceWeaponAimMode.PointDefense || !weapon.GroupActive
+                    || weapon.aimMode != SpaceWeaponAimMode.PointDefense || weapon.pdTargets == 0 || !weapon.GroupActive
                     || weapon.Component<CompPowerTrader>() is { PowerOn: false }
                     || !weapon.TryGetSkillLevel(out _)
                     || !SpaceWeaponBallistics.HasBaseShotEnergy(weapon)) continue;

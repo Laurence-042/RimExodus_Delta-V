@@ -3,8 +3,7 @@ using Verse;
 
 namespace DeltaV
 {
-    // Vanilla only populates LinkGrid for a linked Graphic. The launcher keeps its
-    // full 1x3 layered Graphic_Single, but still contributes Wall to neighboring walls.
+    // Hull inserts keep their own layers and contribute Wall to the vanilla LinkGrid.
     [HarmonyPatch(typeof(ThingDef), nameof(ThingDef.CanAffectLinker), MethodType.Getter)]
     public static class Patch_MissileLauncherWallLink
     {
@@ -12,8 +11,22 @@ namespace DeltaV
         {
             if (__result || __instance.graphicData == null
                 || __instance.graphicData.linkFlags == LinkFlags.None) return;
-            if (__instance.GetCompProperties<CompProperties_MissileAutoloader>() != null)
+            if (__instance.GetCompProperties<CompProperties_MissileAutoloader>() != null
+                || __instance.thingClass == typeof(Building_Casemate))
                 __result = true;
+        }
+    }
+
+    [HarmonyPatch(typeof(Graphic_Linked), nameof(Graphic_Linked.ShouldLinkWith))]
+    public static class Patch_LinkedGraphic_HullInsertSide
+    {
+        public static void Postfix(IntVec3 c, Thing parent, ref bool __result)
+        {
+            if (!__result || !(parent.def.IsWall || parent is Building_VacuumBarrier)
+                || !c.InBounds(parent.Map)) return;
+            Building insert = c.GetEdificeSafe(parent.Map);
+            if (insert is Building_Casemate)
+                __result = HullWallInsert.LinksFrom(insert, parent.Position);
         }
     }
 }

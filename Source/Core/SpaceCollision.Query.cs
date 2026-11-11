@@ -33,19 +33,19 @@ namespace DeltaV
             private readonly HashSet<Thing> buildings = new HashSet<Thing>();
             internal readonly List<IntVec3> foundationCells = new List<IntVec3>();
             private readonly SweptBody footprint = new SweptBody();
-            private readonly Predicate<IntVec3> includeBody, includeSolid;
+            private readonly Predicate<IntVec3> includeBody;
             internal RayQuery(SpaceObject target, ShipBase scope = null)
             {
                 map = target.map; surface = SurfaceFor(target);
-                includeBody = Includes; includeSolid = IncludesSolid;
+                includeBody = Includes;
                 if (scope != null) cells = new HashSet<IntVec3>(scope.HullCells);
                 foreach (IntVec3 cell in surface.occupiedCells)
                 {
                     if (!Includes(cell)) continue;
-                    Thing building = surface.buildings[map.cellIndices.CellToIndex(cell)];
+                    int index = map.cellIndices.CellToIndex(cell);
+                    Thing building = surface.buildings[index];
                     if (building != null) buildings.Add(building);
-                    else if (surface.kinds[map.cellIndices.CellToIndex(cell)] == (byte)SpaceCellKind.Substructure)
-                        foundationCells.Add(cell);
+                    if (surface.foundations[index]) foundationCells.Add(cell);
                 }
             }
             private bool BuildingsPassed(HashSet<Thing> passed)
@@ -54,8 +54,6 @@ namespace DeltaV
                 return true;
             }
             private bool Includes(IntVec3 cell) => cells == null || cells.Contains(cell);
-            private bool IncludesSolid(IntVec3 cell) => Includes(cell)
-                && surface.kinds[map.cellIndices.CellToIndex(cell)] != (byte)SpaceCellKind.Substructure;
             internal float Obstruction(Vector2 source, Vector2 end, Thing target, ISet<Thing> removed) =>
                 TargetObstruction(map, source, end, target, removed, surface);
             private void NextLine(Vector2 from, Vector2 dir, float length, CompProperties_SpaceProjectile props,
@@ -101,7 +99,7 @@ namespace DeltaV
                     Vector2 p = from + dir * Mathf.Min(end, sample * SampleStep);
                     if (!FindBestCell(footprint, map, surface, from, p, dir, passed, passedCells,
                         out IntVec3 cell, out SpaceCellKind kind, out Thing building,
-                        skipSubstructure ? includeSolid : includeBody)) continue;
+                        includeBody, skipSubstructure)) continue;
                     Vector2 normal = Mathf.Abs(dir.x) >= Mathf.Abs(dir.y)
                         ? new Vector2(-Mathf.Sign(dir.x), 0) : new Vector2(0, -Mathf.Sign(dir.y));
                     contact = new RayContact(p, normal, cell, kind, building);

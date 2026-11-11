@@ -102,9 +102,15 @@ namespace DeltaV
             return true;
         }
 
+        internal static float FanOffset(CompProperties_SpaceWeapon props, int index)
+            => props.projectilesPerShot <= 1 ? 0f
+                : Mathf.Lerp(-props.projectileFanHalfAngle, props.projectileFanHalfAngle,
+                    (float)index / (props.projectilesPerShot - 1)) * Mathf.Deg2Rad;
+
         // Launch capabilities may use the same prepared projectile without committing twice.
         internal bool LaunchProjectile()
         {
+            if (weapon.WeaponProps.projectilesPerShot > 1) return LaunchFan();
             Vector2 mapDirection = SpaceTransform.Rotate(Vector2.right, launchMapAngle);
             bool guaranteedMissileHit = false;
             if (target?.map != null && !target.map.Disposed
@@ -235,24 +241,70 @@ namespace DeltaV
                 if (comp is ISpaceWeaponFireGate gate && !gate.CanFire(this)) return Reject(WeaponReject.Gate);
                 if (comp is ISpaceWeaponLaunch launch) emitter = launch;
             }
-            if (emitter == null && weapon.safeFire && !HasClearPath(weapon, muzzleMap, launchMapAngle))
+            if (emitter == null && ProtectsHull(weapon) && !HasClearShot(weapon, muzzleMap, launchMapAngle))
                 return Reject(WeaponReject.Safety);
+            return true;
+        }
+
+        private bool LaunchFan()
+        {
+            var props = projectileDef.GetCompProperties<CompProperties_SpaceProjectile>();
+            if (props == null || props.hasMap || props.guided || props.laserRange > 0f) return false;
+            DriveSubject selfFire = weapon.WeaponProps.casemate && !weapon.safeFire
+                ? weapon.OwnerShip.Identity.InContainer(container.objectId) : default;
+            var spec = new SpaceProjectileLaunchSpec(speed, 0, speed, damageScale,
+                armorPenetrationScale, parameters.mass / weapon.WeaponProps.projectilesPerShot,
+                parameters.power, selfFire);
+            OrbitSphere.Basis(muzzleUniverse, out Vector3 east, out Vector3 north);
+            for (int i = 0; i < weapon.WeaponProps.projectilesPerShot; i++)
+            {
+                Vector2 direction = SpaceTransform.Rotate(Vector2.right, launchMapAngle + FanOffset(weapon.WeaponProps, i));
+                Vector2 tangent = SpaceTransform.MapDirectionToUniverseTangent(container, weapon.parent.Map, muzzleMap, direction);
+                // With safety off, a wall under the barrel still receives the shot.
+                Vector3? boreStart = selfFire.key > 0
+                    ? SpaceTransform.MapPointToUniverse(container, weapon.parent.Map,
+                        muzzleMap - direction * weapon.WeaponProps.turretMuzzleDistance)
+                    : null;
+                // Prevalidated mapless pellets have no fallible lease/allocation step.
+                universe.Projectiles.Launch(projectileDef, container, muzzleUniverse,
+                    east * tangent.x + north * tangent.y, weapon.parent.Faction, weapon.parent, default, spec,
+                    weapon: weapon, launchSweepStart: boreStart);
+            }
+            return true;
+        }
+
+        private static bool ProtectsHull(CompSpaceWeapon weapon)
+            => weapon.WeaponProps.requireHullClearance || weapon.safeFire;
+
+        private static bool HasClearShot(CompSpaceWeapon weapon, Vector2 muzzle, float centerAngle)
+        {
+            for (int i = 0; i < weapon.WeaponProps.projectilesPerShot; i++)
+                if (!HasClearPath(weapon, muzzle, centerAngle + FanOffset(weapon.WeaponProps, i))) return false;
             return true;
         }
 
         public static bool HasClearFixedPath(CompSpaceWeapon weapon, SpaceWeaponAccelerationSolution acceleration)
         {
             if (weapon?.parent?.Spawned != true) return false;
-            return !weapon.safeFire || HasClearPath(weapon,
+            return weapon.WeaponProps.casemate || !ProtectsHull(weapon) || HasClearPath(weapon,
                 acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon),
                 ShipOrientation.AngleFromRot4(weapon.parent.Rotation));
         }
 
         internal static bool HasClearAimPath(CompSpaceWeapon weapon, SpaceObject own, Vector3 point)
         {
-            Vector2 muzzle = weapon.Layout.acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
-            Vector2 delta = SpaceTransform.UniverseToMapPoint(own, weapon.parent.Map, point) - muzzle;
-            return !weapon.safeFire || HasClearPath(weapon, muzzle, Mathf.Atan2(delta.y, delta.x));
+            if (!weapon.WeaponProps.casemate) return HasClearFixedPath(weapon, weapon.Layout.acceleration);
+            Vector2 delta = SpaceTransform.UniverseToMapPoint(own, weapon.parent.Map, point)
+                - SpaceWeaponGeometry.FootprintCenter(weapon.parent)
+                - SpaceWeaponGeometry.CasematePivotOffset(weapon.parent);
+            return HasClearCasemateAim(weapon, Mathf.Atan2(delta.y, delta.x));
+        }
+
+        internal static bool HasClearCasemateAim(CompSpaceWeapon weapon, float mapAngle)
+        {
+            if (!weapon.safeFire) return true;
+            Vector2 muzzle = SpaceWeaponGeometry.MuzzleMapPointAtAngle(weapon, mapAngle);
+            return HasClearShot(weapon, muzzle, mapAngle);
         }
 
         private void Commit()
@@ -296,11 +348,14 @@ namespace DeltaV
             Map map = weapon.parent.Map;
             ShipBase ship = weapon.OwnerShip;
             if (map == null || !ship.IsValid) return false;
-            var hull = new HashSet<IntVec3>(ship.HullCells);
+            var hull = weapon.WeaponProps.casemate ? null : new HashSet<IntVec3>(ship.HullCells);
+            var ownership = hull == null ? SubstructureOwnership.TryGet(map) : null;
             Vector2 dir = SpaceTransform.Rotate(Vector2.right, launchMapAngle);
             IntVec3 previous = IntVec3.Invalid;
-            float max = Mathf.Sqrt(map.Size.x * map.Size.x + map.Size.z * map.Size.z) + 2f;
-            for (float distance = 0.25f; distance <= max; distance += 0.25f)
+            float max = hull == null ? weapon.EffectiveRange
+                : Mathf.Sqrt(map.Size.x * map.Size.x + map.Size.z * map.Size.z) + 2f;
+            float start = hull == null ? -weapon.WeaponProps.turretMuzzleDistance : 0.25f;
+            for (float distance = start; distance <= max; distance += 0.25f)
             {
                 Vector2 point = muzzleMap + dir * distance;
                 IntVec3 cell = new IntVec3(Mathf.FloorToInt(point.x), 0, Mathf.FloorToInt(point.y));
@@ -308,7 +363,7 @@ namespace DeltaV
                 if (cell == previous) continue;
                 previous = cell;
                 if (weapon.parent.OccupiedRect().Contains(cell)) continue;
-                if (!hull.Contains(cell)) continue;
+                if (hull != null ? !hull.Contains(cell) : ownership?.OwnerAt(cell) != ship.Identity.key) continue;
                 SpaceCellKind kind = SpaceStructureRules.ClassifyCell(map, cell, out Thing building);
                 if ((kind == SpaceCellKind.Building || kind == SpaceCellKind.NaturalRock)
                     && SpaceStructureRules.BuildingHitChance(building) > 0f) return false;

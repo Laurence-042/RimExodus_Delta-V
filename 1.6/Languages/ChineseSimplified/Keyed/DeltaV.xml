@@ -365,7 +365,10 @@
   <DeltaV_RailAcceleratorActive>电量充足，本发可加速</DeltaV_RailAcceleratorActive>
   <DeltaV_RailAcceleratorSkipped>未连接或电量不足，本发不加速</DeltaV_RailAcceleratorSkipped>
   <DeltaV_SafeFire>舱壁安全限制</DeltaV_SafeFire>
-  <DeltaV_SafeFireTip>固定武器的弹道会穿过本船实心舱壁时拒绝发射；仅建议紧急时关闭。</DeltaV_SafeFireTip>
+  <DeltaV_SafeFireTip>炮廓炮的低位射线可能被本船舱壁挡住。关闭后，炮弹可击中本船。</DeltaV_SafeFireTip>
+  <DeltaV_PointDefenseTargets>配置近防目标</DeltaV_PointDefenseTargets>
+  <DeltaV_PointDefenseProjectiles>导弹／有图弹体</DeltaV_PointDefenseProjectiles>
+  <DeltaV_PointDefenseShuttles>穿梭机</DeltaV_PointDefenseShuttles>
   <DeltaV_WeaponNeedsSingleOwner>武器的完整占地必须位于同一艘船所属的基架上。</DeltaV_WeaponNeedsSingleOwner>
   <DeltaV_AttachmentNeedsSlot>请将插件建在兼容武器的插件槽上。</DeltaV_AttachmentNeedsSlot>
   <DeltaV_AttachmentSlotOccupied>该武器插件槽位已被占用。</DeltaV_AttachmentSlotOccupied>

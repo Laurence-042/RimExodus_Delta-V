@@ -12,14 +12,8 @@ namespace DeltaV
         public override bool ExchangeVacuum => false;
     }
 
-    /// <summary>可收回甲板上的常开通行单元。port 是清理归属，不是船间连接网络。</summary>
-    public class Building_DockingChannel : Building_SealedDockingDoor
+    public abstract class Building_OpenVacuumPortal : Building_SealedDockingDoor
     {
-        internal Building_DockingPort port;
-
-        // 部分 prefab 不包含端口时，外部引用会被清空；孤立单元不能继续提供气密。
-        public override bool IsAirtight => port != null && port.Spawned && port.Map == Map;
-        public override bool ExchangeVacuum => !IsAirtight;
         protected override bool AlwaysOpen => true;
         protected override bool CheckFaction => false;
         public override bool FreePassage => true;
@@ -32,15 +26,41 @@ namespace DeltaV
             base.SpawnSetup(map, respawningAfterLoad);
         }
 
+        protected override void DrawAt(Vector3 drawLoc, bool flip = false)
+        {
+            Graphic.Draw(drawLoc, Rotation, this);
+        }
+
+    }
+
+    public sealed class Building_VacuumBarrier : Building_OpenVacuumPortal
+    {
+        private Graphic_Linked linkedGraphic;
+
+        protected override void DrawAt(Vector3 drawLoc, bool flip = false)
+        {
+            // Blueprint graphics inherit the Def's link type. Link only the finished barrier.
+            Graphic graphic = Graphic;
+            if (linkedGraphic?.SubGraphic != graphic)
+                linkedGraphic = new Graphic_Linked(graphic);
+            // The atlas already encodes map-relative directions.
+            var matrix = Matrix4x4.TRS(drawLoc, Quaternion.identity, Vector3.one);
+            Graphics.DrawMesh(MeshPool.plane10, matrix, linkedGraphic.MatSingleFor(this), 0);
+        }
+    }
+
+    /// <summary>可收回甲板上的常开通行单元。port 是清理归属，不是船间连接网络。</summary>
+    public class Building_DockingChannel : Building_OpenVacuumPortal
+    {
+        internal Building_DockingPort port;
+
+        public override bool IsAirtight => port != null && port.Spawned && port.Map == Map;
+        public override bool ExchangeVacuum => !IsAirtight;
+
         public override void ExposeData()
         {
             base.ExposeData();
             Scribe_References.Look(ref port, "dockingPort");
-        }
-
-        protected override void DrawAt(Vector3 drawLoc, bool flip = false)
-        {
-            Graphic.Draw(drawLoc, Rotation, this);
         }
 
         public override IEnumerable<Gizmo> GetGizmos() { yield break; }

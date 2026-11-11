@@ -16,16 +16,18 @@ namespace DeltaV
         public readonly float damageScale;
         public readonly float armorPenetrationScale;
         public readonly float mass, beamEnergyScale;
+        public readonly DriveSubject selfFire;
 
         public SpaceProjectileLaunchSpec(float speed, int coldLaunchTicks, float coldLaunchSpeed,
-            float damageScale = 1f, float armorPenetrationScale = 1f, float mass = 1f, float beamEnergyScale = 1f)
+            float damageScale = 1f, float armorPenetrationScale = 1f, float mass = 1f, float beamEnergyScale = 1f,
+            DriveSubject selfFire = default)
         {
             this.speed = speed;
             this.coldLaunchTicks = coldLaunchTicks;
             this.coldLaunchSpeed = coldLaunchSpeed;
             this.damageScale = damageScale;
             this.armorPenetrationScale = armorPenetrationScale;
-            this.mass = mass; this.beamEnergyScale = beamEnergyScale;
+            this.mass = mass; this.beamEnergyScale = beamEnergyScale; this.selfFire = selfFire;
         }
 
         public static SpaceProjectileLaunchSpec FromDef(CompProperties_SpaceProjectile props,
@@ -93,6 +95,7 @@ namespace DeltaV
             public Thing launcher;
             public CompSpaceWeapon weapon;
             private int sourceContainerId;
+            public DriveSubject selfFire;
             public SpaceObject sourceContainer { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(sourceContainerId); set => sourceContainerId = value?.objectId ?? 0; }
             public bool reflectedByShield;
             public CombatTarget target;
@@ -106,6 +109,7 @@ namespace DeltaV
             public bool dead;
             public GlobeDisplayEntry globeEntry;
             public Vector3 prevPosition;
+            public Vector3? launchSweepStart;
             public bool laser;
             public float cruiseSpeed;
             public int coldLaunchEndsTick;
@@ -282,7 +286,8 @@ namespace DeltaV
 
         public bool Launch(ThingDef def, SpaceObject source, Vector3 muzzle, Vector3 directionWorld,
             Faction faction, Thing launcher, CombatTarget missileTarget, SpaceProjectileLaunchSpec launchSpec,
-            Vector3? diagnosticAim = null, float barrelErrorDeg = 0f, float spreadDeg = 0f, CompSpaceWeapon weapon = null)
+            Vector3? diagnosticAim = null, float barrelErrorDeg = 0f, float spreadDeg = 0f, CompSpaceWeapon weapon = null,
+            Vector3? launchSweepStart = null)
         {
             var props = def?.GetCompProperties<CompProperties_SpaceProjectile>();
             if (props == null)
@@ -304,6 +309,8 @@ namespace DeltaV
             projectile.launcher = launcher;
             projectile.weapon = weapon;
             projectile.sourceContainer = source;
+            projectile.selfFire = launchSpec.selfFire;
+            projectile.launchSweepStart = launchSweepStart;
             projectile.reflectedByShield = false;
             projectile.target = missileTarget;
             projectile.cannonTrace = null;
@@ -441,6 +448,8 @@ namespace DeltaV
             p.props = props;
             p.launcher = hull;
             p.sourceContainer = null;
+            p.selfFire = default;
+            p.launchSweepStart = null;
             p.reflectedByShield = false;
             p.target = target;
             p.targetSampleTick = -1;
@@ -711,6 +720,7 @@ namespace DeltaV
                 body.projectileDef = p.def;
                 body.attackerBuilding = p.building;
                 body.excludeContainer = p.reflectedByShield ? null : p.sourceContainer;
+                body.selfFire = p.reflectedByShield ? default : p.selfFire;
                 body.requiredDefender = p.adoptedShuttle ? targetContainer : null;
                 body.ignoreNonHostileProjectiles = !p.reflectedByShield;
                 body.launcher = p.launcher;
@@ -745,7 +755,8 @@ namespace DeltaV
                 }
                 else
                 {
-                    body.from = p.prevPosition;
+                    body.from = p.launchSweepStart ?? p.prevPosition;
+                    p.launchSweepStart = null;
                     body.to = p.container.pose.position;
                 }
                 Projectile captured = p;
@@ -953,7 +964,8 @@ namespace DeltaV
         /// <summary>弹体脚印等效半径（1×1 ≈ 0.71、2×1 ≈ 1.12）。</summary>
         internal static float FootprintRadius(ThingDef def)
         {
-            return Mathf.Sqrt(def.Size.x * def.Size.x + def.Size.z * def.Size.z) * 0.5f;
+            float radius = def.GetCompProperties<CompProperties_SpaceProjectile>()?.collisionRadius ?? -1f;
+            return radius >= 0f ? radius : Mathf.Sqrt(def.Size.x * def.Size.x + def.Size.z * def.Size.z) * 0.5f;
         }
 
         // ---- 销毁与图池 ----
@@ -1052,6 +1064,7 @@ namespace DeltaV
             p.body.projectileDef = null;
             p.body.attackerBuilding = null;
             p.body.excludeContainer = null;
+            p.body.selfFire = default;
             p.body.requiredDefender = null;
             p.body.noseHalfWidth = 0f;
             p.body.noseForwardOffset = 0f;

@@ -1,5 +1,5 @@
 param([Parameter(Mandatory=$true)][string]$GameRoot,
-      [Parameter(Mandatory=$true)][string]$HarmonyPath, [switch]$EnergyOnly, [switch]$RolePenetrationAudit, [switch]$EnergyImpulseAudit, [switch]$EngagementBaseline, [switch]$EngagementForecast)
+      [Parameter(Mandatory=$true)][string]$HarmonyPath, [switch]$EnergyOnly, [switch]$RolePenetrationAudit, [switch]$EnergyImpulseAudit, [switch]$EngagementBaseline, [switch]$EngagementForecast, [switch]$CasemateOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 $managed = (Resolve-Path "$GameRoot/RimWorldWin64_Data/Managed").Path
@@ -31,6 +31,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $regressionArguments = @($managed)
 if ($EnergyOnly) { $regressionArguments += "--energy-only" }
 if ($EngagementBaseline) { $regressionArguments += "--engagement-baseline" }
+if ($CasemateOnly) { $regressionArguments += "--casemate-only" }
 if ($EngagementForecast) { $regressionArguments += "--engagement-forecast" }
 if ($RolePenetrationAudit) { $regressionArguments += "--role-penetration-audit" }
 if ($EnergyImpulseAudit) { $regressionArguments += "--energy-impulse-audit" }

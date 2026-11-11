@@ -181,8 +181,10 @@ namespace DeltaV
             var part = SpaceImpactEffects.Resolve(projectile, target ?? ThingDefOf.Wall)?.defenderEffect;
             if (part == null) return 0f;
             float speed = ProjectedSpeed(weapon, SpaceWeaponService.ProjectileSpeedOf(projectile));
-            return SpaceImpactEffects.ComputeDamage(part, speed, 0f, 1f,
-                ProjectileMass(weapon, weapon.SelectMagazine())) * weapon.WeaponProps.impactScale * (weapon.Tuning?.power ?? 1);
+            int count = weapon.WeaponProps.projectilesPerShot;
+            return count * SpaceImpactEffects.ComputeDamage(part, speed, 0f, 1f,
+                ProjectileMass(weapon, weapon.SelectMagazine()) / count)
+                * weapon.WeaponProps.impactScale * (weapon.Tuning?.power ?? 1);
         }
 
         internal static bool HasBaseShotEnergy(CompSpaceWeapon weapon)
@@ -246,7 +248,8 @@ namespace DeltaV
         internal static SpaceWeaponParameters AtCurrentMuzzle(CompSpaceWeapon weapon, SpaceObject container,
             SpaceWeaponParameters parameters)
         {
-            if (!weapon.WeaponProps.topTurret || weapon.WeaponProps.turretMuzzleDistance <= 0f
+            if ((!weapon.WeaponProps.topTurret && !weapon.WeaponProps.casemate)
+                || weapon.WeaponProps.turretMuzzleDistance <= 0f
                 || weapon.Layout.acceleration.muzzleMap.HasValue) return parameters;
             Vector2 muzzle = SpaceWeaponGeometry.MuzzleMapPoint(weapon);
             WeaponAimInfo info = parameters.aim;

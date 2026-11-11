@@ -283,6 +283,8 @@ namespace DeltaV
                         else allowed = false;
                     }
                     aim = SpaceTransform.WrapAngle(Mathf.Atan2(aimLine.y, aimLine.x) - source.angle);
+                    if (allowed && weapon.WeaponProps.casemate)
+                        allowed = SpaceWeaponShot.HasClearCasemateAim(weapon, aim);
                     aimPoint = OrbitSphere.Move(muzzlePosition, aimLine);
                     if (!shot.aim.Laser && allowed)
                     {
@@ -349,13 +351,25 @@ namespace DeltaV
             {
                 var battery = byWeapon[weapon];
                 var forecast = battery.outgoing ? outgoing : incoming;
-                // Deterministic coverage quantiles never consume the simulation's random stream.
-                float quantile = (sampleIndex++ % 8 + .5f) / 8;
                 float before = forecast.CapabilityLoss;
                 float criticalBefore = forecast.CriticalDamage;
-                var damage = forecast.Fire(ray.from, ray.direction, ray.length, shot.aim.Projectile,
-                    shot.mass, ray.speed, weapon.WeaponProps.impactScale * shot.power * pulseMultiplier,
-                    shot.power * pulseMultiplier, quantile);
+                var damage = new CombatDamageEstimate();
+                int count = weapon.WeaponProps.projectilesPerShot;
+                for (int i = 0; i < count; i++)
+                {
+                    // Coverage quantiles never consume the simulation's random stream.
+                    float quantile = (sampleIndex++ % 8 + .5f) / 8;
+                    var direction = SpaceTransform.Rotate(ray.direction, SpaceWeaponShot.FanOffset(weapon.WeaponProps, i));
+                    var pellet = forecast.Fire(ray.from, direction, ray.length, shot.aim.Projectile,
+                        shot.mass / count, ray.speed, weapon.WeaponProps.impactScale * shot.power * pulseMultiplier,
+                        shot.power * pulseMultiplier, quantile);
+                    damage.structure += pellet.structure;
+                    damage.guard += pellet.guard;
+                    damage.uncertainDamageUpper += pellet.uncertainDamageUpper;
+                    damage.returnedPotential += pellet.returnedPotential;
+                    damage.uncertain |= pellet.uncertain;
+                    damage.exhausted |= pellet.exhausted;
+                }
                 damage.uncertain |= ray.uncertain;
                 var family = CombatWeaponFilter.FamilyOf(weapon, shot.aim.Projectile);
                 if (!contributions.TryGetValue((weapon, family), out var contribution))

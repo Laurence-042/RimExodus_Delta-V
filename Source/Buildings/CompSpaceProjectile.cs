@@ -57,6 +57,7 @@ namespace DeltaV
 
         /// <summary>有图形态：弹体 building spawn 于自己的小图（可拦截；血量由 building 实例计算）。</summary>
         public bool hasMap = true;
+        public float collisionRadius = -1f;
 
         /// <summary>激光（>0 = 最大射程，即时链：发射 tick 内一次全射程扫掠，无图不可拦截）。</summary>
         public float laserRange = 0f;

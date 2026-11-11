@@ -201,6 +201,7 @@ internal static partial class Program
         if (Environment.GetCommandLineArgs().Contains("--engagement-baseline")
             || Environment.GetCommandLineArgs().Contains("--engagement-forecast"))
         { CheckEngagementProtectionBaseline(); return; }
+        if (Environment.GetCommandLineArgs().Contains("--casemate-only")) { CheckCasemate(); return; }
         if (energyOnly) { CheckEnergy(); CheckBatteryIsolation(); CheckShipReactor(); CheckCargoTemperature(); CheckEquipmentIntegration(); return; }
 
         CheckGuardCenters();

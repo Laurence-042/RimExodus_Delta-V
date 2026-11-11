@@ -164,8 +164,17 @@ namespace DeltaV
         public bool ParticipatesInOverlays => baseTag != SpaceObjectTag.Projectile;
 
         /// <summary>先按缓存的对象角色筛选点防目标，不在索敌时遍历地图查找船体。</summary>
-        public bool InterceptionEligible =>
-            map != null && (Tag & (SpaceObjectTag.Projectile | SpaceObjectTag.Shuttle)) != 0;
+        public bool InterceptionEligible => map != null && InterceptionTargetTag != 0;
+
+        internal SpaceObjectTag InterceptionTargetTag
+        {
+            get
+            {
+                SpaceObjectTag roles = Tag;
+                return (roles & SpaceObjectTag.Shuttle) != 0
+                    ? SpaceObjectTag.Shuttle : roles & SpaceObjectTag.Projectile;
+            }
+        }
 
         /// <summary>显示朝向策略：无姿态角的点状弹体按速度方向，其余按位姿角（§3.1）。</summary>
         public bool UsesVelocityHeading => baseTag == SpaceObjectTag.Projectile;

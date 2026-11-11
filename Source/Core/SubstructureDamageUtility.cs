@@ -13,7 +13,13 @@ namespace DeltaV
 
         public static bool TryDestroy(Map map, IntVec3 cell, bool scatterNearbyRoofs = true, Thing instigator = null)
         {
-            if (!CanDamage(map, cell)) return false;
+            return CanDamage(map, cell) && TryDestroyHitFoundation(map, cell, scatterNearbyRoofs, instigator);
+        }
+
+        internal static bool TryDestroyHitFoundation(Map map, IntVec3 cell,
+            bool scatterNearbyRoofs = true, Thing instigator = null)
+        {
+            if (!SubstructureOwnership.HasFoundation(map, cell)) return false;
             Faction owner = PublicFacility.ConsoleAt(map, cell)?.parent.Faction;
             map.terrainGrid.RemoveFoundation(cell, doLeavings: false);
             if (SubstructureOwnership.HasFoundation(map, cell)) return false;
@@ -72,7 +78,8 @@ namespace DeltaV
         private static bool RoofShockBlocked(Map map, IntVec3 cell)
         {
             Building building = cell.GetEdificeSafe(map);
-            return building != null && (building.def.IsWall || building.def.IsDoor || building.IsAirtight);
+            return building != null && building is not Building_VacuumBarrier
+                && (building.def.IsWall || building.def.IsDoor || building.IsAirtight);
         }
 
         /// <summary>仅供毁伤和搬运收尾；Space 的继承掩码可能接受碎石，须同时遵循生成时的真空限制。</summary>

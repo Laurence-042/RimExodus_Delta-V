@@ -51,6 +51,10 @@ namespace DeltaV
 
         /// <summary>固定为自动点防御，不提供齐射模式。</summary>
         public bool pointDefenseOnly;
+        public bool casemate;
+        public int projectilesPerShot = 1;
+        public float projectileFanHalfAngle;
+        public SpaceObjectTag defaultPdTargets = SpaceObjectTag.Projectile | SpaceObjectTag.Shuttle;
 
         /// <summary>工程设备只消费玩家手动齐射，不参加自动攻击和点防。</summary>
         public bool manualOnly;
@@ -121,6 +125,7 @@ namespace DeltaV
 
         /// <summary>默认启用自身结构发射路径预检。</summary>
         public bool safeFireByDefault = true;
+        public bool requireHullClearance;
 
         /// <summary>自动火控发射方向与目标方向允许的最大夹角（度）。</summary>
         public float defaultFireDeviationDeg = 3f;
@@ -165,6 +170,10 @@ namespace DeltaV
             if (projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()?.continuousBeam == true
                 && cooldownTicks != 1)
                 yield return $"{parentDef.defName}: continuous beams require cooldownTicks = 1";
+            var projectile = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
+            if (projectilesPerShot < 1 || projectileFanHalfAngle < 0f
+                || projectilesPerShot > 1 && (projectile == null || projectile.hasMap || projectile.guided || projectile.laserRange > 0f))
+                yield return $"{parentDef.defName}: projectile fans require positive counts and mapless unguided projectiles";
         }
     }
 
@@ -177,6 +186,9 @@ namespace DeltaV
         public SpaceWeaponAimMode aimMode = SpaceWeaponAimMode.Volley;
         public SpaceWeaponEngagementMode engagementMode = SpaceWeaponEngagementMode.Space;
         public bool safeFire = true;
+        internal SpaceObjectTag pdTargets = SpaceObjectTag.Projectile | SpaceObjectTag.Shuttle;
+        internal bool AcceptsPointDefenseTarget(SpaceObject target)
+            => target?.InterceptionEligible == true && (target.InterceptionTargetTag & pdTargets) != 0;
         public bool keepGunnerWhenUnavailable = true;
         public Pawn reservedGunner;
         public float fireDeviationDeg;
@@ -403,6 +415,12 @@ namespace DeltaV
         /// DeSpawn 已使 FailOnDespawnedNullOrForbidden 丢掉炮手 job，原版无召回）。
         /// 读档重建不主动派遣；持久武装状态由 controller 重建后的状态事件接回。
         /// </summary>
+        public override void Initialize(CompProperties properties)
+        {
+            base.Initialize(properties);
+            pdTargets = WeaponProps.defaultPdTargets;
+        }
+
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
             ClearRuntimeModel();
@@ -495,6 +513,7 @@ namespace DeltaV
             Scribe_Values.Look(ref engagementMode, "engagementMode", SpaceWeaponEngagementMode.Space);
             Scribe_Values.Look(ref configurationInitialized, "configurationInitialized", true);
             Scribe_Values.Look(ref safeFire, "safeFire", true);
+            Scribe_Values.Look(ref pdTargets, "pdTargets", WeaponProps.defaultPdTargets);
             Scribe_Values.Look(ref keepGunnerWhenUnavailable, "keepGunnerWhenUnavailable", true);
             Scribe_References.Look(ref reservedGunner, "reservedGunner");
             Scribe_Values.Look(ref safeFireInitialized, "safeFireInitialized", true);
@@ -617,6 +636,14 @@ namespace DeltaV
                 icon = TexCommand.FireAtWill,
             };
 
+            if (aimMode == SpaceWeaponAimMode.PointDefense && AllowsPointDefense && !WeaponProps.tractor)
+                yield return new Command_BatchSetting<CompSpaceWeapon>("PointDefenseTargets", this,
+                    weapons => Find.WindowStack.Add(new Dialog_PointDefenseTargets(this, weapons)))
+                {
+                    defaultLabel = "DeltaV_PointDefenseTargets".Translate(),
+                    icon = TexCommand.FireAtWill,
+                };
+
             // 太空自动火控、点防和地面原版炮塔共用自动角度；玩家手控独立设置。
             if (!WeaponProps.manualOnly || AllowsPointDefense)
                 yield return new Command_BatchSetting<CompSpaceWeapon>("WeaponAutoFireDeviation", this,
@@ -669,13 +696,14 @@ namespace DeltaV
                 icon = TexCommand.Install,
             };
 
-            yield return new Command_BatchToggle<CompSpaceWeapon>("SafeFire", this,
-                w => w.safeFire, (w, active) => w.safeFire = active)
-            {
-                defaultLabel = "DeltaV_SafeFire".Translate(),
-                defaultDesc = "DeltaV_SafeFireTip".Translate(),
-                icon = TexCommand.FireAtWill,
-            };
+            if (WeaponProps.casemate)
+                yield return new Command_BatchToggle<CompSpaceWeapon>("SafeFire", this,
+                    w => w.safeFire, (w, active) => w.safeFire = active)
+                {
+                    defaultLabel = "DeltaV_SafeFire".Translate(),
+                    defaultDesc = "DeltaV_SafeFireTip".Translate(),
+                    icon = TexCommand.FireAtWill,
+                };
 
             // 炮手预留（含「不指定」）：浮单列本图殖民者。
             yield return new Command_BatchSetting<CompSpaceWeapon>(
@@ -717,6 +745,7 @@ namespace DeltaV
 
             SpaceWeaponAttachmentSlots.DrawSelection(parent, WeaponProps.attachmentSlots, AttachedThings());
 
+            if (!WeaponProps.acceleratorStarts.NullOrEmpty()) SpaceRailgunConstruction.DrawBarrierCell(parent);
             foreach (IntVec3 offset in WeaponProps.acceleratorStarts)
             {
                 IntVec3 root = SpaceWeaponGeometry.RotatedCell(parent, offset);
