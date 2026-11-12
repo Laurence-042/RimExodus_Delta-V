@@ -160,18 +160,22 @@ internal static partial class Program
     static bool ArrivalWalkable(IntVec3 c, ref bool __result) { __result = arrivalWalkable.Contains(c); return false; }
     static bool ArrivalBiome(ref BiomeDef __result) { __result = arrivalBiome; return false; }
 
-    static void ArrivalLifeSupport(string records, Game game)
+    static void PrefabLifeSupport(string records, Game game, string layoutName)
     {
-        using var layout = JsonDocument.Parse(File.ReadAllText(Path.Combine(records, "ArrivalStation.layout.json")));
-        using var authored = JsonDocument.Parse(File.ReadAllText(Path.Combine(records, "ArrivalStation.records.json")));
+        using var layout = JsonDocument.Parse(File.ReadAllText(Path.Combine(records, layoutName + ".layout.json")));
+        using var authored = JsonDocument.Parse(File.ReadAllText(Path.Combine(records, layoutName + ".records.json")));
         var root = layout.RootElement;
-        arrivalBiome = new BiomeDef { inVacuum = true, constantOutdoorTemperature = root.GetProperty("outdoorTemperature").GetSingle() };
+        bool wreck = layoutName == "ArrivalStation";
+        arrivalBiome = new BiomeDef { inVacuum = true, constantOutdoorTemperature =
+            wreck ? root.GetProperty("outdoorTemperature").GetSingle() : -75f };
         var harness = new Harmony("DeltaV.TutorialRegression.ArrivalThermal");
         harness.Patch(AccessTools.PropertyGetter(typeof(Map), nameof(Map.Biome)),
             prefix: new HarmonyMethod(typeof(Program), nameof(ArrivalBiome)));
         try
         {
-            var map = Raw<Map>(); map.info = new MapInfo { Size = new IntVec3(40, 1, 55) };
+            var size = wreck ? new IntVec3(40, 1, 55)
+                : new IntVec3(root.GetProperty("size")[0].GetInt32(), 1, root.GetProperty("size")[1].GetInt32());
+            var map = Raw<Map>(); map.info = new MapInfo { Size = size };
             Set(game, "maps", new List<Map> { map });
             map.cellIndices = new CellIndices(map); map.regionGrid = new RegionGrid(map);
             map.thingGrid = new ThingGrid(map); map.terrainGrid = new TerrainGrid(map);
@@ -184,7 +188,7 @@ internal static partial class Program
             float Property(string def, string xpath) => float.Parse(SourceChain(def)
                 .Select(n => n.SelectSingleNode(xpath)?.InnerText).First(v => v != null),
                 System.Globalization.CultureInfo.InvariantCulture);
-            foreach (var cabin in root.GetProperty("rooms").EnumerateArray())
+            foreach (var cabin in root.GetProperty(wreck ? "rooms" : "cabins").EnumerateArray())
             {
                 var cells = cabin.GetProperty("cells").EnumerateArray()
                     .Select(c => new IntVec3(c[0].GetInt32(), 0, c[1].GetInt32())).ToHashSet();
@@ -243,7 +247,12 @@ internal static partial class Program
                         props = new CompProperties_TempControl { energyPerSecond = Property(name, "comps/li[@Class='CompProperties_TempControl']/energyPerSecond") } };
                     coolers.Add(cooler);
                 }
-                Check(heaters.Count == cabin.GetProperty("heaters").GetInt32(), "native thermal fixture uses actual authored heaters");
+                if (wreck)
+                    Check(heaters.Count == cabin.GetProperty("heaters").GetInt32(), "native thermal fixture uses actual authored heaters");
+                int pumpCount = authored.RootElement.EnumerateArray().Count(row =>
+                    row.GetProperty("name").GetString() == "OxygenPump"
+                    && cells.Contains(new IntVec3(row.GetProperty("root")[0].GetInt32(), 0, row.GetProperty("root")[1].GetInt32())));
+                Check(heaters.Count > 0 && pumpCount > 0, layoutName + " sealed cabin has powered climate and oxygen hardware");
                 var oxygenParent = Raw<Building>(); Set(oxygenParent, "positionInt", cells.First());
                 Set(oxygenParent, "mapIndexOrState", (sbyte)0);
                 var pump = new CompOxygenPusher { parent = oxygenParent,
@@ -253,6 +262,7 @@ internal static partial class Program
                 Set(power, "powerOnInt", true); Set(oxygenParent, "comps", new List<ThingComp> { power, pump });
                 room.Vacuum = 1;
                 float minimum = target, maximum = target;
+                int repressurizedAt = 0;
                 for (int tick = 1; tick <= 60000; tick++)
                 {
                     if (tick % 120 == 7) tracker.EqualizeTemperature();
@@ -261,17 +271,20 @@ internal static partial class Program
                         foreach (var heater in heaters) heater.TickRare();
                         foreach (var heat in heatPushers) heat.CompTickRare();
                         foreach (var cooler in coolers) cooler.TickRare();
-                        pump.CompTickRare();
+                        for (int i = 0; i < pumpCount; i++) pump.CompTickRare();
                     }
+                    if (repressurizedAt == 0 && room.Vacuum == 0) repressurizedAt = tick;
                     minimum = Math.Min(minimum, room.Temperature); maximum = Math.Max(maximum, room.Temperature);
                 }
-                string label = cabin.GetProperty("name").GetString();
+                string label = layoutName + "/" + cabin.GetProperty("name").GetString();
                 Check(minimum >= target - 3 && maximum <= target + 3, label + " maintains temperature over native 60000-tick thermal fixture");
                 Check(room.Vacuum == 0, label + " native powered oxygen pump repressurizes sealed room");
-                Console.WriteLine($"Wreck {label}: {cells.Count} cells, {heaters.Count} heaters / {coolers.Count} coolers / {heatPushers.Count} generators, {minimum:F2}..{maximum:F2} C, vacuum={room.Vacuum:F2}; closed-room/full-power fixture.");
+                if (!wreck) Check(repressurizedAt > 0 && repressurizedAt <= 12500,
+                    label + " repressurizes within five game hours");
+                Console.WriteLine($"{label}: {cells.Count} cells, {heaters.Count} heaters / {coolers.Count} coolers / {heatPushers.Count} generators / {pumpCount} pumps, {minimum:F2}..{maximum:F2} C, vacuum={room.Vacuum:F2}; closed-room/full-power fixture.");
             }
             Check(root.GetProperty("generationW").GetSingle() >= root.GetProperty("nameplateLoadW").GetSingle(),
-                "wreck can power simultaneous heater, oxygen, kitchen and lighting loads");
+                layoutName + " can power its simultaneous nameplate loads");
         }
         finally { harness.UnpatchAll(harness.Id); arrivalBiome = null; }
     }

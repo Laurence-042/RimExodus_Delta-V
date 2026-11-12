@@ -149,9 +149,8 @@ namespace DeltaV
                 var training = MapPrefab.LoadRelative("Tutorial/TrainingShip.xml");
                 if (Run.berthDoor?.Spawned != true || Run.berthDoor.Map != Run.station)
                     throw new InvalidOperationException("Tutorial boarding berth is missing.");
-                SpaceObject station = universe.FrameOf(Run.station);
-                Map trainingMap = CreateCourseMap(ShipPocketMapFactory.CompactSize(training.size), station.pose);
-                var trainThings = SpawnCoursePrefab(training, trainingMap, new IntVec3(12, 0, 12), "DeltaV_Tutorial_TrainingShip", Run.mentors);
+                Map trainingMap = CreateBerthedCourseMap(training, Run.berthDoor, out var trainingBerth);
+                var trainThings = SpawnCoursePrefab(training, trainingMap, CoursePrefabOrigin, "DeltaV_Tutorial_TrainingShip", Run.mentors);
                 Run.trainingConsole = trainThings.Single(t => t.TryGetComp<CompDeltaVPilotConsole>() != null);
                 Run.trainingConsole.TryGetComp<CompDeltaVPilotConsole>().isPublicFacility = true;
                 Run.trainingShipId = Run.trainingConsole.TryGetComp<CompDeltaVPilotConsole>().shipId;
@@ -160,7 +159,7 @@ namespace DeltaV
                 Run.cargoShelf = trainThings.OfType<Building_Storage>().Single();
                 Run.cargoShelf.label = "DeltaV_Tutorial_CargoShelf".Translate();
                 ConfigureCargo(Run.cargoShelf, StoragePriority.Critical);
-                HardDockForCourse(Run.trainingPort, Run.berthDoor);
+                HardDockForCourse(Run.trainingPort, Run.berthDoor, trainingBerth);
                 Run.comms = trainThings.OfType<Building_CommsConsole>().Single();
                 // Ordinary docking completion runs first; wake only after the berth is usable.
                 Resume();
@@ -187,25 +186,24 @@ namespace DeltaV
                 Run.salvageShelf = salvageThings.OfType<Building_Storage>().Single();
                 ConfigureCargo(Run.salvageShelf, StoragePriority.Low);
                 Map yardMap = CreateRemoteCourseMap(ShipPocketMapFactory.CompactSize(new IntVec2(yard.size.x + BerthGap + gift.size.x, Math.Max(yard.size.z, gift.size.z))), station, 180f);
-                SpacePose yardPose = universe.FrameOf(yardMap).pose;
                 universe.FrameOf(yardMap).contentTypeId = "Shipyard";
-                var yardThings = SpawnCoursePrefab(yard, yardMap, new IntVec3(12, 0, 12), "DeltaV_Tutorial_Shipyard", Run.mentors);
+                var yardThings = SpawnCoursePrefab(yard, yardMap, CoursePrefabOrigin, "DeltaV_Tutorial_Shipyard", Run.mentors);
                 var crew = yardMap.mapPawns.SpawnedPawnsInFaction(Run.mentors).ToList();
                 int expectedCrew = yard.thingEntries.Count(e => e.def.HasComp(typeof(CompPrefabPawnSpawner)));
                 if (crew.Count != expectedCrew || expectedCrew == 0)
                     throw new InvalidOperationException($"Tutorial shipyard crew incomplete: {crew.Count}/{expectedCrew}.");
                 // Persistent native duty allows food and rest without a visitor departure timer.
-                LordMaker.MakeNewLord(Run.mentors, new LordJob_DefendPoint(new IntVec3(12 + yard.size.x / 2, 0, 12 + yard.size.z / 2),
+                LordMaker.MakeNewLord(Run.mentors, new LordJob_DefendPoint(CoursePrefabOrigin + new IntVec3(yard.size.x / 2, 0, yard.size.z / 2),
                     wanderRadius: 50f, defendRadius: 60f, addFleeToil: false), yardMap, crew);
                 Run.yardPort = yardThings.OfType<Building_DockingPort>().Single(p => p.Rotation == Rot4.West);
                 Building_DockingPort giftBerth = yardThings.OfType<Building_DockingPort>().Single(p => p.Rotation == Rot4.East);
-                Map giftMap = CreateCourseMap(ShipPocketMapFactory.CompactSize(gift.size), yardPose);
-                var giftThings = SpawnCoursePrefab(gift, giftMap, new IntVec3(12, 0, 12), "DeltaV_Tutorial_PrototypeShip");
+                Map giftMap = CreateBerthedCourseMap(gift, giftBerth, out var giftBerthCell);
+                var giftThings = SpawnCoursePrefab(gift, giftMap, CoursePrefabOrigin, "DeltaV_Tutorial_PrototypeShip");
                 Run.giftConsole = giftThings.Single(t => t.TryGetComp<CompDeltaVPilotConsole>() != null);
                 Run.giftEngine = giftThings.OfType<Building_GravEngine>().Single();
                 CreateCombatRange(station);
                 Building_DockingPort giftPort = giftThings.OfType<Building_DockingPort>().Single(p => p.Rotation == Rot4.West);
-                HardDockForCourse(giftPort, giftBerth);
+                HardDockForCourse(giftPort, giftBerth, giftBerthCell);
                 // Vanilla GravEngine has no power switch: no launch is ordered; normal player control remains available.
                 ShipBase giftShip = ShipRegistry.ShipOf(Run.giftConsole), yardShip = ShipRegistry.ShipOf(Run.yardPort);
                 if (Run.trainingShipId <= 0 || !giftShip.IsValid || !yardShip.IsValid || giftShip.Identity == yardShip.Identity)
@@ -228,11 +226,34 @@ namespace DeltaV
         }
 
         internal const int BerthGap = 3;
+        private static readonly IntVec3 CoursePrefabOrigin =
+            new IntVec3(ShipPocketMapFactory.StructureMargin, 0, ShipPocketMapFactory.StructureMargin);
 
-        internal static IntVec3 BerthLandingRoot(IntVec3 sourceRoot, IntVec3 shipPort,
-            IntVec3 hostPort, Rot4 hostFacing) => hostPort + hostFacing.FacingCell * (BerthGap + 1) - (shipPort - sourceRoot);
+        internal static IntVec3 BerthPortCell(IntVec3 hostPort, Rot4 hostFacing)
+            => hostPort + hostFacing.FacingCell * (BerthGap + 1);
 
-        private void HardDockForCourse(Building_DockingPort shipPort, Building_Door hostDoor)
+        private Map CreateBerthedCourseMap(MapPrefabDocument ship, Building_Door hostDoor, out IntVec3 berthCell)
+        {
+            SpaceObject host = universe.FrameOf(hostDoor.Map)
+                ?? throw new InvalidOperationException("Tutorial berth has no space object.");
+            var port = ship.thingEntries.Single(entry => entry.def == DeltaVDefOf.DeltaV_DockingPort
+                && entry.rotation == Rot4.West);
+            IntVec3 sourcePort = CoursePrefabOrigin + port.pos;
+            // A normal door's draw rotation follows its walls. The ship port defines the approach.
+            IntVec3 destinationPort = BerthPortCell(hostDoor.Position, port.rotation.Opposite);
+            berthCell = destinationPort;
+            return CreateCourseMap(ShipPocketMapFactory.CompactSize(ship.size),
+                map => CourseBerthPose(host, map, sourcePort, destinationPort));
+        }
+
+        internal static SpacePose CourseBerthPose(SpaceObject host, Map shipMap, IntVec3 sourcePort, IntVec3 destinationPort)
+        {
+            Vector2 source = SpaceTransform.MapToShipLocal(shipMap, new Vector2(sourcePort.x + .5f, sourcePort.z + .5f));
+            Vector2 destination = SpaceTransform.MapToShipLocal(host.map, new Vector2(destinationPort.x + .5f, destinationPort.z + .5f));
+            return SpaceTransform.AlignLocalPoint(host.pose, destination, source, 0f);
+        }
+
+        private void HardDockForCourse(Building_DockingPort shipPort, Building_Door hostDoor, IntVec3 berthCell)
         {
             ShipBase ship = ShipRegistry.ShipOf(shipPort);
             SpaceObject host = universe.FrameOf(hostDoor.Map);
@@ -242,8 +263,7 @@ namespace DeltaV
             PilotTarget target = PilotTarget.Of(ship);
             Gravship preview = GravshipInterop.BuildPreview(target)
                 ?? throw new InvalidOperationException("Tutorial berth has no valid ship preview.");
-            // Vanilla doors rotate to their neighbouring walls when drawn; only the ship port defines the passage direction.
-            IntVec3 root = BerthLandingRoot(preview.originalPosition, shipPort.Position, hostDoor.Position, shipPort.Rotation.Opposite);
+            IntVec3 root = berthCell - (shipPort.Position - preview.originalPosition);
             var placement = new LandingApproachController.DockingPlan(target, host, preview.originalPosition, root, Rot4.North);
             if (!LandingApproachController.LandingSiteStillValid(placement) || !universe.Worksites.Dock(target, placement))
                 throw new InvalidOperationException("Tutorial berth could not complete normal hard docking.");
@@ -285,11 +305,13 @@ namespace DeltaV
             return pose;
         }
 
-        private Map CreateCourseMap(IntVec3 size, SpacePose pose)
+        private Map CreateCourseMap(IntVec3 size, SpacePose pose) => CreateCourseMap(size, _ => pose);
+
+        private Map CreateCourseMap(IntVec3 size, Func<Map, SpacePose> pose)
         {
             Map map = ShipPocketMapFactory.Generate(size, universe)
                 ?? throw new InvalidOperationException("Could not generate tutorial map.");
-            universe.RegisterObject(new MapSpaceObject(universe.AllocateOwnerId(), map, pose));
+            universe.RegisterObject(new MapSpaceObject(universe.AllocateOwnerId(), map, pose(map)));
             return map;
         }
 

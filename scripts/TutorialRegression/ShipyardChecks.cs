@@ -13,6 +13,83 @@ using UnityEngine;
 
 internal static partial class Program
 {
+    static bool SkipCargoRendererInitialization() => false;
+
+    static void ShipyardTradeState(string directory, Harmony harmony)
+    {
+        var xml = new XmlDocument();
+        xml.Load(Path.Combine(directory, "Shipyard.xml"));
+        var terminal = xml.SelectSingleNode("/MapPrefab/thingStates/li[def='DeltaV_TradeTerminal']/state/saveable");
+        var statesById = xml.SelectNodes("/MapPrefab/thingStates/li/state/saveable").Cast<XmlNode>()
+            .ToDictionary(state => "Thing_" + state["id"].InnerText);
+        var supplyIds = terminal.SelectNodes("supplyCargo/li").Cast<XmlNode>().Select(n => n.InnerText).ToList();
+        var deliveryId = terminal["deliveryCargo"].InnerText;
+        Check(supplyIds.Count == 3 && supplyIds.Distinct().Count() == 3
+            && supplyIds.All(id => statesById[id]["def"].InnerText == "DeltaV_CargoContainer")
+            && statesById[deliveryId]["def"].InnerText == "DeltaV_CargoStorage",
+            "tutorial terminal binds three separate sealed supply bays and one storage delivery bay");
+        Check(terminal["tradeStockGenerated"].InnerText == "False", "tutorial merchant generates initial stock normally");
+
+        var kind = DefDatabase<TraderKindDef>.GetNamedSilentFail("Orbital_BulkGoods");
+        if (kind == null)
+        {
+            kind = new TraderKindDef { defName = "Orbital_BulkGoods" };
+            DefDatabase<TraderKindDef>.Add(kind);
+        }
+        var entries = new List<MapPrefabThingEntry>();
+        foreach (var state in supplyIds.Append(deliveryId).Select(id => statesById[id]).Append(terminal))
+        {
+            string name = state["def"].InnerText;
+            var def = DefDatabase<ThingDef>.GetNamedSilentFail(name);
+            if (def == null)
+            {
+                def = Raw<ThingDef>();
+                def.defName = name;
+                DefDatabase<ThingDef>.Add(def);
+            }
+            def.thingClass = GenTypes.GetTypeInAnyAssembly(state.Attributes["Class"].Value);
+            def.category = ThingCategory.Building;
+            def.size = ParseHelper.FromString<IntVec2>(SourceChain(name)
+                .Select(node => node["size"]?.InnerText).First(size => size != null));
+            def.building = new BuildingProperties();
+            if (name == "DeltaV_CargoStorage")
+            {
+                def.building.maxItemsInCell = 8;
+                def.building.fixedStorageSettings = new StorageSettings(null);
+                foreach (XmlNode item in state.SelectNodes("settings/filter/allowedDefs/li"))
+                {
+                    if (DefDatabase<ThingDef>.GetNamedSilentFail(item.InnerText) != null) continue;
+                    var itemDef = Raw<ThingDef>();
+                    itemDef.defName = item.InnerText;
+                    itemDef.category = ThingCategory.Item;
+                    DefDatabase<ThingDef>.Add(itemDef);
+                }
+            }
+            def.comps = new List<CompProperties>();
+            if (name == "DeltaV_CargoContainer") def.comps.Add(new CompProperties_Hackable());
+            entries.Add(new MapPrefabThingEntry { def = def, stateXml = state.OuterXml });
+        }
+
+        // ASF post-initialization uses Mono-only Array.UnsafeLoad and creates renderers.
+        // Keep the real storage ExposeData, native cross references, and hack state.
+        var initialize = AccessTools.Method(entries.Single(e => e.def.defName == "DeltaV_CargoStorage")
+            .def.thingClass.BaseType, "PostInitialize");
+        List<Thing> things;
+        harmony.Patch(initialize, prefix: new HarmonyMethod(typeof(Program), nameof(SkipCargoRendererInitialization)));
+        try { things = MapPrefabThingState.Instantiate(entries, "tutorial shipyard trade", null); }
+        finally { harmony.Unpatch(initialize, HarmonyPatchType.Prefix, harmony.Id); }
+        var trader = things.OfType<Building_SpaceTradeTerminal>().Single();
+        var supply = (List<ISpaceCargoContainer>)AccessTools.Field(trader.GetType(), "supplyCargo").GetValue(trader);
+        var delivery = (ISpaceCargoContainer)AccessTools.Field(trader.GetType(), "deliveryCargo").GetValue(trader);
+        Check(supply.Count == 3 && supply.All(c => c != null && things.Contains(c.Thing) && !c.IsUnlocked)
+            && delivery?.IsUnlocked == true && ReferenceEquals(delivery.Thing,
+                things.Single(t => t.def.defName == "DeltaV_CargoStorage")),
+            "native Scribe relinks the terminal to the authored locked and unlocked cargo instances");
+        Check(trader.TraderKind == kind && (int)AccessTools.Field(trader.GetType(), "restockDays").GetValue(trader) == 15
+            && !(bool)AccessTools.Field(trader.GetType(), "indiscriminateSupply").GetValue(trader),
+            "native Scribe restores the tutorial merchant's normal restock settings");
+    }
+
     static void ApplySectorMass(JsonElement records, string layoutPath, ShipPhysics.MassReport report,
         int steelStacksPerHold = 0)
     {

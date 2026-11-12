@@ -135,11 +135,12 @@ internal static partial class Program
             foreach (string layout in new[] { "TrainingShip", "Salvage", "Shipyard", "PrototypeShip" })
                 Geometry(Path.Combine(Path.GetDirectoryName(args[1]), layout + ".records.json"), game);
             ArrivalWreck(args[1], args[2], game);
-            ArrivalClothing(game, Path.GetFullPath(Path.Combine(args[0], "../../Data")));
+            ArrivalClothing(game, gameData);
             State(game);
             Theory(game, harmony);
             FlightEvidence();
-            ArrivalLifeSupport(Path.GetDirectoryName(args[1]), game);
+            PrefabLifeSupport(Path.GetDirectoryName(args[1]), game, "ArrivalStation");
+            PrefabLifeSupport(Path.GetDirectoryName(args[1]), game, "Shipyard");
             FocusThread(game, harmony);
             Caskets(args[2]);
             Shelves(Path.Combine(tutorialPrefabs, "Salvage.xml"));
@@ -151,6 +152,7 @@ internal static partial class Program
             CatalogPaths();
             ShipyardStates(tutorialPrefabs, harmony);
             MissionChecks(game, harmony, prefabRoot);
+            ShipyardTradeState(tutorialPrefabs, harmony);
             Check(errors.Count == 0, "Unexpected native logs: " + string.Join("\n", errors));
             Console.WriteLine($"PASS {checks} tutorial checks: native geometry/interaction/power, Scribe, phase guards, public access/storage/goodwill, focus thread, paths. No game launched.");
             return 0;
@@ -472,7 +474,9 @@ internal static partial class Program
         AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, true);
         try { TerrainDefOf.Space = Raw<TerrainDef>(); }
         finally { AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, false); }
-        foreach (var pair in new[] { ("ArrivalStation", "TrainingShip"), ("Shipyard", "PrototypeShip") })
+        var berths = new[] { ("ArrivalStation", "TrainingShip", Rot4.West), ("Shipyard", "PrototypeShip", Rot4.West),
+                ("Shipyard", "TrainingShip", Rot4.East) };
+        foreach (var pair in berths)
         {
             var host = new XmlDocument(); host.Load(Path.Combine(directory, pair.Item1 + ".xml"));
             var ship = new XmlDocument(); ship.Load(Path.Combine(directory, pair.Item2 + ".xml"));
@@ -503,10 +507,13 @@ internal static partial class Program
                     : rows.Single(r => r.GetProperty("name").GetString() == "DeltaV_DockingPort" && r.GetProperty("rotation").GetInt32() == facing.AsInt);
                 return (new IntVec3(port.GetProperty("root")[0].GetInt32(), 0, port.GetProperty("root")[1].GetInt32()), facing);
             }
-            var hostPort = Port(pair.Item1, Rot4.East); var shipPort = Port(pair.Item2, Rot4.West);
-            var offset = new IntVec3(12, 0, 12);
+            bool westTutorialBerth = pair.Item1 == "Shipyard" && pair.Item3 == Rot4.East;
+            var hostPort = Port(pair.Item1, pair.Item3.Opposite);
+            var shipPort = Port(pair.Item2, pair.Item3);
+            var offset = new IntVec3(westTutorialBerth ? 40 : 12, 0, 12);
             var sourceRoot = new IntVec3(shipHull.Min(c => c.x), 0, shipHull.Min(c => c.z));
-            var landing = DeltaVTutorialService.BerthLandingRoot(sourceRoot, shipPort.Item1, hostPort.Item1 + offset, hostPort.Item2);
+            var landing = DeltaVTutorialService.BerthPortCell(hostPort.Item1 + offset, hostPort.Item2)
+                - (shipPort.Item1 - sourceRoot);
             var placed = shipHull.Select(c => c - sourceRoot + landing).ToHashSet();
             var stationary = hostHull.Select(c => c + offset).ToHashSet();
             Check(!placed.Overlaps(stationary), pair + " berth hulls do not overlap");
@@ -522,7 +529,7 @@ internal static partial class Program
                 else map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = foundation;
             var channel = new List<IntVec3>();
             var placedPort = shipPort.Item1 - sourceRoot + landing;
-            if (pair.Item1 == "Shipyard")
+            if (pair.Item1 != "ArrivalStation")
                 Check(Building_DockingPort.TryFindChannel(map, hostPort.Item1 + offset, hostPort.Item2, 8, channel, out var yardFace)
                     && yardFace == placedPort && channel.Count == 3, pair + " yard port reaches opposing ship port");
             Check(Building_DockingPort.TryFindChannel(map, placedPort, shipPort.Item2, 8, channel, out var face)
@@ -550,7 +557,8 @@ internal static partial class Program
             var shipSize = IntVec2.FromString(ship.SelectSingleNode("/MapPrefab/prefab/size").InnerText);
             var clearance = ShipPocketMapFactory.CompactSize(new IntVec2(hostSize.x + DeltaVTutorialService.BerthGap + shipSize.x,
                 Math.Max(hostSize.z, shipSize.z)));
-            if (pair.Item1 == "Shipyard") Check(placed.All(c => c.x < clearance.x && c.z < clearance.z), "gift berth fits the real shipyard map");
+            if (pair.Item1 == "Shipyard" && !westTutorialBerth)
+                Check(placed.All(c => c.x < clearance.x && c.z < clearance.z), "gift berth fits the real shipyard map");
         }
     }
 
@@ -620,7 +628,11 @@ internal static partial class Program
     {
         var layer = Raw<PlanetLayer>();
         var tiles = AccessTools.Field(typeof(PlanetLayer), "tileIDToNeighbors_offsets");
-        object array = Activator.CreateInstance(tiles.FieldType); Set(array, "m_Length", 1); tiles.SetValue(layer, array);
+        object array = Activator.CreateInstance(tiles.FieldType);
+        // The fixture only needs TilesCount. The 1.7 Unity stubs rename this backing field.
+        var length = AccessTools.Field(tiles.FieldType, "m_Length") ?? AccessTools.Field(tiles.FieldType, "_length");
+        length.SetValue(array, 1);
+        tiles.SetValue(layer, array);
         AccessTools.Field(typeof(OrbitSphere), "cachedWorld").SetValue(null, game.World);
         AccessTools.Field(typeof(OrbitSphere), "cachedLayer").SetValue(null, layer);
         ((Dictionary<PlanetLayer, float>)AccessTools.Field(typeof(OrbitSphere), "RadiusByLayer").GetValue(null))[layer] = 100000;
@@ -633,6 +645,14 @@ internal static partial class Program
             var homeMap = Raw<Map>(); homeMap.info = new MapInfo { Size = new IntVec3(edge, 1, edge + 50) };
             var home = new MapSpaceObject(1001, homeMap, new SpacePose(Vector3.forward, angle));
             var map = Raw<Map>(); map.info = new MapInfo { Size = new IntVec3(69, 1, 45) };
+            var shipPort = new IntVec3(12, 0, 30);
+            var berth = DeltaVTutorialService.BerthPortCell(new IntVec3(edge - 14, 0, 68), Rot4.East);
+            var staged = new MapSpaceObject(1003, map, DeltaVTutorialService.CourseBerthPose(home, map, shipPort, berth));
+            Vector3 stagedPort = SpaceTransform.MapPointToUniverse(staged, map, new Vector2(shipPort.x + .5f, shipPort.z + .5f));
+            Vector3 destination = SpaceTransform.MapPointToUniverse(home, homeMap, new Vector2(berth.x + .5f, berth.z + .5f));
+            Check(OrbitSphere.ArcCells(stagedPort, destination) < .01f
+                && Mathf.Abs(SpaceTransform.WrapAngle(staged.pose.angle - home.pose.angle)) < .001f,
+                "tutorial ship spawns aligned with the hard-dock berth before the transfer");
             var frame = new MapSpaceObject(1002, map, home.pose);
             var area = CellRect.WholeMap(map).ExpandedBy(clearance);
             Check(OrbitalWorkService.IntersectsGravity(frame, CellRect.WholeMap(map), home), "coincident course reproduces gravity rejection");

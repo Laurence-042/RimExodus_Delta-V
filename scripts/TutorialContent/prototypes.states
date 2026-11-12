@@ -73,6 +73,9 @@
     </stunHandler>
   </saveable>
   <saveable Class="Building">
+    <def>SolarGenerator</def>
+  </saveable>
+  <saveable Class="Building">
     <def>DeltaV_SafetyBattery</def>
   </saveable>
   <saveable Class="Building">

@@ -58,8 +58,10 @@ internal static partial class Program
         Check(leaves.Select(leaf => leaf.defaultPrefabPath).Distinct().Count() == leaves.Count,
             "sector generation leaves use distinct authored defaults");
         List<string> shippedPaths = MapPrefab.ListPrefabFiles(new[] { directory });
-        Check(shippedPaths.Count == 25 && shippedPaths.All(path => path.Contains('/')),
-            "all twenty-five shipped prefabs live in purpose directories");
+        Check(shippedPaths.Count(path => !path.StartsWith("Templates/Modules/")
+                && !path.StartsWith("Templates/Assemblies/")) == 25
+            && shippedPaths.All(path => path.Contains('/')),
+            "all twenty-five baseline prefabs and module templates live in purpose directories");
         Check(shippedPaths.All(path => path.StartsWith("Tutorial/")
                 || path.StartsWith("Sector/Craft/") || path.StartsWith("Sector/Stations/")
                 || path.StartsWith("Sector/Asteroids/") || path.StartsWith("Templates/")),
@@ -96,16 +98,27 @@ internal static partial class Program
         Check(custom.EffectiveSectorRule(leaves[0]).prefabPaths.SequenceEqual(new[] { leaves[0].defaultPrefabPath }),
             "empty sector pool regains its shipped usable default");
 
+        var tutorialYard = new XmlDocument();
+        tutorialYard.Load(Path.Combine(directory, "Tutorial", "Shipyard.xml"));
+        Check(tutorialYard.SelectNodes("/MapPrefab/thingStates/li[def='GravcorePowerCell']").Count == 0,
+            "tutorial ring yard has no routine gravcore generation");
+        CheckStationSolar(tutorialYard, "tutorial ring yard", "DeltaV_SafetyBattery", 2);
+        Check(tutorialYard.SelectNodes("/MapPrefab/foundations/li").Count < 7949
+            && tutorialYard.SelectNodes("/MapPrefab/roofs/li").Count <= 5000,
+            "tutorial ring yard reduces foundation and meets the roof budget");
+
         string trade = Path.Combine(directory, "Sector/Stations/SectorTradeStation.xml");
         var xml = new XmlDocument(); xml.Load(trade);
         XmlNode terminal = xml.SelectSingleNode("/MapPrefab/thingStates/li[def='DeltaV_TradeTerminal']/state/saveable");
         var ids = xml.SelectNodes("/MapPrefab/thingStates/li/state/saveable")
             .Cast<XmlNode>().ToDictionary(node => node["id"].InnerText, node => node["def"].InnerText);
+        // Inspect the intended targets of the existing sector resource. The tutorial fixture tests native resolution.
+        string TargetThingId(XmlNode node) => node.InnerText.StartsWith("Thing_") ? node.InnerText[6..] : node.InnerText;
         Check(terminal.SelectNodes("supplyCargo/li").Cast<XmlNode>()
-                .All(node => ids.TryGetValue(node.InnerText, out string def) && def == "DeltaV_CargoContainer")
+                .All(node => ids.TryGetValue(TargetThingId(node), out string def) && def == "DeltaV_CargoContainer")
             && terminal.SelectNodes("supplyCargo/li").Count == 3,
             "trade station terminal references three sealed supply bays");
-        Check(ids.TryGetValue(terminal["deliveryCargo"].InnerText, out string delivery)
+        Check(ids.TryGetValue(TargetThingId(terminal["deliveryCargo"]), out string delivery)
             && delivery == "DeltaV_CargoStorage",
             "trade station terminal references one unlocked delivery bay");
 
@@ -151,6 +164,36 @@ internal static partial class Program
             && loadedEntries.Select(entry => entry.prefabPath).SequenceEqual(
                 children.Select(node => node["prefabPath"].InnerText)),
             "asteroid belt cluster marker restores its complete production Scribe state");
+    }
+
+    static void CheckStationSolar(XmlDocument document, string label, string batteryDef, int reserveCount)
+    {
+        var openDeck = document.SelectNodes("/MapPrefab/noRoof/li").Cast<XmlNode>()
+            .Select(row => IntVec3.FromString(row.InnerText)).ToHashSet();
+        var roofed = document.SelectNodes("/MapPrefab/roofs/li/pos").Cast<XmlNode>()
+            .Select(row => IntVec3.FromString(row.InnerText)).ToHashSet();
+        var panels = document.SelectNodes("/MapPrefab/thingStates/li[def='SolarGenerator']").Cast<XmlNode>().ToList();
+        Check(panels.Count > 0 && openDeck.Count > 0 && !roofed.Overlaps(openDeck),
+            label + " has a protected unroofed solar deck");
+        bool IsOn(XmlNode row, string def, HashSet<IntVec3> cells)
+        {
+            var position = IntVec3.FromString(row["pos"].InnerText);
+            var rotation = new Rot4(ParseHelper.FromString<int>(row["rotation"].InnerText));
+            var size = ParseHelper.FromString<IntVec2>(sourceDefs[def]["size"].InnerText);
+            return GenAdj.OccupiedRect(position, rotation, size).All(cells.Contains);
+        }
+        foreach (XmlNode panel in panels)
+            Check(IsOn(panel, "SolarGenerator", openDeck), label + " fully exposes each native panel footprint");
+        var batteries = document.SelectNodes("/MapPrefab/thingStates/li[def='" + batteryDef + "']")
+            .Cast<XmlNode>().ToList();
+        Check(batteries.Count >= 2 && batteries.All(row => IsOn(row, batteryDef, roofed)
+            && ParseHelper.FromString<float>(row.SelectSingleNode("state/saveable/storedPower").InnerText) > 0),
+            label + " starts with sheltered, charged grid batteries");
+        var reserve = document.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_ShipReactor']/state/saveable")
+            .Cast<XmlNode>().ToList();
+        Check(reserve.Count == reserveCount && reserve.All(row => row["switchOn"]?.InnerText == "False"
+            && row["wantSwitchOn"]?.InnerText == "False" && ParseHelper.FromString<float>(row["fuel"].InnerText) > 0),
+            label + " standby reactors are fueled and switched off");
     }
 
     static void CheckAsteroidPrefab(XmlDocument xml, string label)

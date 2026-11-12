@@ -264,6 +264,14 @@
     <quality>Good</quality>
   </saveable>
   <saveable Class="Building">
+    <def>BilliardsTable</def>
+    <quality>Good</quality>
+  </saveable>
+  <saveable Class="Building">
+    <def>PokerTable</def>
+    <quality>Good</quality>
+  </saveable>
+  <saveable Class="Building">
     <def>HoopstoneRing</def>
   </saveable>
   <saveable Class="Building_PlantGrower">

@@ -10,6 +10,7 @@ import re
 import xml.etree.ElementTree as ET
 
 from PIL import Image, ImageDraw, ImageFont
+from station_layout import prepare_trade_state
 
 import combat_range_layout
 
@@ -295,21 +296,7 @@ def prepare_state(record, state, field, prop):
             hp += float(prop(record['stuff'], 'stuffProps/statOffsets/MaxHitPoints', '0'))
         field(state, 'health', round(hp))
     if name == 'DeltaV_TradeTerminal':
-        records = record['stateOverrides']
-        supply = state.find('supplyCargo')
-        if supply is None:
-            supply = ET.SubElement(state, 'supplyCargo')
-        for child in list(supply):
-            supply.remove(child)
-        for cargo in records['_supplyCargo']:
-            ET.SubElement(supply, 'li').text = cargo['_loadId']
-        field(state, 'deliveryCargo', records['_deliveryCargo']['_loadId'])
-        field(state, 'traderKind', 'Orbital_BulkGoods')
-        field(state, 'restockDays', '15')
-        field(state, 'lastRestockTick', '-1')
-        field(state, 'tradeStockGenerated', 'False')
-        field(state, 'indiscriminateSupply', 'True')
-        field(state, 'tradePriceSeed', '7319')
+        prepare_trade_state(record, state, field, indiscriminate_supply=True)
     if name == 'DeltaV_PrefabClusterMarker':
         overrides = record['stateOverrides']
         prefabs = state.find('prefabs')
