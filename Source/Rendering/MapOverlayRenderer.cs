@@ -306,7 +306,7 @@ namespace DeltaV
             }
 
             AddHullEdgeCommands(section.hullEdges?.floor, matrix, localSun, true, collector);
-            AddHullCornerCommands(section.hullEdges?.corners, matrix, localSun, collector);
+            AddHullCornerCommands(section.hullEdges?.corners, matrix, localSun, collector, outer: false);
 
             foreach (PrintBatch batch in section.printed)
             foreach (LayerSubMesh submesh in batch.layer.subMeshes)
@@ -328,6 +328,7 @@ namespace DeltaV
             }
 
             AddHullEdgeCommands(section.hullEdges?.slopes, matrix, localSun, false, collector);
+            AddHullCornerCommands(section.hullEdges?.outerCorners, matrix, localSun, collector, outer: true);
             if (section.roofEdges != null)
             {
                 Material material = ShellRoofEdges.Material;
@@ -410,24 +411,21 @@ namespace DeltaV
         }
 
         private static void AddHullCornerCommands(Mesh[] meshes, Matrix4x4 matrix,
-            Vector2 localSun, List<OverlayCommand> collector)
+            Vector2 localSun, List<OverlayCommand> collector, bool outer)
         {
             if (meshes == null) return;
             for (int corner = 0; corner < 4; corner++)
             {
                 Mesh mesh = meshes[corner];
                 if (mesh == null) continue;
-                // UV axes follow the horizontal and vertical walls bordering
-                // this floor cell. Both use the same signed light as straight seams.
-                int sideA = corner < 2 ? 1 : 3;
-                int sideB = corner == 0 || corner == 3 ? 0 : 2;
                 for (int axis = 0; axis < 2; axis++)
                 {
-                    int side = axis == 0 ? sideA : sideB;
-                    Material material = ShellHullVisuals.CornerMaterial(axis);
+                    int side = axis == 0 ? ShellHullVisuals.CornerSideX(corner)
+                        : ShellHullVisuals.CornerSideZ(corner);
+                    Material material = ShellHullVisuals.CornerMaterial(axis, outer);
                     collector.Add(new OverlayCommand { mesh = mesh, matrix = matrix,
                         material = material,
-                        props = ShellHullVisuals.EdgeTint(HullIncidence(localSun, side, true), true),
+                        props = ShellHullVisuals.EdgeTint(HullIncidence(localSun, side, !outer), !outer),
                         surface = ShellSurfaceLayer.Hull,
                         queue = material.renderQueue, sequence = nextSequence++ });
                     QuadsDrawnLastPass += mesh.vertexCount / 4;
@@ -560,6 +558,17 @@ namespace DeltaV
             }
             // Only the SectionLayer material/mesh collector is used; no source-map layer is redrawn.
             Section sourceSection = CacheFor(map).PrintContext(map);
+            PrintBatch SharedBatch(ShellSurfaceLayer surface, float zIndex)
+            {
+                PrintBatch batch = result.printed.Find(candidate => candidate.surface == surface
+                    && candidate.zIndex == zIndex && candidate.shared);
+                if (batch != null) return batch;
+                batch = new PrintBatch { surface = surface, zIndex = zIndex,
+                    shared = true, layer = new SectionLayer_ThingsGeneral(sourceSection) };
+                result.printed.Add(batch);
+                return batch;
+            }
+
             // One-cell halo lets a floor contact in another section read the same wall
             // adjacency as the wall's own linked variant.
             var wallAdjacency = new Dictionary<IntVec3, ShellHullVisuals.Adjacency>();
@@ -589,16 +598,8 @@ namespace DeltaV
                     Material material = ShellHullVisuals.WallMaterial(thing, wall);
                     if (material != null)
                     {
-                        PrintBatch beam = result.printed.Find(candidate => candidate.surface == ShellSurfaceLayer.Hull
-                            && candidate.zIndex == 0f && candidate.shared);
-                        if (beam == null)
-                        {
-                            beam = new PrintBatch { surface = ShellSurfaceLayer.Hull, shared = true,
-                                layer = new SectionLayer_ThingsGeneral(sourceSection) };
-                            result.printed.Add(beam);
-                        }
-                        Printer_Plane.PrintPlane(beam.layer, thing.TrueCenter(), Vector2.one, material);
-                        ShellHullVisuals.PrintCornerFill(beam.layer, thing, wall, material);
+                        ShellHullVisuals.PrintWall(SharedBatch(ShellSurfaceLayer.Hull, 0f).layer,
+                            thing, wall, material);
                         continue;
                     }
                 }
@@ -618,14 +619,7 @@ namespace DeltaV
                     }
                     continue;
                 }
-                PrintBatch batch = result.printed.Find(candidate => candidate.surface == surface
-                    && candidate.zIndex == zIndex && candidate.shared);
-                if (batch == null)
-                {
-                    batch = new PrintBatch { surface = surface, zIndex = zIndex,
-                        shared = true, layer = new SectionLayer_ThingsGeneral(sourceSection) };
-                    result.printed.Add(batch);
-                }
+                PrintBatch batch = SharedBatch(surface, zIndex);
                 try
                 {
                     if (turretBase) thing.Graphic.Print(batch.layer, thing, 0f);
@@ -637,8 +631,9 @@ namespace DeltaV
                         thing.thingIDNumber ^ 0x5A31D1);
                 }
             }
+            result.hullEdges = ShellHullVisuals.BuildEdges(map, rect, wallAdjacency,
+                () => SharedBatch(ShellSurfaceLayer.Hull, 0f).layer);
             foreach (PrintBatch batch in result.printed) batch.Complete();
-            result.hullEdges = ShellHullVisuals.BuildEdges(map, rect, wallAdjacency);
             result.roofEdges = ShellRoofEdges.Build(map, rect);
             if (ModsConfig.OdysseyActive)
             {

@@ -160,8 +160,91 @@ internal static partial class Program
             "roof surface covers interior draws while exterior turret tops stay above it");
         Check(new ShellRenderConfig().layer == ShellSurfaceLayer.Hull,
             "existing rules without an explicit layer retain the hull default");
+        CheckHullCorners(map, hull, deck, roof);
         ExportRoofEdgePreview(edges);
         MapOverlayRenderer.Release(map);
+    }
+
+    private sealed class HullTestGraphic : Graphic
+    {
+        public Material atlas;
+        public override Material MatSingleFor(Thing thing) => atlas;
+    }
+
+    private sealed class HullTestWall : Building
+    {
+        public HullTestGraphic graphic;
+        public override Graphic Graphic => new Graphic_LinkedCornerFiller(graphic);
+    }
+
+    private static void CheckHullCorners(Map map, Type hull, TerrainDef deck, RoofDef roof)
+    {
+        ThingDefOf.GravshipHull = (ThingDef)Raw(typeof(ThingDef));
+        ThingDefOf.GravshipHull.defName = "GravshipHull";
+        ThingDefOf.GravshipHull.size = IntVec2.One;
+        var steel = (Material)Raw(typeof(Material));
+        var uranium = (Material)Raw(typeof(Material));
+        var plasteel = (Material)Raw(typeof(Material));
+        HullTestWall Place(IntVec3 cell, Material atlas)
+        {
+            var wall = new HullTestWall { def = ThingDefOf.GravshipHull,
+                graphic = new HullTestGraphic { atlas = atlas } };
+            Set(wall, "positionInt", cell);
+            map.edificeGrid.Register(wall);
+            return wall;
+        }
+
+        for (int corner = 0; corner < 4; corner++)
+        {
+            var floor = new IntVec3(32, 0, 5 + 7 * corner);
+            var x = corner < 2 ? IntVec3.East : IntVec3.West;
+            var z = corner == 0 || corner == 3 ? IntVec3.North : IntVec3.South;
+            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(floor)] = deck;
+            map.roofGrid.SetRoof(floor, roof);
+            HullTestWall xWall = Place(floor + x, steel);
+            HullTestWall zWall = Place(floor + z, uranium);
+            HullTestWall elbow = Place(floor + x + z, uranium);
+
+            object adjacency = Call(hull, "Analyze", map, elbow);
+            int Field(string name) => (int)AccessTools.Field(adjacency.GetType(), name).GetValue(adjacency);
+            Check(Field("outerCorner") == corner, $"outer arc bows in the same direction as the inner arc ({corner})");
+            Check(Call(hull, "SelectCornerWall", xWall, zWall, elbow) == zWall,
+                $"two matching wall materials win the corner ({corner})");
+            elbow.graphic.atlas = plasteel;
+            Thing first = x.x > 0 ? zWall : z.z > 0 ? xWall : elbow;
+            Check(Call(hull, "SelectCornerWall", xWall, zWall, elbow) == first,
+                $"three distinct wall materials use local x/y/z order ({corner})");
+
+            foreach (bool outer in new[] { false, true })
+            {
+                IntVec3 cell = outer ? elbow.Position : floor;
+                var mesh = new LayerSubMesh(null, null);
+                Call(hull, "PrintArcSurface", mesh, cell, corner, 0f, outer);
+                float area = 0f;
+                for (int i = 0; i < mesh.tris.Count; i += 3)
+                {
+                    Vector3 a = mesh.verts[mesh.tris[i]];
+                    Vector3 b = mesh.verts[mesh.tris[i + 1]];
+                    Vector3 c = mesh.verts[mesh.tris[i + 2]];
+                    float doubleArea = Vector3.Cross(b - a, c - a).y;
+                    if (doubleArea <= 0f) throw new Exception("Hull arc triangle faces away from the camera");
+                    area += doubleArea * 0.5f;
+                }
+                float expected = outer ? 0.95f * 0.95f * MathF.PI / 4f : 1f - MathF.PI / 4f;
+                Check(MathF.Abs(area - expected) < 0.001f,
+                    $"arc clips the expected wall region ({corner}, outer={outer})");
+            }
+
+            map.roofGrid.SetRoof(floor, null);
+            adjacency = Call(hull, "Analyze", map, elbow);
+            Check(Field("outerCorner") == -1 && Field("cornerFill") == 0,
+                $"unroofed open deck does not close the hull corner ({corner})");
+            Place(floor, steel);
+            adjacency = Call(hull, "Analyze", map, elbow);
+            int fillBit = 1 << corner; // Opposite diagonal in SW/NW/NE/SE order.
+            Check(Field("outerCorner") == -1 && (Field("cornerFill") & fillBit) != 0,
+                $"four actual walls fill the cross even with no roof at the diagonal ({corner})");
+        }
     }
 
     static void ExportRoofEdgePreview(Type edges)
