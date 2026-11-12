@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_ShipPlanner.label>舰船布局控制标记</DeltaV_ShipPlanner.label>
+  <DeltaV_ShipPlanner.description>在空的连通船壳上放置一个控制标记。可生成、导出或回退试装布局。</DeltaV_ShipPlanner.description>
+  <DeltaV_ShipPlanBridge.label>驾驶舱标记</DeltaV_ShipPlanBridge.label>
+  <DeltaV_ShipPlanBridge.description>要求生成的驾驶舱覆盖标记格。</DeltaV_ShipPlanBridge.description>
+  <DeltaV_ShipPlanCargo.label>货仓标记</DeltaV_ShipPlanCargo.label>
+  <DeltaV_ShipPlanCargo.description>要求生成的货仓覆盖标记格。</DeltaV_ShipPlanCargo.description>
+  <DeltaV_ShipPlanBedroom.label>乘员卧室标记</DeltaV_ShipPlanBedroom.label>
+  <DeltaV_ShipPlanBedroom.description>要求生成的乘员卧室覆盖标记格。</DeltaV_ShipPlanBedroom.description>
+  <DeltaV_ShipPlanGalley.label>餐厨标记</DeltaV_ShipPlanGalley.label>
+  <DeltaV_ShipPlanGalley.description>要求生成的餐厨覆盖标记格。</DeltaV_ShipPlanGalley.description>
+  <DeltaV_ShipPlanGenerator.label>发电舱标记</DeltaV_ShipPlanGenerator.label>
+  <DeltaV_ShipPlanGenerator.description>要求生成的发电舱覆盖标记格。</DeltaV_ShipPlanGenerator.description>
+  <DeltaV_ShipPlanFuel.label>燃料舱标记</DeltaV_ShipPlanFuel.label>
+  <DeltaV_ShipPlanFuel.description>要求生成的燃料舱覆盖标记格。</DeltaV_ShipPlanFuel.description>
+  <DeltaV_ShipPlanResearch.label>科研舱标记</DeltaV_ShipPlanResearch.label>
+  <DeltaV_ShipPlanResearch.description>要求生成的科研舱覆盖标记格。</DeltaV_ShipPlanResearch.description>
+  <DeltaV_ShipPlanMachining.label>机械加工舱标记</DeltaV_ShipPlanMachining.label>
+  <DeltaV_ShipPlanMachining.description>要求生成的机械加工舱覆盖标记格。</DeltaV_ShipPlanMachining.description>
+  <DeltaV_ShipPlanFabrication.label>精密加工舱标记</DeltaV_ShipPlanFabrication.label>
+  <DeltaV_ShipPlanFabrication.description>要求生成的精密加工舱覆盖标记格。</DeltaV_ShipPlanFabrication.description>
+  <DeltaV_ShipPlanReactor.label>反应堆舱标记</DeltaV_ShipPlanReactor.label>
+  <DeltaV_ShipPlanReactor.description>要求生成的反应堆舱覆盖标记格。</DeltaV_ShipPlanReactor.description>
+  <DeltaV_ShipPlanHeavyBattery.label>重炮舱标记</DeltaV_ShipPlanHeavyBattery.label>
+  <DeltaV_ShipPlanHeavyBattery.description>要求生成的重炮舱覆盖标记格。</DeltaV_ShipPlanHeavyBattery.description>
+  <DeltaV_ShipPlanRapidBattery.label>速射炮舱标记</DeltaV_ShipPlanRapidBattery.label>
+  <DeltaV_ShipPlanRapidBattery.description>要求生成的速射炮舱覆盖标记格。</DeltaV_ShipPlanRapidBattery.description>
+  <DeltaV_ShipPlanLaserBattery.label>激光炮舱标记</DeltaV_ShipPlanLaserBattery.label>
+  <DeltaV_ShipPlanLaserBattery.description>要求生成的激光炮舱覆盖标记格。</DeltaV_ShipPlanLaserBattery.description>
+  <DeltaV_ShipPlanPointDefense.label>点防舱标记</DeltaV_ShipPlanPointDefense.label>
+  <DeltaV_ShipPlanPointDefense.description>要求生成的点防舱覆盖标记格。</DeltaV_ShipPlanPointDefense.description>
+  <DeltaV_ShipPlanGuard.label>护盾舱标记</DeltaV_ShipPlanGuard.label>
+  <DeltaV_ShipPlanGuard.description>要求生成的护盾舱覆盖标记格。</DeltaV_ShipPlanGuard.description>
+</LanguageData>

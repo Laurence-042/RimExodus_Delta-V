@@ -260,11 +260,11 @@ internal static partial class Program
         }
     }
 
-    static void PrefabTurretGraphs(string directory)
+    static void PrefabTurretGraphs(string directory, string[] names = null)
     {
         // Load actual authored turrets, including their deep gun and Verb graphs;
         // testing just the weapon Comp misses Scribe's nested identity registration.
-        foreach (string name in new[] { "Shipyard", "WeaponRange" })
+        foreach (string name in names ?? new[] { "Shipyard", "WeaponRange" })
         {
             var xml = new XmlDocument(); xml.Load(Path.Combine(directory, name + ".xml"));
             var entries = new List<MapPrefabThingEntry>();

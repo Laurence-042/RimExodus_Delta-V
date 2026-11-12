@@ -28,6 +28,7 @@ namespace DeltaV
     /// </summary>
     public class UniverseManager : GameComponent
     {
+        internal ShipPlannerService ShipPlanner { get; } = new ShipPlannerService();
         /// <summary>权威宇宙对象列表（地图容器 + POI，多态深序列化）。存档事实。</summary>
         public List<SpaceObject> objects = new List<SpaceObject>();
 
@@ -566,6 +567,7 @@ namespace DeltaV
         internal void ForgetMapRuntimeState(Map map)
         {
             if (map == null) return;
+            ShipPlanner.Forget(map);
             unframedMaps?.Remove(map);
             playerInput?.Clear();
             foundationTopology?.Forget(map);
@@ -1277,6 +1279,7 @@ namespace DeltaV
         /// </summary>
         private void ResetRuntimeServices()
         {
+            ShipPlanner.Reset();
             projectiles?.ResetMotionFeedback();
             mapPool = null;
             foundationTopology = null;

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using Verse;
 
@@ -23,10 +25,44 @@ namespace DeltaV
     public class CompPrefabPawnSpawner : CompPrefabMarker
     {
         public CompProperties_PrefabPawnSpawner Props => (CompProperties_PrefabPawnSpawner)props;
+        private PawnKindDef pawnKindOverride;
+
+        public override void PostExposeData()
+        {
+            base.PostExposeData();
+            Scribe_Defs.Look(ref pawnKindOverride, "DeltaV_prefabPawnKind");
+        }
+
+        public override IEnumerable<Gizmo> CompGetGizmosExtra()
+        {
+            if (!DebugSettings.godMode || parent.Faction != Faction.OfPlayer) yield break;
+            yield return new Command_Action
+            {
+                defaultLabel = "DeltaV_ShipPlanCrewKind".Translate() + ": " +
+                    (pawnKindOverride?.LabelCap.ToString() ?? "DeltaV_ShipPlanCrewDefault".Translate().ToString()),
+                defaultDesc = "DeltaV_ShipPlanCrewKindDesc".Translate(),
+                icon = parent.def.uiIcon,
+                action = () =>
+                {
+                    if (!DebugSettings.godMode) return;
+                    var choices = new List<FloatMenuOption>
+                    {
+                        new FloatMenuOption("DeltaV_ShipPlanCrewDefault".Translate(), () =>
+                        { if (DebugSettings.godMode) pawnKindOverride = null; })
+                    };
+                    choices.AddRange(DefDatabase<PawnKindDef>.AllDefsListForReading
+                        .Where(k => k.race?.race?.Humanlike == true)
+                        .OrderBy(k => k.label).ThenBy(k => k.defName)
+                        .Select(k => new FloatMenuOption(k.LabelCap + " (" + k.defName + ")",
+                            () => { if (DebugSettings.godMode) pawnKindOverride = k; })));
+                    Find.WindowStack.Add(new FloatMenu(choices));
+                }
+            };
+        }
 
         public override void Expand(PrefabSpawnContext context)
         {
-            PawnKindDef kind = Props.pawnKind
+            PawnKindDef kind = pawnKindOverride ?? Props.pawnKind
                 ?? context.Faction?.def.basicMemberKind
                 ?? context.Faction?.RandomPawnKind()
                 ?? Props.fallbackPawnKind;

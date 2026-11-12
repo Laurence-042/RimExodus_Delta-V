@@ -1,0 +1,2375 @@
+<?xml version='1.0' encoding='utf-8'?>
+<MapPrefab formatVersion="2">
+  <name>ModuleRailgun</name>
+  <!-- Assembly edges in local orientation: north=exterior, south=partition, west=optional, east=optional -->
+  <prefab>
+    <defName>MapPrefab_ModuleRailgun</defName>
+    <size>(7, 11)</size>
+    <terrain>
+      <MetalTile>
+        <rects>
+          <li>(0,0,0,0)</li>
+          <li>(0,1,0,1)</li>
+          <li>(0,2,0,2)</li>
+          <li>(0,3,0,3)</li>
+          <li>(0,4,0,4)</li>
+          <li>(0,5,0,5)</li>
+          <li>(0,6,0,6)</li>
+          <li>(0,7,0,7)</li>
+          <li>(0,8,0,8)</li>
+          <li>(0,9,0,9)</li>
+          <li>(0,10,0,10)</li>
+          <li>(1,0,1,0)</li>
+          <li>(1,1,1,1)</li>
+          <li>(1,2,1,2)</li>
+          <li>(1,3,1,3)</li>
+          <li>(1,4,1,4)</li>
+          <li>(1,5,1,5)</li>
+          <li>(1,6,1,6)</li>
+          <li>(1,7,1,7)</li>
+          <li>(1,8,1,8)</li>
+          <li>(1,9,1,9)</li>
+          <li>(1,10,1,10)</li>
+          <li>(2,0,2,0)</li>
+          <li>(2,1,2,1)</li>
+          <li>(2,2,2,2)</li>
+          <li>(2,3,2,3)</li>
+          <li>(2,4,2,4)</li>
+          <li>(2,5,2,5)</li>
+          <li>(2,6,2,6)</li>
+          <li>(2,7,2,7)</li>
+          <li>(2,8,2,8)</li>
+          <li>(2,9,2,9)</li>
+          <li>(2,10,2,10)</li>
+          <li>(3,0,3,0)</li>
+          <li>(3,1,3,1)</li>
+          <li>(3,2,3,2)</li>
+          <li>(3,3,3,3)</li>
+          <li>(3,4,3,4)</li>
+          <li>(3,5,3,5)</li>
+          <li>(3,6,3,6)</li>
+          <li>(3,7,3,7)</li>
+          <li>(3,8,3,8)</li>
+          <li>(3,9,3,9)</li>
+          <li>(3,10,3,10)</li>
+          <li>(4,0,4,0)</li>
+          <li>(4,1,4,1)</li>
+          <li>(4,2,4,2)</li>
+          <li>(4,3,4,3)</li>
+          <li>(4,4,4,4)</li>
+          <li>(4,5,4,5)</li>
+          <li>(4,6,4,6)</li>
+          <li>(4,7,4,7)</li>
+          <li>(4,8,4,8)</li>
+          <li>(4,9,4,9)</li>
+          <li>(4,10,4,10)</li>
+          <li>(5,0,5,0)</li>
+          <li>(5,1,5,1)</li>
+          <li>(5,2,5,2)</li>
+          <li>(5,3,5,3)</li>
+          <li>(5,4,5,4)</li>
+          <li>(5,5,5,5)</li>
+          <li>(5,6,5,6)</li>
+          <li>(5,7,5,7)</li>
+          <li>(5,8,5,8)</li>
+          <li>(5,9,5,9)</li>
+          <li>(5,10,5,10)</li>
+          <li>(6,0,6,0)</li>
+          <li>(6,1,6,1)</li>
+          <li>(6,2,6,2)</li>
+          <li>(6,3,6,3)</li>
+          <li>(6,4,6,4)</li>
+          <li>(6,5,6,5)</li>
+          <li>(6,6,6,6)</li>
+          <li>(6,7,6,7)</li>
+          <li>(6,8,6,8)</li>
+          <li>(6,9,6,9)</li>
+          <li>(6,10,6,10)</li>
+        </rects>
+      </MetalTile>
+    </terrain>
+  </prefab>
+  <thingStates>
+    <li>
+      <pos>(1, 0, 2)</pos>
+      <def>DeltaV_SafetyBattery</def>
+      <rotation>1</rotation>
+      <hitPoints>300</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>DeltaV_SafetyBattery</def>
+          <id>DeltaV_SafetyBattery810000</id>
+          <pos>(1, 0, 2)</pos>
+          <rot>1</rot>
+          <storedPower>3600.0</storedPower>
+          <health>300</health>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 5)</pos>
+      <def>DeltaV_SafetyBattery</def>
+      <rotation>1</rotation>
+      <hitPoints>300</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>DeltaV_SafetyBattery</def>
+          <id>DeltaV_SafetyBattery810001</id>
+          <pos>(1, 0, 5)</pos>
+          <rot>1</rot>
+          <storedPower>3600.0</storedPower>
+          <health>300</health>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 8)</pos>
+      <def>DeltaV_SafetyBattery</def>
+      <rotation>1</rotation>
+      <hitPoints>300</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>DeltaV_SafetyBattery</def>
+          <id>DeltaV_SafetyBattery810002</id>
+          <pos>(1, 0, 8)</pos>
+          <rot>1</rot>
+          <storedPower>3600.0</storedPower>
+          <health>300</health>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 2)</pos>
+      <def>DeltaV_SafetyBattery</def>
+      <rotation>1</rotation>
+      <hitPoints>300</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>DeltaV_SafetyBattery</def>
+          <id>DeltaV_SafetyBattery810003</id>
+          <pos>(4, 0, 2)</pos>
+          <rot>1</rot>
+          <storedPower>3600.0</storedPower>
+          <health>300</health>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 4)</pos>
+      <def>DeltaV_Weapon_RailgunLoader</def>
+      <rotation>0</rotation>
+      <hitPoints>600</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>DeltaV_Weapon_RailgunLoader</def>
+          <health>600</health>
+          <questTags IsNull="True" />
+          <beenRevealed>True</beenRevealed>
+          <id>DeltaV_Weapon_RailgunLoader810004</id>
+          <pos>(4, 0, 4)</pos>
+          <rot>0</rot>
+          <headSupply>
+            <fuel>600</fuel>
+            <configuredTargetFuelLevel>600</configuredTargetFuelLevel>
+            <allowAutoRefuel>True</allowAutoRefuel>
+          </headSupply>
+          <currentAngle>0</currentAngle>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 5)</pos>
+      <def>DeltaV_Weapon_RailgunAccelerator</def>
+      <rotation>0</rotation>
+      <hitPoints>270</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>DeltaV_Weapon_RailgunAccelerator</def>
+          <health>270</health>
+          <questTags IsNull="True" />
+          <id>DeltaV_Weapon_RailgunAccelerator810005</id>
+          <pos>(4, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 6)</pos>
+      <def>DeltaV_Weapon_RailgunAccelerator</def>
+      <rotation>0</rotation>
+      <hitPoints>270</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>DeltaV_Weapon_RailgunAccelerator</def>
+          <health>270</health>
+          <questTags IsNull="True" />
+          <id>DeltaV_Weapon_RailgunAccelerator810006</id>
+          <pos>(4, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 7)</pos>
+      <def>DeltaV_Weapon_RailgunAccelerator</def>
+      <rotation>0</rotation>
+      <hitPoints>270</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>DeltaV_Weapon_RailgunAccelerator</def>
+          <health>270</health>
+          <questTags IsNull="True" />
+          <id>DeltaV_Weapon_RailgunAccelerator810007</id>
+          <pos>(4, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 8)</pos>
+      <def>DeltaV_Weapon_RailgunAccelerator</def>
+      <rotation>0</rotation>
+      <hitPoints>270</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>DeltaV_Weapon_RailgunAccelerator</def>
+          <health>270</health>
+          <questTags IsNull="True" />
+          <id>DeltaV_Weapon_RailgunAccelerator810008</id>
+          <pos>(4, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 9)</pos>
+      <def>DeltaV_Weapon_RailgunAccelerator</def>
+      <rotation>0</rotation>
+      <hitPoints>270</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>DeltaV_Weapon_RailgunAccelerator</def>
+          <health>270</health>
+          <questTags IsNull="True" />
+          <id>DeltaV_Weapon_RailgunAccelerator810009</id>
+          <pos>(4, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 10)</pos>
+      <def>DeltaV_VacuumBarrier</def>
+      <rotation>0</rotation>
+      <hitPoints>80</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="DeltaV.Building_VacuumBarrier">
+          <def>DeltaV_VacuumBarrier</def>
+          <id>DeltaV_VacuumBarrier810010</id>
+          <pos>(3, 0, 10)</pos>
+          <rot>0</rot>
+          <health>80</health>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 10)</pos>
+      <def>DeltaV_VacuumBarrier</def>
+      <rotation>0</rotation>
+      <hitPoints>80</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="DeltaV.Building_VacuumBarrier">
+          <def>DeltaV_VacuumBarrier</def>
+          <id>DeltaV_VacuumBarrier810011</id>
+          <pos>(4, 0, 10)</pos>
+          <rot>0</rot>
+          <health>80</health>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 10)</pos>
+      <def>DeltaV_VacuumBarrier</def>
+      <rotation>0</rotation>
+      <hitPoints>80</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="DeltaV.Building_VacuumBarrier">
+          <def>DeltaV_VacuumBarrier</def>
+          <id>DeltaV_VacuumBarrier810012</id>
+          <pos>(5, 0, 10)</pos>
+          <rot>0</rot>
+          <health>80</health>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(0, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810013</id>
+          <pos>(0, 0, 0)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(0, 0, 1)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810014</id>
+          <pos>(0, 0, 1)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(0, 0, 2)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810015</id>
+          <pos>(0, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(0, 0, 3)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810016</id>
+          <pos>(0, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(0, 0, 4)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810017</id>
+          <pos>(0, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(0, 0, 5)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810018</id>
+          <pos>(0, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(0, 0, 6)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810019</id>
+          <pos>(0, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(0, 0, 7)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810020</id>
+          <pos>(0, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(0, 0, 8)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810021</id>
+          <pos>(0, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(0, 0, 9)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810022</id>
+          <pos>(0, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(0, 0, 10)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810023</id>
+          <pos>(0, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810024</id>
+          <pos>(1, 0, 0)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 10)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810025</id>
+          <pos>(1, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 10)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810026</id>
+          <pos>(2, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810027</id>
+          <pos>(4, 0, 0)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810028</id>
+          <pos>(5, 0, 0)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810029</id>
+          <pos>(6, 0, 0)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 1)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810030</id>
+          <pos>(6, 0, 1)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 2)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810031</id>
+          <pos>(6, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 3)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810032</id>
+          <pos>(6, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 4)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810033</id>
+          <pos>(6, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 5)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810034</id>
+          <pos>(6, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 6)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810035</id>
+          <pos>(6, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 7)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810036</id>
+          <pos>(6, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 8)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810037</id>
+          <pos>(6, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 9)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810038</id>
+          <pos>(6, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(6, 0, 10)</pos>
+      <def>GravshipHull</def>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building">
+          <def>GravshipHull</def>
+          <health>420</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <id>GravshipHull810039</id>
+          <pos>(6, 0, 10)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 0)</pos>
+      <def>Door</def>
+      <rotation>0</rotation>
+      <hitPoints>160</hitPoints>
+      <stackCount>1</stackCount>
+      <stuff>Steel</stuff>
+      <state>
+        <saveable Class="Building_Door">
+          <def>Door</def>
+          <health>160</health>
+          <stuff>Steel</stuff>
+          <beenRevealed>True</beenRevealed>
+          <lastFriendlyTouchTick>-9999</lastFriendlyTouchTick>
+          <approachingPawn>null</approachingPawn>
+          <id>Door810040</id>
+          <pos>(3, 0, 0)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 0)</pos>
+      <def>Vent</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building_Vent">
+          <def>Vent</def>
+          <switchOn>False</switchOn>
+          <wantSwitchOn>False</wantSwitchOn>
+          <id>Vent810041</id>
+          <pos>(2, 0, 0)</pos>
+          <rot>0</rot>
+          <health>100</health>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 1)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810042</id>
+          <pos>(1, 0, 1)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 2)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810043</id>
+          <pos>(1, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 3)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810044</id>
+          <pos>(1, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 4)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810045</id>
+          <pos>(1, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 5)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810046</id>
+          <pos>(1, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 6)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810047</id>
+          <pos>(1, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 7)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810048</id>
+          <pos>(1, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 8)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810049</id>
+          <pos>(1, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(1, 0, 9)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810050</id>
+          <pos>(1, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810051</id>
+          <pos>(2, 0, 0)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 1)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810052</id>
+          <pos>(2, 0, 1)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 2)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810053</id>
+          <pos>(2, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 3)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810054</id>
+          <pos>(2, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 4)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810055</id>
+          <pos>(2, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 5)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810056</id>
+          <pos>(2, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 6)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810057</id>
+          <pos>(2, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 7)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810058</id>
+          <pos>(2, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 8)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810059</id>
+          <pos>(2, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(2, 0, 9)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810060</id>
+          <pos>(2, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810061</id>
+          <pos>(3, 0, 0)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 1)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810062</id>
+          <pos>(3, 0, 1)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 2)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810063</id>
+          <pos>(3, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 3)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810064</id>
+          <pos>(3, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 4)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810065</id>
+          <pos>(3, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 5)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810066</id>
+          <pos>(3, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 6)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810067</id>
+          <pos>(3, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 7)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810068</id>
+          <pos>(3, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 8)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810069</id>
+          <pos>(3, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(3, 0, 9)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810070</id>
+          <pos>(3, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 1)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810071</id>
+          <pos>(4, 0, 1)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 2)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810072</id>
+          <pos>(4, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 3)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810073</id>
+          <pos>(4, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 4)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810074</id>
+          <pos>(4, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 5)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810075</id>
+          <pos>(4, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 6)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810076</id>
+          <pos>(4, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 7)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810077</id>
+          <pos>(4, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 8)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810078</id>
+          <pos>(4, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(4, 0, 9)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810079</id>
+          <pos>(4, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 1)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810080</id>
+          <pos>(5, 0, 1)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 2)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810081</id>
+          <pos>(5, 0, 2)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 3)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810082</id>
+          <pos>(5, 0, 3)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 4)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810083</id>
+          <pos>(5, 0, 4)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 5)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810084</id>
+          <pos>(5, 0, 5)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 6)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810085</id>
+          <pos>(5, 0, 6)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 7)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810086</id>
+          <pos>(5, 0, 7)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 8)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810087</id>
+          <pos>(5, 0, 8)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(5, 0, 9)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>HiddenConduit</def>
+          <health>100</health>
+          <parentThing>null</parentThing>
+          <id>HiddenConduit810088</id>
+          <pos>(5, 0, 9)</pos>
+          <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+  </thingStates>
+  <foundations>
+    <li>
+      <pos>(0, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 7)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 8)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 9)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 10)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 7)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 8)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 9)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 10)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 7)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 8)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 9)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 10)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 7)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 8)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 9)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 10)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 7)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 8)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 9)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 10)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 7)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 8)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 9)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 10)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 7)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 8)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 9)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 10)</pos>
+      <def>Substructure</def>
+    </li>
+  </foundations>
+  <roofs>
+    <li>
+      <pos>(0, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 1)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 2)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 3)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 4)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 5)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 6)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 7)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 8)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 9)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 10)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 1)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 2)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 3)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 4)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 5)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 6)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 7)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 8)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 9)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 10)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 1)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 2)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 3)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 4)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 5)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 6)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 7)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 8)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 9)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 10)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 1)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 2)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 3)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 4)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 5)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 6)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 7)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 8)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 9)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 10)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 1)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 2)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 3)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 4)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 5)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 6)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 7)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 8)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 9)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 10)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 1)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 2)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 3)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 4)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 5)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 6)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 7)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 8)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 9)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 10)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 1)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 2)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 3)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 4)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 5)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 6)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 7)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 8)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 9)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 10)</pos>
+      <def>RoofConstructed</def>
+    </li>
+  </roofs>
+  <environment>
+    <li>
+      <temperature>21</temperature>
+      <vacuum>0</vacuum>
+      <cells>
+        <li>(0, 0, 0)</li>
+        <li>(0, 0, 1)</li>
+        <li>(0, 0, 2)</li>
+        <li>(0, 0, 3)</li>
+        <li>(0, 0, 4)</li>
+        <li>(0, 0, 5)</li>
+        <li>(0, 0, 6)</li>
+        <li>(0, 0, 7)</li>
+        <li>(0, 0, 8)</li>
+        <li>(0, 0, 9)</li>
+        <li>(0, 0, 10)</li>
+        <li>(1, 0, 0)</li>
+        <li>(1, 0, 1)</li>
+        <li>(1, 0, 2)</li>
+        <li>(1, 0, 3)</li>
+        <li>(1, 0, 4)</li>
+        <li>(1, 0, 5)</li>
+        <li>(1, 0, 6)</li>
+        <li>(1, 0, 7)</li>
+        <li>(1, 0, 8)</li>
+        <li>(1, 0, 9)</li>
+        <li>(1, 0, 10)</li>
+        <li>(2, 0, 0)</li>
+        <li>(2, 0, 1)</li>
+        <li>(2, 0, 2)</li>
+        <li>(2, 0, 3)</li>
+        <li>(2, 0, 4)</li>
+        <li>(2, 0, 5)</li>
+        <li>(2, 0, 6)</li>
+        <li>(2, 0, 7)</li>
+        <li>(2, 0, 8)</li>
+        <li>(2, 0, 9)</li>
+        <li>(2, 0, 10)</li>
+        <li>(3, 0, 0)</li>
+        <li>(3, 0, 1)</li>
+        <li>(3, 0, 2)</li>
+        <li>(3, 0, 3)</li>
+        <li>(3, 0, 4)</li>
+        <li>(3, 0, 5)</li>
+        <li>(3, 0, 6)</li>
+        <li>(3, 0, 7)</li>
+        <li>(3, 0, 8)</li>
+        <li>(3, 0, 9)</li>
+        <li>(3, 0, 10)</li>
+        <li>(4, 0, 0)</li>
+        <li>(4, 0, 1)</li>
+        <li>(4, 0, 2)</li>
+        <li>(4, 0, 3)</li>
+        <li>(4, 0, 4)</li>
+        <li>(4, 0, 5)</li>
+        <li>(4, 0, 6)</li>
+        <li>(4, 0, 7)</li>
+        <li>(4, 0, 8)</li>
+        <li>(4, 0, 9)</li>
+        <li>(4, 0, 10)</li>
+        <li>(5, 0, 0)</li>
+        <li>(5, 0, 1)</li>
+        <li>(5, 0, 2)</li>
+        <li>(5, 0, 3)</li>
+        <li>(5, 0, 4)</li>
+        <li>(5, 0, 5)</li>
+        <li>(5, 0, 6)</li>
+        <li>(5, 0, 7)</li>
+        <li>(5, 0, 8)</li>
+        <li>(5, 0, 9)</li>
+        <li>(5, 0, 10)</li>
+        <li>(6, 0, 0)</li>
+        <li>(6, 0, 1)</li>
+        <li>(6, 0, 2)</li>
+        <li>(6, 0, 3)</li>
+        <li>(6, 0, 4)</li>
+        <li>(6, 0, 5)</li>
+        <li>(6, 0, 6)</li>
+        <li>(6, 0, 7)</li>
+        <li>(6, 0, 8)</li>
+        <li>(6, 0, 9)</li>
+        <li>(6, 0, 10)</li>
+      </cells>
+    </li>
+  </environment>
+</MapPrefab>

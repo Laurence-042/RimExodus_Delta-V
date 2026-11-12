@@ -18,6 +18,8 @@ namespace DeltaV
         internal static MapPrefabDocument Export(Map map, string name, IEnumerable<IntVec3> cells)
         {
             CommonDocument shared = MapPrefabs.Capture(map, new CellSelection(cells), name,
+                include: t => (t.def.category == ThingCategory.Building || t.def.category == ThingCategory.Item)
+                    && !CompShipPlanner.IsAuthoringMarker(t),
                 order: things => things.OrderBy(t => t.def.building?.isAttachment == true
                     || t.TryGetComp<CompSpaceWeaponAttachment>() != null ? 1 : 0)
                     .ThenByDescending(t => t.def.category == ThingCategory.Building)
@@ -31,6 +33,14 @@ namespace DeltaV
 
         internal static List<Thing> Spawn(MapPrefabDocument doc, Map map, IntVec3 position, Faction faction,
             int ownerId, Rot4 rot, UniverseManager universe, bool blankSpace)
+        {
+            PrefabPlacementResult result = Place(doc, map, position, faction, ownerId, rot, universe, blankSpace, true);
+            if (!result.Success) throw new InvalidDataException(string.Join("\n", result.Errors));
+            return result.Things;
+        }
+
+        internal static PrefabPlacementResult Place(MapPrefabDocument doc, Map map, IntVec3 position, Faction faction,
+            int ownerId, Rot4 rot, UniverseManager universe, bool blankSpace, bool expandMarkers)
         {
             RemoveMissingStorageFilterDefs(doc);
             var options = new PrefabPlacement
@@ -71,14 +81,13 @@ namespace DeltaV
                 Completed = (target, things, root, rotation) =>
                 {
                     MapContentSpawner.RelinkGravshipComponents(target);
+                    if (!expandMarkers) return;
                     var context = new PrefabSpawnContext(target, faction, ownerId, root, rotation, universe);
                     foreach (Thing thing in things.ToList()) thing.TryGetComp<CompPrefabMarker>()?.Expand(context);
                     things.RemoveAll(t => t.Destroyed);
                 }
             };
-            PrefabPlacementResult result = MapPrefabs.Rebuild(doc, map, position, rot, options);
-            if (!result.Success) throw new InvalidDataException(string.Join("\n", result.Errors));
-            return result.Things;
+            return MapPrefabs.Rebuild(doc, map, position, rot, options);
         }
 
         // Exported shelves can retain filter entries from mods no longer loaded.

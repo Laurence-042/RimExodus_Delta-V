@@ -10,12 +10,15 @@ import copy
 import json
 import re
 import xml.etree.ElementTree as ET
-from collections import deque
+from collections import Counter, deque
+from functools import cache
 from PIL import Image, ImageDraw
 import shipyard_layout
 import combat_range_layout
 import arrival_layout
 import sector_layout
+import module_layout
+import module_assemblies
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
@@ -39,9 +42,8 @@ def validate_identities(document):
                     raise ValueError(f'Gun/Verb identity mismatch: {gun.findtext("id")}')
 
 
-def build(data, name="ArrivalStation"):
-    if name == "ArrivalStation":
-        return arrival_layout.build(data)
+@cache
+def read_defs(data):
     defs, parents, terrains, terrain_parents = {}, {}, {}, {}
     colors, biomes = {}, {}
     for path in [*data.glob('*/Defs/**/*.xml'), *(ROOT / '1.6/Defs').glob('**/*.xml')]:
@@ -55,7 +57,10 @@ def build(data, name="ArrivalStation"):
                 parent_table[node.get('Name')] = node
             if node.findtext('defName'):
                 definition_table[node.findtext('defName')] = node
+    return defs, parents, terrains, terrain_parents, colors, biomes
 
+
+def authoring_geometry(defs, parents):
     def prop(name, path, default=None):
         node = defs[name]
         while node is not None:
@@ -68,20 +73,64 @@ def build(data, name="ArrivalStation"):
     def pair(value):
         return list(map(int, re.findall(r'-?\d+', value)))
 
-    def comp_values(name, field):
-        # Fields also occur on derived CompProperties (notably Battery). Respect
-        # replacement comp lists instead of reviving a removed ancestor's comp.
-        node = defs[name]
-        while node is not None:
-            comps = node.find('comps')
-            if comps is not None:
-                for comp in comps:
-                    value = comp.findtext(field)
-                    if value is not None:
-                        yield value
-                if comps.get('Inherit', 'true').lower() == 'false':
-                    break
-            node = parents.get(node.get('ParentName'))
+    def footprint(name, x, z, rot):
+        size = pair(prop(name, 'size', '(1,1)'))
+        w, h = size if rot % 2 == 0 else size[::-1]
+        dx, dz = [(0, 0), (0, -1), (-1, -1), (-1, 0)][rot]
+        root = [x + (w-1)//2 - (dx if w % 2 == 0 else 0),
+                z + (h-1)//2 - (dz if h % 2 == 0 else 0)]
+        cells = {(a, b) for a in range(x, x+w) for b in range(z, z+h)}
+        return size, root, cells
+
+    def exclusion_spec(thing, key):
+        return prop(thing, f"comps/li[@Class='CompProperties_GravshipThruster']/{key}")
+
+    def exhaust(thing, root, rot):
+        sx, _, sz = pair(exclusion_spec(thing, 'exclusionAreaSize'))
+        ox, _, oz = pair(exclusion_spec(thing, 'exclusionAreaOffset'))
+        result = []
+        for x in range(ox, ox + sx):
+            for z in range(oz, oz + sz):
+                dx, dz = ((x, z), (z, -x), (-x, -z), (-z, x))[rot]
+                result.append((root[0] + dx, root[1] + dz))
+        return result
+
+    return prop, pair, footprint, exclusion_spec, exhaust
+
+
+def material_cost(node, ancestors, count=1):
+    materials = Counter()
+    while node is not None:
+        cost = node.find('costList')
+        if cost is not None:
+            materials.update({item.tag: count * int(item.text) for item in cost})
+            if cost.get('Inherit', 'true').lower() == 'false':
+                break
+        node = ancestors.get(node.get('ParentName'))
+    return materials
+
+
+def comp_values(name, field, defs, parents):
+    node = defs[name]
+    while node is not None:
+        comps = node.find('comps')
+        if comps is not None:
+            for comp in comps:
+                value = comp.findtext(field)
+                if value is not None:
+                    yield value
+            if comps.get('Inherit', 'true').lower() == 'false':
+                break
+        node = parents.get(node.get('ParentName'))
+
+
+def build(data, name="ArrivalStation", *, layout_override=None, output=None, evaluate_only=False):
+    if name == "ArrivalStation":
+        return arrival_layout.build(data)
+    if layout_override is not None and output is None and not evaluate_only:
+        raise ValueError('An experimental layout requires an explicit preview directory')
+    defs, parents, terrains, terrain_parents, colors, biomes = read_defs(data)
+    prop, pair, footprint, exclusion_spec, exhaust = authoring_geometry(defs, parents)
 
     def affordances(name):
         node = terrains[name]
@@ -97,9 +146,17 @@ def build(data, name="ArrivalStation"):
 
     range_layout = name in ('WeaponRange', 'ShieldTarget')
     sector_content = name in sector_layout.NAMES
-    detailed = range_layout or sector_content or name in ('Shipyard', 'PrototypeShip')
-    layout = sector_layout if sector_content else combat_range_layout if range_layout else shipyard_layout
-    plan = layout.shape(name) if detailed else None
+    module_content = name in module_layout.MODULES
+    assembly_content = layout_override is not None or name in module_assemblies.NAMES
+    detailed = range_layout or sector_content or module_content or assembly_content or name in ('Shipyard', 'PrototypeShip')
+    layout = layout_override or (module_assemblies if assembly_content else module_layout if module_content else sector_layout
+              if sector_content else combat_range_layout if range_layout else shipyard_layout)
+    plan = None
+    if detailed:
+        if assembly_content:
+            plan = layout.shape(name, footprint, prop, exhaust)
+        else:
+            plan = layout.shape(name)
     width, height = plan['size'] if detailed else {"TrainingShip": (21,15), "Salvage": (7,7)}[name]
     foundation = {(x, z) for x in range(width) for z in range(height)}
     if name == "TrainingShip": foundation = {c for c in foundation if c[0] >= 5}
@@ -112,12 +169,7 @@ def build(data, name="ArrivalStation"):
     def place(name, x, z, rot=0, stuff=None, layer='body', state=None):
         # ThingDef.ConfigErrors rejects numeric suffixes; Thing IDs append a number to the Def name.
         assert name and not name[-1].isnumeric(), (name, 'ThingDef name must not end in a number')
-        size = pair(prop(name, 'size', '(1,1)'))
-        w, h = size if rot % 2 == 0 else size[::-1]
-        dx, dz = [(0, 0), (0, -1), (-1, -1), (-1, 0)][rot]
-        root = [x + (w-1)//2 - (dx if w % 2 == 0 else 0),
-                z + (h-1)//2 - (dz if h % 2 == 0 else 0)]
-        cells = {(a, b) for a in range(x, x+w) for b in range(z, z+h)}
+        size, root, cells = footprint(name, x, z, rot)
         assert cells <= foundation, (name, 'outside foundation')
         if layer == 'body':
             assert not cells & occupied.keys(), (name, 'overlap', cells & occupied.keys())
@@ -133,17 +185,18 @@ def build(data, name="ArrivalStation"):
                       terrainAffordance=prop(name, 'terrainAffordanceNeeded'),
                       supportAffordances=affordances('OrbitalPlatform' if build_name == 'ArrivalStation' else 'Substructure'))
         record['stateOverrides'] = state or {}
-        record['transmitsPower'] = any(v.lower() == 'true' for v in comp_values(name, 'transmitsPower'))
-        record['powerWatts'] = sum(float(v) for v in comp_values(name, 'basePowerConsumption'))
+        record['transmitsPower'] = any(v.lower() == 'true' for v in comp_values(name, 'transmitsPower', defs, parents))
+        record['powerWatts'] = sum(float(v) for v in comp_values(name, 'basePowerConsumption', defs, parents))
         record['mass'] = float(prop(name, 'statBases/Mass', '4'))
         if stuff and prop(name, 'statBases/Mass') is not None:
             record['mass'] = record['mass'] * float(prop(stuff,'stuffProps/statFactors/Mass','1')) + float(prop(stuff,'stuffProps/statOffsets/Mass','0'))
         record['holdsRoof'] = prop(name, 'holdsRoof', 'false').lower() == 'true'
-        record['airtight'] = prop(name, 'building/isAirtight', 'false').lower() == 'true' or name in ('GravshipHull', 'Wall', 'Door', 'DeltaV_DockingPort')
-        exclusion = prop(name, "comps/li[@Class='CompProperties_GravshipThruster']/exclusionAreaSize")
+        record['airtight'] = prop(name, 'building/isAirtight', 'false').lower() == 'true' or name in (
+            'GravshipHull', 'Wall', 'Door', 'DeltaV_DockingPort', 'DeltaV_VacuumBarrier')
+        exclusion = exclusion_spec(name, 'exclusionAreaSize')
         if exclusion:
             record['exclusionSize'] = pair(exclusion)
-            record['exclusionOffset'] = pair(prop(name, "comps/li[@Class='CompProperties_GravshipThruster']/exclusionAreaOffset"))
+            record['exclusionOffset'] = pair(exclusion_spec(name, 'exclusionAreaOffset'))
         if layer == 'reservation':
             plan.setdefault('reservations', []).append(record)
             return record
@@ -153,7 +206,11 @@ def build(data, name="ArrivalStation"):
         return record
 
     build_name = name
-    if detailed:
+    if module_content or assembly_content:
+        walls, start = layout.furnish(name, plan, place, footprint, prop, foundation, roofs, records, occupied)
+    elif sector_content:
+        walls, start = layout.furnish(name, plan, place, footprint, prop, foundation, roofs, records, occupied)
+    elif detailed:
         walls, start = layout.furnish(name, plan, place, prop, foundation, roofs, records, occupied)
     elif name == "Salvage":
         walls = set()
@@ -237,24 +294,72 @@ def build(data, name="ArrivalStation"):
             dx,dz = [(0,1),(1,0),(0,-1),(-1,0)][r['rotation']]
             assert (r['root'][0]+dx, r['root'][1]+dz) in walls, 'pump must face its mounting wall'
         if 'exclusionSize' in r:
-            sx,_,sz = r['exclusionSize']
-            ox,_,oz = r['exclusionOffset']
-            exhaust = []
-            for x in range(sx):
-                for z in range(sz):
-                    x0,z0 = x+ox,z+oz
-                    dx,dz = [(x0,z0),(z0,-x0),(-x0,-z0),(-z0,x0)][r['rotation']]
-                    exhaust.append((r['root'][0]+dx,r['root'][1]+dz))
-            assert not foundation.intersection(exhaust), (r['name'], 'blocked exhaust')
-            r['exclusionCells'] = exhaust
+            cleared = exhaust(r['name'], r['root'], r['rotation'])
+            assert not foundation.intersection(cleared), (r['name'], 'blocked exhaust', r['origin'], foundation.intersection(cleared))
+            r['exclusionCells'] = cleared
+
+    if assembly_content and (evaluate_only or output is not None):
+        report, bodies = layout.validate(name, plan, records, foundation, roofs, reachable)
+        materials = Counter()
+
+        for terrain in ('Substructure', 'MetalTile'):
+            materials.update(material_cost(terrains[terrain], terrain_parents, len(foundation)))
+        for r in records:
+            if r['category'] != 'Building' or r['layer'] == 'marker':
+                continue
+            materials.update(material_cost(defs[r['name']], parents))
+            if r['stuff']:
+                materials[r['stuff']] += int(prop(r['name'], 'costStuffCount', '0'))
+        refuel = "comps/li[@Class='CompProperties_Refuelable']/"
+        generators = [r for r in records if r['name'] == 'ChemfuelPoweredGenerator']
+        fuel_daily = sum(float(prop(r['name'], refuel + 'fuelConsumptionRate')) for r in generators)
+        fuel_loaded = sum(float(r['stateOverrides']['fuel']) for r in generators)
+        reactors = [r for r in records if r['name'] == 'DeltaV_ShipReactor']
+        uranium_daily = sum(float(prop(r['name'], refuel + 'fuelConsumptionRate')) for r in reactors)
+        uranium_loaded = sum(float(r['stateOverrides']['fuel']) for r in reactors)
+        tank_capacity = sum(float(prop(r['name'], refuel + 'fuelCapacity')) for r in records
+                            if r['name'] in ('ChemfuelTank', 'LargeChemfuelTank'))
+        port = next(r for r in records if r['name'] == 'DeltaV_DockingPort')
+        port_x, port_z = port['root']
+        dx, dz = ((0, 1), (1, 0), (0, -1), (-1, 0))[port['rotation']]
+        distances = {(port_x - dx, port_z - dz): 0}
+        frontier = deque(distances)
+        while frontier:
+            cell = frontier.popleft()
+            for n in sorted(module_layout.adjacent({cell}) & walkable - distances.keys()):
+                distances[n] = distances[cell] + 1
+                frontier.append(n)
+        cargo_paths = [min((distances[c] for c in module_layout.adjacent(set(r['cells'])) & distances.keys()),
+                           default=None) for r in records if r['name'] == 'DeltaV_CargoStorage']
+        batteries = [r for r in records if r['name'] in module_layout.battery_capacity]
+        report.update(materials=dict(sorted(materials.items())), fuelLoaded=fuel_loaded,
+                      uraniumLoaded=uranium_loaded, uraniumPerDay=uranium_daily,
+                      generatorFuelPerDay=fuel_daily, propulsionTankCapacity=tank_capacity,
+                      propulsionFuelLoaded=sum(float(r['stateOverrides'].get('fuel', 0)) for r in records
+                                              if r['name'] in ('ChemfuelTank', 'LargeChemfuelTank')),
+                      batteryCapacityWd=sum(float(prop(r['name'], module_layout.battery_capacity[r['name']]))
+                                            for r in batteries),
+                      cargoPaths=cargo_paths, modules=plan['spec']['modules'],
+                      silhouetteSize=[max(a for a, _ in foundation) - min(a for a, _ in foundation) + 1,
+                                      max(b for _, b in foundation) - min(b for _, b in foundation) + 1])
+        if evaluate_only:
+            return report, records
 
     prototypes = {n.findtext('def'): n for n in ET.parse(HERE / 'prototypes.states').getroot()}
-    if name in ('ArrivalStation','Shipyard','PrototypeShip') or sector_content:
+    if name in ('ArrivalStation','Shipyard','PrototypeShip') or sector_content or module_content or assembly_content:
         prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'shipyard.states').getroot()})
-    if range_layout or sector_content:
+    if range_layout or sector_content or module_content or assembly_content:
         prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'range.states').getroot()})
+    if module_content or assembly_content:
+        prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'modules.states').getroot()})
     document = ET.Element('MapPrefab', formatVersion='2')
     ET.SubElement(document, 'name').text = name
+    if module_content:
+        edges = ', '.join(f"{side}={edge['kind']}" for side, edge in plan['edges'].items())
+        document.append(ET.Comment(f" Assembly edges in local orientation: {edges} "))
+        if name == 'ModuleCasemate':
+            document.append(ET.Comment(" The north edge is exterior only; the two wall rows are built into this module. "))
+            document.append(ET.Comment(" Keep muzzle cells clear; adjacent outer armour must not extend more than one cell north of the casemate front row. "))
     prefab = ET.SubElement(document, 'prefab')
     ET.SubElement(prefab, 'defName').text = 'MapPrefab_' + name
     ET.SubElement(prefab, 'size').text = f'({width}, {height})'
@@ -330,9 +435,11 @@ def build(data, name="ArrivalStation"):
     # Include covered equipment cells too: impassable free-air regions share room state.
     # Solid wall samples are harmless; REF ignores cells with no target Room.
     environment = ET.SubElement(document, 'environment')
-    if (plan or {}).get('reservations'):
+    no_roof_cells = set((plan or {}).get('noRoofCells', ()))
+    no_roof_cells.update(tuple(c) for r in (plan or {}).get('reservations', ()) for c in r['cells'])
+    if no_roof_cells:
         no_roof = ET.SubElement(document, 'noRoof')
-        for x,z in sorted({tuple(c) for r in plan['reservations'] for c in r['cells']}):
+        for x,z in sorted(no_roof_cells):
             ET.SubElement(no_roof, 'li').text = f'({x}, 0, {z})'
     covered = roofs | {c for c, d in (plan or {}).get('foundationDefs', {}).items() if d == 'DeltaV_MoonPool'}
     environment_cells = [] if (plan or {}).get('omitEnvironment') else sorted(covered)
@@ -349,12 +456,18 @@ def build(data, name="ArrivalStation"):
             ET.SubElement(cells, 'li').text = f'({x}, 0, {z})'
     # Validate the final states after layout-specific edits, before replacing any outputs.
     validate_identities(document)
-    generated = ROOT / 'Source/obj/TutorialContent'
+    generated = output if output is not None else ROOT / 'Source/obj/TutorialContent'
     generated.mkdir(parents=True, exist_ok=True)
     (generated / (name + '.records.json')).write_text(json.dumps(records, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
-    if detailed:
+    if assembly_content and output is not None:
+        layout.write_preview(name, plan, report, bodies, generated)
+    elif detailed:
         layout.validate_and_draw(name, plan, records, foundation, roofs, reachable, HERE, generated)
-    if name in ('ArrivalStation', 'TrainingShip', 'Salvage', 'Shipyard', 'PrototypeShip', 'WeaponRange', 'ShieldTarget'):
+    if assembly_content:
+        relative_destination = Path('Templates/Assemblies') / (name + '.xml')
+    elif module_content:
+        relative_destination = Path('Templates/Modules') / (name + '.xml')
+    elif name in ('ArrivalStation', 'TrainingShip', 'Salvage', 'Shipyard', 'PrototypeShip', 'WeaponRange', 'ShieldTarget'):
         relative_destination = Path('Tutorial') / (name + '.xml')
     elif name in ('SectorFighter', 'SectorGunboat', 'SectorFrigate', 'SectorDestroyer', 'SectorCruiser'):
         relative_destination = Path('Sector/Craft') / (name + '.xml')
@@ -366,7 +479,8 @@ def build(data, name="ArrivalStation"):
         relative_destination = Path('Sector/Asteroids') / (name + '.xml')
     else:
         raise ValueError(f'No prefab catalog category for {name}')
-    destination = ROOT / 'Common/Prefabs' / relative_destination
+    destination = (output / (name + '.xml') if output is not None
+                   else ROOT / 'Common/Prefabs' / relative_destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     ET.indent(document)
     ET.ElementTree(document).write(destination, encoding='utf-8', xml_declaration=True)
@@ -404,11 +518,18 @@ def build(data, name="ArrivalStation"):
     assert len(saved.findall('environment/li/cells/li')) == len(environment_cells)
     support_count = 0 if (plan or {}).get('omitFoundations') or name == 'ArrivalStation' else len(foundation)
     print(f'PASS: {len(records)} instances, {support_count} support cells, {len(roofs)} roof cells; Def-derived geometry, routes and output counts.')
+    if assembly_content and output is not None:
+        return report
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=Path, default=Path('D:/SteamLibrary/steamapps/common/RimWorld/Data'))
-    parser.add_argument('--only', nargs='+', choices=['ArrivalStation','TrainingShip','Salvage','Shipyard','PrototypeShip','WeaponRange','ShieldTarget', *sector_layout.NAMES])
+    parser.add_argument('--only', nargs='+', choices=['ArrivalStation','TrainingShip','Salvage','Shipyard','PrototypeShip','WeaponRange','ShieldTarget', *sector_layout.NAMES, 'Modules', *module_layout.MODULES, *module_assemblies.NAMES])
     args = parser.parse_args()
-    for name in args.only or ('ArrivalStation','TrainingShip','Salvage','Shipyard','PrototypeShip','WeaponRange','ShieldTarget'): build(args.data, name)
+    names = args.only or ('ArrivalStation','TrainingShip','Salvage','Shipyard','PrototypeShip','WeaponRange','ShieldTarget')
+    for name in dict.fromkeys(name for selection in names
+                              for name in (module_layout.MODULES if selection == 'Modules' else (selection,))):
+        build(args.data, name)
+    if 'Modules' in names:
+        module_layout.preview_joins(ROOT / 'Source/obj/TutorialContent')

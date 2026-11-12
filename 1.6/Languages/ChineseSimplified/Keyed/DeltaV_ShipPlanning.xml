@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_SettingsShowShipPlanner>显示实验性舰船生成</DeltaV_SettingsShowShipPlanner>
+  <DeltaV_SettingsShowShipPlannerTip>开启此设置后可在上帝模式使用舰船生成分类。</DeltaV_SettingsShowShipPlannerTip>
+  <DeltaV_ShipPlanUndo>回退为原船壳</DeltaV_ShipPlanUndo>
+  <DeltaV_ShipPlanUndoDesc>清除原船壳范围内的建筑和物品，恢复基架、屋顶和功能区标记。请先让人员离船。</DeltaV_ShipPlanUndoDesc>
+  <DeltaV_ShipPlanExport>导出舰船 Prefab</DeltaV_ShipPlanExport>
+  <DeltaV_ShipPlanExportDesc>将当前布局及人员和 SpaceObject 标记一起导出。</DeltaV_ShipPlanExportDesc>
+  <DeltaV_ShipPlanCancel>取消生成</DeltaV_ShipPlanCancel>
+  <DeltaV_ShipPlanCancelDesc>停止本次求解并保留原船壳。</DeltaV_ShipPlanCancelDesc>
+  <DeltaV_ShipPlanStart>生成舰船预览</DeltaV_ShipPlanStart>
+  <DeltaV_ShipPlanStartDesc>先确定走廊，再安排舱室、维生和推进器。试装可收去外缘无用途的基架。</DeltaV_ShipPlanStartDesc>
+  <DeltaV_ShipPlanRemove>移除控制标记</DeltaV_ShipPlanRemove>
+  <DeltaV_ShipPlanRemoveDesc>移除这个闲置的布局控制标记。</DeltaV_ShipPlanRemoveDesc>
+  <DeltaV_ShipPlanWidth>走廊宽度</DeltaV_ShipPlanWidth>
+  <DeltaV_ShipPlanWidthDesc>按区段自动定宽，也可将全船走廊固定为一、二或三格。</DeltaV_ShipPlanWidthDesc>
+  <DeltaV_ShipPlanTask>舰船任务</DeltaV_ShipPlanTask>
+  <DeltaV_ShipPlanTaskDesc>选择排舱时优先考虑的舰船功能。</DeltaV_ShipPlanTaskDesc>
+  <DeltaV_ShipPlanTaskBalanced>均衡</DeltaV_ShipPlanTaskBalanced>
+  <DeltaV_ShipPlanTaskTransport>运输</DeltaV_ShipPlanTaskTransport>
+  <DeltaV_ShipPlanTaskProduction>生产</DeltaV_ShipPlanTaskProduction>
+  <DeltaV_ShipPlanTaskEscort>护航</DeltaV_ShipPlanTaskEscort>
+  <DeltaV_ShipPlanAuto>自动</DeltaV_ShipPlanAuto>
+  <DeltaV_ShipPlanCells>{0} 格</DeltaV_ShipPlanCells>
+  <DeltaV_ShipPlanShell>请使用不超过 1,600 格、长宽均不超过 100 格的空基架船壳。</DeltaV_ShipPlanShell>
+  <DeltaV_ShipPlanEmpty>船壳上只能有一个布局控制标记和其他创作标记。请先移走人员及其他设施、物品。</DeltaV_ShipPlanEmpty>
+  <DeltaV_ShipPlanChanged>求解期间船壳或标记发生变化，本次未落位。</DeltaV_ShipPlanChanged>
+  <DeltaV_ShipPlanBadResult>预览超出船壳或会覆盖保留标记，本次未落位。</DeltaV_ShipPlanBadResult>
+  <DeltaV_ShipPlanReady>舰船试装完成。可以导出或回退为原船壳。</DeltaV_ShipPlanReady>
+  <DeltaV_ShipPlanSaved>已保存 Prefab：{0}</DeltaV_ShipPlanSaved>
+  <DeltaV_ShipPlanUndoBlocked>请在原船壳回退。先移走人员（包括容器内的人员）、跨出船壳的建筑或不同类型的基架。</DeltaV_ShipPlanUndoBlocked>
+  <DeltaV_ShipPlanRestored>已恢复原船壳。</DeltaV_ShipPlanRestored>
+  <DeltaV_ShipPlanConfigure>请先配置本地舰船求解器：{0}</DeltaV_ShipPlanConfigure>
+  <DeltaV_ShipPlanGodOnly>舰船 Prefab 创作只能在 God 模式下使用。</DeltaV_ShipPlanGodOnly>
+  <DeltaV_ShipPlanPacking>没找到能容纳所有必需舱室及其入口的布局。可给驾驶舱和燃料舱留出较宽的舱段，或调整功能区标记。原船壳未改动。报告：{0}</DeltaV_ShipPlanPacking>
+  <DeltaV_ShipPlanLayout>舱室能放下，但布局未通过通行、气密或维生检查。原船壳未改动。报告：{0}</DeltaV_ShipPlanLayout>
+  <DeltaV_ShipPlanPropulsion>布局未通过推进、排气净空或燃料检查。原船壳未改动。报告：{0}</DeltaV_ShipPlanPropulsion>
+  <DeltaV_ShipPlanBudget>求解达到预算上限，尚未找到通过验收的预览。原船壳未改动。报告：{0}</DeltaV_ShipPlanBudget>
+  <DeltaV_ShipPlanWorkerFailure>舰船求解器未正常完成。原船壳未改动。报告：{0}</DeltaV_ShipPlanWorkerFailure>
+  <DeltaV_ShipPlanOrbit>请把标记放在轨道地图的舰船基架上。</DeltaV_ShipPlanOrbit>
+  <DeltaV_ShipPlanCrewKind>人员类型</DeltaV_ShipPlanCrewKind>
+  <DeltaV_ShipPlanCrewKindDesc>选择正式导入 Prefab 时生成的人员类型。</DeltaV_ShipPlanCrewKindDesc>
+  <DeltaV_ShipPlanCrewDefault>目标派系默认</DeltaV_ShipPlanCrewDefault>
+  <DeltaV_ShipPlanProgress>舰船生成 · {0}（已用 {1}）</DeltaV_ShipPlanProgress>
+  <DeltaV_ShipPlanStep>{0} {1}/{2}</DeltaV_ShipPlanStep>
+  <DeltaV_ShipPlanStageLaunch>正在启动求解器</DeltaV_ShipPlanStageLaunch>
+  <DeltaV_ShipPlanStageRequest>读取生成请求</DeltaV_ShipPlanStageRequest>
+  <DeltaV_ShipPlanStageReference>计算基准船</DeltaV_ShipPlanStageReference>
+  <DeltaV_ShipPlanStageSkeleton>提取船壳骨架</DeltaV_ShipPlanStageSkeleton>
+  <DeltaV_ShipPlanStageCorridor>确定走廊</DeltaV_ShipPlanStageCorridor>
+  <DeltaV_ShipPlanStageRoomModel>建立排舱模型</DeltaV_ShipPlanStageRoomModel>
+  <DeltaV_ShipPlanStageRoomSolve>求解舱室布局</DeltaV_ShipPlanStageRoomSolve>
+  <DeltaV_ShipPlanStageServices>布置维生与电力</DeltaV_ShipPlanStageServices>
+  <DeltaV_ShipPlanStageMounts>枚举推进器安装位</DeltaV_ShipPlanStageMounts>
+  <DeltaV_ShipPlanStagePropulsionModel>建立推进模型</DeltaV_ShipPlanStagePropulsionModel>
+  <DeltaV_ShipPlanStagePropulsion>求解推进器布局</DeltaV_ShipPlanStagePropulsion>
+  <DeltaV_ShipPlanStageFit>复核推进器安装</DeltaV_ShipPlanStageFit>
+  <DeltaV_ShipPlanStageFlight>验算机动和燃料</DeltaV_ShipPlanStageFlight>
+  <DeltaV_ShipPlanStageExport>写入预览文件</DeltaV_ShipPlanStageExport>
+  <DeltaV_ShipPlanStageWorkerDone>等待应用求解结果</DeltaV_ShipPlanStageWorkerDone>
+</LanguageData>

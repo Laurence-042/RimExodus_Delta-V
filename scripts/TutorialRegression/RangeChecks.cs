@@ -28,13 +28,13 @@ internal static partial class Program
         var live=PowerNetMaker.NewPowerNetStartingFrom(transmitters.First(b=>!isolated.Contains(b.Position)));
         Check(live.transmitters.Count==transmitters.Count-isolated.Count,"native target working grid remains connected");
     }
-    static void RangeLayout(List<Building> buildings, string recordsPath)
+    static void RangeLayout(List<Building> buildings, string recordsPath, int expectedSegments = 9)
     {
         string repo=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(recordsPath),"../../.."));
         var defs=new XmlDocument(); defs.Load(Path.Combine(repo,"1.6","Defs","SpaceCombat","DeltaV_SpaceWeapons.xml"));
         XmlNode Def(string name) => defs.SelectSingleNode("/Defs/ThingDef[defName='"+name+"']");
         var attachments=buildings.Where(b=>b.def.defName=="DeltaV_Building_AutoAimPluginII").ToList();
-        foreach(var turret in buildings.Where(b=>b.def.defName.EndsWith("MainMedium")))
+        foreach(var turret in buildings.Where(b=>expectedSegments==9 && b.def.defName.EndsWith("MainMedium")))
         {
             var slot=IntVec3.FromString(Def(turret.def.defName).SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']/attachmentSlots/li/cell").InnerText);
             Check(attachments.Count(a=>a.Position==SpaceWeaponGeometry.RotatedCell(turret,slot)
@@ -81,16 +81,35 @@ internal static partial class Program
         try
         {
             var chain=CompSpaceRailgun.TraceConnections(weapon);
-            Check(chain.segments.Count==9 && chain.kineticEnergyBonus==1012500f,"production trace reaches nine accelerators");
+            Check(chain.segments.Count==expectedSegments && chain.kineticEnergyBonus==112500f*expectedSegments,
+                "production trace reaches each authored accelerator");
             var cells=segments.Append(loader).SelectMany(b=>b.OccupiedRect()).Distinct().ToList();
-            Check(cells.Count==30 && cells.Max(c=>c.x)-cells.Min(c=>c.x)+1==10
-                && cells.Max(c=>c.z)-cells.Min(c=>c.z)+1==3,"native rail footprint is ten cells long and three wide");
+            int width=cells.Max(c=>c.x)-cells.Min(c=>c.x)+1, height=cells.Max(c=>c.z)-cells.Min(c=>c.z)+1;
+            bool north=loader.Rotation==Rot4.North;
+            Check(cells.Count==3*(expectedSegments+1)
+                && (north ? height : width)==expectedSegments+1 && (north ? width : height)==3,
+                "native rail footprint follows the authored axis");
             var last=chain.segments.Last().parent.OccupiedRect();
+            Check(chain.muzzleMap.HasValue, "production rail trace has an exit muzzle");
             var muzzleCell=new IntVec3(Mathf.FloorToInt(chain.muzzleMap.Value.x),0,Mathf.FloorToInt(chain.muzzleMap.Value.y));
-            Check(chain.muzzleMap.HasValue && chain.muzzleMap.Value.x>=last.maxX+1
+            Check((north ? chain.muzzleMap.Value.y>=last.maxZ+1 : chain.muzzleMap.Value.x>=last.maxX+1)
                 && !buildings.Any(b=>b.def.passability==Traversability.Impassable
                     && b.OccupiedRect().Contains(muzzleCell)),
                 "production rail muzzle exits unobstructed beyond the final segment");
+            if (north)
+            {
+                using var authored=JsonDocument.Parse(File.ReadAllText(recordsPath));
+                bool module = Path.GetFileName(recordsPath) == "ModuleRailgun.records.json";
+                float stored=authored.RootElement.EnumerateArray()
+                    .Where(r=>r.GetProperty("name").GetString()=="DeltaV_SafetyBattery"
+                        || module && r.GetProperty("name").GetString()=="Battery")
+                    .Sum(r=>r.GetProperty("stateOverrides").GetProperty("storedPower").GetSingle());
+                float Pulse(string value) => float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+                float loaderPulse=Pulse(Def(loader.def.defName)
+                    .SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']/shotEnergy").InnerText);
+                Check(stored>=loaderPulse+expectedSegments*Pulse(segmentNode["shotEnergy"].InnerText),
+                    "local reserve covers one full rail discharge");
+            }
         }
         finally {harmony.Unpatch(owner,HarmonyPatchType.Prefix,harmony.Id);}
     }

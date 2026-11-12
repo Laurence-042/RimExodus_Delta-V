@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='utf-8'?>
+<states>
+  <saveable Class="DeltaV.Building_VacuumBarrier">
+    <def>DeltaV_VacuumBarrier</def>
+  </saveable>
+  <saveable Class="Building">
+    <def>LargeChemfuelTank</def>
+    <thingsIgnoredByExplosion />
+  </saveable>
+  <saveable Class="Building_Vent">
+    <def>Vent</def>
+    <switchOn>False</switchOn>
+    <wantSwitchOn>False</wantSwitchOn>
+  </saveable>
+  <saveable Class="Building">
+    <def>MultiAnalyzer</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>ToolCabinet</def>
+    <health>100</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>EndTable</def>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_Weapon_MissileLauncher</def>
+    <loadedShell>DeltaV_Missile_HE</loadedShell>
+    <loadedCount>1</loadedCount>
+    <allowedShellsSettings>
+      <filter>
+        <disallowedSpecialFilters />
+        <allowedDefs><li>DeltaV_Missile_HE</li></allowedDefs>
+      </filter>
+    </allowedShellsSettings>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_Building_MissileMagazine</def>
+    <missileContents><keys /><values /></missileContents>
+    <missileLimits><keys /><values /></missileLimits>
+  </saveable>
+  <saveable Class="DeltaV.Building_Casemate">
+    <def>DeltaV_Weapon_Casemate</def>
+  </saveable>
+</states>

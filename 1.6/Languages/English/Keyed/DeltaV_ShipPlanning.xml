@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_SettingsShowShipPlanner>Show experimental ship generation</DeltaV_SettingsShowShipPlanner>
+  <DeltaV_SettingsShowShipPlannerTip>Enable this setting to use the ship generation tab in God mode.</DeltaV_SettingsShowShipPlannerTip>
+  <DeltaV_ShipPlanUndo>Restore original shell</DeltaV_ShipPlanUndo>
+  <DeltaV_ShipPlanUndoDesc>Clear buildings and items within the original shell and restore its foundation, roofs and zone markers. Move occupants off the ship first.</DeltaV_ShipPlanUndoDesc>
+  <DeltaV_ShipPlanExport>Export ship prefab</DeltaV_ShipPlanExport>
+  <DeltaV_ShipPlanExportDesc>Export the current layout, including crew and SpaceObject markers, as a prefab.</DeltaV_ShipPlanExportDesc>
+  <DeltaV_ShipPlanCancel>Cancel generation</DeltaV_ShipPlanCancel>
+  <DeltaV_ShipPlanCancelDesc>Stop the current search and keep the original shell.</DeltaV_ShipPlanCancelDesc>
+  <DeltaV_ShipPlanStart>Generate ship preview</DeltaV_ShipPlanStart>
+  <DeltaV_ShipPlanStartDesc>Plan corridors first, then fit rooms, life support and propulsion. The preview may trim unused foundation at the outer edge.</DeltaV_ShipPlanStartDesc>
+  <DeltaV_ShipPlanRemove>Remove control marker</DeltaV_ShipPlanRemove>
+  <DeltaV_ShipPlanRemoveDesc>Remove this idle layout control marker.</DeltaV_ShipPlanRemoveDesc>
+  <DeltaV_ShipPlanWidth>Corridor width</DeltaV_ShipPlanWidth>
+  <DeltaV_ShipPlanWidthDesc>Choose widths by section automatically, or set the whole corridor network to one, two or three cells.</DeltaV_ShipPlanWidthDesc>
+  <DeltaV_ShipPlanTask>Ship mission</DeltaV_ShipPlanTask>
+  <DeltaV_ShipPlanTaskDesc>Choose which ship functions the planner should prioritize.</DeltaV_ShipPlanTaskDesc>
+  <DeltaV_ShipPlanTaskBalanced>Balanced</DeltaV_ShipPlanTaskBalanced>
+  <DeltaV_ShipPlanTaskTransport>Transport</DeltaV_ShipPlanTaskTransport>
+  <DeltaV_ShipPlanTaskProduction>Production</DeltaV_ShipPlanTaskProduction>
+  <DeltaV_ShipPlanTaskEscort>Escort</DeltaV_ShipPlanTaskEscort>
+  <DeltaV_ShipPlanAuto>automatic</DeltaV_ShipPlanAuto>
+  <DeltaV_ShipPlanCells>{0} cells</DeltaV_ShipPlanCells>
+  <DeltaV_ShipPlanShell>Use an empty connected ship foundation, at most 1,600 cells and 100 cells along either axis.</DeltaV_ShipPlanShell>
+  <DeltaV_ShipPlanEmpty>The shell must contain only one layout control and the authoring markers. Remove other things and pawns first.</DeltaV_ShipPlanEmpty>
+  <DeltaV_ShipPlanChanged>The shell or its markers changed during the search. Nothing was placed.</DeltaV_ShipPlanChanged>
+  <DeltaV_ShipPlanBadResult>The preview does not fit this shell or would replace a retained marker. Nothing was placed.</DeltaV_ShipPlanBadResult>
+  <DeltaV_ShipPlanReady>Ship preview installed. You can export it or restore the shell.</DeltaV_ShipPlanReady>
+  <DeltaV_ShipPlanSaved>Saved prefab: {0}</DeltaV_ShipPlanSaved>
+  <DeltaV_ShipPlanUndoBlocked>Restore from the original shell. Remove any occupants (including those in containers), buildings crossing its edge or incompatible foundations before restoring.</DeltaV_ShipPlanUndoBlocked>
+  <DeltaV_ShipPlanRestored>Original ship shell restored.</DeltaV_ShipPlanRestored>
+  <DeltaV_ShipPlanConfigure>Set up the local ship planner first: {0}</DeltaV_ShipPlanConfigure>
+  <DeltaV_ShipPlanGodOnly>Ship prefab authoring requires God mode.</DeltaV_ShipPlanGodOnly>
+  <DeltaV_ShipPlanPacking>The search could not fit every required room and its entrance. Leave wide sections for the bridge and fuel room, or move room markers. The shell is unchanged. Report: {0}</DeltaV_ShipPlanPacking>
+  <DeltaV_ShipPlanLayout>The rooms fit, but none of the layouts passed access, airtightness or life support checks. The shell is unchanged. Report: {0}</DeltaV_ShipPlanLayout>
+  <DeltaV_ShipPlanPropulsion>No layout passed the propulsion, exhaust clearance and fuel checks. The shell is unchanged. Report: {0}</DeltaV_ShipPlanPropulsion>
+  <DeltaV_ShipPlanBudget>The search reached its limit without a verified preview. The shell is unchanged. Report: {0}</DeltaV_ShipPlanBudget>
+  <DeltaV_ShipPlanWorkerFailure>The ship planner did not finish successfully. The shell is unchanged. Report: {0}</DeltaV_ShipPlanWorkerFailure>
+  <DeltaV_ShipPlanOrbit>Place this marker on ship foundation on an orbital map.</DeltaV_ShipPlanOrbit>
+  <DeltaV_ShipPlanCrewKind>Crew kind</DeltaV_ShipPlanCrewKind>
+  <DeltaV_ShipPlanCrewKindDesc>Select the pawn kind spawned when the exported prefab is imported.</DeltaV_ShipPlanCrewKindDesc>
+  <DeltaV_ShipPlanCrewDefault>destination faction default</DeltaV_ShipPlanCrewDefault>
+  <DeltaV_ShipPlanProgress>Ship generation · {0} ({1} elapsed)</DeltaV_ShipPlanProgress>
+  <DeltaV_ShipPlanStep>{0} {1}/{2}</DeltaV_ShipPlanStep>
+  <DeltaV_ShipPlanStageLaunch>Starting solver</DeltaV_ShipPlanStageLaunch>
+  <DeltaV_ShipPlanStageRequest>Reading request</DeltaV_ShipPlanStageRequest>
+  <DeltaV_ShipPlanStageReference>Evaluating reference ship</DeltaV_ShipPlanStageReference>
+  <DeltaV_ShipPlanStageSkeleton>Extracting hull skeleton</DeltaV_ShipPlanStageSkeleton>
+  <DeltaV_ShipPlanStageCorridor>Fixing corridors</DeltaV_ShipPlanStageCorridor>
+  <DeltaV_ShipPlanStageRoomModel>Building room model</DeltaV_ShipPlanStageRoomModel>
+  <DeltaV_ShipPlanStageRoomSolve>Solving room layout</DeltaV_ShipPlanStageRoomSolve>
+  <DeltaV_ShipPlanStageServices>Fitting life support and power</DeltaV_ShipPlanStageServices>
+  <DeltaV_ShipPlanStageMounts>Finding thruster mounts</DeltaV_ShipPlanStageMounts>
+  <DeltaV_ShipPlanStagePropulsionModel>Building propulsion model</DeltaV_ShipPlanStagePropulsionModel>
+  <DeltaV_ShipPlanStagePropulsion>Solving thruster layout</DeltaV_ShipPlanStagePropulsion>
+  <DeltaV_ShipPlanStageFit>Checking thruster fit</DeltaV_ShipPlanStageFit>
+  <DeltaV_ShipPlanStageFlight>Validating flight and fuel</DeltaV_ShipPlanStageFlight>
+  <DeltaV_ShipPlanStageExport>Writing preview files</DeltaV_ShipPlanStageExport>
+  <DeltaV_ShipPlanStageWorkerDone>Waiting for solver result</DeltaV_ShipPlanStageWorkerDone>
+</LanguageData>

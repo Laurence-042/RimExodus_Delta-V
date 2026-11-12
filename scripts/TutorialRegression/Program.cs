@@ -30,10 +30,18 @@ internal static partial class Program
         AssemblyLoadContext.Default.Resolving += (_, name) =>
         {
             string path = Path.Combine(args[0], name.Name + ".dll");
+            if (File.Exists(path)) return AssemblyLoadContext.Default.LoadFromAssemblyPath(path);
+            path = Path.Combine(AppContext.BaseDirectory, name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
         try
         {
+            if (args.Length == 5 && args[1] == "ship-motion")
+            {
+                Console.WriteLine(SearchMotion(args[2], double.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture),
+                    double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture)));
+                return 0;
+            }
             var harmony = new Harmony("DeltaV.TutorialRegression");
             foreach (string method in new[] { "Error", "Warning" })
                 harmony.Patch(AccessTools.Method(typeof(Log), method, new[] { typeof(string) }),
@@ -55,9 +63,60 @@ internal static partial class Program
             pack.assemblies.loadedAssemblies.Add(typeof(TutorialRunState).Assembly);
             LoadedModManager.RunningModsListForReading.Add(pack);
             string prefabRoot = args[3];
-            ReadSourceDefs(Path.GetFullPath(Path.Combine(args[0], "../../Data")),
+            string gameData = Directory.Exists(Path.Combine(args[0], "Data"))
+                ? Path.Combine(args[0],"Data") : Path.GetFullPath(Path.Combine(args[0], "../../Data"));
+            ReadSourceDefs(gameData,
                 Path.GetFullPath(Path.Combine(prefabRoot, "../../1.6/Defs")));
             string tutorialPrefabs = Path.Combine(prefabRoot, "Tutorial");
+            if (args.Length > 5 && args[4] == "ship-search")
+            {
+                string directory = args[5];
+                using var batch = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "batch.json")));
+                AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, true);
+                try
+                {
+                    TerrainDefOf.Space = Raw<TerrainDef>();
+                    DeltaVDefOf.DeltaV_DockingChannel = Raw<TerrainDef>();
+                }
+                finally { AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, false); }
+                var selections = batch.RootElement.GetProperty("selected");
+                Check(selections.GetArrayLength() > 0, "ship search supplied at least one accepted preview");
+                PrefabIdentities(directory);
+                foreach (var selected in selections.EnumerateArray())
+                {
+                    string name = selected.GetProperty("name").GetString();
+                    Check(File.Exists(Path.Combine(directory, name + ".xml")), "selected prefab exists: " + name);
+                    SearchExport(directory,name);
+                    Geometry(Path.Combine(directory, name + ".records.json"), game);
+                    if (batch.RootElement.TryGetProperty("playerShell", out var shell))
+                        VerifyPlayerShell(directory, name, shell, batch.RootElement.GetProperty("corridorWidths"));
+                    if (selected.TryGetProperty("task", out var task))
+                        VerifyTaskDeck(directory, name, batch.RootElement.GetProperty("deckLimits"), task);
+                }
+                foreach (var selected in selections.EnumerateArray())
+                    VerifySearchMotion(Path.Combine(directory,selected.GetProperty("name").GetString()+".records.json"));
+                Check(errors.Count == 0, "Unexpected generated assembly logs: " + string.Join("\n", errors));
+                Console.WriteLine($"PASS {checks} generated ship checks. No game launched.");
+                return 0;
+            }
+            if (args.Length > 4 && args[4] == "modules")
+            {
+                string modules = Path.Combine(prefabRoot, "Templates", "Modules");
+                string assemblies = Path.Combine(prefabRoot, "Templates", "Assemblies");
+                PrefabIdentities(modules);
+                PrefabIdentities(assemblies);
+                foreach (string path in Directory.GetFiles(modules, "*.xml"))
+                    Geometry(Path.Combine(Path.GetDirectoryName(args[1]), Path.GetFileNameWithoutExtension(path)
+                        + ".records.json"), game);
+                foreach (string path in Directory.GetFiles(assemblies, "*.xml"))
+                    Geometry(Path.Combine(Path.GetDirectoryName(args[1]), Path.GetFileNameWithoutExtension(path)
+                        + ".records.json"), game);
+                PrefabTurretGraphs(modules, new[] { "ModuleHeavyBattery", "ModuleRapidBattery",
+                    "ModuleLaserBattery", "ModulePointDefense" });
+                Check(errors.Count == 0, "Unexpected module logs: " + string.Join("\n", errors));
+                Console.WriteLine($"PASS {checks} module geometry, power, rail-chain and prefab checks. No game launched.");
+                return 0;
+            }
             ScenarioTranslation(prefabRoot);
             PrefabIdentities(prefabRoot);
             SectorContentDefaults(prefabRoot);
@@ -221,24 +280,118 @@ internal static partial class Program
         }
         var thrusters = buildings.Where(b => b.def.defName == "SmallThruster" || b.def.defName == "LargeThruster").ToList();
         if (Path.GetFileName(path) == "WeaponRange.records.json") RangeLayout(buildings, path);
+        if (Path.GetFileName(path) == "ModuleRailgun.records.json") RangeLayout(buildings, path, 5);
+        if (Path.GetFileName(path) == "AssemblyCombat.records.json") RangeLayout(buildings, path, 5);
+        if (Path.GetFileName(path) == "ModuleBedroom.records.json")
+        {
+            var beds = buildings.Where(b => b.def.defName == "Bed").ToList();
+            var tables = buildings.Where(b => b.def.defName == "EndTable").ToList();
+            Check(beds.Count == 2 && tables.Count == 2, "two private bedrooms each have a bed and end table");
+            foreach (var bed in beds)
+            {
+                var head = BedUtility.GetSleepingSlotPos(0, bed.Position, bed.Rotation, bed.def.size);
+                Check(tables.Count(t => GenAdj.CardinalDirections.Any(d => t.Position == head + d)) == 1,
+                    "end table touches its native bed head");
+            }
+        }
+        if (Path.GetFileName(path) == "ModuleMissile.records.json")
+        {
+            var launchers = buildings.Where(b => b.def.defName == "DeltaV_Weapon_MissileLauncher").ToList();
+            var magazines = buildings.Where(b => b.def.defName == "DeltaV_Building_MissileMagazine").ToList();
+            Check(launchers.Count == 3 && magazines.Count == 2, "three launchers share two magazines");
+            var sockets = sourceDefs[launchers[0].def.defName].SelectNodes(
+                "comps/li[@Class='DeltaV.CompProperties_MissileAutoloader']/magazineRootOffsets/li");
+            var properties = new CompProperties_MissileAutoloader {
+                magazineDefs = magazines.Select(b => b.def).ToList(),
+                magazineRootOffsets = sockets.Cast<XmlNode>().Select(n => IntVec3.FromString(n.InnerText)).ToList()
+            };
+            foreach (var launcher in launchers)
+                launcher.def.comps = new List<CompProperties> { properties };
+            for (int n = 0; n < 4; n++)
+            {
+                var turn = new Rot4(n);
+                IntVec3 Root(Building b) => PrefabUtility.GetAdjustedThingLocalPosition(b.def, turn, b.Position);
+                bool Fits(Building launcher, Building magazine) => SpaceMissileMagazineGeometry.Fits(
+                    launcher.def, Root(launcher), turn, magazine.def, Root(magazine), turn);
+                Check(magazines.All(magazine => launchers.Count(launcher => Fits(launcher, magazine)) == 2),
+                    "each magazine links to two launchers in native rotation " + n);
+                foreach (var launcher in launchers)
+                {
+                    int expected = launcher.Position.x == launchers[1].Position.x ? 2 : 1;
+                    Check(magazines.Count(magazine => Fits(launcher, magazine)) == expected,
+                        "launcher links to the adjacent magazines in native rotation " + n);
+                }
+            }
+        }
         if (thrusters.Count != 0)
         {
             var report = new ShipPhysics.MassReport { mass = 1000f, inertia = 30000f,
                 comLocal = new Vector2((float)buildings.Average(b => b.DrawPos.x), (float)buildings.Average(b => b.DrawPos.z)) };
-            foreach (Building b in thrusters)
+            bool assembly = Path.GetFileName(path).StartsWith("Assembly", StringComparison.Ordinal);
+            bool generated = Path.GetFileName(path).StartsWith("AssemblyGenerated", StringComparison.Ordinal);
+            var authoredThrusters = json.RootElement.EnumerateArray()
+                .Where(row => row.TryGetProperty("exclusionSize", out _)).ToList();
+            if (assembly) ApplySectorMass(json.RootElement, roofPath, report);
+            for (int i = 0; i < thrusters.Count; i++)
             {
+                Building b = thrusters[i];
                 var rect = b.OccupiedRect();
+                float thrust = ShipPhysics.ThrusterThrust;
+                if (assembly)
+                {
+                    float limit = authoredThrusters[i].GetProperty("stateOverrides").GetProperty("DeltaV_powerPercent").GetSingle();
+                    Check(limit > 0 && limit <= 100, b.def.defName + " valid authored power limit");
+                    thrust *= limit * .01f;
+                }
                 report.thrusters.Add(new ShipPhysics.Thruster { localPos = new Vector2(rect.minX + rect.Width*.5f, rect.minZ + rect.Height*.5f),
-                    dir = ShipPhysics.ThrustDir(b.Rotation), thrust = ShipPhysics.ThrusterThrust, operational = true });
+                    dir = ShipPhysics.ThrustDir(b.Rotation), thrust = thrust, operational = true });
             }
-            foreach (var command in new[] { new ShipPhysics.Command { fx=1 }, new ShipPhysics.Command { fx=-1 },
+            var accelerationByAxis = new List<float>();
+            var commands = new[] { new ShipPhysics.Command { fx=1 }, new ShipPhysics.Command { fx=-1 },
                 new ShipPhysics.Command { fz=1 }, new ShipPhysics.Command { fz=-1 },
-                new ShipPhysics.Command { torque=1 }, new ShipPhysics.Command { torque=-1 } })
+                new ShipPhysics.Command { torque=1 }, new ShipPhysics.Command { torque=-1 } };
+            foreach (var command in commands)
             {
                 ShipPhysics.PreviewAllocation(report, command, out var force, out float torque);
                 Check(command.torque != 0 ? torque * command.torque > 1f
                     : Vector2.Dot(force, new Vector2(command.fx,command.fz)) > 1f,
-                    "training layout has real allocator authority in all six directions");
+                    Path.GetFileName(path) + " has real allocator authority in all six directions");
+                if (assembly && command.torque == 0)
+                    accelerationByAxis.Add(Vector2.Dot(force, new Vector2(command.fx, command.fz)) / report.mass);
+            }
+            if (assembly)
+                Console.WriteLine($"{Path.GetFileNameWithoutExtension(path)} empty mass {report.mass:F0}, "
+                    + $"forward {accelerationByAxis[2]:F2}, reverse {accelerationByAxis[3]:F2}, "
+                    + $"east {accelerationByAxis[0]:F2}, west {accelerationByAxis[1]:F2} cells/s²");
+            if (generated)
+            {
+                var pilot = buildings.Single(b => b.def.defName == "PilotConsole");
+                Check(pilot.Rotation == Rot4.North, "generated motion report axes match the pilot frame");
+                var port = buildings.Single(b => b.def.defName == "DeltaV_DockingPort");
+                var facing = port.Rotation.FacingCell;
+                var target = port.Position + facing * 4;
+                using var layout = JsonDocument.Parse(File.ReadAllText(roofPath));
+                var foundation = layout.RootElement.GetProperty("foundation").EnumerateArray()
+                    .Select(c => new IntVec3(c[0].GetInt32() + 20, 0, c[1].GetInt32() + 20)).ToHashSet();
+                for (int n = 1; n <= 3; n++)
+                {
+                    var c = port.Position + facing * n;
+                    Check(!foundation.Contains(c) && !buildings.Any(b => b.OccupiedRect().Contains(c)), "clear docking approach");
+                    map.terrainGrid.topGrid[map.cellIndices.CellToIndex(c)] = TerrainDefOf.Space;
+                }
+                map.terrainGrid.topGrid[map.cellIndices.CellToIndex(target)] = Raw<TerrainDef>();
+                var channel = new List<IntVec3>();
+                Check(Building_DockingPort.TryFindChannel(map, port.Position, port.Rotation, 8, channel, out var face)
+                      && face == target && channel.Count == 3, "native probe reaches a docking face across three vacuum cells");
+            }
+            if (Path.GetFileName(path) == "AssemblyIndustrial.records.json")
+            {
+                ApplySectorMass(json.RootElement, roofPath, report, steelStacksPerHold: 12);
+                ShipPhysics.PreviewAllocation(report, new ShipPhysics.Command { fz = 1 }, out var forward, out _);
+                ShipPhysics.PreviewAllocation(report, new ShipPhysics.Command { fz = -1 }, out var reverse, out _);
+                Check(forward.y > 0 && reverse.y < 0, "loaded industrial ship can accelerate and brake");
+                Console.WriteLine($"AssemblyIndustrial with 48 stacks of steel, mass {report.mass:F0}, "
+                    + $"forward {forward.y / report.mass:F2}, reverse {-reverse.y / report.mass:F2} cells/s²");
             }
             if (Path.GetFileName(path) == "TrainingShip.records.json") TrainerStrafe(report, thrusters);
             if (Path.GetFileName(path) == "PrototypeShip.records.json") FreighterLoads(path, report);

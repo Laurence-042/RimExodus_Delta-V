@@ -23,6 +23,45 @@ just build
 
 `python scripts/TutorialContent/build.py --only SectorFighter ... SectorAsteroid AsteroidSteelSmall AsteroidSteelMedium AsteroidComponentsSmall AsteroidMixedMedium AsteroidPlasteelLarge` 可单独重建星区内容。舰船与站体均包含真实驾驶台、电网、维生和用途设备；贸易站状态显式绑定三个锁定供货仓与一个解锁取货仓。小行星带核心和五份子体按原生 asteroid 契约写 `Vacstone_Rough`、Vacstone／部分 Mineable 和 `RoofRockThin`，不写 foundation／environment；核心标记保存带权路径、环带、密度、间距和固定种子，子体没有标记。`TutorialRegression` 检查 12 个注册叶子的默认路径、format-2 文件、Scribe 数字身份、贸易引用和小行星带完整契约；完整 SpawnSetup、人员活动、战斗、交易补货和 cluster 物化仍由新档验收。
 
+`python scripts/TutorialContent/build.py --only Modules` 生成独立舱室 XML，并把图纸、边界格位报告和两种拼缝示意写入 `Source/obj/TutorialContent/`。逐个改动时也可以直接指定 `ModuleResearch` 等模板名。运行上述原版离线检查命令时加 `-ModulesOnly` 检查模块。模块接口和空基架口径见[独立舱室模板](../../doc/Prefab状态重建.md#独立舱室模板)。
+
+`python scripts/TutorialContent/build.py --only AssemblyCombat AssemblyIndustrial` 重建两艘模块试装船。编辑 `module_assemblies.py` 调整组合位置和机务设施。上述 `-ModulesOnly` 回归也检查这两艘船。
+
+用下列命令运行 Workshop 轮廓驱动的离线生成器。CP-SAT 仅用于制作期；先按上文编译 1.6 和运行 `-ModulesOnly`，使生产分配器夹具可用。
+
+```powershell
+py -3.14 -m pip install --target Source/obj/TutorialContent/SolverDependencies -r scripts/TutorialContent/ship-search-requirements.txt
+$env:PYTHONPATH = 'Source/obj/TutorialContent/SolverDependencies'
+py -3.14 -X utf8 scripts/TutorialContent/generate_ships.py --blind-control --output Source/obj/TutorialContent/ShipSearch
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/TutorialRegression/run.ps1 -HarmonyPath C:/Users/Laure/.nuget/packages/lib.harmony/2.4.1/lib/net8.0/0Harmony.dll -ShipSearchDirectory Source/obj/TutorialContent/ShipSearch
+```
+
+可重复传入 `--blueprint` 读取本机 BTD 文件；不传时使用本机 Workshop 的 Freighter、Explorer 和 Tier 0 Ebon Hawk，且 Ebon Hawk 示范要求走廊至少有一处交会。可用 `--seed`、`--weights`、`--material-limits`（Def 名至整数上限的 JSON 对象）、`--distance`、`--harbor-distance` 调整输入。 `--batch-seeds N` 统计连续 N 个种子的功能抽取，再对每个任务实际求解 `--batch-solves` 个已抽取种子（默认一份），分别报告抽取、尝试及通过数。 `--trace` 显示拒绝原因；若要扩大搜索，增加 `--proposals`、`--finalists` 或确定性预算。切换实验时换输出目录，入选文件以该次 `batch.json` 为准。
+
+每艘入选船附同源 XML、PNG、格位／材料账以及原生分配器机动／油耗估算。可手动复制入选 XML 到用户 `DeltaV/Prefabs/ShipSearch/`，从一次性轨道图的 **Prefab: replace focused map...** 导入。预览不随默认生成池发布。设计约束见[离线飞船生成](../../doc/Prefab状态重建.md#离线飞船生成)。
+
+用同一 `-ShipSearchDirectory` 配合 `-Version 1.7` 和安装版 1.7 Harmony 路径复核另一版本。回归同时重新读取 XML、检查原版放置和接近区，再重跑机动及燃料报告。
+
+### 舰船创作工具
+
+用已导出的原始船壳请求运行 `generate_ships.py --shell-request <请求> --shell-task transport --output <预览目录>`，任务可选 `balanced`、`transport`、`production` 或 `escort`。God 模式将任务写进请求。没有任务属性的旧请求可用于复跑七舱基线，也可使用 `--legacy-shell`。请求还支持 `crewCount`、四维整数 `weights`、`distance`、`harborDistance` 与逐项 `<Materials><Limit def="Steel" count="…" /></Materials>`。预算、无用途甲板门槛和拒绝阶段记录在 `batch.json` 中。
+
+用同一请求和游戏 Data 路径运行 `python scripts/TutorialContent/test_ship_program.py <请求> <Data>`，检查两版 Def 账目、清单差异、确定性、材料上限与标记冲突。实际通过布局与原生机动验收的预览再交给 `TutorialRegression/run.ps1 -ShipSearchDirectory <预览目录>`；空结果不会被计为通过。范围及进度见[舰船生成实施计划](../../doc/舰船生成选舱与布局实施计划.md)。
+
+任务预览先按横截面冻结走廊，再由同一个 CP-SAT 模型选择 WARGEAR 的舱位、舱室配比和接缝。`--no-skeleton-guide` 运行原按需接路对照。两条流程使用同一船壳、资源预算和整船验收门槛。用 `compare_shell_skeleton.py <存档56请求> <新输出目录> --baseline <旧七舱预览目录>` 先比较同面积 H 型与细长船壳，再跑运输、生产和护航。参数 `--programs`、`--proposals`、`--native` 等透传给生成器。输出含骨架分区图、拒绝日志和 `comparison.json`。`layout-attempt-*.png` 展示未验收的排舱尝试。双版本夹具复核实际入选的 XML 后才算整船验收。几何专项可用 `python scripts/TutorialContent/test_hull_skeleton.py` 复跑。
+
+固定骨架路径在排舱前枚举可容纳两层脚印的安装带。排舱模型使用空载、典型载荷和满载的推力估算来约束方向容量，以参考船的原生航线和阻力预算估算油箱下限。模块确定后，把安装带收窄到实际外墙，保留内侧检修和外侧排气。重试点位沿用同一推进模型与已生成的连通约束。最终仍由原生 `ShipPhysics` 和整船夹具验收，估算不能替代验收。`--late-propulsion` 可复跑排舱之后才估算推进的对照路径。
+
+先用 `just build 1.6` 或 `just build` 构建当前版本，再运行下例配置本机 Python 与原生机动校验器。参数为本机的游戏安装目录、Harmony DLL 和 RimWorld 用户数据目录。配置按游戏版本分开；普通游戏流程无需安装 Python。已安装的创作工具也可以通过 `worker` 指向开发仓库的 `scripts/TutorialContent/generate_ships.py`。
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/TutorialContent/configure_ship_planner.ps1 -Version 1.6 -GameRoot '<游戏目录>' -HarmonyPath '<Harmony DLL>' -SaveDataDirectory '<RimWorld 用户数据目录>'
+```
+
+在「模组设置 → 通用」开启默认关闭的「显示实验性舰船生成」，再开启 God 模式。在轨道图建连通的空基架，放一个「舰船布局控制标记」，再放功能区标记。人员和 SpaceObject 标记从「地板」分类放置，在正式导入后展开。选中控制标记，选择舰船任务与走廊宽度并点击「生成舰船预览」。自动宽度按区段判定，指定宽度用于全船。试装成功后可导出或回退。回退前让人员离船。回退会清除原船壳内的建筑和物品，包括试装后添加的内容。求解失败时原船壳保留，拒绝统计在 RimWorld 用户数据 `DeltaV/ShipPlanJobs/` 下。
+
+生成期间，选中控制标记可查看阶段、阶段内尝试次数和已用时间。每次任务实时写入 `DeltaV/ShipPlanJobs/<任务 ID>/worker.log`。日志带从任务开始计起的时间，包含 worker 输出、CP-SAT 的实际用时及确定性用时、拒绝原因和游戏主线程的采集／落位阶段。打开 Mod 设置的「日志：开发调试」可在游戏日志中查看阶段摘要和该次日志路径。离线命令加 `--progress --trace` 可输出相同的求解里程碑及拒绝原因。
+
 残骸保留用户原船的舱室与原版飞船连接关系，在原导出上添加后部爆炸断口、拆除搜刮设备并保留原床铺／家具／厨房，把队长舱与保留唯一一套真空服的服装架移入货仓。正式资源与本地已归档到 `DeltaV/PrefabArchive/Tutorial/ArrivalStationWreck.xml` 的历史副本使用同一生成结果；归档目录不参与 prefab 扫描。回归覆盖六舱存取、货仓队长绑定、唯一电网、教练机泊口与货仓温控。
 
 `--only Shipyard PrototypeShip` 仅重建本轮两份内容。`shipyard.states` 保存其状态原型：原有设施从本地导出摘取并清除外部引用；水培、工作台、ASF 仓储和 EVA 按各自 ExposeData 补齐。每次生成重编号炮塔内部枪与 Verb 引用，最终写出前检查整份资源所有顶层／嵌套 Thing 的数字 ID 唯一及枪械／Verb 一致；不同 Def 前缀不能复用同一数字 ID。弹头／装药分别写入当前库存节点。布局图和 `.layout.json` 同样来自最终记录；月池在地表与基架两层一致，留给现有力场屋顶逻辑处理。

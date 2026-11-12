@@ -13,6 +13,33 @@ using UnityEngine;
 
 internal static partial class Program
 {
+    static void ApplySectorMass(JsonElement records, string layoutPath, ShipPhysics.MassReport report,
+        int steelStacksPerHold = 0)
+    {
+        using var layout = JsonDocument.Parse(File.ReadAllText(layoutPath));
+        var points = layout.RootElement.GetProperty("foundation").EnumerateArray()
+            .Select(c => (position: new Vector2(c[0].GetInt32() + 20.5f, c[1].GetInt32() + 20.5f),
+                          mass: ShipPhysics.MassPerDeckCell)).ToList();
+        float intrinsic = 0;
+        foreach (var row in records.EnumerateArray())
+        {
+            if (row.GetProperty("category").GetString() != "Building"
+                || row.GetProperty("name").GetString() == "DeltaV_PrefabPawnMarker") continue;
+            var cells = row.GetProperty("cells").EnumerateArray().ToList();
+            float mass = row.GetProperty("mass").GetSingle();
+            if (row.GetProperty("name").GetString() == "DeltaV_CargoStorage")
+                mass += steelStacksPerHold * 75 * 0.5f;
+            var position = new Vector2((float)cells.Average(c => c[0].GetInt32()) + 20.5f,
+                (float)cells.Average(c => c[1].GetInt32()) + 20.5f);
+            points.Add((position, mass));
+            float w = row.GetProperty("size")[0].GetSingle(), h = row.GetProperty("size")[1].GetSingle();
+            intrinsic += mass * (w*w + h*h) / 12f;
+        }
+        report.mass = points.Sum(p => p.mass);
+        report.comLocal = points.Aggregate(Vector2.zero, (sum, point) => sum + point.position*point.mass) / report.mass;
+        report.inertia = intrinsic + points.Sum(p => p.mass * (p.position - report.comLocal).sqrMagnitude);
+    }
+
     static void FreighterLoads(string path, ShipPhysics.MassReport report)
     {
         using var records = JsonDocument.Parse(File.ReadAllText(path));

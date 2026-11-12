@@ -110,6 +110,7 @@ namespace DeltaV
 
         /// <summary>通用临时排障日志开关，默认关闭；具体埋点随问题清理。</summary>
         public bool logDevelopment;
+        public bool showShipPlanner;
 
         /// <summary>每五秒输出帧率、实际 TPS 与 Delta-V 阶段计时；默认关闭。</summary>
         public bool logPerformance;
@@ -192,6 +193,7 @@ namespace DeltaV
             Scribe_Values.Look(ref logCombat, "logCombat", false);
             Scribe_Values.Look(ref logAI, "logAI", false);
             Scribe_Values.Look(ref logDevelopment, "logDevelopment", false);
+            Scribe_Values.Look(ref showShipPlanner, "showShipPlanner", false);
             Scribe_Values.Look(ref logPerformance, "logPerformance", false);
             Scribe_Collections.Look(ref sectorRules, "sectorRules", LookMode.Deep);
             base.ExposeData();

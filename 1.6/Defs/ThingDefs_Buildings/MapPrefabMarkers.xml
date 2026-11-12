@@ -95,4 +95,141 @@
 		</comps>
 	</ThingDef>
 
+    <DesignationCategoryDef>
+        <defName>DeltaV_ShipPlanning</defName>
+        <label>ship generation</label>
+        <order>790</order>
+    </DesignationCategoryDef>
+
+    <ThingDef ParentName="BuildingBase" Name="DeltaV_ShipPlanMarkerBase" Abstract="True">
+        <thingClass>Building</thingClass>
+        <designationCategory>DeltaV_ShipPlanning</designationCategory>
+        <rotatable>false</rotatable>
+        <passability>Standable</passability>
+        <fillPercent>0.1</fillPercent>
+        <uiIconPath>Things/Building/Prefab/PawnMarker</uiIconPath>
+        <statBases><WorkToBuild>25</WorkToBuild><MaxHitPoints>50</MaxHitPoints></statBases>
+        <graphicData>
+            <texPath>Things/Building/Prefab/PawnMarker</texPath>
+            <graphicClass>Graphic_Single</graphicClass>
+            <drawSize>(1, 1)</drawSize>
+            <color>(132, 233, 156)</color>
+        </graphicData>
+        <placeWorkers><li>DeltaV.PlaceWorker_ShipPlanMarker</li></placeWorkers>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanner</defName>
+        <label>ship layout control</label>
+        <description>Place one on an empty connected ship shell. Generate, export, or revert a prefab layout from its commands.</description>
+        <destroyable>false</destroyable>
+        <building><deconstructible>false</deconstructible></building>
+        <comps><li Class="DeltaV.CompProperties_ShipPlanner" /></comps>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanBridge</defName>
+        <label>bridge marker</label>
+        <description>Require a bridge at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleBridge</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanCargo</defName>
+        <label>cargo bay marker</label>
+        <description>Require a cargo bay at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleCargo</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanBedroom</defName>
+        <label>crew quarters marker</label>
+        <description>Require a crew quarters at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleBedroom</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanGalley</defName>
+        <label>galley marker</label>
+        <description>Require a galley at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>Galley</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanGenerator</defName>
+        <label>generator room marker</label>
+        <description>Require a generator room at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleGenerator</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanFuel</defName>
+        <label>fuel bay marker</label>
+        <description>Require a fuel bay at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleFuel</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanResearch</defName>
+        <label>research lab marker</label>
+        <description>Require a research lab at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleResearch</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanMachining</defName>
+        <label>machine shop marker</label>
+        <description>Require a machine shop at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleMachining</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanFabrication</defName>
+        <label>fabrication shop marker</label>
+        <description>Require a fabrication shop at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleFabrication</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanReactor</defName>
+        <label>reactor room marker</label>
+        <description>Require a reactor room at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleReactor</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanHeavyBattery</defName>
+        <label>heavy cannon bay marker</label>
+        <description>Require a heavy cannon bay at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleHeavyBattery</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanRapidBattery</defName>
+        <label>rapid cannon bay marker</label>
+        <description>Require a rapid cannon bay at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleRapidBattery</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanLaserBattery</defName>
+        <label>laser bay marker</label>
+        <description>Require a laser bay at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleLaserBattery</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanPointDefense</defName>
+        <label>point defense bay marker</label>
+        <description>Require a point defense bay at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModulePointDefense</module></li></modExtensions>
+    </ThingDef>
+
+    <ThingDef ParentName="DeltaV_ShipPlanMarkerBase">
+        <defName>DeltaV_ShipPlanGuard</defName>
+        <label>shield room marker</label>
+        <description>Require a shield room at this part of the ship shell.</description>
+        <modExtensions><li Class="DeltaV.ShipPlanZone"><module>ModuleGuard</module></li></modExtensions>
+    </ThingDef>
+
 </Defs>
