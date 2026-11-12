@@ -245,6 +245,7 @@
   <DeltaV_SettingsTabWorld>世界</DeltaV_SettingsTabWorld>
   <DeltaV_SettingsTabGeneration>生成</DeltaV_SettingsTabGeneration>
   <DeltaV_SettingsTabLogging>日志</DeltaV_SettingsTabLogging>
+  <DeltaV_SettingsTabDevelopment>开发调试</DeltaV_SettingsTabDevelopment>
   <DeltaV_SettingsKeysHint>按键映射：在游戏的「选项 → 控制 → 按键设置」中找到「Delta-V 驾驶」分类，可调整驾驶、火控和移动参考系快捷键。</DeltaV_SettingsKeysHint>
 
   <!-- 设置：生成页（星区内容类型） -->

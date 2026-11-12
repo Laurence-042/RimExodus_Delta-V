@@ -64,7 +64,8 @@ namespace DeltaV
             Physics,
             World,
             Generation,
-            Logging
+            Logging,
+            Development
         }
 
         private SettingsTab settingsTab = SettingsTab.General;
@@ -89,6 +90,8 @@ namespace DeltaV
                     () => settingsTab = SettingsTab.Generation, settingsTab == SettingsTab.Generation),
                 new TabRecord("DeltaV_SettingsTabLogging".Translate(),
                     () => settingsTab = SettingsTab.Logging, settingsTab == SettingsTab.Logging),
+                new TabRecord("DeltaV_SettingsTabDevelopment".Translate(),
+                    () => settingsTab = SettingsTab.Development, settingsTab == SettingsTab.Development),
             };
             TabDrawer.DrawTabs(tabRect, tabs);
             Rect content = mainRect.ContractedBy(15f);
@@ -112,6 +115,9 @@ namespace DeltaV
                 case SettingsTab.Logging:
                     DrawLoggingTab(content);
                     break;
+                case SettingsTab.Development:
+                    DrawDevelopmentTab(content);
+                    break;
             }
             // 原版 Dialog_ModSettings.PreClose 调用 Mod.WriteSettings；绘制事件不写盘。
         }
@@ -123,8 +129,6 @@ namespace DeltaV
             list.CheckboxLabeled("DeltaV_SettingsFlightAssist".Translate(), ref Settings.flightAssist,
                 "DeltaV_SettingsFlightAssistTip".Translate());
             list.Label("DeltaV_SettingsKeysHint".Translate());
-            list.CheckboxLabeled("DeltaV_SettingsShowShipPlanner".Translate(), ref Settings.showShipPlanner,
-                "DeltaV_SettingsShowShipPlannerTip".Translate());
             bool hideEmptyMaps = Settings.hideSpaceMapsWithoutPlayerPawns;
             list.CheckboxLabeled("DeltaV_SettingsHideEmptySpaceMaps".Translate(),
                 ref Settings.hideSpaceMapsWithoutPlayerPawns, "DeltaV_SettingsHideEmptySpaceMapsTip".Translate());
@@ -140,6 +144,15 @@ namespace DeltaV
             list.GapLine();
             list.Label("DeltaV_SettingsCoordinateGridTransparency".Translate((1f - Settings.coordinateGridOpacity).ToStringPercent()));
             Settings.coordinateGridOpacity = 1f - list.Slider(1f - Settings.coordinateGridOpacity, 0f, 1f);
+            list.End();
+        }
+
+        private void DrawDevelopmentTab(Rect rect)
+        {
+            var list = new Listing_Standard();
+            list.Begin(rect);
+            list.CheckboxLabeled("DeltaV_SettingsShowShipPlanner".Translate(), ref Settings.showShipPlanner,
+                "DeltaV_SettingsShowShipPlannerTip".Translate());
             list.GapLine();
             list.Label("DeltaV_SettingsTestScene".Translate());
             list.Label("DeltaV_SettingsTestSceneTip".Translate());

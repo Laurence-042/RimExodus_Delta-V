@@ -58,7 +58,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/TutorialRegressi
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/TutorialContent/configure_ship_planner.ps1 -Version 1.6 -GameRoot '<游戏目录>' -HarmonyPath '<Harmony DLL>' -SaveDataDirectory '<RimWorld 用户数据目录>'
 ```
 
-在「模组设置 → 通用」开启默认关闭的「显示实验性舰船生成」，再开启 God 模式。在轨道图建连通的空基架，放一个「舰船布局控制标记」，再放功能区标记。人员和 SpaceObject 标记从「地板」分类放置，在正式导入后展开。选中控制标记，选择舰船任务与走廊宽度并点击「生成舰船预览」。自动宽度按区段判定，指定宽度用于全船。试装成功后可导出或回退。回退前让人员离船。回退会清除原船壳内的建筑和物品，包括试装后添加的内容。求解失败时原船壳保留，拒绝统计在 RimWorld 用户数据 `DeltaV/ShipPlanJobs/` 下。
+在「模组设置 → 开发调试」开启默认关闭的「显示实验性舰船生成」，再开启 God 模式。在轨道图建连通的空基架，放一个「舰船布局控制标记」，再放功能区标记。人员和 SpaceObject 标记从「地板」分类放置，在正式导入后展开。选中控制标记，选择舰船任务与走廊宽度并点击「生成舰船预览」。自动宽度按区段判定，指定宽度用于全船。试装成功后可导出或回退。回退前让人员离船。回退会清除原船壳内的建筑和物品，包括试装后添加的内容。求解失败时原船壳保留，拒绝统计在 RimWorld 用户数据 `DeltaV/ShipPlanJobs/` 下。
 
 生成期间，选中控制标记可查看阶段、阶段内尝试次数和已用时间。每次任务实时写入 `DeltaV/ShipPlanJobs/<任务 ID>/worker.log`。日志带从任务开始计起的时间，包含 worker 输出、CP-SAT 的实际用时及确定性用时、拒绝原因和游戏主线程的采集／落位阶段。打开 Mod 设置的「日志：开发调试」可在游戏日志中查看阶段摘要和该次日志路径。离线命令加 `--progress --trace` 可输出相同的求解里程碑及拒绝原因。
 

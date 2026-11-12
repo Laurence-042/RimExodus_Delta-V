@@ -245,6 +245,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SettingsTabWorld>World</DeltaV_SettingsTabWorld>
   <DeltaV_SettingsTabGeneration>Generation</DeltaV_SettingsTabGeneration>
   <DeltaV_SettingsTabLogging>Logging</DeltaV_SettingsTabLogging>
+  <DeltaV_SettingsTabDevelopment>Development</DeltaV_SettingsTabDevelopment>
   <DeltaV_SettingsKeysHint>Key bindings: open Options → Controls → Key bindings and find Delta-V piloting to change flight, fire control and moving-reference keys.</DeltaV_SettingsKeysHint>
 
   <!-- Settings: generation tab (sector content types) -->
