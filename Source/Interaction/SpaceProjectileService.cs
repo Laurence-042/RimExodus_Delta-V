@@ -1170,7 +1170,7 @@ namespace DeltaV
 
         /// <summary>
         /// 弹体与激光线段渲染（前景效果管线，聚焦帧投影）。返回消耗后
-        /// 的下一槽位号。弹体朝向按速度方向（UsesVelocityHeading tag 分派）。
+        /// 的下一槽位号。弹体贴图和在飞曳光共用弹体姿态。
         /// </summary>
         internal int TryEmitProjectiles(SpaceObject frame, Map frameMap, ShellLayer layer, int baseSlot)
         {
@@ -1232,10 +1232,10 @@ namespace DeltaV
                         Graphic graphic = p.def.graphicData?.Graphic;
                         Material material = graphic?.MatAt(Rot4.North);
                         if (material == null) continue;
-                        EmitTracer(p, frame, frameMap, layer, ref slot);
                         Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, frameMap,
                             p.container.pose.position, altitude);
                         Quaternion rot = SpaceTransform.FocusedSpriteRotation(frame, p.container.pose.angle);
+                        EmitTracer(p, frame, pos, rot, layer, ref slot);
                         Matrix4x4 matrix = Matrix4x4.TRS(pos, rot, Vector3.one);
                         MapOverlayRenderer.CollectSingleQuad(graphic.MeshAt(Rot4.North), matrix, material);
                         ShellLayer.Slot s = layer.At(slot++);

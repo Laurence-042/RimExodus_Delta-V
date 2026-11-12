@@ -606,20 +606,18 @@ namespace DeltaV
             }
         }
 
-        private void EmitTracer(Projectile p, SpaceObject frame, Map map, ShellLayer layer, ref int slot)
+        private void EmitTracer(Projectile p, SpaceObject frame, Vector3 center, Quaternion spriteRotation,
+            ShellLayer layer, ref int slot)
         {
             if (p.props.tracerLength <= 0f || p.laser) return;
-            EnsureCombatMaterials();
-            Vector2 step = OrbitSphere.Offset(p.prevPosition, p.container.pose.position);
-            float length = Mathf.Min(p.props.tracerLength, step.magnitude);
+            float length = Mathf.Min(p.props.tracerLength,
+                OrbitSphere.ArcCells(p.prevPosition, p.container.pose.position));
             if (length < 0.01f) return;
-            Vector3 from = OrbitSphere.Move(p.prevPosition, step.normalized * (step.magnitude - length));
-            float altitude = AltitudeLayer.Terrain.AltitudeFor() + Altitudes.AltInc * 10f;
-            Vector3 a = SpaceTransform.FocusedDrawPosition(frame, map, from, altitude);
-            Vector3 b = SpaceTransform.FocusedDrawPosition(frame, map, p.container.pose.position, altitude);
+            Vector3 tail = center - (spriteRotation * Vector3.forward) * length;
+            EnsureCombatMaterials();
             MapOverlayRenderer.BeginQuadBatch();
-            FxLine(Glow(p.props.visualStyle)[0], a, b, p.props.tracerWidth * 2.6f, frame);
-            FxLine(coreMaterials[0], a, b, p.props.tracerWidth, frame);
+            FxLine(Glow(p.props.visualStyle)[0], tail, center, p.props.tracerWidth * 2.6f, frame);
+            FxLine(coreMaterials[0], tail, center, p.props.tracerWidth, frame);
             ShellLayer.Slot batch = layer.At(slot++);
             batch.layer.Emit(batch);
         }
