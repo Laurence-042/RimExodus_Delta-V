@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <DeltaV_SettingsShowShipPlanner>Show experimental ship generation</DeltaV_SettingsShowShipPlanner>
-  <DeltaV_SettingsShowShipPlannerTip>Enable this setting to use the ship generation tab in God mode.</DeltaV_SettingsShowShipPlannerTip>
+  <DeltaV_SettingsShowShipPlannerTip>Show ship layout control and zone markers in the Prefab markers tab while God mode is active.</DeltaV_SettingsShowShipPlannerTip>
   <DeltaV_ShipPlanUndo>Restore original shell</DeltaV_ShipPlanUndo>
   <DeltaV_ShipPlanUndoDesc>Clear buildings and items within the original shell and restore its foundation, roofs and zone markers. Move occupants off the ship first.</DeltaV_ShipPlanUndoDesc>
   <DeltaV_ShipPlanExport>Export ship prefab</DeltaV_ShipPlanExport>
@@ -31,7 +31,7 @@
   <DeltaV_ShipPlanUndoBlocked>Restore from the original shell. Remove any occupants (including those in containers), buildings crossing its edge or incompatible foundations before restoring.</DeltaV_ShipPlanUndoBlocked>
   <DeltaV_ShipPlanRestored>Original ship shell restored.</DeltaV_ShipPlanRestored>
   <DeltaV_ShipPlanConfigure>Set up the local ship planner first: {0}</DeltaV_ShipPlanConfigure>
-  <DeltaV_ShipPlanGodOnly>Ship prefab authoring requires God mode.</DeltaV_ShipPlanGodOnly>
+  <DeltaV_ShipPlanGodOnly>Enable God mode to place prefab markers.</DeltaV_ShipPlanGodOnly>
   <DeltaV_ShipPlanPacking>The search could not fit every required room and its entrance. Leave wide sections for the bridge and fuel room, or move room markers. The shell is unchanged. Report: {0}</DeltaV_ShipPlanPacking>
   <DeltaV_ShipPlanLayout>The rooms fit, but none of the layouts passed access, airtightness or life support checks. The shell is unchanged. Report: {0}</DeltaV_ShipPlanLayout>
   <DeltaV_ShipPlanPropulsion>No layout passed the propulsion, exhaust clearance and fuel checks. The shell is unchanged. Report: {0}</DeltaV_ShipPlanPropulsion>

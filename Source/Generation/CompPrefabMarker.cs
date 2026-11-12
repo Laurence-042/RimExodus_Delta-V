@@ -3,6 +3,16 @@ using Verse;
 
 namespace DeltaV
 {
+    public class PlaceWorker_PrefabMarker : PlaceWorker
+    {
+        public override bool IsBuildDesignatorVisible(BuildableDef def) => DebugSettings.godMode;
+
+        public override AcceptanceReport AllowsPlacing(BuildableDef checkingDef, IntVec3 loc, Rot4 rot, Map map,
+            Thing thingToIgnore = null, Thing thing = null)
+            => DebugSettings.godMode
+                ? AcceptanceReport.WasAccepted : new AcceptanceReport("DeltaV_ShipPlanGodOnly".Translate());
+    }
+
     /// <summary>
     /// prefab spawn 完成后的展开上下文：整片内容（foundation/terrain/things/roofs）已就位，
     /// marker 之间可以依赖彼此的产物。Universe 可为 null（非宇宙图上的 prefab 重建），

@@ -122,7 +122,7 @@ namespace DeltaV
 
             PrefabMarkerDialogUtility.BottomButtons(rect, () =>
             {
-                marker.Apply(draft);
+                if (DebugSettings.godMode) marker.Apply(draft);
                 Close();
             }, () => Close());
         }
@@ -246,7 +246,7 @@ namespace DeltaV
                 "DeltaV_PrefabMarkerPreviewHelp".Translate());
             PrefabMarkerDialogUtility.BottomButtons(rect, () =>
             {
-                marker.Apply(draft);
+                if (DebugSettings.godMode) marker.Apply(draft);
                 Close();
             }, () => Close());
         }

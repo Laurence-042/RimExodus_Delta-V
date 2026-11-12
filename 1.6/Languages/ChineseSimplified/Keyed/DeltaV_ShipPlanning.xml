@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <DeltaV_SettingsShowShipPlanner>显示实验性舰船生成</DeltaV_SettingsShowShipPlanner>
-  <DeltaV_SettingsShowShipPlannerTip>开启此设置后可在上帝模式使用舰船生成分类。</DeltaV_SettingsShowShipPlannerTip>
+  <DeltaV_SettingsShowShipPlannerTip>开启后，God 模式的「Prefab 标记」标签会显示舰船布局控制和功能区标记。</DeltaV_SettingsShowShipPlannerTip>
   <DeltaV_ShipPlanUndo>回退为原船壳</DeltaV_ShipPlanUndo>
   <DeltaV_ShipPlanUndoDesc>清除原船壳范围内的建筑和物品，恢复基架、屋顶和功能区标记。请先让人员离船。</DeltaV_ShipPlanUndoDesc>
   <DeltaV_ShipPlanExport>导出舰船 Prefab</DeltaV_ShipPlanExport>
@@ -31,7 +31,7 @@
   <DeltaV_ShipPlanUndoBlocked>请在原船壳回退。先移走人员（包括容器内的人员）、跨出船壳的建筑或不同类型的基架。</DeltaV_ShipPlanUndoBlocked>
   <DeltaV_ShipPlanRestored>已恢复原船壳。</DeltaV_ShipPlanRestored>
   <DeltaV_ShipPlanConfigure>请先配置本地舰船求解器：{0}</DeltaV_ShipPlanConfigure>
-  <DeltaV_ShipPlanGodOnly>舰船 Prefab 创作只能在 God 模式下使用。</DeltaV_ShipPlanGodOnly>
+  <DeltaV_ShipPlanGodOnly>请开启 God 模式放置 Prefab 标记。</DeltaV_ShipPlanGodOnly>
   <DeltaV_ShipPlanPacking>没找到能容纳所有必需舱室及其入口的布局。可给驾驶舱和燃料舱留出较宽的舱段，或调整功能区标记。原船壳未改动。报告：{0}</DeltaV_ShipPlanPacking>
   <DeltaV_ShipPlanLayout>舱室能放下，但布局未通过通行、气密或维生检查。原船壳未改动。报告：{0}</DeltaV_ShipPlanLayout>
   <DeltaV_ShipPlanPropulsion>布局未通过推进、排气净空或燃料检查。原船壳未改动。报告：{0}</DeltaV_ShipPlanPropulsion>

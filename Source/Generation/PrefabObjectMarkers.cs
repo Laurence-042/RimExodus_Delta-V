@@ -301,12 +301,13 @@ namespace DeltaV
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
+            if (!DebugSettings.godMode) yield break;
             yield return new Command_Action
             {
                 defaultLabel = "DeltaV_PrefabMarkerConfigure".Translate(),
                 defaultDesc = "DeltaV_PrefabMarkerConfigureDesc".Translate(),
                 icon = TexCommand.Install,
-                action = () => Find.WindowStack.Add(new Dialog_PrefabObjectMarker(this))
+                action = () => { if (DebugSettings.godMode) Find.WindowStack.Add(new Dialog_PrefabObjectMarker(this)); }
             };
         }
 
@@ -436,12 +437,13 @@ namespace DeltaV
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
+            if (!DebugSettings.godMode) yield break;
             yield return new Command_Action
             {
                 defaultLabel = "DeltaV_PrefabMarkerConfigure".Translate(),
                 defaultDesc = "DeltaV_PrefabClusterConfigureDesc".Translate(),
                 icon = TexCommand.Install,
-                action = () => Find.WindowStack.Add(new Dialog_PrefabClusterMarker(this))
+                action = () => { if (DebugSettings.godMode) Find.WindowStack.Add(new Dialog_PrefabClusterMarker(this)); }
             };
         }
 

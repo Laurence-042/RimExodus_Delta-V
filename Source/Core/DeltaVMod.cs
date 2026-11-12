@@ -151,8 +151,11 @@ namespace DeltaV
         {
             var list = new Listing_Standard();
             list.Begin(rect);
+            bool wasShipPlannerVisible = Settings.showShipPlanner;
             list.CheckboxLabeled("DeltaV_SettingsShowShipPlanner".Translate(), ref Settings.showShipPlanner,
                 "DeltaV_SettingsShowShipPlannerTip".Translate());
+            if (wasShipPlannerVisible != Settings.showShipPlanner)
+                PrefabArchitect.RefreshOpenArchitect(rebuildCategories: false);
             list.GapLine();
             list.Label("DeltaV_SettingsTestScene".Translate());
             list.Label("DeltaV_SettingsTestSceneTip".Translate());

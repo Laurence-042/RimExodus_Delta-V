@@ -7,7 +7,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using HarmonyLib;
 using RimExodus.Maps;
 using RimWorld;
 using Verse;
@@ -19,27 +18,15 @@ namespace DeltaV
         public string module;
     }
 
-    [HarmonyPatch(typeof(DesignationCategoryDef), nameof(DesignationCategoryDef.Visible), MethodType.Getter)]
-    internal static class Patch_ShipPlanningCategory
-    {
-        internal const string DefName = "DeltaV_ShipPlanning";
-        private static bool Prefix(DesignationCategoryDef __instance, ref bool __result)
-        {
-            if (__instance.defName != DefName) return true;
-            __result = ShipPlannerService.Visible;
-            return false;
-        }
-    }
-
-    public sealed class PlaceWorker_ShipPlanMarker : PlaceWorker
+    public sealed class PlaceWorker_ShipPlanMarker : PlaceWorker_PrefabMarker
     {
         public override bool IsBuildDesignatorVisible(BuildableDef def) => ShipPlannerService.Visible;
 
         public override AcceptanceReport AllowsPlacing(BuildableDef checkingDef, IntVec3 loc, Rot4 rot, Map map,
             Thing thingToIgnore = null, Thing thing = null)
         {
-            if (!DebugSettings.godMode)
-                return new AcceptanceReport("DeltaV_ShipPlanGodOnly".Translate());
+            AcceptanceReport authoring = base.AllowsPlacing(checkingDef, loc, rot, map, thingToIgnore, thing);
+            if (!authoring.Accepted) return authoring;
             if (!ShipPlannerService.Visible)
                 return new AcceptanceReport("DeltaV_SettingsShowShipPlannerTip".Translate());
             return Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map) != null &&

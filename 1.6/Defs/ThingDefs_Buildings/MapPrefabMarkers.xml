@@ -3,13 +3,14 @@
 
 	<!-- 放在导出区域中，每个标记在 prefab 重建后于自身位置生成一名目标派系成员。
 		具体 PawnKind 可由此 Comp 单独指定；缺省先取目标派系成员，最后回退 Colonist。
-		展开后标记消失；放在地板建造分类，与其他模组的 prefab 标记区分。 -->
+		展开后标记消失。 -->
 	<ThingDef ParentName="BuildingBase">
 		<defName>DeltaV_PrefabPawnMarker</defName>
 		<label>Delta-V prefab pawn marker</label>
 		<description>Place this marker in a map prefab to spawn one pawn at this cell when the prefab is built. It uses a member of the destination faction when available, or a colonist otherwise. Humanlike crew receive a vacsuit and helmet. The marker disappears after expansion.</description>
 		<thingClass>Building</thingClass>
-		<designationCategory>Floors</designationCategory>
+		<designationCategory>DeltaV_ShipPlanning</designationCategory>
+		<placeWorkers><li>DeltaV.PlaceWorker_PrefabMarker</li></placeWorkers>
 		<rotatable>false</rotatable>
 		<passability>Standable</passability>
 		<fillPercent>0.1</fillPercent>
@@ -38,7 +39,8 @@
 		<label>Delta-V exact prefab object marker</label>
 		<description>Configures one prefab-based space object at an exact bearing, distance, and relative facing from this prefab's SpaceObject. Selecting the marker previews the child prefab as a translucent silhouette. The marker disappears after successful expansion.</description>
 		<thingClass>Building</thingClass>
-		<designationCategory>Floors</designationCategory>
+		<designationCategory>DeltaV_ShipPlanning</designationCategory>
+		<placeWorkers><li>DeltaV.PlaceWorker_PrefabMarker</li></placeWorkers>
 		<rotatable>false</rotatable>
 		<passability>Standable</passability>
 		<fillPercent>0.1</fillPercent>
@@ -68,7 +70,8 @@
 		<label>Delta-V prefab cluster marker</label>
 		<description>Configures a weighted prefab pool and an annular distribution to generate asteroid belts, debris fields, or similar clusters. Selecting the marker previews up to 64 generated silhouettes. The marker disappears after successful expansion.</description>
 		<thingClass>Building</thingClass>
-		<designationCategory>Floors</designationCategory>
+		<designationCategory>DeltaV_ShipPlanning</designationCategory>
+		<placeWorkers><li>DeltaV.PlaceWorker_PrefabMarker</li></placeWorkers>
 		<rotatable>false</rotatable>
 		<passability>Standable</passability>
 		<fillPercent>0.1</fillPercent>
@@ -97,7 +100,7 @@
 
     <DesignationCategoryDef>
         <defName>DeltaV_ShipPlanning</defName>
-        <label>ship generation</label>
+        <label>prefab markers</label>
         <order>790</order>
     </DesignationCategoryDef>
 
