@@ -123,6 +123,7 @@ namespace DeltaV
         [NonSerialized] private GlobeNavigation globeNavigation;
         internal GlobeNavigation GlobeNavigation => globeNavigation ?? (globeNavigation =
             new GlobeNavigation(globeBookmarks ?? (globeBookmarks = new List<GlobeTarget>())));
+        [NonSerialized] internal TargetCameraFocus TargetCamera;
 
         [NonSerialized] private SpaceProjectileService projectiles;
 
@@ -842,6 +843,7 @@ namespace DeltaV
             // 帧上下文动作消费（分离执行、对接完成收尾、源图善后、战略离场善后等
             // 「必须离开 tick 调用栈」的收尾唯一出口），先消费再处理渲染/输入。
             RunFrameActions();
+            if (TargetCamera != null && !WorldRendererUtility.DrawingMap) TargetCamera = null;
             // 驾驶状态维护（自动退出 + Harmony 按键抑制开关）。聚焦跟随由 CurrentMap 天然承载。
             Pilot.UpdateFrameState(this);
             ShellRenderer.DrawNonFocusedShells(this);
@@ -1212,6 +1214,7 @@ namespace DeltaV
         internal void BeginSceneReset(Action createScene)
         {
             if (IsResettingScene) return;
+            TargetCamera = null;
             Find.TickManager.Pause();
             if (tutorialRun != null) Tutorial.EndForSceneReset();
             foreach (var mission in Missions.Active.ToList())
@@ -1293,6 +1296,7 @@ namespace DeltaV
             globeDisplay?.Clear();
             globeDisplay = null;
             globeNavigation = null;
+            TargetCamera = null;
             controls?.Reset();
             controls = null;
             pilot = null;

@@ -18,6 +18,7 @@
   <DeltaV_NavUnavailable>目标已失效或暂不可用</DeltaV_NavUnavailable>
   <DeltaV_NavFit>同屏</DeltaV_NavFit>
   <DeltaV_NavInspect>查看</DeltaV_NavInspect>
+  <DeltaV_NavFocusTarget>聚焦目标</DeltaV_NavFocusTarget>
   <DeltaV_NavAutopilot>自动导航</DeltaV_NavAutopilot>
   <DeltaV_NavAutopilotStarted>自动驾驶正前往 {0} 外围。</DeltaV_NavAutopilotStarted>
   <DeltaV_NavCannotAutopilot>当前所选飞船无法自动导航至该目标。</DeltaV_NavCannotAutopilot>

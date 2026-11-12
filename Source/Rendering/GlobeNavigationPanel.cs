@@ -80,16 +80,20 @@ namespace DeltaV
                 + "\n" + "DeltaV_PanelGlobeDistance".Translate(OrbitSphere.ArcCells(view.Reference, target.Pose.position).ToString("N0")).ToString());
             TooltipHandler.TipRegion(titleRect, title);
             y += 38f;
-            float quarter = (rect.width - 12f) / 4f;
+            float actionWidth = (rect.width - 16f) / 5f;
+            Rect ActionRect(int index) => new Rect(rect.x + index * (actionWidth + 4f), y, actionWidth, 24f);
             bool canAutopilot = GlobeNavigation.CanAutopilot(universe, view.ReferenceShip, target);
-            if (Widgets.ButtonText(new Rect(rect.x, y, quarter, 24f), "DeltaV_NavAutopilot".Translate(), active: canAutopilot)
+            if (Widgets.ButtonText(ActionRect(0), "DeltaV_NavAutopilot".Translate(), active: canAutopilot)
                 && !GlobeNavigation.StartAutopilot(universe, view.ReferenceShip, target))
                 Messages.Message("DeltaV_NavCannotAutopilot".Translate(), MessageTypeDefOf.RejectInput, false);
-            if (Widgets.ButtonText(new Rect(rect.x + quarter + 4f, y, quarter, 24f), "DeltaV_NavFit".Translate(), active: target != null))
+            if (Widgets.ButtonText(ActionRect(1), "DeltaV_NavFit".Translate(), active: target != null))
                 PlanetGlobeRenderer.FitTarget(universe, context, mapRect, GlobeTarget.Of(target));
-            if (Widgets.ButtonText(new Rect(rect.x + 2f * (quarter + 4f), y, quarter, 24f), "DeltaV_NavInspect".Translate(), active: target != null && !target.owner.IsTransient))
+            if (Widgets.ButtonText(ActionRect(2), "DeltaV_NavInspect".Translate(), active: target != null && !target.owner.IsTransient))
                 Inspect(universe, GlobeTarget.Of(target));
-            if (Widgets.ButtonText(new Rect(rect.x + 3f * (quarter + 4f), y, quarter, 24f),
+            if (Widgets.ButtonText(ActionRect(3), "DeltaV_NavFocusTarget".Translate(),
+                active: TargetCameraFocus.CanStart(universe, context.map, target?.owner)))
+                FocusTarget(universe, context.map, target?.owner);
+            if (Widgets.ButtonText(ActionRect(4),
                 (target != null && state.IsBookmarked(target) ? "DeltaV_NavUnpin" : "DeltaV_NavPin").Translate(), active: target != null && !target.owner.IsTransient))
                 state.ToggleBookmark(target);
             y += 28f;
@@ -164,6 +168,9 @@ namespace DeltaV
                 {
                     options.Add(new FloatMenuOption("DeltaV_NavInspect".Translate(),
                         () => Inspect(universe, GlobeTarget.Of(target))));
+                    options.Add(new FloatMenuOption("DeltaV_NavFocusTarget".Translate(),
+                        TargetCameraFocus.CanStart(universe, context.map, target.owner)
+                            ? () => FocusTarget(universe, context.map, target.owner) : null));
                     options.Add(new FloatMenuOption((state.IsBookmarked(target)
                             ? "DeltaV_NavUnpin" : "DeltaV_NavPin").Translate(),
                         () => state.ToggleBookmark(target)));
@@ -218,6 +225,12 @@ namespace DeltaV
                     Mathf.Abs(offset.y) * 2.5f * mapRect.width / mapRect.height);
             }
             universe.GlobeNavigation.Width = Mathf.Min(width, view.MaximumWidth);
+        }
+
+        private static void FocusTarget(UniverseManager universe, Map sourceMap, SpaceObject target)
+        {
+            if (TargetCameraFocus.QueueStart(universe, sourceMap, target))
+                Find.WindowStack.WindowOfType<Window_SectorNavigation>()?.Close();
         }
 
         internal static void Inspect(UniverseManager universe, GlobeTarget key)

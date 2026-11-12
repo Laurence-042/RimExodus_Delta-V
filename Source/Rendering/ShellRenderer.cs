@@ -102,8 +102,8 @@ namespace DeltaV
         {
             // 每容器一壳：整图内容（含停靠船与残骸归属的格）统一绘制，allowedCells
             // 恒为 null（不再按船裁剪）。
+            if (!HasDrawableMap(universe, obj)) return false;
             Map map = obj.map;
-            if (map == null || map.Disposed || universe.Generation?.IsGenerating(map) == true) return false;
 
             Quaternion rotation = SpaceTransform.FocusedMeshRotation(frame, obj.pose.angle);
             Vector3 drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
@@ -125,6 +125,9 @@ namespace DeltaV
             }
             return drew;
         }
+
+        internal static bool HasDrawableMap(UniverseManager universe, SpaceObject obj)
+            => obj?.map is Map map && !map.Disposed && universe.Generation?.IsGenerating(map) != true;
 
         /// <summary>分层摘要追加一壳：背景槽位、ID、标签、状态、
         /// 源图与提交四边形数；drew=false 时只记 SKIP（原因 = 图空/销毁/生成中，

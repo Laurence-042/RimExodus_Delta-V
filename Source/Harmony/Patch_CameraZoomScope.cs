@@ -45,6 +45,8 @@ namespace DeltaV
         {
             Map focused = CurrentMapIfValid(__instance);
             UniverseManager universe = __instance.GetComponent<UniverseManager>();
+            if (universe?.TargetCamera is TargetCameraFocus focus && focus.SourceMap != focused)
+                universe.TargetCamera = null;
             universe?.ApplyCameraZoomScope(focused);
             CameraDriver driver = Find.CameraDriver;
             if (driver?.config != null && driver.RootSize > driver.config.sizeRange.max)

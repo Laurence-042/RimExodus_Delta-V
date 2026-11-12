@@ -18,6 +18,7 @@
   <DeltaV_NavUnavailable>Target lost or unavailable</DeltaV_NavUnavailable>
   <DeltaV_NavFit>Fit both</DeltaV_NavFit>
   <DeltaV_NavInspect>Inspect</DeltaV_NavInspect>
+  <DeltaV_NavFocusTarget>Focus target</DeltaV_NavFocusTarget>
   <DeltaV_NavAutopilot>Autopilot</DeltaV_NavAutopilot>
   <DeltaV_NavAutopilotStarted>Autopilot is approaching the perimeter of {0}.</DeltaV_NavAutopilotStarted>
   <DeltaV_NavCannotAutopilot>The selected ship cannot automatically navigate to this target.</DeltaV_NavCannotAutopilot>
