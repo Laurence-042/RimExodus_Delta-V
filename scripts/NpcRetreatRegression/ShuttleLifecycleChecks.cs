@@ -128,7 +128,7 @@ internal static partial class Program
             && !restoredHull.CompGetGizmosExtra().Any(),
             "already flying shuttle neither exposes nor executes another launch");
         universe.Shuttles.PlaceBoardedShuttle(flight, (Building)hull.parent, host,
-            host.pose.position, Vector2.zero, Vector2.up, new IntVec3(1, 0, 2));
+            new IntVec3(1, 0, 2), Rot4.North);
         Call(universe, "RunFrameActions");
         Check(restoredHull.parent.Map == flightMap && Actions(universe).Count == 0,
             "queued intrusion cannot substitute a restored hull for the original impact body");

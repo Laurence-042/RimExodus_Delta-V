@@ -60,8 +60,7 @@ namespace DeltaV
         public override void Initialize(CompProperties props) =>
             base.Initialize(((CompProperties_GunSupply)props).WithTranslatedLabels());
 
-        public bool CanLoad(bool forced) => !IsFull && (Fuel <= 0f || Props.allowRefuelIfNotEmpty)
-            && (forced || allowAutoRefuel && ShouldAutoRefuelNow);
+        public bool CanLoad(bool forced) => GunSupplyUtility.CanLoad(this, forced);
 
         public override void PostExposeData()
         {

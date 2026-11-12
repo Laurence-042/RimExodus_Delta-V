@@ -228,7 +228,7 @@ namespace DeltaV
         public override bool CanBoard => Hull.CanBoard;
         public override void NotifyLanded()
         {
-            Hull.RearmBoost();
+            Hull.intrusionDriveActive = false;
             SpaceShuttleService.StartLaunchCooldown(Hull.parent.TryGetComp<CompLaunchable>());
         }
     }

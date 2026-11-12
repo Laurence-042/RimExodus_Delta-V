@@ -768,16 +768,19 @@ namespace DeltaV
                     else DestroyProjectile(captured, "impact");
                 };
                 body.onPlace = p.adoptedShuttle
-                    ? (System.Action<SpaceObject, Vector3, Vector2>)((defender, hit, local) =>
+                    ? (System.Action<SpaceObject, Vector3, Vector2>)((defender, hit, _) =>
                     {
                         SpaceObject shuttle = captured.container;
                         Vector2 forwardAtHit = SpaceTransform.TransportTangent(
                             SpaceTransform.Rotate(Vector2.right, shuttle.pose.angle
                                 + ShipOrientation.AngleFromRot4(captured.building.Rotation)),
                             shuttle.pose.position, hit);
+                        Vector2 direction = SpaceTransform.UniverseTangentToMapDirection(
+                            defender, defender.map, hit, forwardAtHit);
+                        Rot4 facing = ShipOrientation.Rot4FromAngle(Mathf.Atan2(direction.y, direction.x));
                         ReleaseShuttle(shuttle);
-                        universe.Shuttles.PlaceBoardedShuttle(shuttle, captured.building, defender, hit, local,
-                            forwardAtHit, captured.body.resolvedHitCell);
+                        universe.Shuttles.PlaceBoardedShuttle(shuttle, captured.building, defender,
+                            captured.body.resolvedHitCell, facing);
                     }) : null;
                 body.onShieldRedirect = delegate (Vector3 from, Vector3 hit, SpaceObject defender)
                 {

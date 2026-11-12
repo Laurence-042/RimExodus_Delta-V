@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Verse;
+using RimWorld;
 using DeltaV;
 using UnityEngine;
 using System.Linq;
@@ -34,9 +35,11 @@ internal static class Program
             requireForwardThrust: true);
         interceptPassed &= RunIntercept("boarding-turn", new Vector2(-80, -20), new Vector2(0, 4), Mathf.PI, true);
         interceptPassed &= RunIntercept("boarding-moving-loaded", new Vector2(-180, -25), Vector2.zero, 0,
-            true, 280, new Vector2(2, 1));
+            true, 780, new Vector2(2, 1));
         interceptPassed &= RunIntercept("boarding-unboosted", new Vector2(-80, 0), Vector2.zero, 0, false,
             requireForwardThrust: true);
+        interceptPassed &= RunIntercept("boarding-full-load-pursuit", new Vector2(-120, 0), new Vector2(-100, 0), 0,
+            false, 780, new Vector2(100, 0));
         interceptPassed &= RunIntercept("boarding-close", new Vector2(-9, 0), new Vector2(15, 0), 0, true,
             requireForwardThrust: true);
         interceptPassed &= RunIntercept("boarding-crosses-within-step", new Vector2(-5.5f, 0), new Vector2(65, 0), 0, true,
@@ -68,11 +71,15 @@ internal static class Program
     }
 
     static bool RunIntercept(string name, Vector2 position, Vector2 velocity, float angle,
-        bool boost, float mass = 140, Vector2 targetVelocity = default, bool requireForwardThrust = false)
+        bool boost, float mass = 0, Vector2 targetVelocity = default, bool requireForwardThrust = false)
     {
         DeltaVMod.CurrentSettings.passiveDrag = true;
-        XElement xml = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_ShuttlesAndMoonPool.xml")
-            .Descendants("virtualThrusters").Single();
+        XElement shuttle = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_ShuttlesAndMoonPool.xml")
+            .Descendants("ThingDef").Single(x => (string)x.Element("defName") == "DeltaV_ShuttleBoarding");
+        XElement xml = shuttle.Descendants("virtualThrusters").Single().Parent;
+        XElement tank = shuttle.Element("comps").Elements("li")
+            .Single(x => (string)x.Attribute("Class") == "DeltaV.CompProperties_AfterburnerTank");
+        if (mass <= 0f) mass = (float)shuttle.Element("statBases").Element("Mass");
         Vector2 Pair(string text)
         {
             var p = text.Trim('(', ')').Split(',');
@@ -80,7 +87,7 @@ internal static class Program
         }
         var report = new ShipPhysics.MassReport { mass = mass, inertia = mass * 34 / 12 };
         var normal = new ShipPhysics.MassReport { mass = mass, inertia = report.inertia };
-        foreach (var entry in xml.Elements("li"))
+        foreach (var entry in xml.Element("virtualThrusters").Elements("li"))
         {
             Vector2 force = Pair((string)entry.Element("force"));
             Vector2 point = Pair((string)entry.Element("position"));
@@ -98,7 +105,10 @@ internal static class Program
             }
             return b;
         }
-        int remaining = boost ? 600 : 0, fallback = 0, solves = 0, planStep = 4;
+        float boostMultiplier = (float)xml.Element("boostMultiplier");
+        int fullBurnTicks = Mathf.CeilToInt((float)tank.Element("fuelCapacity")
+            / ((float)tank.Element("fuelConsumptionRate") / GenDate.TicksPerDay));
+        int remaining = boost ? fullBurnTicks : 0, fallback = 0, solves = 0, planStep = 4;
         float omega = 0, closest = float.MaxValue;
         GuidanceCommand held = default;
         var scratch = new float[6];
@@ -106,7 +116,8 @@ internal static class Program
         for (int tick = 0; tick < 7200; tick++)
         {
             bool boosted = remaining > 0;
-            for (int i = 0; i < 6; i++) report.thrusters[i].thrust = normal.thrusters[i].thrust * (boosted && i < 2 ? 2 : 1);
+            for (int i = 0; i < 6; i++)
+                report.thrusters[i].thrust = normal.thrusters[i].thrust * (boosted && i < 2 ? boostMultiplier : 1f);
             if (tick % 6 == 0 || remaining == 0 && boost)
             {
                 if (remaining == 0 && boost) planStep = 4; // Real capability version invalidates playback on depletion.

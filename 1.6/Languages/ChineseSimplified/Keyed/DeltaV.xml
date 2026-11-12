@@ -377,11 +377,17 @@
   <!-- 阶段5：shuttle 与月池 -->
   <DeltaV_ShuttleLaunchGizmo>起飞</DeltaV_ShuttleLaunchGizmo>
   <DeltaV_ShuttleLaunchGizmoTip>让穿梭机起飞进入自由飞行。须完成装载、备足燃料，并满足载重和冷却要求。月池上方的屋顶不会阻挡起飞。</DeltaV_ShuttleLaunchGizmoTip>
+  <DeltaV_ShuttleBoostRestart>加力重启阈值 {0}%</DeltaV_ShuttleBoostRestart>
+  <DeltaV_ShuttleBoostRestartTip>加力油箱剩余 {0}%。点击设置耗尽后恢复加力所需的油量比例。</DeltaV_ShuttleBoostRestartTip>
+  <DeltaV_ShuttleBoostCharging>请补充化燃至重启阈值。</DeltaV_ShuttleBoostCharging>
+  <DeltaV_ShuttleAfterburnerFuel>加力化燃</DeltaV_ShuttleAfterburnerFuel>
+  <DeltaV_ShuttleBoostReady>侵入截击时可加力。</DeltaV_ShuttleBoostReady>
   <DeltaV_ShuttleLaunchDenied>无法起飞：{0}</DeltaV_ShuttleLaunchDenied>
   <DeltaV_ShuttleLaunched>{0} 已起飞进入自由飞行。</DeltaV_ShuttleLaunched>
   <DeltaV_ShuttleBoardGizmo>撞击敌壳</DeltaV_ShuttleBoardGizmo>
   <DeltaV_ShuttleBoardGizmoTip>选择敌舰外壳作为撞击目标。跳帮艇会自行加速追踪，撞入后以艇身堵住破口，船员可下艇作战。</DeltaV_ShuttleBoardGizmoTip>
   <DeltaV_ShuttleBoardNoTarget>这里没有可撞击的船体。</DeltaV_ShuttleBoardNoTarget>
+  <DeltaV_ShuttleBoardNoRoom>跳帮艇撞上了船体，但落位区域超出地图或存在无法破拆的建筑。</DeltaV_ShuttleBoardNoRoom>
   <DeltaV_ShuttleBoardEngaged>侵入已发起：正在冲撞 {0}。</DeltaV_ShuttleBoardEngaged>
   <DeltaV_ShuttleBoardCancel>中止侵入</DeltaV_ShuttleBoardCancel>
   <DeltaV_ShuttleBoardCancelTip>停止追踪撞击目标，恢复驾驶跳帮艇。艇身仍会按当前速度继续运动。</DeltaV_ShuttleBoardCancelTip>

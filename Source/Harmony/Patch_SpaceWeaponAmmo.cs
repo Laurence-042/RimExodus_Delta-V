@@ -16,6 +16,14 @@ namespace DeltaV
             __result = GunSupplyUtility.FindSupply(pawn, t, forced) != null;
             return false;
         }
+
+        private static void Postfix(Pawn pawn, Thing t, bool forced, ref bool __result)
+        {
+            if (__result || t.TryGetComp<CompAfterburnerTank>() == null
+                || t.TryGetComp<CompInteractable>() is CompInteractable { OnCooldown: true } interactable
+                    && interactable.Props.cooldownPreventsRefuel) return;
+            __result = GunSupplyUtility.FindSupply(pawn, t, forced, afterburner: true) != null;
+        }
     }
 
     [HarmonyPatch(typeof(RefuelWorkGiverUtility), nameof(RefuelWorkGiverUtility.RefuelJob))]
@@ -23,6 +31,12 @@ namespace DeltaV
     {
         private static bool Prefix(Pawn pawn, Thing t, bool forced, ref Job __result)
         {
+            if (t.TryGetComp<CompAfterburnerTank>() != null)
+            {
+                if (GunSupplyUtility.CanLoad(t.TryGetComp<CompRefuelable>(), forced)) return true;
+                __result = GunSupplyUtility.RefuelJob(pawn, t, forced, afterburner: true);
+                return __result == null;
+            }
             if (t.TryGetComp<CompGunSupply>() == null) return true;
             __result = GunSupplyUtility.RefuelJob(pawn, t, forced);
             return false;

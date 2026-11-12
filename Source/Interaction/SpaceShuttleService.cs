@@ -39,22 +39,48 @@ namespace DeltaV
     public class CompSpaceShuttle : ThingComp
     {
         public ShipCombatState combat = new ShipCombatState();
+        private const int DefaultBoostRestartPercent = 50;
         private ShipBase vessel;
-        private int boostTicksUsed;
+        private int lastBoostBurnTick = -1;
+        private CompAfterburnerTank afterburnerTank;
+        private bool boostRestartPending = true;
+        private int boostRestartPercent = DefaultBoostRestartPercent;
         internal bool intrusionDriveActive;
-        internal int BoostTicksRemaining => Mathf.Max(0, (BoardingProfile?.boostTicks ?? 0) - boostTicksUsed);
-        internal float BoostMultiplier => intrusionDriveActive && BoostTicksRemaining > 0
+        private CompAfterburnerTank AfterburnerTank => afterburnerTank ??= parent.GetComp<CompAfterburnerTank>();
+        internal int BoostTicksRemaining => AfterburnerTank?.BurnTicksRemaining ?? 0;
+        private bool WaitingForBoost => boostRestartPending
+            && (AfterburnerTank?.FuelPercentOfMax ?? 0f) * 100f < boostRestartPercent;
+        internal float BoostMultiplier => intrusionDriveActive
+            && (lastBoostBurnTick == Find.TickManager.TicksGame || (BoostTicksRemaining > 0 && !WaitingForBoost))
             ? Mathf.Max(1f, BoardingProfile?.boostMultiplier ?? 1f) : 1f;
-        internal void ConsumeBoostTick(DriveInfo drive)
+        internal void ConsumeBoostTick(ShipPhysics.MassReport report)
         {
-            if (BoostMultiplier <= 1f) return;
-            Vector2 forward = SpaceTransform.Rotate(Vector2.right, Vessel.FrameAngle);
-            foreach (ThrusterInfo thruster in drive.thrusters)
-                if (thruster.operational && thruster.throttle > 0.001f
-                    && Vector2.Dot(thruster.dir, forward) > 0.999f)
-                { boostTicksUsed++; return; }
+            if (!intrusionDriveActive || AfterburnerTank == null) return;
+            int tick = Find.TickManager.TicksGame;
+            if (lastBoostBurnTick == tick) return;
+            foreach (ShipPhysics.Thruster thruster in report.thrusters)
+            {
+                if (thruster.shuttle != this || !thruster.boostable || !thruster.operational
+                    || thruster.thrust <= thruster.baseThrust || thruster.throttle < 0.0001f) continue;
+                AfterburnerTank.Notify_UsedThisTick();
+                lastBoostBurnTick = tick;
+                boostRestartPending = BoostTicksRemaining == 0;
+                return;
+            }
         }
-        internal void RearmBoost() { boostTicksUsed = 0; intrusionDriveActive = false; }
+        internal void SetBoostRestartPercent(int percent)
+        {
+            bool wasWaiting = WaitingForBoost;
+            boostRestartPercent = Mathf.Clamp(percent, 1, 100);
+            boostRestartPending = wasWaiting && WaitingForBoost;
+        }
+        public override void ReceiveCompSignal(string signal)
+        {
+            if (signal != "Refueled" && signal != "RanOutOfFuel") return;
+            if (AfterburnerTank == null) return;
+            if (BoostTicksRemaining == 0) boostRestartPending = true;
+            else if (!WaitingForBoost) boostRestartPending = false;
+        }
         public virtual ShipBase Vessel => vessel ??= new ShuttleShip(this);
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
@@ -77,7 +103,8 @@ namespace DeltaV
         {
             base.PostExposeData();
             Scribe_Deep.Look(ref combat, "combat");
-            Scribe_Values.Look(ref boostTicksUsed, "intrusionBoostTicksUsed");
+            Scribe_Values.Look(ref boostRestartPending, "boostRestartPending", true);
+            Scribe_Values.Look(ref boostRestartPercent, "boostRestartPercent", DefaultBoostRestartPercent);
             combat ??= new ShipCombatState();
         }
 
@@ -120,9 +147,24 @@ namespace DeltaV
             {
                 yield break;
             }
+            SpaceObject container = Container;
+            if (AfterburnerTank != null)
+            {
+                yield return new Command_Action
+                {
+                    defaultLabel = "DeltaV_ShuttleBoostRestart".Translate(boostRestartPercent),
+                    defaultDesc = "DeltaV_ShuttleBoostRestartTip".Translate(
+                        Mathf.FloorToInt(100f * AfterburnerTank.FuelPercentOfMax))
+                        + "\n" + (WaitingForBoost ? "DeltaV_ShuttleBoostCharging" : "DeltaV_ShuttleBoostReady").Translate(),
+                    icon = parent.def.uiIcon,
+                    action = () => Find.WindowStack.Add(new Dialog_Slider(
+                        value => "DeltaV_ShuttleBoostRestart".Translate(value),
+                        1, 100, SetBoostRestartPercent, boostRestartPercent))
+                };
+            }
             // 起飞（停靠中）：门禁 = 原版 CanLaunch 结果直取（含装货/超重/冷却）；
             // 月池屋顶通行见 Patch_MoonPoolRoof。
-            if (Container != null && !Vessel.CanDriveIn(Container) && Launchable != null)
+            if (container != null && !Vessel.CanDriveIn(container) && Launchable != null)
             {
                 CompLaunchable launchable = Launchable;
                 var launch = new Command_Action
@@ -139,8 +181,7 @@ namespace DeltaV
                 }
                 yield return launch;
             }
-            // 起飞后其余操作（驾驶切换/选择对接/侵入目标指定）统一在 ShipStatusPanel，
-            // gizmo 只保留停船状态（普通建筑）必需的起飞入口（2026-09-27 双入口收敛定案）。
+            // 驾驶切换、对接和侵入目标指定统一在 ShipStatusPanel。
         }
     }
 
@@ -355,8 +396,7 @@ namespace DeltaV
 
         /// <summary>侵入命中后效：在帧边界以真正的 Gravship 搬运链降落。</summary>
         public void PlaceBoardedShuttle(SpaceObject container, Building hull, SpaceObject defender,
-            Vector3 hitUniverse, Vector2 hitLocal, Vector2 forwardWorld,
-            IntVec3 hitCell)
+            IntVec3 entry, Rot4 facing)
         {
             int sourceId = container.objectId, sourceVersion = container.RepresentationVersion;
             int targetId = defender.objectId, targetVersion = defender.RepresentationVersion;
@@ -375,52 +415,16 @@ namespace DeltaV
                     || !universe.objects.Contains(defender) || !universe.objects.Contains(container))
                     return;
 
-                // 落点只读实际艇首碰撞格；护盾面不触发跳帮。
-                Vector3 ahead = OrbitSphere.Move(hitUniverse, forwardWorld * 0.25f);
-                Vector2 localDirection = SpaceTransform.UniverseToMapPoint(defender, targetMap, ahead)
-                    - SpaceTransform.UniverseToMapPoint(defender, targetMap, hitUniverse);
-                if (localDirection.sqrMagnitude < 1e-8f) return;
-                localDirection.Normalize();
-                IntVec3 entry = hitCell;
-                if (!entry.IsValid || !entry.InBounds(targetMap))
-                {
-                    DeltaVLog.Message(DeltaVLogModule.Combat,
-                        $"boarding landing refused: no target hull near {hitLocal} on {UniverseManager.MapTag(targetMap)}");
-                    return;
-                }
-
-                Rot4 facing = ShipOrientation.Rot4FromAngle(
-                    Mathf.Atan2(localDirection.y, localDirection.x));
-                IntVec3 lateralStep = facing == Rot4.North || facing == Rot4.South
-                    ? IntVec3.East : IntVec3.North;
-                for (int depth = 0; depth < 2; depth++)
-                for (int lateral = -1; lateral <= 1; lateral++)
-                    if (!(entry + facing.FacingCell * depth + lateralStep * lateral).InBounds(targetMap))
-                        return;
+                if (!entry.IsValid || !entry.InBounds(targetMap)) return;
                 // Thing.Position 是原版多格建筑的中心锚，不是脚印左下角。
                 IntVec3 desiredCenter = entry - facing.FacingCell * 2;
                 CellRect occupied = GenAdj.OccupiedRect(desiredCenter, facing, hull.def.size);
-                if (!occupied.Cells.All(c => c.InBounds(targetMap)))
+                if (!SpaceImpactEffects.TryCollectBoardingBreach(
+                    targetMap, entry, facing, occupied, hull.def, out HashSet<Building> breach))
                 {
-                    DeltaVLog.Message(DeltaVLogModule.Combat,
-                        $"boarding landing refused: footprint crosses map edge at {entry}");
+                    if (hull.Faction == Faction.OfPlayer)
+                        Messages.Message("DeltaV_ShuttleBoardNoRoom".Translate(), MessageTypeDefOf.RejectInput, false);
                     return;
-                }
-                // 艇身后四排应位于船外；不能借原版 GenSpawn 的 wipe 语义
-                // 无提示地抹掉另一片结构。入口两排由破拆后效显式处理。
-                foreach (IntVec3 cell in occupied.Cells)
-                {
-                    bool inBreach = cell == entry || cell == entry + lateralStep
-                        || cell == entry - lateralStep;
-                    if (inBreach) continue;
-                    if (cell.GetThingList(targetMap).Any(t => t is Building))
-                    {
-                        DeltaVLog.Message(DeltaVLogModule.Combat,
-                            $"boarding landing refused: occupied rear footprint at {cell}; " +
-                            $"entry={entry} facing={facing} center={desiredCenter} " +
-                            $"hitLocal={hitLocal} incident={localDirection}");
-                        return;
-                    }
                 }
 
                 PilotTarget shuttle = PilotTarget.Of(hull);
@@ -438,8 +442,7 @@ namespace DeltaV
                         new Vector2(entry.x + 0.5f, entry.z + 0.5f),
                         Find.CameraDriver.RootSize, shuttle.Identity, hasSelection: true)
                     : default(ShipFlightTransitionService.DockingFocusHandoff);
-                // 破拆在落点确定之后，且只对两排三格的建筑生效；基架不动。
-                SpaceImpactEffects.BreachBoardingCorridor(targetMap, entry, facing, hull);
+                SpaceImpactEffects.BreachBoardingCorridor(targetMap, breach, hull);
                 if (!universe.ShipTransitions.CompleteTransferIntoHost(universe, shuttle,
                     gravship, capturedCells, includeTerrain, targetMap, landingRoot,
                     placementRotation, 0, out Map transferredSource))

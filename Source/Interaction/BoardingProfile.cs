@@ -26,8 +26,7 @@ namespace DeltaV
     {
         /// <summary>具备侵入式对接能力（跳帮特化）。</summary>
         public bool canBoard;
-        public float boostMultiplier = 2f;
-        public int boostTicks = 600;
+        public float boostMultiplier = 1.5f;
 
         /// <summary>
         /// 可选的完整虚拟推进器布局；非空时替换 CompProperties_SpaceShuttle 的默认表。

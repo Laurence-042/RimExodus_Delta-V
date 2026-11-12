@@ -8,14 +8,19 @@ namespace DeltaV
     // Vanilla refueling work still schedules the job. Only selecting the compartment differs.
     public static class GunSupplyUtility
     {
-        public static Thing FindSupply(Pawn pawn, Thing target, bool forced)
+        internal static bool CanLoad(CompRefuelable tank, bool forced) => tank != null && !tank.IsFull
+            && (tank.Fuel <= 0f || tank.Props.allowRefuelIfNotEmpty)
+            && (forced || tank.allowAutoRefuel && tank.ShouldAutoRefuelNow);
+
+        public static Thing FindSupply(Pawn pawn, Thing target, bool forced, bool afterburner = false)
         {
             if (!(target is ThingWithComps receiver) || !target.Spawned || target.Fogged()
                 || target.Faction != pawn.Faction || target.IsForbidden(pawn)
                 || !pawn.CanReserve(target, 1, -1, null, forced)) return null;
             foreach (ThingComp comp in receiver.AllComps)
             {
-                if (!(comp is CompGunSupply supply) || !supply.CanLoad(forced)) continue;
+                CompRefuelable supply = afterburner ? comp as CompAfterburnerTank : comp as CompGunSupply;
+                if (!CanLoad(supply, forced)) continue;
                 ThingFilter filter = supply.Props.fuelFilter;
                 Thing found = GenClosest.ClosestThingReachable(pawn.Position, target.Map,
                     filter.BestThingRequest, PathEndMode.ClosestTouch, TraverseParms.For(pawn), 9999f,
@@ -25,17 +30,18 @@ namespace DeltaV
             return null;
         }
 
-        public static Job RefuelJob(Pawn pawn, Thing target, bool forced)
+        public static Job RefuelJob(Pawn pawn, Thing target, bool forced, bool afterburner = false)
         {
-            Thing fuel = FindSupply(pawn, target, forced);
+            Thing fuel = FindSupply(pawn, target, forced, afterburner);
             return fuel == null ? null : JobMaker.MakeJob(DefDatabase<JobDef>.GetNamed("DeltaV_LoadGunSupply"), target, fuel);
         }
     }
 
     public class JobDriver_LoadGunSupply : JobDriver_Refuel
     {
-        private CompGunSupply Supply => Fuel == null ? null
-            : Refuelable.TryGetComp<CompSpaceWeaponMagazine>()?.SupplyFor(Fuel.def);
+        private CompRefuelable Supply => Fuel == null ? null
+            : (CompRefuelable)Refuelable.TryGetComp<CompAfterburnerTank>()
+                ?? Refuelable.TryGetComp<CompSpaceWeaponMagazine>()?.SupplyFor(Fuel.def);
 
         protected override IEnumerable<Toil> MakeNewToils()
         {
@@ -59,7 +65,7 @@ namespace DeltaV
                 .WithProgressBarToilDelay(TargetIndex.A);
             yield return Toils_General.Do(() =>
             {
-                CompGunSupply supply = Supply;
+                CompRefuelable supply = Supply;
                 if (supply != null && !supply.IsFull
                     && (job.playerForced || supply.allowAutoRefuel && supply.ShouldAutoRefuelNowIgnoringFuelPct))
                     supply.Refuel(new List<Thing> { Fuel });

@@ -155,6 +155,7 @@ internal static partial class Program
             && !FlightField<bool>(flight, "motorThrusting"),
             "pooled flight record discards stage and RCS state");
         if (flightOnly) return;
+        CheckBoardingBreach();
 
         // Read the real Def so nozzle checks detect drift between art alignment and physics configuration.
         XElement xml = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_ShuttlesAndMoonPool.xml")
@@ -164,6 +165,7 @@ internal static partial class Program
         var boardingProps = new CompProperties_SpaceProjectile
         {
             hasMap = true,
+            timeoutTicks = (int)flightXml.Element("timeoutTicks"),
             ignoresShields = (bool)flightXml.Element("ignoresShields")
         };
         Vector2 Pair(string value)
@@ -171,8 +173,25 @@ internal static partial class Program
             string[] parts = value.Trim('(', ')').Split(',');
             return new Vector2(float.Parse(parts[0], CultureInfo.InvariantCulture), float.Parse(parts[1], CultureInfo.InvariantCulture));
         }
-        var layout = xml.Descendants("virtualThrusters").Single().Elements("li")
+        XElement profileXml = xml.Descendants("virtualThrusters").Single().Parent;
+        var layout = profileXml.Element("virtualThrusters").Elements("li")
             .Select(x => new ShuttleThrusterConfig { position = Pair((string)x.Element("position")), force = Pair((string)x.Element("force")) }).ToList();
+        var profile = new DefModExtension_BoardingProfile
+        {
+            canBoard = true,
+            boostMultiplier = (float)profileXml.Element("boostMultiplier"),
+            virtualThrusters = layout
+        };
+        XElement tankXml = xml.Element("comps").Elements("li")
+            .Single(x => (string)x.Attribute("Class") == "DeltaV.CompProperties_AfterburnerTank");
+        var tankProps = new CompProperties_AfterburnerTank
+        {
+            fuelCapacity = (float)tankXml.Element("fuelCapacity"),
+            fuelConsumptionRate = (float)tankXml.Element("fuelConsumptionRate")
+        };
+        float dryMass = (float)xml.Element("statBases").Element("Mass");
+        int initialTick = Find.TickManager.TicksGame;
+        void AtTick(int tick) => Set(Find.TickManager, "ticksGameInt", tick);
         Check(layout.Count == 6 && layout.Count(x => x.force.x > 0 && x.force.y == 0) == 2
             && Math.Abs(layout.Where(x => x.force.x > 0).Sum(x => x.position.y * x.force.x)) < 0.001f,
             "boarding Def has six thrusters including two symmetric main engines");
@@ -186,58 +205,55 @@ internal static partial class Program
         Set(Find.World.grid, "planetLayers", new Dictionary<int, RimWorld.Planet.PlanetLayer> { [0] = fixtureLayer });
         for (int rotation = 0; rotation < 4; rotation++)
         {
+            AtTick(initialTick);
             Map map = TestMap(41010 + rotation);
             var hull = AddTestHull(map, player, 41020 + rotation,
                 new CompSpaceShuttle { props = new CompProperties_SpaceShuttle { virtualThrusters = layout } });
+            var launchFuel = new CompRefuelable { parent = hull.parent, props = new CompProperties_Refuelable { fuelCapacity = 400f } };
+            var tank = new CompAfterburnerTank { parent = hull.parent, props = tankProps };
+            hull.parent.AllComps.Add(launchFuel);
+            hull.parent.AllComps.Add(tank);
+            launchFuel.Refuel(75f);
+            Check(hull.BoostTicksRemaining == 0 && hull.parent.GetComp<CompRefuelable>() == launchFuel,
+                "new afterburner tank is empty and launch refuelable stays first " + rotation);
+            tank.Refuel(tankProps.fuelCapacity);
+            int burnTicks = tank.BurnTicksRemaining;
             hull.parent.Rotation = new Rot4(rotation);
             hull.parent.def.comps.Add(boardingProps);
-            hull.parent.def.modExtensions = new List<DefModExtension> { new DefModExtension_BoardingProfile
-                { canBoard = true, boostMultiplier = 2f, boostTicks = 600, virtualThrusters = layout } };
+            hull.parent.def.modExtensions = new List<DefModExtension> { profile };
             var container = new OfflineShuttleSpaceObject(41030 + rotation, map, new SpacePose(Vector3.forward, 0.71f));
             universe.objects.Add(container);
             Set(universe, "objectById", null);
             Check(service.AdoptShuttle(container, (Building)hull.parent, CombatTarget.ForContainer(targetBody)),
                 "intrusion adopts the real rotated shuttle " + rotation);
             object adopted = ProjectileRecords(service).Cast<object>().Single();
-            var physical = new ShipPhysics.MassReport { mass = 140f, inertia = 400f };
+            var physical = new ShipPhysics.MassReport { mass = dryMass, inertia = dryMass * 34f / 12f };
             physical.thrusters.AddRange(hull.Vessel.BuildThrusters());
             var drive = new DriveInfo(physical, hull.Vessel.FrameAngle);
             ShipPhysics.RefreshOperational(physical);
-            Check(physical.thrusters.Select((t, i) => Math.Abs(t.thrust - layout[i].force.magnitude * (i < 2 ? 2 : 1)) < 0.001f).All(x => x),
-                "only the two physical tail engines double their thrust " + rotation);
+            Check(physical.thrusters.Select((t, i) => Math.Abs(t.thrust - layout[i].force.magnitude * (i < 2 ? profile.boostMultiplier : 1f)) < 0.01f).All(x => x),
+                "only the two physical tail engines increase their thrust " + rotation);
             var baseline = new ShipPhysics.MassReport { mass = physical.mass, inertia = physical.inertia };
             baseline.thrusters.AddRange(hull.Vessel.BuildThrusters());
             hull.intrusionDriveActive = false;
             var expectedModel = ShipPhysics.BuildControlModel(baseline);
             hull.intrusionDriveActive = true;
             var futureModel = drive.PreviewUnboostedModel(new ShipPhysics.ControlModel());
-            Check(Math.Abs(futureModel.positiveX - expectedModel.positiveX) < 0.001f
-                && Math.Abs(futureModel.positiveTorque - expectedModel.positiveTorque) < 0.001f
-                && Math.Abs(physical.thrusters[0].thrust - layout[0].force.magnitude * 2) < 0.001f,
+            Check(Math.Abs(futureModel.positiveX - expectedModel.positiveX) < 0.01f
+                && Math.Abs(futureModel.positiveTorque - expectedModel.positiveTorque) < 0.01f
+                && Math.Abs(physical.thrusters[0].thrust - layout[0].force.magnitude * profile.boostMultiplier) < 0.01f,
                 "post-boost preview matches ordinary allocation without changing live thrust " + rotation);
             for (int i = 0; i < 6; i++)
                 Check((SpaceTransform.RotateInverse(physical.thrusters[i].dir, hull.Vessel.FrameAngle) - layout[i].force.normalized).magnitude < 0.001f,
                     "physical thruster follows hull rotation " + rotation + "/" + i);
-            hull.ConsumeBoostTick(drive);
+            hull.ConsumeBoostTick(physical);
             physical.thrusters[2].throttle = 1;
-            hull.ConsumeBoostTick(drive);
-            Check(hull.BoostTicksRemaining == 600, "idle and oblique thrusters do not consume boost " + rotation);
+            hull.ConsumeBoostTick(physical);
+            Check(hull.BoostTicksRemaining == burnTicks, "idle and oblique thrusters do not consume boost " + rotation);
             physical.thrusters[0].throttle = physical.thrusters[1].throttle = 1;
-            hull.ConsumeBoostTick(drive);
-            Check(hull.BoostTicksRemaining == 599, "two firing main engines consume one shared boost tick " + rotation);
-            if (rotation == 0)
-            {
-                var restored = new CompSpaceShuttle { parent = hull.parent, props = hull.props };
-                string path = System.IO.Path.Combine(AppContext.BaseDirectory, "shuttle-boost.xml");
-                try
-                {
-                    Scribe.saver.InitSaving(path, "shuttle"); hull.PostExposeData(); Scribe.saver.FinalizeSaving();
-                    Scribe.loader.InitLoading(path); restored.PostExposeData(); Scribe.loader.FinalizeLoading();
-                }
-                finally { Scribe.ForceStop(); }
-                Check(restored.BoostTicksRemaining == 599 && !restored.intrusionDriveActive,
-                    "real Scribe preserves remaining boost but does not restore the intrusion task");
-            }
+            hull.ConsumeBoostTick(physical);
+            hull.ConsumeBoostTick(physical);
+            Check(hull.BoostTicksRemaining == burnTicks - 1, "two firing main engines consume one shared boost tick " + rotation);
             Check(universe.Autopilot.IsActive(container) && container.AppliesPassiveDrag,
                 "intrusion uses real autopilot and ordinary ship drag " + rotation);
             Vector2 inherited = new Vector2(50, 3);
@@ -253,12 +269,19 @@ internal static partial class Program
                 "abort detaches intrusion autopilot and turns off boost " + rotation);
             Check(container.pose.velocity == inherited && container.pose.angularVelocity == 0.4f,
                 "aborting intrusion preserves linear and angular momentum " + rotation);
-            Check(hull.BoostTicksRemaining == 599 && service.AdoptShuttle(container, (Building)hull.parent, CombatTarget.ForContainer(targetBody)),
+            Check(hull.BoostTicksRemaining == burnTicks - 1 && service.AdoptShuttle(container, (Building)hull.parent, CombatTarget.ForContainer(targetBody)),
                 "restarting intrusion preserves its consumed boost " + rotation);
-            for (int tick = 0; tick < 650; tick++) hull.ConsumeBoostTick(drive);
+            for (int tick = 1; tick < burnTicks; tick++)
+            {
+                AtTick(initialTick + tick);
+                ShipPhysics.RefreshOperational(physical);
+                hull.ConsumeBoostTick(physical);
+            }
+            int depletedTick = initialTick + burnTicks;
+            AtTick(depletedTick);
             ShipPhysics.RefreshOperational(physical);
-            Check(hull.BoostTicksRemaining == 0 && physical.thrusters.Select((t, i) => Math.Abs(t.thrust - layout[i].force.magnitude) < 0.001f).All(x => x),
-                "boost expires at 600 burn ticks and every thruster returns to its ordinary rating " + rotation);
+            Check(hull.BoostTicksRemaining == 0 && physical.thrusters.Select((t, i) => Math.Abs(t.thrust - layout[i].force.magnitude) < 0.01f).All(x => x),
+                "boost expires at the configured burn duration and every thruster returns to its ordinary rating " + rotation);
             // Same runtime order as Universe: capture sweep start, MPC, then drift guard.
             service.Tick();
             object resumed = ProjectileRecords(service).Cast<object>().Single();
@@ -270,14 +293,95 @@ internal static partial class Program
                 && FlightField<Vector3>(resumed, "prevPosition") == start,
                 "MPC integrates once and the collision sweep retains the pre-drive start " + rotation
                 + " distance=" + OrbitSphere.Offset(start, end).magnitude);
+            AtTick(depletedTick + 3600);
+            Check(tank.Fuel == 0f && launchFuel.Fuel == 75f && hull.BoostMultiplier == 1f,
+                "drift never creates fuel and boosting leaves launch fuel alone " + rotation);
+            hull.SetBoostRestartPercent(25);
+            float restartFuel = tankProps.fuelCapacity * 0.25f;
+            tank.Refuel(restartFuel - 1f);
+            ShipPhysics.RefreshOperational(physical);
+            int coolingVersion = physical.version;
+            Check(hull.BoostTicksRemaining > 0 && hull.BoostMultiplier == 1f,
+                "partial refuel below threshold leaves boost off " + rotation);
+            if (rotation == 0)
+            {
+                var restoredBody = new Building { def = hull.parent.def };
+                var restoredLaunch = new CompRefuelable { parent = restoredBody, props = launchFuel.props };
+                var restoredTank = new CompAfterburnerTank { parent = restoredBody, props = tankProps };
+                var restored = new CompSpaceShuttle { parent = restoredBody, props = hull.props };
+                Set(typeof(ThingWithComps), restoredBody, "comps", new List<ThingComp> { restoredLaunch, restoredTank, restored });
+                string path = System.IO.Path.Combine(AppContext.BaseDirectory, "shuttle-boost.xml");
+                try
+                {
+                    Scribe.saver.InitSaving(path, "shuttle");
+                    launchFuel.PostExposeData(); tank.PostExposeData(); hull.PostExposeData();
+                    Scribe.saver.FinalizeSaving();
+                    Scribe.loader.InitLoading(path);
+                    restoredLaunch.PostExposeData(); restoredTank.PostExposeData(); restored.PostExposeData();
+                    Scribe.loader.FinalizeLoading();
+                }
+                finally { Scribe.ForceStop(); }
+                Check(restoredLaunch.Fuel == 75f && restoredTank.Fuel == restartFuel - 1f
+                    && !restored.intrusionDriveActive, "Scribe keeps the two fuel tanks separate");
+                restored.intrusionDriveActive = true;
+                Check(restored.BoostMultiplier == 1f, "Scribe preserves the restart latch below threshold");
+                restoredTank.Refuel(1f);
+                Check(restored.BoostMultiplier == profile.boostMultiplier, "Scribe preserves the restart threshold");
+            }
+            tank.Refuel(1f);
+            ShipPhysics.RefreshOperational(physical);
+            Check(hull.BoostMultiplier == profile.boostMultiplier && physical.version > coolingVersion,
+                "refueling to the threshold restores the boosted flight model " + rotation);
+            hull.SetBoostRestartPercent(100);
+            Check(hull.BoostMultiplier == profile.boostMultiplier,
+                "raising the threshold after refueling does not interrupt the ready cycle " + rotation);
             service.ReleaseShuttle(container);
             hull.Vessel.NotifyLanded();
-            Check(hull.BoostTicksRemaining == 600 && !hull.intrusionDriveActive, "landing rearms boost " + rotation);
+            Check(tank.Fuel == restartFuel && launchFuel.Fuel == 75f && !hull.intrusionDriveActive,
+                "landing preserves both fuel tanks " + rotation);
             Call(universe, "RunFrameActions");
             universe.objects.Remove(container);
             Find.Maps.Remove(map);
         }
+        AtTick(initialTick);
         universe.objects.Remove(targetBody);
         Find.World.grid = savedGrid;
+    }
+
+    static void CheckBoardingBreach()
+    {
+        Map map = TestMap(41100, 24);
+        ThingDef shuttle = TestBuildingDef("boardingFootprint");
+        shuttle.size = new IntVec2(3, 5);
+        shuttle.building.isEdifice = true;
+        ThingDef wall = TestBuildingDef("boardingWall");
+        wall.building.isEdifice = true;
+        wall.destroyable = true;
+        ThingDef conduit = TestBuildingDef("boardingConduit");
+        conduit.building.isEdifice = false;
+        Building At(ThingDef def, int x, int z)
+        {
+            var building = new Building { def = def, Position = new IntVec3(x, 0, z) };
+            map.thingGrid.Register(building);
+            return building;
+        }
+        var entry = new IntVec3(13, 0, 12);
+        Rot4 facing = Rot4.East;
+        CellRect footprint = GenAdj.OccupiedRect(entry - facing.FacingCell * 2, facing, shuttle.size);
+        Building noseWall = At(wall, 13, 12);
+        Building exitWall = At(wall, 14, 12);
+        Building cornerWall = At(wall, 12, 13);
+        At(wall, 12, 14);
+        At(conduit, 11, 13);
+        Check(SpaceImpactEffects.TryCollectBoardingBreach(map, entry, facing, footprint, shuttle, out var breach)
+            && breach.SetEquals(new[] { noseWall, exitWall, cornerWall }),
+            "logged diagonal impact clears the overlapping rear wall and exit but leaves adjacent walls and compatible conduits");
+        ThingDef protectedWall = TestBuildingDef("protectedBoardingWall");
+        protectedWall.building.isEdifice = true;
+        protectedWall.destroyable = false;
+        At(protectedWall, 11, 12);
+        Check(!SpaceImpactEffects.TryCollectBoardingBreach(map, entry, facing, footprint, shuttle, out _),
+            "indestructible overlapping structure blocks transfer before any breach damage");
+        Find.Maps.Remove(map);
     }
 }

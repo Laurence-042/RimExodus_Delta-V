@@ -175,21 +175,36 @@ namespace DeltaV
     /// </summary>
     public static partial class SpaceImpactEffects
     {
-        /// <summary>跳帮后效的保证破口；只移除两排三格内的建筑，不触及基架。</summary>
-        public static void BreachBoardingCorridor(Map map, IntVec3 nose, Rot4 facing, Thing launcher)
+        /// <summary>艇首两排保证通路，艇身其余格只收集会妨碍放置的建筑。</summary>
+        internal static bool TryCollectBoardingBreach(Map map, IntVec3 nose, Rot4 facing,
+            CellRect footprint, ThingDef shuttle, out HashSet<Building> buildings)
         {
             IntVec3 forward = facing.FacingCell;
             IntVec3 side = facing == Rot4.North || facing == Rot4.South
                 ? IntVec3.East : IntVec3.North;
-            var buildings = new HashSet<Building>();
+            buildings = new HashSet<Building>();
             for (int depth = 0; depth < 2; depth++)
             for (int lateral = -1; lateral <= 1; lateral++)
             {
                 IntVec3 cell = nose + forward * depth + side * lateral;
-                if (!cell.InBounds(map)) continue;
+                if (!cell.InBounds(map)) return false;
                 foreach (Thing thing in cell.GetThingList(map))
                     if (thing is Building building) buildings.Add(building);
             }
+            foreach (IntVec3 cell in footprint)
+            {
+                if (!cell.InBounds(map)) return false;
+                foreach (Thing thing in cell.GetThingList(map))
+                    if (thing is Building building && GenSpawn.SpawningWipes(shuttle, building.def, ignoreDestroyable: true))
+                        buildings.Add(building);
+            }
+            foreach (Building building in buildings)
+                if (!building.def.destroyable) return false;
+            return true;
+        }
+
+        internal static void BreachBoardingCorridor(Map map, HashSet<Building> buildings, Thing launcher)
+        {
             foreach (Building building in buildings)
             {
                 if (building.Destroyed) continue;

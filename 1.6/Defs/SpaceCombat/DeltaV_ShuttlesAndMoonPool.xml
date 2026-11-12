@@ -44,7 +44,7 @@
 	<ThingDef ParentName="PassengerShuttle">
 		<defName>DeltaV_ShuttleBoarding</defName>
 		<label>boarding shuttle</label>
-		<description>An armored assault variant of the passenger shuttle. Fewer seats, far tougher hull, far more agile in free flight. Arm its intrusion drive and pick an enemy hull. Its thrusters guide it into the hull, with ten seconds of cumulative double-thrust afterburner on the main engines. It passes through shields while remaining vulnerable to point defense. The cabin seals the breach for its marines to disembark.</description>
+		<description>An armored assault shuttle. Arm its intrusion drive and pick an enemy hull to intercept. The main engines burn chemfuel from a separate afterburner tank during the intercept. The shuttle passes through shields, remains vulnerable to point defense, and seals the breach for its crew to disembark.</description>
 		<uiIconPath>Things/Building/Shuttle/BoardingShuttle_MenuIcon</uiIconPath>
 		<graphicData>
 			<graphicClass>Graphic_Single</graphicClass>
@@ -55,6 +55,13 @@
 		<terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
 		<interactionCellOffset>(0,0,3)</interactionCellOffset>
 		<comps>
+			<li Class="DeltaV.CompProperties_AfterburnerTank">
+				<fuelCapacity>60</fuelCapacity>
+				<fuelConsumptionRate>1875</fuelConsumptionRate>
+				<autoRefuelPercent>1</autoRefuelPercent>
+				<showFuelGizmo>true</showFuelGizmo>
+				<fuelFilter><thingDefs><li>Chemfuel</li></thingDefs></fuelFilter>
+			</li>
 			<li Class="DeltaV.CompProperties_SpaceProjectile">
 				<timeoutTicks>7200</timeoutTicks>
 				<ignoresShields>true</ignoresShields>
@@ -65,7 +72,7 @@
 			<MaxHitPoints>850</MaxHitPoints>
 			<Flammability>0.3</Flammability>
 			<WorkToBuild>60000</WorkToBuild>
-			<Mass>140</Mass>
+			<Mass>280</Mass>
 		</statBases>
 		<costList Inherit="False"><Steel>300</Steel><Plasteel>250</Plasteel><ComponentIndustrial>8</ComponentIndustrial><ComponentSpacer>2</ComponentSpacer><ShuttleEngine>1</ShuttleEngine></costList>
 		<researchPrerequisites Inherit="False"><li>Shuttles</li><li>OrbitalTech</li></researchPrerequisites>
@@ -74,18 +81,17 @@
 				<canBoard>true</canBoard>
 				<!--
 					船体帧 +X=舱头、+Y=左侧；按 3x5 正式贴图定位全部喷口。
-					尾部两台主推各 280；头部排气斜向前，中部排气斜向后，推力与排气反向。
+					头部排气斜向前，中部排气斜向后，推力与排气反向。
 					四台斜推兼任纵向、侧向与姿控；力矩按真实位置计算。
 				-->
-				<boostMultiplier>2</boostMultiplier>
-				<boostTicks>600</boostTicks>
+				<boostMultiplier>1.5</boostMultiplier>
 				<virtualThrusters>
-					<li><position>(-2.2,0.69)</position><force>(280,0)</force></li>
-					<li><position>(-2.2,-0.69)</position><force>(280,0)</force></li>
-					<li><position>(2.02,0.85)</position><force>(-140,-210)</force></li>
-					<li><position>(2.02,-0.85)</position><force>(-140,210)</force></li>
-					<li><position>(-0.55,1.1)</position><force>(140,-210)</force></li>
-					<li><position>(-0.55,-1.1)</position><force>(140,210)</force></li>
+					<li><position>(-2.2,0.69)</position><force>(2700,0)</force></li>
+					<li><position>(-2.2,-0.69)</position><force>(2700,0)</force></li>
+					<li><position>(2.02,0.85)</position><force>(-1900,-1900)</force></li>
+					<li><position>(2.02,-0.85)</position><force>(-1900,1900)</force></li>
+					<li><position>(-0.55,1.1)</position><force>(1500,-6900)</force></li>
+					<li><position>(-0.55,-1.1)</position><force>(1500,6900)</force></li>
 				</virtualThrusters>
 			</li>
 		</modExtensions>

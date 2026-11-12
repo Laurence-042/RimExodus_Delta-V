@@ -377,11 +377,17 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <!-- Stage 5: shuttles & moon pool -->
   <DeltaV_ShuttleLaunchGizmo>Launch shuttle</DeltaV_ShuttleLaunchGizmo>
   <DeltaV_ShuttleLaunchGizmoTip>Launch into free flight as a mini-ship. Gate = vanilla launch checks (loadout/fuel/mass/cooldown); on a moon pool the roof never blocks launch.</DeltaV_ShuttleLaunchGizmoTip>
+  <DeltaV_ShuttleBoostRestart>Afterburner restart at {0}%</DeltaV_ShuttleBoostRestart>
+  <DeltaV_ShuttleBoostRestartTip>Afterburner fuel: {0}%. Click to set the fuel level required to restart after depletion.</DeltaV_ShuttleBoostRestartTip>
+  <DeltaV_ShuttleBoostCharging>Refuel to the restart threshold.</DeltaV_ShuttleBoostCharging>
+  <DeltaV_ShuttleAfterburnerFuel>Afterburner chemfuel</DeltaV_ShuttleAfterburnerFuel>
+  <DeltaV_ShuttleBoostReady>Afterburner available during interception.</DeltaV_ShuttleBoostReady>
   <DeltaV_ShuttleLaunchDenied>Launch denied: {0}</DeltaV_ShuttleLaunchDenied>
   <DeltaV_ShuttleLaunched>{0} launched into free flight.</DeltaV_ShuttleLaunched>
   <DeltaV_ShuttleBoardGizmo>Ram target hull</DeltaV_ShuttleBoardGizmo>
   <DeltaV_ShuttleBoardGizmoTip>Pick an enemy container's hull: the shuttle becomes a missile under full thrust, punches through and seals the breach with its own cabin.</DeltaV_ShuttleBoardGizmoTip>
   <DeltaV_ShuttleBoardNoTarget>No container hull at that spot.</DeltaV_ShuttleBoardNoTarget>
+  <DeltaV_ShuttleBoardNoRoom>The shuttle hit the hull, but its landing area extends off the map or contains an indestructible building.</DeltaV_ShuttleBoardNoRoom>
   <DeltaV_ShuttleBoardEngaged>Intrusion engaged: ramming {0}.</DeltaV_ShuttleBoardEngaged>
   <DeltaV_ShuttleBoardCancel>Abort intrusion</DeltaV_ShuttleBoardCancel>
   <DeltaV_ShuttleBoardCancelTip>Disengage missile drive and return to normal shuttle flight at the current position and speed.</DeltaV_ShuttleBoardCancelTip>
