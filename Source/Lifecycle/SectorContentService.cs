@@ -184,7 +184,7 @@ namespace DeltaV
             // 持久；物化时直接应用（容器派系、prefab 建筑与 pawn 派系、归属名），
             // 之后不改不变。envLabel 是持久事实，不随语言切换。
             int poiId = universe.AllocateOwnerId();
-            Faction faction = RandomSpaceFaction();
+            SpaceFactionCandidates().TryRandomElement(out Faction faction);
             string label = NameGenerator.GenerateName(DeltaVDefOf.DeltaV_NamerSpacePoi,
                 extraRules: new List<Rule> { new Rule_String("poi_type", type.Label) });
             if (faction != null)
@@ -203,23 +203,8 @@ namespace DeltaV
             universe.RegisterObject(poi);
         }
 
-        /// <summary>
-        /// POI 派系在生成时随机落定（2026-09-30 定案，不做类型→派系映射）：候选 =
-        /// 可见、非玩家、未灭亡的派系——敌友皆有可能（敌方贸易站可劫、友方战机只是
-        /// 路过），与原版地表对象随机派系同思路。无候选（极端孤派系世界）返回 null
-        ///（POI 无派系，名称省略派系段）。
-        /// </summary>
-        private static Faction RandomSpaceFaction()
-        {
-            Faction player = Faction.OfPlayer;
-            var candidates = new List<Faction>();
-            foreach (Faction faction in Find.FactionManager.AllFactionsVisible)
-            {
-                if (faction == null || faction == player || faction.defeated) continue;
-                candidates.Add(faction);
-            }
-            return candidates.Count > 0 ? candidates.RandomElement() : null;
-        }
+        internal static IEnumerable<Faction> SpaceFactionCandidates()
+            => Find.FactionManager.GetFactions(minTechLevel: TechLevel.Industrial, allowTemporary: true);
 
         private static float MinSpacingToObjects(UniverseManager universe, PlanetTile tile, Vector2 offset)
         {

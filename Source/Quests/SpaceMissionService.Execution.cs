@@ -27,8 +27,9 @@ namespace DeltaV
 
         private Map CreateEnemy(Building_SpaceTradeTerminal terminal, SpaceMission m)
         {
-            if (m.enemy == null || !m.enemy.HostileTo(Faction.OfPlayer) || !m.enemy.HostileTo(m.faction))
-                throw new InvalidOperationException("Mission opponent is no longer hostile.");
+            if (!SectorContentService.SpaceFactionCandidates().Contains(m.enemy)
+                || !m.enemy.HostileTo(Faction.OfPlayer) || !m.enemy.HostileTo(m.faction))
+                throw new InvalidOperationException("Mission opponent is no longer eligible.");
             MapPrefabDocument doc = MapPrefab.LoadRelative(m.prefab);
             Map map = null;
             SpaceObject obj = null;

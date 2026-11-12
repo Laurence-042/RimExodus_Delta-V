@@ -82,8 +82,11 @@ namespace DeltaV
                 QueueFailedSceneCleanup(universe, playerContainer);
                 return;
             }
-            Faction enemyFaction = Faction.OfPirates
-                ?? Find.FactionManager.AllFactionsVisible.FirstOrDefault(f => f != null && f.HostileTo(Faction.OfPlayer));
+            Faction pirates = Faction.OfPirates;
+            Faction enemyFaction = SectorContentService.SpaceFactionCandidates()
+                .Where(f => f.HostileTo(Faction.OfPlayer))
+                .OrderByDescending(f => f == pirates)
+                .FirstOrDefault();
             Vector2 enemyOffset = SpaceTransform.Rotate(Vector2.right * distance, bearingDeg * Mathf.Deg2Rad);
             var enemyContainer = new MapSpaceObject(universe.AllocateOwnerId(), enemyMap,
                 new SpacePose(OrbitSphere.Move(playerDir, enemyOffset), enemyAngleDeg * Mathf.Deg2Rad))

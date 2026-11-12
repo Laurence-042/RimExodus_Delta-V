@@ -80,7 +80,7 @@ namespace DeltaV
                     board.offers.Add(m);
                 }
             }
-            var enemies = Verse.Find.FactionManager.AllFactionsVisible.Where(f => !f.IsPlayer && f.HostileTo(Faction.OfPlayer)
+            var enemies = SectorContentService.SpaceFactionCandidates().Where(f => f.HostileTo(Faction.OfPlayer)
                 && f.HostileTo(terminal.Faction)).ToList();
             var craft = new List<(int tier, string path)>();
             if (enemies.Count > 0)
