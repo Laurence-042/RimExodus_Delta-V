@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="ApparelNoQualityBase">
+    <defName>DeltaV_CuttingBombPack</defName>
+    <label>cutting bomb pack</label>
+    <description>A utility pack that throws a delayed cutting bomb on a space map. Breach walls and doors along a five-cell line perpendicular to the throw, or switch modes to cut through the substructure as well. Reload the pack with chemfuel after each throw.</description>
+    <techLevel>Industrial</techLevel>
+    <tickerType>Normal</tickerType>
+    <mergeVerbGizmos>false</mergeVerbGizmos>
+    <graphicData>
+      <texPath>Things/Pawn/Humanlike/Apparel/SmokepopPack/SmokepopPack</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>(0.75,0.75)</drawSize>
+    </graphicData>
+    <statBases>
+      <WorkToMake>16000</WorkToMake>
+      <Mass>3</Mass>
+      <Flammability>0.4</Flammability>
+      <EquipDelay>2</EquipDelay>
+    </statBases>
+    <thingCategories>
+      <li>ApparelUtility</li>
+    </thingCategories>
+    <costList>
+      <Steel>100</Steel>
+      <Plasteel>40</Plasteel>
+      <ComponentIndustrial>4</ComponentIndustrial>
+      <Chemfuel>20</Chemfuel>
+    </costList>
+    <recipeMaker>
+      <unfinishedThingDef>UnfinishedPack</unfinishedThingDef>
+      <researchPrerequisites>
+        <li>Machining</li>
+        <li>OrbitalTech</li>
+      </researchPrerequisites>
+      <recipeUsers>
+        <li>TableMachining</li>
+      </recipeUsers>
+      <useIngredientsForColor>false</useIngredientsForColor>
+      <workSpeedStat>GeneralLaborSpeed</workSpeedStat>
+      <workSkill>Crafting</workSkill>
+      <effectWorking>Smith</effectWorking>
+      <soundWorking>Recipe_Smith</soundWorking>
+      <skillRequirements>
+        <Crafting>8</Crafting>
+      </skillRequirements>
+    </recipeMaker>
+    <apparel>
+      <countsAsClothingForNudity>false</countsAsClothingForNudity>
+      <careIfWornByCorpse>false</careIfWornByCorpse>
+      <careIfDamaged>false</careIfDamaged>
+      <wearPerDay>0</wearPerDay>
+      <bodyPartGroups>
+        <li>Waist</li>
+      </bodyPartGroups>
+      <layers>
+        <li>Belt</li>
+      </layers>
+      <wornGraphicPath>Things/Pawn/Humanlike/Apparel/SmokepopPack/SmokepopPack</wornGraphicPath>
+      <wornGraphicData>
+        <renderUtilityAsPack>true</renderUtilityAsPack>
+        <north><offset>(0,-0.15)</offset></north>
+        <east>
+          <offset>(-0.35,-0.05)</offset>
+          <thin><offset>(0.05,0)</offset></thin>
+          <hulk><offset>(-0.1,0)</offset></hulk>
+          <fat><offset>(-0.15,0)</offset></fat>
+        </east>
+        <west>
+          <offset>(0.35,-0.05)</offset>
+          <thin><offset>(-0.05,0)</offset></thin>
+          <hulk><offset>(0.1,0)</offset></hulk>
+          <fat><offset>(0.15,0)</offset></fat>
+        </west>
+        <male><scale>(0.75,0.75)</scale></male>
+        <female><scale>(0.75,0.75)</scale></female>
+        <thin><scale>(0.7,0.7)</scale></thin>
+        <hulk><scale>(0.9,0.9)</scale></hulk>
+        <fat><scale>(0.9,0.9)</scale></fat>
+      </wornGraphicData>
+    </apparel>
+    <comps>
+      <li Class="CompProperties_ApparelReloadable">
+        <hotKey>Misc4</hotKey>
+        <soundReload>Standard_Reload</soundReload>
+        <displayGizmoWhileUndrafted>false</displayGizmoWhileUndrafted>
+        <maxCharges>1</maxCharges>
+        <ammoDef>Chemfuel</ammoDef>
+        <ammoCountPerCharge>20</ammoCountPerCharge>
+        <baseReloadTicks>60</baseReloadTicks>
+        <chargeNoun>cutting bomb</chargeNoun>
+      </li>
+      <li>
+        <compClass>DeltaV.CompCuttingBombPack</compClass>
+      </li>
+    </comps>
+    <verbs>
+      <li>
+        <verbClass>DeltaV.Verb_ThrowCuttingBomb</verbClass>
+        <label>throw cutting bomb</label>
+        <defaultProjectile>DeltaV_Proj_CuttingBomb</defaultProjectile>
+        <warmupTime>0.5</warmupTime>
+        <minRange>1</minRange>
+        <range>12.9</range>
+        <burstShotCount>1</burstShotCount>
+        <onlyManualCast>true</onlyManualCast>
+        <hasStandardCommand>true</hasStandardCommand>
+        <targetable>true</targetable>
+        <targetParams>
+          <canTargetPawns>false</canTargetPawns>
+          <canTargetBuildings>false</canTargetBuildings>
+          <canTargetLocations>true</canTargetLocations>
+        </targetParams>
+        <requireLineOfSight>true</requireLineOfSight>
+        <stopBurstWithoutLos>true</stopBurstWithoutLos>
+        <soundCast>ThrowGrenade</soundCast>
+        <rangedFireRulepack>Combat_RangedFire_Thrown</rangedFireRulepack>
+        <!-- Match the vanilla deadlife pack: positive for validation, below the 0.5 scatter threshold. -->
+        <forcedMissRadius>0.1</forcedMissRadius>
+        <canGoWild>false</canGoWild>
+        <explosionRadiusRingColor>(1,0.6,0.25,1)</explosionRadiusRingColor>
+      </li>
+    </verbs>
+  </ThingDef>
+
+  <ThingDef ParentName="BaseGrenadeProjectile">
+    <defName>DeltaV_Proj_CuttingBomb</defName>
+    <label>cutting bomb</label>
+    <thingClass>DeltaV.Projectile_CuttingBomb</thingClass>
+    <graphicData>
+      <texPath>Things/Projectile/Grenade</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+    </graphicData>
+    <projectile>
+      <damageDef>Bomb</damageDef>
+      <speed>40</speed>
+      <arcHeightFactor>1</arcHeightFactor>
+      <spinRate>3</spinRate>
+      <explosionDelay>100</explosionDelay>
+      <soundExplode>Explosion_Bomb</soundExplode>
+    </projectile>
+  </ThingDef>
+</Defs>

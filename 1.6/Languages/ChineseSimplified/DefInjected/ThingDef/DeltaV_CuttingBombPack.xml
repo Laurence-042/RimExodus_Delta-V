@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_CuttingBombPack.label>切割炸弹背包</DeltaV_CuttingBombPack.label>
+  <DeltaV_CuttingBombPack.description>可在太空地图投掷延迟引爆的切割炸弹。炸弹沿垂直于投掷方向的五格切割线破坏墙壁和门，切换模式后也能切断基架。每次投掷后需用化合燃料重新装填。</DeltaV_CuttingBombPack.description>
+  <DeltaV_CuttingBombPack.verbs.throw_cutting_bomb.label>投掷切割炸弹</DeltaV_CuttingBombPack.verbs.throw_cutting_bomb.label>
+  <DeltaV_CuttingBombPack.comps.CompApparelReloadable.chargeNoun>切割炸弹</DeltaV_CuttingBombPack.comps.CompApparelReloadable.chargeNoun>
+  <DeltaV_Proj_CuttingBomb.label>切割炸弹</DeltaV_Proj_CuttingBomb.label>
+</LanguageData>

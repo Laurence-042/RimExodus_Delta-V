@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_CuttingBombRequiresSpace>Cutting bombs can only be thrown on space maps.</DeltaV_CuttingBombRequiresSpace>
+  <DeltaV_CuttingBombModeWalls>Mode: breach walls</DeltaV_CuttingBombModeWalls>
+  <DeltaV_CuttingBombModeFoundation>Mode: cut substructure</DeltaV_CuttingBombModeFoundation>
+  <DeltaV_CuttingBombModeDesc>Click to switch the next bomb's mode. Breach walls cuts through walls and doors. Cut substructure also destroys the substructure and the buildings it supports.</DeltaV_CuttingBombModeDesc>
+</LanguageData>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_CuttingBombRequiresSpace>切割炸弹只能在太空地图使用。</DeltaV_CuttingBombRequiresSpace>
+  <DeltaV_CuttingBombModeWalls>模式：破墙</DeltaV_CuttingBombModeWalls>
+  <DeltaV_CuttingBombModeFoundation>模式：破基架</DeltaV_CuttingBombModeFoundation>
+  <DeltaV_CuttingBombModeDesc>点击切换下一发炸弹的模式。破墙只破坏墙壁和门。破基架还会切除基架及其承载的建筑。</DeltaV_CuttingBombModeDesc>
+</LanguageData>
