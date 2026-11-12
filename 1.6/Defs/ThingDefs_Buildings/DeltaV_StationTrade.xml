@@ -19,7 +19,7 @@
     <defName>DeltaV_CargoContainer</defName>
     <researchPrerequisites Inherit="False"><li>Machining</li></researchPrerequisites>
     <label>station cargo container</label>
-    <description>A loading port whose elevator carries goods to an elevated exterior cargo bay. Holds 48 stacks. Player-built bays are unlocked. Storage mode permits normal hauling and ingredient use. Sealed mode holds cargo inside the container, out of reach of hauling and trade beacons. Unseal to take some items, or open to scatter all contents on the ground. Hacking a locked bay unlocks it and automatically ejects its cargo. Cargo follows the outdoor temperature without using power. An optional temperature-control module can cool or heat its contents. Destruction ruins most cargo.</description>
+    <description>A loading port whose elevator carries goods to an elevated exterior cargo bay. Holds 48 stacks. Player-built bays are unlocked. Storage mode permits normal hauling and ingredient use. Sealed mode holds cargo inside the container, out of reach of hauling and trade beacons. Hack locked bays to unlock them. Once unlocked, unload cargo onto the deck or eject it into space for tractor recovery. Cargo follows the outdoor temperature without using power. An optional temperature-control module can cool or heat its contents. When the bay is destroyed in space, about a quarter of its cargo survives and scatters as floating objects.</description>
     <thingClass>DeltaV.Building_SealedSpaceCargoContainer</thingClass>
     <tickerType>Normal</tickerType>
     <category>Building</category>

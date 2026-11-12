@@ -2,7 +2,11 @@
 <LanguageData>
   <DeltaV_CargoOpen>打开货柜</DeltaV_CargoOpen>
   <DeltaV_CargoHack>骇入货柜</DeltaV_CargoHack>
-  <DeltaV_CargoStorageModeDesc>点击切换模式。仓储：按筛选和优先级自动收货，殖民者可搬出货物或从柜内取材，也会将货物移往更高优先级的仓库。封存：停止自动收货，禁止拿取柜内物品，货物不进入轨道交易信标列表。想要取货时，解除封存从中取出部分，或者直接打开将所有物品散落在地。锁定货柜按封存处理，解锁后才能切换模式或打开。</DeltaV_CargoStorageModeDesc>
+  <DeltaV_CargoStorageModeDesc>点击切换模式。仓储：按筛选和优先级自动收货，殖民者可搬出货物或从柜内取材，也会将货物移往更高优先级的仓库。封存：停止自动收货，禁止拿取柜内物品，货物不进入轨道交易信标列表。想要取货时，解除封存从中取出部分，或者选择倾泻到地上或弹射到太空。锁定货柜按封存处理，解锁后才能切换模式或打开。</DeltaV_CargoStorageModeDesc>
+  <DeltaV_CargoUnloadToDeck>倾泻到地上</DeltaV_CargoUnloadToDeck>
+  <DeltaV_CargoUnloadToDeckDesc>将货物放在附近甲板上，放不下的货物留在箱内。</DeltaV_CargoUnloadToDeckDesc>
+  <DeltaV_CargoEjectToSpace>弹射到太空</DeltaV_CargoEjectToSpace>
+  <DeltaV_CargoEjectToSpaceDesc>将箱内全部货物弹射成漂浮物，可用牵引器回收。</DeltaV_CargoEjectToSpaceDesc>
   <DeltaV_CargoCapacity>容量：{0}/{1} 堆</DeltaV_CargoCapacity>
   <DeltaV_CargoTemperature>室外／货物温度：{0}°C／{1}°C</DeltaV_CargoTemperature>
   <DeltaV_TradeTerminalTrade>与空间站交易</DeltaV_TradeTerminalTrade>
@@ -12,10 +16,10 @@
   <DeltaV_DevNo>否</DeltaV_DevNo>
   <DeltaV_DevCargoAddSample>DEV：加入样例货物</DeltaV_DevCargoAddSample>
   <DeltaV_DevCargoInspect>DEV：查看货柜内容</DeltaV_DevCargoInspect>
-  <DeltaV_DevCargoOpen>DEV：瞬间骇入／全部打开</DeltaV_DevCargoOpen>
+  <DeltaV_DevCargoOpen>DEV：瞬间解锁货箱</DeltaV_DevCargoOpen>
   <DeltaV_DevCargoLock>DEV：锁定货柜（需要骇入）</DeltaV_DevCargoLock>
   <DeltaV_DevCargoClear>DEV：清空货柜</DeltaV_DevCargoClear>
-  <DeltaV_DevCargoDestroy>DEV：毁坏并损失货物</DeltaV_DevCargoDestroy>
+  <DeltaV_DevCargoDestroy>DEV：击毁货箱</DeltaV_DevCargoDestroy>
   <DeltaV_DevCargoReport>堆数：{0}；物品数量：{1}；质量：{2}；已骇入：{3}</DeltaV_DevCargoReport>
   <DeltaV_DevMoreCargo>……其余堆已省略</DeltaV_DevMoreCargo>
   <DeltaV_DevTradeUnlocked>已解锁</DeltaV_DevTradeUnlocked>

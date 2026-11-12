@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using AdaptiveStorage;
+using AdaptiveStorage.Utility;
 using RimWorld;
 using Verse;
 
@@ -68,12 +69,43 @@ namespace DeltaV
             return taken;
         }
 
+        public override Thing Eject(Thing item, int count = int.MaxValue, bool forbid = true,
+            in IntVec3 dropOffset = default)
+        {
+            Map map = Map;
+            SpaceScatterService scatter = SpaceScatterService.ForCargoMap(map);
+            IntVec3 dropCell = Position + dropOffset;
+            if (scatter == null || !dropCell.InBounds(map))
+                return base.Eject(item, count, forbid, in dropOffset);
+
+            item = item.SplitOff(System.Math.Min(count, item.stackCount));
+            if (!GenDrop.TryDropSpawn(item, dropCell, map, ThingPlaceMode.Near, out Thing placed,
+                nearPlaceValidator: cell => !map.ContainsStorageBuildingAt(in cell)))
+            {
+                scatter.PlaceCargoOverflow(item, map, dropCell);
+                placed = item;
+            }
+            if (forbid && placed?.TryGetComp<CompForbiddable>() is CompForbiddable forbiddable)
+                forbiddable.Forbidden = true;
+            return placed;
+        }
+
         public override void Destroy(DestroyMode mode = DestroyMode.Vanish)
         {
-            Cargo.ApplyDestructionLoss(mode);
-            if (Spawned && (mode == DestroyMode.Deconstruct || mode == DestroyMode.WillReplace
-                || mode == DestroyMode.KillFinalize || mode == DestroyMode.KillFinalizeLeavingsOnly))
-                foreach (Thing thing in Contents) Eject(thing, forbid: false);
+            bool killed = CompSpaceCargo.IsCombatDestruction(mode);
+            if (Spawned && (killed || mode == DestroyMode.Deconstruct || mode == DestroyMode.WillReplace))
+            {
+                SpaceScatterService scatter = killed ? SpaceScatterService.ForCargoMap(Map) : null;
+                if (scatter != null)
+                {
+                    Map map = Map;
+                    foreach (Thing item in Contents)
+                        if (CompSpaceCargo.ApplyDestructionLoss(item))
+                            scatter.QueueDestroyedStorageItem(item, map);
+                }
+                else
+                    foreach (Thing thing in Contents) Eject(thing, forbid: false);
+            }
             base.Destroy(mode);
         }
     }
@@ -108,16 +140,43 @@ namespace DeltaV
             return taken;
         }
 
-        // Native Building_Crate receives Hacked and calls Open/EjectContents once.
         public void OnLockedOut(Pawn pawn = null) { }
         public void OnHacked(Pawn pawn = null) => SetFaction(pawn?.Faction ?? Faction.OfPlayer);
 
+        protected override void ReceiveCompSignal(string signal)
+        {
+            // Building_Crate opens on Hacked. The native comp still receives the signal.
+            if (signal != "Hacked") base.ReceiveCompSignal(signal);
+        }
+
+        internal void EjectIntoSpace()
+        {
+            if (Spawned && CanOpen)
+                SpaceScatterService.ForCargoMap(Map)?.QueueCrateEjection(this);
+        }
+
         public override void Destroy(DestroyMode mode = DestroyMode.Vanish)
         {
-            Cargo.ApplyDestructionLoss(mode);
-            if (Spawned && (mode == DestroyMode.WillReplace || mode == DestroyMode.KillFinalizeLeavingsOnly))
+            if (Spawned && (mode == DestroyMode.WillReplace || (mode == DestroyMode.KillFinalizeLeavingsOnly
+                && SpaceScatterService.ForCargoMap(Map) == null)))
                 innerContainer.TryDropAll(Position, Map, ThingPlaceMode.Near);
             base.Destroy(mode);
+        }
+
+        public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
+        {
+            Map map = Map;
+            IntVec3 cell = Position;
+            SpaceScatterService scatter = CompSpaceCargo.IsCombatDestruction(mode)
+                ? SpaceScatterService.ForCargoMap(map)
+                : null;
+            Thing[] survivors = scatter == null ? null : Contents
+                .Where(CompSpaceCargo.ApplyDestructionLoss).ToArray();
+            base.DeSpawn(mode);
+            // Release the surviving inventory before the native casket clears it.
+            if (survivors != null)
+                foreach (Thing item in survivors)
+                    scatter.PlaceCargoOverflow(item, map, cell, fromDestruction: true);
         }
     }
 }

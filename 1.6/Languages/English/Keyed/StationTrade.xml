@@ -2,7 +2,11 @@
 <LanguageData>
   <DeltaV_CargoOpen>Open cargo container</DeltaV_CargoOpen>
   <DeltaV_CargoHack>Hack cargo container</DeltaV_CargoHack>
-  <DeltaV_CargoStorageModeDesc>Click to switch modes. Storage: colonists haul items according to filters and priority, use stored ingredients, and move goods to higher-priority storage. Sealed: automatic deliveries stop, contents are held inside the container and cannot be hauled, and cargo is excluded from orbital trade beacon lists. To retrieve goods, unseal the bay and take some items, or open it to scatter all contents on the ground. Locked bays count as sealed; unlock them before switching modes or opening them.</DeltaV_CargoStorageModeDesc>
+  <DeltaV_CargoStorageModeDesc>Click to switch modes. Storage: colonists haul items according to filters and priority, use stored ingredients, and move goods to higher-priority storage. Sealed: automatic deliveries stop, contents are held inside the container and cannot be hauled, and cargo is excluded from orbital trade beacon lists. To retrieve goods, unseal the bay and take some items, or unload it onto the deck or into space. Locked bays count as sealed; unlock them before switching modes or opening them.</DeltaV_CargoStorageModeDesc>
+  <DeltaV_CargoUnloadToDeck>Unload onto deck</DeltaV_CargoUnloadToDeck>
+  <DeltaV_CargoUnloadToDeckDesc>Place cargo on nearby deck tiles. Cargo that does not fit stays inside the container.</DeltaV_CargoUnloadToDeckDesc>
+  <DeltaV_CargoEjectToSpace>Eject into space</DeltaV_CargoEjectToSpace>
+  <DeltaV_CargoEjectToSpaceDesc>Release all stored cargo as floating objects for tractor recovery.</DeltaV_CargoEjectToSpaceDesc>
   <DeltaV_CargoCapacity>Capacity: {0}/{1} stacks</DeltaV_CargoCapacity>
   <DeltaV_CargoTemperature>Outdoor / cargo temperature: {0}°C / {1}°C</DeltaV_CargoTemperature>
   <DeltaV_TradeTerminalTrade>Trade with station</DeltaV_TradeTerminalTrade>
@@ -12,10 +16,10 @@
   <DeltaV_DevNo>no</DeltaV_DevNo>
   <DeltaV_DevCargoAddSample>DEV: Add sample goods</DeltaV_DevCargoAddSample>
   <DeltaV_DevCargoInspect>DEV: Inspect cargo</DeltaV_DevCargoInspect>
-  <DeltaV_DevCargoOpen>DEV: Hack / open all</DeltaV_DevCargoOpen>
+  <DeltaV_DevCargoOpen>DEV: Unlock cargo</DeltaV_DevCargoOpen>
   <DeltaV_DevCargoLock>DEV: Lock cargo (requires hacking)</DeltaV_DevCargoLock>
   <DeltaV_DevCargoClear>DEV: Clear cargo</DeltaV_DevCargoClear>
-  <DeltaV_DevCargoDestroy>DEV: Destroy with loot loss</DeltaV_DevCargoDestroy>
+  <DeltaV_DevCargoDestroy>DEV: Destroy cargo container</DeltaV_DevCargoDestroy>
   <DeltaV_DevCargoReport>Stacks: {0}; items: {1}; mass: {2}; hacked: {3}</DeltaV_DevCargoReport>
   <DeltaV_DevMoreCargo>… more stacks omitted</DeltaV_DevMoreCargo>
   <DeltaV_DevTradeUnlocked>Unlocked</DeltaV_DevTradeUnlocked>

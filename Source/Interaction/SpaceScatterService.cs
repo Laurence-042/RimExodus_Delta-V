@@ -171,30 +171,156 @@ namespace DeltaV
             return !LooseCargo(map).Any();
         }
 
-        internal bool TryScatter(Thing thing)
+        internal static SpaceScatterService ForCargoMap(Map map)
         {
-            Map source = thing?.Map;
-            SpaceObject owner = universe.FrameOf(source);
-            if (owner == null || owner.IsScattered || !thing.Spawned) return false;
-            IntVec3 origin = thing.Position;
-            Rot4 facing = thing.Rotation;
-            SpacePose pose = SpaceTransform.RigidPointPose(owner.pose,
-                SpaceTransform.MapToShipLocal(source, new Vector2(origin.x + .5f, origin.z + .5f)), 0f);
-            bool success = universe.MapPool.TryRent(SpaceObjectTag.Scattered, new IntVec2(1, 1), destination =>
+            if (map == null || map.Disposed) return null;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            return universe != null && !universe.IsResettingScene
+                && universe.SpaceObjectOnMap(map) is SpaceObject owner && !owner.IsScattered
+                ? universe.Scatter
+                : null;
+        }
+
+        internal void PlaceCargoOverflow(Thing item, Map map, IntVec3 cell, bool fromDestruction = false)
+        {
+            // GenSpawn displaces existing items at capacity. Keep this stack on the source
+            // map until the frame handoff so a failed rental leaves real, recoverable cargo.
+            item.holdingOwner?.Remove(item);
+            SpawnItemAt(item, map, cell);
+            QueueCargoScatter(item, map, cell, fromDestruction);
+        }
+
+        internal void QueueDestroyedStorageItem(Thing item, Map source)
+        {
+            SpaceObject owner = universe.SpaceObjectOnMap(source);
+            int version = owner.RepresentationVersion;
+            IntVec3 origin = item.Position;
+            Rot4 facing = item.Rotation;
+            Vector2 localPoint = SpaceTransform.MapToShipLocal(source, new Vector2(origin.x + .5f, origin.z + .5f));
+            Vector2 launchVelocity = SpaceTransform.Rotate(Vector2.up, Rand.Range(0f, Mathf.PI * 2f))
+                * Rand.Range(0f, 4f);
+            SpacePose pose = SpaceTransform.RigidPointPose(owner.pose, localPoint, 0f);
+            pose.velocity = SpaceTransform.VelocityAtMovingLocalPoint(owner.pose, localPoint, launchVelocity, pose.position);
+
+            // Building.DeSpawn redistributes surplus stacks when the storage capacity disappears.
+            item.DeSpawn();
+            universe.QueueFrameAction(Transfer);
+
+            void Transfer()
             {
-                thing.DeSpawn();
+                if (TryCreateScatter(item, pose, destination => SpawnScatteredItem(item, destination, facing))) return;
+
+                if (!source.Disposed && Find.Maps.Contains(source) && universe.SpaceObjectOnMap(source) == owner
+                    && owner.RepresentationVersion == version)
+                {
+                    item.Rotation = facing;
+                    SpawnItemAt(item, source, origin);
+                }
+                else universe.QueueFrameAction(Transfer);
+            }
+        }
+
+        private void QueueCargoScatter(Thing item, Map map, IntVec3 cell, bool fromDestruction = false)
+        {
+            SpaceObject owner = universe.SpaceObjectOnMap(map);
+            if (owner == null) return;
+            int version = owner.RepresentationVersion;
+            Vector2 launchDirection = fromDestruction
+                ? SpaceTransform.Rotate(Vector2.up, Rand.Range(0f, Mathf.PI * 2f))
+                : Vector2.zero;
+            Vector2 launchOffset = launchDirection * 1.5f;
+            Vector2 launchVelocity = fromDestruction ? launchDirection * Rand.Range(0f, 4f) : Vector2.zero;
+            universe.QueueFrameAction(() =>
+            {
+                if (!map.Disposed && item.Spawned && item.Map == map && item.Position == cell
+                    && universe.SpaceObjectOnMap(map) == owner && owner.RepresentationVersion == version)
+                    TryScatter(item, map, cell, null, launchOffset, launchVelocity);
+            });
+        }
+
+        internal void QueueCrateEjection(Building_SealedSpaceCargoContainer crate)
+        {
+            Map map = crate.Map;
+            IntVec3 cell = crate.Position;
+            SpaceObject owner = universe.SpaceObjectOnMap(map);
+            int version = owner.RepresentationVersion;
+            IReadOnlyList<Thing> goods = crate.Contents;
+            universe.QueueFrameAction(() =>
+            {
+                if (map.Disposed || !crate.Spawned || crate.Map != map || crate.Position != cell || !crate.CanOpen
+                    || universe.SpaceObjectOnMap(map) != owner || owner.RepresentationVersion != version) return;
+                ThingOwner holder = crate.GetDirectlyHeldThings();
+                bool released = false;
+                foreach (Thing item in goods)
+                    if (item.holdingOwner == holder && TryScatter(item, map, cell, holder))
+                        released = true;
+                if (released) crate.BroadcastCompSignal(Building_Crate.CrateContentsChanged);
+            });
+        }
+
+        private static void SpawnItemAt(Thing item, Map map, IntVec3 cell)
+        {
+            item.Position = cell;
+            item.SpawnSetup(map, respawningAfterLoad: false);
+        }
+
+        internal bool TryScatter(Thing thing) => thing?.Spawned == true
+            && TryScatter(thing, thing.Map, thing.Position, null);
+
+        private bool TryScatter(Thing thing, Map source, IntVec3 origin, ThingOwner holder,
+            Vector2 launchOffset = default, Vector2 launchVelocity = default)
+        {
+            SpaceObject owner = universe.FrameOf(source);
+            if (owner == null || owner.IsScattered) return false;
+            Rot4 facing = thing.Rotation;
+            Vector2 localPoint = SpaceTransform.MapToShipLocal(source, new Vector2(origin.x + .5f, origin.z + .5f))
+                + launchOffset;
+            SpacePose pose = SpaceTransform.RigidPointPose(owner.pose, localPoint, 0f);
+            if (launchVelocity != Vector2.zero)
+                pose.velocity = SpaceTransform.VelocityAtMovingLocalPoint(owner.pose, localPoint, launchVelocity, pose.position);
+            return TryCreateScatter(thing, pose, destination =>
+            {
+                if (holder == null) thing.DeSpawn();
+                else if (!holder.Remove(thing))
+                    throw new InvalidOperationException("Scatter cargo is no longer in its container.");
                 try
                 {
-                    GenSpawn.Spawn(thing, IntVec3.Zero, destination, facing);
-                    thing.PostSwapMap();
+                    SpawnScatteredItem(thing, destination, facing);
                 }
                 catch
                 {
                     if (thing.Spawned) thing.DeSpawn();
-                    GenSpawn.Spawn(thing, origin, source, facing);
+                    if (holder?.TryAdd(thing, canMergeWithExistingStacks: false) == true) throw;
+                    if (thing.def.category == ThingCategory.Item)
+                    {
+                        thing.Rotation = facing;
+                        SpawnItemAt(thing, source, origin);
+                    }
+                    else GenSpawn.Spawn(thing, origin, source, facing);
                     throw;
                 }
-            }, out SpaceMapLease lease);
+            });
+        }
+
+        private static void SpawnScatteredItem(Thing thing, Map destination, Rot4 facing)
+        {
+            try
+            {
+                GenSpawn.Spawn(thing, IntVec3.Zero, destination, facing);
+                if (!thing.Spawned || thing.Map != destination)
+                    throw new InvalidOperationException("Scatter cargo did not spawn on its destination map.");
+                thing.PostSwapMap();
+            }
+            catch
+            {
+                if (thing.Spawned && thing.Map == destination) thing.DeSpawn();
+                throw;
+            }
+        }
+
+        private bool TryCreateScatter(Thing thing, SpacePose pose, Action<Map> populate)
+        {
+            bool success = universe.MapPool.TryRent(SpaceObjectTag.Scattered, new IntVec2(1, 1), populate, out SpaceMapLease lease);
             if (!success)
             {
                 if (lease != null) universe.MapPool.TryReturn(lease);

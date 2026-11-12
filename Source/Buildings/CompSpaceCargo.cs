@@ -109,7 +109,7 @@ namespace DeltaV
             try
             {
                 GenSpawn.Spawn(replacement, position, map, rotation, WipeMode.Vanish);
-                replacement.GetComp<CompHackable>()?.HackNow(); // empty crate: no cargo is ejected
+                replacement.GetComp<CompHackable>()?.HackNow();
                 replacement.SetFactionDirect(previous.Faction);
                 if (replacement is Building_SpaceCargoContainer asf)
                 {
@@ -192,15 +192,33 @@ namespace DeltaV
                     icon = ContentFinder<Texture2D>.Get(StorageMode ? "UI/Commands/CargoStorage" : "UI/Commands/CargoSealed"),
                     action = () => SetStorageMode(!StorageMode)
                 };
+            if (parent is Building_SealedSpaceCargoContainer crate && crate.Spawned && crate.CanOpen)
+            {
+                yield return new Command_Action
+                {
+                    defaultLabel = "DeltaV_CargoUnloadToDeck".Translate(),
+                    defaultDesc = "DeltaV_CargoUnloadToDeckDesc".Translate(),
+                    icon = ContentFinder<Texture2D>.Get("UI/Commands/CargoStorage"),
+                    action = () => { if (crate.Spawned) crate.Open(); }
+                };
+                if (SpaceScatterService.ForCargoMap(crate.Map) != null)
+                    yield return new Command_Action
+                    {
+                        defaultLabel = "DeltaV_CargoEjectToSpace".Translate(),
+                        defaultDesc = "DeltaV_CargoEjectToSpaceDesc".Translate(),
+                        icon = ContentFinder<Texture2D>.Get("UI/Commands/CargoSealed"),
+                        action = crate.EjectIntoSpace
+                    };
+            }
             if (!parent.Spawned || !DebugSettings.godMode) yield break;
             if (Cargo.IsUnlocked)
                 yield return new Command_Action { defaultLabel = "DeltaV_DevCargoLock".Translate(), action = LockForDebug };
             yield return new Command_Action { defaultLabel = "DeltaV_DevCargoAddSample".Translate(), action = AddDebugSample };
             yield return new Command_Action { defaultLabel = "DeltaV_DevCargoInspect".Translate(), action = InspectDebugContents };
-            if (parent is Building_Crate crate)
+            if (parent is Building_SealedSpaceCargoContainer && !Cargo.IsUnlocked)
                 yield return new Command_Action {
                     defaultLabel = "DeltaV_DevCargoOpen".Translate(),
-                    action = () => { if (!Cargo.IsUnlocked) parent.GetComp<CompHackable>().HackNow(); else crate.Open(); } };
+                    action = () => parent.GetComp<CompHackable>().HackNow() };
             yield return new Command_Action {
                 defaultLabel = "DeltaV_DevCargoClear".Translate(),
                 action = () => { foreach (Thing thing in Cargo.Contents) thing.Destroy(); NotifyInventoryChanged(null); } };
@@ -245,16 +263,16 @@ namespace DeltaV
         }
 
 
-        internal void ApplyDestructionLoss(DestroyMode mode)
+        internal static bool IsCombatDestruction(DestroyMode mode) =>
+            mode == DestroyMode.KillFinalize || mode == DestroyMode.KillFinalizeLeavingsOnly;
+
+        internal static bool ApplyDestructionLoss(Thing item)
         {
-            if (!parent.Spawned || (mode != DestroyMode.KillFinalize && mode != DestroyMode.KillFinalizeLeavingsOnly)) return;
-            foreach (Thing thing in Cargo.Contents)
-            {
-                int keep = thing.stackCount == 1 ? (Rand.Chance(0.25f) ? 1 : 0)
-                    : Mathf.FloorToInt(thing.stackCount * 0.25f);
-                if (keep <= 0) thing.Destroy();
-                else if (keep < thing.stackCount) thing.SplitOff(thing.stackCount - keep).Destroy();
-            }
+            int count = item.stackCount;
+            int keep = GenMath.RoundRandom(count * 0.25f);
+            if (keep == 0) item.Destroy();
+            else if (keep < count) item.SplitOff(count - keep).Destroy();
+            return keep > 0;
         }
     }
 }
