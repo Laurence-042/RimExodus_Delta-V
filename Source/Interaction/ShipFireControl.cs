@@ -18,10 +18,8 @@ namespace DeltaV
         private readonly Dictionary<long, PdLock> pointDefense = new Dictionary<long, PdLock>();
         private readonly Dictionary<long, CombatTarget> automaticTargets = new Dictionary<long, CombatTarget>();
         private readonly Dictionary<long, int> automaticRetryAt = new Dictionary<long, int>();
-        private readonly Dictionary<long, AutomaticAim> automaticAim = new Dictionary<long, AutomaticAim>();
         private int nextAutomaticAssignmentTick;
         private CombatStrategy assignmentStrategy;
-        private struct AutomaticAim { internal CombatTarget target; internal Vector3 point; internal int refreshAt; }
         private readonly List<long> staleWeapons = new List<long>();
         private readonly HashSet<long> validPointDefenseWeapons = new HashSet<long>();
         private int pointDefensePrunedVersion = -1;
@@ -33,12 +31,11 @@ namespace DeltaV
         { this.universe = universe; this.ownerId = ownerId; }
 
         internal void Clear(bool preserveCommands = false)
-        { target = default; preferredSystemId = 0; automaticTargets.Clear(); automaticRetryAt.Clear(); automaticAim.Clear(); nextAutomaticAssignmentTick = 0; ClearStrategyState(!preserveCommands); }
+        { target = default; preferredSystemId = 0; automaticTargets.Clear(); automaticRetryAt.Clear(); nextAutomaticAssignmentTick = 0; ClearStrategyState(!preserveCommands); }
         internal void Dispose()
         { Clear(); pointDefense.Clear(); interceptionCandidates.Clear(); pdReservedDamage.Clear(); aimCapabilities.Clear(); leadPoints.Clear(); uniqueLeadPoints.Clear(); }
         internal void WeaponParametersChanged(CompSpaceWeapon weapon)
         {
-            automaticAim.Remove(weapon.Identity);
             automaticRetryAt.Remove(weapon.Identity);
             observation = null; nextAutomaticAssignmentTick = 0; configurationVersion++;
         }
@@ -46,7 +43,7 @@ namespace DeltaV
         {
             long id = weapon.Identity;
             bool hadLock = automaticTargets.Remove(id);
-            pointDefense.Remove(id); automaticRetryAt.Remove(id); automaticAim.Remove(id);
+            pointDefense.Remove(id); automaticRetryAt.Remove(id);
             automaticRules.Remove(id); partRefreshTick.Remove(id);
             foreach (var key in fireRuleState.Keys.Where(k => k.weapon == id).ToList()) fireRuleState.Remove(key);
             if (hadLock || weapon.OwnerShip?.Identity == ownerId)
@@ -56,7 +53,7 @@ namespace DeltaV
         internal void ForgetMap(Map map)
         {
             interceptionCandidates.Clear();
-            automaticTargets.Clear(); automaticRetryAt.Clear(); automaticAim.Clear(); nextAutomaticAssignmentTick = 0;
+            automaticTargets.Clear(); automaticRetryAt.Clear(); nextAutomaticAssignmentTick = 0;
             observation = null; observedFrame = null; observedShip = null; parts.Clear();
             threats.Clear(); threatFrame = null; threatTick = -100;
             if (!target.TryResolve(universe, out var resolved) || resolved.Container?.map == map) Clear();
@@ -134,10 +131,10 @@ namespace DeltaV
                         ? mainMask : secondaryMask)
                     || !WeaponBelongsHere(weapon, own)) continue;
                 long id = weapon.Identity;
-                bool cooling = weapon.CooldownTicksLeft > 0;
+                bool trigger = weapon.CooldownTicksLeft == 0
+                    && (!automaticRetryAt.TryGetValue(id, out int retryAt) || now >= retryAt);
                 if (!automaticTargets.TryGetValue(id, out CombatTarget handle)) continue;
-                // A fixed barrel has no tracking work between assignment and real readiness.
-                if (cooling && weapon.Component<CompSpaceWeaponTraverse>() == null) continue;
+                if (!trigger && weapon.Component<CompSpaceWeaponTraverse>() == null) continue;
                 if (!TryResolveAutomatic(ship, own, handle, out ResolvedCombatTarget resolved))
                 {
                     // Invalid handles stop firing immediately; reassign on the existing decision clock.
@@ -163,28 +160,9 @@ namespace DeltaV
                         if (!handle.TryResolve(universe, out resolved)) continue;
                     }
                 }
-                if (weapon.Component<CompSpaceWeaponTraverse>() != null)
-                {
-                    // Refresh the expensive lead occasionally, but advance the mechanical turret every tick.
-                    if (!automaticAim.TryGetValue(id, out AutomaticAim cached)
-                        || cached.target != handle || now >= cached.refreshAt)
-                    {
-                        WeaponAimInfo info = SpaceWeaponService.AimInfo(weapon, own);
-                        Vector3 point = resolved.Pose.position;
-                        if (!info.Guided && SpaceWeaponBallistics.TryAim(info,
-                            own.pose, resolved.Pose, out Vector3 lead)) point = lead;
-                        cached = new AutomaticAim { target = handle, point = point, refreshAt = now + AutomaticAimRefreshTicks };
-                        automaticAim[id] = cached;
-                    }
-                    SpaceWeaponService.AimLocal(weapon,
-                        SpaceTransform.UniverseToMapPoint(own, weapon.parent.Map, cached.point),
-                        SpaceWeaponGeometry.MuzzleMapPoint(weapon));
-                }
-                if (cooling || automaticRetryAt.TryGetValue(id, out int retryAt)
-                    && now < retryAt) continue;
                 bool fired = universe.Weapons.ApplyControl(weapon, own,
-                    new WeaponControlCommand(handle, resolved, true,
-                        WeaponControlSource.Automatic));
+                    new WeaponControlCommand(handle, resolved, true, WeaponControlSource.Automatic, trigger));
+                if (!trigger) continue;
                 if (!fired)
                 {
                     bool supplied = weapon.MagazineAvailable(weapon.SelectMagazine())
@@ -211,7 +189,7 @@ namespace DeltaV
             var weaponIds = new HashSet<long>(ship.Weapons.Select(w => w.Identity));
             foreach (var key in fireRuleState.Keys.Where(k => !enemyIds.Contains(k.enemy) || !weaponIds.Contains(k.weapon)).ToList()) fireRuleState.Remove(key);
             foreach (var key in automaticRules.Keys.Where(k => !weaponIds.Contains(k)).ToList())
-            { automaticRules.Remove(key); automaticAim.Remove(key); partRefreshTick.Remove(key); }
+            { automaticRules.Remove(key); partRefreshTick.Remove(key); }
             if (enemies.Count == 0)
             {
                 if (ship.CombatAI != null) ship.CombatAI.lastFireReason = "DeltaV_CombatDecisionNoTarget".Translate();

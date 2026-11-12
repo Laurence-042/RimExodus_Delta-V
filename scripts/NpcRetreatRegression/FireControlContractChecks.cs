@@ -31,7 +31,7 @@ internal static partial class Program
         Set(typeof(CompSpaceWeapon), fixture, "ownerWasValid", true);
     }
 
-    static void CheckPerShipFireControl(UniverseManager universe, Faction player, Faction enemy)
+    static void CheckPerShipFireControl(UniverseManager universe, Faction player, Faction enemy, bool coDriftOnly = false)
     {
         Map ownMap = TestMap(1960), enemyMap = TestMap(1970);
         var hull = AddTestHull(ownMap, player, 1961);
@@ -92,6 +92,16 @@ internal static partial class Program
         Refresh();
         var fire = universe.Controls.For(hull.Vessel).FireControl;
         fire.Strategy(hull.Vessel).targetRules.Add(new CombatStrategyRule { includeDisarmed = true });
+        if (coDriftOnly)
+        {
+            CheckCoDriftingTurret(universe, own, opponent, hull.Vessel,
+                CombatTarget.ForShip(firstHull.Identity, first.parent.thingIDNumber), fire, weapon, traverse);
+            universe.Projectiles.ResetFlow();
+            foreach (var action in Actions(universe).ToArray()) { Actions(universe).Remove(action); action(); }
+            universe.Controls.Reset(); universe.objects.Clear(); Find.Maps.Clear();
+            ShipRegistry.ClearCaches(); ShipPhysics.ClearCache(); SpaceCollision.ClearCaches();
+            return;
+        }
         Check(NpcCombatAi.CountEligibleTargets(universe, hull.Vessel, own) == 2,
             "two hostile ships in one container are separate automatic candidates");
         weapon.WeaponProps.fireArcDeg = 0f;
@@ -108,7 +118,7 @@ internal static partial class Program
         Check(assigned.Contains(weapon.Identity),
             "fixed-axis weapon acquires a target within its lock arc before the hull aligns");
         Check(Mathf.Abs(SpaceTransform.WrapAngle(traverse.CurrentAngle - coolingAngle)) > 10f * Mathf.Deg2Rad,
-            "automatic cooled turret advances on every tick while its lead is refreshed sparsely");
+            "automatic cooled turret advances on every tick");
         weapon.WeaponProps.fireArcDeg = 360f;
         weapon.WeaponProps.lockArcDeg = -1f;
         Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
@@ -261,6 +271,104 @@ internal static partial class Program
         Check(locks.Count == 0, "controller disposal and game reset clear all point-defense target state");
         universe.objects.Clear(); Find.Maps.Clear();
         ShipRegistry.ClearCaches(); ShipPhysics.ClearCache(); SpaceCollision.ClearCaches();
+    }
+
+    static void CheckCoDriftingTurret(UniverseManager universe, SpaceObject own, SpaceObject opponent,
+        ShipBase shooter, CombatTarget handle, ShipFireControl fire, CompSpaceWeapon weapon, CompSpaceWeaponTraverse traverse)
+    {
+        var projectile = weapon.WeaponProps.projectileDef.GetCompProperties<CompProperties_SpaceProjectile>();
+        var start = own.pose; var targetStart = opponent.pose;
+        var direction = start.position;
+        var relative = new Vector2(0, 100);
+        var targetPosition = OrbitSphere.Move(direction, relative);
+        var drifting = new SpacePose(direction, start.angle) { velocity = new Vector2(300, 0) };
+        var target = new SpacePose(targetPosition, targetStart.angle)
+            { velocity = SpaceTransform.TransportTangent(new Vector2(304, 0), direction, targetPosition) };
+        int tick = Find.TickManager.TicksGame, originalCooldown = weapon.cooldownUntilTick;
+        int interval = weapon.WeaponProps.cooldownTicks, intrinsic = weapon.WeaponProps.intrinsicAimSkill;
+        float deviation = weapon.fireDeviationDeg, originalAngle = traverse.CurrentAngle, laserRange = projectile.laserRange;
+        bool oldPerformance = DeltaVMod.CurrentSettings.logPerformance;
+        var harness = new Harmony("DeltaV.Regression.CoDriftingTurret");
+        harness.Patch(AccessTools.Method(typeof(CompSpaceWeaponTraverse), "AimAt"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CaptureWeaponAngle)));
+        harness.Patch(AccessTools.Method(typeof(SpaceProjectileService), "RegisterShotVisuals"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
+        var failures = new List<string>();
+        var probe = universe.Performance;
+        var rejected = (int[])AccessTools.Field(typeof(DeltaVPerformanceProbe), "rejected").GetValue(probe);
+        var totals = (long[])AccessTools.Field(typeof(DeltaVPerformanceProbe), "totals").GetValue(probe);
+        var calls = (int[])AccessTools.Field(typeof(DeltaVPerformanceProbe), "calls").GetValue(probe);
+        try
+        {
+            DeltaVMod.CurrentSettings.logPerformance = true;
+            weapon.fireDeviationDeg = 1;
+            weapon.WeaponProps.cooldownTicks = 30;
+            weapon.WeaponProps.intrinsicAimSkill = 20;
+            foreach (bool laser in new[] { false, true })
+            {
+                projectile.laserRange = laser ? 500 : 0;
+                fire.Clear(); fire.CommandTarget(handle);
+                Set(traverse, "currentAngle", 0f);
+                Set(traverse, "rotationTick", -1);
+                weapon.cooldownUntilTick = tick + 120;
+                int previousShots = universe.Projectiles.InFlightCount;
+                int previousRejected = rejected[(int)WeaponReject.Alignment];
+                int parameterReads = 0;
+                long previousAim = totals[(int)PerformanceStage.WeaponAim];
+                int duplicateTicks = 0, missedAimTicks = 0, firstShotTick = -1;
+                float trackingError = 0, maxStep = 0;
+                var watch = new System.Diagnostics.Stopwatch();
+                for (int i = 0; i < 360; i++)
+                {
+                    Set(Find.TickManager, "ticksGameInt", tick + i);
+                    own.pose = CombatEngagementEvaluation.At(drifting, i / 60f);
+                    opponent.pose = CombatEngagementEvaluation.At(target, i / 60f);
+                    float before = traverse.CurrentAngle;
+                    weaponAimCommands = 0;
+                    int beforeReads = calls[(int)PerformanceStage.WeaponParameters];
+                    watch.Start();
+                    fire.TickAutoVolley(shooter, own, false);
+                    watch.Stop();
+                    parameterReads += calls[(int)PerformanceStage.WeaponParameters] - beforeReads;
+                    if (weaponAimCommands > 1) duplicateTicks++;
+                    if (weaponAimCommands == 0) missedAimTicks++;
+                    if (firstShotTick < 0 && universe.Projectiles.InFlightCount > previousShots) firstShotTick = i;
+                    maxStep = Mathf.Max(maxStep, Mathf.Abs(SpaceTransform.WrapAngle(traverse.CurrentAngle - before)));
+                    if (i < 115 || i >= 120) continue;
+                    if (!handle.TryResolve(universe, out var resolved)) throw new Exception("drifting target did not resolve");
+                    var info = SpaceWeaponService.AimInfo(weapon, own);
+                    if (!SpaceWeaponBallistics.TryAim(info, own.pose, resolved.Pose, out Vector3 point))
+                        throw new Exception("drifting intercept should be in range");
+                    Vector2 line = SpaceTransform.UniverseToMapPoint(own, shooter.Map, point) - info.MuzzleMap;
+                    trackingError = Mathf.Max(trackingError,
+                        Mathf.Abs(SpaceTransform.WrapAngle(traverse.CurrentAngle - Mathf.Atan2(line.y, line.x))));
+                }
+                int shots = universe.Projectiles.InFlightCount - previousShots;
+                int alignment = rejected[(int)WeaponReject.Alignment] - previousRejected;
+                double aimMs = (totals[(int)PerformanceStage.WeaponAim] - previousAim) * 1000d / System.Diagnostics.Stopwatch.Frequency;
+                Console.WriteLine($"CO_DRIFT laser={laser} shots={shots} alignment={alignment} duplicateTicks={duplicateTicks} missedAimTicks={missedAimTicks} firstShotTick={firstShotTick} "
+                    + $"trackingErrorDeg={trackingError * Mathf.Rad2Deg:F3} maxStepDeg={maxStep * Mathf.Rad2Deg:F3} parameterReads={parameterReads} aimMs={aimMs:F3} tickMs={watch.Elapsed.TotalMilliseconds:F3}");
+                if (duplicateTicks != 0 || missedAimTicks != 0 || trackingError > .2f * Mathf.Deg2Rad
+                    || alignment != 0 || shots != 8 || firstShotTick != 120 || maxStep > (traverse.TraverseProps.turnRateDegPerSec / 60f + .001f) * Mathf.Deg2Rad)
+                    failures.Add(laser ? "laser" : "ballistic");
+            }
+            Check(failures.Count == 0, "co-drifting automatic turrets track once per tick, respect traverse and resume fire"
+                + (failures.Count == 0 ? "" : ": " + string.Join(", ", failures)));
+        }
+        finally
+        {
+            harness.UnpatchAll(harness.Id);
+            DeltaVMod.CurrentSettings.logPerformance = oldPerformance;
+            projectile.laserRange = laserRange;
+            weapon.WeaponProps.cooldownTicks = interval;
+            weapon.WeaponProps.intrinsicAimSkill = intrinsic;
+            weapon.fireDeviationDeg = deviation;
+            weapon.cooldownUntilTick = originalCooldown;
+            Set(traverse, "currentAngle", originalAngle); Set(traverse, "rotationTick", -1);
+            Set(Find.TickManager, "ticksGameInt", tick);
+            own.pose = start; opponent.pose = targetStart;
+            fire.Clear();
+        }
     }
 
     static void CheckTargetContracts(UniverseManager universe, CombatHull attacker, SpaceObject own,

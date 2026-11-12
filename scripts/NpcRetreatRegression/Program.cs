@@ -113,6 +113,18 @@ internal static partial class Program
             DeltaVMod.CurrentSettings.logPerformance = Environment.GetCommandLineArgs().Contains("--combat-probe-enabled");
             CheckCombatPerformance(universe, faction, other); return;
         }
+        if (Environment.GetCommandLineArgs().Contains("--auto-volley-only"))
+        {
+            var factions = (FactionManager)Raw(typeof(FactionManager));
+            Set(factions, "ofPlayer", faction);
+            Set(Find.World, "factionManager", factions);
+            Set(faction, "relations", new List<FactionRelation> { new FactionRelation { other = other, kind = FactionRelationKind.Hostile } });
+            Set(other, "relations", new List<FactionRelation> { new FactionRelation { other = faction, kind = FactionRelationKind.Hostile } });
+            ThingDefOf.PilotConsole = TestBuildingDef("autoVolleyConsole");
+            using var patch = new EngagementFixturePatch();
+            CheckPerShipFireControl(universe, faction, other, coDriftOnly: true);
+            return;
+        }
         CheckPerformanceProbe(universe);
         if (Environment.GetCommandLineArgs().Contains("--engagement-battle"))
         { CheckEngagementBattle(universe, faction, other); return; }

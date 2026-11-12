@@ -1,7 +1,7 @@
 param([string]$GameRoot, [string]$HarmonyPath, [switch]$AimInputOnly, [switch]$PlayerFlightOnly,
       [switch]$SalvageOnly, [switch]$DrivePerformanceOnly, [switch]$ProjectileOnly, [switch]$ArchiveRecoveryOnly,
       [switch]$DockingOnly, [switch]$NpcOnly, [switch]$ProjectileFullOnly, [switch]$SeparationOnly,
-      [switch]$ThrusterPauseOnly, [switch]$TractorOnly, [switch]$EvaOnly, [switch]$GlobeOnly, [switch]$CombatManeuverOnly, [switch]$EngagementBaseline, [switch]$EngagementRegression, [switch]$EngagementBattle)
+      [switch]$ThrusterPauseOnly, [switch]$TractorOnly, [switch]$EvaOnly, [switch]$GlobeOnly, [switch]$CombatManeuverOnly, [switch]$EngagementBaseline, [switch]$EngagementRegression, [switch]$EngagementBattle, [switch]$AutoVolleyOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 if (!$GameRoot) { $GameRoot = "$repo/../.." }
@@ -33,6 +33,7 @@ $regressionArguments = @($managed)
 if ($CombatManeuverOnly) { $regressionArguments += '--combat-maneuver-only' }
 if ($EngagementBaseline) { $regressionArguments += '--engagement-baseline' }
 if ($EngagementRegression) { $regressionArguments += '--engagement-regression' }
+if ($AutoVolleyOnly) { $regressionArguments += '--auto-volley-only' }
 if ($EngagementBattle) { $regressionArguments += '--engagement-battle' }
 if ($GlobeOnly) { $regressionArguments += '--globe-only' }
 if ($AimInputOnly) { $regressionArguments += '--aim-input-only' }
