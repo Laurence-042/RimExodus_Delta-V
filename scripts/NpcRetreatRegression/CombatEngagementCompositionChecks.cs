@@ -79,6 +79,7 @@ internal static partial class Program
         Impact("DeltaV_Impact_LaserVsShield", laser.WeaponProps.projectileDef, projector.def);
         SpaceImpactEffects.ResetCache();
         int originalInterval = laser.Tuning.interval, originalRemaining = laser.Tuning.RemainingTicks;
+        float laserEnergy = laser.WeaponProps.shotEnergy, cannonEnergy = cannon.WeaponProps.shotEnergy;
         try
         {
             var settings = CombatEngagementSettings.Default();
@@ -87,12 +88,12 @@ internal static partial class Program
                 bool suppressCannon = false, bool suppressLaser = false)
             {
                 laser.Tuning.interval = mostlyLaser ? 90 : 1800;
-                Set(laser.Tuning, "remainingTicks", suppressLaser ? 7200 : 0);
-                cannon.cooldownUntilTick = Find.TickManager.TicksGame + (suppressCannon ? 7200 : 0);
-                cannon.WeaponProps.cooldownTicks = mostlyLaser ? 1800 : 90;
+                laser.WeaponProps.shotEnergy = suppressLaser ? 1000000 : laserEnergy;
+                cannon.WeaponProps.shotEnergy = suppressCannon ? 1000000 : cannonEnergy;
+                cannon.WeaponProps.cooldownTicks = mostlyLaser ? 3600 : 90;
                 SubstructureOwnership.BumpStructureVersion();
                 var evaluator = new CombatEngagementEvaluation(universe, own.member, target.member, other,
-                    Array.Empty<ShipBase>(), settings, true);
+                    Array.Empty<ShipBase>(), true);
                 CombatEngagementEvaluation.Result At(float phase) => evaluator.Evaluate(new SpacePose(
                     OrbitSphere.Move(other.position, new Vector2(Mathf.Cos(phase), Mathf.Sin(phase)) * 100), phase + Mathf.PI));
                 var values = (rear: At(0), side: At(Mathf.PI / 2));
@@ -106,9 +107,10 @@ internal static partial class Program
             var savedPose = own.pose;
             float Plan(bool mostlyLaser)
             {
-                laser.Tuning.interval = mostlyLaser ? 90 : 1800; cannon.WeaponProps.cooldownTicks = mostlyLaser ? 1800 : 90;
+                laser.Tuning.interval = mostlyLaser ? 90 : 1800; cannon.WeaponProps.cooldownTicks = mostlyLaser ? 3600 : 90;
                 Set(laser.Tuning, "remainingTicks", 0); cannon.cooldownUntilTick = 0;
-                own.pose = new SpacePose(OrbitSphere.Move(other.position, new Vector2(1, 1).normalized * 100), -3 * Mathf.PI / 4);
+                // Start both batteries on the kinetic shield's verified protected approach.
+                own.pose = new SpacePose(OrbitSphere.Move(other.position, Vector2.right * 100), Mathf.PI);
                 SubstructureOwnership.BumpStructureVersion();
                 var planner = new ShipAutoManeuverControl(universe, own.member.Identity);
                 Set(planner, "anchorTarget", CombatTarget.ForShip(target.member.Identity));
@@ -137,9 +139,9 @@ internal static partial class Program
             Check(onlyLaserEm.rear.outgoing < onlyLaserKinetic.rear.outgoing
                 && onlyCannonEm.rear.outgoing > onlyCannonKinetic.rear.outgoing,
                 "electromagnetic replacement blocks the available laser battery while allowing kinetic shots through");
-            Check(laserEm.rear.outgoing > onlyLaserEm.rear.outgoing
-                && laserEm.rear.contributions.Where(c => c.family == CombatWeaponFamily.Laser).Sum(c => c.damage) > onlyLaserEm.rear.outgoing,
-                "a mixed battery can destroy the electromagnetic emitter with kinetic shots and then exploit it with lasers");
+            Check(laserEm.rear.contributions.Where(c => c.family == CombatWeaponFamily.Laser).Sum(c => c.damage)
+                == onlyLaserEm.rear.outgoing && cannonEm.rear.outgoing > onlyLaserEm.rear.outgoing,
+                "one weapon's estimated hit does not change another weapon's shield snapshot");
             shield.mode = SpaceShieldMode.Guard;
             var laserGuard = Evaluate(true); var cannonGuard = Evaluate(false);
             Check(laserGuard.rear.outgoing == 0 && laserGuard.side.outgoing == 0
@@ -151,6 +153,8 @@ internal static partial class Program
         }
         finally
         {
+            laser.WeaponProps.shotEnergy = laserEnergy;
+            cannon.WeaponProps.shotEnergy = cannonEnergy;
             laser.Tuning.interval = originalInterval;
             Set(laser.Tuning, "remainingTicks", originalRemaining);
             foreach (var building in new[] { gun, projector })

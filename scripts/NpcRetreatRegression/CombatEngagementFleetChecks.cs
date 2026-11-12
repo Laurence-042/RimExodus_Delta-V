@@ -42,6 +42,7 @@ internal static partial class Program
                 MoveCombatFixture(console.parent, new IntVec3(4, 0, 4));
                 Set(typeof(Thing), console.parent, "hitPointsInt", 300);
                 var hull = new CombatHull(console.Ship);
+                hull.Combat.weaponsArmed = true;
                 var foundation = (TerrainDef)Raw(typeof(TerrainDef));
                 foundation.tags = new List<string> { "Substructure" }; foundation.isFoundation = true;
                 var owners = new int[map.cellIndices.NumGridCells]; Set(SubstructureOwnership.TryGet(map), "ownerGrid", owners);
@@ -83,8 +84,7 @@ internal static partial class Program
             int gen0 = GC.CollectionCount(0), gen1 = GC.CollectionCount(1), gen2 = GC.CollectionCount(2);
             TimeSpan gcPauseStart = GC.GetTotalPauseDuration();
             long started = universe.Performance.engagementStarted, completed = universe.Performance.engagementCompleted;
-            long coarse = universe.Performance.engagementCoarse, fine = universe.Performance.engagementFine;
-            long elapsed = universe.Performance.engagementElapsed;
+            long candidates = universe.Performance.engagementCandidates;
             long events = universe.Structures.Events, publications = universe.Structures.Publications;
             for (int tick = 0; tick < 1800; tick++)
             {
@@ -93,7 +93,7 @@ internal static partial class Program
                 watch.Restart(); RecoveryTick(universe.Autopilot, tick); watch.Stop();
                 if (profile || profileWindow && tick == 1799)
                 {
-                    Console.WriteLine($"PROFILE allocationBytes={GC.GetAllocatedBytesForCurrentThread() - allocationStart} gen0={GC.CollectionCount(0) - gen0} gen1={GC.CollectionCount(1) - gen1} gen2={GC.CollectionCount(2) - gen2} gcPauseMs={(GC.GetTotalPauseDuration() - gcPauseStart).TotalMilliseconds:F3} searches={universe.Performance.engagementCompleted - completed}/{universe.Performance.engagementStarted - started} coarse={universe.Performance.engagementCoarse - coarse} fine={universe.Performance.engagementFine - fine}");
+                    Console.WriteLine($"PROFILE allocationBytes={GC.GetAllocatedBytesForCurrentThread() - allocationStart} gen0={GC.CollectionCount(0) - gen0} gen1={GC.CollectionCount(1) - gen1} gen2={GC.CollectionCount(2) - gen2} gcPauseMs={(GC.GetTotalPauseDuration() - gcPauseStart).TotalMilliseconds:F3} searches={universe.Performance.engagementCompleted - completed}/{universe.Performance.engagementStarted - started} candidates={universe.Performance.engagementCandidates - candidates}");
                     var totals = (long[])typeof(DeltaVPerformanceProbe).GetField("totals", Private).GetValue(universe.Performance);
                     var calls = (int[])typeof(DeltaVPerformanceProbe).GetField("calls", Private).GetValue(universe.Performance);
                     foreach (PerformanceStage stage in Enum.GetValues(typeof(PerformanceStage)))
@@ -113,9 +113,7 @@ internal static partial class Program
                 gcPauseMs = (GC.GetTotalPauseDuration() - gcPauseStart).TotalMilliseconds,
                 searchesStarted = universe.Performance.engagementStarted - started,
                 searchesCompleted = universe.Performance.engagementCompleted - completed,
-                coarseCandidates = universe.Performance.engagementCoarse - coarse,
-                fineCandidates = universe.Performance.engagementFine - fine,
-                searchElapsedMs = (universe.Performance.engagementElapsed - elapsed) * 1000d / Stopwatch.Frequency,
+                candidatesEvaluated = universe.Performance.engagementCandidates - candidates,
                 structureEvents = universe.Structures.Events - events,
                 structurePublications = universe.Structures.Publications - publications,
                 collections = new[] { GC.CollectionCount(0) - gen0, GC.CollectionCount(1) - gen1, GC.CollectionCount(2) - gen2 } });

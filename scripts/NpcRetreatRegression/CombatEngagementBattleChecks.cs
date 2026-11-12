@@ -200,6 +200,7 @@ internal static partial class Program
             var console = new CompDeltaVPilotConsole { isMain = true, shipId = id };
             Add(item.body.map, item.faction, new IntVec3(10, 0, 10), ThingDefOf.PilotConsole, 300, console);
             var hull = new CombatHull(console.Ship);
+            hull.Combat.weaponsArmed = true;
             var foundation = (TerrainDef)Raw(typeof(TerrainDef));
             foundation.tags = new List<string> { "Substructure" }; foundation.isFoundation = true;
             var owners = new int[item.body.map.cellIndices.NumGridCells];

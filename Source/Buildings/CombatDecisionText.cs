@@ -17,7 +17,7 @@ namespace DeltaV
                     (score - result.alternativeScore).ToString("+0.##;-0.##;0"), settings.switchThreshold.ToString("0.##")));
             foreach (var term in settings.terms)
             {
-                float raw = result.Raw(term, settings.burstSeconds), curve = term.curve.Evaluate(raw);
+                float raw = result.Raw(term), curve = term.curve.Evaluate(raw);
                 text.AppendLine("DeltaV_EngagementTermValue".Translate(
                     ("DeltaV_EngagementSide_" + term.side).Translate() + " / " + ("DeltaV_EngagementMetric_" + term.metric).Translate(),
                     ("DeltaV_CombatWeaponFamily_" + term.weapons.family).Translate(), raw.ToString("0.###"),
@@ -52,7 +52,6 @@ namespace DeltaV
                 + "\n" + Value("DeltaV_CombatFlanking", Flag(tactic.coordinateFlanking))
                 + "\n" + Value("DeltaV_CombatPrimaryWeapons", ("DeltaV_CombatWeaponSet_" + tactic.primaryWeapons.set).Translate())
                 + "\n" + "DeltaV_CombatBuiltInCurves".Translate()
-                + "\n" + Value("DeltaV_EngagementWindow", rule.engagement.windowSeconds.ToString("0.#"))
                 + "\n" + string.Join("\n", rule.engagement.terms.Select(t =>
                     ("DeltaV_EngagementMetric_" + t.metric).Translate() + " / "
                     + ("DeltaV_EngagementSide_" + t.side).Translate() + " × " + t.weight.ToString("0.##")

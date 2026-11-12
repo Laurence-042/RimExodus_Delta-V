@@ -8,8 +8,8 @@ namespace DeltaV
 {
     public enum CombatEngagementMetric : byte
     {
-        StructureDamage, GuardDrain, CapabilityLoss, BurstFraction,
-        TravelSeconds, VelocitySeconds, ReverseSeconds, Flanking, Uncertainty, CriticalDamage
+        StructureDamage, GuardDrain,
+        TravelSeconds, VelocitySeconds, ReverseSeconds, Flanking, Uncertainty, CriticalDamage, ArmorProgress
     }
     public enum CombatEngagementSide : byte { Outgoing, Incoming }
 
@@ -41,18 +41,17 @@ namespace DeltaV
 
     public sealed class CombatEngagementSettings : IExposable
     {
-        public float windowSeconds = 30, burstSeconds = 3, switchThreshold = 2;
+        public float switchThreshold = 2;
         public List<CombatEngagementTerm> terms = new List<CombatEngagementTerm>();
         public CombatEngagementSettings Copy() => new CombatEngagementSettings
         {
-            windowSeconds = windowSeconds, burstSeconds = burstSeconds, switchThreshold = switchThreshold,
+            switchThreshold = switchThreshold,
             terms = terms?.Select(t => t?.Copy()).ToList()
         };
         public void Validate()
         {
-            if (!Finite(windowSeconds, 1, 120) || !Finite(burstSeconds, 0.1f, windowSeconds)
-                || !Finite(switchThreshold, 0, 10000) || terms == null || terms.Count > 32)
-                throw new InvalidDataException("Invalid engagement window or terms.");
+            if (!Finite(switchThreshold, 0, 10000) || terms == null || terms.Count > 32)
+                throw new InvalidDataException("Invalid engagement threshold or terms.");
             foreach (var term in terms)
             { if (term == null) throw new InvalidDataException("Missing engagement term."); term.Validate(); }
         }
@@ -67,8 +66,6 @@ namespace DeltaV
         }
         public void ExposeData()
         {
-            Scribe_Values.Look(ref windowSeconds, "windowSeconds", 30);
-            Scribe_Values.Look(ref burstSeconds, "burstSeconds", 3);
             Scribe_Values.Look(ref switchThreshold, "switchThreshold", 2);
             Scribe_Collections.Look(ref terms, "terms", LookMode.Deep);
         }
@@ -78,20 +75,17 @@ namespace DeltaV
             void Add(CombatEngagementMetric metric, CombatEngagementSide side, float x, float y) => result.terms.Add(
                 new CombatEngagementTerm { metric = metric, side = side,
                     curve = new CombatScoreCurve(true, new CombatScorePoint(0, 0), new CombatScorePoint(x, y)) });
-            Add(CombatEngagementMetric.StructureDamage, CombatEngagementSide.Outgoing, 100, 3);
-            Add(CombatEngagementMetric.StructureDamage, CombatEngagementSide.Incoming, 100, -4);
-            Add(CombatEngagementMetric.GuardDrain, CombatEngagementSide.Outgoing, 100, .3f);
-            Add(CombatEngagementMetric.CriticalDamage, CombatEngagementSide.Outgoing, 1, 80);
-            Add(CombatEngagementMetric.CriticalDamage, CombatEngagementSide.Incoming, 1, -160);
-            result.terms.Add(new CombatEngagementTerm { metric = CombatEngagementMetric.BurstFraction,
-                side = CombatEngagementSide.Incoming, curve = new CombatScoreCurve(true,
-                    new CombatScorePoint(0, 0), new CombatScorePoint(.1f, -15),
-                    new CombatScorePoint(.3f, -150), new CombatScorePoint(.6f, -1000)) });
+            Add(CombatEngagementMetric.StructureDamage, CombatEngagementSide.Outgoing, 100f / 30f, 3);
+            Add(CombatEngagementMetric.StructureDamage, CombatEngagementSide.Incoming, 100f / 30f, -4);
+            Add(CombatEngagementMetric.GuardDrain, CombatEngagementSide.Outgoing, 100f / 30f, .3f);
+            Add(CombatEngagementMetric.ArmorProgress, CombatEngagementSide.Outgoing, 1, 180);
+            Add(CombatEngagementMetric.CriticalDamage, CombatEngagementSide.Outgoing, 1f / 30f, 80);
+            Add(CombatEngagementMetric.CriticalDamage, CombatEngagementSide.Incoming, 1f / 30f, -160);
             Add(CombatEngagementMetric.TravelSeconds, CombatEngagementSide.Outgoing, 10, -1.5f);
             Add(CombatEngagementMetric.VelocitySeconds, CombatEngagementSide.Outgoing, 10, -2);
             Add(CombatEngagementMetric.ReverseSeconds, CombatEngagementSide.Outgoing, 10, -5);
             Add(CombatEngagementMetric.Flanking, CombatEngagementSide.Outgoing, 1, 2);
-            Add(CombatEngagementMetric.Uncertainty, CombatEngagementSide.Incoming, 100, -4);
+            Add(CombatEngagementMetric.Uncertainty, CombatEngagementSide.Incoming, 100f / 30f, -4);
             return result;
         }
     }

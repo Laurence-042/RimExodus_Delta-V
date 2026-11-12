@@ -13,8 +13,6 @@ namespace DeltaV
                 Widgets.Label(new Rect(8, row, width - 130, 28), key.Translate());
                 Number(settings, key, new Rect(width - 118, row, 110, 28), ref value, min, max); row += 32;
             }
-            Field("DeltaV_EngagementWindow", ref settings.windowSeconds, 1, 120, ref y);
-            Field("DeltaV_EngagementBurst", ref settings.burstSeconds, .1f, settings.windowSeconds, ref y);
             Field("DeltaV_EngagementSwitch", ref settings.switchThreshold, 0, 10000, ref y);
             Widgets.Label(new Rect(8, y, width - 16, 46), "DeltaV_EngagementHelp".Translate()); y += 48;
             for (int i = 0; i < settings.terms.Count; i++)
@@ -32,8 +30,8 @@ namespace DeltaV
                         ("DeltaV_EngagementMetric_" + term.metric).Translate(),
                         ("DeltaV_EngagementUnit_" + term.metric).Translate()));
                 y += 32;
-                if (term.metric <= CombatEngagementMetric.BurstFraction || term.metric == CombatEngagementMetric.Uncertainty
-                    || term.metric == CombatEngagementMetric.CriticalDamage)
+                if (term.metric <= CombatEngagementMetric.GuardDrain || term.metric == CombatEngagementMetric.Uncertainty
+                    || term.metric == CombatEngagementMetric.CriticalDamage || term.metric == CombatEngagementMetric.ArmorProgress)
                     DrawFilter(term.weapons, width, ref y);
             }
             if (settings.terms.Count < 32 && Widgets.ButtonText(new Rect(8, y, width - 16, 28),

@@ -57,8 +57,6 @@ internal static partial class Program
                 && a.curve.Evaluate(.3f) == b.curve.Evaluate(.3f)).All(equal => equal),
             "default engagement terms and nonlinear curves use the same editable XML representation");
         var rebuilt = new CombatStrategyRule { name = "independent player rule" };
-        rebuilt.engagement.windowSeconds = runtime.engagement.windowSeconds;
-        rebuilt.engagement.burstSeconds = runtime.engagement.burstSeconds;
         rebuilt.engagement.switchThreshold = runtime.engagement.switchThreshold;
         foreach (var term in runtime.engagement.terms)
             rebuilt.engagement.terms.Add(new CombatEngagementTerm { metric = term.metric, side = term.side,
@@ -77,9 +75,9 @@ internal static partial class Program
         Check(runtime.engagement.terms[0].curve.points[1].y != 999 && loaded.maneuverRules[0].engagement.terms[0].curve.points[1].y != 999,
             "curve edits stay inside the strategy draft until apply");
         bool badEngagement = false;
-        draftEngagement.windowSeconds = float.NaN;
+        draftEngagement.switchThreshold = float.NaN;
         try { draftEngagement.Validate(); } catch (InvalidDataException) { badEngagement = true; }
-        Check(badEngagement, "nonfinite engagement windows are rejected at the shared validation boundary");
+        Check(badEngagement, "nonfinite engagement thresholds are rejected at the shared validation boundary");
         var comp = new CompShipCombatAI { lastManeuverSelection = trace, lastNpcDecisionTick = 10, lastNpcReason = "old" };
         comp.Replace(fallback);
         Check(comp.lastManeuverSelection == null && comp.lastNpcDecisionTick == -1 && comp.lastNpcReason == null,

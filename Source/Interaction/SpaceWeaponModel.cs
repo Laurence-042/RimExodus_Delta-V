@@ -48,8 +48,6 @@ namespace DeltaV
     // ledger so a synchronous status refresh cannot overwrite the in-flight transaction.
     internal sealed class SpaceWeaponEnergy
     {
-        private readonly CombatResourceLedger forecast;
-        internal SpaceWeaponEnergy(CombatResourceLedger forecast = null) { this.forecast = forecast; }
         private readonly Dictionary<PowerNet, float> available = new Dictionary<PowerNet, float>();
         private readonly Dictionary<PowerNet, float> reserved = new Dictionary<PowerNet, float>();
         private readonly Dictionary<PowerNet, float> localReserved = new Dictionary<PowerNet, float>();
@@ -96,9 +94,9 @@ namespace DeltaV
             foreach (var thing in attachments)
             {
                 var capacitor = thing.TryGetComp<CompSpaceWeaponAttachment>();
-                if (capacitor == null || !(forecast?.CanSupply(capacitor, cost) ?? capacitor.CanSupplyShotEnergy(cost))) continue;
+                if (capacitor == null || !capacitor.CanSupplyShotEnergy(cost)) continue;
                 capacitors.TryGetValue(capacitor, out float held);
-                float remaining = (forecast?.Capacitor(capacitor) ?? capacitor.AvailableShotEnergy) - held;
+                float remaining = capacitor.AvailableShotEnergy - held;
                 PowerNet net = capacitor.ShotEnergyBattery?.PowerNet;
                 if (net != null) remaining = Mathf.Min(remaining, RemainingGridEnergy(net));
                 if (remaining + .0001f < cost) continue;
@@ -121,7 +119,7 @@ namespace DeltaV
         private float RemainingGridEnergy(PowerNet net)
         {
             if (!available.TryGetValue(net, out float stored))
-            { stored = forecast?.Grid(net) ?? net.CurrentStoredEnergy(); available.Add(net, stored); }
+            { stored = net.CurrentStoredEnergy(); available.Add(net, stored); }
             reserved.TryGetValue(net, out float grid);
             localReserved.TryGetValue(net, out float local);
             return stored - grid - local;
@@ -140,12 +138,6 @@ namespace DeltaV
 
         internal void Commit()
         {
-            if (forecast != null)
-            {
-                foreach (var pair in capacitors) forecast.Draw(pair.Key, pair.Value);
-                foreach (var pair in reserved) forecast.Draw(pair.Key, pair.Value);
-                return;
-            }
             // Pay earmarked local pulses first, so the grid cannot drain their batteries twice.
             foreach (var pair in capacitors) pair.Key.ConsumeShotEnergy(pair.Value);
             foreach (var pair in reserved)
@@ -181,10 +173,19 @@ namespace DeltaV
             var part = SpaceImpactEffects.Resolve(projectile, target ?? ThingDefOf.Wall)?.defenderEffect;
             if (part == null) return 0f;
             float speed = ProjectedSpeed(weapon, SpaceWeaponService.ProjectileSpeedOf(projectile));
+            return ExpectedDamage(weapon, part, ProjectileMass(weapon, weapon.SelectMagazine()), speed, weapon.Tuning?.power ?? 1);
+        }
+
+        internal static float ExpectedDamage(CompSpaceWeapon weapon, SpaceWeaponParameters shot) =>
+            ExpectedDamage(weapon, SpaceImpactEffects.Resolve(shot.aim.Projectile, ThingDefOf.Wall)?.defenderEffect,
+                shot.mass, shot.aim.Speed, shot.power);
+
+        private static float ExpectedDamage(CompSpaceWeapon weapon, ImpactOutcomePart part, float mass, float speed, int power)
+        {
+            if (part == null) return 0f;
             int count = weapon.WeaponProps.projectilesPerShot;
-            return count * SpaceImpactEffects.ComputeDamage(part, speed, 0f, 1f,
-                ProjectileMass(weapon, weapon.SelectMagazine()) / count)
-                * weapon.WeaponProps.impactScale * (weapon.Tuning?.power ?? 1);
+            return count * SpaceImpactEffects.ComputeDamage(part, speed, 0f, 1f, mass / count)
+                * weapon.WeaponProps.impactScale * power;
         }
 
         internal static bool HasBaseShotEnergy(CompSpaceWeapon weapon)
@@ -220,14 +221,13 @@ namespace DeltaV
 
 
         internal static SpaceWeaponParameters Read(CompSpaceWeapon weapon, SpaceObject container,
-            SpaceWeaponEnergy energy, bool forShot, CombatResourceLedger resources = null, int previousMagazine = 0)
+            SpaceWeaponEnergy energy, bool forShot)
         {
             var perf = weapon.Universe?.Performance;
             long start = perf?.Start() ?? 0L;
             try
             {
-                CompSpaceWeaponMagazine magazine = resources == null ? weapon.SelectMagazine()
-                    : weapon.SelectMagazine(m => resources.HasHeads(m, weapon), previousMagazine);
+                CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
                 ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
                 var layout = weapon.Layout;
                 bool accelerated = layout.acceleration.segments.Count > 0;

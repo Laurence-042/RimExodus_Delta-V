@@ -32,6 +32,7 @@ internal static partial class Program
             MoveCombatFixture(console.parent, new IntVec3(10, 0, 10));
             Set(typeof(Thing), console.parent, "hitPointsInt", 300);
             var hull = new CombatHull(console.Ship);
+            hull.Combat.weaponsArmed = true;
             var foundation = (TerrainDef)Raw(typeof(TerrainDef));
             foundation.tags = new List<string> { "Substructure" }; foundation.isFoundation = true;
             var owners = new int[item.obj.map.cellIndices.NumGridCells];
@@ -70,9 +71,10 @@ internal static partial class Program
         // +X is the independently identified thin side. Other sides have three layers.
         for (int x = 4; x <= 16; x++) for (int z = 4; z <= 16; z++)
         {
+            bool symmetric = regression && scenario == 0;
             bool mirrored = regression && scenario == 2;
-            bool thin = mirrored ? x == 4 : x == 16;
-            bool thick = (mirrored ? x >= 14 : x <= 6) || z <= 6 || z >= 14;
+            bool thin = !symmetric && (mirrored ? x == 4 : x == 16);
+            bool thick = (mirrored ? x >= 14 : x <= 6) || symmetric && x >= 14 || z <= 6 || z >= 14;
             if (!thin && !thick) continue;
             var wallDef = TestBuildingDef("engagementArmor" + id);
             wallDef.useHitPoints = true; wallDef.fillPercent = 1; wallDef.passability = Traversability.Impassable;
@@ -92,8 +94,22 @@ internal static partial class Program
         if (regression && scenario == 2) target.pose = new SpacePose(Vector3.forward, Mathf.PI / 3);
         if (regression && scenario == 1) CheckEngagementStrategyParity(universe, own, target, strategy, rule);
         if (regression && scenario == 1) CheckEngagementFlight(universe, own, target, gun);
-        if (regression && scenario == 1) CheckEngagementTraverse(universe, own, target, gun);
+        if (regression && scenario == 1) CheckEngagementReadiness(universe, own, target, gun);
         if (regression && scenario == 1) CheckEngagementEventClock(universe, own, target);
+        if (regression && scenario == 0)
+        {
+            var targetPose = ShipRegistry.ShipPose(target.member);
+            targetPose.angle -= target.member.FrameAngle;
+            var evaluator = new CombatEngagementEvaluation(universe, own.member, target.member, targetPose,
+                new[] { target.member }, true);
+            var scores = Enumerable.Range(0, 4).Select(side =>
+            {
+                float angle = side * Mathf.PI / 2;
+                var position = OrbitSphere.Move(targetPose.position, new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * 100);
+                return evaluator.Evaluate(new SpacePose(position, angle + Mathf.PI)).Score(rule.engagement);
+            }).ToArray();
+            Check(scores.Max() - scores.Min() < .05f, "symmetric armor and coverage have no fixed preferred side");
+        }
         if (regression && scenario > 0)
         {
             if (scenario == 2)
@@ -105,21 +121,18 @@ internal static partial class Program
                 {
                     var type = candidate.GetType();
                     var value = (CombatEngagementEvaluation.Result)type.GetField("value", Private).GetValue(candidate);
-                    Console.WriteLine($"ENGAGEMENT_REFINED phase={(float)type.GetField("phase", Private).GetValue(candidate) * Mathf.Rad2Deg:F1} score={type.GetField("score", Private).GetValue(candidate)} damage={value.outgoing:F1} travel={value.travel:F1}");
+                    Console.WriteLine($"ENGAGEMENT_CANDIDATE phase={(float)type.GetField("phase", Private).GetValue(candidate) * Mathf.Rad2Deg:F1} score={type.GetField("score", Private).GetValue(candidate)} damage={value.outgoing:F1} travel={value.travel:F1}");
                 }
             }
             var targetFramePose = ShipRegistry.ShipPose(target.member); targetFramePose.angle -= target.member.FrameAngle;
             var evaluator = new CombatEngagementEvaluation(universe, own.member, target.member,
-                targetFramePose, new[] { target.member }, rule.engagement, true);
+                targetFramePose, new[] { target.member }, true);
             for (int side = 0; side < 4; side++)
             {
                 float angle = side * Mathf.PI / 2;
                 var evaluation = evaluator.Evaluate(new SpacePose(OrbitSphere.Move(ShipRegistry.ShipPose(target.member).position,
                     new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * 100), angle + Mathf.PI));
                 Console.WriteLine($"ENGAGEMENT_FACT side={side} damage={evaluation.outgoing} score={evaluation.Score(rule.engagement)} uncertain={evaluation.uncertain}");
-                var rough = evaluator.Evaluate(new SpacePose(OrbitSphere.Move(ShipRegistry.ShipPose(target.member).position,
-                    new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * 100), angle + Mathf.PI), true);
-                Console.WriteLine($"ENGAGEMENT_COARSE side={side} damage={rough.outgoing} score={rough.Score(rule.engagement)}");
             }
         }
         var method = typeof(ShipAutoManeuverControl).GetMethod("PlanTacticTrajectory", Private);
@@ -158,7 +171,9 @@ internal static partial class Program
             bool range = offset.magnitude >= 90 && offset.magnitude <= 110;
             if (sector) inSector++; if (range) inRange++; if (sector && range) both++;
         }
-        Check(coverage > 0, "engagement baseline has a real powered, aimed production weapon");
+        var observedGuns = ShipAutoManeuverControl.CaptureAttackWeapons(own.member, own);
+        Check(observedGuns.Count > 0 && observedGuns.Any(w => w.gun.ready && w.gun.damageRate > 0),
+            "engagement baseline has a real powered production weapon");
         if (regression && scenario == 1) CheckEngagementComposition(universe, own, target, gun, player, enemy);
         // The frozen movement fixture above stays unchanged. The separate risk
         // fixture must give its targetable guns the real turret cover/health contract;
@@ -199,30 +214,18 @@ internal static partial class Program
             CheckEngagementPartBounds(universe, target.member);
             var targetFramePose = ShipRegistry.ShipPose(target.member); targetFramePose.angle -= target.member.FrameAngle;
             var evaluator = new CombatEngagementEvaluation(universe, own.member, target.member,
-                targetFramePose, new[] { target.member }, rule.engagement, true);
+                targetFramePose, new[] { target.member }, true);
             CombatEngagementEvaluation.Result AtSide(float phase) => evaluator.Evaluate(new SpacePose(
                 OrbitSphere.Move(targetFramePose.position, new Vector2(Mathf.Cos(phase), Mathf.Sin(phase)) * 100), phase + Mathf.PI));
             var dangerous = AtSide(0); var safer = AtSide(Mathf.PI / 2);
-            Check(dangerous.outgoing > 0 && dangerous.incoming > safer.incoming
-                && dangerous.Score(rule.engagement) < safer.Score(rule.engagement),
-                "real concentrated fire can outweigh the thin-side damage benefit under default risk curves");
             var aggressive = rule.engagement.Copy();
             foreach (var term in aggressive.terms) if (term.side == CombatEngagementSide.Incoming) term.weight = 0;
             Console.WriteLine($"ENGAGEMENT_RISK out={dangerous.outgoing:F2}/{safer.outgoing:F2} in={dangerous.incoming:F2}/{safer.incoming:F2} default={dangerous.Score(rule.engagement):F2}/{safer.Score(rule.engagement):F2} aggressive={dangerous.Score(aggressive):F2}/{safer.Score(aggressive):F2}");
-            Check(dangerous.outgoing < safer.outgoing && dangerous.Score(aggressive) < safer.Score(aggressive),
-                "fatal counterfire removes future firing opportunities even when the player assigns zero damage penalty");
-            // A separate, explicitly slower battery leaves an offensive advantage to
-            // trade against risk. Keep the fatal 12-tick fixture above as its own gate.
-            foreach (var enemyWeapon in target.member.Weapons) enemyWeapon.WeaponProps.cooldownTicks = 90;
-            var survivable = new CombatEngagementEvaluation(universe, own.member, target.member,
-                targetFramePose, new[] { target.member }, rule.engagement, true);
-            CombatEngagementEvaluation.Result SurvivingSide(float phase) => survivable.Evaluate(new SpacePose(
-                OrbitSphere.Move(targetFramePose.position, new Vector2(Mathf.Cos(phase), Mathf.Sin(phase)) * 100), phase + Mathf.PI));
-            var riskyBenefit = SurvivingSide(0); var safeBenefit = SurvivingSide(Mathf.PI / 2);
-            Console.WriteLine($"ENGAGEMENT_SURVIVABLE out={riskyBenefit.outgoing:F2}/{safeBenefit.outgoing:F2} in={riskyBenefit.incoming:F2}/{safeBenefit.incoming:F2} default={riskyBenefit.Score(rule.engagement):F2}/{safeBenefit.Score(rule.engagement):F2} aggressive={riskyBenefit.Score(aggressive):F2}/{safeBenefit.Score(aggressive):F2}");
-            Check(riskyBenefit.Score(rule.engagement) < safeBenefit.Score(rule.engagement)
-                && riskyBenefit.Score(aggressive) > safeBenefit.Score(aggressive),
-                "player-editable incoming weights reverse the survivable offense-versus-risk preference on identical facts");
+            Check(dangerous.outgoing > 0 && dangerous.incoming > safer.incoming
+                && dangerous.Score(rule.engagement) < safer.Score(rule.engagement),
+                "real concentrated fire can outweigh the thin-side damage benefit under default risk curves");
+            Check(dangerous.Score(aggressive) > safer.Score(aggressive),
+                "removing incoming risk favors the thin side on the same observed facts");
         }
         string path = regression ? $"Source/obj/EngagementForecast/position-{scenario}.json" : "Source/obj/EngagementBaseline-20261108/position.json";
         Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -235,7 +238,8 @@ internal static partial class Program
             rearThreatRate = rearThreat, sideThreatRate = sideThreat }, new JsonSerializerOptions { WriteIndented = true }));
         Console.WriteLine($"ENGAGEMENT_BASELINE sector={inSector / 3600f:F3} range={inRange / 3600f:F3} joint={both / 3600f:F3} required=0.800");
         Check(regression ? both >= 2880 : both < 2880, regression
-            ? "production decisions and MPC reach and hold the independently verified weak side"
+            ? scenario == 0 ? "production decisions hold a valid firing position on a symmetric target"
+                : "production decisions and MPC reach and hold the independently verified weak side"
             : "baseline reproduces failure to remain at the independently verified weak side");
         universe.Autopilot.Cancel(subject); universe.Controls.Reset(); universe.objects.Clear(); Find.Maps.Clear();
         ShipRegistry.ClearCaches(); ShipPhysics.ClearCache(); SpaceCollision.ClearCaches();
@@ -254,86 +258,49 @@ internal static partial class Program
         var term = new CombatEngagementTerm { metric = CombatEngagementMetric.StructureDamage,
             curve = new CombatScoreCurve(true, new CombatScorePoint(0, 0),
                 new CombatScorePoint(50, 1), new CombatScorePoint(100, 5)) };
-        var settings = new CombatEngagementSettings { terms = new List<CombatEngagementTerm> { term }, burstSeconds = 3 };
+        var settings = new CombatEngagementSettings { terms = new List<CombatEngagementTerm> { term } };
         Check(Math.Abs(value.Score(settings) - 5) < .0001,
             "engagement curves apply after aggregation, not once per gun or projectile family");
         term.weapons.family = CombatWeaponFamily.Kinetic;
         Check(Math.Abs(value.Score(settings) - 2.6) < .0001,
             "family filter reads the fired projectile category even when the live weapon currently selects a laser");
-        term.metric = CombatEngagementMetric.BurstFraction; term.weapons.family = CombatWeaponFamily.All;
-        term.curve = new CombatScoreCurve(true, new CombatScorePoint(0, 0), new CombatScorePoint(1, 1));
-        value.damageEvents.AddRange(new[] { (0f, laser, .1f), (2f, kinetic, .2f), (2f, incoming, .8f), (6f, laser, .15f) });
-        Check(Math.Abs(value.Score(settings) - .3f) < .0001,
-            "outgoing burst term uses its own sliding damage window and excludes incoming events");
-        term.side = CombatEngagementSide.Incoming;
-        Check(Math.Abs(value.Score(settings) - .8f) < .0001,
-            "incoming burst uses the same configurable window contract");
-        term.side = CombatEngagementSide.Outgoing; settings.burstSeconds = 1;
-        Check(Math.Abs(value.Score(settings) - .2f) < .0001,
-            "editing the burst window distinguishes separated volleys from concentrated damage");
         term.weight = 0;
-        Check(value.Score(settings) == 0, "zero burst weight removes that term without a hidden risk floor");
+        Check(value.Score(settings) == 0, "zero weight removes that term without a hidden risk floor");
     }
 
-    static void CheckEngagementTraverse(UniverseManager universe, ManeuverMotionObject own,
+    static void CheckEngagementReadiness(UniverseManager universe, ManeuverMotionObject own,
         ManeuverMotionObject target, CompSpaceWeapon weapon)
     {
-        var traverse = new CompSpaceWeaponTraverse { parent = weapon.parent,
-            props = new CompProperties_SpaceWeaponTraverse { mechanicalArcDeg = 360 } };
-        weapon.parent.AllComps.Add(traverse);
-        int originalTick = Find.TickManager.TicksGame, originalInterval = weapon.Tuning.interval;
-        int originalRemaining = weapon.Tuning.RemainingTicks;
-        float deviation = weapon.fireDeviationDeg;
+        var tuning = weapon.Tuning;
+        var emptyMagazine = new CompSpaceWeaponMagazine { parent = weapon.parent,
+            props = new CompProperties_SpaceWeaponMagazine { projectileDef = weapon.WeaponProps.projectileDef } };
+        int originalRemaining = tuning.RemainingTicks;
+        float originalEnergy = weapon.WeaponProps.shotEnergy;
+        var other = ShipRegistry.ShipPose(target.member); other.angle -= target.member.FrameAngle;
+        CombatEngagementEvaluation.Result Observe() =>
+            new CombatEngagementEvaluation(universe, own.member, target.member, other,
+                new[] { target.member }, true).Evaluate(own.pose);
         try
         {
-            weapon.Tuning.interval = 1000; Set(weapon.Tuning, "remainingTicks", 90);
-            weapon.fireDeviationDeg = 1;
-            var initial = own.pose;
-            SpacePose Motion(float time)
-            {
-                var pose = initial;
-                pose.angle += time < 1.5f ? 2 * Mathf.Sin(time * Mathf.PI / 1.5f) : 0;
-                return pose;
-            }
-            var other = ShipRegistry.ShipPose(target.member); other.angle -= target.member.FrameAngle;
-            foreach (float rate in new[] { 30f, 60f, 120f })
-            {
-                traverse.TraverseProps.turnRateDegPerSec = rate;
-                Set(traverse, "currentAngle", 0f); Set(traverse, "rotationTick", -1);
-                var settings = CombatEngagementSettings.Default(); settings.windowSeconds = 4;
-                var predicted = new CombatEngagementEvaluation(universe, own.member, target.member, other,
-                    new[] { target.member }, settings, true).Evaluate(initial, trajectory: Motion);
-                Check(traverse.CurrentAngle == 0 && weapon.Tuning.RemainingTicks == 90,
-                    "moving-target traverse forecast leaves live barrel and cooldown untouched at " + rate);
-                float actualFirst = float.PositiveInfinity;
-                var copy = new CompSpaceWeaponTraverse.Forecast(traverse);
-                bool identical = true;
-                for (int tick = 0; tick < 240; tick++)
-                {
-                    Set(Find.TickManager, "ticksGameInt", tick);
-                    var source = Motion(tick / 60f);
-                    var muzzle = SpaceTransform.RigidPointPose(source,
-                        SpaceWeaponGeometry.MuzzleMapPoint(weapon) - own.member.HullCenter, 0);
-                    var line = OrbitSphere.Offset(muzzle.position, other.position);
-                    float desired = weapon.ClampAim(SpaceTransform.WrapAngle(Mathf.Atan2(line.y, line.x) - source.angle));
-                    traverse.AimAt(desired); copy.AimAt(desired, tick, true);
-                    if (tick >= 90 && SpaceWeaponGeometry.WithinFireDeviation(desired, traverse.CurrentAngle, weapon.fireDeviationDeg))
-                        actualFirst = Mathf.Min(actualFirst, tick / 60f);
-                    // Repeating an aim command in the same tick cannot double turn rate.
-                    traverse.AimAt(desired); copy.AimAt(desired, tick, true);
-                    identical &= traverse.CurrentAngle == copy.Angle;
-                }
-                float forecastFirst = predicted.damageEvents.Where(e => e.fraction > 0).Select(e => e.time).DefaultIfEmpty(float.PositiveInfinity).Min();
-                Check(identical && actualFirst > 1.6f && Math.Abs(forecastFirst - actualFirst) <= .101f,
-                    "cooldown tracking and same-tick commands match production traverse before first hit: rate=" + rate
-                    + " forecast=" + forecastFirst + " actual=" + actualFirst);
-            }
+            Set(tuning, "remainingTicks", 0);
+            var ready = Observe();
+            Set(tuning, "remainingTicks", 90);
+            var cooling = Observe();
+            Check(ready.outgoing > 0 && ready.outgoing == cooling.outgoing && tuning.RemainingTicks == 90,
+                "cooldown leaves sustained single-shot output and live cooldown unchanged");
+            weapon.WeaponProps.shotEnergy = 1000000;
+            Check(Observe().outgoing == 0, "a weapon without base shot energy contributes no output");
+            weapon.WeaponProps.shotEnergy = originalEnergy;
+            weapon.parent.AllComps.Add(emptyMagazine);
+            SubstructureOwnership.BumpStructureVersion();
+            Check(Observe().outgoing == 0, "an empty required magazine contributes no output");
         }
         finally
         {
-            weapon.parent.AllComps.Remove(traverse); weapon.Tuning.interval = originalInterval;
-            Set(weapon.Tuning, "remainingTicks", originalRemaining); weapon.fireDeviationDeg = deviation;
-            Set(Find.TickManager, "ticksGameInt", originalTick);
+            weapon.WeaponProps.shotEnergy = originalEnergy;
+            Set(tuning, "remainingTicks", originalRemaining);
+            weapon.parent.AllComps.Remove(emptyMagazine);
+            SubstructureOwnership.BumpStructureVersion();
         }
     }
 
@@ -380,32 +347,23 @@ internal static partial class Program
             weapon.WeaponProps.projectileDef = projectile;
             weapon.WeaponProps.range = 240;
             tuning.interval = 1000; tuning.power = 1;
-            var settings = CombatEngagementSettings.Default(); settings.windowSeconds = 4;
-            CombatEngagementEvaluation.Result Evaluate(Vector2 shooterVelocity, Vector2 targetVelocity, float window = 4)
+            CombatEngagementEvaluation.Result Evaluate(Vector2 shooterVelocity, Vector2 targetVelocity)
             {
-                settings.windowSeconds = window;
                 var candidate = own.pose; candidate.velocity = shooterVelocity;
                 var targetPose = ShipRegistry.ShipPose(target.member); targetPose.angle -= target.member.FrameAngle;
                 targetPose.velocity = targetVelocity;
                 return new CombatEngagementEvaluation(universe, own.member, target.member, targetPose,
-                    new[] { target.member }, settings, true).Evaluate(candidate);
+                    new[] { target.member }, true).Evaluate(candidate);
             }
-            var shortWindow = Evaluate(Vector2.zero, Vector2.zero, .5f);
             var stationary = Evaluate(Vector2.zero, Vector2.zero);
             var closing = Evaluate(new Vector2(0, -20), Vector2.zero);
             var receding = Evaluate(new Vector2(0, 20), Vector2.zero);
             var commonDrift = Evaluate(new Vector2(100, 0), new Vector2(100, 0));
-            float First(CombatEngagementEvaluation.Result result) => result.damageEvents.Where(e => e.fraction > 0).Min(e => e.time);
-            Check(shortWindow.outgoing == 0 && shortWindow.damageEvents.Count == 0,
-                "projectiles outside the observation window cannot contribute premature damage");
-            Check(stationary.damageEvents.Count == 1 && First(stationary) > 1.4f && First(stationary) < 1.9f,
-                "single kinetic shot lands after its muzzle-to-target flight time");
-            Check(First(closing) < First(stationary) && First(receding) > First(stationary)
-                && closing.outgoing > stationary.outgoing * 1.5f && receding.outgoing < stationary.outgoing * .7f,
-                "inherited muzzle velocity changes both impact delay and kinetic damage in the correct direction");
-            Check(Math.Abs(commonDrift.outgoing - stationary.outgoing) < .02f * stationary.outgoing
-                && Math.Abs(First(commonDrift) - First(stationary)) < .04f,
-                "common drift does not turn into extra kinetic damage or a different flight deadline");
+            Check(stationary.outgoing > 0 && closing.outgoing > stationary.outgoing * 1.5f
+                && receding.outgoing < stationary.outgoing * .7f,
+                "inherited muzzle velocity changes the single-shot kinetic damage in the correct direction");
+            Check(Math.Abs(commonDrift.outgoing - stationary.outgoing) < .02f * stationary.outgoing,
+                "common drift does not turn into extra kinetic damage");
         }
         finally
         {
@@ -445,8 +403,8 @@ internal static partial class Program
             var copy = Plan();
             Check(baseline.reference.Equals(copy.reference) && baseline.state.phase == copy.state.phase
                 && baseline.state.selectedScore == copy.state.selectedScore && baseline.state.nextTick == copy.state.nextTick
-                && rebuilt.engagement.terms.All(t => baseline.value.Raw(t, rebuilt.engagement.burstSeconds)
-                    == copy.value.Raw(t, rebuilt.engagement.burstSeconds)),
+                && rebuilt.engagement.terms.All(t => baseline.value.Raw(t)
+                    == copy.value.Raw(t)),
                 "builtin and renamed XML-rebuilt editor configuration produce identical choices, terms, deadline and full reference");
             foreach (var behavior in new[] { CombatTactic.Automatic, CombatTactic.HoldRange, CombatTactic.Circle })
             {

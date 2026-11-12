@@ -13,7 +13,6 @@ namespace DeltaV
         {
             internal float phase, score;
             internal CombatAttackPose pose;
-            internal SpacePose state;
             internal CombatEngagementEvaluation.Result value;
         }
 
@@ -22,13 +21,12 @@ namespace DeltaV
             float? alliedPhase)
         {
             universe.Performance.engagementStarted++;
-            long workStart = System.Diagnostics.Stopwatch.GetTimestamp();
             var enemies = universe.objects.SelectMany(frame => ShipFireControl.Candidates(ship,
                 universe.FrameOf(ship.Map), frame)).OrderBy(s => OrbitSphere.ArcCells(self.position,
                     ShipRegistry.ShipPose(s).position)).Take(64).ToList();
             var defender = target; defender.angle -= enemy.FrameAngle;
-            var evaluator = new CombatEngagementEvaluation(universe, ship, enemy, defender, enemies, rule.engagement, offenseEnabled);
-            var weapons = CaptureAttackWeapons(ship, settings.primaryWeapons, true);
+            var evaluator = new CombatEngagementEvaluation(universe, ship, enemy, defender, enemies, offenseEnabled, settings.primaryWeapons);
+            var weapons = evaluator.primaryWeapons;
             Vector2 offset = OrbitSphere.Offset(target.position, self.position);
             float current = Mathf.Atan2(offset.y, offset.x);
             float radius = Mathf.Max(1, offset.magnitude);
@@ -82,12 +80,12 @@ namespace DeltaV
                     float preferred = curve.points.OrderByDescending(p => p.y).First().x;
                     // An increasing extrapolated curve must be able to request opening
                     // beyond its last knot. Bound the extra search by the physical
-                    // accelerate/brake reach over this rule's observation window.
+                    // accelerate/brake reach over the maximum search interval.
                     if (curve.extendRight && curve.points.Count >= 2
                         && curve.points[curve.points.Count - 1].y > curve.points[curve.points.Count - 2].y)
                     {
-                        float opening = radius + .25f * strongest * settings.movement
-                            * rule.engagement.windowSeconds * rule.engagement.windowSeconds;
+                        const float reachSeconds = 30f;
+                        float opening = radius + .25f * strongest * settings.movement * reachSeconds * reachSeconds;
                         if (curve.Evaluate(opening) > curve.Evaluate(preferred)) preferred = opening;
                     }
                     if (distances.Count >= 3) distances.RemoveAt(distances.Count - 1);
@@ -102,10 +100,10 @@ namespace DeltaV
             var legacyThreats = new List<CombatWeaponThreat>();
             if (rule.maneuverCurves?.incoming != null || rule.maneuverCurves?.projectileSeconds != null)
                 foreach (var other in enemies) CombatWeaponThreat.Capture(other, universe.FrameOf(other.Map), 3, legacyThreats);
-            float LegacyScore(ref CombatAttackPose pose, SpacePose state, float? reachedDistance = null)
+            float LegacyScore(ref CombatAttackPose pose, SpacePose state)
             {
                 var curves = rule.maneuverCurves;
-                pose.distanceScore = curves?.distance?.Evaluate(reachedDistance ?? pose.distance) ?? 0;
+                pose.distanceScore = curves?.distance?.Evaluate(pose.distance) ?? 0;
                 float rate = 0, impact = 8;
                 foreach (var threat in legacyThreats)
                 {
@@ -164,10 +162,11 @@ namespace DeltaV
                                 * (target.angularVelocity * distance), target.position, position),
                         angularVelocity = target.angularVelocity
                     };
-                    var value = evaluator.Evaluate(state, true);
+                    var value = evaluator.Evaluate(state);
                     float travel = Mathf.Abs(delta) * distance + Mathf.Abs(distance - radius);
-                    value.travel = travel < 1 ? 0 : Mathf.Sqrt(4 * travel / Mathf.Max(.001f, strongest * settings.movement))
-                        + Mathf.Sqrt(4 * Mathf.Abs(SpaceTransform.WrapAngle(angle - self.angle)) / Mathf.Max(.001f, alpha));
+                    float turn = Mathf.Abs(SpaceTransform.WrapAngle(angle - self.angle));
+                    value.travel = (travel < 1 ? 0 : Mathf.Sqrt(4 * travel / Mathf.Max(.001f, strongest * settings.movement)))
+                        + Mathf.Sqrt(4 * turn / Mathf.Max(.001f, alpha));
                     float required = target.angularVelocity * distance;
                     if (Mathf.Abs(delta) * distance > 1)
                         required += Mathf.Sign(delta) * CombatFlightPlanner.CruiseSpeed(drive, heading, distance,
@@ -182,12 +181,11 @@ namespace DeltaV
                         freeThrustFacing = settings.facing == CombatFacing.Automatic };
                     pose.EvaluateFire(weapons, Vector2.zero, offenseEnabled, rule.maneuverCurves);
                     float extra = LegacyScore(ref pose, state);
-                    candidates.Add(new EngagementCandidate { phase = phase, pose = pose, state = state,
+                    candidates.Add(new EngagementCandidate { phase = phase, pose = pose,
                         value = value, score = value.Score(rule.engagement) + extra });
                 }
             }
-            // Refine attitude variants as well as position: the shortest initial turn
-            // need not provide the best firing approach over the complete trajectory.
+            // Check routes for leading attitude variants and both continuation candidates.
             // Two leading phases × two attitudes, plus current/continuation, is at most six.
             var finalists = freeReposition
                 ? candidates.GroupBy(c => c.phase).OrderByDescending(g => g.Max(c => c.score)).Take(2)
@@ -204,54 +202,12 @@ namespace DeltaV
                 var action = EngagementAction(self, target, candidate.pose, candidate.phase, drive, settings);
                 var reference = CombatFlightPlanner.Plan(self, target, action, drive, Verse.Find.TickManager.TicksGame);
                 reference.localAnchor = SpaceTransform.MapToShipLocal(ship.Map, ship.HullCenter);
-                if (!RouteClear(ship, reference, out _, out _)) { candidate.score = float.NegativeInfinity; continue; }
-                var trajectory = EngagementReference(self, target, candidate.pose, candidate.phase, drive, settings,
-                    rule.engagement.windowSeconds, out float arrival, out bool arrived);
-                var value = evaluator.Evaluate(candidate.state, trajectory: trajectory);
-                value.travel = arrival; value.velocity = candidate.value.velocity;
-                value.arrivalLowerBound = !arrived;
-                value.reverse = candidate.value.reverse; value.flank = candidate.value.flank;
-                candidate.value = value;
-                float reachedDistance = OrbitSphere.ArcCells(trajectory(rule.engagement.windowSeconds).position,
-                    CombatEngagementEvaluation.At(target, rule.engagement.windowSeconds).position);
-                candidate.score = value.Score(rule.engagement) + LegacyScore(ref candidate.pose, candidate.state, reachedDistance);
+                if (!RouteClear(ship, reference, out _, out _)) candidate.score = float.NegativeInfinity;
                 candidate.pose.preference = candidate.score;
             }
             var result = finalists.OrderBy(c => Mathf.Abs(SpaceTransform.WrapAngle(c.phase - current)) < .001f ? 0 : 1).ToList();
             universe.Performance.engagementCompleted++;
-            universe.Performance.engagementElapsed += System.Diagnostics.Stopwatch.GetTimestamp() - workStart;
             return result;
-        }
-
-        private Func<float, SpacePose> EngagementReference(SpacePose self, SpacePose target,
-            CombatAttackPose pose, float phase, DriveInfo drive, CombatTacticSettings settings, float window, out float arrival, out bool arrived)
-        {
-            var segments = new List<CombatTrajectoryIntent>();
-            var state = self; float localPhase = SpaceTransform.WrapAngle(phase - target.angle);
-            arrival = window;
-            arrived = false;
-            for (int i = 0; i <= Mathf.CeilToInt(window); i++)
-            {
-                var other = CombatEngagementEvaluation.At(target, i);
-                bool attached = settings.bearing == CombatBearing.Enemy
-                    || settings.bearing == CombatBearing.Free && settings.behavior == CombatTactic.Automatic;
-                float goal = attached ? SpaceTransform.WrapAngle(other.angle + localPhase) : phase;
-                Vector2 offset = OrbitSphere.Offset(other.position, state.position);
-                if (!arrived && Mathf.Abs(offset.magnitude - pose.distance) < 5
-                    && Mathf.Abs(SpaceTransform.WrapAngle(Mathf.Atan2(offset.y, offset.x) - goal)) < .1f)
-                { arrival = i; arrived = true; }
-                var action = EngagementAction(state, other, pose, goal, drive, settings);
-                var reference = CombatFlightPlanner.Plan(state, other, action, drive, 0);
-                segments.Add(reference);
-                reference.Sample(1, out var position, out var velocity, out float angle, out float omega);
-                state = new SpacePose(position, angle) { velocity = velocity, angularVelocity = omega };
-            }
-            return time =>
-            {
-                int index = Mathf.Clamp(Mathf.FloorToInt(time), 0, segments.Count - 1);
-                segments[index].Sample(time - index, out var position, out var velocity, out float angle, out float omega);
-                return new SpacePose(position, angle) { velocity = velocity, angularVelocity = omega };
-            };
         }
 
         private CombatManeuverIntent EngagementAction(SpacePose self, SpacePose target,

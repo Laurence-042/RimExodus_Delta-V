@@ -22,8 +22,8 @@ namespace DeltaV
         CombatReposition, CombatTrajectory, CombatRoute, CombatRouteShape,
         DrivePreviewModel, DrivePreviewBraking, DrivePreviewAngular, DrivePreviewAllocation,
         MpcAssemble, MpcFeasibility, MpcQp, MpcBrakeRecovery,
-        EngagementObservation, EngagementCoarse, EngagementRefine, EngagementDamage,
-        EngagementAim, CombatPartSelection, Count
+        EngagementObservation, EngagementScore, EngagementDamage,
+        CombatPartSelection, Count
     }
 
     [System.Flags]
@@ -38,8 +38,7 @@ namespace DeltaV
     {
         // Cumulative work, independent of logging windows. Scheduling changes must not
         // appear faster merely by completing fewer candidate evaluations.
-        internal long engagementStarted, engagementCompleted, engagementCoarse, engagementFine;
-        internal long engagementElapsed;
+        internal long engagementStarted, engagementCompleted, engagementCandidates;
         private const float ReportSeconds = 5f;
         private readonly long[] totals = new long[(int)PerformanceStage.Count];
         private readonly long[] peaks = new long[(int)PerformanceStage.Count];

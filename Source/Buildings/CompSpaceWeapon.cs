@@ -527,10 +527,7 @@ namespace DeltaV
             Scribe_Values.Look(ref cooldownUntilTick, "cooldownUntilTick", 0);
         }
 
-        public CompSpaceWeaponMagazine SelectMagazine() => SelectMagazine(null, lastMagazineThingId);
-
-        internal int LastMagazineThingId => lastMagazineThingId;
-        internal CompSpaceWeaponMagazine SelectMagazine(System.Func<CompSpaceWeaponMagazine, bool> available, int previous)
+        public CompSpaceWeaponMagazine SelectMagazine()
         {
             var perf = Universe?.Performance;
             long start = perf?.Start() ?? 0L;
@@ -542,13 +539,13 @@ namespace DeltaV
                 {
                     var attachment = magazine.parent == parent ? null
                         : magazine.parent.TryGetComp<CompSpaceWeaponAttachment>();
-                    if (!(available?.Invoke(magazine) ?? magazine.HasHeads(magazine.RequiredHeads(this))) || attachment != null && !attachment.Enabled) continue;
+                    if (!magazine.HasHeads(magazine.RequiredHeads(this)) || attachment != null && !attachment.Enabled) continue;
                     if (magazine.Priority < priority) continue;
                     if (magazine.Priority > priority)
                     { priority = magazine.Priority; first = next = null; }
                     int id = magazine.parent.thingIDNumber;
                     if (first == null || id < first.parent.thingIDNumber) first = magazine;
-                    if (id > previous && (next == null || id < next.parent.thingIDNumber)) next = magazine;
+                    if (id > lastMagazineThingId && (next == null || id < next.parent.thingIDNumber)) next = magazine;
                 }
                 return next ?? first;
             }

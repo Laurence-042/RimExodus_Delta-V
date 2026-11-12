@@ -5,9 +5,9 @@
 有利射位重构使用独立专项，统一传 `-GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>`：
 
 - `NpcRetreatRegression/run.ps1 -AutoVolleyOnly`：高速同向漂移下的动能炮与激光炮，核对逐 tick 瞄准次数、转速、冷却后的发射、对准拒绝与火控耗时。
-- `NpcRetreatRegression/run.ps1 -EngagementRegression`：冻结几何的三分钟占位、共用策略配置、风险曲线、动能弹延迟、冷却期间炮塔跟踪，以及真实混装武器／防护改变评分与规划方位。该运动专项不发射实弹。
+- `NpcRetreatRegression/run.ps1 -EngagementRegression`：冻结几何的三分钟占位、共用策略配置、风险曲线、单发相对碰撞速度、暂时冷却和供电／弹药门禁，以及真实混装武器／防护改变评分与规划方位。该运动专项不发射实弹。
 - `NpcRetreatRegression/run.ps1 -EngagementBattle`：实际火控、发射、激光碰撞和原版建筑／基架毁伤下，固定方位与自动策略的成对比较；另含 2048 次原生基架拦截／破坏对照。固定目标与给定驱动，不含拓扑拆图、船员或完整电网 tick。
-- `RailgunRegression/run.ps1 -EngagementForecast`：只读毁伤对照生产碰撞与原版扣血，覆盖不同防护、供能、热量、多格脚印及 2048 发分层掩体统计。
+- `RailgunRegression/run.ps1 -EngagementForecast`：只读毁伤对照生产碰撞与原版扣血，覆盖不同防护、单发脉冲供能、多格脚印及 2048 发分层掩体统计。
 - 编译 NPC 驱动后，直接运行 `dotnet Source/obj/NpcRetreatRegression/NpcRetreatRegression.dll <1.6 Managed目录> --engagement-fleet-regression`，串行测 1／4／12／24 舰的完整驾驶决策；可追加 `--engagement-profile-window` 获取四舰阶段剖析。有限值检查不代表性能通过，门槛比较仍需三轮串行中位数。
 
 新结果写到忽略目录 `Source/obj/EngagementForecast`。原 `-EngagementBaseline` 与 `--engagement-fleet-baseline` 只用于保存的旧 DLL，不能拿新实现覆盖基线；冻结参数、已通过与未过关项目统一记录在[实施计划](../doc/有利射位与交战收益规划.md#工作树实施检查点2026-11-08尚未交付)。

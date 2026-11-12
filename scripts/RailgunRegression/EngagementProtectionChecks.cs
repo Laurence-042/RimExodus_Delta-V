@@ -92,13 +92,9 @@ internal static partial class Program
                 Rand.PushState(4213);
                 try
                 {
-                    for (int i = 0; i < count; i++)
-                    {
-                        forecast.seconds = i * .2f;
-                        var prediction = forecast.Fire(new Vector2(5, 5.5f), Vector2.right, 65,
-                            projectile, 1, speed, laser ? 4 : 1, laser ? 4 : 1);
-                        Check(!prediction.exhausted, weapon + "/" + protection + " forecast remains within the contact budget");
-                    }
+                    var prediction = forecast.Fire(new Vector2(5, 5.5f), Vector2.right, 65,
+                        projectile, 1, speed, laser ? 4 : 1, laser ? 4 : 1);
+                    Check(!prediction.exhausted, weapon + "/" + protection + " single shot remains within the contact budget");
                     Check(Rand.Value == expectedRandom && device.HitPoints == 300
                         && armor.All(a => a.HitPoints == (side ? 180 : 48))
                         && (bank?.StoredEnergy ?? 0) == initialEnergy && (guard?.currentHitPoints ?? 0) == initialGuard,
@@ -109,22 +105,20 @@ internal static partial class Program
             for (int i = 0; i < count; i++)
             {
                 Set(Find.TickManager, "ticksGameInt", 1000 + i * 12);
-                // One small laser at power four over two seconds; one 32-charge, 1-mass
-                // cannon round. No synthetic multiplier replaces the live damage Def.
+                // The first shot is also the oracle for the read-only estimate.
                 Fire(laser ? 32 : 768, speed, projectile,
                     configure: body => { body.mass = 1; body.damageScale = laser ? 4 : 1; body.beamEnergyScale = laser ? 4 : 1; });
+                if (i == 0 && forecast != null)
+                {
+                    // Compare the shot workspace with the damage just applied by production.
+                    Check(Math.Abs(forecast.RemainingHP(device) - Math.Max(0, device.HitPoints)) < 1.01f,
+                        weapon + "/" + protection + " forecast matches production device damage: predicted="
+                        + forecast.RemainingHP(device) + " actual=" + device.HitPoints);
+                    Check(armor.All(a => Math.Abs(forecast.RemainingHP(a) - Math.Max(0, a.HitPoints)) < 1.01f),
+                        weapon + "/" + protection + " forecast matches production armor damage");
+                }
             }
             float damage = 300 - Math.Max(0, device.HitPoints);
-            if (forecast != null)
-            {
-                // Ledger inputs refer to the pre-shot HP; inspect its remaining balances,
-                // not DamageTo after the real world has also taken damage.
-                Check(Math.Abs(forecast.RemainingHP(device) - Math.Max(0, device.HitPoints)) < 1.01f,
-                    weapon + "/" + protection + " forecast matches production device damage: predicted="
-                    + forecast.RemainingHP(device) + " actual=" + device.HitPoints);
-                Check(armor.All(a => Math.Abs(forecast.RemainingHP(a) - Math.Max(0, a.HitPoints)) < 1.01f),
-                    weapon + "/" + protection + " forecast matches production armor damage");
-            }
             results.Add(new { weapon, protection, deviceDamage = damage,
                 armorDamage = armor.Sum(a => (side ? 180 : 48) - Math.Max(0, a.HitPoints)),
                 pulseSpent = bank == null ? 0 : 100000 - bank.StoredEnergy,
@@ -325,84 +319,16 @@ internal static partial class Program
             var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon { shotEnergy = 3, projectileDef = rail } };
             Add(x, 5, 500, power, weapon); return weapon;
         }
-        var first = Gun(5); var second = Gun(6);
-        var resources = new CombatResourceLedger();
-        var reservation = new SpaceWeaponEnergy(resources);
-        Check(reservation.Evaluate(first), "forecast reserves first weapon using the production energy allocator"); reservation.Commit();
-        Check(reservation.Evaluate(second), "second weapon shares the forecast grid budget"); reservation.Commit();
-        resources.Draw(net, 3); // A shield pulse competes with both weapons for the same bank.
-        Check(!reservation.Evaluate(first) && resources.Grid(net) == 1 && battery.StoredEnergy == 10,
-            "forecast guns and shields cannot overspend one bank or deduct live energy");
-        var live = new SpaceWeaponEnergy();
-        Check(live.Evaluate(first), "failed forecast never changes the real firing gate");
-        live.Commit(); Check(battery.StoredEnergy == 7, "ordinary energy commits still deduct the actual bank once");
-        var tuning = new CompWeaponTuning();
-        tuning.Initialize(new CompProperties_WeaponTuning { chemical = true, maxCharge = 32, maxMass = 32,
-            defaultCharge = 8, defaultMass = 8, lockEveryShot = true, heatPerShot = 5, coolingPerSecond = 10 });
-        tuning.CommitShot();
-        var copied = tuning.ForecastCopy();
-        int remaining = tuning.RemainingTicks;
-        for (int i = 0; i < remaining; i++) copied.AdvanceThermalTick();
-        Check(copied.RemainingTicks == 0 && !copied.overheated && tuning.RemainingTicks == remaining && tuning.overheated,
-            "forecast advances the production thermal cycle without cooling the real gun");
-        Set(battery, "storedEnergy", 10f);
-        var scheduleResources = new CombatResourceLedger();
-        var schedule = new CombatWeaponForecast(new[] { first, second }, scheduleResources);
-        int shots = 0;
-        schedule.Run(2, (w, p, t) => true, (w, p, t) => shots++);
-        Check(shots == 3 && battery.StoredEnergy == 10,
-            "finite firing schedule spends a shared bank once without changing live weapons");
-        var cold = new CompWeaponTuning();
-        cold.Initialize(new CompProperties_WeaponTuning { defaultInterval = 60, minInterval = 60, maxInterval = 60,
-            heatPerShot = 0, coolingPerSecond = 10 });
-        cold.CommitShot(); cold.parent = first.parent; first.parent.AllComps.Add(cold);
-        first.NotifyParametersChanged();
-        var delayed = new CombatWeaponForecast(new[] { first }, new CombatResourceLedger());
-        var times = new List<float>();
-        delayed.Run(3, (w, p, t) => true, (w, p, t) => times.Add(t));
-        Check(times.Count == 2 && Math.Abs(times[0] - 1) < .001 && Math.Abs(times[1] - 2) < .001
-            && cold.RemainingTicks == 60 && battery.StoredEnergy == 10,
-            "current cooldown delays finite-window fire rather than suppressing long-term output");
-        var shieldCopy = new CompSpaceShield { props = new CompProperties_SpaceShield
-            { regularCapacity = 100, guardRecoveryTicks = 60, recoveryDelayTicks = 30 } };
-        shieldCopy.InitializeGuard();
-        var guardCopy = shieldCopy.ForecastGuardCopy(); guardCopy.DebitRegular(100);
-        for (int i = 0; i < 36; i++) guardCopy.AdvanceGuardTick(true);
-        Check(Math.Abs(guardCopy.RegularCapacity - 10) < .001 && guardCopy.UsesRegular
-            && shieldCopy.RegularCapacity == 100,
-            "forecast guard uses production recovery delay and automatic rejoin threshold without mutation");
-        CheckForecastNetworkFlow();
-    }
-
-    static void CheckForecastNetworkFlow()
-    {
-        foreach (var state in new (float a, float b, float flow)[] { (8f, 8f, -6f), (1f, 8f, -6f),
-            (9f, 2f, 6f), (2f, 2f, 6f) })
-        {
-            Reset();
-            var a = new CompPowerBattery { props = new CompProperties_Battery { storedEnergyMax = 10, efficiency = 1 } };
-            var b = new CompPowerBattery { props = new CompProperties_Battery { storedEnergyMax = 10, efficiency = .5f } };
-            Add(10, 5, 100, a); Add(12, 5, 100, b);
-            Set(a, "storedEnergy", state.a); Set(b, "storedEnergy", state.b);
-            var net = (PowerNet)Raw(typeof(PowerNet));
-            net.batteryComps = new List<CompPowerBattery> { a, b };
-            Set(net, "givingBats", new List<CompPowerBattery>());
-            var load = new CompPowerTrader { transNet = net,
-                powerOutputInt = state.flow / CompPower.WattsToWattDaysPerTick };
-            Set(load, "powerOnInt", true); Add(15, 5, 100, load);
-            net.powerComps = new List<CompPowerTrader> { load };
-            var forecast = new CombatResourceLedger(); forecast.Observe(net);
-            forecast.AdvanceTick();
-            Check(a.StoredEnergy == state.a && b.StoredEnergy == state.b,
-                "forecast network flow preserves live bank balances");
-            Rand.PushState(991);
-            try { HarmonyLib.AccessTools.Method(typeof(PowerNet), "ChangeStoredEnergy").Invoke(net, new object[] { state.flow }); }
-            finally { Rand.PopState(); }
-            foreach (var bank in net.batteryComps)
-                bank.DrawPower(Math.Min(bank.StoredEnergy, 5 * CompPower.WattsToWattDaysPerTick));
-            Check(Math.Abs(forecast.Stored(a) - a.StoredEnergy) < .00001f
-                && Math.Abs(forecast.Stored(b) - b.StoredEnergy) < .00001f,
-                "forecast continuous load and efficient charging match native per-bank redistribution");
-        }
+        var first = Gun(5);
+        var query = new SpaceWeaponEnergy();
+        Check(query.Evaluate(first) && battery.StoredEnergy == 10,
+            "reading current shot energy does not debit the live bank");
+        query.Commit();
+        Check(battery.StoredEnergy == 7, "ordinary energy commits still deduct the actual bank once");
+        var pulse = new CombatResourceLedger();
+        Check(pulse.Draw(net, 4) == 4 && pulse.Grid(net) == 3 && battery.StoredEnergy == 7,
+            "single-shot shield pulse debits only the local workspace");
+        pulse.Reset();
+        Check(pulse.Grid(net) == 7, "the next shot starts from the same real shield energy");
     }
 }

@@ -9,7 +9,6 @@ namespace DeltaV
     /// <summary>每船战术目标的唯一所有者；输入、机动和弹体只消费其身份与意图。</summary>
     internal sealed partial class ShipFireControl
     {
-        internal const int AutomaticAimRefreshTicks = 15;
         private readonly UniverseManager universe;
         private readonly DriveSubject ownerId;
         private CombatTarget target;

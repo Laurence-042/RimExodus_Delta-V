@@ -44,15 +44,14 @@ namespace DeltaV
                 + $"reposition={status} nextTick={oldNextTick}->{reposition.nextTick} waitTicks={Mathf.Max(0, reposition.nextTick - now)} "
                 + $"candidates={reposition.candidateCount} choiceScore={reposition.selectedScore:F3} continuationScore={reposition.continuationScore:F3} "
                 + $"velocityCost={reposition.selectedVelocityCost:F3} reversalCost={reposition.selectedReversalCost:F3} "
-                + (engagementResult == null ? "" : $"engagementWindow={rule.engagement.windowSeconds:F1} "
-                    + $"effectiveOut={engagementResult.outgoing:F2} effectiveIn={engagementResult.incoming:F2} "
+                + (engagementResult == null ? "" : $"outgoingDps={engagementResult.outgoing:F2} incomingDps={engagementResult.incoming:F2} "
                     + $"arrivalSeconds={engagementResult.travel:F2} velocitySeconds={engagementResult.velocity:F2} "
                     + $"reverseSeconds={engagementResult.reverse:F2} uncertain={engagementResult.uncertain} "
-                    + $"arrivalLowerBound={engagementResult.arrivalLowerBound} hold={engagementResult.holding} "
+                    + $"hold={engagementResult.holding} "
                     + $"alternativeScore={engagementResult.alternativeScore:F3} terms=["
                     + string.Join(";", rule.engagement.terms.Select(t =>
                     {
-                        float raw = engagementResult.Raw(t, rule.engagement.burstSeconds);
+                        float raw = engagementResult.Raw(t);
                         float curve = t.curve.Evaluate(raw);
                         return $"{t.side}/{t.metric}/{t.weapons.family}:raw={raw:F3},curve={curve:F3},weight={t.weight:F3},score={curve * t.weight:F3}";
                     })) + "] ")

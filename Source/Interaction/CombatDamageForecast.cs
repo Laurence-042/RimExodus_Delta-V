@@ -8,13 +8,12 @@ namespace DeltaV
 {
     internal struct CombatDamageEstimate
     {
-        internal float structure, guard, returnedPotential, uncertainDamageUpper;
-        internal bool uncertain, exhausted;
+        internal float structure, guard, armorProgress, returnedPotential, uncertainDamageUpper;
+        internal bool uncertain, exhausted, hitArmor;
         internal int contacts;
     }
 
-    // A disposable evaluation ledger, never an alternate world state. All geometry and
-    // ballistic response use the same helpers as live collision; only budgets are copied.
+    // Reusable workspace for one shot. Contacts, fragments and pellets share local debits.
     internal sealed class CombatDamageForecast
     {
         internal sealed class CoverMask
@@ -45,10 +44,9 @@ namespace DeltaV
             internal readonly SpaceCollision.RayQuery query;
             internal readonly Dictionary<Thing, float> health = new Dictionary<Thing, float>();
             internal readonly Dictionary<Thing, float> critical = new Dictionary<Thing, float>();
-            internal readonly List<CompSpaceShield> shields = new List<CompSpaceShield>();
             internal readonly Dictionary<(ThingDef projectile, float sample), CoverMask> cover =
                 new Dictionary<(ThingDef, float), CoverMask>();
-            internal readonly float criticalTotal, totalHealth;
+            internal readonly float criticalTotal;
             internal Observation(SpaceObject target, ShipBase scope = null)
             {
                 map = target.map; query = new SpaceCollision.RayQuery(target, scope);
@@ -57,12 +55,9 @@ namespace DeltaV
                     if (thing is Building && !thing.Destroyed && (scope == null || scope.Contains(thing)))
                     {
                         health[thing] = Mathf.Max(0, thing.HitPoints);
-                        totalHealth += health[thing];
                         float weight = ShipFireControl.PartValue(thing, CombatPart.Automatic);
                         if (weight > 0) { critical[thing] = weight; criticalTotal += weight; }
                     }
-                    var shield = (thing as ThingWithComps)?.TryGetComp<CompSpaceShield>();
-                    if (shield != null) shields.Add(shield);
                 }
             }
         }
@@ -71,16 +66,16 @@ namespace DeltaV
         private readonly Dictionary<Thing, float> health = new Dictionary<Thing, float>();
         private readonly HashSet<IntVec3> brokenFoundation = new HashSet<IntVec3>();
         private readonly Dictionary<Thing, float> initialHealth;
-        private readonly float totalHealth;
         private readonly Dictionary<Thing, float> criticalWeights;
-        private float criticalTotal, criticalDamaged, criticalLost;
+        private readonly float criticalTotal;
+        private float criticalDamaged;
         private readonly Dictionary<(ThingDef projectile, float sample), CoverMask> cover;
         private readonly HashSet<Thing> destroyed;
         private readonly CombatResourceLedger resources;
         private readonly Dictionary<CompSpaceShield, CompSpaceShield> guards = new Dictionary<CompSpaceShield, CompSpaceShield>();
         private readonly Dictionary<CompSpaceShield, double> emergency = new Dictionary<CompSpaceShield, double>();
         private readonly Dictionary<CompProjectileInterceptor, float> nativeGuard = new Dictionary<CompProjectileInterceptor, float>();
-        private readonly Dictionary<CompSpaceShield, float> disabledUntil = new Dictionary<CompSpaceShield, float>();
+        private readonly HashSet<CompSpaceShield> disabledLines = new HashSet<CompSpaceShield>();
         private sealed class TraceBuffers
         {
             internal readonly HashSet<Thing> passed = new HashSet<Thing>();
@@ -91,35 +86,29 @@ namespace DeltaV
         private readonly List<TraceBuffers> traceBuffers = new List<TraceBuffers>();
         private readonly Predicate<CompSpaceShield> includeLine;
         private readonly Predicate<SpaceCollision.ShieldArc> includeGuard;
-        internal float seconds;
-        internal CombatDamageForecast(SpaceObject target, ShipBase scope = null, CombatResourceLedger resources = null)
-            : this(new Observation(target, scope), resources) { }
-        internal CombatDamageForecast(Observation observation, CombatResourceLedger resources = null)
+        internal SpaceCollision.RayQuery Query => query;
+        internal CombatDamageForecast(SpaceObject target, ShipBase scope = null)
+            : this(new Observation(target, scope)) { }
+        internal CombatDamageForecast(Observation observation)
         {
-            this.resources = resources ?? new CombatResourceLedger(); destroyed = this.resources.destroyed;
+            resources = new CombatResourceLedger(); destroyed = resources.destroyed;
             map = observation.map; query = observation.query; initialHealth = observation.health;
-            totalHealth = observation.totalHealth;
             criticalWeights = observation.critical; criticalTotal = observation.criticalTotal; cover = observation.cover;
             includeLine = LineAvailable; includeGuard = arc => GuardAvailable(arc) > 0;
-            foreach (var shield in observation.shields)
-            {
-                guards[shield] = shield.ForecastGuardCopy();
-                this.resources.Observe(shield.parent.TryGetComp<CompPowerTrader>()?.PowerNet);
-            }
         }
-        internal void AdvanceTo(float time)
+
+        internal void ResetShot()
         {
-            int ticks = Mathf.Max(0, Mathf.RoundToInt((time - seconds) * 60));
-            for (int i = 0; i < ticks; i++)
-                foreach (var pair in guards)
-                    if (!destroyed.Contains(pair.Key.parent))
-                    {
-                        var power = pair.Key.parent.TryGetComp<CompPowerTrader>();
-                        resources.SetPower(power, -pair.Value.WantedPowerWatts);
-                        pair.Value.AdvanceGuardTick(pair.Key.GuardRecoveryPowered && resources.Powered(power));
-                    }
-            seconds = Mathf.Max(seconds, time);
+            resources.Reset();
+            health.Clear();
+            brokenFoundation.Clear();
+            guards.Clear();
+            emergency.Clear();
+            nativeGuard.Clear();
+            disabledLines.Clear();
+            criticalDamaged = 0;
         }
+
         private CompSpaceShield Guard(CompSpaceShield shield)
         {
             if (!guards.TryGetValue(shield, out var state)) guards[shield] = state = shield.ForecastGuardCopy();
@@ -127,10 +116,6 @@ namespace DeltaV
         }
         internal float RemainingHP(Thing thing) => health.TryGetValue(thing, out float hp) ? hp
             : initialHealth.TryGetValue(thing, out float initial) ? initial : Mathf.Max(0, thing.HitPoints);
-        internal float DamageTo(Thing thing) => Mathf.Max(0,
-            (initialHealth.TryGetValue(thing, out float initial) ? initial : thing.HitPoints) - RemainingHP(thing));
-        internal float TotalHealth => totalHealth;
-        internal float CapabilityLoss => criticalTotal > 0 ? criticalLost / criticalTotal : 0;
         internal float CriticalDamage => criticalTotal > 0 ? criticalDamaged / criticalTotal : 0;
         private float Apply(Thing thing, DamageDef damageDef, float amount, ref CombatDamageEstimate result)
         {
@@ -138,11 +123,14 @@ namespace DeltaV
             result.uncertain |= uncertain;
             float hp = RemainingHP(thing), dealt = Mathf.Min(hp, damage);
             health[thing] = hp - dealt; result.structure += dealt;
-            if (criticalWeights.TryGetValue(thing, out float weight))
+            if (!result.hitArmor && dealt > 0 && SpaceStructureRules.BuildingHitChance(thing) >= 1
+                && !criticalWeights.ContainsKey(thing))
             {
-                criticalDamaged += weight * dealt / Mathf.Max(1, initialHealth[thing]);
-                if (hp > .00001f && health[thing] <= .00001f) criticalLost += weight;
+                result.hitArmor = true;
+                result.armorProgress = dealt / Mathf.Max(1, initialHealth[thing]);
             }
+            if (criticalWeights.TryGetValue(thing, out float weight))
+                criticalDamaged += weight * dealt / Mathf.Max(1, initialHealth[thing]);
             if (thing.def.useHitPoints && hp > 0 && health[thing] <= .00001f) destroyed.Add(thing);
             return dealt;
         }
@@ -163,8 +151,7 @@ namespace DeltaV
         }
         private float GuardAvailable(SpaceCollision.ShieldArc arc)
         {
-            if (destroyed.Contains(arc.building) || !CombatGuardAvailability.Operational(arc.interceptor,
-                Mathf.RoundToInt(seconds * 60))) return 0;
+            if (destroyed.Contains(arc.building) || !CombatGuardAvailability.Operational(arc.interceptor)) return 0;
             var shield = arc.building.TryGetComp<CompSpaceShield>();
             if (shield == null) return nativeGuard.TryGetValue(arc.interceptor, out float amount) ? amount : arc.interceptor.currentHitPoints;
             double total = Balance(emergency, shield, true);
@@ -199,8 +186,8 @@ namespace DeltaV
             return (float)(amount - remaining + local);
         }
         private bool LineAvailable(CompSpaceShield shield) => !destroyed.Contains(shield.parent)
-            && shield.LineAvailableAt(Find.TickManager.TicksGame + Mathf.RoundToInt(seconds * 60))
-            && (!disabledUntil.TryGetValue(shield, out float until) || seconds >= until);
+            && shield.LineAvailableAt(Find.TickManager.TicksGame)
+            && !disabledLines.Contains(shield);
         private float PulseEnergy(CompSpaceShield shield)
             => resources.Grid(shield.parent.TryGetComp<CompPowerTrader>()?.PowerNet);
         private float DebitPulse(CompSpaceShield shield, float requested)
@@ -208,7 +195,7 @@ namespace DeltaV
             if (requested <= 0) return 1;
             var net = shield.parent.TryGetComp<CompPowerTrader>()?.PowerNet;
             float left = requested - resources.Draw(net, requested);
-            if (left > .0001f) disabledUntil[shield] = seconds + shield.ShieldProps.pulseFailureTicks / 60f;
+            if (left > .0001f) disabledLines.Add(shield);
             return Mathf.Clamp01((requested - left) / requested);
         }
 
@@ -282,7 +269,7 @@ namespace DeltaV
                         float impulse = SpaceKinetics.FundedShieldImpulse(mass, normalSpeed, requested, props.shieldFragmentCost, available);
                         DebitPulse(shield, SpaceKinetics.ShieldCost(mass, normalSpeed, impulse, props.shieldFragmentCost));
                         if (available < SpaceKinetics.ShieldCost(mass, normalSpeed, requested, props.shieldFragmentCost))
-                            disabledUntil[shield] = seconds + shield.ShieldProps.pulseFailureTicks / 60f;
+                            disabledLines.Add(shield);
                         Vector2 outgoing = SpaceKinetics.ApplyShieldImpulse(mass, velocity, hit.normal, impulse);
                         int fragments = SpaceKinetics.ShieldFragmentCount(mass, velocity, hit.normal, impulse, props);
                         float nextLength = speed > .0001f ? length * outgoing.magnitude / speed : 0;
@@ -355,7 +342,6 @@ namespace DeltaV
                         if (criticalWeights.TryGetValue(thing, out float weight))
                         {
                             criticalDamaged += weight * hp / Mathf.Max(1f, initialHealth[thing]);
-                            criticalLost += weight;
                         }
                     }
                     if (!part.penetrates) return;

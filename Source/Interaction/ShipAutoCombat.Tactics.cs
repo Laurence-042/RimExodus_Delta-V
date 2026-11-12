@@ -214,8 +214,8 @@ namespace DeltaV
                     ship.CombatAI.lastManeuverReason += "\n" + "DeltaV_CombatPoseBlocked".Translate();
                 if (engagementResult != null && ship.CombatAI != null)
                     ship.CombatAI.lastManeuverReason += "\n" + "DeltaV_EngagementDecision".Translate(
-                        rule.engagement.windowSeconds.ToString("0.#"), engagementResult.outgoing.ToString("0.#"),
-                        engagementResult.incoming.ToString("0.#"), (engagementResult.arrivalLowerBound ? ">" : "") + engagementResult.travel.ToString("0.#"),
+                        engagementResult.outgoing.ToString("0.#"),
+                        engagementResult.incoming.ToString("0.#"), engagementResult.travel.ToString("0.#"),
                         engagementResult.velocity.ToString("0.#"), engagementResult.reverse.ToString("0.#"))
                         + (engagementResult.uncertain ? "\n" + "DeltaV_EngagementUncertain".Translate().ToString() : "");
             }
@@ -287,39 +287,33 @@ namespace DeltaV
             return sum.sqrMagnitude > 0.01f ? Mathf.Atan2(-sum.y, -sum.x) : (float?)null;
         }
 
-        internal static List<CombatAttackWeapon> CaptureAttackWeapons(ShipBase ship, CombatWeaponFilter filter = null,
-            bool sustained = false)
+        internal static List<(CombatAttackWeapon gun, SpaceWeaponParameters shot)> CaptureAttackWeapons(ShipBase ship, SpaceObject frame)
         {
-            var result = new List<CombatAttackWeapon>();
+            var result = new List<(CombatAttackWeapon, SpaceWeaponParameters)>();
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
-                if (filter != null && !filter.Includes(weapon)) continue;
                 if (!weapon.Armed || weapon.aimMode != SpaceWeaponAimMode.Volley || weapon.WeaponProps.manualOnly
                     || !weapon.SpaceModeEnabled || !weapon.GroupActive
                     || !weapon.Operational
                     || !weapon.TryGetSkillLevel(out _)) continue;
-                var magazine = weapon.SelectMagazine();
-                if (!weapon.MagazineAvailable(magazine) || !sustained && !SpaceWeaponBallistics.HasBaseShotEnergy(weapon)) continue;
-                ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
-                var props = projectile?.GetCompProperties<CompProperties_SpaceProjectile>();
-                if (props == null) continue;
-                var layout = weapon.Layout;
-                if (!props.guided && !SpaceWeaponShot.HasClearFixedPath(weapon, layout.acceleration)) continue;
-                float damage = SpaceWeaponBallistics.ExpectedDamage(weapon, projectile);
+                var energy = weapon.QueryEnergy;
+                var shot = SpaceWeaponBallistics.Read(weapon, frame, energy, true);
+                if (!energy.ready || !weapon.MagazineAvailable(shot.magazine)) continue;
+                var props = shot.aim.Projectile?.GetCompProperties<CompProperties_SpaceProjectile>();
+                if (props == null || !props.guided && !SpaceWeaponShot.HasClearFixedPath(weapon, weapon.Layout.acceleration)) continue;
+                float damage = SpaceWeaponBallistics.ExpectedDamage(weapon, shot);
                 if (damage <= 0f) continue;
-                float speed = SpaceWeaponBallistics.ProjectedSpeed(weapon, SpaceWeaponService.ProjectileSpeedOf(projectile));
                 var traverse = weapon.parent.TryGetComp<CompSpaceWeaponTraverse>();
                 weapon.CoverageSector(out float mount, out float arc);
                 if (traverse != null) arc = Mathf.Min(arc, traverse.TraverseProps.mechanicalArcDeg);
                 else if (!weapon.WeaponProps.topTurret && !props.guided)
                     arc = Mathf.Min(arc, 2f * weapon.fireDeviationDeg);
                 if (props.guided) arc = Mathf.Min(arc, props.lockArcDeg);
-                Vector2 muzzle = layout.acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
-                result.Add(new CombatAttackWeapon(muzzle - ship.HullCenter,
-                    mount, arc,
-                    weapon.EffectiveRange, weapon.WeaponProps.minRange, speed,
+                var gun = new CombatAttackWeapon(shot.aim.MuzzleMap - ship.HullCenter, mount, arc,
+                    shot.aim.Range, shot.aim.MinRange, shot.aim.Speed,
                     damage * 60f / Mathf.Max(1, weapon.ShotInterval),
-                    props.laserRange > 0f || props.guided, CombatStrategyFacts.WeaponReady(weapon), weapon));
+                    shot.aim.Laser || shot.aim.Guided, weapon.CooldownTicksLeft == 0, weapon);
+                result.Add((gun, shot));
             }
             return result;
         }
