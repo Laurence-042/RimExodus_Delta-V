@@ -2,7 +2,7 @@
 
 公共文档、逐实例 Scribe、区域重建及整图归档现由 [REF](../../RimExodusFramework/doc/地图模块.md) 提供。Delta-V `MapPrefab` / `SharedMapBackend` 仅保留路径、飞船归属、设施与标记策略；旧本地序列化实现已删除。
 
-内置资源只放在受版本控制的 `Common/Prefabs/`，并按 `Tutorial`、`Sector/Craft`、`Sector/Stations`、`Sector/Asteroids` 和 `Templates` 分类；1.6／1.7 共用，不生成版本目录副本。本地导出放在 RimWorld 用户数据目录的 `DeltaV/Prefabs/`，不写入 Mod 安装目录。`MapPrefab.LoadRelative`、`ListPrefabFiles` 和 `ResolvePoolPath` 共用两层目录：用户导出优先、内置资源兜底，同相对路径只列一次，相对路径不得越界。教程从该目录加载 `Tutorial/Shipyard.xml`、`Tutorial/PrototypeShip.xml` 等资源，布局脚本只在制作期运行。生成设置的单一选择按钮打开可折叠目录树，由原版 `Listing_Tree` 和 `TreeNode` 承担层级与展开状态。派系、主台归属和教程角色由调用方绑定，不固化进模板。`LoadLatest` 保留只选用户目录最新导出文件的测试语义。
+内置资源只放在受版本控制的 `Common/Prefabs/`，并按 `Tutorial`、`Sector/Craft`、`Sector/Stations`、`Sector/Asteroids` 和 `Templates` 分类；1.6／1.7 共用，不生成版本目录副本。本地导出放在 RimWorld 用户数据目录的 `DeltaV/Prefabs/`，不写入 Mod 安装目录。`MapPrefab.LoadRelative`、`ListPrefabFiles` 和 `ResolvePoolPath` 共用两层目录：用户导出优先、内置资源兜底，同相对路径只列一次，相对路径不得越界。教程从该目录加载 `Tutorial/Shipyard.xml`、`Tutorial/PrototypeShip.xml` 等资源，布局脚本只在制作期运行。所有手动选文件的入口共用 `Dialog_PrefabSelector`，由原版 `Listing_Tree` 和 `TreeNode` 承担层级与展开状态。星区生成池使用多选，精确／批量生成标记的条目、聚焦图替换和双船测试使用单选。选择在确认后应用，双船测试单选另外提供「自动」。派系、主台归属和教程角色由调用方绑定，不固化进模板。`LoadLatest` 保留只选用户目录最新导出文件的测试语义。
 
 星区内容的 12 个叶子类型各自绑定一份 `Sector*.xml` 内置默认资源。`SectorContentType.defaultPrefabPath` 是设置初始化来源；`EnsureSectorRulesSeeded` 为缺失条目或空池补入默认文件，不覆盖已有非空自定义池。类型停用使用数量 0，不依赖空物化池。制作源为 `scripts/TutorialContent/sector_layout.py`，由共用 `build.py` 从安装版与当前 Mod Def 解析占地、旋转、操作格、承载与电力数据，再从同一批 resolved records 写出 XML、布局报告和 PNG。五档舰船包含推进器、驾驶台、武器、维生、电源及人员标记；空间站类型按用途配置。贸易站的 Scribe 图显式引用三个锁定 `DeltaV_CargoContainer` 和一个解锁 `DeltaV_CargoStorage`。
 

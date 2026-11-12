@@ -31,25 +31,6 @@ namespace DeltaV
 
     internal static class PrefabMarkerDialogUtility
     {
-        internal static void ChoosePrefab(Action<string> selected)
-        {
-            List<string> paths;
-            try { paths = MapPrefab.ListPrefabFiles(); }
-            catch (Exception ex)
-            {
-                Messages.Message(ex.Message, MessageTypeDefOf.RejectInput, false);
-                return;
-            }
-            var options = paths.Select(path =>
-            {
-                string captured = path;
-                return new FloatMenuOption(captured, () => selected(captured));
-            }).ToList();
-            if (options.Count == 0)
-                options.Add(new FloatMenuOption("DeltaV_PrefabMarkerNoPrefabs".Translate(), null));
-            Find.WindowStack.Add(new FloatMenu(options));
-        }
-
         internal static void ChooseContentType(string current, Action<string> selected)
         {
             var options = new List<FloatMenuOption>
@@ -117,7 +98,7 @@ namespace DeltaV
 
             if (Widgets.ButtonText(new Rect(0f, 92f, rect.width, 34f),
                 "DeltaV_PrefabMarkerPrefab".Translate(draft.prefabPath.NullOrEmpty() ? "—" : draft.prefabPath)))
-                PrefabMarkerDialogUtility.ChoosePrefab(path =>
+                Dialog_PrefabSelector.OpenSingle("DeltaV_PrefabSelectorTitle".Translate(), draft.prefabPath, path =>
                 {
                     draft.prefabPath = path;
                     PrefabMarkerPreviewCache.Refresh(path);
@@ -229,7 +210,8 @@ namespace DeltaV
                 "DeltaV_PrefabClusterPool".Translate());
             if (Widgets.ButtonText(new Rect(rect.width - 140f, 282f, 140f, 30f),
                 "DeltaV_PrefabClusterAdd".Translate()))
-                PrefabMarkerDialogUtility.ChoosePrefab(path => draft.entries.Add(new PrefabClusterEntry(path)));
+                Dialog_PrefabSelector.OpenSingle("DeltaV_PrefabSelectorTitle".Translate(), null,
+                    path => draft.entries.Add(new PrefabClusterEntry(path)));
 
             Rect viewport = new Rect(0f, 318f, rect.width, rect.height - 414f);
             Rect view = new Rect(0f, 0f, viewport.width - 18f,
@@ -242,10 +224,9 @@ namespace DeltaV
                 if (Widgets.ButtonText(new Rect(0f, y, view.width - 205f, 34f),
                     entry.prefabPath.NullOrEmpty() ? "—" : entry.prefabPath))
                 {
-                    int captured = i;
-                    PrefabMarkerDialogUtility.ChoosePrefab(path =>
+                    Dialog_PrefabSelector.OpenSingle("DeltaV_PrefabSelectorTitle".Translate(), entry.prefabPath, path =>
                     {
-                        draft.entries[captured].prefabPath = path;
+                        entry.prefabPath = path;
                         PrefabMarkerPreviewCache.Refresh(path);
                     });
                 }

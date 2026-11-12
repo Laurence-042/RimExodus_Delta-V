@@ -72,24 +72,8 @@ namespace DeltaV
                 Messages.Message(reason, MessageTypeDefOf.RejectInput, false);
                 return;
             }
-            try
-            {
-                var files = MapPrefab.ListPrefabFiles();
-                if (files.Count == 0)
-                {
-                    Messages.Message("DeltaV_PrefabReplaceNoFiles".Translate(), MessageTypeDefOf.RejectInput, false);
-                    return;
-                }
-                Find.WindowStack.Add(new Dialog_DebugOptionListLister(files.Select(path =>
-                    new DebugMenuOption(path, DebugMenuOptionMode.Action,
-                        () => SelectPrefabReplacementFaction(universe, source, path))),
-                    "DeltaV_PrefabReplaceSelect".Translate()));
-            }
-            catch (System.Exception ex)
-            {
-                Log.Error($"[DeltaV] Cannot list map prefabs: {ex}");
-                Messages.Message("DeltaV_PrefabReplaceFailed".Translate(), MessageTypeDefOf.RejectInput, false);
-            }
+            Dialog_PrefabSelector.OpenSingle("DeltaV_PrefabReplaceSelect".Translate(), null,
+                path => SelectPrefabReplacementFaction(universe, source, path));
         }
 
         private static void SelectPrefabReplacementFaction(UniverseManager universe, SpaceObject source, string path)

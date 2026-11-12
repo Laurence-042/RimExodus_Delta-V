@@ -178,28 +178,11 @@ namespace DeltaV
         private static void DrawTestScenePrefabSelector(Listing_Standard list, string labelKey,
             string selectedPath, Action<string> select)
         {
-            string label = string.IsNullOrEmpty(selectedPath)
-                ? "DeltaV_SettingsTestSceneAutomatic".Translate().ToString() : selectedPath;
-            if (!list.ButtonTextLabeled(labelKey.Translate(), label, tooltip: label)) return;
-            var options = new List<FloatMenuOption>
-            {
-                new FloatMenuOption("DeltaV_SettingsTestSceneAutomatic".Translate(), () => select(""))
-            };
-            try
-            {
-                // Rescan on opening so newly exported or renamed files are available immediately.
-                List<string> files = MapPrefab.ListPrefabFiles();
-                foreach (string file in files)
-                    options.Add(new FloatMenuOption(file, () => select(file)));
-                if (files.Count == 0)
-                    options.Add(new FloatMenuOption("DeltaV_PrefabReplaceNoFiles".Translate(), null));
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"[DeltaV] Cannot list test scene prefabs: {ex}");
-                options.Add(new FloatMenuOption("DeltaV_SettingsTestSceneScanFailed".Translate(), null));
-            }
-            Find.WindowStack.Add(new FloatMenu(options));
+            string title = labelKey.Translate();
+            string automatic = "DeltaV_SettingsTestSceneAutomatic".Translate();
+            string label = selectedPath.NullOrEmpty() ? automatic : selectedPath;
+            if (list.ButtonTextLabeled(title, label, tooltip: label))
+                Dialog_PrefabSelector.OpenSingle(title, selectedPath, select, automatic);
         }
 
         private void DrawDockingTab(Rect rect)

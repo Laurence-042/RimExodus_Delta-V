@@ -12,7 +12,7 @@ namespace DeltaV
     /// - 递归绘制（任意深度），每层缩进 IndentPerDepth；行高全部用本类常量（自绘控件
     ///   而非 Listing 的字体相关行高），滚动内容总高可在绘制前精确递归算出；
     /// - prefab 池在叶子区只显示一个选择按钮。按下时重新扫描合并目录，
-    ///   并交由 Dialog_PrefabPoolTree 用原版 Listing_Tree / TreeNode 展示可折叠勾选树；
+    ///   并交由 Dialog_PrefabSelector 展示可折叠勾选树；
     /// - TextFieldNumeric 缓冲按 (leafId, 字段) 键惰性建立；段的增删会使后续段错位，
     ///   增删时清该叶子的全部段缓冲重建（值本身在规则对象上，不丢失）。
     /// </summary>
@@ -165,7 +165,7 @@ namespace DeltaV
             Rect prefabButtonRect = Indented(list.GetRect(RowHeight), indent);
             if (Widgets.ButtonText(prefabButtonRect, "DeltaV_SettingsSelectGenerationPrefabs".Translate()))
             {
-                Find.WindowStack.Add(new Dialog_PrefabPoolTree(type.Label, rule.prefabPaths));
+                Dialog_PrefabSelector.OpenMultiple("DeltaV_SettingsPrefabTreeTitle".Translate(type.Label), rule.prefabPaths);
             }
             TooltipHandler.TipRegion(prefabButtonRect,
                 "DeltaV_SettingsSectorPrefabPoolTip".Translate() + "\n\n"

@@ -80,7 +80,6 @@
   <DeltaV_SettingsTestSceneEnemyAngle>Enemy starting angle (degrees)</DeltaV_SettingsTestSceneEnemyAngle>
   <DeltaV_SettingsTestSceneEnemyAngleTip>Initial rotation of the enemy ship map relative to universe east, increasing counterclockwise. Range 0–360°; default 35°.</DeltaV_SettingsTestSceneEnemyAngleTip>
   <DeltaV_SettingsTestSceneAutomatic>Automatic: latest export (procedural ship if unavailable)</DeltaV_SettingsTestSceneAutomatic>
-  <DeltaV_SettingsTestSceneScanFailed>Could not scan the prefab directory. See the log.</DeltaV_SettingsTestSceneScanFailed>
   <DeltaV_TestScenePrefabFailed>Could not load test scene prefab: {0}. The existing scene was preserved. Select another file or check the log.</DeltaV_TestScenePrefabFailed>
   <DeltaV_SettingsFlightAssistTip>While piloting, released directions are automatically counter-thrusted to a stop - braking uses the ship's real thruster output, so weak thrusters stop you slowly. Turn off for pure inertial flight: the ship keeps drifting at its current velocity - but holding Ctrl (rebindable) still brakes you at any time, so you keep both the freedom and the control. On by default.</DeltaV_SettingsFlightAssistTip>
   <DeltaV_SettingsCellsPerTile>Sector scale (cells per sector)</DeltaV_SettingsCellsPerTile>
@@ -422,7 +421,6 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_PrefabReplaceSelectFaction>Select the faction for prefab: {0}</DeltaV_PrefabReplaceSelectFaction>
   <DeltaV_PrefabReplaceKeepFaction>Keep current map faction (default): {0}</DeltaV_PrefabReplaceKeepFaction>
   <DeltaV_PrefabReplaceNoFaction>No faction</DeltaV_PrefabReplaceNoFaction>
-  <DeltaV_PrefabReplaceNoFiles>No prefab XML files were found in the user or bundled catalog.</DeltaV_PrefabReplaceNoFiles>
   <DeltaV_PrefabReplaceRequiresMap>Focus a loaded Delta-V space map before replacing it.</DeltaV_PrefabReplaceRequiresMap>
   <DeltaV_PrefabReplaceBusy>Wait for map generation, replacement, takeoff or docking to finish before replacing this map.</DeltaV_PrefabReplaceBusy>
   <DeltaV_PrefabReplaceFailed>Prefab map replacement failed. See the error log for details.</DeltaV_PrefabReplaceFailed>
@@ -711,7 +709,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_PrefabClusterConfigureDesc>Choose a weighted prefab pool and annular distribution. Selecting this marker previews the deterministic cluster.</DeltaV_PrefabClusterConfigureDesc>
   <DeltaV_PrefabExactInspect>Prefab: {0}\nDistance: {1}; bearing: {2}°; relative facing: {3}°</DeltaV_PrefabExactInspect>
   <DeltaV_PrefabClusterInspect>Prefab pool: {0} entries\nTarget objects: {1}; radius: {2}–{3}</DeltaV_PrefabClusterInspect>
-  <DeltaV_PrefabMarkerNoPrefabs>No prefab files are available.</DeltaV_PrefabMarkerNoPrefabs>
+  <DeltaV_PrefabSelectorTitle>Select prefab</DeltaV_PrefabSelectorTitle>
   <DeltaV_PrefabMarkerNoType>No content classification</DeltaV_PrefabMarkerNoType>
   <DeltaV_PrefabExactTitle>Exact prefab object marker</DeltaV_PrefabExactTitle>
   <DeltaV_PrefabExactHelp>The bearing and relative facing use the parent SpaceObject's frame: 0° points along its local +X direction. Distance is measured in universe cells. The generated object inherits the parent's instantaneous rigid-point velocity and angular velocity.</DeltaV_PrefabExactHelp>

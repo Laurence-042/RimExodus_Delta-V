@@ -49,11 +49,11 @@ namespace DeltaV
             var available = new HashSet<string>(availablePaths.Select(path => path.Replace('\\', '/').Trim('/')),
                 StringComparer.OrdinalIgnoreCase);
             var root = new PrefabTreeNode(string.Empty, string.Empty, false);
-            foreach (string rawPath in paths.Where(path => !path.NullOrEmpty())
+            foreach (string normalized in paths.Where(path => !path.NullOrEmpty())
+                         .Select(path => path.Replace('\\', '/').Trim('/'))
                          .Distinct(StringComparer.OrdinalIgnoreCase)
                          .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
             {
-                string normalized = rawPath.Replace('\\', '/').Trim('/');
                 string[] parts = normalized.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 0) continue;
                 PrefabTreeNode parent = root;
@@ -100,11 +100,13 @@ namespace DeltaV
     internal sealed class Listing_PrefabTree : Listing_Tree
     {
         private readonly HashSet<string> selected;
+        private readonly bool single;
         private Rect visibleRect;
 
-        public Listing_PrefabTree(HashSet<string> selected)
+        public Listing_PrefabTree(HashSet<string> selected, bool single)
         {
             this.selected = selected;
+            this.single = single;
         }
 
         public void DrawChildren(PrefabTreeNode root, int openMask, Rect visibleRect)
@@ -122,7 +124,16 @@ namespace DeltaV
                 string label = node.isFile && !node.available
                     ? "DeltaV_SettingsPrefabTreeMissingPath".Translate(node.label) : node.label;
                 LabelLeft(label, node.path, indentLevel, textColor: node.available ? (Color?)null : Color.gray);
-                if (node.isFile)
+                if (single)
+                {
+                    if (node.isFile && Widgets.RadioButton(LabelWidth, curY, selected.Contains(node.path),
+                            disabled: !node.available))
+                    {
+                        selected.Clear();
+                        selected.Add(node.path);
+                    }
+                }
+                else if (node.isFile)
                 {
                     bool value = selected.Contains(node.path);
                     bool before = value;
@@ -169,25 +180,46 @@ namespace DeltaV
         }
     }
 
-    internal sealed class Dialog_PrefabPoolTree : Window
+    internal sealed class Dialog_PrefabSelector : Window
     {
         private const int OpenMask = TreeOpenMasks.Default;
-        private readonly List<string> target;
+        private readonly Action<List<string>> apply;
         private readonly HashSet<string> selected;
         private readonly List<string> available;
         private readonly PrefabTreeNode root;
-        private readonly string contentTypeLabel;
+        private readonly string title;
+        private readonly bool single;
+        private readonly string automaticLabel;
         private Vector2 scrollPosition;
         private float viewHeight = 100f;
         private string scanError;
 
         public override Vector2 InitialSize => new Vector2(720f, 720f);
 
-        public Dialog_PrefabPoolTree(string contentTypeLabel, List<string> target)
+        public static void OpenSingle(string title, string current, Action<string> apply, string automaticLabel = null)
         {
-            this.contentTypeLabel = contentTypeLabel;
-            this.target = target ?? throw new ArgumentNullException(nameof(target));
-            selected = new HashSet<string>(target, StringComparer.OrdinalIgnoreCase);
+            Find.WindowStack.Add(new Dialog_PrefabSelector(title, new[] { current },
+                paths => apply(paths.SingleOrDefault() ?? string.Empty), single: true, automaticLabel: automaticLabel));
+        }
+
+        public static void OpenMultiple(string title, List<string> target)
+        {
+            Find.WindowStack.Add(new Dialog_PrefabSelector(title, target, paths =>
+            {
+                target.Clear();
+                target.AddRange(paths);
+            }));
+        }
+
+        private Dialog_PrefabSelector(string title, IEnumerable<string> current, Action<List<string>> apply,
+            bool single = false, string automaticLabel = null)
+        {
+            this.title = title;
+            this.apply = apply;
+            this.single = single;
+            this.automaticLabel = automaticLabel;
+            selected = new HashSet<string>(current.Where(path => !path.NullOrEmpty())
+                .Select(path => path.Replace('\\', '/').Trim('/')), StringComparer.OrdinalIgnoreCase);
             try
             {
                 available = MapPrefab.ListPrefabFiles();
@@ -208,25 +240,33 @@ namespace DeltaV
         public override void DoWindowContents(Rect inRect)
         {
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, 0f, inRect.width, 32f),
-                "DeltaV_SettingsPrefabTreeTitle".Translate(contentTypeLabel));
+            Widgets.Label(new Rect(0f, 0f, inRect.width, 52f), title);
             Text.Font = GameFont.Small;
 
-            Rect tools = new Rect(0f, 38f, inRect.width, 30f);
-            Widgets.Label(tools.LeftPart(0.48f),
-                "DeltaV_SettingsPrefabTreeCurrentCount".Translate(selected.Count));
-            if (Widgets.ButtonText(new Rect(inRect.width - 250f, tools.y, 120f, tools.height), "ClearAll".Translate()))
-                selected.Clear();
-            if (Widgets.ButtonText(new Rect(inRect.width - 120f, tools.y, 120f, tools.height), "AllowAll".Translate()))
+            Rect tools = new Rect(0f, 54f, inRect.width, 30f);
+            if (single)
             {
-                selected.Clear();
-                selected.UnionWith(available);
+                if (automaticLabel != null && Widgets.RadioButtonLabeled(tools, automaticLabel, selected.Count == 0))
+                    selected.Clear();
+            }
+            else if (scanError == null)
+            {
+                Widgets.Label(tools.LeftPart(0.48f),
+                    "DeltaV_SettingsPrefabTreeCurrentCount".Translate(selected.Count));
+                if (Widgets.ButtonText(new Rect(inRect.width - 250f, tools.y, 120f, tools.height), "ClearAll".Translate()))
+                    selected.Clear();
+                if (Widgets.ButtonText(new Rect(inRect.width - 120f, tools.y, 120f, tools.height), "AllowAll".Translate()))
+                {
+                    selected.Clear();
+                    selected.UnionWith(available);
+                }
             }
 
-            Rect treeRect = new Rect(0f, 76f, inRect.width, inRect.height - 126f);
+            float treeTop = !single || automaticLabel != null ? 92f : 54f;
+            Rect treeRect = new Rect(0f, treeTop, inRect.width, inRect.height - treeTop - 50f);
             Widgets.DrawMenuSection(treeRect);
             Rect inner = treeRect.ContractedBy(6f);
-            if (!scanError.NullOrEmpty())
+            if (scanError != null)
             {
                 GUI.color = ColorLibrary.RedReadable;
                 Widgets.Label(inner, "DeltaV_SettingsPrefabTreeScanFailed".Translate(scanError));
@@ -241,7 +281,7 @@ namespace DeltaV
                 Rect view = new Rect(0f, 0f, inner.width - 16f, Math.Max(inner.height, viewHeight));
                 Rect visible = new Rect(0f, scrollPosition.y, view.width, inner.height);
                 Widgets.BeginScrollView(inner, ref scrollPosition, view);
-                var listing = new Listing_PrefabTree(selected);
+                var listing = new Listing_PrefabTree(selected, single);
                 listing.Begin(view);
                 listing.DrawChildren(root, OpenMask, visible);
                 listing.End();
@@ -253,11 +293,14 @@ namespace DeltaV
             float buttonY = inRect.height - 38f;
             if (Widgets.ButtonText(new Rect(0f, buttonY, 120f, 32f), "CancelButton".Translate()))
                 Close();
-            if (Widgets.ButtonText(new Rect(inRect.width - 120f, buttonY, 120f, 32f), "OK".Translate()))
+            bool canApply = single
+                ? selected.Count == 0 ? automaticLabel != null : available.Any(selected.Contains)
+                : scanError == null;
+            if (Widgets.ButtonText(new Rect(inRect.width - 120f, buttonY, 120f, 32f), "OK".Translate(),
+                    active: canApply))
             {
-                target.Clear();
-                target.AddRange(selected.OrderBy(path => path, StringComparer.Ordinal));
                 Close();
+                apply(selected.OrderBy(path => path, StringComparer.Ordinal).ToList());
             }
         }
     }

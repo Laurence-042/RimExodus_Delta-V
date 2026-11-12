@@ -80,7 +80,6 @@
   <DeltaV_SettingsTestSceneEnemyAngle>敌舰初始角度（度）</DeltaV_SettingsTestSceneEnemyAngle>
   <DeltaV_SettingsTestSceneEnemyAngleTip>敌舰地图相对宇宙东向的初始旋转角，逆时针增加；范围 0–360°，默认 35°。</DeltaV_SettingsTestSceneEnemyAngleTip>
   <DeltaV_SettingsTestSceneAutomatic>自动：最新导出（不可用时生成程序船）</DeltaV_SettingsTestSceneAutomatic>
-  <DeltaV_SettingsTestSceneScanFailed>无法扫描 prefab 目录，请查看日志。</DeltaV_SettingsTestSceneScanFailed>
   <DeltaV_TestScenePrefabFailed>无法加载双船测试场景 prefab：{0}。旧场景已保留，请重新选择文件或查看日志。</DeltaV_TestScenePrefabFailed>
   <DeltaV_SettingsFlightAssistTip>驾驶时，松开按键的方向会由推进器自动反推刹停——刹车力来自推进器真实出力，推进器不够力就刹得慢。关闭后是纯惯性飞行：松开按键后飞船保持当前速度一直漂下去；不过按住 Ctrl（可改键）随时可以临时反推刹停，自由度和易用性可以兼得。默认开启。</DeltaV_SettingsFlightAssistTip>
   <DeltaV_SettingsCellsPerTile>星区尺度（每星区格数）</DeltaV_SettingsCellsPerTile>
@@ -422,7 +421,6 @@
   <DeltaV_PrefabReplaceSelectFaction>选择 prefab 的派系：{0}</DeltaV_PrefabReplaceSelectFaction>
   <DeltaV_PrefabReplaceKeepFaction>沿用当前地图派系（默认）：{0}</DeltaV_PrefabReplaceKeepFaction>
   <DeltaV_PrefabReplaceNoFaction>无派系</DeltaV_PrefabReplaceNoFaction>
-  <DeltaV_PrefabReplaceNoFiles>用户与内置 prefab 目录中没有找到 XML 文件。</DeltaV_PrefabReplaceNoFiles>
   <DeltaV_PrefabReplaceRequiresMap>请先聚焦一张已加载的 Delta-V 宇宙地图。</DeltaV_PrefabReplaceRequiresMap>
   <DeltaV_PrefabReplaceBusy>请等待地图生成、替换、起飞或对接流程结束后再替换地图。</DeltaV_PrefabReplaceBusy>
   <DeltaV_PrefabReplaceFailed>Prefab 地图替换失败，详情见错误日志。</DeltaV_PrefabReplaceFailed>
@@ -711,7 +709,7 @@
   <DeltaV_PrefabClusterConfigureDesc>选择带权重的预制图池与环带分布。选中标记时预览确定性的对象集群。</DeltaV_PrefabClusterConfigureDesc>
   <DeltaV_PrefabExactInspect>预制图：{0}\n距离：{1}；方位：{2}°；相对朝向：{3}°</DeltaV_PrefabExactInspect>
   <DeltaV_PrefabClusterInspect>预制图池：{0}项\n目标对象：{1}；半径：{2}–{3}</DeltaV_PrefabClusterInspect>
-  <DeltaV_PrefabMarkerNoPrefabs>当前没有可用的预制图文件。</DeltaV_PrefabMarkerNoPrefabs>
+  <DeltaV_PrefabSelectorTitle>选择 prefab</DeltaV_PrefabSelectorTitle>
   <DeltaV_PrefabMarkerNoType>不指定内容分类</DeltaV_PrefabMarkerNoType>
   <DeltaV_PrefabExactTitle>精确预制对象标记</DeltaV_PrefabExactTitle>
   <DeltaV_PrefabExactHelp>方位与相对朝向使用母 SpaceObject 的局部系：0°沿母对象局部 +X。距离单位为宇宙格。生成对象继承母对象对应刚体点的瞬时线速度与角速度。</DeltaV_PrefabExactHelp>
