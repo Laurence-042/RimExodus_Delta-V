@@ -30,12 +30,17 @@ internal static class Program
         var mods = (Dictionary<Type, Mod>)typeof(LoadedModManager)
             .GetField("runningModClasses", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
         mods[typeof(DeltaVMod)] = mod;
-        bool interceptPassed = RunIntercept("boarding", new Vector2(-80, 0), Vector2.zero, 0, true);
+        bool interceptPassed = RunIntercept("boarding", new Vector2(-80, 0), Vector2.zero, 0, true,
+            requireForwardThrust: true);
         interceptPassed &= RunIntercept("boarding-turn", new Vector2(-80, -20), new Vector2(0, 4), Mathf.PI, true);
         interceptPassed &= RunIntercept("boarding-moving-loaded", new Vector2(-180, -25), Vector2.zero, 0,
             true, 280, new Vector2(2, 1));
-        interceptPassed &= RunIntercept("boarding-unboosted", new Vector2(-80, 0), Vector2.zero, 0, false);
-        interceptPassed &= RunIntercept("boarding-close", new Vector2(-9, 0), new Vector2(15, 0), 0, true);
+        interceptPassed &= RunIntercept("boarding-unboosted", new Vector2(-80, 0), Vector2.zero, 0, false,
+            requireForwardThrust: true);
+        interceptPassed &= RunIntercept("boarding-close", new Vector2(-9, 0), new Vector2(15, 0), 0, true,
+            requireForwardThrust: true);
+        interceptPassed &= RunIntercept("boarding-crosses-within-step", new Vector2(-5.5f, 0), new Vector2(65, 0), 0, true,
+            requireForwardThrust: true);
         if (Array.IndexOf(args, "--intercept-only") >= 0) return interceptPassed ? 0 : 1;
         bool passed = interceptPassed & CheckPredictionFactors() & CheckSolver() & SolverChecks.Run();
         passed &= Run("straight", new Vector2(-58.7f, 0), Vector2.zero, 0f, 0f, strict);
@@ -63,7 +68,7 @@ internal static class Program
     }
 
     static bool RunIntercept(string name, Vector2 position, Vector2 velocity, float angle,
-        bool boost, float mass = 140, Vector2 targetVelocity = default)
+        bool boost, float mass = 140, Vector2 targetVelocity = default, bool requireForwardThrust = false)
     {
         DeltaVMod.CurrentSettings.passiveDrag = true;
         XElement xml = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_ShuttlesAndMoonPool.xml")
@@ -107,7 +112,12 @@ internal static class Program
                 if (remaining == 0 && boost) planStep = 4; // Real capability version invalidates playback on depletion.
                 var model = ShipPhysics.BuildControlModel(report);
                 var normalModel = ShipPhysics.BuildControlModel(normal);
-                if (planStep < 3 && guidance.TryGetPlannedStep(++planStep, model, out var planned)) held = planned;
+                if (position.sqrMagnitude > 9f * 9f && planStep < 3
+                    && guidance.TryGetPlannedStep(planStep + 1, model, out var planned))
+                {
+                    planStep++;
+                    held = planned;
+                }
                 else
                 {
                     Vector2 toward = -position;
@@ -118,7 +128,8 @@ internal static class Program
                         intercept = true, positionError = toward, relativeVelocity = velocity,
                         referenceVelocity = targetVelocity, angleError = SpaceTransform.WrapAngle(targetAngle - angle),
                         relativeAngularVelocity = omega - targetOmega, referenceAngularVelocity = targetOmega,
-                        dt = 0.1f, elapsedSteps = 4, controlModel = model, controlAcceleration = Matrix(model),
+                        dt = 0.1f, elapsedSteps = planStep + 1, controlModel = model, controlAcceleration = Matrix(model),
+                        previousX = held.normalizedX, previousZ = held.normalizedZ, previousAngular = held.normalizedAngular,
                         brakingAcceleration = ShipPhysics.PreviewBrakingAcceleration(report, SpaceTransform.RotateInverse(toward.normalized, angle)),
                         boostSeconds = remaining / 60f, unboostedModel = boosted ? normalModel : null,
                         unboostedAcceleration = Matrix(normalModel)
@@ -132,16 +143,24 @@ internal static class Program
             object[] call = { report, cmd, scratch, Vector2.zero, 0f };
             Allocate.Invoke(null, call);
             Vector2 force = (Vector2)call[3]; float torque = (float)call[4];
+            if (requireForwardThrust && force.x < 0.99f * (report.thrusters[0].thrust + report.thrusters[1].thrust))
+            {
+                Console.WriteLine($"FAIL {name}: forward thrust dropped to {force.x:F1} at {tick / 60f:F2}s");
+                return false;
+            }
             if (remaining > 0 && (scratch[0] > 0.001f || scratch[1] > 0.001f)) remaining--;
             (float linear, float angular) = ShipPhysics.PassiveDragFactors(1f / 60f);
             velocity = (velocity + targetVelocity + SpaceTransform.Rotate(force, angle) / mass / 60f) * linear - targetVelocity;
             omega = (omega + torque / report.inertia / 60f) * angular;
             position += velocity / 60f; angle = SpaceTransform.WrapAngle(angle + omega / 60f);
             closest = Math.Min(closest, position.magnitude);
-            if (position.magnitude < 2.5f && Math.Abs(SpaceTransform.WrapAngle(Mathf.Atan2(-position.y, -position.x) - angle)) < 0.5f)
+            bool reached = requireForwardThrust
+                ? position.x >= 0f && Mathf.Abs(position.y) < 0.75f
+                : position.magnitude < 2.5f && Math.Abs(SpaceTransform.WrapAngle(Mathf.Atan2(-position.y, -position.x) - angle)) < 0.5f;
+            if (reached)
             {
                 bool passed = fallback == 0 && velocity.magnitude > 2;
-                Console.WriteLine($"{(passed ? "PASS" : "FAIL")} {name} seconds={tick/60f:F2} speed={velocity.magnitude:F2} boostRemaining={remaining} fallback={fallback}/{solves} avgSolve={solveMs/solves:F2}ms");
+                Console.WriteLine($"{(passed ? "PASS" : "FAIL")} {name} seconds={(tick + 1)/60f:F2} speed={velocity.magnitude:F2} boostRemaining={remaining} fallback={fallback}/{solves} avgSolve={solveMs/solves:F2}ms");
                 return passed;
             }
         }

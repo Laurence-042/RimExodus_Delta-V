@@ -336,13 +336,27 @@ namespace DeltaV
             double desiredAlpha = 0.0;
 
             double distance = Math.Max(0.0, p.magnitude - request.approachReserveDistance);
-            if (safeAccel > 1e-6 && (request.motionOnly || distance > 1e-6))
+            if (request.intercept && request.controlModel != null && request.controlAcceleration?.Length >= 9)
+            {
+                Vector2 toward = -p.normalized;
+                double forwardAcceleration = 0.0;
+                for (int axis = 0; axis < 3; axis++)
+                {
+                    request.controlModel.ControlBounds(axis, out double lo, out double hi);
+                    double projection = toward.x * request.controlAcceleration[axis]
+                        + toward.y * request.controlAcceleration[3 + axis];
+                    forwardAcceleration += Math.Max(lo * projection, hi * projection);
+                }
+                Vector2 lateralVelocity = v - toward * Vector2.Dot(v, toward);
+                Vector2 accel = toward * (float)forwardAcceleration - lateralVelocity * 2f;
+                desiredX = accel.x;
+                desiredY = accel.y;
+            }
+            else if (safeAccel > 1e-6 && (request.motionOnly || distance > 1e-6))
             {
                 Vector2 toward = -p.normalized;
                 double speedLimit = Math.Sqrt(2.0 * safeAccel * distance);
                 Vector2 targetVelocity = request.motionOnly ? Vector2.zero : toward * (float)speedLimit;
-                if (request.intercept)
-                    targetVelocity = v + (request.positionError - v * 2f) * 0.5f;
                 Vector2 accel = (targetVelocity - v) / 0.5f;
                 if (accel.magnitude > safeAccel) accel = accel.normalized * (float)safeAccel;
                 desiredX = accel.x;
@@ -396,7 +410,7 @@ namespace DeltaV
 
         private static double MaxAngularAcceleration(double[] b)
         {
-            if (b == null) return 0.0;
+            if (b == null || b.Length < 9) return 0.0;
             return Math.Max(Math.Abs(b[6]), Math.Max(Math.Abs(b[7]), Math.Abs(b[8])));
         }
 
@@ -552,16 +566,22 @@ namespace DeltaV
                 return solved;
             }
             if (!request.intercept || !ValidRequest(request)) return ComputePlan(request, out command);
-            // 有界时间搜索：同一 QP 在候选到达时刻求解，允许非零接触速度。
-            // 端点误差决定是否可达；有限视域尚不可达时保留最远时域的接近计划。
+            // Seek the shortest candidate that reaches the aim plane within lateral tolerance.
             long started = Stopwatch.GetTimestamp();
             double acceleration = 0.01;
             for (int c = 0; c < 3; c++) acceleration = Math.Max(acceleration,
                 Math.Sqrt(request.controlAcceleration[c] * request.controlAcceleration[c]
                     + request.controlAcceleration[3 + c] * request.controlAcceleration[3 + c]));
+            double distance = request.positionError.magnitude;
+            Vector2 toward = request.positionError.normalized;
+            double closingSpeed = Vector2.Dot(request.relativeVelocity, toward);
+            double arrivalSpeed = Math.Sqrt(closingSpeed * closingSpeed + 2 * acceleration * distance);
+            double travelTime = closingSpeed >= 0
+                ? 2 * distance / Math.Max(1e-6, arrivalSpeed + closingSpeed)
+                : (arrivalSpeed - closingSpeed) / acceleration;
             double candidate = lastInterceptHorizon > 0
                 ? Math.Max(request.dt, lastInterceptHorizon - Math.Max(1, request.elapsedSteps) * request.dt)
-                : Math.Sqrt(2 * request.positionError.magnitude / acceleration) * 1.5 + 1;
+                : travelTime * 1.5;
             candidate = Math.Max(request.dt, Math.Min(maxHorizon, candidate));
             double low = request.dt, high = maxHorizon;
             bool found = false, havePlan = false;
@@ -579,8 +599,8 @@ namespace DeltaV
                 qpIterationLimit += attempt.qpIterationLimit;
                 qpConstraints = attempt.qpConstraints;
                 double px = PredictedState(0), py = PredictedState(1);
-                bool reachable = solved && px * px + py * py <= 0.75 * 0.75
-                    && Math.Abs(PredictedState(4)) <= 15 * Math.PI / 180;
+                bool reachable = solved && px * toward.x + py * toward.y >= -0.05
+                    && Math.Abs(-px * toward.y + py * toward.x) <= 0.75;
                 if (solved && (reachable || !found))
                 {
                     havePlan = true;
@@ -763,10 +783,19 @@ namespace DeltaV
                 CombatReferenceOffsets(request, (float)predictionTime,
                     out terminalPosition, out terminalVelocity,
                     out terminalAngle, out terminalOmega);
+            if (request.intercept)
+            {
+                Vector2 toward = request.positionError.normalized;
+                // Reward progress past the aim plane and penalize lateral miss distance.
+                double progressWeight = 25.0 / Math.Sqrt(predictionTime);
+                for (int i = 0; i < variables; i++)
+                    q[i] -= progressWeight * (toward.x * Sens(0, i) + toward.y * Sens(1, i));
+                AddProjectedPositionCost(-toward.y, toward.x, 100.0);
+            }
             for (int s = 0; s < StateCount; s++)
             {
                 if (request.motionOnly && s < 2) continue;
-                if (request.intercept && (s == 2 || s == 3)) continue;
+                if (request.intercept && s < 4) continue;
                 double terminalOffset = s switch
                 {
                     0 => -terminalPosition.x, 1 => -terminalPosition.y,
@@ -774,7 +803,7 @@ namespace DeltaV
                     4 => -terminalAngle, _ => -terminalOmega
                 };
                 double headingPriority = combatTrajectory && s >= 4 ? 4.0 : 1.0;
-                AddStateCost(s, StateWeight[s] * (request.intercept && s < 2 ? 2500.0 : combatTrajectory ? 2.0 : 20.0) * headingPriority,
+                AddStateCost(s, StateWeight[s] * (combatTrajectory ? 2.0 : 20.0) * headingPriority,
                     StateScale[s], terminalOffset);
             }
             AddControlCosts(inputVariables, request.previousX, request.previousZ, request.previousAngular);
@@ -1054,6 +1083,21 @@ namespace DeltaV
                     double sj = Sens(stateIndex, j);
                     if (sj != 0.0) p[row + j] += 2.0 * normalizedWeight * si * sj;
                 }
+            }
+        }
+
+        private void AddProjectedPositionCost(double x, double y, double weight)
+        {
+            double offset = x * state[0] + y * state[1];
+            for (int i = 0; i < variables; i++)
+            {
+                double si = x * Sens(0, i) + y * Sens(1, i);
+                if (si == 0.0) continue;
+                double gradient = 2.0 * weight * si;
+                q[i] += gradient * offset;
+                int row = i * variables;
+                for (int j = 0; j < variables; j++)
+                    p[row + j] += gradient * (x * Sens(0, j) + y * Sens(1, j));
             }
         }
 
