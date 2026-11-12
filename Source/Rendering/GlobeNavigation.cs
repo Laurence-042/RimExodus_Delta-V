@@ -60,12 +60,12 @@ namespace DeltaV
         internal void Recenter() { ViewCenter = null; EndDrag(); }
         internal void EndDrag() { dragStart = null; dragged = false; }
         internal void BeginDrag(Vector2 point) { dragStart = dragLast = point; dragged = false; }
-        internal void Drag(GlobeView view, Vector2 point)
+        internal void Drag(GlobeView view, Vector2 point, bool pan = true)
         {
             if (!dragStart.HasValue) return;
             if (!dragged && (point - dragStart.Value).sqrMagnitude < 16f) return;
             dragged = true;
-            ViewCenter = view.PannedCenter(point - dragLast);
+            if (pan) ViewCenter = view.PannedCenter(point - dragLast);
             dragLast = point;
         }
         internal Vector2? ReleaseDrag(Vector2 point)
@@ -75,17 +75,32 @@ namespace DeltaV
             EndDrag();
             return click;
         }
-        internal Vector2? HandleMapInput(GlobeView view)
+        internal Vector2? HandleMapInput(GlobeView view, bool draggable, List<Rect> reserved)
         {
             Event ev = Event.current;
-            if (ev.type == EventType.MouseDown && ev.button == 0 && view.Rect.Contains(ev.mousePosition))
-            { BeginDrag(ev.mousePosition); GUIUtility.keyboardControl = 0; ev.Use(); }
+            if (ev.type == EventType.MouseDown && ev.button == 0)
+            {
+                EndDrag();
+                if (!AllowsMapClick(ev.mousePosition)) return null;
+                BeginDrag(ev.mousePosition);
+                GUIUtility.keyboardControl = 0;
+                ev.Use();
+            }
             else if (dragStart.HasValue && ev.type == EventType.MouseDrag && ev.button == 0)
-            { Drag(view, ev.mousePosition); ev.Use(); }
+            { Drag(view, ev.mousePosition, draggable); ev.Use(); }
             else if (dragStart.HasValue && ev.type == EventType.MouseUp && ev.button == 0)
-            { var click = ReleaseDrag(ev.mousePosition); ev.Use(); return click; }
+            {
+                bool allowed = AllowsMapClick(ev.mousePosition);
+                var click = ReleaseDrag(ev.mousePosition);
+                if (allowed) ev.Use();
+                return allowed ? click : null;
+            }
             else if (ev.type == EventType.Repaint && !Input.GetMouseButton(0)) EndDrag();
             return null;
+
+            bool AllowsMapClick(Vector2 point) => view.Rect.Contains(point)
+                && !Find.WindowStack.MouseObscuredNow
+                && (draggable || !reserved.Exists(rect => rect.Contains(point)));
         }
 
         internal void Refresh(UniverseManager universe)

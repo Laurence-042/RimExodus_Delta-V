@@ -50,6 +50,7 @@ internal static partial class Program
             }
         }
         var local = new GlobeView(rect, Vector3.forward, 10000, 1000, 32, Vector3.up, Vector3.right);
+        CheckGlobeMarkerLayout(compactRect, compactReserved);
         var origin = Entry(100, 0, 0);
         Vector3 approach = OrbitSphere.Move(origin.Pose.position, new Vector2(120f, -40f));
         Vector3 perimeter = GlobeNavigation.PerimeterWaypoint(origin.Pose.position, approach, 37f, 100);
@@ -418,6 +419,47 @@ internal static partial class Program
             universe.objects.Remove(host);
             Set(universe, "objectById", null);
         }
+    }
+
+    static void CheckGlobeMarkerLayout(Rect map, List<Rect> reserved)
+    {
+        Rect bounds = map.ContractedBy(4f);
+        var selected = new PlanetGlobeRenderer.Legend
+        {
+            position = map.center,
+            hitRect = new Rect(map.center - new Vector2(36f, 12f), new Vector2(72f, 24f)),
+            labelRect = new Rect(map.center.x - 90f, map.center.y + 15f, 180f, 32f),
+            important = true
+        };
+        var adjacent = new PlanetGlobeRenderer.Legend
+        {
+            position = selected.position + new Vector2(25f, 6f),
+            hitRect = new Rect(selected.position + new Vector2(13f, -6f), new Vector2(24f, 24f))
+        };
+        var below = new Rect(selected.labelRect.center - Vector2.one * 12f, Vector2.one * 24f);
+        var occupied = new List<Rect>(reserved) { selected.hitRect, adjacent.hitRect, below };
+        Check(PlanetGlobeRenderer.TryPlaceLabel(bounds, selected, occupied, out Rect label)
+            && label.yMax <= selected.hitRect.yMin && !occupied.Any(r => r.Overlaps(label)),
+            "a protected label moves away from nearby markers and navigation controls");
+        occupied.Add(bounds);
+        Check(!PlanetGlobeRenderer.TryPlaceLabel(bounds, selected, occupied, out _),
+            "a protected label is suppressed when no safe position remains");
+
+        var markers = new[] { selected, adjacent };
+        Check(ReferenceEquals(PlanetGlobeRenderer.PickMarker(markers, adjacent.position), adjacent)
+            && ReferenceEquals(PlanetGlobeRenderer.PickMarker(markers, selected.position), selected),
+            "overlapping hit regions select the nearest marker regardless of label priority");
+        Check(PlanetGlobeRenderer.PickMarker(markers, label.center) == null,
+            "a safely placed label is clear of marker hit regions");
+
+        var state = new GlobeNavigation(new List<GlobeTarget>());
+        state.BeginDrag(selected.position);
+        state.Drag(default, adjacent.position, pan: false);
+        Check(!state.ReleaseDrag(selected.position).HasValue && !state.ViewCenter.HasValue,
+            "a compact map drag cancels selection even after returning to its start and never pans");
+        state.BeginDrag(adjacent.position);
+        Check(state.ReleaseDrag(adjacent.position) == adjacent.position,
+            "a compact map click returns its local pointer position");
     }
 
     static void CheckGlobeTextureTransform()

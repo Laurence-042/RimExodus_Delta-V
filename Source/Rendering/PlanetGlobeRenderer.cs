@@ -79,7 +79,9 @@ namespace DeltaV
             var state = universe.GlobeNavigation;
             state.Refresh(universe);
             GlobeView view = GlobeView.Create(rect, universe, contextFrame);
-            Vector2? click = draggable ? state.HandleMapInput(view) : null;
+            var reserved = draggable ? new List<Rect> { ScaleRect(rect, true) }
+                : GlobeNavigationPanel.CompactReservedRects(rect);
+            Vector2? click = state.HandleMapInput(view, draggable, reserved);
             if (draggable) view = GlobeView.Create(rect, universe, contextFrame);
             if (Event.current.type == EventType.ScrollWheel && Mouse.IsOver(rect))
             {
@@ -199,7 +201,7 @@ namespace DeltaV
                 }
                 GL.PopMatrix();
             }
-            DrawLegends(view, state, universe, draggable, click);
+            DrawLegends(view, state, universe, reserved, click);
             DrawScale(view, draggable);
             Text.Font = GameFont.Small;
             GUI.color = Color.white;

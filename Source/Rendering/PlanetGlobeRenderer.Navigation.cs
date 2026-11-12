@@ -180,21 +180,51 @@ namespace DeltaV
             finally { GL.PopMatrix(); }
         }
 
-        private static bool LegendClicked(Rect rect, bool draggable, ref Vector2? click)
+        internal static Legend PickMarker(IReadOnlyList<Legend> legends, Vector2 point)
         {
-            if (!draggable) return Widgets.ButtonInvisible(rect);
-            if (!click.HasValue || !rect.Contains(click.Value)) return false;
-            click = null;
-            return true;
+            Legend nearest = null;
+            float bestDistance = float.PositiveInfinity;
+            foreach (Legend legend in legends)
+            {
+                if (!legend.hitRect.Contains(point)) continue;
+                float distance = (legend.position - point).sqrMagnitude;
+                if (distance >= bestDistance) continue;
+                nearest = legend;
+                bestDistance = distance;
+            }
+            return nearest;
         }
 
+        internal static bool TryPlaceLabel(Rect bounds, Legend legend, List<Rect> occupied, out Rect label)
+        {
+            label = legend.labelRect;
+            if (LabelFits(bounds, label, occupied)) return true;
+
+            label.y = Mathf.Clamp(legend.hitRect.yMin - label.height - 3f,
+                bounds.yMin, bounds.yMax - label.height);
+            if (LabelFits(bounds, label, occupied)) return true;
+            if (!legend.important) return false;
+
+            for (label.y = bounds.yMin; label.yMax <= bounds.yMax; label.y += label.height + 1f)
+                if (LabelFits(bounds, label, occupied)) return true;
+            return false;
+        }
+
+        private static bool LabelFits(Rect bounds, Rect label, List<Rect> occupied) =>
+            Contains(bounds, label) && !occupied.Any(rect => rect.Overlaps(label));
+
         private static void DrawLegends(GlobeView view, GlobeNavigation state, UniverseManager universe,
-            bool draggable, Vector2? click)
+            List<Rect> occupied, Vector2? click)
         {
             Text.Font = GameFont.Tiny;
-            var occupied = draggable ? new List<Rect>() : GlobeNavigationPanel.CompactReservedRects(view.Rect);
-            foreach (Legend legend in Legends.OrderByDescending(l => state.IsSelected(l.entry))
-                .ThenByDescending(l => state.IsCourse(l.entry)).ThenByDescending(l => l.important).ThenByDescending(l => l.focused))
+            var ordered = Legends.OrderByDescending(l => state.IsSelected(l.entry))
+                .ThenByDescending(l => state.IsCourse(l.entry)).ThenByDescending(l => l.important)
+                .ThenByDescending(l => l.focused).ToList();
+            Legend picked = click.HasValue ? PickMarker(ordered, click.Value) : null;
+            // Reserve every visible marker before placing even the highest priority label.
+            foreach (Legend legend in ordered) occupied.Add(Clip(legend.hitRect, view.Rect));
+            Rect labelBounds = view.Rect.ContractedBy(4f);
+            foreach (Legend legend in ordered)
             {
                 var entry = legend.entry;
                 if (entry.Minimal)
@@ -210,7 +240,6 @@ namespace DeltaV
                     // No labels, target frames, direction arrows or clusters on transient detail.
                     Rect minimalHit = Clip(legend.hitRect, view.Rect);
                     TooltipHandler.TipRegion(minimalHit, entry.Label + "\n" + Distance(view, entry));
-                    if (LegendClicked(minimalHit, draggable, ref click)) state.Select(entry);
                     continue;
                 }
                 if (!legend.edge && legend.members.Count == 0)
@@ -247,35 +276,10 @@ namespace DeltaV
                         + (legend.behind ? "\n" + "DeltaV_NavBehind".Translate() : "")
                         + (entry.owner.InteriorMap == null ? "\n" + "DeltaV_PanelObjectNotLoaded".Translate() : "");
                 TooltipHandler.TipRegion(hit, tip);
-                if (LegendClicked(hit, draggable, ref click))
-                {
-                    if (legend.members.Count > 0)
-                    {
-                        var options = new List<FloatMenuOption>();
-                        foreach (var member in legend.members)
-                        {
-                            GlobeTarget key = GlobeTarget.Of(member.entry);
-                            options.Add(new FloatMenuOption(member.entry.Label + " · " + Distance(view, member.entry), () =>
-                            { state.Refresh(universe); state.Select(state.Resolve(key)); }));
-                        }
-                        Find.WindowStack.Add(new FloatMenu(options));
-                    }
-                    else state.Select(entry);
-                }
                 bool labelVisible = legend.important || entry.station
                     || GlobeDisplayRules.ShowLabel(entry.area, view.PixelsPerCell, entry.wreck);
                 if (!labelVisible || legend.members.Count > 0) continue;
-                Rect label = legend.labelRect;
-                if (occupied.Any(r => r.Overlaps(label)))
-                {
-                    label.y = Mathf.Clamp(legend.hitRect.yMin - 35f, view.Rect.yMin + 4f, view.Rect.yMax - 54f);
-                    if (occupied.Any(r => r.Overlaps(label)) && !legend.important) continue;
-                    // Protected labels may move through fixed rows, but never cover navigation
-                    // controls or the scale. The icon and tooltip remain available if no row fits.
-                    for (int i = 0; i < 8 && occupied.Any(r => r.Overlaps(label)); i++)
-                        label.y = view.Rect.yMin + 34f + i * 33f;
-                    if (label.yMax > view.Rect.yMax - 31f || occupied.Any(r => r.Overlaps(label))) continue;
-                }
+                if (!TryPlaceLabel(labelBounds, legend, occupied, out Rect label)) continue;
                 occupied.Add(label);
                 Vector2 attachment = new Vector2(Mathf.Clamp(legend.position.x, label.xMin, label.xMax),
                     Mathf.Clamp(legend.position.y, label.yMin, label.yMax));
@@ -291,10 +295,25 @@ namespace DeltaV
                 Rect labelText = new Rect(label.x + 4f, label.y + 1f, label.width - 8f, label.height - 2f);
                 Widgets.Label(labelText, ShortText(prefix + entry.Label, labelText.width) + "\n" + Distance(view, entry));
                 TooltipHandler.TipRegion(label, tip);
-                if (LegendClicked(label, draggable, ref click)) state.Select(entry);
+                if (picked == null && click.HasValue && label.Contains(click.Value)) picked = legend;
             }
             Text.Font = GameFont.Small;
+            if (picked == null) return;
+            if (picked.members.Count == 0) { state.Select(picked.entry); return; }
+
+            var options = new List<FloatMenuOption>();
+            foreach (var member in picked.members)
+            {
+                GlobeTarget key = GlobeTarget.Of(member.entry);
+                options.Add(new FloatMenuOption(member.entry.Label + " · " + Distance(view, member.entry), () =>
+                { state.Refresh(universe); state.Select(state.Resolve(key)); }));
+            }
+            Find.WindowStack.Add(new FloatMenu(options));
         }
+
+        private static Rect ScaleRect(Rect map, bool expanded) => expanded
+            ? new Rect(map.x + 6f, map.yMax - 20f, map.width - 12f, 18f)
+            : GlobeNavigationPanel.CompactScaleRect(map);
 
         private static void DrawScale(GlobeView view, bool expanded)
         {
@@ -303,10 +322,7 @@ namespace DeltaV
             if (!expanded && view.Rect.height < 88f) return;
 
             Text.Font = GameFont.Tiny;
-            // Compact mode uses a short centered scale, leaving both the map and nearby labels usable.
-            Rect text = expanded
-                ? new Rect(view.Rect.x + 6f, view.Rect.yMax - 20f, view.Rect.width - 12f, 18f)
-                : GlobeNavigationPanel.CompactScaleRect(view.Rect);
+            Rect text = ScaleRect(view.Rect, expanded);
             Widgets.DrawBoxSolid(text, new Color(.04f, .06f, .08f, .85f));
             if (view.Whole) Widgets.Label(text, "DeltaV_NavWhole".Translate());
             else
