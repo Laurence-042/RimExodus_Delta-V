@@ -4,6 +4,7 @@ using RimWorld;
 using UnityEngine;
 using Verse;
 using Verse.AI;
+using Verse.AI.Group;
 
 namespace DeltaV
 {
@@ -322,6 +323,10 @@ namespace DeltaV
                 Job job = JobMaker.MakeJob(JobDefOf.ManTurret, weapon.parent);
                 if (pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc))
                 {
+                    // Accepted gunners leave the hunt so its think tree cannot interrupt their post.
+                    Lord lord = pawn.GetLord();
+                    if (lord?.LordJob is LordJob_NpcShipDefenders)
+                        lord.Notify_PawnLost(pawn, PawnLostCondition.LeftVoluntarily);
                     manned++;
                 }
             }

@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using RimWorld;
-using UnityEngine;
 using Verse;
 using Verse.AI;
 using Verse.AI.Group;
@@ -277,8 +276,6 @@ namespace DeltaV
             }
 
             var groups = new Dictionary<DriveSubject, List<Pawn>>();
-            var points = new Dictionary<DriveSubject, IntVec3>();
-            var radii = new Dictionary<DriveSubject, float>();
             foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
             {
                 if (pawn?.Spawned != true || pawn.Downed || !pawn.RaceProps.Humanlike
@@ -290,19 +287,10 @@ namespace DeltaV
 
                 ShipBase ship = ShipRegistry.ShipOf(pawn);
                 DriveSubject group;
-                IntVec3 point;
-                float radius;
                 if (ship.IsValid)
                 {
                     if (ship.Faction != pawn.Faction) continue;
                     group = ship.Identity;
-                    point = new IntVec3(Mathf.RoundToInt(ship.HullCenter.x), 0,
-                        Mathf.RoundToInt(ship.HullCenter.y));
-                    radius = 10f;
-                    foreach (IntVec3 cell in ship.HullCells)
-                        radius = Mathf.Max(radius, Mathf.Sqrt(
-                            (cell.x - point.x) * (cell.x - point.x)
-                            + (cell.z - point.z) * (cell.z - point.z)) + 6f);
                 }
                 else
                 {
@@ -310,28 +298,20 @@ namespace DeltaV
                         || hasValidShip && frame.npcFaction != pawn.Faction
                             && frame.faction != pawn.Faction) continue;
                     group = default;
-                    point = map.Center;
-                    radius = Mathf.Max(map.Size.x, map.Size.z) * 0.75f;
                 }
                 if (!groups.TryGetValue(group, out List<Pawn> crew))
                     groups[group] = crew = new List<Pawn>();
                 crew.Add(pawn);
-                points[group] = point;
-                radii[group] = radius;
             }
             foreach (var entry in groups)
             {
-                if (entry.Value.Count == 0) continue;
-                Pawn first = entry.Value[0];
-                Lord existing = first.Faction != null ? map.lordManager.lords.Find(lord =>
-                    lord.faction == first.Faction && lord.LordJob is LordJob_DefendPoint
-                    && lord.CurLordToil?.FlagLoc == points[entry.Key]) : null;
-                if (existing != null) existing.AddPawns(entry.Value);
-                else LordMaker.MakeNewLord(first.Faction,
-                    new LordJob_DefendPoint(points[entry.Key], wanderRadius: 5f,
-                        defendRadius: radii[entry.Key], addFleeToil: false),
-                    map, entry.Value);
-                foreach (Pawn pawn in entry.Value)
+                List<Pawn> crew = entry.Value;
+                Faction faction = crew[0].Faction;
+                Lord existing = map.lordManager.lords.Find(lord => lord.faction == faction
+                    && lord.LordJob is LordJob_NpcShipDefenders defenders && defenders.Ship == entry.Key);
+                if (existing != null) existing.AddPawns(crew);
+                else LordMaker.MakeNewLord(faction, new LordJob_NpcShipDefenders(entry.Key), map, crew);
+                foreach (Pawn pawn in crew)
                     if (pawn.CurJob?.def == JobDefOf.EnterPortal
                         && pawn.CurJob.targetA.Thing is SoftDockPortal)
                         pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
