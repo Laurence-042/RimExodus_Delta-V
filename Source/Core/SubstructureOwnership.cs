@@ -60,12 +60,14 @@ namespace DeltaV
             get
             {
                 if (cachedSupportVersion == StructureVersion(map)) return cachedSupport;
-                cachedSupport = map.AllCells.Any(cell => HasFoundation(map, cell)
-                    || IsSupportTerrain(map.terrainGrid.TerrainAt(cell)));
+                cachedSupport = map.AllCells.Any(cell => SupportsAt(map, cell));
                 cachedSupportVersion = StructureVersion(map);
                 return cachedSupport;
             }
         }
+
+        internal static bool SupportsAt(Map map, IntVec3 cell) => HasFoundation(map, cell)
+            || IsSupportTerrain(map.terrainGrid.TerrainAt(cell));
 
         private static bool IsSupportTerrain(TerrainDef terrain) =>
             terrain != null && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void;

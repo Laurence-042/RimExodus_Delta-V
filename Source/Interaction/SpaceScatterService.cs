@@ -95,9 +95,7 @@ namespace DeltaV
         }
 
         internal static bool IsCargo(Thing thing) => thing is Pawn || thing.def.category == ThingCategory.Item;
-        internal static bool Supported(Map map, IntVec3 cell) => SubstructureOwnership.HasFoundation(map, cell)
-            || map.terrainGrid.TerrainAt(cell) is TerrainDef terrain
-                && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void;
+        internal static bool Supported(Map map, IntVec3 cell) => SubstructureOwnership.SupportsAt(map, cell);
 
         internal IEnumerable<Thing> LooseCargo(Map map)
         {
@@ -204,6 +202,23 @@ namespace DeltaV
 
             // Building.DeSpawn redistributes surplus stacks when the storage capacity disappears.
             item.DeSpawn();
+            QueueDetachedCargo(item, owner, source, version, origin, facing, pose);
+        }
+
+        internal void QueueMiningEjection(Thing ore, SpaceObject asteroid, IntVec3 origin,
+            Vector2 hitPoint, Vector2 outward)
+        {
+            Map map = asteroid.map;
+            Vector2 localPoint = SpaceTransform.MapToShipLocal(map, hitPoint) + outward * 0.5f;
+            SpacePose pose = SpaceTransform.RigidPointPose(asteroid.pose, localPoint, 0f);
+            pose.velocity = SpaceTransform.VelocityAtMovingLocalPoint(asteroid.pose, localPoint,
+                outward * Rand.Range(2f, 4f), pose.position);
+            QueueDetachedCargo(ore, asteroid, map, asteroid.RepresentationVersion, origin, Rot4.North, pose);
+        }
+
+        private void QueueDetachedCargo(Thing item, SpaceObject owner, Map source, int version,
+            IntVec3 origin, Rot4 facing, SpacePose pose)
+        {
             universe.QueueFrameAction(Transfer);
 
             void Transfer()

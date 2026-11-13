@@ -3,7 +3,7 @@
   <!-- Construction economy remains provisional. -->
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_EvaSuit</defName><label>EVA engineering suit</label>
-    <description>A single-person craft for work outside a ship. Load one pilot and up to 20 kg of cargo, then launch from an open deck or moon pool. Movement follows the camera. Its manual tools cut structures, weld damage and clean exposed decks, or pull loose cargo into its pack. It cannot launch to a world-map destination.</description>
+    <description>A single-person craft for work outside a ship. Load one pilot and up to 60 kg of cargo, then launch from an open deck or moon pool. Movement follows the camera. Its manual tools cut structures and mine rock, weld damage and clean exposed decks, or pull loose cargo into its pack. Mining yields the full amount for the current difficulty. Mined resources drift into space for tractor recovery. It cannot launch to a world-map destination.</description>
     <thingClass>Building</thingClass><size>(1,1)</size><rotatable>true</rotatable>
     <!-- Native south-only Graphic_Multi supplies the 180-degree artwork correction. -->
     <graphicData>
@@ -27,8 +27,8 @@
     <comps>
       <li Class="DeltaV.CompProperties_LocalShuttle" />
       <li Class="DeltaV.CompProperties_LocalLaunchable"><minFuelCost>0</minFuelCost><fuelPerTile>0</fuelPerTile><cooldownTicks>0</cooldownTicks></li>
-      <li Class="CompProperties_Transporter"><massCapacity>20</massCapacity><max1PerGroup>true</max1PerGroup><canChangeAssignedThingsAfterStarting>true</canChangeAssignedThingsAfterStarting><showMassInInspectString>false</showMassInInspectString></li>
-      <li Class="DeltaV.CompProperties_VehicleCargo"><cargoCapacity>20</cargoCapacity><crewCount>1</crewCount></li>
+      <li Class="CompProperties_Transporter"><massCapacity>60</massCapacity><max1PerGroup>true</max1PerGroup><canChangeAssignedThingsAfterStarting>true</canChangeAssignedThingsAfterStarting><showMassInInspectString>false</showMassInInspectString></li>
+      <li Class="DeltaV.CompProperties_VehicleCargo"><cargoCapacity>60</cargoCapacity><crewCount>1</crewCount></li>
       <li Class="DeltaV.CompProperties_EvaSuit">
         <virtualThrusters>
           <!-- Diagonal exhaust points outward; each axial pair supplies 300 total thrust. -->
@@ -83,7 +83,7 @@
   </ThingDef>
   <DeltaV.SpaceImpactEffectDef Name="DeltaV_EvaCutImpact" Abstract="True">
     <projectileDefs><li>DeltaV_Beam_EvaCutter</li></projectileDefs>
-    <defenderEffect><kind>CutStructure</kind><damage>120</damage></defenderEffect><attackerEffect><kind>DestroySelf</kind></attackerEffect>
+    <defenderEffect><kind>CutStructure</kind><damage>180</damage><miningYieldFactor>1</miningYieldFactor></defenderEffect><attackerEffect><kind>DestroySelf</kind></attackerEffect>
   </DeltaV.SpaceImpactEffectDef>
   <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_EvaCutImpact"><defName>DeltaV_Impact_EvaCutBuilding</defName></DeltaV.SpaceImpactEffectDef>
   <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_EvaCutImpact"><defName>DeltaV_Impact_EvaCutFoundation</defName><targetsSubstructure>true</targetsSubstructure><substructureHitChance>1</substructureHitChance></DeltaV.SpaceImpactEffectDef>

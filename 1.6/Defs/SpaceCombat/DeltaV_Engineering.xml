@@ -40,7 +40,7 @@
     <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
     <costList Inherit="False"><Steel>200</Steel><Plasteel>40</Plasteel><ComponentIndustrial>8</ComponentIndustrial></costList>
     <statBases><WorkToBuild>12000</WorkToBuild></statBases><label>mining beam</label><uiOrder>2101</uiOrder>
-    <description>Cuts through rocks, buildings and exposed substructure. Completed cuts drop minerals or normal dismantling materials near the emitter, merging them into existing stacks where possible. Minerals yield 50% of their base amount; intact equipment, cargo and people are not transported. Keep room nearby for output: cutting continues when space runs out, and materials that cannot be placed are lost. Each pulse needs stored electricity. Assign an active weapon group and use manual fire-control mode.</description>
+    <description>Cuts through rocks, buildings and exposed substructure. Completed cuts drop minerals or normal dismantling materials near the emitter, merging them into existing stacks where possible. Yield for ores affected by mining efficiency is 50% of the normal amount; intact equipment, cargo and people are not transported. Keep room nearby for output: cutting continues when space runs out, and materials that cannot be placed are lost. Each pulse needs stored electricity. Assign an active weapon group and use manual fire-control mode.</description>
     <uiIconPath>Things/Building/SpaceWeapons/MiningBeam_MenuIcon</uiIconPath>
     <building><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/MiningBeam_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(2.6,2.6)</drawSize></blueprintGraphicData></building>
     <comps>
@@ -91,7 +91,7 @@
 
   <DeltaV.SpaceImpactEffectDef Name="DeltaV_MiningImpact" Abstract="True">
     <projectileDefs><li>DeltaV_Beam_Mining</li></projectileDefs><buildingHitChance>1</buildingHitChance>
-    <defenderEffect><kind>Salvage</kind><damage>60</damage><substructureBreakThreshold>60</substructureBreakThreshold><miningYieldFactor>0.5</miningYieldFactor></defenderEffect>
+    <defenderEffect><kind>Salvage</kind><damage>240</damage><substructureBreakThreshold>60</substructureBreakThreshold><miningYieldFactor>0.5</miningYieldFactor></defenderEffect>
     <attackerEffect><kind>DestroySelf</kind></attackerEffect>
   </DeltaV.SpaceImpactEffectDef>
   <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_MiningImpact"><defName>DeltaV_Impact_MiningStructure</defName></DeltaV.SpaceImpactEffectDef>

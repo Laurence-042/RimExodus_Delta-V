@@ -89,6 +89,10 @@ internal static class Program
         foreach (XmlNode node in eva.DocumentElement.ChildNodes)
             if (node.NodeType == XmlNodeType.Element) XmlInheritance.TryRegister(node, null);
         XmlInheritance.Resolve();
+        XmlNode suit = XmlInheritance.GetResolvedNodeFor(eva.SelectSingleNode("/Defs/ThingDef[defName='DeltaV_EvaSuit']"));
+        Check(suit.SelectSingleNode("comps/li[@Class='CompProperties_Transporter']/massCapacity")?.InnerText == "60"
+            && suit.SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_VehicleCargo']/cargoCapacity")?.InnerText == "60",
+            "EVA loading and cargo capacity both use 60 kg");
         foreach (XmlNode node in eva.SelectNodes("//*[@Class]"))
         {
             string name = node.Attributes["Class"].Value;
@@ -147,6 +151,30 @@ internal static class Program
         Check(coupler["cooldownTicks"].InnerText == "1" && beam["continuousBeam"].InnerText == "true"
             && beam["ignoresShields"].InnerText == "true", "coupler ticks continuously and bypasses shields");
         float Number(XmlNode n) => float.Parse(n.InnerText, System.Globalization.CultureInfo.InvariantCulture);
+        foreach (var (defs, weaponName, beamName, impactName, range, dps, yield) in new[]
+        {
+            (engineering, "DeltaV_MiningBeam", "DeltaV_Beam_Mining", "DeltaV_Impact_MiningStructure", 65f, 480f, 0.5f),
+            (eva, "DeltaV_EvaCutter", "DeltaV_Beam_EvaCutter", "DeltaV_Impact_EvaCutBuilding", 6f, 360f, 1f)
+        })
+        {
+            XmlNode weapon = XmlInheritance.GetResolvedNodeFor(defs.SelectSingleNode($"/Defs/*[defName='{weaponName}']"))
+                .SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']");
+            XmlNode impact = XmlInheritance.GetResolvedNodeFor(defs.SelectSingleNode($"/Defs/*[defName='{impactName}']"))
+                ["defenderEffect"];
+            Check(Number(impact["damage"]) * 60 / Number(weapon["cooldownTicks"]) == dps
+                && Number(impact["miningYieldFactor"]) == yield && Number(weapon["range"]) == range,
+                weaponName + " retains its short range with the configured DPS and yield");
+            XmlNode projectile = XmlInheritance.GetResolvedNodeFor(defs.SelectSingleNode($"/Defs/ThingDef[defName='{beamName}']"))
+                .SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceProjectile']");
+            var props = new CompProperties_SpaceProjectile { laserRange = Number(projectile["laserRange"]) };
+            Check(props.laserRange == range && SpaceShieldProjectileBehavior.IsLaser(props)
+                && projectile["ignoresShields"]?.InnerText != "true",
+                beamName + " enters the shared electromagnetic shield path");
+            XmlNode guard = defs.SelectSingleNode($"/Defs/*[defenderEffect/kind='ShieldDrain' and projectileDefs/li='{beamName}']");
+            Check(guard != null && Number(guard.SelectSingleNode("defenderEffect/damage")) == 0
+                && guard.SelectSingleNode("attackerEffect/kind").InnerText == "DestroySelf",
+                beamName + " stops at guard shields without draining them");
+        }
         Check(Math.Abs(Number(coupler["shotEnergy"]) * 60 - 6) < 0.0001f,
             "continuous coupling consumes the configured 6 Wd per second");
         XmlNode coupling = engineering.SelectSingleNode("/Defs/DeltaV.SpaceImpactEffectDef[@Name='DeltaV_CouplingImpact']/defenderEffect");

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using DeltaV;
 using HarmonyLib;
 using RimWorld;
@@ -27,7 +28,7 @@ internal static partial class Program
 
     static bool MakeSalvage(ThingDef def, ref Thing __result)
     {
-        var thing = (Thing)Raw(typeof(Thing));
+        var thing = (Thing)Raw(typeof(ReceivingItem));
         thing.def = def;
         thing.stackCount = 1;
         Set(typeof(Thing), thing, "mapIndexOrState", (sbyte)-1);
@@ -58,6 +59,26 @@ internal static partial class Program
         }
     }
 
+    sealed class MiningTestRock : Mineable
+    {
+        int hp;
+        public override int HitPoints { get => hp; set => hp = value; }
+        public override void Destroy(DestroyMode mode = DestroyMode.Vanish)
+        {
+            Check(mode == DestroyMode.Vanish, "mining suppresses duplicate vanilla rock drops");
+            Set(typeof(Thing), this, "mapIndexOrState", (sbyte)-2);
+        }
+    }
+
+    sealed class SalvageTestConduit : Building
+    {
+        public override void Kill(DamageInfo? dinfo = null, Hediff exactCulprit = null)
+        {
+            Map.thingGrid.Deregister(this);
+            Set(typeof(Thing), this, "mapIndexOrState", (sbyte)-2);
+        }
+    }
+
     static void CheckSalvageOutput(UniverseManager universe)
     {
         var harness = new Harmony("DeltaV.SalvageRegression");
@@ -67,12 +88,13 @@ internal static partial class Program
         var enemy = (Faction)Raw(typeof(Faction));
         enemy.def = new FactionDef();
         Map sourceMap = TestMap(47001), targetMap = TestMap(47002);
+        targetMap.roofGrid = new RoofGrid(targetMap);
         Thing launcher = AddTestHull(sourceMap, player, 47003).parent;
         var target = new MapSpaceObject(47004, targetMap, new SpacePose(Vector3.forward, 0));
         universe.objects.Add(target);
         var steel = (ThingDef)Raw(typeof(ThingDef));
         steel.defName = "salvageSteel"; steel.label = "steel";
-        steel.category = ThingCategory.Item; steel.stackLimit = 75;
+        steel.category = ThingCategory.Item; steel.stackLimit = 75; steel.useHitPoints = false;
         var def = TestBuildingDef("salvageWall");
         def.destroyable = def.useHitPoints = true;
         def.resourcesFractionWhenDeconstructed = 0.5f;
@@ -87,6 +109,9 @@ internal static partial class Program
             defenderBuilding = building, hitCell = building.Position, damageScale = 1 };
         var part = new ImpactOutcomePart { kind = ImpactEffectKind.Salvage, damage = 60 };
         var oldState = Current.ProgramState;
+        var mainThread = AccessTools.Field(typeof(UnityData), "mainThreadId");
+        object oldMainThread = mainThread.GetValue(null);
+        mainThread.SetValue(null, System.Threading.Thread.CurrentThread.ManagedThreadId);
         Current.ProgramState = ProgramState.Playing;
         Current.Game.storyteller = (Storyteller)Raw(typeof(Storyteller));
         Current.Game.storyteller.difficulty = new Difficulty();
@@ -175,7 +200,8 @@ internal static partial class Program
             var conduitDef = TestBuildingDef("salvageHiddenConduit");
             conduitDef.building.isPowerConduit = true;
             conduitDef.building.canBeDamagedByAttacks = false;
-            Thing conduit = AddTestBuilding(targetMap, enemy, 47007, conduitDef, new CompPowerTransmitter());
+            Thing conduit = AddTestBuilding(targetMap, enemy, 47007, conduitDef, new CompPowerTransmitter(),
+                (SalvageTestConduit)Raw(typeof(SalvageTestConduit)));
             terrain.isFoundation = true;
             terrain.tags = new List<string> { "Substructure" };
             int cellIndex = targetMap.cellIndices.CellToIndex(conduit.Position);
@@ -196,15 +222,112 @@ internal static partial class Program
             salvagePlacementSucceeds = false;
             GenPlace.TryPlaceThing(lastSalvageOutput, launcher.Position, null, ThingPlaceMode.Near);
             Check(salvageMessages == 5, "null-map failure outside mining scope remains untouched");
+
+            CheckMiningRoutes(universe, harness, evt, part, steel, targetMap, sourceMap);
+            CheckSmallMapDisposal(universe);
         }
         finally
         {
             harness.UnpatchAll(harness.Id);
+            mainThread.SetValue(null, oldMainThread);
             Current.ProgramState = oldState;
             universe.objects.Clear();
             Find.Maps.Clear();
             ShipRegistry.ClearCaches();
             universe.Weapons.ResetFlow();
         }
+    }
+
+    static void CheckMiningRoutes(UniverseManager universe, Harmony harness, SpaceCollision.ImpactEvent hit,
+        ImpactOutcomePart shipBeam, ThingDef ore, Map asteroid, Map receiver)
+    {
+        var rock = (MiningTestRock)Raw(typeof(MiningTestRock));
+        rock.def = TestBuildingDef("miningVein");
+        rock.def.mineable = rock.def.destroyable = rock.def.useHitPoints = true;
+        var mining = rock.def.building;
+        mining.canBeDamagedByAttacks = false;
+        mining.mineableThing = ore;
+        mining.mineableYield = 40;
+        mining.mineableDropChance = 1f;
+        Current.Game.storyteller.difficulty.mineYieldFactor = 1f;
+        hit.defenderBuilding = rock;
+        hit.defenderIsSubstructure = false;
+        hit.hitCell = new IntVec3(2, 0, 2);
+        hit.hitDefenderLocal = new Vector2(2f, 2.5f);
+        hit.incidentDir = Vector2.right;
+        Set(typeof(Thing), rock, "positionInt", hit.hitCell);
+        void SpawnRock(int hp)
+        {
+            rock.HitPoints = hp;
+            Set(typeof(Thing), rock, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(asteroid));
+        }
+
+        salvagePlacementSucceeds = true;
+        int placements = salvagePlacements;
+        SpawnRock(61);
+        SpaceImpactEffects.ApplyToDefender(hit, shipBeam);
+        Check(rock.HitPoints == 1 && salvagePlacements == placements, "beam cuts a mineable vein before paying yield");
+        SpaceImpactEffects.ApplyToDefender(hit, shipBeam);
+        Check(rock.Destroyed && salvagePlacements == ++placements && salvageOutputMap == receiver
+            && lastSalvageOutput.def == ore && lastSalvageOutput.stackCount == 20,
+            "ship mining delivers half the vein yield to its own map");
+
+        mining.mineableYieldWasteable = false;
+        mining.mineableYield = 1;
+        SpawnRock(1);
+        SpaceImpactEffects.ApplyToDefender(hit, shipBeam);
+        Check(salvagePlacements == ++placements && lastSalvageOutput.stackCount == 1,
+            "a successful chunk drop yields one whole chunk");
+
+        Map cargoMap = TestMap(47008, 1);
+        PreparePoolMap(cargoMap, SpaceObjectTag.Scattered);
+        Check(universe.MapPool.TryReturn(universe.MapPool.Restore(cargoMap)), "EVA mining has a pooled scatter map");
+        harness.Patch(AccessTools.Method(typeof(GenSpawn), nameof(GenSpawn.Spawn), new[] {
+            typeof(Thing), typeof(IntVec3), typeof(Map), typeof(Rot4), typeof(WipeMode), typeof(bool), typeof(bool) }),
+            prefix: new HarmonyMethod(typeof(Program), nameof(ReceiveSpawn)));
+        harness.Patch(AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.Label)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(SalvageLabel)));
+        mining.mineableYieldWasteable = true;
+        mining.mineableYield = 40;
+        SpawnRock(1);
+        SpaceImpactEffects.ApplyToDefender(hit, new ImpactOutcomePart
+            { kind = ImpactEffectKind.CutStructure, damage = 180, miningYieldFactor = 1f });
+        Check(rock.Destroyed && salvagePlacements == placements, "EVA mining does not place ore on either ship or asteroid");
+        Call(universe, "RunFrameActions");
+        SpaceObject cargo = universe.objects.Single(obj => obj.map == cargoMap);
+        Thing extractedOre = cargoMap.listerThings.AllThings.Single();
+        Check(cargo.IsScattered && extractedOre.def == ore && extractedOre.stackCount == 40
+            && universe.Scatter.Candidates.Contains(cargo), "EVA ejects the full vein yield as a tractor candidate");
+        Vector2 drift = SpaceTransform.UniverseTangentToMapDirection(hit.defender, asteroid, cargo.pose.position,
+            cargo.pose.velocity);
+        Check(drift.x < 0f && cargo.pose.velocity.magnitude >= 1.99f && cargo.pose.velocity.magnitude <= 4.01f,
+            "EVA ore drifts out of the asteroid toward the incident side");
+        universe.UnregisterObject(cargo);
+        universe.MapPool.Forget(cargoMap);
+    }
+
+    static void CheckSmallMapDisposal(UniverseManager universe)
+    {
+        Map map = TestMap(47009, 12);
+        map.listerBuildings = new ListerBuildings();
+        map.mapPawns = new MapPawns(map);
+        map.passingShipManager = new PassingShipManager(map);
+        var obj = new MapSpaceObject(47009, map, new SpacePose(Vector3.forward, 0));
+        bool IsDisposable() => (bool)Call(universe.Lifecycle, "IsDisposableContainer", obj, map);
+
+        TerrainDef ground = map.terrainGrid.topGrid[0];
+        for (int i = 64; i < map.terrainGrid.topGrid.Length; i++) map.terrainGrid.topGrid[i] = TerrainDefOf.Space;
+        for (int i = 1; i < 64; i++) map.terrainGrid.topGrid[i] = ground;
+        Check(IsDisposable(), "64 support cells count as a small wreck despite map padding");
+        map.terrainGrid.topGrid[64] = ground;
+        Check(!IsDisposable(), "65 support cells retain normal archiving");
+        obj.contentTypeId = "Asteroid";
+        Check(IsDisposable(), "a generated asteroid is disposable independently of its area");
+        map.listerBuildings.allBuildingsColonist.Add((Building)Raw(typeof(Building)));
+        Check(!IsDisposable(), "a player building protects an asteroid from distance disposal");
+        map.listerBuildings.allBuildingsColonist.Clear();
+        map.terrainGrid.topGrid[64] = TerrainDefOf.Space;
+        obj.contentTypeId = "AbandonedSatellite";
+        Check(!IsDisposable(), "a registered station remains eligible for archive");
     }
 }

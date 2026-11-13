@@ -16,14 +16,17 @@ namespace DeltaV
     ///   物化——产物是**普通 SpaceObject 容器**（无 POI 图标身份，名称 = 图上结构
     ///   拼接、ambientLabel 兜底纯环境）。
     /// - 物化容器（普通 SpaceObject）：MustStayActive（玩家侧）恒活跃；离开活跃
-    ///   距离休眠，超删除距离使用原版 Map 整图序列化并卸载，保留容器身份与姿态；
-    ///   靠近时从同一地图内容恢复，不经 prefab 重盖。
+    ///   距离休眠，超删除距离清理小行星和零碎残骸，其他地图整图归档。
     /// - NativeParent 型 PoiState 例外：map 字段跟随原版 MapParent 镜像
     ///   （SynchronizeNative/UpdateFromParent），保留原版图标与生命周期。
     /// </summary>
     public sealed partial class SpaceLifecycleService
     {
         public const int PoiMapSize = 90;
+        private const int SmallWreckMaxSupportCells = 64;
+
+        private static float DeleteRadius => Mathf.Max(DeltaVMod.CurrentSettings.poiDeleteRadius,
+            DeltaVMod.CurrentSettings.poiActiveRadius + 1f);
 
         /// <summary>物化失败后的退避期（tick）：期内 EnsureActive 不再重试，防止每 60 tick
         /// 无限重生成 + pocketMaps 死 parent 积累。</summary>
@@ -51,7 +54,7 @@ namespace DeltaV
         {
             OrbitalPoiRegistry.Synchronize(universe);
             float activeRadius = DeltaVMod.CurrentSettings.poiActiveRadius;
-            float deleteRadius = Mathf.Max(DeltaVMod.CurrentSettings.poiDeleteRadius, activeRadius + 1f);
+            float deleteRadius = DeleteRadius;
             foreach (SpaceObject obj in universe.objects.ToList())
             {
                 if (obj is PoiState poi)
@@ -393,9 +396,9 @@ namespace DeltaV
         /// 整图归档：Map.ExposeData 原样存入对象，然后从 Game.maps 卸载。
         /// 失败时保留原图与身份；不经 prefab/浅快照重建。
         /// </summary>
-        internal void ArchiveContainer(SpaceObject container, Map map, bool force = false)
+        internal void ArchiveContainer(SpaceObject container, Map map, bool force = false, bool departing = false)
         {
-            if (container.IsScattered) { universe.Scatter.RetireLost(container); return; }
+            if (container.IsScattered) { universe.Scatter.RetireLost(container, departing); return; }
             int objectId = container.objectId, version = container.RepresentationVersion;
             universe.QueueFrameAction(delegate
             {
@@ -408,13 +411,19 @@ namespace DeltaV
                         $"{container.label}: map destroyed externally before archiving; object removed");
                     return;
                 }
-                if (SpaceMapGovernance.MustStayActive(map, universe)
+                float distance = MinPlayerDistance(container);
+                bool beyondDeleteRadius = departing || (!float.IsPositiveInfinity(distance) && distance > DeleteRadius);
+                if ((!force && !beyondDeleteRadius)
+                    || SpaceMapGovernance.MustStayActive(map, universe)
                     || container.HasTag(SpaceObjectTag.Projectile) == true
                     || map.Parent is not ShipPocketParent_DeltaV
-                    || !ArchivedMapStore.CanUnloadLosslessly(map)
-                    || (!force && MinPlayerDistance(container)
-                        <= DeltaVMod.CurrentSettings.poiDeleteRadius))
+                    || !ArchivedMapStore.CanUnloadLosslessly(map))
                 {
+                    return;
+                }
+                if (IsDisposableContainer(container, map))
+                {
+                    if (beyondDeleteRadius) RemoveDistantContainer(container, map);
                     return;
                 }
                 // Standalone Map saving can emit vanilla cross-reference warnings before
@@ -424,7 +433,7 @@ namespace DeltaV
                 Log.Message($"[DeltaV] Archive capture begin: object=#{objectId} label='{container.label}' "
                     + $"ships=[{shipIds}] tag={container.Tag} {UniverseManager.MapTag(map)} "
                     + $"parent={map.Parent?.GetUniqueLoadID() ?? "null"} "
-                    + $"distance={MinPlayerDistance(container):F1} force={force}");
+                    + $"distance={distance:F1} force={force}");
                 if (!ArchivedMapStore.TryCapture(map, out string data))
                 {
                     Log.Warning($"[DeltaV] Archive capture aborted: object=#{objectId} {UniverseManager.MapTag(map)}; original map retained.");
@@ -451,6 +460,17 @@ namespace DeltaV
                 Log.Message($"[DeltaV] Archive capture complete: object=#{archive.objectId} label='{carriedLabel}' "
                     + $"{mapTag} parent={archive.parent?.GetUniqueLoadID() ?? "null"}; map unloaded.");
             });
+        }
+
+        private bool IsDisposableContainer(SpaceObject container, Map map)
+        {
+            if (container.Ships.Any() || universe.Missions.Protects(container)
+                || map.mapPawns.AllPawnsCount != 0 || map.listerBuildings.allBuildingsColonist.Count != 0)
+                return false;
+            return container.contentTypeId == "Asteroid"
+                || (!GlobeDisplayInfo.IsStationType(container.contentTypeId)
+                    && map.AllCells.Where(cell => SubstructureOwnership.SupportsAt(map, cell))
+                        .Take(SmallWreckMaxSupportCells + 1).Count() <= SmallWreckMaxSupportCells);
         }
 
         private readonly HashSet<int> restoreQueued = new HashSet<int>();
@@ -541,13 +561,19 @@ namespace DeltaV
                     return false;
                 }
             }
+            RemoveDistantContainer(obj, restored);
+            return true;
+        }
+
+        private void RemoveDistantContainer(SpaceObject obj, Map map)
+        {
+            var parent = (PocketMapParent)map.Parent;
             // 不走 PocketMapUtility 的视图切换副作用：这里始终是后台清理。
-            DeinitMap(restored, notifyPlayer: false);
+            DeinitMap(map, notifyPlayer: false);
             Find.World.pocketMaps.Remove(parent);
             if (!parent.Destroyed) parent.Destroy();
-            obj.map = null;
             universe.UnregisterObject(obj);
-            return true;
+            obj.map = null;
         }
 
         /// <summary>外部销图的统一注销；归档已换表示时不得移除同 ID 的新对象。</summary>
@@ -616,9 +642,8 @@ namespace DeltaV
                 if (map == excludeMap || IsUniverseHost(map)) continue;
                 // PoiState 走 NativeParent 原版语义；普通物化容器走 ArchiveContainer
                 //（marker 替换；有船/滞留 Pawn/MustStayActive 在帧上下文复核，删不掉的只休眠）。
-                if (obj.IsScattered) universe.Scatter.RetireLost(obj, departing: true);
-                else if (obj is PoiState poi) TryPack(poi);
-                else ArchiveContainer(obj, map);
+                if (obj is PoiState poi) TryPack(poi);
+                else ArchiveContainer(obj, map, departing: true);
             }
         }
         private bool IsPendingGeneration(PoiState poi) => poi != null

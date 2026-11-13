@@ -26,12 +26,12 @@ namespace DeltaV
             Map map = evt.defender.map;
             if (evt.defenderBuilding is Building building && building.Spawned && !building.Destroyed)
             {
-                if (!building.def.destroyable || !building.def.building.canBeDamagedByAttacks || building is Frame) return;
-                int cut = Mathf.Max(1, Mathf.RoundToInt(part.damage * evt.damageScale));
-                PublicFacility.NotifyCut(building, evt.launcher, cut);
-                if (building.def.useHitPoints && building.HitPoints > cut) { building.HitPoints -= cut; return; }
-                // Deconstruct is the sole drop producer; no kill drops and no receiver inventory.
-                building.Destroy(DestroyMode.Deconstruct);
+                if (building is Mineable rock && building.def.mineable)
+                {
+                    MineRock(evt, part, rock);
+                    return;
+                }
+                if (!TryFinishCut(evt, part, building, DestroyMode.Deconstruct)) return;
             }
             else if (evt.defenderIsSubstructure && SubstructureOwnership.HasFoundation(map, evt.hitCell)
                 && part.damage * evt.damageScale >= part.substructureBreakThreshold)
@@ -91,35 +91,15 @@ namespace DeltaV
 
             if (evt.defenderBuilding is Building building && building.Spawned && !building.Destroyed)
             {
-                if (!building.def.destroyable || !building.def.building.canBeDamagedByAttacks
-                    || building is Frame) return;
-                int cut = Mathf.Max(1, Mathf.RoundToInt(part.damage * evt.damageScale));
-                PublicFacility.NotifyCut(building, evt.launcher, cut);
-                if (building.def.useHitPoints && building.HitPoints > cut)
+                if (building is Mineable rock && building.def.mineable)
                 {
-                    // 切割进度复用真实耐久，不新增可丢失或重复兑现的材料账本。
-                    building.HitPoints -= cut;
+                    MineRock(evt, part, rock);
                     return;
                 }
-                ThingDef mineral = building is Mineable ? building.def.building.mineableThing : null;
-                int mineralCount = mineral != null && Rand.Chance(building.def.building.mineableDropChance)
-                    ? GenMath.RoundRandom(building.def.building.EffectiveMineableYield * part.miningYieldFactor) : 0;
-                // Vanish 不生成击杀掉落；移除成功后仅兑现本次原版拆除产物。
-                building.Destroy(DestroyMode.Vanish);
-                if (!building.Destroyed) return;
-                if (mineralCount > 0)
-                {
-                    Thing ore = ThingMaker.MakeThing(mineral);
-                    ore.stackCount = mineralCount;
-                    using (new SalvageOutputScope(launcher))
-                        GenPlace.TryPlaceThing(ore, output, receiverMap, ThingPlaceMode.Near);
-                }
-                else if (!(building is Mineable))
-                {
-                    using (new SalvageOutputScope(launcher))
-                        GenLeaving.DoLeavingsFor(building, receiverMap, DestroyMode.Deconstruct,
-                            CellRect.SingleCell(output));
-                }
+                if (!TryFinishCut(evt, part, building, DestroyMode.Vanish)) return;
+                using (new SalvageOutputScope(launcher))
+                    GenLeaving.DoLeavingsFor(building, receiverMap, DestroyMode.Deconstruct,
+                        CellRect.SingleCell(output));
                 return;
             }
 
@@ -134,6 +114,49 @@ namespace DeltaV
             if (!SubstructureDamageUtility.TryDestroyHitFoundation(targetMap, cell, scatterNearbyRoofs: false, instigator: evt.launcher)) return;
             using (new SalvageOutputScope(launcher))
                 GenLeaving.DoLeavingsFor(foundation, output, receiverMap);
+        }
+
+        private static bool TryFinishCut(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part,
+            Building building, DestroyMode mode)
+        {
+            if (!building.def.destroyable || building is Frame
+                || (!building.def.building.canBeDamagedByAttacks && !(building is Mineable && building.def.mineable))) return false;
+            int cut = Mathf.Max(1, Mathf.RoundToInt(part.damage * evt.damageScale));
+            PublicFacility.NotifyCut(building, evt.launcher, cut);
+            if (building.def.useHitPoints && building.HitPoints > cut)
+            {
+                building.HitPoints -= cut;
+                return false;
+            }
+            building.Destroy(mode);
+            return building.Destroyed;
+        }
+
+        private static void MineRock(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part, Mineable rock)
+        {
+            Thing launcher = evt.launcher;
+            if (launcher?.Spawned != true || evt.defender.IsActiveCollider
+                || !TryFinishCut(evt, part, rock, DestroyMode.Vanish)) return;
+            BuildingProperties mining = rock.def.building;
+            ThingDef mineral = mining.mineableThing;
+            if (mineral == null || part.miningYieldFactor <= 0f || !Rand.Chance(mining.mineableDropChance)) return;
+
+            // 原版只按采矿效率扣减可损耗矿产，岩块等单件产物只掷掉落概率。
+            int count = Mathf.Max(1, mining.EffectiveMineableYield);
+            if (mining.mineableYieldWasteable)
+                count = Mathf.Max(1, GenMath.RoundRandom(count * part.miningYieldFactor));
+            using var output = part.kind == ImpactEffectKind.Salvage ? new SalvageOutputScope(launcher) : null;
+            while (count > 0)
+            {
+                Thing ore = ThingMaker.MakeThing(mineral);
+                ore.stackCount = Mathf.Min(count, mineral.stackLimit);
+                count -= ore.stackCount;
+                if (part.kind == ImpactEffectKind.Salvage)
+                    GenPlace.TryPlaceThing(ore, launcher.Position, launcher.Map, ThingPlaceMode.Near);
+                else
+                    Current.Game.GetComponent<UniverseManager>().Scatter.QueueMiningEjection(
+                        ore, evt.defender, evt.hitCell, evt.hitDefenderLocal, -evt.incidentDir);
+            }
         }
 
         private static void ClearCuttingRoofs(Map map, IntVec3 origin)
