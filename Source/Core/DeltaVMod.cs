@@ -163,6 +163,8 @@ namespace DeltaV
                 path => Settings.testScenePlayerPrefab = path);
             DrawTestScenePrefabSelector(list, "DeltaV_SettingsTestSceneEnemy", Settings.testSceneEnemyPrefab,
                 path => Settings.testSceneEnemyPrefab = path);
+            list.CheckboxLabeled("DeltaV_SettingsTestSceneKeepPrefabMarkers".Translate(),
+                ref Settings.testSceneKeepPrefabMarkers, "DeltaV_SettingsTestSceneKeepPrefabMarkersTip".Translate());
             TippedRow(list, rect, "DeltaV_SettingsTestSceneDistanceTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsTestSceneDistance".Translate(),
                     ref Settings.testSceneDistance, ref testSceneDistanceBuffer, 1f, 10000f));

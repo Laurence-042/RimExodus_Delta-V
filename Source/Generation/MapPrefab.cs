@@ -194,8 +194,12 @@ namespace DeltaV
         /// </summary>
         public static List<Thing> Spawn(MapPrefabDocument doc, Map map, IntVec3 position, Faction faction,
             int ownerId = 0, Rot4 rot = default, UniverseManager universe = null, bool blankSpace = false)
+            => Spawn(doc, map, position, faction, ownerId, rot, universe, blankSpace, expandMarkers: true);
+
+        internal static List<Thing> Spawn(MapPrefabDocument doc, Map map, IntVec3 position, Faction faction,
+            int ownerId, Rot4 rot, UniverseManager universe, bool blankSpace, bool expandMarkers)
         {
-            return SharedMapBackend.Spawn(doc, map, position, faction, ownerId, rot, universe, blankSpace);
+            return SharedMapBackend.Spawn(doc, map, position, faction, ownerId, rot, universe, blankSpace, expandMarkers);
         }
     }
 }

@@ -78,6 +78,8 @@
 
 失败测试图的销毁与容器注销经 `UniverseManager.QueueFrameAction` 延后到帧边界，等待原版 `Map.FinalizeInit` 已排队的电网与地图绘制初始化结束；不能在生成长事件内同步销图，否则原版 `MapDrawer.Dispose` 会遇到尚未初始化的 sections，后续绘制回调还会访问已释放的网格。
 
+双船测试在排队重建前读取「保留 Prefab 标记」开关，两张图共用本次取值。开启时沿用舰船试装的落位流程，设施照常重链，随后跳过 `CompPrefabMarker.Expand`。两边的人员标记都可在 God 模式配置。2026-11-13 用户在新档确认开关、标记保留和重新导出均正常。设置用法见 [README](../README.md#测试)。
+
 聚焦图原地替换由 `SpaceLifecycleService.ReplaceFocusedMapFromPrefab` 总装：调试菜单选定文件与派系后显式传入，派系只确定一次，新容器与 `MapPrefab.Spawn` 共用该值（null 表示无派系）。先解析所选文件，再经 `ShipPocketMapFactory` 建空图、注册新容器和独立结构归属，调用同一 `MapPrefab.Spawn`。原图保留到放置成功；长事件结束后的帧边界经 `SetFocusedWithCamera` 交接，再走生命周期删图与旧容器注销。新容器继承原 `SpacePose`，旧图局部尺寸与新图局部尺寸的差异由 `SpaceTransform` 换算相机位置。失败的新图也在帧边界清理；不回退程序布局。用户入口与适用范围见 README「通用地图 prefab」。
 
 Scribe 对同一份 prefab 内的引用在整批读取时解析。对外部 Pawn、任务或旧地图 Thing 的引用无法在新副本成立，解析后为空。第三方 Comp 只要按 RimWorld `ExposeData` 持久化且不依赖旧地图或全局注册表，即可一同恢复；状态缺失、读取抛错、实例数量或 Def 不匹配均中止，不回退到 Def 默认状态。跨地图原始坐标、原始 Thing ID 数值等自定义字段不具有通用语义，具体模组须适配。

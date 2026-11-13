@@ -68,6 +68,8 @@
   <DeltaV_SettingsHideEmptySpaceMaps>Hide space map groups without player pawns</DeltaV_SettingsHideEmptySpaceMaps>
   <DeltaV_SettingsHideEmptySpaceMapsTip>On by default. Hide colonist bar groups for SpaceObject maps without living player-faction pawns, reducing enemy ship and debris clutter. Held pawns, player animals and mechs also count. Surface maps and caravans are unaffected. Changes apply immediately.</DeltaV_SettingsHideEmptySpaceMapsTip>
   <DeltaV_SettingsTestScene>Two-ship test scene</DeltaV_SettingsTestScene>
+  <DeltaV_SettingsTestSceneKeepPrefabMarkers>Keep prefab markers</DeltaV_SettingsTestSceneKeepPrefabMarkers>
+  <DeltaV_SettingsTestSceneKeepPrefabMarkersTip>When creating the next two-ship test scene, leave crew, object, and cluster markers on both maps for editing and skip spawning their contents. Off by default.</DeltaV_SettingsTestSceneKeepPrefabMarkersTip>
   <DeltaV_SettingsTestSceneTip>Choose the prefabs and starting poses for the next two-ship test scene. Settings are shared across saves. The prefab list includes subfolders and rescans when opened. If a selected file fails to load, the existing scene is preserved.</DeltaV_SettingsTestSceneTip>
   <DeltaV_SettingsTestScenePlayer>Player ship prefab</DeltaV_SettingsTestScenePlayer>
   <DeltaV_SettingsTestSceneEnemy>Enemy ship prefab</DeltaV_SettingsTestSceneEnemy>

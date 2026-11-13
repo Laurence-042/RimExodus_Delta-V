@@ -18,6 +18,7 @@ namespace DeltaV
         // Empty paths preserve the test scene's automatic latest-export selection.
         public string testScenePlayerPrefab = "";
         public string testSceneEnemyPrefab = "";
+        public bool testSceneKeepPrefabMarkers;
         public float testSceneDistance = ShipTestScene.DefaultEnemyDistance;
         public float testSceneBearingDeg = ShipTestScene.DefaultEnemyBearingDeg;
         public float testScenePlayerAngleDeg;
@@ -164,6 +165,7 @@ namespace DeltaV
             Scribe_Values.Look(ref hideSpaceMapsWithoutPlayerPawns, "hideSpaceMapsWithoutPlayerPawns", true);
             Scribe_Values.Look(ref testScenePlayerPrefab, "testScenePlayerPrefab", "");
             Scribe_Values.Look(ref testSceneEnemyPrefab, "testSceneEnemyPrefab", "");
+            Scribe_Values.Look(ref testSceneKeepPrefabMarkers, "testSceneKeepPrefabMarkers", false);
             Scribe_Values.Look(ref testSceneDistance, "testSceneDistance", ShipTestScene.DefaultEnemyDistance);
             Scribe_Values.Look(ref testSceneBearingDeg, "testSceneBearingDeg", ShipTestScene.DefaultEnemyBearingDeg);
             Scribe_Values.Look(ref testScenePlayerAngleDeg, "testScenePlayerAngleDeg", 0f);

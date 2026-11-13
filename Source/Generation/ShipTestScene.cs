@@ -29,18 +29,19 @@ namespace DeltaV
             DeltaVSettings settings = DeltaVMod.CurrentSettings;
             if (!TryLoadLayout(settings?.testScenePlayerPrefab, out MapPrefabDocument playerPrefab)
                 || !TryLoadLayout(settings?.testSceneEnemyPrefab, out MapPrefabDocument enemyPrefab)) return;
-            // Frame action may run after settings change; freeze this scene's requested pose now.
+            // Freeze the requested options before the deferred scene reset.
+            bool keepPrefabMarkers = settings?.testSceneKeepPrefabMarkers ?? false;
             float distance = settings?.testSceneDistance ?? DefaultEnemyDistance;
             float bearingDeg = settings?.testSceneBearingDeg ?? DefaultEnemyBearingDeg;
             float playerAngleDeg = settings?.testScenePlayerAngleDeg ?? 0f;
             float enemyAngleDeg = settings?.testSceneEnemyAngleDeg ?? DefaultEnemyAngleDeg;
             universe.BeginSceneReset(() => Generate(universe, playerPrefab, enemyPrefab,
-                distance, bearingDeg, playerAngleDeg, enemyAngleDeg));
+                distance, bearingDeg, playerAngleDeg, enemyAngleDeg, keepPrefabMarkers));
         }
 
         private static void Generate(UniverseManager universe, MapPrefabDocument playerPrefab,
             MapPrefabDocument enemyPrefab, float distance, float bearingDeg,
-            float playerAngleDeg, float enemyAngleDeg)
+            float playerAngleDeg, float enemyAngleDeg, bool keepPrefabMarkers)
         {
             // 玩家船锚定在一个空闲轨道 tile 的中心方向（仅为背景视角选个合理位置）。
             PlanetLayer orbitLayer = Find.WorldGrid.PlanetLayers.Values
@@ -68,7 +69,7 @@ namespace DeltaV
                 new SpacePose(playerDir, playerAngleDeg * Mathf.Deg2Rad));
             universe.RegisterObject(playerContainer);
             universe.NoteStructureName(playerOwnerId, "Player ship");
-            if (!SpawnShipLayout(playerPrefab, playerMap, Faction.OfPlayer, playerOwnerId, universe,
+            if (!SpawnShipLayout(playerPrefab, playerMap, Faction.OfPlayer, playerOwnerId, universe, keepPrefabMarkers,
                 () => ShipProceduralLayout.GeneratePlayerShip(playerMap, playerOwnerId)))
             {
                 QueueFailedSceneCleanup(universe, playerContainer);
@@ -93,7 +94,7 @@ namespace DeltaV
             { faction = enemyFaction };
             universe.RegisterObject(enemyContainer);
             universe.NoteStructureName(enemyOwnerId, "Enemy ship");
-            if (!SpawnShipLayout(enemyPrefab, enemyMap, enemyFaction, enemyOwnerId, universe,
+            if (!SpawnShipLayout(enemyPrefab, enemyMap, enemyFaction, enemyOwnerId, universe, keepPrefabMarkers,
                 () => ShipProceduralLayout.GenerateEnemyShip(enemyMap, enemyOwnerId, enemyFaction)))
             {
                 QueueFailedSceneCleanup(universe, enemyContainer, playerContainer);
@@ -156,7 +157,7 @@ namespace DeltaV
         }
 
         private static bool SpawnShipLayout(MapPrefabDocument prefab, Map map, Faction faction,
-            int ownerId, UniverseManager universe, Action fallbackLayout)
+            int ownerId, UniverseManager universe, bool keepPrefabMarkers, Action fallbackLayout)
         {
             if (prefab == null)
             {
@@ -165,7 +166,8 @@ namespace DeltaV
             }
             try
             {
-                MapPrefab.Spawn(prefab, map, MapPrefab.CenteredPosition(prefab, map, Rot4.North), faction, ownerId, Rot4.North, universe, blankSpace: true);
+                MapPrefab.Spawn(prefab, map, MapPrefab.CenteredPosition(prefab, map, Rot4.North),
+                    faction, ownerId, Rot4.North, universe, blankSpace: true, expandMarkers: !keepPrefabMarkers);
                 return true;
             }
             catch (Exception ex)

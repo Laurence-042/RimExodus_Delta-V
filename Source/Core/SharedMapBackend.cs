@@ -31,9 +31,9 @@ namespace DeltaV
         }
 
         internal static List<Thing> Spawn(MapPrefabDocument doc, Map map, IntVec3 position, Faction faction,
-            int ownerId, Rot4 rot, UniverseManager universe, bool blankSpace)
+            int ownerId, Rot4 rot, UniverseManager universe, bool blankSpace, bool expandMarkers)
         {
-            PrefabPlacementResult result = Place(doc, map, position, faction, ownerId, rot, universe, blankSpace, true);
+            PrefabPlacementResult result = Place(doc, map, position, faction, ownerId, rot, universe, blankSpace, expandMarkers);
             if (!result.Success) throw new InvalidDataException(string.Join("\n", result.Errors));
             return result.Things;
         }

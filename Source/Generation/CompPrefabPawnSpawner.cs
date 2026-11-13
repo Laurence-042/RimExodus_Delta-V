@@ -35,7 +35,7 @@ namespace DeltaV
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
-            if (!DebugSettings.godMode || parent.Faction != Faction.OfPlayer) yield break;
+            if (!DebugSettings.godMode) yield break;
             yield return new Command_Action
             {
                 defaultLabel = "DeltaV_ShipPlanCrewKind".Translate() + ": " +

@@ -68,6 +68,8 @@
   <DeltaV_SettingsHideEmptySpaceMaps>隐藏没有玩家 Pawn 的太空地图分组</DeltaV_SettingsHideEmptySpaceMaps>
   <DeltaV_SettingsHideEmptySpaceMapsTip>默认开启。殖民者栏隐藏没有存活玩家派系 Pawn 的 SpaceObject 地图分组，避免敌舰与碎片占位。容器内的玩家 Pawn、玩家动物和机械体也计入；地表地图与商队不受影响。切换立即生效。</DeltaV_SettingsHideEmptySpaceMapsTip>
   <DeltaV_SettingsTestScene>双船测试场景</DeltaV_SettingsTestScene>
+  <DeltaV_SettingsTestSceneKeepPrefabMarkers>保留 Prefab 标记</DeltaV_SettingsTestSceneKeepPrefabMarkers>
+  <DeltaV_SettingsTestSceneKeepPrefabMarkersTip>下次创建双船测试场景时，两船的人员、精确对象和批量对象标记会留在地图上供编辑，并跳过这些标记的生成。默认关闭。</DeltaV_SettingsTestSceneKeepPrefabMarkersTip>
   <DeltaV_SettingsTestSceneTip>配置下次创建双船测试场景时的 prefab 和初始位姿；配置跨存档保存。prefab 列表包含子目录，每次打开重新扫描。指定文件加载失败时保留旧场景。</DeltaV_SettingsTestSceneTip>
   <DeltaV_SettingsTestScenePlayer>玩家飞船 prefab</DeltaV_SettingsTestScenePlayer>
   <DeltaV_SettingsTestSceneEnemy>敌舰 prefab</DeltaV_SettingsTestSceneEnemy>
