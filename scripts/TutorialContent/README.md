@@ -1,11 +1,11 @@
 # 教程布局制作源
 
-`build.py` 是生成入口；移民船残骸以用户原始导出的逐字节副本 `arrival_intact.prefab` 为基准，删改逻辑编辑 `arrival_layout.py`，环形船厂与小货船编辑 `shipyard_layout.py`，武器平台与靶舰编辑 `combat_range_layout.py`，12 个星区叶子的内置内容编辑 `sector_layout.py`。生成器读取安装版与项目 Def 的尺寸和继承链，解析占地／操作格后由同一份记录输出：
+`build.py` 是生成入口；移民船残骸以用户原始导出的逐字节副本 `arrival_intact.prefab` 为基准，删改逻辑编辑 `arrival_layout.py`，环形船厂与小货船编辑 `shipyard_layout.py`，武器平台与靶舰编辑 `combat_range_layout.py`。星区舰船编辑 `sector_craft.py`，小型站点与小行星编辑 `sector_layout.py`，三座民用聚居站的独立模块编辑 `sector_settlements.py`。生成器读取安装版与项目 Def 的尺寸和继承链，解析占地／操作格后由同一份记录输出：
 
 - `Common/Prefabs/Tutorial/*.xml`：七份正式可打包教程 prefab，运行时不调用布局脚本。
-- `Common/Prefabs/Sector/{Craft,Stations}/*.xml`：星区飞行器与站点默认生成池。
+- `Common/Prefabs/Sector/{Craft,Stations}/*_Temporary.xml`：星区飞行器与站点的临时默认布局。
 - `Common/Prefabs/Sector/Asteroids/*.xml`：小行星带核心与五份带权子资源；只有 `SectorAsteroid.xml` 含批量标记。
-- `Source/obj/TutorialContent/*.png`：与 XML 同批记录生成的临时布局图，不入库。
+- `Source/obj/TutorialContent/*.png`：与 XML 同批记录生成的临时布局图；星区舰船和站点同时更新本目录内的 `*_Temporary.png` 预览。
 - `Source/obj/TutorialContent/*.records.json`：原版离线检查输入，不入库。
 
 `prototypes.states` 是从本地 Demo／Demo_0 导出中摘取并清除源图、派系、控制台身份、电网引用后的实例状态。空休眠舱按原版 `Building_Casket`／`ThingOwner` 存档契约补齐，并经真实 Scribe 加载验证。不要删掉内部容器的具体 Class 或空列表，也不要把完整 Scribe 替换成普通 PrefabThingData。
@@ -14,14 +14,13 @@
 
 ```powershell
 python scripts/TutorialContent/build.py
+python scripts/TutorialContent/build.py --only (Get-ChildItem Common/Prefabs/Sector/Craft/*_Temporary.xml,Common/Prefabs/Sector/Stations/*_Temporary.xml | ForEach-Object { $_.BaseName -replace '_Temporary$' })
 just build 1.6
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/TutorialRegression/run.ps1 -HarmonyPath C:/Users/Laure/.nuget/packages/lib.harmony/2.4.1/lib/net8.0/0Harmony.dll
 just build
 ```
 
 可用 `--data` 指定其他安装目录的 Data。构建依赖 Python Pillow；它只用于制作期示意图，不是 Mod 运行前置。
-
-`python scripts/TutorialContent/build.py --only SectorFighter ... SectorAsteroid AsteroidSteelSmall AsteroidSteelMedium AsteroidComponentsSmall AsteroidMixedMedium AsteroidPlasteelLarge` 可单独重建星区内容。舰船与站体均包含真实驾驶台、电网、维生和用途设备；贸易站状态显式绑定三个锁定供货仓与一个解锁取货仓。小行星带核心和五份子体按原生 asteroid 契约写 `Vacstone_Rough`、Vacstone／部分 Mineable 和 `RoofRockThin`，不写 foundation／environment；核心标记保存带权路径、环带、密度、间距和固定种子，子体没有标记。`TutorialRegression` 检查 12 个注册叶子的默认路径、format-2 文件、Scribe 数字身份、贸易引用和小行星带完整契约；完整 SpawnSetup、人员活动、战斗、交易补货和 cluster 物化仍由新档验收。
 
 `python scripts/TutorialContent/build.py --only Modules` 生成独立舱室 XML，并把图纸、边界格位报告和两种拼缝示意写入 `Source/obj/TutorialContent/`。逐个改动时也可以直接指定 `ModuleResearch` 等模板名。运行上述原版离线检查命令时加 `-ModulesOnly` 检查模块。模块接口和空基架口径见[独立舱室模板](../../doc/Prefab状态重建.md#独立舱室模板)。
 
@@ -61,6 +60,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/TutorialContent/
 在「模组设置 → 开发调试」开启默认关闭的「显示实验性舰船生成」，再开启 God 模式。在轨道图建连通的空基架，放一个「舰船布局控制标记」，再放功能区标记。这些标记与人员及 SpaceObject 标记同在「Prefab 标记」标签中。人员和 SpaceObject 标记在正式导入后展开。选中控制标记，选择舰船任务与走廊宽度并点击「生成舰船预览」。自动宽度按区段判定，指定宽度用于全船。试装成功后可导出或回退。回退前让人员离船。回退会清除原船壳内的建筑和物品，包括试装后添加的内容。求解失败时原船壳保留，拒绝统计在 RimWorld 用户数据 `DeltaV/ShipPlanJobs/` 下。
 
 生成期间，选中控制标记可查看阶段、阶段内尝试次数和已用时间。每次任务实时写入 `DeltaV/ShipPlanJobs/<任务 ID>/worker.log`。日志带从任务开始计起的时间，包含 worker 输出、CP-SAT 的实际用时及确定性用时、拒绝原因和游戏主线程的采集／落位阶段。打开 Mod 设置的「日志：开发调试」可在游戏日志中查看阶段摘要和该次日志路径。离线命令加 `--progress --trace` 可输出相同的求解里程碑及拒绝原因。
+
+`python scripts/TutorialContent/build.py --only SectorFighter ... SectorAsteroid AsteroidSteelSmall AsteroidSteelMedium AsteroidComponentsSmall AsteroidMixedMedium AsteroidPlasteelLarge` 可单独重建星区内容。舰船与站体均包含真实驾驶台、电网、维生和用途设备；贸易站状态显式绑定三个锁定供货仓与一个解锁取货仓。小行星带核心和五份子体按原生 asteroid 契约写 `Vacstone_Rough`、Vacstone／部分 Mineable 和 `RoofRockThin`，不写 foundation／environment；核心标记保存带权路径、环带、密度、间距和固定种子，子体没有标记。`TutorialRegression` 检查 12 个注册叶子的默认路径、format-2 文件、Scribe 数字身份、贸易引用和小行星带完整契约；完整 SpawnSetup、人员活动、战斗、交易补货和 cluster 物化仍由新档验收。
 
 残骸保留用户原船的舱室与原版飞船连接关系，在原导出上添加后部爆炸断口、拆除搜刮设备并保留原床铺／家具／厨房，把队长舱与保留唯一一套真空服的服装架移入货仓。正式资源与本地已归档到 `DeltaV/PrefabArchive/Tutorial/ArrivalStationWreck.xml` 的历史副本使用同一生成结果；归档目录不参与 prefab 扫描。回归覆盖六舱存取、货仓队长绑定、唯一电网、教练机泊口与货仓温控。
 

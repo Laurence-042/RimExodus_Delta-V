@@ -1,6 +1,6 @@
 ---
 name: delta-v-prefab
-description: Design, author, validate, and troubleshoot RimExodus Delta-V map prefabs and their layout diagrams. Use for floor plans, completed ship layouts, Scribe state authoring, and prefab import failures; use delta-v-art for sprite work.
+description: Design, author, validate, and troubleshoot RimExodus Delta-V map prefabs and their layout diagrams. Use for functional modules, ship and station assembly, floor plans, Scribe state authoring, and prefab import failures; use delta-v-art for sprite work.
 ---
 
 # Delta-V 地图 prefab
@@ -13,14 +13,14 @@ description: Design, author, validate, and troubleshoot RimExodus Delta-V map pr
 
 制作或调整布局时先读 [制作流程、文件结构与控制层级](references/workflow.md)。开始写建筑坐标前读 [锚点、奇偶尺寸与旋转](references/geometry.md)。手写实例状态或遇到导入报错时读 [存档契约与诊断](references/contracts-and-diagnostics.md)。贴图工作使用相邻的 `delta-v-art` skill。
 
-设计战舰时，读 [战舰布局与功能净空](references/ship-layout.md)：结合任务安排武器分工、炮手、供能与补给，再组织紧凑轮廓、推进器、装甲和护盾。参考用户修改时，提炼配置之间的取舍，不把样船的设备数量套成固定配方。
+设计或调整舱室、飞船、空间站时，先读 [模块设计与拼装](references/modular-layout.md)。先设计可用的功能舱段，再拼接，最后收外轮廓。用户只要求审阅模块时，交付独立模块后停在这个阶段。涉及飞船的武器、动力或防护时，再读 [飞船装备、动力与防护](references/ship-layout.md)。
 
 ## 按阶段工作
 
 | 阶段 | 主要输入 | 工作 | 应得到的结果 |
 |---|---|---|---|
 | 1. 确定约束 | 用户需求、参考 prefab、当前 Def | 列清必要功能、数量、能源/机动要求、制作模式、坐标约定 | 明确的设计目标和实际 Def 清单 |
-| 2. 设计布局 | 目标与 Def 清单 | 定船体轮廓，分区，连接通道，预留设备脚印、操作格与排气/投射区 | 可编辑的布局源，所有区域可追溯到格位 |
+| 2. 设计布局 | 目标与 Def 清单 | 按实际脚印设计功能分区与接口；整船或整站先拼分区，再布置外侧设备、装甲与轮廓 | 可编辑的布局源，所有区域可追溯到格位 |
 | 3. 解析建筑 | 布局源与 Def 继承链 | 将预定脚印转换为 root；解析宿主、槽位和状态原型；调用原版函数校验 | 唯一的已解析记录集合 |
 | 4. 生成示意图 | 已解析记录 | 绘地板、实际脚印、朝向、root、预留区与图例 | 能直接与格位记录对账的图 |
 | 5. 生成 prefab | 同一份已解析记录 | 输出地形、foundation、roof 及按当前模式选择的 thingStates | 正式资源按用途写 `Common/Prefabs/<category>/<name>.xml`；游戏导出写用户数据目录 |
