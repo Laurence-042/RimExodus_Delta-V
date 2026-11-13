@@ -203,7 +203,7 @@ namespace DeltaV
         private void Export()
         {
             string name = "ShipPlan_" + DateTime.Now.ToString("yyyyMMdd_HHmmss_fff", CultureInfo.InvariantCulture);
-            SharedMapBackend.Export(parent.Map, name, undo.cells);
+            SharedMapBackend.Export(parent.Map, name, undo.cells, out _);
             Messages.Message("DeltaV_ShipPlanSaved".Translate(name), parent, MessageTypeDefOf.PositiveEvent, false);
         }
 

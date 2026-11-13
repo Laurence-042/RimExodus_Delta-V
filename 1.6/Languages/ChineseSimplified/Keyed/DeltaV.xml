@@ -424,6 +424,9 @@
   <DeltaV_ShieldGuardReference>常规盾容上限 {0}，应急上限 {1}。常规盾容 10 秒未消耗后可通电恢复；应急盾容用白银补充。增大半径只扩大保护范围，不增加盾容。</DeltaV_ShieldGuardReference>
   <DeltaV_ShieldElectromagneticReference>以 30° 入射的激光为例：在基础偏转之外，再偏转 {0}°。</DeltaV_ShieldElectromagneticReference>
   <DeltaV_PrefabReplaceSelect>选择 prefab 替换整个聚焦地图（旧图内容将被移除）</DeltaV_PrefabReplaceSelect>
+  <DeltaV_PrefabExportSaved>已导出 prefab，文件位于 {0}。详情见调试日志，可从日志复制路径。</DeltaV_PrefabExportSaved>
+  <DeltaV_PrefabExportEmptyHome>请先在当前地图划定居住区，再导出 prefab。</DeltaV_PrefabExportEmptyHome>
+  <DeltaV_PrefabExportFailed>居住区 prefab 导出失败，详见调试日志。</DeltaV_PrefabExportFailed>
   <DeltaV_PrefabReplaceSelectFaction>选择 prefab 的派系：{0}</DeltaV_PrefabReplaceSelectFaction>
   <DeltaV_PrefabReplaceKeepFaction>沿用当前地图派系（默认）：{0}</DeltaV_PrefabReplaceKeepFaction>
   <DeltaV_PrefabReplaceNoFaction>无派系</DeltaV_PrefabReplaceNoFaction>

@@ -70,7 +70,12 @@ namespace DeltaV
         /// </summary>
         public static MapPrefabDocument Export(string name, IEnumerable<IntVec3> cells)
         {
-            return SharedMapBackend.Export(Find.CurrentMap, name, cells);
+            return Export(name, cells, out _);
+        }
+
+        internal static MapPrefabDocument Export(string name, IEnumerable<IntVec3> cells, out string path)
+        {
+            return SharedMapBackend.Export(Find.CurrentMap, name, cells, out path);
         }
 
         /// <summary>加载导出目录内最后修改的一份 prefab；目录或文件缺失抛异常（触发调用方回退）。</summary>

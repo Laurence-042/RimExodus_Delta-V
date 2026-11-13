@@ -424,6 +424,9 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShieldGuardReference>Local limits: {0} regular, {1} emergency. Powered recovery starts after 10 seconds without regular consumption; only silver restores emergency capacity. Radius does not change capacity.</DeltaV_ShieldGuardReference>
   <DeltaV_ShieldElectromagneticReference>At 30° incidence, active turning adds {0}° after passive refraction.</DeltaV_ShieldElectromagneticReference>
   <DeltaV_PrefabReplaceSelect>Select a prefab to replace the entire focused map (old contents will be removed)</DeltaV_PrefabReplaceSelect>
+  <DeltaV_PrefabExportSaved>Prefab saved to {0}. See the debug log for details and to copy the path.</DeltaV_PrefabExportSaved>
+  <DeltaV_PrefabExportEmptyHome>Mark a home area on this map before exporting a prefab.</DeltaV_PrefabExportEmptyHome>
+  <DeltaV_PrefabExportFailed>Could not export the home area as a prefab. See the debug log for details.</DeltaV_PrefabExportFailed>
   <DeltaV_PrefabReplaceSelectFaction>Select the faction for prefab: {0}</DeltaV_PrefabReplaceSelectFaction>
   <DeltaV_PrefabReplaceKeepFaction>Keep current map faction (default): {0}</DeltaV_PrefabReplaceKeepFaction>
   <DeltaV_PrefabReplaceNoFaction>No faction</DeltaV_PrefabReplaceNoFaction>

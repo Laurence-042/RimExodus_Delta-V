@@ -57,8 +57,29 @@ namespace DeltaV
         [DebugAction("Delta-V", "Prefab: export home area as timestamped file", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
         private static void ExportHomePrefabTimestamped()
         {
-            MapPrefab.Export("Prefab_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss"),
-                Find.CurrentMap.areaManager.Home.ActiveCells);
+            Map map = Find.CurrentMap;
+            Area_Home home = map.areaManager.Home;
+            if (home.TrueCount == 0)
+            {
+                Messages.Message("DeltaV_PrefabExportEmptyHome".Translate(), MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+
+            string name = "Prefab_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            string path;
+            try
+            {
+                MapPrefab.Export(name, home.ActiveCells, out path);
+            }
+            catch (System.Exception error)
+            {
+                Log.Error($"[DeltaV] Could not export home area as '{name}' on {UniverseManager.MapTag(map)}: {error}");
+                Messages.Message("DeltaV_PrefabExportFailed".Translate(), MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+
+            Log.Message($"[DeltaV] Exported home area on {UniverseManager.MapTag(map)} to {path}");
+            Messages.Message("DeltaV_PrefabExportSaved".Translate(path), MessageTypeDefOf.PositiveEvent);
         }
 
         [DebugAction("Delta-V", "Prefab: replace focused map...", actionType = DebugActionType.Action,

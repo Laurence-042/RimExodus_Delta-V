@@ -15,7 +15,7 @@ namespace DeltaV
     {
         internal const string Owner = "RimExodus.DeltaV";
 
-        internal static MapPrefabDocument Export(Map map, string name, IEnumerable<IntVec3> cells)
+        internal static MapPrefabDocument Export(Map map, string name, IEnumerable<IntVec3> cells, out string path)
         {
             CommonDocument shared = MapPrefabs.Capture(map, new CellSelection(cells), name,
                 include: t => (t.def.category == ThingCategory.Building || t.def.category == ThingCategory.Item)
@@ -25,8 +25,7 @@ namespace DeltaV
                     .ThenByDescending(t => t.def.category == ThingCategory.Building)
                     .ThenByDescending(t => t.TryGetComp<CompDeltaVPilotConsole>()?.isMain == true)
                     .ThenByDescending(t => t.def.shortHash));
-            Directory.CreateDirectory(MapPrefab.PrefabDirectory);
-            string path = Path.Combine(MapPrefab.PrefabDirectory, name + ".xml");
+            path = Path.GetFullPath(Path.Combine(MapPrefab.PrefabDirectory, name + ".xml"));
             shared.Save(path);
             return shared;
         }
