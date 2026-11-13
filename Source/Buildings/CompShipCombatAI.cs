@@ -108,8 +108,7 @@ namespace DeltaV
     internal static class CombatStrategyFile
     {
         private static readonly XmlSerializer Serializer = new XmlSerializer(typeof(CombatStrategy));
-        internal static string DirectoryPath => Path.Combine(Path.GetDirectoryName(MapPrefab.PrefabDirectory),
-            "CombatStrategies");
+        internal static string DirectoryPath => Path.Combine(MapPrefab.ModRootDirectory, "CombatStrategies");
 
         internal static List<string> Files()
         {
