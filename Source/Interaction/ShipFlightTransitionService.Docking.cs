@@ -52,10 +52,11 @@ namespace DeltaV
             Map source = ship.Map;
             SpaceObject frame = universe.FrameOf(source);
             int version = frame.RepresentationVersion;
+            int structureVersion = SubstructureOwnership.StructureVersion(source);
             string text = "DeltaV_PilotDepartConfirm".Translate(ship.Label);
             if (ship is FoundationShip foundation)
             {
-                CollectUndockLeftBehinds(source, foundation.Structure, new HashSet<IntVec3>(ship.HullCells),
+                CollectUndockLeftBehinds(source, foundation.Structure, ForceCells(ship),
                     out List<Thing> leftovers, out List<HashSet<IntVec3>> fragments);
                 string summary = BuildUndockSummary(source, leftovers, fragments);
                 if (!summary.NullOrEmpty()) text += "\n\n" + summary;
@@ -72,7 +73,8 @@ namespace DeltaV
                 ClearPending();
                 ShipBase current = ShipRegistry.ShipByIdentity(identity);
                 if (!current.IsValid || current.Map != source || universe.FrameOf(source) != frame
-                    || frame.RepresentationVersion != version || !universe.Pilot.CanPlayerControl(current)) return;
+                    || frame.RepresentationVersion != version || !universe.Pilot.CanPlayerControl(current)
+                    || SubstructureOwnership.StructureVersion(source) != structureVersion) return;
                 AcceptanceReport gate = CanDepart(current);
                 if (!gate)
                 {
@@ -83,9 +85,8 @@ namespace DeltaV
                     universe.Shuttles.Launch((Building)shuttle.Anchor);
                 else
                 {
-                    var domain = new HashSet<IntVec3>(current.HullCells);
-                    Building_DockingPort.RetractChannelsFor(source, domain);
-                    TransferShipToPocket(universe, current, source, frame, domain, current.Anchor.Rotation);
+                    MoveForceDomain(frame, PlanForceDomain(source, ForceCells(current),
+                        current.Transfer.body == null ? null : current), current);
                 }
                 ShipBase departed = ShipRegistry.ShipByIdentity(identity);
                 if (departed.IsValid && departed.Map != source && Find.CurrentMap == departed.Map
@@ -156,11 +157,16 @@ namespace DeltaV
                 Messages.Message("DeltaV_PilotGravityRestricted".Translate(), MessageTypeDefOf.RejectInput, false);
                 return false;
             }
-            return target.Vessel.PrepareThrust(universe, playerInitiated);
+            ShipBase ship = target.Vessel;
+            var transfer = ship.Transfer;
+            if (transfer.body == null) return RequestFoundationSeparation(universe,
+                ShipRegistry.MainConsoleForOwner(ship.Map, transfer.ownerId)?.Ship ?? Ship.Invalid, playerInitiated);
+            return !frame.IsWorksite || RequestBodySeparation(ship, playerInitiated);
         }
 
         internal bool RequestFoundationSeparation(UniverseManager universe, Ship ship, bool playerInitiated)
         {
+            if (!ship.IsValid) return false;
             Map sourceMap = ship.map;
             // 确认窗已打开或分离已排队（游戏因 forcePause 暂停 / 帧边界未到）：等待结果。
             if (pendingSeparationOwnerIds.Contains(ship.ownerId))
@@ -170,7 +176,7 @@ namespace DeltaV
 
             if (!ShipRegistry.RequiresOwnPocket(ship))
             {
-                // 拆分方向：控制域外残留块（不分归属）必须离开本容器，否则会随船整体运动。
+                // 拆分方向：控制域外的同归属连通块必须离开本容器，否则会随船整体运动。
                 List<HashSet<IntVec3>> blocks = ShipRegistry.HasResidualBlocks(ship)
                     ? CollectResidualBlocks(ship) : null;
                 // 常态只检查有无散落货物；分离需要展示清单时才物化列表。
@@ -229,21 +235,23 @@ namespace DeltaV
             return false; // 本 tick 不施加该次推进器动量；分离后的下一次请求再出力。
         }
 
-        internal bool RequestShuttleSeparation(ShuttleShip ship, bool playerInitiated)
+        private bool RequestBodySeparation(ShipBase ship, bool playerInitiated)
         {
             DriveSubject identity = ship.Identity;
             if (!pendingShuttleSeparations.Add(identity)) return false;
             Map source = ship.Map;
             SpaceObject frame = universe.FrameOf(source);
             int version = frame.RepresentationVersion;
-            void Execute()
+            var plan = PlanForceDomain(source, null, ship);
+            void Execute() => universe.QueueFrameAction(() =>
             {
                 pendingShuttleSeparations.Remove(identity);
                 ShipBase current = ShipRegistry.ShipByIdentity(identity);
                 if (!current.IsValid || current.Map != source || frame.RepresentationVersion != version
                     || universe.FrameOf(source) != frame) return;
-                TransferShipToPocket(universe, current, source, frame, new HashSet<IntVec3>(current.HullCells), current.Anchor.Rotation);
-            }
+                var currentPlan = PlanForceDomain(source, null, current);
+                if (plan.Matches(currentPlan)) MoveForceDomain(frame, currentPlan);
+            });
             void Cancel()
             {
                 pendingShuttleSeparations.Remove(identity);
@@ -259,7 +267,7 @@ namespace DeltaV
                     universe.Pilot.ActiveController.PresentSeparationConfirmation(PilotTarget.Of(ship), message, Execute, Cancel);
                 else Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(message, Execute, Cancel, destructive: true));
             }
-            else universe.QueueFrameAction(Execute);
+            else Execute();
             return false;
         }
 
@@ -271,7 +279,16 @@ namespace DeltaV
         {
             pendingSeparationOwnerIds.Add(ship.ownerId);
             string text = textKey.Translate(summary);
-            void Confirm() => ConfirmSeparation(universe, ship.ownerId);
+            int version = SubstructureOwnership.StructureVersion(ship.map);
+            SpaceObject frame = universe.FrameOf(ship.map);
+            int representation = frame.RepresentationVersion;
+            void Confirm() => universe.QueueFrameAction(() =>
+            {
+                if (universe.FrameOf(ship.map) == frame && frame.RepresentationVersion == representation
+                    && SubstructureOwnership.StructureVersion(ship.map) == version)
+                    ExecuteSeparation(universe, ship.ownerId);
+                else pendingSeparationOwnerIds.Remove(ship.ownerId);
+            });
             void Cancel() => CancelSeparation(universe, ship.ownerId);
             ShipController controller = universe.Pilot.ActiveController;
             if (controller != null)
@@ -290,7 +307,7 @@ namespace DeltaV
         /// 修改即抛异常）。统一经 <see cref="UniverseManager.QueueFrameAction"/> 延迟到
         /// GameComponentUpdate 帧上下文（与旧按钮流程同上下文，地图生成/销毁、聚焦切换
         /// 在该上下文执行过）；排队期间由 pendingSeparationOwnerIds 占位防重复入队。
-        /// 弹窗确认回调（forcePause 暂停中、GUI 上下文）不经此处，直接执行。
+        /// 确认后同样在帧边界校验源图和结构版本。
         /// </summary>
         private void QueueSeparation(UniverseManager universe, int ownerId, bool notifyPlayer = false)
         {
@@ -298,12 +315,14 @@ namespace DeltaV
             Ship ship = ShipRegistry.ShipByOwner(ownerId);
             SpaceObject source = ship.IsValid ? universe.FrameOf(ship.map) : null;
             int sourceId = source?.objectId ?? 0, version = source?.RepresentationVersion ?? -1;
+            int structureVersion = SubstructureOwnership.StructureVersion(ship.map);
             universe.QueueFrameAction(delegate
             {
                 SpaceObject currentSource = universe.ObjectById(sourceId);
                 Ship currentShip = ShipRegistry.ShipByOwner(ownerId);
                 if (currentSource?.RepresentationVersion != version || !currentShip.IsValid
-                    || currentShip.map != currentSource.map)
+                    || currentShip.map != currentSource.map
+                    || SubstructureOwnership.StructureVersion(currentShip.map) != structureVersion)
                 {
                     pendingSeparationOwnerIds.Remove(ownerId);
                     return;
@@ -313,13 +332,6 @@ namespace DeltaV
                         MessageTypeDefOf.ThreatSmall, false);
                 ExecuteSeparation(universe, ownerId);
             });
-        }
-
-        /// <summary>确认回调：复核 = 重走主路径——执行体按 ownerId 现查当前派生态分派。</summary>
-        private void ConfirmSeparation(UniverseManager universe, int ownerId)
-        {
-            pendingSeparationOwnerIds.Remove(ownerId);
-            ExecuteSeparation(universe, ownerId);
         }
 
         /// <summary>
@@ -369,7 +381,7 @@ namespace DeltaV
             }
         }
 
-        /// <summary>残留块 = 图上控制域之外的基架物理四连通块（同归属断片与异主结构都算）。</summary>
+        /// <summary>残留块 = 图上控制域之外的同归属基架四连通域。</summary>
         private static List<HashSet<IntVec3>> CollectResidualBlocks(Ship ship)
         {
             HashSet<IntVec3> domain = ShipRegistry.ControlDomain(ship);
@@ -408,12 +420,12 @@ namespace DeltaV
             SplitFocus focus = SplitFocus.Capture(universe, ship.map);
             try
             {
+                var seeds = CollectResidualBlocks(ship).Select(block => block.First()).ToList();
                 Building_DockingPort.RetractChannelsFor(ship.map, ShipRegistry.ControlDomain(ship));
-                foreach (HashSet<IntVec3> block in CollectResidualBlocks(ship))
+                foreach (IntVec3 seed in seeds)
                 {
-                    if (TransferDomainToNewPocket(universe, ship.map, frame, block, null,
-                        wreckOwnership: true, retainedOwnerId: 0, targetConsoleFacing: Rot4.North,
-                        focus: focus) == null) return;
+                    var block = universe.FoundationTopology.DomainAt(ship.map, seed);
+                    if (MoveForceDomain(frame, PlanForceDomain(ship.map, block), focus: focus) == null) return;
                 }
                 if (!universe.Scatter.ScatterLoose(ship.map)) return;
                 QueueEmptyDepartedMapCleanup(universe, ship.map);
@@ -430,29 +442,30 @@ namespace DeltaV
 
         /// <summary>
         /// 转移核心（脱离/拆分/朝向旋转共用）：把 sourceMap 上 cells 集合整体搬入一张新
-        /// 口袋图，并创建/注册新容器。wreckOwnership = true 时新域领取残骸归属与默认名；
-        /// retainedOwnerId &gt; 0 时保留原归属（脱离本船/旋转）。targetConsoleFacing = 主台
+        /// 口袋图，并创建/注册新容器。调用方提供目标归属。targetConsoleFacing = 主台
         /// 在新图中的朝向（普通脱离保留原向；朝向旋转传目标方向），容器角随之反调 σ−τ
         /// 使主台在轨道坐标的朝向跨搬运不变。返回新容器（失败 null，图不动）。
         /// </summary>
         private SpaceObject TransferDomainToNewPocket(UniverseManager universe, Map sourceMap,
             SpaceObject sourceFrame, HashSet<IntVec3> cells, Building mainConsole,
-            bool wreckOwnership, int retainedOwnerId, Rot4 targetConsoleFacing,
+            int retainedOwnerId, Rot4 targetConsoleFacing,
             Building bodyAnchor = null, bool includeTerrain = true,
             SplitFocus focus = null, Dictionary<IntVec3, int> sourceOwners = null,
             int mapMargin = ShipPocketMapFactory.StructureMargin, bool reserveRotations = false,
-            bool includeItems = true)
+            bool includeItems = true, HashSet<Building> buildings = null)
         {
+            buildings ??= includeTerrain ? universe.FoundationTopology.BuildingsIn(sourceMap, cells)
+                : new HashSet<Building> { bodyAnchor };
             Building anchor = mainConsole ?? bodyAnchor;
             Faction faction = anchor?.Faction;
-            Gravship preview = GravshipInterop.BuildPreview(cells, mainConsole, sourceMap, bodyAnchor, includeItems);
+            Gravship preview = GravshipInterop.BuildPreview(cells, mainConsole, sourceMap, bodyAnchor, includeItems, buildings);
             if (preview == null) return null;
             Rot4 rotation = anchor != null
                 ? ShipOrientation.PlacementRotation(anchor.Rotation, targetConsoleFacing) : Rot4.North;
             preview.Rotation = rotation;
             if (!ShipPocketMapFactory.TryGenerateForGravship(preview, universe, out Map pocketMap, out IntVec3 pocketRoot, mapMargin, reserveRotations)) return null;
             // Generation and geometry preflight precede the consuming CaptureDomain call.
-            Gravship gravship = GravshipInterop.CaptureDomain(sourceMap, cells, mainConsole, faction, includeTerrain, includeItems);
+            Gravship gravship = GravshipInterop.CaptureDomain(sourceMap, cells, mainConsole, faction, includeTerrain, includeItems, buildings);
             if (gravship == null)
             {
                 universe.Lifecycle.DestroyPocketMap(pocketMap);
@@ -461,32 +474,17 @@ namespace DeltaV
             gravship.Rotation = rotation;
             SpacePose launchPose = SpaceTransform.PoseAfterPlacement(sourceFrame.pose, sourceMap, gravship.originalPosition,
                 pocketMap, pocketRoot, rotation);
-            int ownerId;
-            if (wreckOwnership)
-            {
-                ownerId = universe.AllocateOwnerId();
-                universe.NoteStructureName(ownerId, universe.NewWreckName(ownerId));
-            }
-            else
-            {
-                ownerId = retainedOwnerId;
-            }
             GravshipInterop.StripDomain(gravship, sourceMap, cells, includeTerrain);
             // Tractor component extraction preserves each live ship identity; rotation is unchanged.
             Dictionary<IntVec3, int> placedOwners = sourceOwners?.ToDictionary(
                 pair => pair.Key - gravship.originalPosition + pocketRoot, pair => pair.Value);
-            GravshipInterop.PlaceIntoMap(gravship, pocketRoot, pocketMap, ownerId, placedOwners);
+            GravshipInterop.PlaceIntoMap(gravship, pocketRoot, pocketMap, retainedOwnerId, placedOwners);
             var container = new MapSpaceObject(universe.AllocateOwnerId(), pocketMap, launchPose)
             {
                 faction = sourceOwners == null ? faction : faction ?? sourceFrame.faction,
             };
             universe.RegisterObject(container);
-            focus?.selection.Transferred(cells, pocketMap, ownerId);
-            // 源图旧域整清：基架已随捕获剥离，残留归属值全是陈旧数据（按 ID 清不误伤他主域）。
-            if (ownerId > 0 && sourceOwners == null)
-            {
-                SubstructureOwnership.TryGet(sourceMap)?.ClearOwner(ownerId);
-            }
+            focus?.selection.Transferred(cells, pocketMap, retainedOwnerId, buildings);
             PlanetGlobeRenderer.InvalidateSilhouette(sourceMap);
             HostColonistBarVisibility.NotifyDockingStateChanged();
             ShipPhysics.Forget(sourceMap);
@@ -506,8 +504,7 @@ namespace DeltaV
             ShipBase ship = hull.TryGetComp<CompSpaceShuttle>()?.Vessel;
             if (ship?.IsValid != true) return null;
             SpaceObject frame = universe.FrameOf(ship.Map);
-            return frame == null ? null : TransferShipToPocket(universe, ship, ship.Map, frame,
-                new HashSet<IntVec3>(ship.HullCells), hull.Rotation);
+            return frame == null ? null : MoveForceDomain(frame, PlanForceDomain(ship.Map, null, ship));
         }
 
         internal readonly struct DockingFocusHandoff
@@ -578,12 +575,13 @@ namespace DeltaV
             if (!target.IsValid || target.Map == null) return null;
             ShipBase ship = ShipRegistry.ShipByIdentity(target.Identity);
             if (!ship.IsValid) return null;
-            domain = new HashSet<IntVec3>(ship.HullCells);
+            domain = ForceCells(ship);
             ShipTransferSpec transfer = ship.Transfer;
             includeTerrain = transfer.includeTerrain;
-            if (domain.Count == 0) return null;
+            if (domain == null || domain.Count == 0) return null;
             return GravshipInterop.CaptureDomain(target.Map, domain, transfer.console,
-                target.Faction, includeTerrain, ship.MoveColocatedItems);
+                target.Faction, includeTerrain, ship.MoveColocatedItems,
+                PlanForceDomain(target.Map, domain, transfer.body == null ? null : ship)?.buildings);
         }
 
         /// <summary>
@@ -694,10 +692,7 @@ namespace DeltaV
             // 收通道 = 脱离事务的一部分（§9）：只收回端口或实际对接面在脱离域上的
             // 通道；B、C 之间无关通道保留。通道上的
             // Pawn/物品原格留置（不自动迁往安全格）。
-            Building_DockingPort.RetractChannelsFor(sourceMap, domain);
-
-            SpaceObject container = TransferShipToPocket(universe, ship, sourceMap, sourceFrame, domain,
-                ((ShipBase)ship).Anchor.Rotation);
+            SpaceObject container = MoveForceDomain(sourceFrame, PlanForceDomain(sourceMap, domain), ship);
             if (container == null)
             {
                 Messages.Message("DeltaV_DockFailBusy".Translate(), MessageTypeDefOf.RejectInput, false);
@@ -717,7 +712,8 @@ namespace DeltaV
         /// 返回新容器（失败 null，图不动）。
         /// </summary>
         private SpaceObject TransferShipToPocket(UniverseManager universe, ShipBase ship,
-            Map sourceMap, SpaceObject sourceFrame, HashSet<IntVec3> domain, Rot4 targetFacing)
+            Map sourceMap, SpaceObject sourceFrame, HashSet<IntVec3> domain, Rot4 targetFacing,
+            HashSet<Building> buildings = null)
         {
             DriveSubject identity = ship.Identity;
             bool wasPiloted = universe.Pilot.PilotedTarget(universe).Identity == identity;
@@ -725,12 +721,12 @@ namespace DeltaV
             if (wasPiloted) universe.Pilot.Exit(universe);
             ShipTransferSpec transfer = ship.Transfer;
             SpaceObject container = TransferDomainToNewPocket(universe, sourceMap, sourceFrame,
-                domain, transfer.console, wreckOwnership: false,
+                domain, transfer.console,
                 retainedOwnerId: transfer.ownerId, targetConsoleFacing: targetFacing,
                 bodyAnchor: transfer.body,
                 includeTerrain: transfer.includeTerrain, focus: focus,
                 mapMargin: ship.FlightMapMargin, reserveRotations: ship.ReserveRotationBounds,
-                includeItems: ship.MoveColocatedItems);
+                includeItems: ship.MoveColocatedItems, buildings: buildings);
             if (container == null) return null;
             ShipBase resolved = ShipRegistry.ShipByIdentity(identity);
             if (!resolved.AllowsAngularMotion) container.pose.angularVelocity = 0f;
@@ -763,8 +759,8 @@ namespace DeltaV
             Map sourceMap = ship.Map;
             SpaceObject sourceFrame = universe.FrameOf(sourceMap);
             if (sourceFrame == null || sourceFrame.projectileRoleOverride) return;
-            var domain = new HashSet<IntVec3>(ship.HullCells);
-            if (domain.Count == 0) return;
+            var domain = ForceCells(ship);
+            if (domain == null || domain.Count == 0) return;
             // 自由飞行图上不应有对接通道；防御性收回与本域相关的通道。
             Building_DockingPort.RetractChannelsFor(sourceMap, domain);
             SpaceObject container = TransferShipToPocket(universe, ship, sourceMap, sourceFrame, domain,
@@ -843,8 +839,10 @@ namespace DeltaV
             SpaceObject owner = universe.FrameOf(map);
             if (owner?.IsWorksite != true || owner.Ships.Any(s => s.IsValid)
                 || IsAwaitingDockingCleanup(map) || universe.IsResettingScene) return;
-            foreach (HashSet<IntVec3> block in ShipRegistry.ResidualBlocks(map, new HashSet<IntVec3>()))
-                if (TransferDomainToNewPocket(universe, map, owner, block, null, true, 0, Rot4.North) == null) return;
+            var seeds = universe.FoundationTopology.Domains(map).Select(block => block.First()).ToList();
+            foreach (IntVec3 seed in seeds)
+                if (MoveForceDomain(owner, PlanForceDomain(map, universe.FoundationTopology.DomainAt(map, seed))) == null)
+                    return;
             universe.Scatter.ScatterLoose(map);
         }
 

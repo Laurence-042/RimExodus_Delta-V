@@ -1,82 +1,158 @@
 using System.Collections.Generic;
 using Verse;
+using UnityEngine;
 
 namespace DeltaV
 {
-    /// <summary>UniverseManager 持有的按图拓扑缓存。事件只标格，查询前读取最终事实。</summary>
+    /// <summary>Runtime foundation components and their building membership.</summary>
     internal sealed class FoundationTopologyService
     {
         private sealed class Entry
         {
-            private readonly Map map;
-            private readonly SubstructureOwnership ownership;
             internal readonly FoundationConnectivity connectivity;
             internal readonly HashSet<int> changed = new HashSet<int>();
-            internal int blocksVersion = -1;
-            internal List<HashSet<IntVec3>> blocks;
+            private Dictionary<int, HashSet<IntVec3>> domains;
+            internal readonly Dictionary<HashSet<IntVec3>, Vector2> centers =
+                new Dictionary<HashSet<IntVec3>, Vector2>();
+            internal int memberVersion = -1;
+            internal readonly Dictionary<HashSet<IntVec3>, HashSet<Building>> members =
+                new Dictionary<HashSet<IntVec3>, HashSet<Building>>();
 
             internal Entry(Map map, SubstructureOwnership ownership)
             {
-                this.map = map;
-                this.ownership = ownership;
-                connectivity = new FoundationConnectivity(map.Size.x, map.Size.z, ReadOwner);
+                connectivity = new FoundationConnectivity(map.Size.x, map.Size.z, index =>
+                {
+                    IntVec3 cell = map.cellIndices.IndexToCell(index);
+                    return SubstructureOwnership.HasFoundation(map, cell)
+                        ? ownership.OwnerAt(cell) : FoundationConnectivity.Absent;
+                });
             }
 
-            private int ReadOwner(int index)
+            internal void Synchronize(Map map, SubstructureOwnership ownership)
             {
-                IntVec3 cell = map.cellIndices.IndexToCell(index);
-                return SubstructureOwnership.HasFoundation(map, cell)
-                    ? ownership.OwnerAt(cell) : FoundationConnectivity.Absent;
-            }
-
-            internal void Synchronize()
-            {
-                // Coalesce repeated terrain/ownership events, including transfer stamps.
-                // No per-tick scan and no replay of transient states between queries.
-                foreach (int index in changed) connectivity.Update(index, ReadOwner(index));
+                foreach (int index in changed)
+                {
+                    IntVec3 cell = map.cellIndices.IndexToCell(index);
+                    int owner = SubstructureOwnership.HasFoundation(map, cell)
+                        ? ownership.OwnerAt(cell) : FoundationConnectivity.Absent;
+                    if (connectivity.Update(index, owner))
+                    {
+                        domains = null;
+                        centers.Clear();
+                        members.Clear();
+                    }
+                }
                 changed.Clear();
             }
+
+            internal Dictionary<int, HashSet<IntVec3>> Domains(Map map)
+            {
+                if (domains != null) return domains;
+                domains = new Dictionary<int, HashSet<IntVec3>>();
+                foreach (int index in connectivity.Occupied)
+                {
+                    int root = connectivity.ComponentAt(index);
+                    if (!domains.TryGetValue(root, out var cells))
+                        domains.Add(root, cells = new HashSet<IntVec3>());
+                    cells.Add(map.cellIndices.IndexToCell(index));
+                }
+                return domains;
+            }
         }
+
         private readonly Dictionary<Map, Entry> maps = new Dictionary<Map, Entry>();
+
+        private Entry For(Map map)
+        {
+            if (map == null || map.Disposed) return null;
+            var ownership = SubstructureOwnership.TryGet(map);
+            if (ownership == null) return null;
+            if (!maps.TryGetValue(map, out var entry))
+                maps.Add(map, entry = new Entry(map, ownership));
+            entry.Synchronize(map, ownership);
+            return entry;
+        }
 
         internal void NotifyChanged(Map map, IntVec3 cell)
         {
-            if (map != null && !map.Disposed && cell.InBounds(map) && maps.TryGetValue(map, out Entry entry))
+            if (map != null && !map.Disposed && cell.InBounds(map) && maps.TryGetValue(map, out var entry))
                 entry.changed.Add(map.cellIndices.CellToIndex(cell));
         }
 
-        internal bool HasResidual(Ship ship)
+        internal bool HasResidual(Ship ship) => For(ship.map)?.connectivity.HasResidual(ship.ownerId,
+            ship.console.parent.Position.InBounds(ship.map)
+                ? ship.map.cellIndices.CellToIndex(ship.console.parent.Position) : -1) == true;
+
+        internal int DomainCount(Map map) => For(map)?.connectivity.ComponentCount ?? 0;
+
+        internal IEnumerable<HashSet<IntVec3>> Domains(Map map)
         {
-            Map map = ship.map;
-            if (!maps.TryGetValue(map, out Entry entry))
-            {
-                SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
-                if (ownership == null) return false; // Same empty-result contract as ResidualBlocks.
-                entry = new Entry(map, ownership);
-                maps.Add(map, entry);
-            }
-            else
-            {
-                entry.Synchronize();
-            }
-            IntVec3 seed = ship.console.parent.Position;
-            return entry.connectivity.HasResidual(ship.ownerId,
-                seed.InBounds(map) ? map.cellIndices.CellToIndex(seed) : -1);
+            var entry = For(map);
+            return entry == null ? System.Array.Empty<HashSet<IntVec3>>() : entry.Domains(map).Values;
         }
 
-        internal IReadOnlyList<HashSet<IntVec3>> PhysicalBlocks(Map map)
+        internal HashSet<IntVec3> DomainAt(Map map, IntVec3 cell)
         {
-            if (!maps.TryGetValue(map, out Entry entry))
+            var entry = For(map);
+            if (entry == null || !cell.InBounds(map)) return null;
+            int root = entry.connectivity.ComponentAt(map.cellIndices.CellToIndex(cell));
+            return root == 0 ? null : entry.Domains(map)[root];
+        }
+
+        internal HashSet<IntVec3> DomainUnder(Map map, IEnumerable<IntVec3> footprint)
+        {
+            var entry = For(map);
+            if (entry == null) return null;
+            return DomainUnder(map, entry, footprint);
+        }
+
+        private static HashSet<IntVec3> DomainUnder(Map map, Entry entry, IEnumerable<IntVec3> footprint)
+        {
+            int root = 0;
+            foreach (IntVec3 cell in footprint)
             {
-                entry = new Entry(map, SubstructureOwnership.For(map));
-                maps.Add(map, entry);
+                if (!cell.InBounds(map)) continue;
+                int found = entry.connectivity.ComponentAt(map.cellIndices.CellToIndex(cell));
+                if (found == 0) continue;
+                if (root != 0 && root != found) return null;
+                root = found;
             }
-            if (entry.blocks == null || entry.blocksVersion != SubstructureOwnership.StructureVersion(map))
+            return root == 0 ? null : entry.Domains(map)[root];
+        }
+
+        internal HashSet<IntVec3> BuildingDomain(Map map, Building building) =>
+            building?.Spawned == true && building.Map == map
+                ? DomainUnder(map, building.OccupiedRect()) : null;
+
+        internal HashSet<Building> BuildingsIn(Map map, HashSet<IntVec3> cells)
+        {
+            var entry = For(map);
+            if (entry == null) return new HashSet<Building>();
+            int version = SubstructureOwnership.StructureVersion(map);
+            if (entry.memberVersion != version)
             {
-                entry.blocks = ShipRegistry.ResidualBlocks(map, new HashSet<IntVec3>());
-                entry.blocksVersion = SubstructureOwnership.StructureVersion(map);
+                entry.memberVersion = version;
+                entry.members.Clear();
             }
-            return entry.blocks;
+            if (entry.members.TryGetValue(cells, out var buildings)) return buildings;
+            buildings = new HashSet<Building>();
+            var seen = new HashSet<Building>();
+            foreach (IntVec3 cell in cells)
+                foreach (Thing thing in map.thingGrid.ThingsListAt(cell))
+                    if (thing is Building building && building.Spawned && building.Map == map && seen.Add(building)
+                        && ReferenceEquals(DomainUnder(map, entry, building.OccupiedRect()), cells))
+                        buildings.Add(building);
+            entry.members.Add(cells, buildings);
+            return buildings;
+        }
+
+        internal Vector2 CenterOf(Map map, HashSet<IntVec3> cells)
+        {
+            var entry = For(map);
+            if (entry == null || cells.Count == 0) return Vector2.zero;
+            if (!entry.centers.TryGetValue(cells, out var center))
+                entry.centers.Add(cells, center = SpaceTransform.BoundsCenterOfCells(cells));
+            return center;
         }
 
         internal void Forget(Map map) { if (map != null) maps.Remove(map); }

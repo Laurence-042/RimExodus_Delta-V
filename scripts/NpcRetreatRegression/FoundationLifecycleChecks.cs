@@ -64,6 +64,17 @@ internal static partial class Program
         var carried = AddTestHull(sourceMap, enemy, primary.shipId);
         var weapon = new CompSpaceWeapon { parent = carried.parent, props = new CompProperties_SpaceWeapon() };
         carried.parent.AllComps.Add(weapon);
+        var deck = (TerrainDef)Raw(typeof(TerrainDef));
+        deck.isFoundation = true;
+        void SetCarryingFoundation(Map map, bool occupied)
+        {
+            IntVec3 cell = primary.parent.Position;
+            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = occupied ? deck : null;
+            if (occupied) SubstructureOwnership.For(map).Assign(cell, primary.shipId);
+            else SubstructureOwnership.For(map).Assign(cell, SubstructureOwnership.Unassigned);
+            universe.NotifyFoundationChanged(map, cell);
+        }
+        SetCarryingFoundation(sourceMap, true);
         ShipStructureChanges.Notify(sourceMap);
         ShipBase original = primary.Vessel;
         DriveSubject identity = original.Identity, hullIdentity = carried.Vessel.Identity;
@@ -89,6 +100,8 @@ internal static partial class Program
         primary.combat.weaponGroupsMain = 16;
         RemoveConsoleFixture(primary, sourceMap);
         PlaceConsoleFixture(primary, destinationMap);
+        SetCarryingFoundation(sourceMap, false);
+        SetCarryingFoundation(destinationMap, true);
         UnspawnFixture(carried, sourceMap);
         SpawnFixture(carried, destinationMap);
         ShipBase relocated = ShipRegistry.ShipByIdentity(identity);
@@ -116,6 +129,8 @@ internal static partial class Program
         // Docking moves the same anchors back; persisted configuration must remain on those anchors.
         RemoveConsoleFixture(primary, destinationMap);
         PlaceConsoleFixture(primary, sourceMap);
+        SetCarryingFoundation(destinationMap, false);
+        SetCarryingFoundation(sourceMap, true);
         UnspawnFixture(carried, destinationMap);
         SpawnFixture(carried, sourceMap);
         Call(universe, "RunFrameActions");

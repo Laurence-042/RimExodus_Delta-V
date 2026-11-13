@@ -65,8 +65,7 @@ namespace DeltaV
     /// SpaceImpactEffects、降落放置前的旧层清理），RemoveGravshipTerrainUnsafe 覆盖起飞
     /// 批量剥离（原版战略起飞 + GravshipInterop.StripDomain）。两者都经
     /// NotifyFoundationRemoved 清该格归属（内含版本 bump 与引擎/剪影通知）；
-    /// StripDomain 批末 ClearOwner(ownerId) 与此幂等共存。RimExodus/原版地表图无
-    /// 归属组件（TryGet 早退），零影响。
+    /// 搬运逐格清除源域，保留同归属未搬走的断片。地表图沿用原版流程。
     /// </summary>
     [HarmonyPatch(typeof(TerrainGrid), nameof(TerrainGrid.RemoveFoundation))]
     public static class Patch_TerrainGrid_RemoveFoundation_Ownership

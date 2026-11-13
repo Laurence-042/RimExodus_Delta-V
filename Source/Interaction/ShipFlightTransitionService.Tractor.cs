@@ -16,23 +16,86 @@ namespace DeltaV
             && weapon.Component<CompPowerTrader>()?.PowerOn == true
             && (!weapon.WeaponProps.tractor || SpaceTractor.CanOperate(weapon));
 
-        // External force acts on the physical component under the beam, without a target engine gate.
-        internal bool PrepareExternalForceTarget(SpaceObject target, IntVec3 cell, CompSpaceWeapon weapon)
+        // The same domain and building membership travel from selection through placement.
+        private sealed class ForceDomain
         {
-            Thing launcher = weapon?.parent;
+            internal readonly Map map;
+            internal readonly HashSet<IntVec3> cells;
+            internal readonly HashSet<Building> buildings;
+            internal readonly ShipBase independent;
+            internal readonly int owner;
+
+            internal ForceDomain(Map map, HashSet<IntVec3> cells, HashSet<Building> buildings, ShipBase independent, int owner)
+            {
+                this.map = map;
+                this.cells = cells;
+                this.buildings = buildings;
+                this.independent = independent;
+                this.owner = owner;
+            }
+
+            internal bool Matches(ForceDomain current) => current != null && current.map == map
+                && current.independent?.Identity == independent?.Identity && current.owner == owner
+                && current.cells.SetEquals(cells) && current.buildings.SetEquals(buildings);
+        }
+
+        private HashSet<IntVec3> ForceCells(ShipBase ship) => ship.Transfer.body is Building body
+            ? new HashSet<IntVec3>(body.OccupiedRect())
+            : universe.FoundationTopology.DomainAt(ship.Map, ship.Anchor.Position);
+
+        private ForceDomain PlanForceDomain(Map map, HashSet<IntVec3> cells, ShipBase independent = null)
+        {
+            if (independent != null)
+                return new ForceDomain(map, ForceCells(independent),
+                    new HashSet<Building> { independent.Transfer.body }, independent, 0);
+            return cells?.Count > 0 ? new ForceDomain(map, cells,
+                universe.FoundationTopology.BuildingsIn(map, cells), null,
+                SubstructureOwnership.For(map).OwnerAt(cells.First())) : null;
+        }
+
+        private ForceDomain ResolveForceDomain(Map map, IntVec3 cell, Building building)
+        {
+            var topology = universe.FoundationTopology;
+            if (building == null) return PlanForceDomain(map, topology.DomainAt(map, cell));
+            var domain = topology.BuildingDomain(map, building);
+            if (domain != null) return PlanForceDomain(map, domain);
+            if (!building.Spawned || building.Map != map) return null;
+            ShipBase ship = ShipRegistry.ShipOf(building);
+            return ship.IsValid && ship.Transfer.body == building ? PlanForceDomain(map, null, ship) : null;
+        }
+
+        private bool IsOnlyForceDomain(SpaceObject frame, ForceDomain plan) =>
+            universe.FoundationTopology.DomainCount(frame.map) == (plan.independent == null ? 1 : 0)
+            && frame.Ships.All(ship => ship.Transfer.body == null || plan.buildings.Contains(ship.Transfer.body));
+
+        private SpaceObject MoveForceDomain(SpaceObject frame, ForceDomain plan, ShipBase pilot = null, SplitFocus focus = null)
+        {
+            if (plan == null) return null;
+            ShipBase ship = plan.independent ?? pilot;
+            if (ship != null)
+            {
+                if (plan.independent == null)
+                    Building_DockingPort.RetractChannelsFor(plan.map, plan.cells);
+                return TransferShipToPocket(universe, ship, plan.map, frame, plan.cells,
+                    ship.Anchor.Rotation, plan.buildings);
+            }
+            return TransferForceDomain(frame, plan, focus);
+        }
+
+        internal bool PrepareExternalForceTarget(SpaceObject target, IntVec3 cell, CompSpaceWeapon weapon,
+            Building building = null)
+        {
             if (target?.map == null || !target.CanRelocateMap || !ExternalForceEmitterReady(weapon)) return false;
-            Map sourceMap = launcher.Map;
+            Thing launcher = weapon.parent;
+            Map map = target.map, sourceMap = launcher.Map;
             SpaceObject source = universe.FrameOf(sourceMap);
             if (source == null || source == target) return false;
-            int sourceVersion = source.RepresentationVersion;
-            IntVec3 sourceCell = launcher.Position;
-            var blocks = universe.FoundationTopology.PhysicalBlocks(target.map);
-            if (blocks.Count <= 1) return true;
-            HashSet<IntVec3> block = blocks.FirstOrDefault(b => b.Contains(cell));
-            if (block == null) return false;
+            var plan = ResolveForceDomain(map, cell, building);
+            if (plan == null) return false;
+            if (IsOnlyForceDomain(target, plan)) return true;
             if (!pendingExternalForceSplits.Add(target)) return false;
-            Map map = target.map;
-            int version = target.RepresentationVersion;
+            int version = target.RepresentationVersion, sourceVersion = source.RepresentationVersion;
+            IntVec3 sourceCell = launcher.Position;
             universe.QueueFrameAction(() =>
             {
                 if (!pendingExternalForceSplits.Remove(target) || target.map != map || map.Disposed
@@ -40,37 +103,33 @@ namespace DeltaV
                     || !target.CanRelocateMap || !ExternalForceEmitterReady(weapon)
                     || launcher.Map != sourceMap || launcher.Position != sourceCell
                     || source.RepresentationVersion != sourceVersion || universe.FrameOf(sourceMap) != source) return;
-                // Revalidate the same physical domain; never transfer a different fragment after damage.
-                var current = universe.FoundationTopology.PhysicalBlocks(map);
-                if (current.Count <= 1 || !current.Any(b => b.SetEquals(block))) return;
-                var ownership = SubstructureOwnership.For(map);
-                var owners = new Dictionary<IntVec3, int>();
-                var remap = new Dictionary<int, int>();
-                var retained = new HashSet<int>(target.Ships.Where(s => s.IsValid && !s.Identity.shuttle
-                    && block.Contains(s.Anchor.Position)).Select(s => s.Identity.key));
-                foreach (IntVec3 at in block)
-                {
-                    int old = ownership.OwnerAt(at);
-                    if (!remap.TryGetValue(old, out int id))
-                    {
-                        id = retained.Contains(old) ? old : universe.AllocateOwnerId();
-                        remap.Add(old, id);
-                        if (id != old) universe.NoteStructureName(id, universe.NewWreckName(id));
-                    }
-                    owners.Add(at, id);
-                }
-                SplitFocus focus = SplitFocus.Capture(universe, map);
-                int selectedOwner = focus != null && remap.TryGetValue(focus.selection.identity.key, out int selected)
-                    ? selected : owners[cell];
-                Building_DockingPort.RetractChannelsFor(map, block);
-                SpaceObject moved = TransferDomainToNewPocket(universe, map, target, block, null,
-                    wreckOwnership: false, retainedOwnerId: selectedOwner, targetConsoleFacing: Rot4.North,
-                    focus: focus, sourceOwners: owners);
-                if (moved == null) return;
-                focus?.Complete(universe);
-                QueueEmptyDepartedMapCleanup(universe, map);
+                var current = ResolveForceDomain(map, cell, building);
+                if (plan.Matches(current)) MoveForceDomain(target, current);
             });
             return false;
+        }
+
+        private SpaceObject TransferForceDomain(SpaceObject target, ForceDomain plan, SplitFocus focus)
+        {
+            Map map = plan.map;
+            var domain = plan.cells;
+            var members = plan.buildings;
+            int old = plan.owner;
+            var main = ShipRegistry.MainConsoleForOwner(map, old);
+            int owner = main?.parent is Building console && members.Contains(console)
+                ? old : universe.AllocateOwnerId();
+            if (owner != old) universe.NoteStructureName(owner, universe.NewWreckName(owner));
+            var owners = domain.ToDictionary(cell => cell, _ => owner);
+            bool finish = focus == null;
+            focus ??= SplitFocus.Capture(universe, map);
+            Building_DockingPort.RetractChannelsFor(map, domain);
+            SpaceObject moved = TransferDomainToNewPocket(universe, map, target, domain, null,
+                retainedOwnerId: owner, targetConsoleFacing: Rot4.North,
+                focus: focus, sourceOwners: owners, buildings: members);
+            if (moved == null) return null;
+            if (finish) focus?.Complete(universe);
+            QueueEmptyDepartedMapCleanup(universe, map);
+            return moved;
         }
     }
 }

@@ -27,11 +27,16 @@ internal static partial class Program
     }
     static HashSet<IntVec3> tractorTransferred;
     static Dictionary<IntVec3, int> tractorTransferredOwners;
+    static HashSet<Building> tractorTransferredBuildings;
+    static bool tractorTransferredTerrain;
     static bool TractorTransfer(Map sourceMap, SpaceObject sourceFrame, HashSet<IntVec3> cells,
-        Dictionary<IntVec3, int> sourceOwners, ref SpaceObject __result)
+        Dictionary<IntVec3, int> sourceOwners, HashSet<Building> buildings, bool includeTerrain,
+        ref SpaceObject __result)
     {
         tractorTransferred = new HashSet<IntVec3>(cells);
         tractorTransferredOwners = sourceOwners;
+        tractorTransferredBuildings = buildings;
+        tractorTransferredTerrain = includeTerrain;
         __result = null; // Inspect the real transfer request without allocating a Unity map.
         return false;
     }
@@ -280,6 +285,7 @@ internal static partial class Program
             harmony.Patch(AccessTools.Method(typeof(ShipFlightTransitionService), "TransferDomainToNewPocket"),
                 prefix: new HarmonyMethod(typeof(Program), nameof(TractorTransfer)));
             targetMap.terrainGrid.foundationGrid[targetMap.cellIndices.CellToIndex(otherCell)] = deck;
+            universe.NotifyFoundationChanged(targetMap, otherCell);
             SubstructureOwnership.BumpStructureVersion();
             foreach (ImpactEffectKind kind in new[] { ImpactEffectKind.TractorPull, ImpactEffectKind.CoupleMotion })
             {
@@ -299,9 +305,102 @@ internal static partial class Program
             tractorTransferred = null;
             Fire(a.weapon, a.body, hit);
             targetMap.terrainGrid.foundationGrid[targetMap.cellIndices.CellToIndex(hitCell)] = null;
+            universe.NotifyFoundationChanged(targetMap, hitCell);
             SubstructureOwnership.BumpStructureVersion();
             Call(universe, "RunFrameActions");
             Check(tractorTransferred == null, "frame action rejects a component destroyed after targeting");
+            var shuttle = AddTestHull(targetMap, enemy, 51032);
+            var hull = (Building)shuttle.parent;
+            targetMap.thingGrid.Deregister(hull);
+            hull.def.size = new IntVec2(3, 3);
+            hull.def.bringAlongOnGravship = true;
+            Set(typeof(Thing), hull, "rotationInt", Rot4.North);
+            Set(typeof(Thing), hull, "positionInt", new IntVec3(2, 0, 2));
+            targetMap.thingGrid.Register(hull);
+            var firstContact = new IntVec3(3, 0, 3);
+            var secondContact = new IntVec3(3, 0, 2);
+            void SetDeck(IntVec3 cell, TerrainDef value)
+            {
+                targetMap.terrainGrid.foundationGrid[targetMap.cellIndices.CellToIndex(cell)] = value;
+                universe.NotifyFoundationChanged(targetMap, cell);
+                SubstructureOwnership.BumpStructureVersion(targetMap);
+            }
+            SetDeck(otherCell, null);
+            foreach (IntVec3 cell in new CellRect(0, 0, 2, 2)) SetDeck(cell, deck);
+            SetDeck(firstContact, deck);
+            SetDeck(secondContact, deck);
+            var transitions = universe.ShipTransitions;
+            var overlap = new IntVec3(1, 0, 1);
+            SetDeck(overlap, null);
+            foreach (Building struck in new Building[] { hull, null })
+            {
+                tractorTransferred = null;
+                IntVec3 cell = struck == null ? firstContact : hull.Position;
+                Check(!transitions.PrepareExternalForceTarget(target, cell, a.weapon, struck),
+                    "attached hull and base both defer force to the same separation transaction");
+                Call(universe, "RunFrameActions");
+                Check(tractorTransferred?.SetEquals(new[] { firstContact, secondContact }) == true
+                    && tractorTransferredBuildings.SetEquals(new[] { hull }) && tractorTransferredTerrain,
+                    "center outside the domain still moves the hull with its two foundation cells");
+            }
+            var previewCells = universe.FoundationTopology.DomainAt(targetMap, firstContact);
+            var oldGravshipDef = WorldObjectDefOf.Gravship;
+            var oldIds = Current.Game.uniqueIDsManager;
+            RimWorld.Planet.Gravship preview, capture;
+            try
+            {
+                WorldObjectDefOf.Gravship ??= new WorldObjectDef();
+                Current.Game.uniqueIDsManager ??= new UniqueIDsManager();
+                var members = universe.FoundationTopology.BuildingsIn(targetMap, previewCells);
+                preview = GravshipInterop.BuildPreview(previewCells, null, targetMap, buildings: members);
+                targetMap.storyState = new StoryState(targetMap);
+                targetMap.autoSlaughterManager = new AutoSlaughterManager(targetMap);
+                targetMap.zoneManager = new ZoneManager(targetMap);
+                targetMap.areaManager = new AreaManager(targetMap);
+                targetMap.storageGroups = new StorageGroupManager(targetMap);
+                capture = GravshipInterop.CaptureDomain(targetMap, previewCells, null, null,
+                    includeTerrain: false, buildings: members);
+            }
+            finally
+            {
+                WorldObjectDefOf.Gravship = oldGravshipDef;
+                Current.Game.uniqueIDsManager = oldIds;
+            }
+            Check(preview.ThingPlacements.ContainsKey(hull)
+                && ShipPocketMapFactory.PlacedBounds(preview).Width >= hull.def.size.x,
+                "preview places the full overhanging hull within the compact map bounds");
+            Check(capture.Things.Contains(hull)
+                && capture.ThingPlacements[hull].local == preview.ThingPlacements[hull].local,
+                "Gravship capture and preview record the same overhanging building instance and anchor");
+            SetDeck(overlap, deck);
+            tractorTransferred = null;
+            transitions.PrepareExternalForceTarget(target, firstContact, a.weapon);
+            Call(universe, "RunFrameActions");
+            Check(tractorTransferred?.SetEquals(new[] { firstContact, secondContact }) == true
+                && !tractorTransferredBuildings.Contains(hull), "cross-domain hull stays on the source map");
+            tractorTransferred = null;
+            transitions.PrepareExternalForceTarget(target, hull.Position, a.weapon, hull);
+            Call(universe, "RunFrameActions");
+            Check(tractorTransferred?.SetEquals(hull.OccupiedRect()) == true && !tractorTransferredTerrain
+                && tractorTransferredBuildings.SetEquals(new[] { hull }), "beam on the shared hull moves only the hull");
+
+            tractorTransferred = null;
+            Check(transitions.LaunchShuttleToPocket(universe, hull) == null
+                && tractorTransferredBuildings.SetEquals(new[] { hull }) && !tractorTransferredTerrain,
+                "explicit takeoff uses the same transaction and selects only the hull");
+            SetDeck(firstContact, null);
+            SetDeck(secondContact, null);
+            tractorTransferred = null;
+            Check(transitions.PrepareExternalForceTarget(target, hull.Position, a.weapon, hull)
+                && universe.FoundationTopology.BuildingDomain(targetMap, hull).Contains(overlap),
+                "after one domain leaves the hull and remaining foundation take force together without another move");
+            SetDeck(overlap, null);
+            Check(!transitions.PrepareExternalForceTarget(target, hull.Position, a.weapon, hull),
+                "unsupported hull still needs separation while another domain remains in the source");
+            Call(universe, "RunFrameActions");
+            Check(tractorTransferredBuildings.SetEquals(new[] { hull }) && !tractorTransferredTerrain,
+                "unsupported hull is independently towable");
+
             CheckTractorReceive(universe, receiveOnly: true);
         }
         finally

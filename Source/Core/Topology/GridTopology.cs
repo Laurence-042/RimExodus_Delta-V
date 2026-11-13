@@ -162,6 +162,7 @@ namespace DeltaV.Topology
         }
 
         public bool Present(int x, int y) => _present[Idx(x, y)];
+        internal int ForegroundRoot(int x, int y) => Present(x, y) ? _fg.Find(_fgNode[Idx(x, y)]) : 0;
         public int ComponentCount => _fgCount;
         public int HoleCount => _holes;
         public long CornerSum => _wCorner;

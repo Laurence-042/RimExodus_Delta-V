@@ -51,9 +51,7 @@ namespace DeltaV
     /// 飞船查询唯一入口（解耦架构 §2/§3/§8.1）。基架实现的控制域 = 认领归属的主驾驶台 + 从其脚下
     /// 基架起四邻接且归属相同的连续基架（控制域）。全部方法为只读派生查询，不保存事实。
     ///
-    /// 两种连通语义严格区分（§8.1，不得混用、不得在调用方另写近似）：
-    /// - 控制域（ControlDomain）：同归属四连通——驾驶、捕获、预览的范围；
-    /// - 残留块（ResidualBlocks）：剩余基架物理四连通（不分归属）——拆分时的块划分。
+    /// 控制域与残留块都是同归属四连通基架域，由 FoundationTopologyService 提供。
     ///
     /// 位姿派生（§11）：船不持有可与容器分叉的第二套宇宙积分状态——
     /// 船帧角 σ = AngleFromRot4(主台.Rotation)（控制台 East ⇔ 船帧对齐地图帧，
@@ -167,23 +165,19 @@ namespace DeltaV
         public static Ship ShipByOwner(int ownerId) =>
             (ShipByIdentity(new DriveSubject(0, ownerId)) as FoundationShip)?.Structure ?? Ship.Invalid;
 
-        /// <summary>
-        /// 点击物所在归属域的船：扫描 OccupiedRect 首个能解析为有效船（同图主台）的归属格。
-        /// 未占有格、无主台残骸归属与无归属组件的图自然落空（不在地表生效）。
-        /// </summary>
+        /// <summary>所属基架连通域有主台时返回该船。</summary>
         public static Ship ShipByThing(Thing thing)
         {
             Map map = thing?.MapHeld;
-            if (map == null) return Ship.Invalid;
-            SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
-            if (ownership == null) return Ship.Invalid;
-            foreach (IntVec3 cell in thing.OccupiedRect())
-            {
-                Ship ship = (AllShipsOnMap(map).FirstOrDefault(s => s.Identity ==
-                    new DriveSubject(0, ownership.OwnerAt(cell))) as FoundationShip)?.Structure ?? Ship.Invalid;
-                if (ship.IsValid && ship.map == map) return ship;
-            }
-            return Ship.Invalid;
+            var topology = Current.Game?.GetComponent<UniverseManager>()?.FoundationTopology;
+            if (topology == null || map == null) return Ship.Invalid;
+            var domain = thing is Building building ? topology.BuildingDomain(map, building)
+                : topology.DomainAt(map, thing.PositionHeld);
+            if (domain == null) return Ship.Invalid;
+            int owner = SubstructureOwnership.For(map).OwnerAt(domain.First());
+            var console = MainConsoleForOwner(map, owner);
+            var ship = new Ship(owner, map, console);
+            return ship.IsValid && domain.Contains(console.parent.Position) ? ship : Ship.Invalid;
         }
 
         /// <summary>图上是否存在归属 ownerId 的主台（判定「已有主台的归属」；不要求主台仍 Spawned）。</summary>
@@ -237,60 +231,20 @@ namespace DeltaV
 
         public static HashSet<IntVec3> ControlDomain(Map map, int ownerId, IntVec3 seedCell)
         {
-            SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
-            if (ownership == null || ownerId <= 0) return new HashSet<IntVec3>();
-            Dictionary<int, CachedDomain> byOwner;
-            if (!domainCache.TryGetValue(map, out byOwner))
-            {
-                byOwner = new Dictionary<int, CachedDomain>();
-                domainCache[map] = byOwner;
-            }
-            int version = SubstructureOwnership.StructureVersion(map);
-            CachedDomain cached;
-            if (!byOwner.TryGetValue(ownerId, out cached)
-                || SubstructureOwnership.CacheNeedsRefresh(cached.version, map))
-            {
-                cached = new CachedDomain
-                {
-                    version = version,
-                    cells = FloodOwnedDomain(map, ownership, ownerId, seedCell),
-                };
-                byOwner[ownerId] = cached;
-            }
-            return cached.cells;
+            var topology = Current.Game?.GetComponent<UniverseManager>()?.FoundationTopology;
+            return ownerId > 0 && SubstructureOwnership.TryGet(map)?.OwnerAt(seedCell) == ownerId
+                ? topology?.DomainAt(map, seedCell) ?? new HashSet<IntVec3>()
+                : new HashSet<IntVec3>();
         }
 
-        /// <summary>
-        /// 出力前只判断是否需要残片清单；实际清单仍使用 ControlDomain/ResidualBlocks。
-        /// </summary>
-        internal static bool HasResidualBlocks(Ship ship)
-        {
-            if (!ship.IsValid) return false;
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            return universe != null ? universe.FoundationTopology.HasResidual(ship)
-                : ResidualBlocks(ship.map, ControlDomain(ship)).Count != 0;
-        }
+        internal static bool HasResidualBlocks(Ship ship) => ship.IsValid
+            && Current.Game?.GetComponent<UniverseManager>()?.FoundationTopology.HasResidual(ship) == true;
 
-        /// <summary>
-        /// 残留块划分：图上不在 exclude（控制域等保留集）内的全部基架格按**物理四连通**
-        /// （不分归属）分块（§8.1 残留块语义，唯一实现）。用于出力前拆分与脱离清单。
-        /// </summary>
         public static List<HashSet<IntVec3>> ResidualBlocks(Map map, HashSet<IntVec3> exclude)
         {
-            var blocks = new List<HashSet<IntVec3>>();
-            if (map == null) return blocks;
-            SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
-            if (ownership == null) return blocks;
-            var visited = new HashSet<IntVec3>();
-            foreach (IntVec3 cell in SubstructureOwnership.CellsOnMap(map))
-            {
-                if (visited.Contains(cell) || exclude.Contains(cell)) continue;
-                var block = new HashSet<IntVec3>();
-                SubstructureOwnership.CollectConnected(map, cell, block, c => !exclude.Contains(c));
-                visited.UnionWith(block);
-                blocks.Add(block);
-            }
-            return blocks;
+            var topology = Current.Game?.GetComponent<UniverseManager>()?.FoundationTopology;
+            return topology?.Domains(map).Where(domain => !ReferenceEquals(domain, exclude) && !domain.SetEquals(exclude)).ToList()
+                ?? new List<HashSet<IntVec3>>();
         }
 
         /// <summary>
@@ -320,36 +274,14 @@ namespace DeltaV
             return false;
         }
 
-        private static HashSet<IntVec3> FloodOwnedDomain(Map map, SubstructureOwnership ownership,
-            int ownerId, IntVec3 seedCell)
-        {
-            var cells = new HashSet<IntVec3>();
-            SubstructureOwnership.CollectConnected(map, seedCell, cells,
-                c => ownership.OwnerAt(c) == ownerId);
-            return cells;
-        }
-
-        private sealed class CachedDomain
-        {
-            public int version;
-            public HashSet<IntVec3> cells;
-            public Vector2? center;
-        }
-
-        private static readonly Dictionary<Map, Dictionary<int, CachedDomain>> domainCache =
-            new Dictionary<Map, Dictionary<int, CachedDomain>>();
-
-        /// <summary>读档 / 场景重置时清空（可重建缓存纪律，AGENTS §15）。</summary>
         public static void ClearCaches()
         {
-            domainCache.Clear();
             structureCache.Clear();
             SubstructureOwnership.BumpStructureVersion();
         }
 
         public static void Forget(Map map)
         {
-            if (map != null) domainCache.Remove(map);
             if (map != null) structureCache.Remove(map);
         }
 
@@ -367,9 +299,13 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SpaceObject frame = universe?.FrameOf(ship.map);
             if (frame == null || frame.IsWorksite) return true;
-            // 停放在本船上的成员不能直接驾驶宿主；只计算该容器的独立驾驶主体。
-            if (frame.Ships.Any(other => other.Identity != new DriveSubject(0, ship.ownerId)
-                && other.IsValid && other.CanDriveIn(frame))) return true;
+            var topology = universe.FoundationTopology;
+            foreach (ShipBase other in frame.Ships)
+            {
+                if (!other.IsValid || other.Identity == new DriveSubject(0, ship.ownerId)) continue;
+                if (other.Transfer.body is Building body
+                    ? topology.BuildingDomain(ship.map, body) == null : other.CanDriveIn(frame)) return true;
+            }
             return SubstructureOwnership.For(ship.map).HasNaturalGround;
         }
 
@@ -380,12 +316,8 @@ namespace DeltaV
         /// <summary>控制域包围盒中心（连续 Map 坐标）。口袋图居中放置时即口袋几何中心。</summary>
         public static Vector2 HullCenter(Ship ship)
         {
-            var cells = ControlDomain(ship);
-            // Same domain entry, version and Map lifetime; never cache a moving universe pose.
-            if (ship.IsValid && domainCache.TryGetValue(ship.map, out var owners)
-                && owners.TryGetValue(ship.ownerId, out var cached) && ReferenceEquals(cells, cached.cells))
-                return cached.center ?? (cached.center = SpaceTransform.BoundsCenterOfCells(cells)).Value;
-            return SpaceTransform.BoundsCenterOfCells(cells);
+            var topology = Current.Game?.GetComponent<UniverseManager>()?.FoundationTopology;
+            return topology?.CenterOf(ship.map, ControlDomain(ship)) ?? Vector2.zero;
         }
 
         /// <summary>船帧相对所在地图帧的朝向 σ：主台 East ⇔ 0（主台朝向定义船头，§3.2）。</summary>
@@ -436,7 +368,8 @@ namespace DeltaV
         public static bool Contains(Ship ship, Thing thing)
         {
             if (!ship.IsValid || thing == null || thing.MapHeld != ship.map) return false;
-            return ControlDomain(ship).Contains(thing.PositionHeld);
+            return thing is Building ? ShipByThing(thing).ownerId == ship.ownerId
+                : ControlDomain(ship).Contains(thing.PositionHeld);
         }
 
         /// <summary>

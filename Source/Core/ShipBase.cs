@@ -51,7 +51,6 @@ namespace DeltaV
         public abstract IEnumerable<SpaceCollisionCell> CollisionCells { get; }
         /// <summary>船体在当前承载关系下贡献的对象角色；容器缓存结果供索敌快速过滤。</summary>
         public abstract SpaceObjectTag RolesIn(SpaceObject container);
-        public abstract bool PrepareThrust(UniverseManager universe, bool playerInitiated);
         public abstract ShipTransferSpec Transfer { get; }
         /// <summary>是否随船搬运脚印内的地面物品；内部货舱始终随所属建筑。</summary>
         public virtual bool MoveColocatedItems => true;
@@ -141,8 +140,6 @@ namespace DeltaV
         public override ShipTransferSpec Transfer => new ShipTransferSpec(
             Anchor as Building, null, Structure.ownerId, true);
         public override SpaceObjectTag RolesIn(SpaceObject container) => SpaceObjectTag.Ship;
-        public override bool PrepareThrust(UniverseManager universe, bool playerInitiated) =>
-            universe.ShipTransitions.RequestFoundationSeparation(universe, Structure, playerInitiated);
     }
 
     /// <summary>单建筑船；原版 transporter 与 launchable 仍由 CompSpaceShuttle 适配。</summary>
@@ -210,8 +207,6 @@ namespace DeltaV
             SpaceStructureRules.CollisionCells(Map, HullCells);
         public override SpaceObjectTag RolesIn(SpaceObject container) => SpaceObjectTag.Ship
             | (CanDriveIn(container) ? SpaceObjectTag.Shuttle : 0);
-        public override bool PrepareThrust(UniverseManager universe, bool playerInitiated) =>
-            universe.FrameOf(Map)?.IsWorksite != true || universe.ShipTransitions.RequestShuttleSeparation(this, playerInitiated);
         public override ShipTransferSpec Transfer => new ShipTransferSpec(null, Anchor as Building, 0, false);
         public override bool MoveColocatedItems => false;
         public override AcceptanceReport CheckDeparture()

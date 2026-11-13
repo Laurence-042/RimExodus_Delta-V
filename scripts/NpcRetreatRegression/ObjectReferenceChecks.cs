@@ -17,6 +17,8 @@ internal static partial class Program
         var factionManager = (FactionManager)Raw(typeof(FactionManager));
         Set(factionManager, "ofPlayer", player);
         Set(Find.World, "factionManager", factionManager);
+        Set(enemy, "relations", new List<FactionRelation> { new FactionRelation { other = player, kind = FactionRelationKind.Hostile } });
+        Set(player, "relations", new List<FactionRelation> { new FactionRelation { other = enemy, kind = FactionRelationKind.Hostile } });
         ThingDefOf.PilotConsole = TestBuildingDef("console");
         Map map = TestMap(800);
         CompDeltaVPilotConsole console = AddTestConsole(map, enemy, 810);
@@ -119,8 +121,6 @@ internal static partial class Program
         Check(singleBuilding.CanDriveIn(container), "launched shuttle can drive its own container");
         Check(container.PrimaryDriver == singleBuilding.Identity,
             "primary driver resolves a console-free ship with its typed identity");
-        Set(enemy, "relations", new List<FactionRelation> { new FactionRelation { other = player, kind = FactionRelationKind.Hostile } });
-        Set(player, "relations", new List<FactionRelation> { new FactionRelation { other = enemy, kind = FactionRelationKind.Hostile } });
         Map attackerMap = TestMap(951);
         var source = new MapSpaceObject(950, attackerMap, container.pose);
         universe.objects.Add(source);

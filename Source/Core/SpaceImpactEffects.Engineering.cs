@@ -62,7 +62,8 @@ namespace DeltaV
             if (ship?.IsValid == true && !universe.ShipTransitions.RequestThrust(universe, PilotTarget.Of(ship),
                     playerInitiated: true)) return;
             CompSpaceWeapon weapon = evt.weapon ?? launcher.TryGetComp<CompSpaceWeapon>();
-            if (!universe.ShipTransitions.PrepareExternalForceTarget(evt.defender, evt.hitCell, weapon)) return;
+            if (!universe.ShipTransitions.PrepareExternalForceTarget(evt.defender, evt.hitCell, weapon,
+                    evt.defenderIsSubstructure ? null : evt.defenderBuilding as Building)) return;
             if (part.kind == ImpactEffectKind.CoupleMotion)
                 receiver.CoupleMotionWith(evt.defender, evt.hitUniverse, part.couplingFraction,
                     part.maxCouplingImpulse * evt.damageScale, part.maxCouplingAngularImpulse * evt.damageScale);

@@ -39,6 +39,7 @@ internal static partial class Program
                 int index = map.cellIndices.CellToIndex(cell);
                 map.terrainGrid.foundationGrid[index] = foundation;
                 owners[index] = owner;
+                universe.NotifyFoundationChanged(map, cell);
             }
             SubstructureOwnership.BumpStructureVersion();
         }
@@ -57,6 +58,7 @@ internal static partial class Program
                 == SpaceTransform.BoundsCenterOfCells(ShipRegistry.ControlDomain(console.Ship)),
                 "structure-version change refreshes cached center after hull expansion");
             map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(bridge)] = null;
+            universe.NotifyFoundationChanged(map, bridge);
             SubstructureOwnership.BumpStructureVersion();
             Check(console.Vessel.HullCenter == centerBefore, "severed foundation immediately restores main-domain center");
             ShipRegistry.Forget(map);
@@ -66,8 +68,8 @@ internal static partial class Program
             var shipId = new DriveSubject(0, 2610);
             ShipStatusPanel.SelectStructure(map, shipId);
             var followMain = new ShipFlightTransitionService.SplitSelection(map, shipId);
-            followMain.Transferred(debris, largeMap, 2611);
-            followMain.Transferred(main, smallMap, 2610);
+            followMain.Transferred(debris, largeMap, 2611, new HashSet<Building>());
+            followMain.Transferred(main, smallMap, 2610, new HashSet<Building>());
             Check(followMain.Winner() == (smallMap, shipId),
                 "selected enemy follows smaller primary-console side without faction or pilot gating");
 
@@ -75,7 +77,7 @@ internal static partial class Program
             Deck(2620, stationCells);
             var stationId = new DriveSubject(0, 2620);
             var station = new ShipFlightTransitionService.SplitSelection(map, stationId);
-            station.Transferred(main, smallMap, 2610);
+            station.Transferred(main, smallMap, 2610, new HashSet<Building>());
             Check(station.Winner() == (map, stationId), "another vessel leaving does not steal the station selection");
 
             console.isMain = false;
@@ -85,12 +87,12 @@ internal static partial class Program
                 && !ShipStatusPanel.TryGetSelectedShip(map, out _) && !universe.Pilot.SelectedShipOnMap(map).IsValid,
                 "losing primary console preserves structure selection without redirecting ship shortcuts");
             var largest = new ShipFlightTransitionService.SplitSelection(map, shipId);
-            largest.Transferred(main, smallMap, 2630);
-            largest.Transferred(debris, largeMap, 2631);
+            largest.Transferred(main, smallMap, 2630, new HashSet<Building>());
+            largest.Transferred(debris, largeMap, 2631, new HashSet<Building>());
             Check(largest.Winner() == (largeMap, new DriveSubject(0, 2631)),
                 "console-less selection follows largest fragment and its newly assigned owner");
             var tie = new ShipFlightTransitionService.SplitSelection(map, stationId);
-            tie.Transferred(new HashSet<IntVec3> { stationCells[0] }, smallMap, 2632);
+            tie.Transferred(new HashSet<IntVec3> { stationCells[0] }, smallMap, 2632, new HashSet<Building>());
             Check(tie.Winner() == (map, stationId), "equal-size fragments keep the source map");
 
             Deck(0, new IntVec3(4, 0, 4));

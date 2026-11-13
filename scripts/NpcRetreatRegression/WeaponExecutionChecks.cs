@@ -255,9 +255,11 @@ internal static partial class Program
             ownership.Assign(edge, console.shipId);
             Check(weapon.OwnerShip.Identity == console.Vessel.Identity, "restored ownership re-enables the weapon immediately");
             map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(edge)] = null;
+            universe.NotifyFoundationChanged(map, edge);
             SubstructureOwnership.BumpStructureVersion();
             Check(!weapon.OwnerShip.IsValid, "destroyed supporting terrain invalidates full-footprint ownership");
             map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(edge)] = deck;
+            universe.NotifyFoundationChanged(map, edge);
             SubstructureOwnership.BumpStructureVersion();
             Check(weapon.OwnerShip.IsValid, "rebuilt support restores ownership");
             int prior = weaponOwnershipReads;

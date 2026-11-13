@@ -91,12 +91,23 @@ namespace DeltaV
         /// 扩建会改变它）。mainConsole 可为 null；previewBody 用于 shuttle，把真实舱体
         /// 作为只读 PositionData 放进同一个原版 ThingPlacements 旋转链，禁止调用方另算朝向。
         /// </summary>
-        internal static Gravship BuildPreview(PilotTarget target) => !target.IsValid ? null : BuildPreview(
-            new HashSet<IntVec3>(target.Vessel.HullCells), target.Vessel.Transfer.console,
-            target.Map, target.Vessel.Transfer.body, target.Vessel.MoveColocatedItems);
+        internal static Gravship BuildPreview(PilotTarget target)
+        {
+            if (!target.IsValid) return null;
+            ShipBase ship = target.Vessel;
+            ShipTransferSpec transfer = ship.Transfer;
+            var topology = Current.Game.GetComponent<UniverseManager>().FoundationTopology;
+            var cells = transfer.body == null ? topology.DomainAt(target.Map, ship.Anchor.Position)
+                : new HashSet<IntVec3>(ship.HullCells);
+            if (cells == null) return null;
+            var buildings = transfer.body == null ? topology.BuildingsIn(target.Map, cells)
+                : new HashSet<Building> { transfer.body };
+            return BuildPreview(cells, transfer.console, target.Map, transfer.body, ship.MoveColocatedItems, buildings);
+        }
 
         internal static Gravship BuildPreview(HashSet<IntVec3> cells, Building mainConsole,
-            Map sourceMap = null, Building previewBody = null, bool includeItems = true)
+            Map sourceMap = null, Building previewBody = null, bool includeItems = true,
+            HashSet<Building> buildings = null)
         {
             if (EmptyCtor == null || cells == null || cells.Count == 0) return null;
             Map map = sourceMap ?? mainConsole?.Map;
@@ -122,7 +133,7 @@ namespace DeltaV
             }
             BoundsField?.SetValue(gravship, CellRect.FromCellList(localCells));
 
-            if (mainConsole != null && cells.Contains(mainConsole.Position))
+            if (mainConsole != null && (buildings?.Contains(mainConsole) ?? cells.Contains(mainConsole.Position)))
             {
                 var things = (Dictionary<Thing, PositionData>)ThingsField?.GetValue(gravship);
                 things[mainConsole] = new PositionData(mainConsole.Position - origin, mainConsole.Rotation);
@@ -139,12 +150,15 @@ namespace DeltaV
             var previewThings = (Dictionary<Thing, PositionData>)ThingsField.GetValue(gravship);
             foreach (Thing thing in map.listerThings.AllThings)
             {
-                if (thing.Spawned && cells.Contains(thing.Position) && ShouldBringOnGravship(thing, thing.Position, includeItems))
+                bool selected = thing is Building body && buildings != null
+                    ? buildings.Contains(body) : cells.Contains(thing.Position);
+                if (!thing.Spawned || !selected) continue;
+                if (ShouldBringOnGravship(thing, thing.Position, includeItems))
                     previewThings[thing] = new PositionData(thing.Position - origin, thing.Rotation);
                 // 对接口与舱体共用原版 PositionData 旋转链，选点显示不得另算门的位置和朝向。
-                if (thing is Building_DockingPort port && port.Spawned && cells.Contains(port.Position))
+                if (thing is Building_DockingPort port)
                     previewThings[port] = new PositionData(port.Position - origin, port.Rotation);
-                if (thing is Building building && building.Spawned && cells.Contains(building.Position)
+                if (thing is Building building
                     && building.TryGetComp<CompGravshipThruster>() is CompGravshipThruster thruster
                     && thruster.CanBeActive)
                 {
@@ -178,7 +192,8 @@ namespace DeltaV
         /// 捕获会消费区域、指令、储存组和携带物；所有可失败的前置检查必须先完成。
         /// </summary>
         internal static Gravship CaptureDomain(Map map, HashSet<IntVec3> cells, Building mainConsole,
-            Faction ownerFaction, bool includeTerrain = true, bool includeItems = true)
+            Faction ownerFaction, bool includeTerrain = true, bool includeItems = true,
+            HashSet<Building> buildings = null)
         {
             if (EmptyCtor == null || map == null || cells == null || cells.Count == 0) return null;
             var hollow = (Gravship)EmptyCtor.Invoke(null);
@@ -211,16 +226,23 @@ namespace DeltaV
 
             // 设施先行（镜像 ctor 经 engine.GravshipComponents 的加法）：域内全部
             // CompGravshipFacility 建筑。
-            foreach (Thing thing in map.listerThings.AllThings.ToList())
+            IEnumerable<Thing> facilities = buildings != null ? buildings : map.listerThings.AllThings.ToList();
+            foreach (Thing thing in facilities)
             {
                 if (thing is Building facilityBuilding && facilityBuilding.Spawned
-                    && cells.Contains(facilityBuilding.Position)
+                    && (buildings != null || cells.Contains(facilityBuilding.Position))
                     && facilityBuilding.TryGetComp<CompGravshipFacility>() != null)
                 {
                     AddThing(gravship, cells, facilityBuilding, facilityBuilding.Position - origin,
-                        things, pawns, powerOn, connectParents, thrusters, exteriorDoors, extenderPositions);
+                        things, pawns, powerOn, connectParents, thrusters, exteriorDoors, extenderPositions,
+                        explicitMember: buildings != null);
                 }
             }
+
+            if (buildings != null)
+                foreach (Building building in buildings)
+                    AddThing(gravship, cells, building, building.Position - origin, things, pawns,
+                        powerOn, connectParents, thrusters, exteriorDoors, extenderPositions, explicitMember: true);
 
             var occupied = new HashSet<IntVec3>();
             var seenRooms = new HashSet<Room>();
@@ -231,11 +253,13 @@ namespace DeltaV
                 for (int i = list.Count - 1; i >= 0; i--)
                 {
                     Thing thing = list[i];
+                    if (buildings != null && thing is Building) continue;
                     if (ShouldBringOnGravship(thing, cell, includeItems)
                         && (!(thing is Building building) || !building.def.building.isAttachment))
                     {
                         foreach (Thing attached in GenConstruct.GetAttachedBuildings(thing))
                         {
+                            if (buildings != null && !buildings.Contains(attached)) continue;
                             AddThing(gravship, cells, attached, local + attached.Rotation.Opposite.FacingCell,
                                 things, pawns, powerOn, connectParents, thrusters, exteriorDoors, extenderPositions);
                         }
@@ -305,7 +329,7 @@ namespace DeltaV
             Dictionary<Thing, PositionData> things, Dictionary<Pawn, PositionData> pawns,
             Dictionary<Thing, bool> powerOn, Dictionary<Thing, Thing> connectParents,
             Dictionary<Thing, PositionData> thrusters, Dictionary<Thing, PositionData> exteriorDoors,
-            List<IntVec3> extenderPositions)
+            List<IntVec3> extenderPositions, bool explicitMember = false)
         {
             if (thing is Mote || thing is Skyfaller || !thing.def.bringAlongOnGravship)
             {
@@ -328,7 +352,7 @@ namespace DeltaV
             }
             else
             {
-                if (things.ContainsKey(thing) || !thing.Spawned || !cells.Contains(thing.Position))
+                if (things.ContainsKey(thing) || !thing.Spawned || (!explicitMember && !cells.Contains(thing.Position)))
                 {
                     return;
                 }
@@ -635,18 +659,15 @@ namespace DeltaV
             // 宿主的甲板/屋顶/气/温度原样保留——舱体起飞不在宿主图开洞。
             ulong dirtyFlags = (ulong)MapMeshFlagDefOf.Terrain | (ulong)MapMeshFlagDefOf.Roofs
                 | (ulong)MapMeshFlagDefOf.Snow | (ulong)MapMeshFlagDefOf.Sand | (ulong)MapMeshFlagDefOf.Gas;
-            for (int c = 0; c < stripCells.Length; c++)
+            for (int c = 0; includeTerrain && c < stripCells.Length; c++)
             {
                 IntVec3 cell = stripCells[c];
                 int index = map.cellIndices.CellToIndex(cell);
-                if (includeTerrain)
-                {
-                    map.terrainGrid.RemoveGravshipTerrainUnsafe(cell, index);
-                    SubstructureDamageUtility.CleanInvalidFilth(map, cell);
-                    map.roofGrid.RemoveRoofUnsafe(index);
-                    map.areaManager.BuildRoof[index] = false;
-                    map.areaManager.NoRoof[index] = false;
-                }
+                map.terrainGrid.RemoveGravshipTerrainUnsafe(cell, index);
+                SubstructureDamageUtility.CleanInvalidFilth(map, cell);
+                map.roofGrid.RemoveRoofUnsafe(index);
+                map.areaManager.BuildRoof[index] = false;
+                map.areaManager.NoRoof[index] = false;
                 map.glowGrid.DirtyCell(cell);
                 map.snowGrid.SetDepth(cell, 0f);
                 map.sandGrid.SetDepth(cell, 0f);

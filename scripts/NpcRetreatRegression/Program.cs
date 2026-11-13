@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -172,7 +172,11 @@ internal static partial class Program
         CheckShipCapabilities(universe, faction);
         CheckStructureVersions(universe, faction);
         CheckShuttleLifecycle(universe, faction);
-        CheckFoundationLifecycle(universe, faction, other);
+        var foundationLifecycle = new HarmonyLib.Harmony("DeltaV.Regression.FoundationLifecycle");
+        foundationLifecycle.Patch(HarmonyLib.AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
+            prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(RegressionSubstructure)));
+        try { CheckFoundationLifecycle(universe, faction, other); }
+        finally { foundationLifecycle.UnpatchAll(foundationLifecycle.Id); }
         CheckSeparationRules(universe, faction);
         var combatStats = new HarmonyLib.Harmony("DeltaV.Regression.ExpansionStats");
         combatStats.Patch(HarmonyLib.AccessTools.PropertyGetter(typeof(Thing), "MaxHitPoints"),

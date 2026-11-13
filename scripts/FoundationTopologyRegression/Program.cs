@@ -17,7 +17,7 @@ internal static class Program
     {
         try
         {
-            Exhaustive(); RandomRectangles(); LargeMaps(); Lifetimes();
+            Exhaustive(); RandomRectangles(); LargeMaps(); Lifetimes(); Membership();
             Console.WriteLine($"PASS {checks} checks; {states} differential states (production-source algorithm/index/service)");
             return 0;
         }
@@ -31,12 +31,12 @@ internal static class Program
             var map = new Map(3, 3);
             for (int i = 0; i < 9; i++) map.Set(i, (mask & (1 << i)) != 0 ? 1 : -1);
             var index = new FoundationConnectivity(3, 3, map.Read);
-            Verify(map, index, true);
+            Verify(map, index);
             for (int i = 0; i < 9; i++)
             {
                 int old = map.Read(i);
                 foreach (int value in new[] { old == -1 ? 1 : -1, old, 2, 0, old })
-                { map.Set(i, value); index.Update(i, value); Verify(map, index, true); }
+                { map.Set(i, value); index.Update(i, value); Verify(map, index); }
             }
         }
         foreach (var size in new[] { (1, 1), (1, 13), (13, 1) })
@@ -44,7 +44,7 @@ internal static class Program
             var map = new Map(size.Item1, size.Item2);
             var index = new FoundationConnectivity(size.Item1, size.Item2, map.Read);
             for (int i = 0; i < map.Owners.Length; i++)
-            { map.Set(i, 1); index.Update(i, 1); Verify(map, index, true); }
+            { map.Set(i, 1); index.Update(i, 1); Verify(map, index); }
         }
         Console.WriteLine($"Exhaustive masks, diagonal contacts, mixed/unassigned owners, zero/one-cell maps: {states} states");
     }
@@ -59,9 +59,9 @@ internal static class Program
             for (int step = 0; step < 1800; step++)
             {
                 int i = random.Next(map.Owners.Length), owner = step % 3 == 0 ? random.Next(-1, 4) : map.Read(i) == -1 ? 1 : -1;
-                map.Set(i, owner); index.Update(i, owner); Verify(map, index, step % 37 == 0);
+                map.Set(i, owner); index.Update(i, owner); Verify(map, index);
                 if (step % 211 == 0)
-                { Core(index).CompactAll(); Verify(map, index, true); }
+                { Core(index).CompactAll(); Verify(map, index); }
             }
         }
         var churn = new Map(4, 4); var churnIndex = new FoundationConnectivity(4, 4, churn.Read);
@@ -73,7 +73,7 @@ internal static class Program
             int owner = step % 2 == 0 ? 1 : -1;
             churn.Set(5, owner); churnIndex.Update(5, owner);
             if (fg.NodeCount < previousNodes) compactions++;
-            previousNodes = fg.NodeCount; Verify(churn, churnIndex, true);
+            previousNodes = fg.NodeCount; Verify(churn, churnIndex);
         }
         Check(compactions > 0, "must exercise automatic node-pool compaction");
         Console.WriteLine($"Random rectangles and reinsertion/compaction passed; automatic compactions={compactions}");
@@ -103,7 +103,7 @@ internal static class Program
                 int owner = map.Read(i) >= 0 ? -1 : 1;
                 map.Set(i, owner); index.Update(i, owner);
                 service.NotifyChanged(map, map.cellIndices.IndexToCell(i));
-                Verify(map, index, step % 100 == 0);
+                Verify(map, index);
                 Check(service.HasResidual(ship) == BruteResidual(map, 1, 2510), $"service {shape}/{step}");
             }
             Console.WriteLine($"250x250 {shape}: 400 updates with exact residual/domain checks passed");
@@ -126,7 +126,7 @@ internal static class Program
         for (int n = 0; n < 1000; n++) service.NotifyChanged(map, map.cellIndices.IndexToCell(hole));
         Check(!service.HasResidual(ship) && map.FoundationReads == 1, "hole expansion coalesces and reads only one changed cell");
         map.Set(hole, 2); service.NotifyChanged(map, map.cellIndices.IndexToCell(hole));
-        Check(service.HasResidual(ship), "touching foreign owner must remain residual despite physical connectivity");
+        Check(service.HasResidual(ship), "touching foreign owner must remain a distinct domain");
         map.Set(hole, 1); service.NotifyChanged(map, map.cellIndices.IndexToCell(hole));
         Check(!service.HasResidual(ship), "ownership reassignment repairs clean conclusion");
         map.Set(0, 0); service.NotifyChanged(map, map.cellIndices.IndexToCell(0));
@@ -145,34 +145,62 @@ internal static class Program
         Console.WriteLine($"Lifecycle/coalescing passed; 10,000 stable service queries: {clock.Elapsed.TotalMilliseconds:F3} ms, zero foundation reads");
     }
 
-    private static void Verify(Map map, FoundationConnectivity index, bool holes)
+    private static void Verify(Map map, FoundationConnectivity index)
     {
         states++;
         int w = map.Size.x, h = map.Size.z;
-        var labels = Analyze(map.Foundations, w, h, false, out int components);
-        GridTopology core = Core(index);
-        Check(core.ComponentCount == components, "physical component count");
-        var nodes = (int[])typeof(GridTopology).GetField("_fgNode", Fields).GetValue(core);
-        var fg = (UnionFind)typeof(GridTopology).GetField("_fg", Fields).GetValue(core);
-        var forward = new Dictionary<int, int>(); var inverse = new Dictionary<int, int>();
-        for (int i = 0; i < labels.Length; i++)
+        var forward = new Dictionary<int, (int owner, int component)>();
+        var inverse = new Dictionary<(int owner, int component), int>();
+        foreach (int owner in map.Owners.Distinct())
         {
-            if (labels[i] == 0) continue;
-            int root = fg.Find(nodes[(i / w + 1) * (w + 2) + i % w + 1]);
-            Check(!forward.TryGetValue(root, out int a) || a == labels[i], "foreground components not merged");
-            Check(!inverse.TryGetValue(labels[i], out int b) || b == root, "foreground component not split");
-            forward[root] = labels[i]; inverse[labels[i]] = root;
+            var mask = map.Owners.Select((value, index) => value == owner && map.Foundations[index]).ToArray();
+            var labels = Analyze(mask, w, h, false, out _);
+            for (int i = 0; i < labels.Length; i++)
+            {
+                if (labels[i] == 0) continue;
+                int root = index.ComponentAt(i);
+                var label = (owner, labels[i]);
+                Check(root != 0 && (!forward.TryGetValue(root, out var existing) || existing == label),
+                    "different owner domains or disconnected cells merged");
+                Check(!inverse.TryGetValue(label, out int oldRoot) || oldRoot == root, "owner domain split");
+                forward[root] = label;
+                inverse[label] = root;
+            }
         }
+        Check(index.ComponentCount == inverse.Count, "owner component count");
         foreach (int owner in new[] { 0, 1, 2, 3 })
-            foreach (int seed in new[] { 0, labels.Length / 2, labels.Length - 1 })
-                Check(index.HasResidual(owner, seed) == BruteResidual(map, owner, seed), "same-owner control domain vs physical residual semantics");
-        if (holes)
-        {
-            int bw = w + 2, bh = h + 2; var background = Enumerable.Repeat(true, bw * bh).ToArray();
-            for (int i = 0; i < labels.Length; i++) background[(i / w + 1) * bw + i % w + 1] = !map.Foundations[i];
-            Analyze(background, bw, bh, true, out int backgrounds);
-            Check(core.HoleCount == backgrounds - 1 && core.CornerSum == 4L * (components - backgrounds + 1), "Euler/hole counts");
-        }
+            foreach (int seed in new[] { 0, map.Owners.Length / 2, map.Owners.Length - 1 })
+                Check(index.HasResidual(owner, seed) == BruteResidual(map, owner, seed), "residual from the same graph");
+    }
+
+    private static void Membership()
+    {
+        var map = new Map(6, 3);
+        var service = new FoundationTopologyService();
+        var left = new IntVec3(1, 0, 1);
+        var right = new IntVec3(3, 0, 1);
+        var gap = new IntVec3(2, 0, 1);
+        map.Set(map.cellIndices.CellToIndex(left), 7);
+        map.Set(map.cellIndices.CellToIndex(right), 7);
+        Check(service.DomainCount(map) == 2, "same owner can have two domains");
+        Check(ReferenceEquals(service.DomainUnder(map, new[] { left, gap }), service.DomainAt(map, left)),
+            "overhanging footprint belongs to the only covered domain");
+        Check(service.DomainUnder(map, new[] { left, gap, right }) == null, "straddling footprint has no domain");
+        Check(service.DomainUnder(map, new[] { gap }) == null, "adjacency without overlap has no domain");
+        var building = new Building { Map = map, Footprint = new[] { left, gap, right } };
+        map.thingGrid.Buildings.Add(building);
+        Check(!service.BuildingsIn(map, service.DomainAt(map, left)).Contains(building),
+            "ordinary cross-domain building is excluded from the move");
+        map.Set(map.cellIndices.CellToIndex(left), -1);
+        service.NotifyChanged(map, left);
+        Check(ReferenceEquals(service.DomainUnder(map, new[] { left, gap, right }), service.DomainAt(map, right)),
+            "footprint resolves to the remaining domain after removal");
+        Check(service.BuildingsIn(map, service.DomainAt(map, right)).Contains(building),
+            "same building moves with the remaining domain");
+        building.Footprint = new[] { left, gap };
+        map.StructureVersion++;
+        Check(!service.BuildingsIn(map, service.DomainAt(map, right)).Contains(building),
+            "building change refreshes membership without changing topology");
     }
 
     private static bool BruteResidual(Map map, int owner, int seed)

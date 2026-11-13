@@ -168,7 +168,7 @@ internal static partial class Program
             harmony.Patch(AccessTools.Method(typeof(ThingGrid), "DeregisterInCell"),
                 postfix: new HarmonyMethod(typeof(Patch_SpaceScatterCargo_Deregister), "Postfix"));
             map.thingGrid.Register(cargo);
-            harmony.Patch(AccessTools.Method(typeof(SpaceScatterService), "TryScatter"),
+            harmony.Patch(AccessTools.Method(typeof(SpaceScatterService), "TryScatter", new[] { typeof(Thing) }),
                 prefix: new HarmonyMethod(typeof(Program), nameof(FailScatterFixture)));
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship)
                 && !universe.ShipTransitions.RequestFoundationSeparation(universe, main.Ship, false),
@@ -196,6 +196,11 @@ internal static partial class Program
             Foundation(new IntVec3(4, 0, 4), 999);
             Check(!universe.ShipTransitions.RequestFoundationSeparation(universe, main.Ship, false),
                 "foundation change invalidates the previously clean split conclusion");
+            Foundation(new IntVec3(4, 0, 4), 1000);
+            Call(universe, "RunFrameActions");
+            Check(separationTransfers == 3, "stale thrust separation does not transfer a reassigned domain");
+            Check(!universe.ShipTransitions.RequestFoundationSeparation(universe, main.Ship, false),
+                "the next thrust request resolves the current domain");
             Call(universe, "RunFrameActions");
             Check(separationTransfers == 4 && universe.ShipTransitions.RequestFoundationSeparation(universe, main.Ship, false),
                 "new residual is transferred once and the clean result is reused");

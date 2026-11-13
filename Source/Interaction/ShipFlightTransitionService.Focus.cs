@@ -28,8 +28,18 @@ namespace DeltaV
                 mainCell = mainRemaining ? ship.Anchor.Position : IntVec3.Invalid;
             }
 
-            internal void Transferred(HashSet<IntVec3> cells, Map destination, int ownerId)
+            internal void Transferred(HashSet<IntVec3> cells, Map destination, int ownerId, HashSet<Building> buildings)
             {
+                if (identity.shuttle)
+                {
+                    if (buildings.Any(b => b.Map == destination && b.thingIDNumber == identity.key))
+                    {
+                        moved.Add((destination, identity, remaining.Count, true));
+                        remaining.Clear();
+                        mainRemaining = false;
+                    }
+                    return;
+                }
                 int count = cells.Count(remaining.Contains);
                 if (count == 0) return;
                 bool main = mainRemaining && cells.Contains(mainCell);

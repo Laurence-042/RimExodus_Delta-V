@@ -4,63 +4,71 @@ using DeltaV.Topology;
 
 namespace DeltaV
 {
-    /// <summary>从真实基架/归属重建的查询索引；不持久化、不负责归属或拆分决策。</summary>
+    /// <summary>One incremental graph of foundations. Intermediate grid slots encode same-owner edges.</summary>
     internal sealed class FoundationConnectivity
     {
-        // -1 means no foundation; zero remains a real, unassigned foundation owner.
         internal const int Absent = -1;
         private readonly int width;
+        private readonly int height;
         private readonly int[] owners;
-        private readonly Dictionary<int, int> counts = new Dictionary<int, int>();
         private readonly GridTopology topology;
-        private int total;
+        private readonly HashSet<int> occupied = new HashSet<int>();
+        internal int ComponentCount => topology.ComponentCount;
+        internal IEnumerable<int> Occupied => occupied;
 
         internal FoundationConnectivity(int width, int height, Func<int, int> readOwner)
         {
             this.width = width;
+            this.height = height;
             owners = new int[width * height];
-            topology = new GridTopology(width, height, Conn.Fg4Bg8);
+            topology = new GridTopology(width * 2 - 1, height * 2 - 1, Conn.Fg4Bg8);
             var initial = new List<int>();
-            for (int i = 0; i < owners.Length; i++)
+            for (int index = 0; index < owners.Length; index++)
             {
-                int owner = owners[i] = readOwner(i);
+                int owner = owners[index] = readOwner(index);
                 if (owner == Absent) continue;
-                ChangeCount(owner, 1);
-                initial.Add((i / width + 1) * topology.Size + i % width + 1);
+                occupied.Add(index);
+                int x = index % width, z = index / width;
+                int vertex = (z * 2 + 1) * topology.Size + x * 2 + 1;
+                initial.Add(vertex);
+                if (x > 0 && owners[index - 1] == owner) initial.Add(vertex - 1);
+                if (z > 0 && owners[index - width] == owner) initial.Add(vertex - topology.Size);
             }
             topology.AddBatch(initial);
         }
 
-        internal void Update(int index, int owner)
+        internal int ComponentAt(int index) => topology.ForegroundRoot(index % width * 2, index / width * 2);
+
+        internal bool Update(int index, int owner)
         {
             int previous = owners[index];
-            if (previous == owner) return;
-            if (previous != Absent) ChangeCount(previous, -1);
-            if (owner != Absent) ChangeCount(owner, 1);
-            if (previous == Absent) topology.Add(index % width, index / width);
-            else if (owner == Absent) topology.Remove(index % width, index / width);
+            if (previous == owner) return false;
             owners[index] = owner;
+            int x = index % width, z = index / width;
+            if (previous == Absent)
+            {
+                occupied.Add(index);
+                topology.Add(x * 2, z * 2);
+            }
+            if (x > 0) SetEdge(index - 1, x * 2 - 1, z * 2, owner);
+            if (x + 1 < width) SetEdge(index + 1, x * 2 + 1, z * 2, owner);
+            if (z > 0) SetEdge(index - width, x * 2, z * 2 - 1, owner);
+            if (z + 1 < height) SetEdge(index + width, x * 2, z * 2 + 1, owner);
+            if (owner == Absent)
+            {
+                occupied.Remove(index);
+                topology.Remove(x * 2, z * 2);
+            }
+            return true;
         }
 
-        private void ChangeCount(int owner, int delta)
+        private void SetEdge(int neighbor, int x, int z, int owner)
         {
-            counts.TryGetValue(owner, out int count);
-            count += delta;
-            if (count == 0) counts.Remove(owner); else counts[owner] = count;
-            total += delta;
+            if (owner != Absent && owners[neighbor] == owner) topology.Add(x, z);
+            else topology.Remove(x, z);
         }
 
-        /// <summary>
-        /// 控制域外有基架的充要判据：非空图只有在全部基架同归属、物理上仅一块、
-        /// 且主台脚下在该块内时才无残留。无需建立每个 owner 的第二套拓扑。
-        /// 混合归属即使物理相连也有残留；枚举清单仍交回 ShipRegistry 的原四连通入口。
-        /// </summary>
-        internal bool HasResidual(int owner, int seed)
-        {
-            if (total == 0) return false;
-            return owner <= 0 || seed < 0 || seed >= owners.Length || owners[seed] != owner
-                || !counts.TryGetValue(owner, out int owned) || owned != total
-                || topology.ComponentCount != 1;
-        }
+        internal bool HasResidual(int owner, int seed) => occupied.Count != 0
+            && (owner <= 0 || seed < 0 || seed >= owners.Length || owners[seed] != owner || ComponentCount != 1);
     }
 }
