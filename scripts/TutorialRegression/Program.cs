@@ -68,6 +68,18 @@ internal static partial class Program
             ReadSourceDefs(gameData,
                 Path.GetFullPath(Path.Combine(prefabRoot, "../../1.6/Defs")));
             string tutorialPrefabs = Path.Combine(prefabRoot, "Tutorial");
+            if (args.Length > 4 && args[4] == "shipyard")
+            {
+                string directory = Path.GetDirectoryName(args[1]);
+                Geometry(Path.Combine(directory, "Shipyard.records.json"), game);
+                PrefabLifeSupport(directory, game, "Shipyard");
+                PrefabTurretGraphs(tutorialPrefabs, new[] { "Shipyard" });
+                ShipyardStates(tutorialPrefabs, harmony);
+                ShipyardTradeState(tutorialPrefabs, harmony);
+                Check(errors.Count == 0, "Unexpected shipyard logs: " + string.Join("\n", errors));
+                Console.WriteLine($"PASS {checks} shipyard geometry, power, life support and Scribe checks. No game launched.");
+                return 0;
+            }
             if (args.Length > 5 && args[4] == "ship-search")
             {
                 string directory = args[5];
@@ -188,6 +200,8 @@ internal static partial class Program
         map.floodFiller = new FloodFiller(map);
         Set(game, "maps", new List<Map> { map });
         var buildings = new List<Building>();
+        var yardConnectors = new List<Building>();
+        bool shipyard = Path.GetFileName(path) == "Shipyard.records.json";
         var affordances = new Dictionary<string, TerrainAffordanceDef>();
         TerrainAffordanceDef Affordance(string name)
         {
@@ -205,6 +219,15 @@ internal static partial class Program
             def.rotatable = row.GetProperty("rotatable").GetBoolean();
             def.category = Enum.Parse<ThingCategory>(row.GetProperty("category").GetString());
             def.building = new BuildingProperties();
+            if (shipyard)
+            {
+                bool BuildingFlag(string flag, bool fallback) => SourceChain(name)
+                    .Select(n => n.SelectSingleNode("building/" + flag)?.InnerText)
+                    .Where(value => value != null).Select(bool.Parse).DefaultIfEmpty(fallback).First();
+                def.building.isAttachment = BuildingFlag("isAttachment", false);
+                def.building.supportsWallAttachments = BuildingFlag("supportsWallAttachments", false);
+                def.building.allowWireConnection = BuildingFlag("allowWireConnection", true);
+            }
             def.holdsRoof = row.GetProperty("holdsRoof").GetBoolean();
             string needed = row.GetProperty("terrainAffordance").GetString();
             def.terrainAffordanceNeeded = string.IsNullOrEmpty(needed) ? null : Affordance(needed);
@@ -254,11 +277,15 @@ internal static partial class Program
             Set(b, "positionInt", pos + new IntVec3(20, 0, 20));
             Set(b, "rotationInt", rot);
             bool transmits = row.GetProperty("transmitsPower").GetBoolean();
+            var transmitter = transmits ? new CompProperties_Power { transmitsPower = true } : null;
+            def.comps = transmitter == null ? new List<CompProperties>() : new List<CompProperties> { transmitter };
             Set(b, "comps", transmits ? new List<ThingComp> { new CompPowerTrader
-                { parent = b, props = new CompProperties_Power { transmitsPower = true } } } : null);
+                { parent = b, props = transmitter } } : null);
             map.thingGrid.Register(b);
             if (def.holdsRoof) map.edificeGrid.Register(b);
             buildings.Add(b);
+            if (shipyard && !transmits && row.GetProperty("powerWatts").GetSingle() != 0)
+                yardConnectors.Add(b);
         }
         foreach (Building b in buildings)
         {
@@ -292,6 +319,13 @@ internal static partial class Program
             {
                 PowerNet net = PowerNetMaker.NewPowerNetStartingFrom(transmitters[0]);
                 Check(net.transmitters.Count == transmitters.Count, "native single connected power net");
+                foreach (var b in yardConnectors)
+                {
+                    var mount = b.def.building.isAttachment ? GenConstruct.GetWallAttachedTo(b) : b;
+                    Check(mount != null, b.def.defName + " native wall mount");
+                    Check(PowerConnectionMaker.BestTransmitterForConnector(mount.Position, map)?.transNet == net,
+                        b.def.defName + " connects to sparse shipyard power grid at " + b.Position);
+                }
             }
         }
         var thrusters = buildings.Where(b => b.def.defName == "SmallThruster" || b.def.defName == "LargeThruster").ToList();

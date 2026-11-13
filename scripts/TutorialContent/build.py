@@ -212,7 +212,8 @@ def build(data, name="ArrivalStation", *, layout_override=None, output=None, eva
     elif sector_content:
         walls, start = layout.furnish(name, plan, place, footprint, prop, foundation, roofs, records, occupied)
     elif detailed:
-        walls, start = layout.furnish(name, plan, place, prop, foundation, roofs, records, occupied)
+        options = {'footprint': footprint} if name == 'Shipyard' else {}
+        walls, start = layout.furnish(name, plan, place, prop, foundation, roofs, records, occupied, **options)
     elif name == "Salvage":
         walls = set()
         place('ShelfSmall', 3, 3)
@@ -349,9 +350,9 @@ def build(data, name="ArrivalStation", *, layout_override=None, output=None, eva
     prototypes = {n.findtext('def'): n for n in ET.parse(HERE / 'prototypes.states').getroot()}
     if name in ('ArrivalStation','Shipyard','PrototypeShip') or sector_content or module_content or assembly_content:
         prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'shipyard.states').getroot()})
-    if range_layout or sector_content or module_content or assembly_content:
+    if name == 'Shipyard' or range_layout or sector_content or module_content or assembly_content:
         prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'range.states').getroot()})
-    if module_content or assembly_content:
+    if name == 'Shipyard' or module_content or assembly_content:
         prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'modules.states').getroot()})
     document = ET.Element('MapPrefab', formatVersion='2')
     ET.SubElement(document, 'name').text = name
@@ -427,7 +428,8 @@ def build(data, name="ArrivalStation", *, layout_override=None, output=None, eva
     for tag, surface_def in [('foundations', 'Substructure'), ('roofs', 'RoofConstructed')]:
         nodes = ET.SubElement(document, tag)
         foundation_output = set() if name == 'ArrivalStation' or (plan or {}).get('omitFoundations') else foundation
-        for x, z in sorted(roofs if tag == 'roofs' else foundation_output):
+        roof_output = roofs | (plan or {}).get('fieldRoofs', set())
+        for x, z in sorted(roof_output if tag == 'roofs' else foundation_output):
             node = ET.SubElement(nodes, 'li')
             field(node, 'pos', f'({x}, 0, {z})')
             authored_defs = plan.get('foundationDefs' if tag == 'foundations' else 'roofDefs', {}) if detailed else {}

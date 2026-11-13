@@ -24,10 +24,10 @@ internal static partial class Program
             .ToDictionary(state => "Thing_" + state["id"].InnerText);
         var supplyIds = terminal.SelectNodes("supplyCargo/li").Cast<XmlNode>().Select(n => n.InnerText).ToList();
         var deliveryId = terminal["deliveryCargo"].InnerText;
-        Check(supplyIds.Count == 3 && supplyIds.Distinct().Count() == 3
+        Check(supplyIds.Count == 16 && supplyIds.Distinct().Count() == 16
             && supplyIds.All(id => statesById[id]["def"].InnerText == "DeltaV_CargoContainer")
             && statesById[deliveryId]["def"].InnerText == "DeltaV_CargoStorage",
-            "tutorial terminal binds three separate sealed supply bays and one storage delivery bay");
+            "tutorial terminal binds sixteen original sealed supply bays and one storage delivery bay");
         Check(terminal["tradeStockGenerated"].InnerText == "False", "tutorial merchant generates initial stock normally");
 
         var kind = DefDatabase<TraderKindDef>.GetNamedSilentFail("Orbital_BulkGoods");
@@ -81,7 +81,7 @@ internal static partial class Program
         var trader = things.OfType<Building_SpaceTradeTerminal>().Single();
         var supply = (List<ISpaceCargoContainer>)AccessTools.Field(trader.GetType(), "supplyCargo").GetValue(trader);
         var delivery = (ISpaceCargoContainer)AccessTools.Field(trader.GetType(), "deliveryCargo").GetValue(trader);
-        Check(supply.Count == 3 && supply.All(c => c != null && things.Contains(c.Thing) && !c.IsUnlocked)
+        Check(supply.Count == 16 && supply.All(c => c != null && things.Contains(c.Thing) && !c.IsUnlocked)
             && delivery?.IsUnlocked == true && ReferenceEquals(delivery.Thing,
                 things.Single(t => t.def.defName == "DeltaV_CargoStorage")),
             "native Scribe relinks the terminal to the authored locked and unlocked cargo instances");
@@ -231,17 +231,22 @@ internal static partial class Program
             Check(suit.TryGetComp<CompShuttle>().requiredPawns != null, "EVA shuttle reference lists survive Scribe");
             Check(suit.TryGetComp<CompVirtualWeapons>().Weapons.Count() == 3, "EVA restores all three virtual tools");
         }
-        foreach (var state in states.Where(n => n["def"].InnerText == "DeltaV_Weapon_RapidMainSmall"))
+        foreach (var state in states.Where(n => n["def"].InnerText is
+            "DeltaV_Weapon_RapidMainSmall" or "DeltaV_Weapon_HeavyMainMedium"))
         foreach (var kind in new[] { GunSupplyKind.Heads, GunSupplyKind.Propellant })
         {
-            var supply = new CompGunSupply { props = new CompProperties_GunSupply { kind = kind, fuelCapacity = 300 }, parent = Raw<Building>() };
+            float capacity = float.Parse(SourceChain(state["def"].InnerText)
+                .Select(n => n.SelectSingleNode($"comps/li[@Class='DeltaV.CompProperties_GunSupply'][kind='{kind}']/fuelCapacity")?.InnerText)
+                .First(value => value != null), System.Globalization.CultureInfo.InvariantCulture);
+            var supply = new CompGunSupply { props = new CompProperties_GunSupply { kind = kind, fuelCapacity = capacity },
+                parent = Raw<Building>() };
             string path = Path.GetTempFileName();
             try
             {
                 File.WriteAllText(path, "<root><supply>"+state.InnerXml+"</supply></root>");
                 Scribe.loader.InitLoading(path); Scribe.EnterNode("supply"); supply.PostExposeData(); Scribe.ExitNode();
                 Scribe.loader.FinalizeLoading();
-                Check(supply.Fuel == 300, "shipyard cannon starts with both supply compartments full");
+                Check(supply.Fuel == capacity, "shipyard cannon starts with both supply compartments full");
             }
             finally { Scribe.ForceStop(); File.Delete(path); }
         }

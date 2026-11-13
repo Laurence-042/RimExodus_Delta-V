@@ -58,7 +58,7 @@ def solar_budget(demand, panel_watts, capacity, efficiency, *, panel_step=1):
         glow.append(max(0, min(1, incidence/.7)))
     # Keep the budget valid after losing one panel and one battery. Charge loss
     # and 5 W of native self-discharge per connected battery count toward demand.
-    for panels in range(2, 100, panel_step):
+    for panels in range(max(2, panel_step), 100, panel_step):
         batteries = 2
         while True:
             balance = [(panels-1)*panel_watts*g - demand - 5*batteries for g in glow]

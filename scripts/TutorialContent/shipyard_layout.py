@@ -6,6 +6,8 @@ The drawing and checks consume those same records; this module never spawns Thin
 import math
 import json
 from collections import defaultdict, Counter, deque
+from pathlib import Path
+import xml.etree.ElementTree as ET
 from PIL import Image, ImageDraw, ImageFont
 from station_layout import FACING, center, furnishing_grid, rectangle, solar_budget, prepare_trade_state
 
@@ -14,6 +16,25 @@ NAMES=['生活', '农业', '工坊', '物流', '能源', '防护', '贸易', '�
 COLORS=['#28545c','#325f49','#665039','#65513a','#574c68','#3b536a','#315265','#405276']
 ARM_CUT = (13, 48)
 ARM_CUT_CELLS = {(ARM_CUT[0]+dx, ARM_CUT[1]) for dx in (-1, 0, 1)}
+ARM_ROOMS = {'arm', 'cargo', 'stores'}
+YARD_HEATER_TARGET = 25
+PLANTING_TEMPLATE = Path(__file__).with_name('Module_13x13_Planting.prefab')
+
+
+def planting_module(room, turn):
+    x, z = min(room)
+
+    def cell(node):
+        a, _, b = map(int, node.findtext('pos').strip('()').split(','))
+        return (x+11-a, z+11-b) if turn else (x+a-1, z+b-1)
+
+    template = ET.parse(PLANTING_TEMPLATE)
+    assert template.findtext('prefab/size') == '(13, 13)'
+    return ([(node, cell(node)) for node in template.findall('thingStates/li')],
+            {cell(node): node.findtext('def') for node in template.findall('foundations/li')},
+            {cell(node): node.findtext('def') for node in template.findall('roofs/li')})
+
+
 def adj(c): return [(c[0]+x,c[1]+z) for x,z in DIRS]
 def components(cells):
     remaining=set(cells); result=[]
@@ -38,17 +59,17 @@ def shape(name):
 def yard_shape():
     # Coordinates are relative to the central landing and crew muster point.
     rooms = {
-        'trade': (-54, 3, -44, 11), 'bonded': (-54, 13, -44, 17),
-        'kitchen': (-19, 3, -15, 10), 'dining': (-13, 3, 3, 10),
+        'trade': (-54, 3, -44, 11), 'waiting': (-54, 13, -44, 17),
+        'kitchen': (-19, 3, -15, 10), 'dining': (-13, 3, -3, 10),
         'control': (5, 3, 12, 10), 'medical': (14, 3, 20, 8),
-        'lounge': (-10, 12, 2, 17), 'guest': (4, 12, 10, 17),
-        'cargo': (-52, -24, -34, -17), 'power': (0, -10, 19, -3),
-        'stores': (-47, -32, -39, -26), 'research': (0, -19, 10, -12),
+        'lounge': (-10, 12, -3, 17), 'guest': (3, 12, 9, 17),
+        'cargo': (-52, -24, -34, -17), 'power': (3, -10, 19, -3),
+        'stores': (-47, -32, -39, -26), 'research': (3, -19, 12, -12),
         'workshop': (46, 3, 54, 11), 'repair': (46, -9, 54, -3),
-        'moon': (-12, -19, -2, -3),
+        'moon': (-12, -19, -3, -3),
     }
-    corridors = [(-55, -1, 55, 1), (-1, -55, 1, -25),
-                 (-1, 26, 1, 43), (-31, 26, 31, 28), (-31, -28, 31, -26)]
+    corridors = [(-55, -1, 55, 1), (-1, -55, 1, 55), (-42, 1, -41, 17),
+                 (-31, 26, 31, 28), (-31, -28, 31, -26)]
     for end, sign in (('north', 1), ('south', -1)):
         def orient(x0, z0, x1, z1):
             return (x0, z0, x1, z1) if sign == 1 else (x0, -z1, x1, -z0)
@@ -67,6 +88,7 @@ def yard_shape():
             if 23.5**2 <= (x-56)**2 + (z-56)**2 <= 27**2}
     corridor = ring | set().union(*(grid(bounds) for bounds in corridors))
     modules = {key: grid(bounds) for key, bounds in rooms.items()}
+    modules['moon'].update(rectangle((37, 44, 43, 53)) | rectangle((39, 42, 43, 43)))
     # The wider landings leave room for life support while the middle stays
     # one walkable cell wide between its two hull walls.
     modules['arm'] = (rectangle((12, 41, 14, 44)) | rectangle((13, 45, 13, 50))
@@ -85,11 +107,13 @@ def yard_shape():
     palette = {key: zone for zone, keys in enumerate((
         ('dining', 'kitchen', 'control', 'medical', 'lounge', 'guest'),
         ('farm',), ('workshop', 'repair', 'research'), ('cargo', 'stores', 'moon', 'arm'),
-        ('power',), ('defense',), ('trade', 'bonded'), ('cabin',)))
+        ('power',), ('defense',), ('trade', 'waiting'), ('cabin',)))
         for key in keys}
     zones = {c: palette[key.split('-')[0]] for key, room in modules.items() for c in room}
+    farms = {key: planting_module(room, 2 if '-south-' in key else 0)
+             for key, room in modules.items() if key.startswith('farm-')}
     return dict(size=(113, 113), cells=cells, modules=modules, corridor=corridor, ring=ring,
-                zones=zones, foundationDefs={})
+                zones=zones, foundationDefs={}, farms=farms)
 
 
 def yard_partitions(plan, foundation, put, reserved):
@@ -103,7 +127,7 @@ def yard_partitions(plan, foundation, put, reserved):
         put('DeltaV_DockingPort', x, z, rotation)
         reserved.add((x-dx, z-dz))
 
-    doors = set()
+    doors, vents = set(), []
     def open_door(x, z, rotation):
         dx, dz = FACING[rotation]
         walls.remove((x, z))
@@ -119,31 +143,60 @@ def yard_partitions(plan, foundation, put, reserved):
         assert choices, (label, 'missing shared wall')
         _, x, z, rotation = min(choices)
         open_door(x, z, rotation)
+        return x, z, rotation
 
-    adjoining = {'bonded': 'trade', 'lounge': 'dining', 'guest': 'control',
-                 'research': 'power', 'cargo': 'arm', 'stores': 'cargo'}
+    adjoining = {'cargo': 'arm', 'stores': 'cargo'}
     for key, room in modules.items():
+        if key in plan['farms']:
+            things, _, _ = plan['farms'][key]
+            turn = 2 if '-south-' in key else 0
+            for node, cell in things:
+                name = node.findtext('def')
+                if name == 'Door':
+                    open_door(*cell, turn)
+                elif name == 'Vent':
+                    walls.remove(cell)
+                    put('Vent', *cell, turn, state={'switchOn': 'True', 'wantSwitchOn': 'True'})
+                    vents.append(dict(cell=cell, rooms=('corridor', key)))
+            continue
         other = modules[adjoining[key]] if key in adjoining else corridor
-        connect(room, other, key)
+        x, z, _ = connect(room, other, key)
+        if key in ARM_ROOMS:
+            continue
+        candidates = [(abs(a-x)+abs(b-z), a, b, facing)
+                      for a, b in walls
+                      # Vacuum also exchanges along the sides of a vent in the vanilla grid.
+                      if all(n in foundation for n in adj((a, b)))
+                      for facing, (dx, dz) in enumerate(FACING)
+                      if (a-dx, b-dz) in room and (a+dx, b+dz) in corridor]
+        count = min(len(candidates), 1 if len(room) <= 24 else 2)
+        assert count, (key, 'missing pressure vent')
+        for _, a, b, facing in sorted(candidates)[:count]:
+            walls.remove((a, b))
+            put('Vent', a, b, facing, state={'switchOn': 'True', 'wantSwitchOn': 'True'})
+            vents.append(dict(cell=(a, b), rooms=(key, 'corridor')))
+            dx, dz = FACING[facing]
+            reserved.update(((a-dx, b-dz), (a+dx, b+dz)))
     connect(modules['kitchen'], modules['dining'], 'kitchen to dining')
     # Array exits are sealed by doors and lead to adjacent unroofed service decks.
-    for door in ((56, 100, 0), (54, 7, 3), (58, 7, 1)):
+    for door in ((54, 7, 3), (58, 7, 1), (54, 105, 3), (58, 105, 1)):
         open_door(*door)
     for x, z in sorted(walls):
         put('GravshipHull', x, z)
 
     # Equipment can use the ring edges. Keep the center of the ring and main spine open.
     reserved.update(c for c in plan['ring'] if 24.5**2 <= (c[0]-56)**2 + (c[1]-56)**2 <= 26**2)
-    reserved.update(rectangle((1, 55, 111, 57)))
-    reserved.update((56, z) for z in range(1, 32))
-    reserved.update((56, z) for z in range(81, 100))
+    reserved.update((x, 56) for x in range(1, 112))
+    reserved.update((56, z) for z in range(1, 112))
     reserved.update((13, z) for z in range(41, 54))
+    plan['vents'] = vents
     return walls, doors, ports
 
 
-def yard_furnish(plan, put, auto, prop, foundation, roofs, records, occupied, reserved):
+def yard_furnish(plan, put, auto, prop, foundation, roofs, records, occupied, reserved, footprint):
     modules, corridor = plan['modules'], plan['corridor']
     walls, doors, ports = yard_partitions(plan, foundation, put, reserved)
+    moon = rectangle((44, 37, 53, 53))
 
     def furnish_area(area, *names):
         return [auto(thing, area, near=anchor)
@@ -168,8 +221,8 @@ def yard_furnish(plan, put, auto, prop, foundation, roofs, records, occupied, re
     put('PokerTable', 47, 64)
     for x, z, facing in ((46, 65, 1), (49, 64, 3), (47, 63, 0), (48, 66, 2)):
         put('DiningChair', x, z, facing)
-    for key, count in (('dining', 6), ('lounge', 2)):
-        seating = modules[key] if key == 'lounge' else rectangle((49, 59, 59, 66))
+    for key, count in (('dining', 3), ('lounge', 2)):
+        seating = modules[key] if key == 'lounge' else rectangle((49, 59, 53, 66))
         for table in furnish_area(seating, *(['Table2x2c']*count)):
             x, z = table['origin']
             for a, b, rotation in ((x-1, z, 1), (x+2, z+1, 3), (x, z-1, 0), (x+1, z+2, 2)):
@@ -177,75 +230,128 @@ def yard_furnish(plan, put, auto, prop, foundation, roofs, records, occupied, re
                     put('DiningChair', a, b, rotation)
     install('workshop', 'TableMachining', 'FabricationBench', 'ElectricSmithy', 'Shelf', 'Shelf')
     install('repair', 'TableMachining', 'ElectricTailoringBench', 'Shelf', 'Shelf')
-    install('stores', *(['Shelf']*6))
+    install('waiting', 'Table2x2c', 'DiningChair', 'DiningChair')
+    for z in (25, 28):
+        for x in (10, 13, 16):
+            put('Shelf', x, z)
 
     for key, room in modules.items():
         if key.startswith('cabin-'):
             install(key, 'Bed', 'Bed')
             install(key, 'DeltaV_PrefabPawnMarker', 'DeltaV_PrefabPawnMarker')
-        elif key.startswith('farm-'):
-            lamp = auto('SunLamp', room, near=center(room))
-            lit = {c for c in room if math.dist(c, lamp['root']) <= 5.5}
-            basins = 9 if key.endswith('-west') else 10
-            for _ in range(basins):
-                basin = auto('HydroponicsBasin', lit, rotations=(0, 1), near=lamp['root'],
-                             state={'plantDefToGrow': 'Plant_Rice'})
-                for c in basin['cells']:
-                    put('Plant_Rice', *c, layer='plants')
+        elif key in plan['farms']:
+            things, _, _ = plan['farms'][key]
+            turn = 2 if '-south-' in key else 0
+            for node, (x, z) in things:
+                name = node.findtext('def')
+                if name in ('GravshipHull', 'Door', 'Vent', 'HiddenConduit'):
+                    continue
+                rotation = (int(node.findtext('rotation'))+turn) % 4
+                if prop(name, 'rotatable', 'true').lower() == 'false':
+                    rotation = int(node.findtext('rotation'))
+                _, (dx, dz), _ = footprint(name, 0, 0, rotation)
+                state = {tag: value.text for tag in ('targetTemperature', 'plantDefToGrow')
+                         if (value := node.find(f'state/saveable/{tag}')) is not None}
+                if name == 'Heater':
+                    state['targetTemperature'] = YARD_HEATER_TARGET
+                put(name, x-dx, z-dz, rotation, state=state)
         elif key.startswith('defense-'):
+            gun = ('DeltaV_Weapon_HeavyMainMedium' if key.endswith('-west')
+                   else 'DeltaV_Weapon_LaserMainMedium')
+            left, bottom = min(room)
+            auto(gun, room, near=(left, bottom))
             auto('DeltaV_ShieldGenerator', room, state={
                 'DeltaV_shieldMode': 'Guard', 'DeltaV_shieldGroundRadius': 40,
                 'DeltaV_regularCapacity': 750, 'DeltaV_autoRejoinPercent': 10,
                 'fuel': 750, 'configuredTargetFuelLevel': 750})
             install(key, 'DeltaV_Weapon_RapidMainSmall', 'DeltaV_Weapon_PDTurret', 'DeltaV_Weapon_PDTurret')
+            if key.endswith('-west'):
+                rack = auto('Shelf', room, state={'allowedDefs': ['DeltaV_Propellant', 'DeltaV_SteelHead']})
+                for thing, cell in zip(('DeltaV_Propellant', 'DeltaV_SteelHead'), rack['cells']):
+                    put(thing, *cell, layer='items', state={'stackCount': int(prop(thing, 'stackLimit'))})
 
     stock_defs = ['Steel', 'Plasteel', 'ComponentIndustrial', 'ComponentSpacer', 'Chemfuel',
                   'Silver', 'MealSurvivalPack', 'MedicineIndustrial', 'RawRice',
                   'DeltaV_Propellant', 'DeltaV_SteelHead']
-    # Keep the access doors on the gap between the two cabinet banks.
-    containers = [put('DeltaV_CargoStorage', x, z, state={'allowedDefs': stock_defs})
-                  for z in (32, 37) for x in (4, 6, 8, 10, 15, 17, 19, 21)]
+    dry_storage = modules['moon'] - moon
+    containers = furnish_area(dry_storage, *(['DeltaV_CargoStorage']*6))
+    for cabinet in containers:
+        cabinet['stateOverrides']['allowedDefs'] = stock_defs
+    slot_x, _, slot_z = map(int, prop('DeltaV_CargoStorage',
+        "modExtensions/li[@Class='DeltaV.DefModExtension_CargoAttachments']/slots/li/cell",
+        '(1,0,1)').strip('()').split(','))
     for cabinet in containers[:2]:
         x, z = cabinet['root']
-        put('DeltaV_CargoTemperatureModule', x+1, z+1, layer='overlay')
+        dx, dz = ((slot_x, slot_z), (slot_z, -slot_x), (-slot_x, -slot_z), (-slot_z, slot_x))[cabinet['rotation']]
+        assert (x+dx, z+dz) in cabinet['cells']
+        put('DeltaV_CargoTemperatureModule', x+dx, z+dz, layer='overlay')
     stock = ([('Steel', 75)]*16 + [('Plasteel', 75)]*4 + [('ComponentIndustrial', 50)]*4
              + [('ComponentSpacer', 10)]*2 + [('Chemfuel', 150)]*8 + [('MealSurvivalPack', 10)]*24
              + [('MedicineIndustrial', 25)]*4 + [('Silver', 500)]*4 + [('RawRice', 75)]*8)
     for i, (thing, count) in enumerate(stock):
         cabinet = containers[i % len(containers)]
-        put(thing, *cabinet['cells'][i // len(containers)], layer='items', state={'stackCount': count})
+        cell_index = (i // len(containers)) % len(cabinet['cells'])
+        put(thing, *cabinet['cells'][cell_index], layer='items', state={'stackCount': count})
 
     terminal = put('DeltaV_TradeTerminal', 5, 61)
     delivery = put('DeltaV_CargoStorage', 9, 61)
-    supply = install('bonded', *(['DeltaV_CargoContainer']*3))
+    supply = [put('DeltaV_CargoContainer', x, z)
+              for z in (32, 37) for x in (4, 6, 8, 10, 15, 17, 19, 21)]
     terminal['stateOverrides'].update(_supplyCargo=supply, _deliveryCargo=delivery)
 
-    moon = modules['moon']
-    plan['surfaceDefs'] = dict.fromkeys(moon, 'DeltaV_MoonPool')
-    plan['foundationDefs'].update(plan['surfaceDefs'])
-    roofs.difference_update(moon)
-    install('moon', 'DeltaV_TractorBeam', 'DeltaV_EvaSuit', 'DeltaV_EvaSuit')
+    for _, foundations, template_roofs in plan['farms'].values():
+        plan['foundationDefs'].update(foundations)
+        plan.setdefault('roofDefs', {}).update(template_roofs)
+    plan['foundationDefs'].update(dict.fromkeys(moon, 'DeltaV_MoonPool'))
+    plan['surfaceDefs'] = {c: d for c, d in plan['foundationDefs'].items() if d == 'DeltaV_MoonPool'}
+    plan['fieldRoofs'] = {c for c, d in plan['roofDefs'].items() if d == 'DeltaV_MoonPoolFieldRoof'}
+    roofs.difference_update(plan['surfaceDefs'])
+    furnish_area(moon, 'DeltaV_TractorBeam', 'DeltaV_EvaSuit', 'DeltaV_EvaSuit')
+
+    for x, z in ((13, 35), (4, 36), (22, 36), (13, 27), (9, 24), (12, 44)):
+        put('Heater', x, z, state={'targetTemperature': YARD_HEATER_TARGET})
+    for x, z, rotation in ((12, 32, 2), (13, 24, 2), (14, 44, 0)):
+        put('OxygenPump', x, z, rotation)
+    for x, z in ((13, 36), (12, 27), (12, 43)):
+        put('StandingLamp', x, z)
+    for x, z in ((5, 34), (7, 34)):
+        put('DeltaV_CargoTemperatureModule', x, z, layer='overlay')
 
     cabins = []
+    total = sum(len(room) for room in modules.values()) + len(corridor)
+    target = YARD_HEATER_TARGET
+    outside = -75
+    # RoomTempTracker adjusts differences above 100 C before applying thin-roof leakage.
+    difference = target-outside
+    roof_loss = (min(difference, 100) + 5*max(0, difference-100))*0.00005*250
+    heat = float(prop('Heater', "comps/li[@Class='CompProperties_TempControl']/energyPerSecond"))
+    heater_output = heat*(120-target)/100*(250/60)
+    # In vacuum GenTemperature only debits 10% from the warmer room when vents transfer heat.
+    connected_area = sum(len(room) for key, room in modules.items()
+                         if key not in ARM_ROOMS and key not in plan['farms'])
+    corridor_heaters = math.ceil((len(corridor)+0.1*connected_area)*roof_loss/heater_output)
+    backup_heaters = {'control': 1, 'medical': 1, 'moon': 1}
     for key, room in [('corridor', corridor), *modules.items()]:
         anchor = center(room)
-        heaters = []
-        for _ in range(math.ceil(len(room)/60)):
-            near = min(room - occupied.keys() - reserved, key=lambda c: spread(c, heaters, anchor))
-            heaters.append(auto('Heater', room, near=near, state={'targetTemperature': 21})['root'])
-        pumps = []
-        for _ in range(math.ceil(len(room)/180)):
-            mounts = [(x, z, rotation) for x, z in room - occupied.keys() - reserved
-                      for rotation, (dx, dz) in enumerate(FACING) if (x+dx, z+dz) in walls]
-            assert mounts, (key, 'no oxygen pump mount')
-            x, z, rotation = min(mounts, key=lambda c: (spread(c[:2], pumps, anchor), c[2]))
-            pumps.append(put('OxygenPump', x, z, rotation)['root'])
+        if key == 'corridor' or key in backup_heaters:
+            heaters = []
+            heater_count = corridor_heaters if key == 'corridor' else backup_heaters[key]
+            for _ in range(heater_count):
+                near = min(room - occupied.keys() - reserved, key=lambda c: spread(c, heaters, anchor))
+                heaters.append(auto('Heater', room, near=near, state={'targetTemperature': target})['root'])
+            pumps = []
+            for _ in range(math.ceil(total/180) if key == 'corridor' else 1):
+                mounts = [(x, z, rotation) for x, z in room - occupied.keys() - reserved
+                          for rotation, (dx, dz) in enumerate(FACING) if (x+dx, z+dz) in walls]
+                assert mounts, (key, 'no oxygen pump mount')
+                x, z, rotation = min(mounts, key=lambda c: (spread(c[:2], pumps, anchor), c[2]))
+                pumps.append(put('OxygenPump', x, z, rotation)['root'])
         if key == 'corridor':
             # Edge lighting keeps fixture footprints out of the navigation spine.
             for near in ((16, 56), (36, 56), (56, 56), (76, 56), (96, 56),
                          (56, 15), (56, 97), (30, 83), (82, 83), (30, 29), (82, 29)):
                 auto('StandingLamp', room, near=near)
-        else:
+        elif key not in plan['farms'] and key not in ARM_ROOMS:
             auto('StandingLamp', room)
         cabins.append(dict(name=key, cells=sorted(room), temperature=21))
     plan['cabins'] = cabins
@@ -258,6 +364,52 @@ def yard_furnish(plan, put, auto, prop, foundation, roofs, records, occupied, re
 
 def spread(cell, existing, anchor):
     return (-min((math.dist(cell, c) for c in existing), default=0), math.dist(cell, anchor), cell)
+
+
+def yard_conduits(plan, put, prop, foundation, records, occupied):
+    transmitters = {c for c, r in occupied.items() if r['transmitsPower']}
+    ring_wall = {n for c in plan['ring'] for n in adj(c)
+                 if n in plan['walls'] and (n[0]-56)**2 + (n[1]-56)**2 > 27**2}
+    spine = {(x, 56) for x in range(113)} | {(56, z) for z in range(113)}
+    grid = {(56, 56)}
+
+    def extend(target):
+        parents = {c: None for c in grid}
+        queue = deque(sorted(grid))
+        while queue:
+            cell = queue.popleft()
+            if cell in target:
+                while cell not in grid:
+                    grid.add(cell)
+                    cell = parents[cell]
+                return
+            for neighbor in adj(cell):
+                if neighbor in routing_cells and neighbor not in parents:
+                    parents[neighbor] = cell
+                    queue.append(neighbor)
+        raise ValueError('No route to a station power connection')
+
+    farm_wires = {cell for things, _, _ in plan['farms'].values()
+                  for node, cell in things if node.findtext('def') == 'HiddenConduit'}
+    farm_interior = set().union(*(plan['modules'][key] for key in plan['farms']))
+    assert farm_wires.isdisjoint(farm_interior)
+    routing_cells = foundation - farm_interior
+    for c in sorted((spine & foundation) | ring_wall | farm_wires):
+        extend({c})
+    for room in components(transmitters):
+        extend(room)
+        grid.update(room)
+    for record in records:
+        if not record['powerWatts'] or record['transmitsPower']:
+            continue
+        x, z = record['root']
+        if prop(record['name'], 'building/isAttachment', 'false').lower() == 'true':
+            dx, dz = FACING[record['rotation']]
+            x, z = x+dx, z+dz
+        extend(rectangle((x-6, z-6, x+6, z+6)))
+    assert grid <= foundation and len(components(grid)) == 1
+    for x, z in sorted(grid-transmitters):
+        put('HiddenConduit', x, z, layer='conduit')
 
 
 def ensure_roof_support(roofs, records, occupied, reserved, put):
@@ -282,7 +434,7 @@ def yard_power(plan, put, auto, prop, foundation, records):
     battery_comp = "comps/li[@Class='DeltaV.CompProperties_SwitchableBattery']/"
     capacity = float(prop('DeltaV_SafetyBattery', battery_comp+'storedEnergyMax'))
     efficiency = float(prop('DeltaV_SafetyBattery', battery_comp+'efficiency'))
-    budget = solar_budget(demand, panel_watts, capacity, efficiency, panel_step=2)
+    budget = solar_budget(demand, panel_watts, capacity, efficiency, panel_step=4)
     room = plan['modules']['power']
     standby = 0
     while standby < demand:
@@ -292,40 +444,28 @@ def yard_power(plan, put, auto, prop, foundation, records):
     for _ in range(budget['batteries']):
         auto('DeltaV_SafetyBattery', room, state={'storedPower': capacity})
 
-    # Pair every 4x4 panel across the station centerline, including the north array.
-    def mirror(cells):
-        return {(112-x, z) for x, z in cells}
+    def symmetric(cells):
+        return {(a, b) for x, z in cells for a in (x, 112-x) for b in (z, 112-z)}
 
-    open_deck = {(56, 101)}
-    pressure_hull = set(foundation)
-    south_pairs = budget['panels']//4
-    arrays = [
-        (51, (102, 107), (55, 101), budget['panels']//2 - south_pairs),
-        (49, (3, 8, 13), (53, 7), south_pairs),
-    ]
-    for first_x, rows, entrance, count in arrays:
-        slots = []
-        for x in range(first_x, 2, -5):
-            for z in rows:
-                panel = rectangle((x, z, x+3, z+3))
-                if (panel | mirror(panel)).isdisjoint(pressure_hull):
-                    slots.append((x, z))
-        selected = sorted(slots, key=lambda c: (abs(c[0]+1.5-entrance[0]) + abs(c[1]+1.5-entrance[1]), c))[:count]
-        assert len(selected) == count, ('insufficient solar slots', entrance, count)
-        deck = set().union(*(rectangle((x-1, z-1, x+4, z+4)) for x, z in selected))
-        deck -= pressure_hull | mirror(pressure_hull)
-        assert entrance in deck and len(components(deck)) == 1, ('inaccessible solar deck', entrance)
-        pair_deck = deck | mirror(deck)
-        foundation.update(pair_deck)
-        open_deck.update(pair_deck)
-        for x, z in selected:
-            put('SolarGenerator', x, z)
-            put('SolarGenerator', 109-x, z)
+    entrance = (53, 7)
+    blocked = symmetric(foundation)
+    slots = [(x, z) for x in range(49, 2, -5) for z in (3, 8, 13)
+             if rectangle((x, z, x+3, z+3)).isdisjoint(blocked)]
+    count = budget['panels']//4
+    selected = sorted(slots, key=lambda c: (abs(c[0]+1.5-entrance[0]) + abs(c[1]+1.5-entrance[1]), c))[:count]
+    assert len(selected) == count, ('insufficient solar slots', entrance, count)
+    deck = set().union(*(rectangle((x-1, z-1, x+4, z+4)) for x, z in selected)) - blocked
+    assert entrance in deck and len(components(deck)) == 1, ('inaccessible solar deck', entrance)
+    open_deck = symmetric(deck)
     foundation.update(open_deck)
+    for x, z in selected:
+        for a in (x, 109-x):
+            for b in (z, 109-z):
+                put('SolarGenerator', a, b)
     plan['noRoofCells'] = open_deck
     plan['solarBudget'] = dict(budget, designLoadW=demand, standbyW=standby)
 
-def furnish(name,plan,place,prop,foundation,roofs,records,occupied):
+def furnish(name,plan,place,prop,foundation,roofs,records,occupied,*,footprint=None):
     reserved=set(); placements=defaultdict(list)
     def put(n,x,z,rot=0,**kw):
         r=place(n,x,z,rot,**kw);placements[n].append(r)
@@ -424,11 +564,13 @@ def furnish(name,plan,place,prop,foundation,roofs,records,occupied):
             reserved.update(room_reserved)
     else:
         walls, doors, ports, start = yard_furnish(plan, put, auto, prop, foundation, roofs,
-                                                  records, occupied, reserved)
-    # Full grid under the deck, excluding conducting building footprints.
-    transmitting={tuple(c) for r in records if r['transmitsPower'] for c in r['cells']}
-    for x,z in sorted(foundation-transmitting):put('HiddenConduit',x,z,layer='conduit')
+                                                  records, occupied, reserved, footprint)
     plan['walls']=walls;plan['doors']=doors;plan['ports']=ports
+    if name == 'Shipyard':
+        yard_conduits(plan, put, prop, foundation, records, occupied)
+    else:
+        transmitting={tuple(c) for r in records if r['transmitsPower'] for c in r['cells']}
+        for x,z in sorted(foundation-transmitting):put('HiddenConduit',x,z,layer='conduit')
     return walls,start
 
 def prepare_state(r,state,field,prop):
@@ -443,9 +585,11 @@ def prepare_state(r,state,field,prop):
         field(state,'health',round(hp))
     if name == 'DeltaV_TradeTerminal':
         prepare_trade_state(r, state, field, indiscriminate_supply=False)
-    if name=='DeltaV_Weapon_RapidMainSmall':
+    if name in ('DeltaV_Weapon_RapidMainSmall', 'DeltaV_Weapon_HeavyMainMedium'):
         for kind,tag in [('Heads','headSupply'),('Propellant','propellantSupply')]:
-            node=ET.SubElement(state,tag)
+            node=state.find(tag)
+            if node is None:
+                node=ET.SubElement(state,tag)
             capacity=prop(name,"comps/li[@Class='DeltaV.CompProperties_GunSupply'][kind='"+kind+"']/fuelCapacity")
             field(node,'fuel',capacity);field(node,'configuredTargetFuelLevel',capacity);field(node,'allowAutoRefuel','True')
     if r['category']=='Item':
@@ -455,7 +599,7 @@ def prepare_state(r,state,field,prop):
 
 def validate_and_draw(name,plan,records,foundation,roofs,reachable,here,generated):
     assert len(components(foundation))==1
-    sealed={tuple(c) for r in records if r['airtight'] for c in r['cells']}
+    sealed={tuple(c) for r in records if r['airtight'] or r['name']=='Vent' for c in r['cells']}
     air=foundation-sealed-plan.get('noRoofCells',set())
     assert all(n in foundation for c in air for n in adj(c)),(name,'open hull boundary')
     assert air<=roofs|plan.get('surfaceDefs',{}).keys(),(name,'unroofed interior')
@@ -498,34 +642,54 @@ def validate_and_draw(name,plan,records,foundation,roofs,reachable,here,generate
             'DeltaV_TradeTerminal':'#6de6cc','DeltaV_CargoContainer':'#bb9563',
             'GravEngine':'#e5be76','GravcorePowerCell':'#cfb6de','Battery':'#bea0ce',
             'SolarGenerator':'#4269a8','DeltaV_SafetyBattery':'#a1b4cd','DeltaV_ShipReactor':'#bd8077',
-            'DeltaV_PrefabPawnMarker':'#eddee8','OxygenPump':'#78d1da','SunLamp':'#e6e1a4'}
+            'DeltaV_PrefabPawnMarker':'#eddee8','OxygenPump':'#78d1da','Vent':'#85cde8',
+            'Heater':'#d49f7d','DeltaV_Weapon_HeavyMainMedium':'#af8d85',
+            'DeltaV_Weapon_LaserMainMedium':'#cc7c72'}
     for r in records:
         if r['layer'] in ('conduit','items'):continue
         xs,zs=zip(*r['cells']);a=box((min(xs),max(zs)));b=box((max(xs),min(zs)))
         rect=(a[0]+1,a[1]+1,b[2]-1,b[3]-1)
         d.rectangle(rect,fill=colors.get(r['name'],'#c6b6a2'),outline='#182535',width=1)
         if r['name']=='DeltaV_PrefabPawnMarker':d.ellipse(rect,fill='#f5e1e9')
+    if name == 'Shipyard':
+        wires = {tuple(r['root']) for r in records if r['name'] == 'HiddenConduit'}
+        power_cells = {tuple(c) for r in records if r['transmitsPower'] for c in r['cells']}
+        def midpoint(cell):
+            left, top, right, bottom = box(cell)
+            return ((left+right)//2, (top+bottom)//2)
+        for cell in sorted(wires):
+            x0, z0 = cell
+            for neighbor in ((x0+1, z0), (x0, z0+1)):
+                if neighbor in wires:
+                    d.line((midpoint(cell), midpoint(neighbor)), fill='#c9aa63', width=1)
+            for neighbor in adj(cell):
+                if neighbor in power_cells:
+                    start, end = midpoint(cell), midpoint(neighbor)
+                    edge = ((start[0]+end[0])//2, (start[1]+end[1])//2)
+                    d.line((start, edge), fill='#c9aa63', width=1)
     d.text((pad,18),'星界边境 · 环形船厂' if name=='Shipyard' else '教程赠船 · 无武器货船',font=f(33),fill='#ecf2f5')
     x=w*s+pad+35;y=80
     d.text((x,y),f'{w} × {h} 格  /  北向朝上',font=f(27),fill='#edf0f3');y+=55
     d.text((x,y),'建筑脚印与输出 prefab 同源',font=f(23),fill='#b2c3ce');y+=65
     keynames={'Bed':'床','HospitalBed':'病床','DeltaV_PrefabPawnMarker':'常驻乘员',
-              'HydroponicsBasin':'水培盆','SunLamp':'太阳灯','DeltaV_CargoStorage':'仓储柜',
+              'HydroponicsBasin':'水培盆','Vent':'通风口','Heater':'加热器','DeltaV_CargoStorage':'仓储柜',
               'DeltaV_CargoContainer':'锁定供货柜',
               'DeltaV_ShieldGenerator':'护盾','DeltaV_Weapon_PDTurret':'点防',
               'DeltaV_Weapon_RapidMainSmall':'小型速射炮','OxygenPump':'供氧泵',
+              'DeltaV_Weapon_HeavyMainMedium':'中型重炮','DeltaV_Weapon_LaserMainMedium':'中型激光炮',
               'GravcorePowerCell':'逆重电芯','Battery':'电池','LargeThruster':'主推进器',
               'SolarGenerator':'太阳能板','DeltaV_SafetyBattery':'安全储备电池','DeltaV_ShipReactor':'裂变后备',
               'SmallThruster':'小推进器','GravEngine':'逆重引擎','ChemfuelPoweredGenerator':'化燃发电机'}
     for key,label in keynames.items():
         if counts[key]:d.text((x,y),f'{label}  {counts[key]}',font=f(24),fill='#d1dce4');y+=38
     y+=20
-    for line in [f'发电 {generated_power/1000:.1f} kW',f'铭牌用电 {load/1000:.1f} kW','护盾回充、瞬时开火另计','黄色门：对接 / 通行','浅色圆点：乘员生成位置','蓝绿色地面：月池']:
+    for line in [f'发电 {generated_power/1000:.1f} kW',f'铭牌用电 {load/1000:.1f} kW','护盾回充、瞬时开火另计','黄色门：对接 / 通行','浅色圆点：乘员生成位置','蓝绿色地面：透光力场顶']:
         d.text((x,y),line,font=f(22),fill='#a7bdcc');y+=36
     if name == 'Shipyard':
-        d.text((x, y+18), f'基架 {len(foundation):,} 格   实体屋顶 {len(roofs):,} 格', font=f(22), fill='#edf0f3')
+        d.text((x, y-2), f"金线：电网 · 暗线 {counts['HiddenConduit']} 格", font=f(22), fill='#c9aa63')
+        d.text((x, y+28), f'基架 {len(foundation):,} 格   实体屋顶 {len(roofs):,} 格', font=f(22), fill='#edf0f3')
         steps = yard_report['westBerthSteps']
-        d.text((x, y+54), f"西泊口 → 终端 {steps['terminal']} 步 / 取货 {steps['delivery']} 步",
+        d.text((x, y+64), f"西泊口 → 终端 {steps['terminal']} 步 / 取货 {steps['delivery']} 步",
                font=f(22), fill='#6de6cc')
         for index, title in enumerate(NAMES):
             legend_y = y+114+index*34
@@ -533,7 +697,7 @@ def validate_and_draw(name,plan,records,foundation,roofs,reachable,here,generate
             d.text((x+31, legend_y-5), title, font=f(22), fill='#edf0f3')
         for title, cell in [('西泊口', (1, 56)), ('东泊口', (111, 56)), ('南泊口', (56, 1)),
                             ('交易', (5, 66)), ('工坊', (106, 65)), ('月池', (49, 44)),
-                            ('仓储悬臂', (13, 42))]:
+                            ('常规仓储', (40, 49)), ('锁定供货仓', (13, 42))]:
             left, top, right, bottom = box(cell)
             point = ((left+right)/2, (top+bottom)/2)
             d.rectangle(d.textbbox(point, title, font=f(19), anchor='mm'), fill='#182535')
@@ -544,29 +708,63 @@ def validate_and_draw(name,plan,records,foundation,roofs,reachable,here,generate
 
 def validate_yard(plan, records, counts, foundation, roofs, reachable):
     expected = {'DeltaV_PrefabPawnMarker': 24, 'Bed': 28, 'HospitalBed': 2,
-                'HydroponicsBasin': 38, 'SunLamp': 4, 'Plant_Rice': 152,
-                'DeltaV_CargoStorage': 17, 'DeltaV_CargoContainer': 3, 'DeltaV_TradeTerminal': 1,
+                'HydroponicsBasin': 120, 'SunLamp': 0, 'Plant_Rice': 0,
+                'DeltaV_CargoStorage': 7, 'DeltaV_CargoContainer': 16, 'DeltaV_TradeTerminal': 1,
                 'TableMachining': 2, 'FabricationBench': 1, 'ElectricTailoringBench': 1,
                 'ElectricSmithy': 1, 'HiTechResearchBench': 2, 'DeltaV_TractorBeam': 1,
                 'DeltaV_EvaSuit': 2, 'DeltaV_ShieldGenerator': 4, 'DeltaV_Weapon_RapidMainSmall': 4,
+                'DeltaV_Weapon_HeavyMainMedium': 2, 'DeltaV_Weapon_LaserMainMedium': 2,
                 'DeltaV_Weapon_PDTurret': 8, 'BilliardsTable': 1, 'PokerTable': 1}
     assert all(counts[thing] == count for thing, count in expected.items()), (expected, counts)
     assert not counts['GravEngine'] and not counts['LargeThruster']
+    for key, (things, foundations, template_roofs) in plan['farms'].items():
+        turn = 2 if '-south-' in key else 0
+        expected = Counter((node.findtext('def'), cell, (int(node.findtext('rotation')) + turn) % 4
+                            if node.findtext('def') in ('Door', 'Vent', 'HydroponicsBasin') else 0)
+                           for node, cell in things)
+        actual = Counter((r['name'], tuple(r['root']), r['rotation'])
+                         for r in records if tuple(r['root']) in foundations
+                         and r['name'] in {name for name, _, _ in expected})
+        # The station may add power leads on the module's perimeter.
+        assert all(actual[entry] == count for entry, count in expected.items()), (key, expected - actual)
+        assert all(plan['roofDefs'][c] == d for c, d in template_roofs.items())
+    assert all(set(r['cells']) <= plan['surfaceDefs'].keys() - roofs
+               for r in records if r['name'] == 'HydroponicsBasin')
+    rooms = {'corridor': plan['corridor'], **plan['modules']}
+    air_cells = {c: key for key, room in rooms.items() for c in room}
+    vent_counts = Counter()
+    for vent in plan['vents']:
+        cell = vent['cell']
+        peer, room = vent['rooms']
+        assert 'corridor' in (peer, room), vent
+        vent_counts[room if peer == 'corridor' else peer] += 1
+        assert cell in roofs and all(n in foundation - plan['noRoofCells'] for n in adj(cell)), vent
+        assert {air_cells[n] for n in adj(cell) if n in air_cells} == set(vent['rooms']), vent
+    assert set(vent_counts) == plan['modules'].keys() - ARM_ROOMS
+    assert all(1 <= count <= 2 for count in vent_counts.values())
     assert len(foundation) < 7949 and len(roofs) <= 5000, ('yard area', len(foundation), len(roofs))
     bodies = [r for r in records if r['layer'] == 'body']
     panels = {c for r in bodies if r['name'] == 'SolarGenerator' for c in r['cells']}
     for cells in (panels, plan['noRoofCells']):
-        assert {(112-x, z) for x, z in cells} == cells, 'solar arrays must mirror across the centerline'
+        assert {(112-x, z) for x, z in cells} == cells, 'solar arrays must mirror east to west'
+        assert {(x, 112-z) for x, z in cells} == cells, 'solar arrays must mirror north to south'
+    assert counts['SolarGenerator'] == plan['solarBudget']['panels']
+    for z in (7, 105):
+        assert {(54, z), (58, z)} <= plan['doors']
+        assert {(53, z), (59, z)} <= plan['noRoofCells'] & reachable
+    assert all(r['stateOverrides']['targetTemperature'] == YARD_HEATER_TARGET
+               for r in records if r['name'] == 'Heater')
     solid = {c for r in bodies if r['passability'] == 'Impassable'
              and r['name'] not in ('Door', 'DeltaV_DockingPort') for c in r['cells']}
     for r in bodies:
-        if r['name'] not in ('GravshipHull', 'Door', 'DeltaV_DockingPort'):
+        if r['name'] not in ('GravshipHull', 'Door', 'Vent', 'DeltaV_DockingPort'):
             assert any(n in reachable and n not in r['cells'] for c in r['cells'] for n in adj(c)), (
                 'no maintenance approach', r['name'], r['root'])
 
     # Count four-way walking steps to a cardinal touch cell within the pressure hull.
     start = (1, 56)
     walkable = foundation - plan['noRoofCells'] - solid
+    assert {(56, z) for z in range(1, 112)} <= plan['corridor'] & walkable, 'blocked north-south spine'
     distances, queue = {start: 0}, deque([start])
     while queue:
         c = queue.popleft()
@@ -577,6 +775,8 @@ def validate_yard(plan, records, counts, foundation, roofs, reachable):
     assert {(111, 56), (56, 1), (56, 56)} <= distances.keys(), 'disconnected pressurized berths'
     terminal = next(r for r in records if r['name'] == 'DeltaV_TradeTerminal')
     delivery = terminal['stateOverrides']['_deliveryCargo']
+    assert all(set(r['cells']) <= plan['modules']['moon'] - plan['surfaceDefs'].keys()
+               for r in records if r['name'] == 'DeltaV_CargoStorage' and r is not delivery)
     steps = {}
     for key, r, limit in (('terminal', terminal, 12), ('delivery', delivery, 18)):
         steps[key] = min(distances[n] for c in r['cells'] for n in adj(c)
@@ -595,14 +795,12 @@ def validate_yard(plan, records, counts, foundation, roofs, reachable):
         if r['name'] in ('GravshipHull', 'HiddenConduit'):
             continue
         cells = set(r['cells'])
-        on_arm = (r['name'] == 'DeltaV_CargoStorage' and r is not delivery
-                  or r['name'] == 'DeltaV_CargoTemperatureModule' or r['layer'] == 'items')
-        if on_arm:
-            assert cells <= arm, ('warehouse equipment left behind', r['name'], r['root'])
-        elif r['name'] in ('PilotConsole', 'DeltaV_TradeTerminal', 'DeltaV_CargoContainer',
+        if r['name'] == 'DeltaV_CargoContainer':
+            assert cells <= arm, ('locked supply left behind', r['root'])
+        elif r['name'] in ('PilotConsole', 'DeltaV_TradeTerminal',
                            'DeltaV_CargoStorage', 'DeltaV_SafetyBattery', 'DeltaV_ShipReactor'):
             assert cells <= station, ('station equipment detached with warehouse', r['name'])
         else:
             assert cells <= station or cells <= arm, ('fixture on the cut', r['name'], r['root'])
-    return dict(size=plan['size'], cabins=plan['cabins'], westBerthSteps=steps,
+    return dict(size=plan['size'], cabins=plan['cabins'], vents=plan['vents'], westBerthSteps=steps,
                 storageArm={'cutCells': sorted(ARM_CUT_CELLS), 'detachedFoundationCells': len(arm)})

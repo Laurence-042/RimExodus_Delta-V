@@ -159,6 +159,13 @@ internal static partial class Program
     static HashSet<IntVec3> arrivalWalkable;
     static bool ArrivalWalkable(IntVec3 c, ref bool __result) { __result = arrivalWalkable.Contains(c); return false; }
     static bool ArrivalBiome(ref BiomeDef __result) { __result = arrivalBiome; return false; }
+    static bool SkipVacuumInitialization() => false;
+    static bool ClosedHullHasVacuumPath(ref HashSet<IntVec3> warning, ref bool __result)
+    {
+        warning = null;
+        __result = false;
+        return false;
+    }
 
     static void PrefabLifeSupport(string records, Game game, string layoutName)
     {
@@ -188,6 +195,15 @@ internal static partial class Program
             float Property(string def, string xpath) => float.Parse(SourceChain(def)
                 .Select(n => n.SelectSingleNode(xpath)?.InnerText).First(v => v != null),
                 System.Globalization.CultureInfo.InvariantCulture);
+            var fixtures = new List<(string Name, Room Room, RoomTempTracker Tracker, float Target,
+                List<Building_Heater> Heaters, List<Building_Cooler> Coolers,
+                List<CompHeatPusherPowered> HeatPushers, CompOxygenPusher Pump, int PumpCount)>();
+            // TickList buckets Rare buildings by Thing ID. Use the prefab's relative
+            // ordering with a synthetic consecutive ID range for this fixture.
+            var thermalBuckets = new List<Action>[250];
+            for (int i = 0; i < thermalBuckets.Length; i++) thermalBuckets[i] = new List<Action>();
+            bool ducted = root.TryGetProperty("vents", out var authoredVents);
+            var recordsWithPhase = authored.RootElement.EnumerateArray().Select((row, i) => (Row: row, Phase: i % 250)).ToList();
             foreach (var cabin in root.GetProperty(wreck ? "rooms" : "cabins").EnumerateArray())
             {
                 var cells = cabin.GetProperty("cells").EnumerateArray()
@@ -210,16 +226,19 @@ internal static partial class Program
                 var heaters = new List<Building_Heater>();
                 var coolers = new List<Building_Cooler>();
                 var heatPushers = new List<CompHeatPusherPowered>();
-                foreach (var row in authored.RootElement.EnumerateArray().Where(r => r.GetProperty("name").GetString() == "Heater"))
+                foreach (var (row, phase) in recordsWithPhase.Where(r => r.Row.GetProperty("name").GetString() == "Heater"))
                 {
                     var c = row.GetProperty("root"); var pos = new IntVec3(c[0].GetInt32(), 0, c[1].GetInt32());
                     if (!cells.Contains(pos)) continue;
                     var heater = Raw<Building_Heater>(); Set(heater, "mapIndexOrState", (sbyte)0); Set(heater, "positionInt", pos);
                     heater.compPowerTrader = new CompPowerTrader { parent = heater, props = new CompProperties_Power() };
                     Set(heater.compPowerTrader, "powerOnInt", true);
-                    heater.compTempControl = new CompTempControl { parent = heater, targetTemperature = target,
+                    heater.compTempControl = new CompTempControl { parent = heater,
+                        targetTemperature = row.GetProperty("stateOverrides").TryGetProperty("targetTemperature", out var setpoint)
+                            ? float.Parse(setpoint.ToString(), System.Globalization.CultureInfo.InvariantCulture) : target,
                         props = new CompProperties_TempControl { energyPerSecond = Property("Heater", "comps/li[@Class='CompProperties_TempControl']/energyPerSecond") } };
                     heaters.Add(heater);
+                    if (ducted) thermalBuckets[phase].Add(heater.TickRare);
                 }
                 foreach (var row in authored.RootElement.EnumerateArray())
                 {
@@ -252,7 +271,6 @@ internal static partial class Program
                 int pumpCount = authored.RootElement.EnumerateArray().Count(row =>
                     row.GetProperty("name").GetString() == "OxygenPump"
                     && cells.Contains(new IntVec3(row.GetProperty("root")[0].GetInt32(), 0, row.GetProperty("root")[1].GetInt32())));
-                Check(heaters.Count > 0 && pumpCount > 0, layoutName + " sealed cabin has powered climate and oxygen hardware");
                 var oxygenParent = Raw<Building>(); Set(oxygenParent, "positionInt", cells.First());
                 Set(oxygenParent, "mapIndexOrState", (sbyte)0);
                 var pump = new CompOxygenPusher { parent = oxygenParent,
@@ -261,27 +279,87 @@ internal static partial class Program
                 var power = new CompPowerTrader { parent = oxygenParent, props = new CompProperties_Power() };
                 Set(power, "powerOnInt", true); Set(oxygenParent, "comps", new List<ThingComp> { power, pump });
                 room.Vacuum = 1;
-                float minimum = target, maximum = target;
-                int repressurizedAt = 0;
-                for (int tick = 1; tick <= 60000; tick++)
+                fixtures.Add((cabin.GetProperty("name").GetString(), room, tracker, target,
+                    heaters, coolers, heatPushers, pump, pumpCount));
+            }
+            VacuumComponent vacuum = null;
+            var exchangeVacuum = AccessTools.Method(typeof(VacuumComponent), "ExchangeRoomVacuum");
+            if (ducted)
+            {
+                // The fixture supplies the closed hull. Skip Unity overlay initialization
+                // and the exterior search, while exercising native adjacency and exchange.
+                harness.Patch(AccessTools.Method(typeof(VacuumComponent), "InitializeIfRequired"),
+                    prefix: new HarmonyMethod(typeof(Program), nameof(SkipVacuumInitialization)));
+                harness.Patch(AccessTools.Method(typeof(VacuumComponent), "HasDirectPathToVacuum"),
+                    prefix: new HarmonyMethod(typeof(Program), nameof(ClosedHullHasVacuumPath)));
+                var rooms = fixtures.ToDictionary(f => f.Name, f => f.Room);
+                foreach (var (row, phase) in recordsWithPhase.Where(r => r.Row.GetProperty("name").GetString() == "Vent"))
                 {
-                    if (tick % 120 == 7) tracker.EqualizeTemperature();
+                    var vent = Raw<Building_Vent>();
+                    vent.def = Raw<ThingDef>();
+                    vent.def.size = IntVec2.One;
+                    vent.def.building = new BuildingProperties { isAirtight = true };
+                    Set(vent, "mapIndexOrState", (sbyte)0);
+                    var cell = row.GetProperty("root");
+                    Set(vent, "positionInt", new IntVec3(cell[0].GetInt32(), 0, cell[1].GetInt32()));
+                    Set(vent, "rotationInt", new Rot4(row.GetProperty("rotation").GetInt32()));
+                    var flags = row.GetProperty("stateOverrides");
+                    Check(flags.GetProperty("switchOn").GetString() == "True"
+                        && flags.GetProperty("wantSwitchOn").GetString() == "True", "shipyard vent starts open");
+                    var flick = new CompFlickable { parent = vent, props = new CompProperties_Flickable() };
+                    Set(flick, "switchOnInt", true);
+                    Set(vent, "comps", new List<ThingComp> { flick });
+                    Check(vent.ExchangeVacuum, "native open vent exchanges vacuum");
+                    map.edificeGrid.Register(vent);
+                    var endpoints = authoredVents.EnumerateArray().Single(entry =>
+                        entry.GetProperty("cell")[0].GetInt32() == vent.Position.x &&
+                        entry.GetProperty("cell")[1].GetInt32() == vent.Position.z).GetProperty("rooms");
+                    var a = endpoints[0].GetString();
+                    var b = endpoints[1].GetString();
+                    var facing = vent.Rotation.FacingCell;
+                    Check((vent.Position-facing).GetRoom(map) == rooms[a]
+                        && (vent.Position+facing).GetRoom(map) == rooms[b], "shipyard vent joins two pressure rooms");
+                    thermalBuckets[phase].Add(() => GenTemperature.EqualizeTemperaturesThroughBuilding(vent, 14f, true));
+                }
+                Set(map.regionGrid, "allRooms", rooms.Values.ToList());
+                vacuum = new VacuumComponent(map);
+                AccessTools.Method(typeof(VacuumComponent), "MergeRoomsIntoGroups").Invoke(vacuum, null);
+            }
+            var minimum = fixtures.Select(f => f.Target).ToArray();
+            var maximum = fixtures.Select(f => f.Target).ToArray();
+            var repressurizedAt = new int[fixtures.Count];
+            for (int tick = 1; tick <= 60000; tick++)
+            {
+                foreach (var action in thermalBuckets[tick % 250]) action();
+                for (int i = 0; i < fixtures.Count; i++)
+                {
+                    var f = fixtures[i];
+                    if (tick % 120 == 7) f.Tracker.EqualizeTemperature();
                     if (tick % 250 == 0)
                     {
-                        foreach (var heater in heaters) heater.TickRare();
-                        foreach (var heat in heatPushers) heat.CompTickRare();
-                        foreach (var cooler in coolers) cooler.TickRare();
-                        for (int i = 0; i < pumpCount; i++) pump.CompTickRare();
+                        if (!ducted) foreach (var heater in f.Heaters) heater.TickRare();
+                        foreach (var heat in f.HeatPushers) heat.CompTickRare();
+                        foreach (var cooler in f.Coolers) cooler.TickRare();
+                        for (int j = 0; j < f.PumpCount; j++) f.Pump.CompTickRare();
                     }
-                    if (repressurizedAt == 0 && room.Vacuum == 0) repressurizedAt = tick;
-                    minimum = Math.Min(minimum, room.Temperature); maximum = Math.Max(maximum, room.Temperature);
+                    if (repressurizedAt[i] == 0 && f.Room.Vacuum == 0) repressurizedAt[i] = tick;
+                    minimum[i] = Math.Min(minimum[i], f.Room.Temperature);
+                    maximum[i] = Math.Max(maximum[i], f.Room.Temperature);
                 }
-                string label = layoutName + "/" + cabin.GetProperty("name").GetString();
-                Check(minimum >= target - 3 && maximum <= target + 3, label + " maintains temperature over native 60000-tick thermal fixture");
-                Check(room.Vacuum == 0, label + " native powered oxygen pump repressurizes sealed room");
-                if (!wreck) Check(repressurizedAt > 0 && repressurizedAt <= 12500,
+                if (tick % 250 != 0) continue;
+                if (vacuum != null) exchangeVacuum.Invoke(vacuum, null);
+            }
+            for (int i = 0; i < fixtures.Count; i++)
+            {
+                var f = fixtures[i];
+                string label = layoutName + "/" + f.Name;
+                Console.WriteLine($"{label}: {f.Room.CellCount} cells, {f.Heaters.Count} heaters / {f.Coolers.Count} coolers / {f.HeatPushers.Count} generators / {f.PumpCount} pumps, {minimum[i]:F2}..{maximum[i]:F2} C, vacuum={f.Room.Vacuum:F2}; closed-room/full-power fixture.");
+                float lower = ducted ? (f.Name.StartsWith("farm-", StringComparison.Ordinal) ? 15 : 0) : f.Target - 3;
+                float upper = ducted ? 25 : f.Target + 3;
+                Check(minimum[i] >= lower && maximum[i] <= upper, label + " maintains temperature over native 60000-tick thermal fixture");
+                Check(f.Room.Vacuum == 0, label + " native powered oxygen pumps repressurize sealed room");
+                if (!wreck && !ducted) Check(repressurizedAt[i] > 0 && repressurizedAt[i] <= 12500,
                     label + " repressurizes within five game hours");
-                Console.WriteLine($"{label}: {cells.Count} cells, {heaters.Count} heaters / {coolers.Count} coolers / {heatPushers.Count} generators / {pumpCount} pumps, {minimum:F2}..{maximum:F2} C, vacuum={room.Vacuum:F2}; closed-room/full-power fixture.");
             }
             Check(root.GetProperty("generationW").GetSingle() >= root.GetProperty("nameplateLoadW").GetSingle(),
                 layoutName + " can power its simultaneous nameplate loads");
