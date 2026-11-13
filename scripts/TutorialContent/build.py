@@ -146,6 +146,7 @@ def build(data, name="ArrivalStation", *, layout_override=None, output=None, eva
 
     range_layout = name in ('WeaponRange', 'ShieldTarget')
     sector_content = name in sector_layout.NAMES
+    filename = name + '_Temporary' if name in sector_layout.TEMPORARY_NAMES else name
     module_content = name in module_layout.MODULES
     assembly_content = layout_override is not None or name in module_assemblies.NAMES
     detailed = range_layout or sector_content or module_content or assembly_content or name in ('Shipyard', 'PrototypeShip')
@@ -156,7 +157,7 @@ def build(data, name="ArrivalStation", *, layout_override=None, output=None, eva
         if assembly_content:
             plan = layout.shape(name, footprint, prop, exhaust)
         else:
-            plan = layout.shape(name)
+            plan = layout.shape(name, footprint) if sector_content else layout.shape(name)
     width, height = plan['size'] if detailed else {"TrainingShip": (21,15), "Salvage": (7,7)}[name]
     foundation = {(x, z) for x in range(width) for z in range(height)}
     if name == "TrainingShip": foundation = {c for c in foundation if c[0] >= 5}
@@ -470,16 +471,16 @@ def build(data, name="ArrivalStation", *, layout_override=None, output=None, eva
     elif name in ('ArrivalStation', 'TrainingShip', 'Salvage', 'Shipyard', 'PrototypeShip', 'WeaponRange', 'ShieldTarget'):
         relative_destination = Path('Tutorial') / (name + '.xml')
     elif name in ('SectorFighter', 'SectorGunboat', 'SectorFrigate', 'SectorDestroyer', 'SectorCruiser'):
-        relative_destination = Path('Sector/Craft') / (name + '.xml')
+        relative_destination = Path('Sector/Craft') / (filename + '.xml')
     elif name in ('SectorWeaponRelay', 'SectorAbandonedSatellite', 'SectorWeaponPlatform',
                   'SectorTradeStation', 'SectorShipyard', 'SectorFactoryStation'):
-        relative_destination = Path('Sector/Stations') / (name + '.xml')
+        relative_destination = Path('Sector/Stations') / (filename + '.xml')
     elif name in ('SectorAsteroid', 'AsteroidSteelSmall', 'AsteroidSteelMedium',
                   'AsteroidComponentsSmall', 'AsteroidMixedMedium', 'AsteroidPlasteelLarge'):
         relative_destination = Path('Sector/Asteroids') / (name + '.xml')
     else:
         raise ValueError(f'No prefab catalog category for {name}')
-    destination = (output / (name + '.xml') if output is not None
+    destination = (output / (filename + '.xml') if output is not None
                    else ROOT / 'Common/Prefabs' / relative_destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     ET.indent(document)

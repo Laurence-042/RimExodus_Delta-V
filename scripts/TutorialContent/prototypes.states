@@ -102,6 +102,12 @@
     <targetTemperature>21</targetTemperature>
     <glowOn>True</glowOn>
   </saveable>
+  <saveable Class="Building_Cooler">
+    <def>Cooler</def>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_Building_AutoAimPluginI</def>
+  </saveable>
   <saveable Class="Building">
     <def>StandingLamp</def>
     <health>50</health>

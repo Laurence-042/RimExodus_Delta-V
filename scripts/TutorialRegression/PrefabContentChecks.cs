@@ -79,6 +79,25 @@ internal static partial class Program
             int clusters = document.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_PrefabClusterMarker']").Count;
             Check(clusters == (leaf.id == "Asteroid" ? 1 : 0),
                 leaf.id + " default has the expected cluster-core role");
+            Check(document.SelectSingleNode("/MapPrefab/thingStates/li[def='GravEngine' or def='GravFieldExtender']") == null,
+                leaf.id + " default has no surface-launch hardware");
+            var cells = document.SelectNodes("/MapPrefab/thingStates/li[def='GravcorePowerCell']");
+            Check(cells.Count == 0, leaf.id + " has no gravcore power cell");
+            if (leaf.id == "Fighter")
+            {
+                Check(document.SelectNodes("/MapPrefab/thingStates/li[def='ChemfuelPoweredGenerator' and state/saveable/fuel > 0]").Count == 1
+                    && document.SelectNodes("/MapPrefab/thingStates/li[def='Battery']").Count == 2
+                    && document.SelectSingleNode("/MapPrefab/thingStates/li[def='Chemfuel' and stackCount > 0]") != null,
+                    "fighter ships with one fueled chemfuel generator, two standard batteries and reserve fuel");
+            }
+            if (leaf.id == "Cruiser")
+                Check(document.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_ShieldGenerator' "
+                    + "and state/saveable[DeltaV_shieldMode='Guard' and DeltaV_shieldGroundRadius > 0 "
+                    + "and DeltaV_regularCapacity=750 and fuel=750 and currentHitPoints=-1]]").Count == 2,
+                    "both exported cruiser shield states are charged guard domes");
+            if (leaf.defaultPrefabPath.StartsWith("Sector/Stations/"))
+                CheckStationSolar(document, leaf.id, "Battery",
+                    leaf.id == "TradeStation" || leaf.id == "Shipyard" || leaf.id == "FactoryStation" ? 1 : 0);
         }
         var settings = new DeltaVSettings();
         settings.EnsureSectorRulesSeeded();
@@ -107,7 +126,7 @@ internal static partial class Program
             && tutorialYard.SelectNodes("/MapPrefab/roofs/li").Count <= 5000,
             "tutorial ring yard reduces foundation and meets the roof budget");
 
-        string trade = Path.Combine(directory, "Sector/Stations/SectorTradeStation.xml");
+        string trade = Path.Combine(directory, leaves.Single(leaf => leaf.id == "TradeStation").defaultPrefabPath);
         var xml = new XmlDocument(); xml.Load(trade);
         XmlNode terminal = xml.SelectSingleNode("/MapPrefab/thingStates/li[def='DeltaV_TradeTerminal']/state/saveable");
         var ids = xml.SelectNodes("/MapPrefab/thingStates/li/state/saveable")

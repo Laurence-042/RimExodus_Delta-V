@@ -134,19 +134,31 @@ internal static partial class Program
             }
             foreach (string layout in new[] { "TrainingShip", "Salvage", "Shipyard", "PrototypeShip" })
                 Geometry(Path.Combine(Path.GetDirectoryName(args[1]), layout + ".records.json"), game);
+            foreach (string category in new[] { "Craft", "Stations" })
+            foreach (string prefab in Directory.GetFiles(Path.Combine(prefabRoot, "Sector", category), "*.xml"))
+            {
+                string layout = Path.GetFileNameWithoutExtension(prefab);
+                const string temporarySuffix = "_Temporary";
+                if (layout.EndsWith(temporarySuffix, StringComparison.Ordinal))
+                    layout = layout[..^temporarySuffix.Length];
+                Geometry(Path.Combine(Path.GetDirectoryName(args[1]), layout + ".records.json"), game);
+            }
             ArrivalWreck(args[1], args[2], game);
             ArrivalClothing(game, gameData);
             State(game);
             Theory(game, harmony);
             FlightEvidence();
-            PrefabLifeSupport(Path.GetDirectoryName(args[1]), game, "ArrivalStation");
-            PrefabLifeSupport(Path.GetDirectoryName(args[1]), game, "Shipyard");
+            string layoutDirectory = Path.GetDirectoryName(args[1]);
+            PrefabLifeSupport(layoutDirectory, game, "ArrivalStation");
+            foreach (string layout in new[] { "Shipyard", "SectorFighter", "SectorGunboat", "SectorFrigate",
+                "SectorDestroyer", "SectorCruiser", "SectorTradeStation", "SectorShipyard", "SectorFactoryStation" })
+                PrefabLifeSupport(layoutDirectory, game, layout);
             FocusThread(game, harmony);
             Caskets(args[2]);
             Shelves(Path.Combine(tutorialPrefabs, "Salvage.xml"));
             PublicFacilities(game, harmony);
             Comms(game, harmony);
-            Berths(tutorialPrefabs, Path.GetDirectoryName(args[1]));
+            Berths(prefabRoot, Path.GetDirectoryName(args[1]));
             CourseClearance(game);
             Paths();
             CatalogPaths();
@@ -268,6 +280,8 @@ internal static partial class Program
             foreach (var cell in cells) grid[map.cellIndices.CellToIndex(cell)] = roof;
             foreach (var cell in cells)
                 Check(RoofCollapseUtility.WithinRangeOfRoofHolder(cell, map), Path.GetFileName(path) + " supported roof " + cell);
+            if (layout.RootElement.TryGetProperty("mirrorAxis", out var axis))
+                CraftSymmetry(json.RootElement, layout.RootElement, buildings, axis.GetInt32());
         }
         var powerCells = new HashSet<IntVec3>();
         Check(transmitters.All(b => b.OccupiedRect().All(c => powerCells.Add(c))), "no overlapping power transmitters");
@@ -282,6 +296,7 @@ internal static partial class Program
         }
         var thrusters = buildings.Where(b => b.def.defName == "SmallThruster" || b.def.defName == "LargeThruster").ToList();
         if (Path.GetFileName(path) == "WeaponRange.records.json") RangeLayout(buildings, path);
+        if (Path.GetFileName(path) == "SectorDestroyer.records.json") RangeLayout(buildings, path, 7);
         if (Path.GetFileName(path) == "ModuleRailgun.records.json") RangeLayout(buildings, path, 5);
         if (Path.GetFileName(path) == "AssemblyCombat.records.json") RangeLayout(buildings, path, 5);
         if (Path.GetFileName(path) == "ModuleBedroom.records.json")
@@ -329,17 +344,23 @@ internal static partial class Program
         {
             var report = new ShipPhysics.MassReport { mass = 1000f, inertia = 30000f,
                 comLocal = new Vector2((float)buildings.Average(b => b.DrawPos.x), (float)buildings.Average(b => b.DrawPos.z)) };
+            bool sector = Path.GetFileName(path).StartsWith("Sector", StringComparison.Ordinal);
             bool assembly = Path.GetFileName(path).StartsWith("Assembly", StringComparison.Ordinal);
             bool generated = Path.GetFileName(path).StartsWith("AssemblyGenerated", StringComparison.Ordinal);
+            bool fighter = Path.GetFileName(path) == "SectorFighter.records.json";
+            if (fighter)
+                Check(thrusters.Count(b => b.Rotation == Rot4.North) == 4 && thrusters.Count(b => b.Rotation == Rot4.South) == 2
+                    && thrusters.Count(b => b.Rotation == Rot4.East) == 2 && thrusters.Count(b => b.Rotation == Rot4.West) == 2,
+                    "fighter has four main engines, two braking engines and two lateral engines per side");
             var authoredThrusters = json.RootElement.EnumerateArray()
                 .Where(row => row.TryGetProperty("exclusionSize", out _)).ToList();
-            if (assembly) ApplySectorMass(json.RootElement, roofPath, report);
+            if (sector || assembly) ApplySectorMass(json.RootElement, roofPath, report);
             for (int i = 0; i < thrusters.Count; i++)
             {
                 Building b = thrusters[i];
                 var rect = b.OccupiedRect();
                 float thrust = ShipPhysics.ThrusterThrust;
-                if (assembly)
+                if (sector || assembly)
                 {
                     float limit = authoredThrusters[i].GetProperty("stateOverrides").GetProperty("DeltaV_powerPercent").GetSingle();
                     Check(limit > 0 && limit <= 100, b.def.defName + " valid authored power limit");
@@ -360,6 +381,16 @@ internal static partial class Program
                     Path.GetFileName(path) + " has real allocator authority in all six directions");
                 if (assembly && command.torque == 0)
                     accelerationByAxis.Add(Vector2.Dot(force, new Vector2(command.fx, command.fz)) / report.mass);
+                if (fighter && command.torque == 0)
+                {
+                    float minimum = command.fz > 0 ? 4.5f : 2.2f;
+                    float acceleration = Vector2.Dot(force, new Vector2(command.fx, command.fz)) / report.mass;
+                    Check(acceleration >= minimum, $"fighter acceleration toward ({command.fx}, {command.fz}) is {acceleration:F2}");
+                }
+                if (sector)
+                    Console.WriteLine($"{Path.GetFileNameWithoutExtension(roofPath)}: ({command.fx}, {command.fz}, {command.torque}) " +
+                        $"mass={report.mass:F0}, force=({force.x:F0}, {force.y:F0}), acceleration={force.magnitude/report.mass:F2}, " +
+                        $"angular acceleration={torque/report.inertia:F3} rad/s²; empty, healthy ship.");
             }
             if (assembly)
                 Console.WriteLine($"{Path.GetFileNameWithoutExtension(path)} empty mass {report.mass:F0}, "
@@ -395,8 +426,114 @@ internal static partial class Program
                 Console.WriteLine($"AssemblyIndustrial with 48 stacks of steel, mass {report.mass:F0}, "
                     + $"forward {forward.y / report.mass:F2}, reverse {-reverse.y / report.mass:F2} cells/s²");
             }
+            if (Path.GetFileName(path) == "SectorCruiser.records.json")
+                CruiserAcceleration(report, thrusters);
             if (Path.GetFileName(path) == "TrainingShip.records.json") TrainerStrafe(report, thrusters);
             if (Path.GetFileName(path) == "PrototypeShip.records.json") FreighterLoads(path, report);
+        }
+    }
+
+    static void CraftSymmetry(JsonElement records, JsonElement layout, List<Building> buildings, int axis)
+    {
+        IntVec3 Reflect(IntVec3 c) => new IntVec3(2*(axis+20)-c.x, 0, c.z);
+        bool symmetricShell = !layout.TryGetProperty("symmetricShell", out var symmetry) || symmetry.GetBoolean();
+        foreach (string layer in symmetricShell ? new[] { "foundation", "roofs" } : Array.Empty<string>())
+        {
+            var cells = layout.GetProperty(layer).EnumerateArray()
+                .Select(c => new IntVec3(c[0].GetInt32()+20, 0, c[1].GetInt32()+20)).ToHashSet();
+            Check(cells.SetEquals(cells.Select(Reflect)), layer + " mirrored about the ship centerline");
+        }
+        var pairs = records.EnumerateArray().Zip(buildings, (row, b) => (row, b))
+            .Where(entry => entry.row.TryGetProperty("mirrorPair", out _))
+            .GroupBy(entry => entry.row.GetProperty("mirrorPair").GetInt32()).ToList();
+        Check(pairs.Count > 0, "craft has mirrored equipment");
+        foreach (var pair in pairs)
+        {
+            Check(pair.Count() == 2, "two instances per mirrored equipment pair");
+            var a = pair.First().b;
+            var b = pair.Last().b;
+            Check(a.def.defName == b.def.defName && (a.Rotation.AsInt + b.Rotation.AsInt) % 4 == 0,
+                a.def.defName + " mirrored fixture facing");
+            Check(a.OccupiedRect().Select(Reflect).ToHashSet().SetEquals(b.OccupiedRect()),
+                a.def.defName + " mirrored native footprint");
+        }
+        var consoles = buildings.Where(b => b.def.defName == "PilotConsole").ToList();
+        bool cruiser = layout.GetProperty("name").GetString() == "SectorCruiser";
+        Check(consoles.Count == (cruiser ? 2 : 1), "craft has the expected number of control stations");
+        foreach (var b in consoles.Take(1))
+            Check(b.OccupiedRect().Select(Reflect).ToHashSet().SetEquals(b.OccupiedRect()),
+                "primary console has a centered native footprint");
+        if (cruiser)
+        {
+            Building main = consoles[0], backup = consoles[1];
+            Check(main.Rotation == backup.Rotation && main.Rotation == Rot4.North
+                && main.OccupiedRect().minX > backup.OccupiedRect().maxX
+                && main.OccupiedRect().minZ > backup.OccupiedRect().maxZ,
+                "cruiser backup faces the same way and is clear of the primary's axial firing lanes");
+            var walls = buildings.Where(b => b.def.defName == "GravshipHull")
+                .SelectMany(b => b.OccupiedRect()).ToHashSet();
+            foreach (int x in Enumerable.Range(main.OccupiedRect().minX, main.OccupiedRect().Width))
+                Check(walls.Contains(new IntVec3(x, 0, main.OccupiedRect().maxZ+1))
+                    && walls.Contains(new IntVec3(x, 0, main.OccupiedRect().maxZ+2)),
+                    "two bow layers cover the primary console footprint");
+            var reactor = buildings.Single(b => b.def.defName == "DeltaV_ShipReactor").OccupiedRect();
+            for (int z = reactor.minZ; z <= reactor.maxZ; z++)
+            {
+                var row = walls.Where(c => c.z == z).Select(c => c.x).OrderBy(x => x).ToArray();
+                Check(row.Length >= 5 && row[0]+1 == row[1] && row[^3]+1 == row[^2] && row[^2]+1 == row[^1]
+                    && row[1] < reactor.minX && row[^3] > reactor.maxX,
+                    "two port layers and three starboard layers cover the reactor");
+            }
+            var shields = records.EnumerateArray().Zip(buildings, (row, b) => (row, b))
+                .Where(entry => entry.b.def.defName == "DeltaV_ShieldGenerator").ToList();
+            Check(shields.Count == 2 && shields[0].b.Position.z != shields[1].b.Position.z,
+                "cruiser has two separated guard emitters");
+            Check(layout.GetProperty("generationW").GetSingle() - layout.GetProperty("nameplateLoadW").GetSingle()
+                >= shields.Count * new CompProperties_SpaceShield().recoveryPowerWatts,
+                "cruiser has headroom to recharge both guard shields together");
+            foreach (var (row, b) in shields)
+            {
+                var state = row.GetProperty("stateOverrides");
+                float radius = state.GetProperty("DeltaV_shieldGroundRadius").GetSingle();
+                var comp = new CompSpaceShield { parent = b, props = new CompProperties_SpaceShield() };
+                var center = (Vector2)AccessTools.Property(typeof(CompSpaceShield), "GuardCenter").GetValue(comp);
+                Check(state.GetProperty("DeltaV_shieldMode").GetString() == "Guard"
+                    && state.GetProperty("DeltaV_regularCapacity").GetSingle() == comp.ShieldProps.regularCapacity
+                    && state.GetProperty("fuel").GetSingle() == comp.ShieldProps.emergencyCapacity
+                    && state.GetProperty("currentHitPoints").GetInt32() == -1
+                    && radius <= comp.ShieldProps.maxGroundRadius,
+                    "cruiser emitter starts in guard mode with both capacities full");
+                foreach (var cell in layout.GetProperty("foundation").EnumerateArray())
+                    for (int x = 0; x <= 1; x++)
+                    for (int z = 0; z <= 1; z++)
+                        Check((new Vector2(cell[0].GetInt32()+20+x, cell[1].GetInt32()+20+z) - center).sqrMagnitude
+                            < radius*radius, "each guard circle covers the actual hull, including the cell corners");
+            }
+            var generators = buildings.Where(b => b.def.defName == "ChemfuelPoweredGenerator").ToList();
+            var reserve = buildings.Single(b => b.def.defName == "DeltaV_SafetyBattery").OccupiedRect();
+            Check(generators.Count == 2 && generators.All(b => b.OccupiedRect().minZ > reactor.maxZ)
+                && reserve.minZ > reactor.maxZ,
+                "cruiser emergency generation and storage are in a different bay from the reactor");
+        }
+    }
+
+    static void CruiserAcceleration(ShipPhysics.MassReport report, List<Building> thrusters)
+    {
+        Check(thrusters.Count(b => b.Rotation == Rot4.North) == 8 && thrusters.Count(b => b.Rotation == Rot4.South) == 6
+            && thrusters.Count(b => b.Rotation == Rot4.East) == 4 && thrusters.Count(b => b.Rotation == Rot4.West) == 4,
+            "cruiser has eight main engines, six braking engines and four lateral engines per side");
+        // Model evenly distributed extra mass with unchanged COM and the same mass distribution.
+        report.mass *= 1.2f;
+        report.inertia *= 1.2f;
+        foreach (var (direction, minimum) in new[] { (new Vector2(0, 1), 1.50f), (new Vector2(0, -1), 1.10f),
+                     (new Vector2(1, 0), .68f), (new Vector2(-1, 0), .68f) })
+        {
+            ShipPhysics.PreviewAllocation(report, new ShipPhysics.Command { fx=direction.x, fz=direction.y },
+                out var force, out _);
+            float acceleration = Vector2.Dot(force, direction)/report.mass;
+            Check(acceleration >= minimum, $"cruiser loaded acceleration toward {direction} is {acceleration:F2}");
+            Console.WriteLine($"SectorCruiser: 20% distributed load, ({direction.x}, {direction.y}) "
+                + $"acceleration={acceleration:F2} cells/s².");
         }
     }
 
@@ -475,11 +612,15 @@ internal static partial class Program
         try { TerrainDefOf.Space = Raw<TerrainDef>(); }
         finally { AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, false); }
         var berths = new[] { ("ArrivalStation", "TrainingShip", Rot4.West), ("Shipyard", "PrototypeShip", Rot4.West),
-                ("Shipyard", "TrainingShip", Rot4.East) };
+                ("Shipyard", "TrainingShip", Rot4.East) }
+            .Concat(new[] { "SectorFighter", "SectorGunboat", "SectorFrigate", "SectorDestroyer", "SectorCruiser" }
+                .SelectMany(ship => new[] { ("SectorShipyard", ship, Rot4.East), ("SectorShipyard", ship, Rot4.West) }));
         foreach (var pair in berths)
         {
-            var host = new XmlDocument(); host.Load(Path.Combine(directory, pair.Item1 + ".xml"));
-            var ship = new XmlDocument(); ship.Load(Path.Combine(directory, pair.Item2 + ".xml"));
+            bool sector = pair.Item1 == "SectorShipyard";
+            string extension = sector ? "_Temporary.xml" : ".xml";
+            var host = new XmlDocument(); host.Load(Path.Combine(directory, sector ? "Sector/Stations" : "Tutorial", pair.Item1 + extension));
+            var ship = new XmlDocument(); ship.Load(Path.Combine(directory, sector ? "Sector/Craft" : "Tutorial", pair.Item2 + extension));
             HashSet<IntVec3> Hull(XmlDocument doc) => doc.SelectNodes("/MapPrefab/foundations/li/pos")
                 .Cast<XmlNode>().Select(n => IntVec3.FromString(n.InnerText)).ToHashSet();
             var hostHull = Hull(host); var shipHull = Hull(ship);
@@ -508,8 +649,13 @@ internal static partial class Program
                 return (new IntVec3(port.GetProperty("root")[0].GetInt32(), 0, port.GetProperty("root")[1].GetInt32()), facing);
             }
             bool westTutorialBerth = pair.Item1 == "Shipyard" && pair.Item3 == Rot4.East;
-            var hostPort = Port(pair.Item1, pair.Item3.Opposite);
+            var hostPort = Port(pair.Item1, sector ? Rot4.North : pair.Item3.Opposite);
             var shipPort = Port(pair.Item2, pair.Item3);
+            if (sector)
+            {
+                shipHull = shipHull.Select(c => PrefabUtility.GetAdjustedLocalPosition(c, pair.Item3)).ToHashSet();
+                shipPort = (PrefabUtility.GetAdjustedLocalPosition(shipPort.Item1, pair.Item3), Rot4.South);
+            }
             var offset = new IntVec3(westTutorialBerth ? 40 : 12, 0, 12);
             var sourceRoot = new IntVec3(shipHull.Min(c => c.x), 0, shipHull.Min(c => c.z));
             var landing = DeltaVTutorialService.BerthPortCell(hostPort.Item1 + offset, hostPort.Item2)
