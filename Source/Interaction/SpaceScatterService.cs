@@ -75,27 +75,49 @@ namespace DeltaV
                     if (focus == null) return;
                     universe.SetFocused(focus);
                 }
-                // Loss is content removal, including otherwise indestructible quest cargo.
-                // Use vanilla's scoped destruction override and restore it even on failure.
-                bool previous = Thing.allowDestroyNonDestroyable;
-                try
-                {
-                    Thing.allowDestroyNonDestroyable = true;
-                    foreach (Thing thing in map.listerThings.AllThings.ToList())
-                        if (!thing.Destroyed) thing.Destroy(DestroyMode.Vanish);
-                }
-                finally { Thing.allowDestroyNonDestroyable = previous; }
-                if (map.listerThings.AllThings.Count != 0) return;
-                if (map.lordManager != null)
-                    foreach (var lord in map.lordManager.lords.ToList())
-                        if (lord.ownedPawns.Count == 0) map.lordManager.RemoveLord(lord);
-                universe.UnregisterObject(owner);
+                RemoveLostContents(owner, map);
                 universe.MapPool.TryReturn(universe.MapPool.Restore(map));
             });
         }
 
+        internal void TryRetireCargoForCapacity(SpaceObject owner)
+        {
+            Map map = owner.map;
+            if (map.mapPawns.AllPawnsCount != 0 || pulls.Any(pull => pull.source == map)
+                || map.listerThings.AllThings.Any(thing => thing is IThingHolder || !thing.questTags.NullOrEmpty()
+                    || (!IsCargo(thing) && thing is not Filth && thing is not Mote && thing is not Gas))) return;
+            RemoveLostContents(owner, map);
+            if (map.listerThings.AllThings.Count == 0 && universe.SpaceObjectOnMap(map) == null)
+                universe.Lifecycle.DestroyPocketMap(map);
+        }
+
+        private void RemoveLostContents(SpaceObject owner, Map map)
+        {
+            // Use vanilla's scoped destruction override for otherwise indestructible cargo.
+            bool previous = Thing.allowDestroyNonDestroyable;
+            try
+            {
+                Thing.allowDestroyNonDestroyable = true;
+                foreach (Thing thing in map.listerThings.AllThings.ToList())
+                    if (!thing.Destroyed) thing.Destroy(DestroyMode.Vanish);
+            }
+            finally { Thing.allowDestroyNonDestroyable = previous; }
+            if (map.listerThings.AllThings.Count != 0) return;
+            if (map.lordManager != null)
+                foreach (var lord in map.lordManager.lords.ToList())
+                    if (lord.ownedPawns.Count == 0) map.lordManager.RemoveLord(lord);
+            universe.UnregisterObject(owner);
+        }
+
         internal static bool IsCargo(Thing thing) => thing is Pawn || thing.def.category == ThingCategory.Item;
         internal static bool Supported(Map map, IntVec3 cell) => SubstructureOwnership.SupportsAt(map, cell);
+
+        internal static void ClearPawnTransferJob(Thing thing)
+        {
+            if (thing is not Pawn pawn) return;
+            if (pawn.mindState != null) pawn.mindState.knownExploder = null;
+            pawn.jobs?.StopAll();
+        }
 
         internal IEnumerable<Thing> LooseCargo(Map map)
         {
@@ -155,7 +177,17 @@ namespace DeltaV
                     {
                         SubstructureDamageUtility.CleanInvalidFilth(map, lost);
                         if (!Supported(map, lost))
-                            foreach (Thing thing in lost.GetThingList(map).Where(IsCargo).ToList()) TryScatter(thing);
+                            foreach (Thing thing in lost.GetThingList(map).Where(IsCargo).ToList())
+                            {
+                                if (TryScatter(thing) || !thing.Spawned || thing.Map != map) continue;
+                                ClearPawnTransferJob(thing);
+                                if (!universe.MapPool.HasRoom)
+                                    universe.QueueFrameAction(() =>
+                                    {
+                                        if (universe.MapPool.HasRoom && thing.Spawned && thing.Map == map
+                                            && thing.Position == lost && !Supported(map, lost)) TryScatter(thing);
+                                    });
+                            }
                     }
                 });
             }
@@ -295,6 +327,7 @@ namespace DeltaV
                 pose.velocity = SpaceTransform.VelocityAtMovingLocalPoint(owner.pose, localPoint, launchVelocity, pose.position);
             return TryCreateScatter(thing, pose, destination =>
             {
+                ClearPawnTransferJob(thing);
                 if (holder == null) thing.DeSpawn();
                 else if (!holder.Remove(thing))
                     throw new InvalidOperationException("Scatter cargo is no longer in its container.");
@@ -335,7 +368,10 @@ namespace DeltaV
 
         private bool TryCreateScatter(Thing thing, SpacePose pose, Action<Map> populate)
         {
-            bool success = universe.MapPool.TryRent(SpaceObjectTag.Scattered, new IntVec2(1, 1), populate, out SpaceMapLease lease);
+            float score = thing is Pawn || universe.MapPool.HasRoom
+                ? float.PositiveInfinity : universe.Lifecycle.ScatterCapacityScore(pose);
+            bool success = universe.MapPool.TryRent(SpaceObjectTag.Scattered, new IntVec2(1, 1), populate,
+                out SpaceMapLease lease, score);
             if (!success)
             {
                 if (lease != null) universe.MapPool.TryReturn(lease);
@@ -345,6 +381,7 @@ namespace DeltaV
             {
                 baseTag = SpaceObjectTag.Scattered, faction = thing.Faction, ambientLabel = thing.LabelCap
             };
+            universe.Lifecycle.FreezeScattered(lease.Map);
             universe.RegisterObject(scattered);
             return true;
         }

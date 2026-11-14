@@ -15,6 +15,7 @@ namespace DeltaV
     {
         public string key;
         public float priority;
+        public Func<float, float> capacityScore;
         public MapParent parent;
         public IntVec3 size;
         public MapGeneratorDef generator;
@@ -120,6 +121,8 @@ namespace DeltaV
             DrainSynchronouslyForExternalGeneration();
             if (active != null) return null;
             if (request.parent.Destroyed || request.parent.HasMap) return null;
+            if (!Current.Game.GetComponent<UniverseManager>().MapPool.TryMakeRoom(
+                score: request.capacityScore?.Invoke(request.priority) ?? float.PositiveInfinity)) return null;
             try
             {
                 ActiveJob job = Prepare(request);
@@ -282,8 +285,21 @@ namespace DeltaV
                 return;
             }
             blockedSinceRealtime = -1f;
+            Queue.RemoveAll(request => request.parent.Destroyed || request.parent.HasMap);
+            if (Queue.Count == 0) return;
+            SpaceMapPool pool = Current.Game.GetComponent<UniverseManager>().MapPool;
             IncrementalMapGenerationRequest request = Queue[0];
-            Queue.RemoveAt(0);
+            float score = request.capacityScore?.Invoke(request.priority) ?? float.PositiveInfinity;
+            for (int i = 1; i < Queue.Count; i++)
+            {
+                IncrementalMapGenerationRequest candidate = Queue[i];
+                float candidateScore = candidate.capacityScore?.Invoke(candidate.priority) ?? float.PositiveInfinity;
+                if (candidateScore <= score) continue;
+                request = candidate;
+                score = candidateScore;
+            }
+            if (!pool.TryMakeRoom(score: score)) return;
+            Queue.Remove(request);
 
             if (request.parent.Destroyed || request.parent.HasMap) return;
 
@@ -351,6 +367,8 @@ namespace DeltaV
                     mutator.Worker?.Init(map);
                 }
                 Current.Game.AddMap(map);
+                if (!Find.Maps.Contains(map))
+                    throw new InvalidOperationException("The game rejected the new map before content generation.");
                 if (request.generator.isUnderground)
                 {
                     foreach (IntVec3 cell in map.AllCells)
@@ -402,6 +420,7 @@ namespace DeltaV
                     try { Current.Game.GetComponent<UniverseManager>().Lifecycle.DeinitMap(map, false); }
                     catch { Find.Maps.Remove(map); }
                 }
+                else if (map != null) RimExodus.Maps.MapRuntime.Current.Forget(map);
                 throw;
             }
             finally

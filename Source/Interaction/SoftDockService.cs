@@ -65,6 +65,9 @@ namespace DeltaV
             => orders.Any(entry => entry.Key != except
                 && (entry.Value.source.Port == port || entry.Value.target == port));
 
+        internal bool UsesMap(Map map) => Enabled && (ports.Any(port => port.Map == map && port.Docking?.Owner != null)
+            || orders.Values.Any(order => order.source.Port.Map == map || order.target.Map == map));
+
         private static bool CanOrder(ShipBase ship)
             => ship?.IsValid == true && !ship.Identity.shuttle && ship.PlayerMayOperate
                 && ship.State == ShipDerivedState.FreeFlight;

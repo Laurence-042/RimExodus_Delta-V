@@ -32,13 +32,26 @@ internal static partial class Program
         SpaceMapLease original = pool.Restore(a), cargo = pool.Restore(b);
         Check(pool.TryReturn(original) && pool.TryReturn(cargo) && pool.IdleCount == 2,
             "common pool restores marked maps and accepts empty rentals of different tags");
+        int previousLimit = DeltaVMod.CurrentSettings.loadedMapLimit;
+        DeltaVMod.CurrentSettings.loadedMapLimit = Find.Maps.Count;
+        Check(!pool.TryMakeRoom(3), "capacity rejects creation until enough slots are available");
+        DeltaVMod.CurrentSettings.loadedMapLimit = 1;
+        Check(!pool.TryMakeRoom(2), "a request larger than the whole map budget cannot start eviction");
+        float nearby = SpaceLifecycleService.MapRetentionScore(100, 0f, 300f);
+        float distant = SpaceLifecycleService.MapRetentionScore(100, 300f, 300f);
+        Check(nearby > distant && distant > SpaceLifecycleService.MapRetentionScore(25, 300f, 300f),
+            "map retention score increases independently with proximity and area");
+        DeltaVMod.CurrentSettings.loadedMapLimit = Find.Maps.Count + 1;
+        Check(pool.TryMakeRoom(), "raising the loaded map limit allows generation immediately");
+        DeltaVMod.CurrentSettings.loadedMapLimit = Find.Maps.Count;
         int calls = 0;
         Check(pool.TryRent(SpaceObjectTag.Container, new IntVec2(5, 5), map =>
         {
             calls++;
             Check(map == b && !pool.TryReturn(pool.LeaseFor(map)), "population cannot return its own busy rental");
         }, out SpaceMapLease rented) && rented.Map == b && calls == 1,
-            "tag and size select exact bucket and invoke the new content callback once");
+            "matching idle map can be rented at capacity without creating another map");
+        DeltaVMod.CurrentSettings.loadedMapLimit = previousLimit;
         Check(!pool.TryReturn(cargo, _ => calls++) && calls == 1,
             "stale lease cannot invoke cleanup on a newly populated map");
         var body = (Thing)Raw(typeof(Thing));

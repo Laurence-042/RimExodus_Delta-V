@@ -149,6 +149,7 @@ namespace DeltaV
             CopyFactsTo(archived);
             archived.ambientLabel = label;
             archived.mapData = data; archived.mapId = interior.uniqueID;
+            archived.mapArea = interior.Size.x * interior.Size.z;
             archived.parent = (PocketMapParent)interior.Parent;
             archived.memberFactions = ShipFactions.ToList();
             archived.globe = Current.Game.GetComponent<UniverseManager>().GlobeDisplay.Capture(this);
@@ -164,6 +165,7 @@ namespace DeltaV
     {
         public string mapData;
         public int mapId;
+        internal int mapArea;
         public PocketMapParent parent;
         public DriveSnapshot dynamics;
         public GlobeDisplaySummary globe;
@@ -197,6 +199,7 @@ namespace DeltaV
         {
             base.ExposeData();
             Scribe_Values.Look(ref mapData, "mapData"); Scribe_Values.Look(ref mapId, "mapId");
+            Scribe_Values.Look(ref mapArea, "mapArea");
             Scribe_References.Look(ref parent, "parent"); Scribe_Deep.Look(ref dynamics, "dynamics");
             Scribe_Deep.Look(ref globe, "globe");
             Scribe_Collections.Look(ref memberFactions, "shipFactions", LookMode.Reference);

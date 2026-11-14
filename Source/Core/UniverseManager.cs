@@ -598,8 +598,13 @@ namespace DeltaV
         /// 只进 Find.World.pocketMaps（绝不进 Find.WorldObjects）、永不被聚焦。
         /// 复用 DeltaV_ShipPocket 生成器（太空 biome、空 Void 图）。
         /// </summary>
-        public Map GetOrCreateHostMap()
+        public Map GetOrCreateHostMap() => GetOrCreateHostMap(float.PositiveInfinity);
+
+        internal Map GetOrCreateHostMap(float capacityScore)
         {
+            bool hasHost = (UniverseHostMap != null && !UniverseHostMap.Disposed && Find.Maps.Contains(UniverseHostMap))
+                || Find.World.pocketMaps.Any(parent => parent is UniverseHostParent_DeltaV && parent.HasMap);
+            if (!MapPool.TryMakeRoom(hasHost ? 1 : 2, capacityScore)) return null;
             if (pocketHostService == null)
             {
                 pocketHostService = new PocketMapHostService(
@@ -740,6 +745,7 @@ namespace DeltaV
                     Log.Warning($"[DeltaV] Container #{obj.objectId} ({obj.label}) lost its map; removing from universe state.");
                     UnregisterObject(obj);
                 }
+                else if (obj.IsScattered && obj.map != null) Lifecycle.FreezeScattered(obj.map);
             }
             HostColonistBarVisibility.NotifyDockingStateChanged();
             SweepEmptyDepartedMaps();

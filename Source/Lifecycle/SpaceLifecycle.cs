@@ -48,7 +48,11 @@ namespace DeltaV
             || universe.MapPool.IsIdle(map)
             || universe.Generation?.IsGenerating(map) == true;
         public static bool IsUniverseHost(Map map) => map?.Parent is UniverseHostParent_DeltaV;
-        public void Wake(Map map, string reason) => dormancy.Wake(map, reason);
+        public void Wake(Map map, string reason)
+        {
+            if (universe.SpaceObjectOnMap(map)?.IsScattered != true) dormancy.Wake(map, reason);
+        }
+        internal void FreezeScattered(Map map) => dormancy.FreezeScattered(map);
 
         public void Tick()
         {
@@ -120,10 +124,8 @@ namespace DeltaV
             if (container.IsScattered)
             {
                 float scatteredDistance = MinPlayerDistance(container);
-                if (float.IsPositiveInfinity(scatteredDistance)) return;
-                if (scatteredDistance > deleteRadius) universe.Scatter.RetireLost(container);
-                else if (scatteredDistance > activeRadius) dormancy.Sleep(map, "distant scattered contents");
-                else dormancy.Wake(map, "nearby scattered contents");
+                if (!float.IsPositiveInfinity(scatteredDistance) && scatteredDistance > deleteRadius)
+                    universe.Scatter.RetireLost(container);
                 return;
             }
             if (!HasMapSupport(container))
@@ -152,14 +154,31 @@ namespace DeltaV
         }
 
         public float MinPlayerDistance(SpaceObject obj)
+            => MinPlayerDistance(obj, universe.PlayerReferenceObjects());
+
+        private static float MinPlayerDistance(SpaceObject obj, List<SpaceObject> references)
         {
             float best = float.PositiveInfinity;
-            foreach (SpaceObject reference in universe.PlayerReferenceObjects())
+            foreach (SpaceObject reference in references)
             {
                 best = Mathf.Min(best,
                     OrbitSphere.ArcCells(reference.pose.position, obj.pose.position));
             }
             return best;
+        }
+
+        internal static float MapRetentionScore(int area, float distance, float radius) =>
+            Mathf.Sqrt(Mathf.Max(1, area)) / (1f + distance / Mathf.Max(1f, radius));
+
+        private static float CapacityScore(int area, float distance) =>
+            MapRetentionScore(area, distance, DeltaVMod.CurrentSettings.poiActiveRadius);
+
+        internal float ScatterCapacityScore(SpacePose pose)
+        {
+            float distance = float.PositiveInfinity;
+            foreach (SpaceObject reference in universe.PlayerReferenceObjects())
+                distance = Mathf.Min(distance, OrbitSphere.ArcCells(reference.pose.position, pose.position));
+            return MapRetentionScore(1, distance, DeltaVMod.CurrentSettings.poiActiveRadius);
         }
 
         private static void SynchronizeNative(PoiState poi)
@@ -191,10 +210,12 @@ namespace DeltaV
         {
             MapParent parent = poi.nativeParent;
             if (parent == null || parent.Destroyed || parent.HasMap) return;
+            IntVec3 size = SpaceMapGovernance.GenerationSize(parent);
             universe.Generation.Enqueue(new IncrementalMapGenerationRequest
             {
                 key = GenerationKey(poi), priority = priority, parent = parent,
-                size = SpaceMapGovernance.GenerationSize(parent), generator = parent.MapGeneratorDef,
+                size = size, generator = parent.MapGeneratorDef,
+                capacityScore = distance => CapacityScore(size.x * size.z, distance),
                 extraGenSteps = parent.ExtraGenStepDefs, isPocketMap = false,
                 onComplete = map =>
                 {
@@ -209,9 +230,6 @@ namespace DeltaV
 
         private void QueueSnapshotGeneration(PoiState marker, float priority)
         {
-            var parent = (ShipPocketParent_DeltaV)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
-            parent.sourceMap = universe.GetOrCreateHostMap();
-            parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
             // 物化目标图尺寸随快照几何走（快照格是源图绝对坐标，目标图小于源图时
             // 越界写经 CellToIndex 静默回卷坏图——2026-09-24 事故）；无快照 marker
             //（首次物化）按选定 prefab 尺寸（+边距）。池不可用（空/失效）时不入队：
@@ -233,10 +251,16 @@ namespace DeltaV
                 universe.UnregisterObject(marker);
                 return;
             }
+            Map host = universe.GetOrCreateHostMap(CapacityScore(size.x * size.z, priority));
+            if (host == null) return;
+            var parent = (ShipPocketParent_DeltaV)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
+            parent.sourceMap = host;
+            parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
             universe.Generation.Enqueue(new IncrementalMapGenerationRequest
             {
                 key = GenerationKey(marker), priority = priority, parent = parent,
                 size = size, generator = DeltaVDefOf.DeltaV_ShipPocket,
+                capacityScore = distance => CapacityScore(size.x * size.z, distance),
                 isPocketMap = true,
                 onComplete = map =>
                 {
@@ -389,7 +413,43 @@ namespace DeltaV
             if (!parent.Destroyed && (alsoRemoveWorldObject || parent.forceRemoveWorldObjectWhenMapRemoved))
                 parent.Destroy();
             DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                $"{poi.label}: removed at POI delete radius (worldObject={parent.Destroyed})");
+                $"{poi.label}: POI map removed (worldObject={parent.Destroyed})");
+        }
+
+        internal void ReleaseForCapacity(int targetCount, float admissionScore)
+        {
+            if (MapGenerator.mapBeingGenerated != null || RimExodus.Maps.MapRuntime.Current.Generation.IsBusy) return;
+            var references = universe.PlayerReferenceObjects();
+            float radius = DeltaVMod.CurrentSettings.poiActiveRadius;
+            var candidates = universe.objects.Where(obj => obj.map != null && !obj.map.Disposed
+                    && (obj is PoiState || obj is MapSpaceObject && obj.map.Parent is ShipPocketParent_DeltaV)
+                    && !obj.HasTag(SpaceObjectTag.Projectile))
+                .Select(obj => (obj, map: obj.map, version: obj.RepresentationVersion,
+                    score: MapRetentionScore(obj.map.Size.x * obj.map.Size.z, MinPlayerDistance(obj, references), radius)))
+                .Where(candidate => candidate.score < admissionScore)
+                .OrderBy(candidate => candidate.score).ThenBy(candidate => candidate.map.Index).ToArray();
+            foreach (var candidate in candidates)
+            {
+                if (Find.Maps.Count <= targetCount) break;
+                var (obj, map, version, _) = candidate;
+                if (obj.RepresentationVersion != version || obj.map != map || universe.ObjectById(obj.objectId) != obj
+                    || map.Disposed || !Find.Maps.Contains(map) || SpaceMapGovernance.MustStayActive(map, universe)
+                    || universe.Missions.Protects(obj) || universe.Approach.ApproachShipMap == map
+                    || universe.Approach.ActivePlan?.targetMap == map || universe.SoftDock.UsesMap(map)
+                    || !ArchivedMapStore.CanUnloadLosslessly(map)) continue;
+                if (obj.IsScattered)
+                {
+                    universe.Scatter.TryRetireCargoForCapacity(obj);
+                }
+                else if (obj is PoiState poi)
+                {
+                    // Native sites use the vanilla removal contract and only unload outside activation range.
+                    if (MinPlayerDistance(poi, references) > radius) TryPack(poi);
+                }
+                else if (IsDisposableContainer(obj, map)
+                    && MinPlayerDistance(obj, references) > DeleteRadius) RemoveDistantContainer(obj, map);
+                else CaptureAndUnload((MapSpaceObject)obj, map);
+            }
         }
 
         /// <summary>
@@ -426,40 +486,43 @@ namespace DeltaV
                     if (beyondDeleteRadius) RemoveDistantContainer(container, map);
                     return;
                 }
-                // Standalone Map saving can emit vanilla cross-reference warnings before
-                // TryCapture returns. Keep the object identity adjacent to those warnings
-                // even when the optional Lifecycle log module is disabled.
-                string shipIds = string.Join(",", container.Ships.Select(ship => ship.Identity.key));
-                Log.Message($"[DeltaV] Archive capture begin: object=#{objectId} label='{container.label}' "
-                    + $"ships=[{shipIds}] tag={container.Tag} {UniverseManager.MapTag(map)} "
-                    + $"parent={map.Parent?.GetUniqueLoadID() ?? "null"} "
-                    + $"distance={distance:F1} force={force}");
-                if (!ArchivedMapStore.TryCapture(map, out string data))
-                {
-                    Log.Warning($"[DeltaV] Archive capture aborted: object=#{objectId} {UniverseManager.MapTag(map)}; original map retained.");
-                    return;
-                }
-                string carriedLabel = container.label;
-                string mapTag = UniverseManager.MapTag(map);
-                var archive = ((MapSpaceObject)container).CaptureArchive(data);
-                universe.NpcShips.PrepareForArchive(container, archive);
-                if (!ArchivedMapStore.TryUnload(map))
-                {
-                    Log.Warning($"[DeltaV] Archive unload deferred: object=#{objectId} {UniverseManager.MapTag(map)}; original map retained.");
-                    return;
-                }
-                universe.ReplaceRepresentation(container, archive);
-                try { Forget(map); }
-                catch (Exception ex)
-                { Log.Error($"[DeltaV] Archived map runtime cleanup failed ({UniverseManager.MapTag(map)}): {ex}"); }
-                finally
-                {
-                    // 快照已独立保存；断开废弃 Thing → spawnedThings → Map 的持有链。
-                    map.spawnedThings.Clear();
-                }
-                Log.Message($"[DeltaV] Archive capture complete: object=#{archive.objectId} label='{carriedLabel}' "
-                    + $"{mapTag} parent={archive.parent?.GetUniqueLoadID() ?? "null"}; map unloaded.");
+                CaptureAndUnload((MapSpaceObject)container, map);
             });
+        }
+
+        private void CaptureAndUnload(MapSpaceObject container, Map map)
+        {
+            int objectId = container.objectId;
+            // Keep the object identity adjacent to any standalone save cross-reference warnings.
+            string shipIds = string.Join(",", container.Ships.Select(ship => ship.Identity.key));
+            Log.Message($"[DeltaV] Archive capture begin: object=#{objectId} label='{container.label}' "
+                + $"ships=[{shipIds}] tag={container.Tag} {UniverseManager.MapTag(map)} "
+                + $"parent={map.Parent?.GetUniqueLoadID() ?? "null"}");
+            if (!ArchivedMapStore.TryCapture(map, out string data))
+            {
+                Log.Warning($"[DeltaV] Archive capture aborted: object=#{objectId} {UniverseManager.MapTag(map)}; original map retained.");
+                return;
+            }
+            string carriedLabel = container.label;
+            string mapTag = UniverseManager.MapTag(map);
+            var archive = container.CaptureArchive(data);
+            universe.NpcShips.PrepareForArchive(container, archive);
+            if (!ArchivedMapStore.TryUnload(map))
+            {
+                Log.Warning($"[DeltaV] Archive unload deferred: object=#{objectId} {UniverseManager.MapTag(map)}; original map retained.");
+                return;
+            }
+            universe.ReplaceRepresentation(container, archive);
+            try { Forget(map); }
+            catch (Exception ex)
+            { Log.Error($"[DeltaV] Archived map runtime cleanup failed ({UniverseManager.MapTag(map)}): {ex}"); }
+            finally
+            {
+                // 快照已独立保存；断开废弃 Thing → spawnedThings → Map 的持有链。
+                map.spawnedThings.Clear();
+            }
+            Log.Message($"[DeltaV] Archive capture complete: object=#{archive.objectId} label='{carriedLabel}' "
+                + $"{mapTag} parent={archive.parent?.GetUniqueLoadID() ?? "null"}; map unloaded.");
         }
 
         private bool IsDisposableContainer(SpaceObject container, Map map)
@@ -484,6 +547,7 @@ namespace DeltaV
         private bool TryRestoreContainer(ArchivedSpaceObject archive, out MapSpaceObject current)
         {
             current = null;
+            if (!universe.MapPool.TryMakeRoom(score: CapacityScore(archive.mapArea, MinPlayerDistance(archive)))) return false;
             Log.Message($"[DeltaV] Archive restore begin: object=#{archive.objectId} label='{archive.label}' "
                 + $"archivedMap=#{archive.mapId} {UniverseManager.MapTag(archive.parent?.Map)} parent={archive.parent?.GetUniqueLoadID() ?? "null"}");
             if (!ArchivedMapStore.TryRestore(archive.mapData, archive.mapId, archive.parent, out Map restored))

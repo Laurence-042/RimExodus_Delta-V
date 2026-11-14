@@ -111,6 +111,8 @@
   <DeltaV_SettingsNpcDecisionInterval>NPC tactical decision interval (ticks)</DeltaV_SettingsNpcDecisionInterval>
   <DeltaV_SettingsNpcDecisionIntervalTip>How often NPC ships recheck eligibility, targets, doctrine and retreat conditions. Autopilot and firing at the selected target still run each tick. Range 1-600; default 60.</DeltaV_SettingsNpcDecisionIntervalTip>
   <DeltaV_SettingsLifecycleScanInterval>Space object lifecycle scan interval (ticks)</DeltaV_SettingsLifecycleScanInterval>
+  <DeltaV_SettingsLoadedMapLimit>Loaded map limit for Delta-V</DeltaV_SettingsLoadedMapLimit>
+  <DeltaV_SettingsLoadedMapLimitTip>Delta-V counts every loaded map before creating or restoring one. It frees empty pooled maps first, then can archive or remove eligible maps, prioritizing smaller and more distant maps. Range 1–128, default 128.</DeltaV_SettingsLoadedMapLimitTip>
   <DeltaV_SettingsLifecycleScanIntervalTip>How often distance checks materialize, sleep, archive or restore objects. Movement advances every game tick independently of this interval. Range 1-600; default 60.</DeltaV_SettingsLifecycleScanIntervalTip>
   <DeltaV_SettingsMapGenBudget>Map generation budget (ms/frame)</DeltaV_SettingsMapGenBudget>
   <DeltaV_SettingsMapGenBudgetTip>How many milliseconds each frame may spend generating an approaching POI's interior map. Larger values finish the map sooner but make frames choppier during generation; smaller values keep frames smooth but take longer. Range 1-16; default 8.</DeltaV_SettingsMapGenBudgetTip>

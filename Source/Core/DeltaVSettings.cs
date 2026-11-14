@@ -52,6 +52,9 @@ namespace DeltaV
         /// <summary>分帧地图生成每个渲染帧的主线程预算（毫秒）。</summary>
         public float incrementalMapGenBudgetMs = 8f;
 
+        public const int MaxLoadedMapLimit = sbyte.MaxValue + 1;
+        public int loadedMapLimit = MaxLoadedMapLimit;
+
         /// <summary>
         /// 漂移同步就绪的保持时长（tick）：线速度、网格角度与角速度
         /// 持续满足窗口后允许开始作业；不检查位置。
@@ -177,6 +180,7 @@ namespace DeltaV
             Scribe_Values.Look(ref npcDecisionIntervalTicks, "npcDecisionIntervalTicks", 60);
             Scribe_Values.Look(ref lifecycleScanIntervalTicks, "lifecycleScanIntervalTicks", 60);
             Scribe_Values.Look(ref incrementalMapGenBudgetMs, "incrementalMapGenBudgetMs", 8f);
+            Scribe_Values.Look(ref loadedMapLimit, "loadedMapLimit", MaxLoadedMapLimit);
             Scribe_Values.Look(ref dockingHoldTicks, "dockingHoldTicks", 60);
             Scribe_Values.Look(ref worksiteMargin, "worksiteMargin", 24);
             Scribe_Values.Look(ref dockingAngleWindowDeg, "dockingAngleWindowDeg", 1.15f);

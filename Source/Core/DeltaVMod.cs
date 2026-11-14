@@ -241,6 +241,9 @@ namespace DeltaV
             TippedRow(list, rect, "DeltaV_SettingsMapGenBudgetTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsMapGenBudget".Translate(), ref Settings.incrementalMapGenBudgetMs,
                     ref mapGenBudgetBuffer, 1f, 16f));
+            TippedRow(list, rect, "DeltaV_SettingsLoadedMapLimitTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsLoadedMapLimit".Translate(), ref Settings.loadedMapLimit,
+                    ref loadedMapLimitBuffer, 1, DeltaVSettings.MaxLoadedMapLimit));
             list.Gap(6f);
             TippedRow(list, rect, "DeltaV_SettingsPoiActiveRadiusTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsPoiActiveRadius".Translate(), ref Settings.poiActiveRadius,
@@ -314,6 +317,7 @@ namespace DeltaV
         private string lifecycleScanIntervalBuffer;
 
         private string mapGenBudgetBuffer;
+        private string loadedMapLimitBuffer;
 
         private string dockingHoldTicksBuffer;
         private string worksiteMarginBuffer;

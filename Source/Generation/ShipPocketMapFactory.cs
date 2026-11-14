@@ -27,8 +27,11 @@ namespace DeltaV
 
         public static Map Generate(IntVec3 size, UniverseManager universe)
         {
+            universe.Generation.DrainSynchronouslyForExternalGeneration();
+            Map host = universe.GetOrCreateHostMap();
+            if (host == null) return null;
             var parent = (PocketMapParent)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
-            parent.sourceMap = universe.GetOrCreateHostMap();
+            parent.sourceMap = host;
             parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
             return RimExodus.Maps.PocketMaps.Create(size, parent, parent.mapGenerator, parent.sourceMap);
         }
@@ -38,11 +41,13 @@ namespace DeltaV
         /// 同一 Prepare/Finish 链，绕开 MapGenerator.GenerateMap 方法体，不触发其
         /// Harmony 补丁链（MapPreview 等）。大图仍走 <see cref="Generate"/>。
         /// </summary>
-        public static Map GenerateImmediate(IntVec3 size, UniverseManager universe)
+        public static Map GenerateImmediate(IntVec3 size, UniverseManager universe, float capacityScore)
         {
             using var timing = universe.Performance.Measure(PerformanceStage.SyncMapGeneration);
+            Map host = universe.GetOrCreateHostMap(capacityScore);
+            if (host == null) return null;
             var parent = (PocketMapParent)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
-            parent.sourceMap = universe.GetOrCreateHostMap();
+            parent.sourceMap = host;
             parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
             Map map = universe.Generation.GenerateSynchronously(new IncrementalMapGenerationRequest
             {
@@ -50,6 +55,7 @@ namespace DeltaV
                 parent = parent,
                 size = size,
                 generator = DeltaVDefOf.DeltaV_ShipPocket,
+                capacityScore = _ => capacityScore,
                 isPocketMap = true
             });
             if (map == null)

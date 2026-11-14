@@ -361,7 +361,7 @@ namespace DeltaV
                     CellRect footprint = GenAdj.OccupiedRect(IntVec3.Zero, Rot4.North, def.Size);
                     GenSpawn.Spawn(projectile.building,
                         new IntVec3(-footprint.minX, 0, -footprint.minZ), map, Rot4.North);
-                }, out SpaceMapLease lease);
+                }, out SpaceMapLease lease, capacityScore: 0f);
                 if (!populated)
                 {
                     if (lease != null) ReturnProjectileMap(lease, projectile.building);

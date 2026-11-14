@@ -55,6 +55,7 @@ namespace DeltaV
             foreach (Thing thing in source.listerThings.AllThings.Where(SpaceScatterService.IsCargo).ToList())
             {
                 IntVec3 previous = thing.Position;
+                SpaceScatterService.ClearPawnTransferJob(thing);
                 thing.DeSpawn();
                 try
                 {

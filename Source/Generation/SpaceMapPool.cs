@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
+using RimWorld.Planet;
+using UnityEngine;
 using Verse;
 
 namespace DeltaV
@@ -33,6 +35,8 @@ namespace DeltaV
         private readonly Dictionary<(SpaceObjectTag tag, int x, int z), List<Map>> idle =
             new Dictionary<(SpaceObjectTag, int, int), List<Map>>();
         private int idleCount;
+        private int requestedSlots;
+        private float admissionScore;
         private readonly Dictionary<Map, GlobeProjectileVisual> globeVisuals = new Dictionary<Map, GlobeProjectileVisual>();
 
         internal GlobeProjectileVisual GlobeVisual(SpaceMapLease lease, ThingDef def)
@@ -48,6 +52,51 @@ namespace DeltaV
         public int IdleCount => idleCount;
         public int TrackedCount => leases.Count;
 
+        private static int LoadedMapLimit => Mathf.Clamp(
+            DeltaVMod.CurrentSettings?.loadedMapLimit ?? DeltaVSettings.MaxLoadedMapLimit,
+            1, DeltaVSettings.MaxLoadedMapLimit);
+
+        internal bool HasRoom => Find.Maps.Count < LoadedMapLimit;
+
+        internal bool TryMakeRoom(int slots = 1, float score = float.PositiveInfinity)
+        {
+            int excess = Find.Maps.Count + slots - LoadedMapLimit;
+            if (excess <= 0) return true;
+            if (slots > LoadedMapLimit || (score <= 0f && idleCount == 0)) return false;
+            // A rental can fail inside the game tick. Only dispose maps at a frame boundary.
+            if (requestedSlots == 0) universe.QueueFrameAction(ReleaseForCapacity);
+            if (requestedSlots == 0 || score > admissionScore || (score == admissionScore && slots > requestedSlots))
+            {
+                requestedSlots = slots;
+                admissionScore = score;
+            }
+            return false;
+        }
+
+        private void ReleaseForCapacity()
+        {
+            int targetCount = LoadedMapLimit - requestedSlots;
+            float score = admissionScore;
+            requestedSlots = 0;
+            admissionScore = 0f;
+            if (targetCount < 0 || Find.Maps.Count <= targetCount || universe.IsResettingScene
+                || LongEventHandler.AnyEventNowOrWaiting) return;
+            Map[] release = leases.Values.Where(lease => lease.idle && !lease.busy
+                    && lease.Map != Find.CurrentMap && !lease.Map.Disposed
+                    && universe.SpaceObjectOnMap(lease.Map) == null && IsEmpty(lease.Map))
+                .OrderBy(lease => lease.Map.Index).Take(Find.Maps.Count - targetCount)
+                .Select(lease => lease.Map).ToArray();
+            var renderer = Find.World.renderer;
+            WorldRenderMode view = renderer.wantedMode;
+            try
+            {
+                foreach (Map map in release) universe.Lifecycle.DestroyPocketMap(map);
+                if (score > 0f && Find.Maps.Count > targetCount)
+                    universe.Lifecycle.ReleaseForCapacity(targetCount, score);
+            }
+            finally { renderer.wantedMode = view; }
+        }
+
         public bool IsCurrent(SpaceMapLease lease) => lease != null && !lease.Map.Disposed
             && leases.TryGetValue(lease.Map, out SpaceMapLease current) && ReferenceEquals(current, lease);
 
@@ -55,7 +104,8 @@ namespace DeltaV
         /// On population failure, lease remains available to the caller for recovery. Never
         /// delete a partly populated map containing real cargo or pawns. No object is registered here.
         /// </summary>
-        public bool TryRent(SpaceObjectTag tag, IntVec2 size, Action<Map> populate, out SpaceMapLease lease)
+        public bool TryRent(SpaceObjectTag tag, IntVec2 size, Action<Map> populate, out SpaceMapLease lease,
+            float capacityScore = float.PositiveInfinity)
         {
             lease = null;
             if (size.x < 1 || size.z < 1 || tag == 0 || populate == null)
@@ -75,7 +125,7 @@ namespace DeltaV
                 if (maps.Count == 0) idle.Remove(key);
             }
             if (map == null)
-                map = ShipPocketMapFactory.GenerateImmediate(new IntVec3(size.x, 1, size.z), universe);
+                map = ShipPocketMapFactory.GenerateImmediate(new IntVec3(size.x, 1, size.z), universe, capacityScore);
             if (map == null) return false;
             DeltaVPocketMapMetadata metadata = map.GetComponent<DeltaVPocketMapMetadata>();
             metadata.pooledMap = true;

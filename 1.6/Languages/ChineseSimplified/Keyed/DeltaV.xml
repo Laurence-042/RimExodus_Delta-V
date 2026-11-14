@@ -111,6 +111,8 @@
   <DeltaV_SettingsNpcDecisionInterval>敌舰战术决策间隔（tick）</DeltaV_SettingsNpcDecisionInterval>
   <DeltaV_SettingsNpcDecisionIntervalTip>敌舰重新检查资格、目标、战术和撤退条件的间隔。已选目标的武器射击和自动驾驶仍逐 tick 运行。范围 1–600；默认 60。</DeltaV_SettingsNpcDecisionIntervalTip>
   <DeltaV_SettingsLifecycleScanInterval>宇宙对象生命周期扫描间隔（tick）</DeltaV_SettingsLifecycleScanInterval>
+  <DeltaV_SettingsLoadedMapLimit>Delta-V 已加载地图上限</DeltaV_SettingsLoadedMapLimit>
+  <DeltaV_SettingsLoadedMapLimitTip>Delta-V 新建或恢复地图前统计游戏内全部已加载地图。需要名额时先释放池内空图，再优先归档或移除符合条件的远处小地图。范围 1–128，默认 128。</DeltaV_SettingsLoadedMapLimitTip>
   <DeltaV_SettingsLifecycleScanIntervalTip>按距离检查对象物化、休眠、归档与恢复的间隔；宇宙运动独立按每个游戏 tick 推进。范围 1–600；默认 60。</DeltaV_SettingsLifecycleScanIntervalTip>
   <DeltaV_SettingsMapGenBudget>地图生成预算（毫秒/帧）</DeltaV_SettingsMapGenBudget>
   <DeltaV_SettingsMapGenBudgetTip>接近 POI 生成内部地图时，每帧最多投入多少毫秒做生成。数值越大地图越快生成完，但生成期间帧率越抖；越小帧率越平稳，等待越久。范围 1–16；默认 8。</DeltaV_SettingsMapGenBudgetTip>
