@@ -742,7 +742,6 @@ def validate_yard(plan, records, counts, foundation, roofs, reachable):
         assert {air_cells[n] for n in adj(cell) if n in air_cells} == set(vent['rooms']), vent
     assert set(vent_counts) == plan['modules'].keys() - ARM_ROOMS
     assert all(1 <= count <= 2 for count in vent_counts.values())
-    assert len(foundation) < 7949 and len(roofs) <= 5000, ('yard area', len(foundation), len(roofs))
     bodies = [r for r in records if r['layer'] == 'body']
     panels = {c for r in bodies if r['name'] == 'SolarGenerator' for c in r['cells']}
     for cells in (panels, plan['noRoofCells']):

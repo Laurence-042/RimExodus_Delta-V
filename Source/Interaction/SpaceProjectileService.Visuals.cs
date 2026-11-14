@@ -12,6 +12,9 @@ namespace DeltaV
         private const int MaxCombatFlashes = 128;
         private const int MaxCombatParticles = 768;
         private const int ImpactLifetimeTicks = 60;
+        private const int RailMuzzleLifetime = 24;
+        private const int RailStageLifetime = 10;
+        private const int RailHeatLifetime = 30;
 
         // Attached heat/flash follows the same representation. Detached debris keeps the
         // rigid-point velocity captured at birth. Neither modifies a Thing or a SpaceObject.
@@ -28,9 +31,11 @@ namespace DeltaV
         {
             public VisualAnchor anchor;
             public float angle, size;
-            public int bornTick;
+            public int bornTick, delayTicks;
             public CombatVisualStyle style;
             public bool accelerator;
+            public int Lifetime => style != CombatVisualStyle.Rail ? 16
+                : accelerator ? RailStageLifetime : RailMuzzleLifetime;
         }
 
         private sealed class ImpactFx
@@ -39,7 +44,7 @@ namespace DeltaV
             public int bornTick;
             public float size;
             public CombatVisualStyle style;
-            public bool explosive, nativeExplosion, shieldBroken, shieldEmergency;
+            public bool explosive, nativeExplosion, shieldBroken, shieldEmergency, railStop;
             public SpaceShieldMode? shieldMode;
             public Vector2 normal, shieldCenter;
             public Vector2 lineStart, lineEnd;
@@ -135,8 +140,10 @@ namespace DeltaV
                         size * 0.35f, style, ParticleKind.Smoke, 3, 1.1f, 2.4f);
             }
             shot.weapon.NotifyVisualShot(shot.launchMapAngle);
-            foreach (CompSpaceRailgun stage in shot.ActiveAccelerators)
+            var activeStages = shot.ActiveAccelerators;
+            for (int i = 0; i < activeStages.Count; i++)
             {
+                CompSpaceRailgun stage = activeStages[i];
                 Vector3 draw = stage.parent.DrawPos;
                 Vector2 point = new Vector2(draw.x, draw.z);
                 AddBounded(muzzleFlashes, new MuzzleFlash
@@ -144,12 +151,22 @@ namespace DeltaV
                     anchor = Anchor(shot.container, point,
                         SpaceTransform.MapPointToUniverse(shot.container, stage.parent.Map, point)),
                     angle = shot.launchMapAngle, size = stage.parent.def.size.x * 0.55f,
-                    bornTick = Find.TickManager.TicksGame, style = CombatVisualStyle.Rail, accelerator = true
+                    bornTick = Find.TickManager.TicksGame, delayTicks = i * 12 / activeStages.Count,
+                    style = CombatVisualStyle.Rail, accelerator = true
                 }, MaxCombatFlashes);
             }
-            PlayCombatSound(props.fireSoundMap, props.fireSoundShell, shot.container,
-                shot.muzzleMap, shot.muzzleUniverse, style == CombatVisualStyle.Kinetic ? 3 : 1);
+            if (props.fireSoundMap != null || props.fireSoundShell != null)
+                PlayCombatSound(props.fireSoundMap, props.fireSoundShell, shot.container,
+                    shot.muzzleMap, shot.muzzleUniverse, style == CombatVisualStyle.Kinetic ? 3 : 1);
         }
+
+        // Shield debris also uses the Rail tint. Only the intact slug gets the heavy contact effects.
+        private static bool IsRailSlug(CompProperties_SpaceProjectile props) =>
+            props?.visualStyle == CombatVisualStyle.Rail && props.shieldTumbleDef != null;
+
+        internal static bool IsRailStop(SpaceCollision.VisualContact contact) =>
+            !contact.shieldMode.HasValue && !contact.penetrated && !contact.missileDestroyed
+            && IsRailSlug(contact.projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>());
 
         private void RegisterImpactFx(SpaceCollision.VisualContact contact)
         {
@@ -162,6 +179,7 @@ namespace DeltaV
             // 非破坏性耦合只显示光束；击中盾时仍显示统一盾面反馈。
             if (style == CombatVisualStyle.Coupling && !contact.shieldMode.HasValue) return;
             VisualAnchor anchor = Anchor(contact.defender, contact.localPoint, contact.position);
+            bool railStop = IsRailStop(contact);
             // The interception burst outlives the destroyed missile.
             if (contact.missileDestroyed) { anchor.objectId = 0; anchor.mapId = -1; }
             if (props?.tracerLength > 0f)
@@ -176,13 +194,14 @@ namespace DeltaV
             }
             float size = Mathf.Clamp(0.6f + Mathf.Sqrt(Mathf.Max(0f, contact.damageScale)) * 0.65f, 0.7f, 3.5f);
             if (style == CombatVisualStyle.Heavy) size *= 1.35f;
+            if (railStop) size = Mathf.Max(2.25f, size * 1.5f);
             if (style == CombatVisualStyle.Energy) size *= props.guaranteedHitMissiles ? 0.6f : 0.9f;
             bool explosion = contact.explosive || contact.missileDestroyed;
             if (explosion) size = Mathf.Max(size, Mathf.Clamp(contact.explosionRadius * 1.5f, 1.4f, 6f));
             AddBounded(impacts, new ImpactFx
             {
                 anchor = anchor, bornTick = Find.TickManager.TicksGame, size = size, style = style,
-                explosive = explosion, nativeExplosion = contact.nativeExplosion,
+                explosive = explosion, nativeExplosion = contact.nativeExplosion, railStop = railStop,
                 shieldMode = contact.shieldMode, shieldBroken = contact.shieldBroken,
                 shieldEmergency = contact.shieldEmergency,
                 normal = contact.localNormal,
@@ -197,8 +216,16 @@ namespace DeltaV
             int count = style == CombatVisualStyle.Kinetic ? 5 : 9;
             if (contact.shieldMode != SpaceShieldMode.Electromagnetic)
             {
-                SpawnParticles(anchor, contact.defender, contact.localPoint, contact.localNormal,
-                    size, style, ParticleKind.Spark, count, explosion ? Mathf.PI : 1.15f, 10f);
+                if (railStop)
+                {
+                    for (int side = -1; side <= 1; side += 2)
+                        SpawnParticles(anchor, contact.defender, contact.localPoint,
+                            SpaceTransform.Rotate(contact.localNormal, side * 1.22f),
+                            size, CombatVisualStyle.Heavy, ParticleKind.Spark, 9, 0.3f, 14f);
+                }
+                else
+                    SpawnParticles(anchor, contact.defender, contact.localPoint, contact.localNormal,
+                        size, style, ParticleKind.Spark, count, explosion ? Mathf.PI : 1.15f, 10f);
                 if (contact.penetrated)
                     SpawnParticles(anchor, contact.defender, contact.localPoint, contact.localDirection,
                         size, style, ParticleKind.Spark, 7, 0.25f, 19f);
@@ -358,7 +385,8 @@ namespace DeltaV
         private void TickCombatVisuals(int tick)
         {
             for (int i = muzzleFlashes.Count - 1; i >= 0; i--)
-                if (tick - muzzleFlashes[i].bornTick >= 16) muzzleFlashes.RemoveAt(i);
+                if (tick - muzzleFlashes[i].bornTick - muzzleFlashes[i].delayTicks >= muzzleFlashes[i].Lifetime)
+                    muzzleFlashes.RemoveAt(i);
             for (int i = impacts.Count - 1; i >= 0; i--)
                 if (tick - impacts[i].bornTick >= ImpactLifetimeTicks) impacts.RemoveAt(i);
             for (int i = particles.Count - 1; i >= 0; i--)
@@ -442,6 +470,37 @@ namespace DeltaV
             FxQuad(material, (a + b) * 0.5f, rotation, length, width);
         }
 
+        private static void DrawRailMuzzle(MuzzleFlash flash, Vector3 pos, Quaternion heading, int age, SpaceObject frame)
+        {
+            float fade = age / (float)flash.Lifetime;
+            float size = flash.size;
+            Vector3 forward = heading * Vector3.right;
+            if (flash.accelerator)
+            {
+                FxQuad(Fade(railMaterials, fade), pos, heading, size * 1.1f, size * (1.2f - fade));
+                if (age < 4) FxQuad(Fade(coreMaterials, age / 4f), pos, heading, size, size * 0.4f);
+                return;
+            }
+            float length = size * (2.75f - fade * 1.75f);
+            FxQuad(Fade(railMaterials, fade), pos + forward * (length * 0.36f),
+                heading, length, size * (1f - 0.5f * fade));
+            if (age < 6)
+                FxQuad(Fade(coreMaterials, age / 6f), pos + forward * (length * 0.4f),
+                    heading, length * 0.85f, size * 0.4f);
+
+            Vector3 lateral = heading * Vector3.forward;
+            float radius = size * (0.35f + fade * 1.15f);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                Vector3 bend = pos + lateral * (radius * 0.82f * side);
+                FxLine(Fade(beamRailMaterials, fade), pos + forward * (size * 0.45f),
+                    bend, 0.32f * (1f - fade), frame);
+                FxLine(Fade(beamRailMaterials, fade), bend,
+                    pos - forward * (radius * 0.42f) + lateral * (radius * side),
+                    0.24f * (1f - fade), frame);
+            }
+        }
+
         private void EmitCombatVisuals(SpaceObject frame, Map map, ShellLayer layer, ref int slot)
         {
             if (impacts.Count + particles.Count + muzzleFlashes.Count + beams.Count == 0) return;
@@ -456,13 +515,19 @@ namespace DeltaV
                 if (p.kind == ParticleKind.Smoke) DrawParticle(p, frame, map, altitude, now);
             foreach (MuzzleFlash f in muzzleFlashes)
             {
-                int age = now - f.bornTick;
-                float fade = age / (f.style == CombatVisualStyle.Kinetic ? 7f : 13f);
-                if (age < 0 || fade >= 1f) continue;
+                int age = now - f.bornTick - f.delayTicks;
+                if (age < 0 || age >= f.Lifetime) continue;
                 Vector3 point = AnchorPosition(f.anchor);
                 SpacePose pose = AnchorPose(f.anchor);
                 Quaternion heading = SpaceTransform.FocusedMeshRotation(frame, pose.angle + f.angle);
                 Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, map, point, altitude);
+                if (f.style == CombatVisualStyle.Rail)
+                {
+                    DrawRailMuzzle(f, pos, heading, age, frame);
+                    continue;
+                }
+                float fade = age / (f.style == CombatVisualStyle.Kinetic ? 7f : 13f);
+                if (fade >= 1f) continue;
                 float pulse = 1f - fade * fade;
                 float length = f.size * (f.accelerator ? 1.1f : 2.4f) * pulse;
                 FxQuad(Fade(Glow(f.style), fade), pos, heading, length, f.size * 0.9f * pulse);
@@ -481,6 +546,16 @@ namespace DeltaV
                     if (!f.explosive) continue;
                 }
                 bool nativeFlash = f.nativeExplosion && map.uniqueID == f.anchor.mapId;
+                if (f.railStop && age < RailHeatLifetime)
+                {
+                    float heatFade = age / (float)RailHeatLifetime;
+                    float normalAngle = Mathf.Atan2(f.normal.y, f.normal.x) + AnchorPose(f.anchor).angle;
+                    Quaternion surface = SpaceTransform.FocusedMeshRotation(frame, normalAngle + Mathf.PI * 0.5f);
+                    FxQuad(Fade(impactFlashMaterials, heatFade), pos, surface, f.size * 1.4f, f.size * 0.65f);
+                    if (age < 7)
+                        FxQuad(Fade(coreMaterials, age / 7f), pos, surface, f.size * 1.25f, f.size * 0.55f);
+                    continue;
+                }
                 float fade = age / (f.explosive ? 19f : f.style == CombatVisualStyle.Energy ? 30f : 12f);
                 if (fade < 1f && !nativeFlash)
                 {
@@ -620,8 +695,17 @@ namespace DeltaV
             Vector3 tail = center - (spriteRotation * Vector3.forward) * length;
             EnsureCombatMaterials();
             MapOverlayRenderer.BeginQuadBatch();
-            FxLine(Glow(p.props.visualStyle)[0], tail, center, p.props.tracerWidth * 2.6f, frame);
-            FxLine(coreMaterials[0], tail, center, p.props.tracerWidth, frame);
+            float width = p.props.tracerWidth;
+            if (IsRailSlug(p.props))
+            {
+                Camera camera = Find.Camera;
+                if (camera != null)
+                    width = Mathf.Clamp(2f * camera.orthographicSize / Mathf.Max(1, camera.pixelHeight),
+                        width, 0.65f);
+                FxQuad(coreMaterials[0], center, spriteRotation, width * 2f, width * 4f);
+            }
+            FxLine(Glow(p.props.visualStyle)[0], tail, center, width * 2.6f, frame);
+            FxLine(coreMaterials[0], tail, center, width, frame);
             ShellLayer.Slot batch = layer.At(slot++);
             batch.layer.Emit(batch);
         }

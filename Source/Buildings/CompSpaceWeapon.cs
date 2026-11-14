@@ -224,13 +224,35 @@ namespace DeltaV
         {
             lastMagazineThingId = -1;
             cooldownUntilTick = 0;
+            committedCooldownTicks = 0;
             visualShotTick = -10000;
         }
 
         public int cooldownUntilTick;
+        private int committedCooldownTicks;
+        internal int CommittedCooldownTicks => committedCooldownTicks;
         internal int lastBeamTriggerTick = -1;
         public CompWeaponTuning Tuning => Component<CompWeaponTuning>();
-        public int ShotInterval => Tuning?.ShotInterval ?? WeaponProps.cooldownTicks;
+        public int ShotInterval
+        {
+            get
+            {
+                if (Tuning is { } tuning) return tuning.ShotInterval;
+                int baseline = WeaponProps.cooldownTicks;
+                if (WeaponProps.attachmentSlots.NullOrEmpty()) return baseline;
+                float multiplier = 1f;
+                foreach (var thing in Layout.attachments)
+                    if (thing.TryGetComp<CompSpaceWeaponAttachment>() is { Enabled: true } attachment)
+                        multiplier *= attachment.ShotIntervalMultiplier;
+                return multiplier == 1f ? baseline : Mathf.Max(1, Mathf.RoundToInt(baseline * multiplier));
+            }
+        }
+
+        internal void CommitCooldown(int tick, int interval)
+        {
+            committedCooldownTicks = interval;
+            cooldownUntilTick = tick + interval;
+        }
         public float ShotEnergy => WeaponProps.shotEnergy * (Tuning?.power ?? 1);
         public int CooldownTicksLeft => Tuning?.RemainingTicks ?? Mathf.Max(0, cooldownUntilTick - Find.TickManager.TicksGame);
 
@@ -525,6 +547,7 @@ namespace DeltaV
                 "alignmentConfigurationInitialized", true);
             Scribe_Values.Look(ref lastMagazineThingId, "lastMagazineThingId", -1);
             Scribe_Values.Look(ref cooldownUntilTick, "cooldownUntilTick", 0);
+            Scribe_Values.Look(ref committedCooldownTicks, "committedCooldownTicks", 0);
         }
 
         public CompSpaceWeaponMagazine SelectMagazine()

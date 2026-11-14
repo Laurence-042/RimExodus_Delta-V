@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_RailgunRapidReset.label>轨道炮快速复位模块</DeltaV_RailgunRapidReset.label>
+  <DeltaV_RailgunRapidReset.description>装在轨道炮装弹机上。每件启用的模块将下一次成功发射设定的射击间隔减半。单装为 17.5 秒，双装为 8.75 秒。每发仍按原规则消耗弹药和脉冲蓄电。</DeltaV_RailgunRapidReset.description>
+</LanguageData>

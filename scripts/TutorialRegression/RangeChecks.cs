@@ -51,8 +51,12 @@ internal static partial class Program
             var footprint=part.OccupiedRect();
             Check(footprint.Count()==3 && SpaceWeaponGeometry.FootprintCenter(part)==new Vector2(50.5f,50.5f),
                 "three-cell rail stays centered in every native rotation");
-            foreach(XmlNode slot in Def(definition.defName).SelectNodes("comps/li/attachmentSlots/li/cell"))
-                Check(footprint.Contains(SpaceWeaponGeometry.RotatedCell(part,IntVec3.FromString(slot.InnerText))),
+            var slots = Def(definition.defName).SelectNodes("comps/li/attachmentSlots/li/cell")
+                .Cast<XmlNode>().Select(slot=>IntVec3.FromString(slot.InnerText)).ToArray();
+            Check(slots.ToHashSet().SetEquals(new[] { new IntVec3(-1,0,0), new IntVec3(1,0,0) })
+                && slots.Length == 2, "rail part has exactly two side mounts and an open central rail");
+            foreach(var slot in slots)
+                Check(footprint.Contains(SpaceWeaponGeometry.RotatedCell(part,slot)),
                     "rotated rail attachment stays inside its host");
             if(definition==loader.def)
                 Check(!footprint.Contains(part.InteractionCell)
@@ -140,13 +144,7 @@ internal static partial class Program
 
     static void RangeLaserSightlines(Game game, XmlDocument platform, XmlDocument target, List<CompSpaceShield> shields)
     {
-        var layer=Raw<PlanetLayer>();
-        var tiles=AccessTools.Field(typeof(PlanetLayer),"tileIDToNeighbors_offsets");
-        object array=Activator.CreateInstance(tiles.FieldType);Set(array,"m_Length",1);tiles.SetValue(layer,array);
-        AccessTools.Field(typeof(OrbitSphere),"cachedWorld").SetValue(null,game.World);
-        AccessTools.Field(typeof(OrbitSphere),"cachedLayer").SetValue(null,layer);
-        ((Dictionary<PlanetLayer,float>)AccessTools.Field(typeof(OrbitSphere),"RadiusByLayer").GetValue(null))[layer]=100000;
-        ((Dictionary<PlanetLayer,float>)AccessTools.Field(typeof(OrbitSphere),"WorldPerCellByLayer").GetValue(null))[layer]=1;
+        InitializeOrbitFixture(game);
         Map MapFor(XmlDocument doc)
         {
             var map=Raw<Map>();map.info=new MapInfo {Size=ShipPocketMapFactory.CompactSize(IntVec2.FromString(doc.SelectSingleNode("/MapPrefab/prefab/size").InnerText))};return map;

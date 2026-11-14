@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_RailgunRapidReset</defName>
+    <label>railgun rapid reset module</label>
+    <description>Fits on a railgun loading unit. Each enabled module halves the interval set by the next successful shot. One module gives a 17.5-second interval, and two give an 8.75-second interval. Each shot still uses its full ammunition and pulse costs.</description>
+    <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li><li>Fabrication</li></researchPrerequisites>
+    <thingClass>Building</thingClass>
+    <passability>Standable</passability>
+    <size>(1,1)</size>
+    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
+    <designationCategory>Security</designationCategory>
+    <uiOrder>-189</uiOrder>
+    <altitudeLayer>BuildingOnTop</altitudeLayer>
+    <building><isEdifice>false</isEdifice></building>
+    <graphicData>
+      <texPath>Things/Building/SpaceWeapons/RailgunRapidReset</texPath>
+      <graphicClass>DeltaV.Graphic_SpaceWeaponAttachment</graphicClass>
+      <drawSize>(1,1)</drawSize>
+      <drawOffset>(0,-0.712,0)</drawOffset>
+    </graphicData>
+    <placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers>
+    <costList><Steel>80</Steel><Plasteel>30</Plasteel><ComponentIndustrial>4</ComponentIndustrial><ComponentSpacer>1</ComponentSpacer></costList>
+    <statBases><WorkToBuild>4000</WorkToBuild><MaxHitPoints>100</MaxHitPoints></statBases>
+    <comps>
+      <li Class="CompProperties_Forbiddable" />
+      <li Class="DeltaV.CompProperties_RailgunRapidReset">
+        <allowedHostDefs><li>DeltaV_Weapon_RailgunLoader</li></allowedHostDefs>
+      </li>
+    </comps>
+  </ThingDef>
+</Defs>

@@ -1,6 +1,7 @@
 """Compose menu and blueprint graphics from existing finished-building layers."""
 
 from pathlib import Path
+import sys
 
 from PIL import Image
 
@@ -46,6 +47,17 @@ def rail_icon(inner, output):
     icon.save(ART / f"{output}.png")
 
 
+def rail_loader_icon():
+    # Blueprint footprint is 3×2; the 3×1 shell is centered at the footprint's north edge.
+    width = 384
+    tile = width // 3
+    icon = Image.new("RGBA", (width, 2 * tile))
+    for name, top in (("RailgunLoader_Inner", tile // 2), ("RailgunLoader_Shell", 0)):
+        sprite = layer(name).resize((width, tile), Image.Resampling.LANCZOS)
+        icon.alpha_composite(sprite, (0, top))
+    icon.save(ART / "RailgunLoader_MenuIcon.png")
+
+
 def missile_blueprint():
     # World dimensions and offsets match the launcher Def, including its
     # 0.15-cell north overhang and the loaded projectile's separate center.
@@ -70,6 +82,9 @@ def missile_blueprint():
 
 
 if __name__ == "__main__":
+    rail_loader_icon()
+    if sys.argv[1:] == ["--rail-loader"]:
+        sys.exit(0)
     small_shield_icon()
     turret_icon("PointDefense_Base", "LaserTurret_Top", 1.2 / 1.3,
                 "PointDefense_MenuIcon")
@@ -81,6 +96,5 @@ if __name__ == "__main__":
                         ("Rapid", "RapidTurret_Top"),
                         ("Laser", "LaserTurret_Top")):
         turret_icon("Turret3_Base", top, 3.4 / 3.6, f"Turret3_{suffix}_MenuIcon")
-    rail_icon("RailgunLoader_Inner", "RailgunLoader_MenuIcon")
     rail_icon("RailgunAccelerator_Inner", "RailgunAccelerator_MenuIcon")
     missile_blueprint()

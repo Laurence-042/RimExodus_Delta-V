@@ -1,7 +1,21 @@
 param([Parameter(Mandatory=$true)][string]$GameRoot,
-      [Parameter(Mandatory=$true)][string]$HarmonyPath)
+      [Parameter(Mandatory=$true)][string]$HarmonyPath,
+      [string[]]$PrefabPath,
+      [switch]$RequireEnvironment,
+      [switch]$RequireRoofCoverage,
+      [float]$ExpectedTemperature,
+      [float]$ExpectedVacuum)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
+$contentArguments = @($PrefabPath | ForEach-Object { (Resolve-Path -LiteralPath $_).Path })
+if ($RequireEnvironment) { $contentArguments += '--require-environment' }
+if ($RequireRoofCoverage) { $contentArguments += '--require-roof-coverage' }
+if ($PSBoundParameters.ContainsKey('ExpectedTemperature')) {
+    $contentArguments += '--expected-temperature', $ExpectedTemperature.ToString([Globalization.CultureInfo]::InvariantCulture)
+}
+if ($PSBoundParameters.ContainsKey('ExpectedVacuum')) {
+    $contentArguments += '--expected-vacuum', $ExpectedVacuum.ToString([Globalization.CultureInfo]::InvariantCulture)
+}
 $managed = (Resolve-Path "$GameRoot/RimWorldWin64_Data/Managed").Path
 if (!(Test-Path -LiteralPath $HarmonyPath)) { throw 'Pass -HarmonyPath with a .NET 8 Harmony runtime DLL (Lib.Harmony/lib/net8.0/0Harmony.dll).' }
 $sdkVersion = Get-ChildItem "$env:ProgramFiles/dotnet/sdk" -Directory | Where-Object { $_.Name -match '^8\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
@@ -22,9 +36,10 @@ foreach ($name in @('AdaptiveStorageFramework', '1ITransformable')) {
 }
 foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'DeltaV.dll', 'RimExodus.Maps.dll', '0Harmony.dll')) { $lines += '/r:"' + "$out/$name" + '"' }
 $lines += '"' + "$PSScriptRoot/Program.cs" + '"'
+$lines += '"' + "$PSScriptRoot/PrefabContentValidation.cs" + '"'
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & dotnet "$($sdkVersion.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net8.0","framework":{"name":"Microsoft.NETCore.App","version":"8.0.0"}}}' | Set-Content -LiteralPath "$out/PrefabRegression.runtimeconfig.json"
-& dotnet "$out/PrefabRegression.dll" $managed
+& dotnet "$out/PrefabRegression.dll" $managed @contentArguments
 exit $LASTEXITCODE

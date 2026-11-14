@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -27,7 +28,13 @@ internal static class Program
             string path = Path.Combine(args[0], name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        try { Run(); Console.WriteLine($"PASS {checks} prefab checks (production DLL + vanilla Scribe)"); return 0; }
+        try
+        {
+            if (args.Length == 1) Run();
+            else RunContent(args.Skip(1).ToArray());
+            Console.WriteLine($"PASS {checks} prefab checks (production DLL + vanilla Scribe)");
+            return 0;
+        }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
         finally { Scribe.ForceStop(); }
     }
@@ -45,14 +52,47 @@ internal static class Program
     static List<Thing> Instantiate(List<MapPrefabThingEntry> entries) =>
         MapPrefabThingState.Instantiate(entries, "regression", null, true);
 
-    static void Run()
+    static void RunContent(string[] args)
+    {
+        bool requireEnvironment = false, requireRoofCoverage = false;
+        float? temperature = null, vacuum = null;
+        var paths = new List<string>();
+        for (int i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--require-environment": requireEnvironment = true; break;
+                case "--require-roof-coverage": requireRoofCoverage = true; break;
+                case "--expected-temperature": temperature = float.Parse(args[++i], CultureInfo.InvariantCulture); break;
+                case "--expected-vacuum": vacuum = float.Parse(args[++i], CultureInfo.InvariantCulture); break;
+                default:
+                    if (Directory.Exists(args[i]))
+                        paths.AddRange(Directory.GetFiles(args[i], "*.xml", SearchOption.AllDirectories));
+                    else if (File.Exists(args[i])) paths.Add(args[i]);
+                    else throw new ArgumentException("Prefab path does not exist: " + args[i]);
+                    break;
+            }
+        }
+        if (paths.Count == 0) throw new ArgumentException("Specify at least one prefab XML file or a directory containing prefab XML.");
+        var requirements = new PrefabEnvironmentRequirements(requireEnvironment, requireRoofCoverage, temperature, vacuum);
+        using var logLock = Log.LockMessages();
+        PrepareNativeFixture();
+        foreach (string path in paths.Select(Path.GetFullPath).Distinct().OrderBy(p => p))
+        {
+            var xml = new System.Xml.XmlDocument();
+            xml.Load(path);
+            PrefabContentValidation.Validate(xml, path, requirements, errors, Check);
+        }
+        NoErrors("prefab content");
+    }
+
+    static void PrepareNativeFixture()
     {
         // Redirect native log presentation; Scribe/identity logic remains unpatched.
         var harmony = new Harmony("DeltaV.PrefabRegression");
         foreach (string method in new[] { "Error", "Warning" })
             harmony.Patch(AccessTools.Method(typeof(Log), method, new[] { typeof(string) }),
                 prefix: new HarmonyMethod(typeof(Program), nameof(CaptureError)));
-        using var logLock = Log.LockMessages();
         DeepProfiler.enabled = false;
         var game = (Game)RuntimeHelpers.GetUninitializedObject(typeof(Game));
         game.uniqueIDsManager = new UniqueIDsManager();
@@ -64,7 +104,12 @@ internal static class Program
         pack.assemblies = new ModAssemblyHandler(pack);
         pack.assemblies.loadedAssemblies.Add(typeof(CompShipCombatAI).Assembly);
         LoadedModManager.RunningModsListForReading.Add(pack);
+    }
 
+    static void Run()
+    {
+        using var logLock = Log.LockMessages();
+        PrepareNativeFixture();
         // Def constructors preload shaders; only those rendering defaults are bypassed here.
         var gunDef = (ThingDef)RuntimeHelpers.GetUninitializedObject(typeof(ThingDef));
         gunDef.defName = "PrefabRegressionGun";

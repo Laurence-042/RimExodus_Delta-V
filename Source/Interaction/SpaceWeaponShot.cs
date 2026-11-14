@@ -307,7 +307,7 @@ namespace DeltaV
                 if (parameters.charge > 0) weapon.Component<CompSpaceWeaponMagazine>().ConsumePropellant(parameters.charge);
                 weapon.NotifyMagazineConsumed(magazine);
                 if (weapon.Tuning != null) weapon.Tuning.CommitShot(parameters.shotHeat, parameters.cycleTicks);
-                else weapon.cooldownUntilTick = Find.TickManager.TicksGame + weapon.WeaponProps.cooldownTicks;
+                else weapon.CommitCooldown(Find.TickManager.TicksGame, parameters.cycleTicks);
                 foreach (ThingComp comp in CapabilityComps())
                 {
                     if (comp is ISpaceWeaponFireCommit commit) commit.NotifyShotCommitted(this);

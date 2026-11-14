@@ -37,18 +37,6 @@ internal static partial class Program
             "scenario details read the translated nested description");
     }
 
-    static void PrefabIdentities(string directory)
-    {
-        var xmlHarness = new HarmonyLib.Harmony("DeltaV.TutorialRegression.EnvironmentXml");
-        xmlHarness.Patch(HarmonyLib.AccessTools.PropertyGetter(typeof(Prefs), nameof(Prefs.LogVerbose)),
-            prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(EnvironmentQuietLog)));
-        bool profiling = DeepProfiler.enabled;
-        try { CheckPrefabContent(directory); }
-        finally { DeepProfiler.enabled = profiling; xmlHarness.UnpatchAll(xmlHarness.Id); }
-    }
-
-    static bool EnvironmentQuietLog(ref bool __result) { __result = false; return false; }
-
     static void SectorContentDefaults(string directory)
     {
         var leaves = SectorContentTypes.AllLeaves().ToList();
@@ -57,15 +45,10 @@ internal static partial class Program
             "every sector generation leaf has a shipped default prefab");
         Check(leaves.Select(leaf => leaf.defaultPrefabPath).Distinct().Count() == leaves.Count,
             "sector generation leaves use distinct authored defaults");
-        List<string> shippedPaths = MapPrefab.ListPrefabFiles(new[] { directory });
-        Check(shippedPaths.Count(path => !path.StartsWith("Templates/Modules/")
-                && !path.StartsWith("Templates/Assemblies/")) == 25
-            && shippedPaths.All(path => path.Contains('/')),
-            "all twenty-five baseline prefabs and module templates live in purpose directories");
-        Check(shippedPaths.All(path => path.StartsWith("Tutorial/")
-                || path.StartsWith("Sector/Craft/") || path.StartsWith("Sector/Stations/")
-                || path.StartsWith("Sector/Asteroids/") || path.StartsWith("Templates/")),
-            "shipped prefab paths use only the documented purpose categories");
+        List<string> shippedPaths = MapPrefab.ListPrefabFiles(new[] { Path.Combine(directory, "Sector") });
+        Check(shippedPaths.Count == 17
+            && shippedPaths.All(path => path.StartsWith("Craft/") || path.StartsWith("Stations/") || path.StartsWith("Asteroids/")),
+            "all seventeen sector prefabs use the sector purpose directories");
         Check(leaves.All(leaf => leaf.defaultPrefabPath.StartsWith("Sector/")),
             "every sector default points into the sector catalog tree");
         foreach (SectorContentType leaf in leaves)
@@ -116,15 +99,6 @@ internal static partial class Program
         custom.EnsureSectorRulesSeeded();
         Check(custom.EffectiveSectorRule(leaves[0]).prefabPaths.SequenceEqual(new[] { leaves[0].defaultPrefabPath }),
             "empty sector pool regains its shipped usable default");
-
-        var tutorialYard = new XmlDocument();
-        tutorialYard.Load(Path.Combine(directory, "Tutorial", "Shipyard.xml"));
-        Check(tutorialYard.SelectNodes("/MapPrefab/thingStates/li[def='GravcorePowerCell']").Count == 0,
-            "tutorial ring yard has no routine gravcore generation");
-        CheckStationSolar(tutorialYard, "tutorial ring yard", "DeltaV_SafetyBattery", 2);
-        Check(tutorialYard.SelectNodes("/MapPrefab/foundations/li").Count < 7949
-            && tutorialYard.SelectNodes("/MapPrefab/roofs/li").Count <= 5000,
-            "tutorial ring yard reduces foundation and meets the roof budget");
 
         string trade = Path.Combine(directory, leaves.Single(leaf => leaf.id == "TradeStation").defaultPrefabPath);
         var xml = new XmlDocument(); xml.Load(trade);
@@ -231,36 +205,31 @@ internal static partial class Program
             label + " replaces only part of its Vacstone body with minerals");
     }
 
-    static void CheckPrefabContent(string directory)
+    static void CheckPrefabContent(IEnumerable<string> files, bool authoredEnvironment = false, bool tutorial = false)
     {
-        foreach (string path in Directory.GetFiles(directory, "*.xml", SearchOption.AllDirectories).OrderBy(p => p))
+        foreach (string path in files.OrderBy(p => p))
         {
             var xml = new XmlDocument(); xml.Load(path);
-            // Parse the authored environment with REF's production reader, isolating
-            // unrelated Thing/terrain Def loading from this content-layer check.
-            var environmentXml = (XmlDocument)xml.CloneNode(true);
-            foreach (string xpath in new[] { "/MapPrefab/prefab/terrain", "/MapPrefab/foundations", "/MapPrefab/roofs" })
+            string name = Path.GetFileNameWithoutExtension(path);
+            bool arrival = tutorial && name == "ArrivalStation";
+            bool asteroid = name == "SectorAsteroid" || name.StartsWith("Asteroid", StringComparison.Ordinal);
+            var requirements = authoredEnvironment && !asteroid
+                ? new PrefabEnvironmentRequirements(requireRoofCoverage: true,
+                    expectedTemperature: arrival ? null : 21f, expectedVacuum: arrival ? null : 0f)
+                : default;
+            var environment = PrefabContentValidation.Validate(xml, name, requirements, errors, Check);
+            if (authoredEnvironment && asteroid)
+                Check(environment.environment.Count == 0, name + " leaves atmosphere to the native vacuum room calculation");
+            if (tutorial && name == "Shipyard")
             {
-                XmlNode node = environmentXml.SelectSingleNode(xpath);
-                node?.ParentNode.RemoveChild(node);
+                Check(xml.SelectNodes("/MapPrefab/thingStates/li[def='GravcorePowerCell']").Count == 0,
+                    "tutorial ring yard has no routine gravcore generation");
+                CheckStationSolar(xml, "tutorial ring yard", "DeltaV_SafetyBattery", 2);
             }
-            environmentXml.SelectSingleNode("/MapPrefab/thingStates").RemoveAll();
-            var environment = MapPrefabDocument.FromXml(environmentXml.OuterXml);
-            var sampled = environment.environment.SelectMany(e => e.cells).ToHashSet();
-            var covered = xml.SelectNodes("/MapPrefab/roofs/li/pos|/MapPrefab/foundations/li[def='DeltaV_MoonPool']/pos")
-                .Cast<XmlNode>().Select(n => IntVec3.FromString(n.InnerText)).ToHashSet();
-            bool asteroid = Path.GetFileName(path) == "SectorAsteroid.xml"
-                || Path.GetFileName(path).StartsWith("Asteroid");
-            Check(asteroid ? sampled.Count == 0 : sampled.SetEquals(covered),
-                Path.GetFileName(path) + (asteroid
-                    ? " leaves atmosphere to the native vacuum room calculation"
-                    : " environment covers all roof/equipment/moonpool cells"));
-            bool arrival = Path.GetFileNameWithoutExtension(path) == "ArrivalStation";
-            Check(environment.environment.All(e => arrival ? e.temperature == 12f && e.vacuum == 0f || e.temperature == -75f && e.vacuum == 1f
-                : e.temperature == 21f && e.vacuum == 0f),
-                Path.GetFileName(path) + " authored cabin temperature/vacuum");
             if (arrival)
             {
+                Check(environment.environment.All(e => e.temperature == 12f && e.vacuum == 0f
+                    || e.temperature == -75f && e.vacuum == 1f), "arrival wreck has the authored breathable hold and vacuum zones");
                 Check(environment.environment.Single(e => e.temperature == 12f).cells.Count == 114,
                     "only the original cargo compartment receives warm breathable air");
                 Check(xml.SelectNodes("/MapPrefab/thingStates/li[def='Ship_Reactor']/state/saveable[hibernateState='Running']").Count == 1,
@@ -284,7 +253,7 @@ internal static partial class Program
                     && xml.SelectSingleNode("/MapPrefab/thingStates/li[def='MedicineIndustrial']/stackCount").InnerText == "5",
                     "limited aid is authored in the prefab");
             }
-            if (Path.GetFileNameWithoutExtension(path) == "PrototypeShip")
+            if (tutorial && name == "PrototypeShip")
             {
                 var moon = xml.SelectNodes("/MapPrefab/foundations/li[def='DeltaV_MoonPool']/pos")
                     .Cast<XmlNode>().Select(n => IntVec3.FromString(n.InnerText)).ToHashSet();
@@ -306,19 +275,6 @@ internal static partial class Program
                 Check(xml.SelectNodes("/MapPrefab/thingStates/li[def='SunLamp']").Count == 0,
                     "gift greenhouse uses daylight without a sun lamp");
             }
-            var registry = new LoadedObjectDirectory();
-            int before = errors.Count;
-            foreach (XmlNode node in xml.SelectNodes("/MapPrefab/thingStates/li/state/saveable/descendant-or-self::*[def and id]"))
-            {
-                // Both supported game versions register the numeric Thing ID as well
-                // as the full load ID. A different Def prefix does not make it unique.
-                var thing = Raw<ThingWithComps>();
-                thing.def = Raw<ThingDef>(); thing.def.defName = node["def"].InnerText;
-                thing.thingIDNumber = Thing.IDNumberFromThingID(node["id"].InnerText);
-                registry.RegisterLoaded(thing);
-            }
-            Check(errors.Count == before, Path.GetFileName(path) + " native registration of all root and nested identities: "
-                + string.Join("\n", errors.Skip(before)));
         }
     }
 

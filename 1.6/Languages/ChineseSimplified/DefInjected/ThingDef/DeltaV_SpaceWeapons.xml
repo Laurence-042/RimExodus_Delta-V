@@ -21,7 +21,7 @@
   <DeltaV_Missile_HE.label>高爆舰载导弹</DeltaV_Missile_HE.label>
   <DeltaV_Missile_HE.description>带高爆战斗部的制导舰载导弹。可装入导弹发射架或储存在附加导弹仓中。</DeltaV_Missile_HE.description>
   <DeltaV_Weapon_RailgunLoader.label>轨道炮装弹机</DeltaV_Weapon_RailgunLoader.label>
-  <DeltaV_Weapon_RailgunLoader.description>沿固定炮口方向发射的轨道炮，自带火控。每发消耗弹头和 675 W·d 蓄电，射击间隔 35 秒。前方串联的加速段可提高弹速、穿深和破盾能力，电量不足的段会跳过。斜入射动能线盾易使长杆弹芯翻滚或碎裂，碎片失去深层贯穿能力。唯一的插件槽可安装铀制附加弹仓或轨道炮电容。电容足够一发时优先供电，否则从电网蓄电池取电；加速段耗电另计。</DeltaV_Weapon_RailgunLoader.description>
+  <DeltaV_Weapon_RailgunLoader.description>沿固定炮口方向发射的轨道炮，自带火控。每发消耗弹头和 675 W·d 基础脉冲蓄电。串联的加速段可提高弹速、穿深和破盾能力，欠费段会跳过。斜入射动能线盾可使弹芯翻滚或碎裂。两个插件槽均可安装铀制附加弹仓、轨道炮电容或快速复位模块。充满的电容可支付一次基础脉冲。基础射击间隔为 35 秒，每件启用的复位模块使间隔减半。</DeltaV_Weapon_RailgunLoader.description>
   <DeltaV_Weapon_RailgunAccelerator.label>轨道炮加速段</DeltaV_Weapon_RailgunAccelerator.label>
   <DeltaV_Weapon_RailgunAccelerator.description>串联在轨道炮前方，每发消耗 675 W·d 并注入固定动能，提高弹速与穿深；欠费段会跳过。两侧可安装电容或能量回收插件。双满电电容可支付两次本段加速；双回收插件使本段耗能减半。</DeltaV_Weapon_RailgunAccelerator.description>
   <DeltaV_Building_AutoAimPluginI.label>自动瞄准插件 I</DeltaV_Building_AutoAimPluginI.label>

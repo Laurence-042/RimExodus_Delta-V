@@ -39,7 +39,7 @@ internal static partial class Program
             string path = Path.Combine(args[0], name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        try { Run(args.Contains("--energy-only")); Console.WriteLine($"PASS {checks} railgun checks");
+        try { Run(args.Contains("--energy-only"), args.Contains("--rapid-reset-only")); Console.WriteLine($"PASS {checks} railgun checks");
             if(args.Contains("--energy-impulse-audit")) RunEnergyImpulsePenetrationAudit();
             else if(args.Contains("--role-penetration-audit")) RunRolePenetrationAudit(); return 0; }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
@@ -134,13 +134,15 @@ internal static partial class Program
     static float RemainingBudget(SpaceCollision.SweptBody shot) =>
         SpaceImpactEffects.ComputeDamage(SpaceImpactEffects.Resolve(shot.projectileDef, null).defenderEffect,
             shot.attacker.pose.velocity.magnitude, 0f, 1f, shot.mass) * shot.damageScale;
-    static void Run(bool energyOnly)
+    static void Run(bool energyOnly, bool rapidResetOnly)
     {
         using var logs = Log.LockMessages(); DeepProfiler.enabled = false;
         var harmony = new Harmony("DeltaV.RailgunRegression");
         harmony.Patch(typeof(ModsConfig).TypeInitializer,
             prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
         harmony.Patch(typeof(CompProjectileInterceptor).TypeInitializer,
+            prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
+        harmony.Patch(typeof(CompRefuelable).TypeInitializer,
             prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
         harmony.Patch(AccessTools.PropertyGetter(typeof(CompProjectileInterceptor), "Active"),
             prefix: new HarmonyMethod(typeof(Program), nameof(ShieldActive)));
@@ -203,7 +205,8 @@ internal static partial class Program
         { CheckEngagementProtectionBaseline(); return; }
         if (Environment.GetCommandLineArgs().Contains("--casemate-only")) { CheckCasemate(); return; }
         if (Environment.GetCommandLineArgs().Contains("--cargo-lifecycle-only")) { CheckCargoLifecycle(); return; }
-        if (energyOnly) { CheckEnergy(); CheckBatteryIsolation(); CheckShipReactor(); CheckCargoTemperature(); CheckEquipmentIntegration(); return; }
+        if (rapidResetOnly) { CheckRapidReset(); return; }
+        if (energyOnly) { CheckEnergy(); CheckRapidReset(); CheckBatteryIsolation(); CheckShipReactor(); CheckCargoTemperature(); CheckEquipmentIntegration(); return; }
 
         CheckGuardCenters();
 
@@ -487,6 +490,7 @@ internal static partial class Program
         CheckDualGuard(harmony);
         CheckContinuousBeam(coupler, engineering);
         CheckEnergy();
+        CheckRapidReset();
         CheckBatteryIsolation();
         CheckShipReactor();
         CheckRailgunLengthBaseline();
@@ -712,7 +716,204 @@ internal static partial class Program
     sealed class FailedLaunch : ThingComp, ISpaceWeaponLaunch
     {
         internal int calls;
-        public bool TryLaunch(SpaceWeaponShot shot) { calls++; return false; }
+        internal bool succeeds;
+        public bool TryLaunch(SpaceWeaponShot shot) { calls++; return succeeds; }
+    }
+
+    static void CheckRapidReset()
+    {
+        Reset();
+        var loader = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml").Root.Elements("ThingDef")
+            .Single(d => (string)d.Element("defName") == "DeltaV_Weapon_RailgunLoader");
+        var wp = loader.Element("comps").Elements("li")
+            .Single(c => (string)c.Attribute("Class") == "DeltaV.CompProperties_SpaceWeapon");
+        var moduleDef = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_RailgunRapidReset.xml").Root.Element("ThingDef");
+        Check(wp.Element("allowedAttachmentDefs").Elements("li").Any(d => d.Value == (string)moduleDef.Element("defName"))
+            && moduleDef.Descendants("allowedHostDefs").Single().Elements("li").Single().Value == (string)loader.Element("defName"),
+            "rapid reset is accepted only by the loading unit");
+        var slots = wp.Element("attachmentSlots").Elements("li")
+            .Select(s => IntVec3.FromString((string)s.Element("cell"))).ToArray();
+        Check(slots.Length == 2 && slots.ToHashSet().SetEquals(new[] { new IntVec3(-1, 0, 0), new IntVec3(1, 0, 0) }),
+            "loader reserves both side cells for plugins");
+        var loaderBuilding = new Building { def = MakeDef((string)loader.Element("defName")) };
+        loaderBuilding.def.size = ParseHelper.FromString<IntVec2>((string)loader.Element("size"));
+        loaderBuilding.def.hasInteractionCell = true;
+        loaderBuilding.def.interactionCellOffset = IntVec3.FromString((string)loader.Element("interactionCellOffset"));
+        Set(loaderBuilding, "mapIndexOrState", (sbyte)-1);
+        Set(loaderBuilding, "positionInt", new IntVec3(10, 0, 10));
+        foreach (var rotation in new[] { Rot4.North, Rot4.East, Rot4.South, Rot4.West })
+        {
+            Set(loaderBuilding, "rotationInt", rotation);
+            var footprint = loaderBuilding.OccupiedRect();
+            Check(slots.All(slot => footprint.Contains(SpaceWeaponGeometry.RotatedCell(loaderBuilding, slot)))
+                && !footprint.Contains(loaderBuilding.InteractionCell)
+                && loaderBuilding.InteractionCell == SpaceWeaponGeometry.RotatedCell(loaderBuilding, new IntVec3(-1, 0, -1)),
+                $"both slots and the operator stay aligned with the native layout in {rotation}");
+        }
+        var props = new CompProperties_SpaceWeapon
+        {
+            cooldownTicks = (int)wp.Element("cooldownTicks"), muzzleFlashSize = (float)wp.Element("muzzleFlashSize"),
+            projectileDef = rail, launchKineticEnergy = (float)wp.Element("launchKineticEnergy"),
+            shotEnergy = (float)wp.Element("shotEnergy"), intrinsicAimSkill = 10,
+            attachmentSlots = new List<SpaceWeaponAttachmentSlot> { new(), new() }
+        };
+        var railProps = rail.GetCompProperties<CompProperties_SpaceProjectile>();
+        railProps.visualStyle = CombatVisualStyle.Rail;
+        railProps.shieldTumbleDef = fragment;
+        var battery = new CompPowerBattery();
+        var net = (PowerNet)Raw(typeof(PowerNet));
+        net.batteryComps = new List<CompPowerBattery> { battery };
+        var power = new CompPowerTrader { transNet = net };
+        Set(power, "powerOnInt", true);
+        var weapon = new CompSpaceWeapon { props = props, safeFire = false, manualFireDeviationDeg = 180 };
+        var launch = new FailedLaunch();
+        var magazineDef = loader.Descendants("li").Single(c =>
+            (string)c.Attribute("Class") == "DeltaV.CompProperties_SpaceWeaponMagazine");
+        int headsPerShot = (int)magazineDef.Element("ammoPerShot");
+        var magazine = new CompSpaceWeaponMagazine
+            { props = new CompProperties_SpaceWeaponMagazine { ammoPerShot = headsPerShot } };
+        var heads = new CompGunSupply
+            { props = new CompProperties_GunSupply { kind = GunSupplyKind.Heads, fuelCapacity = 300 } };
+        Set(heads, "fuel", 4f * headsPerShot);
+        Add(5, 5, 500, power, weapon, launch, magazine, heads);
+        var console = new CompDeltaVPilotConsole { isMain = true, shipId = 101 };
+        console.combat.weaponsArmed = true;
+        Add(4, 5, 500, console);
+        var ship = new FoundationShip(new Ship(console.shipId, map, console));
+        hull.members.Add(ship);
+        // Stub ownership discovery only. Readiness, aiming, shot preparation and commit are production paths.
+        Set(weapon, "cachedOwner", ship);
+        Set(weapon, "ownerMap", map);
+        Set(weapon, "ownerPosition", weapon.parent.Position);
+        Set(weapon, "ownerRotation", weapon.parent.Rotation);
+        Set(weapon, "ownerVersion", SubstructureOwnership.StructureVersion(map));
+        Set(weapon, "ownerCacheValid", true);
+        Set(weapon, "ownerWasValid", true);
+        var attachments = weapon.Layout.attachments;
+        var first = new CompRailgunRapidReset { props = new CompProperties_RailgunRapidReset() };
+        var second = new CompRailgunRapidReset { props = new CompProperties_RailgunRapidReset() };
+        var a = Add(7, 5, 100, first);
+        var b = Add(8, 5, 100, second);
+        Set(first, "enabled", true);
+        Set(second, "enabled", true);
+        Check(weapon.ShotInterval == 2100, "bare railgun interval is 2100 ticks");
+        attachments.Add(a);
+        Check(weapon.ShotInterval == 1050, "one enabled rapid reset halves the interval");
+        var cap = new CompSpaceWeaponCapacitor { props = new CompProperties_SpaceWeaponCapacitor() };
+        var capBattery = new CompSwitchableBattery
+            { props = new CompProperties_SwitchableBattery { storedEnergyMax = props.shotEnergy } };
+        Set(capBattery, "storedEnergy", props.shotEnergy);
+        var capBuilding = Add(9, 5, 100, cap, capBattery);
+        Set(cap, "enabled", true);
+        attachments.Add(capBuilding);
+        Check(weapon.ShotInterval == 1050, "rapid reset and capacitor can share the loader without an extra interval bonus");
+        attachments.Remove(capBuilding);
+        attachments.Add(b);
+        Check(weapon.ShotInterval == 525, "two enabled modules multiply to quarter interval");
+        var flashes = (IList)AccessTools.Field(typeof(SpaceProjectileService), "muzzleFlashes").GetValue(universe.Projectiles);
+        flashes.Clear();
+        var request = new WeaponControlCommand(new Vector2(20, 5), true);
+        int tick = Find.TickManager.TicksGame;
+        Set(battery, "storedEnergy", props.shotEnergy - 1);
+        Check(!universe.Weapons.ApplyControl(weapon, hull, request) && launch.calls == 0 && flashes.Count == 0,
+            "an unfunded loader neither launches nor flashes");
+        Set(battery, "storedEnergy", props.shotEnergy);
+        Check(!universe.Weapons.ApplyControl(weapon, hull, request) && weapon.CommittedCooldownTicks == 0
+            && flashes.Count == 0 && battery.StoredEnergy == props.shotEnergy && magazine.HeadCount == 4 * headsPerShot,
+            "failed launch starts no cooldown, flash, energy or ammunition debit");
+        launch.succeeds = true;
+
+        var stageProps = new CompProperties_SpaceRailgun { shotEnergy = props.shotEnergy, kineticEnergyBonus = 112500 };
+        var stageNet = (PowerNet)Raw(typeof(PowerNet));
+        var stageBattery = new CompPowerBattery();
+        Set(stageBattery, "storedEnergy", 2 * props.shotEnergy);
+        stageNet.batteryComps = new List<CompPowerBattery> { stageBattery };
+        for (int i = 0; i < 3; i++)
+        {
+            var stage = new CompSpaceRailgun { props = stageProps };
+            var stagePower = new CompPowerTrader { transNet = i == 1 ? net : stageNet };
+            Set(stagePower, "powerOnInt", true);
+            Add(5, 6 + i, 100, stagePower, stage);
+            weapon.Layout.acceleration.segments.Add(stage);
+            weapon.Layout.segmentAttachments.Add(stage, new List<ThingWithComps>());
+        }
+        Check(universe.Weapons.ApplyControl(weapon, hull, request) && weapon.CooldownTicksLeft == 525
+            && battery.StoredEnergy == 0 && stageBattery.StoredEnergy == 0 && flashes.Count == 3
+            && magazine.HeadCount == 3 * headsPerShot,
+            "successful shot commits unchanged energy and ammunition debits and flashes only the muzzle and the two funded stages");
+        var delay = AccessTools.Field(flashes[0].GetType(), "delayTicks");
+        Check((int)delay.GetValue(flashes[0]) == 0 && (int)delay.GetValue(flashes[1]) == 0
+            && (int)delay.GetValue(flashes[2]) > 0, "the real muzzle flashes immediately and paid stages ripple in chain order");
+        Set(second, "enabled", false);
+        Check(weapon.ShotInterval == 1050 && weapon.CommittedCooldownTicks == 525,
+            "switching off a module does not rewrite the committed interval");
+        attachments.Remove(a);
+        Check(weapon.ShotInterval == 2100 && weapon.CooldownTicksLeft == 525,
+            "removing a module does not move the cooldown deadline");
+        string save = Path.GetTempFileName();
+        try
+        {
+            Set(Find.TickManager, "ticksGameInt", tick + 123);
+            Scribe.saver.InitSaving(save, "weapon");
+            weapon.PostExposeData();
+            Scribe.saver.FinalizeSaving();
+            var restored = new CompSpaceWeapon { props = props, parent = weapon.parent };
+            Scribe.loader.InitLoading(save);
+            restored.PostExposeData();
+            Scribe.loader.FinalizeLoading();
+            Check(restored.CooldownTicksLeft == 402 && restored.CommittedCooldownTicks == 525,
+                "native Scribe restores both the deadline and the interval used by the progress bar");
+        }
+        finally { Scribe.ForceStop(); File.Delete(save); }
+        Set(Find.TickManager, "ticksGameInt", tick + 524);
+        Set(battery, "storedEnergy", props.shotEnergy);
+        Check(!universe.Weapons.ApplyControl(weapon, hull, request) && weapon.CooldownTicksLeft == 1,
+            "second shot is refused one tick before the deadline");
+        Set(Find.TickManager, "ticksGameInt", tick + 525);
+        Check(universe.Weapons.ApplyControl(weapon, hull, request) && weapon.CooldownTicksLeft == 2100,
+            "shot at the deadline uses the currently enabled loadout");
+        var secondCap = new CompSpaceWeaponCapacitor { props = new CompProperties_SpaceWeaponCapacitor() };
+        var secondCapBattery = new CompSwitchableBattery
+            { props = new CompProperties_SwitchableBattery { storedEnergyMax = props.shotEnergy } };
+        Set(secondCapBattery, "storedEnergy", props.shotEnergy);
+        Set(secondCap, "enabled", true);
+        attachments.Add(capBuilding);
+        attachments.Add(Add(10, 5, 100, secondCap, secondCapBattery));
+        var reserves = new SpaceWeaponEnergy();
+        for (int pulse = 1; pulse <= 2; pulse++)
+        {
+            Check(reserves.Evaluate(weapon, includeSegments: false), $"dual capacitors fund local pulse {pulse}");
+            reserves.Commit();
+            Check(capBattery.StoredEnergy + secondCapBattery.StoredEnergy == (2 - pulse) * props.shotEnergy,
+                "each base pulse consumes exactly one local reserve");
+        }
+        Check(!reserves.Evaluate(weapon, includeSegments: false), "empty dual capacitors cannot fund a third base pulse");
+        attachments.Clear();
+        attachments.Add(a);
+        Set(battery, "storedEnergy", props.shotEnergy);
+        Set(Find.TickManager, "ticksGameInt", tick + 2624);
+        Check(!universe.Weapons.ApplyControl(weapon, hull, request) && weapon.CooldownTicksLeft == 1,
+            "a bare shot waits the full 2100 ticks even if a module is installed during cooldown");
+        Set(Find.TickManager, "ticksGameInt", tick + 2625);
+        Check(universe.Weapons.ApplyControl(weapon, hull, request) && weapon.CooldownTicksLeft == 1050
+            && weapon.CommittedCooldownTicks == 1050 && magazine.HeadCount == headsPerShot,
+            "a single-module shot at the deadline commits a 1050-tick interval and consumes one full round");
+
+        var hit = new SpaceCollision.VisualContact { projectileDef = rail };
+        Check(SpaceProjectileService.IsRailStop(hit), "intact rail slug stopped by the hull gets the dedicated hot spot");
+        hit.penetrated = true;
+        Check(!SpaceProjectileService.IsRailStop(hit), "continued penetration does not get a stop hot spot");
+        hit.penetrated = false;
+        hit.shieldMode = SpaceShieldMode.Guard;
+        Check(!SpaceProjectileService.IsRailStop(hit), "shield contact keeps the shield effect");
+        hit.shieldMode = null;
+        hit.projectileDef = fragment;
+        fragment.GetCompProperties<CompProperties_SpaceProjectile>().visualStyle = CombatVisualStyle.Rail;
+        Check(!SpaceProjectileService.IsRailStop(hit), "rail fragments keep the small impact effects");
+        Set(Find.TickManager, "ticksGameInt", tick);
+        railProps.shieldTumbleDef = null;
+        railProps.visualStyle = default;
+        fragment.GetCompProperties<CompProperties_SpaceProjectile>().visualStyle = default;
     }
     static int storedEnergyReads;
     static float cargoOutdoor;

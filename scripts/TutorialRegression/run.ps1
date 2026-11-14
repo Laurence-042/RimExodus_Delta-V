@@ -3,6 +3,7 @@ param(
     [ValidateSet('1.6','1.7')][string]$Version = '1.6',
     [Parameter(Mandatory=$true)][string]$HarmonyPath,
     [switch]$RangeOnly,
+    [switch]$SectorOnly,
     [switch]$ShipyardOnly,
     [switch]$ModulesOnly,
     [switch]$CompileOnly,
@@ -59,6 +60,7 @@ $lines += '"' + "$PSScriptRoot/Program.cs" + '"'
 $lines += '"' + "$PSScriptRoot/ShipyardChecks.cs" + '"'
 $lines += '"' + "$PSScriptRoot/ShipSearchChecks.cs" + '"'
 $lines += '"' + "$PSScriptRoot/PrefabContentChecks.cs" + '"'
+$lines += '"' + "$repo/scripts/PrefabRegression/PrefabContentValidation.cs" + '"'
 $lines += '"' + "$PSScriptRoot/ArrivalChecks.cs" + '"'
 $lines += '"' + "$PSScriptRoot/MissionChecks.cs" + '"'
 $lines += '"' + "$PSScriptRoot/RangeChecks.cs" + '"'
@@ -69,6 +71,6 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($CompileOnly) { exit 0 }
 [string[]]$extra = if ($ShipSearchDirectory) {
     @('ship-search', (Resolve-Path -LiteralPath $ShipSearchDirectory).Path)
-} elseif ($ModulesOnly) { @('modules') } elseif ($RangeOnly) { @('range') } elseif ($ShipyardOnly) { @('shipyard') } else { @() }
+} elseif ($ModulesOnly) { @('modules') } elseif ($RangeOnly) { @('range') } elseif ($SectorOnly) { @('sector') } elseif ($ShipyardOnly) { @('shipyard') } else { @() }
 & $dotnet "$out/TutorialRegression.dll" $managed "$repo/Source/obj/TutorialContent/ArrivalStation.records.json" "$repo/Common/Prefabs/Tutorial/ArrivalStation.xml" "$repo/Common/Prefabs" @extra
 exit $LASTEXITCODE

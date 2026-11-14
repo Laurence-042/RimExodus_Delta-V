@@ -14,9 +14,25 @@
 
 `GuardShieldRegression/GuardShieldRegression.csproj` 直接编译生产护盾贴图裁剪算法，对拍随机覆盖、UV 范围与退化几何，并输出离线预览数据及重建耗时；运行和验证边界见[守卫盾裁剪检查](GuardShieldRegression/README.md)。
 
-`TutorialRegression/run.ps1` 现含 `MissionChecks.cs`：分级条件、货运押金／期限、逐人结果、原版宾客身份／财富过滤、手术真实信号与直接外交去重、合同 Scribe、敌舰主台／归档及 Harmony 签名。它还扫描全部 12 个星区叶子的默认 prefab，核对文件覆盖、format-2 内容、默认池播种不覆盖自定义值，以及贸易终端对锁定供货仓／解锁取货仓的 Scribe 引用；小行星带另核对核心唯一 cluster 标记、五份正权重子资源、生产 Scribe 读回、原生 Vacstone 地形与薄岩顶、部分矿产覆盖、无人工环境及子体无递归标记。`NpcRetreatRegression -GlobeOnly` 增加多委托目标隔离。离线运行需传 `-HarmonyPath <Lib.Harmony/lib/net8.0/0Harmony.dll>`，不能使用游戏 Mono 版；复现命令与游戏内清单见[太空任务系统](../doc/太空任务系统.md#验证与复现)。
+`TutorialRegression/run.ps1` 默认检查教程使用的 prefab、教学流程及委托接线。`-SectorOnly` 独立检查星区资源、12 个叶子类型的默认池、实装舰船和站点几何、电网、维生及泊位。用 `-Version 1.6` 或 `-Version 1.7` 选择环境，并通过 `-HarmonyPath` 传入对应的 Lib.Harmony .NET 运行时 DLL。
 
-`TutorialRegression/run.ps1 -RangeOnly` 检查武器试验平台／靶舰的原版占地、操作格、电网和屋顶支撑、三段轨道链与自瞄槽位、真实武器／终端 Scribe、全部内置 prefab 的原版数字 ID 注册、船厂／试验平台炮塔与嵌套枪械／Verb 的完整重复加载、六种护盾预设不补库存、射界／设置门禁与可直接跳过的课程阶段。仅隔离 Unity 图形静态初始化及夹具的归属登记／设施存在边界；不代替游戏交互和实弹验收。布局编辑 `TutorialContent/combat_range_layout.py`，通过共用 `build.py --only WeaponRange ShieldTarget` 生成。
+`TutorialRegression/run.ps1 -RangeOnly` 只读取试验平台与靶舰 prefab，检查本地占地、操作格、电网、轨道链、自瞄槽位、嵌套枪械、原版数字 ID、武器／终端 Scribe、护盾预设、射界和可选课程状态。脚本读取 `Source/obj/TutorialContent/` 下的同源布局记录。正式布局由 `TutorialContent/build.py --only WeaponRange ShieldTarget` 生成。
+
+`PrefabRegression/run.ps1` 默认执行原有 Scribe 回归。用 `-PrefabPath` 传一个或多个文件或目录即可检查指定 prefab，目录内递归读取 XML。默认验证 REF 环境数据及原版数字 ID。可独立组合以下要求。
+
+| 参数 | 检查 |
+| --- | --- |
+| `-RequireEnvironment` | 至少存在一组环境采样 |
+| `-RequireRoofCoverage` | 采样格与屋顶及月池格集合一致 |
+| `-ExpectedTemperature 21` | 已有的每组采样温度等于 21°C |
+| `-ExpectedVacuum 0` | 已有的每组采样真空度等于 0 |
+
+```powershell
+$game = 'D:/SteamLibrary/steamapps/common/RimWorld_1.6'
+$harmony = '<Lib.Harmony/lib/net8.0/0Harmony.dll>'
+& scripts/PrefabRegression/run.ps1 -GameRoot $game -HarmonyPath $harmony -PrefabPath Common/Prefabs/Special
+& scripts/PrefabRegression/run.ps1 -GameRoot $game -HarmonyPath $harmony -PrefabPath Common/Prefabs/Tutorial/PrototypeShip.xml -RequireEnvironment -RequireRoofCoverage -ExpectedTemperature 21 -ExpectedVacuum 0
+```
 
 教程内容由 [`TutorialContent/build.py`](TutorialContent/README.md) 生成正式 prefab 与同源布局图；`TutorialRegression/run.ps1` 使用 1.6 实际程序集验证占地／四向、地形承载、单侧气闸通道、操作格、电网、课程存档与信号边界、八座船用休眠舱／货架实例化、原版通讯接线、出生图重力范围与位姿存取、六推进器侧移力矩补偿／原版排气区、理论课阶段与推力证据、公共设施权限／原版搬运选址／关系扣减及资源路径，不替代新档游戏内验收。
 

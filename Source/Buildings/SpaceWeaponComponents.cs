@@ -327,6 +327,7 @@ namespace DeltaV
         public virtual void ConsumeShotEnergy(float wattDays) { }
         public virtual int? AimSkillFor(CompSpaceWeapon weapon) => null;
         public virtual float SegmentEnergyReduction => 0f;
+        public virtual float ShotIntervalMultiplier => 1f;
 
         public CompSpaceCargo HostCargo
         {

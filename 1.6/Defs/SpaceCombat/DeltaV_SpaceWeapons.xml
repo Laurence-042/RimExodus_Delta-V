@@ -832,7 +832,7 @@
     <defName>DeltaV_Weapon_RailgunLoader</defName>
     <uiOrder>-192</uiOrder>
     <label>railgun loading unit</label>
-    <description>A fixed-axis siege railgun with built-in fire control. Each shot requires manufactured projectile heads and 675 Wd, with a 35-second firing interval. Powered serial accelerators increase velocity, deep penetration and shield-breaking power. Oblique impacts on kinetic line shields readily destabilize or tear the long rod, removing its deep penetration. Its single slot accepts either a uranium magazine or a railgun capacitor. The capacitor supplies the base firing pulse when sufficiently charged; otherwise the pulse is drawn from grid batteries.</description>
+    <description>A fixed-axis siege railgun with built-in fire control. Each shot requires manufactured projectile heads and a 675 Wd base pulse. Powered accelerators increase speed, penetration and shield-breaking power. Oblique impacts on kinetic line shields can destabilize or shatter the penetrator. Each of the two slots accepts a uranium magazine, capacitor or rapid reset module. A charged capacitor can supply one base pulse. The base shot interval is 35 seconds, halved by each enabled rapid reset module.</description>
     <uiIconPath>Things/Building/SpaceWeapons/RailgunLoader_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
     <thingClass>Building</thingClass>
@@ -876,7 +876,7 @@
     </statBases>
     <comps>
       <li Class="DeltaV.CompProperties_RailgunShell">
-        <texPath>Things/Building/SpaceWeapons/RailgunShell</texPath>
+        <texPath>Things/Building/SpaceWeapons/RailgunLoader_Shell</texPath>
       </li>
       <li Class="CompProperties_Forbiddable" />
       <li Class="CompProperties_Power">
@@ -916,6 +916,11 @@
         <muzzleOffset>(0,0.6)</muzzleOffset>
         <attachmentSlots>
           <li>
+            <cell>(-1,0,0)</cell>
+            <drawOffset>(-0.02,0)</drawOffset>
+            <drawScale>0.65</drawScale>
+          </li>
+          <li>
             <cell>(1,0,0)</cell>
             <drawOffset>(0.02,0)</drawOffset>
             <drawScale>0.65</drawScale>
@@ -924,6 +929,7 @@
         <allowedAttachmentDefs>
           <li>DeltaV_Building_UraniumMagazine</li>
           <li>DeltaV_Building_RailgunCapacitor</li>
+          <li>DeltaV_RailgunRapidReset</li>
         </allowedAttachmentDefs>
         <acceleratorStarts>
           <li>(0,0,1)</li>

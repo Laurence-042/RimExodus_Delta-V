@@ -68,8 +68,12 @@ internal static partial class Program
             ReadSourceDefs(gameData,
                 Path.GetFullPath(Path.Combine(prefabRoot, "../../1.6/Defs")));
             string tutorialPrefabs = Path.Combine(prefabRoot, "Tutorial");
+            var records = Path.GetDirectoryName(args[1]);
+            string[] TutorialFiles(params string[] names) =>
+                names.Select(name => Path.Combine(tutorialPrefabs, name + ".xml")).ToArray();
             if (args.Length > 4 && args[4] == "shipyard")
             {
+                CheckPrefabContent(TutorialFiles("Shipyard"), authoredEnvironment: true, tutorial: true);
                 string directory = Path.GetDirectoryName(args[1]);
                 Geometry(Path.Combine(directory, "Shipyard.records.json"), game);
                 PrefabLifeSupport(directory, game, "Shipyard");
@@ -93,7 +97,8 @@ internal static partial class Program
                 finally { AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, false); }
                 var selections = batch.RootElement.GetProperty("selected");
                 Check(selections.GetArrayLength() > 0, "ship search supplied at least one accepted preview");
-                PrefabIdentities(directory);
+                CheckPrefabContent(selections.EnumerateArray().Select(selected =>
+                    Path.Combine(directory, selected.GetProperty("name").GetString() + ".xml")));
                 foreach (var selected in selections.EnumerateArray())
                 {
                     string name = selected.GetProperty("name").GetString();
@@ -115,12 +120,9 @@ internal static partial class Program
             {
                 string modules = Path.Combine(prefabRoot, "Templates", "Modules");
                 string assemblies = Path.Combine(prefabRoot, "Templates", "Assemblies");
-                PrefabIdentities(modules);
-                PrefabIdentities(assemblies);
-                foreach (string path in Directory.GetFiles(modules, "*.xml"))
-                    Geometry(Path.Combine(Path.GetDirectoryName(args[1]), Path.GetFileNameWithoutExtension(path)
-                        + ".records.json"), game);
-                foreach (string path in Directory.GetFiles(assemblies, "*.xml"))
+                var files = Directory.GetFiles(modules, "*.xml").Concat(Directory.GetFiles(assemblies, "*.xml")).ToArray();
+                CheckPrefabContent(files);
+                foreach (string path in files)
                     Geometry(Path.Combine(Path.GetDirectoryName(args[1]), Path.GetFileNameWithoutExtension(path)
                         + ".records.json"), game);
                 PrefabTurretGraphs(modules, new[] { "ModuleHeavyBattery", "ModuleRapidBattery",
@@ -129,14 +131,13 @@ internal static partial class Program
                 Console.WriteLine($"PASS {checks} module geometry, power, rail-chain and prefab checks. No game launched.");
                 return 0;
             }
-            ScenarioTranslation(prefabRoot);
-            PrefabIdentities(prefabRoot);
-            SectorContentDefaults(prefabRoot);
-            PrefabTurretGraphs(tutorialPrefabs);
             if (args.Length > 4 && args[4] == "range")
             {
-                foreach (string layout in new[] { "WeaponRange", "ShieldTarget" })
-                    Geometry(Path.Combine(Path.GetDirectoryName(args[1]), layout + ".records.json"), game);
+                var layouts = new[] { "WeaponRange", "ShieldTarget" };
+                CheckPrefabContent(TutorialFiles(layouts), authoredEnvironment: true, tutorial: true);
+                PrefabTurretGraphs(tutorialPrefabs, new[] { "WeaponRange" });
+                foreach (string layout in layouts)
+                    Geometry(Path.Combine(records, layout + ".records.json"), game);
                 State(game);
                 Theory(game, harmony);
                 RangeChecks(game, harmony, prefabRoot);
@@ -144,17 +145,34 @@ internal static partial class Program
                 Console.WriteLine($"PASS {checks} optional range checks: geometry, power, native Scribe, presets, firing sectors, native use-job signatures and optional progress. No game launched.");
                 return 0;
             }
-            foreach (string layout in new[] { "TrainingShip", "Salvage", "Shipyard", "PrototypeShip" })
-                Geometry(Path.Combine(Path.GetDirectoryName(args[1]), layout + ".records.json"), game);
-            foreach (string category in new[] { "Craft", "Stations" })
-            foreach (string prefab in Directory.GetFiles(Path.Combine(prefabRoot, "Sector", category), "*.xml"))
+            if (args.Length > 4 && args[4] == "sector")
             {
-                string layout = Path.GetFileNameWithoutExtension(prefab);
-                const string temporarySuffix = "_Temporary";
-                if (layout.EndsWith(temporarySuffix, StringComparison.Ordinal))
-                    layout = layout[..^temporarySuffix.Length];
-                Geometry(Path.Combine(Path.GetDirectoryName(args[1]), layout + ".records.json"), game);
+                CheckPrefabContent(Directory.GetFiles(Path.Combine(prefabRoot, "Sector"), "*.xml", SearchOption.AllDirectories),
+                    authoredEnvironment: true);
+                SectorContentDefaults(prefabRoot);
+                foreach (string category in new[] { "Craft", "Stations" })
+                foreach (string prefab in Directory.GetFiles(Path.Combine(prefabRoot, "Sector", category), "*.xml"))
+                {
+                    string layout = Path.GetFileNameWithoutExtension(prefab);
+                    const string temporarySuffix = "_Temporary";
+                    if (layout.EndsWith(temporarySuffix, StringComparison.Ordinal))
+                        layout = layout[..^temporarySuffix.Length];
+                    Geometry(Path.Combine(records, layout + ".records.json"), game);
+                }
+                foreach (string layout in new[] { "SectorFighter", "SectorGunboat", "SectorFrigate",
+                    "SectorDestroyer", "SectorCruiser", "SectorTradeStation", "SectorShipyard", "SectorFactoryStation" })
+                    PrefabLifeSupport(records, game, layout);
+                Berths(prefabRoot, records, sector: true);
+                Check(errors.Count == 0, "Unexpected sector logs: " + string.Join("\n", errors));
+                Console.WriteLine($"PASS {checks} sector prefab, generation-pool, geometry and berth checks. No game launched.");
+                return 0;
             }
+            ScenarioTranslation(prefabRoot);
+            CheckPrefabContent(TutorialFiles("ArrivalStation", "TrainingShip", "Salvage", "Shipyard", "PrototypeShip",
+                "WeaponRange", "ShieldTarget"), authoredEnvironment: true, tutorial: true);
+            PrefabTurretGraphs(tutorialPrefabs);
+            foreach (string layout in new[] { "TrainingShip", "Salvage", "Shipyard", "PrototypeShip" })
+                Geometry(Path.Combine(records, layout + ".records.json"), game);
             ArrivalWreck(args[1], args[2], game);
             ArrivalClothing(game, gameData);
             State(game);
@@ -162,9 +180,7 @@ internal static partial class Program
             FlightEvidence();
             string layoutDirectory = Path.GetDirectoryName(args[1]);
             PrefabLifeSupport(layoutDirectory, game, "ArrivalStation");
-            foreach (string layout in new[] { "Shipyard", "SectorFighter", "SectorGunboat", "SectorFrigate",
-                "SectorDestroyer", "SectorCruiser", "SectorTradeStation", "SectorShipyard", "SectorFactoryStation" })
-                PrefabLifeSupport(layoutDirectory, game, layout);
+            PrefabLifeSupport(layoutDirectory, game, "Shipyard");
             FocusThread(game, harmony);
             Caskets(args[2]);
             Shelves(Path.Combine(tutorialPrefabs, "Salvage.xml"));
@@ -640,18 +656,18 @@ internal static partial class Program
         finally { harmony.Unpatch(assetCheck, HarmonyPatchType.Prefix, harmony.Id); }
     }
 
-    static void Berths(string directory, string records)
+    static void Berths(string directory, string records, bool sector = false)
     {
         AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, true);
         try { TerrainDefOf.Space = Raw<TerrainDef>(); }
         finally { AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, false); }
-        var berths = new[] { ("ArrivalStation", "TrainingShip", Rot4.West), ("Shipyard", "PrototypeShip", Rot4.West),
-                ("Shipyard", "TrainingShip", Rot4.East) }
-            .Concat(new[] { "SectorFighter", "SectorGunboat", "SectorFrigate", "SectorDestroyer", "SectorCruiser" }
-                .SelectMany(ship => new[] { ("SectorShipyard", ship, Rot4.East), ("SectorShipyard", ship, Rot4.West) }));
+        var berths = sector
+            ? new[] { "SectorFighter", "SectorGunboat", "SectorFrigate", "SectorDestroyer", "SectorCruiser" }
+                .SelectMany(ship => new[] { ("SectorShipyard", ship, Rot4.East), ("SectorShipyard", ship, Rot4.West) })
+            : new[] { ("ArrivalStation", "TrainingShip", Rot4.West), ("Shipyard", "PrototypeShip", Rot4.West),
+                ("Shipyard", "TrainingShip", Rot4.East) };
         foreach (var pair in berths)
         {
-            bool sector = pair.Item1 == "SectorShipyard";
             string extension = sector ? "_Temporary.xml" : ".xml";
             var host = new XmlDocument(); host.Load(Path.Combine(directory, sector ? "Sector/Stations" : "Tutorial", pair.Item1 + extension));
             var ship = new XmlDocument(); ship.Load(Path.Combine(directory, sector ? "Sector/Craft" : "Tutorial", pair.Item2 + extension));
@@ -804,7 +820,7 @@ internal static partial class Program
         public void ExposeData() => pose.ExposeData();
     }
 
-    static void CourseClearance(Game game)
+    static void InitializeOrbitFixture(Game game)
     {
         var layer = Raw<PlanetLayer>();
         var tiles = AccessTools.Field(typeof(PlanetLayer), "tileIDToNeighbors_offsets");
@@ -817,6 +833,11 @@ internal static partial class Program
         AccessTools.Field(typeof(OrbitSphere), "cachedLayer").SetValue(null, layer);
         ((Dictionary<PlanetLayer, float>)AccessTools.Field(typeof(OrbitSphere), "RadiusByLayer").GetValue(null))[layer] = 100000;
         ((Dictionary<PlanetLayer, float>)AccessTools.Field(typeof(OrbitSphere), "WorldPerCellByLayer").GetValue(null))[layer] = 1;
+    }
+
+    static void CourseClearance(Game game)
+    {
+        InitializeOrbitFixture(game);
         foreach (int edge in new[] { 150, 250, 400, 600 })
         foreach (float angle in new[] { 0f, 1.17f, -2.4f })
         foreach (int clearance in new[] { 100, 286, 500 })

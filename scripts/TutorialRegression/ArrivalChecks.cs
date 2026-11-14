@@ -234,7 +234,8 @@ internal static partial class Program
                     heater.compPowerTrader = new CompPowerTrader { parent = heater, props = new CompProperties_Power() };
                     Set(heater.compPowerTrader, "powerOnInt", true);
                     heater.compTempControl = new CompTempControl { parent = heater,
-                        targetTemperature = row.GetProperty("stateOverrides").TryGetProperty("targetTemperature", out var setpoint)
+                        targetTemperature = row.TryGetProperty("stateOverrides", out var overrides)
+                            && overrides.TryGetProperty("targetTemperature", out var setpoint)
                             ? float.Parse(setpoint.ToString(), System.Globalization.CultureInfo.InvariantCulture) : target,
                         props = new CompProperties_TempControl { energyPerSecond = Property("Heater", "comps/li[@Class='CompProperties_TempControl']/energyPerSecond") } };
                     heaters.Add(heater);

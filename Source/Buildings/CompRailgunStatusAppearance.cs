@@ -68,7 +68,7 @@ namespace DeltaV
             progressBarEffecter ??= EffecterDefOf.ProgressBar.Spawn();
             progressBarEffecter.EffectTick(parent, TargetInfo.Invalid);
             MoteProgressBar mote = ((SubEffecter_ProgressBar)progressBarEffecter.children[0]).mote;
-            mote.progress = 1f - Mathf.Clamp01((float)remaining / Mathf.Max(1, weapon.WeaponProps.cooldownTicks));
+            mote.progress = 1f - Mathf.Clamp01((float)remaining / Mathf.Max(1, weapon.CommittedCooldownTicks));
             mote.offsetZ = -0.8f;
         }
 
@@ -91,7 +91,10 @@ namespace DeltaV
             string key = lastState == State.Ready ? "DeltaV_RailReady"
                 : lastState == State.Cooling ? "DeltaV_RailCooling" : "DeltaV_RailUnavailable";
             string status = "DeltaV_RailReadiness".Translate(key.Translate());
-            int remaining = parent.TryGetComp<CompSpaceWeapon>()?.CooldownTicksLeft ?? 0;
+            var weapon = parent.TryGetComp<CompSpaceWeapon>();
+            if (weapon == null) return status;
+            status += "\n" + "DeltaV_StatCooldown".Translate() + ": " + SpaceCombatStats.Seconds(weapon.ShotInterval);
+            int remaining = weapon.CooldownTicksLeft;
             if (remaining > 0)
                 status += "\n" + "CanFireIn".Translate() + ": " + remaining.ToStringSecondsFromTicks();
             return status;
