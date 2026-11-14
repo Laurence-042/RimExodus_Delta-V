@@ -55,43 +55,6 @@ namespace DeltaV
             return false;
         }
 
-        // Read-only exposure estimate, using the same cell classification as impacts.
-        // This does not roll cover, consume shields, or predict penetration damage.
-        internal static float TargetObstruction(ShipBase ship, Vector2 source, Vector2 end, Thing target,
-            ISet<Thing> removed = null)
-            => TargetObstruction(ship.Map, source, end, target, removed, null);
-
-        private static float TargetObstruction(Map map, Vector2 source, Vector2 end, Thing target,
-            ISet<Thing> removed, Surface surface)
-        {
-            Vector2 delta = end - source;
-            float length = delta.magnitude;
-            if (length < 0.01f) return 0f;
-            Vector2 direction = delta / length;
-            float depth = 0f;
-            IntVec3 previous = IntVec3.Invalid;
-            float diagonal = Mathf.Sqrt(map.Size.x * map.Size.x + map.Size.z * map.Size.z);
-            for (float d = Mathf.Max(0f, length - diagonal); d < length; d += 0.5f)
-            {
-                var p = source + direction * d;
-                var cell = new IntVec3(Mathf.FloorToInt(p.x), 0, Mathf.FloorToInt(p.y));
-                if (cell == previous || !cell.InBounds(map)) continue;
-                previous = cell;
-                Thing building;
-                SpaceCellKind kind;
-                if (surface == null) kind = SpaceStructureRules.ClassifyCell(map, cell, out building);
-                else
-                {
-                    int index = map.cellIndices.CellToIndex(cell);
-                    kind = (SpaceCellKind)surface.kinds[index]; building = surface.buildings[index];
-                }
-                if (building != null && removed?.Contains(building) == true) continue;
-                if (building == target) break;
-                if (kind == SpaceCellKind.Building || kind == SpaceCellKind.NaturalRock)
-                    depth += SpaceStructureRules.BuildingHitChance(building);
-            }
-            return depth;
-        }
         /// <summary>扫掠采样步长（格）。</summary>
         private const float SampleStep = 0.5f;
 
@@ -673,8 +636,9 @@ namespace DeltaV
                 var muzzleFootprint = body.launcher?.Map == defMap ? body.launcher.OccupiedRect() : CellRect.Empty;
                 scope = cell => !muzzleFootprint.Contains(cell) && ownership.OwnerAt(cell) == body.selfFire.key;
             }
+            float near = Mathf.Max(0f, projection - surface.boundsRadius - body.sweepRadius - SampleStep);
             if (TryFindHullContact(body, defMap, surface, fromLocal, dir, footprintDirection,
-                sampleLength, missed?.buildings, missed?.foundations, scope, false, out RayContact hull))
+                near, sampleLength, missed?.buildings, missed?.foundations, scope, false, out RayContact hull))
                 ray = hull;
             if (ray.kind == SpaceCellKind.Empty && ray.line == null && ray.guard == null) return false;
 
@@ -1044,19 +1008,50 @@ namespace DeltaV
         }
 
         private static bool TryFindHullContact(SweptBody body, Map map, Surface surface, Vector2 from,
-            Vector2 dir, Vector2 footprintDirection, float end, HashSet<Thing> passedBuildings,
+            Vector2 dir, Vector2 footprintDirection, float near, float end, HashSet<Thing> passedBuildings,
             HashSet<IntVec3> passedCells, System.Predicate<IntVec3> include, bool skipSubstructure,
-            out RayContact contact)
+            out RayContact contact, HashSet<Thing> coverBuildings = null, HashSet<IntVec3> coverCells = null)
         {
             contact = default;
             Vector2 normal = Mathf.Abs(dir.x) >= Mathf.Abs(dir.y)
                 ? new Vector2(-Mathf.Sign(dir.x), 0f) : new Vector2(0f, -Mathf.Sign(dir.y));
-            int last = Mathf.Max(1, Mathf.CeilToInt(end / SampleStep));
-            for (int step = 0; step <= last; step++)
+            if (body.sweepRadius == 0f && body.noseHalfWidth == 0f)
+            {
+                // 步进到真实格边，避免短暂穿过格角时落在两个采样点之间。
+                Vector2 start = from + dir * near;
+                int x = Mathf.FloorToInt(start.x), z = Mathf.FloorToInt(start.y);
+                int stepX = dir.x > 0f ? 1 : -1, stepZ = dir.y > 0f ? 1 : -1;
+                if (dir.x < 0f && start.x == x) x--;
+                if (dir.y < 0f && start.y == z) z--;
+                for (float along = near; along <= end;)
+                {
+                    var cell = new IntVec3(x, 0, z);
+                    if (cell.InBounds(map) && (include == null || include(cell))
+                        && TryGetHullCell(map, surface, cell, passedBuildings, passedCells, skipSubstructure,
+                            out SpaceCellKind kind, out Thing building, coverBuildings, coverCells))
+                    {
+                        contact = new RayContact(from + dir * along, normal, cell, kind, building);
+                        return true;
+                    }
+                    float nextX = dir.x == 0f ? float.PositiveInfinity
+                        : (x + (stepX > 0 ? 1 : 0) - from.x) / dir.x;
+                    float nextZ = dir.y == 0f ? float.PositiveInfinity
+                        : (z + (stepZ > 0 ? 1 : 0) - from.y) / dir.y;
+                    if (nextX <= nextZ) x += stepX;
+                    if (nextZ <= nextX) z += stepZ;
+                    along = Mathf.Min(nextX, nextZ);
+                }
+                return false;
+            }
+
+            int first = Mathf.FloorToInt(near / SampleStep);
+            int last = Mathf.CeilToInt(end / SampleStep);
+            for (int step = first; step <= last; step++)
             {
                 Vector2 p = from + dir * Mathf.Min(end, step * SampleStep);
                 if (!FindBestCell(body, map, surface, from, p, footprintDirection, passedBuildings, passedCells,
-                    out IntVec3 cell, out SpaceCellKind kind, out Thing building, include, skipSubstructure)) continue;
+                    out IntVec3 cell, out SpaceCellKind kind, out Thing building, include, skipSubstructure,
+                    coverBuildings, coverCells)) continue;
                 contact = new RayContact(p, normal, cell, kind, building);
                 return true;
             }
@@ -1064,15 +1059,18 @@ namespace DeltaV
         }
 
         private static bool TryGetHullCell(Map map, Surface surface, IntVec3 cell, HashSet<Thing> passedBuildings,
-            HashSet<IntVec3> passedCells, bool skipSubstructure, out SpaceCellKind kind, out Thing building)
+            HashSet<IntVec3> passedCells, bool skipSubstructure, out SpaceCellKind kind, out Thing building,
+            HashSet<Thing> coverBuildings, HashSet<IntVec3> coverCells)
         {
             int index = map.cellIndices.CellToIndex(cell);
             kind = (SpaceCellKind)surface.kinds[index];
             building = surface.buildings[index];
-            if (building != null && !building.Destroyed && passedBuildings?.Contains(building) != true) return true;
+            if (building != null && !building.Destroyed && passedBuildings?.Contains(building) != true
+                && coverBuildings?.Contains(building) != true) return true;
             kind = SpaceCellKind.Substructure;
             building = null;
-            return !skipSubstructure && surface.foundations[index] && passedCells?.Contains(cell) != true;
+            return !skipSubstructure && surface.foundations[index] && passedCells?.Contains(cell) != true
+                && coverCells?.Contains(cell) != true;
         }
 
         /// <summary>
@@ -1082,7 +1080,8 @@ namespace DeltaV
         private static bool FindBestCell(SweptBody body, Map defMap, Surface surface, Vector2 fromLocal,
             Vector2 p, Vector2 dir, HashSet<Thing> passedBuildings, HashSet<IntVec3> passedSubstructure,
             out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing,
-            System.Predicate<IntVec3> include = null, bool skipSubstructure = false)
+            System.Predicate<IntVec3> include, bool skipSubstructure,
+            HashSet<Thing> coverBuildings, HashSet<IntVec3> coverCells)
         {
             bestCell = IntVec3.Invalid;
             bestKind = SpaceCellKind.Empty;
@@ -1123,7 +1122,7 @@ namespace DeltaV
                             + body.noseHalfWidth * Mathf.Abs(side.y)) continue;
                 }
                 if (!TryGetHullCell(defMap, surface, cell, passedBuildings, passedSubstructure, skipSubstructure,
-                    out SpaceCellKind kind, out Thing thing)) continue;
+                    out SpaceCellKind kind, out Thing thing, coverBuildings, coverCells)) continue;
                 // 建筑高于同一带内的基架；同类再按沿弹道距离排序。
                 float rank = (new Vector2(cell.x + 0.5f, cell.z + 0.5f) - fromLocal).sqrMagnitude;
                 bool buildingWins = bestKind == SpaceCellKind.Substructure

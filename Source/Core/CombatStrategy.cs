@@ -84,7 +84,7 @@ namespace DeltaV
         public CombatTargetOrder targetOrder;
         public bool includeDisarmed;
         public CombatFireAction fireAction;
-        public CombatPart part;
+        public CombatPart part = CombatPart.Weapons;
         public bool anchorOnly;
 
         public bool Matches(CombatStrategyContext context, bool retaining = false,

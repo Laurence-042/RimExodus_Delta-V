@@ -578,10 +578,10 @@
   <DeltaV_WeaponCoverageDirection>射界中心偏转角（相对安装朝向，度）</DeltaV_WeaponCoverageDirection>
   <DeltaV_WeaponCoverageFixed>保持固定瞄准方向</DeltaV_WeaponCoverageFixed>
   <DeltaV_CombatOrders>临时交战命令</DeltaV_CombatOrders>
-  <DeltaV_CombatOrdersHelp>指定交战舰会改变自动机动目标；部件队列只影响火控（最多16项），仍遵守停火规则。无效部件自动跳过，队列结束恢复策略。不会开启机动或火控开关。</DeltaV_CombatOrdersHelp>
+  <DeltaV_CombatOrdersHelp>指定交战舰会改变自动机动目标；外部武器和推进器队列只影响火控（最多16项），仍遵守停火规则。无效部件自动跳过，队列结束恢复策略。不会开启机动或火控开关。</DeltaV_CombatOrdersHelp>
   <DeltaV_CombatCancelOrders>取消临时命令 / 部件队列（{0}项）</DeltaV_CombatCancelOrders>
   <DeltaV_CombatEngage>指定交战舰</DeltaV_CombatEngage>
-  <DeltaV_CombatQueuePart>追加部件目标</DeltaV_CombatQueuePart>
+  <DeltaV_CombatQueuePart>追加外部设备目标</DeltaV_CombatQueuePart>
   <DeltaV_CombatTemplate0>主炮射位</DeltaV_CombatTemplate0>
   <DeltaV_CombatTemplate1>侧舷换位</DeltaV_CombatTemplate1>
   <DeltaV_CombatTemplate2>协同夹击</DeltaV_CombatTemplate2>
@@ -603,13 +603,8 @@
   <DeltaV_CombatTargetOrder_MainWeapons>主要武器组输出</DeltaV_CombatTargetOrder_MainWeapons>
   <DeltaV_CombatFireAction_Fire>允许射击</DeltaV_CombatFireAction_Fire>
   <DeltaV_CombatFireAction_Hold>保持停火</DeltaV_CombatFireAction_Hold>
-  <DeltaV_CombatPart_Automatic>自动选择部件</DeltaV_CombatPart_Automatic>
-  <DeltaV_CombatPart_Center>船体中心</DeltaV_CombatPart_Center>
-  <DeltaV_CombatPart_Weapons>武器</DeltaV_CombatPart_Weapons>
-  <DeltaV_CombatPart_Propulsion>推进</DeltaV_CombatPart_Propulsion>
-  <DeltaV_CombatPart_Shield>护盾</DeltaV_CombatPart_Shield>
-  <DeltaV_CombatPart_Power>供能</DeltaV_CombatPart_Power>
-  <DeltaV_CombatPart_Console>驾驶台</DeltaV_CombatPart_Console>
+  <DeltaV_CombatPart_Weapons>优先外部武器</DeltaV_CombatPart_Weapons>
+  <DeltaV_CombatPart_Propulsion>优先外部推进器</DeltaV_CombatPart_Propulsion>
   <DeltaV_CombatBearing_Free>自由攻击方位</DeltaV_CombatBearing_Free>
   <DeltaV_CombatBearing_Enemy>敌舰船首参考方位</DeltaV_CombatBearing_Enemy>
   <DeltaV_CombatBearing_World>世界参考方位</DeltaV_CombatBearing_World>

@@ -92,10 +92,15 @@ internal static partial class Program
         Refresh();
         var fire = universe.Controls.For(hull.Vessel).FireControl;
         fire.Strategy(hull.Vessel).targetRules.Add(new CombatStrategyRule { includeDisarmed = true });
+        fire.CommandTarget(CombatTarget.ForShip(firstHull.Identity, first.parent.thingIDNumber));
+        Check(fire.QueueCount == 0, "a direct command cannot queue the hidden pilot console");
+        fire.CommandTarget(CombatTarget.ForShip(firstHull.Identity, engine1.thingIDNumber), appendPart: true);
+        Check(fire.QueueCount == 1, "a direct command can queue an exterior thruster owned by the target ship");
+        fire.CancelCommands();
         if (coDriftOnly)
         {
             CheckCoDriftingTurret(universe, own, opponent, hull.Vessel,
-                CombatTarget.ForShip(firstHull.Identity, first.parent.thingIDNumber), fire, weapon, traverse);
+                CombatTarget.ForShip(firstHull.Identity, engine1.thingIDNumber), fire, weapon, traverse);
             universe.Projectiles.ResetFlow();
             foreach (var action in Actions(universe).ToArray()) { Actions(universe).Remove(action); action(); }
             universe.Controls.Reset(); universe.objects.Clear(); Find.Maps.Clear();
@@ -133,7 +138,7 @@ internal static partial class Program
         Check(!cooldownCondition.Matches(liveFacts.Context(firstHull)), "an empty weapon group never passes an all-weapons condition");
         var holdRule = new CombatStrategyRule { name = "hold test", fireAction = CombatFireAction.Hold };
         fire.Strategy(hull.Vessel).fireRules.Add(holdRule);
-        fire.CommandTarget(CombatTarget.ForShip(firstHull.Identity, first.parent.thingIDNumber));
+        fire.CommandTarget(CombatTarget.ForShip(firstHull.Identity, engine1.thingIDNumber));
         weapon.cooldownUntilTick = 0;
         fire.TickAutoVolley(hull.Vessel, own, false);
         Check(assigned.Count == 0 && weapon.CooldownTicksLeft == 0 && fire.QueueCount == 1,

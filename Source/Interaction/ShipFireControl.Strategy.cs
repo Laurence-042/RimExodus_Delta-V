@@ -9,9 +9,7 @@ namespace DeltaV
     internal sealed partial class ShipFireControl
     {
         private readonly CombatStrategy fallbackStrategy = new CombatStrategy();
-        private readonly Dictionary<long, CombatStrategyRule> automaticRules = new Dictionary<long, CombatStrategyRule>();
         private readonly Dictionary<(long weapon, DriveSubject enemy), CombatStrategyRule> fireRuleState = new Dictionary<(long, DriveSubject), CombatStrategyRule>();
-        private readonly Dictionary<long, int> partRefreshTick = new Dictionary<long, int>();
         private readonly Dictionary<DriveSubject, CombatStrategyRule> targetRules = new Dictionary<DriveSubject, CombatStrategyRule>();
         private readonly Queue<CombatTarget> partQueue = new Queue<CombatTarget>();
         private CombatTarget commandedTarget;
@@ -22,8 +20,6 @@ namespace DeltaV
         private ShipBase observedShip;
         private SpaceObject observedFrame;
         private int observationTick = -1, targetSwitchTick;
-        private readonly Dictionary<DriveSubject, (int version, List<Thing> items)> parts =
-            new Dictionary<DriveSubject, (int, List<Thing>)>();
         private readonly List<CombatWeaponThreat> threats = new List<CombatWeaponThreat>();
         private int threatTick = -100, threatConfiguration = -1;
         private SpaceObject threatFrame;
@@ -55,13 +51,18 @@ namespace DeltaV
         {
             observation = null; observedShip = null; observedFrame = null; observedStrategy = null;
             threats.Clear(); threatFrame = null; threatTick = -100;
-            automaticRules.Clear(); fireRuleState.Clear(); partRefreshTick.Clear(); targetRules.Clear(); parts.Clear();
+            fireRuleState.Clear(); targetRules.Clear();
             if (commands) { partQueue.Clear(); commandedTarget = default; }
             targetSwitchTick = 0;
         }
 
         internal void CommandTarget(CombatTarget value, bool appendPart = false)
         {
+            if (value.SystemId != 0)
+            {
+                var ship = ShipRegistry.ShipByIdentity(ownerId);
+                if (ship?.Map == null || !TryResolveAutomatic(ship, universe.FrameOf(ship.Map), value, out _)) return;
+            }
             if (appendPart)
             { if (partQueue.Count < 16) partQueue.Enqueue(value); }
             else
@@ -121,7 +122,7 @@ namespace DeltaV
                 targetRules[member.Identity] = rule;
                 if (!rule.includeDisarmed && !Armed(member)) continue;
                 float ownFire = universe.Weapons.EstimateFirepower(ship, context.distance, HullRadius(member));
-                float health = Parts(member).Sum(t => (float)t.HitPoints);
+                float health = HullHealth(member);
                 float finish = 1f / (1f + health / 1000f);
                 float score = rule.targetOrder switch
                 {
@@ -150,7 +151,7 @@ namespace DeltaV
                         (Mathf.Max(0, targetSwitchTick - now) / 60f).ToString("0.0"));
                 return;
             }
-            if (selected != target) { preferredSystemId = 0; targetSwitchTick = now + 120; }
+            if (selected != target) targetSwitchTick = now + 120;
             if (DeltaVLog.Enabled(DeltaVLogModule.AI) && (!targetObserved || selected != target))
                 DeltaVLog.Message(DeltaVLogModule.AI, $"target tick={Find.TickManager.TicksGame} ship={ownerId} "
                     + $"{UniverseManager.MapTag(ship.Map)} previous={target.Ship} selected={selected.Ship} rule='{reason}' score={best:F3}");
@@ -160,17 +161,13 @@ namespace DeltaV
                 : "DeltaV_CombatDecisionNoCandidate".Translate(candidates.Count).ToString();
         }
 
-        private List<Thing> Parts(ShipBase member)
+        private static float HullHealth(ShipBase member)
         {
-            int version = SubstructureOwnership.StructureVersion(member.Map);
-            if (!parts.TryGetValue(member.Identity, out var cached) || cached.version != version)
-            {
-                var result = member.Map.listerThings.AllThings.Where(t => t is Building && t.Spawned
-                    && !t.Destroyed && member.Contains(t)).OrderBy(t => t.thingIDNumber).ToList();
-                if (parts.Count >= 128) parts.Clear();
-                parts[member.Identity] = cached = (version, result);
-            }
-            return cached.items;
+            double health = 0;
+            foreach (Thing thing in member.Map.listerThings.AllThings)
+                if (thing is Building && thing.Spawned && !thing.Destroyed && member.Contains(thing))
+                    health += thing.HitPoints;
+            return (float)health;
         }
 
         private float PrimaryFirepower(ShipBase ship, ShipBase enemy, float distance, CombatWeaponFilter filter)
@@ -187,71 +184,73 @@ namespace DeltaV
             return result;
         }
 
-        private CombatTarget SelectPart(ShipBase ship, SpaceObject own, CompSpaceWeapon weapon,
-            ShipBase enemy, CombatPart preference)
+        internal static CombatPart? ExternalCombatPart(Thing thing)
         {
-            var center = CombatTarget.ForShip(enemy.Identity);
-            if (preference == CombatPart.Center) return center;
-            WeaponAimInfo aim = SpaceWeaponService.AimInfo(weapon, own);
-            SpaceObject frame = universe.FrameOf(enemy.Map);
-            var candidates = PartCandidates(Parts(enemy), preference);
-            Vector2 source = SpaceTransform.UniverseToMapPoint(frame, enemy.Map, aim.Muzzle);
-            Thing selected = ChoosePart(candidates, enemy, source, (candidate, point) =>
-            {
-                var handle = CombatTarget.ForShip(enemy.Identity, candidate.thingIDNumber);
-                return handle.TryResolve(universe, out var resolved)
-                    && SpaceWeaponBallistics.TryAim(aim, own.pose, resolved.Pose, out var lead)
-                    && weapon.Covers(own, lead, aim.Muzzle)
-                    && SpaceWeaponShot.HasClearAimPath(weapon, own, lead);
-            });
-            return selected == null ? center : CombatTarget.ForShip(enemy.Identity, selected.thingIDNumber);
+            if (thing is not Building || !thing.Spawned || thing.Destroyed) return null;
+            var weapon = thing.TryGetComp<CompSpaceWeapon>();
+            bool isWeapon = weapon != null && !weapon.WeaponProps.manualOnly;
+            bool isThruster = ThrusterPower.IsThruster(thing);
+            if (!isWeapon && !isThruster) return null;
+            if (isWeapon && (weapon.WeaponProps.topTurret || weapon.WeaponProps.casemate)) return CombatPart.Weapons;
+            foreach (IntVec3 cell in thing.OccupiedRect())
+                if (cell.InBounds(thing.Map) && (thing.Map.roofGrid == null || !ShellHullVisuals.HasShellRoof(thing.Map, cell)))
+                    return isWeapon ? CombatPart.Weapons : CombatPart.Propulsion;
+            return null;
         }
 
-        internal static List<(Thing thing, float value, Vector2 point)> PartCandidates(IEnumerable<Thing> parts, CombatPart preference) =>
-            parts.Select(t => (thing: t, value: preference == CombatPart.Center ? 0 : PartValue(t, preference), point: new Vector2(t.DrawPos.x, t.DrawPos.z)))
-                .Where(p => p.value > 0f).OrderByDescending(p => p.value)
-                .ThenBy(p => p.thing.thingIDNumber).Take(12).ToList();
-
-        // Actual fire control and readonly forecasts share the bounded part ranking.
-        // Callers supply their current/predicted reachability and private destroyed set.
-        internal static Thing ChoosePart(IReadOnlyList<(Thing thing, float value, Vector2 point)> candidates, ShipBase enemy,
-            Vector2 source, System.Func<Thing, Vector2, bool> reachable, ISet<Thing> removed = null,
-            SpaceCollision.RayQuery query = null)
+        private static ResolvedCombatTarget AtExternalPart(ShipBase ship, SpaceObject frame, Thing part)
         {
-            using var partTiming = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.CombatPartSelection);
-            float best = float.NegativeInfinity;
-            Thing result = null;
-            foreach (var candidate in candidates)
+            Vector3 draw = part.DrawPos;
+            Vector2 local = SpaceTransform.MapToShipLocal(ship.Map, new Vector2(draw.x, draw.z));
+            return new ResolvedCombatTarget(frame, ship, SpaceTransform.RigidPointPose(frame.pose, local, ship.FrameAngle));
+        }
+
+        internal sealed class ExternalTargets
+        {
+            internal readonly List<Thing> weapons = new List<Thing>();
+            internal readonly List<Thing> propulsion = new List<Thing>();
+
+            internal ExternalTargets() { }
+
+            internal ExternalTargets(ShipBase ship) : this(ship.Map.listerThings.AllThings.Where(ship.Contains)) { }
+
+            internal ExternalTargets(IEnumerable<Thing> observed)
             {
-                if (removed?.Contains(candidate.thing) == true) continue;
-                Vector2 end = candidate.point;
-                float distanceCost = 0.001f * (end - source).magnitude;
-                // Obstruction is nonnegative, so this upper bound cannot beat the
-                // current winner. Keep the original candidate order for exact ties.
-                if (candidate.value - distanceCost <= best || reachable != null && !reachable(candidate.thing, end)) continue;
-                float obstruction = query?.Obstruction(source, end, candidate.thing, removed)
-                    ?? SpaceCollision.TargetObstruction(enemy, source, end, candidate.thing, removed);
-                float score = candidate.value / (1f + obstruction) - distanceCost;
-                if (score <= best) continue;
-                best = score; result = candidate.thing;
+                foreach (Thing thing in observed) Add(thing);
+                Sort();
             }
-            return result;
-        }
 
-        internal static float PartValue(Thing thing, CombatPart preference)
-        {
-            if (thing.TryGetComp<CompSpaceWeapon>() is { } w && !w.WeaponProps.manualOnly)
-                return preference == CombatPart.Weapons || preference == CombatPart.Automatic ? 5f : 0f;
-            if (thing.TryGetComp<CompSpaceShield>() != null)
-                return preference == CombatPart.Shield || preference == CombatPart.Automatic ? 4f : 0f;
-            if (thing.TryGetComp<CompDeltaVPilotConsole>() != null)
-                return preference == CombatPart.Console || preference == CombatPart.Automatic ? 3f : 0f;
-            if (thing.TryGetComp<CompPowerTrader>() is { } power && power.Props.PowerConsumption < 0f
-                || thing.TryGetComp<CompPowerBattery>() != null)
-                return preference == CombatPart.Power || preference == CombatPart.Automatic ? 3f : 0f;
-            if (ThrusterPower.IsThruster(thing))
-                return preference == CombatPart.Propulsion || preference == CombatPart.Automatic ? 4f : 0f;
-            return 0f;
+            internal CombatPart? Add(Thing thing)
+            {
+                var part = ExternalCombatPart(thing);
+                if (part.HasValue) (part == CombatPart.Propulsion ? propulsion : weapons).Add(thing);
+                return part;
+            }
+
+            internal void Sort()
+            {
+                weapons.Sort((a, b) => a.thingIDNumber.CompareTo(b.thingIDNumber));
+                propulsion.Sort((a, b) => a.thingIDNumber.CompareTo(b.thingIDNumber));
+            }
+
+            internal bool TryGet(int id, out Thing part)
+            {
+                part = weapons.Find(t => t.thingIDNumber == id) ?? propulsion.Find(t => t.thingIDNumber == id);
+                return part != null;
+            }
+
+            // Null means the hull center. A false return means even that point is unreachable.
+            internal bool TrySelect(CombatPart priority, System.Func<Thing, bool> reachable)
+            {
+                using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.CombatPartSelection);
+                var first = priority == CombatPart.Propulsion ? propulsion : weapons;
+                var second = priority == CombatPart.Propulsion ? weapons : propulsion;
+                foreach (Thing part in first)
+                    if (reachable(part)) return true;
+                foreach (Thing part in second)
+                    if (reachable(part)) return true;
+                return reachable(null);
+            }
         }
     }
 }

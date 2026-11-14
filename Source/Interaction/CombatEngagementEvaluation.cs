@@ -61,16 +61,16 @@ namespace DeltaV
         private sealed class Battery
         {
             internal SpacePose pose;
+            internal int rangeGroup;
             internal CombatAttackWeapon gun;
             internal SpaceWeaponParameters shot;
             internal CombatWeaponFamily family;
             internal bool outgoing;
             internal float rate;
-            internal List<(Thing thing, float value, Vector2 point)> parts;
+            internal CombatPart priority;
         }
 
         private readonly UniverseManager universe;
-        private readonly ShipBase own, enemy;
         private readonly SpacePose targetPose;
         private readonly List<Battery> batteries = new List<Battery>();
         internal readonly List<CombatAttackWeapon> primaryWeapons = new List<CombatAttackWeapon>();
@@ -82,22 +82,21 @@ namespace DeltaV
             SpacePose targetPose, IEnumerable<ShipBase> enemies, bool offense, CombatWeaponFilter primary = null)
         {
             using var timing = universe.Performance.Measure(PerformanceStage.EngagementObservation);
-            this.universe = universe; this.own = own; this.enemy = enemy; this.targetPose = targetPose;
+            this.universe = universe; this.targetPose = targetPose;
             ownCenter = own.HullCenter; enemyCenter = enemy.HullCenter;
             ownRadius = ShipFireControl.HullRadius(own); enemyRadius = ShipFireControl.HullRadius(enemy);
             var ownObservation = new CombatDamageForecast.Observation(universe.FrameOf(own.Map), own);
             var enemyObservation = new CombatDamageForecast.Observation(universe.FrameOf(enemy.Map), enemy);
             ownShot = new CombatDamageForecast(ownObservation);
             enemyShot = new CombatDamageForecast(enemyObservation);
-            var ownParts = new Dictionary<CombatPart, List<(Thing thing, float value, Vector2 point)>>();
-            var enemyParts = new Dictionary<CombatPart, List<(Thing thing, float value, Vector2 point)>>();
-
-            void Capture(ShipBase ship, ShipBase receiver, CombatDamageForecast.Observation observation,
-                Dictionary<CombatPart, List<(Thing thing, float value, Vector2 point)>> parts, bool outgoing)
+            void Capture(ShipBase ship, ShipBase receiver, bool outgoing)
             {
+                int rangeGroup = batteries.Count;
                 var pose = ShipRegistry.ShipPose(ship);
                 pose.angle -= ship.FrameAngle;
-                var control = universe.Controls.ExistingFor(ship)?.FireControl;
+                var controller = universe.Controls.ExistingFor(ship);
+                var control = controller?.FireControl;
+                bool boarding = controller?.SuppressAutomaticSystems == true;
                 var frame = universe.FrameOf(ship.Map);
                 foreach (var (gun, shot) in ShipAutoManeuverControl.CaptureAttackWeapons(ship, frame))
                 {
@@ -107,20 +106,19 @@ namespace DeltaV
                     var family = CombatWeaponFilter.FamilyOf(weapon, shot.aim.Projectile);
                     if (outgoing && (primary == null || primary.Includes(weapon, family))) primaryWeapons.Add(gun);
                     if (outgoing && !offense) continue;
-                    var part = rule?.part ?? CombatPart.Automatic;
-                    if (!parts.TryGetValue(part, out var targets))
-                        parts[part] = targets = ShipFireControl.PartCandidates(observation.health.Keys, part);
                     batteries.Add(new Battery
                     {
-                        pose = pose, shot = shot, parts = targets, outgoing = outgoing,
+                        pose = pose, rangeGroup = rangeGroup, shot = shot,
+                        priority = boarding ? CombatPart.Weapons : rule?.part ?? CombatPart.Weapons,
+                        outgoing = outgoing,
                         family = family,
                         gun = gun, rate = 60f / Mathf.Max(1, weapon.ShotInterval)
                     });
                 }
             }
 
-            Capture(own, enemy, enemyObservation, enemyParts, true);
-            foreach (var other in enemies) Capture(other, own, ownObservation, ownParts, false);
+            Capture(own, enemy, true);
+            foreach (var other in enemies) Capture(other, own, false);
         }
 
         internal static SpacePose At(SpacePose pose, float time)
@@ -152,15 +150,22 @@ namespace DeltaV
             performance.engagementCandidates++;
             using var timing = performance.Measure(PerformanceStage.EngagementScore);
             var result = new Result();
+            int lastRangeGroup = -1;
+            float centerDistance = 0f;
             foreach (var battery in batteries)
             {
                 var source = battery.outgoing ? candidate : battery.pose;
                 var target = battery.outgoing ? targetPose : candidate;
-                var receiver = battery.outgoing ? enemy : own;
+                // Capture appends each shooter's weapons consecutively with the same receiver.
+                if (battery.gun.instant && battery.rangeGroup != lastRangeGroup)
+                {
+                    centerDistance = OrbitSphere.ArcCells(source.position, target.position);
+                    lastRangeGroup = battery.rangeGroup;
+                }
                 var center = battery.outgoing ? enemyCenter : ownCenter;
                 var hullMargin = (battery.outgoing ? enemyRadius : ownRadius) + 1;
                 var forecast = battery.outgoing ? enemyShot : ownShot;
-                if (!TryEstimate(battery, source, target, receiver, center, hullMargin, forecast, out var damage)) continue;
+                if (!TryEstimate(battery, source, target, center, hullMargin, centerDistance, forecast, out var damage)) continue;
 
                 float rate = battery.rate;
                 var contribution = new Contribution
@@ -190,57 +195,64 @@ namespace DeltaV
             return result;
         }
 
-        private static bool TryEstimate(Battery battery, SpacePose source, SpacePose target, ShipBase receiver,
-            Vector2 center, float hullMargin, CombatDamageForecast forecast, out CombatDamageEstimate damage)
+        private static bool TryEstimate(Battery battery, SpacePose source, SpacePose target,
+            Vector2 center, float hullMargin, float centerDistance, CombatDamageForecast forecast, out CombatDamageEstimate damage)
         {
             damage = default;
             var gun = battery.gun;
             var weapon = gun.source;
             var shot = battery.shot;
-            if (gun.OutsideInstantRange(OrbitSphere.ArcCells(source.position, target.position), hullMargin)) return false;
+            if (gun.OutsideInstantRange(centerDistance, hullMargin)) return false;
             Vector3 muzzle = SpaceTransform.ShipLocalToUniverse(source, gun.muzzle);
             Vector2 offset = SpaceTransform.RotateInverse(OrbitSphere.Offset(target.position, muzzle), target.angle);
-            Vector2 from = center + offset;
+            Vector2 muzzleInMap = center + offset;
             bool allPartsReachable = gun.instant && gun.arc >= 360
                 && offset.magnitude - hullMargin >= gun.minRange && offset.magnitude + hullMargin <= gun.range;
-            var part = ShipFireControl.ChoosePart(battery.parts, receiver, from,
-                allPartsReachable ? null : (_, point) => Reachable(gun, source, target, point - center),
-                query: forecast.Query);
-            Vector2 endpoint = part == null ? center : new Vector2(part.DrawPos.x, part.DrawPos.z);
-            Vector2 localTarget = endpoint - center;
-            if (!allPartsReachable && !Reachable(gun, source, target, localTarget)) return false;
+            Vector2 from = default, direction = default;
+            float length = 0, speed = 0;
+            if (!forecast.Targets.TrySelect(battery.priority, TryAim)) return false;
 
-            Vector3 aimTarget = SpaceTransform.ShipLocalToUniverse(target, localTarget);
-            Vector2 aimLine = OrbitSphere.Offset(muzzle, aimTarget);
-            Vector2 direction = (endpoint - from).normalized;
-            float flight = 0, speed = shot.aim.Speed, length = shot.aim.Range;
-            if (!shot.aim.Laser)
+            bool TryAim(Thing part)
             {
-                var muzzlePose = SpaceTransform.RigidPointPose(source, gun.muzzle, 0);
-                var targetPoint = SpaceTransform.RigidPointPose(target, localTarget, 0);
-                Vector2 relative = SpaceTransform.TransportVelocity(targetPoint, muzzle) - muzzlePose.velocity;
-                if (shot.aim.Guided) flight = aimLine.magnitude / Mathf.Max(.001f, speed);
-                else if (SpaceTransform.TrySolveInterceptPlanar(aimLine, relative, speed, out flight))
-                    aimLine += relative * flight;
-                else return false;
+                Vector3 draw = part?.DrawPos ?? default;
+                Vector2 endpoint = part == null ? center : new Vector2(draw.x, draw.z);
+                Vector2 localTarget = endpoint - center;
+                if (!allPartsReachable && !Reachable(gun, source, target, localTarget)) return false;
+                from = muzzleInMap;
+                Vector3 aimTarget = SpaceTransform.ShipLocalToUniverse(target, localTarget);
+                Vector2 aimLine = OrbitSphere.Offset(muzzle, aimTarget);
+                direction = (endpoint - from).normalized;
+                float flight = 0;
+                speed = shot.aim.Speed; length = shot.aim.Range;
+                if (!shot.aim.Laser)
+                {
+                    var muzzlePose = SpaceTransform.RigidPointPose(source, gun.muzzle, 0);
+                    var targetPoint = SpaceTransform.RigidPointPose(target, localTarget, 0);
+                    Vector2 relative = SpaceTransform.TransportVelocity(targetPoint, muzzle) - muzzlePose.velocity;
+                    if (shot.aim.Guided) flight = aimLine.magnitude / Mathf.Max(.001f, speed);
+                    else if (SpaceTransform.TrySolveInterceptPlanar(aimLine, relative, speed, out flight))
+                        aimLine += relative * flight;
+                    else return false;
 
-                muzzlePose.velocity += aimLine.normalized * speed;
-                muzzlePose.angularVelocity = 0;
-                var impact = At(muzzlePose, flight);
-                var receiverAt = At(target, flight);
-                Vector2 contact = SpaceTransform.RelativeVelocityAtContact(impact, receiverAt, impact.position);
-                Vector2 localVelocity = SpaceTransform.RotateInverse(SpaceTransform.TransportTangent(contact,
-                    impact.position, receiverAt.position), receiverAt.angle);
-                direction = localVelocity.normalized;
-                float relativeSpeed = localVelocity.magnitude;
-                length = shot.aim.Range * relativeSpeed / Mathf.Max(.001f, speed);
-                speed = relativeSpeed;
-                from = center + SpaceTransform.RotateInverse(
-                    OrbitSphere.Offset(receiverAt.position, impact.position), receiverAt.angle) - localVelocity * flight;
+                    muzzlePose.velocity += aimLine.normalized * speed;
+                    muzzlePose.angularVelocity = 0;
+                    var impact = At(muzzlePose, flight);
+                    var receiverAt = At(target, flight);
+                    Vector2 contact = SpaceTransform.RelativeVelocityAtContact(impact, receiverAt, impact.position);
+                    Vector2 localVelocity = SpaceTransform.RotateInverse(SpaceTransform.TransportTangent(contact,
+                        impact.position, receiverAt.position), receiverAt.angle);
+                    direction = localVelocity.normalized;
+                    float relativeSpeed = localVelocity.magnitude;
+                    length = shot.aim.Range * relativeSpeed / Mathf.Max(.001f, speed);
+                    speed = relativeSpeed;
+                    from = center + SpaceTransform.RotateInverse(
+                        OrbitSphere.Offset(receiverAt.position, impact.position), receiverAt.angle) - localVelocity * flight;
+                }
+
+                if (!weapon.WeaponProps.casemate) return true;
+                float aim = SpaceTransform.WrapAngle(Mathf.Atan2(aimLine.y, aimLine.x) - source.angle);
+                return SpaceWeaponShot.HasClearCasemateAim(weapon, aim);
             }
-
-            float aim = SpaceTransform.WrapAngle(Mathf.Atan2(aimLine.y, aimLine.x) - source.angle);
-            if (weapon.WeaponProps.casemate && !SpaceWeaponShot.HasClearCasemateAim(weapon, aim)) return false;
 
             forecast.ResetShot();
             int count = weapon.WeaponProps.projectilesPerShot;

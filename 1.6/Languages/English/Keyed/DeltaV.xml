@@ -578,10 +578,10 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_WeaponCoverageDirection>Arc center relative to mount (degrees)</DeltaV_WeaponCoverageDirection>
   <DeltaV_WeaponCoverageFixed>Hold a fixed aiming direction</DeltaV_WeaponCoverageFixed>
   <DeltaV_CombatOrders>Temporary combat orders</DeltaV_CombatOrders>
-  <DeltaV_CombatOrdersHelp>Engage changes the maneuver target; the part queue affects fire control only (up to 16), respecting hold-fire rules. Invalid parts are skipped; an empty queue resumes strategy. These commands do not enable maneuver or fire control.</DeltaV_CombatOrdersHelp>
+  <DeltaV_CombatOrdersHelp>Engage changes the maneuver target; the exterior weapons and thruster queue affects fire control only (up to 16), respecting hold-fire rules. Invalid parts are skipped; an empty queue resumes strategy. These commands do not enable maneuver or fire control.</DeltaV_CombatOrdersHelp>
   <DeltaV_CombatCancelOrders>Cancel orders / part queue ({0} items)</DeltaV_CombatCancelOrders>
   <DeltaV_CombatEngage>Engage this ship</DeltaV_CombatEngage>
-  <DeltaV_CombatQueuePart>Queue a part</DeltaV_CombatQueuePart>
+  <DeltaV_CombatQueuePart>Queue exterior target</DeltaV_CombatQueuePart>
   <DeltaV_CombatTemplate0>Main battery pose</DeltaV_CombatTemplate0>
   <DeltaV_CombatTemplate1>Broadside reposition</DeltaV_CombatTemplate1>
   <DeltaV_CombatTemplate2>Coordinated flanking</DeltaV_CombatTemplate2>
@@ -603,13 +603,8 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_CombatTargetOrder_MainWeapons>Primary group output</DeltaV_CombatTargetOrder_MainWeapons>
   <DeltaV_CombatFireAction_Fire>Allow fire</DeltaV_CombatFireAction_Fire>
   <DeltaV_CombatFireAction_Hold>Hold fire</DeltaV_CombatFireAction_Hold>
-  <DeltaV_CombatPart_Automatic>Automatic parts</DeltaV_CombatPart_Automatic>
-  <DeltaV_CombatPart_Center>Hull center</DeltaV_CombatPart_Center>
-  <DeltaV_CombatPart_Weapons>Weapons</DeltaV_CombatPart_Weapons>
-  <DeltaV_CombatPart_Propulsion>Propulsion</DeltaV_CombatPart_Propulsion>
-  <DeltaV_CombatPart_Shield>Shields</DeltaV_CombatPart_Shield>
-  <DeltaV_CombatPart_Power>Power</DeltaV_CombatPart_Power>
-  <DeltaV_CombatPart_Console>Console</DeltaV_CombatPart_Console>
+  <DeltaV_CombatPart_Weapons>Prefer exterior weapons</DeltaV_CombatPart_Weapons>
+  <DeltaV_CombatPart_Propulsion>Prefer exterior thrusters</DeltaV_CombatPart_Propulsion>
   <DeltaV_CombatBearing_Free>Free attack bearing</DeltaV_CombatBearing_Free>
   <DeltaV_CombatBearing_Enemy>Enemy-relative bearing</DeltaV_CombatBearing_Enemy>
   <DeltaV_CombatBearing_World>World-relative bearing</DeltaV_CombatBearing_World>

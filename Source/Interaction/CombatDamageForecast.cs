@@ -20,7 +20,7 @@ namespace DeltaV
         {
             internal readonly HashSet<Thing> things = new HashSet<Thing>();
             internal readonly HashSet<IntVec3> cells = new HashSet<IntVec3>();
-            internal bool skipFloor, uncertain;
+            internal bool skipFloor, skipHull, uncertain;
         }
         // Independent deterministic dimensions for each physical contact and floor
         // break test. Reusing one quantile for every layer correlates all misses and
@@ -47,18 +47,25 @@ namespace DeltaV
             internal readonly Dictionary<(ThingDef projectile, float sample), CoverMask> cover =
                 new Dictionary<(ThingDef, float), CoverMask>();
             internal readonly float criticalTotal;
+            internal readonly ShipFireControl.ExternalTargets targets;
             internal Observation(SpaceObject target, ShipBase scope = null)
             {
                 map = target.map; query = new SpaceCollision.RayQuery(target, scope);
+                targets = new ShipFireControl.ExternalTargets();
                 foreach (Thing thing in map.listerThings.AllThings)
                 {
                     if (thing is Building && !thing.Destroyed && (scope == null || scope.Contains(thing)))
                     {
                         health[thing] = Mathf.Max(0, thing.HitPoints);
-                        float weight = ShipFireControl.PartValue(thing, CombatPart.Automatic);
-                        if (weight > 0) { critical[thing] = weight; criticalTotal += weight; }
+                        if (targets.Add(thing) is CombatPart part)
+                        {
+                            float weight = part == CombatPart.Weapons ? 5f : 4f;
+                            critical.Add(thing, weight);
+                            criticalTotal += weight;
+                        }
                     }
                 }
+                targets.Sort();
             }
         }
         private readonly SpaceCollision.RayQuery query;
@@ -87,6 +94,7 @@ namespace DeltaV
         private readonly Predicate<CompSpaceShield> includeLine;
         private readonly Predicate<SpaceCollision.ShieldArc> includeGuard;
         internal SpaceCollision.RayQuery Query => query;
+        internal ShipFireControl.ExternalTargets Targets { get; }
         internal CombatDamageForecast(SpaceObject target, ShipBase scope = null)
             : this(new Observation(target, scope)) { }
         internal CombatDamageForecast(Observation observation)
@@ -94,6 +102,7 @@ namespace DeltaV
             resources = new CombatResourceLedger(); destroyed = resources.destroyed;
             map = observation.map; query = observation.query; initialHealth = observation.health;
             criticalWeights = observation.critical; criticalTotal = observation.criticalTotal; cover = observation.cover;
+            Targets = observation.targets;
             includeLine = LineAvailable; includeGuard = arc => GuardAvailable(arc) > 0;
         }
 
@@ -230,23 +239,29 @@ namespace DeltaV
                 foreach (var cell in query.foundationCells)
                     if (ContactSample(coverSample, cell, 2) >= floorChance) coverage.cells.Add(cell);
                 coverage.skipFloor = coverage.cells.Count == query.foundationCells.Count;
+                coverage.skipHull = coverage.skipFloor && query.AllBuildingsPass(coverage.things);
                 coverage.uncertain |= floorChance < 1 && query.foundationCells.Count > 0;
                 cover[(projectile, coverSample)] = coverage;
             }
             while (traceBuffers.Count <= depth) traceBuffers.Add(new TraceBuffers());
             var passed = traceBuffers[depth].passed;
-            passed.Clear(); passed.UnionWith(coverage.things); passed.UnionWith(destroyed);
+            // Snapshot shot damage at this depth; the sampled cover is shared read-only.
+            passed.Clear(); passed.UnionWith(destroyed);
             result.uncertain |= coverage.uncertain;
             var passedCells = traceBuffers[depth].cells;
-            passedCells.Clear(); passedCells.UnionWith(brokenFoundation); passedCells.UnionWith(coverage.cells);
+            passedCells.Clear();
+            if (!coverage.skipFloor) passedCells.UnionWith(brokenFoundation);
             var props = projectile?.GetCompProperties<CompProperties_SpaceProjectile>();
             if (props == null) { result.uncertain = true; return; }
+            var coverBuildings = coverage.things.Count == 0 ? null : coverage.things;
+            var coverCells = coverage.skipFloor || coverage.cells.Count == 0 ? null : coverage.cells;
+            float footprintRadius = SpaceProjectileService.FootprintRadius(projectile);
             Vector2 initialDirection = dir;
             while (length > .001f && scale > .00001f)
             {
                 if (result.contacts >= 128 || depth >= 4) { result.exhausted = result.uncertain = true; return; }
-                if (!query.Next(from, dir, length, projectile, SpaceProjectileService.FootprintRadius(projectile), passed, passedCells,
-                    includeLine, includeGuard, out var hit, coverage.skipFloor))
+                if (!query.Next(from, dir, length, projectile, footprintRadius, passed, passedCells,
+                    includeLine, includeGuard, out var hit, coverage.skipFloor, coverBuildings, coverCells, coverage.skipHull))
                 {
                     if (Vector2.Dot(dir, initialDirection) < 0)
                         result.returnedPotential += SpaceImpactEffects.ComputeDamage(

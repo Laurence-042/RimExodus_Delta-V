@@ -9,7 +9,7 @@ namespace DeltaV
     public enum CombatWeaponFamily : byte { All, Laser, Kinetic, Rail, Guided }
     public enum CombatTargetOrder : byte { Balanced, Nearest, Threat, Finish, MainWeapons }
     public enum CombatFireAction : byte { Fire, Hold }
-    public enum CombatPart : byte { Automatic, Center, Weapons, Propulsion, Shield, Power, Console }
+    public enum CombatPart : byte { Weapons, Propulsion }
     public enum CombatBearing : byte { Free, Enemy, World }
 
     public sealed class CombatWeaponFilter : IExposable

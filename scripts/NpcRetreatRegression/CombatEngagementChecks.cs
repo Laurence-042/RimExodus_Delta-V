@@ -60,7 +60,11 @@ internal static partial class Program
             projectileDef = laser, range = 120, intrinsicAimSkill = 20, topTurret = true }, safeFire = false };
         var building = AddTestBuilding(own.map, player, id++, TestBuildingDef("engagementLaser"), gun);
         MoveCombatFixture(building, new IntVec3(10, 0, 12));
-        if (regression && scenario == 0) CheckEngagementScoreContract(gun);
+        if (regression && scenario == 0)
+        {
+            CheckEngagementScoreContract(gun);
+            CheckEngagementRangeBoundaries();
+        }
         if (regression && scenario > 0)
         {
             building.def.useHitPoints = true; Set(typeof(Thing), building, "hitPointsInt", 300);
@@ -211,7 +215,7 @@ internal static partial class Program
             "production weapon observation distinguishes concentrated weak-side fire from the safe side");
         if (regression && scenario == 1)
         {
-            CheckEngagementPartBounds(universe, target.member);
+            CheckEngagementPartBounds(universe, own.member, target.member);
             var targetFramePose = ShipRegistry.ShipPose(target.member); targetFramePose.angle -= target.member.FrameAngle;
             var evaluator = new CombatEngagementEvaluation(universe, own.member, target.member,
                 targetFramePose, new[] { target.member }, true);
@@ -304,28 +308,84 @@ internal static partial class Program
         }
     }
 
-    static void CheckEngagementPartBounds(UniverseManager universe, ShipBase target)
+    static void CheckEngagementRangeBoundaries()
     {
-        var observation = new CombatDamageForecast.Observation(universe.FrameOf(target.Map), target);
-        var candidates = ShipFireControl.PartCandidates(observation.health.Keys, CombatPart.Automatic);
-        bool same = true;
-        foreach (var omitted in candidates.Select(c => c.thing).Prepend(null))
-        for (int angle = 0; angle < 36; angle++)
+        const float radius = 4f, min = 25f, max = 60f;
+        var laser = new CombatAttackWeapon(Vector2.zero, 0, 360, max, min, 60, 1, true, true);
+        var guided = new CombatAttackWeapon(new Vector2(3, 4), 0, 90, max, min, 60, 1, true, true);
+        var kinetic = new CombatAttackWeapon(Vector2.zero, 0, 90, max, min, 60, 1, false, true);
+        float near = min - (radius + .001f), far = max + (radius + .001f);
+        Check(!laser.OutsideInstantRange(MathF.BitIncrement(near), radius)
+            && laser.OutsideInstantRange(near - .01f, radius)
+            && !laser.OutsideInstantRange(far, radius) && laser.OutsideInstantRange(far + .01f, radius),
+            "instant range bounds preserve inclusive cutoffs");
+        Check(laser.OutsideInstantRange(far + 1f, radius) && !guided.OutsideInstantRange(far + 1f, radius)
+            && !kinetic.OutsideInstantRange(far + 1f, radius),
+            "guns sharing a center distance retain independent muzzle margins and ballistic eligibility");
+    }
+
+    static void CheckEngagementPartBounds(UniverseManager universe, ShipBase own, ShipBase target)
+    {
+        var weapon = AddTestBuilding(target.Map, target.Faction, 158010, TestBuildingDef("exteriorTurret"),
+            new CompSpaceWeapon { props = new CompProperties_SpaceWeapon() });
+        var engineDef = TestBuildingDef("exteriorEngine");
+        engineDef.comps.Add(new CompProperties_GravshipThruster());
+        var engine = AddTestBuilding(target.Map, target.Faction, 158011, engineDef, new EmptyComp());
+        var hidden = AddTestBuilding(target.Map, target.Faction, 158012, TestBuildingDef("interiorWeapon"),
+            new CompSpaceWeapon { props = new CompProperties_SpaceWeapon { topTurret = false } });
+        var exposedCell = target.Anchor.Position + IntVec3.East;
+        MoveCombatFixture(weapon, target.Anchor.Position);
+        MoveCombatFixture(hidden, target.Anchor.Position);
+        MoveCombatFixture(engine, exposedCell);
+        target.Map.roofGrid ??= new RoofGrid(target.Map);
+        var roofs = (RoofDef[])typeof(RoofGrid).GetField("roofGrid", Private).GetValue(target.Map.roofGrid);
+        int anchorIndex = target.Map.cellIndices.CellToIndex(target.Anchor.Position);
+        var oldRoof = roofs[anchorIndex];
+        var terrain = target.Map.terrainGrid.foundationGrid;
+        var oldFoundation = terrain[anchorIndex];
+        var foundation = (TerrainDef)Raw(typeof(TerrainDef));
+        foundation.isFoundation = true;
+        foundation.tags = new List<string> { "Substructure" };
+        terrain[anchorIndex] = foundation;
+        roofs[anchorIndex] = new RoofDef { defName = "interiorTargetFixtureRoof" };
+        var targets = new ShipFireControl.ExternalTargets(new[] { engine, target.Anchor, weapon, hidden });
+        Check(ShipFireControl.ExternalCombatPart(hidden) == null && ShipFireControl.ExternalCombatPart(target.Anchor) == null,
+            "a solid roof hides an internal gun and the console never qualifies as an aim point");
+        var menu = Dialog_CombatOrders.QueueableParts(target).ToHashSet();
+        Check(menu.SetEquals(target.Map.listerThings.AllThings.Where(thing =>
+                thing == weapon || thing == engine || thing.def.defName.StartsWith("engagementThreat", StringComparison.Ordinal))),
+            "the order menu only lists exterior weapons and propulsion from the target ship");
+        var fire = universe.Controls.For(own).FireControl;
+        var hiddenOrder = CombatTarget.ForShip(target.Identity, hidden.thingIDNumber);
+        fire.CommandTarget(hiddenOrder, appendPart: true);
+        Check(fire.QueueCount == 0, "a roofed weapon is rejected when queued directly");
+        roofs[anchorIndex] = oldRoof;
+        terrain[anchorIndex] = oldFoundation;
+        foreach (Thing part in new Thing[] { weapon, engine, hidden })
         {
-            var removed = new HashSet<Thing>(); if (omitted != null) removed.Add(omitted);
-            Vector2 source = target.HullCenter + SpaceTransform.Rotate(new Vector2(100, 0), angle * Mathf.PI / 18);
-            Thing expected = null; float best = float.NegativeInfinity;
-            foreach (var part in candidates)
-            {
-                if (removed.Contains(part.thing)) continue;
-                float score = part.value / (1 + SpaceCollision.TargetObstruction(target, source, part.point, part.thing, removed))
-                    - .001f * (part.point - source).magnitude;
-                if (score <= best) continue;
-                best = score; expected = part.thing;
-            }
-            same &= ShipFireControl.ChoosePart(candidates, target, source, (part, point) => true, removed, observation.query) == expected;
+            target.Map.thingGrid.Deregister(part);
+            target.Map.listerThings.AllThings.Remove(part);
+            ((ThingOwner<Thing>)target.Map.spawnedThings).InnerListForReading.Remove(part);
         }
-        Check(same && candidates.Count > 1, "bounded part selection exactly matches unpruned live obstruction scoring across bearings and destroyed parts");
+        var visited = new List<Thing>();
+        bool Select(CombatPart priority, Thing reachable)
+        {
+            visited.Clear();
+            return targets.TrySelect(priority, part => { visited.Add(part); return part == reachable; });
+        }
+        Check(new CombatStrategy().BuiltInFire.part == CombatPart.Weapons && targets.weapons.SequenceEqual(new[] { weapon })
+            && targets.propulsion.SequenceEqual(new[] { engine }), "only exterior weapons and thrusters can be offered as aim points");
+        Check(Select(CombatPart.Weapons, weapon) && visited.SequenceEqual(new[] { weapon }),
+            "default searches weapon targets first");
+        Check(Select(CombatPart.Propulsion, engine) && visited.SequenceEqual(new[] { engine }),
+            "propulsion rule searches thruster targets first");
+        Check(Select(CombatPart.Weapons, engine) && visited.SequenceEqual(new[] { weapon, engine }),
+            "unreachable weapons fall through to propulsion");
+        Check(Select(CombatPart.Weapons, null) && visited.SequenceEqual(new[] { weapon, engine, null }),
+            "both unreachable categories fall back to hull center");
+        visited.Clear();
+        Check(!targets.TrySelect(CombatPart.Weapons, part => { visited.Add(part); return false; }) && visited.Last() == null,
+            "unreachable center rejects the shot");
     }
 
     static void CheckEngagementFlight(UniverseManager universe, ManeuverMotionObject own,

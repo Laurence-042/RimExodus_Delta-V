@@ -30,7 +30,7 @@ namespace DeltaV
             private readonly Surface surface;
             private readonly Map map;
             private readonly HashSet<IntVec3> cells;
-            private readonly HashSet<Thing> buildings = new HashSet<Thing>();
+            private readonly HashSet<Thing> hullBuildings = new HashSet<Thing>();
             internal readonly List<IntVec3> foundationCells = new List<IntVec3>();
             private readonly SweptBody footprint = new SweptBody();
             private readonly Predicate<IntVec3> includeBody;
@@ -43,19 +43,13 @@ namespace DeltaV
                 {
                     if (!Includes(cell)) continue;
                     int index = map.cellIndices.CellToIndex(cell);
-                    Thing building = surface.buildings[index];
-                    if (building != null) buildings.Add(building);
                     if (surface.foundations[index]) foundationCells.Add(cell);
+                    Thing building = surface.buildings[index];
+                    if (building != null) hullBuildings.Add(building);
                 }
             }
-            private bool BuildingsPassed(HashSet<Thing> passed)
-            {
-                foreach (Thing building in buildings) if (!passed.Contains(building)) return false;
-                return true;
-            }
             private bool Includes(IntVec3 cell) => cells == null || cells.Contains(cell);
-            internal float Obstruction(Vector2 source, Vector2 end, Thing target, ISet<Thing> removed) =>
-                TargetObstruction(map, source, end, target, removed, surface);
+            internal bool AllBuildingsPass(HashSet<Thing> coverBuildings) => hullBuildings.IsSubsetOf(coverBuildings);
             private void NextLine(Vector2 from, Vector2 dir, float length, CompProperties_SpaceProjectile props,
                 Predicate<CompSpaceShield> include, out CompSpaceShield hit, out Vector2 point,
                 out Vector2 normal, out float along) => TryFindLineHit(surface, from, dir, length, props,
@@ -68,7 +62,8 @@ namespace DeltaV
             internal bool Next(Vector2 from, Vector2 direction, float length, ThingDef projectile,
                 float radius, HashSet<Thing> passed, HashSet<IntVec3> passedCells,
                 Predicate<CompSpaceShield> includeLine, Predicate<ShieldArc> includeGuard,
-                out RayContact contact, bool skipSubstructure = false)
+                out RayContact contact, bool skipSubstructure = false,
+                HashSet<Thing> coverBuildings = null, HashSet<IntVec3> coverCells = null, bool skipHull = false)
             {
                 contact = default;
                 if (length <= 0 || direction.sqrMagnitude < 1e-8f) return false;
@@ -90,20 +85,13 @@ namespace DeltaV
                 float projection = Vector2.Dot(toCenter, dir);
                 if ((toCenter - dir * Mathf.Clamp(projection, 0, length)).magnitude
                     > surface.boundsRadius + radius + .5f) return false;
-                float near = Mathf.Max(0, (surface.boundsCenter - from).magnitude - surface.boundsRadius - radius - 1);
-                int first = Mathf.Max(0, Mathf.FloorToInt(near / SampleStep));
-                int last = Mathf.CeilToInt(Mathf.Min(end, projection + surface.boundsRadius + radius + 1) / SampleStep);
-                bool emptyBody = skipSubstructure && BuildingsPassed(passed);
-                for (int sample = first; !emptyBody && sample <= last; sample++)
+                if (!skipHull)
                 {
-                    Vector2 p = from + dir * Mathf.Min(end, sample * SampleStep);
-                    if (!FindBestCell(footprint, map, surface, from, p, dir, passed, passedCells,
-                        out IntVec3 cell, out SpaceCellKind kind, out Thing building,
-                        includeBody, skipSubstructure)) continue;
-                    Vector2 normal = Mathf.Abs(dir.x) >= Mathf.Abs(dir.y)
-                        ? new Vector2(-Mathf.Sign(dir.x), 0) : new Vector2(0, -Mathf.Sign(dir.y));
-                    contact = new RayContact(p, normal, cell, kind, building);
-                    return true;
+                    float near = Mathf.Max(0, toCenter.magnitude - surface.boundsRadius - radius - 1);
+                    float hullEnd = Mathf.Min(end, projection + surface.boundsRadius + radius + 1);
+                    if (TryFindHullContact(footprint, map, surface, from, dir, dir,
+                        near, hullEnd, passed, passedCells, includeBody, skipSubstructure, out contact,
+                        coverBuildings, coverCells)) return true;
                 }
                 if (guard != null && guardAlong <= lineAlong)
                     contact = new RayContact(guardPoint, (guardPoint - guard.center).normalized,

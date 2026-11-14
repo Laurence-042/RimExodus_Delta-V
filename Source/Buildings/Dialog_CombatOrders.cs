@@ -15,6 +15,13 @@ namespace DeltaV
         internal Dialog_CombatOrders(ShipBase ship, UniverseManager universe)
         { this.ship = ship; this.universe = universe; control = universe.Controls.ExistingFor(ship).FireControl;
             forcePause = true; doCloseX = true; }
+
+        internal static IEnumerable<Thing> QueueableParts(ShipBase enemy)
+        {
+            var targets = new ShipFireControl.ExternalTargets(enemy);
+            return targets.weapons.Concat(targets.propulsion);
+        }
+
         public override void DoWindowContents(Rect rect)
         {
             Widgets.Label(new Rect(0f, 0f, rect.width, 70f), "DeltaV_CombatOrdersHelp".Translate());
@@ -33,10 +40,8 @@ namespace DeltaV
                 if (Widgets.ButtonText(new Rect(448f, y, 200f, 32f), "DeltaV_CombatQueuePart".Translate()))
                 {
                     var options = new List<FloatMenuOption>();
-                    foreach (var thing in enemy.Map.listerThings.AllThings.Where(t => t is Building
-                        && t.Spawned && !t.Destroyed && enemy.Contains(t)).OrderBy(t => t.LabelCap.ToString()))
+                    foreach (var part in QueueableParts(enemy).OrderBy(part => part.LabelCap.ToString()))
                     {
-                        var part = thing;
                         options.Add(new FloatMenuOption(part.LabelCap + " " + part.Position, () =>
                             control.CommandTarget(CombatTarget.ForShip(selected.Identity, part.thingIDNumber), true)));
                     }

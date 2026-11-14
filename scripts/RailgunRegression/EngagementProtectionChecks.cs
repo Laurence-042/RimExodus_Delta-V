@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -137,7 +138,9 @@ internal static partial class Program
             Check(Run("Laser", "Guard") == 0 && Run("Cannon", "Guard") == 0, "guard capacity intercepts both weapon families before thin armor");
         }
         finally { Rand.PopState(); }
-        var path = compareForecast ? "Source/obj/EngagementForecast/protection.json" : "Source/obj/EngagementBaseline-20261108/protection.json";
+        string output = Environment.GetEnvironmentVariable("DELTAV_ENGAGEMENT_OUTPUT")
+            ?? (compareForecast ? "Source/obj/EngagementForecast" : "Source/obj/EngagementBaseline-20261108");
+        var path = Path.Combine(output, "protection.json");
         Directory.CreateDirectory(Path.GetDirectoryName(path));
         File.WriteAllText(path, JsonSerializer.Serialize(new { baseline = compareForecast ? "working-tree" : "c81b2eb",
             scope = "Production collision and damage; fixed lanes, full pulse reserve, no AI, return-fire, thermal schedule or shield recovery. Not a complete ship battle.", results },
@@ -149,7 +152,156 @@ internal static partial class Program
             CheckForecastGeometry(projectiles["DeltaV_Projectile_Laser"], projectiles["DeltaV_Projectile_Cannon"]);
             CheckForecastFootprints(projectiles["DeltaV_Projectile_Laser"], projectiles["DeltaV_Projectile_Cannon"]);
             CheckForecastIndependentCover(projectiles["DeltaV_Projectile_Laser"]);
+            CheckForecastShortRays(output);
+            CheckForecastRecursiveCover(output);
+            CheckForecastHullEarlyOut(output);
         }
+    }
+
+    sealed class ShortRayHull : MapSpaceObject
+    {
+        public readonly List<SpaceCollisionCell> cells = new();
+        internal ShortRayHull(Map map) : base(nextId++, map, new SpacePose(Vector3.forward, 0)) { }
+        public override IEnumerable<SpaceCollisionCell> CollisionCells => cells;
+    }
+
+    static void CheckForecastShortRays(string output)
+    {
+        var rows = new List<object>();
+        foreach (float chance in new[] { 0f, .01f, 1f })
+        {
+            Reset(70);
+            var target = new ShortRayHull(map);
+            for (int x = 5; x < 75; x++) for (int z = 5; z < 65; z++)
+                target.cells.Add(new SpaceCollisionCell(new IntVec3(x, 0, z), SpaceCellKind.Substructure, null));
+            var cover = Add(7, 7, 80); cover.def.fillPercent = .5f;
+            var device = Add(9, 7, 80);
+            foreach (Thing thing in new[] { cover, device })
+                target.cells.Add(new SpaceCollisionCell(thing.Position, SpaceCellKind.Building, thing));
+            var projectile = MakeDef("shortRay" + chance.ToString(CultureInfo.InvariantCulture));
+            projectile.comps.Add(new CompProperties_SpaceProjectile { laserRange = 20 });
+            var part = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damageDef = bullet,
+                damage = 100, penetrates = true, substructureBreakThreshold = 1 };
+            DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = projectile.defName,
+                projectileDefs = new List<ThingDef> { projectile }, targetsSubstructure = true,
+                substructureHitChance = chance, defenderEffect = part });
+            DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = projectile.defName + "Building",
+                projectileDefs = new List<ThingDef> { projectile }, defenderEffect = part });
+            SpaceImpactEffects.ResetCache();
+            var forecast = new CombatDamageForecast(new CombatDamageForecast.Observation(target));
+            CombatDamageEstimate Trace(int i) => forecast.Fire(new Vector2(5.25f, 7.5f), Vector2.right, 6f,
+                projectile, 1, 60, coverSample: ((i & 7) + .5f) / 8);
+            for (int i = 0; i < 24; i++)
+            {
+                if (i % 8 == 0) forecast.ResetShot();
+                var estimate = Trace(i);
+                rows.Add(new { chance, i, estimate.contacts, estimate.structure, estimate.guard, estimate.armorProgress,
+                    estimate.returnedPotential, estimate.uncertainDamageUpper, estimate.uncertain, estimate.exhausted,
+                    estimate.hitArmor, coverHp = forecast.RemainingHP(cover), deviceHp = forecast.RemainingHP(device) });
+                Check(!estimate.exhausted && cover.HitPoints == 80 && device.HitPoints == 80,
+                    $"cached cover leaves live state unchanged at floor chance {chance}, shot {i}");
+            }
+            Check(forecast.Query.foundationCells.Count >= 4198, "short ray traverses a small part of a large foundation");
+            var watch = Stopwatch.StartNew();
+            int contacts = 0;
+            for (int i = 0; i < 4000; i++) { forecast.ResetShot(); contacts += Trace(i).contacts; }
+            watch.Stop();
+            Console.WriteLine($"SHORT_RAY chance={chance.ToString(CultureInfo.InvariantCulture)} contacts={contacts} ms={watch.Elapsed.TotalMilliseconds:F3}");
+        }
+        File.WriteAllText(Path.Combine(output, "short-ray-parity.json"), JsonSerializer.Serialize(rows));
+    }
+
+    static void CheckForecastRecursiveCover(string output)
+    {
+        Reset();
+        var bank = new CompPowerBattery(); Set(bank, "storedEnergy", 10000f);
+        var net = (PowerNet)Raw(typeof(PowerNet)); net.batteryComps = new List<CompPowerBattery> { bank };
+        var power = new CompPowerTrader { transNet = net }; Set(power, "powerOnInt", true);
+        var shield = new CompSpaceShield { props = new CompProperties_SpaceShield(), mode = SpaceShieldMode.Kinetic,
+            angleDeg = 90, length = 18, projection = 10, kineticStrengthPercent = 100 };
+        var interceptor = (CompProjectileInterceptor)Raw(typeof(CompProjectileInterceptor));
+        interceptor.props = new CompProperties_ProjectileInterceptor { radius = 12, hitPoints = 750 };
+        Add(30, 8, 500, interceptor, power, shield);
+        var front = Add(35, 5, 60); front.def.fillPercent = .5f;
+        var rear = Add(40, 5, 60);
+        var fragment = MakeDef("coverFragment");
+        fragment.comps.Add(new CompProperties_SpaceProjectile { ignoresShields = true });
+        DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = fragment.defName,
+            projectileDefs = new List<ThingDef> { fragment },
+            defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damageDef = bullet,
+                damage = 120f, penetrates = true } });
+        var shell = MakeDef("coverFragmentParent");
+        shell.comps.Add(new CompProperties_SpaceProjectile { shieldFragmentCount = 3, shieldFragmentDef = fragment,
+            shieldBreakDeltaV = -1f, shieldFragmentScatterDeg = 0f });
+        SpaceImpactEffects.ResetCache();
+        var forecast = new CombatDamageForecast(hull);
+        float sample = Enumerable.Range(1, 15).Select(i => i / 16f)
+            .First(q => CombatDamageForecast.ContactSample(q, front.Position) < .5f);
+        var rows = new List<object>();
+        for (int i = 0; i < 2; i++)
+        {
+            forecast.ResetShot();
+            var hit = forecast.Fire(new Vector2(5, 5.5f), Vector2.right, 65, shell, 20, 120, coverSample: sample);
+            float frontHp = forecast.RemainingHP(front), rearHp = forecast.RemainingHP(rear);
+            rows.Add(new { hit.contacts, hit.structure, hit.uncertain, hit.exhausted, frontHp, rearHp });
+            Check(hit.contacts == 3 && !hit.exhausted && frontHp == 0 && rearHp == 0
+                && front.HitPoints == 60 && rear.HitPoints == 60 && bank.StoredEnergy == 10000f,
+                "kinetic shield fragments share shot damage and preserve real HP and energy after reusing cover");
+        }
+        File.WriteAllText(Path.Combine(output, "recursive-cover-parity.json"), JsonSerializer.Serialize(rows));
+    }
+
+    sealed class EarlyOutScope : FoundationShip
+    {
+        public override IEnumerable<IntVec3> HullCells { get; }
+        internal EarlyOutScope(Map map, params Thing[] buildings) : base(new Ship(0, map, null))
+        {
+            HullCells = buildings.SelectMany(building => building.OccupiedRect()).ToArray();
+        }
+        public override bool Contains(Thing thing) => thing.Map == Map && HullCells.Contains(thing.Position);
+    }
+
+    static void CheckForecastHullEarlyOut(string output)
+    {
+        Reset();
+        var guard = Shield(750, radius: 8);
+        guard.parent.def.fillPercent = 0;
+        var wall = Add(31, 5, 300);
+        var target = new ShortRayHull(map);
+        target.cells.Add(new SpaceCollisionCell(new IntVec3(30, 0, 5), SpaceCellKind.Substructure, null));
+        target.cells.AddRange(hull.CollisionCells);
+        var projectile = MakeDef("earlyOutShield");
+        projectile.comps.Add(new CompProperties_SpaceProjectile { laserRange = 60 });
+        DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = "EarlyOutFloor",
+            projectileDefs = new List<ThingDef> { projectile }, targetsSubstructure = true, substructureHitChance = 0,
+            defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damageDef = bullet, damage = 40 } });
+        DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = "EarlyOutWall",
+            projectileDefs = new List<ThingDef> { projectile },
+            defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damageDef = bullet, damage = 40 } });
+        DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = "EarlyOutGuard",
+            projectileDefs = new List<ThingDef> { projectile }, targetThingDefs = new List<ThingDef> { guard.parent.def },
+            defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.ShieldDrain, damage = 40 } });
+        SpaceImpactEffects.ResetCache();
+        var rows = new List<object>();
+        void Verify(string scenario, ShipBase scope, bool hitsWall)
+        {
+            var forecast = new CombatDamageForecast(new CombatDamageForecast.Observation(target, scope));
+            for (int i = 0; i < 2; i++)
+            {
+                forecast.ResetShot();
+                var hit = forecast.Fire(new Vector2(30.25f, 5.5f), Vector2.right, 20, projectile, 1, 60);
+                rows.Add(new { scenario, i, hit.contacts, hit.structure, hit.guard, hit.uncertain, hit.exhausted,
+                    wallHp = forecast.RemainingHP(wall) });
+                Check(hit.contacts == 1 && !hit.exhausted && wall.HitPoints == 300 && guard.currentHitPoints == 750
+                    && (hitsWall ? hit.structure > 0 && hit.guard == 0 : hit.structure == 0 && hit.guard > 0),
+                    $"early-out hull and guard ordering: {scenario}, contacts={hit.contacts}, structure={hit.structure}, guard={hit.guard}");
+            }
+        }
+        Verify("solid wall ahead of guard", null, true);
+        Verify("different ship on the same map", new EarlyOutScope(map, guard.parent), false);
+        wall.def.fillPercent = 0;
+        Verify("all cover passes before guard", null, false);
+        File.WriteAllText(Path.Combine(output, "hull-early-out-parity.json"), JsonSerializer.Serialize(rows));
     }
 
     static void CheckForecastIndependentCover(ThingDef laser)

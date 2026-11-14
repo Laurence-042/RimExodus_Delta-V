@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Xml.Serialization;
 using DeltaV;
@@ -29,7 +29,7 @@ internal static partial class Program
         Check(!new CombatCriterion().Matches(Shield(1)) && !new CombatCriterion
             { metric = CombatMetric.WeaponCooldownSeconds }.Matches(Shield(1)), "missing target and weapon facts cannot masquerade as zero cooldown or distance");
         rule.conditions[0].weapons.set = CombatWeaponSet.Main; rule.conditions[0].weapons.group = 2;
-        var fire = new CombatStrategyRule { fireAction = CombatFireAction.Hold, part = CombatPart.Power, anchorOnly = true };
+        var fire = new CombatStrategyRule { fireAction = CombatFireAction.Hold, part = CombatPart.Propulsion, anchorOnly = true };
         strategy.fireRules.Add(fire); strategy.targetRules.Add(new CombatStrategyRule { targetOrder = CombatTargetOrder.Threat, includeDisarmed = true });
         strategy.maneuverRules[1].tactic.bearing = CombatBearing.Enemy;
         strategy.maneuverRules[1].tactic.bearingDegrees = 90;
@@ -39,6 +39,7 @@ internal static partial class Program
         using var text = new StringWriter(); serializer.Serialize(text, strategy);
         var loaded = (CombatStrategy)serializer.Deserialize(new StringReader(text.ToString())); loaded.Validate();
         Check(loaded.format == 3 && loaded.fireRules[0].fireAction == CombatFireAction.Hold
+            && loaded.fireRules[0].part == CombatPart.Propulsion
             && loaded.targetRules[0].includeDisarmed && loaded.maneuverRules[1].tactic.bearingDegrees == 90
             && loaded.maneuverRules[1].conditions[0].exitValue == .5f,
             "format 3 XML preserves target/fire actions, bearing, selectors and release thresholds");
