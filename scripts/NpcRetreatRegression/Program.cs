@@ -66,6 +66,7 @@ internal static partial class Program
         var world = (World)Raw(typeof(World));
         Set(game, "worldInt", world);
         Current.Game = game;
+        DefDatabase<DesignationDef>.Add(new DesignationDef { defName = "OfflineDesignation" });
         var layer = (PlanetLayer)Raw(typeof(PlanetLayer));
         FieldInfo tiles = typeof(PlanetLayer).GetField("tileIDToNeighbors_offsets", Private | BindingFlags.Public);
         object array = Activator.CreateInstance(tiles.FieldType);
@@ -145,7 +146,14 @@ internal static partial class Program
         if (dockingOnly)
         {
             ThingDefOf.PilotConsole = TestBuildingDef("console");
+            Find.World.factionManager = (FactionManager)Raw(typeof(FactionManager));
+            faction.def = new FactionDef { isPlayer = true };
+            Set(Find.World.factionManager, "ofPlayer", faction);
             CheckDockingSystem(universe, dockingOnly: true);
+            CheckMapPool(universe);
+            CheckPayloadSave(universe);
+            CheckScatteredRetirement(universe);
+            CheckTractorReceive(universe, receiveOnly: true);
             return;
         }
         if (playerFlightOnly) { CheckPlayerFlightOrders(universe); return; }

@@ -215,7 +215,7 @@
         <accelerationTicks>6</accelerationTicks>
         <exhaustOffset>(-0.55,-0.045)</exhaustOffset>
         <lockArcDeg>360</lockArcDeg>
-        <hasMap>true</hasMap>
+        <hasMap>false</hasMap>
         <exhaustTrail>true</exhaustTrail>
         <exhaustSize>1.4</exhaustSize>
         <smokeLifetimeTicks>150</smokeLifetimeTicks>

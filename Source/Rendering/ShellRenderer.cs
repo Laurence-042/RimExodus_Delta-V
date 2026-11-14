@@ -102,6 +102,12 @@ namespace DeltaV
         {
             // 每容器一壳：整图内容（含停靠船与残骸归属的格）统一绘制，allowedCells
             // 恒为 null（不再按船裁剪）。
+            if (obj.Payload != null)
+            {
+                if (!obj.DrawPayload(frame, frameMap, foreground: false)) return false;
+                target.layer.Emit(target);
+                return true;
+            }
             if (!HasDrawableMap(universe, obj)) return false;
             Map map = obj.map;
 
@@ -147,6 +153,7 @@ namespace DeltaV
                 return;
             }
             Map map = obj.map;
+            if (map == null) return;
             LayerLogBuf.Append(" map#").Append(map.uniqueID)
                 .Append('(').Append(map.Size.x).Append('x').Append(map.Size.z).Append(')')
                 .Append(" q=").Append(MapOverlayRenderer.QuadsDrawnLastPass);

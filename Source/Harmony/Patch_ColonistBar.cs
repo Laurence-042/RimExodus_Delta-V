@@ -26,11 +26,6 @@ namespace DeltaV
             if (map == null) return false; // Caravan entries have no map.
             if (SpaceLifecycleService.IsUniverseHost(map)) return true;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            DeltaVPocketMapMetadata metadata = map.GetComponent<DeltaVPocketMapMetadata>();
-            if (metadata?.pooledMap == true && metadata.poolTag == SpaceObjectTag.Projectile)
-                return true;
-            if (universe?.Projectiles.IsProjectileMap(map) == true) return true;
-            if (universe?.MapPool.IsIdle(map) == true) return true;
             if (DeltaVMod.CurrentSettings?.hideSpaceMapsWithoutPlayerPawns == false)
                 return false;
             if (universe?.SpaceObjectOnMap(map) == null

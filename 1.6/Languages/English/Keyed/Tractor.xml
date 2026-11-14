@@ -14,4 +14,6 @@
   <DeltaV_TractorKind0>Humanlike</DeltaV_TractorKind0>
   <DeltaV_TractorKind1>Animal</DeltaV_TractorKind1>
   <DeltaV_TractorKind2>Mechanoid</DeltaV_TractorKind2>
+  <DeltaV_LocateScatteredPawns>Locate drifting personnel</DeltaV_LocateScatteredPawns>
+  <DeltaV_SaveBlockedPayload>Wait for Delta-V to finish transferring the drifting contents, then save again.</DeltaV_SaveBlockedPayload>
 </LanguageData>

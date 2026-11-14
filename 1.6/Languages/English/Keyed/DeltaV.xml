@@ -745,4 +745,5 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_PrefabClusterPool>Weighted prefab pool</DeltaV_PrefabClusterPool>
   <DeltaV_PrefabClusterAdd>Add prefab</DeltaV_PrefabClusterAdd>
   <DeltaV_PrefabClusterWeight>Weight</DeltaV_PrefabClusterWeight>
+  <DeltaV_DumpSpaceObjectNoHit>No SpaceObject at this position.</DeltaV_DumpSpaceObjectNoHit>
 </LanguageData>

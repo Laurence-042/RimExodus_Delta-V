@@ -112,19 +112,8 @@ namespace DeltaV
         {
             if (weapon.WeaponProps.projectilesPerShot > 1) return LaunchFan();
             Vector2 mapDirection = SpaceTransform.Rotate(Vector2.right, launchMapAngle);
-            bool guaranteedMissileHit = false;
-            if (target?.map != null && !target.map.Disposed
-                && target.HasTag(SpaceObjectTag.Projectile) == true)
-            {
-                foreach (Thing thing in target.map.listerThings.AllThings)
-                {
-                    if (SpaceImpactEffects.GuaranteedMissileHit(projectileDef, thing.def))
-                    {
-                        guaranteedMissileHit = true;
-                        break;
-                    }
-                }
-            }
+            bool guaranteedMissileHit = SpaceImpactEffects.GuaranteedMissileHit(
+                projectileDef, target?.InterceptionBody?.def);
             float spread = guaranteedMissileHit ? 0f
                 : Mathf.Clamp(Rand.Gaussian(0f, 0.4f), -1.2f, 1.2f)
                     * weapon.WeaponProps.baseSpreadDeg * Mathf.Deg2Rad

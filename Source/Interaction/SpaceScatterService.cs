@@ -16,15 +16,25 @@ namespace DeltaV
             new Dictionary<Map, HashSet<Thing>>();
         internal IEnumerable<SpaceObject> Candidates => candidates;
         internal bool HasCandidates => candidates.Count > 0;
+        internal IEnumerable<Pawn> PlayerPawns => PlayerPawnObjects().Select(o => (Pawn)o.Payload.Entity);
+
+        private IEnumerable<SpaceObject> PlayerPawnObjects() =>
+            candidates.Where(o => o.Payload.Entity is Pawn { Dead: false, Destroyed: false } pawn
+                && pawn.Faction == Faction.OfPlayer);
+
+        internal void ShowPlayerPawns(Map map)
+        {
+            var options = PlayerPawnObjects().OrderBy(o => o.label)
+                .Select(o => new FloatMenuOption(o.label, () => TargetCameraFocus.QueueStart(universe, map, o))).ToList();
+            if (options.Count > 0) Find.WindowStack.Add(new FloatMenu(options));
+        }
         private readonly Dictionary<Map, HashSet<IntVec3>> damaged = new Dictionary<Map, HashSet<IntVec3>>();
-        private readonly HashSet<Map> pendingEmpty = new HashSet<Map>();
-        private readonly HashSet<Map> awaitingFocusLoss = new HashSet<Map>();
         private sealed class PullRequest
         {
             internal SpaceObject target, receiver;
             internal CompSpaceWeapon weapon;
             internal Thing launcher => weapon.parent;
-            internal Map source, destination;
+            internal Map destination;
             internal int targetVersion, receiverVersion, tick, paidTick = -1;
             internal IntVec3 cell;
             internal Vector2 local;
@@ -34,79 +44,42 @@ namespace DeltaV
         private readonly List<PullRequest> pulls = new List<PullRequest>();
         internal const float PullFraction = 0.025f;
         private readonly HashSet<PullRequest> collecting = new HashSet<PullRequest>();
-        private readonly HashSet<Map> retiring = new HashSet<Map>();
+        private readonly HashSet<SpaceObject> retiring = new HashSet<SpaceObject>();
         public SpaceScatterService(UniverseManager universe)
         {
             this.universe = universe;
             foreach (SpaceObject obj in universe.objects) Register(obj);
         }
-        internal void Register(SpaceObject obj) { if (obj.IsScattered && obj.map != null) candidates.Add(obj); }
+        internal void Register(SpaceObject obj) { if (obj.IsScattered && obj.Payload?.Recoverable == true) candidates.Add(obj); }
         internal void Remove(SpaceObject obj)
         {
             candidates.Remove(obj);
-            if (obj.map != null) awaitingFocusLoss.Remove(obj.map);
+            retiring.Remove(obj);
             pulls.RemoveAll(p => p.target == obj || p.receiver == obj);
         }
+
         internal void Forget(Map map)
         {
-            candidates.RemoveWhere(o => o.map == map);
             looseCargoByMap.Remove(map);
-            damaged.Remove(map); pendingEmpty.Remove(map); awaitingFocusLoss.Remove(map);
-            collecting.RemoveWhere(p => p.source == map || p.destination == map); retiring.Remove(map);
-            pulls.RemoveAll(p => p.source == map || p.destination == map);
+            damaged.Remove(map);
+            collecting.RemoveWhere(p => p.destination == map);
+            pulls.RemoveAll(p => p.destination == map);
         }
 
-        // Called by the existing distance lifecycle or explicit sector departure, never a new scan.
         internal void RetireLost(SpaceObject owner, bool departing = false)
         {
-            Map map = owner?.map;
-            if (owner?.IsScattered != true || map == null || map.Disposed || !retiring.Add(map)) return;
+            if (owner?.IsScattered != true || !retiring.Add(owner)) return;
             int version = owner.RepresentationVersion;
             universe.QueueFrameAction(() =>
             {
-                if (!retiring.Remove(map) || map.Disposed || universe.FrameOf(map) != owner
+                if (!retiring.Remove(owner) || universe.ObjectById(owner.objectId) != owner
                     || owner.RepresentationVersion != version) return;
+                float distance = universe.Lifecycle.MinPlayerDistance(owner);
                 float limit = Mathf.Max(DeltaVMod.CurrentSettings.poiDeleteRadius,
                     DeltaVMod.CurrentSettings.poiActiveRadius + 1f);
-                if (!departing && universe.Lifecycle.MinPlayerDistance(owner) <= limit) return;
-                if (Find.CurrentMap == map)
-                {
-                    SpaceObject focus = universe.PlayerReferenceObjects().FirstOrDefault(o => o.map != null && o.map != map);
-                    if (focus == null) return;
-                    universe.SetFocused(focus);
-                }
-                RemoveLostContents(owner, map);
-                universe.MapPool.TryReturn(universe.MapPool.Restore(map));
+                if (departing || !float.IsPositiveInfinity(distance) && distance > limit)
+                    universe.UnregisterObject(owner);
             });
-        }
-
-        internal void TryRetireCargoForCapacity(SpaceObject owner)
-        {
-            Map map = owner.map;
-            if (map.mapPawns.AllPawnsCount != 0 || pulls.Any(pull => pull.source == map)
-                || map.listerThings.AllThings.Any(thing => thing is IThingHolder || !thing.questTags.NullOrEmpty()
-                    || (!IsCargo(thing) && thing is not Filth && thing is not Mote && thing is not Gas))) return;
-            RemoveLostContents(owner, map);
-            if (map.listerThings.AllThings.Count == 0 && universe.SpaceObjectOnMap(map) == null)
-                universe.Lifecycle.DestroyPocketMap(map);
-        }
-
-        private void RemoveLostContents(SpaceObject owner, Map map)
-        {
-            // Use vanilla's scoped destruction override for otherwise indestructible cargo.
-            bool previous = Thing.allowDestroyNonDestroyable;
-            try
-            {
-                Thing.allowDestroyNonDestroyable = true;
-                foreach (Thing thing in map.listerThings.AllThings.ToList())
-                    if (!thing.Destroyed) thing.Destroy(DestroyMode.Vanish);
-            }
-            finally { Thing.allowDestroyNonDestroyable = previous; }
-            if (map.listerThings.AllThings.Count != 0) return;
-            if (map.lordManager != null)
-                foreach (var lord in map.lordManager.lords.ToList())
-                    if (lord.ownedPawns.Count == 0) map.lordManager.RemoveLord(lord);
-            universe.UnregisterObject(owner);
         }
 
         internal static bool IsCargo(Thing thing) => thing is Pawn || thing.def.category == ThingCategory.Item;
@@ -119,9 +92,14 @@ namespace DeltaV
             pawn.jobs?.StopAll();
         }
 
-        internal IEnumerable<Thing> LooseCargo(Map map)
+        internal IEnumerable<Thing> LooseCargo(Map map) =>
+            LooseCargoIndex(map) ?? (IEnumerable<Thing>)Array.Empty<Thing>();
+
+        internal int LooseCargoCount(Map map) => LooseCargoIndex(map)?.Count ?? 0;
+
+        private HashSet<Thing> LooseCargoIndex(Map map)
         {
-            if (map == null || map.Disposed) return Array.Empty<Thing>();
+            if (map == null || map.Disposed) return null;
             if (!looseCargoByMap.TryGetValue(map, out HashSet<Thing> loose))
             {
                 loose = new HashSet<Thing>();
@@ -179,14 +157,8 @@ namespace DeltaV
                         if (!Supported(map, lost))
                             foreach (Thing thing in lost.GetThingList(map).Where(IsCargo).ToList())
                             {
-                                if (TryScatter(thing) || !thing.Spawned || thing.Map != map) continue;
-                                ClearPawnTransferJob(thing);
-                                if (!universe.MapPool.HasRoom)
-                                    universe.QueueFrameAction(() =>
-                                    {
-                                        if (universe.MapPool.HasRoom && thing.Spawned && thing.Map == map
-                                            && thing.Position == lost && !Supported(map, lost)) TryScatter(thing);
-                                    });
+                                if (!TryScatter(thing) && thing.Spawned && thing.Map == map)
+                                    ClearPawnTransferJob(thing);
                             }
                     }
                 });
@@ -198,7 +170,7 @@ namespace DeltaV
         {
             foreach (Thing thing in LooseCargo(map).ToList())
                 if (!TryScatter(thing)) return false;
-            return !LooseCargo(map).Any();
+            return LooseCargoCount(map) == 0;
         }
 
         internal static SpaceScatterService ForCargoMap(Map map)
@@ -213,75 +185,54 @@ namespace DeltaV
 
         internal void PlaceCargoOverflow(Thing item, Map map, IntVec3 cell, bool fromDestruction = false)
         {
+            if (fromDestruction && universe.FrameOf(map) is SpaceObject owner)
+            {
+                Vector2 direction = SpaceTransform.Rotate(Vector2.up, Rand.Range(0f, Mathf.PI * 2f));
+                SpacePose pose = EjectionPose(owner, map, cell, direction * 1.5f, direction * Rand.Range(0f, 4f));
+                if (universe.CapturePayload(item, pose, item.Faction, holder: item.holdingOwner,
+                    publishAtFrame: true) != null) return;
+            }
             // GenSpawn displaces existing items at capacity. Keep this stack on the source
-            // map until the frame handoff so a failed rental leaves real, recoverable cargo.
+            // map until the frame handoff so the stack always has an owner.
             item.holdingOwner?.Remove(item);
             SpawnItemAt(item, map, cell);
-            QueueCargoScatter(item, map, cell, fromDestruction);
+            QueueCargoScatter(item, map, cell);
         }
 
         internal void QueueDestroyedStorageItem(Thing item, Map source)
         {
             SpaceObject owner = universe.SpaceObjectOnMap(source);
-            int version = owner.RepresentationVersion;
             IntVec3 origin = item.Position;
-            Rot4 facing = item.Rotation;
-            Vector2 localPoint = SpaceTransform.MapToShipLocal(source, new Vector2(origin.x + .5f, origin.z + .5f));
             Vector2 launchVelocity = SpaceTransform.Rotate(Vector2.up, Rand.Range(0f, Mathf.PI * 2f))
                 * Rand.Range(0f, 4f);
-            SpacePose pose = SpaceTransform.RigidPointPose(owner.pose, localPoint, 0f);
-            pose.velocity = SpaceTransform.VelocityAtMovingLocalPoint(owner.pose, localPoint, launchVelocity, pose.position);
+            SpacePose pose = EjectionPose(owner, source, origin, default, launchVelocity);
 
             // Building.DeSpawn redistributes surplus stacks when the storage capacity disappears.
-            item.DeSpawn();
-            QueueDetachedCargo(item, owner, source, version, origin, facing, pose);
+            if (universe.CapturePayload(item, pose, item.Faction, source, origin, publishAtFrame: true) == null)
+                throw new InvalidOperationException("Could not capture the surviving storage item.");
         }
 
-        internal void QueueMiningEjection(Thing ore, SpaceObject asteroid, IntVec3 origin,
-            Vector2 hitPoint, Vector2 outward)
+        internal void QueueMiningEjection(Thing ore, SpaceObject asteroid, Vector2 hitPoint, Vector2 outward)
         {
             Map map = asteroid.map;
             Vector2 localPoint = SpaceTransform.MapToShipLocal(map, hitPoint) + outward * 0.5f;
             SpacePose pose = SpaceTransform.RigidPointPose(asteroid.pose, localPoint, 0f);
             pose.velocity = SpaceTransform.VelocityAtMovingLocalPoint(asteroid.pose, localPoint,
                 outward * Rand.Range(2f, 4f), pose.position);
-            QueueDetachedCargo(ore, asteroid, map, asteroid.RepresentationVersion, origin, Rot4.North, pose);
+            if (universe.CapturePayload(ore, pose, ore.Faction, publishAtFrame: true) == null)
+                throw new InvalidOperationException("Could not capture the mining output.");
         }
 
-        private void QueueDetachedCargo(Thing item, SpaceObject owner, Map source, int version,
-            IntVec3 origin, Rot4 facing, SpacePose pose)
-        {
-            universe.QueueFrameAction(Transfer);
-
-            void Transfer()
-            {
-                if (TryCreateScatter(item, pose, destination => SpawnScatteredItem(item, destination, facing))) return;
-
-                if (!source.Disposed && Find.Maps.Contains(source) && universe.SpaceObjectOnMap(source) == owner
-                    && owner.RepresentationVersion == version)
-                {
-                    item.Rotation = facing;
-                    SpawnItemAt(item, source, origin);
-                }
-                else universe.QueueFrameAction(Transfer);
-            }
-        }
-
-        private void QueueCargoScatter(Thing item, Map map, IntVec3 cell, bool fromDestruction = false)
+        private void QueueCargoScatter(Thing item, Map map, IntVec3 cell)
         {
             SpaceObject owner = universe.SpaceObjectOnMap(map);
             if (owner == null) return;
             int version = owner.RepresentationVersion;
-            Vector2 launchDirection = fromDestruction
-                ? SpaceTransform.Rotate(Vector2.up, Rand.Range(0f, Mathf.PI * 2f))
-                : Vector2.zero;
-            Vector2 launchOffset = launchDirection * 1.5f;
-            Vector2 launchVelocity = fromDestruction ? launchDirection * Rand.Range(0f, 4f) : Vector2.zero;
             universe.QueueFrameAction(() =>
             {
                 if (!map.Disposed && item.Spawned && item.Map == map && item.Position == cell
                     && universe.SpaceObjectOnMap(map) == owner && owner.RepresentationVersion == version)
-                    TryScatter(item, map, cell, null, launchOffset, launchVelocity);
+                    TryScatter(item, map, cell, null);
             });
         }
 
@@ -314,110 +265,23 @@ namespace DeltaV
         internal bool TryScatter(Thing thing) => thing?.Spawned == true
             && TryScatter(thing, thing.Map, thing.Position, null);
 
-        private bool TryScatter(Thing thing, Map source, IntVec3 origin, ThingOwner holder,
-            Vector2 launchOffset = default, Vector2 launchVelocity = default)
+        private bool TryScatter(Thing thing, Map source, IntVec3 origin, ThingOwner holder)
         {
             SpaceObject owner = universe.FrameOf(source);
             if (owner == null || owner.IsScattered) return false;
-            Rot4 facing = thing.Rotation;
+            return universe.CapturePayload(thing, EjectionPose(owner, source, origin, default, default),
+                thing.Faction, source, origin, holder) != null;
+        }
+
+        private static SpacePose EjectionPose(SpaceObject owner, Map source, IntVec3 origin,
+            Vector2 launchOffset, Vector2 launchVelocity)
+        {
             Vector2 localPoint = SpaceTransform.MapToShipLocal(source, new Vector2(origin.x + .5f, origin.z + .5f))
                 + launchOffset;
             SpacePose pose = SpaceTransform.RigidPointPose(owner.pose, localPoint, 0f);
             if (launchVelocity != Vector2.zero)
                 pose.velocity = SpaceTransform.VelocityAtMovingLocalPoint(owner.pose, localPoint, launchVelocity, pose.position);
-            return TryCreateScatter(thing, pose, destination =>
-            {
-                ClearPawnTransferJob(thing);
-                if (holder == null) thing.DeSpawn();
-                else if (!holder.Remove(thing))
-                    throw new InvalidOperationException("Scatter cargo is no longer in its container.");
-                try
-                {
-                    SpawnScatteredItem(thing, destination, facing);
-                }
-                catch
-                {
-                    if (thing.Spawned) thing.DeSpawn();
-                    if (holder?.TryAdd(thing, canMergeWithExistingStacks: false) == true) throw;
-                    if (thing.def.category == ThingCategory.Item)
-                    {
-                        thing.Rotation = facing;
-                        SpawnItemAt(thing, source, origin);
-                    }
-                    else GenSpawn.Spawn(thing, origin, source, facing);
-                    throw;
-                }
-            });
-        }
-
-        private static void SpawnScatteredItem(Thing thing, Map destination, Rot4 facing)
-        {
-            try
-            {
-                GenSpawn.Spawn(thing, IntVec3.Zero, destination, facing);
-                if (!thing.Spawned || thing.Map != destination)
-                    throw new InvalidOperationException("Scatter cargo did not spawn on its destination map.");
-                thing.PostSwapMap();
-            }
-            catch
-            {
-                if (thing.Spawned && thing.Map == destination) thing.DeSpawn();
-                throw;
-            }
-        }
-
-        private bool TryCreateScatter(Thing thing, SpacePose pose, Action<Map> populate)
-        {
-            float score = thing is Pawn || universe.MapPool.HasRoom
-                ? float.PositiveInfinity : universe.Lifecycle.ScatterCapacityScore(pose);
-            bool success = universe.MapPool.TryRent(SpaceObjectTag.Scattered, new IntVec2(1, 1), populate,
-                out SpaceMapLease lease, score);
-            if (!success)
-            {
-                if (lease != null) universe.MapPool.TryReturn(lease);
-                return false;
-            }
-            var scattered = new MapSpaceObject(universe.AllocateOwnerId(), lease.Map, pose)
-            {
-                baseTag = SpaceObjectTag.Scattered, faction = thing.Faction, ambientLabel = thing.LabelCap
-            };
-            universe.Lifecycle.FreezeScattered(lease.Map);
-            universe.RegisterObject(scattered);
-            return true;
-        }
-
-        internal void NotifyContentRemoved(Map map)
-        {
-            if (map == null || universe.FrameOf(map)?.IsScattered != true || !pendingEmpty.Add(map)) return;
-            universe.QueueFrameAction(() =>
-            {
-                if (!pendingEmpty.Remove(map) || map.Disposed) return;
-                SpaceObject owner = universe.FrameOf(map);
-                if (owner?.IsScattered != true || map.listerThings.AllThings.Any(IsCargo)) return;
-                foreach (Thing residue in map.listerThings.AllThings.Where(t => t is Filth || t is Mote || t is Gas).ToList())
-                    residue.Destroy(DestroyMode.Vanish);
-                // Death can spawn a corpse in this same frame. Only genuinely empty maps retire.
-                if (map.listerThings.AllThings.Count != 0) return;
-                if (Find.CurrentMap == map)
-                {
-                    awaitingFocusLoss.Add(map);
-                    return;
-                }
-                awaitingFocusLoss.Remove(map);
-                universe.UnregisterObject(owner);
-                universe.MapPool.TryReturn(universe.MapPool.Restore(map));
-            });
-        }
-
-        internal void NotifyFocusChanged(Map focused)
-        {
-            if (awaitingFocusLoss.Count == 0) return;
-            foreach (Map map in awaitingFocusLoss.ToList())
-            {
-                if (map == focused) continue;
-                awaitingFocusLoss.Remove(map);
-                if (!map.Disposed) NotifyContentRemoved(map);
-            }
+            return pose;
         }
 
         internal void ReleaseAutomatic(Thing launcher) => pulls.RemoveAll(p => p.launcher == launcher);
@@ -430,17 +294,8 @@ namespace DeltaV
 
         private static bool AllowedCargo(SpaceObject target, CompSpaceWeapon weapon)
         {
-            if (target?.IsScattered != true || target.map == null || target.map.Disposed) return false;
-            CompSpaceTractor tractor = weapon.Component<CompSpaceTractor>();
-            if (tractor == null) return false;
-            bool any = false;
-            foreach (Thing thing in target.map.listerThings.AllThings)
-                if (IsCargo(thing))
-                {
-                    if (!tractor.Allows(thing)) return false;
-                    any = true;
-                }
-            return any;
+            return target?.IsScattered == true && target.Payload?.Recoverable == true
+                && weapon.Component<CompSpaceTractor>()?.Allows(target.Payload.Entity) == true;
         }
 
         internal bool AutoAvailable(SpaceObject target, CompSpaceWeapon weapon)
@@ -470,7 +325,7 @@ namespace DeltaV
                 request = new PullRequest
                 {
                     target = target, receiver = receiver, weapon = weapon,
-                    source = target.map, destination = launcher.Map, cell = launcher.Position,
+                    destination = launcher.Map, cell = launcher.Position,
                     targetVersion = target.RepresentationVersion, receiverVersion = receiver.RepresentationVersion
                 };
                 pulls.Add(request);
@@ -483,7 +338,7 @@ namespace DeltaV
         {
             Thing launcher = weapon?.parent;
             SpaceObject receiver = universe.FrameOf(launcher?.Map);
-            if (target?.IsScattered != true || target.map == null || target.map.Disposed
+            if (target?.IsScattered != true || target.Payload?.Recoverable != true
                 || receiver == null || !SpaceTractor.CanOperate(weapon)) return false;
             Vector2 receiverLocal = SpaceTransform.MapToShipLocal(receiver.map,
                 SpaceWeaponGeometry.MuzzleMapPoint(weapon));
@@ -503,8 +358,7 @@ namespace DeltaV
             return true;
         }
 
-        private bool Valid(PullRequest p) => p.target.map == p.source && !p.source.Disposed
-            && universe.FrameOf(p.source) == p.target && p.target.RepresentationVersion == p.targetVersion
+        private bool Valid(PullRequest p) => universe.ObjectById(p.target.objectId) == p.target && p.target.RepresentationVersion == p.targetVersion
             && p.receiver.map == p.destination && universe.FrameOf(p.destination) == p.receiver
             && p.receiver.RepresentationVersion == p.receiverVersion && p.launcher.Map == p.destination
             && p.launcher.Position == p.cell && SpaceTractor.CanOperate(p.weapon)
@@ -536,7 +390,6 @@ namespace DeltaV
             CompSpaceTractor tractor = request.weapon.Component<CompSpaceTractor>();
             var context = new TractorReceiveContext(universe, request.weapon, request.target, request.receiver);
             if (!tractor.HasReachedReceiver(context) || !collecting.Add(request)) return;
-            Map source = request.source;
             universe.QueueFrameAction(() =>
             {
                 collecting.Remove(request);
@@ -546,8 +399,7 @@ namespace DeltaV
                 if (result == TractorReceiveResult.Complete)
                 {
                     pulls.Remove(request);
-                    if (Find.CurrentMap == source) universe.SetFocused(request.receiver);
-                    NotifyContentRemoved(source);
+                    universe.UnregisterObject(request.target);
                 }
                 else if (result == TractorReceiveResult.Rejected) tractor.NotifyBlocked();
             });

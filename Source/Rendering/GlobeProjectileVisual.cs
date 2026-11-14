@@ -4,7 +4,6 @@ using Verse;
 namespace DeltaV
 {
     // Borrow the same Def texture as the in-flight sprite. No texture is copied per shot.
-    // Mapped ammunition keeps this resource with its pooled Map; point ammunition with its Def.
     internal sealed class GlobeProjectileVisual
     {
         internal readonly ThingDef Def;

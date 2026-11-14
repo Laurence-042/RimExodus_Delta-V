@@ -67,16 +67,9 @@ internal static partial class Program
         CheckSoftDockInterpolation();
         CheckDockingCompState(universe);
 
-        Map map = TestMap(49701);
-        map.info.Size = new IntVec3(1, 1, 1);
-        map.cellIndices = new CellIndices(map);
-        map.terrainGrid = new TerrainGrid(map);
-        var cargo = (Thing)Raw(typeof(Thing));
-        cargo.def = TestBuildingDef("scattered_cargo"); cargo.def.category = ThingCategory.Item;
-        map.listerThings.AllThings.Add(cargo);
-        var scattered = new MapSpaceObject(49701, map, original) { baseTag = SpaceObjectTag.Scattered };
+        var cargo = NewMaplessCargo("scattered_cargo");
+        var scattered = universe.CapturePayload(cargo, original, null);
         Check(!scattered.CollisionCells.Any(), "scattered cargo has no collision surface");
-        universe.RegisterObject(scattered);
         Check(universe.Scatter.Candidates.Contains(scattered), "scattered registration populates the tractor candidate index");
         Check(CombatTarget.ForContainer(scattered).TryResolve(universe, out var resolved) && resolved.Container == scattered,
             "tractor locks resolve scattered object identity through existing fire control");
@@ -84,9 +77,6 @@ internal static partial class Program
         universe.UnregisterObject(scattered);
         Check(!universe.Scatter.Candidates.Contains(scattered), "scattered retirement releases the tractor candidate index");
         Check(!CombatTarget.ForContainer(scattered).TryResolve(universe, out _), "retired scattered identity cannot resolve a stale tractor lock");
-        map.listerThings.AllThings.Clear();
-        SpaceCollision.Forget(map);
-        Find.Maps.Remove(map);
         CheckSoftDockReference(universe);
         if (dockingOnly) return;
         CheckScatteredRetirement(universe);
@@ -201,8 +191,8 @@ internal static partial class Program
     {
         var sweep = new SpaceCollision.SweptBody { attacker = new SpaceObject(49702, scattered.pose),
             requiredDefender = scattered, sweepRadius = 0f,
-            from = SpaceTransform.MapPointToUniverse(scattered, scattered.map, new Vector2(-2, .5f)),
-            to = SpaceTransform.MapPointToUniverse(scattered, scattered.map, new Vector2(3, .5f)) };
+            from = SpaceTransform.ShipLocalToUniverse(scattered, new Vector2(-2.5f, 0f)),
+            to = SpaceTransform.ShipLocalToUniverse(scattered, new Vector2(2.5f, 0f)) };
         SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { sweep });
         Check(!sweep.resolvedHit && !sweep.dead, "production projectile sweep skips scattered cargo entirely");
     }
@@ -397,45 +387,48 @@ internal static partial class Program
     // unregistering and pool handoff all run through the production services.
     sealed class LostCargoProbe : Thing
     {
-        public Map source;
         public int destroyCalls;
         public override void Destroy(DestroyMode mode = DestroyMode.Vanish)
         {
             Check(mode == DestroyMode.Vanish && Thing.allowDestroyNonDestroyable,
                 "lost cargo vanishes through vanilla removal even when its Def is indestructible");
             destroyCalls++;
-            source.listerThings.AllThings.Remove(this);
+            Set(typeof(Thing), this, "mapIndexOrState", (sbyte)-2);
         }
+    }
+
+    static Thing NewMaplessCargo(string name)
+    {
+        var cargo = (LostCargoProbe)Raw(typeof(LostCargoProbe));
+        cargo.def = TestBuildingDef(name);
+        cargo.def.category = ThingCategory.Item;
+        cargo.def.stackLimit = 75;
+        cargo.stackCount = 1;
+        Set(typeof(Thing), cargo, "mapIndexOrState", (sbyte)-1);
+        return cargo;
     }
 
     static void CheckScatteredRetirement(UniverseManager universe)
     {
-        Current.Game.currentMapIndex = -1;
-        Map map = TestMap(49720);
-        PreparePoolMap(map, SpaceObjectTag.Scattered);
         var home = new SpaceObject(49721, new SpacePose(Vector3.forward, 0f))
             { baseTag = SpaceObjectTag.Ship, faction = Faction.OfPlayer };
-        var lost = new MapSpaceObject(49720, map, new SpacePose(OrbitSphere.Move(Vector3.forward,
-            new Vector2(DeltaVMod.CurrentSettings.poiDeleteRadius + 1000f, 0f)), 0f)) { baseTag = SpaceObjectTag.Scattered };
-        var cargo = (LostCargoProbe)Raw(typeof(LostCargoProbe));
-        cargo.def = TestBuildingDef("lost_cargo"); cargo.def.category = ThingCategory.Item; cargo.source = map;
-        Set(typeof(Thing), cargo, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
-        map.listerThings.AllThings.Add(cargo);
-        universe.objects.Add(home); universe.objects.Add(lost); universe.Scatter.Register(lost);
-        SpaceMapLease lease = universe.MapPool.Restore(map);
+        universe.RegisterObject(home);
+        var cargo = (LostCargoProbe)NewMaplessCargo("lost_cargo");
+        var lost = universe.CapturePayload(cargo, new SpacePose(OrbitSphere.Move(Vector3.forward,
+            new Vector2(DeltaVMod.CurrentSettings.poiDeleteRadius + 1000f, 0f)), 0f), null);
         SpacePose far = lost.pose;
-        Call(universe.Lifecycle, "TickMaterializedContainer", lost, 100f, 200f);
-        Check(cargo.destroyCalls == 0 && Actions(universe).Count > 0, "distance loss queues content retirement at the frame boundary");
+        universe.Scatter.RetireLost(lost);
+        Check(cargo.destroyCalls == 0 && Actions(universe).Count > 0, "distance loss queues retirement");
         lost.pose = home.pose;
         Call(universe, "RunFrameActions");
         Check(cargo.destroyCalls == 0 && universe.objects.Contains(lost), "returning within range cancels queued loss");
         lost.pose = far;
-        universe.Lifecycle.ArchiveContainer(lost, map);
+        universe.Scatter.RetireLost(lost, departing: true);
         Call(universe, "RunFrameActions");
         Check(cargo.destroyCalls == 1 && universe.ObjectById(lost.objectId) == null
-            && universe.MapPool.IsIdle(map) && !universe.Scatter.Candidates.Contains(lost) && !Thing.allowDestroyNonDestroyable,
-            "even archive requests destroy lost cargo then unregister and pool the map without an archive");
-        universe.objects.Remove(home); universe.MapPool.Forget(map); Find.Maps.Remove(map);
+            && !universe.Scatter.Candidates.Contains(lost) && !Thing.allowDestroyNonDestroyable,
+            "sector departure destroys and releases the actual payload exactly once");
+        universe.UnregisterObject(home);
     }
 
     static void CheckFocusedScatterAndMapSetter(UniverseManager universe)
@@ -443,40 +436,6 @@ internal static partial class Program
         Game game = Current.Game;
         Type focusPatch = typeof(UniverseManager).Assembly.GetType("DeltaV.Patch_Game_CurrentMapFocus");
         var postfix = focusPatch.GetMethod("Postfix", Private);
-        Map map = TestMap(49722);
-        PreparePoolMap(map, SpaceObjectTag.Scattered);
-        var scattered = new MapSpaceObject(49722, map, new SpacePose(Vector3.forward, 0f))
-            { baseTag = SpaceObjectTag.Scattered };
-        universe.objects.Add(scattered);
-        Set(universe, "objectByMap", null);
-        universe.Scatter.Register(scattered);
-        universe.MapPool.Restore(map);
-        game.currentMapIndex = (sbyte)Find.Maps.IndexOf(map);
-        universe.Scatter.NotifyContentRemoved(map);
-        Call(universe, "RunFrameActions");
-        Check(universe.objects.Contains(scattered) && !universe.MapPool.IsIdle(map),
-            "empty focused scatter map waits for focus loss");
-
-        var cargo = (Thing)Raw(typeof(Thing));
-        cargo.def = TestBuildingDef("focus_returned_cargo"); cargo.def.category = ThingCategory.Item;
-        map.listerThings.AllThings.Add(cargo);
-        game.currentMapIndex = -1;
-        postfix.Invoke(null, new object[] { game });
-        Call(universe, "RunFrameActions");
-        Check(universe.objects.Contains(scattered) && !universe.MapPool.IsIdle(map),
-            "cargo returned before focus-loss cleanup cancels retirement");
-
-        map.listerThings.AllThings.Remove(cargo);
-        game.currentMapIndex = (sbyte)Find.Maps.IndexOf(map);
-        universe.Scatter.NotifyContentRemoved(map);
-        Call(universe, "RunFrameActions");
-        game.currentMapIndex = -1;
-        postfix.Invoke(null, new object[] { game });
-        Call(universe, "RunFrameActions");
-        Check(!universe.objects.Contains(scattered) && universe.MapPool.IsIdle(map),
-            "focus loss retires an empty scattered map through the existing frame queue");
-        universe.MapPool.Forget(map); Find.Maps.Remove(map);
-
         Map target = TestMap(49723);
         var prefix = focusPatch.GetMethod("Prefix", Private);
         game.currentMapIndex = (sbyte)Find.Maps.Count;

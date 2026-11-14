@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -24,36 +23,15 @@ namespace DeltaV
                 <= ((CompProperties_CargoTractor)props).collectionRadius;
         public override TractorReceiveResult TryReceive(TractorReceiveContext context)
         {
-            Map source = context.Target.map;
+            AbstractThing payload = context.Target.Payload;
             CompVehicleCargo cargo = parent.TryGetComp<CompVehicleCargo>();
-            if (source == null || source.Disposed || cargo == null) return TractorReceiveResult.Rejected;
-            bool moved = false;
-            foreach (Thing thing in source.listerThings.AllThings.Where(SpaceScatterService.IsCargo).ToList())
-            {
-                if (!Allows(thing)) return moved ? TractorReceiveResult.Partial : TractorReceiveResult.Rejected;
-                float unitMass = thing.GetStatValue(StatDefOf.Mass);
-                int count = unitMass <= 0f ? thing.stackCount : Mathf.Min(thing.stackCount, Mathf.FloorToInt((cargo.Remaining + .0001f) / unitMass));
-                if (count <= 0) return moved ? TractorReceiveResult.Partial : TractorReceiveResult.Rejected;
-                IntVec3 previous = thing.Position;
-                Thing part = thing.SplitOff(count);
-                if (part.Spawned) part.DeSpawn();
-                try
-                {
-                    int offered = part.stackCount;
-                    if (!cargo.Transporter.innerContainer.TryAdd(part, canMergeWithExistingStacks: true))
-                    {
-                        moved |= part.Destroyed || part.stackCount < offered;
-                        ShipPhysics.InvalidateMass(context.Receiver.map);
-                        if (!part.Destroyed && !part.Spawned && part.holdingOwner == null) GenSpawn.Spawn(part, previous, source);
-                        return moved ? TractorReceiveResult.Partial : TractorReceiveResult.Rejected;
-                    }
-                    moved = true;
-                    ShipPhysics.InvalidateMass(context.Receiver.map);
-                }
-                catch { if (!part.Destroyed && !part.Spawned && part.holdingOwner == null) GenSpawn.Spawn(part, previous, source); throw; }
-            }
-            return source.listerThings.AllThings.Any(SpaceScatterService.IsCargo)
-                ? TractorReceiveResult.Partial : TractorReceiveResult.Complete;
+            if (payload?.Recoverable != true || cargo == null || !Allows(payload.Entity))
+                return TractorReceiveResult.Rejected;
+            Thing thing = payload.Entity;
+            float unitMass = thing.GetStatValue(StatDefOf.Mass);
+            int count = unitMass <= 0f ? thing.stackCount
+                : Mathf.Min(thing.stackCount, Mathf.FloorToInt((cargo.Remaining + .0001f) / unitMass));
+            return payload.Handoff(cargo.Transporter.innerContainer, count);
         }
     }
 }

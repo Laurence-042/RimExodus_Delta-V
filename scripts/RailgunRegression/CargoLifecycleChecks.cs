@@ -74,20 +74,12 @@ internal static partial class Program
         return false;
     }
 
-    static bool allowCargoFixtureRental;
-    static readonly HashSet<Map> fixtureScatterMaps = new();
     static readonly List<SpaceObject> fixtureScatterObjects = new();
-    static bool RentCargoFixture(Action<Map> populate, ref SpaceMapLease lease, ref bool __result)
+
+    static bool RegisterCargoFixture(SpaceObject obj)
     {
-        __result = allowCargoFixtureRental;
-        if (__result)
-        {
-            var map = (Map)Raw(typeof(Map));
-            Find.Maps.Add(map);
-            fixtureScatterMaps.Add(map);
-            lease = new SpaceMapLease(map, SpaceObjectTag.Scattered);
-            populate(map);
-        }
+        if (!obj.IsScattered) return true;
+        fixtureScatterObjects.Add(obj);
         return false;
     }
 
@@ -239,11 +231,6 @@ internal static partial class Program
                 cargoMap.listerMergeables = new ListerMergeables(cargoMap);
                 patch.Patch(AccessTools.Method(typeof(ListerMergeables), nameof(ListerMergeables.Notify_ThingStackChanged)),
                     prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
-                patch.Patch(AccessTools.Method(typeof(SpaceMapPool), nameof(SpaceMapPool.TryRent)),
-                    prefix: new HarmonyMethod(typeof(Program), nameof(RentCargoFixture)));
-                patch.Patch(AccessTools.Method(typeof(GenSpawn), "Spawn", new[] { typeof(Thing), typeof(IntVec3),
-                    typeof(Map), typeof(Rot4), typeof(WipeMode), typeof(bool), typeof(bool) }),
-                    prefix: new HarmonyMethod(typeof(Program), nameof(SpawnCargoFixture)));
                 patch.Patch(AccessTools.Method(typeof(UniverseManager), nameof(UniverseManager.RegisterObject)),
                     prefix: new HarmonyMethod(typeof(Program), nameof(RegisterCargoFixture)));
 
@@ -271,18 +258,13 @@ internal static partial class Program
                 hacked.Open();
                 Check(hacked.Contents.Single() == hackOverflow && crateDropped.Last() == goods && !hackOverflow.Spawned,
                     "deck unload leaves cargo that does not fit in the crate");
-                hacked.EjectIntoSpace();
-                AccessTools.Method(typeof(UniverseManager), "RunFrameActions").Invoke(universe, null);
-                Check(hacked.Contents.Single() == hackOverflow && !hackOverflow.Spawned,
-                    "manual space ejection leaves the original stack in its crate when rental fails");
-
                 var killed = make(enemy, false);
                 Set(killed, "positionInt", new IntVec3(3, 0, 3));
                 Thing killOverflow = OverflowStack();
                 Check(killed.TryStore(killOverflow), "fixture fills a crate before destruction");
                 killed.Destroy(DestroyMode.KillFinalize);
-                Check(killed.Destroyed && killed.Contents.Count == 0 && killOverflow.Map == cargoMap
-                    && killOverflow.holdingOwner == null && killOverflow.stackCount == 1,
+                Check(killed.Destroyed && killed.Contents.Count == 0 && killOverflow.Map == null
+                    && killOverflow.holdingOwner != null && universe.HasUnpublishedPayload && killOverflow.stackCount == 1,
                     "sealed destruction preserves one quarter of the original stack for frame transfer");
 
                 Building_SpaceCargoContainer SpawnStorage(IntVec3 position, params Thing[] items)
@@ -336,7 +318,6 @@ internal static partial class Program
                     && storageContentsAtBaseDestroy.SequenceEqual(new[] { unindexed })
                     && !firstRifle.Spawned && !secondRifle.Spawned && fixtureScatterObjects.Count == 0,
                     "native storage destruction receives the original mode after both indexed rifles leave the grid");
-                allowCargoFixtureRental = true;
                 Set(active, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(cargoMap));
                 Set(active, "positionInt", new IntVec3(4, 0, 4));
                 Thing storageOverflow = OverflowStack();
@@ -345,14 +326,14 @@ internal static partial class Program
                     "ASF ejection uses the overflow handoff when nearby placement fails");
                 AccessTools.Method(typeof(UniverseManager), "RunFrameActions").Invoke(universe, null);
                 Check(killedStorage.Destroyed && fixtureScatterObjects.Count == 4
-                    && fixtureScatterObjects.All(obj => obj.baseTag == SpaceObjectTag.Scattered)
-                    && killOverflow.Map == fixtureScatterObjects[0].map && killOverflow.stackCount == 1
-                    && firstRifle.Map == fixtureScatterObjects[1].map && firstRifle.stackCount == 1
-                    && secondRifle.Map == fixtureScatterObjects[2].map && secondRifle.stackCount == 1
-                    && firstRifle.Map != secondRifle.Map
-                    && storageOverflow.Map == fixtureScatterObjects[3].map && storageOverflow.stackCount == 4
+                    && fixtureScatterObjects.All(obj => obj.IsScattered && obj.map == null)
+                    && fixtureScatterObjects[0].Payload.Entity == killOverflow && killOverflow.stackCount == 1
+                    && fixtureScatterObjects[1].Payload.Entity == firstRifle && firstRifle.stackCount == 1
+                    && fixtureScatterObjects[2].Payload.Entity == secondRifle && secondRifle.stackCount == 1
+                    && fixtureScatterObjects[1].objectId != fixtureScatterObjects[2].objectId
+                    && fixtureScatterObjects[3].Payload.Entity == storageOverflow && storageOverflow.stackCount == 4
                     && storageCell.GetThingList(cargoMap).SequenceEqual(new[] { unindexed }),
-                    "ASF destruction transfers both original rifles to distinct maps and leaves an unindexed item untouched");
+                    "ASF destruction transfers both original rifles to distinct mapless objects and leaves an unindexed item untouched");
                 SpacePose firstPose = fixtureScatterObjects[1].pose;
                 SpacePose secondPose = fixtureScatterObjects[2].pose;
                 var sourcePoint = SpaceTransform.MapPointToUniverse(cargoFrame, cargoMap,
@@ -366,32 +347,17 @@ internal static partial class Program
                 hacked.EjectIntoSpace();
                 AccessTools.Method(typeof(UniverseManager), "RunFrameActions").Invoke(universe, null);
                 Check(hacked.Contents.Count == 0 && hackOverflow.stackCount == 4
-                    && fixtureScatterObjects.Count == 5 && hackOverflow.Map == fixtureScatterObjects[4].map
-                    && fixtureScatterObjects[4].baseTag == SpaceObjectTag.Scattered,
+                    && fixtureScatterObjects.Count == 5 && fixtureScatterObjects[4].Payload.Entity == hackOverflow
+                    && fixtureScatterObjects[4].IsScattered,
                     "manual space ejection transfers the full stack and registers a scattered object");
 
-                allowCargoFixtureRental = false;
-                Thing recovered = OverflowStack();
-                var failedStorage = SpawnStorage(new IntVec3(2, 0, 5), recovered);
-                IntVec3 recoveryCell = recovered.Position;
-                int originalId = recovered.thingIDNumber;
-                failedStorage.Destroy(DestroyMode.KillFinalize);
-                Check(failedStorage.Destroyed && !recovered.Spawned && storageContentsAtBaseDestroy.Length == 0,
-                    "cargo leaves the source before base destruction even when no scatter map is available");
-                AccessTools.Method(typeof(UniverseManager), "RunFrameActions").Invoke(universe, null);
-                Check(recovered.Map == cargoMap && recovered.Position == recoveryCell
-                    && !recovered.Destroyed && recovered.stackCount == 1 && recovered.thingIDNumber == originalId
-                    && recoveryCell.GetThingList(cargoMap).Contains(recovered) && fixtureScatterObjects.Count == 5,
-                    "failed rental restores the original surviving stack and its ID at the source cell");
+                Check(!universe.HasUnpublishedPayload, "successful frame publication releases the save gate");
             }
             finally
             {
                 universe.objects.Remove(cargoFrame);
                 Set(universe, "objectByMap", null);
                 fixtureScatterObjects.Clear();
-                foreach (Map map in fixtureScatterMaps) Find.Maps.Remove(map);
-                fixtureScatterMaps.Clear();
-                allowCargoFixtureRental = false;
                 storageContentsAtBaseDestroy = null;
             }
 

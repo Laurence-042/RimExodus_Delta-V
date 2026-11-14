@@ -18,8 +18,7 @@ namespace DeltaV
             SpaceObject owner = universe.FrameOf(map);
             // Do not discover members/roles while publishing a structural mutation.
             // The full eligibility query belongs at the coalesced frame boundary.
-            if (owner is not MapSpaceObject || map.Parent is not ShipPocketParent_DeltaV
-                || (owner.baseTag & (SpaceObjectTag.Projectile | SpaceObjectTag.Scattered)) != 0) return;
+            if (!IsOrdinaryStructureMap(owner)) return;
             pendingStructureChecks.Add(map);
             int version = owner.RepresentationVersion;
             universe.QueueFrameAction(() =>
@@ -40,7 +39,11 @@ namespace DeltaV
 
         private static bool IsOrdinaryStructureMap(SpaceObject owner) => owner is MapSpaceObject
             && owner.map?.Parent is ShipPocketParent_DeltaV
-            && !owner.HasTag(SpaceObjectTag.Projectile) && !owner.IsScattered;
+            && !UsesSeparateLifecycle(owner);
+
+        private static bool UsesSeparateLifecycle(SpaceObject owner) => owner.projectileRoleOverride
+            || ((owner.baseTag | (owner.Payload?.Role ?? 0))
+                & (SpaceObjectTag.Projectile | SpaceObjectTag.Scattered)) != 0;
 
         /// <summary>污渍、屋顶、散落物及人员都不能单独承载普通地图；shuttle 是独立船体。</summary>
         internal static bool HasMapSupport(SpaceObject owner)
@@ -81,7 +84,7 @@ namespace DeltaV
                 else Current.Game.CurrentMap = null;
             }
 
-            // 原版销图统一处置剩余 Pawn、物品和外部引用，不转存成残骸或阻止回收。
+            // Cargo now belongs to independent SpaceObjects. Native teardown handles the map and its references.
             DestroyPocketMap(map);
             universe.UnregisterObject(owner);
             if (wasFocused && fallback == null) Find.World.renderer.wantedMode = WorldRenderMode.Planet;

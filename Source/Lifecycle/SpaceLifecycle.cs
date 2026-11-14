@@ -45,14 +45,12 @@ namespace DeltaV
 
         public bool IsDormant(Map map) => dormancy.IsDormant(map);
         public bool IsFrozen(Map map) => IsDormant(map) || IsUniverseHost(map)
-            || universe.MapPool.IsIdle(map)
             || universe.Generation?.IsGenerating(map) == true;
         public static bool IsUniverseHost(Map map) => map?.Parent is UniverseHostParent_DeltaV;
         public void Wake(Map map, string reason)
         {
-            if (universe.SpaceObjectOnMap(map)?.IsScattered != true) dormancy.Wake(map, reason);
+            dormancy.Wake(map, reason);
         }
-        internal void FreezeScattered(Map map) => dormancy.FreezeScattered(map);
 
         public void Tick()
         {
@@ -61,7 +59,13 @@ namespace DeltaV
             float deleteRadius = DeleteRadius;
             foreach (SpaceObject obj in universe.objects.ToList())
             {
-                if (obj is PoiState poi)
+                if (obj.IsScattered)
+                {
+                    float distance = MinPlayerDistance(obj);
+                    if (!float.IsPositiveInfinity(distance) && distance > deleteRadius)
+                        universe.Scatter.RetireLost(obj);
+                }
+                else if (obj is PoiState poi)
                 {
                     TickPoiState(poi, activeRadius, deleteRadius);
                 }
@@ -121,13 +125,6 @@ namespace DeltaV
                     $"{container.label}: container's map was destroyed externally; object removed");
                 return;
             }
-            if (container.IsScattered)
-            {
-                float scatteredDistance = MinPlayerDistance(container);
-                if (!float.IsPositiveInfinity(scatteredDistance) && scatteredDistance > deleteRadius)
-                    universe.Scatter.RetireLost(container);
-                return;
-            }
             if (!HasMapSupport(container))
             {
                 QueueStructureCheck(map);
@@ -172,14 +169,6 @@ namespace DeltaV
 
         private static float CapacityScore(int area, float distance) =>
             MapRetentionScore(area, distance, DeltaVMod.CurrentSettings.poiActiveRadius);
-
-        internal float ScatterCapacityScore(SpacePose pose)
-        {
-            float distance = float.PositiveInfinity;
-            foreach (SpaceObject reference in universe.PlayerReferenceObjects())
-                distance = Mathf.Min(distance, OrbitSphere.ArcCells(reference.pose.position, pose.position));
-            return MapRetentionScore(1, distance, DeltaVMod.CurrentSettings.poiActiveRadius);
-        }
 
         private static void SynchronizeNative(PoiState poi)
         {
@@ -437,11 +426,7 @@ namespace DeltaV
                     || universe.Missions.Protects(obj) || universe.Approach.ApproachShipMap == map
                     || universe.Approach.ActivePlan?.targetMap == map || universe.SoftDock.UsesMap(map)
                     || !ArchivedMapStore.CanUnloadLosslessly(map)) continue;
-                if (obj.IsScattered)
-                {
-                    universe.Scatter.TryRetireCargoForCapacity(obj);
-                }
-                else if (obj is PoiState poi)
+                if (obj is PoiState poi)
                 {
                     // Native sites use the vanilla removal contract and only unload outside activation range.
                     if (MinPlayerDistance(poi, references) > radius) TryPack(poi);
@@ -701,6 +686,11 @@ namespace DeltaV
             if (universe == null || !sector.Valid) return;
             foreach (SpaceObject obj in SectorContentService.ObjectsInSector(universe, sector).ToList())
             {
+                if (obj.IsScattered)
+                {
+                    universe.Scatter.RetireLost(obj, departing: true);
+                    continue;
+                }
                 Map map = obj.map;
                 if (map == null || map.Disposed || !Find.Maps.Contains(map)) continue;
                 if (map == excludeMap || IsUniverseHost(map)) continue;

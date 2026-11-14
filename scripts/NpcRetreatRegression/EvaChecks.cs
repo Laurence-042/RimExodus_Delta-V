@@ -47,6 +47,7 @@ internal static partial class Program
         AddTestHull(map, faction, 58002, eva);
         var body = new MapSpaceObject(58001, map, new SpacePose(Vector3.forward, .31f));
         universe.RegisterObject(body);
+        eva.combat.weaponsArmed = true;
         eva.combat.fireControlMode = ShipFireControlMode.Manual;
         eva.combat.weaponGroupsSecondary = 3;
         ShipBase ship = eva.Vessel;
@@ -320,14 +321,12 @@ internal static partial class Program
         eva.parent.AllComps.Add(transporter);
         var cargo = new CompVehicleCargo { parent = eva.parent, props = new CompProperties_VehicleCargo() };
         eva.parent.AllComps.Add(cargo);
-        var source = TestMap(58030);
         var item = (EvaCargoItem)Raw(typeof(EvaCargoItem)); item.def = TestBuildingDef("evaCargo");
         item.def.category = ThingCategory.Item; item.def.stackLimit = 75; item.stackCount = 15;
-        ProbeSpawnCargo(item, IntVec3.Zero, source);
+        Set(typeof(Thing), item, "mapIndexOrState", (sbyte)-1);
         SpaceObject receiver = universe.FrameOf(eva.parent.Map);
-        var target = new MapSpaceObject(58030, source, new SpacePose(SpaceWeaponService.TargetingMuzzle(weapon, receiver), 0))
-            { baseTag = SpaceObjectTag.Scattered };
-        universe.RegisterObject(target);
+        var target = universe.CapturePayload(item,
+            new SpacePose(SpaceWeaponService.TargetingMuzzle(weapon, receiver), 0), null);
         var context = new TractorReceiveContext(universe, weapon, target, receiver);
         CompCargoTractor tractor = weapon.Component<CompCargoTractor>();
         try
@@ -339,7 +338,7 @@ internal static partial class Program
             patch.Patch(AccessTools.Method(typeof(GenSpawn), nameof(GenSpawn.Spawn), new[] { typeof(Thing), typeof(IntVec3), typeof(Map), typeof(Rot4), typeof(WipeMode), typeof(bool), typeof(bool) }),
                 prefix: new HarmonyMethod(typeof(Program), nameof(EvaCargoSpawn)));
             Check(tractor.HasReachedReceiver(context) && SpaceTractor.CanOperate(weapon), "cargo receiver operates without a moonpool or power component");
-            Check(tractor.TryReceive(context) == TractorReceiveResult.Partial && item.Map == source && item.stackCount == 5
+            Check(tractor.TryReceive(context) == TractorReceiveResult.Partial && target.Payload.Entity == item && item.stackCount == 5
                 && transporter.innerContainer.Sum(t => t.stackCount) == 10 && cargo.Remaining == 0, "partial receipt splits only the 20 kg that fit; remainder stays on the source");
             Check(tractor.TryReceive(context) == TractorReceiveResult.Rejected && item.stackCount == 5, "full cargo rejects without consuming or duplicating the remainder");
             transporter.innerContainer.Clear();
@@ -348,7 +347,7 @@ internal static partial class Program
             var blocker = (EvaCargoItem)Raw(typeof(EvaCargoItem)); blocker.def = item.def; blocker.stackCount = 1;
             Set(typeof(Thing), blocker, "mapIndexOrState", (sbyte)-1); transporter.innerContainer.TryAdd(blocker);
             Check(tractor.TryReceive(context) == TractorReceiveResult.Rejected
-                && source.listerThings.AllThings.OfType<EvaCargoItem>().Sum(t => t.stackCount) == 5,
+                && target.Payload.Entity?.stackCount == 5,
                 "receiver refusal after splitting restores every leftover item to the source");
             transporter.innerContainer.Clear();
             transporter.innerContainer = new ThingOwner<Thing>(transporter);
@@ -357,11 +356,11 @@ internal static partial class Program
             universe.Scatter.Tick();
             eva.combat.fireControlMode = ShipFireControlMode.Disabled;
             Call(universe, "RunFrameActions");
-            Check(!transporter.innerContainer.Any && source.listerThings.AllThings.OfType<EvaCargoItem>().Sum(t => t.stackCount) == 5,
+            Check(!transporter.innerContainer.Any && target.Payload.Entity?.stackCount == 5,
                 "disabling fire control invalidates queued cargo handoff without loss");
             eva.combat.fireControlMode = ShipFireControlMode.Manual;
             Check(tractor.TryReceive(context) == TractorReceiveResult.Complete
-                && transporter.innerContainer.Sum(t => t.stackCount) == 5 && !source.listerThings.AllThings.Any(SpaceScatterService.IsCargo),
+                && transporter.innerContainer.Sum(t => t.stackCount) == 5 && target.Payload.Entity == null,
                 "remaining contents are transferred exactly once when room is available");
         }
         finally { patch.UnpatchAll(patch.Id); }

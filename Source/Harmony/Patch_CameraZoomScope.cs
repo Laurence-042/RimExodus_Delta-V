@@ -51,7 +51,6 @@ namespace DeltaV
             CameraDriver driver = Find.CameraDriver;
             if (driver?.config != null && driver.RootSize > driver.config.sizeRange.max)
                 driver.SetRootSize(driver.config.sizeRange.max);
-            universe?.NotifyScatterFocusChanged(focused);
         }
     }
 

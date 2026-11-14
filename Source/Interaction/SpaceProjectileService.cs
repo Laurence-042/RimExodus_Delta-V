@@ -91,7 +91,6 @@ namespace DeltaV
             public ThingDef def;
             public CompProperties_SpaceProjectile props;
             public Building building;
-            public SpaceMapLease mapLease;
             public Thing launcher;
             public CompSpaceWeapon weapon;
             private int sourceContainerId;
@@ -186,11 +185,8 @@ namespace DeltaV
                 if (p.dead || p.laser || p.adoptedShuttle || p.container == null) continue;
                 if (p.globeEntry == null)
                 {
-                    GlobeProjectileVisual visual;
-                    if (p.mapLease != null) visual = universe.MapPool.GlobeVisual(p.mapLease, p.def);
-                    else if (!globeVisuals.TryGetValue(p.def, out visual))
+                    if (!globeVisuals.TryGetValue(p.def, out var visual))
                         globeVisuals[p.def] = visual = new GlobeProjectileVisual(p.def);
-                    if (visual == null) continue;
                     p.globeEntry = new GlobeDisplayEntry { owner = p.container, projectile = visual,
                         area = visual.Size.x * visual.Size.y, armament = GlobeArmament.Unknown };
                 }
@@ -215,7 +211,7 @@ namespace DeltaV
             if (map == null) return;
             foreach (Projectile p in projectiles)
                 if (p.target.HasLock && (!p.target.TryResolve(universe, out var resolved)
-                    || resolved.Container?.map == null || resolved.Container.map == map)) ForgetTarget(p);
+                    || resolved.Container == null || resolved.Container.map == map)) ForgetTarget(p);
             ForgetCombatVisuals(map);
             ForgetMotionFeedback(map);
         }
@@ -350,33 +346,20 @@ namespace DeltaV
                 created.pose.velocity = launcherVelocity;
                 projectile.prevPosition = muzzle;
             }
-            else if (props.hasMap)
+            else if (props.guided && typeof(Building).IsAssignableFrom(def.thingClass))
             {
-                bool populated = universe.MapPool.TryRent(SpaceObjectTag.Projectile, def.Size, map =>
+                Building missile = (Building)ThingMaker.MakeThing(def);
+                var pose = new SpacePose(muzzle, Mathf.Atan2(dirTangent.y, dirTangent.x))
                 {
-                    projectile.building = ThingMaker.MakeThing(def) as Building;
-                    if (projectile.building == null)
-                        throw new System.InvalidOperationException($"Mapped projectile {def.defName} is not a Building.");
-                    // Position is the center anchor, including even footprints; never use the lower-left cell.
-                    CellRect footprint = GenAdj.OccupiedRect(IntVec3.Zero, Rot4.North, def.Size);
-                    GenSpawn.Spawn(projectile.building,
-                        new IntVec3(-footprint.minX, 0, -footprint.minZ), map, Rot4.North);
-                }, out SpaceMapLease lease, capacityScore: 0f);
-                if (!populated)
+                    velocity = dirTangent * launchSpeed + launcherVelocity
+                };
+                created = universe.CapturePayload(missile, pose, faction);
+                if (created == null)
                 {
-                    if (lease != null) ReturnProjectileMap(lease, projectile.building);
+                    missile.Destroy(DestroyMode.Vanish);
                     RecycleProjectile(projectile);
                     return false;
                 }
-                projectile.mapLease = lease;
-                Map map = lease.Map;
-                created = new MapSpaceObject(universe.AllocateOwnerId(), map,
-                    new SpacePose(muzzle, Mathf.Atan2(dirTangent.y, dirTangent.x)))
-                {
-                    baseTag = SpaceObjectTag.Projectile,
-                    faction = faction,
-                };
-                created.pose.velocity = dirTangent * launchSpeed + launcherVelocity;
                 projectile.prevPosition = muzzle;
             }
             else
@@ -390,7 +373,7 @@ namespace DeltaV
                 created.pose.velocity = dirTangent * launchSpeed + launcherVelocity;
                 projectile.prevPosition = muzzle;
             }
-            universe.RegisterObject(created);
+            if (created.Payload == null) universe.RegisterObject(created);
             projectile.container = created;
             projectile.damageScale = launchSpec.damageScale;
             projectile.armorPenetrationScale = launchSpec.armorPenetrationScale;
@@ -429,7 +412,7 @@ namespace DeltaV
             }
             if (!props.continuousBeam && DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
                 $"{def.defName} launched from '{source?.label ?? "nowhere"}' " +
-                $"(speed {launchSpec.speed:F0}, {(props.hasMap ? "mapped" : "mapless")}" +
+                $"(speed {launchSpec.speed:F0}, {(created.map != null ? "mapped" : "mapless")}" +
                 $"{(projectile.laser ? ", laser" : "")})");
             return true;
         }
@@ -517,8 +500,31 @@ namespace DeltaV
         /// 有限加速度、积分随即位移，SpaceCollision 在积分后扫掠——先动后撞，§3.3）。
         /// prevPosition 在此记录（扫掠段起点 = 积分前位姿）。
         /// </summary>
+        private readonly Queue<(int tick, SpaceObject target, int version, DamageInfo damage, Vector2 local)> delayedMissileDamage
+            = new Queue<(int, SpaceObject, int, DamageInfo, Vector2)>();
+
+        internal void QueueMissileDamage(SpaceObject target, DamageInfo damage, Vector2 local) =>
+            delayedMissileDamage.Enqueue((Find.TickManager.TicksGame + 1, target, target.RepresentationVersion, damage, local));
+
         public void Tick()
         {
+            int nowTick = Find.TickManager.TicksGame;
+            while (delayedMissileDamage.Count != 0 && delayedMissileDamage.Peek().tick <= nowTick)
+            {
+                var hit = delayedMissileDamage.Dequeue();
+                if (universe.ObjectById(hit.target.objectId) != hit.target
+                    || hit.target.RepresentationVersion != hit.version
+                    || hit.target.Payload is not AbstractMissile { InterceptionBody: not null } missile) continue;
+                missile.ApplyDamage(hit.damage);
+                if (missile.InterceptionBody == null)
+                    RegisterImpactFx(new SpaceCollision.VisualContact
+                    {
+                        defender = hit.target, projectileDef = hit.damage.Weapon,
+                        localPoint = hit.local,
+                        position = SpaceTransform.ShipLocalToUniverse(hit.target.pose, hit.local),
+                        missileDestroyed = true, destroyed = true
+                    });
+            }
             if (projectiles.Count > 0)
             {
                 int now = Find.TickManager.TicksGame;
@@ -528,10 +534,10 @@ namespace DeltaV
                     if (p.dead) continue;
                     if (p.container == null) { QueueProjectileCleanup(p, !p.adoptedShuttle); continue; }
                     // 有图弹体被图内结算摧毁（PD/毁伤链经 TakeDamage）→ 销毁收尾。
-                    if (p.building != null && p.building.Destroyed)
+                    if (p.building?.Destroyed == true || p.container?.Payload is AbstractMissile { InterceptionBody: null })
                     {
                         if (p.adoptedShuttle) ReleaseShuttle(p.container);
-                        else DestroyProjectile(p, "building destroyed in-map");
+                        else DestroyProjectile(p, "intercepted");
                         continue;
                     }
                     // 超时自毁（无后效；激光同 tick 结算不超时）。
@@ -741,15 +747,8 @@ namespace DeltaV
                 if (p.laser)
                 {
                     // 专用点防束在结算 tick 追踪导弹现位，避免一 tick 位移把必中特性变成擦边。
-                    if (p.props.guaranteedHitMissiles && targetContainer?.map != null && !targetContainer.map.Disposed)
-                    {
-                        foreach (Thing thing in targetContainer.map.listerThings.AllThings)
-                        {
-                            if (!SpaceImpactEffects.GuaranteedMissileHit(p.def, thing.def)) continue;
-                            p.laserTo = targetContainer.pose.position;
-                            break;
-                        }
-                    }
+                    if (SpaceImpactEffects.GuaranteedMissileHit(p.def, targetContainer?.InterceptionBody?.def))
+                        p.laserTo = targetContainer.pose.position;
                     body.from = p.laserFrom;
                     body.to = p.laserTo;
                 }
@@ -814,6 +813,8 @@ namespace DeltaV
             visualContacts.Clear();
             foreach (Projectile p in sweepScratch)
             {
+                if (p.container?.Payload is AbstractMissile { InterceptionBody: null })
+                    DestroyProjectile(p, "intercepted");
                 if (p.dead || p.laser || !p.body.didRedirect) continue;
                 p.container.pose.velocity = SpaceTransform.TransportTangent(p.container.pose.velocity,
                     p.container.pose.position, p.body.to);
@@ -927,8 +928,14 @@ namespace DeltaV
             beam.lifetimeTicks = 2;
         }
 
-        private VisualAnchor? BeamAnchor(SpaceObject obj, Vector3 position) => obj?.map != null && !obj.map.Disposed
-            ? Anchor(obj, SpaceTransform.UniverseToMapPoint(obj, obj.map, position), position) : (VisualAnchor?)null;
+        private VisualAnchor? BeamAnchor(SpaceObject obj, Vector3 position)
+        {
+            if (obj?.map != null && !obj.map.Disposed)
+                return Anchor(obj, SpaceTransform.UniverseToMapPoint(obj, obj.map, position), position);
+            if (obj?.Payload?.Recoverable == true || obj?.Payload?.InterceptionBody != null)
+                return Anchor(obj, SpaceTransform.UniverseToShipLocal(obj.pose, position), position);
+            return null;
+        }
 
         private void RecordBeamSegment(Projectile p, Vector3 from, Vector3 end,
             VisualAnchor? startAnchor, VisualAnchor? endAnchor, int segment)
@@ -988,8 +995,7 @@ namespace DeltaV
         }
 
         // Ordinary destruction, reset and external removal share one retirement path.
-        // Capture the old map before unregistering; a missing ID does not mean its
-        // resources were disposed. Never destroy the replacement representation.
+        // Unregister owns the payload and must never touch a replacement representation.
         private void QueueProjectileCleanup(Projectile p, bool destroyContainer)
         {
             if (p.dead) return;
@@ -997,8 +1003,6 @@ namespace DeltaV
             int expectedId = p.containerId;
             SpaceObject original = p.container;
             int expectedVersion = original?.RepresentationVersion ?? 0;
-            Map oldMap = original?.map ?? p.building?.Map;
-            SpaceMapLease oldLease = p.mapLease;
             if (!destroyContainer)
             {
                 if (p.adoptedShuttle)
@@ -1016,17 +1020,8 @@ namespace DeltaV
                 if (!p.dead || p.containerId != expectedId) return;
                 projectiles.Remove(p);
                 SpaceObject container = p.container;
-                if (destroyContainer && (container == null || container.RepresentationVersion == expectedVersion))
-                {
-                    if (container != null) universe.UnregisterObject(container);
-                    if (oldMap == null || !oldMap.Disposed)
-                    {
-                        if (oldLease != null)
-                            ReturnProjectileMap(oldLease, p.building);
-                        else if (p.building != null && !p.building.Destroyed)
-                            p.building.Destroy(DestroyMode.Vanish);
-                    }
-                }
+                if (destroyContainer && container != null && container.RepresentationVersion == expectedVersion)
+                    universe.UnregisterObject(container);
                 RecycleProjectile(p);
             });
         }
@@ -1039,7 +1034,6 @@ namespace DeltaV
             p.props = null;
             p.building = null;
             p.globeEntry = null;
-            p.mapLease = null;
             p.launcher = null;
             p.weapon = null;
             p.sourceContainer = null;
@@ -1084,72 +1078,8 @@ namespace DeltaV
             if (projectilePool.Count < MaxPooledProjectiles) projectilePool.Push(p);
         }
 
-        /// <summary>殖民者栏等 UI 判断弹体内部图的唯一入口（包含在飞与闲置池）。</summary>
-        internal bool IsProjectileMap(Map map)
-        {
-            if (map == null) return false;
-            DeltaVPocketMapMetadata metadata = map.GetComponent<DeltaVPocketMapMetadata>();
-            if (metadata?.pooledMap == true && metadata.poolTag == SpaceObjectTag.Projectile) return true;
-            SpaceObject obj = universe.SpaceObjectOnMap(map);
-            if (obj != null && obj.baseTag == SpaceObjectTag.Projectile) return true;
-            return false;
-        }
+        public string PoolStatus() => $"in-flight={projectiles.Count} beams={beams.Count}";
 
-        private void ReturnProjectileMap(SpaceMapLease lease, Building body)
-        {
-            if (!universe.MapPool.TryReturn(lease, _ =>
-                {
-                    if (body != null && !body.Destroyed) body.Destroy(DestroyMode.Vanish);
-                }) && universe.MapPool.IsCurrent(lease))
-                Log.Warning($"[DeltaV] Projectile map {UniverseManager.MapTag(lease.Map)} retained: return rejected; remaining content was not discarded.");
-        }
-
-        /// <summary>dev：图池状态摘要。</summary>
-        public string PoolStatus()
-        {
-            return $"in-flight={projectiles.Count} beams={beams.Count} pooledIdleMaps={universe.MapPool.IdleCount}";
-        }
-
-        /// <summary>
-        /// 读档收尾：写档剔除的是弹体容器，弹体小图随档落盘残留为无容器图——按内容
-        /// 回收（清掉弹体 building 后回池）。只动「无承载容器、无人、内容只有弹体
-        /// building」的 ShipPocketParent 口袋图，不碰任何真实结构图。
-        /// </summary>
-        public void SweepOrphanProjectileMaps()
-        {
-            foreach (Map map in Find.Maps.ToList())
-            {
-                if (!(map.Parent is ShipPocketParent_DeltaV)) continue;
-                if (map == Find.CurrentMap) continue;
-                if (universe.SpaceObjectOnMap(map) != null) continue;
-                if (map.mapPawns.AllPawns.Count > 0) continue;
-                if (!IsProjectileMap(map)) continue;
-                bool onlyProjectiles = true;
-                foreach (Thing thing in map.listerThings.AllThings)
-                {
-                    if (thing is Building building
-                        && building.def.GetCompProperties<CompProperties_SpaceProjectile>() != null)
-                    {
-                        continue;
-                    }
-                    onlyProjectiles = false;
-                    break;
-                }
-                if (!onlyProjectiles) continue;
-                SpaceMapLease lease = universe.MapPool.Restore(map);
-                if (universe.MapPool.TryReturn(lease, released =>
-                    {
-                        foreach (Thing thing in released.listerThings.AllThings.ToList())
-                            if (!thing.Destroyed) thing.Destroy(DestroyMode.Vanish);
-                    }) && DeltaVLog.Enabled(DeltaVLogModule.Combat))
-                    DeltaVLog.Message(DeltaVLogModule.Combat,
-                        $"orphan projectile map {UniverseManager.MapTag(map)} reclaimed into pool after load");
-            }
-        }
-
-        /// <summary>
-        /// 场景重建：销毁全部弹体、清空图池（全部帧边界执行，注册表仍须存活）。
-        /// </summary>
         public void ResetFlow()
         {
             globeVisuals.Clear();
@@ -1166,7 +1096,7 @@ namespace DeltaV
             soundTicks.Clear();
             visualSequence = 0;
             visualContacts.Clear();
-            universe.MapPool.QueueReleaseUnused(SpaceObjectTag.Projectile);
+            delayedMissileDamage.Clear();
         }
 
         // ---- 渲染（ShellRenderer 前台层；有图/无图弹体同一路径，图形取自 def）----
@@ -1232,17 +1162,27 @@ namespace DeltaV
                     // 接管的跳帮艇继续由真实 Map 的船壳代理绘制，弹体层只添尾焰。
                     if (!p.laser && !p.adoptedShuttle)
                     {
-                        Graphic graphic = p.def.graphicData?.Graphic;
-                        Material material = graphic?.MatAt(Rot4.North);
-                        if (material == null) continue;
                         Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, frameMap,
                             p.container.pose.position, altitude);
                         Quaternion rot = SpaceTransform.FocusedSpriteRotation(frame, p.container.pose.angle);
                         EmitTracer(p, frame, pos, rot, layer, ref slot);
-                        Matrix4x4 matrix = Matrix4x4.TRS(pos, rot, Vector3.one);
-                        MapOverlayRenderer.CollectSingleQuad(graphic.MeshAt(Rot4.North), matrix, material);
-                        ShellLayer.Slot s = layer.At(slot++);
-                        s.layer.Emit(s);
+                        if (p.container.Payload == null)
+                        {
+                            Graphic graphic = p.def.graphicData?.Graphic;
+                            Material material = graphic?.MatAt(Rot4.North);
+                            if (material != null)
+                            {
+                                MapOverlayRenderer.CollectSingleQuad(graphic.MeshAt(Rot4.North),
+                                    Matrix4x4.TRS(pos, rot, Vector3.one), material);
+                                var slotForRound = layer.At(slot++);
+                                slotForRound.layer.Emit(slotForRound);
+                            }
+                        }
+                        else if (p.container.DrawPayload(frame, frameMap, foreground: true))
+                        {
+                            var slotForMissile = layer.At(slot++);
+                            slotForMissile.layer.Emit(slotForMissile);
+                        }
                     }
                     if (!p.adoptedShuttle && p.props.exhaustTrail && p.motorThrusting)
                     {

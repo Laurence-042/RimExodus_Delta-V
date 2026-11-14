@@ -745,4 +745,5 @@
   <DeltaV_PrefabClusterPool>带权重的预制图池</DeltaV_PrefabClusterPool>
   <DeltaV_PrefabClusterAdd>添加预制图</DeltaV_PrefabClusterAdd>
   <DeltaV_PrefabClusterWeight>权重</DeltaV_PrefabClusterWeight>
+  <DeltaV_DumpSpaceObjectNoHit>此位置未命中 SpaceObject。</DeltaV_DumpSpaceObjectNoHit>
 </LanguageData>

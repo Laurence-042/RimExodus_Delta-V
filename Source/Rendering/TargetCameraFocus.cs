@@ -26,8 +26,9 @@ namespace DeltaV
             => Patch_CameraCenterClamp.SupportsTargetFocus && !universe.IsResettingScene
                 && sourceMap == Find.CurrentMap && WorldRendererUtility.DrawingMap
                 && IsShellTarget(sourceMap, target)
-                && ShellRenderer.HasDrawableMap(universe, target)
-                && universe.FrameOf(sourceMap)?.Ships.Any(ship => ship.PlayerMayOperate) == true;
+                && universe.FrameOf(sourceMap) is SpaceObject frame
+                && (target.Payload?.Recoverable == true || ShellRenderer.HasDrawableMap(universe, target)
+                    && frame.Ships.Any(ship => ship.PlayerMayOperate));
 
         internal static bool QueueStart(UniverseManager universe, Map sourceMap, SpaceObject target)
         {
@@ -62,7 +63,8 @@ namespace DeltaV
             SpaceObject frame = universe.FrameOf(SourceMap);
             SpaceObject target = universe.ObjectById(targetId);
             if (frame == null || target?.RepresentationVersion != representationVersion
-                || !IsShellTarget(SourceMap, target) || !ShellRenderer.HasDrawableMap(universe, target))
+                || !IsShellTarget(SourceMap, target) || target.Payload?.Recoverable != true
+                    && !ShellRenderer.HasDrawableMap(universe, target))
                 return false;
 
             center = SpaceTransform.FocusedDrawPosition(frame, SourceMap, target.pose.position, 0f);

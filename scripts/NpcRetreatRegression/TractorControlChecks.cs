@@ -77,6 +77,7 @@ internal static partial class Program
         {
             Map map = TestMap(id);
             var hull = AddTestHull(map, player, id + 1);
+            hull.combat.weaponsArmed = true;
             var weapon = new CompSpaceWeapon { parent = hull.parent, aimMode = SpaceWeaponAimMode.PointDefense,
                 props = new CompProperties_SpaceWeapon { tractor = true, range = 60, shotEnergy = 0 } };
             var tractor = new CompSpaceTractor { parent = hull.parent };
@@ -92,12 +93,10 @@ internal static partial class Program
         }
         SpaceObject Cargo(int id, float x)
         {
-            var map = TestMap(id);
-            var thing = (Thing)Raw(typeof(Thing)); thing.def = itemDef;
-            map.listerThings.AllThings.Add(thing);
-            var body = new MapSpaceObject(id, map, new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(x, 0)), 0))
-                { baseTag = SpaceObjectTag.Scattered };
-            universe.RegisterObject(body); return body;
+            Thing item = NewMaplessCargo("tractorCargo");
+            item.def = itemDef;
+            return universe.CapturePayload(item,
+                new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(x, 0)), 0), null);
         }
         try
         {
@@ -172,7 +171,7 @@ internal static partial class Program
             a.tractor.collectLiving = false;
             Check(!a.tractor.Allows(PawnOf(player, 0)), "living master toggle overrides faction/type selection");
             a.tractor.GetStoreSettings().filter.SetAllow(itemDef, true);
-            Check(a.tractor.Allows(first.map.listerThings.AllThings[0]), "living toggle does not change item filter");
+            Check(a.tractor.Allows(first.Payload.Entity), "living toggle does not change item filter");
             a.tractor.pawnMask = 0x801;
             string path = Path.GetFullPath("Source/obj/tractor-settings.xml");
             var restored = new TractorSave { comp = new CompSpaceTractor { parent = a.weapon.parent } };
@@ -325,8 +324,6 @@ internal static partial class Program
                 universe.NotifyFoundationChanged(targetMap, cell);
                 SubstructureOwnership.BumpStructureVersion(targetMap);
             }
-            SetDeck(otherCell, null);
-            foreach (IntVec3 cell in new CellRect(0, 0, 2, 2)) SetDeck(cell, deck);
             SetDeck(firstContact, deck);
             SetDeck(secondContact, deck);
             var transitions = universe.ShipTransitions;

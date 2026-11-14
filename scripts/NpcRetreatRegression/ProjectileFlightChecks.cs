@@ -155,6 +155,7 @@ internal static partial class Program
             && !FlightField<bool>(flight, "motorThrusting"),
             "pooled flight record discards stage and RCS state");
         if (flightOnly) return;
+        CheckMaplessMissile(universe);
         CheckBoardingBreach();
 
         // Read the real Def so nozzle checks detect drift between art alignment and physics configuration.

@@ -119,25 +119,6 @@ internal static partial class Program
 
     static void CheckGlobeProjectileReuse(UniverseManager universe, ThingDef def)
     {
-        Map map = TestMap(79010);
-        PreparePoolMap(map, SpaceObjectTag.Projectile);
-        var pool = universe.MapPool;
-        var lease = pool.Restore(map);
-        var visual = pool.GlobeVisual(lease, def);
-        Check(ReferenceEquals(visual, pool.GlobeVisual(lease, def)), "mapped projectile resource is reused within a rental");
-        Current.Game.currentMapIndex = -1;
-        Check(pool.TryReturn(lease), "empty projectile map returns with its display resource");
-        Check(pool.GlobeVisual(lease, def) == null, "idle projectile lease cannot expose an active sprite");
-        Check(pool.TryRent(SpaceObjectTag.Projectile, new IntVec2(5, 5), _ => { }, out var next), "projectile map is rented again");
-        Check(ReferenceEquals(visual, pool.GlobeVisual(next, def)) && pool.GlobeVisual(lease, def) == null,
-            "same ammunition reuses the map resource while stale leases remain invalid");
-        var otherDef = TestBuildingDef("GlobeDifferentRound");
-        Check(pool.GlobeVisual(next, otherDef).Def == otherDef && !ReferenceEquals(visual, pool.GlobeVisual(next, otherDef)),
-            "same-size pool rental changes ammunition appearance when its Def changes");
-        pool.Forget(map);
-        Check(pool.GlobeVisual(next, def) == null, "map removal releases the pooled display binding");
-        Find.Maps.Remove(map);
-
         var shot = new SpaceObject(79011, new SpacePose(Vector3.forward, 0)) { baseTag = SpaceObjectTag.Projectile };
         object record = AddProjectileRecord(universe, shot);
         Set(record, "def", def);

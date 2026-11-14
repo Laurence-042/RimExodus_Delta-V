@@ -518,8 +518,6 @@ namespace DeltaV
         /// </summary>
         private static bool ShouldDrawThing(Thing thing, bool exposedDeck = false)
         {
-            if (thing?.Spawned == true && !thing.Destroyed && SpaceScatterService.IsCargo(thing)
-                && Current.Game?.GetComponent<UniverseManager>()?.FrameOf(thing.Map)?.IsScattered == true) return true;
             if (thing == null || thing.Destroyed || !thing.Spawned || thing is Pawn || thing is Projectile
                 || thing is Mote || thing.def.category == ThingCategory.Filth
                 || thing.def.category == ThingCategory.Gas || thing.def.category == ThingCategory.Mote) return false;

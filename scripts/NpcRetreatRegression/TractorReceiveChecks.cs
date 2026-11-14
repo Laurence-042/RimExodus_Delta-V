@@ -23,6 +23,7 @@ internal static partial class Program
     }
     static void ProbeRemoveCargo(Thing thing)
     {
+        thing.Map.spawnedThings.Remove(thing);
         thing.Map.thingGrid.Deregister(thing);
         thing.Map.listerThings.AllThings.Remove(thing);
         Set(typeof(Thing), thing, "mapIndexOrState", (sbyte)-1);
@@ -41,6 +42,7 @@ internal static partial class Program
     {
         Set(typeof(Thing), thing, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
         Set(typeof(Thing), thing, "positionInt", cell);
+        map.spawnedThings.TryAdd(thing, canMergeWithExistingStacks: false);
         map.listerThings.AllThings.Add(thing);
         map.thingGrid.Register(thing);
     }
@@ -120,8 +122,6 @@ internal static partial class Program
                 source.info.Size = new IntVec3(1, 1, 1);
                 source.cellIndices = new CellIndices(source);
                 source.terrainGrid = new TerrainGrid(source);
-                PreparePoolMap(source, SpaceObjectTag.Scattered);
-                SpaceMapLease lease = universe.MapPool.Restore(source);
                 var thing = (Thing)Raw(pawn ? typeof(ReceivingPawn) : typeof(ReceivingItem));
                 thing.def = TestBuildingDef(pawn ? "castaway" : "cargo");
                 thing.def.category = pawn ? ThingCategory.Pawn : ThingCategory.Item;
@@ -141,10 +141,10 @@ internal static partial class Program
                 thing.def.stackLimit = 75; thing.stackCount = 1;
                 ProbeSpawnCargo(thing, IntVec3.Zero, source);
                 Vector3 at = SpaceTransform.MapPointToUniverse(receiver, destination, new Vector2(cell.x + .5f, cell.z + .5f));
-                var scattered = new MapSpaceObject(source.uniqueID, source,
+                var scattered = universe.CapturePayload(thing,
                     new SpacePose(OrbitSphere.Move(at, new Vector2(1.5f, 0f)), 0f)
-                    { velocity = new Vector2(1f, 0f) }) { baseTag = SpaceObjectTag.Scattered };
-                universe.RegisterObject(scattered);
+                    { velocity = new Vector2(1f, 0f) }, thing.Faction, source, IntVec3.Zero);
+                Check(scattered.map == null && scattered.Payload.Entity == thing, "scatter holds the original entity");
                 receiver.pose.velocity = new Vector2(25f, -10f);
                 receiver.pose.angularVelocity = .7f;
                 Vector2 emitterLocal = SpaceTransform.MapToShipLocal(destination, new Vector2(cell.x + .5f, cell.z + .5f));
@@ -206,8 +206,8 @@ internal static partial class Program
                 blocker.stackCount = 1;
                 ProbeSpawnCargo(blocker, cell, destination);
                 receivingBlocked = true;
-                Check(tractor.TryReceive(new TractorReceiveContext(universe, weapon, scattered, receiver)) == TractorReceiveResult.Rejected && thing.Map == source,
-                    "no vanilla nearby placement retains cargo and pawn on the source map");
+                Check(tractor.TryReceive(new TractorReceiveContext(universe, weapon, scattered, receiver)) == TractorReceiveResult.Rejected && scattered.Payload.Entity == thing,
+                    "no vanilla nearby placement retains cargo and pawn in the payload");
                 receivingBlocked = false;
                 Set(Find.TickManager, "ticksGameInt", pawn ? 13000 : 10000);
                 universe.Scatter.Pull(scattered, weapon);
@@ -219,9 +219,9 @@ internal static partial class Program
                     && (!(thing is ReceivingPawn p) || p.swapped),
                     "vanilla deep-drill Near output places cargo and pawn away from the occupied center and interaction cell");
                 Call(universe, "RunFrameActions");
-                Check(universe.ObjectById(scattered.objectId) == null && universe.MapPool.IsIdle(source),
-                    "successful tractor handoff unregisters the empty scattered object and returns its map");
-                thing.DeSpawn(); blocker.DeSpawn(); universe.MapPool.Forget(source); Find.Maps.Remove(source);
+                Check(universe.ObjectById(scattered.objectId) == null && !source.listerThings.AllThings.Any(),
+                    "successful tractor handoff unregisters the empty scattered object");
+                thing.DeSpawn(); blocker.DeSpawn(); Find.Maps.Remove(source);
             }
             if (receiveOnly) return;
             Map ownMap = TestMap(49754);

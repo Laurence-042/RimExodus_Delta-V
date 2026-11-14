@@ -36,37 +36,6 @@ namespace DeltaV
             return RimExodus.Maps.PocketMaps.Create(size, parent, parent.mapGenerator, parent.sourceMap);
         }
 
-        /// <summary>
-        /// 同步生成极小口袋图（射弹临时图等）：走 IncrementalMapGenerationService 的
-        /// 同一 Prepare/Finish 链，绕开 MapGenerator.GenerateMap 方法体，不触发其
-        /// Harmony 补丁链（MapPreview 等）。大图仍走 <see cref="Generate"/>。
-        /// </summary>
-        public static Map GenerateImmediate(IntVec3 size, UniverseManager universe, float capacityScore)
-        {
-            using var timing = universe.Performance.Measure(PerformanceStage.SyncMapGeneration);
-            Map host = universe.GetOrCreateHostMap(capacityScore);
-            if (host == null) return null;
-            var parent = (PocketMapParent)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
-            parent.sourceMap = host;
-            parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
-            Map map = universe.Generation.GenerateSynchronously(new IncrementalMapGenerationRequest
-            {
-                key = $"pooledMap_{size.x}x{size.z}",
-                parent = parent,
-                size = size,
-                generator = DeltaVDefOf.DeltaV_ShipPocket,
-                capacityScore = _ => capacityScore,
-                isPocketMap = true
-            });
-            if (map == null)
-            {
-                if (!parent.Destroyed) parent.Destroy();
-                return null;
-            }
-            RimExodus.Maps.PocketMaps.Register(parent, map);
-            return map;
-        }
-
         public static bool TryGenerateForGravship(Gravship gravship, UniverseManager universe,
             out Map map, out IntVec3 root, int margin = StructureMargin, bool reserveRotations = false)
         {

@@ -52,7 +52,7 @@ namespace DeltaV
             // REF is the only backend. Installation failure must not silently select retired code.
             RimExodus.Maps.MapModule.Install();
             RimExodus.Maps.MapRuntime.Current.SetStopPolicy(SharedMapBackend.Owner, map =>
-                SpaceLifecycleService.IsUniverseHost(map) || MapPool.IsIdle(map) || Generation.IsGenerating(map));
+                SpaceLifecycleService.IsUniverseHost(map) || Generation.IsGenerating(map));
         }
 
         // ---- 流程服务实例（2026-09-22 实例化迁移）----
@@ -134,7 +134,41 @@ namespace DeltaV
         public SpaceMapPool MapPool => mapPool ?? (mapPool = new SpaceMapPool(this));
         [NonSerialized] private SpaceScatterService scatter;
         public SpaceScatterService Scatter => scatter ?? (scatter = new SpaceScatterService(this));
-        internal void NotifyScatterFocusChanged(Map focused) => scatter?.NotifyFocusChanged(focused);
+        private int unpublishedPayloads;
+        internal bool HasUnpublishedPayload => unpublishedPayloads > 0;
+        internal Pawn TransferringPawn { get; private set; }
+
+        internal SpaceObject CapturePayload(Thing entity, SpacePose pose, Faction faction,
+            Map source = null, IntVec3 cell = default, ThingOwner holder = null, bool publishAtFrame = false)
+        {
+            AbstractThing payload = AbstractThing.Create(entity);
+            if (payload == null) return null;
+            var obj = new SpaceObject(AllocateOwnerId(), pose) { Payload = payload, faction = faction };
+            Pawn previousPawn = TransferringPawn;
+            if (entity is Pawn pawn) TransferringPawn = pawn;
+            unpublishedPayloads++;
+            bool queued = false;
+            try
+            {
+                if (!payload.Capture(entity, source, cell, holder)) return null;
+                if (publishAtFrame)
+                {
+                    QueueFrameAction(() =>
+                    {
+                        try { RegisterObject(obj); }
+                        finally { unpublishedPayloads--; }
+                    });
+                    queued = true;
+                }
+                else RegisterObject(obj);
+                return obj;
+            }
+            finally
+            {
+                if (!queued) unpublishedPayloads--;
+                TransferringPawn = previousPawn;
+            }
+        }
         [NonSerialized] private SoftDockService softDock;
         public SoftDockService SoftDock => softDock ?? (softDock = new SoftDockService(this));
         internal bool SoftDockEnabled;
@@ -395,14 +429,8 @@ namespace DeltaV
             if (obj.map != null && obj.map == Find.CurrentMap) ApplyCameraZoomScope();
             if (obj.IsScattered) Scatter.Register(obj);
             if (obj.map != null && Find.UIRoot is UIRoot_Play)
-            {
-                if (obj.baseTag == SpaceObjectTag.Projectile)
-                    Find.ColonistBar?.MarkColonistsDirty();
-                else HostColonistBarVisibility.NotifyDockingStateChanged();
-            }
-            // Projectile maps are transient and have their own collision-cache invalidation on rent.
-            if (obj.map != null && obj.baseTag != SpaceObjectTag.Projectile)
-                SubstructureOwnership.BumpStructureVersion(obj.map);
+                HostColonistBarVisibility.NotifyDockingStateChanged();
+            if (obj.map != null) SubstructureOwnership.BumpStructureVersion(obj.map);
             if (obj.objectId >= nextFreeOwnerId) nextFreeOwnerId = obj.objectId + 1;
             if (obj.map != null && obj.HasTag(SpaceObjectTag.Ship) == true)
             {
@@ -414,7 +442,7 @@ namespace DeltaV
         public void UnregisterObject(SpaceObject obj)
         {
             if (obj == null || !objects.Contains(obj)) return;
-            if (obj.baseTag != SpaceObjectTag.Projectile
+            if (!obj.IsTransient
                 && DeltaVLog.Enabled(DeltaVLogModule.Lifecycle))
             {
                 var caller = new System.Diagnostics.StackTrace(1, false).GetFrame(0)?.GetMethod();
@@ -436,12 +464,9 @@ namespace DeltaV
                 objectByMap.Remove(obj.map);
             if (obj.map != null && obj.map == Find.CurrentMap) ApplyCameraZoomScope();
             scatter?.Remove(obj);
+            obj.Payload?.DestroyContents();
             if (obj.map != null && Find.UIRoot is UIRoot_Play)
-            {
-                if (obj.baseTag == SpaceObjectTag.Projectile)
-                    Find.ColonistBar?.MarkColonistsDirty();
-                else HostColonistBarVisibility.NotifyDockingStateChanged();
-            }
+                HostColonistBarVisibility.NotifyDockingStateChanged();
             globeDisplay?.Forget(obj.map);
             PlanetGlobeRenderer.InvalidateSilhouette(obj.map);
             Autopilot.Detach(obj);
@@ -576,7 +601,6 @@ namespace DeltaV
             globeNavigation?.InvalidateEntries();
             PlanetGlobeRenderer.InvalidateSilhouette(map);
             Projectiles.ForgetMap(map);
-            mapPool?.Forget(map);
             scatter?.Forget(map);
             softDock?.Forget(map);
             stationTrade?.Forget(map);
@@ -647,9 +671,7 @@ namespace DeltaV
             if (Scribe.mode == LoadSaveMode.Saving)
             {
                 // 弹体是瞬态成员（太空战架构 §4.4）：写档按 tag 过滤剔除纯弹体
-                //（IsTransient = baseTag==Projectile；侵入船体的 baseTag 仍是
-                // Container，照常落盘，读档后重建船体角色并按存档速度漂移）。已造成的
-                // 毁伤是图事实已持久；其弹体小图的读档清扫由弹体服务负责。
+                // 侵入船体只有临时弹体角色，仍保存真实飞行图和位姿。
                 var saveView = new List<SpaceObject>(objects.Count);
                 for (int i = 0; i < objects.Count; i++)
                 {
@@ -739,13 +761,13 @@ namespace DeltaV
                     Log.Warning($"[DeltaV] Object #{obj.objectId} ({obj.label}) lost its map after load; clearing map reference.");
                     obj.map = null;
                 }
-                if (obj.map == null && !(obj is PoiState)
+                if (obj.map == null && obj.Payload?.Entity == null && !(obj is PoiState)
                     && !obj.IsArchived)
                 {
                     Log.Warning($"[DeltaV] Container #{obj.objectId} ({obj.label}) lost its map; removing from universe state.");
                     UnregisterObject(obj);
                 }
-                else if (obj.IsScattered && obj.map != null) Lifecycle.FreezeScattered(obj.map);
+                else if (obj.IsScattered) Scatter.Register(obj);
             }
             HostColonistBarVisibility.NotifyDockingStateChanged();
             SweepEmptyDepartedMaps();
@@ -770,16 +792,9 @@ namespace DeltaV
             {
                 foreach (Map map in Find.Maps.ToList())
                 {
-                    SpaceMapLease lease = MapPool.Restore(map);
-                    if (lease != null)
-                    {
-                        MapPool.TryReturn(lease);
-                        continue;
-                    }
                     ShipTransitions.HandleDepartedSourceMap(this, map);
                 }
                 // 弹体孤儿图回收（写档剔除了弹体容器，小图随档残留；帧上下文收尾）。
-                Projectiles.SweepOrphanProjectileMaps();
             });
         }
 
@@ -1168,6 +1183,11 @@ namespace DeltaV
                 SpaceObject recheck = ShellPicking.ShellAtFramePoint(this, current, UI.MouseMapPosition());
                 if (noDrag && recheck == target)
                 {
+                    if (target.Payload?.Recoverable == true)
+                    {
+                        TargetCameraFocus.QueueStart(this, current, target);
+                        return;
+                    }
                     // 相机跳到点击位置对应的对象内格（clamp 进地图），落点即所见。
                     SpaceObject frame = FrameOf(current);
                     Vector3 universeDir = SpaceTransform.MapPointToUniverse(frame, current,

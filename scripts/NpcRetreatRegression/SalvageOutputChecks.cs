@@ -279,9 +279,7 @@ internal static partial class Program
         Check(salvagePlacements == ++placements && lastSalvageOutput.stackCount == 1,
             "a successful chunk drop yields one whole chunk");
 
-        Map cargoMap = TestMap(47008, 1);
-        PreparePoolMap(cargoMap, SpaceObjectTag.Scattered);
-        Check(universe.MapPool.TryReturn(universe.MapPool.Restore(cargoMap)), "EVA mining has a pooled scatter map");
+        int originalMapCount = Find.Maps.Count;
         harness.Patch(AccessTools.Method(typeof(GenSpawn), nameof(GenSpawn.Spawn), new[] {
             typeof(Thing), typeof(IntVec3), typeof(Map), typeof(Rot4), typeof(WipeMode), typeof(bool), typeof(bool) }),
             prefix: new HarmonyMethod(typeof(Program), nameof(ReceiveSpawn)));
@@ -294,16 +292,17 @@ internal static partial class Program
             { kind = ImpactEffectKind.CutStructure, damage = 180, miningYieldFactor = 1f });
         Check(rock.Destroyed && salvagePlacements == placements, "EVA mining does not place ore on either ship or asteroid");
         Call(universe, "RunFrameActions");
-        SpaceObject cargo = universe.objects.Single(obj => obj.map == cargoMap);
-        Thing extractedOre = cargoMap.listerThings.AllThings.Single();
+        SpaceObject cargo = universe.objects.Single(obj => obj.IsScattered && obj.Payload?.Entity?.def == ore);
+        Thing extractedOre = cargo.Payload.Entity;
+        Check(Find.Maps.Count == originalMapCount && cargo.map == null, "EVA mining consumes no map slots");
         Check(cargo.IsScattered && extractedOre.def == ore && extractedOre.stackCount == 40
             && universe.Scatter.Candidates.Contains(cargo), "EVA ejects the full vein yield as a tractor candidate");
         Vector2 drift = SpaceTransform.UniverseTangentToMapDirection(hit.defender, asteroid, cargo.pose.position,
             cargo.pose.velocity);
         Check(drift.x < 0f && cargo.pose.velocity.magnitude >= 1.99f && cargo.pose.velocity.magnitude <= 4.01f,
             "EVA ore drifts out of the asteroid toward the incident side");
+        cargo.Payload.GetDirectlyHeldThings().Remove(extractedOre);
         universe.UnregisterObject(cargo);
-        universe.MapPool.Forget(cargoMap);
     }
 
     static void CheckSmallMapDisposal(UniverseManager universe)

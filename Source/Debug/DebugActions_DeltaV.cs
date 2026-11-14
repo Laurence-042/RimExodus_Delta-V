@@ -363,22 +363,7 @@ namespace DeltaV
                 $" generated sectors={um.generatedSectorTiles.Count}");
             sb.AppendLine($"- poi radius: active={DeltaVMod.CurrentSettings.poiActiveRadius:F0} delete={DeltaVMod.CurrentSettings.poiDeleteRadius:F0}");
             foreach (SpaceObject obj in um.objects)
-            {
-                string lifecycle = obj is PoiState poi
-                    ? (poi.map == null ? "packed" + (poi.snapshot != null ? " (snapshot)" : " (fresh)") : um.Lifecycle.IsDormant(poi.map) ? "dormant" : "active")
-                    : (obj.map == null ? "mapless" : "container");
-                float lat = Mathf.Asin(Mathf.Clamp(obj.pose.position.y, -1f, 1f)) * Mathf.Rad2Deg;
-                float lon = Mathf.Atan2(obj.pose.position.z, obj.pose.position.x) * Mathf.Rad2Deg;
-                string playerDist = obj is PoiState poi2
-                    ? $" playerDist={um.Lifecycle.MinPlayerDistance(poi2):F0}"
-                    : "";
-                string sector = OrbitSphere.Valid
-                    ? $" sector={OrbitSphere.TileFromDirection(obj.pose.position)}"
-                    : "";
-                sb.AppendLine($"\n- #{obj.objectId} {obj.label} [{obj.GetType().Name}] tag={obj.Tag} {lifecycle}" +
-                    $" dir=({obj.pose.position.x:F3},{obj.pose.position.y:F3},{obj.pose.position.z:F3}) lat/lon=({lat:F1}°,{lon:F1}°){sector}" +
-                    $"{playerDist} angle={SpaceTransform.WrapAngle(obj.pose.angle) * Mathf.Rad2Deg:F0}° {UniverseManager.MapTag(obj.map)}");
-            }
+                AppendSpaceObjectSummary(sb, um, obj);
             // 全部已加载图（含无船图）+ 每图上的船；图标识与其他日志同口径
             //（MapTag：uniqueID 全会话稳定，Index 仅供对照 PerfProbe，勿混用）。
             sb.AppendLine("\n- ships:");
@@ -405,6 +390,58 @@ namespace DeltaV
                 }
             }
             Log.Message(sb.ToString());
+        }
+
+        [DebugAction("Delta-V", "Dump SpaceObject at position", actionType = DebugActionType.ToolMap, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void DumpSpaceObjectAtPosition()
+        {
+            UniverseManager um = Um();
+            Map map = Find.CurrentMap;
+            SpaceObject frame = um?.FrameOf(map);
+            Vector3 point = UI.MouseMapPosition();
+            IntVec3 cell = point.ToIntVec3();
+            SpaceObject target = null;
+            if (frame != null)
+            {
+                bool focusedContent = cell.InBounds(map)
+                    && (cell.GetThingList(map).Any(ThingSelectionUtility.SelectableByMapClick)
+                        || MapOverlayRenderer.ContainsVisibleContent(map, cell));
+                target = focusedContent ? frame : ShellPicking.ShellAtFramePoint(um, map, point);
+            }
+            if (target == null)
+            {
+                Messages.Message("DeltaV_DumpSpaceObjectNoHit".Translate(), MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+
+            var sb = new StringBuilder("[DeltaV:Diag] SpaceObject at position");
+            sb.AppendLine($"\n- click=({point.x:F3}, {point.z:F3}) cell={cell} {UniverseManager.MapTag(map)}");
+            AppendSpaceObjectSummary(sb, um, target);
+            sb.AppendLine($"- velocity=({target.pose.velocity.x:G9}, {target.pose.velocity.y:G9}) cells/s" +
+                $" angularVelocity={target.pose.angularVelocity:G9} rad/s");
+            if (target.Payload is AbstractThing payload && payload.Entity is Thing entity)
+            {
+                sb.AppendLine($"- payload={payload.GetType().Name} defName={entity.def.defName}" +
+                    $" thingId={entity.ThingID} stackCount={entity.stackCount}");
+            }
+            Log.Message(sb.ToString());
+        }
+
+        private static void AppendSpaceObjectSummary(StringBuilder sb, UniverseManager um, SpaceObject obj)
+        {
+            string lifecycle = obj is PoiState poi
+                ? (poi.map == null ? "packed" + (poi.snapshot != null ? " (snapshot)" : " (fresh)") : um.Lifecycle.IsDormant(poi.map) ? "dormant" : "active")
+                : (obj.map == null ? "mapless" : "container");
+            Vector3 direction = obj.pose.position;
+            float lat = Mathf.Asin(Mathf.Clamp(direction.y, -1f, 1f)) * Mathf.Rad2Deg;
+            float lon = Mathf.Atan2(direction.z, direction.x) * Mathf.Rad2Deg;
+            string playerDist = obj is PoiState poi2
+                ? $" playerDist={um.Lifecycle.MinPlayerDistance(poi2):F0}"
+                : "";
+            string sector = OrbitSphere.Valid ? $" sector={OrbitSphere.TileFromDirection(direction)}" : "";
+            sb.AppendLine($"\n- #{obj.objectId} {obj.label} [{obj.GetType().Name}] tag={obj.Tag} {lifecycle}" +
+                $" dir=({direction.x:F3},{direction.y:F3},{direction.z:F3}) lat/lon=({lat:F1}°,{lon:F1}°){sector}" +
+                $"{playerDist} angle={SpaceTransform.WrapAngle(obj.pose.angle) * Mathf.Rad2Deg:F0}° {UniverseManager.MapTag(obj.map)}");
         }
 
         // ---- 太空战诊断 ----

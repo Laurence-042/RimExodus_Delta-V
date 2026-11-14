@@ -10,7 +10,7 @@ namespace DeltaV
     /// <summary>
     /// 弹体数据 def（太空战架构 §5.1）：挂在弹体 building def 上的唯一参数源。
     /// 弹体 def 同时是联合效果注册表的键与贴图来源（无图型贴图取自 def 图形）；
-    /// 可拦截性由结构派生（有图 ⇔ 可拦截），本 comp 不设「可拦截」标记字段。
+    /// 可拦截性由存活导弹载荷或在飞 shuttle 的船体角色提供。
     /// </summary>
     public class CompProperties_SpaceProjectile : CompProperties
     {
@@ -55,7 +55,7 @@ namespace DeltaV
         /// <summary>程序允许的锁定弧；360 表示可锁定任意方向目标。</summary>
         public float lockArcDeg = 360f;
 
-        /// <summary>有图形态：弹体 building spawn 于自己的小图（可拦截；血量由 building 实例计算）。</summary>
+        /// <summary>侵入 shuttle 使用已有飞行图。</summary>
         public bool hasMap = true;
         public float collisionRadius = -1f;
 

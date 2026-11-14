@@ -275,13 +275,12 @@ namespace DeltaV
             return true;
         }
 
-        /// <summary>点防专用弹体与有图制导导弹的配对规则，瞄准和命中共用。</summary>
+        /// <summary>点防专用弹体与制导导弹的配对规则，瞄准和命中共用。</summary>
         public static bool GuaranteedMissileHit(ThingDef projectileDef, ThingDef targetDef)
         {
             var projectile = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
             var target = targetDef?.GetCompProperties<CompProperties_SpaceProjectile>();
-            return projectile?.guaranteedHitMissiles == true && target?.guided == true
-                && target.hasMap;
+            return projectile?.guaranteedHitMissiles == true && target?.guided == true;
         }
 
         /// <summary>
@@ -309,8 +308,10 @@ namespace DeltaV
         public static float ApplyToDefender(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part,
             float durabilityScale = 1f)
         {
-            if (part == null || evt.defender?.map == null) return 0f;
+            if (part == null || evt.defender == null) return 0f;
             Map map = evt.defender.map;
+            if (map == null && (evt.defender.Payload is not AbstractMissile || part.kind != ImpactEffectKind.DamageMap))
+                return 0f;
 
             if (part.kind == ImpactEffectKind.CoupleMotion || part.kind == ImpactEffectKind.TractorPull)
             {
@@ -347,10 +348,6 @@ namespace DeltaV
             }
             if (part.kind != ImpactEffectKind.DamageMap) return 0f;
 
-            IntVec3 cell = evt.hitCell.IsValid ? evt.hitCell : new IntVec3(
-                Mathf.FloorToInt(evt.hitDefenderLocal.x), 0,
-                Mathf.FloorToInt(evt.hitDefenderLocal.y)).ClampInsideMap(map);
-
             // 跳弹（当前默认实现 = 消灭无伤；可反弹类型留扩展位，太空战架构 §3.4）：
             // 守方耐久达门槛 ∧ 入射角够歪 → 不施加伤害（弹体的 DestroySelf 照常执行）。
             if (Ricochets(part, evt.defenderBuilding, evt.incidenceAngleRad))
@@ -367,6 +364,23 @@ namespace DeltaV
             float ap = part.armorPenetration * (amount / Mathf.Max(1f, part.damage))
                 * evt.armorPenetrationScale;
             DamageDef damType = part.damageDef ?? DamageDefOf.Bullet;
+            if (evt.defender.Payload is AbstractMissile missile)
+            {
+                bool explosive = !part.penetrates && part.explosionRadius > 0f;
+                float damage = explosive ? Mathf.Max(1, Mathf.RoundToInt(amount)) : amount;
+                var info = new DamageInfo(damType, damage, ap, -1f, evt.launcher, null, evt.projectileDef);
+                if (explosive)
+                {
+                    Current.Game.GetComponent<UniverseManager>().Projectiles.QueueMissileDamage(
+                        evt.defender, info, evt.hitDefenderLocal);
+                    return 0f;
+                }
+                float consumed = missile.ApplyDamage(info);
+                return part.penetrates && missile.InterceptionBody == null ? RemainingFraction(amount, consumed) : 0f;
+            }
+            IntVec3 cell = evt.hitCell.IsValid ? evt.hitCell : new IntVec3(
+                Mathf.FloorToInt(evt.hitDefenderLocal.x), 0,
+                Mathf.FloorToInt(evt.hitDefenderLocal.y)).ClampInsideMap(map);
             bool buildingGeometryChanged = false;
             float remaining = 0f;
 

@@ -38,6 +38,12 @@ namespace DeltaV
             {
                 SpaceObject obj = PickOrderScratch[idx];
                 // 每容器一壳（解耦重构：容器图即整壳；多船图不再按船分壳）。
+                if (obj.Payload?.Recoverable == true)
+                {
+                    Vector2 local = SpaceTransform.UniverseToShipLocal(obj.pose, universeDir);
+                    if (Mathf.Abs(local.x) <= .5f && Mathf.Abs(local.y) <= .5f) return obj;
+                    continue;
+                }
                 Map objectMap = obj.map;
                 if (objectMap == null || objectMap == frameMap) continue;
                 // UniverseToMapPoint：universe → 地图坐标（含中心偏移）——

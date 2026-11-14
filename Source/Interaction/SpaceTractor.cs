@@ -1,6 +1,5 @@
 using RimWorld;
 using Verse;
-using System.Linq;
 using UnityEngine;
 
 namespace DeltaV
@@ -47,29 +46,14 @@ namespace DeltaV
             => OrbitSphere.ArcCells(context.Target.pose.position, context.Destination) <= CollectionRadius;
         public virtual TractorReceiveResult TryReceive(TractorReceiveContext context)
         {
-            Map source = context.Target.map;
             Map destination = parent.Map;
-            if (source == null || source.Disposed || destination == null
-                || !MoonPoolUtility.IsMoonPoolAt(destination, parent.Position)) return TractorReceiveResult.Rejected;
-            bool moved = false;
-            foreach (Thing thing in source.listerThings.AllThings.Where(SpaceScatterService.IsCargo).ToList())
-            {
-                IntVec3 previous = thing.Position;
-                SpaceScatterService.ClearPawnTransferJob(thing);
-                thing.DeSpawn();
-                try
-                {
-                    if (!GenPlace.TryPlaceThing(thing, parent.InteractionCell, destination, ThingPlaceMode.Near,
-                        null, p => p != parent.Position && p != parent.InteractionCell))
-                    {
-                        if (!thing.Spawned && !thing.Destroyed) GenSpawn.Spawn(thing, previous, source);
-                        return moved ? TractorReceiveResult.Partial : TractorReceiveResult.Rejected;
-                    }
-                    thing.PostSwapMap(); moved = true;
-                }
-                catch { if (!thing.Spawned && !thing.Destroyed) GenSpawn.Spawn(thing, previous, source); throw; }
-            }
-            return TractorReceiveResult.Complete;
+            AbstractThing payload = context.Target.Payload;
+            if (payload?.Recoverable != true || destination == null || destination.Disposed
+                || !Allows(payload.Entity) || !MoonPoolUtility.IsMoonPoolAt(destination, parent.Position))
+                return TractorReceiveResult.Rejected;
+            return payload.Handoff(thing =>
+                GenPlace.TryPlaceThing(thing, parent.InteractionCell, destination, ThingPlaceMode.Near,
+                    null, p => p != parent.Position && p != parent.InteractionCell));
         }
         internal void NotifyBlocked() { blockedTick = Find.TickManager.TicksGame; }
         public override string CompInspectStringExtra() => Find.TickManager.TicksGame - blockedTick <= 1

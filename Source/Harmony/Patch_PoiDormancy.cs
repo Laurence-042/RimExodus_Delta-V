@@ -61,7 +61,8 @@ namespace DeltaV
         {
             private static bool Prefix()
             {
-                if (Current.Game?.GetComponent<UniverseManager>()?.Generation?.IsAnyGenerating != true) return true;
+                var universe = Current.Game?.GetComponent<UniverseManager>();
+                if (universe?.Generation?.IsAnyGenerating != true && universe?.HasUnpublishedPayload != true) return true;
                 ShowSaveBlocked();
                 return false;
             }
@@ -72,7 +73,8 @@ namespace DeltaV
         {
             private static bool Prefix()
             {
-                if (Current.Game?.GetComponent<UniverseManager>()?.Generation?.IsAnyGenerating != true) return true;
+                var universe = Current.Game?.GetComponent<UniverseManager>();
+                if (universe?.Generation?.IsAnyGenerating != true && universe?.HasUnpublishedPayload != true) return true;
                 ShowSaveBlocked();
                 return false;
             }
@@ -119,8 +121,11 @@ namespace DeltaV
 
         private static void ShowSaveBlocked()
         {
-            string progress = Current.Game?.GetComponent<UniverseManager>()?.Generation?.ProgressDescription;
-            Messages.Message("DeltaV_SaveBlockedGenerating".Translate(progress ?? "Preparing"),
+            var universe = Current.Game?.GetComponent<UniverseManager>();
+            string progress = universe?.Generation?.ProgressDescription;
+            Messages.Message(universe?.HasUnpublishedPayload == true
+                    ? "DeltaV_SaveBlockedPayload".Translate()
+                    : "DeltaV_SaveBlockedGenerating".Translate(progress ?? "Preparing"),
                 MessageTypeDefOf.RejectInput, false);
         }
     }

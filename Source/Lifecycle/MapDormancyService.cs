@@ -12,12 +12,6 @@ namespace DeltaV
             RimExodus.Maps.MapRuntime.Current.TickRates.Set(map, SharedMapBackend.Owner, 0);
             Find.ColonistBar?.MarkColonistsDirty();
         }
-        public void FreezeScattered(Map map)
-        {
-            if (map == null || map.Disposed) return;
-            RimExodus.Maps.MapRuntime.Current.TickRates.Set(map, SharedMapBackend.Owner, 0,
-                suppressUpdateWhenStopped: false);
-        }
         public void Wake(Map map, string reason)
         {
             RimExodus.Maps.MapRuntime.Current.TickRates.Release(map, SharedMapBackend.Owner);

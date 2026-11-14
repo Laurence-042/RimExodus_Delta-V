@@ -96,7 +96,7 @@ namespace DeltaV
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe == null) return;
-            if (universe.ShipTransitions.HasLandedTargetAwaitingCleanup)
+            if (universe.HasUnpublishedPayload || universe.ShipTransitions.HasLandedTargetAwaitingCleanup)
             {
                 __result = true;
             }

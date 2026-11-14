@@ -239,6 +239,11 @@ namespace DeltaV
         internal IEnumerable<GlobeDisplayEntry> Entries(SpaceObject obj)
         {
             if (!obj.ParticipatesInOverlays) yield break;
+            if (obj.Payload?.Recoverable == true)
+            {
+                yield return new GlobeDisplayEntry { owner = obj, area = 1f };
+                yield break;
+            }
             if (obj.map != null && !obj.map.Disposed)
             {
                 foreach (var entry in ReadMap(obj).entries) yield return entry;

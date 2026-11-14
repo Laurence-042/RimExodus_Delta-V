@@ -155,7 +155,7 @@ namespace DeltaV
                     GenPlace.TryPlaceThing(ore, launcher.Position, launcher.Map, ThingPlaceMode.Near);
                 else
                     Current.Game.GetComponent<UniverseManager>().Scatter.QueueMiningEjection(
-                        ore, evt.defender, evt.hitCell, evt.hitDefenderLocal, -evt.incidentDir);
+                        ore, evt.defender, evt.hitDefenderLocal, -evt.incidentDir);
             }
         }
 

@@ -9,7 +9,7 @@ using Verse;
 internal static partial class Program
 {
     // Only the Unity-backed Building destruction endpoint is observed here; queueing,
-    // identity lookup, retirement, map pooling and reset stages use the production DLL.
+    // identity lookup, retirement, payload release and reset stages use the production DLL.
     sealed class CleanupProbeBuilding : Building
     {
         public int destroyCalls;
@@ -33,11 +33,6 @@ internal static partial class Program
         container.projectileRoleOverride = shuttle;
         universe.RegisterObject(container);
         ProjectileRecords(universe.Projectiles).Add(record);
-        if (container.map != null)
-        {
-            PreparePoolMap(container.map, SpaceObjectTag.Projectile);
-            Set(record, "mapLease", universe.MapPool.Restore(container.map));
-        }
         return record;
     }
 
@@ -98,35 +93,17 @@ internal static partial class Program
         Call(universe, "RunFrameActions");
         Check(service.InFlightCount == 0, "reset also retires an already-missing container without dereferencing it");
 
-        Map map = TestMap(1804);
-        var mapped = new MapSpaceObject(1804, map, plain.pose) { baseTag = SpaceObjectTag.Projectile };
-        object mappedRecord = AddProjectileRecord(universe, mapped);
         var building = (CleanupProbeBuilding)Raw(typeof(CleanupProbeBuilding));
-        Set(typeof(Thing), building, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
-        Set(mappedRecord, "building", building);
-        universe.UnregisterObject(mapped);
+        building.def = TestBuildingDef("reset_missile");
+        building.def.comps.Add(new CompProperties_SpaceProjectile { guided = true });
+        building.stackCount = 1;
+        Set(typeof(Thing), building, "mapIndexOrState", (sbyte)-1);
+        SpaceObject missile = universe.CapturePayload(building, plain.pose, null);
+        AddProjectileRecord(universe, missile);
+        universe.UnregisterObject(missile);
         Call(universe, "RunFrameActions");
-        Check(building.destroyCalls == 1 && universe.MapPool.IsIdle(map),
-            "mapped external unregister retains the old map, destroys its body and returns it to the real pool");
-        // Native rendering/disposal needs Unity; model its completed notification and
-        // verify reset forgets the disposed map instead of disposing it a second time.
-        Set(map, "<Disposed>k__BackingField", true);
-        service.ResetFlow();
-        Call(universe, "RunFrameActions");
-        Check(universe.MapPool.TrackedCount == 0 && universe.MapPool.IdleCount == 0,
-            "reset removes disposed pooled maps and empty pool buckets");
-
-        var removedMap = TestMap(1805);
-        var removed = new MapSpaceObject(1805, removedMap, plain.pose) { baseTag = SpaceObjectTag.Projectile };
-        object removedRecord = AddProjectileRecord(universe, removed);
-        var removedBody = (CleanupProbeBuilding)Raw(typeof(CleanupProbeBuilding));
-        Set(removedRecord, "building", removedBody);
-        Call(universe.Lifecycle, "NotifyMapRemoved", removedMap);
-        Set(removedMap, "<Disposed>k__BackingField", true);
-        service.ForgetMap(removedMap);
-        Call(universe, "RunFrameActions");
-        Check(service.InFlightCount == 0 && universe.ObjectById(1805) == null && removedBody.destroyCalls == 0,
-            "native map-removal notification retires projectile without destroying a body on a disposed map");
+        Check(building.destroyCalls == 1 && missile.Payload.Entity == null,
+            "external missile removal releases the original building once");
 
         var shuttle = new SpaceObject(1806, plain.pose);
         AddProjectileRecord(universe, shuttle, shuttle: true);

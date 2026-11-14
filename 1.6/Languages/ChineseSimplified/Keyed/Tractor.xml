@@ -14,4 +14,6 @@
   <DeltaV_TractorKind0>人</DeltaV_TractorKind0>
   <DeltaV_TractorKind1>动物</DeltaV_TractorKind1>
   <DeltaV_TractorKind2>机械体</DeltaV_TractorKind2>
+  <DeltaV_LocateScatteredPawns>定位漂浮人员</DeltaV_LocateScatteredPawns>
+  <DeltaV_SaveBlockedPayload>请等待 Delta-V 完成散落实体交接后重试保存。</DeltaV_SaveBlockedPayload>
 </LanguageData>

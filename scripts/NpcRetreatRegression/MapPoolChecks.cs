@@ -1,148 +1,93 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using HarmonyLib;
-using DeltaV;
 using RimWorld;
 using RimWorld.Planet;
-using System.Collections.Generic;
+using DeltaV;
 using UnityEngine;
 using Verse;
 
 internal static partial class Program
 {
-    static void PreparePoolMap(Map map, SpaceObjectTag tag)
-    {
-        if (TerrainDefOf.Space == null)
-        {
-            TerrainDefOf.Space = (TerrainDef)Raw(typeof(TerrainDef));
-            TerrainDefOf.Space.defName = "Space";
-        }
-        for (int i = 0; i < map.terrainGrid.topGrid.Length; i++)
-            map.terrainGrid.topGrid[i] = TerrainDefOf.Space;
-        map.components.Add(new DeltaVPocketMapMetadata(map) { pooledMap = true, poolTag = tag });
-    }
-
     static void CheckMapPool(UniverseManager universe)
     {
-        Current.Game.currentMapIndex = -1;
-        SpaceMapPool pool = universe.MapPool;
-        Map a = TestMap(48001), b = TestMap(48002);
-        PreparePoolMap(a, SpaceObjectTag.Projectile);
-        PreparePoolMap(b, SpaceObjectTag.Container);
-        SpaceMapLease original = pool.Restore(a), cargo = pool.Restore(b);
-        Check(pool.TryReturn(original) && pool.TryReturn(cargo) && pool.IdleCount == 2,
-            "common pool restores marked maps and accepts empty rentals of different tags");
         int previousLimit = DeltaVMod.CurrentSettings.loadedMapLimit;
-        DeltaVMod.CurrentSettings.loadedMapLimit = Find.Maps.Count;
-        Check(!pool.TryMakeRoom(3), "capacity rejects creation until enough slots are available");
-        DeltaVMod.CurrentSettings.loadedMapLimit = 1;
-        Check(!pool.TryMakeRoom(2), "a request larger than the whole map budget cannot start eviction");
-        float nearby = SpaceLifecycleService.MapRetentionScore(100, 0f, 300f);
-        float distant = SpaceLifecycleService.MapRetentionScore(100, 300f, 300f);
-        Check(nearby > distant && distant > SpaceLifecycleService.MapRetentionScore(25, 300f, 300f),
-            "map retention score increases independently with proximity and area");
-        DeltaVMod.CurrentSettings.loadedMapLimit = Find.Maps.Count + 1;
-        Check(pool.TryMakeRoom(), "raising the loaded map limit allows generation immediately");
-        DeltaVMod.CurrentSettings.loadedMapLimit = Find.Maps.Count;
-        int calls = 0;
-        Check(pool.TryRent(SpaceObjectTag.Container, new IntVec2(5, 5), map =>
+        var launched = new List<SpaceObject>();
+        try
         {
-            calls++;
-            Check(map == b && !pool.TryReturn(pool.LeaseFor(map)), "population cannot return its own busy rental");
-        }, out SpaceMapLease rented) && rented.Map == b && calls == 1,
-            "matching idle map can be rented at capacity without creating another map");
-        DeltaVMod.CurrentSettings.loadedMapLimit = previousLimit;
-        Check(!pool.TryReturn(cargo, _ => calls++) && calls == 1,
-            "stale lease cannot invoke cleanup on a newly populated map");
-        var body = (Thing)Raw(typeof(Thing));
-        body.def = TestBuildingDef("pool_cargo");
-        body.def.category = ThingCategory.Item;
-        body.def.thingClass = typeof(Thing);
-        b.listerThings.AllThings.Add(body);
-        Check(!pool.TryReturn(rented) && pool.IsCurrent(rented) && b.listerThings.AllThings.Contains(body),
-            "return with cargo is rejected without deleting content or losing recovery lease");
-        b.listerThings.AllThings.Remove(body);
-        var owner = new MapSpaceObject(48002, b, new SpacePose(Vector3.forward, 0));
-        universe.RegisterObject(owner);
-        Check(!pool.TryReturn(rented, _ => calls++) && calls == 1,
-            "owning SpaceObject must be removed before cleanup callback may run");
-        universe.UnregisterObject(owner);
-        Check(pool.TryReturn(rented) && !pool.TryReturn(rented) && pool.IdleCount == 2,
-            "return is single-use and cannot insert duplicate idle map");
-
-        Check(!pool.TryRent(SpaceObjectTag.Container, new IntVec2(5, 5), map =>
-        {
-            map.listerThings.AllThings.Add(body);
-            throw new InvalidOperationException("intentional content callback failure");
-        }, out SpaceMapLease failed) && failed.Map == b && pool.IsCurrent(failed)
-            && b.listerThings.AllThings.Contains(body),
-            "population exception preserves real content and exposes its recovery lease");
-        Check(pool.TryReturn(failed, map => map.listerThings.AllThings.Remove(body)),
-            "failed rental can be recovered explicitly after content handoff");
-
-        pool.QueueReleaseUnused(SpaceObjectTag.Projectile);
-        Check(pool.TryRent(SpaceObjectTag.Projectile, new IntVec2(5, 5), _ => { }, out SpaceMapLease next),
-            "projectile can reuse idle map after reset snapshot");
-        Call(universe, "RunFrameActions");
-        Check(pool.IsCurrent(next) && !a.Disposed, "old reset callback cannot delete a new rental of the same Map");
-        Check(pool.TryReturn(next), "later rental can return normally");
-
-        Check(pool.TryRent(SpaceObjectTag.Container, new IntVec2(5, 5), _ => { }, out SpaceMapLease dirty),
-            "lease for terrain protection scenario is available");
-        b.terrainGrid.topGrid[0] = (TerrainDef)Raw(typeof(TerrainDef));
-        Check(!pool.TryReturn(dirty), "return rejects remaining terrain even when no Things remain");
-        pool.QueueReleaseUnused(SpaceObjectTag.Container);
-        Call(universe, "RunFrameActions");
-        Check(pool.IsCurrent(dirty) && !b.Disposed, "reset applies the same terrain protection as normal return");
-        b.terrainGrid.topGrid[0] = TerrainDefOf.Space;
-        Current.Game.currentMapIndex = (sbyte)Find.Maps.IndexOf(b);
-        Check(!pool.TryReturn(dirty, _ => calls++ ) && calls == 1,
-            "return does not mutate the currently viewed map");
-        Current.Game.currentMapIndex = -1;
-        Check(pool.TryReturn(dirty), "return succeeds after terrain is transferred and focus leaves");
-
-        Set(a, "<Disposed>k__BackingField", true);
-        Set(b, "<Disposed>k__BackingField", true);
-        pool.Forget(a);
-        pool.Forget(b);
-        Check(pool.TrackedCount == 0 && pool.IdleCount == 0, "map removal releases buckets and invalidates leases");
-        Find.Maps.Clear();
-
-        Map[] sizes = { TestMap(48003), TestMap(48004) };
-        for (int i = 0; i < sizes.Length; i++)
-        {
-            Map map = sizes[i];
-            map.info.Size = new IntVec3(i + 1, 1, 1);
-            map.cellIndices = new CellIndices(map);
-            map.terrainGrid = new TerrainGrid(map);
-            PreparePoolMap(map, SpaceObjectTag.Projectile);
-            Check(pool.TryReturn(pool.Restore(map)), "pool accepts exact single-row map sizes");
+            Map capacityMap = TestMap(48100);
+            DeltaVMod.CurrentSettings.loadedMapLimit = Find.Maps.Count;
+            Check(!universe.MapPool.TryMakeRoom(Find.Maps.Count + 1),
+                "capacity guard rejects requests larger than the configured limit");
+            int maps = Find.Maps.Count;
+            var def = NewMaplessCargo("bulk_cargo").def;
+            for (int i = 0; i < 256; i++)
+            {
+                Thing item = NewMaplessCargo("bulk_cargo");
+                item.def = def;
+                SpaceObject obj = universe.CapturePayload(item, new SpacePose(Vector3.forward, 0f), null);
+                Check(obj?.Payload?.Entity == item && obj.map == null,
+                    "each original stack can exist independently without a map slot");
+                launched.Add(obj);
+            }
+            Check(Find.Maps.Count == maps, "256 simultaneous payloads preserve the map count");
+            Check(launched.All(obj => obj.IsScattered && universe.Scatter.Candidates.Contains(obj)),
+                "every simultaneous stack has a registered tractor identity");
+            Find.Maps.Remove(capacityMap);
         }
-        foreach (Map map in sizes.Reverse())
+        finally
         {
-            Check(pool.TryRent(SpaceObjectTag.Projectile, new IntVec2(map.Size.x, 1), _ => { },
-                out SpaceMapLease sizeLease) && sizeLease.Map == map,
-                "different sizes under the same tag cannot cross rental buckets");
-            pool.Forget(map);
+            foreach (SpaceObject obj in launched) universe.UnregisterObject(obj);
+            DeltaVMod.CurrentSettings.loadedMapLimit = previousLimit;
         }
-        Find.Maps.Clear();
-
-        foreach (var sample in new[] { (30f, Rot4.East), (50f, Rot4.North), (60f, Rot4.North),
-            (45f, Rot4.East), (-45f, Rot4.East), (135f, Rot4.West),
-            (-60f, Rot4.South), (170f, Rot4.West), (390f, Rot4.East) })
-        {
-            float angle = sample.Item1 * Mathf.Deg2Rad;
-            Rot4 facing = ShipOrientation.Rot4FromAngle(angle);
-            Check(facing == sample.Item2 && ShipOrientation.Rot4FromAngle(ShipOrientation.SnapAngle(angle)) == facing,
-                $"docking and intrusion share nearest-quarter direction for {sample.Item1} degrees");
-            foreach (Rot4 source in Rot4.AllRotations)
-                Check(ShipOrientation.PlacementRotation(source, facing).Rotated((RotationDirection)source.AsByte) == facing,
-                    "placement retains vanilla rotation handedness");
-        }
-        CheckNativeSmallMapContracts();
-        CheckPlacementGeometry();
     }
 
+    static void CheckPayloadSave(UniverseManager universe)
+    {
+        var def = TestBuildingDef("savedDriftingItem");
+        def.category = ThingCategory.Item;
+        def.thingClass = typeof(Thing);
+        def.stackLimit = 75;
+        def.useHitPoints = true;
+        DefDatabase<ThingDef>.Add(def);
+        var cargo = new Thing { def = def };
+        cargo.stackCount = 17;
+        Set(typeof(Thing), cargo, "thingIDNumber", 48199);
+        Set(typeof(Thing), cargo, "hitPointsInt", 42);
+        var saved = universe.CapturePayload(cargo, new SpacePose(Vector3.forward, .25f), null);
+        var mod = (ModContentPack)Raw(typeof(ModContentPack));
+        mod.assemblies = new ModAssemblyHandler(mod);
+        mod.assemblies.loadedAssemblies.Add(typeof(AbstractThing).Assembly);
+        LoadedModManager.RunningModsListForReading.Add(mod);
+        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".xml");
+        try
+        {
+            Scribe.saver.InitSaving(path, "payload");
+            Scribe_Deep.Look(ref saved, "object");
+            Scribe.saver.FinalizeSaving();
+            SpaceObject loaded = null;
+            Scribe.loader.InitLoading(path);
+            Scribe_Deep.Look(ref loaded, "object");
+            Scribe.loader.FinalizeLoading();
+            Check(loaded.objectId == saved.objectId && loaded.map == null && loaded.IsScattered,
+                "real Scribe preserves the mapless object identity and role");
+            Check(Math.Abs(loaded.pose.angle - saved.pose.angle) < 1e-6f,
+                "real Scribe preserves the drifting pose");
+            Check(loaded.Payload.Entity.def == def && loaded.Payload.Entity.stackCount == 17
+                && loaded.Payload.Entity.HitPoints == 42, "real Scribe restores the actual item stack state");
+            Check(loaded.Payload.Entity.holdingOwner == loaded.Payload.GetDirectlyHeldThings(),
+                "real Scribe rebinds the item's owner");
+        }
+        finally
+        {
+            LoadedModManager.RunningModsListForReading.Remove(mod);
+            saved.Payload.GetDirectlyHeldThings().Remove(cargo);
+            universe.UnregisterObject(saved);
+            File.Delete(path);
+        }
+    }
     static void CheckPlacementGeometry()
     {
         Map source = TestMap(48101), target = TestMap(48102);

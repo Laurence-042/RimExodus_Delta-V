@@ -238,6 +238,11 @@ namespace DeltaV
             var state = universe.GlobeNavigation;
             state.Refresh(universe);
             var entry = state.Resolve(key);
+            if (entry?.owner.Payload?.Recoverable == true)
+            {
+                FocusTarget(universe, Find.CurrentMap, entry.owner);
+                return;
+            }
             if (entry?.owner.InteriorMap == null || entry.owner.IsTransient)
             { Messages.Message("DeltaV_PanelObjectNotLoaded".Translate(), MessageTypeDefOf.RejectInput, false); return; }
             int objectId = entry.owner.objectId, version = entry.owner.RepresentationVersion;
@@ -288,7 +293,8 @@ namespace DeltaV
                     OrbitSphere.ArcCells(view.Reference, entry.Pose.position).ToString("N0"));
                 Widgets.Label(text, PlanetGlobeRenderer.ShortText(entry.Label, text.width) + "\n"
                     + PlanetGlobeRenderer.ShortText(details, text.width)
-                    + (entry.owner.InteriorMap == null && !entry.owner.IsTransient ? "\n" + "DeltaV_NavUnloaded".Translate() : ""));
+                    + (entry.owner.InteriorMap == null && entry.owner.Payload == null && !entry.owner.IsTransient
+                        ? "\n" + "DeltaV_NavUnloaded".Translate() : ""));
                 TooltipHandler.TipRegion(text, entry.Label + "\n" + details);
                 if (Widgets.ButtonInvisible(text)) state.Select(entry);
                 if (Widgets.ButtonText(new Rect(content.width - 52f, y + 12f, 50f, 26f), "DeltaV_NavLocate".Translate()))

@@ -44,6 +44,24 @@ namespace DeltaV
         public int objectId;
 
         public SpacePose pose;
+        private AbstractThing payload;
+        public AbstractThing Payload { get => payload; internal set => payload = value; }
+        private bool IsPureProjectile => baseTag == SpaceObjectTag.Projectile
+            || payload?.Role == SpaceObjectTag.Projectile;
+
+        internal bool DrawPayload(SpaceObject frame, Map frameMap, bool foreground)
+        {
+            if (payload?.Entity is not Thing { Destroyed: false }) return false;
+            Vector3 point = SpaceTransform.FocusedDrawPosition(frame, frameMap, pose.position, 0f);
+            if (!Find.CameraDriver.CurrentViewRect.ExpandedBy(2).Contains(point.ToIntVec3())) return false;
+            Quaternion rotation = foreground ? SpaceTransform.FocusedSpriteRotation(frame, pose.angle)
+                : SpaceTransform.FocusedMeshRotation(frame, pose.angle);
+            if (foreground) point.y = AltitudeLayer.Terrain.AltitudeFor() + Altitudes.AltInc * 10f;
+            MapOverlayRenderer.BeginQuadBatch();
+            ShellDrawCapture.Capture(() => payload.Draw(Vector3.zero),
+                Matrix4x4.TRS(point, rotation, Vector3.one), ShellSurfaceLayer.Exposed, 0f);
+            return true;
+        }
 
         /// <summary>存储 tag（存档事实；默认 Container，PoiState 构造置 Marker，弹体由服务设置）。</summary>
         public SpaceObjectTag baseTag = SpaceObjectTag.Container;
@@ -105,7 +123,7 @@ namespace DeltaV
         {
             get
             {
-                SpaceObjectTag tags = baseTag | MemberTags;
+                SpaceObjectTag tags = baseTag | MemberTags | (payload?.Role ?? 0);
                 if (projectileRoleOverride) tags |= SpaceObjectTag.Projectile;
                 return tags;
             }
@@ -152,19 +170,27 @@ namespace DeltaV
             && Factions.Any(member => member != null && member.HostileTo(other));
 
         /// <summary>瞬态成员（纯弹体）：写档剔除、读档无残留（§4.4）。侵入船体不算（baseTag=Container 照常落盘）。</summary>
-        public bool IsTransient => baseTag == SpaceObjectTag.Projectile;
+        public bool IsTransient => IsPureProjectile;
 
         /// <summary>碰撞主动参与（弹体恒为主动方；侵入 shuttle 追加同一角色，§3.1）。</summary>
         public bool IsActiveCollider => HasTag(SpaceObjectTag.Projectile);
 
         /// <summary>被动阻力适用（弹体豁免——无推进器的飞行体不受阻力减速；shuttle 与船照常）。</summary>
-        public bool AppliesPassiveDrag => baseTag != SpaceObjectTag.Projectile;
+        public bool AppliesPassiveDrag => !IsPureProjectile;
 
         /// <summary>剪影/星球仪/世界标记/音效/星区记账参与（弹体不进，§3.1；将来弹体上星球仪只改这里）。</summary>
-        public bool ParticipatesInOverlays => baseTag != SpaceObjectTag.Projectile;
+        public bool ParticipatesInOverlays => !IsPureProjectile;
 
         /// <summary>先按缓存的对象角色筛选点防目标，不在索敌时遍历地图查找船体。</summary>
-        public bool InterceptionEligible => map != null && InterceptionTargetTag != 0;
+        public bool InterceptionEligible => payload != null ? payload.InterceptionBody != null
+            : map != null && !map.Disposed && InterceptionTargetTag != 0;
+
+        internal Building InterceptionBody => payload?.InterceptionBody
+            ?? (InterceptionEligible && map != null
+                ? map.listerThings.AllThings.OfType<Building>().FirstOrDefault(building => !building.Destroyed
+                    && (building.def.GetCompProperties<CompProperties_SpaceShuttle>() != null
+                        || building.def.GetCompProperties<CompProperties_SpaceProjectile>() != null))
+                : null);
 
         internal SpaceObjectTag InterceptionTargetTag
         {
@@ -177,7 +203,7 @@ namespace DeltaV
         }
 
         /// <summary>显示朝向策略：无姿态角的点状弹体按速度方向，其余按位姿角（§3.1）。</summary>
-        public bool UsesVelocityHeading => baseTag == SpaceObjectTag.Projectile;
+        public bool UsesVelocityHeading => IsPureProjectile && payload == null;
 
         /// <summary>
         /// 显示名 = 内部全部结构名拼接（可重建派生，不落盘）；图上无结构时退回
@@ -187,6 +213,7 @@ namespace DeltaV
         {
             get
             {
+                if (payload?.Entity is Thing entity) return entity.LabelCap;
                 int version = UniverseManager.StructureNameVersion;
                 if (cachedLabelVersion == version && cachedLabel != null) return cachedLabel;
                 cachedLabel = ComputeContainerLabel();
@@ -388,6 +415,7 @@ namespace DeltaV
             Scribe_Values.Look(ref baseTag, "tag", DefaultTag);
             Scribe_References.Look(ref faction, "faction");
             Scribe_Deep.Look(ref pose, "pose");
+            Scribe_Deep.Look(ref payload, "payload");
             Scribe_Values.Look(ref ambientLabel, "ambientLabel", null);
             Scribe_Values.Look(ref contentTypeId, "contentTypeId");
             Scribe_Values.Look(ref sourcePrefabPath, "sourcePrefabPath");

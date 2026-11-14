@@ -14,7 +14,7 @@ namespace DeltaV
     /// - 参与判定（tag）：主动方 = projectile tag 容器（IsActiveCollider）；被动方 =
     ///   任何有碰撞面的容器（有图即可被撞——飞船被弹体命中、PD 弹打导弹都是此路径）；
     /// - 求交（守方局部坐标，全部经 SpaceTransform 现有坐标入口）：宽相位（扫掠段 ×
-    ///   守方包围域圆）→（段5：护盾弧先于格）→ 0.5 格步进占用采样；
+    ///   守方包围域圆）→ 盾面与占用格求交 → 按束段距离结算最先接触；
     /// - 命中事件附带几何事实（一次性计算，参与方只消费不重算，§3.3）：命中 universe
     ///   点、两侧 building、入射方向、相对速度标量/矢量、入射角；
     /// - 结算 = 联合效果注册表（SpaceImpactEffects）对称分发，每容器各自后效；
@@ -278,6 +278,8 @@ namespace DeltaV
         /// <summary>容器的等效碰撞半径（包围域；发射侧外推炮口起点用）。</summary>
         public static float BoundsRadiusOf(SpaceObject obj)
         {
+            if (obj?.Payload is AbstractMissile { InterceptionBody: not null } missile)
+                return missile.HalfFootprint.magnitude;
             if (obj?.map == null) return 0f;
             return SurfaceFor(obj).boundsRadius;
         }
@@ -441,53 +443,91 @@ namespace DeltaV
             for (int b = 0; b < bodies.Count; b++)
             {
                 SweptBody body = bodies[b];
-                if (body.dead || body.attacker == null) continue;
+                if (body.dead || body.attacker == null
+                    || body.attacker.Payload is AbstractMissile { InterceptionBody: null }) continue;
                 Dictionary<SpaceObject, PassedContacts> passed = null;
                 for (int bounce = 0; bounce < 128 && !body.dead; bounce++)
                 {
-                    bool redirected = false;
-                    SpaceObject source = body.selfFire.key > 0 ? body.excludeContainer : null;
-                    for (int d = source == null ? 0 : -1; d < objects.Count; d++)
+                    if (!TryFindFirstContact(universe, objects, body, ref passed, out SweepContact contact)) break;
+
+                    body.redirected = false;
+                    body.continued = false;
+                    ResolveContact(body, contact);
+                    if (body.dead) break;
+                    if (body.continued)
                     {
-                        bool sourceStructure = d < 0;
-                        SpaceObject defender = sourceStructure ? source : objects[d];
-                        if (defender.IsScattered) continue;
-                        if (defender == body.attacker || !sourceStructure && defender == body.excludeContainer
-                            || (body.requiredDefender != null && defender != body.requiredDefender)) continue;
-                        if (body.ignoreNonHostileProjectiles && !body.didRedirect && defender.IsActiveCollider
-                            && !AreHostile(body.attacker.faction, defender.faction)) continue;
-                        Map defMap = defender.map;
-                        if (defMap == null || defMap.Disposed) continue;
-                        if (universe.Generation?.IsGenerating(defMap) == true) continue;
-                        body.redirected = false;
-                        body.continued = false;
-                        if (!SweepOne(body, defender, defMap, sourceStructure, ref passed)) continue;
-                        if (body.dead) break;
-                        if (body.continued)
-                        {
-                            // 不向前跳过距离：同心盾、贴合盾面与紧邻建筑必须逐个结算。
-                            body.from = body.continuePoint;
-                            body.didContinue = true;
-                            if (bounce == 127) body.to = body.from;
-                            redirected = true;
-                            break;
-                        }
-                        if (!body.redirected) continue;
-                        Vector3 oldFrom = body.from;
-                        body.onShieldRedirect?.Invoke(oldFrom, body.redirectPoint, defender);
-                        body.from = OrbitSphere.Move(body.redirectPoint,
-                            body.redirectDirection * 0.03f);
-                        body.to = OrbitSphere.Move(body.from,
-                            body.redirectDirection * body.redirectRemaining);
+                        // 不向前跳过距离：同心盾、贴合盾面与紧邻建筑必须逐个结算。
+                        body.from = body.continuePoint;
+                        body.didContinue = true;
+                    }
+                    else if (body.redirected)
+                    {
+                        body.onShieldRedirect?.Invoke(body.from, body.redirectPoint, contact.defender);
+                        body.from = OrbitSphere.Move(body.redirectPoint, body.redirectDirection * 0.03f);
+                        body.to = OrbitSphere.Move(body.from, body.redirectDirection * body.redirectRemaining);
                         body.didRedirect = true;
                         body.excludeContainer = null;
                         passed?.Clear();
-                        if (bounce == 127) body.to = body.from;
-                        redirected = true;
-                        break;
                     }
-                    if (!redirected) break;
+                    else break;
+                    if (bounce == 127) body.to = body.from;
                 }
+            }
+        }
+
+        private static bool TryFindFirstContact(UniverseManager universe, List<SpaceObject> objects,
+            SweptBody body, ref Dictionary<SpaceObject, PassedContacts> passed, out SweepContact first)
+        {
+            SpaceObject source = body.selfFire.key > 0 ? body.excludeContainer : null;
+            while (true)
+            {
+                first = default;
+                float nearest = float.PositiveInfinity;
+                for (int d = source == null ? 0 : -1; d < objects.Count; d++)
+                {
+                    bool sourceStructure = d < 0;
+                    SpaceObject defender = sourceStructure ? source : objects[d];
+                    if (defender.IsScattered) continue;
+                    if (defender == body.attacker || !sourceStructure && defender == body.excludeContainer
+                        || (body.requiredDefender != null && defender != body.requiredDefender)) continue;
+                    if (body.ignoreNonHostileProjectiles && !body.didRedirect && defender.IsActiveCollider
+                        && !AreHostile(body.attacker.faction, defender.faction)) continue;
+                    Map map = defender.map;
+                    PassedContacts missed = null;
+                    passed?.TryGetValue(defender, out missed);
+                    SweepContact candidate;
+                    if (map == null)
+                    {
+                        if (!TrySweepMissile(body, defender, missed?.buildings, out candidate)) continue;
+                    }
+                    else if (map.Disposed || universe.Generation?.IsGenerating(map) == true
+                        || !TrySweepContact(body, defender, map, sourceStructure, missed, out candidate)) continue;
+                    float distance = OrbitSphere.ArcCells(body.from, candidate.universePoint);
+                    if (first.defender != null && (distance > nearest
+                        || (distance == nearest && defender.objectId >= first.defender.objectId)))
+                        continue;
+                    nearest = distance;
+                    first = candidate;
+                }
+                if (first.defender == null) return false;
+
+                RayContact ray = first.ray;
+                if (ray.kind == SpaceCellKind.Empty
+                    || SpaceImpactEffects.HitTest(body.projectileDef, ray.kind, ray.building, first.effect))
+                    return true;
+
+                if (first.props?.continuousBeam != true && DeltaVLog.Enabled(DeltaVLogModule.Combat))
+                    DeltaVLog.Message(DeltaVLogModule.Combat,
+                        $"pass-through: {body.projectileDef?.defName} past " +
+                        (ray.building?.def.defName ?? "substructure") + $" at {ray.cell} of '{first.defender.label}'");
+
+                passed ??= new Dictionary<SpaceObject, PassedContacts>();
+                if (!passed.TryGetValue(first.defender, out PassedContacts rejected))
+                    passed.Add(first.defender, rejected = new PassedContacts());
+                if (ray.building != null)
+                    (rejected.buildings ??= new HashSet<Thing>()).Add(ray.building);
+                else
+                    (rejected.foundations ??= new HashSet<IntVec3>()).Add(ray.cell);
             }
         }
 
@@ -503,13 +543,85 @@ namespace DeltaV
             internal HashSet<IntVec3> foundations;
         }
 
-        /// <summary>单个 body 对单个守方的窄相位求交与结算；返回是否产生命中事件。</summary>
-        private static bool SweepOne(SweptBody body, SpaceObject defender, Map defMap, bool sourceStructure,
-            ref Dictionary<SpaceObject, PassedContacts> passed)
+        private struct SweepContact
         {
+            internal SpaceObject defender;
+            internal RayContact ray;
+            internal Vector3 universePoint;
+            internal Vector2 direction, lineStart, lineEnd;
+            internal float remainingLength;
+            internal SpaceImpactEffectDef effect;
+            internal CompProperties_SpaceProjectile props;
+        }
+
+        private static bool TrySweepMissile(SweptBody body, SpaceObject defender, HashSet<Thing> passed,
+            out SweepContact contact)
+        {
+            contact = default;
+            if (defender.Payload is not AbstractMissile { InterceptionBody: not null } missile
+                || passed?.Contains(missile.InterceptionBody) == true)
+                return false;
+            Vector2 from = SpaceTransform.UniverseToShipLocal(defender.pose, body.from);
+            Vector2 delta = SpaceTransform.UniverseToShipLocal(defender.pose, body.to) - from;
+            float length = delta.magnitude;
+            if (length < 1e-6f) return false;
+            Vector2 direction = delta / length;
+            if (!TryMissileFootprint(missile, from, direction, length, body.sweepRadius, out RayContact ray))
+                return false;
+            contact = new SweepContact
+            {
+                defender = defender, ray = ray, direction = direction,
+                universePoint = SpaceTransform.ShipLocalToUniverse(defender.pose, ray.point),
+                effect = SpaceImpactEffects.Resolve(body.projectileDef, missile.InterceptionBody.def),
+                props = body.projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()
+            };
+            return true;
+        }
+
+        internal static bool TryMissileFootprint(AbstractMissile missile, Vector2 from, Vector2 direction,
+            float length, float radius, out RayContact ray)
+        {
+            ray = default;
+            if (missile.InterceptionBody == null || length <= 0f || direction.sqrMagnitude < 1e-8f) return false;
+            Vector2 half = missile.HalfFootprint;
+            float near = 0f, far = length;
+            Vector2 extent = half + new Vector2(radius, radius);
+            if (!ClipAxis(from.x, direction.x, extent.x, ref near, ref far)
+                || !ClipAxis(from.y, direction.y, extent.y, ref near, ref far)) return false;
+            float along = radius > 0f ? Mathf.Floor(near / SampleStep) * SampleStep : near;
+            float end = Mathf.Min(length, Mathf.Ceil(far / SampleStep) * SampleStep);
+            for (;; along = Mathf.Min(along + SampleStep, end))
+            {
+                Vector2 point = from + direction * along;
+                Vector2 nearest = new Vector2(Mathf.Clamp(point.x, -half.x, half.x),
+                    Mathf.Clamp(point.y, -half.y, half.y));
+                if (radius == 0f || (point - nearest).sqrMagnitude <= radius * radius)
+                {
+                    Vector2 normal = Mathf.Abs(direction.x) >= Mathf.Abs(direction.y)
+                        ? new Vector2(-Mathf.Sign(direction.x), 0f) : new Vector2(0f, -Mathf.Sign(direction.y));
+                    ray = new RayContact(point, normal, IntVec3.Invalid, SpaceCellKind.Building, missile.InterceptionBody);
+                    return true;
+                }
+                if (along >= end) return false;
+            }
+        }
+
+        private static bool ClipAxis(float origin, float direction, float extent, ref float near, ref float far)
+        {
+            if (Mathf.Abs(direction) < 1e-6f) return Mathf.Abs(origin) <= extent;
+            float a = (-extent - origin) / direction;
+            float b = (extent - origin) / direction;
+            near = Mathf.Max(near, Mathf.Min(a, b));
+            far = Mathf.Min(far, Mathf.Max(a, b));
+            return near <= far;
+        }
+
+        private static bool TrySweepContact(SweptBody body, SpaceObject defender, Map defMap, bool sourceStructure,
+            PassedContacts missed, out SweepContact contact)
+        {
+            contact = default;
             Surface surface = SurfaceFor(defender);
             if (!surface.anySolid) return false;
-            // 守方局部（地图连续坐标）扫掠段：universe ⇄ map 只经 SpaceTransform 入口。
             Vector2 fromLocal = SpaceTransform.UniverseToMapPoint(defender, defMap, body.from);
             Vector2 toLocal = SpaceTransform.UniverseToMapPoint(defender, defMap, body.to);
             Vector2 delta = toLocal - fromLocal;
@@ -517,46 +629,33 @@ namespace DeltaV
             if (length < 1e-6f) return false;
             Vector2 dir = delta / length;
 
-            // 宽相位：扫掠段到包围域圆心的最近距离。
             Vector2 toCenter = surface.boundsCenter - fromLocal;
-            float along = Mathf.Clamp(Vector2.Dot(toCenter, dir), 0f, length);
-            float distanceToCenter = (toCenter - dir * along).magnitude;
+            float projection = Vector2.Dot(toCenter, dir);
+            float distanceToCenter = (toCenter - dir * Mathf.Clamp(projection, 0f, length)).magnitude;
             if (distanceToCenter > surface.boundsRadius + body.sweepRadius + 0.5f) return false;
 
-            // 先求最近盾交，再只采样交点前的建筑；折射后由外层继续同一求交链。
             float sampleLength = length;
-            CompSpaceShield lineShield = null;
-            Vector2 linePoint = default;
-            Vector2 lineNormal = default;
+            var projectileProps = body.projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
+            RayContact ray = default;
             Vector2 lineStart = default, lineEnd = default;
-            float lineAlong = float.MaxValue;
-            CompProperties_SpaceProjectile projectileProps = body.projectileDef
-                ?.GetCompProperties<CompProperties_SpaceProjectile>();
-            bool shieldsApply = !sourceStructure && projectileProps?.ignoresShields != true;
-            if (shieldsApply && TryFindLineHit(surface, fromLocal, dir, length, projectileProps,
-                out lineShield, out linePoint, out lineNormal, out lineAlong, out lineStart, out lineEnd))
-                sampleLength = lineAlong;
-            ShieldArc shieldArc = null;
-            Vector2 shieldPoint = default;
-            float shieldIncidence = 0f;
-            SpaceImpactEffectDef shieldEffect = null;
-            if (shieldsApply && surface.arcs.Count > 0
-                && TryFindArcHit(surface, fromLocal, dir, length, out ShieldArc arc, out Vector2 point, out float arcAlong))
+            if (!sourceStructure && projectileProps?.ignoresShields != true)
             {
-                Vector2 radial = (point - arc.center).normalized;
-                float incidence = SpaceTransform.IncidenceAngle(dir, radial);
-                SpaceImpactEffectDef effect = SpaceImpactEffects.Resolve(body.projectileDef, arc.building.def, shieldSurface: true);
-                if (CompSpaceShield.CanAbsorbGuard(arc.interceptor) && arcAlong < sampleLength)
+                if (TryFindLineHit(surface, fromLocal, dir, length, projectileProps,
+                    out CompSpaceShield line, out Vector2 linePoint, out Vector2 lineNormal,
+                    out float lineAlong, out lineStart, out lineEnd))
+                {
+                    sampleLength = lineAlong;
+                    ray = new RayContact(linePoint, lineNormal, IntVec3.Invalid, SpaceCellKind.Empty, line.parent, line: line);
+                }
+                if (TryFindArcHit(surface, fromLocal, dir, length, out ShieldArc arc, out Vector2 point, out float arcAlong)
+                    && arcAlong < sampleLength)
                 {
                     sampleLength = arcAlong;
-                    shieldArc = arc;
-                    shieldPoint = point;
-                    shieldIncidence = incidence;
-                    shieldEffect = effect;
+                    ray = new RayContact(point, (point - arc.center).normalized, IntVec3.Invalid,
+                        SpaceCellKind.Empty, arc.building, guard: arc);
                 }
             }
 
-            // 窄相位：0.5 格步进采样占用集（至多采到弧交点）。
             Vector2 footprintDirection = dir;
             if (body.noseHalfWidth > 0f && body.attackerBuilding != null)
             {
@@ -574,21 +673,41 @@ namespace DeltaV
                 var muzzleFootprint = body.launcher?.Map == defMap ? body.launcher.OccupiedRect() : CellRect.Empty;
                 scope = cell => !muzzleFootprint.Contains(cell) && ownership.OwnerAt(cell) == body.selfFire.key;
             }
-            int steps = Mathf.Max(1, Mathf.CeilToInt(sampleLength / SampleStep));
-            PassedContacts missed = null;
-            passed?.TryGetValue(defender, out missed);
-            for (int s = 0; s <= steps; s++)
-            {
-                Vector2 p = fromLocal + dir * Mathf.Min(sampleLength, SampleStep * s);
-                if (!FindBestCell(body, defMap, surface, fromLocal, p, footprintDirection,
-                    missed?.buildings, missed?.foundations,
-                    out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing, scope))
-                {
-                    continue;
-                }
+            if (TryFindHullContact(body, defMap, surface, fromLocal, dir, footprintDirection,
+                sampleLength, missed?.buildings, missed?.foundations, scope, false, out RayContact hull))
+                ray = hull;
+            if (ray.kind == SpaceCellKind.Empty && ray.line == null && ray.guard == null) return false;
 
-                SpaceImpactEffectDef effect = SpaceImpactEffects.Resolve(body.projectileDef,
-                    bestKind == SpaceCellKind.Substructure ? null : bestThing?.def);
+            contact = new SweepContact
+            {
+                defender = defender,
+                ray = ray,
+                universePoint = SpaceTransform.MapPointToUniverse(defender, defMap, ray.point),
+                direction = dir,
+                lineStart = lineStart,
+                lineEnd = lineEnd,
+                remainingLength = length - sampleLength,
+                effect = ray.line == null ? SpaceImpactEffects.Resolve(body.projectileDef, ray.building?.def,
+                    shieldSurface: ray.guard != null) : null,
+                props = projectileProps
+            };
+            return true;
+        }
+
+        private static void ResolveContact(SweptBody body, SweepContact contact)
+        {
+            SpaceObject defender = contact.defender;
+            Map defMap = defender.map;
+            RayContact ray = contact.ray;
+            Vector2 dir = contact.direction;
+            Vector2 p = ray.point;
+            var projectileProps = contact.props;
+            if (ray.kind != SpaceCellKind.Empty)
+            {
+                IntVec3 bestCell = ray.cell;
+                SpaceCellKind bestKind = ray.kind;
+                Thing bestThing = ray.building;
+                SpaceImpactEffectDef effect = contact.effect;
                 ImpactEvent evt = SharedEvent;
                 evt.attacker = body.attacker;
                 evt.projectileDef = body.projectileDef;
@@ -599,12 +718,15 @@ namespace DeltaV
                 evt.defenderIsSubstructure = bestKind == SpaceCellKind.Substructure;
                 evt.hitDefenderLocal = p;
                 evt.hitCell = bestCell;
-                evt.hitUniverse = SpaceTransform.MapPointToUniverse(defender, defMap, p);
+                evt.hitUniverse = contact.universePoint;
                 evt.incidentDir = dir;
                 evt.relativeVelocity = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, defender.pose, evt.hitUniverse);
                 evt.relativeSpeed = evt.relativeVelocity.magnitude;
                 if (SpaceShieldProjectileBehavior.IsKinetic(projectileProps) && evt.relativeSpeed > .0001f)
-                    evt.incidentDir = SpaceTransform.UniverseTangentToMapDirection(defender, defMap, evt.hitUniverse, evt.relativeVelocity);
+                    evt.incidentDir = defMap != null
+                        ? SpaceTransform.UniverseTangentToMapDirection(defender, defMap, evt.hitUniverse, evt.relativeVelocity)
+                        : SpaceTransform.Rotate(SpaceTransform.TransportTangent(evt.relativeVelocity,
+                            evt.hitUniverse, defender.pose.position), -defender.pose.angle).normalized;
                 evt.damageScale = body.damageScale;
                 evt.armorPenetrationScale = body.armorPenetrationScale;
                 evt.mass = body.mass; evt.beamEnergyScale = body.beamEnergyScale;
@@ -614,27 +736,6 @@ namespace DeltaV
                     ? new Vector2(-Mathf.Sign(evt.incidentDir.x), 0f)
                     : new Vector2(0f, -Mathf.Sign(evt.incidentDir.y));
                 evt.incidenceAngleRad = SpaceTransform.IncidenceAngle(evt.incidentDir, normal);
-
-                // 命中判定（二值）：放行 = 弹体穿过、本 tick 后续采样继续（下次碰撞再判定）。
-                if (!SpaceImpactEffects.HitTest(body.projectileDef, bestKind, bestThing, effect))
-                {
-                    if (projectileProps?.continuousBeam != true && DeltaVLog.Enabled(DeltaVLogModule.Combat))
-                        DeltaVLog.Message(DeltaVLogModule.Combat,
-                            $"pass-through: {body.projectileDef?.defName} past " +
-                            (bestThing?.def.defName ?? "substructure") + $" at {bestCell} " +
-                            $"of '{defender.label}' (v_rel {evt.relativeSpeed:F1})");
-                    if (missed == null)
-                    {
-                        missed = new PassedContacts();
-                        (passed ??= new Dictionary<SpaceObject, PassedContacts>())[defender] = missed;
-                    }
-                    if (bestThing != null)
-                        (missed.buildings ??= new HashSet<Thing>()).Add(bestThing);
-                    else
-                        (missed.foundations ??= new HashSet<IntVec3>()).Add(bestCell);
-                    s--;
-                    continue;
-                }
 
                 // 对称结算（§3.5）：每个参与容器各自解析自己的后效。
                 body.resolvedHit = true;
@@ -662,9 +763,9 @@ namespace DeltaV
                     $"{evt.incidenceAngleRad * Mathf.Rad2Deg:F0}°)");
                 float durabilityScale = SpaceImpactEffects.DurabilityScale(effect, evt.defenderBuilding);
                 // 毁伤会清掉基架归属，声音所需身份必须在结算前捕获。
-                ShipBase struckShip = bestThing != null ? ShipRegistry.ShipOf(bestThing) : ShipBase.Invalid;
+                ShipBase struckShip = defMap != null && bestThing != null ? ShipRegistry.ShipOf(bestThing) : ShipBase.Invalid;
                 DriveSubject struckSubject = struckShip.IsValid ? struckShip.Identity
-                    : new DriveSubject(defender.objectId, defMap.GetComponent<SubstructureOwnership>()?.OwnerAt(bestCell) ?? 0);
+                    : new DriveSubject(defender.objectId, defMap?.GetComponent<SubstructureOwnership>()?.OwnerAt(bestCell) ?? 0);
                 float remaining = SpaceImpactEffects.ApplyToDefender(evt, effect?.defenderEffect, durabilityScale);
                 body.onVisualContact?.Invoke(new VisualContact
                 {
@@ -673,7 +774,7 @@ namespace DeltaV
                     position = evt.hitUniverse, pathFrom = body.from,
                     localPoint = p, localDirection = dir, localNormal = normal,
                     damageScale = body.damageScale, explosive = body.resolvedHitExplosive,
-                    nativeExplosion = defenderPart?.explosionRadius > 0f
+                    nativeExplosion = defMap != null && defenderPart?.explosionRadius > 0f
                         && !(defenderPart.penetrationLayers?.Count > 0),
                     explosionRadius = body.resolvedHitRadius, penetrated = remaining > 0f,
                     destroyed = bestThing?.Destroyed == true
@@ -681,14 +782,16 @@ namespace DeltaV
                     missileDestroyed = bestThing?.Destroyed == true
                         && bestThing.def.GetCompProperties<CompProperties_SpaceProjectile>()?.guided == true
                 });
-                if (ContinueAfterImpact(body, remaining, evt.hitUniverse)) return true;
+                if (ContinueAfterImpact(body, remaining, evt.hitUniverse)) return;
                 ApplyAttackerOutcome(body, effect, defender, evt.hitUniverse, evt.hitDefenderLocal);
-                return true;
+                return;
             }
 
-            if (lineShield != null && lineAlong <= sampleLength + 0.001f)
+            if (ray.line is CompSpaceShield lineShield)
             {
-                Vector3 hit = SpaceTransform.MapPointToUniverse(defender, defMap, linePoint);
+                Vector3 hit = contact.universePoint;
+                Vector2 linePoint = ray.point;
+                Vector2 lineNormal = ray.normal;
                 if (lineShield.mode == SpaceShieldMode.Kinetic)
                 {
                     Vector2 relative = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, defender.pose, hit);
@@ -699,7 +802,7 @@ namespace DeltaV
                     {
                         body.continued = true;
                         body.continuePoint = hit;
-                        return true;
+                        return;
                     }
                     body.resolvedHit = true;
                     body.resolvedHitShield = true;
@@ -711,7 +814,7 @@ namespace DeltaV
                         defender = defender, projectileDef = body.projectileDef, position = hit, pathFrom = body.from,
                         localPoint = linePoint, localDirection = dir, localNormal = lineNormal,
                         damageScale = body.damageScale, shieldMode = SpaceShieldMode.Kinetic,
-                        lineStart = lineStart, lineEnd = lineEnd
+                        lineStart = contact.lineStart, lineEnd = contact.lineEnd
                     });
                     int fragmentCount = SpaceKinetics.ShieldFragmentCount(body.mass, relative, worldNormal, impulse, projectileProps);
                     if (fragmentCount > 0)
@@ -719,7 +822,7 @@ namespace DeltaV
                         body.onShieldShatter?.Invoke(hit, defender, relative, worldNormal, impulse, fragmentCount);
                         body.dead = true;
                         body.onSelfDestruct?.Invoke();
-                        return true;
+                        return;
                     }
                     // Surviving rounds retain their identity, lifetime, mass and remaining damage scale.
                     Vector2 outgoingRelative = SpaceKinetics.ApplyShieldImpulse(body.mass, relative, worldNormal, impulse);
@@ -730,8 +833,8 @@ namespace DeltaV
                     body.redirected = true;
                     body.redirectPoint = hit;
                     body.redirectDirection = outgoingWorld.sqrMagnitude > 1e-8f ? outgoingWorld.normalized : worldNormal;
-                    body.redirectRemaining = beforeSpeed > .0001f ? (length - lineAlong) * outgoingWorld.magnitude / beforeSpeed : 0f;
-                    return true;
+                    body.redirectRemaining = beforeSpeed > .0001f ? contact.remainingLength * outgoingWorld.magnitude / beforeSpeed : 0f;
+                    return;
                 }
                 int strength = lineShield.electromagneticStrengthPercent;
                 SpaceShieldRefraction.Plan plan = SpaceShieldRefraction.Calculate(dir, lineNormal, strength);
@@ -743,18 +846,18 @@ namespace DeltaV
                     defender = defender, projectileDef = body.projectileDef, position = hit, pathFrom = body.from,
                     localPoint = linePoint, localDirection = dir, localNormal = lineNormal,
                     damageScale = body.damageScale, shieldMode = SpaceShieldMode.Electromagnetic,
-                    lineStart = lineStart, lineEnd = lineEnd
+                    lineStart = contact.lineStart, lineEnd = contact.lineEnd
                 });
                 body.redirected = true;
                 body.redirectPoint = hit;
                 body.redirectDirection = SpaceTransform.MapDirectionToUniverseTangent(defender,
                     defMap, linePoint, outgoing);
-                body.redirectRemaining = length - lineAlong;
-                return true;
+                body.redirectRemaining = contact.remainingLength;
+                return;
             }
 
             // 弧事件（格采样未先命中）：护盾吸收——守方容量消耗 + 攻方自毁。
-            if (shieldArc != null)
+            if (ray.guard is ShieldArc shieldArc)
             {
                 ImpactEvent evt = SharedEvent;
                 evt.attacker = body.attacker;
@@ -764,16 +867,17 @@ namespace DeltaV
                 evt.defender = defender;
                 evt.defenderBuilding = shieldArc.building;
                 evt.defenderIsSubstructure = false;
+                Vector2 shieldPoint = ray.point;
+                SpaceImpactEffectDef shieldEffect = contact.effect;
                 evt.hitDefenderLocal = shieldPoint;
                 evt.hitCell = IntVec3.Invalid;
-                evt.hitUniverse = SpaceTransform.MapPointToUniverse(defender, defMap, shieldPoint);
+                evt.hitUniverse = contact.universePoint;
                 evt.incidentDir = dir;
                 evt.relativeVelocity = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, defender.pose, evt.hitUniverse);
                 evt.relativeSpeed = evt.relativeVelocity.magnitude;
                 if (SpaceShieldProjectileBehavior.IsKinetic(projectileProps) && evt.relativeSpeed > .0001f)
                     evt.incidentDir = SpaceTransform.UniverseTangentToMapDirection(defender, defMap, evt.hitUniverse, evt.relativeVelocity);
-                evt.incidenceAngleRad = SpaceShieldProjectileBehavior.IsKinetic(projectileProps)
-                    ? SpaceTransform.IncidenceAngle(evt.incidentDir, (shieldPoint - shieldArc.center).normalized) : shieldIncidence;
+                evt.incidenceAngleRad = SpaceTransform.IncidenceAngle(evt.incidentDir, ray.normal);
                 evt.damageScale = body.damageScale;
                 evt.armorPenetrationScale = body.armorPenetrationScale;
                 evt.mass = body.mass; evt.beamEnergyScale = body.beamEnergyScale;
@@ -799,7 +903,7 @@ namespace DeltaV
                 {
                     defender = defender, projectileDef = body.projectileDef, position = evt.hitUniverse, pathFrom = body.from,
                     localPoint = shieldPoint, localDirection = dir,
-                    localNormal = (shieldPoint - shieldArc.center).normalized,
+                    localNormal = ray.normal,
                     damageScale = body.damageScale, explosive = body.resolvedHitExplosive,
                     nativeExplosion = body.resolvedHitExplosive,
                     explosionRadius = body.resolvedHitRadius, shieldMode = SpaceShieldMode.Guard,
@@ -821,9 +925,7 @@ namespace DeltaV
                 {
                     ApplyAttackerOutcome(body, shieldEffect, defender, evt.hitUniverse, evt.hitDefenderLocal);
                 }
-                return true;
             }
-            return false;
         }
 
         private static bool ContinueAfterImpact(SweptBody body, float remaining, Vector3 hit)
@@ -941,6 +1043,38 @@ namespace DeltaV
             return hitShield != null;
         }
 
+        private static bool TryFindHullContact(SweptBody body, Map map, Surface surface, Vector2 from,
+            Vector2 dir, Vector2 footprintDirection, float end, HashSet<Thing> passedBuildings,
+            HashSet<IntVec3> passedCells, System.Predicate<IntVec3> include, bool skipSubstructure,
+            out RayContact contact)
+        {
+            contact = default;
+            Vector2 normal = Mathf.Abs(dir.x) >= Mathf.Abs(dir.y)
+                ? new Vector2(-Mathf.Sign(dir.x), 0f) : new Vector2(0f, -Mathf.Sign(dir.y));
+            int last = Mathf.Max(1, Mathf.CeilToInt(end / SampleStep));
+            for (int step = 0; step <= last; step++)
+            {
+                Vector2 p = from + dir * Mathf.Min(end, step * SampleStep);
+                if (!FindBestCell(body, map, surface, from, p, footprintDirection, passedBuildings, passedCells,
+                    out IntVec3 cell, out SpaceCellKind kind, out Thing building, include, skipSubstructure)) continue;
+                contact = new RayContact(p, normal, cell, kind, building);
+                return true;
+            }
+            return false;
+        }
+
+        private static bool TryGetHullCell(Map map, Surface surface, IntVec3 cell, HashSet<Thing> passedBuildings,
+            HashSet<IntVec3> passedCells, bool skipSubstructure, out SpaceCellKind kind, out Thing building)
+        {
+            int index = map.cellIndices.CellToIndex(cell);
+            kind = (SpaceCellKind)surface.kinds[index];
+            building = surface.buildings[index];
+            if (building != null && !building.Destroyed && passedBuildings?.Contains(building) != true) return true;
+            kind = SpaceCellKind.Substructure;
+            building = null;
+            return !skipSubstructure && surface.foundations[index] && passedCells?.Contains(cell) != true;
+        }
+
         /// <summary>
         /// 找采样点周围（扫掠块半径内）「建筑优先、沿弹道更早」的占用格。
         /// 已放行的建筑/基架不重掷；建筑放行后同格基架仍可被判定。
@@ -988,16 +1122,8 @@ namespace DeltaV
                         || Mathf.Abs(offset.y) > 0.5f + 0.5f * Mathf.Abs(dir.y)
                             + body.noseHalfWidth * Mathf.Abs(side.y)) continue;
                 }
-                int index = defMap.cellIndices.CellToIndex(cell);
-                SpaceCellKind kind = (SpaceCellKind)surface.kinds[index];
-                Thing thing = surface.buildings[index];
-                if (thing == null || thing.Destroyed || passedBuildings?.Contains(thing) == true)
-                {
-                    if (skipSubstructure || !surface.foundations[index]
-                        || passedSubstructure?.Contains(cell) == true) continue;
-                    kind = SpaceCellKind.Substructure;
-                    thing = null;
-                }
+                if (!TryGetHullCell(defMap, surface, cell, passedBuildings, passedSubstructure, skipSubstructure,
+                    out SpaceCellKind kind, out Thing thing)) continue;
                 // 建筑高于同一带内的基架；同类再按沿弹道距离排序。
                 float rank = (new Vector2(cell.x + 0.5f, cell.z + 0.5f) - fromLocal).sqrMagnitude;
                 bool buildingWins = bestKind == SpaceCellKind.Substructure

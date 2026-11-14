@@ -244,6 +244,9 @@ namespace DeltaV
             }
             if (combatBlock)
                 selected.CollectCombatPanelActions(shipHasWeapons, combatActionsBefore, combatActionsAfter);
+            if (universe.Scatter.PlayerPawns.Any())
+                panelActions.Add(new PilotPanelAction("DeltaV_LocateScatteredPawns".Translate(),
+                    () => universe.Scatter.ShowPlayerPawns(map)));
             float combatHeight = 0f;
             if (combatBlock)
             {

@@ -68,10 +68,10 @@ namespace DeltaV
 
         private VisualAnchor Anchor(SpaceObject obj, Vector2 mapPoint, Vector3 position)
         {
-            Vector2 local = SpaceTransform.MapToShipLocal(obj.map, mapPoint);
+            Vector2 local = obj.map == null ? mapPoint : SpaceTransform.MapToShipLocal(obj.map, mapPoint);
             return new VisualAnchor
             {
-                objectId = obj.objectId, representationVersion = obj.RepresentationVersion, mapId = obj.map.uniqueID,
+                objectId = obj.objectId, representationVersion = obj.RepresentationVersion, mapId = obj.map?.uniqueID ?? -1,
                 bornTick = Find.TickManager.TicksGame,
                 local = local, birth = obj.pose, position = position,
                 velocity = SpaceTransform.VelocityAtLocalPoint(obj.pose, local, position)
@@ -153,7 +153,8 @@ namespace DeltaV
 
         private void RegisterImpactFx(SpaceCollision.VisualContact contact)
         {
-            if (contact.defender?.map == null) return;
+            if (contact.defender == null) return;
+            Map map = contact.defender.map;
             CompProperties_SpaceProjectile props = contact.projectileDef
                 ?.GetCompProperties<CompProperties_SpaceProjectile>();
             CombatVisualStyle style = props?.visualStyle ?? CombatVisualStyle.Kinetic;
@@ -161,7 +162,7 @@ namespace DeltaV
             // 非破坏性耦合只显示光束；击中盾时仍显示统一盾面反馈。
             if (style == CombatVisualStyle.Coupling && !contact.shieldMode.HasValue) return;
             VisualAnchor anchor = Anchor(contact.defender, contact.localPoint, contact.position);
-            // The interception burst outlives the destroyed missile's disposable map.
+            // The interception burst outlives the destroyed missile.
             if (contact.missileDestroyed) { anchor.objectId = 0; anchor.mapId = -1; }
             if (props?.tracerLength > 0f)
             {
@@ -185,9 +186,9 @@ namespace DeltaV
                 shieldMode = contact.shieldMode, shieldBroken = contact.shieldBroken,
                 shieldEmergency = contact.shieldEmergency,
                 normal = contact.localNormal,
-                shieldCenter = SpaceTransform.MapToShipLocal(contact.defender.map, contact.shieldCenter),
-                lineStart = SpaceTransform.MapToShipLocal(contact.defender.map, contact.lineStart),
-                lineEnd = SpaceTransform.MapToShipLocal(contact.defender.map, contact.lineEnd),
+                shieldCenter = map == null ? default : SpaceTransform.MapToShipLocal(map, contact.shieldCenter),
+                lineStart = map == null ? default : SpaceTransform.MapToShipLocal(map, contact.lineStart),
+                lineEnd = map == null ? default : SpaceTransform.MapToShipLocal(map, contact.lineEnd),
                 shieldRadius = contact.shieldRadius
             }, MaxCombatFlashes);
 
@@ -244,7 +245,10 @@ namespace DeltaV
                 if (style == CombatVisualStyle.Kinetic && particles.Count >= 512) break;
                 float v = Variation(seed, i * 5);
                 Vector2 local = SpaceTransform.Rotate(direction, (v * 2f - 1f) * spread);
-                Vector2 tangent = SpaceTransform.MapDirectionToUniverseTangent(owner, owner.map, point, local);
+                Vector2 tangent = owner.map != null
+                    ? SpaceTransform.MapDirectionToUniverseTangent(owner, owner.map, point, local)
+                    : SpaceTransform.TransportTangent(SpaceTransform.Rotate(local, owner.pose.angle),
+                        owner.pose.position, anchor.position);
                 particles.Add(new CombatParticle
                 {
                     origin = anchor.position, velocity = anchor.velocity
