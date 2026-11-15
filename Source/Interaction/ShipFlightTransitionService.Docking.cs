@@ -159,9 +159,16 @@ namespace DeltaV
             }
             ShipBase ship = target.Vessel;
             var transfer = ship.Transfer;
-            if (transfer.body == null) return RequestFoundationSeparation(universe,
-                ShipRegistry.MainConsoleForOwner(ship.Map, transfer.ownerId)?.Ship ?? Ship.Invalid, playerInitiated);
-            return !frame.IsWorksite || RequestBodySeparation(ship, playerInitiated);
+            if (transfer.body == null)
+            {
+                Ship structure = ship is FoundationShip foundation ? foundation.Structure
+                    : ShipRegistry.MainConsoleForOwner(ship.Map, transfer.ownerId)?.Ship ?? Ship.Invalid;
+                return RequestFoundationSeparation(universe, structure, playerInitiated);
+            }
+            if (pendingShuttleSeparations.Contains(ship.Identity)) return false;
+            bool extract = frame.IsWorksite;
+            return (!extract && universe.Scatter.LooseCargoCount(ship.Map) == 0)
+                || RequestBodySeparation(ship, playerInitiated, extract);
         }
 
         internal bool RequestFoundationSeparation(UniverseManager universe, Ship ship, bool playerInitiated)
@@ -177,17 +184,8 @@ namespace DeltaV
             if (!ShipRegistry.RequiresOwnPocket(ship))
             {
                 // 拆分方向：控制域外的同归属连通块必须离开本容器，否则会随船整体运动。
-                List<HashSet<IntVec3>> blocks = ShipRegistry.HasResidualBlocks(ship)
-                    ? CollectResidualBlocks(ship) : null;
-                // 常态只检查有无散落货物；分离需要展示清单时才物化列表。
-                if ((blocks == null || blocks.Count == 0)
-                    && !universe.Scatter.LooseCargo(sourceMap).Any()) return true;
-                blocks ??= new List<HashSet<IntVec3>>();
-                List<Thing> cargo = universe.Scatter.LooseCargo(sourceMap).ToList();
-                if (blocks.Count > 0)
-                    cargo = cargo.Concat(Building_DockingPort.CollectChannelLeftBehind(sourceMap,
-                        ShipRegistry.ControlDomain(ship))).Distinct().ToList();
-                if (blocks.Count == 0 && cargo.Count == 0) return true;
+                bool hasResidual = ShipRegistry.HasResidualBlocks(ship);
+                if (!hasResidual && universe.Scatter.LooseCargoCount(sourceMap) == 0) return true;
                 if (!playerInitiated || !universe.ConfirmSplitWarnings)
                 {
                     // 玩家关闭确认时仍经过同一帧边界拆分，只把提示交给原版消息栏。
@@ -195,8 +193,13 @@ namespace DeltaV
                         notifyPlayer: playerInitiated && !universe.ConfirmSplitWarnings);
                     return false;
                 }
+                var blocks = hasResidual ? CollectResidualBlocks(ship) : new List<HashSet<IntVec3>>();
+                var cargo = universe.Scatter.LooseCargo(sourceMap).ToList();
+                if (blocks.Count > 0)
+                    cargo = cargo.Concat(Building_DockingPort.CollectChannelLeftBehind(sourceMap,
+                        ShipRegistry.ControlDomain(ship))).Distinct().ToList();
                 PresentSeparationPrompt(universe, ship, "DeltaV_SplitConfirmText",
-                    BuildSplitSummary(universe, ship, blocks, cargo));
+                    BuildSplitSummary(sourceMap, blocks, cargo));
                 return false;
             }
 
@@ -235,20 +238,27 @@ namespace DeltaV
             return false; // 本 tick 不施加该次推进器动量；分离后的下一次请求再出力。
         }
 
-        private bool RequestBodySeparation(ShipBase ship, bool playerInitiated)
+        private bool RequestBodySeparation(ShipBase ship, bool playerInitiated, bool extract)
         {
             DriveSubject identity = ship.Identity;
             if (!pendingShuttleSeparations.Add(identity)) return false;
             Map source = ship.Map;
             SpaceObject frame = universe.FrameOf(source);
             int version = frame.RepresentationVersion;
-            var plan = PlanForceDomain(source, null, ship);
+            int structureVersion = SubstructureOwnership.StructureVersion(source);
+            var plan = extract ? PlanForceDomain(source, null, ship) : null;
             void Execute() => universe.QueueFrameAction(() =>
             {
-                pendingShuttleSeparations.Remove(identity);
+                if (!pendingShuttleSeparations.Remove(identity)) return;
                 ShipBase current = ShipRegistry.ShipByIdentity(identity);
                 if (!current.IsValid || current.Map != source || frame.RepresentationVersion != version
-                    || universe.FrameOf(source) != frame) return;
+                    || universe.FrameOf(source) != frame || frame.IsWorksite != extract
+                    || SubstructureOwnership.StructureVersion(source) != structureVersion) return;
+                if (!extract)
+                {
+                    if (current.CanDriveIn(frame)) universe.Scatter.ScatterLoose(source);
+                    return;
+                }
                 var currentPlan = PlanForceDomain(source, null, current);
                 if (plan.Matches(currentPlan)) MoveForceDomain(frame, currentPlan);
             });
@@ -258,11 +268,14 @@ namespace DeltaV
                 universe.Autopilot.Cancel(identity);
                 if (universe.Pilot.PilotedTarget(universe).Identity == identity) universe.Pilot.Exit(universe);
             }
-            var hull = new HashSet<IntVec3>(ship.HullCells);
-            var cargo = CollectUnclaimedCargo(source, hull);
-            if (playerInitiated && cargo.Count > 0)
+            List<Thing> cargo = null;
+            if (playerInitiated && (extract || universe.ConfirmSplitWarnings))
+                cargo = extract ? CollectUnclaimedCargo(source, plan.cells) : universe.Scatter.LooseCargo(source).ToList();
+            if (cargo?.Count > 0)
             {
-                string message = "DeltaV_UndockConfirmText".Translate(BuildLeftBehindSummary(source, cargo));
+                string message = extract
+                    ? "DeltaV_UndockConfirmText".Translate(BuildLeftBehindSummary(source, cargo))
+                    : "DeltaV_SplitConfirmText".Translate(BuildSplitSummary(source, System.Array.Empty<HashSet<IntVec3>>(), cargo));
                 if (universe.Pilot.ActiveController != null)
                     universe.Pilot.ActiveController.PresentSeparationConfirmation(PilotTarget.Of(ship), message, Execute, Cancel);
                 else Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(message, Execute, Cancel, destructive: true));
@@ -388,13 +401,13 @@ namespace DeltaV
             return ShipRegistry.ResidualBlocks(ship.map, domain);
         }
 
-        private string BuildSplitSummary(UniverseManager universe, Ship ship, List<HashSet<IntVec3>> blocks,
+        private string BuildSplitSummary(Map map, IEnumerable<HashSet<IntVec3>> blocks,
             List<Thing> cargo)
         {
             var parts = new List<string>();
             foreach (HashSet<IntVec3> block in blocks)
             {
-                SubstructureOwnership ownership = SubstructureOwnership.TryGet(ship.map);
+                SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
                 int owner = ownership?.OwnerAt(block.First()) ?? SubstructureOwnership.Unassigned;
                 string ownerLabel = owner == SubstructureOwnership.Unassigned
                     ? "DeltaV_OwnerUnassigned".Translate()
@@ -402,7 +415,7 @@ namespace DeltaV
                 parts.Add("DeltaV_SplitBlockLine".Translate(ownerLabel, block.Count));
             }
             if (cargo.Count > 0)
-                parts.Add("DeltaV_SplitCargoLine".Translate(BuildLeftBehindSummary(ship.map, cargo)));
+                parts.Add("DeltaV_SplitCargoLine".Translate(BuildLeftBehindSummary(map, cargo)));
             return string.Join("\n", parts);
         }
 

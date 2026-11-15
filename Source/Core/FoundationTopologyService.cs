@@ -15,6 +15,8 @@ namespace DeltaV
             internal readonly Dictionary<HashSet<IntVec3>, Vector2> centers =
                 new Dictionary<HashSet<IntVec3>, Vector2>();
             internal int memberVersion = -1;
+            internal int unboundVersion = -1;
+            internal bool hasUnboundBuildings;
             internal readonly Dictionary<HashSet<IntVec3>, HashSet<Building>> members =
                 new Dictionary<HashSet<IntVec3>, HashSet<Building>>();
 
@@ -85,6 +87,23 @@ namespace DeltaV
 
         internal int DomainCount(Map map) => For(map)?.connectivity.ComponentCount ?? 0;
 
+        internal bool HasUnboundBuildings(Map map)
+        {
+            var entry = For(map);
+            if (entry == null) return false;
+            int version = SubstructureOwnership.StructureVersion(map);
+            if (entry.unboundVersion == version) return entry.hasUnboundBuildings;
+            entry.hasUnboundBuildings = false;
+            foreach (Building building in SubstructureOwnership.For(map).SpawnedBuildings)
+            {
+                if (ComponentUnder(map, entry, building.OccupiedRect()) != 0) continue;
+                entry.hasUnboundBuildings = true;
+                break;
+            }
+            entry.unboundVersion = version;
+            return entry.hasUnboundBuildings;
+        }
+
         internal IEnumerable<HashSet<IntVec3>> Domains(Map map)
         {
             var entry = For(map);
@@ -108,16 +127,22 @@ namespace DeltaV
 
         private static HashSet<IntVec3> DomainUnder(Map map, Entry entry, IEnumerable<IntVec3> footprint)
         {
+            int root = ComponentUnder(map, entry, footprint);
+            return root == 0 ? null : entry.Domains(map)[root];
+        }
+
+        private static int ComponentUnder(Map map, Entry entry, IEnumerable<IntVec3> footprint)
+        {
             int root = 0;
             foreach (IntVec3 cell in footprint)
             {
                 if (!cell.InBounds(map)) continue;
                 int found = entry.connectivity.ComponentAt(map.cellIndices.CellToIndex(cell));
                 if (found == 0) continue;
-                if (root != 0 && root != found) return null;
+                if (root != 0 && root != found) return 0;
                 root = found;
             }
-            return root == 0 ? null : entry.Domains(map)[root];
+            return root;
         }
 
         internal HashSet<IntVec3> BuildingDomain(Map map, Building building) =>

@@ -5,7 +5,7 @@
     <defName>MapPrefab_AsteroidMixedMedium</defName>
     <size>(19, 17)</size>
     <terrain>
-      <Vacstone_Rough>
+      <Space>
         <rects>
           <li>(0,7,0,7)</li>
           <li>(0,8,0,8)</li>
@@ -222,7 +222,7 @@
           <li>(18,7,18,7)</li>
           <li>(18,8,18,8)</li>
         </rects>
-      </Vacstone_Rough>
+      </Space>
     </terrain>
   </prefab>
   <thingStates>
@@ -240,6 +240,7 @@
           <id>MineableComponentsIndustrial810000</id>
           <pos>(1, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -257,6 +258,7 @@
           <id>MineablePlasteel810001</id>
           <pos>(1, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -274,6 +276,7 @@
           <id>MineableSteel810002</id>
           <pos>(2, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -291,6 +294,7 @@
           <id>MineablePlasteel810003</id>
           <pos>(2, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -308,6 +312,7 @@
           <id>MineableSteel810004</id>
           <pos>(2, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -325,6 +330,7 @@
           <id>MineableSteel810005</id>
           <pos>(2, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -342,6 +348,7 @@
           <id>MineablePlasteel810006</id>
           <pos>(2, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -359,6 +366,7 @@
           <id>MineablePlasteel810007</id>
           <pos>(3, 0, 4)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -376,6 +384,7 @@
           <id>MineableSteel810008</id>
           <pos>(3, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -393,6 +402,7 @@
           <id>MineableSteel810009</id>
           <pos>(3, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -410,6 +420,7 @@
           <id>MineableComponentsIndustrial810010</id>
           <pos>(3, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -427,6 +438,7 @@
           <id>MineableComponentsIndustrial810011</id>
           <pos>(3, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -444,6 +456,7 @@
           <id>MineableSteel810012</id>
           <pos>(3, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -461,6 +474,7 @@
           <id>MineableComponentsIndustrial810013</id>
           <pos>(3, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -478,6 +492,7 @@
           <id>MineableSteel810014</id>
           <pos>(3, 0, 12)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -495,6 +510,7 @@
           <id>MineableSteel810015</id>
           <pos>(4, 0, 3)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -512,6 +528,7 @@
           <id>MineablePlasteel810016</id>
           <pos>(4, 0, 4)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -529,6 +546,7 @@
           <id>MineableSteel810017</id>
           <pos>(4, 0, 5)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -546,6 +564,7 @@
           <id>MineableSteel810018</id>
           <pos>(4, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -563,6 +582,7 @@
           <id>MineablePlasteel810019</id>
           <pos>(4, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -580,6 +600,7 @@
           <id>MineableSteel810020</id>
           <pos>(4, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -597,6 +618,7 @@
           <id>MineableSteel810021</id>
           <pos>(4, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -614,6 +636,7 @@
           <id>MineableSteel810022</id>
           <pos>(4, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -631,6 +654,7 @@
           <id>MineableComponentsIndustrial810023</id>
           <pos>(4, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -648,6 +672,7 @@
           <id>MineableComponentsIndustrial810024</id>
           <pos>(4, 0, 12)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -665,6 +690,7 @@
           <id>MineableSteel810025</id>
           <pos>(4, 0, 13)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -682,6 +708,7 @@
           <id>MineableSteel810026</id>
           <pos>(5, 0, 3)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -699,6 +726,7 @@
           <id>MineablePlasteel810027</id>
           <pos>(5, 0, 4)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -716,6 +744,7 @@
           <id>MineablePlasteel810028</id>
           <pos>(5, 0, 5)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -733,6 +762,7 @@
           <id>MineablePlasteel810029</id>
           <pos>(5, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -750,6 +780,7 @@
           <id>MineableSteel810030</id>
           <pos>(5, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -767,6 +798,7 @@
           <id>MineablePlasteel810031</id>
           <pos>(5, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -784,6 +816,7 @@
           <id>MineablePlasteel810032</id>
           <pos>(5, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -801,6 +834,7 @@
           <id>MineablePlasteel810033</id>
           <pos>(5, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -818,6 +852,7 @@
           <id>MineableComponentsIndustrial810034</id>
           <pos>(5, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -835,6 +870,7 @@
           <id>MineableSteel810035</id>
           <pos>(5, 0, 12)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -852,6 +888,7 @@
           <id>MineableSteel810036</id>
           <pos>(5, 0, 13)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -869,6 +906,7 @@
           <id>MineableComponentsIndustrial810037</id>
           <pos>(6, 0, 3)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -886,6 +924,7 @@
           <id>MineableComponentsIndustrial810038</id>
           <pos>(6, 0, 4)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -903,6 +942,7 @@
           <id>MineableSteel810039</id>
           <pos>(6, 0, 5)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -920,6 +960,7 @@
           <id>MineableSteel810040</id>
           <pos>(6, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -937,6 +978,7 @@
           <id>MineableSteel810041</id>
           <pos>(6, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -954,6 +996,7 @@
           <id>MineableComponentsIndustrial810042</id>
           <pos>(6, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -971,6 +1014,7 @@
           <id>MineableSteel810043</id>
           <pos>(6, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -988,6 +1032,7 @@
           <id>MineableSteel810044</id>
           <pos>(6, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1005,6 +1050,7 @@
           <id>MineablePlasteel810045</id>
           <pos>(6, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1022,6 +1068,7 @@
           <id>MineableSteel810046</id>
           <pos>(6, 0, 12)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1039,6 +1086,7 @@
           <id>MineableSteel810047</id>
           <pos>(6, 0, 13)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1056,6 +1104,7 @@
           <id>MineableSteel810048</id>
           <pos>(6, 0, 14)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1073,6 +1122,7 @@
           <id>MineableSteel810049</id>
           <pos>(7, 0, 2)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1090,6 +1140,7 @@
           <id>MineableSteel810050</id>
           <pos>(7, 0, 3)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1107,6 +1158,7 @@
           <id>MineableSteel810051</id>
           <pos>(7, 0, 4)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1124,6 +1176,7 @@
           <id>MineablePlasteel810052</id>
           <pos>(7, 0, 5)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1141,6 +1194,7 @@
           <id>MineablePlasteel810053</id>
           <pos>(7, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1158,6 +1212,7 @@
           <id>MineableComponentsIndustrial810054</id>
           <pos>(7, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1175,6 +1230,7 @@
           <id>MineableComponentsIndustrial810055</id>
           <pos>(7, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1192,6 +1248,7 @@
           <id>MineableComponentsIndustrial810056</id>
           <pos>(7, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1209,6 +1266,7 @@
           <id>MineableSteel810057</id>
           <pos>(7, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1226,6 +1284,7 @@
           <id>MineableComponentsIndustrial810058</id>
           <pos>(7, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1243,6 +1302,7 @@
           <id>MineableSteel810059</id>
           <pos>(7, 0, 12)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1260,6 +1320,7 @@
           <id>MineableComponentsIndustrial810060</id>
           <pos>(7, 0, 13)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1277,6 +1338,7 @@
           <id>MineableSteel810061</id>
           <pos>(7, 0, 14)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1294,6 +1356,7 @@
           <id>MineableComponentsIndustrial810062</id>
           <pos>(8, 0, 2)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1311,6 +1374,7 @@
           <id>MineableComponentsIndustrial810063</id>
           <pos>(8, 0, 3)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1328,6 +1392,7 @@
           <id>Vacstone810064</id>
           <pos>(8, 0, 4)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1345,6 +1410,7 @@
           <id>Vacstone810065</id>
           <pos>(8, 0, 5)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1362,6 +1428,7 @@
           <id>MineableSteel810066</id>
           <pos>(8, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1379,6 +1446,7 @@
           <id>Vacstone810067</id>
           <pos>(8, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1396,6 +1464,7 @@
           <id>Vacstone810068</id>
           <pos>(8, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1413,6 +1482,7 @@
           <id>Vacstone810069</id>
           <pos>(8, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1430,6 +1500,7 @@
           <id>Vacstone810070</id>
           <pos>(8, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1447,6 +1518,7 @@
           <id>Vacstone810071</id>
           <pos>(8, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1464,6 +1536,7 @@
           <id>Vacstone810072</id>
           <pos>(8, 0, 12)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1481,6 +1554,7 @@
           <id>Vacstone810073</id>
           <pos>(8, 0, 13)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1498,6 +1572,7 @@
           <id>Vacstone810074</id>
           <pos>(8, 0, 14)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1515,6 +1590,7 @@
           <id>MineablePlasteel810075</id>
           <pos>(9, 0, 2)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1532,6 +1608,7 @@
           <id>MineableSteel810076</id>
           <pos>(9, 0, 3)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1549,6 +1626,7 @@
           <id>MineableComponentsIndustrial810077</id>
           <pos>(9, 0, 4)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1566,6 +1644,7 @@
           <id>MineableSteel810078</id>
           <pos>(9, 0, 5)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1583,6 +1662,7 @@
           <id>MineableSteel810079</id>
           <pos>(9, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1600,6 +1680,7 @@
           <id>Vacstone810080</id>
           <pos>(9, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1617,6 +1698,7 @@
           <id>Vacstone810081</id>
           <pos>(9, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1634,6 +1716,7 @@
           <id>Vacstone810082</id>
           <pos>(9, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1651,6 +1734,7 @@
           <id>Vacstone810083</id>
           <pos>(9, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1668,6 +1752,7 @@
           <id>Vacstone810084</id>
           <pos>(9, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1685,6 +1770,7 @@
           <id>Vacstone810085</id>
           <pos>(9, 0, 12)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1702,6 +1788,7 @@
           <id>Vacstone810086</id>
           <pos>(9, 0, 13)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1719,6 +1806,7 @@
           <id>Vacstone810087</id>
           <pos>(9, 0, 14)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1736,6 +1824,7 @@
           <id>Vacstone810088</id>
           <pos>(10, 0, 2)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1753,6 +1842,7 @@
           <id>Vacstone810089</id>
           <pos>(10, 0, 3)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1770,6 +1860,7 @@
           <id>Vacstone810090</id>
           <pos>(10, 0, 4)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1787,6 +1878,7 @@
           <id>Vacstone810091</id>
           <pos>(10, 0, 5)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1804,6 +1896,7 @@
           <id>Vacstone810092</id>
           <pos>(10, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1821,6 +1914,7 @@
           <id>MineablePlasteel810093</id>
           <pos>(10, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1838,6 +1932,7 @@
           <id>MineableComponentsIndustrial810094</id>
           <pos>(10, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1855,6 +1950,7 @@
           <id>Vacstone810095</id>
           <pos>(10, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1872,6 +1968,7 @@
           <id>Vacstone810096</id>
           <pos>(10, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1889,6 +1986,7 @@
           <id>MineableSteel810097</id>
           <pos>(10, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1906,6 +2004,7 @@
           <id>MineablePlasteel810098</id>
           <pos>(10, 0, 12)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1923,6 +2022,7 @@
           <id>MineableSteel810099</id>
           <pos>(10, 0, 13)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1940,6 +2040,7 @@
           <id>Vacstone810100</id>
           <pos>(10, 0, 14)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1957,6 +2058,7 @@
           <id>Vacstone810101</id>
           <pos>(11, 0, 2)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1974,6 +2076,7 @@
           <id>Vacstone810102</id>
           <pos>(11, 0, 3)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -1991,6 +2094,7 @@
           <id>Vacstone810103</id>
           <pos>(11, 0, 4)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2008,6 +2112,7 @@
           <id>Vacstone810104</id>
           <pos>(11, 0, 5)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2025,6 +2130,7 @@
           <id>Vacstone810105</id>
           <pos>(11, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2042,6 +2148,7 @@
           <id>Vacstone810106</id>
           <pos>(11, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2059,6 +2166,7 @@
           <id>Vacstone810107</id>
           <pos>(11, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2076,6 +2184,7 @@
           <id>Vacstone810108</id>
           <pos>(11, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2093,6 +2202,7 @@
           <id>Vacstone810109</id>
           <pos>(11, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2110,6 +2220,7 @@
           <id>Vacstone810110</id>
           <pos>(11, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2127,6 +2238,7 @@
           <id>Vacstone810111</id>
           <pos>(11, 0, 12)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2144,6 +2256,7 @@
           <id>Vacstone810112</id>
           <pos>(11, 0, 13)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2161,6 +2274,7 @@
           <id>MineablePlasteel810113</id>
           <pos>(11, 0, 14)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2178,6 +2292,7 @@
           <id>Vacstone810114</id>
           <pos>(12, 0, 2)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2195,6 +2310,7 @@
           <id>Vacstone810115</id>
           <pos>(12, 0, 3)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2212,6 +2328,7 @@
           <id>Vacstone810116</id>
           <pos>(12, 0, 4)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2229,6 +2346,7 @@
           <id>Vacstone810117</id>
           <pos>(12, 0, 5)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2246,6 +2364,7 @@
           <id>Vacstone810118</id>
           <pos>(12, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2263,6 +2382,7 @@
           <id>Vacstone810119</id>
           <pos>(12, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2280,6 +2400,7 @@
           <id>Vacstone810120</id>
           <pos>(12, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2297,6 +2418,7 @@
           <id>Vacstone810121</id>
           <pos>(12, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2314,6 +2436,7 @@
           <id>Vacstone810122</id>
           <pos>(12, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2331,6 +2454,7 @@
           <id>Vacstone810123</id>
           <pos>(12, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2348,6 +2472,7 @@
           <id>Vacstone810124</id>
           <pos>(12, 0, 12)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2365,6 +2490,7 @@
           <id>Vacstone810125</id>
           <pos>(12, 0, 13)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2382,6 +2508,7 @@
           <id>MineableSteel810126</id>
           <pos>(12, 0, 14)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2399,6 +2526,7 @@
           <id>Vacstone810127</id>
           <pos>(13, 0, 2)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2416,6 +2544,7 @@
           <id>Vacstone810128</id>
           <pos>(13, 0, 3)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2433,6 +2562,7 @@
           <id>Vacstone810129</id>
           <pos>(13, 0, 4)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2450,6 +2580,7 @@
           <id>Vacstone810130</id>
           <pos>(13, 0, 5)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2467,6 +2598,7 @@
           <id>Vacstone810131</id>
           <pos>(13, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2484,6 +2616,7 @@
           <id>Vacstone810132</id>
           <pos>(13, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2501,6 +2634,7 @@
           <id>Vacstone810133</id>
           <pos>(13, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2518,6 +2652,7 @@
           <id>Vacstone810134</id>
           <pos>(13, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2535,6 +2670,7 @@
           <id>Vacstone810135</id>
           <pos>(13, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2552,6 +2688,7 @@
           <id>Vacstone810136</id>
           <pos>(13, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2569,6 +2706,7 @@
           <id>Vacstone810137</id>
           <pos>(13, 0, 12)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2586,6 +2724,7 @@
           <id>Vacstone810138</id>
           <pos>(13, 0, 13)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2603,6 +2742,7 @@
           <id>Vacstone810139</id>
           <pos>(13, 0, 14)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2620,6 +2760,7 @@
           <id>Vacstone810140</id>
           <pos>(14, 0, 3)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2637,6 +2778,7 @@
           <id>Vacstone810141</id>
           <pos>(14, 0, 4)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2654,6 +2796,7 @@
           <id>Vacstone810142</id>
           <pos>(14, 0, 5)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2671,6 +2814,7 @@
           <id>Vacstone810143</id>
           <pos>(14, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2688,6 +2832,7 @@
           <id>Vacstone810144</id>
           <pos>(14, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2705,6 +2850,7 @@
           <id>Vacstone810145</id>
           <pos>(14, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2722,6 +2868,7 @@
           <id>Vacstone810146</id>
           <pos>(14, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2739,6 +2886,7 @@
           <id>Vacstone810147</id>
           <pos>(14, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2756,6 +2904,7 @@
           <id>Vacstone810148</id>
           <pos>(14, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2773,6 +2922,7 @@
           <id>Vacstone810149</id>
           <pos>(14, 0, 12)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2790,6 +2940,7 @@
           <id>Vacstone810150</id>
           <pos>(15, 0, 5)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2807,6 +2958,7 @@
           <id>Vacstone810151</id>
           <pos>(15, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2824,6 +2976,7 @@
           <id>Vacstone810152</id>
           <pos>(15, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2841,6 +2994,7 @@
           <id>Vacstone810153</id>
           <pos>(15, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2858,6 +3012,7 @@
           <id>Vacstone810154</id>
           <pos>(15, 0, 9)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2875,6 +3030,7 @@
           <id>Vacstone810155</id>
           <pos>(15, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2892,6 +3048,7 @@
           <id>Vacstone810156</id>
           <pos>(15, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2909,6 +3066,7 @@
           <id>Vacstone810157</id>
           <pos>(16, 0, 6)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2926,6 +3084,7 @@
           <id>Vacstone810158</id>
           <pos>(16, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2943,6 +3102,7 @@
           <id>Vacstone810159</id>
           <pos>(16, 0, 8)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2960,6 +3120,7 @@
           <id>Vacstone810160</id>
           <pos>(16, 0, 10)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2977,6 +3138,7 @@
           <id>Vacstone810161</id>
           <pos>(16, 0, 11)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
@@ -2994,664 +3156,12 @@
           <id>Vacstone810162</id>
           <pos>(17, 0, 7)</pos>
           <rot>0</rot>
+          <canChangeTerrainOnDestroyed>false</canChangeTerrainOnDestroyed>
         </saveable>
       </state>
     </li>
   </thingStates>
   <foundations />
-  <roofs>
-    <li>
-      <pos>(1, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(1, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(2, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(2, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(2, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(2, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(2, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(3, 0, 4)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(3, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(3, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(3, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(3, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(3, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(3, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(3, 0, 12)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(4, 0, 3)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(4, 0, 4)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(4, 0, 5)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(4, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(4, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(4, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(4, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(4, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(4, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(4, 0, 12)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(4, 0, 13)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(5, 0, 3)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(5, 0, 4)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(5, 0, 5)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(5, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(5, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(5, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(5, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(5, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(5, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(5, 0, 12)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(5, 0, 13)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(6, 0, 3)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(6, 0, 4)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(6, 0, 5)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(6, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(6, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(6, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(6, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(6, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(6, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(6, 0, 12)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(6, 0, 13)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(6, 0, 14)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 2)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 3)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 4)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 5)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 12)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 13)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(7, 0, 14)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 2)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 3)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 4)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 5)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 12)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 13)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(8, 0, 14)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 2)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 3)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 4)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 5)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 12)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 13)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(9, 0, 14)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 2)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 3)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 4)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 5)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 12)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 13)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(10, 0, 14)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 2)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 3)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 4)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 5)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 12)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 13)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(11, 0, 14)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 2)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 3)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 4)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 5)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 12)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 13)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(12, 0, 14)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 2)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 3)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 4)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 5)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 12)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 13)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(13, 0, 14)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(14, 0, 3)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(14, 0, 4)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(14, 0, 5)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(14, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(14, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(14, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(14, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(14, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(14, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(14, 0, 12)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(15, 0, 5)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(15, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(15, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(15, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(15, 0, 9)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(15, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(15, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(16, 0, 6)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(16, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(16, 0, 8)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(16, 0, 10)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(16, 0, 11)</pos>
-      <def>RoofRockThin</def>
-    </li>
-    <li>
-      <pos>(17, 0, 7)</pos>
-      <def>RoofRockThin</def>
-    </li>
-  </roofs>
+  <roofs />
   <environment />
 </MapPrefab>

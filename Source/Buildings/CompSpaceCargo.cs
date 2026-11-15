@@ -24,10 +24,37 @@ namespace DeltaV
         private StorageSettings savedStorageSettings;
         private int savedSlotLimit = 48;
         private string savedLabel;
+        private float? storedMass;
+        private bool inventoryDirty;
+        private static SpaceCargoMassUpdates MassUpdates => Current.Game?.GetComponent<UniverseManager>()?.CargoMassUpdates;
         private ISpaceCargoContainer Cargo => (ISpaceCargoContainer)parent;
         public bool StorageMode => parent is Building_SpaceCargoContainer;
         public int SavedSlotLimit => savedSlotLimit;
-        public float StoredMass => Cargo.Contents.Sum(t => t.GetStatValue(StatDefOf.Mass) * t.stackCount);
+        public float StoredMass
+        {
+            get
+            {
+                if (!storedMass.HasValue)
+                {
+                    RefreshStoredMass(out _, out _);
+                    MassUpdates?.Remove(parent.Map, this);
+                }
+                return storedMass.Value;
+            }
+        }
+
+        internal bool RefreshStoredMass(out float previous, out float current)
+        {
+            previous = current = storedMass.GetValueOrDefault();
+            if (storedMass.HasValue && !inventoryDirty) return false;
+            current = MeasureStoredMass();
+            storedMass = current;
+            inventoryDirty = false;
+            return previous != current;
+        }
+
+        private float MeasureStoredMass() =>
+            (float)Cargo.Contents.Sum(t => (double)t.GetStatValue(StatDefOf.Mass) * t.stackCount);
         public float CargoTemperature
         {
             get
@@ -43,13 +70,24 @@ namespace DeltaV
         public override void PostPostMake() => initializeOnFirstSpawn = true;
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
+            if (inventoryDirty) MassUpdates?.Queue(parent.Map, this);
             if (!initializeOnFirstSpawn) return;
             initializeOnFirstSpawn = false;
             if (parent.Faction == Faction.OfPlayer) parent.GetComp<CompHackable>()?.HackNow();
         }
 
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
+        {
+            MassUpdates?.Remove(map, this);
+        }
+
         public override void PostExposeData()
         {
+            if (Scribe.mode == LoadSaveMode.LoadingVars)
+            {
+                storedMass = null;
+                inventoryDirty = false;
+            }
             // ASF already saves its active settings. Only the sealed form needs
             // to retain the settings that will be restored on unsealing.
             if (StorageMode) return;
@@ -60,7 +98,9 @@ namespace DeltaV
 
         public void NotifyInventoryChanged(Thing item)
         {
-            if (parent.Spawned) ShipPhysics.InvalidateMass(parent.Map);
+            if (inventoryDirty) return;
+            inventoryDirty = true;
+            if (parent.Spawned) MassUpdates?.Queue(parent.Map, this);
         }
 
         public override void ReceiveCompSignal(string signal)
@@ -97,6 +137,8 @@ namespace DeltaV
             replacement.SetForbidden(previous.IsForbidden(Faction.OfPlayer), false);
             bool selected = Find.Selector.IsSelected(previous);
             bool placementFailed = false;
+            float? publishedMass = storedMass;
+            bool wasDirty = inventoryDirty;
 
             // Hold each original stack before despawning either building. Neither
             // transition invokes Destroy, so installed modules are not destroyed.
@@ -141,9 +183,14 @@ namespace DeltaV
                 int limit = Cargo.CurrentSlotLimit;
                 if (previous is Building_SpaceCargoContainer asf) asf.CurrentSlotLimit = asf.TotalSlots;
                 savedSlotLimit = Math.Max(limit, goods.Length);
+                bool lostFromStorage = false;
                 foreach (Thing item in goods)
                     if (!Cargo.TryStore(item))
+                    {
+                        lostFromStorage = true;
                         GenPlace.TryPlaceThing(item, position, map, ThingPlaceMode.Near);
+                    }
+                RestoreMassState(publishedMass, wasDirty || lostFromStorage);
                 savedSlotLimit = limit;
                 if (previous is Building_SpaceCargoContainer restored) restored.CurrentSlotLimit = limit;
                 replacement.Destroy(DestroyMode.Vanish);
@@ -157,10 +204,18 @@ namespace DeltaV
             }
             foreach (Building_SpaceTradeTerminal terminal in map.listerThings.AllThings.OfType<Building_SpaceTradeTerminal>())
                 terminal.ReplaceCargoBinding(Cargo, (ISpaceCargoContainer)replacement);
+            next.RestoreMassState(publishedMass, wasDirty);
             previous.Destroy(DestroyMode.Vanish);
             if (selected) Find.Selector.Select(replacement);
-            ShipPhysics.InvalidateMass(map);
             return next;
+        }
+
+        private void RestoreMassState(float? snapshot, bool dirty)
+        {
+            storedMass = snapshot;
+            inventoryDirty = dirty;
+            if (dirty) MassUpdates?.Queue(parent.Map, this);
+            else MassUpdates?.Remove(parent.Map, this);
         }
 
         private void LockForDebug()

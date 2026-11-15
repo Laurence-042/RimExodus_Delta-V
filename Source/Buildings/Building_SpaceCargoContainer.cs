@@ -55,7 +55,6 @@ namespace DeltaV
                 if (cell.GetThingList(Map).Count(t => t.def.category == ThingCategory.Item)
                     >= GetMaxItemsForCell(cell)) continue;
                 GenSpawn.Spawn(thing, cell, Map);
-                Cargo.NotifyInventoryChanged(thing);
                 return true;
             }
             return false;
@@ -124,7 +123,6 @@ namespace DeltaV
             // Preserve stack identity, quantity and component state across mode changes.
             if (!innerContainer.TryAdd(thing, canMergeWithExistingStacks: false)) return false;
             BroadcastCompSignal(CrateContentsChanged);
-            Cargo.NotifyInventoryChanged(thing);
             return true;
         }
 
@@ -136,7 +134,6 @@ namespace DeltaV
             if (thing == null || count <= 0 || !innerContainer.Contains(thing)) return null;
             Thing taken = innerContainer.Take(thing, count);
             BroadcastCompSignal(CrateContentsChanged);
-            Cargo.NotifyInventoryChanged(thing);
             return taken;
         }
 

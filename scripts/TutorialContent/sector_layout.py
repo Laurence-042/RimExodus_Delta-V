@@ -235,10 +235,7 @@ def furnish(name, plan, place, footprint, prop, foundation, roofs, records, occu
             put('HiddenConduit', x, z, layer='conduit')
 
     if spec.get('asteroid'):
-        # Match Odyssey GenStep_Asteroid: the pocket map outside the authored
-        # footprint remains Space, while the asteroid surface is Vacstone's
-        # implied natural terrain rather than a terrestrial stone terrain.
-        plan['surfaceDefs'] = {c: 'Vacstone_Rough' for c in foundation}
+        plan['surfaceDefs'] = {c: 'Space' for c in foundation}
         plan['omitFoundations'] = True
         plan['omitEnvironment'] = True
         roofs.clear()
@@ -255,15 +252,10 @@ def furnish(name, plan, place, footprint, prop, foundation, roofs, records, occu
                 '_inheritFaction': False,
                 '_seed': 40771,
             })
-        # The native generator uses a lower elevation threshold for rough
-        # surface and a higher one for solid Vacstone plus thin rock roof.
-        # A one-cell erosion gives the authored prefabs the same two-layer
-        # structure while preserving their deterministic jagged silhouettes.
+        # Retain the original rock footprint and ore distribution.
         rock_cells = {c for c in foundation
                       if all((c[0]+dx, c[1]+dz) in foundation for dx, dz in DIRS)}
         rock_cells.difference_update(occupied)
-        roofs.update(rock_cells)
-        plan['roofDefs'] = {c: 'RoofRockThin' for c in rock_cells}
         candidates = list(rock_cells)
         candidates.sort(key=lambda c: (((c[0]*73856093) ^ (c[1]*19349663)
                                         ^ spec['seed']) & 0x7fffffff, c))
@@ -273,7 +265,8 @@ def furnish(name, plan, place, footprint, prop, foundation, roofs, records, occu
         mineral_defs = {cell: minerals[index % len(minerals)]
                         for index, cell in enumerate(candidates[:mineral_count])}
         for x, z in sorted(rock_cells):
-            put(mineral_defs.get((x, z), 'Vacstone'), x, z)
+            rock = put(mineral_defs.get((x, z), 'Vacstone'), x, z)
+            rock['stateOverrides']['canChangeTerrainOnDestroyed'] = 'false'
         return set(), center
 
     if name in sector_craft.CRAFT:
@@ -423,9 +416,8 @@ def validate_and_draw(name, plan, records, foundation, roofs, reachable, here, g
     if spec.get('asteroid'):
         mineables = sum(count for thing, count in counts.items() if thing.startswith('Mineable'))
         assert mineables > 0 and counts['Vacstone'] > 0, (name, 'partial mineral coverage')
-        assert mineables + counts['Vacstone'] == len(roofs), (name, 'solid asteroid body')
-        assert set(plan['surfaceDefs'].values()) == {'Vacstone_Rough'}
-        assert set(plan['roofDefs'].values()) == {'RoofRockThin'}
+        assert not roofs and not plan['roofDefs']
+        assert set(plan['surfaceDefs'].values()) == {'Space'}
         assert plan['omitFoundations']
         assert plan['omitEnvironment']
         assert counts['DeltaV_PrefabClusterMarker'] == (1 if spec.get('clusterCore') else 0)
@@ -474,7 +466,8 @@ def validate_and_draw(name, plan, records, foundation, roofs, reachable, here, g
 
     report = {'name': name, 'size': list(plan['size']), 'counts': dict(sorted(counts.items())),
               'foundationCells': 0 if plan.get('omitFoundations') else len(foundation),
-              'naturalTerrainCells': len(foundation), 'roofCells': len(roofs), 'roofs': sorted(roofs),
+              'naturalTerrainCells': 0 if spec.get('asteroid') else len(foundation),
+              'roofCells': len(roofs), 'roofs': sorted(roofs),
               'cabins': plan.get('cabins', []), 'foundation': sorted(foundation),
               'generationW': generation, 'nameplateLoadW': load,
               'solarBudget': plan.get('solarBudget'),
@@ -506,12 +499,12 @@ def validate_and_draw(name, plan, records, foundation, roofs, reachable, here, g
                     'Structure_PurpleSubtle': '#554961', 'Structure_BlueIce': '#526988'}
     floor_colors = {cell: zone_palette[zone['color']]
                     for zone in plan.get('rooms', ()) for cell in zone['cells']}
-    for x, z in foundation:
+    for x, z in (() if spec.get('asteroid') else foundation):
         draw.rectangle((pad+x*scale, pad+(h-z-1)*scale,
                         pad+(x+1)*scale, pad+(h-z)*scale),
                        fill=('#202e3f' if (x, z) in plan.get('noRoofCells', ()) else
                              '#647f83' if (x, z) in aisles else
-                             floor_colors.get((x, z), '#544f49' if spec.get('asteroid') else '#344a58')),
+                             floor_colors.get((x, z), '#344a58')),
                        outline='#435967')
     colors = {'GravshipHull': '#8799a2', 'DeltaV_DockingPort': '#f0c96e',
               'PilotConsole': '#ef9f55', 'GravEngine': '#d9b569',

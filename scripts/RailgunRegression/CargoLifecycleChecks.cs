@@ -83,20 +83,178 @@ internal static partial class Program
         return false;
     }
 
-    static bool SpawnCargoFixture(Thing newThing, IntVec3 loc, Map map, ref Thing __result)
+    static int cargoMassSamples;
+    static int cargoMassEntityReads;
+    static void CountCargoMassSample() => cargoMassSamples++;
+    static void CountCargoMassEntityRead() => cargoMassEntityReads++;
+    static bool CargoMassStat(Thing thing, StatDef stat, ref float __result)
     {
-        if (newThing is not OverflowCargoItem || !fixtureScatterMaps.Contains(map)) return true;
-        newThing.Position = loc;
-        newThing.SpawnSetup(map, false);
-        __result = newThing;
+        if (thing.def.defName != "RegressionCargoMass" || stat != StatDefOf.Mass) return true;
+        __result = 2f;
         return false;
     }
 
-    static bool RegisterCargoFixture(SpaceObject obj)
+    static void CheckCargoMassBudget(Map source, SpaceObject frame, LifecycleCargo sealedCargo)
     {
-        if (!fixtureScatterMaps.Contains(obj.map)) return true;
-        fixtureScatterObjects.Add(obj);
-        return false;
+        var patch = new Harmony("DeltaV.Regression.CargoMassBudget");
+        int tick = Find.TickManager.TicksGame;
+        StatDef oldMass = StatDefOf.Mass;
+        var space = (TerrainDef)Raw(typeof(TerrainDef));
+        TerrainDef oldSpace = TerrainDefOf.Space;
+        var destination = (Map)Raw(typeof(Map));
+        destination.info = new MapInfo { Size = source.Size };
+        destination.cellIndices = new CellIndices(destination);
+        destination.designationManager = (DesignationManager)Raw(typeof(DesignationManager));
+        destination.components = new List<MapComponent> { new SubstructureOwnership(destination) };
+        destination.terrainGrid = new TerrainGrid(destination);
+        destination.listerThings = new ListerThings(ListerThingsUse.Global);
+        Array.Fill(destination.terrainGrid.topGrid, space);
+        Find.Maps.Add(destination);
+        source.components = new List<MapComponent> { new SubstructureOwnership(source) };
+        source.terrainGrid = new TerrainGrid(source);
+        source.listerThings = new ListerThings(ListerThingsUse.Global);
+        Array.Fill(source.terrainGrid.topGrid, space);
+        TerrainDefOf.Space = space;
+        StatDefOf.Mass ??= new StatDef { defName = "RegressionMassStat" };
+        source.listerThings.AllThings.Add(sealedCargo);
+        try
+        {
+            patch.Patch(AccessTools.Method(typeof(StatExtension), "GetStatValue",
+                new[] { typeof(Thing), typeof(StatDef), typeof(bool), typeof(int) }),
+                prefix: new HarmonyMethod(typeof(Program), nameof(CargoMassStat)));
+            patch.Patch(AccessTools.Method(typeof(CompSpaceCargo), "MeasureStoredMass"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(CountCargoMassSample)));
+            patch.Patch(AccessTools.PropertyGetter(typeof(SubstructureOwnership), "SpawnedBuildings"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(CountCargoMassEntityRead)));
+            var itemDef = MakeDef("RegressionCargoMass");
+            itemDef.category = ThingCategory.Item; itemDef.thingClass = typeof(ThingWithComps); itemDef.stackLimit = 75;
+            var stock = new ThingWithComps { def = itemDef, stackCount = 10 };
+            Check(sealedCargo.TryStore(stock), "sealed cabinet accepts weight-test stock");
+            var comp = sealedCargo.GetComp<CompSpaceCargo>();
+            var transporter = new CompTransporter();
+            Set(transporter, "massUsageDirty", false);
+            Set(transporter, "cachedMassUsage", 123f);
+            var vanilla = new LifecycleCargo { def = MakeDef("RegressionTransporter") };
+            transporter.parent = vanilla;
+            Set(vanilla, "comps", new List<ThingComp> { transporter });
+            Set(vanilla, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(source));
+            source.listerThings.AllThings.Add(vanilla);
+            var secondCabinet = new LifecycleCargo { def = MakeDef("RegressionSecondCabinet") };
+            var secondComp = new CompSpaceCargo { parent = secondCabinet };
+            Set(secondCabinet, "comps", new List<ThingComp> { secondComp });
+            Set(secondCabinet, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(source));
+            source.listerThings.AllThings.Add(secondCabinet);
+            float dryMass = ShipPhysics.MassPerBuilding * 3;
+            ShipPhysics.MassReport initial = ShipPhysics.GetReport(frame);
+            Check(initial.mass == dryMass + 20f && comp.StoredMass == 20f,
+                "first report counts cabinet stock and dry buildings without vanilla transporter cargo");
+            Set(transporter, "cachedMassUsage", 456f);
+            Check(ReferenceEquals(initial, ShipPhysics.GetReport(frame)),
+                "ordinary transporter load changes leave the physics report cached");
+
+            var replacement = (Building_SpaceCargoContainer)Raw(typeof(Building_SpaceCargoContainer));
+            replacement.def = MakeDef("RegressionMassStorage");
+            Set(replacement, "positionInt", new IntVec3(5, 0, 4));
+            Set(replacement, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(source));
+            var stored = (ThingCollection)Raw(typeof(ThingCollection));
+            Set(replacement, "_storedThings", stored);
+            Set(stored, "_things", new Thing[] { stock });
+            Set(stored, "_count", 1);
+            var storage = new CompSpaceCargo { parent = replacement };
+            Set(replacement, "comps", new List<ThingComp> { storage });
+            var restore = AccessTools.Method(typeof(CompSpaceCargo), "RestoreMassState");
+            cargoMassSamples = 0;
+            stock.stackCount = 11;
+            comp.NotifyInventoryChanged(stock);
+            Check(secondCabinet.TryStore(new ThingWithComps { def = itemDef, stackCount = 3 }),
+                "native inventory change queues a second cabinet on the same map");
+            Set(Find.TickManager, "ticksGameInt", tick + 599);
+            comp.PostDeSpawn(source);
+            source.listerThings.AllThings.Remove(sealedCargo);
+            source.listerThings.AllThings.Add(replacement);
+            restore.Invoke(storage, new object[] { comp.StoredMass, true });
+            SubstructureOwnership.For(source).UpdateSpawnedBuilding(replacement);
+            Set(sealedCargo, "mapIndexOrState", (sbyte)-1);
+            SubstructureOwnership.For(source).UpdateSpawnedBuilding(sealedCargo);
+            SubstructureOwnership.BumpStructureVersion(source);
+            ShipPhysics.MassReport replaced = ShipPhysics.GetReport(frame);
+            Check(!ReferenceEquals(initial, replaced) && replaced.mass == initial.mass && cargoMassSamples == 0,
+                "shape swap and structural rebuild keep the published weight before the deadline");
+
+            Set(Find.TickManager, "ticksGameInt", tick + 600);
+            int previousVersion = replaced.version;
+            cargoMassEntityReads = 0;
+            ShipPhysics.MassReport published = ShipPhysics.GetReport(frame);
+            Check(published.mass == initial.mass + 8f && cargoMassSamples == 2
+                && cargoMassEntityReads == 0 && ReferenceEquals(replaced, published)
+                && published.version == previousVersion + 1,
+                "tick 600 samples only both dirty cabinets without rebuilding the structure report");
+            ShipPhysics.MassReport measured = ShipPhysics.Measure(frame);
+            Check(measured.mass == published.mass && measured.comLocal.Equals(published.comLocal)
+                && Math.Abs(measured.inertia - published.inertia) < 0.001f,
+                "cargo deltas match a full measurement of mass, center and inertia");
+            stock.stackCount++;
+            storage.NotifyInventoryChanged(stock);
+            stock.stackCount--;
+            storage.NotifyInventoryChanged(stock);
+            Set(Find.TickManager, "ticksGameInt", tick + 1200);
+            Check(ReferenceEquals(published, ShipPhysics.GetReport(frame)) && cargoMassSamples == 3
+                && published.version == previousVersion + 1,
+                "net-zero inventory changes preserve the report and allocation cache");
+
+            Set(stored, "_count", 0);
+            storage.NotifyInventoryChanged(null);
+            Set(Find.TickManager, "ticksGameInt", tick + 1799);
+            Check(ReferenceEquals(published, ShipPhysics.GetReport(frame)),
+                "clearing inventory cannot publish inside the next window");
+            Set(Find.TickManager, "ticksGameInt", tick + 1800);
+            Check(ShipPhysics.GetReport(frame).mass == dryMass + 6f && cargoMassSamples == 4,
+                "clearing a cabinet removes its stock mass at the next publication");
+
+            var destinationFrame = new Hull(destination);
+            ShipPhysics.GetReport(destinationFrame);
+            stock.stackCount = 7;
+            Set(stored, "_count", 1);
+            storage.NotifyInventoryChanged(stock);
+            Set(Find.TickManager, "ticksGameInt", tick + 1850);
+            storage.PostDeSpawn(source);
+            source.listerThings.AllThings.Remove(replacement);
+            destination.listerThings.AllThings.Add(replacement);
+            Set(replacement, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(destination));
+            SubstructureOwnership.For(source).UpdateSpawnedBuilding(replacement);
+            SubstructureOwnership.For(destination).UpdateSpawnedBuilding(replacement);
+            storage.PostSpawnSetup(false);
+            ShipPhysics.Forget(source);
+            ShipPhysics.Forget(destination);
+            ShipPhysics.MassReport moved = ShipPhysics.GetReport(destinationFrame);
+            Check(ShipPhysics.GetReport(frame).mass == dryMass - ShipPhysics.MassPerBuilding + 6f
+                && moved.mass == ShipPhysics.MassPerBuilding && cargoMassSamples == 4,
+                "moving a dirty cabinet updates both structures immediately and retains the published stock mass");
+            Set(Find.TickManager, "ticksGameInt", tick + 2399);
+            Check(ReferenceEquals(moved, ShipPhysics.GetReport(destinationFrame)),
+                "the moved cabinet waits for the destination map deadline");
+            Set(Find.TickManager, "ticksGameInt", tick + 2400);
+            ShipPhysics.GetReport(frame);
+            Check(ShipPhysics.GetReport(destinationFrame).mass == ShipPhysics.MassPerBuilding + 14f
+                && cargoMassSamples == 5, "only the destination map samples the moved cabinet");
+        }
+        finally
+        {
+            patch.UnpatchAll(patch.Id);
+            Set(Find.TickManager, "ticksGameInt", tick);
+            TerrainDefOf.Space = oldSpace;
+            StatDefOf.Mass = oldMass;
+            Set(sealedCargo, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(source));
+            foreach (Thing thing in sealedCargo.Contents)
+                sealedCargo.GetDirectlyHeldThings().Remove(thing);
+            source.listerThings.AllThings.Clear();
+            SubstructureOwnership.For(source).ClearMapSupportIndex();
+            ShipPhysics.Forget(source);
+            ShipPhysics.Forget(destination);
+            universe.CargoMassUpdates.Forget(source);
+            universe.CargoMassUpdates.Forget(destination);
+            Find.Maps.Remove(destination);
+        }
     }
 
     static void CheckCargoLifecycle()
@@ -218,6 +376,7 @@ internal static partial class Program
             {
                 patch.Patch(typeof(ThingCollection).TypeInitializer,
                     prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
+                CheckCargoMassBudget(cargoMap, cargoFrame, cargo);
                 patch.Patch(AccessTools.DeclaredMethod(typeof(Building), "Destroy"),
                     prefix: new HarmonyMethod(typeof(Program), nameof(DestroyFixtureCrate)));
                 patch.Patch(AccessTools.DeclaredMethod(typeof(Building_Storage), "Destroy"),

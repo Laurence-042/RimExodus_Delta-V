@@ -19,39 +19,7 @@ namespace DeltaV
         internal static Thing SpawnExisting(Thing thing, Map map, IntVec3 cell, Rot4 rot,
             bool respawningAfterLoad)
         {
-            bool canSpawn = GenSpawn.CanSpawnAt(thing.def, cell, map, rot);
-            // 原版的 CanSpawnAt 要求格子可行走；带储物格的墙（例如导弹仓）虽不可
-            // 行走，却允许物品放在其 SlotGroup 中。这里以原版登记的储物格为依据。
-            if (!canSpawn && thing.def.category == ThingCategory.Item && cell.InBounds(map)
-                && cell.GetSlotGroup(map)?.parent is Building_Storage storage
-                && storage.OccupiedRect().Contains(cell)
-                && !GenSpawn.SpawningWipes(thing.def, storage.def))
-                canSpawn = true;
-            // CanSpawnAt requires a walkable cell, even for a saved under-wall conduit
-            // or a slot attachment that originally coexisted with its host edifice.
-            // GenSpawn.Spawn(Thing) supports the overlap; retain its wipe rules here.
-            if (!canSpawn && thing.def.category == ThingCategory.Building
-                && (thing.def.building?.isPowerConduit == true
-                    || thing.TryGetComp<CompSpaceWeaponAttachment>() != null)
-                && thing.def.CanSpawnAt(cell, rot, map)
-                && GenAdj.OccupiedRect(cell, rot, thing.def.Size).InBounds(map))
-            {
-                bool attachment = thing.TryGetComp<CompSpaceWeaponAttachment>() != null;
-                bool validHost = !attachment || new PlaceWorker_SpaceWeaponAttachment()
-                    .AllowsPlacing(thing.def, cell, rot, map).Accepted;
-                bool safeOverlap = validHost;
-                foreach (IntVec3 occupied in GenAdj.OccupiedRect(cell, rot, thing.def.Size))
-                {
-                    if (!GenConstruct.CanBuildOnTerrain(thing.def, occupied, map, rot))
-                        safeOverlap = false;
-                    foreach (Thing existing in occupied.GetThingList(map))
-                        if (existing.def == thing.def
-                            || GenSpawn.SpawningWipes(thing.def, existing.def))
-                            safeOverlap = false;
-                }
-                canSpawn = safeOverlap;
-            }
-            if (!canSpawn) return null;
+            // Replay the authored entity, including mineables on Space.
             return GenSpawn.Spawn(thing, cell, map, rot, WipeMode.Vanish, respawningAfterLoad);
         }
 

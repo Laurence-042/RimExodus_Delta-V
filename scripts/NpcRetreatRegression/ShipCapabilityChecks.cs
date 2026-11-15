@@ -108,11 +108,10 @@ internal static partial class Program
         SubstructureOwnership.BumpStructureVersion();
         Check(obj.Weapons.Single() == gun && SpaceWeaponService.WeaponsOn(ship).Single() == gun,
             "mod-added hull weapon reaches both object aggregation and the shared ship fire-control entry");
-        var other = AddTestBuilding(map, player, 1102, TestBuildingDef("debris"), new EmptyComp());
-        map.thingGrid.Deregister(other);
+        var other = new Building { def = TestBuildingDef("debris"), thingIDNumber = 1102 };
+        other.SetFactionDirect(player);
         Set(typeof(Thing), other, "positionInt", new IntVec3(3, 0, 1));
-        map.thingGrid.Register(other);
-        SubstructureOwnership.BumpStructureVersion();
+        PlaceFixtureBuilding(other, map);
         Check(!ship.CanDriveIn(obj) && !obj.InterceptionEligible && !obj.BuildThrusters().Any(),
             "hull sharing a host cannot drive it or mark the host as a Shuttle PD target");
         var occupied = new List<IntVec3>();
@@ -120,10 +119,8 @@ internal static partial class Program
         Check(occupied.Contains(ship.Anchor.Position) && occupied.Contains(other.Position)
             && occupied.Contains(new IntVec3(4, 0, 4)) && occupied.Count == 3,
             "shared collision surface merges subclass geometry and unowned environmental buildings once");
-        map.thingGrid.Deregister(other);
-        map.listerThings.AllThings.Remove(other);
-        SubstructureOwnership.BumpStructureVersion();
-        Check(obj.InterceptionEligible && obj.MotionInfo.thrusters.Count() == 2,
+        RemoveFixtureBuilding(other, map);
+        Check(ship.CanDriveIn(obj) && obj.InterceptionEligible && obj.MotionInfo.thrusters.Count() == 2,
             "host removal refreshes driver eligibility and object role and propulsion caches together");
 
         // Scope is supplied by a hull adapter; the real foundation provider must honor it.

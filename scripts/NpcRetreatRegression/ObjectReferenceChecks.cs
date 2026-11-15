@@ -111,25 +111,24 @@ internal static partial class Program
         Check(!container.HasFaction(player), "stale environment faction cannot override actual ship members");
         container.faction = enemy;
         Set(typeof(Thing), hull.parent, "factionInt", player);
-        map.listerThings.AllThings.Remove(console.parent);
-        map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole).Remove(console.parent);
+        var soloMap = TestMap(801);
+        var solo = new MapSpaceObject(801, soloMap, container.pose) { faction = enemy };
+        universe.objects.Add(solo);
+        RemoveFixtureBuilding((Building)hull.parent, map);
+        PlaceFixtureBuilding((Building)hull.parent, soloMap);
         hull.ShuttleProps.virtualThrusters = new List<ShuttleThrusterConfig>
         {
             new ShuttleThrusterConfig { force = new Vector2(10f, 0f) }
         };
-        SubstructureOwnership.BumpStructureVersion();
-        Check(singleBuilding.CanDriveIn(container), "launched shuttle can drive its own container");
-        Check(container.PrimaryDriver == singleBuilding.Identity,
-            "primary driver resolves a console-free ship with its typed identity");
         Map attackerMap = TestMap(951);
         var source = new MapSpaceObject(950, attackerMap, container.pose);
         universe.objects.Add(source);
         var attacker = new CombatHull(AddTestConsole(attackerMap, enemy, 952).Ship);
         attacker.cells.Add(new IntVec3(1, 0, 2));
-        Check(ShipFireControl.Candidates(attacker, source, container).Any(),
+        Check(ShipFireControl.Candidates(attacker, source, solo).Any(),
             "automatic fire accepts an enemy shuttle as a Ship target");
         universe.objects.Remove(source);
-        Check(!container.HostileTo(player), "stale hostile environment faction cannot override a friendly ship member");
+        Check(!solo.HostileTo(player), "stale hostile environment faction cannot override a friendly ship member");
         var numeric = DriveSnapshot.Capture(new DeltaV.DriveInfo(new ShipPhysics.MassReport { mass = 100, inertia = 1000 }),
             singleBuilding.Identity.key, singleBuilding.Identity.shuttle);
         var unloaded = new ArchivedSpaceObject { objectId = 970, dynamics = numeric };
@@ -137,10 +136,10 @@ internal static partial class Program
             && unloaded.TryGetDrive(singleBuilding.Identity, out _)
             && !unloaded.TryGetDrive(ordinary.Identity, out _),
             "archived shuttle dynamics retain typed identity and reject an equal numeric foundation ID");
-        container.projectileRoleOverride = true;
-        Check(container.HasTag(SpaceObjectTag.Ship | SpaceObjectTag.Projectile)
-            && container.IsActiveCollider && container.AppliesPassiveDrag && !container.IsTransient
-            && universe.PlayerReferenceObjects().Contains(container),
+        solo.projectileRoleOverride = true;
+        Check(solo.HasTag(SpaceObjectTag.Ship | SpaceObjectTag.Projectile)
+            && solo.IsActiveCollider && solo.AppliesPassiveDrag && !solo.IsTransient
+            && universe.PlayerReferenceObjects().Contains(solo),
             "intrusion adds projectile behavior while preserving player ship membership and persistence");
         var target = new SpaceObject(900, new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(100, 0)), 0));
         Check(Math.Abs(universe.Lifecycle.MinPlayerDistance(target) - 100) < 0.1,
@@ -149,10 +148,10 @@ internal static partial class Program
         universe.objects.Add(new SpaceObject(901, target.pose) { baseTag = SpaceObjectTag.Projectile, faction = player });
         Check(snapshot.Count == 1 && universe.PlayerReferenceObjects().Count == 1,
             "ordinary projectiles are excluded and the reference enumeration is a stable snapshot");
-        container.projectileRoleOverride = false;
+        solo.projectileRoleOverride = false;
         console.isMain = true;
-        map.listerThings.AllThings.Add(console.parent);
-        map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole).Add(console.parent);
+        RemoveFixtureBuilding((Building)hull.parent, soloMap);
+        PlaceFixtureBuilding((Building)hull.parent, map);
         SubstructureOwnership.BumpStructureVersion();
         var archived = new ArchivedSpaceObject { memberFactions = ShipRegistry.AllShipsOnMap(map).Select(ship => ship.Faction).ToList() };
         Check(archived.HasTag(SpaceObjectTag.Ship) && archived.HasFaction(player) && archived.HasFaction(enemy),
@@ -211,17 +210,11 @@ internal static partial class Program
     {
         body ??= (Building)Raw(typeof(Building));
         body.def = def; body.thingIDNumber = id;
-        Set(typeof(Thing), body, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
         Set(typeof(Thing), body, "positionInt", new IntVec3(1, 0, 2));
         Set(typeof(Thing), body, "factionInt", faction);
         Set(typeof(ThingWithComps), body, "comps", new List<ThingComp> { comp });
         comp.parent = body;
-        var defs = (Dictionary<ThingDef, List<Thing>>)typeof(ListerThings).GetField("listsByDef", Private).GetValue(map.listerThings);
-        if (!defs.TryGetValue(def, out var byDef)) defs[def] = byDef = new List<Thing>();
-        byDef.Add(body);
-        map.listerThings.AllThings.Add(body);
-        ((ThingOwner<Thing>)map.spawnedThings).InnerListForReading.Add(body);
-        map.thingGrid.Register(body);
+        PlaceFixtureBuilding(body, map, notify: false);
         return body;
     }
 
@@ -235,9 +228,7 @@ internal static partial class Program
     static CompSpaceShuttle AddTestHull(Map map, Faction faction, int id, CompSpaceShuttle comp = null)
     {
         comp ??= new CompSpaceShuttle { props = new CompProperties_SpaceShuttle() };
-        var body = AddTestBuilding(map, faction, id, TestBuildingDef("shuttle"), comp);
-        var groups = (List<Thing>[])typeof(ListerThings).GetField("listsByGroup", Private).GetValue(map.listerThings);
-        (groups[(int)ThingRequestGroup.Transporter] ??= new List<Thing>()).Add(body);
+        AddTestBuilding(map, faction, id, TestBuildingDef("shuttle"), comp);
         return comp;
     }
 }

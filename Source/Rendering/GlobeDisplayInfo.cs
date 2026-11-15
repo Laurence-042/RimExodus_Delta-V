@@ -97,6 +97,8 @@ namespace DeltaV
         internal static bool IsTerrain(TerrainDef terrain) => terrain != null
             && terrain.defName != "Space" && terrain.defName != "DeltaV_Void";
 
+        internal static bool IsNaturalRock(ThingDef def) => def?.building?.isNaturalRock == true;
+
         internal static HashSet<IntVec3> TerrainCells(IEnumerable<(IntVec3 cell, TerrainDef terrain)> entries)
         {
             var cells = new HashSet<IntVec3>();
@@ -111,7 +113,12 @@ namespace DeltaV
                 foreach (CellRect rect in terrain.rects)
                     foreach (IntVec3 cell in rect) entries.Add((cell, terrain.def));
             foreach (var foundation in doc.foundations) entries.Add((foundation.pos, foundation.def));
-            return TerrainCells(entries).Count;
+            var occupied = TerrainCells(entries);
+            foreach (var entry in doc.thingEntries)
+                if (IsNaturalRock(entry.def))
+                    occupied.UnionWith(GenAdj.OccupiedRect(entry.pos,
+                        entry.def.rotatable ? entry.rotation : entry.def.defaultPlacingRot, entry.def.Size));
+            return occupied.Count;
         }
         internal static bool HasComp(ThingDef def, Type comp) => def?.comps != null
             && def.comps.Any(p => p.compClass != null && comp.IsAssignableFrom(p.compClass));
@@ -160,6 +167,11 @@ namespace DeltaV
             foreach (IntVec3 cell in map.AllCells)
                 if (GlobeDisplayRules.IsTerrain(map.terrainGrid.TerrainAt(cell))
                     || GlobeDisplayRules.IsTerrain(map.terrainGrid.FoundationAt(cell))) terrain.Add(cell);
+            var rockCells = new HashSet<IntVec3>();
+            foreach (Thing thing in map.listerThings.AllThings)
+                if (thing is Building && thing.Spawned && GlobeDisplayRules.IsNaturalRock(thing.def))
+                    rockCells.UnionWith(thing.OccupiedRect());
+            terrain.UnionWith(rockCells);
             var environment = new HashSet<IntVec3>(terrain);
             var entries = new List<GlobeDisplayEntry>();
             var summary = new GlobeDisplaySummary { area = terrain.Count };
@@ -186,7 +198,8 @@ namespace DeltaV
             }
             if (summary.area == 0f) summary.area = summary.ships.Sum(s => s.area);
             summary.environmentArea = environment.Count;
-            summary.natural = environment.Any(c => map.terrainGrid.TerrainAt(c)?.natural == true);
+            summary.natural = environment.Any(c => rockCells.Contains(c)
+                || map.terrainGrid.TerrainAt(c)?.natural == true);
             summary.armament = map.listerThings.AllThings.OfType<Building>().Any(b =>
                 environment.Contains(b.Position) && (b is Building_Turret
                     || b.TryGetComp<CompSpaceWeapon>() is CompSpaceWeapon w

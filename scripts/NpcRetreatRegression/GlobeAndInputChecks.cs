@@ -51,6 +51,14 @@ internal static partial class Program
         Check(GlobeDisplayRules.Measure(doc) == 5, "prefab area counts natural terrain and deduplicates covered foundations, excluding space and gaps");
         doc.size = new IntVec2(30, 30);
         Check(GlobeDisplayRules.Measure(doc) == 5, "map padding and prefab canvas dimensions cannot change visibility area");
+        var asteroidRock = TestBuildingDef("GlobeAsteroidRock");
+        asteroidRock.building.isNaturalRock = true;
+        var asteroid = new MapPrefabDocument { size = new IntVec2(5, 5) };
+        asteroid.terrain.Add(doc.terrain[0]);
+        asteroid.thingEntries.Add(new MapPrefabThingEntry { def = asteroidRock, pos = new IntVec3(1, 0, 2) });
+        Check(GlobeDisplayRules.Measure(asteroid) == 1, "a pure Space asteroid prefab has its rock footprint as area");
+        asteroid.foundations.Add(new PrefabFoundationEntry { pos = asteroid.thingEntries[0].pos, def = deck });
+        Check(GlobeDisplayRules.Measure(asteroid) == 1, "prefab rock and the foundation under it count as one cell");
         Check(!GlobeDisplayRules.Visible(4, 0.1f, false) && GlobeDisplayRules.Visible(100, 0.1f, false),
             "station-sized debris appears before small fragments at the same scale");
         Check(GlobeDisplayRules.Visible(4, 0.25f, false), "small fragments appear when zoomed to the area threshold");
@@ -128,6 +136,19 @@ internal static partial class Program
         finally { collisionHarness.UnpatchAll(collisionHarness.Id); }
         Check(captured.area == 1 && captured.wreck && captured.navigationRadius > 0f,
             "archive capture retains damaged display area and the live collision clearance");
+        var mineable = AddTestBuilding(map, null, 2372, asteroidRock, new CompDeltaVPilotConsole(),
+            (Mineable)Raw(typeof(Mineable)));
+        SubstructureOwnership.BumpStructureVersion(map);
+        Check(display.Entries(mapped).Single().area == 2 && display.Entries(mapped).Single().natural,
+            "a live rock above Space adds a natural environment cell");
+        map.terrainGrid.topGrid[map.cellIndices.CellToIndex(mineable.Position)] = deck;
+        SubstructureOwnership.BumpStructureVersion(map);
+        Check(display.Entries(mapped).Single().area == 2, "live rock and terrain beneath it count as one cell");
+        map.terrainGrid.topGrid[map.cellIndices.CellToIndex(mineable.Position)] = space;
+        map.thingGrid.Deregister(mineable);
+        map.listerThings.AllThings.Remove(mineable);
+        map.listerThings.ThingsOfDef(asteroidRock).Remove(mineable);
+        SubstructureOwnership.BumpStructureVersion(map);
         var holder = new GlobePawnHolder(map);
         map.components.Add(holder);
         var pawn = (Pawn)Raw(typeof(Pawn));

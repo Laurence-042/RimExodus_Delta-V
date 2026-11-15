@@ -29,7 +29,8 @@ namespace DeltaV
                     if (universe.ObjectById(owner.objectId) == owner && owner.RepresentationVersion == version
                         && owner.map == map && IsOrdinaryStructureMap(owner))
                     {
-                        universe.ShipTransitions.FinishEmptyWorksite(map);
+                        if (!map.Disposed && universe.Generation?.IsGenerating(map) != true)
+                            universe.ShipTransitions.FinishEmptyWorksite(map);
                         RecycleUnsupportedMap(map);
                     }
                 }
@@ -45,12 +46,12 @@ namespace DeltaV
             || ((owner.baseTag | (owner.Payload?.Role ?? 0))
                 & (SpaceObjectTag.Projectile | SpaceObjectTag.Scattered)) != 0;
 
-        /// <summary>污渍、屋顶、散落物及人员都不能单独承载普通地图；shuttle 是独立船体。</summary>
         internal static bool HasMapSupport(SpaceObject owner)
         {
             if (owner?.map == null || owner.map.Disposed) return false;
-            if (owner.IsScattered || owner.HasTag(SpaceObjectTag.Projectile) || owner.Ships.Any(ship => ship.Identity.shuttle)) return true;
-            return SubstructureOwnership.TryGet(owner.map)?.HasSupport == true;
+            if (UsesSeparateLifecycle(owner)) return true;
+            var ownership = SubstructureOwnership.For(owner.map);
+            return ownership.SpawnedBuildingCount != 0 || ownership.SupportCellCount != 0;
         }
 
         /// <summary>只在安全帧上下文调用；当前聚焦、玩家 Pawn 或物品均不阻止无承载图回收。</summary>

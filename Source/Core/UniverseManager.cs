@@ -174,6 +174,8 @@ namespace DeltaV
         internal bool SoftDockEnabled;
         [NonSerialized] private StationTradeService stationTrade;
         internal StationTradeService StationTrade => stationTrade ?? (stationTrade = new StationTradeService());
+        [NonSerialized] private SpaceCargoMassUpdates cargoMassUpdates;
+        internal SpaceCargoMassUpdates CargoMassUpdates => cargoMassUpdates ??= new SpaceCargoMassUpdates();
         internal bool ShowThrusterDebugOverlay;
         internal bool ShowCoordinateGrid = true;
         internal bool ConfirmSplitWarnings = true;
@@ -604,6 +606,7 @@ namespace DeltaV
             scatter?.Forget(map);
             softDock?.Forget(map);
             stationTrade?.Forget(map);
+            cargoMassUpdates?.Forget(map);
             structures?.Forget(map);
         }
 
@@ -1315,6 +1318,7 @@ namespace DeltaV
             scatter = null;
             softDock = null;
             stationTrade = null;
+            cargoMassUpdates = null;
             worksites = null;
             tutorial = null;
             missions = null;

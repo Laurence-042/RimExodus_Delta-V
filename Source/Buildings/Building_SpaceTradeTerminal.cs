@@ -103,7 +103,10 @@ namespace DeltaV
             // Finish native stock generation before replacing the existing physical stock.
             List<Thing> generated = ThingSetMakerDefOf.TraderStock.root.Generate(parms);
             foreach (ISpaceCargoContainer cargo in cabinets)
+            {
                 foreach (Thing thing in cargo.Contents.ToArray()) thing.Destroy();
+                cargo.Thing.GetComp<CompSpaceCargo>().NotifyInventoryChanged(null);
+            }
             foreach (Thing thing in generated)
             {
                 if (thing.def.category != ThingCategory.Item)
@@ -131,7 +134,6 @@ namespace DeltaV
             stockGenerated = true;
             lastRestockTick = Find.TickManager.TicksGame;
             priceSeed = Rand.RangeInclusive(1, 10000000);
-            ShipPhysics.InvalidateMass(Map);
         }
 
         public IEnumerable<Thing> ColonyThingsWillingToBuy(Pawn negotiator)

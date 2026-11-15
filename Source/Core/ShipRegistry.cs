@@ -299,14 +299,22 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SpaceObject frame = universe?.FrameOf(ship.map);
             if (frame == null || frame.IsWorksite) return true;
-            var topology = universe.FoundationTopology;
+            return ship.console.Vessel is FoundationShip vessel
+                ? vessel.RequiresSeparatePocket(frame, universe.FoundationTopology)
+                : HasSeparateHost(ship, frame, universe.FoundationTopology);
+        }
+
+        internal static bool HasSeparateHost(Ship ship, SpaceObject frame, FoundationTopologyService topology)
+        {
+            if (SubstructureOwnership.For(ship.map).HasNaturalGround
+                || topology.HasUnboundBuildings(ship.map)) return true;
             foreach (ShipBase other in frame.Ships)
             {
                 if (!other.IsValid || other.Identity == new DriveSubject(0, ship.ownerId)) continue;
                 if (other.Transfer.body is Building body
                     ? topology.BuildingDomain(ship.map, body) == null : other.CanDriveIn(frame)) return true;
             }
-            return SubstructureOwnership.For(ship.map).HasNaturalGround;
+            return false;
         }
 
         public static bool IsFreeFlight(Ship ship) => StateOf(ship) == ShipDerivedState.FreeFlight;

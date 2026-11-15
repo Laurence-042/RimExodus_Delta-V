@@ -31,11 +31,9 @@ namespace DeltaV
                 product.stackCount = System.Math.Min(count, contents.stackLimit);
                 bool placed = GenPlace.TryPlaceThing(product, Position, Map, ThingPlaceMode.Near,
                     placedAction: (_, amount) => count -= amount);
-                ShipPhysics.InvalidateMass(Map);
                 // Native placement may merge a partial stack before returning false.
                 if (!placed) { if (!product.Destroyed) product.Destroy(); return false; }
             }
-            ShipPhysics.InvalidateMass(Map);
             Destroy();
             return true;
         }

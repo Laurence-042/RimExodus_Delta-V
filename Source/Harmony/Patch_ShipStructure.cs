@@ -6,7 +6,7 @@ namespace DeltaV
     /// <summary>船体能力、对象角色、物理和碰撞共用结构版本；只在纳管地图的结构事件失效。</summary>
     internal static class ShipStructureChanges
     {
-        internal static void Notify(Map map)
+        internal static UniverseManager Notify(Map map, Building building = null, IntVec3? terrainCell = null)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SpaceObject owner = map == null ? null : universe?.FrameOf(map);
@@ -14,13 +14,20 @@ namespace DeltaV
             {
                 // A projectile building may disappear before its container returns to the pool.
                 SpaceCollision.Forget(map);
-                return;
+                return null;
+            }
+            if (owner != null || map?.Parent is ShipPocketParent_DeltaV)
+            {
+                var ownership = SubstructureOwnership.TryGet(map);
+                if (building != null) ownership?.UpdateSpawnedBuilding(building);
+                if (terrainCell.HasValue) ownership?.UpdateSupportCell(terrainCell.Value);
             }
             if (owner != null)
             {
                 SubstructureOwnership.BumpStructureVersion(map);
                 universe.Lifecycle.QueueStructureCheck(map);
             }
+            return owner != null ? universe : null;
         }
     }
 
@@ -29,7 +36,7 @@ namespace DeltaV
     {
         private static void Postfix(Building __instance, Map map)
         {
-            ShipStructureChanges.Notify(map);
+            ShipStructureChanges.Notify(map, building: __instance);
             // PostSpawnSetup runs before this version bump. Resolve newly connected parts only now.
             var attachment = __instance.TryGetComp<CompSpaceWeaponAttachment>();
             var weapon = __instance.TryGetComp<CompSpaceWeapon>() ?? attachment?.HostWeapon;
@@ -43,7 +50,8 @@ namespace DeltaV
     internal static class Patch_ShipStructure_Despawn
     {
         private static void Prefix(Building __instance, out Map __state) => __state = __instance.Map;
-        private static void Postfix(Map __state) => ShipStructureChanges.Notify(__state);
+        private static void Postfix(Building __instance, Map __state) =>
+            ShipStructureChanges.Notify(__state, building: __instance);
     }
 
     [HarmonyPatch(typeof(TerrainGrid), "DoTerrainChangedEffects")]
@@ -53,12 +61,22 @@ namespace DeltaV
             TerrainDef oldFoundation)
         {
             Map map = TerrainGridOwnershipAccess.MapOf(__instance);
-            ShipStructureChanges.Notify(map);
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (map == null || universe?.FrameOf(map) == null) return;
+            UniverseManager universe = ShipStructureChanges.Notify(map, terrainCell: c);
+            if (universe == null) return;
             if (oldFoundation != null || newTerr?.isFoundation == true)
                 universe.NotifyFoundationChanged(map, c);
             universe.NotifySupportChanged(map, c);
+        }
+    }
+
+    [HarmonyPatch(typeof(TerrainGrid), nameof(TerrainGrid.SetUnderTerrain))]
+    internal static class Patch_ShipStructure_UnderTerrain
+    {
+        private static void Postfix(TerrainGrid __instance, IntVec3 c)
+        {
+            Map map = TerrainGridOwnershipAccess.MapOf(__instance);
+            if (map == null || !c.InBounds(map)) return;
+            ShipStructureChanges.Notify(map, terrainCell: c)?.NotifySupportChanged(map, c);
         }
     }
 }

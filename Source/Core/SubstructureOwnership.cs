@@ -51,19 +51,82 @@ namespace DeltaV
 
         private int[] ownerGrid;
 
-        [System.NonSerialized] private bool cachedSupport;
-        [System.NonSerialized] private int cachedSupportVersion = -1;
+        [System.NonSerialized] private bool[] supportByCell;
+        [System.NonSerialized] private bool[] naturalGroundByCell;
+        [System.NonSerialized] private int supportCellCount;
+        [System.NonSerialized] private int naturalGroundCellCount;
+        [System.NonSerialized] private HashSet<Building> spawnedBuildings;
 
-        /// <summary>HasMapSupport 的版本缓存；结构变化后首次查询重建，其余查询 O(1)。</summary>
-        public bool HasSupport
+        internal int SupportCellCount
         {
             get
             {
-                if (cachedSupportVersion == StructureVersion(map)) return cachedSupport;
-                cachedSupport = map.AllCells.Any(cell => SupportsAt(map, cell));
-                cachedSupportVersion = StructureVersion(map);
-                return cachedSupport;
+                EnsureMapSupportIndex();
+                return supportCellCount;
             }
+        }
+
+        internal int SpawnedBuildingCount
+        {
+            get
+            {
+                EnsureMapSupportIndex();
+                return spawnedBuildings.Count;
+            }
+        }
+
+        internal IReadOnlyCollection<Building> SpawnedBuildings
+        {
+            get
+            {
+                EnsureMapSupportIndex();
+                return spawnedBuildings;
+            }
+        }
+
+        private void EnsureMapSupportIndex()
+        {
+            if (supportByCell != null) return;
+            supportByCell = new bool[map.cellIndices.NumGridCells];
+            naturalGroundByCell = new bool[supportByCell.Length];
+            foreach (IntVec3 cell in map.AllCells)
+                UpdateSupportCell(cell);
+            // ListerBuildings excludes natural rock. The map's global Thing list includes it.
+            spawnedBuildings = new HashSet<Building>(map.listerThings.AllThings.OfType<Building>()
+                .Where(building => building.Spawned && building.Map == map));
+        }
+
+        internal void UpdateSupportCell(IntVec3 cell)
+        {
+            if (supportByCell == null || !cell.InBounds(map)) return;
+            int index = map.cellIndices.CellToIndex(cell);
+            bool supported = SupportsAt(map, cell);
+            if (supportByCell[index] != supported)
+            {
+                supportByCell[index] = supported;
+                supportCellCount += supported ? 1 : -1;
+            }
+            TerrainDef terrain = map.terrainGrid.BaseTerrainAt(cell);
+            bool natural = IsSupportTerrain(terrain) && terrain.natural && !terrain.isFoundation;
+            if (naturalGroundByCell[index] == natural) return;
+            naturalGroundByCell[index] = natural;
+            naturalGroundCellCount += natural ? 1 : -1;
+        }
+
+        internal void UpdateSpawnedBuilding(Building building)
+        {
+            if (spawnedBuildings == null) return;
+            if (building.Spawned && building.Map == map) spawnedBuildings.Add(building);
+            else spawnedBuildings.Remove(building);
+        }
+
+        internal void ClearMapSupportIndex()
+        {
+            supportByCell = null;
+            naturalGroundByCell = null;
+            supportCellCount = 0;
+            naturalGroundCellCount = 0;
+            spawnedBuildings = null;
         }
 
         internal static bool SupportsAt(Map map, IntVec3 cell) => HasFoundation(map, cell)
@@ -72,22 +135,13 @@ namespace DeltaV
         private static bool IsSupportTerrain(TerrainDef terrain) =>
             terrain != null && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void;
 
-        [System.NonSerialized] private bool cachedNaturalGround;
-        [System.NonSerialized] private int cachedNaturalGroundVersion = -1;
-
-        /// <summary>整图底层天然地面；忽略船上地板、基架及临时通道，按结构版本失效。</summary>
+        /// <summary>底层天然地面，忽略船上地板、基架及临时通道。</summary>
         internal bool HasNaturalGround
         {
             get
             {
-                if (cachedNaturalGroundVersion == StructureVersion(map)) return cachedNaturalGround;
-                cachedNaturalGround = map.AllCells.Any(cell =>
-                {
-                    TerrainDef terrain = map.terrainGrid.BaseTerrainAt(cell);
-                    return IsSupportTerrain(terrain) && terrain.natural && !terrain.isFoundation;
-                });
-                cachedNaturalGroundVersion = StructureVersion(map);
-                return cachedNaturalGround;
+                EnsureMapSupportIndex();
+                return naturalGroundCellCount != 0;
             }
         }
 
@@ -116,6 +170,7 @@ namespace DeltaV
             Scribe_Collections.Look(ref sparse, "owners", LookMode.Value, LookMode.Value);
             if (Scribe.mode == LoadSaveMode.LoadingVars)
             {
+                ClearMapSupportIndex();
                 Current.Game?.GetComponent<UniverseManager>()?.ForgetFoundationTopology(map);
                 ownerGrid = new int[map.cellIndices.NumGridCells];
                 if (sparse != null)

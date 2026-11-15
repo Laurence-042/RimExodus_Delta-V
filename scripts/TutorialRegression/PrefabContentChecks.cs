@@ -191,18 +191,53 @@ internal static partial class Program
 
     static void CheckAsteroidPrefab(XmlDocument xml, string label)
     {
-        int minerals = xml.SelectNodes("/MapPrefab/thingStates/li[starts-with(def,'Mineable')]").Count;
-        int vacstone = xml.SelectNodes("/MapPrefab/thingStates/li[def='Vacstone']").Count;
-        int roofs = xml.SelectNodes("/MapPrefab/roofs/li").Count;
+        const string rocks = "/MapPrefab/thingStates/li[starts-with(def,'Mineable') or def='Vacstone']";
+        var rockEntries = xml.SelectNodes(rocks).Cast<XmlElement>().ToList();
         Check(xml.SelectNodes("/MapPrefab/prefab/terrain/*").Count == 1
-            && xml.SelectSingleNode("/MapPrefab/prefab/terrain/Vacstone_Rough") != null,
-            label + " uses Odyssey's Vacstone_Rough asteroid terrain");
-        Check(xml.SelectNodes("/MapPrefab/foundations/li|/MapPrefab/environment/li").Count == 0,
-            label + " has no gravship foundation or authored atmosphere");
-        Check(roofs > 0 && xml.SelectNodes("/MapPrefab/roofs/li[def='RoofRockThin']").Count == roofs,
-            label + " uses native thin rock roof over its solid body");
-        Check(minerals > 0 && vacstone > 0 && minerals + vacstone == roofs,
-            label + " replaces only part of its Vacstone body with minerals");
+            && xml.SelectSingleNode("/MapPrefab/prefab/terrain/Space") != null,
+            label + " authors only Space terrain");
+        Check(xml.SelectNodes("/MapPrefab/foundations/li|/MapPrefab/environment/li|/MapPrefab/roofs/li").Count == 0,
+            label + " has no foundation, roof or authored atmosphere");
+        Check(rockEntries.Any(e => e["def"].InnerText == "Vacstone")
+            && rockEntries.Any(e => e["def"].InnerText.StartsWith("Mineable"))
+            && rockEntries.All(e => e.SelectSingleNode("state/saveable/canChangeTerrainOnDestroyed")?.InnerText == "false"),
+            label + " preserves the ore and rock body and leaves Space after removal");
+        var rockDefs = new Dictionary<string, ThingDef>();
+        foreach (string name in rockEntries.Select(e => e["def"].InnerText).Distinct())
+        {
+            ThingDef def = DefDatabase<ThingDef>.GetNamedSilentFail(name);
+            if (def == null)
+            {
+                def = Raw<ThingDef>();
+                def.defName = name;
+                def.thingClass = typeof(Mineable);
+                def.category = ThingCategory.Building;
+                def.stackLimit = 1;
+                def.comps = new List<CompProperties>();
+                def.building = new BuildingProperties { isNaturalRock = true };
+                DefDatabase<ThingDef>.Add(def);
+            }
+            rockDefs.Add(name, def);
+        }
+        var entries = rockEntries.Select(e => new MapPrefabThingEntry
+        {
+            def = rockDefs[e["def"].InnerText],
+            stateXml = e.SelectSingleNode("state/saveable").OuterXml
+        }).ToList();
+        Check(MapPrefabThingState.Instantiate(entries, label, null).Cast<Mineable>()
+            .All(rock => !rock.canChangeTerrainOnDestroyed),
+            label + " restores the no-terrain state through Scribe");
+        var positions = xml.SelectNodes("/MapPrefab/thingStates/li/pos").Cast<XmlNode>()
+            .Select(n => IntVec3.FromString(n.InnerText)).ToList();
+        IntVec2 size = IntVec2.FromString(xml.SelectSingleNode("/MapPrefab/prefab/size").InnerText);
+        for (int i = 0; i < 4; i++)
+        {
+            var cells = positions.Select(c => PrefabUtility.GetAdjustedLocalPosition(c, new Rot4(i))).ToHashSet();
+            Check(cells.Count == positions.Count
+                && cells.Max(c => c.x) - cells.Min(c => c.x) < (i % 2 == 0 ? size.x : size.z)
+                && cells.Max(c => c.z) - cells.Min(c => c.z) < (i % 2 == 0 ? size.z : size.x),
+                label + " has distinct occupied cells inside its rotated span");
+        }
     }
 
     static void CheckPrefabContent(IEnumerable<string> files, bool authoredEnvironment = false, bool tutorial = false)

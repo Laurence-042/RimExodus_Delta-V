@@ -385,8 +385,8 @@ namespace DeltaV
             foreach (var group in Enumerable.Range(0, cells.Count).GroupBy(i => owners[i]))
                 SubstructureOwnership.For(map).SetOwner(group.Select(i => cells[i]), group.Key);
             for (int i = 0; i < zones.Count; i++)
-                if (!zones[i].Spawned && MapContentSpawner.SpawnExisting(zones[i], map, zonePositions[i],
-                    zones[i].Rotation, true) == null)
+                if (!zones[i].Spawned && (!GenSpawn.CanSpawnAt(zones[i].def, zonePositions[i], map, zones[i].Rotation)
+                    || MapContentSpawner.SpawnExisting(zones[i], map, zonePositions[i], zones[i].Rotation, true) == null))
                     throw new InvalidOperationException("DeltaV_ShipPlanUndoBlocked".Translate().ToString());
             MapContentSpawner.RelinkGravshipComponents(map);
             remaining = null;

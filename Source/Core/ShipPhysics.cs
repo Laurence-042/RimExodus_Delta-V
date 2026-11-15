@@ -26,7 +26,7 @@ namespace DeltaV
     /// "Move(position, Rotate(comLocal, angle)) = 质心球面方向" 每步派生——
     /// 与旧平面版公式形态一致，只是加法换成球面移动。
     ///
-    /// 质量报告按结构版本和运输舱载重失效，读档/场景重置时清空。
+    /// 结构变化即时更新报告，专用货柜载重按游戏 tick 合并更新。
     /// </summary>
     public static partial class ShipPhysics
     {
@@ -167,7 +167,9 @@ namespace DeltaV
 
         // ---- 质量模型 ----
 
-        internal static MassReport Measure(SpaceObject container)
+        internal static MassReport Measure(SpaceObject container) => Measure(container, out _);
+
+        private static MassReport Measure(SpaceObject container, out MassMoments moments)
         {
             Map map = container.map;
             var report = new MassReport();
@@ -175,56 +177,61 @@ namespace DeltaV
                 if (ship.CanDriveIn(container) && !ship.AllowsAngularMotion) report.allowsAngularMotion = false;
             Vector2 origin = SpaceTransform.ShipLocalOrigin(map);
 
-            float totalMass = 0f;
-            var moment = Vector2.zero;
-            var massPoints = new List<(Vector2 pos, float mass)>(256);
-            float intrinsicInertia = 0f;
+            moments = default;
 
             foreach (IntVec3 cell in SubstructureOwnership.CellsOnMap(map))
             {
                 var r = new Vector2(cell.x + 0.5f - origin.x, cell.z + 0.5f - origin.y);
-                totalMass += MassPerDeckCell;
-                moment += r * MassPerDeckCell;
-                massPoints.Add((r, MassPerDeckCell));
+                moments.Add(MassPerDeckCell, r);
             }
 
-            foreach (Thing thing in map.listerThings.AllThings)
+            foreach (Building thing in SubstructureOwnership.For(map).SpawnedBuildings)
             {
-                if (!(thing is Building))
-                {
-                    continue;
-                }
-                CellRect rect = thing.OccupiedRect();
-                var r = new Vector2((rect.minX + rect.maxX + 1) * 0.5f - origin.x,
-                    (rect.minZ + rect.maxZ + 1) * 0.5f - origin.y);
-                float m = BuildingMass(thing);
-                totalMass += m;
-                moment += r * m;
-                massPoints.Add((r, m));
-                // 建筑不是位于中心的数学质点。矩形薄板绕中心的本征惯量为
-                // m(w²+h²)/12；此前 shuttle 独占图只有一个 3x5 建筑，点质量模型把
-                // 惯量夹成 1，任何侧推都产生数百 rad/s² 的虚假角加速度。
-                intrinsicInertia += m * (rect.Width * rect.Width + rect.Height * rect.Height) / 12f;
+                double weight = BuildingMass(thing);
+                if (thing.TryGetComp<CompSpaceCargo>() is { } cargo) weight += Mathf.Max(0f, cargo.StoredMass);
+                moments.AddBuilding(thing, origin, weight);
             }
 
-            if (totalMass < 1f)
-            {
-                // 空图防御：无结构时给单位质量，质心落在原点。
-                report.mass = 1f;
-                report.inertia = 1f;
-                return report;
-            }
-
-            report.mass = totalMass;
-            report.comLocal = moment / totalMass;
-            float inertia = intrinsicInertia;
-            for (int i = 0; i < massPoints.Count; i++)
-            {
-                inertia += massPoints[i].mass * (massPoints[i].pos - report.comLocal).sqrMagnitude;
-            }
-            report.inertia = Mathf.Max(inertia, 1f);
-            report.thrusters.AddRange(container.BuildThrusters());
+            moments.WriteTo(report);
+            if (moments.mass >= 1d) report.thrusters.AddRange(container.BuildThrusters());
             return report;
+        }
+
+        private struct MassMoments
+        {
+            internal double mass;
+            private double momentX, momentZ, originInertia;
+
+            internal void Add(double weight, Vector2 center, double intrinsicPerMass = 0d)
+            {
+                double x = center.x, z = center.y;
+                mass += weight;
+                momentX += weight * x;
+                momentZ += weight * z;
+                originInertia += weight * (x * x + z * z + intrinsicPerMass);
+            }
+
+            internal void AddBuilding(Building building, Vector2 origin, double weight)
+            {
+                CellRect rect = building.OccupiedRect();
+                var center = new Vector2((rect.minX + rect.maxX + 1) * 0.5f - origin.x,
+                    (rect.minZ + rect.maxZ + 1) * 0.5f - origin.y);
+                Add(weight, center, (rect.Width * rect.Width + rect.Height * rect.Height) / 12d);
+            }
+
+            internal bool WriteTo(MassReport report)
+            {
+                float total = (float)System.Math.Max(1d, mass);
+                Vector2 center = mass < 1d ? Vector2.zero : new Vector2((float)(momentX / mass), (float)(momentZ / mass));
+                // Parallel-axis theorem. Keep the unclamped moment about the map origin for later deltas.
+                float inertia = mass < 1d ? 1f : (float)System.Math.Max(1d,
+                    originInertia - (momentX * momentX + momentZ * momentZ) / mass);
+                bool changed = report.mass != total || !report.comLocal.Equals(center) || report.inertia != inertia;
+                report.mass = total;
+                report.comLocal = center;
+                report.inertia = inertia;
+                return changed;
+            }
         }
 
         /// <summary>实体推进器的唯一数值适配；所属船决定是否纳入布局。</summary>
@@ -243,23 +250,9 @@ namespace DeltaV
             };
         }
 
-        /// <summary>货物质量指纹：只遍历 transporter 组，装载/卸载后触发一次重测。</summary>
-        private static float CargoMass(Map map)
-        {
-            float total = 0f;
-            foreach (Thing thing in map.listerThings.ThingsInGroup(ThingRequestGroup.Transporter))
-            {
-                if (thing is not Building || thing.Destroyed) continue;
-                CompTransporter transporter = thing.TryGetComp<CompTransporter>();
-                if (transporter != null) total += Mathf.Max(0f, transporter.MassUsage);
-            }
-            return total;
-        }
-
         /// <summary>
         /// 建筑质量：def 带 Mass stat（如 LargeThruster=30）用 stat 实值，否则用
-        /// MassPerBuilding；运输舱的 held 内容按原版 CompTransporter.MassUsage 加入，
-        /// 使 shuttle 的质量/矩形惯量随实际载重变化（§7.3）。
+        /// MassPerBuilding。
         /// </summary>
         private static float BuildingMass(Thing thing)
         {
@@ -275,13 +268,6 @@ namespace DeltaV
                     }
                 }
             }
-            CompTransporter transporter = thing.TryGetComp<CompTransporter>();
-            if (transporter != null)
-            {
-                mass += Mathf.Max(0f, transporter.MassUsage);
-            }
-            if (thing.TryGetComp<CompSpaceCargo>() is { } cargo)
-                mass += Mathf.Max(0f, cargo.StoredMass);
             return mass;
         }
 
@@ -780,16 +766,10 @@ namespace DeltaV
         {
             public MassReport report;
             public int structureVersion = -1;
-            public float cargoMass = -1f;
+            public MassMoments moments;
         }
 
         private static readonly Dictionary<Map, CachedReport> Cache = new Dictionary<Map, CachedReport>();
-
-        internal static void InvalidateMass(Map map)
-        {
-            if (map != null && Cache.TryGetValue(map, out CachedReport cached))
-                cached.report = null;
-        }
 
         internal static MassReport GetReport(SpaceObject container)
         {
@@ -799,15 +779,12 @@ namespace DeltaV
                 return null;
             }
             if (!Cache.TryGetValue(map, out CachedReport cached))
+                Cache.Add(map, cached = new CachedReport());
+            var changes = Current.Game?.GetComponent<UniverseManager>()?.CargoMassUpdates.Collect(map);
+            int structureVersion = SubstructureOwnership.StructureVersion(map);
+            if (cached.report == null || cached.structureVersion != structureVersion)
             {
-                cached = new CachedReport();
-                Cache[map] = cached;
-            }
-            float cargoMass = CargoMass(map);
-            if (cached.report == null || Mathf.Abs(cached.cargoMass - cargoMass) > 0.01f
-                || SubstructureOwnership.CacheNeedsRefresh(cached.structureVersion, map))
-            {
-                MassReport fresh = Measure(container);
+                MassReport fresh = Measure(container, out cached.moments);
                 fresh.version = (cached.report?.version ?? 0) + 1;
                 if (DeltaVLog.Enabled(DeltaVLogModule.Physics)
                     && cached.report != null && MassModelChanged(cached.report, fresh))
@@ -818,8 +795,15 @@ namespace DeltaV
                         $"inertia {cached.report.inertia:F0}->{fresh.inertia:F0}");
                 }
                 cached.report = fresh;
-                cached.cargoMass = cargoMass;
-                cached.structureVersion = SubstructureOwnership.StructureVersion(map);
+                cached.structureVersion = structureVersion;
+            }
+            else if (changes != null)
+            {
+                Vector2 origin = SpaceTransform.ShipLocalOrigin(map);
+                foreach (var change in changes)
+                    cached.moments.AddBuilding((Building)change.cabinet.parent, origin,
+                        (double)Mathf.Max(0f, change.current) - Mathf.Max(0f, change.previous));
+                if (cached.moments.WriteTo(cached.report)) cached.report.version++;
             }
             return cached.report;
         }
@@ -860,8 +844,7 @@ namespace DeltaV
 
         public static void Forget(Map map)
         {
-            if (map == null) return;
-            Cache.Remove(map);
+            if (map != null) Cache.Remove(map);
         }
 
     }

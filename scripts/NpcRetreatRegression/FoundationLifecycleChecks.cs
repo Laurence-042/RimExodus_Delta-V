@@ -24,28 +24,12 @@ internal static partial class Program
         finally { Scribe.ForceStop(); }
     }
 
-    static void RemoveConsoleFixture(CompDeltaVPilotConsole console, Map map)
-    {
-        map.thingGrid.Deregister(console.parent);
-        map.listerThings.AllThings.Remove(console.parent);
-        map.listerThings.ThingsOfDef(console.parent.def).Remove(console.parent);
-        Set(typeof(Thing), console.parent, "mapIndexOrState", (sbyte)-1);
-        // Real Comp callback queues reconciliation; Building postfix invalidates after it returns.
-        console.PostDeSpawn(map);
-        ShipStructureChanges.Notify(map);
-    }
+    static void RemoveConsoleFixture(CompDeltaVPilotConsole console, Map map) =>
+        RemoveFixtureBuilding((Building)console.parent, map, () => console.PostDeSpawn(map));
 
     static void PlaceConsoleFixture(CompDeltaVPilotConsole console, Map map)
     {
-        Set(typeof(Thing), console.parent, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
-        map.listerThings.AllThings.Add(console.parent);
-        var defs = (Dictionary<ThingDef, List<Thing>>)typeof(ListerThings)
-            .GetField("listsByDef", Private).GetValue(map.listerThings);
-        if (!defs.TryGetValue(console.parent.def, out var list))
-            defs[console.parent.def] = list = new List<Thing>();
-        list.Add(console.parent);
-        map.thingGrid.Register(console.parent);
-        ShipStructureChanges.Notify(map);
+        PlaceFixtureBuilding((Building)console.parent, map);
         Current.Game.GetComponent<UniverseManager>().Controls.For(console.Vessel);
     }
 

@@ -6,7 +6,7 @@
 
 星区内容的 12 个叶子类型各自绑定一份 `Sector*.xml` 内置默认资源。`SectorContentType.defaultPrefabPath` 是设置初始化来源；`EnsureSectorRulesSeeded` 为缺失条目或空池补入默认文件，不覆盖已有非空自定义池。类型停用使用数量 0，不依赖空物化池。制作源为 `scripts/TutorialContent/sector_layout.py`，由共用 `build.py` 从安装版与当前 Mod Def 解析占地、旋转、操作格、承载与电力数据，再从同一批 resolved records 写出 XML、布局报告和 PNG。五档舰船包含推进器、驾驶台、武器、维生、电源及人员标记；空间站类型按用途配置。贸易站的 Scribe 图显式引用三个锁定 `DeltaV_CargoContainer` 和一个解锁 `DeltaV_CargoStorage`。
 
-稳定类型 ID `Asteroid` 的玩家显示名为“小行星带”；不改 ID，避免破坏设置与 POI 存档语义。默认 `SectorAsteroid.xml` 是带一枚 `DeltaV_PrefabClusterMarker` 的天然矿体核心：70–260 格环带、每万格密度 0.6、最小间距 28，固定种子下理论生成约 12 个伴生体。带权池引用五份 `Asteroid*.xml` 子资源，覆盖小／中／大、钢、工业零部件、塑钢和混合矿型。核心与子体复现 Odyssey `GenStep_Asteroid` 的层次：prefab 外围继续使用口袋图既有 `Space`，轮廓写 `Vacstone_Rough`，内部格写 `Vacstone` 或替换为部分 `Mineable*`，并覆盖 `RoofRockThin`；不写 foundation 或 environment，由原版真空房间计算负责气氛。子体不含批量标记。因此普通核心能展开小行星带，而它作为其他 cluster 的 `clusterChild` 时会由既有门禁销毁自身标记，不能递归 flood。
+稳定类型 ID `Asteroid` 的玩家显示名为“小行星带”；不改 ID，避免破坏设置与 POI 存档语义。默认 `SectorAsteroid.xml` 是带一枚 `DeltaV_PrefabClusterMarker` 的天然矿体核心：70–260 格环带、每万格密度 0.6、最小间距 28，固定种子下理论生成约 12 个伴生体。带权池引用五份 `Asteroid*.xml` 子资源，覆盖小／中／大、钢、工业零部件、塑钢和混合矿型。核心和子体在 `Space` 上直接生成 `Vacstone` 和 `Mineable*` 实例。实例禁用移除时铺设地形的原版副作用，模板省略基架、屋顶和环境数据。销图规则见[飞船与 SpaceObject 解耦架构](飞船与SpaceObject解耦架构.md#81-触发与结果已定)。子体不含批量标记。因此普通核心能展开小行星带，而它作为其他 cluster 的 `clusterChild` 时会由既有门禁销毁自身标记，不能递归 flood。
 
 ### 星区舰船与站点布局（2026-11-10）
 
@@ -78,7 +78,7 @@
 
 基架写入后复核 `FoundationAt`；单个建筑或物品无法落位时收集 Def、位置及异常（如有），继续尝试剩余条目，最后由 `SharedMapBackend` 汇总抛出错误。有错误时不执行设施重链和标记展开，已修改的目标图由调用方处置。双船测试场景在重建前解析两船 prefab；仅自动选择加载失败时允许回退程序布局，明确配置的文件加载失败则保留旧场景并中止（设置用法见 README「测试」）。
 
-`Placement rejected` 仍表示原版 `GenSpawn.CanSpawnAt`／建造兼容性拒绝当前实体，并不等于 XML 或 Scribe 损坏。Delta-V 顶置炮塔的炮手交互格是可选岗位：已完成的 `Building_SpaceTurretGun` 实例不再阻止货架等建筑落位，因此这类合法布局可直接重建；炮塔蓝图／框架、轨道炮装填机和其他设施仍保留原版交互格保护。玩家手动覆盖炮手格时由建造 designator 给出警告，prefab 重建不发送 UI 消息。
+prefab 将恢复后的实体直接交给 `GenSpawn.Spawn(Thing, …)`。原版按实例检查地图边界和实际占格，使用 `WipeMode.Vanish` 处理原版判定会被覆盖的现有实体。玩家手动建造与规划器撤销继续走各自的落位检查。
 
 失败测试图的销毁与容器注销经 `UniverseManager.QueueFrameAction` 延后到帧边界，等待原版 `Map.FinalizeInit` 已排队的电网与地图绘制初始化结束；不能在生成长事件内同步销图，否则原版 `MapDrawer.Dispose` 会遇到尚未初始化的 sections，后续绘制回调还会访问已释放的网格。
 
@@ -94,9 +94,9 @@ Scribe 对同一份 prefab 内的引用在整批读取时解析。对外部 Pawn
 
 离线回归入口为 `scripts/PrefabRegression/run.ps1 -GameRoot <游戏目录> -HarmonyPath <Lib.Harmony 的 net8.0/0Harmony.dll>`，直接调用构建 DLL 与安装版原版 Scribe，验证同一炮塔模板重复实例化、内部 Thing/Verb 引用、动作状态与普通保存/重载。仅隔离 Unity 日志显示和 Def 构造的素材加载；不代替游戏内放置验收。
 
-建筑存储格中的物品仍是地图上的独立 Item。不可通行的 `Building_Storage`（例如导弹仓）会让原版 `CanSpawnAt` 的行走检查失败；重建只在原版 SlotGroup 已登记且不会擦除储物建筑的格子放宽此检查。储存组本身是旧地图对象，不复制其引用；导出时把该建筑实际生效的筛选和优先级写为自身设置。
+建筑存储格中的物品按地图上的独立 Item 重建。储存组由重建后的建筑重新登记，导出把各建筑实际生效的筛选和优先级写为实例设置。
 
-隐藏电线和武器槽位挂件也可与不可通行建筑同格。重建只对这两类已保存建筑放宽 `CanSpawnAt` 的行走检查，同时保留地形、槽位及原版擦除规则检查；整批落位后调用原版电网更新，使电线连通和设备供电在地图投入使用前完成。
+隐藏电线和武器槽位挂件按实例直接重建，重叠处理走原版生成规则。整批落位后调用原版电网更新，使电线连通和设备供电在地图投入使用前完成。
 
 文件格式为 `MapPrefab` formatVersion 2；旧导出文件须重新导出。这个版本号仅属于 prefab 文件，不修改 Mod 版本。正常游戏存读档与远距离 POI 快照恢复不调用 prefab 标记展开。
 

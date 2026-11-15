@@ -517,8 +517,7 @@ namespace DeltaV
                 return false;
             return container.contentTypeId == "Asteroid"
                 || (!GlobeDisplayInfo.IsStationType(container.contentTypeId)
-                    && map.AllCells.Where(cell => SubstructureOwnership.SupportsAt(map, cell))
-                        .Take(SmallWreckMaxSupportCells + 1).Count() <= SmallWreckMaxSupportCells);
+                    && SubstructureOwnership.For(map).SupportCellCount <= SmallWreckMaxSupportCells);
         }
 
         private readonly HashSet<int> restoreQueued = new HashSet<int>();
@@ -641,6 +640,7 @@ namespace DeltaV
         public void Forget(Map map)
         {
             pendingStructureChecks.Remove(map);
+            SubstructureOwnership.TryGet(map)?.ClearMapSupportIndex();
             dormancy.Forget(map);
             universe.ForgetMapRuntimeState(map);
             universe.Weapons.ForgetMap(map);

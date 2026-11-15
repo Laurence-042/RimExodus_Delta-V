@@ -110,6 +110,9 @@ namespace DeltaV
     public class FoundationShip : ShipBase
     {
         public readonly Ship Structure;
+        private SpaceObject checkedContainer;
+        private int hostVersion = -1;
+        private bool hasSeparateHost;
         public FoundationShip(Ship structure) { Structure = structure; }
         public override bool IsValid => Structure.IsValid;
         public override Map Map => Structure.map;
@@ -124,6 +127,17 @@ namespace DeltaV
         public override ShipDerivedState State => ShipRegistry.StateOf(Structure);
         public override ShipCombatState Combat => Structure.console?.combat;
         public override bool CanDriveIn(SpaceObject container) => IsValid && container?.map == Map;
+        internal bool RequiresSeparatePocket(SpaceObject container, FoundationTopologyService topology)
+        {
+            int version = SubstructureOwnership.StructureVersion(Map);
+            if (checkedContainer != container || hostVersion != version)
+            {
+                hasSeparateHost = ShipRegistry.HasSeparateHost(Structure, container, topology);
+                hostVersion = version;
+                checkedContainer = container;
+            }
+            return hasSeparateHost;
+        }
         public override bool Contains(Thing thing) => ShipRegistry.Contains(Structure, thing);
         public override IEnumerable<ShipPhysics.Thruster> BuildThrusters()
         {
@@ -171,8 +185,9 @@ namespace DeltaV
             {
                 driveMap = Map;
                 driveVersion = SubstructureOwnership.StructureVersion(Map);
-                independentHull = !SubstructureOwnership.CellsOnMap(Map).Any()
-                    && !Map.listerThings.AllThings.Any(t => t is Building && t != Anchor && !t.Destroyed)
+                var topology = Current.Game.GetComponent<UniverseManager>().FoundationTopology;
+                independentHull = topology.DomainCount(Map) == 0
+                    && SubstructureOwnership.For(Map).SpawnedBuildingCount == 1
                     && !HullCells.Any(c => Map.terrainGrid.BaseTerrainAt(c) is TerrainDef terrain
                         && terrain != TerrainDefOf.Space);
             }

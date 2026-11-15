@@ -12,33 +12,13 @@ internal static partial class Program
         (Dictionary<DriveSubject, ShipController>)typeof(ShipControlService)
             .GetField("controllers", Private).GetValue(universe.Controls);
 
-    static void UnspawnFixture(CompSpaceShuttle hull, Map map)
-    {
-        map.thingGrid.Deregister(hull.parent);
-        map.listerThings.AllThings.Remove(hull.parent);
-        map.listerThings.ThingsOfDef(hull.parent.def).Remove(hull.parent);
-        map.listerThings.ThingsInGroup(ThingRequestGroup.Transporter).Remove(hull.parent);
-        Set(typeof(Thing), hull.parent, "mapIndexOrState", (sbyte)-1);
-        UniverseManager universe = Current.Game.GetComponent<UniverseManager>();
-        DriveSubject identity = hull.Vessel.Identity;
-        universe.QueueFrameAction(() => universe.Controls.ReconcileOwner(identity));
-        ShipStructureChanges.Notify(map); // Building.DeSpawn postfix runs after the Comp callback.
-    }
+    static void UnspawnFixture(CompSpaceShuttle hull, Map map) =>
+        RemoveFixtureBuilding((Building)hull.parent, map, () => hull.PostDeSpawn(map));
 
     static void SpawnFixture(CompSpaceShuttle hull, Map map)
     {
-        Set(typeof(Thing), hull.parent, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
-        map.listerThings.AllThings.Add(hull.parent);
-        var defs = (Dictionary<ThingDef, List<Thing>>)typeof(ListerThings)
-            .GetField("listsByDef", Private).GetValue(map.listerThings);
-        defs[hull.parent.def] = new List<Thing> { hull.parent };
-        var groups = (List<Thing>[])typeof(ListerThings).GetField("listsByGroup", Private).GetValue(map.listerThings);
-        groups[(int)ThingRequestGroup.Transporter] = new List<Thing> { hull.parent };
-        map.thingGrid.Register(hull.parent);
-        // Invoke the shared lifecycle entry used by the Comp; its graphical invalidation needs Unity.
-        ShipStructureChanges.Notify(map);
+        PlaceFixtureBuilding((Building)hull.parent, map);
         Current.Game.GetComponent<UniverseManager>().Controls.For(hull.Vessel);
-        ShipStructureChanges.Notify(map);
     }
 
     static void CheckShuttleLifecycle(UniverseManager universe, Faction player)
@@ -49,11 +29,11 @@ internal static partial class Program
         var host = new MapSpaceObject(1400, hostMap, new SpacePose(Vector3.forward, 0));
         var flight = new MapSpaceObject(1401, flightMap, host.pose);
         universe.objects.Add(host);
-        universe.objects.Add(flight);
         AddTestBuilding(hostMap, player, 1402, TestBuildingDef("host structure"), new EmptyComp());
-        Check(!host.HasTag(SpaceObjectTag.Ship) && !flight.Ships.Any(), "lifecycle fixture warms empty membership caches before hull spawn");
+        Check(!host.HasTag(SpaceObjectTag.Ship) && SubstructureOwnership.For(flightMap).SpawnedBuildingCount == 0,
+            "lifecycle fixture warms the destination index before hull placement and registration");
         var hull = AddTestHull(hostMap, player, 1403);
-        ShipStructureChanges.Notify(hostMap);
+        ShipStructureChanges.Notify(hostMap, building: (Building)hull.parent);
         universe.Controls.For(hull.Vessel);
         var identity = hull.Vessel.Identity;
         Check(host.HasTag(SpaceObjectTag.Ship) && Controllers(universe).ContainsKey(identity),
@@ -70,6 +50,11 @@ internal static partial class Program
         var subject = identity.InContainer(host.objectId);
         UnspawnFixture(hull, hostMap);
         SpawnFixture(hull, flightMap);
+        universe.RegisterObject(flight);
+        Check(SubstructureOwnership.For(hostMap).SpawnedBuildingCount == 1
+            && SubstructureOwnership.For(flightMap).SpawnedBuildingCount == 1
+            && hull.Vessel.CanDriveIn(flight) && flight.PrimaryDriver == identity,
+            "placement before registration updates the warmed index and immediately enables console-free flight");
         Call(universe, "RunFrameActions");
         Check(ReferenceEquals(Controllers(universe)[identity], controller)
             && ShipRegistry.ShipByIdentity(identity).Map == flightMap && subject.Resolve(universe) == flight,
@@ -85,7 +70,9 @@ internal static partial class Program
         UnspawnFixture(hull, flightMap);
         SpawnFixture(hull, hostMap);
         Call(universe, "RunFrameActions");
-        Check(!flight.InterceptionEligible && !hull.Vessel.CanDriveIn(host)
+        Check(SubstructureOwnership.For(flightMap).SpawnedBuildingCount == 0
+            && SubstructureOwnership.For(hostMap).SpawnedBuildingCount == 2
+            && !flight.InterceptionEligible && !hull.Vessel.CanDriveIn(host)
             && ShipRegistry.ShipByIdentity(identity).Map == hostMap && subject.Resolve(universe) == null,
             "docking removes the old flight role and rejects driving the destination host");
         Check(ReferenceEquals(Controllers(universe)[identity], controller)
@@ -114,7 +101,7 @@ internal static partial class Program
 
         // A restored object has a new Comp and adapter, but the same persisted Thing identity.
         var restoredHull = AddTestHull(flightMap, player, identity.key);
-        ShipStructureChanges.Notify(flightMap);
+        ShipStructureChanges.Notify(flightMap, building: (Building)restoredHull.parent);
         universe.Controls.For(restoredHull.Vessel);
         Check(restoredHull.Vessel.Identity == identity && !ReferenceEquals(restoredHull.Vessel, hull.Vessel)
             && ReferenceEquals(ShipRegistry.ShipByIdentity(identity), restoredHull.Vessel)
