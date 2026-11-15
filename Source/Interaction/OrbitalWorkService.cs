@@ -37,75 +37,57 @@ namespace DeltaV
             Choose(Nearby(target), host =>
             {
                 if (CanStart(target) && Nearby(target).Contains(host)) universe.Approach.BeginSync(universe, target, host);
-            }, false);
+            });
         }
 
-        private static void Choose(List<SpaceObject> candidates, Action<SpaceObject> action, bool allowEmpty)
+        private static void Choose(List<SpaceObject> candidates, Action<SpaceObject> action)
         {
-            if (candidates.Count == 0) { if (allowEmpty) action(null); else Reject("DeltaV_DockFailNoTarget"); return; }
+            if (candidates.Count == 0) { Reject("DeltaV_DockFailNoTarget"); return; }
             if (candidates.Count == 1) { action(candidates[0]); return; }
             Find.WindowStack.Add(new FloatMenu(candidates.Select(o => new FloatMenuOption(o.label, () => action(o))).ToList()));
         }
-
-        private bool MatchesMotion(PilotTarget target, SpaceObject host)
-            => LandingApproachController.MatchesMotion(universe.FrameOf(target.Map).pose, host.pose, target.Vessel);
 
         public void Start(PilotTarget target)
         {
             if (!CanStart(target)) return;
             var active = universe.Approach.ActivePlan;
-            if (active?.Target.Identity == target.Identity)
+            if (active == null || active.Target.Identity != target.Identity)
+            { Reject("DeltaV_EVASyncRequired"); return; }
+            if (!LandingApproachController.IsValid(universe, active))
             {
-                if (!LandingApproachController.IsValid(universe, active))
-                {
-                    universe.Approach.CancelSelectionOrPlan(universe, silent: true);
-                    Reject("DeltaV_EVANotSynchronized");
-                    return;
-                }
-                if (!universe.Approach.Ready)
-                { Reject("DeltaV_EVANotSynchronized"); return; }
-                Execute(target, active.host);
+                universe.Approach.CancelSelectionOrPlan(universe, silent: true);
+                Reject("DeltaV_EVASyncRequired");
                 return;
             }
-            Choose(Nearby(target).Where(o => MatchesMotion(target, o)).ToList(), host => Execute(target, host), true);
-        }
-
-        private void Execute(PilotTarget target, SpaceObject host)
-        {
-            if (!CanStart(target)) return;
-            SpaceObject own = universe.FrameOf(target.Map);
-            if (host != null && (!Nearby(target).Contains(host) || !MatchesMotion(target, host)))
+            if (!LandingApproachController.InSyncWindow(active))
+                active.holdTicks = 0;
+            if (!universe.Approach.Ready)
             { Reject("DeltaV_EVANotSynchronized"); return; }
+            SpaceObject host = active.host;
             // One command-time nearest-grid placement; no navigation or ghost phase.
-            var placement = host == null ? null : LandingApproachController.NearestPlacement(universe, target, host);
-            if (host != null && placement == null) { Reject("DeltaV_EVANotSynchronized"); return; }
-            bool docking = host != null && LandingApproachController.LandingSiteStillValid(placement);
-            // Every gravity rectangle participates, including sources other than the selected target.
-            foreach (SpaceObject gravity in universe.objects.Where(o => o != own && o.HasGravityRegion))
-            {
-                if (!IntersectsGravity(target, gravity)) continue;
-                if (!docking || gravity != host) { Reject("DeltaV_EVAGravity"); return; }
-            }
-            if (docking) Dock(target, placement);
-            else if (host != null && !host.CanRelocateMap) Reject("DeltaV_EVAGravity");
-            else CreateWorksite(target, host, placement);
+            var placement = LandingApproachController.NearestPlacement(universe, target, host);
+            if (placement == null) { Reject("DeltaV_EVANotSynchronized"); return; }
+            if (LandingApproachController.LandingSiteStillValid(placement)) Dock(target, placement);
+            else if (host.HasGravityRegion) Reject("DeltaV_EVAGravity");
+            else if (host.CanRelocateMap) CreateWorksite(target, host, placement);
         }
 
-        private bool IntersectsGravity(PilotTarget target, SpaceObject gravity)
-            => IntersectsGravity(universe.FrameOf(target.Map), target.Vessel.HullCells, gravity);
+        public void Expand(PilotTarget target)
+        {
+            if (CanStart(target)) CreateWorksite(target, null, null);
+        }
 
-        internal static bool IntersectsGravity(SpaceObject own, IEnumerable<IntVec3> footprint, SpaceObject gravity)
-            => footprint.Any(cell => IntersectsGravity(own, new CellRect(cell.x, cell.z, 1, 1), gravity));
-
-        // The same rectangle test serves live worksite gates and authored course clearance.
+        // Only loaded maps have a projection for generation clearance.
         internal static bool IntersectsGravity(SpaceObject own, CellRect footprint, SpaceObject gravity)
         {
-            var rectangle = new List<Vector2> { Vector2.zero, new Vector2(gravity.map.Size.x, 0),
-                new Vector2(gravity.map.Size.x, gravity.map.Size.z), new Vector2(0, gravity.map.Size.z) };
+            Map map = gravity.map;
+            if (map == null || map.Disposed) return false;
+            var rectangle = new List<Vector2> { Vector2.zero, new Vector2(map.Size.x, 0),
+                new Vector2(map.Size.x, map.Size.z), new Vector2(0, map.Size.z) };
             var corners = new List<Vector2>(4);
             foreach (Vector2 corner in new[] { new Vector2(footprint.minX, footprint.minZ), new Vector2(footprint.maxX + 1, footprint.minZ),
                 new Vector2(footprint.maxX + 1, footprint.maxZ + 1), new Vector2(footprint.minX, footprint.maxZ + 1) })
-                corners.Add(SpaceTransform.UniverseToMapPoint(gravity, gravity.map,
+                corners.Add(SpaceTransform.UniverseToMapPoint(gravity, map,
                     SpaceTransform.MapPointToUniverse(own, own.map, corner)));
             return PlanarGeometry.HullDistance(PlanarGeometry.ConvexHull(corners), rectangle) <= 0.001f;
         }
@@ -185,8 +167,6 @@ namespace DeltaV
                 {
                     var cells = ContentCells(source.map);
                     if (cells.Count == 0) { Reject("DeltaV_DockFailNoTarget"); return; }
-                    if (universe.objects.Any(g => g != source && g.HasGravityRegion && IntersectsGravity(source, cells, g)))
-                    { Reject("DeltaV_EVAGravity"); return; }
                     CellRect bounds = CellRect.FromCellList(cells.ToList());
                     var move = new ContentMove { source = source, cells = cells,
                         origin = new IntVec3(bounds.minX, 0, bounds.minZ),

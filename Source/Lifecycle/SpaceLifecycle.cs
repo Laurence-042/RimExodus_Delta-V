@@ -286,12 +286,18 @@ namespace DeltaV
         /// Publish the same POI as an ordinary map container before stamping content.
         /// Pilot console claim and prefab marker expansion both resolve FrameOf(map).
         /// </summary>
-        private void MaterializeMarker(PoiState marker, Map map)
+        internal static MapSpaceObject CreateMaterializedContainer(PoiState marker, Map map)
         {
             var container = new MapSpaceObject(marker.objectId, map, marker.pose);
             marker.CopyFactsTo(container);
-            container.baseTag = SpaceObjectTag.Container;
+            container.baseTag = (container.baseTag & ~SpaceObjectTag.Marker) | SpaceObjectTag.Container;
             container.ambientLabel = marker.envLabel;
+            return container;
+        }
+
+        private void MaterializeMarker(PoiState marker, Map map)
+        {
+            var container = CreateMaterializedContainer(marker, map);
             universe.ReplaceRepresentation(marker, container);
             generationRetryAfterTick.Remove(marker.objectId);
 

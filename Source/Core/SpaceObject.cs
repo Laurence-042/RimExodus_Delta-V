@@ -30,7 +30,8 @@ namespace DeltaV
 
         /// <summary>派生角色：承载任意 ShipBase 的容器。永不手写。</summary>
         Ship = 16,
-        Scattered = 32
+        Scattered = 32,
+        GravityRegion = 64
     }
 
     /// <summary>
@@ -132,8 +133,7 @@ namespace DeltaV
         public bool HasTag(SpaceObjectTag tag) => (Tag & tag) == tag;
         public bool IsScattered => HasTag(SpaceObjectTag.Scattered);
         public bool IsWorksite => map?.GetComponent<DeltaVPocketMapMetadata>()?.worksite == true;
-        public bool HasGravityRegion => map != null && (!(map.Parent is ShipPocketParent_DeltaV)
-            || contentTypeId == "Asteroid");
+        public bool HasGravityRegion => HasTag(SpaceObjectTag.GravityRegion);
         public bool CanRelocateMap => map != null && !HasGravityRegion && !IsScattered
             && !HasTag(SpaceObjectTag.Projectile);
 

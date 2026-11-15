@@ -844,7 +844,8 @@ internal static partial class Program
         foreach (float archiveRadius in new[] { 300f, 1200f, 2400f })
         {
             var homeMap = Raw<Map>(); homeMap.info = new MapInfo { Size = new IntVec3(edge, 1, edge + 50) };
-            var home = new MapSpaceObject(1001, homeMap, new SpacePose(Vector3.forward, angle));
+            var home = new MapSpaceObject(1001, homeMap, new SpacePose(Vector3.forward, angle))
+                { baseTag = SpaceObjectTag.Container | SpaceObjectTag.GravityRegion };
             var map = Raw<Map>(); map.info = new MapInfo { Size = new IntVec3(69, 1, 45) };
             var shipPort = new IntVec3(12, 0, 30);
             var berth = DeltaVTutorialService.BerthPortCell(new IntVec3(edge - 14, 0, 68), Rot4.East);
@@ -856,10 +857,9 @@ internal static partial class Program
                 "tutorial ship spawns aligned with the hard-dock berth before the transfer");
             var frame = new MapSpaceObject(1002, map, home.pose);
             var area = CellRect.WholeMap(map).ExpandedBy(clearance);
-            Check(OrbitalWorkService.IntersectsGravity(frame, CellRect.WholeMap(map), home), "coincident course reproduces gravity rejection");
+            Check(OrbitalWorkService.IntersectsGravity(frame, CellRect.WholeMap(map), home), "coincident course intersects its tagged home map");
             frame.pose = DeltaVTutorialService.CoursePose(home.pose, homeMap.Size, map.Size, clearance, archiveRadius, 180f, 0);
             Check(!OrbitalWorkService.IntersectsGravity(frame, area, home), "course and approach margin outside actual colony rectangle");
-            Check(!OrbitalWorkService.IntersectsGravity(frame, CellRect.WholeMap(map).ToList(), home), "production per-cell worksite gate also accepts remote course");
             float parkingRadius = new Vector2(homeMap.Size.x, homeMap.Size.z).magnitude * .5f + clearance;
             for (int bearing = 0; bearing < 8; bearing++)
             {

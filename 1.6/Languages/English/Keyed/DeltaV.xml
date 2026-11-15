@@ -444,9 +444,11 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SettingsWorksiteMargin>Extra worksite margin on each side (cells)</DeltaV_SettingsWorksiteMargin>
   <DeltaV_EVAUnsupportedContent>This map contains objects that cannot be transferred with a gravship. Extravehicular work has not started.</DeltaV_EVAUnsupportedContent>
   <DeltaV_EVAGridCorrection>Adjusting to the extravehicular work placement. Select Begin extravehicular work again once alignment is stable.</DeltaV_EVAGridCorrection>
-  <DeltaV_EVANotSynchronized>Position, velocity and grid orientation are not yet synchronized.</DeltaV_EVANotSynchronized>
+  <DeltaV_EVANotSynchronized>Drift synchronization with the target is not yet stable.</DeltaV_EVANotSynchronized>
+  <DeltaV_EVASyncRequired>Start drift synchronization with a target first.</DeltaV_EVASyncRequired>
   <DeltaV_EVAStarted>Extravehicular work has begun. Applying real thruster power separates that ship from the worksite.</DeltaV_EVAStarted>
   <DeltaV_StartEVA>Begin extravehicular work</DeltaV_StartEVA>
+  <DeltaV_ExpandWorksite>Expand worksite</DeltaV_ExpandWorksite>
   <DeltaV_SyncButton>Synchronize drift velocity</DeltaV_SyncButton>
   <DeltaV_EVAOverlap>Ship structures or map contents overlap. Adjust position and try again.</DeltaV_EVAOverlap>
   <DeltaV_EVAGravity>Gravity effects prevent extravehicular work here. Dock the entire ship in a clear area of the target map.</DeltaV_EVAGravity>

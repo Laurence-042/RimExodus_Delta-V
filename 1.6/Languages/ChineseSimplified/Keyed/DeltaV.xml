@@ -444,9 +444,11 @@
   <DeltaV_SettingsWorksiteMargin>舱外作业每侧扩建余量（格）</DeltaV_SettingsWorksiteMargin>
   <DeltaV_EVAUnsupportedContent>地图上存在当前无法随飞船搬运的内容，舱外作业未开始。</DeltaV_EVAUnsupportedContent>
   <DeltaV_EVAGridCorrection>正在微调至舱外作业落点；对齐稳定后，再点击“开始舱外作业”。</DeltaV_EVAGridCorrection>
-  <DeltaV_EVANotSynchronized>尚未稳定同步位置、速度与网格方向。</DeltaV_EVANotSynchronized>
+  <DeltaV_EVANotSynchronized>与目标的漂移同步尚未稳定。</DeltaV_EVANotSynchronized>
+  <DeltaV_EVASyncRequired>请先为本船发起“同步漂移速度”并选择目标。</DeltaV_EVASyncRequired>
   <DeltaV_EVAStarted>舱外作业已开始。任意真实推进器出力时，该船将脱离作业地图。</DeltaV_EVAStarted>
   <DeltaV_StartEVA>开始舱外作业</DeltaV_StartEVA>
+  <DeltaV_ExpandWorksite>扩建作业区</DeltaV_ExpandWorksite>
   <DeltaV_SyncButton>同步漂移速度</DeltaV_SyncButton>
   <DeltaV_EVAOverlap>船体或地图内容相互重叠，请调整位置后重试。</DeltaV_EVAOverlap>
   <DeltaV_EVAGravity>区域重力效应明显，无法展开舱外作业。请将整艘船停入目标地图的可用区域。</DeltaV_EVAGravity>

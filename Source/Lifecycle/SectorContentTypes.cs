@@ -28,6 +28,7 @@ namespace DeltaV
 
         /// <summary>随 Mod 提供的叶子默认 prefab；只用于补建缺失的全局设置条目。</summary>
         public readonly string defaultPrefabPath;
+        public readonly SpaceObjectTag objectTags;
 
         /// <summary>子类型（空 = 叶子）。</summary>
         public readonly List<SectorContentType> children = new List<SectorContentType>();
@@ -44,10 +45,11 @@ namespace DeltaV
             }
         }
 
-        public SectorContentType(string id, string labelKey, string defaultPrefabPath)
+        public SectorContentType(string id, string labelKey, string defaultPrefabPath, SpaceObjectTag objectTags = 0)
             : this(id, labelKey)
         {
             this.defaultPrefabPath = defaultPrefabPath;
+            this.objectTags = objectTags;
         }
 
         public bool IsLeaf => children.Count == 0;
@@ -80,7 +82,7 @@ namespace DeltaV
                 new SectorContentType("TradeStation", "DeltaV_SectorTypeTradeStation", "Sector/Stations/SectorTradeStation_Temporary.xml"),
                 new SectorContentType("Shipyard", "DeltaV_SectorTypeShipyard", "Sector/Stations/SectorShipyard_Temporary.xml"),
                 new SectorContentType("FactoryStation", "DeltaV_SectorTypeFactoryStation", "Sector/Stations/SectorFactoryStation_Temporary.xml"),
-                new SectorContentType("Asteroid", "DeltaV_SectorTypeAsteroid", "Sector/Asteroids/SectorAsteroid.xml")),
+                new SectorContentType("Asteroid", "DeltaV_SectorTypeAsteroid", "Sector/Asteroids/SectorAsteroid.xml", SpaceObjectTag.GravityRegion)),
         };
 
         /// <summary>深度优先遍历全部节点（含分支）。</summary>

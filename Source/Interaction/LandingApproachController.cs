@@ -150,10 +150,16 @@ namespace DeltaV
         }
 
         internal static bool IsValid(UniverseManager universe, DriftSyncPlan active)
-            => active.Target.IsValid && active.sourceMap?.Disposed == false && active.Target.Map == active.sourceMap
-                && active.host?.RepresentationVersion == active.hostVersion && active.targetMap?.Disposed == false
-                && universe.FrameOf(active.targetMap) == active.host
+        {
+            SpaceObject host = active.host;
+            return active.Target.IsValid && active.sourceMap?.Disposed == false && active.Target.Map == active.sourceMap
+                && universe.FrameOf(active.sourceMap) != null
+                && host != null && host.RepresentationVersion == active.hostVersion
+                && active.targetMap?.Disposed == false && host.map == active.targetMap
+                && universe.FrameOf(active.targetMap) == host
+                && !host.IsScattered && !host.HasTag(SpaceObjectTag.Projectile)
                 && active.Distance() <= DeltaVMod.CurrentSettings.dockingCancelDistance;
+        }
 
         // Replaces the existing approach task tick; no discovery or map scan here.
         public void Tick(UniverseManager universe)

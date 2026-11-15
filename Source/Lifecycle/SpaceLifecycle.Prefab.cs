@@ -64,6 +64,7 @@ namespace DeltaV
                 {
                     faction = faction,
                     ambientLabel = prefab.name,
+                    baseTag = SpaceObjectTag.Container | (source.baseTag & SpaceObjectTag.GravityRegion),
                     contentTypeId = source.contentTypeId,
                     sourcePrefabPath = path,
                 };

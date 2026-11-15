@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using DeltaV;
+using HarmonyLib;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
@@ -78,11 +80,164 @@ internal static partial class Program
         Check(!universe.Scatter.Candidates.Contains(scattered), "scattered retirement releases the tractor candidate index");
         Check(!CombatTarget.ForContainer(scattered).TryResolve(universe, out _), "retired scattered identity cannot resolve a stale tractor lock");
         CheckSoftDockReference(universe);
+        CheckOrbitalWork(universe);
         if (dockingOnly) return;
         CheckScatteredRetirement(universe);
         CheckFocusedScatterAndMapSetter(universe);
         CheckTractorReceive(universe);
         CheckUndockHeading(universe);
+    }
+
+    sealed class OrbitalWorkTestShip : FoundationShip
+    {
+        private readonly Map map;
+        internal OrbitalWorkTestShip(Map map) : base(Ship.Invalid) { this.map = map; }
+        public override bool IsValid => true;
+        public override Map Map => map;
+        public override DriveSubject Identity => new DriveSubject(0, map.uniqueID);
+        public override ShipDerivedState State => ShipDerivedState.FreeFlight;
+        public override ShipTransferSpec Transfer => new ShipTransferSpec(null, null, map.uniqueID, false);
+    }
+
+    static string worksiteRejection;
+    static bool worksiteLandingValid;
+    static Map worksiteDockMap;
+    static IntVec3 worksiteRequestedSize;
+
+    static bool RecordWorksiteRejection(string key) { worksiteRejection = key; return false; }
+    static bool PlaceWorksiteProbe(PilotTarget target, SpaceObject host,
+        ref LandingApproachController.DockingPlan __result)
+    {
+        __result = new LandingApproachController.DockingPlan(target, host, IntVec3.Zero, IntVec3.Zero, Rot4.North);
+        return false;
+    }
+    static bool ValidateWorksiteProbe(ref bool __result) { __result = worksiteLandingValid; return false; }
+    static bool RecordWorksiteDock(LandingApproachController.DockingPlan placement)
+    { worksiteDockMap = placement.targetMap; return false; }
+    static bool RecordWorksiteGeneration(IntVec3 size, ref Map __result)
+    { worksiteRequestedSize = size; __result = null; return false; }
+
+    static void CheckOrbitalWork(UniverseManager universe)
+    {
+        var ownMap = TestMap(49810);
+        var hostMap = TestMap(49811);
+        var thirdMap = TestMap(49812);
+        ownMap.roofGrid = new RoofGrid(ownMap);
+        hostMap.roofGrid = new RoofGrid(hostMap);
+        hostMap.terrainGrid.topGrid[1] = hostMap.terrainGrid.topGrid[0];
+        hostMap.terrainGrid.topGrid[0] = TerrainDefOf.Space;
+        var pose = new SpacePose(Vector3.forward, 0f);
+        var marker = new PoiState(49811, "asteroid", pose.position, pose.angle, 0, "Asteroid");
+        var station = new PoiState(49813, "station", pose.position, pose.angle, 0, "Shipyard");
+        var native = new PoiState(49814, (MapParent)null);
+        var host = SpaceLifecycleService.CreateMaterializedContainer(marker, hostMap);
+        var own = new MapSpaceObject(49810, ownMap, pose);
+        var third = SpaceLifecycleService.CreateMaterializedContainer(
+            new PoiState(49812, "other asteroid", pose.position, pose.angle, 0, "Asteroid"), thirdMap);
+        Check(marker.HasGravityRegion && native.HasGravityRegion && !station.HasGravityRegion
+            && !own.HasGravityRegion, "gravity tags are assigned by creation rules");
+        Check(host.HasGravityRegion && host.HasTag(SpaceObjectTag.Container)
+            && !host.HasTag(SpaceObjectTag.Marker) && !host.CanRelocateMap,
+            "materialization preserves gravity while replacing the marker role");
+        Check(!OrbitalWorkService.IntersectsGravity(own, CellRect.WholeMap(ownMap), marker)
+            && OrbitalWorkService.IntersectsGravity(own, CellRect.WholeMap(ownMap), third),
+            "generation clearance projects loaded tagged maps only");
+        var archived = new ArchivedSpaceObject();
+        host.CopyFactsTo(archived);
+        string path = System.IO.Path.GetFullPath("Source/obj/NpcRetreatRegression/gravity-region.xml");
+        var restored = new ArchivedSpaceObject();
+        try
+        {
+            Scribe.saver.InitSaving(path, "gravity-region"); archived.ExposeData(); Scribe.saver.FinalizeSaving();
+            Scribe.loader.InitLoading(path); restored.ExposeData(); Scribe.loader.FinalizeLoading();
+        }
+        finally { Scribe.ForceStop(); System.IO.File.Delete(path); }
+        Check(restored.HasGravityRegion && restored.RestoreRepresentation(hostMap).HasGravityRegion,
+            "archived gravity tag survives Scribe and map restoration");
+
+        PilotTarget target = PilotTarget.Of(new OrbitalWorkTestShip(ownMap));
+        var patch = new Harmony("DeltaV.Regression.OrbitalWork");
+        void Stub(Type type, string method, string prefix) =>
+            patch.Patch(AccessTools.Method(type, method),
+                prefix: new HarmonyMethod(typeof(Program), prefix));
+        List<WorldComponent> worldComponents = Find.World.components;
+        Find.World.components ??= new List<WorldComponent>();
+        universe.RegisterObject(own); universe.RegisterObject(host); universe.RegisterObject(third);
+        try
+        {
+            Stub(typeof(OrbitalWorkService), "Reject", nameof(RecordWorksiteRejection));
+            Stub(typeof(LandingApproachController), "NearestPlacement", nameof(PlaceWorksiteProbe));
+            Stub(typeof(LandingApproachController), "LandingSiteStillValid", nameof(ValidateWorksiteProbe));
+            Stub(typeof(OrbitalWorkService), "Dock", nameof(RecordWorksiteDock));
+            Stub(typeof(ShipPocketMapFactory), "Generate", nameof(RecordWorksiteGeneration));
+            var service = universe.Worksites;
+            void Start()
+            {
+                worksiteRejection = null; worksiteDockMap = null;
+                worksiteRequestedSize = IntVec3.Zero;
+                service.Start(target);
+            }
+            Start();
+            Check(worksiteRejection == "DeltaV_EVASyncRequired" && worksiteRequestedSize == IntVec3.Zero && worksiteDockMap == null,
+                "matching nearby motion cannot replace an explicit sync plan");
+            service.Expand(target);
+            int margin = DeltaVMod.CurrentSettings.worksiteMargin;
+            Check(worksiteRequestedSize == new IntVec3(ownMap.Size.x + 2 * margin, 1, ownMap.Size.z + 2 * margin),
+                "single-ship expansion reaches generation with only the source map dimensions");
+
+            var plan = new LandingApproachController.DriftSyncPlan(target, host, 0f);
+            Set(universe.Approach, "plan", plan);
+            Start();
+            Check(worksiteRejection == "DeltaV_EVANotSynchronized", "a new plan needs a stable interval");
+            plan.holdTicks = DeltaVMod.CurrentSettings.dockingHoldTicks;
+            own.pose.velocity = Vector2.right;
+            Start();
+            Check(worksiteRejection == "DeltaV_EVANotSynchronized" && plan.holdTicks == 0
+                && universe.Approach.ActivePlan == plan, "motion mismatch resets stability while keeping the explicit target");
+            own.pose.velocity = Vector2.zero;
+            for (int tick = 0; tick < DeltaVMod.CurrentSettings.dockingHoldTicks; tick++)
+                universe.Approach.Tick(universe);
+            worksiteLandingValid = true;
+            Start();
+            Check(worksiteDockMap == hostMap && worksiteRejection == null, "legal landing goes to the specific tagged host");
+            worksiteLandingValid = false;
+            Start();
+            Check(worksiteRejection == "DeltaV_EVAGravity" && worksiteRequestedSize == IntVec3.Zero && worksiteDockMap == null,
+                "illegal landing on a tagged sync target reports gravity");
+            host.baseTag = SpaceObjectTag.Container;
+            Start();
+            int sharedMargin = margin + ShipPocketMapFactory.StructureMargin;
+            Check(worksiteRequestedSize == new IntVec3(2 + 2 * sharedMargin, 1, 1 + 2 * sharedMargin)
+                && worksiteRejection == null,
+                "overlapping third-party gravity does not block joint worksite preflight");
+            host.RepresentationVersion++;
+            Start();
+            Check(worksiteRejection == "DeltaV_EVASyncRequired" && universe.Approach.ActivePlan == null
+                && worksiteRequestedSize == IntVec3.Zero && worksiteDockMap == null, "representation change cancels the explicit plan");
+            plan = new LandingApproachController.DriftSyncPlan(target, host, 0f);
+            Set(universe.Approach, "plan", plan);
+            host.pose.position = OrbitSphere.Move(pose.position,
+                new Vector2(DeltaVMod.CurrentSettings.dockingCancelDistance + 10f, 0f));
+            Start();
+            Check(worksiteRejection == "DeltaV_EVASyncRequired" && universe.Approach.ActivePlan == null,
+                "leaving sync range requires a fresh explicit plan");
+            host.pose = pose;
+            plan = new LandingApproachController.DriftSyncPlan(target, host, 0f);
+            Set(universe.Approach, "plan", plan);
+            host.map = null;
+            Start();
+            Check(worksiteRejection == "DeltaV_EVASyncRequired" && universe.Approach.ActivePlan == null,
+                "unloading the target map requires a fresh explicit plan");
+        }
+        finally
+        {
+            Set(universe.Approach, "plan", null);
+            Find.World.components = worldComponents;
+            host.map = hostMap;
+            patch.UnpatchAll(patch.Id);
+            universe.UnregisterObject(third); universe.UnregisterObject(host); universe.UnregisterObject(own);
+            Find.Maps.Remove(thirdMap); Find.Maps.Remove(hostMap); Find.Maps.Remove(ownMap);
+        }
     }
 
     static void CheckSoftDockInterpolation()

@@ -72,7 +72,7 @@ namespace DeltaV
             envLabel = label;
             pose = new SpacePose(position, angle);
             kind = PoiKind.SnapshotPocket;
-            baseTag = SpaceObjectTag.Marker;
+            baseTag = SpaceObjectTag.Marker | (SectorContentTypes.ById(contentTypeId)?.objectTags ?? 0);
             this.seed = seed;
             this.contentTypeId = contentTypeId;
         }
@@ -86,7 +86,7 @@ namespace DeltaV
                 ? OrbitSphere.TileCenterDirection(parent.Tile)
                 : Vector3.right, 0f);
             kind = PoiKind.NativeParent;
-            baseTag = SpaceObjectTag.Marker;
+            baseTag = SpaceObjectTag.Marker | SpaceObjectTag.GravityRegion;
             nativeParent = parent;
             faction = parent?.Faction;
             seed = parent?.ID ?? 0;
