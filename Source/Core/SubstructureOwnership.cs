@@ -43,6 +43,16 @@ namespace DeltaV
         }
 
         public static void BumpStructureVersion(Map map) => Versions?.Changed(map);
+        internal static void BumpStructureVersion(Map map, CellRect collisionRange) =>
+            Versions?.Changed(map, collisionRange);
+
+        internal static HashSet<IntVec3> TakeCollisionChanges(Map map, out bool full)
+        {
+            var versions = Versions;
+            if (versions != null) return versions.TakeCollisionChanges(map, out full);
+            full = true;
+            return null;
+        }
         public static int StructureVersion(Map map) => Versions?.For(map) ?? 0;
         public static bool CacheNeedsRefresh(int cachedVersion, Map map) => cachedVersion != StructureVersion(map);
 
@@ -397,7 +407,7 @@ namespace DeltaV
             }
             ownerGrid[map.cellIndices.CellToIndex(cell)] = ownerId;
             Current.Game?.GetComponent<UniverseManager>()?.NotifyFoundationChanged(map, cell);
-            BumpStructureVersion(map);
+            BumpStructureVersion(map, CellRect.SingleCell(cell));
         }
 
         /// <summary>图中已盖出的最大归属 ID（读档 ID 下限对齐用；无数据返回 0）。</summary>
@@ -550,7 +560,7 @@ namespace DeltaV
             if (ownerGrid == null || ownerGrid[map.cellIndices.CellToIndex(cell)] == Unassigned)
             {
                 // Even unowned substructure participates in the collision surface.
-                BumpStructureVersion(map);
+                BumpStructureVersion(map, CellRect.SingleCell(cell));
                 PlanetGlobeRenderer.InvalidateSilhouette(map);
                 return;
             }

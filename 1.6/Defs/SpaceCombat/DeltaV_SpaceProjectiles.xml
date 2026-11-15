@@ -29,6 +29,7 @@
     </graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
         <visualStyle>Heavy</visualStyle>
         <tracerLength>1.5</tracerLength>
         <tracerWidth>0.14</tracerWidth>
@@ -76,6 +77,7 @@
     </graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
         <visualStyle>Kinetic</visualStyle>
         <tracerLength>1.1</tracerLength>
         <tracerWidth>0.1</tracerWidth>
@@ -123,6 +125,7 @@
     </graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
         <visualStyle>Energy</visualStyle>
         <fireSoundMap>DeltaV_FireLaserMap</fireSoundMap>
         <fireSoundShell>DeltaV_FireLaserShell</fireSoundShell>
@@ -163,6 +166,7 @@
     </graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
         <visualStyle>Energy</visualStyle>
         <fireSoundMap>DeltaV_FireLaserMap</fireSoundMap>
         <fireSoundShell>DeltaV_FireLaserShell</fireSoundShell>
@@ -251,6 +255,7 @@
     </graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
         <visualStyle>Kinetic</visualStyle>
         <tracerLength>0.7</tracerLength>
         <tracerWidth>0.07</tracerWidth>
@@ -293,6 +298,7 @@
     </graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
         <visualStyle>Rail</visualStyle>
         <tracerLength>1.5</tracerLength>
         <tracerWidth>0.07</tracerWidth>
@@ -335,6 +341,7 @@
     </graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
         <visualStyle>Kinetic</visualStyle>
         <tracerLength>0.5</tracerLength>
         <tracerWidth>0.06</tracerWidth>
@@ -377,6 +384,7 @@
     </graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
         <visualStyle>Energy</visualStyle>
         <fireSoundMap>DeltaV_FirePointDefenseMap</fireSoundMap>
         <fireSoundShell>DeltaV_FirePointDefenseShell</fireSoundShell>
@@ -419,6 +427,7 @@
     </graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
         <visualStyle>Kinetic</visualStyle>
         <tracerLength>0.7</tracerLength>
         <tracerWidth>0.07</tracerWidth>
@@ -465,6 +474,7 @@
     </graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
         <visualStyle>Rail</visualStyle>
         <tracerLength>1.5</tracerLength>
         <tracerWidth>0.07</tracerWidth>

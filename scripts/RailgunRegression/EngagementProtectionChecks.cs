@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Xml.Linq;
 using DeltaV;
+using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -150,6 +151,8 @@ internal static partial class Program
         {
             CheckForecastPenetrationAndResources();
             CheckForecastGeometry(projectiles["DeltaV_Projectile_Laser"], projectiles["DeltaV_Projectile_Cannon"]);
+            CheckPointContactsAfterDamage(projectiles["DeltaV_Projectile_Laser"], projectiles["DeltaV_Projectile_Cannon"]);
+            CheckCompoundDamageRefresh(projectiles["DeltaV_Projectile_Laser"]);
             CheckForecastFootprints(projectiles["DeltaV_Projectile_Laser"], projectiles["DeltaV_Projectile_Cannon"]);
             CheckForecastIndependentCover(projectiles["DeltaV_Projectile_Laser"]);
             CheckForecastShortRays(output);
@@ -389,6 +392,353 @@ internal static partial class Program
             }
             finally { projectile.size = originalSize; }
         }
+    }
+
+    sealed class CollisionFixtureMap : MapSpaceObject
+    {
+        public CollisionFixtureMap(Map map, Hull reference) : base(reference.objectId, map, reference.pose) { }
+        public override IEnumerable<ShipBase> Ships => Enumerable.Empty<ShipBase>();
+    }
+
+    static int pointFullRebuilds, pointBlockRefreshes;
+    static void CountPointFullRebuild() => pointFullRebuilds++;
+    static void CountPointBlockRefresh() => pointBlockRefreshes++;
+
+    sealed class FixtureExplosion : Explosion
+    {
+        internal void Advance() => Tick();
+        public override void Destroy(DestroyMode mode = DestroyMode.Vanish) =>
+            Set(this, "mapIndexOrState", (sbyte)-2);
+    }
+
+    sealed class FixtureBlastWorker : DamageWorker
+    {
+        // The fixture uses native scheduling and per-cell damage, with no heat or visual effects.
+        public override void ExplosionStart(Explosion explosion, List<IntVec3> cellsToAffect) { }
+    }
+
+    static FixtureExplosion pendingExplosion;
+    static List<IntVec3> blastCells;
+    static List<IntVec3> compoundContacts;
+    static readonly HashSet<(int x, int z)> refreshedBlocks = new();
+    static bool recordingBlockCells;
+
+    static void SetBlastFixtureOptions(ref bool doVisualEffects, ref bool doSoundEffects,
+        ref List<IntVec3> overrideCells)
+    {
+        doVisualEffects = doSoundEffects = false;
+        overrideCells = blastCells;
+    }
+
+    static void ReportFixtureBlastError(string text)
+    {
+        if (text.StartsWith("Explosion could not affect cell", StringComparison.Ordinal))
+            throw new InvalidOperationException(text);
+    }
+
+    static bool FixtureFlatAngle(IntVec3 __instance, ref float __result)
+    {
+        float degrees = MathF.Atan2(__instance.x, __instance.z) * (180f / MathF.PI);
+        __result = degrees < 0 ? degrees + 360f : degrees;
+        return false;
+    }
+
+    static bool SpawnFixtureExplosion(ThingDef def, IntVec3 loc, Map map, ref Thing __result)
+    {
+        if (def != ThingDefOf.Explosion) return true;
+        pendingExplosion = new FixtureExplosion { def = def };
+        Set(pendingExplosion, "positionInt", loc);
+        Set(pendingExplosion, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
+        Set(pendingExplosion, "cellsToAffect", new List<IntVec3>());
+        Set(pendingExplosion, "damagedThings", new List<Thing>());
+        Set(pendingExplosion, "addedCellsAffectedOnlyByDamage", new HashSet<IntVec3>());
+        __result = pendingExplosion;
+        return false;
+    }
+
+    static bool DespawnDamageFixture(Building __instance)
+    {
+        Map owner = __instance.Map;
+        owner.thingGrid.Deregister(__instance);
+        owner.listerThings.AllThings.Remove(__instance);
+        Set(__instance, "mapIndexOrState", (sbyte)-1);
+        return false;
+    }
+
+    static bool KillDamageFixture(Target __instance)
+    {
+        __instance.DeSpawn(DestroyMode.KillFinalize);
+        Set(__instance, "mapIndexOrState", (sbyte)-2);
+        return false;
+    }
+
+    static void BeginDamageBlockRefresh()
+    {
+        CountPointBlockRefresh();
+        recordingBlockCells = true;
+    }
+
+    static void EndDamageBlockRefresh() => recordingBlockCells = false;
+
+    static void RecordDamageBlockCell(IntVec3 cell)
+    {
+        if (recordingBlockCells) refreshedBlocks.Add((cell.x / 8, cell.z / 8));
+    }
+
+    static void RecordCompoundContact(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
+    {
+        if (part?.kind == ImpactEffectKind.DamageMap) compoundContacts.Add(evt.hitCell);
+    }
+
+    static void CheckCompoundDamageRefresh(ThingDef laser)
+    {
+        var fixture = new Harmony("DeltaV.Regression.CompoundDamage");
+        var previousExplosion = ThingDefOf.Explosion;
+        int previousTick = Find.TickManager.TicksGame;
+        var trace = new List<object>();
+        bool baseline = Environment.GetEnvironmentVariable("DELTAV_EXPECT_DAMAGE_FULL") == "1";
+        try
+        {
+            pointFullRebuilds = pointBlockRefreshes = 0;
+            refreshedBlocks.Clear();
+            ThingDefOf.Explosion = MakeDef("FixtureExplosion");
+            fixture.Patch(AccessTools.Method(typeof(GenExplosion), nameof(GenExplosion.DoExplosion)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(SetBlastFixtureOptions)));
+            fixture.Patch(AccessTools.Method(typeof(Log), nameof(Log.Error), new[] { typeof(string) }),
+                prefix: new HarmonyMethod(typeof(Program), nameof(ReportFixtureBlastError)));
+            fixture.Patch(AccessTools.PropertyGetter(typeof(IntVec3), nameof(IntVec3.AngleFlat)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(FixtureFlatAngle)));
+            fixture.Patch(AccessTools.Method(typeof(GenSpawn), nameof(GenSpawn.Spawn),
+                    new[] { typeof(ThingDef), typeof(IntVec3), typeof(Map), typeof(WipeMode) }),
+                prefix: new HarmonyMethod(typeof(Program), nameof(SpawnFixtureExplosion)));
+            fixture.Patch(AccessTools.Method(typeof(RegionTraverser), nameof(RegionTraverser.BreadthFirstTraverse),
+                    new[] { typeof(IntVec3), typeof(Map), typeof(RegionEntryPredicate), typeof(RegionProcessor),
+                        typeof(int), typeof(RegionType) }),
+                prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
+            fixture.CreateClassProcessor(typeof(Patch_ShipStructure_Despawn)).Patch();
+            fixture.Patch(AccessTools.Method(typeof(Building), nameof(Building.DeSpawn)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(DespawnDamageFixture)) { priority = Priority.Last });
+            fixture.Patch(AccessTools.Method(typeof(Target), nameof(Target.Kill)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(KillDamageFixture)));
+            fixture.Patch(AccessTools.Method(typeof(SpaceCollision), "RebuildHull"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(CountPointFullRebuild)));
+            var surface = AccessTools.Inner(typeof(SpaceCollision), "Surface");
+            fixture.Patch(AccessTools.Method(surface, "RefreshBlocks"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(BeginDamageBlockRefresh)),
+                postfix: new HarmonyMethod(typeof(Program), nameof(EndDamageBlockRefresh)));
+            fixture.Patch(AccessTools.Method(surface, "SetCell"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(RecordDamageBlockCell)));
+            fixture.Patch(AccessTools.Method(typeof(SpaceImpactEffects), nameof(SpaceImpactEffects.ApplyToDefender)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(RecordCompoundContact)));
+
+            void Count(string stage, int builds, params (int x, int z)[] blocks)
+            {
+                int updates = blocks.Length == 0 ? 0 : 1;
+                Console.WriteLine($"DAMAGE_REFRESH {stage} full={pointFullRebuilds} refresh={pointBlockRefreshes}"
+                    + " blocks=" + string.Join(" ", refreshedBlocks.OrderBy(b => b.x).ThenBy(b => b.z)));
+                Check(pointFullRebuilds == builds && pointBlockRefreshes == updates
+                    && refreshedBlocks.SetEquals(blocks), stage + " publishes the expected collision changes");
+                pointFullRebuilds = pointBlockRefreshes = 0;
+                refreshedBlocks.Clear();
+            }
+
+            CollisionFixtureMap Start(int tick)
+            {
+                Reset(24);
+                Set(Find.TickManager, "ticksGameInt", tick);
+                var target = new CollisionFixtureMap(map, hull);
+                universe.objects[0] = target;
+                Array.Fill(map.terrainGrid.topGrid, (TerrainDef)Raw(typeof(TerrainDef)));
+                compoundContacts = new List<IntVec3>();
+                return target;
+            }
+
+            IntVec3 ReadRay(CollisionFixtureMap target, int lane)
+            {
+                var ray = new SpaceCollision.RayQuery(target);
+                return ray.Next(new Vector2(5, lane + .5f), Vector2.right, 32, laser,
+                    0, null, null, null, null, out var hit) ? hit.cell : IntVec3.Invalid;
+            }
+
+            var blastTarget = Start(100);
+            var near = Add(15, 5, 15);
+            var far = Add(18, 5, 15);
+            var survives = Add(20, 5, 200);
+            blastCells = new List<IntVec3> { near.Position, far.Position, survives.Position };
+            Check(ReadRay(blastTarget, 5) == near.Position, "warm collision surface contains blast targets");
+            Count("blast-cold", 1);
+            var blastDamage = new DamageDef { defName = "FixtureBlastDamage",
+                workerClass = typeof(FixtureBlastWorker), harmsHealth = true, explosionSnowMeltAmount = 0 };
+            var blast = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damageDef = blastDamage,
+                damage = 20, speedExponent = 0f, explosionRadius = 9f };
+            SpaceImpactEffects.ApplyToDefender(new SpaceCollision.ImpactEvent { defender = blastTarget,
+                projectileDef = laser, hitCell = new IntVec3(12, 0, 5), relativeSpeed = 60, damageScale = 1 }, blast);
+            Check(pendingExplosion != null && near.HitPoints == 15 && far.HitPoints == 15,
+                "actual explosion creation has not dealt damage");
+            void BlastSample(string stage, IntVec3 expected)
+            {
+                IntVec3 cell = ReadRay(blastTarget, 5);
+                Check(cell == expected, stage + " ray sees this tick's occupation");
+                trace.Add(new { stage, tick = Find.TickManager.TicksGame, cell = new[] { cell.x, cell.z },
+                    hp = new[] { near.HitPoints, far.HitPoints, survives.HitPoints },
+                    destroyed = new[] { near.Destroyed, far.Destroyed, survives.Destroyed } });
+            }
+            void AdvanceBlast(int firstTick, int lastTick)
+            {
+                for (int tick = firstTick; tick <= lastTick; tick++)
+                {
+                    Set(Find.TickManager, "ticksGameInt", tick);
+                    pendingExplosion.Advance();
+                }
+            }
+            BlastSample("blast-created", near.Position);
+            Count("blast-created", baseline ? 1 : 0);
+            AdvanceBlast(100, 103);
+            BlastSample("blast-before-damage", near.Position);
+            Count("blast-before-damage", 0);
+            AdvanceBlast(104, 104);
+            Check(near.Destroyed && !far.Destroyed, "near blast destruction happens before far destruction");
+            BlastSample("blast-near", far.Position);
+            Count("blast-near", 0, (1, 0));
+            AdvanceBlast(105, 108);
+            Check(far.HitPoints == 15, "far blast target is undamaged through the preceding tick");
+            BlastSample("blast-before-far-damage", far.Position);
+            Count("blast-before-far-damage", 0);
+            AdvanceBlast(109, 109);
+            Check(far.Destroyed && survives.HitPoints == 200, "far blast destruction follows on its own tick");
+            BlastSample("blast-far", survives.Position);
+            Count("blast-far", 0, (2, 0));
+            AdvanceBlast(110, 111);
+            Check(survives.HitPoints == 200, "survivor is undamaged through the preceding tick");
+            AdvanceBlast(112, 112);
+            Check(survives.HitPoints == 180, "blast applies native damage to the surviving building");
+            BlastSample("blast-survives", survives.Position);
+            Count("blast-survives", 0);
+
+            var layered = MakeDef("fixtureLayeredPenetration");
+            layered.comps.Add(new CompProperties_SpaceProjectile { collisionRadius = 0, speed = 60 });
+            DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = layered.defName,
+                projectileDefs = new List<ThingDef> { layered }, attackerEffect = new ImpactOutcomePart {
+                    kind = ImpactEffectKind.DestroySelf }, defenderEffect = new ImpactOutcomePart {
+                    kind = ImpactEffectKind.DamageMap, damageDef = bullet, damage = 60, speedExponent = 0f,
+                    penetrationLayers = new List<ImpactPenetrationLayer> {
+                        new ImpactPenetrationLayer { damageFactor = 1 },
+                        new ImpactPenetrationLayer { damageFactor = .5f, halfWidth = 1 } } } });
+            SpaceImpactEffects.ResetCache();
+            foreach (bool destroys in new[] { true, false })
+            {
+                string stage = destroys ? "penetration-destroys" : "penetration-survives";
+                var target = Start(200);
+                var wide = Add(16, 8, destroys ? 10 : 200);
+                map.thingGrid.Deregister(wide);
+                wide.def.size = new IntVec2(3, 2);
+                map.thingGrid.Register(wide);
+                var rect = wide.OccupiedRect();
+                var side = Add(rect.minX + 1, rect.minZ - 1, 100);
+                var rear = Add(24, rect.maxZ, 200);
+                Check(ReadRay(target, rect.maxZ) == new IntVec3(rect.minX, 0, rect.maxZ),
+                    "warm collision surface contains the opposite row of the wide building");
+                Count(stage + "-cold", 1);
+
+                SpaceCollision.SweptBody Shot(ThingDef projectile, int lane)
+                {
+                    var from = new Vector2(5, lane + .5f);
+                    Vector3 start = SpaceTransform.MapPointToUniverse(target, map, from);
+                    var attacker = new SpaceObject(nextId++, new SpacePose(start, 0));
+                    attacker.pose.velocity = SpaceTransform.MapDirectionToUniverseTangent(target, map, from, Vector2.right) * 60;
+                    return new SpaceCollision.SweptBody { attacker = attacker, projectileDef = projectile,
+                        from = start, to = SpaceTransform.MapPointToUniverse(target, map, new Vector2(30, from.y)),
+                        mass = 1, damageScale = 1, onVisualContact = contacts.Add };
+                }
+                var first = Shot(layered, rect.minZ);
+                var second = Shot(laser, rect.maxZ);
+                SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { first, second });
+                Check(Find.TickManager.TicksGame == 200 && compoundContacts.Count == 2 && contacts.Count == 2
+                    && compoundContacts[0] == new IntVec3(rect.minX, 0, rect.minZ)
+                    && compoundContacts[1] == (destroys ? rear.Position : new IntVec3(rect.minX, 0, rect.maxZ))
+                    && first.dead && second.dead, stage + " resolves both real projectiles in one tick");
+                Check(wide.Destroyed == destroys && (destroys ? rear.HitPoints < 200 && side.HitPoints < 100
+                    : rear.HitPoints == 200 && side.HitPoints == 100), stage + " applies damage and stopping rules");
+                trace.Add(new { stage, tick = Find.TickManager.TicksGame, hp = new[] { wide.HitPoints, side.HitPoints, rear.HitPoints },
+                    destroyed = wide.Destroyed, stop = new[] { first.dead, second.dead },
+                    cells = compoundContacts.Select(c => new[] { c.x, c.z }).ToArray(),
+                    points = contacts.Select(c => new[] { BitConverter.SingleToInt32Bits(c.localPoint.x),
+                        BitConverter.SingleToInt32Bits(c.localPoint.y) }).ToArray() });
+                var expectedBlocks = rect.Select(c => (c.x / 8, c.z / 8)).Distinct().ToArray();
+                Check(expectedBlocks.Length > 1, "destroyed fixture footprint crosses block boundaries");
+                if (destroys && !baseline) Count(stage, 0, expectedBlocks);
+                else Count(stage, destroys ? 1 : 0);
+                Check(ReadRay(target, rect.maxZ) == (destroys ? rear.Position : new IntVec3(rect.minX, 0, rect.maxZ)),
+                    stage + " reads the same occupation after the real sweep");
+                Count(stage + "-repeat", 0);
+            }
+        }
+        finally
+        {
+            fixture.UnpatchAll(fixture.Id);
+            ThingDefOf.Explosion = previousExplosion;
+            Set(Find.TickManager, "ticksGameInt", previousTick);
+            pendingExplosion = null;
+            blastCells = null;
+            compoundContacts = null;
+            recordingBlockCells = false;
+        }
+        Console.WriteLine("DAMAGE_PARITY " + JsonSerializer.Serialize(trace));
+    }
+
+    static void CheckPointContactsAfterDamage(ThingDef laser, ThingDef cannon)
+    {
+        var counter = new Harmony("DeltaV.Regression.PointCollision");
+        counter.Patch(AccessTools.Method(typeof(SpaceCollision), "RebuildHull"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CountPointFullRebuild)));
+        var surface = AccessTools.Inner(typeof(SpaceCollision), "Surface");
+        counter.Patch(AccessTools.Method(surface, "RefreshBlocks"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CountPointBlockRefresh)));
+        foreach (var projectile in new[] { laser, cannon })
+        {
+            Reset();
+            var target = new CollisionFixtureMap(map, hull);
+            universe.objects[0] = target;
+            var front = Add(12, 5, 1);
+            var rear = Add(20, 5, 400);
+            int tick = Find.TickManager.TicksGame;
+            float radius = SpaceProjectileService.FootprintRadius(projectile);
+            float speed = projectile == laser ? 60f : 180f;
+            float mass = 60f / SpaceImpactEffects.ComputeDamage(
+                SpaceImpactEffects.Resolve(projectile, null).defenderEffect, speed, 0f);
+            Check(radius == 0f, projectile.defName + " declares a zero-radius hull sweep");
+            void Verify(float lane, float end, Thing expected)
+            {
+                var query = new SpaceCollision.RayQuery(target);
+                bool hit = query.Next(new Vector2(5, lane), Vector2.right, end - 5, projectile, radius,
+                    null, null, null, null, out var ray);
+                Check(hit == (expected != null) && ray.building == expected,
+                    projectile.defName + " forecast geometry returns the expected cell");
+                var forecast = new CombatDamageForecast(target);
+                forecast.Fire(new Vector2(5, lane), Vector2.right, end - 5, projectile, mass, speed);
+                contacts.Clear();
+                Fire(60, speed, projectile, to: end, lane: lane, configure: body => body.sweepRadius = radius);
+                Check(contacts.Count == (expected == null ? 0 : 1)
+                    && (expected == null || (contacts[0].localPoint - ray.point).sqrMagnitude < .0001f),
+                    projectile.defName + " production contact agrees with the forecast ray");
+                Check(Math.Abs(forecast.RemainingHP(front) - Math.Max(0, front.HitPoints)) < 1.01f
+                    && Math.Abs(forecast.RemainingHP(rear) - Math.Max(0, rear.HitPoints)) < 1.01f,
+                    projectile.defName + " predicted damage agrees with production");
+            }
+
+            pointFullRebuilds = pointBlockRefreshes = 0;
+            Verify(6.125f, 26f, null);
+            Verify(5.5f, 16f, front);
+            Check(front.Destroyed, projectile.defName + " first shot destroys the leading building");
+            contacts.Clear();
+            Fire(60, speed, projectile, to: 26, configure: body => body.sweepRadius = radius);
+            Check(Find.TickManager.TicksGame == tick && contacts.Count == 1
+                && Math.Abs(contacts[0].localPoint.x - rear.Position.x) < .01f && rear.HitPoints < 400,
+                projectile.defName + " later shot sees destruction in the same tick");
+            Check(pointFullRebuilds == 1 && pointBlockRefreshes == 1,
+                projectile.defName + " later sweep refreshes one block set itself");
+        }
+        counter.UnpatchAll(counter.Id);
     }
 
     static void CheckForecastGeometry(ThingDef laser, ThingDef cannon)

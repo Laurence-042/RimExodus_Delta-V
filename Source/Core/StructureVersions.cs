@@ -11,6 +11,9 @@ namespace DeltaV
             internal int version;
             internal bool dirty;
             internal bool notified;
+            internal bool watchesCollision;
+            internal bool fullCollisionRefresh;
+            internal HashSet<IntVec3> collisionCells;
         }
 
         private readonly Dictionary<Map, Entry> maps = new Dictionary<Map, Entry>();
@@ -34,7 +37,7 @@ namespace DeltaV
             return entry.version;
         }
 
-        internal void Changed(Map map)
+        internal void Changed(Map map, CellRect? collisionRange = null)
         {
             // An unknown local scope is not permission to invalidate the entire universe.
             if (map == null) return;
@@ -43,13 +46,44 @@ namespace DeltaV
             if (!maps.TryGetValue(map, out var entry)) maps.Add(map, entry = new Entry());
             entry.dirty = true;
             entry.notified = true;
+            if (!entry.watchesCollision) return;
+            if (!collisionRange.HasValue)
+            {
+                entry.fullCollisionRefresh = true;
+                entry.collisionCells?.Clear();
+                return;
+            }
+            foreach (IntVec3 cell in collisionRange.Value) MarkCollisionCell(entry, cell);
+        }
+
+        private static void MarkCollisionCell(Entry entry, IntVec3 cell)
+        {
+            if (entry.fullCollisionRefresh) return;
+            entry.collisionCells ??= new HashSet<IntVec3>();
+            entry.collisionCells.Add(cell);
+        }
+
+        internal HashSet<IntVec3> TakeCollisionChanges(Map map, out bool full)
+        {
+            if (!maps.TryGetValue(map, out var entry)) maps.Add(map, entry = new Entry { dirty = true });
+            full = !entry.watchesCollision || entry.fullCollisionRefresh;
+            entry.watchesCollision = true;
+            entry.fullCollisionRefresh = false;
+            var cells = entry.collisionCells;
+            entry.collisionCells = null;
+            return cells;
         }
 
         internal void InvalidateAll()
         {
             Events++;
             GlobalVersion++;
-            foreach (var entry in maps.Values) entry.dirty = true;
+            foreach (var entry in maps.Values)
+            {
+                entry.dirty = true;
+                entry.fullCollisionRefresh = true;
+                entry.collisionCells?.Clear();
+            }
         }
 
         internal void Forget(Map map)

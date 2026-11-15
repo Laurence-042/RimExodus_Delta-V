@@ -39,7 +39,7 @@ namespace DeltaV
                 return;
             }
             SubstructureOwnership ownership = SubstructureOwnership.For(map);
-            SubstructureOwnership.BumpStructureVersion(map);
+            SubstructureOwnership.BumpStructureVersion(map, CellRect.SingleCell(c));
             if (ownership.TryGetStamp(c, out int stamped))
             {
                 ownership.Assign(c, stamped);

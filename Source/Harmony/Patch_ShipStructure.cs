@@ -1,4 +1,5 @@
 using HarmonyLib;
+using RimWorld;
 using Verse;
 
 namespace DeltaV
@@ -6,7 +7,11 @@ namespace DeltaV
     /// <summary>船体能力、对象角色、物理和碰撞共用结构版本；只在纳管地图的结构事件失效。</summary>
     internal static class ShipStructureChanges
     {
-        internal static UniverseManager Notify(Map map, Building building = null, IntVec3? terrainCell = null)
+        internal static UniverseManager Notify(Map map, Building building = null, IntVec3? terrainCell = null) =>
+            Notify(map, building, terrainCell, null);
+
+        internal static UniverseManager Notify(Map map, Building building, IntVec3? terrainCell,
+            CellRect? previousFootprint)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SpaceObject owner = map == null ? null : universe?.FrameOf(map);
@@ -24,7 +29,14 @@ namespace DeltaV
             }
             if (owner != null)
             {
-                SubstructureOwnership.BumpStructureVersion(map);
+                if (building != null)
+                {
+                    SubstructureOwnership.BumpStructureVersion(map, previousFootprint ?? building.OccupiedRect());
+                    if (building.TryGetComp<CompProjectileInterceptor>() != null) SpaceCollision.InvalidateShield(map);
+                }
+                else if (terrainCell.HasValue)
+                    SubstructureOwnership.BumpStructureVersion(map, CellRect.SingleCell(terrainCell.Value));
+                else SubstructureOwnership.BumpStructureVersion(map);
                 universe.Lifecycle.QueueStructureCheck(map);
             }
             return owner != null ? universe : null;
@@ -49,9 +61,10 @@ namespace DeltaV
     [HarmonyPatch(typeof(Building), nameof(Building.DeSpawn))]
     internal static class Patch_ShipStructure_Despawn
     {
-        private static void Prefix(Building __instance, out Map __state) => __state = __instance.Map;
-        private static void Postfix(Building __instance, Map __state) =>
-            ShipStructureChanges.Notify(__state, building: __instance);
+        private static void Prefix(Building __instance, out (Map map, CellRect footprint) __state) =>
+            __state = (__instance.Map, __instance.OccupiedRect());
+        private static void Postfix(Building __instance, (Map map, CellRect footprint) __state) =>
+            ShipStructureChanges.Notify(__state.map, __instance, null, __state.footprint);
     }
 
     [HarmonyPatch(typeof(TerrainGrid), "DoTerrainChangedEffects")]

@@ -187,7 +187,7 @@ namespace DeltaV
             public CompProjectileInterceptor interceptor;
         }
 
-        private sealed class Surface
+        private sealed partial class Surface
         {
             public byte[] kinds;
             public Thing[] buildings;
@@ -196,7 +196,10 @@ namespace DeltaV
             public float boundsRadius;
             public bool anySolid;
             public int structureVersion = -1;
-            public readonly List<IntVec3> occupiedCells = new List<IntVec3>();
+            public float hullRadius;
+            public SpaceObject owner;
+            public bool incremental;
+            public bool shieldsDirty;
             public readonly List<ShieldArc> arcs = new List<ShieldArc>();
             public readonly List<CompSpaceShield> lineShields = new List<CompSpaceShield>();
         }
@@ -218,7 +221,7 @@ namespace DeltaV
         public static void InvalidateShield(Map map)
         {
             if (map != null && Caches.TryGetValue(map, out Surface surface))
-                surface.structureVersion = -1;
+                surface.shieldsDirty = true;
         }
 
         /// <summary>容器的碰撞面（需要炮口外推起点的发射侧也可查询）。</summary>
@@ -231,9 +234,22 @@ namespace DeltaV
                 Caches[map] = surface;
             }
             int version = SubstructureOwnership.StructureVersion(map);
-            if (surface.kinds == null || SubstructureOwnership.CacheNeedsRefresh(surface.structureVersion, map))
+            if (surface.owner != obj || surface.kinds == null || surface.structureVersion != version)
             {
-                Rebuild(obj, surface, version);
+                var changed = SubstructureOwnership.TakeCollisionChanges(map, out bool full);
+                if (!full && surface.owner == obj && surface.incremental && !obj.IsScattered)
+                    surface.RefreshBlocks(map, changed);
+                else
+                    RebuildHull(obj, surface);
+                surface.UpdateHullBounds(map);
+                surface.structureVersion = version;
+                if (surface.shieldsDirty) RebuildShields(map, surface);
+                UpdateShieldBounds(surface);
+            }
+            else if (surface.shieldsDirty)
+            {
+                RebuildShields(map, surface);
+                UpdateShieldBounds(surface);
             }
             return surface;
         }
@@ -271,7 +287,7 @@ namespace DeltaV
             boundsCenter = surface.boundsCenter;
             boundsRadius = surface.boundsRadius;
             if (surface.kinds == null) return false;
-            occupied.AddRange(surface.occupiedCells);
+            occupied.AddRange(surface.OccupiedCells());
             return occupied.Count > 0;
         }
 
@@ -305,7 +321,7 @@ namespace DeltaV
             }
         }
 
-        private static void Rebuild(SpaceObject obj, Surface surface, int version)
+        private static void RebuildHull(SpaceObject obj, Surface surface)
         {
             Map map = obj.map;
             int cells = map.cellIndices.NumGridCells;
@@ -322,44 +338,26 @@ namespace DeltaV
                 System.Array.Clear(surface.buildings, 0, surface.buildings.Length);
                 System.Array.Clear(surface.foundations, 0, surface.foundations.Length);
             }
-            bool any = false;
-            surface.occupiedCells.Clear();
-            int minX = int.MaxValue, minZ = int.MaxValue, maxX = int.MinValue, maxZ = int.MinValue;
+            surface.ClearOccupancy(map);
             foreach (SpaceCollisionCell geometry in obj.CollisionCells)
             {
-                IntVec3 cell = geometry.cell;
-                SpaceCellKind kind = geometry.kind;
-                Thing thing = geometry.building;
-                if (kind == SpaceCellKind.Empty) continue;
-                int index = map.cellIndices.CellToIndex(cell);
-                surface.kinds[index] = (byte)kind;
-                surface.buildings[index] = thing;
-                surface.foundations[index] = kind == SpaceCellKind.Substructure
-                    || SubstructureOwnership.HasFoundation(map, cell);
-                surface.occupiedCells.Add(cell);
-                any = true;
-                minX = Mathf.Min(minX, cell.x); maxX = Mathf.Max(maxX, cell.x);
-                minZ = Mathf.Min(minZ, cell.z); maxZ = Mathf.Max(maxZ, cell.z);
+                if (geometry.kind != SpaceCellKind.Empty)
+                    surface.SetCell(map, geometry.cell, geometry.kind, geometry.building);
             }
-            surface.anySolid = any;
-            if (any)
-            {
-                surface.boundsCenter = new Vector2((minX + maxX + 1) * 0.5f, (minZ + maxZ + 1) * 0.5f);
-                float width = maxX - minX + 1;
-                float height = maxZ - minZ + 1;
-                // 宽相位圆必须包住脚印四角；最大边长的一半会漏掉矩形/方形角部。
-                surface.boundsRadius = 0.5f * Mathf.Sqrt(width * width + height * height);
-            }
-            else
-            {
-                surface.boundsCenter = SpaceTransform.ShipLocalOrigin(map);
-                surface.boundsRadius = 0f;
-            }
+            surface.owner = obj;
+            // The default map provider classifies the entire map. Custom providers
+            // may omit valid cells and must be re-enumerated on invalidation.
+            surface.incremental = obj is MapSpaceObject
+                && obj.GetType().GetProperty(nameof(SpaceObject.CollisionCells)).DeclaringType == typeof(MapSpaceObject);
+            surface.shieldsDirty = true;
+        }
+
+        private static void RebuildShields(Map map, Surface surface)
+        {
             // 自建发生器在太空模式使用线盾，在地面模式与原版发生器一样
             // 使用拦截器的逐实例半径和状态。两种形态共用此碰撞面。
             surface.arcs.Clear();
             surface.lineShields.Clear();
-            float arcBoost = 0f;
             foreach (Thing thing in map.listerThings.AllThings)
             {
                 if (thing is not Building building || building.Destroyed) continue;
@@ -369,10 +367,6 @@ namespace DeltaV
                 if (shield != null && shield.mode != SpaceShieldMode.Guard)
                 {
                     surface.lineShields.Add(shield);
-                    shield.GetSegment(out Vector2 a, out Vector2 b, out _);
-                    arcBoost = Mathf.Max(arcBoost, (a - surface.boundsCenter).magnitude
-                        - surface.boundsRadius, (b - surface.boundsCenter).magnitude
-                        - surface.boundsRadius);
                     continue;
                 }
                 var arc = new ShieldArc
@@ -386,11 +380,24 @@ namespace DeltaV
                     interceptor = interceptor,
                 };
                 surface.arcs.Add(arc);
+            }
+            surface.shieldsDirty = false;
+        }
+
+        private static void UpdateShieldBounds(Surface surface)
+        {
+            surface.boundsRadius = surface.hullRadius;
+            float arcBoost = 0f;
+            foreach (var shield in surface.lineShields)
+            {
+                shield.GetSegment(out Vector2 a, out Vector2 b, out _);
+                arcBoost = Mathf.Max(arcBoost, (a - surface.boundsCenter).magnitude
+                    - surface.boundsRadius, (b - surface.boundsCenter).magnitude - surface.boundsRadius);
+            }
+            foreach (var arc in surface.arcs)
                 arcBoost = Mathf.Max(arcBoost,
                     (arc.center - surface.boundsCenter).magnitude + arc.radius - surface.boundsRadius);
-            }
             if (arcBoost > 0f) surface.boundsRadius += arcBoost;
-            surface.structureVersion = version;
         }
 
         // ---- 扫掠与结算 ----

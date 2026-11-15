@@ -1252,6 +1252,7 @@
     </graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
         <visualStyle>Rail</visualStyle>
         <tracerLength>10</tracerLength>
         <tracerWidth>0.17</tracerWidth>

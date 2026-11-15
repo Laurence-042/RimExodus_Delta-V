@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
@@ -35,12 +36,14 @@ internal static partial class Program
     {
         public int killCalls;
         public TestBuilding linked;
+        public bool notifyDespawn;
         public override void Kill(DamageInfo? dinfo = null, Hediff exactCulprit = null)
         {
             killCalls++;
             Check(Map.terrainGrid.FoundationAt(Position) == null,
                 "foundation is gone before building death callback");
-            Map.thingGrid.Deregister(this);
+            if (notifyDespawn) DeSpawn(DestroyMode.KillFinalize);
+            else Map.thingGrid.Deregister(this);
             Set(this, "mapIndexOrState", (sbyte)-2);
             if (linked != null && !linked.Destroyed) linked.Kill();
         }
@@ -295,7 +298,7 @@ internal static partial class Program
         var body = new SpaceCollision.SweptBody();
         var point = new Vector2(cell.x + 0.5f, cell.z + 0.5f);
         object[] findArgs = { body, map, surface, point, point, Vector2.up,
-            null, null, IntVec3.Invalid, SpaceCellKind.Empty, null, null, false };
+            null, null, IntVec3.Invalid, SpaceCellKind.Empty, null, null, false, null, null };
         Check((bool)Call(typeof(SpaceCollision), "FindBestCell", findArgs)
             && (SpaceCellKind)findArgs[9] == SpaceCellKind.Building && findArgs[10] == building,
             "same-cell building is the first contact");
@@ -383,6 +386,8 @@ internal static partial class Program
         Check(transferRubble.Destroyed && host.Spawned,
             "transfer cleanup clears only invalid filth without destructive foundation effects");
 
+        CheckCrossBlockFoundationLoss(universe, space, deck);
+
         // No universe context: vanilla ground-map removal must keep the floor.
         game.components.Clear();
         Layers(soil, true, false);
@@ -392,5 +397,129 @@ internal static partial class Program
         Check(host.Spawned && map.roofGrid.RoofAt(cell) == roof,
             "unmanaged removal preserves buildings and roof");
         CheckRoofs(game, universe, deck, space, roof);
+    }
+
+    static int foundationFullBuilds, foundationBlockRefreshes;
+    static bool recordingFoundationBlocks;
+    static readonly HashSet<(int x, int z)> foundationBlocks = new();
+
+    static void CountFoundationFullBuild() => foundationFullBuilds++;
+    static void BeginFoundationBlockRefresh()
+    {
+        foundationBlockRefreshes++;
+        recordingFoundationBlocks = true;
+    }
+    static void EndFoundationBlockRefresh() => recordingFoundationBlocks = false;
+    static void RecordFoundationBlockCell(IntVec3 cell)
+    {
+        if (recordingFoundationBlocks) foundationBlocks.Add((cell.x / 8, cell.z / 8));
+    }
+
+    static bool DespawnFoundationFixture(Building __instance)
+    {
+        var map = __instance.Map;
+        map.thingGrid.Deregister(__instance);
+        map.listerThings.AllThings.Remove(__instance);
+        Set(__instance, "mapIndexOrState", (sbyte)-1);
+        return false;
+    }
+
+    static void CheckCrossBlockFoundationLoss(UniverseManager universe, TerrainDef space, TerrainDef deck)
+    {
+        var harmony = new Harmony("DeltaV.Regression.CrossBlockFoundation");
+        var game = Current.Game;
+        var previousTickManager = game.tickManager;
+        try
+        {
+            game.tickManager = (TickManager)Raw(typeof(TickManager));
+            Set(game.tickManager, "ticksGameInt", 300);
+            harmony.CreateClassProcessor(typeof(SpaceImpactEffects).Assembly
+                .GetType("DeltaV.Patch_ShipStructure_Despawn")).Patch();
+            harmony.Patch(AccessTools.Method(typeof(Building), nameof(Building.DeSpawn)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(DespawnFoundationFixture)) { priority = Priority.Last });
+            harmony.Patch(AccessTools.Method(typeof(SpaceCollision), "RebuildHull"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(CountFoundationFullBuild)));
+            var cacheType = AccessTools.Inner(typeof(SpaceCollision), "Surface");
+            harmony.Patch(AccessTools.Method(cacheType, "RefreshBlocks"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(BeginFoundationBlockRefresh)),
+                postfix: new HarmonyMethod(typeof(Program), nameof(EndFoundationBlockRefresh)));
+            harmony.Patch(AccessTools.Method(cacheType, "SetCell"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(RecordFoundationBlockCell)));
+
+            var map = (Map)Raw(typeof(Map));
+            map.info = new MapInfo { Size = new IntVec3(24, 1, 16) };
+            map.uniqueID = 511;
+            map.cellIndices = new CellIndices(map);
+            map.components = new List<MapComponent>();
+            map.terrainGrid = new TerrainGrid(map);
+            map.thingGrid = new ThingGrid(map);
+            map.listerThings = new ListerThings(ListerThingsUse.Global);
+            map.roofGrid = new RoofGrid(map);
+            Find.Maps.Add(map);
+            var target = new MapSpaceObject(map.uniqueID, map, new SpacePose(Vector3.forward, 0));
+            universe.objects.Add(target);
+            Set(universe, "objectById", null);
+            Set(universe, "objectByMap", null);
+            Array.Fill(map.terrainGrid.topGrid, space);
+            var hole = new IntVec3(8, 0, 4);
+            var unaffected = new IntVec3(20, 0, 4);
+            foreach (var cell in new[] { hole, unaffected })
+                map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = deck;
+            var def = (ThingDef)Raw(typeof(ThingDef));
+            def.defName = "FixtureCrossBlockSupport";
+            def.category = ThingCategory.Building;
+            def.size = new IntVec2(3, 1);
+            def.building = new BuildingProperties();
+            def.fillPercent = 1;
+            var building = new TestBuilding { def = def, notifyDespawn = true };
+            Set(building, "positionInt", hole);
+            Set(building, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
+            map.thingGrid.Register(building);
+            map.listerThings.AllThings.Add(building);
+            var footprint = building.OccupiedRect().ToArray();
+            var expectedBlocks = footprint.Select(cell => (cell.x / 8, cell.z / 8)).Distinct().ToArray();
+            Check(expectedBlocks.Length == 2, "foundation-linked building spans two collision blocks");
+            var occupied = new List<IntVec3>();
+
+            void Count(string stage, int builds, params (int x, int z)[] blocks)
+            {
+                Console.WriteLine($"FOUNDATION_REFRESH {stage} full={foundationFullBuilds} refresh={foundationBlockRefreshes}"
+                    + " blocks=" + string.Join(" ", foundationBlocks.OrderBy(b => b.x).ThenBy(b => b.z)));
+                Check(foundationFullBuilds == builds && foundationBlockRefreshes == (blocks.Length == 0 ? 0 : 1)
+                    && foundationBlocks.SetEquals(blocks), stage + " publishes the expected collision changes");
+                foundationFullBuilds = foundationBlockRefreshes = 0;
+                foundationBlocks.Clear();
+            }
+            SpaceCollision.CollectDebugSurface(target, occupied, out _, out _);
+            Check(footprint.All(occupied.Contains), "warm collision surface contains the full linked footprint");
+            Count("foundation-cold", 1);
+            map.terrainGrid.Notify_FoundationDestroyed(hole);
+            SpaceCollision.CollectDebugSurface(target, occupied, out _, out _);
+            Check(!building.Destroyed && map.terrainGrid.FoundationAt(hole) == deck
+                && footprint.All(occupied.Contains), "live building protects its foundation from native terrain damage");
+            Count("foundation-protected", 0);
+            Check((bool)Call(typeof(SubstructureDamageUtility), "TryDestroyHitFoundation", map, hole, false, null),
+                "direct foundation impact removes the supporting cell");
+            SpaceCollision.CollectDebugSurface(target, occupied, out _, out _);
+            Check(building.Destroyed && building.killCalls == 1 && !footprint.Any(occupied.Contains)
+                && occupied.Contains(unaffected), "linked destruction removes the full building and leaves other blocks intact");
+            Check(Find.TickManager.TicksGame == 300, "linked destruction is visible in its own tick");
+            Count("foundation-linked-damage", 0, expectedBlocks);
+            SpaceCollision.CollectDebugSurface(target, occupied, out _, out _);
+            Count("foundation-repeat", 0);
+            Console.WriteLine("FOUNDATION_PARITY " + Find.TickManager.TicksGame + " " + building.killCalls + " " + building.Destroyed
+                + " " + map.terrainGrid.FoundationAt(hole)?.defName + " "
+                + string.Join(" ", occupied.OrderBy(cell => cell.x).ThenBy(cell => cell.z)));
+            SpaceCollision.Forget(map);
+            universe.objects.Remove(target);
+            Find.Maps.Remove(map);
+            Set(universe, "objectById", null);
+            Set(universe, "objectByMap", null);
+        }
+        finally
+        {
+            harmony.UnpatchAll(harmony.Id);
+            game.tickManager = previousTickManager;
+        }
     }
 }

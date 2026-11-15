@@ -382,6 +382,7 @@ namespace DeltaV
                 Mathf.FloorToInt(evt.hitDefenderLocal.x), 0,
                 Mathf.FloorToInt(evt.hitDefenderLocal.y)).ClampInsideMap(map);
             bool buildingGeometryChanged = false;
+            CellRect? directHitFootprint = null;
             float remaining = 0f;
 
             if (evt.defenderIsSubstructure && SubstructureOwnership.HasFoundation(map, cell)
@@ -395,6 +396,7 @@ namespace DeltaV
             {
                 // 预算弹使用无建筑倍率的直击 DamageDef。实际耐久消耗由原版 TakeDamage 返回；
                 // 未击毁（包括免伤/吸收）的结构截停，不能凭名义伤害越过。
+                directHitFootprint = evt.defenderBuilding.OccupiedRect();
                 DamageWorker.DamageResult result = evt.defenderBuilding.TakeDamage(
                     new DamageInfo(damType, amount, ap, -1f, evt.launcher, null, evt.projectileDef));
                 buildingGeometryChanged = evt.defenderBuilding.Destroyed;
@@ -412,11 +414,12 @@ namespace DeltaV
                 // 爆炸：波及（人员杀伤/建筑毁伤）交原版 GenExplosion 原生处理。
                 GenExplosion.DoExplosion(cell, map, part.explosionRadius, damType, evt.launcher,
                     Mathf.Max(1, Mathf.RoundToInt(amount)), ap, projectile: evt.projectileDef);
-                // Explosion can destroy structures outside the directly hit cell.
+                // 原版后续逐格结算，实际结构变动由移除通知发布。
                 buildingGeometryChanged = true;
             }
             else if (evt.defenderBuilding != null && !evt.defenderBuilding.Destroyed)
             {
+                directHitFootprint = evt.defenderBuilding.OccupiedRect();
                 evt.defenderBuilding.TakeDamage(new DamageInfo(damType, amount, ap, -1f,
                     evt.launcher, null, evt.projectileDef));
                 buildingGeometryChanged = evt.defenderBuilding.Destroyed;
@@ -437,7 +440,12 @@ namespace DeltaV
             }
             if (buildingGeometryChanged)
             {
-                SubstructureOwnership.BumpStructureVersion(map);
+                if (directHitFootprint.HasValue)
+                {
+                    SubstructureOwnership.BumpStructureVersion(map, directHitFootprint.Value);
+                    if (evt.defenderBuilding.TryGetComp<CompProjectileInterceptor>() != null)
+                        SpaceCollision.InvalidateShield(map);
+                }
                 PlanetGlobeRenderer.InvalidateSilhouette(map);
             }
             return remaining;

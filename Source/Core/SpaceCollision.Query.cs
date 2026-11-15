@@ -39,7 +39,7 @@ namespace DeltaV
                 map = target.map; surface = SurfaceFor(target);
                 includeBody = Includes;
                 if (scope != null) cells = new HashSet<IntVec3>(scope.HullCells);
-                foreach (IntVec3 cell in surface.occupiedCells)
+                foreach (IntVec3 cell in surface.OccupiedCells())
                 {
                     if (!Includes(cell)) continue;
                     int index = map.cellIndices.CellToIndex(cell);
