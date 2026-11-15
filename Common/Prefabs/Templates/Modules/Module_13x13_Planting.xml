@@ -1,0 +1,2737 @@
+<MapPrefab formatVersion="2">
+  <name>Prefab_20261113_201301</name>
+  <sourceMapId>2</sourceMapId>
+  <sourceOrigin>(7, 0, 7)</sourceOrigin>
+  <mask>
+    <li>(0, 0, 0)</li>
+    <li>(1, 0, 0)</li>
+    <li>(2, 0, 0)</li>
+    <li>(3, 0, 0)</li>
+    <li>(4, 0, 0)</li>
+    <li>(5, 0, 0)</li>
+    <li>(6, 0, 0)</li>
+    <li>(7, 0, 0)</li>
+    <li>(8, 0, 0)</li>
+    <li>(9, 0, 0)</li>
+    <li>(10, 0, 0)</li>
+    <li>(11, 0, 0)</li>
+    <li>(12, 0, 0)</li>
+    <li>(0, 0, 1)</li>
+    <li>(1, 0, 1)</li>
+    <li>(2, 0, 1)</li>
+    <li>(3, 0, 1)</li>
+    <li>(4, 0, 1)</li>
+    <li>(5, 0, 1)</li>
+    <li>(6, 0, 1)</li>
+    <li>(7, 0, 1)</li>
+    <li>(8, 0, 1)</li>
+    <li>(9, 0, 1)</li>
+    <li>(10, 0, 1)</li>
+    <li>(11, 0, 1)</li>
+    <li>(12, 0, 1)</li>
+    <li>(0, 0, 2)</li>
+    <li>(1, 0, 2)</li>
+    <li>(2, 0, 2)</li>
+    <li>(3, 0, 2)</li>
+    <li>(4, 0, 2)</li>
+    <li>(5, 0, 2)</li>
+    <li>(6, 0, 2)</li>
+    <li>(7, 0, 2)</li>
+    <li>(8, 0, 2)</li>
+    <li>(9, 0, 2)</li>
+    <li>(10, 0, 2)</li>
+    <li>(11, 0, 2)</li>
+    <li>(12, 0, 2)</li>
+    <li>(0, 0, 3)</li>
+    <li>(1, 0, 3)</li>
+    <li>(2, 0, 3)</li>
+    <li>(3, 0, 3)</li>
+    <li>(4, 0, 3)</li>
+    <li>(5, 0, 3)</li>
+    <li>(6, 0, 3)</li>
+    <li>(7, 0, 3)</li>
+    <li>(8, 0, 3)</li>
+    <li>(9, 0, 3)</li>
+    <li>(10, 0, 3)</li>
+    <li>(11, 0, 3)</li>
+    <li>(12, 0, 3)</li>
+    <li>(0, 0, 4)</li>
+    <li>(1, 0, 4)</li>
+    <li>(2, 0, 4)</li>
+    <li>(3, 0, 4)</li>
+    <li>(4, 0, 4)</li>
+    <li>(5, 0, 4)</li>
+    <li>(6, 0, 4)</li>
+    <li>(7, 0, 4)</li>
+    <li>(8, 0, 4)</li>
+    <li>(9, 0, 4)</li>
+    <li>(10, 0, 4)</li>
+    <li>(11, 0, 4)</li>
+    <li>(12, 0, 4)</li>
+    <li>(0, 0, 5)</li>
+    <li>(1, 0, 5)</li>
+    <li>(2, 0, 5)</li>
+    <li>(3, 0, 5)</li>
+    <li>(4, 0, 5)</li>
+    <li>(5, 0, 5)</li>
+    <li>(6, 0, 5)</li>
+    <li>(7, 0, 5)</li>
+    <li>(8, 0, 5)</li>
+    <li>(9, 0, 5)</li>
+    <li>(10, 0, 5)</li>
+    <li>(11, 0, 5)</li>
+    <li>(12, 0, 5)</li>
+    <li>(0, 0, 6)</li>
+    <li>(1, 0, 6)</li>
+    <li>(2, 0, 6)</li>
+    <li>(3, 0, 6)</li>
+    <li>(4, 0, 6)</li>
+    <li>(5, 0, 6)</li>
+    <li>(6, 0, 6)</li>
+    <li>(7, 0, 6)</li>
+    <li>(8, 0, 6)</li>
+    <li>(9, 0, 6)</li>
+    <li>(10, 0, 6)</li>
+    <li>(11, 0, 6)</li>
+    <li>(12, 0, 6)</li>
+    <li>(0, 0, 7)</li>
+    <li>(1, 0, 7)</li>
+    <li>(2, 0, 7)</li>
+    <li>(3, 0, 7)</li>
+    <li>(4, 0, 7)</li>
+    <li>(5, 0, 7)</li>
+    <li>(6, 0, 7)</li>
+    <li>(7, 0, 7)</li>
+    <li>(8, 0, 7)</li>
+    <li>(9, 0, 7)</li>
+    <li>(10, 0, 7)</li>
+    <li>(11, 0, 7)</li>
+    <li>(12, 0, 7)</li>
+    <li>(0, 0, 8)</li>
+    <li>(1, 0, 8)</li>
+    <li>(2, 0, 8)</li>
+    <li>(3, 0, 8)</li>
+    <li>(4, 0, 8)</li>
+    <li>(5, 0, 8)</li>
+    <li>(6, 0, 8)</li>
+    <li>(7, 0, 8)</li>
+    <li>(8, 0, 8)</li>
+    <li>(9, 0, 8)</li>
+    <li>(10, 0, 8)</li>
+    <li>(11, 0, 8)</li>
+    <li>(12, 0, 8)</li>
+    <li>(0, 0, 9)</li>
+    <li>(1, 0, 9)</li>
+    <li>(2, 0, 9)</li>
+    <li>(3, 0, 9)</li>
+    <li>(4, 0, 9)</li>
+    <li>(5, 0, 9)</li>
+    <li>(6, 0, 9)</li>
+    <li>(7, 0, 9)</li>
+    <li>(8, 0, 9)</li>
+    <li>(9, 0, 9)</li>
+    <li>(10, 0, 9)</li>
+    <li>(11, 0, 9)</li>
+    <li>(12, 0, 9)</li>
+    <li>(0, 0, 10)</li>
+    <li>(1, 0, 10)</li>
+    <li>(2, 0, 10)</li>
+    <li>(3, 0, 10)</li>
+    <li>(4, 0, 10)</li>
+    <li>(5, 0, 10)</li>
+    <li>(6, 0, 10)</li>
+    <li>(7, 0, 10)</li>
+    <li>(8, 0, 10)</li>
+    <li>(9, 0, 10)</li>
+    <li>(10, 0, 10)</li>
+    <li>(11, 0, 10)</li>
+    <li>(12, 0, 10)</li>
+    <li>(0, 0, 11)</li>
+    <li>(1, 0, 11)</li>
+    <li>(2, 0, 11)</li>
+    <li>(3, 0, 11)</li>
+    <li>(4, 0, 11)</li>
+    <li>(5, 0, 11)</li>
+    <li>(6, 0, 11)</li>
+    <li>(7, 0, 11)</li>
+    <li>(8, 0, 11)</li>
+    <li>(9, 0, 11)</li>
+    <li>(10, 0, 11)</li>
+    <li>(11, 0, 11)</li>
+    <li>(12, 0, 11)</li>
+    <li>(0, 0, 12)</li>
+    <li>(1, 0, 12)</li>
+    <li>(2, 0, 12)</li>
+    <li>(3, 0, 12)</li>
+    <li>(4, 0, 12)</li>
+    <li>(5, 0, 12)</li>
+    <li>(6, 0, 12)</li>
+    <li>(7, 0, 12)</li>
+    <li>(8, 0, 12)</li>
+    <li>(9, 0, 12)</li>
+    <li>(10, 0, 12)</li>
+    <li>(11, 0, 12)</li>
+    <li>(12, 0, 12)</li>
+  </mask>
+  <prefab>
+    <defName>MapPrefab_Prefab_20261113_201301</defName>
+    <size>(13, 13)</size>
+  </prefab>
+  <thingStates>
+    <li>
+      <pos>(2, 0, 2)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22387</id><map>2</map><pos>(9, 0, 9)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22423</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(9, 0, 6)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>2</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22413</id><map>2</map><pos>(16, 0, 13)</pos><rot>2</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22439</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(6, 0, 2)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>0</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22390</id><map>2</map><pos>(13, 0, 9)</pos><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22427</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(9, 0, 11)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22345</id><map>2</map><pos>(16, 0, 18)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22448</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(9, 0, 10)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22344</id><map>2</map><pos>(16, 0, 17)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22448</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(9, 0, 9)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22343</id><map>2</map><pos>(16, 0, 16)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22442</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(7, 0, 9)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>0</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22382</id><map>2</map><pos>(14, 0, 16)</pos><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22450</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(5, 0, 9)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>0</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22381</id><map>2</map><pos>(12, 0, 16)</pos><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22452</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 3)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22386</id><map>2</map><pos>(9, 0, 10)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22466</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 1)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22388</id><map>2</map><pos>(9, 0, 8)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22423</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 8)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22414</id><map>2</map><pos>(9, 0, 15)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22461</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 4)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22385</id><map>2</map><pos>(9, 0, 11)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22465</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(5, 0, 2)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>0</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22389</id><map>2</map><pos>(12, 0, 9)</pos><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22426</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 10)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22347</id><map>2</map><pos>(9, 0, 17)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22459</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(10, 0, 6)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>2</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22412</id><map>2</map><pos>(17, 0, 13)</pos><rot>2</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22439</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(6, 0, 9)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>0</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22319</id><map>2</map><pos>(13, 0, 16)</pos><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22451</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 7)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22415</id><map>2</map><pos>(9, 0, 14)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22462</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(11, 0, 6)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>2</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22411</id><map>2</map><pos>(18, 0, 13)</pos><rot>2</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22439</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 11)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22346</id><map>2</map><pos>(9, 0, 18)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22455</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(7, 0, 2)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>0</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22395</id><map>2</map><pos>(14, 0, 9)</pos><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22428</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 9)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22348</id><map>2</map><pos>(9, 0, 16)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22460</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(9, 0, 3)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22410</id><map>2</map><pos>(16, 0, 10)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22430</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 6)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22416</id><map>2</map><pos>(9, 0, 13)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22463</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(9, 0, 8)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22403</id><map>2</map><pos>(16, 0, 15)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22441</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(9, 0, 1)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22408</id><map>2</map><pos>(16, 0, 8)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22430</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(9, 0, 2)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22409</id><map>2</map><pos>(16, 0, 9)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22430</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 5)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22417</id><map>2</map><pos>(9, 0, 12)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22464</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(6, 0, 7)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22418</id><map>2</map><pos>(13, 0, 14)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22451</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(6, 0, 6)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22419</id><map>2</map><pos>(13, 0, 13)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22427</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(6, 0, 5)</pos>
+      <def>HydroponicsBasin</def>
+      <rotation>1</rotation>
+      <hitPoints>180</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_PlantGrower"><def>HydroponicsBasin</def><id>HydroponicsBasin22420</id><map>2</map><pos>(13, 0, 12)</pos><rot>1</rot><health>180</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22427</parentThing><powerOn>False</powerOn><plantDefToGrow>Plant_Rice</plantDefToGrow></saveable></state>
+    </li>
+    <li>
+      <pos>(7, 0, 0)</pos>
+      <def>Vent</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_Vent"><def>Vent</def><id>Vent22305</id><map>2</map><pos>(14, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(6, 0, 0)</pos>
+      <def>Door</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>160</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_Door"><def>Door</def><id>Door22304</id><map>2</map><pos>(13, 0, 7)</pos><health>160</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><beenRevealed>True</beenRevealed><lastFriendlyTouchTick>-9999</lastFriendlyTouchTick><approachingPawn>null</approachingPawn></saveable></state>
+    </li>
+    <li>
+      <pos>(8, 0, 4)</pos>
+      <def>Heater</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building_Heater"><def>Heater</def><id>Heater22469</id><map>2</map><pos>(15, 0, 11)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>Thing_HiddenConduit22429</parentThing><powerOn>False</powerOn><targetTemperature>21</targetTemperature></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22256</id><map>2</map><pos>(7, 0, 7)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><beenRevealed>True</beenRevealed></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22258</id><map>2</map><pos>(9, 0, 7)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><beenRevealed>True</beenRevealed></saveable></state>
+    </li>
+    <li>
+      <pos>(3, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22259</id><map>2</map><pos>(10, 0, 7)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(4, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22260</id><map>2</map><pos>(11, 0, 7)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(5, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22261</id><map>2</map><pos>(12, 0, 7)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><beenRevealed>True</beenRevealed></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 1)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22303</id><map>2</map><pos>(7, 0, 8)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><beenRevealed>True</beenRevealed></saveable></state>
+    </li>
+    <li>
+      <pos>(8, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22264</id><map>2</map><pos>(15, 0, 7)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><beenRevealed>True</beenRevealed></saveable></state>
+    </li>
+    <li>
+      <pos>(9, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22265</id><map>2</map><pos>(16, 0, 7)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(10, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22266</id><map>2</map><pos>(17, 0, 7)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><beenRevealed>True</beenRevealed></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22268</id><map>2</map><pos>(19, 0, 7)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><beenRevealed>True</beenRevealed></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 2)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22270</id><map>2</map><pos>(19, 0, 9)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><beenRevealed>True</beenRevealed></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 3)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22271</id><map>2</map><pos>(19, 0, 10)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 4)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22272</id><map>2</map><pos>(19, 0, 11)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 5)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22273</id><map>2</map><pos>(19, 0, 12)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 6)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22274</id><map>2</map><pos>(19, 0, 13)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 7)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22275</id><map>2</map><pos>(19, 0, 14)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 8)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22276</id><map>2</map><pos>(19, 0, 15)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 9)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22277</id><map>2</map><pos>(19, 0, 16)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 10)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22278</id><map>2</map><pos>(19, 0, 17)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 11)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22279</id><map>2</map><pos>(19, 0, 18)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22280</id><map>2</map><pos>(19, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(11, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22281</id><map>2</map><pos>(18, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(10, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22282</id><map>2</map><pos>(17, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(9, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22283</id><map>2</map><pos>(16, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(8, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22284</id><map>2</map><pos>(15, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(7, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22285</id><map>2</map><pos>(14, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(6, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22286</id><map>2</map><pos>(13, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(5, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22287</id><map>2</map><pos>(12, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(4, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22288</id><map>2</map><pos>(11, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(3, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22289</id><map>2</map><pos>(10, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22290</id><map>2</map><pos>(9, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(1, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22291</id><map>2</map><pos>(8, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 12)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22292</id><map>2</map><pos>(7, 0, 19)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 11)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22293</id><map>2</map><pos>(7, 0, 18)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 10)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22294</id><map>2</map><pos>(7, 0, 17)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 9)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22295</id><map>2</map><pos>(7, 0, 16)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 8)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22296</id><map>2</map><pos>(7, 0, 15)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 7)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22297</id><map>2</map><pos>(7, 0, 14)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 6)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22298</id><map>2</map><pos>(7, 0, 13)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 5)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22299</id><map>2</map><pos>(7, 0, 12)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 4)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22300</id><map>2</map><pos>(7, 0, 11)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 3)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22301</id><map>2</map><pos>(7, 0, 10)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 2)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22302</id><map>2</map><pos>(7, 0, 9)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(1, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22364</id><map>2</map><pos>(8, 0, 7)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 1)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22405</id><map>2</map><pos>(19, 0, 8)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(11, 0, 0)</pos>
+      <def>GravshipHull</def>
+      <stuff>Steel</stuff>
+      <rotation>0</rotation>
+      <hitPoints>420</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>GravshipHull</def><id>GravshipHull22404</id><map>2</map><pos>(18, 0, 7)</pos><health>420</health><stuff>Steel</stuff><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22421</id><map>2</map><pos>(7, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(1, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22422</id><map>2</map><pos>(8, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22423</id><map>2</map><pos>(9, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(3, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22424</id><map>2</map><pos>(10, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(4, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22425</id><map>2</map><pos>(11, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(5, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22426</id><map>2</map><pos>(12, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(6, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22427</id><map>2</map><pos>(13, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(7, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22428</id><map>2</map><pos>(14, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(8, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22429</id><map>2</map><pos>(15, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(9, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22430</id><map>2</map><pos>(16, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(10, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22431</id><map>2</map><pos>(17, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(11, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22432</id><map>2</map><pos>(18, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 0)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22433</id><map>2</map><pos>(19, 0, 7)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 1)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22434</id><map>2</map><pos>(19, 0, 8)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 2)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22435</id><map>2</map><pos>(19, 0, 9)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 3)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22436</id><map>2</map><pos>(19, 0, 10)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 4)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22437</id><map>2</map><pos>(19, 0, 11)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 5)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22438</id><map>2</map><pos>(19, 0, 12)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 6)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22439</id><map>2</map><pos>(19, 0, 13)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 7)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22440</id><map>2</map><pos>(19, 0, 14)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 8)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22441</id><map>2</map><pos>(19, 0, 15)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 9)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22442</id><map>2</map><pos>(19, 0, 16)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 10)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22443</id><map>2</map><pos>(19, 0, 17)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 11)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22444</id><map>2</map><pos>(19, 0, 18)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(12, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22445</id><map>2</map><pos>(19, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(11, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22446</id><map>2</map><pos>(18, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(10, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22447</id><map>2</map><pos>(17, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(9, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22448</id><map>2</map><pos>(16, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(8, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22449</id><map>2</map><pos>(15, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(7, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22450</id><map>2</map><pos>(14, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(6, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22451</id><map>2</map><pos>(13, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(5, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22452</id><map>2</map><pos>(12, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(4, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22453</id><map>2</map><pos>(11, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(3, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22454</id><map>2</map><pos>(10, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(2, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22455</id><map>2</map><pos>(9, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(1, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22456</id><map>2</map><pos>(8, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 12)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22457</id><map>2</map><pos>(7, 0, 19)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 11)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22458</id><map>2</map><pos>(7, 0, 18)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 10)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22459</id><map>2</map><pos>(7, 0, 17)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 9)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22460</id><map>2</map><pos>(7, 0, 16)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 8)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22461</id><map>2</map><pos>(7, 0, 15)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 7)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22462</id><map>2</map><pos>(7, 0, 14)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 6)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22463</id><map>2</map><pos>(7, 0, 13)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 5)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22464</id><map>2</map><pos>(7, 0, 12)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 4)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22465</id><map>2</map><pos>(7, 0, 11)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 3)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22466</id><map>2</map><pos>(7, 0, 10)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 2)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22467</id><map>2</map><pos>(7, 0, 9)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+    <li>
+      <pos>(0, 0, 1)</pos>
+      <def>HiddenConduit</def>
+      <rotation>0</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state><saveable Class="Building"><def>HiddenConduit</def><id>HiddenConduit22468</id><map>2</map><pos>(7, 0, 8)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>51</spawnedTick><despawnedTick>-1</despawnedTick><parentThing>null</parentThing></saveable></state>
+    </li>
+  </thingStates>
+  <foundations>
+    <li>
+      <pos>(0, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(7, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(8, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(9, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(10, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(11, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(12, 0, 0)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 1)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(2, 0, 1)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(3, 0, 1)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(4, 0, 1)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(5, 0, 1)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(6, 0, 1)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(7, 0, 1)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(8, 0, 1)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(9, 0, 1)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(10, 0, 1)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(11, 0, 1)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(12, 0, 1)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 2)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(2, 0, 2)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(3, 0, 2)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(4, 0, 2)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(5, 0, 2)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(6, 0, 2)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(7, 0, 2)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(8, 0, 2)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(9, 0, 2)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(10, 0, 2)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(11, 0, 2)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(12, 0, 2)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 3)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(2, 0, 3)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(3, 0, 3)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(4, 0, 3)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(5, 0, 3)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(6, 0, 3)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(7, 0, 3)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(8, 0, 3)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(9, 0, 3)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(10, 0, 3)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(11, 0, 3)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(12, 0, 3)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 4)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(2, 0, 4)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(3, 0, 4)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(4, 0, 4)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(5, 0, 4)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(6, 0, 4)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(7, 0, 4)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(8, 0, 4)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(9, 0, 4)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(10, 0, 4)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(11, 0, 4)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(12, 0, 4)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 5)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(2, 0, 5)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(3, 0, 5)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(4, 0, 5)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(5, 0, 5)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(6, 0, 5)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(7, 0, 5)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(8, 0, 5)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(9, 0, 5)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(10, 0, 5)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(11, 0, 5)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(12, 0, 5)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 6)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(2, 0, 6)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(3, 0, 6)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(4, 0, 6)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(5, 0, 6)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(6, 0, 6)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(7, 0, 6)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(8, 0, 6)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(9, 0, 6)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(10, 0, 6)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(11, 0, 6)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(12, 0, 6)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 7)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 7)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(2, 0, 7)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(3, 0, 7)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(4, 0, 7)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(5, 0, 7)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(6, 0, 7)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(7, 0, 7)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(8, 0, 7)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(9, 0, 7)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(10, 0, 7)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(11, 0, 7)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(12, 0, 7)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 8)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 8)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(2, 0, 8)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(3, 0, 8)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(4, 0, 8)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(5, 0, 8)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(6, 0, 8)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(7, 0, 8)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(8, 0, 8)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(9, 0, 8)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(10, 0, 8)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(11, 0, 8)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(12, 0, 8)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 9)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 9)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(2, 0, 9)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(3, 0, 9)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(4, 0, 9)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(5, 0, 9)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(6, 0, 9)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(7, 0, 9)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(8, 0, 9)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(9, 0, 9)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(10, 0, 9)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(11, 0, 9)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(12, 0, 9)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 10)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 10)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(2, 0, 10)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(3, 0, 10)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(4, 0, 10)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(5, 0, 10)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(6, 0, 10)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(7, 0, 10)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(8, 0, 10)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(9, 0, 10)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(10, 0, 10)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(11, 0, 10)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(12, 0, 10)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 11)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 11)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(2, 0, 11)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(3, 0, 11)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(4, 0, 11)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(5, 0, 11)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(6, 0, 11)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(7, 0, 11)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(8, 0, 11)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(9, 0, 11)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(10, 0, 11)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(11, 0, 11)</pos>
+      <def>DeltaV_MoonPool</def>
+    </li>
+    <li>
+      <pos>(12, 0, 11)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(0, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(1, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(2, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(3, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(4, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(5, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(6, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(7, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(8, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(9, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(10, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(11, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+    <li>
+      <pos>(12, 0, 12)</pos>
+      <def>Substructure</def>
+    </li>
+  </foundations>
+  <roofs>
+    <li>
+      <pos>(0, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(7, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(8, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(9, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(10, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(11, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(12, 0, 0)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 1)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 1)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(2, 0, 1)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(3, 0, 1)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(4, 0, 1)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(5, 0, 1)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(6, 0, 1)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(7, 0, 1)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(8, 0, 1)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(9, 0, 1)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(10, 0, 1)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(11, 0, 1)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(12, 0, 1)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 2)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 2)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(2, 0, 2)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(3, 0, 2)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(4, 0, 2)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(5, 0, 2)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(6, 0, 2)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(7, 0, 2)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(8, 0, 2)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(9, 0, 2)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(10, 0, 2)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(11, 0, 2)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(12, 0, 2)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 3)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 3)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(2, 0, 3)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(3, 0, 3)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(4, 0, 3)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(5, 0, 3)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(6, 0, 3)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(7, 0, 3)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(8, 0, 3)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(9, 0, 3)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(10, 0, 3)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(11, 0, 3)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(12, 0, 3)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 4)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 4)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(2, 0, 4)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(3, 0, 4)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(4, 0, 4)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(5, 0, 4)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(6, 0, 4)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(7, 0, 4)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(8, 0, 4)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(9, 0, 4)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(10, 0, 4)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(11, 0, 4)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(12, 0, 4)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 5)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 5)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(2, 0, 5)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(3, 0, 5)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(4, 0, 5)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(5, 0, 5)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(6, 0, 5)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(7, 0, 5)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(8, 0, 5)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(9, 0, 5)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(10, 0, 5)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(11, 0, 5)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(12, 0, 5)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 6)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 6)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(2, 0, 6)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(3, 0, 6)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(4, 0, 6)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(5, 0, 6)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(6, 0, 6)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(7, 0, 6)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(8, 0, 6)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(9, 0, 6)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(10, 0, 6)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(11, 0, 6)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(12, 0, 6)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 7)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 7)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(2, 0, 7)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(3, 0, 7)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(4, 0, 7)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(5, 0, 7)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(6, 0, 7)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(7, 0, 7)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(8, 0, 7)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(9, 0, 7)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(10, 0, 7)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(11, 0, 7)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(12, 0, 7)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 8)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 8)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(2, 0, 8)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(3, 0, 8)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(4, 0, 8)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(5, 0, 8)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(6, 0, 8)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(7, 0, 8)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(8, 0, 8)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(9, 0, 8)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(10, 0, 8)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(11, 0, 8)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(12, 0, 8)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 9)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 9)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(2, 0, 9)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(3, 0, 9)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(4, 0, 9)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(5, 0, 9)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(6, 0, 9)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(7, 0, 9)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(8, 0, 9)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(9, 0, 9)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(10, 0, 9)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(11, 0, 9)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(12, 0, 9)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 10)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 10)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(2, 0, 10)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(3, 0, 10)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(4, 0, 10)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(5, 0, 10)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(6, 0, 10)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(7, 0, 10)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(8, 0, 10)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(9, 0, 10)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(10, 0, 10)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(11, 0, 10)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(12, 0, 10)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 11)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 11)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(2, 0, 11)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(3, 0, 11)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(4, 0, 11)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(5, 0, 11)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(6, 0, 11)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(7, 0, 11)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(8, 0, 11)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(9, 0, 11)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(10, 0, 11)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(11, 0, 11)</pos>
+      <def>DeltaV_MoonPoolFieldRoof</def>
+    </li>
+    <li>
+      <pos>(12, 0, 11)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(0, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(1, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(2, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(3, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(4, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(5, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(6, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(7, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(8, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(9, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(10, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(11, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+    <li>
+      <pos>(12, 0, 12)</pos>
+      <def>RoofConstructed</def>
+    </li>
+  </roofs>
+  <environment>
+    <li>
+      <temperature>-75</temperature>
+      <vacuum>1</vacuum>
+      <cells>
+        <li>(6, 0, 0)</li>
+      </cells>
+    </li>
+    <li>
+      <temperature>-75</temperature>
+      <vacuum>1</vacuum>
+      <cells>
+        <li>(1, 0, 1)</li>
+        <li>(2, 0, 1)</li>
+        <li>(3, 0, 1)</li>
+        <li>(4, 0, 1)</li>
+        <li>(5, 0, 1)</li>
+        <li>(6, 0, 1)</li>
+        <li>(7, 0, 1)</li>
+        <li>(8, 0, 1)</li>
+        <li>(9, 0, 1)</li>
+        <li>(10, 0, 1)</li>
+        <li>(11, 0, 1)</li>
+        <li>(1, 0, 2)</li>
+        <li>(2, 0, 2)</li>
+        <li>(3, 0, 2)</li>
+        <li>(4, 0, 2)</li>
+        <li>(5, 0, 2)</li>
+        <li>(6, 0, 2)</li>
+        <li>(7, 0, 2)</li>
+        <li>(8, 0, 2)</li>
+        <li>(9, 0, 2)</li>
+        <li>(10, 0, 2)</li>
+        <li>(11, 0, 2)</li>
+        <li>(1, 0, 3)</li>
+        <li>(2, 0, 3)</li>
+        <li>(3, 0, 3)</li>
+        <li>(4, 0, 3)</li>
+        <li>(5, 0, 3)</li>
+        <li>(6, 0, 3)</li>
+        <li>(7, 0, 3)</li>
+        <li>(8, 0, 3)</li>
+        <li>(9, 0, 3)</li>
+        <li>(10, 0, 3)</li>
+        <li>(11, 0, 3)</li>
+        <li>(1, 0, 4)</li>
+        <li>(2, 0, 4)</li>
+        <li>(3, 0, 4)</li>
+        <li>(4, 0, 4)</li>
+        <li>(5, 0, 4)</li>
+        <li>(6, 0, 4)</li>
+        <li>(7, 0, 4)</li>
+        <li>(8, 0, 4)</li>
+        <li>(9, 0, 4)</li>
+        <li>(10, 0, 4)</li>
+        <li>(11, 0, 4)</li>
+        <li>(1, 0, 5)</li>
+        <li>(2, 0, 5)</li>
+        <li>(3, 0, 5)</li>
+        <li>(4, 0, 5)</li>
+        <li>(5, 0, 5)</li>
+        <li>(6, 0, 5)</li>
+        <li>(7, 0, 5)</li>
+        <li>(8, 0, 5)</li>
+        <li>(9, 0, 5)</li>
+        <li>(10, 0, 5)</li>
+        <li>(11, 0, 5)</li>
+        <li>(1, 0, 6)</li>
+        <li>(2, 0, 6)</li>
+        <li>(3, 0, 6)</li>
+        <li>(4, 0, 6)</li>
+        <li>(5, 0, 6)</li>
+        <li>(6, 0, 6)</li>
+        <li>(7, 0, 6)</li>
+        <li>(8, 0, 6)</li>
+        <li>(9, 0, 6)</li>
+        <li>(10, 0, 6)</li>
+        <li>(11, 0, 6)</li>
+        <li>(1, 0, 7)</li>
+        <li>(2, 0, 7)</li>
+        <li>(3, 0, 7)</li>
+        <li>(4, 0, 7)</li>
+        <li>(5, 0, 7)</li>
+        <li>(6, 0, 7)</li>
+        <li>(7, 0, 7)</li>
+        <li>(8, 0, 7)</li>
+        <li>(9, 0, 7)</li>
+        <li>(10, 0, 7)</li>
+        <li>(11, 0, 7)</li>
+        <li>(1, 0, 8)</li>
+        <li>(2, 0, 8)</li>
+        <li>(3, 0, 8)</li>
+        <li>(4, 0, 8)</li>
+        <li>(5, 0, 8)</li>
+        <li>(6, 0, 8)</li>
+        <li>(7, 0, 8)</li>
+        <li>(8, 0, 8)</li>
+        <li>(9, 0, 8)</li>
+        <li>(10, 0, 8)</li>
+        <li>(11, 0, 8)</li>
+        <li>(1, 0, 9)</li>
+        <li>(2, 0, 9)</li>
+        <li>(3, 0, 9)</li>
+        <li>(4, 0, 9)</li>
+        <li>(5, 0, 9)</li>
+        <li>(6, 0, 9)</li>
+        <li>(7, 0, 9)</li>
+        <li>(8, 0, 9)</li>
+        <li>(9, 0, 9)</li>
+        <li>(10, 0, 9)</li>
+        <li>(11, 0, 9)</li>
+        <li>(1, 0, 10)</li>
+        <li>(2, 0, 10)</li>
+        <li>(3, 0, 10)</li>
+        <li>(4, 0, 10)</li>
+        <li>(5, 0, 10)</li>
+        <li>(6, 0, 10)</li>
+        <li>(7, 0, 10)</li>
+        <li>(8, 0, 10)</li>
+        <li>(9, 0, 10)</li>
+        <li>(10, 0, 10)</li>
+        <li>(11, 0, 10)</li>
+        <li>(1, 0, 11)</li>
+        <li>(2, 0, 11)</li>
+        <li>(3, 0, 11)</li>
+        <li>(4, 0, 11)</li>
+        <li>(5, 0, 11)</li>
+        <li>(6, 0, 11)</li>
+        <li>(7, 0, 11)</li>
+        <li>(8, 0, 11)</li>
+        <li>(9, 0, 11)</li>
+        <li>(10, 0, 11)</li>
+        <li>(11, 0, 11)</li>
+      </cells>
+    </li>
+  </environment>
+</MapPrefab>
