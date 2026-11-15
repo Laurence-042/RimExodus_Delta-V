@@ -43,7 +43,9 @@ $harmony = '<Lib.Harmony/lib/net8.0/0Harmony.dll>'
 | `TopologyBenchmark/run.ps1` | 250×250 基架连通性离线对拍与性能比较：原样 TopologyLab、HLT 分层 Euler-tour tree、全量 BFS；[方法与复现](TopologyBenchmark/README.md)、[实测结论](TopologyBenchmark/RESULTS.md)，不代表游戏 TPS |
 | `FoundationTopologyRegression/run.ps1` | 直接编译生产拓扑／归属计数／地图服务，与独立 BFS 对拍，含 250×250 场景和缓存生命周期；[接入回归说明](FoundationTopologyRegression/README.md) |
 | `WeaponTuningRegression/run.ps1` | 当前 1.7 武器数值／伤害回归；`-OutputAudit` 扫描全部调校组合及现行盾；`-ShieldDurationAudit` 追加候选盾容／恢复、多炮齐射与间歇交火时长对照，均调用生产组件、不改游戏数值，详见其 README |
-| `RailgunRegression/run.ps1 -EnergyOnly` | 1.6 真实能量事务与货柜／终端专项，加载安装版 ASF；包括舰载反应堆正式 XML 的原版发电／耗铀／开关／故障、原版电池余电充电／隔离、真实短路扣费与 Scribe、接网电容专属／公共取电去重、双回收／混装电容、折后费用、室外温控、原版覆盖规则和终端 God Mode 建造与配置／补货派系及调试开关／地图货源／原版交易信标与成交复核，以及原版战利品箱封存／骇入开箱、两种形态的库存与配置往返及失败回滚，不启动游戏 |
+| `RailgunRegression/run.ps1 -RailgunOnly` | 1.6 轨道炮开火、冷却存读档、共享电网扣费、欠费跳段、回收与电容混装、长炮标定；装弹机与加速段的四向占格和侧槽由两版 `TutorialRegression -RangeOnly` 验证 |
+| `RailgunRegression/run.ps1 -EquipmentOnly` | 1.6 电池隔离与短路、反应堆、货柜温控和生命周期、ASF 图形与库存、终端交易。交易夹具提供船域与信标覆盖，使用生产选船、原版信标枚举和成交复核，覆盖货源断开、主台或派系变化及库存离开信标覆盖 |
+| `RailgunRegression/run.ps1 -EnergyOnly` | 兼容入口，仍按顺序运行轨道炮组和设备组，并提示改用各自入口 |
 | `preview_equipment_cost_art.py` | 只读设备 Def 与三张新贴图，输出四向、实际格尺寸及宿主槽位叠画预览，不改正式贴图 |
 | `preview_power_equipment.py` | 只读正式电池蒙版与共用色表，预览实际 Def 下的反应堆占地对齐、电量条与四向状态色，不修改正式贴图或蒙版 |
 | `preview_safety_battery_candidate.py` | 仅在 `doc/art` 生成六盖板候选蒙版和四向／缩图对照；默认 `--variant mirrored` 为已确认上下镜像斜面、读取正式共用色表，`faceted` 复现旧同向斜面稿，`symmetric` 复现旧平板红绿稿，不修改正式资产或运行代码 |
@@ -51,6 +53,7 @@ $harmony = '<Lib.Harmony/lib/net8.0/0Harmony.dll>'
 | `CombatStrategyRegression/` | 使用最小占位类型的策略、曲线与文件校验；不替代游戏运行时验证 |
 | `NpcRetreatRegression/run.ps1` | 1.6 的战斗、驾驶、结构和生命周期专项；已接 REF，名称不代表只测撤退；`-PlayerFlightOnly` 验证驾驶权限、显式驾驶和原版按键抑制边界、导航参考与任务替换（2026-11-02 共 72 项通过；模拟焦点／按键绑定环境，不启动游戏）；`-SeparationOnly` 验证实际 Mod DLL 的归属、增量断裂检查与出力分离门禁；`-TractorOnly` 验证自动跨船独占与过滤、手动叠力、残骸分离请求、点防伤害分配及坐标／存读档 |
 | `MpcRegression`、`EngineeringRegression`、`RailgunRegression` | 1.6 控制器、工程与碰撞链回归；轨道炮数值现状以武器基线及 1.7 回归为准 |
+| `RailgunRegression/run.ps1` 默认入口 | 守卫归属使用原版建筑登记和实际基架拓扑。以扣容前后的差值检查同图隔离、断裂与接回、失去与替换主台、归属转移及发生器移除 |
 | `PrefabRegression`、`MoonPoolRoofRegression`、`SubstructureDamageRegression` | 1.6 的 prefab、屋顶及基架破坏检查；公共 prefab 实现已迁入 REF |
 | `PrefabMarkerRegression/run.ps1` | 直接引用生产 DLL，验证精确／批量 SpaceObject 标记的密度、配置上限、`clusterChild` 产生与后代继承、确定性、带权分布、面积均匀环带、最小间距、重掷种子及单一朝向来源；不启动游戏，也不替代实际 prefab 导出、半透明预览、懒物化和归档恢复验收 |
 | `verify_docking_contract.ps1` | 1.6 对接原版签名、XML 字段与翻译核对，不适用于 1.7 API |

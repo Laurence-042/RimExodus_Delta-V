@@ -1,5 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$GameRoot,
-      [Parameter(Mandatory=$true)][string]$HarmonyPath, [switch]$EnergyOnly, [switch]$RolePenetrationAudit, [switch]$EnergyImpulseAudit, [switch]$EngagementBaseline, [switch]$EngagementForecast, [switch]$CasemateOnly, [switch]$CargoLifecycleOnly)
+      [Parameter(Mandatory=$true)][string]$HarmonyPath, [switch]$EnergyOnly, [switch]$RolePenetrationAudit, [switch]$EnergyImpulseAudit, [switch]$EngagementBaseline, [switch]$EngagementForecast, [switch]$CasemateOnly, [switch]$CargoLifecycleOnly,
+      [switch]$RailgunOnly, [switch]$EquipmentOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 $managed = (Resolve-Path "$GameRoot/RimWorldWin64_Data/Managed").Path
@@ -30,6 +31,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net8.0","framework":{"name":"Microsoft.NETCore.App","version":"8.0.0"}}}' | Set-Content -LiteralPath "$out/RailgunRegression.runtimeconfig.json"
 $regressionArguments = @($managed)
 if ($EnergyOnly) { $regressionArguments += "--energy-only" }
+if ($RailgunOnly) { $regressionArguments += "--railgun-only" }
+if ($EquipmentOnly) { $regressionArguments += "--equipment-only" }
 if ($EngagementBaseline) { $regressionArguments += "--engagement-baseline" }
 if ($CasemateOnly) { $regressionArguments += "--casemate-only" }
 if ($CargoLifecycleOnly) { $regressionArguments += "--cargo-lifecycle-only" }

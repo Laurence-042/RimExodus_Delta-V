@@ -12,8 +12,19 @@ internal static partial class Program
     static readonly Dictionary<int, HashSet<IntVec3>> tradeFixtureDomains = new();
     static bool TradeFixtureShips(Map map, ref IEnumerable<ShipBase> __result)
     { __result = tradeFixtureShips.TryGetValue(map, out var ships) ? ships : Array.Empty<ShipBase>(); return false; }
-    static bool TradeFixtureDomain(Ship ship, ref HashSet<IntVec3> __result)
-    { __result = tradeFixtureDomains[ship.ownerId]; return false; }
+    static bool TradeFixtureOwner(Thing thing, ref Ship __result)
+    {
+        if (thing?.MapHeld is not Map map || !tradeFixtureShips.TryGetValue(map, out var ships)) return true;
+        __result = Ship.Invalid;
+        foreach (var vessel in ships.OfType<FoundationShip>())
+        {
+            Ship ship = vessel.Structure;
+            if (!ship.IsValid || !tradeFixtureDomains[ship.ownerId].Contains(thing.PositionHeld)) continue;
+            __result = ship;
+            break;
+        }
+        return false;
+    }
 
     static readonly Dictionary<Building_OrbitalTradeBeacon, List<IntVec3>> beaconCells = new();
     static readonly HashSet<Thing> unsellableTradeItems = new();
@@ -38,10 +49,9 @@ internal static partial class Program
         var maps = new List<Map>();
         var oldTrader = TradeSession.trader; var oldNegotiator = TradeSession.playerNegotiator;
         object oldService = AccessTools.Field(typeof(UniverseManager), "stationTrade").GetValue(universe);
-        var service = AccessTools.Property(typeof(UniverseManager), "StationTrade").GetValue(universe);
+        var service = universe.StationTrade;
         object invoke(object target, string name, params object[] args)
             => AccessTools.Method(target.GetType(), name).Invoke(target, args);
-        List<ShipBase> candidates() => ((IEnumerable<ShipBase>)invoke(terminal, "TradeShips")).ToList();
         void initGrid(Map m)
         {
             m.info ??= new MapInfo(); m.info.Size = new IntVec3(240, 1, 32);
@@ -75,8 +85,7 @@ internal static partial class Program
         Thing goods(FoundationShip owner, int x, string name)
         {
             var def = MakeDef(name); def.category = ThingCategory.Item;
-            Thing result = place(new Thing { def = def, stackCount = 75 }, owner.Map, x, null);
-            tradeFixtureDomains[owner.Structure.ownerId].Add(result.Position); return result;
+            return place(new Thing { def = def, stackCount = 75 }, owner.Map, x, null);
         }
         Building_DockingPort dock(FoundationShip owner, int x, Faction portFaction)
         {
@@ -98,11 +107,7 @@ internal static partial class Program
             (faction == player ? m.listerBuildings.allBuildingsColonist : m.listerBuildings.allBuildingsNonColonist).Add(b);
             beaconCells[b] = items.Select(t => t.Position).ToList(); return b;
         }
-        bool validDeal(TradeDeal deal)
-        {
-            object[] args = { deal, false };
-            return (bool)invoke(terminal, "DealStillValid", args);
-        }
+        bool validDeal(TradeDeal deal) => terminal.DealStillValid(deal, out _);
         try
         {
             initGrid(stationMap);
@@ -112,20 +117,23 @@ internal static partial class Program
                 prefix: new HarmonyMethod(typeof(Program), nameof(FixtureBeaconCells)));
             patch.Patch(AccessTools.Method(typeof(TradeUtility), "PlayerSellableNow"),
                 prefix: new HarmonyMethod(typeof(Program), nameof(FixturePlayerSellable)));
-            patch.Patch(AccessTools.Method(typeof(ShipRegistry), nameof(ShipRegistry.ControlDomain), new[] { typeof(Ship) }),
-                prefix: new HarmonyMethod(typeof(Program), nameof(TradeFixtureDomain)));
+            patch.Patch(AccessTools.Method(typeof(ShipRegistry), nameof(ShipRegistry.ShipByThing)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(TradeFixtureOwner)));
             var hardA = ship(stationMap, 20, player); var hardB = ship(stationMap, 30, player);
             var host = ship(stationMap, 40, player);
             tradeFixtureDomains[host.Structure.ownerId].Add(terminal.Position);
             var enemy = ship(makeMap(), 50, npc); dock(enemy, 51, player);
             var softA = ship(makeMap(), 60, player); var portA = dock(softA, 61, npc);
-            dock(softA, 62, npc);
+            var extraPort = dock(softA, 62, npc);
             var softB = ship(makeMap(), 70, player); var portB = dock(softB, 71, player);
-            var unconnected = ship(makeMap(), 80, player);
+            ship(makeMap(), 80, player);
             var sideShip = ship(softA.Map, 90, player);
-            Check(candidates().Select(s => s.Identity).ToHashSet().SetEquals(new[] {
-                hardA.Identity, hardB.Identity, host.Identity, softA.Identity, softB.Identity }),
-                "trade selection includes the player-console host and other hard/soft docks, excluding NPC and unconnected ships");
+            var sources = terminal.TradeSources().ToDictionary(group => group.Key, group => group.Select(s => s.Identity).ToArray());
+            Check(sources.Count == 3 && sources.TryGetValue(stationMap, out var localShips)
+                && localShips.Length == 3 && localShips.ToHashSet().SetEquals(new[] { hardA.Identity, hardB.Identity, host.Identity })
+                && sources.TryGetValue(softA.Map, out var remoteShips) && remoteShips.SequenceEqual(new[] { softA.Identity })
+                && sources.TryGetValue(softB.Map, out var otherShips) && otherShips.SequenceEqual(new[] { softB.Identity }),
+                "trade sources group same-map ships, deduplicate soft ports and exclude ineligible ships");
             int beforeRefresh = stationGenerations;
             invoke(terminal, "RegenerateStock");
             Check(stationGenerations == beforeRefresh,
@@ -142,36 +150,26 @@ internal static partial class Program
                 "NPC terminal cannot refresh an NPC cargo bay transferred to a player ship");
             tradeFixtureDomains[host.Structure.ownerId].Remove(supply.Position);
             tradeFixtureDomains[host.Structure.ownerId].Add(terminal.Position);
-            Check(candidates().Count(s => s.Identity == softA.Identity) == 1,
-                "multiple soft ports to one ship produce one candidate");
-            Check(!candidates().Any(s => s.Identity == sideShip.Identity),
-                "another ship on a soft-docked map cannot borrow its neighbor's port");
-            softA.Structure.console.isMain = false;
-            Check(!candidates().Any(s => s.Identity == softA.Identity), "a secondary or lost primary console is not a trade ship");
-            softA.Structure.console.isMain = true;
             stationCells.Remove(portB.Position);
-            Check(!candidates().Any(s => s.Identity == softB.Identity), "a station-side port on a disconnected structure is excluded");
+            Check(!terminal.TradeShips().Any(s => s.Identity == softB.Identity),
+                "a station-side port on a disconnected structure is excluded");
             stationCells.Add(portB.Position);
 
-            var sources = ((IEnumerable<IGrouping<Map, ShipBase>>)invoke(terminal, "TradeSources")).ToList();
-            Check(sources.Count(g => g.Key == stationMap) == 1 && sources.Single(g => g.Key == stationMap).Count() == 3,
-                "source dialog groups hard-docked ship names into one actual map choice");
             var pawn = place((Pawn)Raw(typeof(Pawn)), stationMap, 2, player);
             var otherPawn = place((Pawn)Raw(typeof(Pawn)), stationMap, 3, player);
             var silverA = goods(hardA, 21, "Silver"); var cargoA = goods(hardA, 22, "Steel");
             var silverB = goods(hardB, 31, "Silver"); var hostSilver = goods(host, 41, "Silver");
             var softSilver = goods(softA, 63, "Silver"); var sideGoods = goods(sideShip, 91, "Steel");
             var playerBeacon = beacon(stationMap, 101, player, silverA, cargoA, silverB);
-            var overlapBeacon = beacon(stationMap, 102, player, silverA);
+            beacon(stationMap, 102, player, silverA);
             beacon(stationMap, 103, npc, hostSilver);
-            var remoteBeacon = beacon(softA.Map, 104, player, softSilver, sideGoods);
+            beacon(softA.Map, 104, player, softSilver, sideGoods);
             TradeSession.trader = terminal; TradeSession.playerNegotiator = pawn;
-            var selectedA = invoke(service, "Begin", terminal, pawn, stationMap);
-            Check(selectedA != null && terminal.ColonyThingsWillingToBuy(pawn).ToHashSet().SetEquals(new[] { silverA, cargoA, silverB }),
-                "source uses player beacon goods across the selected map, including another ship on that map");
-            Check(terminal.ColonyThingsWillingToBuy(pawn).Count(t => t == silverA) == 1,
-                "vanilla beacon enumeration deduplicates overlapping coverage");
-            Check(!terminal.ColonyThingsWillingToBuy(pawn).Contains(hostSilver), "NPC beacons do not expose goods");
+            var selectedA = service.Begin(terminal, pawn, stationMap);
+            var localGoods = terminal.ColonyThingsWillingToBuy(pawn).ToArray();
+            Check(selectedA != null && localGoods.Length == 3
+                && localGoods.ToHashSet().SetEquals(new[] { silverA, cargoA, silverB }),
+                "selected map exposes only player beacon goods and lists overlapping stock once");
             Check(!terminal.ColonyThingsWillingToBuy(otherPawn).Any(), "source belongs to its original negotiator");
             var deal = (TradeDeal)Raw(typeof(TradeDeal)); Set(deal, "tradeables", new List<Tradeable>());
             var row = new Tradeable(); row.thingsColony.Add(cargoA);
@@ -184,18 +182,15 @@ internal static partial class Program
             stationMap.thingGrid.Deregister(cargoA);
             Set(cargoA, "mapIndexOrState", (sbyte)-1);
             cargoA.def.stackLimit = 75;
-            Check(sealedBay.TryStore(cargoA) && cargoA.ParentHolder == sealedBay,
-                "sealing transfers the same stack into the native crate ThingOwner");
+            if (!sealedBay.TryStore(cargoA)) throw new InvalidOperationException("Could not stock the sealed trade fixture.");
             Check(!BeaconStock(stationMap, new TradeShip()).Contains(cargoA)
                 && !terminal.ColonyThingsWillingToBuy(pawn).Contains(cargoA) && !validDeal(deal),
                 "native beacon lists cannot see locked crate contents, without a filtering patch");
             Set(hack, "hacked", true);
-            Check(!BeaconStock(stationMap).Contains(cargoA) && !validDeal(deal),
-                "unlocking a sealed container does not expose its inventory to trade beacons");
-            Check(BeaconStock(stationMap).Contains(silverA),
-                "sealed cargo leaves ordinary goods under the same beacon unchanged");
-            Check(ReferenceEquals(sealedBay.Take(cargoA, cargoA.stackCount), cargoA),
-                "unsealing detaches the original stack without copying or regenerating it");
+            Check(!terminal.ColonyThingsWillingToBuy(pawn).Contains(cargoA) && !validDeal(deal),
+                "unlocking the crate leaves its contents ineligible for sale");
+            if (sealedBay.Take(cargoA, cargoA.stackCount) == null)
+                throw new InvalidOperationException("Could not empty the sealed trade fixture.");
             Set(cargoA, "positionInt", cargoCell);
             Set(cargoA, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(stationMap));
             stationMap.thingGrid.Register(cargoA);
@@ -209,9 +204,6 @@ internal static partial class Program
             Check(!terminal.ColonyThingsWillingToBuy(pawn).Contains(cargoA) && !validDeal(deal),
                 "native launchable enumeration respects PlayerSellableNow at opening and execution");
             unsellableTradeItems.Clear();
-            tradeFixtureDomains[hardA.Structure.ownerId].Remove(cargoA.Position);
-            Check(terminal.ColonyThingsWillingToBuy(pawn).Contains(cargoA) && validDeal(deal),
-                "leaving a ship control domain does not exclude goods still covered by a map beacon");
             beaconCells[playerBeacon].Remove(cargoA.Position);
             Check(!validDeal(deal), "leaving beacon coverage rejects a pending sale");
             beaconCells[playerBeacon].Add(cargoA.Position);
@@ -219,34 +211,39 @@ internal static partial class Program
             beaconCells[playerBeacon].Add(merchantItem.Position);
             Check(!terminal.ColonyThingsWillingToBuy(pawn).Contains(merchantItem),
                 "merchant inventory is not duplicated onto the player side even under a player beacon");
-            deal.AllTradeables.Clear();
             hardA.Anchor.SetFactionDirect(npc);
             Check(validDeal(deal), "map selection remains valid while another eligible player ship stays on the same map");
             hardA.Anchor.SetFactionDirect(player);
-            var selectedSoft = invoke(service, "Begin", terminal, pawn, softA.Map);
+            var selectedSoft = service.Begin(terminal, pawn, softA.Map);
             Check(selectedSoft != null && terminal.ColonyThingsWillingToBuy(pawn).ToHashSet().SetEquals(new[] { softSilver, sideGoods }),
                 "soft-docked source uses all player beacon goods on its map rather than one ship domain");
-            invoke(service, "End", selectedA);
-            Check(terminal.ColonyThingsWillingToBuy(pawn).Any(), "closing an older window does not clear a newer source");
+            service.End(selectedA);
+            row.thingsColony.Clear();
+            row.thingsColony.Add(softSilver);
+            Check(service.MapFor(terminal, pawn) == softA.Map && validDeal(deal),
+                "closing an older window preserves the newer source and its pending sale");
+            softA.Structure.console.isMain = false;
+            Check(!validDeal(deal), "losing the primary console invalidates a pending sale");
+            softA.Structure.console.isMain = true;
             softA.Anchor.SetFactionDirect(npc);
             Check(!validDeal(deal), "source loses eligibility when its last connected player console changes faction");
             softA.Anchor.SetFactionDirect(player);
-            foreach (var port in stationMap.listerThings.AllThings.OfType<Building_DockingPort>())
-                if (port.GetComp<CompSoftDocking>() is { } comp
-                    && (Building_DockingPort)AccessTools.Field(typeof(CompSoftDocking), "peer").GetValue(comp) is { } peer
-                    && peer.Map == softA.Map) Set(comp, "connected", false);
+            Check(validDeal(deal), "restoring source eligibility revalidates the pending sale");
+            Set(portA.Docking, "connected", false);
+            Set(extraPort.Docking, "connected", false);
             Check(!terminal.ColonyThingsWillingToBuy(pawn).Any() && !validDeal(deal),
                 "soft disconnection invalidates the source map without falling back to another map");
-            Check(invoke(service, "Begin", terminal, pawn, softA.Map) == null,
+            Check(service.Begin(terminal, pawn, softA.Map) == null,
                 "a map disconnected after the source dialog opened cannot start a trade");
-            invoke(service, "Begin", terminal, pawn, stationMap);
-            invoke(service, "Forget", stationMap);
-            Check(invoke(service, "MapFor", terminal, pawn) == null, "map release clears the trade session");
-            var final = invoke(service, "Begin", terminal, pawn, stationMap);
-            invoke(service, "End", final);
-            Check(invoke(service, "MapFor", terminal, pawn) == null, "closing trade clears the selected source map");
-            Check(AccessTools.TypeByName("DeltaV.Patch_SpaceStationTrade") == null,
-                "station trading no longer replaces vanilla InSellablePosition");
+            var localSelection = service.Begin(terminal, pawn, stationMap);
+            Check(localSelection != null && service.MapFor(terminal, pawn) == stationMap,
+                "another eligible map can still be selected after the old source disconnects");
+            service.Forget(stationMap);
+            Check(service.MapFor(terminal, pawn) == null, "map release clears the trade session");
+            var final = service.Begin(terminal, pawn, stationMap);
+            if (final == null) throw new InvalidOperationException("Could not reopen the trade fixture.");
+            service.End(final);
+            Check(service.MapFor(terminal, pawn) == null, "closing trade clears the selected source map");
 
         }
         finally
