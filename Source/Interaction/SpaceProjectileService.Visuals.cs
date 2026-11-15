@@ -177,7 +177,7 @@ namespace DeltaV
             CombatVisualStyle style = props?.visualStyle ?? CombatVisualStyle.Kinetic;
             // 非破坏性工程束接触船体时只显示光束。
             if (!contact.shieldMode.HasValue && style is CombatVisualStyle.Coupling or CombatVisualStyle.Tractor) return;
-            QueueHullSound(contact, style);
+            if (map != null) QueueHullSound(contact, style);
             VisualAnchor anchor = Anchor(contact.defender, contact.localPoint, contact.position);
             bool railStop = IsRailStop(contact);
             // The interception burst outlives the destroyed missile.
