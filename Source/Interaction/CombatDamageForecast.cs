@@ -226,6 +226,7 @@ namespace DeltaV
             if (result.contacts >= 128 || depth >= 4) { result.exhausted = result.uncertain = true; return; }
             if (!cover.TryGetValue((projectile, coverSample), out var coverage))
             {
+                using var coverTiming = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.EngagementCoverBuild);
                 coverage = new CoverMask();
                 foreach (var pair in initialHealth)
                 {

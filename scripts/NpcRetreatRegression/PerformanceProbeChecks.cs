@@ -1,9 +1,12 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using DeltaV;
+using HarmonyLib;
 using UnityEngine;
+using Verse;
 
 internal static partial class Program
 {
@@ -11,6 +14,7 @@ internal static partial class Program
     {
         var probe = universe.Performance;
         bool previous = DeltaVMod.CurrentSettings.logPerformance;
+        long originalCompleted = probe.engagementCompleted, originalCandidates = probe.engagementCandidates;
         int[] Counts() => (int[])typeof(DeltaVPerformanceProbe).GetField("calls", Private).GetValue(probe);
         try
         {
@@ -31,6 +35,55 @@ internal static partial class Program
             Call(probe, "Reset"); summary.Clear(); Call(probe, "AppendCombatStats", summary);
             Check(Counts().All(n => n == 0) && !summary.ToString().Contains("poseWorst=")
                 && !summary.ToString().Contains("Structure:1"), "window reset clears pose totals, reasons and peak");
+
+            long ms = Stopwatch.Frequency / 1000;
+            probe.BeginTick();
+            probe.RecordElapsed(PerformanceStage.Autopilot, 9 * ms);
+            probe.RecordElapsed(PerformanceStage.EngagementDamage, ms);
+            probe.RecordElapsed(PerformanceStage.EngagementDamage, 2 * ms);
+            probe.RecordElapsed(PerformanceStage.EngagementCoverBuild, ms);
+            probe.engagementCompleted += 2;
+            probe.engagementCandidates += 7;
+            Call(probe, "CaptureTick", 41, 12 * ms);
+
+            probe.BeginFrame();
+            probe.RecordElapsed(PerformanceStage.FrameActions, 3 * ms);
+            probe.RecordElapsed(PerformanceStage.Shells, 5 * ms);
+            Call(probe, "CaptureUpdate", 70, 4, 10 * ms);
+
+            probe.BeginTick();
+            probe.RecordElapsed(PerformanceStage.EngagementDamage, 5 * ms);
+            probe.engagementCompleted += 8;
+            probe.engagementCandidates += 9;
+            Call(probe, "CaptureTick", 42, 8 * ms);
+
+            probe.BeginFrame();
+            probe.RecordElapsed(PerformanceStage.Shells, 6 * ms);
+            Call(probe, "CaptureUpdate", 71, 1, 7 * ms);
+            summary.Clear(); Call(probe, "AppendSlowestSamples", summary);
+            string peaks = summary.ToString();
+            Check(peaks.Contains("tickWorst={tick=41 ms=12.000 searches=2 candidates=7 otherMs=3.000")
+                && peaks.Contains("Autopilot=9.000/1") && peaks.Contains("EngagementDamage=3.000/2")
+                && peaks.Contains("EngagementCoverBuild=1.000/1"),
+                "slowest tick keeps its own stage durations, calls, cover builds and candidate counts");
+            Check(peaks.Contains("updateWorst={frame=70 ms=10.000 ticksThisFrame=4 otherMs=2.000")
+                && peaks.Contains("FrameActions=3.000/1") && peaks.Contains("Shells=5.000/1"),
+                "slowest frame callback keeps its own stage durations and tick cadence");
+
+            DeltaVMod.CurrentSettings.logPerformance = false;
+            Check(probe.BeginTick() == 0 && probe.BeginFrame() == 0, "disabled probe skips both snapshots");
+            probe.FrameFinished(0L);
+            summary.Clear(); Call(probe, "AppendSlowestSamples", summary);
+            Check(summary.Length == 0 && Counts().All(n => n == 0), "disabling resets both slowest samples");
+            long completed = probe.engagementCompleted, candidates = probe.engagementCandidates;
+            DeltaVMod.CurrentSettings.logPerformance = true;
+            probe.BeginTick();
+            Call(probe, "CaptureTick", 43, ms);
+            Call(probe, "AppendSlowestSamples", summary);
+            Check(probe.engagementCompleted == completed && probe.engagementCandidates == candidates
+                && summary.ToString().Contains("tickWorst={tick=43 ms=1.000 searches=0 candidates=0")
+                && !summary.ToString().Contains("updateWorst"), "new window accepts smaller samples with fresh deltas");
+            Call(probe, "Reset");
 
             var mass = new ShipPhysics.MassReport { mass = 3f, inertia = 12f };
             foreach (var dir in new[] { Vector2.right, Vector2.left, Vector2.up, Vector2.down })
@@ -65,6 +118,35 @@ internal static partial class Program
                 && Counts()[(int)PerformanceStage.MpcFeasibility] > 0
                 && Counts()[(int)PerformanceStage.MpcQp] > 0, "production model, assembly, feasibility and QP paths reach separate probes");
         }
-        finally { DeltaVMod.CurrentSettings.logPerformance = previous; Call(probe, "Reset"); }
+        finally
+        {
+            DeltaVMod.CurrentSettings.logPerformance = previous;
+            probe.engagementCompleted = originalCompleted;
+            probe.engagementCandidates = originalCandidates;
+            Call(probe, "Reset");
+        }
+
+        var args = Environment.GetCommandLineArgs();
+        if (args.Contains("--fleet-probe-off") || args.Contains("--fleet-probe-on"))
+        {
+            DeltaVMod.CurrentSettings.logPerformance = args.Contains("--fleet-probe-on");
+            new Harmony("DeltaV.Regression.FleetProbe").Patch(AccessTools.Method(typeof(ShipAutopilot), "Tick"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(BeginFleetProbeTick)),
+                postfix: new HarmonyMethod(typeof(Program), nameof(FinishFleetProbeTick)));
+        }
+    }
+
+    // The fleet fixture drives the real autopilot without Unity's game-component loop.
+    static void BeginFleetProbeTick(out long __state) =>
+        __state = Current.Game.GetComponent<UniverseManager>().Performance.BeginTick();
+
+    static void FinishFleetProbeTick(long __state)
+    {
+        if (__state == 0L) return;
+        var universe = Current.Game.GetComponent<UniverseManager>();
+        var probe = universe.Performance;
+        probe.Record(PerformanceStage.Autopilot, __state);
+        probe.TickFinished(__state, Find.TickManager.TicksGame, universe.objects.Count, 0,
+            SubstructureOwnership.GlobalStructureVersion, 0, 0, 0);
     }
 }

@@ -878,7 +878,7 @@ namespace DeltaV
                 AdvanceSceneReset();
                 return;
             }
-            long performanceStart = Performance.Start();
+            long performanceStart = Performance.BeginFrame();
             // 帧上下文动作消费（分离执行、对接完成收尾、源图善后、战略离场善后等
             // 「必须离开 tick 调用栈」的收尾唯一出口），先消费再处理渲染/输入。
             RunFrameActions();
@@ -952,7 +952,7 @@ namespace DeltaV
         public override void GameComponentTick()
         {
             if (IsResettingScene) return;
-            long performanceStart = Performance.Start();
+            long performanceStart = Performance.BeginTick();
             // 原版 TickManager 每次只调用一次；速度单位为格/秒，故单次积分步长为 1/60 秒。
             // 倍速增加调用次数而非放大单次 dt，暂停时本方法不被调用。
             const float dt = 1f / 60f;
@@ -1043,7 +1043,7 @@ namespace DeltaV
             {
                 SectorContentService.TickSectorTracking(this);
             }
-            Performance.TickFinished(performanceStart, objects.Count,
+            Performance.TickFinished(performanceStart, now, objects.Count,
                 Projectiles.ActiveCount, SubstructureOwnership.GlobalStructureVersion,
                 thrustingObjects, driftingObjects, archivedObjects);
         }

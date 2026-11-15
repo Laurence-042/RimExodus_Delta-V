@@ -23,7 +23,7 @@ namespace DeltaV
         DrivePreviewModel, DrivePreviewBraking, DrivePreviewAngular, DrivePreviewAllocation,
         MpcAssemble, MpcFeasibility, MpcQp, MpcBrakeRecovery,
         EngagementObservation, EngagementScore, EngagementDamage,
-        CombatPartSelection, Count
+        CombatPartSelection, EngagementCoverBuild, Count
     }
 
     [System.Flags]
@@ -40,6 +40,85 @@ namespace DeltaV
         // appear faster merely by completing fewer candidate evaluations.
         internal long engagementStarted, engagementCompleted, engagementCandidates;
         private const float ReportSeconds = 5f;
+        private static readonly PerformanceStage[] TickStages =
+        {
+            PerformanceStage.Npc, PerformanceStage.SoftDock, PerformanceStage.Projectiles,
+            PerformanceStage.Autopilot, PerformanceStage.Weapons, PerformanceStage.Controls,
+            PerformanceStage.Objects, PerformanceStage.Collision, PerformanceStage.MotionFeedback,
+            PerformanceStage.Lifecycle
+        };
+        private static readonly PerformanceStage[] TickDetail =
+        {
+            PerformanceStage.CombatPlan, PerformanceStage.CombatRule, PerformanceStage.CombatReposition,
+            PerformanceStage.EngagementObservation, PerformanceStage.EngagementScore,
+            PerformanceStage.CombatPartSelection, PerformanceStage.EngagementDamage,
+            PerformanceStage.EngagementCoverBuild, PerformanceStage.CombatRoute,
+            PerformanceStage.CombatRouteShape, PerformanceStage.CombatTrajectory,
+            PerformanceStage.AutopilotSolve, PerformanceStage.MpcAssemble, PerformanceStage.MpcFeasibility,
+            PerformanceStage.MpcQp, PerformanceStage.MpcBrakeRecovery
+        };
+        private static readonly PerformanceStage[] UpdateStages =
+        {
+            PerformanceStage.FrameActions, PerformanceStage.Grid, PerformanceStage.Exhaust,
+            PerformanceStage.Shells, PerformanceStage.Foreground
+        };
+        private static readonly PerformanceStage[] UpdateDetail =
+        {
+            PerformanceStage.FrameAction, PerformanceStage.ShellRebuild, PerformanceStage.ShellStatic,
+            PerformanceStage.ShellDynamic, PerformanceStage.OverlaySort, PerformanceStage.OverlaySubmit,
+            PerformanceStage.ArchiveCapture, PerformanceStage.ArchiveRestore, PerformanceStage.SyncMapGeneration
+        };
+
+        private sealed class SlowestSample
+        {
+            private readonly long[] startTotals = new long[(int)PerformanceStage.Count];
+            private readonly int[] startCalls = new int[(int)PerformanceStage.Count];
+            private readonly long[] elapsedByStage = new long[(int)PerformanceStage.Count];
+            private readonly int[] callsByStage = new int[(int)PerformanceStage.Count];
+            internal long elapsed;
+            internal int number;
+
+            internal void Begin(long[] totals, int[] calls)
+            {
+                totals.CopyTo(startTotals, 0);
+                calls.CopyTo(startCalls, 0);
+            }
+
+            internal bool Capture(int number, long duration, long[] totals, int[] calls)
+            {
+                if (duration <= elapsed) return false;
+                this.number = number;
+                elapsed = duration;
+                for (int i = 0; i < totals.Length; i++)
+                {
+                    elapsedByStage[i] = totals[i] - startTotals[i];
+                    callsByStage[i] = calls[i] - startCalls[i];
+                }
+                return true;
+            }
+
+            internal void AppendStages(StringBuilder sb, PerformanceStage[] stages)
+            {
+                foreach (var stage in stages)
+                {
+                    int index = (int)stage;
+                    sb.Append(' ').Append(stage).Append('=');
+                    AppendMs(sb, elapsedByStage[index]).Append('/').Append(callsByStage[index]);
+                }
+            }
+
+            internal void AppendRemainder(StringBuilder sb, PerformanceStage[] stages)
+            {
+                long remaining = elapsed;
+                foreach (var stage in stages) remaining -= elapsedByStage[(int)stage];
+                AppendMs(sb.Append(" otherMs="), System.Math.Max(0L, remaining));
+            }
+        }
+
+        private readonly SlowestSample slowestTick = new SlowestSample();
+        private readonly SlowestSample slowestUpdate = new SlowestSample();
+        private long tickStartSearches, tickStartCandidates, slowestTickSearches, slowestTickCandidates;
+        private int slowestUpdateTicks;
         private readonly long[] totals = new long[(int)PerformanceStage.Count];
         private readonly long[] peaks = new long[(int)PerformanceStage.Count];
         private int frames;
@@ -85,6 +164,23 @@ namespace DeltaV
         internal static Measurement MeasureCurrent(PerformanceStage stage) => Current?.Measure(stage) ?? default;
 
         internal long Start() => Enabled ? Stopwatch.GetTimestamp() : 0L;
+
+        internal long BeginTick()
+        {
+            long start = Start();
+            if (start == 0L) return 0L;
+            slowestTick.Begin(totals, calls);
+            tickStartSearches = engagementCompleted;
+            tickStartCandidates = engagementCandidates;
+            return start;
+        }
+
+        internal long BeginFrame()
+        {
+            long start = Start();
+            if (start != 0L) slowestUpdate.Begin(totals, calls);
+            return start;
+        }
 
         internal Measurement Measure(PerformanceStage stage) => new Measurement(this, stage, Start());
 
@@ -149,11 +245,13 @@ namespace DeltaV
                 .Append(" allies=").Append(slowestPoseAllies).Append('}');
         }
 
-        internal void TickFinished(long start, int objectCount, int projectileCount, int structureVersion,
+        internal void TickFinished(long start, int tick, int objectCount, int projectileCount, int structureVersion,
             int thrustingObjects, int driftingObjects, int archivedObjects)
         {
             if (start == 0L) return;
-            Record(PerformanceStage.Tick, start);
+            long elapsed = Elapsed(start);
+            RecordElapsed(PerformanceStage.Tick, elapsed);
+            CaptureTick(tick, elapsed);
             ticks++;
             if (objectCount > peakObjects) peakObjects = objectCount;
             if (projectileCount > peakProjectiles) peakProjectiles = projectileCount;
@@ -162,6 +260,48 @@ namespace DeltaV
             if (archivedObjects > peakArchivedObjects) peakArchivedObjects = archivedObjects;
             if (firstStructureVersion < 0) firstStructureVersion = structureVersion;
             lastStructureVersion = structureVersion;
+        }
+
+        private void CaptureTick(int tick, long elapsed)
+        {
+            if (!slowestTick.Capture(tick, elapsed, totals, calls)) return;
+            slowestTickSearches = engagementCompleted - tickStartSearches;
+            slowestTickCandidates = engagementCandidates - tickStartCandidates;
+        }
+
+        private void CaptureUpdate(int frame, int frameTicks, long elapsed)
+        {
+            if (slowestUpdate.Capture(frame, elapsed, totals, calls)) slowestUpdateTicks = frameTicks;
+        }
+
+        private static StringBuilder AppendMs(StringBuilder sb, long elapsed) =>
+            sb.Append((elapsed * (1000.0 / Stopwatch.Frequency)).ToString("F3", System.Globalization.CultureInfo.InvariantCulture));
+
+        private void AppendSlowestSamples(StringBuilder sb)
+        {
+            if (slowestTick.elapsed > 0)
+            {
+                sb.Append(" tickWorst={tick=").Append(slowestTick.number);
+                AppendMs(sb.Append(" ms="), slowestTick.elapsed)
+                    .Append(" searches=").Append(slowestTickSearches).Append(" candidates=").Append(slowestTickCandidates);
+                slowestTick.AppendRemainder(sb, TickStages);
+                sb.Append(" stages[ms/calls]");
+                slowestTick.AppendStages(sb, TickStages);
+                sb.Append(" nested[ms/calls]");
+                slowestTick.AppendStages(sb, TickDetail);
+                sb.Append('}');
+            }
+            if (slowestUpdate.elapsed > 0)
+            {
+                sb.Append(" updateWorst={frame=").Append(slowestUpdate.number);
+                AppendMs(sb.Append(" ms="), slowestUpdate.elapsed).Append(" ticksThisFrame=").Append(slowestUpdateTicks);
+                slowestUpdate.AppendRemainder(sb, UpdateStages);
+                sb.Append(" stages[ms/calls]");
+                slowestUpdate.AppendStages(sb, UpdateStages);
+                sb.Append(" nested[ms/calls]");
+                slowestUpdate.AppendStages(sb, UpdateDetail);
+                sb.Append('}');
+            }
         }
 
         internal void RecordWeaponCommand(bool fire)
@@ -195,23 +335,24 @@ namespace DeltaV
         {
             if (start == 0L)
             {
-                if (windowStart >= 0f) Reset();
+                if (windowStart >= 0f || slowestTick.elapsed > 0) Reset();
                 return;
             }
-            Record(PerformanceStage.Update, start);
+            RecordFrame(Elapsed(start));
+        }
+
+        private void RecordFrame(long elapsed)
+        {
+            RecordElapsed(PerformanceStage.Update, elapsed);
             float now = Time.realtimeSinceStartup;
-            if (windowStart < 0f)
-            {
-                Reset();
-                windowStart = now;
-                return;
-            }
+            if (windowStart < 0f) windowStart = now;
             float seconds = Time.unscaledDeltaTime;
             TimeSpeed speed = Find.TickManager?.CurTimeSpeed ?? TimeSpeed.Paused;
             if (!hasSpeed) { observedSpeed = speed; hasSpeed = true; }
             else if (observedSpeed != speed) mixedSpeed = true;
             frames++;
             int frameTicks = Find.TickManager?.TicksThisFrame ?? 0;
+            CaptureUpdate(Time.frameCount, frameTicks, elapsed);
             float multiplier = Find.TickManager?.TickRateMultiplier ?? 0f;
             maxTicksPerFrame = Mathf.Max(maxTicksPerFrame, frameTicks);
             minMultiplier = Mathf.Min(minMultiplier, multiplier); maxMultiplier = Mathf.Max(maxMultiplier, multiplier);
@@ -297,6 +438,7 @@ namespace DeltaV
                     .Append(calls[i]).Append('/').Append(ms.ToString("F2"));
             }
             AppendCombatStats(sb);
+            AppendSlowestSamples(sb);
             DeltaVLog.Message(DeltaVLogModule.Performance, sb.ToString());
             Reset();
             windowStart = now;
@@ -331,6 +473,7 @@ namespace DeltaV
             pointDefenseInterceptionTicks = pointDefenseScatterTicks = 0;
             firstStructureVersion = -1;
             lastStructureVersion = 0;
+            slowestTick.elapsed = slowestUpdate.elapsed = 0L;
             hasSpeed = mixedSpeed = false;
             frameSeconds = worstFrameSeconds = 0f;
             windowStart = -1f;
