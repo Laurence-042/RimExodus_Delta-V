@@ -68,9 +68,8 @@ namespace DeltaV
 
         public NpcShipAiService NpcShips => npcShips ?? (npcShips = new NpcShipAiService(this));
 
-        // 地图表示变化的服务交接；生命周期不解释各服务保存的业务状态。
-        internal void NotifyObjectMaterialized(SpaceObject current)
-            => NpcShips.NotifyMaterialized(current);
+        [field: NonSerialized]
+        internal event Action<SpaceObject, SpaceObject> RepresentationChanged;
 
         /// <summary>帧边界表示替换；身份与绝对位姿不变，不触发注销／新生。</summary>
         internal void ReplaceRepresentation(SpaceObject previous, SpaceObject current)
@@ -97,6 +96,12 @@ namespace DeltaV
             try { Autopilot.Detach(previous); previous.ClearDrive(); }
             catch (Exception ex) { Log.Error($"[DeltaV] Representation #{current.objectId} changed, but old drive cleanup failed: {ex}"); }
             finally { if (previous.map != current.map) structures?.Forget(previous.map); }
+            if (RepresentationChanged == null) return;
+            foreach (Action<SpaceObject, SpaceObject> listener in RepresentationChanged.GetInvocationList())
+            {
+                try { listener(previous, current); }
+                catch (Exception ex) { Log.Error($"[DeltaV] Representation #{current.objectId} change listener failed: {ex}"); }
+            }
         }
 
         [NonSerialized] private ShipControlService controls;
@@ -188,8 +193,18 @@ namespace DeltaV
         /// 弹体服务（太空战架构 §4.1：取代 BoardingPods 槽位，段7 完成接管）：弹体
         /// 创建/注册、制导、超时、碰撞调度对接、渲染、图池。实例服务不序列化、读档归零。
         /// </summary>
-        public SpaceProjectileService Projectiles =>
-            projectiles ?? (projectiles = new SpaceProjectileService(this));
+        public SpaceProjectileService Projectiles
+        {
+            get
+            {
+                if (projectiles == null)
+                {
+                    projectiles = new SpaceProjectileService(this);
+                    RepresentationChanged += projectiles.OnRepresentationChanged;
+                }
+                return projectiles;
+            }
+        }
 
         [NonSerialized] private SpaceWeaponService weapons;
 
@@ -592,7 +607,7 @@ namespace DeltaV
 
         [NonSerialized] private HashSet<Map> unframedMaps;
 
-        internal void ForgetMapRuntimeState(Map map)
+        internal void ForgetMapRuntimeState(Map map, bool projectileTargetsAlreadyReviewed)
         {
             if (map == null) return;
             ShipPlanner.Forget(map);
@@ -602,7 +617,7 @@ namespace DeltaV
             globeDisplay?.Forget(map);
             globeNavigation?.InvalidateEntries();
             PlanetGlobeRenderer.InvalidateSilhouette(map);
-            Projectiles.ForgetMap(map);
+            projectiles?.ForgetMap(map, projectileTargetsAlreadyReviewed);
             scatter?.Forget(map);
             softDock?.Forget(map);
             stationTrade?.Forget(map);

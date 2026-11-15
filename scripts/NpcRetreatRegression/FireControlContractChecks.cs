@@ -11,6 +11,8 @@ using Verse;
 internal static partial class Program
 {
     static int accelerationResolveCalls;
+    static int projectileTargetReviews;
+    static void CountProjectileTargetReview() => projectileTargetReviews++;
     static bool TestHullMaxHitPoints(ref int __result)
     { __result = 100; return false; }
     static bool CountAccelerationResolve(ref SpaceWeaponAccelerationSolution __result)
@@ -247,10 +249,27 @@ internal static partial class Program
         fire.ForgetMap(far.map);
         Check(locks.Count == 0, "target map unloading clears point-defense locks owned by another ship");
         fire.TickPointDefense(hull.Vessel, own, false);
+        object mappedLock = locks[weapon.Identity];
         var archivedPd = new ArchivedSpaceObject { objectId = far.objectId, pose = far.pose };
         universe.ReplaceRepresentation(far, archivedPd);
+
+        var missileDef = TestBuildingDef("pointDefenseCleanupMissile");
+        missileDef.comps.Add(new CompProperties_SpaceProjectile { guided = true, hasMap = false });
+        var missileBody = new Building { def = missileDef, stackCount = 1 };
+        var maplessMissile = universe.CapturePayload(missileBody, far.pose, enemy);
+        Check(maplessMissile?.Payload is AbstractMissile && maplessMissile.map == null
+            && fire.TickPointDefense(hull.Vessel, own, false) && Locked().ObjectId == maplessMissile.objectId,
+            "point defense acquires a real missile payload without a map");
+        var secondWeapon = new CompSpaceWeapon { parent = first.parent, props = weapon.props };
+        locks[secondWeapon.Identity] = mappedLock;
         fire.ForgetMap(far.map);
-        Check(locks.Count == 0, "point-defense cleanup also releases a target whose mapped representation has already been replaced");
+        Check(!locks.Contains(secondWeapon.Identity),
+            "point-defense cleanup also releases a target whose mapped representation has already been replaced");
+        Check(locks.Count == 1 && Locked().ObjectId == maplessMissile.objectId,
+            "the same old-map cleanup preserves a valid mapless missile lock");
+        maplessMissile.Payload.GetDirectlyHeldThings().Remove(missileBody);
+        universe.UnregisterObject(maplessMissile);
+
         universe.ReplaceRepresentation(archivedPd, far);
         fire.TickPointDefense(hull.Vessel, own, false);
         universe.Weapons.UnregisterWeapon(weapon, ownMap);
@@ -611,12 +630,61 @@ internal static partial class Program
             CombatTarget.ForContainer(victim)), "wreck-target missile launches for archive cleanup regression");
         object archiveFlight = flights[flights.Count - 1];
         SpaceObject archiveMissile = universe.ObjectById((int)archiveFlight.GetType().GetField("containerId").GetValue(archiveFlight));
+        Check((bool)Call(universe.Projectiles, "ResolveTarget", archiveFlight),
+            "wreck guidance has a cached target before archive replacement");
+        Check(archiveMissile.map == null && archiveMissile.HasTag(SpaceObjectTag.Projectile)
+            && universe.Projectiles.Launch(projectileDef, own, own.pose.position, east, player, null,
+                CombatTarget.ForContainer(archiveMissile)), "second missile locks a legal mapless projectile");
+        object maplessLock = flights[flights.Count - 1];
+        SpaceObject maplessChaser = universe.ObjectById((int)maplessLock.GetType().GetField("containerId").GetValue(maplessLock));
         var archivedWreck = new ArchivedSpaceObject { objectId = victim.objectId, pose = victim.pose };
-        universe.ReplaceRepresentation(victim, archivedWreck);
-        universe.Projectiles.ForgetMap(oldMap);
-        Check(!((CombatTarget)archiveFlight.GetType().GetField("target").GetValue(archiveFlight)).HasLock,
-            "manual wreck lock clears even when archive replacement detached the old map before cleanup");
-        universe.ReplaceRepresentation(archivedWreck, victim);
+        var marker = new PoiState { objectId = universe.AllocateOwnerId(), pose = victim.pose };
+        Map materializedMap = TestMap(marker.objectId);
+        var materialized = SpaceLifecycleService.CreateMaterializedContainer(marker, materializedMap);
+        universe.RegisterObject(marker);
+        var replacements = new List<(SpaceObject previous, SpaceObject current)>();
+        bool sawPublishedIndexes = true;
+        void ObserveReplacement(SpaceObject previous, SpaceObject current)
+        {
+            replacements.Add((previous, current));
+            sawPublishedIndexes &= universe.ObjectById(current.objectId) == current
+                && current.RepresentationVersion == previous.RepresentationVersion + 1
+                && (current.map == null || universe.SpaceObjectOnMap(current.map) == current)
+                && (previous.map == null || previous.map == current.map || universe.SpaceObjectOnMap(previous.map) == null);
+        }
+        var reviews = new Harmony("DeltaV.Regression.RepresentationTargetReview");
+        reviews.Patch(AccessTools.Method(typeof(SpaceProjectileService), "ReviewTargetsLeavingMap"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CountProjectileTargetReview)));
+        universe.RepresentationChanged += ObserveReplacement;
+        try
+        {
+            projectileTargetReviews = 0;
+            universe.ReplaceRepresentation(marker, materialized);
+            universe.ReplaceRepresentation(victim, archivedWreck);
+            Check(!(bool)Call(universe.Projectiles, "ResolveTarget", archiveFlight)
+                && !((CombatTarget)archiveFlight.GetType().GetField("target").GetValue(archiveFlight)).HasLock,
+                "archive replacement clears the wreck lock and same-tick guidance sample before old-map cleanup");
+            universe.Lifecycle.CompleteArchiveMapCleanup(oldMap);
+            Check(projectileTargetReviews == 1 && (bool)Call(universe.Projectiles, "ResolveTarget", maplessLock),
+                "archive replacement and resource cleanup review targets once and preserve a legal mapless lock");
+            universe.ReplaceRepresentation(archivedWreck, victim);
+            Check(replacements.SequenceEqual(new[] { ((SpaceObject)marker, (SpaceObject)materialized),
+                    ((SpaceObject)victim, (SpaceObject)archivedWreck), ((SpaceObject)archivedWreck, (SpaceObject)victim) })
+                && sawPublishedIndexes && projectileTargetReviews == 1,
+                "materialization, archive and restoration each publish once after updating indexes and version");
+            Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
+            Check(!(bool)Call(universe.Projectiles, "ResolveTarget", archiveFlight)
+                && (bool)Call(universe.Projectiles, "ResolveTarget", maplessLock),
+                "restoring the original ID does not reacquire a wreck lock or release the mapless target");
+        }
+        finally
+        {
+            universe.RepresentationChanged -= ObserveReplacement;
+            reviews.UnpatchAll(reviews.Id);
+            universe.UnregisterObject(materialized);
+            Find.Maps.Remove(materializedMap);
+        }
+        flights.Remove(maplessLock); universe.objects.Remove(maplessChaser);
         flights.Remove(archiveFlight); universe.objects.Remove(archiveMissile);
         CombatTarget wreck = ShipFireControl.ManualTargetAlongRay(universe, own, own.pose.position, direction, player);
         Check(wreck.Kind == CombatTargetKind.Container && wreck.ObjectId == victim.objectId,

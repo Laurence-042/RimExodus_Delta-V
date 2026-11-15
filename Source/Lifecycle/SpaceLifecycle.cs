@@ -335,7 +335,7 @@ namespace DeltaV
                 return;
             }
 
-            universe.NotifyObjectMaterialized(container);
+            universe.NpcShips.NotifyMaterialized(container);
             dormancy.Wake(map, "generation complete");
             Messages.Message((marker.snapshot != null ? "DeltaV_PoiRestored" : "DeltaV_PoiActivated")
                 .Translate(container.label), MessageTypeDefOf.NeutralEvent, false);
@@ -504,7 +504,14 @@ namespace DeltaV
                 return;
             }
             universe.ReplaceRepresentation(container, archive);
-            try { Forget(map); }
+            CompleteArchiveMapCleanup(map);
+            Log.Message($"[DeltaV] Archive capture complete: object=#{archive.objectId} label='{carriedLabel}' "
+                + $"{mapTag} parent={archive.parent?.GetUniqueLoadID() ?? "null"}; map unloaded.");
+        }
+
+        internal void CompleteArchiveMapCleanup(Map map)
+        {
+            try { Forget(map, projectileTargetsAlreadyReviewed: true); }
             catch (Exception ex)
             { Log.Error($"[DeltaV] Archived map runtime cleanup failed ({UniverseManager.MapTag(map)}): {ex}"); }
             finally
@@ -512,8 +519,6 @@ namespace DeltaV
                 // 快照已独立保存；断开废弃 Thing → spawnedThings → Map 的持有链。
                 map.spawnedThings.Clear();
             }
-            Log.Message($"[DeltaV] Archive capture complete: object=#{archive.objectId} label='{carriedLabel}' "
-                + $"{mapTag} parent={archive.parent?.GetUniqueLoadID() ?? "null"}; map unloaded.");
         }
 
         private bool IsDisposableContainer(SpaceObject container, Map map)
@@ -643,12 +648,14 @@ namespace DeltaV
             });
         }
 
-        public void Forget(Map map)
+        public void Forget(Map map) => Forget(map, projectileTargetsAlreadyReviewed: false);
+
+        private void Forget(Map map, bool projectileTargetsAlreadyReviewed)
         {
             pendingStructureChecks.Remove(map);
             SubstructureOwnership.TryGet(map)?.ClearMapSupportIndex();
             dormancy.Forget(map);
-            universe.ForgetMapRuntimeState(map);
+            universe.ForgetMapRuntimeState(map, projectileTargetsAlreadyReviewed);
             universe.Weapons.ForgetMap(map);
             ShipStatusPanel.Forget(map);
             MapOverlayRenderer.Release(map);

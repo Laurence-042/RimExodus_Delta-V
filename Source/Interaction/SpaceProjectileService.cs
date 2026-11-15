@@ -206,14 +206,33 @@ namespace DeltaV
         private readonly List<SpaceCollision.ShieldVisualSegment> shieldVisualScratch =
             new List<SpaceCollision.ShieldVisualSegment>();
 
-        public void ForgetMap(Map map)
+        public void ForgetMap(Map map) => ForgetMap(map, projectileTargetsAlreadyReviewed: false);
+
+        internal void ForgetMap(Map map, bool projectileTargetsAlreadyReviewed)
         {
             if (map == null) return;
-            foreach (Projectile p in projectiles)
-                if (p.target.HasLock && (!p.target.TryResolve(universe, out var resolved)
-                    || resolved.Container == null || resolved.Container.map == map)) ForgetTarget(p);
+            if (!projectileTargetsAlreadyReviewed) ReviewTargetsLeavingMap(map);
             ForgetCombatVisuals(map);
             ForgetMotionFeedback(map);
+        }
+
+        internal void OnRepresentationChanged(SpaceObject previous, SpaceObject current)
+        {
+            if (current.IsArchived && previous.map is Map unloaded)
+                ReviewTargetsLeavingMap(unloaded, current.objectId);
+        }
+
+        private void ReviewTargetsLeavingMap(Map map, int archivedObjectId = 0)
+        {
+            foreach (Projectile p in projectiles)
+            {
+                if (!p.target.HasLock) continue;
+                if (archivedObjectId != 0 && p.target.Kind == CombatTargetKind.Container
+                    && p.target.ObjectId == archivedObjectId
+                    || !p.target.TryResolve(universe, out var resolved)
+                    || resolved.Container == null || resolved.Container.map == map)
+                    ForgetTarget(p);
+            }
         }
 
         // 盾线材质（静态渲染缓存，ClearRuntimeCaches 换档销毁）。

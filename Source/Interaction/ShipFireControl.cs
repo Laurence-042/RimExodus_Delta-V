@@ -58,7 +58,8 @@ namespace DeltaV
             staleWeapons.Clear();
             foreach (var pair in pointDefense)
                 if (!pair.Value.target.TryResolve(universe, out var pd)
-                    || pd.Container == null || pd.Container.map == map) staleWeapons.Add(pair.Key);
+                    || pd.Container == null || pd.Container.IsArchived || pd.Container.map == map)
+                    staleWeapons.Add(pair.Key);
             foreach (long id in staleWeapons) pointDefense.Remove(id);
         }
 
