@@ -286,6 +286,9 @@ internal static partial class Program
                 projectileDef = beam, projectileProps = beamProps, muzzleMap = emission, muzzleUniverse = emissionWorld,
                 launchMapAngle = Mathf.Atan2(hitDirection.y, hitDirection.x), speed = 2000
             };
+            var impacts = (IList)AccessTools.Field(typeof(SpaceProjectileService), "impacts").GetValue(universe.Projectiles);
+            var particles = (IList)AccessTools.Field(typeof(SpaceProjectileService), "particles").GetValue(universe.Projectiles);
+            int impactCount = impacts.Count, particleCount = particles.Count;
             Vector2 beforeHit = target.pose.velocity;
             SpacePose beforeClearShot = b.body.pose;
             b.body.pose.position = OrbitSphere.Move(b.body.pose.position, new Vector2(0, 20));
@@ -312,6 +315,8 @@ internal static partial class Program
             drawnTo = (Vector3)AccessTools.Field(drawn.GetType(), "to").GetValue(drawn);
             Check(target.pose.velocity != beforeHit, "structural contact still applies force");
             Check(OrbitSphere.ArcCells(drawnTo, hit) < 1.5f, "structural contact draws the beam to the hit point");
+            Check(impacts.Count == impactCount && particles.Count == particleCount,
+                "structural contact emits no combat flash or particles");
             Check(!a.tractor.TryLaunch(new SpaceWeaponShot(universe, a.weapon, a.body,
                 new WeaponFireRequest(hit))), "automatic fire cannot launch a tractor in structural mode");
             CheckScatteredSweep(universe, first);
