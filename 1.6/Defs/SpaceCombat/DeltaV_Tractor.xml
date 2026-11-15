@@ -27,7 +27,7 @@
   <ThingDef ParentName="DeltaV_EngineeringBeam">
     <defName>DeltaV_Beam_Tractor</defName><label>tractor beam</label>
     <comps><li Class="DeltaV.CompProperties_SpaceProjectile">
-      <hasMap>false</hasMap><speed>2000</speed><laserRange>60</laserRange><laserBeamWidth>0.18</laserBeamWidth>
+      <hasMap>false</hasMap><collisionRadius>0</collisionRadius><speed>2000</speed><laserRange>60</laserRange><laserBeamWidth>0.18</laserBeamWidth>
       <continuousBeam>true</continuousBeam><ignoresShields>true</ignoresShields><visualStyle>Tractor</visualStyle>
       <fireSoundMap>DeltaV_FireLaserMap</fireSoundMap><fireSoundShell>DeltaV_FireLaserShell</fireSoundShell>
     </li></comps>

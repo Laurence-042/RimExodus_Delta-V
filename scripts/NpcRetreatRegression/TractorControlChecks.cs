@@ -198,7 +198,7 @@ internal static partial class Program
                 prefix: new HarmonyMethod(typeof(Program), nameof(RegressionSubstructure)));
             var targetMap = TestMap(51030);
             var deck = (TerrainDef)Raw(typeof(TerrainDef)); deck.isFoundation = true;
-            IntVec3 hitCell = new(2, 0, 2), otherCell = new(4, 0, 4);
+            IntVec3 hitCell = new(2, 0, 2);
             targetMap.terrainGrid.foundationGrid[targetMap.cellIndices.CellToIndex(hitCell)] = deck;
             var target = new MapSpaceObject(51030, targetMap,
                 new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(35, 0)), 0));
@@ -215,7 +215,8 @@ internal static partial class Program
             float force = (float)tractorXml.Descendants("tractorForce").Single();
             Check(force == ShipPhysics.ThrusterThrust * .25f, "one tractor uses a quarter of full large-thruster force");
             var beam = TestBuildingDef("tractor_ray_fixture");
-            beam.comps = new List<CompProperties> { new CompProperties_SpaceProjectile { ignoresShields = true, continuousBeam = true } };
+            beam.comps = new List<CompProperties> { new CompProperties_SpaceProjectile { ignoresShields = true,
+                continuousBeam = true, collisionRadius = (float?)tractorXml.Descendants("collisionRadius").SingleOrDefault() ?? -1f } };
             var pullEffect = new ImpactOutcomePart { kind = ImpactEffectKind.TractorPull, tractorForce = force };
             foreach (bool foundation in new[] { false, true })
                 DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = "tractor_ray_" + foundation,
@@ -229,7 +230,7 @@ internal static partial class Program
                 Vector3 end = OrbitSphere.Move(from, OrbitSphere.Offset(from, aim).normalized * 60f);
                 var body = new SpaceCollision.SweptBody { attacker = new SpaceObject(-51030, new SpacePose(from, 0)),
                     excludeContainer = source, requiredDefender = target, projectileDef = beam, launcher = weapon.parent,
-                    from = from, to = end, sweepRadius = 0f };
+                    from = from, to = end, sweepRadius = SpaceProjectileService.FootprintRadius(beam) };
                 SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { body });
                 return body;
             }
@@ -277,14 +278,51 @@ internal static partial class Program
             Check(Math.Abs(OrbitSphere.ArcCells(drawnFrom, drawnTo) - 60f) < .02f,
                 "unhit manual beam is drawn at full range regardless of cursor distance");
             a.body.pose = beforeEmptyShot;
+            emissionWorld = SpaceTransform.MapPointToUniverse(a.body, a.body.map, emission);
+            Vector2 hitDirection = SpaceTransform.UniverseTangentToMapDirection(a.body, a.body.map,
+                emissionWorld, OrbitSphere.Offset(emissionWorld, hit).normalized);
+            var hitShot = new SpaceWeaponShot(universe, a.weapon, a.body, new WeaponFireRequest(hit, default, true))
+            {
+                projectileDef = beam, projectileProps = beamProps, muzzleMap = emission, muzzleUniverse = emissionWorld,
+                launchMapAngle = Mathf.Atan2(hitDirection.y, hitDirection.x), speed = 2000
+            };
+            Vector2 beforeHit = target.pose.velocity;
+            SpacePose beforeClearShot = b.body.pose;
+            b.body.pose.position = OrbitSphere.Move(b.body.pose.position, new Vector2(0, 20));
+            var fragmentMap = TestMap(51031);
+            fragmentMap.terrainGrid.foundationGrid[fragmentMap.cellIndices.CellToIndex(hitCell)] = deck;
+            Vector2 beamOffset = OrbitSphere.Offset(emissionWorld, hit);
+            var fragment = new MapSpaceObject(universe.AllocateOwnerId(), fragmentMap,
+                new SpacePose(OrbitSphere.Move(emissionWorld, beamOffset * .5f), .45f));
+            universe.RegisterObject(fragment);
+            tractorMasses[fragment] = tractorMasses[target];
+            Check(a.tractor.TryLaunch(hitShot), "manual tractor emits a prepared beam toward a structure");
+            universe.Projectiles.ResolveCollisions();
+            drawnTo = (Vector3)AccessTools.Field(drawn.GetType(), "to").GetValue(drawn);
+            Check(fragment.pose.velocity != Vector2.zero && target.pose.velocity == beforeHit
+                && OrbitSphere.ArcCells(drawnTo, fragment.pose.position) < 1f,
+                "a later-registered rotated fragment in front gets the impulse and beam endpoint");
+            fragment.pose.position = OrbitSphere.Move(emissionWorld, beamOffset * 1.4f);
+            Vector2 fragmentVelocity = fragment.pose.velocity;
+            Check(a.tractor.TryLaunch(hitShot), "manual tractor emits with the larger target in front");
+            universe.Projectiles.ResolveCollisions();
+            Check(fragment.pose.velocity == fragmentVelocity, "the larger structure occludes a fragment behind it");
+            universe.UnregisterObject(fragment);
+            b.body.pose = beforeClearShot;
+            drawnTo = (Vector3)AccessTools.Field(drawn.GetType(), "to").GetValue(drawn);
+            Check(target.pose.velocity != beforeHit, "structural contact still applies force");
+            Check(OrbitSphere.ArcCells(drawnTo, hit) < 1.5f, "structural contact draws the beam to the hit point");
             Check(!a.tractor.TryLaunch(new SpaceWeaponShot(universe, a.weapon, a.body,
                 new WeaponFireRequest(hit))), "automatic fire cannot launch a tractor in structural mode");
             CheckScatteredSweep(universe, first);
 
             harmony.Patch(AccessTools.Method(typeof(ShipFlightTransitionService), "TransferDomainToNewPocket"),
                 prefix: new HarmonyMethod(typeof(Program), nameof(TractorTransfer)));
-            targetMap.terrainGrid.foundationGrid[targetMap.cellIndices.CellToIndex(otherCell)] = deck;
-            universe.NotifyFoundationChanged(targetMap, otherCell);
+            foreach (IntVec3 cell in new CellRect(0, 0, 2, 2))
+            {
+                targetMap.terrainGrid.foundationGrid[targetMap.cellIndices.CellToIndex(cell)] = deck;
+                universe.NotifyFoundationChanged(targetMap, cell);
+            }
             SubstructureOwnership.BumpStructureVersion();
             foreach (ImpactEffectKind kind in new[] { ImpactEffectKind.TractorPull, ImpactEffectKind.CoupleMotion })
             {
@@ -295,7 +333,9 @@ internal static partial class Program
                     kind == ImpactEffectKind.TractorPull ? moon : null;
                 tractorTransferred = null;
                 Vector2 beforeSplit = target.pose.velocity;
-                Fire(a.weapon, a.body, hit);
+                var splitShot = Fire(a.weapon, a.body, hit);
+                Check(splitShot.resolvedHit && splitShot.resolvedHitCell == hitCell,
+                    kind + " hits the small block while grazing a larger block on the same map");
                 Check(target.pose.velocity == beforeSplit, kind + " never applies force to the old multi-block map");
                 Call(universe, "RunFrameActions");
                 Check(tractorTransferred?.SetEquals(new[] { hitCell }) == true
