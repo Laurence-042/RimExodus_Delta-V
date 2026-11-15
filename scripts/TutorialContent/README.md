@@ -61,7 +61,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/TutorialContent/
 
 生成期间，选中控制标记可查看阶段、阶段内尝试次数和已用时间。每次任务实时写入 `DeltaV/ShipPlanJobs/<任务 ID>/worker.log`。日志带从任务开始计起的时间，包含 worker 输出、CP-SAT 的实际用时及确定性用时、拒绝原因和游戏主线程的采集／落位阶段。打开 Mod 设置的「日志：开发调试」可在游戏日志中查看阶段摘要和该次日志路径。离线命令加 `--progress --trace` 可输出相同的求解里程碑及拒绝原因。
 
-`python scripts/TutorialContent/build.py --only SectorFighter ... SectorAsteroid AsteroidSteelSmall AsteroidSteelMedium AsteroidComponentsSmall AsteroidMixedMedium AsteroidPlasteelLarge` 可单独重建星区内容。舰船与站体均包含真实驾驶台、电网、维生和用途设备；贸易站状态显式绑定三个锁定供货仓与一个解锁取货仓。小行星带核心和五份子体按原生 asteroid 契约写 `Vacstone_Rough`、Vacstone／部分 Mineable 和 `RoofRockThin`，不写 foundation／environment；核心标记保存带权路径、环带、密度、间距和固定种子，子体没有标记。`TutorialRegression` 检查 12 个注册叶子的默认路径、format-2 文件、Scribe 数字身份、贸易引用和小行星带完整契约；完整 SpawnSetup、人员活动、战斗、交易补货和 cluster 物化仍由新档验收。
+`python scripts/TutorialContent/build.py --only SectorFighter ... SectorAsteroid AsteroidSteelSmall AsteroidSteelMedium AsteroidComponentsSmall AsteroidMixedMedium AsteroidPlasteelLarge` 可单独重建星区内容。舰船与站体均包含真实驾驶台、电网、维生和用途设备；贸易站状态显式绑定三个锁定供货仓与一个解锁取货仓。小行星带核心和五份子体在 `Space` 上写入 Vacstone 和矿岩实例，无基架、屋顶或环境。岩体采掉后仍为 `Space`；核心标记保存带权路径、环带、密度、间距和固定种子，子体没有标记。`TutorialRegression` 检查 12 个注册叶子的默认路径、format-2 文件、Scribe 数字身份、贸易引用和小行星带完整契约；完整 SpawnSetup、人员活动、战斗、交易补货和 cluster 物化仍由新档验收。
 
 残骸保留用户原船的舱室与原版飞船连接关系，在原导出上添加后部爆炸断口、拆除搜刮设备并保留原床铺／家具／厨房，把队长舱与保留唯一一套真空服的服装架移入货仓。正式资源与本地已归档到 `DeltaV/PrefabArchive/Tutorial/ArrivalStationWreck.xml` 的历史副本使用同一生成结果；归档目录不参与 prefab 扫描。回归覆盖六舱存取、货仓队长绑定、唯一电网、教练机泊口与货仓温控。
 
