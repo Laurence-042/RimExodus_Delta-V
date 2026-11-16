@@ -126,6 +126,10 @@ internal static partial class Program
             CheckPerShipFireControl(universe, faction, other, coDriftOnly: true);
             return;
         }
+        if (Environment.GetCommandLineArgs().Contains("--engagement-static"))
+        { CheckEngagementFleetBaseline(universe, faction, other); return; }
+        if (Environment.GetCommandLineArgs().Contains("--mothership-engagement"))
+        { RunMothershipEngagement(universe, faction, other); return; }
         CheckPerformanceProbe(universe);
         if (Environment.GetCommandLineArgs().Contains("--engagement-battle"))
         { CheckEngagementBattle(universe, faction, other); return; }
