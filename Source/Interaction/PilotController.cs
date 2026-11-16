@@ -417,10 +417,7 @@ internal readonly struct HeadingPanelAction
         internal override void PresentSeparationConfirmation(PilotTarget target, string text,
             System.Action onConfirm, System.Action onCancel)
         {
-            // 复用原版暂停确认窗（Dialog_MessageBox 构造器 forcePause = true，
-            // WindowStack 汇总该标志——窗口存在时游戏不 tick，§8.2 已定）。
-            Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
-                text, onConfirm, onCancel, destructive: true));
+            Find.WindowStack.Add(new Dialog_SeparationConfirmation(universe, text, onConfirm, onCancel));
         }
     }
 

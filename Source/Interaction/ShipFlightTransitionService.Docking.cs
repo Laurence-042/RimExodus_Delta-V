@@ -218,7 +218,7 @@ namespace DeltaV
                 Messages.Message("DeltaV_DockFailBusy".Translate(), MessageTypeDefOf.RejectInput, false);
                 return false;
             }
-            if (!playerInitiated)
+            if (!playerInitiated || !universe.ConfirmSplitWarnings)
             {
                 QueueSeparation(universe, ship.ownerId);
                 return false;
@@ -269,24 +269,21 @@ namespace DeltaV
                 if (universe.Pilot.PilotedTarget(universe).Identity == identity) universe.Pilot.Exit(universe);
             }
             List<Thing> cargo = null;
-            if (playerInitiated && (extract || universe.ConfirmSplitWarnings))
+            if (playerInitiated && universe.ConfirmSplitWarnings)
                 cargo = extract ? CollectUnclaimedCargo(source, plan.cells) : universe.Scatter.LooseCargo(source).ToList();
             if (cargo?.Count > 0)
             {
                 string message = extract
                     ? "DeltaV_UndockConfirmText".Translate(BuildLeftBehindSummary(source, cargo))
                     : "DeltaV_SplitConfirmText".Translate(BuildSplitSummary(source, System.Array.Empty<HashSet<IntVec3>>(), cargo));
-                if (universe.Pilot.ActiveController != null)
-                    universe.Pilot.ActiveController.PresentSeparationConfirmation(PilotTarget.Of(ship), message, Execute, Cancel);
-                else Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(message, Execute, Cancel, destructive: true));
+                ShowSeparationConfirmation(PilotTarget.Of(ship), message, Execute, Cancel);
             }
             else Execute();
             return false;
         }
 
         /// <summary>
-        /// 玩家分离确认（经 ShipController 边界路由；NPC/无 controller 退化为原版确认窗）。
-        /// 文案 key 按方向传入（拆分/脱离两套），回调直连统一执行体。
+        /// 基架船分离确认，文案按拆分或脱离传入，回调直连统一执行体。
         /// </summary>
         private void PresentSeparationPrompt(UniverseManager universe, Ship ship, string textKey, string summary)
         {
@@ -303,14 +300,19 @@ namespace DeltaV
                 else pendingSeparationOwnerIds.Remove(ship.ownerId);
             });
             void Cancel() => CancelSeparation(universe, ship.ownerId);
+            ShowSeparationConfirmation(PilotTarget.Of(ship), text, Confirm, Cancel);
+        }
+
+        private void ShowSeparationConfirmation(PilotTarget target, string text, Action confirm, Action cancel)
+        {
             ShipController controller = universe.Pilot.ActiveController;
             if (controller != null)
             {
-                controller.PresentSeparationConfirmation(PilotTarget.Of(ship), text, Confirm, Cancel);
+                controller.PresentSeparationConfirmation(target, text, confirm, cancel);
             }
             else
             {
-                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(text, Confirm, Cancel, destructive: true));
+                Find.WindowStack.Add(new Dialog_SeparationConfirmation(universe, text, confirm, cancel));
             }
         }
 

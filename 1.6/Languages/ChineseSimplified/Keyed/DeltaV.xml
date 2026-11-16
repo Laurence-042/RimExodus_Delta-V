@@ -215,7 +215,9 @@
   <DeltaV_SplitCargoLine>- 将独立漂浮的人员/物品：
 {0}</DeltaV_SplitCargoLine>
   <DeltaV_SplitBlockLine>- {0}：{1} 格</DeltaV_SplitBlockLine>
-  <DeltaV_SplitWarningToggle>船体撕裂告警：开启时每次拆分前暂停并请求确认；关闭时自动拆分，每次仅在左上角提示。默认开启。</DeltaV_SplitWarningToggle>
+  <DeltaV_SplitWarningToggle>出力分离提示：开启时，断连拆分或脱离停靠需要确认时会暂停并弹窗。关闭时自动分离，断连拆分仍在左上角提示。默认开启。</DeltaV_SplitWarningToggle>
+  <DeltaV_ConfirmAndDisableSeparationWarnings>确定并关闭之后的提示</DeltaV_ConfirmAndDisableSeparationWarnings>
+  <DeltaV_SeparationWarningReenableHint>可在右下角通过「出力分离提示」开关重新开启。</DeltaV_SeparationWarningReenableHint>
   <DeltaV_SplitAutoNotice>「{0}」出力前自动分离残留内容。</DeltaV_SplitAutoNotice>
   <DeltaV_SeparationCancelled>已取消分离并退出驾驶。重新进入驾驶并推进即可再次尝试。</DeltaV_SeparationCancelled>
   <DeltaV_DockSourceLeftoverConfirm>对接「{0}」将处置其船体以外、留在源图上的全部内容：
