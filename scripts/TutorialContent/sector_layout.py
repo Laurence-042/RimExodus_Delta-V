@@ -19,13 +19,10 @@ import sector_craft
 import sector_settlements
 
 
-TEMPORARY_NAMES = (
+NAMES = (
     'SectorFighter', 'SectorGunboat', 'SectorFrigate', 'SectorDestroyer', 'SectorCruiser',
     'SectorWeaponRelay', 'SectorAbandonedSatellite', 'SectorWeaponPlatform',
     'SectorTradeStation', 'SectorShipyard', 'SectorFactoryStation',
-)
-
-NAMES = TEMPORARY_NAMES + (
     'SectorAsteroid',
     'AsteroidSteelSmall', 'AsteroidSteelMedium', 'AsteroidComponentsSmall',
     'AsteroidMixedMedium', 'AsteroidPlasteelLarge',
@@ -599,6 +596,6 @@ def validate_and_draw(name, plan, records, foundation, roofs, reachable, here, g
             temporary = Path(output.name)
             output.write(preview.read_bytes())
         try:
-            temporary.replace(here / (name + '_Temporary.png'))
+            temporary.replace(here / (name + '.png'))
         finally:
             temporary.unlink(missing_ok=True)

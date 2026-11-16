@@ -3,9 +3,9 @@
 `build.py` 是生成入口；移民船残骸以用户原始导出的逐字节副本 `arrival_intact.prefab` 为基准，删改逻辑编辑 `arrival_layout.py`，环形船厂与小货船编辑 `shipyard_layout.py`，武器平台与靶舰编辑 `combat_range_layout.py`。星区舰船编辑 `sector_craft.py`，小型站点与小行星编辑 `sector_layout.py`，三座民用聚居站的独立模块编辑 `sector_settlements.py`。生成器读取安装版与项目 Def 的尺寸和继承链，解析占地／操作格后由同一份记录输出：
 
 - `Common/Prefabs/Tutorial/*.xml`：七份正式可打包教程 prefab，运行时不调用布局脚本。
-- `Common/Prefabs/Sector/{Craft,Stations}/*_Temporary.xml`：星区飞行器与站点的临时默认布局。
+- `Common/Prefabs/Sector/{Craft,Stations}/Sector*.xml`：星区飞行器与站点的内置默认布局。布局更新沿用原文件名。
 - `Common/Prefabs/Sector/Asteroids/*.xml`：小行星带核心与五份带权子资源；只有 `SectorAsteroid.xml` 含批量标记。
-- `Source/obj/TutorialContent/*.png`：与 XML 同批记录生成的临时布局图；星区舰船和站点同时更新本目录内的 `*_Temporary.png` 预览。
+- `Source/obj/TutorialContent/*.png`：与 XML 同批记录生成的临时布局图；星区舰船和站点同时更新本目录内的 同名 PNG 预览。
 - `Source/obj/TutorialContent/*.records.json`：原版离线检查输入，不入库。
 
 `prototypes.states` 是从本地 Demo／Demo_0 导出中摘取并清除源图、派系、控制台身份、电网引用后的实例状态。空休眠舱按原版 `Building_Casket`／`ThingOwner` 存档契约补齐，并经真实 Scribe 加载验证。不要删掉内部容器的具体 Class 或空列表，也不要把完整 Scribe 替换成普通 PrefabThingData。
@@ -14,7 +14,7 @@
 
 ```powershell
 python scripts/TutorialContent/build.py
-python scripts/TutorialContent/build.py --only (Get-ChildItem Common/Prefabs/Sector/Craft/*_Temporary.xml,Common/Prefabs/Sector/Stations/*_Temporary.xml | ForEach-Object { $_.BaseName -replace '_Temporary$' })
+python scripts/TutorialContent/build.py --only (Get-ChildItem Common/Prefabs/Sector/Craft/Sector*.xml,Common/Prefabs/Sector/Stations/Sector*.xml | ForEach-Object { $_.BaseName })
 just build 1.6
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/TutorialRegression/run.ps1 -HarmonyPath C:/Users/Laure/.nuget/packages/lib.harmony/2.4.1/lib/net8.0/0Harmony.dll
 just build

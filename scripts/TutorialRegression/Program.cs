@@ -154,9 +154,6 @@ internal static partial class Program
                 foreach (string prefab in Directory.GetFiles(Path.Combine(prefabRoot, "Sector", category), "*.xml"))
                 {
                     string layout = Path.GetFileNameWithoutExtension(prefab);
-                    const string temporarySuffix = "_Temporary";
-                    if (layout.EndsWith(temporarySuffix, StringComparison.Ordinal))
-                        layout = layout[..^temporarySuffix.Length];
                     Geometry(Path.Combine(records, layout + ".records.json"), game);
                 }
                 foreach (string layout in new[] { "SectorFighter", "SectorGunboat", "SectorFrigate",
@@ -668,9 +665,8 @@ internal static partial class Program
                 ("Shipyard", "TrainingShip", Rot4.East) };
         foreach (var pair in berths)
         {
-            string extension = sector ? "_Temporary.xml" : ".xml";
-            var host = new XmlDocument(); host.Load(Path.Combine(directory, sector ? "Sector/Stations" : "Tutorial", pair.Item1 + extension));
-            var ship = new XmlDocument(); ship.Load(Path.Combine(directory, sector ? "Sector/Craft" : "Tutorial", pair.Item2 + extension));
+            var host = new XmlDocument(); host.Load(Path.Combine(directory, sector ? "Sector/Stations" : "Tutorial", pair.Item1 + ".xml"));
+            var ship = new XmlDocument(); ship.Load(Path.Combine(directory, sector ? "Sector/Craft" : "Tutorial", pair.Item2 + ".xml"));
             HashSet<IntVec3> Hull(XmlDocument doc) => doc.SelectNodes("/MapPrefab/foundations/li/pos")
                 .Cast<XmlNode>().Select(n => IntVec3.FromString(n.InnerText)).ToHashSet();
             var hostHull = Hull(host); var shipHull = Hull(ship);
