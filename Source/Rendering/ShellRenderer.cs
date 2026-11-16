@@ -127,7 +127,7 @@ namespace DeltaV
                 // 随本壳走背景。油门只由分配器
                 // 写（无人出力的残骸/POI 恒为零，天然无火焰）。
                 ThrusterEffects.CollectShellFlames(obj, map, matrix, rotation);
-                target.layer.Emit(target);
+                target.layer.Emit(target, mapShell: true);
             }
             return drew;
         }

@@ -63,7 +63,7 @@ namespace DeltaV
         /// 槽位契约：同层槽位自下而上单调递增、槽位属于本层；违反 = 调用方破坏
         /// 层序，WarningOnce 报警（仍照常发射，不吞画面）。
         /// </summary>
-        public void Emit(Slot slot)
+        public void Emit(Slot slot, bool mapShell = false)
         {
             if (slot.layer == this)
             {
@@ -74,7 +74,7 @@ namespace DeltaV
             {
                 Log.WarningOnce($"[DeltaV] ShellLayer 收到外层槽位：{BufferName} <- {slot.layer.BufferName}", 0x4D31A02 + (int)Event * 2);
             }
-            MapOverlayRenderer.EmitShellCommands(Backend);
+            MapOverlayRenderer.EmitShellCommands(Backend, mapShell);
         }
 
         /// <summary>本帧全部槽位发射完的收尾；语义由子类定义（两层语义不同，勿合并）。</summary>

@@ -20,12 +20,17 @@ namespace DeltaV
     public static class MapOverlayRenderer
     {
         private const int SectionSize = 17;
-        private const int TexturePeriod = 16;
-        private const float UvScale = 0.0625f;
+        private const int TexturePeriod = ShellTerrainBatches.TexturePeriod;
+#if DELTAV_SHELL_TERRAIN_AB_BASELINE
+        internal static readonly bool BatchStaticTerrain = false;
+#else
+        internal static readonly bool BatchStaticTerrain = true;
+#endif
 
         private sealed class SectionSnapshot
         {
             public readonly List<IntVec3> terrainCells = new List<IntVec3>();
+            public readonly List<IntVec3> moonPoolCells = new List<IntVec3>();
             public readonly List<Thing> things = new List<Thing>();
             public readonly HashSet<Thing> deckThings = new HashSet<Thing>();
             public readonly List<PrintBatch> printed = new List<PrintBatch>();
@@ -33,6 +38,7 @@ namespace DeltaV
             public SectionLayer_SubstructureProps substructureProps;
             public ShellHullVisuals.EdgeMeshes hullEdges;
             public Mesh roofEdges;
+            public ShellTerrainBatches terrain;
 
             public void Dispose()
             {
@@ -40,6 +46,7 @@ namespace DeltaV
                 gravshipHull?.Dispose();
                 substructureProps?.Dispose();
                 hullEdges?.Dispose();
+                terrain?.Dispose();
                 if (roofEdges != null) Object.Destroy(roofEdges);
             }
         }
@@ -97,6 +104,7 @@ namespace DeltaV
 
         private static readonly List<OverlayCommand> Commands = new List<OverlayCommand>(512);
         private static int nextSequence;
+        private static int deckTerrainCommands, hullTerrainCommands;
 
         /// <summary>
         /// 收集一壳的全部四边形（地形/建筑/角盖板）到待发命令表。返回是否有可见内容；
@@ -108,6 +116,7 @@ namespace DeltaV
             QuadsDrawnLastPass = 0;
             Commands.Clear();
             nextSequence = 0;
+            deckTerrainCommands = hullTerrainCommands = 0;
             if (map == null || map.Disposed
                 || Current.Game?.GetComponent<UniverseManager>()?.Generation?.IsGenerating(map) == true) return false;
             // Fields extend beyond their projector's section and even beyond the map bounds.
@@ -182,15 +191,28 @@ namespace DeltaV
         /// 当前命令表会被下一次收集复用，火焰属性块也在帧内池化；后端不得保留命令引用。
         /// 表面层与整壳间的深度处理由后端实现，内容收集不依赖具体绘制 API。
         /// </summary>
-        internal static void EmitShellCommands(IShellDrawBackend backend)
+        internal static void EmitShellCommands(IShellDrawBackend backend, bool mapShell)
         {
             if (Commands.Count == 0) return;
             var performance = Current.Game?.GetComponent<UniverseManager>()?.Performance;
             performance?.RecordOverlayCommands(Commands.Count);
-            using (performance?.Measure(PerformanceStage.OverlaySort) ?? default)
-                Commands.Sort(CompareCommands);
-            using (performance?.Measure(PerformanceStage.OverlaySubmit) ?? default)
-                backend.DrawSorted(Commands);
+            long sortStart = performance?.Start() ?? 0;
+            Commands.Sort(CompareCommands);
+            long submitStart = performance?.Start() ?? 0;
+            backend.DrawSorted(Commands);
+            if (sortStart != 0)
+            {
+                long submit = performance.Elapsed(submitStart);
+                long sort = submitStart - sortStart;
+                performance.RecordElapsed(PerformanceStage.OverlaySort, sort);
+                performance.RecordElapsed(PerformanceStage.OverlaySubmit, submit);
+                if (mapShell)
+                {
+                    performance.RecordShellCommands(Commands.Count, deckTerrainCommands, hullTerrainCommands);
+                    performance.RecordElapsed(PerformanceStage.ShellOverlaySort, sort);
+                    performance.RecordElapsed(PerformanceStage.ShellOverlaySubmit, submit);
+                }
+            }
         }
 
         private static int CompareCommands(OverlayCommand left, OverlayCommand right)
@@ -214,84 +236,34 @@ namespace DeltaV
             {
                 using var rebuildTiming = performance?.Measure(PerformanceStage.ShellRebuild) ?? default;
                 section?.Dispose();
-                section = BuildSection(map, sx, sz);
+                section = BuildSection(map, sx, sz, performance);
                 cache.sections[key] = section;
             }
 
             long staticStart = performance?.Start() ?? 0;
-            for (int i = 0; i < section.terrainCells.Count; i++)
+            if (BatchStaticTerrain && allowedCells == null)
             {
-                IntVec3 cell = section.terrainCells[i];
-                if (!visible.Contains(cell) || allowedCells != null && !allowedCells.Contains(cell)) continue;
-                TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
-                if (terrain == null || terrain.dontRender)
+                if (section.terrain != null)
                 {
-                    // 月池：地形本体 dontRender（透出宇宙），力场走墙壁式连接图
-                    //（MoonPoolGraphics 唯一材质入口；外缘包边/中心力场按邻接自动取片）。
-                    if (terrain == MoonPoolUtility.MoonPoolTerrain)
-                    {
-                        Vector3 fieldPos = matrix.MultiplyPoint3x4(new Vector3(cell.x + 0.5f,
-                            AltitudeLayer.Terrain.AltitudeFor(), cell.z + 0.5f));
-                        Material fieldMaterial = MoonPoolGraphics.FieldMaterial;
-                        if (fieldMaterial != null && fieldMaterial != BaseContent.BadMat)
-                        {
-                            collector.Add(new OverlayCommand
-                            {
-                                mesh = MeshPool.plane10,
-                                matrix = Matrix4x4.TRS(fieldPos, rotation, Vector3.one),
-                                material = fieldMaterial,
-                                queue = fieldMaterial.renderQueue,
-                                sequence = nextSequence++
-                            });
-                            QuadsDrawnLastPass++;
-                        }
-                        Material rimMaterial = MoonPoolGraphics.RimMaterialFor(map, cell);
-                        if (rimMaterial != null && rimMaterial != BaseContent.BadMat)
-                        {
-                            Vector3 rimPos = fieldPos + rotation * new Vector3(0f, Altitudes.AltInc, 0f);
-                            collector.Add(new OverlayCommand
-                            {
-                                mesh = MeshPool.plane10,
-                                matrix = Matrix4x4.TRS(rimPos, rotation, Vector3.one),
-                                material = rimMaterial,
-                                queue = rimMaterial.renderQueue,
-                                sequence = nextSequence++
-                            });
-                            QuadsDrawnLastPass++;
-                        }
-                    }
-                    if (ShellHullVisuals.HasShellRoof(map, cell))
-                    {
-                        Material cover = MaterialFor(ShellHullVisuals.RoofSurfaceTerrain(map, cell));
-                        if (cover != null)
-                        {
-                            Vector3 roofPos = new Vector3(cell.x + 0.5f,
-                                AltitudeLayer.Terrain.AltitudeFor(), cell.z + 0.5f);
-                            collector.Add(new OverlayCommand { mesh = CellMeshFor(cell),
-                                matrix = Matrix4x4.TRS(matrix.MultiplyPoint3x4(roofPos), rotation, Vector3.one),
-                                material = cover, surface = ShellSurfaceLayer.Hull,
-                                queue = cover.renderQueue, sequence = nextSequence++ });
-                            QuadsDrawnLastPass++;
-                        }
-                    }
-                    continue;
+                    CollectTerrainBatches(section.terrain.Deck, matrix, ShellSurfaceLayer.Deck, collector);
+                    CollectTerrainBatches(section.terrain.Hull, matrix, ShellSurfaceLayer.Hull, collector);
                 }
-                Material material = MaterialFor(terrain);
-                if (material == null) continue;
-                Vector3 source = new Vector3(cell.x + 0.5f, AltitudeLayer.Terrain.AltitudeFor(), cell.z + 0.5f);
-                Matrix4x4 terrainMatrix = Matrix4x4.TRS(matrix.MultiplyPoint3x4(source), rotation, Vector3.one);
-                collector.Add(new OverlayCommand { mesh = CellMeshFor(cell), matrix = terrainMatrix,
-                    material = material, surface = ShellSurfaceLayer.Deck,
-                    queue = material.renderQueue, sequence = nextSequence++ });
-                QuadsDrawnLastPass++;
-                // A second opaque surface covers only roofed cells, including the
-                // covered portion of a multi-cell building exposed by a breach.
-                if (ShellHullVisuals.HasShellRoof(map, cell))
+                foreach (IntVec3 cell in section.moonPoolCells)
+                    if (visible.Contains(cell)) CollectMoonPool(map, cell, matrix, rotation, collector);
+            }
+            else
+            {
+                foreach (IntVec3 cell in section.terrainCells)
                 {
-                    collector.Add(new OverlayCommand { mesh = CellMeshFor(cell), matrix = terrainMatrix,
-                        material = material, surface = ShellSurfaceLayer.Hull,
-                        queue = material.renderQueue, sequence = nextSequence++ });
-                    QuadsDrawnLastPass++;
+                    if (!visible.Contains(cell) || allowedCells != null && !allowedCells.Contains(cell)) continue;
+                    bool moonPool = TerrainMaterialsAt(map, cell, out Material deck, out Material cover);
+                    if (moonPool) CollectMoonPool(map, cell, matrix, rotation, collector);
+                    if (deck == null && cover == null) continue;
+                    var center = new Vector3(cell.x + 0.5f, ShellTerrainBatches.Altitude, cell.z + 0.5f);
+                    Matrix4x4 cellMatrix = Matrix4x4.TRS(matrix.MultiplyPoint3x4(center), rotation, Vector3.one);
+                    Mesh mesh = CellMeshFor(cell);
+                    if (deck != null) AddTerrainCommand(mesh, cellMatrix, deck, ShellSurfaceLayer.Deck, 1, collector);
+                    if (cover != null) AddTerrainCommand(mesh, cellMatrix, cover, ShellSurfaceLayer.Hull, 1, collector);
                 }
             }
 
@@ -542,7 +514,60 @@ namespace DeltaV
             return false;
         }
 
-        private static SectionSnapshot BuildSection(Map map, int sx, int sz)
+        private static void CollectTerrainBatches(List<LayerSubMesh> batches, Matrix4x4 matrix,
+            ShellSurfaceLayer surface, List<OverlayCommand> collector)
+        {
+            foreach (LayerSubMesh batch in batches)
+                AddTerrainCommand(batch.mesh, matrix, batch.material, surface, batch.tris.Count / 6, collector);
+        }
+
+        private static void AddTerrainCommand(Mesh mesh, Matrix4x4 matrix, Material material,
+            ShellSurfaceLayer surface, int quads, List<OverlayCommand> collector)
+        {
+            collector.Add(new OverlayCommand { mesh = mesh, matrix = matrix, material = material,
+                surface = surface, queue = material.renderQueue, sequence = nextSequence++ });
+            if (surface == ShellSurfaceLayer.Deck) deckTerrainCommands++;
+            else hullTerrainCommands++;
+            QuadsDrawnLastPass += quads;
+        }
+
+        private static void CollectMoonPool(Map map, IntVec3 cell, Matrix4x4 matrix,
+            Quaternion rotation, List<OverlayCommand> collector)
+        {
+            Vector3 fieldPos = matrix.MultiplyPoint3x4(new Vector3(cell.x + 0.5f,
+                ShellTerrainBatches.Altitude, cell.z + 0.5f));
+            AddPlane(MoonPoolGraphics.FieldMaterial, fieldPos);
+            AddPlane(MoonPoolGraphics.RimMaterialFor(map, cell),
+                fieldPos + rotation * new Vector3(0f, Altitudes.AltInc, 0f));
+
+            void AddPlane(Material material, Vector3 position)
+            {
+                if (material == null || material == BaseContent.BadMat) return;
+                collector.Add(new OverlayCommand { mesh = MeshPool.plane10,
+                    matrix = Matrix4x4.TRS(position, rotation, Vector3.one),
+                    material = material, queue = material.renderQueue, sequence = nextSequence++ });
+                QuadsDrawnLastPass++;
+            }
+        }
+
+        private static bool TerrainSurfacesAt(Map map, IntVec3 cell, out TerrainDef deck, out TerrainDef cover)
+        {
+            TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
+            deck = terrain != null && !terrain.dontRender ? terrain : null;
+            cover = deck == null ? ShellHullVisuals.RoofSurfaceTerrain(map, cell)
+                : ShellHullVisuals.HasShellRoof(map, cell) ? deck : null;
+            return terrain?.dontRender == true && terrain == MoonPoolUtility.MoonPoolTerrain;
+        }
+
+        private static bool TerrainMaterialsAt(Map map, IntVec3 cell, out Material deck, out Material cover)
+        {
+            bool moonPool = TerrainSurfacesAt(map, cell, out TerrainDef deckTerrain, out TerrainDef coverTerrain);
+            deck = MaterialFor(deckTerrain);
+            cover = deckTerrain != null ? (coverTerrain != null ? deck : null) : MaterialFor(coverTerrain);
+            return moonPool;
+        }
+
+        private static SectionSnapshot BuildSection(Map map, int sx, int sz, DeltaVPerformanceProbe performance)
         {
             var result = new SectionSnapshot();
             CellRect rect = CellRect.FromLimits(sx * SectionSize, sz * SectionSize,
@@ -556,6 +581,18 @@ namespace DeltaV
             }
             // Only the SectionLayer material/mesh collector is used; no source-map layer is redrawn.
             Section sourceSection = CacheFor(map).PrintContext(map);
+            if (BatchStaticTerrain)
+            {
+                using var terrainTiming = performance?.Measure(PerformanceStage.ShellTerrainBuild) ?? default;
+                foreach (IntVec3 cell in result.terrainCells)
+                {
+                    if (TerrainMaterialsAt(map, cell, out Material deck, out Material cover))
+                        result.moonPoolCells.Add(cell);
+                    if (deck == null && cover == null) continue;
+                    (result.terrain ??= new ShellTerrainBatches(sourceSection)).Add(cell, deck, cover);
+                }
+                result.terrain?.Complete();
+            }
             PrintBatch SharedBatch(ShellSurfaceLayer surface, float zIndex)
             {
                 PrintBatch batch = result.printed.Find(candidate => candidate.surface == surface
@@ -652,8 +689,7 @@ namespace DeltaV
         {
             ulong relevant = (ulong)MapMeshFlagDefOf.Terrain | (ulong)MapMeshFlagDefOf.Things
                 | (ulong)MapMeshFlagDefOf.Buildings | (ulong)MapMeshFlagDefOf.Roofs;
-            if (map == null || (flags & relevant) == 0) return;
-            MapCache cache = CacheFor(map);
+            if (map == null || (flags & relevant) == 0 || !Caches.TryGetValue(map, out MapCache cache)) return;
             int sx = cell.x / SectionSize;
             int sz = cell.z / SectionSize;
             cache.dirty.Add(sx | (sz << 16));
@@ -666,8 +702,9 @@ namespace DeltaV
                 if (neighbor.InBounds(map))
                     cache.dirty.Add(neighbor.x / SectionSize | (neighbor.z / SectionSize << 16));
             }
-            // A roof can uncover the far end of a building rooted in another section.
-            if ((flags & (ulong)MapMeshFlagDefOf.Roofs) != 0 && cell.InBounds(map))
+            // A roof or loss of its foundation can uncover a building rooted in another section.
+            if ((flags & ((ulong)MapMeshFlagDefOf.Roofs | (ulong)MapMeshFlagDefOf.Terrain)) != 0
+                && cell.InBounds(map))
                 foreach (Thing thing in map.thingGrid.ThingsListAtFast(cell))
                     if (thing is Building)
                         cache.dirty.Add(thing.Position.x / SectionSize | (thing.Position.z / SectionSize << 16));
@@ -731,16 +768,15 @@ namespace DeltaV
 
         private static Mesh CellMeshFor(IntVec3 cell)
         {
-            int x = ((cell.x % TexturePeriod) + TexturePeriod) % TexturePeriod;
-            int z = ((cell.z % TexturePeriod) + TexturePeriod) % TexturePeriod;
+            int x = ShellTerrainBatches.TextureCoordinate(cell.x);
+            int z = ShellTerrainBatches.TextureCoordinate(cell.z);
             int index = x + z * TexturePeriod;
             if (CellMeshes[index] != null) return CellMeshes[index];
             Mesh source = MeshPool.plane10;
             Vector3[] vertices = source.vertices;
             var uv = new Vector2[vertices.Length];
             for (int i = 0; i < vertices.Length; i++)
-                uv[i] = new Vector2((x + 0.5f + vertices[i].x) * UvScale,
-                    (z + 0.5f + vertices[i].z) * UvScale);
+                uv[i] = ShellTerrainBatches.CellUv(cell, vertices[i]);
             var mesh = new Mesh { name = $"DeltaV_OverlayUV_{x}_{z}", vertices = vertices,
                 uv = uv, triangles = source.triangles };
             if (source.normals?.Length == vertices.Length) mesh.normals = source.normals;

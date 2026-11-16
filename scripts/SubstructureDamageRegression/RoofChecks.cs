@@ -115,6 +115,7 @@ internal static partial class Program
 
         var pool = Terrain("moon pool"); pool.isFoundation = true; pool.dontRender = true;
         pool.tags = new List<string> { "Substructure" };
+        AccessTools.Field(typeof(MoonPoolUtility), "moonPoolDef").SetValue(null, pool);
         TerrainDefOf.Substructure = deck;
         int roofIndex = map.cellIndices.CellToIndex(origin);
         map.terrainGrid.foundationGrid[roofIndex] = pool;
@@ -123,11 +124,13 @@ internal static partial class Program
         Check(map.terrainGrid.TerrainAt(origin) == pool, "moon pool is the actual foundation and visible terrain");
         Check(Call(hull, "RoofSurfaceTerrain", map, origin) == deck,
             "ordinary roof over dontRender moon pool uses standard substructure material source");
+        CheckTerrainSurfaces(map, origin, null, deck, true);
         Check(Call(typeof(MapOverlayRenderer), "MaterialFor", pool) == null,
             "dontRender foundation cannot leak its missing-texture material into the shell");
         map.roofGrid.SetRoof(origin, field);
         Check(Call(hull, "RoofSurfaceTerrain", map, origin) == null,
             "moon pool force field receives no opaque roof surface");
+        CheckTerrainSurfaces(map, origin, null, null, true);
         var floor = Terrain("visible floor", true);
         var under = (TerrainDef[])AccessTools.Field(typeof(TerrainGrid), "underGrid").GetValue(map.terrainGrid);
         map.roofGrid.SetRoof(origin, roof);
@@ -135,34 +138,107 @@ internal static partial class Program
         map.terrainGrid.topGrid[roofIndex] = floor;
         Check(Call(hull, "RoofSurfaceTerrain", map, origin) == floor,
             "roof surface preserves actual visible floor when one is present");
+        CheckTerrainSurfaces(map, origin, floor, floor, false);
         map.terrainGrid.topGrid[roofIndex] = space;
         under[roofIndex] = null;
         map.terrainGrid.foundationGrid[roofIndex] = deck;
 
-        Building wide = Place(new IntVec3(15, 0, 15), false, new IntVec2(4, 4));
+        Building wide = Place(new IntVec3(15, 0, 15), false, new IntVec2(6, 6));
         foreach (IntVec3 c in wide.OccupiedRect())
         {
             map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(c)] = deck;
             map.roofGrid.SetRoof(c, roof);
         }
         Check(!(bool)Call(typeof(MapOverlayRenderer), "HasExposedDeck", wide), "fully roofed interior building remains hidden");
-        var opening = new IntVec3(17, 0, 17);
+        var opening = new IntVec3(18, 0, 18);
         map.roofGrid.SetRoof(opening, null);
         Check((bool)Call(typeof(MapOverlayRenderer), "HasExposedDeck", wide), "partial roof loss reveals a multi-cell building");
         MapMeshFlagDefOf.Roofs = (MapMeshFlagDef)Raw(typeof(MapMeshFlagDef));
         Set(MapMeshFlagDefOf.Roofs, "mask", 8UL);
-        MapOverlayRenderer.MarkDirty(map, opening, (ulong)MapMeshFlagDefOf.Roofs);
         object cache = Call(typeof(MapOverlayRenderer), "CacheFor", map);
+        MapOverlayRenderer.MarkDirty(map, opening, (ulong)MapMeshFlagDefOf.Roofs);
         var dirty = (HashSet<int>)AccessTools.Field(cache.GetType(), "dirty").GetValue(cache);
-        Check(dirty.Contains(0) && dirty.Contains(1 | (1 << 16)), "roof change invalidates building-root and opening sections");
+        Check(dirty.SetEquals(new[] { 0, 1 | (1 << 16) }),
+            "roof change invalidates just the remote building root and opening sections");
+        CheckTerrainSurfaces(map, opening, deck, null, false);
+        map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(opening)] = null;
+        CheckTerrainSurfaces(map, opening, null, null, false);
+        Check(!(bool)Call(typeof(MapOverlayRenderer), "HasExposedDeck", wide),
+            "losing the only exposed foundation updates the remote building's deck classification");
+        map.roofGrid.SetRoof(opening, roof);
+        CheckTerrainSurfaces(map, opening, null, null, false);
+        MapMeshFlagDefOf.Terrain = (MapMeshFlagDef)Raw(typeof(MapMeshFlagDef));
+        Set(MapMeshFlagDefOf.Terrain, "mask", 2UL);
+        dirty.Clear();
+        MapOverlayRenderer.MarkDirty(map, opening, (ulong)MapMeshFlagDefOf.Terrain);
+        MapOverlayRenderer.MarkDirty(map, opening, (ulong)MapMeshFlagDefOf.Roofs);
+        Check(dirty.SetEquals(new[] { 0, 1 | (1 << 16) }),
+            "foundation and roof notifications deduplicate the two affected sections");
+        var seam = new IntVec3(16, 0, 16);
+        MapOverlayRenderer.MarkDirty(map, seam, (ulong)MapMeshFlagDefOf.Terrain);
+        Check(dirty.SetEquals(new[] { 0, 1, 1 << 16, 1 | (1 << 16) }),
+            "terrain damage at a section corner refreshes all four sections in the neighbor ring");
         Check((int)ShellSurfaceLayer.Deck < (int)ShellSurfaceLayer.Hull
             && (int)ShellSurfaceLayer.Hull < (int)ShellSurfaceLayer.Exposed,
             "roof surface covers interior draws while exterior turret tops stay above it");
         Check(new ShellRenderConfig().layer == ShellSurfaceLayer.Hull,
             "existing rules without an explicit layer retain the hull default");
+        CheckTerrainMesh();
         CheckHullCorners(map, hull, deck, roof);
         ExportRoofEdgePreview(edges);
         MapOverlayRenderer.Release(map);
+    }
+
+    private static void CheckTerrainSurfaces(Map map, IntVec3 cell, TerrainDef deck, TerrainDef cover, bool pool)
+    {
+        object[] args = { map, cell, null, null };
+        bool result = (bool)Call(typeof(MapOverlayRenderer), "TerrainSurfacesAt", args);
+        Check(result == pool && ReferenceEquals(args[2], deck) && ReferenceEquals(args[3], cover),
+            $"terrain surfaces: deck={deck?.defName}, cover={cover?.defName}, pool={pool}");
+    }
+
+    private static void CheckTerrainMesh()
+    {
+        Type type = typeof(MapOverlayRenderer).Assembly.GetType("DeltaV.ShellTerrainBatches");
+        var mesh = new LayerSubMesh(null, null);
+        // MeshMakerPlanes.NewPlaneMesh(1f) in both game versions.
+        Vector3[] vertices = { new(-0.5f, 0f, -0.5f), new(-0.5f, 0f, 0.5f),
+            new(0.5f, 0f, 0.5f), new(0.5f, 0f, -0.5f) };
+        Vector3[] normals = { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
+        int[] triangles = { 0, 1, 2, 0, 2, 3 };
+        IntVec3[] cells = { new(15, 0, 15), new(16, 0, 16), new(17, 0, 17) };
+        const float altitude = 0.125f;
+        const float yaw = 37f * MathF.PI / 180f;
+        float sin = MathF.Sin(yaw), cos = MathF.Cos(yaw);
+        // The offline runner has no native Unity TRS binding.
+        var transform = new Matrix4x4(new Vector4(cos, 0f, -sin, 0f),
+            new Vector4(0f, 1f, 0f, 0f), new Vector4(sin, 0f, cos, 0f), new Vector4(-28f, 2f, 84f, 1f));
+        for (int q = 0; q < cells.Length; q++)
+        {
+            IntVec3 cell = cells[q];
+            Call(type, "AppendCell", mesh, cell, altitude, vertices, normals, triangles);
+            var center = new Vector3(cell.x + 0.5f, altitude, cell.z + 0.5f);
+            Matrix4x4 legacy = transform;
+            Vector3 translation = transform.MultiplyPoint3x4(center);
+            legacy.m03 = translation.x;
+            legacy.m13 = translation.y;
+            legacy.m23 = translation.z;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                int v = q * vertices.Length + i;
+                Vector3 expected = legacy.MultiplyPoint3x4(vertices[i]);
+                var uv = new Vector3((cell.x % 16 + 0.5f + vertices[i].x) * 0.0625f,
+                    (cell.z % 16 + 0.5f + vertices[i].z) * 0.0625f, 0f);
+                if ((transform.MultiplyPoint3x4(mesh.verts[v]) - expected).sqrMagnitude > 1e-9f
+                    || !mesh.uvs[v].Equals(uv) || !mesh.normals[v].Equals(Vector3.up))
+                    throw new Exception($"Batched terrain vertex differs from one-cell submission at {cell}");
+            }
+            for (int i = 0; i < triangles.Length; i++)
+                if (mesh.tris[q * triangles.Length + i] != q * vertices.Length + triangles[i])
+                    throw new Exception("Batched terrain triangle winding or offset changed");
+        }
+        Check(mesh.verts.Count == 12 && mesh.tris.Count == 18,
+            "terrain batching preserves geometry, normals and UVs across the texture wrap and section seam");
     }
 
     private sealed class HullTestGraphic : Graphic
@@ -233,6 +309,16 @@ internal static partial class Program
                 float expected = outer ? 0.95f * 0.95f * MathF.PI / 4f : 1f - MathF.PI / 4f;
                 Check(MathF.Abs(area - expected) < 0.001f,
                     $"arc clips the expected wall region ({corner}, outer={outer})");
+                int sideX = x.x > 0 ? 1 : 3;
+                int sideZ = z.z > 0 ? 0 : 2;
+                var localSun = new Vector2(x.x * 0.6f, z.z * 0.8f);
+                Type overlay = typeof(MapOverlayRenderer);
+                float sign = outer ? 1f : -1f;
+                Check((float)Call(overlay, "HullIncidence", localSun, sideX, !outer) == sign * 0.6f
+                    && (float)Call(overlay, "HullIncidence", localSun, sideZ, !outer) == sign * 0.8f
+                    && (float)Call(overlay, "HullIncidence", -localSun, sideX, !outer) == -sign * 0.6f
+                    && (float)Call(overlay, "HullIncidence", -localSun, sideZ, !outer) == -sign * 0.8f,
+                    $"inner and outer arc edges reverse highlights under opposite light ({corner}, outer={outer})");
             }
 
             map.roofGrid.SetRoof(floor, null);

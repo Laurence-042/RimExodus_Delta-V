@@ -24,7 +24,8 @@ namespace DeltaV
         MpcAssemble, MpcFeasibility, MpcQp, MpcBrakeRecovery,
         EngagementObservation, EngagementScore, EngagementDamage,
         CombatPartSelection, EngagementCoverBuild,
-        EngagementWeaponTable, EngagementProtectionScan, EngagementProtectionUpdate, EngagementTableQuery, Count
+        EngagementWeaponTable, EngagementProtectionScan, EngagementProtectionUpdate, EngagementTableQuery,
+        ShellTerrainBuild, ShellOverlaySort, ShellOverlaySubmit, Count
     }
 
     [System.Flags]
@@ -69,6 +70,7 @@ namespace DeltaV
         {
             PerformanceStage.FrameAction, PerformanceStage.ShellRebuild, PerformanceStage.ShellStatic,
             PerformanceStage.ShellDynamic, PerformanceStage.OverlaySort, PerformanceStage.OverlaySubmit,
+            PerformanceStage.ShellTerrainBuild, PerformanceStage.ShellOverlaySort, PerformanceStage.ShellOverlaySubmit,
             PerformanceStage.ArchiveCapture, PerformanceStage.ArchiveRestore, PerformanceStage.SyncMapGeneration
         };
 
@@ -138,6 +140,7 @@ namespace DeltaV
         private int autopilotQpIterations;
         private int feasibilityChecks, infeasiblePrechecks, recoverySolves, approachRetries;
         private int visibleSections, rebuiltSections, overlayCommands;
+        private int shellCommands, shellDeckTerrainCommands, shellHullTerrainCommands;
         private int pointDefenseInterceptionTicks;
         private int pointDefenseScatterTicks;
         private int firstStructureVersion = -1;
@@ -204,6 +207,13 @@ namespace DeltaV
             if (rebuilt) rebuiltSections++;
         }
         internal void RecordOverlayCommands(int count) { if (Enabled) overlayCommands += count; }
+
+        internal void RecordShellCommands(int count, int deckTerrain, int hullTerrain)
+        {
+            shellCommands += count;
+            shellDeckTerrainCommands += deckTerrain;
+            shellHullTerrainCommands += hullTerrain;
+        }
 
         internal void Record(PerformanceStage stage, long start)
         {
@@ -389,6 +399,10 @@ namespace DeltaV
                 .Append(" shellSections=").Append(visibleSections)
                 .Append(" shellRebuilt=").Append(rebuiltSections)
                 .Append(" overlayCommands=").Append(overlayCommands)
+                .Append(" shellTerrain=").Append(MapOverlayRenderer.BatchStaticTerrain ? "batched" : "perCell")
+                .Append(" shellCommands=").Append(shellCommands)
+                .Append(" shellDeckTerrainCommands=").Append(shellDeckTerrainCommands)
+                .Append(" shellHullTerrainCommands=").Append(shellHullTerrainCommands)
                 .Append(" pdInterceptTicks=").Append(pointDefenseInterceptionTicks)
                 .Append(" pdScatterTicks=").Append(pointDefenseScatterTicks)
                 .Append(" structureChanges=").Append(firstStructureVersion < 0 ? 0
@@ -473,6 +487,7 @@ namespace DeltaV
             autopilotSolves = autopilotFallbacks = autopilotApproximate = autopilotQpCalls = autopilotQpIterations = 0;
             feasibilityChecks = infeasiblePrechecks = recoverySolves = approachRetries = 0;
             visibleSections = rebuiltSections = overlayCommands = 0;
+            shellCommands = shellDeckTerrainCommands = shellHullTerrainCommands = 0;
             pointDefenseInterceptionTicks = pointDefenseScatterTicks = 0;
             firstStructureVersion = -1;
             lastStructureVersion = 0;
