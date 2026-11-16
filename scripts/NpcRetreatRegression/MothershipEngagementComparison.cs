@@ -38,11 +38,19 @@ internal static partial class Program
         var fixture = new MothershipEngagementFixture(universe, player, enemy, args[flag + 1]);
         DeltaVMod.CurrentSettings.logPerformance = false;
 #if MOTHERSHIP_PRODUCTION
-#if MOTHERSHIP_HEADING_TIMING
+#if MOTHERSHIP_AIM_REFRESH_TIMING
+        RunAimRefreshTiming(universe, fixture, args[flag + 2], args[flag + 3] == "count");
+        return;
+#elif MOTHERSHIP_HEADING_TIMING
         RunHeadingTiming(universe, fixture, args[flag + 2]);
         return;
 #else
         var experimentProbe = new Harmony("DeltaV.Regression.MothershipProduction");
+        if (args[flag + 3] == "topology")
+        {
+            CheckMothershipTopology(fixture);
+            return;
+        }
         if (args[flag + 3] == "health")
         {
             experimentProbe.Patch(typeof(ModsConfig).TypeInitializer,
@@ -58,11 +66,16 @@ internal static partial class Program
             CompareMothershipRailFlights(universe, fixture, args[flag + 2], experimentProbe);
             return;
         }
+        if (args[flag + 3] == "aim-cause")
+        {
+            CompareRailAimTiming(universe, fixture, args[flag + 2], experimentProbe);
+            return;
+        }
         PatchProductionCounts(experimentProbe);
         var production = new List<object>();
 #endif
 #endif
-#if !MOTHERSHIP_HEADING_TIMING
+#if !MOTHERSHIP_HEADING_TIMING && !MOTHERSHIP_AIM_REFRESH_TIMING
 #if MOTHERSHIP_OFFLINE
         string mode = args[flag + 3];
         int round = int.Parse(args[flag + 4]);
@@ -135,6 +148,113 @@ internal static partial class Program
     }
 
     sealed record MothershipPlan(bool Valid, int Start, int Distance, int Heading, int Phase, int[] Track);
+
+#if MOTHERSHIP_AIM_REFRESH_TIMING
+    static bool countingRefresh, checkingShadow;
+    static int fullRefreshChecks;
+    static void CountFullRefreshCheck()
+    {
+        if (countingRefresh && !checkingShadow) fullRefreshChecks++;
+    }
+
+    static void CheckCountedSeparation(bool __result, CombatTrajectoryIntent intent, float elapsed,
+        SpaceCollision.HullShape own, SpaceCollision.HullShape other, SpacePose otherPose)
+    {
+        if (!countingRefresh || !__result) return;
+        checkingShadow = true;
+        try { VerifySeparatedRoute(true, intent, elapsed, own, other, otherPose); }
+        finally { checkingShadow = false; }
+    }
+
+    static void RunAimRefreshTiming(UniverseManager universe, MothershipEngagementFixture fixture, string outPath, bool count)
+    {
+        if (count)
+        {
+            var patch = new Harmony("DeltaV.Regression.RefreshCounts");
+            patch.Patch(routeOverlapSecond, prefix: new HarmonyMethod(typeof(Program), nameof(CountFullRefreshCheck)));
+            patch.Patch(AccessTools.Method(typeof(ShipAutoManeuverControl), "RouteSeparated"),
+                postfix: new HarmonyMethod(typeof(Program), nameof(CheckCountedSeparation)));
+        }
+        DeltaVMod.CurrentSettings.logPerformance = count;
+        var perf = universe.Performance;
+        var stageCalls = (int[])typeof(DeltaVPerformanceProbe).GetField("calls", Private).GetValue(perf);
+        var samples = new List<object>();
+        var modes = new[] { (false, false, "baseline"), (true, false, "authority"),
+            (false, true, "route"), (true, true, "combined") };
+        for (int scene = 0; scene < MothershipScenarios.Length; scene++)
+        {
+            var pair = fixture.Build(scene);
+            foreach (var (own, foe, side) in new[] { (pair.Own, pair.Enemy, "left"), (pair.Enemy, pair.Own, "right") })
+            {
+                (int Candidates, long Rays, int[] Bits) Trial(int mode, bool cold, int round)
+                {
+                    var (authority, screen, name) = modes[mode];
+                    ShipAutoManeuverControl.OfflineReuseAuthority = authority;
+                    ShipAutoManeuverControl.OfflineScreenRoute = screen;
+                    Set(Find.TickManager, "ticksGameInt", 0);
+                    universe.Controls.For(own.member).FireControl.Decide(own.member, own);
+                    if (cold) { universe.Protection.Forget(own.map); universe.Protection.Forget(foe.map); }
+                    var planner = MakeMothershipPlanner(universe, own, foe);
+                    var read = (FleetPlan)MothershipPlanMethod.CreateDelegate(typeof(FleetPlan), planner);
+                    var pose = ShipRegistry.ShipPose(foe.member);
+                    if (!own.TryGetDrive(DriveSubject.Of(own.member), out var drive)) throw new InvalidOperationException("Mothership has no drive");
+                    var flight = new CombatTrajectoryIntent[5];
+                    long candidateStart = perf.engagementCandidates, rayStart = universe.Protection.Scans;
+                    long start = Stopwatch.GetTimestamp();
+                    bool valid = read(own, pose, 0, drive, out flight[0]);
+                    long initial = Stopwatch.GetTimestamp() - start, refresh = 0;
+                    int angles = stageCalls[(int)PerformanceStage.DrivePreviewAngular];
+                    int aim = stageCalls[(int)PerformanceStage.WeaponAim];
+                    int exact = fullRefreshChecks, skipped = separatedRoutes;
+                    for (int i = 1; i < flight.Length; i++)
+                    {
+                        Set(Find.TickManager, "ticksGameInt", i * 6);
+                        countingRefresh = count;
+                        start = Stopwatch.GetTimestamp();
+                        valid &= read(own, pose, 0, drive, out flight[i]);
+                        refresh += Stopwatch.GetTimestamp() - start;
+                        countingRefresh = false;
+                    }
+                    int candidates = (int)(perf.engagementCandidates - candidateStart);
+                    long rays = universe.Protection.Scans - rayStart;
+                    if (!valid || candidates <= 0 || !cold && rays != 0)
+                        throw new InvalidOperationException($"Invalid refresh trial {scene}/{side}/{name}/{round}");
+                    var score = (CombatAttackPose)typeof(ShipAutoManeuverControl).GetField("attackPose", Private).GetValue(planner);
+                    var reposition = (CombatReposition)typeof(ShipAutoManeuverControl).GetField("reposition", Private).GetValue(planner);
+                    if (round > 0)
+                    {
+                        double Ms(long n) => n * (1000.0 / Stopwatch.Frequency);
+                        samples.Add(new { scene = MothershipScenarios[scene], side, mode = name, cold, round, candidates, rays,
+                            initialMs = Ms(initial), refreshMs = Ms(refresh), totalMs = Ms(initial + refresh),
+                            angles = stageCalls[(int)PerformanceStage.DrivePreviewAngular] - angles,
+                            aim = stageCalls[(int)PerformanceStage.WeaponAim] - aim, exact = fullRefreshChecks - exact,
+                            skipped = separatedRoutes - skipped });
+                    }
+                    return (candidates, rays, new[] { BitConverter.SingleToInt32Bits(score.distance),
+                        BitConverter.SingleToInt32Bits(score.heading), BitConverter.SingleToInt32Bits(reposition.phase) }
+                        .Concat(flight.SelectMany(FleetTrajectoryBits)).ToArray());
+                }
+                foreach (int mode in Enumerable.Range(0, modes.Length)) Trial(mode, true, 0);
+                foreach (bool cold in new[] { true, false })
+                for (int round = 1; round <= (count ? 1 : 5); round++)
+                {
+                    var views = new (int Candidates, long Rays, int[] Bits)[modes.Length];
+                    for (int i = 0; i < modes.Length; i++)
+                    {
+                        int mode = (round + (side == "right" ? -i : i) + modes.Length) % modes.Length;
+                        views[mode] = Trial(mode, cold, round);
+                    }
+                    Check(views.Skip(1).All(v => v.Candidates == views[0].Candidates && v.Rays == views[0].Rays &&
+                        v.Bits.SequenceEqual(views[0].Bits)), "aim refresh variants exactly match search and sampled flight reference");
+                }
+            }
+        }
+        if (count) Check(separatedRoutes > 0 && routeFalseNegatives == 0, "all counted skips match the full route check");
+        File.WriteAllLines(Path.Combine(outPath, count ? "refresh-count.jsonl" : "refresh-time.jsonl"),
+            samples.Select(v => JsonSerializer.Serialize(v, MothershipJson)));
+        Console.WriteLine($"AIM_REFRESH {(count ? "count" : "time")} samples={samples.Count} skipped={separatedRoutes} falseNegatives={routeFalseNegatives}");
+    }
+#endif
 
 #if MOTHERSHIP_HEADING_TIMING
     static void RunHeadingTiming(UniverseManager universe, MothershipEngagementFixture fixture, string outPath)
@@ -227,7 +347,8 @@ internal static partial class Program
         ManeuverMotionObject own, ManeuverMotionObject foe, bool compareHeading = false)
     {
         var read = (FleetPlan)MothershipPlanMethod.CreateDelegate(typeof(FleetPlan), planner);
-        bool valid = read(own, ShipRegistry.ShipPose(foe.member), 0, new DeltaV.DriveInfo(own.layout), out var intent);
+        if (!own.TryGetDrive(DriveSubject.Of(own.member), out var drive)) throw new InvalidOperationException("Mothership has no drive");
+        bool valid = read(own, ShipRegistry.ShipPose(foe.member), 0, drive, out var intent);
         if (!valid) return new(false, 0, 0, 0, 0, Array.Empty<int>());
 #if MOTHERSHIP_PRODUCTION
         if (compareHeading) Check(CheckLockedHeading(planner, intent), "score, command and flight heading agree");
@@ -240,12 +361,191 @@ internal static partial class Program
     }
 
 #if MOTHERSHIP_PRODUCTION
+    static void CheckMothershipTopology(MothershipEngagementFixture fixture)
+    {
+        var (a, b) = fixture.Build(3);
+        Check(a.member.HullCells.Count() == 2000 && b.member.HullCells.Count() == 1906,
+            "production discovers both connected Mothership domains");
+        foreach (var body in new[] { a, b })
+        {
+            var ship = (FoundationShip)body.member;
+            var original = ShipRegistry.ControlDomain(ship.Structure);
+            Vector2 center = ship.HullCenter;
+            Check(center.Equals(SpaceTransform.BoundsCenterOfCells(original)), "production caches the exact fixture center");
+            int tick = Find.TickManager.TicksGame;
+            int east = original.Max(p => p.x);
+            var edge = original.Where(c => c.x == east).ToArray();
+            void RemoveFoundation(IntVec3 cell)
+            {
+                body.map.terrainGrid.foundationGrid[body.map.cellIndices.CellToIndex(cell)] = null;
+                SubstructureOwnership.For(body.map).NotifyFoundationRemoved(cell);
+            }
+            RemoveFoundation(edge[0]);
+            Check(!ship.HullCells.Contains(edge[0]) && Find.TickManager.TicksGame == tick,
+                "a single deleted cell is absent from the live domain immediately");
+            foreach (var cell in edge.Skip(1)) RemoveFoundation(cell);
+            var updated = ShipRegistry.ControlDomain(ship.Structure);
+            Check(Find.TickManager.TicksGame == tick && !ReferenceEquals(updated, original)
+                && edge.All(c => !updated.Contains(c)) && !ship.HullCenter.Equals(center)
+                && ship.HullCenter.Equals(SpaceTransform.BoundsCenterOfCells(updated)),
+                "same-tick deletion invalidates the production domain and center");
+            var missileRack = ship.Weapons.First(w => w.parent.def.defName == "DeltaV_Weapon_MissileLauncher").parent;
+            Check(ship.Contains(missileRack), "launcher initially belongs to the production domain");
+            foreach (var cell in missileRack.OccupiedRect().Cells.Where(updated.Contains)) RemoveFoundation(cell);
+            Check(Find.TickManager.TicksGame == tick && !ship.Contains(missileRack)
+                && !ship.Weapons.Any(w => w.parent == missileRack), "unsupported launcher immediately leaves ownership and weapon list");
+        }
+    }
+
     static readonly List<CombatEngagementEvaluation.Result> productionScores = new();
     static int productionAim, productionExact;
     static int lockedHeadingSamples;
     static void CountProductionAim() => productionAim++;
     static void CountProductionExact() => productionExact++;
     static void RecordProductionScore(CombatEngagementEvaluation.Result __result) => productionScores.Add(__result);
+
+    static CompSpaceWeapon causeRail;
+    static Thing causePart;
+    static CombatTarget causeTarget;
+    static bool causeLegacy, causeFixed, causeContinuous, causePlanLeft;
+
+    static void SetCauseTarget(CombatEngagementEvaluation.Result __result)
+    {
+        if (__result.fixedAimWeapon != causeRail) return;
+        if (causeLegacy) __result.fixedAimWeapon = null;
+        else if (causeFixed)
+        {
+            __result.fixedAimPart = causePart;
+            __result.fixedAimTarget = causeTarget;
+        }
+    }
+
+    static void PinLegacyAssignment(ShipFireControl __instance, ShipBase ship)
+    {
+        if (!causeLegacy || ship.Identity != causeRail.OwnerShip.Identity) return;
+        var assignments = (Dictionary<long, CombatTarget>)typeof(ShipFireControl)
+            .GetField("automaticTargets", Private).GetValue(__instance);
+        assignments[causeRail.Identity] = causeTarget;
+    }
+
+    static bool ContinueCauseHeading(CombatTrajectoryIntent intent, float heading, float elapsed,
+        ref CombatTrajectoryIntent __result)
+    {
+        if (!causePlanLeft || !causeContinuous || elapsed <= 0f) return true;
+        // This diagnostic arm advances the old angular reference instead of resetting it to the measured hull.
+        float decay = intent.headingDecay;
+        float factor = Mathf.Exp(decay * elapsed);
+        float shift = SpaceTransform.WrapAngle(-intent.frameAngle - heading) * factor;
+        intent.headingError += shift * (1f - decay * elapsed);
+        intent.headingRateError += decay * decay * elapsed * shift;
+        intent.frameAngle = -heading;
+        __result = intent;
+        return false;
+    }
+
+    static void CompareRailAimTiming(UniverseManager universe, MothershipEngagementFixture fixture,
+        string outPath, Harmony patch)
+    {
+        void Add(Type type, string method, string prefix = null, string postfix = null) => patch.Patch(
+            AccessTools.Method(type, method), prefix: prefix == null ? null : new HarmonyMethod(typeof(Program), prefix),
+            postfix: postfix == null ? null : new HarmonyMethod(typeof(Program), postfix));
+        patch.Patch(typeof(ModsConfig).TypeInitializer, prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
+        Add(typeof(SpaceProjectileService), "RegisterShotVisuals", prefix: nameof(BattleSceneOnly));
+        Add(typeof(CombatWeaponOutputTable), "Evaluate", postfix: nameof(SetCauseTarget));
+        Add(typeof(ShipFireControl), "AssignAutomaticTargets", postfix: nameof(PinLegacyAssignment));
+        Add(typeof(CombatFlightPlanner), "RetargetHeading", prefix: nameof(ContinueCauseHeading));
+        var projectiles = (System.Collections.IList)typeof(SpaceProjectileService).GetField("projectiles", Private)
+            .GetValue(universe.Projectiles);
+        var results = new List<object>();
+        foreach (var arm in new[] { "legacy-fixed", "fixed-rebase", "dynamic-rebase", "fixed-continuous", "dynamic-continuous" })
+        {
+            causeLegacy = arm == "legacy-fixed";
+            causeFixed = arm.StartsWith("fixed");
+            causeContinuous = arm.EndsWith("continuous");
+            var (left, right) = fixture.BuildRailgunFlight(false);
+            causeRail = left.member.Weapons.Single(w => w.parent.def.defName == "DeltaV_Weapon_RailgunLoader");
+            causePart = right.member.Weapons.Single(w => w.parent.thingIDNumber == 200115).parent;
+            causeTarget = CombatTarget.ForShip(right.member.Identity, causePart.thingIDNumber);
+            void Start(ManeuverMotionObject own, ManeuverMotionObject foe)
+            {
+                var controller = universe.Controls.For(own.member);
+                ConfigureMothershipPlanner(controller.AutoManeuver, foe);
+                controller.FireControl.Decide(own.member, own);
+                bool Sample(out SpacePose pose) { pose = ShipRegistry.ShipPose(foe.member); return true; }
+                var plan = (CombatTrajectoryPlanner)MothershipPlanMethod.CreateDelegate(typeof(CombatTrajectoryPlanner), controller.AutoManeuver);
+                bool Track(SpaceObject body, SpacePose target, float radius, DeltaV.DriveInfo drive, out CombatTrajectoryIntent trajectory)
+                {
+                    causePlanLeft = own == left;
+                    try { return plan(body, target, radius, drive, out trajectory); }
+                    finally { causePlanLeft = false; }
+                }
+                universe.Autopilot.TrackOrbit(DriveSubject.Of(own.member), Sample, 0f, Track);
+            }
+            Start(left, right);
+            Start(right, left);
+            var controller = universe.Controls.For(left.member);
+            var defense = universe.Controls.For(right.member).FireControl;
+            var fire = controller.FireControl;
+            var planner = controller.AutoManeuver;
+            var rightRail = right.member.Weapons.Single(w => w.parent.def.defName == "DeltaV_Weapon_RailgunLoader");
+            int firstReady = -1, first = -1, readyOnRefresh = -1, cooldown = 0;
+            int lastPart = -1;
+            var parts = new List<object>();
+            for (int tick = 0; tick < 1800; tick++)
+            {
+                Set(Find.TickManager, "ticksGameInt", tick);
+                var priorTarget = causeLegacy ? causeTarget : (CombatTarget)typeof(ShipAutoManeuverControl)
+                    .GetField("fixedAimTarget", Private).GetValue(planner);
+                Vector3? extraLead = null;
+                if (!causeLegacy && priorTarget.HasLock && fire.TryResolveAutomatic(left.member, left, priorTarget,
+                    out var priorResolved, planner.FixedAimPart))
+                {
+                    var info = SpaceWeaponBallistics.Read(causeRail, left, causeRail.QueryEnergy, true).aim;
+                    if (SpaceWeaponBallistics.TryAim(info, left.pose, priorResolved.Pose, out var lead)) extraLead = lead;
+                }
+                RecoveryTick(universe.Autopilot, tick);
+                var shared = planner.SharedFixedAim;
+                bool refresh = shared.HasValue && shared.Value.Tick == tick;
+                CombatTarget handle = refresh ? shared.Value.Target : priorTarget;
+                if (handle.HasLock && handle.SystemId != lastPart)
+                { lastPart = handle.SystemId; parts.Add(new { tick, part = lastPart }); }
+                if (causeLegacy && fire.TryResolveAutomatic(left.member, left, handle, out var oldResolved, causePart))
+                {
+                    var info = SpaceWeaponBallistics.Read(causeRail, left, causeRail.QueryEnergy, true).aim;
+                    if (SpaceWeaponBallistics.TryAim(info, left.pose, oldResolved.Pose, out var lead)) extraLead = lead;
+                }
+                Vector3? point = refresh ? shared.Value.Point : extraLead;
+                if (point.HasValue && handle.HasLock)
+                {
+                    var shot = new SpaceWeaponShot(universe, causeRail, left, new WeaponFireRequest(point.Value, handle));
+                    if ((bool)Call(shot, "Prepare"))
+                    {
+                        if (firstReady < 0) firstReady = tick;
+                        if (refresh && readyOnRefresh < 0) readyOnRefresh = tick;
+                    }
+                }
+                fire.Decide(left.member, left);
+                int before = projectiles.Count;
+                fire.TickAutoVolley(left.member, left, false);
+                if (projectiles.Count > before && causeRail.CooldownTicksLeft > 0)
+                {
+                    first = tick;
+                    cooldown = causeRail.CooldownTicksLeft;
+                    break;
+                }
+                if (rightRail.CooldownTicksLeft <= 0)
+                { defense.Decide(right.member, right); defense.TickAutoVolley(right.member, right, false); }
+            }
+            foreach (var body in new[] { left, right }) universe.Autopilot.Cancel(DriveSubject.Of(body.member));
+            universe.Projectiles.ResetFlow();
+            var row = new { arm, firstReady, readyOnRefresh, first, cooldown, parts };
+            results.Add(row);
+            Console.WriteLine("AIM_CAUSE " + JsonSerializer.Serialize(row, MothershipJson));
+            Check(first >= 0 && firstReady >= 0 && firstReady <= first, "aim experiment reaches actual launch and cooldown");
+        }
+        File.WriteAllLines(Path.Combine(outPath, "aim-cause.jsonl"), results.Select(r => JsonSerializer.Serialize(r, MothershipJson)));
+        patch.UnpatchAll(patch.Id);
+    }
 
     static bool CheckLockedHeading(ShipAutoManeuverControl planner, CombatTrajectoryIntent trajectory)
     {
@@ -263,6 +563,19 @@ internal static partial class Program
     static readonly Dictionary<CompSpaceWeapon, ShipAutoManeuverControl> railPlanners = new();
     static int railAimCalls, sharedRailAttempts;
     static bool countRailAim;
+    static int separatedRoutes, routeFalseNegatives;
+    static readonly System.Reflection.MethodInfo routeOverlapSecond = typeof(ShipAutoManeuverControl)
+        .GetMethod("RouteOverlapSecond", Private);
+
+    static void VerifySeparatedRoute(bool __result, CombatTrajectoryIntent intent, float elapsed,
+        SpaceCollision.HullShape own, SpaceCollision.HullShape other, SpacePose otherPose)
+    {
+        if (!__result) return;
+        separatedRoutes++;
+        if ((int)routeOverlapSecond.Invoke(null, new object[] { intent, elapsed, own, other, otherPose }) != 0)
+            routeFalseNegatives++;
+    }
+
     static void CountRailAim(WeaponAimInfo info)
     {
         if (countRailAim && info.Projectile?.defName == "DeltaV_Projectile_RailgunSlug") railAimCalls++;
@@ -325,6 +638,8 @@ internal static partial class Program
             prefix: new HarmonyMethod(typeof(Program), nameof(CountRailAim)));
         patch.Patch(AccessTools.Method(typeof(CombatWeaponOutputTable), "Evaluate"),
             postfix: new HarmonyMethod(typeof(Program), nameof(RecordRailScoringTarget)));
+        patch.Patch(AccessTools.Method(typeof(ShipAutoManeuverControl), "RouteSeparated"),
+            postfix: new HarmonyMethod(typeof(Program), nameof(VerifySeparatedRoute)));
         CheckMothershipHeadingPolicy(universe, fixture);
         var projectiles = (System.Collections.IList)typeof(SpaceProjectileService)
             .GetField("projectiles", Private).GetValue(universe.Projectiles);
@@ -477,6 +792,8 @@ internal static partial class Program
         File.WriteAllLines(Path.Combine(outPath, "heading-flights.jsonl"),
             report.Select(row => JsonSerializer.Serialize(row, MothershipJson)));
         Check(allLaunched, "both ships turn into range and launch railgun slugs automatically in both mirrors");
+        Console.WriteLine($"ROUTE_PARITY skipped={separatedRoutes} falseNegatives={routeFalseNegatives}");
+        Check(separatedRoutes > 0 && routeFalseNegatives == 0, "all skipped routes pass the original overlap query");
     }
 
     static void CheckMothershipHeadingPolicy(UniverseManager universe, MothershipEngagementFixture fixture)
@@ -491,6 +808,14 @@ internal static partial class Program
         var offset = OrbitSphere.Offset(target.position, self.position);
         float phase = Mathf.Atan2(offset.y, offset.x) + Mathf.PI / 2;
         var drive = new DeltaV.DriveInfo(own.layout);
+        var read = (FleetPlan)MothershipPlanMethod.CreateDelegate(typeof(FleetPlan), planner);
+        Check(read(own, target, 0, drive, out var originalDrive) && originalDrive.yawAuthority > 0f,
+            "the full plan supplies measured turning authority");
+        foreach (var thruster in own.layout.thrusters) thruster.thrust *= .5f;
+        own.layout.version++;
+        Check(read(own, target, 0, drive, out var weakenedDrive) && weakenedDrive.yawAuthority < originalDrive.yawAuthority
+            && weakenedDrive.yawAuthority == Mathf.Min(drive.PreviewAngular(1), drive.PreviewAngular(-1)),
+            "a changed drive version refreshes turning authority in the same tick");
         var settings = new CombatTacticSettings { behavior = CombatTactic.Automatic, facing = CombatFacing.Automatic };
         var pose = new CombatAttackPose { heading = -.71f, distance = offset.magnitude, fireHeading = true };
         CombatManeuverIntent Action(bool preserve = false) =>
@@ -527,6 +852,19 @@ internal static partial class Program
             return (bool)typeof(ShipAutoManeuverControl).GetMethod("RouteClear", Private).Invoke(planner, args);
         }
         Check(Clear(aimingBrake), "braking turn clears the distant opposing ship");
+        var routeCheck = typeof(ShipAutoManeuverControl).GetMethod("RouteClearAt", Private);
+        bool ClearRefresh(CombatTrajectoryIntent intent) => (bool)routeCheck.Invoke(planner,
+            new object[] { own.member, intent, .1f, default(DriveSubject), 0 });
+        var track = CombatFlightPlanner.Plan(self, target, new CombatManeuverIntent
+            { distance = offset.magnitude, heading = pose.heading }, drive, 0);
+        Check(ClearRefresh(track), "far hulls pass the angular refresh clearance check");
+        track.Sample(1.1f, out var firstPosition, out _, out _, out _);
+        foe.pose = new SpacePose(firstPosition, foe.pose.angle);
+        Check(!ClearRefresh(track), "nearby hulls run the exact overlap check");
+        var approaching = new SpacePose(OrbitSphere.Move(firstPosition, new Vector2(180f, 0f)), foe.pose.angle);
+        approaching.velocity = OrbitSphere.Offset(approaching.position, firstPosition);
+        foe.pose = approaching;
+        Check(!ClearRefresh(track), "approaching hulls run the exact overlap check even when currently separated");
         foe.pose = new SpacePose(self.position, foe.pose.angle);
         Check(!Clear(aimingBrake), "braking turn is rejected when its swept ship overlaps");
     }
@@ -547,7 +885,7 @@ internal static partial class Program
     static void CheckProductionProtection(UniverseManager universe, MothershipEngagementFixture fixture, Faction enemy)
     {
         var (own, target) = fixture.Build(0);
-        var ship = (CombatHull)target.member;
+        var ship = (FoundationShip)target.member;
         var map = target.map;
         foreach (var hull in new[] { own.member, target.member })
         {
@@ -575,12 +913,10 @@ internal static partial class Program
         int x = Mathf.FloorToInt(center.x), z = Mathf.FloorToInt(center.y);
         AddStaticFleetShield(map, enemy, 97001, map.Size.x);
         var shield = (Building)map.listerThings.AllThings.Single(thing => thing.thingIDNumber == 97001);
-        ship.cells.Add(shield.Position);
         var wall = (Building)AddTestBuilding(map, enemy, 97002, TestBuildingDef("ProductionProtectionWall"), new EmptyComp());
         MoveCombatFixture(wall, new IntVec3(x, 0, z + 1));
         SetStaticFixtureHealth(wall, 100);
         wall.def.drawDamagedOverlay = false;
-        ship.cells.Add(wall.Position);
         SubstructureOwnership.BumpStructureVersion(map);
         var receiver = universe.ProtectionFor(ship);
         int sector = CombatProtectionTable.Receiver.DirectionOf(Vector2.down);

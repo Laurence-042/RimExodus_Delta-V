@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace DeltaV
 {
@@ -34,6 +34,7 @@ namespace DeltaV
             intent.headingError = SpaceTransform.WrapAngle(own.angle - intent.BrakeBearing(0f, own.position) - heading);
             intent.headingRateError = own.angularVelocity - bearingRate;
             float alpha = Mathf.Min(drive.PreviewAngular(1), drive.PreviewAngular(-1));
+            intent.yawAuthority = alpha;
             intent.headingDecay = HeadingDecay(alpha, intent.headingError, intent.headingRateError);
             return intent;
         }
@@ -43,18 +44,13 @@ namespace DeltaV
                 alpha * .5f / Mathf.Max(.01f, 2f * Mathf.Abs(rate)));
 
         internal static CombatTrajectoryIntent RetargetHeading(CombatTrajectoryIntent intent,
-            SpacePose own, float heading, DriveInfo drive, float elapsed)
+            SpacePose own, float heading, float elapsed)
         {
-            // Sample the bearing of the unchanged translation curve with angular correction removed.
-            var bearing = intent;
-            bearing.localAnchor = Vector2.zero;
-            bearing.frameAngle = bearing.headingError = bearing.headingRateError = 0f;
-            bearing.Sample(elapsed, out _, out _, out float angle, out float omega);
+            intent.SampleHeadingBasis(elapsed, out float angle, out float omega);
 
             float error = SpaceTransform.WrapAngle(own.angle - angle - heading);
             float rate = own.angularVelocity - omega;
-            float alpha = Mathf.Min(drive.PreviewAngular(1), drive.PreviewAngular(-1));
-            float decay = HeadingDecay(alpha, error, rate);
+            float decay = HeadingDecay(intent.yawAuthority, error, rate);
             // Rebase the angular solution to the existing trajectory clock so translation stays continuous.
             float factor = Mathf.Exp(decay * elapsed);
             float linear = (rate + decay * error) * factor;
@@ -125,7 +121,7 @@ namespace DeltaV
                 radialDecay = radialDecay, startPhase = phase, initialPhaseRate = phaseRate,
                 targetPhaseRate = speed / Mathf.Max(1f, action.distance), speedDecay = speedDecay,
                 frameAngle = -action.heading, headingError = headingError,
-                headingRateError = own.angularVelocity - phaseRate, headingDecay = headingDecay
+                headingRateError = own.angularVelocity - phaseRate, headingDecay = headingDecay, yawAuthority = alpha
             };
             trajectory.headingRateError = own.angularVelocity - trajectory.BearingRate(0f);
             return trajectory;

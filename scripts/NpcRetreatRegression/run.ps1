@@ -6,7 +6,7 @@ param([string]$GameRoot, [string]$HarmonyPath, [switch]$AimInputOnly, [switch]$P
       [ValidateSet('Normal', 'Dense')][string]$StaticScene = 'Normal',
       [ValidateSet('Wide', 'Point')][string]$CollisionFleet,
       [switch]$CollisionDense, [switch]$CollisionParity,
-      [ValidateSet('Preflight','All','Crossover','Experiment','HeadingTime')][string]$Mothership,
+      [ValidateSet('Preflight','All','Crossover','Experiment','HeadingTime','AimRefresh','AimRefreshTime')][string]$Mothership,
       [ValidateRange(1,3600)][int]$DamageWindowTicks = 600)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
@@ -25,6 +25,8 @@ if ($Mothership -eq 'All') { $out = Join-Path $out 'DualTable' }
 if ($Mothership -eq 'Crossover') { $out = Join-Path $out 'Crossover' }
 if ($Mothership -eq 'Experiment') { $out = Join-Path $out 'SharedAim' }
 if ($Mothership -eq 'HeadingTime') { $out = Join-Path $out 'SharedAimTiming' }
+if ($Mothership -eq 'AimRefresh') { $out = Join-Path $out 'AimRefresh' }
+if ($Mothership -eq 'AimRefreshTime') { $out = Join-Path $out 'AimRefreshTiming' }
 if ($Mothership -eq 'Preflight') { $out = Join-Path $out 'reference' }
 New-Item -ItemType Directory -Force $out | Out-Null
 if ($Mothership -in @('All','Crossover')) {
@@ -250,7 +252,45 @@ if ($Mothership -eq 'HeadingTime') {
 "@ | Set-Content -Encoding utf8 "$out/Offline.targets"
     $extraCompile += "-p:CustomAfterMicrosoftCommonTargets=$out/Offline.targets"
 }
-if ($Mothership -in @('Experiment','HeadingTime')) {
+if ($Mothership -eq 'AimRefreshTime') {
+    $tactics = [IO.File]::ReadAllText("$repo/Source/Interaction/ShipAutoCombat.Tactics.cs")
+    $planner = [IO.File]::ReadAllText("$repo/Source/Interaction/CombatFlightPlanner.cs")
+    $needles = @('        internal bool Boarding { get; private set; }',
+        'var updated = CombatFlightPlanner.RetargetHeading(tacticIntent, self, heading, elapsed);',
+        'bool screenHeading = elapsed > 0f && !intent.holdCurrent && OrbitSphere.Valid;')
+    foreach ($needle in $needles) { if (!$tactics.Contains($needle)) { throw "Missing aim refresh marker $needle" } }
+    $tactics = $tactics.Replace($needles[0], "        internal static bool OfflineReuseAuthority, OfflineScreenRoute;`n$($needles[0])")
+    $tactics = $tactics.Replace($needles[1], @'
+var input = tacticIntent;
+                    if (!OfflineReuseAuthority) input.yawAuthority = Mathf.Min(drive.PreviewAngular(1), drive.PreviewAngular(-1));
+                    var updated = CombatFlightPlanner.RetargetHeading(input, self, heading, elapsed);
+'@)
+    $tactics.Replace($needles[2], 'bool screenHeading = OfflineScreenRoute && elapsed > 0f && !intent.holdCurrent && OrbitSphere.Valid;') |
+        Set-Content -Encoding utf8 "$out/ShipAutoCombat.Tactics.Offline.cs"
+    $basis = 'intent.SampleHeadingBasis(elapsed, out float angle, out float omega);'
+    if (!$planner.Contains($basis)) { throw 'Aim refresh basis marker is unavailable.' }
+    $planner.Replace($basis, @'
+float angle, omega;
+            if (ShipAutoManeuverControl.OfflineReuseAuthority) intent.SampleHeadingBasis(elapsed, out angle, out omega);
+            else
+            {
+                var bearing = intent;
+                bearing.localAnchor = Vector2.zero;
+                bearing.frameAngle = bearing.headingError = bearing.headingRateError = 0f;
+                bearing.Sample(elapsed, out _, out _, out angle, out omega);
+            }
+'@) | Set-Content -Encoding utf8 "$out/CombatFlightPlanner.Offline.cs"
+    @"
+<Project>
+  <ItemGroup>
+    <Compile Remove="Interaction/ShipAutoCombat.Tactics.cs;Interaction/CombatFlightPlanner.cs"/>
+    <Compile Include="$out/ShipAutoCombat.Tactics.Offline.cs;$out/CombatFlightPlanner.Offline.cs"/>
+  </ItemGroup>
+</Project>
+"@ | Set-Content -Encoding utf8 "$out/Offline.targets"
+    $extraCompile += "-p:CustomAfterMicrosoftCommonTargets=$out/Offline.targets"
+}
+if ($Mothership -in @('Experiment','HeadingTime','AimRefresh','AimRefreshTime')) {
     & dotnet msbuild "$repo/Source/DeltaV.csproj" -restore -t:Compile -p:Configuration=Release -p:RimWorldVersion=1.6 `
         "-p:TargetPlatformSdkPath=C:/Program Files (x86)/Windows Kits/10/" -p:TargetPlatformDisplayName=Windows `
         "-p:IntermediateOutputPath=$out/compile/" "-p:MSBuildProjectExtensionsPath=$out/compile/" `
@@ -259,13 +299,14 @@ if ($Mothership -in @('Experiment','HeadingTime')) {
 }
 $lines = @('/nostdlib+', '/target:exe', '/optimize+', '/langversion:latest', ('/out:"' + "$out/NpcRetreatRegression.dll" + '"'))
 if ($Mothership -in @('All','Crossover')) { $lines += '/define:MOTHERSHIP_OFFLINE' }
-if ($Mothership -in @('Experiment','HeadingTime')) { $lines += '/define:MOTHERSHIP_PRODUCTION' }
+if ($Mothership -in @('Experiment','HeadingTime','AimRefresh','AimRefreshTime')) { $lines += '/define:MOTHERSHIP_PRODUCTION' }
 if ($Mothership -eq 'HeadingTime') { $lines += '/define:MOTHERSHIP_HEADING_TIMING' }
+if ($Mothership -eq 'AimRefreshTime') { $lines += '/define:MOTHERSHIP_AIM_REFRESH_TIMING' }
 $lines += Get-ChildItem "$($refs.FullName)/ref/net8.0" -Filter '*.dll' | ForEach-Object { '/r:"' + $_.FullName + '"' }
 foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'UnityEngine.IMGUIModule.dll', 'Assembly-CSharp-firstpass.dll')) {
     Copy-Item -LiteralPath "$managed/$name" -Destination $out -Force
 }
-$deltaV = if ($Mothership -in @('All','Crossover','Experiment','HeadingTime')) { "$out/compile/DeltaV.dll" } else { "$repo/1.6/Assemblies/DeltaV.dll" }
+$deltaV = if ($Mothership -in @('All','Crossover','Experiment','HeadingTime','AimRefresh','AimRefreshTime')) { "$out/compile/DeltaV.dll" } else { "$repo/1.6/Assemblies/DeltaV.dll" }
 Copy-Item -LiteralPath $deltaV -Destination $out -Force
 Copy-Item -LiteralPath "$repo/References/REF/1.6/RimExodus.Maps.dll" -Destination $out -Force
 Copy-Item -LiteralPath $HarmonyPath -Destination $out -Force
@@ -303,8 +344,9 @@ if ($SeparationOnly) { $regressionArguments += '--separation-only' }
 if ($ThrusterPauseOnly) { $regressionArguments += '--thruster-pause-only' }
 if ($EvaOnly) { $regressionArguments += '--eva-only' }
 if ($TractorOnly) { $regressionArguments += '--tractor-only' }
-if ($Mothership -eq 'Experiment') {
-    foreach ($mode in 'health','production','heading') {
+if ($Mothership -in @('Experiment','AimRefresh')) {
+    $modes = if ($Mothership -eq 'AimRefresh') { @('topology','aim-cause','health','production','heading') } else { @('health','production','heading') }
+    foreach ($mode in $modes) {
         & dotnet "$out/NpcRetreatRegression.dll" @regressionArguments $mode
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
@@ -314,6 +356,13 @@ if ($Mothership -eq 'HeadingTime') {
     & dotnet "$out/NpcRetreatRegression.dll" @regressionArguments heading-time
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     Get-Content "$out/heading-timing.jsonl" | ConvertFrom-Json | Export-Csv "$out/heading-timing.csv" -NoTypeInformation
+    exit 0
+}
+if ($Mothership -eq 'AimRefreshTime') {
+    foreach ($mode in 'count','time') {
+        & dotnet "$out/NpcRetreatRegression.dll" @regressionArguments $mode
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
     exit 0
 }
 if ($Mothership -eq 'Crossover') {

@@ -182,7 +182,7 @@ namespace DeltaV
                     var trajectory = CombatFlightPlanner.Plan(self, target, translation, drive, now);
                     trajectory.localAnchor = anchorLocal;
                     return aim.HasValue && !trajectory.holdCurrent
-                        ? CombatFlightPlanner.RetargetHeading(trajectory, self, maneuverIntent.heading, drive, 0f)
+                        ? CombatFlightPlanner.RetargetHeading(trajectory, self, maneuverIntent.heading, 0f)
                         : trajectory;
                 }
                 tacticIntent = BuildTrajectory();
@@ -261,7 +261,7 @@ namespace DeltaV
                 float elapsed = (now - tacticIntent.startTick) / 60f;
                 if (!tacticIntent.holdCurrent || tacticIntent.brakeTarget.HasValue)
                 {
-                    var updated = CombatFlightPlanner.RetargetHeading(tacticIntent, self, heading, drive, elapsed);
+                    var updated = CombatFlightPlanner.RetargetHeading(tacticIntent, self, heading, elapsed);
                     if (RouteClearAt(ship, updated, elapsed, out _, out _))
                     {
                         maneuverIntent.heading = heading;
@@ -312,27 +312,50 @@ namespace DeltaV
                 intent.startRadius + Mathf.Abs(intent.radialStep) + intent.centerVelocity.magnitude * horizon;
             if (!intent.holdCurrent && elapsed > 0f)
                 routeReach += Mathf.Abs(intent.initialRadialSpeed) * elapsed + Mathf.Abs(intent.targetRadius - intent.startRadius);
+            bool screenHeading = elapsed > 0f && !intent.holdCurrent && OrbitSphere.Valid;
+            Vector2 radiusBounds = screenHeading ? intent.RadiusBounds(elapsed, horizon) : default;
+            // The radial lower bound assumes the curve does not wrap past the antipode.
+            screenHeading = screenHeading && radiusBounds.y < Mathf.PI * OrbitSphere.CellsPerRadian;
             // Four bounded trajectory checkpoints; the real collision chain remains authoritative.
             foreach (var other in universe.objects.SelectMany(frame => frame.Ships)
                 .Where(other => other.IsValid && other.Identity != ownerId && other.Map != ship.Map)
-                .OrderBy(other => OrbitSphere.ArcCells(ownPosition,
-                    ShipRegistry.ShipPose(other).position)).Take(64))
+                .Select(other => (ship: other, pose: ShipRegistry.ShipPose(other)))
+                .OrderBy(other => OrbitSphere.ArcCells(ownPosition, other.pose.position)).Take(64))
             {
-                var otherPose = ShipRegistry.ShipPose(other);
-                var shape = Shape(other);
-                if (OrbitSphere.ArcCells(intent.center, otherPose.position) > routeReach + ownShape.half.magnitude
-                    + shape.half.magnitude + otherPose.velocity.magnitude * 4f + 10f) continue;
-                for (int step = 1; step <= 4; step++)
-                {
-                    intent.Sample(elapsed + step, out var position, out _, out float angle, out _);
-                    var center = SpaceTransform.RigidPointPose(new SpacePose(position, angle), intent.localAnchor, 0f);
-                    var future = new SpacePose(OrbitSphere.Move(otherPose.position, otherPose.velocity * step),
-                        otherPose.angle - other.FrameAngle + otherPose.angularVelocity * step);
-                    if (SpaceCollision.HullsOverlap(ownShape, center.position, angle, shape, future))
-                    { blocker = other.Identity; blockedSecond = step; return false; }
-                }
+                var shape = Shape(other.ship);
+                float distance = OrbitSphere.ArcCells(intent.center, other.pose.position);
+                float drift = other.pose.velocity.magnitude * 4f;
+                if (distance > routeReach + ownShape.half.magnitude + shape.half.magnitude + drift + 10f) continue;
+                var otherPose = other.pose;
+                otherPose.angle -= other.ship.FrameAngle;
+                if (screenHeading && RouteSeparated(intent, elapsed, radiusBounds, distance, ownShape, shape, otherPose)) continue;
+                int step = RouteOverlapSecond(intent, elapsed, ownShape, shape, otherPose);
+                if (step != 0) { blocker = other.ship.Identity; blockedSecond = step; return false; }
             }
             return true;
+        }
+
+        private static bool RouteSeparated(CombatTrajectoryIntent intent, float elapsed, Vector2 radiusBounds,
+            float distance, SpaceCollision.HullShape own, SpaceCollision.HullShape other, SpacePose otherPose)
+        {
+            // Triangle inequality over the full rolling window. The extra cells cover the overlap grid envelope.
+            float margin = otherPose.velocity.magnitude * 4f + intent.centerVelocity.magnitude * (elapsed + 4f)
+                + own.half.magnitude + other.half.magnitude + 3f;
+            return distance + margin < radiusBounds.x || distance - margin > radiusBounds.y;
+        }
+
+        private static int RouteOverlapSecond(CombatTrajectoryIntent intent, float elapsed,
+            SpaceCollision.HullShape own, SpaceCollision.HullShape other, SpacePose otherPose)
+        {
+            for (int step = 1; step <= 4; step++)
+            {
+                intent.Sample(elapsed + step, out var position, out _, out float angle, out _);
+                var center = SpaceTransform.RigidPointPose(new SpacePose(position, angle), intent.localAnchor, 0f);
+                var future = new SpacePose(OrbitSphere.Move(otherPose.position, otherPose.velocity * step),
+                    otherPose.angle + otherPose.angularVelocity * step);
+                if (SpaceCollision.HullsOverlap(own, center.position, angle, other, future)) return step;
+            }
+            return 0;
         }
 
         private float? FlankingPhase(ShipBase ship, SpacePose target)

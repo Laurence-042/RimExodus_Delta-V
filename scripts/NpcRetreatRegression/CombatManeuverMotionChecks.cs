@@ -18,19 +18,23 @@ internal static partial class Program
     {
         internal ShipBase member;
         internal readonly ShipPhysics.MassReport layout = new ShipPhysics.MassReport { mass = 1000, inertia = 10000 };
-        internal ManeuverMotionObject(int id, Map map, SpacePose pose) : base(id, map, pose)
+        private readonly bool productionDrive;
+        internal ManeuverMotionObject(int id, Map map, SpacePose pose, bool productionDrive = false) : base(id, map, pose)
         {
+            this.productionDrive = productionDrive;
             foreach (var direction in new[] { Vector2.right, Vector2.left, Vector2.up, Vector2.down })
                 foreach (float side in new[] { -3f, 3f })
                     layout.thrusters.Add(new ShipPhysics.Thruster { dir = direction,
                         localPos = new Vector2(side, side), operational = true, thrust = 2000 });
         }
-        public override IEnumerable<ShipBase> Ships { get { yield return member; } }
+        public override IEnumerable<ShipBase> Ships => productionDrive ? base.Ships : FixtureShips();
+        private IEnumerable<ShipBase> FixtureShips() { yield return member; }
         protected override ShipPhysics.MassReport MotionReport => layout;
         public override bool TryGetDrive(DriveSubject subject, out DeltaV.DriveInfo info)
-        { info = ReadDriveInfo(); return true; }
+        { if (productionDrive) return base.TryGetDrive(subject, out info); info = ReadDriveInfo(); return true; }
         public override DriveResult ApplyDrive(DriveSubject subject, DriveControl control, float dt, out float torque)
         {
+            if (productionDrive) return base.ApplyDrive(subject, control, dt, out torque);
             ReadDriveInfo().Preview(control.force, control.torque, out var force, out torque);
             ShipPhysics.Integrate(this, layout, force, torque, dt, false, false, false);
             return DriveResult.Executed;

@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace DeltaV
 {
@@ -13,6 +13,7 @@ namespace DeltaV
         internal float targetRadius, initialRadialSpeed, radialDecay;
         internal float initialPhaseRate, targetPhaseRate, speedDecay;
         internal float headingError, headingRateError, headingDecay;
+        internal float yawAuthority;
         internal float radialStep { get { Radius(seconds, out float r, out _); return r - startRadius; } }
         internal float phaseAdvance { get { Phase(seconds, out float p, out _); return p - startPhase; } }
         internal float startPhase;
@@ -35,6 +36,24 @@ namespace DeltaV
             Decay(startRadius - targetRadius, initialRadialSpeed, radialDecay, time, out float error, out speed);
             radius = targetRadius + error;
             if (radius < .1f) { radius = .1f; speed = 0f; }
+        }
+        internal Vector2 RadiusBounds(float from, float until)
+        {
+            Radius(from, out float first, out _);
+            Radius(until, out float last, out _);
+            float lower = Mathf.Min(first, last), upper = Mathf.Max(first, last);
+            float slope = radialDecay * (initialRadialSpeed + radialDecay * (startRadius - targetRadius));
+            if (slope != 0f)
+            {
+                float turningPoint = initialRadialSpeed / slope;
+                if (turningPoint > from && turningPoint < until)
+                {
+                    Radius(turningPoint, out float extreme, out _);
+                    lower = Mathf.Min(lower, extreme);
+                    upper = Mathf.Max(upper, extreme);
+                }
+            }
+            return new Vector2(lower, upper);
         }
         private void Phase(float time, out float phase, out float rate)
         {
@@ -77,6 +96,32 @@ namespace DeltaV
             return SpaceTransform.WrapAngle(b - a) / (2f * step);
         }
 
+        private Vector3 OrbitPosition(float time, out Vector3 centerAtTime, out Vector2 outward,
+            out float radius, out float radialSpeed, out float phaseRate)
+        {
+            Phase(time, out float phase, out phaseRate);
+            Radius(time, out radius, out radialSpeed);
+            outward = new Vector2(Mathf.Cos(phase), Mathf.Sin(phase));
+            centerAtTime = OrbitSphere.Move(center, centerVelocity * time);
+            outward = SpaceTransform.TransportVelocity(new SpacePose(center, 0f) { velocity = outward }, centerAtTime);
+            return OrbitSphere.Move(centerAtTime, outward * radius);
+        }
+
+        internal void SampleHeadingBasis(float time, out float angle, out float omega)
+        {
+            float t = Mathf.Max(0f, time);
+            if (brakeTarget.HasValue)
+            {
+                angle = SpaceTransform.WrapAngle(BrakeBearing(t, BrakePosition(t, Mathf.Exp(-brakingDecay * t))));
+                omega = BrakeBearingRate(t);
+                return;
+            }
+            var position = OrbitPosition(t, out var centerAtTime, out _, out _, out _, out _);
+            Vector2 bearing = OrbitSphere.Offset(position, centerAtTime);
+            angle = SpaceTransform.WrapAngle(Mathf.Atan2(bearing.y, bearing.x));
+            omega = BearingRate(t);
+        }
+
         /// <summary>用统一球面坐标链采样整段预期位姿；MPC 各预测步读取同一曲线。</summary>
         internal void Sample(float time, out Vector3 position, out Vector2 velocity,
             out float angle, out float angularVelocity)
@@ -100,13 +145,9 @@ namespace DeltaV
                 angle = SpaceTransform.WrapAngle(frameAngle + holdOmega * turn);
                 angularVelocity = holdOmega * angularFactor; return;
             }
-            Phase(t, out float phase, out float phaseRate);
-            Radius(t, out float radius, out float radialSpeed);
-            Vector2 outward = new Vector2(Mathf.Cos(phase), Mathf.Sin(phase));
-            Vector3 centerAtTime = OrbitSphere.Move(center, centerVelocity * t);
-            outward = SpaceTransform.TransportVelocity(new SpacePose(center, 0f) { velocity = outward }, centerAtTime);
+            position = OrbitPosition(t, out var centerAtTime, out var outward, out float radius,
+                out float radialSpeed, out float phaseRate);
             Vector2 tangent = new Vector2(-outward.y, outward.x);
-            position = OrbitSphere.Move(centerAtTime, outward * radius);
             var centerPose = new SpacePose(centerAtTime, 0f)
             {
                 velocity = SpaceTransform.TransportVelocity(

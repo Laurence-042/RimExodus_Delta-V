@@ -47,6 +47,8 @@ internal static partial class Program
             width = Math.Max(cells.Max(x => x.x) + translation.x, cells.Max(x => x.z) + translation.z) + 8;
             LoadDefinitions(game);
             ThingDefOf.PilotConsole = TestBuildingDef("MothershipFixtureConsole");
+            ThingDefOf.GravEngine = TestBuildingDef("MothershipFixtureEngine");
+            DeltaVDefOf.DeltaV_Weapon_MissileLauncher = Def("DeltaV_Weapon_MissileLauncher");
             ThingDefOf.Wall = TestBuildingDef("Wall");
             DamageDefOf.Bullet = Damage("Bullet");
             var factions = (FactionManager)Raw(typeof(FactionManager));
@@ -441,13 +443,16 @@ internal static partial class Program
         ManeuverMotionObject Ship(int id,Faction faction,SpacePose pose,bool damaged)
         {
             var map=TestMap(id,width);
+            map.info.isPocketMap = true;
+            // A headless pocket has no WorldObject renderer or occupied world tile.
+            map.info.parent = null;
             // The existing MPC fixture supplies deterministic drive facts to both ships.
-            var frame=new ManeuverMotionObject(id,map,pose) { faction=faction };
+            var frame=new ManeuverMotionObject(id,map,pose,productionDrive:true) { faction=faction };
+            map.terrainGrid.topGrid[0]=null;
             var console=AddTestConsole(map,faction,id+1);
             MoveCombatFixture(console.parent,new IntVec3(width/2,0,width/2));
             SetStaticFixtureHealth(console.parent,150);
-            var hull=new CombatHull(console.Ship);
-            hull.Combat.weaponsArmed=true;
+            console.Vessel.Combat.weaponsArmed=true;
             var foundation=(TerrainDef)Raw(typeof(TerrainDef));
             foundation.tags=new List<string>{"Substructure"}; foundation.isFoundation=true;
             var owners=new int[map.cellIndices.NumGridCells]; Set(SubstructureOwnership.TryGet(map),"ownerGrid",owners);
@@ -456,9 +461,8 @@ internal static partial class Program
                 if (damaged && original.x<10 && original.z>30) continue;
                 var cell=original+translation;
                 int i=map.cellIndices.CellToIndex(cell);
-                map.terrainGrid.foundationGrid[i]=foundation; owners[i]=console.shipId; hull.cells.Add(cell);
+                map.terrainGrid.foundationGrid[i]=foundation; owners[i]=console.shipId;
             }
-            frame.member=hull; universe.objects.Add(frame);
             var battery=new CompPowerBattery(); Set(battery,"storedEnergy",1_000_000f);
             var net=(PowerNet)Raw(typeof(PowerNet)); net.batteryComps=new List<CompPowerBattery>{battery};
             foreach (var mount in mounts)
@@ -492,6 +496,8 @@ internal static partial class Program
                 if (place.Position!=mount.Cell+translation || !place.Rotation.Equals(mount.Facing))
                     throw new InvalidOperationException($"Fixture changed a prefab mount: {mount.Def} at {mount.Cell}.");
             }
+            universe.objects.Add(frame);
+            frame.member=frame.Ships.Single();
             return frame;
         }
     }
