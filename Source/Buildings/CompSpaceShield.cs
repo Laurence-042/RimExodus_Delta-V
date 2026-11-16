@@ -361,7 +361,10 @@ namespace DeltaV
                 Find.WindowStack.Add(new FloatMenu(options));
             })
             {
-                defaultLabel = ModeLabel(mode),
+                defaultLabel = "DeltaV_ShieldCurrentMode".Translate(
+                    (mode == SpaceShieldMode.Guard ? "DeltaV_ShieldStateGuard"
+                        : mode == SpaceShieldMode.Kinetic ? "DeltaV_ShieldStateKinetic"
+                        : "DeltaV_ShieldStateElectromagnetic").Translate()),
                 defaultDesc = "DeltaV_ShieldModeDesc".Translate(),
                 icon = parent.def.uiIcon,
                 defaultIconColor = FieldColor,

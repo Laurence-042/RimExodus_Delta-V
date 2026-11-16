@@ -413,6 +413,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
 
   <DeltaV_ThrusterPowerTitle>Set thruster power limit</DeltaV_ThrusterPowerTitle>
   <DeltaV_ThrusterPowerEntry>Thruster power: {0}%</DeltaV_ThrusterPowerEntry>
+  <DeltaV_ShieldCurrentMode>Mode: {0}</DeltaV_ShieldCurrentMode>
   <DeltaV_ShieldModeGuard>Switch to guard mode</DeltaV_ShieldModeGuard>
   <DeltaV_ShieldModeKinetic>Switch to kinetic mode</DeltaV_ShieldModeKinetic>
   <DeltaV_ShieldModeElectromagnetic>Switch to electromagnetic mode</DeltaV_ShieldModeElectromagnetic>

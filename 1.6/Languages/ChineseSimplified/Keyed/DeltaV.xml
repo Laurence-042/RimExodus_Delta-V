@@ -413,6 +413,7 @@
 
   <DeltaV_ThrusterPowerTitle>设置推进器出力上限</DeltaV_ThrusterPowerTitle>
   <DeltaV_ThrusterPowerEntry>推进器出力：{0}%</DeltaV_ThrusterPowerEntry>
+  <DeltaV_ShieldCurrentMode>模式：{0}</DeltaV_ShieldCurrentMode>
   <DeltaV_ShieldModeGuard>切换为守卫圆盾</DeltaV_ShieldModeGuard>
   <DeltaV_ShieldModeKinetic>切换为动能线盾</DeltaV_ShieldModeKinetic>
   <DeltaV_ShieldModeElectromagnetic>切换为电磁线盾</DeltaV_ShieldModeElectromagnetic>
