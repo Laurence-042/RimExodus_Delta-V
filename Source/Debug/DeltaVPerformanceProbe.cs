@@ -23,7 +23,8 @@ namespace DeltaV
         DrivePreviewModel, DrivePreviewBraking, DrivePreviewAngular, DrivePreviewAllocation,
         MpcAssemble, MpcFeasibility, MpcQp, MpcBrakeRecovery,
         EngagementObservation, EngagementScore, EngagementDamage,
-        CombatPartSelection, EngagementCoverBuild, Count
+        CombatPartSelection, EngagementCoverBuild,
+        EngagementWeaponTable, EngagementProtectionScan, EngagementProtectionUpdate, EngagementTableQuery, Count
     }
 
     [System.Flags]
@@ -52,7 +53,9 @@ namespace DeltaV
             PerformanceStage.CombatPlan, PerformanceStage.CombatRule, PerformanceStage.CombatReposition,
             PerformanceStage.EngagementObservation, PerformanceStage.EngagementScore,
             PerformanceStage.CombatPartSelection, PerformanceStage.EngagementDamage,
-            PerformanceStage.EngagementCoverBuild, PerformanceStage.CombatRoute,
+            PerformanceStage.EngagementCoverBuild, PerformanceStage.EngagementWeaponTable,
+            PerformanceStage.EngagementProtectionScan, PerformanceStage.EngagementProtectionUpdate,
+            PerformanceStage.EngagementTableQuery, PerformanceStage.CombatRoute,
             PerformanceStage.CombatRouteShape, PerformanceStage.CombatTrajectory,
             PerformanceStage.AutopilotSolve, PerformanceStage.MpcAssemble, PerformanceStage.MpcFeasibility,
             PerformanceStage.MpcQp, PerformanceStage.MpcBrakeRecovery

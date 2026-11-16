@@ -46,6 +46,7 @@ namespace DeltaV
             Vector2 anchorLocal = SpaceTransform.MapToShipLocal(ship.Map, ship.HullCenter);
             SpacePose self = SpaceTransform.RigidPointPose(own.pose, anchorLocal, 0f);
             int now = Find.TickManager.TicksGame;
+            SharedFixedAim = null;
             bool decisionDue = hasTactic && attackPose.behavior == CombatTactic.Automatic
                 && activeRule?.tactic?.bearing == CombatBearing.Free && now >= reposition.nextTick;
             var control = universe.Controls.ExistingFor(ship)?.FireControl;
@@ -117,7 +118,8 @@ namespace DeltaV
                         if (!blockedPose)
                         {
                             attackPose = best.pose; reposition.selectedScore = best.score;
-                            if (settings.behavior == CombatTactic.Circle && settings.bearing == CombatBearing.Free)
+                            if (!attackPose.fireHeading && settings.behavior == CombatTactic.Circle &&
+                                settings.bearing == CombatBearing.Free)
                                 attackPose.heading = EngagementAction(self, target, attackPose, best.phase, drive, settings).heading;
                         }
                         reposition.candidateCount = engagementCandidates.Count(c => !float.IsNegativeInfinity(c.score));
@@ -157,9 +159,33 @@ namespace DeltaV
                     reposition.phase = SpaceTransform.WrapAngle(target.angle + engagementLocalBearing);
                     reposition.basis = target.position;
                 }
+                if (!offenseEnabled || settings.facing != CombatFacing.Automatic)
+                    ClearFixedAim();
+                else if (poseReevaluated)
+                {
+                    if (previousRule != rule) ClearFixedAim();
+                    if (engagementResult?.fixedAimWeapon != null)
+                    {
+                        FixedAimWeapon = engagementResult.fixedAimWeapon;
+                        fixedAimTarget = engagementResult.fixedAimTarget;
+                        FixedAimPart = engagementResult.fixedAimPart;
+                    }
+                }
+                FixedWeaponAim? aim = SolveFixedAim(ship, own, self, control, now);
                 maneuverIntent = EngagementAction(self, target, attackPose, reposition.PhaseAt(target.position), drive, settings, true);
-                tacticIntent = CombatFlightPlanner.Plan(self, target, maneuverIntent, drive, now);
-                tacticIntent.localAnchor = anchorLocal;
+                float coarseHeading = maneuverIntent.heading;
+                if (aim.HasValue) maneuverIntent.heading = SpaceTransform.WrapAngle(aim.Value.HullAngle - bearing);
+                CombatTrajectoryIntent BuildTrajectory()
+                {
+                    var translation = maneuverIntent;
+                    translation.heading = coarseHeading;
+                    var trajectory = CombatFlightPlanner.Plan(self, target, translation, drive, now);
+                    trajectory.localAnchor = anchorLocal;
+                    return aim.HasValue && !trajectory.holdCurrent
+                        ? CombatFlightPlanner.RetargetHeading(trajectory, self, maneuverIntent.heading, drive, 0f)
+                        : trajectory;
+                }
+                tacticIntent = BuildTrajectory();
                 bool blockedBeforeRoute = blockedPose;
                 int routeShrinks = 0, blockedSecond = 0;
                 DriveSubject blocker = default;
@@ -176,8 +202,7 @@ namespace DeltaV
                             if (maneuverIntent.bearing.HasValue)
                                 maneuverIntent.bearing = currentPhase + .5f * SpaceTransform.WrapAngle(maneuverIntent.bearing.Value - currentPhase);
                             else maneuverIntent.tangentSpeed *= .5f;
-                            tacticIntent = CombatFlightPlanner.Plan(self, target, maneuverIntent, drive, now);
-                            tacticIntent.localAnchor = anchorLocal;
+                            tacticIntent = BuildTrajectory();
                             if (RouteClear(ship, tacticIntent, out blocker, out blockedSecond)) break;
                         }
                     }
@@ -185,7 +210,17 @@ namespace DeltaV
                     if (!blockedPose) { blocker = firstBlocker; blockedSecond = firstBlockedSecond; }
                 }
                 if (blockedPose)
+                {
                     tacticIntent = CombatFlightPlanner.Brake(own.pose, drive, now);
+                    if (aim.HasValue || attackPose.fireHeading && settings.facing == CombatFacing.Automatic)
+                    {
+                        var aimingBrake = CombatFlightPlanner.BrakeWhileAiming(self, target,
+                            aim.HasValue ? maneuverIntent.heading : attackPose.heading, drive, now);
+                        aimingBrake.localAnchor = anchorLocal;
+                        if (RouteClear(ship, aimingBrake, out _, out _)) tacticIntent = aimingBrake;
+                    }
+                }
+                if (!tacticIntent.holdCurrent || tacticIntent.brakeTarget.HasValue) SharedFixedAim = aim;
                 nextTacticTick = now + 30;
                 hasTactic = true;
                 activeRule = rule;
@@ -219,11 +254,42 @@ namespace DeltaV
                         engagementResult.velocity.ToString("0.#"), engagementResult.reverse.ToString("0.#"))
                         + (engagementResult.uncertain ? "\n" + "DeltaV_EngagementUncertain".Translate().ToString() : "");
             }
+            else if (SolveFixedAim(ship, own, self, control, now) is FixedWeaponAim aim)
+            {
+                Vector2 toward = OrbitSphere.Offset(self.position, target.position);
+                float heading = SpaceTransform.WrapAngle(aim.HullAngle - Mathf.Atan2(toward.y, toward.x));
+                float elapsed = (now - tacticIntent.startTick) / 60f;
+                if (!tacticIntent.holdCurrent || tacticIntent.brakeTarget.HasValue)
+                {
+                    var updated = CombatFlightPlanner.RetargetHeading(tacticIntent, self, heading, drive, elapsed);
+                    if (RouteClearAt(ship, updated, elapsed, out _, out _))
+                    {
+                        maneuverIntent.heading = heading;
+                        tacticIntent = updated;
+                        SharedFixedAim = aim;
+                    }
+                }
+                if (!SharedFixedAim.HasValue)
+                {
+                    var brake = CombatFlightPlanner.BrakeWhileAiming(self, target, heading, drive, now);
+                    brake.localAnchor = anchorLocal;
+                    if (RouteClear(ship, brake, out _, out _))
+                    {
+                        maneuverIntent.heading = heading;
+                        tacticIntent = brake;
+                        SharedFixedAim = aim;
+                    }
+                    else tacticIntent = CombatFlightPlanner.Brake(own.pose, drive, now);
+                }
+            }
             intent = tacticIntent;
             return true;
         }
 
         private bool RouteClear(ShipBase ship, CombatTrajectoryIntent intent,
+            out DriveSubject blocker, out int blockedSecond) => RouteClearAt(ship, intent, 0f, out blocker, out blockedSecond);
+
+        private bool RouteClearAt(ShipBase ship, CombatTrajectoryIntent intent, float elapsed,
             out DriveSubject blocker, out int blockedSecond)
         {
             blocker = default; blockedSecond = 0;
@@ -241,6 +307,11 @@ namespace DeltaV
             }
             var ownShape = Shape(ship);
             Vector3 ownPosition = ShipRegistry.ShipPose(ship).position;
+            float horizon = elapsed + 4f;
+            float routeReach = intent.holdCurrent ? intent.holdVelocity.magnitude * horizon :
+                intent.startRadius + Mathf.Abs(intent.radialStep) + intent.centerVelocity.magnitude * horizon;
+            if (!intent.holdCurrent && elapsed > 0f)
+                routeReach += Mathf.Abs(intent.initialRadialSpeed) * elapsed + Mathf.Abs(intent.targetRadius - intent.startRadius);
             // Four bounded trajectory checkpoints; the real collision chain remains authoritative.
             foreach (var other in universe.objects.SelectMany(frame => frame.Ships)
                 .Where(other => other.IsValid && other.Identity != ownerId && other.Map != ship.Map)
@@ -249,12 +320,11 @@ namespace DeltaV
             {
                 var otherPose = ShipRegistry.ShipPose(other);
                 var shape = Shape(other);
-                if (OrbitSphere.ArcCells(intent.center, otherPose.position) > intent.startRadius
-                    + Mathf.Abs(intent.radialStep) + intent.centerVelocity.magnitude * 4f + ownShape.half.magnitude
+                if (OrbitSphere.ArcCells(intent.center, otherPose.position) > routeReach + ownShape.half.magnitude
                     + shape.half.magnitude + otherPose.velocity.magnitude * 4f + 10f) continue;
                 for (int step = 1; step <= 4; step++)
                 {
-                    intent.Sample(step, out var position, out _, out float angle, out _);
+                    intent.Sample(elapsed + step, out var position, out _, out float angle, out _);
                     var center = SpaceTransform.RigidPointPose(new SpacePose(position, angle), intent.localAnchor, 0f);
                     var future = new SpacePose(OrbitSphere.Move(otherPose.position, otherPose.velocity * step),
                         otherPose.angle - other.FrameAngle + otherPose.angularVelocity * step);

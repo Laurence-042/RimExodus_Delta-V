@@ -6,7 +6,7 @@ param([string]$GameRoot, [string]$HarmonyPath, [switch]$AimInputOnly, [switch]$P
       [ValidateSet('Normal', 'Dense')][string]$StaticScene = 'Normal',
       [ValidateSet('Wide', 'Point')][string]$CollisionFleet,
       [switch]$CollisionDense, [switch]$CollisionParity,
-      [ValidateSet('Preflight','All','Crossover')][string]$Mothership,
+      [ValidateSet('Preflight','All','Crossover','Experiment','HeadingTime')][string]$Mothership,
       [ValidateRange(1,3600)][int]$DamageWindowTicks = 600)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
@@ -23,6 +23,8 @@ $out = Join-Path $repo 'Source/obj/NpcRetreatRegression'
 if ($Mothership) { $out = Join-Path $repo 'Source/obj/MothershipEngagement' }
 if ($Mothership -eq 'All') { $out = Join-Path $out 'DualTable' }
 if ($Mothership -eq 'Crossover') { $out = Join-Path $out 'Crossover' }
+if ($Mothership -eq 'Experiment') { $out = Join-Path $out 'SharedAim' }
+if ($Mothership -eq 'HeadingTime') { $out = Join-Path $out 'SharedAimTiming' }
 if ($Mothership -eq 'Preflight') { $out = Join-Path $out 'reference' }
 New-Item -ItemType Directory -Force $out | Out-Null
 if ($Mothership -in @('All','Crossover')) {
@@ -34,7 +36,8 @@ if ($Mothership -in @('All','Crossover')) {
         }
         $Text.Replace($Before,$After)
     }
-    $evaluation = [IO.File]::ReadAllText("$repo/Source/Interaction/CombatEngagementEvaluation.cs").Replace("`r`n","`n")
+    $evaluation = (git -C $repo show '74e9c18:Source/Interaction/CombatEngagementEvaluation.cs') -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw 'Historical Mothership evaluator is unavailable.' }
     $evaluation = Patch-OfflineCopy $evaluation '        internal sealed class Result' @'
         internal readonly struct OfflineShot
         {
@@ -121,7 +124,8 @@ if ($Mothership -in @('All','Crossover')) {
             forecast.ResetShot();
 '@
     $evaluation = Patch-OfflineCopy $evaluation "            damage.uncertain |= !shot.aim.Laser;`n            return true;" "            damage.uncertain |= !shot.aim.Laser;`n            critical = forecast.CriticalDamage;`n            return true;"
-    $planner = [IO.File]::ReadAllText("$repo/Source/Interaction/ShipAutoCombat.Engagement.cs").Replace("`r`n","`n")
+    $planner = (git -C $repo show '74e9c18:Source/Interaction/ShipAutoCombat.Engagement.cs') -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw 'Historical Mothership planner is unavailable.' }
     $planner = Patch-OfflineCopy $planner '        private sealed class EngagementCandidate' @'
         internal readonly struct OfflineRow
         {
@@ -216,7 +220,7 @@ if ($Mothership -in @('All','Crossover')) {
     @"
 <Project>
   <ItemGroup>
-    <Compile Remove="Interaction/CombatEngagementEvaluation.cs;Interaction/ShipAutoCombat.Engagement.cs;Interaction/CombatAttackPose.cs;Interaction/CombatDamageForecast.cs"/>
+    <Compile Remove="Interaction/CombatEngagementEvaluation.cs;Interaction/ShipAutoCombat.Engagement.cs;Interaction/CombatAttackPose.cs;Interaction/CombatDamageForecast.cs;Interaction/CombatWeaponOutputTable.cs"/>
     <Compile Include="$out/CombatEngagementEvaluation.Offline.cs;$out/ShipAutoCombat.Engagement.Offline.cs;$out/CombatAttackPose.Offline.cs;$out/CombatDamageForecast.Offline.cs"/>
   </ItemGroup>
 </Project>
@@ -227,13 +231,41 @@ if ($Mothership -in @('All','Crossover')) {
         "-p:CustomAfterMicrosoftCommonTargets=$out/Offline.targets" -p:NuGetAudit=false -p:RestoreIgnoreFailedSources=true
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
+$extraCompile = @()
+if ($Mothership -eq 'HeadingTime') {
+    $table = [IO.File]::ReadAllText("$repo/Source/Interaction/CombatWeaponOutputTable.cs")
+    $table = $table.Replace('        internal const int WindowTicks = 600;',
+        "        internal static bool OfflineSharedAim = true;`n        internal const int WindowTicks = 600;")
+    $mark = 'FixedDirect = battery.outgoing'
+    if (!$table.Contains($mark)) { throw 'Heading timing marker is unavailable.' }
+    $table.Replace($mark, 'FixedDirect = OfflineSharedAim && battery.outgoing') |
+        Set-Content -Encoding utf8 "$out/CombatWeaponOutputTable.Offline.cs"
+    @"
+<Project>
+  <ItemGroup>
+    <Compile Remove="Interaction/CombatWeaponOutputTable.cs"/>
+    <Compile Include="$out/CombatWeaponOutputTable.Offline.cs"/>
+  </ItemGroup>
+</Project>
+"@ | Set-Content -Encoding utf8 "$out/Offline.targets"
+    $extraCompile += "-p:CustomAfterMicrosoftCommonTargets=$out/Offline.targets"
+}
+if ($Mothership -in @('Experiment','HeadingTime')) {
+    & dotnet msbuild "$repo/Source/DeltaV.csproj" -restore -t:Compile -p:Configuration=Release -p:RimWorldVersion=1.6 `
+        "-p:TargetPlatformSdkPath=C:/Program Files (x86)/Windows Kits/10/" -p:TargetPlatformDisplayName=Windows `
+        "-p:IntermediateOutputPath=$out/compile/" "-p:MSBuildProjectExtensionsPath=$out/compile/" `
+        -p:NuGetAudit=false -p:RestoreIgnoreFailedSources=true @extraCompile
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 $lines = @('/nostdlib+', '/target:exe', '/optimize+', '/langversion:latest', ('/out:"' + "$out/NpcRetreatRegression.dll" + '"'))
 if ($Mothership -in @('All','Crossover')) { $lines += '/define:MOTHERSHIP_OFFLINE' }
+if ($Mothership -in @('Experiment','HeadingTime')) { $lines += '/define:MOTHERSHIP_PRODUCTION' }
+if ($Mothership -eq 'HeadingTime') { $lines += '/define:MOTHERSHIP_HEADING_TIMING' }
 $lines += Get-ChildItem "$($refs.FullName)/ref/net8.0" -Filter '*.dll' | ForEach-Object { '/r:"' + $_.FullName + '"' }
 foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'UnityEngine.IMGUIModule.dll', 'Assembly-CSharp-firstpass.dll')) {
     Copy-Item -LiteralPath "$managed/$name" -Destination $out -Force
 }
-$deltaV = if ($Mothership -in @('All','Crossover')) { "$out/compile/DeltaV.dll" } else { "$repo/1.6/Assemblies/DeltaV.dll" }
+$deltaV = if ($Mothership -in @('All','Crossover','Experiment','HeadingTime')) { "$out/compile/DeltaV.dll" } else { "$repo/1.6/Assemblies/DeltaV.dll" }
 Copy-Item -LiteralPath $deltaV -Destination $out -Force
 Copy-Item -LiteralPath "$repo/References/REF/1.6/RimExodus.Maps.dll" -Destination $out -Force
 Copy-Item -LiteralPath $HarmonyPath -Destination $out -Force
@@ -271,6 +303,19 @@ if ($SeparationOnly) { $regressionArguments += '--separation-only' }
 if ($ThrusterPauseOnly) { $regressionArguments += '--thruster-pause-only' }
 if ($EvaOnly) { $regressionArguments += '--eva-only' }
 if ($TractorOnly) { $regressionArguments += '--tractor-only' }
+if ($Mothership -eq 'Experiment') {
+    foreach ($mode in 'health','production','heading') {
+        & dotnet "$out/NpcRetreatRegression.dll" @regressionArguments $mode
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+    exit 0
+}
+if ($Mothership -eq 'HeadingTime') {
+    & dotnet "$out/NpcRetreatRegression.dll" @regressionArguments heading-time
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Get-Content "$out/heading-timing.jsonl" | ConvertFrom-Json | Export-Csv "$out/heading-timing.csv" -NoTypeInformation
+    exit 0
+}
 if ($Mothership -eq 'Crossover') {
     & dotnet "$out/NpcRetreatRegression.dll" @regressionArguments crossover 0 $DamageWindowTicks
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

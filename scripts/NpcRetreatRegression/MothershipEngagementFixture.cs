@@ -404,6 +404,40 @@ internal static partial class Program
             return (own,foe);
         }
 
+        internal (ManeuverMotionObject Own, ManeuverMotionObject Enemy) BuildRailgunFlight(bool mirrored)
+        {
+            Set(Find.TickManager, "ticksGameInt", 0);
+            var pair = Build(0);
+            var bodies = new[] { pair.Own, pair.Enemy };
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                var body = bodies[i];
+                var other = bodies[1 - i];
+                var rail = body.member.Weapons.Single(weapon => weapon.parent.def.defName == "DeltaV_Weapon_RailgunLoader");
+                foreach (var weapon in body.member.Weapons)
+                    if (weapon != rail) weapon.aimMode = SpaceWeaponAimMode.PointDefense;
+                var firing = ShipRegistry.ShipPose(body.member);
+                var target = ShipRegistry.ShipPose(other.member);
+                var line = OrbitSphere.Offset(firing.position, target.position);
+                float mount = ShipOrientation.AngleFromRot4(rail.parent.Rotation);
+                var pose = body.pose;
+                pose.angle = SpaceTransform.WrapAngle(Mathf.Atan2(line.y, line.x) - mount
+                    + (mirrored ? 1f : -1f) * (i == 0 ? 24f : -24f) * Mathf.Deg2Rad);
+                body.pose = pose;
+                var offset = OrbitSphere.Offset(target.position, firing.position);
+                var strategy = universe.Controls.For(body.member).FireControl.Strategy(body.member);
+                var rule = strategy.BuiltInManeuver;
+                rule.tactic.behavior = CombatTactic.HoldRange;
+                rule.tactic.facing = CombatFacing.Automatic;
+                rule.tactic.distance = offset.magnitude;
+                rule.tactic.bearing = CombatBearing.World;
+                rule.tactic.bearingDegrees = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
+                strategy.maneuverRules.Insert(0, rule);
+                rail.safeFire = rail.WeaponProps.safeFireByDefault;
+            }
+            return pair;
+        }
+
         ManeuverMotionObject Ship(int id,Faction faction,SpacePose pose,bool damaged)
         {
             var map=TestMap(id,width);

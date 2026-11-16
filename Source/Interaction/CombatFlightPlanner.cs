@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace DeltaV
 {
@@ -22,6 +22,47 @@ namespace DeltaV
                 brakingDecay = acceleration * .8f / Mathf.Max(.1f, own.velocity.magnitude),
                 brakingAngularDecay = alpha * .8f / Mathf.Max(.01f, Mathf.Abs(own.angularVelocity)),
                 seconds = 4f, startTick = tick };
+        }
+
+        internal static CombatTrajectoryIntent BrakeWhileAiming(SpacePose own, SpacePose target, float heading,
+            DriveInfo drive, int tick)
+        {
+            var intent = Brake(own, drive, tick);
+            intent.brakeTarget = target;
+            intent.frameAngle = -heading;
+            float bearingRate = intent.BrakeBearingRate(0f);
+            intent.headingError = SpaceTransform.WrapAngle(own.angle - intent.BrakeBearing(0f, own.position) - heading);
+            intent.headingRateError = own.angularVelocity - bearingRate;
+            float alpha = Mathf.Min(drive.PreviewAngular(1), drive.PreviewAngular(-1));
+            intent.headingDecay = HeadingDecay(alpha, intent.headingError, intent.headingRateError);
+            return intent;
+        }
+
+        private static float HeadingDecay(float alpha, float error, float rate) =>
+            Mathf.Min(1.5f, Mathf.Sqrt(alpha * .5f / Mathf.Max(.01f, Mathf.Abs(error))),
+                alpha * .5f / Mathf.Max(.01f, 2f * Mathf.Abs(rate)));
+
+        internal static CombatTrajectoryIntent RetargetHeading(CombatTrajectoryIntent intent,
+            SpacePose own, float heading, DriveInfo drive, float elapsed)
+        {
+            // Sample the bearing of the unchanged translation curve with angular correction removed.
+            var bearing = intent;
+            bearing.localAnchor = Vector2.zero;
+            bearing.frameAngle = bearing.headingError = bearing.headingRateError = 0f;
+            bearing.Sample(elapsed, out _, out _, out float angle, out float omega);
+
+            float error = SpaceTransform.WrapAngle(own.angle - angle - heading);
+            float rate = own.angularVelocity - omega;
+            float alpha = Mathf.Min(drive.PreviewAngular(1), drive.PreviewAngular(-1));
+            float decay = HeadingDecay(alpha, error, rate);
+            // Rebase the angular solution to the existing trajectory clock so translation stays continuous.
+            float factor = Mathf.Exp(decay * elapsed);
+            float linear = (rate + decay * error) * factor;
+            intent.headingError = error * factor - linear * elapsed;
+            intent.headingRateError = linear - decay * intent.headingError;
+            intent.headingDecay = decay;
+            intent.frameAngle = -heading;
+            return intent;
         }
 
         internal static float CruiseSpeed(DriveInfo drive, float heading, float radius, int turn, float movement, bool freeFacing = false)
@@ -76,8 +117,7 @@ namespace DeltaV
                 new Vector2(0f, speed / Mathf.Max(1f, action.distance) >= phaseRate ? -1f : 1f), actualHeading);
             float speedDecay = Mathf.Min(1f / Mathf.Max(2f, turnTime), actualTangent * .5f
                 / Mathf.Max(.1f, Mathf.Abs(speed * radius / Mathf.Max(1f, action.distance) - phaseRate * radius)));
-            float headingDecay = Mathf.Min(1.5f, Mathf.Sqrt(alpha * .5f / Mathf.Max(.01f, Mathf.Abs(headingError))),
-                alpha * .5f / Mathf.Max(.01f, 2f * Mathf.Abs(own.angularVelocity - phaseRate)));
+            float headingDecay = HeadingDecay(alpha, headingError, own.angularVelocity - phaseRate);
             var trajectory = new CombatTrajectoryIntent
             {
                 startTick = tick, seconds = 4f, center = target.position, centerVelocity = target.velocity,

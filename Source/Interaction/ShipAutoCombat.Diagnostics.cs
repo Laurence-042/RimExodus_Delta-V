@@ -23,12 +23,17 @@ namespace DeltaV
             float error = SpaceTransform.WrapAngle(goal - phase);
             float radialSpeed = Vector2.Dot(relative, offset.normalized);
             float tangentSpeed = Vector2.Dot(relative, new Vector2(-offset.y, offset.x).normalized);
+            float? flightHeading = !tacticIntent.holdCurrent || tacticIntent.brakeTarget.HasValue
+                ? SpaceTransform.WrapAngle(-tacticIntent.frameAngle) * Mathf.Rad2Deg : (float?)null;
+            string headingMode = tacticIntent.brakeTarget.HasValue ? "AimingBrake" :
+                tacticIntent.holdCurrent ? "Brake" : "Tracking";
             int now = Find.TickManager.TicksGame;
             // Log meaningful motion/state edges, not every planner invocation or game tick.
             string state = $"{anchorTarget.Ship}/{rule.name}/{attackPose.behavior}/{status}/{reset}/"
                 + $"{cause & ~CombatReplanCause.Periodic}/{reposition.nextTick}/{blockedPose}/{blockedBeforeRoute}/{routeShrinks}/{blocker}/"
                 + $"{Mathf.RoundToInt(offset.magnitude / 5f)}/{Mathf.RoundToInt(attackPose.distance)}/"
                 + $"{Mathf.RoundToInt(error * Mathf.Rad2Deg / 2f)}/{Mathf.RoundToInt(attackPose.heading * Mathf.Rad2Deg / 5f)}/"
+                + $"{headingMode}/{attackPose.fireHeading}/{flightHeading:F1}/"
                 + $"{Mathf.RoundToInt(radialSpeed)}/{Mathf.RoundToInt(tangentSpeed)}";
             if (state == lastAiDecisionState) return;
             lastAiDecisionState = state;
@@ -55,7 +60,12 @@ namespace DeltaV
                         float curve = t.curve.Evaluate(raw);
                         return $"{t.side}/{t.metric}/{t.weapons.family}:raw={raw:F3},curve={curve:F3},weight={t.weight:F3},score={curve * t.weight:F3}";
                     })) + "] ")
-                + $"headingDeg={attackPose.heading * Mathf.Rad2Deg:F2} mobility={attackPose.mobility:F3} movement={settings.movement:F2} "
+                + $"headingDeg={attackPose.heading * Mathf.Rad2Deg:F2} commandHeadingDeg={maneuverIntent.heading * Mathf.Rad2Deg:F2} "
+                + $"flightHeadingDeg={flightHeading?.ToString("F2") ?? "none"} fireHeading={attackPose.fireHeading} headingMode={headingMode} "
+                + (SharedFixedAim is FixedWeaponAim aim
+                    ? $"fixedWeapon={aim.Weapon.Identity} fixedPart={aim.Target.SystemId} leadTick={aim.Tick} "
+                        + $"lead=({aim.Point.x:F7},{aim.Point.y:F7},{aim.Point.z:F7}) hullAimDeg={aim.HullAngle * Mathf.Rad2Deg:F2} " : "")
+                + $"mobility={attackPose.mobility:F3} movement={settings.movement:F2} "
                 + $"coverage={attackPose.firepower:F2} ready={attackPose.readyOutput:F2} preference={attackPose.preference:F3} "
                 + $"scores={attackPose.distanceScore:F2}/{attackPose.outgoingScore:F2}/{attackPose.incomingScore:F2}/"
                 + $"{attackPose.timeScore:F2}/{attackPose.overlapScore:F2}/{attackPose.alignmentScore:F2} "

@@ -108,7 +108,16 @@ namespace DeltaV
 
         [NonSerialized] private FoundationTopologyService foundationTopology;
         [NonSerialized] private StructureVersions structures;
-        internal StructureVersions Structures => structures ?? (structures = new StructureVersions());
+        [NonSerialized] private CombatProtectionTable combatProtection;
+        internal StructureVersions Structures => structures ?? (structures = new StructureVersions(
+            map => combatProtection?.Forget(map)));
+        internal CombatProtectionTable Protection => combatProtection ??= new CombatProtectionTable();
+        internal CombatProtectionTable.Receiver ProtectionFor(ShipBase ship) =>
+            Protection.For(ship, FrameOf(ship.Map), Structures.For(ship.Map));
+        internal void NotifyProtectionHealth(Map map, Thing thing, int before) =>
+            combatProtection?.HealthChanged(map, thing, before);
+        internal void NotifyProtectionGuard(Map map) => combatProtection?.GuardChanged(map);
+        internal void ForgetCombatProtection(Map map) => combatProtection?.Forget(map);
         internal FoundationTopologyService FoundationTopology => foundationTopology
             ?? (foundationTopology = new FoundationTopologyService());
 

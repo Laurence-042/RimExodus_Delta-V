@@ -66,7 +66,7 @@ namespace DeltaV
         internal float distance, heading, firepower, readyOutput, alignment, mobility, preference;
         internal float distanceScore, outgoingScore, incomingScore, timeScore, overlapScore, alignmentScore;
         internal CombatTactic behavior;
-        internal bool freeThrustFacing;
+        internal bool freeThrustFacing, fireHeading;
 
         internal void EvaluateFire(IReadOnlyList<CombatAttackWeapon> weapons, Vector2 relativeVelocity,
             bool offense, CombatManeuverCurves curves, float? output = null)

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Verse;
 
@@ -17,6 +18,8 @@ namespace DeltaV
         }
 
         private readonly Dictionary<Map, Entry> maps = new Dictionary<Map, Entry>();
+        private readonly Action<Map> forgetProtection;
+        internal StructureVersions(Action<Map> forgetProtection = null) => this.forgetProtection = forgetProtection;
         private int serial;
         internal int GlobalVersion { get; private set; }
         internal long Events { get; private set; }
@@ -89,6 +92,7 @@ namespace DeltaV
         internal void Forget(Map map)
         {
             if (map == null) return;
+            forgetProtection?.Invoke(map);
             if (maps.TryGetValue(map, out var entry))
             {
                 maps.Remove(map);
@@ -101,6 +105,7 @@ namespace DeltaV
 
         internal void Clear()
         {
+            forgetProtection?.Invoke(null);
             maps.Clear();
             GlobalVersion++;
         }

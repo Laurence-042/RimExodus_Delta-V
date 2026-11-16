@@ -10,6 +10,10 @@ namespace DeltaV
         private readonly UniverseManager universe;
         private readonly DriveSubject ownerId;
         private CombatTarget anchorTarget;
+        internal CompSpaceWeapon FixedAimWeapon { get; private set; }
+        internal Thing FixedAimPart { get; private set; }
+        private CombatTarget fixedAimTarget;
+        internal FixedWeaponAim? SharedFixedAim { get; private set; }
 
         internal ShipAutoManeuverControl(UniverseManager universe, DriveSubject ownerId)
         {
@@ -44,6 +48,7 @@ namespace DeltaV
                 hasTactic = false;
                 reposition.Reset();
                 engagementResult = null;
+                ClearFixedAim();
                 turnDirection = 0;
                 anchorDistance = OrbitSphere.ArcCells(ShipRegistry.ShipPose(ship).position,
                     resolved.Pose.position);
@@ -83,9 +88,45 @@ namespace DeltaV
             tacticDrive = null;
             activeRule = null;
             engagementResult = null;
+            ClearFixedAim();
             anchorDistance = 0f;
             turnDirection = 0;
             Boarding = false;
+        }
+
+        private void ClearFixedAim()
+        {
+            FixedAimWeapon = null;
+            FixedAimPart = null;
+            fixedAimTarget = default;
+            SharedFixedAim = null;
+        }
+
+        private FixedWeaponAim? SolveFixedAim(ShipBase ship, SpaceObject own, SpacePose self,
+            ShipFireControl control, int now)
+        {
+            var weapon = FixedAimWeapon;
+            if (weapon == null) return null;
+            if (control == null || !control.TryResolveFixedAim(ship, own, weapon, fixedAimTarget,
+                FixedAimPart, out var resolved))
+            {
+                ClearFixedAim();
+                return null;
+            }
+            using var timing = universe.Performance.Measure(PerformanceStage.WeaponAim);
+            var info = SpaceWeaponBallistics.Read(weapon, own, weapon.QueryEnergy, true).aim;
+            if (info.Projectile == null || info.Guided
+                || !SpaceWeaponBallistics.TryAim(info, own.pose, resolved.Pose, out var point)) return null;
+
+            // Rotate the offset muzzle around the hull center until its bore passes through the same intercept.
+            Vector2 toPoint = SpaceTransform.UniverseToMapPoint(own, ship.Map, point) - ship.HullCenter;
+            float axis = ShipOrientation.AngleFromRot4(weapon.parent.Rotation);
+            Vector2 muzzle = SpaceTransform.RotateInverse(info.MuzzleMap - ship.HullCenter, axis);
+            float forwardSquared = toPoint.sqrMagnitude - muzzle.y * muzzle.y;
+            if (forwardSquared <= 0f || Mathf.Sqrt(forwardSquared) <= muzzle.x) return null;
+            float yaw = self.angle + Mathf.Atan2(toPoint.y, toPoint.x) - axis
+                - Mathf.Atan2(muzzle.y, Mathf.Sqrt(forwardSquared));
+            return new FixedWeaponAim(weapon, fixedAimTarget, point, SpaceTransform.WrapAngle(yaw), now, info);
         }
 
         private bool SampleTarget(out SpacePose pose)

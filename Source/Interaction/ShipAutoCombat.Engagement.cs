@@ -25,7 +25,8 @@ namespace DeltaV
                 universe.FrameOf(ship.Map), frame)).OrderBy(s => OrbitSphere.ArcCells(self.position,
                     ShipRegistry.ShipPose(s).position)).Take(64).ToList();
             var defender = target; defender.angle -= enemy.FrameAngle;
-            var evaluator = new CombatEngagementEvaluation(universe, ship, enemy, defender, enemies, offenseEnabled, settings.primaryWeapons);
+            var evaluator = new CombatEngagementEvaluation(universe, ship, enemy, defender, enemies,
+                offenseEnabled, settings.primaryWeapons, dualTable: true);
             var weapons = evaluator.primaryWeapons;
             Vector2 offset = OrbitSphere.Offset(target.position, self.position);
             float current = Mathf.Atan2(offset.y, offset.x);
@@ -162,7 +163,9 @@ namespace DeltaV
                                 * (target.angularVelocity * distance), target.position, position),
                         angularVelocity = target.angularVelocity
                     };
-                    var value = evaluator.Evaluate(state);
+                    var pose = new CombatAttackPose { behavior = settings.behavior, distance = distance, heading = heading,
+                        freeThrustFacing = settings.facing == CombatFacing.Automatic };
+                    var value = evaluator.Evaluate(state, ref pose, rule.maneuverCurves);
                     float travel = Mathf.Abs(delta) * distance + Mathf.Abs(distance - radius);
                     float turn = Mathf.Abs(SpaceTransform.WrapAngle(angle - self.angle));
                     value.travel = (travel < 1 ? 0 : Mathf.Sqrt(4 * travel / Mathf.Max(.001f, strongest * settings.movement)))
@@ -170,16 +173,13 @@ namespace DeltaV
                     float required = target.angularVelocity * distance;
                     if (Mathf.Abs(delta) * distance > 1)
                         required += Mathf.Sign(delta) * CombatFlightPlanner.CruiseSpeed(drive, heading, distance,
-                            delta >= 0 ? 1 : -1, settings.movement, settings.facing == CombatFacing.Automatic);
+                            delta >= 0 ? 1 : -1, settings.movement, pose.freeThrustFacing);
                     Vector2 requestedVelocity = new Vector2(-Mathf.Sin(current), Mathf.Cos(current)) * required;
                     value.velocity = (requestedVelocity - relative).magnitude / Mathf.Max(.001f, strongest);
                     value.reverse = required * tangent < 0 ? Mathf.Abs(tangent) / Mathf.Max(.001f,
                         drive.PreviewBraking(SpaceTransform.RotateInverse(SpaceTransform.TransportTangent(
                             new Vector2(-Mathf.Sin(current), Mathf.Cos(current)) * Mathf.Sign(tangent), target.position, self.position), self.angle))) : 0;
                     value.flank = alliedPhase.HasValue ? 1 - Mathf.Abs(SpaceTransform.WrapAngle(phase - alliedPhase.Value)) / Mathf.PI : 0;
-                    var pose = new CombatAttackPose { behavior = settings.behavior, distance = distance, heading = heading,
-                        freeThrustFacing = settings.facing == CombatFacing.Automatic };
-                    pose.EvaluateFire(weapons, Vector2.zero, offenseEnabled, rule.maneuverCurves);
                     float extra = LegacyScore(ref pose, state);
                     candidates.Add(new EngagementCandidate { phase = phase, pose = pose,
                         value = value, score = value.Score(rule.engagement) + extra });
@@ -223,7 +223,7 @@ namespace DeltaV
                 action.tangentSpeed = turnDirection * CombatFlightPlanner.CruiseSpeed(drive, pose.heading, pose.distance,
                     turnDirection, settings.movement, pose.freeThrustFacing);
             }
-            if (settings.facing != CombatFacing.Automatic || circle && preserveCircleHeading) return action;
+            if (pose.fireHeading || settings.facing != CombatFacing.Automatic || circle && preserveCircleHeading) return action;
             Vector2 offset = OrbitSphere.Offset(target.position, self.position);
             float current = Mathf.Atan2(offset.y, offset.x);
             float delta = SpaceTransform.WrapAngle(phase - current);

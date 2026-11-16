@@ -14,6 +14,9 @@ namespace DeltaV
             internal bool uncertain;
             internal float alternativeScore = float.NegativeInfinity;
             internal bool holding;
+            internal CompSpaceWeapon fixedAimWeapon;
+            internal CombatTarget fixedAimTarget;
+            internal Thing fixedAimPart;
 
             internal float Raw(CombatEngagementTerm term)
             {
@@ -58,7 +61,7 @@ namespace DeltaV
             };
         }
 
-        private sealed class Battery
+        internal sealed class Battery
         {
             internal SpacePose pose;
             internal int rangeGroup;
@@ -77,18 +80,21 @@ namespace DeltaV
         private readonly Vector2 ownCenter, enemyCenter;
         private readonly float ownRadius, enemyRadius;
         private readonly CombatDamageForecast ownShot, enemyShot;
+        private readonly CombatWeaponOutputTable outputTable;
 
         internal CombatEngagementEvaluation(UniverseManager universe, ShipBase own, ShipBase enemy,
-            SpacePose targetPose, IEnumerable<ShipBase> enemies, bool offense, CombatWeaponFilter primary = null)
+            SpacePose targetPose, IEnumerable<ShipBase> enemies, bool offense, CombatWeaponFilter primary = null,
+            bool dualTable = false)
         {
             using var timing = universe.Performance.Measure(PerformanceStage.EngagementObservation);
             this.universe = universe; this.targetPose = targetPose;
             ownCenter = own.HullCenter; enemyCenter = enemy.HullCenter;
-            ownRadius = ShipFireControl.HullRadius(own); enemyRadius = ShipFireControl.HullRadius(enemy);
-            var ownObservation = new CombatDamageForecast.Observation(universe.FrameOf(own.Map), own);
-            var enemyObservation = new CombatDamageForecast.Observation(universe.FrameOf(enemy.Map), enemy);
-            ownShot = new CombatDamageForecast(ownObservation);
-            enemyShot = new CombatDamageForecast(enemyObservation);
+            if (!dualTable)
+            {
+                ownRadius = ShipFireControl.HullRadius(own); enemyRadius = ShipFireControl.HullRadius(enemy);
+                ownShot = new CombatDamageForecast(universe.FrameOf(own.Map), own);
+                enemyShot = new CombatDamageForecast(universe.FrameOf(enemy.Map), enemy);
+            }
             void Capture(ShipBase ship, ShipBase receiver, bool outgoing)
             {
                 int rangeGroup = batteries.Count;
@@ -105,7 +111,7 @@ namespace DeltaV
                     if (rule?.fireAction == CombatFireAction.Hold) continue;
                     var family = CombatWeaponFilter.FamilyOf(weapon, shot.aim.Projectile);
                     if (outgoing && (primary == null || primary.Includes(weapon, family))) primaryWeapons.Add(gun);
-                    if (outgoing && !offense) continue;
+                    if (outgoing && !offense && !dualTable) continue;
                     batteries.Add(new Battery
                     {
                         pose = pose, rangeGroup = rangeGroup, shot = shot,
@@ -119,6 +125,18 @@ namespace DeltaV
 
             Capture(own, enemy, true);
             foreach (var other in enemies) Capture(other, own, false);
+            if (dualTable)
+                outputTable = new CombatWeaponOutputTable(universe, own, enemy, targetPose, batteries,
+                    primaryWeapons, offense);
+        }
+
+        internal Result Evaluate(SpacePose candidate, ref CombatAttackPose pose, CombatManeuverCurves curves)
+        {
+            var performance = universe.Performance;
+            performance.engagementCandidates++;
+            using var score = performance.Measure(PerformanceStage.EngagementScore);
+            using var query = performance.Measure(PerformanceStage.EngagementTableQuery);
+            return outputTable.Evaluate(candidate, ref pose, curves);
         }
 
         internal static SpacePose At(SpacePose pose, float time)

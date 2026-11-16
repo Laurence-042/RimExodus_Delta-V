@@ -7,6 +7,40 @@ namespace DeltaV
 {
     public static partial class SpaceCollision
     {
+        private struct GridRay
+        {
+            private readonly Vector2 from, direction;
+            private readonly int stepX, stepZ;
+            private int x, z;
+            internal float Along { get; private set; }
+            internal IntVec3 Cell => new IntVec3(x, 0, z);
+
+            internal GridRay(Vector2 from, Vector2 direction, float near)
+            {
+                this.from = from;
+                this.direction = direction;
+                Along = near;
+                Vector2 start = from + direction * near;
+                x = Mathf.FloorToInt(start.x);
+                z = Mathf.FloorToInt(start.y);
+                stepX = direction.x > 0f ? 1 : -1;
+                stepZ = direction.y > 0f ? 1 : -1;
+                if (direction.x < 0f && start.x == x) x--;
+                if (direction.y < 0f && start.y == z) z--;
+            }
+
+            internal void Advance()
+            {
+                float nextX = direction.x == 0f ? float.PositiveInfinity
+                    : (x + (stepX > 0 ? 1 : 0) - from.x) / direction.x;
+                float nextZ = direction.y == 0f ? float.PositiveInfinity
+                    : (z + (stepZ > 0 ? 1 : 0) - from.y) / direction.y;
+                if (nextX <= nextZ) x += stepX;
+                if (nextZ <= nextX) z += stepZ;
+                Along = Mathf.Min(nextX, nextZ);
+            }
+        }
+
         internal readonly struct RayContact
         {
             internal readonly Vector2 point, normal;
@@ -34,11 +68,12 @@ namespace DeltaV
             internal readonly List<IntVec3> foundationCells = new List<IntVec3>();
             private readonly SweptBody footprint = new SweptBody();
             private readonly Predicate<IntVec3> includeBody;
-            internal RayQuery(SpaceObject target, ShipBase scope = null)
+            internal RayQuery(SpaceObject target, ShipBase scope = null, bool collectCover = true)
             {
                 map = target.map; surface = SurfaceFor(target);
                 includeBody = Includes;
                 if (scope != null) cells = new HashSet<IntVec3>(scope.HullCells);
+                if (!collectCover) return;
                 foreach (IntVec3 cell in surface.OccupiedCells())
                 {
                     if (!Includes(cell)) continue;
@@ -49,6 +84,32 @@ namespace DeltaV
                 }
             }
             private bool Includes(IntVec3 cell) => cells == null || cells.Contains(cell);
+            internal IEnumerable<ThingDef> GuardDefinitions()
+            {
+                foreach (var arc in surface.arcs)
+                    if (Includes(arc.building.Position)) yield return arc.building.def;
+            }
+            internal void ScanProtection(Vector2 endpoint, Vector2 incoming, Action<IntVec3, Thing, bool> visit)
+            {
+                var ray = new GridRay(endpoint, -incoming, 0f);
+                for (; ray.Cell.InBounds(map); ray.Advance())
+                {
+                    var cell = ray.Cell;
+                    if (!Includes(cell)) continue;
+                    int index = map.cellIndices.CellToIndex(cell);
+                    visit(cell, surface.buildings[index], surface.foundations[index]);
+                }
+            }
+
+            internal void ScanGuardSurfaces(Vector2 endpoint, Vector2 incoming, List<ShieldArc> hits)
+            {
+                if (surface.arcs.Count == 0) return;
+                float length = map.Size.x + map.Size.z;
+                Vector2 from = endpoint - incoming * length;
+                while (TryFindArcHit(surface, from, incoming, length, out var arc, out _, out _,
+                    item => Includes(item.building.Position) && !hits.Contains(item)))
+                    hits.Add(arc);
+            }
             internal bool AllBuildingsPass(HashSet<Thing> coverBuildings) => hullBuildings.IsSubsetOf(coverBuildings);
             private void NextLine(Vector2 from, Vector2 dir, float length, CompProperties_SpaceProjectile props,
                 Predicate<CompSpaceShield> include, out CompSpaceShield hit, out Vector2 point,

@@ -88,15 +88,16 @@ namespace DeltaV
         }
 
         internal bool TryResolveAutomatic(ShipBase ship, SpaceObject own, CombatTarget handle,
-            out ResolvedCombatTarget resolved)
+            out ResolvedCombatTarget resolved, Thing knownPart = null)
         {
             if (handle.SystemId != 0)
             {
                 var center = CombatTarget.ForShip(handle.Ship);
                 if (center.TryResolve(universe, out var victim) && CandidateValid(ship, own, victim.Container, victim.Ship))
                 {
-                    var part = victim.Ship.Map.listerThings.AllThings.FirstOrDefault(t => t.thingIDNumber == handle.SystemId);
-                    if (ExternalCombatPart(part).HasValue && victim.Ship.Contains(part))
+                    var part = knownPart ?? victim.Ship.Map.listerThings.AllThings.FirstOrDefault(t => t.thingIDNumber == handle.SystemId);
+                    if (part?.thingIDNumber == handle.SystemId && part.Map == victim.Ship.Map
+                        && ExternalCombatPart(part).HasValue && victim.Ship.Contains(part))
                     {
                         resolved = AtExternalPart(victim.Ship, victim.Container, part);
                         return true;
@@ -123,15 +124,36 @@ namespace DeltaV
             DecideStrategyTarget(ship, own);
         }
 
+        internal bool TryResolveFixedAim(ShipBase ship, SpaceObject own, CompSpaceWeapon weapon,
+            CombatTarget handle, Thing part, out ResolvedCombatTarget resolved)
+        {
+            resolved = default;
+            if (weapon == null || !WeaponBelongsHere(weapon, own) || !weapon.SpaceModeEnabled
+                || !weapon.Armed || !weapon.GroupActive || weapon.WeaponProps.manualOnly
+                || weapon.aimMode != SpaceWeaponAimMode.Volley
+                || (TryQueuedPart(ship, own, out var queued) && queued != handle)
+                || !TryResolveAutomatic(ship, own, handle, out resolved, part)) return false;
+            var facts = Facts(ship, own);
+            if (!TargetAllowed(ship, resolved.Ship, facts.Context(resolved.Ship))) return false;
+            var key = (weapon.Identity, resolved.Ship.Identity);
+            fireRuleState.TryGetValue(key, out var previous);
+            var rule = Strategy(ship).Fire(facts.Context(resolved.Ship, weapon), previous);
+            fireRuleState[key] = rule;
+            return rule.fireAction != CombatFireAction.Hold && (!rule.anchorOnly || resolved.Ship.Identity == target.Ship);
+        }
+
         /// <summary>One target per weapon; locks are runtime-only and the weapon service remains the firing authority.</summary>
         internal void TickAutoVolley(ShipBase ship, SpaceObject own, bool suppressSystems)
         {
             if (universe.Lifecycle.IsFrozen(ship.Map)) return;
             int now = Find.TickManager.TicksGame;
+            var maneuver = universe.Controls.ExistingFor(ship)?.AutoManeuver;
+            var fixedWeapon = maneuver?.FixedAimWeapon;
             if (now >= nextAutomaticAssignmentTick || assignmentStrategy != Strategy(ship)
-                || assignmentSuppressSystems != suppressSystems)
+                || assignmentSuppressSystems != suppressSystems || assignedFixedWeapon != fixedWeapon)
             {
-                AssignAutomaticTargets(ship, own, suppressSystems);
+                AssignAutomaticTargets(ship, own, suppressSystems, fixedWeapon);
+                assignedFixedWeapon = fixedWeapon;
                 assignmentStrategy = Strategy(ship);
                 assignmentSuppressSystems = suppressSystems;
                 int interval = Mathf.Clamp(DeltaVMod.CurrentSettings?.npcDecisionIntervalTicks ?? 60, 1, 30);
@@ -149,15 +171,21 @@ namespace DeltaV
                 long id = weapon.Identity;
                 bool trigger = weapon.CooldownTicksLeft == 0
                     && (!automaticRetryAt.TryGetValue(id, out int retryAt) || now >= retryAt);
-                if (!automaticTargets.TryGetValue(id, out CombatTarget handle)) continue;
-                if (!trigger && weapon.Component<CompSpaceWeaponTraverse>() == null) continue;
-                if (!TryResolveAutomatic(ship, own, handle, out ResolvedCombatTarget resolved))
+                bool fired;
+                if (weapon == fixedWeapon)
                 {
-                    // Invalid handles stop firing immediately; reassign on the existing decision clock.
-                    continue;
+                    if (!trigger || maneuver.SharedFixedAim is not FixedWeaponAim aim || aim.Tick != now
+                        || !TryResolveFixedAim(ship, own, weapon, aim.Target, maneuver.FixedAimPart, out var resolved)) continue;
+                    fired = universe.Weapons.ApplyControl(weapon, own, new WeaponControlCommand(aim, resolved));
                 }
-                bool fired = universe.Weapons.ApplyControl(weapon, own,
-                    new WeaponControlCommand(handle, resolved, true, WeaponControlSource.Automatic, trigger));
+                else
+                {
+                    if (!automaticTargets.TryGetValue(id, out CombatTarget handle)) continue;
+                    if (!trigger && weapon.Component<CompSpaceWeaponTraverse>() == null) continue;
+                    if (!TryResolveAutomatic(ship, own, handle, out var resolved)) continue;
+                    fired = universe.Weapons.ApplyControl(weapon, own,
+                        new WeaponControlCommand(handle, resolved, true, WeaponControlSource.Automatic, trigger));
+                }
                 if (!trigger) continue;
                 if (!fired)
                 {
@@ -169,7 +197,10 @@ namespace DeltaV
             }
         }
 
-        private void AssignAutomaticTargets(ShipBase ship, SpaceObject own, bool suppressSystems)
+        private CompSpaceWeapon assignedFixedWeapon;
+
+        private void AssignAutomaticTargets(ShipBase ship, SpaceObject own, bool suppressSystems,
+            CompSpaceWeapon fixedWeapon)
         {
             automaticTargets.Clear();
             automaticRetryAt.Clear();
@@ -200,7 +231,7 @@ namespace DeltaV
             var external = new Dictionary<DriveSubject, ExternalTargets>();
             foreach (CompSpaceWeapon weapon in ship.Weapons.OrderBy(w => w.Identity))
             {
-                if (!weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
+                if (weapon == fixedWeapon || !weapon.SpaceModeEnabled || weapon.WeaponProps.manualOnly
                     || weapon.aimMode != SpaceWeaponAimMode.Volley || !weapon.GroupActive
                     || !WeaponBelongsHere(weapon, own)) continue;
                 float best = float.NegativeInfinity;

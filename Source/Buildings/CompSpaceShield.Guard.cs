@@ -33,7 +33,14 @@ namespace DeltaV
             regularCapacity -= debit;
             if (debit > 0) recoveryWaitTicks = ShieldProps.recoveryDelayTicks;
             if (regularCapacity <= 0) emergencyReason = GuardEmergencyReason.Automatic;
+            if (debit > 0) NotifyProtectionGuard();
             return debit;
+        }
+
+        private void NotifyProtectionGuard()
+        {
+            if (parent.Spawned && ReferenceEquals(parent.TryGetComp<CompSpaceShield>(), this))
+                Current.Game?.GetComponent<UniverseManager>()?.NotifyProtectionGuard(parent.Map);
         }
         public int AutoRejoinPercent
         {
@@ -69,6 +76,7 @@ namespace DeltaV
             {
                 double next = regularCapacity + (double)ShieldProps.regularCapacity / ShieldProps.guardRecoveryTicks;
                 regularCapacity = next >= ShieldProps.regularCapacity - 1e-8 ? ShieldProps.regularCapacity : next;
+                NotifyProtectionGuard();
             }
             TryRejoinRegular();
         }
@@ -77,19 +85,25 @@ namespace DeltaV
         {
             if (ShieldProps.regularCapacity <= 0 || emergencyReason != GuardEmergencyReason.Automatic) return;
             double threshold = ShieldProps.regularCapacity * autoRejoinPercent / 100d;
-            if (regularCapacity >= threshold - 1e-8) emergencyReason = GuardEmergencyReason.None;
+            if (regularCapacity >= threshold - 1e-8)
+            {
+                emergencyReason = GuardEmergencyReason.None;
+                NotifyProtectionGuard();
+            }
         }
 
         public void EnterManualEmergency()
         {
             if (mode != SpaceShieldMode.Guard || ShieldProps.regularCapacity <= 0 || EmergencyCapacity <= 0) return;
             emergencyReason = GuardEmergencyReason.Manual;
+            NotifyProtectionGuard();
         }
 
         public void UseRegularGuard()
         {
             if (mode != SpaceShieldMode.Guard || ShieldProps.regularCapacity <= 0 || regularCapacity <= 0) return;
             emergencyReason = GuardEmergencyReason.None;
+            NotifyProtectionGuard();
         }
 
         internal IReadOnlyList<CompSpaceShield> OwnedShields =>

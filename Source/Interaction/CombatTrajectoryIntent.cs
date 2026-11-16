@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace DeltaV
 {
@@ -18,6 +18,7 @@ namespace DeltaV
         internal float startPhase;
         internal float frameAngle;
         internal bool holdCurrent;
+        internal SpacePose? brakeTarget;
         internal Vector2 holdVelocity;
         internal float holdOmega, brakingDecay, brakingAngularDecay;
         internal Vector2 localAnchor;
@@ -57,6 +58,25 @@ namespace DeltaV
         // This is reference geometry, not a second motion integrator.
         internal float BearingRate(float time) => SpaceTransform.WrapAngle(Bearing(time + .05f) - Bearing(time - .05f)) / .1f;
 
+        private Vector3 BrakePosition(float time, float linearFactor) => OrbitSphere.Move(center, holdVelocity *
+            (brakingDecay > .00001f ? (1f - linearFactor) / brakingDecay : time));
+
+        internal float BrakeBearing(float time, Vector3 position)
+        {
+            var target = brakeTarget.Value;
+            var direction = OrbitSphere.Offset(position, OrbitSphere.Move(target.position, target.velocity * time));
+            return Mathf.Atan2(direction.y, direction.x);
+        }
+
+        internal float BrakeBearingRate(float time)
+        {
+            const float step = .05f;
+            float before = time - step, after = time + step;
+            float a = BrakeBearing(before, BrakePosition(before, Mathf.Exp(-brakingDecay * before)));
+            float b = BrakeBearing(after, BrakePosition(after, Mathf.Exp(-brakingDecay * after)));
+            return SpaceTransform.WrapAngle(b - a) / (2f * step);
+        }
+
         /// <summary>用统一球面坐标链采样整段预期位姿；MPC 各预测步读取同一曲线。</summary>
         internal void Sample(float time, out Vector3 position, out Vector2 velocity,
             out float angle, out float angularVelocity)
@@ -64,11 +84,19 @@ namespace DeltaV
             float t = Mathf.Max(0f, time);
             if (holdCurrent)
             {
-                float linearFactor = Mathf.Exp(-brakingDecay * t), angularFactor = Mathf.Exp(-brakingAngularDecay * t);
-                float travel = brakingDecay > .00001f ? (1f - linearFactor) / brakingDecay : t;
-                float turn = brakingAngularDecay > .00001f ? (1f - angularFactor) / brakingAngularDecay : t;
-                position = OrbitSphere.Move(center, holdVelocity * travel);
+                float linearFactor = Mathf.Exp(-brakingDecay * t);
+                position = BrakePosition(t, linearFactor);
                 velocity = SpaceTransform.TransportTangent(holdVelocity * linearFactor, center, position);
+                if (brakeTarget.HasValue)
+                {
+                    Decay(headingError, headingRateError, headingDecay, t, out float brakeCorrection, out float brakeRate);
+                    angle = SpaceTransform.WrapAngle(BrakeBearing(t, position) - frameAngle + brakeCorrection);
+                    angularVelocity = BrakeBearingRate(t) + brakeRate;
+                    ApplyAnchor(ref position, ref velocity, ref angle, ref angularVelocity);
+                    return;
+                }
+                float angularFactor = Mathf.Exp(-brakingAngularDecay * t);
+                float turn = brakingAngularDecay > .00001f ? (1f - angularFactor) / brakingAngularDecay : t;
                 angle = SpaceTransform.WrapAngle(frameAngle + holdOmega * turn);
                 angularVelocity = holdOmega * angularFactor; return;
             }
@@ -92,6 +120,12 @@ namespace DeltaV
             angle = SpaceTransform.WrapAngle(Mathf.Atan2(toCenter.y, toCenter.x)
                 - frameAngle + correction);
             angularVelocity = BearingRate(t) + correctionRate;
+            ApplyAnchor(ref position, ref velocity, ref angle, ref angularVelocity);
+        }
+
+        private void ApplyAnchor(ref Vector3 position, ref Vector2 velocity, ref float angle,
+            ref float angularVelocity)
+        {
             if (localAnchor.sqrMagnitude > 1e-8f)
             {
                 var anchored = SpaceTransform.AlignLocalPoint(new SpacePose(position, angle)

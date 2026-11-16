@@ -8,6 +8,24 @@ namespace DeltaV
     internal enum WeaponReject : byte
     { None, Invalid, Cooldown, Operating, Power, Ammo, Range, Arc, Alignment, Energy, Safety, Gate, Intercept, Launch, Count }
 
+    internal readonly struct FixedWeaponAim
+    {
+        internal readonly CompSpaceWeapon Weapon;
+        internal readonly CombatTarget Target;
+        internal readonly Vector3 Point;
+        internal readonly float HullAngle;
+        internal readonly int Tick;
+        private readonly WeaponAimInfo input;
+
+        internal FixedWeaponAim(CompSpaceWeapon weapon, CombatTarget target, Vector3 point,
+            float hullAngle, int tick, WeaponAimInfo input)
+        { Weapon = weapon; Target = target; Point = point; HullAngle = hullAngle; Tick = tick; this.input = input; }
+
+        internal bool Matches(CompSpaceWeapon weapon, CombatTarget target, WeaponAimInfo live) =>
+            Weapon == weapon && Target == target && Tick == Find.TickManager.TicksGame
+            && input.Projectile == live.Projectile && input.Speed == live.Speed && input.MuzzleMap.Equals(live.MuzzleMap);
+    }
+
     /// <summary>Controller intent only. A resolved target is valid for this call, never a held position snapshot.</summary>
     public readonly struct WeaponControlCommand
     {
@@ -16,12 +34,17 @@ namespace DeltaV
         public readonly Vector2? LocalPoint;
         public readonly CombatTarget Target;
         public readonly ResolvedCombatTarget Resolved;
+        internal readonly FixedWeaponAim? FixedAim;
         public WeaponControlCommand(Vector2 localPoint, bool trigger)
         { Source = WeaponControlSource.Manual; Trigger = trigger; Predict = false;
-            LocalPoint = localPoint; Target = default; Resolved = default; }
+            LocalPoint = localPoint; Target = default; Resolved = default; FixedAim = null; }
         public WeaponControlCommand(CombatTarget target, ResolvedCombatTarget resolved,
             bool predict, WeaponControlSource source, bool trigger = true)
-        { Source = source; Trigger = trigger; Predict = predict; Target = target; Resolved = resolved; LocalPoint = null; }
+        { Source = source; Trigger = trigger; Predict = predict; Target = target; Resolved = resolved;
+            LocalPoint = null; FixedAim = null; }
+        internal WeaponControlCommand(FixedWeaponAim aim, ResolvedCombatTarget resolved)
+        { Source = WeaponControlSource.Automatic; Trigger = true; Predict = false; Target = aim.Target;
+            Resolved = resolved; LocalPoint = null; FixedAim = aim; }
     }
 
     public sealed partial class SpaceWeaponService
@@ -83,6 +106,16 @@ namespace DeltaV
             {
                 localAim = command.LocalPoint.Value;
                 aim = SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, localAim);
+            }
+            else if (command.FixedAim is FixedWeaponAim shared)
+            {
+                if (!shared.Matches(weapon, command.Target, info))
+                {
+                    RecordAim(perf, command.Source, aimStart);
+                    return Reject(canFire ? WeaponReject.Intercept : readiness, command.Trigger);
+                }
+                aim = shared.Point;
+                localAim = SpaceTransform.UniverseToMapPoint(container, weapon.parent.Map, aim);
             }
             else
             {

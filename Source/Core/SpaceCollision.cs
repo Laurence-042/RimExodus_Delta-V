@@ -220,8 +220,9 @@ namespace DeltaV
 
         public static void InvalidateShield(Map map)
         {
-            if (map != null && Caches.TryGetValue(map, out Surface surface))
-                surface.shieldsDirty = true;
+            if (map == null) return;
+            if (Caches.TryGetValue(map, out Surface surface)) surface.shieldsDirty = true;
+            Current.Game?.GetComponent<UniverseManager>()?.ForgetCombatProtection(map);
         }
 
         /// <summary>容器的碰撞面（需要炮口外推起点的发射侧也可查询）。</summary>
@@ -1025,28 +1026,17 @@ namespace DeltaV
             if (body.sweepRadius == 0f && body.noseHalfWidth == 0f)
             {
                 // 步进到真实格边，避免短暂穿过格角时落在两个采样点之间。
-                Vector2 start = from + dir * near;
-                int x = Mathf.FloorToInt(start.x), z = Mathf.FloorToInt(start.y);
-                int stepX = dir.x > 0f ? 1 : -1, stepZ = dir.y > 0f ? 1 : -1;
-                if (dir.x < 0f && start.x == x) x--;
-                if (dir.y < 0f && start.y == z) z--;
-                for (float along = near; along <= end;)
+                var ray = new GridRay(from, dir, near);
+                for (; ray.Along <= end; ray.Advance())
                 {
-                    var cell = new IntVec3(x, 0, z);
+                    var cell = ray.Cell;
                     if (cell.InBounds(map) && (include == null || include(cell))
                         && TryGetHullCell(map, surface, cell, passedBuildings, passedCells, skipSubstructure,
                             out SpaceCellKind kind, out Thing building, coverBuildings, coverCells))
                     {
-                        contact = new RayContact(from + dir * along, normal, cell, kind, building);
+                        contact = new RayContact(from + dir * ray.Along, normal, cell, kind, building);
                         return true;
                     }
-                    float nextX = dir.x == 0f ? float.PositiveInfinity
-                        : (x + (stepX > 0 ? 1 : 0) - from.x) / dir.x;
-                    float nextZ = dir.y == 0f ? float.PositiveInfinity
-                        : (z + (stepZ > 0 ? 1 : 0) - from.y) / dir.y;
-                    if (nextX <= nextZ) x += stepX;
-                    if (nextZ <= nextX) z += stepZ;
-                    along = Mathf.Min(nextX, nextZ);
                 }
                 return false;
             }
