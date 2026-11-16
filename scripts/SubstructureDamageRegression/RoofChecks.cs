@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text;
 using DeltaV;
 using HarmonyLib;
+using RimExodus.Maps;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -157,7 +158,8 @@ internal static partial class Program
         Set(MapMeshFlagDefOf.Roofs, "mask", 8UL);
         object cache = Call(typeof(MapOverlayRenderer), "CacheFor", map);
         MapOverlayRenderer.MarkDirty(map, opening, (ulong)MapMeshFlagDefOf.Roofs);
-        var dirty = (HashSet<int>)AccessTools.Field(cache.GetType(), "dirty").GetValue(cache);
+        object snapshots = AccessTools.Field(cache.GetType(), "snapshots")?.GetValue(cache) ?? cache;
+        var dirty = (HashSet<int>)AccessTools.Field(snapshots.GetType(), "dirty").GetValue(snapshots);
         Check(dirty.SetEquals(new[] { 0, 1 | (1 << 16) }),
             "roof change invalidates just the remote building root and opening sections");
         CheckTerrainSurfaces(map, opening, deck, null, false);
@@ -184,8 +186,12 @@ internal static partial class Program
         Check(new ShellRenderConfig().layer == ShellSurfaceLayer.Hull,
             "existing rules without an explicit layer retain the hull default");
         CheckTerrainMesh();
+        CheckTerrainDrawOrder();
         CheckHullCorners(map, hull, deck, roof);
         ExportRoofEdgePreview(edges);
+        MapOverlayRenderer.Release(map);
+        Check(!ReferenceEquals(cache, Call(typeof(MapOverlayRenderer), "CacheFor", map)),
+            "reopened map starts with a fresh render cache");
         MapOverlayRenderer.Release(map);
     }
 
@@ -200,6 +206,7 @@ internal static partial class Program
     private static void CheckTerrainMesh()
     {
         Type type = typeof(MapOverlayRenderer).Assembly.GetType("DeltaV.ShellTerrainBatches");
+        MethodInfo baselineAppend = AccessTools.Method(type, "AppendCell");
         var mesh = new LayerSubMesh(null, null);
         // MeshMakerPlanes.NewPlaneMesh(1f) in both game versions.
         Vector3[] vertices = { new(-0.5f, 0f, -0.5f), new(-0.5f, 0f, 0.5f),
@@ -216,8 +223,12 @@ internal static partial class Program
         for (int q = 0; q < cells.Length; q++)
         {
             IntVec3 cell = cells[q];
-            Call(type, "AppendCell", mesh, cell, altitude, vertices, normals, triangles);
             var center = new Vector3(cell.x + 0.5f, altitude, cell.z + 0.5f);
+            if (baselineAppend != null)
+                baselineAppend.Invoke(null, new object[] { mesh, cell, altitude, vertices, normals, triangles });
+            else
+                Call(typeof(SectionMeshBatches), "AppendPlane", mesh, center, Call(type, "TileUv", cell),
+                    0.0625f, vertices, normals, triangles);
             Matrix4x4 legacy = transform;
             Vector3 translation = transform.MultiplyPoint3x4(center);
             legacy.m03 = translation.x;
@@ -230,7 +241,8 @@ internal static partial class Program
                 var uv = new Vector3((cell.x % 16 + 0.5f + vertices[i].x) * 0.0625f,
                     (cell.z % 16 + 0.5f + vertices[i].z) * 0.0625f, 0f);
                 if ((transform.MultiplyPoint3x4(mesh.verts[v]) - expected).sqrMagnitude > 1e-9f
-                    || !mesh.uvs[v].Equals(uv) || !mesh.normals[v].Equals(Vector3.up))
+                    || !mesh.uvs[v].Equals(uv) || !mesh.normals[v].Equals(Vector3.up)
+                    || !((Vector3)Call(type, "CellUv", cell, vertices[i])).Equals(uv))
                     throw new Exception($"Batched terrain vertex differs from one-cell submission at {cell}");
             }
             for (int i = 0; i < triangles.Length; i++)
@@ -239,6 +251,29 @@ internal static partial class Program
         }
         Check(mesh.verts.Count == 12 && mesh.tris.Count == 18,
             "terrain batching preserves geometry, normals and UVs across the texture wrap and section seam");
+    }
+
+    private static void CheckTerrainDrawOrder()
+    {
+        Type overlay = typeof(MapOverlayRenderer);
+        Type commandType = overlay.GetNestedType("OverlayCommand", BindingFlags.NonPublic);
+        object Command(ShellSurfaceLayer layer, int queue, int sequence)
+        {
+            object command = Activator.CreateInstance(commandType);
+            Set(command, "surface", layer);
+            Set(command, "queue", queue);
+            Set(command, "sequence", sequence);
+            return command;
+        }
+
+        object firstDeck = Command(ShellSurfaceLayer.Deck, 3000, 2);
+        object equipment = Command(ShellSurfaceLayer.Deck, 3000, 3);
+        object roof = Command(ShellSurfaceLayer.Hull, 2990, 1);
+        object exposed = Command(ShellSurfaceLayer.Exposed, 2980, 0);
+        Check((int)Call(overlay, "CompareCommands", firstDeck, equipment) < 0
+            && (int)Call(overlay, "CompareCommands", equipment, roof) < 0
+            && (int)Call(overlay, "CompareCommands", roof, exposed) < 0,
+            "batched deck, uncovered equipment, roof cover and exposed equipment retain draw order");
     }
 
     private sealed class HullTestGraphic : Graphic

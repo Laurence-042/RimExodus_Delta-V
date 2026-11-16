@@ -1,76 +1,45 @@
 using System.Collections.Generic;
-using RimWorld;
+using RimExodus.Maps;
 using UnityEngine;
 using Verse;
 
 namespace DeltaV
 {
-    /// <summary>Owns the static terrain meshes of one shell section.</summary>
+    /// <summary>Supplies the shell's two terrain surfaces and tile UV convention to REF.</summary>
     internal sealed class ShellTerrainBatches
     {
         internal const int TexturePeriod = 16;
+        private const float UvScale = 1f / TexturePeriod;
+        private const int DeckSurface = 0;
+        private const int HullSurface = 1;
+
         internal static float Altitude => AltitudeLayer.Terrain.AltitudeFor();
 
-        private readonly SectionLayer_Terrain deck;
-        private readonly SectionLayer_Terrain hull;
-        private static Vector3[] vertices;
-        private static Vector3[] normals;
-        private static int[] triangles;
+        private readonly SectionMeshBatches batches;
 
-        internal ShellTerrainBatches(Section section)
-        {
-            deck = new SectionLayer_Terrain(section);
-            hull = new SectionLayer_Terrain(section);
-            if (vertices == null)
-            {
-                Mesh plane = MeshPool.plane10;
-                vertices = plane.vertices;
-                normals = plane.normals;
-                triangles = plane.triangles;
-            }
-        }
+        internal ShellTerrainBatches(Section section) => batches = new SectionMeshBatches(section, 2);
 
-        internal List<LayerSubMesh> Deck => deck.subMeshes;
-        internal List<LayerSubMesh> Hull => hull.subMeshes;
+        internal IReadOnlyList<LayerSubMesh> Deck => batches.Batches(DeckSurface);
+        internal IReadOnlyList<LayerSubMesh> Hull => batches.Batches(HullSurface);
 
         internal void Add(IntVec3 cell, Material floor, Material cover)
         {
-            if (floor != null) AppendCell(deck.GetSubMesh(floor), cell, Altitude, vertices, normals, triangles);
-            if (cover != null) AppendCell(hull.GetSubMesh(cover), cell, Altitude, vertices, normals, triangles);
+            var center = new Vector3(cell.x + 0.5f, Altitude, cell.z + 0.5f);
+            Vector2 tile = TileUv(cell);
+            if (floor != null) batches.AddPlane(DeckSurface, floor, center, tile, UvScale);
+            if (cover != null) batches.AddPlane(HullSurface, cover, center, tile, UvScale);
         }
 
-        internal void Complete()
-        {
-            const MeshParts parts = MeshParts.Verts | MeshParts.Tris | MeshParts.UVs1 | MeshParts.Normals;
-            foreach (LayerSubMesh batch in Deck) batch.FinalizeMesh(parts);
-            foreach (LayerSubMesh batch in Hull) batch.FinalizeMesh(parts);
-        }
-
-        internal void Dispose()
-        {
-            deck.Dispose();
-            hull.Dispose();
-        }
-
-        internal static void AppendCell(LayerSubMesh batch, IntVec3 cell, float altitude,
-            Vector3[] planeVertices, Vector3[] planeNormals, int[] planeTriangles)
-        {
-            int offset = batch.verts.Count;
-            var center = new Vector3(cell.x + 0.5f, altitude, cell.z + 0.5f);
-            foreach (Vector3 vertex in planeVertices)
-            {
-                batch.verts.Add(center + vertex);
-                batch.uvs.Add(CellUv(cell, vertex));
-            }
-            if (planeNormals.Length == planeVertices.Length) batch.normals.AddRange(planeNormals);
-            foreach (int index in planeTriangles) batch.tris.Add(offset + index);
-        }
+        internal void Complete() => batches.Complete();
+        internal void Dispose() => batches.Dispose();
 
         internal static int TextureCoordinate(int coordinate)
             => ((coordinate % TexturePeriod) + TexturePeriod) % TexturePeriod;
 
+        private static Vector2 TileUv(IntVec3 cell)
+            => new Vector2(TextureCoordinate(cell.x), TextureCoordinate(cell.z));
+
         internal static Vector3 CellUv(IntVec3 cell, Vector3 vertex)
-            => new Vector3((TextureCoordinate(cell.x) + 0.5f + vertex.x) / TexturePeriod,
-                (TextureCoordinate(cell.z) + 0.5f + vertex.z) / TexturePeriod, 0f);
+            => SectionMeshBatches.PlaneUv(TileUv(cell), UvScale, vertex);
     }
 }

@@ -2,9 +2,44 @@
 param([Parameter(Mandatory=$true, ParameterSetName='Regression')][string]$GameRoot,
       [Parameter(Mandatory=$true, ParameterSetName='Regression')][string]$HarmonyPath,
       [Parameter(ParameterSetName='Regression')][string]$DeltaVAssembly,
+      [Parameter(ParameterSetName='Regression')]
+      [Parameter(Mandatory=$true, ParameterSetName='RefExtraction')][string]$RefAssembly,
+      [Parameter(Mandatory=$true, ParameterSetName='RefExtraction')][switch]$BuildRefExtractionAB,
+      [Parameter(ParameterSetName='RefExtraction')][ValidateSet('1.6','1.7')][string]$Version = '1.7',
       [Parameter(Mandatory=$true, ParameterSetName='ShellTerrainAB')][switch]$BuildShellTerrainAB)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
+if ($BuildRefExtractionAB) {
+    $artifacts = Join-Path $repo "Source/obj/ShellTerrainAB/refExtraction/$Version"
+    $source = Join-Path $artifacts 'source'
+    $archive = Join-Path $artifacts 'fd0f39d.zip'
+    $sdk = Join-Path $repo '.local-tools/dotnet/dotnet.exe'
+    if (!(Test-Path -LiteralPath $sdk)) { $sdk = 'dotnet' }
+    New-Item -ItemType Directory -Force -Path $artifacts | Out-Null
+    & git -C $repo archive --format=zip --output=$archive fd0f39d Source build/RimWorldReferences.props
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Expand-Archive -LiteralPath $archive -DestinationPath $source -Force
+    $references = Join-Path $source "References/REF/$Version"
+    New-Item -ItemType Directory -Force -Path $references | Out-Null
+    Copy-Item -LiteralPath $RefAssembly -Destination "$references/RimExodus.Maps.dll" -Force
+    Copy-Item -LiteralPath $RefAssembly -Destination "$artifacts/RimExodus.Maps.dll" -Force
+    Get-FileHash -LiteralPath "$artifacts/RimExodus.Maps.dll" | Format-List Hash,Path
+    foreach ($variant in @('baseline', 'extracted')) {
+        if ($variant -eq 'extracted') {
+            foreach ($file in @('MapOverlayRenderer.cs', 'ShellTerrainBatches.cs')) {
+                Copy-Item -LiteralPath "$repo/Source/Rendering/$file" -Destination "$source/Source/Rendering/$file" -Force
+            }
+        }
+        $directory = Join-Path $artifacts $variant
+        & $sdk msbuild "$source/Source/DeltaV.csproj" -restore -t:Compile -p:Configuration=Release "-p:RimWorldVersion=$Version" `
+            "-p:TargetPlatformSdkPath=C:/Program Files (x86)/Windows Kits/10/" -p:TargetPlatformDisplayName=Windows `
+            "-p:IntermediateOutputPath=$directory/" "-p:MSBuildProjectExtensionsPath=$directory/" `
+            -p:NuGetAudit=false -p:RestoreIgnoreFailedSources=true
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        Get-FileHash -LiteralPath "$directory/DeltaV.dll" | Format-List Hash,Path
+    }
+    exit 0
+}
 if ($BuildShellTerrainAB) {
     $artifacts = Join-Path $repo 'Source/obj/ShellTerrainAB'
     $sdk = Join-Path $repo '.local-tools/dotnet/dotnet.exe'
@@ -47,9 +82,10 @@ foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'Assemb
 }
 if (!$DeltaVAssembly) { $DeltaVAssembly = "$repo/1.6/Assemblies/DeltaV.dll" }
 Copy-Item -LiteralPath $DeltaVAssembly -Destination "$out/DeltaV.dll" -Force
-Copy-Item -LiteralPath "$repo/References/REF/1.6/RimExodus.Maps.dll" -Destination $out -Force
+if (!$RefAssembly) { $RefAssembly = "$repo/References/REF/1.6/RimExodus.Maps.dll" }
+Copy-Item -LiteralPath $RefAssembly -Destination "$out/RimExodus.Maps.dll" -Force
 Copy-Item -LiteralPath $HarmonyPath -Destination $out -Force
-foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'DeltaV.dll', '0Harmony.dll')) { $lines += '/r:"' + "$out/$name" + '"' }
+foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'DeltaV.dll', 'RimExodus.Maps.dll', '0Harmony.dll')) { $lines += '/r:"' + "$out/$name" + '"' }
 $lines += '"' + "$PSScriptRoot/Program.cs" + '"'
 $lines += '"' + "$PSScriptRoot/RoofChecks.cs" + '"'
 $lines | Set-Content -LiteralPath "$out/build.rsp"

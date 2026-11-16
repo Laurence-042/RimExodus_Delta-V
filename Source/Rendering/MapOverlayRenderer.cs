@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
+using RimExodus.Maps;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -27,7 +28,7 @@ namespace DeltaV
         internal static readonly bool BatchStaticTerrain = true;
 #endif
 
-        private sealed class SectionSnapshot
+        private sealed class SectionSnapshot : System.IDisposable
         {
             public readonly List<IntVec3> terrainCells = new List<IntVec3>();
             public readonly List<IntVec3> moonPoolCells = new List<IntVec3>();
@@ -67,8 +68,7 @@ namespace DeltaV
 
         private sealed class MapCache
         {
-            public readonly Dictionary<int, SectionSnapshot> sections = new Dictionary<int, SectionSnapshot>();
-            public readonly HashSet<int> dirty = new HashSet<int>();
+            public readonly MapSectionCache<SectionSnapshot> snapshots = new MapSectionCache<SectionSnapshot>();
             private Section printContext;
 
             public Section PrintContext(Map map)
@@ -227,17 +227,12 @@ namespace DeltaV
             HashSet<IntVec3> allowedCells, int sx, int sz, Vector2 localSun,
             List<OverlayCommand> collector, DeltaVPerformanceProbe performance)
         {
-            int key = sx | (sz << 16);
             MapCache cache = CacheFor(map);
-            bool dirty = cache.dirty.Remove(key);
-            bool rebuild = !cache.sections.TryGetValue(key, out SectionSnapshot section) || dirty;
+            bool rebuild = !cache.snapshots.TryGet(sx, sz, out SectionSnapshot section);
             performance?.RecordShellSection(rebuild);
             if (rebuild)
             {
-                using var rebuildTiming = performance?.Measure(PerformanceStage.ShellRebuild) ?? default;
-                section?.Dispose();
-                section = BuildSection(map, sx, sz, performance);
-                cache.sections[key] = section;
+                section = RebuildSection(cache, map, sx, sz, performance);
             }
 
             long staticStart = performance?.Start() ?? 0;
@@ -514,11 +509,14 @@ namespace DeltaV
             return false;
         }
 
-        private static void CollectTerrainBatches(List<LayerSubMesh> batches, Matrix4x4 matrix,
+        private static void CollectTerrainBatches(IReadOnlyList<LayerSubMesh> batches, Matrix4x4 matrix,
             ShellSurfaceLayer surface, List<OverlayCommand> collector)
         {
-            foreach (LayerSubMesh batch in batches)
+            for (int i = 0; i < batches.Count; i++)
+            {
+                LayerSubMesh batch = batches[i];
                 AddTerrainCommand(batch.mesh, matrix, batch.material, surface, batch.tris.Count / 6, collector);
+            }
         }
 
         private static void AddTerrainCommand(Mesh mesh, Matrix4x4 matrix, Material material,
@@ -567,9 +565,32 @@ namespace DeltaV
             return moonPool;
         }
 
-        private static SectionSnapshot BuildSection(Map map, int sx, int sz, DeltaVPerformanceProbe performance)
+        private static SectionSnapshot RebuildSection(MapCache cache, Map map, int sx, int sz,
+            DeltaVPerformanceProbe performance)
+        {
+            using var timing = performance?.Measure(PerformanceStage.ShellRebuild) ?? default;
+            return cache.snapshots.Rebuild(sx, sz, () => BuildSection(cache, map, sx, sz, performance));
+        }
+
+        private static SectionSnapshot BuildSection(MapCache cache, Map map, int sx, int sz,
+            DeltaVPerformanceProbe performance)
         {
             var result = new SectionSnapshot();
+            try
+            {
+                PopulateSection(result, cache, map, sx, sz, performance);
+                return result;
+            }
+            catch
+            {
+                result.Dispose();
+                throw;
+            }
+        }
+
+        private static void PopulateSection(SectionSnapshot result, MapCache cache, Map map, int sx, int sz,
+            DeltaVPerformanceProbe performance)
+        {
             CellRect rect = CellRect.FromLimits(sx * SectionSize, sz * SectionSize,
                 sx * SectionSize + SectionSize - 1, sz * SectionSize + SectionSize - 1).ClipInsideMap(map);
             foreach (IntVec3 cell in rect)
@@ -580,7 +601,7 @@ namespace DeltaV
                     if (things[i].Position == cell && !result.things.Contains(things[i])) result.things.Add(things[i]);
             }
             // Only the SectionLayer material/mesh collector is used; no source-map layer is redrawn.
-            Section sourceSection = CacheFor(map).PrintContext(map);
+            Section sourceSection = cache.PrintContext(map);
             if (BatchStaticTerrain)
             {
                 using var terrainTiming = performance?.Measure(PerformanceStage.ShellTerrainBuild) ?? default;
@@ -681,7 +702,6 @@ namespace DeltaV
                     map.mapDrawer.SectionAt(rect.Min));
                 result.substructureProps.Regenerate();
             }
-            return result;
         }
 
         public static void MarkDirty(Map map, IntVec3 cell, ulong flags,
@@ -692,7 +712,7 @@ namespace DeltaV
             if (map == null || (flags & relevant) == 0 || !Caches.TryGetValue(map, out MapCache cache)) return;
             int sx = cell.x / SectionSize;
             int sz = cell.z / SectionSize;
-            cache.dirty.Add(sx | (sz << 16));
+            cache.snapshots.MarkDirty(sx, sz);
             // Wall/foundation contact affects adjoining floor meshes; Odyssey's
             // angled corner pieces also read diagonal cells. Mark the whole ring
             // even when vanilla did not request adjacent section regeneration.
@@ -700,19 +720,19 @@ namespace DeltaV
             {
                 IntVec3 neighbor = cell + GenAdj.AdjacentCells[i];
                 if (neighbor.InBounds(map))
-                    cache.dirty.Add(neighbor.x / SectionSize | (neighbor.z / SectionSize << 16));
+                    cache.snapshots.MarkDirty(neighbor.x / SectionSize, neighbor.z / SectionSize);
             }
             // A roof or loss of its foundation can uncover a building rooted in another section.
             if ((flags & ((ulong)MapMeshFlagDefOf.Roofs | (ulong)MapMeshFlagDefOf.Terrain)) != 0
                 && cell.InBounds(map))
                 foreach (Thing thing in map.thingGrid.ThingsListAtFast(cell))
                     if (thing is Building)
-                        cache.dirty.Add(thing.Position.x / SectionSize | (thing.Position.z / SectionSize << 16));
+                        cache.snapshots.MarkDirty(thing.Position.x / SectionSize, thing.Position.z / SectionSize);
             if (adjacentSections)
             {
                 for (int z = sz - 1; z <= sz + 1; z++)
                 for (int x = sx - 1; x <= sx + 1; x++)
-                    if (x >= 0 && z >= 0) cache.dirty.Add(x | (z << 16));
+                    if (x >= 0 && z >= 0) cache.snapshots.MarkDirty(x, z);
             }
         }
 
@@ -722,7 +742,7 @@ namespace DeltaV
         {
             GuardShieldRenderer.Release(map);
             if (map == null || !Caches.TryGetValue(map, out MapCache cache)) return;
-            foreach (SectionSnapshot section in cache.sections.Values) section.Dispose();
+            cache.snapshots.Dispose();
             Caches.Remove(map);
         }
 
@@ -730,7 +750,7 @@ namespace DeltaV
         {
             GuardShieldRenderer.Clear();
             foreach (MapCache cache in Caches.Values)
-                foreach (SectionSnapshot section in cache.sections.Values) section.Dispose();
+                cache.snapshots.Dispose();
             Caches.Clear();
             Rules.Clear();
             TerrainMaterials.Clear();
@@ -788,12 +808,7 @@ namespace DeltaV
         {
             List<ShellRenderRuleDef> defs = DefDatabase<ShellRenderRuleDef>.AllDefsListForReading;
             if (cachedRuleCount == defs.Count) return;
-            foreach (MapCache cache in Caches.Values)
-            {
-                foreach (SectionSnapshot section in cache.sections.Values) section.Dispose();
-                cache.sections.Clear();
-                cache.dirty.Clear();
-            }
+            foreach (MapCache cache in Caches.Values) cache.snapshots.Clear();
             Rules.Clear();
             for (int i = 0; i < defs.Count; i++) if (defs[i].thingDef != null) Rules[defs[i].thingDef] = defs[i];
             cachedRuleCount = defs.Count;
