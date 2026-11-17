@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-  <DeltaV_MoonPool.label>月池</DeltaV_MoonPool.label>
-  <DeltaV_MoonPool.description>用力场密封的基架甲板，无需屋顶也能留住空气，可供穿梭机起降。即使上方建有屋顶，也不会阻挡起降，穿梭机降落时不会破坏屋顶。</DeltaV_MoonPool.description>
   <DeltaV_ShuttleBoarding.label>跳帮艇</DeltaV_ShuttleBoarding.label>
   <DeltaV_ShuttleBoarding.description>用于登舰突击的装甲穿梭机。起飞后关闭碰撞规避，用「撞击侵入」选择敌舰外壳。跳帮艇会自行截击，主推进器在加力时消耗独立油箱的化燃。能穿过所有护盾，但仍会被点防武器攻击。撞入后以艇身堵住破口，船员可下艇作战。</DeltaV_ShuttleBoarding.description>
   <DeltaV_Projectile_Cannon.label>炮弹</DeltaV_Projectile_Cannon.label>
