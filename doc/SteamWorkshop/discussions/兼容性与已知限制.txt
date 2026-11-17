@@ -1,6 +1,8 @@
 [h1]需要装什么[/h1]
 
-RimWorld 1.6 或 1.7，启用 Odyssey 和四个前置：Harmony、RimExodus Framework、Adaptive Storage Framework、Launch into empty space。ASF 提供太空货柜所用的仓储功能，Launch into empty space 让原版逆重飞船可以选择空白轨道地块。请让前置排在 Delta-V 之前。使用开发版时，Framework 也要和开发版对应。
+正式支持 RimWorld 1.7。需要启用 Odyssey 和四个前置模组（Harmony、RimExodus Framework、Adaptive Storage Framework、Launch into empty space）。ASF 提供太空货柜所用的仓储功能，Launch into empty space 让原版逆重飞船可以选择空白轨道地块。请让前置排在 Delta-V 之前。使用开发版时，Framework 也要和开发版对应。
+
+发布包仍提供 1.6 构建，可以手动启用，模组列表会显示版本警告。欢迎反馈 1.6 上的问题，我会尽量修复，能否解决视具体问题而定。性能优化和取舍优先考虑 1.7。
 
 Delta-V 的连续航行和交火作用在轨道地图和飞船口袋图。RimExodus 本体负责地表无缝地图，可以独立启用。地表版的跨图兼容清单不适用于这里的舰炮。
 

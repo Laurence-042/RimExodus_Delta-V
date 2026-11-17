@@ -10,7 +10,6 @@
 Phase 3 prototype: POI lifecycle, dynamic anchor, pilot console, fixed orbit. Each ship is an independent pocket map; poses live in a continuous universe frame outside any map, the focused map keeps vanilla orientation, and non-focused ships show as translatable / freely rotating shell proxies. Phase 3 adds a three-stage space POI map lifecycle (active / dormant / packed with snapshot), a dynamic universe anchor with continuous planet background, universe-view zoom-out, pilot consoles, and the fixed-orbit building mode (whole-ship gravship transfer onto the host map).</description>
   <modVersion>0.1.0</modVersion>
   <supportedVersions>
-    <li>1.6</li>
     <li>1.7</li>
   </supportedVersions>
   <modDependencies>

@@ -1,8 +1,11 @@
+param([switch]$Alpha)
+
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent))
 $parent = Split-Path $root -Parent
-$target = [IO.Path]::GetFullPath((Join-Path $parent 'RimExodus_Delta-V.release'))
-if ((Split-Path $target -Parent) -ne $parent -or (Split-Path $target -Leaf) -ne 'RimExodus_Delta-V.release') {
+$targetName = if ($Alpha) { 'RimExodus_Delta-V.alpha.release' } else { 'RimExodus_Delta-V.release' }
+$target = [IO.Path]::GetFullPath((Join-Path $parent $targetName))
+if ((Split-Path $target -Parent) -ne $parent -or (Split-Path $target -Leaf) -ne $targetName) {
     throw "Unexpected release destination: $target"
 }
 if ((Test-Path -LiteralPath $target) -and ((Get-Item -LiteralPath $target).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
@@ -35,15 +38,30 @@ $framework = $about.ModMetaData.modDependencies.SelectSingleNode("li[packageId='
 if ($null -eq $framework) { throw 'Development REF dependency missing.' }
 $framework.packageId = 'RimExodus.Framework'
 $framework.displayName = 'RimExodus Framework'
+if ($Alpha) {
+    $about.ModMetaData.name = 'RimExodus: Delta-V [ALPHA]'
+    $about.ModMetaData.packageId = 'RimExodus.DeltaV.alpha'
+    $workshopUrl = $about.CreateElement('steamWorkshopUrl')
+    $workshopUrl.InnerText = 'steam://url/CommunityFilePage/3830299150'
+    $framework.AppendChild($workshopUrl) | Out-Null
+}
 $after = $about.ModMetaData.loadAfter.SelectSingleNode("li[.='RimExodus.Framework.dev']")
 if ($null -eq $after) { throw 'Development REF load order entry missing.' }
 $after.InnerText = 'RimExodus.Framework'
-if (($about.ModMetaData.supportedVersions.li -join ',') -ne '1.6,1.7') {
-    throw 'Release metadata must support both 1.6 and 1.7.'
+if (($about.ModMetaData.supportedVersions.li -join ',') -ne '1.7') {
+    throw 'Release metadata must declare 1.7 as the only officially supported version.'
 }
 
+$publishedFileId = Join-Path $target 'About/PublishedFileId.txt'
+$alphaWorkshopId = $null
+if ($Alpha -and (Test-Path -LiteralPath $publishedFileId -PathType Leaf)) {
+    $alphaWorkshopId = [IO.File]::ReadAllBytes($publishedFileId)
+}
 if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
 New-Item -ItemType Directory -Path (Join-Path $target 'About') -Force | Out-Null
+if ($null -ne $alphaWorkshopId) {
+    [IO.File]::WriteAllBytes($publishedFileId, $alphaWorkshopId)
+}
 $about.Save((Join-Path $target 'About/About.xml'))
 foreach ($version in @('1.6', '1.7')) {
     Copy-Item -LiteralPath (Join-Path $root $version) -Destination (Join-Path $target $version) -Recurse
@@ -53,4 +71,4 @@ foreach ($version in @('1.6', '1.7')) {
 Copy-Item -LiteralPath (Join-Path $root 'Common') -Destination (Join-Path $target 'Common') -Recurse
 Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination $target
 Copy-Item -LiteralPath (Join-Path $root 'LoadFolders.xml') -Destination $target
-Write-Output "Packaged RimExodus: Delta-V 1.6 and 1.7 at $target. Install RimExodus Framework separately."
+Write-Output "Packaged $($about.ModMetaData.name) 1.6 and 1.7 at $target. Install RimExodus Framework separately."

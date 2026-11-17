@@ -11,5 +11,9 @@ build version="1.7":
 release:
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File build/Release.ps1
 
+# Package the public alpha with its own Mod and Workshop identities.
+alpha-release:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File build/Release.ps1 -Alpha
+
 test-ref:
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File ../RimExodusFramework/build/Build.ps1 -Version 1.7 -Test
