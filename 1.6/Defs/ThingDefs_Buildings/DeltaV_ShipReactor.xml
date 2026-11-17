@@ -31,7 +31,10 @@
       <drawSize>(4.70,4.73)</drawSize>
       <damageData><enabled>false</enabled></damageData>
     </graphicData>
-    <building><isEdifice>true</isEdifice></building>
+    <building>
+      <isEdifice>true</isEdifice>
+      <isAirtight>true</isAirtight>
+    </building>
     <researchPrerequisites Inherit="False"><li>DeltaV_ShipNuclearPower</li></researchPrerequisites>
     <comps>
       <li Class="CompProperties_Power">
