@@ -85,13 +85,16 @@ namespace DeltaV
         internal static bool Armed(ShipBase ship) => ship.Weapons.Any(w => w.SpaceModeEnabled
             && !w.WeaponProps.manualOnly && w.parent.Spawned && !w.parent.Destroyed);
 
+        private bool TargetAllowed(ShipBase ship, ShipBase enemy, CombatStrategyRule rule)
+            => universe.Controls.ExistingFor(ship) is NpcShipController || rule.includeDisarmed || Armed(enemy);
+
         private bool TargetAllowed(ShipBase ship, ShipBase enemy, CombatStrategyContext context)
         {
             if (commandedTarget.Ship == enemy.Identity) return true;
             targetRules.TryGetValue(enemy.Identity, out var previous);
             var rule = Strategy(ship).Target(context, previous);
             targetRules[enemy.Identity] = rule;
-            return rule.includeDisarmed || Armed(enemy);
+            return TargetAllowed(ship, enemy, rule);
         }
 
         private void DecideStrategyTarget(ShipBase ship, SpaceObject own)
@@ -120,7 +123,7 @@ namespace DeltaV
                 targetRules.TryGetValue(member.Identity, out var oldRule);
                 var rule = strategy.Target(context, oldRule);
                 targetRules[member.Identity] = rule;
-                if (!rule.includeDisarmed && !Armed(member)) continue;
+                if (!TargetAllowed(ship, member, rule)) continue;
                 float ownFire = universe.Weapons.EstimateFirepower(ship, context.distance, HullRadius(member));
                 float health = HullHealth(member);
                 float finish = 1f / (1f + health / 1000f);

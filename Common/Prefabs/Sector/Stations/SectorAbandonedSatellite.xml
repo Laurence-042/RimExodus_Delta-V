@@ -1272,7 +1272,7 @@
           <pos>(6, 0, 11)</pos>
           <rot>0</rot>
           <combat>
-            <fireControlMode>Disabled</fireControlMode>
+            <fireControlMode>Automatic</fireControlMode>
           </combat>
         </saveable>
       </state>

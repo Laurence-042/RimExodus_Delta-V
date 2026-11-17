@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using DeltaV;
@@ -130,6 +131,115 @@ internal static partial class Program
         ShipRegistry.ClearCaches();
         ShipPhysics.ClearCache();
         SpaceCollision.ClearCaches();
+
+        var game = Current.Game;
+        int componentIndex = game.components.IndexOf(universe);
+        var prefabUniverse = new UniverseManager(game);
+        game.components[componentIndex] = prefabUniverse;
+        Rand.PushState();
+        try { CheckNpcHostileTractorTarget(prefabUniverse, player, enemy); }
+        finally
+        {
+            prefabUniverse.Controls.Reset();
+            Find.Maps.Clear();
+            ShipRegistry.ClearCaches();
+            ShipPhysics.ClearCache();
+            SpaceCollision.ClearCaches();
+            Rand.PopState();
+            game.components[componentIndex] = universe;
+        }
+    }
+
+    static void CheckNpcHostileTractorTarget(UniverseManager universe, Faction player, Faction enemy)
+    {
+        var sourceMap = TestMap(1940);
+        var targetMap = TestMap(1950);
+        var sourceConsole = AddTestConsole(sourceMap, enemy, 1941);
+        var targetConsole = AddTestConsole(targetMap, player, 1951);
+        var backup = AddTestConsole(sourceMap, enemy, 1942);
+        backup.shipId = sourceConsole.shipId;
+        backup.isMain = false;
+        foreach (var console in new[] { sourceConsole, backup, targetConsole })
+        {
+            console.combat.fireControlMode = ShipFireControlMode.Disabled;
+            console.combat.weaponGroupsMain = 0;
+            console.combat.weaponGroupsSecondary = 0;
+        }
+        var attacker = new CombatHull(sourceConsole.Ship);
+        var target = new CombatHull(targetConsole.Ship);
+        attacker.cells.Add(sourceConsole.parent.Position);
+        target.cells.Add(targetConsole.parent.Position);
+        var own = new CombatObject(1940, sourceMap, new SpacePose(Vector3.forward, 0f));
+        var victim = new CombatObject(1950, targetMap,
+            new SpacePose(OrbitSphere.Move(own.pose.position, new Vector2(60f, 0f)), 0f)) { faction = player };
+        own.members.Add(attacker);
+        victim.members.Add(target);
+        universe.objects.Add(own);
+        universe.objects.Add(victim);
+
+        var projectile = TestBuildingDef("npcTractorTargetBullet");
+        projectile.comps.Add(new CompProperties_SpaceProjectile { speed = 100f });
+        var gun = new CompSpaceWeapon { parent = sourceConsole.parent, safeFire = false,
+            props = new CompProperties_SpaceWeapon { projectileDef = projectile, range = 500f, topTurret = true },
+            salvoSet = SpaceWeaponSalvoSet.Secondary, groupNumber = 6 };
+        var tractor = new CompSpaceWeapon { parent = targetConsole.parent,
+            props = new CompProperties_SpaceWeapon { tractor = true, manualOnly = true } };
+        sourceConsole.parent.AllComps.Add(gun);
+        // Observe a real fire request without leaving a spawned round in the next fixture.
+        sourceConsole.parent.AllComps.Add(new CompMannable { parent = sourceConsole.parent });
+        targetConsole.parent.AllComps.Add(tractor);
+        SubstructureOwnership.BumpStructureVersion();
+        BindWeaponOwnerFixture(gun, attacker);
+        BindWeaponOwnerFixture(tractor, target);
+        MapPrefab.InitializeNpcCombat(sourceMap, new Thing[] { sourceConsole.parent, backup.parent });
+        MapPrefab.InitializeNpcCombat(targetMap, new Thing[] { targetConsole.parent });
+        Check(new[] { sourceConsole, backup }.All(console =>
+            console.fireControlMode == ShipFireControlMode.Automatic
+            && console.combat.weaponGroupsMain == 63 && console.combat.weaponGroupsSecondary == 63),
+            "NPC prefab initialization enables automatic fire and all twelve groups on primary and backup consoles");
+        Check(targetConsole.fireControlMode == ShipFireControlMode.Disabled
+            && targetConsole.combat.weaponGroupsMain == 0 && targetConsole.combat.weaponGroupsSecondary == 0,
+            "player prefab retains its saved fire control and weapon groups");
+        var npc = (NpcShipController)universe.Controls.For(attacker);
+        var fire = npc.FireControl;
+        universe.Controls.For(target);
+        Check(target.Weapons.Single() == tractor && !ShipFireControl.Armed(target),
+            "NPC target fixture has only a manual tractor beam");
+        npc.Ai.Tick(npc);
+        Check(fire.Target.Ship == target.Identity, "default NPC decision locks a hostile tractor-only ship");
+        Check(sourceConsole.combat.weaponsArmed && universe.Autopilot.IsCombatOrbit(attacker.Identity),
+            "NPC tactical AI arms and starts automatic combat maneuvering against the tractor-only ship");
+        var fireCommands = typeof(DeltaVPerformanceProbe).GetField("fireCommands", Private);
+        bool previousPerformance = DeltaVMod.CurrentSettings.logPerformance;
+        try
+        {
+            DeltaVMod.CurrentSettings.logPerformance = true;
+            int requestsBefore = (int)fireCommands.GetValue(universe.Performance);
+            bool hasInterceptionTargets = false;
+            npc.TickCombat(ref hasInterceptionTargets, hasScatterTargets: false);
+            Check((int)fireCommands.GetValue(universe.Performance) > requestsBefore,
+                "NPC combat tick submits a fire request from the restored secondary group six");
+        }
+        finally { DeltaVMod.CurrentSettings.logPerformance = previousPerformance; }
+        var assignments = (IDictionary)typeof(ShipFireControl).GetField("automaticTargets", Private).GetValue(fire);
+        Check(assignments[gun.Identity] is CombatTarget assigned && assigned.Ship == target.Identity,
+            "default NPC auto volley assigns its gun to the hostile tractor-only ship");
+
+        var lockOnTarget = fire.Target;
+        Set(typeof(Thing), targetConsole.parent, "factionInt", enemy);
+        fire.Decide(attacker, own);
+        Check(!fire.Target.HasLock && !fire.TryResolveAutomatic(attacker, own, lockOnTarget, out _),
+            "a non-hostile current main console invalidates NPC selection and the existing weapon lock");
+
+        Set(typeof(Thing), targetConsole.parent, "factionInt", player);
+        fire.Decide(attacker, own);
+        Check(fire.Target == lockOnTarget, "NPC reacquires the ship when its current main console is hostile again");
+        targetConsole.isMain = false;
+        SubstructureOwnership.BumpStructureVersion(targetMap);
+        fire.Decide(attacker, own);
+        Check(!fire.Target.HasLock && !fire.TryResolveAutomatic(attacker, own, lockOnTarget, out _)
+            && victim.HostileTo(enemy), "losing the only main console stops NPC targeting despite hostile container faction");
+        npc.SetCombatReady(false);
     }
 
     static void MoveCombatFixture(Thing thing, IntVec3 position)

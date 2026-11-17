@@ -201,5 +201,35 @@ namespace DeltaV
         {
             return SharedMapBackend.Spawn(doc, map, position, faction, ownerId, rot, universe, blankSpace, expandMarkers);
         }
+
+        internal static List<Thing> SpawnSpaceObject(MapPrefabDocument doc, Map map, IntVec3 position,
+            Faction faction, int ownerId, Rot4 rot, UniverseManager universe, bool blankSpace = false,
+            bool expandMarkers = true)
+        {
+            var things = Spawn(doc, map, position, faction, ownerId, rot, universe, blankSpace, expandMarkers);
+            InitializeNpcCombat(map, things);
+            return things;
+        }
+
+        internal static void InitializeNpcCombat(Map map, IEnumerable<Thing> things)
+        {
+            const int allGroups = (1 << 6) - 1;
+            foreach (Thing thing in things)
+            {
+                if (thing.Faction == null) continue;
+                var console = thing.TryGetComp<CompDeltaVPilotConsole>();
+                ShipBase ship = console != null
+                    ? ShipRegistry.MainConsoleForOwner(map, console.shipId)?.Vessel
+                    : thing.TryGetComp<CompSpaceShuttle>()?.Vessel;
+                if (ship?.IsValid != true || ship.Faction == null || ship.PlayerMayOperate
+                    || !ship.SupportsFireControlMode(ShipFireControlMode.Automatic)) continue;
+
+                // A backup keeps its own settings when it eventually becomes the primary console.
+                ShipCombatState combat = console?.combat ?? ship.Combat;
+                combat.fireControlMode = ShipFireControlMode.Automatic;
+                combat.SetWeaponGroupMask(SpaceWeaponSalvoSet.Main, allGroups);
+                combat.SetWeaponGroupMask(SpaceWeaponSalvoSet.Secondary, allGroups);
+            }
+        }
     }
 }

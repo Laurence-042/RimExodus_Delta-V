@@ -2754,7 +2754,7 @@
       <rotation>0</rotation>
       <hitPoints>150</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>PilotConsole</def><id>PilotConsole39749</id><map>2</map><pos>(39, 0, 20)</pos><health>150</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><combat /><shipId>17472</shipId><isMain>True</isMain><combatStrategy><maneuverRules /><fireRules /><targetRules /><npcRetreatConditions /><npcBoardConditions /></combatStrategy><combatInitialThrust>52000</combatInitialThrust><combatInitialHullHp>329715</combatInitialHullHp><combatBaselineShipKey>17472</combatBaselineShipKey></saveable></state>
+      <state><saveable Class="Building"><def>PilotConsole</def><id>PilotConsole39749</id><map>2</map><pos>(39, 0, 20)</pos><health>150</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><combat><fireControlMode>Automatic</fireControlMode></combat><shipId>17472</shipId><isMain>True</isMain><combatStrategy><maneuverRules /><fireRules /><targetRules /><npcRetreatConditions /><npcBoardConditions /></combatStrategy><combatInitialThrust>52000</combatInitialThrust><combatInitialHullHp>329715</combatInitialHullHp><combatBaselineShipKey>17472</combatBaselineShipKey></saveable></state>
     </li>
     <li>
       <pos>(9, 0, 22)</pos>

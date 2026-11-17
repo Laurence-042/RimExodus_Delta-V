@@ -23838,7 +23838,7 @@
           <pos>(78, 0, 13)</pos>
           <rot>1</rot>
           <combat>
-            <fireControlMode>Disabled</fireControlMode>
+            <fireControlMode>Automatic</fireControlMode>
           </combat>
         </saveable>
       </state>

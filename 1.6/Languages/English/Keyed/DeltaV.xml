@@ -81,7 +81,7 @@
   <DeltaV_SettingsTestScenePlayerAngleTip>Initial rotation of the player ship map relative to universe east, increasing counterclockwise. Range 0–360°; default 0°.</DeltaV_SettingsTestScenePlayerAngleTip>
   <DeltaV_SettingsTestSceneEnemyAngle>Enemy starting angle (degrees)</DeltaV_SettingsTestSceneEnemyAngle>
   <DeltaV_SettingsTestSceneEnemyAngleTip>Initial rotation of the enemy ship map relative to universe east, increasing counterclockwise. Range 0–360°; default 35°.</DeltaV_SettingsTestSceneEnemyAngleTip>
-  <DeltaV_SettingsTestSceneAutomatic>Automatic: latest export (procedural ship if unavailable)</DeltaV_SettingsTestSceneAutomatic>
+  <DeltaV_SettingsTestSceneAutomatic>Automatic selection</DeltaV_SettingsTestSceneAutomatic>
   <DeltaV_TestScenePrefabFailed>Could not load test scene prefab: {0}. The existing scene was preserved. Select another file or check the log.</DeltaV_TestScenePrefabFailed>
   <DeltaV_SettingsFlightAssistTip>While piloting, released directions are automatically counter-thrusted to a stop - braking uses the ship's real thruster output, so weak thrusters stop you slowly. Turn off for pure inertial flight: the ship keeps drifting at its current velocity - but holding Ctrl (rebindable) still brakes you at any time, so you keep both the freedom and the control. On by default.</DeltaV_SettingsFlightAssistTip>
   <DeltaV_SettingsCellsPerTile>Sector scale (cells per sector)</DeltaV_SettingsCellsPerTile>
@@ -569,7 +569,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_CombatHysteresis>Release threshold</DeltaV_CombatHysteresis>
   <DeltaV_CombatAllWeapons>All weapons must match (off=any; empty sets never match)</DeltaV_CombatAllWeapons>
   <DeltaV_CombatConditionMissing>Missing targets/weapons never match; release thresholds widen the holding interval.</DeltaV_CombatConditionMissing>
-  <DeltaV_CombatIncludeDisarmed>Include disarmed ships</DeltaV_CombatIncludeDisarmed>
+  <DeltaV_CombatIncludeDisarmed>Include ships without combat weapons (player only)</DeltaV_CombatIncludeDisarmed>
   <DeltaV_CombatAnchorOnly>Attack maneuver target only</DeltaV_CombatAnchorOnly>
   <DeltaV_CombatFlanking>Coordinate flanking with allied automatic combatants</DeltaV_CombatFlanking>
   <DeltaV_CombatRepositionAngle>Maximum candidate bearing lookahead</DeltaV_CombatRepositionAngle>
@@ -698,7 +698,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_CombatDecisionOrderedTarget>Using the explicitly ordered engagement target ahead of automatic target scoring.</DeltaV_CombatDecisionOrderedTarget>
   <DeltaV_CombatDecisionKeepTarget>Keeping current target: current score {0}, best candidate {1}, switch cooldown {2}s. Switching requires the cooldown to expire and an improvement of at least 20% (minimum 1 point).</DeltaV_CombatDecisionKeepTarget>
   <DeltaV_CombatDecisionScore>score {0}</DeltaV_CombatDecisionScore>
-  <DeltaV_CombatDecisionNoCandidate>No target passed target rules ({0} base candidates; check whether rules exclude unarmed ships).</DeltaV_CombatDecisionNoCandidate>
+  <DeltaV_CombatDecisionNoCandidate>No target passed target rules ({0} base candidates).</DeltaV_CombatDecisionNoCandidate>
   <DeltaV_CombatGate_Ready>NPC eligibility: ready.</DeltaV_CombatGate_Ready>
   <DeltaV_CombatGate_NoMap>NPC stopped: map unavailable.</DeltaV_CombatGate_NoMap>
   <DeltaV_CombatGate_NoShip>NPC stopped: no valid ship identity.</DeltaV_CombatGate_NoShip>

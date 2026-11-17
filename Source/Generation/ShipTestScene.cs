@@ -12,7 +12,7 @@ namespace DeltaV
     /// ShipPocketMapFactory 惰性创建）+ 球面宇宙状态 + 聚焦玩家船。
     /// 经 UniverseManager 排空旧场景帧动作并销图，再以 LongEventHandler 同步生成。
     /// 重建保持暂停；原版初始化回调完成后才交接聚焦。
-    /// 两舰分别读取设置中的 prefab；自动选择时加载最新导出，加载失败回退程序布局。
+    /// 两舰分别读取设置中的 prefab；自动选择时玩家船使用最新导出或程序布局，敌舰使用内置护卫舰。
     /// 指定文件加载失败在重建前中止；落位失败销毁失败测试图，不叠加另一套布局。
     /// </summary>
     public static class ShipTestScene
@@ -27,8 +27,10 @@ namespace DeltaV
             var universe = Current.Game.GetComponent<UniverseManager>();
             if (universe.IsResettingScene) return;
             DeltaVSettings settings = DeltaVMod.CurrentSettings;
+            string enemyPath = settings?.testSceneEnemyPrefab;
+            if (string.IsNullOrEmpty(enemyPath)) enemyPath = SectorContentTypes.ById("Frigate").defaultPrefabPath;
             if (!TryLoadLayout(settings?.testScenePlayerPrefab, out MapPrefabDocument playerPrefab)
-                || !TryLoadLayout(settings?.testSceneEnemyPrefab, out MapPrefabDocument enemyPrefab)) return;
+                || !TryLoadLayout(enemyPath, out MapPrefabDocument enemyPrefab)) return;
             // Freeze the requested options before the deferred scene reset.
             bool keepPrefabMarkers = settings?.testSceneKeepPrefabMarkers ?? false;
             float distance = settings?.testSceneDistance ?? DefaultEnemyDistance;
@@ -166,7 +168,7 @@ namespace DeltaV
             }
             try
             {
-                MapPrefab.Spawn(prefab, map, MapPrefab.CenteredPosition(prefab, map, Rot4.North),
+                MapPrefab.SpawnSpaceObject(prefab, map, MapPrefab.CenteredPosition(prefab, map, Rot4.North),
                     faction, ownerId, Rot4.North, universe, blankSpace: true, expandMarkers: !keepPrefabMarkers);
                 return true;
             }

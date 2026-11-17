@@ -3251,7 +3251,7 @@
           <pos>(14, 0, 25)</pos>
           <rot>0</rot>
           <combat>
-            <fireControlMode>Disabled</fireControlMode>
+            <fireControlMode>Automatic</fireControlMode>
           </combat>
         </saveable>
       </state>

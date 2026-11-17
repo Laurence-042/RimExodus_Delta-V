@@ -375,6 +375,8 @@ def furnish(name, plan, place, footprint, prop, foundation, roofs, records, occu
 def prepare_state(record, state, field, prop):
     combat_range_layout.prepare_state(record, state, field, prop)
     name = record['name']
+    if name == 'PilotConsole':
+        field(state.find('combat'), 'fireControlMode', 'Automatic')
     if record['category'] == 'Building':
         hp = float(prop(name, 'statBases/MaxHitPoints', '100'))
         if record['stuff']:

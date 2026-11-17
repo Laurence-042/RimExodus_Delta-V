@@ -4210,7 +4210,7 @@
           <pos>(15, 0, 31)</pos>
           <rot>0</rot>
           <combat>
-            <fireControlMode>Disabled</fireControlMode>
+            <fireControlMode>Automatic</fireControlMode>
           </combat>
         </saveable>
       </state>
@@ -4229,7 +4229,7 @@
           <pos>(11, 0, 7)</pos>
           <rot>0</rot>
           <combat>
-            <fireControlMode>Disabled</fireControlMode>
+            <fireControlMode>Automatic</fireControlMode>
           </combat>
         </saveable>
       </state>

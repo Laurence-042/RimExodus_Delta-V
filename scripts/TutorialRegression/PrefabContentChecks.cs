@@ -59,6 +59,9 @@ internal static partial class Program
             Check(document.DocumentElement?.GetAttribute("formatVersion") == "2"
                 && document.SelectNodes("/MapPrefab/thingStates/li").Count > 0,
                 leaf.id + " default is a non-empty format-2 prefab");
+            Check(document.SelectSingleNode("/MapPrefab/thingStates/li[def='PilotConsole' "
+                + "and not(state/saveable/combat/fireControlMode='Automatic')]") == null,
+                leaf.id + " authored pilot consoles use automatic fire control");
             int clusters = document.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_PrefabClusterMarker']").Count;
             Check(clusters == (leaf.id == "Asteroid" ? 1 : 0),
                 leaf.id + " default has the expected cluster-core role");

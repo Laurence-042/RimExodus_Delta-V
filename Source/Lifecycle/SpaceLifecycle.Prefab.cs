@@ -72,7 +72,8 @@ namespace DeltaV
                 universe.RegisterObject(replacement);
                 int ownerId = universe.AllocateOwnerId();
                 universe.NoteStructureName(ownerId, prefab.name);
-                MapPrefab.Spawn(prefab, map, MapPrefab.CenteredPosition(prefab, map, Rot4.North), faction, ownerId, Rot4.North, universe, blankSpace: true);
+                MapPrefab.SpawnSpaceObject(prefab, map, MapPrefab.CenteredPosition(prefab, map, Rot4.North),
+                    faction, ownerId, Rot4.North, universe, blankSpace: true);
                 ready = true;
             }
             catch (Exception ex)

@@ -318,7 +318,7 @@ namespace DeltaV
                         throw new InvalidOperationException($"Content type '{marker.contentTypeId}' has no usable prefab pool.");
                     MapPrefabDocument doc = MapPrefab.LoadRelative(poolPath);
                     Rot4 rotation = new Rot4(marker.seed & 3);
-                    MapPrefab.Spawn(doc, map, MapPrefab.CenteredPosition(doc, map, rotation),
+                    MapPrefab.SpawnSpaceObject(doc, map, MapPrefab.CenteredPosition(doc, map, rotation),
                         marker.faction, ownerId, rotation, universe, blankSpace: true);
                 }
             }

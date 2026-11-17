@@ -990,7 +990,7 @@
           <pos>(7, 0, 14)</pos>
           <rot>0</rot>
           <combat>
-            <fireControlMode>Disabled</fireControlMode>
+            <fireControlMode>Automatic</fireControlMode>
           </combat>
         </saveable>
       </state>

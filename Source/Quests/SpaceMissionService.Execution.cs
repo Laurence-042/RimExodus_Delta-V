@@ -56,7 +56,8 @@ namespace DeltaV
                 }
                 if (!placed) throw new InvalidOperationException("No clear mission ship location.");
                 int owner = universe.AllocateOwnerId();
-                var things = MapPrefab.Spawn(doc, map, MapPrefab.CenteredPosition(doc, map, Rot4.North), m.enemy, owner, Rot4.North, universe);
+                var things = MapPrefab.SpawnSpaceObject(doc, map, MapPrefab.CenteredPosition(doc, map, Rot4.North),
+                    m.enemy, owner, Rot4.North, universe);
                 int expected = doc.thingEntries.Count(e => !e.def.comps.Any(c => typeof(CompPrefabMarker).IsAssignableFrom(c.compClass)));
                 if (things.Count != expected) throw new InvalidOperationException("Incomplete mission ship prefab.");
                 ShipBase ship = ShipRegistry.AllShipsOnMap(map).OfType<FoundationShip>().FirstOrDefault(s => s.IsValid && s.Faction == m.enemy);
