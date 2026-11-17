@@ -958,6 +958,8 @@ namespace DeltaV
         /// 随宿主容器惯性漂移）。只写 SpacePose（Map 外的宇宙状态），绝不触碰任何
         /// Map 内 Thing（不变量 #6）。
         /// </summary>
+        private readonly SpaceCollision.HullContacts hullContacts = new SpaceCollision.HullContacts();
+
         public override void GameComponentTick()
         {
             if (IsResettingScene) return;
@@ -978,6 +980,7 @@ namespace DeltaV
             Projectiles.Tick();
             Performance.Record(PerformanceStage.Projectiles, stageStart);
             stageStart = Performance.Start();
+            hullContacts.Capture(this);
             Autopilot.Tick();
             Performance.Record(PerformanceStage.Autopilot, stageStart);
             stageStart = Performance.Start();
@@ -1031,6 +1034,7 @@ namespace DeltaV
             scatter?.Tick();
             stageStart = Performance.Start();
             Projectiles.ResolveCollisions();
+            hullContacts.Resolve(dt);
             Performance.Record(PerformanceStage.Collision, stageStart);
             stageStart = Performance.Start();
             Projectiles.TickMotionFeedback();

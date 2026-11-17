@@ -293,6 +293,7 @@ namespace DeltaV
             out DriveSubject blocker, out int blockedSecond)
         {
             blocker = default; blockedSecond = 0;
+            if (!AvoidHullCollisions) return true;
             using var routeTiming = universe.Performance.Measure(PerformanceStage.CombatRoute);
             SpaceCollision.HullShape Shape(ShipBase member)
             {

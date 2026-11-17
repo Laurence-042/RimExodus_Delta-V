@@ -61,7 +61,7 @@ namespace DeltaV
                 float a = CombatAttackPose.Acceleration(drive, Vector2.right, angle);
                 if (a > strongest) { strongest = a; strongestAngle = angle; }
             }
-            float separation = CombatWeaponThreat.HullHalfExtents(ship).magnitude
+            float separation = !AvoidHullCollisions ? 1f : CombatWeaponThreat.HullHalfExtents(ship).magnitude
                 + CombatWeaponThreat.HullHalfExtents(enemy).magnitude + 2;
             var distances = new List<float>();
             void Distance(float value)
@@ -94,9 +94,11 @@ namespace DeltaV
                 }
             }
             float alpha = Mathf.Min(drive.PreviewAngular(1), drive.PreviewAngular(-1));
-            var ownShape = new SpaceCollision.HullShape(ship);
-            var obstacles = universe.objects.SelectMany(frame => frame.Ships).Where(s => s.IsValid && s.Identity != ship.Identity)
-                .Select(s => (shape: new SpaceCollision.HullShape(s), pose: ShipRegistry.ShipPose(s), frameAngle: s.FrameAngle)).ToList();
+            var ownShape = AvoidHullCollisions ? new SpaceCollision.HullShape(ship) : null;
+            var obstacles = AvoidHullCollisions ? universe.objects.SelectMany(frame => frame.Ships)
+                .Where(s => s.IsValid && s.Identity != ship.Identity)
+                .Select(s => (shape: new SpaceCollision.HullShape(s), pose: ShipRegistry.ShipPose(s), frameAngle: s.FrameAngle))
+                .ToList() : null;
             var candidates = new List<EngagementCandidate>();
             var legacyThreats = new List<CombatWeaponThreat>();
             if (rule.maneuverCurves?.incoming != null || rule.maneuverCurves?.projectileSeconds != null)
@@ -153,9 +155,8 @@ namespace DeltaV
                     position = OrbitSphere.Move(target.position, new Vector2(Mathf.Cos(phase), Mathf.Sin(phase)) * distance);
                     line = OrbitSphere.Offset(position, target.position); lineAngle = Mathf.Atan2(line.y, line.x);
                     float angle = SpaceTransform.WrapAngle(lineAngle + heading);
-                    bool overlaps = obstacles.Any(o => SpaceCollision.HullsOverlap(ownShape, position, angle, o.shape,
-                        new SpacePose(o.pose.position, o.pose.angle - o.frameAngle)));
-                    if (overlaps) continue;
+                    if (obstacles?.Any(o => SpaceCollision.HullsOverlap(ownShape, position, angle, o.shape,
+                        new SpacePose(o.pose.position, o.pose.angle - o.frameAngle))) == true) continue;
                     var state = new SpacePose(position, angle)
                     {
                         velocity = SpaceTransform.TransportVelocity(target, position)

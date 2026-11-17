@@ -304,6 +304,14 @@ namespace DeltaV
             return true;
         }
 
+        internal bool CanStartIntrusion(ShipBase vessel, SpaceObject container, bool playerInitiated)
+        {
+            if (vessel?.CanBoard != true || container == null || container.projectileRoleOverride
+                || !vessel.CanDriveIn(container)) return false;
+            return !playerInitiated || IntrusionArmed(container)
+                && universe.Controls.PlayerFor(vessel, debugTakeover: true)?.AutoManeuver.AvoidHullCollisions == false;
+        }
+
         /// <summary>侵入指挥：点击敌舰外壳指定目标容器（Targeter 流程内经 ShellPicking 解析）。</summary>
         public void BeginBoardTargeting(PilotTarget shuttle)
         {
@@ -313,7 +321,7 @@ namespace DeltaV
                     $"boarding targeter begin tick={Find.TickManager.TicksGame} hull=#{body?.thingIDNumber} " +
                     $"spawned={body?.Spawned} current={UniverseManager.MapTag(Find.CurrentMap)} " +
                     $"hullMap={UniverseManager.MapTag(body?.Map)}");
-            if (body == null || !body.Spawned) return;
+            if (body == null || !body.Spawned || !CanStartIntrusion(shuttle.Vessel, universe.FrameOf(body.Map), true)) return;
             Find.Targeter.BeginTargeting(new TargetingParameters
             {
                 canTargetPawns = false,
@@ -373,8 +381,8 @@ namespace DeltaV
                     $"target=#{target?.objectId} targetTag={target?.Tag} " +
                     $"targetMap={UniverseManager.MapTag(target?.map)} " +
                     $"ordinaryProjectiles={universe.Projectiles.InFlightCount} player={playerInitiated}");
-            if (body.TryGetComp<CompSpaceShuttle>()?.Vessel.CanDriveIn(container) != true
-                || container.projectileRoleOverride || target == null || target == container) return;
+            if (!CanStartIntrusion(body.TryGetComp<CompSpaceShuttle>()?.Vessel, container, playerInitiated)
+                || target == null || target == container) return;
             universe.Autopilot.Detach(DriveSubject.Of(PilotTarget.Of(body)), "boarding missile launch");
             if (universe.Pilot.PilotedTarget(universe).Identity == PilotTarget.Of(body).Identity)
                 universe.Pilot.Exit(universe);

@@ -95,6 +95,8 @@ internal static partial class Program
         new HarmonyLib.Harmony("DeltaV.Regression.SceneLanguage").Patch(
             HarmonyLib.AccessTools.PropertyGetter(typeof(Find), nameof(Find.ActiveLanguageWorker)),
             prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(ReadSceneLanguage)));
+        if (Environment.GetCommandLineArgs().Contains("--hull-contact-only"))
+        { CheckHullContacts(universe, faction); return; }
         if (Environment.GetCommandLineArgs().Contains("--eva-only"))
         { CheckEva(universe, faction); return; }
         if (Environment.GetCommandLineArgs().Contains("--tractor-only"))
@@ -144,6 +146,9 @@ internal static partial class Program
         if (Environment.GetCommandLineArgs().Contains("--combat-maneuver-only"))
         { CheckCombatManeuverMotion(universe, faction, other); return; }
         CheckCombatCurves();
+        if (!dockingOnly && !projectileOnly && !projectileFullOnly && !archiveRecoveryOnly && !npcOnly
+            && !playerFlightOnly && !salvageOnly && !aimInputOnly && !drivePerformanceOnly)
+            CheckHullContacts(universe, faction);
         if (!npcOnly)
         {
         if (archiveRecoveryOnly) { CheckArchiveRecovery(universe); return; }

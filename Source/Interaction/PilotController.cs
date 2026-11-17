@@ -296,7 +296,24 @@ internal readonly struct HeadingPanelAction
         internal override void CollectPanelActions(PilotTarget panelTarget, List<PilotPanelAction> actions)
         {
             base.CollectPanelActions(panelTarget, actions);
+            if (!CanToggleHullAvoidance(panelTarget)) return;
+            actions.Add(new PilotPanelAction(
+                (AutoManeuver.AvoidHullCollisions ? "DeltaV_HullAvoidanceDisable" : "DeltaV_HullAvoidanceRestore").Translate(),
+                () =>
+                {
+                    ShipBase ship = ShipRegistry.ShipByIdentity(OwnerId);
+                    if (!CanToggleHullAvoidance(PilotTarget.Of(ship))) return;
+                    AutoManeuver.SetHullAvoidance(!AutoManeuver.AvoidHullCollisions);
+                    if (AutoTask != PlayerAutoTaskKind.Combat || ManualControl) return;
+                    if (universe.Autopilot.IsCombatOrbit(OwnerId))
+                        universe.Autopilot.Detach(OwnerId, "hull avoidance changed");
+                    DecideAutoCombat(ship);
+                }, "DeltaV_HullAvoidanceTip".Translate()));
         }
+
+        private bool CanToggleHullAvoidance(PilotTarget target) =>
+            HasAuthority(target) && (target.Vessel is not ShuttleShip || target.Vessel.CanBoard)
+            && universe.FrameOf(target.Map)?.CanRelocateMap == true;
 
         internal override void CollectCombatPanelActions(ShipBase ship, bool hasWeapons,
             List<PilotPanelAction> beforeGroups, List<PilotPanelAction> afterGroups)
@@ -314,6 +331,7 @@ internal readonly struct HeadingPanelAction
                     "DeltaV_ShuttleBoardCancelTip".Translate()));
                 return;
             }
+            if (AutoManeuver.AvoidHullCollisions) return;
             beforeGroups.Add(new PilotPanelAction(
                 "DeltaV_PanelBoardArm".Translate() + ": "
                     + (universe.Shuttles.IntrusionArmed(frame) ? "DeltaV_On" : "DeltaV_Off").Translate(),

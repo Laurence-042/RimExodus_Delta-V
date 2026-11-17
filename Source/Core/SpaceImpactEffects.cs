@@ -217,6 +217,70 @@ namespace DeltaV
             PlanetGlobeRenderer.InvalidateSilhouette(map);
         }
 
+        internal const float HullDamageSpeed = 0.5f;
+        internal const int HullFoundationHitPoints = 300;
+        private const float HullCrushDamagePerEnergy = .0354f;
+
+        internal static int HullCrushBudget(float closingSpeed, float normalEnergy) =>
+            closingSpeed > HullDamageSpeed ? Mathf.FloorToInt(normalEnergy * HullCrushDamagePerEnergy) : 0;
+
+        internal static float HullFoundationBreakChance(int damage) =>
+            Mathf.Clamp01((float)damage / HullFoundationHitPoints);
+
+        internal sealed class HullCrushDamage
+        {
+            private readonly Dictionary<(Map map, IntVec3 cell), (int damage, Thing instigator)> foundations =
+                new Dictionary<(Map map, IntVec3 cell), (int damage, Thing instigator)>();
+
+            internal bool Exchange(ref int budget, Map mapA, IntVec3 cellA, Thing wallA,
+                Map mapB, IntVec3 cellB, Thing wallB)
+            {
+                int damage = Mathf.Min(budget, Mathf.Min(Remaining(mapA, cellA, wallA), Remaining(mapB, cellB, wallB)));
+                if (damage <= 0) return false;
+                budget -= damage;
+                bool brokeA = Hit(mapA, cellA, wallA, damage, wallB);
+                bool brokeB = Hit(mapB, cellB, wallB, damage, wallA);
+                return brokeA || brokeB;
+            }
+
+            private int Remaining(Map map, IntVec3 cell, Thing wall)
+            {
+                if (wall != null) return wall.HitPoints;
+                foundations.TryGetValue((map, cell), out var previous);
+                return HullFoundationHitPoints - previous.damage;
+            }
+
+            private bool Hit(Map map, IntVec3 cell, Thing wall, int damage, Thing other)
+            {
+                if (wall != null)
+                {
+                    if (!wall.Spawned || wall.Destroyed) return false;
+                    wall.TakeDamage(new DamageInfo(DamageDefOf.Bullet, damage, 0f, -1f, other));
+                    return wall.Destroyed;
+                }
+                var key = (map, cell);
+                foundations.TryGetValue(key, out var previous);
+                int total = previous.damage + damage;
+                if (total >= HullFoundationHitPoints && SubstructureDamageUtility.TryDestroy(map, cell, instigator: other))
+                {
+                    foundations.Remove(key);
+                    return true;
+                }
+                foundations[key] = (total, other ?? previous.instigator);
+                return false;
+            }
+
+            internal void Finish()
+            {
+                // Apply one probability roll to the accumulated damage of each
+                // foundation that remained in the contact band. No HP survives the event.
+                foreach (var entry in foundations)
+                    if (entry.Value.damage < HullFoundationHitPoints
+                        && Rand.Chance(HullFoundationBreakChance(entry.Value.damage)))
+                        SubstructureDamageUtility.TryDestroy(entry.Key.map, entry.Key.cell, instigator: entry.Value.instigator);
+            }
+        }
+
         private static Dictionary<ThingDef, Dictionary<ThingDef, SpaceImpactEffectDef>> byTarget;
         private static Dictionary<ThingDef, SpaceImpactEffectDef> substructureFor;
         private static Dictionary<ThingDef, SpaceImpactEffectDef> anyTargetFor;

@@ -77,19 +77,25 @@ namespace DeltaV
                 dirtyBlocks.Clear();
             }
 
-            internal IEnumerable<IntVec3> OccupiedCells()
+            internal IEnumerable<IntVec3> OccupiedCells(CellRect? window = null)
             {
-                for (int index = 0; index < occupancy.Length; index++)
+                int minX = Math.Max(0, window?.minX ?? 0);
+                int minZ = Math.Max(0, window?.minZ ?? 0);
+                int maxX = Math.Min(columns.Length - 1, window?.maxX ?? columns.Length - 1);
+                int maxZ = Math.Min(rows.Length - 1, window?.maxZ ?? rows.Length - 1);
+                if (minX > maxX || minZ > maxZ) yield break;
+                for (int bz = minZ >> BlockShift; bz <= maxZ >> BlockShift; bz++)
+                for (int bx = minX >> BlockShift; bx <= maxX >> BlockShift; bx++)
                 {
-                    ulong bits = occupancy[index];
+                    ulong bits = occupancy[bz * blocksWide + bx];
                     if (bits == 0) continue;
-                    int x0 = (index % blocksWide) << BlockShift;
-                    int z0 = (index / blocksWide) << BlockShift;
-                    for (int z = z0; bits != 0; z++, bits >>= BlockSize)
+                    int x0 = bx << BlockShift;
+                    for (int z = bz << BlockShift; bits != 0 && z <= maxZ; z++, bits >>= BlockSize)
                     {
+                        if (z < minZ) continue;
                         uint line = (uint)(bits & 0xff);
-                        for (int x = x0; line != 0; x++, line >>= 1)
-                            if ((line & 1) != 0) yield return new IntVec3(x, 0, z);
+                        for (int x = x0; line != 0 && x <= maxX; x++, line >>= 1)
+                            if (x >= minX && (line & 1) != 0) yield return new IntVec3(x, 0, z);
                     }
                 }
             }

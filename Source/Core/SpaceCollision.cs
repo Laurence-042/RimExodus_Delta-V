@@ -1024,22 +1024,8 @@ namespace DeltaV
             Vector2 normal = Mathf.Abs(dir.x) >= Mathf.Abs(dir.y)
                 ? new Vector2(-Mathf.Sign(dir.x), 0f) : new Vector2(0f, -Mathf.Sign(dir.y));
             if (body.sweepRadius == 0f && body.noseHalfWidth == 0f)
-            {
-                // 步进到真实格边，避免短暂穿过格角时落在两个采样点之间。
-                var ray = new GridRay(from, dir, near);
-                for (; ray.Along <= end; ray.Advance())
-                {
-                    var cell = ray.Cell;
-                    if (cell.InBounds(map) && (include == null || include(cell))
-                        && TryGetHullCell(map, surface, cell, passedBuildings, passedCells, skipSubstructure,
-                            out SpaceCellKind kind, out Thing building, coverBuildings, coverCells))
-                    {
-                        contact = new RayContact(from + dir * ray.Along, normal, cell, kind, building);
-                        return true;
-                    }
-                }
-                return false;
-            }
+                return TryFindGridContact(map, surface, from, dir, near, end, normal, out contact,
+                    include, passedBuildings, passedCells, skipSubstructure, coverBuildings, coverCells);
 
             int first = Mathf.FloorToInt(near / SampleStep);
             int last = Mathf.CeilToInt(end / SampleStep);
@@ -1050,6 +1036,42 @@ namespace DeltaV
                     out IntVec3 cell, out SpaceCellKind kind, out Thing building, include, skipSubstructure,
                     coverBuildings, coverCells)) continue;
                 contact = new RayContact(p, normal, cell, kind, building);
+                return true;
+            }
+            return false;
+        }
+
+        private static bool TryFindGridContact(Map map, Surface surface, Vector2 from, Vector2 dir,
+            float near, float end, Vector2 projectileNormal, out RayContact contact,
+            System.Predicate<IntVec3> include = null, HashSet<Thing> passedBuildings = null,
+            HashSet<IntVec3> passedCells = null, bool skipSubstructure = false,
+            HashSet<Thing> coverBuildings = null, HashSet<IntVec3> coverCells = null, bool hullContact = false)
+        {
+            contact = default;
+            var ray = new GridRay(from, dir, near);
+            IntVec3 previous = ray.Cell;
+            for (; ray.Along <= end; ray.Advance())
+            {
+                IntVec3 cell = ray.Cell;
+                Vector2 face = projectileNormal;
+                if (hullContact)
+                {
+                    // An already occupied start cell is not a new impact. At an exact
+                    // corner both crossed edges are available; choose a stable face.
+                    int dx = previous.x - cell.x, dz = previous.z - cell.z;
+                    previous = cell;
+                    if (dx == 0 && dz == 0) continue;
+                    face = dz == 0 || dx != 0 && Mathf.Abs(dir.x) >= Mathf.Abs(dir.y)
+                        ? new Vector2(dx, 0f) : new Vector2(0f, dz);
+                    if (!HullContactCell(map, surface, cell, out Thing hull)) continue;
+                    contact = new RayContact(from + dir * ray.Along, face, cell,
+                        hull == null ? SpaceCellKind.Substructure : SpaceCellKind.Building, hull as Building);
+                    return true;
+                }
+                if (!cell.InBounds(map) || include?.Invoke(cell) == false
+                    || !TryGetHullCell(map, surface, cell, passedBuildings, passedCells, skipSubstructure,
+                        out SpaceCellKind kind, out Thing building, coverBuildings, coverCells)) continue;
+                contact = new RayContact(from + dir * ray.Along, face, cell, kind, building);
                 return true;
             }
             return false;

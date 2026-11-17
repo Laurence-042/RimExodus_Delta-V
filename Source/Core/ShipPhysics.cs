@@ -632,7 +632,6 @@ namespace DeltaV
         {
             SpacePose pose = obj.pose;
             SpacePose center = SpaceTransform.RigidPointPose(pose, report.comLocal, 0f);
-            Vector3 oldDir = center.position;
             // 分配器与推进器几何都在稳定 Map 局部系；只有积分入切空间速度时旋转一次。
             Vector2 accel = SpaceTransform.TransportTangent(SpaceTransform.Rotate(force, pose.angle),
                 pose.position, center.position) / report.mass;
@@ -689,13 +688,52 @@ namespace DeltaV
             velocity += SpaceTransform.TransportTangent(SpaceTransform.Rotate(
                 basis.ToMap(pilotVelocity - unassistedPilotVelocity), pose.angle), pose.position, center.position);
 
-            // Integrate the physical center, then invert the actual shared map-point transform.
-            center.direction = OrbitSphere.Move(center.direction, velocity * dt);
-            center.angle = SpaceTransform.WrapAngle(pose.angle + angularVelocity * dt);
-            center.velocity = SpaceTransform.TransportTangent(velocity, oldDir, center.position);
+            center.velocity = velocity;
             center.angularVelocity = angularVelocity;
-            obj.pose = report.comLocal == Vector2.zero ? center
-                : SpaceTransform.AlignLocalPoint(center, Vector2.zero, report.comLocal, 0f);
+            obj.pose = DriftCenter(center, report.comLocal, dt);
+        }
+
+        internal static SpacePose DriftAfterContact(SpacePose pose, MassReport report, float dt) =>
+            DriftCenter(SpaceTransform.RigidPointPose(pose, report.comLocal, 0f), report.comLocal, dt);
+
+        private static SpacePose DriftCenter(SpacePose center, Vector2 localCenter, float dt)
+        {
+            Vector3 from = center.position;
+            center.direction = OrbitSphere.Move(center.direction, center.velocity * dt);
+            center.angle = SpaceTransform.WrapAngle(center.angle + center.angularVelocity * dt);
+            center.velocity = SpaceTransform.TransportTangent(center.velocity, from, center.position);
+            return localCenter == Vector2.zero ? center
+                : SpaceTransform.AlignLocalPoint(center, Vector2.zero, localCenter, 0f);
+        }
+
+        internal static float ApplyHullContactImpulse(SpaceObject a, MassReport ma, SpaceObject b, MassReport mb,
+            Vector3 point, Vector2 normal, out float normalEnergy)
+        {
+            normalEnergy = 0f;
+            if (ma == null || mb == null || ma.mass <= 0f || mb.mass <= 0f) return 0f;
+            Vector2 localA = SpaceTransform.UniverseToShipLocal(a.pose, point);
+            Vector2 localB = SpaceTransform.UniverseToShipLocal(b.pose, point);
+            Vector2 va = SpaceTransform.VelocityAtLocalPoint(a.pose, localA, point);
+            Vector2 vb = SpaceTransform.VelocityAtLocalPoint(b.pose, localB, point);
+            float closing = Vector2.Dot(vb - va, normal);
+            if (closing <= .00001f) return 0f;
+            float EffectiveAngularMass(SpaceObject body, MassReport report, Vector2 local)
+            {
+                if (!report.allowsAngularMotion || report.inertia <= 0f) return 0f;
+                Vector2 arm = local - report.comLocal;
+                Vector2 axis = SpaceTransform.RotateInverse(
+                    SpaceTransform.TransportTangent(normal, point, body.pose.position), body.pose.angle);
+                float lever = arm.x * axis.y - arm.y * axis.x;
+                return lever * lever / report.inertia;
+            }
+            float inverseMass = 1f / ma.mass + 1f / mb.mass
+                + EffectiveAngularMass(a, ma, localA) + EffectiveAngularMass(b, mb, localB);
+            float impulseMagnitude = closing / inverseMass;
+            normalEnergy = .5f * impulseMagnitude * closing;
+            Vector2 impulse = normal * impulseMagnitude;
+            ApplyAt(a, ma, localA, point, impulse);
+            ApplyAt(b, mb, localB, point, -impulse);
+            return closing;
         }
 
         /// <summary>

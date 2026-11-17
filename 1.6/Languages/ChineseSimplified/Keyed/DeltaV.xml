@@ -397,8 +397,11 @@
   <DeltaV_ShuttleBoardEngaged>侵入已发起：正在冲撞 {0}。</DeltaV_ShuttleBoardEngaged>
   <DeltaV_ShuttleBoardCancel>中止侵入</DeltaV_ShuttleBoardCancel>
   <DeltaV_ShuttleBoardCancelTip>停止追踪撞击目标，恢复驾驶跳帮艇。艇身仍会按当前速度继续运动。</DeltaV_ShuttleBoardCancelTip>
+  <DeltaV_HullAvoidanceDisable>关闭撞击规避</DeltaV_HullAvoidanceDisable>
+  <DeltaV_HullAvoidanceRestore>恢复撞击规避</DeltaV_HullAvoidanceRestore>
+  <DeltaV_HullAvoidanceTip>关闭后，战斗机动不再避让其他飞船，可能撞上友舰。</DeltaV_HullAvoidanceTip>
   <DeltaV_PanelBoardArm>侵入</DeltaV_PanelBoardArm>
-  <DeltaV_PanelBoardArmTip>启用侵入驱动，再用“撞击敌壳”指定目标。追踪期间可用“中止侵入”恢复驾驶。</DeltaV_PanelBoardArmTip>
+  <DeltaV_PanelBoardArmTip>关闭撞击规避并启用侵入驱动后，用“撞击敌壳”指定目标。追踪期间可用“中止侵入”恢复驾驶。</DeltaV_PanelBoardArmTip>
   <DeltaV_PanelCombatOptions>战斗选项</DeltaV_PanelCombatOptions>
 
   <DeltaV_DebugThrustersToggleButton>显示 Delta-V 推进器矢量与船体范围</DeltaV_DebugThrustersToggleButton>

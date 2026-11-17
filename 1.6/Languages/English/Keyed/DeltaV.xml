@@ -397,8 +397,11 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShuttleBoardEngaged>Intrusion engaged: ramming {0}.</DeltaV_ShuttleBoardEngaged>
   <DeltaV_ShuttleBoardCancel>Abort intrusion</DeltaV_ShuttleBoardCancel>
   <DeltaV_ShuttleBoardCancelTip>Disengage missile drive and return to normal shuttle flight at the current position and speed.</DeltaV_ShuttleBoardCancelTip>
+  <DeltaV_HullAvoidanceDisable>Disable collision avoidance</DeltaV_HullAvoidanceDisable>
+  <DeltaV_HullAvoidanceRestore>Restore collision avoidance</DeltaV_HullAvoidanceRestore>
+  <DeltaV_HullAvoidanceTip>With avoidance disabled, combat maneuvers can collide with any ship, including allies.</DeltaV_HullAvoidanceTip>
   <DeltaV_PanelBoardArm>Board</DeltaV_PanelBoardArm>
-  <DeltaV_PanelBoardArmTip>Arm the intrusion drive, then pick a target hull. In missile mode, use Abort intrusion to return to shuttle flight.</DeltaV_PanelBoardArmTip>
+  <DeltaV_PanelBoardArmTip>Disable collision avoidance and arm the intrusion drive, then pick a target hull. In missile mode, use Abort intrusion to return to shuttle flight.</DeltaV_PanelBoardArmTip>
   <DeltaV_PanelCombatOptions>Combat options</DeltaV_PanelCombatOptions>
 
   <DeltaV_DebugThrustersToggleButton>Show Delta-V thruster vectors and hull extent</DeltaV_DebugThrustersToggleButton>

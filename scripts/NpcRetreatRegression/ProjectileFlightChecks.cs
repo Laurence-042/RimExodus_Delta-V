@@ -225,8 +225,12 @@ internal static partial class Program
             var container = new OfflineShuttleSpaceObject(41030 + rotation, map, new SpacePose(Vector3.forward, 0.71f));
             universe.objects.Add(container);
             Set(universe, "objectById", null);
+            Check(universe.Shuttles.CanStartIntrusion(hull.Vessel, container, playerInitiated: false),
+                "the NPC boarding path accepts the capable shuttle before adoption " + rotation);
             Check(service.AdoptShuttle(container, (Building)hull.parent, CombatTarget.ForContainer(targetBody)),
                 "intrusion adopts the real rotated shuttle " + rotation);
+            Check(!universe.Shuttles.CanStartIntrusion(hull.Vessel, container, playerInitiated: false),
+                "an adopted shuttle cannot start a second intrusion " + rotation);
             object adopted = ProjectileRecords(service).Cast<object>().Single();
             var physical = new ShipPhysics.MassReport { mass = dryMass, inertia = dryMass * 34f / 12f };
             physical.thrusters.AddRange(hull.Vessel.BuildThrusters());
