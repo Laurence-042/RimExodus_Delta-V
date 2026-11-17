@@ -451,14 +451,14 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_EVAUnsupportedContent>This map contains objects that cannot be transferred with a gravship. Extravehicular work has not started.</DeltaV_EVAUnsupportedContent>
   <DeltaV_EVAGridCorrection>Adjusting to the extravehicular work placement. Select Begin extravehicular work again once alignment is stable.</DeltaV_EVAGridCorrection>
   <DeltaV_EVANotSynchronized>Drift synchronization with the target is not yet stable.</DeltaV_EVANotSynchronized>
-  <DeltaV_EVASyncRequired>Start drift synchronization with a target first.</DeltaV_EVASyncRequired>
+  <DeltaV_EVASyncRequired>The drift synchronization target is no longer valid. Start synchronization again to work on a shared map.</DeltaV_EVASyncRequired>
   <DeltaV_EVAStarted>Extravehicular work has begun. Applying real thruster power separates that ship from the worksite.</DeltaV_EVAStarted>
   <DeltaV_StartEVA>Begin extravehicular work</DeltaV_StartEVA>
-  <DeltaV_ExpandWorksite>Expand worksite</DeltaV_ExpandWorksite>
   <DeltaV_SyncButton>Synchronize drift velocity</DeltaV_SyncButton>
   <DeltaV_EVAOverlap>Ship structures or map contents overlap. Adjust position and try again.</DeltaV_EVAOverlap>
-  <DeltaV_EVAGravity>Gravity effects prevent extravehicular work here. Dock the entire ship in a clear area of the target map.</DeltaV_EVAGravity>
+  <DeltaV_EVAGravity>Gravity effects require docking, and the ship cannot dock at its current position. Move the entire ship into a clear area of the target map.</DeltaV_EVAGravity>
   <DeltaV_SyncStarted>Matching linear velocity and grid orientation with {0}, without a position destination. Begin extravehicular work once synchronized.</DeltaV_SyncStarted>
+  <DeltaV_SyncStartedGravity>Matching linear velocity and grid orientation with {0}. Due to local gravity effects, move the entire ship into a clear area of the target map before beginning extravehicular work.</DeltaV_SyncStartedGravity>
   <DeltaV_SoftDockToggle>Soft docking guides: enable to capture and maintain links. Disabling immediately disconnects and stops soft docking.</DeltaV_SoftDockToggle>
   <DeltaV_SoftDockView>View other endpoint</DeltaV_SoftDockView>
   <DeltaV_SoftDockEnter>Enter soft docking passage</DeltaV_SoftDockEnter>

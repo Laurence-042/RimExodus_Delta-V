@@ -52,7 +52,10 @@ namespace DeltaV
             if (!CanStart(target)) return;
             var active = universe.Approach.ActivePlan;
             if (active == null || active.Target.Identity != target.Identity)
-            { Reject("DeltaV_EVASyncRequired"); return; }
+            {
+                CreateWorksite(target, null, null);
+                return;
+            }
             if (!LandingApproachController.IsValid(universe, active))
             {
                 universe.Approach.CancelSelectionOrPlan(universe, silent: true);
@@ -70,11 +73,6 @@ namespace DeltaV
             if (LandingApproachController.LandingSiteStillValid(placement)) Dock(target, placement);
             else if (host.HasGravityRegion) Reject("DeltaV_EVAGravity");
             else if (host.CanRelocateMap) CreateWorksite(target, host, placement);
-        }
-
-        public void Expand(PilotTarget target)
-        {
-            if (CanStart(target)) CreateWorksite(target, null, null);
         }
 
         // Only loaded maps have a projection for generation clearance.

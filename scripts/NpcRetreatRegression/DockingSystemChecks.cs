@@ -178,17 +178,16 @@ internal static partial class Program
                 service.Start(target);
             }
             Start();
-            Check(worksiteRejection == "DeltaV_EVASyncRequired" && worksiteRequestedSize == IntVec3.Zero && worksiteDockMap == null,
-                "matching nearby motion cannot replace an explicit sync plan");
-            service.Expand(target);
             int margin = DeltaVMod.CurrentSettings.worksiteMargin;
-            Check(worksiteRequestedSize == new IntVec3(ownMap.Size.x + 2 * margin, 1, ownMap.Size.z + 2 * margin),
-                "single-ship expansion reaches generation with only the source map dimensions");
+            Check(worksiteRejection == null && worksiteDockMap == null
+                && worksiteRequestedSize == new IntVec3(ownMap.Size.x + 2 * margin, 1, ownMap.Size.z + 2 * margin),
+                "starting work without a sync plan expands only the source map even when nearby motion matches");
 
             var plan = new LandingApproachController.DriftSyncPlan(target, host, 0f);
             Set(universe.Approach, "plan", plan);
             Start();
-            Check(worksiteRejection == "DeltaV_EVANotSynchronized", "a new plan needs a stable interval");
+            Check(worksiteRejection == "DeltaV_EVANotSynchronized" && worksiteRequestedSize == IntVec3.Zero
+                && worksiteDockMap == null, "a new plan waits for stability without expanding or docking");
             plan.holdTicks = DeltaVMod.CurrentSettings.dockingHoldTicks;
             own.pose.velocity = Vector2.right;
             Start();

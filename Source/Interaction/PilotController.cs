@@ -139,12 +139,8 @@ internal readonly struct HeadingPanelAction
                 actions.Add(new PilotPanelAction("DeltaV_AutoTaskMenu".Translate(player.AutoTaskLabel),
                     () => player.ShowAutoTaskMenu(panelTarget)));
             if (panelTarget.Vessel.State == ShipDerivedState.FreeFlight)
-            {
                 actions.Add(new PilotPanelAction("DeltaV_StartEVA".Translate(),
                     () => universe.Worksites.Start(panelTarget)));
-                actions.Add(new PilotPanelAction("DeltaV_ExpandWorksite".Translate(),
-                    () => universe.Worksites.Expand(panelTarget)));
-            }
         }
 
         internal virtual void CollectCombatPanelActions(ShipBase ship, bool hasWeapons,

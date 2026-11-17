@@ -104,7 +104,8 @@ namespace DeltaV
                 activate: false)) return;
             plan = new DriftSyncPlan(target, host, ShipOrientation.SnapAngle(own.pose.angle - host.pose.angle));
             EngageAutopilot(universe);
-            Messages.Message("DeltaV_SyncStarted".Translate(host.label), MessageTypeDefOf.NeutralEvent, false);
+            string messageKey = host.HasGravityRegion ? "DeltaV_SyncStartedGravity" : "DeltaV_SyncStarted";
+            Messages.Message(messageKey.Translate(host.label), MessageTypeDefOf.NeutralEvent, false);
         }
 
         public void EngageAutopilot(UniverseManager universe)
