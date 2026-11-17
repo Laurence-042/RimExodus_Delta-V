@@ -226,3 +226,34 @@ dotnet Source/obj/NpcRetreatRegression/NpcRetreatRegression.dll Source/obj/Comba
 ```
 
 完整重编译／回归仍需完整 1.6 Managed 目录，沿用 `run.ps1 -GameRoot ... -HarmonyPath ...`；此处不启动游戏。游戏内复测应开启「日志 → 性能分析」，保留正常速度下的开战、持续交火和明显战损后的五秒窗口，核对机动与 TPS、重算触发及各阶段峰值。新日志的游戏内输出与实际性能由用户验收。
+## 双舰静态 AI 性能夹具
+
+使用 RimWorld 1.6 的 Managed 目录、已编译的 Delta-V DLL 和 .NET 8 Harmony。通过 `scripts/NpcRetreatRegression/run.ps1` 运行。
+
+```powershell
+& scripts/NpcRetreatRegression/run.ps1 -GameRoot $gameRoot -HarmonyPath $harmonyPath -StaticScene Normal -StaticEngagement Count
+& scripts/NpcRetreatRegression/run.ps1 -GameRoot $gameRoot -HarmonyPath $harmonyPath -StaticScene Dense -StaticEngagement Time
+& scripts/NpcRetreatRegression/run.ps1 -GameRoot $gameRoot -HarmonyPath $harmonyPath -StaticScene Dense -StaticEngagement Parity
+```
+
+三种模式都可以搭配两套场景。普通场景每舰 25 格基架、4 门激光炮。大型场景每舰 1,521 格基架、16 门混合武器和一面守卫盾，包含零半径和带半径两种碰撞路径。始终按固定顺序在同一模拟 tick 调用两艘船的生产规划器，共跑 1,200 tick。推进能力只用于规划预览，航迹只读采样；夹具检查位姿、弹体、武器冷却、建筑耐久和盾容。
+
+- `Count` 逐搜索 tick 输出 `Fire`、`Trace`、`RayQuery.Next` 和船壳遍历次数。进入船壳查询的段、至少访问一格的段和有接触的段分别计数。`Visits` 是每次格候选枚举，包括随后被边界筛掉的格；`Classified` 是实际读取船壳占用的次数。各自的 `Duplicates` 都以同一船壳查询段内的格坐标去重。`repeatedGeometry` 统计同一观察对象内、同 tick 起点／方向／长度／半径逐位相同的 `Next` 查询，盾容、掩码与射击内账本仍需另行核对。盾列表检查、命中、分层贯穿查格及掩码构建另列。
+- `Time` 单独运行，关闭性能日志及计数和对拍钩子。记录首 tick、后续重算 tick 和无需重算的 tick。计时单位为每 tick 两艘船规划的合计毫秒。
+- `Parity` 输出逐炮门禁序列哈希、候选分项与评分、最终选位及航迹采样位模式和生效 tick。比较两次输出的 `range-gates.txt` 和 `fleet-parity.json`，时间字段不参与比较。
+
+默认结果目录为 `Source/obj/NpcRetreatRegression/StaticEngagement/<场景>`。可设 `DELTAV_ENGAGEMENT_OUTPUT` 为本次结果目录，以保留前后两份输出。夹具中的计数对应固定双舰输入。游戏内尖峰的精确计数需要对应场景的数据。
+
+## 双 Mothership 毁伤预测对照
+
+```powershell
+& scripts/NpcRetreatRegression/run.ps1 -GameRoot $gameRoot -HarmonyPath $harmonyPath -Mothership All
+```
+
+夹具从 `MotherShip.xml` 读取基架及武器、轨道炮加速段的原始位置和朝向，解析 1.6 武器和弹体 Def。供能和弹药由夹具统一提供。夹具使用静态位姿和统一的规划推进参数，不加载护盾。正向对峙、船壳边缘、射程边缘及单侧基架损坏各从双方视角规划一次。
+
+- A 对生产规划器生成的同一批候选逐个精算。离线副本的完整航迹和生效 tick 与未插桩 DLL 的输出对拍。
+- B 在双方各取六个当前最近的外部目标，保留船体中心回退。候选内沿用逐炮射程与瞄准门禁，将射击方向映射到 32 扇区。查表键保留连续深度、横向偏移、弹速和武器参数。近似排名前六再走生产精算和航路检查。
+- C 在 B 的基础上，将毁伤预测的扫掠距离就近取整到 16 格刻度，最短保留 1 格。逐炮射程门禁继续使用原值。
+
+先跑对拍，在 B 中补跑一次六目标但保持精确射线的诊断。`parity.jsonl` 记录共享候选哈希、旧最优排名、前六、精算选位和航迹是否恢复。`counts.jsonl` 按攻守分别记录查表、建表和精算的预测调用。随后用五个独立进程预热并计时，轮换三组的执行顺序，计入共同候选生成和每组建表、查表、精算及路线选择。原始结果和 `summary.csv` 位于 `Source/obj/MothershipEngagement`。
