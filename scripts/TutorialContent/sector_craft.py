@@ -235,7 +235,7 @@ def furnish(name, plan, foundation, roofs, records, occupied, reserved, put, aut
         mouths.extend(((x, z-1), (x, z+1)))
     if 'rail' in spec:
         x, z, count = spec['rail']
-        loader = put('DeltaV_Weapon_RailgunLoader', x, z, state={'groupNumber': '4'})
+        loader = put('DeltaV_Weapon_RailgunLoader', x, z, state={'groupNumber': '4', 'salvoSet': 'Main'})
         walls.difference_update(map(tuple, loader['cells']))
         for index in range(1, count+1):
             put('DeltaV_Weapon_RailgunAccelerator', x, z+index)

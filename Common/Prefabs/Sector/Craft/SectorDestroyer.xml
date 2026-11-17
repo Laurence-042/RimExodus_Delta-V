@@ -1035,6 +1035,7 @@
           <pos>(14, 0, 29)</pos>
           <rot>0</rot>
           <groupNumber>4</groupNumber>
+          <salvoSet>Main</salvoSet>
           <headSupply>
             <fuel>600</fuel>
             <configuredTargetFuelLevel>600</configuredTargetFuelLevel>

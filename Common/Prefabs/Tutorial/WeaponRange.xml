@@ -6943,6 +6943,7 @@
           <pos>(23, 0, 22)</pos>
           <rot>1</rot>
           <groupNumber>4</groupNumber>
+          <salvoSet>Main</salvoSet>
           <headSupply>
             <fuel>600</fuel>
             <configuredTargetFuelLevel>600</configuredTargetFuelLevel>

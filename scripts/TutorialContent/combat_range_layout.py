@@ -60,7 +60,7 @@ def furnish(name, plan, place, prop, foundation, roofs, records, occupied):
                 slot=list(map(int,re.findall(r'-?\d+',prop(weapon,"comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']/attachmentSlots/li/cell"))))
                 x0,z0=gun['root'][0]+slot[2],gun['root'][1]-slot[0]
                 place('DeltaV_Building_AutoAimPluginII',x0,z0,1,layer='attachment')
-        loader=place('DeltaV_Weapon_RailgunLoader',23,21,1,state={'groupNumber':'4'})
+        loader=place('DeltaV_Weapon_RailgunLoader',23,21,1,state={'groupNumber':'4','salvoSet':'Main'})
         for x in range(24,33): place('DeltaV_Weapon_RailgunAccelerator',x,21,1)
         # The rail lane exits east with no hull, roof or building in front of the final segment.
         assert loader['root'][1] == 22

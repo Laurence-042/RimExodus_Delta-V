@@ -33,7 +33,6 @@ namespace DeltaV
             if (!initialized)
             {
                 combat.fireControlMode = Vessel.DefaultFireControlMode;
-                combat.weaponGroupsSecondary = 1;
                 initialized = true;
             }
             base.PostSpawnSetup(respawningAfterLoad);

@@ -246,9 +246,11 @@ namespace DeltaV
     /// <summary>火控与武器组的唯一持久模型，由船体身份锚保存。</summary>
     public sealed class ShipCombatState : IExposable
     {
+        private const int AllWeaponGroups = (1 << 6) - 1;
+
         public bool weaponsArmed;
         public ShipFireControlMode fireControlMode = ShipFireControlMode.Automatic;
-        public int weaponGroupsMain = 1, weaponGroupsSecondary = 1;
+        public int weaponGroupsMain = AllWeaponGroups, weaponGroupsSecondary = AllWeaponGroups;
         public int WeaponGroupMask(SpaceWeaponSalvoSet set) =>
             set == SpaceWeaponSalvoSet.Main ? weaponGroupsMain : weaponGroupsSecondary;
         public void SetWeaponGroupMask(SpaceWeaponSalvoSet set, int mask)
@@ -260,8 +262,8 @@ namespace DeltaV
         {
             Scribe_Values.Look(ref weaponsArmed, "weaponsArmed", false);
             Scribe_Values.Look(ref fireControlMode, "fireControlMode", ShipFireControlMode.Automatic);
-            Scribe_Values.Look(ref weaponGroupsMain, "weaponGroupsMain", 1);
-            Scribe_Values.Look(ref weaponGroupsSecondary, "weaponGroupsSecondary", 1);
+            Scribe_Values.Look(ref weaponGroupsMain, "weaponGroupsMain", AllWeaponGroups);
+            Scribe_Values.Look(ref weaponGroupsSecondary, "weaponGroupsSecondary", AllWeaponGroups);
         }
     }
 }
