@@ -63,12 +63,19 @@ internal readonly struct PilotPanelAction
     internal readonly string Label;
     internal readonly string Tooltip;
     internal readonly Action Execute;
+    internal readonly bool Enabled;
+    internal readonly bool Danger;
+    internal readonly bool Selected;
 
-    internal PilotPanelAction(string label, Action execute, string tooltip = null)
+    internal PilotPanelAction(string label, Action execute, string tooltip = null,
+        bool enabled = true, bool danger = false, bool selected = false)
     {
         Label = label;
         Execute = execute;
         Tooltip = tooltip;
+        Enabled = enabled;
+        Danger = danger;
+        Selected = selected;
     }
 }
 
@@ -130,14 +137,19 @@ internal readonly struct HeadingPanelAction
             if (!universe.Pilot.CanPlayerControl(panelTarget.Vessel) || !HasAuthority(panelTarget)) return;
             if (universe.FrameOf(panelTarget.Map)?.projectileRoleOverride == true) return;
             ShipControlState state = universe.Pilot.GetControlState(panelTarget);
-            string pilotLabel = state == ShipControlState.Manual
-                ? "DeltaV_ControlSwitchAutopilot".Translate()
-                : "DeltaV_PilotButtonEnter".Translate();
-            actions.Add(new PilotPanelAction(pilotLabel,
-                () => universe.Pilot.ToggleControl(universe, panelTarget)));
+            string pilotLabelKey = state switch
+            {
+                ShipControlState.Manual => "DeltaV_ControlManualActive",
+                ShipControlState.Autopilot => "DeltaV_ControlSwitchManual",
+                _ => "DeltaV_PilotButtonEnter"
+            };
+            actions.Add(new PilotPanelAction(pilotLabelKey.Translate(),
+                () => universe.Pilot.ToggleControl(universe, panelTarget),
+                selected: state == ShipControlState.Manual));
             if (this is PlayerShipController player)
                 actions.Add(new PilotPanelAction("DeltaV_AutoTaskMenu".Translate(player.AutoTaskLabel),
-                    () => player.ShowAutoTaskMenu(panelTarget)));
+                    () => player.ShowAutoTaskMenu(panelTarget),
+                    selected: state == ShipControlState.Autopilot));
             if (panelTarget.Vessel.State == ShipDerivedState.FreeFlight)
                 actions.Add(new PilotPanelAction("DeltaV_StartEVA".Translate(),
                     () => universe.Worksites.Start(panelTarget)));
@@ -294,7 +306,7 @@ internal readonly struct HeadingPanelAction
             base.CollectPanelActions(panelTarget, actions);
             if (!CanToggleHullAvoidance(panelTarget)) return;
             actions.Add(new PilotPanelAction(
-                (AutoManeuver.AvoidHullCollisions ? "DeltaV_HullAvoidanceDisable" : "DeltaV_HullAvoidanceRestore").Translate(),
+                (AutoManeuver.AvoidHullCollisions ? "DeltaV_HullAvoidanceOn" : "DeltaV_HullAvoidanceOff").Translate(),
                 () =>
                 {
                     ShipBase ship = ShipRegistry.ShipByIdentity(OwnerId);
@@ -304,7 +316,7 @@ internal readonly struct HeadingPanelAction
                     if (universe.Autopilot.IsCombatOrbit(OwnerId))
                         universe.Autopilot.Detach(OwnerId, "hull avoidance changed");
                     DecideAutoCombat(ship);
-                }, "DeltaV_HullAvoidanceTip".Translate()));
+                }, "DeltaV_HullAvoidanceTip".Translate(), danger: !AutoManeuver.AvoidHullCollisions));
         }
 
         private bool CanToggleHullAvoidance(PilotTarget target) =>
@@ -318,25 +330,17 @@ internal readonly struct HeadingPanelAction
             if (!ship.IsValid || !HasAuthority(PilotTarget.Of(ship))) return;
             if (!ship.CanBoard) return;
             SpaceObject frame = universe.FrameOf(ship.Map);
-            if (frame == null) return;
             PilotTarget target = PilotTarget.Of(ship);
-            if (frame.projectileRoleOverride)
+            string blockReason = universe.Shuttles.IntrusionBlockReasonKey(ship, frame, playerInitiated: true);
+            beforeGroups.Add(new PilotPanelAction("DeltaV_ShuttleBoardGizmo".Translate(),
+                () => universe.Shuttles.BeginBoardTargeting(target),
+                (blockReason ?? "DeltaV_ShuttleBoardGizmoTip").Translate(), enabled: blockReason == null));
+            if (frame?.projectileRoleOverride == true)
             {
                 beforeGroups.Add(new PilotPanelAction("DeltaV_ShuttleBoardCancel".Translate(),
                     () => universe.Shuttles.BreakIntrusion(frame, dropTarget: true),
                     "DeltaV_ShuttleBoardCancelTip".Translate()));
-                return;
             }
-            if (AutoManeuver.AvoidHullCollisions) return;
-            beforeGroups.Add(new PilotPanelAction(
-                "DeltaV_PanelBoardArm".Translate() + ": "
-                    + (universe.Shuttles.IntrusionArmed(frame) ? "DeltaV_On" : "DeltaV_Off").Translate(),
-                () => universe.Shuttles.ToggleIntrusionArmed(frame),
-                "DeltaV_PanelBoardArmTip".Translate()));
-            if (universe.Shuttles.IntrusionArmed(frame))
-                beforeGroups.Add(new PilotPanelAction("DeltaV_ShuttleBoardGizmo".Translate(),
-                    () => universe.Shuttles.BeginBoardTargeting(target),
-                    "DeltaV_ShuttleBoardGizmoTip".Translate()));
         }
 
         internal override void CollectHeadingPanelActions(ShipBase ship,

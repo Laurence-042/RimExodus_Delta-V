@@ -44,7 +44,7 @@
 	<ThingDef ParentName="PassengerShuttle">
 		<defName>DeltaV_ShuttleBoarding</defName>
 		<label>boarding shuttle</label>
-		<description>An armored assault shuttle. Arm its intrusion drive and pick an enemy hull to intercept. The main engines burn chemfuel from a separate afterburner tank during the intercept. The shuttle passes through shields, remains vulnerable to point defense, and seals the breach for its crew to disembark.</description>
+		<description>An armored assault shuttle. In flight, disable collision avoidance and use Ram target hull to pick an enemy ship. The main engines burn chemfuel from a separate afterburner tank during the intercept. The shuttle passes through shields, remains vulnerable to point defense, and seals the breach for its crew to disembark.</description>
 		<uiIconPath>Things/Building/Shuttle/BoardingShuttle_MenuIcon</uiIconPath>
 		<graphicData>
 			<graphicClass>Graphic_Single</graphicClass>

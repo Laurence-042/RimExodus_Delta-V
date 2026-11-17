@@ -496,7 +496,6 @@ namespace DeltaV
             globeDisplay?.Forget(obj.map);
             PlanetGlobeRenderer.InvalidateSilhouette(obj.map);
             Autopilot.Detach(obj);
-            Shuttles.ForgetContainer(obj);
             foundationTopology?.Forget(obj.map);
             stationTrade?.Forget(obj.map);
             playerInput?.Clear();
@@ -1292,7 +1291,6 @@ namespace DeltaV
                 Autopilot.ResetFlow();
                 Projectiles.ResetFlow();
                 Weapons.ResetFlow();
-                Shuttles.ResetFlow();
                 ShipTransitions.Reset();
             });
             sceneResetSteps.Enqueue(DestroySceneObjects);

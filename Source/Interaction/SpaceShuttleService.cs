@@ -196,8 +196,6 @@ namespace DeltaV
     {
         private readonly UniverseManager universe;
 
-        /// <summary>侵入武装开关（面板；容器 objectId → armed）。</summary>
-        private readonly HashSet<int> intrusionArmed = new HashSet<int>();
 
 
         public SpaceShuttleService(UniverseManager universe)
@@ -290,26 +288,18 @@ namespace DeltaV
 
         // ---- 侵入式对接（§7.5 = 截击 MPC + 联合后效 + 共同降落链）----
 
-        public bool IntrusionArmed(SpaceObject container)
-        {
-            return container != null && intrusionArmed.Contains(container.objectId);
-        }
-
-        /// <summary>面板开关（针对在飞 shuttle）：canBoard 才可开。</summary>
-        public bool ToggleIntrusionArmed(SpaceObject container)
-        {
-            if (container == null) return false;
-            if (!intrusionArmed.Contains(container.objectId)) intrusionArmed.Add(container.objectId);
-            else intrusionArmed.Remove(container.objectId);
-            return true;
-        }
-
         internal bool CanStartIntrusion(ShipBase vessel, SpaceObject container, bool playerInitiated)
+            => IntrusionBlockReasonKey(vessel, container, playerInitiated) == null;
+
+        internal string IntrusionBlockReasonKey(ShipBase vessel, SpaceObject container, bool playerInitiated)
         {
-            if (vessel?.CanBoard != true || container == null || container.projectileRoleOverride
-                || !vessel.CanDriveIn(container)) return false;
-            return !playerInitiated || IntrusionArmed(container)
-                && universe.Controls.PlayerFor(vessel, debugTakeover: true)?.AutoManeuver.AvoidHullCollisions == false;
+            if (container?.projectileRoleOverride == true) return "DeltaV_ShuttleBoardInProgress";
+            if (vessel?.CanBoard != true || container == null || !vessel.CanDriveIn(container))
+                return "DeltaV_ShuttleBoardRequiresFlight";
+            if (playerInitiated
+                && universe.Controls.PlayerFor(vessel, debugTakeover: true)?.AutoManeuver.AvoidHullCollisions != false)
+                return "DeltaV_ShuttleBoardDisableAvoidance";
+            return null;
         }
 
         /// <summary>侵入指挥：点击敌舰外壳指定目标容器（Targeter 流程内经 ShellPicking 解析）。</summary>
@@ -465,21 +455,5 @@ namespace DeltaV
             });
         }
 
-        /// <summary>
-        /// 容器注销时清理侵入运行时键。
-        /// </summary>
-        internal void ForgetContainer(SpaceObject container)
-        {
-            if (container != null)
-            {
-                intrusionArmed.Remove(container.objectId);
-            }
-        }
-
-        /// <summary>场景重建 / 图销毁清零。</summary>
-        public void ResetFlow()
-        {
-            intrusionArmed.Clear();
-        }
     }
 }

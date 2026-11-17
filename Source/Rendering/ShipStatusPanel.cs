@@ -391,8 +391,9 @@ namespace DeltaV
                     PilotPanelAction action = panelActions[i];
                     var actionRect = new Rect(i * (buttonWidth + 4f), lineY, buttonWidth, 27f);
                     if (DeltaVPanelStyle.Button(actionRect, action.Label,
-                        i == 0 ? DeltaVButtonTone.Primary : DeltaVButtonTone.Neutral,
-                        font: GameFont.Small)) action.Execute();
+                        action.Danger ? DeltaVButtonTone.Danger : DeltaVButtonTone.Neutral,
+                        selected: action.Selected, enabled: action.Enabled, font: GameFont.Small))
+                        action.Execute();
                     if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
                 }
                 lineY += 33f;
@@ -402,7 +403,9 @@ namespace DeltaV
                 {
                     PilotPanelAction action = panelActions[i];
                     var actionRect = new Rect(0f, lineY, drawWidth, 27f);
-                    if (DeltaVPanelStyle.Button(actionRect, action.Label, font: GameFont.Small))
+                    if (DeltaVPanelStyle.Button(actionRect, action.Label,
+                        action.Danger ? DeltaVButtonTone.Danger : DeltaVButtonTone.Neutral,
+                        selected: action.Selected, enabled: action.Enabled, font: GameFont.Small))
                         action.Execute();
                     if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
                     lineY += 33f;
@@ -562,7 +565,8 @@ namespace DeltaV
                 foreach (PilotPanelAction action in combatActionsBefore)
                 {
                     var actionRect = new Rect(0f, lineY, drawWidth, 27f);
-                    if (DeltaVPanelStyle.Button(actionRect, action.Label, font: GameFont.Small)) action.Execute();
+                    if (DeltaVPanelStyle.Button(actionRect, action.Label, enabled: action.Enabled,
+                        font: GameFont.Small)) action.Execute();
                     if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
                     lineY += 33f;
                 }
@@ -579,7 +583,8 @@ namespace DeltaV
                         foreach (PilotPanelAction action in combatActionsAfter)
                         {
                             var actionRect = new Rect(0f, lineY, drawWidth, 27f);
-                            if (DeltaVPanelStyle.Button(actionRect, action.Label, font: GameFont.Small))
+                            if (DeltaVPanelStyle.Button(actionRect, action.Label, enabled: action.Enabled,
+                                font: GameFont.Small))
                                 action.Execute();
                             if (!action.Tooltip.NullOrEmpty()) TooltipHandler.TipRegion(actionRect, action.Tooltip);
                             lineY += 33f;

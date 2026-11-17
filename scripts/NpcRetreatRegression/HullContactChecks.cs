@@ -318,6 +318,12 @@ internal static partial class Program
                 controller.CollectPanelActions(PilotTarget.Of(ship), actions);
                 return actions.Find(action => action.Tooltip == "DeltaV_HullAvoidanceTip".Translate());
             }
+            PilotPanelAction BoardButton(PlayerShipController controller, ShipBase ship)
+            {
+                var actions = new List<PilotPanelAction>();
+                controller.CollectCombatPanelActions(ship, false, actions, new List<PilotPanelAction>());
+                return actions.Find(action => action.Label == "DeltaV_ShuttleBoardGizmo".Translate());
+            }
             bool RouteClearAt(PlayerShipController controller, ShipBase ship, ShipBase obstacle)
             {
                 var pose = ShipRegistry.ShipPose(obstacle);
@@ -329,15 +335,21 @@ internal static partial class Program
                 "normal combat routing avoids both obstructions");
             var disable = AvoidanceButton(pilotControl, pilot);
             Check(!pilotControl.FireControl.Target.HasLock && disable.Execute != null
-                && disable.Label == "DeltaV_HullAvoidanceDisable".Translate(),
+                && disable.Label == "DeltaV_HullAvoidanceOn".Translate() && !disable.Danger,
                 "a boarding shuttle can disable collision avoidance without a target");
             Check(AvoidanceButton(otherControl, third).Execute == null,
                 "an ordinary shuttle has no collision avoidance override");
-            universe.Shuttles.ToggleIntrusionArmed(pilotFrame);
+            Check(BoardButton(otherControl, third).Execute == null,
+                "an ordinary shuttle has no ram action");
+            var blocked = BoardButton(pilotControl, pilot);
+            Check(blocked.Execute != null && !blocked.Enabled
+                && blocked.Tooltip == "DeltaV_ShuttleBoardDisableAvoidance".Translate(),
+                "a boarding shuttle shows a disabled ram action with avoidance enabled");
             Check(!universe.Shuttles.CanStartIntrusion(pilot, pilotFrame, true),
-                "even an armed boarding shuttle cannot start a player intrusion with avoidance enabled");
+                "the player cannot start an intrusion with avoidance enabled");
             disable.Execute();
-            Check(universe.Shuttles.CanStartIntrusion(pilot, pilotFrame, true)
+            Check(BoardButton(pilotControl, pilot).Enabled
+                && universe.Shuttles.CanStartIntrusion(pilot, pilotFrame, true)
                 && !universe.Shuttles.CanStartIntrusion(third, universe.FrameOf(third.Map), false),
                 "disabling avoidance enables player intrusion only on boarding-capable hulls");
             Check(RouteClearAt(pilotControl, pilot, target) && RouteClearAt(pilotControl, pilot, third),
@@ -346,12 +358,14 @@ internal static partial class Program
                 "another player's shuttle still avoids obstructions with its independent setting");
             pilotControl.AutoManeuver.Clear(pilot);
             var restore = AvoidanceButton(pilotControl, pilot);
-            Check(restore.Execute != null && restore.Label == "DeltaV_HullAvoidanceRestore".Translate(),
+            Check(restore.Execute != null && restore.Label == "DeltaV_HullAvoidanceOff".Translate()
+                && restore.Danger,
                 "clearing the combat plan retains the shuttle's setting");
             restore.Execute();
             Check(!RouteClearAt(pilotControl, pilot, target) && !RouteClearAt(pilotControl, pilot, third),
                 "restoring avoidance rejects both obstructed routes again");
-            Check(!universe.Shuttles.CanStartIntrusion(pilot, pilotFrame, true),
+            Check(!BoardButton(pilotControl, pilot).Enabled && !AvoidanceButton(pilotControl, pilot).Danger
+                && !universe.Shuttles.CanStartIntrusion(pilot, pilotFrame, true),
                 "restoring avoidance rejects a previously selected boarding order");
             Clear();
         }

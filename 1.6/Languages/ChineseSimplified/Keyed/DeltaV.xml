@@ -20,7 +20,8 @@
   <DeltaV_ControlCompactUncontrolled>未控制</DeltaV_ControlCompactUncontrolled>
   <DeltaV_ControlCompactManual>手动</DeltaV_ControlCompactManual>
   <DeltaV_ControlCompactAutopilot>自动</DeltaV_ControlCompactAutopilot>
-  <DeltaV_ControlSwitchAutopilot>切换为自动驾驶</DeltaV_ControlSwitchAutopilot>
+  <DeltaV_ControlManualActive>正在手动驾驶</DeltaV_ControlManualActive>
+  <DeltaV_ControlSwitchManual>切换手动驾驶</DeltaV_ControlSwitchManual>
   <DeltaV_AutoTaskMenu>自动任务：{0}</DeltaV_AutoTaskMenu>
   <DeltaV_AutoDrift>无</DeltaV_AutoDrift>
   <DeltaV_AutoSync>速度同步</DeltaV_AutoSync>
@@ -390,18 +391,19 @@
   <DeltaV_ShuttleBoostReady>侵入截击时可加力。</DeltaV_ShuttleBoostReady>
   <DeltaV_ShuttleLaunchDenied>无法起飞：{0}</DeltaV_ShuttleLaunchDenied>
   <DeltaV_ShuttleLaunched>{0} 已起飞进入自由飞行。</DeltaV_ShuttleLaunched>
-  <DeltaV_ShuttleBoardGizmo>撞击敌壳</DeltaV_ShuttleBoardGizmo>
+  <DeltaV_ShuttleBoardGizmo>撞击侵入</DeltaV_ShuttleBoardGizmo>
   <DeltaV_ShuttleBoardGizmoTip>选择敌舰外壳作为撞击目标。跳帮艇会自行加速追踪，撞入后以艇身堵住破口，船员可下艇作战。</DeltaV_ShuttleBoardGizmoTip>
   <DeltaV_ShuttleBoardNoTarget>这里没有可撞击的船体。</DeltaV_ShuttleBoardNoTarget>
   <DeltaV_ShuttleBoardNoRoom>跳帮艇撞上了船体，但落位区域超出地图或存在无法破拆的建筑。</DeltaV_ShuttleBoardNoRoom>
   <DeltaV_ShuttleBoardEngaged>侵入已发起：正在冲撞 {0}。</DeltaV_ShuttleBoardEngaged>
   <DeltaV_ShuttleBoardCancel>中止侵入</DeltaV_ShuttleBoardCancel>
   <DeltaV_ShuttleBoardCancelTip>停止追踪撞击目标，恢复驾驶跳帮艇。艇身仍会按当前速度继续运动。</DeltaV_ShuttleBoardCancelTip>
-  <DeltaV_HullAvoidanceDisable>关闭撞击规避</DeltaV_HullAvoidanceDisable>
-  <DeltaV_HullAvoidanceRestore>恢复撞击规避</DeltaV_HullAvoidanceRestore>
+  <DeltaV_HullAvoidanceOn>碰撞规避：开</DeltaV_HullAvoidanceOn>
+  <DeltaV_HullAvoidanceOff>碰撞规避：关</DeltaV_HullAvoidanceOff>
   <DeltaV_HullAvoidanceTip>关闭后，战斗机动不再避让其他飞船，可能撞上友舰。</DeltaV_HullAvoidanceTip>
-  <DeltaV_PanelBoardArm>侵入</DeltaV_PanelBoardArm>
-  <DeltaV_PanelBoardArmTip>关闭撞击规避并启用侵入驱动后，用“撞击敌壳”指定目标。追踪期间可用“中止侵入”恢复驾驶。</DeltaV_PanelBoardArmTip>
+  <DeltaV_ShuttleBoardDisableAvoidance>关闭碰撞规避后启用</DeltaV_ShuttleBoardDisableAvoidance>
+  <DeltaV_ShuttleBoardRequiresFlight>起飞后启用</DeltaV_ShuttleBoardRequiresFlight>
+  <DeltaV_ShuttleBoardInProgress>侵入进行中</DeltaV_ShuttleBoardInProgress>
   <DeltaV_PanelCombatOptions>战斗选项</DeltaV_PanelCombatOptions>
 
   <DeltaV_DebugThrustersToggleButton>显示 Delta-V 推进器矢量与船体范围</DeltaV_DebugThrustersToggleButton>
