@@ -4,6 +4,7 @@ using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
+using Verse.AI.Group;
 
 namespace DeltaV
 {
@@ -254,6 +255,83 @@ namespace DeltaV
                         released = true;
                 if (released) crate.BroadcastCompSignal(Building_Crate.CrateContentsChanged);
             });
+        }
+
+        internal bool TryQueueTransporterEjection(CompTransporter transporter, Thing item, int count, IntVec3 dropOffset)
+        {
+            Thing parent = transporter?.parent;
+            Map map = parent?.Map;
+            if (parent?.Spawned != true || map.Disposed || item == null || !IsCargo(item)) return false;
+
+            IntVec3 position = parent.Position;
+            Rot4 rotation = parent.Rotation;
+            IntVec3 origin = position + dropOffset;
+            if (origin.InBounds(map)) return false;
+            SpaceObject owner = universe.SpaceObjectOnMap(map);
+            if (owner == null || owner.IsScattered) return false;
+
+            ThingOwner holder = transporter.innerContainer;
+            int stackCount = item.stackCount;
+            bool CargoStillHeld() => !item.Destroyed && count > 0 && count <= stackCount
+                && item.stackCount == stackCount
+                && item.holdingOwner == holder && holder?.Contains(item) == true;
+
+            if (universe.IsResettingScene || !CargoStillHeld()) return true;
+
+            int version = owner.RepresentationVersion;
+            bool queued = false;
+            void QueueRelease()
+            {
+                if (queued) return;
+                queued = true;
+                universe.QueueFrameAction(() =>
+                {
+                    if (universe.IsResettingScene || !parent.Spawned || parent.Map != map || map.Disposed
+                        || parent.Position != position || parent.Rotation != rotation
+                        || universe.SpaceObjectOnMap(map) != owner || owner.RepresentationVersion != version
+                        || transporter.innerContainer != holder || !CargoStillHeld()) return;
+
+                    // The original stack count also invalidates duplicate partial-stack requests.
+                    if (!ReleaseTransporterCargo(item, count, holder,
+                        EjectionPose(owner, map, origin, default, default))) return;
+
+                    if (item is Pawn pawn && pawn.GetLord() is Lord lord
+                        && lord.LordJob is LordJob_LoadAndEnterTransporters)
+                        lord.Notify_PawnLost(pawn, PawnLostCondition.LeftVoluntarily);
+                    transporter.Notify_ThingRemoved(item);
+                });
+            }
+
+            if (item is Pawn passenger && passenger.RaceProps.Humanlike)
+                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
+                    "DeltaV_EjectPassengerConfirm".Translate(passenger.LabelShortCap), QueueRelease, destructive: true));
+            else QueueRelease();
+            return true;
+        }
+
+        private bool ReleaseTransporterCargo(Thing item, int count, ThingOwner holder, SpacePose pose)
+        {
+            if (item.def.destroyOnDrop)
+            {
+                item.SplitOff(count).Destroy();
+                return true;
+            }
+
+            if (count == item.stackCount)
+                return universe.CapturePayload(item, pose, item.Faction, holder: holder) != null;
+
+            Thing part = item.SplitOff(count);
+            try
+            {
+                return universe.CapturePayload(part, pose, part.Faction) != null;
+            }
+            finally
+            {
+                if (!part.Destroyed && part.holdingOwner == null
+                    && !item.TryAbsorbStack(part, respectStackLimit: false)
+                    && !holder.TryAdd(part, canMergeWithExistingStacks: false))
+                    throw new InvalidOperationException("Could not restore the unejected part to the transporter.");
+            }
         }
 
         private static void SpawnItemAt(Thing item, Map map, IntVec3 cell)

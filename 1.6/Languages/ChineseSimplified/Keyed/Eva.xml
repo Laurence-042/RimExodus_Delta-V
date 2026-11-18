@@ -3,4 +3,5 @@
   <DeltaV_FireControlDisabled>停火</DeltaV_FireControlDisabled>
   <DeltaV_EvaCrewRequired>需要恰好 {0} 名健康驾驶员。</DeltaV_EvaCrewRequired>
   <DeltaV_EvaCargo>货物：{0} / {1} kg（不含驾驶员及其装备）</DeltaV_EvaCargo>
+  <DeltaV_EjectPassengerConfirm>将 {0} 抛入太空？\n\n此人会离开载具成为漂浮人员，需要通过牵引回收。</DeltaV_EjectPassengerConfirm>
 </LanguageData>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Xml.Linq;
 using DeltaV;
 using HarmonyLib;
@@ -9,6 +10,7 @@ using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
 using Verse;
+using Verse.AI.Group;
 
 internal static partial class Program
 {
@@ -362,6 +364,194 @@ internal static partial class Program
             Check(tractor.TryReceive(context) == TractorReceiveResult.Complete
                 && transporter.innerContainer.Sum(t => t.stackCount) == 5 && target.Payload.Entity == null,
                 "remaining contents are transferred exactly once when room is available");
+            CheckEvaCargoEjection(universe, transporter, receiver);
+            CheckPassengerEjection(universe);
+        }
+        finally { patch.UnpatchAll(patch.Id); }
+    }
+
+    static void CheckEvaCargoEjection(UniverseManager universe, CompTransporter transporter, SpaceObject receiver)
+    {
+        Thing item = transporter.innerContainer.Single();
+        Map map = transporter.parent.Map;
+        var offset = new IntVec3(map.Size.x, 0, 0);
+        IntVec3 hatch = transporter.parent.Position + offset;
+        Check(!hatch.InBounds(map), "EVA discard fixture puts the hatch outside the flight map");
+        Check(!universe.Scatter.TryQueueTransporterEjection(transporter, item, 2, IntVec3.Zero)
+            && item.stackCount == 5 && transporter.innerContainer.Contains(item),
+            "an in-bounds cargo drop stays on the native unloading path");
+
+        var existing = universe.Scatter.Candidates.ToHashSet();
+        Check(universe.Scatter.TryQueueTransporterEjection(transporter, item, 2, offset)
+            && item.stackCount == 5 && transporter.innerContainer.Contains(item),
+            "the cargo remains owned until the safe frame");
+        receiver.RepresentationVersion++;
+        Call(universe, "RunFrameActions");
+        Check(universe.Scatter.Candidates.All(existing.Contains) && item.stackCount == 5
+            && transporter.innerContainer.Contains(item), "a stale ejection request leaves the original stack in the cargo hold");
+
+        SpacePose previousPose = receiver.pose;
+        receiver.pose.velocity = new Vector2(2f, 3f);
+        Check(universe.Scatter.TryQueueTransporterEjection(transporter, item, 2, offset), "EVA accepts partial cargo jettison");
+        Check(universe.Scatter.TryQueueTransporterEjection(transporter, item, 2, offset), "a duplicate partial request is safely intercepted");
+        Call(universe, "RunFrameActions");
+        SpaceObject part = universe.Scatter.Candidates.Single(obj => !existing.Contains(obj));
+        var point = new Vector2(hatch.x + .5f, hatch.z + .5f);
+        SpacePose expected = SpaceTransform.RigidPointPose(receiver.pose, SpaceTransform.MapToShipLocal(map, point), 0f);
+        Check(part.map == null && part.Payload.Entity.stackCount == 2 && item.stackCount == 3
+            && transporter.innerContainer.Contains(item), "only the requested quantity becomes a mapless tractor candidate");
+        Check((part.pose.position - expected.position).sqrMagnitude < 1e-8f
+            && (part.pose.velocity - expected.velocity).sqrMagnitude < 1e-8f,
+            "ejected cargo inherits the position and velocity at the hatch outside the map");
+
+        Set(transporter, "massUsageDirty", false);
+        Check(universe.Scatter.TryQueueTransporterEjection(transporter, item, 3, offset), "EVA accepts whole-stack jettison");
+        Call(universe, "RunFrameActions");
+        Check(!transporter.innerContainer.Any && universe.Scatter.Candidates.Any(obj => obj.Payload?.Entity == item)
+            && (bool)AccessTools.Field(typeof(CompTransporter), "massUsageDirty").GetValue(transporter),
+            "whole stack keeps its identity as recoverable cargo and invalidates the transporter's mass usage");
+        receiver.pose = previousPose;
+    }
+
+    static Lord ejectionLoadLord;
+    static int ejectionLordExits;
+    static bool EjectionSceneGraphics() => false;
+    static bool EjectionPawnLost(Lord __instance, Pawn pawn, PawnLostCondition cond)
+    {
+        if (__instance != ejectionLoadLord) return true;
+        Check(cond == PawnLostCondition.LeftVoluntarily, "ejected passengers leave the loading lord with the native reason");
+        __instance.ownedPawns.Remove(pawn);
+        pawn.lord = null;
+        ejectionLordExits++;
+        return false;
+    }
+    static bool EjectionCaptureDenied(ref SpaceObject __result) { __result = null; return false; }
+
+    static void CheckPassengerEjection(UniverseManager universe)
+    {
+        var map = TestMap(58040, 1);
+        var hull = (Building)Raw(typeof(Building));
+        hull.def = TestBuildingDef("passengerEjectionHull");
+        hull.def.interactionCellOffset = new IntVec3(1, 0, 0);
+        Set(typeof(Thing), hull, "positionInt", IntVec3.Zero);
+        Set(typeof(Thing), hull, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
+        var transporter = new CompTransporter { parent = hull, props = new CompProperties_Transporter() };
+        transporter.innerContainer = new ThingOwner<Thing>(transporter);
+        var shuttle = new CompLocalShuttle { parent = hull, props = new CompProperties_LocalShuttle() };
+        Set(typeof(ThingWithComps), hull, "comps", new List<ThingComp> { transporter, shuttle });
+        var frame = new MapSpaceObject(58040, map, new SpacePose(Vector3.forward, .4f));
+        var tab = new ITab_ContentsTransporter();
+        MethodInfo drop = AccessTools.Method(typeof(ITab_ContentsTransporter), "OnDropThing");
+        Pawn Passenger(string name, Intelligence intelligence)
+        {
+            var pawn = (Pawn)Raw(typeof(Pawn));
+            pawn.def = TestBuildingDef(name + "Species");
+            pawn.def.category = ThingCategory.Pawn;
+            pawn.def.race = new RaceProperties { intelligence = intelligence };
+            pawn.Name = new NameSingle(name);
+            pawn.stackCount = 1;
+            pawn.health = new Pawn_HealthTracker(pawn);
+            Set(typeof(Thing), pawn, "mapIndexOrState", (sbyte)-1);
+            transporter.innerContainer.TryAdd(pawn, canMergeWithExistingStacks: false);
+            return pawn;
+        }
+
+        var patch = new Harmony("DeltaV.Regression.PassengerEjection");
+        // Lord's type initializer loads the squad flag material through Unity.
+        patch.Patch(typeof(Lord).TypeInitializer, prefix: new HarmonyMethod(typeof(Program), nameof(EjectionSceneGraphics)));
+        patch.Patch(AccessTools.PropertyGetter(typeof(Find), "Selector"), prefix: new HarmonyMethod(typeof(Program), nameof(TractorSelector)));
+        patch.Patch(AccessTools.PropertyGetter(typeof(Find), "WindowStack"), prefix: new HarmonyMethod(typeof(Program), nameof(TractorWindowStack)));
+        patch.Patch(AccessTools.Method(typeof(WindowStack), "Add"), prefix: new HarmonyMethod(typeof(Program), nameof(TractorOpenWindow)));
+        patch.Patch(AccessTools.Method(typeof(Lord), nameof(Lord.Notify_PawnLost)), prefix: new HarmonyMethod(typeof(Program), nameof(EjectionPawnLost)));
+        patch.CreateClassProcessor(typeof(Patch_TransporterCargoDrop)).Patch();
+        tractorSelector = (Selector)Raw(typeof(Selector));
+        Set(tractorSelector, "selected", new List<object> { hull });
+        try
+        {
+            Pawn person = Passenger("Pyrrha", Intelligence.Humanlike);
+            var offset = new IntVec3(1, 0, 0);
+            Check(!universe.Scatter.TryQueueTransporterEjection(transporter, person, 1, offset),
+                "an unregistered map cannot redirect a passenger into space");
+            universe.RegisterObject(frame);
+            Check(tab.DropOffset == offset && !(hull.Position + tab.DropOffset).InBounds(map),
+                "the native transporter tab points outside the real 1x1 fixture map");
+            Check(!universe.Scatter.TryQueueTransporterEjection(transporter, person, 1, IntVec3.Zero),
+                "an in-bounds passenger drop stays on the native unloading path");
+
+            ejectionLoadLord = (Lord)Raw(typeof(Lord));
+            Set(ejectionLoadLord, "curJob", new LordJob_LoadAndEnterTransporters());
+            ejectionLoadLord.ownedPawns = new List<Pawn> { person };
+            person.lord = ejectionLoadLord;
+            ejectionLordExits = 0;
+            tractorWindow = null;
+            drop.Invoke(tab, new object[] { person, 1 });
+            var warning = tractorWindow as Dialog_MessageBox;
+            Check(warning?.buttonADestructive == true && warning.forcePause
+                && transporter.innerContainer.Contains(person) && ejectionLordExits == 0,
+                "the normal tab entry warns before removing a humanlike passenger or changing their loading lord");
+            warning.cancelAction();
+            Call(universe, "RunFrameActions");
+            Check(transporter.innerContainer.Contains(person) && person.GetLord() == ejectionLoadLord,
+                "cancelling the warning leaves the passenger and loading lord intact");
+
+            drop.Invoke(tab, new object[] { person, 1 });
+            warning = (Dialog_MessageBox)tractorWindow;
+            frame.RepresentationVersion++;
+            warning.buttonAAction();
+            Call(universe, "RunFrameActions");
+            Check(transporter.innerContainer.Contains(person) && ejectionLordExits == 0,
+                "a representation change while the warning is open invalidates the ejection");
+
+            var refusal = new Harmony("DeltaV.Regression.EjectionRefusal");
+            refusal.Patch(AccessTools.Method(typeof(UniverseManager), "CapturePayload"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(EjectionCaptureDenied)));
+            try
+            {
+                drop.Invoke(tab, new object[] { person, 1 });
+                ((Dialog_MessageBox)tractorWindow).buttonAAction();
+                Call(universe, "RunFrameActions");
+                Check(transporter.innerContainer.Contains(person) && person.GetLord() == ejectionLoadLord
+                    && ejectionLordExits == 0, "a failed passenger handoff preserves the passenger and loading lord");
+
+                var cargo = (EvaCargoItem)Raw(typeof(EvaCargoItem));
+                cargo.def = TestBuildingDef("failedEjectionCargo");
+                cargo.def.category = ThingCategory.Item;
+                cargo.def.stackLimit = 75;
+                cargo.stackCount = 5;
+                Set(typeof(Thing), cargo, "mapIndexOrState", (sbyte)-1);
+                transporter.innerContainer.TryAdd(cargo, canMergeWithExistingStacks: false);
+                Check(universe.Scatter.TryQueueTransporterEjection(transporter, cargo, 2, offset), "a partial stack enters the ejection transaction");
+                Call(universe, "RunFrameActions");
+                Check(transporter.innerContainer.Where(t => t.def == cargo.def).Sum(t => t.stackCount) == 5,
+                    "a failed split-stack handoff restores every item to the original hold");
+            }
+            finally { refusal.UnpatchAll(refusal.Id); }
+
+            drop.Invoke(tab, new object[] { person, 1 });
+            warning = (Dialog_MessageBox)tractorWindow;
+            warning.buttonAAction();
+            warning.buttonAAction();
+            Call(universe, "RunFrameActions");
+            Check(!transporter.innerContainer.Contains(person) && ejectionLordExits == 1 && person.GetLord() == null
+                && universe.Scatter.Candidates.Count(obj => obj.Payload?.Entity == person) == 1,
+                "repeated confirmation ejects exactly one recoverable passenger and leaves the loading lord once");
+
+            Pawn animal = Passenger("AnimalPassenger", Intelligence.Animal);
+            tractorWindow = null;
+            drop.Invoke(tab, new object[] { animal, 1 });
+            Check(tractorWindow == null && transporter.innerContainer.Contains(animal),
+                "a non-humanlike passenger uses the same safe-frame handoff without a human warning");
+            Call(universe, "RunFrameActions");
+            Check(universe.Scatter.Candidates.Count(obj => obj.Payload?.Entity == animal) == 1
+                && !transporter.innerContainer.Contains(animal), "the native tab also ejects a non-humanlike passenger exactly once");
+
+            foreach (string language in new[] { "English", "ChineseSimplified" })
+            {
+                var xml = XDocument.Load($"1.6/Languages/{language}/Keyed/Eva.xml");
+                string text = (string)xml.Root.Element("DeltaV_EjectPassengerConfirm");
+                Check(!string.IsNullOrEmpty(text) && string.Format(text, "Pyrrha").Contains("Pyrrha"),
+                    language + " provides a passenger warning with their name");
+            }
         }
         finally { patch.UnpatchAll(patch.Id); }
     }
