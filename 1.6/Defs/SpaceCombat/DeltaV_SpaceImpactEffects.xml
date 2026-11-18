@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+﻿<?xml version='1.0' encoding='utf-8'?>
 <Defs>
   <DeltaV.SpaceImpactEffectDef>
     <defName>DeltaV_Impact_CannonVsStructure</defName>
@@ -520,5 +520,40 @@
     <attackerEffect>
       <kind>DestroySelf</kind>
     </attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef>
+    <defName>DeltaV_Impact_HullContact</defName>
+    <projectileDefs><li>DeltaV_Projectile_HullContact</li></projectileDefs>
+    <buildingHitChance>1</buildingHitChance>
+    <defenderEffect>
+      <kind>HullContact</kind>
+      <damageDef>Bullet</damageDef>
+      <damage>24</damage>
+      <referenceSpeed>60</referenceSpeed>
+      <kineticMassScaling>true</kineticMassScaling>
+      <penetrates>true</penetrates>
+      <incidenceMinFactor>1</incidenceMinFactor>
+      <armorPenetration>0</armorPenetration>
+      <substructureBreakThreshold>300</substructureBreakThreshold>
+    </defenderEffect>
+    <attackerEffect><kind>DestroySelf</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef>
+    <defName>DeltaV_Impact_HullFoundation</defName>
+    <projectileDefs><li>DeltaV_Projectile_HullContact</li></projectileDefs>
+    <targetsSubstructure>true</targetsSubstructure>
+    <substructureHitChance>1</substructureHitChance>
+    <defenderEffect>
+      <kind>HullContact</kind>
+      <damageDef>Bullet</damageDef>
+      <damage>24</damage>
+      <referenceSpeed>60</referenceSpeed>
+      <kineticMassScaling>true</kineticMassScaling>
+      <penetrates>true</penetrates>
+      <incidenceMinFactor>1</incidenceMinFactor>
+      <armorPenetration>0</armorPenetration>
+      <substructureBreakThreshold>300</substructureBreakThreshold>
+    </defenderEffect>
+    <attackerEffect><kind>DestroySelf</kind></attackerEffect>
   </DeltaV.SpaceImpactEffectDef>
 </Defs>

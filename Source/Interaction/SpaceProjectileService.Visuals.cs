@@ -175,6 +175,15 @@ namespace DeltaV
             CompProperties_SpaceProjectile props = contact.projectileDef
                 ?.GetCompProperties<CompProperties_SpaceProjectile>();
             CombatVisualStyle style = props?.visualStyle ?? CombatVisualStyle.Kinetic;
+            // 贴靠／滑离和同 tick 去重不是新的撞击；低速传递动量只发声，不冒破坏烟火。
+            // 原版 TakeDamage 的双方受击声不经过这个补充音效开关。
+            if (contact.hullContact && !contact.hullDamaged)
+            {
+                if (contact.hullImpulse)
+                    PlayCombatSound(props?.impactSoundMap, props?.impactSoundShell, contact.defender,
+                        contact.localPoint, contact.position, 3, shellPitch: .45f);
+                return;
+            }
             // 非破坏性工程束接触船体时只显示光束。
             if (!contact.shieldMode.HasValue && style is CombatVisualStyle.Coupling or CombatVisualStyle.Tractor) return;
             if (map != null) QueueHullSound(contact, style);

@@ -10,7 +10,6 @@ namespace DeltaV
         private readonly UniverseManager universe;
         private readonly DriveSubject ownerId;
         private CombatTarget anchorTarget;
-        internal bool AvoidHullCollisions { get; private set; } = true;
         internal CompSpaceWeapon FixedAimWeapon { get; private set; }
         internal Thing FixedAimPart { get; private set; }
         private CombatTarget fixedAimTarget;
@@ -23,10 +22,8 @@ namespace DeltaV
             reposition = new CombatReposition(ownerId.key);
         }
 
-        internal void SetHullAvoidance(bool enabled)
+        internal void InvalidateHullAvoidance()
         {
-            if (AvoidHullCollisions == enabled) return;
-            AvoidHullCollisions = enabled;
             nextPoseTick = nextTacticTick = 0;
             hasTactic = false;
             engagementResult = null;
@@ -76,7 +73,7 @@ namespace DeltaV
                     ? board.Any(c => c?.Matches(facts.Context(resolved.Ship)) == true)
                     : board.All(c => c?.Matches(facts.Context(resolved.Ship)) == true);
             }
-            float clearance = !AvoidHullCollisions ? 1f : SpaceCollision.BoundsRadiusOf(own)
+            float clearance = SpaceCollision.BoundsRadiusOf(own)
                 + SpaceCollision.BoundsRadiusOf(resolved.Container) + 8f;
             universe.Autopilot.TrackOrbit(DriveSubject.Of(ship), SampleTarget,
                 clearance, PlanTacticTrajectory, playerInitiated);
@@ -93,7 +90,6 @@ namespace DeltaV
             anchorTarget = default;
             nextTacticTick = nextPoseTick = 0;
             hasTactic = false;
-            routeShapes.Clear();
             tacticIntent = default;
             tacticDriveVersion = tacticStructureVersion = -1;
             tacticDrive = null;

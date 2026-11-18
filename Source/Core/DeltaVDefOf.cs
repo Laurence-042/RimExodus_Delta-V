@@ -46,6 +46,7 @@ namespace DeltaV
 
         // 阶段5 测试弹体（Defs/SpaceCombat/DeltaV_SpaceProjectiles.xml；正式武器 def 随段6）。
         public static ThingDef DeltaV_Projectile_Cannon;
+        public static ThingDef DeltaV_Projectile_HullContact;
 
         public static ThingDef DeltaV_Projectile_Laser;
 

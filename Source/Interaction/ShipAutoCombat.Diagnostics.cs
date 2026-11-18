@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using Verse;
 using System.Linq;
 
@@ -14,8 +14,7 @@ namespace DeltaV
 
         private void TraceAiDecision(ShipBase ship, SpaceObject own, SpacePose self, SpacePose target,
             CombatStrategyRule rule, CombatTacticSettings settings, CombatReplanCause cause, bool reset,
-            CombatRepositionStatus status, float oldPhase, int oldNextTick, bool blockedBeforeRoute,
-            bool poseReevaluated, int routeShrinks, DriveSubject blocker, int blockedSecond)
+            CombatRepositionStatus status, float oldPhase, int oldNextTick, bool poseReevaluated)
         {
             Vector2 offset = OrbitSphere.Offset(target.position, self.position);
             Vector2 relative = SpaceTransform.TransportVelocity(self, target.position) - target.velocity;
@@ -30,7 +29,7 @@ namespace DeltaV
             int now = Find.TickManager.TicksGame;
             // Log meaningful motion/state edges, not every planner invocation or game tick.
             string state = $"{anchorTarget.Ship}/{rule.name}/{attackPose.behavior}/{status}/{reset}/"
-                + $"{cause & ~CombatReplanCause.Periodic}/{reposition.nextTick}/{blockedPose}/{blockedBeforeRoute}/{routeShrinks}/{blocker}/"
+                + $"{cause & ~CombatReplanCause.Periodic}/{reposition.nextTick}/{blockedPose}/"
                 + $"{Mathf.RoundToInt(offset.magnitude / 5f)}/{Mathf.RoundToInt(attackPose.distance)}/"
                 + $"{Mathf.RoundToInt(error * Mathf.Rad2Deg / 2f)}/{Mathf.RoundToInt(attackPose.heading * Mathf.Rad2Deg / 5f)}/"
                 + $"{headingMode}/{attackPose.fireHeading}/{flightHeading:F1}/"
@@ -69,8 +68,7 @@ namespace DeltaV
                 + $"coverage={attackPose.firepower:F2} ready={attackPose.readyOutput:F2} preference={attackPose.preference:F3} "
                 + $"scores={attackPose.distanceScore:F2}/{attackPose.outgoingScore:F2}/{attackPose.incomingScore:F2}/"
                 + $"{attackPose.timeScore:F2}/{attackPose.overlapScore:F2}/{attackPose.alignmentScore:F2} "
-                + $"blocked={blockedPose} blockedBeforeRoute={blockedBeforeRoute} poseReevaluated={poseReevaluated} "
-                + $"routeShrinks={routeShrinks} blocker={blocker} atSecond={blockedSecond} "
+                + $"blocked={blockedPose} poseReevaluated={poseReevaluated} "
                 + $"radialStep={tacticIntent.radialStep:F3} phaseAdvanceDeg={tacticIntent.phaseAdvance * Mathf.Rad2Deg:F3} "
                 + $"ownVelocity=({self.velocity.x:F3},{self.velocity.y:F3}) targetVelocity=({target.velocity.x:F3},{target.velocity.y:F3}) "
                 + $"referenceVelocity=({referenceVelocity.x:F3},{referenceVelocity.y:F3}) referenceAngleDeg={referenceAngle * Mathf.Rad2Deg:F2} "

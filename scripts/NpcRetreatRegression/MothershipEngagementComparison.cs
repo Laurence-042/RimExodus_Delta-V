@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -150,37 +150,13 @@ internal static partial class Program
     sealed record MothershipPlan(bool Valid, int Start, int Distance, int Heading, int Phase, int[] Track);
 
 #if MOTHERSHIP_AIM_REFRESH_TIMING
-    static bool countingRefresh, checkingShadow;
-    static int fullRefreshChecks;
-    static void CountFullRefreshCheck()
-    {
-        if (countingRefresh && !checkingShadow) fullRefreshChecks++;
-    }
-
-    static void CheckCountedSeparation(bool __result, CombatTrajectoryIntent intent, float elapsed,
-        SpaceCollision.HullShape own, SpaceCollision.HullShape other, SpacePose otherPose)
-    {
-        if (!countingRefresh || !__result) return;
-        checkingShadow = true;
-        try { VerifySeparatedRoute(true, intent, elapsed, own, other, otherPose); }
-        finally { checkingShadow = false; }
-    }
-
     static void RunAimRefreshTiming(UniverseManager universe, MothershipEngagementFixture fixture, string outPath, bool count)
     {
-        if (count)
-        {
-            var patch = new Harmony("DeltaV.Regression.RefreshCounts");
-            patch.Patch(routeOverlapSecond, prefix: new HarmonyMethod(typeof(Program), nameof(CountFullRefreshCheck)));
-            patch.Patch(AccessTools.Method(typeof(ShipAutoManeuverControl), "RouteSeparated"),
-                postfix: new HarmonyMethod(typeof(Program), nameof(CheckCountedSeparation)));
-        }
         DeltaVMod.CurrentSettings.logPerformance = count;
         var perf = universe.Performance;
         var stageCalls = (int[])typeof(DeltaVPerformanceProbe).GetField("calls", Private).GetValue(perf);
         var samples = new List<object>();
-        var modes = new[] { (false, false, "baseline"), (true, false, "authority"),
-            (false, true, "route"), (true, true, "combined") };
+        var modes = new[] { (false, "baseline"), (true, "authority") };
         for (int scene = 0; scene < MothershipScenarios.Length; scene++)
         {
             var pair = fixture.Build(scene);
@@ -188,9 +164,8 @@ internal static partial class Program
             {
                 (int Candidates, long Rays, int[] Bits) Trial(int mode, bool cold, int round)
                 {
-                    var (authority, screen, name) = modes[mode];
+                    var (authority, name) = modes[mode];
                     ShipAutoManeuverControl.OfflineReuseAuthority = authority;
-                    ShipAutoManeuverControl.OfflineScreenRoute = screen;
                     Set(Find.TickManager, "ticksGameInt", 0);
                     universe.Controls.For(own.member).FireControl.Decide(own.member, own);
                     if (cold) { universe.Protection.Forget(own.map); universe.Protection.Forget(foe.map); }
@@ -205,15 +180,12 @@ internal static partial class Program
                     long initial = Stopwatch.GetTimestamp() - start, refresh = 0;
                     int angles = stageCalls[(int)PerformanceStage.DrivePreviewAngular];
                     int aim = stageCalls[(int)PerformanceStage.WeaponAim];
-                    int exact = fullRefreshChecks, skipped = separatedRoutes;
                     for (int i = 1; i < flight.Length; i++)
                     {
                         Set(Find.TickManager, "ticksGameInt", i * 6);
-                        countingRefresh = count;
                         start = Stopwatch.GetTimestamp();
                         valid &= read(own, pose, 0, drive, out flight[i]);
                         refresh += Stopwatch.GetTimestamp() - start;
-                        countingRefresh = false;
                     }
                     int candidates = (int)(perf.engagementCandidates - candidateStart);
                     long rays = universe.Protection.Scans - rayStart;
@@ -227,8 +199,7 @@ internal static partial class Program
                         samples.Add(new { scene = MothershipScenarios[scene], side, mode = name, cold, round, candidates, rays,
                             initialMs = Ms(initial), refreshMs = Ms(refresh), totalMs = Ms(initial + refresh),
                             angles = stageCalls[(int)PerformanceStage.DrivePreviewAngular] - angles,
-                            aim = stageCalls[(int)PerformanceStage.WeaponAim] - aim, exact = fullRefreshChecks - exact,
-                            skipped = separatedRoutes - skipped });
+                            aim = stageCalls[(int)PerformanceStage.WeaponAim] - aim });
                     }
                     return (candidates, rays, new[] { BitConverter.SingleToInt32Bits(score.distance),
                         BitConverter.SingleToInt32Bits(score.heading), BitConverter.SingleToInt32Bits(reposition.phase) }
@@ -249,10 +220,8 @@ internal static partial class Program
                 }
             }
         }
-        if (count) Check(separatedRoutes > 0 && routeFalseNegatives == 0, "all counted skips match the full route check");
         File.WriteAllLines(Path.Combine(outPath, count ? "refresh-count.jsonl" : "refresh-time.jsonl"),
             samples.Select(v => JsonSerializer.Serialize(v, MothershipJson)));
-        Console.WriteLine($"AIM_REFRESH {(count ? "count" : "time")} samples={samples.Count} skipped={separatedRoutes} falseNegatives={routeFalseNegatives}");
     }
 #endif
 
@@ -563,19 +532,6 @@ internal static partial class Program
     static readonly Dictionary<CompSpaceWeapon, ShipAutoManeuverControl> railPlanners = new();
     static int railAimCalls, sharedRailAttempts;
     static bool countRailAim;
-    static int separatedRoutes, routeFalseNegatives;
-    static readonly System.Reflection.MethodInfo routeOverlapSecond = typeof(ShipAutoManeuverControl)
-        .GetMethod("RouteOverlapSecond", Private);
-
-    static void VerifySeparatedRoute(bool __result, CombatTrajectoryIntent intent, float elapsed,
-        SpaceCollision.HullShape own, SpaceCollision.HullShape other, SpacePose otherPose)
-    {
-        if (!__result) return;
-        separatedRoutes++;
-        if ((int)routeOverlapSecond.Invoke(null, new object[] { intent, elapsed, own, other, otherPose }) != 0)
-            routeFalseNegatives++;
-    }
-
     static void CountRailAim(WeaponAimInfo info)
     {
         if (countRailAim && info.Projectile?.defName == "DeltaV_Projectile_RailgunSlug") railAimCalls++;
@@ -638,8 +594,6 @@ internal static partial class Program
             prefix: new HarmonyMethod(typeof(Program), nameof(CountRailAim)));
         patch.Patch(AccessTools.Method(typeof(CombatWeaponOutputTable), "Evaluate"),
             postfix: new HarmonyMethod(typeof(Program), nameof(RecordRailScoringTarget)));
-        patch.Patch(AccessTools.Method(typeof(ShipAutoManeuverControl), "RouteSeparated"),
-            postfix: new HarmonyMethod(typeof(Program), nameof(VerifySeparatedRoute)));
         CheckMothershipHeadingPolicy(universe, fixture);
         var projectiles = (System.Collections.IList)typeof(SpaceProjectileService)
             .GetField("projectiles", Private).GetValue(universe.Projectiles);
@@ -792,8 +746,6 @@ internal static partial class Program
         File.WriteAllLines(Path.Combine(outPath, "heading-flights.jsonl"),
             report.Select(row => JsonSerializer.Serialize(row, MothershipJson)));
         Check(allLaunched, "both ships turn into range and launch railgun slugs automatically in both mirrors");
-        Console.WriteLine($"ROUTE_PARITY skipped={separatedRoutes} falseNegatives={routeFalseNegatives}");
-        Check(separatedRoutes > 0 && routeFalseNegatives == 0, "all skipped routes pass the original overlap query");
     }
 
     static void CheckMothershipHeadingPolicy(UniverseManager universe, MothershipEngagementFixture fixture)

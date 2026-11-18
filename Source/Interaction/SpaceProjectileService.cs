@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
 using RimWorld.Planet;
@@ -102,6 +102,8 @@ namespace DeltaV
             public int targetContainerId;
             public SpacePose targetPose;
             public bool adoptedShuttle;
+            public HullSource hullSource;
+            public IntVec3 hullCell;
             public DriveSubject boardingDriver;
             public System.Func<SpacePose, SpacePose> boardingReference;
             public int spawnedAtTick;
@@ -182,7 +184,7 @@ namespace DeltaV
         {
             foreach (Projectile p in projectiles)
             {
-                if (p.dead || p.laser || p.adoptedShuttle || p.container == null) continue;
+                if (p.dead || p.laser || p.adoptedShuttle || p.hullSource != null || p.container == null) continue;
                 if (p.globeEntry == null)
                 {
                     if (!globeVisuals.TryGetValue(p.def, out var visual))
@@ -193,7 +195,7 @@ namespace DeltaV
                 entries.Add(p.globeEntry);
             }
         }
-        internal int ActiveCount => projectiles.Count;
+        internal int ActiveCount => projectiles.Count(p => p.hullSource == null);
         // 只复用短命的弹道工作对象；SpaceObject 身份和 Map 分别由注册表、现有图池管理。
         private const int MaxPooledProjectiles = 256;
         private readonly Stack<Projectile> projectilePool = new Stack<Projectile>();
@@ -252,7 +254,7 @@ namespace DeltaV
         }
 
         /// <summary>在飞弹体数（诊断/图池状态用）。</summary>
-        public int InFlightCount => projectiles.Count;
+        public int InFlightCount => ActiveCount;
 
         // ---- 创建 ----
 
@@ -527,6 +529,7 @@ namespace DeltaV
 
         public void Tick()
         {
+            PrepareHullRounds();
             int nowTick = Find.TickManager.TicksGame;
             while (delayedMissileDamage.Count != 0 && delayedMissileDamage.Peek().tick <= nowTick)
             {
@@ -551,6 +554,7 @@ namespace DeltaV
                 {
                     Projectile p = projectiles[i];
                     if (p.dead) continue;
+                    if (p.hullSource != null) continue;
                     if (p.container == null) { QueueProjectileCleanup(p, !p.adoptedShuttle); continue; }
                     // 有图弹体被图内结算摧毁（PD/毁伤链经 TakeDamage）→ 销毁收尾。
                     if (p.building?.Destroyed == true || p.container?.Payload is AbstractMissile { InterceptionBody: null })
@@ -727,6 +731,7 @@ namespace DeltaV
             {
                 Projectile p = projectiles[i];
                 if (p.dead) continue;
+                if (p.hullSource != null && !FollowHullRound(p, false)) continue;
                 if (p.props.continuousBeam)
                 {
                     if (p.launcher?.Spawned != true || p.sourceContainer?.map != p.launcher.Map)
@@ -740,92 +745,14 @@ namespace DeltaV
                 // 解除接管会立即移出工作表；保留其余弹体的处理顺序，容器已消失也能收尾。
                 if (p.adoptedShuttle && !hasTarget)
                 { QueueProjectileCleanup(p, destroyContainer: false); i--; continue; }
-                SpaceCollision.SweptBody body = p.body;
-                body.attacker = p.container;
-                body.projectileDef = p.def;
-                body.attackerBuilding = p.building;
-                body.excludeContainer = p.reflectedByShield ? null : p.sourceContainer;
-                body.selfFire = p.reflectedByShield ? default : p.selfFire;
-                body.requiredDefender = p.adoptedShuttle ? targetContainer : null;
-                body.ignoreNonHostileProjectiles = !p.reflectedByShield;
-                body.launcher = p.launcher;
-                body.weapon = p.weapon;
-                body.dead = false;
-                body.resolvedHit = false;
-                body.onVisualContact = p.cannonTrace is { reported: false } trace
-                    ? trace.onContact : QueueVisualContact;
-                body.didRedirect = false;
-                body.reflectedByShield = false;
-                body.continued = body.didContinue = false;
-                body.sweepRadius = FootprintRadius(p.def);
-                body.noseHalfWidth = p.adoptedShuttle ? p.def.Size.x * 0.5f : 0f;
-                body.noseForwardOffset = p.adoptedShuttle ? (p.def.Size.z - 1) * 0.5f : 0f;
-                body.damageScale = p.damageScale;
-                body.armorPenetrationScale = p.armorPenetrationScale;
-                body.mass = p.mass; body.beamEnergyScale = p.beamEnergyScale;
-                if (p.laser)
-                {
-                    // 专用点防束在结算 tick 追踪导弹现位，避免一 tick 位移把必中特性变成擦边。
-                    if (SpaceImpactEffects.GuaranteedMissileHit(p.def, targetContainer?.InterceptionBody?.def))
-                        p.laserTo = targetContainer.pose.position;
-                    body.from = p.laserFrom;
-                    body.to = p.laserTo;
-                }
-                else
-                {
-                    body.from = p.launchSweepStart ?? p.prevPosition;
-                    p.launchSweepStart = null;
-                    body.to = p.container.pose.position;
-                }
-                Projectile captured = p;
-                p.beamSegment = 0;
-                p.beamStart = p.laser ? BeamAnchor(p.sourceContainer, body.from) : null;
-                body.onSelfDestruct = delegate
-                {
-                    if (captured.adoptedShuttle) ReleaseShuttle(captured.container);
-                    else DestroyProjectile(captured, "impact");
-                };
-                body.onPlace = p.adoptedShuttle
-                    ? (System.Action<SpaceObject, Vector3, Vector2>)((defender, hit, _) =>
-                    {
-                        SpaceObject shuttle = captured.container;
-                        Vector2 forwardAtHit = SpaceTransform.TransportTangent(
-                            SpaceTransform.Rotate(Vector2.right, shuttle.pose.angle
-                                + ShipOrientation.AngleFromRot4(captured.building.Rotation)),
-                            shuttle.pose.position, hit);
-                        Vector2 direction = SpaceTransform.UniverseTangentToMapDirection(
-                            defender, defender.map, hit, forwardAtHit);
-                        Rot4 facing = ShipOrientation.Rot4FromAngle(Mathf.Atan2(direction.y, direction.x));
-                        ReleaseShuttle(shuttle);
-                        universe.Shuttles.PlaceBoardedShuttle(shuttle, captured.building, defender,
-                            captured.body.resolvedHitCell, facing);
-                    }) : null;
-                body.onShieldRedirect = delegate (Vector3 from, Vector3 hit, SpaceObject defender)
-                {
-                    if (captured.laser)
-                    {
-                        VisualAnchor? shield = BeamAnchor(defender, hit);
-                        RecordBeamSegment(captured, from, hit, captured.beamStart, shield, captured.beamSegment++);
-                        captured.beamStart = shield;
-                    }
-                };
-                body.onShieldShatter = delegate (Vector3 hit, SpaceObject defender,
-                    Vector2 relativeVelocity, Vector2 outwardNormal, float impulse, int fragmentCount)
-                {
-                    SpaceShieldProjectileBehavior.SpawnFragments(this, captured.def,
-                        captured.sourceContainer, defender, captured.launcher, hit,
-                        relativeVelocity, outwardNormal, impulse, captured.mass,
-                        captured.armorPenetrationScale, captured.reflectedByShield, captured.body.damageScale,
-                        fragmentCount, Mathf.Max(0, captured.props.timeoutTicks
-                            - (Find.TickManager.TicksGame - captured.spawnedAtTick)));
-                };
-                sweepScratch.Add(p);
-                bodyScratch.Add(body);
+                AddProjectileSweep(p, targetContainer);
                 if (p.cannonTrace is { reported: false }) traceCannons = true;
             }
             if (traceCannons)
                 foreach (Projectile p in sweepScratch) SampleCannonTrace(p);
-            SpaceCollision.SweepAndResolve(universe, bodyScratch);
+            resolvingProjectiles = true;
+            try { SpaceCollision.SweepAndResolve(universe, bodyScratch); }
+            finally { resolvingProjectiles = false; }
             if (traceCannons)
                 foreach (Projectile p in sweepScratch) ResolveCannonTrace(p);
             foreach (SpaceCollision.VisualContact contact in visualContacts) RegisterImpactFx(contact);
@@ -860,6 +787,104 @@ namespace DeltaV
                     && b.sourceObjectId == (p.sourceContainer?.objectId ?? 0) && b.segment > p.beamSegment);
                 if (!p.dead) DestroyProjectile(p, "laser spent");
             }
+        }
+
+        private bool resolvingProjectiles;
+        private void AddProjectileSweep(Projectile p, SpaceObject targetContainer = null)
+        {
+            SpaceCollision.SweptBody body = p.body;
+            body.attacker = p.container;
+            body.projectileDef = p.def;
+            body.attackerBuilding = p.building;
+            body.excludeContainer = p.reflectedByShield ? null : p.sourceContainer;
+            body.selfFire = p.reflectedByShield ? default : p.selfFire;
+            body.requiredDefender = p.adoptedShuttle ? targetContainer : null;
+            body.ignoreNonHostileProjectiles = !p.reflectedByShield;
+            body.launcher = p.launcher;
+            body.weapon = p.weapon;
+            body.dead = false;
+            body.resolvedHit = false;
+            body.onVisualContact = p.cannonTrace is { reported: false } trace
+                ? trace.onContact : QueueVisualContact;
+            body.didRedirect = false;
+            body.reflectedByShield = false;
+            body.continued = body.didContinue = false;
+            body.sweepRadius = FootprintRadius(p.def);
+            body.noseHalfWidth = p.adoptedShuttle ? p.def.Size.x * 0.5f : 0f;
+            body.noseForwardOffset = p.adoptedShuttle ? (p.def.Size.z - 1) * 0.5f : 0f;
+            body.damageScale = p.damageScale;
+            body.armorPenetrationScale = p.armorPenetrationScale;
+            body.mass = p.mass; body.beamEnergyScale = p.beamEnergyScale;
+            body.hullSource = p.hullSource?.owner;
+            body.hullSourceMap = p.hullSource?.map;
+            body.hullSourceVersion = p.hullSource?.representation ?? 0;
+            body.hullSourceCell = p.hullCell;
+            body.defenderStart = p.hullSource != null ? HullStartOf : null;
+            body.prepareSweep = p.hullSource != null ? () => PrepareHullSweep(p) : (System.Action)null;
+            body.sweepStartFraction = 0f;
+            body.afterContact = FlushHullSweeps;
+            if (p.laser)
+            {
+                // 专用点防束在结算 tick 追踪导弹现位，避免一 tick 位移把必中特性变成擦边。
+                if (SpaceImpactEffects.GuaranteedMissileHit(p.def, targetContainer?.InterceptionBody?.def))
+                    p.laserTo = targetContainer.pose.position;
+                body.from = p.laserFrom;
+                body.to = p.laserTo;
+            }
+            else
+            {
+                body.from = p.launchSweepStart ?? p.prevPosition;
+                p.launchSweepStart = null;
+                body.to = p.container.pose.position;
+            }
+            Projectile captured = p;
+            p.beamSegment = 0;
+            p.beamStart = p.laser ? BeamAnchor(p.sourceContainer, body.from) : null;
+            body.onSelfDestruct = delegate
+            {
+                if (captured.adoptedShuttle) ReleaseShuttle(captured.container);
+                else
+                {
+                    captured.hullSource?.spent.Add(captured.hullCell);
+                    DestroyProjectile(captured, "impact");
+                }
+            };
+            body.onPlace = p.adoptedShuttle
+                ? (System.Action<SpaceObject, Vector3, Vector2>)((defender, hit, _) =>
+                {
+                    SpaceObject shuttle = captured.container;
+                    Vector2 forwardAtHit = SpaceTransform.TransportTangent(
+                        SpaceTransform.Rotate(Vector2.right, shuttle.pose.angle
+                            + ShipOrientation.AngleFromRot4(captured.building.Rotation)),
+                        shuttle.pose.position, hit);
+                    Vector2 direction = SpaceTransform.UniverseTangentToMapDirection(
+                        defender, defender.map, hit, forwardAtHit);
+                    Rot4 facing = ShipOrientation.Rot4FromAngle(Mathf.Atan2(direction.y, direction.x));
+                    ReleaseShuttle(shuttle);
+                    universe.Shuttles.PlaceBoardedShuttle(shuttle, captured.building, defender,
+                        captured.body.resolvedHitCell, facing);
+                }) : null;
+            body.onShieldRedirect = delegate (Vector3 from, Vector3 hit, SpaceObject defender)
+            {
+                if (captured.laser)
+                {
+                    VisualAnchor? shield = BeamAnchor(defender, hit);
+                    RecordBeamSegment(captured, from, hit, captured.beamStart, shield, captured.beamSegment++);
+                    captured.beamStart = shield;
+                }
+            };
+            body.onShieldShatter = delegate (Vector3 hit, SpaceObject defender,
+                Vector2 relativeVelocity, Vector2 outwardNormal, float impulse, int fragmentCount)
+            {
+                SpaceShieldProjectileBehavior.SpawnFragments(this, captured.def,
+                    captured.sourceContainer, defender, captured.launcher, hit,
+                    relativeVelocity, outwardNormal, impulse, captured.mass,
+                    captured.armorPenetrationScale, captured.reflectedByShield, captured.body.damageScale,
+                    fragmentCount, Mathf.Max(0, captured.props.timeoutTicks
+                        - (Find.TickManager.TicksGame - captured.spawnedAtTick)));
+            };
+            sweepScratch.Add(p);
+            bodyScratch.Add(body);
         }
 
         private void SampleCannonTrace(Projectile p)
@@ -1018,6 +1043,7 @@ namespace DeltaV
         private void QueueProjectileCleanup(Projectile p, bool destroyContainer)
         {
             if (p.dead) return;
+            ForgetHullRound(p);
             p.dead = true;
             int expectedId = p.containerId;
             SpaceObject original = p.container;
@@ -1062,6 +1088,8 @@ namespace DeltaV
             p.targetContainerId = 0;
             p.targetPose = default;
             p.adoptedShuttle = false;
+            p.hullSource = null;
+            p.hullCell = IntVec3.Invalid;
             p.boardingDriver = default;
             p.boardingReference = null;
             p.dead = false;
@@ -1081,6 +1109,11 @@ namespace DeltaV
             p.body.attackerBuilding = null;
             p.body.excludeContainer = null;
             p.body.selfFire = default;
+            p.body.hullSource = null;
+            p.body.hullSourceMap = null;
+            p.body.defenderStart = null;
+            p.body.prepareSweep = null;
+            p.body.afterContact = null;
             p.body.requiredDefender = null;
             p.body.noseHalfWidth = 0f;
             p.body.noseForwardOffset = 0f;
@@ -1106,6 +1139,7 @@ namespace DeltaV
             {
                 QueueProjectileCleanup(projectiles[i], !projectiles[i].adoptedShuttle);
             }
+            hullSources.Clear(); hullStarts.Clear(); hullHits.Clear(); hullSourceBuffer.Clear(); hullRoundBuffer.Clear();
             beams.Clear();
             trailPuffs.Clear();
             muzzleFlashes.Clear();
@@ -1177,7 +1211,7 @@ namespace DeltaV
                 float altitude = AltitudeLayer.Terrain.AltitudeFor() + Altitudes.AltInc * 10f;
                 foreach (Projectile p in projectiles)
                 {
-                    if (p.dead) continue;
+                    if (p.dead || p.hullSource != null) continue;
                     // 接管的跳帮艇继续由真实 Map 的船壳代理绘制，弹体层只添尾焰。
                     if (!p.laser && !p.adoptedShuttle)
                     {

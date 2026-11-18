@@ -37,24 +37,6 @@ namespace DeltaV
             radius = targetRadius + error;
             if (radius < .1f) { radius = .1f; speed = 0f; }
         }
-        internal Vector2 RadiusBounds(float from, float until)
-        {
-            Radius(from, out float first, out _);
-            Radius(until, out float last, out _);
-            float lower = Mathf.Min(first, last), upper = Mathf.Max(first, last);
-            float slope = radialDecay * (initialRadialSpeed + radialDecay * (startRadius - targetRadius));
-            if (slope != 0f)
-            {
-                float turningPoint = initialRadialSpeed / slope;
-                if (turningPoint > from && turningPoint < until)
-                {
-                    Radius(turningPoint, out float extreme, out _);
-                    lower = Mathf.Min(lower, extreme);
-                    upper = Mathf.Max(upper, extreme);
-                }
-            }
-            return new Vector2(lower, upper);
-        }
         private void Phase(float time, out float phase, out float rate)
         {
             if (speedDecay <= 0f) { rate = initialPhaseRate; phase = startPhase + rate * time; return; }

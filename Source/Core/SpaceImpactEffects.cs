@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
@@ -28,7 +28,9 @@ namespace DeltaV
         Salvage = 6,
         TractorPull = 7,
         CutStructure = 8,
-        Weld = 9
+        Weld = 9,
+        /// <summary>随动外层弹丸：目标命中格与母船来源格承受同量毁伤。</summary>
+        HullContact = 10
     }
 
     /// <summary>从命中格起沿弹道前进一格的结构毁伤；伤害倍率与横向半宽分别配置。</summary>
@@ -217,67 +219,60 @@ namespace DeltaV
             PlanetGlobeRenderer.InvalidateSilhouette(map);
         }
 
-        internal const float HullDamageSpeed = 0.5f;
-        internal const int HullFoundationHitPoints = 300;
-        private const float HullCrushDamagePerEnergy = .0354f;
-
-        internal static int HullCrushBudget(float closingSpeed, float normalEnergy) =>
-            closingSpeed > HullDamageSpeed ? Mathf.FloorToInt(normalEnergy * HullCrushDamagePerEnergy) : 0;
-
-        internal static float HullFoundationBreakChance(int damage) =>
-            Mathf.Clamp01((float)damage / HullFoundationHitPoints);
-
-        internal sealed class HullCrushDamage
+        // 双侧只共享预算和冲量；实际建筑／基架毁伤仍调用普通弹体的单实现。
+        private static void ApplyHullContact(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
         {
-            private readonly Dictionary<(Map map, IntVec3 cell), (int damage, Thing instigator)> foundations =
-                new Dictionary<(Map map, IntVec3 cell), (int damage, Thing instigator)>();
-
-            internal bool Exchange(ref int budget, Map mapA, IntVec3 cellA, Thing wallA,
-                Map mapB, IntVec3 cellB, Thing wallB)
+            SpaceObject source = evt.hullSource, target = evt.defender;
+            Map ownMap = evt.hullSourceMap, otherMap = target.map;
+            if (source == null || source.map != ownMap || ownMap?.Disposed != false || otherMap?.Disposed != false
+                || source.RepresentationVersion != evt.hullSourceVersion
+                || !evt.hullSourceCell.InBounds(ownMap) || !evt.hitCell.InBounds(otherMap)) return;
+            var ownKind = SpaceStructureRules.ClassifyCell(ownMap, evt.hullSourceCell, out Thing own);
+            if (ownKind == SpaceCellKind.Empty || own != null && (own.Destroyed || !own.def.useHitPoints)) return;
+            Thing other = evt.defenderBuilding;
+            if (other != null && (other.Destroyed || !other.def.useHitPoints)) return;
+            var service = Current.Game.GetComponent<UniverseManager>().Projectiles;
+            if (!service.BeginHullHit(source, evt.hullSourceCell, own, target, evt.hitCell, other)) return;
+            service.BeginHullImpact(evt);
+            var ma = ShipPhysics.GetReport(source); var mb = ShipPhysics.GetReport(target);
+            float closing = ShipPhysics.ApplyHullContactImpulse(source, ma, target, mb,
+                evt.hitUniverse, evt.contactNormal, out float energy, 1f);
+            float effectiveMass = closing > .00001f ? 2f * energy / (closing * closing) : 0f;
+            float available = closing > .5f ? ComputeDamage(part, closing, 0f, 1f, effectiveMass) : 0f;
+            float Capacity(Map map, IntVec3 cell, Thing building) => (building?.HitPoints ?? 0)
+                + (SubstructureOwnership.HasFoundation(map, cell) ? part.substructureBreakThreshold : 0f);
+            float capacity = Mathf.Min(Capacity(ownMap, evt.hullSourceCell, own), Capacity(otherMap, evt.hitCell, other));
+            float amount = Mathf.Floor(Mathf.Min(available, capacity));
+            // 先交换冲量，再移除结构：被移除质量及原有碎片事件继承响应后的随体速度。
+            // 两侧使用同一份命中前报告；未击穿时不能把取整余量变成继续穿入的动能。
+            float retained = available > 0f && available >= capacity ? Mathf.Clamp01(1f - amount / available) : 0f;
+            ShipPhysics.ApplyHullContactImpulse(source, ma, target, mb,
+                evt.hitUniverse, evt.contactNormal, out _, retained);
+            evt.hullImpulse = closing > .00001f && retained < 1f;
+            if (amount > 0f)
             {
-                int damage = Mathf.Min(budget, Mathf.Min(Remaining(mapA, cellA, wallA), Remaining(mapB, cellB, wallB)));
-                if (damage <= 0) return false;
-                budget -= damage;
-                bool brokeA = Hit(mapA, cellA, wallA, damage, wallB);
-                bool brokeB = Hit(mapB, cellB, wallB, damage, wallA);
-                return brokeA || brokeB;
+                Column(otherMap, evt.hitCell, other, own ?? evt.launcher);
+                Column(ownMap, evt.hullSourceCell, own, other);
             }
+            // 原版／第三方免伤使预算未能真正打开接触位置时，保留真实阻挡。
+            if (retained > 0f && SpaceStructureRules.ClassifyCell(ownMap, evt.hullSourceCell, out _) != SpaceCellKind.Empty
+                && SpaceStructureRules.ClassifyCell(otherMap, evt.hitCell, out _) != SpaceCellKind.Empty)
+                ShipPhysics.ApplyHullContactImpulse(source, ma, target, mb, evt.hitUniverse, evt.contactNormal, out _);
+            service.EndHullImpact(evt, ma, mb);
 
-            private int Remaining(Map map, IntVec3 cell, Thing wall)
+            void Column(Map map, IntVec3 cell, Thing building, Thing instigator)
             {
-                if (wall != null) return wall.HitPoints;
-                foundations.TryGetValue((map, cell), out var previous);
-                return HullFoundationHitPoints - previous.damage;
-            }
-
-            private bool Hit(Map map, IntVec3 cell, Thing wall, int damage, Thing other)
-            {
-                if (wall != null)
-                {
-                    if (!wall.Spawned || wall.Destroyed) return false;
-                    wall.TakeDamage(new DamageInfo(DamageDefOf.Bullet, damage, 0f, -1f, other));
-                    return wall.Destroyed;
-                }
-                var key = (map, cell);
-                foundations.TryGetValue(key, out var previous);
-                int total = previous.damage + damage;
-                if (total >= HullFoundationHitPoints && SubstructureDamageUtility.TryDestroy(map, cell, instigator: other))
-                {
-                    foundations.Remove(key);
-                    return true;
-                }
-                foundations[key] = (total, other ?? previous.instigator);
-                return false;
-            }
-
-            internal void Finish()
-            {
-                // Apply one probability roll to the accumulated damage of each
-                // foundation that remained in the contact band. No HP survives the event.
-                foreach (var entry in foundations)
-                    if (entry.Value.damage < HullFoundationHitPoints
-                        && Rand.Chance(HullFoundationBreakChance(entry.Value.damage)))
-                        SubstructureDamageUtility.TryDestroy(entry.Key.map, entry.Key.cell, instigator: entry.Value.instigator);
+                int hp = building?.HitPoints ?? 0;
+                bool foundation = SubstructureOwnership.HasFoundation(map, cell);
+                float remaining = amount;
+                if (building != null)
+                    remaining *= ApplyStructureDamage(map, cell, building, part, amount,
+                        part.armorPenetration, part.damageDef ?? DamageDefOf.Bullet, instigator, evt.projectileDef);
+                if (remaining > 0f && SubstructureOwnership.HasFoundation(map, cell))
+                    ApplyStructureDamage(map, cell, null, part, remaining,
+                        part.armorPenetration, part.damageDef ?? DamageDefOf.Bullet, instigator, evt.projectileDef);
+                evt.hullDamaged |= building != null && (building.Destroyed || building.HitPoints < hp)
+                    || foundation && !SubstructureOwnership.HasFoundation(map, cell);
             }
         }
 
@@ -377,6 +372,9 @@ namespace DeltaV
             if (map == null && (evt.defender.Payload is not AbstractMissile || part.kind != ImpactEffectKind.DamageMap))
                 return 0f;
 
+            if (part.kind == ImpactEffectKind.HullContact)
+            { ApplyHullContact(evt, part); return 0f; }
+
             if (part.kind == ImpactEffectKind.CoupleMotion || part.kind == ImpactEffectKind.TractorPull)
             {
                 ApplyEngineeringForce(evt, part);
@@ -446,26 +444,15 @@ namespace DeltaV
                 Mathf.FloorToInt(evt.hitDefenderLocal.x), 0,
                 Mathf.FloorToInt(evt.hitDefenderLocal.y)).ClampInsideMap(map);
             bool buildingGeometryChanged = false;
-            CellRect? directHitFootprint = null;
             float remaining = 0f;
 
-            if (evt.defenderIsSubstructure && SubstructureOwnership.HasFoundation(map, cell)
-                && Rand.Chance(Mathf.Clamp01(amount / part.substructureBreakThreshold)))
-            {
-                if (SubstructureDamageUtility.TryDestroyHitFoundation(map, cell, instigator: evt.launcher) && part.penetrates)
-                    remaining = RemainingFraction(amount, part.substructureBreakThreshold);
-            }
+            if (evt.defenderIsSubstructure)
+                remaining = ApplyStructureDamage(map, cell, null, part, amount, ap, damType, evt.launcher, evt.projectileDef);
 
             if (part.penetrates && evt.defenderBuilding != null && !evt.defenderBuilding.Destroyed)
             {
-                // 预算弹使用无建筑倍率的直击 DamageDef。实际耐久消耗由原版 TakeDamage 返回；
-                // 未击毁（包括免伤/吸收）的结构截停，不能凭名义伤害越过。
-                directHitFootprint = evt.defenderBuilding.OccupiedRect();
-                DamageWorker.DamageResult result = evt.defenderBuilding.TakeDamage(
-                    new DamageInfo(damType, amount, ap, -1f, evt.launcher, null, evt.projectileDef));
-                buildingGeometryChanged = evt.defenderBuilding.Destroyed;
-                if (buildingGeometryChanged)
-                    remaining = RemainingFraction(amount, result.totalDamageDealt);
+                remaining = ApplyStructureDamage(map, cell, evt.defenderBuilding, part,
+                    amount, ap, damType, evt.launcher, evt.projectileDef);
             }
             else if (part.penetrationLayers != null && part.penetrationLayers.Count > 0
                 && evt.defenderBuilding != null)
@@ -482,12 +469,8 @@ namespace DeltaV
                 buildingGeometryChanged = true;
             }
             else if (evt.defenderBuilding != null && !evt.defenderBuilding.Destroyed)
-            {
-                directHitFootprint = evt.defenderBuilding.OccupiedRect();
-                evt.defenderBuilding.TakeDamage(new DamageInfo(damType, amount, ap, -1f,
-                    evt.launcher, null, evt.projectileDef));
-                buildingGeometryChanged = evt.defenderBuilding.Destroyed;
-            }
+                ApplyStructureDamage(map, cell, evt.defenderBuilding, part,
+                    amount, ap, damType, evt.launcher, evt.projectileDef);
 
             if (part.stripSubstructureRadius > 0f)
             {
@@ -504,15 +487,31 @@ namespace DeltaV
             }
             if (buildingGeometryChanged)
             {
-                if (directHitFootprint.HasValue)
-                {
-                    SubstructureOwnership.BumpStructureVersion(map, directHitFootprint.Value);
-                    if (evt.defenderBuilding.TryGetComp<CompProjectileInterceptor>() != null)
-                        SpaceCollision.InvalidateShield(map);
-                }
                 PlanetGlobeRenderer.InvalidateSilhouette(map);
             }
             return remaining;
+        }
+
+        // 普通弹体与舰体接触共用：原版实际扣血、余量及基架单发概率均只在这里实现。
+        private static float ApplyStructureDamage(Map map, IntVec3 cell, Thing building, ImpactOutcomePart part,
+            float amount, float ap, DamageDef damage, Thing instigator, ThingDef projectile)
+        {
+            if (building == null)
+            {
+                if (SubstructureOwnership.HasFoundation(map, cell)
+                    && Rand.Chance(Mathf.Clamp01(amount / part.substructureBreakThreshold))
+                    && SubstructureDamageUtility.TryDestroyHitFoundation(map, cell, instigator: instigator))
+                    return part.penetrates ? RemainingFraction(amount, part.substructureBreakThreshold) : 0f;
+                return 0f;
+            }
+            if (building.Destroyed) return 1f;
+            CellRect footprint = building.OccupiedRect();
+            var result = building.TakeDamage(new DamageInfo(damage, amount, ap, -1f, instigator, null, projectile));
+            if (!building.Destroyed) return 0f;
+            SubstructureOwnership.BumpStructureVersion(map, footprint);
+            if (building.TryGetComp<CompProjectileInterceptor>() != null) SpaceCollision.InvalidateShield(map);
+            PlanetGlobeRenderer.InvalidateSilhouette(map);
+            return part.penetrates ? RemainingFraction(amount, result.totalDamageDealt) : 0f;
         }
 
         private static float RemainingFraction(float budget, float absorbed) =>

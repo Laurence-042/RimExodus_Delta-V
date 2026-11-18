@@ -61,7 +61,7 @@ namespace DeltaV
                 float a = CombatAttackPose.Acceleration(drive, Vector2.right, angle);
                 if (a > strongest) { strongest = a; strongestAngle = angle; }
             }
-            float separation = !AvoidHullCollisions ? 1f : CombatWeaponThreat.HullHalfExtents(ship).magnitude
+            float separation = CombatWeaponThreat.HullHalfExtents(ship).magnitude
                 + CombatWeaponThreat.HullHalfExtents(enemy).magnitude + 2;
             var distances = new List<float>();
             void Distance(float value)
@@ -94,11 +94,7 @@ namespace DeltaV
                 }
             }
             float alpha = Mathf.Min(drive.PreviewAngular(1), drive.PreviewAngular(-1));
-            var ownShape = AvoidHullCollisions ? new SpaceCollision.HullShape(ship) : null;
-            var obstacles = AvoidHullCollisions ? universe.objects.SelectMany(frame => frame.Ships)
-                .Where(s => s.IsValid && s.Identity != ship.Identity)
-                .Select(s => (shape: new SpaceCollision.HullShape(s), pose: ShipRegistry.ShipPose(s), frameAngle: s.FrameAngle))
-                .ToList() : null;
+            var ownHalf = CombatWeaponThreat.HullHalfExtents(ship);
             var candidates = new List<EngagementCandidate>();
             var legacyThreats = new List<CombatWeaponThreat>();
             if (rule.maneuverCurves?.incoming != null || rule.maneuverCurves?.projectileSeconds != null)
@@ -110,20 +106,12 @@ namespace DeltaV
                 float rate = 0, impact = 8;
                 foreach (var threat in legacyThreats)
                 {
-                    threat.Score(state.position, state.velocity, ownShape.half, state.angle, Vector2.zero, out float dps, out float seconds);
+                    threat.Score(state.position, state.velocity, ownHalf, state.angle, Vector2.zero, out float dps, out float seconds);
                     rate += dps; if (dps > 0) impact = Mathf.Min(impact, seconds);
                 }
                 pose.incomingScore = curves?.incoming?.Evaluate(rate) ?? 0;
                 pose.timeScore = curves?.projectileSeconds?.Evaluate(impact) ?? 0;
                 pose.overlapScore = 0;
-                if (curves?.hullOverlap != null)
-                    foreach (var other in enemies)
-                    {
-                        var otherPose = CombatEngagementEvaluation.At(ShipRegistry.ShipPose(other), 3);
-                        pose.overlapScore += curves.hullOverlap.Evaluate(Mathf.Clamp01(1
-                            - OrbitSphere.ArcCells(state.position, otherPose.position)
-                            / (ShipFireControl.HullRadius(ship) + ShipFireControl.HullRadius(other) + 8)));
-                    }
                 return pose.distanceScore + pose.outgoingScore + pose.alignmentScore + pose.incomingScore + pose.timeScore + pose.overlapScore;
             }
             foreach (float phase in phases)
@@ -155,8 +143,6 @@ namespace DeltaV
                     position = OrbitSphere.Move(target.position, new Vector2(Mathf.Cos(phase), Mathf.Sin(phase)) * distance);
                     line = OrbitSphere.Offset(position, target.position); lineAngle = Mathf.Atan2(line.y, line.x);
                     float angle = SpaceTransform.WrapAngle(lineAngle + heading);
-                    if (obstacles?.Any(o => SpaceCollision.HullsOverlap(ownShape, position, angle, o.shape,
-                        new SpacePose(o.pose.position, o.pose.angle - o.frameAngle))) == true) continue;
                     var state = new SpacePose(position, angle)
                     {
                         velocity = SpaceTransform.TransportVelocity(target, position)

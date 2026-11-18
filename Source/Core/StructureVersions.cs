@@ -19,7 +19,9 @@ namespace DeltaV
 
         private readonly Dictionary<Map, Entry> maps = new Dictionary<Map, Entry>();
         private readonly Action<Map> forgetProtection;
-        internal StructureVersions(Action<Map> forgetProtection = null) => this.forgetProtection = forgetProtection;
+        private readonly Action<Map, CellRect?> hullChanges;
+        internal StructureVersions(Action<Map> forgetProtection = null, Action<Map, CellRect?> hullChanges = null)
+        { this.forgetProtection = forgetProtection; this.hullChanges = hullChanges; }
         private int serial;
         internal int GlobalVersion { get; private set; }
         internal long Events { get; private set; }
@@ -49,6 +51,7 @@ namespace DeltaV
             if (!maps.TryGetValue(map, out var entry)) maps.Add(map, entry = new Entry());
             entry.dirty = true;
             entry.notified = true;
+            hullChanges?.Invoke(map, collisionRange);
             if (!entry.watchesCollision) return;
             if (!collisionRange.HasValue)
             {
@@ -79,6 +82,7 @@ namespace DeltaV
 
         internal void InvalidateAll()
         {
+            hullChanges?.Invoke(null, null);
             Events++;
             GlobalVersion++;
             foreach (var entry in maps.Values)
@@ -92,6 +96,7 @@ namespace DeltaV
         internal void Forget(Map map)
         {
             if (map == null) return;
+            hullChanges?.Invoke(map, null);
             forgetProtection?.Invoke(map);
             if (maps.TryGetValue(map, out var entry))
             {
@@ -105,6 +110,7 @@ namespace DeltaV
 
         internal void Clear()
         {
+            hullChanges?.Invoke(null, null);
             forgetProtection?.Invoke(null);
             maps.Clear();
             GlobalVersion++;

@@ -492,4 +492,22 @@
       </li>
     </comps>
   </ThingDef>
+  <!-- 隐形外层弹丸由弹体服务随母船维护，不由地图生成或建造。 -->
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_Projectile_HullContact</defName>
+    <label>hull contact</label>
+    <thingClass>Verse.Building</thingClass>
+    <category>Building</category>
+    <selectable>false</selectable>
+    <designationCategory Inherit="False" />
+    <comps>
+      <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <hasMap>false</hasMap>
+        <collisionRadius>0.5</collisionRadius>
+        <ignoresShields>true</ignoresShields>
+        <impactSoundMap>DeltaV_ImpactHitMap</impactSoundMap>
+        <impactSoundShell>DeltaV_ImpactHitShell</impactSoundShell>
+      </li>
+    </comps>
+  </ThingDef>
 </Defs>

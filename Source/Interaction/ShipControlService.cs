@@ -37,6 +37,16 @@ namespace DeltaV
             && controllers.TryGetValue(ship.Identity, out ShipController controller)
                 ? controller : null;
 
+        internal bool CollisionAvoidanceEnabled(ShipBase ship) =>
+            ExistingFor(ship)?.CollisionAvoidanceEnabled ?? true;
+
+        internal void NotifyHullAvoidanceChanged(DriveSubject subject)
+        {
+            universe.Projectiles.RefreshHullSource(subject);
+            if (controllers.TryGetValue(subject, out var controller))
+                controller.AutoManeuver.InvalidateHullAvoidance();
+        }
+
         public ShipController For(ShipBase ship, bool debugTakeover = false)
         {
             if (!ship.IsValid || universe.FrameOf(ship.Map)?.HasTag(SpaceObjectTag.Ship) != true) return null;

@@ -108,6 +108,18 @@ internal readonly struct HeadingPanelAction
         internal readonly ShipFireControl FireControl;
         internal readonly ShipAutoManeuverControl AutoManeuver;
 
+        // 「碰撞规避」开启时，仅战斗自动驾驶主动避让。关闭时由弹体服务在
+        // 真实外层格维护随动隐形弹丸；任一方关闭就可能撞击，双方开启才互穿。
+        // 状态随船身份跟随换图；与自动任务无关，读档后按控制器生命周期恢复默认开启。
+        internal bool CollisionAvoidanceEnabled { get; private set; } = true;
+
+        internal void SetCollisionAvoidanceEnabled(bool enabled)
+        {
+            if (CollisionAvoidanceEnabled == enabled) return;
+            CollisionAvoidanceEnabled = enabled;
+            universe.Controls.NotifyHullAvoidanceChanged(OwnerId);
+        }
+
         /// <summary>当前驾驶目标（任一 ShipBase 实现）。无效 = 未驾驶。</summary>
         internal PilotTarget target = PilotTarget.Invalid;
 
@@ -306,21 +318,17 @@ internal readonly struct HeadingPanelAction
             base.CollectPanelActions(panelTarget, actions);
             if (!CanToggleHullAvoidance(panelTarget)) return;
             actions.Add(new PilotPanelAction(
-                (AutoManeuver.AvoidHullCollisions ? "DeltaV_HullAvoidanceOn" : "DeltaV_HullAvoidanceOff").Translate(),
+                (CollisionAvoidanceEnabled ? "DeltaV_HullAvoidanceOn" : "DeltaV_HullAvoidanceOff").Translate(),
                 () =>
                 {
                     ShipBase ship = ShipRegistry.ShipByIdentity(OwnerId);
                     if (!CanToggleHullAvoidance(PilotTarget.Of(ship))) return;
-                    AutoManeuver.SetHullAvoidance(!AutoManeuver.AvoidHullCollisions);
-                    if (AutoTask != PlayerAutoTaskKind.Combat || ManualControl) return;
-                    if (universe.Autopilot.IsCombatOrbit(OwnerId))
-                        universe.Autopilot.Detach(OwnerId, "hull avoidance changed");
-                    DecideAutoCombat(ship);
-                }, "DeltaV_HullAvoidanceTip".Translate(), danger: !AutoManeuver.AvoidHullCollisions));
+                    SetCollisionAvoidanceEnabled(!CollisionAvoidanceEnabled);
+                }, "DeltaV_HullAvoidanceTip".Translate(), danger: !CollisionAvoidanceEnabled));
         }
 
         private bool CanToggleHullAvoidance(PilotTarget target) =>
-            HasAuthority(target) && (target.Vessel is not ShuttleShip || target.Vessel.CanBoard)
+            HasAuthority(target)
             && universe.FrameOf(target.Map)?.CanRelocateMap == true;
 
         internal override void CollectCombatPanelActions(ShipBase ship, bool hasWeapons,

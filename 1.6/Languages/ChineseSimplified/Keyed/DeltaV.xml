@@ -400,7 +400,7 @@
   <DeltaV_ShuttleBoardCancelTip>停止追踪撞击目标，恢复驾驶跳帮艇。艇身仍会按当前速度继续运动。</DeltaV_ShuttleBoardCancelTip>
   <DeltaV_HullAvoidanceOn>碰撞规避：开</DeltaV_HullAvoidanceOn>
   <DeltaV_HullAvoidanceOff>碰撞规避：关</DeltaV_HullAvoidanceOff>
-  <DeltaV_HullAvoidanceTip>关闭后，战斗机动不再避让其他飞船，可能撞上友舰。</DeltaV_HullAvoidanceTip>
+  <DeltaV_HullAvoidanceTip>开启时仅战斗自动驾驶主动避让；关闭时允许舰体撞击，双方都会承受冲击。双方开启时可以互相穿过。</DeltaV_HullAvoidanceTip>
   <DeltaV_ShuttleBoardDisableAvoidance>关闭碰撞规避后启用</DeltaV_ShuttleBoardDisableAvoidance>
   <DeltaV_ShuttleBoardRequiresFlight>起飞后启用</DeltaV_ShuttleBoardRequiresFlight>
   <DeltaV_ShuttleBoardInProgress>侵入进行中</DeltaV_ShuttleBoardInProgress>

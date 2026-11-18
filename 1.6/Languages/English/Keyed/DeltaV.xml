@@ -400,7 +400,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_ShuttleBoardCancelTip>Disengage missile drive and return to normal shuttle flight at the current position and speed.</DeltaV_ShuttleBoardCancelTip>
   <DeltaV_HullAvoidanceOn>Collision avoidance: On</DeltaV_HullAvoidanceOn>
   <DeltaV_HullAvoidanceOff>Collision avoidance: Off</DeltaV_HullAvoidanceOff>
-  <DeltaV_HullAvoidanceTip>With avoidance disabled, combat maneuvers can collide with any ship, including allies.</DeltaV_HullAvoidanceTip>
+  <DeltaV_HullAvoidanceTip>When enabled, combat autopilot avoids incoming hulls. Disabling it allows hull impacts that damage both ships. Ships pass through each other when both have it enabled.</DeltaV_HullAvoidanceTip>
   <DeltaV_ShuttleBoardDisableAvoidance>Disable collision avoidance to enable ramming.</DeltaV_ShuttleBoardDisableAvoidance>
   <DeltaV_ShuttleBoardRequiresFlight>Take off to enable ramming.</DeltaV_ShuttleBoardRequiresFlight>
   <DeltaV_ShuttleBoardInProgress>Intrusion in progress.</DeltaV_ShuttleBoardInProgress>

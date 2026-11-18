@@ -296,8 +296,7 @@ namespace DeltaV
             if (container?.projectileRoleOverride == true) return "DeltaV_ShuttleBoardInProgress";
             if (vessel?.CanBoard != true || container == null || !vessel.CanDriveIn(container))
                 return "DeltaV_ShuttleBoardRequiresFlight";
-            if (playerInitiated
-                && universe.Controls.PlayerFor(vessel, debugTakeover: true)?.AutoManeuver.AvoidHullCollisions != false)
+            if (playerInitiated && universe.Controls.CollisionAvoidanceEnabled(vessel))
                 return "DeltaV_ShuttleBoardDisableAvoidance";
             return null;
         }

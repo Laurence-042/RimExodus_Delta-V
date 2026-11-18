@@ -1,6 +1,6 @@
-param([string]$GameRoot, [string]$HarmonyPath, [switch]$AimInputOnly, [switch]$PlayerFlightOnly,
+﻿param([string]$GameRoot, [string]$HarmonyPath, [switch]$AimInputOnly, [switch]$PlayerFlightOnly,
       [switch]$SalvageOnly, [switch]$DrivePerformanceOnly, [switch]$ProjectileOnly, [switch]$ArchiveRecoveryOnly,
-      [switch]$DockingOnly, [switch]$NpcOnly, [switch]$ProjectileFullOnly, [switch]$SeparationOnly,
+      [switch]$DockingOnly, [switch]$NpcOnly, [switch]$ProjectileFullOnly, [switch]$HullContactOnly, [switch]$SeparationOnly,
       [switch]$ThrusterPauseOnly, [switch]$TractorOnly, [switch]$EvaOnly, [switch]$GlobeOnly, [switch]$CombatManeuverOnly, [switch]$EngagementBaseline, [switch]$EngagementRegression, [switch]$EngagementBattle, [switch]$AutoVolleyOnly,
       [ValidateSet('Count', 'Time', 'Parity')][string]$StaticEngagement,
       [ValidateSet('Normal', 'Dense')][string]$StaticScene = 'Normal',
@@ -256,16 +256,15 @@ if ($Mothership -eq 'AimRefreshTime') {
     $tactics = [IO.File]::ReadAllText("$repo/Source/Interaction/ShipAutoCombat.Tactics.cs")
     $planner = [IO.File]::ReadAllText("$repo/Source/Interaction/CombatFlightPlanner.cs")
     $needles = @('        internal bool Boarding { get; private set; }',
-        'var updated = CombatFlightPlanner.RetargetHeading(tacticIntent, self, heading, elapsed);',
-        'bool screenHeading = elapsed > 0f && !intent.holdCurrent && OrbitSphere.Valid;')
+        'var updated = CombatFlightPlanner.RetargetHeading(tacticIntent, self, heading, elapsed);')
     foreach ($needle in $needles) { if (!$tactics.Contains($needle)) { throw "Missing aim refresh marker $needle" } }
-    $tactics = $tactics.Replace($needles[0], "        internal static bool OfflineReuseAuthority, OfflineScreenRoute;`n$($needles[0])")
+    $tactics = $tactics.Replace($needles[0], "        internal static bool OfflineReuseAuthority;`n$($needles[0])")
     $tactics = $tactics.Replace($needles[1], @'
 var input = tacticIntent;
                     if (!OfflineReuseAuthority) input.yawAuthority = Mathf.Min(drive.PreviewAngular(1), drive.PreviewAngular(-1));
                     var updated = CombatFlightPlanner.RetargetHeading(input, self, heading, elapsed);
 '@)
-    $tactics.Replace($needles[2], 'bool screenHeading = OfflineScreenRoute && elapsed > 0f && !intent.holdCurrent && OrbitSphere.Valid;') |
+    $tactics |
         Set-Content -Encoding utf8 "$out/ShipAutoCombat.Tactics.Offline.cs"
     $basis = 'intent.SampleHeadingBasis(elapsed, out float angle, out float omega);'
     if (!$planner.Contains($basis)) { throw 'Aim refresh basis marker is unavailable.' }
@@ -319,6 +318,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $regressionArguments = @($managed)
 if ($Mothership) { $regressionArguments += @('--mothership-engagement', $GameRoot, $out) }
 if ($CombatManeuverOnly) { $regressionArguments += '--combat-maneuver-only' }
+if ($HullContactOnly) { $regressionArguments += '--hull-contact-only' }
 if ($EngagementBaseline) { $regressionArguments += '--engagement-baseline' }
 if ($EngagementRegression) { $regressionArguments += '--engagement-regression' }
 if ($AutoVolleyOnly) { $regressionArguments += '--auto-volley-only' }

@@ -215,7 +215,7 @@ internal static partial class Program
                 if (logging)
                 {
                     Check(trace.SequenceEqual(baselines[(closingSpeed, hold, scenario.Item3)]), "AI log switch preserves every motion tick and reposition event exactly");
-                    Check(aiMessages.Any(s => s.Contains("maneuver tick=") && s.Contains("intentSpeed=") && s.Contains("terminalVelocity=") && s.Contains("reset=") && s.Contains("routeShrinks="))
+                    Check(aiMessages.Any(s => s.Contains("maneuver tick=") && s.Contains("intentSpeed=") && s.Contains("terminalVelocity=") && s.Contains("reset="))
                         && aiMessages.Any(s => s.Contains("drive tick=") && s.Contains("planTick=") && s.Contains("deltaV=")),
                         "AI module alone pairs actual planner state with drive results");
                     Check(aiMessages.Count < (hold ? 15 : 1500), "stable state is suppressed and moving traces are bounded by decision edges");
@@ -232,6 +232,79 @@ internal static partial class Program
             CheckContinuousReferences(referenceDrive);
         }
         finally { DeltaVMod.CurrentSettings.logAI = false; aiMessages.Clear(); patch.UnpatchAll(patch.Id); }
+    }
+
+    static void CheckHullAvoidanceMotion(UniverseManager universe, Faction faction, HullRoundFixture f)
+    {
+        f.Clear();
+        foreach (bool ownOn in new[] { false, true })
+        foreach (bool enemyOn in new[] { false, true })
+        {
+            var own = f.Craft(faction, 0, 0, Vector2.zero, ownOn, hp: 10000, size: 3, motion: true);
+            var target = f.Craft(faction, 0, 70, Vector2.zero, true, hp: 10000);
+            var rammer = f.Craft(faction, 30, 0, new Vector2(-10, 0), enemyOn, hp: 10000, size: 3);
+            f.Prepare();
+            var stationary = CombatFlightPlanner.Brake(own.body.pose, null, Find.TickManager.TicksGame);
+            Check(universe.Projectiles.HullRouteClear(own.ship, stationary, 0, out _, out _) == (!ownOn || enemyOn),
+                $"combat prediction consumes actual incoming rounds: own={ownOn}, enemy={enemyOn}");
+            var planner = own.control.AutoManeuver;
+            Set(planner, "anchorTarget", CombatTarget.ForShip(target.ship.Identity));
+            Set(planner, "anchorDistance", 70f);
+            own.control.FireControl.Strategy(own.ship).maneuverRules.Insert(0,
+                new CombatStrategyRule { tactic = new CombatTacticSettings { distance = 70, behavior = CombatTactic.HoldRange } });
+            int planCalls = 0; float plannedTravel = 0;
+            bool Sample(out SpacePose pose) { pose = ShipRegistry.ShipPose(target.ship); return true; }
+            bool Plan(SpaceObject body, SpacePose pose, float radius, DeltaV.DriveInfo drive, out CombatTrajectoryIntent intent)
+            {
+                object[] args = { body, pose, radius, drive, null };
+                bool result = (bool)Call(planner, "PlanTacticTrajectory", args);
+                intent = (CombatTrajectoryIntent)args[4]; planCalls++;
+                intent.Sample(3, out var later, out _, out _, out _);
+                plannedTravel = Mathf.Max(plannedTravel, OrbitSphere.ArcCells(own.body.pose.position, later));
+                return result;
+            }
+            universe.Autopilot.TrackOrbit(DriveSubject.Of(own.ship), Sample, 0, Plan);
+            float maxLateral = 0, minimum = float.MaxValue; bool collided = false;
+            for (int tick = 0; tick < 300; tick++)
+            {
+                f.Prepare();
+                universe.Autopilot.Tick();
+                foreach (var body in universe.objects.ToArray()) body.AdvanceDrift(1f / 60f);
+                var beforeImpact = own.body.pose;
+                universe.Projectiles.ResolveCollisions(); f.Flush();
+                bool impulse = (own.body.pose.velocity - SpaceTransform.TransportVelocity(beforeImpact,own.body.pose.position)).magnitude > .0001f
+                    || Mathf.Abs(own.body.pose.angularVelocity-beforeImpact.angularVelocity)>.0001f;
+                if (!collided && !impulse)
+                    maxLateral = Mathf.Max(maxLateral, Mathf.Abs(OrbitSphere.Offset(Vector3.forward, own.body.pose.position).y));
+                collided |= impulse;
+                minimum = Mathf.Min(minimum, OrbitSphere.ArcCells(own.body.pose.position, rammer.body.pose.position));
+            }
+            Check(ownOn && !enemyOn ? own.wall.HitPoints == 10000 && maxLateral > 1f
+                : maxLateral < .1f,
+                $"closed-loop combat evasion own={ownOn}, enemy={enemyOn}: lateral={maxLateral:F2}, nearest={minimum:F2}, HP={own.wall.HitPoints}, plans={planCalls}, planned={plannedTravel:F2}");
+            universe.Autopilot.Cancel(own.ship.Identity); f.Clear();
+        }
+        foreach (int mode in new[] { 0, 1, 2 })
+        {
+            var own = f.Craft(faction, 0, 0, Vector2.zero, true, hp: 10000, motion: true);
+            f.Craft(faction, 15, 0, new Vector2(-10, 0), false, hp: 10000);
+            var subject = DriveSubject.Of(own.ship);
+            if (mode == 1) universe.Autopilot.FlyTo(subject, own.body.pose.position, own.body.pose.angle);
+            if (mode == 2) universe.Autopilot.FollowReference(subject, _ => new SpacePose(Vector3.forward, 0), true, () => true, null);
+            bool collided = false; float preContactDrift = 0;
+            for (int tick = 0; tick < 120; tick++)
+            {
+                f.Prepare(); universe.Autopilot.Tick();
+                foreach (var body in universe.objects.ToArray()) body.AdvanceDrift(1f / 60f);
+                if (!collided) preContactDrift = Mathf.Max(preContactDrift,OrbitSphere.ArcCells(Vector3.forward,own.body.pose.position));
+                var beforeImpact=own.body.pose;
+                universe.Projectiles.ResolveCollisions(); f.Flush();
+                collided |= (own.body.pose.velocity-SpaceTransform.TransportVelocity(beforeImpact,own.body.pose.position)).magnitude>.0001f;
+            }
+            Check(preContactDrift < .01f && collided,
+                $"enabled avoidance does not steer outside combat autopilot, mode={mode}");
+            universe.Autopilot.Cancel(subject); f.Clear();
+        }
     }
 
     static void CheckRepositionChoices(DeltaV.DriveInfo drive)

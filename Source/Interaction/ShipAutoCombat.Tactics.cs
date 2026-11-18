@@ -20,8 +20,6 @@ namespace DeltaV
         private bool blockedPose;
         private int tacticConfiguration, tacticGroupMask;
         private readonly CombatReposition reposition;
-        private readonly Dictionary<DriveSubject, (int version, SpaceCollision.HullShape shape)> routeShapes =
-            new Dictionary<DriveSubject, (int, SpaceCollision.HullShape)>();
         internal bool Boarding { get; private set; }
         internal bool TryPosePreview(ShipBase ship, SpacePose target, out float distance, out float heading, out float phase)
         {
@@ -186,40 +184,12 @@ namespace DeltaV
                         : trajectory;
                 }
                 tacticIntent = BuildTrajectory();
-                bool blockedBeforeRoute = blockedPose;
-                int routeShrinks = 0, blockedSecond = 0;
-                DriveSubject blocker = default;
-                if (!blockedPose && !RouteClear(ship, tacticIntent, out blocker, out blockedSecond))
-                {
-                    DriveSubject firstBlocker = blocker;
-                    int firstBlockedSecond = blockedSecond;
-                    // Only automatic/free choices may shrink. Explicit player fields remain intact.
-                    if (settings.bearing == CombatBearing.Free && attackPose.behavior == CombatTactic.Automatic)
-                    {
-                        for (int retry = 0; retry < 2; retry++)
-                        {
-                            routeShrinks++;
-                            if (maneuverIntent.bearing.HasValue)
-                                maneuverIntent.bearing = currentPhase + .5f * SpaceTransform.WrapAngle(maneuverIntent.bearing.Value - currentPhase);
-                            else maneuverIntent.tangentSpeed *= .5f;
-                            tacticIntent = BuildTrajectory();
-                            if (RouteClear(ship, tacticIntent, out blocker, out blockedSecond)) break;
-                        }
-                    }
-                    blockedPose = !RouteClear(ship, tacticIntent, out blocker, out blockedSecond);
-                    if (!blockedPose) { blocker = firstBlocker; blockedSecond = firstBlockedSecond; }
-                }
                 if (blockedPose)
-                {
-                    tacticIntent = CombatFlightPlanner.Brake(own.pose, drive, now);
-                    if (aim.HasValue || attackPose.fireHeading && settings.facing == CombatFacing.Automatic)
-                    {
-                        var aimingBrake = CombatFlightPlanner.BrakeWhileAiming(self, target,
-                            aim.HasValue ? maneuverIntent.heading : attackPose.heading, drive, now);
-                        aimingBrake.localAnchor = anchorLocal;
-                        if (RouteClear(ship, aimingBrake, out _, out _)) tacticIntent = aimingBrake;
-                    }
-                }
+                    tacticIntent = aim.HasValue || attackPose.fireHeading && settings.facing == CombatFacing.Automatic
+                        ? CombatFlightPlanner.BrakeWhileAiming(self, target,
+                            aim.HasValue ? maneuverIntent.heading : attackPose.heading, drive, now)
+                        : CombatFlightPlanner.Brake(own.pose, drive, now);
+                tacticIntent.localAnchor = anchorLocal;
                 if (!tacticIntent.holdCurrent || tacticIntent.brakeTarget.HasValue) SharedFixedAim = aim;
                 nextTacticTick = now + 30;
                 hasTactic = true;
@@ -230,7 +200,7 @@ namespace DeltaV
                 tacticDriveVersion = drive.version;
                 tacticStructureVersion = SubstructureOwnership.StructureVersion(ship.Map);
                 if (traceAi) TraceAiDecision(ship, own, self, target, rule, settings, cause, restartReposition,
-                    repositionStatus, oldPhase, oldNextTick, blockedBeforeRoute, poseReevaluated, routeShrinks, blocker, blockedSecond);
+                    repositionStatus, oldPhase, oldNextTick, poseReevaluated);
                 if (ship.CombatAI != null)
                     ship.CombatAI.lastManeuverReason = CombatDecisionText.Selection(strategy.maneuverRules, rule, previousRule) + " · "
                         + ("DeltaV_CombatTactic_" + attackPose.behavior).Translate() + "\n"
@@ -282,6 +252,31 @@ namespace DeltaV
                     else tacticIntent = CombatFlightPlanner.Brake(own.pose, drive, now);
                 }
             }
+            // 此入口仅由战斗自动驾驶的制导微步调用。缓存射位不阻止复核来撞弹丸；
+            // 关闭本船规避直接旁通，其他自动任务和手操不会进入这里。
+            float time = (now - tacticIntent.startTick) / 60f;
+            if (!RouteClearAt(ship, tacticIntent, time, out _, out _))
+            {
+                Vector2 offset = OrbitSphere.Offset(target.position, self.position);
+                float phase = Mathf.Atan2(offset.y, offset.x);
+                int side = (ownerId.key & 1) == 0 ? 1 : -1;
+                CombatTrajectoryIntent best = tacticIntent;
+                int latest = 0;
+                for (int candidate = 0; candidate < 4; candidate++)
+                {
+                    var action = maneuverIntent;
+                    action.behavior = CombatTactic.Automatic;
+                    action.distance = Mathf.Max(1f, offset.magnitude);
+                    action.bearing = phase + (candidate % 2 == 0 ? side : -side) * (candidate < 2 ? .8f : 1.5f);
+                    action.bearingRate = 0;
+                    var route = CombatFlightPlanner.Plan(self, target, action, drive, now);
+                    route.localAnchor = anchorLocal;
+                    bool clear = RouteClear(ship, route, out _, out int hitSecond);
+                    if (clear || hitSecond > latest) { best = route; latest = hitSecond; }
+                    if (clear) break;
+                }
+                tacticIntent = best;
+            }
             intent = tacticIntent;
             return true;
         }
@@ -290,74 +285,8 @@ namespace DeltaV
             out DriveSubject blocker, out int blockedSecond) => RouteClearAt(ship, intent, 0f, out blocker, out blockedSecond);
 
         private bool RouteClearAt(ShipBase ship, CombatTrajectoryIntent intent, float elapsed,
-            out DriveSubject blocker, out int blockedSecond)
-        {
-            blocker = default; blockedSecond = 0;
-            if (!AvoidHullCollisions) return true;
-            using var routeTiming = universe.Performance.Measure(PerformanceStage.CombatRoute);
-            SpaceCollision.HullShape Shape(ShipBase member)
-            {
-                int version = SubstructureOwnership.StructureVersion(member.Map);
-                if (!routeShapes.TryGetValue(member.Identity, out var cached) || cached.version != version)
-                {
-                    using var shapeTiming = universe.Performance.Measure(PerformanceStage.CombatRouteShape);
-                    if (routeShapes.Count >= 128) routeShapes.Clear();
-                    routeShapes[member.Identity] = cached = (version, new SpaceCollision.HullShape(member));
-                }
-                return cached.shape;
-            }
-            var ownShape = Shape(ship);
-            Vector3 ownPosition = ShipRegistry.ShipPose(ship).position;
-            float horizon = elapsed + 4f;
-            float routeReach = intent.holdCurrent ? intent.holdVelocity.magnitude * horizon :
-                intent.startRadius + Mathf.Abs(intent.radialStep) + intent.centerVelocity.magnitude * horizon;
-            if (!intent.holdCurrent && elapsed > 0f)
-                routeReach += Mathf.Abs(intent.initialRadialSpeed) * elapsed + Mathf.Abs(intent.targetRadius - intent.startRadius);
-            bool screenHeading = elapsed > 0f && !intent.holdCurrent && OrbitSphere.Valid;
-            Vector2 radiusBounds = screenHeading ? intent.RadiusBounds(elapsed, horizon) : default;
-            // The radial lower bound assumes the curve does not wrap past the antipode.
-            screenHeading = screenHeading && radiusBounds.y < Mathf.PI * OrbitSphere.CellsPerRadian;
-            // Four bounded trajectory checkpoints; the real collision chain remains authoritative.
-            foreach (var other in universe.objects.SelectMany(frame => frame.Ships)
-                .Where(other => other.IsValid && other.Identity != ownerId && other.Map != ship.Map)
-                .Select(other => (ship: other, pose: ShipRegistry.ShipPose(other)))
-                .OrderBy(other => OrbitSphere.ArcCells(ownPosition, other.pose.position)).Take(64))
-            {
-                var shape = Shape(other.ship);
-                float distance = OrbitSphere.ArcCells(intent.center, other.pose.position);
-                float drift = other.pose.velocity.magnitude * 4f;
-                if (distance > routeReach + ownShape.half.magnitude + shape.half.magnitude + drift + 10f) continue;
-                var otherPose = other.pose;
-                otherPose.angle -= other.ship.FrameAngle;
-                if (screenHeading && RouteSeparated(intent, elapsed, radiusBounds, distance, ownShape, shape, otherPose)) continue;
-                int step = RouteOverlapSecond(intent, elapsed, ownShape, shape, otherPose);
-                if (step != 0) { blocker = other.ship.Identity; blockedSecond = step; return false; }
-            }
-            return true;
-        }
-
-        private static bool RouteSeparated(CombatTrajectoryIntent intent, float elapsed, Vector2 radiusBounds,
-            float distance, SpaceCollision.HullShape own, SpaceCollision.HullShape other, SpacePose otherPose)
-        {
-            // Triangle inequality over the full rolling window. The extra cells cover the overlap grid envelope.
-            float margin = otherPose.velocity.magnitude * 4f + intent.centerVelocity.magnitude * (elapsed + 4f)
-                + own.half.magnitude + other.half.magnitude + 3f;
-            return distance + margin < radiusBounds.x || distance - margin > radiusBounds.y;
-        }
-
-        private static int RouteOverlapSecond(CombatTrajectoryIntent intent, float elapsed,
-            SpaceCollision.HullShape own, SpaceCollision.HullShape other, SpacePose otherPose)
-        {
-            for (int step = 1; step <= 4; step++)
-            {
-                intent.Sample(elapsed + step, out var position, out _, out float angle, out _);
-                var center = SpaceTransform.RigidPointPose(new SpacePose(position, angle), intent.localAnchor, 0f);
-                var future = new SpacePose(OrbitSphere.Move(otherPose.position, otherPose.velocity * step),
-                    otherPose.angle + otherPose.angularVelocity * step);
-                if (SpaceCollision.HullsOverlap(own, center.position, angle, other, future)) return step;
-            }
-            return 0;
-        }
+            out DriveSubject blocker, out int blockedSecond) =>
+            universe.Projectiles.HullRouteClear(ship, intent, elapsed, out blocker, out blockedSecond);
 
         private float? FlankingPhase(ShipBase ship, SpacePose target)
         {

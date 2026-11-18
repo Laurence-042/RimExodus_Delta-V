@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -697,18 +697,10 @@ namespace DeltaV
         internal static SpacePose DriftAfterContact(SpacePose pose, MassReport report, float dt) =>
             DriftCenter(SpaceTransform.RigidPointPose(pose, report.comLocal, 0f), report.comLocal, dt);
 
-        private static SpacePose DriftCenter(SpacePose center, Vector2 localCenter, float dt)
-        {
-            Vector3 from = center.position;
-            center.direction = OrbitSphere.Move(center.direction, center.velocity * dt);
-            center.angle = SpaceTransform.WrapAngle(center.angle + center.angularVelocity * dt);
-            center.velocity = SpaceTransform.TransportTangent(center.velocity, from, center.position);
-            return localCenter == Vector2.zero ? center
-                : SpaceTransform.AlignLocalPoint(center, Vector2.zero, localCenter, 0f);
-        }
-
+        // 原接触冲量工具。预读时保留全部能量；结算后按实际耗能写入等大反向冲量。
+        // 使用命中前同一份质量报告，不把随动弹丸当成独立的单位质量刚体。
         internal static float ApplyHullContactImpulse(SpaceObject a, MassReport ma, SpaceObject b, MassReport mb,
-            Vector3 point, Vector2 normal, out float normalEnergy)
+            Vector3 point, Vector2 normal, out float normalEnergy, float remainingEnergyFraction = 0f)
         {
             normalEnergy = 0f;
             if (ma == null || mb == null || ma.mass <= 0f || mb.mass <= 0f) return 0f;
@@ -731,10 +723,24 @@ namespace DeltaV
                 + EffectiveAngularMass(a, ma, localA) + EffectiveAngularMass(b, mb, localB);
             float impulseMagnitude = closing / inverseMass;
             normalEnergy = .5f * impulseMagnitude * closing;
-            Vector2 impulse = normal * impulseMagnitude;
-            ApplyAt(a, ma, localA, point, impulse);
-            ApplyAt(b, mb, localB, point, -impulse);
+            impulseMagnitude *= 1f - Mathf.Sqrt(Mathf.Clamp01(remainingEnergyFraction));
+            if (impulseMagnitude > 0f)
+            {
+                Vector2 impulse = normal * impulseMagnitude;
+                ApplyAt(a, ma, localA, point, impulse);
+                ApplyAt(b, mb, localB, point, -impulse);
+            }
             return closing;
+        }
+
+        private static SpacePose DriftCenter(SpacePose center, Vector2 localCenter, float dt)
+        {
+            Vector3 from = center.position;
+            center.direction = OrbitSphere.Move(center.direction, center.velocity * dt);
+            center.angle = SpaceTransform.WrapAngle(center.angle + center.angularVelocity * dt);
+            center.velocity = SpaceTransform.TransportTangent(center.velocity, from, center.position);
+            return localCenter == Vector2.zero ? center
+                : SpaceTransform.AlignLocalPoint(center, Vector2.zero, localCenter, 0f);
         }
 
         /// <summary>
