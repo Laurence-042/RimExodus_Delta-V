@@ -12,6 +12,22 @@ internal static partial class Program
 {
     static void MissionChecks(Game game, Harmony harmony, string prefabs)
     {
+        var consolePrefab = new RimExodus.Maps.MapPrefabDocument();
+        var consoleEntry = new RimExodus.Maps.MapPrefabThingEntry();
+        consolePrefab.thingEntries.Add(consoleEntry);
+        foreach (Type type in new[] { typeof(CompDeltaVPilotConsole), typeof(DerivedPilotConsole) })
+        {
+            consoleEntry.def = PilotFixtureDef("missionCustomConsole", type);
+            Check(SpaceMissionService.HasPilotConsole(consolePrefab),
+                "combat prefab eligibility accepts custom Def with " + type.Name);
+        }
+        consoleEntry.def = PilotFixtureDef("PilotConsole");
+        Check(!SpaceMissionService.HasPilotConsole(consolePrefab),
+            "combat prefab eligibility does not infer identity from the console Def name");
+        consoleEntry.def = PilotFixtureDef("missionItemConsole", typeof(DerivedPilotConsole));
+        consoleEntry.def.thingClass = typeof(ThingWithComps);
+        Check(!SpaceMissionService.HasPilotConsole(consolePrefab),
+            "combat prefab eligibility excludes non-building components");
         var xml = new XmlDocument();
         xml.Load(Path.Combine(prefabs, "../../1.6/Defs/Quests/DeltaV_Missions.xml"));
         var settings = new SpaceMissionDef();

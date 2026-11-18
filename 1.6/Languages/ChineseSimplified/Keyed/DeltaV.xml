@@ -417,6 +417,8 @@
   <DeltaV_ManualFireDeviationTip>玩家手动开火时，炮口或固定轴与鼠标方向允许的最大夹角。手控不检查鼠标距离；固定轴武器设为 180° 时可向任意方向按键，弹体仍沿轴飞行。</DeltaV_ManualFireDeviationTip>
 
   <DeltaV_ThrusterPowerTitle>设置推进器出力上限</DeltaV_ThrusterPowerTitle>
+  <DeltaV_StatBaseThrust>基础推力</DeltaV_StatBaseThrust>
+  <DeltaV_StatBaseThrustDesc>推进器满出力时的基础推力。实际推力还受出力上限、油门及设备工作状态影响。负值表示沿通常推进方向的反向出力；零表示不产生推力。</DeltaV_StatBaseThrustDesc>
   <DeltaV_ThrusterPowerEntry>推进器出力：{0}%</DeltaV_ThrusterPowerEntry>
   <DeltaV_ShieldCurrentMode>模式：{0}</DeltaV_ShieldCurrentMode>
   <DeltaV_ShieldModeGuard>切换为守卫圆盾</DeltaV_ShieldModeGuard>
@@ -435,6 +437,15 @@
   <DeltaV_ShieldElectromagneticStrength>激光偏转强度</DeltaV_ShieldElectromagneticStrength>
   <DeltaV_ShieldGuardReference>常规盾容上限 {0}，应急上限 {1}。常规盾容 10 秒未消耗后可通电恢复；应急盾容用白银补充。增大半径只扩大保护范围，不增加盾容。</DeltaV_ShieldGuardReference>
   <DeltaV_ShieldElectromagneticReference>以 30° 入射的激光为例：在基础偏转之外，再偏转 {0}°。</DeltaV_ShieldElectromagneticReference>
+  <DeltaV_ShieldRadiusTip>调整守卫圆盾的保护半径。扩大半径可以保护更远的区域，但不会增加常规或应急盾容，也不会增加维持功率。</DeltaV_ShieldRadiusTip>
+  <DeltaV_ShieldProjectionTip>调整发生器到线盾中心的距离，沿投射模块的朝向将盾面移近或移远。超过最小投射距离后，每增加 1 格，维持功率增加 {0}。不改变线盾长度。</DeltaV_ShieldProjectionTip>
+  <DeltaV_ShieldLengthTip>调整线盾两端之间的总长度，向中心两侧等量伸展或收缩。更长的盾面可覆盖更宽的区域；超过最小长度后，每增加 1 格，维持功率增加 {0}。不改变单次拦截的强度或电费。</DeltaV_ShieldLengthTip>
+  <DeltaV_ShieldAngleTip>转动护盾发生器的投射模块，改变投射护盾相对建筑朝向的角度。盾面的朝向和投射位置会随模块一起转动；建筑本体不转动。线盾只影响从正面穿向背面的来弹。这里设置的角度不等于来弹相对盾面法线的入射角；调整角度本身不增加维持功率。</DeltaV_ShieldAngleTip>
+  <DeltaV_ShieldKineticStrengthTip>调整线盾对实弹施加的反推冲量。强度越高，减速或反推越强，逐次拦截的电量消耗通常也越大；实际费用还取决于来弹质量、相对速度、入射角和弹种。0% 不施加冲量，也不收拦截脉冲费，但线盾仍需维持供电。拦截从已接网且未被 EMP 禁用的蓄电池取电；电量不足会削弱冲量并使线盾短暂失效。强度不改变空载维持功率。</DeltaV_ShieldKineticStrengthTip>
+  <DeltaV_ShieldKineticCostReference>耗电示例：质量 {0}、相对速度 {1} 格/秒的速射炮弹正面入射时，每次拦截需 {2}。这是上述条件下的满额费用；重弹、高速弹和斜入射须按实际情况计算。</DeltaV_ShieldKineticCostReference>
+  <DeltaV_ShieldElectromagneticStrengthTip>调整激光在被动折射后，继续向原路返回方向偏转的最大角度。当前最多追加 {0}°，到达原路返回方向即停止。逐次电费取决于激光功率、弹种和实际追加转角。0% 只保留被动折射，无主动偏转电费，但仍需维持供电。主动偏转从已接网且未被 EMP 禁用的蓄电池取电；电量不足会减小转角并使线盾短暂失效。强度不改变空载维持功率。</DeltaV_ShieldElectromagneticStrengthTip>
+  <DeltaV_ShieldElectromagneticCostReference>耗电示例（激光功率 1）：上述 30° 入射时，每次小型激光需 {0}、中型激光需 {1}；正入射时分别需 {2}、{3}。功率 3 的同类激光费用乘以 3；其他入射角按实际追加转角计算。此处电量为单次脉冲消耗，不是持续功率。</DeltaV_ShieldElectromagneticCostReference>
+  <DeltaV_ShieldSettingPower>当前请求功率：{0}（包含正在进行的常规盾容回充负载）。几何设置影响持续维持用电，拦截脉冲另行扣除蓄电池电量。</DeltaV_ShieldSettingPower>
   <DeltaV_PrefabReplaceSelect>选择 prefab 替换整个聚焦地图（旧图内容将被移除）</DeltaV_PrefabReplaceSelect>
   <DeltaV_PrefabExportSaved>已导出 prefab，文件位于 {0}。详情见调试日志，可从日志复制路径。</DeltaV_PrefabExportSaved>
   <DeltaV_PrefabExportEmptyHome>请先在当前地图划定居住区，再导出 prefab。</DeltaV_PrefabExportEmptyHome>

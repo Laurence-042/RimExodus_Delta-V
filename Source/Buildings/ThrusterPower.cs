@@ -1,8 +1,21 @@
+using System.Collections.Generic;
 using RimWorld;
 using Verse;
 
 namespace DeltaV
 {
+    public class DefModExtension_ThrusterPower : DefModExtension
+    {
+        // null = 按航程标定；零和负数都是显式配置。
+        public float? thrust;
+
+        public override IEnumerable<string> ConfigErrors()
+        {
+            if (thrust.HasValue && (float.IsNaN(thrust.Value) || float.IsInfinity(thrust.Value)))
+                yield return "thruster thrust must be finite";
+        }
+    }
+
     /// <summary>
     /// 推进器动力来源抽象（星区架构 §9/§11）。
     ///
@@ -36,6 +49,32 @@ namespace DeltaV
 
         internal static bool IsThrusterDef(ThingDef def) =>
             def?.GetCompProperties<CompProperties_GravshipThruster>() != null;
+
+        private static float RangeOffset(ThingDef def) =>
+            def?.GetCompProperties<CompProperties_GravshipThruster>()?.statOffsets
+                ?.GetStatOffsetFromList(StatDefOf.GravshipRange) ?? 0f;
+
+        private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+
+        /// <summary>有符号基础推力：显式配置优先，否则沿原点、小型、大型三点分段标定。</summary>
+        public static float BaseThrust(ThingDef def)
+        {
+            float? configured = def?.GetModExtension<DefModExtension_ThrusterPower>()?.thrust;
+            if (configured.HasValue) return Finite(configured.Value) ? configured.Value : 0f;
+            float range = RangeOffset(def);
+            if (!Finite(range) || range == 0f) return 0f;
+            ThingDef small = ThingDefOf.SmallThruster, large = ThingDefOf.LargeThruster;
+            float? smallForce = small?.GetModExtension<DefModExtension_ThrusterPower>()?.thrust;
+            float? largeForce = large?.GetModExtension<DefModExtension_ThrusterPower>()?.thrust;
+            float smallRange = RangeOffset(small), largeRange = RangeOffset(large);
+            if (!smallForce.HasValue || !largeForce.HasValue || !Finite(smallForce.Value)
+                || !Finite(largeForce.Value) || !Finite(smallRange) || !Finite(largeRange)
+                || smallRange <= 0f || largeRange <= smallRange) return 0f;
+            float force = range <= smallRange ? range * smallForce.Value / smallRange
+                : smallForce.Value + (range - smallRange) * (largeForce.Value - smallForce.Value)
+                    / (largeRange - smallRange);
+            return Finite(force) ? force : 0f;
+        }
 
         public static bool IsOperational(Thing thruster)
         {

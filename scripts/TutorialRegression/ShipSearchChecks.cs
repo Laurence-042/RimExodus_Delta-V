@@ -261,10 +261,13 @@ internal static partial class Program
             var cells = row.GetProperty("cells").EnumerateArray().ToArray();
             var pos = new Vector2((float)cells.Average(c => c[0].GetInt32()) + 20.5f,
                                   (float)cells.Average(c => c[1].GetInt32()) + 20.5f);
+            float signedThrust = ThrusterPower.BaseThrust(NativeThrusterDef(row.GetProperty("name").GetString()));
+            float power = row.TryGetProperty("stateOverrides", out var state)
+                && state.TryGetProperty("DeltaV_powerPercent", out var configuredPower) ? configuredPower.GetSingle() : 100f;
             report.thrusters.Add(new ShipPhysics.Thruster { localPos=pos,
-                dir=ShipPhysics.ThrustDir(new Rot4(row.GetProperty("rotation").GetInt32())),
-                thrust=ShipPhysics.ThrusterThrust * .01f * row.GetProperty("stateOverrides").GetProperty("DeltaV_powerPercent").GetSingle(),
-                operational=true });
+                dir=ShipPhysics.ThrustDir(new Rot4(row.GetProperty("rotation").GetInt32())) * (signedThrust < 0 ? -1 : 1),
+                thrust=Math.Abs(signedThrust) * .01f * power,
+                operational=signedThrust != 0 });
         }
         var mod = Raw<DeltaVMod>();
         Set(mod,"<Settings>k__BackingField",new DeltaVSettings());

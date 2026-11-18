@@ -528,8 +528,8 @@ namespace DeltaV
         {
             foreach (Thing thing in map.listerThings.AllThings)
                 (thing as ThingWithComps)?.TryGetComp<CompRailgunReadinessAppearance>()?.Rebind();
-            foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
-                thing.TryGetComp<CompDeltaVPilotConsole>()?.SyncBackupIdentity();
+            foreach (CompDeltaVPilotConsole console in ShipRegistry.ConsolesOnMap(map))
+                console.SyncBackupIdentity();
             foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.GravEngine))
             {
                 if (thing is Building_GravEngine engine)

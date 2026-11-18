@@ -23,8 +23,8 @@ namespace DeltaV
     ///   残骸，玩家可手动认领恢复为船。搬运造成的暂时 DeSpawn 不算损毁
     ///   （PostDestroy 不在 DeSpawn 路径上触发）。
     ///
-    /// 本 Comp 由 XML patch 追加到原版 PilotConsole，与原版 CompPilotConsole 共存：原版
-    /// Gravship 继续按 ThingDefOf.PilotConsole 识别设施与发射方向（战略发射仍需引擎）。
+    /// 本 Comp 及其子类定义驾驶台身份，允许挂载于自定义建筑 Def。原版 PilotConsole
+    /// 由 XML patch 接入；战略发射另需原版 CompPilotConsole 和逆重引擎。
     /// </summary>
     public class CompProperties_DeltaVPilotConsole : CompProperties
     {
@@ -98,6 +98,9 @@ namespace DeltaV
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
             base.PostSpawnSetup(respawningAfterLoad);
+            // Building.SpawnSetup 的结构通知晚于本回调，认领前先更新已有建筑索引。
+            if (parent is Building building)
+                SubstructureOwnership.TryGet(parent.Map)?.UpdateSpawnedBuilding(building);
             ClaimOnSpawn();
             if (isMain) RestampShipDomain();
             else SyncBackupIdentity();
@@ -111,6 +114,8 @@ namespace DeltaV
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
         {
             base.PostDeSpawn(map, mode);
+            if (parent is Building building)
+                SubstructureOwnership.TryGet(map)?.UpdateSpawnedBuilding(building);
             shields.Clear();
             shieldMap = null;
             shieldVersion = -1;
@@ -187,12 +192,11 @@ namespace DeltaV
         private static CompDeltaVPilotConsole FindSuccessor(Map map, int ownerId, Rot4 direction)
         {
             CompDeltaVPilotConsole best = null;
-            foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
+            foreach (CompDeltaVPilotConsole console in ShipRegistry.ConsolesOnMap(map))
             {
-                CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
                 if (console == null || console.shipId != ownerId || console.isMain) continue;
-                if (thing.Rotation != direction) continue;
-                if (best == null || thing.thingIDNumber < best.parent.thingIDNumber)
+                if (console.parent.Rotation != direction) continue;
+                if (best == null || console.parent.thingIDNumber < best.parent.thingIDNumber)
                 {
                     best = console;
                 }
@@ -252,9 +256,8 @@ namespace DeltaV
             {
                 shipId = target;
             }
-            foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
+            foreach (CompDeltaVPilotConsole console in ShipRegistry.ConsolesOnMap(map))
             {
-                CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
                 if (console != null && console != this && console.shipId == target && console.isMain)
                 {
                     console.isMain = false;
@@ -296,27 +299,30 @@ namespace DeltaV
             return shipId;
         }
 
-        /// <summary>随船找身份驾驶台：主台（vanilla PilotConsole 链接）优先，兜底遍历
-        /// Gravship 携带的 Thing。返回的 comp 可在未 Spawned 状态下解析/领取身份。</summary>
+        /// <summary>随船找身份驾驶台：实际主台优先；尚未认领的战略来船保留原版链接兜底。
+        /// 返回的 comp 可在未 Spawned 状态下解析/领取身份。</summary>
         public static CompDeltaVPilotConsole IdentityConsoleOf(Gravship gravship)
         {
             CompDeltaVPilotConsole primary = gravship?.PilotConsole?.TryGetComp<CompDeltaVPilotConsole>();
-            if (primary != null)
+            if (primary?.isMain == true)
             {
                 return primary;
             }
+            CompDeltaVPilotConsole fallback = primary;
+            CompDeltaVPilotConsole main = null;
             if (gravship != null)
             {
                 foreach (Thing thing in gravship.Things)
                 {
                     CompDeltaVPilotConsole comp = thing.TryGetComp<CompDeltaVPilotConsole>();
-                    if (comp != null)
-                    {
-                        return comp;
-                    }
+                    if (comp == null || thing is not Building) continue;
+                    if (comp.isMain && (main == null || thing.thingIDNumber < main.parent.thingIDNumber))
+                        main = comp;
+                    if (primary == null && (fallback == null || thing.thingIDNumber < fallback.parent.thingIDNumber))
+                        fallback = comp;
                 }
             }
-            return null;
+            return main ?? fallback;
         }
 
         /// <summary>

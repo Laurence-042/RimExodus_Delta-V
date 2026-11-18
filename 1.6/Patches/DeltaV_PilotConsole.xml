@@ -2,10 +2,8 @@
 <Patch>
 
 	<!--
-		直接扩展 Odyssey 原版 PilotConsole，而不复制 ThingDef。这样驾驶台仍被
-		Gravship.AddThing/DetermineLaunchDirection、GravshipComponents 与其他 Mod 按
-		ThingDefOf.PilotConsole 正常识别；Delta-V Comp 在地面图给出重力限制说明，
-		在 Orbit 图可把未登记 Gravship 接入移动模式。
+		为 Odyssey 原版 PilotConsole 挂载 Delta-V 组件。运行时按组件及其子类识别，
+		自定义建筑可自行挂载相同组件接入；战略发射另需原版驾驶组件与逆重引擎。
 	-->
 	<Operation Class="PatchOperationAdd">
 		<xpath>/Defs/ThingDef[defName="PilotConsole"]/comps</xpath>

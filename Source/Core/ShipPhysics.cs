@@ -36,7 +36,7 @@ namespace DeltaV
 
         public const float MassPerBuilding = 4f;
 
-        /// <summary>单台推进器推力。玩家船（约 1800 质量、2 台前向推进器）→ 前进加速度约 2.2 cells/s²。</summary>
+        /// <summary>裸数值布局的默认推力；实体推进器由 ThrusterPower.BaseThrust 读取 Def。</summary>
         public const float ThrusterThrust = 2000f;
 
         // ---- 联合推进器分配 ----
@@ -86,7 +86,7 @@ namespace DeltaV
             /// 在对象读取驾驶信息或执行出力时刷新；数值求解只消费这一快照。</summary>
             public bool operational;
 
-            /// <summary>本台推进器的推力（默认原版常量；shuttle 虚拟推进器按 comp 配置覆盖，§7.3）。</summary>
+            /// <summary>沿 dir 的非负推力大小；实体的有符号 Def 推力在适配入口归一化。</summary>
             public float thrust = ThrusterThrust;
 
             /// <summary>本 tick 分配到的油门 [0,1]。唯一写入者是 Allocate（驾驶/
@@ -238,13 +238,14 @@ namespace DeltaV
         public static Thruster BuildInstalledThruster(Thing thing)
         {
             CompThrusterPowerLimit limit = thing.TryGetComp<CompThrusterPowerLimit>();
-            float thrust = ThrusterThrust * (limit == null ? 1f : Mathf.Clamp(limit.powerPercent, 0f, 100f) * 0.01f);
+            float configured = ThrusterPower.BaseThrust(thing.def);
+            float thrust = Mathf.Abs(configured) * (limit == null ? 1f : Mathf.Clamp(limit.powerPercent, 0f, 100f) * 0.01f);
             return new Thruster
             {
                 thing = thing,
                 localPos = SpaceTransform.BoundsCenterOfCells(thing.OccupiedRect().Cells)
                     - SpaceTransform.ShipLocalOrigin(thing.Map),
-                dir = ThrustDir(thing.Rotation),
+                dir = ThrustDir(thing.Rotation) * (configured < 0f ? -1f : 1f),
                 operational = ThrusterPower.IsOperational(thing) && thrust > 0f,
                 thrust = thrust
             };

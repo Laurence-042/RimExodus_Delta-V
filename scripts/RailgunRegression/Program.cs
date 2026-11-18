@@ -552,6 +552,9 @@ internal static partial class Program
                 Set(building, "positionInt", Cell(x));
                 map.thingGrid.Register(building);
                 map.listerThings.Add(building);
+                // This fixture bypasses the native spawn notifications that maintain the building index.
+                AccessTools.Method(typeof(SubstructureOwnership), "UpdateSpawnedBuilding")
+                    .Invoke(ownership, new object[] { building });
             }
             CompDeltaVPilotConsole ConsoleAt(int x, int owner)
             {
@@ -609,6 +612,8 @@ internal static partial class Program
             map.thingGrid.Deregister(other.parent);
             map.listerThings.Remove(other.parent);
             Set(other.parent, "mapIndexOrState", (sbyte)-2);
+            AccessTools.Method(typeof(SubstructureOwnership), "UpdateSpawnedBuilding")
+                .Invoke(ownership, new object[] { other.parent });
             SubstructureOwnership.BumpStructureVersion(map);
             Debit(b, 0, hit, 0, "a removed generator no longer supplies its former pool");
         }

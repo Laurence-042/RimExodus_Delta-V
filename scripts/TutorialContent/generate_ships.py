@@ -231,7 +231,8 @@ def search(args, path, modules, limits, cap, guided, temporary, shell=None, feed
                                              shell['reserved'] | shell['deckReserved'])
         cargo = 2*modules.count('ModuleCargo')
         typical_mass = program['estimate']['loadedMass'] - 1350*cargo + 3*len(target)
-        thrust_need = tuple(math.ceil(limits[1][i]*typical_mass/THRUST) for i in (2,0,3,1))
+        slot_force = propulsion_slots[3]
+        thrust_need = tuple(math.ceil(limits[1][i]*typical_mass/max(slot_force,1e-6)) for i in (2,0,3,1))
     route_target = target if shell or guided else target_mask({(x,z) for x in range(25) for z in range(23)},area)
     queue = [(r,(),None) for r in islice(route_proposals(route_target,args.seed),args.proposals)] if not shell else []
     armour_slots = None
@@ -457,7 +458,7 @@ def search(args, path, modules, limits, cap, guided, temporary, shell=None, feed
                     mass = mass_case(report,records,12)[0]
                     need = [math.ceil(a*mass/THRUST) for a in limits[1][:4]]
                     print(f'    east/west/forward/brake independent mount ceiling {upper}; '
-                          f'full-thrust equivalents at typical load before mounting {need}',flush=True)
+                          f'force units at typical load before mounting {need}',flush=True)
                 break
             indexes = selected['indexes']
             rejected.append(set(indexes))

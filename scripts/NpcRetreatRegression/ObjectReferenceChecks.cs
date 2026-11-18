@@ -208,6 +208,11 @@ internal static partial class Program
 
     static Building AddTestBuilding(Map map, Faction faction, int id, ThingDef def, ThingComp comp, Building body = null)
     {
+        // These pre-existing fixtures specify a 2000-force model independently of vanilla range calibration.
+        if (def.GetCompProperties<CompProperties_GravshipThruster>() != null
+            && def.GetModExtension<DefModExtension_ThrusterPower>() == null)
+            (def.modExtensions ??= new List<DefModExtension>()).Add(
+                new DefModExtension_ThrusterPower { thrust = 2000f });
         body ??= (Building)Raw(typeof(Building));
         body.def = def; body.thingIDNumber = id;
         Set(typeof(Thing), body, "positionInt", new IntVec3(1, 0, 2));
@@ -215,6 +220,7 @@ internal static partial class Program
         Set(typeof(ThingWithComps), body, "comps", new List<ThingComp> { comp });
         comp.parent = body;
         PlaceFixtureBuilding(body, map, notify: false);
+        SubstructureOwnership.TryGet(map)?.UpdateSpawnedBuilding(body);
         return body;
     }
 

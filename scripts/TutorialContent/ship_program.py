@@ -5,10 +5,9 @@ import math
 
 from ortools.sat.python import cp_model
 
-from build import comp_values, material_cost
+from build import comp_values, material_cost, thruster_force
 from module_layout import MODULES, battery_capacity, furnish, shape
 from module_layout import adjacent
-from ship_propulsion import THRUST
 from ship_search import (DIR, GALLEY, REFUEL, add_open_seams, elongated_hull, move,
                          room_option_geometry, solver_for, translate, turn)
 
@@ -403,6 +402,8 @@ def place_program(shell, route, rooms, geometry, materials, terrain_cost, seed, 
     propulsion_mass = 0
     engine_counts = []
     if armour_band is not None:
+        small_force = thruster_force(prop, 'SmallThruster')
+        force_units = round(abs(small_force))
         engine_counts = [model.new_int_var(0,len(hull),f'engineBudget_{r}') for r in range(4)]
         wall_mass = float(prop('GravshipHull','statBases/Mass','4'))
         mount_mass = max(0,math.ceil(float(prop('SmallThruster','statBases/Mass','4'))-wall_mass))
@@ -426,14 +427,15 @@ def place_program(shell, route, rooms, geometry, materials, terrain_cost, seed, 
             face = next(iter(inner))
             if not faces.get((face,(r+2)%4)) and not (face in corridor_walls and service & route.floor):
                 continue
-            dx,dz = DIR[r]
+            direction = (r + (2 if small_force < 0 else 0)) % 4
+            dx,dz = DIR[direction]
             arm = (face[0]+.5-cx)*dz-(face[1]+.5-cz)*dx
             for i,sign in enumerate((1,-1)):
-                max_arms[i][r] = max(max_arms[i][r],math.ceil(10*sign*arm))
+                max_arms[i][direction] = max(max_arms[i][direction],math.ceil(10*sign*arm))
             if face in corridor_walls and service & route.floor:
-                corridor_capacity[r] += 1
+                corridor_capacity[direction] += 1
             else:
-                by_rotation[r].extend(faces.get((face,(r+2)%4),()))
+                by_rotation[direction].extend(faces.get((face,(r+2)%4),()))
         for direction,count_at_edge in enumerate(engine_counts):
             model.add(count_at_edge <= sum(by_rotation[direction])+corridor_capacity[direction])
         i = names.index('ModuleBridge')
@@ -446,10 +448,10 @@ def place_program(shell, route, rooms, geometry, materials, terrain_cost, seed, 
             for axis,offset in enumerate((1,3,0,2)):
                 direction = (facing+offset)%4
                 for load,mass in zip(limits,('dryMass','typicalMass','loadedMass')):
-                    model.add(1000*THRUST*engine_counts[direction] >= math.ceil(1000*load[axis])*estimate[mass]
+                    model.add(1000*force_units*engine_counts[direction] >= math.ceil(1000*load[axis])*estimate[mass]
                               ).only_enforce_if(facing_used)
         for axis,arms in enumerate(max_arms,4):
-            torque = THRUST*sum(arm*count for arm,count in zip(arms,engine_counts))
+            torque = force_units*sum(arm*count for arm,count in zip(arms,engine_counts))
             for load,mass in zip(limits,('dryMass','typicalMass','loadedMass')):
                 model.add(torque >= math.ceil(10*load[axis]*radius_sq)*estimate[mass])
         estimate.update({f'mounts{r}':value for r,value in enumerate(engine_counts)})

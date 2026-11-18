@@ -87,6 +87,12 @@ ID 的**分配**仍复用唯一、单调、不回收的分配入口；ID 的**�
 
 ## 3. 驾驶台、船体与主备用认领
 
+驾驶台身份由建筑上的 `CompDeltaVPilotConsole` 或其子类定义，不按精确 CLR 类型、原版 `PilotConsole` Def 或 Def 名称识别。地图查询统一经 `ShipRegistry.ConsolesOnMap`，复用地图建筑索引；组件 Spawn／DeSpawn 在认领与清理前同步索引，主台查询、继任、归属通知、读档 ID 高水位和 NPC 诊断共用该枚举。Def 级战斗委托预检使用支持继承的 `HasComp<CompDeltaVPilotConsole>()`，不要求特定的 CompProperties 子类。
+
+第三方建筑须自行挂载此组件（或设置 `compClass` 为其子类）；现有 XML 只为原版驾驶台追加组件，不自动为所有含原版驾驶组件的建筑接管身份。普通驾驶不要求原版 `CompPilotConsole`，战略发射仍需该组件、原版设施链接与逆重引擎。`GravshipInterop` 的预览与实际捕获都绑定传入的同一主台；无主台残片不从备用台推导主台。原版 `Gravship.AddThing` 的 Postfix 仅在已登记的 Delta-V 宇宙地图捕获中补认组件驾驶台，并优先保留携带的主台；地表流程保持原版行为。
+
+2026-11-18 离线验证：1.7／1.6 开发版及各自 REF 标准构建均零警告、零错误；双版本 `TutorialRegression` 各通过 39199 项，覆盖组件子类、真实主备切换与 Spawn、归属同步、ID 高水位、预览／捕获主台一致、原版 `AddThing` Postfix 及地表排除。1.6 `NpcRetreatRegression` 全套通过 2092 项，包含自定义 Def 搬图、子类继任与主备状态 Scribe。原版捕获专项仅跳过 Unity 材质初始化与地图绘制刷新，实际执行捕获方法及建筑成员判定；不替代游戏启动后的 Harmony 和新档验收，待验收项见 `TODO.md`。
+
 ### 3.1 船体范围（已定）
 
 普通基架船 = 主驾驶台 + 从其下方基架开始、**四邻接且归属相同**的连续基架及所承载内容。

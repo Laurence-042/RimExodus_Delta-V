@@ -64,6 +64,18 @@ namespace DeltaV
     {
         // ---- 枚举 ----
 
+        /// <summary>驾驶台身份只取组件（含子类）；建筑 Def 不参与身份判定。</summary>
+        internal static IEnumerable<CompDeltaVPilotConsole> ConsolesOnMap(Map map)
+        {
+            if (map == null || map.Disposed) yield break;
+            IEnumerable<Building> buildings = SubstructureOwnership.TryGet(map)?.SpawnedBuildings
+                ?? map.listerThings.AllThings.OfType<Building>();
+            foreach (Building building in buildings)
+                if (building.Spawned && !building.Destroyed && building.Map == map
+                    && building.TryGetComp<CompDeltaVPilotConsole>() is { } console)
+                    yield return console;
+        }
+
         /// <summary>图上普通基架船视图（有主台的归属）；结构操作不包含单建筑船。</summary>
         public static List<Ship> FoundationShipsOnMap(Map map)
             => AllShipsOnMap(map).OfType<FoundationShip>().Select(ship => ship.Structure).ToList();
@@ -75,9 +87,8 @@ namespace DeltaV
         internal static IEnumerable<ShipBase> DiscoverShipsOnMap(Map map)
         {
             if (map == null || map.Disposed) yield break;
-            foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
+            foreach (CompDeltaVPilotConsole console in ConsolesOnMap(map))
             {
-                CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
                 if (console?.isMain != true || console.shipId <= 0) continue;
                 var ship = new Ship(console.shipId, map, console);
                 if (ship.IsValid) yield return ship;
@@ -187,9 +198,8 @@ namespace DeltaV
         public static CompDeltaVPilotConsole MainConsoleForOwner(Map map, int ownerId)
         {
             if (map == null || ownerId <= 0) return null;
-            foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
+            foreach (CompDeltaVPilotConsole console in ConsolesOnMap(map))
             {
-                CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
                 if (console != null && console.shipId == ownerId && console.isMain) return console;
             }
             return null;

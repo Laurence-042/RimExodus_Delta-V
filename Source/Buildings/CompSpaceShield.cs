@@ -416,6 +416,7 @@ namespace DeltaV
                     current, assign)))
             {
                 defaultLabel = key.Translate() + ": " + current(this),
+                defaultDesc = SpaceShieldReference.SettingDescription(this, key),
                 icon = TexCommand.Install,
             };
         }

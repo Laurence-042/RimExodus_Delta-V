@@ -99,6 +99,8 @@ internal static partial class Program
                 Set(typeof(Thing), thing, "positionInt", cell);
                 fixture.Add(thing);
                 map.thingGrid.Register(thing);
+                if (thing is Building building)
+                    SubstructureOwnership.TryGet(map)?.UpdateSpawnedBuilding(building);
                 return thing;
             }
             for (int i = 0; i < 10000; i++)

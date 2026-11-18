@@ -38,6 +38,7 @@ internal static partial class Program
     {
         Game previous = Current.Game;
         Current.Game = (Game)RuntimeHelpers.GetUninitializedObject(typeof(Game));
+        Current.Game.components = new List<GameComponent>();
         typeof(Game).GetField("maps", PrivateInstance).SetValue(Current.Game, new List<Map> { null });
         try
         {

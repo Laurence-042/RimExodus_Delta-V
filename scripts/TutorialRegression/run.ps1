@@ -63,6 +63,9 @@ $lines += '"' + "$PSScriptRoot/PrefabContentChecks.cs" + '"'
 $lines += '"' + "$repo/scripts/PrefabRegression/PrefabContentValidation.cs" + '"'
 $lines += '"' + "$PSScriptRoot/ArrivalChecks.cs" + '"'
 $lines += '"' + "$PSScriptRoot/MissionChecks.cs" + '"'
+$lines += '"' + "$PSScriptRoot/PilotConsoleChecks.cs" + '"'
+$lines += '"' + "$PSScriptRoot/ThrusterThrustChecks.cs" + '"'
+$lines += '"' + "$PSScriptRoot/ShieldSettingChecks.cs" + '"'
 $lines += '"' + "$PSScriptRoot/RangeChecks.cs" + '"'
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & $dotnet "$($sdkVersion.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"

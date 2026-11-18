@@ -343,9 +343,8 @@ namespace DeltaV
                     maxOccupied = Mathf.Max(maxOccupied, ownership.MaxAssignedOwner());
                 }
                 // 驾驶台 comp 持久持有的结构身份 ID 也要占据号段。
-                foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole))
+                foreach (CompDeltaVPilotConsole console in ShipRegistry.ConsolesOnMap(map))
                 {
-                    CompDeltaVPilotConsole console = thing.TryGetComp<CompDeltaVPilotConsole>();
                     if (console != null)
                     {
                         maxOccupied = Mathf.Max(maxOccupied, console.shipId);

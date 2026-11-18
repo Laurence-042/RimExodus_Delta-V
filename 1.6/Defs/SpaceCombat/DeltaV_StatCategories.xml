@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
   <StatCategoryDef>
+    <defName>DeltaV_General</defName>
+    <label>Delta-V</label>
+    <displayOrder>549</displayOrder>
+  </StatCategoryDef>
+  <StatCategoryDef>
     <defName>DeltaV_SpaceCombat</defName>
     <label>Delta-V space combat</label>
     <displayOrder>550</displayOrder>

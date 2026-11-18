@@ -16,8 +16,9 @@ namespace DeltaV
         private readonly Action<CompSpaceShield, int> assign;
         private int value;
         private bool confirmed;
+        private Vector2 descriptionScroll;
 
-        public override Vector2 InitialSize => new Vector2(430f, 220f);
+        public override Vector2 InitialSize => new Vector2(520f, 420f);
         protected override float Margin => 12f;
 
         public Dialog_SpaceShieldSetting(CompSpaceShield[] shields, string key, int min, int max,
@@ -52,8 +53,13 @@ namespace DeltaV
                     shields[i].SettingsChanged();
                 }
             }
-            Widgets.Label(new Rect(0f, 76f, rect.width, 70f),
-                SpaceShieldReference.Build(shields[0]));
+            string description = SpaceShieldReference.SettingDescription(shields[0], key);
+            var viewport = new Rect(0f, 76f, rect.width, rect.height - 118f);
+            var content = new Rect(0f, 0f, rect.width - 16f,
+                Mathf.Max(viewport.height, Text.CalcHeight(description, rect.width - 16f)));
+            Widgets.BeginScrollView(viewport, ref descriptionScroll, content);
+            Widgets.Label(content, description);
+            Widgets.EndScrollView();
             float buttonWidth = (rect.width - 10f) * 0.5f;
             if (Widgets.ButtonText(new Rect(0f, rect.height - 30f, buttonWidth, 30f),
                 "CancelButton".Translate())) Close();
@@ -86,6 +92,58 @@ namespace DeltaV
 
     public static class SpaceShieldReference
     {
+        public static string SettingDescription(CompSpaceShield shield, string key)
+        {
+            switch (key)
+            {
+                case "DeltaV_ShieldRadius":
+                    return "DeltaV_ShieldRadiusTip".Translate() + "\n\n" + Build(shield);
+                case "DeltaV_ShieldProjection":
+                    return "DeltaV_ShieldProjectionTip".Translate(
+                        shield.ShieldProps.spaceProjectionPowerWatts.ToString("0.##") + " W")
+                        + "\n\n" + PowerReference(shield);
+                case "DeltaV_ShieldLength":
+                    return "DeltaV_ShieldLengthTip".Translate(
+                        shield.ShieldProps.spaceLengthPowerWatts.ToString("0.##") + " W")
+                        + "\n\n" + PowerReference(shield);
+                case "DeltaV_ShieldAngle":
+                    return "DeltaV_ShieldAngleTip".Translate();
+                case "DeltaV_ShieldKineticStrength":
+                    var round = DefDatabase<ThingDef>.GetNamed("DeltaV_Projectile_Rapid")
+                        .GetCompProperties<CompProperties_SpaceProjectile>();
+                    float impulse = SpaceKinetics.ShieldImpulse(shield.kineticStrengthPercent);
+                    return "DeltaV_ShieldKineticStrengthTip".Translate() + "\n\n" + Build(shield)
+                        + "\n\n" + "DeltaV_ShieldKineticCostReference".Translate(
+                            round.mass.ToString("0.##"), round.speed.ToString("0.##"),
+                            PulseEnergy(SpaceKinetics.ShieldCost(
+                                round.mass, -round.speed, impulse, round.shieldFragmentCost)));
+                case "DeltaV_ShieldElectromagneticStrength":
+                    var plan = SpaceShieldRefraction.Calculate(new Vector2(0.5f, -0.8660254f),
+                        Vector2.up, shield.electromagneticStrengthPercent);
+                    var normal = SpaceShieldRefraction.Calculate(Vector2.down, Vector2.up,
+                        shield.electromagneticStrengthPercent);
+                    float small = DefDatabase<ThingDef>.GetNamed("DeltaV_Projectile_Laser")
+                        .GetCompProperties<CompProperties_SpaceProjectile>().shieldLaserTurnEnergy;
+                    float medium = DefDatabase<ThingDef>.GetNamed("DeltaV_Projectile_LaserHeavy")
+                        .GetCompProperties<CompProperties_SpaceProjectile>().shieldLaserTurnEnergy;
+                    return "DeltaV_ShieldElectromagneticStrengthTip".Translate(
+                        (1.8f * shield.electromagneticStrengthPercent).ToString("0.#"))
+                        + "\n\n" + Build(shield) + "\n\n"
+                        + "DeltaV_ShieldElectromagneticCostReference".Translate(
+                            PulseEnergy(small * plan.addedDeg / 180f),
+                            PulseEnergy(medium * plan.addedDeg / 180f),
+                            PulseEnergy(small * normal.addedDeg / 180f),
+                            PulseEnergy(medium * normal.addedDeg / 180f));
+                default:
+                    return Build(shield);
+            }
+        }
+
+        private static string PowerReference(CompSpaceShield shield) =>
+            "DeltaV_ShieldSettingPower".Translate(shield.WantedPowerWatts.ToString("0.##") + " W");
+
+        private static string PulseEnergy(float wattDays) => wattDays.ToString("0.####") + " W·d";
+
         public static string Build(CompSpaceShield shield)
         {
             if (shield.mode == SpaceShieldMode.Guard)

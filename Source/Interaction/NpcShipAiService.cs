@@ -334,8 +334,8 @@ namespace DeltaV
         internal bool HasUnclaimedNpcConsole(SpaceObject obj)
         {
             return obj?.map != null && !obj.map.Disposed && obj.HasTag(SpaceObjectTag.Ship) != true
-                && obj.map.listerThings.ThingsOfDef(ThingDefOf.PilotConsole)
-                    .Any(thing => thing.Faction != null && thing.Faction != Faction.OfPlayer);
+                && ShipRegistry.ConsolesOnMap(obj.map)
+                    .Any(console => console.parent.Faction != null && console.parent.Faction != Faction.OfPlayer);
         }
 
         internal NpcShipAiGate GateFor(SpaceObject obj, ShipBase ship)

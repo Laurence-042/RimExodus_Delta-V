@@ -8,6 +8,7 @@ from pathlib import Path
 import argparse
 import copy
 import json
+import math
 import re
 import xml.etree.ElementTree as ET
 from collections import Counter, deque
@@ -57,7 +58,41 @@ def read_defs(data):
                 parent_table[node.get('Name')] = node
             if node.findtext('defName'):
                 definition_table[node.findtext('defName')] = node
+    # Apply this tool's own thrust configuration; other Mod patch pipelines are outside its input contract.
+    patch = ET.parse(ROOT / '1.6/Patches/DeltaV_ThrusterPower.xml').getroot()
+    for operation in patch.findall("Operation[@Class='PatchOperationAddModExtension']"):
+        match = re.fullmatch(r'/Defs/ThingDef\[defName="([^"]+)"\]', operation.findtext('xpath'))
+        if match is None:
+            raise ValueError('Unsupported thrust configuration target')
+        node = defs[match[1]]
+        extensions = node.find('modExtensions')
+        if extensions is None:
+            extensions = ET.SubElement(node, 'modExtensions')
+        for extension in operation.findall('value/li'):
+            extensions.append(copy.deepcopy(extension))
     return defs, parents, terrains, terrain_parents, colors, biomes
+
+
+def thruster_force(prop, name):
+    """Same signed, Def-driven piecewise calibration as ThrusterPower.BaseThrust."""
+    field = "modExtensions/li[@Class='DeltaV.DefModExtension_ThrusterPower']/thrust"
+    range_field = "comps/li[@Class='CompProperties_GravshipThruster']/statOffsets/GravshipRange"
+    configured = prop(name, field)
+    if configured is not None:
+        force = float(configured)
+    else:
+        distance = float(prop(name, range_field, '0'))
+        small_range = float(prop('SmallThruster', range_field, '0'))
+        large_range = float(prop('LargeThruster', range_field, '0'))
+        small = float(prop('SmallThruster', field))
+        large = float(prop('LargeThruster', field))
+        if not 0 < small_range < large_range:
+            raise ValueError('Invalid thruster calibration ranges')
+        force = (distance * small / small_range if distance <= small_range else
+                 small + (distance-small_range)*(large-small)/(large_range-small_range))
+    if not math.isfinite(force):
+        raise ValueError(f'Nonfinite thrust: {name}')
+    return force
 
 
 def authoring_geometry(defs, parents):

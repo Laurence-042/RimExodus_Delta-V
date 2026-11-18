@@ -4,14 +4,19 @@ import math
 
 from ortools.sat.python import cp_model
 
-from build import material_cost
+from build import material_cost, thruster_force
 from module_layout import adjacent, flood
 from ship_search import DIR, bounds, move, solver_for
 
 
 AXES = ('east','west','forward','brake','turnRight','turnLeft')
-THRUST = 2000  # ShipPhysics.ThrusterThrust, checked by the native acceptance run.
+THRUST = 1  # Force unit used by the integer surrogate; each mount carries its own signed Def force.
 QUANTA = 24
+
+
+def force_vector(mount, facing=0):
+    magnitude = round(mount['force']/THRUST)
+    return tuple(d*magnitude for d in DIR[(mount['rotation']-facing)%4])
 
 
 def armour_mount_slots(geometry, hull, protected, trimmable):
@@ -65,10 +70,13 @@ def packed_armour_band(band, route, placements):
 
 def shell_mount_slots(geometry, hull, trimmable, reserved):
     """Small nozzles give the beam search a concrete set of edge slots to preserve."""
-    _, _, footprint, _, exhaust = geometry
+    prop, _, footprint, _, exhaust = geometry
+    force = thruster_force(prop, 'SmallThruster')
     clear_masks = defaultdict(int)
     wall_masks = defaultdict(int)
     directions = [0]*4
+    if force == 0:
+        return clear_masks,wall_masks,tuple(directions),0
     trim_limit = min(60,len(hull)//12)
     for cell in sorted(hull):
         for r,direction in enumerate(DIR):
@@ -84,12 +92,12 @@ def shell_mount_slots(geometry, hull, trimmable, reserved):
             if not exhaust_cells <= trimmable or len(exhaust_cells) > min(2,trim_limit):
                 continue
             bit = 1 << (sum(m.bit_count() for m in directions))
-            directions[r] |= bit
+            directions[(r + (2 if force < 0 else 0)) % 4] |= bit
             for c in foot | exhaust_cells:
                 clear_masks[c] |= bit
             for c in exhaust_cells | {service}:
                 wall_masks[c] |= bit
-    return clear_masks,wall_masks,tuple(directions)
+    return clear_masks,wall_masks,tuple(directions),abs(force)
 
 
 class MountTopology:
@@ -200,6 +208,9 @@ def mount_proposals(geometry, defs, parents, terrains, terrain_parents, hull, wa
     mounts = []
     for kind in ('LargeThruster','SmallThruster'):
         body_cost = material_cost(defs[kind],parents)
+        force = thruster_force(prop, kind)
+        if force == 0:
+            continue
         for r,direction in enumerate(DIR):
             for x,z in sorted(walls):
                 for recessed in ((False,True) if inset else (False,)):
@@ -228,7 +239,7 @@ def mount_proposals(geometry, defs, parents, terrains, terrain_parents, hull, wa
                     mass = weight + len(outside)*(1+cable_weight) - len(removed)*wall_weight
                     mounts.append(dict(defname=kind,origin=origin,rotation=r,cells=frozenset(cells),face=frozenset(face),
                                        exclusion=exclusion,extension=frozenset(outside),cost=cost,mass=mass,
-                                       service=frozenset(service),
+                                       service=frozenset(service),force=force,
                                        center=((a+c+1)/2,(b+d+1)/2)))
     for mount in mounts:
         mount['def'] = mount.pop('defname')
@@ -244,7 +255,8 @@ def direction_capacity(mounts, trim_limit, budget, facing=0):
     """Independent upper bounds; excludes shared service and torque effects."""
     capacities = []
     for offset in (1,3,0,2):
-        candidates = [e for e in mounts if e['rotation'] == (facing+offset)%4]
+        candidates = [e for e in mounts if sum(a*b for a,b in
+                      zip(force_vector(e), DIR[(facing+offset)%4])) > 0]
         model = cp_model.CpModel()
         choices = [model.new_bool_var(f'm{i}') for i in range(len(candidates))]
         cells, exhaust = defaultdict(list), defaultdict(list)
@@ -263,11 +275,11 @@ def direction_capacity(mounts, trim_limit, budget, facing=0):
                 model.add(sum(cells[cell])+cut <= 1)
             cuts.append(cut)
         model.add(sum(cuts) <= trim_limit)
-        model.maximize(sum(choices))
+        model.maximize(sum(round(abs(e['force'])/THRUST)*v for e,v in zip(candidates,choices)))
         solver = solver_for(0,budget)
         status = solver.solve(model)
         capacities.append(math.floor(solver.best_objective_bound+1e-6) if status in (
-            cp_model.FEASIBLE,cp_model.OPTIMAL) else len(candidates))
+            cp_model.FEASIBLE,cp_model.OPTIMAL) else sum(round(abs(e['force'])/THRUST) for e in candidates))
     return capacities
 
 
@@ -276,7 +288,7 @@ def trim_power(mounts, report, records, limits, seed, budget, native=None, task=
     model = cp_model.CpModel()
     power = [model.new_int_var(20 if native else 45,100,f'power{i}') for i in range(len(mounts))]
     facing = report.get('flightRotation',0)
-    vectors = [DIR[(e['rotation']-facing)%4] for e in mounts]
+    vectors = [force_vector(e, facing) for e in mounts]
     cases = [mass_case(report,records,stacks) for stacks in (0,12,48)]
     if native:
         cases = [(case['mass'],*case['center'],case['inertia'],
@@ -285,14 +297,14 @@ def trim_power(mounts, report, records, limits, seed, budget, native=None, task=
     residuals = []
     for k,(mass,cx,cz,inertia,radius) in enumerate(cases):
         arms = [round(10*((e['center'][0]-cx)*d[1]-(e['center'][1]-cz)*d[0]))
-                for e in mounts for d in (DIR[e['rotation']],)]
+                for e in mounts for d in (force_vector(e),)]
         for direction in (-1,1):
             raw = [i for i,a in enumerate(arms) if direction*a > 0]
             strength = sum(abs(arms[i])*power[i] for i in raw)
             angular_floor = limits[k][4 if direction > 0 else 5]
             model.add(strength >= math.ceil((1 if task else 1.025)*angular_floor*inertia*1000/THRUST))
             for axis in (0,1):
-                residual = model.new_int_var(0,100*len(mounts),f'imbalance{k}_{direction}_{axis}')
+                residual = model.new_int_var(0,100*sum(abs(d[axis]) for d in vectors),f'imbalance{k}_{direction}_{axis}')
                 model.add_abs_equality(residual,sum(vectors[i][axis]*power[i] for i in raw))
                 # Saturated turn groups must already be close to balanced;
                 # production can improve on this but isn't required to rescue it.
@@ -311,8 +323,8 @@ def trim_power(mounts, report, records, limits, seed, budget, native=None, task=
             model.add(-100*side <= tolerance*main)
             model.add(100*moment <= round(10*tolerance*radius)*main)
             model.add(-100*moment <= round(10*tolerance*radius)*main)
-    model.maximize(20*sum(p for p,e in zip(power,mounts) if e['rotation'] == facing)
-                   + 5*sum(power) - 6*sum(residuals))
+    model.maximize(20*sum(p*max(0,d[1]) for p,d in zip(power,vectors))
+                   + 5*sum(p*round(abs(e['force'])/THRUST) for p,e in zip(power,mounts)) - 6*sum(residuals))
     solver = solver_for(seed,budget)
     status = solver.solve(model)
     return [solver.value(p) for p in power] if status in (cp_model.FEASIBLE,cp_model.OPTIMAL) else None
@@ -387,12 +399,12 @@ def mount_selections(mounts, target, hull, base, records, limits, materials, see
         return
     cases = [mass_case(base,records,stacks) for stacks in (0,12,48)]
     facing = base.get('flightRotation',0)
-    vectors = [DIR[(e['rotation']-facing)%4] for e in mounts]
+    vectors = [force_vector(e, facing) for e in mounts]
     target_mass = cases[1][0]
     # Pure rotation can reuse a zero-resultant vector at all centers, but each
     # translation needs its own allocation when cargo moves the center of mass.
-    moments = [[round(10*((e['center'][0]-cx-shift[0])*DIR[e['rotation']][1] -
-                         (e['center'][1]-cz-shift[1])*DIR[e['rotation']][0])) for e in mounts]
+    moments = [[round(10*((e['center'][0]-cx-shift[0])*force_vector(e)[1] -
+                         (e['center'][1]-cz-shift[1])*force_vector(e)[0])) for e in mounts]
                for _,cx,cz,_,_ in cases]
     if trim_limit and not task:
         # Leave the native full-turn controller a set that can be balanced
@@ -400,9 +412,10 @@ def mount_selections(mounts, target, hull, base, records, limits, materials, see
         for row in moments:
             for sign in (-1,1):
                 for axis in (0,1):
-                    raw = sum(DIR[e['rotation']][axis]*v for e,v,arm in zip(mounts,variables,row) if sign*arm > 0)
-                    model.add(raw <= 2)
-                    model.add(raw >= -2)
+                    raw = sum(force_vector(e)[axis]*v for e,v,arm in zip(mounts,variables,row) if sign*arm > 0)
+                    balance = 2*max(abs(d[axis]) for d in vectors)
+                    model.add(raw <= balance)
+                    model.add(raw >= -balance)
     forward = None
     turn_margin = model.new_int_var(0,100,'turnMargin') if angular_priority else None
     for axis,k in ([(axis,k) for axis in range(4) for k in range(3)] + [(4,1),(5,1)]):
@@ -431,8 +444,8 @@ def mount_selections(mounts, target, hull, base, records, limits, materials, see
                              for e,v in zip(mounts,variables)))
             model.add(100*target_axis >= minimum)
             if task:
-                positive = (v for d,v in zip(vectors,variables)
-                            if d[axis//2] == (1 if axis%2 == 0 else -1))
+                positive = (abs(d[axis//2])*v for d,v in zip(vectors,variables)
+                            if d[axis//2]*(1 if axis%2 == 0 else -1) > 0)
                 model.add(100*QUANTA*sum(positive) >= minimum)
             arm_tolerance = round((100 if task else 75)*radius)
             model.add(100*moment <= arm_tolerance*target_axis)
@@ -552,7 +565,7 @@ def mount_selections(mounts, target, hull, base, records, limits, materials, see
         return
     f,m,selection,status_name = best
     if not angular_priority:
-        model.add(100*10000*m*forward >= 95*10000*f*loaded_mass)
+        model.add(100*m*forward >= 95*f*loaded_mass)
     # Left/right mirror transform is on physical occupied cells, so even-sized
     # mounts mirror correctly without assuming their integer roots match.
     x0,z0,x1,z1 = bounds(target)
@@ -574,13 +587,15 @@ def mount_selections(mounts, target, hull, base, records, limits, materials, see
     for k in (0,1,2):
         for sign in (-1,1):
             for axis in (0,1):
-                residual = model.new_int_var(0,len(variables),f'raw{k}_{sign}_{axis}')
-                model.add_abs_equality(residual,sum(DIR[e['rotation']][axis]*v
+                residual = model.new_int_var(0,sum(abs(force_vector(e)[axis]) for e in mounts),f'raw{k}_{sign}_{axis}')
+                model.add_abs_equality(residual,sum(force_vector(e)[axis]*v
                     for i,(e,v) in enumerate(zip(mounts,variables)) if sign*moments[k][i] > 0))
                 raw_imbalance.append(residual)
-    preference = 70*sum(raw_imbalance) + 30*sum(singles+pairs) + sum(b*v for b,v in zip(bump,variables))
+    preference_scale = max(1,max(round(abs(e['force'])/THRUST) for e in mounts))
+    preference = (70*sum(raw_imbalance) + preference_scale*
+                  (30*sum(singles+pairs) + sum(b*v for b,v in zip(bump,variables))))
     if turn_margin is not None:
-        preference += 2*sum(variables)-35*turn_margin
+        preference += preference_scale*(2*sum(variables)-35*turn_margin)
     model.minimize(preference)
     status = solve('placement')
     if status in (cp_model.OPTIMAL,cp_model.FEASIBLE):

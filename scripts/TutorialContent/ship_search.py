@@ -389,7 +389,7 @@ def grow_layout(modules, target, anchors, reserved, dock, width, seed, geometry,
                       and not reserved & (p.wall | p.doors | p.vents)
                       and (not reserved & p.cells or not reserved & translate(turn(blocked,w,h,p.rot),p.x,p.z))]
         if propulsion_slots:
-            clear_masks,wall_masks,_ = propulsion_slots
+            clear_masks,wall_masks,_,_ = propulsion_slots
             for p in options[i]:
                 solid = translate(turn(blocked,w,h,p.rot),p.x,p.z) | p.doors | p.vents
                 blocked_by_room[p] = (reduce(or_,(clear_masks.get(c,0) | wall_masks.get(c,0) for c in solid),0)
@@ -430,7 +430,7 @@ def grow_layout(modules, target, anchors, reserved, dock, width, seed, geometry,
             if propulsion_slots:
                 used_slots = reduce(or_,(blocked_by_room[p] for p in placed),0)
                 used_slots |= reduce(or_,(clear_masks.get(c,0) for c in route.floor),0)
-                _,_,directions = propulsion_slots
+                _,_,directions,_ = propulsion_slots
             for p in options[i]:
                 crosses_route = p.cells & route.floor
                 if (p.cells & (interiors | all_landings) or (crosses_route and not task) or

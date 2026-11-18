@@ -23,6 +23,9 @@ namespace DeltaV
             .SelectMany(o => o.map.listerThings.AllThings.OfType<Building_SpaceTradeTerminal>());
         private int Now => FindTick;
         private static int FindTick => Verse.Find.TickManager.TicksGame;
+        internal static bool HasPilotConsole(MapPrefabDocument document) => document.thingEntries.Any(e =>
+            e.def?.thingClass != null && typeof(Building).IsAssignableFrom(e.def.thingClass)
+            && e.def.HasComp<CompDeltaVPilotConsole>());
         private MissionBoard BoardFor(Building_SpaceTradeTerminal terminal)
         {
             MissionTarget address = MissionTarget.Of(universe, terminal);
@@ -90,7 +93,7 @@ namespace DeltaV
                         try
                         {
                             var doc = MapPrefab.LoadRelative(path);
-                            if (doc.thingEntries.Any(e => e.def.HasComp(typeof(CompDeltaVPilotConsole)))) craft.Add((i, path));
+                            if (HasPilotConsole(doc)) craft.Add((i, path));
                         }
                         catch (Exception ex) { Log.Warning("[DeltaV] Mission prefab unavailable: " + path + ": " + ex.Message); }
                     }

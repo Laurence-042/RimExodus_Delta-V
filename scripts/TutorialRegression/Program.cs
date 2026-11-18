@@ -36,12 +36,7 @@ internal static partial class Program
         };
         try
         {
-            if (args.Length == 5 && args[1] == "ship-motion")
-            {
-                Console.WriteLine(SearchMotion(args[2], double.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture),
-                    double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture)));
-                return 0;
-            }
+            bool shipMotion = args.Length == 5 && args[1] == "ship-motion";
             var harmony = new Harmony("DeltaV.TutorialRegression");
             foreach (string method in new[] { "Error", "Warning" })
                 harmony.Patch(AccessTools.Method(typeof(Log), method, new[] { typeof(string) }),
@@ -49,6 +44,7 @@ internal static partial class Program
             using var logLock = Log.LockMessages();
             DeepProfiler.enabled = false;
             Game game = Raw<Game>();
+            Set(game, "maps", new List<Map>());
             game.components = new List<GameComponent>();
             game.uniqueIDsManager = new UniqueIDsManager();
             game.tickManager = new TickManager();
@@ -62,11 +58,20 @@ internal static partial class Program
             pack.assemblies = new ModAssemblyHandler(pack);
             pack.assemblies.loadedAssemblies.Add(typeof(TutorialRunState).Assembly);
             LoadedModManager.RunningModsListForReading.Add(pack);
-            string prefabRoot = args[3];
+            string prefabRoot = shipMotion ? Path.Combine(Environment.CurrentDirectory,"Common","Prefabs") : args[3];
             string gameData = Directory.Exists(Path.Combine(args[0], "Data"))
                 ? Path.Combine(args[0],"Data") : Path.GetFullPath(Path.Combine(args[0], "../../Data"));
             ReadSourceDefs(gameData,
                 Path.GetFullPath(Path.Combine(prefabRoot, "../../1.6/Defs")));
+            InitializeThrusterDefs(prefabRoot);
+            if (shipMotion)
+            {
+                Console.WriteLine(SearchMotion(args[2], double.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture),
+                    double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture)));
+                return 0;
+            }
+            ThrusterThrustChecks(game, harmony, prefabRoot);
+            ShieldSettingChecks(prefabRoot);
             string tutorialPrefabs = Path.Combine(prefabRoot, "Tutorial");
             var records = Path.GetDirectoryName(args[1]);
             string[] TutorialFiles(params string[] names) =>
@@ -175,6 +180,7 @@ internal static partial class Program
             State(game);
             Theory(game, harmony);
             FlightEvidence();
+            PilotConsoleChecks(game, harmony);
             string layoutDirectory = Path.GetDirectoryName(args[1]);
             PrefabLifeSupport(layoutDirectory, game, "ArrivalStation");
             PrefabLifeSupport(layoutDirectory, game, "Shipyard");
@@ -406,7 +412,9 @@ internal static partial class Program
             {
                 Building b = thrusters[i];
                 var rect = b.OccupiedRect();
-                float thrust = ShipPhysics.ThrusterThrust;
+                ApplyNativeThrust(b.def);
+                float signedThrust = ThrusterPower.BaseThrust(b.def);
+                float thrust = Math.Abs(signedThrust);
                 if (sector || assembly)
                 {
                     float limit = authoredThrusters[i].GetProperty("stateOverrides").GetProperty("DeltaV_powerPercent").GetSingle();
@@ -414,7 +422,7 @@ internal static partial class Program
                     thrust *= limit * .01f;
                 }
                 report.thrusters.Add(new ShipPhysics.Thruster { localPos = new Vector2(rect.minX + rect.Width*.5f, rect.minZ + rect.Height*.5f),
-                    dir = ShipPhysics.ThrustDir(b.Rotation), thrust = thrust, operational = true });
+                    dir = ShipPhysics.ThrustDir(b.Rotation) * (signedThrust < 0 ? -1 : 1), thrust = thrust, operational = thrust > 0 });
             }
             var accelerationByAxis = new List<float>();
             var commands = new[] { new ShipPhysics.Command { fx=1 }, new ShipPhysics.Command { fx=-1 },
@@ -1142,6 +1150,7 @@ internal static partial class Program
         var console = new CompDeltaVPilotConsole { parent = building, shipId = 401, isMain = true, isPublicFacility = true };
         Set(building, "comps", new List<ThingComp> { console });
         Set(map.listerThings, "listsByDef", new Dictionary<ThingDef, List<Thing>> { [def] = new List<Thing> { building } });
+        map.listerThings.AllThings.Add(building);
         var universe = game.GetComponent<UniverseManager>();
         var frame = new MapSpaceObject(950, map, default); universe.objects.Add(frame);
         SubstructureOwnership.BumpStructureVersion();

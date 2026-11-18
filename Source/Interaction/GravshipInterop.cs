@@ -47,6 +47,21 @@ namespace DeltaV
         private static readonly FieldInfo ExteriorDoorsField = AccessTools.Field(typeof(Gravship), "exteriorDoors");
         private static readonly FieldInfo BoundsField = AccessTools.Field(typeof(Gravship), "bounds");
         private static readonly FieldInfo ConsoleField = AccessTools.Field(typeof(Gravship), "pilotConsole");
+
+        /// <summary>只接入已捕获的组件驾驶台；显式主台与备用台不可互相覆盖。</summary>
+        internal static void BindPilotConsole(Gravship gravship, Building console)
+        {
+            if (console?.TryGetComp<CompDeltaVPilotConsole>() == null
+                || gravship?.ContainsThing(console) != true) return;
+            ConsoleField.SetValue(gravship, console);
+        }
+
+        internal static void RefreshPilotConsole(Gravship gravship)
+        {
+            Building console = CompDeltaVPilotConsole.IdentityConsoleOf(gravship)?.parent as Building;
+            if (console == null) ConsoleField.SetValue(gravship, null);
+            else BindPilotConsole(gravship, console);
+        }
         private static readonly FieldInfo ControllerTimeLeft =
             AccessTools.Field(typeof(WorldComponent_GravshipController), "timeLeft");
 
@@ -137,7 +152,7 @@ namespace DeltaV
             {
                 var things = (Dictionary<Thing, PositionData>)ThingsField?.GetValue(gravship);
                 things[mainConsole] = new PositionData(mainConsole.Position - origin, mainConsole.Rotation);
-                ConsoleField?.SetValue(gravship, mainConsole);
+                BindPilotConsole(gravship, mainConsole);
             }
             if (previewBody != null && previewBody != mainConsole && previewBody.Spawned
                 && previewBody.Map == map && cells.Contains(previewBody.Position))
@@ -303,6 +318,8 @@ namespace DeltaV
             TransferZones(map, gravship, origin, cells);
             CopyAreas(map, gravship, origin, cells, things, pawns);
             CopyStorageGroups(map, gravship, things);
+            // 与预览使用同一显式主台。捕获备用台或残骸不产生新的主台身份。
+            BindPilotConsole(gravship, mainConsole);
             UpdateBoundingBoxes(gravship, occupied);
             gravship.engineToCenter = CellRect.FromCellList(occupied.ToList()).CenterVector3 - origin.ToVector3();
             CheckAffectedGoodwill(pawns.Keys, ownerFaction);
@@ -384,10 +401,6 @@ namespace DeltaV
             if (thing.def == ThingDefOf.GravFieldExtender)
             {
                 extenderPositions.Add(offset);
-            }
-            if (thing.def == ThingDefOf.PilotConsole)
-            {
-                ConsoleField?.SetValue(gravship, thing);
             }
         }
 

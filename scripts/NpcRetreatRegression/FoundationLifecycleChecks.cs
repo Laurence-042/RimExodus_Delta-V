@@ -7,6 +7,8 @@ using Verse;
 
 internal static partial class Program
 {
+    sealed class LifecyclePilotConsole : CompDeltaVPilotConsole { }
+
     static CompDeltaVPilotConsole RoundTripConsole(CompDeltaVPilotConsole console)
     {
         string path = System.IO.Path.Combine(System.AppContext.BaseDirectory, "foundation-console.xml");
@@ -15,7 +17,7 @@ internal static partial class Program
             Scribe.saver.InitSaving(path, "console");
             console.PostExposeData();
             Scribe.saver.FinalizeSaving();
-            var restored = new CompDeltaVPilotConsole();
+            var restored = (CompDeltaVPilotConsole)System.Activator.CreateInstance(console.GetType());
             Scribe.loader.InitLoading(path);
             restored.PostExposeData();
             Scribe.loader.FinalizeLoading();
@@ -43,8 +45,13 @@ internal static partial class Program
         universe.objects.Add(destination);
         Check(!source.Ships.Any() && !destination.Ships.Any(),
             "foundation lifecycle warms both containers before member changes");
-        var primary = AddTestConsole(sourceMap, player, 1602);
+        var customDef = TestBuildingDef("lifecycleCustomConsole");
+        customDef.thingClass = typeof(Building);
+        var primary = new CompDeltaVPilotConsole { isMain = true, shipId = 1602 };
+        AddTestBuilding(sourceMap, player, 1602, customDef, primary);
         var hostConsole = AddTestConsole(sourceMap, enemy, 1603);
+        ShipStructureChanges.Notify(sourceMap, (Building)primary.parent);
+        ShipStructureChanges.Notify(sourceMap, (Building)hostConsole.parent);
         var carried = AddTestHull(sourceMap, enemy, primary.shipId);
         var weapon = new CompSpaceWeapon { parent = carried.parent, props = new CompProperties_SpaceWeapon() };
         carried.parent.AllComps.Add(weapon);
@@ -134,7 +141,9 @@ internal static partial class Program
             && !ReferenceEquals(savedConsole.combat, primary.combat),
             "real Scribe roundtrip preserves console identity, main claim and independent combat state");
 
-        var backup = AddTestConsole(sourceMap, player, 1604);
+        var backup = new LifecyclePilotConsole();
+        AddTestBuilding(sourceMap, player, 1604, TestBuildingDef("lifecycleDerivedConsole"), backup);
+        ShipStructureChanges.Notify(sourceMap, (Building)backup.parent);
         backup.shipId = identity.key;
         backup.isMain = false;
         _ = backup.Vessel; // Warm an invalid adapter before succession.
@@ -155,8 +164,8 @@ internal static partial class Program
             "loss of the last main console cleans only that foundation ship, preserving the carried shuttle");
 
         var restored = savedConsole;
-        AddTestBuilding(destinationMap, player, 1605, ThingDefOf.PilotConsole, restored);
-        ShipStructureChanges.Notify(destinationMap);
+        AddTestBuilding(destinationMap, player, 1605, customDef, restored);
+        ShipStructureChanges.Notify(destinationMap, (Building)restored.parent);
         universe.Controls.Rebuild();
         Check(ShipRegistry.ShipByIdentity(identity).Anchor == restored.parent
             && !ReferenceEquals(Controllers(universe)[identity], controller)
