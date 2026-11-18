@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -60,6 +61,16 @@ namespace DeltaV
     /// <summary>通用串联加速件；按固定动能增量修改速度及可选出膛位置。</summary>
     public class CompSpaceRailgun : ThingComp
     {
+        internal SpaceWeaponLayout Binding;
+        internal CompSpaceWeapon BoundWeapon
+        {
+            get
+            {
+                var weapon = Binding?.weapon;
+                return weapon?.parent.Spawned == true && weapon.parent.Map == parent.Map
+                    && Binding.Matches(weapon) ? weapon : null;
+            }
+        }
         public CompProperties_SpaceRailgun RailProps => (CompProperties_SpaceRailgun)props;
         public RailgunPartRole Role => RailProps.role;
 
@@ -104,15 +115,19 @@ namespace DeltaV
         public CompSpaceWeapon ConnectedWeapon()
         {
             if (parent.Map == null || !parent.Spawned) return null;
-            foreach (ThingDef loaderDef in SpaceRailgunConstruction.LoaderDefsFor(parent.def))
-            {
-                foreach (Thing thing in parent.Map.listerThings.ThingsOfDef(loaderDef))
-                {
-                    CompSpaceWeapon weapon = (thing as ThingWithComps)?.TryGetComp<CompSpaceWeapon>();
-                    if (weapon != null && Resolve(weapon).segments.Contains(this)) return weapon;
-                }
-            }
+            if (BoundWeapon is { } bound) return bound;
+            var universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe == null) return null;
+            foreach (var weapon in universe.Weapons.RegisteredWeapons(parent.Map))
+                if (SpaceRailgunConstruction.LoaderDefsFor(parent.def).Contains(weapon.parent.def)
+                    && Resolve(weapon).segments.Contains(this)) return weapon;
             return null;
+        }
+
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
+        {
+            Binding = null;
+            base.PostDeSpawn(map, mode);
         }
 
         public static SpaceWeaponAccelerationSolution Resolve(CompSpaceWeapon weapon)

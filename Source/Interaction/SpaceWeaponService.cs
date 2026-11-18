@@ -25,22 +25,58 @@ namespace DeltaV
     {
         private readonly UniverseManager universe;
 
-        // PD 武器随 spawn/despawn/模式切换登记；空态让 controller 立即早退。
+        // 全部武器随 spawn/despawn 登记；点防在消费时过滤，共用同一个索引。
         // 读档与 dev 场景重置时从现有图重建一次，不让索引成为事实源。
         private readonly Dictionary<Map, HashSet<CompSpaceWeapon>> weaponsByMap =
             new Dictionary<Map, HashSet<CompSpaceWeapon>>();
         private readonly HashSet<CompMissileAutoloader> pendingMissileReloads =
             new HashSet<CompMissileAutoloader>();
+        private readonly HashSet<CompSpaceWeapon> pendingPower = new HashSet<CompSpaceWeapon>();
 
         public SpaceWeaponService(UniverseManager universe)
         {
             this.universe = universe;
         }
 
-        internal void SyncStandbyPower(ShipBase ship)
+        internal IEnumerable<CompSpaceWeapon> RegisteredWeapons(Map map) =>
+            map != null && weaponsByMap.TryGetValue(map, out var weapons)
+                ? weapons : Enumerable.Empty<CompSpaceWeapon>();
+
+        internal void QueuePower(Map map)
+        {
+            foreach (var weapon in RegisteredWeapons(map)) pendingPower.Add(weapon);
+        }
+
+        internal void QueuePower(CompSpaceWeapon weapon)
+        {
+            if (weapon?.parent?.Spawned == true) pendingPower.Add(weapon);
+        }
+
+        internal void ApplyPowerRequest(CompPowerTrader power, CompSpaceWeapon weapon)
+        {
+            if (power == null) return;
+            float watts = weapon?.CombatPowerEnabled == true || power.Props.idlePowerDraw < 0f
+                ? power.Props.PowerConsumption : power.Props.idlePowerDraw;
+            if (Mathf.Abs(power.powerOutputInt + watts) > .01f) power.PowerOutput = -watts;
+        }
+
+        internal void SyncPowerRequest(CompSpaceWeapon weapon)
+        {
+            pendingPower.Remove(weapon);
+            if (weapon?.parent?.Spawned != true || weapon.parent.Map.Disposed) return;
+            ApplyPowerRequest(weapon.Component<CompPowerTrader>(), weapon);
+            if (weapon.WeaponProps?.acceleratorStarts.NullOrEmpty() == false)
+                foreach (var segment in weapon.Layout.acceleration.segments)
+                    ApplyPowerRequest(segment.parent.TryGetComp<CompPowerTrader>(), weapon);
+            weapon.parent.TryGetComp<CompRailgunReadinessAppearance>()?.Refresh();
+        }
+
+        internal void SyncShipPowerRequests(ShipBase ship, SpaceWeaponSalvoSet? set = null, int changedMask = -1)
         {
             if (!ship.IsValid) return;
-            foreach (CompSpaceWeapon weapon in WeaponsOn(ship)) weapon.SyncStandbyPower();
+            foreach (var weapon in RegisteredWeapons(ship.Map))
+                if (weapon.OwnerShip.Identity == ship.Identity && (!set.HasValue
+                    || weapon.salvoSet == set && weapon.GroupEnabled(changedMask))) SyncPowerRequest(weapon);
         }
 
         internal void NotifySalvageOutputLost(Thing launcher)
@@ -53,8 +89,7 @@ namespace DeltaV
         public void RegisterWeapon(CompSpaceWeapon weapon)
         {
             Map map = weapon?.parent?.Map;
-            if (map == null || map.Disposed || weapon.aimMode != SpaceWeaponAimMode.PointDefense
-                || !weapon.SpaceModeEnabled) return;
+            if (map == null || map.Disposed) return;
             if (!weaponsByMap.TryGetValue(map, out HashSet<CompSpaceWeapon> weapons))
                 weaponsByMap[map] = weapons = new HashSet<CompSpaceWeapon>();
             weapons.Add(weapon);
@@ -63,6 +98,7 @@ namespace DeltaV
         public void UnregisterWeapon(CompSpaceWeapon weapon, Map map)
         {
             if (weapon == null) return;
+            pendingPower.Remove(weapon);
             if (weapon.WeaponProps.tractor) universe.Scatter.ReleaseAutomatic(weapon);
             universe.Controls.ForgetWeaponTarget(weapon);
             if (map == null) return;
@@ -75,16 +111,16 @@ namespace DeltaV
         {
             Map map = weapon?.parent?.Map;
             if (map == null) return;
-            UnregisterWeapon(weapon, map);
-            RegisterWeapon(weapon);
+            if (weapon.WeaponProps.tractor) universe.Scatter.ReleaseAutomatic(weapon);
+            universe.Controls.ForgetWeaponTarget(weapon);
             universe.Controls.NotifyGunnerAvailabilityChanged(map);
         }
 
         public void ForgetMap(Map map)
         {
             if (map == null) return;
-            foreach (Thing thing in map.spawnedThings)
-                foreach (var weapon in CompSpaceWeapon.On(thing as ThingWithComps)) weapon.ClearRuntimeModel();
+            foreach (var weapon in RegisteredWeapons(map))
+            { weapon.ClearRuntimeModel(); pendingPower.Remove(weapon); }
             weaponsByMap.Remove(map);
             // 归档时 Thing 的 Map 索引已清除；源图的 spawnedThings 仍持有废弃实例。
             pendingMissileReloads.RemoveWhere(loader => map.spawnedThings.Contains(loader.parent));
@@ -110,8 +146,14 @@ namespace DeltaV
         }
 
         /// <summary>事件请求在下一游戏 tick 顺序执行；共享弹仓由实际取弹原子消费。</summary>
-        internal void TickPendingMissileReloads()
+        internal void TickPendingUpdates()
         {
+            if (pendingPower.Count > 0)
+            {
+                var power = pendingPower.OrderBy(w => w.Identity).ToList();
+                pendingPower.Clear();
+                foreach (var weapon in power) SyncPowerRequest(weapon);
+            }
             if (pendingMissileReloads.Count == 0) return;
             List<CompMissileAutoloader> due = pendingMissileReloads
                 .OrderBy(loader => loader.parent.thingIDNumber).ToList();
@@ -123,6 +165,7 @@ namespace DeltaV
         public void RebuildWeaponIndex()
         {
             weaponsByMap.Clear();
+            pendingPower.Clear();
             foreach (SpaceObject obj in universe.objects)
             {
                 Map map = obj.map;
@@ -134,14 +177,17 @@ namespace DeltaV
         internal void RegisterMapWeapons(Map map)
         {
             if (map == null || map.Disposed) return;
-            foreach (CompSpaceWeapon weapon in AllWeaponsOn(map)) RegisterWeapon(weapon);
+            // 只在地图注册、读档和场景重建时补齐索引；日常结构变化不走全图发现。
+            foreach (var weapon in InstalledWeaponsOn(map, discover: true))
+            { RegisterWeapon(weapon); QueuePower(weapon); }
         }
 
         internal bool HasPointDefenseWeapons(Map map, bool hasInterceptionTargets, bool hasScatterTargets)
         {
             if (map == null || !weaponsByMap.TryGetValue(map, out HashSet<CompSpaceWeapon> weapons)) return false;
             foreach (CompSpaceWeapon weapon in weapons)
-                if (weapon.WeaponProps.tractor ? hasScatterTargets : hasInterceptionTargets) return true;
+                if (weapon.SpaceModeEnabled && weapon.aimMode == SpaceWeaponAimMode.PointDefense
+                    && (weapon.WeaponProps.tractor ? hasScatterTargets : hasInterceptionTargets)) return true;
             return false;
         }
 
@@ -233,11 +279,13 @@ namespace DeltaV
             return props?.speed ?? 0f;
         }
 
-        /// <summary>图上全部太空武器 comp（扫描 listerThings；每 tick 武器数量级小）。</summary>
-        internal static List<CompSpaceWeapon> InstalledWeaponsOn(Map map)
+        /// <summary>纳管图读取登记索引；显式初始化发现与非纳管图共用唯一发现实现。</summary>
+        internal static List<CompSpaceWeapon> InstalledWeaponsOn(Map map, bool discover = false)
         {
             var result = new List<CompSpaceWeapon>();
             if (map == null) return result;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (!discover && universe?.FrameOf(map) != null) return universe.Weapons.RegisteredWeapons(map).ToList();
             foreach (Thing thing in map.listerThings.AllThings)
             {
                 if (thing is Building building && !building.Destroyed)
@@ -392,12 +440,11 @@ namespace DeltaV
         /// <summary>场景重建 / 图销毁时的流程清零。</summary>
         public void ResetFlow()
         {
-            foreach (SpaceObject obj in universe.objects)
-                if (obj.map != null)
-                    foreach (Thing thing in obj.map.spawnedThings)
-                        foreach (var weapon in CompSpaceWeapon.On(thing as ThingWithComps)) weapon.ClearRuntimeModel();
+            foreach (var weapons in weaponsByMap.Values)
+                foreach (var weapon in weapons) weapon.ClearRuntimeModel();
             weaponsByMap.Clear();
             pendingMissileReloads.Clear();
+            pendingPower.Clear();
         }
     }
 }

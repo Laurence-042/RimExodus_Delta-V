@@ -10,6 +10,8 @@ using Verse;
 
 internal static partial class Program
 {
+    static int idleRailEnergyPlans;
+    static void CountIdleRailEnergyPlan() { idleRailEnergyPlans++; }
     static bool CaptureShortCircuitBranch(System.Reflection.MethodBase __originalMethod)
         => throw new InvalidOperationException("short-circuit-branch:" + __originalMethod.Name);
 
@@ -32,6 +34,7 @@ internal static partial class Program
         var patch = new Harmony("DeltaV.Regression.BatteryIsolation");
         patch.CreateClassProcessor(typeof(Patch_SwitchableBatteryPowerConnection)).Patch();
         patch.CreateClassProcessor(typeof(Patch_SwitchableBatteryConnect)).Patch();
+        patch.CreateClassProcessor(typeof(Patch_SpaceCapacitorCharging)).Patch();
         patch.CreateClassProcessor(typeof(Patch_SafeBatteryShortCircuit)).Patch();
         patch.CreateClassProcessor(typeof(Patch_SafeBatteryRain)).Patch();
         // Only map drawing and the final short-circuit explosion are suppressed.
@@ -181,7 +184,62 @@ internal static partial class Program
                 Check((float)node.Element("storedEnergyMax") > 0 && (float)node.Element("efficiency") == 1
                     && node.Element("chargingWatts") == null && node.Element("maxOutputWatts") == null,
                     "actual storage Def uses vanilla capacity and efficiency with no fixed charge/output rate");
+            CheckRailPowerAndCharging(patch);
         }
         finally { Scribe.ForceStop(); patch.UnpatchAll(patch.Id); }
+    }
+
+    static void CheckRailPowerAndCharging(Harmony patch)
+    {
+        Reset(); map.edificeGrid = new EdificeGrid(map);
+        patch.Patch(AccessTools.Method(typeof(Thing), nameof(Thing.Notify_ColorChanged)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
+        patch.Patch(AccessTools.Method(typeof(SpaceWeaponBallistics), "TryPlanEnergy"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CountIdleRailEnergyPlan)));
+        var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon { intrinsicAimSkill = 10 } };
+        var demand = new CompPowerTrader { props = new CompProperties_Power { idlePowerDraw = 5 } };
+        var appearance = new CompRailgunReadinessAppearance { props = new CompProperties_RailgunReadinessAppearance() };
+        Set(demand.props, "basePowerConsumption", 220f); Set(demand, "powerOnInt", true);
+        var loader = Add(5, 5, 500, weapon, demand, appearance);
+        map.edificeGrid.Register(loader);
+        var console = new CompDeltaVPilotConsole { isMain = true, shipId = nextId++ };
+        Add(4, 5, 100, console);
+        var ship = new FoundationShip(new Ship(console.shipId, map, console)); hull.members.Add(ship);
+        Set(weapon, "cachedOwner", ship); Set(weapon, "ownerMap", map);
+        Set(weapon, "ownerPosition", loader.Position); Set(weapon, "ownerRotation", loader.Rotation);
+        Set(weapon, "ownerVersion", SubstructureOwnership.StructureVersion(map));
+        Set(weapon, "ownerCacheValid", true); Set(weapon, "ownerWasValid", true);
+        universe.Weapons.RegisterWeapon(weapon);
+        var capacitor = new CompSpaceWeaponCapacitor { props = new CompProperties_SpaceWeaponCapacitor { requiresArmedHost = true } };
+        var battery = new CompSwitchableBattery { props = new CompProperties_SwitchableBattery { storedEnergyMax = 675, efficiency = 1 } };
+        Add(5, 5, 100, capacitor, battery);
+        Set(capacitor, "enabled", true); Set(capacitor, "initialized", true);
+        weapon.SyncPowerRequest(); battery.AddEnergy(100);
+        Check(demand.PowerOutput == -5 && battery.StoredEnergy == 0 && appearance.Tint.r == appearance.Tint.b,
+            "unarmed rail loader idles, remains gray and refuses real battery AddEnergy");
+        console.combat.weaponsArmed = true; weapon.SyncPowerRequest(); battery.AddEnergy(100);
+        Check(demand.PowerOutput == -220 && battery.StoredEnergy == 100 && appearance.Tint.b > appearance.Tint.r,
+            "arming restores wartime load, ready color and native capacitor charging");
+        universe.Controls.SetWeaponGroupMask(ship, SpaceWeaponSalvoSet.Main, 0);
+        Check(demand.PowerOutput == -5 && appearance.Tint.r == appearance.Tint.b,
+            "inactive rail group idles and displays unavailable");
+        battery.AddEnergy(10);
+        Check(battery.StoredEnergy == 110, "group selection does not silently change the armed-host charging rule");
+        console.combat.weaponsArmed = false; weapon.SyncPowerRequest(); battery.AddEnergy(100);
+        Check(battery.StoredEnergy == 110, "disarming stops charging without erasing the existing reserve");
+        idleRailEnergyPlans = 0;
+        for (int i = 0; i < 10000; i++)
+        { Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1); appearance.CompTick(); }
+        Check(idleRailEnergyPlans == 0, "ten thousand unarmed status ticks perform no energy planning");
+        var net = new PowerNet(Array.Empty<CompPower>()) { powerNetManager = new PowerNetManager(map) };
+        net.batteryComps.Add(battery);
+        var ordinary = new CompPowerBattery { props = new CompProperties_Battery { storedEnergyMax = 1000, efficiency = 1 } };
+        Add(12, 5, 100, ordinary); net.batteryComps.Add(ordinary);
+        AccessTools.Method(typeof(PowerNet), "DistributeEnergyAmongBatteries").Invoke(net, new object[] { 50f });
+        Check(battery.StoredEnergy == 110 && ordinary.StoredEnergy == 50,
+            "native grid charging allocates all surplus to eligible batteries without losing energy");
+        ((CompProperties_SpaceWeaponCapacitor)capacitor.props).requiresArmedHost = false;
+        battery.AddEnergy(20);
+        Check(battery.StoredEnergy == 130, "ordinary laser-capacitor policy retains native charging while unarmed");
     }
 }

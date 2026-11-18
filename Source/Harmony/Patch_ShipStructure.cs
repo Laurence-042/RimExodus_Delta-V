@@ -38,6 +38,7 @@ namespace DeltaV
                     SubstructureOwnership.BumpStructureVersion(map, CellRect.SingleCell(terrainCell.Value));
                 else SubstructureOwnership.BumpStructureVersion(map);
                 universe.Lifecycle.QueueStructureCheck(map);
+                universe.Weapons.QueuePower(map);
             }
             return owner != null ? universe : null;
         }
@@ -49,12 +50,6 @@ namespace DeltaV
         private static void Postfix(Building __instance, Map map)
         {
             ShipStructureChanges.Notify(map, building: __instance);
-            // PostSpawnSetup runs before this version bump. Resolve newly connected parts only now.
-            var attachment = __instance.TryGetComp<CompSpaceWeaponAttachment>();
-            var weapon = __instance.TryGetComp<CompSpaceWeapon>() ?? attachment?.HostWeapon;
-            weapon?.parent.TryGetComp<CompRailgunReadinessAppearance>()?.Rebind();
-            var segment = __instance.TryGetComp<CompSpaceRailgun>() ?? attachment?.HostRailgun;
-            segment?.ConnectedWeapon()?.parent.TryGetComp<CompRailgunReadinessAppearance>()?.Rebind();
         }
     }
 

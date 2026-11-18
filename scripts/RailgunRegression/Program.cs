@@ -91,6 +91,8 @@ internal static partial class Program
         Set(target, "comps", comps.Length == 0 ? null : new List<ThingComp>(comps));
         foreach (var comp in comps) comp.parent = target;
         map.thingGrid.Register(target); map.listerThings.AllThings.Add(target);
+        foreach (var weapon in CompSpaceWeapon.On(target))
+            universe.Weapons.RegisterWeapon(weapon);
         return target;
     }
     static CompProjectileInterceptor Shield(int hp, float radius = 12)

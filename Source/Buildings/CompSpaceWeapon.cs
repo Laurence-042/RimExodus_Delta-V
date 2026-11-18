@@ -331,20 +331,24 @@ namespace DeltaV
         /// <summary>炮手、自瞄或内置火控中的任一真实来源。</summary>
         public bool HasFireControl => Mannable == null || CurrentGunner != null || AutoAimEffective;
 
-        /// <summary>待机耗电意图不把 PowerOn 当输入，避免“先有电还是先申请负载”的循环。</summary>
-        public bool WantsStandbyPower => Armed && HasFireControl
-            && parent.TryGetComp<CompFlickable>() is not { SwitchIsOn: false };
+        /// <summary>功耗档位只取武装与组激活，不依赖供电结果或炮手心跳。</summary>
+        internal bool CombatPowerEnabled => Armed && GroupActive;
 
         /// <summary>转向和射击共用的硬件启用口径；弹药、冷却、射界与武器组另行判定。</summary>
-        public bool Operational => WantsStandbyPower
-            && parent.TryGetComp<CompPowerTrader>() is not { PowerOn: false };
+        public bool Operational => CombatPowerEnabled && HasFireControl
+            && parent.TryGetComp<CompFlickable>() is not { SwitchIsOn: false }
+            && Component<CompPowerTrader>() is not { PowerOn: false };
 
-        internal void SyncStandbyPower()
+        internal void SyncPowerRequest()
         {
-            CompPowerTrader power = parent.TryGetComp<CompPowerTrader>();
-            if (power == null) return;
-            float output = WantsStandbyPower ? -power.Props.PowerConsumption : 0f;
-            if (Mathf.Abs(power.PowerOutput - output) > 0.01f) power.PowerOutput = output;
+            Universe?.Weapons.SyncPowerRequest(this);
+        }
+
+        internal void SetGroup(SpaceWeaponSalvoSet set, int number)
+        {
+            if (salvoSet == set && groupNumber == number) return;
+            salvoSet = set; groupNumber = number;
+            SyncPowerRequest();
         }
 
         public SpaceWeaponAttachmentSlot AttachmentSlotAt(IntVec3 cell)
@@ -366,7 +370,10 @@ namespace DeltaV
                 {
                     var perf = Universe?.Performance;
                     long start = perf?.Start() ?? 0L;
+                    var previous = layout;
                     layout = new SpaceWeaponLayout(this);
+                    layout.Bind();
+                    previous?.Release();
                     perf?.Record(PerformanceStage.WeaponLayout, start);
                 }
                 return layout;
@@ -374,6 +381,7 @@ namespace DeltaV
         }
         internal void ClearRuntimeModel()
         {
+            layout?.Release();
             layout = null; cachedOwner = null; ownerMap = null; ownerCacheValid = ownerWasValid = false;
             QueryEnergy.Clear(); ExecutionEnergy.Clear();
         }
@@ -466,15 +474,9 @@ namespace DeltaV
                 alignmentConfigurationInitialized = true;
             }
             Universe?.Weapons?.RegisterWeapon(this);
-            SyncStandbyPower();
+            Universe?.Weapons?.QueuePower(this);
             if (respawningAfterLoad) return;
             Universe?.Controls?.NotifyGunnerAvailabilityChanged(parent.Map);
-        }
-
-        public override void CompTick()
-        {
-            base.CompTick();
-            SyncStandbyPower();
         }
 
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)

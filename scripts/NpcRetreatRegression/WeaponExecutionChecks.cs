@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using DeltaV;
 using HarmonyLib;
 using RimWorld;
@@ -25,9 +26,91 @@ internal static partial class Program
     static void CountWeaponTopology() { weaponTopologyReads++; }
     static void CountWeaponPreparation() { weaponPreparations++; }
     static void CaptureWeaponAngle(float mapAngle) { commandedWeaponAngle = mapAngle; weaponAimCommands++; }
+    static int powerUpdates, powerDiscoveries;
+    static CompSpaceWeapon powerProbe;
+    static void CountPowerUpdate(CompSpaceWeapon weapon) { if (weapon == powerProbe) powerUpdates++; }
+    static void CountPowerDiscovery(ListerThings __instance)
+    { if (__instance == powerProbe?.parent.Map.listerThings) powerDiscoveries++; }
+
+    static void CheckWeaponPowerEvents(UniverseManager universe, Faction faction)
+    {
+        var map = TestMap(2990);
+        var frame = new MapSpaceObject(2990, map, new SpacePose(Vector3.forward, 0f));
+        universe.objects.Add(frame); Set(universe, "objectByMap", null); Set(universe, "objectById", null);
+        var console = AddTestConsole(map, faction, 29901);
+        var ship = new CombatHull(console.Ship);
+        var gun = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon() };
+        var body = AddTestBuilding(map, faction, 29902, TestBuildingDef("powerGun"), gun);
+        ship.cells.Add(body.Position); BindWeaponOwnerFixture(gun, ship);
+        var props = new CompProperties_Power { idlePowerDraw = 5f };
+        Set(props, "basePowerConsumption", 220f);
+        var power = new CompPowerTrader { parent = body, props = props };
+        var mannable = new CompMannable { parent = body, props = new CompProperties_Mannable() };
+        body.AllComps.Add(power); body.AllComps.Add(mannable);
+        Set(power, "powerOnInt", true);
+        universe.Weapons.RegisterWeapon(gun);
+        powerProbe = gun;
+        var patch = new Harmony("DeltaV.Regression.WeaponPowerEvents");
+        patch.Patch(AccessTools.Method(typeof(SpaceWeaponService), "SyncPowerRequest"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CountPowerUpdate)));
+        patch.Patch(AccessTools.PropertyGetter(typeof(ListerThings), nameof(ListerThings.AllThings)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CountPowerDiscovery)));
+        patch.Patch(AccessTools.Method(typeof(CompPowerTrader), "SetUpPowerVars"),
+            postfix: new HarmonyMethod(typeof(Patch_SpaceShieldMode), nameof(Patch_SpaceShieldMode.SetUpPowerVars)));
+        try
+        {
+            powerDiscoveries = 0;
+            gun.SyncPowerRequest();
+            Check(power.PowerOutput == -5 && !gun.Operational, "unarmed gun requests configured idle draw without firing");
+            ship.Combat.weaponsArmed = true; universe.Weapons.SyncShipPowerRequests(ship);
+            Check(power.PowerOutput == -220 && !gun.Operational,
+                "active armed group requests wartime draw before the gunner arrives");
+            var pawn = (Pawn)Raw(typeof(Pawn)); Set(typeof(Thing), pawn, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
+            Set(mannable, "lastManPawn", pawn); Set(mannable, "lastManTick", Find.TickManager.TicksGame);
+            Check(gun.Operational && power.PowerOutput == -220, "native gunner enables operation without changing the power tier");
+            Set(mannable, "lastManTick", Find.TickManager.TicksGame - 2);
+            Check(!gun.Operational && power.PowerOutput == -220, "native gunner expiry only disables operation");
+            universe.Controls.SetWeaponGroupMask(ship, SpaceWeaponSalvoSet.Main, 0);
+            Check(power.PowerOutput == -5, "existing group toggle applies idle draw immediately");
+            powerUpdates = 0; universe.Controls.SetWeaponGroupMask(ship, SpaceWeaponSalvoSet.Main, 0);
+            Check(powerUpdates == 0, "unchanged group mask performs no synchronization");
+            universe.Weapons.QueuePower(map); universe.Weapons.QueuePower(map);
+            universe.Controls.SetWeaponGroupMask(ship, SpaceWeaponSalvoSet.Main, 1);
+            universe.Weapons.TickPendingUpdates();
+            Check(power.PowerOutput == -220 && powerUpdates == 1,
+                "immediate group activation consumes duplicate pending structure events");
+            gun.SetGroup(SpaceWeaponSalvoSet.Secondary, 2);
+            universe.Controls.SetWeaponGroupMask(ship, SpaceWeaponSalvoSet.Secondary, 0);
+            Check(power.PowerOutput == -5, "regrouping follows the new set rather than the old active group");
+            power.SetUpPowerVars();
+            Check(power.PowerOutput == -5, "native research power reset cannot replace idle draw with wartime draw");
+            props.idlePowerDraw = 9; gun.SyncPowerRequest();
+            Check(power.PowerOutput == -9, "idle draw is configurable and never hardcoded to five watts");
+            universe.Controls.SetWeaponGroupMask(ship, SpaceWeaponSalvoSet.Secondary, 2);
+            Set(props, "basePowerConsumption", 330f); power.SetUpPowerVars();
+            Check(power.PowerOutput == -330, "native power reset reads current wartime consumption");
+            powerUpdates = 0;
+            for (int i = 0; i < 10000; i++)
+            {
+                Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
+                gun.CompTick(); universe.Weapons.TickPendingUpdates();
+            }
+            Check(powerUpdates == 0 && power.PowerOutput == -330, "ten thousand stable ticks never synchronize weapon power");
+            Check(SpaceWeaponService.InstalledWeaponsOn(map).Contains(gun), "existing registry includes non-PD weapons");
+            SubstructureOwnership.BumpStructureVersion(map); BindWeaponOwnerFixture(gun, ship);
+            Check(ship.Weapons.Single() == gun && powerDiscoveries == 0,
+                "cold ship weapon cache and power events reuse the index without map discovery");
+            universe.Weapons.QueuePower(map); universe.Weapons.UnregisterWeapon(gun, map);
+            universe.Weapons.TickPendingUpdates();
+            Check(powerUpdates == 0 && !SpaceWeaponService.InstalledWeaponsOn(map).Contains(gun),
+                "despawn removes both registered weapon and pending work");
+        }
+        finally { powerProbe = null; patch.UnpatchAll(patch.Id); universe.Weapons.ForgetMap(map); }
+    }
 
     static void CheckWeaponExecution(UniverseManager universe, Faction faction)
     {
+        CheckWeaponPowerEvents(universe, faction);
         Map map = TestMap(1995), alternateMap = TestMap(1996);
         var stamp = new PlayerInputStamp();
         int samples = 0;
@@ -55,6 +138,7 @@ internal static partial class Program
         BindWeaponOwnerFixture(weapon, weaponOwner);
         var own = new MapSpaceObject(1995, map, new SpacePose(Vector3.forward, 0f));
         universe.objects.Add(own); Set(universe, "objectById", null); Set(universe, "objectByMap", null);
+        universe.Weapons.RegisterWeapon(weapon);
         var harness = new Harmony("DeltaV.Regression.WeaponExecution");
         harness.Patch(AccessTools.Method(typeof(CompSpaceWeapon), "SelectMagazine"),
             prefix: new HarmonyMethod(typeof(Program), nameof(CountWeaponAmmo)));
@@ -159,6 +243,9 @@ internal static partial class Program
         var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon
             { acceleratorStarts = new List<IntVec3> { new IntVec3(0, 0, 1) } } };
         var body = AddTestBuilding(map, faction, 19970, TestBuildingDef("layoutLoader"), weapon);
+        var loaderPower = new CompPowerTrader { parent = body, props = new CompProperties_Power { idlePowerDraw = 5 } };
+        Set(loaderPower.props, "basePowerConsumption", 220f); body.AllComps.Add(loaderPower);
+        var console = AddTestConsole(map, faction, 19979); console.shipId = 7; console.combat.weaponsArmed = true;
         MoveCombatFixture(body, new IntVec3(1, 0, 1));
         var segments = new List<CompSpaceRailgun>();
         for (int i = 0; i < 2; i++)
@@ -166,6 +253,8 @@ internal static partial class Program
             var segment = new CompSpaceRailgun { props = new CompProperties_SpaceRailgun { kineticEnergyBonus = 216000f } };
             var part = AddTestBuilding(map, faction, 19971 + i, TestBuildingDef("layoutSegment" + i), segment);
             MoveCombatFixture(part, new IntVec3(1, 0, 2 + i)); segments.Add(segment);
+            var power = new CompPowerTrader { parent = part, props = new CompProperties_Power { idlePowerDraw = 5 } };
+            Set(power.props, "basePowerConsumption", 30f); part.AllComps.Add(power);
         }
         for (int z = 1; z <= 3; z++)
         {
@@ -182,8 +271,15 @@ internal static partial class Program
             Check(initial.acceleration.segments.Count == 2 && initial.acceleration.segments[1] == segments[1],
                 "real connection tracing builds the ordered two-segment layout");
             Check(ReferenceEquals(initial, weapon.Layout), "unchanged structure reuses the same connection layout");
+            weapon.SyncPowerRequest();
+            Check(loaderPower.PowerOutput == -220 && segments.All(s => s.parent.TryGetComp<CompPowerTrader>().PowerOutput == -30),
+                "loader and connected segments use their own configured wartime demand");
             ownership.SetOwner(new[] { segments[1].parent.Position }, 8);
             Check(weapon.Layout.acceleration.segments.Count == 1, "ownership reassignment breaks the chain at the foreign segment");
+            weapon.SyncPowerRequest();
+            Check(segments[1].parent.TryGetComp<CompPowerTrader>().PowerOutput == -5
+                && segments[0].parent.TryGetComp<CompPowerTrader>().PowerOutput == -30,
+                "layout replacement idles detached segments without dropping shared segments to idle");
             ownership.SetOwner(new[] { segments[1].parent.Position }, 7);
             Check(weapon.Layout.acceleration.segments.Count == 2, "ownership restoration reconnects the chain");
             map.thingGrid.Deregister(segments[0].parent); SubstructureOwnership.BumpStructureVersion();
@@ -191,6 +287,8 @@ internal static partial class Program
             map.thingGrid.Register(segments[0].parent); SubstructureOwnership.BumpStructureVersion();
             Check(weapon.Layout.acceleration.segments.Count == 2, "rebuilding the missing segment reconnects the original order");
             weapon.ClearRuntimeModel();
+            Check(segments.All(s => s.Binding == null && s.parent.TryGetComp<CompPowerTrader>().PowerOutput == -5),
+                "runtime release clears the sole segment bindings and restores idle demand");
             Check(!ReferenceEquals(initial, weapon.Layout) && weapon.Layout.acceleration.segments.Count == 2,
                 "runtime reset reconstructs connections from the current map without saved cache data");
         }
@@ -223,6 +321,7 @@ internal static partial class Program
         patch.Patch(AccessTools.Method(typeof(ShipRegistry), "ShipOf"),
             prefix: new HarmonyMethod(typeof(Program), nameof(CountWeaponOwnership)));
         ownershipProbeThing = body; weaponOwnershipReads = 0;
+        universe.Weapons.RegisterWeapon(weapon);
         try
         {
             var fire = new ShipFireControl(universe, console.Vessel.Identity);

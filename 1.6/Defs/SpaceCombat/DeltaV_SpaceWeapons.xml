@@ -34,7 +34,7 @@
       </li>
       <li Class="CompProperties_Power">
         <compClass>CompPowerTrader</compClass>
-        <basePowerConsumption>60</basePowerConsumption>
+        <basePowerConsumption>60</basePowerConsumption><idlePowerDraw>5</idlePowerDraw>
       </li>
     </comps>
   </ThingDef>
@@ -74,7 +74,7 @@
       </li>
       <li Class="CompProperties_Power">
         <compClass>CompPowerTrader</compClass>
-        <basePowerConsumption>160</basePowerConsumption>
+        <basePowerConsumption>160</basePowerConsumption><idlePowerDraw>5</idlePowerDraw>
       </li>
     </comps>
   </ThingDef>
@@ -107,7 +107,7 @@
       <li Class="CompProperties_Forbiddable" />
       <li Class="CompProperties_Power">
         <compClass>CompPowerTrader</compClass>
-        <basePowerConsumption>70</basePowerConsumption>
+        <basePowerConsumption>70</basePowerConsumption><idlePowerDraw>5</idlePowerDraw>
       </li>
     </comps>
   </ThingDef>
@@ -146,7 +146,7 @@
       <li Class="CompProperties_Forbiddable" />
       <li Class="CompProperties_Power">
         <compClass>CompPowerTrader</compClass>
-        <basePowerConsumption>45</basePowerConsumption>
+        <basePowerConsumption>45</basePowerConsumption><idlePowerDraw>5</idlePowerDraw>
       </li>
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse">
         <turnRateDegPerSec>540</turnRateDegPerSec>
@@ -881,7 +881,7 @@
       <li Class="CompProperties_Forbiddable" />
       <li Class="CompProperties_Power">
         <compClass>CompPowerTrader</compClass>
-        <basePowerConsumption>220</basePowerConsumption>
+        <basePowerConsumption>220</basePowerConsumption><idlePowerDraw>5</idlePowerDraw>
       </li>
       <li Class="CompProperties_Mannable">
         <manWorkType>Violent</manWorkType>
@@ -988,7 +988,7 @@
       <li Class="CompProperties_Forbiddable" />
       <li Class="CompProperties_Power">
         <compClass>CompPowerTrader</compClass>
-        <basePowerConsumption>30</basePowerConsumption>
+        <basePowerConsumption>30</basePowerConsumption><idlePowerDraw>5</idlePowerDraw>
       </li>
       <li Class="DeltaV.CompProperties_RailgunShell">
         <texPath>Things/Building/SpaceWeapons/RailgunShell</texPath>
@@ -1185,7 +1185,7 @@
     <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li></researchPrerequisites>
     <uiOrder>-190</uiOrder>
     <label>railgun capacitor</label>
-    <description>Stores 675 Wd for a railgun loading unit or accelerator, enough for one local pulse, at 100% charging efficiency. Starts empty and connected: surplus grid power charges it, and grid demand can draw from it. It cannot short circuit, and grid short circuits cannot drain it. Disconnect to reserve its energy for its host; grid charging also stops. Insufficient local charge makes the host draw the whole pulse from grid batteries. Self-discharges at 5 W.</description>
+    <description>Stores 675 Wd for a railgun loading unit or accelerator, enough for one local pulse, at 100% charging efficiency. Starts empty and connected: surplus grid power charges it only while its host ship is armed, and grid demand can draw from it. It cannot short circuit, and grid short circuits cannot drain it. Disconnect to reserve its energy for its host; grid charging also stops. Insufficient local charge makes the host draw the whole pulse from grid batteries. Self-discharges at 5 W.</description>
     <thingClass>Building</thingClass>
     <tickerType>Normal</tickerType>
     <passability>Standable</passability>
@@ -1218,6 +1218,7 @@
         <efficiency>1</efficiency>
       </li>
       <li Class="DeltaV.CompProperties_SpaceWeaponCapacitor">
+        <requiresArmedHost>true</requiresArmedHost>
         <allowedHostDefs>
           <li>DeltaV_Weapon_RailgunAccelerator</li>
           <li>DeltaV_Weapon_RailgunLoader</li>

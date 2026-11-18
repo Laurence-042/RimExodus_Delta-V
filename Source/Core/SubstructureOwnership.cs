@@ -526,8 +526,6 @@ namespace DeltaV
         /// <summary>归属变化的通知收尾：全部引擎 dirty（含非玩家引擎）+ 星球仪剪影失效。</summary>
         private void NotifyOwnershipChanged()
         {
-            foreach (Thing thing in map.listerThings.AllThings)
-                (thing as ThingWithComps)?.TryGetComp<CompRailgunReadinessAppearance>()?.Rebind();
             foreach (CompDeltaVPilotConsole console in ShipRegistry.ConsolesOnMap(map))
                 console.SyncBackupIdentity();
             foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.GravEngine))

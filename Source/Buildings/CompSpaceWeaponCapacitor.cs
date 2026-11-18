@@ -5,6 +5,7 @@ namespace DeltaV
 {
     public class CompProperties_SpaceWeaponCapacitor : CompProperties_SpaceWeaponAttachment
     {
+        public bool requiresArmedHost;
         public CompProperties_SpaceWeaponCapacitor()
         {
             compClass = typeof(CompSpaceWeaponCapacitor);
@@ -15,6 +16,8 @@ namespace DeltaV
     public class CompSpaceWeaponCapacitor : CompSpaceWeaponAttachment
     {
         private CompSwitchableBattery Battery => parent.TryGetComp<CompSwitchableBattery>();
+        internal bool CanCharge => !((CompProperties_SpaceWeaponCapacitor)props).requiresArmedHost
+            || (HostWeapon ?? HostRailgun?.BoundWeapon)?.Armed == true;
 
         public override float AvailableShotEnergy => Battery?.StoredEnergy ?? 0f;
         public override CompPowerBattery ShotEnergyBattery => Battery;

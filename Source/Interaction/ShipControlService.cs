@@ -102,6 +102,7 @@ namespace DeltaV
             ShipBase ship = ShipRegistry.ShipByIdentity(ownerId);
             if (ship.IsValid && ship.Faction != null) For(ship);
             else Remove(ownerId);
+            universe.Weapons.QueuePower(changedMap);
         }
 
         private void Remove(DriveSubject ownerId)
@@ -132,6 +133,7 @@ namespace DeltaV
 
         internal void NotifyWeaponOwnershipChanged(Map map)
         {
+            universe.Weapons.QueuePower(map);
             foreach (ShipController controller in controllers.Values)
             {
                 ShipBase ship = ShipRegistry.ShipByIdentity(controller.OwnerId);
@@ -433,11 +435,21 @@ namespace DeltaV
         public bool WeaponsArmed(ShipBase ship) => ship.IsValid
             && ship.Combat?.weaponsArmed == true;
 
+        internal void SetWeaponGroupMask(ShipBase ship, SpaceWeaponSalvoSet set, int mask)
+        {
+            if (ship?.IsValid != true || ship.Combat == null) return;
+            int changed = ship.Combat.WeaponGroupMask(set) ^ mask;
+            if (changed == 0) return;
+            ship.Combat.SetWeaponGroupMask(set, mask);
+            universe.Weapons.SyncShipPowerRequests(ship, set, changed);
+        }
+
         public void ArmWeapons(ShipBase ship)
         {
             if (!ship.IsValid || PlayerFor(ship, debugTakeover: true) is not PlayerShipController player) return;
+            if (ship.Combat.weaponsArmed) return;
             ship.Combat.weaponsArmed = true;
-            universe.Weapons.SyncStandbyPower(ship);
+            universe.Weapons.SyncShipPowerRequests(ship);
             int manned = universe.Weapons.DispatchGunners(ship.Map, Faction.OfPlayer, ship.Identity);
             SyncManualAimSelection();
             if (ship.EffectiveFireControlMode == ShipFireControlMode.Automatic)
@@ -457,14 +469,16 @@ namespace DeltaV
         public void DisarmWeapons(ShipBase ship)
         {
             if (!ship.IsValid || PlayerFor(ship) is not PlayerShipController player) return;
+            if (!ship.Combat.weaponsArmed) return;
             ship.Combat.weaponsArmed = false;
             player.EndAim("weapons disarmed");
             player.FireControl.Clear();
+            player.AutoManeuver.Clear(ship);
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
                 ForgetWeaponTarget(weapon);
                 universe.Scatter.ReleaseAutomatic(weapon);
-                weapon.SyncStandbyPower();
+                weapon.SyncPowerRequest();
             }
             int released = universe.Weapons.EndBattleStationJobs(ship.Map, Faction.OfPlayer,
                 new HashSet<DriveSubject> { ship.Identity });

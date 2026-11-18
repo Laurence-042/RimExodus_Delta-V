@@ -57,8 +57,7 @@ namespace DeltaV
                             ThingWithComps parent = weapon.parent;
                             if (!parent.Spawned || parent.Destroyed
                                 || parent.Faction != Faction.OfPlayer && !DebugSettings.godMode) continue;
-                            weapon.salvoSet = capturedSet;
-                            weapon.groupNumber = capturedGroup;
+                            weapon.SetGroup(capturedSet, capturedGroup);
                         }
                     }));
             }

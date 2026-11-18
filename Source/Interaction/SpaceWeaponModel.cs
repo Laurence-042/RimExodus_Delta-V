@@ -8,6 +8,7 @@ namespace DeltaV
     // Structure-derived connections only. Power, ammo and stored energy are never cached here.
     internal sealed class SpaceWeaponLayout
     {
+        internal readonly CompSpaceWeapon weapon;
         internal readonly Map map;
         private readonly bool cacheable;
         internal readonly int version, ownerId;
@@ -21,6 +22,7 @@ namespace DeltaV
 
         internal SpaceWeaponLayout(CompSpaceWeapon weapon)
         {
+            this.weapon = weapon;
             // Unregistered generation/ground maps do not receive the universe structure events yet.
             cacheable = weapon.Container != null;
             ownerId = SpaceWeaponGeometry.OwnerIdOf(weapon.parent);
@@ -42,6 +44,24 @@ namespace DeltaV
         internal bool Matches(CompSpaceWeapon weapon) => cacheable && map == weapon.parent.Map
             && version == SubstructureOwnership.StructureVersion(map)
             && position == weapon.parent.Position && rotation == weapon.parent.Rotation;
+
+        internal void Bind()
+        {
+            foreach (var segment in acceleration.segments) segment.Binding = this;
+        }
+
+        internal void Release()
+        {
+            foreach (var segment in acceleration.segments)
+            {
+                // Shared parts have already joined the replacement layout; do not drop their load.
+                if (segment.Binding != this) continue;
+                segment.Binding = null;
+                if (!segment.parent.Spawned) continue;
+                weapon.Universe?.Weapons.ApplyPowerRequest(segment.parent.TryGetComp<CompPowerTrader>(), null);
+                segment.parent.TryGetComp<CompRailgunAcceleratorAppearance>()?.SetStatus(false, false);
+            }
+        }
     }
 
     // A query has its own ledger; no deduction occurs until Commit. A shot owns a separate

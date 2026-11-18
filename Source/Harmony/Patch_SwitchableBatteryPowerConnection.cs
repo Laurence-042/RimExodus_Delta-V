@@ -28,4 +28,15 @@ namespace DeltaV
             return false;
         }
     }
+
+    [HarmonyPatch(typeof(CompPowerBattery), nameof(CompPowerBattery.AmountCanAccept), MethodType.Getter)]
+    public static class Patch_SpaceCapacitorCharging
+    {
+        private static void Postfix(CompPowerBattery __instance, ref float __result)
+        {
+            if (__result > 0f && __instance is CompSwitchableBattery
+                && __instance.parent.TryGetComp<CompSpaceWeaponCapacitor>() is { } capacitor
+                && !capacitor.CanCharge) __result = 0f;
+        }
+    }
 }

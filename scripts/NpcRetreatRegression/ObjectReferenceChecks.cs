@@ -220,6 +220,8 @@ internal static partial class Program
         Set(typeof(ThingWithComps), body, "comps", new List<ThingComp> { comp });
         comp.parent = body;
         PlaceFixtureBuilding(body, map, notify: false);
+        foreach (var weapon in CompSpaceWeapon.On(body))
+            Current.Game?.GetComponent<UniverseManager>()?.Weapons.RegisterWeapon(weapon);
         SubstructureOwnership.TryGet(map)?.UpdateSpawnedBuilding(body);
         return body;
     }

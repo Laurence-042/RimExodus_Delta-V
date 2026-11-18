@@ -6,7 +6,7 @@
     <description>A ship-mounted engineering emitter. Assign a weapon group and operate it in manual fire-control mode.</description>
     <comps Inherit="False">
       <li Class="CompProperties_Forbiddable" />
-      <li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>200</basePowerConsumption></li>
+      <li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>200</basePowerConsumption><idlePowerDraw>5</idlePowerDraw></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>120</turnRateDegPerSec><fireToleranceDeg>2</fireToleranceDeg></li>
     </comps>
     <hasInteractionCell>false</hasInteractionCell>

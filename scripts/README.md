@@ -79,3 +79,5 @@ $harmony = '<Lib.Harmony/lib/net8.0/0Harmony.dll>'
 星区地图专项：`NpcRetreatRegression/run.ps1 -GlobeOnly -GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>` 验证构建后的生产投影、固定距离缩放、同屏与标签边界、球背／极点、真实剪影尺寸、聚合、独立于缩放的列表、跨容器目标与归档摘要、课程导航角色、书签 Scribe、聚焦坐标不变量及原版窗口输入阻挡。`GlobeFilterChecks.cs` 增加多维组合、任务豁免、草稿隔离／应用、偏好 Scribe、弹体仅投影／散落点、池租约资源复用与换弹种、激光／侵入艇去重和条目回收；2026-11-07 共 332 项通过。Unity 原生旋转在离线剪影夹具中由固定 45° 渲染姿态替代，投影和范围求解仍走生产代码；真实 GL 偏移、字体、窗口裁剪及交互手感由游戏内验收覆盖。
 
 2026-11-08 结构失效优化专项：`NpcRetreatRegression/StructureVersionChecks.cs` 随全套回归验证 Map 隔离、事件合并、转图／池复用；选位专项额外检查连续结构／动力通知不提前搜索、不延后期限和不消耗随机流。多舰夹具增加完成工作量、版本发布、分配量与实际 GC 暂停数据，原全局失效时点及性能门槛保留。阶段范围和未完成项以[优化实施检查点](../doc/有利射位与交战收益规划.md#优化实施检查点map-级失效与事件抢占2026-11-08)为准。
+
+武器两档功耗回归位于 `NpcRetreatRegression/WeaponExecutionChecks.cs`，检查可配置待机、原战时功耗、组事件、原版功耗重设与稳定 10000 tick 的同步次数；`RailgunRegression/BatteryIsolationChecks.cs` 检查真实充电额度和余电分配、未武装颜色及电容策略。沿用现有运行入口。

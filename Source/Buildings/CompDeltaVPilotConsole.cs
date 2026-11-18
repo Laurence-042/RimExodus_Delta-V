@@ -53,7 +53,12 @@ namespace DeltaV
         public ShipCombatState combat = new ShipCombatState();
         public ShipFireControlMode fireControlMode { get => combat.fireControlMode; set => combat.fireControlMode = value; }
         public int WeaponGroupMask(SpaceWeaponSalvoSet set) => combat.WeaponGroupMask(set);
-        public void SetWeaponGroupMask(SpaceWeaponSalvoSet set, int mask) => combat.SetWeaponGroupMask(set, mask);
+        public void SetWeaponGroupMask(SpaceWeaponSalvoSet set, int mask)
+        {
+            if (isMain && Vessel.IsValid && Universe != null)
+                Universe.Controls.SetWeaponGroupMask(Vessel, set, mask);
+            else combat.SetWeaponGroupMask(set, mask);
+        }
 
         public Ship Ship => isMain && shipId > 0 && parent.Spawned
             ? new Ship(shipId, parent.Map, this)

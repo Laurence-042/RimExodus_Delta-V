@@ -551,7 +551,7 @@ namespace DeltaV
                             var rect = new Rect(26f + (group - 1) * square, lineY, square - 2f, 26f);
                             bool active = (mask & (1 << (group - 1))) != 0;
                             if (DeltaVPanelStyle.Button(rect, group.ToString(), selected: active))
-                                consoleComp.SetWeaponGroupMask(set,
+                                universe.Controls.SetWeaponGroupMask(selected, set,
                                     active ? mask & ~(1 << (group - 1)) : mask | (1 << (group - 1)));
                             TooltipHandler.TipRegion(rect, "DeltaV_PanelWeaponGroupTip".Translate(
                                 ("DeltaV_WeaponSet" + set).Translate(), group.ToString()));

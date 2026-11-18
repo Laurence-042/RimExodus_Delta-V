@@ -85,7 +85,7 @@
       <li Class="CompProperties_Forbiddable" />
       <li Class="CompProperties_Power">
         <compClass>CompPowerTrader</compClass>
-        <basePowerConsumption>120</basePowerConsumption>
+        <basePowerConsumption>120</basePowerConsumption><idlePowerDraw>5</idlePowerDraw>
       </li>
       <li Class="CompProperties_Mannable"><manWorkType>Violent</manWorkType></li>
       <li Class="DeltaV.CompProperties_SpaceWeaponTraverse">

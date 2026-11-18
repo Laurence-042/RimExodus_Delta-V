@@ -982,7 +982,7 @@ namespace DeltaV
             Autopilot.Tick();
             Performance.Record(PerformanceStage.Autopilot, stageStart);
             stageStart = Performance.Start();
-            Weapons.TickPendingMissileReloads();
+            Weapons.TickPendingUpdates();
             Performance.Record(PerformanceStage.Weapons, stageStart);
             // 同一归属 controller 调度瞄准、齐射、点防与炮手事件。
             stageStart = Performance.Start();

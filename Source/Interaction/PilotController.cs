@@ -369,6 +369,12 @@ internal readonly struct HeadingPanelAction
         {
             SpaceObject own = universe.FrameOf(ship.Map);
             if (own == null || universe.Lifecycle.IsFrozen(ship.Map)) return;
+            if (ship.Combat?.weaponsArmed != true)
+            {
+                FireControl.Clear(preserveCommands: true);
+                AutoManeuver.Clear(ship);
+                return;
+            }
             if (FireControlMode == ShipFireControlMode.Automatic || AutoTask == PlayerAutoTaskKind.Combat)
                 FireControl.Decide(ship, own);
             else FireControl.Clear(preserveCommands: true);
@@ -468,7 +474,7 @@ internal readonly struct HeadingPanelAction
             {
                 ship.Combat.weaponsArmed = ready;
                 armedChanged = true;
-                universe.Weapons.SyncStandbyPower(ship);
+                universe.Weapons.SyncShipPowerRequests(ship);
                 universe.Controls.NotifyGunnerAvailabilityChanged(ship.Map);
             }
             if (!ready)

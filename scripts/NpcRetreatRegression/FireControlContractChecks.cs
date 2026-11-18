@@ -31,6 +31,7 @@ internal static partial class Program
         Set(typeof(CompSpaceWeapon), fixture, "ownerVersion", SubstructureOwnership.StructureVersion(owner.Map));
         Set(typeof(CompSpaceWeapon), fixture, "ownerCacheValid", true);
         Set(typeof(CompSpaceWeapon), fixture, "ownerWasValid", true);
+        Current.Game?.GetComponent<UniverseManager>()?.Weapons.RegisterWeapon(fixture);
     }
 
     static void CheckPerShipFireControl(UniverseManager universe, Faction player, Faction enemy, bool coDriftOnly = false)

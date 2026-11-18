@@ -15,7 +15,12 @@ namespace DeltaV
         public static void SetUpPowerVars(CompPowerTrader __instance)
         {
             CompSpaceShield shield = __instance.parent?.TryGetComp<CompSpaceShield>();
-            if (shield != null) __instance.PowerOutput = -shield.WantedPowerWatts;
+            if (shield != null) { __instance.PowerOutput = -shield.WantedPowerWatts; return; }
+            var weapon = CompSpaceWeapon.ForComponent(__instance);
+            var segment = __instance.parent?.TryGetComp<CompSpaceRailgun>();
+            if (weapon != null || segment != null)
+                Current.Game?.GetComponent<UniverseManager>()?.Weapons
+                    .ApplyPowerRequest(__instance, weapon ?? segment.BoundWeapon);
         }
 
         [HarmonyPatch(typeof(CompProjectileInterceptor), nameof(CompProjectileInterceptor.Active), MethodType.Getter)]

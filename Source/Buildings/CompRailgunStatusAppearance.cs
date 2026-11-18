@@ -28,8 +28,6 @@ namespace DeltaV
         private State lastState;
         private bool wasCooling;
         private Effecter progressBarEffecter;
-        private readonly List<CompRailgunAcceleratorAppearance> registered = new List<CompRailgunAcceleratorAppearance>();
-        private SpaceWeaponLayout boundLayout;
 
         public Color Tint => lastState == State.Ready ? RailgunStatusAppearance.ReadyTint
             : lastState == State.Cooling ? RailgunStatusAppearance.CoolingTint
@@ -47,16 +45,17 @@ namespace DeltaV
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
         {
             CleanupProgressBar();
-            foreach (CompRailgunAcceleratorAppearance appearance in registered)
-                appearance.SetLoader(null);
-            registered.Clear();
-            boundLayout = null;
             base.PostDeSpawn(map, mode);
         }
 
         public override void CompTick()
         {
             CompSpaceWeapon weapon = parent.TryGetComp<CompSpaceWeapon>();
+            if (weapon?.CombatPowerEnabled != true)
+            {
+                CleanupProgressBar();
+                return;
+            }
             int remaining = weapon?.CooldownTicksLeft ?? 0;
             if (wasCooling != (remaining > 0) || parent.IsHashIntervalTick(60)) Refresh();
             if (remaining <= 0 || !parent.Spawned)
@@ -102,27 +101,7 @@ namespace DeltaV
 
         public void Rebind()
         {
-            if (!parent.Spawned || parent.Map == null) return;
-            CompSpaceWeapon weapon = parent.TryGetComp<CompSpaceWeapon>();
-            if (weapon == null) return;
-            BindLayout(weapon.Layout);
             Refresh();
-        }
-
-        private void BindLayout(SpaceWeaponLayout layout)
-        {
-            SpaceWeaponAccelerationSolution acceleration = layout.acceleration;
-            foreach (CompRailgunAcceleratorAppearance appearance in registered)
-                if (!acceleration.segments.Contains(appearance.Segment)) appearance.SetLoader(null);
-            registered.Clear();
-            boundLayout = layout;
-            foreach (CompSpaceRailgun segment in acceleration.segments)
-            {
-                CompRailgunAcceleratorAppearance appearance = segment.parent.TryGetComp<CompRailgunAcceleratorAppearance>();
-                if (appearance == null) continue;
-                appearance.SetLoader(this);
-                registered.Add(appearance);
-            }
         }
 
         public void Refresh()
@@ -130,15 +109,15 @@ namespace DeltaV
             if (!parent.Spawned || parent.Map == null) return;
             CompSpaceWeapon weapon = parent.TryGetComp<CompSpaceWeapon>();
             if (weapon == null) return;
-            if (boundLayout != weapon.Layout) BindLayout(weapon.Layout);
-            bool powerOn = parent.TryGetComp<CompPowerTrader>()?.PowerOn != false;
+            SpaceWeaponLayout layout = weapon.Layout;
             List<CompSpaceRailgun> active = null;
-            bool shotEnergy = powerOn
+            bool shotEnergy = weapon.Operational
                 && SpaceWeaponBallistics.TryPlanEnergy(weapon,
                     out active);
             wasCooling = weapon.CooldownTicksLeft > 0;
-            foreach (CompRailgunAcceleratorAppearance appearance in registered)
-                appearance.SetStatus(shotEnergy && active.Contains(appearance.Segment), wasCooling);
+            foreach (var segment in layout.acceleration.segments)
+                segment.parent.TryGetComp<CompRailgunAcceleratorAppearance>()?
+                    .SetStatus(shotEnergy && active.Contains(segment), wasCooling);
             State state = !shotEnergy ? State.Unavailable
                 : wasCooling ? State.Cooling : State.Ready;
             if (state == lastState) return;
@@ -160,7 +139,6 @@ namespace DeltaV
     {
         private bool? lastActive;
         private bool cooling;
-        private CompRailgunReadinessAppearance loader;
 
         public CompSpaceRailgun Segment => parent.TryGetComp<CompSpaceRailgun>();
 
@@ -169,31 +147,16 @@ namespace DeltaV
 
         public override Color? ForceColor() => Tint;
 
-        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
-        {
-            CompRailgunReadinessAppearance previous = loader;
-            SetLoader(null);
-            base.PostDeSpawn(map, mode);
-            // 帧边界重解链，避免在移除回调中读到尚未清理的 ThingGrid。
-            if (previous != null)
-                Current.Game?.GetComponent<UniverseManager>()?.QueueFrameAction(previous.Rebind);
-        }
-
         public override void ReceiveCompSignal(string signal)
         {
-            if (signal == "PowerTurnedOn" || signal == "PowerTurnedOff") loader?.Refresh();
+            if (signal == "PowerTurnedOn" || signal == "PowerTurnedOff")
+                Segment?.BoundWeapon?.parent.TryGetComp<CompRailgunReadinessAppearance>()?.Refresh();
         }
 
         public override string CompInspectStringExtra() =>
             "DeltaV_RailAcceleratorStatus".Translate((lastActive == true
                 ? cooling ? "DeltaV_RailCooling" : "DeltaV_RailAcceleratorActive"
                 : "DeltaV_RailAcceleratorSkipped").Translate());
-
-        public void SetLoader(CompRailgunReadinessAppearance value)
-        {
-            loader = value;
-            if (value == null) SetStatus(false, false);
-        }
 
         public void SetStatus(bool active, bool isCooling)
         {
