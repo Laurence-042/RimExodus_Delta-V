@@ -200,6 +200,7 @@ internal static partial class Program
     static void CheckHullContacts(UniverseManager universe, Faction faction)
     {
         using var f = new HullRoundFixture(universe, faction);
+        CheckHullMaplessContact(universe, faction, f);
         foreach (bool leftOn in new[] { false, true })
         foreach (bool rightOn in new[] { false, true })
         foreach (bool reverse in new[] { false, true })

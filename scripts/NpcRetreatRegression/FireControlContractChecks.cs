@@ -701,6 +701,69 @@ internal static partial class Program
         CheckPointDefenseTargets(universe, attacker, own, weapon, player, enemy);
     }
 
+    static void CheckPointDefenseFanAdapters(UniverseManager universe, Faction faction, HullRoundFixture fixture, ThingDef missileDef)
+    {
+        var source = fixture.Craft(faction, 0, 0, Vector2.zero, true);
+        var mapped = fixture.Craft(faction, 18, 0, Vector2.zero, true);
+        Set(typeof(Thing), source.wall, "rotationInt", Rot4.East);
+        var pellet = TestBuildingDef("AdapterFanPellet");
+        var props = new CompProperties_SpaceProjectile { speed = 60, timeoutTicks = 60, collisionRadius = .1f };
+        pellet.comps.Add(props);
+        var weapon = new CompSpaceWeapon { parent = source.wall, safeFire = false,
+            props = new CompProperties_SpaceWeapon { projectileDef = pellet, projectilesPerShot = 5,
+                projectileFanHalfAngle = 4, range = 60, baseSpreadDeg = 0 } };
+        source.wall.AllComps.Add(weapon);
+        BindWeaponOwnerFixture(weapon, source.ship);
+        var entity = new CollisionEntity { def = missileDef, HitPoints = 300 };
+        var mapless = universe.CapturePayload(entity, mapped.body.pose, null);
+        var effect = new SpaceImpactEffectDef { defName = "AdapterFanDamage", projectileDefs = new List<ThingDef> { pellet },
+            buildingHitChance = 1, defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap,
+                damageDef = DamageDefOf.Bullet, damage = 10, armorPenetration = 1, incidenceMinFactor = 1 },
+            attackerEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DestroySelf } };
+        DefDatabase<SpaceImpactEffectDef>.Add(effect); SpaceImpactEffects.ResetCache();
+        try
+        {
+            foreach (float angle in new[] { 0f, .7f, Mathf.PI * .5f })
+            {
+                mapped.body.pose.angle = mapless.pose.angle = angle;
+                var predicted = new List<float>();
+                foreach (var target in new[] { mapped.body, mapless })
+                {
+                    mapped.wall.HitPoints = entity.HitPoints = 300;
+                    float expected = (float)AccessTools.Method(typeof(ShipFireControl), "EstimateFanHits")
+                        .Invoke(null, new object[] { weapon, target, pellet });
+                    predicted.Add(expected);
+                    var aim = SpaceWeaponService.AimInfo(weapon, source.body);
+                    var bodies = new List<SpaceCollision.SweptBody>();
+                    for (int i = 0; i < weapon.WeaponProps.projectilesPerShot; i++)
+                    {
+                        float offset = (float)AccessTools.Method(typeof(SpaceWeaponShot), "FanOffset")
+                            .Invoke(null, new object[] { weapon.WeaponProps, i });
+                        Vector2 direction = SpaceTransform.MapDirectionToUniverseTangent(source.body, source.body.map,
+                            aim.MuzzleMap, SpaceTransform.Rotate(Vector2.right, weapon.FacingAngle + offset));
+                        bodies.Add(new SpaceCollision.SweptBody {
+                            attacker = new SpaceObject(60300 + i, new SpacePose(aim.Muzzle, 0)),
+                            projectileDef = pellet, requiredDefender = target, excludeContainer = source.body,
+                            from = aim.Muzzle, to = OrbitSphere.Move(aim.Muzzle, direction * aim.Speed),
+                            sweepRadius = props.collisionRadius, damageScale = 1
+                        });
+                    }
+                    SpaceCollision.SweepAndResolve(universe, bodies);
+                    int actual = 300 - (target == mapless ? entity.HitPoints : mapped.wall.HitPoints);
+                    Check(expected > 0 && Mathf.Abs(expected - actual) < .001f,
+                        $"fan forecast equals the real production sweep: entity={target == mapless}, angle={angle}, damage={actual}");
+                }
+                Check(Mathf.Abs(predicted[0] - predicted[1]) < .001f,
+                    "equal map/entity footprints reserve the same point-defense damage");
+            }
+        }
+        finally
+        {
+            fixture.Clear(); universe.UnregisterObject(mapless);
+            DefDatabase<SpaceImpactEffectDef>.AllDefsListForReading.Remove(effect); SpaceImpactEffects.ResetCache();
+        }
+    }
+
     static void CheckPointDefenseTargets(UniverseManager universe, ShipBase ship, SpaceObject own,
         CompSpaceWeapon weapon, Faction player, Faction enemy)
     {

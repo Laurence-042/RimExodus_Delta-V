@@ -1,5 +1,7 @@
 # 开发脚本索引
 
+`NpcRetreatRegression -HullContactOnly` 新增 `CollisionTargetChecks.cs`：真实 Map／无图导弹的坐标、法线、射线及实际受伤契约；舰体撞静止导弹、相向／旋转接触、工作表顺序、战斗部单次后效、销毁门禁、来源损毁撤丸与后续弹体续算。`-ProjectileFullOnly` 的 `MaplessMissileChecks.cs` 同时核对实体命中点与视觉快照、同 tick 击毁跳过及下一 tick 爆炸伤害。`CollisionTargetChecks.cs` 另检查生产 DLL 接线和旧入口删除，`FireControlContractChecks.cs` 对照五束散射在地图／实体上的预测和真实命中；`MaplessMissileChecks.cs` 验证延迟伤害只执行一次、换表示后作废及击毁／移除后的剩余记录释放。爆炸仅观察 Unity 场景端点的参数与归因，直接伤害执行原版 `TakeDamage`；不替代游戏内新档验收。契约见[受击结构适配](../doc/太空战架构.md#受击结构适配2026-11-19)。
+
 `NpcRetreatRegression/run.ps1 -HullContactOnly -GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>`：实际随动外层弹丸、统一碰撞及后效链，覆盖开关组合／反向来撞、双方同量损伤、旋转随动、增量破损／修复、战斗 MPC 避让和其他驾驶模式的门禁。场景仅隔离 Unity 视听／地图通知，不替代游戏内战损拆图、存读档或侵入落地；见[舰体接触](../doc/太空战架构.md#舰体主动撞击与碰撞规避2026-11-18)。
 
 `NpcRetreatRegression/run.ps1 -CombatManeuverOnly -GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>`：生产持续意图／飞行参考／MPC／真实分配与积分的三分钟闭环，覆盖周期刹车、无收益反向、强轴／弱转向、显式朝向、途中动力下降、极区参考导数、旋转预测模型，以及 AI 日志逐 tick 对拍和设置 Scribe。`MOTION_PERF` 输出规划、QP 和驾驶总耗时；旧 DLL 基线与最新结果集中在[持续机动重构记录](../doc/持续战斗机动重构计划.md)。无武器闭环和独立火力约束检查不能替代实弹交火验收。

@@ -535,15 +535,16 @@ namespace DeltaV
             {
                 var hit = delayedMissileDamage.Dequeue();
                 if (universe.ObjectById(hit.target.objectId) != hit.target
-                    || hit.target.RepresentationVersion != hit.version
-                    || hit.target.Payload is not AbstractMissile { InterceptionBody: not null } missile) continue;
-                missile.ApplyDamage(hit.damage);
-                if (missile.InterceptionBody == null)
+                    || hit.target.RepresentationVersion != hit.version) continue;
+                var target = SpaceCollision.TargetView.Of(hit.target);
+                if (!target.Valid) continue;
+                target.ApplyResolvedDamage(null, hit.damage);
+                if (!target.Valid)
                     RegisterImpactFx(new SpaceCollision.VisualContact
                     {
                         defender = hit.target, projectileDef = hit.damage.Weapon,
                         localPoint = hit.local,
-                        position = SpaceTransform.ShipLocalToUniverse(hit.target.pose, hit.local),
+                        position = target.ToUniverse(hit.local),
                         missileDestroyed = true, destroyed = true
                     });
             }
@@ -723,6 +724,13 @@ namespace DeltaV
         /// </summary>
         public void ResolveCollisions()
         {
+            collisionBodies.Clear();
+            try { ResolveCollisionWork(); }
+            finally { resolvingProjectiles = false; collisionBodies.Clear(); }
+        }
+
+        private void ResolveCollisionWork()
+        {
             sweepScratch.Clear();
             bodyScratch.Clear();
             visualContacts.Clear();
@@ -790,6 +798,22 @@ namespace DeltaV
         }
 
         private bool resolvingProjectiles;
+        // Current sweep only: identifies the actual outcome owner without another projectile registry.
+        private readonly Dictionary<SpaceObject, SpaceCollision.SweptBody> collisionBodies =
+            new Dictionary<SpaceObject, SpaceCollision.SweptBody>();
+        internal SpaceCollision.SweptBody CollisionBodyOf(SpaceObject owner) =>
+            owner != null && collisionBodies.TryGetValue(owner, out var body) ? body : null;
+        internal bool CollisionRetired(SpaceObject owner) => CollisionBodyOf(owner)?.dead == true;
+        internal SpacePose ContactPoseOf(SpaceObject owner, float fraction)
+        {
+            var body = CollisionBodyOf(owner);
+            if (owner.map != null || body == null) return HullPoseAt(owner, fraction);
+            SpacePose start = owner.pose;
+            start.position = body.from;
+            SpacePose contact = SpaceTransform.LerpPose(start, owner.pose, fraction);
+            contact.velocity = SpaceTransform.TransportVelocity(owner.pose, contact.position);
+            return contact;
+        }
         private void AddProjectileSweep(Projectile p, SpaceObject targetContainer = null)
         {
             SpaceCollision.SweptBody body = p.body;
@@ -885,6 +909,7 @@ namespace DeltaV
             };
             sweepScratch.Add(p);
             bodyScratch.Add(body);
+            if (body.attacker != null && p.hullSource == null) collisionBodies[body.attacker] = body;
         }
 
         private void SampleCannonTrace(Projectile p)
@@ -1045,6 +1070,7 @@ namespace DeltaV
             if (p.dead) return;
             ForgetHullRound(p);
             p.dead = true;
+            p.body.dead = true;
             int expectedId = p.containerId;
             SpaceObject original = p.container;
             int expectedVersion = original?.RepresentationVersion ?? 0;
@@ -1134,6 +1160,7 @@ namespace DeltaV
 
         public void ResetFlow()
         {
+            collisionBodies.Clear();
             globeVisuals.Clear();
             for (int i = projectiles.Count - 1; i >= 0; i--)
             {

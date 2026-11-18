@@ -73,7 +73,7 @@ namespace DeltaV
 
         private VisualAnchor Anchor(SpaceObject obj, Vector2 mapPoint, Vector3 position)
         {
-            Vector2 local = obj.map == null ? mapPoint : SpaceTransform.MapToShipLocal(obj.map, mapPoint);
+            Vector2 local = SpaceCollision.TargetView.Of(obj).ToLocal(mapPoint);
             return new VisualAnchor
             {
                 objectId = obj.objectId, representationVersion = obj.RepresentationVersion, mapId = obj.map?.uniqueID ?? -1,

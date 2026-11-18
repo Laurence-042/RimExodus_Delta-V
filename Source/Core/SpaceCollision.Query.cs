@@ -61,6 +61,7 @@ namespace DeltaV
         // hypothetical damage/energy remain in the caller's private evaluation ledger.
         internal sealed class RayQuery
         {
+            private readonly TargetView target;
             private readonly Surface surface;
             private readonly Map map;
             private readonly HashSet<IntVec3> cells;
@@ -70,9 +71,16 @@ namespace DeltaV
             private readonly Predicate<IntVec3> includeBody;
             internal RayQuery(SpaceObject target, ShipBase scope = null, bool collectCover = true)
             {
-                map = target.map; surface = SurfaceFor(target);
+                this.target = TargetView.Of(target);
+                map = this.target.map;
+                surface = map != null && this.target.Valid ? SurfaceFor(target) : null;
                 includeBody = Includes;
                 if (scope != null) cells = new HashSet<IntVec3>(scope.HullCells);
+                if (surface == null)
+                {
+                    if (this.target.Valid && this.target.entity != null) hullBuildings.Add(this.target.entity);
+                    return;
+                }
                 if (!collectCover) return;
                 foreach (IntVec3 cell in surface.OccupiedCells())
                 {
@@ -86,11 +94,14 @@ namespace DeltaV
             private bool Includes(IntVec3 cell) => cells == null || cells.Contains(cell);
             internal IEnumerable<ThingDef> GuardDefinitions()
             {
+                if (surface == null || !target.Valid) yield break;
                 foreach (var arc in surface.arcs)
                     if (Includes(arc.building.Position)) yield return arc.building.def;
             }
             internal void ScanProtection(Vector2 endpoint, Vector2 incoming, Action<IntVec3, Thing, bool> visit)
             {
+                if (!target.Valid) return;
+                if (surface == null) { visit(IntVec3.Invalid, target.entity, false); return; }
                 var ray = new GridRay(endpoint, -incoming, 0f);
                 for (; ray.Cell.InBounds(map); ray.Advance())
                 {
@@ -103,6 +114,7 @@ namespace DeltaV
 
             internal void ScanGuardSurfaces(Vector2 endpoint, Vector2 incoming, List<ShieldArc> hits)
             {
+                if (surface == null || !target.Valid) return;
                 if (surface.arcs.Count == 0) return;
                 float length = map.Size.x + map.Size.z;
                 Vector2 from = endpoint - incoming * length;
@@ -126,9 +138,29 @@ namespace DeltaV
                 out RayContact contact, bool skipSubstructure = false,
                 HashSet<Thing> coverBuildings = null, HashSet<IntVec3> coverCells = null, bool skipHull = false)
             {
+                if (!NextLocal(target.ToLocal(from), direction, length, projectile, radius, passed, passedCells,
+                    includeLine, includeGuard, out contact, skipSubstructure, coverBuildings, coverCells, skipHull)) return false;
+                // Existing map consumers keep their explicit backend-coordinate interface.
+                contact = new RayContact(target.ToBackend(contact.point), contact.normal, contact.cell,
+                    contact.kind, contact.building, contact.line, contact.guard);
+                return true;
+            }
+
+            internal bool NextLocal(Vector2 from, Vector2 direction, float length, ThingDef projectile,
+                float radius, HashSet<Thing> passed, HashSet<IntVec3> passedCells,
+                Predicate<CompSpaceShield> includeLine, Predicate<ShieldArc> includeGuard,
+                out RayContact contact, bool skipSubstructure = false,
+                HashSet<Thing> coverBuildings = null, HashSet<IntVec3> coverCells = null, bool skipHull = false)
+                => target.TryRay(this, from, direction, length, projectile, radius, passed, passedCells,
+                    includeLine, includeGuard, out contact, skipSubstructure, coverBuildings, coverCells, skipHull);
+
+            internal bool NextMap(Vector2 from, Vector2 dir, float length, ThingDef projectile,
+                float radius, HashSet<Thing> passed, HashSet<IntVec3> passedCells,
+                Predicate<CompSpaceShield> includeLine, Predicate<ShieldArc> includeGuard,
+                out RayContact contact, bool skipSubstructure,
+                HashSet<Thing> coverBuildings, HashSet<IntVec3> coverCells, bool skipHull)
+            {
                 contact = default;
-                if (length <= 0 || direction.sqrMagnitude < 1e-8f) return false;
-                Vector2 dir = direction.normalized;
                 var props = projectile?.GetCompProperties<CompProperties_SpaceProjectile>();
                 CompSpaceShield line = null; ShieldArc guard = null;
                 Vector2 linePoint = default, lineNormal = default, guardPoint = default;

@@ -220,7 +220,7 @@ namespace DeltaV
             return pose;
         }
 
-        private SpacePose? HullStartOf(SpaceObject owner) => HullPoseAt(owner, hullFraction);
+        private SpacePose? HullStartOf(SpaceObject owner) => ContactPoseOf(owner, hullFraction);
 
         private void PrepareHullSweep(Projectile round)
         {
@@ -238,9 +238,10 @@ namespace DeltaV
             evt.hullSource.pose = HullPoseAt(evt.hullSource, hullFraction);
             evt.defender.pose = HullPoseAt(evt.defender, hullFraction);
             // 查询点在目标图的事实坐标已经确定，随接触时刻的目标位姿转换一次。
-            evt.hitUniverse = SpaceTransform.MapPointToUniverse(evt.defender, evt.defender.map, evt.hitDefenderLocal);
-            evt.contactNormal = SpaceTransform.MapDirectionToUniverseTangent(evt.defender, evt.defender.map,
-                evt.hitDefenderLocal, evt.contactLocalNormal);
+            var target = SpaceCollision.TargetView.Of(evt.defender);
+            evt.target = target;
+            evt.hitUniverse = target.ToUniverse(evt.HitLocal);
+            evt.contactNormal = target.DirectionToUniverse(evt.HitLocal, evt.contactLocalNormal);
         }
 
         internal void EndHullImpact(SpaceCollision.ImpactEvent evt, ShipPhysics.MassReport own, ShipPhysics.MassReport other)

@@ -640,10 +640,11 @@ namespace DeltaV
         {
             var source = weapon.Container;
             var aim = SpaceWeaponService.AimInfo(weapon, source);
-            var query = target.map == null ? null : new SpaceCollision.RayQuery(target);
+            var receiver = SpaceCollision.TargetView.Of(target);
+            if (!receiver.Valid) return 0f;
+            var query = new SpaceCollision.RayQuery(target);
             var passed = new HashSet<Thing>();
-            Vector2 from = query == null ? SpaceTransform.UniverseToShipLocal(target.pose, aim.Muzzle)
-                : SpaceTransform.UniverseToMapPoint(target, target.map, aim.Muzzle);
+            Vector2 from = receiver.FromUniverse(aim.Muzzle);
             Vector2 relative = SpaceTransform.VelocityAtUniversePoint(source.pose, aim.Muzzle)
                 - SpaceTransform.VelocityAtUniversePoint(target.pose, aim.Muzzle);
             var props = projectile.GetCompProperties<CompProperties_SpaceProjectile>();
@@ -656,17 +657,12 @@ namespace DeltaV
                     weapon.FacingAngle + SpaceWeaponShot.FanOffset(weapon.WeaponProps, i));
                 var velocity = relative + aim.Speed * SpaceTransform.MapDirectionToUniverseTangent(
                     source, weapon.parent.Map, aim.MuzzleMap, mapDirection);
-                Vector2 local = query == null
-                    ? SpaceTransform.Rotate(SpaceTransform.TransportTangent(velocity, aim.Muzzle, target.pose.position),
-                        -target.pose.angle).normalized
-                    : SpaceTransform.UniverseTangentToMapDirection(target, target.map, aim.Muzzle, velocity);
+                Vector2 local = receiver.DirectionFromUniverse(aim.Muzzle, velocity);
                 float length = velocity.magnitude * props.timeoutTicks / 60f;
                 float radius = SpaceProjectileService.FootprintRadius(projectile);
                 SpaceCollision.RayContact hit;
-                bool found = query == null
-                    ? SpaceCollision.TryMissileFootprint((AbstractMissile)target.Payload, from, local, length, radius, out hit)
-                    : query.Next(from, local, length, projectile, radius, passed, null,
-                        _ => false, _ => false, out hit, skipSubstructure: true);
+                bool found = query.NextLocal(from, local, length, projectile, radius, passed, null,
+                    _ => false, _ => false, out hit, skipSubstructure: true);
                 if (!found) continue;
                 var effect = SpaceImpactEffects.Resolve(projectile, hit.building.def);
                 if (effect?.defenderEffect == null) continue;

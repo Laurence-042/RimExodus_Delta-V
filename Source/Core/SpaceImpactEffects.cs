@@ -223,6 +223,7 @@ namespace DeltaV
         private static void ApplyHullContact(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
         {
             SpaceObject source = evt.hullSource, target = evt.defender;
+            if (!evt.Target.HasRigidStructure) return;
             Map ownMap = evt.hullSourceMap, otherMap = target.map;
             if (source == null || source.map != ownMap || ownMap?.Disposed != false || otherMap?.Disposed != false
                 || source.RepresentationVersion != evt.hullSourceVersion
@@ -251,8 +252,8 @@ namespace DeltaV
             evt.hullImpulse = closing > .00001f && retained < 1f;
             if (amount > 0f)
             {
-                Column(otherMap, evt.hitCell, other, own ?? evt.launcher);
-                Column(ownMap, evt.hullSourceCell, own, other);
+                Column(evt.Target, evt.hitCell, other, own ?? evt.launcher);
+                Column(SpaceCollision.TargetView.Of(source), evt.hullSourceCell, own, other);
             }
             // 原版／第三方免伤使预算未能真正打开接触位置时，保留真实阻挡。
             if (retained > 0f && SpaceStructureRules.ClassifyCell(ownMap, evt.hullSourceCell, out _) != SpaceCellKind.Empty
@@ -260,17 +261,19 @@ namespace DeltaV
                 ShipPhysics.ApplyHullContactImpulse(source, ma, target, mb, evt.hitUniverse, evt.contactNormal, out _);
             service.EndHullImpact(evt, ma, mb);
 
-            void Column(Map map, IntVec3 cell, Thing building, Thing instigator)
+            void Column(SpaceCollision.TargetView receiver, IntVec3 cell, Thing building, Thing instigator)
             {
+                Map map = receiver.map;
+                Vector2 local = receiver.ToLocal(new Vector2(cell.x + .5f, cell.z + .5f));
                 int hp = building?.HitPoints ?? 0;
                 bool foundation = SubstructureOwnership.HasFoundation(map, cell);
                 float remaining = amount;
                 if (building != null)
-                    remaining *= ApplyStructureDamage(map, cell, building, part, amount,
-                        part.armorPenetration, part.damageDef ?? DamageDefOf.Bullet, instigator, evt.projectileDef);
+                    remaining *= receiver.ApplyDamage(cell, building, part, amount,
+                        part.armorPenetration, part.damageDef ?? DamageDefOf.Bullet, instigator, evt.projectileDef, local);
                 if (remaining > 0f && SubstructureOwnership.HasFoundation(map, cell))
-                    ApplyStructureDamage(map, cell, null, part, remaining,
-                        part.armorPenetration, part.damageDef ?? DamageDefOf.Bullet, instigator, evt.projectileDef);
+                    receiver.ApplyDamage(cell, null, part, remaining,
+                        part.armorPenetration, part.damageDef ?? DamageDefOf.Bullet, instigator, evt.projectileDef, local);
                 evt.hullDamaged |= building != null && (building.Destroyed || building.HitPoints < hp)
                     || foundation && !SubstructureOwnership.HasFoundation(map, cell);
             }
@@ -368,8 +371,10 @@ namespace DeltaV
             float durabilityScale = 1f)
         {
             if (part == null || evt.defender == null) return 0f;
-            Map map = evt.defender.map;
-            if (map == null && (evt.defender.Payload is not AbstractMissile || part.kind != ImpactEffectKind.DamageMap))
+            var target = evt.Target;
+            if (!target.Valid) return 0f;
+            Map map = target.map;
+            if (!target.HasRigidStructure && part.kind != ImpactEffectKind.DamageMap)
                 return 0f;
 
             if (part.kind == ImpactEffectKind.HullContact)
@@ -426,20 +431,9 @@ namespace DeltaV
             float ap = part.armorPenetration * (amount / Mathf.Max(1f, part.damage))
                 * evt.armorPenetrationScale;
             DamageDef damType = part.damageDef ?? DamageDefOf.Bullet;
-            if (evt.defender.Payload is AbstractMissile missile)
-            {
-                bool explosive = !part.penetrates && part.explosionRadius > 0f;
-                float damage = explosive ? Mathf.Max(1, Mathf.RoundToInt(amount)) : amount;
-                var info = new DamageInfo(damType, damage, ap, -1f, evt.launcher, null, evt.projectileDef);
-                if (explosive)
-                {
-                    Current.Game.GetComponent<UniverseManager>().Projectiles.QueueMissileDamage(
-                        evt.defender, info, evt.hitDefenderLocal);
-                    return 0f;
-                }
-                float consumed = missile.ApplyDamage(info);
-                return part.penetrates && missile.InterceptionBody == null ? RemainingFraction(amount, consumed) : 0f;
-            }
+            if (target.entity != null)
+                return target.ApplyDamage(evt.hitCell, evt.defenderBuilding, part, amount, ap, damType,
+                    evt.launcher, evt.projectileDef, evt.HitLocal);
             IntVec3 cell = evt.hitCell.IsValid ? evt.hitCell : new IntVec3(
                 Mathf.FloorToInt(evt.hitDefenderLocal.x), 0,
                 Mathf.FloorToInt(evt.hitDefenderLocal.y)).ClampInsideMap(map);
@@ -447,12 +441,12 @@ namespace DeltaV
             float remaining = 0f;
 
             if (evt.defenderIsSubstructure)
-                remaining = ApplyStructureDamage(map, cell, null, part, amount, ap, damType, evt.launcher, evt.projectileDef);
+                remaining = target.ApplyDamage(cell, null, part, amount, ap, damType, evt.launcher, evt.projectileDef, evt.HitLocal);
 
             if (part.penetrates && evt.defenderBuilding != null && !evt.defenderBuilding.Destroyed)
             {
-                remaining = ApplyStructureDamage(map, cell, evt.defenderBuilding, part,
-                    amount, ap, damType, evt.launcher, evt.projectileDef);
+                remaining = target.ApplyDamage(cell, evt.defenderBuilding, part,
+                    amount, ap, damType, evt.launcher, evt.projectileDef, evt.HitLocal);
             }
             else if (part.penetrationLayers != null && part.penetrationLayers.Count > 0
                 && evt.defenderBuilding != null)
@@ -469,8 +463,8 @@ namespace DeltaV
                 buildingGeometryChanged = true;
             }
             else if (evt.defenderBuilding != null && !evt.defenderBuilding.Destroyed)
-                ApplyStructureDamage(map, cell, evt.defenderBuilding, part,
-                    amount, ap, damType, evt.launcher, evt.projectileDef);
+                target.ApplyDamage(cell, evt.defenderBuilding, part,
+                    amount, ap, damType, evt.launcher, evt.projectileDef, evt.HitLocal);
 
             if (part.stripSubstructureRadius > 0f)
             {
@@ -493,9 +487,10 @@ namespace DeltaV
         }
 
         // 普通弹体与舰体接触共用：原版实际扣血、余量及基架单发概率均只在这里实现。
-        private static float ApplyStructureDamage(Map map, IntVec3 cell, Thing building, ImpactOutcomePart part,
+        internal static float ApplyStructureDamage(SpaceCollision.TargetView target, IntVec3 cell, Thing building, ImpactOutcomePart part,
             float amount, float ap, DamageDef damage, Thing instigator, ThingDef projectile)
         {
+            Map map = target.map;
             if (building == null)
             {
                 if (SubstructureOwnership.HasFoundation(map, cell)
@@ -506,12 +501,12 @@ namespace DeltaV
             }
             if (building.Destroyed) return 1f;
             CellRect footprint = building.OccupiedRect();
-            var result = building.TakeDamage(new DamageInfo(damage, amount, ap, -1f, instigator, null, projectile));
+            float consumed = target.ApplyResolvedDamage(building, new DamageInfo(damage, amount, ap, -1f, instigator, null, projectile));
             if (!building.Destroyed) return 0f;
             SubstructureOwnership.BumpStructureVersion(map, footprint);
             if (building.TryGetComp<CompProjectileInterceptor>() != null) SpaceCollision.InvalidateShield(map);
             PlanetGlobeRenderer.InvalidateSilhouette(map);
-            return part.penetrates ? RemainingFraction(amount, result.totalDamageDealt) : 0f;
+            return part.penetrates ? RemainingFraction(amount, consumed) : 0f;
         }
 
         private static float RemainingFraction(float budget, float absorbed) =>

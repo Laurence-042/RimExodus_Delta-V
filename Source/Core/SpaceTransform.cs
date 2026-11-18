@@ -337,10 +337,13 @@ namespace DeltaV
         /// <summary>地图帧方向在指定地图点换算为该 universe 点的切空间方向。</summary>
         public static Vector2 MapDirectionToUniverseTangent(SpaceObject owner, Map map,
             Vector2 mapPoint, Vector2 mapDirection)
+            => ShipDirectionToUniverseTangent(owner.pose, MapToShipLocal(map, mapPoint), mapDirection);
+
+        internal static Vector2 ShipDirectionToUniverseTangent(SpacePose pose, Vector2 localPoint, Vector2 direction)
         {
-            if (mapDirection.sqrMagnitude < 1e-8f) return Vector2.zero;
-            Vector3 from = MapPointToUniverse(owner, map, mapPoint);
-            Vector3 to = MapPointToUniverse(owner, map, mapPoint + mapDirection.normalized);
+            if (direction.sqrMagnitude < 1e-8f) return Vector2.zero;
+            Vector3 from = ShipLocalToUniverse(pose, localPoint);
+            Vector3 to = ShipLocalToUniverse(pose, localPoint + direction.normalized);
             Vector2 tangent = OrbitSphere.Offset(from, to);
             return tangent.sqrMagnitude > 1e-8f ? tangent.normalized : Vector2.zero;
         }
@@ -355,6 +358,13 @@ namespace DeltaV
             if (tangent.sqrMagnitude < 1e-8f) return Vector2.zero;
             return (UniverseToMapPoint(owner, map, OrbitSphere.Move(point, tangent.normalized))
                 - UniverseToMapPoint(owner, map, point)).normalized;
+        }
+
+        internal static Vector2 UniverseTangentToShipDirection(SpacePose pose, Vector3 point, Vector2 tangent)
+        {
+            if (tangent.sqrMagnitude < 1e-8f) return Vector2.zero;
+            return (UniverseToShipLocal(pose, OrbitSphere.Move(point, tangent.normalized))
+                - UniverseToShipLocal(pose, point)).normalized;
         }
 
         internal static Vector2 UniverseToShipLocal(SpacePose pose, OrbitSphere.Direction universeDir)

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -129,6 +129,9 @@ namespace DeltaV
         /// <summary>命中事件（几何事实一次性计算；池化复用，调用方不得持有引用）。</summary>
         public sealed class ImpactEvent
         {
+            internal TargetView target;
+            internal TargetView Target => target.owner == defender ? target : TargetView.Of(defender);
+            internal Vector2 HitLocal => Target.ToLocal(hitDefenderLocal);
             public SpaceObject attacker;
             public ThingDef projectileDef;
             public Thing launcher;
@@ -246,20 +249,12 @@ namespace DeltaV
         /// <summary>容器的等效碰撞半径（包围域；发射侧外推炮口起点用）。</summary>
         public static float BoundsRadiusOf(SpaceObject obj)
         {
-            if (obj?.Payload is AbstractMissile { InterceptionBody: not null } missile)
-                return missile.HalfFootprint.magnitude;
-            if (obj?.map == null) return 0f;
-            return SurfaceFor(obj).boundsRadius;
+            return TargetView.Of(obj).BoundsRadius;
         }
 
         /// <summary>以容器原点为圆心的保守包围半径，复用同一碰撞面，供站位留空。</summary>
         internal static float OriginBoundsRadiusOf(SpaceObject obj)
-        {
-            if (obj?.map == null) return 0f;
-            Surface surface = SurfaceFor(obj);
-            return surface.boundsRadius + SpaceTransform.MapToShipLocal(obj.map,
-                surface.boundsCenter).magnitude;
-        }
+            => TargetView.Of(obj).OriginBoundsRadius;
 
         /// <summary>
         /// 调试显示读取碰撞系统实际正在使用的缓存，而不是另算一份近似碰撞体。
@@ -431,6 +426,20 @@ namespace DeltaV
 
                     body.redirected = false;
                     body.continued = false;
+                    if (body.hullSource != null && contact.target.entity != null)
+                    {
+                        ResolveProjectileContact(universe, body, contact);
+                        // The attached point discovers the contact; only the real projectile consumes its outcome.
+                        if (contact.target.Valid && !universe.Projectiles.CollisionRetired(contact.defender))
+                        {
+                            passed ??= new Dictionary<SpaceObject, PassedContacts>();
+                            if (!passed.TryGetValue(contact.defender, out var consumed))
+                                passed.Add(contact.defender, consumed = new PassedContacts());
+                            (consumed.buildings ??= new HashSet<Thing>()).Add(contact.ray.building);
+                        }
+                        body.afterContact?.Invoke();
+                        continue;
+                    }
                     ResolveContact(body, contact);
                     body.afterContact?.Invoke();
                     if (body.dead) break;
@@ -442,11 +451,7 @@ namespace DeltaV
                     }
                     else if (body.redirected)
                     {
-                        body.onShieldRedirect?.Invoke(body.from, body.redirectPoint, contact.defender);
-                        body.from = OrbitSphere.Move(body.redirectPoint, body.redirectDirection * 0.03f);
-                        body.to = OrbitSphere.Move(body.from, body.redirectDirection * body.redirectRemaining);
-                        body.didRedirect = true;
-                        body.excludeContainer = null;
+                        ApplyRedirect(body, contact.defender);
                         passed?.Clear();
                     }
                     else break;
@@ -474,16 +479,13 @@ namespace DeltaV
                         || (body.requiredDefender != null && defender != body.requiredDefender)) continue;
                     if (body.ignoreNonHostileProjectiles && !body.didRedirect && defender.IsActiveCollider
                         && !AreHostile(body.attacker.faction, defender.faction)) continue;
-                    Map map = defender.map;
+                    TargetView target = TargetView.Of(defender);
+                    if (!target.Valid || universe.Projectiles.CollisionRetired(defender)) continue;
                     PassedContacts missed = null;
                     passed?.TryGetValue(defender, out missed);
                     SweepContact candidate;
-                    if (map == null)
-                    {
-                        if (!TrySweepMissile(body, defender, missed?.buildings, out candidate)) continue;
-                    }
-                    else if (map.Disposed || universe.Generation?.IsGenerating(map) == true
-                        || !TrySweepContact(body, defender, map, sourceStructure, missed, out candidate)) continue;
+                    if (target.map != null && universe.Generation?.IsGenerating(target.map) == true
+                        || !target.TrySweep(body, sourceStructure, missed, out candidate)) continue;
                     float distance = body.hullSource != null ? candidate.fraction
                         : OrbitSphere.ArcCells(body.from, candidate.universePoint);
                     if (first.defender != null && (distance > nearest
@@ -520,14 +522,15 @@ namespace DeltaV
             return first.HostileTo(second) || second.HostileTo(first);
         }
 
-        private sealed class PassedContacts
+        internal sealed class PassedContacts
         {
             internal HashSet<Thing> buildings;
             internal HashSet<IntVec3> foundations;
         }
 
-        private struct SweepContact
+        internal struct SweepContact
         {
+            internal TargetView target;
             internal SpaceObject defender;
             internal RayContact ray;
             internal Vector3 universePoint;
@@ -538,36 +541,42 @@ namespace DeltaV
             internal CompProperties_SpaceProjectile props;
         }
 
-        private static bool TrySweepMissile(SweptBody body, SpaceObject defender, HashSet<Thing> passed,
+        private static bool TrySweepEntity(SweptBody body, TargetView target, HashSet<Thing> passed,
             out SweepContact contact)
         {
             contact = default;
-            if (defender.Payload is not AbstractMissile { InterceptionBody: not null } missile
-                || passed?.Contains(missile.InterceptionBody) == true)
-                return false;
-            Vector2 from = SpaceTransform.UniverseToShipLocal(defender.pose, body.from);
-            Vector2 delta = SpaceTransform.UniverseToShipLocal(defender.pose, body.to) - from;
+            if (passed?.Contains(target.entity) == true) return false;
+            Vector2 from = target.FromUniverse(body.from);
+            if (body.defenderStart?.Invoke(target.owner) is SpacePose start)
+                from = SpaceTransform.UniverseToShipLocal(start, body.from);
+            Vector2 delta = target.FromUniverse(body.to) - from;
             float length = delta.magnitude;
             if (length < 1e-6f) return false;
             Vector2 direction = delta / length;
-            if (!TryMissileFootprint(missile, from, direction, length, body.sweepRadius, out RayContact ray))
+            if (!TryEntityFootprint(target.entity, from, direction, length, body.sweepRadius, out RayContact ray))
                 return false;
+            float fraction = Mathf.Lerp(body.sweepStartFraction, 1f, Mathf.Clamp01(Vector2.Distance(from, ray.point) / length));
+            if (body.hullSource != null)
+                target = target.AtPose(Current.Game.GetComponent<UniverseManager>().Projectiles.ContactPoseOf(target.owner, fraction));
             contact = new SweepContact
             {
-                defender = defender, ray = ray, direction = direction,
-                universePoint = SpaceTransform.ShipLocalToUniverse(defender.pose, ray.point),
-                effect = SpaceImpactEffects.Resolve(body.projectileDef, missile.InterceptionBody.def),
+                target = target,
+                defender = target.owner, ray = ray, direction = direction,
+                universePoint = target.ToUniverse(ray.point),
+                fraction = fraction,
+                remainingLength = Mathf.Max(0f, length - Vector2.Distance(from, ray.point)),
+                effect = SpaceImpactEffects.Resolve(body.projectileDef, target.entity.def),
                 props = body.projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()
             };
             return true;
         }
 
-        internal static bool TryMissileFootprint(AbstractMissile missile, Vector2 from, Vector2 direction,
+        private static bool TryEntityFootprint(Building entity, Vector2 from, Vector2 direction,
             float length, float radius, out RayContact ray)
         {
             ray = default;
-            if (missile.InterceptionBody == null || length <= 0f || direction.sqrMagnitude < 1e-8f) return false;
-            Vector2 half = missile.HalfFootprint;
+            if (entity == null || entity.Destroyed || length <= 0f || direction.sqrMagnitude < 1e-8f) return false;
+            Vector2 half = entity.def.Size.ToVector2() * .5f;
             float near = 0f, far = length;
             Vector2 extent = half + new Vector2(radius, radius);
             if (!ClipAxis(from.x, direction.x, extent.x, ref near, ref far)
@@ -583,7 +592,7 @@ namespace DeltaV
                 {
                     Vector2 normal = Mathf.Abs(direction.x) >= Mathf.Abs(direction.y)
                         ? new Vector2(-Mathf.Sign(direction.x), 0f) : new Vector2(0f, -Mathf.Sign(direction.y));
-                    ray = new RayContact(point, normal, IntVec3.Invalid, SpaceCellKind.Building, missile.InterceptionBody);
+                    ray = new RayContact(point, normal, IntVec3.Invalid, SpaceCellKind.Building, entity);
                     return true;
                 }
                 if (along >= end) return false;
@@ -682,10 +691,67 @@ namespace DeltaV
             return true;
         }
 
+        private static void ResolveProjectileContact(UniverseManager universe, SweptBody hull, SweepContact discovered)
+        {
+            SweptBody projectile = universe.Projectiles.CollisionBodyOf(discovered.defender);
+            if (projectile == null || projectile.dead || projectile.excludeContainer == hull.hullSource
+                || projectile.requiredDefender != null && projectile.requiredDefender != hull.hullSource) return;
+            TargetView target = TargetView.Of(hull.hullSource);
+            if (!target.Valid || target.map != hull.hullSourceMap
+                || target.owner.RepresentationVersion != hull.hullSourceVersion
+                || !target.TryStructure(hull.hullSourceCell, out _, out _)) return;
+            // Re-enter the same target sweep with the real projectile's shape and shield rules.
+            // Discovery by an attached point is not yet a committed warhead hit.
+            var previousStart = projectile.defenderStart;
+            Vector3 previousFrom = projectile.from;
+            float previousFraction = projectile.sweepStartFraction;
+            SweepContact contact;
+            bool found;
+            Vector3 from = universe.Projectiles.ContactPoseOf(projectile.attacker, hull.sweepStartFraction).position;
+            try
+            {
+                projectile.defenderStart = hull.defenderStart;
+                projectile.from = from;
+                projectile.sweepStartFraction = hull.sweepStartFraction;
+                found = target.TrySweep(projectile, false, null, out contact);
+            }
+            finally
+            {
+                projectile.defenderStart = previousStart;
+                projectile.from = previousFrom;
+                projectile.sweepStartFraction = previousFraction;
+            }
+            if (!found) return;
+            contact.target = target.AtPose(universe.Projectiles.ContactPoseOf(target.owner, contact.fraction));
+            contact.universePoint = contact.target.ToUniverse(contact.ray.point);
+            var ray = contact.ray;
+            if (ray.kind != SpaceCellKind.Empty
+                && !SpaceImpactEffects.HitTest(projectile.projectileDef, ray.kind, ray.building, contact.effect)) return;
+            projectile.redirected = projectile.continued = false;
+            ResolveContact(projectile, contact);
+            if (projectile.continued)
+            {
+                projectile.from = projectile.continuePoint;
+                projectile.didContinue = true;
+            }
+            else if (projectile.redirected) ApplyRedirect(projectile, contact.defender);
+        }
+
+        private static void ApplyRedirect(SweptBody body, SpaceObject defender)
+        {
+            body.onShieldRedirect?.Invoke(body.from, body.redirectPoint, defender);
+            body.from = OrbitSphere.Move(body.redirectPoint, body.redirectDirection * 0.03f);
+            body.to = OrbitSphere.Move(body.from, body.redirectDirection * body.redirectRemaining);
+            body.didRedirect = true;
+            body.excludeContainer = null;
+        }
+
         private static void ResolveContact(SweptBody body, SweepContact contact)
         {
             SpaceObject defender = contact.defender;
-            Map defMap = defender.map;
+            TargetView target = contact.target;
+            if (!target.Valid) return;
+            Map defMap = target.map;
             RayContact ray = contact.ray;
             Vector2 dir = contact.direction;
             Vector2 p = ray.point;
@@ -707,19 +773,17 @@ namespace DeltaV
                 evt.launcher = body.launcher;
                 evt.weapon = body.weapon;
                 evt.defender = defender;
+                evt.target = target;
                 evt.defenderBuilding = bestThing;
                 evt.defenderIsSubstructure = bestKind == SpaceCellKind.Substructure;
-                evt.hitDefenderLocal = p;
+                evt.hitDefenderLocal = target.ToBackend(p);
                 evt.hitCell = bestCell;
                 evt.hitUniverse = contact.universePoint;
                 evt.incidentDir = dir;
-                evt.relativeVelocity = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, defender.pose, evt.hitUniverse);
+                evt.relativeVelocity = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, target.pose, evt.hitUniverse);
                 evt.relativeSpeed = evt.relativeVelocity.magnitude;
                 if (SpaceShieldProjectileBehavior.IsKinetic(projectileProps) && evt.relativeSpeed > .0001f)
-                    evt.incidentDir = defMap != null
-                        ? SpaceTransform.UniverseTangentToMapDirection(defender, defMap, evt.hitUniverse, evt.relativeVelocity)
-                        : SpaceTransform.Rotate(SpaceTransform.TransportTangent(evt.relativeVelocity,
-                            evt.hitUniverse, defender.pose.position), -defender.pose.angle).normalized;
+                    evt.incidentDir = target.DirectionFromUniverse(evt.hitUniverse, evt.relativeVelocity);
                 evt.damageScale = body.damageScale;
                 evt.armorPenetrationScale = body.armorPenetrationScale;
                 evt.mass = body.mass; evt.beamEnergyScale = body.beamEnergyScale;
@@ -732,13 +796,13 @@ namespace DeltaV
                 evt.contactFraction = contact.fraction;
                 evt.contactLocalNormal = ray.normal;
                 evt.contactNormal = body.hullSource != null
-                    ? SpaceTransform.MapDirectionToUniverseTangent(defender, defMap, p, ray.normal) : Vector2.zero;
+                    ? target.DirectionToUniverse(p, ray.normal) : Vector2.zero;
 
                 // 对称结算（§3.5）：每个参与容器各自解析自己的后效。
                 body.resolvedHit = true;
                 body.resolvedHitUniverse = evt.hitUniverse;
                 body.resolvedHitDefender = defender;
-                body.resolvedHitLocal = p;
+                body.resolvedHitLocal = target.ToBackend(p);
                 body.resolvedHitCell = bestCell;
                 var defenderPart = effect?.defenderEffect;
                 body.resolvedHitExplosive = defenderPart != null
@@ -764,7 +828,8 @@ namespace DeltaV
                 DriveSubject struckSubject = struckShip.IsValid ? struckShip.Identity
                     : new DriveSubject(defender.objectId, defMap?.GetComponent<SubstructureOwnership>()?.OwnerAt(bestCell) ?? 0);
                 float remaining = SpaceImpactEffects.ApplyToDefender(evt, effect?.defenderEffect, durabilityScale);
-                body.onVisualContact?.Invoke(new VisualContact
+                body.resolvedHitUniverse = evt.hitUniverse;
+                PublishVisualContact(body, target, new VisualContact
                 {
                     hullContact = body.hullSource != null, hullDamaged = evt.hullDamaged, hullImpulse = evt.hullImpulse,
                     defender = defender, projectileDef = body.projectileDef,
@@ -792,8 +857,8 @@ namespace DeltaV
                 Vector2 lineNormal = ray.normal;
                 if (lineShield.mode == SpaceShieldMode.Kinetic)
                 {
-                    Vector2 relative = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, defender.pose, hit);
-                    Vector2 worldNormal = SpaceTransform.MapDirectionToUniverseTangent(defender, defMap, linePoint, lineNormal);
+                    Vector2 relative = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, target.pose, hit);
+                    Vector2 worldNormal = target.DirectionToUniverse(linePoint, lineNormal);
                     float impulse = lineShield.ConsumeKineticImpulse(body.mass, Vector2.Dot(relative, worldNormal),
                         SpaceKinetics.ShieldImpulse(lineShield.kineticStrengthPercent), projectileProps.shieldFragmentCost);
                     if (impulse <= 0f)
@@ -806,8 +871,8 @@ namespace DeltaV
                     body.resolvedHitShield = true;
                     body.resolvedHitUniverse = hit;
                     body.resolvedHitDefender = defender;
-                    body.resolvedHitLocal = linePoint;
-                    body.onVisualContact?.Invoke(new VisualContact
+                    body.resolvedHitLocal = target.ToBackend(linePoint);
+                    PublishVisualContact(body, target, new VisualContact
                     {
                         defender = defender, projectileDef = body.projectileDef, position = hit, pathFrom = body.from,
                         localPoint = linePoint, localDirection = dir, localNormal = lineNormal,
@@ -825,7 +890,7 @@ namespace DeltaV
                     // Surviving rounds retain their identity, lifetime, mass and remaining damage scale.
                     Vector2 outgoingRelative = SpaceKinetics.ApplyShieldImpulse(body.mass, relative, worldNormal, impulse);
                     body.reflectedByShield |= Vector2.Dot(outgoingRelative, worldNormal) > 0f;
-                    Vector2 outgoingWorld = outgoingRelative + SpaceTransform.VelocityAtUniversePoint(defender.pose, hit);
+                    Vector2 outgoingWorld = outgoingRelative + SpaceTransform.VelocityAtUniversePoint(target.pose, hit);
                     float beforeSpeed = body.attacker.pose.velocity.magnitude;
                     body.attacker.pose.velocity = SpaceTransform.TransportTangent(outgoingWorld, hit, body.attacker.pose.position);
                     body.redirected = true;
@@ -839,7 +904,7 @@ namespace DeltaV
                 float cost = projectileProps.shieldLaserTurnEnergy * body.beamEnergyScale * plan.addedDeg / 180f;
                 float funded = lineShield.ConsumePulseFraction(cost);
                 Vector2 outgoing = plan.Direction(funded);
-                body.onVisualContact?.Invoke(new VisualContact
+                PublishVisualContact(body, target, new VisualContact
                 {
                     defender = defender, projectileDef = body.projectileDef, position = hit, pathFrom = body.from,
                     localPoint = linePoint, localDirection = dir, localNormal = lineNormal,
@@ -848,8 +913,7 @@ namespace DeltaV
                 });
                 body.redirected = true;
                 body.redirectPoint = hit;
-                body.redirectDirection = SpaceTransform.MapDirectionToUniverseTangent(defender,
-                    defMap, linePoint, outgoing);
+                body.redirectDirection = target.DirectionToUniverse(linePoint, outgoing);
                 body.redirectRemaining = contact.remainingLength;
                 return;
             }
@@ -863,18 +927,22 @@ namespace DeltaV
                 evt.launcher = body.launcher;
                 evt.weapon = body.weapon;
                 evt.defender = defender;
+                evt.target = target;
+                evt.hullSource = null;
+                evt.hullSourceMap = null;
+                evt.hullDamaged = evt.hullImpulse = false;
                 evt.defenderBuilding = shieldArc.building;
                 evt.defenderIsSubstructure = false;
                 Vector2 shieldPoint = ray.point;
                 SpaceImpactEffectDef shieldEffect = contact.effect;
-                evt.hitDefenderLocal = shieldPoint;
+                evt.hitDefenderLocal = target.ToBackend(shieldPoint);
                 evt.hitCell = IntVec3.Invalid;
                 evt.hitUniverse = contact.universePoint;
                 evt.incidentDir = dir;
-                evt.relativeVelocity = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, defender.pose, evt.hitUniverse);
+                evt.relativeVelocity = SpaceTransform.RelativeVelocityAtContact(body.attacker.pose, target.pose, evt.hitUniverse);
                 evt.relativeSpeed = evt.relativeVelocity.magnitude;
                 if (SpaceShieldProjectileBehavior.IsKinetic(projectileProps) && evt.relativeSpeed > .0001f)
-                    evt.incidentDir = SpaceTransform.UniverseTangentToMapDirection(defender, defMap, evt.hitUniverse, evt.relativeVelocity);
+                    evt.incidentDir = target.DirectionFromUniverse(evt.hitUniverse, evt.relativeVelocity);
                 evt.incidenceAngleRad = SpaceTransform.IncidenceAngle(evt.incidentDir, ray.normal);
                 evt.damageScale = body.damageScale;
                 evt.armorPenetrationScale = body.armorPenetrationScale;
@@ -882,7 +950,7 @@ namespace DeltaV
                 body.resolvedHit = true;
                 body.resolvedHitUniverse = evt.hitUniverse;
                 body.resolvedHitDefender = defender;
-                body.resolvedHitLocal = shieldPoint;
+                body.resolvedHitLocal = target.ToBackend(shieldPoint);
                 body.resolvedHitCell = IntVec3.Invalid;
                 body.resolvedHitExplosive = false;
                 body.resolvedHitShield = true;
@@ -897,7 +965,7 @@ namespace DeltaV
                     body.resolvedHitExplosive = true;
                     body.resolvedHitRadius = shieldEffect.shieldSurfaceEffect.explosionRadius;
                 }
-                body.onVisualContact?.Invoke(new VisualContact
+                PublishVisualContact(body, target, new VisualContact
                 {
                     defender = defender, projectileDef = body.projectileDef, position = evt.hitUniverse, pathFrom = body.from,
                     localPoint = shieldPoint, localDirection = dir,
@@ -905,7 +973,7 @@ namespace DeltaV
                     damageScale = body.damageScale, explosive = body.resolvedHitExplosive,
                     nativeExplosion = body.resolvedHitExplosive,
                     explosionRadius = body.resolvedHitRadius, shieldMode = SpaceShieldMode.Guard,
-                    shieldCenter = shieldArc.center, shieldRadius = shieldArc.radius,
+                    shieldCenter = target.ToLocal(shieldArc.center), shieldRadius = shieldArc.radius,
                     shieldEmergency = emergencyBefore,
                     shieldBroken = capacityBefore > 0 && CompSpaceShield.AvailableGuardCapacity(shieldArc.interceptor) <= 0
                 });
@@ -924,6 +992,21 @@ namespace DeltaV
                     ApplyAttackerOutcome(body, shieldEffect, defender, evt.hitUniverse, evt.hitDefenderLocal);
                 }
             }
+        }
+
+        // The public presentation callback retains its existing backend coordinates.
+        // Geometry and resolution above use only rigid-local contacts.
+        private static void PublishVisualContact(SweptBody body, TargetView target, VisualContact contact)
+        {
+            contact.localPoint = target.ToBackend(contact.localPoint);
+            if (contact.shieldMode == SpaceShieldMode.Guard)
+                contact.shieldCenter = target.ToBackend(contact.shieldCenter);
+            else if (contact.shieldMode.HasValue)
+            {
+                contact.lineStart = target.ToBackend(contact.lineStart);
+                contact.lineEnd = target.ToBackend(contact.lineEnd);
+            }
+            body.onVisualContact?.Invoke(contact);
         }
 
         private static bool ContinueAfterImpact(SweptBody body, float remaining, Vector3 hit)

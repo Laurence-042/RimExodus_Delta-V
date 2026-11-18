@@ -176,8 +176,5 @@ namespace DeltaV
         internal override SpaceObjectTag Role => SpaceObjectTag.Projectile;
         internal override bool Recoverable => false;
         internal override Building InterceptionBody => Entity is Building { Destroyed: false } building ? building : null;
-        internal Vector2 HalfFootprint => InterceptionBody.def.Size.ToVector2() * .5f;
-
-        internal float ApplyDamage(DamageInfo damage) => InterceptionBody?.TakeDamage(damage).totalDamageDealt ?? 0f;
     }
 }

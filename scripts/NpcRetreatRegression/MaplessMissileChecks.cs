@@ -22,6 +22,18 @@ internal static partial class Program
         return false;
     }
 
+    static void MaplessSoundEndpoint(SpaceProjectileService service, SoundDef mapSound, SoundDef shellSound,
+        SpaceObject owner, Vector2 local, Vector3 point, int spacing, float volume, bool combatSetting, float shellPitch) { }
+    static IEnumerable<CodeInstruction> MaplessSoundBoundary(IEnumerable<CodeInstruction> instructions)
+    {
+        foreach (var instruction in instructions)
+        {
+            if (instruction.Calls(AccessTools.Method(typeof(SpaceProjectileService), "PlayCombatSound")))
+            { instruction.opcode = OpCodes.Call; instruction.operand = AccessTools.Method(typeof(Program), nameof(MaplessSoundEndpoint)); }
+            yield return instruction;
+        }
+    }
+
     static IEnumerable<CodeInstruction> OfflineMissileDlc(IEnumerable<CodeInstruction> instructions)
     {
         foreach (CodeInstruction instruction in instructions)
@@ -67,6 +79,9 @@ internal static partial class Program
             transpiler: new HarmonyMethod(typeof(Program), nameof(OfflineMissileDlc)));
         flak.Patch(AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.FlammableNow)),
             prefix: new HarmonyMethod(typeof(Program), nameof(OfflineMissileFlammability)));
+        // The newly lethal deferred case reaches audio; only that Unity endpoint is isolated.
+        flak.Patch(AccessTools.Method(typeof(SpaceProjectileService), "RegisterImpactFx"),
+            transpiler: new HarmonyMethod(typeof(Program), nameof(MaplessSoundBoundary)));
         SpaceObject missile = universe.CapturePayload(body, new SpacePose(Vector3.forward, .3f), null);
         Map[] maps = Find.Maps.ToArray();
         Find.Maps.Clear(); // The production hit should need no Unity scene or map reservation managers.
@@ -81,12 +96,18 @@ internal static partial class Program
                 from = SpaceTransform.ShipLocalToUniverse(missile, new Vector2(-3, 0)),
                 to = SpaceTransform.ShipLocalToUniverse(missile, new Vector2(3, 0))
             }).ToList();
+            var contacts = new List<SpaceCollision.VisualContact>();
+            foreach (var shot in shots) shot.onVisualContact = contacts.Add;
             SpaceCollision.SweepAndResolve(universe, shots.GetRange(0, 2));
             Check(shots[0].resolvedHit && shots[1].resolvedHit && body.HitPoints == 5,
                 "two real mapless point-defense contacts consume twenty hit points");
+            Check(contacts.Count == 2 && contacts.All(c => c.defender == missile
+                && OrbitSphere.ArcCells(c.position, SpaceTransform.ShipLocalToUniverse(missile, c.localPoint)) < .003f),
+                "entity contact visuals and damage consume the same rigid-local hit point");
             SpaceCollision.SweepAndResolve(universe, shots.GetRange(2, 2));
             Check(shots[2].resolvedHit && !shots[3].resolvedHit && body.Destroyed && !missile.InterceptionEligible,
                 "same-tick sweep skips the destroyed missile");
+            Check(contacts.Count == 3, "destroyed entity does not produce a second visual or damage contact");
 
             var explosiveBody = new Building { def = def, HitPoints = 25 };
             var explosiveTarget = universe.CapturePayload(explosiveBody, missile.pose, null);
@@ -110,12 +131,60 @@ internal static partial class Program
             {
                 universe.UnregisterObject(explosiveTarget);
             }
+            CheckDeferredDamageAdapters(universe, def, hitEffect, rayDef);
         }
         finally
         {
             flak.UnpatchAll(flak.Id);
             universe.UnregisterObject(missile);
             Find.Maps.AddRange(maps);
+        }
+    }
+
+    static void CheckDeferredDamageAdapters(UniverseManager universe, ThingDef bodyDef,
+        SpaceImpactEffectDef effect, ThingDef projectile)
+    {
+        int Pending() => (int)AccessTools.Property(
+            AccessTools.Field(typeof(SpaceProjectileService), "delayedMissileDamage").FieldType, "Count")
+            .GetValue(AccessTools.Field(typeof(SpaceProjectileService), "delayedMissileDamage").GetValue(universe.Projectiles));
+        void Advance()
+        {
+            Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
+            universe.Projectiles.Tick();
+        }
+        foreach (string scenario in new[] { "once", "replace", "destroy", "remove", "multiple" })
+        {
+            var entity = new CollisionEntity { def = bodyDef, HitPoints = 25 };
+            var target = universe.CapturePayload(entity, new SpacePose(Vector3.forward, .4f), null);
+            var hit = new SpaceCollision.ImpactEvent {
+                defender = target, defenderBuilding = entity, projectileDef = projectile, damageScale = 1,
+                hitDefenderLocal = new Vector2(.2f, .1f)
+            };
+            try
+            {
+                int count = scenario == "multiple" ? 4 : 1;
+                for (int i = 0; i < count; i++) SpaceImpactEffects.ApplyToDefender(hit, effect.defenderEffect);
+                universe.Projectiles.Tick();
+                Check(entity.HitPoints == 25 && Pending() == count, "deferred structure damage waits for the next game tick");
+                if (scenario == "replace") AccessTools.Property(typeof(SpaceObject), nameof(SpaceObject.RepresentationVersion))
+                    .SetValue(target, target.RepresentationVersion + 1);
+                if (scenario == "destroy") entity.Destroy();
+                if (scenario == "remove") universe.UnregisterObject(target);
+                Advance();
+                if (scenario == "once")
+                {
+                    Check(entity.HitPoints == 15 && Pending() == 0, "dequeued damage executes once through the adapter without being queued again");
+                    universe.Projectiles.Tick(); Advance();
+                    Check(entity.HitPoints == 15, "later ticks cannot repeat an already consumed damage receipt");
+                }
+                else if (scenario == "replace") Check(entity.HitPoints == 25 && Pending() == 0,
+                    "representation changes invalidate pending structure damage");
+                else if (scenario == "multiple") Check(entity.Destroyed && entity.destroys == 1 && Pending() == 0,
+                    "multiple queued receipts stop at entity destruction and release the remaining work");
+                else Check(entity.destroys == 1 && Pending() == 0,
+                    "destroyed or removed structures cannot receive stale queued damage: " + scenario);
+            }
+            finally { universe.UnregisterObject(target); }
         }
     }
 }
