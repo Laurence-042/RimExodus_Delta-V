@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import sys
+import xml.etree.ElementTree as ET
 
 from PIL import Image
 
@@ -81,6 +82,18 @@ def missile_blueprint():
     canvas.save(ART / "MissileLauncher_Blueprint.png")
 
 
+def engineering_icons():
+    for name in ("InertiaCoupler", "MiningBeam"):
+        turret_icon("PointDefense_Base", name + "_Top", 2.4 / 2.6, name + "_MenuIcon")
+
+
+def tractor_icon():
+    definition = ET.parse(ROOT / "1.6/Defs/SpaceCombat/DeltaV_Tractor.xml").find("ThingDef")
+    base_size = float(definition.findtext("graphicData/drawSize").strip("()").split(",")[0])
+    top_size = float(definition.findtext("building/turretTopDrawSize"))
+    turret_icon("PointDefense_Base", "TractorBeam_Top", top_size / base_size, "TractorBeam_MenuIcon")
+
+
 if __name__ == "__main__":
     rail_loader_icon()
     if sys.argv[1:] == ["--rail-loader"]:
@@ -98,3 +111,5 @@ if __name__ == "__main__":
         turret_icon("Turret3_Base", top, 3.4 / 3.6, f"Turret3_{suffix}_MenuIcon")
     rail_icon("RailgunAccelerator_Inner", "RailgunAccelerator_MenuIcon")
     missile_blueprint()
+    engineering_icons()
+    tractor_icon()

@@ -12,7 +12,7 @@
 
 新结果写到忽略目录 `Source/obj/EngagementForecast`。原 `-EngagementBaseline` 与 `--engagement-fleet-baseline` 只用于保存的旧 DLL，不能拿新实现覆盖基线；冻结参数、已通过与未过关项目统一记录在[实施计划](../doc/有利射位与交战收益规划.md#工作树实施检查点2026-11-08尚未交付)。
 
-`GuardShieldRegression/GuardShieldRegression.csproj` 直接编译生产护盾贴图裁剪算法，对拍随机覆盖、UV 范围与退化几何，并输出离线预览数据及重建耗时；运行和验证边界见[守卫盾裁剪检查](GuardShieldRegression/README.md)。
+`GuardShieldRegression/GuardShieldRegression.csproj` 直接编译生产护盾贴图裁剪算法，对拍随机覆盖、UV 范围与退化几何，并测量裁剪重建耗时；运行和验证边界见[守卫盾裁剪检查](GuardShieldRegression/README.md)。
 
 `TutorialRegression/run.ps1` 默认检查教程使用的 prefab、教学流程及委托接线。`-SectorOnly` 独立检查星区资源、12 个叶子类型的默认池、实装舰船和站点几何、电网、维生及泊位。用 `-Version 1.6` 或 `-Version 1.7` 选择环境，并通过 `-HarmonyPath` 传入对应的 Lib.Harmony .NET 运行时 DLL。
 
@@ -46,10 +46,6 @@ $harmony = '<Lib.Harmony/lib/net8.0/0Harmony.dll>'
 | `RailgunRegression/run.ps1 -RailgunOnly` | 1.6 轨道炮开火、冷却存读档、共享电网扣费、欠费跳段、回收与电容混装、长炮标定；装弹机与加速段的四向占格和侧槽由两版 `TutorialRegression -RangeOnly` 验证 |
 | `RailgunRegression/run.ps1 -EquipmentOnly` | 1.6 电池隔离与短路、反应堆、货柜温控和生命周期、ASF 图形与库存、终端交易。交易夹具提供船域与信标覆盖，使用生产选船、原版信标枚举和成交复核，覆盖货源断开、主台或派系变化及库存离开信标覆盖 |
 | `RailgunRegression/run.ps1 -EnergyOnly` | 兼容入口，仍按顺序运行轨道炮组和设备组，并提示改用各自入口 |
-| `preview_equipment_cost_art.py` | 只读设备 Def 与三张新贴图，输出四向、实际格尺寸及宿主槽位叠画预览，不改正式贴图 |
-| `preview_power_equipment.py` | 只读正式电池蒙版与共用色表，预览实际 Def 下的反应堆占地对齐、电量条与四向状态色，不修改正式贴图或蒙版 |
-| `preview_safety_battery_candidate.py` | 仅在 `doc/art` 生成六盖板候选蒙版和四向／缩图对照；默认 `--variant mirrored` 为已确认上下镜像斜面、读取正式共用色表，`faceted` 复现旧同向斜面稿，`symmetric` 复现旧平板红绿稿，不修改正式资产或运行代码 |
-| `preview_shared_storage_palette.py` | 读取正式共用色表与资产，输出货仓三态（锁定敌对／非敌对）／电池两态与炮身参考对照；不改正式颜色、原图或蒙版 |
 | `CombatStrategyRegression/` | 使用最小占位类型的策略、曲线与文件校验；不替代游戏运行时验证 |
 | `NpcRetreatRegression/run.ps1` | 1.6 的战斗、驾驶、结构和生命周期专项；已接 REF，名称不代表只测撤退；`-PlayerFlightOnly` 验证驾驶权限、显式驾驶和原版按键抑制边界、导航参考与任务替换（2026-11-02 共 72 项通过；模拟焦点／按键绑定环境，不启动游戏）；`-SeparationOnly` 验证实际 Mod DLL 的归属、增量断裂检查与出力分离门禁；`-TractorOnly` 验证自动跨船独占与过滤、手动叠力、残骸分离请求、点防伤害分配及坐标／存读档 |
 | `MpcRegression`、`EngineeringRegression`、`RailgunRegression` | 1.6 控制器、工程与碰撞链回归；轨道炮数值现状以武器基线及 1.7 回归为准 |
@@ -58,11 +54,18 @@ $harmony = '<Lib.Harmony/lib/net8.0/0Harmony.dll>'
 | `PrefabMarkerRegression/run.ps1` | 直接引用生产 DLL，验证精确／批量 SpaceObject 标记的密度、配置上限、`clusterChild` 产生与后代继承、确定性、带权分布、面积均匀环带、最小间距、重掷种子及单一朝向来源；不启动游戏，也不替代实际 prefab 导出、半透明预览、懒物化和归档恢复验收 |
 | `verify_docking_contract.ps1` | 1.6 对接原版签名、XML 字段与翻译核对，不适用于 1.7 API |
 | `CombatManeuverSimulation/` | 仅保留历史研究报告与结果；实验驱动已退役，不能把旧数值当成现行武器标定 |
-| `align_turret_layer.py`、`build_*.py`、`preview_*.py` | 贴图对齐、图标生成与布局复现；部分预览脚本会调用图标生成器并写入正式图标，使用前先阅读脚本 |
+| `align_turret_layer.py` | 按指定转轴整数平移到画布中心，校验源像素完整 |
+| `build_weapon_icons.py` | 从正式分层贴图合成舰炮、护盾、轨道炮、导弹蓝图、工程炮塔与牵引器的生产图标；`--rail-loader` 只生成装弹机图标 |
+| `build_weapon_heat_masks.py`、`build_shield_prism_mask.py`、`build_cargo_masks.py` | 生成正式蒙版并检查像素与通道 |
+| `build_docking_icon.py`、`generate_vacuum_barrier_atlas.py` | 生成正式对接口图标和真空屏障连接图集 |
 
 2026-10-31 按用户选定范围删除 `CombatManeuverSimulation` 的 10 个历史实验文件（5 个 C# 探针、4 个 Python 实验／输入脚本及 `run_mpc.ps1`），保留该目录的 README 和全部结果。它们仅在旧实验驱动内部相互依赖，构建及上述有效回归不引用这些文件。删除前已将当前文件（含 `TacticProbe.cs` 未提交的轨迹记录改动）备份至本地忽略目录 `Source/obj/ScriptCleanup-20261031-042309/historical-experiments.zip`，旁附 SHA256 清单并逐项核验；已提交版本亦可从 Git 历史找回。Python 缓存已清理并忽略。1.6 驱动未在本轮逐个重跑，保留不代表已通过 1.7 运行时验证。
 
-`build_shield_prism_mask.py`：按固定原图生成护盾北侧与中央棱镜灰度图、红通道 `_m` 遮罩与两种尺寸的四色预览；只修改棱镜像素，验证 alpha 与遮罩外像素不变。素材记录见[美术资源施工表](../doc/美术资源施工表.md#护盾棱镜状态色2026-11-01)。
+`build_shield_prism_mask.py`：按固定原图生成护盾北侧与中央棱镜灰度图、红通道 `_m` 遮罩；只修改棱镜像素，验证 alpha 与遮罩外像素不变。正式蒙版和材质规则见[武器与护盾绘制](../doc/太空战架构.md#combat-art)。
+
+`doc/art` 保存原稿、各独立版本的代表美术和生成 prompt。合成图承担迭代记录时也按美术归档，文件名中的 `preview` 不决定去留。按版本查阅[美术归档索引](../doc/美术资源施工表.md#art-iterations)。正式生成器只写生产资源。
+
+小型护盾图标的整批重建仍有已知差异，重生成结果与现行 `ShieldGeneratorSmall_MenuIcon.png` 不同，需独立核对。
 
 ### EVA 回归
 

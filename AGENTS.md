@@ -55,7 +55,7 @@
 | 重炮规避验证与自动战斗策略对照 | [重炮规避离线验证](scripts/CombatManeuverSimulation/README.md)、[Cosmoteer 策略能力对照](doc/自动战斗策略与Cosmoteer对照.md)；继续调整战斗机动前先查实验条件、实现缺口及适用边界 |
 | 武器定位、数值与护盾机制 | [舰炮与护盾基线](doc/舰炮与护盾基线.md) |
 | 地图 prefab、布局示意与重建排障 | 加载 [.agents/skills/delta-v-prefab/SKILL.md](.agents/skills/delta-v-prefab/SKILL.md)，运行时契约见 [Prefab 状态重建](doc/Prefab状态重建.md) |
-| 贴图生成、分层、对齐与视觉 QA | 加载 [.agents/skills/delta-v-art/SKILL.md](.agents/skills/delta-v-art/SKILL.md)，资源清单与进度只写 [美术资源施工表](doc/美术资源施工表.md) |
+| 贴图生成、分层、对齐与视觉 QA | 加载 [.agents/skills/delta-v-art/SKILL.md](.agents/skills/delta-v-art/SKILL.md)，现行绘制规则按功能写入对应正式专题，待验收事项写入 [TODO.md](doc/TODO.md#art-acceptance) |
 
 代码注释只记录紧贴实现的局部约束。UI 文本使用 Keyed 翻译；建筑描述与检查面板只写用途、机制和必要操作，不复述可见外观或夹带实现说明。
 

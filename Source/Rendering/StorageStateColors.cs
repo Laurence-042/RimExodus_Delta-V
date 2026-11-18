@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace DeltaV
 {
-    // Shared CutoutComplex multipliers; see the state-color table in 美术资源施工表.
+    // Shared CutoutComplex multipliers; see doc/空间站交易与货柜.md#storage-state-colors.
     internal static class StorageStateColors
     {
         internal static readonly Color Active = new Color(193f / 255f, 245f / 255f, 1f);

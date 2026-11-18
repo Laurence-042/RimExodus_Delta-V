@@ -11,7 +11,6 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 TEXTURES = ROOT / "1.6/Textures/Things/Building/SpaceWeapons"
-PREVIEW = ROOT / "doc/art/WeaponHeat_mask_alignment_preview.png"
 REGIONS = {
     "RapidTurret_Top": {
         "size": (1254, 1254),
@@ -84,23 +83,6 @@ def build_mask(name, regions):
     return source, red, green
 
 
-def preview_panel(source, red, green):
-    panel = Image.new("RGBA", source.size, (35, 36, 38, 255))
-    panel.alpha_composite(source)
-    overlay = Image.new("RGBA", source.size)
-    pixels = overlay.load()
-    red_pixels, green_pixels = red.load(), green.load()
-    for y in range(source.height):
-        for x in range(source.width):
-            rv, gv = red_pixels[x, y], green_pixels[x, y]
-            if rv or gv:
-                pixels[x, y] = (230 if rv else 30, 40 if rv else 220, 40, 145)
-    panel.alpha_composite(overlay)
-    return panel.resize((650, 650), Image.Resampling.LANCZOS)
-
-
-panels = [preview_panel(*build_mask(name, regions)) for name, regions in REGIONS.items()]
-preview = Image.new("RGBA", (1300, 650), (35, 36, 38, 255))
-for index, panel in enumerate(panels):
-    preview.alpha_composite(panel, (index * 650, 0))
-preview.convert("RGB").save(PREVIEW, optimize=True)
+if __name__ == "__main__":
+    for name, regions in REGIONS.items():
+        build_mask(name, regions)

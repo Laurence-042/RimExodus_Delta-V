@@ -4,8 +4,6 @@
 
 直接编译生产 `GuardShieldOutline.cs`，验证原版贴图四边形／UV 范围、包含、重合去重与相离；200 组确定性随机布局以独立射线法判断点是否在裁剪多边形内，对拍真实圆并集边界，并验证并集内部恰有一个贴图覆盖、枚举顺序不影响面积。当前共 375237 项通过。这里的几何仅用于显示，不参与挡弹。
 
-程序还导出 `Source/obj/GuardShieldPreview/geometry.json`。安装 Pillow／NumPy 后运行 `python scripts/GuardShieldRegression/preview.py`，读取 `_references/RimWorldArt` 的原版 ForceField PSD、按生产多边形和原 UV 采样，生成 `Source/obj/GuardShieldPreview/comparison.png`。单盾、等径／异径交叠、包含、三盾与相离的离线预览已检查；这是固定透明度的几何／贴图预览，不是游戏截图，不能代替 Unity 材质与缩放验收。
-
 2026-11-07 在本机 i7-12700H 上，Release、关闭分层 JIT、预热 100 次后计时 200 次，**整组裁剪重建**的样本如下。只包含 CPU 多边形计算，不含成员状态查询、Mesh 创建／上传、DrawMesh 提交或 GPU 绘制。
 
 | 布局 | 台数 | 中位数 ms | P95 ms | 顶点／三角形 |

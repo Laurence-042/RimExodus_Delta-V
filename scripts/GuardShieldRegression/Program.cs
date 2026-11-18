@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
-using System.IO;
-using System.Text.Json;
 using DeltaV;
 using Circle = DeltaV.GuardShieldOutline.Circle;
 using Point = DeltaV.GuardShieldOutline.Point;
@@ -63,14 +61,6 @@ internal static class Program
             }
         }
         Console.WriteLine($"PASS: {checks} native texture clipping checks.");
-        string output=Path.GetFullPath("Source/obj/GuardShieldPreview");Directory.CreateDirectory(output);
-        var scenes=new Dictionary<string,Circle[]> {
-            ["Single"]=new[]{C(1)}, ["Equal radii"]=new[]{C(1,-15),C(2,15)},
-            ["Mixed radii"]=new[]{C(1,-13,radius:27),C(2,22,radius:16)},
-            ["Contained"]=new[]{C(1),C(2,8,radius:10)},
-            ["Three fields"]=new[]{C(1,-15,-7),C(2,15,-7),C(3,0,19)},
-            ["Separated"]=new[]{C(1,-28,radius:18),C(2,28,radius:18)} };
-        File.WriteAllText(Path.Combine(output,"geometry.json"),JsonSerializer.Serialize(scenes.ToDictionary(e=>e.Key,e=>e.Value.Select(c=>new {c.x,c.z,c.radius,polygon=GuardShieldOutline.Clip(c,e.Value).Select(p=>new[]{p.x,p.z}).ToArray()}).ToArray())));
         Console.WriteLine("BENCHMARK layout,n,median_ms,p95_ms,vertices,triangles (CPU clipping only)");
         foreach(string layout in new[]{"dense","chain","separate"}) foreach(int n in new[]{8,32,128})
         {
