@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -17,6 +17,10 @@ internal static partial class Program
     static bool HullContactPocketTile(ref PlanetTile __result)
     { __result = PlanetTile.Invalid; return false; }
 
+    static Map hullObservedMap;
+    static readonly List<Thing> hullInstigators = new();
+    static void HullDamageInstigator(Thing __instance, DamageInfo dinfo)
+    { if (hullObservedMap != null && __instance.Map == hullObservedMap) hullInstigators.Add(dinfo.Instigator); }
     static Map hullFocusedMap;
     static readonly List<(SoundDef sound, SoundInfo info)> hullSounds = new();
     static bool HullFocusedMap(ref Map __result) { __result = hullFocusedMap; return false; }
@@ -52,9 +56,8 @@ internal static partial class Program
         }
     }
 
-    // Only Unity scene endpoints are replaced. Attached rounds, transforms, grid
-    // sweeps, registry lookup and both TakeDamage calls execute production code.
-    readonly record struct HullRoundView(object record, IntVec3 hullCell, SpaceObject container);
+    // Only Unity scene endpoints are replaced. Contact transforms, grid sweeps,
+    // registry lookup and both TakeDamage calls execute production code.
     sealed class HullRoundFixture : IDisposable
     {
         readonly UniverseManager universe;
@@ -77,6 +80,7 @@ internal static partial class Program
         internal HullRoundFixture(UniverseManager universe, Faction faction)
         {
             this.universe = universe;
+            patches.Patch(AccessTools.Method(typeof(Thing),nameof(Thing.TakeDamage)),postfix:new HarmonyMethod(typeof(Program),nameof(HullDamageInstigator)));
             patches.Patch(typeof(ModsConfig).TypeInitializer, prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
             patches.Patch(AccessTools.PropertyGetter(typeof(MapInfo), nameof(MapInfo.Tile)),
                 prefix: new HarmonyMethod(typeof(Program), nameof(HullContactPocketTile)));
@@ -117,7 +121,7 @@ internal static partial class Program
                 var sound = new SoundDef { defName = name }; DefDatabase<SoundDef>.Add(sound); sounds.Add(sound); return sound;
             }
             def.comps.Add(new CompProperties_SpaceProjectile {
-                hasMap = (bool)props.Element("hasMap"), collisionRadius = (float)props.Element("collisionRadius"),
+                hasMap = (bool)props.Element("hasMap"), collisionRadius = (float?)props.Element("collisionRadius") ?? -1f,
                 ignoresShields = (bool)props.Element("ignoresShields"),
                 impactSoundMap = Sound((string)props.Element("impactSoundMap")),
                 impactSoundShell = Sound((string)props.Element("impactSoundShell")) });
@@ -160,11 +164,9 @@ internal static partial class Program
             control.SetCollisionAvoidanceEnabled(avoidance);
             return (body, wall, ship, control);
         }
-        internal HullRoundView[] Rounds() =>
-            ((System.Collections.IEnumerable)AccessTools.Field(typeof(SpaceProjectileService), "projectiles").GetValue(universe.Projectiles))
-                .Cast<object>().Where(p => p.GetType().GetField("hullSource").GetValue(p) != null && !(bool)p.GetType().GetField("dead").GetValue(p))
-                .Select(p => new HullRoundView(p, (IntVec3)p.GetType().GetField("hullCell").GetValue(p),
-                    (SpaceObject)p.GetType().GetProperty("container").GetValue(p))).ToArray();
+        internal long Requests => (long)AccessTools.Property(typeof(SpaceProjectileService), "HullRequests").GetValue(universe.Projectiles);
+        internal int Registered => universe.objects.Count;
+        internal int Sources => ((System.Collections.IDictionary)AccessTools.Field(typeof(SpaceProjectileService), "hullSources").GetValue(universe.Projectiles)).Count;
         internal void Prepare() { Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1); universe.Projectiles.Tick(); }
         internal void Step()
         {
@@ -181,7 +183,7 @@ internal static partial class Program
             foreach (var body in bodies) universe.UnregisterObject(body);
             foreach (var map in maps) { SpaceCollision.Forget(map); Find.Maps.Remove(map); }
             bodies.Clear(); maps.Clear(); ShipRegistry.ClearCaches();
-            hullFocusedMap = null; hullSounds.Clear();
+            hullFocusedMap = hullObservedMap = null; hullSounds.Clear(); hullInstigators.Clear();
         }
         public void Dispose()
         {
@@ -199,6 +201,10 @@ internal static partial class Program
 
     static void CheckHullContacts(UniverseManager universe, Faction faction)
     {
+        using (var pressure = new HullPerformanceFixture(universe, faction, suppressVisual: true))
+        {
+            CheckHullBatchPressure(faction, pressure);
+        }
         using var f = new HullRoundFixture(universe, faction);
         CheckHullMaplessContact(universe, faction, f);
         foreach (bool leftOn in new[] { false, true })
@@ -210,7 +216,7 @@ internal static partial class Program
             f.Step();
             bool hit = !leftOn || !rightOn;
             Check(hit ? a.wall.Destroyed && b.wall.Destroyed : a.wall.HitPoints == 300 && b.wall.HitPoints == 300,
-                $"attached hull round: {leftOn}/{rightOn}, reverse={reverse}, symmetric damage={300-a.wall.HitPoints}/{300-b.wall.HitPoints}");
+                $"hull contact: {leftOn}/{rightOn}, reverse={reverse}, symmetric damage={300-a.wall.HitPoints}/{300-b.wall.HitPoints}");
             Check(Mathf.Abs(a.body.pose.velocity.x + b.body.pose.velocity.x - (reverse ? -300 : 300)) < .02f
                 && (!hit || Mathf.Abs(a.body.pose.velocity.x - (reverse ? 0 : 300)) > 1),
                 "shared collision outcome transfers equal and opposite momentum to the actual carriers");
@@ -221,9 +227,9 @@ internal static partial class Program
         f.Step();
         Check(weak.wall.Destroyed && strong.wall.HitPoints == 260,
             "source hull destruction caps both sides to the same absorbed hit points");
-        f.Prepare(); Check(f.Rounds().Length == 0, "destroyed source cannot replenish a collision projectile"); f.Clear();
+        f.Prepare(); Check(f.Sources == 0, "destroyed source cannot submit another contact"); f.Clear();
         var slow = f.Craft(faction, 0,0,new Vector2(.4f,0),false);
-        var scrape = f.Craft(faction,.99f,0,Vector2.zero,true);
+        var scrape = f.Craft(faction,1.002f,0,Vector2.zero,true);
         f.Step(); Check(slow.wall.HitPoints == 300 && scrape.wall.HitPoints == 300
             && Mathf.Abs(slow.body.pose.velocity.x-.2f)<.001f && Mathf.Abs(scrape.body.pose.velocity.x-.2f)<.001f,
             "sub-threshold contact transfers momentum without hull damage"); f.Clear();
@@ -237,36 +243,79 @@ internal static partial class Program
         var striker = f.Craft(faction,0,0,new Vector2(900,0),false);
         f.Step();
         Check(striker.wall.Destroyed && !SubstructureOwnership.HasFoundation(deckTarget.body.map,bare),
-            "attached round resolves bare foundation through the existing foundation destruction chain"); f.Clear();
-        CheckHullColumns(universe, faction, f);
+            "contact request resolves bare foundation through the existing foundation destruction chain"); f.Clear();
+        var forgotten=f.Craft(faction,0,0,Vector2.zero,false);f.Prepare();
+        universe.Projectiles.ForgetMap(forgotten.body.map);
+        var sources=(System.Collections.IDictionary)AccessTools.Field(typeof(SpaceProjectileService),"hullSources").GetValue(universe.Projectiles);
+        Check(sources.Values.Cast<object>().All(item=>AccessTools.Field(item.GetType(),"map").GetValue(item)==null
+            && AccessTools.Field(item.GetType(),"owner").GetValue(item)==null),"forgetting a map releases hull representation references");
+        f.Prepare();universe.UnregisterObject(forgotten.body);
+        Check(f.Sources==0,"object removal immediately releases hull participation");f.Clear();
+        CheckHullColumns(faction, f);
+        CheckLayeredHullBreach(faction, f);
         CheckContactMomentum(universe, faction, f);
         CheckHullScrapes(f, faction);
+        var flatA=f.Craft(faction,0,0,new Vector2(20,0),false,hp:1000000,size:3);
+        var flatB=f.Craft(faction,3.1f,0,Vector2.zero,true,hp:1000000,size:3);
+        f.Step();
+        Check(Math.Abs(flatA.body.pose.angularVelocity)<.003f && Math.Abs(flatB.body.pose.angularVelocity)<.003f
+            && Math.Abs(flatA.body.pose.velocity.x-10)<.03f && Math.Abs(flatB.body.pose.velocity.x-10)<.03f,
+            "a symmetric multi-cell face contact does not invent an off-center impulse");f.Clear();
+        var wideA = f.Craft(faction, 0, 0, new Vector2(600,0), false, hp:1000000, size:3);
+        var wideB = f.Craft(faction, 2.1f, 0, Vector2.zero, true, hp:10);
+        var sideDef = TestBuildingDef("HullWideIndependentWall");
+        sideDef.useHitPoints = sideDef.destroyable = sideDef.building.isWall = true;
+        var low = PlaceHullFixtureBuilding(wideB.body.map, new IntVec3(6,0,5), sideDef, 10000, 55110);
+        var high = PlaceHullFixtureBuilding(wideB.body.map, new IntVec3(6,0,7), sideDef, 10000, 55111);
+        SubstructureOwnership.BumpStructureVersion(wideB.body.map);
+        f.Step();
+        Check(f.Requests == 1 && wideB.wall.Destroyed && (low.HitPoints < 10000 || high.HitPoints < 10000),
+            $"a wide face distributes one damage request across multiple columns: requests={f.Requests}");
+        var facePoint = SpaceTransform.ShipLocalToUniverse(wideB.body, new Vector2(-.5f,0));
+        Check(Mathf.Abs(SpaceTransform.RelativeVelocityAtContact(wideA.body.pose, wideB.body.pose, facePoint).x) < .02f,
+            "a local hole does not allow penetration through the remaining loaded face");
+        f.Clear();
+        var chainA=f.Craft(faction,0,0,new Vector2(180,0),false,hp:100000);
+        var chainB=f.Craft(faction,1.1f,0,Vector2.zero,false,hp:100000);
+        var chainC=f.Craft(faction,2.2f,0,Vector2.zero,true,hp:100000);
+        f.Step();
+        Check(f.Requests >= 2 && f.Registered == 3 && chainA.body.pose.velocity.x < 100f && chainC.body.pose.velocity.x > 20f
+            && Math.Abs(chainA.body.pose.velocity.x + chainB.body.pose.velocity.x + chainC.body.pose.velocity.x - 180) < .03f,
+            $"a three-hull contact transfers momentum to the third vessel: {f.Requests} requests, {chainA.body.pose.velocity.x}/{chainB.body.pose.velocity.x}/{chainC.body.pose.velocity.x}");
+        f.Clear();
+        var overlapA = f.Craft(faction, 0, 0, new Vector2(-20, 0), false, hp: 10000);
+        var overlapB = f.Craft(faction, .99f, 0, new Vector2(20, 0), true, hp: 10000);
+        for (int i = 0; i < 4; i++) f.Step();
+        Check(OrbitSphere.ArcCells(overlapA.body.pose.position, overlapB.body.pose.position) > 1.5f
+            && overlapA.wall.HitPoints == 10000 && overlapB.wall.HitPoints == 10000,
+            "an initially overlapping, separating hull pair resumes drift without repeat damage");
+        f.Clear();
+        var replaced=f.Craft(faction,0,0,new Vector2(300,0),false);
+        var unaffected=f.Craft(faction,3,0,Vector2.zero,true);
+        f.Prepare(); replaced.body.RepresentationVersion++;
+        foreach(var item in universe.objects.ToArray())item.AdvanceDrift(1f/60f);
+        universe.Projectiles.ResolveCollisions();f.Flush();
+        Check(f.Requests==0 && unaffected.wall.HitPoints==300,"captured motion cannot survive a representation replacement");
+        f.Clear();
         var source = f.Craft(faction, 0, 0, new Vector2(12, 7), false, size: 3);
         source.body.pose.angularVelocity = .7f;
         f.Prepare();
-        var rounds = f.Rounds();
-        Check(rounds.Length == 8, "only actual exterior cells generate attached invisible projectiles");
-        Check(universe.Projectiles.ActiveCount == 0, "hull rounds do not count as fired weapons");
-        foreach (var body in universe.objects.ToArray()) body.AdvanceDrift(1f / 60f);
-        universe.Projectiles.ResolveCollisions();
-        Check(f.Rounds().All(p => {
-            var local = new Vector2(p.hullCell.x + .5f, p.hullCell.z + .5f) - SpaceTransform.ShipLocalOrigin(source.body.map);
-            var expected = SpaceTransform.RigidPointPose(source.body.pose, local, 0);
-            return OrbitSphere.ArcCells(expected.position, p.container.pose.position) < .002f
-                && (expected.velocity - p.container.pose.velocity).magnitude < .002f;
-        }), "round position and point velocity follow actual translation and rotation without free flight");
+        int objects = f.Registered;
+        Check(objects == 1 && universe.Projectiles.ActiveCount == 0 && f.Requests == 0,
+            "a rotating isolated hull creates no projectile object or contact request");
+        for (int step = 0; step < 5; step++) f.Step();
+        Check(f.Registered == objects && f.Requests == 0, "no-contact drift has no per-cell lifetime work");
         source.control.SetCollisionAvoidanceEnabled(true);
-        Check(f.Rounds().Length == 0, "enabling avoidance immediately retires attached rounds");
-        f.Flush();
+        Check(f.Sources == 0, "enabling avoidance immediately removes active contact participation");
         source.control.SetCollisionAvoidanceEnabled(false); f.Prepare();
-        Check(f.Rounds().Length == 8, "disabling avoidance recreates the actual perimeter");
+        Check(f.Sources == 1 && f.Registered == objects, "disabling avoidance registers one hull source without per-cell objects");
         source.body.projectileRoleOverride = true;
-        universe.Projectiles.ResolveCollisions();
-        Check(f.Rounds().Length == 0, "intrusion takeover immediately excludes hull rounds from the shared sweep");
-        source.body.projectileRoleOverride = false; f.Flush(); f.Prepare();
-        Check(f.Rounds().Length == 8, "ending intrusion returns hull maintenance to the existing avoidance setting");
+        var intruderTarget = f.Craft(faction, 0, 0, Vector2.zero, true, hp: 10000);
+        f.Step();
+        Check(f.Requests == 0, "intrusion takeover excludes ordinary hull contact");
+        source.body.projectileRoleOverride = false;
         source.wall.Kill(); f.Prepare();
-        Check(f.Rounds().Length == 0, "destroyed hull removes all attached rounds");
+        Check(f.Sources == 0, "destroyed hull releases active contact participation");
         f.Clear();
 
         // A real foundation control domain tests local structure edits and retained records.
@@ -284,36 +333,20 @@ internal static partial class Program
         SubstructureOwnership.BumpStructureVersion(deck.body.map);
         var pilot = (PlayerShipController)universe.Controls.For(console.Vessel);
         pilot.SetCollisionAvoidanceEnabled(false); f.Prepare();
-        var before = f.Rounds().ToDictionary(p => p.hullCell);
-        Check(before.Count == 8 && !before.ContainsKey(new IntVec3(1,0,2)), "foundation interior has no round");
+        int beforeObjects = f.Registered;
         var breach = new IntVec3(1,0,3);
         deck.body.map.terrainGrid.foundationGrid[deck.body.map.cellIndices.CellToIndex(breach)] = null;
         universe.NotifyFoundationChanged(deck.body.map, breach);
         SubstructureOwnership.BumpStructureVersion(deck.body.map, CellRect.SingleCell(breach)); f.Prepare();
-        var after = f.Rounds().ToDictionary(p => p.hullCell);
-        Check(after.Count == 8 && !after.ContainsKey(breach) && after.ContainsKey(new IntVec3(1,0,2)),
-            "local breach removes its round and exposes the neighboring interior cell");
-        Check(before.Where(p => p.Key != breach).All(p => ReferenceEquals(p.Value.record, after[p.Key].record)),
-            "unaffected perimeter rounds survive incremental damage updates");
+        var view = CollisionView(deck.body);
+        object[] structureArgs = {breach, null, null};
+        Check(!(bool)Call(view, "TryStructure", structureArgs), "local breach is absent from the unified structure view");
         deck.body.map.terrainGrid.foundationGrid[deck.body.map.cellIndices.CellToIndex(breach)] = foundation;
         universe.NotifyFoundationChanged(deck.body.map, breach);
         SubstructureOwnership.BumpStructureVersion(deck.body.map, CellRect.SingleCell(breach)); f.Prepare();
-        Check(f.Rounds().Length == 8 && f.Rounds().Any(p => p.hullCell == breach)
-            && !f.Rounds().Any(p => p.hullCell == new IntVec3(1,0,2)), "repair restores exterior rounds and removes the re-covered interior round");
-        foreach (int x in new[] { 3, 4 })
-        {
-            var cell = new IntVec3(x,0,3);
-            int index = deck.body.map.cellIndices.CellToIndex(cell);
-            deck.body.map.terrainGrid.foundationGrid[index] = foundation; owners[index] = console.shipId;
-            universe.NotifyFoundationChanged(deck.body.map,cell);
-            SubstructureOwnership.BumpStructureVersion(deck.body.map,CellRect.SingleCell(cell));
-        }
-        f.Prepare(); Check(f.Rounds().Any(p => p.hullCell.x == 4), "newly connected structure adds exterior rounds");
-        var neck = new IntVec3(2,0,3);
-        deck.body.map.terrainGrid.foundationGrid[deck.body.map.cellIndices.CellToIndex(neck)] = null;
-        universe.NotifyFoundationChanged(deck.body.map,neck);
-        SubstructureOwnership.BumpStructureVersion(deck.body.map,CellRect.SingleCell(neck)); f.Prepare();
-        Check(!f.Rounds().Any(p => p.hullCell.x >= 3), "disconnected fragments lose rounds belonging to the original control domain");
+        structureArgs = new object[] {breach, null, null};
+        Check((bool)Call(CollisionView(deck.body), "TryStructure", structureArgs), "repair restores the authoritative structure");
+        Check(f.Registered == beforeObjects && f.Requests == 0, "structural edits do not allocate collision projectiles");
         CheckHullAvoidanceMotion(universe, faction, f);
     }
 
@@ -330,7 +363,32 @@ internal static partial class Program
         return def;
     }
 
-    static void CheckHullColumns(UniverseManager universe, Faction faction, HullRoundFixture f)
+    static void CheckHullBatchPressure(Faction faction, HullPerformanceFixture fixture)
+    {
+        Rand.PushState(20261119);
+        try
+        {
+            fixture.Fleet(faction, 2, "large", "breach");
+            int before = fixture.maps.Sum(m => m.terrainGrid.foundationGrid.Count(t => t != null));
+            long requests = Current.Game.GetComponent<UniverseManager>().Projectiles.HullRequests;
+            fixture.Step();
+            int after = fixture.maps.Sum(m => m.terrainGrid.foundationGrid.Count(t => t != null));
+            int walls = fixture.walls.Count(w => w.Destroyed);
+            long used = Current.Game.GetComponent<UniverseManager>().Projectiles.HullRequests - requests;
+            Check(used == 1 && before - after > 2 && before - after <= 58 && walls > 2 && walls <= 58,
+                $"one hull effect damages only the two touching fronts on a wide hull: {used} requests, {before-after} deck, {walls} walls");
+
+            fixture.ClearFleet();
+            fixture.Fleet(faction, 24, "concave", "multi");
+            for (int i = 0; i < 8; i++) fixture.Step();
+            Check(fixture.frames.Where((_, i) => i % 3 == 2).All(f => f.pose.velocity.x > 1f)
+                && fixture.frames.All(f => float.IsFinite(f.pose.velocity.x) && float.IsFinite(f.pose.angularVelocity)),
+                "concave groups transfer motion to all third hulls and continue with finite poses");
+        }
+        finally { Rand.PopState(); }
+    }
+
+    static void CheckHullColumns(Faction faction, HullRoundFixture f)
     {
         var cell = new IntVec3(6,0,6);
         foreach (bool reverse in new[] { false,true })
@@ -363,32 +421,74 @@ internal static partial class Program
         finally { Rand.PopState(); }
         Check(broken > 0 && survived > 0, $"only residual 200/300 damage rolls for the stronger deck: broken={broken}, survived={survived}");
 
-        // A closed 3x3 real control domain: the center starts without an attached round.
-        var attacker = f.Craft(faction,0,0,new Vector2(600,0),true);
-        RemoveFixtureBuilding(attacker.wall,attacker.body.map);
-        var main = new CompDeltaVPilotConsole {isMain=true,shipId=53500};
-        var helm = PlaceHullFixtureBuilding(attacker.body.map,new IntVec3(5,0,5),ThingDefOf.PilotConsole,10000,53500,main);
-        Set(typeof(Thing),helm,"factionInt",faction);
-        var cells = (from x in Enumerable.Range(5,3) from z in Enumerable.Range(5,3) select new IntVec3(x,0,z)).ToArray();
-        HullDeck(attacker.body.map,cells);
-        var owners = new int[attacker.body.map.cellIndices.NumGridCells];
-        foreach(var c in cells) owners[attacker.body.map.cellIndices.CellToIndex(c)] = main.shipId;
-        Set(SubstructureOwnership.TryGet(attacker.body.map),"ownerGrid",owners);
-        foreach(var c in cells) universe.NotifyFoundationChanged(attacker.body.map,c);
-        SubstructureOwnership.BumpStructureVersion(attacker.body.map);
-        var wall = TestBuildingDef("HullBudgetWall"); wall.useHitPoints=wall.destroyable=true; wall.building.isWall=true; wall.fillPercent=1;
-        var front = PlaceHullFixtureBuilding(attacker.body.map,new IntVec3(7,0,6),wall,100,53501);
-        var inside = PlaceHullFixtureBuilding(attacker.body.map,cell,wall,100,53502);
-        universe.Controls.For(main.Vessel).SetCollisionAvoidanceEnabled(false);
-        var target = f.Craft(faction,4,0,Vector2.zero,true,hp:10000);
-        HullDeck(target.body.map,cell);
-        f.Prepare(); int tick = Find.TickManager.TicksGame;
-        Check(!f.Rounds().Any(p=>p.hullCell==cell && p.container != null), "interior collision round is absent before the breach");
-        foreach(var body in universe.objects.ToArray()) body.AdvanceDrift(1f/60f);
-        universe.Projectiles.ResolveCollisions();
-        Check(front.Destroyed && inside.Destroyed && !SubstructureOwnership.HasFoundation(attacker.body.map,cell)
-            && target.wall.HitPoints < 9600 && Find.TickManager.TicksGame==tick,
-            $"same tick completes deck events, incremental connectivity and newly exposed round impact: front={front.Destroyed}, inside={inside.Destroyed}, target={target.wall.HitPoints}");
+    }
+
+    static void CheckLayeredHullBreach(Faction faction, HullRoundFixture f)
+    {
+        var wall = TestBuildingDef("HullLayerWall");
+        wall.useHitPoints = wall.destroyable = wall.building.isWall = true;
+        wall.fillPercent = 1f;
+
+        var striking = f.Craft(faction, 0f, 0f, new Vector2(600f, 0f), false, hp:100000, size:3);
+        var defending = f.Craft(faction, 5.25f, 0f, Vector2.zero, true, hp:100000);
+        Map target = defending.body.map;
+        BattleBuilding[][] layers = new BattleBuilding[3][];
+        IntVec3[][] decks = new IntVec3[3][];
+        for (int depth = 0; depth < layers.Length; depth++)
+        {
+            int x = 3 + depth;
+            decks[depth] = Enumerable.Range(5, 3).Select(z => new IntVec3(x, 0, z)).ToArray();
+            HullDeck(target, decks[depth]);
+            layers[depth] = decks[depth].Select(c => PlaceHullFixtureBuilding(target, c, wall, 20,
+                53500 + c.x * 10 + c.z)).ToArray();
+        }
+        SubstructureOwnership.BumpStructureVersion(target);
+        hullObservedMap = striking.body.map;
+        for (int depth = 0; depth < layers.Length; depth++)
+        {
+            int beforeHp = striking.wall.HitPoints;
+            f.Step();
+            bool removed = layers[depth].All(w => w.Destroyed)
+                && decks[depth].All(c => !SubstructureOwnership.HasFoundation(target, c));
+            bool deeperIntact = layers.Skip(depth + 1).SelectMany(layer => layer).All(w => w.HitPoints == 20)
+                && decks.Skip(depth + 1).SelectMany(layer => layer).All(c => SubstructureOwnership.HasFoundation(target, c));
+            Check(f.Requests == depth + 1 && removed && deeperIntact && defending.wall.HitPoints == 100000,
+                $"successive ticks destroy one actual three-column wall and deck layer: layer={depth}, requests={f.Requests}, removed={removed}, deeperIntact={deeperIntact}");
+            Check(beforeHp - striking.wall.HitPoints == 3 * 320 && hullInstigators.Count == depth + 1,
+                $"a wide building receives the whole layer damage in one native hit: hp={striking.wall.HitPoints}, hits={hullInstigators.Count}");
+            Check(striking.body.pose.velocity.x - defending.body.pose.velocity.x > 20f,
+                "opening an actual layer preserves the remaining closing motion for a later sweep");
+        }
+        f.Clear();
+
+        striking = f.Craft(faction, 0f, 0f, new Vector2(100f, 0f), false, hp:10000);
+        defending = f.Craft(faction, 5.25f, 0f, Vector2.zero, true, hp:10000);
+        var outer = PlaceHullFixtureBuilding(defending.body.map, new IntVec3(2, 0, 6), wall, 20, 53580);
+        SubstructureOwnership.BumpStructureVersion(defending.body.map);
+        f.Step();
+        Check(outer.Destroyed && defending.wall.HitPoints == 10000 && f.Requests == 1,
+            $"a bulkhead beyond an empty compartment is intact on the breach tick: outer={outer.Destroyed}, hp={defending.wall.HitPoints}");
+        f.Step();
+        Check(defending.wall.HitPoints == 10000 && f.Requests == 1,
+            "an empty intervening compartment consumes no contact or health on the next tick");
+        for (int tick = 0; tick < 5 && defending.wall.HitPoints == 10000; tick++) f.Step();
+        Check(defending.wall.HitPoints < 10000 && f.Requests == 2,
+            $"only a real later sweep crossing the compartment hits the inner bulkhead: hp={defending.wall.HitPoints}, requests={f.Requests}");
+        f.Clear();
+
+        striking = f.Craft(faction, 0f, 0f, new Vector2(100f, 0f), false, hp:10000);
+        defending = f.Craft(faction, 5.25f, 0f, Vector2.zero, true, hp:10000);
+        outer = PlaceHullFixtureBuilding(defending.body.map, new IntVec3(2, 0, 6), wall, 20, 53581);
+        var inner = PlaceHullFixtureBuilding(defending.body.map, new IntVec3(3, 0, 6), wall, 10000, 53582);
+        SubstructureOwnership.BumpStructureVersion(defending.body.map);
+        var third = f.Craft(faction, -2.5f, 0f, new Vector2(230f, 0f), false, hp:10000);
+        f.Step();
+        Check(outer.Destroyed && inner.HitPoints == 10000 && defending.wall.HitPoints == 10000 && f.Requests >= 2
+            && third.body.pose.velocity.x < 225f && striking.body.pose.velocity.x > 100f,
+            $"the third carrier transfers impulse while the adjacent inner layer stays intact: requests={f.Requests}, inner={inner.HitPoints}, third={third.body.pose.velocity.x:R}, striker={striking.body.pose.velocity.x:R}");
+        f.Step();
+        Check(inner.HitPoints < 10000 && defending.wall.HitPoints == 10000,
+            "the adjacent bulkhead takes damage after the next real contact under third-body motion");
         f.Clear();
     }
 
@@ -442,22 +542,29 @@ internal static partial class Program
             RemoveFixtureBuilding(b.wall,b.body.map);
             b.wall.def.size = new IntVec2(9,1);
             PlaceFixtureBuilding(b.wall,b.body.map);
-            var offset = SpaceTransform.Rotate(new Vector2(-direction*2f, -1f),angle);
+            var offset = SpaceTransform.Rotate(new Vector2(-direction*2f, closing > 0f ? -1.015f : -1f),angle);
             a.body.pose = new SpacePose(OrbitSphere.Move(Vector3.forward,offset),angle)
                 { velocity = SpaceTransform.Rotate(new Vector2(direction*12f,closing),angle) };
             b.body.pose.angle = angle;
             Vector2 tangent = SpaceTransform.Rotate(new Vector2(direction,0),angle);
+            float massA = ShipPhysics.GetReport(a.body).mass, massB = ShipPhysics.GetReport(b.body).mass;
+            Vector2 Momentum() => massA * SpaceTransform.TransportVelocity(a.body.pose, Vector3.forward)
+                + massB * SpaceTransform.TransportVelocity(b.body.pose, Vector3.forward);
+            Vector2 before = Momentum();
             for (int i=0;i<15;i++) f.Step();
             Vector2 relative = SpaceTransform.TransportVelocity(a.body.pose,Vector3.forward)
                 - SpaceTransform.TransportVelocity(b.body.pose,Vector3.forward);
-            Check(Mathf.Abs(Vector2.Dot(relative,tangent)-12f)<.05f && a.wall.HitPoints==10000 && b.wall.HitPoints==10000,
-                $"real multi-tick side scrape preserves tangent across grid seams: angle={angle}, direction={direction}, sourceOn={sourceOn}, closing={closing}, speed={Vector2.Dot(relative,tangent)}");
-            Check(f.Flashes==0 && f.Particles==0 && (closing>0f || hullSounds.Count==0),
-                "side scrape produces no damage flashes or smoke; tangent-only contact stays silent");
+            Check((Momentum() - before).magnitude < .001f * Mathf.Max(1f, before.magnitude)
+                && a.wall.HitPoints > 9900 && b.wall.HitPoints > 9900,
+                $"side scrape conserves momentum and limits damage: angle={angle}, direction={direction}, sourceOn={sourceOn}, closing={closing}");
+            if (closing == 0f)
+                Check(Mathf.Abs(Vector2.Dot(relative,tangent)-12f)<.05f && hullSounds.Count==0
+                    && f.Flashes==0 && f.Particles==0,
+                    "tangent-only drift keeps speed and stays silent");
             f.Clear();
         }
         var slow = f.Craft(faction,0,0,new Vector2(.4f,0),false);
-        var touching = f.Craft(faction,.99f,0,Vector2.zero,true);
+        var touching = f.Craft(faction,1.002f,0,Vector2.zero,true);
         hullFocusedMap = touching.body.map;
         DeltaVMod.CurrentSettings.spaceImpactSound = true;
         f.Step(); int sounds = hullSounds.Count;
@@ -465,18 +572,17 @@ internal static partial class Program
             "real low-speed impulse has one sound and no destructive flash");
         for(int i=0;i<12;i++) f.Step();
         Check(hullSounds.Count==sounds && f.Flashes==0,
-            "replenished rounds do not repeat feedback on co-moving contact");
+            "co-moving surfaces do not repeat feedback on co-moving contact");
         slow.body.pose.velocity = new Vector2(-2,0);
         for(int i=0;i<5;i++) f.Step();
         Check(hullSounds.Count==sounds && f.Flashes==0,"separating contact creates no fresh feedback");
         f.Clear();
-        var corner = f.Craft(faction,-.85f,-.85f,new Vector2(12,12),false,hp:10000);
+        var corner = f.Craft(faction,-1.1f,-1.1f,new Vector2(12,12),false,hp:10000);
         var cornerTarget = f.Craft(faction,0,0,Vector2.zero,true,hp:10000);
         f.Step();
-        Check(Mathf.Abs(corner.body.pose.velocity.x-corner.body.pose.velocity.y)<.02f
-            && Mathf.Abs(cornerTarget.body.pose.velocity.x-cornerTarget.body.pose.velocity.y)<.02f
-            && corner.body.pose.velocity.x<11f,
-            "actual corner hit uses the geometric diagonal normal rather than a velocity-axis normal");
+        Check((corner.body.pose.velocity + cornerTarget.body.pose.velocity - new Vector2(12, 12)).magnitude < .03f
+            && cornerTarget.body.pose.velocity.sqrMagnitude > 1f,
+            "an entering corner transfers momentum with the stable swept face normal");
         f.Clear();
         foreach(bool enabled in new[]{false,true})
         foreach(bool ownSource in new[]{false,true})

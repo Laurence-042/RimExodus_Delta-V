@@ -25,7 +25,7 @@ namespace DeltaV
         EngagementObservation, EngagementScore, EngagementDamage,
         CombatPartSelection, EngagementCoverBuild,
         EngagementWeaponTable, EngagementProtectionScan, EngagementProtectionUpdate, EngagementTableQuery,
-        ShellTerrainBuild, ShellOverlaySort, ShellOverlaySubmit, Count
+        ShellTerrainBuild, ShellOverlaySort, ShellOverlaySubmit, HullPrepare, HullBroad, HullNarrow, HullOutcome, HullSweep, Count
     }
 
     [System.Flags]
@@ -58,6 +58,7 @@ namespace DeltaV
             PerformanceStage.EngagementProtectionScan, PerformanceStage.EngagementProtectionUpdate,
             PerformanceStage.EngagementTableQuery, PerformanceStage.CombatRoute,
             PerformanceStage.CombatRouteShape, PerformanceStage.CombatTrajectory,
+            PerformanceStage.HullPrepare, PerformanceStage.HullBroad, PerformanceStage.HullNarrow, PerformanceStage.HullSweep, PerformanceStage.HullOutcome,
             PerformanceStage.AutopilotSolve, PerformanceStage.MpcAssemble, PerformanceStage.MpcFeasibility,
             PerformanceStage.MpcQp, PerformanceStage.MpcBrakeRecovery
         };
@@ -161,6 +162,23 @@ namespace DeltaV
         private Map slowestPoseMap;
         private CombatReplanCause slowestPoseCause;
         private int slowestPoseWeapons, slowestPoseEnemies, slowestPoseThreats, slowestPoseAllies;
+
+        internal long hullPairs, hullRequests;
+        private long hullImpulses, hullCrushBatches;
+        private int hullBudgetStops;
+        private float hullBudgetLostFraction;
+
+        internal void RecordHullPair() { if (Enabled) hullPairs++; }
+        internal void RecordHullRequest() { if (Enabled) hullRequests++; }
+        internal void RecordHullImpulse() { if (Enabled) hullImpulses++; }
+        internal void RecordHullCrushBatch() { if (Enabled) hullCrushBatches++; }
+
+        internal void RecordHullBudgetStop(float fraction)
+        {
+            if (!Enabled) return;
+            hullBudgetStops++;
+            hullBudgetLostFraction += 1f - fraction;
+        }
 
         internal bool Enabled => DeltaVLog.Enabled(DeltaVLogModule.Performance);
 
@@ -454,6 +472,10 @@ namespace DeltaV
                     .Append((peaks[i] * (1000000.0 / Stopwatch.Frequency)).ToString("F1")).Append('/')
                     .Append(calls[i]).Append('/').Append(ms.ToString("F2"));
             }
+            sb.Append(" hullPairs=").Append(hullPairs).Append(" hullRequests=").Append(hullRequests)
+                .Append(" hullImpulses=").Append(hullImpulses).Append(" hullCrushBatches=").Append(hullCrushBatches)
+                .Append(" hullBudgetStops=").Append(hullBudgetStops)
+                .Append(" hullBudgetLostTicks=").Append(hullBudgetLostFraction.ToString("F3"));
             AppendCombatStats(sb);
             AppendSlowestSamples(sb);
             DeltaVLog.Message(DeltaVLogModule.Performance, sb.ToString());
@@ -472,6 +494,10 @@ namespace DeltaV
 
         private void Reset()
         {
+            hullPairs = hullRequests = 0;
+            hullImpulses = hullCrushBatches = 0;
+            hullBudgetStops = 0;
+            hullBudgetLostFraction = 0f;
             System.Array.Clear(totals, 0, totals.Length);
             System.Array.Clear(peaks, 0, peaks.Length);
             System.Array.Clear(calls, 0, calls.Length);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
@@ -29,7 +29,7 @@ namespace DeltaV
         TractorPull = 7,
         CutStructure = 8,
         Weld = 9,
-        /// <summary>随动外层弹丸：目标命中格与母船来源格承受同量毁伤。</summary>
+        /// <summary>舰体接触请求：双方实际命中格承受同量毁伤。</summary>
         HullContact = 10
     }
 
@@ -219,63 +219,112 @@ namespace DeltaV
             PlanetGlobeRenderer.InvalidateSilhouette(map);
         }
 
-        // 双侧只共享预算和冲量；实际建筑／基架毁伤仍调用普通弹体的单实现。
         private static void ApplyHullContact(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
         {
-            SpaceObject source = evt.hullSource, target = evt.defender;
-            if (!evt.Target.HasRigidStructure) return;
-            Map ownMap = evt.hullSourceMap, otherMap = target.map;
-            if (source == null || source.map != ownMap || ownMap?.Disposed != false || otherMap?.Disposed != false
-                || source.RepresentationVersion != evt.hullSourceVersion
-                || !evt.hullSourceCell.InBounds(ownMap) || !evt.hitCell.InBounds(otherMap)) return;
-            var ownKind = SpaceStructureRules.ClassifyCell(ownMap, evt.hullSourceCell, out Thing own);
-            if (ownKind == SpaceCellKind.Empty || own != null && (own.Destroyed || !own.def.useHitPoints)) return;
-            Thing other = evt.defenderBuilding;
-            if (other != null && (other.Destroyed || !other.def.useHitPoints)) return;
-            var service = Current.Game.GetComponent<UniverseManager>().Projectiles;
-            if (!service.BeginHullHit(source, evt.hullSourceCell, own, target, evt.hitCell, other)) return;
-            service.BeginHullImpact(evt);
-            var ma = ShipPhysics.GetReport(source); var mb = ShipPhysics.GetReport(target);
-            float closing = ShipPhysics.ApplyHullContactImpulse(source, ma, target, mb,
-                evt.hitUniverse, evt.contactNormal, out float energy, 1f);
-            float effectiveMass = closing > .00001f ? 2f * energy / (closing * closing) : 0f;
-            float available = closing > .5f ? ComputeDamage(part, closing, 0f, 1f, effectiveMass) : 0f;
-            float Capacity(Map map, IntVec3 cell, Thing building) => (building?.HitPoints ?? 0)
-                + (SubstructureOwnership.HasFoundation(map, cell) ? part.substructureBreakThreshold : 0f);
-            float capacity = Mathf.Min(Capacity(ownMap, evt.hullSourceCell, own), Capacity(otherMap, evt.hitCell, other));
-            float amount = Mathf.Floor(Mathf.Min(available, capacity));
-            // 先交换冲量，再移除结构：被移除质量及原有碎片事件继承响应后的随体速度。
-            // 两侧使用同一份命中前报告；未击穿时不能把取整余量变成继续穿入的动能。
-            float retained = available > 0f && available >= capacity ? Mathf.Clamp01(1f - amount / available) : 0f;
-            ShipPhysics.ApplyHullContactImpulse(source, ma, target, mb,
-                evt.hitUniverse, evt.contactNormal, out _, retained);
-            evt.hullImpulse = closing > .00001f && retained < 1f;
-            if (amount > 0f)
-            {
-                Column(evt.Target, evt.hitCell, other, own ?? evt.launcher);
-                Column(SpaceCollision.TargetView.Of(source), evt.hullSourceCell, own, other);
-            }
-            // 原版／第三方免伤使预算未能真正打开接触位置时，保留真实阻挡。
-            if (retained > 0f && SpaceStructureRules.ClassifyCell(ownMap, evt.hullSourceCell, out _) != SpaceCellKind.Empty
-                && SpaceStructureRules.ClassifyCell(otherMap, evt.hitCell, out _) != SpaceCellKind.Empty)
-                ShipPhysics.ApplyHullContactImpulse(source, ma, target, mb, evt.hitUniverse, evt.contactNormal, out _);
-            service.EndHullImpact(evt, ma, mb);
+            var batch = evt.hullBatch;
+            if (batch == null || !batch.source.live || !batch.target.live) return;
 
-            void Column(SpaceCollision.TargetView receiver, IntVec3 cell, Thing building, Thing instigator)
+            var source = batch.source.body;
+            var target = batch.target.body;
+            var ownReport = ShipPhysics.GetReport(source);
+            var otherReport = ShipPhysics.GetReport(target);
+            if (!batch.allowCrush)
             {
-                Map map = receiver.map;
-                Vector2 local = receiver.ToLocal(new Vector2(cell.x + .5f, cell.z + .5f));
-                int hp = building?.HitPoints ?? 0;
-                bool foundation = SubstructureOwnership.HasFoundation(map, cell);
-                float remaining = amount;
-                if (building != null)
-                    remaining *= receiver.ApplyDamage(cell, building, part, amount,
-                        part.armorPenetration, part.damageDef ?? DamageDefOf.Bullet, instigator, evt.projectileDef, local);
-                if (remaining > 0f && SubstructureOwnership.HasFoundation(map, cell))
-                    receiver.ApplyDamage(cell, null, part, remaining,
-                        part.armorPenetration, part.damageDef ?? DamageDefOf.Bullet, instigator, evt.projectileDef, local);
-                evt.hullDamaged |= building != null && (building.Destroyed || building.HitPoints < hp)
-                    || foundation && !SubstructureOwnership.HasFoundation(map, cell);
+                batch.closing = Impulse(0f, out _);
+                evt.hullImpulse = batch.closing > 0f;
+                return;
+            }
+
+            // Read the normal energy without moving either carrier. Apply the planned impulse
+            // before native destruction so removed mass and debris inherit the contact motion.
+            batch.closing = Impulse(1f, out float energy);
+            if (batch.closing <= 0f) return;
+            float available = batch.closing > .5f ? energy * (part.damage / SpaceKinetics.EnergyUnitsPerWattDay) : 0f;
+            int budget = Mathf.FloorToInt(available);
+            int initialBudget = budget;
+            int foundationHp = Mathf.CeilToInt(part.substructureBreakThreshold);
+            var own = batch.source.view;
+            var other = batch.target.view;
+            foreach (var pair in batch.layer)
+            {
+                if (budget <= 0) break;
+                if (!batch.pairs.Add(pair)) continue;
+                var (ownCell, otherCell) = Cells(pair);
+                if (!own.TryStructure(ownCell, out _, out Thing ownWall)
+                    || !other.TryStructure(otherCell, out _, out Thing otherWall)) continue;
+                var left = Capacity(own, ownCell, ownWall);
+                var right = Capacity(other, otherCell, otherWall);
+                int damage = Mathf.Min(budget, Mathf.Min(left.wall + left.deck, right.wall + right.deck));
+                if (damage <= 0) continue;
+                budget -= damage;
+                Reserve(own, ownCell, ownWall, left.wall, damage, otherWall);
+                Reserve(other, otherCell, otherWall, right.wall, damage, ownWall ?? evt.launcher);
+            }
+
+            int spent = initialBudget - budget;
+            batch.crushed = spent > 0;
+            float retained = spent > 0 && budget > 0 ? Mathf.Clamp01(1f - spent / available) : 0f;
+            if (batch.closing * Mathf.Sqrt(retained) <= .00001f) retained = 0f;
+            Impulse(retained, out _);
+            evt.hullImpulse = retained < 1f;
+
+            foreach (var entry in batch.walls)
+                ApplyDamage(entry.Value.receiver, entry.Value.cell, entry.Key, entry.Value.damage, entry.Value.instigator);
+            foreach (var entry in batch.foundations)
+                if (entry.Value.cover == null || entry.Value.cover.Destroyed)
+                    ApplyDamage(entry.Value.receiver, entry.Key.cell, null, entry.Value.damage, entry.Value.instigator);
+
+            if (retained <= 0f || !batch.source.live || !batch.target.live) return;
+            foreach (var pair in batch.pairs)
+            {
+                var (ownCell, otherCell) = Cells(pair);
+                if (!own.TryStructure(ownCell, out _, out _) || !other.TryStructure(otherCell, out _, out _)) continue;
+                Impulse(0f, out _);
+                return;
+            }
+            batch.continues = true;
+
+            (IntVec3 ownCell, IntVec3 otherCell) Cells((IntVec3 a, IntVec3 b) pair) =>
+                batch.sourceIsB ? (pair.b, pair.a) : pair;
+
+            float Impulse(float fraction, out float normalEnergy) => ShipPhysics.ApplyHullContactImpulse(
+                source, ownReport, target, otherReport, evt.hitUniverse, evt.contactNormal, out normalEnergy, fraction);
+
+            (int wall, int deck) Capacity(SpaceCollision.TargetView receiver, IntVec3 cell, Thing wall)
+            {
+                int wallHp = 0;
+                if (wall != null)
+                {
+                    batch.walls.TryGetValue(wall, out var previousWall);
+                    wallHp = Mathf.Max(0, wall.HitPoints - previousWall.damage);
+                }
+                if (!SubstructureOwnership.HasFoundation(receiver.map, cell)) return (wallHp, 0);
+                batch.foundations.TryGetValue((receiver.map, cell), out var previousDeck);
+                return (wallHp, Mathf.Max(0, foundationHp - previousDeck.damage));
+            }
+
+            void Reserve(SpaceCollision.TargetView receiver, IntVec3 cell, Thing wall, int wallCapacity, int damage, Thing instigator)
+            {
+                int wallDamage = Mathf.Min(damage, wallCapacity);
+                if (wallDamage > 0)
+                {
+                    batch.walls.TryGetValue(wall, out var previous);
+                    batch.walls[wall] = (receiver, cell, previous.damage + wallDamage, instigator ?? previous.instigator);
+                }
+                int deckDamage = damage - wallDamage;
+                if (deckDamage <= 0) return;
+                var key = (receiver.map, cell);
+                batch.foundations.TryGetValue(key, out var deck);
+                batch.foundations[key] = (receiver, wall, deck.damage + deckDamage, instigator ?? deck.instigator);
+            }
+
+            void ApplyDamage(SpaceCollision.TargetView receiver, IntVec3 cell, Thing wall, int damage, Thing instigator)
+            {
+                int hp = wall?.HitPoints ?? 0;
+                receiver.ApplyDamage(cell, wall, part, damage, part.armorPenetration,
+                    part.damageDef ?? DamageDefOf.Bullet, instigator, evt.projectileDef, default);
+                evt.hullDamaged |= wall != null ? wall.Destroyed || wall.HitPoints < hp
+                    : !SubstructureOwnership.HasFoundation(receiver.map, cell);
             }
         }
 

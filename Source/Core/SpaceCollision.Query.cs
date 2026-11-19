@@ -57,6 +57,31 @@ namespace DeltaV
             }
         }
 
+        private static bool TryHullGridSegment(Map map, Surface surface, Vector2 from,
+            Vector2 direction, float length, out RayContact contact)
+        {
+            contact = default;
+            var ray = new GridRay(from, direction, 0f);
+            IntVec3 previous = ray.Cell;
+            // Start inside a cell is an existing overlap. Only a crossed face is a new impact.
+            for (ray.Advance(); ray.Along <= length; ray.Advance())
+            {
+                IntVec3 cell = ray.Cell;
+                int dx = previous.x - cell.x, dz = previous.z - cell.z;
+                previous = cell;
+                if (!HullContactCell(map, surface, cell, out Thing building)) continue;
+                if (dx != 0 && HullContactCell(map, surface, cell + new IntVec3(dx, 0, 0), out _)) dx = 0;
+                if (dz != 0 && HullContactCell(map, surface, cell + new IntVec3(0, 0, dz), out _)) dz = 0;
+                if (dx == 0 && dz == 0) continue;
+                Vector2 normal = dz == 0 || dx != 0 && Mathf.Abs(direction.x) >= Mathf.Abs(direction.y)
+                    ? new Vector2(dx, 0f) : new Vector2(0f, dz);
+                contact = new RayContact(from + direction * ray.Along, normal, cell,
+                    building == null ? SpaceCellKind.Substructure : SpaceCellKind.Building, building);
+                return true;
+            }
+            return false;
+        }
+
         // One decision's query view. Geometry comes from the production collision cache;
         // hypothetical damage/energy remain in the caller's private evaluation ledger.
         internal sealed class RayQuery

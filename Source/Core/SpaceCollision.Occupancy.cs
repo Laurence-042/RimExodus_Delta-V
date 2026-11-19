@@ -7,7 +7,7 @@ namespace DeltaV
 {
     public static partial class SpaceCollision
     {
-        private sealed partial class Surface
+        internal sealed partial class Surface
         {
             private const int BlockSize = 8;
             private const int BlockShift = 3;

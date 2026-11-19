@@ -1,4 +1,4 @@
-﻿<?xml version='1.0' encoding='utf-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <Defs>
   <DeltaV.SpaceImpactEffectDef>
     <defName>DeltaV_Impact_CannonVsStructure</defName>
@@ -521,6 +521,7 @@
       <kind>DestroySelf</kind>
     </attackerEffect>
   </DeltaV.SpaceImpactEffectDef>
+  <!-- 舰体接触复用后效；DestroySelf 仅消费一次性请求。 -->
   <DeltaV.SpaceImpactEffectDef>
     <defName>DeltaV_Impact_HullContact</defName>
     <projectileDefs><li>DeltaV_Projectile_HullContact</li></projectileDefs>
@@ -528,7 +529,7 @@
     <defenderEffect>
       <kind>HullContact</kind>
       <damageDef>Bullet</damageDef>
-      <damage>24</damage>
+      <damage>63.72</damage>
       <referenceSpeed>60</referenceSpeed>
       <kineticMassScaling>true</kineticMassScaling>
       <penetrates>true</penetrates>
@@ -538,6 +539,7 @@
     </defenderEffect>
     <attackerEffect><kind>DestroySelf</kind></attackerEffect>
   </DeltaV.SpaceImpactEffectDef>
+  <!-- 舰体接触复用后效；DestroySelf 仅消费一次性请求。 -->
   <DeltaV.SpaceImpactEffectDef>
     <defName>DeltaV_Impact_HullFoundation</defName>
     <projectileDefs><li>DeltaV_Projectile_HullContact</li></projectileDefs>
@@ -546,7 +548,7 @@
     <defenderEffect>
       <kind>HullContact</kind>
       <damageDef>Bullet</damageDef>
-      <damage>24</damage>
+      <damage>63.72</damage>
       <referenceSpeed>60</referenceSpeed>
       <kineticMassScaling>true</kineticMassScaling>
       <penetrates>true</penetrates>

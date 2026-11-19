@@ -95,6 +95,8 @@ internal static partial class Program
         new HarmonyLib.Harmony("DeltaV.Regression.SceneLanguage").Patch(
             HarmonyLib.AccessTools.PropertyGetter(typeof(Find), nameof(Find.ActiveLanguageWorker)),
             prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(ReadSceneLanguage)));
+        if (Environment.GetCommandLineArgs().Contains("--hull-collision-performance"))
+        { RunHullCollisionPerformance(universe, faction); return; }
         if (Environment.GetCommandLineArgs().Contains("--hull-contact-only"))
         { CheckHullContacts(universe, faction); return; }
         if (Environment.GetCommandLineArgs().Contains("--eva-only"))

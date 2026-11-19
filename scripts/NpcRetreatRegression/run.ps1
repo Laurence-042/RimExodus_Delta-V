@@ -1,4 +1,4 @@
-﻿param([string]$GameRoot, [string]$HarmonyPath, [switch]$AimInputOnly, [switch]$PlayerFlightOnly,
+﻿param([string]$GameRoot, [string]$HarmonyPath, [string]$ProductionDll, [string]$OutputRoot, [switch]$HullCollisionPerformance, [switch]$AimInputOnly, [switch]$PlayerFlightOnly,
       [switch]$SalvageOnly, [switch]$DrivePerformanceOnly, [switch]$ProjectileOnly, [switch]$ArchiveRecoveryOnly,
       [switch]$DockingOnly, [switch]$NpcOnly, [switch]$ProjectileFullOnly, [switch]$HullContactOnly, [switch]$SeparationOnly,
       [switch]$ThrusterPauseOnly, [switch]$TractorOnly, [switch]$EvaOnly, [switch]$GlobeOnly, [switch]$CombatManeuverOnly, [switch]$EngagementBaseline, [switch]$EngagementRegression, [switch]$EngagementBattle, [switch]$AutoVolleyOnly,
@@ -19,7 +19,7 @@ if (!(Test-Path -LiteralPath $HarmonyPath)) { throw 'Pass -HarmonyPath with a .N
 $sdkVersion = Get-ChildItem "$env:ProgramFiles/dotnet/sdk" -Directory | Where-Object { $_.Name -match '^8\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
 $refs = Get-ChildItem "$env:ProgramFiles/dotnet/packs/Microsoft.NETCore.App.Ref" -Directory | Where-Object { $_.Name -match '^8\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
 if (!$sdkVersion -or !$refs) { throw 'Install .NET 8 SDK to run the offline retreat regression.' }
-$out = Join-Path $repo 'Source/obj/NpcRetreatRegression'
+$out = if ($OutputRoot) { [IO.Path]::GetFullPath($OutputRoot) } else { Join-Path $repo 'Source/obj/NpcRetreatRegression' }
 if ($Mothership) { $out = Join-Path $repo 'Source/obj/MothershipEngagement' }
 if ($Mothership -eq 'All') { $out = Join-Path $out 'DualTable' }
 if ($Mothership -eq 'Crossover') { $out = Join-Path $out 'Crossover' }
@@ -306,6 +306,7 @@ foreach ($name in @('Assembly-CSharp.dll', 'UnityEngine.CoreModule.dll', 'UnityE
     Copy-Item -LiteralPath "$managed/$name" -Destination $out -Force
 }
 $deltaV = if ($Mothership -in @('All','Crossover','Experiment','HeadingTime','AimRefresh','AimRefreshTime')) { "$out/compile/DeltaV.dll" } else { "$repo/1.6/Assemblies/DeltaV.dll" }
+if ($ProductionDll) { $deltaV = (Resolve-Path -LiteralPath $ProductionDll).Path }
 Copy-Item -LiteralPath $deltaV -Destination $out -Force
 Copy-Item -LiteralPath "$repo/References/REF/1.6/RimExodus.Maps.dll" -Destination $out -Force
 Copy-Item -LiteralPath $HarmonyPath -Destination $out -Force
@@ -319,6 +320,7 @@ $regressionArguments = @($managed)
 if ($Mothership) { $regressionArguments += @('--mothership-engagement', $GameRoot, $out) }
 if ($CombatManeuverOnly) { $regressionArguments += '--combat-maneuver-only' }
 if ($HullContactOnly) { $regressionArguments += '--hull-contact-only' }
+if ($HullCollisionPerformance) { $regressionArguments += '--hull-collision-performance' }
 if ($EngagementBaseline) { $regressionArguments += '--engagement-baseline' }
 if ($EngagementRegression) { $regressionArguments += '--engagement-regression' }
 if ($AutoVolleyOnly) { $regressionArguments += '--auto-volley-only' }

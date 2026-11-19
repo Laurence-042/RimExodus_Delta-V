@@ -34,6 +34,7 @@ namespace DeltaV
                 && owner.map == map && (map != null ? !map.Disposed
                     : entity != null && !entity.Destroyed && owner.Payload?.InterceptionBody == entity);
             internal bool HasRigidStructure => Valid && map != null;
+            internal bool CanHullContact => HasRigidStructure && !owner.projectileRoleOverride && !owner.IsScattered;
             internal Vector2 ToLocal(Vector2 backendPoint) => map != null
                 ? SpaceTransform.MapToShipLocal(map, backendPoint) : backendPoint;
             internal Vector2 ToBackend(Vector2 localPoint) => map != null

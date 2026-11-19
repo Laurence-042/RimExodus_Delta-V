@@ -245,8 +245,11 @@ internal static partial class Program
             var rammer = f.Craft(faction, 30, 0, new Vector2(-10, 0), enemyOn, hp: 10000, size: 3);
             f.Prepare();
             var stationary = CombatFlightPlanner.Brake(own.body.pose, null, Find.TickManager.TicksGame);
+            var beforePrediction=own.body.pose;long beforeRequests=universe.Projectiles.HullRequests;int beforeObjects=universe.objects.Count;
             Check(universe.Projectiles.HullRouteClear(own.ship, stationary, 0, out _, out _) == (!ownOn || enemyOn),
-                $"combat prediction consumes actual incoming rounds: own={ownOn}, enemy={enemyOn}");
+                $"combat prediction consumes actual hull geometry: own={ownOn}, enemy={enemyOn}");
+            Check(own.body.pose.Equals(beforePrediction) && universe.Projectiles.HullRequests==beforeRequests && universe.objects.Count==beforeObjects,
+                "prediction cannot integrate, allocate a physical object or consume a contact outcome");
             var planner = own.control.AutoManeuver;
             Set(planner, "anchorTarget", CombatTarget.ForShip(target.ship.Identity));
             Set(planner, "anchorDistance", 70f);

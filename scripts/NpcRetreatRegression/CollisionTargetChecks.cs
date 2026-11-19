@@ -57,10 +57,11 @@ internal static partial class Program
             "deferred damage execution re-enters the adapter instead of a payload-specific method");
         var effectTypes = new[] { typeof(SpaceImpactEffects) }.Concat(typeof(SpaceImpactEffects).GetNestedTypes(Private | BindingFlags.Public));
         var column = effectTypes.SelectMany(t => t.GetMethods(Private | BindingFlags.Public))
-            .Single(m => m.Name.Contains("<ApplyHullContact>g__Column"));
+            .Single(m => m.Name.Contains("<ApplyHullContact>g__ApplyDamage"));
         Check(CollisionCalls(column).Any(m => m.DeclaringType == target && m.Name == "ApplyDamage")
-            && !CollisionCalls(column).Any(m => m.Name == "ApplyStructureDamage"),
-            "both hull damage columns use the structure adapter before native map damage");
+            && !CollisionCalls(column).Any(m => m.Name == "ApplyStructureDamage")
+            && Calls(typeof(SpaceCollision), "ResolveHullContact", typeof(SpaceCollision), "ResolveContact"),
+            "the contact layer enters the common outcome once and uses the map/entity damage adapter");
         Check(Calls(typeof(SpaceImpactEffects), "ApplyStructureDamage", target, "ApplyResolvedDamage"),
             "native map direct damage and entity direct damage share the resolved-damage endpoint");
     }
@@ -197,8 +198,8 @@ internal static partial class Program
                                 && hit.radius==(float)native.Element("explosionRadius") && hit.instigator==craft.wall && hit.projectile==missileDef,
                                 "warhead explosion preserves real Def parameters and attribution");
                         }
-                        else if(scenario==5) Check(craft.wall.Destroyed && f.Rounds().Length==0,
-                            "warhead destruction withdraws invalid attached points in the same tick");
+                        else if(scenario==5) Check(craft.wall.Destroyed && f.Registered <= 4,
+                            "warhead destruction invalidates the hull source in the same tick");
                         else Check(craft.wall.HitPoints==290,"one real missile hit, without additional hull crush damage");
                     }
                     else Check(craft.wall.HitPoints==300,"destroyed missile cannot damage the approaching hull");
@@ -211,6 +212,61 @@ internal static partial class Program
                 finally {f.Clear();universe.UnregisterObject(missile);universe.UnregisterObject(bullet);}
             }
             effect.defenderEffect.explosionRadius=0;
+            effect.defenderEffect.damage=500;
+            effect.defenderEffect.penetrates=true;
+            var firstWall=f.Craft(faction,0,0,Vector2.zero,true,hp:10);
+            var middleWall=f.Craft(faction,1.2f,0,Vector2.zero,true,hp:10);
+            var lastWall=f.Craft(faction,4,0,Vector2.zero,true,hp:10);
+            f.Craft(faction,0,100,Vector2.zero,false);
+            f.Prepare();
+            var penetrating=new SpaceObject(59002,new SpacePose(OrbitSphere.Move(Vector3.forward,new Vector2(8,0)),0)
+                {velocity=new Vector2(1680,0)}) {baseTag=SpaceObjectTag.Projectile};
+            universe.RegisterObject(penetrating);
+            CollisionFlight(universe,penetrating,bulletDef,OrbitSphere.Move(Vector3.forward,new Vector2(-20,0)));
+            try
+            {
+                universe.Projectiles.ResolveCollisions();
+                Check(firstWall.wall.Destroyed && middleWall.wall.Destroyed && lastWall.wall.Destroyed,
+                    "the projectile stage preserves every adjacent target after projectile penetration");
+            }
+            finally {f.Clear();universe.UnregisterObject(penetrating);}
+            effect.defenderEffect.penetrates=false;
+            var approaching = f.Craft(faction, 0, 0, new Vector2(300,0), false);
+            var removed = f.Craft(faction, 3, 0, Vector2.zero, true, hp:10);
+            f.Prepare();
+            var openingShot = new SpaceObject(59003, new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(3,4)), 0)
+                {velocity=new Vector2(0,300)}) {baseTag=SpaceObjectTag.Projectile};
+            universe.RegisterObject(openingShot);
+            CollisionFlight(universe, openingShot, bulletDef, OrbitSphere.Move(Vector3.forward, new Vector2(3,-1)));
+            try
+            {
+                approaching.body.AdvanceDrift(1f/60f);
+                universe.Projectiles.ResolveCollisions();
+                Check(removed.wall.Destroyed && approaching.wall.HitPoints == 300 && f.Requests == 0,
+                    $"projectile-stage destruction removes the face before hull detection: target={removed.wall.HitPoints}, source={approaching.wall.HitPoints}, requests={f.Requests}");
+            }
+            finally { f.Clear(); universe.UnregisterObject(openingShot); }
+            effect.defenderEffect.damage = 10;
+            var touching = f.Craft(faction, 0f, 0f, new Vector2(20f, 0f), false, hp: 10000);
+            var opposite = f.Craft(faction, 1.1f, 0f, Vector2.zero, true, hp: 10000);
+            var stationary = f.Craft(faction, 0f, 40f, Vector2.zero, true);
+            f.Prepare();
+            Vector3 missileStart = SpaceTransform.ShipLocalToUniverse(stationary.body, new Vector2(-.25f, 0f));
+            var sameTimeMissile = new CollisionEntity { def = missileDef, HitPoints = 25 };
+            var sameTimeCarrier = universe.CapturePayload(sameTimeMissile,
+                new SpacePose(missileStart, 0f) {velocity = new Vector2(20f, 0f)}, null);
+            CollisionFlight(universe, sameTimeCarrier, missileDef, missileStart);
+            try
+            {
+                touching.body.AdvanceDrift(1f / 60f);
+                sameTimeCarrier.AdvanceDrift(1f / 60f);
+                universe.Projectiles.ResolveCollisions();
+                f.Flush();
+                Check(f.Requests == 1 && opposite.wall.HitPoints < 10000 && stationary.wall.HitPoints == 290
+                    && sameTimeMissile.destroys == 1,
+                    $"hull and mapless missile settle with one effect each: hull={f.Requests}, wall={opposite.wall.HitPoints}, missile={sameTimeMissile.destroys}");
+            }
+            finally { f.Clear(); universe.UnregisterObject(sameTimeCarrier); }
             CheckCollisionViews(universe,faction,f,missileDef);
             CheckPointDefenseFanAdapters(universe,faction,f,missileDef);
         }

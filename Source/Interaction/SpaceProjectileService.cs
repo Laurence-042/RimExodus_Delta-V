@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
 using RimWorld.Planet;
@@ -102,8 +102,6 @@ namespace DeltaV
             public int targetContainerId;
             public SpacePose targetPose;
             public bool adoptedShuttle;
-            public HullSource hullSource;
-            public IntVec3 hullCell;
             public DriveSubject boardingDriver;
             public System.Func<SpacePose, SpacePose> boardingReference;
             public int spawnedAtTick;
@@ -184,7 +182,7 @@ namespace DeltaV
         {
             foreach (Projectile p in projectiles)
             {
-                if (p.dead || p.laser || p.adoptedShuttle || p.hullSource != null || p.container == null) continue;
+                if (p.dead || p.laser || p.adoptedShuttle || p.container == null) continue;
                 if (p.globeEntry == null)
                 {
                     if (!globeVisuals.TryGetValue(p.def, out var visual))
@@ -195,7 +193,7 @@ namespace DeltaV
                 entries.Add(p.globeEntry);
             }
         }
-        internal int ActiveCount => projectiles.Count(p => p.hullSource == null);
+        internal int ActiveCount => projectiles.Count;
         // 只复用短命的弹道工作对象；SpaceObject 身份和 Map 分别由注册表、现有图池管理。
         private const int MaxPooledProjectiles = 256;
         private readonly Stack<Projectile> projectilePool = new Stack<Projectile>();
@@ -213,6 +211,7 @@ namespace DeltaV
         internal void ForgetMap(Map map, bool projectileTargetsAlreadyReviewed)
         {
             if (map == null) return;
+            ForgetHullFrame(null, map);
             if (!projectileTargetsAlreadyReviewed) ReviewTargetsLeavingMap(map);
             ForgetCombatVisuals(map);
             ForgetMotionFeedback(map);
@@ -220,6 +219,7 @@ namespace DeltaV
 
         internal void OnRepresentationChanged(SpaceObject previous, SpaceObject current)
         {
+            ForgetHullFrame(previous, removeSource: false);
             if (current.IsArchived && previous.map is Map unloaded)
                 ReviewTargetsLeavingMap(unloaded, current.objectId);
         }
@@ -499,6 +499,7 @@ namespace DeltaV
         internal void NotifyContainerRemoving(SpaceObject container)
         {
             if (container == null) return;
+            ForgetHullFrame(container);
             engineGroups.Remove(container.objectId);
             if (pendingHullSound.objectId == container.objectId) pendingHullSound = default;
             muzzleFlashes.RemoveAll(f => f.anchor.objectId == container.objectId);
@@ -529,7 +530,7 @@ namespace DeltaV
 
         public void Tick()
         {
-            PrepareHullRounds();
+            PrepareHullContacts();
             int nowTick = Find.TickManager.TicksGame;
             while (delayedMissileDamage.Count != 0 && delayedMissileDamage.Peek().tick <= nowTick)
             {
@@ -555,7 +556,6 @@ namespace DeltaV
                 {
                     Projectile p = projectiles[i];
                     if (p.dead) continue;
-                    if (p.hullSource != null) continue;
                     if (p.container == null) { QueueProjectileCleanup(p, !p.adoptedShuttle); continue; }
                     // 有图弹体被图内结算摧毁（PD/毁伤链经 TakeDamage）→ 销毁收尾。
                     if (p.building?.Destroyed == true || p.container?.Payload is AbstractMissile { InterceptionBody: null })
@@ -725,8 +725,19 @@ namespace DeltaV
         public void ResolveCollisions()
         {
             collisionBodies.Clear();
-            try { ResolveCollisionWork(); }
-            finally { resolvingProjectiles = false; collisionBodies.Clear(); }
+            try
+            {
+                ResolveCollisionWork();
+                collisionBodies.Clear();
+                ResolveHullContacts();
+                foreach (var contact in visualContacts) RegisterImpactFx(contact);
+            }
+            finally
+            {
+                visualContacts.Clear();
+                collisionBodies.Clear();
+                FinishHullContacts();
+            }
         }
 
         private void ResolveCollisionWork()
@@ -739,7 +750,6 @@ namespace DeltaV
             {
                 Projectile p = projectiles[i];
                 if (p.dead) continue;
-                if (p.hullSource != null && !FollowHullRound(p, false)) continue;
                 if (p.props.continuousBeam)
                 {
                     if (p.launcher?.Spawned != true || p.sourceContainer?.map != p.launcher.Map)
@@ -758,9 +768,7 @@ namespace DeltaV
             }
             if (traceCannons)
                 foreach (Projectile p in sweepScratch) SampleCannonTrace(p);
-            resolvingProjectiles = true;
-            try { SpaceCollision.SweepAndResolve(universe, bodyScratch); }
-            finally { resolvingProjectiles = false; }
+            SpaceCollision.SweepAndResolve(universe, bodyScratch);
             if (traceCannons)
                 foreach (Projectile p in sweepScratch) ResolveCannonTrace(p);
             foreach (SpaceCollision.VisualContact contact in visualContacts) RegisterImpactFx(contact);
@@ -797,20 +805,22 @@ namespace DeltaV
             }
         }
 
-        private bool resolvingProjectiles;
         // Current sweep only: identifies the actual outcome owner without another projectile registry.
         private readonly Dictionary<SpaceObject, SpaceCollision.SweptBody> collisionBodies =
             new Dictionary<SpaceObject, SpaceCollision.SweptBody>();
         internal SpaceCollision.SweptBody CollisionBodyOf(SpaceObject owner) =>
             owner != null && collisionBodies.TryGetValue(owner, out var body) ? body : null;
         internal bool CollisionRetired(SpaceObject owner) => CollisionBodyOf(owner)?.dead == true;
-        internal SpacePose ContactPoseOf(SpaceObject owner, float fraction)
+        private System.Func<SpaceObject, float, SpacePose?> contactPose;
+        private SpacePose? ContactPoseOf(SpaceObject owner, float fraction)
         {
+            if (owner.map != null) return MapContactPoseOf(owner, fraction);
             var body = CollisionBodyOf(owner);
-            if (owner.map != null || body == null) return HullPoseAt(owner, fraction);
+            if (body == null) return null;
             SpacePose start = owner.pose;
             start.position = body.from;
-            SpacePose contact = SpaceTransform.LerpPose(start, owner.pose, fraction);
+            SpacePose contact = SpaceTransform.LerpPose(start, owner.pose, body.sweepStartFraction >= 1f ? 0f
+                : Mathf.Clamp01((fraction - body.sweepStartFraction) / (1f - body.sweepStartFraction)));
             contact.velocity = SpaceTransform.TransportVelocity(owner.pose, contact.position);
             return contact;
         }
@@ -839,14 +849,10 @@ namespace DeltaV
             body.damageScale = p.damageScale;
             body.armorPenetrationScale = p.armorPenetrationScale;
             body.mass = p.mass; body.beamEnergyScale = p.beamEnergyScale;
-            body.hullSource = p.hullSource?.owner;
-            body.hullSourceMap = p.hullSource?.map;
-            body.hullSourceVersion = p.hullSource?.representation ?? 0;
-            body.hullSourceCell = p.hullCell;
-            body.defenderStart = p.hullSource != null ? HullStartOf : null;
-            body.prepareSweep = p.hullSource != null ? () => PrepareHullSweep(p) : (System.Action)null;
+            body.hullSource = null;
+            body.hullSourceMap = null;
+            body.defenderStart = contactPose ??= ContactPoseOf;
             body.sweepStartFraction = 0f;
-            body.afterContact = FlushHullSweeps;
             if (p.laser)
             {
                 // 专用点防束在结算 tick 追踪导弹现位，避免一 tick 位移把必中特性变成擦边。
@@ -869,7 +875,6 @@ namespace DeltaV
                 if (captured.adoptedShuttle) ReleaseShuttle(captured.container);
                 else
                 {
-                    captured.hullSource?.spent.Add(captured.hullCell);
                     DestroyProjectile(captured, "impact");
                 }
             };
@@ -909,7 +914,7 @@ namespace DeltaV
             };
             sweepScratch.Add(p);
             bodyScratch.Add(body);
-            if (body.attacker != null && p.hullSource == null) collisionBodies[body.attacker] = body;
+            if (body.attacker != null) collisionBodies[body.attacker] = body;
         }
 
         private void SampleCannonTrace(Projectile p)
@@ -1068,7 +1073,6 @@ namespace DeltaV
         private void QueueProjectileCleanup(Projectile p, bool destroyContainer)
         {
             if (p.dead) return;
-            ForgetHullRound(p);
             p.dead = true;
             p.body.dead = true;
             int expectedId = p.containerId;
@@ -1114,8 +1118,6 @@ namespace DeltaV
             p.targetContainerId = 0;
             p.targetPose = default;
             p.adoptedShuttle = false;
-            p.hullSource = null;
-            p.hullCell = IntVec3.Invalid;
             p.boardingDriver = default;
             p.boardingReference = null;
             p.dead = false;
@@ -1138,8 +1140,6 @@ namespace DeltaV
             p.body.hullSource = null;
             p.body.hullSourceMap = null;
             p.body.defenderStart = null;
-            p.body.prepareSweep = null;
-            p.body.afterContact = null;
             p.body.requiredDefender = null;
             p.body.noseHalfWidth = 0f;
             p.body.noseForwardOffset = 0f;
@@ -1166,7 +1166,12 @@ namespace DeltaV
             {
                 QueueProjectileCleanup(projectiles[i], !projectiles[i].adoptedShuttle);
             }
-            hullSources.Clear(); hullStarts.Clear(); hullHits.Clear(); hullSourceBuffer.Clear(); hullRoundBuffer.Clear();
+            FinishHullContacts();
+            hullSources.Clear();
+            hullSourcesByOwner.Clear();
+            hullSourceBuffer.Clear();
+            hullSourcesDirty = false;
+            HullRequests = 0;
             beams.Clear();
             trailPuffs.Clear();
             muzzleFlashes.Clear();
@@ -1238,7 +1243,7 @@ namespace DeltaV
                 float altitude = AltitudeLayer.Terrain.AltitudeFor() + Altitudes.AltInc * 10f;
                 foreach (Projectile p in projectiles)
                 {
-                    if (p.dead || p.hullSource != null) continue;
+                    if (p.dead) continue;
                     // 接管的跳帮艇继续由真实 Map 的船壳代理绘制，弹体层只添尾焰。
                     if (!p.laser && !p.adoptedShuttle)
                     {

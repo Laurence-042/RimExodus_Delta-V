@@ -97,16 +97,15 @@ namespace DeltaV
             public System.Action<Vector3, SpaceObject, Vector2, Vector2, float, int> onShieldShatter;
             // Consumed synchronously after each resolved contact, before the next sweep.
             public System.Action<VisualContact> onVisualContact;
-            // 隐形随动弹丸的源格，只供现有命中后效读取；母船仍是普通容器。
+            // 已确认舰体接触的来源结构，只供共同命中后效读取。
             internal SpaceObject hullSource;
             internal Map hullSourceMap;
             internal int hullSourceVersion;
             internal IntVec3 hullSourceCell;
-            internal System.Func<SpaceObject, SpacePose?> defenderStart;
-            internal System.Action prepareSweep, afterContact;
+            internal HullImpactBatch hullBatch;
+            internal System.Func<SpaceObject, float, SpacePose?> defenderStart;
             internal float sweepStartFraction;
             // 当前脚印采样选出的表面法线，随 RayContact 交给后效，不跨查询累积。
-            internal Vector2 surfaceNormal;
         }
 
         /// <summary>Read-only presentation snapshot; geometry and outcomes come from the resolving contact.</summary>
@@ -149,6 +148,7 @@ namespace DeltaV
             internal Vector2 contactNormal, contactLocalNormal;
             internal float contactFraction;
             internal bool hullDamaged, hullImpulse;
+            internal HullImpactBatch hullBatch;
             public float incidenceAngleRad;
             /// <summary>发射伤害倍率乘剩余冲击比例。</summary>
             public float damageScale = 1f;
@@ -178,7 +178,7 @@ namespace DeltaV
             public CompProjectileInterceptor interceptor;
         }
 
-        private sealed partial class Surface
+        internal sealed partial class Surface
         {
             public byte[] kinds;
             public Thing[] buildings;
@@ -392,30 +392,11 @@ namespace DeltaV
         /// </summary>
         public static void SweepAndResolve(UniverseManager universe, List<SweptBody> bodies)
         {
-            if (universe == null || bodies.Count == 0) return;
+            if (universe == null) return;
+            if (bodies.Count == 0) return;
             List<SpaceObject> objects = universe.objects;
-            int quietHullCount = -1;
             for (int b = 0; b < bodies.Count; b++)
             {
-                // 附着点共享母船响应，先处理当前工作表里最早的接触。
-                // 仍调用同一个弹体求交入口；不建立舰体对队列或另一种几何。
-                if (bodies[b].hullSource != null)
-                {
-                    if (quietHullCount == bodies.Count) continue;
-                    int first = -1; float time = float.PositiveInfinity;
-                    for (int i = b; i < bodies.Count; i++)
-                    {
-                        var pending = bodies[i];
-                        if (pending.dead || pending.hullSource == null) continue;
-                        Dictionary<SpaceObject, PassedContacts> probe = null;
-                        if (TryFindFirstContact(universe, objects, pending, ref probe, out var hit)
-                            && (hit.fraction < time || hit.fraction == time && (first < 0
-                                || pending.attacker.objectId < bodies[first].attacker.objectId)))
-                        { first = i; time = hit.fraction; }
-                    }
-                    if (first < 0) { quietHullCount = bodies.Count; continue; }
-                    var next = bodies[first]; bodies[first] = bodies[b]; bodies[b] = next;
-                }
                 SweptBody body = bodies[b];
                 if (body.dead || body.attacker == null
                     || body.attacker.Payload is AbstractMissile { InterceptionBody: null }) continue;
@@ -426,23 +407,9 @@ namespace DeltaV
 
                     body.redirected = false;
                     body.continued = false;
-                    if (body.hullSource != null && contact.target.entity != null)
-                    {
-                        ResolveProjectileContact(universe, body, contact);
-                        // The attached point discovers the contact; only the real projectile consumes its outcome.
-                        if (contact.target.Valid && !universe.Projectiles.CollisionRetired(contact.defender))
-                        {
-                            passed ??= new Dictionary<SpaceObject, PassedContacts>();
-                            if (!passed.TryGetValue(contact.defender, out var consumed))
-                                passed.Add(contact.defender, consumed = new PassedContacts());
-                            (consumed.buildings ??= new HashSet<Thing>()).Add(contact.ray.building);
-                        }
-                        body.afterContact?.Invoke();
-                        continue;
-                    }
                     ResolveContact(body, contact);
-                    body.afterContact?.Invoke();
                     if (body.dead) break;
+                    body.sweepStartFraction = contact.fraction;
                     if (body.continued)
                     {
                         // 不向前跳过距离：同心盾、贴合盾面与紧邻建筑必须逐个结算。
@@ -463,7 +430,6 @@ namespace DeltaV
         private static bool TryFindFirstContact(UniverseManager universe, List<SpaceObject> objects,
             SweptBody body, ref Dictionary<SpaceObject, PassedContacts> passed, out SweepContact first)
         {
-            body.prepareSweep?.Invoke();
             if (body.dead) { first = default; return false; }
             SpaceObject source = body.selfFire.key > 0 ? body.excludeContainer : null;
             while (true)
@@ -486,8 +452,7 @@ namespace DeltaV
                     SweepContact candidate;
                     if (target.map != null && universe.Generation?.IsGenerating(target.map) == true
                         || !target.TrySweep(body, sourceStructure, missed, out candidate)) continue;
-                    float distance = body.hullSource != null ? candidate.fraction
-                        : OrbitSphere.ArcCells(body.from, candidate.universePoint);
+                    float distance = candidate.fraction;
                     if (first.defender != null && (distance > nearest
                         || (distance == nearest && defender.objectId >= first.defender.objectId)))
                         continue;
@@ -547,7 +512,7 @@ namespace DeltaV
             contact = default;
             if (passed?.Contains(target.entity) == true) return false;
             Vector2 from = target.FromUniverse(body.from);
-            if (body.defenderStart?.Invoke(target.owner) is SpacePose start)
+            if (body.defenderStart?.Invoke(target.owner, body.sweepStartFraction) is SpacePose start)
                 from = SpaceTransform.UniverseToShipLocal(start, body.from);
             Vector2 delta = target.FromUniverse(body.to) - from;
             float length = delta.magnitude;
@@ -556,8 +521,8 @@ namespace DeltaV
             if (!TryEntityFootprint(target.entity, from, direction, length, body.sweepRadius, out RayContact ray))
                 return false;
             float fraction = Mathf.Lerp(body.sweepStartFraction, 1f, Mathf.Clamp01(Vector2.Distance(from, ray.point) / length));
-            if (body.hullSource != null)
-                target = target.AtPose(Current.Game.GetComponent<UniverseManager>().Projectiles.ContactPoseOf(target.owner, fraction));
+            if (body.defenderStart?.Invoke(target.owner, fraction) is SpacePose impactPose)
+                target = target.AtPose(impactPose);
             contact = new SweepContact
             {
                 target = target,
@@ -616,7 +581,7 @@ namespace DeltaV
             Surface surface = SurfaceFor(defender);
             if (!surface.anySolid) return false;
             Vector2 fromLocal = SpaceTransform.UniverseToMapPoint(defender, defMap, body.from);
-            if (body.defenderStart?.Invoke(defender) is SpacePose start)
+            if (body.defenderStart?.Invoke(defender, body.sweepStartFraction) is SpacePose start)
                 fromLocal = SpaceTransform.ShipLocalOrigin(defMap) + SpaceTransform.UniverseToShipLocal(start, body.from);
             Vector2 toLocal = SpaceTransform.UniverseToMapPoint(defender, defMap, body.to);
             Vector2 delta = toLocal - fromLocal;
@@ -674,67 +639,26 @@ namespace DeltaV
                 ray = hull;
             if (ray.kind == SpaceCellKind.Empty && ray.line == null && ray.guard == null) return false;
 
+            float fraction = Mathf.Lerp(body.sweepStartFraction, 1f, Mathf.Clamp01(Vector2.Distance(fromLocal, ray.point) / length));
+            var target = TargetView.Of(defender);
+            if (body.defenderStart?.Invoke(defender, fraction) is SpacePose impactPose)
+                target = target.AtPose(impactPose);
             contact = new SweepContact
             {
+                target = target,
                 defender = defender,
                 ray = ray,
-                universePoint = SpaceTransform.MapPointToUniverse(defender, defMap, ray.point),
+                universePoint = target.ToUniverse(target.ToLocal(ray.point)),
                 direction = dir,
                 lineStart = lineStart,
                 lineEnd = lineEnd,
                 remainingLength = length - sampleLength,
-                fraction = Mathf.Lerp(body.sweepStartFraction, 1f, Mathf.Clamp01(Vector2.Distance(fromLocal, ray.point) / length)),
+                fraction = fraction,
                 effect = ray.line == null ? SpaceImpactEffects.Resolve(body.projectileDef, ray.building?.def,
                     shieldSurface: ray.guard != null) : null,
                 props = projectileProps
             };
             return true;
-        }
-
-        private static void ResolveProjectileContact(UniverseManager universe, SweptBody hull, SweepContact discovered)
-        {
-            SweptBody projectile = universe.Projectiles.CollisionBodyOf(discovered.defender);
-            if (projectile == null || projectile.dead || projectile.excludeContainer == hull.hullSource
-                || projectile.requiredDefender != null && projectile.requiredDefender != hull.hullSource) return;
-            TargetView target = TargetView.Of(hull.hullSource);
-            if (!target.Valid || target.map != hull.hullSourceMap
-                || target.owner.RepresentationVersion != hull.hullSourceVersion
-                || !target.TryStructure(hull.hullSourceCell, out _, out _)) return;
-            // Re-enter the same target sweep with the real projectile's shape and shield rules.
-            // Discovery by an attached point is not yet a committed warhead hit.
-            var previousStart = projectile.defenderStart;
-            Vector3 previousFrom = projectile.from;
-            float previousFraction = projectile.sweepStartFraction;
-            SweepContact contact;
-            bool found;
-            Vector3 from = universe.Projectiles.ContactPoseOf(projectile.attacker, hull.sweepStartFraction).position;
-            try
-            {
-                projectile.defenderStart = hull.defenderStart;
-                projectile.from = from;
-                projectile.sweepStartFraction = hull.sweepStartFraction;
-                found = target.TrySweep(projectile, false, null, out contact);
-            }
-            finally
-            {
-                projectile.defenderStart = previousStart;
-                projectile.from = previousFrom;
-                projectile.sweepStartFraction = previousFraction;
-            }
-            if (!found) return;
-            contact.target = target.AtPose(universe.Projectiles.ContactPoseOf(target.owner, contact.fraction));
-            contact.universePoint = contact.target.ToUniverse(contact.ray.point);
-            var ray = contact.ray;
-            if (ray.kind != SpaceCellKind.Empty
-                && !SpaceImpactEffects.HitTest(projectile.projectileDef, ray.kind, ray.building, contact.effect)) return;
-            projectile.redirected = projectile.continued = false;
-            ResolveContact(projectile, contact);
-            if (projectile.continued)
-            {
-                projectile.from = projectile.continuePoint;
-                projectile.didContinue = true;
-            }
-            else if (projectile.redirected) ApplyRedirect(projectile, contact.defender);
         }
 
         private static void ApplyRedirect(SweptBody body, SpaceObject defender)
@@ -768,6 +692,7 @@ namespace DeltaV
                 evt.hullSourceMap = body.hullSourceMap;
                 evt.hullSourceVersion = body.hullSourceVersion;
                 evt.hullSourceCell = body.hullSourceCell;
+                evt.hullBatch = body.hullBatch;
                 evt.hullDamaged = evt.hullImpulse = false;
                 evt.projectileDef = body.projectileDef;
                 evt.launcher = body.launcher;
@@ -1144,7 +1069,7 @@ namespace DeltaV
                 if (!FindBestCell(body, map, surface, from, p, footprintDirection, passedBuildings, passedCells,
                     out IntVec3 cell, out SpaceCellKind kind, out Thing building, include, skipSubstructure,
                     coverBuildings, coverCells)) continue;
-                contact = new RayContact(p, body.hullSource != null ? body.surfaceNormal : normal, cell, kind, building);
+                contact = new RayContact(p, normal, cell, kind, building);
                 return true;
             }
             return false;
@@ -1199,7 +1124,6 @@ namespace DeltaV
             bestCell = IntVec3.Invalid;
             bestKind = SpaceCellKind.Empty;
             bestThing = null;
-            body.surfaceNormal = Vector2.zero;
             int reach = Mathf.CeilToInt(body.sweepRadius);
             int cx = Mathf.FloorToInt(p.x);
             int cz = Mathf.FloorToInt(p.y);
@@ -1237,11 +1161,8 @@ namespace DeltaV
                 }
                 if (!TryGetHullCell(defMap, surface, cell, passedBuildings, passedSubstructure, skipSubstructure,
                     out SpaceCellKind kind, out Thing thing, coverBuildings, coverCells)) continue;
-                Vector2 face = Vector2.zero;
-                if (body.hullSource != null && !HullFace(cell, p, new Vector2(nearestX, nearestZ), out face)) continue;
                 // 建筑高于同一带内的基架；同类再按沿弹道距离排序。
                 float rank = (new Vector2(cell.x + 0.5f, cell.z + 0.5f) - fromLocal).sqrMagnitude;
-                if (body.hullSource != null) rank = (new Vector2(nearestX, nearestZ) - p).sqrMagnitude;
                 bool buildingWins = bestKind == SpaceCellKind.Substructure
                     && kind != SpaceCellKind.Substructure;
                 bool sameLayer = bestKind == SpaceCellKind.Empty
@@ -1252,39 +1173,10 @@ namespace DeltaV
                     bestCell = cell;
                     bestKind = kind;
                     bestThing = thing;
-                    body.surfaceNormal = face;
                 }
             }
             return bestKind != SpaceCellKind.Empty;
 
-            // 随动舰体点需要真实受力面，不能把沿船侧的速度当成法向速度。
-            // 最近点已在本次脚印查询中确定；相邻实心格的接缝不是外表面。
-            bool HullFace(IntVec3 cell, Vector2 point, Vector2 nearestPoint, out Vector2 face)
-            {
-                bool Solid(IntVec3 at) => at.InBounds(defMap) && include?.Invoke(at) != false
-                    && TryGetHullCell(defMap, surface, at, passedBuildings, passedSubstructure, skipSubstructure,
-                        out _, out _, coverBuildings, coverCells);
-                Vector2 offset = point - nearestPoint;
-                if (offset.x != 0f && Solid(cell + (offset.x > 0f ? IntVec3.East : IntVec3.West))) offset.x = 0f;
-                if (offset.y != 0f && Solid(cell + (offset.y > 0f ? IntVec3.North : IntVec3.South))) offset.y = 0f;
-                if (offset.sqrMagnitude > 1e-10f) { face = offset.normalized; return true; }
-                // 有限步长可能使采样点已进格；优先使用本段进入的外侧，再取最近暴露边。
-                Vector2 before = fromLocal - new Vector2(Mathf.Clamp(fromLocal.x, cell.x, cell.x + 1f),
-                    Mathf.Clamp(fromLocal.y, cell.z, cell.z + 1f));
-                float nearest = float.PositiveInfinity;
-                bool entered = false;
-                face = Vector2.zero;
-                foreach (IntVec3 edge in GenAdj.CardinalDirections)
-                {
-                    if (Solid(cell + edge)) continue;
-                    Vector2 outward = new Vector2(edge.x, edge.z);
-                    float distance = Mathf.Abs(Vector2.Dot(point - new Vector2(cell.x + .5f, cell.z + .5f), outward) - .5f);
-                    bool entering = Vector2.Dot(before, outward) > 0f;
-                    if (entered && !entering || entering == entered && distance >= nearest) continue;
-                    entered = entering; nearest = distance; face = outward;
-                }
-                return face != Vector2.zero;
-            }
         }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Emit;
 using DeltaV;
 using HarmonyLib;
 using RimWorld;
@@ -39,11 +40,20 @@ internal static partial class Program
     static void CountDriveAllocation() => driveAllocations++;
     static void CountDriveEntityLookup() => driveEntityLookups++;
     static void CountDriveCargoSample() => driveCargoSamples++;
-    static bool ScalePocketTile(Map __instance, ref RimWorld.Planet.PlanetTile __result)
+    static void InitializeScalePocketTile(Map map)
     {
-        if (__instance.uniqueID != 49930) return true;
-        __result = RimWorld.Planet.PlanetTile.Invalid;
-        return false;
+        // TestMap allocates the parent without running its constructor. Initialize the one
+        // instance field directly, without activating WorldObject's Unity static initializer.
+        var field = AccessTools.Field(typeof(RimWorld.Planet.WorldObject), "tile");
+        var write = new DynamicMethod("InitializeScalePocketTile", typeof(void),
+            new[] { field.DeclaringType, field.FieldType }, typeof(Program), true);
+        var il = write.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_0);
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Stfld, field);
+        il.Emit(OpCodes.Ret);
+        write.CreateDelegate<Action<RimWorld.Planet.WorldObject, RimWorld.Planet.PlanetTile>>()(
+            map.info.parent, RimWorld.Planet.PlanetTile.Invalid);
     }
 
     static void CheckSeparationScale(UniverseManager universe, Faction faction)
@@ -54,6 +64,7 @@ internal static partial class Program
         TerrainDef oldSpace = TerrainDefOf.Space;
         TerrainDefOf.Space = space;
         Map map = TestMap(49930, 250), neighbor = TestMap(49931);
+        InitializeScalePocketTile(map);
         var frame = new MapSpaceObject(49930, map, new SpacePose(Vector3.forward, 0f));
         var otherFrame = new MapSpaceObject(49931, neighbor, frame.pose);
         try
@@ -62,7 +73,6 @@ internal static partial class Program
                 harmony.Patch(method, prefix == null ? null : new HarmonyMethod(typeof(Program), prefix),
                     postfix == null ? null : new HarmonyMethod(postfix));
             Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"), nameof(RegressionSubstructure));
-            Patch(AccessTools.PropertyGetter(typeof(Map), nameof(Map.Tile)), nameof(ScalePocketTile));
             Patch(AccessTools.Method(typeof(ThingGrid), "RegisterInCell"),
                 postfix: AccessTools.Method(typeof(Patch_SpaceScatterCargo_Register), "Postfix"));
             Patch(AccessTools.Method(typeof(ThingGrid), "DeregisterInCell"),

@@ -1,5 +1,5 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using Verse;
 
@@ -7,49 +7,39 @@ namespace DeltaV
 {
     public sealed partial class SpaceProjectileService
     {
-        // 「碰撞规避」关闭时，真实外层格挂接普通弹体链的隐形弹丸。
-        // 本文件只维护弹丸和来源；命中查询、伤害均由原 SpaceCollision/后效链处理。
         private sealed class HullSource
         {
             internal DriveSubject subject;
-            internal Map map;
             internal SpaceObject owner;
+            internal HullSource next;
+            internal Map map;
             internal int representation, version = -1;
-            internal bool full = true;
             internal readonly HashSet<IntVec3> cells = new HashSet<IntVec3>();
-            internal readonly HashSet<IntVec3> dirty = new HashSet<IntVec3>();
-            internal readonly HashSet<IntVec3> spent = new HashSet<IntVec3>();
-            internal readonly Dictionary<IntVec3, Projectile> rounds = new Dictionary<IntVec3, Projectile>();
         }
-
-        private sealed class AttachedHullRound : SpaceObject
-        {
-            internal AttachedHullRound(int id, SpacePose pose) : base(id, pose)
-            { baseTag = SpaceObjectTag.Projectile; }
-            internal void Follow(SpacePose value, bool beginTick)
-            {
-                pose = value;
-                // 点的运动来自母船，禁止主循环再次自由漂移；不改母船的推进时钟。
-                if (beginTick) BeginMotion(Dt);
-            }
-        }
-
         private readonly Dictionary<DriveSubject, HullSource> hullSources = new Dictionary<DriveSubject, HullSource>();
+        private readonly Dictionary<SpaceObject, HullSource> hullSourcesByOwner = new Dictionary<SpaceObject, HullSource>();
         private readonly List<HullSource> hullSourceBuffer = new List<HullSource>();
-        private readonly List<Projectile> hullRoundBuffer = new List<Projectile>();
-        private readonly Dictionary<int, (SpaceObject owner, int version, SpacePose pose, float fraction)> hullStarts =
-            new Dictionary<int, (SpaceObject, int, SpacePose, float)>();
-        private readonly HashSet<(int a, int b, int left, int right)> hullHits = new HashSet<(int, int, int, int)>();
-        private int hullHitTick = -1;
-        private float hullFraction;
-        private bool hullChangesPending;
+        private readonly Dictionary<SpaceObject, (SpaceCollision.TargetView view, SpacePose pose)> hullStarts =
+            new Dictionary<SpaceObject, (SpaceCollision.TargetView, SpacePose)>();
+        private readonly List<SpaceCollision.HullMotion> hullMotions = new List<SpaceCollision.HullMotion>();
+        private readonly List<SpaceCollision.HullContact> pendingHullContacts = new List<SpaceCollision.HullContact>();
+        private readonly Stack<List<(IntVec3 a, IntVec3 b)>> freeHullLayers = new Stack<List<(IntVec3, IntVec3)>>();
+        private List<(IntVec3 a, IntVec3 b)> activeHullLayer;
+        private readonly HashSet<(int, int)> crushedHullPairs = new HashSet<(int, int)>();
+        private readonly SpaceCollision.SweptBody contactBody = new SpaceCollision.SweptBody();
+        private readonly SpaceCollision.HullImpactBatch hullImpact = new SpaceCollision.HullImpactBatch();
+        private Func<SpaceObject, IntVec3, bool> hullEnabled;
+        private bool hullSourcesDirty;
+        internal long HullRequests { get; private set; }
 
         internal void RefreshHullSource(DriveSubject subject)
         {
+            hullSourcesDirty = true;
             ShipBase ship = ShipRegistry.ShipByIdentity(subject);
             if (ship?.IsValid != true || universe.Controls.CollisionAvoidanceEnabled(ship))
             {
-                if (hullSources.TryGetValue(subject, out var old)) RemoveHullSource(old);
+                hullSources.Remove(subject);
+                if (hullSources.Count == 0) hullSourcesByOwner.Clear();
                 return;
             }
             if (!hullSources.ContainsKey(subject)) hullSources.Add(subject, new HullSource { subject = subject });
@@ -57,228 +47,302 @@ namespace DeltaV
 
         internal void NotifyHullCellsChanged(Map map, CellRect? range)
         {
-            foreach (var source in hullSources.Values)
-            {
-                if (map != null && source.map != map) continue;
-                hullChangesPending = true;
-                if (!range.HasValue) { source.full = true; continue; }
-                foreach (IntVec3 cell in range.Value)
-                {
-                    source.dirty.Add(cell);
-                    foreach (IntVec3 offset in GenAdj.CardinalDirections) source.dirty.Add(cell + offset);
-                }
-            }
+            if (hullSources.Count != 0) hullSourcesDirty = true;
         }
 
-        private static bool HullCell(Map map, IntVec3 cell)
+        private void RefreshHullSources()
         {
-            if (!cell.InBounds(map)) return false;
-            var kind = SpaceStructureRules.ClassifyCell(map, cell, out var building);
-            return kind == SpaceCellKind.Substructure || building is Building b
-                && !b.Destroyed && b.def.useHitPoints && b.def.destroyable;
-        }
-
-        private void RemoveHullRounds(HullSource source)
-        {
-            foreach (var round in source.rounds.Values.ToArray()) DestroyProjectile(round, "hull source changed");
-            source.rounds.Clear(); source.cells.Clear(); source.dirty.Clear();
-        }
-
-        private void RemoveHullSource(HullSource source)
-        { RemoveHullRounds(source); hullSources.Remove(source.subject); }
-
-        private void ForgetHullRound(Projectile round)
-        {
-            HullSource source = round.hullSource;
-            if (source == null) return;
-            if (source.rounds.TryGetValue(round.hullCell, out var current) && ReferenceEquals(current, round))
-            { source.rounds.Remove(round.hullCell); source.dirty.Add(round.hullCell); }
-        }
-
-        private void PrepareHullRounds()
-        {
-            hullStarts.Clear(); hullFraction = 0f;
-            hullHitTick = Find.TickManager.TicksGame; hullHits.Clear();
-            foreach (var source in hullSources.Values) source.spent.Clear();
-            if (hullSources.Count == 0) return;
-            foreach (var body in universe.objects)
-                if (body.map != null && !body.map.Disposed)
-                    hullStarts[body.objectId] = (body, body.RepresentationVersion, body.pose, 0f);
-            RefreshHullRounds(true); hullChangesPending = false;
-        }
-
-        // 由 tick 起点及命中完成后的同一事件消费入口调用，不清掉本 tick 扫掠时钟。
-        private void RefreshHullRounds(bool beginTick)
-        {
-            hullSourceBuffer.Clear(); hullSourceBuffer.AddRange(hullSources.Values);
+            if (!hullSourcesDirty) return;
+            hullSourcesDirty = false;
+            hullSourcesByOwner.Clear();
+            hullSourceBuffer.Clear();
+            hullSourceBuffer.AddRange(hullSources.Values);
             foreach (var source in hullSourceBuffer)
             {
+                source.next = null;
                 ShipBase ship = ShipRegistry.ShipByIdentity(source.subject);
                 if (ship?.IsValid != true || universe.Controls.CollisionAvoidanceEnabled(ship))
-                { RemoveHullSource(source); continue; }
-                SpaceObject owner = universe.FrameOf(ship.Map);
-                if (owner == null || owner.IsArchived || !FreeFlightBootstrap.IsZeroGravity(universe, ship.Map))
-                { RemoveHullRounds(source); source.full = true; continue; }
-                if (owner.projectileRoleOverride)
-                { RemoveHullRounds(source); source.full = true; continue; }
-                if (source.map != ship.Map || source.owner != owner || source.representation != owner.RepresentationVersion)
                 {
-                    RemoveHullRounds(source);
-                    source.map = ship.Map; source.owner = owner; source.representation = owner.RepresentationVersion;
-                    source.full = true;
+                    hullSources.Remove(source.subject);
+                    continue;
                 }
-                int version = SubstructureOwnership.StructureVersion(source.map);
-                var domain = ship.HullCells;
-                if (version != source.version && source.dirty.Count == 0) source.full = true;
-                if (source.full)
+                var owner = universe.FrameOf(ship.Map);
+                if (owner == null || owner.IsArchived || owner.projectileRoleOverride
+                    || !FreeFlightBootstrap.IsZeroGravity(universe, ship.Map))
                 {
-                    foreach (var cell in source.cells) source.dirty.Add(cell);
+                    source.owner = null;
+                    source.map = null;
                     source.cells.Clear();
-                    foreach (var cell in domain)
-                        if (HullCell(source.map, cell)) { source.cells.Add(cell); source.dirty.Add(cell); }
-                    source.full = false;
+                    source.version = -1;
+                    continue;
                 }
-                else
+                int version = SubstructureOwnership.StructureVersion(ship.Map);
+                if (source.owner != owner || source.map != ship.Map || source.representation != owner.RepresentationVersion
+                    || source.version != version)
                 {
-                    // 断连／重新接通也可能改变控制域；仅在结构事件后找差集，
-                    // 不替换仍然有效的弹丸，不另建连通或碰撞几何。
-                    if (version != source.version)
-                    {
-                        foreach (var cell in source.cells)
-                            if (!domain.Contains(cell)) source.dirty.Add(cell);
-                        foreach (var cell in domain)
-                            if (!source.cells.Contains(cell) && HullCell(source.map, cell))
-                            {
-                                source.dirty.Add(cell);
-                                foreach (var d in GenAdj.CardinalDirections) source.dirty.Add(cell + d);
-                            }
-                    }
-                    foreach (var cell in source.dirty)
-                        if (domain.Contains(cell) && HullCell(source.map, cell)) source.cells.Add(cell);
-                        else source.cells.Remove(cell);
+                    source.owner = owner;
+                    source.map = ship.Map;
+                    source.representation = owner.RepresentationVersion;
+                    source.cells.Clear();
+                    source.cells.UnionWith(ship.HullCells);
+                    source.version = version;
                 }
-                // 销毁会把来源格标脏，先复制本轮增量，避免修改正在枚举的集合。
-                var changed = source.dirty.ToArray();
-                source.dirty.Clear();
-                foreach (var cell in changed)
-                {
-                    bool edge = source.cells.Contains(cell) && GenAdj.CardinalDirections.Any(d => !source.cells.Contains(cell + d));
-                    if (source.rounds.TryGetValue(cell, out var round) && (!edge || round.dead))
-                        DestroyProjectile(round, "hull cell removed");
-                    if (edge && !source.rounds.ContainsKey(cell))
-                    {
-                        if (beginTick || !source.spent.Contains(cell)) CreateHullRound(source, cell, ship);
-                        else source.dirty.Add(cell);
-                    }
-                }
-                source.version = version;
-                hullRoundBuffer.Clear(); hullRoundBuffer.AddRange(source.rounds.Values);
-                foreach (var round in hullRoundBuffer) FollowHullRound(round, beginTick);
+                if (source.cells.Count == 0) continue;
+                hullSourcesByOwner.TryGetValue(owner, out source.next);
+                hullSourcesByOwner[owner] = source;
             }
+            hullSourceBuffer.Clear();
         }
 
-        private void CreateHullRound(HullSource source, IntVec3 cell, ShipBase ship)
+        private void PrepareHullContacts()
         {
-            var def = DeltaVDefOf.DeltaV_Projectile_HullContact;
-            var round = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
-            round.def = def; round.props = def.GetCompProperties<CompProperties_SpaceProjectile>();
-            round.hullSource = source; round.hullCell = cell;
-            round.sourceContainer = source.owner; round.launcher = ship.Anchor;
-            round.launchSweepStart = null; round.selfFire = default;
-            round.damageScale = round.armorPenetrationScale = round.mass = round.beamEnergyScale = 1f;
-            round.spawnedAtTick = Find.TickManager.TicksGame;
-            var actor = new AttachedHullRound(universe.AllocateOwnerId(), source.owner.pose) { faction = ship.Faction };
-            round.container = actor;
-            universe.RegisterObject(actor);
-            source.rounds.Add(cell, round); projectiles.Add(round);
-        }
-
-        private bool FollowHullRound(Projectile round, bool beginTick)
-        {
-            var source = round.hullSource;
-            if (source?.owner?.map != source.map || source.map == null || source.map.Disposed
-                || source.owner.projectileRoleOverride
-                || source.owner.RepresentationVersion != source.representation || !HullCell(source.map, round.hullCell))
-            { DestroyProjectile(round, "hull source invalid"); return false; }
-            Vector2 local = new Vector2(round.hullCell.x + .5f, round.hullCell.z + .5f)
-                - SpaceTransform.ShipLocalOrigin(source.map);
-            var pose = SpaceTransform.RigidPointPose(source.owner.pose, local, 0f);
-            ((AttachedHullRound)round.container).Follow(pose, beginTick);
-            if (beginTick) round.prevPosition = pose.position;
-            return true;
-        }
-
-        private SpacePose HullPoseAt(SpaceObject owner, float fraction)
-        {
-            if (!hullStarts.TryGetValue(owner.objectId, out var start) || start.owner != owner
-                || start.version != owner.RepresentationVersion) return owner.pose;
-            float t = start.fraction >= 1f ? 0f : Mathf.Clamp01((fraction - start.fraction) / (1f - start.fraction));
-            SpacePose pose = SpaceTransform.LerpPose(start.pose, owner.pose, t);
-            // 已支付的本 tick 推力不再积分；只把当前真实速度输运到接触位置。
-            pose.velocity = SpaceTransform.TransportVelocity(owner.pose, pose.position);
-            pose.angularVelocity = owner.pose.angularVelocity;
-            return pose;
-        }
-
-        private SpacePose? HullStartOf(SpaceObject owner) => ContactPoseOf(owner, hullFraction);
-
-        private void PrepareHullSweep(Projectile round)
-        {
-            if (round.dead || !FollowHullRound(round, false)) { round.body.dead = true; return; }
-            var source = round.hullSource;
-            var local = new Vector2(round.hullCell.x + .5f, round.hullCell.z + .5f) - SpaceTransform.ShipLocalOrigin(source.map);
-            round.body.from = SpaceTransform.ShipLocalToUniverse(HullPoseAt(source.owner, hullFraction), local);
-            round.body.to = round.container.pose.position;
-            round.body.sweepStartFraction = hullFraction;
-        }
-
-        internal void BeginHullImpact(SpaceCollision.ImpactEvent evt)
-        {
-            hullFraction = Mathf.Max(hullFraction, evt.contactFraction);
-            evt.hullSource.pose = HullPoseAt(evt.hullSource, hullFraction);
-            evt.defender.pose = HullPoseAt(evt.defender, hullFraction);
-            // 查询点在目标图的事实坐标已经确定，随接触时刻的目标位姿转换一次。
-            var target = SpaceCollision.TargetView.Of(evt.defender);
-            evt.target = target;
-            evt.hitUniverse = target.ToUniverse(evt.HitLocal);
-            evt.contactNormal = target.DirectionToUniverse(evt.HitLocal, evt.contactLocalNormal);
-        }
-
-        internal void EndHullImpact(SpaceCollision.ImpactEvent evt, ShipPhysics.MassReport own, ShipPhysics.MassReport other)
-        {
-            Finish(evt.hullSource, own); Finish(evt.defender, other);
-            void Finish(SpaceObject body, ShipPhysics.MassReport report)
+            using var timing = universe.Performance.Measure(PerformanceStage.HullPrepare);
+            hullStarts.Clear();
+            if (hullSources.Count == 0 && projectiles.Count == 0) return;
+            RefreshHullSources();
+            foreach (var frame in universe.objects)
             {
-                SpacePose contact = body.pose;
-                hullStarts[body.objectId] = (body, body.RepresentationVersion, contact, hullFraction);
-                if (report != null) body.pose = ShipPhysics.DriftAfterContact(contact, report, (1f - hullFraction) * Dt);
+                var view = SpaceCollision.TargetView.Of(frame);
+                if (!view.HasRigidStructure) continue;
+                hullStarts.Add(frame, (view, frame.pose));
             }
         }
 
-        private void FlushHullSweeps()
+        private bool HullEnabledAt(SpaceObject owner, IntVec3 cell) => HullSourceAt(owner, cell) != null;
+
+        private HullSource HullSourceAt(SpaceObject owner, IntVec3 cell)
         {
-            if (!resolvingProjectiles || !hullChangesPending || hullSources.Count == 0) return;
-            hullChangesPending = false;
-            int firstNew = projectiles.Count;
-            RefreshHullRounds(false);
-            for (int i = firstNew; i < projectiles.Count; i++)
-                if (!projectiles[i].dead && projectiles[i].hullSource != null) AddProjectileSweep(projectiles[i]);
+            hullSourcesByOwner.TryGetValue(owner, out HullSource source);
+            while (source != null && !source.cells.Contains(cell)) source = source.next;
+            return source;
         }
 
-        internal bool BeginHullHit(SpaceObject source, IntVec3 from, Thing own,
-            SpaceObject target, IntVec3 to, Thing other)
+        private SpacePose? MapContactPoseOf(SpaceObject owner, float fraction)
         {
-            int tick = Find.TickManager.TicksGame;
-            if (hullHitTick != tick) { hullHitTick = tick; hullHits.Clear(); }
-            int left = own?.thingIDNumber ?? -source.map.cellIndices.CellToIndex(from) - 1;
-            int right = other?.thingIDNumber ?? -target.map.cellIndices.CellToIndex(to) - 1;
-            return source.objectId < target.objectId
-                ? hullHits.Add((source.objectId, target.objectId, left, right))
-                : hullHits.Add((target.objectId, source.objectId, right, left));
+            if (!hullStarts.TryGetValue(owner, out var start) || !start.view.Valid) return null;
+            return SpaceTransform.LerpPose(start.pose, owner.pose, fraction);
         }
 
-        // 战斗候选只把来袭弹丸变换到候选船体局部系；求交仍走现有 RayQuery。
-        // 对方开关不参与筛选：实际登记的外层弹丸本身就是威胁来源。
+        private bool HullMotionCurrent(SpaceCollision.HullMotion motion) =>
+            motion.live && hullStarts.ContainsKey(motion.body);
+
+        private void ResolveHullContacts()
+        {
+            if (hullSources.Count == 0 || hullStarts.Count < 2) return;
+            RefreshHullSources();
+            if (hullSourcesByOwner.Count == 0) return;
+            bool moved = false;
+            foreach (var entry in hullStarts)
+            {
+                var frame = entry.Key;
+                var (view, start) = entry.Value;
+                if (!view.CanHullContact || !FreeFlightBootstrap.IsZeroGravity(universe, view.map)) continue;
+                SpacePose end = frame.pose;
+                moved |= SpaceCollision.ChangedHullPose(start, end);
+                start.velocity = SpaceTransform.TransportVelocity(end, start.position);
+                start.angularVelocity = end.angularVelocity;
+                hullMotions.Add(new SpaceCollision.HullMotion(view, start, end));
+            }
+            if (!moved || hullMotions.Count < 2) return;
+            hullMotions.Sort((a, b) => a.body.objectId.CompareTo(b.body.objectId));
+            for (int a = 0; a < hullMotions.Count - 1; a++)
+            for (int b = a + 1; b < hullMotions.Count; b++)
+                QueueHullPair(a, b, 0f);
+
+            int impulseBudget = 16 + hullMotions.Count * 4;
+            while (pendingHullContacts.Count > 0)
+            {
+                ReleaseHullLayer(activeHullLayer);
+                activeHullLayer = null;
+                int first = 0;
+                for (int i = 1; i < pendingHullContacts.Count; i++)
+                    if (Earlier(pendingHullContacts[i], pendingHullContacts[first])) first = i;
+                var hit = pendingHullContacts[first];
+                if (impulseBudget == 0)
+                {
+                    StopHullMotion(hit.time);
+                    break;
+                }
+
+                pendingHullContacts.RemoveAt(first);
+                activeHullLayer = hit.layer;
+                var a = hullMotions[hit.a];
+                var b = hullMotions[hit.b];
+                if (!HullMotionCurrent(a) || !HullMotionCurrent(b)
+                    || !a.Supports(hit.cellA) || !b.Supports(hit.cellB)) continue;
+                RefreshHullSources();
+                var source = hit.reverse ? b : a;
+                var target = hit.reverse ? a : b;
+                IntVec3 sourceCell = hit.reverse ? hit.cellB : hit.cellA;
+                IntVec3 targetCell = hit.reverse ? hit.cellA : hit.cellB;
+                var subject = HullSourceAt(source.body, sourceCell);
+                bool reverse = subject == null;
+                subject ??= HullSourceAt(target.body, targetCell);
+                if (subject == null) continue;
+                Thing launcher = ShipRegistry.ShipByIdentity(subject.subject)?.Anchor;
+
+                a.body.pose = a.At(hit.time);
+                b.body.pose = b.At(hit.time);
+                if (reverse)
+                {
+                    var from = source.view.AtPose(source.body.pose);
+                    var to = target.view.AtPose(target.body.pose);
+                    Vector3 point = to.ToUniverse(hit.localPoint);
+                    Vector2 normal = to.DirectionToUniverse(hit.localPoint, hit.localNormal);
+                    hit.localPoint = from.FromUniverse(point);
+                    hit.localNormal = -from.DirectionFromUniverse(point, normal);
+                    (source, target) = (target, source);
+                    (sourceCell, targetCell) = (targetCell, sourceCell);
+                }
+                hullImpact.Prepare(source, target, !crushedHullPairs.Contains((hit.a, hit.b)),
+                    hit.layer, hit.reverse ^ reverse);
+                using (universe.Performance.Measure(PerformanceStage.HullOutcome))
+                {
+                    HullRequests++;
+                    universe.Performance.RecordHullRequest();
+                    SpaceCollision.ResolveHullContact(hullImpact, sourceCell, targetCell, hit,
+                        DeltaVDefOf.DeltaV_Projectile_HullContact, contactBody, launcher, QueueVisualContact);
+                }
+                bool closed = hullImpact.closing > 0f;
+                if (hullImpact.crushed)
+                {
+                    crushedHullPairs.Add((hit.a, hit.b));
+                    universe.Performance.RecordHullCrushBatch();
+                }
+                if (hullImpact.continues) a.deferDrift = b.deferDrift = true;
+                hullImpact.Clear();
+                if (!closed)
+                {
+                    if (HullMotionCurrent(a)) a.body.pose = a.to;
+                    if (HullMotionCurrent(b)) b.body.pose = b.to;
+                    continue;
+                }
+
+                impulseBudget--;
+                universe.Performance.RecordHullImpulse();
+                ResumeHullMotion(ref a, hit.time);
+                ResumeHullMotion(ref b, hit.time);
+                hullMotions[hit.a] = a;
+                hullMotions[hit.b] = b;
+                for (int i = pendingHullContacts.Count - 1; i >= 0; i--)
+                {
+                    var candidate = pendingHullContacts[i];
+                    if (candidate.a == hit.a || candidate.b == hit.a || candidate.a == hit.b || candidate.b == hit.b)
+                    {
+                        ReleaseHullLayer(candidate.layer);
+                        pendingHullContacts.RemoveAt(i);
+                    }
+                }
+                RefreshHullSources();
+                for (int i = 0; i < hullMotions.Count; i++)
+                {
+                    if (i == hit.a || i == hit.b) continue;
+                    QueueHullPair(hit.a, i, hit.time);
+                    QueueHullPair(hit.b, i, hit.time);
+                }
+            }
+        }
+
+        private void QueueHullPair(int a, int b, float time)
+        {
+            if (a > b) (a, b) = (b, a);
+            var own = hullMotions[a];
+            var other = hullMotions[b];
+            if (!HullMotionCurrent(own) || !HullMotionCurrent(other)
+                || !hullSourcesByOwner.ContainsKey(own.body) && !hullSourcesByOwner.ContainsKey(other.body)) return;
+            if (!SpaceCollision.ChangedHullPose(own.At(time), own.to)
+                && !SpaceCollision.ChangedHullPose(other.At(time), other.to)) return;
+            if (own.surface == null) { own.RefreshSurface(); hullMotions[a] = own; }
+            if (other.surface == null) { other.RefreshSurface(); hullMotions[b] = other; }
+            using var timing = universe.Performance.Measure(PerformanceStage.HullBroad);
+            universe.Performance.RecordHullPair();
+            var layer = freeHullLayers.Count == 0 ? new List<(IntVec3, IntVec3)>() : freeHullLayers.Pop();
+            if (!SpaceCollision.TryHullPair(own, other, time, hullEnabled ??= HullEnabledAt, out var hit, layer))
+            {
+                ReleaseHullLayer(layer);
+                return;
+            }
+            hit.a = a;
+            hit.b = b;
+            pendingHullContacts.Add(hit);
+        }
+
+        private static bool Earlier(SpaceCollision.HullContact a, SpaceCollision.HullContact b) =>
+            a.time < b.time || a.time == b.time && (a.a < b.a || a.a == b.a && a.b < b.b);
+
+        private void ResumeHullMotion(ref SpaceCollision.HullMotion motion, float time)
+        {
+            motion.from = motion.body.pose;
+            motion.start = time;
+            motion.to = motion.from;
+            if (!HullMotionCurrent(motion)) return;
+            // A breached pair can take other impulses this tick while its remaining travel is deferred.
+            if (!motion.deferDrift && ShipPhysics.GetReport(motion.body) is { } report)
+                motion.to = ShipPhysics.DriftAfterContact(motion.from, report, (1f - time) * Dt);
+            motion.body.pose = motion.to;
+            motion.RefreshSurface();
+        }
+
+        private void StopHullMotion(float time)
+        {
+            universe.Performance.RecordHullBudgetStop(time);
+            foreach (var hit in pendingHullContacts)
+            {
+                var a = hullMotions[hit.a];
+                var b = hullMotions[hit.b];
+                if (HullMotionCurrent(a)) a.body.pose = a.At(time);
+                if (HullMotionCurrent(b)) b.body.pose = b.At(time);
+            }
+        }
+
+        private void ForgetHullFrame(SpaceObject frame, Map map = null, bool removeSource = true)
+        {
+            frame ??= map != null ? universe.FrameOf(map) : null;
+            if (frame != null)
+            {
+                hullStarts.Remove(frame);
+                hullSourcesByOwner.Remove(frame);
+            }
+            hullSourcesDirty = true;
+            hullSourceBuffer.Clear();
+            hullSourceBuffer.AddRange(hullSources.Values);
+            foreach (var source in hullSourceBuffer)
+            {
+                if ((frame == null || source.owner != frame) && (map == null || source.map != map)) continue;
+                if (source.owner != null) hullSourcesByOwner.Remove(source.owner);
+                if (frame != null && removeSource) hullSources.Remove(source.subject);
+                source.owner = null;
+                source.next = null;
+                source.map = null;
+                source.cells.Clear();
+                source.version = -1;
+            }
+            hullSourceBuffer.Clear();
+        }
+
+        private void ReleaseHullLayer(List<(IntVec3 a, IntVec3 b)> layer)
+        {
+            if (layer == null) return;
+            layer.Clear();
+            freeHullLayers.Push(layer);
+        }
+
+        internal void FinishHullContacts()
+        {
+            ReleaseHullLayer(activeHullLayer);
+            activeHullLayer = null;
+            foreach (var hit in pendingHullContacts) ReleaseHullLayer(hit.layer);
+            pendingHullContacts.Clear();
+            hullMotions.Clear();
+            hullStarts.Clear();
+            crushedHullPairs.Clear();
+            hullImpact.Clear();
+            contactBody.attacker = contactBody.hullSource = contactBody.resolvedHitDefender = null;
+            contactBody.hullSourceMap = null;
+            contactBody.onVisualContact = null;
+            contactBody.launcher = null;
+        }
+
         internal bool HullRouteClear(ShipBase ship, CombatTrajectoryIntent intent, float elapsed,
             out DriveSubject blocker, out int blockedSecond)
         {
@@ -287,35 +351,34 @@ namespace DeltaV
             var target = universe.FrameOf(ship.Map);
             if (target == null) return true;
             using var timing = universe.Performance.Measure(PerformanceStage.CombatRoute);
-            SpaceCollision.RayQuery query = null;
-            const float step = .1f;
-            foreach (var round in projectiles)
+            RefreshHullSources();
+            var own = SpaceCollision.TargetView.Of(target);
+            foreach (var source in hullSources.Values)
             {
-                var source = round.hullSource;
-                if (source == null || round.dead || source.owner == target || source.owner.map != source.map) continue;
-                float reach = 4f * (source.owner.pose.velocity.magnitude + target.pose.velocity.magnitude)
-                    + SpaceCollision.BoundsRadiusOf(source.owner) + SpaceCollision.BoundsRadiusOf(target) + 10f;
-                if (OrbitSphere.ArcCells(source.owner.pose.position, target.pose.position) > reach) continue;
-                query ??= new SpaceCollision.RayQuery(target, ship, collectCover: false);
-                Vector2 local = new Vector2(round.hullCell.x + .5f, round.hullCell.z + .5f) - SpaceTransform.ShipLocalOrigin(source.map);
-                Vector2 Previous(float seconds)
-                {
-                    var parent = source.owner.pose;
-                    parent.position = OrbitSphere.Move(parent.position, parent.velocity * seconds);
-                    parent.angle += parent.angularVelocity * seconds;
-                    Vector3 point = SpaceTransform.ShipLocalToUniverse(parent, local);
-                    intent.Sample(elapsed + seconds, out var position, out _, out float angle, out _);
-                    return SpaceTransform.ShipLocalOrigin(ship.Map)
-                        + SpaceTransform.UniverseToShipLocal(new SpacePose(position, angle), point);
-                }
-                Vector2 from = Previous(0);
+                var other = source.owner;
+                if (other == null || other == target || other.projectileRoleOverride) continue;
+                var view = SpaceCollision.TargetView.Of(other);
+                float reach = 4f * (other.pose.velocity.magnitude + target.pose.velocity.magnitude)
+                    + own.OriginBoundsRadius + view.OriginBoundsRadius + 10f;
+                if (OrbitSphere.ArcCells(other.pose.position, target.pose.position) > reach) continue;
+                intent.Sample(elapsed, out var position, out _, out float angle, out _);
+                var previous = new SpacePose(position, angle);
+                var from = other.pose;
                 for (int i = 1; i <= 40; i++)
                 {
-                    Vector2 to = Previous(i * step), delta = to - from;
-                    if (query.Next(from, delta, delta.magnitude, round.def, FootprintRadius(round.def),
-                        null, null, _ => false, _ => false, out _))
-                    { blocker = source.subject; blockedSecond = Mathf.CeilToInt(i * step); return false; }
-                    from = to;
+                    float seconds = i * .1f;
+                    intent.Sample(elapsed + seconds, out position, out _, out angle, out _);
+                    var next = new SpacePose(position, angle);
+                    var to = other.pose;
+                    to.position = OrbitSphere.Move(to.position, to.velocity * seconds);
+                    to.angle += to.angularVelocity * seconds;
+                    var approaching = new SpaceCollision.HullMotion(view, from, to);
+                    var candidate = new SpaceCollision.HullMotion(own, previous, next);
+                    approaching.RefreshSurface();
+                    candidate.RefreshSurface();
+                    if (SpaceCollision.TryHullPair(approaching, candidate, 0f, hullEnabled ??= HullEnabledAt, out _))
+                    { blocker = source.subject; blockedSecond = Mathf.CeilToInt(seconds); return false; }
+                    previous = next; from = to;
                 }
             }
             return true;

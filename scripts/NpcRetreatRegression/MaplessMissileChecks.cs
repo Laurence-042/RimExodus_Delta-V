@@ -49,6 +49,8 @@ internal static partial class Program
 
     static void CheckMaplessMissile(UniverseManager universe)
     {
+        Check(!SpaceCollision.TargetView.Of(new SpaceObject(41999,new SpacePose(Vector3.forward,0))).CanHullContact,
+            "an empty mapless record cannot become a rigid hull contact source");
         var def = TestBuildingDef("maplessMissile");
         def.comps.Add(new CompProperties_SpaceProjectile { guided = true, hasMap = false });
         def.useHitPoints = true;

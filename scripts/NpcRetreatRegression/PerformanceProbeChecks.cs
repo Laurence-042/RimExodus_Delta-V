@@ -16,6 +16,18 @@ internal static partial class Program
         bool previous = DeltaVMod.CurrentSettings.logPerformance;
         long originalCompleted = probe.engagementCompleted, originalCandidates = probe.engagementCandidates;
         int[] Counts() => (int[])typeof(DeltaVPerformanceProbe).GetField("calls", Private).GetValue(probe);
+        bool HullWork(long impulses, long batches, int stops) =>
+            (long)AccessTools.Field(typeof(DeltaVPerformanceProbe), "hullImpulses").GetValue(probe) == impulses
+            && (long)AccessTools.Field(typeof(DeltaVPerformanceProbe), "hullCrushBatches").GetValue(probe) == batches
+            && (int)AccessTools.Field(typeof(DeltaVPerformanceProbe), "hullBudgetStops").GetValue(probe) == stops;
+        void RecordHullWork()
+        {
+            probe.RecordHullPair();
+            probe.RecordHullRequest();
+            probe.RecordHullImpulse();
+            probe.RecordHullCrushBatch();
+            probe.RecordHullBudgetStop(.5f);
+        }
         try
         {
             Call(probe, "Reset");
@@ -24,7 +36,13 @@ internal static partial class Program
             probe.RecordCombatPose(100, default, null, CombatReplanCause.Structure, 1, 2, 3, 4);
             Check(DeltaVPerformanceProbe.Current == null && probe.Start() == 0 && Counts().All(n => n == 0),
                 "disabled combat probe skips lookup, clock and accumulation");
+            RecordHullWork();
+            Check(probe.hullPairs == 0 && probe.hullRequests == 0 && HullWork(0, 0, 0), "disabled hull statistics do not accumulate");
             DeltaVMod.CurrentSettings.logPerformance = true;
+            RecordHullWork();
+            Check(probe.hullPairs == 1 && probe.hullRequests == 1 && HullWork(1, 1, 1), "hull workload counts confirmed work");
+            Call(probe, "Reset");
+            Check(probe.hullPairs == 0 && probe.hullRequests == 0 && HullWork(0, 0, 0), "hull workload resets with its timing window");
             Check(DeltaVPerformanceProbe.Current == probe, "probe resolves this game's instance");
             probe.RecordCombatPose(100, default, null, CombatReplanCause.Structure | CombatReplanCause.Periodic, 1, 2, 3, 4);
             probe.RecordCombatPose(200, default, null, CombatReplanCause.Periodic, 5, 6, 7, 8);
