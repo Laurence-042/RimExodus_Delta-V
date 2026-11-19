@@ -23,8 +23,8 @@ namespace DeltaV
     ///   残骸，玩家可手动认领恢复为船。搬运造成的暂时 DeSpawn 不算损毁
     ///   （PostDestroy 不在 DeSpawn 路径上触发）。
     ///
-    /// 本 Comp 及其子类定义驾驶台身份，允许挂载于自定义建筑 Def。原版 PilotConsole
-    /// 由 XML patch 接入；战略发射另需原版 CompPilotConsole 和逆重引擎。
+    /// 本 Comp 及其子类定义驾驶台身份。Def 加载时给带 CompPilotConsole 或其子类的
+    /// 建筑补齐，也支持在自定义建筑上显式挂载。
     /// </summary>
     public class CompProperties_DeltaVPilotConsole : CompProperties
     {

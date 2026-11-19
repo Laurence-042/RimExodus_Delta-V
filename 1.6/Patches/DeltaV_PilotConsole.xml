@@ -1,14 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Patch>
 
-	<!--
-		为 Odyssey 原版 PilotConsole 挂载 Delta-V 组件。运行时按组件及其子类识别，
-		自定义建筑可自行挂载相同组件接入；战略发射另需原版驾驶组件与逆重引擎。
-	-->
+	<!-- 原版驾驶台的战术 AI 配置；驾驶台身份组件由 Def 加载补齐。 -->
 	<Operation Class="PatchOperationAdd">
 		<xpath>/Defs/ThingDef[defName="PilotConsole"]/comps</xpath>
 		<value>
-			<li Class="DeltaV.CompProperties_DeltaVPilotConsole" />
 			<li Class="DeltaV.CompProperties_ShipCombatAI" />
 		</value>
 	</Operation>

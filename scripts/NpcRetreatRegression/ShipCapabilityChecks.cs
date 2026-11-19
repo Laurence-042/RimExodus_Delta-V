@@ -9,6 +9,9 @@ using Verse;
 internal static partial class Program
 {
     sealed class EmptyComp : ThingComp { }
+    sealed class ExtendedPilotConsole : CompPilotConsole { }
+    sealed class ExtendedDeltaVPilotConsole : CompDeltaVPilotConsole { }
+    sealed class CopilotFacility : CompGravshipFacility { }
     // A third-party hull provider exercises the production object aggregation paths.
     sealed class ExtendedHull : ShuttleShip
     {
@@ -43,8 +46,69 @@ internal static partial class Program
         public override IEnumerable<ShipBase> Ships { get { yield return member; } }
     }
 
+    static void CheckPilotConsoleDefIntegration()
+    {
+        var patch = typeof(DeltaVMod).Assembly.GetType("DeltaV.Patch_PilotConsoleDefs", true);
+        var addConsole = (Action<ThingDef>)patch.GetMethod("AddMissingConsoleComponent", Private)
+            .CreateDelegate(typeof(Action<ThingDef>));
+
+        ThingDef ConsoleDef(string name, Type consoleType)
+        {
+            var def = TestBuildingDef(name);
+            def.thingClass = typeof(Building);
+            def.comps.Add(new CompProperties_GravshipFacility { compClass = consoleType });
+            return def;
+        }
+
+        var vanilla = ConsoleDef("PilotConsole", typeof(CompPilotConsole));
+        var vanillaFacility = vanilla.comps[0];
+        var combatAI = new CompProperties_ShipCombatAI();
+        vanilla.comps.Add(combatAI);
+        addConsole(vanilla);
+        addConsole(vanilla);
+        Check(vanilla.comps.Count == 3 && vanilla.comps[0] == vanillaFacility && vanilla.comps[1] == combatAI
+            && vanilla.comps[2] is CompProperties_DeltaVPilotConsole,
+            "vanilla console gets exactly one Delta-V component and retains its facility and tactical AI");
+
+        var extended = ConsoleDef("ExtendedPilotConsole", typeof(ExtendedPilotConsole));
+        addConsole(extended);
+        Check(extended.comps.Count == 2 && extended.HasComp<CompDeltaVPilotConsole>(),
+            "a third-party building with a pilot component subclass gets Delta-V piloting");
+
+        var configured = ConsoleDef("ConfiguredPilotConsole", typeof(CompPilotConsole));
+        var configuredComponent = new CompProperties_DeltaVPilotConsole();
+        configured.comps.Add(configuredComponent);
+        addConsole(configured);
+        Check(configured.comps.Count == 2 && configured.comps[1] == configuredComponent,
+            "explicit Delta-V console properties are kept without a duplicate");
+
+        var custom = ConsoleDef("CustomPilotConsole", typeof(CompPilotConsole));
+        var customComponent = new CompProperties(typeof(ExtendedDeltaVPilotConsole));
+        custom.comps.Add(customComponent);
+        addConsole(custom);
+        Check(custom.comps.Count == 2 && custom.comps[1] == customComponent,
+            "a custom Delta-V console component subclass prevents adding another component");
+
+        var copilot = ConsoleDef("VGE_CopilotConsole", typeof(CopilotFacility));
+        addConsole(copilot);
+        Check(copilot.comps.Count == 1 && !copilot.HasComp<CompDeltaVPilotConsole>(),
+            "a VGE-style copilot facility is skipped");
+
+        var building = ConsoleDef("EligibleBuildingWithSharedComps", typeof(CompPilotConsole));
+        var nonBuilding = TestBuildingDef("NonBuildingWithSharedComps");
+        nonBuilding.category = ThingCategory.Item;
+        nonBuilding.thingClass = typeof(ThingWithComps);
+        nonBuilding.comps = building.comps;
+        addConsole(nonBuilding);
+        addConsole(building);
+        Check(nonBuilding.comps.Count == 1 && !nonBuilding.HasComp<CompDeltaVPilotConsole>()
+            && building.HasComp<CompDeltaVPilotConsole>(),
+            "a non-building Def is skipped even when it shares a pilot comp list with an eligible building");
+    }
+
     static void CheckShipCapabilities(UniverseManager universe, Faction player)
     {
+        CheckPilotConsoleDefIntegration();
         Map map = TestMap(1100);
         var hull = new ExtendedHullComp { props = new CompProperties_SpaceShuttle
         {
