@@ -78,8 +78,10 @@ namespace DeltaV
         private readonly List<Battery> batteries = new List<Battery>();
         internal readonly List<CombatAttackWeapon> primaryWeapons = new List<CombatAttackWeapon>();
         private readonly Vector2 ownCenter, enemyCenter;
-        private readonly float ownRadius, enemyRadius;
-        private readonly CombatDamageForecast ownShot, enemyShot;
+        private readonly ShipBase ownShip, enemyShip;
+        private readonly bool offense;
+        private float ownRadius, enemyRadius;
+        private CombatDamageForecast ownShot, enemyShot;
         private readonly CombatWeaponOutputTable outputTable;
 
         internal CombatEngagementEvaluation(UniverseManager universe, ShipBase own, ShipBase enemy,
@@ -88,13 +90,10 @@ namespace DeltaV
         {
             using var timing = universe.Performance.Measure(PerformanceStage.EngagementObservation);
             this.universe = universe; this.targetPose = targetPose;
+            this.offense = offense;
+            ownShip = own;
+            enemyShip = enemy;
             ownCenter = own.HullCenter; enemyCenter = enemy.HullCenter;
-            if (!dualTable)
-            {
-                ownRadius = ShipFireControl.HullRadius(own); enemyRadius = ShipFireControl.HullRadius(enemy);
-                ownShot = new CombatDamageForecast(universe.FrameOf(own.Map), own);
-                enemyShot = new CombatDamageForecast(universe.FrameOf(enemy.Map), enemy);
-            }
             void Capture(ShipBase ship, ShipBase receiver, bool outgoing)
             {
                 int rangeGroup = batteries.Count;
@@ -164,6 +163,13 @@ namespace DeltaV
 
         internal Result Evaluate(SpacePose candidate)
         {
+            if (ownShot == null)
+            {
+                ownRadius = ShipFireControl.HullRadius(ownShip);
+                enemyRadius = ShipFireControl.HullRadius(enemyShip);
+                ownShot = new CombatDamageForecast(universe.FrameOf(ownShip.Map), ownShip);
+                enemyShot = new CombatDamageForecast(universe.FrameOf(enemyShip.Map), enemyShip);
+            }
             var performance = universe.Performance;
             performance.engagementCandidates++;
             using var timing = performance.Measure(PerformanceStage.EngagementScore);
@@ -172,6 +178,7 @@ namespace DeltaV
             float centerDistance = 0f;
             foreach (var battery in batteries)
             {
+                if (battery.outgoing && !offense) continue;
                 var source = battery.outgoing ? candidate : battery.pose;
                 var target = battery.outgoing ? targetPose : candidate;
                 // Capture appends each shooter's weapons consecutively with the same receiver.
@@ -210,6 +217,19 @@ namespace DeltaV
                     result.uncertain = true;
                 }
             }
+            return result;
+        }
+
+        internal Result Refine(SpacePose candidate, Result estimate)
+        {
+            Result result = Evaluate(candidate);
+            result.travel = estimate.travel;
+            result.velocity = estimate.velocity;
+            result.reverse = estimate.reverse;
+            result.flank = estimate.flank;
+            result.fixedAimWeapon = estimate.fixedAimWeapon;
+            result.fixedAimTarget = estimate.fixedAimTarget;
+            result.fixedAimPart = estimate.fixedAimPart;
             return result;
         }
 

@@ -213,14 +213,35 @@ namespace DeltaV
                 throw new InvalidOperationException("Could not capture the surviving storage item.");
         }
 
-        internal void QueueMiningEjection(Thing ore, SpaceObject asteroid, Vector2 hitPoint, Vector2 outward)
+        internal bool TryEjectCombatLeavings(ThingOwner holder, Thing item, Map map, IntVec3 cell)
         {
-            Map map = asteroid.map;
+            SpaceObject owner = universe.SpaceObjectOnMap(map);
+            if (owner == null || map.Disposed || !cell.InBounds(map)) return false;
+            int seed = item.thingIDNumber;
+            Vector2 direction = SpaceTransform.Rotate(Vector2.up, Rand.RangeSeeded(0f, Mathf.PI * 2f, seed));
+            float speed = Rand.RangeSeeded(0f, 4f, Gen.HashCombineInt(seed, map.cellIndices.CellToIndex(cell)));
+            SpacePose pose = EjectionPose(owner, map, cell, default, direction * speed);
+            return universe.CapturePayload(item, pose, item.Faction, holder: holder, publishAtFrame: true) != null;
+        }
+
+        internal void QueueMiningEjection(Thing item, SpaceObject source, Vector2 hitPoint, Vector2 outward,
+            bool cutReturn = false)
+        {
+            Map map = source.map;
             Vector2 localPoint = SpaceTransform.MapToShipLocal(map, hitPoint) + outward * 0.5f;
-            SpacePose pose = SpaceTransform.RigidPointPose(asteroid.pose, localPoint, 0f);
-            pose.velocity = SpaceTransform.VelocityAtMovingLocalPoint(asteroid.pose, localPoint,
-                outward * Rand.Range(2f, 4f), pose.position);
-            if (universe.CapturePayload(ore, pose, ore.Faction, publishAtFrame: true) == null)
+            SpacePose pose = SpaceTransform.RigidPointPose(source.pose, localPoint, 0f);
+            Vector2 direction = outward;
+            float speed;
+            if (cutReturn)
+            {
+                int seed = item.thingIDNumber;
+                float angle = Rand.RangeSeeded(-40f, 40f, Gen.HashCombineInt(seed, 1)) * Mathf.Deg2Rad;
+                direction = SpaceTransform.Rotate(outward, angle);
+                speed = Rand.RangeSeeded(0.4f, 1.8f, seed);
+            }
+            else speed = Rand.Range(2f, 4f);
+            pose.velocity = SpaceTransform.VelocityAtMovingLocalPoint(source.pose, localPoint, direction * speed, pose.position);
+            if (universe.CapturePayload(item, pose, item.Faction, publishAtFrame: true) == null)
                 throw new InvalidOperationException("Could not capture the mining output.");
         }
 

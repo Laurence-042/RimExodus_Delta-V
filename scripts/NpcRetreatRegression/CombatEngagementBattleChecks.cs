@@ -41,6 +41,8 @@ internal static partial class Program
         var patch = new Harmony("DeltaV.Regression.EngagementBattle");
         patch.Patch(typeof(ModsConfig).TypeInitializer,
             prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
+        patch.Patch(AccessTools.PropertyGetter(typeof(MapInfo), nameof(MapInfo.Tile)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(HullContactPocketTile)));
         foreach (var method in new[] {
             AccessTools.Method(typeof(ImpactSoundUtility), "PlayImpactSound"),
             AccessTools.Method(typeof(DamageWatcher), "Notify_DamageTaken"),
@@ -80,6 +82,7 @@ internal static partial class Program
                         armorPenetration = (float?)part.Element("armorPenetration") ?? 10 } });
             }
             SpaceImpactEffects.ResetCache();
+            CheckOrderedStructureContacts(universe, player);
             var results = new List<object>();
             var outcomes = new List<(int seed, bool mirrored, bool automatic, int disabled, float loss, bool alive)>();
             foreach (int seed in new[] { 17, 29 })
@@ -109,6 +112,92 @@ internal static partial class Program
                 results }, new JsonSerializerOptions { WriteIndented = true }));
         }
         finally { patch.UnpatchAll(patch.Id); }
+    }
+
+    static void CheckOrderedStructureContacts(UniverseManager universe, Faction faction)
+    {
+        int id = 159060;
+        foreach (var (sameCell, floorHit, expectFloor) in new[]
+        {
+            (true, 0f, true), (false, 1f, true), (false, 0f, false)
+        })
+        {
+            Map map = TestMap(id++, 10);
+            map.damageWatcher = (DamageWatcher)Raw(typeof(DamageWatcher));
+            map.roofGrid = new RoofGrid(map);
+            var vacuum = (TerrainDef)Raw(typeof(TerrainDef));
+            vacuum.exposesToVacuum = true;
+            Array.Fill(map.terrainGrid.topGrid, vacuum);
+            var floor = (TerrainDef)Raw(typeof(TerrainDef));
+            floor.isFoundation = true;
+            floor.tags = new List<string> { "Substructure" };
+            var floorCell = sameCell ? new IntVec3(4, 0, 5) : new IntVec3(4, 0, 3);
+            var wallCell = sameCell ? floorCell : new IntVec3(5, 0, 5);
+            int floorIndex = map.cellIndices.CellToIndex(floorCell);
+            map.terrainGrid.foundationGrid[floorIndex] = floor;
+            var frame = new MapSpaceObject(id++, map, new SpacePose(Vector3.forward, 0));
+            universe.objects.Add(frame);
+            Set(universe, "objectById", null);
+            Set(universe, "objectByMap", null);
+            var wallDef = TestBuildingDef("orderedContactWall");
+            wallDef.building.isWall = true;
+            wallDef.passability = Traversability.Impassable;
+            wallDef.useHitPoints = wallDef.destroyable = true;
+            var wall = (BattleBuilding)AddTestBuilding(map, faction, id++, wallDef, new CompPowerTransmitter(), new BattleBuilding());
+            MoveCombatFixture(wall, wallCell);
+            wall.HitPoints = sameCell ? 40 : 100;
+            var round = TestBuildingDef("orderedContactProjectile");
+            round.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, collisionRadius = 1.3f });
+            var buildingEffect = new SpaceImpactEffectDef { defName = "OrderedBuilding" + id,
+                projectileDefs = new List<ThingDef> { round }, buildingHitChance = 0f,
+                defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damage = 120,
+                    damageDef = DamageDefOf.Bullet, incidenceMinFactor = 1, penetrates = sameCell } };
+            var floorEffect = new SpaceImpactEffectDef { defName = "OrderedDeck" + id,
+                projectileDefs = buildingEffect.projectileDefs, targetsSubstructure = true, substructureHitChance = floorHit,
+                defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damage = 120,
+                    substructureBreakThreshold = 60, incidenceMinFactor = 1, penetrates = sameCell } };
+            DefDatabase<SpaceImpactEffectDef>.Add(buildingEffect);
+            DefDatabase<SpaceImpactEffectDef>.Add(floorEffect);
+            SpaceImpactEffects.ResetCache();
+            SubstructureOwnership.BumpStructureVersion(map);
+            try
+            {
+                var forecast = new CombatDamageForecast(frame);
+                Vector2 from = new Vector2(2.4f, 5.2f);
+                var prediction = forecast.Fire(from, Vector2.right, 5, round, 1, 60, coverSample: .37f);
+                var deckLoss = (HashSet<IntVec3>)AccessTools.Field(typeof(CombatDamageForecast), "brokenFoundation").GetValue(forecast);
+                Check(deckLoss.Contains(floorCell) == expectFloor && map.terrainGrid.foundationGrid[floorIndex] == floor,
+                    $"forecast resolves the ordered layers without changing the map (same cell: {sameCell}, deck hit: {floorHit})");
+                Vector3 start = SpaceTransform.MapPointToUniverse(frame, map, from);
+                var shot = new SpaceCollision.SweptBody
+                {
+                    attacker = new SpaceObject(id++, new SpacePose(start, 0)), requiredDefender = frame,
+                    from = start, to = SpaceTransform.MapPointToUniverse(frame, map, from + Vector2.right * 5),
+                    projectileDef = round, mass = 1, damageScale = 1, sweepRadius = 1.3f
+                };
+                SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
+                Check((map.terrainGrid.foundationGrid[floorIndex] == null) == expectFloor,
+                    $"real sweep agrees with the forecast about the deck (same cell: {sameCell}, deck hit: {floorHit})");
+                Check(wall.Destroyed == (sameCell || !expectFloor) && shot.resolvedHitCell == (expectFloor ? floorCell : wallCell),
+                    "earlier bare deck is resolved before the rear wall; a missed deck lets the wall resolve next");
+                if (sameCell)
+                    Check(Math.Abs(shot.damageScale - 1f / 6f) < .001f && prediction.contacts == 2,
+                        "building and confirmed same-cell deck each consume one layer of the penetration budget");
+            }
+            finally
+            {
+                var remove = AccessTools.Method(typeof(DefDatabase<SpaceImpactEffectDef>), "Remove");
+                remove.Invoke(null, new object[] { buildingEffect });
+                remove.Invoke(null, new object[] { floorEffect });
+                SpaceImpactEffects.ResetCache();
+                universe.objects.Remove(frame);
+                Find.Maps.Remove(map);
+                Set(universe, "objectById", null);
+                Set(universe, "objectByMap", null);
+                SpaceCollision.ClearCaches();
+                ShipRegistry.ClearCaches();
+            }
+        }
     }
 
     static void CheckForecastFoundationBatch(UniverseManager universe)

@@ -11,7 +11,8 @@ namespace DeltaV
         private CombatEngagementEvaluation.Result engagementResult;
         private sealed class EngagementCandidate
         {
-            internal float phase, score;
+            internal float phase, score, legacyScore;
+            internal SpacePose state;
             internal CombatAttackPose pose;
             internal CombatEngagementEvaluation.Result value;
         }
@@ -168,8 +169,8 @@ namespace DeltaV
                             new Vector2(-Mathf.Sin(current), Mathf.Cos(current)) * Mathf.Sign(tangent), target.position, self.position), self.angle))) : 0;
                     value.flank = alliedPhase.HasValue ? 1 - Mathf.Abs(SpaceTransform.WrapAngle(phase - alliedPhase.Value)) / Mathf.PI : 0;
                     float extra = LegacyScore(ref pose, state);
-                    candidates.Add(new EngagementCandidate { phase = phase, pose = pose,
-                        value = value, score = value.Score(rule.engagement) + extra });
+                    candidates.Add(new EngagementCandidate { phase = phase, pose = pose, state = state,
+                        value = value, score = value.Score(rule.engagement) + extra, legacyScore = extra });
                 }
             }
             // Check routes for leading attitude variants and both continuation candidates.
@@ -189,7 +190,12 @@ namespace DeltaV
                 var action = EngagementAction(self, target, candidate.pose, candidate.phase, drive, settings);
                 var reference = CombatFlightPlanner.Plan(self, target, action, drive, Verse.Find.TickManager.TicksGame);
                 reference.localAnchor = SpaceTransform.MapToShipLocal(ship.Map, ship.HullCenter);
-                if (!RouteClear(ship, reference, out _, out _)) candidate.score = float.NegativeInfinity;
+                if (RouteClear(ship, reference, out _, out _))
+                {
+                    candidate.value = evaluator.Refine(candidate.state, candidate.value);
+                    candidate.score = candidate.value.Score(rule.engagement) + candidate.legacyScore;
+                }
+                else candidate.score = float.NegativeInfinity;
                 candidate.pose.preference = candidate.score;
             }
             var result = finalists.OrderBy(c => Mathf.Abs(SpaceTransform.WrapAngle(c.phase - current)) < .001f ? 0 : 1).ToList();

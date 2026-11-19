@@ -124,7 +124,8 @@ internal static class Program
             Check(resolved["size"].InnerText == "(2,2)", name + " real XML inheritance preserves footprint");
             Check(resolved["thingClass"].InnerText == "DeltaV.Building_SpaceTurretGun",
                 name + " uses existing turret implementation");
-            XmlNodeList weaponComps = resolved.SelectNodes("comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']");
+            XmlNodeList weaponComps = resolved.SelectNodes(
+                "comps/li[@Class='DeltaV.CompProperties_SpaceWeapon' or @Class='DeltaV.CompProperties_MiningBeam']");
             Check(weaponComps.Count == 1 && weaponComps[0]["manualOnly"].InnerText == "true",
                 name + " inherits exactly one manual engineering weapon");
             Check(resolved.SelectNodes("comps/li[@Class='CompProperties_Mannable']").Count == 0
@@ -158,12 +159,15 @@ internal static class Program
         })
         {
             XmlNode weapon = XmlInheritance.GetResolvedNodeFor(defs.SelectSingleNode($"/Defs/*[defName='{weaponName}']"))
-                .SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']");
+                .SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_MiningBeam']");
             XmlNode impact = XmlInheritance.GetResolvedNodeFor(defs.SelectSingleNode($"/Defs/*[defName='{impactName}']"))
                 ["defenderEffect"];
-            Check(Number(impact["damage"]) * 60 / Number(weapon["cooldownTicks"]) == dps
-                && Number(impact["miningYieldFactor"]) == yield && Number(weapon["range"]) == range,
-                weaponName + " retains its short range with the configured DPS and yield");
+            Check(impact["kind"].InnerText == "CutStructure"
+                && Number(weapon["cutDamage"]) * 60 / Number(weapon["cooldownTicks"]) == dps
+                && Number(weapon["miningYieldFactor"]) == yield && Number(weapon["dismantleYieldFactor"]) == yield
+                && (weapon["deliverToEmitter"]?.InnerText == "true") == (yield < 1)
+                && Number(weapon["range"]) == range,
+                weaponName + " uses the shared cutter with configured DPS, range, yields and destination");
             XmlNode projectile = XmlInheritance.GetResolvedNodeFor(defs.SelectSingleNode($"/Defs/ThingDef[defName='{beamName}']"))
                 .SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceProjectile']");
             var props = new CompProperties_SpaceProjectile { laserRange = Number(projectile["laserRange"]) };

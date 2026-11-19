@@ -401,13 +401,16 @@ namespace DeltaV
                 if (body.dead || body.attacker == null
                     || body.attacker.Payload is AbstractMissile { InterceptionBody: null }) continue;
                 Dictionary<SpaceObject, PassedContacts> passed = null;
+                SweepContact? sameCell = null;
                 for (int bounce = 0; bounce < 128 && !body.dead; bounce++)
                 {
-                    if (!TryFindFirstContact(universe, objects, body, ref passed, out SweepContact contact)) break;
+                    SweepContact contact;
+                    if (sameCell.HasValue) contact = sameCell.Value;
+                    else if (!TryFindFirstContact(universe, objects, body, ref passed, out contact)) break;
 
                     body.redirected = false;
                     body.continued = false;
-                    ResolveContact(body, contact);
+                    ResolveContactLayer(body, contact, out sameCell);
                     if (body.dead) break;
                     body.sweepStartFraction = contact.fraction;
                     if (body.continued)
@@ -464,7 +467,12 @@ namespace DeltaV
                 RayContact ray = first.ray;
                 if (ray.kind == SpaceCellKind.Empty
                     || SpaceImpactEffects.HitTest(body.projectileDef, ray.kind, ray.building, first.effect))
+                {
+                    first.ray = ConfirmedStructureContact(first.target.map, ray);
+                    if (first.ray.building != ray.building)
+                        first.effect = SpaceImpactEffects.Resolve(body.projectileDef, first.ray.building.def);
                     return true;
+                }
 
                 if (first.props?.continuousBeam != true && DeltaVLog.Enabled(DeltaVLogModule.Combat))
                     DeltaVLog.Message(DeltaVLogModule.Combat,
@@ -670,8 +678,12 @@ namespace DeltaV
             body.excludeContainer = null;
         }
 
-        private static void ResolveContact(SweptBody body, SweepContact contact)
+        private static void ResolveContact(SweptBody body, SweepContact contact) =>
+            ResolveContactLayer(body, contact, out _);
+
+        private static void ResolveContactLayer(SweptBody body, SweepContact contact, out SweepContact? sameCell)
         {
+            sameCell = null;
             SpaceObject defender = contact.defender;
             TargetView target = contact.target;
             if (!target.Valid) return;
@@ -770,7 +782,18 @@ namespace DeltaV
                     missileDestroyed = bestThing?.Destroyed == true
                         && bestThing.def.GetCompProperties<CompProperties_SpaceProjectile>()?.guided == true
                 });
-                if (ContinueAfterImpact(body, remaining, evt.hitUniverse)) return;
+                if (ContinueAfterImpact(body, remaining, evt.hitUniverse))
+                {
+                    // The building and the deck below it share one confirmed contact.
+                    if (defenderPart?.kind == ImpactEffectKind.DamageMap && defenderPart.penetrates
+                        && TrySameCellContinuation(defMap, ray, out RayContact next))
+                    {
+                        contact.ray = next;
+                        contact.effect = SpaceImpactEffects.Resolve(body.projectileDef, next.building?.def);
+                        sameCell = contact;
+                    }
+                    return;
+                }
                 ApplyAttackerOutcome(body, effect, defender, evt.hitUniverse, evt.hitDefenderLocal);
                 return;
             }
@@ -1061,16 +1084,18 @@ namespace DeltaV
                 return TryFindGridContact(map, surface, from, dir, near, end, normal, out contact,
                     include, passedBuildings, passedCells, skipSubstructure, coverBuildings, coverCells);
 
-            int first = Mathf.FloorToInt(near / SampleStep);
-            int last = Mathf.CeilToInt(end / SampleStep);
-            for (int step = first; step <= last; step++)
+            for (float start = near; start <= end;)
             {
-                Vector2 p = from + dir * Mathf.Min(end, step * SampleStep);
-                if (!FindBestCell(body, map, surface, from, p, footprintDirection, passedBuildings, passedCells,
-                    out IntVec3 cell, out SpaceCellKind kind, out Thing building, include, skipSubstructure,
-                    coverBuildings, coverCells)) continue;
-                contact = new RayContact(p, normal, cell, kind, building);
-                return true;
+                float stop = Mathf.Min(end, start + SampleStep);
+                if (FindBestCell(body, map, surface, from, dir, footprintDirection, start, stop,
+                    passedBuildings, passedCells, out IntVec3 cell, out SpaceCellKind kind, out Thing building,
+                    out float along, include, skipSubstructure, coverBuildings, coverCells))
+                {
+                    contact = new RayContact(from + dir * along, normal, cell, kind, building);
+                    return true;
+                }
+                if (stop >= end) break;
+                start = stop;
             }
             return false;
         }
@@ -1105,6 +1130,11 @@ namespace DeltaV
             building = surface.buildings[index];
             if (building != null && !building.Destroyed && passedBuildings?.Contains(building) != true
                 && coverBuildings?.Contains(building) != true) return true;
+            if (building != null && (building.Destroyed || passedBuildings?.Contains(building) == true))
+            {
+                kind = SpaceStructureRules.ClassifyCell(map, cell, out building, passedBuildings);
+                if (building != null && coverBuildings?.Contains(building) != true) return true;
+            }
             kind = SpaceCellKind.Substructure;
             building = null;
             return !skipSubstructure && surface.foundations[index] && passedCells?.Contains(cell) != true
@@ -1112,71 +1142,87 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 找采样点周围（扫掠块半径内）「建筑优先、沿弹道更早」的占用格。
-        /// 已放行的建筑/基架不重掷；建筑放行后同格基架仍可被判定。
+        /// 按本段扫掠进入格子的最早时刻排序；同格仍由建筑先受击。
         /// </summary>
         private static bool FindBestCell(SweptBody body, Map defMap, Surface surface, Vector2 fromLocal,
-            Vector2 p, Vector2 dir, HashSet<Thing> passedBuildings, HashSet<IntVec3> passedSubstructure,
+            Vector2 direction, Vector2 footprintDirection, float start, float end,
+            HashSet<Thing> passedBuildings, HashSet<IntVec3> passedSubstructure,
             out IntVec3 bestCell, out SpaceCellKind bestKind, out Thing bestThing,
-            System.Predicate<IntVec3> include, bool skipSubstructure,
+            out float bestAlong, System.Predicate<IntVec3> include, bool skipSubstructure,
             HashSet<Thing> coverBuildings, HashSet<IntVec3> coverCells)
         {
             bestCell = IntVec3.Invalid;
             bestKind = SpaceCellKind.Empty;
             bestThing = null;
-            int reach = Mathf.CeilToInt(body.sweepRadius);
-            int cx = Mathf.FloorToInt(p.x);
-            int cz = Mathf.FloorToInt(p.y);
-            Vector2 side = new Vector2(-dir.y, dir.x);
-            float bestRank = float.MaxValue;
-            for (int ox = -reach; ox <= reach; ox++)
-            for (int oz = -reach; oz <= reach; oz++)
+            bestAlong = float.PositiveInfinity;
+            Vector2 first = fromLocal + direction * start;
+            Vector2 last = fromLocal + direction * end;
+            float radius = body.sweepRadius;
+            int minX = Mathf.Max(0, Mathf.CeilToInt(Mathf.Min(first.x, last.x) - radius) - 1);
+            int minZ = Mathf.Max(0, Mathf.CeilToInt(Mathf.Min(first.y, last.y) - radius) - 1);
+            int maxX = Mathf.Min(defMap.Size.x - 1, Mathf.FloorToInt(Mathf.Max(first.x, last.x) + radius));
+            int maxZ = Mathf.Min(defMap.Size.z - 1, Mathf.FloorToInt(Mathf.Max(first.y, last.y) + radius));
+            for (int x = minX; x <= maxX; x++)
+            for (int z = minZ; z <= maxZ; z++)
             {
-                var cell = new IntVec3(cx + ox, 0, cz + oz);
-                if (!cell.InBounds(defMap)) continue;
+                var cell = new IntVec3(x, 0, z);
                 if (include != null && !include(cell)) continue;
-                // 格矩形到采样点的最近点距离 ≤ 扫掠半径才算被脚印覆盖。
-                float nearestX = Mathf.Clamp(p.x, cell.x, cell.x + 1f);
-                float nearestZ = Mathf.Clamp(p.y, cell.z, cell.z + 1f);
-                if ((nearestX - p.x) * (nearestX - p.x) + (nearestZ - p.y) * (nearestZ - p.y)
-                    > body.sweepRadius * body.sweepRadius)
-                {
-                    continue;
-                }
-                if (body.noseHalfWidth > 0f)
-                {
-                    // 侧滑时按真实艇首朝向定位，不能把速度方向当成船首。
-                    // 与落位用的 3×5 脚印一致，仅让前端一排 3×1 的矩形触发破拆。
-                    Vector2 offset = new Vector2(cell.x + 0.5f, cell.z + 0.5f)
-                        - (p + dir * body.noseForwardOffset);
-                    float forwardReach = 0.5f + 0.5f * (Mathf.Abs(dir.x) + Mathf.Abs(dir.y));
-                    float sideReach = body.noseHalfWidth
-                        + 0.5f * (Mathf.Abs(side.x) + Mathf.Abs(side.y));
-                    if (Mathf.Abs(Vector2.Dot(offset, dir)) > forwardReach
-                        || Mathf.Abs(Vector2.Dot(offset, side)) > sideReach
-                        || Mathf.Abs(offset.x) > 0.5f + 0.5f * Mathf.Abs(dir.x)
-                            + body.noseHalfWidth * Mathf.Abs(side.x)
-                        || Mathf.Abs(offset.y) > 0.5f + 0.5f * Mathf.Abs(dir.y)
-                            + body.noseHalfWidth * Mathf.Abs(side.y)) continue;
-                }
                 if (!TryGetHullCell(defMap, surface, cell, passedBuildings, passedSubstructure, skipSubstructure,
                     out SpaceCellKind kind, out Thing thing, coverBuildings, coverCells)) continue;
-                // 建筑高于同一带内的基架；同类再按沿弹道距离排序。
-                float rank = (new Vector2(cell.x + 0.5f, cell.z + 0.5f) - fromLocal).sqrMagnitude;
-                bool buildingWins = bestKind == SpaceCellKind.Substructure
-                    && kind != SpaceCellKind.Substructure;
-                bool sameLayer = bestKind == SpaceCellKind.Empty
-                    || (bestKind == SpaceCellKind.Substructure) == (kind == SpaceCellKind.Substructure);
-                if (buildingWins || sameLayer && rank < bestRank)
-                {
-                    bestRank = rank;
-                    bestCell = cell;
-                    bestKind = kind;
-                    bestThing = thing;
-                }
+                Vector2 offset = fromLocal - new Vector2(cell.x + .5f, cell.z + .5f);
+                float along = CellEntry(body, offset, direction, footprintDirection, start, end);
+                if (float.IsPositiveInfinity(along) || along > bestAlong
+                    || (along == bestAlong && (!SpaceStructureRules.IsCollisionWall(thing)
+                        || SpaceStructureRules.IsCollisionWall(bestThing)))) continue;
+                bestAlong = along;
+                bestCell = cell;
+                bestKind = kind;
+                bestThing = thing;
             }
             return bestKind != SpaceCellKind.Empty;
+        }
 
+        private static float CellEntry(SweptBody body, Vector2 origin, Vector2 direction,
+            Vector2 forward, float near, float far)
+        {
+            float radius = body.sweepRadius;
+            if (!ClipAxis(origin.x, direction.x, .5f + radius, ref near, ref far)
+                || !ClipAxis(origin.y, direction.y, .5f + radius, ref near, ref far))
+                return float.PositiveInfinity;
+            if (body.noseHalfWidth > 0f)
+            {
+                // Clip the same front strip as the boarding footprint, including side-slip.
+                Vector2 side = new Vector2(-forward.y, forward.x);
+                Vector2 nose = origin + forward * body.noseForwardOffset;
+                float diagonal = .5f * (Mathf.Abs(forward.x) + Mathf.Abs(forward.y));
+                if (!ClipAxis(Vector2.Dot(nose, forward), Vector2.Dot(direction, forward), .5f + diagonal, ref near, ref far)
+                    || !ClipAxis(Vector2.Dot(nose, side), Vector2.Dot(direction, side), body.noseHalfWidth + diagonal, ref near, ref far)
+                    || !ClipAxis(nose.x, direction.x, .5f + .5f * Mathf.Abs(forward.x) + body.noseHalfWidth * Mathf.Abs(side.x), ref near, ref far)
+                    || !ClipAxis(nose.y, direction.y, .5f + .5f * Mathf.Abs(forward.y) + body.noseHalfWidth * Mathf.Abs(side.y), ref near, ref far))
+                    return float.PositiveInfinity;
+            }
+            if (radius == 0f) return near;
+            // A swept disk enters a square through a face strip or a rounded corner.
+            float first = Mathf.Min(Strip(.5f + radius, .5f), Strip(.5f, .5f + radius));
+            for (int x = -1; x <= 1; x += 2)
+            for (int y = -1; y <= 1; y += 2)
+            {
+                Vector2 offset = origin - new Vector2(x * .5f, y * .5f);
+                float projection = Vector2.Dot(offset, direction);
+                float discriminant = radius * radius - (offset - projection * direction).sqrMagnitude;
+                if (discriminant < 0f) continue;
+                float root = Mathf.Sqrt(discriminant);
+                float entry = Mathf.Max(near, -projection - root);
+                if (entry <= far && entry <= -projection + root) first = Mathf.Min(first, entry);
+            }
+            return first;
+
+            float Strip(float x, float y)
+            {
+                float start = near, stop = far;
+                return ClipAxis(origin.x, direction.x, x, ref start, ref stop)
+                    && ClipAxis(origin.y, direction.y, y, ref start, ref stop) ? start : float.PositiveInfinity;
+            }
         }
     }
 }

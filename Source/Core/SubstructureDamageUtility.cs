@@ -1,3 +1,4 @@
+using System;
 using RimWorld;
 using RimWorld.Planet;
 using Verse;
@@ -17,19 +18,20 @@ namespace DeltaV
         }
 
         internal static bool TryDestroyHitFoundation(Map map, IntVec3 cell,
-            bool scatterNearbyRoofs = true, Thing instigator = null)
+            bool scatterNearbyRoofs = true, Thing instigator = null, Action<Building> removeAttachment = null)
         {
             if (!SubstructureOwnership.HasFoundation(map, cell)) return false;
             Faction owner = PublicFacility.ConsoleAt(map, cell)?.parent.Faction;
             map.terrainGrid.RemoveFoundation(cell, doLeavings: false);
             if (SubstructureOwnership.HasFoundation(map, cell)) return false;
-            CompleteDestruction(map, cell, scatterNearbyRoofs);
+            CompleteDestruction(map, cell, scatterNearbyRoofs, removeAttachment);
             PublicFacility.Penalize(owner, instigator, new GlobalTargetInfo(cell, map));
             return true;
         }
 
         /// <summary>仅在明确的毁伤流程已移除基架后调用，原版毁伤适配共用。</summary>
-        internal static void CompleteDestruction(Map map, IntVec3 cell, bool scatterNearbyRoofs = true)
+        internal static void CompleteDestruction(Map map, IntVec3 cell, bool scatterNearbyRoofs = true,
+            Action<Building> removeAttachment = null)
         {
             if (SubstructureOwnership.HasFoundation(map, cell)) return;
             Current.Game?.GetComponent<UniverseManager>()?.Projectiles.NotifyFoundationDestroyed(map, cell);
@@ -45,8 +47,9 @@ namespace DeltaV
             Thing[] things = cell.GetThingList(map).ToArray();
             foreach (Thing thing in things)
             {
-                if (thing is Building && thing.Spawned && thing.Map == map && !thing.Destroyed)
-                    thing.Kill();
+                if (thing is not Building building || !thing.Spawned || thing.Map != map || thing.Destroyed) continue;
+                if (removeAttachment == null) building.Kill();
+                else removeAttachment(building);
             }
             CleanInvalidFilth(map, cell);
             Current.Game?.GetComponent<UniverseManager>()?.Scatter.NotifyDestroyedCell(map, cell);

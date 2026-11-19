@@ -57,6 +57,28 @@ namespace DeltaV
             }
         }
 
+        internal static RayContact ConfirmedStructureContact(Map map, RayContact contact,
+            HashSet<Thing> destroyed = null)
+        {
+            if (map == null || contact.kind != SpaceCellKind.Substructure) return contact;
+            SpaceCellKind kind = SpaceStructureRules.ClassifyCell(map, contact.cell, out var building, destroyed);
+            return building == null ? contact : new RayContact(contact.point, contact.normal, contact.cell, kind, building);
+        }
+
+        internal static bool TrySameCellContinuation(Map map, RayContact contact, out RayContact next,
+            HashSet<Thing> destroyed = null, HashSet<IntVec3> brokenFoundation = null)
+        {
+            next = default;
+            if (map == null || contact.building == null || !contact.cell.InBounds(map)
+                || brokenFoundation?.Contains(contact.cell) == true
+                || !SubstructureOwnership.HasFoundation(map, contact.cell))
+                return false;
+            SpaceCellKind kind = SpaceStructureRules.ClassifyCell(map, contact.cell, out var building, destroyed);
+            if (building == contact.building) return false;
+            next = new RayContact(contact.point, contact.normal, contact.cell, kind, building);
+            return true;
+        }
+
         private static bool TryHullGridSegment(Map map, Surface surface, Vector2 from,
             Vector2 direction, float length, out RayContact contact)
         {

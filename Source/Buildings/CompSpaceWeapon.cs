@@ -177,6 +177,24 @@ namespace DeltaV
         }
     }
 
+    public sealed class CompProperties_MiningBeam : CompProperties_SpaceWeapon
+    {
+        public float cutDamage;
+        public float foundationBreakThreshold = 60f;
+        public float miningYieldFactor = 1f;
+        public float dismantleYieldFactor = 1f;
+        public bool deliverToEmitter;
+
+        public override IEnumerable<string> ConfigErrors(ThingDef parentDef)
+        {
+            foreach (string error in base.ConfigErrors(parentDef)) yield return error;
+            if (!(cutDamage > 0f && foundationBreakThreshold > 0f
+                && miningYieldFactor >= 0f && miningYieldFactor <= 1f
+                && dismantleYieldFactor >= 0f && dismantleYieldFactor <= 1f))
+                yield return $"{parentDef.defName}: mining beams require positive damage and threshold and yield factors in [0, 1]";
+        }
+    }
+
     public partial class CompSpaceWeapon : ThingComp
     {
         // ---- 持久配置（存档事实；gizmo 修改）----

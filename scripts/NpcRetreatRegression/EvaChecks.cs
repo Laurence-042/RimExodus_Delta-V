@@ -249,8 +249,11 @@ internal static partial class Program
         var building = (EvaCutBuilding)Raw(typeof(EvaCutBuilding)); building.def = wall;
         Set(typeof(ThingWithComps), building, "comps", new List<ThingComp>());
         ProbeSpawnCargo(building, new IntVec3(2, 0, 2), map);
-        var evt = new SpaceCollision.ImpactEvent { defender = container, defenderBuilding = building,
-            hitCell = building.Position, damageScale = 1 };
+        Thing launcher = AddTestHull(map, null, 58021).parent;
+        var evt = new SpaceCollision.ImpactEvent { launcher = launcher, defender = container, defenderBuilding = building,
+            weapon = new CompSpaceWeapon { parent = (ThingWithComps)launcher,
+                props = new CompProperties_MiningBeam { cutDamage = 120 } },
+            hitCell = building.Position, hitDefenderLocal = new Vector2(2f, 2.5f), incidentDir = Vector2.right, damageScale = 1 };
         ProgramState state = Current.ProgramState;
         Current.ProgramState = ProgramState.Playing;
         Current.Game.storyteller = (Storyteller)Raw(typeof(Storyteller));
@@ -259,8 +262,18 @@ internal static partial class Program
         {
             patch.Patch(AccessTools.PropertyGetter(typeof(Thing), "MaxHitPoints"), prefix: new HarmonyMethod(typeof(Program), nameof(TestHullMaxHitPoints)));
             patch.Patch(Patch_SalvageOutput_Placement.TargetMethod(), prefix: new HarmonyMethod(typeof(Program), nameof(PlaceSalvage)));
+            patch.CreateClassProcessor(typeof(Patch_CombatLeavings)).Patch();
+            patch.CreateClassProcessor(typeof(Patch_SalvageTerrainYield)).Patch();
+            patch.Patch(AccessTools.PropertyGetter(typeof(MapInfo), nameof(MapInfo.Tile)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(SalvageFixtureTile)));
+            patch.Patch(typeof(ModsConfig).TypeInitializer,
+                prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
             patch.Patch(AccessTools.Method(typeof(ThingMaker), nameof(ThingMaker.MakeThing)), prefix: new HarmonyMethod(typeof(Program), nameof(MakeSalvage)));
             patch.Patch(AccessTools.Method(typeof(Filth), "UpdateMesh"), prefix: new HarmonyMethod(typeof(Program), nameof(NoSceneMesh)));
+            patch.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), nameof(TerrainDef.IsSubstructure)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(SalvageFoundation)));
+            patch.Patch(AccessTools.Method(typeof(TerrainGrid), "DoTerrainChangedEffects"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(SkipWeaponMenuLayout)));
             building.HitPoints = building.MaxHitPoints - 4;
             var weld = new ImpactOutcomePart { kind = ImpactEffectKind.Weld, damage = 10 };
             SpaceImpactEffects.ApplyToDefender(evt, weld);
@@ -278,17 +291,173 @@ internal static partial class Program
             Check((int)AccessTools.Field(typeof(Filth), "thickness").GetValue(filth) == 2, "empty hit has no implicit cleaning effect");
             evt.defenderBuilding = building;
             building.HitPoints = 200;
-            var cut = new ImpactOutcomePart { kind = ImpactEffectKind.CutStructure, damage = 120 };
+            var cut = new ImpactOutcomePart { kind = ImpactEffectKind.CutStructure };
             salvagePlacementSucceeds = true; salvagePlacements = 0;
             SpaceImpactEffects.ApplyToDefender(evt, cut);
             Check(building.HitPoints == 80 && salvagePlacements == 0, "partial cut changes HP without premature material payout");
             SpaceImpactEffects.ApplyToDefender(evt, cut);
-            Check(building.cuts == 1 && salvagePlacements == 1 && lastSalvageOutput.stackCount == 10 && salvageOutputMap == map,
-                "final cut pays the native dismantling quantity once on the target map");
             SpaceImpactEffects.ApplyToDefender(evt, cut);
-            Check(building.cuts == 1 && salvagePlacements == 1, "duplicate impact on destroyed building cannot duplicate materials");
+            Call(universe, "RunFrameActions");
+            var wallReturns = universe.Scatter.Candidates.Single(cargo => cargo.Payload.Entity.def == steel);
+            Check(building.cuts == 1 && salvagePlacements == 0 && wallReturns.Payload.Entity.stackCount == 10,
+                "finished EVA cut creates one native return and a repeated hit adds nothing");
+            wallReturns.Payload.GetDirectlyHeldThings().Remove(wallReturns.Payload.Entity);
+            universe.UnregisterObject(wallReturns);
+            CheckEvaSolarCut(universe, launcher, steel);
         }
         finally { patch.UnpatchAll(patch.Id); Current.ProgramState = state; }
+    }
+
+    static void CheckEvaSolarCut(UniverseManager universe, Thing launcher, ThingDef steel)
+    {
+        Map map = TestMap(58022, 9);
+        map.roofGrid = new RoofGrid(map);
+        var frame = new MapSpaceObject(58022, map, new SpacePose(Vector3.forward, 0));
+        universe.RegisterObject(frame);
+        var def = TestBuildingDef("evaSolarGenerator");
+        def.size = new IntVec2(4, 4);
+        def.fillPercent = .5f;
+        def.passability = Traversability.PassThroughOnly;
+        def.destroyable = def.useHitPoints = true;
+        def.resourcesFractionWhenDeconstructed = .5f;
+        var component = TestBuildingDef("evaSolarComponent");
+        component.category = ThingCategory.Item;
+        component.stackLimit = 50;
+        def.costList = new List<ThingDefCountClass> { new ThingDefCountClass(steel, 100), new ThingDefCountClass(component, 3) };
+        var solar = (EvaCutBuilding)Raw(typeof(EvaCutBuilding));
+        solar.def = def;
+        solar.HitPoints = 300;
+        ProbeSpawnCargo(solar, new IntVec3(4, 0, 4), map);
+        var cell = new IntVec3(solar.OccupiedRect().minX, 0, 4);
+        var deck = (TerrainDef)Raw(typeof(TerrainDef));
+        deck.defName = "evaSolarDeck";
+        deck.isFoundation = true;
+        deck.tags = new List<string> { "Substructure" };
+        deck.resourcesFractionWhenDeconstructed = .5f;
+        deck.costList = new List<ThingDefCountClass> { new ThingDefCountClass(steel, 8) };
+        int cellIndex = map.cellIndices.CellToIndex(cell);
+        map.terrainGrid.foundationGrid[cellIndex] = deck;
+        map.terrainGrid.topGrid[cellIndex] = (TerrainDef)Raw(typeof(TerrainDef));
+        var oldStack = (Thing)Raw(typeof(ReceivingItem));
+        oldStack.def = steel;
+        oldStack.stackCount = 11;
+        ProbeSpawnCargo(oldStack, cell, map);
+        SubstructureOwnership.BumpStructureVersion(map);
+        var projectile = TestBuildingDef("evaSolarCutBeam");
+        projectile.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, laserRange = 6, collisionRadius = 0 });
+        var outcome = new ImpactOutcomePart { kind = ImpactEffectKind.CutStructure };
+        var buildingEffect = new SpaceImpactEffectDef { defName = "EvaSolarBuildingImpact", projectileDefs = new List<ThingDef> { projectile },
+            defenderEffect = outcome };
+        var floorEffect = new SpaceImpactEffectDef { defName = "EvaSolarFloorImpact", projectileDefs = buildingEffect.projectileDefs,
+            targetsSubstructure = true, substructureHitChance = 1f, defenderEffect = outcome };
+        DefDatabase<SpaceImpactEffectDef>.Add(buildingEffect);
+        DefDatabase<SpaceImpactEffectDef>.Add(floorEffect);
+        SpaceImpactEffects.ResetCache();
+        try
+        {
+            int seed = 1;
+            for (;; seed++)
+            {
+                Rand.PushState(seed);
+                bool hit = SpaceImpactEffects.HitTest(projectile, SpaceCellKind.Building, solar, buildingEffect);
+                Rand.PopState();
+                if (!hit) break;
+            }
+            var weapon = new CompSpaceWeapon { parent = (ThingWithComps)launcher,
+                props = new CompProperties_MiningBeam { cutDamage = 180 } };
+            void Pulse()
+            {
+                Vector3 from = SpaceTransform.MapPointToUniverse(frame, map, new Vector2(1.5f, 4.5f));
+                var body = new SpaceCollision.SweptBody
+                {
+                    attacker = new SpaceObject(58023, new SpacePose(from, 0)), requiredDefender = frame,
+                    from = from, to = SpaceTransform.MapPointToUniverse(frame, map, new Vector2(6.5f, 4.5f)),
+                    launcher = launcher, weapon = weapon, projectileDef = projectile, damageScale = 1, mass = 1
+                };
+                Rand.PushState(seed);
+                try { SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { body }); }
+                finally { Rand.PopState(); }
+                Check(body.resolvedHit && body.resolvedHitCell == cell, "EVA contact resolves at the covered deck edge");
+            }
+            int before = salvagePlacements;
+            Pulse();
+            Check(solar.HitPoints == 120 && salvagePlacements == before && SubstructureOwnership.HasFoundation(map, cell),
+                "sun-facing panel takes the confirmed deck hit despite rejecting direct cover");
+            Pulse();
+            Call(universe, "RunFrameActions");
+            var returnObject = universe.Scatter.Candidates.Single(cargo => cargo.Payload.Entity.def == steel);
+            var componentReturn = universe.Scatter.Candidates.Single(cargo => cargo.Payload.Entity.def == component);
+            Thing material = returnObject.Payload.Entity;
+            Check(solar.Destroyed && solar.cuts == 1 && SubstructureOwnership.HasFoundation(map, cell)
+                && salvagePlacements == before && returnObject.map == null && !material.Spawned && material.stackCount == 50
+                && componentReturn.Payload.Entity.stackCount is 1 or 2
+                && oldStack.Spawned && oldStack.Map == map && oldStack.Position == cell && oldStack.stackCount == 11,
+                "EVA solar panel ejects the full native yield and leaves the deck and its cargo in place");
+            var steelDrift = EvaReturnDrift(frame, returnObject);
+            var componentDrift = EvaReturnDrift(frame, componentReturn);
+            Check(IsEvaCutDrift(steelDrift) && IsEvaCutDrift(componentDrift),
+                "both solar returns drift within the cut return angle and speed limits");
+            returnObject.Payload.GetDirectlyHeldThings().Remove(material);
+            componentReturn.Payload.GetDirectlyHeldThings().Remove(componentReturn.Payload.Entity);
+            universe.UnregisterObject(returnObject);
+            universe.UnregisterObject(componentReturn);
+
+            ProbeRemoveCargo(oldStack);
+            Pulse();
+            Call(universe, "RunFrameActions");
+            var deckReturns = universe.Scatter.Candidates.Single(cargo => cargo.Payload.Entity.def == steel);
+            Check(!SubstructureOwnership.HasFoundation(map, cell) && salvagePlacements == before
+                && deckReturns.Payload.Entity.stackCount == 4 && IsEvaCutDrift(EvaReturnDrift(frame, deckReturns)),
+                "a separate EVA shot cuts the bare foundation and ejects its full native yield");
+            deckReturns.Payload.GetDirectlyHeldThings().Remove(deckReturns.Payload.Entity);
+            universe.UnregisterObject(deckReturns);
+            CheckEvaCutSpread(universe, frame, steel);
+        }
+        finally
+        {
+            var remove = AccessTools.Method(typeof(DefDatabase<SpaceImpactEffectDef>), "Remove");
+            remove.Invoke(null, new object[] { buildingEffect });
+            remove.Invoke(null, new object[] { floorEffect });
+            SpaceImpactEffects.ResetCache();
+            universe.UnregisterObject(frame);
+            Find.Maps.Remove(map);
+        }
+    }
+
+    static (float angle, float speed) EvaReturnDrift(SpaceObject source, SpaceObject cargo)
+    {
+        Vector2 relative = cargo.pose.velocity - SpaceTransform.VelocityAtUniversePoint(source.pose, cargo.pose.position);
+        Vector2 direction = SpaceTransform.UniverseTangentToMapDirection(source, source.map, cargo.pose.position, relative);
+        return (Mathf.Atan2(direction.y, -direction.x) * Mathf.Rad2Deg, relative.magnitude);
+    }
+
+    static bool IsEvaCutDrift((float angle, float speed) drift) =>
+        Mathf.Abs(drift.angle) <= 40.05f && drift.speed is >= .399f and <= 1.801f;
+
+    static void CheckEvaCutSpread(UniverseManager universe, SpaceObject frame, ThingDef steel)
+    {
+        frame.pose.angle = .4f;
+        frame.pose.angularVelocity = .3f;
+        frame.pose.velocity = new Vector2(4f, -3f);
+        var hitPoint = new Vector2(2.5f, 4.5f);
+        for (int i = 0; i < 24; i++)
+        {
+            var material = new ReceivingItem { def = steel, stackCount = 1, thingIDNumber = 59000 + i };
+            universe.Scatter.QueueMiningEjection(material, frame, hitPoint, Vector2.left, cutReturn: true);
+        }
+        Call(universe, "RunFrameActions");
+        var returns = universe.Scatter.Candidates.Where(cargo => cargo.Payload.Entity.def == steel).ToList();
+        var drifts = returns.Select(cargo => EvaReturnDrift(frame, cargo)).ToList();
+        Check(drifts.Count == 24 && drifts.All(IsEvaCutDrift),
+            "cut returns stay in the expected local cone and speed range on a drifting, rotating target");
+        Check(drifts.Min(drift => drift.angle) < -15f && drifts.Max(drift => drift.angle) > 15f
+            && drifts.Min(drift => drift.speed) < .75f && drifts.Max(drift => drift.speed) > 1.45f,
+            "individual cut stacks fan out to both sides with visibly different speeds");
+        foreach (var cargo in returns)
+        {
+            cargo.Payload.GetDirectlyHeldThings().Remove(cargo.Payload.Entity);
+            universe.UnregisterObject(cargo);
+        }
     }
 
     sealed class EvaCargoItem : Thing

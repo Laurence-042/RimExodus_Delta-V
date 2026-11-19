@@ -251,24 +251,33 @@ namespace DeltaV
             result.uncertain |= coverage.uncertain;
             var passedCells = traceBuffers[depth].cells;
             passedCells.Clear();
-            if (!coverage.skipFloor) passedCells.UnionWith(brokenFoundation);
+            passedCells.UnionWith(brokenFoundation);
             var props = projectile?.GetCompProperties<CompProperties_SpaceProjectile>();
             if (props == null) { result.uncertain = true; return; }
             var coverBuildings = coverage.things.Count == 0 ? null : coverage.things;
             var coverCells = coverage.skipFloor || coverage.cells.Count == 0 ? null : coverage.cells;
             float footprintRadius = SpaceProjectileService.FootprintRadius(projectile);
             Vector2 initialDirection = dir;
-            while (length > .001f && scale > .00001f)
+            SpaceCollision.RayContact? sameCell = null;
+            while ((sameCell.HasValue || length > .001f) && scale > .00001f)
             {
                 if (result.contacts >= 128 || depth >= 4) { result.exhausted = result.uncertain = true; return; }
-                if (!query.Next(from, dir, length, projectile, footprintRadius, passed, passedCells,
-                    includeLine, includeGuard, out var hit, coverage.skipFloor, coverBuildings, coverCells, coverage.skipHull))
+                SpaceCollision.RayContact hit;
+                if (sameCell.HasValue)
+                {
+                    hit = sameCell.Value;
+                    sameCell = null;
+                }
+                else if (!query.Next(from, dir, length, projectile, footprintRadius, passed, passedCells,
+                    includeLine, includeGuard, out hit, coverage.skipFloor, coverBuildings, coverCells, coverage.skipHull))
                 {
                     if (Vector2.Dot(dir, initialDirection) < 0)
                         result.returnedPotential += SpaceImpactEffects.ComputeDamage(
                             SpaceImpactEffects.Resolve(projectile, null)?.defenderEffect, speed, 0, 1, mass) * scale;
                     return;
                 }
+                else
+                    hit = SpaceCollision.ConfirmedStructureContact(map, hit, destroyed);
                 result.contacts++;
                 float traveled = (hit.point - from).magnitude;
                 length = Mathf.Max(0, length - traveled);
@@ -339,14 +348,12 @@ namespace DeltaV
                     // The exhausted surface is excluded by the private capacity ledger.
                     continue;
                 }
-                float chance = SpaceImpactEffects.HitChance(projectile, hit.kind, hit.building, effect);
-                if (chance < 1) result.uncertain = true;
                 if (hit.building != null) passed.Add(hit.building); else passedCells.Add(hit.cell);
                 if (SpaceImpactEffects.Ricochets(part, hit.building, incidence)) return;
                 if (hit.kind == SpaceCellKind.Substructure)
                 {
                     result.uncertain = true;
-                    if (ContactSample(coverSample, hit.cell, 1) >= Mathf.Clamp01(amount / part.substructureBreakThreshold)) return;
+                    if (ContactSample(coverSample, hit.cell, 1) >= SpaceImpactEffects.FoundationBreakChance(amount, part)) return;
                     brokenFoundation.Add(hit.cell);
                     foreach (Thing thing in hit.cell.GetThingList(map))
                     {
@@ -361,7 +368,7 @@ namespace DeltaV
                         }
                     }
                     if (!part.penetrates) return;
-                    scale *= Mathf.Clamp01((amount - part.substructureBreakThreshold) / Mathf.Max(.00001f, amount));
+                    scale *= SpaceImpactEffects.RemainingFraction(amount, part.substructureBreakThreshold);
                     continue;
                 }
                 if (!part.penetrates && part.penetrationLayers?.Count > 0)
@@ -394,8 +401,11 @@ namespace DeltaV
                     }
                 }
                 float dealt = Apply(hit.building, part.damageDef ?? DamageDefOf.Bullet, amount, ref result);
-                if (!destroyed.Contains(hit.building) || !part.penetrates) return;
-                scale *= Mathf.Clamp01((amount - dealt) / Mathf.Max(.00001f, amount));
+                float remaining = SpaceImpactEffects.BuildingContinuation(part, destroyed.Contains(hit.building), amount, dealt);
+                if (remaining <= 0f) return;
+                scale *= remaining;
+                if (SpaceCollision.TrySameCellContinuation(map, hit, out var nextLayer, destroyed, brokenFoundation))
+                    sameCell = nextLayer;
             }
         }
     }

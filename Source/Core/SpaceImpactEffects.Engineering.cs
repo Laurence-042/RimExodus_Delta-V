@@ -1,7 +1,8 @@
+using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
-using System.Linq;
 
 namespace DeltaV
 {
@@ -20,35 +21,78 @@ namespace DeltaV
                     filth.ThinFilth();
         }
 
-        private static void CutStructure(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
+        private static void CutStructure(SpaceCollision.ImpactEvent evt)
         {
-            if (evt.damageScale <= 0f || evt.defender?.map == null) return;
+            Thing launcher = evt.launcher;
+            if (evt.damageScale <= 0f || evt.defender?.map == null || launcher?.Spawned != true
+                || (evt.weapon ?? launcher.TryGetComp<CompSpaceWeapon>())?.WeaponProps
+                    is not CompProperties_MiningBeam cutter) return;
             Map map = evt.defender.map;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe == null || universe.IsResettingScene || map.Disposed || evt.defender.IsActiveCollider
+                || SpaceLifecycleService.IsUniverseHost(map) || !FreeFlightBootstrap.IsZeroGravity(universe, map)
+                || universe.SpaceObjectOnMap(map) != evt.defender) return;
+            Map outputMap = cutter.deliverToEmitter ? launcher.Map : map;
+            if (cutter.deliverToEmitter && (map == outputMap || outputMap.Disposed
+                || ShipRegistry.ShipOf(launcher)?.IsValid != true)) return;
+            Thing lossReporter = cutter.deliverToEmitter ? launcher : null;
+            float damage = cutter.cutDamage * evt.damageScale;
             if (evt.defenderBuilding is Building building && building.Spawned && !building.Destroyed)
             {
                 if (building is Mineable rock && building.def.mineable)
                 {
-                    MineRock(evt, part, rock);
+                    MineRock(evt, cutter, damage, rock);
                     return;
                 }
-                if (!TryFinishCut(evt, part, building, DestroyMode.Deconstruct)) return;
+                if (!ApplyCutDamage(evt, damage, building)) return;
+                using var output = new SalvageOutputScope(lossReporter, map, building, cutter.dismantleYieldFactor);
+                var returns = output.CollectReturns();
+                output.RemoveBuilding(building);
+                if (!building.Destroyed) return;
+                DeliverCutReturns(universe, evt, returns, lossReporter);
             }
-            else if (evt.defenderIsSubstructure && SubstructureOwnership.HasFoundation(map, evt.hitCell)
-                && part.damage * evt.damageScale >= part.substructureBreakThreshold)
+            else
             {
-                TerrainDef foundation = SubstructureOwnership.FoundationAt(map, evt.hitCell);
-                ClearCuttingRoofs(map, evt.hitCell);
-                if (foundation != null && SubstructureDamageUtility.TryDestroyHitFoundation(map, evt.hitCell, scatterNearbyRoofs: false, instigator: evt.launcher))
-                    GenLeaving.DoLeavingsFor(foundation, evt.hitCell, map);
+                IntVec3 cell = evt.hitCell;
+                if (!evt.defenderIsSubstructure || !cell.IsValid || !cell.InBounds(map)
+                    || damage < cutter.foundationBreakThreshold) return;
+                TerrainDef foundation = SubstructureOwnership.FoundationAt(map, cell);
+                if (foundation == null) return;
+                using var output = new SalvageOutputScope(lossReporter, map, foundation, cell, cutter.dismantleYieldFactor);
+                var returns = output.CollectReturns();
+                ClearCuttingRoofs(map, cell);
+                if (!SubstructureDamageUtility.TryDestroyHitFoundation(map, cell,
+                    scatterNearbyRoofs: false, instigator: launcher, removeAttachment: output.RemoveBuilding)) return;
+                DeliverCutReturns(universe, evt, returns, lossReporter);
             }
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (cutter.deliverToEmitter) return;
             SpaceObject owner = evt.defender;
             int version = owner.RepresentationVersion;
-            universe?.QueueFrameAction(() =>
+            universe.QueueFrameAction(() =>
             {
                 if (!map.Disposed && universe.FrameOf(map) == owner && owner.RepresentationVersion == version)
                     universe.Scatter.ScatterLoose(map);
             });
+        }
+
+        private static void DeliverCutReturns(UniverseManager universe, SpaceCollision.ImpactEvent evt,
+            IReadOnlyList<Thing> returns, Thing receiver)
+        {
+            if (receiver != null)
+            {
+                foreach (Thing item in returns)
+                    GenPlace.TryPlaceThing(item, receiver.Position, receiver.Map, ThingPlaceMode.Near);
+                return;
+            }
+
+            foreach (Thing item in returns)
+            {
+                while (item.stackCount > item.def.stackLimit)
+                    universe.Scatter.QueueMiningEjection(item.SplitOff(item.def.stackLimit), evt.defender,
+                        evt.hitDefenderLocal, -evt.incidentDir, cutReturn: true);
+                universe.Scatter.QueueMiningEjection(item, evt.defender, evt.hitDefenderLocal, -evt.incidentDir,
+                    cutReturn: true);
+            }
         }
 
         private static void ApplyEngineeringForce(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
@@ -76,82 +120,41 @@ namespace DeltaV
             }
         }
 
-        private static void Salvage(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
-        {
-            Thing launcher = evt.launcher;
-            if (launcher?.Spawned != true || launcher.Destroyed || evt.defender.IsActiveCollider
-                || evt.damageScale <= 0f) return;
-            Map targetMap = evt.defender.map;
-            Map receiverMap = launcher.Map;
-            if (receiverMap == targetMap || receiverMap.Disposed) return;
-            ShipBase receiver = ShipRegistry.ShipOf(launcher);
-            if (receiver?.IsValid != true) return;
-            // 与深钻井同走原版 Near 放置：合堆、找位与失败由原版处理，不用空格数阻止切割。
-            IntVec3 output = launcher.Position;
-
-            if (evt.defenderBuilding is Building building && building.Spawned && !building.Destroyed)
-            {
-                if (building is Mineable rock && building.def.mineable)
-                {
-                    MineRock(evt, part, rock);
-                    return;
-                }
-                if (!TryFinishCut(evt, part, building, DestroyMode.Vanish)) return;
-                using (new SalvageOutputScope(launcher))
-                    GenLeaving.DoLeavingsFor(building, receiverMap, DestroyMode.Deconstruct,
-                        CellRect.SingleCell(output));
-                return;
-            }
-
-            IntVec3 cell = evt.hitCell;
-            if (!evt.defenderIsSubstructure || !cell.IsValid || !cell.InBounds(targetMap)
-                || !SubstructureOwnership.HasFoundation(targetMap, cell)) return;
-            TerrainDef foundation = SubstructureOwnership.FoundationAt(targetMap, cell);
-            if (foundation == null) return;
-            // 基架没有耐久；达到共同毁伤阈值后调用统一毁伤机制，再结算材料。
-            if (part.damage * evt.damageScale < part.substructureBreakThreshold) return;
-            ClearCuttingRoofs(targetMap, cell);
-            if (!SubstructureDamageUtility.TryDestroyHitFoundation(targetMap, cell, scatterNearbyRoofs: false, instigator: evt.launcher)) return;
-            using (new SalvageOutputScope(launcher))
-                GenLeaving.DoLeavingsFor(foundation, output, receiverMap);
-        }
-
-        private static bool TryFinishCut(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part,
-            Building building, DestroyMode mode)
+        private static bool ApplyCutDamage(SpaceCollision.ImpactEvent evt, float damage, Building building)
         {
             if (!building.def.destroyable || building is Frame
                 || (!building.def.building.canBeDamagedByAttacks && !(building is Mineable && building.def.mineable))) return false;
-            int cut = Mathf.Max(1, Mathf.RoundToInt(part.damage * evt.damageScale));
+            int cut = Mathf.Max(1, Mathf.RoundToInt(damage));
             PublicFacility.NotifyCut(building, evt.launcher, cut);
             if (building.def.useHitPoints && building.HitPoints > cut)
             {
                 building.HitPoints -= cut;
                 return false;
             }
-            building.Destroy(mode);
-            return building.Destroyed;
+            return true;
         }
 
-        private static void MineRock(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part, Mineable rock)
+        private static void MineRock(SpaceCollision.ImpactEvent evt, CompProperties_MiningBeam cutter, float damage, Mineable rock)
         {
             Thing launcher = evt.launcher;
-            if (launcher?.Spawned != true || evt.defender.IsActiveCollider
-                || !TryFinishCut(evt, part, rock, DestroyMode.Vanish)) return;
+            if (!ApplyCutDamage(evt, damage, rock)) return;
+            rock.Destroy(DestroyMode.Vanish);
+            if (!rock.Destroyed) return;
             BuildingProperties mining = rock.def.building;
             ThingDef mineral = mining.mineableThing;
-            if (mineral == null || part.miningYieldFactor <= 0f || !Rand.Chance(mining.mineableDropChance)) return;
+            if (mineral == null || cutter.miningYieldFactor <= 0f || !Rand.Chance(mining.mineableDropChance)) return;
 
             // 原版只按采矿效率扣减可损耗矿产，岩块等单件产物只掷掉落概率。
             int count = Mathf.Max(1, mining.EffectiveMineableYield);
             if (mining.mineableYieldWasteable)
-                count = Mathf.Max(1, GenMath.RoundRandom(count * part.miningYieldFactor));
-            using var output = part.kind == ImpactEffectKind.Salvage ? new SalvageOutputScope(launcher) : null;
+                count = Mathf.Max(1, GenMath.RoundRandom(count * cutter.miningYieldFactor));
+            using var output = cutter.deliverToEmitter ? new SalvageOutputScope(launcher) : null;
             while (count > 0)
             {
                 Thing ore = ThingMaker.MakeThing(mineral);
                 ore.stackCount = Mathf.Min(count, mineral.stackLimit);
                 count -= ore.stackCount;
-                if (part.kind == ImpactEffectKind.Salvage)
+                if (cutter.deliverToEmitter)
                     GenPlace.TryPlaceThing(ore, launcher.Position, launcher.Map, ThingPlaceMode.Near);
                 else
                     Current.Game.GetComponent<UniverseManager>().Scatter.QueueMiningEjection(

@@ -40,12 +40,13 @@
     <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
     <costList Inherit="False"><Steel>200</Steel><Plasteel>40</Plasteel><ComponentIndustrial>8</ComponentIndustrial></costList>
     <statBases><WorkToBuild>12000</WorkToBuild></statBases><label>mining beam</label><uiOrder>2101</uiOrder>
-    <description>Cuts through rocks, buildings and exposed substructure. Completed cuts drop minerals or normal dismantling materials near the emitter, merging them into existing stacks where possible. Yield for ores affected by mining efficiency is 50% of the normal amount; intact equipment, cargo and people are not transported. Keep room nearby for output: cutting continues when space runs out, and materials that cannot be placed are lost. Each pulse needs stored electricity. Assign an active weapon group and use manual fire-control mode.</description>
+    <description>Cuts through rocks, buildings and exposed substructure. Completed cuts drop materials near the emitter, merging them into existing stacks where possible. The beam recovers 50% of the normal yield for ores affected by mining efficiency and 50% of normal dismantling materials from structures; intact equipment, cargo and people are not transported. Keep room nearby for output: cutting continues when space runs out, and materials that cannot be placed are lost. Each pulse needs stored electricity. Assign an active weapon group and use manual fire-control mode.</description>
     <uiIconPath>Things/Building/SpaceWeapons/MiningBeam_MenuIcon</uiIconPath>
     <building><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/MiningBeam_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(2.6,2.6)</drawSize></blueprintGraphicData></building>
     <comps>
-      <li Class="DeltaV.CompProperties_SpaceWeapon">
+      <li Class="DeltaV.CompProperties_MiningBeam">
         <manualOnly>true</manualOnly><projectileDef>DeltaV_Beam_Mining</projectileDef>
+        <cutDamage>240</cutDamage><miningYieldFactor>0.5</miningYieldFactor><dismantleYieldFactor>0.5</dismantleYieldFactor><deliverToEmitter>true</deliverToEmitter>
         <intrinsicAimSkill>20</intrinsicAimSkill><baseSpreadDeg>0</baseSpreadDeg>
         <cooldownTicks>30</cooldownTicks><range>65</range><shotEnergy>3</shotEnergy>
         <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>6</defaultGroupNumber>
@@ -91,7 +92,7 @@
 
   <DeltaV.SpaceImpactEffectDef Name="DeltaV_MiningImpact" Abstract="True">
     <projectileDefs><li>DeltaV_Beam_Mining</li></projectileDefs><buildingHitChance>1</buildingHitChance>
-    <defenderEffect><kind>Salvage</kind><damage>240</damage><substructureBreakThreshold>60</substructureBreakThreshold><miningYieldFactor>0.5</miningYieldFactor></defenderEffect>
+    <defenderEffect><kind>CutStructure</kind></defenderEffect>
     <attackerEffect><kind>DestroySelf</kind></attackerEffect>
   </DeltaV.SpaceImpactEffectDef>
   <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_MiningImpact"><defName>DeltaV_Impact_MiningStructure</defName></DeltaV.SpaceImpactEffectDef>

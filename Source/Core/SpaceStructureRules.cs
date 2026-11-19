@@ -43,7 +43,10 @@ namespace DeltaV
                 yield return new SpaceCollisionCell(cell, kind, building);
             }
         }
-        public static float BuildingHitChance(Thing building) => building?.def.IsWall == true
+        internal static bool IsCollisionWall(Thing building) =>
+            building?.def.IsWall == true && building.def.passability == Traversability.Impassable;
+
+        public static float BuildingHitChance(Thing building) => IsCollisionWall(building)
             ? 1f : Mathf.Clamp01(building?.def.fillPercent ?? 0f);
 
         /// <summary>
@@ -71,7 +74,11 @@ namespace DeltaV
         /// 分类一个格子（碰撞占用集构建用）：建筑优先于基架；同格重叠时墙优先，
         /// 其余取掩体效果最高者。无建筑但有基架 → Substructure；否则 Empty。
         /// </summary>
-        public static SpaceCellKind ClassifyCell(Map map, IntVec3 cell, out Thing solidThing)
+        public static SpaceCellKind ClassifyCell(Map map, IntVec3 cell, out Thing solidThing) =>
+            ClassifyCell(map, cell, out solidThing, null);
+
+        internal static SpaceCellKind ClassifyCell(Map map, IntVec3 cell, out Thing solidThing,
+            HashSet<Thing> destroyed)
         {
             solidThing = null;
             if (map == null || !cell.InBounds(map)) return SpaceCellKind.Empty;
@@ -81,12 +88,12 @@ namespace DeltaV
             {
                 Thing thing = things[i];
                 if (thing is not Building building || building.Destroyed || !building.Spawned
-                    || !building.OccupiedRect().Contains(cell)) continue;
+                    || destroyed?.Contains(building) == true || !building.OccupiedRect().Contains(cell)) continue;
                 // 电缆铺在结构内，不作为独立碰撞面；隐藏电缆免疫攻击，不能因此让基架无敌。
                 if (building.def.building.isPowerConduit || building is Building_VacuumBarrier) continue;
                 float chance = BuildingHitChance(thing);
                 if (solidThing != null && (chance < bestChance
-                    || chance == bestChance && !thing.def.IsWall)) continue;
+                    || (chance == bestChance && (!IsCollisionWall(thing) || IsCollisionWall(solidThing))))) continue;
                 solidThing = thing;
                 bestChance = chance;
             }

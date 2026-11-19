@@ -25,7 +25,6 @@ namespace DeltaV
         PlaceBody = 4,
 
         CoupleMotion = 5,
-        Salvage = 6,
         TractorPull = 7,
         CutStructure = 8,
         Weld = 9,
@@ -98,7 +97,6 @@ namespace DeltaV
         public float tractorForce = 500f;
 
         /// <summary>采矿光束矿物回收率；人造建筑与基架沿用原版拆除产出。</summary>
-        public float miningYieldFactor = 0.5f;
     }
 
     /// <summary>
@@ -152,10 +150,6 @@ namespace DeltaV
                 && (defenderEffect.couplingFraction <= 0f || defenderEffect.couplingFraction > 1f
                     || defenderEffect.maxCouplingImpulse < 0f || defenderEffect.maxCouplingAngularImpulse < 0f))
                 yield return $"{defName}: invalid coupling strength or impulse limits";
-            if (defenderEffect?.kind == ImpactEffectKind.Salvage
-                && (defenderEffect.damage <= 0f || defenderEffect.miningYieldFactor < 0f
-                    || defenderEffect.miningYieldFactor > 1f))
-                yield return $"{defName}: invalid cutting amount or mining yield";
             if (defenderEffect?.kind == ImpactEffectKind.DamageMap
                 && defenderEffect.substructureBreakThreshold <= 0f)
                 yield return $"{defName}: substructureBreakThreshold must be positive";
@@ -207,6 +201,7 @@ namespace DeltaV
 
         internal static void BreachBoardingCorridor(Map map, HashSet<Building> buildings, Thing launcher)
         {
+            using var leavings = CombatLeavingsScope.Enter(map);
             foreach (Building building in buildings)
             {
                 if (building.Destroyed) continue;
@@ -321,6 +316,7 @@ namespace DeltaV
             void ApplyDamage(SpaceCollision.TargetView receiver, IntVec3 cell, Thing wall, int damage, Thing instigator)
             {
                 int hp = wall?.HitPoints ?? 0;
+                using var leavings = CombatLeavingsScope.Enter(receiver.map);
                 receiver.ApplyDamage(cell, wall, part, damage, part.armorPenetration,
                     part.damageDef ?? DamageDefOf.Bullet, instigator, evt.projectileDef, default);
                 evt.hullDamaged |= wall != null ? wall.Destroyed || wall.HitPoints < hp
@@ -370,21 +366,8 @@ namespace DeltaV
         /// 建筑按掩体效果，基架按本弹体的联合效果条目判定。
         /// </summary>
         public static bool HitTest(ThingDef projectileDef,
-            SpaceCellKind kind, Thing building, SpaceImpactEffectDef effect)
-        {
-            if (kind == SpaceCellKind.Substructure)
-                return Rand.Chance(HitChance(projectileDef, kind, building, effect));
-            if (kind != SpaceCellKind.Substructure && building != null)
-            {
-                if (effect?.buildingHitChance >= 0f)
-                    return Rand.Chance(HitChance(projectileDef, kind, building, effect));
-                if (GuaranteedMissileHit(projectileDef, building.def)) return true;
-                if (building.def.IsWall) return true;
-                float chance = SpaceStructureRules.BuildingHitChance(building);
-                if (chance <= 0f || chance < 1f && !Rand.Chance(chance)) return false;
-            }
-            return true;
-        }
+            SpaceCellKind kind, Thing building, SpaceImpactEffectDef effect) =>
+            Rand.Chance(HitChance(projectileDef, kind, building, effect));
 
         /// <summary>点防专用弹体与制导导弹的配对规则，瞄准和命中共用。</summary>
         public static bool GuaranteedMissileHit(ThingDef projectileDef, ThingDef targetDef)
@@ -434,14 +417,8 @@ namespace DeltaV
                 ApplyEngineeringForce(evt, part);
                 return 0f;
             }
-            if (part.kind == ImpactEffectKind.Salvage)
-            {
-                Salvage(evt, part);
-                return 0f;
-            }
-
             if (part.kind == ImpactEffectKind.CutStructure)
-            { CutStructure(evt, part); return 0f; }
+            { CutStructure(evt); return 0f; }
             if (part.kind == ImpactEffectKind.Weld)
             { Weld(evt, part); return 0f; }
 
@@ -489,6 +466,7 @@ namespace DeltaV
             bool buildingGeometryChanged = false;
             float remaining = 0f;
 
+            using var leavings = CombatLeavingsScope.Enter(map);
             if (evt.defenderIsSubstructure)
                 remaining = target.ApplyDamage(cell, null, part, amount, ap, damType, evt.launcher, evt.projectileDef, evt.HitLocal);
 
@@ -543,7 +521,7 @@ namespace DeltaV
             if (building == null)
             {
                 if (SubstructureOwnership.HasFoundation(map, cell)
-                    && Rand.Chance(Mathf.Clamp01(amount / part.substructureBreakThreshold))
+                    && Rand.Chance(FoundationBreakChance(amount, part))
                     && SubstructureDamageUtility.TryDestroyHitFoundation(map, cell, instigator: instigator))
                     return part.penetrates ? RemainingFraction(amount, part.substructureBreakThreshold) : 0f;
                 return 0f;
@@ -555,10 +533,16 @@ namespace DeltaV
             SubstructureOwnership.BumpStructureVersion(map, footprint);
             if (building.TryGetComp<CompProjectileInterceptor>() != null) SpaceCollision.InvalidateShield(map);
             PlanetGlobeRenderer.InvalidateSilhouette(map);
-            return part.penetrates ? RemainingFraction(amount, consumed) : 0f;
+            return BuildingContinuation(part, building.Destroyed, amount, consumed);
         }
 
-        private static float RemainingFraction(float budget, float absorbed) =>
+        internal static float FoundationBreakChance(float amount, ImpactOutcomePart part) =>
+            Mathf.Clamp01(amount / part.substructureBreakThreshold);
+
+        internal static float BuildingContinuation(ImpactOutcomePart part, bool destroyed, float amount, float absorbed) =>
+            part.penetrates && destroyed ? RemainingFraction(amount, absorbed) : 0f;
+
+        internal static float RemainingFraction(float budget, float absorbed) =>
             budget > 0f ? Mathf.Clamp01((budget - Mathf.Max(0f, absorbed)) / budget) : 0f;
 
         /// <summary>
