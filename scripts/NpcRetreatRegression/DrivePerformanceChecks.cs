@@ -110,19 +110,40 @@ internal static partial class Program
             view.PreviewModel(); view.PreviewBraking(Vector2.left); view.PreviewAngular(1);
             Check(power.reads == reads && layout.thrusters[0].throttle == throttle && layout.throttlesWrittenTick == stamp,
                 "numeric previews consume the prepared report without repeating state reads or changing actual output");
+            SpacePose beforeDisplay = obj.pose;
+            int versionBeforeDisplay = layout.version;
+            bool displayMatches = true;
+            for (int i = 0; i < 120; i++)
+            {
+                var display = obj.PresentationInfo;
+                displayMatches &= display.mass == layout.mass && display.thrusters[0].throttle == throttle;
+            }
+            Check(displayMatches, "presentation shares the current mass and real throttle");
+            Check(power.reads == reads && layout.version == versionBeforeDisplay
+                && layout.throttlesWrittenTick == stamp && obj.pose.Equals(beforeDisplay),
+                "repeated presentation reads neither poll hardware nor change dynamics or freshness");
+            power.online = false;
+            _ = obj.PresentationInfo;
+            Check(power.reads == reads && layout.thrusters[0].operational,
+                "presentation does not publish an unexecuted hardware change");
+            Next(); obj.Step(input);
+            Check(!layout.thrusters[0].operational && obj.force == Vector2.zero,
+                "execution still observes power loss after presentation was read");
+            power.online = true; Next(); obj.Step(half);
+            int allocationsAfterDisplay = obj.allocations;
             obj.allowed = false; Next();
-            Check(obj.Step(input) == DriveResult.WaitingForSeparation && obj.allocations == 4,
+            Check(obj.Step(input) == DriveResult.WaitingForSeparation && obj.allocations == allocationsAfterDisplay,
                 "cached drive cannot bypass the current separation authorization");
             obj.allowed = true; Next(); obj.Step(input);
-            Check(obj.allocations == 5, "resuming after denied thrust rebuilds its allocation");
+            Check(obj.allocations == allocationsAfterDisplay + 1, "resuming after denied thrust rebuilds its allocation");
             var changed = new ShipPhysics.MassReport { mass = 100f, inertia = 1000f };
             changed.thrusters.Add(new ShipPhysics.Thruster
                 { dir = Vector2.right, thrust = 1000f, operational = true });
             obj.layout = changed; Next(); obj.Step(input);
-            Check(obj.allocations == 6 && obj.force.x > 990f && obj.force.x < 1010f,
+            Check(obj.allocations == allocationsAfterDisplay + 2 && obj.force.x > 990f && obj.force.x < 1010f,
                 "a rebuilt rigid-body report invalidates the allocation even with the same numeric version");
             obj.ClearDrive(); Next(); obj.Step(input);
-            Check(obj.allocations == 7, "drive cancellation invalidates held output before resumption");
+            Check(obj.allocations == allocationsAfterDisplay + 3, "drive cancellation invalidates held output before resumption");
             Next(); obj.Step(DriveControl.FromInput(default, false, false, false));
             Check(obj.force == Vector2.zero && !obj.PropulsionUsedThisTick,
                 "zero input stops thrust through the same allocation path");

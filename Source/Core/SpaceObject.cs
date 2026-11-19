@@ -287,6 +287,8 @@ namespace DeltaV
         public virtual DriveSubject PrimaryDriver => default;
         public virtual bool TryGetDrive(DriveSubject subject, out DriveInfo info) { info = null; return false; }
         public DriveInfo MotionInfo => ReadDriveInfo();
+        /// <summary>Display the shared model and last real output without polling propulsion hardware.</summary>
+        internal DriveInfo PresentationInfo => ReadDriveInfo(refreshOperational: false);
 
         /// <summary>命中脉冲交换动量；不推进位置、不触发推进器分离、不另作 tick 积分。</summary>
         internal void CoupleMotionWith(SpaceObject other, Vector3 contact,
@@ -299,12 +301,12 @@ namespace DeltaV
         }
         private readonly Dictionary<float, DriveInfo> driveViews = new Dictionary<float, DriveInfo>();
         private ShipPhysics.MassReport driveViewReport;
-        protected DriveInfo ReadDriveInfo(float frameAngle = 0f)
+        protected DriveInfo ReadDriveInfo(float frameAngle = 0f, bool refreshOperational = true)
         {
             var performance = Current.Game?.GetComponent<UniverseManager>()?.Performance;
             long start = performance?.Start() ?? 0L;
             var report = MotionReport;
-            ShipPhysics.RefreshOperational(report);
+            if (refreshOperational) ShipPhysics.RefreshOperational(report);
             performance?.Record(PerformanceStage.DriveState, start);
             if (driveViewReport != report) { driveViewReport = report; driveViews.Clear(); }
             if (!driveViews.TryGetValue(frameAngle, out DriveInfo view))

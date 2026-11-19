@@ -166,7 +166,7 @@ namespace DeltaV
                 > Mathf.Max(20f, Find.CameraDriver.RootSize * 0.6f);
             if (hasShip)
             {
-                DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(selected.Map)?.MotionInfo;
+                DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(selected.Map)?.PresentationInfo;
                 string flightState = (selected.State == ShipDerivedState.FreeFlight
                     ? "DeltaV_FlightStateFree" : "DeltaV_FlightStateDocked").Translate();
                 string compactControl = controlState == ShipControlState.Manual

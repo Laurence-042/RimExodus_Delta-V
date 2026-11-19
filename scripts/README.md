@@ -6,6 +6,11 @@
 
 `NpcRetreatRegression/run.ps1 -HullCollisionPerformance -GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>` 测量现行单层碰撞的 2／8／24 艘正撞、密集破口、凹形三体和混合实弹。`DELTAV_HULL_FILTER` 可按场景名过滤，`DELTAV_HULL_SAMPLES` 控制每场景的 tick 数。单独设 `DELTAV_HULL_COUNT=1` 可查看逐 tick 毁伤、位移和候选工作量。
 
+
+`NpcRetreatRegression/run.ps1 -GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>` 默认全套包括 `NonCombatCruiseChecks.cs`：无敌舰快照早退与首次／零推力基线、敌舰进出、展示读取不检查硬件、实执行重新检查动力，以及批内距离复用／当前位姿／失效和恢复门槛。2026-11-18 全套通过 2117 项，2026-11-19 当前生产 DLL 提交前复核通过 2456 项；这是 1.6 DLL 的离线场景检查，两版编译及游戏内验收分别记录。
+
+隔离微基准在已编译的同一驱动上设置环境变量 `DELTAV_CRUISE_BENCHMARK=1`，然后运行 `dotnet Source/obj/NpcRetreatRegression/NpcRetreatRegression.dll <1.6 Managed目录>`；正式全套不设该变量。旧 DLL 与新 DLL 分目录运行，各自预热三轮、串行计时三轮，比较时统一关闭分层编译（`DOTNET_TieredCompilation=0`）。原始输出在忽略目录 `Source/obj/NonCombatCruiseBaseline/`，场景、结果与限制集中于[轮询审计](../doc/轮询审计.md#非战斗巡航前三项优化2026-11-18)。
+
 `NpcRetreatRegression/run.ps1 -CombatManeuverOnly -GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>`：生产持续意图／飞行参考／MPC／真实分配与积分的三分钟闭环，覆盖周期刹车、无收益反向、强轴／弱转向、显式朝向、途中动力下降、极区参考导数、旋转预测模型，以及 AI 日志逐 tick 对拍和设置 Scribe。`MOTION_PERF` 输出规划、QP 和驾驶总耗时；旧 DLL 基线与最新结果集中在[持续机动重构记录](../doc/持续战斗机动重构计划.md)。无武器闭环和独立火力约束检查不能替代实弹交火验收。
 
 有利射位重构使用独立专项，统一传 `-GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>`：

@@ -97,6 +97,11 @@ internal static partial class Program
             prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(ReadSceneLanguage)));
         if (Environment.GetCommandLineArgs().Contains("--hull-collision-performance"))
         { RunHullCollisionPerformance(universe, faction); return; }
+        if (Environment.GetEnvironmentVariable("DELTAV_CRUISE_BENCHMARK") == "1")
+        {
+            using var cruise = new CruiseFixture(universe, 300);
+            RunCruiseBenchmarks(cruise); return;
+        }
         if (Environment.GetCommandLineArgs().Contains("--hull-contact-only"))
         { CheckHullContacts(universe, faction); return; }
         if (Environment.GetCommandLineArgs().Contains("--eva-only"))
@@ -204,6 +209,7 @@ internal static partial class Program
         finally { combatStats.UnpatchAll(combatStats.Id); }
         CheckSharedPdCandidates(universe, faction, other);
         CheckDriveExecutionReuse(faction);
+        CheckNonCombatCruise(universe);
         CheckWeaponExecution(universe, faction);
         CheckSpaceTurretPlacement(faction);
         if (drivePerformanceOnly) { CheckMotionFeedback(universe); return; }

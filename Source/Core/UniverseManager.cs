@@ -993,6 +993,7 @@ namespace DeltaV
             stageStart = Performance.Start();
             long objectDriveTime = 0L, objectDriftTime = 0L, objectArchiveTime = 0L;
             int thrustingObjects = 0, driftingObjects = 0, archivedObjects = 0;
+            SpaceLifecycleService.PlayerDistanceBatch archiveDistances = null;
             foreach (SpaceObject obj in objects)
             {
                 if (piloting && obj.map == piloted.Map && !Autopilot.IsActive(obj))
@@ -1015,7 +1016,8 @@ namespace DeltaV
                 {
                     long archiveStart = Performance.Start();
                     archivedObjects++;
-                    Lifecycle.CheckArchivedProximity(obj);
+                    Lifecycle.CheckArchivedProximity(obj,
+                        archiveDistances ?? (archiveDistances = new SpaceLifecycleService.PlayerDistanceBatch(this)));
                     NpcShips.NotifyArchivedMovement((ArchivedSpaceObject)obj);
                     objectArchiveTime += Performance.Elapsed(archiveStart);
                 }

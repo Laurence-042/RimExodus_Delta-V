@@ -9,7 +9,7 @@ namespace DeltaV
 {
     /// <summary>
     /// 推进器工作音表现层：与 ThrusterEffects（火焰）同源同判据——只读分配器真实油门
-    /// （SpaceObject.MotionInfo.HasFreshThrottles）；暂停时停止工作音。
+    /// （SpaceObject.PresentationInfo.HasFreshThrottles）；暂停时停止工作音。
     /// 两条路径与火焰对称：聚焦图逐推进器空间化循环（SoundInfo.InMap(建筑)：声源每帧
     /// 跟随建筑、distRange 随摄像机距离自动衰减，音量 = √油门）；非聚焦船壳整船
     /// OnCamera 循环（跨图 InMap 声源会被引擎 context 强制静音，音量 = 总油门 ×
@@ -72,7 +72,7 @@ namespace DeltaV
         /// </summary>
         private static void UpdateFocusedLoops(Map current)
         {
-            DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(current)?.MotionInfo;
+            DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(current)?.PresentationInfo;
             bool fresh = report != null && report.HasFreshThrottles;
 
             ActiveMapThrusters.Clear();
@@ -153,7 +153,10 @@ namespace DeltaV
                 {
                     continue;
                 }
-                DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map)?.MotionInfo;
+                Vector3 drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
+                float distance = Vector3.Distance(cameraPos, drawPos);
+                if (distance >= ShellHearFar) continue;
+                DriveInfo report = obj.PresentationInfo;
                 if (report == null || !report.HasFreshThrottles)
                 {
                     continue;
@@ -173,12 +176,6 @@ namespace DeltaV
                 }
                 // 位置复用船壳绘制同款换算（与所见一致）；距离含镜头高度——宇宙视野
                 // 拉远时随摄像机远离自然衰减。
-                Vector3 drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
-                float distance = Vector3.Distance(cameraPos, drawPos);
-                if (distance >= ShellHearFar)
-                {
-                    continue;
-                }
                 float falloff = distance <= ShellHearNear
                     ? 1f
                     : 1f - (distance - ShellHearNear) / (ShellHearFar - ShellHearNear);

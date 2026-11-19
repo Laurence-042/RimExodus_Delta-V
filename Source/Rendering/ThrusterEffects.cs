@@ -34,7 +34,7 @@ namespace DeltaV
                 return;
             }
 
-            DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(current)?.MotionInfo;
+            DriveInfo report = frame.PresentationInfo;
             if (report == null || !report.HasFreshThrottles)
             {
                 return;
@@ -209,7 +209,7 @@ namespace DeltaV
         {
             // 普通弹体另有尾焰；侵入 shuttle 与正常驾驶均读取真实分配油门。
             if (container.baseTag == SpaceObjectTag.Projectile) return;
-            DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map)?.MotionInfo;
+            DriveInfo report = container.PresentationInfo;
             if (report == null || !report.HasFreshThrottles)
             {
                 return;

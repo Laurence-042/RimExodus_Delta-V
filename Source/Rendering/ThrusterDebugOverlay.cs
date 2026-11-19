@@ -46,7 +46,7 @@ namespace DeltaV
             if (map == null || universe == null || universe.FrameOf(map) == null) return;
 
             // 推进器矢量：MassReport.thrusters（真实 + 虚拟同一清单）。
-            DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map)?.MotionInfo;
+            DriveInfo report = Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map)?.PresentationInfo;
             if (report != null)
             {
                 Vector2 origin = SpaceTransform.ShipLocalOrigin(map);

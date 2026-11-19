@@ -52,38 +52,70 @@ namespace DeltaV
             dormancy.Wake(map, reason);
         }
 
+        /// <summary>Call-local membership only; distances always read each reference's current pose.</summary>
+        internal sealed class PlayerDistanceBatch
+        {
+            private readonly UniverseManager universe;
+            private List<SpaceObject> references;
+            private int structureVersion, objectCount, mapCount;
+            private Map focusedMap;
+
+            internal PlayerDistanceBatch(UniverseManager universe) { this.universe = universe; }
+            internal void Invalidate() => references = null;
+
+            internal float Distance(SpaceObject obj)
+            {
+                // A caller must invalidate after other membership-changing operations.
+                // Batches never escape their synchronous traversal or enter a frame action.
+                if (references == null || structureVersion != SubstructureOwnership.GlobalStructureVersion
+                    || objectCount != universe.objects.Count || mapCount != Find.Maps.Count
+                    || focusedMap != Find.CurrentMap)
+                {
+                    references = universe.PlayerReferenceObjects();
+                    structureVersion = SubstructureOwnership.GlobalStructureVersion;
+                    objectCount = universe.objects.Count;
+                    mapCount = Find.Maps.Count;
+                    focusedMap = Find.CurrentMap;
+                }
+                return MinPlayerDistance(obj, references);
+            }
+        }
+
         public void Tick()
         {
             OrbitalPoiRegistry.Synchronize(universe);
             float activeRadius = DeltaVMod.CurrentSettings.poiActiveRadius;
             float deleteRadius = DeleteRadius;
+            var distances = new PlayerDistanceBatch(universe);
             foreach (SpaceObject obj in universe.objects.ToList())
             {
                 if (obj.IsScattered)
                 {
-                    float distance = MinPlayerDistance(obj);
+                    float distance = distances.Distance(obj);
                     if (!float.IsPositiveInfinity(distance) && distance > deleteRadius)
                         universe.Scatter.RetireLost(obj);
                 }
                 else if (obj is PoiState poi)
                 {
-                    TickPoiState(poi, activeRadius, deleteRadius);
+                    TickPoiState(poi, activeRadius, deleteRadius, distances);
                 }
                 else
                 {
-                    TickMaterializedContainer(obj, activeRadius, deleteRadius);
+                    TickMaterializedContainer(obj, activeRadius, deleteRadius, distances);
                 }
             }
         }
 
         /// <summary>marker（无图 SnapshotPocket）按距离物化；NativeParent 跟随 vanilla。</summary>
-        private void TickPoiState(PoiState poi, float activeRadius, float deleteRadius)
+        private void TickPoiState(PoiState poi, float activeRadius, float deleteRadius, PlayerDistanceBatch distances)
         {
+            Map previousMap = poi.map;
             SynchronizeNative(poi);
+            if (previousMap != poi.map) distances.Invalidate();
             // 悬死自愈（2026-09-25）：物化 NativeParent 的图被外部销毁 → SynchronizeNative
             // 已清 map（POI 回到无图态，原版语义下等待重物化）。SnapshotPocket 恒无图
             //（有图残留 = 旧档非法形态，读档转换负责）。
-            float distance = MinPlayerDistance(poi);
+            float distance = distances.Distance(poi);
             if (float.IsPositiveInfinity(distance)) return;
             string key = GenerationKey(poi);
             universe.Generation.UpdatePriority(key, distance);
@@ -96,18 +128,23 @@ namespace DeltaV
             if (IsPendingGeneration(poi)) return;
             if (distance <= activeRadius) EnsureActive(poi, distance);
             else if (distance <= deleteRadius) EnsureDormant(poi);
-            else TryPack(poi);
+            else
+            {
+                TryPack(poi);
+                if (previousMap != poi.map) distances.Invalidate();
+            }
         }
 
         /// <summary>
         /// 物化容器（普通 SpaceObject）：舰船、空间站与拆分残骸统一使用距离生命周期。
         /// </summary>
-        private void TickMaterializedContainer(SpaceObject container, float activeRadius, float deleteRadius)
+        private void TickMaterializedContainer(SpaceObject container, float activeRadius, float deleteRadius,
+            PlayerDistanceBatch distances)
         {
             Map map = container.map;
             if (map == null)
             {
-                CheckArchivedProximity(container);
+                CheckArchivedProximity(container, distances);
                 return;
             }
             if (IsUniverseHost(map)) return;
@@ -121,6 +158,7 @@ namespace DeltaV
             {
                 container.map = null;
                 universe.UnregisterObject(container);
+                distances.Invalidate();
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"{container.label}: container's map was destroyed externally; object removed");
                 return;
@@ -135,7 +173,7 @@ namespace DeltaV
                 dormancy.Wake(map, "protected map");
                 return;
             }
-            float distance = MinPlayerDistance(container);
+            float distance = distances.Distance(container);
             if (float.IsPositiveInfinity(distance)) return;
             if (distance <= activeRadius)
             {
@@ -533,10 +571,11 @@ namespace DeltaV
 
         private readonly HashSet<int> restoreQueued = new HashSet<int>();
 
-        internal void CheckArchivedProximity(SpaceObject container)
+        internal void CheckArchivedProximity(SpaceObject container, PlayerDistanceBatch distances = null)
         {
             if (container is ArchivedSpaceObject archived
-                && MinPlayerDistance(container) <= DeltaVMod.CurrentSettings.poiActiveRadius)
+                && (distances?.Distance(container) ?? MinPlayerDistance(container))
+                    <= DeltaVMod.CurrentSettings.poiActiveRadius)
                 QueueRestore(archived);
         }
         private bool TryRestoreContainer(ArchivedSpaceObject archive, out MapSpaceObject current)

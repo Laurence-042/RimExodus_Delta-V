@@ -106,11 +106,16 @@ namespace DeltaV
                 return;
             }
             commandedTarget = default;
-            var facts = Facts(ship, own);
             var strategy = Strategy(ship);
             var candidates = universe.objects.SelectMany(c => Candidates(ship, own, c))
                 .OrderBy(s => OrbitSphere.ArcCells(own.pose.position, ShipRegistry.ShipPose(s).position))
                 .ThenBy(s => s.Identity.key).Take(64).ToList();
+            // Keep the original first observation (including inherited baselines), even
+            // without an enemy. An absent/zero baseline is not proof of initialization.
+            var baseline = ship.CombatAI;
+            bool baselineReady = baseline != null && baseline.baselineShipKey == ship.Identity.key
+                && baseline.initialHullHp > 0f && baseline.initialThrust > 0f;
+            var facts = candidates.Count > 0 || !baselineReady ? Facts(ship, own) : null;
             var live = new HashSet<DriveSubject>(candidates.Select(s => s.Identity));
             foreach (var id in targetRules.Keys.Where(k => !live.Contains(k)).ToList()) targetRules.Remove(id);
             float best = float.NegativeInfinity, currentScore = float.NegativeInfinity;

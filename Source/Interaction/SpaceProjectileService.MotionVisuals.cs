@@ -89,7 +89,7 @@ namespace DeltaV
                     || obj != frame && !obj.ParticipatesInOverlays
                     || universe.Generation?.IsGenerating(obj.map) == true) continue;
                 if (OrbitSphere.Offset(center, obj.pose.position).sqrMagnitude > 240f * 240f) continue;
-                DriveInfo info = obj.MotionInfo;
+                DriveInfo info = obj.PresentationInfo;
                 if (info == null) continue;
                 bool existing = engineGroups.TryGetValue(obj.objectId, out EngineGroups groups)
                     && groups.version == obj.RepresentationVersion && groups.mapId == obj.map.uniqueID;
