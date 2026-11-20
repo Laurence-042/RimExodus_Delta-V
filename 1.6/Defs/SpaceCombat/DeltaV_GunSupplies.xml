@@ -68,7 +68,7 @@
   <RecipeDef>
     <defName>DeltaV_MakeSteelHead</defName>
     <label>make steel projectile heads x200</label>
-    <description>Produce 200 projectile head units from 10 units of material.</description>
+    <description>Steel is flammable. Everyone knows that.</description>
     <jobString>Making steel projectile heads.</jobString>
     <workAmount>1000</workAmount>
     <workSpeedStat>GeneralLaborSpeed</workSpeedStat>
