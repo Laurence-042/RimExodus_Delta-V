@@ -14,9 +14,9 @@ namespace DeltaV
         private readonly struct Sample
         {
             internal readonly int Count;
-            internal readonly float Damage, Piercing, Guard, GuardedDamage;
-            internal Sample(int count, float damage, float piercing, float guard, float guardedDamage)
-            { Count = count; Damage = damage; Piercing = piercing; Guard = guard; GuardedDamage = guardedDamage; }
+            internal readonly float Damage, Piercing, Guard;
+            internal Sample(int count, float damage, float piercing, float guard)
+            { Count = count; Damage = damage; Piercing = piercing; Guard = guard; }
         }
 
         private sealed class Row
@@ -27,6 +27,7 @@ namespace DeltaV
             internal Sample[] Output;
             internal Dictionary<ThingDef, float> GuardOutput;
             internal float CosHalfArc;
+            internal ImpactOutcomePart Impact;
             internal bool Primary, FixedDirect;
 
             internal Sample At(float distance) =>
@@ -50,7 +51,7 @@ namespace DeltaV
         private struct Volley
         {
             internal int Count;
-            internal float Damage, Piercing, Guard, GuardedDamage;
+            internal float Damage, Piercing, Guard, PaidGuard;
         }
 
         private readonly List<Row> rows = new();
@@ -92,6 +93,7 @@ namespace DeltaV
                     var source = battery.outgoing ? outgoingOrigin : new Geometry(battery.pose, ownPose).Center;
                     targetSets.Add(key, targets = receiver.Select(source, battery.priority));
                 }
+                var impact = SpaceImpactEffects.Resolve(battery.shot.aim.Projectile, ThingDefOf.Wall)?.defenderEffect;
                 rows.Add(new Row
                 {
                     Battery = battery, Receiver = receiver, Targets = targets,
@@ -100,20 +102,19 @@ namespace DeltaV
                         && !battery.gun.source.WeaponProps.topTurret
                         && battery.gun.source.Component<CompSpaceWeaponTraverse>() == null,
                     CosHalfArc = Mathf.Cos(Mathf.Min(180f, battery.gun.arc * .5f + .05f) * Mathf.Deg2Rad),
-                    Output = Build(battery),
+                    Impact = impact,
+                    Output = Build(battery, impact),
                     GuardOutput = BuildGuards(battery, receiver.GuardDefinitions)
                 });
             }
         }
 
-        private static Sample[] Build(CombatEngagementEvaluation.Battery battery)
+        private static Sample[] Build(CombatEngagementEvaluation.Battery battery, ImpactOutcomePart impact)
         {
             var weapon = battery.gun.source;
             var shot = battery.shot;
             var props = weapon.WeaponProps;
             int pellets = Math.Max(1, props.projectilesPerShot);
-            var projectile = shot.aim.Projectile;
-            var impact = SpaceImpactEffects.Resolve(projectile, ThingDefOf.Wall)?.defenderEffect;
             float amount = DamagePerProjectile(impact, shot.aim.Speed, shot.mass / pellets,
                 props.impactScale * shot.power);
             int cooldown = weapon.CooldownTicksLeft;
@@ -129,8 +130,7 @@ namespace DeltaV
                 if (first >= WindowTicks) continue;
                 int arrivals = (1 + (WindowTicks - 1 - first) / interval) * pellets;
                 float damage = arrivals * amount;
-                samples[i] = new Sample(arrivals, damage, impact?.penetrates == true ? damage : 0f,
-                    0f, 0f);
+                samples[i] = new Sample(arrivals, damage, impact?.penetrates == true ? damage : 0f, 0f);
             }
             return samples;
         }
@@ -226,18 +226,48 @@ namespace DeltaV
 
             for (int i = 0; i < paths.Count; i++)
             {
+                var (receiver, _, path, _) = paths[i];
+                var volley = volleys[i];
+                volley.PaidGuard = DebitShields(receiver, path, volley.Guard);
+                volleys[i] = volley;
+            }
+            for (int i = 0; i < contributions.Count; i++)
+            {
+                var (row, group, sample) = contributions[i];
+                var volley = volleys[group];
+                if (sample.Guard <= 0 || volley.PaidGuard <= 0) continue;
+                float paidFraction = Mathf.Clamp01(volley.PaidGuard / volley.Guard);
+                float stopped = sample.Damage * paidFraction;
+                if (row.Impact?.penetrationEnergyScale > 0f && paidFraction < 1f)
+                {
+                    // Shield demand is shared across batteries. Within a battery, only the
+                    // round which exhausts its allocated capacity can be partially absorbed.
+                    float survivingShots = sample.Count * (1f - paidFraction);
+                    float partial = survivingShots - Mathf.Floor(survivingShots);
+                    float perShot = sample.Damage / sample.Count;
+                    var shot = row.Battery.shot;
+                    float mass = shot.mass / Math.Max(1, row.Battery.gun.source.WeaponProps.projectilesPerShot);
+                    float partialDamage = SpaceImpactEffects.DamageAtRemainingEnergy(row.Impact,
+                        shot.aim.Speed, 0f, 1f, mass, partial) * row.Battery.gun.source.WeaponProps.impactScale * shot.power;
+                    stopped = sample.Damage - (Mathf.Floor(survivingShots) * perShot + partialDamage);
+                }
+                volley.Damage -= stopped;
+                if (sample.Piercing > 0f) volley.Piercing -= stopped;
+                contributions[i] = (row, group, new Sample(sample.Count, Mathf.Max(0f, sample.Damage - stopped),
+                    0f, sample.Guard));
+                volleys[group] = volley;
+            }
+            for (int i = 0; i < paths.Count; i++)
+            {
                 var (receiver, part, path, _) = paths[i];
                 var volley = volleys[i];
-                float paid = DebitShields(receiver, path, volley.Guard);
-                float stopped = volley.Guard > 0 ? volley.GuardedDamage * (paid / volley.Guard) : 0f;
-                float remaining = Mathf.Max(0f, volley.Damage - stopped);
-                var response = CombatDamageSurface.AtAverage(volley.Count, remaining,
-                    volley.Damage > 0 ? volley.Piercing * remaining / volley.Damage : 0f, path.Hp, path.Layers);
+                var response = CombatDamageSurface.AtAverage(volley.Count, Mathf.Max(0f, volley.Damage),
+                    Mathf.Max(0f, volley.Piercing), path.Hp, path.Layers);
                 float hp = part?.HitPoints ?? 0;
                 float partDamage = Mathf.Min(Mathf.Max(0, hp), response.Through);
                 float critical = hp > 0 && receiver.CriticalTotal > 0
                     ? receiver.CriticalWeight(part) * partDamage / (hp * receiver.CriticalTotal) : 0f;
-                results.Add((response.Damage + partDamage, paid, critical,
+                results.Add((response.Damage + partDamage, volley.PaidGuard, critical,
                     path.Hp > 0 ? response.Damage / (float)path.Hp : 0f));
             }
 
@@ -301,13 +331,12 @@ namespace DeltaV
             }
             var shield = paths[group].Shield;
             if (shield != null && row.GuardOutput != null && row.GuardOutput.TryGetValue(shield, out float amount))
-                sample = new Sample(sample.Count, sample.Damage, sample.Piercing, sample.Count * amount, sample.Damage);
+                sample = new Sample(sample.Count, sample.Damage, sample.Piercing, sample.Count * amount);
             var volley = volleys[group];
             volley.Count += sample.Count;
             volley.Damage += sample.Damage;
             volley.Piercing += sample.Piercing;
             volley.Guard += sample.Guard;
-            volley.GuardedDamage += sample.GuardedDamage;
             volleys[group] = volley;
             contributions.Add((row, group, sample));
         }

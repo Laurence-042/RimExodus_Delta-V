@@ -253,8 +253,8 @@ internal static partial class Program
             && uranium.kineticMassScaling, "steel blasts and uranium spends a kinetic penetration budget");
         foreach (var (charge, headsCount, radius, blast, budget) in new[]
         {
-            (1, 1, .75f, 32, 24), (4, 2, 1.25f, 64, 96), (24, 24, 1.8f, 480, 576),
-            (48, 48, 2.4f, 760, 1152), (1, 96, 3f, 1120, 24), (96, 96, 3f, 1120, 2304)
+            (1, 1, .75f, 32, 24.224f), (4, 2, 1.25f, 64, 95.378f), (24, 24, 1.8f, 480, 516.119f),
+            (48, 48, 2.4f, 760, 916.421f), (1, 96, 3f, 1120, 24.224f), (96, 96, 3f, 1120, 1467.699f)
         })
         {
             float uraniumShotMass = headsCount * 1.5f;
@@ -264,6 +264,27 @@ internal static partial class Program
                 && Near(SpaceImpactEffects.ComputeDamage(steel, 120, 0, 1, headsCount), blast)
                 && Near(SpaceImpactEffects.ComputeDamage(uranium, uraniumSpeed, 0, 1, uraniumShotMass), budget),
                 $"approved steel and uranium impact values at {charge}/{headsCount}");
+        }
+        var chemicalGuard = AuditEffect(effects, "DeltaV_Impact_VsShield");
+        var railImpact = AuditEffect(effects, "DeltaV_Impact_RailgunVsStructure");
+        var railGuard = AuditEffect(effects, "DeltaV_Impact_RailgunVsShield");
+        foreach (var (charge, expected) in new[] { (1,24), (4,95), (16,358), (18,399), (20,439),
+            (24,516), (32,661), (48,916), (64,1132), (80,1314), (96,1468) })
+        {
+            foreach (float mass in new[] { 1.5f, 144f })
+            {
+                float speed = SpaceKinetics.LaunchSpeed(charge, mass);
+                Check(Math.Round(SpaceImpactEffects.ComputeDamage(uranium, speed, 0, 1, mass)) == expected
+                    && Near(SpaceImpactEffects.ComputeDamage(chemicalGuard, speed, 0, 1, mass), 3 * charge),
+                    $"chemical AP at charge {charge} and mass {mass} meets structure and guard anchors");
+            }
+        }
+        foreach (var (length, expected) in new[] { (1,494), (5,1952), (10,2997), (20,3855), (1000,4200) })
+        {
+            float speed = SpaceKinetics.Speed(30, length * 112500f);
+            Check(Math.Round(SpaceImpactEffects.ComputeDamage(railImpact, speed, 0, 1, 30)) == expected
+                && Near(SpaceImpactEffects.ComputeDamage(railGuard, speed, 0, 1, 30), 500 * length),
+                $"rail length {length} meets independent structure and guard anchors");
         }
         foreach (string name in new[] { "DeltaV_Weapon_CannonTurret", "DeltaV_Weapon_HeavyMainMedium",
             "DeltaV_Weapon_RapidMainSmall", "DeltaV_Weapon_RapidMainMedium" })

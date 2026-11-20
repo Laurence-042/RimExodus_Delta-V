@@ -202,8 +202,14 @@ namespace DeltaV
                 shot.mass, shot.aim.Speed, shot.power);
 
         internal static float GroundDirectDamage(CompSpaceWeapon weapon, ImpactOutcomePart part,
-            CompSpaceWeaponMagazine magazine, float speed) =>
-            ExpectedDamage(weapon, part, ProjectileMass(weapon, magazine), speed, weapon.Tuning?.power ?? 1);
+            CompSpaceWeaponMagazine magazine, float speed)
+        {
+            float mass = ProjectileMass(weapon, magazine);
+            int power = weapon.Tuning?.power ?? 1;
+            if (part?.penetrationEnergyScale > 0f)
+                return part.damage * SpaceKinetics.ImpactFactor(mass, speed) * weapon.WeaponProps.impactScale * power;
+            return ExpectedDamage(weapon, part, mass, speed, power);
+        }
 
         private static float ExpectedDamage(CompSpaceWeapon weapon, ImpactOutcomePart part, float mass, float speed, int power)
         {

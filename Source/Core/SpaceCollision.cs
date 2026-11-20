@@ -76,14 +76,14 @@ namespace DeltaV
             public bool resolvedHitShield;
             /// <summary>守方爆炸后效半径（非爆炸 = 0；特效尺寸与音效选型）。</summary>
             public float resolvedHitRadius;
-            /// <summary>发射伤害倍率乘剩余冲击比例；随事件进入结算。</summary>
-            public float damageScale = 1f;
+            /// <summary>发射伤害倍率和可用于本次命中的有效动能比例。</summary>
+            public float damageScale = 1f, energyFraction = 1f;
             public float armorPenetrationScale = 1f;
             public float mass = 1f, beamEnergyScale = 1f;
             /// <summary>「放置」后效回调（侵入 shuttle §7.5）：shuttle 服务闭包——
             /// 舱体放置在撞击位内侧偏移 + 容器销毁（帧边界）。</summary>
             public System.Action<SpaceObject, Vector3, Vector2> onPlace;
-            /// <summary>本段击破后的续飞；只消耗 damageScale，不重复按速度或穿甲扣预算。</summary>
+            /// <summary>本段击破后的续飞；只消耗有效动能余量，不重复按速度或穿甲扣预算。</summary>
             public bool continued;
             public bool didContinue;
             public Vector3 continuePoint;
@@ -150,8 +150,8 @@ namespace DeltaV
             internal bool hullDamaged, hullImpulse;
             internal HullImpactBatch hullBatch;
             public float incidenceAngleRad;
-            /// <summary>发射伤害倍率乘剩余冲击比例。</summary>
-            public float damageScale = 1f;
+            /// <summary>发射伤害倍率和连续命中后的有效动能比例。</summary>
+            public float damageScale = 1f, energyFraction = 1f;
             public float armorPenetrationScale = 1f;
             public float mass = 1f, beamEnergyScale = 1f;
             internal SpaceObject hullSource;
@@ -722,6 +722,7 @@ namespace DeltaV
                 if (SpaceShieldProjectileBehavior.IsKinetic(projectileProps) && evt.relativeSpeed > .0001f)
                     evt.incidentDir = target.DirectionFromUniverse(evt.hitUniverse, evt.relativeVelocity);
                 evt.damageScale = body.damageScale;
+                evt.energyFraction = body.energyFraction;
                 evt.armorPenetrationScale = body.armorPenetrationScale;
                 evt.mass = body.mass; evt.beamEnergyScale = body.beamEnergyScale;
 
@@ -774,7 +775,7 @@ namespace DeltaV
                     defenderSubject = struckSubject,
                     position = evt.hitUniverse, pathFrom = body.from,
                     localPoint = p, localDirection = dir, localNormal = normal,
-                    damageScale = body.damageScale, explosive = body.resolvedHitExplosive,
+                    damageScale = body.damageScale * body.energyFraction, explosive = body.resolvedHitExplosive,
                     nativeExplosion = defMap != null && blastRadius > 0f
                         && !(defenderPart.penetrationLayers?.Count > 0),
                     explosionRadius = body.resolvedHitRadius, penetrated = remaining > 0f,
@@ -825,7 +826,7 @@ namespace DeltaV
                     {
                         defender = defender, projectileDef = body.projectileDef, position = hit, pathFrom = body.from,
                         localPoint = linePoint, localDirection = dir, localNormal = lineNormal,
-                        damageScale = body.damageScale, shieldMode = SpaceShieldMode.Kinetic,
+                        damageScale = body.damageScale * body.energyFraction, shieldMode = SpaceShieldMode.Kinetic,
                         lineStart = contact.lineStart, lineEnd = contact.lineEnd
                     });
                     int fragmentCount = SpaceKinetics.ShieldFragmentCount(body.mass, relative, worldNormal, impulse, projectileProps);
@@ -857,7 +858,7 @@ namespace DeltaV
                 {
                     defender = defender, projectileDef = body.projectileDef, position = hit, pathFrom = body.from,
                     localPoint = linePoint, localDirection = dir, localNormal = lineNormal,
-                    damageScale = body.damageScale, shieldMode = SpaceShieldMode.Electromagnetic,
+                    damageScale = body.damageScale * body.energyFraction, shieldMode = SpaceShieldMode.Electromagnetic,
                     lineStart = contact.lineStart, lineEnd = contact.lineEnd
                 });
                 body.redirected = true;
@@ -894,6 +895,7 @@ namespace DeltaV
                     evt.incidentDir = target.DirectionFromUniverse(evt.hitUniverse, evt.relativeVelocity);
                 evt.incidenceAngleRad = SpaceTransform.IncidenceAngle(evt.incidentDir, ray.normal);
                 evt.damageScale = body.damageScale;
+                evt.energyFraction = body.energyFraction;
                 evt.armorPenetrationScale = body.armorPenetrationScale;
                 evt.mass = body.mass; evt.beamEnergyScale = body.beamEnergyScale;
                 body.resolvedHit = true;
@@ -919,7 +921,7 @@ namespace DeltaV
                     defender = defender, projectileDef = body.projectileDef, position = evt.hitUniverse, pathFrom = body.from,
                     localPoint = shieldPoint, localDirection = dir,
                     localNormal = ray.normal,
-                    damageScale = body.damageScale, explosive = body.resolvedHitExplosive,
+                    damageScale = body.damageScale * body.energyFraction, explosive = body.resolvedHitExplosive,
                     nativeExplosion = body.resolvedHitExplosive,
                     explosionRadius = body.resolvedHitRadius, shieldMode = SpaceShieldMode.Guard,
                     shieldCenter = target.ToLocal(shieldArc.center), shieldRadius = shieldArc.radius,
@@ -961,7 +963,7 @@ namespace DeltaV
         private static bool ContinueAfterImpact(SweptBody body, float remaining, Vector3 hit)
         {
             if (remaining <= 0f) return false;
-            body.damageScale *= remaining;
+            body.energyFraction *= remaining;
             body.continued = true;
             body.continuePoint = hit;
             return true;

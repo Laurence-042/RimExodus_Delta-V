@@ -59,6 +59,7 @@ namespace DeltaV
         /// 速度缩放是动能弹语义，需在 XML 中显式启用）。</summary>
         public float speedExponent = 0f;
         public bool kineticMassScaling;
+        public float penetrationMaximum, penetrationEnergyScale;
 
         /// <summary>入射角权重：正入射 ×1 → 掠射（90°）×此值。</summary>
         public float incidenceMinFactor = 0.35f;
@@ -158,6 +159,10 @@ namespace DeltaV
                 && (defenderEffect.penetrationLayers?.Count > 0 || defenderEffect.explosionRadius > 0f
                     || defenderEffect.highExplosive != null))
                 yield return $"{defName}: budget penetration cannot also use a local penetration profile or explosion";
+            if (defenderEffect != null && (defenderEffect.penetrationMaximum != 0f || defenderEffect.penetrationEnergyScale != 0f)
+                && !(defenderEffect.penetrationMaximum > 0f && defenderEffect.penetrationEnergyScale > 0f
+                    && defenderEffect.penetrates && defenderEffect.kineticMassScaling && defenderEffect.kind == ImpactEffectKind.DamageMap))
+                yield return $"{defName}: a penetration curve requires positive parameters on a penetrating kinetic structure impact";
             if (defenderEffect?.highExplosive is HighExplosiveProfile blast && !blast.IsValid)
                 yield return $"{defName}: high explosive needs positive mass, radius and damage curves";
             if (attackerEffect == null && defenderEffect == null)
@@ -382,11 +387,14 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 后效量计算（单实现）：基准 × 速度因子 × 入射角因子（× 兜底耐久缩放）。
-        /// DamageMap 的伤害与 ShieldDrain 的容量消耗共用同一缩放口径。
+        /// 满动能命中预算。弹种和目标的联合后效决定结构曲线或守卫扣容。
         /// </summary>
         public static float ComputeDamage(ImpactOutcomePart part, float relativeSpeed,
             float incidenceAngleRad, float durabilityScale = 1f, float mass = 1f)
+            => DamageAtRemainingEnergy(part, relativeSpeed, incidenceAngleRad, durabilityScale, mass, 1f);
+
+        internal static float DamageAtRemainingEnergy(ImpactOutcomePart part, float relativeSpeed,
+            float incidenceAngleRad, float durabilityScale, float mass, float energyFraction)
         {
             if (part == null) return 0f;
             if (part.highExplosive != null) return part.highExplosive.CenterDamage(mass);
@@ -394,15 +402,19 @@ namespace DeltaV
                 Mathf.Max(relativeSpeed, 0.01f) / Mathf.Max(1f, part.referenceSpeed), part.speedExponent);
             float incidenceFactor = Mathf.Lerp(1f, part.incidenceMinFactor,
                 Mathf.Clamp01(incidenceAngleRad / (Mathf.PI * 0.5f)));
-            return part.damage * speedFactor * incidenceFactor * durabilityScale;
+            float budget = part.penetrationEnergyScale > 0f
+                ? SpaceKinetics.PenetrationBudget(SpaceKinetics.Energy(mass, relativeSpeed) * energyFraction,
+                    part.penetrationMaximum, part.penetrationEnergyScale)
+                : part.damage * speedFactor * energyFraction;
+            return budget * incidenceFactor * durabilityScale;
         }
 
         /// <summary>
-        /// 守方后效应用（原版伤害原语单点）：伤害 = 基准 × 速度因子 × 入射角因子
+        /// 守方后效应用（原版伤害原语单点）：伤害 = 接触预算 × 入射角因子
         ///（× 兜底耐久缩放）。跳弹（高耐久 ∧ 斜入射）= 消灭无伤——由攻方 DestroySelf
         /// 后效完成「消灭」，本方法不施加伤害。基架格由单次伤害决定摧毁概率，
         /// 不累计耐久；爆炸及破片仍可破坏周围基架。护盾容量消耗 = 直写原版 comp。
-        /// 返回可续飞的剩余比例；调用方只乘一次弹体 damageScale。
+        /// 返回该次接触后的有效动能比例，由碰撞链累计。
         /// </summary>
         public static float ApplyToDefender(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part,
             float durabilityScale = 1f)
@@ -431,7 +443,7 @@ namespace DeltaV
             {
                 CompProjectileInterceptor interceptor = evt.defenderBuilding?.TryGetComp<CompProjectileInterceptor>();
                 if (interceptor == null) return 0f;
-                float drain = ComputeDamage(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale, evt.mass)
+                float drain = DamageAtRemainingEnergy(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale, evt.mass, evt.energyFraction)
                     * evt.damageScale;
                 var shield = evt.defenderBuilding.TryGetComp<CompSpaceShield>();
                 if (shield != null)
@@ -462,14 +474,14 @@ namespace DeltaV
                 DetonateHighExplosive(evt, part, map);
                 return 0f;
             }
-            float amount = ComputeDamage(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale, evt.mass)
+            float amount = DamageAtRemainingEnergy(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale, evt.mass, evt.energyFraction)
                 * (part.highExplosive == null ? evt.damageScale : 1f);
             float ap = part.armorPenetration * (amount / Mathf.Max(1f, part.damage))
                 * evt.armorPenetrationScale;
             DamageDef damType = part.damageDef ?? DamageDefOf.Bullet;
             if (target.entity != null)
-                return target.ApplyDamage(evt.hitCell, evt.defenderBuilding, part, amount, ap, damType,
-                    evt.launcher, evt.projectileDef, evt.HitLocal);
+                return EnergyRatio(evt, part, target.ApplyDamage(evt.hitCell, evt.defenderBuilding, part, amount, ap, damType,
+                    evt.launcher, evt.projectileDef, evt.HitLocal));
             IntVec3 cell = evt.hitCell.IsValid ? evt.hitCell : new IntVec3(
                 Mathf.FloorToInt(evt.hitDefenderLocal.x), 0,
                 Mathf.FloorToInt(evt.hitDefenderLocal.y)).ClampInsideMap(map);
@@ -520,8 +532,12 @@ namespace DeltaV
             {
                 PlanetGlobeRenderer.InvalidateSilhouette(map);
             }
-            return remaining;
+            return EnergyRatio(evt, part, remaining);
         }
+
+        private static float EnergyRatio(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part, float remaining) =>
+            SpaceKinetics.RemainingEnergyRatio(SpaceKinetics.Energy(evt.mass, evt.relativeSpeed) * evt.energyFraction,
+                part.penetrationEnergyScale, remaining);
 
         // 普通弹体与舰体接触共用：原版实际扣血、余量及基架单发概率均只在这里实现。
         internal static float ApplyStructureDamage(SpaceCollision.TargetView target, IntVec3 cell, Thing building, ImpactOutcomePart part,

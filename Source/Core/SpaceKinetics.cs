@@ -11,6 +11,22 @@ namespace DeltaV
         public static float Speed(float mass, float energy) => mass <= 0f ? 0f : Mathf.Sqrt(2f * Mathf.Max(0f, energy) / mass);
         public static float LaunchSpeed(float charge, float mass) => Speed(mass, Energy(charge, UnitSpeed));
         public static float ImpactFactor(float mass, float speed) => Energy(mass, speed) / EnergyUnitsPerWattDay;
+        public static float PenetrationBudget(float energy, float maximum, float energyScale)
+        {
+            double x = energy / (double)energyScale;
+            return (float)(maximum * (x < 1e-8 ? x : 1.0 - System.Math.Exp(-x)));
+        }
+
+        // Invert the remaining share of B(E) at this contact before carrying energy to the next one.
+        internal static float RemainingEnergyRatio(float energy, float energyScale, float budgetRatio)
+        {
+            if (energyScale <= 0f || budgetRatio <= 0f || budgetRatio >= 1f) return budgetRatio;
+            double x = energy / (double)energyScale;
+            if (x < 1e-8) return budgetRatio;
+            double remaining = budgetRatio * (1.0 - System.Math.Exp(-x));
+            return Mathf.Clamp01((float)((remaining < 1e-8 ? remaining : -System.Math.Log(1.0 - remaining)) / x));
+        }
+
         public static float ShieldImpulse(float strength) => 360f * Mathf.Clamp01(strength / 100f);
         public static float ShieldCost(float mass, float normalSpeed, float impulse, float baseCost)
         {

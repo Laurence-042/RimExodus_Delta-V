@@ -49,6 +49,8 @@
       <referenceSpeed>60</referenceSpeed>
       <speedExponent>1</speedExponent>
       <incidenceMinFactor>0.35</incidenceMinFactor>
+      <penetrationMaximum>2300</penetrationMaximum>
+      <penetrationEnergyScale>170000</penetrationEnergyScale>
       <armorPenetration>3</armorPenetration>
       <kineticMassScaling>true</kineticMassScaling>
       <penetrates>true</penetrates>
@@ -72,6 +74,8 @@
       <referenceSpeed>60</referenceSpeed>
       <speedExponent>1</speedExponent>
       <incidenceMinFactor>0.5</incidenceMinFactor>
+      <penetrationMaximum>2300</penetrationMaximum>
+      <penetrationEnergyScale>170000</penetrationEnergyScale>
       <armorPenetration>3</armorPenetration>
       <kineticMassScaling>true</kineticMassScaling>
       <penetrates>true</penetrates>
@@ -314,6 +318,8 @@
       <referenceSpeed>60</referenceSpeed>
       <speedExponent>1</speedExponent>
       <incidenceMinFactor>0.6</incidenceMinFactor>
+      <penetrationMaximum>4200</penetrationMaximum>
+      <penetrationEnergyScale>900000</penetrationEnergyScale>
       <armorPenetration>3</armorPenetration>
       <penetrates>true</penetrates>
       <kineticMassScaling>true</kineticMassScaling>
@@ -336,6 +342,8 @@
       <referenceSpeed>60</referenceSpeed>
       <speedExponent>1</speedExponent>
       <incidenceMinFactor>0.6</incidenceMinFactor>
+      <penetrationMaximum>4200</penetrationMaximum>
+      <penetrationEnergyScale>900000</penetrationEnergyScale>
       <armorPenetration>3</armorPenetration>
       <penetrates>true</penetrates>
       <kineticMassScaling>true</kineticMassScaling>

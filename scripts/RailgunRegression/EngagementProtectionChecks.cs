@@ -21,10 +21,10 @@ internal static partial class Program
         bool compareForecast = Environment.GetCommandLineArgs().Contains("--engagement-forecast");
         var projectiles = new Dictionary<string, ThingDef>();
         var xml = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceProjectiles.xml");
-        foreach (string name in new[] { "DeltaV_Projectile_Cannon", "DeltaV_Projectile_Laser" })
+        foreach (string name in new[] { chemical.defName, "DeltaV_Projectile_Laser" })
         {
-            var def = MakeDef(name);
-            var props = new CompProperties_SpaceProjectile();
+            var def = name == chemical.defName ? chemical : MakeDef(name);
+            var props = def.GetCompProperties<CompProperties_SpaceProjectile>() ?? new CompProperties_SpaceProjectile();
             var node = xml.Root.Elements().Single(e => (string)e.Element("defName") == name)
                 .Element("comps").Elements("li").Single(e => (string)e.Attribute("Class") == "DeltaV.CompProperties_SpaceProjectile");
             foreach (var value in node.Elements())
@@ -34,11 +34,12 @@ internal static partial class Program
                 field.SetValue(props, field.FieldType.IsEnum ? Enum.Parse(field.FieldType, value.Value)
                     : Convert.ChangeType(value.Value, field.FieldType, CultureInfo.InvariantCulture));
             }
-            def.comps.Add(props); projectiles.Add(name, def);
+            if (def != chemical) def.comps.Add(props);
+            projectiles.Add(name, def);
         }
         var effects = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceImpactEffects.xml");
         foreach (var node in effects.Root.Elements().Where(e => e.Element("projectileDefs")?.Elements("li")
-            .Any(v => projectiles.ContainsKey(v.Value)) == true))
+            .Any(v => v.Value == "DeltaV_Projectile_Laser") == true))
         {
             var effect = new SpaceImpactEffectDef { defName = node.Element("defName").Value,
                 projectileDefs = node.Element("projectileDefs").Elements("li").Where(v => projectiles.ContainsKey(v.Value)).Select(v => projectiles[v.Value]).ToList(),
@@ -81,7 +82,7 @@ internal static partial class Program
             else if (protection == "Guard") guard = Shield(750);
             SubstructureOwnership.BumpStructureVersion();
             bool laser = weapon == "Laser";
-            ThingDef projectile = projectiles[laser ? "DeltaV_Projectile_Laser" : "DeltaV_Projectile_Cannon"];
+            ThingDef projectile = projectiles[laser ? "DeltaV_Projectile_Laser" : chemical.defName];
             float speed = laser ? 60f : SpaceKinetics.LaunchSpeed(32, 1);
             int count = laser ? 10 : 1;
             CombatDamageForecast forecast = null;
@@ -150,10 +151,10 @@ internal static partial class Program
         if (compareForecast)
         {
             CheckForecastPenetrationAndResources();
-            CheckForecastGeometry(projectiles["DeltaV_Projectile_Laser"], projectiles["DeltaV_Projectile_Cannon"]);
-            CheckPointContactsAfterDamage(projectiles["DeltaV_Projectile_Laser"], projectiles["DeltaV_Projectile_Cannon"]);
+            CheckForecastGeometry(projectiles["DeltaV_Projectile_Laser"], projectiles[chemical.defName]);
+            CheckPointContactsAfterDamage(projectiles["DeltaV_Projectile_Laser"], projectiles[chemical.defName]);
             CheckCompoundDamageRefresh(projectiles["DeltaV_Projectile_Laser"]);
-            CheckForecastFootprints(projectiles["DeltaV_Projectile_Laser"], projectiles["DeltaV_Projectile_Cannon"]);
+            CheckForecastFootprints(projectiles["DeltaV_Projectile_Laser"], projectiles[chemical.defName]);
             CheckForecastIndependentCover(projectiles["DeltaV_Projectile_Laser"]);
             CheckForecastShortRays(output);
             CheckForecastRecursiveCover(output);
@@ -375,8 +376,7 @@ internal static partial class Program
                         Set(wall, "rotationInt", rotation); map.thingGrid.Register(wall); walls.Add(wall);
                     }
                     float speed = projectile == laser ? 60 : 180;
-                    float mass = projectile == laser ? 1 : 1200 / SpaceImpactEffects.ComputeDamage(
-                        SpaceImpactEffects.Resolve(projectile, null).defenderEffect, speed, 0);
+                    float mass = projectile == laser ? 1 : MassForBudget(projectile, speed, 1200);
                     var forecast = new CombatDamageForecast(hull);
                     var prediction = forecast.Fire(new Vector2(5, 5.5f), new Vector2(65, rise).normalized,
                         new Vector2(65, rise).magnitude, projectile, mass, speed, projectile == laser ? 4 : 1);
@@ -704,8 +704,7 @@ internal static partial class Program
             int tick = Find.TickManager.TicksGame;
             float radius = SpaceProjectileService.FootprintRadius(projectile);
             float speed = projectile == laser ? 60f : 180f;
-            float mass = 60f / SpaceImpactEffects.ComputeDamage(
-                SpaceImpactEffects.Resolve(projectile, null).defenderEffect, speed, 0f);
+            float mass = MassForBudget(projectile, speed, 60);
             Check(radius == 0f, projectile.defName + " declares a zero-radius hull sweep");
             void Verify(float lane, float end, Thing expected)
             {
@@ -753,8 +752,7 @@ internal static partial class Program
                 for (int z = 1; z < 65; z++) walls.Add(Add(x, z, hp));
             var direction = new Vector2(65, rise).normalized;
             float speed = projectile == laser ? 60 : 180;
-            float mass = projectile == laser ? 1 : 1200 / SpaceImpactEffects.ComputeDamage(
-                SpaceImpactEffects.Resolve(projectile, null).defenderEffect, speed, 0);
+            float mass = projectile == laser ? 1 : MassForBudget(projectile, speed, 1200);
             var forecast = new CombatDamageForecast(hull);
             var result = forecast.Fire(new Vector2(5, 5.5f), direction, new Vector2(65, rise).magnitude,
                 projectile, mass, speed, projectile == laser ? 4 : 1, projectile == laser ? 4 : 1);
@@ -771,7 +769,7 @@ internal static partial class Program
         var damageDef = SpaceImpactEffects.Resolve(rail, reduced.def).defenderEffect.damageDef ?? DamageDefOf.Bullet;
         reduced.def.damageMultipliers = new List<DamageMultiplier> { new DamageMultiplier { damageDef = damageDef, multiplier = .3f } };
         var reductionForecast = new CombatDamageForecast(hull);
-        float roundMass = 101 / SpaceImpactEffects.ComputeDamage(SpaceImpactEffects.Resolve(rail, null).defenderEffect, 180, 0);
+        float roundMass = MassForBudget(rail, 180, 101);
         reductionForecast.Fire(new Vector2(5, 5.5f), Vector2.right, 65, rail, roundMass, 180);
         Fire(101);
         Check(Math.Abs(reductionForecast.RemainingHP(reduced) - reduced.HitPoints) < .001,
@@ -804,10 +802,10 @@ internal static partial class Program
         {
             Reset(); var a = Shield(600); var b = Shield(600);
             var wall = Add(55, 5, 180); var device = Add(65, 5, 300);
-            float mass = budget / SpaceImpactEffects.ComputeDamage(SpaceImpactEffects.Resolve(rail, null).defenderEffect, 180, 0);
+            float mass = 2 * 225 * budget / (180 * 180);
             var forecast = new CombatDamageForecast(hull);
             var result = forecast.Fire(new Vector2(5, 5.5f), Vector2.right, 65, rail, mass, 180);
-            Fire(budget);
+            FireGuard(budget);
             Check(!result.exhausted && Math.Abs(forecast.RemainingHP(wall) - Math.Max(0, wall.HitPoints)) < 1
                 && Math.Abs(forecast.RemainingHP(device) - Math.Max(0, device.HitPoints)) < 1,
                 "forecast matches coincident guard depletion then armor penetration at budget " + budget);

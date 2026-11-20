@@ -62,15 +62,18 @@ internal static partial class Program
         public Hull(Map map) : base(nextId++, map, new SpacePose(Vector3.forward, 0)) { }
         public readonly List<ShipBase> members = new();
         public override IEnumerable<ShipBase> Ships => members;
+        public readonly List<IntVec3> deckCells = new();
         public override IEnumerable<SpaceCollisionCell> CollisionCells =>
-            map.listerThings.AllThings.Where(t => !t.Destroyed)
-                .SelectMany(t => t.OccupiedRect().Select(c =>
-                    new SpaceCollisionCell(c, SpaceCellKind.Building, t)));
+            deckCells.Where(c => SubstructureOwnership.HasFoundation(map, c))
+                .Select(c => new SpaceCollisionCell(c, SpaceCellKind.Substructure, null))
+                .Concat(map.listerThings.AllThings.Where(t => !t.Destroyed)
+                    .SelectMany(t => t.OccupiedRect().Select(c =>
+                        new SpaceCollisionCell(c, SpaceCellKind.Building, t))));
     }
     static Map map;
     static Hull hull;
     static UniverseManager universe;
-    static ThingDef rail, fragment, shieldDef;
+    static ThingDef rail, fragment, chemical, rapid, shieldDef;
     static DamageDef bullet;
     static readonly List<SpaceCollision.VisualContact> contacts = new();
 
@@ -95,11 +98,11 @@ internal static partial class Program
             universe.Weapons.RegisterWeapon(weapon);
         return target;
     }
-    static CompProjectileInterceptor Shield(int hp, float radius = 12)
+    static CompProjectileInterceptor Shield(int hp, float radius = 12, int x = 40, int z = 8)
     {
         var comp = (CompProjectileInterceptor)Raw(typeof(CompProjectileInterceptor));
         comp.props = new CompProperties_ProjectileInterceptor { radius = radius, hitPoints = 3000 };
-        comp.currentHitPoints = hp; Add(40, 8, 500, comp);
+        comp.currentHitPoints = hp; Add(x, z, 500, comp);
         return comp;
     }
     static void Reset(int height = 12)
@@ -126,16 +129,30 @@ internal static partial class Program
             new Vector2(from, lane), new Vector2(to - from, (endLane ?? lane) - lane).normalized) * speed;
         var body = new SpaceCollision.SweptBody { attacker = attacker, projectileDef = def ?? rail,
             from = start, to = end, damageScale = 1f,
-            mass = budget / Math.Max(.001f, SpaceImpactEffects.ComputeDamage(SpaceImpactEffects.Resolve(def ?? rail, null).defenderEffect, speed, 0)),
+            mass = MassForBudget(def ?? rail, speed, budget),
             sweepRadius = 0.01f,
             onVisualContact = contacts.Add };
         configure?.Invoke(body);
         SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { body });
         return body;
     }
-    static float RemainingBudget(SpaceCollision.SweptBody shot) =>
-        SpaceImpactEffects.ComputeDamage(SpaceImpactEffects.Resolve(shot.projectileDef, null).defenderEffect,
-            shot.attacker.pose.velocity.magnitude, 0f, 1f, shot.mass) * shot.damageScale;
+    static float MassForBudget(ThingDef projectile, float speed, float budget)
+    {
+        var part = SpaceImpactEffects.Resolve(projectile, null)?.defenderEffect;
+        if (part == null || part.penetrationEnergyScale <= 0f)
+            return budget / Math.Max(.001f, SpaceImpactEffects.ComputeDamage(part, speed, 0));
+        if (budget >= part.penetrationMaximum) throw new ArgumentOutOfRangeException(nameof(budget));
+        double energy = -part.penetrationEnergyScale * Math.Log(1 - budget / (double)part.penetrationMaximum);
+        return (float)(2 * energy / (speed * speed));
+    }
+
+    static SpaceCollision.SweptBody FireGuard(float demand, float speed = 180) =>
+        Fire(0, speed, configure: body => body.mass = 2f * 225f * demand / (speed * speed));
+
+    static float RemainingBudget(SpaceCollision.SweptBody shot, bool guard = false) =>
+        SpaceImpactEffects.DamageAtRemainingEnergy(SpaceImpactEffects.Resolve(shot.projectileDef,
+            guard ? shieldDef : null, shieldSurface: guard).defenderEffect, shot.attacker.pose.velocity.magnitude,
+            0f, 1f, shot.mass, shot.energyFraction) * shot.damageScale;
     static void Run(string[] args)
     {
         using var logs = Log.LockMessages(); DeepProfiler.enabled = false;
@@ -179,14 +196,20 @@ internal static partial class Program
         fragment = MakeDef("DeltaV_Projectile_RailFragment");
         fragment.comps.Add(new CompProperties_SpaceProjectile { speed = 80, hasMap = false });
         shieldDef = MakeDef("DeltaV_ShieldGenerator");
+        chemical = MakeDef("DeltaV_Projectile_CannonUranium");
+        chemical.comps.Add(new CompProperties_SpaceProjectile());
+        rapid = MakeDef("DeltaV_Projectile_RapidUranium");
+        rapid.comps.Add(new CompProperties_SpaceProjectile());
+        var projectiles = new[] { rail, fragment, chemical, rapid }.ToDictionary(d => d.defName);
         var defs = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceImpactEffects.xml");
         foreach (var node in defs.Root.Elements().Where(x =>
-            x.Element("projectileDefs")?.Elements("li").Any(v => v.Value == rail.defName || v.Value == fragment.defName) == true))
+            x.Element("projectileDefs")?.Elements("li").Any(v => projectiles.ContainsKey(v.Value)) == true))
         {
             var effect = new SpaceImpactEffectDef { defName = node.Element("defName").Value,
-                projectileDefs = node.Element("projectileDefs").Elements("li").Where(v => v.Value == rail.defName || v.Value == fragment.defName)
-                    .Select(v => v.Value == rail.defName ? rail : fragment).ToList(),
+                projectileDefs = node.Element("projectileDefs").Elements("li").Where(v => projectiles.ContainsKey(v.Value))
+                    .Select(v => projectiles[v.Value]).ToList(),
                 targetsSubstructure = (bool?)node.Element("targetsSubstructure") ?? false,
+                substructureHitChance = (float?)node.Element("substructureHitChance") ?? SpaceImpactEffectDef.DefaultSubstructureHitChance,
                 targetThingDefs = node.Element("targetThingDefs") == null ? null : new List<ThingDef> { shieldDef },
                 attackerEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DestroySelf },
                 defenderEffect = new ImpactOutcomePart() };
@@ -230,23 +253,23 @@ internal static partial class Program
         CheckGuardCenters();
 
         Reset(); var first = Shield(3000); var second = Shield(3000);
-        var shot = Fire(7200); // 7200 budget, co-located full shields.
+        var shot = FireGuard(7200); // 7200 budget, co-located full shields.
         Check(first.currentHitPoints == 0 && second.currentHitPoints == 0 && !shot.dead
-            && Math.Abs(RemainingBudget(shot) - 1200) < 2, "coincident full shields subtract 6000 once and retain 1200");
+            && Math.Abs(RemainingBudget(shot, guard: true) - 1200) < 2, "coincident full shields subtract 6000 once and retain 1200");
         Check(contacts.Count == 2 && contacts.All(c => c.shieldMode == SpaceShieldMode.Guard && c.shieldBroken)
             && contacts[0].damageScale > contacts[1].damageScale,
             "coincident shield breaks each retain their own visual outcome and incoming budget");
         Reset(); first = Shield(1); second = Shield(3000);
-        shot = Fire(3600);
+        shot = FireGuard(3600);
         Check(first.currentHitPoints == 0 && second.currentHitPoints == 0 && !shot.dead
-            && Math.Abs(RemainingBudget(shot) - 599) < 2, "one-point shield cannot erase a 3600-budget round");
+            && Math.Abs(RemainingBudget(shot, guard: true) - 599) < 2, "one-point shield cannot erase a 3600-budget round");
         Reset(); first = Shield(3000); second = Shield(3000);
-        shot = Fire(3600);
+        shot = FireGuard(3600);
         Check(first.currentHitPoints == 0 && second.currentHitPoints == 2400 && shot.dead,
             "insufficient budget stops at the next shield");
         Check(contacts.Count == 2 && contacts[0].shieldBroken && !contacts[1].shieldBroken,
             "shield absorption does not display a false break");
-        Reset(); first = Shield(3000); shot = Fire(3000);
+        Reset(); first = Shield(3000); shot = FireGuard(3000);
         Check(first.currentHitPoints == 0 && shot.dead, "exact shield depletion leaves no free residual");
         Reset(); var outer = Add(10, 5, 420); var inner = Add(55, 5, 420); var console = Add(65, 5, 300);
         shot = Fire(3600);
@@ -268,9 +291,9 @@ internal static partial class Program
             "absorbed damage cannot grant penetration");
         Check(contacts.Count == 1 && !contacts[0].destroyed && !contacts[0].penetrated,
             "invulnerable armor does not emit destruction or penetration feedback");
-        Reset(); first = Shield(3000); console = Add(55, 5, 300); shot = Fire(3600);
+        Reset(); first = Shield(3000); console = Add(55, 5, 300); shot = FireGuard(3600);
         Check(first.currentHitPoints == 0 && console.Destroyed && !shot.dead
-            && Math.Abs(RemainingBudget(shot) - 300) < 2, "shield and hull share a single remaining fraction");
+            && Math.Abs(RemainingBudget(shot) - 285.03f) < 2, "guard energy remainder is converted before charging the hull budget");
         Reset(); outer = Add(10, 5, 1); console = Add(55, 5, 300); shot = Fire(300, 540, fragment);
         Check(outer.Destroyed && console.HitPoints == 300 && shot.dead,
             "even fast rail fragments stop at their first structure and cannot deep-penetrate");
@@ -296,16 +319,16 @@ internal static partial class Program
         var container = (SpaceObject)AccessTools.Property(record.GetType(), "container").GetValue(record);
         container.pose.position = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(35, 5.5f));
         service.ResolveCollisions();
-        float scale = (float)AccessTools.Field(record.GetType(), "damageScale").GetValue(record);
+        float scale = (float)AccessTools.Field(record.GetType(), "energyFraction").GetValue(record);
         Check(first.currentHitPoints == 0 && Math.Abs(scale * 3600 - 600) < 2
             && Math.Abs(container.pose.velocity.magnitude - 540) < 0.01f,
             "shield loss persists in projectile record without double speed attenuation");
         Set(record, "prevPosition", container.pose.position);
         container.pose.position = SpaceTransform.MapPointToUniverse(hull, map, new Vector2(70, 5.5f));
         service.ResolveCollisions();
-        scale = (float)AccessTools.Field(record.GetType(), "damageScale").GetValue(record);
-        Check(console.Destroyed && Math.Abs(scale * 3600 - 180) < 2,
-            "next tick uses remaining 600 budget rather than restoring original 3600");
+        scale = (float)AccessTools.Field(record.GetType(), "energyFraction").GetValue(record);
+        Check(console.Destroyed && Math.Abs(SpaceKinetics.PenetrationBudget(scale * 810000, 4200, 900000) - 165.03f) < 2,
+            "next tick converts remaining energy before subtracting 420 hull HP");
 
         // Real line geometry/payment and long-rod fracture under a weak funded impulse.
         Reset();
@@ -646,20 +669,20 @@ internal static partial class Program
     static void CheckDualGuard(Harmony harmony)
     {
         Reset(); var shield = DualShield(); var second = DualShield();
-        var shot = Fire(7200);
-        Check(!shot.dead && Math.Abs(RemainingBudget(shot) - 1200) < 2 && shield.EmergencyCapacity == 0
+        var shot = FireGuard(7200);
+        Check(!shot.dead && Math.Abs(RemainingBudget(shot, guard: true) - 1200) < 2 && shield.EmergencyCapacity == 0
             && second.EmergencyCapacity == 0 && contacts.Count == 2 && contacts.All(c => c.shieldBroken),
             "real sweep drains both dual-capacity domes and continues with 1200 budget");
         Check(shield.parent.GetComp<CompProjectileInterceptor>().currentHitPoints == -1,
             "dual capacity never writes a mirrored native HP balance");
-        Reset(); shield = DualShield(true); shot = Fire(1440);
-        Check(!shot.dead && Math.Abs(RemainingBudget(shot) - 440) < 2 && shield.EmergencyCapacity == 0,
+        Reset(); shield = DualShield(true); shot = FireGuard(1440);
+        Check(!shot.dead && Math.Abs(RemainingBudget(shot, guard: true) - 440) < 2 && shield.EmergencyCapacity == 0,
             "small emergency dome participates in the real penetrating sweep");
-        Reset(); shield = DualShield(); shot = Fire(3000);
+        Reset(); shield = DualShield(); shot = FireGuard(3000);
         Check(shot.dead && shield.RegularCapacity < .02 && shield.EmergencyCapacity < .02,
             $"near-capacity curved sweep stops with only geometric tolerance remaining: dead={shot.dead}, regular={shield.RegularCapacity}, emergency={shield.EmergencyCapacity}, remaining={RemainingBudget(shot)}");
-        Reset(); shield = DualShield(); shield.ConsumeGuard(2999); shot = Fire(1440);
-        Check(!shot.dead && Math.Abs(RemainingBudget(shot) - 1439) < 2,
+        Reset(); shield = DualShield(); shield.ConsumeGuard(2999); shot = FireGuard(1440);
+        Check(!shot.dead && Math.Abs(RemainingBudget(shot, guard: true) - 1439) < 2,
             "one remaining emergency point cannot erase a full rail shot");
         // Keep native geometry and hostile/outgoing checks, replacing only graphical effects.
         harmony.Patch(AccessTools.Method(typeof(CompProjectileInterceptor), "TriggerEffecter"),
@@ -1054,6 +1077,7 @@ internal static partial class Program
         var loader = Comp("DeltaV_Weapon_RailgunLoader", "SpaceWeapon");
         var segment = Comp("DeltaV_Weapon_RailgunAccelerator", "SpaceRailgun");
         var magazine = Comp("DeltaV_Weapon_RailgunLoader", "SpaceWeaponMagazine");
+        CheckSteelBulkheads();
         const int segmentCount = 9;
         float mass = (float)magazine.Element("ammoPerShot") * ((float?)magazine.Element("unitMass") ?? 1f);
         float speed = SpaceKinetics.Speed(mass, (float)loader.Element("launchKineticEnergy")
@@ -1079,15 +1103,106 @@ internal static partial class Program
                 shields.Add(shield);
             }
             var armour = Add(60, 5, 700);
-            var shot = Fire(budget, speed);
+            var shot = FireGuard(budget, speed);
             if (guardCount == 3)
-                Check(shot.dead && !armour.Destroyed && Math.Abs(armour.HitPoints - 200) <= 2
+                Check(shot.dead && !armour.Destroyed && Math.Abs(armour.HitPoints - 206) <= 2
                     && shields.All(s => s.RegularCapacity < .02 && s.EmergencyCapacity < .02),
                     "calibration round drains three standard guards before the remaining armour stops it");
             else
                 Check(shot.dead && armour.HitPoints == 700 && shields.Sum(s => s.RegularCapacity + s.EmergencyCapacity) > 999,
                     "fourth standard guard stops the same round before armour");
         }
+    }
+
+    static void CheckSteelBulkheads()
+    {
+        string managed = Environment.GetCommandLineArgs()[1];
+        var hullXml = XDocument.Load(Path.Combine(managed, "../../Data/Odyssey/Defs/ThingDefs_Buildings/Buildings_Gravship.xml"));
+        var bulkhead = MakeDef("GravshipHull");
+        int hullHp = (int)hullXml.Root.Elements("ThingDef").Single(d => (string)d.Element("defName") == bulkhead.defName)
+            .Element("statBases").Element("MaxHitPoints");
+        Check(hullHp == 420, "installed Odyssey gravship hull has 420 base HP");
+        var steel = MakeDef("Steel");
+        var patch = new Harmony("DeltaV.Regression.SteelBulkheadLane");
+        var odyssey = AccessTools.Field(typeof(ModsConfig), "odysseyActive");
+        object oldOdyssey = odyssey.GetValue(null);
+        var deck = (TerrainDef)Raw(typeof(TerrainDef));
+        var space = (TerrainDef)Raw(typeof(TerrainDef));
+        space.exposesToVacuum = true;
+        deck.isFoundation = true;
+        deck.tags = new List<string> { "Substructure" };
+        try
+        {
+            odyssey.SetValue(null, true);
+            patch.CreateClassProcessor(typeof(Patch_TerrainGrid_RemoveFoundation_Ownership)).Patch();
+            // The native terrain grid still removes the tile. Skip the map visuals, debris and roofs.
+            patch.Patch(AccessTools.Method(typeof(TerrainGrid), "DoTerrainChangedEffects"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
+            patch.Patch(AccessTools.Method(typeof(SubstructureDamageUtility), "CompleteDestruction"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
+            foreach (var (projectile, energy, normal, caught, drain, afterGuard) in new[] {
+                (rapid, 1800f, 0, 0, 3, 0), (rapid, 7200f, 0, 0, 12, 0),
+                (chemical, 1800f, 0, 0, 3, 0),
+                (chemical, 28800f, 0, 0, 48, 0), (chemical, 32400f, 0, 0, 54, 0),
+                (chemical, 36000f, 1, 1, 60, 0), (chemical, 43200f, 1, 1, 72, 0),
+                (chemical, 57600f, 1, 1, 96, 0), (chemical, 86400f, 2, 1, 144, 0),
+                (chemical, 115200f, 2, 2, 192, 0), (chemical, 144000f, 2, 2, 240, 0),
+                (chemical, 172800f, 3, 2, 288, 0), (rail, 562500f, 4, 3, 2500, 2),
+                (rail, 1125000f, 6, 5, 5000, 5) })
+            {
+                var effect = SpaceImpactEffects.Resolve(projectile, null);
+                float chance = effect.substructureHitChance;
+                Check(Math.Abs(chance - .03f) < 1e-6, "production bare foundation intercept probability");
+                try
+                {
+                    foreach (var (spacing, hitChance, guard, expected) in new[] {
+                        (1, chance, 0, normal), (2, 0f, 0, normal), (2, 1f, 0, caught),
+                        (1, chance, 1500, afterGuard) })
+                    {
+                        Reset();
+                        map.components.Add(new SubstructureOwnership(map));
+                        effect.substructureHitChance = hitChance;
+                        var shield = guard > 0 ? Shield(guard, radius: 30, x: 69, z: 5) : null;
+                        var walls = new List<Target>();
+                        for (int x = 50; x <= 64; x++)
+                        {
+                            var cell = new IntVec3(x, 0, 5);
+                            hull.deckCells.Add(cell);
+                            int index = map.cellIndices.CellToIndex(cell);
+                            map.terrainGrid.topGrid[index] = space;
+                            map.terrainGrid.foundationGrid[index] = deck;
+                            if ((x - 50) % spacing != 0) continue;
+                            var wall = Add(x, 5, hullHp);
+                            wall.def = bulkhead;
+                            Set(wall, "stuffInt", steel);
+                            walls.Add(wall);
+                        }
+                        const float speed = 180;
+                        float mass = 2 * energy / (speed * speed);
+                        var forecast = new CombatDamageForecast(hull);
+                        forecast.Fire(new Vector2(5, 5.5f), Vector2.right, 65, projectile, mass, speed);
+                        Fire(0, speed, projectile, configure: b => b.mass = mass);
+                        int destroyed = walls.Count(w => w.Destroyed);
+                        string lane = $"{projectile.defName} E={energy}, spacing={spacing}, bare chance={hitChance}, guard={guard}";
+                        Check(destroyed == expected, $"{lane}: destroyed {destroyed}, expected {expected} steel bulkheads");
+                        if (shield != null)
+                            Check(Math.Abs(shield.currentHitPoints - Math.Max(0, guard - drain)) <= 1,
+                                $"{lane}: guard debit {guard - shield.currentHitPoints}, demand {drain}");
+                        Check(walls.All(w => Math.Abs(forecast.RemainingHP(w) - Math.Max(0, w.HitPoints)) <= 2),
+                            lane + ": forecast matches the hull damage of the shot");
+                    }
+                }
+                finally { effect.substructureHitChance = chance; }
+            }
+            Reset();
+            var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon { projectileDef = chemical, impactScale = 1f } };
+            Add(10, 5, 400, weapon);
+            var ap = SpaceImpactEffects.Resolve(chemical, shieldDef).defenderEffect;
+            float ground = SpaceWeaponBallistics.GroundDirectDamage(weapon, ap, null, 180);
+            Check(Math.Abs(ground - ap.damage * SpaceKinetics.ImpactFactor(SpaceWeaponBallistics.ProjectileMass(weapon, null), 180)) < .001,
+                "ground shot retains its original linear damage");
+        }
+        finally { odyssey.SetValue(null, oldOdyssey); patch.UnpatchAll(patch.Id); }
     }
 
     static void CheckRailgunTransactions()

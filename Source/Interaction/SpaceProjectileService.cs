@@ -122,8 +122,8 @@ namespace DeltaV
             public Vector3 laserTo;
             public VisualAnchor? beamStart;
             public int beamSegment;
-            /// <summary>发射伤害倍率乘剩余冲击比例；跨 tick 沿用。</summary>
-            public float damageScale = 1f;
+            /// <summary>发射伤害倍率和跨 tick 保留的有效动能比例。</summary>
+            public float damageScale = 1f, energyFraction = 1f;
             public float armorPenetrationScale = 1f;
             public float mass = 1f, beamEnergyScale = 1f;
             public CannonShotTrace cannonTrace;
@@ -397,6 +397,7 @@ namespace DeltaV
             if (created.Payload == null) universe.RegisterObject(created);
             projectile.container = created;
             projectile.damageScale = launchSpec.damageScale;
+            projectile.energyFraction = 1f;
             projectile.armorPenetrationScale = launchSpec.armorPenetrationScale;
             projectile.mass = launchSpec.mass; projectile.beamEnergyScale = launchSpec.beamEnergyScale;
             projectiles.Add(projectile);
@@ -463,7 +464,7 @@ namespace DeltaV
             p.laser = false;
             ShipBase vessel = hull.TryGetComp<CompSpaceShuttle>().Vessel;
             p.prevPosition = shuttle.pose.position;
-            p.damageScale = p.armorPenetrationScale = p.mass = p.beamEnergyScale = 1f;
+            p.energyFraction = p.damageScale = p.armorPenetrationScale = p.mass = p.beamEnergyScale = 1f;
             shuttle.projectileRoleOverride = true;
             projectiles.Add(p);
             p.boardingDriver = DriveSubject.Of(vessel);
@@ -789,7 +790,7 @@ namespace DeltaV
             {
                 if (p.dead) continue;
                 // 碰撞链已经扣过一次冲击预算；速度与弹药穿甲系数不再重复衰减。
-                p.damageScale = p.body.damageScale;
+                p.energyFraction = p.body.energyFraction;
                 if (p.body.didContinue) p.container.pose.position = p.body.to;
             }
             // 激光当 tick 消费完毕：视觉线段（命中点或全射程）+ 销毁。
@@ -847,6 +848,7 @@ namespace DeltaV
             body.noseHalfWidth = p.adoptedShuttle ? p.def.Size.x * 0.5f : 0f;
             body.noseForwardOffset = p.adoptedShuttle ? (p.def.Size.z - 1) * 0.5f : 0f;
             body.damageScale = p.damageScale;
+            body.energyFraction = p.energyFraction;
             body.armorPenetrationScale = p.armorPenetrationScale;
             body.mass = p.mass; body.beamEnergyScale = p.beamEnergyScale;
             body.hullSource = null;
@@ -908,7 +910,7 @@ namespace DeltaV
                 SpaceShieldProjectileBehavior.SpawnFragments(this, captured.def,
                     captured.sourceContainer, defender, captured.launcher, hit,
                     relativeVelocity, outwardNormal, impulse, captured.mass,
-                    captured.armorPenetrationScale, captured.reflectedByShield, captured.body.damageScale,
+                    captured.armorPenetrationScale, captured.reflectedByShield, captured.body.damageScale * captured.body.energyFraction,
                     fragmentCount, Mathf.Max(0, captured.props.timeoutTicks
                         - (Find.TickManager.TicksGame - captured.spawnedAtTick)));
             };
@@ -1129,7 +1131,7 @@ namespace DeltaV
             p.coldLaunchEndsTick = p.motorStartedTick = 0;
             p.motorDeltaVelocityPerTick = p.cruiseSpeed = p.rcsTurnSign = 0f;
             p.motorThrusting = false;
-            p.damageScale = 1f;
+            p.damageScale = p.energyFraction = 1f;
             p.armorPenetrationScale = p.mass = p.beamEnergyScale = 1f;
             p.cannonTrace = null;
             p.body.attacker = null;

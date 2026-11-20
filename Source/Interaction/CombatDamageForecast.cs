@@ -309,8 +309,9 @@ namespace DeltaV
             var coverCells = coverage.skipFloor || coverage.cells.Count == 0 ? null : coverage.cells;
             float footprintRadius = SpaceProjectileService.FootprintRadius(projectile);
             Vector2 initialDirection = dir;
+            float energyFraction = 1f;
             SpaceCollision.RayContact? sameCell = null;
-            while ((sameCell.HasValue || length > .001f) && scale > .00001f)
+            while ((sameCell.HasValue || length > .001f) && energyFraction > 0f)
             {
                 if (result.contacts >= 128 || depth >= 4) { result.exhausted = result.uncertain = true; return; }
                 SpaceCollision.RayContact hit;
@@ -323,8 +324,8 @@ namespace DeltaV
                     includeLine, includeGuard, out hit, coverage.skipFloor, coverBuildings, coverCells, coverage.skipHull))
                 {
                     if (Vector2.Dot(dir, initialDirection) < 0)
-                        result.returnedPotential += SpaceImpactEffects.ComputeDamage(
-                            SpaceImpactEffects.Resolve(projectile, null)?.defenderEffect, speed, 0, 1, mass) * scale;
+                        result.returnedPotential += SpaceImpactEffects.DamageAtRemainingEnergy(
+                            SpaceImpactEffects.Resolve(projectile, null)?.defenderEffect, speed, 0, 1, mass, energyFraction) * scale;
                     return;
                 }
                 else
@@ -362,7 +363,7 @@ namespace DeltaV
                                 float spread = fragments == 1 ? 0 : (2f * i / (fragments - 1) - 1) * props.shieldFragmentScatterDeg;
                                 Vector2 fragmentDirection = SpaceTransform.Rotate(outgoing.normalized, spread * Mathf.Deg2Rad);
                                 Trace(from + fragmentDirection * .01f, fragmentDirection, nextLength, next,
-                                    mass / fragments, outgoing.magnitude, scale, beamEnergy, coverSample, depth + 1, ref result);
+                                    mass / fragments, outgoing.magnitude, scale * energyFraction, beamEnergy, coverSample, depth + 1, ref result);
                             }
                             return;
                         }
@@ -387,14 +388,14 @@ namespace DeltaV
                     return;
                 }
                 float incidence = SpaceTransform.IncidenceAngle(dir, hit.normal);
-                float amount = SpaceImpactEffects.ComputeDamage(part, speed, incidence,
-                    isGuard ? 1 : SpaceImpactEffects.DurabilityScale(effect, hit.building), mass) * scale;
+                float amount = SpaceImpactEffects.DamageAtRemainingEnergy(part, speed, incidence,
+                    isGuard ? 1 : SpaceImpactEffects.DurabilityScale(effect, hit.building), mass, energyFraction) * scale;
                 if (isGuard)
                 {
                     float capacity = GuardAvailable(hit.guard);
                     float paid = DebitGuard(hit.guard, amount); result.guard += paid;
                     if (!part.penetrates || capacity >= amount) return;
-                    scale *= Mathf.Clamp01((amount - capacity) / Mathf.Max(.00001f, amount));
+                    energyFraction *= SpaceImpactEffects.RemainingFraction(amount, paid);
                     // Stay on the entry point so coincident independent guards remain visible.
                     // The exhausted surface is excluded by the private capacity ledger.
                     continue;
@@ -412,7 +413,8 @@ namespace DeltaV
                     if (ContactSample(coverSample, hit.cell, 1) >= SpaceImpactEffects.FoundationBreakChance(amount, part)) return;
                     BreakFoundation(hit.cell, part, ref result);
                     if (!part.penetrates) return;
-                    scale *= SpaceImpactEffects.RemainingFraction(amount, part.substructureBreakThreshold);
+                    energyFraction *= SpaceKinetics.RemainingEnergyRatio(SpaceKinetics.Energy(mass, speed) * energyFraction,
+                        part.penetrationEnergyScale, SpaceImpactEffects.RemainingFraction(amount, part.substructureBreakThreshold));
                     continue;
                 }
                 if (!part.penetrates && part.penetrationLayers?.Count > 0)
@@ -447,7 +449,8 @@ namespace DeltaV
                 float dealt = Apply(hit.building, part.damageDef ?? DamageDefOf.Bullet, amount, ref result);
                 float remaining = SpaceImpactEffects.BuildingContinuation(part, destroyed.Contains(hit.building), amount, dealt);
                 if (remaining <= 0f) return;
-                scale *= remaining;
+                energyFraction *= SpaceKinetics.RemainingEnergyRatio(SpaceKinetics.Energy(mass, speed) * energyFraction,
+                    part.penetrationEnergyScale, remaining);
                 if (SpaceCollision.TrySameCellContinuation(map, hit, out var nextLayer, destroyed, brokenFoundation))
                     sameCell = nextLayer;
             }
