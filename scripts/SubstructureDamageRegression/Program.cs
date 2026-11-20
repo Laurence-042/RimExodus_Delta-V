@@ -112,6 +112,56 @@ internal static partial class Program
         def.layerable = removable;
         return def;
     }
+
+    static void CheckBuildingCollisionRules(Map map, IntVec3 cell)
+    {
+        Building Fixture(string name, Traversability passability, float cover, bool wall = false,
+            Building building = null)
+        {
+            building ??= new Building();
+            var def = (ThingDef)Raw(typeof(ThingDef));
+            def.defName = name;
+            def.category = ThingCategory.Building;
+            def.size = IntVec2.One;
+            def.passability = passability;
+            def.fillPercent = cover;
+            def.building = new BuildingProperties { isWall = wall };
+            def.comps = new List<CompProperties>();
+            building.def = def;
+            Set(building, "positionInt", cell);
+            Set(building, "mapIndexOrState", (sbyte)0);
+            return building;
+        }
+
+        Building bulkhead = Fixture("GravshipHull", Traversability.Impassable, 1f, wall: true);
+        Building equipment = Fixture("low-cover machinery", Traversability.Impassable, 0.2f);
+        Building cover = Fixture("passable cover", Traversability.PassThroughOnly, 0.6f);
+        var effect = new SpaceImpactEffectDef { buildingHitChance = 0f };
+        float HitChance(Building building, SpaceImpactEffectDef rule) =>
+            (float)Call(typeof(SpaceImpactEffects), "HitChance", null, SpaceCellKind.Building, building, rule);
+        Check(HitChance(bulkhead, effect) == 1f && HitChance(equipment, effect) == 1f
+            && SpaceStructureRules.BuildingHitChance(equipment) == 1f,
+            "impassable bulkheads and low-cover machinery both hit even with a zero chance effect");
+        Check(HitChance(cover, null) == 0.6f && HitChance(cover, effect) == 0f,
+            "passable cover uses fill percent or the effect override");
+
+        Building barrier = Fixture("vacuum barrier", Traversability.PassThroughOnly, 1f,
+            building: (Building_VacuumBarrier)Raw(typeof(Building_VacuumBarrier)));
+        map.thingGrid.Register(barrier);
+        Check(SpaceStructureRules.ClassifyCell(map, cell, out _) == SpaceCellKind.Substructure,
+            "vacuum barrier leaves its foundation as the collision surface");
+
+        cover.def.fillPercent = 1f;
+        map.thingGrid.Register(cover);
+        map.thingGrid.Register(equipment);
+        Check(SpaceStructureRules.ClassifyCell(map, cell, out Thing hit) == SpaceCellKind.Building
+            && hit == equipment && !SubstructureDamageUtility.CanDamage(map, cell),
+            "impassable machinery takes priority over full passable cover and protects the foundation");
+        map.thingGrid.Deregister(equipment);
+        map.thingGrid.Deregister(cover);
+        map.thingGrid.Deregister(barrier);
+    }
+
     static void Run()
     {
         using var logs = Log.LockMessages();
@@ -266,6 +316,7 @@ internal static partial class Program
         Layers(space, true, true);
         Check(SpaceStructureRules.ClassifyCell(map, cell, out _) == SpaceCellKind.Substructure,
             "ordinary power conduits follow the same non-structural collision rule");
+        CheckBuildingCollisionRules(map, cell);
         var def = (ThingDef)Raw(typeof(ThingDef));
         def.defName = "wide low-cover building"; def.category = ThingCategory.Building;
         def.size = new IntVec2(2, 2); def.building = new BuildingProperties(); def.fillPercent = 0.1f;

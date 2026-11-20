@@ -7,26 +7,30 @@ using Object = UnityEngine.Object;
 
 namespace DeltaV
 {
-    /// <summary>Nonfocused GravshipHull art. All masks and floor contacts come from one
-    /// foundation/wall query; the section cache owns only derived meshes.</summary>
+    /// <summary>Nonfocused wall lighting and GravshipHull art. The section cache
+    /// owns the derived meshes.</summary>
     internal static class ShellHullVisuals
     {
         internal readonly struct Adjacency
         {
             public readonly int connected;
             public readonly int floorSides;
+            public readonly int atlasLinks;
             public readonly int cornerFill;
             public readonly int outerCorner;
             public readonly int angledSides;
+            public readonly int insetDoorSides;
 
-            public Adjacency(int connected, int floorSides, int cornerFill, int outerCorner,
-                int angledSides)
+            public Adjacency(int connected, int floorSides, int atlasLinks, int cornerFill,
+                int outerCorner, int angledSides, int insetDoorSides)
             {
                 this.connected = connected;
                 this.floorSides = floorSides;
+                this.atlasLinks = atlasLinks;
                 this.cornerFill = cornerFill;
                 this.outerCorner = outerCorner;
                 this.angledSides = angledSides;
+                this.insetDoorSides = insetDoorSides;
             }
         }
 
@@ -58,13 +62,13 @@ namespace DeltaV
             private readonly List<int> triangles = new List<int>();
 
             public void Add(IntVec3 cell, int side, float width, float altitude,
-                float startMiter = 0f, float endMiter = 0f)
+                float startMiter = 0f, float endMiter = 0f, float inset = 0f, float trim = 0f)
             {
                 Vector2 outward = SideNormal(side);
                 Vector2 along = new Vector2(outward.y, -outward.x);
-                Vector2 middle = new Vector2(cell.x + 0.5f, cell.z + 0.5f) + outward * 0.5f;
-                Vector2 start = middle - along * 0.5f;
-                Vector2 end = middle + along * 0.5f;
+                Vector2 middle = new Vector2(cell.x + 0.5f, cell.z + 0.5f) + outward * (0.5f - inset);
+                Vector2 start = middle - along * (0.5f - trim);
+                Vector2 end = middle + along * (0.5f - trim);
                 AddStrip(start, end, start - outward * width + along * startMiter,
                     end - outward * width - along * endMiter, altitude);
             }
@@ -130,6 +134,9 @@ namespace DeltaV
         // The visible outside edge of the Odyssey wall atlas is inset 0.05 cell.
         private const float OuterRadius = 0.95f;
         private const float WallSlopeWidth = 0.16f;
+        // The standard door and autodoor movers leave ten transparent pixels
+        // along both long edges of the 64-pixel sprite.
+        private const float StandardDoorInset = 10f / 64f;
         private const float DiagonalComponent = 0.70710678f;
         private const float SlopeMiter = (2f * DiagonalComponent - 1f) * WallSlopeWidth;
         private const float FloorSeamWidth = 0.65f;
@@ -181,7 +188,7 @@ namespace DeltaV
             // four-way link mask differs from the focused-map Graphic_Linked.
             Material atlas = WallAtlas(wall);
             return atlas == null ? null : MaterialAtlasPool.SubMaterialFromAtlas(atlas,
-                (LinkDirections)adjacency.connected);
+                (LinkDirections)adjacency.atlasLinks);
         }
 
         private static Thing HullWallAt(Map map, IntVec3 cell)
@@ -190,46 +197,78 @@ namespace DeltaV
             return wall != null && wall.def == ThingDefOf.GravshipHull ? wall : null;
         }
 
-        internal static Adjacency Analyze(Map map, Thing wall, int angledSides)
+        internal static bool IsWallSegment(Building building)
         {
-            IntVec3 cell = wall.Position;
-            int foundationMask = 0;
+            if (building is Building_Door door) return !door.Open;
+            return building != null && (building.def == ThingDefOf.GravshipHull || building.def.IsWall
+                || (building.def.building?.canPlaceOverWall == true && building.def.Fillage == FillCategory.Full));
+        }
+
+        internal static Dictionary<IntVec3, Adjacency> AnalyzeWalls(Map map, CellRect neighborhood,
+            Dictionary<IntVec3, int> angles)
+        {
+            var adjacency = new Dictionary<IntVec3, Adjacency>();
+            foreach (IntVec3 cell in neighborhood)
+            {
+                Building wall = cell.GetEdificeSafe(map);
+                if (IsWallSegment(wall))
+                    adjacency.Add(cell, Analyze(map, cell, wall, AngledSidesAt(cell, angles)));
+            }
+            return adjacency;
+        }
+
+        internal static Adjacency Analyze(Map map, IntVec3 cell, Building wall, int angledSides)
+        {
+            bool gravshipHull = wall.def == ThingDefOf.GravshipHull;
+            int connected = 0;
             int floorMask = 0;
-            int wallMask = 0;
+            int atlasLinks = 0;
+            int hullWallMask = 0;
             for (int side = 0; side < 4; side++)
             {
                 IntVec3 neighbor = cell + GenAdj.CardinalDirections[side];
+                Building other = neighbor.GetEdificeSafe(map);
+                bool insert = HullWallInsert.LinksFrom(other, cell);
+                bool roof = HasShellRoof(map, neighbor);
+                bool wallSegment = insert || IsWallSegment(other);
                 int bit = 1 << side;
-                if (HullWallAt(map, neighbor) != null
-                    || HullWallInsert.LinksFrom(neighbor.GetEdificeSafe(map), cell)) wallMask |= bit;
-                else if (!HasShellRoof(map, neighbor)) continue;
-                foundationMask |= bit;
-                if ((wallMask & bit) == 0) floorMask |= bit;
+                if (wallSegment || roof) connected |= bit;
+                if (roof && !wallSegment) floorMask |= bit;
+                if (!gravshipHull) continue;
+                if (insert || (other != null && other.def == ThingDefOf.GravshipHull)) hullWallMask |= bit;
+                if (roof || (hullWallMask & bit) != 0) atlasLinks |= bit;
             }
             int cornerFill = 0;
-            if (wall.Graphic is Graphic_LinkedCornerFiller)
+            if (gravshipHull && wall.Graphic is Graphic_LinkedCornerFiller)
             {
                 for (int corner = 0; corner < 4; corner++)
                 {
                     IntVec3 diagonal = cell + GenAdj.DiagonalDirectionsAround[corner];
-                    if ((foundationMask & CornerCardinalMasks[corner]) == CornerCardinalMasks[corner]
+                    if ((atlasLinks & CornerCardinalMasks[corner]) == CornerCardinalMasks[corner]
                         && (HullWallAt(map, diagonal) != null || HasShellRoof(map, diagonal)))
                         cornerFill |= 1 << corner;
                 }
             }
             int outerCorner = -1;
-            int innerCorner = CornerOf(wallMask);
-            if (innerCorner >= 0 && wallMask == foundationMask && angledSides == 0)
+            int innerCorner = CornerOf(hullWallMask);
+            if (innerCorner >= 0 && hullWallMask == connected && angledSides == 0)
             {
                 IntVec3 inside = cell + GenAdj.CardinalDirections[CornerSideX(innerCorner)]
                     + GenAdj.CardinalDirections[CornerSideZ(innerCorner)];
-                if (HullWallAt(map, inside) == null && HasShellRoof(map, inside)
+                if (!IsWallSegment(inside.GetEdificeSafe(map)) && HasShellRoof(map, inside)
                     && wall.Graphic is Graphic_Linked)
                     outerCorner = (innerCorner + 2) & 3;
             }
-            // Join actual hull walls and roofed foundations. Open decks expose
-            // the wall face instead of completing an imaginary roof surface.
-            return new Adjacency(foundationMask, floorMask, cornerFill, outerCorner, angledSides);
+            int insetDoorSides = 0;
+            if (wall is Building_Door && wall.def.size == IntVec2.One
+                && wall.def.graphicData?.texPath is ("Things/Building/Door/DoorSimple_Mover"
+                    or "Things/Building/Door/Autodoor_Mover"))
+            {
+                Rot4 rotation = DoorUtility.DoorRotationAt(cell, map, wall.def.building.preferConnectingToFences);
+                insetDoorSides = rotation.IsHorizontal ? 0b1010 : 0b0101;
+            }
+            return new Adjacency(connected, floorMask, atlasLinks, cornerFill, outerCorner,
+                angledSides, insetDoorSides);
         }
 
         internal static bool HasShellRoof(Map map, IntVec3 cell) =>
@@ -370,11 +409,13 @@ namespace DeltaV
                 ? CornerSideZ(corner) : CornerSideX(corner));
 
         private static void AddStraightSlope(QuadBuilder builder, IntVec3 cell, int side,
-            int hiddenSides, Dictionary<IntVec3, int> angles, float altitude)
+            int hiddenSides, Dictionary<IntVec3, int> angles, float altitude, int insetDoorSides)
         {
             if ((hiddenSides & (1 << side)) != 0) return;
             int start = (side + 3) & 3, end = (side + 1) & 3;
-            builder.Add(cell, side, WallSlopeWidth, altitude, MiterAt(start), MiterAt(end));
+            float inset = (insetDoorSides & (1 << side)) != 0 ? StandardDoorInset : 0f;
+            float trim = (insetDoorSides & (1 << start)) != 0 ? StandardDoorInset : 0f;
+            builder.Add(cell, side, WallSlopeWidth, altitude, MiterAt(start), MiterAt(end), inset, trim);
 
             float MiterAt(int toward)
             {
@@ -442,7 +483,7 @@ namespace DeltaV
                         for (int side = 0; side < 4; side++)
                             if ((wall.connected & (1 << side)) == 0)
                                 AddStraightSlope(slopeBuilders[side], cell, side, wall.angledSides,
-                                    angles, slopeAltitude);
+                                    angles, slopeAltitude, wall.insetDoorSides);
                     }
                     continue;
                 }
@@ -466,8 +507,10 @@ namespace DeltaV
                 {
                     IntVec3 x = GenAdj.CardinalDirections[CornerSideX(corner)];
                     IntVec3 z = GenAdj.CardinalDirections[CornerSideZ(corner)];
-                    Thing source = SelectCornerWall(HullWallAt(map, cell + x),
-                        HullWallAt(map, cell + z), HullWallAt(map, cell + x + z));
+                    Thing xWall = HullWallAt(map, cell + x);
+                    Thing zWall = HullWallAt(map, cell + z);
+                    Thing source = xWall != null && zWall != null
+                        ? SelectCornerWall(xWall, zWall, HullWallAt(map, cell + x + z)) : null;
                     if (source != null)
                     {
                         Material material = MaterialAtlasPool.SubMaterialFromAtlas(WallAtlas(source),

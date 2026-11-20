@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using RimExodus.Maps;
 using RimWorld;
@@ -22,6 +23,8 @@ namespace DeltaV
     {
         private const int SectionSize = 17;
         private const int TexturePeriod = ShellTerrainBatches.TexturePeriod;
+        private const int TopDamageResolution = 256;
+        private const int ScratchAtlasReadLimit = 2048;
 #if DELTAV_SHELL_TERRAIN_AB_BASELINE
         internal static readonly bool BatchStaticTerrain = false;
 #else
@@ -35,6 +38,7 @@ namespace DeltaV
             public readonly List<Thing> things = new List<Thing>();
             public readonly HashSet<Thing> deckThings = new HashSet<Thing>();
             public readonly List<PrintBatch> printed = new List<PrintBatch>();
+            public Dictionary<Thing, TurretTopDamage> turretTopDamage;
             public SectionLayer_GravshipHull gravshipHull;
             public SectionLayer_SubstructureProps substructureProps;
             public ShellHullVisuals.EdgeMeshes hullEdges;
@@ -44,6 +48,8 @@ namespace DeltaV
             public void Dispose()
             {
                 foreach (PrintBatch batch in printed) batch.layer.Dispose();
+                if (turretTopDamage != null)
+                    foreach (TurretTopDamage damage in turretTopDamage.Values) damage.Dispose();
                 gravshipHull?.Dispose();
                 substructureProps?.Dispose();
                 hullEdges?.Dispose();
@@ -57,27 +63,165 @@ namespace DeltaV
             public ShellSurfaceLayer surface;
             public float zIndex;
             public bool shared;
-            public SectionLayer_ThingsGeneral layer;
+            public SectionLayer layer;
+        }
 
-            public void Complete()
+        // The full vanilla layer also prints damage on equipment hidden by the shell.
+        private static class BuildingDamagePrinter
+        {
+            internal static readonly System.Action<SectionLayer_BuildingsDamage, Building> Print =
+                AccessTools.MethodDelegate<System.Action<SectionLayer_BuildingsDamage, Building>>(
+                    AccessTools.Method(typeof(SectionLayer_BuildingsDamage), "PrintDamageVisualsFrom"));
+        }
+
+        private sealed class TurretTopDamage : System.IDisposable
+        {
+            private readonly SectionLayer_BuildingsDamage nativeLayer;
+            private readonly Rect damageRect;
+            private Texture2D bodyTexture;
+            private Texture2D decalTexture;
+            private Material decalMaterial;
+
+            internal TurretTopDamage(Section sourceSection, Building building)
             {
-                foreach (LayerSubMesh submesh in layer.subMeshes)
-                    if (submesh.verts.Count > 0) submesh.FinalizeMesh(MeshParts.All);
+                damageRect = BuildingsDamageSectionLayerUtility.GetDamageRect(building);
+                nativeLayer = new SectionLayer_BuildingsDamage(sourceSection);
+                try { BuildingDamagePrinter.Print(nativeLayer, building); }
+                catch
+                {
+                    nativeLayer.Dispose();
+                    throw;
+                }
+            }
+
+            internal Material MaterialFor(Texture2D texture)
+            {
+                if (ReferenceEquals(texture, bodyTexture)) return decalMaterial;
+                ReleaseDecal();
+                bodyTexture = texture;
+                if (texture == null || nativeLayer.subMeshes.Count == 0
+                    || damageRect.width <= 0f || damageRect.height <= 0f) return null;
+
+                try
+                {
+                    TexturePixels body = TopDamageBodyPixels.GetValue(texture,
+                        source => ReadDamagePixels(source, TopDamageResolution));
+                    int size = TopDamageResolution;
+                    var pixels = new Color32[size * size];
+                    foreach (LayerSubMesh submesh in nativeLayer.subMeshes)
+                    {
+                        if (submesh.disabled || submesh.material?.mainTexture is not Texture2D scratch) continue;
+                        TexturePixels source = TopDamageScratchPixels.GetValue(scratch,
+                            value => ReadDamagePixels(value, ScratchAtlasReadLimit));
+                        Color32 tint = submesh.material.color;
+                        // Vanilla's damage printer emits independent Printer_Plane quads.
+                        for (int corner = 0; corner + 3 < submesh.verts.Count; corner += 4)
+                            RasterizeTopDamageQuad(pixels, size, damageRect, submesh, corner, source, tint);
+                    }
+                    if (!MaskTopDamage(pixels, size, body)) return null;
+                    decalTexture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+                        { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+                    decalTexture.SetPixels32(pixels);
+                    decalTexture.Apply(false, true);
+                    decalMaterial = new Material(ShaderDatabase.Transparent) { mainTexture = decalTexture };
+                    return decalMaterial;
+                }
+                catch (System.Exception error)
+                {
+                    ReleaseDecal();
+                    Log.ErrorOnce($"[DeltaV] Cannot mask turret damage with {texture.name}: {error}",
+                        texture.GetInstanceID() ^ 0x5A31D3);
+                    return null;
+                }
+            }
+
+            private void ReleaseDecal()
+            {
+                if (decalMaterial != null) Object.Destroy(decalMaterial);
+                if (decalTexture != null) Object.Destroy(decalTexture);
+                decalMaterial = null;
+                decalTexture = null;
+            }
+
+            public void Dispose()
+            {
+                ReleaseDecal();
+                nativeLayer.Dispose();
             }
         }
 
-        private sealed class MapCache
+        private sealed class TexturePixels
+        {
+            private readonly Color32[] pixels;
+            private readonly int width, height;
+
+            internal TexturePixels(Color32[] pixels, int width, int height)
+            {
+                this.pixels = pixels;
+                this.width = width;
+                this.height = height;
+            }
+
+            internal Color32 Sample(Vector2 uv)
+            {
+                float x = Mathf.Clamp(uv.x * width - 0.5f, 0f, width - 1);
+                float y = Mathf.Clamp(uv.y * height - 0.5f, 0f, height - 1);
+                int x0 = (int)x, y0 = (int)y;
+                int x1 = Mathf.Min(x0 + 1, width - 1), y1 = Mathf.Min(y0 + 1, height - 1);
+                Color32 bottom = Color32.Lerp(pixels[y0 * width + x0], pixels[y0 * width + x1], x - x0);
+                Color32 top = Color32.Lerp(pixels[y1 * width + x0], pixels[y1 * width + x1], x - x0);
+                return Color32.Lerp(bottom, top, y - y0);
+            }
+        }
+
+        private sealed class MapCache : System.IDisposable
         {
             public readonly MapSectionCache<SectionSnapshot> snapshots = new MapSectionCache<SectionSnapshot>();
+            private readonly Map map;
+            private readonly MapEvents events;
             private Section printContext;
 
-            public Section PrintContext(Map map)
+            public MapCache(Map map)
+            {
+                this.map = map;
+                events = map.events;
+                if (events == null) return;
+                events.DoorOpened += OnDoorChanged;
+                events.DoorClosed += OnDoorChanged;
+            }
+
+            public Section PrintContext()
                 => printContext ??= new Section(IntVec3.Zero, map);
+
+            public void MarkSectionsDirty(CellRect area)
+            {
+                area = area.ClipInsideMap(map);
+                for (int z = area.minZ / SectionSize; z <= area.maxZ / SectionSize; z++)
+                    for (int x = area.minX / SectionSize; x <= area.maxX / SectionSize; x++)
+                        snapshots.MarkDirty(x, z);
+            }
+
+            private void OnDoorChanged(Building_Door door) =>
+                MarkSectionsDirty(door.OccupiedRect().ExpandedBy(1));
+
+            public void Dispose()
+            {
+                if (events != null)
+                {
+                    events.DoorOpened -= OnDoorChanged;
+                    events.DoorClosed -= OnDoorChanged;
+                }
+                snapshots.Dispose();
+            }
         }
 
         private static readonly Dictionary<Map, MapCache> Caches = new Dictionary<Map, MapCache>();
         private static readonly Dictionary<ThingDef, ShellRenderRuleDef> Rules = new Dictionary<ThingDef, ShellRenderRuleDef>();
         private static readonly Dictionary<TerrainDef, Material> TerrainMaterials = new Dictionary<TerrainDef, Material>();
+        private static ConditionalWeakTable<Texture2D, TexturePixels> TopDamageBodyPixels =
+            new ConditionalWeakTable<Texture2D, TexturePixels>();
+        private static ConditionalWeakTable<Texture2D, TexturePixels> TopDamageScratchPixels =
+            new ConditionalWeakTable<Texture2D, TexturePixels>();
         private static readonly Mesh[] CellMeshes = new Mesh[TexturePeriod * TexturePeriod];
         private static readonly FieldInfo DrawerMapField = AccessTools.Field(typeof(MapDrawer), "map");
         private static Texture2D powerConnectorWireTexture;
@@ -98,6 +242,7 @@ namespace DeltaV
             public MaterialPropertyBlock props;
             public int submeshIndex;
             public ShellSurfaceLayer surface;
+            public bool damageOverlay;
             public int queue;
             public int sequence;
         }
@@ -219,6 +364,8 @@ namespace DeltaV
         {
             int surfaceComparison = left.surface.CompareTo(right.surface);
             if (surfaceComparison != 0) return surfaceComparison;
+            int damageComparison = left.damageOverlay.CompareTo(right.damageOverlay);
+            if (damageComparison != 0) return damageComparison;
             int queueComparison = left.queue.CompareTo(right.queue);
             return queueComparison != 0 ? queueComparison : left.sequence.CompareTo(right.sequence);
         }
@@ -262,36 +409,18 @@ namespace DeltaV
                 }
             }
 
-            if (section.substructureProps != null)
-            foreach (LayerSubMesh submesh in section.substructureProps.subMeshes)
-            {
-                if (!submesh.finalized || submesh.disabled) continue;
-                collector.Add(new OverlayCommand { mesh = submesh.mesh, matrix = matrix,
-                    material = submesh.material, surface = ShellSurfaceLayer.Hull,
-                    queue = submesh.material.renderQueue, sequence = nextSequence++ });
-                QuadsDrawnLastPass += submesh.tris.Count / 6;
-            }
+            CollectLayer(section.substructureProps, matrix, ShellSurfaceLayer.Hull, collector);
 
             AddHullEdgeCommands(section.hullEdges?.floor, matrix, localSun, true, collector);
             AddHullCornerCommands(section.hullEdges?.corners, matrix, localSun, collector, outer: false);
 
             foreach (PrintBatch batch in section.printed)
-            foreach (LayerSubMesh submesh in batch.layer.subMeshes)
             {
-                if (!submesh.finalized || submesh.disabled) continue;
-                if (IsSunShadowMaterial(submesh.material)) continue;
-                // CompPower.PostPrintOnto adds the short appliance-to-conduit
-                // wire to the same static layer as the appliance itself.
-                powerConnectorWireTexture ??= ContentFinder<Texture2D>.Get(
-                    "Things/Special/Power/Wire", false);
-                if (powerConnectorWireTexture != null
-                    && submesh.material.mainTexture == powerConnectorWireTexture) continue;
                 Matrix4x4 lift = Matrix4x4.Translate(new Vector3(0f,
                     batch.zIndex * Altitudes.AltInc, 0f));
-                collector.Add(new OverlayCommand { mesh = submesh.mesh, matrix = matrix * lift,
-                    material = submesh.material, surface = batch.surface,
-                    queue = submesh.material.renderQueue, sequence = nextSequence++ });
-                QuadsDrawnLastPass += submesh.tris.Count / 6;
+                bool damage = batch.layer is SectionLayer_BuildingsDamage;
+                CollectLayer(batch.layer, matrix * lift, batch.surface, collector,
+                    damageOverlay: damage, filterThingMaterials: !damage);
             }
 
             AddHullEdgeCommands(section.hullEdges?.slopes, matrix, localSun, false, collector);
@@ -307,16 +436,7 @@ namespace DeltaV
 
             // Odyssey draws angled hull pieces in its own section layer, not in
             // GravshipHull.Print. Reuse that layer's mesh and neighbor rules.
-            if (section.gravshipHull != null)
-            foreach (LayerSubMesh submesh in section.gravshipHull.subMeshes)
-            {
-                if (!submesh.finalized || submesh.disabled) continue;
-                collector.Add(new OverlayCommand { mesh = submesh.mesh, matrix = matrix,
-                    material = submesh.material, surface = ShellSurfaceLayer.Hull,
-                    queue = submesh.material.renderQueue, sequence = nextSequence++ });
-                QuadsDrawnLastPass += submesh.tris.Count / 6;
-            }
-
+            CollectLayer(section.gravshipHull, matrix, ShellSurfaceLayer.Hull, collector);
             AddHullEdgeCommands(section.hullEdges?.angledSlopes, matrix, localSun, false,
                 collector, angled: true);
 
@@ -338,7 +458,9 @@ namespace DeltaV
                         && thing.def.drawerType != DrawerType.None)
                         ShellDrawCapture.Capture(() => thing.Graphic.Draw(thing.DrawPos, thing.Rotation, thing),
                             matrix, ShellSurfaceLayer.Deck, 0f);
-                    CollectTurretTop(thing, config, matrix, rotation, collector);
+                    TurretTopDamage damage = null;
+                    section.turretTopDamage?.TryGetValue(thing, out damage);
+                    CollectTurretTop(thing, config, matrix, rotation, damage, collector);
                     // A projector's dome is a comp effect, separate from its turret top.
                     CompProjectileInterceptor interceptor = thing.TryGetComp<CompProjectileInterceptor>();
                     if (interceptor != null && thing.TryGetComp<CompSpaceShield>() == null)
@@ -440,8 +562,8 @@ namespace DeltaV
             }
         }
 
-        private static void CollectTurretTop(Thing thing, ShellRenderConfig config,
-            Matrix4x4 matrix, Quaternion rotation, List<OverlayCommand> collector)
+        private static void CollectTurretTop(Thing thing, ShellRenderConfig config, Matrix4x4 matrix,
+            Quaternion rotation, TurretTopDamage damage, List<OverlayCommand> collector)
         {
             IShellTurretTopSource source = SpaceTurretTopRenderer.SourceFor(thing);
             if (source == null || thing.def.building == null) return;
@@ -450,14 +572,28 @@ namespace DeltaV
                 ?? source.ShellTopMaterial;
             if (material == null) return;
             Vector3 recoil = thing.TryGetComp<CompSpaceWeapon>()?.VisualRecoilOffset ?? Vector3.zero;
+            Matrix4x4 topMatrix = SpaceTurretTopRenderer.MatrixFor(thing, source, thing.DrawPos,
+                recoil, 0f, matrix, rotation, config.zIndex);
             collector.Add(new OverlayCommand
             {
                 mesh = MeshPool.plane10,
-                matrix = SpaceTurretTopRenderer.MatrixFor(thing, source, thing.DrawPos,
-                    recoil, 0f, matrix, rotation, config.zIndex),
+                matrix = topMatrix,
                 material = material,
                 surface = config.layer,
                 queue = material.renderQueue,
+                sequence = nextSequence++
+            });
+            QuadsDrawnLastPass++;
+            Material decal = damage?.MaterialFor(material.mainTexture as Texture2D);
+            if (decal == null) return;
+            collector.Add(new OverlayCommand
+            {
+                mesh = MeshPool.plane10,
+                matrix = topMatrix * Matrix4x4.Translate(Altitudes.AltIncVect),
+                material = decal,
+                surface = config.layer,
+                queue = decal.renderQueue,
+                damageOverlay = true,
                 sequence = nextSequence++
             });
             QuadsDrawnLastPass++;
@@ -489,22 +625,67 @@ namespace DeltaV
             Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
             if (exposedDeck && thing is Building) return true;
             if (rule?.exclude == true) return false;
-            if (SpaceStructureRules.IsSolidStructure(thing)) return true;
+            if ((thing is Building building && ShellHullVisuals.IsWallSegment(building))
+                || SpaceStructureRules.IsSolidStructure(thing)) return true;
             return rule != null;
         }
 
         private static bool HasExposedDeck(Thing thing)
         {
-            if (thing is not Building || !thing.Spawned || thing.Destroyed) return false;
+            if (thing is not Building building || !thing.Spawned || thing.Destroyed) return false;
             Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
             // Exterior structures keep their existing art. Interior exclusions and
             // turret bases become visible through roof openings like other equipment.
             if (rule?.exclude != true && rule?.render?.source != ShellGraphicSource.TurretTop
-                && (SpaceStructureRules.IsSolidStructure(thing) || rule != null)) return false;
+                && (ShellHullVisuals.IsWallSegment(building) || SpaceStructureRules.IsSolidStructure(thing)
+                    || rule != null)) return false;
             foreach (IntVec3 cell in thing.OccupiedRect())
                 if (SubstructureOwnership.HasFoundation(thing.Map, cell)
                     && !ShellHullVisuals.HasShellRoof(thing.Map, cell)) return true;
             return false;
+        }
+
+        private static bool UsesDamageOverlay(Building building) =>
+            building.def.useHitPoints && building.def.drawDamagedOverlay
+            && building.def.graphicData?.damageData?.enabled != false;
+
+        private static bool HasDamageOverlayBuildingAt(Map map, IntVec3 cell)
+        {
+            if (!cell.InBounds(map)) return false;
+            foreach (Thing thing in map.thingGrid.ThingsListAtFast(cell))
+                if (thing.Position == cell && thing is Building building && UsesDamageOverlay(building))
+                    return true;
+            return false;
+        }
+
+        private static void CollectLayer(MapDrawLayer layer, Matrix4x4 matrix, ShellSurfaceLayer surface,
+            List<OverlayCommand> collector, bool damageOverlay = false, bool filterThingMaterials = false)
+        {
+            if (layer == null) return;
+            foreach (LayerSubMesh submesh in layer.subMeshes)
+            {
+                if (!submesh.finalized || submesh.disabled) continue;
+                if (filterThingMaterials && (IsSunShadowMaterial(submesh.material)
+                    || IsPowerConnectorWireMaterial(submesh.material))) continue;
+                collector.Add(new OverlayCommand { mesh = submesh.mesh, matrix = matrix,
+                    material = submesh.material, surface = surface, damageOverlay = damageOverlay,
+                    queue = submesh.material.renderQueue, sequence = nextSequence++ });
+                QuadsDrawnLastPass += submesh.tris.Count / 6;
+            }
+        }
+
+        // CompPower prints appliance-to-conduit wires into the building's static layer.
+        private static bool IsPowerConnectorWireMaterial(Material material)
+        {
+            powerConnectorWireTexture ??= ContentFinder<Texture2D>.Get("Things/Special/Power/Wire", false);
+            return powerConnectorWireTexture != null && material.mainTexture == powerConnectorWireTexture;
+        }
+
+        private static void CompleteLayer(MapDrawLayer layer)
+        {
+            if (layer == null) return;
+            foreach (LayerSubMesh submesh in layer.subMeshes)
+                if (submesh.verts.Count > 0) submesh.FinalizeMesh(MeshParts.All);
         }
 
         private static void CollectTerrainBatches(IReadOnlyList<LayerSubMesh> batches, Matrix4x4 matrix,
@@ -599,7 +780,7 @@ namespace DeltaV
                     if (things[i].Position == cell && !result.things.Contains(things[i])) result.things.Add(things[i]);
             }
             // Only the SectionLayer material/mesh collector is used; no source-map layer is redrawn.
-            Section sourceSection = cache.PrintContext(map);
+            Section sourceSection = cache.PrintContext();
             if (BatchStaticTerrain)
             {
                 using var terrainTiming = performance?.Measure(PerformanceStage.ShellTerrainBuild) ?? default;
@@ -612,15 +793,28 @@ namespace DeltaV
                 }
                 result.terrain?.Complete();
             }
-            PrintBatch SharedBatch(ShellSurfaceLayer surface, float zIndex)
+            SectionLayer_ThingsGeneral SharedLayer(ShellSurfaceLayer surface, float zIndex)
             {
                 PrintBatch batch = result.printed.Find(candidate => candidate.surface == surface
                     && candidate.zIndex == zIndex && candidate.shared);
-                if (batch != null) return batch;
-                batch = new PrintBatch { surface = surface, zIndex = zIndex,
-                    shared = true, layer = new SectionLayer_ThingsGeneral(sourceSection) };
-                result.printed.Add(batch);
-                return batch;
+                if (batch != null) return (SectionLayer_ThingsGeneral)batch.layer;
+                var layer = new SectionLayer_ThingsGeneral(sourceSection);
+                result.printed.Add(new PrintBatch
+                    { surface = surface, zIndex = zIndex, shared = true, layer = layer });
+                return layer;
+            }
+
+            void PrintDamage(Building building, ShellSurfaceLayer surface, float zIndex)
+            {
+                PrintBatch batch = result.printed.Find(candidate => candidate.surface == surface
+                    && candidate.zIndex == zIndex && candidate.layer is SectionLayer_BuildingsDamage);
+                var layer = (SectionLayer_BuildingsDamage)batch?.layer;
+                if (layer == null)
+                {
+                    layer = new SectionLayer_BuildingsDamage(sourceSection);
+                    result.printed.Add(new PrintBatch { surface = surface, zIndex = zIndex, layer = layer });
+                }
+                BuildingDamagePrinter.Print(layer, building);
             }
 
             // Keep floor contacts and the joins between angled and straight slopes
@@ -629,14 +823,7 @@ namespace DeltaV
             bool odyssey = ModsConfig.OdysseyActive;
             var angles = odyssey ? ShellHullVisuals.FindAngledCorners(map, neighborhood)
                 : new Dictionary<IntVec3, int>();
-            var wallAdjacency = new Dictionary<IntVec3, ShellHullVisuals.Adjacency>();
-            foreach (IntVec3 cell in neighborhood)
-            {
-                Thing wall = cell.GetEdificeSafe(map);
-                if (wall?.def == ThingDefOf.GravshipHull)
-                    wallAdjacency[cell] = ShellHullVisuals.Analyze(map, wall,
-                        ShellHullVisuals.AngledSidesAt(cell, angles));
-            }
+            var wallAdjacency = ShellHullVisuals.AnalyzeWalls(map, neighborhood, angles);
             foreach (Thing thing in result.things)
             {
                 bool deck = HasExposedDeck(thing);
@@ -645,20 +832,28 @@ namespace DeltaV
                 Rules.TryGetValue(thing.def, out ShellRenderRuleDef rule);
                 ShellRenderConfig config = rule?.render;
                 bool turretBase = config?.source == ShellGraphicSource.TurretTop;
-                if (turretBase && !deck) continue;
+                Building damaged = thing is Building building && UsesDamageOverlay(building)
+                    && building.HitPoints < building.MaxHitPoints ? building : null;
+                if (turretBase && !deck)
+                {
+                    if (damaged != null)
+                        (result.turretTopDamage ??= new Dictionary<Thing, TurretTopDamage>())
+                            .Add(damaged, new TurretTopDamage(sourceSection, damaged));
+                    continue;
+                }
                 if (deck) config = null;
-                if (config?.alternateGraphics == null && (thing.def.drawerType == DrawerType.RealtimeOnly
-                    || thing.def.drawerType == DrawerType.None)) continue;
+                if (config?.alternateGraphics == null && thing.def.drawerType == DrawerType.None) continue;
                 ShellSurfaceLayer surface = deck ? ShellSurfaceLayer.Deck : config?.layer ?? ShellSurfaceLayer.Hull;
                 float zIndex = config?.zIndex ?? 0f;
+                if (damaged != null) PrintDamage(damaged, surface, zIndex);
+                if (config?.alternateGraphics == null && thing.def.drawerType == DrawerType.RealtimeOnly) continue;
                 if (thing.def == ThingDefOf.GravshipHull
                     && wallAdjacency.TryGetValue(thing.Position, out ShellHullVisuals.Adjacency wall))
                 {
                     Material material = ShellHullVisuals.WallMaterial(thing, wall);
                     if (material != null)
                     {
-                        ShellHullVisuals.PrintWall(SharedBatch(ShellSurfaceLayer.Hull, 0f).layer,
-                            thing, wall, material);
+                        ShellHullVisuals.PrintWall(SharedLayer(surface, zIndex), thing, wall, material);
                         continue;
                     }
                 }
@@ -678,11 +873,11 @@ namespace DeltaV
                     }
                     continue;
                 }
-                PrintBatch batch = SharedBatch(surface, zIndex);
+                SectionLayer_ThingsGeneral layer = SharedLayer(surface, zIndex);
                 try
                 {
-                    if (turretBase) thing.Graphic.Print(batch.layer, thing, 0f);
-                    else thing.Print(batch.layer);
+                    if (turretBase) thing.Graphic.Print(layer, thing, 0f);
+                    else thing.Print(layer);
                 }
                 catch (System.Exception ex)
                 {
@@ -691,8 +886,8 @@ namespace DeltaV
                 }
             }
             result.hullEdges = ShellHullVisuals.BuildEdges(map, rect, wallAdjacency, angles,
-                () => SharedBatch(ShellSurfaceLayer.Hull, 0f).layer);
-            foreach (PrintBatch batch in result.printed) batch.Complete();
+                () => SharedLayer(ShellSurfaceLayer.Hull, 0f));
+            foreach (PrintBatch batch in result.printed) CompleteLayer(batch.layer);
             result.roofEdges = ShellRoofEdges.Build(map, rect);
             if (odyssey)
             {
@@ -707,12 +902,112 @@ namespace DeltaV
             }
         }
 
+        private static TexturePixels ReadDamagePixels(Texture2D source, int maxSize)
+        {
+            int longestSide = Mathf.Max(source.width, source.height);
+            if (longestSide <= maxSize && source.isReadable && source.format == TextureFormat.RGBA32)
+                return new TexturePixels(source.GetPixels32(), source.width, source.height);
+
+            float scale = Mathf.Min(1f, (float)maxSize / longestSide);
+            int width = Mathf.Max(1, Mathf.RoundToInt(source.width * scale));
+            int height = Mathf.Max(1, Mathf.RoundToInt(source.height * scale));
+            RenderTexture previous = RenderTexture.active;
+            RenderTexture target = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32);
+            Texture2D copy = null;
+            try
+            {
+                Graphics.Blit(source, target);
+                RenderTexture.active = target;
+                copy = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                copy.ReadPixels(new Rect(0, 0, width, height), 0, 0, false);
+                return new TexturePixels(copy.GetPixels32(), width, height);
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(target);
+                if (copy != null) Object.Destroy(copy);
+            }
+        }
+
+        private static void RasterizeTopDamageQuad(Color32[] pixels, int size, Rect damageRect,
+            LayerSubMesh mesh, int corner, TexturePixels source, Color32 tint)
+        {
+            Vector2 Project(Vector3 vertex) => new Vector2(
+                (vertex.x - damageRect.xMin) * size / damageRect.width,
+                (vertex.z - damageRect.yMin) * size / damageRect.height);
+
+            Vector2 bottomLeft = Project(mesh.verts[corner]);
+            Vector2 topLeft = Project(mesh.verts[corner + 1]);
+            Vector2 topRight = Project(mesh.verts[corner + 2]);
+            Vector2 bottomRight = Project(mesh.verts[corner + 3]);
+            Vector2 right = bottomRight - bottomLeft;
+            Vector2 up = topLeft - bottomLeft;
+            float determinant = right.x * up.y - right.y * up.x;
+            if (Mathf.Abs(determinant) < 0.0001f) return;
+            float inverse = 1f / determinant;
+            int minX = Mathf.Max(0, Mathf.FloorToInt(Mathf.Min(Mathf.Min(bottomLeft.x, topLeft.x),
+                Mathf.Min(topRight.x, bottomRight.x))));
+            int minY = Mathf.Max(0, Mathf.FloorToInt(Mathf.Min(Mathf.Min(bottomLeft.y, topLeft.y),
+                Mathf.Min(topRight.y, bottomRight.y))));
+            int maxX = Mathf.Min(size, Mathf.CeilToInt(Mathf.Max(Mathf.Max(bottomLeft.x, topLeft.x),
+                Mathf.Max(topRight.x, bottomRight.x))));
+            int maxY = Mathf.Min(size, Mathf.CeilToInt(Mathf.Max(Mathf.Max(bottomLeft.y, topLeft.y),
+                Mathf.Max(topRight.y, bottomRight.y))));
+            Vector2 uvBase = mesh.uvs[corner];
+            Vector2 uvRight = (Vector2)mesh.uvs[corner + 3] - uvBase;
+            Vector2 uvUp = (Vector2)mesh.uvs[corner + 1] - uvBase;
+            for (int y = minY; y < maxY; y++)
+            for (int x = minX; x < maxX; x++)
+            {
+                float dx = x + 0.5f - bottomLeft.x;
+                float dy = y + 0.5f - bottomLeft.y;
+                float u = (dx * up.y - dy * up.x) * inverse;
+                float v = (right.x * dy - right.y * dx) * inverse;
+                if (u < 0f || u > 1f || v < 0f || v > 1f) continue;
+                Color32 scratch = source.Sample(uvBase + u * uvRight + v * uvUp);
+                int index = y * size + x;
+                pixels[index] = BlendTopDamage(pixels[index], scratch, tint);
+            }
+        }
+
+        private static Color32 BlendTopDamage(Color32 underneath, Color32 scratch, Color32 tint)
+        {
+            const float channel = 1f / 255f;
+            float overAlpha = scratch.a * tint.a * channel * channel;
+            if (overAlpha <= 0f) return underneath;
+            float underAlpha = underneath.a * channel * (1f - overAlpha);
+            float alpha = overAlpha + underAlpha;
+            float blend = overAlpha / alpha;
+            return new Color32(
+                (byte)Mathf.RoundToInt(Mathf.Lerp(underneath.r, scratch.r * tint.r * channel, blend)),
+                (byte)Mathf.RoundToInt(Mathf.Lerp(underneath.g, scratch.g * tint.g * channel, blend)),
+                (byte)Mathf.RoundToInt(Mathf.Lerp(underneath.b, scratch.b * tint.b * channel, blend)),
+                (byte)Mathf.RoundToInt(alpha * 255f));
+        }
+
+        private static bool MaskTopDamage(Color32[] pixels, int size, TexturePixels body)
+        {
+            bool visible = false;
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                if (pixels[i].a == 0) continue;
+                var uv = new Vector2((i % size + 0.5f) / size, (i / size + 0.5f) / size);
+                pixels[i].a = (byte)((pixels[i].a * body.Sample(uv).a + 127) / 255);
+                visible |= pixels[i].a != 0;
+            }
+            return visible;
+        }
+
         public static void MarkDirty(Map map, IntVec3 cell, ulong flags,
             bool adjacentCells = false, bool adjacentSections = false)
         {
             ulong relevant = (ulong)MapMeshFlagDefOf.Terrain | (ulong)MapMeshFlagDefOf.Things
                 | (ulong)MapMeshFlagDefOf.Buildings | (ulong)MapMeshFlagDefOf.Roofs;
-            if (map == null || (flags & relevant) == 0 || !Caches.TryGetValue(map, out MapCache cache)) return;
+            ulong damage = (ulong)MapMeshFlagDefOf.BuildingsDamage;
+            if (map == null || (flags & (relevant | damage)) == 0
+                || !Caches.TryGetValue(map, out MapCache cache)) return;
+            if ((flags & relevant) == 0 && !HasDamageOverlayBuildingAt(map, cell)) return;
             int sx = cell.x / SectionSize;
             int sz = cell.z / SectionSize;
             cache.snapshots.MarkDirty(sx, sz);
@@ -721,10 +1016,7 @@ namespace DeltaV
             ulong angleFlags = (ulong)MapMeshFlagDefOf.Terrain | (ulong)MapMeshFlagDefOf.Things
                 | (ulong)MapMeshFlagDefOf.Buildings;
             int radius = (flags & angleFlags) != 0 ? 2 : 1;
-            CellRect neighborhood = CellRect.CenteredOn(cell, radius).ClipInsideMap(map);
-            for (int z = neighborhood.minZ / SectionSize; z <= neighborhood.maxZ / SectionSize; z++)
-                for (int x = neighborhood.minX / SectionSize; x <= neighborhood.maxX / SectionSize; x++)
-                    cache.snapshots.MarkDirty(x, z);
+            cache.MarkSectionsDirty(CellRect.CenteredOn(cell, radius));
             // A roof or loss of its foundation can uncover a building rooted in another section.
             if ((flags & ((ulong)MapMeshFlagDefOf.Roofs | (ulong)MapMeshFlagDefOf.Terrain)) != 0
                 && cell.InBounds(map))
@@ -745,7 +1037,7 @@ namespace DeltaV
         {
             GuardShieldRenderer.Release(map);
             if (map == null || !Caches.TryGetValue(map, out MapCache cache)) return;
-            cache.snapshots.Dispose();
+            cache.Dispose();
             Caches.Remove(map);
         }
 
@@ -753,10 +1045,12 @@ namespace DeltaV
         {
             GuardShieldRenderer.Clear();
             foreach (MapCache cache in Caches.Values)
-                cache.snapshots.Dispose();
+                cache.Dispose();
             Caches.Clear();
             Rules.Clear();
             TerrainMaterials.Clear();
+            TopDamageBodyPixels = new ConditionalWeakTable<Texture2D, TexturePixels>();
+            TopDamageScratchPixels = new ConditionalWeakTable<Texture2D, TexturePixels>();
             powerConnectorWireTexture = null;
             ShellHullVisuals.ClearRuntimeCaches();
             ShellRoofEdges.ClearRuntimeCaches();
@@ -770,7 +1064,7 @@ namespace DeltaV
 
         private static MapCache CacheFor(Map map)
         {
-            if (!Caches.TryGetValue(map, out MapCache cache)) Caches[map] = cache = new MapCache();
+            if (!Caches.TryGetValue(map, out MapCache cache)) Caches[map] = cache = new MapCache(map);
             return cache;
         }
 

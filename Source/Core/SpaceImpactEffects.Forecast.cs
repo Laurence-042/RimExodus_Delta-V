@@ -22,7 +22,7 @@ namespace DeltaV
         {
             if (kind == SpaceCellKind.Substructure)
                 return Mathf.Clamp01(effect?.substructureHitChance ?? SpaceImpactEffectDef.DefaultSubstructureHitChance);
-            if (building == null || SpaceStructureRules.IsCollisionWall(building)) return 1;
+            if (building == null || SpaceStructureRules.IsImpassableBuilding(building)) return 1;
             if (effect?.buildingHitChance >= 0) return Mathf.Clamp01(effect.buildingHitChance);
             return GuaranteedMissileHit(projectile, building.def) ? 1 : SpaceStructureRules.BuildingHitChance(building);
         }

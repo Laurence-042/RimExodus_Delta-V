@@ -37,9 +37,6 @@
 		<graphicData>
 			<texPath>Things/Building/Docking/DockingPort_Mover</texPath>
 			<graphicClass>Graphic_Single</graphicClass>
-			<damageData>
-				<enabled>false</enabled>
-			</damageData>
 		</graphicData>
 		<uiIconPath>Things/Building/Docking/DockingPort_MenuIcon</uiIconPath>
 		<building>

@@ -10,7 +10,7 @@ namespace DeltaV
         /// <summary>无碰撞面（空真空/地板格……）。</summary>
         Empty = 0,
 
-        /// <summary>建筑（含非气密炮塔等；命中概率读取掩体效果）。</summary>
+        /// <summary>建筑（不可通行时必中，其余默认按掩体效果）。</summary>
         Building = 1,
 
         /// <summary>基架格（无存活建筑覆盖的甲板；可概率命中）。</summary>
@@ -30,7 +30,7 @@ namespace DeltaV
     }
 
     /// <summary>
-    /// 建筑碰撞与船壳可见结构的分类入口。碰撞纳入全部建筑，再按掩体效果掷命中；
+    /// 建筑碰撞与船壳可见结构的分类入口。不可通行的碰撞建筑必中；
     /// 外壳只绘实体结构或显式规则，内部炮塔可被击中但不因此画在外壳上。
     /// </summary>
     public static class SpaceStructureRules
@@ -43,10 +43,10 @@ namespace DeltaV
                 yield return new SpaceCollisionCell(cell, kind, building);
             }
         }
-        internal static bool IsCollisionWall(Thing building) =>
-            building?.def.IsWall == true && building.def.passability == Traversability.Impassable;
+        internal static bool IsImpassableBuilding(Thing building) =>
+            building is Building && building.def.passability == Traversability.Impassable;
 
-        public static float BuildingHitChance(Thing building) => IsCollisionWall(building)
+        public static float BuildingHitChance(Thing building) => IsImpassableBuilding(building)
             ? 1f : Mathf.Clamp01(building?.def.fillPercent ?? 0f);
 
         /// <summary>
@@ -71,7 +71,7 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 分类一个格子（碰撞占用集构建用）：建筑优先于基架；同格重叠时墙优先，
+        /// 分类一个格子（碰撞占用集构建用）：建筑优先于基架；同格重叠时不可通行建筑优先，
         /// 其余取掩体效果最高者。无建筑但有基架 → Substructure；否则 Empty。
         /// </summary>
         public static SpaceCellKind ClassifyCell(Map map, IntVec3 cell, out Thing solidThing) =>
@@ -93,7 +93,7 @@ namespace DeltaV
                 if (building.def.building.isPowerConduit || building is Building_VacuumBarrier) continue;
                 float chance = BuildingHitChance(thing);
                 if (solidThing != null && (chance < bestChance
-                    || (chance == bestChance && (!IsCollisionWall(thing) || IsCollisionWall(solidThing))))) continue;
+                    || (chance == bestChance && (!IsImpassableBuilding(thing) || IsImpassableBuilding(solidThing))))) continue;
                 solidThing = thing;
                 bestChance = chance;
             }

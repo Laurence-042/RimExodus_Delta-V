@@ -29,7 +29,6 @@
       <texPath>Things/Building/Power/ShipReactor</texPath>
       <graphicClass>Graphic_Single</graphicClass>
       <drawSize>(4.70,4.73)</drawSize>
-      <damageData><enabled>false</enabled></damageData>
     </graphicData>
     <building>
       <isEdifice>true</isEdifice>

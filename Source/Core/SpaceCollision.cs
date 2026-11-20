@@ -1175,8 +1175,8 @@ namespace DeltaV
                 Vector2 offset = fromLocal - new Vector2(cell.x + .5f, cell.z + .5f);
                 float along = CellEntry(body, offset, direction, footprintDirection, start, end);
                 if (float.IsPositiveInfinity(along) || along > bestAlong
-                    || (along == bestAlong && (!SpaceStructureRules.IsCollisionWall(thing)
-                        || SpaceStructureRules.IsCollisionWall(bestThing)))) continue;
+                    || (along == bestAlong && (!SpaceStructureRules.IsImpassableBuilding(thing)
+                        || SpaceStructureRules.IsImpassableBuilding(bestThing)))) continue;
                 bestAlong = along;
                 bestCell = cell;
                 bestKind = kind;

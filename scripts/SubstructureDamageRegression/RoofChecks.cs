@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Text;
 using DeltaV;
 using HarmonyLib;
@@ -34,6 +36,7 @@ internal static partial class Program
         map.terrainGrid = new TerrainGrid(map);
         map.thingGrid = new ThingGrid(map);
         map.edificeGrid = new EdificeGrid(map);
+        map.events = new MapEvents(map);
         map.roofGrid = new RoofGrid(map);
         map.listerThings = new ListerThings(ListerThingsUse.Global);
         Find.Maps.Add(map);
@@ -188,10 +191,16 @@ internal static partial class Program
             "existing rules without an explicit layer retain the hull default");
         CheckTerrainMesh();
         CheckTerrainDrawOrder();
+        CheckTurretDamageAlpha();
         CheckHullCorners(map, hull, deck, roof);
         CheckAngledHullSlopes(map, hull, deck, dirty);
+        Building_Door door = CheckWallSegmentLighting(map, hull, deck, roof, dirty);
+        CheckBuildingDamage(map, deck, roof, dirty);
         ExportRoofEdgePreview(edges);
         MapOverlayRenderer.Release(map);
+        dirty.Clear();
+        map.events.Notify_DoorOpened(door);
+        Check(dirty.Count == 0, "released shell cache no longer receives door events");
         Check(!ReferenceEquals(cache, Call(typeof(MapOverlayRenderer), "CacheFor", map)),
             "reopened map starts with a fresh render cache");
         MapOverlayRenderer.Release(map);
@@ -259,12 +268,13 @@ internal static partial class Program
     {
         Type overlay = typeof(MapOverlayRenderer);
         Type commandType = overlay.GetNestedType("OverlayCommand", BindingFlags.NonPublic);
-        object Command(ShellSurfaceLayer layer, int queue, int sequence)
+        object Command(ShellSurfaceLayer layer, int queue, int sequence, bool damage = false)
         {
             object command = Activator.CreateInstance(commandType);
             Set(command, "surface", layer);
             Set(command, "queue", queue);
             Set(command, "sequence", sequence);
+            Set(command, "damageOverlay", damage);
             return command;
         }
 
@@ -272,10 +282,15 @@ internal static partial class Program
         object equipment = Command(ShellSurfaceLayer.Deck, 3000, 3);
         object roof = Command(ShellSurfaceLayer.Hull, 2990, 1);
         object exposed = Command(ShellSurfaceLayer.Exposed, 2980, 0);
+        object moonPoolDamage = Command(ShellSurfaceLayer.Deck, 2980, 0, damage: true);
+        object exposedDamage = Command(ShellSurfaceLayer.Exposed, 2960, 0, damage: true);
         Check((int)Call(overlay, "CompareCommands", firstDeck, equipment) < 0
-            && (int)Call(overlay, "CompareCommands", equipment, roof) < 0
+            && (int)Call(overlay, "CompareCommands", equipment, moonPoolDamage) < 0
+            && (int)Call(overlay, "CompareCommands", moonPoolDamage, roof) < 0
             && (int)Call(overlay, "CompareCommands", roof, exposed) < 0,
-            "batched deck, uncovered equipment, roof cover and exposed equipment retain draw order");
+            "moon pool equipment and damage draw above the deck and below opaque roof cover");
+        Check((int)Call(overlay, "CompareCommands", exposed, exposedDamage) < 0,
+            "an exposed device draws before its damage even when the damage material has a lower queue");
     }
 
     private sealed class HullTestGraphic : Graphic
@@ -284,10 +299,239 @@ internal static partial class Program
         public override Material MatSingleFor(Thing thing) => atlas;
     }
 
+    private static void CheckTurretDamageAlpha()
+    {
+        const int size = 8;
+        Type overlay = typeof(MapOverlayRenderer);
+        Type textureType = overlay.GetNestedType("TexturePixels", BindingFlags.NonPublic);
+        object Texture(Color32[] pixels, int width, int height) =>
+            Activator.CreateInstance(textureType, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                null, new object[] { pixels, width, height }, null);
+
+        var rect = new Rect(10f, 20f, 4f, 2f);
+        var scratch = new LayerSubMesh(null, null);
+        scratch.verts.AddRange(new[]
+        {
+            new Vector3(10f, 1f, 20.5f), new Vector3(10f, 1f, 21.5f),
+            new Vector3(14f, 1f, 21.5f), new Vector3(14f, 1f, 20.5f)
+        });
+        scratch.uvs.AddRange(new[]
+        {
+            new Vector3(0f, 0f, 0f), new Vector3(0f, 1f, 0f),
+            new Vector3(1f, 1f, 0f), new Vector3(1f, 0f, 0f)
+        });
+        var marks = new Color32[size * size];
+        var white = new Color32(255, 255, 255, 255);
+        object scratchTexture = Texture(new[] { new Color32(90, 60, 30, 192) }, 1, 1);
+        for (int i = 0; i < 2; i++)
+            Call(overlay, "RasterizeTopDamageQuad", marks, size, rect, scratch, 0, scratchTexture, white);
+        int row = size * 3;
+        Check(marks[row].a == 239 && marks[row + size - 1].a == 239 && marks[0].a == 0,
+            "native-style damage quads span the four-cell projection and preserve scratch blending");
+
+        var body = new Color32[size * size];
+        for (int i = 0; i < body.Length; i++)
+            body[i].a = (byte)(i % size == 3 ? 0 : i % size == 4 ? 128 : 255);
+        Check((bool)Call(overlay, "MaskTopDamage", marks, size, Texture(body, size, size))
+            && marks[row].a == 239 && marks[row + size - 1].a == 239 && marks[row + 3].a == 0
+            && marks[row + 4].a == 120 && marks[row + 4].r == 90,
+            "body alpha is applied once after scratch blending, with exact transparent and partial coverage");
+        Check(!(bool)Call(overlay, "MaskTopDamage", marks, size,
+            Texture(new[] { new Color32(255, 255, 255, 0) }, 1, 1)) && marks.All(pixel => pixel.a == 0),
+            "fully transparent art cannot emit a damage decal");
+    }
+
     private sealed class HullTestWall : Building
     {
         public HullTestGraphic graphic;
         public override Graphic Graphic => new Graphic_LinkedCornerFiller(graphic);
+    }
+
+    private sealed class DamageTestBuilding : Building
+    {
+        public override Graphic Graphic => null;
+        public override void Print(SectionLayer layer) { }
+    }
+
+    private static readonly Dictionary<Building, SectionLayer_BuildingsDamage> PrintedDamage =
+        new Dictionary<Building, SectionLayer_BuildingsDamage>();
+
+    private static bool CaptureBuildingDamage(SectionLayer_BuildingsDamage __instance, Building b)
+    {
+        PrintedDamage.Add(b, __instance);
+        return false;
+    }
+
+    private static bool DamageFixtureMaxHitPoints(Thing __instance, ref int __result)
+    {
+        if (__instance is not DamageTestBuilding) return true;
+        __result = 100;
+        return false;
+    }
+
+    private static bool SkipDamageFixtureTerrain(Map map, IntVec3 cell, out Material deck, out Material cover)
+    {
+        deck = cover = null;
+        return false;
+    }
+
+    private static IEnumerable<CodeInstruction> SkipDamageFixtureMeshPasses(IEnumerable<CodeInstruction> instructions)
+    {
+        MethodInfo odyssey = AccessTools.PropertyGetter(typeof(ModsConfig), nameof(ModsConfig.OdysseyActive));
+        MethodInfo terrain = AccessTools.Method(typeof(MapOverlayRenderer), "TerrainMaterialsAt");
+        MethodInfo skipTerrain = AccessTools.Method(typeof(Program), nameof(SkipDamageFixtureTerrain));
+        int replacedDlc = 0, replacedTerrain = 0;
+        foreach (CodeInstruction instruction in instructions)
+        {
+            if (instruction.Calls(odyssey))
+            {
+                instruction.opcode = OpCodes.Ldc_I4_0;
+                instruction.operand = null;
+                replacedDlc++;
+            }
+            else if (instruction.Calls(terrain))
+            {
+                instruction.operand = skipTerrain;
+                replacedTerrain++;
+            }
+            yield return instruction;
+        }
+        Check(replacedDlc == 1 && replacedTerrain == 1,
+            "offline damage fixture bypasses the installed mod loader and terrain mesh pass");
+    }
+
+    private static void CheckBuildingDamage(Map map, TerrainDef deck, RoofDef roof, HashSet<int> dirty)
+    {
+        DamageTestBuilding Place(ThingDef def, int z, int x = 34)
+        {
+            def.category = ThingCategory.Building;
+            def.size = IntVec2.One;
+            def.useHitPoints = def.drawDamagedOverlay = true;
+            def.drawerType = DrawerType.MapMeshOnly;
+            var building = new DamageTestBuilding { def = def };
+            Set(building, "positionInt", new IntVec3(x, 0, z));
+            Set(building, "mapIndexOrState", (sbyte)1);
+            Set(building, "hitPointsInt", 42);
+            map.thingGrid.Register(building);
+            return building;
+        }
+
+        ThingDefOf.GravshipHull.building ??= new BuildingProperties { isWall = true };
+        Building bulkhead = Place(ThingDefOf.GravshipHull, 35);
+        map.edificeGrid.Register(bulkhead);
+        var wallDef = (ThingDef)Raw(typeof(ThingDef));
+        wallDef.defName = "ordinary wall";
+        wallDef.building = new BuildingProperties { isWall = true };
+        Building wall = Place(wallDef, 36);
+        var equipmentDef = (ThingDef)Raw(typeof(ThingDef));
+        equipmentDef.defName = "roof test equipment";
+        equipmentDef.building = new BuildingProperties();
+        Building exposed = Place(equipmentDef, 37);
+        Building covered = Place(equipmentDef, 38);
+        var thrusterDef = (ThingDef)Raw(typeof(ThingDef));
+        thrusterDef.defName = "LargeThruster";
+        thrusterDef.building = new BuildingProperties { isAirtight = true };
+        Building thruster = Place(thrusterDef, 35, x: 36);
+        var turretDef = (ThingDef)Raw(typeof(ThingDef));
+        turretDef.defName = "roof test turret";
+        turretDef.building = new BuildingProperties { turretTopDrawSize = 2.4f };
+        Building turret = Place(turretDef, 36, x: 36);
+        var shieldDef = (ThingDef)Raw(typeof(ThingDef));
+        shieldDef.defName = "roof test shield";
+        shieldDef.building = new BuildingProperties { turretTopDrawSize = 1.2f };
+        Building shield = Place(shieldDef, 37, x: 36);
+
+        foreach (Building building in new[] { covered, thruster, turret, shield })
+        {
+            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(building.Position)] = deck;
+            map.roofGrid.SetRoof(building.Position, roof);
+        }
+        map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(exposed.Position)] = MoonPoolUtility.MoonPoolTerrain;
+        map.roofGrid.SetRoof(exposed.Position, MoonPoolUtility.FieldRoof);
+
+        MapMeshFlagDefOf.BuildingsDamage = (MapMeshFlagDef)Raw(typeof(MapMeshFlagDef));
+        Set(MapMeshFlagDefOf.BuildingsDamage, "mask", 16UL);
+        foreach (Building building in new[] { bulkhead, wall, exposed })
+        {
+            dirty.Clear();
+            MapOverlayRenderer.MarkDirty(map, building.Position, (ulong)MapMeshFlagDefOf.BuildingsDamage);
+            Check(dirty.SetEquals(new[] { 1 | (2 << 16), 2 | (2 << 16) }),
+                "vanilla damage notifications refresh the root and cross-section neighbor");
+        }
+        dirty.Clear();
+        MapOverlayRenderer.MarkDirty(map, bulkhead.Position + IntVec3.West, (ulong)MapMeshFlagDefOf.BuildingsDamage);
+        Check(dirty.Count == 0, "empty cells do not invalidate the shell on a damage-only notification");
+
+        var overlay = typeof(MapOverlayRenderer);
+        var rules = (Dictionary<ThingDef, ShellRenderRuleDef>)AccessTools.Field(overlay, "Rules").GetValue(null);
+        var topConfig = new ShellRenderConfig { source = ShellGraphicSource.TurretTop, layer = ShellSurfaceLayer.Exposed };
+        rules.Add(thrusterDef, new ShellRenderRuleDef { render = new ShellRenderConfig { zIndex = 1f } });
+        rules.Add(turretDef, new ShellRenderRuleDef { render = topConfig });
+        rules.Add(shieldDef, new ShellRenderRuleDef { render = topConfig });
+        var harmony = new Harmony("DeltaV.ShellDamageRegression");
+        harmony.Patch(AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.MaxHitPoints)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(DamageFixtureMaxHitPoints)));
+        harmony.Patch(AccessTools.Method(typeof(SectionLayer_BuildingsDamage), "PrintDamageVisualsFrom"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CaptureBuildingDamage)));
+        harmony.Patch(AccessTools.Method(overlay, "PopulateSection"),
+            transpiler: new HarmonyMethod(typeof(Program), nameof(SkipDamageFixtureMeshPasses)));
+        // Exercise section collection without allocating Unity edge meshes.
+        foreach (var target in new[]
+        {
+            AccessTools.Method(overlay.Assembly.GetType("DeltaV.ShellHullVisuals"), "BuildEdges"),
+            AccessTools.Method(overlay.Assembly.GetType("DeltaV.ShellRoofEdges"), "Build")
+        })
+            harmony.Patch(target, prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
+        object cache = Call(overlay, "CacheFor", map);
+        var printContext = (Section)Raw(typeof(Section));
+        Set(printContext, "map", map);
+        Set(cache, "printContext", printContext);
+        try
+        {
+            using var damagedSnapshot = (IDisposable)Call(overlay, "BuildSection", cache, map, 2, 2, null);
+            var batches = (System.Collections.IEnumerable)AccessTools.Field(damagedSnapshot.GetType(), "printed")
+                .GetValue(damagedSnapshot);
+            ShellSurfaceLayer SurfaceOf(Building building)
+            {
+                var layer = PrintedDamage[building];
+                object batch = batches.Cast<object>().Single(candidate =>
+                    AccessTools.Field(candidate.GetType(), "layer").GetValue(candidate) == layer);
+                return (ShellSurfaceLayer)AccessTools.Field(batch.GetType(), "surface").GetValue(batch);
+            }
+            Check(PrintedDamage.Count == 6 && !PrintedDamage.ContainsKey(covered),
+                "only visible damaged buildings reach the original per-building printer");
+            Check(SurfaceOf(bulkhead) == ShellSurfaceLayer.Hull && SurfaceOf(wall) == ShellSurfaceLayer.Hull
+                && SurfaceOf(exposed) == ShellSurfaceLayer.Deck && SurfaceOf(thruster) == ShellSurfaceLayer.Hull,
+                "walls, roof-mounted thrusters and moon pool equipment damage follow the building surface");
+
+            var topLayers = (System.Collections.IDictionary)
+                AccessTools.Field(damagedSnapshot.GetType(), "turretTopDamage").GetValue(damagedSnapshot);
+            object NativeTopLayer(Thing thing) =>
+                AccessTools.Field(topLayers[thing].GetType(), "nativeLayer").GetValue(topLayers[thing]);
+            Check(topLayers.Count == 2 && NativeTopLayer(turret) == PrintedDamage[turret]
+                && NativeTopLayer(shield) == PrintedDamage[shield],
+                "covered turrets and projectors keep the original damage quads for compositing");
+
+            PrintedDamage.Clear();
+            Set(wall, "hitPointsInt", 100);
+            Set(turret, "hitPointsInt", 100);
+            map.roofGrid.SetRoof(exposed.Position, roof);
+            MapOverlayRenderer.MarkDirty(map, wall.Position, (ulong)MapMeshFlagDefOf.BuildingsDamage);
+            using var repairedSnapshot = (IDisposable)Call(overlay, "BuildSection", cache, map, 2, 2, null);
+            var repairedTop = (System.Collections.IDictionary)
+                AccessTools.Field(repairedSnapshot.GetType(), "turretTopDamage").GetValue(repairedSnapshot);
+            Check(PrintedDamage.Count == 3 && !PrintedDamage.ContainsKey(wall) && !PrintedDamage.ContainsKey(turret)
+                && !PrintedDamage.ContainsKey(exposed) && repairedTop.Count == 1 && repairedTop.Contains(shield),
+                "repair removes both kinds of overlay and a solid moon pool roof hides the equipment beneath");
+        }
+        finally
+        {
+            PrintedDamage.Clear();
+            harmony.UnpatchAll(harmony.Id);
+            rules.Remove(thrusterDef);
+            rules.Remove(turretDef);
+            rules.Remove(shieldDef);
+        }
     }
 
     private static void CheckHullCorners(Map map, Type hull, TerrainDef deck, RoofDef roof)
@@ -318,7 +562,7 @@ internal static partial class Program
             HullTestWall zWall = Place(floor + z, uranium);
             HullTestWall elbow = Place(floor + x + z, uranium);
 
-            object adjacency = Call(hull, "Analyze", map, elbow, 0);
+            object adjacency = Call(hull, "Analyze", map, elbow.Position, elbow, 0);
             int Field(string name) => (int)AccessTools.Field(adjacency.GetType(), name).GetValue(adjacency);
             Check(Field("outerCorner") == corner, $"outer arc bows in the same direction as the inner arc ({corner})");
             Check(Call(hull, "SelectCornerWall", xWall, zWall, elbow) == zWall,
@@ -359,11 +603,11 @@ internal static partial class Program
             }
 
             map.roofGrid.SetRoof(floor, null);
-            adjacency = Call(hull, "Analyze", map, elbow, 0);
+            adjacency = Call(hull, "Analyze", map, elbow.Position, elbow, 0);
             Check(Field("outerCorner") == -1 && Field("cornerFill") == 0,
                 $"unroofed open deck does not close the hull corner ({corner})");
             Place(floor, steel);
-            adjacency = Call(hull, "Analyze", map, elbow, 0);
+            adjacency = Call(hull, "Analyze", map, elbow.Position, elbow, 0);
             int fillBit = 1 << corner; // Opposite diagonal in SW/NW/NE/SE order.
             Check(Field("outerCorner") == -1 && (Field("cornerFill") & fillBit) != 0,
                 $"four actual walls fill the cross even with no roof at the diagonal ({corner})");
@@ -433,9 +677,9 @@ internal static partial class Program
             {
                 int hidden = (int)Call(hull, "AngledSidesAt", wall, full);
                 Check(hidden == (1 << coveredSide)
-                    && Strip("AddStraightSlope", wall, coveredSide, hidden, full, 0f).Count == 0,
+                    && Strip("AddStraightSlope", wall, coveredSide, hidden, full, 0f, 0).Count == 0,
                     $"covered straight face does not leave a rectangular light band ({corner}, {coveredSide})");
-                List<Vector3> straight = Strip("AddStraightSlope", wall, exposedSide, hidden, full, 0f);
+                List<Vector3> straight = Strip("AddStraightSlope", wall, exposedSide, hidden, full, 0f, 0);
                 Check(straight.Count == 4 && straight.FindAll(v => diagonal.Exists(d => SamePoint(v, d))).Count == 2,
                     $"angle and straight wall share both vertices of the join ({corner}, {exposedSide})");
             }
@@ -467,6 +711,108 @@ internal static partial class Program
         Check(!brokenAngles.ContainsKey(right)
             && brokenSlope.FindAll(v => leftSlope.Exists(p => SamePoint(v, p))).Count == 3,
             "breaking a diagonal across sections restores a miter at the surviving endpoint");
+    }
+
+    private static Building_Door CheckWallSegmentLighting(Map map, Type hull, TerrainDef deck, RoofDef roof,
+        HashSet<int> dirty)
+    {
+        var angles = new Dictionary<IntVec3, int>();
+        Building Place(Building building, IntVec3 cell, BuildingProperties props, bool full = true,
+            IntVec2? size = null)
+        {
+            if (building.def == null)
+            {
+                var def = (ThingDef)Raw(typeof(ThingDef));
+                def.category = ThingCategory.Building;
+                def.thingClass = building.GetType();
+                def.building = props;
+                def.fillPercent = full ? 1f : 0.5f;
+                def.size = size ?? IntVec2.One;
+                building.def = def;
+            }
+            Set(building, "positionInt", cell);
+            map.edificeGrid.Register(building);
+            return building;
+        }
+        System.Collections.IDictionary Analyze(CellRect rect) =>
+            (System.Collections.IDictionary)Call(hull, "AnalyzeWalls", map, rect, angles);
+        int Mask(System.Collections.IDictionary walls, IntVec3 cell, string field)
+        {
+            object entry = walls[cell];
+            return (int)AccessTools.Field(entry.GetType(), field).GetValue(entry);
+        }
+
+        var start = new IntVec3(4, 0, 36);
+        Place(new Building(), start, new BuildingProperties { isWall = true });
+        Place(new HullTestWall { def = ThingDefOf.GravshipHull, graphic = new HullTestGraphic() },
+            start + IntVec3.East, null);
+        var doorCell = start + IntVec3.East * 2;
+        var door = (Building_Door)Place(new Building_Door(), doorCell, new BuildingProperties());
+        var ventCell = start + IntVec3.East * 3;
+        var vent = Place(new Building_Vent(), ventCell, new BuildingProperties { canPlaceOverWall = true });
+        var coolerCell = start + IntVec3.East * 4;
+        Place(new Building_Cooler(), coolerCell, new BuildingProperties { canPlaceOverWall = true });
+        var reactor = coolerCell + IntVec3.East;
+        Place(new Building(), reactor, new BuildingProperties { isAirtight = true });
+        var partialInsert = reactor + IntVec3.East;
+        Place(new Building(), partialInsert, new BuildingProperties { canPlaceOverWall = true }, full: false);
+        var row = CellRect.FromLimits(start.x, start.z, partialInsert.x, partialInsert.z);
+        foreach (IntVec3 cell in row)
+        {
+            IntVec3 inside = cell + IntVec3.North;
+            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(inside)] = deck;
+            map.roofGrid.SetRoof(inside, roof);
+        }
+
+        foreach (Rot4 rotation in new[] { Rot4.North, Rot4.East, Rot4.South, Rot4.West })
+        {
+            vent.Rotation = rotation;
+            var walls = Analyze(row);
+            Check(walls.Count == 5 && !walls.Contains(reactor) && !walls.Contains(partialInsert),
+                $"wall, gravship hull, door and full wall inserts join the lighting boundary ({rotation})");
+            Check(Mask(walls, ventCell, "connected") == 0b1011 && Mask(walls, ventCell, "floorSides") == 0b0001,
+                $"embedded vent has one exterior side and one roof seam ({rotation})");
+            Check(Mask(walls, start + IntVec3.East, "connected") == 0b1011
+                && Mask(walls, start + IntVec3.East, "atlasLinks") == 0b0001,
+                "wall illumination crosses material boundaries while the gravship atlas keeps its native links");
+        }
+
+        Set(door, "openInt", true);
+        var openRow = Analyze(row);
+        Check(!openRow.Contains(doorCell) && Mask(openRow, ventCell, "connected") == 0b0011
+            && Mask(openRow, start + IntVec3.East, "connected") == 0b1001,
+            "open door leaves a gap and exposes the adjacent wall edges");
+        Type builderType = hull.GetNestedType("QuadBuilder", BindingFlags.NonPublic);
+        foreach (int side in new[] { 0, 1, 2, 3 })
+        {
+            object builder = Activator.CreateInstance(builderType, true);
+            int inset = side % 2 == 0 ? 0b0101 : 0b1010;
+            Call(hull, "AddStraightSlope", builder, doorCell, side, 0, angles, 0f, inset);
+            var vertices = (List<Vector3>)AccessTools.Field(builderType, "vertices").GetValue(builder);
+            var center = doorCell.ToVector3Shifted();
+            var normal = (Vector2)Call(hull, "SideNormal", side);
+            Check(vertices.Count == 4 && vertices.Take(2).All(vertex =>
+                Vector2.Dot(new Vector2(vertex.x - center.x, vertex.z - center.z), normal) == 22f / 64f),
+                $"standard door slope begins on the visible mover edge ({side})");
+        }
+
+        var multi = (Building_Door)Place(new Building_Door(), new IntVec3(17, 0, 36),
+            new BuildingProperties(), size: new IntVec2(5, 1));
+        CellRect footprint = multi.OccupiedRect();
+        var closed = Analyze(footprint);
+        Check(closed.Count == 5 && Mask(closed, multi.Position, "connected") == 0b1010,
+            "multi-cell door contributes all occupied cells without internal boundary strips");
+        dirty.Clear();
+        Set(multi, "openInt", true);
+        map.events.Notify_DoorOpened(multi);
+        Check(dirty.SetEquals(new[] { 2 << 16, 1 | (2 << 16) }) && Analyze(footprint).Count == 0,
+            "opening a multi-cell door clears its light across both affected sections");
+        dirty.Clear();
+        Set(multi, "openInt", false);
+        map.events.Notify_DoorClosed(multi);
+        Check(dirty.SetEquals(new[] { 2 << 16, 1 | (2 << 16) }) && Analyze(footprint).Count == 5,
+            "closing a multi-cell door refreshes both sections and restores the boundary");
+        return multi;
     }
 
     static void ExportRoofEdgePreview(Type edges)

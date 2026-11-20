@@ -37,7 +37,7 @@
     <useHitPoints>true</useHitPoints>
     <statBases><WorkToBuild>3000</WorkToBuild><MaxHitPoints>300</MaxHitPoints><Mass>150</Mass><Flammability>0</Flammability></statBases>
     <costList Inherit="False"><Steel>200</Steel><ComponentIndustrial>2</ComponentIndustrial></costList>
-    <graphicData><texPath>Things/Building/StationTrade/CargoPort</texPath><graphicClass>DeltaV.Graphic_SpaceCargo</graphicClass><shaderType>CutoutComplex</shaderType><drawSize>(2.1135,3.4517)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
+    <graphicData><texPath>Things/Building/StationTrade/CargoPort</texPath><graphicClass>DeltaV.Graphic_SpaceCargo</graphicClass><shaderType>CutoutComplex</shaderType><drawSize>(2.1135,3.4517)</drawSize></graphicData>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceCargo" />
       <li Class="CompProperties_Hackable">
@@ -89,7 +89,7 @@ You may be wondering whether you could cut this off and install it on your own s
     <useHitPoints>true</useHitPoints>
     <statBases><WorkToBuild>2200</WorkToBuild><MaxHitPoints>150</MaxHitPoints><Mass>40</Mass><Flammability>0</Flammability></statBases>
     <costList Inherit="False"><Steel>100</Steel><ComponentIndustrial>4</ComponentIndustrial></costList>
-    <graphicData><texPath>Things/Building/StationTrade/TradeTerminal</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,2)</drawSize><damageData><enabled>false</enabled></damageData></graphicData>
+    <graphicData><texPath>Things/Building/StationTrade/TradeTerminal</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,2)</drawSize></graphicData>
     <building />
   </ThingDef>
   <ThingDef ParentName="BuildingBase">
