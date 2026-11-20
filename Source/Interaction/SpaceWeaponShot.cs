@@ -164,7 +164,7 @@ namespace DeltaV
             magazine = parameters.magazine;
             if (!weapon.MagazineAvailable(magazine)) return Reject(WeaponReject.Ammo);
             projectileDef = parameters.aim.Projectile;
-            armorPenetrationScale = magazine?.MagazineProps.armorPenetrationScale ?? 1f;
+            armorPenetrationScale = parameters.penetrationScale;
             projectileProps = projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>();
             if (projectileProps == null) return Reject(WeaponReject.Ammo);
             ignitionDelayTicks = weapon.WeaponProps.ignitionDelayTicks >= 0
@@ -303,8 +303,7 @@ namespace DeltaV
             {
                 parameters.energy.Commit();
                 universe?.Performance.RecordWeaponResult(WeaponReject.None);
-                magazine?.ConsumeHeads(parameters.heads);
-                if (parameters.charge > 0) weapon.Component<CompSpaceWeaponMagazine>().ConsumePropellant(parameters.charge);
+                magazine?.ConsumeLoad(parameters.heads, parameters.charge);
                 weapon.NotifyMagazineConsumed(magazine);
                 if (weapon.Tuning != null) weapon.Tuning.CommitShot(parameters.shotHeat, parameters.cycleTicks);
                 else weapon.CommitCooldown(Find.TickManager.TicksGame, parameters.cycleTicks);

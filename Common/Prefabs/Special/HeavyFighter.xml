@@ -3085,7 +3085,7 @@
       <rotation>1</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine30285</id><map>2</map><pos>(17, 0, 15)</pos><rot>1</rot><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>226</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine30285</id><map>2</map><pos>(17, 0, 15)</pos><rot>1</rot><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>226</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(5, 0, 16)</pos>
@@ -3093,7 +3093,7 @@
       <rotation>1</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine30286</id><map>2</map><pos>(17, 0, 28)</pos><rot>1</rot><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>226</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine30286</id><map>2</map><pos>(17, 0, 28)</pos><rot>1</rot><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>226</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(8, 0, 11)</pos>

@@ -18,6 +18,7 @@ def shape(name):
 
 
 def furnish(name, plan, place, prop, foundation, roofs, records, occupied):
+    uranium_slots = []
     if name == 'WeaponRange':
         walls = {(x,z) for x in range(24) for z in range(43) if x in (0,23) or z in (0,42)}
         doors = {(0,39),(7,39),(23,25)}
@@ -51,16 +52,19 @@ def furnish(name, plan, place, prop, foundation, roofs, records, occupied):
         place('DeltaV_ShieldGenerator',8,29,state={'DeltaV_shieldGroundRadius':'40'})
         for group,(weapon,z) in enumerate((('DeltaV_Weapon_RapidMainMedium',5),
                 ('DeltaV_Weapon_HeavyMainMedium',10),('DeltaV_Weapon_LaserMainMedium',15)),1):
-            for secondary,origin in ((False,z),(True,41-z)):
+            for secondary,origin in ((True,z),(False,41-z)):
                 settings={'groupNumber':str(group),'salvoSet':'Secondary' if secondary else 'Main'}
                 if group==1: settings.update(firingInterval='10')
-                elif group==2: settings.update(propellantCharge='48',headUnits='96' if secondary else '48')
+                elif group==2: settings.update(propellantCharge='48',headUnits='48')
                 else: settings.update(pulsePower='3')
                 gun=place(weapon,27,origin,1,state=settings)
-                slot=list(map(int,re.findall(r'-?\d+',prop(weapon,"comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']/attachmentSlots/li/cell"))))
-                x0,z0=gun['root'][0]+slot[2],gun['root'][1]-slot[0]
-                place('DeltaV_Building_AutoAimPluginII',x0,z0,1,layer='attachment')
-        loader=place('DeltaV_Weapon_RailgunLoader',23,21,1,state={'groupNumber':'4','salvoSet':'Main'})
+                slots="comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']/attachmentSlots"
+                def east_slot(index):
+                    x,_,z=map(int,re.findall(r'-?\d+',prop(weapon,f'{slots}/li[{index}]/cell')))
+                    return gun['root'][0]+z,gun['root'][1]-x
+                place('DeltaV_Building_AutoAimPluginII',*east_slot(1),1,layer='attachment')
+                if secondary and group in (1,2): uranium_slots.append(east_slot(2))
+        loader=place('DeltaV_Weapon_RailgunLoader',23,21,1,state={'groupNumber':'4','salvoSet':'Secondary'})
         for x in range(24,33): place('DeltaV_Weapon_RailgunAccelerator',x,21,1)
         # The rail lane exits east with no hull, roof or building in front of the final segment.
         assert loader['root'][1] == 22
@@ -92,6 +96,8 @@ def furnish(name, plan, place, prop, foundation, roofs, records, occupied):
               and r['stateOverrides'].get('storedPower')=='0' for x,z in r['cells']
               for dx,dz in ((0,0),(1,0),(-1,0),(0,1),(0,-1))}
     for x,z in sorted(foundation-transmit-isolated): place('HiddenConduit',x,z,layer='conduit')
+    # Append new mounts after the existing records to preserve their Scribe IDs.
+    for x,z in uranium_slots: place('DeltaV_Building_UraniumMagazine',x,z,1,layer='attachment')
     return walls,start
 
 
@@ -114,9 +120,14 @@ def prepare_state(r, state, field, prop):
             capacity=prop(name,"comps/li[@Class='DeltaV.CompProperties_GunSupply'][kind='"+kind+"']/fuelCapacity")
             if capacity:
                 node=ET.SubElement(state,tag)
+                uranium_heads = (kind == 'Heads' and name in
+                    ('DeltaV_Weapon_RapidMainMedium','DeltaV_Weapon_HeavyMainMedium')
+                    and r['stateOverrides']['salvoSet'] == 'Secondary')
                 field(node,'fuel',capacity)
                 field(node,'configuredTargetFuelLevel',capacity)
                 field(node,'allowAutoRefuel','True')
+                if uranium_heads:
+                    field(node,'selectedHead','DeltaV_UraniumHead')
         coverage=ET.SubElement(state,'combatCoverage')
         field(coverage,'arc','90')
         field(coverage,'range','150')
@@ -132,6 +143,13 @@ def prepare_state(r, state, field, prop):
             verb=gun.find('verbTracker/verbs/li')
             verb.set('Class','DeltaV.Verb_SpaceTurretGround')
             field(verb,'loadID','CompEquippable_'+gun.findtext('id')+'_0')
+    if name == 'DeltaV_Building_UraniumMagazine':
+        for kind,tag in [('Heads','headSupply'),('Propellant','propellantSupply')]:
+            capacity=prop(name,"comps/li[@Class='DeltaV.CompProperties_GunSupply'][kind='"+kind+"']/fuelCapacity")
+            supply=ET.SubElement(state,tag)
+            field(supply,'fuel',capacity)
+            field(supply,'configuredTargetFuelLevel',capacity)
+            field(supply,'allowAutoRefuel','True')
     if name == 'DeltaV_ShieldGenerator':
         for obsolete in ('DeltaV_guardRecoveryTicksRemaining','DeltaV_guardUnlocked'):
             node=state.find(obsolete)
@@ -148,7 +166,7 @@ def prepare_state(r, state, field, prop):
 
 def validate_and_draw(name, plan, records, foundation, roofs, reachable, here, generated):
     w,h=plan['size']; scale=19; pad=160 if name=='ShieldTarget' else 35
-    img=Image.new('RGB',(w*scale+2*pad,h*scale+2*pad+75),'#101822');d=ImageDraw.Draw(img)
+    img=Image.new('RGB',(w*scale+2*pad,h*scale+2*pad+(95 if name=='WeaponRange' else 75)),'#101822');d=ImageDraw.Draw(img)
     for x,z in foundation:
         d.rectangle((pad+x*scale,pad+(h-z-1)*scale,pad+(x+1)*scale,pad+(h-z)*scale),
                     fill='#e5bd43' if (x,z) in plan['surfaceDefs'] else '#354653',outline='#415563')
@@ -170,7 +188,12 @@ def validate_and_draw(name, plan, records, foundation, roofs, reachable, here, g
                         label=str(column)+('ABC'[row] if len(entries)>1 else '')
             if r['name'].endswith('MainMedium'):
                 label=('S' if r['stateOverrides'].get('salvoSet')=='Secondary' else 'M')+r['stateOverrides']['groupNumber']
-            d.text((box[0]+1,box[1]+1),label,fill='#101822')
+                d.text(((box[0]+box[2])//2,(box[1]+box[3])//2),label,anchor='mm',fill='#101822')
+            else:
+                if r['name']=='DeltaV_Building_UraniumMagazine': label='AP'
+                elif r['name']=='DeltaV_Building_AutoAimPluginII': label='Aim'
+                elif r['name']=='DeltaV_Weapon_RailgunLoader': label='S4'
+                d.text((box[0]+1,box[1]+1),label,fill='#101822')
         if r['hasInteraction']:
             ix,_,iz=r['interaction'];dx,dz=[(ix,iz),(iz,-ix),(-ix,-iz),(-iz,ix)][r['rotation']]
             p=(r['root'][0]+dx,r['root'][1]+dz)
@@ -217,4 +240,6 @@ def validate_and_draw(name, plan, records, foundation, roofs, reachable, here, g
     d.text((pad,pad+h*scale+32),'1: off | 2: kinetic 0/20/100 | 3: EM 0/50/100 | 4: guard' if name=='WeaponRange'
            else 'Blue: projected line segments | Yellow: front normals',fill='white')
     d.text((pad,pad+h*scale+52),'Live ammunition, finite energy and real damage. No automatic reset.',fill='white')
+    if name=='WeaponRange':
+        d.text((pad,pad+h*scale+72),'North main: steel HE | South secondary: uranium AP | Centre S4: uranium railgun',fill='white')
     img.save(here/(name+'.png'))

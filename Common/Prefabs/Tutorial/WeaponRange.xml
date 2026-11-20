@@ -6552,12 +6552,13 @@
           <pos>(28, 0, 6)</pos>
           <rot>1</rot>
           <groupNumber>1</groupNumber>
-          <salvoSet>Main</salvoSet>
+          <salvoSet>Secondary</salvoSet>
           <firingInterval>10</firingInterval>
           <headSupply>
             <fuel>600</fuel>
             <configuredTargetFuelLevel>600</configuredTargetFuelLevel>
             <allowAutoRefuel>True</allowAutoRefuel>
+            <selectedHead>DeltaV_UraniumHead</selectedHead>
           </headSupply>
           <propellantSupply>
             <fuel>600</fuel>
@@ -6623,7 +6624,7 @@
           <pos>(28, 0, 37)</pos>
           <rot>1</rot>
           <groupNumber>1</groupNumber>
-          <salvoSet>Secondary</salvoSet>
+          <salvoSet>Main</salvoSet>
           <firingInterval>10</firingInterval>
           <headSupply>
             <fuel>600</fuel>
@@ -6694,13 +6695,14 @@
           <pos>(28, 0, 11)</pos>
           <rot>1</rot>
           <groupNumber>2</groupNumber>
-          <salvoSet>Main</salvoSet>
+          <salvoSet>Secondary</salvoSet>
           <propellantCharge>48</propellantCharge>
           <headUnits>48</headUnits>
           <headSupply>
             <fuel>1200</fuel>
             <configuredTargetFuelLevel>1200</configuredTargetFuelLevel>
             <allowAutoRefuel>True</allowAutoRefuel>
+            <selectedHead>DeltaV_UraniumHead</selectedHead>
           </headSupply>
           <propellantSupply>
             <fuel>1200</fuel>
@@ -6766,9 +6768,9 @@
           <pos>(28, 0, 32)</pos>
           <rot>1</rot>
           <groupNumber>2</groupNumber>
-          <salvoSet>Secondary</salvoSet>
+          <salvoSet>Main</salvoSet>
           <propellantCharge>48</propellantCharge>
-          <headUnits>96</headUnits>
+          <headUnits>48</headUnits>
           <headSupply>
             <fuel>1200</fuel>
             <configuredTargetFuelLevel>1200</configuredTargetFuelLevel>
@@ -6838,7 +6840,7 @@
           <pos>(28, 0, 16)</pos>
           <rot>1</rot>
           <groupNumber>3</groupNumber>
-          <salvoSet>Main</salvoSet>
+          <salvoSet>Secondary</salvoSet>
           <pulsePower>3</pulsePower>
           <combatCoverage>
             <arc>90</arc>
@@ -6899,7 +6901,7 @@
           <pos>(28, 0, 27)</pos>
           <rot>1</rot>
           <groupNumber>3</groupNumber>
-          <salvoSet>Secondary</salvoSet>
+          <salvoSet>Main</salvoSet>
           <pulsePower>3</pulsePower>
           <combatCoverage>
             <arc>90</arc>
@@ -6943,7 +6945,7 @@
           <pos>(23, 0, 22)</pos>
           <rot>1</rot>
           <groupNumber>4</groupNumber>
-          <salvoSet>Main</salvoSet>
+          <salvoSet>Secondary</salvoSet>
           <headSupply>
             <fuel>600</fuel>
             <configuredTargetFuelLevel>600</configuredTargetFuelLevel>
@@ -30381,6 +30383,60 @@
           <id>HiddenConduit811635</id>
           <pos>(34, 0, 42)</pos>
           <rot>0</rot>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(27, 0, 5)</pos>
+      <def>DeltaV_Building_UraniumMagazine</def>
+      <rotation>1</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>DeltaV_Building_UraniumMagazine</def>
+          <health>100</health>
+          <questTags IsNull="True" />
+          <id>DeltaV_Building_UraniumMagazine811636</id>
+          <pos>(27, 0, 5)</pos>
+          <rot>1</rot>
+          <headSupply>
+            <fuel>600</fuel>
+            <configuredTargetFuelLevel>600</configuredTargetFuelLevel>
+            <allowAutoRefuel>True</allowAutoRefuel>
+          </headSupply>
+          <propellantSupply>
+            <fuel>600</fuel>
+            <configuredTargetFuelLevel>600</configuredTargetFuelLevel>
+            <allowAutoRefuel>True</allowAutoRefuel>
+          </propellantSupply>
+        </saveable>
+      </state>
+    </li>
+    <li>
+      <pos>(27, 0, 10)</pos>
+      <def>DeltaV_Building_UraniumMagazine</def>
+      <rotation>1</rotation>
+      <hitPoints>100</hitPoints>
+      <stackCount>1</stackCount>
+      <state>
+        <saveable Class="Building">
+          <def>DeltaV_Building_UraniumMagazine</def>
+          <health>100</health>
+          <questTags IsNull="True" />
+          <id>DeltaV_Building_UraniumMagazine811637</id>
+          <pos>(27, 0, 10)</pos>
+          <rot>1</rot>
+          <headSupply>
+            <fuel>600</fuel>
+            <configuredTargetFuelLevel>600</configuredTargetFuelLevel>
+            <allowAutoRefuel>True</allowAutoRefuel>
+          </headSupply>
+          <propellantSupply>
+            <fuel>600</fuel>
+            <configuredTargetFuelLevel>600</configuredTargetFuelLevel>
+            <allowAutoRefuel>True</allowAutoRefuel>
+          </propellantSupply>
         </saveable>
       </state>
     </li>

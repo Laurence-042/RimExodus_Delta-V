@@ -52,17 +52,101 @@ internal static partial class Program
         {
             var supply = new CompProperties_GunSupply {
                 kind = Enum.Parse<GunSupplyKind>((string)node.Element("kind")),
+                alternateHead = node.Element("alternateHead") is { } alternate ? AmmunitionDef(alternate.Value) : null,
                 fuelCapacity = (float)node.Element("fuelCapacity"),
                 initialConfigurableTargetFuelLevel = (float)node.Element("initialConfigurableTargetFuelLevel"),
                 fuelFilter = new ThingFilter()
             };
-            supply.fuelFilter.SetAllow(new ThingDef { defName = node.Descendants("thingDefs").Single().Element("li").Value }, true);
+            supply.fuelFilter.SetAllow(AmmunitionDef(node.Descendants("thingDefs").Single().Element("li").Value), true);
             props.Add(supply);
         }
-        props.Add(new CompProperties_SpaceWeaponMagazine());
+        var magazineConfig = AuditComp(def, "DeltaV.CompProperties_SpaceWeaponMagazine");
+        props.Add(new CompProperties_SpaceWeaponMagazine
+        {
+            defaultPriority = (int?)magazineConfig.Element("defaultPriority") ?? 0,
+            ammoPerShot = (float?)magazineConfig.Element("ammoPerShot") ?? 1f,
+        });
         var thing = new ThingWithComps { def = new ThingDef { comps = props } };
         thing.InitializeComps();
         return thing.GetComp<CompSpaceWeaponMagazine>();
+    }
+
+    static ThingDef AmmunitionDef(string name)
+    {
+        var existing = DefDatabase<ThingDef>.GetNamedSilentFail(name);
+        if (existing != null) return existing;
+        var def = new ThingDef { defName = name, label = name };
+        DefDatabase<ThingDef>.Add(def);
+        return def;
+    }
+
+    static MethodInfo MagazineMethod(string name) => typeof(CompSpaceWeaponMagazine)
+        .GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic);
+
+    sealed class RejectedGunLaunch : ISpaceWeaponLaunch
+    {
+        public bool TryLaunch(SpaceWeaponShot shot) => false;
+    }
+
+    static void CheckMagazineLoad(XElement gunDef, XElement auxiliaryDef)
+    {
+        var builtIn = Magazine(gunDef);
+        var auxiliary = Magazine(auxiliaryDef);
+        var otherGun = Magazine(gunDef);
+        var builtInHeads = builtIn.Supply(GunSupplyKind.Heads);
+        var auxHeads = auxiliary.Supply(GunSupplyKind.Heads);
+        var steel = AmmunitionDef("DeltaV_SteelHead");
+        var uranium = AmmunitionDef("DeltaV_UraniumHead");
+        var charge = AmmunitionDef("DeltaV_Propellant");
+        var switchHead = typeof(CompGunSupply).GetMethod("TrySwitchHead", BindingFlags.Instance | BindingFlags.NonPublic);
+        builtIn.Supply(GunSupplyKind.Propellant).Refuel(4);
+        Check(builtIn.SupplyFor(steel) == builtInHeads && auxiliary.SupplyFor(uranium) == auxHeads,
+            "new gun and auxiliary accept their configured default heads");
+        Check((bool)switchHead.Invoke(builtInHeads, new object[] { uranium })
+            && (bool)switchHead.Invoke(auxHeads, new object[] { steel })
+            && builtIn.SupplyFor(steel) == null && builtIn.SupplyFor(uranium) == builtInHeads
+            && auxiliary.SupplyFor(uranium) == null && auxiliary.SupplyFor(steel) == auxHeads
+            && otherGun.SupplyFor(steel) != null && builtIn.PropellantCount == 4,
+            "changing an empty head compartment changes only its own filter and keeps its propellant");
+        Check(!(bool)switchHead.Invoke(builtInHeads, new object[] { charge }), "head selector rejects propellant");
+
+        var weaponConfig = AuditComp(gunDef, "DeltaV.CompProperties_SpaceWeapon");
+        var projectile = AmmunitionDef((string)weaponConfig.Element("armorPiercingProjectileDef"));
+        var weapon = new CompSpaceWeapon { parent = builtIn.parent, props = new CompProperties_SpaceWeapon
+        {
+            armorPiercingHeadDef = uranium,
+            armorPiercingProjectileDef = projectile,
+            armorPiercingUnitMass = (float)weaponConfig.Element("armorPiercingUnitMass"),
+            armorPiercingPenetrationScale = (float)weaponConfig.Element("armorPiercingPenetrationScale")
+        } };
+        weapon.parent.AllComps.Add(weapon);
+        var tuning = Gun(gunDef);
+        tuning.parent = weapon.parent;
+        weapon.parent.AllComps.Add(tuning);
+        Check((bool)switchHead.Invoke(auxHeads, new object[] { uranium })
+            && ReferenceEquals(MagazineMethod("ResolveProjectile").Invoke(auxiliary, new object[] { weapon }), projectile)
+            && Equals(MagazineMethod("UnitMass").Invoke(builtIn, new object[] { weapon }),
+                MagazineMethod("UnitMass").Invoke(auxiliary, new object[] { weapon }))
+            && Equals(MagazineMethod("PenetrationScale").Invoke(builtIn, new object[] { weapon }),
+                MagazineMethod("PenetrationScale").Invoke(auxiliary, new object[] { weapon })),
+            "uranium has the same projectile, unit mass and penetration scale from either magazine");
+        builtInHeads.Refuel(2);
+        auxHeads.Refuel(2);
+        var hasLoad = MagazineMethod("HasLoad");
+        bool Loaded(CompSpaceWeaponMagazine magazine) => (bool)hasLoad.Invoke(magazine, new object[] { weapon });
+        Check(Loaded(builtIn) && !Loaded(auxiliary) && builtIn.SelectedProjectileDef == projectile,
+            "the bare cannon can fire uranium; an auxiliary without charge cannot supply a shot");
+        var failedShot = new SpaceWeaponShot(null, weapon, null, default) { magazine = builtIn };
+        typeof(SpaceWeaponShot).GetField("emitter", BindingFlags.Instance | BindingFlags.NonPublic)
+            .SetValue(failedShot, new RejectedGunLaunch());
+        Check(!(bool)typeof(SpaceWeaponShot).GetMethod("LaunchPrepared", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(failedShot, null) && builtIn.HeadCount == 2 && builtIn.PropellantCount == 4,
+            "a rejected launch leaves both native inventories intact");
+        MagazineMethod("ConsumeLoad").Invoke(builtIn, new object[] { 2, 4 });
+        Check(!Loaded(builtIn) && builtIn.HeadCount == 0 && builtIn.PropellantCount == 0
+            && auxiliary.HeadCount == 2, "a successful load consumes both supplies of the chosen magazine only");
+        builtIn.Supply(GunSupplyKind.Propellant).Refuel(4);
+        Check(!Loaded(builtIn) && !Loaded(auxiliary), "heads and charge in different magazines cannot be combined");
     }
 
     static void ExposeMagazine(CompSpaceWeaponMagazine magazine)
@@ -108,6 +192,9 @@ internal static partial class Program
         var magazine = Magazine(Def("DeltaV_Weapon_CannonTurret"));
         var heads = magazine.Supply(GunSupplyKind.Heads);
         var propellant = magazine.Supply(GunSupplyKind.Propellant);
+        var uraniumHead = AmmunitionDef("DeltaV_UraniumHead");
+        Check((bool)typeof(CompGunSupply).GetMethod("TrySwitchHead", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(heads, new object[] { uraniumHead }), "the existing save fixture switches the empty built-in magazine to uranium");
         Check(!magazine.HasHeads(1) && !magazine.HasPropellant(1), "new magazines start empty");
         Check(heads is CompRefuelable && propellant is CompRefuelable, "both inventories are native refuelable components");
         Check(heads.TargetFuelLevel == heads.Props.fuelCapacity && propellant.TargetFuelLevel == propellant.Props.fuelCapacity,
@@ -143,6 +230,9 @@ internal static partial class Program
         Check(restoredMagazine.HeadCount == 37 && restoredMagazine.PropellantCount == 19, "Scribe round trip preserves both stock counts");
         var restoredHeads = restoredMagazine.Supply(GunSupplyKind.Heads);
         var restoredCharge = restoredMagazine.Supply(GunSupplyKind.Propellant);
+        Check(restoredHeads.SelectedHead == uraniumHead && restoredMagazine.SupplyFor(uraniumHead) == restoredHeads
+            && restoredMagazine.SupplyFor(AmmunitionDef("DeltaV_SteelHead")) == null,
+            "Scribe preserves the selected head and restores its per-instance refueling filter");
         Check(restoredHeads.TargetFuelLevel == 151 && restoredCharge.TargetFuelLevel == 22
             && !restoredHeads.allowAutoRefuel && restoredCharge.allowAutoRefuel, "Scribe preserves independent native targets and auto-refuel switches");
         var pose = new SpacePose(Vector3.forward, .3f) { velocity = new Vector2(8, -2), angularVelocity = .2f };
@@ -196,6 +286,7 @@ internal static partial class Program
         Check(mediumRapid.charge == 4 && mediumRapid.mass == 2 && mediumRapid.ShotHeat == 20
             && mediumRapid.Settings.heatCapacity == 340 && mediumRapid.Settings.coolingPerSecond == 85,
             "medium rapid uses fixed 4/2 load and increased thermal hardware");
+        CheckMagazineLoad(Def("DeltaV_Weapon_RapidMainMedium"), Def("DeltaV_Building_UraniumMagazine"));
         int BurstTicks(CompWeaponTuning gun) {
             for (int t = 0; t < 10000; t++) { if (gun.RemainingTicks == 0) gun.CommitShot(); if (gun.overheated) return t; Tick(gun, 1); }
             return -1;

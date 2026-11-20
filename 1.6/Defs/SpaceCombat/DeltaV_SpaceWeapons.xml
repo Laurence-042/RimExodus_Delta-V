@@ -190,7 +190,7 @@
         <drawSize>(2.6,2.6)</drawSize>
       </blueprintGraphicData>
     </building>
-    <description>A crewed heavy cannon. Load steel-made propellant and projectile heads separately. Adjust charge and head mass independently; each shot heats the cannon according to its propellant charge and firing resumes once it has cooled completely. One slot accepts fire control or an auxiliary magazine. In space the steel load is high explosive; a supplied uranium magazine loads armor-piercing shots.</description>
+    <description>A crewed heavy cannon. Load steel-made propellant and projectile heads separately. Adjust charge and head mass independently; each shot heats the cannon according to its propellant charge and firing resumes once it has cooled completely. One slot accepts fire control or an auxiliary magazine. Choose steel or uranium heads in the built-in magazine. In space steel rounds explode and uranium rounds penetrate armor.</description>
     <costList Inherit="False"><Steel>300</Steel><Plasteel>25</Plasteel><ComponentIndustrial>6</ComponentIndustrial></costList>
     <statBases>
       <WorkToBuild>10000</WorkToBuild>
@@ -207,6 +207,7 @@
         <fuelCapacity>600</fuelCapacity>
         <initialConfigurableTargetFuelLevel>600</initialConfigurableTargetFuelLevel>
         <fuelFilter><thingDefs><li>DeltaV_SteelHead</li></thingDefs></fuelFilter>
+        <alternateHead>DeltaV_UraniumHead</alternateHead>
       </li>
       <li Class="DeltaV.CompProperties_GunSupply">
         <kind>Propellant</kind>
@@ -223,6 +224,9 @@
         <groundModeAvailable>true</groundModeAvailable>
         <projectileDef>DeltaV_Projectile_Cannon</projectileDef>
         <armorPiercingProjectileDef>DeltaV_Projectile_CannonUranium</armorPiercingProjectileDef>
+        <armorPiercingHeadDef>DeltaV_UraniumHead</armorPiercingHeadDef>
+        <armorPiercingUnitMass>1.5</armorPiercingUnitMass>
+        <armorPiercingPenetrationScale>1.5</armorPiercingPenetrationScale>
         <topTurret>true</topTurret>
         <turretMuzzleDistance>1.14</turretMuzzleDistance>
         <fireArcDeg>360</fireArcDeg>
@@ -276,7 +280,7 @@
         <drawSize>(2.6,2.6)</drawSize>
       </blueprintGraphicData>
     </building>
-    <description>A crewed rapid cannon using one propellant and one head per shot. Adjust firing rate to trade concentrated bursts for heat buildup. Overheating locks firing until completely cool. One attachment slot. In space the steel load is high explosive; a supplied uranium magazine loads armor-piercing shots.</description>
+    <description>A crewed rapid cannon using one propellant and one head per shot. Adjust firing rate to trade concentrated bursts for heat buildup. Overheating locks firing until completely cool. One attachment slot. Choose steel or uranium heads in the built-in magazine. In space steel rounds explode and uranium rounds penetrate armor.</description>
     <costList Inherit="False"><Steel>250</Steel><ComponentIndustrial>6</ComponentIndustrial></costList>
     <statBases>
       <WorkToBuild>9000</WorkToBuild>
@@ -292,6 +296,7 @@
         <fuelCapacity>300</fuelCapacity>
         <initialConfigurableTargetFuelLevel>300</initialConfigurableTargetFuelLevel>
         <fuelFilter><thingDefs><li>DeltaV_SteelHead</li></thingDefs></fuelFilter>
+        <alternateHead>DeltaV_UraniumHead</alternateHead>
       </li>
       <li Class="DeltaV.CompProperties_GunSupply">
         <kind>Propellant</kind>
@@ -308,6 +313,9 @@
         <groundModeAvailable>true</groundModeAvailable>
         <projectileDef>DeltaV_Projectile_Rapid</projectileDef>
         <armorPiercingProjectileDef>DeltaV_Projectile_RapidUranium</armorPiercingProjectileDef>
+        <armorPiercingHeadDef>DeltaV_UraniumHead</armorPiercingHeadDef>
+        <armorPiercingUnitMass>1.5</armorPiercingUnitMass>
+        <armorPiercingPenetrationScale>1.5</armorPiercingPenetrationScale>
         <topTurret>true</topTurret>
         <turretMuzzleDistance>1.16</turretMuzzleDistance>
         <fireArcDeg>360</fireArcDeg>
@@ -430,7 +438,7 @@
         <drawSize>(3.6,3.6)</drawSize>
       </blueprintGraphicData>
     </building>
-    <description>A crewed heavy cannon with higher charge and head-mass limits and faster cooling. Load propellant and heads separately. Heat depends on charge; firing resumes once it has cooled completely. Two slots accept fire control or auxiliary magazines. In space the steel load is high explosive; a supplied uranium magazine loads armor-piercing shots.</description>
+    <description>A crewed heavy cannon with higher charge and head-mass limits and faster cooling. Load propellant and heads separately. Heat depends on charge; firing resumes once it has cooled completely. Two slots accept fire control or auxiliary magazines. Choose steel or uranium heads in the built-in magazine. In space steel rounds explode and uranium rounds penetrate armor.</description>
     <costList Inherit="False"><Steel>550</Steel><Plasteel>75</Plasteel><ComponentIndustrial>12</ComponentIndustrial></costList>
     <statBases>
       <WorkToBuild>20000</WorkToBuild>
@@ -446,6 +454,7 @@
         <fuelCapacity>1200</fuelCapacity>
         <initialConfigurableTargetFuelLevel>1200</initialConfigurableTargetFuelLevel>
         <fuelFilter><thingDefs><li>DeltaV_SteelHead</li></thingDefs></fuelFilter>
+        <alternateHead>DeltaV_UraniumHead</alternateHead>
       </li>
       <li Class="DeltaV.CompProperties_GunSupply">
         <kind>Propellant</kind>
@@ -462,6 +471,9 @@
         <groundModeAvailable>true</groundModeAvailable>
         <projectileDef>DeltaV_Projectile_Cannon</projectileDef>
         <armorPiercingProjectileDef>DeltaV_Projectile_CannonUranium</armorPiercingProjectileDef>
+        <armorPiercingHeadDef>DeltaV_UraniumHead</armorPiercingHeadDef>
+        <armorPiercingUnitMass>1.5</armorPiercingUnitMass>
+        <armorPiercingPenetrationScale>1.5</armorPiercingPenetrationScale>
         <topTurret>true</topTurret>
         <turretMuzzleDistance>1.61</turretMuzzleDistance>
         <fireArcDeg>360</fireArcDeg>
@@ -520,7 +532,7 @@
         <drawSize>(3.6,3.6)</drawSize>
       </blueprintGraphicData>
     </building>
-    <description>A crewed rapid cannon with greater heat capacity and cooling. Each shot uses four propellant units and two projectile heads; its firing rate is adjustable. Overheating locks firing until completely cool. Two attachment slots. In space the steel load is high explosive; a supplied uranium magazine loads armor-piercing shots.</description>
+    <description>A crewed rapid cannon with greater heat capacity and cooling. Each shot uses four propellant units and two projectile heads; its firing rate is adjustable. Overheating locks firing until completely cool. Two attachment slots. Choose steel or uranium heads in the built-in magazine. In space steel rounds explode and uranium rounds penetrate armor.</description>
     <costList Inherit="False"><Steel>500</Steel><Plasteel>50</Plasteel><ComponentIndustrial>12</ComponentIndustrial></costList>
     <statBases>
       <WorkToBuild>18000</WorkToBuild>
@@ -536,6 +548,7 @@
         <fuelCapacity>600</fuelCapacity>
         <initialConfigurableTargetFuelLevel>600</initialConfigurableTargetFuelLevel>
         <fuelFilter><thingDefs><li>DeltaV_SteelHead</li></thingDefs></fuelFilter>
+        <alternateHead>DeltaV_UraniumHead</alternateHead>
       </li>
       <li Class="DeltaV.CompProperties_GunSupply">
         <kind>Propellant</kind>
@@ -552,6 +565,9 @@
         <groundModeAvailable>true</groundModeAvailable>
         <projectileDef>DeltaV_Projectile_Rapid</projectileDef>
         <armorPiercingProjectileDef>DeltaV_Projectile_RapidUranium</armorPiercingProjectileDef>
+        <armorPiercingHeadDef>DeltaV_UraniumHead</armorPiercingHeadDef>
+        <armorPiercingUnitMass>1.5</armorPiercingUnitMass>
+        <armorPiercingPenetrationScale>1.5</armorPiercingPenetrationScale>
         <topTurret>true</topTurret>
         <turretMuzzleDistance>1.64</turretMuzzleDistance>
         <fireArcDeg>360</fireArcDeg>
@@ -1087,8 +1103,8 @@
     <defName>DeltaV_Building_UraniumMagazine</defName>
     <researchPrerequisites Inherit="False"><li>DeltaV_ShipArtillery</li></researchPrerequisites>
     <uiOrder>-183</uiOrder>
-    <label>uranium auxiliary magazine</label>
-    <description>A priority-1 magazine for the armor-piercing uranium ammunition of rapid and heavy cannons. It supplies the full projectile head count and uses propellant from the host gun. At equal propellant charge the heavier shot travels more slowly and better resists kinetic shield deflection.</description>
+    <label>auxiliary gun magazine</label>
+    <description>Adds 600 projectile heads and 600 propellant units to a connected rapid or heavy cannon. Choose steel or uranium heads. The cannon uses this magazine when it has both supplies for a shot and wins the supply priority.</description>
     <thingClass>Building</thingClass>
     <passability>Standable</passability>
     <size>(1,1)</size>
@@ -1127,14 +1143,18 @@
         <fuelCapacity>600</fuelCapacity>
         <initialConfigurableTargetFuelLevel>600</initialConfigurableTargetFuelLevel>
         <fuelFilter><thingDefs><li>DeltaV_UraniumHead</li></thingDefs></fuelFilter>
+        <alternateHead>DeltaV_SteelHead</alternateHead>
+      </li>
+      <li Class="DeltaV.CompProperties_GunSupply">
+        <kind>Propellant</kind>
+        <fuelCapacity>600</fuelCapacity>
+        <initialConfigurableTargetFuelLevel>600</initialConfigurableTargetFuelLevel>
+        <fuelFilter><thingDefs><li>DeltaV_Propellant</li></thingDefs></fuelFilter>
       </li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine">
         <ammoPerShot>1</ammoPerShot>
         <defaultPriority>1</defaultPriority>
         <attachment>true</attachment>
-        <armorPiercing>true</armorPiercing>
-        <armorPenetrationScale>1.5</armorPenetrationScale>
-        <unitMass>1.5</unitMass>
       </li>
     </comps>
   </ThingDef>

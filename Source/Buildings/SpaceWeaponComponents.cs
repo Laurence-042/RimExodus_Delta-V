@@ -182,7 +182,6 @@ namespace DeltaV
     public class CompProperties_SpaceWeaponMagazine : CompProperties
     {
         public ThingDef projectileDef;
-        public bool armorPiercing;
         public float ammoPerShot = 1f;
         public float unitMass = 1f;
         public int defaultPriority;
@@ -219,18 +218,29 @@ namespace DeltaV
 
         public CompProperties_SpaceWeaponMagazine MagazineProps =>
             (CompProperties_SpaceWeaponMagazine)props;
+        internal CompSpaceWeapon HostWeapon => CompSpaceWeapon.ForComponent(this)
+            ?? parent.TryGetComp<CompSpaceWeaponAttachment>()?.HostWeapon;
         public CompRefuelable Refuelable => Supply(GunSupplyKind.Heads) ?? parent.TryGetComp<CompRefuelable>();
         public CompChangeableProjectile ChangeableProjectile => parent.TryGetComp<CompChangeableProjectile>();
         public int Priority => priority;
         public bool HasShot => ChangeableProjectile != null
             ? ChangeableProjectile.Loaded && ChangeableProjectile.Projectile != null
             : Refuelable != null && Refuelable.Fuel + 0.0001f >= MagazineProps.ammoPerShot;
-        public ThingDef SelectedProjectileDef => ChangeableProjectile?.LoadedShell
+        public ThingDef SelectedProjectileDef => ResolveProjectile(HostWeapon);
+
+        private bool UsesAlternateBallistics(CompSpaceWeapon weapon) => weapon?.WeaponProps.armorPiercingHeadDef is { } head
+            && Supply(GunSupplyKind.Heads)?.SelectedHead == head;
+
+        internal ThingDef ResolveProjectile(CompSpaceWeapon weapon) => ChangeableProjectile?.LoadedShell
             ?.GetModExtension<DefModExtension_SpaceMissileAmmo>()?.spaceProjectileDef
             ?? ChangeableProjectile?.Projectile ?? MagazineProps.projectileDef
-            ?? (MagazineProps.armorPiercing
-                ? parent.TryGetComp<CompSpaceWeaponAttachment>()?.HostWeapon?.WeaponProps.armorPiercingProjectileDef
-                : null);
+            ?? (UsesAlternateBallistics(weapon) ? weapon.WeaponProps.armorPiercingProjectileDef : null);
+
+        internal float UnitMass(CompSpaceWeapon weapon) => UsesAlternateBallistics(weapon)
+            ? weapon.WeaponProps.armorPiercingUnitMass : MagazineProps.unitMass;
+
+        internal float PenetrationScale(CompSpaceWeapon weapon) => UsesAlternateBallistics(weapon)
+            ? weapon.WeaponProps.armorPiercingPenetrationScale : MagazineProps.armorPenetrationScale;
 
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
@@ -274,10 +284,44 @@ namespace DeltaV
             Scribe_Values.Look(ref initialized, "priorityInitialized", true);
         }
 
+        public override string CompInspectStringExtra()
+        {
+            var heads = Supply(GunSupplyKind.Heads);
+            if (heads?.SelectedHead == null) return null;
+            string load = "DeltaV_MagazineHead".Translate(heads.SelectedHead.LabelCap);
+            var weapon = HostWeapon;
+            if (weapon == null) return load;
+            int shots = HeadCount / Mathf.Max(1, RequiredHeads(weapon));
+            if (weapon.RequiredPropellant > 0)
+                shots = Mathf.Min(shots, PropellantCount / weapon.RequiredPropellant);
+            return load + "\n" + "DeltaV_MagazineShotsLeft".Translate(shots);
+        }
+
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
             if (ChangeableProjectile != null) yield break;
             if (parent.Faction != Faction.OfPlayer && !DebugSettings.godMode) yield break;
+            var heads = Supply(GunSupplyKind.Heads);
+            if (heads?.AlternateHead != null)
+                yield return new Command_BatchSetting<CompSpaceWeaponMagazine>("MagazineHead", this, magazines =>
+                {
+                    var options = new List<FloatMenuOption>();
+                    foreach (ThingDef option in new[] { heads.DefaultHead, heads.AlternateHead })
+                    {
+                        if (option == null || !System.Array.TrueForAll(magazines,
+                            magazine => magazine.Supply(GunSupplyKind.Heads)?.AcceptsHead(option) == true)) continue;
+                        options.Add(new FloatMenuOption(option.LabelCap, () =>
+                        {
+                            foreach (var magazine in magazines) magazine.SwitchHead(option);
+                        }));
+                    }
+                    if (options.Count > 0) Find.WindowStack.Add(new FloatMenu(options));
+                })
+                {
+                    defaultLabel = "DeltaV_MagazineHead".Translate(heads.SelectedHead.LabelCap),
+                    defaultDesc = "DeltaV_MagazineHeadTip".Translate(),
+                    icon = heads.SelectedHead.uiIcon ?? TexCommand.Install,
+                };
             yield return new Command_BatchSetting<CompSpaceWeaponMagazine>("MagazinePriority", this,
                 magazines =>
                 {
@@ -299,6 +343,17 @@ namespace DeltaV
                 defaultDesc = "DeltaV_MagazinePriorityTip".Translate(),
                 icon = TexCommand.Install,
             };
+        }
+
+        private void SwitchHead(ThingDef head)
+        {
+            if (!parent.Spawned || parent.Destroyed || parent.Faction != Faction.OfPlayer && !DebugSettings.godMode)
+                return;
+            if (!Supply(GunSupplyKind.Heads).TrySwitchHead(head))
+                Messages.Message("DeltaV_MagazineEjectFailed".Translate(parent.LabelCap), parent,
+                    MessageTypeDefOf.RejectInput, historical: false);
+            ShipControlService.NotifyGunnerChange(parent.Map);
+            NotifySupplyChanged();
         }
     }
 

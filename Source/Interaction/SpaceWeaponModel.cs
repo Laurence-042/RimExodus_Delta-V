@@ -180,10 +180,11 @@ namespace DeltaV
         internal readonly WeaponAimInfo aim;
         internal readonly SpaceWeaponEnergy energy;
         internal readonly float mass;
+        internal readonly float penetrationScale;
         internal readonly int heads, charge, power, cycleTicks;
         internal readonly float shotHeat;
-        internal SpaceWeaponParameters(CompSpaceWeaponMagazine magazine, WeaponAimInfo aim, SpaceWeaponEnergy energy, float mass = 1f, int heads = 0, int charge = 0, int power = 1, float shotHeat = 0f, int cycleTicks = 0)
-        { this.magazine = magazine; this.aim = aim; this.energy = energy; this.mass = mass; this.heads = heads; this.charge = charge; this.power = power; this.shotHeat = shotHeat; this.cycleTicks = cycleTicks; }
+        internal SpaceWeaponParameters(CompSpaceWeaponMagazine magazine, WeaponAimInfo aim, SpaceWeaponEnergy energy, float mass = 1f, int heads = 0, int charge = 0, int power = 1, float shotHeat = 0f, int cycleTicks = 0, float penetrationScale = 1f)
+        { this.magazine = magazine; this.aim = aim; this.energy = energy; this.mass = mass; this.heads = heads; this.charge = charge; this.power = power; this.shotHeat = shotHeat; this.cycleTicks = cycleTicks; this.penetrationScale = penetrationScale; }
     }
 
     internal static class SpaceWeaponBallistics
@@ -199,6 +200,10 @@ namespace DeltaV
         internal static float ExpectedDamage(CompSpaceWeapon weapon, SpaceWeaponParameters shot) =>
             ExpectedDamage(weapon, SpaceImpactEffects.Resolve(shot.aim.Projectile, ThingDefOf.Wall)?.defenderEffect,
                 shot.mass, shot.aim.Speed, shot.power);
+
+        internal static float GroundDirectDamage(CompSpaceWeapon weapon, ImpactOutcomePart part,
+            CompSpaceWeaponMagazine magazine, float speed) =>
+            ExpectedDamage(weapon, part, ProjectileMass(weapon, magazine), speed, weapon.Tuning?.power ?? 1);
 
         private static float ExpectedDamage(CompSpaceWeapon weapon, ImpactOutcomePart part, float mass, float speed, int power)
         {
@@ -224,7 +229,7 @@ namespace DeltaV
         internal static float ProjectileMass(CompSpaceWeapon weapon, CompSpaceWeaponMagazine magazine)
         {
             var source = magazine ?? weapon.Component<CompSpaceWeaponMagazine>();
-            return source?.Supply(GunSupplyKind.Heads) != null ? source.RequiredHeads(weapon) * source.MagazineProps.unitMass
+            return source?.Supply(GunSupplyKind.Heads) != null ? source.RequiredHeads(weapon) * source.UnitMass(weapon)
                 : weapon.WeaponProps.projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()?.mass ?? 1f;
         }
         internal static float BaseSpeed(CompSpaceWeapon weapon, CompSpaceWeaponMagazine magazine, float fallback) =>
@@ -234,9 +239,10 @@ namespace DeltaV
             => energy > 0f ? SpaceKinetics.Speed(mass, SpaceKinetics.Energy(mass, baseSpeed) + energy) : baseSpeed;
         internal static float ProjectedSpeed(CompSpaceWeapon weapon, float baseSpeed)
         {
-            baseSpeed = BaseSpeed(weapon, weapon.SelectMagazine(), baseSpeed);
+            var magazine = weapon.SelectMagazine();
+            baseSpeed = BaseSpeed(weapon, magazine, baseSpeed);
             return weapon.QueryEnergy.Evaluate(weapon) ? AcceleratedSpeed(baseSpeed,
-                ProjectileMass(weapon, weapon.SelectMagazine()), weapon.QueryEnergy.kineticEnergyBonus) : baseSpeed;
+                ProjectileMass(weapon, magazine), weapon.QueryEnergy.kineticEnergyBonus) : baseSpeed;
         }
 
 
@@ -248,19 +254,20 @@ namespace DeltaV
             try
             {
                 CompSpaceWeaponMagazine magazine = weapon.SelectMagazine();
-                ThingDef projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
+                ThingDef projectile = magazine?.ResolveProjectile(weapon) ?? weapon.WeaponProps.projectileDef;
                 var layout = weapon.Layout;
                 bool accelerated = layout.acceleration.segments.Count > 0;
                 if (forShot || accelerated) energy.Evaluate(weapon);
                 else energy.Clear();
                 Vector2 muzzle = layout.acceleration.muzzleMap ?? SpaceWeaponGeometry.MuzzleMapPoint(weapon);
+                float mass = ProjectileMass(weapon, magazine);
                 float speed = AcceleratedSpeed(BaseSpeed(weapon, magazine, SpaceWeaponService.ProjectileSpeedOf(projectile)),
-                    ProjectileMass(weapon, magazine), energy.kineticEnergyBonus);
+                    mass, energy.kineticEnergyBonus);
                 return new SpaceWeaponParameters(magazine,
                     new WeaponAimInfo(SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzle),
-                        muzzle, projectile, speed, weapon.WeaponProps.minRange, weapon.EffectiveRange), energy, ProjectileMass(weapon, magazine),
-                    magazine?.RequiredHeads(weapon) ?? 0, weapon.Tuning?.Settings.chemical == true ? weapon.Tuning.charge : 0, weapon.Tuning?.power ?? 1, weapon.Tuning?.ShotHeat ?? 0f,
-                    weapon.Tuning?.CycleTicks ?? weapon.ShotInterval);
+                        muzzle, projectile, speed, weapon.WeaponProps.minRange, weapon.EffectiveRange), energy, mass,
+                    magazine?.RequiredHeads(weapon) ?? 0, weapon.RequiredPropellant, weapon.Tuning?.power ?? 1, weapon.Tuning?.ShotHeat ?? 0f,
+                    weapon.Tuning?.CycleTicks ?? weapon.ShotInterval, magazine?.PenetrationScale(weapon) ?? 1f);
             }
             finally { perf?.Record(PerformanceStage.WeaponParameters, start); }
         }
@@ -275,7 +282,7 @@ namespace DeltaV
             WeaponAimInfo info = parameters.aim;
             return new SpaceWeaponParameters(parameters.magazine,
                 new WeaponAimInfo(SpaceTransform.MapPointToUniverse(container, weapon.parent.Map, muzzle),
-                    muzzle, info.Projectile, info.Speed, info.MinRange, info.Range), parameters.energy, parameters.mass, parameters.heads, parameters.charge, parameters.power, parameters.shotHeat, parameters.cycleTicks);
+                    muzzle, info.Projectile, info.Speed, info.MinRange, info.Range), parameters.energy, parameters.mass, parameters.heads, parameters.charge, parameters.power, parameters.shotHeat, parameters.cycleTicks, parameters.penetrationScale);
         }
 
         internal static bool TryAim(WeaponAimInfo info, SpacePose source, SpacePose target, out Vector3 point)

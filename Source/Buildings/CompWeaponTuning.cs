@@ -137,7 +137,7 @@ namespace DeltaV
             if (Settings.chemical)
             {
                 var selected = weapon?.SelectMagazine() ?? parent.TryGetComp<CompSpaceWeaponMagazine>();
-                float actualMass = mass * (selected?.MagazineProps.unitMass ?? 1f);
+                float actualMass = mass * (selected?.UnitMass(weapon) ?? 1f);
                 state += "\n" + "DeltaV_ShotLoad".Translate(charge, mass, actualMass.ToString("0.##"),
                     SpaceKinetics.LaunchSpeed(charge, actualMass).ToString("0.0"), (ShotInterval / 60f).ToString("0.0"));
             }

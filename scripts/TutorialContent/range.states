@@ -110,6 +110,11 @@
     <questTags IsNull="True" />
   </saveable>
   <saveable Class="Building">
+    <def>DeltaV_Building_UraniumMagazine</def>
+    <health>100</health>
+    <questTags IsNull="True" />
+  </saveable>
+  <saveable Class="Building">
     <def>DeltaV_RangeTerminal_Unshielded</def>
     <health>200</health>
   </saveable>

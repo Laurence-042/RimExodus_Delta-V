@@ -12,14 +12,27 @@ namespace DeltaV
         {
             var weapon = launcher.TryGetComp<CompSpaceWeapon>() ?? equipment.TryGetComp<CompSpaceWeapon>();
             if (weapon == null) return;
-            var magazine = weapon.SelectMagazine();
+            if (weapon.parent is Building_SpaceTurretGun turret
+                && turret.CurrentEffectiveVerb is Verb_SpaceTurretGround { LaunchImpact: { } impact })
+            {
+                damage = impact.damage;
+                penetration = impact.penetration;
+                speed = impact.speed;
+                return;
+            }
+            Capture(weapon, weapon.SelectMagazine());
+        }
+
+        internal void Capture(CompSpaceWeapon weapon, CompSpaceWeaponMagazine magazine)
+        {
+            // The ground gun uses the wall direct-hit profile even for steel ammunition.
             var projectile = weapon.WeaponProps.armorPiercingProjectileDef
-                ?? magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
+                ?? magazine?.ResolveProjectile(weapon) ?? weapon.WeaponProps.projectileDef;
             var part = SpaceImpactEffects.Resolve(projectile, ThingDefOf.Wall)?.defenderEffect;
-            damage = SpaceWeaponBallistics.ExpectedDamage(weapon, projectile);
-            penetration = part == null ? 0f : part.armorPenetration * damage / Mathf.Max(.001f, part.damage)
-                * (magazine?.MagazineProps.armorPenetrationScale ?? 1f);
             speed = SpaceWeaponBallistics.BaseSpeed(weapon, magazine, SpaceWeaponService.ProjectileSpeedOf(projectile));
+            damage = SpaceWeaponBallistics.GroundDirectDamage(weapon, part, magazine, speed);
+            penetration = part == null ? 0f : part.armorPenetration * damage / Mathf.Max(.001f, part.damage)
+                * (magazine?.PenetrationScale(weapon) ?? 1f);
         }
         public void ExposeData()
         {

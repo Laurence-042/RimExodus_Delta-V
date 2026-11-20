@@ -16,4 +16,10 @@
   <DeltaV_ShieldKineticImpulseReference>法向冲量：{0}。正入射只减速或反推；斜入射按侧向冲量翻滚或撕裂。重弹更稳，轨道长杆更脆；欠费只施加已支付冲量。</DeltaV_ShieldKineticImpulseReference>
   <DeltaV_HeadSupply>弹头储备</DeltaV_HeadSupply>
   <DeltaV_PropellantSupply>装药储备</DeltaV_PropellantSupply>
+  <DeltaV_MagazineHead>弹头类型：{0}</DeltaV_MagazineHead>
+  <DeltaV_MagazineHeadTip>选择补给的弹头类型。切换前会退出现有弹头，装药保留在仓内。</DeltaV_MagazineHeadTip>
+  <DeltaV_MagazineShotsLeft>本仓可供射击：{0} 发</DeltaV_MagazineShotsLeft>
+  <DeltaV_MagazineNextHead>下一发弹头：{0}</DeltaV_MagazineNextHead>
+  <DeltaV_MagazineNoFullShot>当前没有弹仓能供完整一发。</DeltaV_MagazineNoFullShot>
+  <DeltaV_MagazineEjectFailed>{0}无法放下所有退出的弹头，弹种未切换。</DeltaV_MagazineEjectFailed>
 </LanguageData>

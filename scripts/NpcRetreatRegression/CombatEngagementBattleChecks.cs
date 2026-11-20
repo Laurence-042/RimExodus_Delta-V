@@ -131,24 +131,30 @@ internal static partial class Program
         var uranium = TestBuildingDef("battleUraniumChoice");
         foreach (var projectile in new[] { steel, uranium })
             projectile.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, speed = 60 });
+        var steelHead = TestBuildingDef("battleSteelHead");
+        var uraniumHead = TestBuildingDef("battleUraniumHead");
         var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon
-            { projectileDef = steel, armorPiercingProjectileDef = uranium } };
+        {
+            projectileDef = steel, armorPiercingProjectileDef = uranium,
+            armorPiercingHeadDef = uraniumHead, armorPiercingUnitMass = 1.5f,
+        } };
         var host = AddTestBuilding(map, faction, 159212, TestBuildingDef("battleAmmoHost"), weapon);
         map.edificeGrid.Register(host);
         var primary = new CompSpaceWeaponMagazine { parent = host, props = new CompProperties_SpaceWeaponMagazine() };
-        CompGunSupply Stock(ThingWithComps owner, float quantity)
+        CompGunSupply Stock(ThingWithComps owner, ThingDef head, float quantity)
         {
             var stock = new CompGunSupply { parent = owner, props = new CompProperties_GunSupply
                 { kind = GunSupplyKind.Heads, fuelCapacity = 20 } };
+            Set(stock, "selectedHead", head);
             Set(typeof(CompRefuelable), stock, "fuel", quantity);
             return stock;
         }
-        Set(typeof(ThingWithComps), host, "comps", new List<ThingComp> { weapon, primary, Stock(host, 20) });
+        Set(typeof(ThingWithComps), host, "comps", new List<ThingComp> { weapon, primary, Stock(host, steelHead, 20) });
         var link = new CompSpaceWeaponGenericAttachment { props = new CompProperties_SpaceWeaponAttachment() };
         var addon = AddTestBuilding(map, faction, 159213, TestBuildingDef("battleAmmoAddon"), link);
         var secondary = new CompSpaceWeaponMagazine { parent = addon, props = new CompProperties_SpaceWeaponMagazine
-            { armorPiercing = true, attachment = true, unitMass = 1.5f } };
-        var armorPiercingStock = Stock(addon, 20);
+            { attachment = true } };
+        var armorPiercingStock = Stock(addon, uraniumHead, 20);
         Set(typeof(ThingWithComps), addon, "comps", new List<ThingComp> { link, secondary, armorPiercingStock });
         Set(typeof(CompSpaceWeaponAttachment), link, "enabled", true);
         Set(secondary, "priority", 1);

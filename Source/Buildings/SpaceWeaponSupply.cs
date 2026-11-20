@@ -10,6 +10,7 @@ namespace DeltaV
     public class CompProperties_GunSupply : CompProperties_Refuelable
     {
         public GunSupplyKind kind;
+        public ThingDef alternateHead;
 
         public CompProperties_GunSupply()
         {
@@ -48,17 +49,28 @@ namespace DeltaV
             foreach (CompProperties comp in parentDef.comps)
                 if (comp is CompProperties_GunSupply supply && supply.kind == kind) count++;
             if (count != 1) yield return "A gun can only have one refuelable compartment of each supply kind.";
+            if (alternateHead != null && (kind != GunSupplyKind.Heads || fuelFilter.AllowedDefCount != 1
+                || fuelFilter.Allows(alternateHead)))
+                yield return "A selectable magazine requires distinct default and alternate projectile heads.";
         }
     }
 
     public class CompGunSupply : CompRefuelable
     {
-        public GunSupplyKind Kind => ((CompProperties_GunSupply)props).kind;
+        private CompProperties_GunSupply SupplyProps => (CompProperties_GunSupply)props;
+        private ThingDef selectedHead;
+        internal ThingDef DefaultHead { get; private set; }
+        internal ThingDef AlternateHead => SupplyProps.alternateHead;
+        public ThingDef SelectedHead => selectedHead ?? DefaultHead;
+        public GunSupplyKind Kind => SupplyProps.kind;
         internal bool draggingFuelBar;
         public int Missing => IsFull ? 0 : GetFuelCountToFullyRefuel();
 
-        public override void Initialize(CompProperties props) =>
+        public override void Initialize(CompProperties props)
+        {
             base.Initialize(((CompProperties_GunSupply)props).WithTranslatedLabels());
+            if (AlternateHead != null) DefaultHead = Props.fuelFilter.AnyAllowedDef;
+        }
 
         public bool CanLoad(bool forced) => GunSupplyUtility.CanLoad(this, forced);
 
@@ -66,8 +78,48 @@ namespace DeltaV
         {
             // ThingWithComps does not give each comp its own Scribe node.
             if (!Scribe.EnterNode(Kind == GunSupplyKind.Heads ? "headSupply" : "propellantSupply")) return;
-            try { base.PostExposeData(); }
+            try
+            {
+                base.PostExposeData();
+                if (AlternateHead == null) return;
+                Scribe_Defs.Look(ref selectedHead, "selectedHead");
+                if (Scribe.mode == LoadSaveMode.LoadingVars && selectedHead != null)
+                    SetHead(selectedHead);
+            }
             finally { Scribe.ExitNode(); }
+        }
+
+        internal bool AcceptsHead(ThingDef head) => AlternateHead != null
+            && (head == DefaultHead || head == AlternateHead);
+
+        private void SetHead(ThingDef head)
+        {
+            selectedHead = head == DefaultHead ? null : head;
+            var filter = new ThingFilter();
+            filter.SetAllow(head, true);
+            Props.fuelFilter = filter;
+        }
+
+        internal bool TrySwitchHead(ThingDef head)
+        {
+            if (!AcceptsHead(head)) return false;
+            if (head == SelectedHead) return true;
+            while (Fuel >= 1f)
+            {
+                if (!parent.Spawned) return false;
+                Thing stack = ThingMaker.MakeThing(SelectedHead);
+                stack.stackCount = Mathf.Min(Mathf.FloorToInt(Fuel), SelectedHead.stackLimit);
+                int ejected = 0;
+                bool placed = GenPlace.TryPlaceThing(stack, parent.Position, parent.Map, ThingPlaceMode.Near,
+                    placedAction: (_, count) => ejected += count);
+                ConsumeFuel(ejected);
+                if (placed) continue;
+                stack.Destroy();
+                return false;
+            }
+            if (Fuel > 0f) ConsumeFuel(Fuel);
+            SetHead(head);
+            return true;
         }
 
         public override IEnumerable<StatDrawEntry> SpecialDisplayStats() { yield break; }
@@ -126,8 +178,14 @@ namespace DeltaV
             ?? Mathf.CeilToInt(weapon?.Component<CompSpaceWeaponMagazine>()?.MagazineProps.ammoPerShot ?? MagazineProps.ammoPerShot);
         public bool HasHeads(int count) => Supply(GunSupplyKind.Heads) != null ? HeadCount >= count : HasShot;
         public bool HasPropellant(int count) => count <= 0 || PropellantCount >= count;
-        internal void NotifySupplyChanged() => (CompSpaceWeapon.ForComponent(this)
-            ?? parent.TryGetComp<CompSpaceWeaponAttachment>()?.HostWeapon)?.NotifyParametersChanged();
+        internal bool HasLoad(CompSpaceWeapon weapon) => HasHeads(RequiredHeads(weapon))
+            && HasPropellant(weapon.RequiredPropellant);
+        internal void NotifySupplyChanged() => HostWeapon?.NotifyParametersChanged();
+        internal void ConsumeLoad(int heads, int charge)
+        {
+            ConsumeHeads(heads);
+            if (charge > 0) ConsumePropellant(charge);
+        }
         public void ConsumeHeads(int count)
         {
             CompGunSupply supply = Supply(GunSupplyKind.Heads);

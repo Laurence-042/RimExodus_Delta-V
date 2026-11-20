@@ -12340,7 +12340,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40919</id><map>2</map><pos>(32, 0, 53)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40919</id><map>2</map><pos>(32, 0, 53)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(11, 0, 46)</pos>
@@ -12348,7 +12348,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40920</id><map>2</map><pos>(23, 0, 58)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40920</id><map>2</map><pos>(23, 0, 58)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(11, 0, 43)</pos>
@@ -12356,7 +12356,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40921</id><map>2</map><pos>(23, 0, 55)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40921</id><map>2</map><pos>(23, 0, 55)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(35, 0, 43)</pos>
@@ -12364,7 +12364,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40922</id><map>2</map><pos>(47, 0, 55)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40922</id><map>2</map><pos>(47, 0, 55)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(35, 0, 46)</pos>
@@ -12372,7 +12372,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40923</id><map>2</map><pos>(47, 0, 58)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40923</id><map>2</map><pos>(47, 0, 58)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(11, 0, 38)</pos>
@@ -12380,7 +12380,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40924</id><map>2</map><pos>(23, 0, 50)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40924</id><map>2</map><pos>(23, 0, 50)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(11, 0, 35)</pos>
@@ -12388,7 +12388,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40925</id><map>2</map><pos>(23, 0, 47)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40925</id><map>2</map><pos>(23, 0, 47)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(35, 0, 35)</pos>
@@ -12396,7 +12396,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40926</id><map>2</map><pos>(47, 0, 47)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40926</id><map>2</map><pos>(47, 0, 47)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(35, 0, 38)</pos>
@@ -12404,7 +12404,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40927</id><map>2</map><pos>(47, 0, 50)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40927</id><map>2</map><pos>(47, 0, 50)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(20, 0, 44)</pos>
@@ -12412,7 +12412,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40928</id><map>2</map><pos>(32, 0, 56)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40928</id><map>2</map><pos>(32, 0, 56)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(26, 0, 44)</pos>
@@ -12420,7 +12420,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40929</id><map>2</map><pos>(38, 0, 56)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40929</id><map>2</map><pos>(38, 0, 56)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(26, 0, 43)</pos>
@@ -12428,7 +12428,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40930</id><map>2</map><pos>(38, 0, 55)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40930</id><map>2</map><pos>(38, 0, 55)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(26, 0, 41)</pos>
@@ -12436,7 +12436,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40931</id><map>2</map><pos>(38, 0, 53)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40931</id><map>2</map><pos>(38, 0, 53)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(20, 0, 43)</pos>
@@ -12444,7 +12444,7 @@
       <rotation>0</rotation>
       <hitPoints>100</hitPoints>
       <stackCount>1</stackCount>
-      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40932</id><map>2</map><pos>(32, 0, 55)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></headSupply></saveable></state>
+      <state><saveable Class="Building"><def>DeltaV_Building_UraniumMagazine</def><id>DeltaV_Building_UraniumMagazine40932</id><map>2</map><pos>(32, 0, 55)</pos><health>100</health><faction>Faction_17</faction><questTags IsNull="True" /><spawnedTick>59580</spawnedTick><despawnedTick>-1</despawnedTick><headSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></headSupply><propellantSupply><fuel>600</fuel><configuredTargetFuelLevel>600</configuredTargetFuelLevel><allowAutoRefuel>True</allowAutoRefuel></propellantSupply></saveable></state>
     </li>
     <li>
       <pos>(35, 0, 44)</pos>

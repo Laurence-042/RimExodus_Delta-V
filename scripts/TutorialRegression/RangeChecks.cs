@@ -121,13 +121,173 @@ internal static partial class Program
     {
         internal CompSpaceWeapon weapon;
         internal CompGunSupply supply;
-        public RangeWeaponSave(Building building)
+        internal CompGunSupply propellant;
+        internal CompWeaponTuning tuning;
+        public RangeWeaponSave(Building building, CompProperties_WeaponTuning settings,
+            CompProperties_GunSupply heads, CompProperties_GunSupply charge)
         {
             weapon = new CompSpaceWeapon { parent=building, props=new CompProperties_SpaceWeapon { range=160f, fireArcDeg=360f } };
-            supply = new CompGunSupply { parent=building,
-                props=new CompProperties_GunSupply { kind=GunSupplyKind.Heads, fuelCapacity=1200, showAllowAutoRefuelToggle=true } };
+            if (settings != null) tuning = new CompWeaponTuning { parent=building, props=settings };
+            if (heads != null)
+            {
+                supply = new CompGunSupply { parent=building };
+                supply.Initialize(heads);
+            }
+            if (charge != null)
+            {
+                propellant = new CompGunSupply { parent=building };
+                propellant.Initialize(charge);
+            }
         }
-        public void ExposeData() { weapon.PostExposeData(); supply.PostExposeData(); }
+        public void ExposeData()
+        {
+            weapon.PostExposeData(); supply?.PostExposeData(); propellant?.PostExposeData(); tuning?.PostExposeData();
+        }
+    }
+
+    static ThingDef RangeAmmoDef(string name)
+    {
+        if (name == null) return null;
+        var found = DefDatabase<ThingDef>.GetNamedSilentFail(name);
+        if (found != null) return found;
+        var def = Raw<ThingDef>();
+        def.defName = def.label = name;
+        def.virtualDefs = new List<ThingDef>();
+        DefDatabase<ThingDef>.Add(def);
+        return def;
+    }
+
+    static CompProperties_GunSupply RangeSupply(XmlNode comps, GunSupplyKind kind)
+    {
+        var config = comps.SelectSingleNode($"li[@Class='DeltaV.CompProperties_GunSupply'][kind='{kind}']");
+        if (config == null) return null;
+        var filter = new ThingFilter();
+        filter.SetAllow(RangeAmmoDef(config.SelectSingleNode("fuelFilter/thingDefs/li").InnerText), true);
+        return new CompProperties_GunSupply
+        {
+            kind = kind,
+            fuelCapacity = int.Parse(config["fuelCapacity"].InnerText),
+            initialConfigurableTargetFuelLevel = int.Parse(config["initialConfigurableTargetFuelLevel"].InnerText),
+            alternateHead = RangeAmmoDef(config["alternateHead"]?.InnerText),
+            fuelFilter = filter,
+        };
+    }
+
+    static void RangeAmmunition(XmlDocument platform, XmlDocument definitions, List<RangeWeaponSave> cannons, string directory)
+    {
+        const string magazineName = "DeltaV_Building_UraniumMagazine";
+        var magazineConfig = definitions.SelectSingleNode($"/Defs/ThingDef[defName='{magazineName}']/comps");
+        var headsConfig = RangeSupply(magazineConfig, GunSupplyKind.Heads);
+        var chargeConfig = RangeSupply(magazineConfig, GunSupplyKind.Propellant);
+        var ammoConfig = magazineConfig.SelectSingleNode("li[@Class='DeltaV.CompProperties_SpaceWeaponMagazine']");
+        float capacity = headsConfig.fuelCapacity;
+        var allowed = magazineConfig.SelectNodes("li/allowedHostDefs/li").Cast<XmlNode>().Select(node => node.InnerText).ToHashSet();
+        Check(headsConfig.fuelFilter.AnyAllowedDef.defName == "DeltaV_UraniumHead"
+            && headsConfig.alternateHead.defName == "DeltaV_SteelHead"
+            && chargeConfig.fuelFilter.AnyAllowedDef.defName == "DeltaV_Propellant",
+            "the range uses a configurable auxiliary with uranium selected and its own propellant");
+        var magazineDef=Raw<ThingDef>();
+        magazineDef.defName=magazineName; magazineDef.thingClass=typeof(Building); magazineDef.category=ThingCategory.Building;
+        magazineDef.size=IntVec2.One; magazineDef.building=new BuildingProperties { isEdifice=false };
+        magazineDef.comps=new List<CompProperties> {
+                new CompProperties_SpaceWeaponAttachment { allowedHostDefs=cannons.Select(cannon => cannon.weapon.parent.def)
+                    .Where(def => allowed.Contains(def.defName)).ToList() },
+                headsConfig, chargeConfig,
+                new CompProperties_SpaceWeaponMagazine { attachment=true,
+                    defaultPriority=int.Parse(ammoConfig["defaultPriority"].InnerText) }
+            };
+        DefDatabase<ThingDef>.Add(magazineDef);
+        var entries = platform.SelectNodes($"/MapPrefab/thingStates/li[def='{magazineName}']").Cast<XmlNode>().ToArray();
+        Check(entries.Length==2,"two loaded uranium magazines, one for each southern cannon");
+        var priorLanguage=LanguageDatabase.activeLanguage;
+        List<Thing> mounts;
+        try
+        {
+            LanguageDatabase.activeLanguage=StatsFixtureLanguage(directory,"English");
+            mounts=RimExodus.Maps.MapPrefabThingState.Instantiate(entries.Select(entry => new RimExodus.Maps.MapPrefabThingEntry {
+                def=magazineDef, stateXml=entry.SelectSingleNode("state/saveable").OuterXml }).ToList(),"range uranium mounts",null);
+        }
+        finally { LanguageDatabase.activeLanguage=priorLanguage; }
+        var map = Raw<Map>(); map.info=new MapInfo { Size=new IntVec3(35,1,43) };
+        map.cellIndices=new CellIndices(map); map.thingGrid=new ThingGrid(map); map.edificeGrid=new EdificeGrid(map);
+        map.components=new List<MapComponent>();
+        Find.Maps.Add(map);
+        try
+        {
+            void PlaceOnGrid(Thing thing)
+            {
+                Set(thing,"mapIndexOrState",(sbyte)Find.Maps.IndexOf(map));
+                map.thingGrid.Register(thing);
+            }
+            foreach (var gun in cannons)
+            {
+                var turret=(Building)gun.weapon.parent;
+                var own=new CompSpaceWeaponMagazine { parent=turret, props=new CompProperties_SpaceWeaponMagazine { unitMass=1f } };
+                Set(turret,"comps",new List<ThingComp> {gun.weapon,gun.tuning,gun.supply,gun.propellant,own});
+                PlaceOnGrid(turret);
+                map.edificeGrid.Register(turret);
+            }
+            foreach (var mount in mounts) PlaceOnGrid(mount);
+            var heavyLaunch=new Dictionary<SpaceWeaponSalvoSet,(float mass,float speed)>();
+            foreach (var gun in cannons)
+            {
+                var weapon=gun.weapon;
+                bool southern=weapon.salvoSet==SpaceWeaponSalvoSet.Secondary;
+                var selected=weapon.SelectMagazine();
+                Check(selected!=null && weapon.MagazineAvailable(selected),"authored cannon can fire with its native ammunition selection");
+                Check(selected.PropellantCount>=gun.tuning.charge,"each selected magazine has its own propellant");
+                if (weapon.groupNumber==2)
+                    heavyLaunch.Add(weapon.salvoSet,(SpaceWeaponBallistics.ProjectileMass(weapon,selected),
+                        SpaceWeaponBallistics.BaseSpeed(weapon,selected,0f)));
+                if (southern)
+                {
+                    Check(selected.SelectedProjectileDef==weapon.WeaponProps.armorPiercingProjectileDef
+                        && selected.HeadCount==capacity && selected.PropellantCount==chargeConfig.fuelCapacity
+                        && selected.parent.Position==SpaceWeaponGeometry.RotatedCell(
+                            weapon.parent,weapon.WeaponProps.attachmentSlots[1].cell),
+                        "southern cannon selects the full uranium magazine in its second native slot");
+                    Check(gun.supply.SelectedHead==weapon.WeaponProps.armorPiercingHeadDef
+                        && gun.supply.Props.fuelFilter.Allows(weapon.WeaponProps.armorPiercingHeadDef),
+                        "southern internal magazine restores uranium selection and filter through Scribe");
+                    float builtInHeads = gun.supply.Fuel;
+                    float builtInCharge = gun.propellant.Fuel;
+                    selected.ConsumeLoad(selected.RequiredHeads(weapon), weapon.RequiredPropellant);
+                    Check(selected.HeadCount==capacity-gun.tuning.mass
+                        && selected.PropellantCount==chargeConfig.fuelCapacity-gun.tuning.charge
+                        && gun.supply.Fuel==builtInHeads
+                        && gun.propellant.Fuel==builtInCharge,
+                        "southern auxiliary supplies both head and charge while internal stocks stay untouched");
+                    var auxiliaryCharge = selected.Supply(GunSupplyKind.Propellant);
+                    Set(auxiliaryCharge,"fuel",(float)gun.tuning.charge-1f);
+                    var fallback = weapon.SelectMagazine();
+                    Check(fallback?.parent==weapon.parent && fallback.SelectedProjectileDef==selected.SelectedProjectileDef
+                        && fallback.UnitMass(weapon)==selected.UnitMass(weapon)
+                        && fallback.PenetrationScale(weapon)==selected.PenetrationScale(weapon),
+                        "an incomplete high-priority magazine yields to a full internal uranium load with identical ballistics");
+                    Set(gun.supply,"fuel",(float)gun.tuning.mass-1f);
+                    Check(weapon.SelectMagazine()==null && !weapon.MagazineAvailable(null),
+                        "neither incomplete magazine can combine with the other's remaining supply");
+                    Set(auxiliaryCharge,"fuel",chargeConfig.fuelCapacity);
+                    Set(selected.Supply(GunSupplyKind.Heads),"fuel",(float)selected.RequiredHeads(weapon)-1f);
+                    Check(weapon.SelectMagazine()==null && !weapon.MagazineAvailable(null),
+                        "southern cannon stops when uranium cannot supply a full shot");
+                }
+                else
+                {
+                    Check(selected.parent==weapon.parent
+                        && gun.supply.SelectedHead?.defName=="DeltaV_SteelHead"
+                        && (selected.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef).defName.EndsWith(
+                            weapon.groupNumber==1 ? "_Rapid" : "_Cannon",StringComparison.Ordinal)
+                        && !weapon.AttachedThings().Any(thing=>thing.def==magazineDef),"northern cannon selects internal steel only");
+                }
+            }
+            var steel=heavyLaunch[SpaceWeaponSalvoSet.Main];
+            var uranium=heavyLaunch[SpaceWeaponSalvoSet.Secondary];
+            Check(uranium.mass>steel.mass && uranium.speed<steel.speed
+                && Math.Abs(SpaceKinetics.Energy(steel.mass,steel.speed)/SpaceKinetics.Energy(uranium.mass,uranium.speed)-1)<1e-5,
+                "at equal charge uranium leaves the firing muzzle slower with equal muzzle-frame kinetic energy");
+        }
+        finally { Find.Maps.Remove(map); }
     }
     sealed class TerminalSave : IExposable
     {
@@ -253,46 +413,87 @@ internal static partial class Program
         Set(game.World.factionManager,"ofPlayer",new Faction { def=new FactionDef { isPlayer=true } });
         var platform = new XmlDocument(); platform.Load(Path.Combine(directory,"Tutorial/WeaponRange.xml"));
         var target = new XmlDocument(); target.Load(Path.Combine(directory,"Tutorial/ShieldTarget.xml"));
+        var weaponDefinitions = new XmlDocument();
+        weaponDefinitions.Load(Path.Combine(directory,"../../1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml"));
         RangeEntrance(platform,harmony,directory);
         var weaponNames = new[] { "DeltaV_Weapon_RapidMainMedium", "DeltaV_Weapon_HeavyMainMedium",
             "DeltaV_Weapon_LaserMainMedium", "DeltaV_Weapon_RailgunLoader" };
         int group=0;
+        var cannons=new List<RangeWeaponSave>();
+        var rangeLanguage=StatsFixtureLanguage(directory,"English");
         foreach (string name in weaponNames)
         {
             group++;
+            var config=weaponDefinitions.SelectSingleNode($"/Defs/ThingDef[defName='{name}']");
+            var comps=config["comps"];
+            var weaponConfig=comps.SelectSingleNode("li[@Class='DeltaV.CompProperties_SpaceWeapon']");
+            var settings=group<=2 ? DirectXmlToObject.ObjectFromXml<CompProperties_WeaponTuning>(
+                comps.SelectSingleNode("li[@Class='DeltaV.CompProperties_WeaponTuning']"),false) : null;
+            var heads=RangeSupply(comps,GunSupplyKind.Heads);
+            var charge=RangeSupply(comps,GunSupplyKind.Propellant);
+            if(group==4)
+                Check(comps.SelectSingleNode("li[@Class='DeltaV.CompProperties_GunSupply'][kind='Heads']/fuelFilter/thingDefs/li")
+                    .InnerText=="DeltaV_UraniumHead","the central railgun uses its uranium-only internal compartment");
             foreach(XmlNode state in platform.SelectNodes("/MapPrefab/thingStates/li[def='"+name+"']/state/saveable"))
             {
             Check(state != null && state["groupNumber"].InnerText == group.ToString(), "four distinct fire-control groups");
             var building=Raw<Building>(); building.def=Raw<ThingDef>(); building.def.defName=name;
             Set(building,"factionInt",new Faction {def=new FactionDef()});
             Set(building,"rotationInt",Rot4.East);
+            var position=IntVec3.FromString(state["pos"].InnerText);
+            Set(building,"positionInt",position);
+            if (settings!=null)
+                building.def.size=IntVec2.FromString(SourceChain(name).Select(node=>node["size"]).First(node=>node!=null).InnerText);
             var doc=new XmlDocument(); doc.LoadXml(state.OuterXml);
             string file=Path.GetTempFileName();
+            var priorLanguage=LanguageDatabase.activeLanguage;
             try
             {
                 File.WriteAllText(file,"<root><weapon>"+doc.DocumentElement.InnerXml+"</weapon></root>");
                 RangeWeaponSave savedWeapon=null;
-                Scribe.loader.InitLoading(file); Scribe_Deep.Look(ref savedWeapon,"weapon",building);
+                LanguageDatabase.activeLanguage=rangeLanguage;
+                Scribe.loader.InitLoading(file); Scribe_Deep.Look(ref savedWeapon,"weapon",building,settings,heads,charge);
                 Scribe.loader.FinalizeLoading();
                 var weapon=savedWeapon.weapon;
                 Check(weapon.groupNumber==group && weapon.coverage.arc==90f && weapon.EffectiveRange==150f,
                     "native weapon Scribe preserves group and limited firing sector");
-                Check(weapon.salvoSet==Enum.Parse<SpaceWeaponSalvoSet>(state["salvoSet"]?.InnerText ?? "Main"),"native Scribe preserves main/secondary bank");
+                var expectedBank=group==4 || position.z<22 ? SpaceWeaponSalvoSet.Secondary : SpaceWeaponSalvoSet.Main;
+                Check(weapon.salvoSet==expectedBank,"native Scribe restores northern main, southern secondary, and central secondary rail");
                 Check(weapon.CoverageError(0f)==0f && weapon.CoverageError(Mathf.PI)>100f
                     && weapon.CoverageError(46f*Mathf.Deg2Rad)>0f,"station behind platform and off-sector aim rejected");
                 Check(!weapon.CompGetGizmosExtra().Any(),"allied weapon has no player settings gizmos");
-                if (group!=3)
+                if (heads!=null) Check(savedWeapon.supply.Fuel==heads.fuelCapacity
+                    && savedWeapon.supply.TargetFuelLevel==heads.fuelCapacity,"full head stock and loading target survive native Scribe");
+                if (charge!=null) Check(savedWeapon.propellant.Fuel==charge.fuelCapacity
+                    && savedWeapon.propellant.TargetFuelLevel==charge.fuelCapacity,"full propellant stock and loading target survive native Scribe");
+                if (settings!=null)
                 {
-                    Check(savedWeapon.supply.Fuel>0f,"live ammunition survives native compartment Scribe");
+                    weapon.WeaponProps.projectileDef=Raw<ThingDef>();
+                    weapon.WeaponProps.projectileDef.defName=weaponConfig["projectileDef"].InnerText;
+                    weapon.WeaponProps.armorPiercingProjectileDef=Raw<ThingDef>();
+                    weapon.WeaponProps.armorPiercingProjectileDef.defName=weaponConfig["armorPiercingProjectileDef"].InnerText;
+                    weapon.WeaponProps.armorPiercingHeadDef=RangeAmmoDef(weaponConfig["armorPiercingHeadDef"].InnerText);
+                    weapon.WeaponProps.armorPiercingUnitMass=float.Parse(weaponConfig["armorPiercingUnitMass"].InnerText,
+                        System.Globalization.CultureInfo.InvariantCulture);
+                    weapon.WeaponProps.armorPiercingPenetrationScale=float.Parse(weaponConfig["armorPiercingPenetrationScale"].InnerText,
+                        System.Globalization.CultureInfo.InvariantCulture);
+                    Check(weapon.WeaponProps.armorPiercingProjectileDef.defName==weapon.WeaponProps.projectileDef.defName+"Uranium",
+                        "the cannon has its matching armour-piercing projectile");
+                    weapon.WeaponProps.attachmentSlots=weaponConfig.SelectNodes("attachmentSlots/li/cell").Cast<XmlNode>()
+                        .Select(slot=>new SpaceWeaponAttachmentSlot { cell=IntVec3.FromString(slot.InnerText) }).ToList();
+                    if (group==2) Check(savedWeapon.tuning.charge==48 && savedWeapon.tuning.mass==48,
+                        "both heavy cannons have the same charge and count of heads");
+                    cannons.Add(savedWeapon);
                 }
                 if (state["gun"]!=null)
                     Check(state["gun"]["def"].InnerText.StartsWith("DeltaV_GroundGun_")
                         && state["gun"].SelectSingleNode("verbTracker/verbs/li").Attributes["Class"].Value=="DeltaV.Verb_SpaceTurretGround",
                         "turret internal gun and verb match current Def family");
             }
-            finally { Scribe.ForceStop(); File.Delete(file); }
+            finally { LanguageDatabase.activeLanguage=priorLanguage; Scribe.ForceStop(); File.Delete(file); }
         }
         }
+        RangeAmmunition(platform,weaponDefinitions,cannons,directory);
         Check(platform.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_Weapon_RailgunAccelerator']").Count==9,"railgun has nine real accelerators");
         Check(platform.SelectSingleNode("/MapPrefab/thingStates/li[def='PilotConsole']/state/saveable/combat/fireControlMode").InnerText=="Disabled",
             "platform stores disabled fire control in the native combat record");

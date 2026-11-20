@@ -39,9 +39,17 @@ namespace DeltaV
 
     public class JobDriver_LoadGunSupply : JobDriver_Refuel
     {
-        private CompRefuelable Supply => Fuel == null ? null
-            : (CompRefuelable)Refuelable.TryGetComp<CompAfterburnerTank>()
-                ?? Refuelable.TryGetComp<CompSpaceWeaponMagazine>()?.SupplyFor(Fuel.def);
+        private CompRefuelable Supply
+        {
+            get
+            {
+                if (Fuel == null) return null;
+                if (Refuelable.TryGetComp<CompAfterburnerTank>() is { } afterburner)
+                    return afterburner;
+                // A job holding the previous head type loses its destination when the magazine changes.
+                return Refuelable.TryGetComp<CompSpaceWeaponMagazine>()?.SupplyFor(Fuel.def);
+            }
+        }
 
         protected override IEnumerable<Toil> MakeNewToils()
         {

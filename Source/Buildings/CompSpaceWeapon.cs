@@ -46,6 +46,9 @@ namespace DeltaV
         /// <summary>发射的弹体 building def（联合效果注册表键与弹道参数来源）。</summary>
         public ThingDef projectileDef;
         public ThingDef armorPiercingProjectileDef;
+        public ThingDef armorPiercingHeadDef;
+        public float armorPiercingUnitMass = 1f;
+        public float armorPiercingPenetrationScale = 1f;
 
         /// <summary>默认瞄准模式（齐射/PD；玩家可经 gizmo 切换，当前值随 comp 存档）。</summary>
         public SpaceWeaponAimMode aimMode = SpaceWeaponAimMode.Volley;
@@ -571,6 +574,8 @@ namespace DeltaV
             Scribe_Values.Look(ref committedCooldownTicks, "committedCooldownTicks", 0);
         }
 
+        internal int RequiredPropellant => Tuning?.Settings.chemical == true ? Tuning.charge : 0;
+
         public CompSpaceWeaponMagazine SelectMagazine()
         {
             var perf = Universe?.Performance;
@@ -583,7 +588,7 @@ namespace DeltaV
                 {
                     var attachment = magazine.parent == parent ? null
                         : magazine.parent.TryGetComp<CompSpaceWeaponAttachment>();
-                    if (!magazine.HasHeads(magazine.RequiredHeads(this)) || attachment != null && !attachment.Enabled) continue;
+                    if (attachment != null && !attachment.Enabled || !magazine.HasLoad(this)) continue;
                     if (magazine.Priority < priority) continue;
                     if (magazine.Priority > priority)
                     { priority = magazine.Priority; first = next = null; }
@@ -596,21 +601,28 @@ namespace DeltaV
             finally { perf?.Record(PerformanceStage.WeaponAmmo, start); }
         }
 
-        internal bool MagazineAvailable(CompSpaceWeaponMagazine selected) =>
-            (Component<CompSpaceWeaponMagazine>() == null || selected != null)
-            && (Tuning?.Settings.chemical != true || Component<CompSpaceWeaponMagazine>()?.HasPropellant(Tuning.charge) == true);
+        internal bool MagazineAvailable(CompSpaceWeaponMagazine selected) => selected != null
+            ? selected.HasLoad(this) : Component<CompSpaceWeaponMagazine>() == null && RequiredPropellant == 0;
 
         public void NotifyMagazineConsumed(CompSpaceWeaponMagazine magazine)
         {
             if (magazine != null) lastMagazineThingId = magazine.parent.thingIDNumber;
             var next = SelectMagazine();
-            if (next?.SelectedProjectileDef != magazine?.SelectedProjectileDef
-                || next?.MagazineProps.unitMass != magazine?.MagazineProps.unitMass
-                || next?.MagazineProps.armorPenetrationScale != magazine?.MagazineProps.armorPenetrationScale)
+            if (next?.ResolveProjectile(this) != magazine?.ResolveProjectile(this)
+                || next?.UnitMass(this) != magazine?.UnitMass(this)
+                || next?.PenetrationScale(this) != magazine?.PenetrationScale(this))
                 NotifyParametersChanged();
         }
 
         internal void NotifyParametersChanged() => Universe?.Controls.ExistingFor(OwnerShip)?.FireControl.WeaponParametersChanged(this);
+
+        public override string CompInspectStringExtra()
+        {
+            if (WeaponProps.armorPiercingHeadDef == null || !parent.Spawned) return null;
+            var head = SelectMagazine()?.Supply(GunSupplyKind.Heads)?.SelectedHead;
+            return head == null ? "DeltaV_MagazineNoFullShot".Translate()
+                : "DeltaV_MagazineNextHead".Translate(head.LabelCap);
+        }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {

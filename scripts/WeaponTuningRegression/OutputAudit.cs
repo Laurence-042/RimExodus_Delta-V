@@ -111,6 +111,14 @@ internal static partial class Program
         shield.PostPostMake(); SetSpawned(body, true); return shield;
     }
 
+    static int AuditStockShots(XElement def, int heads, int charge)
+    {
+        XElement Supply(string kind) => def.Element("comps").Elements("li")
+            .Single(x => (string)x.Attribute("Class") == "DeltaV.CompProperties_GunSupply" && (string)x.Element("kind") == kind);
+        return Math.Min((int)(AuditNumber(Supply("Heads"), "fuelCapacity") / heads),
+            (int)(AuditNumber(Supply("Propellant"), "fuelCapacity") / charge));
+    }
+
     static List<AuditRow> RunOutputAudit(string repo)
     {
         string defsPath = Path.Combine(repo, "1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml");
@@ -126,7 +134,10 @@ internal static partial class Program
             return AuditNumber(recipe.Element("ingredients").Element("li"), "count") / AuditNumber(recipe.Element("products"), product);
         }
         double propellantCost = UnitCost("DeltaV_Propellant"), steelHeadCost = UnitCost("DeltaV_SteelHead"), uraniumHeadCost = UnitCost("DeltaV_UraniumHead");
-        double uraniumMass = AuditNumber(AuditComp(Def("DeltaV_Building_UraniumMagazine"), "DeltaV.CompProperties_SpaceWeaponMagazine"), "unitMass");
+        var mediumRapid = Def("DeltaV_Weapon_RapidMainMedium");
+        int mediumRapidStock = AuditStockShots(mediumRapid, 2, 4);
+        Check(mediumRapidStock == 150 && mediumRapidStock + AuditStockShots(Def("DeltaV_Building_UraniumMagazine"), 2, 4) == 300,
+            "medium rapid ammunition lasts 150 shots built-in and 300 with a full auxiliary magazine");
         var rows = new List<AuditRow>();
         var names = new[] { "DeltaV_Weapon_LaserTurret", "DeltaV_Weapon_LaserMainMedium", "DeltaV_Weapon_RapidMainSmall",
             "DeltaV_Weapon_RapidMainMedium", "DeltaV_Weapon_CannonTurret", "DeltaV_Weapon_HeavyMainMedium" };
@@ -157,7 +168,8 @@ internal static partial class Program
                     var gun = Gun(def); gun.charge = charge; gun.interval = interval;
                     cycleCache[(charge, interval)] = cycle = MeasureCycle(gun);
                 }
-                double mass = heads * (material == "Uranium" ? uraniumMass : AuditNumber(AuditComp(def, "DeltaV.CompProperties_SpaceWeaponMagazine"), "unitMass", 1));
+                double mass = heads * (material == "Uranium" ? AuditNumber(weapon, "armorPiercingUnitMass")
+                    : AuditNumber(AuditComp(def, "DeltaV.CompProperties_SpaceWeaponMagazine"), "unitMass", 1));
                 float speed = chemical ? SpaceKinetics.LaunchSpeed(charge, (float)mass) : 60f;
                 float scale = (float)AuditNumber(weapon, "impactScale", 1) * power;
                 bool steel = material == "Steel";
@@ -165,13 +177,7 @@ internal static partial class Program
                     * (steel ? 1f : scale);
                 double drain = SpaceImpactEffects.ComputeDamage(shield, speed, 0, 1, (float)mass) * scale;
                 double rate = cycle.Shots.Count * 60d / cycle.Ticks;
-                int stockShots = int.MaxValue;
-                if (chemical)
-                {
-                    XElement Supply(string kind) => def.Element("comps").Elements("li").Single(x => (string)x.Attribute("Class") == "DeltaV.CompProperties_GunSupply" && (string)x.Element("kind") == kind);
-                    double headCapacity = material == "Uranium" ? AuditNumber(Def("DeltaV_Building_UraniumMagazine").Element("comps")?.Elements("li").Single(x => (string)x.Attribute("Class") == "DeltaV.CompProperties_GunSupply"), "fuelCapacity") : AuditNumber(Supply("Heads"), "fuelCapacity");
-                    stockShots = Math.Min((int)(headCapacity / heads), (int)(AuditNumber(Supply("Propellant"), "fuelCapacity") / charge));
-                }
+                int stockShots = chemical ? AuditStockShots(def, heads, charge) : int.MaxValue;
                 var row = new AuditRow {
                     Weapon = name, Family = chemical ? heavy ? "Heavy" : "Rapid" : "Laser", Size = medium ? "Medium" : "Small", Material = material,
                     Charge = chemical ? charge : 0, Heads = chemical ? heads : 0, Interval = heavy ? cycle.Ticks : interval, Power = power,
