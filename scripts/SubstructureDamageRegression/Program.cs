@@ -297,16 +297,16 @@ internal static partial class Program
         Set(surface, "kinds", kinds); Set(surface, "buildings", buildings); Set(surface, "foundations", foundations);
         var body = new SpaceCollision.SweptBody();
         var point = new Vector2(cell.x + 0.5f, cell.z + 0.5f);
-        object[] findArgs = { body, map, surface, point, point, Vector2.up,
-            null, null, IntVec3.Invalid, SpaceCellKind.Empty, null, null, false, null, null };
+        object[] findArgs = { body, map, surface, point, Vector2.up, Vector2.up, 0f, 0f,
+            null, null, IntVec3.Invalid, SpaceCellKind.Empty, null, null, null, false, null, null };
         Check((bool)Call(typeof(SpaceCollision), "FindBestCell", findArgs)
-            && (SpaceCellKind)findArgs[9] == SpaceCellKind.Building && findArgs[10] == building,
+            && (SpaceCellKind)findArgs[11] == SpaceCellKind.Building && findArgs[12] == building,
             "same-cell building is the first contact");
-        findArgs[6] = new HashSet<Thing> { building };
+        findArgs[8] = new HashSet<Thing> { building };
         Check((bool)Call(typeof(SpaceCollision), "FindBestCell", findArgs)
-            && (SpaceCellKind)findArgs[9] == SpaceCellKind.Substructure && findArgs[10] == null,
+            && (SpaceCellKind)findArgs[11] == SpaceCellKind.Substructure && findArgs[12] == null,
             "missed building exposes the same-cell foundation at the same contact");
-        findArgs[7] = new HashSet<IntVec3> { cell };
+        findArgs[9] = new HashSet<IntVec3> { cell };
         Check(!(bool)Call(typeof(SpaceCollision), "FindBestCell", findArgs),
             "both layers may miss independently");
 
@@ -328,7 +328,7 @@ internal static partial class Program
         var mounted = (TestBuilding)Raw(typeof(TestBuilding)); mounted.def = def;
         Set(mounted, "positionInt", cell); Set(mounted, "mapIndexOrState", (sbyte)0);
         map.thingGrid.Register(mounted);
-        Check((bool)Call(typeof(SubstructureDamageUtility), "TryDestroyHitFoundation", map, cell, false, null)
+        Check((bool)Call(typeof(SubstructureDamageUtility), "TryDestroyHitFoundation", map, cell, false, null, null)
             && mounted.killCalls == 1 && grid.FoundationAt(cell) == null,
             "direct foundation destruction kills the surviving multi-cell building exactly once");
 
@@ -498,7 +498,7 @@ internal static partial class Program
             Check(!building.Destroyed && map.terrainGrid.FoundationAt(hole) == deck
                 && footprint.All(occupied.Contains), "live building protects its foundation from native terrain damage");
             Count("foundation-protected", 0);
-            Check((bool)Call(typeof(SubstructureDamageUtility), "TryDestroyHitFoundation", map, hole, false, null),
+            Check((bool)Call(typeof(SubstructureDamageUtility), "TryDestroyHitFoundation", map, hole, false, null, null),
                 "direct foundation impact removes the supporting cell");
             SpaceCollision.CollectDebugSurface(target, occupied, out _, out _);
             Check(building.Destroyed && building.killCalls == 1 && !footprint.Any(occupied.Contains)

@@ -174,9 +174,10 @@ internal static partial class Program
         dirty.Clear();
         MapOverlayRenderer.MarkDirty(map, opening, (ulong)MapMeshFlagDefOf.Terrain);
         MapOverlayRenderer.MarkDirty(map, opening, (ulong)MapMeshFlagDefOf.Roofs);
-        Check(dirty.SetEquals(new[] { 0, 1 | (1 << 16) }),
-            "foundation and roof notifications deduplicate the two affected sections");
+        Check(dirty.SetEquals(new[] { 0, 1, 1 << 16, 1 | (1 << 16) }),
+            "foundation and roof notifications deduplicate the affected hull and building sections");
         var seam = new IntVec3(16, 0, 16);
+        dirty.Clear();
         MapOverlayRenderer.MarkDirty(map, seam, (ulong)MapMeshFlagDefOf.Terrain);
         Check(dirty.SetEquals(new[] { 0, 1, 1 << 16, 1 | (1 << 16) }),
             "terrain damage at a section corner refreshes all four sections in the neighbor ring");
@@ -188,6 +189,7 @@ internal static partial class Program
         CheckTerrainMesh();
         CheckTerrainDrawOrder();
         CheckHullCorners(map, hull, deck, roof);
+        CheckAngledHullSlopes(map, hull, deck, dirty);
         ExportRoofEdgePreview(edges);
         MapOverlayRenderer.Release(map);
         Check(!ReferenceEquals(cache, Call(typeof(MapOverlayRenderer), "CacheFor", map)),
@@ -316,7 +318,7 @@ internal static partial class Program
             HullTestWall zWall = Place(floor + z, uranium);
             HullTestWall elbow = Place(floor + x + z, uranium);
 
-            object adjacency = Call(hull, "Analyze", map, elbow);
+            object adjacency = Call(hull, "Analyze", map, elbow, 0);
             int Field(string name) => (int)AccessTools.Field(adjacency.GetType(), name).GetValue(adjacency);
             Check(Field("outerCorner") == corner, $"outer arc bows in the same direction as the inner arc ({corner})");
             Check(Call(hull, "SelectCornerWall", xWall, zWall, elbow) == zWall,
@@ -349,23 +351,122 @@ internal static partial class Program
                 var localSun = new Vector2(x.x * 0.6f, z.z * 0.8f);
                 Type overlay = typeof(MapOverlayRenderer);
                 float sign = outer ? 1f : -1f;
-                Check((float)Call(overlay, "HullIncidence", localSun, sideX, !outer) == sign * 0.6f
-                    && (float)Call(overlay, "HullIncidence", localSun, sideZ, !outer) == sign * 0.8f
-                    && (float)Call(overlay, "HullIncidence", -localSun, sideX, !outer) == -sign * 0.6f
-                    && (float)Call(overlay, "HullIncidence", -localSun, sideZ, !outer) == -sign * 0.8f,
+                Check((float)Call(overlay, "HullIncidence", localSun, sideX, !outer, false) == sign * 0.6f
+                    && (float)Call(overlay, "HullIncidence", localSun, sideZ, !outer, false) == sign * 0.8f
+                    && (float)Call(overlay, "HullIncidence", -localSun, sideX, !outer, false) == -sign * 0.6f
+                    && (float)Call(overlay, "HullIncidence", -localSun, sideZ, !outer, false) == -sign * 0.8f,
                     $"inner and outer arc edges reverse highlights under opposite light ({corner}, outer={outer})");
             }
 
             map.roofGrid.SetRoof(floor, null);
-            adjacency = Call(hull, "Analyze", map, elbow);
+            adjacency = Call(hull, "Analyze", map, elbow, 0);
             Check(Field("outerCorner") == -1 && Field("cornerFill") == 0,
                 $"unroofed open deck does not close the hull corner ({corner})");
             Place(floor, steel);
-            adjacency = Call(hull, "Analyze", map, elbow);
+            adjacency = Call(hull, "Analyze", map, elbow, 0);
             int fillBit = 1 << corner; // Opposite diagonal in SW/NW/NE/SE order.
             Check(Field("outerCorner") == -1 && (Field("cornerFill") & fillBit) != 0,
                 $"four actual walls fill the cross even with no roof at the diagonal ({corner})");
         }
+    }
+
+    private static void CheckAngledHullSlopes(Map map, Type hull, TerrainDef deck, HashSet<int> dirty)
+    {
+        Type builderType = hull.GetNestedType("QuadBuilder", BindingFlags.NonPublic);
+        Dictionary<IntVec3, int> Angles(CellRect rect) =>
+            (Dictionary<IntVec3, int>)Call(hull, "FindAngledCorners", map, rect);
+        Building Place(IntVec3 cell)
+        {
+            var wall = new Building { def = ThingDefOf.GravshipHull };
+            Set(wall, "positionInt", cell);
+            map.edificeGrid.Register(wall);
+            return wall;
+        }
+        List<Vector3> Strip(string method, params object[] args)
+        {
+            object builder = Activator.CreateInstance(builderType, true);
+            var inputs = new List<object> { builder };
+            inputs.AddRange(args);
+            Call(hull, method, inputs.ToArray());
+            return (List<Vector3>)AccessTools.Field(builderType, "vertices").GetValue(builder);
+        }
+        bool SamePoint(Vector3 a, Vector3 b) => (a - b).sqrMagnitude < 0.00000001f;
+
+        for (int corner = 0; corner < 4; corner++)
+        {
+            var cell = new IntVec3(7 + 7 * corner, 0, 6);
+            IntVec3 x = corner < 2 ? IntVec3.East : IntVec3.West;
+            IntVec3 z = corner == 0 || corner == 3 ? IntVec3.North : IntVec3.South;
+            Building alongX = Place(cell + x);
+            Building alongZ = Place(cell + z);
+            CellRect bounds = CellRect.CenteredOn(cell, 1);
+            var partial = Angles(bounds);
+            Building elbow = Place(cell + x + z);
+            var full = Angles(bounds);
+            Check(partial.TryGetValue(cell, out int a) && a == corner
+                && full.TryGetValue(cell, out int b) && b == corner,
+                $"vanilla partial and full corners select the same outward edge ({corner})");
+
+            List<Vector3> diagonal = Strip("AddAngledSlope", cell, corner, full, 0f);
+            List<Vector3> partialSlope = Strip("AddAngledSlope", cell, corner, partial, 0f);
+            var midpoint = new Vector3(cell.x + 0.5f, 0f, cell.z + 0.5f);
+            var outward = new Vector2(-x.x * 0.70710678f, -z.z * 0.70710678f);
+            var direction = new Vector3(outward.x, 0f, outward.y);
+            Check(diagonal.Count == 4 && diagonal.TrueForAll(v => partialSlope.Exists(p => SamePoint(v, p)))
+                && SamePoint((diagonal[0] + diagonal[1]) * 0.5f, midpoint)
+                && MathF.Abs(Vector3.Dot(diagonal[2] - midpoint, direction) + 0.16f) < 0.0001f
+                && MathF.Abs(Vector3.Dot(diagonal[3] - midpoint, direction) + 0.16f) < 0.0001f
+                && Vector3.Cross(diagonal[1] - diagonal[0], diagonal[2] - diagonal[0]).y > 0f,
+                $"light strip follows the exterior texture diagonal at constant width ({corner})");
+
+            float Incidence(Vector2 sun) =>
+                (float)Call(typeof(MapOverlayRenderer), "HullIncidence", sun, corner, false, true);
+            Check(MathF.Abs(Incidence(outward) - 1f) < 0.0001f
+                && MathF.Abs(Incidence(-outward) + 1f) < 0.0001f
+                && MathF.Abs(Incidence(new Vector2(-outward.y, outward.x))) < 0.0001f,
+                $"diagonal incidence changes sign and vanishes under grazing light ({corner})");
+
+            int sideX = x.x > 0 ? 1 : 3, sideZ = z.z > 0 ? 0 : 2;
+            CheckMiter(alongX.Position, (sideX + 2) & 3, (sideZ + 2) & 3);
+            CheckMiter(alongZ.Position, (sideZ + 2) & 3, (sideX + 2) & 3);
+            void CheckMiter(IntVec3 wall, int coveredSide, int exposedSide)
+            {
+                int hidden = (int)Call(hull, "AngledSidesAt", wall, full);
+                Check(hidden == (1 << coveredSide)
+                    && Strip("AddStraightSlope", wall, coveredSide, hidden, full, 0f).Count == 0,
+                    $"covered straight face does not leave a rectangular light band ({corner}, {coveredSide})");
+                List<Vector3> straight = Strip("AddStraightSlope", wall, exposedSide, hidden, full, 0f);
+                Check(straight.Count == 4 && straight.FindAll(v => diagonal.Exists(d => SamePoint(v, d))).Count == 2,
+                    $"angle and straight wall share both vertices of the join ({corner}, {exposedSide})");
+            }
+            map.edificeGrid.DeRegister(alongX);
+            Check(!Angles(bounds).ContainsKey(cell), $"removing a wall removes the original corner and its slope ({corner})");
+            map.edificeGrid.Register(alongX);
+            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = deck;
+            Check(!Angles(bounds).ContainsKey(cell), $"foundation in the anchor suppresses the corner ({corner})");
+        }
+
+        var left = new IntVec3(16, 0, 29);
+        var right = left + IntVec3.East + IntVec3.South;
+        Place(left + IntVec3.North);
+        Place(left + IntVec3.East);
+        Building farWall = Place(right + IntVec3.East);
+        var leftAngles = Angles(CellRect.SingleCell(left).ExpandedBy(1));
+        var rightAngles = Angles(CellRect.SingleCell(right).ExpandedBy(1));
+        List<Vector3> leftSlope = Strip("AddAngledSlope", left, 0, leftAngles, 0f);
+        List<Vector3> rightSlope = Strip("AddAngledSlope", right, 0, rightAngles, 0f);
+        Check(leftSlope.FindAll(v => rightSlope.Exists(p => SamePoint(v, p))).Count == 2,
+            "continuing diagonal shares both endpoints with the next section");
+        map.edificeGrid.DeRegister(farWall);
+        dirty.Clear();
+        MapOverlayRenderer.MarkDirty(map, farWall.Position, (ulong)MapMeshFlagDefOf.Terrain);
+        Check(dirty.SetEquals(new[] { 1 << 16, 1 | (1 << 16) }),
+            "two-cell dependency dirties the neighboring section when the far wall changes");
+        var brokenAngles = Angles(CellRect.SingleCell(left).ExpandedBy(1));
+        List<Vector3> brokenSlope = Strip("AddAngledSlope", left, 0, brokenAngles, 0f);
+        Check(!brokenAngles.ContainsKey(right)
+            && brokenSlope.FindAll(v => leftSlope.Exists(p => SamePoint(v, p))).Count == 3,
+            "breaking a diagonal across sections restores a miter at the surviving endpoint");
     }
 
     static void ExportRoofEdgePreview(Type edges)

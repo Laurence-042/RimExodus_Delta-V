@@ -317,6 +317,9 @@ namespace DeltaV
                 QuadsDrawnLastPass += submesh.tris.Count / 6;
             }
 
+            AddHullEdgeCommands(section.hullEdges?.angledSlopes, matrix, localSun, false,
+                collector, angled: true);
+
             performance?.Record(PerformanceStage.ShellStatic, staticStart);
             using var dynamicTiming = performance?.Measure(PerformanceStage.ShellDynamic) ?? default;
             for (int i = 0; i < section.things.Count; i++)
@@ -360,14 +363,14 @@ namespace DeltaV
         }
 
         private static void AddHullEdgeCommands(Mesh[] meshes, Matrix4x4 matrix, Vector2 localSun,
-            bool floor, List<OverlayCommand> collector)
+            bool floor, List<OverlayCommand> collector, bool angled = false)
         {
             if (meshes == null) return;
             for (int side = 0; side < 4; side++)
             {
                 Mesh mesh = meshes[side];
                 if (mesh == null) continue;
-                float incidence = HullIncidence(localSun, side, floor);
+                float incidence = HullIncidence(localSun, side, floor, angled);
                 Material material = ShellHullVisuals.EdgeMaterial;
                 collector.Add(new OverlayCommand { mesh = mesh, matrix = matrix,
                     material = material, props = ShellHullVisuals.EdgeTint(incidence, floor),
@@ -400,15 +403,10 @@ namespace DeltaV
             }
         }
 
-        private static float HullIncidence(Vector2 localSun, int side, bool floor)
+        private static float HullIncidence(Vector2 localSun, int side, bool floor, bool angled = false)
         {
-            float incidence = side switch
-            {
-                0 => localSun.y,
-                1 => localSun.x,
-                2 => -localSun.y,
-                _ => -localSun.x
-            };
+            Vector2 normal = angled ? ShellHullVisuals.AngledNormal(side) : ShellHullVisuals.SideNormal(side);
+            float incidence = Vector2.Dot(localSun, normal);
             // A floor edge points toward the wall: light behind it darkens the floor.
             return floor ? -incidence : incidence;
         }
@@ -625,14 +623,19 @@ namespace DeltaV
                 return batch;
             }
 
-            // One-cell halo lets a floor contact in another section read the same wall
-            // adjacency as the wall's own linked variant.
+            // Keep floor contacts and the joins between angled and straight slopes
+            // consistent across section boundaries.
+            CellRect neighborhood = rect.ExpandedBy(1).ClipInsideMap(map);
+            bool odyssey = ModsConfig.OdysseyActive;
+            var angles = odyssey ? ShellHullVisuals.FindAngledCorners(map, neighborhood)
+                : new Dictionary<IntVec3, int>();
             var wallAdjacency = new Dictionary<IntVec3, ShellHullVisuals.Adjacency>();
-            foreach (IntVec3 cell in rect.ExpandedBy(1).ClipInsideMap(map))
+            foreach (IntVec3 cell in neighborhood)
             {
                 Thing wall = cell.GetEdificeSafe(map);
                 if (wall?.def == ThingDefOf.GravshipHull)
-                    wallAdjacency[cell] = ShellHullVisuals.Analyze(map, wall);
+                    wallAdjacency[cell] = ShellHullVisuals.Analyze(map, wall,
+                        ShellHullVisuals.AngledSidesAt(cell, angles));
             }
             foreach (Thing thing in result.things)
             {
@@ -687,11 +690,11 @@ namespace DeltaV
                         thing.thingIDNumber ^ 0x5A31D1);
                 }
             }
-            result.hullEdges = ShellHullVisuals.BuildEdges(map, rect, wallAdjacency,
+            result.hullEdges = ShellHullVisuals.BuildEdges(map, rect, wallAdjacency, angles,
                 () => SharedBatch(ShellSurfaceLayer.Hull, 0f).layer);
             foreach (PrintBatch batch in result.printed) batch.Complete();
             result.roofEdges = ShellRoofEdges.Build(map, rect);
-            if (ModsConfig.OdysseyActive)
+            if (odyssey)
             {
                 // Corner cells can be empty and are absent from result.things.
                 // Use the source map's section coordinates so vanilla evaluates
@@ -713,15 +716,15 @@ namespace DeltaV
             int sx = cell.x / SectionSize;
             int sz = cell.z / SectionSize;
             cache.snapshots.MarkDirty(sx, sz);
-            // Wall/foundation contact affects adjoining floor meshes; Odyssey's
-            // angled corner pieces also read diagonal cells. Mark the whole ring
-            // even when vanilla did not request adjacent section regeneration.
-            for (int i = 0; i < 8; i++)
-            {
-                IntVec3 neighbor = cell + GenAdj.AdjacentCells[i];
-                if (neighbor.InBounds(map))
-                    cache.snapshots.MarkDirty(neighbor.x / SectionSize, neighbor.z / SectionSize);
-            }
+            // A wall or foundation can change the neighboring corner, whose
+            // inset joins then extend one more cell into another section.
+            ulong angleFlags = (ulong)MapMeshFlagDefOf.Terrain | (ulong)MapMeshFlagDefOf.Things
+                | (ulong)MapMeshFlagDefOf.Buildings;
+            int radius = (flags & angleFlags) != 0 ? 2 : 1;
+            CellRect neighborhood = CellRect.CenteredOn(cell, radius).ClipInsideMap(map);
+            for (int z = neighborhood.minZ / SectionSize; z <= neighborhood.maxZ / SectionSize; z++)
+                for (int x = neighborhood.minX / SectionSize; x <= neighborhood.maxX / SectionSize; x++)
+                    cache.snapshots.MarkDirty(x, z);
             // A roof or loss of its foundation can uncover a building rooted in another section.
             if ((flags & ((ulong)MapMeshFlagDefOf.Roofs | (ulong)MapMeshFlagDefOf.Terrain)) != 0
                 && cell.InBounds(map))

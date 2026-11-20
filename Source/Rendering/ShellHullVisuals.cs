@@ -17,13 +17,16 @@ namespace DeltaV
             public readonly int floorSides;
             public readonly int cornerFill;
             public readonly int outerCorner;
+            public readonly int angledSides;
 
-            public Adjacency(int connected, int floorSides, int cornerFill, int outerCorner)
+            public Adjacency(int connected, int floorSides, int cornerFill, int outerCorner,
+                int angledSides)
             {
                 this.connected = connected;
                 this.floorSides = floorSides;
                 this.cornerFill = cornerFill;
                 this.outerCorner = outerCorner;
+                this.angledSides = angledSides;
             }
         }
 
@@ -33,6 +36,7 @@ namespace DeltaV
             public readonly Mesh[] corners = new Mesh[4];
             public readonly Mesh[] outerCorners = new Mesh[4];
             public readonly Mesh[] slopes = new Mesh[4];
+            public readonly Mesh[] angledSlopes = new Mesh[4];
 
             public void Dispose()
             {
@@ -42,6 +46,7 @@ namespace DeltaV
                     if (corners[i] != null) Object.Destroy(corners[i]);
                     if (outerCorners[i] != null) Object.Destroy(outerCorners[i]);
                     if (slopes[i] != null) Object.Destroy(slopes[i]);
+                    if (angledSlopes[i] != null) Object.Destroy(angledSlopes[i]);
                 }
             }
         }
@@ -52,37 +57,31 @@ namespace DeltaV
             private readonly List<Vector2> uvs = new List<Vector2>();
             private readonly List<int> triangles = new List<int>();
 
-            public void Add(IntVec3 cell, int side, float width, float altitude)
+            public void Add(IntVec3 cell, int side, float width, float altitude,
+                float startMiter = 0f, float endMiter = 0f)
             {
-                float x = cell.x;
-                float z = cell.z;
-                float x0 = x, x1 = x + 1f, z0 = z, z1 = z + 1f;
-                switch (side)
-                {
-                    case 0: z0 = z1 - width; break; // north
-                    case 1: x0 = x1 - width; break; // east
-                    case 2: z1 = z0 + width; break; // south
-                    default: x1 = x0 + width; break; // west
-                }
+                Vector2 outward = SideNormal(side);
+                Vector2 along = new Vector2(outward.y, -outward.x);
+                Vector2 middle = new Vector2(cell.x + 0.5f, cell.z + 0.5f) + outward * 0.5f;
+                Vector2 start = middle - along * 0.5f;
+                Vector2 end = middle + along * 0.5f;
+                AddStrip(start, end, start - outward * width + along * startMiter,
+                    end - outward * width - along * endMiter, altitude);
+            }
+
+            public void AddStrip(Vector2 start, Vector2 end, Vector2 innerStart,
+                Vector2 innerEnd, float altitude)
+            {
                 int at = vertices.Count;
-                vertices.Add(new Vector3(x0, altitude, z0));
-                vertices.Add(new Vector3(x0, altitude, z1));
-                vertices.Add(new Vector3(x1, altitude, z1));
-                vertices.Add(new Vector3(x1, altitude, z0));
-                // UV.x is distance from the wall-facing edge, independent of
-                // screen orientation. 0 is the seam; 1 is width into this cell.
-                for (int i = 0; i < 4; i++)
-                {
-                    Vector3 vertex = vertices[at + i];
-                    float distance = side switch
-                    {
-                        0 => cell.z + 1f - vertex.z,
-                        1 => cell.x + 1f - vertex.x,
-                        2 => vertex.z - cell.z,
-                        _ => vertex.x - cell.x
-                    };
-                    uvs.Add(new Vector2(distance / width, i == 1 || i == 2 ? 1f : 0f));
-                }
+                vertices.Add(new Vector3(start.x, altitude, start.y));
+                vertices.Add(new Vector3(end.x, altitude, end.y));
+                vertices.Add(new Vector3(innerEnd.x, altitude, innerEnd.y));
+                vertices.Add(new Vector3(innerStart.x, altitude, innerStart.y));
+                // UV.x runs from the visible edge into the surface.
+                uvs.Add(Vector2.zero);
+                uvs.Add(Vector2.up);
+                uvs.Add(Vector2.one);
+                uvs.Add(Vector2.right);
                 triangles.Add(at); triangles.Add(at + 1); triangles.Add(at + 2);
                 triangles.Add(at); triangles.Add(at + 2); triangles.Add(at + 3);
             }
@@ -131,6 +130,8 @@ namespace DeltaV
         // The visible outside edge of the Odyssey wall atlas is inset 0.05 cell.
         private const float OuterRadius = 0.95f;
         private const float WallSlopeWidth = 0.16f;
+        private const float DiagonalComponent = 0.70710678f;
+        private const float SlopeMiter = (2f * DiagonalComponent - 1f) * WallSlopeWidth;
         private const float FloorSeamWidth = 0.65f;
         private const int ArcSegments = 24;
         private static readonly Vector2[] CornerArc = MakeCornerArc();
@@ -139,6 +140,15 @@ namespace DeltaV
 
         internal static int CornerSideX(int corner) => corner < 2 ? 1 : 3;
         internal static int CornerSideZ(int corner) => corner == 0 || corner == 3 ? 0 : 2;
+
+        internal static Vector2 SideNormal(int side)
+        {
+            IntVec3 direction = GenAdj.CardinalDirections[side];
+            return new Vector2(direction.x, direction.z);
+        }
+
+        internal static Vector2 AngledNormal(int corner) =>
+            -(SideNormal(CornerSideX(corner)) + SideNormal(CornerSideZ(corner))) * DiagonalComponent;
 
         private static int CornerOf(int sides) => sides switch
         {
@@ -180,7 +190,7 @@ namespace DeltaV
             return wall != null && wall.def == ThingDefOf.GravshipHull ? wall : null;
         }
 
-        internal static Adjacency Analyze(Map map, Thing wall)
+        internal static Adjacency Analyze(Map map, Thing wall, int angledSides)
         {
             IntVec3 cell = wall.Position;
             int foundationMask = 0;
@@ -209,7 +219,7 @@ namespace DeltaV
             }
             int outerCorner = -1;
             int innerCorner = CornerOf(wallMask);
-            if (innerCorner >= 0 && wallMask == foundationMask)
+            if (innerCorner >= 0 && wallMask == foundationMask && angledSides == 0)
             {
                 IntVec3 inside = cell + GenAdj.CardinalDirections[CornerSideX(innerCorner)]
                     + GenAdj.CardinalDirections[CornerSideZ(innerCorner)];
@@ -219,7 +229,7 @@ namespace DeltaV
             }
             // Join actual hull walls and roofed foundations. Open decks expose
             // the wall face instead of completing an imaginary roof surface.
-            return new Adjacency(foundationMask, floorMask, cornerFill, outerCorner);
+            return new Adjacency(foundationMask, floorMask, cornerFill, outerCorner, angledSides);
         }
 
         internal static bool HasShellRoof(Map map, IntVec3 cell) =>
@@ -320,33 +330,120 @@ namespace DeltaV
             return a.z < b.z;
         }
 
+        internal static Dictionary<IntVec3, int> FindAngledCorners(Map map, CellRect rect)
+        {
+            var corners = new Dictionary<IntVec3, int>();
+            foreach (IntVec3 cell in rect)
+            {
+                if (!SectionLayer_GravshipHull.ShouldDrawCornerPiece(cell, map, map.terrainGrid,
+                        out var type, out _)) continue;
+                // Full and partial tiles share the exposed diagonal across the anchor cell.
+                int corner = type switch
+                {
+                    SectionLayer_GravshipHull.CornerType.Corner_NE
+                        or SectionLayer_GravshipHull.CornerType.Diagonal_NE => 0,
+                    SectionLayer_GravshipHull.CornerType.Corner_SE
+                        or SectionLayer_GravshipHull.CornerType.Diagonal_SE => 1,
+                    SectionLayer_GravshipHull.CornerType.Corner_SW
+                        or SectionLayer_GravshipHull.CornerType.Diagonal_SW => 2,
+                    _ => 3
+                };
+                corners.Add(cell, corner);
+            }
+            return corners;
+        }
+
+        internal static int AngledSidesAt(IntVec3 wall, Dictionary<IntVec3, int> corners)
+        {
+            int sides = 0;
+            for (int side = 0; side < 4; side++)
+            {
+                IntVec3 neighbor = wall + GenAdj.CardinalDirections[side];
+                if (corners.TryGetValue(neighbor, out int corner)
+                    && FacesIntoAngle(corner, side)) sides |= 1 << side;
+            }
+            return sides;
+        }
+
+        private static bool FacesIntoAngle(int corner, int fromWallSide) =>
+            ((fromWallSide + 2) & 3) == ((fromWallSide & 1) == 0
+                ? CornerSideZ(corner) : CornerSideX(corner));
+
+        private static void AddStraightSlope(QuadBuilder builder, IntVec3 cell, int side,
+            int hiddenSides, Dictionary<IntVec3, int> angles, float altitude)
+        {
+            if ((hiddenSides & (1 << side)) != 0) return;
+            int start = (side + 3) & 3, end = (side + 1) & 3;
+            builder.Add(cell, side, WallSlopeWidth, altitude, MiterAt(start), MiterAt(end));
+
+            float MiterAt(int toward)
+            {
+                IntVec3 neighbor = cell + GenAdj.CardinalDirections[toward];
+                return (hiddenSides & (1 << toward)) != 0
+                    && angles.TryGetValue(neighbor, out int corner) && FacesIntoAngle(corner, side)
+                    ? SlopeMiter : 0f;
+            }
+        }
+
+        private static void AddAngledSlope(QuadBuilder builder, IntVec3 cell, int corner,
+            Dictionary<IntVec3, int> angles, float altitude)
+        {
+            Vector2 outward = AngledNormal(corner);
+            Vector2 along = new Vector2(outward.y, -outward.x);
+            var step = new IntVec3(Math.Sign(along.x), 0, Math.Sign(along.y));
+            Vector2 half = new Vector2(step.x * 0.5f, step.z * 0.5f);
+            Vector2 center = new Vector2(cell.x + 0.5f, cell.z + 0.5f);
+            Vector2 start = center - half;
+            Vector2 end = center + half;
+            // Continuing diagonals share a perpendicular cut. At a straight wall,
+            // the inner endpoints instead meet at the intersection of the two insets.
+            float startMiter = ContinuesAt(cell - step) ? 0f : SlopeMiter;
+            float endMiter = ContinuesAt(cell + step) ? 0f : SlopeMiter;
+            builder.AddStrip(start, end, start - outward * WallSlopeWidth + along * startMiter,
+                end - outward * WallSlopeWidth - along * endMiter, altitude);
+
+            bool ContinuesAt(IntVec3 other) =>
+                angles.TryGetValue(other, out int adjacent) && adjacent == corner;
+        }
+
         internal static EdgeMeshes BuildEdges(Map map, CellRect rect,
-            Dictionary<IntVec3, Adjacency> adjacency, Func<SectionLayer_ThingsGeneral> hullLayer)
+            Dictionary<IntVec3, Adjacency> adjacency, Dictionary<IntVec3, int> angles,
+            Func<SectionLayer_ThingsGeneral> hullLayer)
         {
             var result = new EdgeMeshes();
             var floorBuilders = new QuadBuilder[4];
             var cornerBuilders = new QuadBuilder[4];
             var outerCornerBuilders = new QuadBuilder[4];
             var slopeBuilders = new QuadBuilder[4];
+            var angledBuilders = new QuadBuilder[4];
             for (int i = 0; i < 4; i++)
             {
                 floorBuilders[i] = new QuadBuilder();
                 cornerBuilders[i] = new QuadBuilder();
                 outerCornerBuilders[i] = new QuadBuilder();
                 slopeBuilders[i] = new QuadBuilder();
+                angledBuilders[i] = new QuadBuilder();
             }
+            float slopeAltitude = AltitudeLayer.BuildingOnTop.AltitudeFor() + 0.003f;
             foreach (IntVec3 cell in rect)
             {
+                if (angles.TryGetValue(cell, out int angle))
+                {
+                    AddAngledSlope(angledBuilders[angle], cell, angle, angles, slopeAltitude);
+                    continue;
+                }
                 if (adjacency.TryGetValue(cell, out Adjacency wall))
                 {
-                    float slopeAltitude = AltitudeLayer.BuildingOnTop.AltitudeFor() + 0.003f;
                     if (wall.outerCorner >= 0)
                         outerCornerBuilders[wall.outerCorner].AddCorner(cell, wall.outerCorner,
                             slopeAltitude, OuterRadius);
                     else
+                    {
                         for (int side = 0; side < 4; side++)
                             if ((wall.connected & (1 << side)) == 0)
-                                slopeBuilders[side].Add(cell, side, WallSlopeWidth, slopeAltitude);
+                                AddStraightSlope(slopeBuilders[side], cell, side, wall.angledSides,
+                                    angles, slopeAltitude);
+                    }
                     continue;
                 }
 
@@ -395,6 +492,7 @@ namespace DeltaV
                 result.corners[side] = cornerBuilders[side].Finish($"DeltaV_ShellFloorCorner_{side}");
                 result.outerCorners[side] = outerCornerBuilders[side].Finish($"DeltaV_ShellOuterCorner_{side}");
                 result.slopes[side] = slopeBuilders[side].Finish($"DeltaV_ShellBeamSlope_{side}");
+                result.angledSlopes[side] = angledBuilders[side].Finish($"DeltaV_ShellAngledSlope_{side}");
             }
             return result;
         }
